@@ -793,7 +793,11 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
   }
 
-  code = pAPI->metaFn.getTableTags(pVnode, pTableListInfo->idInfo.suid, pUidTagList);
+  if (taosArrayGetSize(pUidTagList) > 0) {
+    code = pAPI->metaFn.getTableTagsByUid(pVnode, pTableListInfo->idInfo.suid, pUidTagList);
+  } else {
+    code = pAPI->metaFn.getTableTags(pVnode, pTableListInfo->idInfo.suid, pUidTagList);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
@@ -1101,7 +1105,7 @@ static int32_t optimizeTbnameInCond(void* pVnode, int64_t suid, SArray* list, SN
   }
   
 end:
-  return code == 0;
+  return code;
 }
 
 static int32_t getTableListInInOperator(void* pVnode, SArray* pExistedUidList, SNodeListNode* pList, SStorageAPI* pStoreAPI,
@@ -1571,6 +1575,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     QUERY_CHECK_NULL(uid, code, lino, end, terrno);
 
     info.uid = *uid;
+      //qInfo("doSetQualifiedUid row:%d added to pTableList", i);
     void* p = taosArrayPush(pListInfo->pTableList, &info);
     QUERY_CHECK_NULL(p, code, lino, end, terrno);
   }
