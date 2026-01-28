@@ -1423,4 +1423,4 @@ class TestFunCols:
 
     def stop(self):
         tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+

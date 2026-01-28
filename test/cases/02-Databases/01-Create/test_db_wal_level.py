@@ -176,5 +176,5 @@ class TestWalLevelSkip:
         time.sleep(2)
         tdLog.info("restart taosd")
         tdDnodes.start(1)
-        tdLog.success(f"{__file__} successfully executed")
+
 

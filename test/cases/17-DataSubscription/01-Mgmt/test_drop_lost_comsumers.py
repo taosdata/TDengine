@@ -320,4 +320,4 @@ class TestDropLostConsumers:
         # self.case_session_timeout()
         self.case_max_poll_timeout()
 
-        tdLog.success(f"{__file__} successfully executed")
+
