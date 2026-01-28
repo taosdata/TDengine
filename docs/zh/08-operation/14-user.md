@@ -90,7 +90,7 @@ alter_user_clause: {
 如下 SQL 禁用 test 用户。
 
 ```sql
-alter user test enable 0
+alter user test enable 0;
 ```
 
 ### 删除用户
@@ -98,7 +98,7 @@ alter user test enable 0
 删除用户的 SQL 如下。
 
 ```sql
-drop user user_name
+drop user user_name;
 ```
 
 ## 权限管理 - 3.3.x.y 版本
@@ -141,19 +141,19 @@ resources ：{
 如下 SQL 将数据库 power 的 read 权限授权给用户 test。
 
 ```sql
-grant read on power to test
+grant read on power to test;
 ```
 
 如下 SQL 将数据库 power 下超级表 meters 的全部权限授权给用户 test。
 
 ```sql
-grant all on power.meters to test
+grant all on power.meters to test;
 ```
 
 如下 SQL 将超级表 meters 离标签值 groupId 等于 1 的子表的 write 权限授权给用户 test。
 
 ```sql
-grant all on power.meters with groupId=1 to test
+grant all on power.meters with groupId=1 to test;
 ```
 
 如果用户被授予了数据库的写权限，那么用户对这个数据库下的所有表都有读和写的权限。但如果一个数据库只有读的权限或甚至读的权限都没有，表的授权会让用户能读或写部分表，详细的授权组合见参考手册。
@@ -189,13 +189,13 @@ priv_type: {
 在数据库 power 下将视图 view_name 的读权限授权给用户 test，SQL 如下。
 
 ```sql
-grant read on power.view_name to test
+grant read on power.view_name to test;
 ```
 
 在数据库 power 库下将视图 view_name 的全部权限授权给用户 test，SQL 如下。
 
 ```sql
-grant all on power.view_name to test
+grant all on power.view_name to test;
 ```
 
 ### 消息订阅授权
@@ -226,7 +226,7 @@ priv_level : {
 将名为 topic_name 的主题授权给用户 test，SQL 如下。
 
 ```sql
-grant subscribe on topic_name to test
+grant subscribe on topic_name to test;
 ```
 
 ### 查看授权
@@ -293,19 +293,19 @@ priv_level : {
 撤销用户 test 对于数据库 power 的所有授权的 SQL 如下。
 
 ```sql
-revoke all on power from test
+revoke all on power from test;
 ```
 
 撤销用户 test 对于数据库 power 的视图 view_name 的读授权的 SQL 如下。
 
 ```sql
-revoke read on power.view_name from test
+revoke read on power.view_name from test;
 ```
 
 撤销用户 test 对于消息订阅 topic_name 的 subscribe 授权的 SQL 如下。
 
 ```sql
-revoke subscribe on topic_name from test
+revoke subscribe on topic_name from test;
 ```
 
 ---
@@ -314,7 +314,7 @@ revoke subscribe on topic_name from test
 
 ### 三权分立概述
 
-从 3.4.0.0 开始，TDengine 企业版实现了基于角色的访问控制（RBAC）和严格的三权分立：
+从 3.4.0.0 开始，TDengine 企业版实现了基于角色的访问控制（RBAC）和三权分立：
 
 | 角色 | 全称 | 职责 |
 |------|------|------|
@@ -506,10 +506,21 @@ priv_type: {
 
 ```sql
 -- 授予对象权限
-GRANT privileges ON priv_level [WITH condition] TO {user_name | role_name}
+GRANT privileges ON [priv_obj] priv_level [WITH condition] TO {user_name | role_name}
 
 -- 撤销对象权限
-REVOKE privileges ON priv_level [WITH condition] FROM {user_name | role_name}
+REVOKE privileges ON [priv_obj] priv_level [WITH condition] FROM {user_name | role_name}
+
+priv_obj: {
+    database           -- 数据库
+  | table              -- 表
+  | view               -- 视图
+  | index              -- 索引
+  | tsma               -- 窗口预聚集
+  | rsma               -- 降采样存储
+  | topic              -- 主题
+  | stream             -- 流
+}
 
 priv_level: {
     *                  -- 所有库
@@ -518,48 +529,52 @@ priv_level: {
   | dbname.*           -- 指定库的所有对象
   | dbname.objname     -- 指定对象
 }
-```
 
-#### 库权限
+privileges: {
+    ALL [PRIVILEGES]
+  | priv_type [, priv_type] ...
+}
 
-```
-ALTER DATABASE | DROP DATABASE | USE DATABASE
-FLUSH DATABASE | COMPACT DATABASE | TRIM DATABASE
-ROLLUP DATABASE | SCAN DATABASE | SHOW DATABASES
-```
+priv_type: {
 
-#### 表权限
+    #### 库权限
 
-```
-CREATE TABLE | DROP TABLE | ALTER TABLE
-SHOW TABLES | SHOW CREATE TABLE
-SELECT TABLE | INSERT TABLE | DELETE TABLE
-```
+    ALTER DATABASE | DROP DATABASE | USE DATABASE
+    FLUSH DATABASE | COMPACT DATABASE | TRIM DATABASE
+    ROLLUP DATABASE | SCAN DATABASE | SHOW DATABASES
 
-#### 索引权限
+    #### 表权限
 
-```
-CREATE INDEX | DROP INDEX | SHOW INDEXES
-```
+    CREATE TABLE | DROP TABLE | ALTER TABLE
+    SHOW TABLES | SHOW CREATE TABLE
+    SELECT TABLE | INSERT TABLE | DELETE TABLE
 
-#### 视图权限
+    #### 视图权限
 
-```
-CREATE VIEW | DROP VIEW | SHOW VIEWS | SELECT VIEW
-```
+    CREATE VIEW | DROP VIEW | SHOW VIEWS | SELECT VIEW
 
-#### 订阅权限
+    #### 索引权限
 
-```
-CREATE TOPIC | DROP TOPIC | SHOW TOPICS | SUBSCRIBE
-SHOW CONSUMERS | SHOW SUBSCRIPTIONS
-```
+    CREATE INDEX | DROP INDEX | SHOW INDEXES
 
-#### 流计算权限
+    #### 窗口预聚集权限
 
-```
-CREATE STREAM | DROP STREAM | SHOW STREAMS
-START STREAM | STOP STREAM | RECALC STREAM
+    CREATE TSMA | DROP TSMA SHOW TSMAS
+
+    #### 降采样存储权限
+
+    CREATE RSMA | DROP RSMA | ALTER RSMA | SHOW RSMAS | SHOW CREATE RSMA
+
+    #### 订阅权限
+
+    CREATE TOPIC | DROP TOPIC | SHOW TOPICS | SUBSCRIBE
+    SHOW CONSUMERS | SHOW SUBSCRIPTIONS
+
+    #### 流计算权限
+
+    CREATE STREAM | DROP STREAM | SHOW STREAMS
+    START STREAM | STOP STREAM | RECALC STREAM
+}
 ```
 
 ### 审计数据库
