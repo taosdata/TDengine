@@ -180,6 +180,7 @@ typedef struct SRemoteValueListNode {
 
 typedef struct SRemoteRowNode {
   SValueNode val;
+  bool       isMinVal;
   bool       valSet;
   bool       hasValue;
   bool       hasNull;

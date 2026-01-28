@@ -735,6 +735,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       param->remoteParam.hasRemoteParam = true;
       param->remoteParam.hasValue = pRemote->hasValue;
       param->remoteParam.hasNull = pRemote->hasNull;
+      param->remoteParam.isMinVal = pRemote->isMinVal;
 
       pRemote->val.node.type = QUERY_NODE_VALUE;
 

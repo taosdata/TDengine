@@ -2771,6 +2771,7 @@ static int32_t replaceExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode
         SRemoteRowNode* pRow = (SRemoteRowNode*)*pNode;
         pRow->val.flag |= VALUE_FLAG_VAL_UNSET;
         pRow->subQIdx = pCxt->pSubQueries->length - 1;
+        pRow->isMinVal = (rewriteType == E_SQ_REWRITE_TO_MIN);
         tstrncpy(pRow->val.node.aliasName, ((SExprNode*)pSubQuery)->aliasName, sizeof(pRow->val.node.aliasName));
         tstrncpy(pRow->val.node.userAlias, ((SExprNode*)pSubQuery)->userAlias, sizeof(pRow->val.node.userAlias));
         getExprSubQueryResType(pSubQuery, &pRow->val.node.resType);

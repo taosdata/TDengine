@@ -324,6 +324,7 @@ typedef struct SRemoteParam {
   bool   hasRemoteParam;
   bool   hasValue;
   bool   hasNull;
+  bool   isMinVal;
 } SRemoteParam;
 
 struct SScalarParam {

@@ -1956,7 +1956,7 @@ _return:
   SCL_RET(code);
 }
 
-int32_t doVectorCompareWithHashParam(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
+int32_t vectorCompareWithHashParam(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
                             int32_t step, __compar_fn_t fp, int32_t optr, int32_t *num) {
   int32_t code = TSDB_CODE_SUCCESS, i = startIndex;
   SHashParam* pHParam = &pRight->hashParam;
@@ -2037,99 +2037,123 @@ int32_t doVectorCompareWithHashParam(SScalarParam *pLeft, SScalarParam *pLeftVar
   return code;
 }
 
-int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
-                            int32_t numOfRows, int32_t step, __compar_fn_t fp, int32_t optr, int32_t *num) {
+int32_t vectorCompareBetweenMathTypes(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
+                            int32_t endIndex, int32_t step, __compar_fn_t fp, int32_t optr, int32_t *num) {
   bool   *pRes = (bool *)pOut->columnData->pData;
-  int32_t code = TSDB_CODE_SUCCESS, i = startIndex;
-
-  if (pRight->hashParam.hasHashParam) {
-    return doVectorCompareWithHashParam(pLeft, pLeftVar, pRight, pOut, startIndex, step, fp, optr, num);
-  }
-
-  if (IS_MATHABLE_TYPE(GET_PARAM_TYPE(pLeft)) && IS_MATHABLE_TYPE(GET_PARAM_TYPE(pRight))) {
-    if (!(pLeft->columnData->hasNull || pRight->columnData->hasNull)) {
-      for (int32_t i = startIndex; i < numOfRows && i >= 0; i += step) {
-        int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
-        int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
-
-        pRes[i] = compareForType(fp, optr, pLeft->columnData, leftIndex, pRight->columnData, rightIndex);
-        if (pRes[i]) {
-          ++(*num);
-        }
-      }
-    } else {
-      for (int32_t i = startIndex; i < numOfRows && i >= 0; i += step) {
-        int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
-        int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
-
-        if (colDataIsNull_f(pLeft->columnData, leftIndex) ||
-            colDataIsNull_f(pRight->columnData, rightIndex)) {
-          pRes[i] = false;
-          colDataSetNULL(pOut->columnData, i);
-          continue;
-        }
-        pRes[i] = compareForType(fp, optr, pLeft->columnData, leftIndex, pRight->columnData, rightIndex);
-        if (pRes[i]) {
-          ++(*num);
-        }
-      }
-    }
-  } else {
-    //  if (GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_JSON || GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_JSON) {
-    for (int32_t i = startIndex; i < numOfRows && i >= startIndex; i += step) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  if (!(pLeft->columnData->hasNull || pRight->columnData->hasNull)) {
+    for (int32_t i = startIndex; i < endIndex && i >= 0; i += step) {
       int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
       int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
 
-      if (IS_HELPER_NULL(pLeft->columnData, leftIndex) || IS_HELPER_NULL(pRight->columnData, rightIndex)) {
-        bool res = false;
-        colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
-        colDataSetNULL(pOut->columnData, i);
-        continue;
+      pRes[i] = compareForType(fp, optr, pLeft->columnData, leftIndex, pRight->columnData, rightIndex);
+      if (pRes[i]) {
+        ++(*num);
       }
+    }
 
-      char   *pLeftData = colDataGetData(pLeft->columnData, leftIndex);
-      char   *pRightData = colDataGetData(pRight->columnData, rightIndex);
-      int64_t leftOut = 0;
-      int64_t rightOut = 0;
-      bool    freeLeft = false;
-      bool    freeRight = false;
-      bool    isJsonnull = false;
-      bool    result = false;
+    return code;
+  }
+  
+  for (int32_t i = startIndex; i < endIndex && i >= 0; i += step) {
+    int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
+    int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
 
-      SCL_ERR_RET(convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData,
-                                   &leftOut, &rightOut, &isJsonnull, &freeLeft, &freeRight, &result,
-                                   pLeft->charsetCxt));
-
-      if (isJsonnull) {
-        sclError("doVectorCompareImpl: invalid json null value");
-        SCL_ERR_RET(TSDB_CODE_APP_ERROR);
-      }
-
-      if (!pLeftData || !pRightData) {
-        result = false;
-      }
-      if (!result) {
-        colDataSetInt8(pOut->columnData, i, (int8_t *)&result);
-      } else {
-        bool res = filterDoCompare(fp, optr, pLeftData, pRightData);
-        //sclInfo("row %d compareRes:%d", i, res);
-        colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
-        if (res) {
-          ++(*num);
-        }
-      }
-
-      if (freeLeft) {
-        taosMemoryFreeClear(pLeftData);
-      }
-
-      if (freeRight) {
-        taosMemoryFreeClear(pRightData);
-      }
+    if (colDataIsNull_f(pLeft->columnData, leftIndex) ||
+        colDataIsNull_f(pRight->columnData, rightIndex)) {
+      pRes[i] = false;
+      colDataSetNULL(pOut->columnData, i);
+      continue;
+    }
+    pRes[i] = compareForType(fp, optr, pLeft->columnData, leftIndex, pRight->columnData, rightIndex);
+    if (pRes[i]) {
+      ++(*num);
     }
   }
 
   return code;
+}
+
+int32_t vectorCompareIncludeVarTypes(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
+                            int32_t endIndex, int32_t step, __compar_fn_t fp, int32_t optr, int32_t *num) {
+  for (int32_t i = startIndex; i < endIndex && i >= startIndex; i += step) {
+    int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
+    int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
+
+    if (IS_HELPER_NULL(pLeft->columnData, leftIndex) || IS_HELPER_NULL(pRight->columnData, rightIndex)) {
+      bool res = false;
+      colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
+      colDataSetNULL(pOut->columnData, i);
+      continue;
+    }
+
+    char   *pLeftData = colDataGetData(pLeft->columnData, leftIndex);
+    char   *pRightData = colDataGetData(pRight->columnData, rightIndex);
+    int64_t leftOut = 0;
+    int64_t rightOut = 0;
+    bool    freeLeft = false;
+    bool    freeRight = false;
+    bool    isJsonnull = false;
+    bool    result = false;
+
+    SCL_ERR_RET(convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData,
+                                 &leftOut, &rightOut, &isJsonnull, &freeLeft, &freeRight, &result,
+                                 pLeft->charsetCxt));
+
+    if (isJsonnull) {
+      sclError("doVectorCompareImpl: invalid json null value");
+      SCL_ERR_RET(TSDB_CODE_APP_ERROR);
+    }
+
+    if (!pLeftData || !pRightData) {
+      result = false;
+    }
+    if (!result) {
+      colDataSetInt8(pOut->columnData, i, (int8_t *)&result);
+    } else {
+      bool res = filterDoCompare(fp, optr, pLeftData, pRightData);
+      //sclInfo("row %d compareRes:%d", i, res);
+      colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
+      if (res) {
+        ++(*num);
+      }
+    }
+
+    if (freeLeft) {
+      taosMemoryFreeClear(pLeftData);
+    }
+
+    if (freeRight) {
+      taosMemoryFreeClear(pRightData);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t vectorCompareWithRemoteParam(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
+                            int32_t endIndex, int32_t step, __compar_fn_t fp, int32_t optr, int32_t *num) {
+
+}
+
+int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
+                            int32_t endIndex, int32_t step, __compar_fn_t fp, int32_t optr, int32_t *num) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pRight->hashParam.hasHashParam) {
+    return vectorCompareWithHashParam(pLeft, pLeftVar, pRight, pOut, startIndex, step, fp, optr, num);
+  }
+
+  if (pRight->remoteParam.hasRemoteParam) {
+    return vectorCompareWithRemoteParam(pLeft, pRight, pOut, startIndex, endIndex, step, fp, optr, num);
+  }
+
+  if (IS_MATHABLE_TYPE(GET_PARAM_TYPE(pLeft)) && IS_MATHABLE_TYPE(GET_PARAM_TYPE(pRight))) {
+    return vectorCompareBetweenMathTypes(pLeft, pRight, pOut, startIndex, endIndex, step, fp, optr, num);
+  }
+
+  return vectorCompareIncludeVarTypes(pLeft, pRight, pOut, startIndex, endIndex, step, fp, optr, num);
 }
 
 int32_t doVectorCompare(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarParam *pRight, SScalarParam *pOut,

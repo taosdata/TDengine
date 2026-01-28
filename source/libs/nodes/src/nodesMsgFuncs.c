@@ -1215,6 +1215,7 @@ static int32_t msgToRemoteValueListNode(STlvDecoder* pDecoder, void* pObj) {
 
 enum {
   REMOTE_ROW_CODE_VAL = 1,
+  REMOTE_ROW_CODE_IS_MIN,
   REMOTE_ROW_CODE_VAL_SET,
   REMOTE_ROW_CODE_HAS_VALUE,
   REMOTE_ROW_CODE_HAS_NULL,
@@ -1225,6 +1226,9 @@ static int32_t remoteRowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SRemoteRowNode* pNode = (const SRemoteRowNode*)pObj;
 
   int32_t code = tlvEncodeObj(pEncoder, REMOTE_ROW_CODE_VAL, valueNodeToMsg, pNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, REMOTE_ROW_CODE_IS_MIN, pNode->isMinVal);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, REMOTE_ROW_CODE_VAL_SET, pNode->valSet);
   }
@@ -1251,6 +1255,9 @@ static int32_t msgToRemoteRowNode(STlvDecoder* pDecoder, void* pObj) {
     switch (pTlv->type) {
       case REMOTE_ROW_CODE_VAL:
         code = tlvDecodeObjFromTlv(pTlv, msgToValueNode, &pNode->val);
+        break;
+      case REMOTE_ROW_CODE_IS_MIN:
+        code = tlvDecodeBool(pTlv, &pNode->isMinVal);
         break;
       case REMOTE_ROW_CODE_VAL_SET:
         code = tlvDecodeBool(pTlv, &pNode->valSet);

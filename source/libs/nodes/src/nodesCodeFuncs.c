@@ -5623,6 +5623,7 @@ static int32_t jsonToRemoteValueList(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkRemoteRowHasNull = "flag";
+static const char* jkRemoteRowIsMinVal = "isMinVal";
 static const char* jkRemoteRowValSet = "valueSet";
 static const char* jkRemoteRowHasValue = "hasValue";
 static const char* jkRemoteRowHasNull = "hasNull";
@@ -5632,6 +5633,9 @@ static int32_t remoteRowToJson(const void* pObj, SJson* pJson) {
   const SRemoteRowNode* pNode = (const SRemoteRowNode*)pObj;
 
   int32_t code = valueNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkRemoteRowIsMinVal, pNode->isMinVal);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkRemoteRowValSet, pNode->valSet);
   }
@@ -5652,6 +5656,9 @@ static int32_t jsonToRemoteRow(const SJson* pJson, void* pObj) {
   SRemoteRowNode* pNode = (SRemoteRowNode*)pObj;
 
   int32_t code = jsonToValueNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkRemoteRowIsMinVal, &pNode->isMinVal);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkRemoteRowValSet, &pNode->valSet);
   }

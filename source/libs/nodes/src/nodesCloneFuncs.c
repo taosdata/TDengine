@@ -530,6 +530,7 @@ static int32_t remoteValueListCopy(const SRemoteValueListNode* pSrc, SRemoteValu
 
 static int32_t remoteRowCopy(const SRemoteRowNode* pSrc, SRemoteRowNode* pDst) {
   COPY_BASE_OBJECT_FIELD(val, valueNodeCopy);
+  COPY_SCALAR_FIELD(isMinVal);
   COPY_SCALAR_FIELD(valSet);
   COPY_SCALAR_FIELD(hasValue);
   COPY_SCALAR_FIELD(hasNull);
