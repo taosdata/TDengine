@@ -523,6 +523,135 @@ char * replaceNewName(char* cmd, int len) {
     return newCmd;
 }
 
+static inline int ensure_cap(char **out, int *cap, int need, int used) {
+    if (used + need + 1 <= *cap) return 0;
+    int ncap = (*cap) * 2;
+    if (ncap < used + need + 1) ncap = used + need + 1;
+    char *tmp = (char*)realloc(*out, ncap);
+    if (!tmp) return -1;
+    *out = tmp;
+    *cap = ncap;
+    return 0;
+}
+
+static inline void skip_spaces(const char *s, int n, int *i) {
+    while (*i < n && (s[*i] == ' ' || s[*i] == '\t')) (*i)++;
+}
+
+// replace db names inside FROM/USING clauses like:
+//   FROM `olddb`.`tb`.`col`    -> FROM `newdb`.`tb`.`col`
+//   USING `olddb`.`vst` ...    -> USING `newdb`.`vst` ...
+static char* replaceDbNamesInFromUsing(const char *cmd) {
+    if (!cmd) return NULL;
+
+    const char *keys[] = { "FROM", "USING" };
+    const int   kcnt   = sizeof(keys) / sizeof(keys[0]);
+
+    int n = (int)strlen(cmd);
+    int cap = n + 1;
+    char *out = (char*)malloc(cap);
+    if (!out) return NULL;
+
+    int i = 0, w = 0;
+    int changed = 0;
+
+    while (i < n) {
+        int matched = -1;
+        for (int k = 0; k < kcnt; k++) {
+            int klen = (int)strlen(keys[k]);
+            if (i + klen < n && strncasecmp(cmd + i, keys[k], klen) == 0) {
+                matched = k;
+                // copy keyword
+                if (ensure_cap(&out, &cap, klen, w) != 0) { free(out); return NULL; }
+                memcpy(out + w, cmd + i, klen);
+                w += klen;
+                i += klen;
+
+                // spaces
+                int is = i;
+                skip_spaces(cmd, n, &i);
+                if (ensure_cap(&out, &cap, i - is, w) != 0) { free(out); return NULL; }
+                memcpy(out + w, cmd + is, i - is);
+                w += (i - is);
+
+                // optional backtick
+                int backtick = 0;
+                if (i < n && cmd[i] == '`') {
+                    backtick = 1;
+                    if (ensure_cap(&out, &cap, 1, w) != 0) { free(out); return NULL; }
+                    out[w++] = cmd[i++];
+                }
+
+                // db token start
+                int db_start = i;
+                while (i < n) {
+                    char ch = cmd[i];
+                    if (backtick) {
+                        if (ch == '`') break;
+                    }
+                    else {
+                        if (ch == '.' || ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r') break;
+                    }
+                    i++;
+                }
+                int db_end = i;
+
+                // look ahead to decide if it's a qualified name (db.)
+                int j = i;
+                if (backtick && j < n && cmd[j] == '`') j++;
+                int has_dot_after = (j < n && cmd[j] == '.');
+
+                // copy/replace db name
+                int seg_len = db_end - db_start;
+                if (seg_len > 0 && seg_len < TSDB_DB_NAME_LEN && has_dot_after) {
+                    char oldName[TSDB_DB_NAME_LEN];
+                    memcpy(oldName, cmd + db_start, seg_len);
+                    oldName[seg_len] = '\0';
+                    char *newName = findNewName(oldName);
+                    if (newName) {
+                        int newLen = (int)strlen(newName);
+                        if (ensure_cap(&out, &cap, newLen, w) != 0) { free(out); return NULL; }
+                        memcpy(out + w, newName, newLen);
+                        w += newLen;
+                        changed = 1;
+                    } else {
+                        if (ensure_cap(&out, &cap, seg_len, w) != 0) { free(out); return NULL; }
+                        memcpy(out + w, cmd + db_start, seg_len);
+                        w += seg_len;
+                    }
+                } else {
+                    // not a qualified db.name or empty -> copy as-is
+                    if (ensure_cap(&out, &cap, seg_len, w) != 0) { free(out); return NULL; }
+                    memcpy(out + w, cmd + db_start, seg_len);
+                    w += seg_len;
+                }
+
+                // closing backtick if any
+                if (backtick && i < n && cmd[i] == '`') {
+                    if (ensure_cap(&out, &cap, 1, w) != 0) { free(out); return NULL; }
+                    out[w++] = cmd[i++];
+                }
+
+                // continue outer while
+                break;
+            }
+        }
+
+        if (matched < 0) {
+            // normal char copy
+            if (ensure_cap(&out, &cap, 1, w) != 0) { free(out); return NULL; }
+            out[w++] = cmd[i++];
+        }
+    }
+
+    out[w] = '\0';
+    if (!changed) {
+        free(out);
+        return NULL;
+    }
+    return out;
+}
+
 // if have database name rename, return new sql with new database name
 // retrn value need call free() to free memory
 char * afterRenameSql(char *cmd) {
@@ -533,14 +662,25 @@ char * afterRenameSql(char *cmd) {
     const char* CREATE_VTB = "CREATE VTABLE IF NOT EXISTS ";
 
     const char* pres[] = {CREATE_DB, CREATE_STB, CREATE_TB, CREATE_VTB};
+    char* out1 = NULL;
+
     for (int i = 0; i < sizeof(pres)/sizeof(char*); i++ ) {
-        int len = strlen(pres[i]);
+        int len = (int)strlen(pres[i]);
         if (strncmp(cmd, pres[i], len) == 0) {
             // found
-            return replaceNewName(cmd, len);
+            out1 = replaceNewName(cmd, len);
+            break;
         }
     }
-    return NULL;
+
+    const char *base = out1 ? out1 : cmd;
+    char *out2 = replaceDbNamesInFromUsing(base);
+
+    if (out2) {
+        if (out1) free(out1);
+        return out2;
+    }
+    return out1;
 }
 
 /* Parse a single option. */
