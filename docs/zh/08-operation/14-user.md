@@ -529,10 +529,10 @@ GRANT privileges ON [priv_obj] priv_level [WITH condition] TO {user_name | role_
 -- 撤销对象权限
 REVOKE privileges ON [priv_obj] priv_level [WITH condition] FROM {user_name | role_name}
 
--- 权限作用对象
+-- 权限作用对象（不指定默认为表）
 priv_obj: {
     database           -- 数据库
-  | table              -- 表(不指定默认为表)
+  | table              -- 表
   | view               -- 视图
   | index              -- 索引
   | tsma               -- 窗口预聚集
@@ -674,7 +674,7 @@ REVOKE ALL ON DATABASE power FROM developer;
 |---------|------|---------|
 | SELECT | 查询表数据 | 数据分析、报表查询 |
 | INSERT | 写入表数据 | 数据采集、实时写入 |
-| SELECT, INSERT | 读写数据 | 数据处理、ETL操作 |
+| SELECT, INSERT | 读写数据 | 数据处理、ETL 操作 |
 | SELECT, INSERT, DELETE | 完整操作 | 数据维护、数据清理 |
 | ALTER, DROP | 修改表结构 | 表结构管理、维护 |
 
@@ -769,7 +769,7 @@ GRANT SELECT (ts, power) ON power.meters TO analyst;
 -- 用户 writer 只能向温度列写入数据
 GRANT INSERT (ts, temperature) ON power.meters TO writer;
 
--- 用户 limited_user 只能查看设备ID和状态列
+-- 用户 limited_user 只能查看设备 ID 和状态列
 GRANT SELECT (device_id, status) ON power.meters TO limited_user;
 ```
 
