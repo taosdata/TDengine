@@ -276,6 +276,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "trigger table not specified in create stream clause";
     case TSDB_CODE_STREAM_INVALID_PRE_FILTER:
       return "Invalid pre-filter in create stream clause";
+    case TSDB_CODE_PAR_INVALID_TRUE_FOR_COUNT:
+      return "TRUE_FOR COUNT must be a non-negative integer not exceeding INT32_MAX";
     case TSDB_CODE_STREAM_INVALID_PARTITION:
       return "Invalid partition in create stream clause";
     case TSDB_CODE_STREAM_INVALID_SUBTABLE:

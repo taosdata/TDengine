@@ -72,6 +72,12 @@ typedef struct {
   bool               cacheSttStatis;
 } SReadHandle;
 
+typedef struct STrueForInfo {
+  ETrueForType trueForType;
+  int32_t      count;
+  int64_t      duration;
+} STrueForInfo;
+
 typedef struct SStreamInserterParam {
   SArray*   pFields;     // SArray<SFieldWithOptions>
   SArray*   pTagFields;  // SArray<SFieldWithOptions>
@@ -320,6 +326,7 @@ bool    isTaskKilled(void* pTaskInfo);
 
 
 int32_t qSubFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTaskInfo, uint64_t suid);
+bool    isTrueForSatisfied(STrueForInfo* pTrueForInfo, int64_t skey, int64_t ekey, int64_t count);
 
 #ifdef __cplusplus
 }

@@ -418,6 +418,20 @@ typedef struct SEventWindowNode {
   SNode*    pTrueForLimit;
 } SEventWindowNode;
 
+typedef enum ETrueForType {
+  TRUE_FOR_DURATION_ONLY = 0,
+  TRUE_FOR_COUNT_ONLY = 1,
+  TRUE_FOR_AND = 2,
+  TRUE_FOR_OR = 3
+} ETrueForType;
+
+typedef struct STrueForNode {
+  ENodeType    type;  // QUERY_NODE_TRUE_FOR
+  ETrueForType trueForType;
+  int32_t      count;     // Row count threshold (0 if duration-only)
+  SNode*       pDuration;
+} STrueForNode;
+
 typedef struct {
   ENodeType  type;  // QUERY_NODE_COUNT_WINDOW_PARAM
   int64_t    count;
