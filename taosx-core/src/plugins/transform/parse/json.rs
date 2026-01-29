@@ -932,7 +932,7 @@ fn fix_json_control_chars(json_str: &str) -> String {
             match ch {
                 '\n' => out.push_str("\\n"),
                 '\r' => out.push_str("\\r"),
-                '\t' => out.push_str("\\t"),
+                c if c.is_control() => {}
                 _ => out.push(ch),
             }
         }
@@ -1381,11 +1381,19 @@ mod tests {
         assert_ok(&s);
 
         let s = fix_json_control_chars("{\"a\": \"b\tc\"}");
-        assert_eq!(s, "{\"a\": \"b\\tc\"}");
+        assert_eq!(s, "{\"a\": \"bc\"}");
+        assert_ok(&s);
+
+        let s = fix_json_control_chars("{\"a\": \r\n \"b\r\nc\"}");
+        assert_eq!(s, "{\"a\": \r\n \"b\\r\\nc\"}");
         assert_ok(&s);
 
         let s = fix_json_control_chars("{\"a\": \"abc\0\"}\0");
         assert_eq!(s, "{\"a\": \"abc\"}");
+        assert_ok(&s);
+
+        let s = fix_json_control_chars("{\"a\": \"a bc\"}");
+        assert_eq!(s, "{\"a\": \"a bc\"}");
         assert_ok(&s);
     }
 

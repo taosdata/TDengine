@@ -457,8 +457,7 @@ jobs:
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, test]
     needs: [deploy_with_docker, run_test, unit-test]
-    # if: ${{ needs.run_test.result == success() || needs.run_test.result == failure() }}
-    if: always() && contains(github.ref, 'refs/heads/main')
+    if: ${{ !cancelled() }}
     steps:
       - name: download taosx-unit-test.xml
         uses: actions/download-artifact@v4

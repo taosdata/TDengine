@@ -216,7 +216,7 @@ export default {
               field: 'topics',
               required: true,
               placeholder: 'topic1::0,topic2::1',
-              pattern: '^(?:[^,]+::[0-2],)*[^,]+::[0-2]$',
+              pattern: '^(?:[^,\\s]+(?:\\s+[^,\\s]+)*::[0-2],)*[^,\\s]+(?:\\s+[^,\\s]+)*::[0-2]$',
               patternMsg:
                 'Input format error, please refer to: `<topic name>::<QoS>`, QoS can be 0/1/2, e.g: `topic1::0,topic2::1`',
               grid_two: false,
