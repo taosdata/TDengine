@@ -1077,6 +1077,24 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+typedef struct {
+  const char *name;
+  uint8_t     type;
+  int32_t     bytes;
+  uint32_t    alg;
+} AuditColumnDef;
+
+static const AuditColumnDef audit_columns[] = {
+    {"ts", TSDB_DATA_TYPE_TIMESTAMP, 8, 0x2000102},
+    {"details", TSDB_DATA_TYPE_VARCHAR, 50000 + VARSTR_HEADER_SIZE, 0xFF000302},
+    {"user_name", TSDB_DATA_TYPE_VARCHAR, 25 + VARSTR_HEADER_SIZE, 0xFF000302},
+    {"operation", TSDB_DATA_TYPE_VARCHAR, 20 + VARSTR_HEADER_SIZE, 0xFF000302},
+    {"db", TSDB_DATA_TYPE_VARCHAR, 65 + VARSTR_HEADER_SIZE, 0xFF000302},
+    {"resource", TSDB_DATA_TYPE_VARCHAR, 193 + VARSTR_HEADER_SIZE, 0xFF000302},
+    {"client_address", TSDB_DATA_TYPE_VARCHAR, 64 + VARSTR_HEADER_SIZE, 0xFF000302},
+    {"duration", TSDB_DATA_TYPE_DOUBLE, 8, 0x5000102},
+    {"affected_rows", TSDB_DATA_TYPE_UBIGINT, 8, 0x1000102}};
+
 static int32_t mndBuildAuditStb(SMnode *pMnode, SStbObj *pDst, SDbObj *pDb) {
   int32_t code = 0;
   char   *name = AUDIT_STABLE_NAME;
@@ -1120,113 +1138,20 @@ static int32_t mndBuildAuditStb(SMnode *pMnode, SStbObj *pDst, SDbObj *pDb) {
     TAOS_RETURN(code);
   }
 
-  SSchema *pSchema = &pDst->pColumns[pDst->nextColId - 1];
-  pSchema->type = TSDB_DATA_TYPE_TIMESTAMP;
-  pSchema->bytes = 8;
-  pSchema->flags = 1;
-  tstrncpy(pSchema->name, "ts", TSDB_COL_NAME_LEN);
-  pSchema->colId = pDst->nextColId;
-  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
-  SColCmpr *pColCmpr = &pDst->pCmpr[pDst->nextColId - 1];
-  pColCmpr->id = pSchema->colId;
-  pColCmpr->alg = 0x2000102;
-  pDst->nextColId++;
-
-  pSchema = &pDst->pColumns[pDst->nextColId - 1];
-  pSchema->type = TSDB_DATA_TYPE_VARCHAR;
-  pSchema->bytes = 50000 + VARSTR_HEADER_SIZE;
-  pSchema->flags = 1;
-  tstrncpy(pSchema->name, "details", TSDB_COL_NAME_LEN);
-  pSchema->colId = pDst->nextColId;
-  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
-  pColCmpr = &pDst->pCmpr[pDst->nextColId - 1];
-  pColCmpr->id = pSchema->colId;
-  pColCmpr->alg = 0xFF000302;
-  pDst->nextColId++;
-
-  pSchema = &pDst->pColumns[pDst->nextColId - 1];
-  pSchema->type = TSDB_DATA_TYPE_VARCHAR;
-  pSchema->bytes = 25 + VARSTR_HEADER_SIZE;
-  pSchema->flags = 1;
-  tstrncpy(pSchema->name, "user_name", TSDB_COL_NAME_LEN);
-  pSchema->colId = pDst->nextColId;
-  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
-  pColCmpr = &pDst->pCmpr[pDst->nextColId - 1];
-  pColCmpr->id = pSchema->colId;
-  pColCmpr->alg = 0xFF000302;
-  pDst->nextColId++;
-
-  pSchema = &pDst->pColumns[pDst->nextColId - 1];
-  pSchema->type = TSDB_DATA_TYPE_VARCHAR;
-  pSchema->bytes = 20 + VARSTR_HEADER_SIZE;
-  pSchema->flags = 1;
-  tstrncpy(pSchema->name, "operation", TSDB_COL_NAME_LEN);
-  pSchema->colId = pDst->nextColId;
-  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
-  pColCmpr = &pDst->pCmpr[pDst->nextColId - 1];
-  pColCmpr->id = pSchema->colId;
-  pColCmpr->alg = 0xFF000302;
-  pDst->nextColId++;
-
-  pSchema = &pDst->pColumns[pDst->nextColId - 1];
-  pSchema->type = TSDB_DATA_TYPE_VARCHAR;
-  pSchema->bytes = 65 + VARSTR_HEADER_SIZE;
-  pSchema->flags = 1;
-  tstrncpy(pSchema->name, "db", TSDB_COL_NAME_LEN);
-  pSchema->colId = pDst->nextColId;
-  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
-  pColCmpr = &pDst->pCmpr[pDst->nextColId - 1];
-  pColCmpr->id = pSchema->colId;
-  pColCmpr->alg = 0xFF000302;
-  pDst->nextColId++;
-
-  pSchema = &pDst->pColumns[pDst->nextColId - 1];
-  pSchema->type = TSDB_DATA_TYPE_VARCHAR;
-  pSchema->bytes = 193 + VARSTR_HEADER_SIZE;
-  pSchema->flags = 1;
-  tstrncpy(pSchema->name, "resource", TSDB_COL_NAME_LEN);
-  pSchema->colId = pDst->nextColId;
-  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
-  pColCmpr = &pDst->pCmpr[pDst->nextColId - 1];
-  pColCmpr->id = pSchema->colId;
-  pColCmpr->alg = 0xFF000302;
-  pDst->nextColId++;
-
-  pSchema = &pDst->pColumns[pDst->nextColId - 1];
-  pSchema->type = TSDB_DATA_TYPE_VARCHAR;
-  pSchema->bytes = 64 + VARSTR_HEADER_SIZE;
-  pSchema->flags = 1;
-  tstrncpy(pSchema->name, "client_address", TSDB_COL_NAME_LEN);
-  pSchema->colId = pDst->nextColId;
-  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
-  pColCmpr = &pDst->pCmpr[pDst->nextColId - 1];
-  pColCmpr->id = pSchema->colId;
-  pColCmpr->alg = 0xFF000302;
-  pDst->nextColId++;
-
-  pSchema = &pDst->pColumns[pDst->nextColId - 1];
-  pSchema->type = TSDB_DATA_TYPE_DOUBLE;
-  pSchema->bytes = 8;
-  pSchema->flags = 1;
-  tstrncpy(pSchema->name, "duration", TSDB_COL_NAME_LEN);
-  pSchema->colId = pDst->nextColId;
-  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
-  pColCmpr = &pDst->pCmpr[pDst->nextColId - 1];
-  pColCmpr->id = pSchema->colId;
-  pColCmpr->alg = 0x5000102;
-  pDst->nextColId++;
-
-  pSchema = &pDst->pColumns[pDst->nextColId - 1];
-  pSchema->type = TSDB_DATA_TYPE_UBIGINT;
-  pSchema->bytes = 8;
-  pSchema->flags = 1;
-  tstrncpy(pSchema->name, "affected_rows", TSDB_COL_NAME_LEN);
-  pSchema->colId = pDst->nextColId;
-  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
-  pColCmpr = &pDst->pCmpr[pDst->nextColId - 1];
-  pColCmpr->id = pSchema->colId;
-  pColCmpr->alg = 0x1000102;
-  pDst->nextColId++;
+  SSchema *pSchema = NULL;
+  for (int32_t i = 0; i < sizeof(audit_columns) / sizeof(AuditColumnDef); ++i) {
+    pSchema = &pDst->pColumns[pDst->nextColId - 1];
+    pSchema->type = audit_columns[i].type;
+    pSchema->bytes = audit_columns[i].bytes;
+    pSchema->flags = 1;
+    tstrncpy(pSchema->name, audit_columns[i].name, TSDB_COL_NAME_LEN);
+    pSchema->colId = pDst->nextColId;
+    // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
+    SColCmpr *pColCmpr = &pDst->pCmpr[pDst->nextColId - 1];
+    pColCmpr->id = pSchema->colId;
+    pColCmpr->alg = audit_columns[i].alg;
+    pDst->nextColId++;
+  }
 
   // tag
   pSchema = &pDst->pTags[0];
