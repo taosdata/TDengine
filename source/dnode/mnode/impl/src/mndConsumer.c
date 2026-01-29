@@ -729,14 +729,14 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   SCMSubscribeReq subscribe = {0};
   MND_TMQ_RETURN_CHECK(tDeserializeSCMSubscribeReq(msgStr, &subscribe, pMsg->contLen));
   bool unSubscribe = (taosArrayGetSize(subscribe.topicNames) == 0);
-  if (unSubscribe) {
+  if(unSubscribe){
     SMqConsumerObj *pConsumerTmp = NULL;
     MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, subscribe.consumerId, &pConsumerTmp));
     taosRLockLatch(&pConsumerTmp->lock);
     size_t topicNum = taosArrayGetSize(pConsumerTmp->assignedTopics);
     taosRUnLockLatch(&pConsumerTmp->lock);
     mndReleaseConsumer(pMnode, pConsumerTmp);
-    if (topicNum == 0) {
+    if (topicNum == 0){
       goto END;
     }
   } else {
