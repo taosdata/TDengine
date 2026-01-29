@@ -477,9 +477,9 @@ int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32
       return TSDB_CODE_INVALID_DATA_FMT;
     }
     tstrncpy(db, fullDb ? (p + 1) : (pNext + 1), dbLength + 1);
-    tstrncpy(tb, qNext + 1, tbLen + 1);
+    tstrncpy(tb, qNext + 1, tbLen);
   } else {
-    tstrncpy(db, fullDb ? (p + 1) : (pNext + 1), dbLen + 1);
+    tstrncpy(db, fullDb ? (p + 1) : (pNext + 1), dbLen);
     tb[0] = '\0';
   }
   return TSDB_CODE_SUCCESS;
