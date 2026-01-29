@@ -223,6 +223,12 @@ void rpcCloseImpl(void* arg) {
 
 void* rpcMallocCont(int64_t contLen) {
   int64_t size = contLen + TRANS_MSG_OVERHEAD;
+  if (size >= TRANS_PACKET_LIMIT) {
+    tError("failed to malloc msg, size:%" PRId64 " exceeds limit:%d", size, TRANS_PACKET_LIMIT);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
   char*   start = taosMemoryCalloc(1, size);
   if (start == NULL) {
     tError("failed to malloc msg, size:%" PRId64, size);

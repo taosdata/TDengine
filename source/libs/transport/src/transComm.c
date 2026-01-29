@@ -422,7 +422,7 @@ bool transReadComplete(SConnBuffer* connBuf) {
       p->total = msgLen;
       p->invalid = (head.version != TRANS_VER || msgLen >= TRANS_MSG_LIMIT);
       if (p->invalid) {
-        tError("recv invalid msg, version:%d, expect:%d, msg len %d", head.version, TRANS_VER, msgLen);
+        tError("recv invalid msg, version:%d, expect:%d, msg len %d, limit:%d", head.version, TRANS_VER, msgLen, TRANS_MSG_LIMIT);
       }
     }
     if (p->total >= p->len) {
