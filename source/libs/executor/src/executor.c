@@ -535,7 +535,7 @@ _error:
   return code;
 }
 
-int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd) {
+int32_t qUpdateTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd, col_id_t colId) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   const char*    id = GET_TASKID(pTaskInfo);
   int32_t        code = 0;
@@ -552,15 +552,13 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
   }
 
   SStreamScanInfo* pScanInfo = pInfo->info;
-  STableScanInfo*  pTableScanInfo = pScanInfo->pTableScanOp->info;
-  if (pInfo->pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE &&
-      pTableScanInfo->base.metaCache.pTableMetaEntryCache) {  // clear meta cache for subscription if tag is changed
-    for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
-      int64_t* uid = (int64_t*)taosArrayGet(tableIdList, i);
+  STqReader*   tqReader = pScanInfo->tqReader;
+  for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
+    int64_t* uid = (int64_t*)taosArrayGet(tableIdList, i);
 
-      taosLRUCacheErase(pTableScanInfo->base.metaCache.pTableMetaEntryCache, uid, LONG_BYTES);
-    }
+    (void)pTaskInfo->storageAPI.tqReaderFn.tqUpdateTableTagCache(pScanInfo->tqReader, pScanInfo->pPseudoExpr, pScanInfo->numOfPseudoExpr, *uid, colId);
   }
+  
 
   if (isAdd) {  // add new table id
     SArray* qa = NULL;
@@ -1253,11 +1251,6 @@ int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   tOffsetCopy(pOffset, &pTaskInfo->streamInfo.currentOffset);
   return 0;
-  /*if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-    pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
-  }*/
 }
 
 int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* sContext, SMetaTableInfo* pMtInfo) {
@@ -1300,9 +1293,12 @@ void qStreamSetOpen(qTaskInfo_t tinfo) {
   pOperator->status = OP_NOT_OPENED;
 }
 
-void qStreamSetSourceExcluded(qTaskInfo_t tinfo, int8_t sourceExcluded) {
+void qStreamSetParams(qTaskInfo_t tinfo, int8_t sourceExcluded, int32_t minPollRows, int64_t timeout, int8_t enableReplay) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   pTaskInfo->streamInfo.sourceExcluded = sourceExcluded;
+  pTaskInfo->streamInfo.minPollRows = minPollRows;
+  pTaskInfo->streamInfo.timeout = timeout;
+  pTaskInfo->streamInfo.enableReplay = enableReplay;
 }
 
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType) {

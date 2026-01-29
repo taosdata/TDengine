@@ -2505,7 +2505,6 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
       QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
     }
   }
-
   // set the output flag for each column in SColMatchInfo, according to the
   *numOfOutputCols = 0;
   int32_t num = LIST_LENGTH(pOutputNodeList->pSlots);
