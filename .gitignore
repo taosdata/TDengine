@@ -8,6 +8,7 @@ compile_commands.json
 .cache
 sim
 *.pyc
+CLAUDE.md
 
 # TODO: rules need to be removed later
 source/util/src/version.c
