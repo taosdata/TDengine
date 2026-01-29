@@ -31,6 +31,7 @@ enum {
 int32_t mndInitConsumer(SMnode *pMnode);
 void    mndCleanupConsumer(SMnode *pMnode);
 int32_t mndSendConsumerMsg(SMnode *pMnode, int64_t consumerId, uint16_t msgType, SRpcHandleInfo *info);
+int32_t mndDropConsumerByUser(SMnode *pMnode, SRpcMsg *pMsg, SUserObj *pUser);
 
 int32_t mndAcquireConsumer(SMnode *pMnode, int64_t consumerId, SMqConsumerObj **pConsumer);
 void    mndReleaseConsumer(SMnode *pMnode, SMqConsumerObj *pConsumer);

@@ -95,6 +95,33 @@ END:
   return code;
 }
 
+int32_t mndDropConsumerByUser(SMnode *pMnode, SRpcMsg *pMsg, SUserObj *pUser) {
+  int32_t         code = 0, lino = 0;
+  SSdb           *pSdb = pMnode->pSdb;
+  void           *pIter = NULL;
+  SMqConsumerObj *pConsumer = NULL;
+
+  while ((pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer))) {
+    if (pConsumer->ownerId != pUser->uid) {
+      mndReleaseConsumer(pMnode, pConsumer);
+      pConsumer = NULL;
+      continue;
+    }
+    MND_TMQ_RETURN_CHECK(
+        mndSendConsumerMsg(pMnode, pConsumer->consumerId, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, &pMsg->info));
+    mndReleaseConsumer(pMnode, pConsumer);
+    pConsumer = NULL;
+  }
+END:
+  if (code < 0) {
+    mError("failed at line %d to drop consumer by user:%s since %s", lino, pUser->user, tstrerror(code));
+  }
+  if (pConsumer) mndReleaseConsumer(pMnode, pConsumer);
+  if (pIter) sdbCancelFetch(pSdb, pIter);
+
+  TAOS_RETURN(code);
+}
+
 static int32_t validateOneTopic(STrans* pTrans,char *pOneTopic, SCMSubscribeReq *subscribe, SMnode *pMnode, const char *user, const char* token) {
   int32_t      code = 0;
   int32_t lino = 0;

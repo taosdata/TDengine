@@ -22,6 +22,7 @@
 #include "mndRole.h"
 #include "mndUser.h"
 #include "audit.h"
+#include "mndConsumer.h"
 #include "mndDb.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
@@ -4484,6 +4485,11 @@ static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
   }
 
   if (mndDropTokensByUser(pMnode, pTrans, pUser->user) != 0) {
+    mndTransDrop(pTrans);
+    TAOS_RETURN(terrno);
+  }
+
+  if(mndDropConsumerByUser(pMnode, pReq, pUser) != 0) {
     mndTransDrop(pTrans);
     TAOS_RETURN(terrno);
   }
