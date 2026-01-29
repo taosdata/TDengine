@@ -791,7 +791,7 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
       void* p = taosHashGet(pConn->pQTable, &qId, sizeof(qId));
       if (p == NULL) {
         code = TSDB_CODE_RPC_NO_STATE;
-        tTrace("conn:%p, recv release, and releady release by server sid:%" PRId64, pConn, qId);
+        tTrace("conn:%p, recv release and already released by server sid:%" PRId64, pConn, qId);
       } else {
         SSvrRegArg* arg = p;
         (pInst->cfp)(pInst->parent, &(arg->msg), NULL);
