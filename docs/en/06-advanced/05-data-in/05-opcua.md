@@ -39,7 +39,12 @@ Select a target database from the **Target Database** dropdown list, or click th
 
 ### 3. Configure Connection Information
 
-In the **Connection Configuration** area, fill in the **OPC-UA Service Address**, for example: `127.0.0.1:5000`, and configure the data transmission security mode, with three security modes available:
+In the **Connection Configuration** area:
+
+1. OPC-UA Service Address: The OPC UA server endpoint, for example: 127.0.0.1:6666/OPCUA/ServerPath. If an Agent is used, this address must be accessible from the Agent. If no Agent is used, this address must be accessible from the server where the TDengine system resides.
+2. Failover Service Address: The OPC server’s failover server endpoints. You can specify multiple addresses, separated by commas (`,`). (Since version 3.3.8.3).
+
+configure the data transmission security mode, with three security modes available:
 
 1. None: Communication data is transmitted in plaintext.
 1. Sign: Communication data is verified using a digital signature to protect data integrity.
