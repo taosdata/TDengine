@@ -1,5 +1,6 @@
 import taos
 import socket
+import random
 from new_test_framework.utils import tdLog, tdSql, TDSql, tdDnodes
 
 
@@ -43,6 +44,7 @@ class TestIntervalBugFix:
         self.ts_5400_test()
         self.ts_7676_test_dup_ts()
         self.ts_7676_test_uni_ts()
+        self.td_6739571506_test()
 
     def ts_5400_test(self):        
         self.ts_5400_prepare_data()
@@ -491,3 +493,35 @@ class TestIntervalBugFix:
         tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         
+    def td_6739571506_test(self):
+        tdLog.info("prepare data for TD-6739571506 test")
+        self.testSql.execute("create database test_6739571506;")
+        self.testSql.execute("use test_6739571506;")
+        
+        self.testSql.execute("create stable stb(ts TIMESTAMP, `q_int` int) tags(ta int);")
+        self.testSql.execute("create table t1 using stb tags(1);")
+        
+        self.testSql.execute("insert into t1 values (1633450000000, 1);")
+        
+        self.testSql.query("select bottom(q_int,71) from (select * from stb)  interval(11n,9n) order by ts;")
+        self.testSql.checkRows(1)
+        self.testSql.query("select bottom(q_int,71) from (select * from stb)  interval(15n,9n) order by ts;")
+        self.testSql.checkRows(1)
+        self.testSql.query("select bottom(q_int,71) from (select * from stb)  interval(1088n,500n) order by ts;")
+        self.testSql.checkRows(1)
+
+        # Insert 100 rows with random timestamps and values
+        tdLog.info("insert 100 random timestamp rows for td_6739571506_test")
+        base_ts = 1633450000000  # base timestamp in ms
+        for _ in range(100):
+            rand_ts = base_ts + random.randint(0, 800 * 24 * 60 * 60 * 1000)  # within 800 days
+            rand_q = random.randint(0, 100)
+            tdLog.info(f"Inserting row: ts={rand_ts}, q_int={rand_q}")
+            self.testSql.execute(f"insert into t1 values ({rand_ts}, {rand_q});")
+            
+            # random data, should not crash or hang, just check it runs successfully
+            self.testSql.query("select bottom(q_int,1) from (select * from stb)  interval(11n,9n) order by ts;")
+            self.testSql.query("select bottom(q_int,71) from (select * from stb)  interval(15n,9n) order by ts;")
+            self.testSql.query("select bottom(q_int,71) from (select * from stb)  interval(1088n,500n) order by ts;")
+            
+        return
