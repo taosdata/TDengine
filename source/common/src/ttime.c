@@ -869,8 +869,8 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     while (newe >= ts) {
       start = slidingStart;
       slidingStart = taosTimeAdd(slidingStart, -pInterval->sliding, pInterval->slidingUnit, precision, pInterval->timezone);
-      int64_t news = taosTimeAdd(slidingStart, pInterval->offset, pInterval->offsetUnit, precision, pInterval->timezone);
-      newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
+      int64_t tmp = taosTimeAdd(slidingStart, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
+      newe = taosTimeAdd(tmp, pInterval->offset, pInterval->offsetUnit, precision, pInterval->timezone);
     }
     start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision, pInterval->timezone);
   }
