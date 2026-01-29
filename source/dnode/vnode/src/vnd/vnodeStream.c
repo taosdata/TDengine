@@ -924,6 +924,9 @@ static int32_t processWalVerMetaNew(SVnode* pVnode, SSTriggerWalNewRsp* rsp, SSt
   if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){
     if (rsp->ver < walGetFirstVer(pWalReader->pWal)) {
       rsp->ver = walGetFirstVer(pWalReader->pWal);
+      rsp->verTime = 0;
+    } else {
+      rsp->verTime = taosGetTimestampUs();
     }
     ST_TASK_DLOG("vgId:%d %s scan wal end:%s", TD_VID(pVnode), __func__, tstrerror(code));
     code = TSDB_CODE_SUCCESS;
@@ -934,7 +937,8 @@ static int32_t processWalVerMetaNew(SVnode* pVnode, SSTriggerWalNewRsp* rsp, SSt
   STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(rsp->metaBlock, STREAM_RETURN_ROWS_NUM));
   while (1) {
     code = walNextValidMsg(pWalReader, true);
-    if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){\
+    if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){
+      rsp->verTime = taosGetTimestampUs();
       ST_TASK_DLOG("vgId:%d %s scan wal end:%s", TD_VID(pVnode), __func__, tstrerror(code));
       code = TSDB_CODE_SUCCESS;
       goto end;
@@ -1752,6 +1756,9 @@ static int32_t prepareIndexMetaData(SWalReader* pWalReader, SStreamTriggerReader
   if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){
     if (resultRsp->ver < walGetFirstVer(pWalReader->pWal)) {
       resultRsp->ver = walGetFirstVer(pWalReader->pWal);
+      resultRsp->verTime = 0;
+    } else {
+      resultRsp->verTime = taosGetTimestampUs();
     }
     ST_TASK_DLOG("%s scan wal end:%s",  __func__, tstrerror(code));
     code = TSDB_CODE_SUCCESS;
@@ -1762,6 +1769,7 @@ static int32_t prepareIndexMetaData(SWalReader* pWalReader, SStreamTriggerReader
   while (1) {
     code = walNextValidMsg(pWalReader, true);
     if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){
+      resultRsp->verTime = taosGetTimestampUs();
       ST_TASK_DLOG("%s scan wal end:%s", __func__, tstrerror(code));
       code = TSDB_CODE_SUCCESS;
       goto end;
@@ -3020,9 +3028,10 @@ static int32_t vnodeProcessStreamWalMetaNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
 end:
   if (resultRsp.totalRows == 0) {
     code = TSDB_CODE_STREAM_NO_DATA;
-    buf = rpcMallocCont(sizeof(int64_t));
-    *(int64_t *)buf = resultRsp.ver;
-    size = sizeof(int64_t);
+    size = sizeof(int64_t) * 2;
+    buf = rpcMallocCont(size);
+    *(int64_t*)buf = resultRsp.ver;
+    *(((int64_t*)buf) + 1) = resultRsp.verTime;
   }
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
@@ -3071,10 +3080,11 @@ static int32_t vnodeProcessStreamWalMetaDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
 
 end:
   if (resultRsp.totalRows == 0) {
-    buf = rpcMallocCont(sizeof(int64_t));
-    *(int64_t *)buf = resultRsp.ver;
-    size = sizeof(int64_t);
     code = TSDB_CODE_STREAM_NO_DATA;
+    size = sizeof(int64_t) * 2;
+    buf = rpcMallocCont(size);
+    *(int64_t*)buf = resultRsp.ver;
+    *(((int64_t*)buf) + 1) = resultRsp.verTime;
   }
   SRpcMsg rsp = {
       .msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
