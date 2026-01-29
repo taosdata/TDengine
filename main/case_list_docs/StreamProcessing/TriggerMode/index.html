@@ -2805,6 +2805,17 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_window_true_for.TestWindowTrueFor.test_true_for" class="md-nav__link">
+        Verify the functionality of TRUE_FOR expr. 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -4088,6 +4099,17 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_window_true_for.TestWindowTrueFor.test_true_for" class="md-nav__link">
+        Verify the functionality of TRUE_FOR expr. 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -4627,6 +4649,44 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_ts_7622.py" target="_blank">
                       cases/18-StreamProcessing/03-TriggerMode/test_ts_7622.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_window_true_for.TestWindowTrueFor.test_true_for" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_window_true_for.TestWindowTrueFor.test_true_for" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify the functionality of TRUE_FOR expr.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">This case validates the `TRUE_FOR` expr across various scenarios. It</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">covers application in both queries and stream computing, specifically</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">focusing on `EVENT_WINDOW` and `STATE_WINDOW`. The case includes all</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">four modes of `TRUE_FOR`:</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - `TRUE_FOR(duration_time)`</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - `TRUE_FOR(COUNT n)`</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - `TRUE_FOR(duration_time AND COUNT n)`</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - `TRUE_FOR(duration_time OR COUNT n)`</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">It ensures correct behavior under normal conditions, edge cases, and</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">error scenarios.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_window_true_for.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_window_true_for.py
                     </a>
                   </div>
         </div>
