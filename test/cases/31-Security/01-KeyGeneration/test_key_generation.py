@@ -75,7 +75,7 @@ class TestBasic:
         if os.path.exists(master_file):
             os.remove(master_file)
         
-        cmd = ['taosk', '-c', cfg_path, '--encrypt-server', 'mysvr123', '--encrypt-database', 'mydb456']
+        cmd = ['taosk', '-c', cfg_path, '--encrypt-server', 'mysvr123', '--encrypt-database', 'mydb4567']
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=True)
         
         assert os.path.exists(master_file), "master.bin not generated"
