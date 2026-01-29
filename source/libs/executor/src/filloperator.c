@@ -301,19 +301,15 @@ static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     bool        isWinRangeValid = false;
     code = streamCalcCurrWinTimeRange((STimeRangeNode*)pInfo->pTimeRange, &pTaskInfo->pStreamRuntimeInfo->funcInfo, &pWinRange,
                   &isWinRangeValid, 3);
-    if (code != TSDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_SUCCESS || !isWinRangeValid) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;
       T_LONG_JMP(pTaskInfo->env, code);
     }
-    
-    if (isWinRangeValid) {
-      pInfo->win.skey = pWinRange.skey;
-      pInfo->win.ekey = pWinRange.ekey;
-      if (pTaskInfo->pStreamRuntimeInfo->funcInfo.triggerType == STREAM_TRIGGER_SLIDING) {
-        pInfo->win.ekey--;
-      }
-    }
+
+    pInfo->win.skey = pWinRange.skey;
+    /* ekey is inclusive in fill operator, so we need to subtract 1 */
+    pInfo->win.ekey = pWinRange.ekey - 1;
   }
 
   if (pOperator->status == OP_EXEC_DONE) {
@@ -582,16 +578,14 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
                              COL_MATCH_FROM_SLOT_ID, &pInfo->matchInfo);
 
   QUERY_CHECK_CODE(code, lino, _error);
-  
+
   // Extract surroundingTime from pSurroundingTime node
   int64_t surroundingTime = 0;
   if (pPhyFillNode->pSurroundingTime != NULL &&
       nodeType(pPhyFillNode->pSurroundingTime) == QUERY_NODE_VALUE) {
-    SValueNode* pSurroundingTimeNode =
-      (SValueNode*)pPhyFillNode->pSurroundingTime;
-    surroundingTime = pSurroundingTimeNode->datum.i;
+    surroundingTime = ((SValueNode*)pPhyFillNode->pSurroundingTime)->datum.i;
   }
-  
+
   code = initFillInfo(pInfo, pExprInfo, pInfo->numOfExpr,
                       pNoFillSupp->pExprInfo, pNoFillSupp->numOfExprs,
                       pInfo->fillNullExprSupp.pExprInfo,
