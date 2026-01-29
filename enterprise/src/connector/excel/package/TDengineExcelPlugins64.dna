@@ -1,6 +1,0 @@
-﻿<DnaLibrary Name="TDengine Excel Plugins" RuntimeVersion="v4.0">
-  <ExternalLibrary Path="TDengineExcelPlugins.dll" Pack="true" ExplicitExports="true" />
-  <ExternalLibrary Path="Newtonsoft.Json.dll" Pack="true" ExplicitExports="true" />
-  <ExternalLibrary Path="ExcelDna.IntelliSense.dll" Pack="true" ExplicitExports="true" />
-  <ExternalLibrary Path="ExcelDna.Registration.dll" Pack="true" ExplicitExports="true" />
-</DnaLibrary>
