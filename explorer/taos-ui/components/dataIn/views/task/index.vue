@@ -120,22 +120,22 @@
           :label="t('dataIn.name2')"
           sortable
           prop="localname"
-          min-width="100"
+          min-width="180"
         >
           <template #default="scope">
-            <span>
-              <i class="el-circle mr-5px" :class="getStatusClass(scope.row.healthStatus)"></i>
-            </span>
-            <el-tooltip :content="scope.row.localname" placement="top-start">
-              <span class="nowrap">{{ scope.row.localname }}</span>
-            </el-tooltip>
+            <div class="name-cell">
+              <i class="el-circle mr-5px status-icon" :class="getStatusClass(scope.row.healthStatus)"></i>
+              <el-tooltip :content="scope.row.localname" placement="top-start">
+                <span class="status-name">{{ scope.row.localname }}</span>
+              </el-tooltip>
+            </div>
           </template>
         </el-table-column>
         <el-table-column
           v-if="dataInProps.isIdmp ? props.columnPropMap?.localtype : true"
           :label="t('dataIn.type')"
           prop="localtype"
-          min-width="180"
+          min-width="100"
           sortable
           :filters="filterMap.type"
           :filter-method="filterHandler"
@@ -1117,5 +1117,26 @@ td {
     vertical-align: middle;
     cursor: default;
   }
+}
+
+.name-cell {
+  display: flex;
+  align-items: center;
+}
+
+.status-icon {
+  flex-shrink: 0;
+}
+
+.status-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mr-5px {
+  margin-right: 5px;
 }
 </style>
