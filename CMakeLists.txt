@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+
+
+
 project(
   TDengine
   VERSION 3.0
@@ -65,3 +68,4 @@ message(STATUS "TAOSADAPTER_GIT_TAG_SHALLOW:${TAOSADAPTER_GIT_TAG_SHALLOW}")
 
 message(STATUS "TAOSWS_GIT_TAG_NAME:${TAOSWS_GIT_TAG_NAME}")
 
+ 
