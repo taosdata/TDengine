@@ -208,16 +208,8 @@ void rpcCloseImpl(void* arg) {
     (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
   }
 
-  // if (pRpc->pSSLContext) {
-  //   transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
-  //   pRpc->pSSLContext = NULL;
-  // }
   transTlsCxtMgtDestroy((STlsCxtMgt*)pRpc->pTlsMgt);
 
-  // if (pRpc->pNewSSLContext != NULL) {
-  //   transTlsCtxDestroy((SSslCtx*)pRpc->pNewSSLContext);
-  //   pRpc->pNewSSLContext = NULL;
-  // }
   taosMemoryFree(pRpc);
 }
 
