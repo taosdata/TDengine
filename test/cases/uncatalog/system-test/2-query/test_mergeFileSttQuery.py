@@ -94,4 +94,4 @@ class TestMergefilesttquery:
         tdSql.checkData(1, 0, '2021-10-02 00:01:00.000')
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+

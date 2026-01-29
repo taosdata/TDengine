@@ -766,4 +766,4 @@ class TestJsonTag:
         tdSql.checkData(0, 1, createSql)
         
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+

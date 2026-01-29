@@ -148,7 +148,7 @@ class TestStmtBasic:
 
             # conn.execute("drop database if exists %s" % dbname)
             # conn.close()
-            tdLog.success("%s successfully executed, asc:%s" % (__file__, asc))
+
 
         except Exception as err:
             # conn.execute("drop database if exists %s" % dbname)
@@ -164,7 +164,7 @@ class TestStmtBasic:
         self.check_stmt_insert_multi(connectstmt, True)
         self.check_stmt_insert_multi(connectstmt, False)
         self.clear_env(connectstmt)
-        tdLog.success(f"{__file__} successfully executed")
+
         return
 
     #
@@ -328,7 +328,7 @@ class TestStmtBasic:
 
             # conn.execute("drop database if exists %s" % dbname)
             conn.close()
-            tdLog.success("%s successfully executed" % __file__)
+
 
         except Exception as err:
             # conn.execute("drop database if exists %s" % dbname)
@@ -342,7 +342,7 @@ class TestStmtBasic:
         connectstmt=self.newcon(host,config)
         self.check_stmt_set_tbname_tag(connectstmt)
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
         return
 
@@ -370,4 +370,3 @@ class TestStmtBasic:
 
         self.do_stmt_muti_insert_query()
         self.do_stmt_set_tbname_tag()
-        tdLog.success(f"{__file__} successfully executed")

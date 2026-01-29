@@ -2,7 +2,9 @@ from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestJoinFull:
-
+    updatecfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 143, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
+    clientCfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 143, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
+    updatecfgDict["clientCfg"] = clientCfgDict
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
