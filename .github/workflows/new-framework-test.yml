@@ -43,6 +43,8 @@ concurrency:
 
 jobs:
   test-new-cases:
+    # skip tests for PRs with [manual-only] in the title
+    if: github.event_name == 'pull_request' && !contains(github.event.pull_request.title, '[manual-only]')
     uses: taosdata/.github/.github/workflows/new-framework-test.yml@main
     with:
       tdinternal: true
