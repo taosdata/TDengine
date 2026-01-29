@@ -324,6 +324,58 @@ Parquet data types are automatically mapped to TDengine data types:
 | BYTE_ARRAY (Binary) | BINARY |
 | INT96 (Timestamp) | TIMESTAMP |
 
+#### Exporting SQL Query Results to Parquet Files
+
+taosx supports exporting SQL query results from TDengine database to Parquet file format, facilitating data analysis and integration with other systems.
+
+Basic usage is as follows:
+
+```shell
+taosx run -f "taos:///test?query=select tbname,* from test.meters" -t "parquet:./test.parquet"
+```
+
+Parameter Description:
+
+- `-f` specifies the data source as TDengine database, with SQL query statement specified via the `query` parameter
+- `-t` specifies the export target as Parquet file, including the file path
+
+Usage Examples:
+
+1. Export complete query results:
+
+```shell
+taosx run -f "taos:///test?query=select tbname,* from test.meters" \
+  -t "parquet:./test.parquet"
+```
+
+2. Export query results with time range:
+
+```shell
+taosx run -f "taos:///db1?query=select * from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-02-01 00:00:00'" \
+  -t "parquet:./meters_202401.parquet"
+```
+
+3. Export aggregated query results:
+
+```shell
+taosx run -f "taos:///test?query=select tbname, avg(voltage) as avg_voltage, max(current) as max_current from test.meters group by tbname" \
+  -t "parquet:./meters_stats.parquet"
+```
+
+4. Export using WebSocket connection:
+
+```shell
+taosx run -f "taos+ws://root:taosdata@localhost:6041/test?query=select * from test.meters" \
+  -t "parquet:./test.parquet"
+```
+
+Notes:
+
+- SQL query statements need to be URL encoded, especially when containing special characters
+- Ensure the query result set size is moderate to avoid memory overflow
+- TDengine data types will be automatically mapped to corresponding Parquet data types
+- The exported Parquet files can be read by various data analysis tools, such as Apache Spark, Pandas, etc.
+
 ## Service Mode
 
 This section discusses how to deploy `taosX` in service mode. When running taosX in service mode, its functions need to be used through the graphical interface on taosExplorer.

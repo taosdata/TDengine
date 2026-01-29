@@ -639,17 +639,17 @@ class TestUserSecurity:
         # single ip
         user = "user_host1"
         self.create_user(user, password, options="HOST '192.168.99.200'")
-        self.check_user_option(user, "allowed_host", "+127.0.0.1/32, +192.168.99.200/32")
+        self.check_user_option(user, "allowed_host", "+127.0.0.1/32, +192.168.99.200/32, +::1/128")
 
         # ip range
         user = "user_host2"
         self.create_user(user, password, options="HOST '192.168.99.1/16'")
-        self.check_user_option(user, "allowed_host", "+127.0.0.1/32, +192.168.99.1/16")
+        self.check_user_option(user, "allowed_host", "+127.0.0.1/32, +192.168.99.1/16, +::1/128")
 
         # single ip + ip range
         user = "user_host3"
         self.create_user(user, password, options="HOST '192.168.99.1', '192.168.100.1/16'")
-        self.check_user_option(user, "allowed_host", "+127.0.0.1/32, +192.168.99.1/32, +192.168.100.1/16")
+        self.check_user_option(user, "allowed_host", "+127.0.0.1/32, +192.168.99.1/32, +192.168.100.1/16, +::1/128")
 
         # except
         tdSql.error("create user except_user1 pass  'aaa@aaaaa122' HOST '192.148.1.11.11.2'")
@@ -670,17 +670,17 @@ class TestUserSecurity:
         # single ip
         user = "user_not_allow_host1"
         self.create_user(user, password, options="NOT_ALLOW_HOST '192.168.99.200'")
-        self.check_user_option(user, "allowed_host", "-192.168.99.200/32, +127.0.0.1/32")
+        self.check_user_option(user, "allowed_host", "-192.168.99.200/32")
 
         # ip range
         user = "user_not_allow_host2"
         self.create_user(user, password, options="NOT_ALLOW_HOST '192.168.99.1/16'")
-        self.check_user_option(user, "allowed_host", "-192.168.99.1/16, +127.0.0.1/32")
+        self.check_user_option(user, "allowed_host", "-192.168.99.1/16")
 
         # single ip + ip range
         user = "user_not_allow_host3"
         self.create_user(user, password, options="NOT_ALLOW_HOST '192.168.99.1', '192.168.100.1/16'")
-        self.check_user_option(user, "allowed_host", "-192.168.99.1/32, -192.168.100.1/16, +127.0.0.1/32")
+        self.check_user_option(user, "allowed_host", "-192.168.99.1/32, -192.168.100.1/16")
 
         # except
         tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_HOST '192.148.1.11.11.2'")
@@ -929,7 +929,7 @@ class TestUserSecurity:
             tdSql.checkData(1,  0, "user_allow3") 
             tdSql.checkData(0,  2, 1)               # enable
             tdSql.checkData(0,  6, 0)               # totp
-            tdSql.checkData(0,  9, "SYSINFO_1\x00") # roles
+            tdSql.checkData(0,  9, "SYSINFO_1")     # roles
 
         # show users
         tdSql.query("show users")
@@ -962,6 +962,7 @@ class TestUserSecurity:
 
         # create
         self.create_user(user, password)
+        self.check_user_option(user, "allowed_host", "+127.0.0.1/32, +::1/128")
         
         # alter options
         options  = "SESSION_PER_USER      10 "

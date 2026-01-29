@@ -492,7 +492,7 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
     }
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     if (!tDecodeIsEnd(pCoder)) {
-      TAOS_CHECK_RETURN(tDecodeI64v(pCoder, &pME->ntbEntry.ownerId));
+      TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->ntbEntry.ownerId));
     }
   }
 

@@ -344,9 +344,9 @@ int32_t __catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo 
   return 0;
 }
 
-int32_t __catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth,        SUserAuthRes* pRes, bool* exists) {
+int32_t __catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth, SUserAuthRes* pRes, SUserAuthRsp* pRsp) {
   pRes->pass[0] = true;
-  *exists = true;
+  pRsp->exists = 1;
   return 0;
 }
 

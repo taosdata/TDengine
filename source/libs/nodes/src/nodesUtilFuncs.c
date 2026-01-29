@@ -1202,6 +1202,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_ALTER_ENCRYPT_KEY_STMT:
       code = makeNode(type, sizeof(SAlterEncryptKeyStmt), &pNode);
       break;
+    case QUERY_NODE_ALTER_KEY_EXPIRATION_STMT:
+      code = makeNode(type, sizeof(SAlterKeyExpirationStmt), &pNode);
+      break;
     default:
       code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
@@ -1641,8 +1644,9 @@ void nodesDestroyNode(SNode* pNode) {
       SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pNode;
       destroyVgDataBlockArray(pStmt->pDataBlocks);
       taosMemoryFreeClear(pStmt->pTableMeta);
-      nodesDestroyNode(pStmt->pTagCond);
-      taosArrayDestroy(pStmt->pTableTag);
+      if (pStmt->pTagCond) nodesDestroyNode(pStmt->pTagCond);
+      if (pStmt->pPrivCols) taosArrayDestroy(pStmt->pPrivCols);
+      if (pStmt->pTableTag) taosArrayDestroy(pStmt->pTableTag);
       taosHashCleanup(pStmt->pVgroupsHashObj);
       taosHashCleanup(pStmt->pSubTableHashObj);
       taosHashCleanup(pStmt->pSuperTableHashObj);

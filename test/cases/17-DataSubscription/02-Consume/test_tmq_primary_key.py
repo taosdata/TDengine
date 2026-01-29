@@ -529,6 +529,6 @@ class TestCase:
         self.primaryKeyTestString()
         self.primaryKeyTestTD_30755()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 

@@ -547,4 +547,4 @@ class TestInsertColumnValue:
         self.__insert_query_ts5184()
         
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+

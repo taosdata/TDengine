@@ -92,6 +92,7 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_COMPACT_TIME_RANGE,
   DB_OPTION_COMPACT_TIME_OFFSET,
   DB_OPTION_IS_AUDIT,
+  DB_OPTION_ALLOW_DROP,
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
@@ -178,6 +179,7 @@ SPrivSetArgs privArgsAdd(SAstCreateContext* pCxt, SPrivSetArgs prev, SPrivSetArg
 SPrivSetArgs privArgsSetType(SAstCreateContext* pCxt, EPrivType type);
 SPrivSetArgs privArgsSetCols(SAstCreateContext* pCxt, SNodeList* selectCols, SNodeList* insertCols,
                              SNodeList* updateCols);
+SPrivSetArgs privArgsSet(SAstCreateContext* pCxt, int32_t type, SToken* t1, SToken* t2);
 
 SNode*     createPlaceHolderColumnNode(SAstCreateContext* pCxt, SNode* pColId);
 SNode*     createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pColumnName);
@@ -430,6 +432,7 @@ SNode*  alterXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType re
 
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue);
 SNode* createAlterEncryptKeyStmt(SAstCreateContext* pCxt, int8_t keyType, const SToken* pValue);
+SNode* createAlterKeyExpirationStmt(SAstCreateContext* pCxt, const SToken* pDays, const SToken* pStrategy);
 SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName, SToken* pIndexName);
 SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool ignoreExists, SNode* pIndexName,
                              SNode* pRealTable, SNodeList* pCols, SNode* pOptions);

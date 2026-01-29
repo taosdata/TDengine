@@ -437,6 +437,8 @@ typedef enum ENodeType {
   QUERY_NODE_ALTER_ROLE_STMT,
   QUERY_NODE_CREATE_TOTP_SECRET_STMT,
   QUERY_NODE_DROP_TOTP_SECRET_STMT,
+  QUERY_NODE_ALTER_KEY_EXPIRATION_STMT,
+
 
   // placeholder for [155, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
@@ -862,7 +864,15 @@ typedef struct {
   uint64_t    suid;
   uint64_t    tuid;
   int32_t     vgId;
-  int8_t      sysInfo;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t sysInfo : 1;
+      uint8_t isAudit : 1;
+      uint8_t privCat : 3;  // ESysTblPrivCat
+      uint8_t reserved : 3;
+    };
+  };
   int64_t     ownerId;
   SSchema*    pSchemas;
   SSchemaExt* pSchemaExt;
@@ -1449,7 +1459,7 @@ typedef struct {
 
 typedef struct {
   uint8_t alterType;  // TSDB_ALTER_ROLE_LOCK, TSDB_ALTER_ROLE_ROLE, TSDB_ALTER_ROLE_PRIVILEGES
-  uint8_t objType;    // db, table, view, rsma, etc.
+  uint8_t objType;    // db, table, view, rsma, topic, etc.
   union {
     uint32_t flag;
     struct {
@@ -1457,7 +1467,8 @@ typedef struct {
       uint32_t add : 1;      // add or remove
       uint32_t sysPriv : 1;  // system or object privileges
       uint32_t objLevel : 2;
-      uint32_t reserve : 27;
+      uint32_t ignoreNotExists : 1;
+      uint32_t reserve : 26;
     };
   };
   union {
@@ -1465,8 +1476,8 @@ typedef struct {
     char            roleName[TSDB_ROLE_LEN];
   };
   char    principal[TSDB_ROLE_LEN];      // role or user name
-  char    objFName[TSDB_OBJ_FNAME_LEN];  // db or topic
-  char    tblName[TSDB_TABLE_NAME_LEN];
+  char    objFName[TSDB_OBJ_FNAME_LEN];  // db
+  char    tblName[TSDB_TABLE_NAME_LEN];  // table, view, rsma, topic, etc.
   int32_t sqlLen;
   char*   sql;
 } SAlterRoleReq;
@@ -1807,24 +1818,28 @@ typedef struct {
 } STokenStatus;
 
 typedef struct {
-  char      user[TSDB_USER_LEN];
-  int64_t   userId;
-  int32_t   version;
-  int32_t   passVer;
-  int8_t    superAuth;
-  int8_t    sysInfo;
-  int8_t    enable;
-  int8_t    dropped;
+  char    user[TSDB_USER_LEN];
+  int64_t userId;
+  int32_t version;
+  int32_t passVer;
+  int8_t  superAuth;
+  int8_t  sysInfo;
+  int8_t  enable;
+  int8_t  dropped;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t privLevel : 3;
+      uint8_t withInsertCond : 1;
+      uint8_t reserve : 4;
+    };
+  };
   SPrivSet  sysPrivs;
   SHashObj* objPrivs;
-  // SHashObj* createdDbs;
   SHashObj* selectTbs;
   SHashObj* insertTbs;
   SHashObj* deleteTbs;
-  // SHashObj* readViews;
-  // SHashObj* writeViews;
-  // SHashObj* alterViews;
-  // SHashObj* useDbs;
+  SHashObj* ownedDbs;
   int64_t   whiteListVer;
 
   SUserSessCfg sessCfg;
@@ -2024,8 +2039,15 @@ typedef struct {
   int32_t     tagsLen;
   char*       pTags;
   SSchemaExt* pSchemaExt;
-  int8_t      virtualStb;
-  SColRef*    pColRefs;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t virtualStb : 1;  // no compatibility problem for little-endian arch
+      uint8_t isAudit : 1;
+      uint8_t reserve : 6;
+    };
+  };
+  SColRef* pColRefs;
 } STableCfg;
 
 typedef STableCfg STableCfgRsp;
@@ -2120,6 +2142,7 @@ typedef struct {
   int8_t  compactTimeOffset;  // hour
   char    encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
   int8_t  isAudit;
+  int8_t  allowDrop;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -2158,6 +2181,7 @@ typedef struct {
   int8_t  compactTimeOffset;
   char    encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
   int8_t  isAudit;
+  int8_t  allowDrop;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -2384,8 +2408,9 @@ typedef struct {
   union {
     uint8_t flags;
     struct {
-      uint8_t isMount : 1;  // TS-5868
-      uint8_t padding : 7;
+      uint8_t isMount : 1;    // TS-5868
+      uint8_t allowDrop : 1;  // TS-7232
+      uint8_t padding : 6;
     };
   };
   int8_t  compactTimeOffset;
@@ -2987,6 +3012,14 @@ typedef struct {
   int32_t  changeVersion;
   int8_t   encryptAlgorithm;
   char     encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t isAudit : 1;
+      uint8_t allowDrop : 1;
+      uint8_t padding : 6;
+    };
+  };
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -3138,6 +3171,7 @@ typedef struct {
   int32_t walRetentionSize;
   int32_t ssKeepLocal;
   int8_t  ssCompact;
+  int8_t  allowDrop;
 } SAlterVnodeConfigReq;
 
 int32_t tSerializeSAlterVnodeConfigReq(void* buf, int32_t bufLen, SAlterVnodeConfigReq* pReq);
@@ -3501,6 +3535,17 @@ typedef struct {
 int32_t tSerializeSMAlterEncryptKeyReq(void* buf, int32_t bufLen, SMAlterEncryptKeyReq* pReq);
 int32_t tDeserializeSMAlterEncryptKeyReq(void* buf, int32_t bufLen, SMAlterEncryptKeyReq* pReq);
 void    tFreeSMAlterEncryptKeyReq(SMAlterEncryptKeyReq* pReq);
+
+typedef struct {
+  int32_t days;
+  char    strategy[64];
+  int32_t sqlLen;
+  char*   sql;
+} SMAlterKeyExpirationReq;
+
+int32_t tSerializeSMAlterKeyExpirationReq(void* buf, int32_t bufLen, SMAlterKeyExpirationReq* pReq);
+int32_t tDeserializeSMAlterKeyExpirationReq(void* buf, int32_t bufLen, SMAlterKeyExpirationReq* pReq);
+void    tFreeSMAlterKeyExpirationReq(SMAlterKeyExpirationReq* pReq);
 
 typedef struct {
   char    config[TSDB_DNODE_CONFIG_LEN];
@@ -4505,6 +4550,7 @@ typedef struct {
   int8_t  enableBatchMeta;
   int32_t sessionTimeoutMs;
   int32_t maxPollIntervalMs;
+  int64_t ownerId;
 } SCMSubscribeReq;
 
 static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
@@ -4739,6 +4785,7 @@ typedef struct SVCreateTbReq {
     } ctb;
     struct {
       SSchemaWrapper schemaRow;
+      int64_t        userId;
     } ntb;
   };
   int32_t         sqlLen;
@@ -6430,6 +6477,14 @@ typedef struct {
   int32_t ssChunkSize;
   int32_t ssKeepLocal;
   int8_t  ssCompact;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t isAudit : 1;
+      uint8_t allowDrop : 1;
+      uint8_t reserved : 6;
+    };
+  };
   // walInfo
   int32_t walFsyncPeriod;      // millisecond
   int32_t walRetentionPeriod;  // secs

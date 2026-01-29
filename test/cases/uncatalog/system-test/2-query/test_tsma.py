@@ -1273,7 +1273,7 @@ class TestTsma:
             self.check_td_32519()
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+
 
     def check_td_32519(self):
         self.create_recursive_tsma('tsma1', 'tsma_r', 'test', '1h', 'meters', ['avg(c1)', 'avg(c2)', 'count(ts)'])
