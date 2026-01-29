@@ -4,17 +4,16 @@ mod event;
 mod heartbeat;
 mod reconnect;
 mod sql_types;
-mod tasks;
+pub mod tasks;
+pub mod updaters;
 pub mod xnodes;
 
 use std::{
     collections::{HashMap, HashSet},
     str::FromStr,
-    sync::LazyLock,
 };
 
 use axum::http::{self, StatusCode};
-use parking_lot::RwLock;
 use snafu::{OptionExt, ResultExt};
 use taos::Dsn;
 use taosx_utils::sql::sql_value_escaped_fmt;
@@ -23,11 +22,11 @@ use tokio_util::sync::CancellationToken;
 use tonic::transport::{Channel, Endpoint};
 
 use ha_core::{
-    activity::{AgentStatus, TaskStatus},
+    activity::TaskStatus,
     jwt,
     types::{
-        CheckValidParam, HaTask, ListTaskJobStatesParam, ListTaskJobStatesResult,
-        StartTaskJobParam, StopTaskJobParam, XnodedId,
+        CheckValidParam, HaTask, ListTaskJobStatesResult, StartTaskJobParam, StopTaskJobParam,
+        XnodedId,
     },
 };
 use tracing::{Instrument, instrument};
@@ -42,6 +41,7 @@ use crate::{
         heartbeat::heartbeat_loop,
         reconnect::reconnect_loop,
         tasks::{TaskJobInfo, Tasks, is_oneshot},
+        updaters::{remove_cached_agent_state, update_agent_status, update_task_status},
         xnodes::{XNodeStatus, XNodes},
     },
     utils::taos_conn::{self, TaosConn},
@@ -1201,134 +1201,4 @@ async fn wait_xnode_complete(xnodes: XNodes, id: i32) {
             }
         }
     }
-}
-
-static AGENT_STATUS: LazyLock<RwLock<HashMap<i64, AgentStatus>>> =
-    LazyLock::new(|| RwLock::new(HashMap::new()));
-
-fn get_cached_agent_state(agent_id: i64) -> Option<AgentStatus> {
-    AGENT_STATUS.read().get(&agent_id).copied()
-}
-
-fn set_cached_agent_state(agent_id: i64, state: AgentStatus) {
-    AGENT_STATUS.write().insert(agent_id, state);
-}
-
-fn remove_cached_agent_state(agent_id: i64) {
-    AGENT_STATUS.write().remove(&agent_id);
-}
-
-#[instrument(skip_all)]
-pub async fn update_agent_status(conn: &TaosConn, xnodes: &XNodes, agent_id: i64) {
-    let state = xnodes.agent_status(agent_id);
-
-    let state = match get_cached_agent_state(agent_id) {
-        Some(old_state) => {
-            if old_state != state {
-                state
-            } else {
-                return;
-            }
-        }
-        None => {
-            set_cached_agent_state(agent_id, state);
-            state
-        }
-    };
-
-    let sql = format!("ALTER XNODE AGENT {agent_id} WITH STATUS '{state}'");
-    if let Err(e) = conn.exec(&sql).await {
-        tracing::error!("Failed to update agent status: {:#}", anyhow::Error::new(e));
-    }
-}
-
-#[instrument(skip_all)]
-pub async fn update_task_status(
-    conn: &TaosConn,
-    xnodes: &XNodes,
-    tasks: &Tasks,
-    tid: Option<i64>,
-) -> ListTaskJobStatesResult {
-    let mut task_status = Vec::new();
-    let all_xnodes = xnodes.all();
-    for xnode_id in all_xnodes {
-        let Some(client) = xnodes.get_client(xnode_id) else {
-            tracing::warn!("xnode offline or not found");
-            continue;
-        };
-        let x_states = match client.list_task_job_states().await {
-            Ok(states) => states,
-            Err(e) => {
-                tracing::error!(
-                    xnode_id,
-                    "failed to list task job states: {:#}",
-                    anyhow::Error::new(e)
-                );
-                continue;
-            }
-        };
-        task_status.extend(&x_states);
-        // 设置内存状态和数据库状态
-        for ListTaskJobStatesParam {
-            task_id,
-            job_id,
-            state,
-        } in x_states
-        {
-            if tid.is_some_and(|v| v != task_id) {
-                continue;
-            }
-            if event::get_job_status(task_id, job_id).is_some_and(|v| v == state) {
-                continue;
-            }
-            tasks.set_status(task_id, job_id, state);
-            let sql = if job_id < 0 {
-                format!("ALTER XNODE TASK {task_id} WITH STATUS '{state}'",)
-            } else {
-                format!("ALTER XNODE JOB {job_id} WITH STATUS '{state}'")
-            };
-            if let Err(e) = conn.exec(&sql).await {
-                tracing::error!(
-                    xnode_id,
-                    task_id,
-                    job_id,
-                    "failed to update task/job status: {:#}",
-                    anyhow::Error::new(e)
-                );
-            } else {
-                event::set_job_status(task_id, job_id, state);
-            }
-        }
-    }
-
-    let tids = match tid {
-        Some(tid) => vec![tid],
-        None => tasks.all_tasks(),
-    };
-    for tid in tids {
-        if !tasks.task_has_jobs(tid) {
-            continue;
-        }
-        let state = if tasks.is_stopped(tid) {
-            TaskStatus::Stopped
-        } else {
-            TaskStatus::Running
-        };
-        let old_state = event::get_task_status(tid);
-        if old_state.is_some_and(|v| v == state) {
-            continue;
-        }
-        let sql = format!("ALTER XNODE TASK {tid} WITH STATUS '{state}'",);
-        if let Err(e) = conn.exec(&sql).await {
-            tracing::error!(
-                task_id = tid,
-                "failed to update task status: {:#}",
-                anyhow::Error::new(e)
-            );
-        } else {
-            event::set_task_status(tid, state);
-        }
-    }
-
-    task_status
 }

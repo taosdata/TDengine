@@ -25,7 +25,13 @@ use crate::{
     controller::{
         BuildBatchIterSnafu, BuildTaosConnSnafu, CreateAgentActivityTableSnafu,
         CreateLogDatabaseSnafu, CreateMetricsTableSnafu, CreateTaskActivityTableSnafu, Result,
-        agents::Agents, start_task_job, tasks::Tasks, update_agent_status, update_task_status,
+        agents::Agents,
+        start_task_job,
+        tasks::Tasks,
+        updaters::{
+            del_task_status, get_job_status, get_task_status, set_job_status, set_task_status,
+            update_agent_status,
+        },
         xnodes::XNodes,
     },
     utils::{
@@ -33,11 +39,6 @@ use crate::{
         taos_conn::{self, TaosConn},
     },
 };
-
-static CACHE_TASK_STATUS: LazyLock<RwLock<HashMap<i64, TaskStatus>>> =
-    LazyLock::new(|| RwLock::new(HashMap::new()));
-static CACHE_JOB_STATUS: LazyLock<RwLock<HashMap<(i64, i64), TaskStatus>>> =
-    LazyLock::new(|| RwLock::new(HashMap::new()));
 
 type TaskFailedBackoff = HashMap<(i64, i64), Mutex<BackoffDuration>>;
 static TASK_FILED_BACKOFF: LazyLock<RwLock<TaskFailedBackoff>> =
@@ -56,36 +57,69 @@ fn task_backoff_duration(task_id: i64, job_id: i64) -> Duration {
     duration
 }
 
-pub fn get_task_status(task_id: i64) -> Option<TaskStatus> {
-    CACHE_TASK_STATUS.read().get(&task_id).copied()
-}
-
-pub fn set_task_status(task_id: i64, status: TaskStatus) {
-    CACHE_TASK_STATUS.write().insert(task_id, status);
-}
-
-pub fn get_job_status(task_id: i64, job_id: i64) -> Option<TaskStatus> {
-    CACHE_JOB_STATUS.read().get(&(task_id, job_id)).copied()
-}
-
-pub fn set_job_status(task_id: i64, job_id: i64, status: TaskStatus) {
-    CACHE_JOB_STATUS.write().insert((task_id, job_id), status);
-}
-
-pub fn del_task_status(task_id: i64) {
-    CACHE_TASK_STATUS.write().remove(&task_id);
-    CACHE_JOB_STATUS
-        .write()
-        .retain(|(tid, _), _| tid != &task_id);
+fn del_task_backoff(task_id: i64) {
     TASK_FILED_BACKOFF
         .write()
         .retain(|(tid, _), _| tid != &task_id);
 }
 
+#[instrument(skip_all)]
+async fn init_log_db(conn: &TaosConn) -> bool {
+    if let Err(e) = init_log_db_inner(conn).await {
+        tracing::error!(
+            "Failed to initialize log database and stables: {:#}",
+            anyhow::Error::new(e)
+        );
+        return false;
+    }
+    true
+}
+
+#[instrument(skip_all)]
+async fn init_log_db_inner(conn: &TaosConn) -> Result<()> {
+    static LOG_DB_INITED: tokio::sync::RwLock<bool> = tokio::sync::RwLock::const_new(false);
+    if *LOG_DB_INITED.read().await {
+        return Ok(());
+    }
+    let mut inited = LOG_DB_INITED.write().await;
+    if *inited {
+        return Ok(());
+    }
+
+    let sql = r"CREATE DATABASE IF NOT EXISTS log";
+    conn.exec(sql).await.context(CreateLogDatabaseSnafu)?;
+
+    let sql = format!(
+        "CREATE STABLE IF NOT EXISTS log.`{TASK_ACTIVITIES_STABLE}` \
+        (ts TIMESTAMP, level VARCHAR(5), status VARCHAR(20), activity VARCHAR(2048)) \
+        TAGS (xnode_id INT, task_id INT, job_id INT)"
+    );
+    conn.exec(&sql)
+        .await
+        .context(CreateTaskActivityTableSnafu)?;
+    let sql = format!(
+        "CREATE STABLE IF NOT EXISTS log.`{AGENT_ACTIVITIES_STABLE}` \
+        (ts TIMESTAMP, level VARCHAR(5), status VARCHAR(20), activity VARCHAR(2048)) \
+        TAGS (xnode_id INT, agent_id INT)"
+    );
+    conn.exec(&sql)
+        .await
+        .context(CreateAgentActivityTableSnafu)?;
+
+    let sql = format!(
+        "CREATE STABLE IF NOT EXISTS log.`{TASK_METRICS_STABLE}` \
+        (`ts` TIMESTAMP, `value` VARCHAR(2048)) \
+        TAGS (xnode_id INT, task_id INT, job_id INT, type VARCHAR(10))"
+    );
+    conn.exec(&sql).await.context(CreateMetricsTableSnafu)?;
+    *inited = true;
+    Ok(())
+}
+
 #[instrument(skip_all, fields(xnode_id=id))]
 pub async fn event_loop(
     id: i32,
-    mut taos_dsn: Dsn,
+    taos_dsn: Dsn,
     xnodes: XNodes,
     agents: Agents,
     tasks: Tasks,
@@ -111,39 +145,6 @@ pub async fn event_loop(
         };
     }
 
-    let sql = r"CREATE DATABASE IF NOT EXISTS log";
-    taos_conn.exec(sql).await.context(CreateLogDatabaseSnafu)?;
-
-    taos_dsn.subject = Some("log".to_string());
-    let log_conn = TaosConn::create(taos_dsn, 3)
-        .await
-        .context(BuildTaosConnSnafu)?;
-
-    let sql = format!(
-        "CREATE STABLE IF NOT EXISTS `{TASK_ACTIVITIES_STABLE}` \
-        (ts TIMESTAMP, level VARCHAR(5), status VARCHAR(20), activity VARCHAR(2048)) \
-        TAGS (xnode_id INT, task_id INT, job_id INT)"
-    );
-    log_conn
-        .exec(&sql)
-        .await
-        .context(CreateTaskActivityTableSnafu)?;
-    let sql = format!(
-        "CREATE STABLE IF NOT EXISTS `{AGENT_ACTIVITIES_STABLE}` \
-        (ts TIMESTAMP, level VARCHAR(5), status VARCHAR(20), activity VARCHAR(2048)) \
-        TAGS (xnode_id INT, agent_id INT)"
-    );
-    log_conn
-        .exec(&sql)
-        .await
-        .context(CreateAgentActivityTableSnafu)?;
-
-    let sql = format!(
-        "CREATE STABLE IF NOT EXISTS `{TASK_METRICS_STABLE}` \
-        (`ts` TIMESTAMP, `value` VARCHAR(2048)) \
-        TAGS (xnode_id INT, task_id INT, job_id INT, type VARCHAR(10))"
-    );
-    log_conn.exec(&sql).await.context(CreateMetricsTableSnafu)?;
     let mut backoff = RetryBackoff::new(Duration::from_secs(1), Duration::from_secs(10));
 
     loop {
@@ -188,11 +189,6 @@ pub async fn event_loop(
                     return Ok(());
                 }
                 if record.action == HEARTBEAT_REQ {
-                    // 做一些定时任务
-                    for agent_id in xnodes.agents(id) {
-                        update_agent_status(&taos_conn, &xnodes, agent_id).await;
-                    }
-                    update_task_status(&taos_conn, &xnodes, &tasks, None).await;
                     match xnodes.get_client(id) {
                         Some(client) => {
                             if let Ok(batch) =
@@ -229,10 +225,10 @@ pub async fn event_loop(
 
                         let ts = at.timestamp_millis();
 
-                        if let Some(ActivityStatus::Agent(agent_status)) = status {
+                        if let ActivityStatus::Agent(agent_status) = status {
                             call_with_cancel!(insert_agent_activity(
                                 id,
-                                &log_conn,
+                                &taos_conn,
                                 agent_id,
                                 ts,
                                 level,
@@ -250,12 +246,12 @@ pub async fn event_loop(
                             continue;
                         }
 
-                        let Some(ActivityStatus::Task(task_status)) = status else {
+                        let ActivityStatus::Task(task_status) = status else {
                             continue;
                         };
 
                         call_with_cancel!(insert_task_activity(
-                            &log_conn,
+                            &taos_conn,
                             id,
                             task_id,
                             job_id,
@@ -289,7 +285,7 @@ pub async fn event_loop(
                             cancel.child_token(),
                         ));
                     }
-                    TASK_METRICS => insert_metrics(&log_conn, id, record.context).await,
+                    TASK_METRICS => insert_metrics(&taos_conn, id, record.context).await,
                     _ => {}
                 }
             }
@@ -452,6 +448,7 @@ async fn schedule_job(
         if tasks.is_stopped(task_id) {
             tasks.del_task(task_id);
             del_task_status(task_id);
+            del_task_backoff(task_id);
         }
         return;
     }
@@ -501,6 +498,9 @@ async fn schedule_job(
 
 #[instrument(skip_all)]
 async fn insert_metrics(conn: &TaosConn, id: i32, context: &str) {
+    if !init_log_db(conn).await {
+        return;
+    }
     let TaskMetrics {
         ts,
         task_id,
@@ -528,8 +528,8 @@ async fn insert_metrics(conn: &TaosConn, id: i32, context: &str) {
     };
     let ts = ts.timestamp_millis();
     let sql = format!(
-        "INSERT INTO `{table}` \
-        USING `{TASK_METRICS_STABLE}` TAGS ({id}, {task_id}, {job_id}, '{}') \
+        "INSERT INTO log.`{table}` \
+        USING log.`{TASK_METRICS_STABLE}` TAGS ({id}, {task_id}, {job_id}, '{}') \
         VALUES ({ts}, '{metrics}')",
         r#type
     );
@@ -549,14 +549,17 @@ async fn insert_task_activity(
     status: TaskStatus,
     activity: &str,
 ) {
+    if !init_log_db(conn).await {
+        return;
+    }
     let table = if job_id < 0 {
         format!("{TASK_ACTIVITIES_STABLE}_xnode_{id}_task_{task_id}")
     } else {
         format!("{TASK_ACTIVITIES_STABLE}_xnode_{id}_task_{task_id}_job_{job_id}")
     };
     let sql = format!(
-        "INSERT INTO `{table}` \
-        USING `{TASK_ACTIVITIES_STABLE}` TAGS ({id}, {task_id}, {job_id}) \
+        "INSERT INTO log.`{table}` \
+        USING log.`{TASK_ACTIVITIES_STABLE}` TAGS ({id}, {task_id}, {job_id}) \
         VALUES ({ts}, '{level}', '{status}', '{activity}')",
     );
     if let Err(e) = conn.exec(&sql).await {
@@ -574,9 +577,12 @@ async fn insert_agent_activity(
     status: AgentStatus,
     activity: &str,
 ) {
+    if !init_log_db(conn).await {
+        return;
+    }
     let sql = format!(
-        "INSERT INTO `{AGENT_ACTIVITIES_STABLE}_xnode_{id}_agent_{agent_id}` \
-        USING `{AGENT_ACTIVITIES_STABLE}` TAGS ({id}, {agent_id}) \
+        "INSERT INTO log.`{AGENT_ACTIVITIES_STABLE}_xnode_{id}_agent_{agent_id}` \
+        USING log.`{AGENT_ACTIVITIES_STABLE}` TAGS ({id}, {agent_id}) \
         VALUES ({ts}, '{level}', '{status}', '{activity}')",
     );
     if let Err(e) = conn.exec(&sql).await {

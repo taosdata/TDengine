@@ -159,6 +159,10 @@ impl std::ops::AddAssign for CommonMetrics {
             .fetch_add(rhs.received_messages.load(SeqCst), SeqCst);
         self.processed_messages
             .fetch_add(rhs.processed_messages.load(SeqCst), SeqCst);
+        self.total_execute_time
+            .fetch_min(rhs.total_execute_time.load(SeqCst), SeqCst);
+        self.execute_time
+            .fetch_min(rhs.execute_time.load(SeqCst), SeqCst);
     }
 }
 
@@ -730,7 +734,6 @@ pub fn get_task_metrics_string(
         .context("deserialize metrics to map")?;
     map.remove("task_id");
     map.remove("stable");
-    //map.remove("task_name");
     if is_tmq {
         map.remove("written_rows");
         map.remove("total_written_rows");

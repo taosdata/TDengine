@@ -50,9 +50,12 @@ pub async fn process(
     {
         macro_rules! process {
             ($req: expr, $result: expr, $action: expr) => {
-                tracing::info!("Received {} request", $req);
+                process!(info, $req, $result, $action)
+            };
+            ($level: ident, $req: expr, $result: expr, $action: expr) => {
+                tracing::$level!("Received {} request", $req);
                 let _process_guard =
-                    taosx_core::utils::defer::defer(|| tracing::info!("Request {} done", $req));
+                    taosx_core::utils::defer::defer(|| tracing::$level!("Request {} done", $req));
                 process!($result, $action)
             };
             ($result: expr, $action: expr) => {
@@ -151,6 +154,7 @@ pub async fn process(
             }
             (LIST_TASK_JOB_STATES_REQ, _, RpcClientType::Xnoded | RpcClientType::Guest) => {
                 process!(
+                    debug,
                     LIST_TASK_JOB_STATES_REQ,
                     xnode::api::list_task_states(controller).await,
                     LIST_TASK_JOB_STATES_RESP
@@ -172,6 +176,7 @@ pub async fn process(
             }
             (LIST_AGENTS_REQ, _, RpcClientType::Xnoded | RpcClientType::Guest) => {
                 process!(
+                    debug,
                     LIST_AGENTS_REQ,
                     xnode::api::list_agents(controller).await,
                     LIST_AGENTS_RESP

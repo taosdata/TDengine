@@ -56,13 +56,17 @@ pub async fn create_task(
     args: web::Data<Args>,
     Json(task): Json<Task>,
     req: HttpRequest,
-) -> JsonResult<()> {
-    create_task_inner(&args, &req, task, true).await?;
-    Ok(Json(()))
+) -> JsonResult<GetTaskResult> {
+    Ok(Json(create_task_inner(&args, &req, task, true).await?))
 }
 
 #[instrument(skip_all)]
-async fn create_task_inner(args: &Args, req: &HttpRequest, task: Task, start: bool) -> Result<()> {
+async fn create_task_inner(
+    args: &Args,
+    req: &HttpRequest,
+    task: Task,
+    start: bool,
+) -> Result<GetTaskResult> {
     // create
     let task_name = task.name.clone();
     let config: HaTask = task.try_into()?;
@@ -95,11 +99,16 @@ async fn create_task_inner(args: &Args, req: &HttpRequest, task: Task, start: bo
 
     // start
     if start {
-        let sql = format!("START XNODE TASK '{}'", task_name);
+        let sql = format!("START XNODE TASK '{task_name}'");
         exec(&dsn, &sql).await?;
     }
 
-    Ok(())
+    let sql = format!("SHOW XNODE TASKS WHERE NAME = '{task_name}'");
+    let task = query_one::<TaskRecord>(&dsn, &sql)
+        .await?
+        .with_context(|| format!("task {task_name} not found"))?;
+
+    Ok(task.try_into()?)
 }
 
 pub async fn update_task(
@@ -298,7 +307,8 @@ pub async fn get_task_metrics(
 
 pub async fn get_all_task_job_metrics(dsn: Dsn, task_id: i64) -> anyhow::Result<String> {
     let sql = format!(
-        "select last_row(`type`) as `type`, last_row(`value`) as `value` from log.{TASK_METRICS_STABLE} partition by tbname"
+        "select last_row(`type`) as `type`, last_row(`value`) as `value` \
+        from log.{TASK_METRICS_STABLE} where task_id = {task_id} partition by tbname"
     );
 
     #[derive(Debug, serde::Deserialize)]

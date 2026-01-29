@@ -263,12 +263,12 @@ impl TaskScheduler {
                 tokio::pin!(notify_rx);
                 loop {
                     match notify_rx.recv().await {
-                        Ok((job_id, state)) => {
-                            tracing::info!("job notify: {:?} {:?}", job_id, state);
+                        Ok((sched_id, state)) => {
+                            tracing::info!("job notify: {:?} {:?}", sched_id, state);
                             notify::notify_by_job_id(
                                 &tasks_index_map,
                                 &global,
-                                &job_id,
+                                &sched_id,
                                 &state,
                                 &lush_table_cache,
                                 &task_breakpoint_db,

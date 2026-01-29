@@ -4,6 +4,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskStatus {
+    Unknown,
     Created,
     Queued,
     Running,
@@ -29,6 +30,7 @@ impl TaskStatus {
 impl std::fmt::Display for TaskStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
+            TaskStatus::Unknown => "-",
             TaskStatus::Created => "created",
             TaskStatus::Queued => "queued",
             TaskStatus::Running => "running",
@@ -50,6 +52,7 @@ impl std::convert::From<&TaskStatus> for TaskStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentStatus {
+    Unknown,
     Idle,
     Waiting,
     Connected,
@@ -81,19 +84,22 @@ impl AgentStatus {
 
 impl std::fmt::Display for AgentStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            AgentStatus::Idle => write!(f, "idle"),
-            AgentStatus::Waiting => write!(f, "waiting"),
-            AgentStatus::Connected => write!(f, "connected"),
-            AgentStatus::Transferring => write!(f, "transferring"),
-            AgentStatus::Disconnected => write!(f, "disconnected"),
-        }
+        let s = match self {
+            AgentStatus::Unknown => "-",
+            AgentStatus::Idle => "idle",
+            AgentStatus::Waiting => "waiting",
+            AgentStatus::Connected => "connected",
+            AgentStatus::Transferring => "transferring",
+            AgentStatus::Disconnected => "disconnected",
+        };
+        write!(f, "{s}")
     }
 }
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HealthStatus {
+    Unknown,
     Initial,
     Ready,
     Idle,
@@ -109,6 +115,7 @@ pub enum HealthStatus {
 impl HealthStatus {
     pub fn level(&self) -> ActivityLevel {
         match self {
+            HealthStatus::Unknown => ActivityLevel::Info,
             HealthStatus::Initial => ActivityLevel::Info,
             HealthStatus::Ready => ActivityLevel::Info,
             HealthStatus::Idle => ActivityLevel::Info,
@@ -125,18 +132,20 @@ impl HealthStatus {
 
 impl std::fmt::Display for HealthStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            HealthStatus::Initial => write!(f, "initial"),
-            HealthStatus::Ready => write!(f, "ready"),
-            HealthStatus::Idle => write!(f, "idle"),
-            HealthStatus::Active => write!(f, "active"),
-            HealthStatus::Pending => write!(f, "pending"),
-            HealthStatus::Busy => write!(f, "busy"),
-            HealthStatus::Bounce => write!(f, "bounce"),
-            HealthStatus::SourceError => write!(f, "source_error"),
-            HealthStatus::SinkError => write!(f, "sink_error"),
-            HealthStatus::Fatal => write!(f, "fatal"),
-        }
+        let s = match self {
+            HealthStatus::Unknown => "-",
+            HealthStatus::Initial => "initial",
+            HealthStatus::Ready => "ready",
+            HealthStatus::Idle => "idle",
+            HealthStatus::Active => "active",
+            HealthStatus::Pending => "pending",
+            HealthStatus::Busy => "busy",
+            HealthStatus::Bounce => "bounce",
+            HealthStatus::SourceError => "source_error",
+            HealthStatus::SinkError => "sink_error",
+            HealthStatus::Fatal => "fatal",
+        };
+        write!(f, "{s}")
     }
 }
 
@@ -187,7 +196,7 @@ pub struct Activity {
     pub at: chrono::DateTime<Utc>,
     pub level: ActivityLevel,
     pub activity: String,
-    pub status: Option<ActivityStatus>,
+    pub status: ActivityStatus,
 }
 
 impl Activity {
@@ -199,7 +208,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Info,
             activity: "Task stopping".to_string(),
-            status: Some(ActivityStatus::Task(TaskStatus::Stopping)),
+            status: ActivityStatus::Task(TaskStatus::Stopping),
         }
     }
     pub fn stopped(task_id: i64, job_id: i64) -> Self {
@@ -210,7 +219,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Info,
             activity: "Task has been stopped".to_string(),
-            status: Some(ActivityStatus::Task(TaskStatus::Stopped)),
+            status: ActivityStatus::Task(TaskStatus::Stopped),
         }
     }
     pub fn stopping_timeout(task_id: i64, job_id: i64) -> Self {
@@ -221,7 +230,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Info,
             activity: "Stopping task timed out.".to_string(),
-            status: Some(ActivityStatus::Task(TaskStatus::Stopped)),
+            status: ActivityStatus::Task(TaskStatus::Stopped),
         }
     }
 
@@ -233,7 +242,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Info,
             activity: format!("Enqueue task ({task_id},{job_id}) by schedule id: {sid}"),
-            status: Some(ActivityStatus::Task(TaskStatus::Queued)),
+            status: ActivityStatus::Task(TaskStatus::Queued),
         }
     }
 
@@ -246,7 +255,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Info,
             activity: message.into(),
-            status: Some(ActivityStatus::Task(TaskStatus::Running)),
+            status: ActivityStatus::Task(TaskStatus::Running),
         }
     }
 
@@ -258,7 +267,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Info,
             activity: message,
-            status: Some(ActivityStatus::Agent(AgentStatus::Idle)),
+            status: ActivityStatus::Agent(AgentStatus::Idle),
         }
     }
 
@@ -271,7 +280,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Info,
             activity: message,
-            status: Some(ActivityStatus::Agent(AgentStatus::Transferring)),
+            status: ActivityStatus::Agent(AgentStatus::Transferring),
         }
     }
 
@@ -284,7 +293,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Error,
             activity: message,
-            status: None,
+            status: ActivityStatus::Task(TaskStatus::Unknown),
         }
     }
 
@@ -296,7 +305,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Error,
             activity: message,
-            status: None,
+            status: ActivityStatus::Agent(AgentStatus::Unknown),
         }
     }
 
@@ -309,7 +318,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Warn,
             activity: message,
-            status: None,
+            status: ActivityStatus::Task(TaskStatus::Unknown),
         }
     }
 
@@ -321,7 +330,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Info,
             activity: message,
-            status: None,
+            status: ActivityStatus::Task(TaskStatus::Unknown),
         }
     }
 
@@ -333,7 +342,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Info,
             activity: "task completed".to_string(),
-            status: Some(ActivityStatus::Task(TaskStatus::Completed)),
+            status: ActivityStatus::Task(TaskStatus::Completed),
         }
     }
 
@@ -345,7 +354,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Info,
             activity: "Agent is putting data".to_string(),
-            status: None,
+            status: ActivityStatus::Agent(AgentStatus::Unknown),
         }
     }
     pub fn ipc_finished(task_id: i64, job_id: i64) -> Self {
@@ -356,7 +365,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Info,
             activity: "IPC finished".to_string(),
-            status: None,
+            status: ActivityStatus::Agent(AgentStatus::Unknown),
         }
     }
 
@@ -368,7 +377,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Error,
             activity: format!("Failed with error: {message}"),
-            status: Some(ActivityStatus::Task(TaskStatus::Failed)),
+            status: ActivityStatus::Task(TaskStatus::Failed),
         }
     }
 
@@ -380,7 +389,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Warn,
             activity: message,
-            status: Some(ActivityStatus::Agent(AgentStatus::Waiting)),
+            status: ActivityStatus::Agent(AgentStatus::Waiting),
         }
     }
 
@@ -392,7 +401,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Warn,
             activity: format!("Agent {agent_id} resumed"),
-            status: Some(ActivityStatus::Agent(AgentStatus::Connected)),
+            status: ActivityStatus::Agent(AgentStatus::Connected),
         }
     }
 
@@ -404,7 +413,7 @@ impl Activity {
             at,
             level: state.level(),
             activity: state.to_string(),
-            status: None,
+            status: ActivityStatus::Health(state),
         }
     }
 
@@ -416,7 +425,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Warn,
             activity: "Agent disconnected".to_string(),
-            status: Some(ActivityStatus::Agent(AgentStatus::Disconnected)),
+            status: ActivityStatus::Agent(AgentStatus::Disconnected),
         }
     }
 
@@ -428,7 +437,7 @@ impl Activity {
             at: Utc::now(),
             level: ActivityLevel::Info,
             activity: format!("Agent is connected with client addr {client}"),
-            status: Some(ActivityStatus::Agent(AgentStatus::Connected)),
+            status: ActivityStatus::Agent(AgentStatus::Connected),
         }
     }
 
@@ -448,9 +457,6 @@ impl Activity {
     }
 
     pub fn status(self, status: ActivityStatus) -> Self {
-        Self {
-            status: Some(status),
-            ..self
-        }
+        Self { status, ..self }
     }
 }

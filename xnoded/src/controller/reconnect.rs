@@ -45,16 +45,16 @@ pub async fn reconnect_loop(
             continue;
         }
         // 重连
-        reconnect(
+        let res = reconnect(
             &endpoint,
             &addr,
-            tx,
             id,
             &xnoded_id,
             &xnodes,
             cancel.child_token(),
         )
         .await;
+        tx.send(res).ok();
 
         // 重连成功后，重新发送 agent
         resend_agents(id, &xnodes, &agents).await;
@@ -69,18 +69,16 @@ pub async fn reconnect_loop(
 async fn reconnect(
     endpoint: &Endpoint,
     addr: &str,
-    tx: oneshot::Sender<bool>,
     xnode_id: i32,
     xnoded_id: &XnodedId,
     xnodes: &XNodes,
     cancel: CancellationToken,
-) {
+) -> bool {
     let channel = match endpoint.connect().await {
         Ok(channel) => channel,
         Err(e) => {
             tracing::error!(addr, "build rpc channel error: {e:#}");
-            tx.send(false).ok();
-            return;
+            return false;
         }
     };
     let (new_event_tx, new_event_rx) = flume::bounded(1000);
@@ -89,13 +87,12 @@ async fn reconnect(
         Ok(client) => client,
         Err(e) => {
             tracing::error!(addr, "create rpc client error: {:#}", anyhow::Error::new(e));
-            tx.send(false).ok();
-            return;
+            return false;
         }
     };
     xnodes.set_online(xnode_id, client.clone(), new_event_rx);
     tracing::info!("xnode {xnode_id} connected");
-    tx.send(true).ok();
+    true
 }
 
 #[instrument(skip_all)]

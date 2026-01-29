@@ -6,8 +6,14 @@ use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, instrument};
 
 use crate::{
-    Args, api::start_http, controller::Controller, monitor::start_monitor,
-    rebalancer::start_rebalancer, utils::signal::wait_signal,
+    Args,
+    api::start_http,
+    controller::Controller,
+    tasks::{
+        monitor::start_monitor, rebalancer::start_rebalancer,
+        updater::start_ticker as start_updater,
+    },
+    utils::signal::wait_signal,
 };
 
 #[tokio::main]
@@ -16,7 +22,17 @@ pub async fn run(args: Args) -> anyhow::Result<()> {
     let cancel = CancellationToken::new();
     let dsn = match &args.taos_dsn {
         Some(v) => v.clone(),
-        None => format!("taos://{}@/?cfgDir={}", args.user_pass, args.cfg_dir),
+        None => match (args.token.as_ref(), args.user_pass.as_ref()) {
+            (Some(token), _) => {
+                format!("taos:///?bearer_token={}&cfgDir={}", token, args.cfg_dir)
+            }
+            (_, Some(user_pass)) => {
+                format!("taos://{}@/?cfgDir={}", user_pass, args.cfg_dir)
+            }
+            _ => {
+                anyhow::bail!("either taos_dsn or token/user_pass must be provided");
+            }
+        },
     };
 
     let (rebalance_tx, rebalance_rx) = flume::bounded(100);
@@ -43,12 +59,14 @@ pub async fn run(args: Args) -> anyhow::Result<()> {
     tasks.spawn({
         let cancel = cancel.clone();
         let leader_ep = args.leader_ep.clone();
-        async move {
-            start_monitor(&dsn, &leader_ep, cancel)
-                .in_current_span()
-                .await
-                .context("run monitor error")
-        }
+        let dsn = dsn.clone();
+        start_monitor(dsn, leader_ep, cancel).in_current_span()
+    });
+
+    // updater
+    tasks.spawn({
+        let cancel = cancel.clone();
+        start_updater(dsn, controller.xnodes(), controller.tasks(), cancel).in_current_span()
     });
 
     // rebalancer

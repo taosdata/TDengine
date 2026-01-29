@@ -1,17 +1,10 @@
 use std::time::Duration;
 
+use anyhow::Context;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
-use crate::utils::taos_conn::{self, TaosConn};
-
-#[derive(Debug, snafu::Snafu)]
-pub enum Error {
-    #[snafu(transparent)]
-    BuildTaos { source: taos_conn::Error },
-}
-
-type Result<T> = std::result::Result<T, Error>;
+use crate::utils::taos_conn::TaosConn;
 
 #[derive(Debug, serde::Deserialize)]
 struct MNodeStatus {
@@ -21,11 +14,17 @@ struct MNodeStatus {
 }
 
 #[instrument(skip_all)]
-pub async fn start_monitor(dsn: &str, leader_ep: &str, cancel: CancellationToken) -> Result<()> {
+pub async fn start_monitor(
+    dsn: String,
+    leader_ep: String,
+    cancel: CancellationToken,
+) -> anyhow::Result<()> {
     tracing::info!("start monitor");
     let _guard = cancel.drop_guard_ref();
 
-    let conn = TaosConn::create(dsn, 3).await?;
+    let conn = TaosConn::create(dsn, 3)
+        .await
+        .context("create db connection error")?;
 
     let mut role_time: Option<String> = None;
     loop {

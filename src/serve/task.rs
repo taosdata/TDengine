@@ -211,9 +211,12 @@ async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::R
         let path = upload_dir.join(&req_id).join(&file_name);
         if let Err(persis_err) = f.file.persist(&path) {
             // fallback to copy
-            std::fs::copy(persis_err.file.path(), path).context("cannot save uploaded file")?;
+            std::fs::copy(persis_err.file.path(), &path).context("cannot save uploaded file")?;
         }
-        file_save_paths.push(format!("./files/{req_id}/{file_name}"));
+        let abs_path = path
+            .canonicalize()
+            .with_context(|| format!("cannot canonicalize path {}", path.display()))?;
+        file_save_paths.push(abs_path.display().to_string());
     }
     Ok(file_save_paths)
 }

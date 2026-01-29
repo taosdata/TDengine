@@ -212,11 +212,7 @@ async fn agent_activities_listener(
         };
         tracing::warn!(activity = activity.activity, status = ?activity.status);
 
-        let Some(status) = activity.status.as_ref() else {
-            continue;
-        };
-
-        match status {
+        match activity.status {
             ActivityStatus::Task(status) => {
                 global.send_task_activity(activity.clone());
                 match status {

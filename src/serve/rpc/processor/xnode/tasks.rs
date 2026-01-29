@@ -56,6 +56,7 @@ pub fn spawn_task(
                     SchedulerNotify::TaskActivity(activity) => activity,
                     SchedulerNotify::AgentActivity(activity) => activity,
                 };
+
                 let batch = build_activity_batch(activity);
                 if cancel
                     .run_until_cancelled(tx.send_async(batch))

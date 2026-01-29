@@ -1,4 +1,8 @@
-use std::{cmp, collections::HashMap, sync::Arc};
+use std::{
+    cmp,
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use arrow::array::RecordBatch;
 use arrow_flight::error::FlightError;
@@ -378,12 +382,13 @@ impl XNodes {
         AgentStatus::Disconnected
     }
 
-    pub fn agents(&self, xnode_id: i32) -> Vec<i64> {
-        self.0
-            .read()
-            .get(&xnode_id)
-            .map(|xnode| xnode.read().xnode.agents.keys().copied().collect())
-            .unwrap_or_default()
+    pub fn all_agents(&self) -> Vec<i64> {
+        let mut agents = HashSet::new();
+        let xnodes = self.0.read();
+        for xnode in xnodes.values() {
+            agents.extend(xnode.read().xnode.agents.keys().copied());
+        }
+        agents.into_iter().collect()
     }
 }
 

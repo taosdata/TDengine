@@ -31,7 +31,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, error, info, instrument, trace};
 
 use crate::{
-    Parser,
+    Parser, TaskNotify,
     core_metrics::{CoreMetrics, TaskMetrics},
     plugins::transform::{
         ConcatBatches, MessageArrowRecords, MessageTableMeta, get_primary_timestamp_ns,
@@ -433,7 +433,7 @@ pub async fn flat_write_with_sql(
     target_precision: taos::Precision,
     messages: &[MessageArrowRecords],
     metrics: &IpcMetrics,
-    _notifier: Option<&crate::TaskNotifySender>,
+    notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
     global: &TableOptions,
     archive_tx: Option<&Sender<ArchiveType>>,
@@ -511,6 +511,14 @@ pub async fn flat_write_with_sql(
                         break;
                     }
                     Err(err) => {
+                        if let Some(sender) = notifier {
+                            sender
+                                .send_async(TaskNotify::sink_error(format!(
+                                    "flat write sql error: {err:#}"
+                                )))
+                                .await
+                                .ok();
+                        }
                         error!(stable, "write stable with sql error: {err:#}");
                         match err {
                             FlatWriteError::InvalidColumn => {
@@ -1462,6 +1470,14 @@ pub async fn flat_write_with_raw_block(
                                 break;
                             }
                             Err(err) => {
+                                if let Some(sender) = notifier {
+                                    sender
+                                        .send_async(TaskNotify::sink_error(format!(
+                                            "write raw block error: {err:#}"
+                                        )))
+                                        .await
+                                        .ok();
+                                }
                                 tracing::error!("raw block describe table error: {err:#}");
                                 let code: i32 = err.code().into();
                                 if !matches!(code, 0x0218 | 0x2603 | 0x2602 | 0x0618 | 0x0362) {

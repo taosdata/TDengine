@@ -1072,10 +1072,6 @@ impl CsvSource {
             option.concurrent = paths.len();
         }
 
-        // if !has_header && headers.len() == 0 {
-        //     return Err(anyhow!("csv header is null"));
-        // }
-
         let skip_validate: bool = dsn
             .get("skip_validate")
             .and_then(|v| {
@@ -1405,7 +1401,7 @@ pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
     )
     .await
     {
-        DataSourceValidation::invalid("csv".to_string(), err.to_string())
+        DataSourceValidation::invalid("csv".to_string(), format!("{err:#}"))
     } else {
         DataSourceValidation::valid("csv".to_string(), None)
     }

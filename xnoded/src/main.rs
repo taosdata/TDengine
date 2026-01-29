@@ -2,8 +2,7 @@ mod api;
 mod controller;
 mod entrypoint;
 mod log;
-mod monitor;
-mod rebalancer;
+mod tasks;
 mod utils;
 
 use std::path::PathBuf;
@@ -53,8 +52,6 @@ struct Args {
     cfg_dir: String,
     #[arg(env = "XNODED_LEADER_EP")]
     leader_ep: String,
-    #[arg(env = "XNODED_USER_PASS")]
-    user_pass: String,
     #[arg(env = "XNODED_CLUSTER_ID")]
     cluster_id: String,
     #[command(flatten)]
@@ -63,6 +60,10 @@ struct Args {
     listen: Option<String>,
     #[arg(env = "XNODED_ENGINE_DSN")]
     taos_dsn: Option<String>,
+    #[arg(env = "XNODED_USER_PASS")]
+    user_pass: Option<String>,
+    #[arg(env = "XNODED_TOKEN")]
+    token: Option<String>,
 }
 
 #[derive(Parser, Debug, Clone, Default)]
