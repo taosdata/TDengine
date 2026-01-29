@@ -1269,8 +1269,22 @@ static int32_t mndProcessAuditRecordRsp(SRpcMsg *pRsp) {
 
   SMnode *pMnode = pRsp->info.node;
   SSdb   *pSdb = pMnode->pSdb;
+  (void)pMnode;  // currently unused, kept for potential future use
+  (void)pSdb;    // currently unused, kept for potential future use
 
-  mDebug("mndProcessAuditRecordRsp");
+  if (pRsp == NULL) {
+    mError("audit record rsp, null response message");
+    return -1;
+  }
+
+  if (pRsp->code != 0) {
+    mError("audit record rsp failed, code:%d", pRsp->code);
+    return pRsp->code;
+  }
+
+  mDebug("audit record rsp succeeded, code:%d", pRsp->code);
+
+  // no need to implement this rsp, since we do not care about the result of audit record insertion
 
   return code;
 }

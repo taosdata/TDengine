@@ -835,7 +835,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    analVerChanged = (analVer != statusReq.analVer);
   bool    auditDBChanged = false;
   char    auditDB[TSDB_DB_FNAME_LEN] = {0};
-  bool    auditTokenChanged = false;
+  bool    auditInfoChanged = false;
   char    auditToken[TSDB_TOKEN_LEN] = {0};
 
   SDbObj *pDb = NULL;
@@ -862,7 +862,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         mTrace("dnode:%d, failed to get audit user active token, token:xxxx, since %s", pDnode->id, tstrerror(ret));
       } else {
         mTrace("dnode:%d, get audit user active token:xxxx", pDnode->id);
-        if (strncmp(statusReq.auditToken, auditToken, TSDB_TOKEN_LEN) != 0) auditTokenChanged = true;
+        if (strncmp(statusReq.auditToken, auditToken, TSDB_TOKEN_LEN) != 0) auditInfoChanged = true;
       }
     }
   }
@@ -889,7 +889,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     }
 
     if (auditVnodeEpSet.numOfEps != statusReq.auditEpSet.numOfEps) {
-      auditTokenChanged = true;
+      auditInfoChanged = true;
       mTrace("dnode:%d, audit epset num changed, auditNum:%d, inReq:%d", pDnode->id, auditVnodeEpSet.numOfEps,
              statusReq.auditEpSet.numOfEps);
     } else {
@@ -897,7 +897,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         if (strncmp(auditVnodeEpSet.eps[i].fqdn, statusReq.auditEpSet.eps[i].fqdn, TSDB_FQDN_LEN) != 0 ||
             auditVnodeEpSet.eps[i].port != statusReq.auditEpSet.eps[i].port) {
           // do not need to check InUse here, because inUse is not accurate at every time
-          auditTokenChanged = true;
+          auditInfoChanged = true;
           mTrace("dnode:%d, audit epset changed at item:%d, fqdn:%s:%d:, inReq:%s:%d", pDnode->id, i,
                  auditVnodeEpSet.eps[i].fqdn, auditVnodeEpSet.eps[i].port, statusReq.auditEpSet.eps[i].fqdn,
                  statusReq.auditEpSet.eps[i].port);
@@ -907,7 +907,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     }
 
     if (auditVgId != statusReq.auditVgId) {
-      auditTokenChanged = true;
+      auditInfoChanged = true;
       mTrace("dnode:%d, audit vgId changed, auditVgId:%d, inReq:%d", pDnode->id, auditVgId, statusReq.auditVgId);
     }
   }
@@ -918,7 +918,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
   bool needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || analVerChanged ||
                    pMnode->ipWhiteVer != statusReq.ipWhiteVer || pMnode->timeWhiteVer != statusReq.timeWhiteVer ||
-                   encryptKeyChanged || enableWhiteListChanged || auditDBChanged || auditTokenChanged;
+                   encryptKeyChanged || enableWhiteListChanged || auditDBChanged || auditInfoChanged;
   const STraceId *trace = &pReq->info.traceId;
   char            timestamp[TD_TIME_STR_LEN] = {0};
   if (mDebugFlag & DEBUG_TRACE) (void)formatTimestampLocal(timestamp, statusReq.timestamp, TSDB_TIME_PRECISION_MILLI);
@@ -1036,10 +1036,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     } else {
       mInfo("dnode:%d, do check in status req, online:%d dnodeVer:%" PRId64 ":%" PRId64
             " reboot:%d, dnodeChanged:%d supportVnodesChanged:%d analVerChanged:%d encryptKeyChanged:%d "
-            "enableWhiteListChanged:%d auditDBChanged:%d auditTokenChanged:%d pMnode->ipWhiteVer:%" PRId64
+            "enableWhiteListChanged:%d auditDBChanged:%d auditInfoChanged:%d pMnode->ipWhiteVer:%" PRId64
             " statusReq.ipWhiteVer:%" PRId64 " pMnode->timeWhiteVer:%" PRId64 " statusReq.timeWhiteVer:%" PRId64,
             pDnode->id, online, statusReq.dnodeVer, dnodeVer, reboot, dnodeChanged, supportVnodesChanged,
-            analVerChanged, encryptKeyChanged, enableWhiteListChanged, auditDBChanged, auditTokenChanged,
+            analVerChanged, encryptKeyChanged, enableWhiteListChanged, auditDBChanged, auditInfoChanged,
             pMnode->ipWhiteVer, statusReq.ipWhiteVer, pMnode->timeWhiteVer, statusReq.timeWhiteVer);
     }
 
@@ -1074,7 +1074,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     statusRsp.ipWhiteVer = pMnode->ipWhiteVer;
     statusRsp.timeWhiteVer = pMnode->timeWhiteVer;
 
-    if (auditTokenChanged || auditDBChanged) {
+    if (auditInfoChanged || auditDBChanged) {
       if (tsAuditUseToken) {
         if (auditDB[0] != '\0') {
           mInfo("dnode:%d, set audit db:%s in process status rsp", statusReq.dnodeId, auditDB);

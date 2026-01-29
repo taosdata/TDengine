@@ -3028,13 +3028,16 @@ _exit:
   (void)atomic_add_fetch_64(&pVnode->statis.nInsert, pSubmitRsp->affectedRows);
   (void)atomic_add_fetch_64(&pVnode->statis.nInsertSuccess, pSubmitRsp->affectedRows);
   (void)atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
+  if (code == 0) {
+    (void)atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
+  }
 
   // update metrics
   METRICS_UPDATE(pVnode->writeMetrics.total_requests, METRIC_LEVEL_LOW, 1);
   METRICS_UPDATE(pVnode->writeMetrics.total_rows, METRIC_LEVEL_HIGH, pSubmitRsp->affectedRows);
   // METRICS_UPDATE(pVnode->writeMetrics.total_bytes, METRIC_LEVEL_LOW, pMsg->header.contLen);
 
-  if (tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && pSubmitRsp->affectedRows > 0 &&
+  if (code == 0 && tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && pSubmitRsp->affectedRows > 0 &&
       strlen(RPC_MSG_USER(pOriginalMsg)) > 0 && tsInsertCounter != NULL) {
     const char *sample_labels[] = {VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS,
                                    pVnode->monitor.strClusterId,
@@ -3044,10 +3047,6 @@ _exit:
                                    RPC_MSG_USER(pOriginalMsg),
                                    "Success"};
     int         tv = taos_counter_add(tsInsertCounter, pSubmitRsp->affectedRows, sample_labels);
-  }
-
-  if (code == 0) {
-    (void)atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
   }
 
   // clear
@@ -3076,7 +3075,11 @@ static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, int64_t ver, void *pRe
 
   vTrace("vgId:%d, start to process AuditRecord Req, data:%s", TD_VID(pVnode), req.data);
 
-  SJson *pJson = NULL;
+  SJson          *pJson = NULL;
+  STSchema       *pSchema = NULL;
+  SSchemaWrapper *pTagSchema = NULL;
+  int64_t         suid = 0;
+
   pJson = tjsonParse(req.data);
   if (pJson == NULL) {
     code = TSDB_CODE_INVALID_JSON_FORMAT;
@@ -3093,9 +3096,6 @@ static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, int64_t ver, void *pRe
   vTrace("vgId:%d, get audit stable entry, uid:%" PRId64 ", suid:% " PRId64 ", version:%" PRId64 ", api:%p",
          TD_VID(pVnode), merStb.me.uid, merStb.me.ctbEntry.suid, merStb.me.version, merStb.pAPI);
 
-  STSchema       *pSchema = NULL;
-  int64_t         suid = 0;
-  SSchemaWrapper *pTagSchema = NULL;
   code = vnodeGetTableSchema(pVnode, merStb.me.uid, &pSchema, &suid, &pTagSchema);
   if (code != 0) {
     metaReaderClear(&merStb);
@@ -3113,6 +3113,11 @@ static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, int64_t ver, void *pRe
     vTrace("%d items in records", size);
     for (int32_t i = 0; i < size; ++i) {
       SJson *pRecord = tjsonGetArrayItem(pRecords, i);
+      if (pRecord == NULL) {
+        vError("vgId:%d, failed to get array item %d", TD_VID(pVnode), i);
+        code = TSDB_CODE_INVALID_JSON_FORMAT;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+      }
       TAOS_CHECK_GOTO(vnodeSaveOneAuditRecord(pVnode, ver, pRecord, pTagSchema, suid, pSchema, pOriginalMsg), &lino,
                       _exit);
     }
@@ -3120,8 +3125,7 @@ static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, int64_t ver, void *pRe
 
 _exit:
   if (code != 0)
-    vError("vgId:%d, failed to process AuditRecordReq failed at line:%d, since %s", TD_VID(pVnode), lino,
-           tstrerror(code));
+    vError("vgId:%d, failed to process AuditRecordReq at line:%d, since %s", TD_VID(pVnode), lino, tstrerror(code));
 
   // clear
   if (pSchema) taosMemoryFree(pSchema);
