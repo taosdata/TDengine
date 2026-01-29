@@ -5622,7 +5622,6 @@ static int32_t jsonToRemoteValueList(const SJson* pJson, void* pObj) {
   return code;
 }
 
-static const char* jkRemoteRowHasNull = "flag";
 static const char* jkRemoteRowIsMinVal = "isMinVal";
 static const char* jkRemoteRowValSet = "valueSet";
 static const char* jkRemoteRowHasValue = "hasValue";

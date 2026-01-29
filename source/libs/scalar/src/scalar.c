@@ -745,7 +745,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         pRemote->val.node.type = QUERY_NODE_REMOTE_ROW;
       }
       
-      return code;
+      break;
     }      
     case QUERY_NODE_REMOTE_ZERO_ROWS: {
       SRemoteZeroRowsNode* pRemote = (SRemoteZeroRowsNode*)node;
@@ -757,7 +757,9 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       
       SCL_ERR_RET((*ctx->fetchFp)(ctx->pSubJobCtx, pRemote->subQIdx, node));
 
-      return sclInitParam(node, param, ctx, rowNum);
+      SCL_ERR_RET(sclInitParam(node, param, ctx, rowNum));
+
+      break;
     }      
     default:
       break;
