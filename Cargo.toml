@@ -74,7 +74,7 @@ arrow = { version = "56", features = [
   "ipc_compression",
   "prettyprint",
 ] }
-arrow-flight = "56"
+arrow-flight = { version = "56" }
 arrow-schema = { version = "56", features = ["serde"] }
 arrow-compute-ext = { path = "crates/arrow-compute-ext" }
 arrow-cast-guess-precision = { path = "crates/arrow-cast-guess-precision" }
@@ -86,7 +86,8 @@ faststr = { version = "0.2.31", features = ["serde"] }
 rayon = "1"
 metrics = "0.24"
 metrics-util = { version = "0.20", features = ["storage"] }
-scc = "2"
+
+scc = { version = "2" }
 tonic = "0.13.1"
 zerocopy = { version = "0.8.18", features = ["derive"] }
 bytes = "1.10.0"
