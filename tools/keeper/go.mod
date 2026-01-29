@@ -1,13 +1,13 @@
 module github.com/taosdata/taoskeeper
 
-go 1.23.0
+go 1.24.12
 
 require (
 	github.com/BurntSushi/toml v0.4.1
 	github.com/agiledragon/gomonkey/v2 v2.13.0
 	github.com/gin-contrib/cors v1.6.0
 	github.com/gin-gonic/gin v1.9.1
-	github.com/kardianos/service v1.2.1
+	github.com/kardianos/service v1.2.4
 	github.com/panjf2000/ants/v2 v2.4.6
 	github.com/prometheus/client_golang v1.22.0
 	github.com/shirou/gopsutil/v3 v3.22.4
@@ -72,7 +72,7 @@ require (
 	golang.org/x/arch v0.7.0 // indirect
 	golang.org/x/crypto v0.36.0 // indirect
 	golang.org/x/net v0.38.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect

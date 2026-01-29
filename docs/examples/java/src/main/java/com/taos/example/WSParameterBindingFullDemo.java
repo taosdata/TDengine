@@ -10,7 +10,7 @@ import com.taosdata.jdbc.common.TDBlob;
 
 // ANCHOR: para_bind
 public class WSParameterBindingFullDemo {
-    private static final String host = "192.168.100.6";
+    private static final String host = "127.0.0.1";
     private static final Random random = new Random(System.currentTimeMillis());
     private static final int BINARY_COLUMN_SIZE = 30;
     private static final String[] schemaList = {
