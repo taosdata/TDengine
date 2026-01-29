@@ -175,10 +175,10 @@ if(TD_BUILD_KEEPER)
     endif()
 
     set(_ldflags_list
+        "-s -w"
         "-X 'github.com/taosdata/taoskeeper/version.TD_PRODUCT_NAME=${taoskeeper_product_name}'"
         "-X 'github.com/taosdata/taoskeeper/version.CUS_NAME=${taoskeeper_cus_name}'"
         "-X 'github.com/taosdata/taoskeeper/version.CUS_PROMPT=${taoskeeper_cus_prompt}'"
-
         "-X 'github.com/taosdata/taoskeeper/version.Version=${taoskeeper_version}'"
         "-X 'github.com/taosdata/taoskeeper/version.Gitinfo=${taoskeeper_commit_sha1}'"
         "-X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}'"
