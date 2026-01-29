@@ -674,7 +674,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       (void)memcpy(*pData, input, inputBytes);
-      int32_t len = taosCreateMD5Hash(*pData, inputBytes);
+      int32_t len = taosCreateMD5Hash(*pData, inputBytes, bufLen);
       *nData = len;
     } else if (0 == strncasecmp(pToken->z, "sha2(", 5)) {
       NEXT_VALID_TOKEN(*ppSql, *pToken);

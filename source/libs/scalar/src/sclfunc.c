@@ -1903,7 +1903,7 @@ int32_t md5Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     }
     char *output = pOutputBuf;
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
-    int32_t len = taosCreateMD5Hash(varDataVal(output), varDataLen(input));
+    int32_t len = taosCreateMD5Hash(varDataVal(output), varDataLen(input), bufLen);
     varDataSetLen(output, len);
     int32_t code = colDataSetVal(pOutputData, i, output, false);
     if (TSDB_CODE_SUCCESS != code) {

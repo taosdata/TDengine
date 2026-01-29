@@ -215,14 +215,14 @@ static FORCE_INLINE int32_t taosHashBinary(char *pBuf, int32_t len, int32_t cap)
   return snprintf(pBuf, cap, "%" PRIu64, hashVal);
 }
 
-static FORCE_INLINE int32_t taosCreateMD5Hash(char *pBuf, int32_t len) {
+static FORCE_INLINE int32_t taosCreateMD5Hash(char *pBuf, int32_t len, int32_t cap) {
   T_MD5_CTX ctx;
 
   tMD5Init(&ctx);
   tMD5Update(&ctx, (uint8_t *)pBuf, len);
   tMD5Final(&ctx);
 
-  return tsnprintf(pBuf, len, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", ctx.digest[0],
+  return tsnprintf(pBuf, cap, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", ctx.digest[0],
                    ctx.digest[1], ctx.digest[2], ctx.digest[3], ctx.digest[4], ctx.digest[5], ctx.digest[6],
                    ctx.digest[7], ctx.digest[8], ctx.digest[9], ctx.digest[10], ctx.digest[11], ctx.digest[12],
                    ctx.digest[13], ctx.digest[14], ctx.digest[15]);
