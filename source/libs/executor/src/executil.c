@@ -4282,7 +4282,7 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
 
 _exit:
 
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   blockDataDestroy(pResBlock);
 
   return code;

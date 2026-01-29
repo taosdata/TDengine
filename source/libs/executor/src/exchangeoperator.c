@@ -779,14 +779,14 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SExchangeInfo* pExchangeInfo = taosAcquireRef(exchangeObjRefPool, pWrapper->exchangeId);
   if (pExchangeInfo == NULL) {
     qWarn("failed to acquire exchange operator, since it may have been released, %p", pExchangeInfo);
-    taosMemoryFree(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
     return TSDB_CODE_SUCCESS;
   }
 
   int64_t currSeqId = atomic_load_64(&pExchangeInfo->seqId);
   if (pWrapper->seqId != currSeqId) {
     qDebug("rsp reqId %" PRId64 " mismatch with exchange %p curr seqId %" PRId64 ", ignore it", pWrapper->seqId, pExchangeInfo, currSeqId);
-    taosMemoryFree(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
     code = taosReleaseRef(exchangeObjRefPool, pWrapper->exchangeId);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -812,7 +812,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     return terrno;
   }
 
-  if (0 == code && NULL == pMsg->pData) {
+  if (0 == code && NULL == pMsg->pData || pMsg->len == 0) {
     qError("invalid rsp msg, msgType:%d, len:%d", pMsg->msgType, pMsg->len);
     code = TSDB_CODE_QRY_INVALID_MSG;
   }
@@ -833,7 +833,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     qDebug("%s fetch rsp received, index:%d, blocks:%d, rows:%" PRId64 ", %p", pSourceDataInfo->taskId, index,
            pRsp->numOfBlocks, pRsp->numOfRows, pExchangeInfo);
   } else {
-    taosMemoryFree(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
     pSourceDataInfo->code = rpcCvtErrCode(code);
     if (pSourceDataInfo->code != code) {
       qError("%s fetch rsp received, index:%d, error:%s, cvted error: %s, %p", pSourceDataInfo->taskId, index,

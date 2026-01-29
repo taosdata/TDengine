@@ -712,7 +712,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   if (pAppHbMgr == NULL) {
     (void)taosThreadMutexUnlock(&clientHbMgr.lock);
     tscError("appHbMgr not exist, idx:%d", idx);
-    taosMemoryFree(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
     tFreeClientHbBatchRsp(&pRsp);
     return TSDB_CODE_OUT_OF_RANGE;
@@ -724,7 +724,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
     pInst->onlineDnodes = pInst->totalDnodes ? 0 : -1;
     tscDebug("hb rsp error %s, update server status %d/%d", tstrerror(code), pInst->onlineDnodes, pInst->totalDnodes);
     (void)taosThreadMutexUnlock(&clientHbMgr.lock);
-    taosMemoryFree(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
     tFreeClientHbBatchRsp(&pRsp);
     return code;
@@ -760,7 +760,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   tFreeClientHbBatchRsp(&pRsp);
 
 _return:
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
   return code;
 }

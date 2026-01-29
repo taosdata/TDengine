@@ -655,7 +655,7 @@ static int32_t commitRspCountDown(SMqCommitCbParamSet* pParamSet, int64_t consum
 
 static int32_t tmqCommitCb(void* param, SDataBuf* pBuf, int32_t code) {
   if (pBuf){
-    taosMemoryFreeClear(pBuf->pData);
+    rpcFreeCont(pBuf->pData);
     taosMemoryFreeClear(pBuf->pEpSet);
   }
   if(param == NULL){
@@ -804,7 +804,7 @@ static int32_t getClientVg(tmq_t* tmq, char* pTopicName, int32_t vgId, SMqClient
 static int32_t sendWalMarkMsgToMnodeCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (pMsg) {
     taosMemoryFreeClear(pMsg->pEpSet);
-    taosMemoryFreeClear(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
   }
   tqDebugC("sendWalMarkMsgToMnodeCb code:%d", code);
   return 0;
@@ -1099,7 +1099,7 @@ int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
   tDestroySMqHbRsp(&rsp);
 
   END:
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
   return code;
 }
@@ -1492,7 +1492,7 @@ _ERR:
 
   if (pMsg) {
     taosMemoryFree(pMsg->pEpSet);
-    taosMemoryFree(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
   }
 
   return code;
@@ -1601,7 +1601,7 @@ void tmqClearUnhandleMsg(tmq_t* tmq) {
 int32_t tmqSubscribeCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (pMsg) {
     taosMemoryFreeClear(pMsg->pEpSet);
-    taosMemoryFreeClear(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
   }
 
   if (param == NULL) {
@@ -2176,7 +2176,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   EXIT:
-  taosMemoryFreeClear(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFreeClear(pMsg->pEpSet);
   return code;
 }
@@ -3151,7 +3151,7 @@ static int32_t tmqGetWalInfoCb(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (pMsg) {
-    taosMemoryFree(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
   }
 
@@ -3202,7 +3202,7 @@ static int32_t tmCommittedCb(void* param, SDataBuf* pMsg, int32_t code) {
 
   end:
   if (pMsg) {
-    taosMemoryFree(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
   }
   pParam->code = code;
@@ -3638,7 +3638,7 @@ void tmq_free_assignment(tmq_topic_assignment* pAssignment) {
 
 static int32_t tmqSeekCb(void* param, SDataBuf* pMsg, int32_t code) {
   if (pMsg) {
-    taosMemoryFree(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
   }
   if (param == NULL) {
