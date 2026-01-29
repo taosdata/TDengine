@@ -162,7 +162,7 @@ static bool mndStreamGetNameFromId(SMnode *pMnode, void *pObj, void *p1, void *p
   SStreamObj* pStream = pObj;
 
   if (pStream->pCreate->streamId == *(int64_t*)p1) {
-    strncpy((char*)p2, pStream->name, TSDB_STREAM_NAME_LEN);
+    tstrncpy((char *)p2, pStream->name, TSDB_STREAM_NAME_LEN);
     return false;
   }
 
@@ -202,7 +202,7 @@ static void mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamR
   int32_t code = 0;
 
   pObj->pCreate = pCreate;
-  strncpy(pObj->name, pCreate->name, TSDB_STREAM_FNAME_LEN);
+  tstrncpy(pObj->name, pCreate->name, sizeof(pObj->name));
   (void)snprintf(pObj->createUser, sizeof(pObj->createUser), "%s", pOperUser->name);
   pObj->ownerId = pOperUser->uid;
   pObj->mainSnodeId = snodeId;

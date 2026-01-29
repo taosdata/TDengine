@@ -123,11 +123,11 @@ static inline SWalFileInfo* walGetCurFileInfo(SWal* pWal) {
 }
 
 static inline void walBuildLogName(SWal* pWal, int64_t fileFirstVer, char* buf) {
-  TAOS_UNUSED(sprintf(buf, "%s%s%020" PRId64 "." WAL_LOG_SUFFIX, pWal->path, TD_DIRSEP, fileFirstVer));
+  TAOS_UNUSED(snprintf(buf, WAL_FILE_LEN, "%s%s%020" PRId64 "." WAL_LOG_SUFFIX, pWal->path, TD_DIRSEP, fileFirstVer));
 }
 
 static inline void walBuildIdxName(SWal* pWal, int64_t fileFirstVer, char* buf) {
-  TAOS_UNUSED(sprintf(buf, "%s%s%020" PRId64 "." WAL_INDEX_SUFFIX, pWal->path, TD_DIRSEP, fileFirstVer));
+  TAOS_UNUSED(snprintf(buf, WAL_FILE_LEN, "%s%s%020" PRId64 "." WAL_INDEX_SUFFIX, pWal->path, TD_DIRSEP, fileFirstVer));
 }
 
 static inline int walValidHeadCksum(SWalCkHead* pHead) {

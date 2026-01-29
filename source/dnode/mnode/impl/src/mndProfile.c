@@ -1047,7 +1047,7 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     char addr[IP_RESERVE_CAP] = {0};
     char endpoint[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    if (tsnprintf(addr, sizeof(addr), "%s:%d", IP_ADDR_STR(&pConn->addr), pConn->addr.port) >= sizeof(addr)) {
+    if (snprintf(addr, sizeof(addr), "%s:%d", IP_ADDR_STR(&pConn->addr), pConn->addr.port) >= sizeof(addr)) {
       code = TSDB_CODE_OUT_OF_RANGE;
       mError("failed to set endpoint since %s", tstrerror(code));
       return code;
@@ -1163,8 +1163,8 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     cols = 0;
 
     char queryId[26 + VARSTR_HEADER_SIZE] = {0};
-    (void)tsnprintf(&queryId[VARSTR_HEADER_SIZE], sizeof(queryId) - VARSTR_HEADER_SIZE, "%x:%" PRIx64, pConn->id,
-                    pQuery->reqRid);
+    (void)snprintf(&queryId[VARSTR_HEADER_SIZE], sizeof(queryId) - VARSTR_HEADER_SIZE, "%x:%" PRIx64, pConn->id,
+                   pQuery->reqRid);
     varDataLen(queryId) = strlen(&queryId[VARSTR_HEADER_SIZE]);
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)queryId, false);
@@ -1220,7 +1220,7 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
 
     char endpoint[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
     char buf[IP_RESERVE_CAP] = {0};
-    (void)tsnprintf(buf, sizeof(buf), "%s:%d", IP_ADDR_STR(&pConn->addr), pConn->addr.port);
+    (void)snprintf(buf, sizeof(buf), "%s:%d", IP_ADDR_STR(&pConn->addr), pConn->addr.port);
     STR_TO_VARSTR(endpoint, buf);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)endpoint, false);
@@ -1276,12 +1276,11 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     int32_t offset = VARSTR_HEADER_SIZE;
     for (int32_t i = 0; i < pQuery->subPlanNum && offset + reserve < strSize; ++i) {
       if (i) {
-        offset += tsnprintf(subStatus + offset, sizeof(subStatus) - offset, ",");
+        offset += snprintf(subStatus + offset, sizeof(subStatus) - offset, ",");
       }
       if (offset + reserve < strSize) {
         SQuerySubDesc *pDesc = taosArrayGet(pQuery->subDesc, i);
-        offset +=
-            tsnprintf(subStatus + offset, sizeof(subStatus) - offset, "%" PRIu64 ":%s", pDesc->tid, pDesc->status);
+        offset += snprintf(subStatus + offset, sizeof(subStatus) - offset, "%" PRIu64 ":%s", pDesc->tid, pDesc->status);
       } else {
         break;
       }
@@ -1420,7 +1419,7 @@ static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     }
 
     char name[TSDB_APP_NAME_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    (void)tsnprintf(&name[VARSTR_HEADER_SIZE], sizeof(name) - VARSTR_HEADER_SIZE, "%s", pApp->name);
+    (void)snprintf(&name[VARSTR_HEADER_SIZE], sizeof(name) - VARSTR_HEADER_SIZE, "%s", pApp->name);
     varDataLen(name) = strlen(&name[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)name, false);

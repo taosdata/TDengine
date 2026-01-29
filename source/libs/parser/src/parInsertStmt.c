@@ -212,7 +212,6 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
       }
     } else {
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-      //      strcpy(val.colName, pTagSchema->name);
       if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
           pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
         if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
@@ -694,7 +693,6 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
       }
     } else {
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-      //      strcpy(val.colName, pTagSchema->name);
       if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
           pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
         if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {

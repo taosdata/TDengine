@@ -42,6 +42,7 @@ typedef struct {
     S3PutProperties putProperties;
 
     // variable-length buffer for hostname, bucket and etc.
+    int32_t bufCap;
     char buf[0];
 } SSharedStorageS3;
 
@@ -69,7 +70,7 @@ static void printConfig(SSharedStorage* pss) {
 
 // initInstance initializes the SSharedStorageS3 instance from the access string.
 static bool initInstance(SSharedStorageS3* ss, const char* as) {
-    strcpy(ss->buf, as);
+    tstrncpy(ss->buf, as, ss->bufCap);
 
     // set default values
     ss->defaultChunkSizeInMB = 64;
@@ -196,6 +197,7 @@ static bool initInstance(SSharedStorageS3* ss, const char* as) {
 static int32_t createInstance(const char* accessString, SSharedStorageS3** ppSS) {
     size_t asLen = strlen(accessString) + 1;
     SSharedStorageS3* ss = (SSharedStorageS3*)taosMemCalloc(1, sizeof(SSharedStorageS3) + asLen);
+    ss->bufCap = (int32_t)asLen;
     if (!ss) {
         tssError("failed to allocate memory for SSharedStorageS3");
         TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
@@ -253,26 +255,26 @@ static void responseCompleteCallback(S3Status status, const S3ErrorDetails *erro
     const int elen = sizeof(cbd->errMsg);
     
     if (error->message && elen - len > 0) {
-        len += tsnprintf(cbd->errMsg + len, elen - len, "  Message: %s\n", error->message);
+        len += snprintf(cbd->errMsg + len, elen - len, "  Message: %s\n", error->message);
     }
 
     if (error->resource && elen - len > 0) {
-        len += tsnprintf(cbd->errMsg + len, elen - len, "  Resource: %s\n", error->resource);
+        len += snprintf(cbd->errMsg + len, elen - len, "  Resource: %s\n", error->resource);
     }
 
     if (error->furtherDetails && elen - len > 0) {
-        len += tsnprintf(cbd->errMsg + len, elen - len, "  Further Details: %s\n", error->furtherDetails);
+        len += snprintf(cbd->errMsg + len, elen - len, "  Further Details: %s\n", error->furtherDetails);
     }
 
     if (error->extraDetailsCount && elen - len <= 0) {
         return;
     }
 
-    len += tsnprintf(&(cbd->errMsg[len]), elen - len, "%s", "  Extra Details:\n");
+    len += snprintf(&(cbd->errMsg[len]), elen - len, "%s", "  Extra Details:\n");
     for (int i = 0; i < error->extraDetailsCount && elen > len; i++) {
         const char* name = error->extraDetails[i].name;
         const char* value = error->extraDetails[i].value;
-        len += tsnprintf(cbd->errMsg + len, elen - len, "    %s: %s\n", name, value);
+        len += snprintf(cbd->errMsg + len, elen - len, "    %s: %s\n", name, value);
     }
 }
 
@@ -531,11 +533,12 @@ static int32_t commitMultipartUpload(SSharedStorageS3* ss, const char* dstPath, 
 
     // build the XML document
     char* p = xml;
-    p += sprintf(p, "<CompleteMultipartUpload>");
+    p += snprintf(p, size, "<CompleteMultipartUpload>");
     for (uint32_t i = 0; i < ucbd->numChunks; i++) {
-        p += sprintf(p, "<Part><PartNumber>%d</PartNumber><ETag>%s</ETag></Part>", i + 1, ucbd->etags[i]);
+        p += snprintf(p, size - (p - xml), "<Part><PartNumber>%d</PartNumber><ETag>%s</ETag></Part>", i + 1,
+                      ucbd->etags[i]);
     }
-    p += sprintf(p, "</CompleteMultipartUpload>");
+    p += snprintf(p, size - (p - xml), "</CompleteMultipartUpload>");
 
     // set the upload source to the XML document
     SUploadSource src = {.src = NULL, .buf = xml, .size = p-xml, .offset = 0, .file = NULL};
@@ -881,7 +884,7 @@ static S3Status listFileCallback(int                        isTruncated,
 
     lcbd->isTruncated = isTruncated;
     if (nextMarker != NULL) {
-        strncpy(lcbd->nextMarker, nextMarker, sizeof(lcbd->nextMarker));
+        tstrncpy(lcbd->nextMarker, nextMarker, sizeof(lcbd->nextMarker));
         lcbd->nextMarker[sizeof(lcbd->nextMarker) - 1] = 0;
     } else {
         lcbd->nextMarker[0] = 0;

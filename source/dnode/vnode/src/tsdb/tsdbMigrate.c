@@ -424,7 +424,7 @@ static int32_t downloadDataFileLastChunk(SRTNer* rtner, STFileObj* fobj) {
   tsdbTFileLastChunkName(rtner->tsdb, f, lpath);
   char* fname = strrchr(lpath, TD_DIRSEP_CHAR) + 1;
 
-  sprintf(rpath, "vnode%d/f%d/%s", vid, f->fid, fname);
+  snprintf(rpath, sizeof(rpath), "vnode%d/f%d/%s", vid, f->fid, fname);
 
   code = tssDownloadFileFromDefault(rpath, lpath, 0, -1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -453,7 +453,7 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
 
   char path[TSDB_FILENAME_LEN];
   if (f->lcn <= 1) {
-    strcpy(path, fobj->fname);
+    tstrncpy(path, fobj->fname, sizeof(path));
   } else {
     tsdbTFileLastChunkName(rtner->tsdb, f, path);
   }
@@ -487,9 +487,10 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
     // only include the migration id in the last chunk filename
     char rpath[TSDB_FILENAME_LEN];
     if (i == totalChunks) {
-      sprintf(rpath, "vnode%d/f%d/v%df%dver%" PRId64 ".m%d.%d.data", vid, f->fid, vid, f->fid, f->cid, mid, i);
+        snprintf(rpath, sizeof(rpath), "vnode%d/f%d/v%df%dver%" PRId64 ".m%d.%d.data", vid, f->fid, vid, f->fid, f->cid,
+                 mid, i);
     } else {
-      sprintf(rpath, "vnode%d/f%d/v%df%dver%" PRId64 ".%d.data", vid, f->fid, vid, f->fid, f->cid, i);
+        snprintf(rpath, sizeof(rpath), "vnode%d/f%d/v%df%dver%" PRId64 ".%d.data", vid, f->fid, vid, f->fid, f->cid, i);
     }
 
     code = tssUploadFileToDefault(rpath, path, offset, size);
@@ -602,7 +603,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
 
   char path[TSDB_FILENAME_LEN];
   if (flocal->f->lcn <= 1) {
-    strcpy(path, flocal->fname);
+    tstrncpy(path, flocal->fname, sizeof(path));
   } else {
     tsdbTFileLastChunkName(rtner->tsdb, flocal->f, path);
   }
@@ -964,7 +965,7 @@ int32_t tsdbListSsMigrateFileSets(STsdb *tsdb, SArray* fidArr) {
 
     char path[TSDB_FILENAME_LEN];
     if (fdata->f->lcn <= 1) {
-      strcpy(path, fdata->fname);
+      tstrncpy(path, fdata->fname, sizeof(path));
     } else {
       tsdbTFileLastChunkName(tsdb, fdata->f, path);
     }

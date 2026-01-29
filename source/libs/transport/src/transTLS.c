@@ -68,14 +68,13 @@ int32_t sslRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMod
   return sslReadImpl(pTls, pBuf, nread, cliMode);
 }
 
-int32_t sslGetCertificate(STransTLS* pTls, char buf[]) {
+int32_t sslGetCertificate(STransTLS* pTls, char buf[], int32_t len) {
   int32_t code = sslGetCertificateImpl(pTls);
   if (code == 0) {
-    strncpy(buf, pTls->certDn, sizeof(pTls->certDn));
+    tstrncpy(buf, pTls->certDn, len);
   }
 
   return code;
-
 }
 
 int8_t sslIsInited(STransTLS* pTls) { return sslIsInitedImpl(pTls); }

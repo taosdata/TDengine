@@ -5536,7 +5536,7 @@ int32_t cloneSUserDateTimeWhiteList(const SUserDateTimeWhiteList *src, SUserDate
   }
   SUserDateTimeWhiteList *pNew = dest;
   pNew->ver = src->ver;
-  strncpy(pNew->user, src->user, TSDB_USER_LEN);
+  tstrncpy(pNew->user, src->user, TSDB_USER_LEN);
   pNew->numWhiteLists = src->numWhiteLists;
 
   if (src->numWhiteLists > 0) {
@@ -5610,7 +5610,7 @@ int32_t cloneDataTimeWhiteListRsp(const SRetrieveDateTimeWhiteListRsp *src, SRet
     SUserDateTimeWhiteList       *destUser = &p->pUsers[i];
 
     destUser->ver = srcUser->ver;
-    strncpy(destUser->user, srcUser->user, sizeof(destUser->user));
+    tstrncpy(destUser->user, srcUser->user, sizeof(destUser->user));
 
     destUser->numWhiteLists = srcUser->numWhiteLists;
 

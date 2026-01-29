@@ -73,8 +73,8 @@ static bool mndCannotExecuteTransWithInfo(SMnode *pMnode, bool topHalf, char *st
   bool isLeader = mndIsLeader(pMnode);
   bool ret = (!pMnode->deploy && !isLeader) || mndTransIsInSyncContext(topHalf);
   if (ret)
-    tsnprintf(str, size, "deploy:%d, isLeader:%d, context:%s", pMnode->deploy, isLeader,
-              topHalf ? "transContext" : "syncContext");
+    snprintf(str, size, "deploy:%d, isLeader:%d, context:%s", pMnode->deploy, isLeader,
+             topHalf ? "transContext" : "syncContext");
   return ret;
 }
 
@@ -1829,11 +1829,11 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
   memcpy(rpcMsg.pCont, pAction->pCont, pAction->contLen);
 
   char    detail[1024] = {0};
-  int32_t len = tsnprintf(detail, sizeof(detail), "msgType:%s numOfEps:%d inUse:%d", TMSG_INFO(pAction->msgType),
-                          pAction->epSet.numOfEps, pAction->epSet.inUse);
+  int32_t len = snprintf(detail, sizeof(detail), "msgType:%s numOfEps:%d inUse:%d", TMSG_INFO(pAction->msgType),
+                         pAction->epSet.numOfEps, pAction->epSet.inUse);
   for (int32_t i = 0; i < pAction->epSet.numOfEps; ++i) {
-    len += tsnprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, pAction->epSet.eps[i].fqdn,
-                     pAction->epSet.eps[i].port);
+    len += snprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, pAction->epSet.eps[i].fqdn,
+                    pAction->epSet.eps[i].port);
   }
 
   int32_t code = tmsgSendReq(&pAction->epSet, &rpcMsg);
@@ -2767,7 +2767,7 @@ void mndTransPullup(SMnode *pMnode) {
   taosArrayDestroy(pArray);
 }
 
-static char *formatTimestamp(char *buf, int64_t val, int precision) {
+static char *formatTimestamp(char *buf, int32_t cap, int64_t val, int precision) {
   time_t tt;
   if (precision == TSDB_TIME_PRECISION_MICRO) {
     tt = (time_t)(val / 1000000);
@@ -2786,11 +2786,11 @@ static char *formatTimestamp(char *buf, int64_t val, int precision) {
   size_t pos = taosStrfTime(buf, 32, "%Y-%m-%d %H:%M:%S", &tm);
 
   if (precision == TSDB_TIME_PRECISION_MICRO) {
-    sprintf(buf + pos, ".%06d", (int)(val % 1000000));
+    snprintf(buf + pos, cap - (pos), ".%06d", (int)(val % 1000000));
   } else if (precision == TSDB_TIME_PRECISION_NANO) {
-    sprintf(buf + pos, ".%09d", (int)(val % 1000000000));
+    snprintf(buf + pos, cap - (pos), ".%09d", (int)(val % 1000000000));
   } else {
-    sprintf(buf + pos, ".%03d", (int)(val % 1000));
+    snprintf(buf + pos, cap - (pos), ".%03d", (int)(val % 1000));
   }
 
   return buf;
@@ -2818,10 +2818,10 @@ static void mndTransLogAction(STrans *pTrans) {
       STransAction *pAction = taosArrayGet(pTrans->redoActions, i);
       if (pAction->actionType == TRANS_ACTION_MSG) {
         char bufStart[40] = {0};
-        (void)formatTimestamp(bufStart, pAction->startTime, TSDB_TIME_PRECISION_MILLI);
+        (void)formatTimestamp(bufStart, sizeof(bufStart), pAction->startTime, TSDB_TIME_PRECISION_MILLI);
 
         char endStart[40] = {0};
-        (void)formatTimestamp(endStart, pAction->endTime, TSDB_TIME_PRECISION_MILLI);
+        (void)formatTimestamp(endStart, sizeof(endStart), pAction->endTime, TSDB_TIME_PRECISION_MILLI);
         len += snprintf(detail + len, sizeof(detail) - len,
                         "action:%d, %s:%d msgType:%s,"
                         "sent:%d, received:%d, startTime:%s, endTime:%s, ",
@@ -2941,12 +2941,12 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     char    lastInfo[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
     char    detail[TSDB_TRANS_ERROR_LEN + 1] = {0};
-    int32_t len = tsnprintf(detail, sizeof(detail), "action:%d code:0x%x(%s) ", pTrans->lastAction,
-                            pTrans->lastErrorNo & 0xFFFF, tstrerror(pTrans->lastErrorNo));
+    int32_t len = snprintf(detail, sizeof(detail), "action:%d code:0x%x(%s) ", pTrans->lastAction,
+                           pTrans->lastErrorNo & 0xFFFF, tstrerror(pTrans->lastErrorNo));
     SEpSet  epset = pTrans->lastEpset;
     if (epset.numOfEps > 0) {
-      len += tsnprintf(detail + len, sizeof(detail) - len, "msgType:%s numOfEps:%d inUse:%d ",
-                       TMSG_INFO(pTrans->lastMsgType), epset.numOfEps, epset.inUse);
+      len += snprintf(detail + len, sizeof(detail) - len, "msgType:%s numOfEps:%d inUse:%d ",
+                      TMSG_INFO(pTrans->lastMsgType), epset.numOfEps, epset.inUse);
       for (int32_t i = 0; i < pTrans->lastEpset.numOfEps; ++i) {
         len += snprintf(detail + len, sizeof(detail) - len, "ep:%d-%s:%u ", i, epset.eps[i].fqdn, epset.eps[i].port);
       }
@@ -3041,9 +3041,12 @@ static void mndShowTransAction(SShowObj *pShow, SSDataBlock *pBlock, STransActio
     char detail[TSDB_TRANS_DETAIL_LEN] = {0};
     len = 0;
     char bufStart[40] = {0};
-    if (pAction->startTime > 0) (void)formatTimestamp(bufStart, pAction->startTime, TSDB_TIME_PRECISION_MILLI);
+    if (pAction->startTime > 0)
+      (void)formatTimestamp(bufStart, sizeof(bufStart), pAction->startTime, TSDB_TIME_PRECISION_MILLI);
     char bufEnd[40] = {0};
-    if (pAction->endTime > 0) (void)formatTimestamp(bufEnd, pAction->endTime, TSDB_TIME_PRECISION_MILLI);
+    if (pAction->endTime > 0)
+      (void)formatTimestamp(bufEnd, sizeof(bufEnd), pAction->endTime, TSDB_TIME_PRECISION_MILLI);
+
     len += snprintf(detail + len, sizeof(detail) - len, "startTime:%s, endTime:%s, ", bufStart, bufEnd);
     char detailVStr[TSDB_TRANS_DETAIL_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(detailVStr, detail, pShow->pMeta->pSchemas[cols].bytes);
@@ -3060,7 +3063,7 @@ static void mndShowTransAction(SShowObj *pShow, SSDataBlock *pBlock, STransActio
       len += snprintf(objType + len, sizeof(objType) - len, "%s(%d)", sdbTableName(pAction->pRaw->type), pVgroup->vgId);
       taosMemoryFreeClear(pRow);
     } else {
-      strcpy(objType, sdbTableName(pAction->pRaw->type));
+      tstrncpy(objType, sdbTableName(pAction->pRaw->type), sizeof(objType));
     }
     char objTypeVStr[TSDB_TRANS_OBJTYPE_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(objTypeVStr, objType, pShow->pMeta->pSchemas[cols].bytes);

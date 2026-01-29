@@ -318,19 +318,32 @@ void uvWhiteListDestroy(SIpWhiteListTab* pWhite) {
 }
 
 int32_t uvWhiteListToStr(SWhiteUserList* plist, char* user, char** ppBuf) {
+  if (plist == NULL || user == NULL || ppBuf == NULL) {
+    return 0;
+  }
+
   char*   tmp = NULL;
   int32_t tlen = transUtilSWhiteListToStr(plist->pList, &tmp);
   if (tlen < 0) {
     return tlen;
   }
 
-  char* pBuf = taosMemoryCalloc(1, tlen + 64);
+  size_t ulen = strlen(user);
+  /* allocate: user + list + some headroom for formatting */
+  int32_t bufSize = (int32_t)(ulen + tlen + 64);
+  char*   pBuf = taosMemoryCalloc(1, bufSize);
   if (pBuf == NULL) {
+    taosMemoryFree(tmp);
     return terrno;
   }
 
-  int32_t len = sprintf(pBuf, "user:%s, ver:%" PRId64 ", ip:{%s}", user, plist->ver, tmp);
+  int32_t len = snprintf(pBuf, bufSize, "user:%s, ver:%" PRId64 ", ip:{%s}", user, plist->ver, tmp);
   taosMemoryFree(tmp);
+
+  if (len < 0) {
+    taosMemoryFree(pBuf);
+    return len;
+  }
 
   *ppBuf = pBuf;
   return len;
@@ -778,7 +791,7 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
       void* p = taosHashGet(pConn->pQTable, &qId, sizeof(qId));
       if (p == NULL) {
         code = TSDB_CODE_RPC_NO_STATE;
-        tTrace("conn:%p, recv release, and releady release by server sid:%" PRId64, pConn, qId);
+        tTrace("conn:%p, recv release and already released by server sid:%" PRId64, pConn, qId);
       } else {
         SSvrRegArg* arg = p;
         (pInst->cfp)(pInst->parent, &(arg->msg), NULL);
@@ -1707,8 +1720,8 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       return;
     }
 
-    TAOS_UNUSED(transSockInfo2Str((struct sockaddr*)&peername, pConn->dst));
-    TAOS_UNUSED(transSockInfo2Str((struct sockaddr*)&sockname, pConn->src));
+    TAOS_UNUSED(transSockInfo2Str((struct sockaddr*)&peername, pConn->dst, sizeof(pConn->dst)));
+    TAOS_UNUSED(transSockInfo2Str((struct sockaddr*)&sockname, pConn->src, sizeof(pConn->src)));
 
     uvGetSockInfo((struct sockaddr*)&peername, &pConn->clientIp);
     uvGetSockInfo((struct sockaddr*)&sockname, &pConn->serverIp);
