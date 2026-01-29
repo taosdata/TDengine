@@ -9,7 +9,7 @@ use anyhow::{Context, bail};
 use chrono::Local;
 use ha_core::{
     activity::TaskStatus,
-    consts::TASK_METRICS_STABLE,
+    consts::{TASK_ACTIVITIES_STABLE, TASK_METRICS_STABLE},
     types::{HaTask, MetricsType},
 };
 use taos::Dsn;
@@ -303,6 +303,25 @@ pub async fn get_task_metrics(
     let task_id = task_id.into_inner();
     let dsn = get_dsn(&args, &req).await?;
     Ok(get_all_task_job_metrics(dsn, task_id).await?)
+}
+
+pub async fn get_task_activities(
+    args: Data<Args>,
+    task_id: Path<i64>,
+    req: HttpRequest,
+) -> JsonResult<Vec<ActivityLog>> {
+    let task_id = task_id.into_inner();
+
+    let dsn = get_dsn(&args, &req).await?;
+    let sql = format!(
+        "select \
+        `task_id` as `id`, `ts` as `at`, `level`, `status`, `activity` \
+        from log.{TASK_ACTIVITIES_STABLE} \
+        where task_id = {task_id} \
+        order by ts desc limit 10;"
+    );
+    let activities = query::<ActivityLog>(&dsn, &sql).await?;
+    Ok(Json(activities))
 }
 
 pub async fn get_all_task_job_metrics(dsn: Dsn, task_id: i64) -> anyhow::Result<String> {

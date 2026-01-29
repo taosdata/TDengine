@@ -17,6 +17,7 @@ use ha_core::{
 use parking_lot::{Mutex, RwLock};
 use snafu::ResultExt;
 use taos::Dsn;
+use taosx_utils::sql::sql_value_escaped_fmt;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
@@ -560,7 +561,8 @@ async fn insert_task_activity(
     let sql = format!(
         "INSERT INTO log.`{table}` \
         USING log.`{TASK_ACTIVITIES_STABLE}` TAGS ({id}, {task_id}, {job_id}) \
-        VALUES ({ts}, '{level}', '{status}', '{activity}')",
+        VALUES ({ts}, '{level}', '{status}', {})",
+        sql_value_escaped_fmt(activity)
     );
     if let Err(e) = conn.exec(&sql).await {
         tracing::error!("Failed to insert activity: {:#}", anyhow::Error::new(e));
@@ -583,7 +585,8 @@ async fn insert_agent_activity(
     let sql = format!(
         "INSERT INTO log.`{AGENT_ACTIVITIES_STABLE}_xnode_{id}_agent_{agent_id}` \
         USING log.`{AGENT_ACTIVITIES_STABLE}` TAGS ({id}, {agent_id}) \
-        VALUES ({ts}, '{level}', '{status}', '{activity}')",
+        VALUES ({ts}, '{level}', '{status}', {})",
+        sql_value_escaped_fmt(activity)
     );
     if let Err(e) = conn.exec(&sql).await {
         tracing::error!("Failed to insert activity: {:#}", anyhow::Error::new(e));

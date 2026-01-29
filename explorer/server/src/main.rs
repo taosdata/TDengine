@@ -450,6 +450,10 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/x/tasks/export", web::get().to(export_task))
             .route("/api/x/tasks/import", web::post().to(import_task))
             .route(
+                "/api/x/tasks/{task_id}/activities",
+                web::get().to(get_task_activities),
+            )
+            .route(
                 "/api/x/tasks/{task_id}/metrics",
                 web::get().to(get_task_metrics),
             )
