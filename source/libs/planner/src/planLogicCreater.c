@@ -671,6 +671,7 @@ static int32_t createRefScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
 
   SNode *pTsCol = nodesListGetNode(pScan->pScanCols, 0);
   ((SColumnNode*)pTsCol)->hasDep = true;
+  tstrncpy(((SColumnNode*)pTsCol)->dbName, pRealTable->table.dbName, TSDB_DB_NAME_LEN);
   *pLogicNode = (SLogicNode*)pScan;
   // pCxt->hasScan = true;
 
@@ -1238,7 +1239,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
     int32_t schemaIndex = findSchemaIndex(pVirtualTable->pMeta->schema, pVirtualTable->pMeta->tableInfo.numOfColumns, pCol->colId);
     if (colRefIndex != -1 && pVirtualTable->pMeta->colRef[colRefIndex].hasRef) {
       if (pCol->isPrimTs || pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-        PLAN_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
+        continue;
       }
       scanAllCols &= false;
       PLAN_ERR_JRET(addSubScanNode(pCxt, pSelect, pVirtualTable, colRefIndex, schemaIndex, pRefTablesMap));

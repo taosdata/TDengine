@@ -381,7 +381,6 @@ class TestInsertDouble:
         self.insert_ms()
         self.insert_us()
         self.insert_ns()
-        
 
     #
     # ---------------- test_insert_wide_column.py ---------------
