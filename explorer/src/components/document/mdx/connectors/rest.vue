@@ -70,7 +70,7 @@ $env:TDENGINE_URL=&quot;${url}&quot;
     <p>
       {{ $t("docs.connector.bottom3") }}
       <a
-        :href="`${$t('urlPart')}/${restapi}/rest-api/`"
+        :href="`${$t('urlPart')}/${restApi}`"
         >REST API</a
       >{{ $t("docs.connector.bottom3end") }}
     </p>
@@ -78,8 +78,9 @@ $env:TDENGINE_URL=&quot;${url}&quot;
 </template>
 
 <script setup lang="ts">
+import { isEn } from '@/const';
 import { DocsProps } from '../utils'
 
 defineProps<DocsProps>()
-
+const restApi = computed(() => isEn.value ? 'tdengine-reference/client-libraries/rest-api/' : 'reference/connector/rest-api/');
 </script>

@@ -54,13 +54,13 @@ func main() {
     <p>{{ $t("docs.connector.go.step4desc2") }}</p>
     <pre v-highlight><code>go run main.go
 </code></pre>
-<p>
+    <p>
       {{ $t("docs.connector.bottom1") }} {{ $t("docs.connector.bottom2") }}
-      <a :href="`${$t('urlPart')}/develop/insert-data/`">{{
+      <a :href="`${$t('urlPart')}/${insertApi}`">{{
         `${$t('docs.connector.bottom2_1')}`
       }}</a>
       {{ $t("docs.connector.bottomand") }}
-      <a :href="`${$t('urlPart')}/develop/query-data/`">{{
+      <a :href="`${$t('urlPart')}/${selectApi}`">{{
         `${$t('docs.connector.bottom2_2')}`
       }}</a
       >{{ $t("docs.connector.bottom3end") }}
@@ -68,7 +68,7 @@ func main() {
     <p>
       {{ $t("docs.connector.bottom3") }}
       <a
-        :href="`${$t('urlPart')}/${restapi}/rest-api/`"
+        :href="`${$t('urlPart')}/${restApi}`"
         >REST API</a
       >{{ $t("docs.connector.bottom3end") }}
     </p>
@@ -78,6 +78,7 @@ func main() {
 <script setup lang="ts">
 import DocConfig from "@/components/document/commonConfig.vue";
 import { DocsProps } from '../utils'
+import { isEn } from "@/const";
 
 const props = defineProps<DocsProps>()
 
@@ -90,4 +91,7 @@ const endpoint = computed(() => {
   return `${props.user}:${props.password}@${uri})`;
 })
 
+const restApi = computed(() => isEn.value ? 'tdengine-reference/client-libraries/rest-api/' : 'reference/connector/rest-api/');
+const insertApi = computed(() => isEn.value ? 'developer-guide/running-sql-statements/#insert-data' : 'develop/sql/#插入数据');
+const selectApi = computed(() => isEn.value ? 'developer-guide/running-sql-statements/#query-data' : 'develop/sql/#查询数据');
 </script>
