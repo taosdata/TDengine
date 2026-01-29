@@ -26,7 +26,7 @@
 #include "tcompare.h"
 #include "tname.h"
 
-#define MND_CONSUMER_VER_NUMBER   4
+#define MND_CONSUMER_VER_NUMBER   3
 #define MND_CONSUMER_RESERVE_SIZE 64
 
 #define MND_MAX_GROUP_PER_TOPIC 100
@@ -680,15 +680,12 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   char           *msgStr = pMsg->pCont;
   int32_t         code = 0;
   int32_t         lino = 0;
-  SUserObj       *pOperUser = NULL;
   SMqConsumerObj *pConsumerNew = NULL;
   STrans         *pTrans = NULL;
 
   PRINT_LOG_START
   SCMSubscribeReq subscribe = {0};
   MND_TMQ_RETURN_CHECK(tDeserializeSCMSubscribeReq(msgStr, &subscribe, pMsg->contLen));
-  MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, RPC_MSG_USER(pMsg), &pOperUser));
-  subscribe.ownerId = pOperUser->uid;
   bool unSubscribe = (taosArrayGetSize(subscribe.topicNames) == 0);
   if(unSubscribe){
     SMqConsumerObj *pConsumerTmp = NULL;
@@ -715,7 +712,6 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
 END:
   mndTransDrop(pTrans);
-  mndReleaseUser(pMnode, pOperUser);
   tDeleteSMqConsumerObj(pConsumerNew);
   taosArrayDestroyP(subscribe.topicNames, NULL);
   code = (code == TSDB_CODE_TMQ_NO_NEED_REBALANCE || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) ? 0 : code;
@@ -1131,7 +1127,7 @@ static int32_t retrieveOneConsumer(SRpcMsg *pReq, SMqConsumerObj *pConsumer, SUs
 
   for (int32_t i = 0; i < topicSz; i++) {
     char *pTopicFName = taosArrayGetP(pConsumer->assignedTopics, i);
-    if (!showAll && (pOperUser->uid != pConsumer->ownerId)) {
+    if (!showAll && (strncmp(pOperUser->name, pConsumer->user, TSDB_USER_LEN) != 0)) {
       bool         showConsumer = false;
       SMqTopicObj *pTopic = NULL;
       (void)mndAcquireTopic(pMnode, pTopicFName, &pTopic);

@@ -1853,7 +1853,7 @@ static int32_t retrieveSub(SRpcMsg *pReq, SMqSubscribeObj *pSub, SUserObj *pOper
     if (pConsumer != NULL) {
       user = pConsumer->user;
       fqdn = pConsumer->fqdn;
-      if (pConsumer->ownerId == pOperUser->uid) {
+      if (strncmp(pConsumer->user, pOperUser->name, TSDB_USER_LEN) == 0) {
         subscribeOwner = true;
       }
       sdbRelease(pSdb, pConsumer);
