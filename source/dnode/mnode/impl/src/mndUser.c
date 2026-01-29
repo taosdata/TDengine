@@ -4489,7 +4489,7 @@ static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
     TAOS_RETURN(terrno);
   }
 
-  if (mndDropConsumerByUser(pMnode, pReq, pUser) != 0) {
+  if (mndDropConsumerByUser(pMnode, pTrans, pUser) != 0) {
     mndTransDrop(pTrans);
     TAOS_RETURN(terrno);
   }

@@ -95,11 +95,12 @@ END:
   return code;
 }
 
-int32_t mndDropConsumerByUser(SMnode *pMnode, SRpcMsg *pMsg, SUserObj *pUser) {
+int32_t mndDropConsumerByUser(SMnode *pMnode, STrans *pTrans, SUserObj *pUser) {
   int32_t         code = 0, lino = 0;
   SSdb           *pSdb = pMnode->pSdb;
   void           *pIter = NULL;
   SMqConsumerObj *pConsumer = NULL;
+  SMqConsumerObj *pConsumerNew = NULL;
 
   while ((pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer))) {
     if ((pConsumer->ownerId == 0 && strncmp(pConsumer->user, pUser->user, TSDB_USER_LEN) != 0) ||
@@ -108,8 +109,19 @@ int32_t mndDropConsumerByUser(SMnode *pMnode, SRpcMsg *pMsg, SUserObj *pUser) {
       pConsumer = NULL;
       continue;
     }
-    MND_TMQ_RETURN_CHECK(
-        mndSendConsumerMsg(pMnode, pConsumer->consumerId, TDMT_MND_TMQ_LOST_CONSUMER_CLEAR, &pMsg->info));
+    taosRLockLatch(&pConsumer->lock);
+    if ((code =
+             tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, CONSUMER_CLEAR, NULL, NULL, &pConsumerNew))) {
+      taosRUnLockLatch(&pConsumer->lock);
+      goto END;
+    }
+    if ((code = mndSetConsumerDropLogs(pTrans, pConsumerNew))) {
+      taosRUnLockLatch(&pConsumer->lock);
+      goto END;
+    }
+    taosRUnLockLatch(&pConsumer->lock);
+    tDeleteSMqConsumerObj(pConsumerNew);
+    pConsumerNew = NULL;
     mndReleaseConsumer(pMnode, pConsumer);
     pConsumer = NULL;
   }
@@ -119,6 +131,7 @@ END:
   }
   if (pConsumer) mndReleaseConsumer(pMnode, pConsumer);
   if (pIter) sdbCancelFetch(pSdb, pIter);
+  if (pConsumerNew) tDeleteSMqConsumerObj(pConsumerNew);
 
   TAOS_RETURN(code);
 }
@@ -715,19 +728,20 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   PRINT_LOG_START
   SCMSubscribeReq subscribe = {0};
   MND_TMQ_RETURN_CHECK(tDeserializeSCMSubscribeReq(msgStr, &subscribe, pMsg->contLen));
-  MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, RPC_MSG_USER(pMsg), &pOperUser));
-  subscribe.ownerId = pOperUser->uid;
   bool unSubscribe = (taosArrayGetSize(subscribe.topicNames) == 0);
-  if(unSubscribe){
+  if (unSubscribe) {
     SMqConsumerObj *pConsumerTmp = NULL;
     MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, subscribe.consumerId, &pConsumerTmp));
     taosRLockLatch(&pConsumerTmp->lock);
     size_t topicNum = taosArrayGetSize(pConsumerTmp->assignedTopics);
     taosRUnLockLatch(&pConsumerTmp->lock);
     mndReleaseConsumer(pMnode, pConsumerTmp);
-    if (topicNum == 0){
+    if (topicNum == 0) {
       goto END;
     }
+  } else {
+    MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, RPC_MSG_USER(pMsg), &pOperUser));
+    subscribe.ownerId = pOperUser->uid;
   }
   MND_TMQ_RETURN_CHECK(checkAndSortTopic(pMnode, subscribe.topicNames));
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY,
