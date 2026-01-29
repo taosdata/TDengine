@@ -96,11 +96,12 @@ static void    xnodeMgmtXnodedExit(uv_process_t *process, int64_t exitStatus, in
     (void)taosRemoveFile(pidPath);
   } else {
     xndInfo("xnoded process restart, exit status %" PRId64 ", signal %d", exitStatus, termSignal);
-    uv_sleep(2000);
+    uv_sleep(1000);
     int32_t code = xnodeMgmtSpawnXnoded(pData);
     if (code != 0) {
       xndError("xnoded process restart failed with code:%d", code);
     }
+    uv_sleep(1000);
   }
 }
 void killPreXnoded() {
@@ -345,6 +346,7 @@ _OVER:
 static void xnodeMgmtXnodedCloseWalkCb(uv_handle_t *handle, void *arg) {
   TAOS_XNODED_MGMT_CHECK_PTR_RVOID(handle);
   if (!uv_is_closing(handle)) {
+    xndDebug("xnoded closing handle type:%d, ptr:%p", handle->type, handle);
     uv_close(handle, NULL);
   }
 }
@@ -444,15 +446,17 @@ _exit:
  */
 void xnodeMgmtStopXnoded(void) {
   SXnodedData *pData = &xnodedGlobal;
-  xndInfo("stopping xnoded, need cleanup:%d, spawn err:%d", pData->needCleanUp, pData->spawnErr);
+  xndInfo("stopping xnoded, need cleanup:%d, spawn err:%d, isStopped:%d", pData->needCleanUp, pData->spawnErr, atomic_load_32(&pData->isStopped));
   if (!pData->needCleanUp || atomic_load_32(&pData->isStopped)) {
     return;
   }
   atomic_store_32(&pData->isStopped, 1);
   pData->needCleanUp = false;
+  uv_sleep(2000);
   (void)uv_process_kill(&pData->process, SIGTERM);
   uv_barrier_destroy(&pData->barrier);
 
+  xndInfo("xnoded waiting to clean up");
   if (uv_thread_join(&pData->thread) != 0) {
     xndError("stop xnoded: failed to join xnoded thread");
   }

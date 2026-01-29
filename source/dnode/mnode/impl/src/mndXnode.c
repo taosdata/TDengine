@@ -5057,7 +5057,7 @@ void mndXnodeHandleBecomeLeader(SMnode *pMnode) {
   mInfo("mndxnode start to process mnode become leader");
   SXnodeUserPassObj *pObj = mndAcquireFirstXnodeUserPass(pMnode);
   if (pObj == NULL) {
-    mInfo("mndXnode found no xnoded user pass");
+    mInfo("mndXnode become leader found no xnoded user pass");
     return;
   }
 
@@ -5077,7 +5077,7 @@ void mndRestartXnoded(SMnode *pMnode) {
   taosMsleep(200);
   SXnodeUserPassObj *pObj = mndAcquireFirstXnodeUserPass(pMnode);
   if (pObj == NULL) {
-    mInfo("mndXnode found no xnoded user pass");
+    mInfo("mndXnode restart found no xnoded user pass");
     return;
   }
   mndStartXnoded(pMnode, pObj->user, pObj->pass, pObj->token);

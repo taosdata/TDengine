@@ -2596,6 +2596,11 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->options);
       break;
     }
+    case QUERY_NODE_ALTER_XNODE_JOB_STMT: {
+      SAlterXnodeJobStmt* pStmt = (SAlterXnodeJobStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->options);
+      break;
+    }
     case QUERY_NODE_UPDATE_XNODE_TASK_STMT: {
       SUpdateXnodeTaskStmt* pStmt = (SUpdateXnodeTaskStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->source);
