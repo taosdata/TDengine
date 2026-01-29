@@ -479,6 +479,25 @@ static inline STypeMod typeGetTypeModFromCol(const SColumn* pCol) {
   return typeGetTypeMod(pCol->type, pCol->precision, pCol->scale, pCol->bytes);
 }
 
+/**
+  @brief Calculate the absolute difference between two int64_t values,
+         and return the result as uint64_t.
+  @note This function utilizes the rule of unsigned integer arithmetic (always
+  mod calculation) to avoid the overflow of the difference calculation and
+  absolute calculation.
+  For example, if a = INT64_MIN(-2^63) and b = 1, the difference b - a is
+  1 - (-2^63), which is bigger than INT64_MAX(2^63 - 1) and overflow.
+  But if we transfer them to unsigned integer: (uint64_t)a = 2^63,
+  (uint64_t)b = 1. The result is 1 - 2^63 which will be calculated as
+  1 - 2^63 + 2^64 = 2^64 - 2^63 + 1 = 2^63 + 1, which is not overflow and
+  correct.
+*/
+static inline uint64_t safe_abs_diff_i64(int64_t a, int64_t b) {
+  uint64_t ua = (uint64_t)a;
+  uint64_t ub = (uint64_t)b;
+  return a > b ? ua - ub : ub - ua;
+}
+
 #ifdef __cplusplus
 }
 #endif

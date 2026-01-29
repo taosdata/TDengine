@@ -560,6 +560,12 @@ typedef enum EShowKind {
   SHOW_KIND_DATABASES_SYSTEM
 } EShowKind;
 
+typedef struct SSurroundNode {
+  ENodeType  type;       // QUERY_NODE_SURROUND
+  SNode*     pSurroundingTime;
+  SNode*     pValues;
+} SSurroundNode;
+
 typedef struct SFillNode {
   ENodeType   type;  // QUERY_NODE_FILL
   EFillMode   mode;
@@ -567,6 +573,8 @@ typedef struct SFillNode {
   SNode*      pWStartTs;  // _wstart pseudo column
   STimeWindow timeRange;
   SNode*      pTimeRange; // STimeRangeNode for create stream
+  // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
+  SNode*      pSurroundingTime;
 } SFillNode;
 
 typedef struct SWhenThenNode {
