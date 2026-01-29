@@ -941,7 +941,7 @@ const char* fmtts(int64_t ts) {
       buf[pos++] = '|';
       buf[pos++] = ' ';
     }
-    pos += taosStrfTime(buf + pos, sizeof(buf), "ms=%Y-%m-%d %H:%M:%S", &tm);
+    pos += taosStrfTime(buf + pos, sizeof(buf) - pos, "ms=%Y-%m-%d %H:%M:%S", &tm);
     pos += snprintf(buf + pos, sizeof(buf) - (pos), ".%03d", (int32_t)(ts % 1000));
   }
 
