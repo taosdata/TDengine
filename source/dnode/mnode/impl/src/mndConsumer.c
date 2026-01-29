@@ -95,47 +95,6 @@ END:
   return code;
 }
 
-int32_t mndDropConsumerByUser(SMnode *pMnode, STrans *pTrans, SUserObj *pUser) {
-  int32_t         code = 0, lino = 0;
-  SSdb           *pSdb = pMnode->pSdb;
-  void           *pIter = NULL;
-  SMqConsumerObj *pConsumer = NULL;
-  SMqConsumerObj *pConsumerNew = NULL;
-
-  while ((pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer))) {
-    if ((pConsumer->ownerId == 0 && strncmp(pConsumer->user, pUser->user, TSDB_USER_LEN) != 0) ||
-        (pConsumer->ownerId != 0 && pConsumer->ownerId != pUser->uid)) {
-      mndReleaseConsumer(pMnode, pConsumer);
-      pConsumer = NULL;
-      continue;
-    }
-    taosRLockLatch(&pConsumer->lock);
-    if ((code =
-             tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, CONSUMER_CLEAR, NULL, NULL, &pConsumerNew))) {
-      taosRUnLockLatch(&pConsumer->lock);
-      goto END;
-    }
-    if ((code = mndSetConsumerDropLogs(pTrans, pConsumerNew))) {
-      taosRUnLockLatch(&pConsumer->lock);
-      goto END;
-    }
-    taosRUnLockLatch(&pConsumer->lock);
-    tDeleteSMqConsumerObj(pConsumerNew);
-    pConsumerNew = NULL;
-    mndReleaseConsumer(pMnode, pConsumer);
-    pConsumer = NULL;
-  }
-END:
-  if (code < 0) {
-    mError("failed at line %d to drop consumer by user:%s since %s", lino, pUser->user, tstrerror(code));
-  }
-  if (pConsumer) mndReleaseConsumer(pMnode, pConsumer);
-  if (pIter) sdbCancelFetch(pSdb, pIter);
-  if (pConsumerNew) tDeleteSMqConsumerObj(pConsumerNew);
-
-  TAOS_RETURN(code);
-}
-
 static int32_t validateOneTopic(STrans* pTrans,char *pOneTopic, SCMSubscribeReq *subscribe, SMnode *pMnode, const char *user, const char* token) {
   int32_t      code = 0;
   int32_t lino = 0;
