@@ -383,6 +383,7 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
   - `db`：连接的数据库。
   - `timezone`：时区，默认为本地时区。
   - `connTimeout`：连接超时时间，默认为 1 分钟。
+  - `bearerToken`：连接 TDengine TSDB 的 token 验证信息。
 
 - WebSocket 连接额外支持以下参数：
   - `readTimeout`：读取超时时间，默认为 5 分钟。
