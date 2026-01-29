@@ -67,16 +67,14 @@ static int32_t taosGetDualIpFromEp(const char* ep, SEp* pEp) {
     int ipLen = end - ep - 1;
     if (ipLen >= TSDB_FQDN_LEN) ipLen = TSDB_FQDN_LEN - 1;
 
-    strncpy(pEp->fqdn, ep + 1, ipLen);
-    pEp->fqdn[ipLen] = '\0';
+    tstrncpy(pEp->fqdn, ep + 1, ipLen + 1);
 
     if (*(end + 1) == ':' && *(end + 2)) {
       pEp->port = taosStr2UInt16(end + 2, NULL, 10);
     }
   } else {
     // Compatible with ::1:6030, ::1, IPv4:port, hostname:port, etc.
-    strncpy(buf, ep, TSDB_FQDN_LEN - 1);
-    buf[TSDB_FQDN_LEN - 1] = 0;
+    tstrncpy(buf, ep, sizeof(buf));
 
     char* lastColon = strrchr(buf, ':');
     char* firstColon = strchr(buf, ':');
@@ -391,7 +389,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol, char* likePat
     if (strcasecmp(pItem->name, "dataDir") == 0 && exSize > 0) {
       char* buf = &value[VARSTR_HEADER_SIZE];
       pDiskCfg = taosArrayGet(pItem->array, index);
-      valueLen = tsnprintf(buf, TSDB_CONFIG_PATH_LEN, "%s", pDiskCfg->dir);
+      valueLen = snprintf(buf, TSDB_CONFIG_PATH_LEN, "%s", pDiskCfg->dir);
       index++;
     } else {
       TAOS_CHECK_GOTO(cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_PATH_LEN, &valueLen), NULL,
@@ -433,8 +431,8 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol, char* likePat
     char info[TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE] = {0};
     if (strcasecmp(pItem->name, "dataDir") == 0 && pDiskCfg) {
       char* buf = &info[VARSTR_HEADER_SIZE];
-      valueLen = tsnprintf(buf, TSDB_CONFIG_INFO_LEN, "level %d primary %d disabled %" PRIi8, pDiskCfg->level,
-                           pDiskCfg->primary, pDiskCfg->disable);
+      valueLen = snprintf(buf, TSDB_CONFIG_INFO_LEN, "level %d primary %d disabled %" PRIi8, pDiskCfg->level,
+                          pDiskCfg->primary, pDiskCfg->disable);
     } else {
       valueLen = 0;
     }

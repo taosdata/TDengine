@@ -782,7 +782,7 @@ void monGenVnodeRoleTable(SMonInfo *pMonitor){
 
 void monSendPromReport() {
   char ts[50] = {0};
-  (void)tsnprintf(ts, 50, "%" PRId64, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
+  (void)snprintf(ts, 50, "%" PRId64, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
 
   char* promStr = NULL;
   char* pCont = (char *)taos_collector_registry_bridge_new(TAOS_COLLECTOR_REGISTRY_DEFAULT, ts, "%" PRId64, &promStr);
@@ -798,7 +798,7 @@ void monSendPromReport() {
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
     char          tmp[100] = {0};
-    (void)tsnprintf(tmp, 100, "0x%" PRIxLEAST64, tGenQid64(tsMonitor.dnodeId));
+    (void)snprintf(tmp, 100, "0x%" PRIxLEAST64, tGenQid64(tsMonitor.dnodeId));
     uDebug("report cont with QID:%s", tmp);
     if (taosSendHttpReportWithQID(tsMonitor.cfg.server, tsMonFwUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag,
                                   tmp) != 0) {

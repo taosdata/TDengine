@@ -907,7 +907,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
 
   if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
     char obj[40] = {0};
-    (void)tsnprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
+    (void)snprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
 
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);

@@ -295,7 +295,7 @@ int32_t taosGetPIdByName(const char* name, int32_t* pPId) {
       continue;
     }
 
-    int32_t ret = tsnprintf(filepath, tListLen(filepath), "/proc/%s/status", ptr->d_name);
+    int32_t ret = snprintf(filepath, tListLen(filepath), "/proc/%s/status", ptr->d_name);
     if (ret == -1) {
       continue;
     }

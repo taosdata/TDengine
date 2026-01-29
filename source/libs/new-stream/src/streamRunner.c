@@ -39,7 +39,7 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRu
   for (int32_t i = 0; i < pTask->parallelExecutionNun && code == 0; ++i) {
     exec.runtimeInfo.execId = i + pTask->task.deployId * pTask->parallelExecutionNun;
     if (pMsg->outTblType == TSDB_NORMAL_TABLE) {
-      strncpy(exec.tbname, pMsg->outTblName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(exec.tbname, pMsg->outTblName, sizeof(exec.tbname));
     }
     ST_TASK_DLOG("init task exec mgr with execId:%d, topTask:%d", exec.runtimeInfo.execId, pTask->topTask);
     code = tdListAppend(pMgr->pFreeExecs, &exec);
@@ -148,7 +148,7 @@ static void stRunnerTaskReleaseExec(SStreamRunnerTask* pTask, SStreamRunnerTaskE
 
 static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMsg) {
   if (pMsg->outDBFName) {
-    strncpy(pTask->output.outDbFName, pMsg->outDBFName, TSDB_DB_FNAME_LEN);
+    tstrncpy(pTask->output.outDbFName, pMsg->outDBFName, sizeof(pTask->output.outDbFName));
   } else {
     pTask->output.outDbFName[0] = '\0';
   }
@@ -158,7 +158,8 @@ static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, SStreamRunnerDeployM
   TSWAP(pTask->output.outTags, pMsg->outTags);
   TSWAP(pTask->output.colCids, pMsg->colCids);
   TSWAP(pTask->output.tagCids, pMsg->tagCids);
-  if (pMsg->outTblType == TSDB_SUPER_TABLE) strncpy(pTask->output.outSTbName, pMsg->outTblName, TSDB_TABLE_NAME_LEN);
+  if (pMsg->outTblType == TSDB_SUPER_TABLE)
+    tstrncpy(pTask->output.outSTbName, pMsg->outTblName, sizeof(pTask->output.outSTbName));
 }
 
 int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMsg) {
