@@ -34,7 +34,7 @@ RUN yum makecache fast \
 COPY ./cpanm /bin/
 ENV CPAN_MIRROR=https://mirrors.aliyun.com/CPAN/
 ENV PERL_CPANM_OPT="-M ${CPAN_MIRROR}"
-RUN cpanm --force --notest Term::Table Test::Simple Test::More List::Util
+RUN cpanm --force --notest Term::Table Test::Simple Test::More List::Util Time::Piece
 
 # Rust
 ENV RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
