@@ -829,7 +829,7 @@ int32_t schNotifyJobAllTasks(SSchJob *pJob, SSchTask *pTask, ETaskNotifyType typ
       continue;
     }
 
-    SCH_ERR_RET(schNotifyTaskInHashList(pJob, pJob->execTasks, type, NULL));
+    SCH_ERR_RET(schNotifyTaskInHashList(pSub, pSub->execTasks, type, NULL));
   }  
 
   return code;
