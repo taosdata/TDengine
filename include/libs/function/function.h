@@ -341,6 +341,18 @@ struct SScalarParam {
   SArray          *pFilterArr; // for types that can't filter with hash
 };
 
+typedef struct SSclComapreCtx {
+  SScalarParam *pLeft;
+  SScalarParam *pLeftVar;
+  SScalarParam *pRight;
+  SScalarParam *pOut;
+  int32_t       startIndex;
+  int32_t       endIndex;
+  __compar_fn_t fp;
+  int32_t       optr;
+  int32_t      *qualifiedNum;
+} SSclComapreCtx;
+
 static inline void setTzCharset(SScalarParam *param, timezone_t tz, void *charsetCxt) {
   if (param == NULL) return;
   param->tz = tz;

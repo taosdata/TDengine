@@ -1956,24 +1956,15 @@ _return:
   SCL_RET(code);
 }
 
-int32_t vectorCompareWithHashParam(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
-                            int32_t step, __compar_fn_t fp, int32_t optr, int32_t *num) {
-  int32_t code = TSDB_CODE_SUCCESS, i = startIndex;
-  SHashParam* pHParam = &pRight->hashParam;
+int32_t vectorCompareWithHashParam(SSclComapreCtx* pCtx) {
+  int32_t code = TSDB_CODE_SUCCESS, i = pCtx->startIndex;
+  SHashParam* pHParam = &pCtx->pRight->hashParam;
   if (!pHParam->hasValue) {
-    bool res = (optr == OP_TYPE_IN) ? false : true;
-    if (0 == i) {
-      memset(pOut->columnData->pData, res, pLeft->numOfRows);
-      if (res) {
-        *num += pLeft->numOfRows;
-      }
-    } else {
-      for (; i >= 0 && i < pLeft->numOfRows; i += step) {
-        colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
-        if (res) {
-          ++(*num);
-        }
-      }
+    bool res = (pCtx->optr == OP_TYPE_IN) ? false : true;
+    char* pRes = colDataGetData(pCtx->pOut->columnData, pCtx->startIndex);
+    memset(pRes, res, pCtx->pLeft->numOfRows);
+    if (res) {
+      *pCtx->qualifiedNum += pCtx->pLeft->numOfRows;
     }
 
     return code;
@@ -1982,19 +1973,19 @@ int32_t vectorCompareWithHashParam(SScalarParam *pLeft, SScalarParam *pLeftVar, 
   if ((NULL == pHParam->pHashFilter || 0 == taosHashGetSize(pHParam->pHashFilter)) &&
        (NULL == pHParam->pHashFilterOthers || 0 == taosHashGetSize(pHParam->pHashFilterOthers))){
     bool res = pHParam->hasNull ? false : ((optr == OP_TYPE_IN) ? false : true);
-    for (; i >= 0 && i < pLeft->numOfRows; i += step) {
-      if (IS_HELPER_NULL(pLeft->columnData, i)) {
+    for (; i < pCtx->endIndex; i++) {
+      if (IS_HELPER_NULL(pCtx->pLeft->columnData, i)) {
         bool res1 = false;
-        colDataSetInt8(pOut->columnData, i, (int8_t *)&res1);
-        colDataSetNULL(pOut->columnData, i);
+        colDataSetInt8(pCtx->pOut->columnData, i, (int8_t *)&res1);
+        colDataSetNULL(pCtx->pOut->columnData, i);
         continue;
       }
 
-      colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
+      colDataSetInt8(pCtx->pOut->columnData, i, (int8_t *)&res);
       if (res) {
-        ++(*num);
+        ++(*pCtx->qualifiedNum);
       } else if (pHParam->hasNull) {
-        colDataSetNULL(pOut->columnData, i);
+        colDataSetNULL(pCtx->pOut->columnData, i);
       }
     }
 
@@ -2002,94 +1993,93 @@ int32_t vectorCompareWithHashParam(SScalarParam *pLeft, SScalarParam *pLeftVar, 
   }
   
   __compar_fn_t fpVar = NULL;
-  if (pLeftVar != NULL) {
-    SCL_ERR_RET(filterGetCompFunc(&fpVar, GET_PARAM_TYPE(pLeftVar), optr));
+  if (pCtx->pLeftVar != NULL) {
+    SCL_ERR_RET(filterGetCompFunc(&fpVar, GET_PARAM_TYPE(pCtx->pLeftVar), pCtx->optr));
   }
 
-  for (; i >= 0 && i < pLeft->numOfRows; i += step) {
-    if (IS_HELPER_NULL(pLeft->columnData, i)) {
+  for (; i < pCtx->endIndex; i++) {
+    if (IS_HELPER_NULL(pCtx->pLeft->columnData, i)) {
       bool res = false;
-      colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
-      colDataSetNULL(pOut->columnData, i);
+      colDataSetInt8(pCtx->pOut->columnData, i, (int8_t *)&res);
+      colDataSetNULL(pCtx->pOut->columnData, i);
       continue;
     }
 
-    bool res = pHParam->pHashFilter ? compareForTypeWithColAndHash(fp, optr, pLeft->columnData, i, pHParam->pHashFilter,
+    bool res = pHParam->pHashFilter ? compareForTypeWithColAndHash(pCtx->fp, pCtx->optr, pCtx->pLeft->columnData, i, pHParam->pHashFilter,
                                             pHParam->filterValueType, pHParam->filterValueTypeMod) : false;
-    if (!((optr == OP_TYPE_IN && res) || (optr == OP_TYPE_NOT_IN && !res))) {
-      if (pLeftVar != NULL && pHParam->pHashFilterOthers && taosHashGetSize(pHParam->pHashFilterOthers) > 0) {
-        res = compareForTypeWithColAndHash(fpVar, optr, pLeftVar->columnData, i, pHParam->pHashFilterOthers,
+    if (!((pCtx->optr == OP_TYPE_IN && res) || (pCtx->optr == OP_TYPE_NOT_IN && !res))) {
+      if (pCtx->pLeftVar != NULL && pHParam->pHashFilterOthers && taosHashGetSize(pHParam->pHashFilterOthers) > 0) {
+        res = compareForTypeWithColAndHash(fpVar, pCtx->optr, pCtx->pLeftVar->columnData, i, pHParam->pHashFilterOthers,
                                            pHParam->filterValueType, pHParam->filterValueTypeMod);
       }
     }
 
-    if (pHParam->hasNull && !((optr == OP_TYPE_IN && res) || (optr == OP_TYPE_NOT_IN && !res))) {
+    if (pHParam->hasNull && !((pCtx->optr == OP_TYPE_IN && res) || (pCtx->optr == OP_TYPE_NOT_IN && !res))) {
       res = false;
-      colDataSetNULL(pOut->columnData, i);
+      colDataSetNULL(pCtx->pOut->columnData, i);
     }
     
-    colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
+    colDataSetInt8(pCtx->pOut->columnData, i, (int8_t *)&res);
     if (res) {
-      ++(*num);
+      ++(*pCtx->qualifiedNum);
     }
   }
 
   return code;
 }
 
-int32_t vectorCompareBetweenMathTypes(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
-                            int32_t endIndex, int32_t step, __compar_fn_t fp, int32_t optr, int32_t *num) {
-  bool   *pRes = (bool *)pOut->columnData->pData;
+int32_t vectorCompareBetweenMathTypes(SSclComapreCtx* pCtx) {
+  bool   *pRes = (bool *)pCtx->pOut->columnData->pData;
   int32_t code = TSDB_CODE_SUCCESS;
   
-  if (!(pLeft->columnData->hasNull || pRight->columnData->hasNull)) {
-    for (int32_t i = startIndex; i < endIndex && i >= 0; i += step) {
-      int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
-      int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
+  if (!(pCtx->pLeft->columnData->hasNull || pCtx->pRight->columnData->hasNull)) {
+    for (int32_t i = pCtx->startIndex; i < pCtx->endIndex && i >= 0; i++) {
+      int32_t leftIndex = (i >= pCtx->pLeft->numOfRows) ? 0 : i;
+      int32_t rightIndex = (i >= pCtx->pRight->numOfRows) ? 0 : i;
 
-      pRes[i] = compareForType(fp, optr, pLeft->columnData, leftIndex, pRight->columnData, rightIndex);
+      pRes[i] = compareForType(pCtx->fp, pCtx->optr, pCtx->pLeft->columnData, leftIndex, pCtx->pRight->columnData, rightIndex);
       if (pRes[i]) {
-        ++(*num);
+        ++(*pCtx->qualifiedNum);
       }
     }
 
     return code;
   }
   
-  for (int32_t i = startIndex; i < endIndex && i >= 0; i += step) {
-    int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
-    int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
+  for (int32_t i = pCtx->startIndex; i < pCtx->endIndex; i++) {
+    int32_t leftIndex = (i >= pCtx->pLeft->numOfRows) ? 0 : i;
+    int32_t rightIndex = (i >= pCtx->pRight->numOfRows) ? 0 : i;
 
-    if (colDataIsNull_f(pLeft->columnData, leftIndex) ||
-        colDataIsNull_f(pRight->columnData, rightIndex)) {
+    if (colDataIsNull_f(pCtx->pLeft->columnData, leftIndex) ||
+        colDataIsNull_f(pCtx->pRight->columnData, rightIndex)) {
       pRes[i] = false;
-      colDataSetNULL(pOut->columnData, i);
+      colDataSetNULL(pCtx->pOut->columnData, i);
       continue;
     }
-    pRes[i] = compareForType(fp, optr, pLeft->columnData, leftIndex, pRight->columnData, rightIndex);
+    
+    pRes[i] = compareForType(pCtx->fp, pCtx->optr, pCtx->pLeft->columnData, leftIndex, pCtx->pRight->columnData, rightIndex);
     if (pRes[i]) {
-      ++(*num);
+      ++(*pCtx->qualifiedNum);
     }
   }
 
   return code;
 }
 
-int32_t vectorCompareIncludeVarTypes(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
-                            int32_t endIndex, int32_t step, __compar_fn_t fp, int32_t optr, int32_t *num) {
-  for (int32_t i = startIndex; i < endIndex && i >= startIndex; i += step) {
-    int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
-    int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
+int32_t vectorCompareIncludeVarTypes(SSclComapreCtx* pCtx) {
+  for (int32_t i = pCtx->startIndex; i < pCtx->endIndex; i++) {
+    int32_t leftIndex = (i >= pCtx->pLeft->numOfRows) ? 0 : i;
+    int32_t rightIndex = (i >= pCtx->pRight->numOfRows) ? 0 : i;
 
-    if (IS_HELPER_NULL(pLeft->columnData, leftIndex) || IS_HELPER_NULL(pRight->columnData, rightIndex)) {
+    if (IS_HELPER_NULL(pCtx->pLeft->columnData, leftIndex) || IS_HELPER_NULL(pCtx->pRight->columnData, rightIndex)) {
       bool res = false;
-      colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
-      colDataSetNULL(pOut->columnData, i);
+      colDataSetInt8(pCtx->pOut->columnData, i, (int8_t *)&res);
+      colDataSetNULL(pCtx->pOut->columnData, i);
       continue;
     }
 
-    char   *pLeftData = colDataGetData(pLeft->columnData, leftIndex);
-    char   *pRightData = colDataGetData(pRight->columnData, rightIndex);
+    char   *pLeftData = colDataGetData(pCtx->pLeft->columnData, leftIndex);
+    char   *pRightData = colDataGetData(pCtx->pRight->columnData, rightIndex);
     int64_t leftOut = 0;
     int64_t rightOut = 0;
     bool    freeLeft = false;
@@ -2097,9 +2087,9 @@ int32_t vectorCompareIncludeVarTypes(SScalarParam *pLeft, SScalarParam *pRight, 
     bool    isJsonnull = false;
     bool    result = false;
 
-    SCL_ERR_RET(convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData,
+    SCL_ERR_RET(convertJsonValue(&pCtx->fp, pCtx->optr, GET_PARAM_TYPE(pCtx->pLeft), GET_PARAM_TYPE(pCtx->pRight), &pLeftData, &pRightData,
                                  &leftOut, &rightOut, &isJsonnull, &freeLeft, &freeRight, &result,
-                                 pLeft->charsetCxt));
+                                 pCtx->pLeft->charsetCxt));
 
     if (isJsonnull) {
       sclError("doVectorCompareImpl: invalid json null value");
@@ -2110,13 +2100,12 @@ int32_t vectorCompareIncludeVarTypes(SScalarParam *pLeft, SScalarParam *pRight, 
       result = false;
     }
     if (!result) {
-      colDataSetInt8(pOut->columnData, i, (int8_t *)&result);
+      colDataSetInt8(pCtx->pOut->columnData, i, (int8_t *)&result);
     } else {
-      bool res = filterDoCompare(fp, optr, pLeftData, pRightData);
-      //sclInfo("row %d compareRes:%d", i, res);
-      colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
+      bool res = filterDoCompare(pCtx->fp, pCtx->optr, pLeftData, pRightData);
+      colDataSetInt8(pCtx->pOut->columnData, i, (int8_t *)&res);
       if (res) {
-        ++(*num);
+        ++(*pCtx->qualifiedNum);
       }
     }
 
@@ -2132,81 +2121,98 @@ int32_t vectorCompareIncludeVarTypes(SScalarParam *pLeft, SScalarParam *pRight, 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t vectorCompareWithRemoteParam(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
-                            int32_t endIndex, int32_t step, __compar_fn_t fp, int32_t optr, int32_t *num) {
+int32_t vectorCompareWithRemoteParam(SSclComapreCtx* pCtx) {
+  SRemoteParam* pRemote = &pCtx->pRight->remoteParam;
+  bool isAny = ((OP_TYPE_GREATER_EQUAL == pCtx->optr || OP_TYPE_GREATER_THAN == pCtx->optr) && pRemote->isMinVal) || ((OP_TYPE_LOWER_EQUAL == pCtx->optr || OP_TYPE_LOWER_THAN == pCtx->optr) && !pRemote->isMinVal);
+  int32_t code = TSDB_CODE_SUCCESS, i = pCtx->startIndex;
+  
+  if (!pRemote->hasValue) {
+    bool res = isAny ? false : true;
+    char* pRes = colDataGetData(pCtx->pOut->columnData, pCtx->startIndex);
+    memset(pRes, res, pCtx->pLeft->numOfRows);
+    if (res) {
+      *pCtx->qualifiedNum += pCtx->pLeft->numOfRows;
+    }
 
+    return code;
+  }
+
+  if (colDataIsNull_s(pCtx->pRight->columnData, 0)) {
+    bool res = false;
+    char* pRes = colDataGetData(pCtx->pOut->columnData, pCtx->startIndex);
+    memset(pRes, res, pCtx->pLeft->numOfRows);
+    colDataSetNNULL(pCtx->pOut->columnData, pCtx->startIndex, pCtx->pLeft->numOfRows);
+    return code;
+  }
+
+  
 }
 
-int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
-                            int32_t endIndex, int32_t step, __compar_fn_t fp, int32_t optr, int32_t *num) {
+int32_t doVectorCompare(SSclComapreCtx* pCtx) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  if (pRight->hashParam.hasHashParam) {
-    return vectorCompareWithHashParam(pLeft, pLeftVar, pRight, pOut, startIndex, step, fp, optr, num);
+  if (pCtx->pRight->hashParam.hasHashParam) {
+    return vectorCompareWithHashParam(pCtx);
   }
 
-  if (pRight->remoteParam.hasRemoteParam) {
-    return vectorCompareWithRemoteParam(pLeft, pRight, pOut, startIndex, endIndex, step, fp, optr, num);
+  if (pCtx->pRight->remoteParam.hasRemoteParam) {
+    return vectorCompareWithRemoteParam(pCtx);
   }
 
-  if (IS_MATHABLE_TYPE(GET_PARAM_TYPE(pLeft)) && IS_MATHABLE_TYPE(GET_PARAM_TYPE(pRight))) {
-    return vectorCompareBetweenMathTypes(pLeft, pRight, pOut, startIndex, endIndex, step, fp, optr, num);
+  if (IS_MATHABLE_TYPE(GET_PARAM_TYPE(pCtx->pLeft)) && IS_MATHABLE_TYPE(GET_PARAM_TYPE(pCtx->pRight))) {
+    return vectorCompareBetweenMathTypes(pCtx);
   }
 
-  return vectorCompareIncludeVarTypes(pLeft, pRight, pOut, startIndex, endIndex, step, fp, optr, num);
+  return vectorCompareIncludeVarTypes(pCtx);
 }
 
-int32_t doVectorCompare(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarParam *pRight, SScalarParam *pOut,
-                        int32_t startIndex, int32_t numOfRows, int32_t _ord, int32_t optr) {
-  int32_t       i = 0;
-  int32_t       step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-  int32_t       lType = GET_PARAM_TYPE(pLeft);
-  int32_t       rType = GET_PARAM_TYPE(pRight);
-  __compar_fn_t fp = NULL;
-  int32_t       compRows = 0;
-  if (lType == rType) {
-    SCL_ERR_RET(filterGetCompFunc(&fp, lType, optr));
-  } else {
-    fp = filterGetCompFuncEx(lType, rType, optr);
-  }
-
-  if (startIndex < 0) {
-    i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
-    pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
-    compRows = pOut->numOfRows;
-  } else {
-    compRows = startIndex + numOfRows;
-    i = startIndex;
-  }
-
-  SCL_ERR_RET(doVectorCompareImpl(pLeft, pLeftVar, pRight, pOut, i, compRows, step, fp, optr, &(pOut->numOfQualified)));
-
-  return TSDB_CODE_SUCCESS;
-}
 
 int32_t vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
-                          int32_t numOfRows, int32_t _ord, int32_t optr) {
+                          int32_t numOfRows, int32_t optr) {
   SScalarParam  pLeftOut = {0};
   SScalarParam  pRightOut = {0};
-  SScalarParam *param1 = NULL;
-  SScalarParam *param2 = NULL;
-  SScalarParam *param3 = NULL;
+  SSclComapreCtx ctx = {0};
   int32_t       code = TSDB_CODE_SUCCESS;
+
+  ctx.pOut = pOut;
+  ctx.optr = optr;
+  ctx.qualifiedNum = &pOut->numOfQualified;
+  
   setTzCharset(&pLeftOut, pLeft->tz, pLeft->charsetCxt);
   setTzCharset(&pRightOut, pLeft->tz, pLeft->charsetCxt);
   if (noConvertBeforeCompare(GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), optr)) {
-    param1 = pLeft;
-    param2 = pRight;
+    ctx.pLeft = pLeft;
+    ctx.pRight = pRight;
   } else {
     SCL_ERR_JRET(vectorConvertCols(pLeft, pRight, &pLeftOut, &pRightOut, startIndex, numOfRows));
-    param1 = (pLeftOut.columnData != NULL) ? &pLeftOut : pLeft;
-    param2 = (pRightOut.columnData != NULL) ? &pRightOut : pRight;
+    ctx.pLeft = (pLeftOut.columnData != NULL) ? &pLeftOut : pLeft;
+    ctx.pRight = (pRightOut.columnData != NULL) ? &pRightOut : pRight;
     if (pRight->hashParam.pHashFilterOthers != NULL) {
-      param3 = pLeft;
+      ctx.pLeftVar = pLeft;
     }
   }
 
-  SCL_ERR_JRET(doVectorCompare(param1, param3, param2, pOut, startIndex, numOfRows, _ord, optr));
+  int32_t       lType = GET_PARAM_TYPE(ctx.pLeft);
+  int32_t       rType = GET_PARAM_TYPE(ctx.pRight);
+  if (lType == rType) {
+    SCL_ERR_RET(filterGetCompFunc(&ctx.fp, lType, optr));
+  } else {
+    ctx.fp = filterGetCompFuncEx(lType, rType, optr);
+  }
+
+  if (startIndex < 0) {
+    ctx.startIndex = 0;
+    pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+    ctx.endIndex = pOut->numOfRows;
+  } else {
+    ctx.endIndex = startIndex + numOfRows;
+    ctx.startIndex = startIndex;
+  }
+
+  SCL_ERR_RET(doVectorCompare(pLeft, pLeftVar, pRight, pOut, i, endIndex, fp, optr, &(pOut->numOfQualified)));
+
+  return TSDB_CODE_SUCCESS;
+
 
 _return:
   sclFreeParam(&pLeftOut);
@@ -2215,7 +2221,7 @@ _return:
 }
 
 int32_t vectorCompare(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord, int32_t optr) {
-  SCL_RET(vectorCompareImpl(pLeft, pRight, pOut, -1, -1, _ord, optr));
+  SCL_RET(vectorCompareImpl(pLeft, pRight, pOut, -1, -1, optr));
 }
 
 int32_t vectorGreater(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {

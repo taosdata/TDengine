@@ -737,12 +737,14 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       param->remoteParam.hasNull = pRemote->hasNull;
       param->remoteParam.isMinVal = pRemote->isMinVal;
 
-      pRemote->val.node.type = QUERY_NODE_VALUE;
+      if (pRemote->hasValue) {
+        pRemote->val.node.type = QUERY_NODE_VALUE;
 
-      int32_t code = sclInitParam(node, param, ctx, rowNum);
+        int32_t code = sclInitParam(node, param, ctx, rowNum);
 
-      pRemote->val.node.type = QUERY_NODE_REMOTE_ROW;
-
+        pRemote->val.node.type = QUERY_NODE_REMOTE_ROW;
+      }
+      
       return code;
     }      
     case QUERY_NODE_REMOTE_ZERO_ROWS: {
@@ -1123,7 +1125,7 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList *pList, struct SListCell 
     SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pWhen, ctx, &pWhen));
     SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pThen, ctx, &pThen));
 
-    SCL_ERR_JRET(vectorCompareImpl(pCase, pWhen, pComp, rowIdx, 1, TSDB_ORDER_ASC, OP_TYPE_EQUAL));
+    SCL_ERR_JRET(vectorCompareImpl(pCase, pWhen, pComp, rowIdx, 1, OP_TYPE_EQUAL));
 
     bool *equal = (bool *)colDataGetData(pComp->columnData, rowIdx);
     if (*equal) {
