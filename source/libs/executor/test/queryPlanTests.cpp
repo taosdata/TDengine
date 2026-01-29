@@ -833,7 +833,7 @@ SNode* qptMakeColumnFromTable(int32_t colIdx) {
   
   SQPTCol* pTbCol = qptCtx.makeCtx.pInputList ? (SQPTCol*)nodesListGetNode(qptCtx.makeCtx.pInputList, colIdx) : &fakeCol;
   
-  int16_t blkId = QPT_CORRECT_HIGH_PROB() ? qptCtx.makeCtx.inputBlockId : taosRand();
+  int64_t blkId = QPT_CORRECT_HIGH_PROB() ? qptCtx.makeCtx.inputBlockId : taosRand();
 
   if (QPT_CORRECT_HIGH_PROB()) {
     pCol->node.resType.type = pTbCol->dtype;
@@ -1616,7 +1616,7 @@ SNode* qptMakeDataBlockDescNodeFromNode(bool forSink) {
 
 
 
-SNode* qptMakeTargetNode(SNode* pNode, int16_t dataBlockId, int16_t slotId, SNode** pOutput) {
+SNode* qptMakeTargetNode(SNode* pNode, int64_t dataBlockId, int16_t slotId, SNode** pOutput) {
   if (QPT_NCORRECT_LOW_PROB()) {
     nodesDestroyNode(pNode);
     return qptMakeRandNode(pOutput);
@@ -1905,7 +1905,7 @@ void qptMakeColumnList(SNodeList** ppList) {
   }
 }
 
-void qptMakeTargetList(QPT_NODE_TYPE nodeType, int16_t datablockId, SNodeList** ppList) {
+void qptMakeTargetList(QPT_NODE_TYPE nodeType, int64_t datablockId, SNodeList** ppList) {
   qptSaveMakeNodeCtx();
 
   int32_t tarNum = taosRand() % QPT_MAX_COLUMN_NUM + (QPT_CORRECT_HIGH_PROB() ? 1 : 0);

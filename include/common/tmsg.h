@@ -4215,6 +4215,7 @@ typedef struct SOperatorParam {
 
 void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
 
+// virtual table's colId to origin table's colname
 typedef struct SColIdNameKV {
   col_id_t colId;
   char     colName[TSDB_COL_NAME_LEN];
@@ -4285,11 +4286,16 @@ typedef struct STagScanOperatorParam {
   tb_uid_t vcUid;
 } STagScanOperatorParam;
 
+typedef struct SRefColIdGroup {
+  SArray* pSlotIdList;  // SArray<int32_t>
+} SRefColIdGroup;
+
 typedef struct SVTableScanOperatorParam {
   uint64_t        uid;
   STimeWindow     window;
   SOperatorParam* pTagScanOp;
   SArray*         pOpParamArray;  // SArray<SOperatorParam>
+  SArray*         pRefColGroups;  // SArray<SRefColIdGroup>
 } SVTableScanOperatorParam;
 
 typedef struct SMergeOperatorParam {

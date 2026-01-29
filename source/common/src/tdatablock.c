@@ -1272,7 +1272,7 @@ size_t blockDataGetSerialMetaSizeImpl(uint32_t numOfCols, bool internal) {
   // internal: |scanFlag |
   return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(bool) + sizeof(int32_t) + sizeof(int32_t) +
          sizeof(uint64_t) + numOfCols * (sizeof(int8_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t) + 
-         (internal ? (sizeof(uint8_t)) : 0);
+         (internal ? (sizeof(uint8_t)) : 0) + (internal ? numOfCols * sizeof(int16_t) : 0);
 }
 
 size_t blockDataGetSerialMetaSizeInternal(uint32_t numOfCols) {
@@ -3470,6 +3470,16 @@ int32_t blockEncodeImpl(const SSDataBlock* pBlock, char* data, size_t dataBuflen
     uint8_t* scanFlag = (uint8_t*)data;
     *scanFlag = pBlock->info.scanFlag;
     data += sizeof(uint8_t);
+
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+      if (pColInfoData == NULL) {
+        return -1;
+      }
+
+      *((int16_t *)data) = pColInfoData->info.slotId;
+      data += sizeof(int16_t);
+    }
   }
 
   *actualLen = dataLen;
@@ -3626,6 +3636,18 @@ int32_t blockDecodeImpl(SSDataBlock* pBlock, const char* pData, const char** pEn
   if (internal && (pStart - pData) < dataLen) {
     pBlock->info.scanFlag = *(uint8_t*)pStart;
     pStart += sizeof(uint8_t);
+  }
+
+  if (internal && (pStart - pData) < dataLen) {
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+      if (pColInfoData == NULL) {
+        return terrno;
+      }
+
+      pColInfoData->info.slotId = *(int16_t*)pStart;
+      pStart += sizeof(int16_t);
+    }
   }
 
   pBlock->info.dataLoad = 1;

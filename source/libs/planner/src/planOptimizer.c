@@ -508,20 +508,38 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
     return TSDB_CODE_SUCCESS;
   }
   SOsdInfo info = {.scanOrder = SCAN_ORDER_ASC};
-  int32_t  code = scanPathOptMatch(pCxt, pLogicSubplan->pNode, &info);
-  if (TSDB_CODE_SUCCESS == code && info.pScan) {
-    scanPathOptSetScanWin(&info);
-    scanPathOptSetScanOrder(info.scanOrder, info.pScan);
-    scanPathOptSetGroupOrderScan(info.pScan);
+  int32_t  code = TSDB_CODE_SUCCESS;
+
+  PLAN_ERR_JRET(scanPathOptMatch(pCxt, pLogicSubplan->pNode, &info));
+
+  if (!info.pScan) {
+    goto _return;
   }
-  if (TSDB_CODE_SUCCESS == code && (NULL != info.pDsoFuncs || NULL != info.pSdrFuncs)) {
+
+  scanPathOptSetScanWin(&info);
+  scanPathOptSetScanOrder(info.scanOrder, info.pScan);
+  scanPathOptSetGroupOrderScan(info.pScan);
+
+  if (NULL != info.pDsoFuncs || NULL != info.pSdrFuncs) {
     info.pScan->dataRequired = scanPathOptGetDataRequired(info.pSdrFuncs);
 
     info.pScan->pDynamicScanFuncs = info.pDsoFuncs;
   }
-  if (TSDB_CODE_SUCCESS == code && info.pScan) {
+
+  if (nodeType(info.pScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN) {
+    SNode* pScan = NULL;
+    FOREACH(pScan, info.pScan->node.pParent->pChildren) {
+      OPTIMIZE_FLAG_SET_MASK(((SScanLogicNode*)pScan)->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
+    }
+  } else {
     OPTIMIZE_FLAG_SET_MASK(info.pScan->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
-    pCxt->optimized = true;
+  }
+
+  pCxt->optimized = true;
+
+_return:
+  if (code) {
+    planError("%s failed since %s", __func__, tstrerror(code));
   }
   nodesDestroyList(info.pSdrFuncs);
   return code;

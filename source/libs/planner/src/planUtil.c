@@ -826,4 +826,3 @@ bool checkScanLogicNode(SLogicNode* pNode) {
 
   return false;
 }
-
