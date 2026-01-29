@@ -360,5 +360,5 @@ class TestClusterDropTableByUid:
         self.run_abnormal_system_tables()
         self.run_abnormal_drop_table_with_non_root_user()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

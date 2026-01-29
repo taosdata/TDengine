@@ -186,5 +186,5 @@ class TestTaosdAudit:
 
             time.sleep(5)
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
