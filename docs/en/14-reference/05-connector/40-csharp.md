@@ -113,6 +113,7 @@ Supported parameters include:
 - `db`: Database to connect to.
 - `timezone`: The timezone used for parsing time types in the query result set. Defaults to the local timezone. For format details, see [Timezone Settings](#timezone-settings).
 - `connectionTimezone`: Connection-level timezone setting (supported in version 3.1.8 and above), only available for .NET 6+ and supports IANA timezone format exclusively. Cannot be set simultaneously with `timezone`. For details, see [Timezone Settings](#timezone-settings).
+- `bearerToken`: Token for connecting to TDengine TSDB (supported in version 3.1.10 and above).
 
 ##### WebSocket Connection
 
@@ -137,6 +138,7 @@ Supported parameters include:
 - `autoReconnect`: Whether to automatically reconnect, default is false.
 - `reconnectRetryCount`: Number of retries for reconnection, default is 3.
 - `reconnectIntervalMs`: Interval for reconnection in milliseconds, default is 2000.
+- `bearerToken`: Token for connecting to TDengine TSDB (supported in version 3.1.10 and above).
 
 #### Timezone Settings
 

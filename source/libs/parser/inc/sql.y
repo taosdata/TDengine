@@ -2665,6 +2665,9 @@ every_opt(A) ::= EVERY NK_LP duration_literal(B) NK_RP.                         
 
 true_for_opt(A) ::= .                                                             { A = NULL; }
 true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) NK_RP.    { A = releaseRawExprNode(pCxt, B); }
+true_for_opt(A) ::= TRUE_FOR NK_LP COUNT NK_INTEGER(B) NK_RP.                     { A = createTrueForCountNode(pCxt, &B); }
+true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) AND COUNT NK_INTEGER(C) NK_RP. { A = createTrueForAndNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
+true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) OR COUNT NK_INTEGER(C) NK_RP.  { A = createTrueForOrNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
 
 /************************************************ query_expression ****************************************************/
 query_expression(A) ::= query_simple(B)
