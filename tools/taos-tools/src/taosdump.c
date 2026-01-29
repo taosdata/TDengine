@@ -6374,6 +6374,10 @@ static int dumpInAvroWorkThreadsSub(const char *dbPath, const char *typeExt, DBC
                 debugPrint("%s() LN%d, will dump from %s\n",
                         __func__, __LINE__, dataPath);
                 ret = dumpInAvroWorkThreads(dataPath, typeExt, pDbChange);
+                if (ret != 0) {
+                    errorPrint("Failed to dump in from %s, code=%d\n", dataPath, ret);
+                    break;
+                }
             }
         }
         toolsCloseDir(&pDir);
@@ -6393,6 +6397,10 @@ static int dumpInAvroWorkThreadsSub(const char *dbPath, const char *typeExt, DBC
                 debugPrint("%s() LN%d, will dump from %s\n",
                         __func__, __LINE__, dataPath);
                 ret = dumpInAvroWorkThreads(dataPath, typeExt, pDbChange);
+                if (ret != 0) {
+                    errorPrint("Failed to dump in from %s, code=%d\n", dataPath, ret);
+                    break;
+                }
             }
         }
         closedir(pDir);
