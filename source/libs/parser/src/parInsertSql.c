@@ -4372,7 +4372,7 @@ static int32_t checkAuthUseDb(SParseContext* pCxt, SName* pTbName, bool isAudit)
                            .requestId = pCxt->requestId,
                            .requestObjRefId = pCxt->requestRid,
                            .mgmtEps = pCxt->mgmtEpSet};
-  code = catalogChkAuth(pCxt->pCatalog, &conn, &authInfo, &authRes);
+  code = catalogChkAuth(pCxt->pCatalog, &conn, &authInfo, &authRes);  // cache used firstly inside the function
   if (TSDB_CODE_SUCCESS == code && !authRes.pass[AUTH_RES_BASIC]) {
     code = TSDB_CODE_PAR_PERMISSION_DENIED;
   }
