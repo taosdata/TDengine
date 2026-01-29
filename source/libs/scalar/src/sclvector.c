@@ -1959,8 +1959,11 @@ _return:
 int32_t vectorCompareWithHashParam(SSclComapreCtx* pCtx) {
   int32_t code = TSDB_CODE_SUCCESS, i = pCtx->startIndex;
   SHashParam* pHParam = &pCtx->pRight->hashParam;
+  bool isNegativeOp = pCtx->pOut->hashParam.isNegativeOp;
+  bool res = false;
+  
   if (!pHParam->hasValue) {
-    bool res = (pCtx->optr == OP_TYPE_IN) ? false : true;
+    res = (pCtx->optr == OP_TYPE_IN) ? false : true;
     char* pRes = colDataGetData(pCtx->pOut->columnData, pCtx->startIndex);
     memset(pRes, res, pCtx->pLeft->numOfRows);
     if (res) {
@@ -1972,7 +1975,12 @@ int32_t vectorCompareWithHashParam(SSclComapreCtx* pCtx) {
 
   if ((NULL == pHParam->pHashFilter || 0 == taosHashGetSize(pHParam->pHashFilter)) &&
        (NULL == pHParam->pHashFilterOthers || 0 == taosHashGetSize(pHParam->pHashFilterOthers))){
-    bool res = pHParam->hasNull ? false : ((optr == OP_TYPE_IN) ? false : true);
+    if (isNegativeOp) {
+      res = (pCtx->optr == OP_TYPE_IN) ? true : false;
+    } else {
+      res = pHParam->hasNull ? false : ((pCtx->optr == OP_TYPE_IN) ? false : true);
+    }
+    
     for (; i < pCtx->endIndex; i++) {
       if (IS_HELPER_NULL(pCtx->pLeft->columnData, i)) {
         bool res1 = false;
@@ -1984,10 +1992,18 @@ int32_t vectorCompareWithHashParam(SSclComapreCtx* pCtx) {
       colDataSetInt8(pCtx->pOut->columnData, i, (int8_t *)&res);
       if (res) {
         ++(*pCtx->qualifiedNum);
-      } else if (pHParam->hasNull) {
+      } else if (pHParam->hasNull && !isNegativeOp) {
         colDataSetNULL(pCtx->pOut->columnData, i);
       }
     }
+
+    return code;
+  }
+
+  if (OP_TYPE_NOT_IN == pCtx->optr && isNegativeOp && (taosHashGetSize(pHParam->pHashFilter) > 1 || taosHashGetSize(pHParam->pHashFilterOthers) > 1)) {
+    res = false;
+    char* pRes = colDataGetData(pCtx->pOut->columnData, pCtx->startIndex);
+    memset(pRes, res, pCtx->pLeft->numOfRows);
 
     return code;
   }
@@ -2014,7 +2030,14 @@ int32_t vectorCompareWithHashParam(SSclComapreCtx* pCtx) {
       }
     }
 
-    if (pHParam->hasNull && !((pCtx->optr == OP_TYPE_IN && res) || (pCtx->optr == OP_TYPE_NOT_IN && !res))) {
+    if (isNegativeOp) {
+      if ((!((pCtx->optr == OP_TYPE_IN && res) || (pCtx->optr == OP_TYPE_NOT_IN && !res))) || (!pHParam->hasNull)) {
+        res = !res;
+      } else {
+        res = false;
+        colDataSetNULL(pCtx->pOut->columnData, i);
+      }
+    } else if (pHParam->hasNull && !((pCtx->optr == OP_TYPE_IN && res) || (pCtx->optr == OP_TYPE_NOT_IN && !res))) {
       res = false;
       colDataSetNULL(pCtx->pOut->columnData, i);
     }
