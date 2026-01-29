@@ -678,11 +678,12 @@ Below are the business error codes for each module.
 
 | Error Code | Description                                             | Possible Error Scenarios or Reasons                                                                                                                                  | Recommended Actions for Users                                                 |
 |------------|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|
-| 0x80006103 | Audit database must be encrypted                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006104 | Audit database wal_level must be 2                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006105 | Audit database keep2 must be greater than 1825d                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006106 | Audit database already exist                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006107 | Audit database is not allowed to change                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006103 | Audit database must be encrypted                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006104 | Audit database wal_level must be 2                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006105 | Audit database keep2 must be greater than 1825d                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006106 | Audit database already exist                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006107 | Audit database is not allowed to change                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006108 | Audit database is not allowed to keep multiple vgroups        | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
 
 #### virtual table
 
