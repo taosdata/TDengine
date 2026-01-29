@@ -90,7 +90,7 @@ database_option: {
 
 另外，作为审计库，keep 默认为 1825d，如果用户指定 keep，要求大于 1825d；WAL_LEVEL 默认为 2，用户不能更改；ENCRYPT_ALGORITHM 用户不能指定为 None，可以选择任意一种 CBC 模式的对称加密算法。
 
-在3.4.0.0之前的版本的审计库，与3.4.0.0之后的审计库不兼容，无法开启is_audit参数，也即没有对DURATION、WAL_LEVEL、ENCRYPT_ALGORITHM的强制要求。3.4.0.0之前的审计库只能drop后，重新创建审计库。如果要在3.4.0.0之后的版本中，使用3.4.0.0之前版本创建的审计库，需要将auditUseToken关闭，即设置为0。
+在 3.4.0.0 之前版本创建的审计库，与 3.4.0.0 及之后版本的审计库不兼容。3.4.0.0 之前版本的审计库无法开启 is_audit 参数，因此不会对 DURATION、WAL_LEVEL、ENCRYPT_ALGORITHM 做强制要求。对于 3.4.0.0 之前创建的审计库，如需使用新版本的审计能力，建议先 drop 该审计库后再重新创建。如果要在 3.4.0.0 之后的版本中继续使用由 3.4.0.0 之前版本创建的审计库，则需要将 auditUseToken 关闭（设置为 0）。
 
 ### taosKeeper 配置
 
