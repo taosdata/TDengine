@@ -102,7 +102,8 @@ int32_t mndDropConsumerByUser(SMnode *pMnode, SRpcMsg *pMsg, SUserObj *pUser) {
   SMqConsumerObj *pConsumer = NULL;
 
   while ((pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer))) {
-    if (pConsumer->ownerId != pUser->uid) {
+    if ((pConsumer->ownerId == 0 && strncmp(pConsumer->user, pUser->user, TSDB_USER_LEN) != 0) ||
+        (pConsumer->ownerId != 0 && pConsumer->ownerId != pUser->uid)) {
       mndReleaseConsumer(pMnode, pConsumer);
       pConsumer = NULL;
       continue;
