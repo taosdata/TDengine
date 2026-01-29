@@ -574,8 +574,8 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateXnodeStmt";
     case QUERY_NODE_DROP_XNODE_STMT:
       return "DropXnodeStmt";
-    // case QUERY_NODE_UPDATE_XNODE_STMT:
-    //   return "UpdateXnodeStmt";
+    case QUERY_NODE_ALTER_XNODE_STMT:
+      return "AlterXnodeStmt";
     case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
       return "ShowXnodeJobsStmt";
     default:
@@ -8814,14 +8814,14 @@ static int32_t jsonToCreateXnodeStmt(const SJson* pJson, void* pObj) {
   return tjsonGetStringValue(pJson, jkCreateXnodeStmtUrl, pNode->url);
 }
 
-static int32_t updateXnodeStmtToJson(const void* pObj, SJson* pJson) {
-  const SUpdateXnodeStmt* pNode = (const SUpdateXnodeStmt*)pObj;
-  return tjsonAddIntegerToObject(pJson, jkUpdateDropXNodeStmtId, pNode->xnodeId);
+static int32_t alterXnodeStmtToJson(const void* pObj, SJson* pJson) {
+  const SAlterXnodeStmt* pNode = (const SAlterXnodeStmt*)pObj;
+  return tjsonAddIntegerToObject(pJson, jkUpdateDropXNodeStmtId, pNode->id);
 }
 
 static int32_t jsonToUpdateXnodeStmt(const SJson* pJson, void* pObj) {
-  SUpdateXnodeStmt* pNode = (SUpdateXnodeStmt*)pObj;
-  return tjsonGetIntValue(pJson, jkUpdateDropXNodeStmtId, &pNode->xnodeId);
+  SAlterXnodeStmt* pNode = (SAlterXnodeStmt*)pObj;
+  return tjsonGetIntValue(pJson, jkUpdateDropXNodeStmtId, &pNode->id);
 }
 
 static int32_t dropXnodeStmtToJson(const void* pObj, SJson* pJson) {
@@ -10564,8 +10564,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return createXnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_XNODE_STMT:
       return dropXnodeStmtToJson(pObj, pJson);
-    // case QUERY_NODE_UPDATE_XNODE_STMT:
-    //   return updateXnodeStmtToJson(pObj, pJson);
+    case QUERY_NODE_ALTER_XNODE_STMT:
+      return alterXnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_XNODE_TASK_STMT:
       return createXnodeTaskStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_XNODE_TASK_STMT:
