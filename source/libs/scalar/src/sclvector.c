@@ -2030,6 +2030,9 @@ int32_t vectorCompareWithHashParam(SSclComapreCtx* pCtx) {
 
 int32_t vectorCompareBetweenMathTypes(SSclComapreCtx* pCtx) {
   bool   *pRes = (bool *)pCtx->pOut->columnData->pData;
+  bool    chkTrue = pCtx->pRight->remoteParam.hasRemoteParam && !pCtx->isAny;
+  bool    chkFalse = pCtx->pRight->remoteParam.hasRemoteParam && pCtx->isAny;
+  bool    hasNull = pCtx->pRight->remoteParam.hasRemoteParam && pCtx->pRight->remoteParam.hasNull;
   int32_t code = TSDB_CODE_SUCCESS;
   
   if (!(pCtx->pLeft->columnData->hasNull || pCtx->pRight->columnData->hasNull)) {
@@ -2039,7 +2042,14 @@ int32_t vectorCompareBetweenMathTypes(SSclComapreCtx* pCtx) {
 
       pRes[i] = compareForType(pCtx->fp, pCtx->optr, pCtx->pLeft->columnData, leftIndex, pCtx->pRight->columnData, rightIndex);
       if (pRes[i]) {
-        ++(*pCtx->qualifiedNum);
+        if (chkTrue && hasNull) {
+          pRes[i] = false;
+          colDataSetNULL(pCtx->pOut->columnData, i);
+        } else {
+          ++(*pCtx->qualifiedNum);
+        }
+      } else if (chkFalse && hasNull) {
+        colDataSetNULL(pCtx->pOut->columnData, i);
       }
     }
 
@@ -2059,14 +2069,25 @@ int32_t vectorCompareBetweenMathTypes(SSclComapreCtx* pCtx) {
     
     pRes[i] = compareForType(pCtx->fp, pCtx->optr, pCtx->pLeft->columnData, leftIndex, pCtx->pRight->columnData, rightIndex);
     if (pRes[i]) {
-      ++(*pCtx->qualifiedNum);
-    }
+      if (chkTrue && hasNull) {
+        pRes[i] = false;
+        colDataSetNULL(pCtx->pOut->columnData, i);
+      } else {
+        ++(*pCtx->qualifiedNum);
+      }
+    } else if (chkFalse && hasNull) {
+      colDataSetNULL(pCtx->pOut->columnData, i);
+    }  
   }
 
   return code;
 }
 
 int32_t vectorCompareIncludeVarTypes(SSclComapreCtx* pCtx) {
+  bool    chkTrue = pCtx->pRight->remoteParam.hasRemoteParam && !pCtx->isAny;
+  bool    chkFalse = pCtx->pRight->remoteParam.hasRemoteParam && pCtx->isAny;
+  bool    hasNull = pCtx->pRight->remoteParam.hasRemoteParam && pCtx->pRight->remoteParam.hasNull;
+
   for (int32_t i = pCtx->startIndex; i < pCtx->endIndex; i++) {
     int32_t leftIndex = (i >= pCtx->pLeft->numOfRows) ? 0 : i;
     int32_t rightIndex = (i >= pCtx->pRight->numOfRows) ? 0 : i;
@@ -2105,7 +2126,13 @@ int32_t vectorCompareIncludeVarTypes(SSclComapreCtx* pCtx) {
       bool res = filterDoCompare(pCtx->fp, pCtx->optr, pLeftData, pRightData);
       colDataSetInt8(pCtx->pOut->columnData, i, (int8_t *)&res);
       if (res) {
-        ++(*pCtx->qualifiedNum);
+        if (chkTrue && hasNull) {
+          colDataSetNULL(pCtx->pOut->columnData, i);
+        } else {
+          ++(*pCtx->qualifiedNum);
+        }
+      } else if (chkFalse && hasNull) {
+        colDataSetNULL(pCtx->pOut->columnData, i);
       }
     }
 
@@ -2123,11 +2150,12 @@ int32_t vectorCompareIncludeVarTypes(SSclComapreCtx* pCtx) {
 
 int32_t vectorCompareWithRemoteParam(SSclComapreCtx* pCtx) {
   SRemoteParam* pRemote = &pCtx->pRight->remoteParam;
-  bool isAny = ((OP_TYPE_GREATER_EQUAL == pCtx->optr || OP_TYPE_GREATER_THAN == pCtx->optr) && pRemote->isMinVal) || ((OP_TYPE_LOWER_EQUAL == pCtx->optr || OP_TYPE_LOWER_THAN == pCtx->optr) && !pRemote->isMinVal);
   int32_t code = TSDB_CODE_SUCCESS, i = pCtx->startIndex;
+
+  pCtx->isAny = ((OP_TYPE_GREATER_EQUAL == pCtx->optr || OP_TYPE_GREATER_THAN == pCtx->optr) && pRemote->isMinVal) || ((OP_TYPE_LOWER_EQUAL == pCtx->optr || OP_TYPE_LOWER_THAN == pCtx->optr) && !pRemote->isMinVal);
   
   if (!pRemote->hasValue) {
-    bool res = isAny ? false : true;
+    bool res = pCtx->isAny ? false : true;
     char* pRes = colDataGetData(pCtx->pOut->columnData, pCtx->startIndex);
     memset(pRes, res, pCtx->pLeft->numOfRows);
     if (res) {
@@ -2145,7 +2173,11 @@ int32_t vectorCompareWithRemoteParam(SSclComapreCtx* pCtx) {
     return code;
   }
 
-  
+  if (IS_MATHABLE_TYPE(GET_PARAM_TYPE(pCtx->pLeft)) && IS_MATHABLE_TYPE(GET_PARAM_TYPE(pCtx->pRight))) {
+    return vectorCompareBetweenMathTypes(pCtx);
+  }
+
+  return vectorCompareIncludeVarTypes(pCtx);
 }
 
 int32_t doVectorCompare(SSclComapreCtx* pCtx) {
@@ -2195,7 +2227,7 @@ int32_t vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
   int32_t       lType = GET_PARAM_TYPE(ctx.pLeft);
   int32_t       rType = GET_PARAM_TYPE(ctx.pRight);
   if (lType == rType) {
-    SCL_ERR_RET(filterGetCompFunc(&ctx.fp, lType, optr));
+    SCL_ERR_JRET(filterGetCompFunc(&ctx.fp, lType, optr));
   } else {
     ctx.fp = filterGetCompFuncEx(lType, rType, optr);
   }
@@ -2209,14 +2241,13 @@ int32_t vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
     ctx.startIndex = startIndex;
   }
 
-  SCL_ERR_RET(doVectorCompare(pLeft, pLeftVar, pRight, pOut, i, endIndex, fp, optr, &(pOut->numOfQualified)));
-
-  return TSDB_CODE_SUCCESS;
-
+  SCL_ERR_JRET(doVectorCompare(&ctx));
 
 _return:
+
   sclFreeParam(&pLeftOut);
   sclFreeParam(&pRightOut);
+  
   SCL_RET(code);
 }
 

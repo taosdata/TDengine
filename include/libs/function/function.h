@@ -314,6 +314,7 @@ typedef struct SHashParam {
   bool             hasHashParam;
   bool             hasValue;
   bool             hasNull;
+  bool             isNegativeOp;
   SHashObj        *pHashFilter;
   SHashObj        *pHashFilterOthers;
   int32_t          filterValueType;
@@ -329,7 +330,6 @@ typedef struct SRemoteParam {
 
 struct SScalarParam {
   bool             colAlloced;
-//  bool             nullResExpected;  // for compare operations where null value result is expected
   SColumnInfoData *columnData;
   SHashParam       hashParam;
   SRemoteParam     remoteParam;
@@ -351,6 +351,7 @@ typedef struct SSclComapreCtx {
   __compar_fn_t fp;
   int32_t       optr;
   int32_t      *qualifiedNum;
+  bool          isAny;
 } SSclComapreCtx;
 
 static inline void setTzCharset(SScalarParam *param, timezone_t tz, void *charsetCxt) {

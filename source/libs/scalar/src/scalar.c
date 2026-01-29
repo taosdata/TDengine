@@ -1631,6 +1631,8 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   SScalarParam *pLeft = &params[0];
   SScalarParam *pRight = paramNum > 1 ? &params[1] : NULL;
 
+  output->hashParam.isNegativeOp = node->flag & OPERATOR_FLAG_NEGATIVE_OP;
+
   terrno = TSDB_CODE_SUCCESS;
   SCL_ERR_JRET(OperatorFn(pLeft, pRight, output, TSDB_ORDER_ASC));
 
