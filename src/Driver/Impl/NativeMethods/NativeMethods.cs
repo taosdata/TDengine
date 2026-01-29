@@ -347,5 +347,40 @@ namespace TDengine.Driver.Impl.NativeMethods
             // that does not support cleaning options.
             return OptionsConnection(res, option, IntPtr.Zero);
         }
+        
+        // 3.4.0.0+
+        // DLL_EXPORT TAOS *taos_connect_token(const char *ip, const char *token, const char *db, uint16_t port);
+        [DllImport(DLLName, EntryPoint = "taos_connect_token", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr ConnectToken(IntPtr ip, string token, string db, ushort port);
+
+        public static IntPtr ConnectToken(string ip, string token, string db, ushort port)
+        {
+            if (string.IsNullOrEmpty(ip))
+            {
+                return ConnectToken(IntPtr.Zero, token, db, port);
+            }
+
+            UTF8PtrStruct utf8PtrStruct = new UTF8PtrStruct(ip);
+            var conn = ConnectToken(utf8PtrStruct.utf8Ptr, token, db, port);
+            utf8PtrStruct.UTF8FreePtr();
+            return conn;
+        }
+        
+        // DLL_EXPORT int32_t taos_connect_is_alive(TAOS *taos);
+        [DllImport(DLLName, EntryPoint = "taos_connect_is_alive", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int ConnectIsAlive(IntPtr taos);
+        
+        public static int IsConnectionAlive(IntPtr taos)
+        {
+            try
+            {
+                return ConnectIsAlive(taos);
+            }
+            catch (EntryPointNotFoundException)
+            {
+                // taos_connect_is_alive not found, return success by default
+                return 1;
+            }
+        }
     }
 }

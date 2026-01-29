@@ -1,0 +1,111 @@
+name: enterprise.yml
+on:
+  pull_request:
+    branches:
+      - '3.0'
+      - 'main'
+  push:
+    branches:
+      - '3.0'
+      - 'main'
+jobs:
+  test-enterprise:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        dotnet: [ '3.1.x', '5.0.x', '6.0.x','7.0.x','8.0.x','9.0.x' ]
+        include:
+          - dotnet: '3.1.x'
+            tfm: 'netcoreapp3.1'
+          - dotnet: '5.0.x'
+            tfm: 'net5'
+          - dotnet: '6.0.x'
+            tfm: 'net6'
+          - dotnet: '7.0.x'
+            tfm: 'net7'
+          - dotnet: '8.0.x'
+            tfm: 'net8'
+          - dotnet: '9.0.x'
+            tfm: 'net9'
+    name: test enterprise ${{ matrix.dotnet }}
+    steps:
+      - name: get branch push
+        id: get-branch
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "branch=${{ github.base_ref }}" >> $GITHUB_OUTPUT
+          else
+            echo "branch=main" >> $GITHUB_OUTPUT
+          fi
+
+      - name: get TDengine
+        run: |
+          wget "${{ secrets.NIGHTLY_TDENGINE_ENTERPRISE_BASE_URL }}/tsdb-nightly-${{ steps.get-branch.outputs.branch }}.tar.gz?v=$(date +%s)" -O tsdb-nightly-${{ steps.get-branch.outputs.branch }}.tar.gz
+
+      - name: install
+        run: |
+          tar -zxf tsdb-nightly-${{ steps.get-branch.outputs.branch }}.tar.gz
+          cd tsdb-nightly-${{ steps.get-branch.outputs.branch }}
+          ls -al
+          sudo ./install.sh
+
+      - name: checkout
+        uses: actions/checkout@v4
+        
+      - name: Setup dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.dotnet }}
+
+      - name: copy taos cfg
+        run: |
+          sudo mkdir -p /etc/taos
+          sudo cp ./.github/workflows/taos.cfg /etc/taos/taos.cfg
+          sudo cp ./.github/workflows/taosadapter.toml /etc/taos/taosadapter.toml
+
+      - name: Restore dependencies
+        run: |
+          ls -al
+          dotnet restore
+
+      - name: start shell
+        run: |
+          cat >start.sh<<EOF
+          ulimit -n 65535 && TAOS_SUPPORT_VNODES=256 taosd
+          EOF
+
+      - name: start taosd
+        run: nohup sudo sh ./start.sh &
+
+      - name: start taosadapter
+        run: sudo taosadapter &
+
+      - name: test
+        id: test
+        env:
+          TDENGINE_ENTERPRISE_TEST: 'true'
+        run: |
+          dotnet test -f ${{ matrix.tfm }} --logger "console;verbosity=detailed" --collect:"XPlat Code Coverage" --results-directory:./testresults
+        timeout-minutes: 15
+
+      - uses: actions/upload-artifact@v4
+        if: always() && (steps.test.outcome == 'failure' || steps.test.outcome == 'cancelled')
+        with:
+          name: ${{ runner.os }}-${{ matrix.dotnet }}-log
+          path: /var/log/taos/
+
+      - name: get coverage files
+        id: get_coverage_files
+        run: |
+          COVERAGE_FILES=$(find ./testresults -name 'coverage.cobertura.xml' -exec printf "%s;" {} +)
+          COVERAGE_FILES=${COVERAGE_FILES%;}
+          echo "files=${COVERAGE_FILES}" >> $GITHUB_OUTPUT
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ${{ steps.get_coverage_files.outputs.files }}
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_ORG_TOKEN }}

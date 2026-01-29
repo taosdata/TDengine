@@ -10,9 +10,11 @@ namespace TDengine.Driver.Impl.WebSocketMethods
         private readonly string _user;
         private readonly string _password;
         private readonly string _db;
+        private readonly string _bearerToken;
         private readonly string _timezone = string.Empty;
 
-        public Connection(string addr, string user, string password, string db, TimeSpan connectTimeout = default,
+        public Connection(string addr, string user, string password, string db, string bearerToken,
+            TimeSpan connectTimeout = default,
             TimeSpan readTimeout = default, TimeSpan writeTimeout = default, bool enableCompression = false,
             TimeZoneInfo connectionTimezone = null) : base(
             addr, connectTimeout, readTimeout, writeTimeout, enableCompression)
@@ -20,6 +22,7 @@ namespace TDengine.Driver.Impl.WebSocketMethods
             _user = user;
             _password = password;
             _db = db;
+            _bearerToken = bearerToken;
             if (connectionTimezone != null)
             {
                 _timezone = connectionTimezone.Id;
@@ -36,7 +39,9 @@ namespace TDengine.Driver.Impl.WebSocketMethods
                 Password = _password,
                 Db = _db,
                 Timezone = _timezone,
-                App = TDengineConstant.ProcessName
+                App = TDengineConstant.ProcessName,
+                Connector = TDengineConstant.WsConnectorInfo,
+                BearerToken = _bearerToken
             }, reqId);
         }
 

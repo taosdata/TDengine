@@ -19,7 +19,7 @@ namespace TDengine.Driver.Client.Websocket
             Debug.Assert(builder.Protocol == TDengineConstant.ProtocolWebSocket);
             _tz = builder.GetTimeZone();
             _connection = new Connection(GetUrl(builder), builder.Username, builder.Password,
-                builder.Database, builder.ConnTimeout, builder.ReadTimeout, builder.WriteTimeout,
+                builder.Database, builder.BearerToken, builder.ConnTimeout, builder.ReadTimeout, builder.WriteTimeout,
                 builder.EnableCompression, builder.ConnectionTimezone);
 
             _connection.Connect();
@@ -92,7 +92,8 @@ namespace TDengine.Driver.Client.Websocket
                         // sleep
                         System.Threading.Thread.Sleep(_builder.ReconnectIntervalMs);
                         connection = new Connection(GetUrl(_builder), _builder.Username, _builder.Password,
-                            _builder.Database, _builder.ConnTimeout, _builder.ReadTimeout, _builder.WriteTimeout,
+                            _builder.Database, _builder.BearerToken, _builder.ConnTimeout, _builder.ReadTimeout,
+                            _builder.WriteTimeout,
                             _builder.EnableCompression, _builder.ConnectionTimezone);
                         connection.Connect();
                         break;
@@ -263,8 +264,9 @@ namespace TDengine.Driver.Client.Websocket
             {
                 return currentConnection;
             }
+
             // force reconnect, new connection must not be old one.
-            Reconnect(true,old);
+            Reconnect(true, old);
             currentConnection = _connection;
             if (currentConnection != null && currentConnection.IsAvailable())
             {

@@ -13,20 +13,53 @@ namespace TDengine.Driver.Client.Native
         public NativeClient(ConnectionStringBuilder builder)
         {
             Debug.Assert(builder.Protocol == TDengineConstant.ProtocolNative);
-            _conn = NativeMethods.Connect(builder.Host, builder.Username, builder.Password, builder.Database,
-                (ushort)builder.Port);
+            if (!string.IsNullOrEmpty(builder.BearerToken))
+            {
+                // Use bearer token to connect
+                _conn = NativeMethods.ConnectToken(builder.Host, builder.BearerToken, builder.Database,
+                    (ushort)builder.Port);
+            }
+            else
+            {
+                // Use username and password to connect
+                _conn = NativeMethods.Connect(builder.Host, builder.Username, builder.Password, builder.Database,
+                    (ushort)builder.Port);
+            }
+
             if (_conn == IntPtr.Zero)
             {
                 throw new TDengineError(NativeMethods.ErrorNo(IntPtr.Zero), NativeMethods.Error(IntPtr.Zero));
             }
 
             _tz = builder.GetTimeZone();
-            if (builder.ConnectionTimezone == null) return;
-            var errNo= NativeMethods.OptionsConnection(_conn, (int)TSDB_OPTION_CONNECTION.TSDB_OPTION_CONNECTION_TIMEZONE,
-                builder.ConnectionTimezone.Id);
+            // set app name
+            SetConnectOptions((int)TSDB_OPTION_CONNECTION.TSDB_OPTION_CONNECTION_USER_APP,
+                TDengineConstant.ProcessName, "user_app");
+            // set connector info
+            SetConnectOptions((int)TSDB_OPTION_CONNECTION.TSDB_OPTION_CONNECTION_CONNECTOR_INFO,
+                TDengineConstant.NativeConnectorInfo, "connector_info");
+            if (builder.ConnectionTimezone != null)
+            {
+                // set timezone
+                SetConnectOptions((int)TSDB_OPTION_CONNECTION.TSDB_OPTION_CONNECTION_TIMEZONE,
+                    builder.ConnectionTimezone.Id, "timezone");
+            }
+        }
+
+        private const int TSDB_CODE_INVALID_PARA = 0x0118;
+
+        private void SetConnectOptions(int option, string value, string optionName)
+        {
+            var errNo = NativeMethods.OptionsConnection(_conn, option, value);
             if (errNo == 0) return;
-            var error = new TDengineError(errNo, NativeMethods.Error(IntPtr.Zero));
-            throw error;
+            if ((errNo & 0xffff) == TSDB_CODE_INVALID_PARA)
+            {
+                // ignore invalid parameter error, because some old version TDengine may not support some options
+                return;
+            }
+
+            throw new TDengineError(errNo, NativeMethods.Error(IntPtr.Zero),
+                $"set connection option {optionName} failed");
         }
 
         public void Dispose()
@@ -97,10 +130,12 @@ namespace TDengine.Driver.Client.Native
             NativeMethods.FreeResult(result);
             throw error;
         }
-        
+
         public bool ConnectionAvailable()
         {
-            return _conn != IntPtr.Zero;
+            if (_conn == IntPtr.Zero) return false;
+            var code = NativeMethods.IsConnectionAlive(_conn);
+            return code == 1;
         }
     }
 }

@@ -25,6 +25,7 @@ namespace TDengine.Driver
         private const string ReconnectRetryCountKey = "reconnectRetryCount";
         private const string ReconnectIntervalMsKey = "reconnectIntervalMs";
         private const string ConnectionTimezoneKey = "connectionTimezone";
+        private const string BearerTokenKey = "bearerToken";
 
 
         private enum KeysEnum
@@ -46,6 +47,7 @@ namespace TDengine.Driver
             ReconnectRetryCount,
             ReconnectIntervalMs,
             ConnectionTimezone,
+            BearerToken,
             Total
         }
 
@@ -66,6 +68,7 @@ namespace TDengine.Driver
         private int _reconnectRetryCount = 3;
         private int _reconnectIntervalMs = 2000;
         private TimeZoneInfo _connectionTimezone = null;
+        private string _bearerToken = string.Empty;
 
         private static readonly IReadOnlyList<string> KeysList;
         private static readonly IReadOnlyDictionary<string, KeysEnum> KeysDict;
@@ -90,6 +93,7 @@ namespace TDengine.Driver
             list[(int)KeysEnum.ReconnectRetryCount] = ReconnectRetryCountKey;
             list[(int)KeysEnum.ReconnectIntervalMs] = ReconnectIntervalMsKey;
             list[(int)KeysEnum.ConnectionTimezone] = ConnectionTimezoneKey;
+            list[(int)KeysEnum.BearerToken] = BearerTokenKey;
             KeysList = list;
 
             KeysDict = new Dictionary<string, KeysEnum>((int)KeysEnum.Total, StringComparer.OrdinalIgnoreCase)
@@ -111,6 +115,7 @@ namespace TDengine.Driver
                 [ReconnectRetryCountKey] = KeysEnum.ReconnectRetryCount,
                 [ReconnectIntervalMsKey] = KeysEnum.ReconnectIntervalMs,
                 [ConnectionTimezoneKey] = KeysEnum.ConnectionTimezone,
+                [BearerTokenKey] = KeysEnum.BearerToken,
             };
         }
 
@@ -191,6 +196,9 @@ namespace TDengine.Driver
                             case KeysEnum.ConnectionTimezone:
                                 ConnectionTimezone = TimeZoneInfo.FindSystemTimeZoneById(value);
                                 hasConnectionTimezone = true;
+                                break;
+                            case KeysEnum.BearerToken:
+                                BearerToken = value;
                                 break;
                             default:
                                 throw new ArgumentOutOfRangeException(nameof(index), index, "get value error");
@@ -348,6 +356,13 @@ namespace TDengine.Driver
 #endif
             }
         }
+        
+        public string BearerToken
+        {
+            get => _bearerToken;
+            set => base[BearerTokenKey] = _bearerToken = value;
+        }
+
 
         public override ICollection Keys => new ReadOnlyCollection<string>((string[])KeysList);
 
@@ -403,6 +418,8 @@ namespace TDengine.Driver
                     return ReconnectIntervalMs;
                 case KeysEnum.ConnectionTimezone:
                     return ConnectionTimezone;
+                case KeysEnum.BearerToken:
+                    return BearerToken;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(index), index, "get value error");
             }
@@ -476,6 +493,9 @@ namespace TDengine.Driver
                     return;
                 case KeysEnum.ConnectionTimezone:
                     _connectionTimezone = null;
+                    return;
+                case KeysEnum.BearerToken:
+                    _bearerToken = string.Empty;
                     return;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(index), index, null);

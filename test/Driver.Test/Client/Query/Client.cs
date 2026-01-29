@@ -10,28 +10,93 @@ using Xunit.Abstractions;
 
 namespace Driver.Test.Client.Query
 {
-    public partial class Client
+    public partial class Client : IDisposable
     {
         private readonly ITestOutputHelper _output;
         private readonly string _nativeConnectString;
         private readonly string _wsConnectString;
         private readonly string _cloudConnectString;
         private readonly bool _is3360Test;
+        private readonly string _nativeTokenConnectString;
+        private readonly string _wsTokenConnectString;
 
+        public static bool IsEnterpriseTest => Environment.GetEnvironmentVariable("TDENGINE_ENTERPRISE_TEST")== "true";
+        // public static bool IsEnterpriseTest => true;
         public Client(ITestOutputHelper output)
         {
-            this._is3360Test = Environment.GetEnvironmentVariable("TD_3360_TEST") == "true";
+            _is3360Test = Environment.GetEnvironmentVariable("TD_3360_TEST") == "true";
             // _is3360Test = true;
-            this._output = output;
-            this._nativeConnectString = "host=localhost;port=6030;username=root;password=taosdata";
-            this._wsConnectString =
+            _output = output;
+            _nativeConnectString = "host=localhost;port=6030;username=root;password=taosdata";
+            _wsConnectString =
                 "protocol=WebSocket;host=localhost;port=6041;useSSL=false;username=root;password=taosdata;enableCompression=true";
             var cloudHost = Environment.GetEnvironmentVariable("TDENGINE_CLOUD_ENDPOINT");
             var cloudToken = Environment.GetEnvironmentVariable("TDENGINE_CLOUD_TOKEN");
             if (!string.IsNullOrEmpty(cloudHost) && !string.IsNullOrEmpty(cloudToken))
             {
-                this._cloudConnectString = GetCloudConnectString(cloudHost, cloudToken);
+                _cloudConnectString = GetCloudConnectString(cloudHost, cloudToken);
             }
+
+            if (!IsEnterpriseTest) return;
+            var token = CreateTestToken();
+            _wsTokenConnectString =
+                $"protocol=WebSocket;host=localhost;port=6041;useSSL=false;bearerToken={token};enableCompression=true";
+            _nativeTokenConnectString = $"host=localhost;port=6030;bearerToken={token}";
+        }
+
+        public void Dispose()
+        {
+            if (!IsEnterpriseTest) return;
+            var builder = new ConnectionStringBuilder(_wsConnectString);
+            using (var client = DbDriver.Open(builder))
+            {
+                DoExec(client, "drop token if exists test_token_root");
+            }
+        }
+
+        private string CreateTestToken()
+        {
+            var builder = new ConnectionStringBuilder(_wsConnectString);
+            using (var client = DbDriver.Open(builder))
+            {
+                string token;
+                using (var rows = client.Query($"create token test_token_root from user {builder.Username}"))
+                {
+                    rows.Read();
+                    token = rows.GetString(0);
+                }
+
+                for (int i = 0; i < 100; i++)
+                {
+                    var count = 0;
+                    using (var rows = client.Query(
+                               "select * from performance_schema.perf_trans where oper = 'create-token'"))
+                    {
+                        while (rows.Read())
+                        {
+                            count = rows.GetInt32(0);
+                        }
+                    }
+
+                    if (count != 0)
+                    {
+                        Thread.Sleep(500);
+                        continue;
+                    }
+
+                    using (var rows = client.Query(
+                               "select count(*) from information_schema.ins_tokens where name = 'test_token_root'"))
+                    {
+                        rows.Read();
+                        count = rows.GetInt32(0);
+                    }
+
+                    if (count == 1) return token;
+                    Thread.Sleep(500);
+                }
+
+            }
+            throw new Exception("Create test token timeout");
         }
 
         private static string GetCloudConnectString(string host, string token)
@@ -3501,7 +3566,8 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                     // no table name set
                     Assert.Throws<InvalidOperationException>(() => stmt.SetTags(new object[] { 1 }));
                     Assert.Throws<InvalidOperationException>(() => stmt.BindRow(new object[] { now, 100 }));
-                    Assert.Throws<InvalidOperationException>(() => stmt.BindColumn(null,new DateTime[] { now },new int[]{100}));
+                    Assert.Throws<InvalidOperationException>(() =>
+                        stmt.BindColumn(null, new DateTime[] { now }, new int[] { 100 }));
                     Assert.Throws<InvalidOperationException>(() => stmt.AddBatch());
                     // set empty table name
                     Assert.Throws<ArgumentException>(() => stmt.SetTableName(""));
@@ -3966,6 +4032,15 @@ jvm_gc_pause_seconds_max,action=end\ of\ minor\ GC,cause=Allocation\ Failure,hos
                 {
                     DoExec(client, $"drop database if exists {db}");
                 }
+            }
+        }
+
+        private void ConnectionAvailable(string connectString)
+        {
+            var builder = new ConnectionStringBuilder(connectString);
+            using (var client = DbDriver.Open(builder))
+            {
+                Assert.True(client.ConnectionAvailable());
             }
         }
 

@@ -11,5 +11,9 @@ namespace TDengine.Driver.Impl.WebSocketMethods.Protocol
         [JsonProperty("tz")] public string Timezone { get; set; }
         [JsonProperty("app")] public string App { get; set; }
         
+        // connector
+        [JsonProperty("connector")] public string Connector { get; set; }
+        // bearer_token
+        [JsonProperty("bearer_token")] public string BearerToken { get; set; }
     }
 }

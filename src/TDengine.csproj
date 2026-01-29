@@ -6,6 +6,8 @@
     <PackageIcon>image\logo.jpg</PackageIcon>
     <PackageReadmeFile>docs\README.md</PackageReadmeFile>
     <Version>3.1.9</Version>
+    <InformationalVersion>$(Version)-$(SourceRevisionId)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Authors>taosdata</Authors>
     <Company>https://tdengine.com/</Company>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

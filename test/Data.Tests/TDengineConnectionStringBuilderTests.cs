@@ -147,5 +147,14 @@ namespace Data.Tests
                 });
             }
         }
+
+        [Fact]
+        public void BearerTokenTest()
+        {
+            var builder =
+                new TDengineConnectionStringBuilder("host=127.0.0.1;bearerToken=abcdef;protocol=Native;db=test");
+            Assert.Equal("127.0.0.1", builder.Host);
+            Assert.Equal("abcdef", builder.BearerToken);
+        }
     }
 }

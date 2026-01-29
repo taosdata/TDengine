@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace TDengine.Driver
 {
-
     public enum TDengineDataType
     {
         TSDB_DATA_TYPE_NULL = 0, // 1 bytes
@@ -87,8 +87,8 @@ namespace TDengine.Driver
             return TDengineConstant.ScanType((sbyte)type);
         }
     }
-    
-    
+
+
     [StructLayout(LayoutKind.Sequential)]
     public struct TAOS_STMT2_BIND
     {
@@ -107,7 +107,7 @@ namespace TDengine.Driver
         // line number, or the values number in buffer 
         public int num;
     }
-    
+
     [StructLayout(LayoutKind.Sequential)]
     public struct TAOS_STMT2_BINDV
     {
@@ -191,6 +191,7 @@ namespace TDengine.Driver
         public byte scale;
         public int bytes;
     }
+
     public enum TaosFieldType
     {
         TAOS_FIELD_COL = 1,
@@ -198,11 +199,13 @@ namespace TDengine.Driver
         TAOS_FIELD_QUERY,
         TAOS_FIELD_TBNAME,
     }
+
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
     public struct TaosFieldAll
     {
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 65)]
         public string name;
+
         public sbyte type;
         public byte precision;
         public byte scale;
@@ -230,6 +233,15 @@ namespace TDengine.Driver
                 return "dotnet_unknown";
             }
         }).Value;
+
+        private static readonly string BaseConnectorInfo =
+            typeof(TDengineConstant)
+                .Assembly
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+                ?.InformationalVersion ?? "unknown";
+
+        public static readonly string WsConnectorInfo = $"csharp-ws-{BaseConnectorInfo}";
+        public static readonly string NativeConnectorInfo = $"csharp-native-{BaseConnectorInfo}";
         public static readonly DateTime TimeZero = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         public static readonly int Int8Size = sizeof(sbyte);
         public static readonly int Int16Size = sizeof(short);
@@ -252,6 +264,7 @@ namespace TDengine.Driver
         {
             return ConvertDateTimeToTimestamp(value, precision);
         }
+
         public static long ConvertDateTimeToTimestamp(DateTime value, TDenginePrecision precision)
         {
             // if kind is unspecified, the `ToUniversalTime` is assumed to be in local time, which may convert to an incorrect UTC time.
@@ -259,6 +272,7 @@ namespace TDengine.Driver
             {
                 throw new ArgumentException("Datetime Kind must be specified as UTC or Local.");
             }
+
             switch (precision)
             {
                 case TDenginePrecision.TSDB_TIME_PRECISION_MILLI:
@@ -276,9 +290,9 @@ namespace TDengine.Driver
             TimeZoneInfo timezone)
         {
             var utcTime = TimeZoneInfo.ConvertTimeToUtc(value, timezone);
-            return ConvertDateTimeToTimestamp(utcTime,precision);
+            return ConvertDateTimeToTimestamp(utcTime, precision);
         }
-        
+
         // Deprecated: Wrong function name, use ConvertTimestampToDateTime instead.
         [Obsolete("Wrong function name, Use ConvertTimestampToDateTime instead.")]
         public static DateTime ConvertTimeToDatetime(long value, TDenginePrecision precision,
@@ -315,6 +329,7 @@ namespace TDengine.Driver
             {
                 throw new ArgumentNullException(nameof(tz), "TimeZoneInfo cannot be null.");
             }
+
             DateTimeOffset utcDateTimeOffset;
             switch (precision)
             {
@@ -330,9 +345,10 @@ namespace TDengine.Driver
                 default:
                     throw new NotSupportedException($"unknown precision {precision}");
             }
+
             return TimeZoneInfo.ConvertTime(utcDateTimeOffset, tz);
         }
-        
+
         public static long ConvertDateTimeOffsetToTimestamp(DateTimeOffset value, TDenginePrecision precision)
         {
             switch (precision)
@@ -347,6 +363,7 @@ namespace TDengine.Driver
                     throw new NotSupportedException($"unknown precision {precision}");
             }
         }
+
         public static int BitmapLen(int n) => (n + ((1 << 3) - 1)) >> 3;
         public static int BitPos(int n) => n & ((1 << 3) - 1);
         public static int CharOffset(int n) => n >> 3;
@@ -533,7 +550,7 @@ namespace TDengine.Driver
                     return "undefine";
             }
         }
-        
+
         public static TaosFieldE ConvertToTaosFieldE(TaosFieldAll source)
         {
             return new TaosFieldE
@@ -545,7 +562,7 @@ namespace TDengine.Driver
                 bytes = source.bytes
             };
         }
-        
+
         public static bool IsVarDataType(byte colType)
         {
             switch ((TDengineDataType)colType)
@@ -607,6 +624,7 @@ namespace TDengine.Driver
         TSDB_OPTION_CONNECTION_TIMEZONE, // timezone, Same as the scope supported by the system
         TSDB_OPTION_CONNECTION_USER_IP, // user ip
         TSDB_OPTION_CONNECTION_USER_APP, // user app, max lengthe is 23, truncated if longer than 23
+        TSDB_OPTION_CONNECTION_CONNECTOR_INFO, // connector info, max lengthe is 255, truncated if longer than 255
         TSDB_MAX_OPTIONS_CONNECTION
     }
 

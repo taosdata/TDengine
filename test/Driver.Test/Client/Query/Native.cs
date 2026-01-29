@@ -144,28 +144,31 @@ namespace Driver.Test.Client.Query
             const string db = "query_concurrency_test";
             this.QueryConcurrencyTest(this._nativeConnectString, db);
         }
-        
+
         [Fact]
         public void NativeQueryWithConnectionTimezoneMSTest()
         {
             const string db = "query_conn_tz_ms_test";
-            QueryWithConnectionTimezoneTest(this._nativeConnectString, "Europe/Paris", db, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            QueryWithConnectionTimezoneTest(this._nativeConnectString, "Europe/Paris", db,
+                TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
         }
-        
+
         [Fact]
         public void NativeQueryWithConnectionTimezoneUSTest()
         {
             const string db = "query_conn_tz_us_test";
-            QueryWithConnectionTimezoneTest(this._nativeConnectString, "Europe/Paris", db, TDenginePrecision.TSDB_TIME_PRECISION_MICRO);
+            QueryWithConnectionTimezoneTest(this._nativeConnectString, "Europe/Paris", db,
+                TDenginePrecision.TSDB_TIME_PRECISION_MICRO);
         }
-        
+
         [Fact]
         public void NativeQueryWithConnectionTimezoneNSTest()
         {
             const string db = "query_conn_tz_ns_test";
-            QueryWithConnectionTimezoneTest(this._nativeConnectString, "Europe/Paris", db, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
+            QueryWithConnectionTimezoneTest(this._nativeConnectString, "Europe/Paris", db,
+                TDenginePrecision.TSDB_TIME_PRECISION_NANO);
         }
-        
+
         [Fact]
         public void NativeStmtMSBindTimestampTest()
         {
@@ -186,18 +189,21 @@ namespace Driver.Test.Client.Query
             const string db = "stmt_bind_stmt_test_ns";
             this.StmtBindTimestampTest(this._nativeConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
         }
+
         [Fact]
         public void NativeStmtTestWrongTypeMSTest()
         {
             const string db = "stmt_wrong_test_ms";
             this.StmtTestWrongType(this._nativeConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
         }
+
         [Fact]
         public void NativeStmtTestWrongTypeUSTest()
         {
             const string db = "stmt_wrong_test_us";
             this.StmtTestWrongType(this._nativeConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MICRO);
         }
+
         [Fact]
         public void NativeStmtTestWrongTypeNSTest()
         {
@@ -211,12 +217,12 @@ namespace Driver.Test.Client.Query
             const string db = "stmt_bind_tag_no_table";
             this.StmtTestBindTagWithoutTable(this._nativeConnectString, db);
         }
-        
+
         [Fact]
         public void NativeStmtQuery()
         {
             const string db = "stmt_query_test";
-            this.StmtQuery(this._nativeConnectString,db);
+            this.StmtQuery(this._nativeConnectString, db);
         }
 
         [Fact]
@@ -231,6 +237,12 @@ namespace Driver.Test.Client.Query
         {
             const string db = "stmt_bind_tags_test";
             this.StmtBindTagsTest(this._nativeConnectString, db);
+        }
+
+        [Fact]
+        public void NativeConnectionAvailable()
+        {
+            this.ConnectionAvailable(this._nativeConnectString);
         }
     }
 }

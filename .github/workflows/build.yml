@@ -160,6 +160,11 @@ jobs:
           dotnet build --no-restore
           echo `pwd`
           ls -al
+          
+      - name: Test Vulnerability
+        run: |
+          cd csharp-driver
+          dotnet list package --vulnerable
 
   test_unit:
     runs-on: ubuntu-22.04

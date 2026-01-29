@@ -16,7 +16,8 @@ namespace Driver.Test.Client.Query
         private readonly int _port;
         private string Url => $"http://localhost:{_port}/";
 
-        private Action<WebSocket, WebSocketMessageType,byte[]> _onMessage;
+        private Action<WebSocket, WebSocketMessageType, byte[]> _onMessage;
+
         public MockWSServer(int port, Action<WebSocket, WebSocketMessageType, byte[]> onMessage)
         {
             _port = port;
@@ -42,7 +43,8 @@ namespace Driver.Test.Client.Query
                     if (context.Request.IsWebSocketRequest)
                     {
                         var webSocketContext = await context.AcceptWebSocketAsync(null);
-                        _ = Task.Run(() => HandleWebSocketConnection(webSocketContext.WebSocket, cancellationToken), cancellationToken);
+                        _ = Task.Run(() => HandleWebSocketConnection(webSocketContext.WebSocket, cancellationToken),
+                            cancellationToken);
                     }
                     else
                     {
@@ -74,7 +76,7 @@ namespace Driver.Test.Client.Query
                         {
                             var partialBuffer = new byte[result.Count];
                             Array.Copy(buffer, 0, partialBuffer, 0, result.Count);
-                            _onMessage(webSocket, result.MessageType,partialBuffer);
+                            _onMessage(webSocket, result.MessageType, partialBuffer);
                             break;
                         }
                         case WebSocketMessageType.Close:
@@ -83,7 +85,7 @@ namespace Driver.Test.Client.Query
                                 "Connection closed",
                                 cancellationToken);
                             break;
-                        
+
                         default:
                             throw new ArgumentOutOfRangeException();
                     }
@@ -101,9 +103,44 @@ namespace Driver.Test.Client.Query
         public void Dispose()
         {
             _cts?.Cancel();
-            _httpListener?.Stop();
-            _httpListener?.Close();
-            _serverTask?.Wait(1000);
+
+            // Give the server task a chance to complete gracefully
+            if (_serverTask != null)
+            {
+                try
+                {
+                    // Wait a bit for graceful shutdown
+                    if (!_serverTask.Wait(TimeSpan.FromSeconds(2)))
+                    {
+                        // If it doesn't complete in time, we'll stop the listener anyway
+                        // This might throw, but we'll catch it
+                    }
+                }
+                catch (AggregateException ae) when (ae.InnerException is OperationCanceledException)
+                {
+                    // Expected when task is cancelled
+                }
+            }
+
+            if (_httpListener != null)
+            {
+                try
+                {
+                    if (_httpListener.IsListening)
+                    {
+                        _httpListener.Stop();
+                        _httpListener.Close();
+                    }
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Already disposed, ignore
+                }
+                catch (HttpListenerException)
+                {
+                    // Handle other HTTP listener exceptions
+                }
+            }
         }
     }
 }

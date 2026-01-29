@@ -175,7 +175,9 @@ namespace TDengine.TMQ.Native
 
             if (message == IntPtr.Zero)
             {
-                return null;
+                int code = NativeMethods.ErrorNo(IntPtr.Zero);
+                if (code == 0) return null;
+                throw new TDengineError(code,NativeMethods.Error(IntPtr.Zero));
             }
 
             try

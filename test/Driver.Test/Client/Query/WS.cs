@@ -236,21 +236,24 @@ namespace Driver.Test.Client.Query
         public void WebSocketQueryWithConnectionTimezoneMSTest()
         {
             const string db = "ws_query_conn_tz_ms_test";
-            QueryWithConnectionTimezoneTest(this._wsConnectString, "Europe/Paris", db, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
+            QueryWithConnectionTimezoneTest(this._wsConnectString, "Europe/Paris", db,
+                TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
         }
-        
+
         [Fact]
         public void WebSocketQueryWithConnectionTimezoneUSTest()
         {
             const string db = "ws_query_conn_tz_us_test";
-            QueryWithConnectionTimezoneTest(this._wsConnectString, "Europe/Paris", db, TDenginePrecision.TSDB_TIME_PRECISION_MICRO);
+            QueryWithConnectionTimezoneTest(this._wsConnectString, "Europe/Paris", db,
+                TDenginePrecision.TSDB_TIME_PRECISION_MICRO);
         }
-        
+
         [Fact]
         public void WebSocketQueryWithConnectionTimezoneNSTest()
         {
             const string db = "ws_query_conn_tz_ns_test";
-            QueryWithConnectionTimezoneTest(this._wsConnectString, "Europe/Paris", db, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
+            QueryWithConnectionTimezoneTest(this._wsConnectString, "Europe/Paris", db,
+                TDenginePrecision.TSDB_TIME_PRECISION_NANO);
         }
 
         [Fact]
@@ -277,8 +280,8 @@ namespace Driver.Test.Client.Query
                 Assert.True(timeout);
             }
         }
-        
-                
+
+
         [Fact]
         public void WebSocketStmtMSBindTimestampTest()
         {
@@ -343,49 +346,60 @@ namespace Driver.Test.Client.Query
             // Act & Assert
             Assert.Throws<NullReferenceException>(() => WSClient.GetUrl(builder));
         }
+
         [Fact]
         public void WebSocketStmtTestWrongTypeMSTest()
         {
             const string db = "ws_stmt_wrong_test_ms";
             this.StmtTestWrongType(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MILLI);
         }
+
         [Fact]
         public void WebSocketStmtTestWrongTypeUSTest()
         {
             const string db = "ws_stmt_wrong_test_us";
             this.StmtTestWrongType(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_MICRO);
         }
+
         [Fact]
         public void WebSocketStmtTestWrongTypeNSTest()
         {
             const string db = "ws_stmt_wrong_test_ns";
             this.StmtTestWrongType(this._wsConnectString, db, TDenginePrecision.TSDB_TIME_PRECISION_NANO);
         }
+
         [Fact]
         public void WebSocketStmtTestBindTagWithoutTable()
         {
             const string db = "ws_stmt_bind_tag_no_table";
             this.StmtTestBindTagWithoutTable(this._wsConnectString, db);
         }
+
         [Fact]
         public void WebSocketStmtQuery()
         {
             const string db = "ws_stmt_query_test";
-            this.StmtQuery(this._wsConnectString,db);
+            this.StmtQuery(this._wsConnectString, db);
         }
-        
+
         [Fact]
         public void WebSocketStmtErrorProcessTest()
         {
             const string db = "ws_stmt_error_process_test";
             this.StmtErrorProcessTest(this._wsConnectString, db);
         }
-        
+
         [Fact]
         public void WebSocketStmtBindTags()
         {
             const string db = "ws_stmt_bind_tags_test";
             this.StmtBindTagsTest(this._wsConnectString, db);
+        }
+
+        [Fact]
+        public void WebSocketConnectionAvailable()
+        {
+            this.ConnectionAvailable(this._wsConnectString);
         }
     }
 }
