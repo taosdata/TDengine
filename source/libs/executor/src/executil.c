@@ -4068,13 +4068,12 @@ _end:
 
 int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* pId) {
   int32_t code = TSDB_CODE_ANA_ANODE_RETURN_ERROR;
+  char*   pMsg = NULL;
   if (pJson == NULL) {
     return code;
   }
 
-  char    pMsg[1024] = {0};
-  int32_t ret = tjsonGetStringValue(pJson, "msg", pMsg);
-
+  int32_t ret = tjsonDupStringValue(pJson, "msg", &pMsg);
   if (ret == 0) {
     qError("%s failed to exec imputation, msg:%s", pId, pMsg);
     if (strstr(pMsg, "white noise") != NULL) {
@@ -4083,11 +4082,14 @@ int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* pId) {
       code = TSDB_CODE_ANA_WN_DATA;
     } else if (strstr(pMsg, "[Errno 111] Connection refused") != NULL) {
       code = TSDB_CODE_ANA_ALGO_NOT_LOAD;
+    } else if (strstr(pMsg, "failed to load model") != NULL) {
+      code = TSDB_CODE_ANA_ALGO_NOT_LOAD;
     }
   } else {
     qError("%s failed to extract msg from server, unknown error", pId);
   }
 
+  taosMemoryFreeClear(pMsg);
   return code;
 }
 
