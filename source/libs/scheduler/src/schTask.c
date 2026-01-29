@@ -1399,8 +1399,10 @@ void schDropTaskInHashList(SSchJob *pJob, SHashObj *list) {
 int32_t schNotifyTaskInHashList(SSchJob *pJob, SHashObj *list, ETaskNotifyType type, SSchTask *pCurrTask) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  SCH_ERR_RET(schNotifyTaskOnExecNode(pJob, pCurrTask, type));
-
+  if (NULL != pCurrTask) {
+    SCH_ERR_RET(schNotifyTaskOnExecNode(pJob, pCurrTask, type));
+  }
+  
   void *pIter = taosHashIterate(list, NULL);
   while (pIter) {
     SSchTask *pTask = *(SSchTask **)pIter;
