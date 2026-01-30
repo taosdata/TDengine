@@ -15,12 +15,22 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDb.h"
+#include "mndDef.h"
 #include "mndPrivilege.h"
 #include "mndRole.h"
+#include "mndToken.h"
 #include "mndTopic.h"
 #include "mndUser.h"
-#include "mndDef.h"
-#include "mndToken.h"
+
+#define GET_PRIV_OBJ_SIZE(obj, size)               \
+  do {                                             \
+    if (obj) {                                     \
+      (size) += taosHashGetSize((obj)->objPrivs);  \
+      (size) += taosHashGetSize((obj)->selectTbs); \
+      (size) += taosHashGetSize((obj)->insertTbs); \
+      (size) += taosHashGetSize((obj)->deleteTbs); \
+    }                                              \
+  } while (0)
 
 static TdThreadOnce operPrivInit = PTHREAD_ONCE_INIT;
 
@@ -53,7 +63,7 @@ static SOperPrivInfo operPrivInfoTable[] = {
     {MND_OPER_CREATE_FUNC, PRIV_FUNC_CREATE},
     {MND_OPER_DROP_FUNC, PRIV_FUNC_DROP},
     {MND_OPER_KILL_TRANS, PRIV_TRANS_KILL},
-    {MND_OPER_KILL_CONN, PRIV_CONNECTION_KILL},
+    {MND_OPER_KILL_CONN, PRIV_CONN_KILL},
     {MND_OPER_KILL_QUERY, PRIV_QUERY_KILL},
     {MND_OPER_CREATE_DB, PRIV_DB_CREATE},
     {MND_OPER_ALTER_DB, PRIV_CM_ALTER},
@@ -66,8 +76,8 @@ static SOperPrivInfo operPrivInfoTable[] = {
     {MND_OPER_READ_OR_WRITE_DB, PRIV_TYPE_UNKNOWN},
     {MND_OPER_SHOW_VARIABLES, PRIV_TYPE_UNKNOWN},
     {MND_OPER_SUBSCRIBE, PRIV_TYPE_UNKNOWN},
-    {MND_OPER_CREATE_TOPIC, PRIV_TYPE_UNKNOWN},
-    {MND_OPER_DROP_TOPIC, PRIV_TYPE_UNKNOWN},
+    {MND_OPER_CREATE_TOPIC, PRIV_TOPIC_CREATE},
+    {MND_OPER_DROP_TOPIC, PRIV_CM_DROP},
     {MND_OPER_CREATE_VIEW, PRIV_TYPE_UNKNOWN},
     {MND_OPER_DROP_VIEW, PRIV_TYPE_UNKNOWN},
     {MND_OPER_CONFIG_CLUSTER, PRIV_TYPE_UNKNOWN},
@@ -100,6 +110,9 @@ static SOperPrivInfo operPrivInfoTable[] = {
 
 static SOperPrivInfo *operPrivLookUp[MND_OPER_MAX] = {0};
 
+static bool mndHasSysObjPrivilege(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,
+                                  const char *objFName, const char *tbName);
+
 static void initOperPrivLookup(void) {
   for (size_t i = 0; i < sizeof(operPrivInfoTable) / sizeof(operPrivInfoTable[0]); ++i) {
     if (operPrivInfoTable[i].operType < MND_OPER_MAX) {
@@ -114,7 +127,7 @@ static EPrivType getOperPrivType(EOperType operType) {
   return result ? result->privType : PRIV_TYPE_UNKNOWN;
 }
 
-static bool mndMustChangePassword(SUserObj* pUser) {
+static bool mndMustChangePassword(SUserObj *pUser) {
   if (pUser->changePass == 1) {
     return true;
   }
@@ -131,14 +144,12 @@ int32_t mndInitPrivilege(SMnode *pMnode) { return 0; }
 
 void mndCleanupPrivilege(SMnode *pMnode) {}
 
-
-
-int32_t mndCheckConnectPrivilege(SMnode *pMnode, SUserObj *pUser, const char* token, const SLoginInfo *li) {
+int32_t mndCheckConnectPrivilege(SMnode *pMnode, SUserObj *pUser, const char *token, const SLoginInfo *li) {
   if ((!pUser->superUser) && (!pUser->enable)) {
     return TSDB_CODE_MND_USER_DISABLED;
   }
 
-  int64_t          now = taosGetTimestampSec();
+  int64_t now = taosGetTimestampSec();
 
   if (token == NULL && pUser->passwordLifeTime > 0 && pUser->passwordGraceTime >= 0) {
     int32_t age = now - pUser->passwords[0].setTime;
@@ -157,13 +168,13 @@ int32_t mndCheckConnectPrivilege(SMnode *pMnode, SUserObj *pUser, const char* to
   }
 
   if (token == NULL && pUser->failedLoginAttempts >= 0 && li->failedLoginCount >= pUser->failedLoginAttempts) {
-    if(pUser->passwordLockTime < 0 || now - li->lastFailedLoginTime < pUser->passwordLockTime) {
+    if (pUser->passwordLockTime < 0 || now - li->lastFailedLoginTime < pUser->passwordLockTime) {
       return TSDB_CODE_MND_USER_DISABLED;
     }
   }
 
   // this function is implemented in mndProfile.c
-  int32_t mndCountUserConns(SMnode *pMnode, const char *user);
+  int32_t mndCountUserConns(SMnode * pMnode, const char *user);
 
   if (pUser->sessionPerUser >= 0) {
     int32_t currentSessions = mndCountUserConns(pMnode, pUser->user);
@@ -175,9 +186,7 @@ int32_t mndCheckConnectPrivilege(SMnode *pMnode, SUserObj *pUser, const char* to
   return 0;
 }
 
-
-
-int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType) {
+int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, const char *token, EOperType operType) {
   int32_t   code = 0;
   SUserObj *pUser = NULL;
 
@@ -206,6 +215,9 @@ int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, const char* toke
     case MND_OPER_REDISTRIBUTE_VGROUP:
     case MND_OPER_CREATE_SNODE:
     case MND_OPER_ALTER_ROLE:
+    case MND_OPER_KILL_QUERY:
+    case MND_OPER_KILL_CONN:
+    case MND_OPER_KILL_TRANS:
       break;
     default:
       TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
@@ -217,12 +229,12 @@ _OVER:
 }
 
 static bool canChangePassword(SUserObj *pOperUser, SUserObj *pUser) {
-  if (pOperUser->superUser) {
-    return true;
-  }
-
   if (!pOperUser->enable) {
     return false;
+  }
+
+  if (pOperUser->superUser) {
+    return true;
   }
 
   if (strcmp(pUser->user, pOperUser->user) != 0) {
@@ -242,8 +254,9 @@ static bool canChangePassword(SUserObj *pOperUser, SUserObj *pUser) {
   return age < maxLifeTime;
 }
 
-int32_t mndCheckAlterUserPrivilege(SMnode* pMnode, const char *opUser, const char* opToken, SUserObj *pUser, SAlterUserReq *pAlter) {
-  int32_t code = 0, lino = 0;
+int32_t mndCheckAlterUserPrivilege(SMnode *pMnode, const char *opUser, const char *opToken, SUserObj *pUser,
+                                   SAlterUserReq *pAlter) {
+  int32_t   code = 0, lino = 0;
   SUserObj *pOperUser = NULL;
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, opUser, &pOperUser), &lino, _OVER);
@@ -272,24 +285,24 @@ int32_t mndCheckAlterUserPrivilege(SMnode* pMnode, const char *opUser, const cha
     TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_PASSWORD_EXPIRED, &lino, _OVER);
   }
 
-  if (pOperUser->superUser) {
+  if (!pOperUser->enable) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, &lino, _OVER);
+  } else if (pOperUser->superUser) {
     if (!pUser->superUser) {
       // super user can alter any non-super user
       goto _OVER;
     }
-  } else if (!pOperUser->enable) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, &lino, _OVER);
-  } else if (strcmp(pUser->user, pOperUser->user) != 0) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
-  } else if (pAlter->numIpRanges > 0 || pAlter->numDropIpRanges > 0) {
-    // user can not alter its own ip white list
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
+  } else if (strcmp(pUser->user, pOperUser->user) == 0) {
+    if (pAlter->numIpRanges > 0 || pAlter->numDropIpRanges > 0) {
+      // user can not alter its own ip white list
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
+    }
   }
 
   // now there are two cases left:
   // 1. both pOperUser and pUser are superuser
   // 2. pOperUser and pUser are same user
-
+#if 0
   if (pAlter->hasEnable || pAlter->hasSysinfo || pAlter->hasCreatedb || pAlter->hasChangepass ||
       pAlter->hasSessionPerUser || pAlter->hasConnectTime || pAlter->hasConnectIdleTime || pAlter->hasCallPerSession ||
       pAlter->hasVnodePerCall || pAlter->hasFailedLoginAttempts || pAlter->hasPasswordLifeTime ||
@@ -298,6 +311,16 @@ int32_t mndCheckAlterUserPrivilege(SMnode* pMnode, const char *opUser, const cha
       pAlter->numTimeRanges > 0 || pAlter->numDropTimeRanges > 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
   }
+#else
+  if (pUser->superUser) {
+    if (pAlter->hasEnable || pAlter->hasSysinfo || pAlter->hasCreatedb || pAlter->hasFailedLoginAttempts ||
+        pAlter->hasPasswordLifeTime || pAlter->hasPasswordReuseTime || pAlter->hasPasswordReuseMax ||
+        pAlter->hasPasswordLockTime || pAlter->hasPasswordGraceTime || pAlter->hasInactiveAccountTime ||
+        pAlter->hasAllowTokenNum || pAlter->numTimeRanges > 0 || pAlter->numDropTimeRanges > 0) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
+    }
+  }
+#endif
 
   // super user can alter totp seed of any user, user can also alter its own totp seed
   // so no need to check pAlter->hasTotpseed here
@@ -307,8 +330,9 @@ _OVER:
 }
 
 // super user can modify totp secret of any non-super user, user can also modify its own totp secret
-int32_t mndCheckTotpSecretPrivilege(SMnode* pMnode, const char *opUser, const char* opToken, SUserObj *pUser) {
-  int32_t code = 0, lino = 0;
+int32_t mndCheckTotpSecretPrivilege(SMnode *pMnode, const char *opUser, const char *opToken, SUserObj *pUser,
+                                    EPrivType privType) {
+  int32_t   code = 0, lino = 0;
   SUserObj *pOperUser = NULL;
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, opUser, &pOperUser), &lino, _OVER);
@@ -321,12 +345,15 @@ int32_t mndCheckTotpSecretPrivilege(SMnode* pMnode, const char *opUser, const ch
     TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, &lino, _OVER);
   }
 
+  // PRIV_TODO: why super user cannot modify another super user's totp secret?
   if (pOperUser->superUser && !pUser->superUser) {
     goto _OVER;
   }
 
   if (strcmp(pUser->user, pOperUser->user) != 0) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
+    if (!mndHasSysObjPrivilege(pMnode, pOperUser, privType, 0, NULL, NULL)) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+    }
   }
 
 _OVER:
@@ -334,12 +361,13 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-int32_t mndCheckTokenPrivilege(SMnode* pMnode, const char* opUser, const char* opToken, const char *user, const char* token) {
+int32_t mndCheckTokenPrivilege(SMnode *pMnode, const char *opUser, const char *opToken, const char *user,
+                               const char *token, EPrivType privType) {
   int32_t   code = 0;
   SUserObj *pOperUser = NULL;
 
   if (opToken != NULL && token != NULL && taosStrcasecmp(opToken, token) == 0) {
-    return TSDB_CODE_MND_NO_RIGHTS; // token cannot alter/drop itself
+    return TSDB_CODE_MND_NO_RIGHTS;  // token cannot alter/drop itself
   }
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, opUser, &pOperUser), NULL, _OVER);
@@ -357,7 +385,9 @@ int32_t mndCheckTokenPrivilege(SMnode* pMnode, const char* opUser, const char* o
   }
 
   if (strcmp(pOperUser->user, user) != 0) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+    if (!mndHasSysObjPrivilege(pMnode, pOperUser, privType, 0, NULL, NULL)) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+    }
   }
 
 _OVER:
@@ -365,7 +395,8 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, const char* token, EShowType showType, const char *dbname) {
+int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, const char *token, EShowType showType,
+                              const char *dbname) {
   int32_t   code = 0;
   SUserObj *pUser = NULL;
 
@@ -431,7 +462,7 @@ static bool mndHasObjPrivilegeType(SHashObj *privs, const char *key, int32_t kle
 
 static bool mndHasSysObjPrivilege(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,
                                   const char *objFName, const char *tbName) {
-  char       objKey[TSDB_PRIV_MAX_KEY_LEN] = {0};
+  char             objKey[TSDB_PRIV_MAX_KEY_LEN] = {0};
   const SPrivInfo *pPrivInfo = privInfoGet(privType);
   if (pPrivInfo == NULL) {
     return false;
@@ -531,14 +562,16 @@ static bool mndHasObjPrivilege(SMnode *pMnode, SUserObj *pUser, EPrivType privTy
       }
       mndReleaseRole(pMnode, pRole);
     }
+  } else if(privInfo.category == PRIV_CATEGORY_SYSTEM) {
+    return mndHasSysObjPrivilege(pMnode, pUser, privType, objType, objName, tbName);
   }
 
   return false;
 }
 
-int32_t mndCheckSysObjPrivilege(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,
-                                int64_t ownerId, const char *objFName, const char *tbName) {
-  if (mndMustChangePassword(pUser)) {
+int32_t mndCheckSysObjPrivilege(SMnode *pMnode, SUserObj *pUser, const char *token, EPrivType privType,
+                                EPrivObjType objType, int64_t ownerId, const char *objFName, const char *tbName) {
+  if (token == NULL && mndMustChangePassword(pUser)) {
     goto _OVER;
   }
   if (!pUser->enable) {
@@ -643,7 +676,7 @@ int32_t mndCheckDbPrivilegeByNameRecF(SMnode *pMnode, SUserObj *pUser, EPrivType
   TAOS_RETURN(code);
 }
 
-int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType, SDbObj *pDb) {
+int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, const char *token, EOperType operType, SDbObj *pDb) {
   int32_t   code = 0;
   SUserObj *pUser = NULL;
 
@@ -661,40 +694,52 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, const char* token,
 
   // check these privileges in parser
   if (operType == MND_OPER_CREATE_DB) {
-    // if (pUser->createdb) goto _OVER;
+    if (pUser->createdb) goto _OVER;
     if (mndHasSysObjPrivilege(pMnode, pUser, PRIV_DB_CREATE, 0, NULL, NULL)) goto _OVER;
   } else if (operType == MND_OPER_SSMIGRATE_DB) {
     return TSDB_CODE_SUCCESS;
-  } else if (operType == MND_OPER_ALTER_DB || operType == MND_OPER_COMPACT_DB || operType == MND_OPER_TRIM_DB ||
-             operType == MND_OPER_SCAN_DB) {
-    if (pUser->uid == pDb->ownerId && pUser->sysInfo) goto _OVER;
+  } else if (operType == MND_OPER_ALTER_DB) {
+    if (pDb != NULL) {
+      if (pDb->cfg.isAudit) {
+        if (mndHasSysObjPrivilege(pMnode, pUser, PRIV_AUDIT_DB_ALTER, 0, pDb->name, NULL)) goto _OVER;
+      } else {
+        if (0 == mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_CM_ALTER, PRIV_OBJ_DB, pDb->ownerId, pDb->name, NULL)) {
+          goto _OVER;
+        }
+      }
+    }
   } else if (operType == MND_OPER_DROP_DB) {
     // if (strcmp(pUser->user, pDb->createUser) == 0) goto _OVER;  // TS-7279
     if (pDb != NULL) {
-      if (pUser->uid == pDb->ownerId) {
-        if (mndHasSysObjPrivilege(pMnode, pUser, PRIV_DB_DROP_OWNED, 0, pDb->name, NULL)) goto _OVER;
+      if (pDb->cfg.isAudit) {
+        if (mndHasSysObjPrivilege(pMnode, pUser, PRIV_AUDIT_DB_DROP, 0, pDb->name, NULL)) goto _OVER;
+      } else {
+        if (0 == mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_CM_DROP, PRIV_OBJ_DB, pDb->ownerId, pDb->name, NULL)) {
+          goto _OVER;
+        }
       }
-      EPrivType privType = getOperPrivType(operType);
-      if (mndHasSysObjPrivilege(pMnode, pUser, privType, PRIV_OBJ_DB, pDb->name, NULL)) goto _OVER;
     }
   } else if (operType == MND_OPER_USE_DB || operType == MND_OPER_SHOW_DATABASES || operType == MND_OPER_SHOW_VGROUPS ||
-             operType == MND_OPER_SHOW_VNODES) {  // MND_OPER_READ_OR_WRITE_DB
+             operType == MND_OPER_SHOW_VNODES || operType == MND_OPER_CREATE_TOPIC || operType == MND_OPER_COMPACT_DB ||
+             operType == MND_OPER_TRIM_DB || operType == MND_OPER_SCAN_DB) {
     if (pDb != NULL) {
-      if (pUser->uid == pDb->ownerId) goto _OVER;
-      // if (taosHashGet(pUser->readDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
-      // if (taosHashGet(pUser->writeDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
-      // if (taosHashGet(pUser->useDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
-      EPrivType privType = getOperPrivType(operType);
-      if (mndHasSysObjPrivilege(pMnode, pUser, privType, PRIV_OBJ_DB, pDb->name, NULL)) goto _OVER;
+      if (pDb->cfg.isAudit) {
+        if (taosHashGet(pUser->ownedDbs, pDb->name, strlen(pDb->name) + 1)) {
+          goto _OVER;
+        }
+      } else {
+        EPrivType privType = getOperPrivType(operType);
+        if (0 == mndCheckObjPrivilegeRecF(pMnode, pUser, privType, PRIV_OBJ_DB, pDb->ownerId, pDb->name, NULL)) {
+          goto _OVER;
+        }
+      }
     } else {
       goto _OVER;
     }
   } else if (operType == MND_OPER_WRITE_DB) {
-    if (pUser->uid == pDb->ownerId) goto _OVER;
-    // if (taosHashGet(pUser->writeDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
+    if (pDb && (pUser->uid == pDb->ownerId)) goto _OVER;
   } else if (operType == MND_OPER_READ_DB) {
-    if (pUser->uid == pDb->ownerId) goto _OVER;
-    // if (taosHashGet(pUser->readDbs, pDb->name, strlen(pDb->name) + 1) != NULL) goto _OVER;
+    if (pDb && (pUser->uid == pDb->ownerId)) goto _OVER;
   }
 
   code = TSDB_CODE_MND_NO_RIGHTS;
@@ -704,7 +749,8 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, const char* token, EOperType operType, const char *dbname) {
+int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, const char *token, EOperType operType,
+                                  const char *dbname) {
   int32_t code = 0;
 
   const char *realDbName = NULL;
@@ -715,7 +761,7 @@ int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, const char* 
 
   if ((0 == strcasecmp(realDbName, TSDB_INFORMATION_SCHEMA_DB) ||
        (0 == strcasecmp(realDbName, TSDB_PERFORMANCE_SCHEMA_DB)))) {
-    if (operType == MND_OPER_READ_DB) {
+    if (operType == MND_OPER_USE_DB) {
       return TSDB_CODE_SUCCESS;
     } else {
       return TSDB_CODE_MND_NO_RIGHTS;
@@ -733,7 +779,7 @@ int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, const char* 
   TAOS_RETURN(code);
 }
 
-int32_t mndCheckStbPrivilege(SMnode *pMnode, SUserObj *pUser, const char* token, EOperType operType, SStbObj *pStb) {
+int32_t mndCheckStbPrivilege(SMnode *pMnode, SUserObj *pUser, const char *token, EOperType operType, SStbObj *pStb) {
   int32_t code = 0, lino = 0;
   SDbObj *pDb = NULL;
 
@@ -765,7 +811,8 @@ _exit:
   TAOS_RETURN(code);
 }
 
-int32_t mndCheckViewPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType, const char *pViewFName) {
+int32_t mndCheckViewPrivilege(SMnode *pMnode, const char *user, const char *token, EOperType operType,
+                              const char *pViewFName) {
   int32_t   code = 0;
   SUserObj *pUser = NULL;
 
@@ -815,7 +862,7 @@ int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, const char *tok
   if (operType == MND_OPER_SUBSCRIBE) {
     if (pUser->uid == pTopic->ownerId) goto _OVER;
     if (0 == mndCheckDbPrivilegeByNameRecF(pMnode, pUser, PRIV_DB_USE, PRIV_OBJ_DB, pTopic->db, NULL)) {
-      SName name = {0}; // 1.topic1
+      SName name = {0};  // 1.topic1
       TAOS_CHECK_GOTO(tNameFromString(&name, pTopic->name, T_NAME_ACCT | T_NAME_DB), NULL, _OVER);
       if (0 == mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_CM_SUBSCRIBE, PRIV_OBJ_TOPIC, 0, pTopic->db, name.dbname)) {
         goto _OVER;
@@ -862,6 +909,10 @@ int32_t mndSetUserRolePrivileges(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRs
             tstrerror(code));
       continue;
     }
+    if (pRole->enable == 0) {
+      mndReleaseRole(pMnode, pRole);
+      continue;
+    }
     TAOS_CHECK_EXIT(mndMergeRolePrivilges(pMnode, pUser, pRole, pRsp));
     mndReleaseRole(pMnode, pRole);
     pRole = NULL;
@@ -874,6 +925,24 @@ _exit:
   TAOS_RETURN(code);
 }
 
+static bool mndWithCondInPrivs(SHashObj *privs) {
+  if (!privs) {
+    return false;
+  }
+  void *pIter = NULL;
+  while ((pIter = taosHashIterate(privs, pIter))) {
+    SPrivTblPolicies *pTblPolicies = (SPrivTblPolicies *)pIter;
+    int32_t           size = taosArrayGetSize(pTblPolicies->policy);
+    for (int32_t i = 0; i < size; i++) {
+      SPrivTblPolicy *pPolicy = (SPrivTblPolicy *)TARRAY_GET_ELEM(pTblPolicies->policy, i);
+      if (pPolicy->condLen > 0) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp) {
   int32_t code = 0, lino = 0;
 
@@ -882,8 +951,8 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->superAuth = pUser->superUser;
   pRsp->version = pUser->authVersion;
   pRsp->passVer = pUser->passVersion;
-  pRsp->whiteListVer = pMnode->ipWhiteVer;
-  pRsp->timeWhiteListVer = pMnode->timeWhiteVer;
+  pRsp->whiteListVer = pUser->ipWhiteListVer;
+  pRsp->timeWhiteListVer = pUser->timeWhiteListVer;
   pRsp->enable = pUser->enable;
   pRsp->sysInfo = pUser->sysInfo;
   pRsp->sessCfg = (SUserSessCfg){.sessPerUser = pUser->sessionPerUser,
@@ -927,9 +996,15 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   TAOS_CHECK_EXIT(mndDupPrivTblHash(pUser->selectTbs, &pRsp->selectTbs, true));
   TAOS_CHECK_EXIT(mndDupPrivTblHash(pUser->insertTbs, &pRsp->insertTbs, true));
   TAOS_CHECK_EXIT(mndDupPrivTblHash(pUser->deleteTbs, &pRsp->deleteTbs, true));
+  TAOS_CHECK_EXIT(mndDupKVHash(pUser->ownedDbs, &pRsp->ownedDbs));
   taosRUnLockLatch(&pUser->lock);
 
   code = mndSetUserRolePrivileges(pMnode, pUser, pRsp);
+
+  if (mndWithCondInPrivs(pRsp->insertTbs)) {
+    pRsp->withInsertCond = 1;
+  }
+
   if (code != 0) {
     TAOS_RETURN(code);
   }
@@ -938,7 +1013,6 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
     TAOS_RETURN(code);
   }
   TAOS_RETURN(0);
-
 _exit:
   taosRUnLockLatch(&pUser->lock);
   TAOS_RETURN(code);
@@ -1022,7 +1096,17 @@ int32_t mndSetUserDateTimeWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SUserDat
   TAOS_RETURN(0);
 }
 
-static int32_t mndAlterObjPrivileges(void *pObj, SAlterRoleReq *pAlterReq, ESdbType sdbType) {
+static int32_t mndGetPrivObjSize(void *pObj, ESdbType sdbType) {
+  int32_t privObjSize = 0;
+  if (sdbType == SDB_USER) {
+    GET_PRIV_OBJ_SIZE((SUserObj *)pObj, privObjSize);
+  } else {
+    GET_PRIV_OBJ_SIZE((SRoleObj *)pObj, privObjSize);
+  }
+  return privObjSize;
+}
+
+static int32_t mndAlterObjPrivileges(SMnode *pMnode, void *pObj, SAlterRoleReq *pAlterReq, ESdbType sdbType) {
   int32_t          code = 0, lino = 0;
   SPrivSetReqArgs *pReqArgs = &pAlterReq->privileges;
   SHashObj        *objPrivs = sdbType == SDB_USER ? ((SUserObj *)pObj)->objPrivs : ((SRoleObj *)pObj)->objPrivs;
@@ -1095,12 +1179,31 @@ static int32_t mndAlterObjPrivileges(void *pObj, SAlterRoleReq *pAlterReq, ESdbT
         }
       }
     }
+  } else if (pAlterReq->objType == PRIV_OBJ_TOPIC) {
+    // check topic existence for topic related privileges
+    if (pAlterReq->add && (pAlterReq->ignoreNotExists == 0) && (strncmp(pAlterReq->tblName, "*", 2) != 0)) {
+      if (PRIV_HAS(&pReqArgs->privSet, PRIV_CM_SHOW) || PRIV_HAS(&pReqArgs->privSet, PRIV_CM_SHOW_CREATE) ||
+          PRIV_HAS(&pReqArgs->privSet, PRIV_CM_SUBSCRIBE) || PRIV_HAS(&pReqArgs->privSet, PRIV_CONSUMER_SHOW) ||
+          PRIV_HAS(&pReqArgs->privSet, PRIV_SUBSCRIPTION_SHOW)) {
+        SName name = {0};
+        TAOS_CHECK_EXIT(tNameFromString(&name, pAlterReq->objFName, T_NAME_ACCT | T_NAME_DB));
+        char topicName[TSDB_TOPIC_FNAME_LEN] = {0};
+        snprintf(topicName, TSDB_TOPIC_FNAME_LEN, "%d.%s", name.acctId, pAlterReq->tblName);
+        SMqTopicObj *pTopic = NULL;
+        TAOS_CHECK_EXIT(mndAcquireTopic(pMnode, topicName, &pTopic));
+        mndReleaseTopic(pMnode, pTopic);
+      }
+    }
   }
 
   SPrivObjPolicies *policies = taosHashGet(objPrivs, key, keyLen + 1);
 
   if (pAlterReq->add) {
     if (policies == NULL) {
+      int32_t privObjSize = mndGetPrivObjSize(pObj, sdbType);
+      if (privObjSize >= TSDB_MAX_PRIV_OBJS) {
+        TAOS_CHECK_EXIT(TSDB_CODE_MND_TOO_MANY_PRIV_OBJS);
+      }
       SPrivObjPolicies policy = {0};
       policy.policy = pReqArgs->privSet;
       TAOS_CHECK_EXIT(taosHashPut(objPrivs, key, keyLen + 1, &policy, sizeof(SPrivObjPolicies)));
@@ -1159,6 +1262,10 @@ static int32_t mndAlterTableConstraintPrivileges(void *pObj, SAlterRoleReq *pAlt
         TAOS_CHECK_EXIT(TSDB_CODE_MND_PRIVILEGE_EXIST);
       }
       if (objPolicies == NULL) {
+        int32_t privObjSize = mndGetPrivObjSize(pObj, sdbType);
+        if (privObjSize >= TSDB_MAX_PRIV_OBJS) {
+          TAOS_CHECK_EXIT(TSDB_CODE_MND_TOO_MANY_PRIV_OBJS);
+        }
         SPrivObjPolicies policy = {0};
         policy.policy = pReqArgs->privSet;
         TAOS_CHECK_EXIT(taosHashPut(objPrivs, key, keyLen + 1, &policy, sizeof(SPrivObjPolicies)));
@@ -1186,6 +1293,12 @@ static int32_t mndAlterTableConstraintPrivileges(void *pObj, SAlterRoleReq *pAlt
         TAOS_CHECK_EXIT(TSDB_CODE_MND_PRIVILEGE_EXIST);
       }
     }
+
+    int32_t privObjSize = mndGetPrivObjSize(pObj, sdbType);
+    if (privObjSize >= TSDB_MAX_PRIV_OBJS) {
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_TOO_MANY_PRIV_OBJS);
+    }
+
     SPrivTblPolicies newPolicies = {0};
     newPolicies.policy = taosArrayInit_s(sizeof(SPrivTblPolicy), 1);
     if (newPolicies.policy == NULL) {
@@ -1237,14 +1350,14 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndAlterTablePrivileges(void *pObj, SAlterRoleReq *pAlterReq, ESdbType sdbType) {
+static int32_t mndAlterTablePrivileges(SMnode *pMnode, void *pObj, SAlterRoleReq *pAlterReq, ESdbType sdbType) {
   int32_t          code = 0, lino = 0;
   SPrivSetReqArgs *pReqArgs = &pAlterReq->privileges;
 
   // the basic table privileges without contraints are stored in objPrivs
   if (pReqArgs->condLen <= 0 && taosArrayGetSize(pReqArgs->selectCols) <= 0 &&
       taosArrayGetSize(pReqArgs->insertCols) <= 0 && taosArrayGetSize(pReqArgs->updateCols) <= 0) {
-    code = mndAlterObjPrivileges(pObj, pAlterReq, sdbType);
+    code = mndAlterObjPrivileges(pMnode, pObj, pAlterReq, sdbType);
     goto _exit;
   }
 
@@ -1268,11 +1381,11 @@ static int32_t mndAlterTablePrivileges(void *pObj, SAlterRoleReq *pAlterReq, ESd
 
   // e.g. grant drop table, select(c0,c1) on d0.stb0 to u1;
   if (pReqArgs->condLen <= 0 && !privIsEmptySet(&pReqArgs->privSet)) {
-    TAOS_CHECK_EXIT(mndAlterObjPrivileges(pObj, pAlterReq, sdbType));
+    TAOS_CHECK_EXIT(mndAlterObjPrivileges(pMnode, pObj, pAlterReq, sdbType));
   }
   // e.g. grant all on d0.stb0 with t0=1 to u1;
   if (pReqArgs->condLen > 0 && !privIsEmptySet(&pReqArgs->privSet)) {
-    TAOS_CHECK_EXIT(mndAlterObjPrivileges(pObj, pAlterReq, sdbType));
+    TAOS_CHECK_EXIT(mndAlterObjPrivileges(pMnode, pObj, pAlterReq, sdbType));
   }
 
 _exit:
@@ -1283,53 +1396,57 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndAlterObjectPrivileges(void *pOld, void *pNew, SAlterRoleReq *pAlterReq, ESdbType sdbType) {
+static int32_t mndAlterObjectPrivileges(SMnode *pMnode, void *pNew, SAlterRoleReq *pAlterReq, ESdbType sdbType) {
   // remove CM_ALL privilege since it's not used in later steps currently
   if (PRIV_HAS(&pAlterReq->privileges.privSet, PRIV_CM_ALL)) {
     privRemoveType(&pAlterReq->privileges.privSet, PRIV_CM_ALL);
   }
   switch (pAlterReq->objType) {
     case PRIV_OBJ_TBL: {
-      return mndAlterTablePrivileges(pNew, pAlterReq, sdbType);
+      return mndAlterTablePrivileges(pMnode, pNew, pAlterReq, sdbType);
     }
-    case PRIV_OBJ_VIEW: {
-      // return mndAlterViewPrivileges(pOld, pNew, pAlterReq);
-      // break;
-    }
-    case PRIV_OBJ_TOPIC: {
-      // return mndAlterTopicPrivileges(pOld, pNew, pAlterReq);
-      // break;
-    }
-    case PRIV_OBJ_DB:
     default: {
-      return mndAlterObjPrivileges(pNew, pAlterReq, sdbType);
+      return mndAlterObjPrivileges(pMnode, pNew, pAlterReq, sdbType);
     }
   }
   TAOS_RETURN(0);
 }
 
+static bool mndUserIsRestricedSysRole(const char *role) {
+  if (role[0] == 'S' && (strcmp(role, TSDB_ROLE_SYSSEC) == 0 || strcmp(role, TSDB_ROLE_SYSAUDIT) == 0 ||
+                         strcmp(role, TSDB_ROLE_SYSDBA) == 0 || strcmp(role, TSDB_ROLE_SYSAUDIT_LOG) == 0)) {
+    return true;
+  }
+  return false;
+}
+
 #define PRIV_SYS_SUPPORT_CHECK(privType)                                                                       \
   do {                                                                                                         \
     if (PRIV_HAS(&pAlterReq->privileges.privSet, (privType))) {                                                \
-      mError("role:%s, Cannot grant or revoke system privilege: %s", pOld->name, privInfoGet(privType)->name); \
+      mError("role:%s, Cannot grant or revoke system privilege: %s", pNew->name, privInfoGet(privType)->name); \
       TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);                                                              \
     }                                                                                                          \
   } while (0)
 
-int32_t mndAlterRoleInfo(SMnode *pMnode, SUserObj *pOperUser, SRoleObj *pOld, SRoleObj *pNew,
+int32_t mndAlterRoleInfo(SMnode *pMnode, SUserObj *pOperUser, const char *token, SRoleObj *pOld, SRoleObj *pNew,
                          SAlterRoleReq *pAlterReq) {
   int32_t code = 0, lino = 0;
 
   switch (pAlterReq->alterType) {
     case TSDB_ALTER_ROLE_LOCK: {
-      TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pOperUser, pAlterReq->lock ? PRIV_ROLE_LOCK : PRIV_ROLE_UNLOCK, 0,
-                                              0, NULL, NULL));
+      TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pOperUser, token,
+                                              pAlterReq->lock ? PRIV_ROLE_LOCK : PRIV_ROLE_UNLOCK, 0, 0, NULL, NULL));
+
+      if (mndUserIsRestricedSysRole(pNew->name)) {
+        mError("role:%s, cannot be locked or unlocked", pNew->name);
+        TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);
+      }
       pNew->enable = pAlterReq->lock ? 0 : 1;
       break;
     }
     case TSDB_ALTER_ROLE_PRIVILEGES: {
       TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(
-          pMnode, pOperUser, pAlterReq->lock ? PRIV_GRANT_PRIVILEGE : PRIV_REVOKE_PRIVILEGE, 0, 0, NULL, NULL));
+          pMnode, pOperUser, token, pAlterReq->lock ? PRIV_GRANT_PRIVILEGE : PRIV_REVOKE_PRIVILEGE, 0, 0, NULL, NULL));
       if (pAlterReq->sysPriv) {
         PRIV_SYS_SUPPORT_CHECK(PRIV_VG_BALANCE);
         PRIV_SYS_SUPPORT_CHECK(PRIV_VG_BALANCE_LEADER);
@@ -1342,7 +1459,7 @@ int32_t mndAlterRoleInfo(SMnode *pMnode, SUserObj *pOperUser, SRoleObj *pOld, SR
           privRemoveSet(&pNew->sysPrivs, &pAlterReq->privileges.privSet);
         }
       } else {
-        TAOS_CHECK_EXIT(mndAlterObjectPrivileges(pOld, pNew, pAlterReq, SDB_ROLE));
+        TAOS_CHECK_EXIT(mndAlterObjectPrivileges(pMnode, pNew, pAlterReq, SDB_ROLE));
       }
       break;
     }
@@ -1357,8 +1474,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
-int32_t mndAlterUserPrivInfo(SMnode *pMnode, SUserObj *pOperUser, SUserObj *pOld, SUserObj *pNew,
-                             SAlterRoleReq *pAlterReq) {
+int32_t mndAlterUserPrivInfo(SMnode *pMnode, SUserObj *pNew, SAlterRoleReq *pAlterReq) {
   int32_t code = 0, lino = 0;
   switch (pAlterReq->alterType) {
     case TSDB_ALTER_ROLE_PRIVILEGES: {
@@ -1373,8 +1489,11 @@ int32_t mndAlterUserPrivInfo(SMnode *pMnode, SUserObj *pOperUser, SUserObj *pOld
         } else {
           privRemoveSet(&pNew->sysPrivs, &pAlterReq->privileges.privSet);
         }
+        if (PRIV_HAS(&pAlterReq->privileges.privSet, PRIV_DB_CREATE)) {
+          pNew->createdb = pAlterReq->add ? 1 : 0;
+        }
       } else {
-        TAOS_CHECK_EXIT(mndAlterObjectPrivileges(pOld, pNew, pAlterReq, SDB_USER));
+        TAOS_CHECK_EXIT(mndAlterObjectPrivileges(pMnode, pNew, pAlterReq, SDB_USER));
       }
       break;
     }
@@ -1383,7 +1502,7 @@ int32_t mndAlterUserPrivInfo(SMnode *pMnode, SUserObj *pOperUser, SUserObj *pOld
   }
 _exit:
   if (code < 0) {
-    mError("user:%s, failed at line %d to alter info since %s, alter type:%" PRIu8, pOld->user, lino, tstrerror(code),
+    mError("user:%s, failed at line %d to alter info since %s, alter type:%" PRIu8, pNew->user, lino, tstrerror(code),
            pAlterReq->alterType);
   }
   TAOS_RETURN(code);
@@ -1393,8 +1512,7 @@ static bool mndUserHasRestrictedSysRole(SUserObj *pUser, char *role) {
   void *pIter = NULL;
   while ((pIter = taosHashIterate(pUser->roles, pIter))) {
     char *pRoleName = taosHashGetKey(pIter, NULL);
-    if (strcmp(pRoleName, TSDB_ROLE_SYSSEC) == 0 || strcmp(pRoleName, TSDB_ROLE_SYSAUDIT) == 0 ||
-        strcmp(pRoleName, TSDB_ROLE_SYSDBA) == 0 || strcmp(pRoleName, TSDB_ROLE_SYSAUDIT_LOG) == 0) {
+    if (mndUserIsRestricedSysRole(pRoleName)) {
       if (role) strncpy(role, pRoleName, TSDB_ROLE_LEN);
       return true;
     }
@@ -1427,20 +1545,23 @@ static int32_t mndAlterUserRoleSysRoleCheck(SMnode *pMnode, SUserObj *pUser, SAl
   if (pAlterReq->add) {
     char role[TSDB_ROLE_LEN] = {0};
     if (mndUserHasRestrictedSysRole(pUser, role)) {
-      mError("user:%s, cannot grant system role:%s since already has restricted system role:%s", pUser->user,
-             pAlterReq->roleName, role);
-      TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);
+      code = TSDB_CODE_MND_ROLE_CONFLICTS;
+      mError("user:%s, cannot grant role %s since %s %s", pUser->user, pAlterReq->roleName, tstrerror(code), role);
+      TAOS_CHECK_EXIT(code);
     }
   } else {
+#if 0
+    // prevent unintended misoperation, which may lead to audit data loss
     if (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSAUDIT_LOG) == 0) {
       mError("user:%s, cannot revoke system role:%s", pUser->user, pAlterReq->roleName);
       TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);
     }
+#endif
     if (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSDBA) == 0) {
       if (!mndHasOthersWithSysDBA(pMnode, pUser->user)) {
-        mError("user:%s, is the last enabled SYSDBA, cannot revoke its system role:%s", pUser->user,
-               pAlterReq->roleName);
-        TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);
+        code = TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA;
+        mError("user:%s, cannot revoke role %s since %s", pUser->user, pAlterReq->roleName, tstrerror(code));
+        TAOS_CHECK_EXIT(code);
       }
     }
   }
@@ -1448,38 +1569,79 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndCheckAlterRolePrivilege(SMnode *pMnode, SUserObj *pOperUser, SAlterRoleReq *pAlterReq) {
+static int32_t mndCheckAlterRolePrivilege(SMnode *pMnode, SUserObj *pOperUser, const char *token,
+                                          SAlterRoleReq *pAlterReq) {
   if (IS_SYS_PREFIX(pAlterReq->roleName)) {
     if (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSDBA) == 0) {
-      return mndCheckSysObjPrivilege(pMnode, pOperUser, pAlterReq->add ? PRIV_GRANT_SYSDBA : PRIV_REVOKE_SYSDBA, 0, 0,
-                                     NULL, NULL);
+      return mndCheckSysObjPrivilege(pMnode, pOperUser, token, pAlterReq->add ? PRIV_GRANT_SYSDBA : PRIV_REVOKE_SYSDBA,
+                                     0, 0, NULL, NULL);
     }
     if (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSSEC) == 0) {
-      return mndCheckSysObjPrivilege(pMnode, pOperUser, pAlterReq->add ? PRIV_GRANT_SYSSEC : PRIV_REVOKE_SYSSEC, 0, 0,
-                                     NULL, NULL);
+      return mndCheckSysObjPrivilege(pMnode, pOperUser, token, pAlterReq->add ? PRIV_GRANT_SYSSEC : PRIV_REVOKE_SYSSEC,
+                                     0, 0, NULL, NULL);
     }
     if (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSAUDIT) == 0) {
-      return mndCheckSysObjPrivilege(pMnode, pOperUser, pAlterReq->add ? PRIV_GRANT_SYSAUDIT : PRIV_REVOKE_SYSAUDIT, 0,
-                                     0, NULL, NULL);
+      return mndCheckSysObjPrivilege(pMnode, pOperUser, token,
+                                     pAlterReq->add ? PRIV_GRANT_SYSAUDIT : PRIV_REVOKE_SYSAUDIT, 0, 0, NULL, NULL);
     }
   }
-  return mndCheckSysObjPrivilege(pMnode, pOperUser, pAlterReq->add ? PRIV_GRANT_PRIVILEGE : PRIV_REVOKE_PRIVILEGE, 0, 0,
-                                 NULL, NULL);
-
-  TAOS_RETURN(0);
+  return mndCheckSysObjPrivilege(pMnode, pOperUser, token,
+                                 pAlterReq->add ? PRIV_GRANT_PRIVILEGE : PRIV_REVOKE_PRIVILEGE, 0, 0, NULL, NULL);
 }
 
-int32_t mndAlterUserRoleInfo(SMnode *pMnode, SUserObj *pOperUser, SUserObj *pOld, SUserObj *pNew,
+static int32_t mndUserUpdateAuditDb(SMnode *pMnode, SUserObj *pNew, SAlterRoleReq *pAlterReq, uint8_t roleType) {
+  int32_t   code = 0, lino = 0;
+  char      key[TSDB_PRIV_MAX_KEY_LEN] = {0};
+
+  if (pAlterReq->add) {
+    SDbObj *pDb = NULL;
+    void   *pIter = NULL;
+    while ((pIter = sdbFetch(pMnode->pSdb, SDB_DB, pIter, (void **)&pDb))) {
+      if (pDb->cfg.isAudit) {
+        if ((code = taosHashPut(pNew->ownedDbs, pDb->name, strlen(pDb->name) + 1, NULL, 0))) {
+          sdbCancelFetch(pMnode->pSdb, pIter);
+          sdbRelease(pMnode->pSdb, pDb);
+          TAOS_CHECK_EXIT(code);
+        }
+        sdbCancelFetch(pMnode->pSdb, pIter);
+        sdbRelease(pMnode->pSdb, pDb);
+        break;  // only one audit db exists
+      }
+      sdbRelease(pMnode->pSdb, pDb);
+    }
+  } else {
+    void *qIter = NULL;
+    while ((qIter = taosHashIterate(pNew->ownedDbs, qIter))) {
+      char   *dbFName = taosHashGetKey(qIter, NULL);
+      SDbObj *pDb = mndAcquireDb(pMnode, dbFName);
+      if (!pDb || pDb->cfg.isAudit) {
+        if ((code = taosHashRemove(pNew->ownedDbs, dbFName, strlen(dbFName) + 1))) {
+          if (pDb) mndReleaseDb(pMnode, pDb);
+          TAOS_CHECK_EXIT(code);
+        }
+      }
+      mndReleaseDb(pMnode, pDb);
+    }
+  }
+_exit:
+  if (code != 0) {
+    mError("user:%s, failed at line %d to update owned audit db since %s", pNew->user, lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
+
+int32_t mndAlterUserRoleInfo(SMnode *pMnode, SUserObj *pOperUser, const char *token, SUserObj *pOld, SUserObj *pNew,
                              SAlterRoleReq *pAlterReq) {
   int32_t   code = 0, lino = 0;
   SRoleObj *pRole = NULL;
+  bool      isSysRole = false;
 
   if (pAlterReq->roleName[0] == '\0') {
     mError("failed to alter user role since role name is empty");
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
 
-  TAOS_CHECK_EXIT(mndCheckAlterRolePrivilege(pMnode, pOperUser, pAlterReq));
+  TAOS_CHECK_EXIT(mndCheckAlterRolePrivilege(pMnode, pOperUser, token, pAlterReq));
 
   if (pOld->superUser && taosStrncasecmp(pAlterReq->roleName, "sys", 3) == 0) {
     mError("user:%s, is superuser, cannot grant or revoke system role:%s", pOld->user, pAlterReq->roleName);
@@ -1500,6 +1662,7 @@ int32_t mndAlterUserRoleInfo(SMnode *pMnode, SUserObj *pOperUser, SUserObj *pOld
     }
 
     if (taosStrncasecmp(pAlterReq->roleName, "sys", 3) == 0) {
+      isSysRole = true;
       TAOS_CHECK_EXIT(mndAlterUserRoleSysRoleCheck(pMnode, pOld, pAlterReq));
     }
 
@@ -1513,10 +1676,24 @@ int32_t mndAlterUserRoleInfo(SMnode *pMnode, SUserObj *pOperUser, SUserObj *pOld
       TAOS_CHECK_EXIT(TSDB_CODE_QRY_DUPLICATED_OPERATION);
     }
     if (taosStrncasecmp(pAlterReq->roleName, "sys", 3) == 0) {
+      isSysRole = true;
       TAOS_CHECK_EXIT(mndAlterUserRoleSysRoleCheck(pMnode, pOld, pAlterReq));
     }
     TAOS_CHECK_EXIT(mndUserDupObj(pOld, pNew));
     TAOS_CHECK_EXIT(taosHashRemove(pNew->roles, pAlterReq->roleName, strlen(pAlterReq->roleName) + 1));
+  }
+
+  if (isSysRole) {
+    if (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSAUDIT) == 0) {
+      TAOS_CHECK_EXIT(mndUserUpdateAuditDb(pMnode, pNew, pAlterReq, T_ROLE_SYSAUDIT));
+    } else if (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSAUDIT_LOG) == 0) {
+      TAOS_CHECK_EXIT(mndUserUpdateAuditDb(pMnode, pNew, pAlterReq, T_ROLE_SYSAUDIT_LOG));
+      if (pAlterReq->add) {
+        (void)mndResetAuditLogUser(pMnode, pNew->user, true);
+      } else {
+        (void)mndResetAuditLogUser(pMnode, pNew->user, false);
+      }
+    }
   }
 
 _exit:

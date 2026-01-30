@@ -536,7 +536,6 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
 
       // Copy checksum after encrypted data
       memcpy(encryptBuf + encryptLen, (char *)pBuf + dataLen, sizeof(TSCKSUM));
-
       writeData = encryptBuf;
       writeLen = encryptLen + sizeof(TSCKSUM);
 

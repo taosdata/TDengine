@@ -319,7 +319,8 @@ void mndReleaseView(SMnode *pMnode, SViewObj *pView) {
   sdbRelease(pSdb, pView);
 }
 
-static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewReq* pCreate, SViewObj *pOldView, char* user) {
+static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj *pView, SCMCreateViewReq *pCreate, SViewObj *pOldView,
+                                SUserObj *pOperUser) {
   char* dbFName = pCreate->dbFName;
   char* sep = strchr(pCreate->dbFName, '.');
   if (NULL != sep && IS_SYS_DBNAME(sep + 1)) {
@@ -350,7 +351,8 @@ static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewRe
   tstrncpy(pView->fullname, pCreate->fullname, sizeof(pView->fullname));
   tstrncpy(pView->name, pCreate->name, sizeof(pView->name));
   tstrncpy(pView->dbFName, dbFName, sizeof(pView->dbFName));
-  tstrncpy(pView->createUser, user, sizeof(pView->createUser));
+  tstrncpy(pView->createUser, pOperUser->name, sizeof(pView->createUser));
+  pView->ownerId = pOperUser->uid;
   pView->precision = pCreate->precision;
   pView->numOfCols = pCreate->numOfCols;
   if (NULL != pOldView) {
@@ -376,19 +378,20 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
 
   TAOS_CHECK_RETURN(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
 
-  if (mndCreateViewObj(pMnode, &view, pCreate, pOldView, RPC_MSG_USER(pReq)) != 0) {
+  if (mndCreateViewObj(pMnode, &view, pCreate, pOldView, pOperUser) != 0) {
     code = terrno;
     goto _OVER;
   }
 
   // add view privileges for user
+#ifdef PRIV_TODO
   if (!pOperUser->superUser) {
     code = mndUserDupObj(pOperUser, &newUserObj);
     if (code != 0) {
       terrno = code;
       goto _OVER;
     }
-#ifdef PRIV_TODO
+
     if (taosHashPut(newUserObj.readViews, pCreate->fullname, strlen(pCreate->fullname) + 1, "v", 2)) {
       code = terrno;
       goto _OVER;
@@ -411,10 +414,9 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
       code = terrno;
       goto _OVER;
     }
-#endif
-
     pNewUserDuped = &newUserObj;
   }
+#endif
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-view");
   if (pTrans == NULL) {
@@ -572,9 +574,8 @@ int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq
     }
     TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
 
-    TAOS_CHECK_GOTO(
-        mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->ownerId, pDb->name, NULL), NULL,
-        _OVER);
+    TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL,
+                    _OVER);
   }
 
   pOldView = mndAcquireView(pMnode, pCreateView->fullname);
