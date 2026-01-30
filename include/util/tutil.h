@@ -228,25 +228,25 @@ static FORCE_INLINE int32_t taosCreateMD5Hash(char *pBuf, int32_t len, int32_t c
                    ctx.digest[13], ctx.digest[14], ctx.digest[15]);
 }
 
-static FORCE_INLINE int32_t taosCreateSHA1Hash(char *pBuf, int32_t len) {
+static FORCE_INLINE int32_t taosCreateSHA1Hash(char *pBuf, int32_t len, int32_t cap) {
   uint8_t result[21] = {0};
 
   tSHA1((char *)result, pBuf, len);
 
-  return tsnprintf(pBuf, len, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+  return tsnprintf(pBuf, cap, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
                    result[0], result[1], result[2], result[3], result[4], result[5], result[6], result[7], result[8],
                    result[9], result[10], result[11], result[12], result[13], result[14], result[15], result[16],
                    result[17], result[18], result[19]);
 }
 
-static FORCE_INLINE int32_t taosCreateSHA2Hash(char *pBuf, int32_t len, uint32_t digestSize) {
+static FORCE_INLINE int32_t taosCreateSHA2Hash(char *pBuf, int32_t len, uint32_t digestSize, int32_t cap) {
   uint8_t result[2 * SHA512_DIGEST_SIZE + 1] = {0};
 
   switch (digestSize / 8) {
     case SHA224_DIGEST_SIZE:
       sha224((const uint8_t *)pBuf, len, result);
       return tsnprintf(
-          pBuf, len,
+          pBuf, cap,
           "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
           "02x%02x%02x%02x",
           result[0], result[1], result[2], result[3], result[4], result[5], result[6], result[7], result[8], result[9],
@@ -255,7 +255,7 @@ static FORCE_INLINE int32_t taosCreateSHA2Hash(char *pBuf, int32_t len, uint32_t
     case SHA256_DIGEST_SIZE:
       sha256((const uint8_t *)pBuf, len, result);
       return tsnprintf(
-          pBuf, len,
+          pBuf, cap,
           "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
           "02x%02x%02x%02x%02x%02x%02x%02x",
           result[0], result[1], result[2], result[3], result[4], result[5], result[6], result[7], result[8], result[9],
@@ -265,7 +265,7 @@ static FORCE_INLINE int32_t taosCreateSHA2Hash(char *pBuf, int32_t len, uint32_t
     case SHA384_DIGEST_SIZE:
       sha384((const uint8_t *)pBuf, len, result);
       return tsnprintf(
-          pBuf, len,
+          pBuf, cap,
           "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
           "02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
           result[0], result[1], result[2], result[3], result[4], result[5], result[6], result[7], result[8], result[9],
@@ -277,7 +277,7 @@ static FORCE_INLINE int32_t taosCreateSHA2Hash(char *pBuf, int32_t len, uint32_t
     case SHA512_DIGEST_SIZE:
       sha512((const uint8_t *)pBuf, len, result);
       return tsnprintf(
-          pBuf, len,
+          pBuf, cap,
           "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
           "02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
           "02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",

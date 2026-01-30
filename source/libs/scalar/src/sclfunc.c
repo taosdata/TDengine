@@ -1941,7 +1941,7 @@ int32_t shaFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     }
     char *output = pOutputBuf;
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
-    int32_t len = taosCreateSHA1Hash(varDataVal(output), varDataLen(input));
+    int32_t len = taosCreateSHA1Hash(varDataVal(output), varDataLen(input), bufLen - VARSTR_HEADER_SIZE);
     varDataSetLen(output, len);
     int32_t code = colDataSetVal(pOutputData, i, output, false);
     if (TSDB_CODE_SUCCESS != code) {
@@ -1984,7 +1984,7 @@ int32_t sha2Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
     GET_TYPED_DATA(digestLen, uint32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i),
                    typeGetTypeModFromColInfo(&pInput[1].columnData->info));
 
-    int32_t len = taosCreateSHA2Hash(varDataVal(output), varDataLen(input), digestLen);
+    int32_t len = taosCreateSHA2Hash(varDataVal(output), varDataLen(input), digestLen, bufLen - VARSTR_HEADER_SIZE);
     varDataSetLen(output, len);
     int32_t code = colDataSetVal(pOutputData, i, output, false);
     if (TSDB_CODE_SUCCESS != code) {

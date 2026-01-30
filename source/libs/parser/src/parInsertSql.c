@@ -766,7 +766,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       (void)memcpy(*pData, input, inputBytes);
-      int32_t len = taosCreateSHA2Hash(*pData, inputBytes, digestLen);
+      int32_t len = taosCreateSHA2Hash((char *)*pData, inputBytes, digestLen, bufLen);
       *nData = len;
     } else if (0 == strncasecmp(pToken->z, "sha(", 4) || 0 == strncasecmp(pToken->z, "sha1(", 5)) {
       NEXT_VALID_TOKEN(*ppSql, *pToken);
@@ -817,7 +817,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       (void)memcpy(*pData, input, inputBytes);
-      int32_t len = taosCreateSHA1Hash(*pData, inputBytes);
+      int32_t len = taosCreateSHA1Hash((char *)(*pData), inputBytes, bufLen) ;
       *nData = len;
     } else if (0 == strncasecmp(pToken->z, "aes_encrypt(", 12)) {
       NEXT_VALID_TOKEN(*ppSql, *pToken);
