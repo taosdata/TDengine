@@ -624,7 +624,7 @@ import {
 } from './type';
 
 const PARSER_BUILDIN = ['json', 'regex', 'udt'];
-type ParserBuildinType = (typeof PARSER_BUILDIN)[number] | 'hebeipower' | 'split';
+type ParserBuildinType = (typeof PARSER_BUILDIN)[number] | string;
 const dataInProps = getDataInProps();
 
 const props = defineProps<{
@@ -1070,22 +1070,22 @@ function getTopParserData() {
             : ''
         };
         break;
-      case 'hebeipower':
-        expressionObj = {
-          plugin_type: parseruleForm.type,
-          plugin_params: parseruleForm.expression
-        };
-        break;
       case 'udt':
         expressionObj = {
           [parseruleForm.type]: parseruleForm.expression,
           early_break: true
         };
         break;
-      default:
+      case 'regex':
         // regex
         expressionObj = {
           [parseruleForm.type]: parseruleForm.expression
+        };
+        break;
+      default:
+        expressionObj = {
+          plugin_type: parseruleForm.type,
+          plugin_params: parseruleForm.expression
         };
         break;
     }
