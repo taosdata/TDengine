@@ -13,7 +13,7 @@ use crate::{
         monitor::start_monitor, rebalancer::start_rebalancer,
         updater::start_ticker as start_updater,
     },
-    utils::signal::wait_signal,
+    utils::signal::{Signal, wait_signal},
 };
 
 #[tokio::main]
@@ -79,7 +79,9 @@ pub async fn run(args: Args) -> anyhow::Result<()> {
     let mut exit_result = Ok(());
     match cancel.run_until_cancelled(wait_signal()).await {
         Some(Ok(signal)) => {
-            exit_result = Err(anyhow::anyhow!("signal received: {signal}"));
+            if !matches!(signal, Signal::Interrupt | Signal::Terminate) {
+                exit_result = Err(anyhow::anyhow!("signal received: {signal}"));
+            }
             tracing::info!("signal received: {signal}");
         }
         Some(Err(e)) => {

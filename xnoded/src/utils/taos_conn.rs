@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use parking_lot::RwLock;
 use snafu::ResultExt;
 use taos::{
-    AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, ResultSet, Taos, TaosBuilder,
+    AsyncFetchable, AsyncQueryable, AsyncTBuilder, Code, IntoDsn, ResultSet, Taos, TaosBuilder,
     TryStreamExt,
 };
 use tracing::instrument;
@@ -22,6 +22,15 @@ pub enum Error {
     BuildTaos { source: taos::RawError },
     #[snafu(display("Task job not exists"))]
     TaskJobNotExists,
+}
+
+impl Error {
+    pub fn code(&self) -> Option<Code> {
+        match self {
+            Error::Taos { source, .. } => Some(source.code()),
+            _ => None,
+        }
+    }
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -116,6 +125,15 @@ impl TaosConn {
             let conn = match self.get_conn().await {
                 Ok(conn) => conn,
                 Err(e) => {
+                    if let Some(code) = e.code()
+                        && should_exit(code)
+                    {
+                        tracing::info!(
+                            code = i32::from(code),
+                            "received exit code from db, exit..."
+                        );
+                        std::process::exit(0);
+                    }
                     tracing::error!("Failed to get connection: {:#}", anyhow::Error::new(e));
                     backoff.wait().await;
                     continue;
@@ -124,18 +142,25 @@ impl TaosConn {
             backoff.reset();
             match method(&conn, sql).await {
                 Ok(rs) => return on_success(rs).await,
-                Err(e) if should_reconnect(e.code().into()) => {
+                Err(e) if should_reconnect(e.code()) => {
                     tracing::error!("connection error: {e:#}");
                     self.reset();
                     try_count += 1;
                     last_err = Some(e);
                     continue;
                 }
-                Err(e) if should_retry(e.code().into()) => {
+                Err(e) if should_retry(e.code()) => {
                     tracing::error!("database error: {e:#}");
                     try_count += 1;
                     last_err = Some(e);
                     continue;
+                }
+                Err(e) if should_exit(e.code()) => {
+                    tracing::info!(
+                        code = i32::from(e.code()),
+                        "received exit code from db, exit..."
+                    );
+                    std::process::exit(0);
                 }
                 Err(e) if matches!(e.code().into(), 0x8015 | 0x8010) => {
                     return TaskJobNotExistsSnafu.fail();
@@ -154,8 +179,8 @@ impl TaosConn {
 /// 0xE003: send timeout
 /// 0xE004: receive timeout
 /// 0x000B: unable to establish connection
-fn should_reconnect(code: i32) -> bool {
-    matches!(code, 0xE002 | 0xE003 | 0xE004 | 0x000B)
+fn should_reconnect(code: Code) -> bool {
+    matches!(code.into(), 0xE002 | 0xE003 | 0xE004 | 0x000B)
 }
 
 /// 0x0334: Out of dnodes
@@ -164,6 +189,14 @@ fn should_reconnect(code: i32) -> bool {
 /// 0x03C7: stable uid not match
 /// 0x032C: object is creating
 /// 0x0115: invalid msg
-fn should_retry(code: i32) -> bool {
-    matches!(code, 0x2603 | 0x0334 | 0x03D3 | 0x03C7 | 0x032C | 0x0115)
+fn should_retry(code: Code) -> bool {
+    matches!(
+        code.into(),
+        0x2603 | 0x0334 | 0x03D3 | 0x03C7 | 0x032C | 0x0115
+    )
+}
+
+/// 0x0131: Dnode is closing down
+fn should_exit(code: Code) -> bool {
+    matches!(code.into(), 0x0131)
 }
