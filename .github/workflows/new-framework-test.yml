@@ -47,7 +47,7 @@ concurrency:
 jobs:
   test-new-cases:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && !contains(github.event.pull_request.title, '[manual-only]'))
-    uses: taosdata/.github/.github/workflows/new-framework-test.yml@main
+    uses: taosdata/.github/.github/workflows/new-framework-test.yml@test-ci-49
     with:
       tdinternal: false
       specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_source_branch }}
