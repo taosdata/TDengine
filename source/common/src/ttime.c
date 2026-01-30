@@ -868,8 +868,10 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     int64_t slidingStart = start;
     while (newe >= ts) {
       start = slidingStart;
-      slidingStart = taosTimeAdd(slidingStart, -pInterval->sliding, pInterval->slidingUnit, precision, pInterval->timezone);
-      int64_t tmp = taosTimeAdd(slidingStart, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
+      slidingStart =
+          taosTimeAdd(slidingStart, -pInterval->sliding, pInterval->slidingUnit, precision, pInterval->timezone);
+      int64_t tmp =
+          taosTimeAdd(slidingStart, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
       newe = taosTimeAdd(tmp, pInterval->offset, pInterval->offsetUnit, precision, pInterval->timezone);
     }
     start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision, pInterval->timezone);
@@ -880,7 +882,17 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
 // used together with taosTimeTruncate. when offset is great than zero, slide-start/slide-end is the anchor point
 int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval) {
-  return taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision, pInterval->timezone) - 1;
+  int32_t precision = pInterval->precision;
+  if (pInterval->offsetUnit == TIME_UNIT_MONTH || pInterval->offsetUnit == TIME_UNIT_YEAR ||
+      pInterval->intervalUnit == TIME_UNIT_MONTH || pInterval->intervalUnit == TIME_UNIT_YEAR) {
+    // for month/year unit, need to consider the date shifting problem
+    int64_t tmp = taosTimeAdd(intervalStart, -pInterval->offset, pInterval->offsetUnit, precision, pInterval->timezone);
+    tmp = taosTimeAdd(tmp, pInterval->interval, pInterval->intervalUnit, pInterval->precision, pInterval->timezone) - 1;
+    return taosTimeAdd(tmp, pInterval->offset, pInterval->offsetUnit, pInterval->precision, pInterval->timezone);
+  } else {
+    return taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision,
+                       pInterval->timezone) - 1;
+  }
 }
 
 void calcIntervalAutoOffset(SInterval* interval) {
