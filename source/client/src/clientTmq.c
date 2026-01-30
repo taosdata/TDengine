@@ -2146,9 +2146,15 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   pRspWrapper->tmqRspType = rspType;
   pRspWrapper->pollRsp.reqId = requestId;
   pRspWrapper->pollRsp.pEpset = pMsg->pEpSet;
-  pRspWrapper->pollRsp.data = pMsg->pData;
-  pRspWrapper->pollRsp.len = pMsg->len;
-  pMsg->pData = NULL;
+
+  pRspWrapper->pollRsp.data = taosMemCalloc(1, pMsg->len);
+  if (pRspWrapper->pollRsp.data == NULL) {
+    code = terrno;
+    tqErrorC("consumer:0x%" PRIx64 " msg discard from vgId:%d, since out of memory", tmq->consumerId, vgId);
+    goto END;
+  }
+  memcpy(pRspWrapper->pollRsp.data, pMsg->pData, pMsg->len);
+  
   pMsg->pEpSet = NULL;
 
   END:

@@ -96,14 +96,14 @@ int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rs
         SCH_ERR_JRET(schNotifyJobAllTasks(pJob, pTask, TASK_NOTIFY_FINISHED));
       }
   
-      taosMemoryFreeClear(msg);
+      rpcFreeCont(msg);
   
       return TSDB_CODE_SUCCESS;
     }
   
     SCH_ERR_JRET(schLaunchFetchTask(pJob));
   
-    taosMemoryFreeClear(msg);
+    rpcFreeCont(msg);
   
     return TSDB_CODE_SUCCESS;
   }
@@ -127,7 +127,7 @@ int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rs
 
 _return:
 
-  taosMemoryFreeClear(msg);
+  rpcFreeCont(msg);
 
   SCH_RET(code);
 }
@@ -239,7 +239,7 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
     }
     case TDMT_VND_ALTER_TABLE_RSP: {
       SVAlterTbRsp rsp = {0};
-      if (pMsg->pData) {
+      if (pMsg->pData &&  pMsg->len > 0) {
         SDecoder coder = {0};
         tDecoderInit(&coder, pMsg->pData, msgSize);
         code = tDecodeSVAlterTbRsp(&coder, &rsp);
@@ -256,7 +256,7 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
 
       SCH_ERR_JRET(rspCode);
 
-      if (NULL == pMsg->pData) {
+      if (NULL == pMsg->pData || pMsg->len == 0) {
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
@@ -268,7 +268,7 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
     case TDMT_VND_SUBMIT_RSP: {
       SCH_ERR_JRET(rspCode);
 
-      if (pMsg->pData) {
+      if (pMsg->pData && pMsg->len > 0) {
         SDecoder    coder = {0};
         SSubmitRsp2 *rsp = taosMemoryMalloc(sizeof(*rsp));
         if (NULL == rsp) {
@@ -334,7 +334,7 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
     case TDMT_VND_DELETE_RSP: {
       SCH_ERR_JRET(rspCode);
 
-      if (pMsg->pData) {
+      if (pMsg->pData && pMsg->len > 0) {
         SDecoder    coder = {0};
         SVDeleteRsp rsp = {0};
         tDecoderInit(&coder, pMsg->pData, msgSize);
@@ -358,7 +358,7 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
     case TDMT_SCH_QUERY_RSP:
     case TDMT_SCH_MERGE_QUERY_RSP: {
       SCH_ERR_JRET(rspCode);
-      if (NULL == pMsg->pData) {
+      if (NULL == pMsg->pData || pMsg->len == 0) {
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
@@ -390,7 +390,7 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
     }
     case TDMT_SCH_EXPLAIN_RSP: {
       SCH_ERR_JRET(rspCode);
-      if (NULL == pMsg->pData) {
+      if (NULL == pMsg->pData || pMsg->len == 0) {
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
