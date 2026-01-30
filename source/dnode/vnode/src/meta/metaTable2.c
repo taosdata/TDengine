@@ -461,6 +461,7 @@ static int32_t metaBuildCreateNormalTableRsp(SMeta *pMeta, SMetaEntry *pEntry, S
     taosMemoryFreeClear(*ppRsp);
     return code;
   }
+  (*ppRsp)->ownerId = pEntry->ntbEntry.ownerId;
 
   for (int32_t i = 0; i < pEntry->colCmpr.nCols; i++) {
     SColCmpr *p = &pEntry->colCmpr.pColCmpr[i];
@@ -537,6 +538,7 @@ static int32_t metaBuildCreateVirtualNormalTableRsp(SMeta *pMeta, SMetaEntry *pE
 
   code = metaUpdateVtbMetaRsp(pEntry, pEntry->name, &pEntry->ntbEntry.schemaRow, &pEntry->colRef, *ppRsp,
                               TSDB_VIRTUAL_NORMAL_TABLE);
+  (*ppRsp)->ownerId = pEntry->ntbEntry.ownerId;
   if (code) {
     taosMemoryFreeClear(*ppRsp);
     return code;
