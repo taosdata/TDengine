@@ -28,3 +28,17 @@ jobs:
       - name: Vulnerability Check
         working-directory: tools/keeper
         run: govulncheck ./...
+
+      - name: Install go-licenses
+        run: go install github.com/google/go-licenses/v2@latest
+
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 300
+
+      - name: License Check
+        working-directory: tools/keeper
+        run: |
+          go-licenses check ./... --allowed_licenses="MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC"
+            --ignore github.com/taosdata/taoskeeper \
+            --ignore github.com/taosdata/go-utils
