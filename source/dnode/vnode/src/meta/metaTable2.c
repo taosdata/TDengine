@@ -1282,8 +1282,8 @@ int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *p
 
   // build response
   if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
-      code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, &pEntry->colRef, pEntry->ntbEntry.ownerId, pRsp,
-                                  pEntry->type);
+    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, &pEntry->colRef, pEntry->ntbEntry.ownerId, pRsp,
+                                pEntry->type);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
                 __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
