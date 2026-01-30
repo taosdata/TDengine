@@ -1,14 +1,15 @@
-name: taosKeeper govulncheck
+name: taosKeeper Audit
+
 on:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: "0 0 * * *"
   pull_request:
     paths:
-      - "tools/keeper/go.mod"
+      - "tools/keeper/**"
       - ".github/workflows/taoskeeper*.yml"
   push:
     paths:
-      - "tools/keeper/go.mod"
+      - "tools/keeper/**"
       - ".github/workflows/taoskeeper*.yml"
 
 jobs:
@@ -19,11 +20,11 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: 'stable'
+          go-version: "stable"
 
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
-      - name: Run vulnerability scan
+      - name: Vulnerability Check
         working-directory: tools/keeper
         run: govulncheck ./...
