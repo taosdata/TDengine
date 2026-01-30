@@ -3471,6 +3471,8 @@ int32_t blockEncodeImpl(const SSDataBlock* pBlock, char* data, size_t dataBuflen
     *scanFlag = pBlock->info.scanFlag;
     data += sizeof(uint8_t);
 
+    // Slot ids used only for virtual super table scan: each column's slotId here
+    // refers to the slot position in virtual super table's datablock.
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
       if (pColInfoData == NULL) {
@@ -4529,4 +4531,3 @@ int32_t getStreamBlockTS(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t row, 
   *ts = *(TSKEY*)(pColInfoData->pData + row * sizeof(TSKEY));
   return TSDB_CODE_SUCCESS;
 }
-

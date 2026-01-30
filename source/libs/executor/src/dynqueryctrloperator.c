@@ -1001,17 +1001,21 @@ static int32_t buildVtbScanOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOper
   pVScan->uid = uid;
   pVScan->window = pInfo->vtbScan.window;
   if (pInfo->vtbScan.refColGroups) {
-    SArray* pGroups = taosArrayInit(taosArrayGetSize(pInfo->vtbScan.refColGroups), sizeof(SRefColIdGroup));
-    QUERY_CHECK_NULL(pGroups, code, lino, _return, terrno)
+    pVScan->pRefColGroups = taosArrayInit(taosArrayGetSize(pInfo->vtbScan.refColGroups), sizeof(SRefColIdGroup));
+    QUERY_CHECK_NULL(pVScan->pRefColGroups, code, lino, _return, terrno)
     for (int32_t i = 0; i < taosArrayGetSize(pInfo->vtbScan.refColGroups); i++) {
       SRefColIdGroup* pSrc = (SRefColIdGroup*)taosArrayGet(pInfo->vtbScan.refColGroups, i);
       SRefColIdGroup  dst = {0};
       QUERY_CHECK_NULL(pSrc, code, lino, _return, terrno)
       dst.pSlotIdList = taosArrayDup(pSrc->pSlotIdList, NULL);
       QUERY_CHECK_NULL(dst.pSlotIdList, code, lino, _return, terrno)
-      QUERY_CHECK_NULL(taosArrayPush(pGroups, &dst), code, lino, _return, terrno)
+      void* px = taosArrayPush(pVScan->pRefColGroups, &dst);
+      if (NULL == px) {
+        taosArrayDestroy(dst.pSlotIdList);
+        dst.pSlotIdList = NULL;
+      }
+      QUERY_CHECK_NULL(px, code, lino, _return, terrno)
     }
-    pVScan->pRefColGroups = pGroups;
   } else {
     pVScan->pRefColGroups = NULL;
   }
