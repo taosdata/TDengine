@@ -401,6 +401,8 @@ typedef struct {
   char*    user;
   int32_t  passLen;
   char*    pass;
+  int32_t  tokenLen;
+  char*    token;
   int64_t  createTime;
   int64_t  updateTime;
   SRWLatch lock;
@@ -1044,7 +1046,6 @@ typedef struct {
   int32_t resetOffsetCfg;
   int32_t sessionTimeoutMs;
   int32_t maxPollIntervalMs;
-  int64_t ownerId;
 } SMqConsumerObj;
 
 int32_t tNewSMqConsumerObj(int64_t consumerId, char* cgroup, int8_t updateType, char* topic, SCMSubscribeReq* subscribe,
