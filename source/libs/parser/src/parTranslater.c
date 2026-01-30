@@ -4226,6 +4226,7 @@ static EDealRes doTranslateExpr(SNode** pNode, void* pContext) {
       return translateLogicCond(pCxt, (SLogicConditionNode*)*pNode);
     case QUERY_NODE_SELECT_STMT:
     case QUERY_NODE_SET_OPERATOR:
+    case QUERY_NODE_CREATE_STREAM_STMT:
       return translateExprSubquery(pCxt, pNode);
     case QUERY_NODE_WHEN_THEN:
       return translateWhenThen(pCxt, (SWhenThenNode*)*pNode);
@@ -16589,6 +16590,76 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan*
     cutoff = false;
   }
 
+  // TODO: for each subquery plan do the following plan xform
+  SQueryPlan* calcSubQPlan = ((SQueryPlan*)calcPlan ->pChildren ->pHead ->pNode);
+  for (int32_t i = 0; i < taosArrayGetSize(pScanPlanArray); i++) {
+    pCalcScan = taosArrayGet(pScanPlanArray, i);
+    if (pCalcScan == NULL) {
+      PAR_ERR_JRET(terrno);
+    }
+    cutoff = false;
+    SSubplan* pScanSubPlan = (SSubplan*)pCalcScan->scanPlan;
+    SNode*    pTargetNode = (SNode*)pScanSubPlan->pNode;
+    SNode*    pNode = NULL;
+    int64_t   hashKey = (int64_t)pScanSubPlan->id.groupId << 32 | pScanSubPlan->id.subplanId;
+
+    if (((SPhysiNode*)pTargetNode)->pParent) {
+      eliminateNodeFromList(pTargetNode, ((SPhysiNode*)pTargetNode)->pParent->pChildren);
+      ((SPhysiNode*)pTargetNode)->pParent = NULL;
+    }
+
+    if (pScanSubPlan->pParents) {
+      FOREACH(pNode, pScanSubPlan->pParents) {
+        PAR_ERR_JRET(replaceSubPlanFromList((SNode*)pScanSubPlan, ((SSubplan*)pNode)->pChildren));
+      }
+      pScanSubPlan->pParents = NULL;
+    }
+
+    WHERE_EACH(pNode, calcSubQPlan->pSubplans) {
+      SNodeListNode* pGroup = (SNodeListNode*)pNode;
+      if (findNodeInList((SNode*)pScanSubPlan, pGroup->pNodeList)) {
+        eliminateNodeFromList((SNode*)pScanSubPlan, pGroup->pNodeList);
+        if (LIST_LENGTH(pGroup->pNodeList) == 0) {
+          REPLACE_NODE(NULL);
+          ERASE_NODE(calcSubQPlan->pSubplans);
+        }
+        calcSubQPlan->numOfSubplans--;
+	--calcPlan->numOfSubplans;
+        break;
+      }
+      WHERE_NEXT;
+    }
+
+    cutoff = true;
+
+    if (taosHashGet(pPlanMap, &hashKey, sizeof(int64_t)) != NULL) {
+      continue;
+    } else {
+      PAR_ERR_JRET(taosHashPut(pPlanMap, &hashKey, sizeof(int64_t), NULL, 0));
+    }
+
+    if (pCalcScan->readFromCache) {
+      findTsSlotId((SScanPhysiNode*)pScanSubPlan->pNode, &pReq->calcTsSlotId);
+      if (pReq->calcTsSlotId == -1) {
+        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
+                                             "Can not find timestamp primary key in trigger query scan"));
+      }
+    }
+
+    SStreamCalcScan pNewScan = {0};
+    pNewScan.readFromCache = pCalcScan->readFromCache;
+    TSWAP(pNewScan.vgList, pCalcScan->vgList);
+    PAR_ERR_JRET(nodesNodeToString(pCalcScan->scanPlan, false, (char**)&pNewScan.scanPlan, NULL));
+    if (NULL == taosArrayPush(pReq->calcScanPlanList, &pNewScan)) {
+      PAR_ERR_JRET(terrno);
+    }
+    taosArrayDestroy(pCalcScan->vgList);
+    nodesDestroyNode(pCalcScan->scanPlan);
+    cutoff = false;
+  }
+
+  int32_t subQueryPlans = calcSubQPlan->numOfSubplans;
+  calcPlan->numOfSubplans -= subQueryPlans;
   pReq->numOfCalcSubplan = calcPlan->numOfSubplans;
   PAR_ERR_JRET(nodesNodeToString((SNode*)calcPlan, false, (char**)&pReq->calcPlan, NULL));
 
@@ -16602,6 +16673,56 @@ _return:
   parserError("createStreamReqBuildCalcPlan failed, code:%d", code);
   taosHashCleanup(pPlanMap);
   return code;
+}
+
+int32_t checkSubQueryStmt(SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT:
+    case QUERY_NODE_SET_OPERATOR:
+    case QUERY_NODE_CREATE_STREAM_STMT:
+    case QUERY_NODE_EXPLAIN_STMT:
+    case QUERY_NODE_INSERT_STMT:
+      return TSDB_CODE_SUCCESS;
+    default:
+      break;
+  }
+
+  parserError("subQuery not suppored in %s statement", nodesNodeName(nodeType(pNode)));
+
+  return TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_USAGE;
+}
+
+static void transferSubQueries(STranslateContext* pCxt, SNode* pNode) {
+  if (NULL == pNode) {
+    return;
+  }
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      pSelect->pSubQueries = pCxt->pSubQueries;
+      pCxt->pSubQueries = NULL;
+      break;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      pSet->pSubQueries = pCxt->pSubQueries;
+      pCxt->pSubQueries = NULL;
+      break;
+    }
+    case QUERY_NODE_EXPLAIN_STMT: {
+      SExplainStmt* pExplain = (SExplainStmt*)pNode;
+      transferSubQueries(pCxt, pExplain->pQuery);
+      break;
+    }
+    case QUERY_NODE_INSERT_STMT: {
+      SInsertStmt* pInsert = (SInsertStmt*)pNode;
+      transferSubQueries(pCxt, pInsert->pQuery);
+      break;
+    }
+    default:
+      break;
+  }
 }
 
 // Build calculate part in create stream request
@@ -16651,6 +16772,12 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   PAR_ERR_JRET(createStreamReqBuildForceOutput(pCxt, pStmt, pReq));
 
   SQuery pQuery = {.pRoot = pStmt->pQuery};
+  if (pCxt->pSubQueries && pCxt->pSubQueries->length > 0) {
+    if (TSDB_CODE_SUCCESS == code) {
+      code = checkSubQueryStmt(pQuery.pRoot);
+    }
+    transferSubQueries(pCxt, pQuery.pRoot);
+  }
   // calculate constant in stream's calculate query
   PAR_ERR_JRET(calculateConstant(pCxt->pParseCxt, &pQuery));
 
@@ -24281,55 +24408,6 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
   }
 
   return TSDB_CODE_SUCCESS;
-}
-
-static void transferSubQueries(STranslateContext* pCxt, SNode* pNode) {
-  if (NULL == pNode) {
-    return;
-  }
-
-  switch (nodeType(pNode)) {
-    case QUERY_NODE_SELECT_STMT: {
-      SSelectStmt* pSelect = (SSelectStmt*)pNode;
-      pSelect->pSubQueries = pCxt->pSubQueries;
-      pCxt->pSubQueries = NULL;
-      break;
-    }
-    case QUERY_NODE_SET_OPERATOR: {
-      SSetOperator* pSet = (SSetOperator*)pNode;
-      pSet->pSubQueries = pCxt->pSubQueries;
-      pCxt->pSubQueries = NULL;
-      break;
-    }
-    case QUERY_NODE_EXPLAIN_STMT: {
-      SExplainStmt* pExplain = (SExplainStmt*)pNode;
-      transferSubQueries(pCxt, pExplain->pQuery);
-      break;
-    }
-    case QUERY_NODE_INSERT_STMT: {
-      SInsertStmt* pInsert = (SInsertStmt*)pNode;
-      transferSubQueries(pCxt, pInsert->pQuery);
-      break;
-    }
-    default:
-      break;
-  }
-}
-
-int32_t checkSubQueryStmt(SNode* pNode) {
-  switch (nodeType(pNode)) {
-    case QUERY_NODE_SELECT_STMT:
-    case QUERY_NODE_SET_OPERATOR:
-    case QUERY_NODE_EXPLAIN_STMT:
-    case QUERY_NODE_INSERT_STMT:
-      return TSDB_CODE_SUCCESS;
-    default:
-      break;
-  }
-
-  parserError("subQuery not suppored in %s statement", nodesNodeName(nodeType(pNode)));
-
-  return TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_USAGE;
 }
 
 int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
