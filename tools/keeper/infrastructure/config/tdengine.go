@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
@@ -11,6 +13,13 @@ type TDengineRestful struct {
 	Username string `toml:"username"`
 	Password string `toml:"password"`
 	Usessl   bool   `toml:"usessl"`
+}
+
+func (t TDengineRestful) String() string {
+	type noStringer TDengineRestful
+	safe := noStringer(t)
+	safe.Password = "[REDACTED]"
+	return fmt.Sprintf("%+v", safe)
 }
 
 func initTDengine() {
