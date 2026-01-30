@@ -142,6 +142,8 @@ typedef struct SDatabaseOptions {
   SValueNode* ssKeepLocalStr;
   int8_t      ssCompact;
   int8_t      withArbitrator;
+  int8_t      isAudit;
+  int8_t      allowDrop;
   // for auto-compact
   int32_t     compactTimeOffset;  // hours
   int32_t     compactInterval;    // minutes
@@ -152,7 +154,6 @@ typedef struct SDatabaseOptions {
   SNodeList*  pCompactTimeRangeList;
   // for cache
   SDbCfgInfo* pDbCfg;
-  int8_t      isAudit;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -489,7 +490,7 @@ typedef struct SCreateUserStmt {
   char      password[TSDB_USER_PASSWORD_LONGLEN];
   char      totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
 
-  int8_t  ignoreExists;
+  int8_t ignoreExists;
   int8_t sysinfo;
   int8_t createDb;
   int8_t isImport;
@@ -515,6 +516,8 @@ typedef struct SCreateUserStmt {
 
   int32_t         numTimeRanges;
   SDateTimeRange* pTimeRanges;
+  // for privilege check
+  SUserOptions userOps;
 } SCreateUserStmt;
 
 typedef struct SCreateEncryptAlgrStmt {
@@ -1002,6 +1005,12 @@ typedef struct SAlterEncryptKeyStmt {
   int8_t    keyType;  // 0: SVR_KEY, 1: DB_KEY
   char      newKey[ENCRYPT_KEY_LEN + 1];
 } SAlterEncryptKeyStmt;
+
+typedef struct SAlterKeyExpirationStmt {
+  ENodeType type;
+  int32_t   days;
+  char      strategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1];
+} SAlterKeyExpirationStmt;
 
 typedef struct SDescribeStmt {
   ENodeType   type;

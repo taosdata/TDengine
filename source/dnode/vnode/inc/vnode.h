@@ -383,6 +383,8 @@ struct SVnodeCfg {
   int32_t     ssChunkSize;
   int32_t     ssKeepLocal;
   int8_t      ssCompact;
+  int8_t      isAudit;
+  int8_t      allowDrop;
 };
 
 #define TABLE_ROLLUP_ON         ((int8_t)0x1)

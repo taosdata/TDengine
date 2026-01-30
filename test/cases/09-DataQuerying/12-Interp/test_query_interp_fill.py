@@ -1437,7 +1437,7 @@ class TestInterpFill:
         self.check_interp_extension()
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+
 
     def datetime_add_tz(self, dt):
         if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:

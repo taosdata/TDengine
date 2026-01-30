@@ -695,13 +695,14 @@ static int32_t buildBatchExchangeOperatorParam(SOperatorParam** ppRes, int32_t d
                                            (STimeWindow){0}, NULL, false, false, false);
     QUERY_CHECK_CODE(code, line, _return);
 
-    // already transferred to batch param, can free here
-    taosArrayDestroy(pUidList);
-
     QRY_ERR_RET(tSimpleHashPut(pExc->pBatchs, pVgId, sizeof(*pVgId), &basic, sizeof(basic)));
 
     basic = (SExchangeOperatorBasicParam){0};
     qTrace("build downstreamIdx %d batch scan, vgId:%d, uidNum:%" PRId64, downstreamIdx, *pVgId, (int64_t)taosArrayGetSize(pUidList));
+
+    // already transferred to batch param, can free here
+    taosArrayDestroy(pUidList);
+
     *(SArray**)p = NULL;
   }
   *ppRes = pParam;

@@ -592,5 +592,5 @@ class Test4dnode1mnodeBasicReplica3InsertdatasStopLeaderForeceStop:
         # self.sync_run_case()
         self.unsync_run_case()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

@@ -5296,7 +5296,7 @@ int32_t diffScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
   return nonCalcScalarFunction(pInput, inputNum, pOutput);
 }
 
-int32_t lagScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+int32_t fillforwardScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return nonCalcScalarFunction(pInput, inputNum, pOutput);
 }
 

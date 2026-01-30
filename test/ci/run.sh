@@ -414,10 +414,10 @@ function run_thread() {
         if ! is_local_host "${hosts[index]}"; then
             scpcmd=$(get_remote_scp_command "$index")
             cmd="$scpcmd:${allure_report_results}/* $log_dir/allure-results/"
-            bash -c "$cmd"
+            bash -c "$cmd" >/dev/null 2>&1 || true
         else
             cmd="cp -rf ${allure_report_results}/* $log_dir/allure-results/"
-            bash -c "$cmd"
+            bash -c "$cmd" >/dev/null 2>&1 || true
         fi
         echo "Save allure report results to $log_dir/allure-results/ from ${allure_report_results} with cmd: $cmd"
         if [ $ret -eq 0 ]; then
@@ -437,7 +437,7 @@ function run_thread() {
                 else
                     cmd="cp -rf ${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
                 fi
-                bash -c "$cmd" >/dev/null
+                bash -c "$cmd" >/dev/null 2>&1 || true
             fi
 
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[31m failed\e[0m"
@@ -450,7 +450,7 @@ function run_thread() {
                 echo "${web_server}/$test_log_dir/${case_file}.txt"
             fi
             local corefile
-            corefile=$(ls "$log_dir/${case_file}.coredump/")
+            corefile=$(ls "$log_dir/${case_file}.coredump/" 2>/dev/null)
             if [ -n "$corefile" ]; then
                 echo -e "\e[34m corefiles: $corefile \e[0m"
             fi
@@ -459,23 +459,14 @@ function run_thread() {
             local remote_unit_test_log_dir="${workdirs[index]}/${DEBUGPATH}/Testing/Temporary/"
             mkdir "$build_dir" >/dev/null
             if [ $? -eq 0 ]; then
-                if ! is_local_host "${hosts[index]}"; then
-                    cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    bash -c "$cmd" >/dev/null
-                    if [ -d "${remote_unit_test_log_dir}" ] && [ "$(ls -A "${remote_unit_test_log_dir}" 2>/dev/null)" ]; then
-                        cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
-                        echo "$cmd"
-                        bash -c "$cmd" >/dev/null
-                    fi
-                else
+                if is_local_host "${hosts[index]}"; then
                     cmd="cp -rf ${remote_build_dir}/* ${build_dir}/"
                     echo "$cmd"
-                    bash -c "$cmd" >/dev/null
+                    bash -c "$cmd" >/dev/null 2>&1 || true
                     if [ -d "${remote_unit_test_log_dir}" ] && [ "$(ls -A "${remote_unit_test_log_dir}" 2>/dev/null)" ]; then
                         cmd="cp -rf ${remote_unit_test_log_dir}/* ${build_dir}/"
                         echo "$cmd"
-                        bash -c "$cmd" >/dev/null
+                        bash -c "$cmd" >/dev/null 2>&1 || true
                     fi
                 fi
             fi
@@ -486,24 +477,24 @@ function run_thread() {
                 cmd="cd $remote_sim_dir; tar -czf sim.tar.gz sim"
             fi
             echo "tar sim.tar.gz cmd: $cmd"
-            bash -c "$cmd"
+            bash -c "$cmd" >/dev/null 2>&1 || true
             local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
             local remote_case_sql_file="${workdirs[index]}/tmp/thread_volume/$thread_no/${case_sql_file}"
             if ! is_local_host "${hosts[index]}"; then
                 cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
                 echo "scp sim.tar.gz cmd: $cmd"
-                bash -c "$cmd"
+                bash -c "$cmd" >/dev/null 2>&1 || true
                 if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
                     cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
-                    bash -c "$cmd"
+                    bash -c "$cmd" >/dev/null 2>&1 || true
                 fi
             else
                 cmd="cp -f ${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
                 echo "cp sim.tar.gz cmd: $cmd"
-                bash -c "$cmd"
+                bash -c "$cmd" >/dev/null 2>&1 || true
                 if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
                     cmd="cp -f ${remote_case_sql_file} $log_dir/${case_file}.sql"
-                    bash -c "$cmd"
+                    bash -c "$cmd" >/dev/null 2>&1 || true
                 fi
             fi
             # # backup source code (disabled)
@@ -622,8 +613,8 @@ fi
 
 # generated test report
 mount_reports_dir="/mnt/platform/reports"
-results_dir="$mount_reports_dir/$branch/results"
-report_dir="$mount_reports_dir/$branch/report"
+results_dir="$mount_reports_dir/$test_log_dir/results"
+report_dir="$mount_reports_dir/$test_log_dir/report"
 
 # check report results directory
 if [ ! -d "$results_dir" ]; then
@@ -646,7 +637,7 @@ else
 fi
 
 # copy results to server
-cp -r "$log_dir/allure-results/"* "$results_dir"
+cp -r "$log_dir/allure-results/"* "$results_dir" 2>/dev/null || true
 cp_status=$?
 echo "Copying allure results to $results_dir, status: $cp_status"
 
@@ -658,7 +649,7 @@ echo "Generating allure report, status: $generate_status"
 # check report is generated successfully
 if [ -f "$report_dir/index.html" ]; then
     echo "Allure report generated successfully at $report_dir."
-    echo "Test report: https://platform.tdengine.net:8090/reports/$branch/report"
+    echo "Test report: https://platform.tdengine.net:8090/reports/tsdb/$test_log_dir/report"
 else
     echo "Error: Failed to generate Allure report."
 fi

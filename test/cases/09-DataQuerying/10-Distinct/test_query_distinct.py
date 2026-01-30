@@ -323,7 +323,7 @@ class TestDistinct:
         self.ts5971()
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+
 
     def ts5971(self):
         dbname = "db"

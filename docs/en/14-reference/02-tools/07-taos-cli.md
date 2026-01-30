@@ -1,6 +1,6 @@
 ---
 title: TDengine CLI Reference
-sidebar_label: TDengine CLI
+sidebar_label: TSDB CLI
 slug: /tdengine-reference/tools/tdengine-cli
 ---
 
