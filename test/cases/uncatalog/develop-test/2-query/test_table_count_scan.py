@@ -81,7 +81,7 @@ class TestTableCountScan:
         for i in range(0, 3):
             db_name = tdSql.getData(i, 1)
             if db_name == 'information_schema':
-                tdSql.checkData(i, 0, 52)ne)
+                tdSql.checkData(i, 0, 52)
             elif db_name == 'performance_schema':
                 tdSql.checkData(i, 0, 6)
                 tdSql.checkData(i, 2, None)
@@ -248,5 +248,5 @@ class TestTableCountScan:
 
 
         tdSql.execute('drop database tbl_count')
-        tdLog.success("%s successfully executed" % __file__)
+
 

@@ -488,4 +488,3 @@ class TestUdfpyMain:
         # show performance
 
 
-        tdLog.success("%s successfully executed" % __file__)

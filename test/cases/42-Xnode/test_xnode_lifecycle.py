@@ -186,7 +186,6 @@ class TestXnodeLifecycle:
         tdLog.info(f"Dropping xnode by ID: {sql}")
         try:
             tdSql.execute(sql)
-            tdLog.success(f"Successfully executed DROP XNODE {xnode_id}")
         except Exception as e:
             msg = str(e).lower()
             assert "syntax" not in msg and "parse" not in msg
@@ -247,7 +246,6 @@ class TestXnodeLifecycle:
         tdLog.info(f"Draining xnode: {sql}")
         try:
             tdSql.execute(sql)
-            tdLog.success(f"Successfully executed DRAIN XNODE {xnode_id}")
         except Exception as e:
             msg = str(e).lower()
             assert "syntax" not in msg and "parse" not in msg

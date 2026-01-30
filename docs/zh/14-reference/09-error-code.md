@@ -112,6 +112,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000013C | Invalid disk id                         | 不合法的 disk id                                                           | 建议用户检查挂载磁盘是否失效或者使用参数 diskIDCheckEnabled 来跳过磁盘检查                                                                            |
 | 0x8000013D | Decimal value overflow                  | Decimal 计算溢出                                                           | 检查计算表达式和参数值是否计算结果导致类型溢出                                                                                                        |
 | 0x8000013E | Division by zero error                  | Division by zero                                                           | 检查除法操作是否除以 0                                                                                                                              |
+| 0x8000013F | Decimal value parse error               | Decimal 解析错误                                                           | 保留现场和日志，github 上报 issue                                                                                                                           |
 | 0x80000140 | Edition not compatible                  | 社区版/企业版不匹配                                                        | 检查各节点（包括服务端和客户端）是否有社区版和企业版混用的情况，确保都是企业版或都是社区版 |
 | 0x80000141 | Invalid signature                       | 消息签名无效或不正确                                                       | 检查客户端和服务端是否使用了相同的签名算法 |
 
@@ -570,6 +571,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x800026A2 | Option value too big                                                                                   | 选项的值太大                                            | 检查并修正 SQL 语句                    |
 | 0x800026A3 | Option value too small                                                                                 | 选项的值太小                                            | 检查并修正 SQL 语句                    |
 | 0x800026AA | Aggregate functions cannot be used for sorting in non-aggregate queries                                | order by 子句不合法法                                            | 检查并修正 SQL 语句                    |
+| 0x800026AB | TRUE_FOR COUNT must be a non-negative integer not exceeding INT32_MAX                                  | true_for count 的值必须为非负数并且小于 INT32_MAX         | 检查并修正 SQL 语句                    |
 | 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN 条件校验失败                                       | 保留现场和日志，github 上报 issue      |

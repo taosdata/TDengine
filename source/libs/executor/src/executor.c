@@ -1433,7 +1433,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       pScanBaseInfo->cond.twindows.skey = oldSkey;
     } else {
       qError("invalid pOffset->type:%d, %s", pOffset->type, id);
-      return TSDB_CODE_PAR_INTERNAL_ERROR;
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
     }
 
   } else {  // subType == TOPIC_SUB_TYPE__TABLE/TOPIC_SUB_TYPE__DB
@@ -1451,7 +1451,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
       if (pAPI->snapshotFn.setForSnapShot(sContext, pOffset->uid) != 0) {
         qError("setDataForSnapShot error. uid:%" PRId64 " , %s", pOffset->uid, id);
-        return TSDB_CODE_PAR_INTERNAL_ERROR;
+        return TSDB_CODE_STREAM_INTERNAL_ERROR;
       }
 
       SMetaTableInfo mtInfo = {0};
@@ -2304,4 +2304,25 @@ end:
   // taosArrayDestroy(uidListCopy);
   tableListDestroy(pList);
   return code;
+}
+
+bool isTrueForSatisfied(STrueForInfo* pTrueForInfo, int64_t skey, int64_t ekey, int64_t count) {
+  if (pTrueForInfo == NULL) {
+    return true;
+  }
+
+  bool durationSatisfied = (pTrueForInfo->duration <= 0) || (llabs(ekey - skey) >= pTrueForInfo->duration);
+  bool countSatisfied = (pTrueForInfo->count <= 0) || (count >= pTrueForInfo->count);
+  switch (pTrueForInfo->trueForType) {
+    case TRUE_FOR_DURATION_ONLY:
+      return durationSatisfied;
+    case TRUE_FOR_COUNT_ONLY:
+      return countSatisfied;
+    case TRUE_FOR_AND:
+      return durationSatisfied && countSatisfied;
+    case TRUE_FOR_OR:
+      return durationSatisfied || countSatisfied;
+    default:
+      return true;
+  }
 }

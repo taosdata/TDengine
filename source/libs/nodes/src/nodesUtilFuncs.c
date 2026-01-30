@@ -525,6 +525,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_REMOTE_VALUE:
       code = makeNode(type, sizeof(SRemoteValueNode), &pNode);
       break;
+    case QUERY_NODE_TRUE_FOR:
+      code = makeNode(type, sizeof(STrueForNode), &pNode);
+      break;
     case QUERY_NODE_SET_OPERATOR:
       code = makeNode(type, sizeof(SSetOperator), &pNode);
       break;
@@ -1608,6 +1611,11 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pNotifyOptions->pWhere);
       break;
     }
+    case QUERY_NODE_TRUE_FOR: {
+      STrueForNode* pTrueFor = (STrueForNode*)pNode;
+      nodesDestroyNode(pTrueFor->pDuration);
+      break;
+    }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pStmt = (SSetOperator*)pNode;
       nodesDestroyList(pStmt->pSubQueries);
@@ -1644,8 +1652,9 @@ void nodesDestroyNode(SNode* pNode) {
       SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pNode;
       destroyVgDataBlockArray(pStmt->pDataBlocks);
       taosMemoryFreeClear(pStmt->pTableMeta);
-      nodesDestroyNode(pStmt->pTagCond);
-      taosArrayDestroy(pStmt->pTableTag);
+      if (pStmt->pTagCond) nodesDestroyNode(pStmt->pTagCond);
+      if (pStmt->pPrivCols) taosArrayDestroy(pStmt->pPrivCols);
+      if (pStmt->pTableTag) taosArrayDestroy(pStmt->pTableTag);
       taosHashCleanup(pStmt->pVgroupsHashObj);
       taosHashCleanup(pStmt->pSubTableHashObj);
       taosHashCleanup(pStmt->pSuperTableHashObj);

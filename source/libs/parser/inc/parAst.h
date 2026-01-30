@@ -92,6 +92,7 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_COMPACT_TIME_RANGE,
   DB_OPTION_COMPACT_TIME_OFFSET,
   DB_OPTION_IS_AUDIT,
+  DB_OPTION_ALLOW_DROP,
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
@@ -178,6 +179,7 @@ SPrivSetArgs privArgsAdd(SAstCreateContext* pCxt, SPrivSetArgs prev, SPrivSetArg
 SPrivSetArgs privArgsSetType(SAstCreateContext* pCxt, EPrivType type);
 SPrivSetArgs privArgsSetCols(SAstCreateContext* pCxt, SNodeList* selectCols, SNodeList* insertCols,
                              SNodeList* updateCols);
+SPrivSetArgs privArgsSet(SAstCreateContext* pCxt, int32_t type, SToken* t1, SToken* t2);
 
 SNode*     createPlaceHolderColumnNode(SAstCreateContext* pCxt, SNode* pColId);
 SNode*     createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pColumnName);
@@ -220,6 +222,9 @@ SNode*     createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder o
 SNode*     createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, SNode* pGap);
 SNode*     createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNodeList* pOptions, SNode* pTrueForLimit);
 SNode*     createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* pEndCond, SNode* pTrueForLimit);
+SNode*     createTrueForCountNode(SAstCreateContext* pCxt, const SToken* pCount);
+SNode*     createTrueForAndNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount);
+SNode*     createTrueForOrNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount);
 SNode*     createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken,
                                  SNodeList* pColList);
 SNode*     createCountWindowNodeFromArgs(SAstCreateContext* pCxt, SNode* args);

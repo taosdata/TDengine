@@ -188,6 +188,8 @@ typedef struct SStateWinTrigger {
   int16_t slotId;
   int16_t extend;
   void*   zeroth;
+  int32_t trueForType;
+  int32_t trueForCount;
   int64_t trueForDuration;
   void*   expr;
 } SStateWinTrigger;
@@ -208,6 +210,8 @@ typedef struct SSlidingTrigger {
 typedef struct SEventTrigger {
   void*   startCond;
   void*   endCond;
+  int32_t trueForType;
+  int32_t trueForCount;
   int64_t trueForDuration;
 } SEventTrigger;
 

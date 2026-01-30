@@ -169,9 +169,9 @@ class TestViewMgmt:
         tdSql.connect("root")
         tdSql.execute(f"use testa;")
 
-        tdSql.execute(f'create user u1 pass "taosdata"')
-        tdSql.execute(f'create user u2 pass "taosdata"')
-        tdSql.execute(f'create user u3 pass "taosdata"')
+        tdSql.execute(f'create user u1 pass "taosdata_12345"')
+        tdSql.execute(f'create user u2 pass "taosdata_12345"')
+        tdSql.execute(f'create user u3 pass "taosdata_12345"')
 
         tdLog.info(f"== root create views ==")
         tdSql.execute(f"create view view1 as select * from sta1;")
@@ -193,7 +193,7 @@ class TestViewMgmt:
         tdSql.checkData(0, 1, "SELECT VIEW")
         tdSql.execute(f"grant use on database testa to u1;")
 
-        tdSql.connect("u1")
+        tdSql.connect("u1", "taosdata_12345")
         tdSql.execute(f"use testa")
         tdSql.error(f"select * from sta1;")
         tdSql.query(f"select * from view1;")
@@ -216,26 +216,28 @@ class TestViewMgmt:
         tdSql.execute(f"use testa")
         tdSql.execute(f"drop view testa.view1;")
         tdSql.query(
-            f"select * from information_schema.ins_user_privileges order by user_name, privilege;"
+            f"select * from information_schema.ins_user_privileges order by user_name, priv_type;"
         )
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "root")
+        tdSql.checkData(0, 0, "u1")
 
         tdSql.execute(f"grant all on testa.* to u1;")
+        tdSql.execute(f"grant create view on database testa to u1;")
         tdSql.execute(f"reset query cache")
 
         tdLog.info(f"== u1 create view1 ==")
-        tdSql.connect("u1")
+        tdSql.connect("u1", "taosdata_12345")
         tdSql.execute(f"use testa")
         tdSql.query(f"select * from sta1;")
         tdSql.error(f"insert into view1 values (now, 1);")
         tdSql.execute(f"create view view1 as select * from sta1;")
 
         tdSql.connect("root")
-        tdSql.execute(f"grant read on testa.view1 to u2;")
+        tdSql.execute(f"grant select on view testa.view1 to u2;")
+        tdSql.execute(f"grant use on database testa to u2;")
         tdSql.error(f"insert into view1 values (now, 1);")
 
-        tdSql.connect("u2")
+        tdSql.connect("u2", "taosdata_12345")
         tdSql.execute(f"use testa")
         tdSql.error(f"select * from sta1;")
         tdSql.error(f"insert into view1 values (now, 1);")
@@ -245,12 +247,12 @@ class TestViewMgmt:
         tdSql.execute(f"revoke all on testa.* from u1")
         tdSql.execute(f"reset query cache")
 
-        tdSql.connect("u1")
+        tdSql.connect("u1", "taosdata_12345")
         tdSql.execute(f"use testa")
         tdSql.error(f"select * from sta1;")
         tdSql.error(f"select * from view1;")
 
-        tdSql.connect("u2")
+        tdSql.connect("u2", "taosdata_12345")
         tdSql.execute(f"use testa")
         tdSql.error(f"select * from view1;")
 
@@ -258,12 +260,12 @@ class TestViewMgmt:
         tdSql.execute(f"grant all on testa.* to u2")
         tdSql.execute(f"reset query cache")
 
-        tdSql.connect("u2")
+        tdSql.connect("u2", "taosdata_12345")
         tdSql.execute(f"use testa")
         tdSql.query(f"select * from view1;")
         tdSql.error(f"create or replace view1 as select * from st2;")
 
-        tdSql.connect("u1")
+        tdSql.connect("u1", "taosdata_12345")
         tdSql.execute(f"use testa")
         tdSql.error(f"create or replace view1 as select * from st2;")
 
@@ -271,17 +273,18 @@ class TestViewMgmt:
         tdSql.execute(f"grant all on testa.* to u1")
         tdSql.execute(f"reset query cache")
 
-        tdSql.connect("u1")
+        tdSql.connect("u1", "taosdata_12345")
         tdSql.execute(f"use testa")
         tdSql.execute(f"create or replace view view1 as select * from st2;")
 
         tdSql.connect("root")
-        tdSql.execute(f"grant alter on testa.view1 to u2")
+        tdSql.execute(f"grant alter on view testa.view1 to u2")
+        tdSql.execute(f"grant create view on database testa to u2")
         tdSql.execute(f"revoke all on testa.* from u1")
         tdSql.execute(f"reset query cache")
 
         tdLog.info(f"== u2 replace view1 ==")
-        tdSql.connect("u2")
+        tdSql.connect("u2", "taosdata_12345")
         tdSql.execute(f"use testa")
         tdSql.query(f"select * from view1;")
         tdSql.execute(f"create or replace view view1 as select * from sta1;")
@@ -294,9 +297,10 @@ class TestViewMgmt:
         tdSql.checkData(0, 2, "u2")
 
         tdSql.connect("root")
-        tdSql.execute(f"grant all on testa.view1 to u3;")
+        tdSql.execute(f"grant all on view testa.view1 to u3;")
+        tdSql.execute(f"grant use on database testa to u3;")
 
-        tdSql.connect("u3")
+        tdSql.connect("u3", "taosdata_12345")
         tdSql.execute(f"use testa")
         tdSql.error(f"select * from sta1")
         tdSql.error(f"insert into view1 values (now, 1);")
@@ -306,7 +310,7 @@ class TestViewMgmt:
         tdSql.execute(f"revoke all on testa.* from u2")
         tdSql.execute(f"reset query cache")
 
-        tdSql.connect("u3")
+        tdSql.connect("u3", "taosdata_12345")
         tdSql.execute(f"use testa")
         tdSql.error(f"select * from view1")
         tdSql.error(f"insert into view1 values (now, 1);")
@@ -317,7 +321,7 @@ class TestViewMgmt:
         tdSql.execute(f"drop user u2;")
         tdSql.execute(f"reset query cache")
 
-        tdSql.connect("u3")
+        tdSql.connect("u3", "taosdata_12345")
         tdSql.execute(f"use testa")
         tdSql.query(f"select * from view1")
         tdSql.error(f"insert into view1 values (now, 1);")
@@ -332,20 +336,27 @@ class TestViewMgmt:
         tdSql.connect("root")
         tdSql.execute(f"use testa;")
 
-        tdSql.execute(f'create user u1 pass "taosdata"')
-        tdSql.execute(f'create user u2 pass "taosdata"')
-        tdSql.execute(f'create user u3 pass "taosdata"')
+        tdSql.execute(f'create user u1 pass "taosdata_12345"')
+        tdSql.execute(f'create user u2 pass "taosdata_12345"')
+        tdSql.execute(f'create user u3 pass "taosdata_12345"')
 
         tdSql.execute(f"grant all on testa.* to u1;")
         tdSql.execute(f"grant all on testb.* to u2;")
         tdSql.execute(f"grant all on testa.stt to u3;")
+        tdSql.execute(f"grant use on database testa to u1;")
+        tdSql.execute(f"grant use on database testb to u2;")
+        tdSql.execute(f"grant create view on database testa to u1;")
+        tdSql.execute(f"grant create view on database testb to u2;")
 
-        tdSql.connect("u1")
+
+        tdSql.connect("u1", "taosdata_12345")
         tdSql.execute(f"use testa")
+        tdLog.info(f"== u1 create view1 ==")
         tdSql.execute(f"create view view1 as select ts, f from st2;")
 
-        tdSql.connect("u2")
+        tdSql.connect("u2", "taosdata_12345")
         tdSql.execute(f"use testb")
+        tdLog.info(f"== u2 create view1 ==")
         tdSql.execute(f"create view view1 as select ts, f from st2;")
 
         tdSql.connect("root")
@@ -360,11 +371,15 @@ class TestViewMgmt:
         tdSql.execute(
             f"create view view2 as select a.ts, a.f, b.f from testa.view1 a, view1 b where a.ts=b.ts;"
         )
-        tdSql.execute(f"grant all on testa.view2 to u3;")
-        tdSql.execute(f"grant all on testb.view2 to u3;")
+        tdSql.execute(f"grant all on view testa.view2 to u3;")
+        tdSql.execute(f"grant all on view testb.view2 to u3;")
+        tdSql.execute(f"grant use on database testa to u3;")
+        tdSql.execute(f"grant use on database testb to u3;")
+        tdSql.execute(f"grant select on view testa.view1 to u3;")
+        tdSql.execute(f"grant select on view testb.view1 to u3;")
 
         tdLog.info(f"== start to query ==")
-        tdSql.connect("u3")
+        tdSql.connect("u3", "taosdata_12345")
         tdSql.execute(f"reset query cache")
         tdSql.query(f"select * from testa.view2 order by f;")
         tdSql.checkRows(8)
@@ -390,8 +405,10 @@ class TestViewMgmt:
 
         tdSql.connect("root")
         tdSql.execute(f"revoke all on testa.* from u1;")
+        tdSql.execute(f"revoke all on view testa.* from u3;")
+        tdSql.execute(f"revoke all on view testa.view1 from u3;")
 
-        tdSql.connect("u3")
+        tdSql.connect("u3", "taosdata_12345")
         tdSql.execute(f"reset query cache")
         tdSql.error(f"select * from testa.view2;")
         tdSql.error(f"select * from testa.view1;")
@@ -404,9 +421,9 @@ class TestViewMgmt:
         tdSql.checkData(0, 1, 100221)
         tdSql.checkData(1, 1, 100222)
 
-        tdSql.connect("u3")
+        tdSql.connect("u3", "taosdata_12345")
         tdSql.execute(f"reset query cache")
-        tdSql.query(f"select * from testa.view2;")
+        tdSql.error(f"select * from testa.view2;")
         tdSql.error(f"select * from testa.view1;")
 
         tdLog.info(f"== drop user and views ==")

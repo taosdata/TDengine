@@ -1810,4 +1810,4 @@ class TestOpentsdbJsonTaoscInsert:
             raise err
         
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+

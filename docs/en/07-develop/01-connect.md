@@ -431,6 +431,7 @@ Supported parameters are as follows:
 - `db`: Database to connect to.
 - `timezone`: Time zone, default is the local time zone.
 - `connTimeout`: Connection timeout, default is 1 minute.
+- `bearerToken`: Token for connecting to TDengine TSDB.
 
 Additional parameters supported for WebSocket connections:
 

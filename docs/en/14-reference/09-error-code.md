@@ -114,6 +114,7 @@ Below are the business error codes for each module.
 | 0x8000013C | Invalid disk id                   | Invalid disk id                                              | Check users whether the mounted disk is invalid or use the parameter diskIDCheckEnabled to skip the disk check. |
 | 0x8000013D | Decimal value overflow            | Decimal value overflow                                       | Check query expression and decimal values |
 | 0x8000013E | Division by zero error            | Division by zero                                             | Check division expression |
+| 0x8000013F | Decimal value parse error         | Decimal value parse error                                    | Preserve the scene and logs, report issue on github |
 | 0x80000140 | Edition not compatible            | Edition incompatibility between nodes                        | Check editions(enterprise or community) of all nodes (including server and client), ensure node editions are consistent or compatible |
 | 0x80000141 | Invalid signature                 | Message signature is invalid or mismatch                     | Check if client and server are using the same signature algorithm |
 
@@ -572,6 +573,7 @@ Below are the business error codes for each module.
 | 0x800026A2 | Option value too big                                                                                   | Option value too big                                                       | Check and correct the SQL statement                          |
 | 0x800026A3 | Option value too small                                                                                 | Option value too small                                                     | Check and correct the SQL statement                          |
 | 0x800026AA | Aggregate functions cannot be used for sorting in non-aggregate queries                                | Invalid ORDER BY clause clause                                             | Check and correct the SQL statement                          |
+| 0x800026AB | TRUE_FOR COUNT must be a non-negative integer not exceeding INT32_MAX                                  | The value for COUNT in a TRUE_FOR expr is invalid                          | Check and correct the SQL statement                          |
 | 0x800026FF | Parser internal error                                                                                  | Internal error in parser                                                   | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002700 | Planner internal error                                                                                 | Internal error in planner                                                  | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN condition validation failed                                           | Preserve the scene and logs, report issue on GitHub          |
