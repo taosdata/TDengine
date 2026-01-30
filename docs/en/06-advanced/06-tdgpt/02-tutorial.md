@@ -30,14 +30,14 @@ docker pull tdengine/tdengine-tdgpt:latest
 
 You can specify a version if desired:
 
-```shell
-docker pull tdengine/tdengine-tdgpt:3.3.6.0
+```shell tdgpt
+docker pull tdengine/tdengine-tdgpt:{{VERSION}}
 ```
 
 Start the container:
 
 ```shell
-docker run -d -p 6090:6090 -p 5000:5000 tdengine/tdengine-tdgpt:3.3.6.0
+docker run -d -p 6090:6090 -p 5000:5000 tdengine/tdengine-tdgpt
 ```
 
 #### Full Image
@@ -50,14 +50,14 @@ docker pull tdengine/tdengine-tdgpt-full:latest
 
 You can specify a version if desired:
 
-```shell
-docker pull tdengine/tdengine-tdgpt-full:3.3.6.0
+```shell tdgpt
+docker pull tdengine/tdengine-tdgpt-full:{{VERSION}}
 ```
 
 Start the container:
 
 ```shell
-docker run -d -p 6090:6090 -p 5000:5000 -p 5001:5001 tdengine/tdengine-tdgpt-full:3.3.6.0
+docker run -d -p 6090:6090 -p 5000:5000 -p 5001:5001 tdengine/tdengine-tdgpt-full
 ```
 
 Note: TDgpt runs on TCP port 6090. The standard image also uses port 5000, and the full image uses port 5001.
@@ -137,19 +137,16 @@ sudo apt install build-essential
   
 2. Open the directory containing the downloaded package and decompress it.
 
-Note: Replace `<version>` with the version that you downloaded.
-
-```bash
-tar -zxvf TDengine-TDgpt-<version>-Linux-x64.tar.gz
-```
+   ```bash tdgpt
+   tar -zxvf TDengine-TDgpt-{{VERSION}}-Linux-x64.tar.gz
+   ```
 
 ### Run the Installation Script
 
 Decompress the file, open the directory created, and run the `install.sh` script:
-Note: Replace `<version` with the version that you downloaded.
 
-```bash
-cd TDengine-TDgpt-<version>
+```bash tdgpt
+cd TDengine-TDgpt-{{VERSION}}
 ./install.sh
 ```
 

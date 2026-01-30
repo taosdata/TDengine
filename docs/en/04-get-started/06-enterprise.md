@@ -33,18 +33,18 @@ You may want to install several additional components to support your deployment
 
 This section describes how to install TDengine Enterprise on a bare metal machine. Note that the same instructions also apply to virtual machines.
 
-1. Transfer the installation package for TDengine Enterprise to the target machine. The installation package is provided along with the delivery of your TDengine Enterprise license. The package name is in the format `TDengine-enterprise-<version>-Linux-<arch>.tar.gz`.
+1. Transfer the installation package for TDengine Enterprise to the target machine. The installation package is provided along with the delivery of your TDengine Enterprise license.
 
 2. Decompress the installation package.
 
-    ```bash
-    tar xf TDengine-enterprise-<version>-Linux-<arch>.tar.gz
+    ```bash tsdb-ee
+    tar xf TDengine-enterprise-{{VERSION}}-Linux-<arch>.tar.gz
     ```
 
 3. Open the directory created and run the installation script.
 
-    ```bash
-    cd TDengine-enterprise-<version>/
+    ```bash tsdb-ee
+    cd TDengine-enterprise-{{VERSION}}/
     ./install.sh
     ```
 

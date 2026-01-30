@@ -25,11 +25,9 @@ To install TDengine on your local machine instead of in a container, see [Get St
    :::note
    You can also pull a specific version of the image. For example:
 
-   ```bash
-   docker pull tdengine/tdengine:3.3.0.0
+   ```bash tsdb
+   docker pull tdengine/tdengine:{{VERSION}}
    ```
-
-   For TDengine TSDB-Enterprise, please replace the image name with `tdengine/tdengine-ee`.
 
    :::
 

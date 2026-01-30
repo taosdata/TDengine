@@ -31,11 +31,9 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
       <PkgList productName="TDengine TSDB-OSS" platform="Linux-Ubuntu"/>
    2. Run the following command to install TDengine:
 
-      ```bash
-      sudo dpkg -i tdengine-tsdb-oss-<version>-linux-x64.deb
+      ```bash tsdb
+      sudo dpkg -i tdengine-tsdb-oss-{{VERSION}}-linux-x64.deb
       ```
-
-      Replace `<version>` with the version of the package that you downloaded.
 
    </TabItem>
 
@@ -45,11 +43,9 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
       <PkgList productName="TDengine TSDB-OSS" platform="Linux-Red Hat"/>
    2. Run the following command to install TDengine:
 
-      ```bash
-      sudo rpm -ivh tdengine-tsdb-oss-<version>-linux-x64.rpm
+      ```bash tsdb
+      sudo rpm -ivh tdengine-tsdb-oss-{{VERSION}}-linux-x64.rpm
       ```
-
-      Replace `<version>` with the version of the package that you downloaded.
 
    </TabItem>
 
@@ -59,11 +55,10 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
       <PkgList productName="TDengine TSDB-OSS" platform="Linux-Generic"/>
    2. Run the following command to decompress the package:
 
-      ```bash
-      tar -zxvf tdengine-tsdb-oss-<version>-linux-x64.tar.gz
+      ```bash tsdb
+      tar -zxvf tdengine-tsdb-oss-{{VERSION}}-linux-x64.tar.gz
       ```
 
-      Replace `<version>` with the version of the package that you downloaded.
    3. In the directory where you decompressed the package, run the following command to install TDengine:
 
       ```bash
