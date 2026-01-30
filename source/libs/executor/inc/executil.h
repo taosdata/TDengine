@@ -83,6 +83,7 @@ struct SResultRow {
   bool                       endInterp;    // the time window end timestamp has done the interpolation already.
   bool                       closed;       // this result status: closed or opened
   uint32_t                   numOfRows;    // number of rows of current time window
+  uint32_t                   nOrigRows;    // number of original rows before aggregation
   STimeWindow                win;
   int32_t                    winIdx;
   struct SResultRowEntryInfo pEntryInfo[];  // For each result column, there is a resultInfo

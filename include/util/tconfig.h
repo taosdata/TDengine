@@ -81,9 +81,18 @@ typedef enum {
 #endif
 } ECfgDynType;
 
+typedef enum {
+  CFG_PRIV_INVALID = -1,
+  CFG_PRIV_SYSTEM = 0,
+  CFG_PRIV_SECURITY,
+  CFG_PRIV_AUDIT,
+  CFG_PRIV_DEBUG,
+} ECfgPrivType;
+
 typedef struct SConfigItem {
   ECfgSrcType  stype;
   ECfgDataType dtype;
+  ECfgPrivType privType;
   int8_t       scope;
   int8_t       dynScope;
   int8_t       category;
@@ -120,6 +129,7 @@ int32_t      cfgLoadFromArray(SConfig *pCfg, SArray *pArgs);    // SConfigPair
 int32_t      cfgUpdateFromArray(SConfig *pCfg, SArray *pArgs);  // SConfigItem
 void         cfgCleanup(SConfig *pCfg);
 int32_t      cfgGetSize(SConfig *pCfg);
+int32_t      cfgGetPrivType(SConfig *pCfg, const char *pName, int8_t opType);
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName);
 int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock);
 int32_t cfgGetAndSetItem(SConfig *pCfg, SConfigItem **ppItem, const char *name, const char *value, ECfgSrcType stype,
@@ -134,13 +144,13 @@ void         cfgLock(SConfig *pCfg);
 void         cfgUnLock(SConfig *pCfg);
 
 // clang-format off
-int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, int8_t scope, int8_t dynScope,int8_t category);
-int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope, int8_t dynScope,int8_t category);
-int32_t cfgAddInt32Ex(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope, int8_t dynScope,int8_t category);
-int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval, int8_t scope, int8_t dynScope,int8_t category);
-int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float minval, float maxval, int8_t scope, int8_t dynScope,int8_t category);
-int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
-int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
+int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, int8_t scope, int8_t dynScope,int8_t category, int8_t privType);
+int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope, int8_t dynScope,int8_t category, int8_t privType);
+int32_t cfgAddInt32Ex(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope, int8_t dynScope,int8_t category, int8_t privType);
+int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval, int8_t scope, int8_t dynScope,int8_t category, int8_t privType);
+int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float minval, float maxval, int8_t scope, int8_t dynScope,int8_t category, int8_t privType);
+int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,int8_t category, int8_t privType);
+int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,int8_t category, int8_t privType);
 int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
 int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);
 int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,int8_t category);

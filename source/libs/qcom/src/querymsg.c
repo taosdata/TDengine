@@ -719,6 +719,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   pTableMeta->tversion = msg->tversion;
   pTableMeta->rversion = msg->rversion;
   pTableMeta->ownerId = msg->ownerId;
+  pTableMeta->flag = msg->flag;
   if (msg->virtualStb) {
     pTableMeta->virtualStb = 1;
     pTableMeta->numOfColRefs = 0;

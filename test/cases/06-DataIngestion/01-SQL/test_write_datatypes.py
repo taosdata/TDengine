@@ -116,7 +116,7 @@ class TestWriteDatatypes:
         self.run_tags("t_small", "smallint", 16)
         self.run_tags("t_tiny", "tinyint", 8)
         tdLog.printNoPrefix("==========end case2 run ...............")
-        tdLog.info(f"{__file__} successfully executed")
+
 
     def test_write_datatypes(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         """Write data types

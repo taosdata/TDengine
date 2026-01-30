@@ -2206,7 +2206,7 @@ class TestDecimal:
         #self.check_decimal_and_stream()
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+
 
     def wait_query_result(self, sql: str, expect_result, times):
         for i in range(times):

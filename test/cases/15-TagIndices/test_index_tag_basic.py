@@ -335,5 +335,5 @@ class TestTagIndexBasic:
         
         self.do_ts4403()
 
-        tdLog.success("%s successfully executed" % __file__)
+
 

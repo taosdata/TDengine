@@ -2156,4 +2156,4 @@ class TestQueryColsTagsAndOr:
         # self.checkMultiStbJoin()
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+

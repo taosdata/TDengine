@@ -77,4 +77,4 @@ class TestSttBlocksCheck:
         self.stt_block_check()
         
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+

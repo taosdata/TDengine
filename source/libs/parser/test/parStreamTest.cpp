@@ -1703,6 +1703,26 @@ TEST_F(ParserStreamTest, TestErrorTriggerWindow) {
   run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(1x) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
   run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for('1x') from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
 
+  // TRUE_FOR COUNT-only syntax tests (T009-T010)
+  // Valid COUNT-only syntax
+  run("create stream stream_streamdb.s1 state_window(c1) true_for(count 100) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(count 100) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+
+  // COUNT 0 is valid (condition always satisfied)
+  run("create stream stream_streamdb.s1 state_window(c1) true_for(count 0) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+
+  // COUNT -1 should be rejected
+  run("create stream stream_streamdb.s1 state_window(c1) true_for(count -1) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+
+  // COUNT > INT32_MAX should be rejected
+  run("create stream stream_streamdb.s1 state_window(c1) true_for(count 2147483648) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_TRUE_FOR_COUNT, PARSER_STAGE_PARSE);
+
+  // Missing COUNT keyword in AND/OR syntax should be rejected
+  run("create stream stream_streamdb.s1 state_window(c1) true_for(10s and 5) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  run("create stream stream_streamdb.s1 state_window(c1) true_for(10s or 5) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(10s and 5) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  run("create stream stream_streamdb.s1 event_window(start with c1 > 1 end with c1 < 1) true_for(10s or 5) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+
   // invalid count window
 
   // count val greater equal than INT32_MAX

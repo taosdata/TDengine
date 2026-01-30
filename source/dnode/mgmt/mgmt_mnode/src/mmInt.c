@@ -171,10 +171,11 @@ static int32_t mmStart(SMnodeMgmt *pMgmt) {
   }
   if (mndNeedUpgrade(pMgmt->pMnode, option.version)) {
     option.version = mndGetVersion(pMgmt->pMnode);
+    option.encrypted = mndGetEncryptedFlag(pMgmt->pMnode);
     if ((code = mmWriteFile(pMgmt->path, &option)) != 0) {
       dError("failed to write mnode file since %s", tstrerror(code));
       return code;
-    }
+  }
   }
   return code;
 }

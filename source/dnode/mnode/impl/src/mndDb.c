@@ -45,7 +45,10 @@
 #include "thttp.h"
 #include "tjson.h"
 
-#define DB_VER_NUMBER   1
+#define DB_VER_INITIAL                   1
+#define DB_VER_SUPPORT_ADVANCED_SECURITY 2
+#define DB_VER_NUMBER                    DB_VER_SUPPORT_ADVANCED_SECURITY
+
 #define DB_RESERVE_SIZE 13
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
@@ -200,7 +203,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
-  if (sver != DB_VER_NUMBER) {
+  if (sver < 1 || sver > DB_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto _OVER;
   }
@@ -308,6 +311,10 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
     mInfo("db:%s, sstTrigger set from %d to default %d", pDb->name, pDb->cfg.sstTrigger, TSDB_DEFAULT_SST_TRIGGER);
   }
 
+  if (sver < DB_VER_SUPPORT_ADVANCED_SECURITY) {
+    pDb->cfg.allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
+  }
+
   terrno = 0;
 
 _OVER:
@@ -405,6 +412,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->compactStartTime = pNew->compactStartTime;
   pOld->tsmaVersion = pNew->tsmaVersion;
   pOld->cfg.isAudit = pNew->cfg.isAudit;
+  pOld->cfg.flags = pNew->cfg.flags;
   pOld->ownerId = pNew->ownerId;
   taosWUnLockLatch(&pOld->lock);
   return 0;
@@ -559,6 +567,7 @@ int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->compactTimeOffset < TSDB_MIN_COMPACT_TIME_OFFSET || pCfg->compactTimeOffset > TSDB_MAX_COMPACT_TIME_OFFSET)
     return code;
   if (pCfg->isAudit < 0 || pCfg->isAudit > 1) return code;
+  if (pCfg->allowDrop < TSDB_MIN_DB_ALLOW_DROP || pCfg->allowDrop > TSDB_MAX_DB_ALLOW_DROP) return code;
 
   code = 0;
   TAOS_RETURN(code);
@@ -641,6 +650,7 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
       pNewCfg->compactTimeOffset > TSDB_MAX_COMPACT_TIME_OFFSET)
     return code;
   if (pNewCfg->isAudit < 0 || pNewCfg->isAudit > 1) return code;
+  if (pNewCfg->allowDrop < TSDB_MIN_DB_ALLOW_DROP || pNewCfg->allowDrop > TSDB_MAX_DB_ALLOW_DROP) return code;
 
   code = 0;
   TAOS_RETURN(code);
@@ -769,7 +779,7 @@ static int32_t mndSetCreateDbUndoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
 }
 
 static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups,
-                                        SUserObj *pUserDuped) {
+                                        SUserObj *pUserDuped, SArray *pAuditOwnedDbs) {
   int32_t  code = 0;
   SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
   if (pDbRaw == NULL) {
@@ -811,6 +821,19 @@ static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *
     TAOS_CHECK_RETURN(sdbSetRawStatus(pUserRaw, SDB_STATUS_READY));
   }
 
+  if(pAuditOwnedDbs) {
+    int32_t auditOwnedDbSize = taosArrayGetSize(pAuditOwnedDbs);
+    for (int32_t i = 0; i < auditOwnedDbSize; ++i) {
+      SUserObj *pAuditUser = (SUserObj *)TARRAY_GET_ELEM(pAuditOwnedDbs, i);
+      SSdbRaw  *pAuditUserRaw = mndUserActionEncode(pAuditUser);
+      if (pAuditUserRaw == NULL) {
+        TAOS_RETURN(terrno ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL);
+      }
+      TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pAuditUserRaw));
+      TAOS_CHECK_RETURN(sdbSetRawStatus(pAuditUserRaw, SDB_STATUS_READY));
+    }
+  }
+
   TAOS_RETURN(code);
 }
 
@@ -842,8 +865,70 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   TAOS_RETURN(code);
 }
 
+/**
+ * @brief fill audit owned dbs for users with role SYSAUDIT or SYSAUDIT_LOG.
+ *
+ * @param pMnode
+ * @param pOperUser
+ * @param pDb
+ * @param pAuditOwnedDbs
+ * @return int32_t
+ */
+static int32_t mndSetAuditOwnedDbs(SMnode *pMnode, SUserObj *pOperUser, SDbObj *pDb, SArray **pAuditOwnedDbs) {
+  int32_t   code = 0, lino = 0;
+  SSdb     *pSdb = pMnode->pSdb;
+  SArray   *auditOwnedDbs = NULL;
+  SUserObj *pUser = NULL;
+  SUserObj  newUserObj = {0};
+  int32_t   sysAuditLen = strlen(TSDB_ROLE_SYSAUDIT) + 1;
+  int32_t   sysAuditLogLen = strlen(TSDB_ROLE_SYSAUDIT_LOG) + 1;
+
+  void *pIter = NULL;
+  while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
+    if (taosHashGetSize(pUser->roles) <= 0) {
+      sdbRelease(pSdb, pUser);
+      pUser = NULL;
+      continue;
+    }
+    if(strncmp(pUser->name, pOperUser->name, TSDB_USER_LEN) == 0) {
+      sdbRelease(pSdb, pUser);
+      pUser = NULL;
+      continue;
+    }
+    if (!taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sysAuditLen) &&
+        !taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, sysAuditLogLen)) {
+      sdbRelease(pSdb, pUser);
+      pUser = NULL;
+      continue;
+    }
+    TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUserObj));
+    TAOS_CHECK_EXIT(taosHashPut(newUserObj.ownedDbs, pDb->name, strlen(pDb->name) + 1, NULL, 0));
+    if (auditOwnedDbs == NULL) {
+      auditOwnedDbs = taosArrayInit(1, sizeof(SUserObj));
+      if (auditOwnedDbs == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+    }
+    if (!taosArrayPush(auditOwnedDbs, &newUserObj)) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    memset(&newUserObj, 0, sizeof(SUserObj));
+    sdbRelease(pSdb, pUser);
+    pUser = NULL;
+  }
+  *pAuditOwnedDbs = auditOwnedDbs;
+  auditOwnedDbs = NULL;
+_exit:
+  if (auditOwnedDbs != NULL) taosArrayDestroyEx(auditOwnedDbs, (FDelete)mndUserFreeObj);
+  sdbRelease(pSdb, pUser);
+  sdbCancelFetch(pSdb, pIter);
+  mndUserFreeObj(&newUserObj);
+  TAOS_RETURN(code);
+}
+
 static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser, SArray *dnodeList) {
   int32_t  code = 0;
+  SArray  *auditOwnedDbs = NULL;
   SUserObj newUserObj = {0};
   SDbObj   dbObj = {0};
   (void)memcpy(dbObj.name, pCreate->db, TSDB_DB_FNAME_LEN);
@@ -945,6 +1030,9 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       mError("db:%s, failed to create, walLevel not match for audit db, %d", pCreate->db, dbObj.cfg.walLevel);
       TAOS_RETURN(code);
     }
+    dbObj.cfg.allowDrop = TSDB_MIN_DB_ALLOW_DROP;
+  } else {
+    dbObj.cfg.allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
 
   mndSetDefaultDbCfg(&dbObj.cfg);
@@ -988,6 +1076,23 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
                     NULL, _OVER);
     pNewUserDuped = &newUserObj;
   }
+#else
+  // Considering the efficiency of use db privileges in some scenarios like insert operation, owned DBs is stored.
+  bool addOwned = false;
+  if (dbObj.cfg.isAudit == 1) {
+    if (taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, strlen(TSDB_ROLE_SYSAUDIT) + 1) ||
+        taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, strlen(TSDB_ROLE_SYSAUDIT_LOG) + 1)) {
+      addOwned = true;
+    }
+    TAOS_CHECK_GOTO(mndSetAuditOwnedDbs(pMnode, pUser, &dbObj, &auditOwnedDbs), NULL, _OVER);
+  } else {
+    addOwned = true;
+  }
+  if (addOwned) {
+    TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUserObj), NULL, _OVER);
+    TAOS_CHECK_GOTO(taosHashPut(newUserObj.ownedDbs, dbObj.name, strlen(dbObj.name) + 1, NULL, 0), NULL, _OVER);
+    pNewUserDuped = &newUserObj;
+  }
 #endif
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-db");
@@ -1027,13 +1132,14 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   TAOS_CHECK_GOTO(mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetNewVgPrepareActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups, pNewUserDuped), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups, pNewUserDuped, auditOwnedDbs), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateDbUndoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
 _OVER:
   taosMemoryFree(pVgroups);
   mndUserFreeObj(&newUserObj);
+  taosArrayDestroyEx(auditOwnedDbs, (FDelete)mndUserFreeObj);
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }
@@ -1346,9 +1452,14 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     code = 0;
   }
 
-  if (pAlter->isAudit != pDb->cfg.isAudit) {
+  if (pAlter->isAudit > -1 && pAlter->isAudit != pDb->cfg.isAudit) {
     code = TSDB_CODE_OPS_NOT_SUPPORT;
     return code;
+  }
+
+  if(pAlter->allowDrop > -1 && pAlter->allowDrop != pDb->cfg.allowDrop) {
+    pDb->cfg.allowDrop = pAlter->allowDrop;
+    code = 0;
   }
 
   TAOS_RETURN(code);
@@ -1374,7 +1485,7 @@ static int32_t mndSetAlterDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *
   return 0;
 }
 
-static int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
+int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
   int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndDbActionEncode(pNew);
   if (pCommitRaw == NULL) {
@@ -1489,24 +1600,6 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (pDb->cfg.isAudit == 1) {
-    if (alterReq.daysToKeep2 < 2628000) {
-      code = TSDB_CODE_AUDIT_MUST_KEEPFORCE;
-      mError("db:%s, failed to alter, keep not match for audit db, %d", alterReq.db, alterReq.daysToKeep2);
-      TAOS_RETURN(code);
-    }
-    if (alterReq.walLevel != 2) {
-      code = TSDB_CODE_AUDIT_MUST_WALFORCE;
-      mError("db:%s, failed to alter, walLevel not match for audit db, %d", alterReq.db, alterReq.walLevel);
-      TAOS_RETURN(code);
-    }
-    if (alterReq.isAudit == 0) {
-      code = TSDB_CODE_AUDIT_DB_NOT_ALLOW_CHANGE;
-      mError("db:%s, failed to alter, is not allowed to change audit db, %d", alterReq.db, alterReq.isAudit);
-      TAOS_RETURN(code);
-    }
-  }
-
   TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_ALTER_DB, pDb), NULL, _OVER);
 
   if (alterReq.replications == 2) {
@@ -1532,6 +1625,24 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   if (dbObj.cfg.pRetensions != NULL) {
     dbObj.cfg.pRetensions = taosArrayDup(pDb->cfg.pRetensions, NULL);
     if (dbObj.cfg.pRetensions == NULL) goto _OVER;
+  }
+
+  if (pDb->cfg.isAudit == 1) {
+    if (alterReq.daysToKeep2 > -1 && alterReq.daysToKeep2 < 2628000) {
+      code = TSDB_CODE_AUDIT_MUST_KEEPFORCE;
+      mError("db:%s, failed to alter, keep not match for audit db, %d", alterReq.db, alterReq.daysToKeep2);
+      goto _OVER;
+    }
+    if (alterReq.walLevel > -1 && alterReq.walLevel != 2) {
+      code = TSDB_CODE_AUDIT_MUST_WALFORCE;
+      mError("db:%s, failed to alter, walLevel not match for audit db, %d", alterReq.db, alterReq.walLevel);
+      goto _OVER;
+    }
+    if (alterReq.isAudit == 0) {
+      code = TSDB_CODE_AUDIT_DB_NOT_ALLOW_CHANGE;
+      mError("db:%s, failed to alter, is not allowed to change audit db, %d", alterReq.db, alterReq.isAudit);
+      goto _OVER;
+    }
   }
 
   if (strlen(alterReq.encryptAlgrName) > 0) {
@@ -1668,7 +1779,13 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSDbCfgReq(pReq->pCont, pReq->contLen, &cfgReq), NULL, _OVER);
 
-  if (strcasecmp(cfgReq.db, TSDB_INFORMATION_SCHEMA_DB) && strcasecmp(cfgReq.db, TSDB_PERFORMANCE_SCHEMA_DB)) {
+  const char *pRealDb = strstr(cfgReq.db, ".");
+  if (pRealDb) {
+    ++pRealDb;
+  } else {
+    pRealDb = &cfgReq.db[0];
+  }
+  if (!IS_SYS_DBNAME(pRealDb)) {
     pDb = mndAcquireDb(pMnode, cfgReq.db);
     if (pDb == NULL) {
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -1931,7 +2048,7 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   TAOS_CHECK_GOTO(mndDropIdxsByDb(pMnode, pTrans, pDb), NULL, _OVER);
   //TAOS_CHECK_GOTO(mndStreamSetStopStreamTasksActions(pMnode, pTrans, pDb->uid), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetDropDbRedoActions(pMnode, pTrans, pDb), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndUserRemoveDb(pMnode, pTrans, pDb, NULL), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndPrincipalRemoveDb(pMnode, pTrans, pDb, NULL, NULL), NULL, _OVER);
 
   int32_t rspLen = 0;
   void   *pRsp = NULL;
@@ -1950,7 +2067,6 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   int32_t    code = -1;
   SDbObj    *pDb = NULL;
-  SUserObj  *pUser = NULL;
   SDropDbReq dropReq = {0};
   int64_t    tss = taosGetTimestampMs();
 
@@ -1969,18 +2085,16 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   }
 
   if ((code = mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_DB, pDb))) {
-    if ((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser))) {
-      goto _OVER;
-    }
-    char objFName[TSDB_PRIV_MAX_KEY_LEN] = {0};
-    (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
-    if ((code = mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_DROP, PRIV_OBJ_DB, 0, objFName, NULL))) {
-      goto _OVER;
-    }
+    goto _OVER;
   }
 
   if(pDb->cfg.isMount) {
     code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    goto _OVER;
+  }
+
+  if(!pDb->cfg.allowDrop) {
+    code = TSDB_CODE_MND_DB_DROP_NOT_ALLOWED;
     goto _OVER;
   }
 
@@ -2049,7 +2163,6 @@ _OVER:
     mError("db:%s, failed to drop since %s", dropReq.db, terrstr());
   }
 
-  mndReleaseUser(pMnode, pUser);
   mndReleaseDb(pMnode, pDb);
   tFreeSDropDbReq(&dropReq);
   TAOS_RETURN(code);
@@ -2156,7 +2269,6 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
   SDbObj   *pDb = NULL;
   SUseDbReq usedbReq = {0};
   SUseDbRsp usedbRsp = {0};
-  SUserObj *pOperUser = NULL;
 
   TAOS_CHECK_GOTO(tDeserializeSUseDbReq(pReq->pCont, pReq->contLen, &usedbReq), NULL, _OVER);
 
@@ -2187,8 +2299,7 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
       if (terrno != 0) code = terrno;
       goto _OVER;
     } else {
-      TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
-      TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, usedbReq.db, NULL), NULL, _OVER);
+      TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL, _OVER);
 
       TAOS_CHECK_GOTO(mndExtractDbInfo(pMnode, pDb, &usedbRsp, &usedbReq), NULL, _OVER);
 
@@ -2221,7 +2332,6 @@ _OVER:
   }
 
   mndReleaseDb(pMnode, pDb);
-  mndReleaseUser(pMnode, pOperUser);
   tFreeSUsedbRsp(&usedbRsp);
 
   TAOS_RETURN(code);
@@ -3191,6 +3301,11 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
       TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)durationVstr, false), &lino, _OVER);
     }
+
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
+      uint8_t allowDrop = pDb->cfg.allowDrop;
+      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&allowDrop, false), &lino, _OVER);
+    }
   }
 _OVER:
   if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
@@ -3239,7 +3354,8 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   bool sysinfo = pOperUser->sysInfo;
   char objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
-  bool showAnyDb = (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_DB, 0, objFName, NULL));
+  bool showAnyDb = (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), PRIV_CM_SHOW, PRIV_OBJ_DB, 0,
+                                                 objFName, NULL));
 
   // Append the information_schema database into the result.
   if (!pShow->sysDbRsp) {

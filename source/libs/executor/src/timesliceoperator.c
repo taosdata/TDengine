@@ -1585,17 +1585,17 @@ void destroyTimeSliceOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-int64_t getMinWindowSize(struct SOperatorInfo* pOperator) {
+STrueForInfo* getTrueForInfo(struct SOperatorInfo* pOperator) {
   if (pOperator == NULL) {
-    return 0;
+    return NULL;
   }
 
   switch (pOperator->operatorType) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
-      return ((SStateWindowOperatorInfo*)pOperator->info)->trueForLimit;
+      return &((SStateWindowOperatorInfo*)pOperator->info)->trueForInfo;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
-      return ((SEventWindowOperatorInfo*)pOperator->info)->trueForLimit;
+      return &((SEventWindowOperatorInfo*)pOperator->info)->trueForInfo;
     default:
-      return 0;
+      return NULL;
   }
 }

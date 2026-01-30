@@ -40,4 +40,4 @@ class TestJoinCond:
 
         self.check_join()
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+
