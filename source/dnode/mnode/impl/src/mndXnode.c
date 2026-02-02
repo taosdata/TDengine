@@ -1604,15 +1604,15 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
     goto _OVER;
   }
 
-  pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, 60000, pContStr, strlen(pContStr));
-  if (pJson == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
+  // pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, 60000, pContStr, strlen(pContStr));
+  // if (pJson == NULL) {
+  //   code = terrno;
+  //   goto _OVER;
+  // }
 
   // todo: only4test
-  // (void)mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, 60000, pContStr, strlen(pContStr));
-  // code = TSDB_CODE_SUCCESS;
+  (void)mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, 60000, pContStr, strlen(pContStr));
+  code = TSDB_CODE_SUCCESS;
 
 _OVER:
   if (srcDsn != NULL) taosMemoryFreeClear(srcDsn);

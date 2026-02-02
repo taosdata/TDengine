@@ -3899,7 +3899,7 @@ typedef struct {
   int32_t via;
   int32_t xnodeId;
   CowStr  status;
-  CowStr  config;
+  CowStr    config;
   CowStr  reason;
   int32_t sqlLen;
   char*   sql;
