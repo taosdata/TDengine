@@ -403,7 +403,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   if (pDb) {
     // already checked in parser, just check db use privilege here
     MND_TMQ_RETURN_CHECK(
-        mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->ownerId, pDb->name, NULL));
+        mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_TOPIC, pDb));
   }
 
   topicObj.createTime = taosGetTimestampMs();
@@ -685,7 +685,11 @@ static int32_t mndDropTopic(SMnode *pMnode, STrans *pTrans, SRpcMsg *pReq, SMqTo
   int32_t  lino = 0;
   SSdbRaw *pCommitRaw = NULL;
   PRINT_LOG_START
-  MND_TMQ_RETURN_CHECK(mndUserRemoveTopic(pMnode, pTrans, pTopic->name));
+  char topicFName[TSDB_TOPIC_FNAME_LEN + 1] = {0};                       // 1.topic
+  mndTopicGetShowName(pTopic->name, topicFName);
+  char topicDbFName[TSDB_DB_NAME_LEN + TSDB_TOPIC_FNAME_LEN + 1] = {0};  // 1.db.topic
+  (void)snprintf(topicDbFName, sizeof(topicDbFName), "%s.%s", pTopic->db, topicFName);
+  MND_TMQ_RETURN_CHECK(mndUserRemoveTopic(pMnode, pTrans, topicDbFName));
   pCommitRaw = mndTopicActionEncode(pTopic);
   MND_TMQ_NULL_CHECK(pCommitRaw);
   code = mndTransAppendCommitlog(pTrans, pCommitRaw);
@@ -808,7 +812,8 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   // MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_DROP_TOPIC, pTopic));
   // MND_TMQ_RETURN_CHECK(mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), MND_OPER_READ_DB, pTopic->db));
-  MND_TMQ_RETURN_CHECK(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pTopic->db, NULL));
+  MND_TMQ_RETURN_CHECK(
+      mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pTopic->db));
   MND_TMQ_RETURN_CHECK(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_TOPIC, pTopic->ownerId,
                                                 pTopic->db, mndGetDbStr(pTopic->name)));
   MND_TMQ_RETURN_CHECK(mndCheckConsumerByTopic(pMnode, pTrans, dropReq.name, dropReq.force));
@@ -1029,8 +1034,9 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
   int32_t objLevel = privObjGetLevel(PRIV_OBJ_TOPIC);
-  showAll = (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TOPIC, 0, objFName,
-                                          objLevel == 0 ? NULL : "*"));  // 1.*.*
+  showAll =
+      (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), PRIV_CM_SHOW, PRIV_OBJ_TOPIC, 0, objFName,
+                                    objLevel == 0 ? NULL : "*"));  // 1.*.*
 
   PRINT_LOG_START
 

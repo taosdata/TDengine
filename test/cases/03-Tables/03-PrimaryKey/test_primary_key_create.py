@@ -237,5 +237,5 @@ class TestCompositePrimaryKeyCreate:
         self.check_update_pk('s_table', TableType.SUPERTABLE)
         self.check_update_pk('n_table', TableType.NORNALTABLE)
         
-        tdLog.success(f"{__file__} successfully executed")
+
         

@@ -73,4 +73,4 @@ class TestSlowQueryBasic:
         self.checkSlowQuery()
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+

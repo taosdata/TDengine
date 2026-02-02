@@ -481,5 +481,5 @@ class TestTaosShell:
         self.taos_thread_repeat_k(self.run_command, commands, 100, output)
         # os.system("python 0-others/repeat_taos_k.py")
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

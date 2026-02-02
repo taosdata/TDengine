@@ -140,4 +140,4 @@ class TestTableComment:
         self.comment_check_case(self.table_type_list,self.comment_flag_list)
         
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+

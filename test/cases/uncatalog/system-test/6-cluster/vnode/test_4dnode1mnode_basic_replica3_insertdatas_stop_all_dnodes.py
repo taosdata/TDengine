@@ -396,5 +396,5 @@ class Test4dnode1mnodeBasicReplica3InsertdatasStopAllDnodes:
         
 
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

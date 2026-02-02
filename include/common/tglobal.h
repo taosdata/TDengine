@@ -58,7 +58,6 @@ extern char          tsLocalEp[];
 extern char          tsVersionName[];
 extern uint16_t      tsServerPort;
 extern int32_t       tsVersion;
-extern int32_t       tsForceReadConfig;
 extern int32_t       tsdmConfigVersion;
 extern int32_t       tsConfigInited;
 extern int32_t        tsEncryptKeysStatus;
@@ -220,6 +219,8 @@ extern int32_t  tsEncryptKeyVersion;       // Key update version (starts from 1,
 extern int64_t  tsEncryptKeyCreateTime;    // Key creation timestamp
 extern int64_t  tsSvrKeyUpdateTime;        // SVR_KEY last update timestamp
 extern int64_t  tsDbKeyUpdateTime;         // DB_KEY last update timestamp
+extern int32_t  tsKeyExpirationDays;       // Key expiration days (default: 30)
+extern char     tsKeyExpirationStrategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1];  // Key expiration strategy (default: "ALARM")
 
 // monitor
 extern bool     tsEnableMonitor;

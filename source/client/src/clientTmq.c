@@ -21,6 +21,7 @@
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
+#include "tmsg.h"
 #include "tqueue.h"
 #include "tref.h"
 #include "ttimer.h"
@@ -1868,7 +1869,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   }
 
   if (conf->token != NULL) {
-    code = taos_connect_by_auth(conf->ip, NULL, conf->token, NULL, NULL, conf->port, CONN_TYPE__TMQ, &pTmq->pTscObj);
+    code = taos_connect_by_auth(conf->ip, NULL, conf->token, NULL, NULL, conf->port, CONN_TYPE__QUERY, &pTmq->pTscObj);
     if (code) {
       terrno = code;
       tqErrorC("consumer:0x%" PRIx64 " setup tscObj failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
@@ -1877,7 +1878,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
     }
   } else {
     // init connection
-    code = taos_connect_internal(conf->ip, user, pass, NULL, NULL, conf->port, CONN_TYPE__TMQ, &pTmq->pTscObj);
+    code = taos_connect_internal(conf->ip, user, pass, NULL, NULL, conf->port, CONN_TYPE__QUERY, &pTmq->pTscObj);
     if (code) {
       terrno = code;
       tqErrorC("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
@@ -3749,7 +3750,8 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
 
   int32_t msgSize = tSerializeSMqSeekReq(NULL, 0, &req);
   if (msgSize < 0) {
-    return TSDB_CODE_PAR_INTERNAL_ERROR;
+    tqErrorC("%s get invalid msg at line %d", __func__, __LINE__);
+    return TSDB_CODE_TMQ_INVALID_MSG;
   }
 
   char* msg = taosMemoryCalloc(1, msgSize);
@@ -3758,8 +3760,9 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   }
 
   if (tSerializeSMqSeekReq(msg, msgSize, &req) < 0) {
+    tqErrorC("%s serialize seek req failed at line %d", __func__, __LINE__);
     taosMemoryFree(msg);
-    return TSDB_CODE_PAR_INTERNAL_ERROR;
+    return TSDB_CODE_TMQ_INVALID_MSG;
   }
 
   SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));

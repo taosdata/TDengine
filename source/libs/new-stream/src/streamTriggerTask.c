@@ -2124,7 +2124,9 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
       pTask->stateExtend = pState->extend;
       code = nodesStringToNode(pState->zeroth, &pTask->pStateZeroth);
       QUERY_CHECK_CODE(code, lino, _end);
-      pTask->stateTrueFor = pState->trueForDuration;
+      pTask->stateTrueForInfo.trueForType = pState->trueForType;
+      pTask->stateTrueForInfo.count = pState->trueForCount;
+      pTask->stateTrueForInfo.duration = pState->trueForDuration;
       code = nodesStringToNode(pState->expr, &pTask->pStateExpr);
       QUERY_CHECK_CODE(code, lino, _end);
       if (pTask->pStateExpr != NULL && nodeType(pTask->pStateExpr) != QUERY_NODE_COLUMN) {
@@ -2139,7 +2141,9 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
       QUERY_CHECK_CODE(code, lino, _end);
       code = nodesStringToNode(pEvent->endCond, &pTask->pEndCond);
       QUERY_CHECK_CODE(code, lino, _end);
-      pTask->eventTrueFor = pEvent->trueForDuration;
+      pTask->eventTrueForInfo.trueForType = pEvent->trueForType;
+      pTask->eventTrueForInfo.count = pEvent->trueForCount;
+      pTask->eventTrueForInfo.duration = pEvent->trueForDuration;
       code = nodesCollectColumnsFromNode(pTask->pStartCond, NULL, COLLECT_COL_TYPE_ALL, &pTask->pStartCondCols);
       QUERY_CHECK_CODE(code, lino, _end);
       if (nodeType(pTask->pStartCond) == QUERY_NODE_NODE_LIST) {
@@ -8821,17 +8825,18 @@ static int32_t stRealtimeGroupMergeWindows(SSTriggerRealtimeGroup *pGroup) {
       code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
   // add pending open window for TRUE FOR condition
-  int64_t trueFor = 0;
+  STrueForInfo *pTrueForInfo = NULL;
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
-    trueFor = pTask->stateTrueFor;
+    pTrueForInfo = &pTask->stateTrueForInfo;
   } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-    trueFor = pTask->eventTrueFor;
+    pTrueForInfo = &pTask->eventTrueForInfo;
   }
-  if ((trueFor > 0) && (pGroup->windows.neles > 0)) {
+  if (pTrueForInfo && (pTrueForInfo->duration > 0 || pTrueForInfo->count > 0) && (pGroup->windows.neles > 0)) {
     pWin = taosArrayGetLast(pContext->pWindows);
     QUERY_CHECK_NULL(pWin, code, lino, _end, terrno);
     if ((pWin->range.ekey & TRIGGER_GROUP_UNCLOSED_WINDOW_MASK) &&
-        (pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK)) - pWin->range.skey < trueFor) {
+        !isTrueForSatisfied(pTrueForInfo, pWin->range.skey, pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK),
+                            pWin->wrownum)) {
       pGroup->pendingWinOpen = true;
       pGroup->pPendWinOpenNotify = pWin->pWinOpenNotify;
       pWin->pWinOpenNotify = NULL;
@@ -8938,19 +8943,20 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
   }
   int64_t numClosed = numWin - numUnclosed;
 
-  int64_t initPendingSize = pGroup->pPendingCalcParams.neles + pGroup->pPendingParWinCalcParams.neles;
-  int64_t trueFor = 0;
+  int64_t       initPendingSize = pGroup->pPendingCalcParams.neles + pGroup->pPendingParWinCalcParams.neles;
+  STrueForInfo *pTrueForInfo = NULL;
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
-    trueFor = pTask->stateTrueFor;
+    pTrueForInfo = &pTask->stateTrueForInfo;
   } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-    trueFor = pTask->eventTrueFor;
+    pTrueForInfo = &pTask->eventTrueForInfo;
   }
   // trigger all window open/close events
   for (int32_t i = 0; i < TARRAY_SIZE(pContext->pWindows); i++) {
     SSTriggerNotifyWindow *pWin = TARRAY_GET_ELEM(pContext->pWindows, i);
     // check TRUE FOR condition
-    bool meetTrueFor =
-        (trueFor == 0) || ((pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK)) - pWin->range.skey >= trueFor);
+    bool meetTrueFor = (pTrueForInfo == NULL) || (pTrueForInfo->duration == 0 && pTrueForInfo->count == 0) ||
+                       isTrueForSatisfied(pTrueForInfo, pWin->range.skey,
+                                          pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK), pWin->wrownum);
     bool ignore = (i < nInitWins) || !meetTrueFor;
     if ((calcOpen || notifyOpen) && !ignore && !pContext->recovering) {
       SSTriggerCalcParam    param = {.triggerTime = now,
@@ -8996,8 +9002,9 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
   for (int32_t i = 0; i < TARRAY_SIZE(pContext->pParentWindows); i++) {
     SSTriggerNotifyWindow *pWin = TARRAY_GET_ELEM(pContext->pParentWindows, i);
     // check TRUE FOR condition
-    bool meetTrueFor =
-        (trueFor == 0) || ((pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK)) - pWin->range.skey >= trueFor);
+    bool meetTrueFor = (pTrueForInfo == NULL) || (pTrueForInfo->duration == 0 && pTrueForInfo->count == 0) ||
+                       isTrueForSatisfied(pTrueForInfo, pWin->range.skey,
+                                          pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK), pWin->wrownum);
     bool ignore = (pWin->range.skey <= pGroup->prevParentWinStart) || !meetTrueFor;
     if ((calcOpen || notifyOpen) && !ignore && !pContext->recovering) {
       SSTriggerCalcParam    param = {.triggerTime = now,
@@ -9045,8 +9052,9 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
   if (pTask->triggerType == STREAM_TRIGGER_EVENT && pGroup->numSubWindows > 0) {
     SSTriggerNotifyWindow *pWin = &pGroup->parentWindow;
     // check TRUE FOR condition
-    bool meetTrueFor =
-        (trueFor == 0) || ((pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK)) - pWin->range.skey >= trueFor);
+    bool meetTrueFor = (pTrueForInfo == NULL) || (pTrueForInfo->duration == 0 && pTrueForInfo->count == 0) ||
+                       isTrueForSatisfied(pTrueForInfo, pWin->range.skey,
+                                          pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK), pWin->wrownum);
     bool ignore = (pWin->range.skey <= pGroup->prevParentWinStart) || !meetTrueFor;
     if ((calcOpen || notifyOpen) && !ignore && !pContext->recovering) {
       SSTriggerCalcParam    param = {.triggerTime = now,
@@ -9729,16 +9737,16 @@ static int32_t stHistoryGroupOpenWindow(SSTriggerHistoryGroup *pGroup, int64_t t
   code = TRINGBUF_APPEND(&pGroup->winBuf, newWindow);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  int64_t trueFor = 0;
+  STrueForInfo *pTrueForInfo = NULL;
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
-    trueFor = pTask->stateTrueFor;
+    pTrueForInfo = &pTask->stateTrueForInfo;
   } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-    trueFor = pTask->eventTrueFor;
+    pTrueForInfo = &pTask->eventTrueForInfo;
   }
 
   if (saveWindow) {
     // only save window when close window
-  } else if (trueFor > 0) {
+  } else if (pTrueForInfo && (pTrueForInfo->duration > 0 || pTrueForInfo->count > 0)) {
     pGroup->pendingWinOpen = true;
     pGroup->pendingWinParam = param;
     param.extraNotifyContent = NULL;
@@ -9856,16 +9864,14 @@ static int32_t stHistoryGroupCloseWindow(SSTriggerHistoryGroup *pGroup, char **p
     pHead->wrownum = pCurWindow->wrownum - bias;
   }
 
-  bool    ignore = false;
-  int64_t trueFor = 0;
+  STrueForInfo *pTrueForInfo = NULL;
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
-    trueFor = pTask->stateTrueFor;
+    pTrueForInfo = &pTask->stateTrueForInfo;
   } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-    trueFor = pTask->eventTrueFor;
+    pTrueForInfo = &pTask->eventTrueForInfo;
   }
-  if (trueFor > 0) {
-    ignore = pCurWindow->range.ekey - pCurWindow->range.skey < trueFor;
-  }
+  bool ignore = (pTrueForInfo != NULL) && (pTrueForInfo->duration > 0 || pTrueForInfo->count > 0) &&
+                !isTrueForSatisfied(pTrueForInfo, pCurWindow->range.skey, pCurWindow->range.ekey, pCurWindow->wrownum);
 
   if (pGroup->pendingWinOpen) {
     bool calcOpen = (pTask->calcEventType & STRIGGER_EVENT_WINDOW_OPEN);

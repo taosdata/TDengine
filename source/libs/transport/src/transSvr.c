@@ -1611,11 +1611,25 @@ void uvGetSockInfo(struct sockaddr* addr, SIpAddr* ip) {
   } else if (addr->sa_family == AF_INET6) {
     struct sockaddr_in6* addr_in = (struct sockaddr_in6*)addr;
     ip->port = ntohs(addr_in->sin6_port);
-    if (inet_ntop(AF_INET6, &addr_in->sin6_addr, ip->ipv6, INET6_ADDRSTRLEN) == NULL) {
-      uInfo("failed to convert ipv6 address");
+
+    // Check for IPv4-mapped IPv6 address (::ffff:x.x.x.x)
+    if (IN6_IS_ADDR_V4MAPPED(&addr_in->sin6_addr)) {
+      // Convert IPv4-mapped IPv6 address to IPv4
+      struct in_addr ipv4_addr;
+      memcpy(&ipv4_addr, ((const uint8_t*)&addr_in->sin6_addr) + 12, sizeof(ipv4_addr));
+      if (inet_ntop(AF_INET, &ipv4_addr, ip->ipv4, INET_ADDRSTRLEN) == NULL) {
+        uInfo("failed to convert ipv4-mapped ipv6 address to ipv4");
+      }
+      ip->type = 0;
+      ip->mask = 32;
+    } else {
+      // Pure IPv6 address
+      if (inet_ntop(AF_INET6, &addr_in->sin6_addr, ip->ipv6, INET6_ADDRSTRLEN) == NULL) {
+        uInfo("failed to convert ipv6 address");
+      }
+      ip->type = 1;
+      ip->mask = 128;
     }
-    ip->type = 1;
-    ip->mask = 128;
   }
 }
 void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
@@ -1858,12 +1872,35 @@ static int32_t addHandleToAcceptloop(void* arg) {
       tError("failed to bind addr since %s", uv_err_name(code));
       return TSDB_CODE_THIRDPARTY_ERROR;
     }
-
-    if ((code = uv_tcp_bind(&srv->server, (const struct sockaddr*)&bind_addr, 1)) != 0) {
+    if ((code = uv_tcp_bind(&srv->server, (const struct sockaddr*)&bind_addr, 0)) != 0) {
       tError("failed to bind since %s", uv_err_name(code));
       return TSDB_CODE_THIRDPARTY_ERROR;
     }
-    tInfo("bind to ipv6 addr");
+    // set IPV6_V6ONLY to 0 to allow both IPv4 and IPv6 connections
+    #if !defined(WINDOWS)
+      uv_os_fd_t fd;
+      if ((code = uv_fileno((const uv_handle_t*)&srv->server, &fd)) == 0) {
+        int opt = 0;
+        if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt)) < 0) {
+        tWarn("failed to set IPV6_V6ONLY=0: %s, continue with default setting", strerror(errno));
+        } else {
+        tInfo("successfully set IPV6_V6ONLY=0 (dual-stack enabled)");
+        }
+      }
+    #else
+      /* Windows: optional, only if you really need to change IPV6_V6ONLY.
+         uv_os_fd_t is a SOCKET on Windows; use BOOL (or char) and WSA error helpers.
+         Ensure Winsock is started (WSAStartup) elsewhere if required. */
+      uv_os_fd_t s;
+      if ((code = uv_fileno((const uv_handle_t*)&srv->server, &s)) == 0) {
+        BOOL opt = FALSE;
+        if (setsockopt((SOCKET)s, IPPROTO_IPV6, IPV6_V6ONLY, (const char*)&opt, sizeof(opt)) == SOCKET_ERROR) {
+        tWarn("failed to set IPV6_V6ONLY=0 on Windows: %d, continue with default setting", WSAGetLastError());
+        } else {
+        tInfo("successfully set IPV6_V6ONLY=0 on Windows (dual-stack enabled)");
+        }
+      }
+    #endif
   } else {
     struct sockaddr_in bind_addr;
     if ((code = uv_ip4_addr("0.0.0.0", srv->port, &bind_addr)) != 0) {

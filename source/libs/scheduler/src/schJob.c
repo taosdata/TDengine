@@ -815,7 +815,24 @@ void schDropJobAllTasks(SSchJob *pJob) {
 }
 
 int32_t schNotifyJobAllTasks(SSchJob *pJob, SSchTask *pTask, ETaskNotifyType type) {
-  SCH_RET(schNotifyTaskInHashList(pJob, pJob->execTasks, type, pTask));
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  SCH_ERR_RET(schNotifyTaskInHashList(pJob, pJob->execTasks, type, pTask));
+
+  if (!SCH_JOB_GOT_SUB_JOBS(pJob)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  for (int32_t i = 0; i < pJob->subJobs->size; ++i) {
+    SSchJob* pSub = taosArrayGetP(pJob->subJobs, i);
+    if (NULL == pSub) {
+      continue;
+    }
+
+    SCH_ERR_RET(schNotifyTaskInHashList(pSub, pSub->execTasks, type, NULL));
+  }  
+
+  return code;
 }
 
 void schFreeJobImpl(void *job) {

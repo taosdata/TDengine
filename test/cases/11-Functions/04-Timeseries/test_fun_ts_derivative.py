@@ -250,4 +250,4 @@ class TestFunDerivative:
         
         self.checkRowsTest()
 
-        tdLog.success("%s successfully executed" % __file__)
+
