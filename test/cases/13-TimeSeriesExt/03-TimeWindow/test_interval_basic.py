@@ -2332,8 +2332,8 @@ class TestInterval:
             stream="""create stream s0 state_window(c1) from triggertb into
             res0 as select _twstart, _twend, _wstart, _wend, first(c1), max(c1),
             count(*) from ntb where ts >= _twstart and ts < _twend
-            interval(24h, auto) fill(prev) surround(1d, 100, 100, 0)""",
-            # check_func=self.check_s0,
+            interval(1d) fill(prev) surround(1d, 100, 100, 0)""",
+            check_func=self.check_s0,
         )
         streams.append(stream)
 
@@ -2389,30 +2389,30 @@ class TestInterval:
             sql="select * from res0",
             func=lambda: tdSql.getRows() == 4
             and tdSql.compareData(0, 0, "2026-01-01 00:00:00.000")
-            and tdSql.compareData(0, 1, "2026-01-02 23:59:59.999")
-            and tdSql.compareData(0, 2, "2026-01-02 00:00:00.000")
-            and tdSql.compareData(0, 3, "2026-01-03 00:00:00.000")
+            and tdSql.compareData(0, 1, "2026-01-02 00:00:00.000")
+            and tdSql.compareData(0, 2, "2026-01-01 00:00:00.000")
+            and tdSql.compareData(0, 3, "2026-01-02 00:00:00.000")
             and tdSql.compareData(0, 4, 1)
             and tdSql.compareData(0, 5, 1)
             and tdSql.compareData(0, 6, 2)
             and tdSql.compareData(1, 0, "2026-01-03 00:00:00.000")
-            and tdSql.compareData(1, 1, "2026-01-06 23:59:59.999")
-            and tdSql.compareData(1, 2, "2026-01-06 00:00:00.000")
-            and tdSql.compareData(1, 3, "2026-01-07 00:00:00.000")
-            and tdSql.compareData(1, 4, 2)
-            and tdSql.compareData(1, 5, 2)
+            and tdSql.compareData(1, 1, "2026-01-04 00:00:00.000")
+            and tdSql.compareData(1, 2, "2026-01-03 00:00:00.000")
+            and tdSql.compareData(1, 3, "2026-01-04 00:00:00.000")
+            and tdSql.compareData(1, 4, 100)
+            and tdSql.compareData(1, 5, 100)
             and tdSql.compareData(1, 6, 2)
             and tdSql.compareData(2, 0, "2026-01-07 00:00:00.000")
-            and tdSql.compareData(2, 1, "2026-01-08 23:59:59.999")
-            and tdSql.compareData(2, 2, "2026-01-08 00:00:00.000")
-            and tdSql.compareData(2, 3, "2026-01-09 00:00:00.000")
+            and tdSql.compareData(2, 1, "2026-01-08 00:00:00.000")
+            and tdSql.compareData(2, 2, "2026-01-07 00:00:00.000")
+            and tdSql.compareData(2, 3, "2026-01-08 00:00:00.000")
             and tdSql.compareData(2, 4, 100)
             and tdSql.compareData(2, 5, 100)
             and tdSql.compareData(2, 6, 2)
             and tdSql.compareData(3, 0, "2026-01-09 00:00:00.000")
-            and tdSql.compareData(3, 1, "2026-01-10 23:59:59.999")
-            and tdSql.compareData(3, 2, "2026-01-10 00:00:00.000")
-            and tdSql.compareData(3, 3, "2026-01-11 00:00:00.000")
+            and tdSql.compareData(3, 1, "2026-01-10 00:00:00.000")
+            and tdSql.compareData(3, 2, "2026-01-09 00:00:00.000")
+            and tdSql.compareData(3, 3, "2026-01-10 00:00:00.000")
             and tdSql.compareData(3, 4, 3)
             and tdSql.compareData(3, 5, 3)
             and tdSql.compareData(3, 6, 2)
