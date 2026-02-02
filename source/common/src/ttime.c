@@ -877,8 +877,9 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 // used together with taosTimeTruncate. when offset is great than zero, slide-start/slide-end is the anchor point
 int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval) {
   int32_t precision = pInterval->precision;
-  if (pInterval->offsetUnit == TIME_UNIT_MONTH || pInterval->offsetUnit == TIME_UNIT_YEAR ||
-      pInterval->intervalUnit == TIME_UNIT_MONTH || pInterval->intervalUnit == TIME_UNIT_YEAR) {
+  if (pInterval->offset != 0 &&
+      (pInterval->offsetUnit == TIME_UNIT_MONTH || pInterval->offsetUnit == TIME_UNIT_YEAR ||
+       pInterval->intervalUnit == TIME_UNIT_MONTH || pInterval->intervalUnit == TIME_UNIT_YEAR)) {
     // for month/year unit, need to consider the date shifting problem
     int64_t tmp = taosTimeAdd(intervalStart, -pInterval->offset, pInterval->offsetUnit, precision, pInterval->timezone);
     tmp = taosTimeAdd(tmp, pInterval->interval, pInterval->intervalUnit, pInterval->precision, pInterval->timezone) - 1;
