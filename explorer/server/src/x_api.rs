@@ -3,6 +3,7 @@ use anyhow::{Context, bail};
 use arrow::array::RecordBatch;
 use arrow_flight::error::FlightError;
 use ha_rpc_client::client::HaRpcClient;
+use http::StatusCode;
 use taos::{Code, Dsn};
 use tokio_util::sync::CancellationToken;
 use tonic::transport::{Channel, Endpoint};
@@ -43,6 +44,7 @@ impl Fail {
 
 type Result<T> = std::result::Result<T, Error>;
 type JsonResult<T> = std::result::Result<Json<T>, Error>;
+type JsonStatusResult<T> = std::result::Result<(Json<T>, StatusCode), Error>;
 type FlightResult = std::result::Result<RecordBatch, FlightError>;
 
 #[derive(Debug)]

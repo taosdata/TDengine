@@ -12,6 +12,7 @@ use ha_core::{
     consts::{TASK_ACTIVITIES_STABLE, TASK_METRICS_STABLE},
     types::{HaTask, MetricsType},
 };
+use http::StatusCode;
 use taos::Dsn;
 use taosx_core::core_metrics::{CoreMetrics, get_task_metrics_string};
 use taosx_utils::sql::sql_value_escaped_fmt;
@@ -22,7 +23,7 @@ use super::{get_dsn, types::*};
 use crate::{
     Args,
     sql::{exec, query, query_one},
-    x_api::{JsonResult, Result},
+    x_api::{JsonResult, JsonStatusResult, Result},
 };
 
 pub async fn get_tasks(args: web::Data<Args>, req: HttpRequest) -> JsonResult<Vec<GetTaskResult>> {
@@ -56,8 +57,11 @@ pub async fn create_task(
     args: web::Data<Args>,
     Json(task): Json<Task>,
     req: HttpRequest,
-) -> JsonResult<GetTaskResult> {
-    Ok(Json(create_task_inner(&args, &req, task, true).await?))
+) -> JsonStatusResult<GetTaskResult> {
+    Ok((
+        Json(create_task_inner(&args, &req, task, true).await?),
+        StatusCode::CREATED,
+    ))
 }
 
 #[instrument(skip_all)]
