@@ -2,19 +2,23 @@ import PkgList from "/src/components/PkgList";
 
 1. Download the client installation package
 
-   <PkgList productName="TDengine TSDB-OSS Client" platform="Linux-Generic" />
+   <PkgList productName="TDengine TSDB-Enterprise Client" platform="Linux-Generic" />
 
 2. Unzip the software package
 
-   Place the package in any directory where the current user has read and write access, then execute the following command: `tar -xzvf tdengine-tsdb-oss-client-3.3.8.8-linux-x64.tar.gz`
-   Replace VERSION with the actual version string.
+   Place the package in any directory where the current user has read and write access, then execute the following command:
+   
+   ```shell tsdb-ee-client
+   tar -xzvf tdengine-tsdb-enterprise-client-{{VERSION}}-linux-x64.tar.gz
+   ```
+
 3. Run the installation script
 
    After unzipping the package, you will see the following files (directories) in the unzipped directory:
    - _install_client.sh_: Installation script, used for applying the driver
    - _package.tar.gz_: Application driver installation package
    - _driver_: TDengine application driver
-   - _examples_: Sample programs for various programming languages (c/C#/go/JDBC/MATLAB/python/R)
+   - _examples_: Sample programs for various programming languages
    Run install_client.sh to install.
 4. Configure taos.cfg
 

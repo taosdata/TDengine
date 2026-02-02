@@ -5,7 +5,7 @@ sidebar_label: Installation
 
 import PkgList from "/src/components/PkgList";
 
-This section describes how to use TDgpt in Docker
+This section describes how to use TDgpt in Docker.
 
 ## Get Started with Docker
 
@@ -30,8 +30,8 @@ docker pull tdengine/tdgpt:latest
 
 You can specify a version if desired:
 
-```shell
-docker pull tdengine/tdgpt:3.3.8.0
+```shell tdgpt
+docker pull tdengine/tdgpt:{{VERSION}}
 ```
 
 Start the container:
@@ -40,7 +40,7 @@ Start the container:
 docker run -d \
   -p 6035:6035 \
   -p 6036:6036 \
-  tdengine/tdgpt:3.3.8.0
+  tdengine/tdgpt:latest
 ```
 
 :::note
@@ -59,14 +59,14 @@ docker pull tdengine/tdgpt-full:latest
 
 You can specify a version if desired:
 
-```shell
-docker pull tdengine/tdgpt-full:3.3.8.0
+```shell tdgpt
+docker pull tdengine/tdgpt-full:{{VERSION}}
 ```
 
 Start the container:
 
 ```shell
-docker run -d -p 6035:6035 -p 6036:6036 -p 6037:6037 tdengine/tdgpt-full:3.3.8.0
+docker run -d -p 6035:6035 -p 6036:6036 -p 6037:6037 tdengine/tdgpt-full:latest
 ```
 
 Note: TDgpt runs on TCP port 6035. The standard image also uses port 6036, and the full image uses port 6037.
@@ -82,7 +82,7 @@ docker ps
 Enter the container and run the bash shell:
 
 ```shell
-docker exec -it <container name> bash
+docker exec -it <container-name> bash
 ```
 
 You can now run Linux commands and access TDengine.
@@ -95,10 +95,10 @@ You can try TDgpt with a free TDengine Cloud account. In TDengine Cloud, open **
 
 ### Preparing Your Environment
 
-To use the analytics capabilities offered by TDgpt, you deploy an AI node (anode) in your TDengine cluster. You must deploy the anode on a Linux machine. The environment must meet the following requirements:
+To use the analytics capabilities offered by TDgpt, you deploy an AI node (anode) in your TDengine TSDB cluster. You must deploy the anode on a Linux machine. The environment must meet the following requirements:
 
 - Python: 3.10 or 3.11. 3.12 is not supported for now due to library conflict.
-- TDengine: 3.3.6.0 or later
+- TDengine TSDB: 3.3.6.0 or later
 - C compiler: Because uWSGI is compiled during the TDgpt installation process, your environment must contain a C compiler.
 
 You can run the following commands to install Python 3.10 in Ubuntu.. If you already have a supported version of Python installed, skip this section.
@@ -147,19 +147,16 @@ sudo apt install build-essential
   
 2. Open the directory containing the downloaded package and decompress it.
 
-Note: Replace `<version>` with the version that you downloaded.
-
-```bash
-tar -zxvf TDengine-TDgpt-<version>-Linux-x64.tar.gz
-```
+   ```bash tdgpt
+   tar -zxvf TDengine-TDgpt-{{VERSION}}-Linux-x64.tar.gz
+   ```
 
 ### Run the Installation Script
 
 Decompress the file, open the directory created, and run the `install.sh` script:
-Note: Replace `<version` with the version that you downloaded.
 
-```bash
-cd TDengine-TDgpt-<version>
+```bash tdgpt
+cd TDengine-TDgpt-{{VERSION}}
 ./install.sh
 ```
 
