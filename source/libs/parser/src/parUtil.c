@@ -276,6 +276,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "trigger table not specified in create stream clause";
     case TSDB_CODE_STREAM_INVALID_PRE_FILTER:
       return "Invalid pre-filter in create stream clause";
+    case TSDB_CODE_PAR_INVALID_TRUE_FOR_COUNT:
+      return "TRUE_FOR COUNT must be a non-negative integer not exceeding INT32_MAX";
     case TSDB_CODE_STREAM_INVALID_PARTITION:
       return "Invalid partition in create stream clause";
     case TSDB_CODE_STREAM_INVALID_SUBTABLE:
@@ -302,6 +304,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Option:%s value too small, should be %d or greater";
     case TSDB_CODE_PAR_ORDERBY_INVALID_EXPR:
       return "Aggregate functions cannot be used for sorting in non-aggregate queries";
+    case TSDB_CODE_PAR_COL_PERMISSION_DENIED:
+      return "Permission denied for column: %s";
     default:
       return "Unknown error";
   }
@@ -1256,6 +1260,7 @@ int32_t buildTableMetaFromViewMeta(STableMeta** pMeta, SViewMeta* pViewMeta) {
     return terrno;
   }
   (*pMeta)->uid = pViewMeta->viewId;
+  (*pMeta)->ownerId = pViewMeta->ownerId;
   (*pMeta)->vgId = MNODE_HANDLE;
   (*pMeta)->tableType = TSDB_VIEW_TABLE;
   (*pMeta)->sversion = pViewMeta->version;

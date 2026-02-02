@@ -462,7 +462,7 @@ class TestStreamNotifySinglePass():
         self.wait_all_streams_done()
         self.check_notify_result()
         self.drop_all_streams()
-        tdLog.info(f"TestStreamNotifySinglePass({self.num_addr_per_stream}, {self.trigger_mode}, {self.notify_event}, {self.disorder}) successfully executed")
+
 
 class TestStreamNotify:
     def init(self, conn, logSql, replicaVar=1):
@@ -554,6 +554,6 @@ class TestStreamNotify:
         # TestStreamNotifySinglePass(num_addr_per_stream=3, trigger_mode="WINDOW_CLOSE", notify_event="'window_open'", disorder=False).run()
         # TestStreamNotifySinglePass(num_addr_per_stream=3, trigger_mode="FORCE_WINDOW_CLOSE", notify_event="'window_open'", disorder=False).run()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 

@@ -55,9 +55,9 @@ join_clause:
 
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_duration)]
+  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
-  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
 }
 
@@ -81,6 +81,13 @@ order_by_clasue:
 
 order_expr:
     {expr | position | c_alias} [DESC | ASC] [NULLS FIRST | NULLS LAST]
+
+true_for_expr: {
+    duration_time
+  | COUNT count_val
+  | duration_time AND COUNT count_val
+  | duration_time OR COUNT count_val
+}
 ```
 
 ### Partial Field Description
@@ -99,10 +106,22 @@ order_expr:
   - FILL: Types can be selected as NONE (unfilled), VALUE (filled with specified value), PREV (previous valid value), NEXT (next valid value), NEAR (nearest valid value before and after), LINEAR (linear interpolation). Note: whether a NULL value is considered valid data depends on the ignore_null_values ​​parameter of the interp function.
 - window_cause: Specifies data to be split and aggregated according to the window, it is a distinctive query of time-series databases. For detailed information, please refer to the distinctive query chapter [TDengine Distinctive Queries](../time-series-extensions/).
   - SESSION: Session window, ts_col specifies the timestamp primary key column, tol_val specifies the time interval, positive value, and time precision can be selected from 1n, 1u, 1a, 1s, 1m, 1h, 1d, 1w, such as SESSION (ts, 12s).
-  - STATE_WINDOW: State window, col specifies the state column. Extend specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively. The zeroth state refers to the "zero state". Windows with this state in the state column will not be calculated or output, and the input must be an integer, boolean, or string constant. TRUE_FOR specifies the minimum duration of the window, with a positive time range and precision options of 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as TRUE_FOR (1a).
+  - STATE_WINDOW: State window, col specifies the state column. Extend specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively. The zeroth state refers to the "zero state". Windows with this state in the state column will not be calculated or output, and the input must be an integer, boolean, or string constant. TRUE_FOR specifies the filtering condition for windows. Supports the following four modes:
+    - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
+    - `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
+    - `TRUE_FOR(duration_time AND COUNT n)`: Both duration and row count conditions must be satisfied.
+    - `TRUE_FOR(duration_time OR COUNT n)`: Either duration or row count condition must be satisfied.
+
+    Where `duration_time` is a positive time value with supported units: 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). Examples: `TRUE_FOR(1a)`, `TRUE_FOR(COUNT 100)`, `TRUE_FOR(10m AND COUNT 50)`, `TRUE_FOR(5m OR COUNT 20)`.
   - INTERVAL: Time window, interval_val specifies the window size, sliding_val specifies the window sliding time, sliding_val time is limited to the interval_val range, interval_val and sliding_val time ranges are positive values, and precision can be selected from 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as interval_val (2d) and SLIDING (1d).
   - FILL: types can be selected as NONE, VALUE, PREV, NEXT, NEAR.
-  - EVENT_WINDOW: The event window uses start_trigger_dedition and end_trigger_dedition to specify start and end conditions, supports any expression, and can specify different columns. Such as ```start with voltage>220 end with voltage<=220```.
+  - EVENT_WINDOW: The event window uses start_trigger_condition and end_trigger_condition to specify start and end conditions, supports any expression, and can specify different columns. TRUE_FOR specifies the filtering condition for windows. Supports the following four modes:
+    - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
+    - `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
+    - `TRUE_FOR(duration_time AND COUNT n)`: Both duration and row count conditions must be satisfied.
+    - `TRUE_FOR(duration_time OR COUNT n)`: Either duration or row count condition must be satisfied.
+
+    Where `duration_time` is a positive time value with supported units: 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). Examples: `TRUE_FOR(10m)`, `TRUE_FOR(COUNT 100)`, `TRUE_FOR(10m AND COUNT 50)`, `TRUE_FOR(5m OR COUNT 20)`.
   - COUNT_WINDOW: Count window, specifying the division of the window by the number of rows, count_val window contains the maximum number of rows, with a range of [2,2147483647]. The sliding quantity of the window is [1, count_val].The col_name parameter starts to be supported after version 3.3.7.0. col_name specifies one or more columns. When counting in the count_window, for each row of data in the window, at least one of the specified columns must be non-null; otherwise, that row of data is not included in the counting window. If col_name is not specified, it means there is no non-null restriction.
 
 - group_by_expr: Specify data grouping and aggregation rules. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as `select ts, current from meters order by ts desc, 2`, where 2 corresponds to the current column.

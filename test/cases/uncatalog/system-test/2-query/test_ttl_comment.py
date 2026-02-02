@@ -200,4 +200,4 @@ class TestTtlComment:
         tdSql.checkData(0, 7, 9)
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+

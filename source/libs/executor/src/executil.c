@@ -80,6 +80,7 @@ void closeResultRow(SResultRow* pResultRow) { pResultRow->closed = true; }
 
 void resetResultRow(SResultRow* pResultRow, size_t entrySize) {
   pResultRow->numOfRows = 0;
+  pResultRow->nOrigRows = 0;
   pResultRow->closed = false;
   pResultRow->endInterp = false;
   pResultRow->startInterp = false;

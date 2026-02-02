@@ -110,7 +110,6 @@ This document compares the configuration parameters of taosd (server-side) and t
 | retentionSpeedLimitMB | taosd | Speed limit for data migration across different levels of disks |
 | maxTsmaNum | taosd | Maximum number of TSMAs that can be created in the cluster |
 | tmqMaxTopicNum | taosd | Maximum number of topics that can be established for subscription |
-| tmqRowSize | taosd | Maximum number of records in a subscription data block |
 | audit | taosd | Audit feature switch |
 | auditInterval | taosd | Time interval for reporting audit data |
 | auditCreateTable | taosd | Whether to enable audit feature for creating subtables |

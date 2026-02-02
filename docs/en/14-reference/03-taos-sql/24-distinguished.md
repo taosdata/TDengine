@@ -46,9 +46,9 @@ The syntax for the window clause is as follows:
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_duration)]
+  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
-  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
 }
 ```
@@ -239,10 +239,29 @@ taos> select _wstart, _wduration, _wend, count(*) from state_window_example stat
  2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
 ```
 
-The state window supports using the TRUE_FOR parameter to set its minimum duration. If the window's duration is less than the specified value, it will be discarded automatically and no result will be returned. For example, setting the minimum duration to 3 seconds:
+The state window supports using the TRUE_FOR parameter to set the filtering condition for windows. Only windows that meet the condition will return calculation results. Supports the following four modes:
+
+- `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
+- `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
+- `TRUE_FOR(duration_time AND COUNT n)`: Both duration and row count conditions must be satisfied.
+- `TRUE_FOR(duration_time OR COUNT n)`: Either duration or row count condition must be satisfied.
+
+For example, setting the minimum duration to 3 seconds:
 
 ```sql
 SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (3s);
+```
+
+Or setting the minimum row count to 100:
+
+```sql
+SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (COUNT 100);
+```
+
+Or requiring both duration and row count conditions:
+
+```sql
+SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (3s AND COUNT 50);
 ```
 
 ### Session Window
@@ -276,10 +295,29 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 
 ![Event windows](./assets/time-series-extensions-04-event-window.png)
 
-The event window supports using the TRUE_FOR parameter to set its minimum duration. If the window's duration is less than the specified value, it will be discarded automatically and no result will be returned. For example, setting the minimum duration to 3 seconds:
+The event window supports using the TRUE_FOR parameter to set the filtering condition for windows. Only windows that meet the condition will return calculation results. Supports the following four modes:
+
+- `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
+- `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
+- `TRUE_FOR(duration_time AND COUNT n)`: Both duration and row count conditions must be satisfied.
+- `TRUE_FOR(duration_time OR COUNT n)`: Either duration or row count condition must be satisfied.
+
+For example, setting the minimum duration to 3 seconds:
 
 ```sql
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (3s);
+```
+
+Or setting the minimum row count to 100:
+
+```sql
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (COUNT 100);
+```
+
+Or requiring both duration and row count conditions:
+
+```sql
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (3s AND COUNT 50);
 ```
 
 ### Count Window

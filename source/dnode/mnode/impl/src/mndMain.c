@@ -984,6 +984,8 @@ bool mndNeedUpgrade(SMnode *pMnode, int32_t version) { return pMnode->version > 
 
 int32_t mndGetVersion(SMnode *pMnode) { return pMnode->version; }
 
+int32_t mndGetEncryptedFlag(SMnode *pMnode) { return pMnode->encrypted; }
+
 int32_t mndIsCatchUp(SMnode *pMnode) {
   int64_t rid = pMnode->syncMgmt.sync;
   return syncIsCatchUp(rid);

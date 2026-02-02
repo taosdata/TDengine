@@ -503,6 +503,12 @@ _err:
 
 SPrivSetArgs privArgsAdd(SAstCreateContext* pCxt, SPrivSetArgs arg1, SPrivSetArgs arg2) {
   CHECK_PARSER_STATUS(pCxt);
+  if (arg1.nPrivArgs == 0 || arg2.nPrivArgs == 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Invalid privilege types: Unknown privilege type");
+    CHECK_PARSER_STATUS(pCxt);
+  }
+
   SPrivSetArgs merged = arg1;
   merged.nPrivArgs += arg2.nPrivArgs;
   if (merged.nPrivArgs > TSDB_PRIV_MAX_INPUT_ARGS) {
@@ -574,6 +580,119 @@ SPrivSetArgs privArgsSetCols(SAstCreateContext* pCxt, SNodeList* selectCols, SNo
                              SNodeList* updateCols) {
   CHECK_PARSER_STATUS(pCxt);
   SPrivSetArgs args = {.nPrivArgs = 1, .selectCols = selectCols, .insertCols = insertCols, .updateCols = updateCols};
+_err:
+  return args;
+}
+
+/**
+ * @brief set privilege args from tokens as to decrease the definition of keywords
+ *
+ * @param pCxt
+ * @param type 0 alter, 1 read, 2 show, 3 set user
+ * @param t1
+ * @param t2
+ * @return SPrivSetArgs
+ */
+SPrivSetArgs privArgsSet(SAstCreateContext* pCxt, int32_t type, SToken* t1, SToken* t2) {
+  CHECK_PARSER_STATUS(pCxt);
+  SPrivSetArgs args = {0};
+  if (!t1) goto _err;
+  if (type == 0) { // alter
+    if (t1->n == 4) {
+      if (taosStrncasecmp(t1->z, TSDB_WORD_SELF, 4) == 0) {
+        if (t2 && t2->n == 4 && taosStrncasecmp(t2->z, TSDB_WORD_PASS, 4) == 0) {
+          return PRIV_SET_TYPE(PRIV_PASS_ALTER_SELF);
+        }
+      }
+    } else if (t1->n == 5) {
+      if (taosStrncasecmp(t1->z, TSDB_WORD_DEBUG, 5) == 0) {
+        if (t2 && t2->n == 8 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLE, 8) == 0) {
+          return PRIV_SET_TYPE(PRIV_VAR_DEBUG_ALTER);
+        }
+      } else if (taosStrncasecmp(t1->z, TSDB_WORD_AUDIT, 5) == 0) {
+        if (t2 && t2->n == 8 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLE, 8) == 0) {
+          return PRIV_SET_TYPE(PRIV_VAR_AUDIT_ALTER);
+        }
+      }
+    } else if (t1->n == 6) {
+      if (taosStrncasecmp(t1->z, TSDB_WORD_SYSTEM, 6) == 0) {
+        if (t2 && t2->n == 8 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLE, 8) == 0) {
+          return PRIV_SET_TYPE(PRIV_VAR_SYSTEM_ALTER);
+        }
+      }
+    } else if (t1->n == 8) {
+      if (taosStrncasecmp(t1->z, TSDB_WORD_SECURITY, 8) == 0) {
+        if (t2 && t2->n == 8 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLE, 8) == 0)
+          return PRIV_SET_TYPE(PRIV_VAR_SECURITY_ALTER);
+      }
+    }
+  } else if (type == 1) { // read
+    if (t1->n == 18) {
+      if (taosStrncasecmp(t1->z, TSDB_INFORMATION_SCHEMA_DB, 18) == 0) {
+        if (!t2) goto _err;
+        if (t2->n == 5) {
+          if (taosStrncasecmp(t2->z, TSDB_WORD_BASIC, 5) == 0) {
+            return PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_BASIC);
+          } else if (taosStrncasecmp(t2->z, TSDB_WORD_AUDIT, 5) == 0) {
+            return PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_AUDIT);
+          }
+        } else if ((t2->n == 8) && taosStrncasecmp(t2->z, TSDB_WORD_SECURITY, 8) == 0) {
+          return PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_SEC);
+        } else if ((t2->n == 10) && taosStrncasecmp(t2->z, TSDB_WORD_PRIVILEGED, 10) == 0) {
+          return PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_PRIVILEGED);
+        }
+      } else if (taosStrncasecmp(t1->z, TSDB_PERFORMANCE_SCHEMA_DB, 18) == 0) {
+        if (!t2) goto _err;
+        if (t2->n == 5) {
+          if (taosStrncasecmp(t2->z, TSDB_WORD_BASIC, 5) == 0) {
+            return PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_BASIC);
+          }
+        } else if ((t2->n == 10) && taosStrncasecmp(t2->z, TSDB_WORD_PRIVILEGED, 10) == 0) {
+          return PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_PRIVILEGED);
+        }
+      }
+    }
+  } else if (type == 2) { // show
+    if (t1->n == 5) {
+      if (taosStrncasecmp(t1->z, TSDB_WORD_DEBUG, 5) == 0) {
+        if (t2 && t2->n == 9 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLES, 9) == 0) {
+          return PRIV_SET_TYPE(PRIV_VAR_DEBUG_SHOW);
+        }
+      } else if (taosStrncasecmp(t1->z, TSDB_WORD_AUDIT, 5) == 0) {
+        if (t2 && t2->n == 9 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLES, 9) == 0) {
+          return PRIV_SET_TYPE(PRIV_VAR_AUDIT_SHOW);
+        }
+      }
+    } else if (t1->n == 6) {
+      if (taosStrncasecmp(t1->z, TSDB_WORD_SYSTEM, 6) == 0) {
+        if (t2 && t2->n == 9 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLES, 9) == 0) {
+          return PRIV_SET_TYPE(PRIV_VAR_SYSTEM_SHOW);
+        }
+      }
+    } else if (t1->n == 8) {
+      if (taosStrncasecmp(t1->z, TSDB_WORD_SECURITY, 8) == 0) {
+        if (t2 && t2->n == 9 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLES, 9) == 0)
+          return PRIV_SET_TYPE(PRIV_VAR_SECURITY_SHOW);
+      }
+    }
+  } else if (type == 3) { // set user
+    if (t1->n == 5) {
+      if (taosStrncasecmp(t1->z, TSDB_WORD_BASIC, 5) == 0) {
+        if (t2 && t2->n == 11 && taosStrncasecmp(t2->z, TSDB_WORD_INFORMATION, 11) == 0) {
+          return PRIV_SET_TYPE(PRIV_USER_SET_BASIC);
+        }
+      } else if (taosStrncasecmp(t1->z, TSDB_WORD_AUDIT, 5) == 0) {
+        if (t2 && t2->n == 11 && taosStrncasecmp(t2->z, TSDB_WORD_INFORMATION, 11) == 0) {
+          return PRIV_SET_TYPE(PRIV_USER_SET_AUDIT);
+        }
+      }
+    } else if ((t1->n == 8) && taosStrncasecmp(t1->z, TSDB_WORD_SECURITY, 8) == 0) {
+      if (t2 && t2->n == 11 && taosStrncasecmp(t2->z, TSDB_WORD_INFORMATION, 11) == 0) {
+        return PRIV_SET_TYPE(PRIV_USER_SET_SECURITY);
+      }
+    }
+  }
+
 _err:
   return args;
 }
@@ -1737,6 +1856,56 @@ _err:
   return NULL;
 }
 
+SNode* createTrueForCountNode(SAstCreateContext* pCxt, const SToken* pCount) {
+  STrueForNode* pTrueFor = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TRUE_FOR, (SNode**)&pTrueFor);
+  CHECK_MAKE_NODE(pTrueFor);
+  pTrueFor->trueForType = TRUE_FOR_COUNT_ONLY;
+  pTrueFor->pDuration = NULL;
+  pTrueFor->count = taosStr2Int32(pCount->z, NULL, 10);
+  if (pTrueFor->count < 0) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TRUE_FOR_COUNT);
+    goto _err;
+  }
+  return (SNode*)pTrueFor;
+_err:
+  nodesDestroyNode((SNode*)pTrueFor);
+  return NULL;
+}
+
+SNode* createTrueForAndNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount) {
+  STrueForNode* pTrueFor = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TRUE_FOR, (SNode**)&pTrueFor);
+  CHECK_MAKE_NODE(pTrueFor);
+  pTrueFor->trueForType = TRUE_FOR_AND;
+  pTrueFor->pDuration = pDuration;
+  pDuration = NULL;
+  pTrueFor->count = taosStr2Int32(pCount->z, NULL, 10);
+  return (SNode*)pTrueFor;
+_err:
+  nodesDestroyNode((SNode*)pTrueFor);
+  nodesDestroyNode(pDuration);
+  return NULL;
+}
+
+SNode* createTrueForOrNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount) {
+  STrueForNode* pTrueFor = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TRUE_FOR, (SNode**)&pTrueFor);
+  CHECK_MAKE_NODE(pTrueFor);
+  pTrueFor->trueForType = TRUE_FOR_OR;
+  pTrueFor->pDuration = pDuration;
+  pDuration = NULL;
+  pTrueFor->count = taosStr2Int32(pCount->z, NULL, 10);
+  return (SNode*)pTrueFor;
+_err:
+  nodesDestroyNode((SNode*)pTrueFor);
+  nodesDestroyNode(pDuration);
+  return NULL;
+}
+
 SNode* createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken,
                              SNodeList* pColList) {
   SCountWindowNode* pCount = NULL;
@@ -2527,7 +2696,8 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->compactEndTime = -1;
   pOptions->compactTimeOffset = -1;
   pOptions->encryptAlgorithmStr[0] = 0;
-  pOptions->isAudit = 0;
+  pOptions->isAudit = -1;
+  pOptions->allowDrop = -1;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2699,6 +2869,9 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       break;
     case DB_OPTION_IS_AUDIT:
       pDbOptions->isAudit = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_ALLOW_DROP:
+      pDbOptions->allowDrop = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     default:
       break;
@@ -6307,6 +6480,24 @@ _err:
   return NULL;
 }
 
+SNode* createAlterKeyExpirationStmt(SAstCreateContext* pCxt, const SToken* pDays, const SToken* pStrategy) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAlterKeyExpirationStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_KEY_EXPIRATION_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  if (NULL != pDays) {
+    pStmt->days = taosStr2Int32(pDays->z, NULL, 10);
+  }
+  if (NULL != pStrategy) {
+    (void)trimString(pStrategy->z, pStrategy->n, pStmt->strategy, sizeof(pStmt->strategy));
+  }
+
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName, SToken* pIndexName) {
   if (!checkIndexName(pCxt, pIndexName)) {
     return NULL;
@@ -7258,6 +7449,10 @@ SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* 
       CHECK_NAME(checkObjName(pCxt, &pPrivLevel->first, false));
       CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
       pStmt->privileges = *(SPrivSetArgs*)resouces;
+      if(pStmt->privileges.nPrivArgs <= 0) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Unknown privilege type");
+        goto _err;
+      }
       if (TK_NK_NIL != pPrivLevel->first.type) {
         COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
       }
@@ -7297,7 +7492,9 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs*
     CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
     CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
     pStmt->privileges = *(SPrivSetArgs*)resouces;
-    COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
+    if (TK_NK_NIL != pPrivLevel->first.type) {
+      COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
+    }
     if (TK_NK_NIL != pPrivLevel->second.type) {
       COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
     }

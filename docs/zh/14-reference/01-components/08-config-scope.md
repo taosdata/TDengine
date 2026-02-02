@@ -109,7 +109,6 @@ toc_max_heading_level: 4
 | retentionSpeedLimitMB | taosd | 数据在不同级别硬盘上迁移时的速度限制 |
 | maxTsmaNum | taosd | 集群内可创建的 TSMA 个数 |
 | tmqMaxTopicNum | taosd | 订阅最多可建立的 topic 数量 |
-| tmqRowSize | taosd | 订阅数据块的最大记录条数 |
 | audit | taosd | 审计功能开关 |
 | auditInterval | taosd | 审计数据上报的时间间隔 |
 | auditCreateTable | taosd | 是否针对创建子表开启申计功能 |

@@ -296,5 +296,5 @@ class TestUdfCfg1:
         self.basic_udf_query()
 
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
