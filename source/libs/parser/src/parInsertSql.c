@@ -580,7 +580,8 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
   uint8_t** pData = &pVal->value.pData;
   uint32_t* nData = &pVal->value.nData;
 
-  if (TK_NK_ID == pToken->type) {
+  if (pToken->type == TK_FROM_BASE64 || pToken->type == TK_TO_BASE64 || pToken->type == TK_MD5 ||
+      pToken->type == TK_SHA || pToken->type == TK_SHA1 || pToken->type == TK_SHA2) {
     char*   input = NULL;
     int32_t inputBytes = 0;
     int32_t outputBytes = 0;
@@ -591,7 +592,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       return terrno;
     }
 
-    if (0 == strncasecmp(pToken->z, "from_base64(", 12)) {
+    if (pToken->type == TK_FROM_BASE64) {
       code = parseSingleStrParam(pCxt, ppSql, pToken, pVal, tmpTokenBuf, &inputBytes, &final);
       if (TSDB_CODE_SUCCESS != code || final) {
         taosMemoryFree(tmpTokenBuf);
@@ -623,7 +624,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
         return TSDB_CODE_SUCCESS;
       }
       *nData = outputBytes;
-    } else if (0 == strncasecmp(pToken->z, "to_base64(", 10)) {
+    } else if (pToken->type == TK_TO_BASE64) {
       code = parseSingleStrParam(pCxt, ppSql, pToken, pVal, tmpTokenBuf, &inputBytes, &final);
       if (TSDB_CODE_SUCCESS != code || final) {
         taosMemoryFree(tmpTokenBuf);
@@ -649,7 +650,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
 
       tbase64_encode(*pData, input, inputBytes, outputBytes);
       *nData = outputBytes;
-    } else if (0 == strncasecmp(pToken->z, "md5(", 4)) {
+    } else if (pToken->type == TK_MD5) {
       code = parseSingleStrParam(pCxt, ppSql, pToken, pVal, tmpTokenBuf, &inputBytes, &final);
       if (TSDB_CODE_SUCCESS != code || final) {
         taosMemoryFree(tmpTokenBuf);
@@ -676,7 +677,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       (void)memcpy(*pData, input, inputBytes);
       int32_t len = taosCreateMD5Hash(*pData, inputBytes);
       *nData = len;
-    } else if (0 == strncasecmp(pToken->z, "sha2(", 5)) {
+    } else if (pToken->type == TK_SHA2) {
       NEXT_VALID_TOKEN(*ppSql, *pToken);
       if (TK_NK_LP != pToken->type) {
         taosMemoryFree(tmpTokenBuf);
@@ -768,7 +769,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       (void)memcpy(*pData, input, inputBytes);
       int32_t len = taosCreateSHA2Hash(*pData, inputBytes, digestLen);
       *nData = len;
-    } else if (0 == strncasecmp(pToken->z, "sha(", 4) || 0 == strncasecmp(pToken->z, "sha1(", 5)) {
+    } else if (pToken->type == TK_SHA || pToken->type == TK_SHA1) {
       NEXT_VALID_TOKEN(*ppSql, *pToken);
       if (TK_NK_LP != pToken->type) {
         taosMemoryFree(tmpTokenBuf);
@@ -1691,7 +1692,8 @@ int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf, i
   if ((pToken->type != TK_NOW && pToken->type != TK_TODAY && pToken->type != TK_NK_INTEGER &&
        pToken->type != TK_NK_STRING && pToken->type != TK_NK_FLOAT && pToken->type != TK_NK_BOOL &&
        pToken->type != TK_NULL && pToken->type != TK_NK_HEX && pToken->type != TK_NK_OCT && pToken->type != TK_NK_BIN &&
-       pToken->type != TK_NK_VARIABLE && pToken->type != TK_NK_ID) ||
+       pToken->type != TK_NK_VARIABLE && pToken->type != TK_FROM_BASE64 && pToken->type != TK_TO_BASE64 &&
+       pToken->type != TK_MD5 && pToken->type != TK_SHA && pToken->type != TK_SHA1 && pToken->type != TK_SHA2) ||
       (pToken->n == 0) || (pToken->type == TK_NK_RP)) {
     return buildSyntaxErrMsg(pMsgBuf, "invalid data or symbol", pToken->z);
   }
