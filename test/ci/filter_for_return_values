@@ -1,4 +1,5 @@
 match callExpr(
+  isExpansionInMainFile(),
   hasParent(anyOf(
     compoundStmt(),
     doStmt(hasCondition(expr().bind("cond")))

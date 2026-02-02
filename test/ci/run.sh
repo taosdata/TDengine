@@ -457,9 +457,10 @@ function run_thread() {
             local build_dir=$log_dir/build_${hosts[index]}
             local remote_build_dir="${workdirs[index]}/${DEBUGPATH}/build"
             local remote_unit_test_log_dir="${workdirs[index]}/${DEBUGPATH}/Testing/Temporary/"
-            mkdir "$build_dir" >/dev/null
+            
             if [ $? -eq 0 ]; then
                 if is_local_host "${hosts[index]}"; then
+					mkdir "$build_dir" >/dev/null
                     cmd="cp -rf ${remote_build_dir}/* ${build_dir}/"
                     echo "$cmd"
                     bash -c "$cmd" >/dev/null 2>&1 || true
