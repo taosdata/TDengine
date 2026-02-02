@@ -820,7 +820,7 @@ int32_t dataBufDump(SDataBuf* pBuf, void** p, int32_t* len) {
     return TSDB_CODE_INVALID_MSG;
   }
   void *t = taosMemoryMalloc(pBuf->len);   
-  if (p == NULL) {
+  if (t == NULL) {
     return terrno;
   }
 
