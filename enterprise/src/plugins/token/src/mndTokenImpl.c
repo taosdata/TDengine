@@ -501,7 +501,7 @@ _OVER:
 
 
 
-static int32_t mndProcessCreateTokenReq(SRpcMsg *pReq) {
+int32_t mndProcessCreateTokenReq(SRpcMsg *pReq) {
   SMnode         *pMnode = pReq->info.node;
   int32_t         code = 0, lino = 0;
   STokenObj      *pToken = NULL;
