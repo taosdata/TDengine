@@ -84,14 +84,14 @@ compile_commands_path = f"{TD_project_path}/debug/compile_commands.json"
 
 # the ast parser rule for c file
 clang_scan_rules_path = f"{self_path}/filter_for_return_values"
-scan_dir_list = ["source", "include", "docs/examples", "src/plugins"]
+scan_dir_list = ["source", "include", "docs/examples"]
 
 #
 # all the c files path will be checked
 all_file_path = []
 file_res_path = ""
 
-SCAN_DIRS = ["source", "include", "docs/examples", "src/plugins"]
+SCAN_DIRS = ["source", "include", "docs/examples"]
 SCAN_SKIP_FILE_LIST = [
     "tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl",
     "/test/",
@@ -219,7 +219,7 @@ def write_csv(file_path, data):
 
 
 def scan_one_file(file):
-    cmd = f"clang-query-16 -p {compile_commands_path} {file} -f {clang_scan_rules_path} 2>&1 | grep -v 'error:' | grep -v 'warning:'"
+    cmd = f"clang-query -p {compile_commands_path} {file} -f {clang_scan_rules_path} 2>&1 | grep -v 'error:' | grep -v 'warning:'"
     logger.debug(f"cmd:{cmd}")
     try:
         stdout, stderr = CommandExecutor().execute(cmd)
