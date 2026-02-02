@@ -1270,10 +1270,10 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
       mError("db:%s, audit db already exist, %s", createReq.db, pAuditDb->name);
       TAOS_CHECK_GOTO(TSDB_CODE_AUDIT_DB_ALREADY_EXIST, &lino, _OVER);
     }
-    if (strlen(tsDataKey) == 0) {
+    if (tsDataKey[0] == '\0') {
       code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       mError("db:%s, failed to create db since %s", createReq.db, tstrerror(code));
-      return code;
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
   }
 
