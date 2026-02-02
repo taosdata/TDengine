@@ -1807,7 +1807,7 @@ static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmS
         pDeploy->task.deployId = pState->id.deployId;
         pDeploy->task.nodeId = pState->id.nodeId;
         pDeploy->task.taskIdx = pState->id.taskIdx;
-        TAOS_CHECK_EXIT(msmBuildRunnerDeployInfo(pDeploy, plan, pStream, pInfo, 0 == i));
+        TAOS_CHECK_EXIT(msmBuildRunnerDeployInfo(pDeploy, plan, pStream, pInfo, 0 == i && !subQ));
 
         SStreamTask* pTask = &pDeploy->task;
         msttDebug("runner task deploy built, subplan level:%d, taskIdx:%d, groupId:%d, subplanId:%d",
