@@ -90,7 +90,7 @@ class TestCase:
 
     def consume3(self):
         tdSql.execute(f'use db_alter_tag')
-        tdSql.execute(f'create topic t1 as stable stb where t1 > 2')
+        tdSql.execute(f'create topic t2 as stable stb where t1 > 2')
 
         consumer_dict = {
             "group.id": "g1",
@@ -101,7 +101,7 @@ class TestCase:
         consumer = Consumer(consumer_dict)
 
         try:
-            consumer.subscribe(["t1"])
+            consumer.subscribe(["t2"])
         except TmqError:
             tdLog.exit(f"subscribe error")
 
