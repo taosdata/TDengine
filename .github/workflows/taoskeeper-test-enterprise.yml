@@ -65,6 +65,10 @@ jobs:
           taosd &
           taosadapter &
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 300
+
       - name: Run tests with coverage
         working-directory: tools/keeper
         env:
