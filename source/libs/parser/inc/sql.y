@@ -710,6 +710,7 @@ xnode_task_options(A) ::= xnode_task_options(B) AND TRIGGER NK_EQ NK_STRING(D). 
 
 with_task_options_opt(A) ::= .                                                    { A = NULL; }
 with_task_options_opt(A) ::= WITH xnode_task_options(B).                          { A = B; }
+with_task_options_opt(A) ::= SET xnode_task_options(B).                           { A = B; }
 
 xnode_task_from_opt(A) ::= .                                                      { A = NULL; }
 xnode_task_from_opt(A) ::= FROM xnode_task_source(B).                             { A = B; }
@@ -719,6 +720,10 @@ xnode_task_to_opt(A) ::= TO xnode_task_sink(B).                                 
 
 cmd ::= CREATE XNODE NK_STRING(A).                                                { pCxt->pRootNode = createCreateXnodeStmt(pCxt, &A); }
 cmd ::= CREATE XNODE NK_STRING(A) USER user_name(B) PASS NK_STRING(C).            { pCxt->pRootNode = createCreateXnodeWithUserPassStmt(pCxt, &A, &B, &C); }
+cmd ::= CREATE XNODE NK_STRING(A) TOKEN NK_STRING(B).                             { pCxt->pRootNode = createCreateXnodeWithTokenStmt(pCxt, &A, &B); }
+// alter
+cmd ::= ALTER XNODE SET TOKEN NK_STRING(B).                                       { pCxt->pRootNode = createAlterXnodeStmt(pCxt, &B, NULL, NULL); }
+cmd ::= ALTER XNODE SET USER user_name(B) PASS NK_STRING(C).                      { pCxt->pRootNode = createAlterXnodeStmt(pCxt, NULL, &B, &C); }
 cmd ::= DROP XNODE xnode_endpoint(A) force_opt(B).                                { pCxt->pRootNode = createDropXnodeStmt(pCxt, &A, B); }
 cmd ::= DROP XNODE FORCE xnode_endpoint(A).                                       { pCxt->pRootNode = createDropXnodeStmt(pCxt, &A, true); }
 
@@ -762,7 +767,6 @@ cmd ::= ALTER XNODE xnode_resource_type(A) NK_STRING(B) xnode_task_from_opt(C) x
 cmd ::= DROP XNODE xnode_resource_type(A) NK_STRING(B).                           { pCxt->pRootNode = dropXnodeResource(pCxt, A, &B); }
 cmd ::= DROP XNODE xnode_resource_type(A) NK_INTEGER(B).                          { pCxt->pRootNode = dropXnodeResource(pCxt, A, &B); }
 cmd ::= DROP XNODE xnode_resource_type(A) WHERE search_condition(B).              { pCxt->pRootNode = dropXnodeResourceWhere(pCxt, A, B); }
-//cmd ::= DROP XNODE xnode_resource_type(A) ON NK_INTEGER(B) where_clause_opt(C).   { pCxt->pRootNode = dropXnodeResourceOn(pCxt, A, &B, C); }
 
 /* show xnodes; or show xnodes where ...*/
 cmd ::= SHOW XNODES where_clause_opt(B).                                          { pCxt->pRootNode = createShowXnodeStmtWithCond(pCxt, QUERY_NODE_SHOW_XNODES_STMT, B); }
