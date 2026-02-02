@@ -162,7 +162,9 @@ int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks,
  * @param isAdd
  * @return
  */
-int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd);
+int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
+int32_t qDeleteTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
+int32_t qAddTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
 
 bool qIsDynamicExecTask(qTaskInfo_t tinfo);
 
@@ -314,7 +316,10 @@ void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 int32_t dropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq);
 int32_t dropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 
-int32_t qSubFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTaskInfo, uint64_t suid);
+int32_t qFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTaskInfo, uint64_t suid);
+bool    checkCidInTagCondition(SNode* node, SArray* cidList);
+SNode*  getTagCondNodeForStableTmq(void* node);
+SNode*  getTagCondNodeForQueryTmq(void* tinfo);
 
 #ifdef __cplusplus
 }
