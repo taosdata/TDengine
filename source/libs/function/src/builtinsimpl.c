@@ -1558,7 +1558,7 @@ int32_t gconcatFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultI
   }
 
   SGconcatRes* pRes = GET_ROWCELL_INTERBUF(pResultInfo);
-  (void)memset(pRes, 0, sizeof(SStdRes));
+  (void)memset(pRes, 0, sizeof(SGconcatRes));
 
   // pRes->separator = varDataVal(pCtx->param[0].param.pz);
 

@@ -31,11 +31,19 @@ options: {
     
 trigger_type: {
     PERIOD(period_time[, offset_time])
-  | [INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val[, offset_time]) 
+  | SLIDING(sliding_val[, offset_time])
+  | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time])
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(duration_time)] 
-  | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
-  | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
+  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
+  | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
+}
+
+true_for_expr: {
+    duration_time
+  | COUNT count_val
+  | duration_time AND COUNT count_val
+  | duration_time OR COUNT count_val
 }
 
 stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types)}
@@ -57,7 +65,8 @@ tag_definition:
 ### 触发方式
 
 - **定时触发**：通过系统时间的固定间隔来驱动，以建流当天系统时间的零点作为基准时间点，然后根据间隔来确定下次触发的时间点，可以通过指定时间偏移来改变基准时间点。
-- **滑动触发**：对触发表的写入数据按照事件时间的固定间隔来驱动的触发。可以有 INTERVAL 窗口，也可以没有。
+- **滑动触发**：对触发表的写入数据按照事件时间的固定间隔来驱动的触发，划分规则与定时触发相同，唯一的区别是系统时间变更为事件时间。
+- **时间窗口触发**：对触发表的写入数据按照时间窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行触发。
 - **会话窗口触发**：对触发表的写入数据按照会话窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行触发。
 - **状态窗口触发**：对触发表的写入数据按照状态窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行触发。
 - **事件窗口触发**：对触发表的写入数据按照事件窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。

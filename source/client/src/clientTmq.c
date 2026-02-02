@@ -21,6 +21,7 @@
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
+#include "tmsg.h"
 #include "tqueue.h"
 #include "tref.h"
 #include "ttimer.h"
@@ -1838,7 +1839,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   }
 
   // init connection
-  code = taos_connect_internal(conf->ip, user, pass, NULL, NULL, conf->port, CONN_TYPE__TMQ, &pTmq->pTscObj);
+  code = taos_connect_internal(conf->ip, user, pass, NULL, NULL, conf->port, CONN_TYPE__QUERY, &pTmq->pTscObj);
   if (code) {
     terrno = code;
     tqErrorC("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);

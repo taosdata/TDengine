@@ -388,6 +388,8 @@ int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pReq,
     return TSDB_CODE_SUCCESS;
   }
 
+  if (!pConn) return TSDB_CODE_SUCCESS;
+
   SCtgAuthReq req = {0};
   req.pRawReq = pReq;
   req.pConn = pConn;

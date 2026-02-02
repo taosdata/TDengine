@@ -370,4 +370,3 @@ class TestStmtBasic:
 
         self.do_stmt_muti_insert_query()
         self.do_stmt_set_tbname_tag()
-

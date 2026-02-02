@@ -4366,16 +4366,12 @@ static int32_t checkAuthUseDb(SParseContext* pCxt, SName* pTbName, bool isAudit)
     authInfo.objType = PRIV_OBJ_TBL;
   }
 
-  SUserAuthRes authRes = {0};
-  if (pCxt->async) {
-    code = catalogChkAuthFromCache(pCxt->pCatalog, &authInfo, &authRes, NULL);
-  } else {
-    SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
-                             .requestId = pCxt->requestId,
-                             .requestObjRefId = pCxt->requestRid,
-                             .mgmtEps = pCxt->mgmtEpSet};
-    code = catalogChkAuth(pCxt->pCatalog, &conn, &authInfo, &authRes);
-  }
+  SUserAuthRes     authRes = {0};
+  SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
+                           .requestId = pCxt->requestId,
+                           .requestObjRefId = pCxt->requestRid,
+                           .mgmtEps = pCxt->mgmtEpSet};
+  code = catalogChkAuth(pCxt->pCatalog, &conn, &authInfo, &authRes);  // cache used firstly inside the function
   if (TSDB_CODE_SUCCESS == code && !authRes.pass[AUTH_RES_BASIC]) {
     code = TSDB_CODE_PAR_PERMISSION_DENIED;
   }

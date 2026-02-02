@@ -5913,6 +5913,15 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
   }
   pCxt->refTable = false;
   pCxt->pParseCxt->async = tmpAsync;
+  if (taosHashGetSize(pTableNameHash) == 1 && pRTNode != NULL) {
+    if (pMeta->numOfColRefs > 0 && pMeta->colRef != NULL && pMeta->tableInfo.numOfColumns > 0 &&
+        pRTNode->pMeta != NULL && pRTNode->pMeta->tableInfo.numOfColumns > 0) {
+      const SSchema* pTsSchema = &pMeta->schema[0];
+      const SSchema* pRefTsSchema = &pRTNode->pMeta->schema[0];
+      PAR_ERR_JRET(setColRef(&pMeta->colRef[0], pTsSchema->colId, (char*)pRefTsSchema->name, pRTNode->table.tableName,
+                             pRTNode->table.dbName));
+    }
+  }
   nodesDestroyNode(*pTable);
   *pTable = (SNode*)pVTable;
 
@@ -8116,15 +8125,34 @@ static int32_t checkStateExtend(STranslateContext* pCxt, SNode* pNode) {
 }
 
 static int32_t checkTrueForLimit(STranslateContext* pCxt, SNode* pNode) {
-  SValueNode* pTrueForLimit = (SValueNode*)pNode;
-  if (pTrueForLimit == NULL) {
+  if (pNode == NULL) {
     return TSDB_CODE_SUCCESS;
   }
-  if (pTrueForLimit->datum.i < 0) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TRUE_FOR_NEGATIVE);
+
+  SValueNode* pTrueForDuration = NULL;
+
+  if (QUERY_NODE_TRUE_FOR == nodeType(pNode)) {
+    STrueForNode* pTrueFor = (STrueForNode*)pNode;
+    // Validate COUNT value
+    if (pTrueFor->trueForType != TRUE_FOR_DURATION_ONLY) {
+      if (pTrueFor->count < 0) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TRUE_FOR_COUNT);
+      }
+    }
+    if (pTrueFor->trueForType != TRUE_FOR_COUNT_ONLY) {
+      pTrueForDuration = (SValueNode*)pTrueFor->pDuration;
+    }
+  } else {
+    pTrueForDuration = (SValueNode*)pNode;
   }
-  if (IS_CALENDAR_TIME_DURATION(pTrueForLimit->unit)) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TRUE_FOR_UNIT);
+
+  if (pTrueForDuration != NULL) {
+    if (pTrueForDuration->datum.i < 0) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TRUE_FOR_NEGATIVE);
+    }
+    if (IS_CALENDAR_TIME_DURATION(pTrueForDuration->unit)) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TRUE_FOR_UNIT);
+    }
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -13616,27 +13644,35 @@ static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* p
   }
   tstrncpy(createReq.url, pStmt->url, createReq.urlLen);
 
-  createReq.userLen = strlen(pStmt->user) + 1;
-  if (createReq.userLen > TSDB_USER_LEN) {
-    return TSDB_CODE_MND_USER_NOT_AVAILABLE;
+  if (pStmt->user[0] != '\0') {
+    createReq.userLen = strlen(pStmt->user) + 1;
+    if (createReq.userLen > TSDB_USER_LEN) {
+      return TSDB_CODE_MND_USER_NOT_AVAILABLE;
+    }
+    createReq.user = taosMemoryCalloc(createReq.userLen, 1);
+    if (createReq.user == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    tstrncpy(createReq.user, pStmt->user, createReq.userLen);
   }
-  createReq.user = taosMemoryCalloc(createReq.userLen, 1);
-  if (createReq.user == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tstrncpy(createReq.user, pStmt->user, createReq.userLen);
 
-  createReq.passLen = strlen(pStmt->pass) + 1;
-  if (createReq.urlLen > TSDB_USER_PASSWORD_LONGLEN) {
-    return TSDB_CODE_MND_INVALID_PASS_FORMAT;
+  if (pStmt->pass[0] != '\0') {
+    createReq.passLen = strlen(pStmt->pass) + 1;
+    if (createReq.passLen > TSDB_USER_PASSWORD_LONGLEN) {
+      return TSDB_CODE_MND_INVALID_PASS_FORMAT;
+    }
+    createReq.pass = taosMemoryCalloc(createReq.passLen, 1);
+    if (createReq.pass == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    tstrncpy(createReq.pass, pStmt->pass, createReq.passLen);
+    // taosEncryptPass_c((uint8_t*)pStmt->pass, strlen(pStmt->pass), createReq.pass);
+    createReq.passIsMd5 = 0;
   }
-  createReq.pass = taosMemoryCalloc(createReq.passLen, 1);
-  if (createReq.pass == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+
+  if (pStmt->token[0] != '\0') {
+    createReq.token = xCreateCowStr(strlen(pStmt->token), pStmt->token, false);
   }
-  tstrncpy(createReq.pass, pStmt->pass, createReq.passLen);
-  // taosEncryptPass_c((uint8_t*)pStmt->pass, strlen(pStmt->pass), createReq.pass);
-  createReq.passIsMd5 = 0;
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE, (FSerializeFunc)tSerializeSMCreateXnodeReq, &createReq);
   tFreeSMCreateXnodeReq(&createReq);
@@ -13671,9 +13707,12 @@ static int32_t translateDrainXnode(STranslateContext* pCxt, SDrainXnodeStmt* pSt
   return code;
 }
 
-static int32_t translateUpdateXnode(STranslateContext* pCxt, SUpdateXnodeStmt* pStmt) {
+static int32_t translateAlterXnode(STranslateContext* pCxt, SAlterXnodeStmt* pStmt) {
   SMUpdateXnodeReq updateReq = {0};
-  updateReq.xnodeId = pStmt->xnodeId;
+  // updateReq.id = pStmt->id;
+  updateReq.user = xCloneRefCowStr(&pStmt->user);
+  updateReq.pass = xCloneRefCowStr(&pStmt->pass);
+  updateReq.token = xCloneRefCowStr(&pStmt->token);
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_UPDATE_XNODE, (FSerializeFunc)tSerializeSMUpdateXnodeReq, &updateReq);
   tFreeSMUpdateXnodeReq(&updateReq);
@@ -15883,6 +15922,23 @@ static int64_t createStreamReqWindowGetBigInt(SNode* pVal) { return pVal ? ((SVa
 
 static int8_t createStreamReqWindowGetUnit(SNode* pVal) { return pVal ? ((SValueNode*)pVal)->unit : 0; }
 
+static void createStreamReqGetTrueForOptions(SNode *pVal, int32_t *pType, int32_t *pCount, int64_t *pDuration) {
+  if (pVal == NULL) {
+    *pType = 0;
+    *pCount = 0;
+    *pDuration = 0;
+  } else if (QUERY_NODE_VALUE == nodeType(pVal)) {
+    *pType = TRUE_FOR_DURATION_ONLY;
+    *pCount = 0;
+    *pDuration = ((SValueNode*)pVal)->datum.i;
+  } else {
+    STrueForNode* pTrueFor = (STrueForNode*)pVal;
+    *pType = pTrueFor->trueForType;
+    *pCount = pTrueFor->count;
+    *pDuration = pTrueFor->pDuration ? ((SValueNode *)pTrueFor->pDuration)->datum.i : 0;
+  }
+}
+
 static int32_t createStreamReqBuildTriggerSessionWindow(STranslateContext* pCxt, SSessionWindowNode* pTriggerWindow,
                                                         SCMCreateStreamReq* pReq) {
   pReq->triggerType = WINDOW_TYPE_SESSION;
@@ -15926,7 +15982,8 @@ static int32_t createStreamReqBuildTriggerEventWindow(STranslateContext* pCxt, S
   if (pTriggerWindow->pEndCond != NULL) {
     PAR_ERR_RET(nodesNodeToString(pTriggerWindow->pEndCond, false, (char**)&pReq->trigger.event.endCond, NULL));
   }
-  pReq->trigger.event.trueForDuration = createStreamReqWindowGetBigInt(pTriggerWindow->pTrueForLimit);
+  createStreamReqGetTrueForOptions(pTriggerWindow->pTrueForLimit, &pReq->trigger.event.trueForType,
+                                   &pReq->trigger.event.trueForCount, &pReq->trigger.event.trueForDuration);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -15958,7 +16015,8 @@ static int32_t createStreamReqBuildTriggerStateWindow(STranslateContext* pCxt, S
   PAR_ERR_RET(checkStateWindow(pCxt, pTriggerWindow));
   pReq->trigger.stateWin.slotId = ((SColumnNode*)pTriggerWindow->pExpr)->slotId;
   pReq->trigger.stateWin.extend = createStreamReqWindowGetBigInt(pTriggerWindow->pExtend);
-  pReq->trigger.stateWin.trueForDuration = createStreamReqWindowGetBigInt(pTriggerWindow->pTrueForLimit);
+  createStreamReqGetTrueForOptions(pTriggerWindow->pTrueForLimit, &pReq->trigger.stateWin.trueForType,
+                                   &pReq->trigger.stateWin.trueForCount, &pReq->trigger.stateWin.trueForDuration);
   if (NULL != pTriggerWindow->pZeroth) {
     PAR_ERR_RET(nodesNodeToString(pTriggerWindow->pZeroth, false, (char**)&pReq->trigger.stateWin.zeroth, NULL));
   }
@@ -19723,6 +19781,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_DRAIN_XNODE_STMT:
       code = translateDrainXnode(pCxt, (SDrainXnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_ALTER_XNODE_STMT:
+      code = translateAlterXnode(pCxt, (SAlterXnodeStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_XNODE_TASK_STMT:
       code = translateCreateXnodeTask(pCxt, (SCreateXnodeTaskStmt*)pNode);

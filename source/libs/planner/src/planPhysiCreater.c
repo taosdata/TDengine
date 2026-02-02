@@ -2842,7 +2842,9 @@ static int32_t createStateWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
   }
 
   pState->extendOption = pWindowLogicNode->extendOption;
-  pState->trueForLimit = pWindowLogicNode->trueForLimit;
+  pState->trueForType = pWindowLogicNode->trueForType;
+  pState->trueForCount = pWindowLogicNode->trueForCount;
+  pState->trueForDuration = pWindowLogicNode->trueForDuration;
 
   if (TSDB_CODE_SUCCESS == code) {
     code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pState->window, pWindowLogicNode);
@@ -2880,7 +2882,9 @@ static int32_t createEventWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
   if (TSDB_CODE_SUCCESS == code) {
     code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pWindowLogicNode->pEndCond, &pEvent->pEndCond);
   }
-  pEvent->trueForLimit = pWindowLogicNode->trueForLimit;
+  pEvent->trueForType = pWindowLogicNode->trueForType;
+  pEvent->trueForCount = pWindowLogicNode->trueForCount;
+  pEvent->trueForDuration = pWindowLogicNode->trueForDuration;
   if (TSDB_CODE_SUCCESS == code) {
     code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pEvent->window, pWindowLogicNode);
   }
