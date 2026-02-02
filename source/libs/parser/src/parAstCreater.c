@@ -5841,7 +5841,6 @@ SNode* createXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType re
     }
     case XNODE_AGENT: {
       return createXnodeAgentWithOptionsDirectly(pCxt, pResourceName, pOptions);
-      break;
     }
     default:
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -5849,6 +5848,9 @@ SNode* createXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType re
       goto _err;
   }
 _err:
+  nodesDestroyNode(pSource);
+  nodesDestroyNode(pSink);
+  nodesDestroyNode(pOptions);
   return NULL;
 }
 
@@ -6421,6 +6423,7 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
       goto _err;
     }
   }
+  return pTaskOptions;
 _err:
   nodesDestroyNode(pTaskOptions);
   return pTaskOptions;
