@@ -1193,6 +1193,31 @@ pub fn generate_stable_from_pattern(stable_expr: &str, value_type: &Option<IpcDa
     stable
 }
 
+/*
+支持的替换占位符如下：
+* 当 ty = "opcua"（OPC UA）
+    {ns}：替换为 point_id 中的命名空间部分（ns 的值）。例如 point_id="ns=6;s=Foo.Bar" 时，{ns} → "6"。如果 point_id 不含分号；形式（没法拆出 ns），则 {ns} → "0"。
+    {id}：替换为 point_id 中 id 的值（去掉 "i=" / "s=" / "g=" / "b=" 等前缀后的实际值）。例如 "ns=6;s=Foo.Bar" 时，{id} → "Foo.Bar"。
+    {id.}：替换为 id 去掉最后一个点号及其后缀的前缀部分（相当于取最后一个 '.' 之前的部分）。例如 "Foo.Bar.Baz" → "Foo.Bar"，"Foo.Bar" → "Foo"。
+    {id/}：替换为 id 去掉最后一个斜杠及其后缀的前缀部分（取最后一个 '/' 之前的部分）。
+    {id_}：替换为 id 去掉最后一个下划线及其后缀的前缀部分（取最后一个 '_' 之前的部分）。
+    {id..}：替换为 id 去掉最后两个点号段的前缀部分（取倒数第二个 '.' 之前的整段前缀）。例如 "A.B.C.D" → "A.B"。
+    {..id.}：替换为 id 被 '.' 分割后的倒数第二段（“倒数第二个片段”）。例如 "A.B.C" → "B"，"Foo.Bar" → "Foo"。
+    {id#/.}：将 id 中的所有 '/' 变为 '.'（例如 "Device/Type/TagName" → "Device.Type.TagName"）。
+    {id#-.}: 将 id 中的所有 '-' 变为 '.'（例如 "Device-Type-TagName" → "Device.Type.TagName"）。
+    {id/#/.}: 先执行 {id/}，再将结果中的所有 '/' 变为 '.'。 例如： "Device/Type/TagName" → "Device.Type"。
+    {id_#_.}: 先执行 {id_}，再将结果中的所有 '_' 变为 '.'。例如： "Device_Type_TagName" → "Device.Type"。
+    说明：当 point_id 不包含分号（无法拆出 ns、id）时，使用 {ns}="0"，{id}=point_id，并对上述 {id.}/{id/}/{id_}/{id..}/{..id.} 规则同样基于 point_id 进行计算。
+* 当 ty = "opcda" 或 "kinghist"（OPC DA / KingHistorian）
+    {TagName} 或 {tag_name}：替换为 point_id 中最后一个 '.' 之后的片段（末段）。例如 "Device.DeviceType.TagName" → "TagName"。
+    {/tag_name}：替换为 point_id 中最后一个 '/' 之后的片段。例如 "Device/DeviceType/TagName" → "TagName"。
+    {id}：替换为完整的 point_id。例如： "Device.DeviceType.TagName" → "Device.DeviceType.TagName"。
+    {_id}：将 point_id 中的 '/' 和 '.' 全部替换为 '_' 后。例如： "Device/DeviceType.TagName" → "Device_DeviceType_TagName"。
+    {id#/.}：将 id 中的所有 '/' 变为 '.'（例如 "Device/Type/TagName" → "Device.Type.TagName"）。
+    {id#-.}: 将 id 中的所有 '-' 变为 '.'（例如 "Device-Type-TagName" → "Device.Type.TagName"）。
+* 其他情况
+    如果模板中不包含上述任何受支持的占位符，则原样返回 template。
+*/
 /// OPC UA: {ns} {id}
 /// OPC DA: {tag_name/TagName}
 pub fn generate_tag_value_from_pattern(ty: &str, template: &str, point_id: &str) -> String {
@@ -1236,6 +1261,10 @@ pub fn generate_tag_value_from_pattern(ty: &str, template: &str, point_id: &str)
                     .replace("{id_}", id_trim_underscore)
                     .replace("{id..}", id_trim_two_dots)
                     .replace("{..id.}", id_suffix_two)
+                    .replace("{id#/.}", &id.replace('/', "."))
+                    .replace("{id#-.}", &id.replace('-', "."))
+                    .replace("{id/#/.}", &id_trim_slash.replace('/', "."))
+                    .replace("{id_#_.}", &id_trim_underscore.replace('_', "."))
             } else {
                 assert!(!point_id.is_empty(), "id should not be empty: {}", point_id);
                 let id = point_id;
@@ -1260,35 +1289,31 @@ pub fn generate_tag_value_from_pattern(ty: &str, template: &str, point_id: &str)
                     .replace("{id_}", id_trim_underscore)
                     .replace("{id..}", id_trim_two_dots)
                     .replace("{..id.}", id_suffix_two)
+                    .replace("{id#/.}", &id.replace('/', "."))
+                    .replace("{id#-.}", &id.replace('-', "."))
+                    .replace("{id/#/.}", &id_trim_slash.replace('/', "."))
+                    .replace("{id_#_.}", &id_trim_underscore.replace('_', "."))
             }
         }
         "opcda" | "kinghist" => {
-            if template.contains("{TagName}") || template.contains("{tag_name}") {
-                let tag_index = point_id.rfind(".");
-                let tag_name = if let Some(index) = tag_index {
-                    // should be Device.DeviceType.TagName pattern
-                    &point_id[index + 1..]
-                } else {
-                    point_id
-                };
-                let tb_name = template.replace("{TagName}", tag_name);
-                tb_name.replace("{tag_name}", tag_name)
-            } else if template.contains("{/tag_name}") {
-                let tag_index = point_id.rfind("/");
-                let tag_name = if let Some(index) = tag_index {
-                    // should be Device/DeviceType/TagName pattern
-                    &point_id[index + 1..]
-                } else {
-                    point_id
-                };
-                template.replace("{/tag_name}", tag_name)
-            } else if template.contains("{id}") {
-                template.replace("{id}", point_id)
-            } else if template.contains("{_id}") {
-                template.replace("{_id}", &point_id.replace("/", "_"))
-            } else {
-                template.to_string()
-            }
+            // derive segments once
+            let dot_tag = point_id
+                .rfind('.')
+                .map(|idx| &point_id[idx + 1..])
+                .unwrap_or(point_id);
+            let slash_tag = point_id
+                .rfind('/')
+                .map(|idx| &point_id[idx + 1..])
+                .unwrap_or(point_id);
+
+            template
+                .replace("{TagName}", dot_tag)
+                .replace("{tag_name}", dot_tag)
+                .replace("{/tag_name}", slash_tag)
+                .replace("{id}", point_id)
+                .replace("{_id}", &point_id.replace('/', "_"))
+                .replace("{id#/.}", &point_id.replace('/', "."))
+                .replace("{id#-.}", &point_id.replace('-', "."))
         }
         _ => template.to_string(),
     }
@@ -2744,16 +2769,54 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
     #[test]
     fn test_generate_tag_value_from_pattern() {
         let point_id = "ns=2;s=PLC.DETAIL.DEV.METRIC";
-
         let expects = [
+            ("{ns}", "2"),
             ("{id}", "PLC.DETAIL.DEV.METRIC"),
             ("{id.}", "PLC.DETAIL.DEV"),
+            ("{id/}", "PLC.DETAIL.DEV.METRIC"),
+            ("{id_}", "PLC.DETAIL.DEV.METRIC"),
             ("{id..}", "PLC.DETAIL"),
             ("{..id.}", "DEV"),
+            ("constant_value", "constant_value"),
         ];
-
         for (t, e) in expects {
             let v = generate_tag_value_from_pattern("opcua", t, point_id);
+            assert_eq!(v, e);
+        }
+
+        let tag_name = "/ASSETS/AB/EDCGQ.MP706AT.PV";
+        let expects = [
+            ("{TagName}", "PV"),
+            ("{tag_name}", "PV"),
+            ("{/tag_name}", "EDCGQ.MP706AT.PV"),
+            ("{id}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
+            ("{_id}", "_ASSETS_AB_EDCGQ.MP706AT.PV"),
+            ("{id#/.}", ".ASSETS.AB.EDCGQ.MP706AT.PV"),
+            ("{id#-.}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
+            ("constant_value", "constant_value"),
+        ];
+        for (t, e) in expects {
+            let v = generate_tag_value_from_pattern("opcda", t, tag_name);
+            assert_eq!(v, e);
+        }
+
+        let tag_name_dash = "Device-Type-Tag-Name";
+        let expects_dash = [
+            ("{id#-.}", "Device.Type.Tag.Name"),
+            ("{id#/.}", "Device-Type-Tag-Name"),
+        ];
+        for (t, e) in expects_dash {
+            let v = generate_tag_value_from_pattern("opcda", t, tag_name_dash);
+            assert_eq!(v, e);
+        }
+
+        let tag_name_mix = "Dev/Type-Name/Tag-01";
+        let expects_mix = [
+            ("{id#/.}", "Dev.Type-Name.Tag-01"),
+            ("{id#-.}", "Dev/Type.Name/Tag.01"),
+        ];
+        for (t, e) in expects_mix {
+            let v = generate_tag_value_from_pattern("opcda", t, tag_name_mix);
             assert_eq!(v, e);
         }
     }

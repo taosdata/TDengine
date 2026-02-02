@@ -1,6 +1,6 @@
 import { getDBListReq, createDB, deleteDBReq, updateDB } from "@/api/database";
-import { DBFILED } from "@/const";
-const dbDefaultField = Object.fromEntries(Object.keys(DBFILED).map(key => [key, DBFILED[key].defaultValue]));
+import { DB_FIELDS } from "taos-ui/constants/tdengine";
+const dbDefaultField = Object.fromEntries(Object.keys(DB_FIELDS).map(key => [key, DB_FIELDS[key].defaultValue]));
 const state = {
   dbList: [],
   currentPage: 1,

@@ -1,5 +1,5 @@
 import { sendSQLReq } from '@/api/explorer';
-import { DBFILED, HIDEDB, DBCustomedFiled } from '@/const.ts';
+import { DB_FIELDS, HIDEDB, DBCustomedFiled } from 'taos-ui/constants/tdengine';
 import { request } from '@/utils/request.ts';
 import { executeDBOperations } from '@/api/explorer';
 import { trimEnd, trimStart } from 'lodash-es';
@@ -96,10 +96,10 @@ export function deleteDBReq(dbName: string) {
 
 function getDBParamsSql(data: Recordable) {
   const result: string[] = [];
-  Object.keys(DBFILED).forEach(item => {
+  Object.keys(DB_FIELDS).forEach(item => {
     if (DBCustomedFiled.includes(item)) return;
     let value = data[item];
-    const isString = DBFILED[item]?.type == 'string';
+    const isString = DB_FIELDS[item]?.type == 'string';
     if ((isString && !value) || value == undefined) return;
     if (isString) {
       value = `'${value}'`;

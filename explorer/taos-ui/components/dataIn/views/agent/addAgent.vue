@@ -125,9 +125,9 @@ const checkIng = ref<boolean>(false);
 const agentAddress = computed(() => {
   const agenturl = dataInProps.isCloud
     ? TdDocsUrl + '/cloud/data-in/ds/install-agent'
-    : isEn
-      ? '/docs-en/get-started/agent/'
-      : '/docs/get-started/agent/';
+    : isEn.value
+      ? '/docs-en/tdengine-reference/components/taosx-agent/'
+      : '/docs/reference/components/taosx-agent/';
   return agenturl;
 });
 const checkBtnText = computed(() => {

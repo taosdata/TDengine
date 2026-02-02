@@ -151,7 +151,7 @@ impl Pipeline {
             for table in model {
                 if table.name.is_empty() {
                     return Err(Error::EmptyTableName);
-                } else if table.name.contains('.') {
+                } else if !validate_table_name(&table.name) {
                     return Err(Error::TableNameContainsDot(table.name.clone()));
                 }
                 table.global.get_or_init(|| self.global.clone());
@@ -176,7 +176,7 @@ impl Pipeline {
                 if let Some(stable) = table.using.as_ref() {
                     if stable.is_empty() {
                         return Err(Error::EmptySTableName);
-                    } else if stable.contains('.') {
+                    } else if !validate_table_name(stable) {
                         return Err(Error::STableNameContainsDot(stable.clone()));
                     } else if table.tags.as_ref().map(Vec::is_empty).unwrap_or(true) {
                         return Err(Error::STableTagsRequired);
@@ -1754,7 +1754,7 @@ impl Parser {
         for table in &self.model {
             if table.name.is_empty() {
                 return Err(Error::EmptyTableName);
-            } else if table.name.contains('.') {
+            } else if !validate_table_name(&table.name) {
                 return Err(Error::TableNameContainsDot(table.name.clone()));
             }
 
@@ -1778,7 +1778,7 @@ impl Parser {
             if let Some(stable) = table.using.as_ref() {
                 if stable.is_empty() {
                     return Err(Error::EmptySTableName);
-                } else if stable.contains('.') {
+                } else if !validate_table_name(stable) {
                     return Err(Error::STableNameContainsDot(stable.clone()));
                 } else if table.tags.as_ref().map(Vec::is_empty).unwrap_or(true) {
                     return Err(Error::STableTagsRequired);
@@ -3286,6 +3286,112 @@ fn indices_to_ranges(indices: &[usize]) -> Vec<Range<usize>> {
     ranges.push(start..end);
 
     ranges
+}
+
+/// 验证表名中的点符号是否只出现在大括号内
+///
+/// # 规则
+/// - 点符号(`.`)只能在大括号(`{}`)中出现
+/// - 大括号必须正确匹配
+/// - 例如：`a.b.c` 不合法，但 `{a.b.c}` 合法
+///
+/// # 参数
+/// * `s` - 需要验证的表名字符串切片
+///
+/// # 返回值
+/// * `true` - 表名合法
+/// * `false` - 表名不合法
+///
+/// # 示例
+/// ```
+/// assert!(!validate_table_name("a.b.c"));      // 点不在大括号内
+/// assert!(validate_table_name("{a.b.c}"));     // 点在大括号内
+/// assert!(validate_table_name("abc"));         // 没有点符号
+/// ```
+fn validate_table_name(s: &str) -> bool {
+    let mut brace_depth = 0;
+
+    for ch in s.chars() {
+        match ch {
+            '{' => {
+                brace_depth += 1;
+            }
+            '}' => {
+                brace_depth -= 1;
+
+                if brace_depth < 0 {
+                    return false;
+                }
+            }
+            '.' => {
+                if brace_depth == 0 {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    brace_depth == 0
+}
+
+#[cfg(test)]
+mod validate_tests {
+    use super::*;
+
+    #[test]
+    fn test_invalid_dot_outside_braces() {
+        // 点完全在外面
+        assert!(!validate_table_name("a.b.c"));
+
+        // 第一个点在外面
+        assert!(!validate_table_name("a.{b.c}"));
+
+        // 最后一个点在外面
+        assert!(!validate_table_name("{a.b}.c"));
+    }
+
+    /// 测试点符号在大括号内的情况（应该返回 true）
+    #[test]
+    fn test_valid_dot_inside_braces() {
+        // 简单的大括号包裹
+        assert!(validate_table_name("{a.b.c}"));
+
+        // 大括号前后有其他字符
+        assert!(validate_table_name("a{b.c}d"));
+
+        // 多个独立的大括号块
+        assert!(validate_table_name("{a.b}{c.d}"));
+
+        // 嵌套的大括号
+        assert!(validate_table_name("{a.{b.c}.d}"));
+    }
+
+    /// 测试没有点符号的情况（应该返回 true）
+    #[test]
+    fn test_no_dots() {
+        // 普通字符串
+        assert!(validate_table_name("abc"));
+
+        // 有大括号但没有点
+        assert!(validate_table_name("{abc}"));
+
+        // 空字符串
+        assert!(validate_table_name(""));
+    }
+
+    /// 测试括号不匹配的情况（应该返回 false）
+    #[test]
+    fn test_unmatched_braces() {
+        // 左括号未闭合
+        assert!(!validate_table_name("{a.b"));
+
+        // 多余的右括号
+        assert!(!validate_table_name("a.b}"));
+
+        // 括号顺序错误
+        assert!(!validate_table_name("}{"));
+    }
 }
 
 #[cfg(test)]

@@ -35,16 +35,23 @@ url &lt;- Sys.getenv("TDENGINE_JDBC_URL")
     <p>{{ $t('docs.connector.r.step32desc') }}</p>
     <pre v-highlight><code class="language-r">conn &lt;- dbConnect(drv, url)
 </code></pre>
-    <p>
-      {{ $t('docs.connector.bottom2') }}
-      <a :href="`${$t('urlPart')}/develop/insert-data/`">{{ $t('docs.connector.r.insertdata') }}</a>
-      {{ $t('docs.connector.bottomand') }}
-      <a :href="`${$t('urlPart')}/develop/query-data/`">{{ $t('docs.connector.r.querydata') }}</a
-      >{{ $t('docs.connector.bottom3end') }}
+     <p>
+      {{ $t("docs.connector.bottom1") }} {{ $t("docs.connector.bottom2") }}
+      <a :href="`${$t('urlPart')}/${insertApi}`">{{
+        `${$t('docs.connector.bottom2_1')}`
+      }}</a>
+      {{ $t("docs.connector.bottomand") }}
+      <a :href="`${$t('urlPart')}/${selectApi}`">{{
+        `${$t('docs.connector.bottom2_2')}`
+      }}</a
+      >{{ $t("docs.connector.bottom3end") }}
     </p>
     <p>
-      {{ $t('docs.connector.bottom3') }}
-      <a :href="`${$t('urlPart')}/${restapi}/rest-api/`">REST API</a>{{ $t('docs.connector.bottom3end') }}
+      {{ $t("docs.connector.bottom3") }}
+      <a
+        :href="`${$t('urlPart')}/${restApi}`"
+        >REST API</a
+      >{{ $t("docs.connector.bottom3end") }}
     </p>
   </div>
 </template>
@@ -52,11 +59,16 @@ url &lt;- Sys.getenv("TDENGINE_JDBC_URL")
 <script setup lang="ts">
 import DocConfig from '@/components/document/commonConfig.vue';
 import { DocsProps } from '../utils'
+import { isEn } from '@/const';
 
 const props = defineProps<DocsProps>()
 
 const jdbcURL = computed(() => {
   return 'jdbc:TAOS-RS://' + props.url.replace(/https?:\/\//, '') + '?useSSL=' + props.url.startsWith('https') + '&token=' + props.token;
 })
+
+const restApi = computed(() => isEn.value ? 'tdengine-reference/client-libraries/rest-api/' : 'reference/connector/rest-api/');
+const insertApi = computed(() => isEn.value ? 'developer-guide/running-sql-statements/#insert-data' : 'develop/sql/#插入数据');
+const selectApi = computed(() => isEn.value ? 'developer-guide/running-sql-statements/#query-data' : 'develop/sql/#查询数据');
 
 </script>

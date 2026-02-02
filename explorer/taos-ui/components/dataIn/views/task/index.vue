@@ -104,13 +104,13 @@
         @cell-mouse-enter="onTaskTableMouseEnter"
         @cell-mouse-leave="onTaskTableMouseLeave"
       >
-        <el-table-column type="selection" :reserve-selection="true" width="50"> </el-table-column>
-        <el-table-column type="expand">
+        <el-table-column type="selection" :reserve-selection="true" width="30"> </el-table-column>
+        <el-table-column type="expand" width="20">
           <template #default="rowData">
             <Activities :data="rowData.row.activities" />
           </template>
         </el-table-column>
-        <el-table-column :label="t('dataIn.taskid')" prop="taskid" min-width="50" max-width="100">
+        <el-table-column :label="t('dataIn.taskid')" prop="taskid" width="40">
           <template #default="scope">
             <span style="padding-left: 5px">{{ scope.row.taskid }}</span>
           </template>
@@ -164,7 +164,7 @@
           :label="t('dataIn.createat')"
           prop="created_at"
           sortable
-          min-width="220"
+          min-width="180"
         >
           <template #default="scope">
             <span>{{ getTimeParser(scope.row.created_at) }}</span>

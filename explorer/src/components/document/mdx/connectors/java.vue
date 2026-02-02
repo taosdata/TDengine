@@ -215,11 +215,11 @@ v-highlight='
     </el-tabs>
     <p>
       {{ $t("docs.connector.bottom1") }} {{ $t("docs.connector.bottom2") }}
-      <a :href="`${$t('urlPart')}/develop/insert-data/`">{{
+      <a :href="`${$t('urlPart')}/${insertApi}`">{{
         `${$t('docs.connector.bottom2_1')}`
       }}</a>
       {{ $t("docs.connector.bottomand") }}
-      <a :href="`${$t('urlPart')}/develop/query-data/`">{{
+      <a :href="`${$t('urlPart')}/${selectApi}`">{{
         `${$t('docs.connector.bottom2_2')}`
       }}</a
       >{{ $t("docs.connector.bottom3end") }}
@@ -227,7 +227,7 @@ v-highlight='
     <p>
       {{ $t("docs.connector.bottom3") }}
       <a
-        :href="`${$t('urlPart')}/${restapi}/rest-api/`"
+        :href="`${$t('urlPart')}/${restApi}`"
         >REST API</a
       >{{ $t("docs.connector.bottom3end") }}
     </p>
@@ -235,6 +235,7 @@ v-highlight='
 </template>
 
 <script setup lang="ts">
+import { isEn } from '@/const';
 import { DocsProps } from '../utils'
 
 const props = defineProps<DocsProps>()
@@ -249,4 +250,7 @@ const jdbcURL = computed(() => {
     "&password=" + props.password
   );
 })
+const restApi = computed(() => isEn.value ? 'tdengine-reference/client-libraries/rest-api/' : 'reference/connector/rest-api/');
+const insertApi = computed(() => isEn.value ? 'developer-guide/running-sql-statements/#insert-data' : 'develop/sql/#插入数据');
+const selectApi = computed(() => isEn.value ? 'developer-guide/running-sql-statements/#query-data' : 'develop/sql/#查询数据');
 </script>

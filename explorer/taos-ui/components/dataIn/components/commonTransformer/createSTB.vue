@@ -272,7 +272,7 @@ const state = reactive({
       },
       {
         validator: (_: any, value: string | string[], callback: (arg0: Error | undefined) => void) => {
-          callback(value.indexOf('.') != -1 ? new Error(t('formatWrong')) : undefined);
+          callback(validateTableName(value) ? undefined : new Error(t('formatWrong')));
         },
         trigger: 'blur'
       }
@@ -282,6 +282,41 @@ const state = reactive({
   VariableTableColumnType,
   templateDataType: [] as string[]
 });
+
+function validateTableName(input: string | string[]) {
+  if (Array.isArray(input)) {
+    return input.every(str => validateSingleTableName(str));
+  }
+  
+  return validateSingleTableName(input);
+}
+
+function validateSingleTableName(str: string) {
+  if (typeof str !== 'string') {
+    return false;
+  }
+  
+  let braceDepth = 0;
+  
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+    
+    if (char === '{') {
+      braceDepth++;
+    } else if (char === '}') {
+      braceDepth--;
+      if (braceDepth < 0) {
+        return false;
+      }
+    } else if (char === '.') {
+      if (braceDepth === 0) {
+        return false;
+      }
+    }
+  }
+  
+  return braceDepth === 0;
+}
 
 const formRef = ref();
 
