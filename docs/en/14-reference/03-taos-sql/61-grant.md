@@ -461,7 +461,8 @@ Different object types support different permission types. The specific mapping 
 | SSMIGRATE | ✓ | | | | | | | |
 | SHOW | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | SHOW CREATE | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SELECT [(column_list)] | | ✓ | ✓ | | | | | |
+| SELECT | | ✓ | ✓ | | | | | |
+| SELECT (column_list) | | ✓ | | | | | | |
 | INSERT [(column_list)] | | ✓ | | | | | | |
 | DELETE | | ✓ | | | | | | |
 | CREATE TABLE | ✓ | | | | | | | |
@@ -481,7 +482,6 @@ Different object types support different permission types. The specific mapping 
 **Notes:**
 
 - When using `GRANT` for authorization, you need to specify the object type through `ON [priv_obj]`, and the system will automatically verify whether the permission is applicable to the specified object type
-- In `SELECT [(column_list)]` and `INSERT [(column_list)]`, the `(column_list)` is optional and used for column-level permission control
 - Only one rule can be set for the same type of operation per table for column permissions
 
 #### Database Permissions

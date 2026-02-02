@@ -460,7 +460,8 @@ priv_type: {
 | SSMIGRATE | ✓ | | | | | | | |
 | SHOW | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | SHOW CREATE | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SELECT [(column_list)] | | ✓ | ✓ | | | | | |
+| SELECT | | ✓ | ✓ | | | | | |
+| SELECT (column_list) | | ✓ | | | | | | |
 | INSERT [(column_list)] | | ✓ | | | | | | |
 | DELETE | | ✓ | | | | | | |
 | CREATE TABLE | ✓ | | | | | | | |
@@ -480,7 +481,6 @@ priv_type: {
 **说明：**
 
 - 使用 `GRANT` 授权时，需要通过 `ON [priv_obj]` 指定对象类型，系统会自动校验该权限是否适用于指定的对象类型
-- `SELECT [(column_list)]` 和 `INSERT [(column_list)]` 中的 `(column_list)` 为可选，用于实现列级权限控制
 - 同一表相同类型的列权限操作只能设置一条规则
 
 #### 数据库权限
