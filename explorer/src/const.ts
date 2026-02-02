@@ -45,48 +45,6 @@ export const ServerLevel = {
 export const OFFSETUTCTIME = new Date().getTimezoneOffset() * 60 * 1000;
 
 export const VariableTableColumnType = ['BINARY', 'NCHAR', 'VARCHAR', 'VARBINARY', 'GEOMETRY'];
-export const HIDEDB = ['information_schema', 'performance_schema'];
-export const DBFILED: Recordable<Recordable> = {
-  buffer: { type: 'number', alter: false, defaultValue: 32 },
-  cachemodel: { type: 'string', alter: true, defaultValue: 'none' },
-  cachesize: { type: 'number', alter: true, defaultValue: 1 },
-  comp: { type: 'number', alter: false, defaultValue: 2 },
-  duration: { type: 'number', alter: false, defaultValue: '10d' },
-  wal_fsync_period: { type: 'number', alter: true, defaultValue: 3000 },
-  maxrows: { type: 'number', alter: false, defaultValue: 4096 },
-  minrows: { type: 'number', alter: false, defaultValue: 100 },
-  keep: { type: 'number', alter: true, defaultValue: 3650 },
-  pages: { type: 'number', alter: false, defaultValue: 256 },
-  pagesize: { type: 'number', alter: false, defaultValue: 4 },
-  precision: { type: 'string', alter: false, defaultValue: 'ms' },
-  replica: { type: 'number', alter: false, defaultValue: 1 },
-  retentions: { type: 'string', alter: false, defaultValue: '' },
-  strict: { type: 'string', alter: false, defaultValue: 'off', version: '<=3.0.2.4' },
-  wal_level: { type: 'number', alter: true, defaultValue: 1 },
-  vgroups: { type: 'number', alter: false, defaultValue: 4 },
-  single_stable: { type: 'number', alter: false, defaultValue: 0 },
-  wal_retention_period: { type: 'number', alter: false, defaultValue: 3600 }, //
-  wal_retention_size: { type: 'number', alter: false, defaultValue: 0 },
-  wal_roll_period: { type: 'number', alter: false, defaultValue: 0, version: '<=3.0.7.1' },
-  wal_segment_size: { type: 'number', alter: false, defaultValue: 0, version: '<=3.0.7.1' },
-  stt_trigger: { type: 'number', alter: false, defaultValue: 1, version: '>=3.0.5.0' },
-  tsdb_pagesize: { type: 'number', alter: false, defaultValue: 4, version: '>=3.0.5.0' },
-  table_prefix: { type: 'number', alter: false, defaultValue: undefined, version: '>=3.0.5.0' },
-  table_suffix: { type: 'number', alter: false, defaultValue: undefined, version: '>=3.0.5.0' },
-  s3_keeplocal: { type: 'number', alter: true, defaultValue: '365d', version: '>=3.3.4.3' },
-  s3_chunkpages: { type: 'number', defaultValue: 262144, alter: false, version: '>=3.3.4.3' },
-  s3_compact: { type: 'number', alter: true, defaultValue: '1', version: '>=3.3.4.3' },
-  ENCRYPT_ALGORITHM: { type: 'string', alter: false, defaultValue: 'none', version: '>=3.3.0.0' }
-};
-export const DBCustomedFiled = [
-  'parent',
-  'node-key',
-  'typeName',
-  'privileges',
-  'databaseId',
-  'databaseName',
-  'databaseAccessType'
-];
 export const TokenExpire = 1 / 24; //day
 export const AppIDKey = 'AppID';
 export const TokenKey = 'TDengine-Token';

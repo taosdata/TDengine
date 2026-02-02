@@ -48,7 +48,7 @@
 
 <script lang="ts" setup>
 import { copy } from 'utils';
-import { DBCustomedFiled } from 'constants1/tdengine';
+import { DBCustomedFiled } from 'taos-ui/constants/tdengine';
 import { getCurrentInfoDataProvider } from './utils';
 import { t } from 'locales';
 import { getSubtbCurrentStruct, getStableStructReq } from '../../api';
