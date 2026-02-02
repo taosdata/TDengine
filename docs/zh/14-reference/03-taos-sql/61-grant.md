@@ -588,7 +588,7 @@ GRANT ALTER ON power.* TO dba_user;
 
 ```sql
 GRANT SELECT ON table_name WITH condition TO user_name;
-REVOKE SELECT ON table_name FROM user_name; // revoke 时无论是否指定 condition，均会发回对应表的 select 权限。
+REVOKE SELECT ON table_name FROM user_name; // revoke 时无论是否指定 condition，均会撤销对应表的 select 权限。
 REVOKE ALL ON table_name FROM user_name;
 ```
 
@@ -631,7 +631,7 @@ REVOKE ALL ON table_name FROM user_name;
 
 - 只适用于 `SELECT` 和 `INSERT` 操作
 - 只能指定超级表或普通表，不能指定子表
-- 同一表同一操作只能设置一条规则
+- 同一表相同类型的操作只能设置一条规则
 - 可配合行权限一起使用
 
 **示例 - 按列分权限：**
@@ -736,13 +736,13 @@ GRANT SUBSCRIBE ON power.device_events TO consumer1;
 -- 用户 consumer2 可以订阅所有数据库中的所有主题
 GRANT SUBSCRIBE ON *.* TO consumer2;
 
--- 用户可以查看主题信息
+-- 用户可以查看 power 库的所有主题信息
 GRANT SHOW ON TOPIC power.* TO viewer;
 
 -- 用户可以查看主题定义和消费者信息
 GRANT SHOW CREATE, SHOW CONSUMERS ON TOPIC power.device_events TO inspector;
 
--- 用户对主题有完整管理权限（仅数据库管理员）
+-- 用户对主题有完整管理权限
 GRANT ALL ON TOPIC power.device_events TO admin_user;
 
 -- 撤回 inspector 拥有的所有主题权限

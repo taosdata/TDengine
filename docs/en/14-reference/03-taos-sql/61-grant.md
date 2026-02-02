@@ -598,9 +598,9 @@ REVOKE ALL ON table_name FROM user_name;
 
 - Conditions apply to supertables or regular tables
 - Cannot specify conditions for subtables
-- Only one condition rule per table
+- Only one rule can be set for the same type of operation per table
 - Multiple conditions can use `AND/OR` combination
-- Can be combined with tag subtable conditions
+- Can be combined with tag conditions
 - Can be combined with column permissions
 
 **Example - Row Permission by Data Source:**
@@ -738,13 +738,13 @@ GRANT SUBSCRIBE ON power.device_events TO consumer1;
 -- User consumer2 can subscribe to all topics in all databases
 GRANT SUBSCRIBE ON *.* TO consumer2;
 
--- User can view topic information
+-- User can view all topics of database `power`
 GRANT SHOW ON TOPIC power.* TO viewer;
 
 -- User can view topic definition and consumer information
 GRANT SHOW CREATE, SHOW CONSUMERS ON TOPIC power.device_events TO inspector;
 
--- User has full management permissions on topic (database admin only)
+-- User has full management permissions on topic
 GRANT ALL ON TOPIC power.device_events TO admin_user;
 
 -- Revoke all topic permissions from inspector
