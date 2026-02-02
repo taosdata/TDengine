@@ -435,9 +435,11 @@ column_list: {
 }
 
 priv_type: {
-    ALTER | DROP | USE | FLUSH | COMPACT | TRIM | ROLLUP | SCAN | SSMIGRATE | SHOW | SHOW CREATE
+    ALTER | DROP
   | SELECT [(column_list)] | INSERT [(column_list)] | DELETE
-  | CREATE TABLE | CREATE VIEW | CREATE TOPIC | CREATE STREAM | CREATE INDEX | CREATE TSMA | CREATE RSMA
+  | CREATE TABLE | CREATE VIEW | CREATE INDEX | CREATE TSMA | CREATE RSMA | CREATE TOPIC | CREATE STREAM
+  | USE | SHOW | SHOW CREATE
+  | FLUSH | COMPACT | TRIM | ROLLUP | SCAN | SSMIGRATE
   | SUBSCRIBE | SHOW CONSUMERS | SHOW SUBSCRIPTIONS
   | START | STOP | RECALCULATE
 }
@@ -451,26 +453,25 @@ priv_type: {
 |---------|:--------:|:-----:|:----:|:-----:|:----:|:----:|:-----:|:------:|
 | ALTER | ✓ | ✓ | ✓ | | | ✓ | | |
 | DROP | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SELECT [(column_list)] | | ✓ | ✓ | | | | | |
+| INSERT [(column_list)] | | ✓ | | | | | | |
+| DELETE | | ✓ | | | | | | |
+| CREATE TABLE | ✓ | | | | | | | |
+| CREATE VIEW | ✓ | | | | | | | |
+| CREATE INDEX | | ✓ | | | | | | |
+| CREATE TSMA | | ✓ | | | | | | |
+| CREATE RSMA | | ✓ | | | | | | |
+| CREATE TOPIC | ✓ | | | | | | | |
+| CREATE STREAM | ✓ | | | | | | | |
 | USE | ✓ | | | | | | | |
+| SHOW | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SHOW CREATE | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | FLUSH | ✓ | | | | | | | |
 | COMPACT | ✓ | | | | | | | |
 | TRIM | ✓ | | | | | | | |
 | ROLLUP | ✓ | | | | | | | |
 | SCAN | ✓ | | | | | | | |
 | SSMIGRATE | ✓ | | | | | | | |
-| SHOW | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SHOW CREATE | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SELECT | | ✓ | ✓ | | | | | |
-| SELECT (column_list) | | ✓ | | | | | | |
-| INSERT [(column_list)] | | ✓ | | | | | | |
-| DELETE | | ✓ | | | | | | |
-| CREATE TABLE | ✓ | | | | | | | |
-| CREATE VIEW | ✓ | | | | | | | |
-| CREATE TOPIC | ✓ | | | | | | | |
-| CREATE STREAM | ✓ | | | | | | | |
-| CREATE INDEX | | ✓ | | | | | | |
-| CREATE TSMA | | ✓ | | | | | | |
-| CREATE RSMA | | ✓ | | | | | | |
 | SUBSCRIBE | | | | | | | ✓ | |
 | SHOW CONSUMERS | | | | | | | ✓ | |
 | SHOW SUBSCRIPTIONS | | | | | | | ✓ | |
@@ -480,8 +481,9 @@ priv_type: {
 
 **说明：**
 
-- 使用 `GRANT` 授权时，需要通过 `ON [priv_obj]` 指定对象类型，系统会自动校验该权限是否适用于指定的对象类型
-- 同一表相同类型的列权限操作只能设置一条规则
+- 使用 `GRANT` 授权时，需要通过 `ON [priv_obj]` 指定对象类型，系统会自动校验该权限是否适用于指定的对象类型。
+- `[(column_list)]` 表示可选的列名列表，用于实现列级权限控制。`view` 只支持 `SELECT`，不支持指定列名列表。
+- 同一表相同类型的列权限操作只能设置一条规则。
 
 #### 数据库权限
 
