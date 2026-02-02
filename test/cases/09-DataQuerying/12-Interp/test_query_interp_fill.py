@@ -1740,20 +1740,20 @@ class TestInterpFill:
 
         ### cannot specify near/prev/next values when no surrounding time or range around
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', '2020-02-01 00:01:00') every(1s) fill(near, 1, 1)"
-        tdSql.error(sql, -2147473748) ## cannot specify values
+        tdSql.error(sql, -2147473747) ## cannot specify values
 
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00') every(1s) fill(near, 1, 1)"
-        tdSql.error(sql, -2147473748) ## cannot specify values
+        tdSql.error(sql, -2147473747) ## cannot specify values
 
         ### when range around interval is set, only prev/next/near modes are supported
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(NULL, 1, 1)"
         tdSql.error(sql, -2147473920)
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(NULL)"
-        tdSql.error(sql, -2147473747)
+        tdSql.error(sql, -2147473746)
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(linear, 1, 1)"
         tdSql.error(sql, -2147473920)
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(linear)"
-        tdSql.error(sql, -2147473747)
+        tdSql.error(sql, -2147473746)
 
         ### range interval cannot be 0
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 0h) fill(near, 1, 1)"
@@ -1828,12 +1828,12 @@ class TestInterpFill:
     def check_interval_fill_extension(self):
         ## not allowed
         sql = f"select count(*) from test.meters interval(1s) fill(near)"
-        tdSql.error(sql, -2147473749) ## TSDB_CODE_PAR_NOT_ALLOWED_FILL_MODE
+        tdSql.error(sql, -2147473748) ## TSDB_CODE_PAR_NOT_ALLOWED_FILL_MODE
 
         sql = f"select count(*) from test.meters interval(1s) fill(prev, 1)"
-        tdSql.error(sql, -2147473748) ## TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES
+        tdSql.error(sql, -2147473747) ## TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES
         sql = f"select count(*) from test.meters interval(1s) fill(next, 1)"
-        tdSql.error(sql, -2147473748) ## TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES
+        tdSql.error(sql, -2147473747) ## TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES
 
         sql = f"select _irowts_origin, count(*) from test.meters where ts between '2018-09-17 08:59:59' and '2018-09-17 09:00:06' interval(1s) fill(next)"
         tdSql.error(sql, -2147473918) ## invalid column name _irowts_origin
