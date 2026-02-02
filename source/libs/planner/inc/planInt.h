@@ -28,7 +28,7 @@ extern "C" {
 typedef struct SPhysiPlanContext {
   SPlanContext* pPlanCxt;
   int32_t       errCode;
-  int16_t       nextDataBlockId;
+  int64_t       nextDataBlockId;
   SArray*       pLocationHelper;
   SArray*       pProjIdxLocHelper;
 } SPhysiPlanContext;
