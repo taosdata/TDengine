@@ -4277,14 +4277,14 @@ void handleRemoteValueListRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SR
 
   qDebug("%s scl fetch valueList rsp received, subQIdx:%d, rows:%" PRId64 , ctx->idStr, pParam->subQIdx, pRsp->numOfRows);
 
-  if (1 != pRsp->numOfCols) {
-    qError("%s invalid scl valueList fetch rsp received, subQIdx:%d, cols:%" PRId64, ctx->idStr, pParam->subQIdx, pRsp->numOfCols);
-    ctx->code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_COLS;
-
-    return;
-  }
-
   if (pRsp->numOfRows > 0) {
+    if (1 != pRsp->numOfCols) {
+      qError("%s invalid scl valueList fetch rsp received, subQIdx:%d, cols:%" PRId64, ctx->idStr, pParam->subQIdx, pRsp->numOfCols);
+      ctx->code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_COLS;
+      *fetchDone = true;
+      return;
+    }
+
     ctx->code = createExprSubQResBlock(&pResBlock, &((SExprNode*)pParam->pRes)->resType);
     if (TSDB_CODE_SUCCESS == ctx->code) {
       ctx->code = blockDataEnsureCapacity(pResBlock, pRsp->numOfRows);

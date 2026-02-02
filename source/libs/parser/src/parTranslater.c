@@ -547,6 +547,11 @@ static int32_t createOperatorNodeByNode(EOperatorType opType, const SNode* pLeft
 static int32_t createIsOperatorNodeByNode(EOperatorType opType, SNode* pNode, SNode** pOp);
 static int32_t insertCondIntoSelectStmt(SSelectStmt* pSelect, SNode** pCond);
 static int32_t extractCondFromCountWindow(STranslateContext* pCxt, SCountWindowNode* pCountWindow, SNode** pCond);
+static int32_t translateExprList(STranslateContext* pCxt, SNodeList* pList);
+static int32_t setCurrLevelNsFromParent(STranslateContext* pSrc, STranslateContext* pDst);
+static bool getJoinContais(SNode* pNode);
+static uint8_t getStmtPrecision(SNode* pStmt);
+static bool stmtIsSingleTable(SNode* pStmt);
 
 static bool isWindowJoinStmt(SSelectStmt* pSelect) {
   return (QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable)) &&
@@ -2851,7 +2856,7 @@ static int32_t getExprSubQRewriteType(EOperatorType opType, SNode* pSubq, ESubQR
   return TSDB_CODE_PAR_INTERNAL_ERROR;
 }
 
-static int32_t createSimpleSubQStmt(char* stmtName, SNodeList *pProjectionList, SNode* pSubQ, SSelectStmt **ppStmt) {
+static int32_t createSimpleSubQStmt(STranslateContext* pCxt, char* stmtName, SNodeList *pProjectionList, SNode* pSubQ, SSelectStmt **ppStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
   STempTableNode* pTable = NULL;
   code = nodesMakeNode(QUERY_NODE_TEMP_TABLE, (SNode**)&pTable);
@@ -2875,6 +2880,50 @@ static int32_t createSimpleSubQStmt(char* stmtName, SNodeList *pProjectionList, 
   }
 
   SSelectStmt* pSelect = *ppStmt;
+
+  if (QUERY_NODE_SELECT_STMT == nodeType(pTable->pSubquery)) {
+    pSelect->joinContains = ((SSelectStmt*)pSubQ)->joinContains;
+    pSelect->timeLineResMode = ((SSelectStmt*)pSubQ)->timeLineResMode;
+    pSelect->timeLineCurMode = ((SSelectStmt*)pSubQ)->timeLineResMode;
+  }
+
+  pSelect->joinContains = (getJoinContais(pTable->pSubquery) ? true : false);
+  pTable->table.precision = getStmtPrecision(pTable->pSubquery);
+  pTable->table.singleTable = stmtIsSingleTable(pTable->pSubquery);
+
+  STranslateContext cxt = {0};
+  cxt.isExprSubQ = true;
+
+  code = initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, true, &cxt);
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    nodesDestroyNode((SNode*)pSelect);
+    destroyTranslateContext(&cxt);
+    return code;
+  }
+
+  code = setCurrLevelNsFromParent(pCxt, &cxt);
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    nodesDestroyNode((SNode*)pSelect);
+    destroyTranslateContext(&cxt);
+    return code;
+  }
+
+  code = addNamespace(&cxt, pTable);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pSelect);
+    destroyTranslateContext(&cxt);
+    return code;
+  }
+
+  cxt.pCurrStmt = (SNode*)pSelect;
+  cxt.currClause = SQL_CLAUSE_SELECT;
+  
+  code = translateExprList(&cxt, pProjectionList);
+  destroyTranslateContext(&cxt);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pSelect);
+    return code;
+  }
   
   pSelect->selectFuncNum = 1;
   pSelect->hasAggFuncs = true;
@@ -2904,12 +2953,6 @@ static int32_t createNewSubQProjectionList(STranslateContext* pCxt, char* stmtNa
     nodesDestroyNode((SNode*)pFunc);
     return code;
   }
-
-  translateFunction(pCxt, &pFunc);
-  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
-    nodesDestroyNode((SNode*)pFunc);
-    return pCxt->errCode;
-  }
   
   code = nodesListMakeStrictAppend(ppNew, (SNode *)pFunc);
   if (TSDB_CODE_SUCCESS != code) {
@@ -2927,12 +2970,6 @@ static int32_t createNewSubQProjectionList(STranslateContext* pCxt, char* stmtNa
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pFunc2);
     return code;
-  }
-
-  translateFunction(pCxt, &pFunc2);
-  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
-    nodesDestroyNode((SNode*)pFunc2);
-    return pCxt->errCode;
   }
 
   return nodesListMakeStrictAppend(ppNew, (SNode *)pFunc2);
@@ -2967,7 +3004,7 @@ static int32_t rewriteExprSubQResToMinMax(STranslateContext* pCxt, SNode* pSubQu
   }
   
   SSelectStmt* pNewStmt = NULL;
-  code = createSimpleSubQStmt(stmtName, pNewProjection, pSubQuery, &pNewStmt);
+  code = createSimpleSubQStmt(pCxt, stmtName, pNewProjection, pSubQuery, &pNewStmt);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
