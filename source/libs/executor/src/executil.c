@@ -4198,9 +4198,14 @@ int32_t setValueFromResBlock(STaskSubJobCtx* ctx, SRemoteValueNode* pRes, SSData
 }
 
 void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetrieveTableRsp* pRsp) {
-  SSDataBlock* pResBlock = NULL;
+  SSDataBlock*   pResBlock = NULL;
+  SExecTaskInfo* pTaskInfo = ctx->pTaskInfo;
 
   qDebug("%s scl fetch rsp received, subQIdx:%d, rows:%" PRId64 , ctx->idStr, pParam->subQIdx, pRsp->numOfRows);
+
+  if (IS_STREAM_MODE(pTaskInfo)) {
+    pRsp->completed = true;
+  }
 
   if (pRsp->numOfRows > 1 || pRsp->numOfBlocks > 1 || !pRsp->completed) {
     qError("%s invalid scl fetch rsp received, subQIdx:%d, rows:%" PRId64 ", blocks:%d, completed:%d", 
@@ -4397,6 +4402,10 @@ _exit:
 int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
+  SExecTaskInfo*   pTaskInfo = ctx->pTaskInfo;
+  bool             needStreamPesudoFuncVals = false;
+
+
   SDownstreamSourceNode* pSource = (SDownstreamSourceNode*)taosArrayGetP(ctx->subEndPoints, subQIdx);
 
   SResFetchReq req = {0};
@@ -4409,7 +4418,14 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
   req.queryId = ctx->queryId;
   req.execId = pSource->execId;
 
-  int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req, false);
+  if (IS_STREAM_MODE(pTaskInfo)) {
+    req.pStRtFuncInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+    req.reset = true;
+
+    needStreamPesudoFuncVals = true;
+  }
+
+  int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req, needStreamPesudoFuncVals);
   if (msgSize < 0) {
     return msgSize;
   }
@@ -4419,7 +4435,7 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
     return terrno;
   }
 
-  msgSize = tSerializeSResFetchReq(msg, msgSize, &req, false);
+  msgSize = tSerializeSResFetchReq(msg, msgSize, &req, needStreamPesudoFuncVals);
   if (msgSize < 0) {
     taosMemoryFree(msg);
     return msgSize;
