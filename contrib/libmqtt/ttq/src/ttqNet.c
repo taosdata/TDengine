@@ -411,7 +411,7 @@ static int net__try_connect_unix(const char *host, ttq_sock_t *sock) {
 
   memset(&addr, 0, sizeof(struct sockaddr_un));
   addr.sun_family = AF_UNIX;
-  strncpy(addr.sun_path, host, sizeof(addr.sun_path) - 1);
+  tstrncpy(addr.sun_path, host, sizeof(addr.sun_path));
 
   s = socket(AF_UNIX, SOCK_STREAM, 0);
   if (s < 0) {

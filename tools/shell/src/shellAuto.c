@@ -1560,28 +1560,68 @@ bool firstMatchCommand(TAOS* con, SShellCmd* cmd) {
 
 // create input source
 void createInputFromFirst(SWords* input, SWords* firstMatch) {
-  //
-  // if next pressTabKey , input context come from firstMatch, set matched length with source_len
-  //
-  input->source = (char*)taosMemoryMalloc(1024);
-  memset((void*)input->source, 0, 1024);
+  if (input == NULL || firstMatch == NULL) return;
+
+  input->source = NULL;
+  input->source_len = 0;
 
   SWord* word = firstMatch->head;
+  int32_t i = 0;
 
-  // source_len = full match word->len + half match with firstMatch->matchLen
-  for (int i = 0; i < firstMatch->matchIndex && word; i++) {
-    // combine source from each word
-    strncpy(input->source + input->source_len, word->word, word->len);
-    strcat(input->source, " ");          // append blank space
-    input->source_len += word->len + 1;  // 1 is blank length
-    // move next
+  /* 1) calculate required buffer size */
+  size_t needed = 0;
+  while (word && i < firstMatch->matchIndex) {
+    needed += (size_t)word->len; /* length of the word itself */
+    needed += 1;                 /* following space */
     word = word->next;
+    i++;
   }
-  // appand half matched word for last
+
+  /* add matchLen for the last (partially matched) word (but not exceeding the word's len) */
   if (word) {
-    strncpy(input->source + input->source_len, word->word, firstMatch->matchLen);
-    input->source_len += firstMatch->matchLen;
+    int32_t copylen = firstMatch->matchLen;
+    if (copylen > word->len) copylen = word->len;
+    needed += (size_t)copylen;
   }
+
+  /* include null terminator */
+  needed += 1;
+
+  /* 2) allocate buffer of exact size */
+  char* buf = (char*)taosMemoryMalloc((int)needed);
+  if (buf == NULL) {
+    /* on failure keep input->source NULL and return */
+    return;
+  }
+
+  /* 3) construct string using memcpy to avoid repeated traversal and strcat boundary issues */
+  char* p = buf;
+  word = firstMatch->head;
+  i = 0;
+  while (word && i < firstMatch->matchIndex) {
+    if (word->len > 0) {
+      memcpy(p, word->word, word->len);
+      p += word->len;
+    }
+    /* add a space (only when not appending the final partial word) */
+    *p++ = ' ';
+    word = word->next;
+    i++;
+  }
+
+  if (word) {
+    int32_t copylen = firstMatch->matchLen;
+    if (copylen > word->len) copylen = word->len;
+    if (copylen > 0) {
+      memcpy(p, word->word, copylen);
+      p += copylen;
+    }
+  }
+
+  /* null-terminate and set length */
+  *p = '\0';
+  input->source = buf;
+  input->source_len = (int32_t)(p - buf);
 }
 
 // user press Tabkey again is named next , matched return true else false

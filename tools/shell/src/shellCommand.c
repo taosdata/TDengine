@@ -277,17 +277,43 @@ void shellPositionCursor(int32_t step, int32_t direction) {
 }
 
 void shellUpdateBuffer(SShellCmd *cmd) {
-  if(cmd->cursorOffset > cmd->commandSize || cmd->endOffset < cmd->screenOffset) return;
+  /* Validate command state to avoid inconsistent offsets */
+  if (cmd->cursorOffset > cmd->commandSize || cmd->endOffset < cmd->screenOffset) return;
 
-  if (shellRegexMatch(cmd->buffer, "(\\s+$)|(^$)", REG_EXTENDED)) strcat(cmd->command, " ");
-  strcat(cmd->buffer, cmd->command);
-  cmd->bufferSize += cmd->commandSize;
+  /* Capacity of the buffers */
+  size_t cap = (size_t)SHELL_MAX_COMMAND_SIZE;
+  size_t buf_len = strlen(cmd->buffer);
+  size_t cmd_len = (size_t)cmd->commandSize;
 
-  memset(cmd->command, 0, SHELL_MAX_COMMAND_SIZE);
+  /* If regex condition is met, try to append one space to cmd->command safely.
+     This mirrors the original intent but avoids buffer overflow. */
+  if (shellRegexMatch(cmd->buffer, "(\\s+$)|(^$)", REG_EXTENDED)) {
+    if (cmd_len + 1 < cap) {
+      cmd->command[cmd_len] = ' ';
+      cmd->command[cmd_len + 1] = '\0';
+      cmd_len += 1;
+      cmd->commandSize = (int32_t)cmd_len;
+    }
+    /* If there is no room to append the space, skip appending it to keep memory safe. */
+  }
+
+  /* Append as much of cmd->command into cmd->buffer as fits safely. */
+  if (buf_len < cap - 1 && cmd_len > 0) {
+    size_t available = cap - 1 - buf_len; /* leave room for null terminator */
+    size_t to_copy = cmd_len <= available ? cmd_len : available;
+    memcpy(cmd->buffer + buf_len, cmd->command, to_copy);
+    cmd->buffer[buf_len + to_copy] = '\0';
+    cmd->bufferSize = (int32_t)(buf_len + to_copy);
+  }
+
+  /* Clear the command buffer and reset cursor/screen offsets */
+  memset(cmd->command, 0, cap);
   cmd->cursorOffset = 0;
   cmd->screenOffset = 0;
   cmd->commandSize = 0;
   cmd->endOffset = 0;
+
+  /* Refresh the on-screen representation */
   shellShowOnScreen(cmd);
 }
 
@@ -480,7 +506,15 @@ int32_t shellReadCommand(char *command) {
   char           utf8_array[10] = "\0";
 
   cmd.buffer = (char *)taosMemoryCalloc(1, SHELL_MAX_COMMAND_SIZE);
+  if (cmd.buffer == NULL) {
+    return terrno;
+  }
   cmd.command = (char *)taosMemoryCalloc(1, SHELL_MAX_COMMAND_SIZE);
+  if (cmd.command == NULL) {
+    taosMemoryFreeClear(cmd.buffer);
+    return terrno;
+  }
+
   shellShowOnScreen(&cmd);
 
   // Read input.
