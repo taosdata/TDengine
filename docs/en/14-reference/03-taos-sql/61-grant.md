@@ -522,7 +522,7 @@ GRANT CREATE TABLE, CREATE VIEW ON DATABASE power TO creator;
 -- User can modify database configuration
 GRANT ALTER ON DATABASE power TO dba_user;
 
--- User can view object list in database
+-- User can view database `power` by `show databases` command
 GRANT SHOW ON DATABASE power TO viewer;
 
 -- User has full management permissions on database

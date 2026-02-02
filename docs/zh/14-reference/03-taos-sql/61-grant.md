@@ -520,7 +520,7 @@ GRANT CREATE TABLE, CREATE VIEW ON DATABASE power TO creator;
 -- 用户可以修改数据库配置
 GRANT ALTER ON DATABASE power TO dba_user;
 
--- 用户可以查看数据库中的对象列表
+-- 用户可以通过 show databases 命令查看数据库对象 power
 GRANT SHOW ON DATABASE power TO viewer;
 
 -- 用户对数据库有完整管理权限
