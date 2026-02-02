@@ -1696,9 +1696,13 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   }
 
   if (pInfo->base.matchInfo.pList) {
-    pMatchList = taosArrayDup(pInfo->base.matchInfo.pList, NULL);
-    QUERY_CHECK_NULL(pMatchList, code, lino, _return, terrno);
-    taosArraySort(pMatchList, compareColMatchItemByColId);
+    if (!pInfo->base.matchInfo.colIdOrdered) {
+      pMatchList = taosArrayDup(pInfo->base.matchInfo.pList, NULL);
+      QUERY_CHECK_NULL(pMatchList, code, lino, _return, terrno);
+      taosArraySort(pMatchList, compareColMatchItemByColId);
+    } else {
+      pMatchList = pInfo->base.matchInfo.pList;
+    }
   }
 
   // skip ts pair
@@ -1802,7 +1806,9 @@ _return:
   if (code) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-  taosArrayDestroy(pMatchList);
+  if (!pInfo->base.matchInfo.colIdOrdered) {
+    taosArrayDestroy(pMatchList);
+  }
   taosArrayDestroy(pColArray);
   taosArrayDestroy(pBlockColArray);
   pAPI->metaReaderFn.clearReader(&superTable);

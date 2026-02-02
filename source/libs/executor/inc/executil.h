@@ -119,6 +119,7 @@ typedef struct SColMatchItem {
 typedef struct SColMatchInfo {
   SArray* pList;      // SArray<SColMatchItem>
   int32_t matchType;  // determinate the source according to col id or slot id
+  bool    colIdOrdered;
 } SColMatchInfo;
 
 typedef struct STableListIdInfo {
