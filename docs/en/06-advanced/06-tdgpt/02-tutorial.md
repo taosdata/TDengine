@@ -148,7 +148,7 @@ sudo apt install build-essential
 2. Open the directory containing the downloaded package and decompress it.
 
    ```bash tdgpt
-   tar -zxvf TDengine-TDgpt-{{VERSION}}-Linux-x64.tar.gz
+   tar -zxvf tdengine-tdgpt-oss-{{VERSION}}-linux-x64.tar.gz
    ```
 
 ### Run the Installation Script
@@ -156,7 +156,7 @@ sudo apt install build-essential
 Decompress the file, open the directory created, and run the `install.sh` script:
 
 ```bash tdgpt
-cd TDengine-TDgpt-{{VERSION}}
+cd tdengine-tdgpt-oss-{{VERSION}}-linux-x64
 ./install.sh
 ```
 
