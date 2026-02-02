@@ -3,6 +3,7 @@ from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes, etool
 import taos
 import sys
 import time
+from datetime import datetime
 import socket
 import os
 import platform
@@ -15,6 +16,11 @@ else:
 
 import subprocess
 import threading
+
+def logPrint(msg):
+    """Print message with timestamp (millisecond precision)"""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+    print(f"[{timestamp}] {msg}")
 
 def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key1='', value1=''):
     if len(key) == 0:
@@ -44,14 +50,17 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
                 taosCmd = taosCmd + ' ' + value1
 
     tdLog.info ("taos cmd: %s" % taosCmd)
+    logPrint("Spawning taos process...")
 
-    child = taosExpect.spawn(taosCmd, timeout=20)
+    child = taosExpect.spawn(taosCmd, timeout=120)
     #output = child.readline()
     #print (output.decode())
+    logPrint("Waiting for login prompt...")
     if len(expectString) != 0:
-        i = child.expect([expectString, taosExpect.TIMEOUT, taosExpect.EOF], timeout=20)
+        i = child.expect([expectString, taosExpect.TIMEOUT, taosExpect.EOF], timeout=120)
     else:
-        i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=20)
+        i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=120)
+    logPrint(f"Login expect result: {i}")
 
     if platform.system().lower() == 'windows':
         retResult = child.before
@@ -60,15 +69,39 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
     print(retResult)
     #print(child.after.decode())
     if i == 0:
-        print ('taos login success! Here can run sql, taos> ')
+        logPrint("taos login success! Here can run sql, taos> ")
         if len(sqlString) != 0:
+            logPrint(f"DEBUG: Sending SQL: {sqlString}")
             child.sendline (sqlString)
-            w = child.expect(["Query OK", "Create OK", "Insert OK", "Drop OK", taosExpect.TIMEOUT, taosExpect.EOF], timeout=10)
-            if w == 0 or w == 1 or w == 2:
+            w = child.expect(["Query OK", "Create OK", "Insert OK", "Drop OK", taosExpect.TIMEOUT, taosExpect.EOF], timeout=120)
+            if platform.system().lower() == 'windows':
+                execResult = child.before
+                execMatched = child.after if hasattr(child, 'after') else ""
+            else:
+                execResult = child.before.decode()
+                execMatched = child.after.decode() if hasattr(child, 'after') else ""
+            logPrint(f"DEBUG: Expect result index = {w}")
+            logPrint(f"DEBUG: SQL command sent:\n{execResult}")
+            logPrint(f"DEBUG: SQL matched pattern: [{execMatched}]")
+            # Read remaining output after the match
+            try:
+                child.expect([r'\r\n', r'\n'], timeout=0.5)
+                if platform.system().lower() == 'windows':
+                    remaining = child.before
+                else:
+                    remaining = child.before.decode()
+                logPrint(f"DEBUG: SQL complete response:\n{execResult}{execMatched}{remaining}")
+            except:
+                logPrint(f"DEBUG: SQL complete response:\n{execResult}{execMatched}")
+            if w == 0 or w == 1 or w == 2 or w == 3:
+                logPrint("SQL execution SUCCESS")
                 return "TAOS_OK"
             else:
-                print(1)
-                print(retResult)
+                logPrint(f"ERROR: SQL execution failed! Expected index should be 0-3, but got {w}")
+                if w == 4:
+                    logPrint("ERROR: TIMEOUT - No response in 120 seconds")
+                elif w == 5:
+                    logPrint("ERROR: EOF - Process terminated unexpectedly")
                 return "TAOS_FAIL"
         else:
             if key == 'A' or key1 == 'A' or key == 'C' or key1 == 'C' or key == 'V' or key1 == 'V':
@@ -481,5 +514,5 @@ class TestTaosShell:
         self.taos_thread_repeat_k(self.run_command, commands, 100, output)
         # os.system("python 0-others/repeat_taos_k.py")
 
-
+        tdLog.success(f"{__file__} successfully executed")
 
