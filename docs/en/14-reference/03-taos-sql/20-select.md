@@ -348,7 +348,7 @@ The FILL statement specifies the filling mode when data is missing in a window i
 3. NULL filling: Fill data with NULL. For example `FILL(NULL)`.
 4. PREV filling: Fill data with the previous valid value. For example `FILL(PREV)`.
 5. NEXT filling: Fill data with the next valid value. For example `FILL(NEXT)`.
-6. NEAR filling: Fill data with the nearest valid value. For example `FILL(NEAR)`.
+6. NEAR filling: Fill data with the nearest valid value. For example `FILL(NEAR)`. Not supported in window queries.
 7. LINEAR filling: Perform linear interpolation filling based on the nearest valid values before and after. For example `FILL(LINEAR)`.
 
 Among all filling modes above, except for the NONE mode which does not fill by default, other modes will not produce fill values if there is no data in the entire query time range, and the query result will be empty. For PREV, NEXT, LINEAR modes, this is reasonable because without valid data, filling cannot be performed.

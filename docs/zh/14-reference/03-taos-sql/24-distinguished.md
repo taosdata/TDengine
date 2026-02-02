@@ -105,7 +105,7 @@ SELECT COUNT(*) FROM meters WHERE _rowts < '2018-10-03 15:00:00' INTERVAL (1m, A
 SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
 ```
 
-INTERVAL 子句支持使用 FILL 子句来指定数据缺失时的数据填充方法。关于 FILL 子句如何使用请参考 [FILL 子句](./20-select.md#fill-子句)。
+INTERVAL 子句支持使用 FILL 子句来指定数据缺失时的数据填充方法，支持除 NEAR 填充模式外的所有填充模式。关于 FILL 子句如何使用请参考 [FILL 子句](./20-select.md#fill-子句)。
 
 使用时间窗口需要注意：
 

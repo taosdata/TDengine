@@ -105,8 +105,8 @@ SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
 ```
 
 The INTERVAL clause supports using the FILL clause to specify the data
-filling method when data is missing. For how to use the FILL clause,
-please refer to [FILL Clause](../03-taos-sql/20-select.md#fill-clause).
+filling method when data is missing, except for the NEAR filling mode. For how to use the FILL clause,
+please refer to [FILL Clause](./20-select.md#fill-clause).
 
 When using time windows, note:
 
