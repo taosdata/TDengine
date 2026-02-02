@@ -435,51 +435,53 @@ column_list: {
 }
 
 priv_type: {
-
-    #### 库权限(database)
-
-    ALTER [DATABASE] | DROP [DATABASE] | USE [DATABASE] | FLUSH [DATABASE] 
-    | COMPACT [DATABASE] | TRIM [DATABASE] | ROLLUP [DATABASE] | SCAN [DATABASE]
-    | SSMIGRATE DATABASE | SHOW [DATABASES] 
-    | CREATE TABLE | CREATE VIEW | CREATE TOPIC | CREATE STREAM
-
-    #### 表权限(table)
-
-    DROP [TABLE] | ALTER [TABLE] | SHOW CREATE [TABLE] | SHOW [TABLES]
-    | SELECT [TABLE] | INSERT [TABLE] | DELETE [TABLE]
-    | CREATE INDEX | CREATE TSMA | CREATE RSMA
-    
-    #### 列权限(table)
-
-    SELECT (column_list) | INSERT (column_list) 
-
-    #### 视图权限(view)
-
-    DROP [VIEW] | ALTER [VIEW] | SHOW [VIEWS] | SELECT VIEW
-
-    #### 索引权限(index)
-
-    DROP [INDEX] | SHOW [INDEXES] | SHOW CREATE [INDEX]
-
-    #### 窗口预聚集权限(tsma)
-
-    DROP [TSMA] | SHOW [TSMAS] | SHOW CREATE [TSMA]
-
-    #### 降采样存储权限(rsma)
-
-    DROP [RSMA] | ALTER [RSMA] | SHOW [RSMAS] | SHOW CREATE [RSMA]
-
-    #### 主题权限(topic)
-
-    DROP [TOPIC] | SHOW [TOPICS] | SHOW CREATE [TOPIC] | SUBSCRIBE [TOPIC]
-    | SHOW CONSUMERS | SHOW SUBSCRIPTIONS
-
-    #### 流计算权限(stream)
-
-    DROP [STREAM] | SHOW [STREAMS] | SHOW CREATE [STREAM]
-    | START [STREAM] | STOP [STREAM] | RECALCULATE [STREAM]
+    ALTER | DROP | USE | FLUSH | COMPACT | TRIM | ROLLUP | SCAN | SSMIGRATE | SHOW | SHOW CREATE
+  | SELECT [(column_list)] | INSERT [(column_list)] | DELETE
+  | CREATE TABLE | CREATE VIEW | CREATE TOPIC | CREATE STREAM | CREATE INDEX | CREATE TSMA | CREATE RSMA
+  | SUBSCRIBE | SHOW CONSUMERS | SHOW SUBSCRIPTIONS
+  | START | STOP | RECALCULATE
 }
 ```
+
+#### 对象类型与权限类型对应关系
+
+不同的对象类型支持的权限类型不同，具体对应关系如下：
+
+| 权限类型 | database | table | view | index | tsma | rsma | topic | stream |
+|---------|:--------:|:-----:|:----:|:-----:|:----:|:----:|:-----:|:------:|
+| ALTER | ✓ | ✓ | ✓ | | | ✓ | | |
+| DROP | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| USE | ✓ | | | | | | | |
+| FLUSH | ✓ | | | | | | | |
+| COMPACT | ✓ | | | | | | | |
+| TRIM | ✓ | | | | | | | |
+| ROLLUP | ✓ | | | | | | | |
+| SCAN | ✓ | | | | | | | |
+| SSMIGRATE | ✓ | | | | | | | |
+| SHOW | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SHOW CREATE | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SELECT [(column_list)] | | ✓ | ✓ | | | | | |
+| INSERT [(column_list)] | | ✓ | | | | | | |
+| DELETE | | ✓ | | | | | | |
+| CREATE TABLE | ✓ | | | | | | | |
+| CREATE VIEW | ✓ | | | | | | | |
+| CREATE TOPIC | ✓ | | | | | | | |
+| CREATE STREAM | ✓ | | | | | | | |
+| CREATE INDEX | | ✓ | | | | | | |
+| CREATE TSMA | | ✓ | | | | | | |
+| CREATE RSMA | | ✓ | | | | | | |
+| SUBSCRIBE | | | | | | | ✓ | |
+| SHOW CONSUMERS | | | | | | | ✓ | |
+| SHOW SUBSCRIPTIONS | | | | | | | ✓ | |
+| START | | | | | | | | ✓ |
+| STOP | | | | | | | | ✓ |
+| RECALCULATE | | | | | | | | ✓ |
+
+**说明：**
+
+- 使用 `GRANT` 授权时，需要通过 `ON [priv_obj]` 指定对象类型，系统会自动校验该权限是否适用于指定的对象类型
+- `SELECT [(column_list)]` 和 `INSERT [(column_list)]` 中的 `(column_list)` 为可选，用于实现列级权限控制
+- 同一表相同类型的列权限操作只能设置一条规则
 
 #### 数据库权限
 

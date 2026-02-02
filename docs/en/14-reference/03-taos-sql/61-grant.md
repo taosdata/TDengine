@@ -437,51 +437,52 @@ column_list: {
 }
 
 priv_type: {
-
-    #### Database permissions
-
-    ALTER [DATABASE] | DROP [DATABASE] | USE [DATABASE] | FLUSH [DATABASE] 
-    | COMPACT [DATABASE] | TRIM [DATABASE] | ROLLUP [DATABASE] | SCAN [DATABASE]
-    | SSMIGRATE DATABASE | SHOW [DATABASES] 
-    | CREATE TABLE | CREATE VIEW | CREATE TOPIC | CREATE STREAM
-
-    #### Table permissions
-
-    DROP [TABLE] | ALTER [TABLE] | SHOW CREATE [TABLE] | SHOW [TABLES]
-    | SELECT [TABLE] | INSERT [TABLE] | DELETE [TABLE]
-    | CREATE INDEX | CREATE TSMA | CREATE RSMA
-    
-    #### Column permissions
-
-    SELECT (column_list) | INSERT (column_list) 
-
-    #### View permissions
-
-    DROP [VIEW] | ALTER [VIEW] | SHOW [VIEWS] | SELECT VIEW
-
-    #### Index permissions
-
-    DROP [INDEX] | SHOW [INDEXES] | SHOW CREATE [INDEX]
-
-    #### Window pre-aggregation permissions
-
-    DROP [TSMA] | SHOW [TSMAS] | SHOW CREATE [TSMA]
-
-    #### Downsampling storage permissions
-
-    DROP [RSMA] | ALTER [RSMA] | SHOW [RSMAS] | SHOW CREATE [RSMA]
-
-    #### Topic permissions
-
-    DROP [TOPIC] | SHOW [TOPICS] | SHOW CREATE [TOPIC] | SUBSCRIBE [TOPIC]
-    | SHOW CONSUMERS | SHOW SUBSCRIPTIONS
-
-    #### Stream computing permissions
-
-    DROP [STREAM] | SHOW [STREAMS] | SHOW CREATE [STREAM]
-    | START [STREAM] | STOP [STREAM] | RECALCULATE [STREAM]
+    ALTER | DROP | USE | FLUSH | COMPACT | TRIM | ROLLUP | SCAN | SSMIGRATE | SHOW | SHOW CREATE
+  | SELECT [(column_list)] | INSERT [(column_list)] | DELETE
+  | CREATE TABLE | CREATE VIEW | CREATE TOPIC | CREATE STREAM | CREATE INDEX | CREATE TSMA | CREATE RSMA
+  | SUBSCRIBE | SHOW CONSUMERS | SHOW SUBSCRIPTIONS | START | STOP | RECALCULATE
 }
 ```
+
+#### Object Type and Permission Type Mapping
+
+Different object types support different permission types. The specific mapping is as follows:
+
+| Permission Type | database | table | view | index | tsma | rsma | topic | stream |
+|---------|:--------:|:-----:|:----:|:-----:|:----:|:----:|:-----:|:------:|
+| ALTER | ✓ | ✓ | ✓ | | | ✓ | | |
+| DROP | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| USE | ✓ | | | | | | | |
+| FLUSH | ✓ | | | | | | | |
+| COMPACT | ✓ | | | | | | | |
+| TRIM | ✓ | | | | | | | |
+| ROLLUP | ✓ | | | | | | | |
+| SCAN | ✓ | | | | | | | |
+| SSMIGRATE | ✓ | | | | | | | |
+| SHOW | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SHOW CREATE | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SELECT [(column_list)] | | ✓ | ✓ | | | | | |
+| INSERT [(column_list)] | | ✓ | | | | | | |
+| DELETE | | ✓ | | | | | | |
+| CREATE TABLE | ✓ | | | | | | | |
+| CREATE VIEW | ✓ | | | | | | | |
+| CREATE TOPIC | ✓ | | | | | | | |
+| CREATE STREAM | ✓ | | | | | | | |
+| CREATE INDEX | | ✓ | | | | | | |
+| CREATE TSMA | | ✓ | | | | | | |
+| CREATE RSMA | | ✓ | | | | | | |
+| SUBSCRIBE | | | | | | | ✓ | |
+| SHOW CONSUMERS | | | | | | | ✓ | |
+| SHOW SUBSCRIPTIONS | | | | | | | ✓ | |
+| START | | | | | | | | ✓ |
+| STOP | | | | | | | | ✓ |
+| RECALCULATE | | | | | | | | ✓ |
+
+**Notes:**
+
+- When using `GRANT` for authorization, you need to specify the object type through `ON [priv_obj]`, and the system will automatically verify whether the permission is applicable to the specified object type
+- In `SELECT [(column_list)]` and `INSERT [(column_list)]`, the `(column_list)` is optional and used for column-level permission control
+- Only one rule can be set for the same type of operation per table for column permissions
 
 #### Database Permissions
 
