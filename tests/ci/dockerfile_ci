@@ -38,11 +38,12 @@ RUN pip3 config set global.index-url http://admin:123456@192.168.0.212:3141/admi
     && pip3 install --no-cache-dir -r /home/requirements.txt
 
 # 安装 Go、JDK、Maven、Node.js（优化解压路径）
-ADD go1.23.4.linux-amd64.tar.gz /usr/local/
-ADD jdk-8u144-linux-x64.tar.gz /usr/local/
-ADD apache-maven-3.8.4-bin.tar.gz /usr/local/
-ADD node-v20.17.0-linux-x64.tar.xz /usr/local/
-ADD cmake-3.21.5-linux-x86_64.tar.gz /usr/local/
+ADD go1.23.4.linux-amd64.tar.gz \
+    jdk-8u144-linux-x64.tar.gz \
+    apache-maven-3.8.4-bin.tar.gz \
+    node-v20.17.0-linux-x64.tar.xz \
+    cmake-3.21.5-linux-x86_64.tar.gz \
+    /usr/local/
 
 ENV RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
 ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"
