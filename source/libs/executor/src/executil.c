@@ -3646,8 +3646,8 @@ void tablePrivInfoDestroy(SUserTablePrivInfo** pInfo) {
     return;
   }
 
-  taosHashCleanup((*pInfo)->pDbSet);
-  taosHashCleanup((*pInfo)->pTableSet);
+  tSimpleHashCleanup((*pInfo)->pDbSet);
+  tSimpleHashCleanup((*pInfo)->pTableSet);
   taosMemoryFreeClear(*pInfo);
 }
 

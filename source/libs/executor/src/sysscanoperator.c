@@ -3685,7 +3685,9 @@ void destroySysScanOperator(void* param) {
     pInfo->pExtSchema = NULL;
   }
   tableListDestroy(pInfo->pSubTableListInfo);
-  tablePrivInfoDestroy(&pInfo->pTbPrivInfo);
+  if (pInfo->pTbPrivInfo) {
+    tablePrivInfoDestroy(&pInfo->pTbPrivInfo);
+  }
 
   taosArrayDestroy(pInfo->matchInfo.pList);
   taosMemoryFreeClear(pInfo->pUser);
