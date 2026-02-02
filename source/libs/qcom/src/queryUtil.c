@@ -831,7 +831,6 @@ int32_t dataBufDump(SDataBuf* pBuf, void** p, int32_t* len) {
   return TSDB_CODE_SUCCESS;
 }
 void dataBufClear(SDataBuf* pBuf) {
-   //rpcFreeCont(pBuf->pData);
    pBuf->pData = NULL;
    pBuf->len = 0;
    pBuf->pEpSet = NULL;

@@ -1557,17 +1557,7 @@ void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
 
   SDataBuf buf = {.len = pMsg->contLen, .pData = pMsg->pCont};
 
-  // if (pMsg->contLen > 0) {
-  //   buf.pData = taosMemoryCalloc(1, pMsg->contLen);
-  //   if (buf.pData == NULL) {
-  //     pMsg->code = terrno;
-  //   } else {
-  //     memcpy(buf.pData, pMsg->pCont, pMsg->contLen);
-  //   }
-  // }
-
   (void)pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
-  //rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
 }
 

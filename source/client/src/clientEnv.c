@@ -621,7 +621,6 @@ void doFreeReqResultInfo(SReqResultInfo *pResInfo) {
   } else {
     rpcFreeCont((void *)(pResInfo->pRspMsg));
   }
-  //taosMemoryFreeClear(pResInfo->pRspMsg);
   taosMemoryFreeClear(pResInfo->length);
   taosMemoryFreeClear(pResInfo->row);
   taosMemoryFreeClear(pResInfo->pCol);
