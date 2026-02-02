@@ -55,6 +55,7 @@ pub async fn get_ws_tasks_activities(
         "select \
         `task_id` as `id`, `ts` as `at`, `level`, `status`, `activity` \
         from log.{TASK_ACTIVITIES_STABLE} \
+        where status != '-' \
         order by ts desc limit 10;"
     );
     let activities = query::<ActivityLog>(&dsn, &sql).await?;

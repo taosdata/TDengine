@@ -87,10 +87,7 @@ async fn create_task_inner(
         .transpose()
         .context("invalid `parser` param")?
     {
-        sql.push_str(&format!(
-            " PARSER {} STATUS '{status}'",
-            sql_value_escaped_fmt(&parser)
-        ));
+        sql.push_str(&format!(" PARSER {} ", sql_value_escaped_fmt(&parser)));
     }
 
     if let Some(via) = config.via {
@@ -264,7 +261,7 @@ async fn export_task_inner(
     }
     let now = Local::now();
     let res = ExportTaskResult {
-        tasks_num: tasks.len(),
+        tasks_num: exported.len(),
         export_time: now.to_rfc3339(),
         tasks: exported,
     };
@@ -290,10 +287,10 @@ async fn export_task_inner(
 
 pub async fn import_task(
     args: web::Data<Args>,
-    params: Query<ExportTaskResult>,
+    params: Json<ExportTaskResult>,
     req: HttpRequest,
 ) -> JsonResult<()> {
-    for task in &params.tasks {
+    for task in params.into_inner().tasks {
         create_task_inner(&args, &req, task.into(), false).await?;
     }
     Ok(Json(()))
@@ -321,7 +318,7 @@ pub async fn get_task_activities(
         "select \
         `task_id` as `id`, `ts` as `at`, `level`, `status`, `activity` \
         from log.{TASK_ACTIVITIES_STABLE} \
-        where task_id = {task_id} \
+        where task_id = {task_id} and status != '-' \
         order by ts desc limit 10;"
     );
     let activities = query::<ActivityLog>(&dsn, &sql).await?;

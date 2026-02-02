@@ -30,7 +30,7 @@ pub struct TaskRecord {
     pub parser: Option<String>,
     pub via: Option<i64>,
     pub status: Option<TaskStatus>,
-    pub create_time: String,
+    pub create_time: DateTime<Utc>,
     pub xnode_id: Option<i32>,
 }
 
@@ -71,7 +71,7 @@ impl TryFrom<TaskRecord> for GetTaskResult {
             to: v.to,
             via: v.via,
             status: v.status.unwrap_or(TaskStatus::Created),
-            created_at: v.create_time,
+            created_at: v.create_time.to_rfc3339(),
             to_expand: Some(ExpandDsn {
                 subject: to_dsn.subject,
             }),
@@ -106,19 +106,6 @@ impl TryFrom<Task> for HaTask {
     }
 }
 
-impl From<&GetTaskResult> for Task {
-    fn from(value: &GetTaskResult) -> Self {
-        Self {
-            name: value.name.clone(),
-            from: None,
-            from_json: Some(value.from_json.clone()),
-            to: value.to.clone(),
-            parser: value.parser.clone(),
-            via: value.via,
-        }
-    }
-}
-
 #[derive(Debug, serde::Deserialize)]
 pub struct ExportTaskParam {
     ids: String,
@@ -137,7 +124,55 @@ impl ExportTaskParam {
 pub struct ExportTaskResult {
     pub tasks_num: usize,
     pub export_time: String,
-    pub tasks: Vec<GetTaskResult>,
+    pub tasks: Vec<ExportedTask>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct ExportedTask {
+    id: i64,
+    name: String,
+    from: serde_json::Value,
+    to: String,
+    parser: Option<serde_json::Value>,
+    via: Option<i64>,
+    created_at: DateTime<Utc>,
+}
+
+impl From<ExportedTask> for Task {
+    fn from(value: ExportedTask) -> Self {
+        Self {
+            name: value.name,
+            from: None,
+            from_json: Some(value.from),
+            to: value.to,
+            parser: value.parser,
+            via: value.via,
+        }
+    }
+}
+
+impl TryFrom<TaskRecord> for ExportedTask {
+    type Error = anyhow::Error;
+    fn try_from(task: TaskRecord) -> Result<Self, Self::Error> {
+        let from = {
+            let dsn = Dsn::from_str(&task.from).context("param `from` not valid dsn")?;
+            dsn_to_json(&dsn)
+        };
+        let parser = task
+            .parser
+            .map(|v| serde_json::from_str(&v))
+            .transpose()
+            .context("param `parser` not valid json")?;
+        Ok(Self {
+            id: task.id,
+            name: task.name,
+            from,
+            to: task.to,
+            parser,
+            via: task.via,
+            created_at: task.create_time,
+        })
+    }
 }
 
 #[derive(Debug, serde::Deserialize)]

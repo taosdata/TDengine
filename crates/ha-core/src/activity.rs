@@ -4,6 +4,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskStatus {
+    #[serde(rename = "-")]
     Unknown,
     Created,
     Queued,
@@ -52,6 +53,7 @@ impl std::convert::From<&TaskStatus> for TaskStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentStatus {
+    #[serde(rename = "-")]
     Unknown,
     Idle,
     Waiting,
@@ -99,6 +101,7 @@ impl std::fmt::Display for AgentStatus {
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HealthStatus {
+    #[serde(rename = "-")]
     Unknown,
     Initial,
     Ready,

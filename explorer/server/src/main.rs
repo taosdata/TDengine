@@ -398,6 +398,12 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     });
+
+    let http_client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .http1_only()
+        .build()
+        .context("Failed to create reqwest client")?;
     let server = HttpServer::new(move || {
         let cors = if cors {
             Cors::default()
@@ -424,13 +430,7 @@ async fn main() -> anyhow::Result<()> {
             .wrap(TracingLogger::<TaosRootSpanBuilder<Qid>>::new())
             .wrap(cors)
             .wrap(Compress::default())
-            .app_data(web::Data::new(
-                reqwest::Client::builder()
-                    .danger_accept_invalid_certs(true)
-                    .http1_only()
-                    .build()
-                    .expect("Failed to create reqwest client"),
-            ))
+            .app_data(web::Data::new(http_client.clone()))
             .app_data(app_args.clone())
             .app_data(web::Data::new(favorites.clone()))
             .app_data(web::Data::new(session_manager.clone()))
@@ -439,6 +439,8 @@ async fn main() -> anyhow::Result<()> {
             // ===== x apis start =====
             .route("/api/x/tasks", web::get().to(get_tasks))
             .route("/api/x/tasks", web::post().to(create_task))
+            .route("/api/x/tasks/export", web::get().to(export_task))
+            .route("/api/x/tasks/import", web::post().to(import_task))
             .route("/api/x/tasks/{id}", web::patch().to(update_task))
             .route("/api/x/tasks/{id}", web::delete().to(delete_task))
             .route("/api/x/tasks/{id}", web::get().to(get_task))
@@ -447,8 +449,6 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/x/tasks/start", web::post().to(batch_start_tasks))
             .route("/api/x/tasks/stop", web::post().to(batch_stop_tasks))
             .route("/api/x/tasks/delete", web::delete().to(batch_delete_tasks))
-            .route("/api/x/tasks/export", web::get().to(export_task))
-            .route("/api/x/tasks/import", web::post().to(import_task))
             .route(
                 "/api/x/tasks/{task_id}/activities",
                 web::get().to(get_task_activities),
