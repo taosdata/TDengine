@@ -4,11 +4,11 @@ import os
 from new_test_framework.utils import tdLog, tdSql, tdCom
 import datetime
 
-class TestScalarSubQuery4c:
+class TestScalarSubQuery4b1:
     updatecfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 131, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
     clientCfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 131, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
     updatecfgDict["clientCfg"] = clientCfgDict
-    caseName = "test_scalar_sub_query4c"
+    caseName = "test_scalar_sub_query4b1"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     mainIdx = 0
     secondIdx = 0
@@ -16,7 +16,7 @@ class TestScalarSubQuery4c:
     fileIdx = 0
     saved_count = 0  # total number of queries saved so far
     maxFileQueryNum = 10000000  # max number of queries to save in a single file
-    tableNames = ["tbe"] #["tb1", "tb3", "tbe", "st1"]
+    tableNames = ["tb3"] #["tb1", "tb3", "tbe", "st1"]
 
     subSqls = [
         # select 
@@ -105,7 +105,7 @@ class TestScalarSubQuery4c:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_scalar_sub_query4c(self):
+    def test_scalar_sub_query4b1(self):
         """scalar sub query test case
         
         1. Prepare data.
@@ -187,7 +187,7 @@ class TestScalarSubQuery4c:
                         self.generated_queries_file.write("explain " + self.querySql.strip() + "\G;\n")
                         self.generated_queries_file.write("explain verbose true " + self.querySql.strip() + "\G;\n")
                         #self.generated_queries_file.write("explain analyze " + self.querySql.strip() + "\G\n")
-                        self.generated_queries_file.write("explain analyze verbose true " + self.querySql.strip() + "\G;\n")
+                        #self.generated_queries_file.write("explain analyze verbose true " + self.querySql.strip() + "\G;\n")
                         self.generated_queries_file.flush()
 
         self.generated_queries_file.close()
