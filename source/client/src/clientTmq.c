@@ -2154,6 +2154,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     goto END;
   }
   memcpy(pRspWrapper->pollRsp.data, pMsg->pData, pMsg->len);
+  pRspWrapper->pollRsp.len = pMsg->len;
   
   pMsg->pEpSet = NULL;
 
