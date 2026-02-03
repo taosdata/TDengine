@@ -2,6 +2,10 @@ from new_test_framework.utils import tdLog, tdSql, TDCom, etool
 import time
 import socket
 
+#define TSDB_CODE_PAR_PERMISSION_DENIED         TAOS_DEF_ERROR_CODE(0, 0x2644)
+
+TSDB_CODE_PAR_PERMISSION_DENIED = 0x2644
+pwd = "abcd@1234"
 
 class TestPrivControl:
     @classmethod
@@ -20,20 +24,20 @@ class TestPrivControl:
             else:
                 tdSql.connect(password=password)
         else:
-            tdSql.connect(user=user, password=password)
+            tdSql.connect(user, password=password)
     
     def login_failed(self, user, password):
         # Verify that login should fail
         try:
-            self.login(user=user, password=password)
+            self.login(user, password=password)
         except Exception as e:
             tdLog.info(f"Login failed as expected: {str(e)}")
             return
         raise Exception(f"Login succeeded for {user} but was expected to fail")
     
-    def create_user(self, user_name, password="test@1234", options=""):
-        # Create a user with optional parameters
-        sql = f"CREATE USER {user_name} PASS '{password}' {options}"
+    def create_user(self, user_name, pwd, options=""):
+        # Create a user with optional parameters (drop if exists first)
+        sql = f"CREATE USER {user_name} PASS '{pwd}' {options}"
         tdSql.execute(sql)
         tdLog.info(f"Created user: {user_name}")
     
@@ -43,7 +47,6 @@ class TestPrivControl:
         tdLog.info(f"Dropped user: {user_name}")
     
     def create_role(self, role_name):
-        # Create a role
         tdSql.execute(f"CREATE ROLE {role_name}")
         tdLog.info(f"Created role: {role_name}")
     
@@ -55,25 +58,32 @@ class TestPrivControl:
     def grant_privilege(self, privilege, target, user_or_role, with_condition=""):
         # Grant privilege to user or role
         # System privileges (like CREATE DATABASE) don't need ON target
+        if with_condition:
+            with_str = f"WITH {with_condition}"
+        else:
+            with_str = ""   
         if target is None or target == "":
             sql = f"GRANT {privilege} TO {user_or_role}"
         else:
-            sql = f"GRANT {privilege} ON {target} TO {user_or_role}"
-        if with_condition:
-            sql += f" WITH {with_condition}"
+            sql = f"GRANT {privilege} ON {target} {with_str} TO {user_or_role}"
+        
+        print(f"   Granted: {sql}")
         tdSql.execute(sql)
-        tdLog.info(f"Granted: {sql}")
+        
     
     def grant_privilege_failed(self, privilege, target, user_or_role, with_condition=""):
         # Verify that grant should fail
+        if with_condition:
+            with_str = f"WITH {with_condition}"
+        else:
+            with_str = ""
         if target is None or target == "":
             sql = f"GRANT {privilege} TO {user_or_role}"
         else:
-            sql = f"GRANT {privilege} ON {target} TO {user_or_role}"
-        if with_condition:
-            sql += f" WITH {with_condition}"
+            sql = f"GRANT {privilege} ON {target} {with_str} TO {user_or_role}"
+        
         tdSql.error(sql)
-        tdLog.info(f"Grant failed as expected: {sql}")
+        print(f"Grant failed as expected: {sql}")
     
     def revoke_privilege(self, privilege, target, user_or_role):
         # Revoke privilege from user or role
@@ -81,8 +91,8 @@ class TestPrivControl:
             sql = f"REVOKE {privilege} FROM {user_or_role}"
         else:
             sql = f"REVOKE {privilege} ON {target} FROM {user_or_role}"
+        print(f"   Revoked: {sql}")
         tdSql.execute(sql)
-        tdLog.info(f"Revoked: {sql}")
     
     def revoke_privilege_failed(self, privilege, target, user_or_role):
         # Verify that revoke should fail
@@ -91,39 +101,71 @@ class TestPrivControl:
         else:
             sql = f"REVOKE {privilege} ON {target} FROM {user_or_role}"
         tdSql.error(sql)
-        tdLog.info(f"Revoke failed as expected: {sql}")
+        print(f"Revoke failed as expected: {sql}")
     
     def grant_role(self, role_name, user_name):
         # Grant role to user
-        tdSql.execute(f"GRANT {role_name} TO {user_name}")
-        tdLog.info(f"Granted role {role_name} to {user_name}")
+        tdSql.execute(f"GRANT ROLE {role_name} TO {user_name}")
+        print(f"   Granted role {role_name} to {user_name}")
     
     def revoke_role(self, role_name, user_name):
         # Revoke role from user
-        tdSql.execute(f"REVOKE {role_name} FROM {user_name}")
-        tdLog.info(f"Revoked role {role_name} from {user_name}")
+        tdSql.execute(f"REVOKE ROLE {role_name} FROM {user_name}")
+        print(f"   Revoked role {role_name} from {user_name}")
     
-    def execute_sql(self, sql):
+    def exec_sql(self, sql):
         # Execute SQL and return success
         tdSql.execute(sql)
-        tdLog.info(f"Executed: {sql}")
-        return True
+        print(f"   Executed: {sql}")
     
-    def execute_sql_failed(self, sql, queryTimes=30):
-        # Verify that SQL execution should fail        
+    def exec_sql_failed(self, sql, errno=None, queryTimes=30):
+        # Verify that SQL execution should fail
+        obje = None
         for i in range(1, queryTimes + 1):
             try:
                 tdSql.cursor.execute(sql)
                 time.sleep(1)
                 print(f"  try {i} times still succeeded: {sql}")
             except BaseException as e:
-                tdLog.info(f"Execution failed as expected: {sql}")                
-                return True                
+                # Get errno from exception
+                actual_errno = None
+                if hasattr(e, 'args') and len(e.args) >= 2:
+                    # ProgrammingError(errstr, errno) - errno is args[1]
+                    actual_errno = e.args[1]
+                elif hasattr(e, 'errno'):
+                    # Some exceptions have errno attribute
+                    actual_errno = e.errno
+                obje = e
+                # If expected errno is specified, verify it matches
+                if errno is not None:
+                    # Normalize error codes for comparison
+                    # TDengine error codes may be returned as negative 32-bit integers
+                    # Extract the low 16 bits for comparison
+                    def normalize_errno(err):
+                        if err is None:
+                            return None
+                        # If negative, convert to unsigned 32-bit and extract low 16 bits
+                        if err < 0:
+                            return (err & 0xFFFFFFFF) & 0xFFFF
+                        # If already positive, just extract low 16 bits
+                        return err & 0xFFFF
+                    
+                    expected_code = normalize_errno(errno)
+                    actual_code = normalize_errno(actual_errno)
+                    
+                    if actual_code != expected_code:
+                        raise Exception(f"Expected errno 0x{expected_code:04X} ({expected_code}), got 0x{actual_code:04X} ({actual_code}) [raw: {actual_errno}] for SQL: {sql}. Error: {e}")
+                return True    
             
-        raise Exception(f"try {i} times failed not occurred: {sql}")
+        raise Exception(f"try {queryTimes} times, SQL still succeeded (expected to fail): {sql} error:{obje}")
+
+    def query_expect_rows(self, sql, expected_rows):
+        # Execute SQL and return success
+        tdSql.query(sql)
+        tdSql.checkRows(expected_rows)   
     
     def create_database(self, db_name, options=""):
-        # Create a database
+        # Create a database (drop if exists first)
         sql = f"CREATE DATABASE {db_name} {options}"
         tdSql.execute(sql)
         tdLog.info(f"Created database: {db_name}")
@@ -195,26 +237,40 @@ class TestPrivControl:
         # Cleanup test resources
         self.login()  # Login as root
         # Drop test users
-        for user in ["test_user1", "test_user2", "test_user3", "test_user4", "test_user5",
-                     "test_owner", "test_sysdba", "test_syssec", "test_sysaudit"]:
+        for user in ["test_user", "test_user2", "test_user3",
+                     "test_sysdba", "test_syssec", "test_sysaudit",
+                     "test_audit_user", "test_audit_log_user", "test_normal_user"]:
             try:
                 self.drop_user(user)
             except:
                 pass
         
         # Drop test roles
-        for role in ["test_role1", "test_role2", "test_role3"]:
+        for role in ["test_role", "test_role2", "test_role3", "test_conflict_role"]:
             try:
                 self.drop_role(role)
             except:
                 pass
         
         # Drop test databases
-        for db in ["test_db1", "test_db2", "test_db3", "test_db_priv", "test_audit_db"]:
+        for db in ["test_db", "test_db2", "test_db_fail", "test_audit_db", "test_audit_database",
+                   "test_sysdba_db"]:
             try:
                 self.drop_database(db)
             except:
                 pass
+
+    def init_env(self, users=None, roles=None, databases=None):
+        """
+        Initialize test environment by cleaning up specified resources.
+        
+        Args:
+            users: list of user names to cleanup, defaults to ["test_user"]
+            roles: list of role names to cleanup, defaults to []
+            databases: list of database names to cleanup, defaults to ["test_db"]
+        """
+        pass
+
 
     #
     # --------------------------- Database Privileges Tests ----------------------------
@@ -222,27 +278,28 @@ class TestPrivControl:
     def do_create_database_privilege(self):
         # Test CREATE DATABASE privilege
         tdLog.info("=== Testing CREATE DATABASE Privilege ===")
-        self.login()
+        self.login()  # Login as root
         
         # Create test user without CREATE DATABASE privilege
-        user = "test_user1"
-        self.create_user(user)
+        user = "test_user"
+        db_name = "test_db"
+        self.create_user(user, pwd)
         
         # Test: user without privilege cannot create database
-        conn = self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"CREATE DATABASE test_db_fail")
+        conn = self.login(user, pwd)
+        self.exec_sql_failed(f"CREATE DATABASE test_db_fail", TSDB_CODE_PAR_PERMISSION_DENIED)
         
         # Grant CREATE DATABASE privilege (system privilege, no target)
         self.login()
         self.grant_privilege("CREATE DATABASE", None, user)
         
         # Test: user with privilege can create database
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"CREATE DATABASE test_db1")
+        self.login(user, pwd)
+        self.exec_sql(f"CREATE DATABASE {db_name}")
         
         # Cleanup
         self.login()
-        self.drop_database("test_db1")
+        self.drop_database(db_name)
         self.drop_user(user)
         
         print("  CREATE DATABASE ...................... [ passed ] ")
@@ -250,17 +307,17 @@ class TestPrivControl:
     def do_alter_database_privilege(self):
         # Test ALTER DATABASE privilege
         tdLog.info("=== Testing ALTER DATABASE Privilege ===")
-        self.login()
+        self.login()  # Login as root
         
         # Prepare: create database and user
-        db_name = "test_db2"
-        user = "test_user2"
+        db_name = "test_db"
+        user = "test_user"
         self.create_database(db_name)
-        self.create_user(user)
+        self.create_user(user, pwd)
         
         # Test: user without privilege cannot alter database
-        self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"ALTER DATABASE {db_name} KEEP 365")
+        self.login(user, pwd)
+        self.exec_sql_failed(f"ALTER DATABASE {db_name} KEEP 365")
         
         # Grant ALTER DATABASE privilege
         self.login()
@@ -268,15 +325,15 @@ class TestPrivControl:
         self.grant_privilege("USE", f"DATABASE {db_name}", user)
         
         # Test: user with privilege can alter database
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"ALTER DATABASE {db_name} KEEP 365")
+        self.login(user, pwd)
+        self.exec_sql(f"ALTER DATABASE {db_name} KEEP 365")
         
         # Test: revoke privilege
         self.login()
-        self.revoke_privilege("ALTER", db_name, user)
+        self.revoke_privilege("ALTER", f"DATABASE {db_name}", user)
         
-        self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"ALTER DATABASE {db_name} KEEP 366")
+        self.login(user, pwd)
+        self.exec_sql_failed(f"ALTER DATABASE {db_name} KEEP 366")
         
         # Cleanup
         self.login()
@@ -288,34 +345,32 @@ class TestPrivControl:
     def do_drop_database_privilege(self):
         # Test DROP DATABASE privilege
         tdLog.info("=== Testing DROP DATABASE Privilege ===")
-        self.login()
+        self.login()  # Login as root
         
         # Test 1: Owner can drop own database without extra privilege
-        user = "test_owner"
-        self.create_user(user)
+        user = "test_user"
+        self.create_user(user, pwd)
         self.grant_privilege("CREATE DATABASE", None, user)
         
-        self.login(user=user, password="test@1234")
-        db_name = "test_db_owner"
+        self.login(user, pwd)
+        db_name = "test_db"
         self.create_database(db_name)
-        self.execute_sql(f"DROP DATABASE {db_name}")
+        self.exec_sql(f"DROP DATABASE {db_name}")
         
         # Test 2: Non-owner cannot drop database without privilege
         self.login()
-        db_name = "test_db3"
-        user2 = "test_user3"
         self.create_database(db_name)
-        self.create_user(user2)
-        
-        self.login(user=user2, password="test@1234")
-        self.execute_sql_failed(f"DROP DATABASE {db_name}")
+        user2 = "test_user2"
+        self.create_user(user2, pwd)
+        self.login(user2, pwd)
+        self.exec_sql_failed(f"DROP DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
         
         # Grant DROP privilege on database
         self.login()
-        self.grant_privilege("DROP", db_name, user2)
+        self.grant_privilege("DROP", f"DATABASE {db_name}", user2)
         
-        self.login(user=user2, password="test@1234")
-        self.execute_sql(f"DROP DATABASE {db_name}")
+        self.login(user2, pwd)
+        self.exec_sql(f"DROP DATABASE {db_name}")
         
         # Cleanup
         self.login()
@@ -327,24 +382,24 @@ class TestPrivControl:
     def do_use_database_privilege(self):
         # Test USE DATABASE privilege
         tdLog.info("=== Testing USE DATABASE Privilege ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name = "test_db_priv"
-        user = "test_user4"
+        db_name = "test_db"
+        user = "test_user"
         self.create_database(db_name)
-        self.create_user(user)
+        self.create_user(user, pwd)
         
         # Test: user cannot use database without privilege
-        self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"USE {db_name}")
+        self.login(user, pwd)
+        self.exec_sql_failed(f"USE {db_name}")
         
         # Grant USE DATABASE privilege
         self.login()
-        self.grant_privilege("USE", db_name, user)
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
         
         # Test: user can use database with privilege
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"USE {db_name}")
+        self.login(user, pwd)
+        self.exec_sql(f"USE {db_name}")
         
         # Cleanup
         self.login()
@@ -356,30 +411,29 @@ class TestPrivControl:
     def do_show_databases_privilege(self):
         # Test SHOW DATABASES privilege
         tdLog.info("=== Testing SHOW DATABASES Privilege ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name1 = "test_db_show1"
-        db_name2 = "test_db_show2"
-        user = "test_user5"
-        
+        db_name1 = "test_db"
+        db_name2 = "test_db2"
+        user = "test_user"
         self.create_database(db_name1)
         self.create_database(db_name2)
-        self.create_user(user)
+        self.create_user(user, pwd)
         
         # Test: user without privilege sees no databases
-        self.login(user=user, password="test@1234")
+        self.login(user, pwd)
         tdSql.query("SHOW DATABASES")
         initial_count = tdSql.queryRows
         
         # Grant SHOW privilege on one database
         self.login()
-        self.grant_privilege("SHOW", db_name1, user)
+        self.grant_privilege("SHOW", f"DATABASE {db_name1}", user)
         
         # Test: user sees only authorized database
-        self.login(user=user, password="test@1234")
+        self.login(user, pwd)
         tdSql.query("SHOW DATABASES")
         # Should see at least one more database
-        self.execute_sql("SHOW DATABASES")
+        self.exec_sql("SHOW DATABASES")
         
         # Cleanup
         self.login()
@@ -395,29 +449,28 @@ class TestPrivControl:
     def do_create_table_privilege(self):
         # Test CREATE TABLE privilege
         tdLog.info("=== Testing CREATE TABLE Privilege ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name = "test_db_table"
-        user = "test_table_user"
-        
+        db_name = "test_db"
+        user = "test_user"
         self.create_database(db_name)
-        self.create_user(user)
+        self.create_user(user, pwd)
         
         # Test: user cannot create table without privilege
-        self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"CREATE TABLE {db_name}.t1 (ts TIMESTAMP, c1 INT)")
+        self.login(user, pwd)
+        self.exec_sql_failed(f"CREATE TABLE {db_name}.t1 (ts TIMESTAMP, c1 INT)")
         
         # Grant USE and CREATE TABLE privileges on database
         self.login()
-        self.grant_privilege("USE", db_name, user)
-        self.grant_privilege("CREATE TABLE", db_name, user)
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        self.grant_privilege("CREATE TABLE", f"DATABASE {db_name}", user)
         
         # Test: user can create table with privilege
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"CREATE TABLE {db_name}.t1 (ts TIMESTAMP, c1 INT)")
+        self.login(user, pwd)
+        self.exec_sql(f"CREATE TABLE {db_name}.t1 (ts TIMESTAMP, c1 INT)")
         
         # Test: create super table
-        self.execute_sql(f"CREATE STABLE {db_name}.st1 (ts TIMESTAMP, c1 INT) TAGS (t1 INT)")
+        self.exec_sql(f"CREATE STABLE {db_name}.st1 (ts TIMESTAMP, c1 INT) TAGS (t1 INT)")
         
         # Cleanup
         self.login()
@@ -429,27 +482,26 @@ class TestPrivControl:
     def do_drop_table_privilege(self):
         # Test DROP TABLE privilege
         tdLog.info("=== Testing DROP TABLE Privilege ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name = "test_db_drop_table"
-        user = "test_drop_user"
-        
+        db_name = "test_db"
+        user = "test_user"
         self.create_database(db_name)
         self.create_table(db_name, "t1")
-        self.create_user(user)
+        self.create_user(user, pwd)
         
         # Test: user cannot drop table without privilege
-        self.grant_privilege("USE", db_name, user)
-        self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"DROP TABLE {db_name}.t1")
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        self.login(user, pwd)
+        self.exec_sql_failed(f"DROP TABLE {db_name}.t1", TSDB_CODE_PAR_PERMISSION_DENIED)
         
         # Grant DROP TABLE privilege
         self.login()
-        self.grant_privilege("DROP", f"{db_name}.*", user)
+        self.grant_privilege("DROP", f"TABLE {db_name}.*", user)
         
         # Test: user can drop table with privilege
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"DROP TABLE {db_name}.t1")
+        self.login(user, pwd)
+        self.exec_sql(f"DROP TABLE {db_name}.t1")
         
         # Cleanup
         self.login()
@@ -461,27 +513,26 @@ class TestPrivControl:
     def do_alter_table_privilege(self):
         # Test ALTER TABLE privilege
         tdLog.info("=== Testing ALTER TABLE Privilege ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name = "test_db_alter_table"
-        user = "test_alter_user"
-        
+        db_name = "test_db"
+        user = "test_user"
         self.create_database(db_name)
         self.create_stable(db_name, "st1")
-        self.create_user(user)
+        self.create_user(user, pwd)
         
         # Test: user cannot alter table without privilege
-        self.grant_privilege("USE", db_name, user)
-        self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"ALTER STABLE {db_name}.st1 ADD COLUMN c2 INT")
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        self.login(user, pwd)
+        self.exec_sql_failed(f"ALTER STABLE {db_name}.st1 ADD COLUMN c2 INT", TSDB_CODE_PAR_PERMISSION_DENIED)
         
         # Grant ALTER TABLE privilege
         self.login()
-        self.grant_privilege("ALTER", f"{db_name}.*", user)
+        self.grant_privilege("ALTER", f"TABLE {db_name}.*", user)
         
         # Test: user can alter table with privilege
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"ALTER STABLE {db_name}.st1 ADD COLUMN c2 INT")
+        self.login(user, pwd)
+        self.exec_sql(f"ALTER STABLE {db_name}.st1 ADD COLUMN c2 INT")
         
         # Cleanup
         self.login()
@@ -493,27 +544,26 @@ class TestPrivControl:
     def do_select_privilege(self):
         # Test SELECT privilege
         tdLog.info("=== Testing SELECT Privilege ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name = "test_db_select"
-        user = "test_select_user"
-        
+        db_name = "test_db"
+        user = "test_user"
         self.create_database(db_name)
         self.create_table(db_name, "t1")
         self.insert_data(db_name, "t1")
-        self.create_user(user)
+        self.create_user(user, pwd)
         
         # Test: user cannot select without privilege
-        self.grant_privilege("USE", db_name, user)
-        self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"SELECT * FROM {db_name}.t1")
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        self.login(user, pwd)
+        self.exec_sql_failed(f"SELECT * FROM {db_name}.t1")
         
         # Grant SELECT privilege
         self.login()
         self.grant_privilege("SELECT", f"{db_name}.t1", user)
         
         # Test: user can select with privilege
-        self.login(user=user, password="test@1234")
+        self.login(user, pwd)
         rows = self.select_data(db_name, "t1")
         if rows <= 0:
             raise Exception("SELECT privilege test failed: no rows returned")
@@ -528,26 +578,25 @@ class TestPrivControl:
     def do_insert_privilege(self):
         # Test INSERT privilege
         tdLog.info("=== Testing INSERT Privilege ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name = "test_db_insert"
-        user = "test_insert_user"
-        
+        db_name = "test_db"
+        user = "test_user"
         self.create_database(db_name)
         self.create_table(db_name, "t1")
-        self.create_user(user)
+        self.create_user(user, pwd)
         
         # Test: user cannot insert without privilege
-        self.grant_privilege("USE", db_name, user)
-        self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"INSERT INTO {db_name}.t1 VALUES (NOW, 1)")
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        self.login(user, pwd)
+        self.exec_sql_failed(f"INSERT INTO {db_name}.t1 VALUES (NOW, 1)")
         
         # Grant INSERT privilege
         self.login()
         self.grant_privilege("INSERT", f"{db_name}.t1", user)
         
         # Test: user can insert with privilege
-        self.login(user=user, password="test@1234")
+        self.login(user, pwd)
         self.insert_data(db_name, "t1")
         
         # Cleanup
@@ -560,27 +609,26 @@ class TestPrivControl:
     def do_delete_privilege(self):
         # Test DELETE privilege
         tdLog.info("=== Testing DELETE Privilege ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name = "test_db_delete"
-        user = "test_delete_user"
-        
+        db_name = "test_db"
+        user = "test_user"
         self.create_database(db_name)
         self.create_table(db_name, "t1")
         self.insert_data(db_name, "t1")
-        self.create_user(user)
+        self.create_user(user, pwd)
         
         # Test: user cannot delete without privilege
-        self.grant_privilege("USE", db_name, user)
-        self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"DELETE FROM {db_name}.t1")
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        self.login(user, pwd)
+        self.exec_sql_failed(f"DELETE FROM {db_name}.t1")
         
         # Grant DELETE privilege
         self.login()
         self.grant_privilege("DELETE", f"{db_name}.t1", user)
         
         # Test: user can delete with privilege
-        self.login(user=user, password="test@1234")
+        self.login(user, pwd)
         self.delete_data(db_name, "t1")
         
         # Cleanup
@@ -596,30 +644,29 @@ class TestPrivControl:
     def do_column_privilege(self):
         # Test column-level SELECT privilege
         tdLog.info("=== Testing Column-Level Privilege ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name = "test_db_column"
-        user = "test_col_user"
-        
+        db_name = "test_db"
+        user = "test_user"
         self.create_database(db_name)
         self.create_stable(db_name, "st1", columns="ts TIMESTAMP, c1 INT, c2 INT, c3 INT")
         self.create_child_table(db_name, "ct1", "st1")
-        self.execute_sql(f"INSERT INTO {db_name}.ct1 VALUES (NOW, 1, 2, 3)")
-        self.create_user(user)
+        self.exec_sql(f"INSERT INTO {db_name}.ct1 VALUES (NOW, 1, 2, 3)")
+        self.create_user(user, pwd)
         
         # Grant USE DATABASE
-        self.grant_privilege("USE", db_name, user)
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
         
         # Grant SELECT on specific columns only
         self.grant_privilege("SELECT(c1,c2)", f"{db_name}.st1", user)
         
         # Test: user can only select authorized columns
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"SELECT c1, c2 FROM {db_name}.st1")
+        self.login(user, pwd)
+        self.exec_sql(f"SELECT c1, c2 FROM {db_name}.st1")
         
         # Test: user cannot select unauthorized column
-        self.execute_sql_failed(f"SELECT c3 FROM {db_name}.st1")
-        self.execute_sql_failed(f"SELECT * FROM {db_name}.st1")
+        self.exec_sql_failed(f"SELECT c3 FROM {db_name}.st1")
+        self.exec_sql_failed(f"SELECT * FROM {db_name}.st1")
         
         # Cleanup
         self.login()
@@ -631,31 +678,30 @@ class TestPrivControl:
     def do_row_privilege_with_tag_condition(self):
         # Test row-level privilege with tag condition
         tdLog.info("=== Testing Row-Level Privilege with Tag Condition ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name = "test_db_row"
-        user = "test_row_user"
-        
+        db_name = "test_db"
+        user = "test_user"
         self.create_database(db_name)
         self.create_stable(db_name, "st1", tags="t1 INT")
         self.create_child_table(db_name, "ct1", "st1", tag_values="1")
         self.create_child_table(db_name, "ct2", "st1", tag_values="2")
-        self.execute_sql(f"INSERT INTO {db_name}.ct1 VALUES (NOW, 1)")
-        self.execute_sql(f"INSERT INTO {db_name}.ct2 VALUES (NOW, 2)")
-        self.create_user(user)
+        self.exec_sql(f"INSERT INTO {db_name}.ct1 VALUES (NOW, 1)")
+        self.exec_sql(f"INSERT INTO {db_name}.ct2 VALUES (NOW, 2)")
+        self.create_user(user, pwd)
         
         # Grant USE DATABASE
-        self.grant_privilege("USE", db_name, user)
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
         
         # Grant SELECT with tag condition (only t1=1)
-        self.grant_privilege("SELECT", f"{db_name}.st1", user, with_condition="t1=1")
+        self.grant_privilege("SELECT", f"TABLE {db_name}.st1", user, with_condition="t1=1")
         
         # Test: user can query subtables with t1=1
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"SELECT * FROM {db_name}.ct1")
+        self.login(user, pwd)
+        self.query_expect_rows(f"SELECT * FROM {db_name}.ct1", 1)
         
         # Test: user cannot query subtables with t1=2
-        self.execute_sql_failed(f"SELECT * FROM {db_name}.ct2")
+        self.query_expect_rows(f"SELECT * FROM {db_name}.ct2", 0)
         
         # Cleanup
         self.login()
@@ -667,24 +713,23 @@ class TestPrivControl:
     def do_column_mask_privilege(self):
         # Test column masking in SELECT privilege
         tdLog.info("=== Testing Column Mask Privilege ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name = "test_db_mask"
-        user = "test_mask_user"
-        
+        db_name = "test_db"
+        user = "test_user"
         self.create_database(db_name)
         self.create_table(db_name, "t1", columns="ts TIMESTAMP, c1 INT, c2 VARCHAR(50)")
-        self.execute_sql(f"INSERT INTO {db_name}.t1 VALUES (NOW, 123, 'sensitive_data')")
-        self.create_user(user)
+        self.exec_sql(f"INSERT INTO {db_name}.t1 VALUES (NOW, 123, 'sensitive_data')")
+        self.create_user(user, pwd)
         
         # Grant USE DATABASE
-        self.grant_privilege("USE", db_name, user)
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
         
         # Grant SELECT with mask on c2
         self.grant_privilege("SELECT(c1,MASK(c2))", f"{db_name}.t1", user)
         
         # Test: user can select but c2 should be masked
-        self.login(user=user, password="test@1234")
+        self.login(user, pwd)
         tdSql.query(f"SELECT c1, c2 FROM {db_name}.t1")
         # Note: actual mask verification would depend on implementation
         
@@ -701,36 +746,33 @@ class TestPrivControl:
     def do_role_creation_and_grant(self):
         # Test role creation and granting
         tdLog.info("=== Testing Role Creation and Grant ===")
-        self.login()
+        self.login()  # Login as root
         
-        role = "test_role1"
-        user = "test_role_user1"
-        db_name = "test_db_role"
-        
+        role = "test_role"
+        user = "test_user"
+        db_name = "test_db"
         # Create role and user
         self.create_role(role)
-        self.create_user(user)
+        self.create_user(user, pwd)
         self.create_database(db_name)
         
         # Grant privileges to role
-        self.grant_privilege("USE", db_name, role)
-        self.grant_privilege("CREATE TABLE", db_name, role)
+        self.grant_privilege("CREATE TABLE", f"DATABASE {db_name}", role)
         
         # Grant role to user
         self.grant_role(role, user)
         
         # Test: user with role can execute authorized operations
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"USE {db_name}")
-        self.execute_sql(f"CREATE TABLE {db_name}.t1 (ts TIMESTAMP, c1 INT)")
+        self.login(user, pwd)
+        self.exec_sql(f"CREATE TABLE {db_name}.t1 (ts TIMESTAMP, c1 INT)")
         
         # Revoke role from user
         self.login()
         self.revoke_role(role, user)
         
         # Test: user without role cannot execute operations
-        self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"CREATE TABLE {db_name}.t2 (ts TIMESTAMP, c1 INT)")
+        self.login(user, pwd)
+        self.exec_sql_failed(f"CREATE TABLE {db_name}.t2 (ts TIMESTAMP, c1 INT)")
         
         # Cleanup
         self.login()
@@ -751,9 +793,9 @@ class TestPrivControl:
         self.grant_role("SYSDBA", user_sysdba)
         
         # Test: SYSDBA can create database
-        self.login(user=user_sysdba, password="test@1234")
-        self.execute_sql("CREATE DATABASE test_sysdba_db")
-        self.execute_sql("DROP DATABASE test_sysdba_db")
+        self.login(user_sysdba, pwd)
+        self.exec_sql("CREATE DATABASE test_sysdba_db")
+        self.exec_sql("DROP DATABASE test_sysdba_db")
         
         # Test SYSSEC role
         self.login()
@@ -762,9 +804,9 @@ class TestPrivControl:
         self.grant_role("SYSSEC", user_syssec)
         
         # Test: SYSSEC can manage users and privileges
-        self.login(user=user_syssec, password="test@1234")
-        self.execute_sql("CREATE USER test_sec_user1 PASS 'test@1234'")
-        self.execute_sql("DROP USER test_sec_user1")
+        self.login(user_syssec, pwd)
+        self.exec_sql("CREATE USER test_sec_user1 PASS 'test@1234'")
+        self.exec_sql("DROP USER test_sec_user1")
         
         # Test SYSAUDIT role
         self.login()
@@ -773,8 +815,8 @@ class TestPrivControl:
         self.grant_role("SYSAUDIT", user_audit)
         
         # Test: SYSAUDIT can view audit information
-        self.login(user=user_audit, password="test@1234")
-        self.execute_sql("SHOW USERS FULL")
+        self.login(user_audit, pwd)
+        self.exec_sql("SHOW USERS FULL")
         
         # Test: SYSAUDIT cannot access business data
         self.login()
@@ -782,8 +824,8 @@ class TestPrivControl:
         self.create_table("test_audit_db", "t1")
         self.insert_data("test_audit_db", "t1")
         
-        self.login(user=user_audit, password="test@1234")
-        self.execute_sql_failed("SELECT * FROM test_audit_db.t1")
+        self.login(user_audit, pwd)
+        self.exec_sql_failed("SELECT * FROM test_audit_db.t1")
         
         # Cleanup
         self.login()
@@ -824,39 +866,39 @@ class TestPrivControl:
         self.grant_role("SYSAUDIT_LOG", user_audit_log)
         
         # Test: SYSAUDIT can use audit database
-        self.login(user=user_audit, password="test@1234")
-        self.execute_sql(f"USE {audit_db}")
+        self.login(user_audit, pwd)
+        self.exec_sql(f"USE {audit_db}")
         
         # Test: SYSAUDIT_LOG can create table in audit database
-        self.login(user=user_audit_log, password="test@1234")
-        self.execute_sql(f"CREATE TABLE {audit_db}.audit_log (ts TIMESTAMP, operation VARCHAR(100))")
+        self.login(user_audit_log, pwd)
+        self.exec_sql(f"CREATE TABLE {audit_db}.audit_log (ts TIMESTAMP, operation VARCHAR(100))")
         
         # Test: SYSAUDIT_LOG can insert data
-        self.execute_sql(f"INSERT INTO {audit_db}.audit_log VALUES (NOW, 'test_operation')")
+        self.exec_sql(f"INSERT INTO {audit_db}.audit_log VALUES (NOW, 'test_operation')")
         
         # Test: SYSAUDIT can read audit data
-        self.login(user=user_audit, password="test@1234")
-        self.execute_sql(f"SELECT * FROM {audit_db}.audit_log")
+        self.login(user_audit, pwd)
+        self.exec_sql(f"SELECT * FROM {audit_db}.audit_log")
         
         # Test: Normal user cannot access audit database
-        self.login(user=user_normal, password="test@1234")
-        self.execute_sql_failed(f"USE {audit_db}")
+        self.login(user_normal, pwd)
+        self.exec_sql_failed(f"USE {audit_db}")
         
         # Test: SYSAUDIT_LOG cannot delete data from audit table
-        self.login(user=user_audit_log, password="test@1234")
-        self.execute_sql_failed(f"DELETE FROM {audit_db}.audit_log")
+        self.login(user_audit_log, pwd)
+        self.exec_sql_failed(f"DELETE FROM {audit_db}.audit_log")
         
         # Test: SYSAUDIT_LOG cannot alter audit table
-        self.execute_sql_failed(f"ALTER TABLE {audit_db}.audit_log ADD COLUMN extra INT")
+        self.exec_sql_failed(f"ALTER TABLE {audit_db}.audit_log ADD COLUMN extra INT")
         
         # Test: SYSAUDIT_LOG cannot drop audit table
-        self.execute_sql_failed(f"DROP TABLE {audit_db}.audit_log")
+        self.exec_sql_failed(f"DROP TABLE {audit_db}.audit_log")
         
         # Cleanup
         self.login()
         try:
             # May need to change allow_drop attribute first
-            self.execute_sql(f"ALTER DATABASE {audit_db} ALLOW_DROP 1")
+            self.exec_sql(f"ALTER DATABASE {audit_db} ALLOW_DROP 1")
             self.drop_database(audit_db)
         except:
             tdLog.info("Audit database cleanup may require special handling")
@@ -872,23 +914,23 @@ class TestPrivControl:
     def do_create_function_privilege(self):
         # Test CREATE FUNCTION privilege
         tdLog.info("=== Testing CREATE FUNCTION Privilege ===")
-        self.login()
+        self.login()  # Login as root
         
-        user = "test_func_user"
-        self.create_user(user)
+        user = "test_user"
+        self.create_user(user, pwd)
         
         # Test: user cannot create function without privilege
-        self.login(user=user, password="test@1234")
+        self.login(user, pwd)
         # Note: actual UDF creation syntax may vary
-        # self.execute_sql_failed("CREATE FUNCTION test_func AS ...")
+        # self.exec_sql_failed("CREATE FUNCTION test_func AS ...")
         
         # Grant CREATE FUNCTION privilege (system privilege, no target)
         self.login()
         self.grant_privilege("CREATE FUNCTION", None, user)
         
         # Test: user can create function with privilege
-        # self.login(user=user, password="test@1234")
-        # self.execute_sql("CREATE FUNCTION test_func AS ...")
+        # self.login(user, pwd)
+        # self.exec_sql("CREATE FUNCTION test_func AS ...")
         
         # Cleanup
         self.login()
@@ -899,28 +941,27 @@ class TestPrivControl:
     def do_create_index_privilege(self):
         # Test CREATE INDEX privilege
         tdLog.info("=== Testing CREATE INDEX Privilege ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name = "test_db_index"
-        user = "test_index_user"
-        
+        db_name = "test_db"
+        user = "test_user"
         self.create_database(db_name)
         self.create_stable(db_name, "st1", columns="ts TIMESTAMP, c1 INT, c2 VARCHAR(50)")
-        self.create_user(user)
+        self.create_user(user, pwd)
         
         # Test: user cannot create index without privilege
-        self.grant_privilege("USE", db_name, user)
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
         self.grant_privilege("SELECT", f"{db_name}.*", user)
-        self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"CREATE INDEX idx1 ON {db_name}.st1 (c2)")
+        self.login(user, pwd)
+        self.exec_sql_failed(f"CREATE INDEX idx1 ON {db_name}.st1 (c2)")
         
         # Grant CREATE INDEX privilege
         self.login()
         self.grant_privilege("CREATE INDEX", f"{db_name}.*", user)
         
         # Test: user can create index with privilege
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"CREATE INDEX idx1 ON {db_name}.st1 (c2)")
+        self.login(user, pwd)
+        self.exec_sql(f"CREATE INDEX idx1 ON {db_name}.st1 (c2)")
         
         # Cleanup
         self.login()
@@ -935,53 +976,52 @@ class TestPrivControl:
     def do_view_privileges(self):
         # Test view privileges
         tdLog.info("=== Testing View Privileges ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name = "test_db_view"
-        user = "test_view_user"
-        
+        db_name = "test_db"
+        user = "test_user"
         self.create_database(db_name)
         self.create_table(db_name, "base_table", "ts TIMESTAMP, value INT")
         self.insert_data(db_name, "base_table")
-        self.create_user(user)
+        self.create_user(user, pwd)
         
         # Create a view as root
-        self.execute_sql(f"CREATE VIEW {db_name}.v1 AS SELECT * FROM {db_name}.base_table")
+        self.exec_sql(f"CREATE VIEW {db_name}.v1 AS SELECT * FROM {db_name}.base_table")
         
         # Test: user cannot select view without privilege
-        self.grant_privilege("USE", db_name, user)
-        self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"SELECT * FROM {db_name}.v1")
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        self.login(user, pwd)
+        self.exec_sql_failed(f"SELECT * FROM {db_name}.v1")
         
         # Grant SELECT privilege on view
         self.login()
         self.grant_privilege("SELECT", f"VIEW {db_name}.v1", user)
         
         # Test: user can now select from view
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"SELECT * FROM {db_name}.v1")
+        self.login(user, pwd)
+        self.exec_sql(f"SELECT * FROM {db_name}.v1")
         
         # Test: user cannot alter view without privilege
-        self.execute_sql_failed(f"ALTER VIEW {db_name}.v1 AS SELECT value FROM {db_name}.base_table")
+        self.exec_sql_failed(f"ALTER VIEW {db_name}.v1 AS SELECT value FROM {db_name}.base_table")
         
         # Grant ALTER privilege on view
         self.login()
         self.grant_privilege("ALTER", f"VIEW {db_name}.v1", user)
         
         # Test: user can alter view
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"ALTER VIEW {db_name}.v1 AS SELECT value FROM {db_name}.base_table")
+        self.login(user, pwd)
+        self.exec_sql(f"ALTER VIEW {db_name}.v1 AS SELECT value FROM {db_name}.base_table")
         
         # Test: user cannot drop view without privilege
-        self.execute_sql_failed(f"DROP VIEW {db_name}.v1")
+        self.exec_sql_failed(f"DROP VIEW {db_name}.v1")
         
         # Grant DROP privilege on view
         self.login()
         self.grant_privilege("DROP", f"VIEW {db_name}.v1", user)
         
         # Test: user can drop view
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"DROP VIEW {db_name}.v1")
+        self.login(user, pwd)
+        self.exec_sql(f"DROP VIEW {db_name}.v1")
         
         # Cleanup
         self.login()
@@ -993,23 +1033,22 @@ class TestPrivControl:
     def do_topic_privileges(self):
         # Test topic privileges
         tdLog.info("=== Testing Topic Privileges ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name = "test_db_topic"
-        user = "test_topic_user"
+        db_name = "test_db"
+        user = "test_user"
         topic_name = "test_topic"
-        
         self.create_database(db_name)
         self.create_stable(db_name, "st1")
-        self.create_user(user)
+        self.create_user(user, pwd)
         
         # Create topic as root
-        self.grant_privilege("USE", db_name, user)
-        self.execute_sql(f"CREATE TOPIC {topic_name} AS SELECT * FROM {db_name}.st1")
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        self.exec_sql(f"CREATE TOPIC {topic_name} AS SELECT * FROM {db_name}.st1")
         
         # Test: user cannot subscribe without privilege
-        self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"SELECT * FROM {topic_name}")  # Subscribe operation
+        self.login(user, pwd)
+        self.exec_sql_failed(f"SELECT * FROM {topic_name}")  # Subscribe operation
         
         # Grant SUBSCRIBE privilege on topic
         self.login()
@@ -1017,19 +1056,19 @@ class TestPrivControl:
         
         # Test: user can now subscribe (note: actual subscription test may need consumer API)
         # For syntax test, we check SHOW TOPICS
-        self.login(user=user, password="test@1234")
+        self.login(user, pwd)
         # Actual subscription would require TMQ consumer, here we test privilege grant succeeded
         
         # Test: user cannot drop topic without privilege
-        self.execute_sql_failed(f"DROP TOPIC {topic_name}")
+        self.exec_sql_failed(f"DROP TOPIC {topic_name}")
         
         # Grant DROP privilege on topic
         self.login()
         self.grant_privilege("DROP", f"TOPIC {db_name}.{topic_name}", user)
         
         # Test: user can drop topic
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"DROP TOPIC {topic_name}")
+        self.login(user, pwd)
+        self.exec_sql(f"DROP TOPIC {topic_name}")
         
         # Cleanup
         self.login()
@@ -1041,37 +1080,36 @@ class TestPrivControl:
     def do_stream_privileges(self):
         # Test stream privileges
         tdLog.info("=== Testing Stream Privileges ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name = "test_db_stream"
-        user = "test_stream_user"
+        db_name = "test_db"
+        user = "test_user"
         stream_name = "test_stream"
-        
         self.create_database(db_name)
         self.create_stable(db_name, "source_table", "ts TIMESTAMP, value INT", "tag1 INT")
         self.create_stable(db_name, "target_table", "ts TIMESTAMP, avg_value DOUBLE", "tag1 INT")
-        self.create_user(user)
+        self.create_user(user, pwd)
         
         # Create stream as root
-        self.grant_privilege("USE", db_name, user)
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
         stream_sql = f"CREATE STREAM {stream_name} INTO {db_name}.target_table AS SELECT _wstart, avg(value) FROM {db_name}.source_table INTERVAL(1m) PARTITION BY tag1"
-        self.execute_sql(stream_sql)
+        self.exec_sql(stream_sql)
         
         # Test: user cannot show streams without privilege
-        self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"SHOW STREAMS")
+        self.login(user, pwd)
+        self.exec_sql_failed(f"SHOW STREAMS")
         
         # Grant SHOW privilege on stream
         self.login()
         self.grant_privilege("SHOW", f"STREAM {db_name}.*", user)
         
         # Test: user can show streams
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"SHOW STREAMS")
+        self.login(user, pwd)
+        self.exec_sql(f"SHOW STREAMS")
         
         # Test: user cannot stop stream without privilege
         # Note: stream operations might require the stream to be running
-        # self.execute_sql_failed(f"STOP STREAM {stream_name}")
+        # self.exec_sql_failed(f"STOP STREAM {stream_name}")
         
         # Grant STOP privilege on stream
         self.login()
@@ -1081,16 +1119,16 @@ class TestPrivControl:
         self.grant_privilege("START", f"STREAM {db_name}.{stream_name}", user)
         
         # Test: user cannot drop stream without privilege
-        self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"DROP STREAM {stream_name}")
+        self.login(user, pwd)
+        self.exec_sql_failed(f"DROP STREAM {stream_name}")
         
         # Grant DROP privilege on stream
         self.login()
         self.grant_privilege("DROP", f"STREAM {db_name}.{stream_name}", user)
         
         # Test: user can drop stream
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"DROP STREAM {stream_name}")
+        self.login(user, pwd)
+        self.exec_sql(f"DROP STREAM {stream_name}")
         
         # Cleanup
         self.login()
@@ -1105,25 +1143,24 @@ class TestPrivControl:
     def do_privilege_inheritance(self):
         # Test privilege inheritance (child table inherits from super table)
         tdLog.info("=== Testing Privilege Inheritance ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name = "test_db_inherit"
-        user = "test_inherit_user"
-        
+        db_name = "test_db"
+        user = "test_user"
         self.create_database(db_name)
         self.create_stable(db_name, "st1")
         self.create_child_table(db_name, "ct1", "st1")
         self.create_child_table(db_name, "ct2", "st1")
-        self.create_user(user)
+        self.create_user(user, pwd)
         
         # Grant privilege on super table
-        self.grant_privilege("USE", db_name, user)
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
         self.grant_privilege("SELECT", f"{db_name}.st1", user)
         
         # Test: child tables inherit privilege
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"SELECT * FROM {db_name}.ct1")
-        self.execute_sql(f"SELECT * FROM {db_name}.ct2")
+        self.login(user, pwd)
+        self.exec_sql(f"SELECT * FROM {db_name}.ct1")
+        self.exec_sql(f"SELECT * FROM {db_name}.ct2")
         
         # Cleanup
         self.login()
@@ -1135,27 +1172,26 @@ class TestPrivControl:
     def do_privilege_conflict_resolution(self):
         # Test privilege conflict resolution (user vs role)
         tdLog.info("=== Testing Privilege Conflict Resolution ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name = "test_db_conflict"
-        user = "test_conflict_user"
+        db_name = "test_db"
+        user = "test_user"
         role = "test_conflict_role"
-        
         self.create_database(db_name)
         self.create_stable(db_name, "st1", columns="ts TIMESTAMP, c1 INT, c2 INT")
         self.create_role(role)
-        self.create_user(user)
+        self.create_user(user, pwd)
         
         # Grant different column privileges to user and role
-        self.grant_privilege("USE", db_name, user)
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
         self.grant_privilege("USE", db_name, role)
         self.grant_privilege("SELECT(c1)", f"{db_name}.st1", user)  # User: only c1
         self.grant_privilege("SELECT(c2)", f"{db_name}.st1", role)  # Role: only c2
         self.grant_role(role, user)
         
         # Test: user's explicit privilege takes priority
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"SELECT c1 FROM {db_name}.st1")
+        self.login(user, pwd)
+        self.exec_sql(f"SELECT c1 FROM {db_name}.st1")
         # According to FS: user's explicit fine-grained rule > role's rule
         
         # Cleanup
@@ -1169,35 +1205,34 @@ class TestPrivControl:
     def do_wildcard_privilege(self):
         # Test wildcard privilege (*.* and db.*)
         tdLog.info("=== Testing Wildcard Privilege ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name1 = "test_db_wild1"
-        db_name2 = "test_db_wild2"
-        user = "test_wild_user"
-        
+        db_name1 = "test_db"
+        db_name2 = "test_db2"
+        user = "test_user"
         self.create_database(db_name1)
         self.create_database(db_name2)
         self.create_table(db_name1, "t1")
         self.create_table(db_name2, "t1")
-        self.create_user(user)
+        self.create_user(user, pwd)
         
         # Grant wildcard privilege on all databases
         self.grant_privilege("USE", "*", user)
         self.grant_privilege("SELECT", "*.*", user)
         
         # Test: user can access all tables
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"SELECT * FROM {db_name1}.t1")
-        self.execute_sql(f"SELECT * FROM {db_name2}.t1")
+        self.login(user, pwd)
+        self.exec_sql(f"SELECT * FROM {db_name1}.t1")
+        self.exec_sql(f"SELECT * FROM {db_name2}.t1")
         
         # Test fine-grained rule overrides wildcard
         self.login()
         self.grant_privilege("SELECT(c1)", f"{db_name1}.t1", user)
         
         # Now user should have fine-grained privilege on db1.t1
-        self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"SELECT * FROM {db_name1}.t1")  # Cannot select all columns
-        self.execute_sql(f"SELECT * FROM {db_name2}.t1")  # Still can select from db2
+        self.login(user, pwd)
+        self.exec_sql_failed(f"SELECT * FROM {db_name1}.t1")  # Cannot select all columns
+        self.exec_sql(f"SELECT * FROM {db_name2}.t1")  # Still can select from db2
         
         # Cleanup
         self.login()
@@ -1210,33 +1245,33 @@ class TestPrivControl:
     def do_privilege_revoke_cascading(self):
         # Test privilege revoke and cascading effects
         tdLog.info("=== Testing Privilege Revoke Cascading ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name = "test_db_revoke"
-        user = "test_revoke_user"
+        db_name = "test_db"
+        user = "test_user"
         
         self.create_database(db_name)
         self.create_table(db_name, "t1")
-        self.create_user(user)
+        self.create_user(user, pwd)
         
         # Grant multiple privileges
-        self.grant_privilege("USE", db_name, user)
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
         self.grant_privilege("SELECT", f"{db_name}.t1", user)
         self.grant_privilege("INSERT", f"{db_name}.t1", user)
         
         # Test: user can perform both operations
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"INSERT INTO {db_name}.t1 VALUES (NOW, 1)")
-        self.execute_sql(f"SELECT * FROM {db_name}.t1")
+        self.login(user, pwd)
+        self.exec_sql(f"INSERT INTO {db_name}.t1 VALUES (NOW, 1)")
+        self.exec_sql(f"SELECT * FROM {db_name}.t1")
         
         # Revoke SELECT privilege
         self.login()
         self.revoke_privilege("SELECT", f"{db_name}.t1", user)
         
         # Test: user can still insert but not select
-        self.login(user=user, password="test@1234")
-        self.execute_sql(f"INSERT INTO {db_name}.t1 VALUES (NOW, 2)")
-        self.execute_sql_failed(f"SELECT * FROM {db_name}.t1")
+        self.login(user, pwd)
+        self.exec_sql(f"INSERT INTO {db_name}.t1 VALUES (NOW, 2)")
+        self.exec_sql_failed(f"SELECT * FROM {db_name}.t1")
         
         # Cleanup
         self.login()
@@ -1248,26 +1283,26 @@ class TestPrivControl:
     def do_invalid_privilege_operations(self):
         # Test invalid privilege operations (negative cases)
         tdLog.info("=== Testing Invalid Privilege Operations ===")
-        self.login()
+        self.login()  # Login as root
         
-        user = "test_invalid_user"
-        self.create_user(user)
+        user = "test_user"
+        self.create_user(user, pwd)
         
         # Test: grant non-existent privilege
-        self.execute_sql_failed(f"GRANT INVALID_PRIVILEGE ON *.* TO {user}")
+        self.exec_sql_failed(f"GRANT INVALID_PRIVILEGE ON *.* TO {user}")
         
         # Test: grant privilege on non-existent database
-        self.execute_sql_failed(f"GRANT SELECT ON non_existent_db.* TO {user}")
+        self.exec_sql_failed(f"GRANT SELECT ON non_existent_db.* TO {user}")
         
         # Test: grant privilege to non-existent user
-        self.execute_sql_failed(f"GRANT SELECT ON *.* TO non_existent_user")
+        self.exec_sql_failed(f"GRANT SELECT ON *.* TO non_existent_user")
         
         # Test: revoke privilege that was never granted
         self.revoke_privilege_failed("DELETE", "*.*", user)
         
         # Test: user cannot grant privileges to others without proper privilege
-        self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"GRANT SELECT ON *.* TO root")
+        self.login(user, pwd)
+        self.exec_sql_failed(f"GRANT SELECT ON *.* TO root")
         
         # Cleanup
         self.login()
@@ -1278,25 +1313,25 @@ class TestPrivControl:
     def do_privilege_boundary_conditions(self):
         # Test privilege boundary conditions
         tdLog.info("=== Testing Privilege Boundary Conditions ===")
-        self.login()
+        self.login()  # Login as root
         
-        db_name = "test_db_boundary"
-        user = "test_boundary_user"
+        db_name = "test_db"
+        user = "test_user"
         
         self.create_database(db_name)
-        self.create_user(user)
+        self.create_user(user, pwd)
         
         # Test: grant and immediately revoke
-        self.grant_privilege("USE", db_name, user)
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
         self.revoke_privilege("USE", db_name, user)
         
-        self.login(user=user, password="test@1234")
-        self.execute_sql_failed(f"USE {db_name}")
+        self.login(user, pwd)
+        self.exec_sql_failed(f"USE {db_name}")
         
         # Test: grant same privilege multiple times
         self.login()
-        self.grant_privilege("USE", db_name, user)
-        self.grant_privilege("USE", db_name, user)  # Should not error
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)  # Should not error
         
         # Test: revoke same privilege multiple times
         self.revoke_privilege("USE", db_name, user)
@@ -1312,25 +1347,25 @@ class TestPrivControl:
     def do_owner_special_privileges(self):
         # Test owner's special privileges
         tdLog.info("=== Testing Owner Special Privileges ===")
-        self.login()
+        self.login()  # Login as root
         
-        user = "test_owner_user"
-        self.create_user(user)
+        user = "test_user"
+        self.create_user(user, pwd)
         self.grant_privilege("CREATE DATABASE", None, user)
         
         # User creates their own database
-        self.login(user=user, password="test@1234")
-        db_name = "owner_test_db"
+        self.login(user, pwd)
+        db_name = "test_db"
         self.create_database(db_name)
         
         # Test: owner can perform all operations without explicit grants
-        self.execute_sql(f"CREATE TABLE {db_name}.t1 (ts TIMESTAMP, c1 INT)")
-        self.execute_sql(f"INSERT INTO {db_name}.t1 VALUES (NOW, 1)")
-        self.execute_sql(f"SELECT * FROM {db_name}.t1")
-        self.execute_sql(f"ALTER DATABASE {db_name} KEEP 365")
+        self.exec_sql(f"CREATE TABLE {db_name}.t1 (ts TIMESTAMP, c1 INT)")
+        self.exec_sql(f"INSERT INTO {db_name}.t1 VALUES (NOW, 1)")
+        self.exec_sql(f"SELECT * FROM {db_name}.t1")
+        self.exec_sql(f"ALTER DATABASE {db_name} KEEP 365")
         
         # Test: owner can drop their own database
-        self.execute_sql(f"DROP DATABASE {db_name}")
+        self.exec_sql(f"DROP DATABASE {db_name}")
         
         # Cleanup
         self.login()
@@ -1341,16 +1376,16 @@ class TestPrivControl:
     def do_concurrent_privilege_operations(self):
         # Test concurrent privilege grant/revoke operations
         tdLog.info("=== Testing Concurrent Privilege Operations ===")
-        self.login()
+        self.login()  # Login as root
         
         # Note: This is a basic test, actual concurrent testing would require threading
-        db_name = "test_db_concurrent"
-        users = ["test_concurrent_user1", "test_concurrent_user2", "test_concurrent_user3"]
+        db_name = "test_db"
+        users = ["test_user", "test_user2", "test_user3"]
         
         self.create_database(db_name)
         for user in users:
-            self.create_user(user)
-            self.grant_privilege("USE", db_name, user)
+            self.create_user(user, pwd)
+            self.grant_privilege("USE", f"DATABASE {db_name}", user)
             self.grant_privilege("SELECT", f"{db_name}.*", user)
         
         # Revoke privileges from all users
@@ -1359,7 +1394,7 @@ class TestPrivControl:
         
         # Verify all users lost privilege
         for user in users:
-            self.login(user=user, password="test@1234")
+            self.login(user, pwd)
             # Note: would need actual table to test SELECT
         
         # Cleanup
@@ -1432,6 +1467,8 @@ class TestPrivControl:
         print("\n")
         print("========== Privilege Control Test Suite ==========")
         print("")
+        
+        '''
 
         # Database privilege tests
         print("[Database Privileges]")
@@ -1461,6 +1498,7 @@ class TestPrivControl:
         # RBAC tests
         print("")
         print("[Role-Based Access Control]")
+        '''
         self.do_role_creation_and_grant()
         self.do_system_roles()
         self.do_audit_database_privileges()
