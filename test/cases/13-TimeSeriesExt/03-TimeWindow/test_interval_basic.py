@@ -2343,7 +2343,8 @@ class TestInterval:
             stream="""create stream s1 state_window(c1) from triggertb into
             res1 as select _wstart, _wend, _twstart, _twend, first(c1), max(c1),
             count(c1) from stb where ts >= _twstart and ts < _twend
-            interval(8h) fill(next) surround(8h, 100, 100, 100)"""
+            interval(8h) fill(next) surround(8h, 100, 100, 100)""",
+            check_func=self.check_s1,
         )
         streams.append(stream)
 
@@ -2352,16 +2353,19 @@ class TestInterval:
             stream="""create stream s2 state_window(c1) from triggertb into
             res2 as select _wstart, _wend, _twstart, _twend, first(c1), max(c1),
             count(c1) from ctb1 where ts >= _twstart and ts < _twend
-            interval(8h) fill(next) surround(8h, 100, 100, 100)"""
+            interval(8h) fill(prev) surround(50h, 100, 100, 100)""",
+            check_func=self.check_s2,
         )
         streams.append(stream)
 
         stream = StreamItem(
             id=3,
-            stream="""create stream s3 state_window(c1) from triggertb into
-            res3 as select _twstart, _twend, _wstart, _wend, first(c1), max(c1),
-            count(*) from ntb where ts >= _twstart and ts < _twend
-            interval(1d) fill(prev) surround(1d, 100, 100, 0)""",
+            stream="""create stream s3 count_window(2) from stb partition by
+            tbname into res3 as select _wstart, _wend, _twstart, _twend,
+            first(c1), max(c1), count(c1) from %%tbname
+            where ts >= _twstart and ts < _twend interval(8h) fill(prev)
+            surround(12h, 100, 100, 100)""",
+            check_func=self.check_s3,
         )
         streams.append(stream)
 
@@ -2370,6 +2374,7 @@ class TestInterval:
 
         tdStream.checkStreamStatus()
 
+        # trigger data for s0, s1, s2
         tdSql.execute("""insert into triggertb values
             ('2026-01-01 00:00:00', 1)
             ('2026-01-02 00:00:00', 1)
@@ -2381,6 +2386,21 @@ class TestInterval:
             ('2026-01-10 00:00:00', 2)
             ('2026-01-11 00:00:00', 3)
             """)
+
+        # trigger data for s3
+        tdSql.execute("""insert into ctb1 values
+            ('2026-01-10 12:00:00', 4)
+            ('2026-01-11 12:00:00', NULL)
+        """)
+        tdSql.execute("""insert into ctb2 values
+            ('2026-01-10 00:00:00', 4)
+            ('2026-01-11 00:00:00', NULL)
+        """)
+        tdSql.execute("""insert into ctb3 values
+            ('2026-01-10 11:00:00', 4)
+            ('2026-01-11 11:00:00', 5)
+        """)
+
         for stream in streams:
             stream.checkResults()
 
@@ -2416,6 +2436,179 @@ class TestInterval:
             and tdSql.compareData(3, 4, 3)
             and tdSql.compareData(3, 5, 3)
             and tdSql.compareData(3, 6, 2)
+        )
+
+    def check_s1(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from res1",
+            func=lambda: tdSql.getRows() == 12
+            and tdSql.compareData(0, 0, "2026-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, "2026-01-01 08:00:00.000")
+            and tdSql.compareData(0, 2, "2026-01-01 00:00:00.000")
+            and tdSql.compareData(0, 3, "2026-01-02 00:00:00.000")
+            and tdSql.compareData(0, 4, 1)
+            and tdSql.compareData(0, 5, 1)
+            and tdSql.compareData(0, 6, 1)
+            and tdSql.compareData(1, 0, "2026-01-01 08:00:00.000")
+            and tdSql.compareData(1, 1, "2026-01-01 16:00:00.000")
+            and tdSql.compareData(1, 4, 1)
+            and tdSql.compareData(1, 5, 1)
+            and tdSql.compareData(1, 6, 1)
+            and tdSql.compareData(2, 0, "2026-01-01 16:00:00.000")
+            and tdSql.compareData(2, 1, "2026-01-02 00:00:00.000")
+            and tdSql.compareData(2, 2, "2026-01-01 00:00:00.000")
+            and tdSql.compareData(2, 3, "2026-01-02 00:00:00.000")
+            and tdSql.compareData(2, 4, 100)
+            and tdSql.compareData(2, 5, 100)
+            and tdSql.compareData(2, 6, 100)
+            and tdSql.compareData(3, 0, "2026-01-03 00:00:00.000")
+            and tdSql.compareData(3, 1, "2026-01-03 08:00:00.000")
+            and tdSql.compareData(3, 4, 1)
+            and tdSql.compareData(3, 5, 1)
+            and tdSql.compareData(3, 6, 1)
+            and tdSql.compareData(4, 0, "2026-01-03 08:00:00.000")
+            and tdSql.compareData(4, 1, "2026-01-03 16:00:00.000")
+            and tdSql.compareData(4, 2, "2026-01-03 00:00:00.000")
+            and tdSql.compareData(4, 3, "2026-01-04 00:00:00.000")
+            and tdSql.compareData(4, 4, 1)
+            and tdSql.compareData(4, 5, 1)
+            and tdSql.compareData(4, 6, 1)
+            and tdSql.compareData(5, 0, "2026-01-03 16:00:00.000")
+            and tdSql.compareData(5, 1, "2026-01-04 00:00:00.000")
+            and tdSql.compareData(5, 4, 100)
+            and tdSql.compareData(5, 5, 100)
+            and tdSql.compareData(5, 6, 100)
+            and tdSql.compareData(6, 0, "2026-01-07 00:00:00.000")
+            and tdSql.compareData(6, 1, "2026-01-07 08:00:00.000")
+            and tdSql.compareData(6, 2, "2026-01-07 00:00:00.000")
+            and tdSql.compareData(6, 3, "2026-01-08 00:00:00.000")
+            and tdSql.compareData(6, 4, 3)
+            and tdSql.compareData(6, 5, 3)
+            and tdSql.compareData(6, 6, 1)
+            and tdSql.compareData(7, 0, "2026-01-07 08:00:00.000")
+            and tdSql.compareData(7, 1, "2026-01-07 16:00:00.000")
+            and tdSql.compareData(7, 4, 3)
+            and tdSql.compareData(7, 5, 3)
+            and tdSql.compareData(7, 6, 1)
+            and tdSql.compareData(8, 0, "2026-01-07 16:00:00.000")
+            and tdSql.compareData(8, 1, "2026-01-08 00:00:00.000")
+            and tdSql.compareData(8, 4, 100)
+            and tdSql.compareData(8, 5, 100)
+            and tdSql.compareData(8, 6, 100)
+            and tdSql.compareData(9, 0, "2026-01-09 00:00:00.000")
+            and tdSql.compareData(9, 1, "2026-01-09 08:00:00.000")
+            and tdSql.compareData(9, 4, 3)
+            and tdSql.compareData(9, 5, 3)
+            and tdSql.compareData(9, 6, 1)
+            and tdSql.compareData(10, 0, "2026-01-09 08:00:00.000")
+            and tdSql.compareData(10, 1, "2026-01-09 16:00:00.000")
+            and tdSql.compareData(10, 4, 3)
+            and tdSql.compareData(10, 5, 3)
+            and tdSql.compareData(10, 6, 1)
+            and tdSql.compareData(11, 0, "2026-01-09 16:00:00.000")
+            and tdSql.compareData(11, 1, "2026-01-10 00:00:00.000")
+            and tdSql.compareData(11, 2, "2026-01-09 00:00:00.000")
+            and tdSql.compareData(11, 3, "2026-01-10 00:00:00.000")
+            and tdSql.compareData(11, 4, 100)
+            and tdSql.compareData(11, 5, 100)
+            and tdSql.compareData(11, 6, 100)
+        )
+
+    def check_s2(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from res2",
+            func=lambda: tdSql.getRows() == 12
+            and tdSql.compareData(0, 0, "2026-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, "2026-01-01 08:00:00.000")
+            and tdSql.compareData(0, 2, "2026-01-01 00:00:00.000")
+            and tdSql.compareData(0, 3, "2026-01-02 00:00:00.000")
+            and tdSql.compareData(0, 4, 100)
+            and tdSql.compareData(0, 5, 100)
+            and tdSql.compareData(0, 6, 100)
+            and tdSql.compareData(1, 0, "2026-01-01 08:00:00.000")
+            and tdSql.compareData(1, 1, "2026-01-01 16:00:00.000")
+            and tdSql.compareData(1, 2, "2026-01-01 00:00:00.000")
+            and tdSql.compareData(1, 3, "2026-01-02 00:00:00.000")
+            and tdSql.compareData(1, 4, 1)
+            and tdSql.compareData(1, 5, 1)
+            and tdSql.compareData(1, 6, 1)
+            and tdSql.compareData(2, 0, "2026-01-01 16:00:00.000")
+            and tdSql.compareData(2, 1, "2026-01-02 00:00:00.000")
+            and tdSql.compareData(2, 2, "2026-01-01 00:00:00.000")
+            and tdSql.compareData(2, 3, "2026-01-02 00:00:00.000")
+            and tdSql.compareData(2, 4, 1)
+            and tdSql.compareData(2, 5, 1)
+            and tdSql.compareData(2, 6, 1)
+            and tdSql.compareData(3, 0, "2026-01-03 00:00:00.000")
+            and tdSql.compareData(3, 1, "2026-01-03 08:00:00.000")
+            and tdSql.compareData(3, 2, "2026-01-03 00:00:00.000")
+            and tdSql.compareData(3, 3, "2026-01-04 00:00:00.000")
+            and tdSql.compareData(3, 4, 100)
+            and tdSql.compareData(3, 5, 100)
+            and tdSql.compareData(3, 6, 100)
+            and tdSql.compareData(8, 0, "2026-01-07 16:00:00.000")
+            and tdSql.compareData(8, 1, "2026-01-08 00:00:00.000")
+            and tdSql.compareData(8, 2, "2026-01-07 00:00:00.000")
+            and tdSql.compareData(8, 3, "2026-01-08 00:00:00.000")
+            and tdSql.compareData(8, 4, 100)
+            and tdSql.compareData(8, 5, 100)
+            and tdSql.compareData(8, 6, 0)
+            and tdSql.compareData(9, 0, "2026-01-09 00:00:00.000")
+            and tdSql.compareData(9, 1, "2026-01-09 08:00:00.000")
+            and tdSql.compareData(9, 2, "2026-01-09 00:00:00.000")
+            and tdSql.compareData(9, 3, "2026-01-10 00:00:00.000")
+            and tdSql.compareData(9, 4, 100)
+            and tdSql.compareData(9, 5, 100)
+            and tdSql.compareData(9, 6, 100)
+            and tdSql.compareData(10, 0, "2026-01-09 08:00:00.000")
+            and tdSql.compareData(10, 1, "2026-01-09 16:00:00.000")
+            and tdSql.compareData(10, 2, "2026-01-09 00:00:00.000")
+            and tdSql.compareData(10, 3, "2026-01-10 00:00:00.000")
+            and tdSql.compareData(10, 4, 3)
+            and tdSql.compareData(10, 5, 3)
+            and tdSql.compareData(10, 6, 1)
+            and tdSql.compareData(11, 0, "2026-01-09 16:00:00.000")
+            and tdSql.compareData(11, 1, "2026-01-10 00:00:00.000")
+            and tdSql.compareData(11, 2, "2026-01-09 00:00:00.000")
+            and tdSql.compareData(11, 3, "2026-01-10 00:00:00.000")
+            and tdSql.compareData(11, 4, 3)
+            and tdSql.compareData(11, 5, 3)
+            and tdSql.compareData(11, 6, 1)
+        )
+
+    def check_s3(self):
+        # Expected data: list of tuples corresponding to each expected row
+        expected_data = [
+            # (_wstart, _wend, _twstart, _twend, first(c1), max(c1), count(c1), tbname)
+            ("2026-01-10 08:00:00.000", "2026-01-10 16:00:00.000", "2026-01-10 12:00:00.000", "2026-01-11 12:00:00.000", 4, 4, 1, "ctb1"),
+            ("2026-01-10 16:00:00.000", "2026-01-11 00:00:00.000", "2026-01-10 12:00:00.000", "2026-01-11 12:00:00.000", 4, 4, 1, "ctb1"),
+            ("2026-01-11 00:00:00.000", "2026-01-11 08:00:00.000", "2026-01-10 12:00:00.000", "2026-01-11 12:00:00.000", 100, 100, 100, "ctb1"),
+            ("2026-01-11 08:00:00.000", "2026-01-11 16:00:00.000", "2026-01-10 12:00:00.000", "2026-01-11 12:00:00.000", 100, 100, 100, "ctb1"),
+
+            ("2026-01-10 00:00:00.000", "2026-01-10 08:00:00.000", "2026-01-10 00:00:00.000", "2026-01-11 00:00:00.000", 4, 4, 1, "ctb2"),
+            ("2026-01-10 08:00:00.000", "2026-01-10 16:00:00.000", "2026-01-10 00:00:00.000", "2026-01-11 00:00:00.000", 4, 4, 1, "ctb2"),
+            ("2026-01-10 16:00:00.000", "2026-01-11 00:00:00.000", "2026-01-10 00:00:00.000", "2026-01-11 00:00:00.000", 100, 100, 100, "ctb2"),
+
+            ("2026-01-10 08:00:00.000", "2026-01-10 16:00:00.000", "2026-01-10 11:00:00.000", "2026-01-11 11:00:00.000", 4, 4, 1, "ctb3"),
+            ("2026-01-10 16:00:00.000", "2026-01-11 00:00:00.000", "2026-01-10 11:00:00.000", "2026-01-11 11:00:00.000", 4, 4, 1, "ctb3"),
+            ("2026-01-11 00:00:00.000", "2026-01-11 08:00:00.000", "2026-01-10 11:00:00.000", "2026-01-11 11:00:00.000", 100, 100, 100, "ctb3"),
+            ("2026-01-11 08:00:00.000", "2026-01-11 16:00:00.000", "2026-01-10 11:00:00.000", "2026-01-11 11:00:00.000", 100, 100, 100, "ctb3"),
+        ]
+
+        tdSql.checkResultsByFunc(
+            sql="select * from res3 order by tbname, _wstart",
+            func=lambda: tdSql.getRows() == len(expected_data)
+                and all(
+                    tdSql.compareData(i, 0, row[0]) and
+                    tdSql.compareData(i, 1, row[1]) and
+                    tdSql.compareData(i, 2, row[2]) and
+                    tdSql.compareData(i, 3, row[3]) and
+                    tdSql.compareData(i, 4, row[4]) and
+                    tdSql.compareData(i, 5, row[5]) and
+                    tdSql.compareData(i, 6, row[6]) and
+                    tdSql.compareData(i, 7, row[7])
+                    for i, row in enumerate(expected_data)
+                )
         )
 
     def check_surround_abnormal(self):
@@ -2458,3 +2651,8 @@ class TestInterval:
         tdSql.execute("""select _wstart, _wend, tbname from ntb
                 where ts between '2026-01-02 12:00:00' and '2026-01-06 12:00:00'
                 interval(12h, auto) fill(value)""")
+        tdSql.error("""create stream s4 count_window(2) from stb partition by
+            tbname into res4 as select _wstart, _wend, _twstart, _twend,
+            first(c1), max(c1), count(c1) from %%tbname
+            where ts >= _twstart and ts < _twend interval(8h) fill(near)
+            surround(12h, 100, 100, 100)""")
