@@ -711,7 +711,7 @@ Below are the business error codes for each module.
 | 0x80007016 | Stream output table name calc failed  | Output table name calculation failed      | Check if the output table name rules in the stream creation statement are correct and if NULL values exist      |
 | 0x80007017 | Stream vtable calculate need redeploy | Stream vtable calculate need redeploy      | Stream will handle this error automatically                                                                      |
 | 0x80007018 | Stream info contains invalid JSON format messages | Internal encoding compatibility issues in stream computing | Report the issue to developers on GitHub. |
-| 0x80004100 | Stream task not exist | The stream computing task does not exist                     | Check the server-side error logs 
+| 0x80004100 | Stream task not exist | The stream computing task does not exist                     | Check the server-side error logs |
 
 #### xnode
 
