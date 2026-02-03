@@ -43,10 +43,12 @@ class TestShowBasic:
 
     def test_show_vgroups_ready(self):
         """check vgroups is ready
+
         Check vgroups is ready after create database
+        
         Since: v3.3.8.0
         """
-        
+
         count = 0
         while count < 200:
             time.sleep(1)
