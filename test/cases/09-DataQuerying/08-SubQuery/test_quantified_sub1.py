@@ -12,12 +12,13 @@ class TestQuantifiedSubQuery1:
     currentDir = os.path.dirname(os.path.abspath(__file__))
     fileIdx = 0
     colIdx = 0
+    subColIdx = 0
     compareIdx = 0
     quantifiedIdx = 0
     filterIdx = 0
     tableIdx = 0
-    maxColumnIdx = 19
-    querySql = "select {row} {compareExpr} {quantifiedExpr} (select {row} from {targetTableName} {filterExpr}) from {srcTableName};"
+    maxColumnIdx = 20
+    querySql = "select {row} {compareExpr} {quantifiedExpr} (select {row2} from {targetTableName} {filterExpr}) from {srcTableName};"
 
     compareExprs = [
         "=",
@@ -37,8 +38,8 @@ class TestQuantifiedSubQuery1:
     filterExprs = [
         "",
         "WHERE 1 = 0",
-        "WHERE {row} IS NULL",
-        "WHERE {row} IS NOT NULL",
+        "WHERE {row2} IS NULL",
+        "WHERE {row2} IS NOT NULL",
     ]
 
     def setup_class(cls):
@@ -79,7 +80,7 @@ class TestQuantifiedSubQuery1:
             "CREATE TABLE cts3 USING ss1 TAGS (NULL)",
 
             "INSERT INTO cts1 VALUES ('2025-12-01 00:00:00.000',false,    1,   1,   1,   1, 1.0, 1.0, 'a','2025-12-01 00:00:00.000', 'a',   1,   1,   1,   1,'\x01', 1.0,'\x01','POINT(1 1)')",
-            "INSERT INTO cts1 VALUES ('2025-12-03 00:00:00.000',false,    3,   3,   3,   3, 3.0, 3.0, 'c','2025-12-03 00:00:00.000', 'c',   3,   3,   3,   3,'\x03', 3.0,'\x03','POINT(3 3)')",
+            "INSERT INTO cts1 VALUES ('2025-12-03 00:00:00.000', true,    3,   3,   3,   3, 3.0, 3.0, 'c','2025-12-03 00:00:00.000', 'c',   3,   3,   3,   3,'\x03', 3.0,'\x03','POINT(3 3)')",
             "INSERT INTO cts1 VALUES ('2025-12-04 00:00:00.000', NULL, NULL,NULL,NULL,NULL,NULL,NULL,NULL,                     NULL,NULL,NULL,NULL,NULL,NULL,  NULL,NULL,  NULL,        NULL)",
 
             "CREATE STABLE `st1` (f1 TIMESTAMP, f2 bool, f3 tinyint, f4 smallint, f5 int, f6 bigint, f7 float, f8 double, f9 varchar(5), f10 timestamp, "
@@ -91,7 +92,7 @@ class TestQuantifiedSubQuery1:
             "CREATE TABLE ctt3 USING st1 TAGS (NULL)",
 
             "INSERT INTO ctt1 VALUES ('2025-12-01 00:00:00.000',false,    1,   1,   1,   1, 1.0, 1.0, 'a','2025-12-01 00:00:00.000', 'a',   1,   1,   1,   1,'\x01', 1.0,'\x01','POINT(1 1)')",
-            "INSERT INTO ctt1 VALUES ('2025-12-02 00:00:00.000', true,    2,   2,   2,   2, 2.0, 2.0, 'b','2025-12-02 00:00:00.000', 'b',   2,   2,   2,   2,'\x02', 2.0,'\x02','POINT(2 2)')",
+            "INSERT INTO ctt1 VALUES ('2025-12-02 00:00:00.000',false,    2,   2,   2,   2, 2.0, 2.0, 'b','2025-12-02 00:00:00.000', 'b',   2,   2,   2,   2,'\x02', 2.0,'\x02','POINT(2 2)')",
             "INSERT INTO ctt1 VALUES ('2025-12-04 00:00:00.000', NULL, NULL,NULL,NULL,NULL,NULL,NULL,NULL,                     NULL,NULL,NULL,NULL,NULL,NULL,  NULL,NULL,  NULL,        NULL)",
 
         ]
@@ -120,41 +121,57 @@ class TestQuantifiedSubQuery1:
 
         self.openSqlTmpFile()
 
-        for self.colIdx in range(1, self.maxColumnIdx + 1):
+        for self.colIdx in range(1, self.maxColumnIdx):
             for self.compareIdx in range(len(self.compareExprs)):
                 for self.quantifiedIdx in range(len(self.quantifiedExprs)):
-                    for self.filterIdx in range(len(self.filterExprs)):
-                        self.generatedSql = (
-                            self.querySql
-                            .replace("{row}", f"f{self.colIdx}")
-                            .replace("{compareExpr}", self.compareExprs[self.compareIdx])
-                            .replace("{quantifiedExpr}", self.quantifiedExprs[self.quantifiedIdx])
-                            .replace("{filterExpr}", self.filterExprs[self.filterIdx].replace("{row}", f"f{self.colIdx}"))
-                            .replace("{targetTableName}", "ctt1")
-                            .replace("{srcTableName}", "cts1")
-                        )
-                        #tdLog.info(f"generated sql: {self.generatedSql}")
+                    for self.subColIdx in range(1, self.maxColumnIdx + 1):
+                        if (self.subColIdx != self.maxColumnIdx):
+                            self.colName = f"f{self.subColIdx}"
+                            self.targetTbName = "ctt1"
+                        else:
+                            self.colName = "tg1->'k1'"    
+                            self.targetTbName = "st1"
+                        for self.filterIdx in range(len(self.filterExprs)):
+                            self.generatedSql = (
+                                self.querySql
+                                .replace("{row}", f"f{self.colIdx}")
+                                .replace("{compareExpr}", self.compareExprs[self.compareIdx])
+                                .replace("{quantifiedExpr}", self.quantifiedExprs[self.quantifiedIdx])
+                                .replace("{filterExpr}", self.filterExprs[self.filterIdx])
+                                .replace("{row2}", self.colName)
+                                .replace("{targetTableName}", self.targetTbName)
+                                .replace("{srcTableName}", "cts1")
+                            )
+                            #tdLog.info(f"generated sql: {self.generatedSql}")
 
-                        self.generated_queries_file.write(self.generatedSql.strip() + "\n")
-                        self.generated_queries_file.flush()
+                            self.generated_queries_file.write(self.generatedSql.strip() + "\n")
+                            self.generated_queries_file.flush()
 
         for self.tableIdx in range(1, 4):
             for self.compareIdx in range(len(self.compareExprs)):
                 for self.quantifiedIdx in range(len(self.quantifiedExprs)):
-                    for self.filterIdx in range(len(self.filterExprs)):
-                        self.generatedSql = (
-                            self.querySql
-                            .replace("{row}", "tg1->'k1'")
-                            .replace("{compareExpr}", self.compareExprs[self.compareIdx])
-                            .replace("{quantifiedExpr}", self.quantifiedExprs[self.quantifiedIdx])
-                            .replace("{filterExpr}", self.filterExprs[self.filterIdx].replace("{row}", "tg1->'k1'"))
-                            .replace("{targetTableName}", "st1")
-                            .replace("{srcTableName}", f"cts{self.tableIdx}")
-                        )
-                        #tdLog.info(f"generated sql: {self.generatedSql}")
+                    for self.subColIdx in range(1, self.maxColumnIdx + 1):
+                        if (self.subColIdx != self.maxColumnIdx):
+                            self.colName = f"f{self.subColIdx}"
+                            self.targetTbName = "ctt1"
+                        else:
+                            self.colName = "tg1->'k1'"    
+                            self.targetTbName = "st1"                    
+                        for self.filterIdx in range(len(self.filterExprs)):
+                            self.generatedSql = (
+                                self.querySql
+                                .replace("{row}", "tg1->'k1'")
+                                .replace("{compareExpr}", self.compareExprs[self.compareIdx])
+                                .replace("{quantifiedExpr}", self.quantifiedExprs[self.quantifiedIdx])
+                                .replace("{filterExpr}", self.filterExprs[self.filterIdx])
+                                .replace("{row2}", self.colName)
+                                .replace("{targetTableName}", self.targetTbName)
+                                .replace("{srcTableName}", f"cts{self.tableIdx}")
+                            )
+                            #tdLog.info(f"generated sql: {self.generatedSql}")
 
-                        self.generated_queries_file.write(self.generatedSql.strip() + "\n")
-                        self.generated_queries_file.flush()
+                            self.generated_queries_file.write(self.generatedSql.strip() + "\n")
+                            self.generated_queries_file.flush()
 
         self.generated_queries_file.close()
         # iterate from file 0 to last file index self.fileIdx (inclusive)

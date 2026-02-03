@@ -3081,6 +3081,38 @@ static int32_t doRewriteExprSubQuery(STranslateContext* pCxt, SOperatorNode* pOp
   return pCxt->errCode;
 }
 
+static int32_t getNodeDataType(SNode* pNode) {
+  if (NULL == pNode) {
+    return -1;
+  }
+
+  if (nodesIsExprNode(pNode)) {
+    return ((SExprNode*)pNode)->resType.type;
+  }
+
+  return -1;
+}
+
+static bool isValidSubQCompDataType(int32_t leftType, int32_t rightType, EOperatorType opType) {
+  if (-1 == leftType || -1 == rightType) {
+    parserError("not supported compare types:%d, %d for op:%s", leftType, rightType, operatorTypeStr(opType));
+    return false;
+  }
+
+  if (TSDB_DATA_TYPE_JSON == rightType) {
+    parserError("not supported quantified compare types:%d, %d for op:%s", leftType, rightType, operatorTypeStr(opType));
+    return false;
+  }
+  
+  if ((opType >= OP_TYPE_GREATER_THAN && opType <= OP_TYPE_LOWER_EQUAL) &&
+     (TSDB_DATA_TYPE_BLOB == rightType || TSDB_DATA_TYPE_MEDIUMBLOB == rightType || TSDB_DATA_TYPE_GEOMETRY == rightType)) {
+    parserError("not supported quantified compare types:%d, %d for op:%s", leftType, rightType, operatorTypeStr(opType));
+    return false;
+  }
+  
+  return true;
+}
+
 static int32_t rewriteExprSubQuery(STranslateContext* pCxt, SOperatorNode* pOp) {
   switch (pOp->opType) {
     case OP_TYPE_GREATER_THAN: 
@@ -3100,6 +3132,11 @@ static int32_t rewriteExprSubQuery(STranslateContext* pCxt, SOperatorNode* pOp) 
       if (E_SUB_QUERY_COLUMN != pCxt->expSubQueryType) {
         parserError("op %s mismatch with exprSubQType:%d", operatorTypeStr(pOp->opType), pCxt->expSubQueryType);
         pCxt->errCode = TSDB_CODE_PAR_INTERNAL_ERROR;
+        break;
+      }
+
+      if (!isValidSubQCompDataType(getNodeDataType(pOp->pLeft), getNodeDataType(pOp->pRight), pOp->opType)) {
+        pCxt->errCode = TSDB_CODE_SCALAR_CONVERT_ERROR;
         break;
       }
       
@@ -4391,6 +4428,32 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
+static int32_t updateSubQResType(SNode* pNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      if (pSelect->pProjectionList && LIST_LENGTH(pSelect->pProjectionList) > 0) {
+        pSelect->node.resType = ((SExprNode*)pSelect->pProjectionList->pHead->pNode)->resType;
+      }
+      break;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      if (pSet->pProjectionList && LIST_LENGTH(pSet->pProjectionList) > 0) {
+        pSet->node.resType = ((SExprNode*)pSet->pProjectionList->pHead->pNode)->resType;
+      }
+      break;
+    }
+    default:
+      code = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
+      break;
+  }
+
+  return code;
+}
+
 static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode** pNode) {
   if (pCxt->dual && !pCxt->isExprSubQ) {
     parserError("scalar subq not supported in query without FROM");
@@ -4404,6 +4467,9 @@ static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode** pNode) {
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode && E_SUB_QUERY_SCALAR == pCxt->expSubQueryType) {
     pCxt->errCode = replaceExprSubQuery(pCxt, pNode, *pNode, 0);
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode && E_SUB_QUERY_COLUMN == pCxt->expSubQueryType) {
+    pCxt->errCode = updateSubQResType(*pNode);
   }
   
   return (TSDB_CODE_SUCCESS == pCxt->errCode) ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;

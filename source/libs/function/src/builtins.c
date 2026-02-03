@@ -879,6 +879,7 @@ static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
         }
         // check data type
         if (!paramSupportDataType(getSDataTypeFromNode(pNode), paramPattern[paramIdx].validDataType)) {
+          uError("the %dth param for func %s has invalid param type %d", j - 1, funcMgtBuiltins[pFunc->funcId].name, ((SExprNode*)pNode)->resType.type);
           code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
           isMatch = false;
           break;

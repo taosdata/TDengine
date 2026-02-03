@@ -998,7 +998,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Index is rebuilding
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_INVALID_FILE,             "Index file is invalid")
 
 //scalar
-TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_ERROR,           "Cannot convert to specific type")
+TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_ERROR,           "Operation not supported between data types")
 
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
@@ -1091,6 +1091,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_VALUE_TOO_LONG, "Blob value too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_EXHAUST_TOO_MANY_MEMORY, "Blob data exhaust too many memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT, "Blob data not support")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_ONLY_ONE_COLUMN_ALLOWED, "only one blob column allowed")
+TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_OP_NOT_SUPPORTED, "Operation not supported for BLOB type")
+
 // NEW-STREAM
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INTERNAL_ERROR,      "Mnode stream internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_WAL_VER_NOT_DATA,        "Wal version is not data in stream reader task")

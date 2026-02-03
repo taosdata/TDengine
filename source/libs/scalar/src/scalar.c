@@ -2777,7 +2777,8 @@ _return:
 int32_t scalarGetOperatorResultType(SOperatorNode *pOp) {
   if (TSDB_DATA_TYPE_BLOB == ((SExprNode *)(pOp->pLeft))->resType.type ||
       (NULL != pOp->pRight && TSDB_DATA_TYPE_BLOB == ((SExprNode *)(pOp->pRight))->resType.type)) {
-    return TSDB_CODE_TSC_INVALID_OPERATION;
+    sclError("blob type not supported for op: %s", operatorTypeStr(pOp->opType));
+    return TSDB_CODE_BLOB_OP_NOT_SUPPORTED;
   }
 
   switch (pOp->opType) {

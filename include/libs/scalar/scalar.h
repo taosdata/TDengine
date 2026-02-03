@@ -63,7 +63,7 @@ int32_t  vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut,
                                     int32_t numOfRows);
 int32_t  vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_t type, STypeMod typeMod,
                                 int32_t startIndex, int32_t numOfRows);
-STypeMod getConvertTypeMod(int32_t type, const SColumnInfo *pCol1, const SColumnInfo *pCol2);
+STypeMod getConvertTypeMod(int32_t type, const SColumnInfo *pCol1, SScalarParam *param2);
 int32_t  scalarBuildRemoteListHash(SRemoteValueListNode* pRemote, SColumnInfoData* pCol, int64_t rows);
 
 /* Math functions */

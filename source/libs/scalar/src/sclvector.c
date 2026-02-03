@@ -1193,18 +1193,37 @@ int32_t vectorGetConvertType(int32_t type1, int32_t type2) {
   return gConvertTypes[type2][type1];
 }
 
-STypeMod getConvertTypeMod(int32_t type, const SColumnInfo *pCol1, const SColumnInfo *pCol2) {
-  if (IS_DECIMAL_TYPE(type)) {
-    if (IS_DECIMAL_TYPE(pCol1->type) && (!pCol2 || !IS_DECIMAL_TYPE(pCol2->type))) {
+STypeMod getConvertTypeMod(int32_t type, const SColumnInfo *pCol1, SScalarParam *param2) {
+  SColumnInfo* pCol2 = param2->columnData ? &param2->columnData->info : NULL;
+  
+  if (!IS_DECIMAL_TYPE(type)) {
+    return 0;
+  }
+  
+  if (IS_DECIMAL_TYPE(pCol1->type)) {
+    if (pCol2) {
+      if (!IS_DECIMAL_TYPE(pCol2->type)) {
+        return decimalCalcTypeMod(GET_DEICMAL_MAX_PRECISION(type), pCol1->scale);
+      } else {
+        return decimalCalcTypeMod(GET_DEICMAL_MAX_PRECISION(type), TMAX(pCol1->scale, pCol2->scale));
+      }
+    } else if (!param2->hashParam.hasHashParam || !IS_DECIMAL_TYPE(param2->hashParam.filterValueType)) {
       return decimalCalcTypeMod(GET_DEICMAL_MAX_PRECISION(type), pCol1->scale);
-    } else if (pCol2 && IS_DECIMAL_TYPE(pCol2->type) && !IS_DECIMAL_TYPE(pCol1->type)) {
-      return decimalCalcTypeMod(GET_DEICMAL_MAX_PRECISION(type), pCol2->scale);
-    } else if (IS_DECIMAL_TYPE(pCol1->type) && pCol2 && IS_DECIMAL_TYPE(pCol2->type)) {
-      return decimalCalcTypeMod(GET_DEICMAL_MAX_PRECISION(type), TMAX(pCol1->scale, pCol2->scale));
     } else {
-      return 0;
+      uint8_t scale2 = 0;
+      decimalFromTypeMod(param2->hashParam.filterValueTypeMod, NULL, &scale2);
+      return decimalCalcTypeMod(GET_DEICMAL_MAX_PRECISION(type), TMAX(pCol1->scale, scale2));
+    }
+  } else {
+    if (pCol2 && IS_DECIMAL_TYPE(pCol2->type)) {
+      return decimalCalcTypeMod(GET_DEICMAL_MAX_PRECISION(type), pCol2->scale);
+    } else if (!pCol2 && param2->hashParam.hasHashParam && IS_DECIMAL_TYPE(param2->hashParam.filterValueType)) {
+      uint8_t scale2 = 0;
+      decimalFromTypeMod(param2->hashParam.filterValueTypeMod, NULL, &scale2);
+      return decimalCalcTypeMod(GET_DEICMAL_MAX_PRECISION(type), scale2);
     }
   }
+  
   return 0;
 }
 
@@ -1253,27 +1272,16 @@ int32_t vectorConvertCols(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
   SScalarParam *param1 = pLeft, *paramOut1 = pLeftOut;
   SScalarParam *param2 = pRight, *paramOut2 = pRightOut;
 
-  // always convert least data
-  if (IS_VAR_DATA_TYPE(leftType) && IS_VAR_DATA_TYPE(rightType) && (pLeft->numOfRows != pRight->numOfRows) &&
-      leftType != TSDB_DATA_TYPE_JSON && rightType != TSDB_DATA_TYPE_JSON && !pRight->hashParam.hasHashParam) {
-    if (pLeft->numOfRows > pRight->numOfRows) {
-      type = leftType;
-    } else {
-      type = rightType;
-    }
-  } else {
-    type = vectorGetConvertType(GET_PARAM_TYPE(param1), GET_PARAM_TYPE(param2));
-    if (0 == type) {
-      return TSDB_CODE_SUCCESS;
-    }
-    if (-1 == type) {
-      sclError("invalid convert type1:%d, type2:%d", GET_PARAM_TYPE(param1), GET_PARAM_TYPE(param2));
-      terrno = TSDB_CODE_SCALAR_CONVERT_ERROR;
-      return TSDB_CODE_SCALAR_CONVERT_ERROR;
-    }
-    outTypeMod =
-        getConvertTypeMod(type, &param1->columnData->info, param2->columnData ? &param2->columnData->info : NULL);
+  type = vectorGetConvertType(GET_PARAM_TYPE(param1), GET_PARAM_TYPE(param2));
+  if (0 == type) {
+    return TSDB_CODE_SUCCESS;
   }
+  if (-1 == type) {
+    sclError("invalid convert type1:%d, type2:%d", GET_PARAM_TYPE(param1), GET_PARAM_TYPE(param2));
+    terrno = TSDB_CODE_SCALAR_CONVERT_ERROR;
+    return TSDB_CODE_SCALAR_CONVERT_ERROR;
+  }
+  outTypeMod = getConvertTypeMod(type, &param1->columnData->info, param2);
 
   if (type != GET_PARAM_TYPE(param1)) {
     SCL_ERR_RET(vectorConvertSingleCol(param1, paramOut1, type, outTypeMod, startIndex, numOfRows));

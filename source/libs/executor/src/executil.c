@@ -4353,13 +4353,6 @@ void handleRemoteRowRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetriev
     return;
   }
 
-  if (2 != pRsp->numOfCols) {
-    qError("%s invalid scl fetch row rsp received, subQIdx:%d, cols:%" PRId64, ctx->idStr, pParam->subQIdx, pRsp->numOfCols);
-    ctx->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-
-    return;
-  }
-
   SRemoteRowNode* pRemote = (SRemoteRowNode*)pParam->pRes;
   
   if (0 == pRsp->numOfRows) {
@@ -4370,6 +4363,13 @@ void handleRemoteRowRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetriev
     pRemote->val.translate = true;
     pRemote->val.flag &= (~VALUE_FLAG_VAL_UNSET);
     taosArraySet(ctx->subResNodes, pParam->subQIdx, &pParam->pRes);
+
+    return;
+  }
+
+  if (2 != pRsp->numOfCols) {
+    qError("%s invalid scl fetch row rsp received, subQIdx:%d, cols:%" PRId64, ctx->idStr, pParam->subQIdx, pRsp->numOfCols);
+    ctx->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
 
     return;
   }

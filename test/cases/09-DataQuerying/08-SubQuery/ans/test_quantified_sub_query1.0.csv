@@ -1,0 +1,46 @@
+
+taos> use db1;
+Database changed.
+
+taos> select f1 = ALL (select f1 from ctt1 ) from cts1;
+ f1 = all (select f1 from ctt1 ) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select f1 = ALL (select f1 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = all (select f1 from ctt1 where 1 = 0) |
+=============================================
+ true                                       |
+ true                                       |
+ true                                       |
+
+taos> select f1 = ALL (select f1 from ctt1 WHERE f1 IS NULL) from cts1;
+ f1 = all (select f1 from ctt1 where f1 is null) |
+==================================================
+ true                                            |
+ true                                            |
+ true                                            |
+
+taos> select f1 = ALL (select f1 from ctt1 WHERE f1 IS NOT NULL) from cts1;
+ f1 = all (select f1 from ctt1 where f1 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 = ALL (select f2 from ctt1 ) from cts1;
+ f1 = all (select f2 from ctt1 ) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select f1 = ALL (select f2 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = all (select f2 from ctt1 where 1 = 0) |
+=============================================
+ true                                       |
+ true                                       |
+ true                                       |
+
