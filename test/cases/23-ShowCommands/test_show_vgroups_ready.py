@@ -1,9 +1,5 @@
-import pytest
-import sys
 import time
-import random
-import taos
-from new_test_framework.utils import tdLog, tdSql, cluster, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql
 
 
 class TestShowBasic:
@@ -32,25 +28,27 @@ class TestShowBasic:
         """
 
         tdSql.execute(f"create database db1 vgroups 1 replica 1")
-        time.sleep(5)
         tdSql.execute(f"use db1")
+        self.test_show_vgroups_ready()
 
-        tdSql.query(f"show vgroups")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 15, True) 
 
         tdSql.execute(f"create database db2 vgroups 1 replica 2")
-        time.sleep(5)
         tdSql.execute(f"use db2")
-
-        tdSql.query(f"show vgroups")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 15, True)
+        self.test_show_vgroups_ready()
+    
 
         tdSql.execute(f"create database db3 vgroups 1 replica 3")
-        time.sleep(5)
         tdSql.execute(f"use db3")
+        self.test_show_vgroups_ready()
 
-        tdSql.query(f"show vgroups")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 15, True) 
+    def test_show_vgroups_ready(self):
+        count = 0
+        while count < 200:
+            time.sleep(1)
+            tdSql.query(f"show vgroups")
+            tdSql.checkRows(1)
+            if tdSql.getData(0, 15) == True:
+                break
+            count += 1
+        if(count >= 200):
+            raise Exception("show vgroups ready timeout")
