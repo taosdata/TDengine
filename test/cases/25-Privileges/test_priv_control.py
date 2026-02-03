@@ -764,6 +764,7 @@ class TestPrivControl:
         
         # Test: user with role can execute authorized operations
         self.login(user, pwd)
+        # BUG1
         self.exec_sql(f"CREATE TABLE {db_name}.t1 (ts TIMESTAMP, c1 INT)")
         
         # Revoke role from user
@@ -789,7 +790,7 @@ class TestPrivControl:
         
         # Test SYSDBA role
         user_sysdba = "test_sysdba"
-        self.create_user(user_sysdba)
+        self.create_user(user_sysdba, pwd)
         self.grant_role("SYSDBA", user_sysdba)
         
         # Test: SYSDBA can create database
@@ -800,7 +801,7 @@ class TestPrivControl:
         # Test SYSSEC role
         self.login()
         user_syssec = "test_syssec"
-        self.create_user(user_syssec)
+        self.create_user(user_syssec, pwd)
         self.grant_role("SYSSEC", user_syssec)
         
         # Test: SYSSEC can manage users and privileges
@@ -811,7 +812,7 @@ class TestPrivControl:
         # Test SYSAUDIT role
         self.login()
         user_audit = "test_sysaudit"
-        self.create_user(user_audit)
+        self.create_user(user_audit, pwd)
         self.grant_role("SYSAUDIT", user_audit)
         
         # Test: SYSAUDIT can view audit information
@@ -855,8 +856,8 @@ class TestPrivControl:
             # Skip if not supported in current environment
             return
         
-        self.create_user(user_audit)
-        self.create_user(user_audit_log)
+        self.create_user(user_audit, pwd)
+        self.create_user(user_audit_log, pwd)
         self.create_user(user_normal)
         
         # Grant SYSAUDIT role to audit user
@@ -1498,7 +1499,7 @@ class TestPrivControl:
         # RBAC tests
         print("")
         print("[Role-Based Access Control]")
-        '''
+        '''        
         self.do_role_creation_and_grant()
         self.do_system_roles()
         self.do_audit_database_privileges()
