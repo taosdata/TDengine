@@ -65,6 +65,7 @@ int64_t taosGetTimestampToday(int32_t precision, timezone_t tz);
 
 int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, timezone_t tz);
 
+TSKEY   getNextTimeWindowStart(const SInterval* pInterval, TSKEY start, int32_t order);
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval);
 int64_t taosTimeGetIntervalEnd(int64_t ts, const SInterval* pInterval);
 int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision, int32_t order);

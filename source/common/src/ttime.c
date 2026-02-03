@@ -22,7 +22,7 @@
 #define _BSD_SOURCE
 #define _DEFAULT_SOURCE
 #include "ttime.h"
-
+#include "tcommon.h"
 #include "tlog.h"
 
 static int32_t parseFraction(char* str, char** end, int32_t timePrec, int64_t* pFraction);
@@ -745,6 +745,14 @@ int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interva
   return ret + 1;
 }
 
+TSKEY getNextTimeWindowStart(const SInterval* pInterval, TSKEY start, int32_t order) {
+  int32_t factor = GET_FORWARD_DIRECTION_FACTOR(order);
+  TSKEY   nextStart = taosTimeAdd(start, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
+  nextStart = taosTimeAdd(nextStart, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
+  nextStart = taosTimeAdd(nextStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
+  return nextStart;
+}
+
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
   if (pInterval->sliding == 0) {
     return ts;
@@ -858,17 +866,15 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
   if (pInterval->offset > 0) {
     // try to move current window to the left-hande-side, due to the offset effect.
-    int64_t newe = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
-    int64_t slidingStart = start;
-    while (newe >= ts) {
-      start = slidingStart;
-      slidingStart =
-          taosTimeAdd(slidingStart, -pInterval->sliding, pInterval->slidingUnit, precision, pInterval->timezone);
-      int64_t tmp =
-          taosTimeAdd(slidingStart, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
-      newe = taosTimeAdd(tmp, pInterval->offset, pInterval->offsetUnit, precision, pInterval->timezone);
-    }
     start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision, pInterval->timezone);
+    int64_t end = taosTimeGetIntervalEnd(start, pInterval);
+    int64_t nextStart = start;
+
+    while (end >= ts) {
+      start = nextStart;
+      nextStart = getNextTimeWindowStart(pInterval, start, TSDB_ORDER_DESC);
+      end = taosTimeGetIntervalEnd(nextStart, pInterval);
+    }
   }
 
   return start;
@@ -876,18 +882,8 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
 // used together with taosTimeTruncate. when offset is great than zero, slide-start/slide-end is the anchor point
 int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval) {
-  int32_t precision = pInterval->precision;
-  if (pInterval->offset != 0 &&
-      (pInterval->offsetUnit == TIME_UNIT_MONTH || pInterval->offsetUnit == TIME_UNIT_YEAR ||
-       pInterval->intervalUnit == TIME_UNIT_MONTH || pInterval->intervalUnit == TIME_UNIT_YEAR)) {
-    // for month/year unit, need to consider the date shifting problem
-    int64_t tmp = taosTimeAdd(intervalStart, -pInterval->offset, pInterval->offsetUnit, precision, pInterval->timezone);
-    tmp = taosTimeAdd(tmp, pInterval->interval, pInterval->intervalUnit, pInterval->precision, pInterval->timezone) - 1;
-    return taosTimeAdd(tmp, pInterval->offset, pInterval->offsetUnit, pInterval->precision, pInterval->timezone);
-  } else {
-    return taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision,
-                       pInterval->timezone) - 1;
-  }
+  return taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision,
+                     pInterval->timezone) - 1;
 }
 
 void calcIntervalAutoOffset(SInterval* interval) {
