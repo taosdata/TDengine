@@ -3355,8 +3355,8 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   }
 
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
-  showAll = (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TBL, 0, pDb ? pDb->name : objFName,
-                                           "*"));
+  showAll = (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TBL, pDb ? pDb->ownerId : 0,
+                                           pDb ? pDb->name : objFName, "*"));
   showAll = showAll && (0 == mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB,
                                                        pDb ? pDb->name : objFName));
 
