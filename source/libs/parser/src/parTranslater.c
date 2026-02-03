@@ -13639,27 +13639,35 @@ static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* p
   }
   tstrncpy(createReq.url, pStmt->url, createReq.urlLen);
 
-  createReq.userLen = strlen(pStmt->user) + 1;
-  if (createReq.userLen > TSDB_USER_LEN) {
-    return TSDB_CODE_MND_USER_NOT_AVAILABLE;
+  if (pStmt->user[0] != '\0') {
+    createReq.userLen = strlen(pStmt->user) + 1;
+    if (createReq.userLen > TSDB_USER_LEN) {
+      return TSDB_CODE_MND_USER_NOT_AVAILABLE;
+    }
+    createReq.user = taosMemoryCalloc(createReq.userLen, 1);
+    if (createReq.user == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    tstrncpy(createReq.user, pStmt->user, createReq.userLen);
   }
-  createReq.user = taosMemoryCalloc(createReq.userLen, 1);
-  if (createReq.user == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tstrncpy(createReq.user, pStmt->user, createReq.userLen);
 
-  createReq.passLen = strlen(pStmt->pass) + 1;
-  if (createReq.urlLen > TSDB_USER_PASSWORD_LONGLEN) {
-    return TSDB_CODE_MND_INVALID_PASS_FORMAT;
+  if (pStmt->pass[0] != '\0') {
+    createReq.passLen = strlen(pStmt->pass) + 1;
+    if (createReq.passLen > TSDB_USER_PASSWORD_LONGLEN) {
+      return TSDB_CODE_MND_INVALID_PASS_FORMAT;
+    }
+    createReq.pass = taosMemoryCalloc(createReq.passLen, 1);
+    if (createReq.pass == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    tstrncpy(createReq.pass, pStmt->pass, createReq.passLen);
+    // taosEncryptPass_c((uint8_t*)pStmt->pass, strlen(pStmt->pass), createReq.pass);
+    createReq.passIsMd5 = 0;
   }
-  createReq.pass = taosMemoryCalloc(createReq.passLen, 1);
-  if (createReq.pass == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+
+  if (pStmt->token[0] != '\0') {
+    createReq.token = xCreateCowStr(strlen(pStmt->token), pStmt->token, false);
   }
-  tstrncpy(createReq.pass, pStmt->pass, createReq.passLen);
-  // taosEncryptPass_c((uint8_t*)pStmt->pass, strlen(pStmt->pass), createReq.pass);
-  createReq.passIsMd5 = 0;
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE, (FSerializeFunc)tSerializeSMCreateXnodeReq, &createReq);
   tFreeSMCreateXnodeReq(&createReq);
@@ -13694,9 +13702,12 @@ static int32_t translateDrainXnode(STranslateContext* pCxt, SDrainXnodeStmt* pSt
   return code;
 }
 
-static int32_t translateUpdateXnode(STranslateContext* pCxt, SUpdateXnodeStmt* pStmt) {
+static int32_t translateAlterXnode(STranslateContext* pCxt, SAlterXnodeStmt* pStmt) {
   SMUpdateXnodeReq updateReq = {0};
-  updateReq.xnodeId = pStmt->xnodeId;
+  // updateReq.id = pStmt->id;
+  updateReq.user = xCloneRefCowStr(&pStmt->user);
+  updateReq.pass = xCloneRefCowStr(&pStmt->pass);
+  updateReq.token = xCloneRefCowStr(&pStmt->token);
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_UPDATE_XNODE, (FSerializeFunc)tSerializeSMUpdateXnodeReq, &updateReq);
   tFreeSMUpdateXnodeReq(&updateReq);
@@ -19765,6 +19776,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_DRAIN_XNODE_STMT:
       code = translateDrainXnode(pCxt, (SDrainXnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_ALTER_XNODE_STMT:
+      code = translateAlterXnode(pCxt, (SAlterXnodeStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_XNODE_TASK_STMT:
       code = translateCreateXnodeTask(pCxt, (SCreateXnodeTaskStmt*)pNode);
