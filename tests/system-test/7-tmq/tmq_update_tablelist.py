@@ -101,6 +101,43 @@ class TDTestCase:
             tdLog.exit(f"consume 2 error, cnt: {cnt}")
         tdLog.info(f"consume2 completed, total rows: {cnt}")
 
+    def consume3(self):
+        tdSql.execute(f'use db_alter_tag')
+        tdSql.execute(f'create topic t2 as stable stb where t1 > 2')
+
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+        }
+        consumer = Consumer(consumer_dict)
+
+        try:
+            consumer.subscribe(["t2"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        tdLog.info("subscribe success")
+        tdSql.execute("ALTER TABLE tb3 SET TAG id = 6")
+
+        cnt = 0
+        try:
+            while True:
+                res = consumer.poll(5)
+                if not res:
+                    break
+                val = res.value()
+                if val is None:
+                    continue
+                for block in val:
+                    cnt += len(block.fetchall())
+                    
+        finally:
+            consumer.close()
+        if cnt != 2:
+            tdLog.exit(f"consume 2 error, cnt: {cnt}")
+        tdLog.info(f"consume2 completed, total rows: {cnt}")
 
     def insertData(self):
         tdSql.execute("create database db_alter_tag vgroups 1")
@@ -115,6 +152,7 @@ class TDTestCase:
         self.insertData()
         self.consume1()
         self.consume2()
+        self.consume3()
 
     def stop(self):
         tdSql.close()
