@@ -91,7 +91,7 @@ typedef struct SColumnNode {
   char        tableName[TSDB_TABLE_NAME_LEN];
   char        tableAlias[TSDB_TABLE_NAME_LEN];
   char        colName[TSDB_COL_NAME_LEN];
-  int16_t     dataBlockId;
+  int64_t     dataBlockId;
   int16_t     slotId;
   int16_t     numOfPKs;
   bool        tableHasPk;
@@ -122,7 +122,7 @@ typedef struct SColumnRefNode {
 
 typedef struct STargetNode {
   ENodeType type;
-  int16_t   dataBlockId;
+  int64_t   dataBlockId;
   int16_t   slotId;
   SNode*    pExpr;
 } STargetNode;

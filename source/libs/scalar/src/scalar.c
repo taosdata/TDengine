@@ -633,7 +633,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       }
 
       if (index == -1 && taosArrayGetSize(ctx->pBlockList) > 1) {
-        sclError("column tupleId is too big, tupleId:%d, dataBlockNum:%d", ref->dataBlockId,
+        sclError("column tupleId is too big, tupleId:%" PRId64 ", dataBlockNum:%d", ref->dataBlockId,
                  (int32_t)taosArrayGetSize(ctx->pBlockList));
         SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
       } else {
@@ -2310,7 +2310,7 @@ EDealRes sclWalkTarget(SNode *pNode, SScalarCtx *ctx) {
   STargetNode *target = (STargetNode *)pNode;
 
   if (target->dataBlockId >= taosArrayGetSize(ctx->pBlockList)) {
-    sclError("target tupleId is too big, tupleId:%d, dataBlockNum:%d", target->dataBlockId,
+    sclError("target tupleId is too big, tupleId:%" PRId64 ", dataBlockNum:%d", target->dataBlockId,
              (int32_t)taosArrayGetSize(ctx->pBlockList));
     ctx->code = TSDB_CODE_QRY_INVALID_INPUT;
     return DEAL_RES_ERROR;
@@ -2330,7 +2330,7 @@ EDealRes sclWalkTarget(SNode *pNode, SScalarCtx *ctx) {
   }
 
   if (index == -1) {
-    sclError("column tupleId is too big, tupleId:%d, dataBlockNum:%d", target->dataBlockId,
+    sclError("column tupleId is too big, tupleId:%" PRId64 ", dataBlockNum:%d", target->dataBlockId,
              (int32_t)taosArrayGetSize(ctx->pBlockList));
     ctx->code = TSDB_CODE_QRY_INVALID_INPUT;
     return DEAL_RES_ERROR;
@@ -2339,7 +2339,7 @@ EDealRes sclWalkTarget(SNode *pNode, SScalarCtx *ctx) {
   SSDataBlock *block = *(SSDataBlock **)taosArrayGet(ctx->pBlockList, index);
 
   if (target->slotId >= taosArrayGetSize(block->pDataBlock)) {
-    sclError("target slot not exist, dataBlockId:%d, slotId:%d, dataBlockNum:%d", target->dataBlockId, target->slotId,
+    sclError("target slot not exist, dataBlockId:%" PRId64 ", slotId:%d, dataBlockNum:%d", target->dataBlockId, target->slotId,
              (int32_t)taosArrayGetSize(block->pDataBlock));
     ctx->code = TSDB_CODE_QRY_INVALID_INPUT;
     return DEAL_RES_ERROR;
