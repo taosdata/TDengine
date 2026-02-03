@@ -13865,6 +13865,10 @@ static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobS
   if (config == NULL) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Missing option: config");
   }
+  if (strlen(config) > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG,
+                                   "Option config must be string with length <= %d", TSDB_XNODE_TASK_JOB_CONFIG_LEN);
+  }
   createReq.tid = pStmt->tid;
   createReq.via = pStmt->options->via;
 
