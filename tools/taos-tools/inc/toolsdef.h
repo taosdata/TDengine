@@ -153,30 +153,52 @@ extern "C" {
 #define GET_UINT64_VAL(x)  (*(uint64_t *)(x))
 #endif
 
-
+#ifndef TSDB_DEFAULT_USER
 #define TSDB_DEFAULT_USER               "root"
+#endif
+#ifndef TSDB_DEFAULT_PASS
 #define TSDB_DEFAULT_PASS               "taosdata"
+#endif
 
 #define TSDB_TIME_PRECISION_MILLI       0
 #define TSDB_TIME_PRECISION_MICRO       1
 #define TSDB_TIME_PRECISION_NANO        2
 
+#ifndef TSDB_MAX_COLUMNS
 #define TSDB_MAX_COLUMNS                32767
+#endif
+
+#ifndef TSDB_MIN_COLUMNS
 #define TSDB_MIN_COLUMNS                2       //PRIMARY COLUMN(timestamp) + other columns
+#endif
 
+#ifndef TSDB_TABLE_NAME_LEN
 #define TSDB_TABLE_NAME_LEN             193     // it is a null-terminated string
+#endif
 
+#ifndef TSDB_DB_NAME_LEN
 #define TSDB_DB_NAME_LEN                65
+#endif
 
+#ifndef TSDB_COL_NAME_LEN
 #define TSDB_COL_NAME_LEN               65
 
 // come from tdef.h 
+#ifndef TSDB_MAX_ALLOWED_SQL_LEN
 #define TSDB_MAX_ALLOWED_SQL_LEN        (4*1024*1024u) /* sql max length */
+#endif
 
+#ifndef TSDB_MAX_BYTES_PER_ROW
 #define TSDB_MAX_BYTES_PER_ROW          65531
-#define TSDB_MAX_TAGS                   128
+#endif
 
+#ifndef TSDB_MAX_TAGS
+#define TSDB_MAX_TAGS                   128
+#endif
+
+#ifndef TSDB_DEFAULT_PKT_SIZE
 #define TSDB_DEFAULT_PKT_SIZE           65480  //same as RPC_MAX_UDP_SIZE
+#endif
 
 #ifdef TSKEY32
 #define TSKEY int32_t;
@@ -184,12 +206,25 @@ extern "C" {
 #define TSKEY int64_t
 #endif
 
+#ifndef TSDB_KEYSIZE
 #define TSDB_KEYSIZE                    sizeof(TSKEY)
-#define TSDB_MAX_FIELD_LEN              65519
-#define TSDB_MAX_BINARY_LEN             TSDB_MAX_FIELD_LEN
-#define TSDB_FILENAME_LEN               128
+#endif
 
+#ifndef TSDB_MAX_FIELD_LEN
+#define TSDB_MAX_FIELD_LEN              65519
+#endif
+
+#ifndef TSDB_MAX_BINARY_LEN
+#define TSDB_MAX_BINARY_LEN             TSDB_MAX_FIELD_LEN
+#endif
+
+#ifndef TSDB_FILENAME_LEN
+#define TSDB_FILENAME_LEN               128
+#endif
+
+#ifndef TSDB_PORT_HTTP
 #define TSDB_PORT_HTTP                  11
+#endif
 
 #if _MSC_VER <= 1900
     #define __func__ __FUNCTION__
