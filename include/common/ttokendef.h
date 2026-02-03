@@ -36,6 +36,7 @@
 #define TK_WIN_OPTIMIZE_BATCH  614
 #define TK_WIN_OPTIMIZE_SINGLE 615
 
+
 #define TK_NK_NIL 65535
 
 #endif /*_TD_COMMON_TOKEN_H_*/
