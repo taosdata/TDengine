@@ -706,7 +706,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
       tscError("time diff:%ds is too big", delta);
     }
   } else {
-    tscError("hb async callback error %s", tstrerror(code));
+    tscError("hb async callback error since %s", tstrerror(code));
     goto _return;
   }
 
