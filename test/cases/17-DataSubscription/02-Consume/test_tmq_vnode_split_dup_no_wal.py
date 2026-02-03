@@ -93,6 +93,7 @@ class TestCase:
             if tdSql.getRows() == 2:
                 break
             tdLog.info("wait vgroup split done...")
+            time.sleep(1) 
         tdLog.debug("splitSql ok")
 
     def tmqCase1(self, deleteWal=False):
