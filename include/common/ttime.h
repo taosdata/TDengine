@@ -78,6 +78,7 @@ int32_t taosParseTime(const char* timestr, int64_t* pTime, int32_t len, int32_t 
 char    getPrecisionUnit(int32_t precision);
 
 int64_t convertTimePrecision(int64_t ts, int32_t fromPrecision, int32_t toPrecision);
+int32_t convertCalendarTimeFromUnitToPrecision(int64_t time,  char fromUnit, int32_t toPrecision,int64_t* pRes);
 int32_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char toUnit, int64_t* pRes);
 int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal, timezone_t tz, void* charsetCxt);
 int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision);
