@@ -219,7 +219,7 @@ def write_csv(file_path, data):
 
 
 def scan_one_file(file):
-    cmd = f"clang-query -p {compile_commands_path} {file} -f {clang_scan_rules_path} 2>&1 | grep -v 'error:' | grep -v 'warning:'"
+    cmd = f"clang-query-16 -p {compile_commands_path} {file} -f {clang_scan_rules_path} 2>&1 | grep -v 'error:' | grep -v 'warning:'"
     logger.debug(f"cmd:{cmd}")
     try:
         stdout, stderr = CommandExecutor().execute(cmd)
