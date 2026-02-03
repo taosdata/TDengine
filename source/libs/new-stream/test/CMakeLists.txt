@@ -48,4 +48,20 @@ add_test(
     NAME checkpointEncryptionTest
     COMMAND checkpointEncryptionTest
 )
+
+ADD_EXECUTABLE(streamTriggerTest streamTriggerTest.cpp)
+DEP_ext_gtest(streamTriggerTest)
+TARGET_INCLUDE_DIRECTORIES(
+  streamTriggerTest
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/qcom"
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+TARGET_LINK_LIBRARIES(streamTriggerTest PUBLIC taos os common executor function index new-stream)
+
+add_test(
+    NAME streamTriggerTest
+    COMMAND streamTriggerTest
+)
 endif(NOT ${TD_WINDOWS})

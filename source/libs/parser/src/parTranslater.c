@@ -8053,7 +8053,6 @@ static int32_t translateIntervalWindow(STranslateContext* pCxt, SSelectStmt* pSe
 
 static const int64_t periodLowerBound = 10;
 static const int64_t periodUpperBound = (int64_t)3650 * 24 * 60 * 60 * 1000;  // 10 years in milliseconds
-static const int64_t offsetUpperBound = (int64_t)24 * 60 * 60 * 1000;         // 1 day in milliseconds
 
 static int32_t checkPeriodWindow(STranslateContext* pCxt, SPeriodWindowNode* pPeriod) {
   uint8_t     precision = TSDB_TIME_PRECISION_MILLI;
@@ -8061,13 +8060,31 @@ static int32_t checkPeriodWindow(STranslateContext* pCxt, SPeriodWindowNode* pPe
   SValueNode* pOffset = (SValueNode*)pPeriod->pOffset;
 
   if (pPer) {
-    if (pPer->unit != 'a' && pPer->unit != 's' && pPer->unit != 'm' && pPer->unit != 'h' && pPer->unit != 'd') {
+    // Validate time unit
+    if (pPer->unit == TIME_UNIT_NANOSECOND || pPer->unit == TIME_UNIT_MICROSECOND) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PERIOD_UNIT, pPer->unit);
     }
-    if (pPer->datum.i / getPrecisionMultiple(precision) < periodLowerBound ||
-        pPer->datum.i / getPrecisionMultiple(precision) > periodUpperBound) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PERIOD_RANGE,
-                                     "Period value out of range [10a, 3650d]");
+
+    // Validate range based on unit type
+    if (pPer->unit == TIME_UNIT_MONTH) {
+      // Monthly: 1-120 months (10 years)
+      if (pPer->datum.i < 1 || pPer->datum.i > 120) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PERIOD_RANGE,
+                                       "Monthly period value out of range [1n, 120n]");
+      }
+    } else if (pPer->unit == TIME_UNIT_YEAR) {
+      // Yearly: 1-10 years
+      if (pPer->datum.i < 1 || pPer->datum.i > 10) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PERIOD_RANGE,
+                                       "Yearly period value out of range [1y, 10y]");
+      }
+    } else {
+      // Original validation for non-calendar units (a, s, m, h, d)
+      if (pPer->datum.i / getPrecisionMultiple(precision) < periodLowerBound ||
+          pPer->datum.i / getPrecisionMultiple(precision) > periodUpperBound) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PERIOD_RANGE,
+                                       "Period value out of range [10a, 3650d]");
+      }
     }
   }
 
@@ -8081,13 +8098,30 @@ static int32_t checkPeriodWindow(STranslateContext* pCxt, SPeriodWindowNode* pPe
           generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "Negative period offset value"));
     }
 
-    if (pOffset->unit != 'a' && pOffset->unit != 's' && pOffset->unit != 'm' && pOffset->unit != 'h') {
+    if (pOffset->unit == TIME_UNIT_NANOSECOND || pOffset->unit == TIME_UNIT_MICROSECOND ||
+        IS_CALENDAR_TIME_DURATION(pOffset->unit)) {
       PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, pOffset->unit));
     }
 
-    if (pOffset->datum.i > offsetUpperBound) {
+    bool fixed = !IS_CALENDAR_TIME_DURATION(pPer->unit);
+    if (fixed && pOffset->datum.i >= pPer->datum.i) {
       PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                          "Period offset value should less than 1d"));
+                                          "Period offset value should less than period value"));
+    }
+    if (!fixed) {
+      double offsetMonth = 0, periodMonth = 0;
+      int32_t code = getMonthsFromTimeVal(pOffset->datum.i, precision, pOffset->unit, &offsetMonth);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+      code = getMonthsFromTimeVal(pPer->datum.i, precision, pPer->unit, &periodMonth);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+      if (offsetMonth > periodMonth) {
+        PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                            "Period offset value should less than period value"));
+      }
     }
   }
 

@@ -287,7 +287,7 @@ _exit:
   return code;
 }
 
-static STimeWindow stTriggerTaskGetTimeWindow(SStreamTriggerTask *pTask, int64_t ts) {
+STimeWindow stTriggerTaskGetTimeWindow(SStreamTriggerTask *pTask, int64_t ts) {
   SInterval  *pInterval = &pTask->interval;
   STimeWindow win = {0};
   if (pInterval->interval > 0) {
@@ -296,7 +296,57 @@ static STimeWindow stTriggerTaskGetTimeWindow(SStreamTriggerTask *pTask, int64_t
     if (win.ekey < win.skey) {
       win.ekey = INT64_MAX;
     }
+  } else if (pInterval->slidingUnit == 'w') {
+    // PERIOD trigger with week unit - special handling for Monday alignment
+    int64_t day = convertTimePrecision(24 * 60 * 60 * 1000, TSDB_TIME_PRECISION_MILLI, pInterval->precision);
+    int64_t weekDuration = pInterval->sliding;  // sliding is already the full duration in nanoseconds
+
+    // Truncate to start of day
+    int64_t seconds = ts / TSDB_TICK_PER_SECOND(pInterval->precision);
+    time_t tt = (time_t)seconds;
+    struct tm tm;
+    taosLocalTime(&tt, &tm, NULL, 0, pInterval->timezone);
+    tm.tm_hour = 0;
+    tm.tm_min = 0;
+    tm.tm_sec = 0;
+    time_t dayTt = taosMktime(&tm, pInterval->timezone);
+    int64_t dayStart = dayTt * TSDB_TICK_PER_SECOND(pInterval->precision);
+
+    // Calculate days to previous Monday (tm_wday: 0=Sunday, 1=Monday, ..., 6=Saturday)
+    int daysToMonday = (tm.tm_wday == 0) ? 6 : (tm.tm_wday - 1);
+    int64_t mondayStart = dayStart - (daysToMonday * day);
+
+    // Use reference Monday (1970-01-05) with timezone
+    struct tm refTm = {0};
+    refTm.tm_year = 70;  // 1970
+    refTm.tm_mon = 0;    // January
+    refTm.tm_mday = 5;   // 5th (Monday)
+    refTm.tm_hour = 0;
+    refTm.tm_min = 0;
+    refTm.tm_sec = 0;
+    time_t refTt = taosMktime(&refTm, pInterval->timezone);
+    int64_t refMonday = refTt * TSDB_TICK_PER_SECOND(pInterval->precision);
+
+    // Calculate which period this Monday belongs to
+    int64_t weeksSinceRef = (mondayStart - refMonday) / weekDuration;
+    int64_t periodStart = refMonday + (weeksSinceRef * weekDuration);
+
+    // Apply offset
+    periodStart += pInterval->offset;
+
+    win.skey = periodStart;
+    win.ekey = periodStart + weekDuration - 1;
+  } else if (pInterval->slidingUnit == 'n' || pInterval->slidingUnit == 'y') {
+    // PERIOD trigger with month/year units
+    SInterval interval = *pInterval;
+    interval.interval = pInterval->sliding;
+    win.skey = taosTimeTruncate(ts, &interval);
+    win.ekey = taosTimeGetIntervalEnd(win.skey, &interval);
+    if (win.ekey < win.skey) {
+      win.ekey = INT64_MAX;
+    }
   } else {
+    // PERIOD trigger with non-natural time units (a, s, m, h, d)
     int64_t day = convertTimePrecision(24 * 60 * 60 * 1000, TSDB_TIME_PRECISION_MILLI, pInterval->precision);
     // truncate to the start of day
     SInterval interval = {.intervalUnit = 'd',
@@ -328,7 +378,7 @@ static STimeWindow stTriggerTaskGetTimeWindow(SStreamTriggerTask *pTask, int64_t
   return win;
 }
 
-static void stTriggerTaskPrevTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow) {
+void stTriggerTaskPrevTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow) {
   SInterval *pInterval = &pTask->interval;
   if (pInterval->interval > 0) {
     TSKEY prevStart =
@@ -337,7 +387,23 @@ static void stTriggerTaskPrevTimeWindow(SStreamTriggerTask *pTask, STimeWindow *
     prevStart = taosTimeAdd(prevStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
     pWindow->skey = prevStart;
     pWindow->ekey = taosTimeGetIntervalEnd(prevStart, pInterval);
+  } else if (pInterval->slidingUnit == 'w') {
+    // PERIOD trigger with week unit
+    int64_t weekDuration = pInterval->sliding;  // sliding is already the full duration
+    pWindow->skey -= weekDuration;
+    pWindow->ekey -= weekDuration;
+  } else if (pInterval->slidingUnit == 'n' || pInterval->slidingUnit == 'y') {
+    // PERIOD trigger with natural time units (n, y)
+    SInterval interval = *pInterval;
+    interval.interval = pInterval->sliding;
+    TSKEY prevStart =
+        taosTimeAdd(pWindow->skey, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
+    prevStart = taosTimeAdd(prevStart, -1 * pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
+    prevStart = taosTimeAdd(prevStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
+    pWindow->skey = prevStart;
+    pWindow->ekey = taosTimeGetIntervalEnd(prevStart, &interval);
   } else {
+    // PERIOD trigger with non-natural time units (a, s, m, h, d)
     int64_t day = convertTimePrecision(24 * 60 * 60 * 1000, TSDB_TIME_PRECISION_MILLI, pInterval->precision);
     if (pInterval->sliding > day) {
       pWindow->skey -= pInterval->sliding;
@@ -361,7 +427,7 @@ static void stTriggerTaskPrevTimeWindow(SStreamTriggerTask *pTask, STimeWindow *
   }
 }
 
-static void stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow) {
+void stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow) {
   SInterval *pInterval = &pTask->interval;
   if (pInterval->interval > 0) {
     TSKEY nextStart =
@@ -370,7 +436,23 @@ static void stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *
     nextStart = taosTimeAdd(nextStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
     pWindow->skey = nextStart;
     pWindow->ekey = taosTimeGetIntervalEnd(nextStart, pInterval);
+  } else if (pInterval->slidingUnit == 'w') {
+    // PERIOD trigger with week unit
+    int64_t weekDuration = pInterval->sliding;  // sliding is already the full duration
+    pWindow->skey += weekDuration;
+    pWindow->ekey += weekDuration;
+  } else if (pInterval->slidingUnit == 'n' || pInterval->slidingUnit == 'y') {
+    // PERIOD trigger with month/year units
+    SInterval interval = *pInterval;
+    interval.interval = pInterval->sliding;
+    TSKEY nextStart =
+        taosTimeAdd(pWindow->skey, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
+    nextStart = taosTimeAdd(nextStart, pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
+    nextStart = taosTimeAdd(nextStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
+    pWindow->skey = nextStart;
+    pWindow->ekey = taosTimeGetIntervalEnd(nextStart, &interval);
   } else {
+    // PERIOD trigger with non-natural time units (a, s, m, h, d)
     int64_t day = convertTimePrecision(24 * 60 * 60 * 1000, TSDB_TIME_PRECISION_MILLI, pInterval->precision);
     if (pInterval->sliding > day) {
       pWindow->skey += pInterval->sliding;
@@ -2174,7 +2256,11 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
       pInterval->offsetUnit = pPeriod->offsetUnit;
       pInterval->precision = TSDB_TIME_PRECISION_NANO;
       pInterval->interval = 0;
-      pInterval->sliding = convertTimePrecision(pPeriod->period, pPeriod->precision, TSDB_TIME_PRECISION_NANO);
+      if (IS_CALENDAR_TIME_DURATION(pPeriod->periodUnit)) {
+        pInterval->sliding = pPeriod->period;
+      } else {
+        pInterval->sliding = convertTimePrecision(pPeriod->period, pPeriod->precision, TSDB_TIME_PRECISION_NANO);
+      }
       pInterval->offset = convertTimePrecision(pPeriod->offset, pPeriod->precision, TSDB_TIME_PRECISION_NANO);
       pInterval->timeRange = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MIN};
       break;

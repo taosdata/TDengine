@@ -477,6 +477,11 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg);
 // check whether the state data equals to the zeroth state
 int32_t stIsStateEqualZeroth(void *pStateData, void *pZeroth, bool *pIsEqual);
 
+// Test helper functions (exposed for unit testing)
+STimeWindow stTriggerTaskGetTimeWindow(SStreamTriggerTask *pTask, int64_t ts);
+void        stTriggerTaskPrevTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow);
+void        stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow);
+
 #ifdef __cplusplus
 }
 #endif
