@@ -695,6 +695,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
     code = tDeserializeSClientHbBatchRsp(pMsg->pData, pMsg->len, &pRsp);
     if (TSDB_CODE_SUCCESS != code) {
       tscError("failed to deserialize hb rsp since %s", tstrerror(code));
+      tFreeClientHbBatchRsp(&pRsp);
       goto _return;
     }
 
