@@ -136,9 +136,9 @@ int32_t tsem_init(tsem_t *psem, int flags, unsigned int count) {
 }
 
 int32_t tsem_destroy(tsem_t *psem) {
-  // if (psem == NULL || *psem == NULL) return -1;
-  // dispatch_release(*psem);
-  // *psem = NULL;
+  if (psem == NULL || *psem == NULL) return -1;
+  dispatch_release(*psem);
+  *psem = NULL;
   return 0;
 }
 
