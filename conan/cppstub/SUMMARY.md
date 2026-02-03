@@ -9,12 +9,12 @@ Successfully created a Conan package for cpp-stub (cppstub), a C++ testing stub 
 - **Package Name**: cppstub
 - **Version**: 1.0.0
 - **Type**: Header-only library
-- **Source**: https://github.com/coolxv/cpp-stub
+- **Source**: [https://github.com/coolxv/cpp-stub](https://github.com/coolxv/cpp-stub)
 - **Commit**: 3137465194014d66a8402941e80d2bccc6346f51
 
 ## Files Structure
 
-```
+```text
 conan/cppstub/
 ├── conanfile.py           # Conan recipe
 ├── README.md             # Package documentation
@@ -56,7 +56,8 @@ conan list "cppstub/*"
 ```
 
 Expected output:
-```
+
+```text
 Local Cache
   cppstub
     cppstub/1.0.0
@@ -64,7 +65,8 @@ Local Cache
 
 ## Usage in Projects
 
-### In conanfile.txt:
+### In conanfile.txt
+
 ```ini
 [requires]
 cppstub/1.0.0
@@ -74,13 +76,15 @@ CMakeDeps
 CMakeToolchain
 ```
 
-### In CMakeLists.txt:
+### In CMakeLists.txt
+
 ```cmake
 find_package(cppstub REQUIRED CONFIG)
 target_link_libraries(your_target cppstub::cppstub)
 ```
 
-### In C++ code:
+### In C++ code
+
 ```cpp
 #include <stub.h>
 #include <addr_any.h>
@@ -115,6 +119,7 @@ def requirements(self):
 ### 3. Restore addr_any.h includes
 
 Once the above steps are done, uncomment the `#include <addr_any.h>` lines in:
+
 - source/util/test/memPoolTest.cpp
 - source/libs/catalog/test/catalogTests.cpp
 - source/libs/executor/test/joinTests.cpp
@@ -133,7 +138,8 @@ Once the above steps are done, uncomment the `#include <addr_any.h>` lines in:
 ✅ Package installed in local Conan cache
 
 Output from test run:
-```
+
+```text
 Testing cppstub package...
 Normal add(2, 3) = 5
 stub.h header is available
@@ -144,12 +150,14 @@ All tests passed!
 ## Comparison with fast-lzma2
 
 Similar to fast-lzma2 package:
+
 - ✅ Uses export_sources to include source files
 - ✅ Includes test_package for verification
 - ✅ Has comprehensive README
 - ✅ Platform-independent (cppstub is header-only, even simpler)
 
 Differences:
+
 - cppstub is header-only (no build step)
 - Platform-specific file selection at package time
 - Lighter weight package

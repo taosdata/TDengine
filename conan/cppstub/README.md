@@ -7,12 +7,13 @@ This is a Conan package for cpp-stub, a simple and easy-to-use C++ stub library 
 - **Name**: cppstub
 - **Version**: 1.0.0
 - **License**: MIT
-- **Source**: https://github.com/coolxv/cpp-stub
+- **Source**: [https://github.com/coolxv/cpp-stub](https://github.com/coolxv/cpp-stub)
 - **Type**: Header-only library
 
 ## Description
 
 cpp-stub is a lightweight C++ library for creating test stubs/mocks. It provides:
+
 - `stub.h` - Main stub functionality
 - `addr_any.h` - Platform-specific address manipulation (Linux, macOS, Windows)
 
@@ -83,7 +84,7 @@ target_link_libraries(mytest cppstub::cppstub)
 The package exports header files from the cpp-stub repository:
 
 1. Source code is exported from the `cppstub/` directory
-2. Headers are packaged: 
+2. Headers are packaged:
    - `stub.h` from `src/`
    - `addr_any.h` from platform-specific directory (`src_linux/`, `src_darwin/`, or `src_win/`)
 3. No compilation needed (header-only)
@@ -91,6 +92,7 @@ The package exports header files from the cpp-stub repository:
 ## Platform-Specific Files
 
 The package automatically selects the correct `addr_any.h` based on your OS:
+
 - **Linux**: `src_linux/addr_any.h`
 - **macOS**: `src_darwin/addr_any.h`
 - **Windows**: `src_win/addr_any.h`
@@ -107,5 +109,5 @@ MIT License - See LICENSE file for details.
 
 ## Original Repository
 
-- GitHub: https://github.com/coolxv/cpp-stub
+- [GitHub](https://github.com/coolxv/cpp-stub)
 - Commit: 3137465194014d66a8402941e80d2bccc6346f51

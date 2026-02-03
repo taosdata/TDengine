@@ -7,7 +7,7 @@ This is a Conan package for Fast LZMA2 Library v1.0.1, an optimized LZMA2 compre
 - **Name**: fast-lzma2
 - **Version**: 1.0.1
 - **License**: BSD-3-Clause, GPL-2.0
-- **Source**: https://github.com/conor42/fast-lzma2
+- **Source**: [https://github.com/conor42/fast-lzma2](https://github.com/conor42/fast-lzma2)
 
 ## Features
 
@@ -144,6 +144,7 @@ The package uses the original Makefile build system from the fast-lzma2 reposito
 ## License
 
 This Conan package follows the dual-license of the original fast-lzma2 library:
+
 - BSD-3-Clause
 - GPL-2.0
 

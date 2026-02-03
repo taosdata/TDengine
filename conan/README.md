@@ -5,6 +5,7 @@ This directory contains Conan package recipes for TDinternal dependencies.
 ## Available Packages
 
 ### 1. fast-lzma2 (v1.0.1)
+
 Fast LZMA2 compression library
 
 - **Type**: Compiled library (static/shared)
@@ -12,19 +13,22 @@ Fast LZMA2 compression library
 - **Location**: `fast-lzma2/`
 - **Status**: ✅ Complete and tested
 
-**Key Features:**
+Key Features:
+
 - Optimized LZMA2 compression algorithm
 - Support for both static and shared libraries
 - Cross-platform (Linux, macOS, Windows)
 - x86_64 assembly optimizations
 
-**Usage:**
+Usage:
+
 ```cmake
 find_package(fast-lzma2 REQUIRED CONFIG)
 target_link_libraries(your_target fast-lzma2::fast-lzma2)
 ```
 
 ### 2. cppstub (v1.0.0)
+
 C++ stub/mock library for unit testing
 
 - **Type**: Header-only library
@@ -32,13 +36,15 @@ C++ stub/mock library for unit testing
 - **Location**: `cppstub/`
 - **Status**: ✅ Complete and tested
 
-**Key Features:**
+Key Features:
+
 - Header-only (no compilation needed)
 - Platform-specific address manipulation
 - Simple stubbing API for unit tests
 - Cross-platform support
 
-**Usage:**
+Usage:
+
 ```cmake
 find_package(cppstub REQUIRED CONFIG)
 target_link_libraries(your_target cppstub::cppstub)
@@ -127,7 +133,7 @@ def requirements(self):
 
 ## Directory Structure
 
-```
+```text
 conan/
 ├── README.md              # This file
 ├── fast-lzma2/           # Fast LZMA2 package
@@ -147,6 +153,7 @@ conan/
 ## Building Packages
 
 ### fast-lzma2
+
 ```bash
 cd fast-lzma2
 conan create . --build=missing
@@ -159,6 +166,7 @@ conan create . --build=missing -s build_type=Debug
 ```
 
 ### cppstub
+
 ```bash
 cd cppstub
 conan create . --build=missing
@@ -169,11 +177,13 @@ conan create . --build=missing
 ## Testing
 
 Both packages include test_package directories that verify:
+
 - Headers are accessible
 - Libraries link correctly (fast-lzma2)
 - Basic functionality works
 
 Run tests:
+
 ```bash
 # Automatically run during conan create
 conan create . --build=missing
@@ -197,6 +207,7 @@ These packages replace the following external dependencies in `cmake/external.cm
 ## Next Steps
 
 Other dependencies that could be migrated to Conan:
+
 - lz4
 - cJSON
 - googletest (gtest)
@@ -216,6 +227,7 @@ Other dependencies that could be migrated to Conan:
 ### Package not found
 
 If Conan can't find the package:
+
 ```bash
 # Check if package is installed
 conan list "package-name/*"
@@ -228,6 +240,7 @@ conan create . --build=missing
 ### Build errors
 
 If you encounter build errors:
+
 ```bash
 # Clean and rebuild
 conan remove "package-name/*" -c
@@ -238,6 +251,7 @@ conan create . --build=missing
 ### Header not found
 
 Make sure your CMakeLists.txt includes:
+
 ```cmake
 find_package(package-name REQUIRED CONFIG)
 target_link_libraries(your_target package-name::package-name)
@@ -246,6 +260,7 @@ target_link_libraries(your_target package-name::package-name)
 ## License
 
 Each package maintains its original license:
+
 - **fast-lzma2**: BSD-3-Clause / GPL-2.0 (dual license)
 - **cppstub**: MIT
 

@@ -9,8 +9,10 @@ This document describes the integration of Conan packages into TDinternal's CMak
 ### cmake/conan.cmake
 
 This file has been updated to support the newly created Conan packages:
+
 - **cppstub** (v1.0.0) - Header-only testing stub library
 - **fast-lzma2** (v1.0.1) - Already configured
+- **avro-c** (v1.11.3) - Already configured
 
 ## Changes Made
 
@@ -33,6 +35,7 @@ This ensures that when `BUILD_TEST` is enabled, CMake will find and load the cpp
 **Location**: Lines 447-463
 
 #### DEP_ext_cppstub (Main Macro)
+
 ```cmake
 macro(DEP_ext_cppstub tgt)
     # cppstub is now available as a Conan package (header-only library)
@@ -43,6 +46,7 @@ endmacro()
 ```
 
 #### DEP_ext_cppstub_INC (Include-only)
+
 ```cmake
 macro(DEP_ext_cppstub_INC tgt)
     # Header-only library, handled by target_link_libraries above
@@ -53,6 +57,7 @@ endmacro()
 ```
 
 #### DEP_ext_cppstub_LIB (Library-only)
+
 ```cmake
 macro(DEP_ext_cppstub_LIB tgt)
     # Header-only library, no libs to link
@@ -102,6 +107,7 @@ target_link_libraries(memPoolTest PRIVATE os util common)
 ## Backward Compatibility
 
 The macros maintain the same interface as before:
+
 - `DEP_ext_cppstub(target)` - Main dependency injection
 - `DEP_ext_cppstub_INC(target)` - Include paths only
 - `DEP_ext_cppstub_LIB(target)` - Library linking (no-op for header-only)
@@ -117,7 +123,8 @@ conan list "cppstub/*"
 ```
 
 Expected output:
-```
+
+```text
 Local Cache
   cppstub
     cppstub/1.0.0
@@ -131,7 +138,8 @@ cmake .. -DBUILD_TEST=true
 ```
 
 You should see:
-```
+
+```text
 -- Loading Conan dependencies...
 -- Found cppstub: 1.0.0
 -- All Conan dependencies loaded successfully
@@ -148,10 +156,12 @@ The build should succeed without "addr_any.h: No such file or directory" errors.
 ## Migration Status
 
 ### ✅ Completed
+
 - cppstub (header-only)
 - fast-lzma2 (compiled library)
 
 ### ⏳ Pending
+
 - Other dependencies listed in cmake/conan.cmake comments
 
 ## Troubleshooting
@@ -159,6 +169,7 @@ The build should succeed without "addr_any.h: No such file or directory" errors.
 ### Error: "Could not find cppstub"
 
 **Solution**: Create the cppstub Conan package:
+
 ```bash
 cd conan/cppstub
 conan create . --build=missing
@@ -166,7 +177,8 @@ conan create . --build=missing
 
 ### Error: "addr_any.h: No such file or directory"
 
-**Possible causes**:
+Possible causes:
+
 1. cppstub package not installed
 2. `DEP_ext_cppstub` not called for the target
 3. `BUILD_TEST` not enabled
@@ -176,15 +188,6 @@ conan create . --build=missing
 ### Error: "Target cppstub::cppstub not found"
 
 This is normal if cppstub is not available. The `if(TARGET ...)` check prevents build failures.
-
-## Next Steps
-
-To fully integrate cppstub into the project:
-
-1. ✅ Update cmake/conan.cmake (Done)
-2. ⏳ Uncomment `#include <addr_any.h>` in test files
-3. ⏳ Test building all test targets
-4. ⏳ Add cppstub to CI/CD pipeline
 
 ## References
 

@@ -344,5 +344,5 @@ Please refer to the `LICENSE` and `COPYING` files for detailed information.
 
 ## Support and Feedback
 
-- Original project: https://github.com/conor42/fast-lzma2
+- [GitHub: conor42/fast-lzma2](https://github.com/conor42/fast-lzma2)
 - Report issues: Please submit issues at the original project repository
