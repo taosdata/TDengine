@@ -651,15 +651,15 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
     uError("failed to convert time to gm time, code:%d", ERRNO);
     return t;
   }
-  int64_t mon = tm.tm_year * 12 + tm.tm_mon + (int32_t)numOfMonth;
-  int32_t y = mon / 12;
-  int32_t m = mon % 12;
+  int64_t mon = (int64_t)tm.tm_year * 12 + tm.tm_mon + numOfMonth;
+  int64_t y = mon / 12;
+  int64_t m = mon % 12;
   if (m < 0) {
     m += 12;
     y -= 1;
   }
-  tm.tm_year = y;
-  tm.tm_mon = m;
+  tm.tm_year = (int)y;
+  tm.tm_mon = (int)m;
   int daysOfMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
   if (taosIsLeapYear(1900 + tm.tm_year)) {
     daysOfMonth[1] = 29;
