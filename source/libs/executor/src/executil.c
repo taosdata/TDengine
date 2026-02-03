@@ -2275,8 +2275,10 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         pUidList, &pTagColIds);
       QUERY_CHECK_CODE(code, lino, end);
 
-      digest[0] = 1;
-      memcpy(digest + 1, context.digest, tListLen(context.digest));
+      if (digest != NULL) {
+        digest[0] = 1;
+        memcpy(digest + 1, context.digest, tListLen(context.digest));
+      }
     } else if (tsTagFilterCache) {
       qInfo("%s, suid:%" PRIu64 ", add uid list to normal tag filter cache, "
             "uidListSize:%d, origin key:%" PRIu64 ",%" PRIu64,
@@ -2324,25 +2326,25 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
 
   qDebug("%s, table list with %d uids built", idstr, (int32_t)numOfTables);
 
-  STableKeyInfo info = {.uid = 0, .groupId = 0};
-  for (int32_t i = 0; i < taosArrayGetSize(pUidList); ++i) {
-    int64_t* uid = (int64_t*)taosArrayGet(pUidList, i);
-    QUERY_CHECK_NULL(uid, code, lino, end, terrno);
-
-    info.uid = *uid;
-      //qInfo("doSetQualifiedUid row:%d added to pTableList", i);
-    void* p = taosArrayPush(pListInfo->pTableList, &info);
-    QUERY_CHECK_NULL(p, code, lino, end, terrno);
-  }
-
 end:
+  if (code == 0) {
+     STableKeyInfo info = {.uid = 0, .groupId = 0};
+    for (int32_t i = 0; i < taosArrayGetSize(pUidList); ++i) {
+      int64_t* uid = (int64_t*)taosArrayGet(pUidList, i);
+      QUERY_CHECK_NULL(uid, code, lino, end, terrno);
+
+      info.uid = *uid;
+        //qInfo("doSetQualifiedUid row:%d added to pTableList", i);
+      void* p = taosArrayPush(pListInfo->pTableList, &info);
+      QUERY_CHECK_NULL(p, code, lino, end, terrno);
+    }
+  } else {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   taosArrayDestroy(pUidList);
   taosArrayDestroy(pTagColIds);
   taosMemFreeClear(pTagCondKey);
   taosMemFreeClear(pPayload);
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
   return code;
 }
 
