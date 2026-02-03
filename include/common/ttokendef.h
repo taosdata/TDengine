@@ -36,14 +36,6 @@
 #define TK_WIN_OPTIMIZE_BATCH  614
 #define TK_WIN_OPTIMIZE_SINGLE 615
 
-// Binary functions for INSERT VALUES
-#define TK_FROM_BASE64 616
-#define TK_TO_BASE64   617
-#define TK_MD5         618
-#define TK_SHA         619
-#define TK_SHA1        620
-#define TK_SHA2        621
-
 #define TK_NK_NIL 65535
 
 #endif /*_TD_COMMON_TOKEN_H_*/

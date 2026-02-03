@@ -581,7 +581,8 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
   uint32_t* nData = &pVal->value.nData;
 
   if (pToken->type == TK_FROM_BASE64 || pToken->type == TK_TO_BASE64 || pToken->type == TK_MD5 ||
-      pToken->type == TK_SHA || pToken->type == TK_SHA1 || pToken->type == TK_SHA2) {
+      pToken->type == TK_SHA || pToken->type == TK_SHA1 || pToken->type == TK_SHA2 || pToken->type == TK_AES_ENCRYPT ||
+      pToken->type == TK_AES_DECRYPT || pToken->type == TK_SM4_ENCRYPT || pToken->type == TK_SM4_DECRYPT) {
     char*   input = NULL;
     int32_t inputBytes = 0;
     int32_t outputBytes = 0;
@@ -820,7 +821,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       (void)memcpy(*pData, input, inputBytes);
       int32_t len = taosCreateSHA1Hash(*pData, inputBytes);
       *nData = len;
-    } else if (0 == strncasecmp(pToken->z, "aes_encrypt(", 12)) {
+    } else if (pToken->type == TK_AES_ENCRYPT) {
       NEXT_VALID_TOKEN(*ppSql, *pToken);
       if (TK_NK_LP != pToken->type) {
         taosMemoryFree(tmpTokenBuf);
@@ -946,7 +947,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       *nData = len;
 
       taosMemoryFree(pKeyPaddingBuf);
-    } else if (0 == strncasecmp(pToken->z, "aes_decrypt(", 12)) {
+    } else if (pToken->type == TK_AES_DECRYPT) {
       NEXT_VALID_TOKEN(*ppSql, *pToken);
       if (TK_NK_LP != pToken->type) {
         taosMemoryFree(tmpTokenBuf);
@@ -1072,7 +1073,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       *nData = len;
 
       taosMemoryFree(pKeyPaddingBuf);
-    } else if (0 == strncasecmp(pToken->z, "sm4_encrypt(", 12)) {
+    } else if (pToken->type == TK_SM4_ENCRYPT) {
       NEXT_VALID_TOKEN(*ppSql, *pToken);
       if (TK_NK_LP != pToken->type) {
         taosMemoryFree(tmpTokenBuf);
@@ -1175,7 +1176,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       *nData = len;
 
       taosMemoryFree(pKeyPaddingBuf);
-    } else if (0 == strncasecmp(pToken->z, "sm4_decrypt(", 12)) {
+    } else if (pToken->type == TK_SM4_DECRYPT) {
       NEXT_VALID_TOKEN(*ppSql, *pToken);
       if (TK_NK_LP != pToken->type) {
         taosMemoryFree(tmpTokenBuf);
@@ -1693,7 +1694,9 @@ int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf, i
        pToken->type != TK_NK_STRING && pToken->type != TK_NK_FLOAT && pToken->type != TK_NK_BOOL &&
        pToken->type != TK_NULL && pToken->type != TK_NK_HEX && pToken->type != TK_NK_OCT && pToken->type != TK_NK_BIN &&
        pToken->type != TK_NK_VARIABLE && pToken->type != TK_FROM_BASE64 && pToken->type != TK_TO_BASE64 &&
-       pToken->type != TK_MD5 && pToken->type != TK_SHA && pToken->type != TK_SHA1 && pToken->type != TK_SHA2) ||
+       pToken->type != TK_MD5 && pToken->type != TK_SHA && pToken->type != TK_SHA1 && pToken->type != TK_SHA2 &&
+       pToken->type != TK_AES_ENCRYPT && pToken->type != TK_AES_DECRYPT && pToken->type != TK_SM4_ENCRYPT &&
+       pToken->type != TK_SM4_DECRYPT) ||
       (pToken->n == 0) || (pToken->type == TK_NK_RP)) {
     return buildSyntaxErrMsg(pMsgBuf, "invalid data or symbol", pToken->z);
   }
