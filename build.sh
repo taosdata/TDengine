@@ -187,53 +187,6 @@ do_purge() {
   sudo rm -f  /usr/bin/{taos,taosd,taosadapter,udfd,taoskeeper,taosdump,taosdemo,taosBenchmark,rmtaos,taosudf}             # executables
   sudo rm -f  /usr/local/bin/{taos,taosd,taosadapter,udfd,taoskeeper,taosdump,taosdemo,taosBenchmark,rmtaos,taosudf}       # executables
   sudo rm -rf /usr/lib/{libtaos,libtaosnative,libtaosws}.*        # libraries
-  cmake --install ${}
-}
-
-do_conan_install_gen_bld() {
-  do_conan_install "$@" &&
-  do_conan_gen &&
-  do_conan_bld
-}
-
-do_bld() {
-  JOBS=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
-  echo "JOBS:${JOBS}"
-  cmake --build debug --config ${TD_CONFIG} -j${JOBS} "$@"
-}
-
-do_test() {
-  ctest --test-dir debug -C ${TD_CONFIG} --output-on-failure "$@"
-}
-
-do_start() {
-  if which systemctl 2>/dev/null; then
-    sudo systemctl start taosd           && echo taosd started &&
-    sudo systemctl start taosadapter     && echo taosadapter started
-  elif which launchctl 2>/dev/null; then
-    sudo launchctl start com.tdengine.taosd       && echo taosd started       &&
-    sudo launchctl start com.tdengine.taosadapter && echo taosadapter started &&
-    sudo launchctl start com.tdengine.taoskeeper  && echo taoskeeper started
-  fi
-}
-
-do_stop() {
-  if which systemctl 2>/dev/null; then
-    sudo systemctl stop taosadapter && echo taosadapter stopped
-    sudo systemctl stop taosd       && echo taosd stopped
-  elif which launchctl 2>/dev/null; then
-    sudo launchctl stop com.tdengine.taoskeeper  && echo taoskeeper stopped
-    sudo launchctl stop com.tdengine.taosadapter && echo taosadapter stopped
-    sudo launchctl stop com.tdengine.taosd       && echo taosd stopped
-  fi
-}
-
-do_purge() {
-  sudo rm -rf /var/lib/taos         # data storage
-  sudo rm -rf /var/log/taos         # logs
-  sudo rm -f  /usr/bin/{taos,taosd,taosadapter,udfd,taoskeeper,taosdump,taosdemo,taosBenchmark,rmtaos,taosudf}             # executables
-  sudo rm -f  /usr/local/bin/{taos,taosd,taosadapter,udfd,taoskeeper,taosdump,taosdemo,taosBenchmark,rmtaos,taosudf}       # executables
-  sudo rm -rf /usr/lib/{libtaos,libtaosnative,libtaosws}.*        # libraries
   sudo rm -rf /usr/local/lib/{libtaos,libtaosnative,libtaosws}.*  # libraries
   sudo rm -rf /usr/include/{taosws.h,taos.h,taosdef.h,taoserror.h,tdef.h,taosudf.h}               # header files
   sudo rm -rf /usr/local/include/{taosws.h,taos.h,taosdef.h,taoserror.h,tdef.h,taosudf.h}         # header files
