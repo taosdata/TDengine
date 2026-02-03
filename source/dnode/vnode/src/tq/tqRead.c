@@ -1323,8 +1323,11 @@ void tqReaderRemoveTbUidList(STqReader* pReader, const SArray* tbUidList) {
   }
 }
 
-int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd, SArray* cidList) {
-  if (pTq == NULL || tbUidList == NULL) {
+int32_t tqDeleteTbUidList(STQ* pTq, SArray* tbUidList) {
+  if (pTq == NULL) {
+    return 0;  // mounted vnode may have no tq
+  }
+  if (tbUidList == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   void*   pIter = NULL;
@@ -1339,51 +1342,25 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd, SArray*
     }
 
     STqHandle* pTqHandle = (STqHandle*)pIter;
-    tqDebug("%s subKey:%s, consumer:0x%" PRIx64 " update table list", __func__, pTqHandle->subKey, pTqHandle->consumerId);
+    tqDebug("%s subKey:%s, consumer:0x%" PRIx64 " delete table list", __func__, pTqHandle->subKey, pTqHandle->consumerId);
     if (pTqHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-      int32_t code = qUpdateTableListForStreamScanner(pTqHandle->execHandle.task, tbUidList, isAdd);
+      int32_t code = qDeleteTableListForStreamScanner(pTqHandle->execHandle.task, tbUidList);
       if (code != 0) {
         tqError("update qualified table error for %s", pTqHandle->subKey);
         continue;
       }
     } else if (pTqHandle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
-      if (!isAdd) {
-        int32_t sz = taosArrayGetSize(tbUidList);
-        for (int32_t i = 0; i < sz; i++) {
-          int64_t* tbUid = (int64_t*)taosArrayGet(tbUidList, i);
-          if (tbUid &&
-              taosHashPut(pTqHandle->execHandle.execDb.pFilterOutTbUid, tbUid, sizeof(int64_t), NULL, 0) != 0) {
-            tqError("failed to add table uid:%" PRId64 " to hash", *tbUid);
-            continue;
-          }
+      int32_t sz = taosArrayGetSize(tbUidList);
+      for (int32_t i = 0; i < sz; i++) {
+        int64_t* tbUid = (int64_t*)taosArrayGet(tbUidList, i);
+        if (tbUid &&
+            taosHashPut(pTqHandle->execHandle.execDb.pFilterOutTbUid, tbUid, sizeof(int64_t), NULL, 0) != 0) {
+          tqError("failed to add table uid:%" PRId64 " to hash", *tbUid);
+          continue;
         }
       }
     } else if (pTqHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
-      if (isAdd) {
-        SArray* list = taosArrayDup(tbUidList, NULL);
-        if (list == NULL) {
-          tqError("taosArrayDup failed in tqUpdateTbUidList");
-          taosHashCancelIterate(pTq->pHandle, pIter);
-          taosWUnLockLatch(&pTq->lock);
-          return terrno;
-        }
-        int     ret = qSubFilterTableList(pTq->pVnode, list, pTqHandle->execHandle.execTb.node,
-                            pTqHandle->execHandle.task, pTqHandle->execHandle.execTb.suid, cidList);
-        if (ret != TDB_CODE_SUCCESS) {
-          tqError("qGetTableList in tqUpdateTbUidList error:%d handle %s consumer:0x%" PRIx64, ret, pTqHandle->subKey,
-                  pTqHandle->consumerId);
-          taosArrayDestroy(list);
-          taosHashCancelIterate(pTq->pHandle, pIter);
-          taosWUnLockLatch(&pTq->lock);
-          return ret;
-        }
-        tqDebug("%s handle %s consumer:0x%" PRIx64 " add %d tables to tqReader", __func__, pTqHandle->subKey,
-                pTqHandle->consumerId, (int32_t)taosArrayGetSize(list));
-        tqReaderAddTbUidList(pTqHandle->execHandle.pTqReader, list);
-        taosArrayDestroy(list);
-      } else {
-        tqReaderRemoveTbUidList(pTqHandle->execHandle.pTqReader, tbUidList);
-      }
+      tqReaderRemoveTbUidList(pTqHandle->execHandle.pTqReader, tbUidList);
     }
   }
   taosWUnLockLatch(&pTq->lock);
@@ -1402,7 +1379,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd, SArray*
       int32_t taskId = pTask->id.taskId;
 
       if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && (pTask->exec.pExecutor != NULL)) {
-        int32_t code = qUpdateTableListForStreamScanner(pTask->exec.pExecutor, tbUidList, isAdd);
+        int32_t code = qDeleteTableListForStreamScanner(pTask->exec.pExecutor, tbUidList);
         if (code != 0) {
           tqError("vgId:%d, s-task:0x%x update qualified table error for stream task", vgId, taskId);
         }
@@ -1416,6 +1393,165 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd, SArray*
 
   streamMetaWUnLock(pTq->pStreamMeta);
   return 0;
+}
+
+static int32_t addTableListForStableTmq(STqHandle* pTqHandle, STQ* pTq, SArray* tbUidList) {
+  int     ret = qFilterTableList(pTq->pVnode, tbUidList, pTqHandle->execHandle.execTb.node,
+                      pTqHandle->execHandle.task, pTqHandle->execHandle.execTb.suid);
+  if (ret != TDB_CODE_SUCCESS) {
+    tqError("tqAddTbUidList error:%d handle %s consumer:0x%" PRIx64, ret, pTqHandle->subKey,
+            pTqHandle->consumerId);
+    return ret;
+  }
+  tqDebug("%s handle %s consumer:0x%" PRIx64 " add %d tables to tqReader", __func__, pTqHandle->subKey,
+          pTqHandle->consumerId, (int32_t)taosArrayGetSize(tbUidList));
+  tqReaderAddTbUidList(pTqHandle->execHandle.pTqReader, tbUidList);
+  return 0;
+}
+
+int32_t tqAddTbUidList(STQ* pTq, SArray* tbUidList) {
+  if (pTq == NULL) {
+    return 0;  // mounted vnode may have no tq
+  }
+  if (tbUidList == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  void*   pIter = NULL;
+  int32_t vgId = TD_VID(pTq->pVnode);
+  int32_t code = 0;
+
+  // update the table list for each consumer handle
+  taosWLockLatch(&pTq->lock);
+  while (1) {
+    pIter = taosHashIterate(pTq->pHandle, pIter);
+    if (pIter == NULL) {
+      break;
+    }
+
+    STqHandle* pTqHandle = (STqHandle*)pIter;
+    tqDebug("%s subKey:%s, consumer:0x%" PRIx64 " add table list", __func__, pTqHandle->subKey, pTqHandle->consumerId);
+    if (pTqHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+      code = qAddTableListForStreamScanner(pTqHandle->execHandle.task, tbUidList);
+      if (code != 0) {
+        tqError("add table list for query tmq error for %s, msg:%s", pTqHandle->subKey, tstrerror(code));
+        break;
+      }
+    } else if (pTqHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
+      code = addTableListForStableTmq(pTqHandle, pTq, tbUidList);
+      if (code != 0) {
+        tqError("add table list for stable tmq error for %s, msg:%s", pTqHandle->subKey, tstrerror(code));
+        break;
+      }
+    }
+  }
+  taosHashCancelIterate(pTq->pHandle, pIter);
+  taosWUnLockLatch(&pTq->lock);
+
+  // update the table list handle for each stream scanner/wal reader
+  streamMetaWLock(pTq->pStreamMeta);
+  while (1) {
+    pIter = taosHashIterate(pTq->pStreamMeta->pTasksMap, pIter);
+    if (pIter == NULL) {
+      break;
+    }
+
+    int64_t      refId = *(int64_t*)pIter;
+    SStreamTask* pTask = taosAcquireRef(streamTaskRefPool, refId);
+    if (pTask != NULL) {
+      int32_t taskId = pTask->id.taskId;
+
+      if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && (pTask->exec.pExecutor != NULL)) {
+        int32_t code = qAddTableListForStreamScanner(pTask->exec.pExecutor, tbUidList);
+        if (code != 0) {
+          tqError("vgId:%d, s-task:0x%x update qualified table error for stream task", vgId, taskId);
+        }
+      }
+      int32_t ret = taosReleaseRef(streamTaskRefPool, refId);
+      if (ret) {
+        tqError("vgId:%d release task refId failed, refId:%" PRId64, vgId, refId);
+      }
+    }
+  }
+
+  streamMetaWUnLock(pTq->pStreamMeta);
+  return code;
+}
+
+int32_t tqUpdateTbUidList(STQ* pTq, SArray* tbUidList, SArray* cidList) {
+  if (pTq == NULL) {
+    return 0;  // mounted vnode may have no tq
+  }
+  if (tbUidList == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  void*   pIter = NULL;
+  int32_t vgId = TD_VID(pTq->pVnode);
+  int32_t code = 0;
+  // update the table list for each consumer handle
+  taosWLockLatch(&pTq->lock);
+  while (1) {
+    pIter = taosHashIterate(pTq->pHandle, pIter);
+    if (pIter == NULL) {
+      break;
+    }
+
+    STqHandle* pTqHandle = (STqHandle*)pIter;
+    tqDebug("%s subKey:%s, consumer:0x%" PRIx64 " update table list", __func__, pTqHandle->subKey, pTqHandle->consumerId);
+    if (pTqHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+      SNode* pTagCond = getTagCondNodeForQueryTmq(pTqHandle->execHandle.task);
+      bool ret = checkCidInTagCondition(pTagCond, cidList);
+      if (ret){
+        code = qUpdateTableListForStreamScanner(pTqHandle->execHandle.task, tbUidList);
+        if (code != 0) {
+          tqError("update table list for query tmq error for %s, msg:%s", pTqHandle->subKey, tstrerror(code));
+          break;
+        }
+      }
+    } else if (pTqHandle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
+      SNode* pTagCond = getTagCondNodeForStableTmq(pTqHandle->execHandle.execTb.node);
+      bool ret = checkCidInTagCondition(pTagCond, cidList);
+      if (ret){
+        tqReaderRemoveTbUidList(pTqHandle->execHandle.pTqReader, tbUidList);
+        code = addTableListForStableTmq(pTqHandle, pTq, tbUidList);
+        if (code != 0) {
+          tqError("update table list for stable tmq error for %s, msg:%s", pTqHandle->subKey, tstrerror(code));
+          break;
+        }
+      }
+    }
+  }
+
+  taosHashCancelIterate(pTq->pHandle, pIter);
+  taosWUnLockLatch(&pTq->lock);
+
+  // update the table list handle for each stream scanner/wal reader
+  streamMetaWLock(pTq->pStreamMeta);
+  while (1) {
+    pIter = taosHashIterate(pTq->pStreamMeta->pTasksMap, pIter);
+    if (pIter == NULL) {
+      break;
+    }
+
+    int64_t      refId = *(int64_t*)pIter;
+    SStreamTask* pTask = taosAcquireRef(streamTaskRefPool, refId);
+    if (pTask != NULL) {
+      int32_t taskId = pTask->id.taskId;
+
+      if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && (pTask->exec.pExecutor != NULL)) {
+        int32_t code = qUpdateTableListForStreamScanner(pTask->exec.pExecutor, tbUidList);
+        if (code != 0) {
+          tqError("vgId:%d, s-task:0x%x update qualified table error for stream task", vgId, taskId);
+        }
+      }
+      int32_t ret = taosReleaseRef(streamTaskRefPool, refId);
+      if (ret) {
+        tqError("vgId:%d release task refId failed, refId:%" PRId64, vgId, refId);
+      }
+    }
+  }
+
+  streamMetaWUnLock(pTq->pStreamMeta);
+  return code;
 }
 
 static void destroySourceScanTables(void* ptr) {
