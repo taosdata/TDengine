@@ -50,5 +50,5 @@ class TestShowBasic:
             if tdSql.getData(0, 15) == True:
                 break
             count += 1
-        if(count >= 200):
+        if count >= 200:
             raise Exception("show vgroups ready timeout")
