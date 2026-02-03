@@ -89,6 +89,13 @@ class TestCase:
         splitSql = "split vgroup %d" %(vnodeId)
         tdLog.debug("splitSql:%s"%(splitSql))
         tdSql.query(splitSql)
+    
+    def checkSplitVgroups(self):
+        while True:
+            tdSql.query("select * from information_schema.ins_vnodes where db_name='dbt' and status='leader' and restored=true")
+            if tdSql.getRows() == 2:
+                break
+            tdLog.info("wait vgroup split done...")
         tdLog.debug("splitSql ok")
 
     def tmqCase1(self, deleteWal=False):
