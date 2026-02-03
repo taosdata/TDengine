@@ -17,7 +17,7 @@
 
 #include <stdio.h>
 
-#include "cjson/cJSON.h"
+#include "cJSON.h"
 #include "decimal.h"
 #include "geometry/geosWrapper.h"
 #include "tmqttBrokerInt.h"

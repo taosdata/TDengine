@@ -19,7 +19,7 @@
 #include "bse.h"
 #include "bseInc.h"
 #include "bseUtil.h"
-#include "cjson/cJSON.h"
+#include "cJSON.h"
 #include "os.h"
 #include "tchecksum.h"
 #include "tcompare.h"

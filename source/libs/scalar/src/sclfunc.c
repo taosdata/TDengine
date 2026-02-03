@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include "cjson/cJSON.h"
+#include "cJSON.h"
 #include "crypt.h"
 #include "decimal.h"
 #include "filter.h"

@@ -21,7 +21,7 @@
 #include "tsched.h"
 #include "tworker.h"
 // clang-format off
-#include "cjson/cJSON.h"
+#include "cJSON.h"
 #include "queryInt.h"
 
 typedef struct STaskQueue {

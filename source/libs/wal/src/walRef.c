@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "cjson/cJSON.h"
+#include "cJSON.h"
 #include "os.h"
 #include "taoserror.h"
 #include "tutil.h"

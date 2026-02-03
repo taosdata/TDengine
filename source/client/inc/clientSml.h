@@ -32,7 +32,7 @@ extern "C" {
 #include "tname.h"
 #include "ttime.h"
 #include "ttypes.h"
-#include "cjson/cJSON.h"
+#include "cJSON.h"
 #include "geosWrapper.h"
 
 #if (defined(__GNUC__) && (__GNUC__ >= 3)) || (defined(__INTEL_COMPILER) && (__INTEL_COMPILER >= 800)) || defined(__clang__)

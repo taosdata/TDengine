@@ -18,7 +18,7 @@
 
 #include "os.h"
 
-#include "cjson/cJSON.h"
+#include "cJSON.h"
 #include "scheduler.h"
 #include "sync.h"
 #include "tarray.h"

@@ -15,7 +15,7 @@
 
 #include "builtins.h"
 #include "builtinsimpl.h"
-#include "cjson/cJSON.h"
+#include "cJSON.h"
 #include "crypt.h"
 #include "functionMgt.h"
 #include "functionMgtInt.h"

@@ -1,5 +1,5 @@
 #include "clientMonitor.h"
-#include "cjson/cJSON.h"
+#include "cJSON.h"
 #include "clientInt.h"
 #include "clientLog.h"
 #include "query.h"

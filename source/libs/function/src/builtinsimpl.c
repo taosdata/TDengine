@@ -14,7 +14,7 @@
  */
 
 #include "builtinsimpl.h"
-#include "cjson/cJSON.h"
+#include "cJSON.h"
 #include "decimal.h"
 #include "function.h"
 #include "functionResInfoInt.h"
