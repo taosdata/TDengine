@@ -64,7 +64,8 @@ typedef struct SUserAuthInfo {
     struct {
       uint8_t useDb : 2;  // check use db firstly: 0x1 owned db, 0x2 authorized db
       uint8_t smlInsert : 1;
-      uint8_t reserve : 5;
+      uint8_t dbOwner : 1;
+      uint8_t reserve : 4;
     };
   };
   EPrivType    privType;

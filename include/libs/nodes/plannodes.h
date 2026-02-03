@@ -540,6 +540,7 @@ typedef SLastRowScanPhysiNode STableCountScanPhysiNode;
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;
   SEpSet         mgmtEpSet;
+  SNode*         tblPrivs;  // SSystemTablePrivsNode
   int32_t        accountId;
   bool           showRewrite;
   bool           sysInfo;

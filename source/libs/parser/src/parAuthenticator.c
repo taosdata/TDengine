@@ -64,10 +64,7 @@ static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const c
   return TSDB_CODE_SUCCESS;
 }
 
-/**
- * @brief DB owner has all privileges on his/her own DB
- */
-static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserAuthRes* pAuthRes, bool* recheck) {
+static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserAuthRes* pAuthRes, bool *recheck) {
   SParseContext*   pParseCxt = pCxt->pParseCxt;
   const SPrivInfo* pPrivInfo = privInfoGet(pAuthInfo->privType);
   if (NULL == pPrivInfo) {
@@ -77,36 +74,43 @@ static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserA
   if (pPrivInfo->category == PRIV_CATEGORY_OBJECT || pAuthInfo->objType == PRIV_OBJ_DB) {
     SPrivInfo privInfoDup = *pPrivInfo;
     if (privInfoDup.objType <= 0) privInfoDup.objType = PRIV_OBJ_DB;
-    SDbCfgInfo dbCfgInfo = {0};
-    char       dbFName[TSDB_DB_FNAME_LEN] = {0};
-    (void)tNameGetFullDbName(&pAuthInfo->tbName, dbFName);
-    code = getDbCfgFromCache(pCxt->pMetaCache, dbFName, &dbCfgInfo);
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
-    }
-    // rewrite privilege for audit db
-    if (dbCfgInfo.isAudit && pAuthInfo->objType == PRIV_OBJ_DB) {
-      if (pAuthInfo->privType == PRIV_DB_USE) {
-        pAuthInfo->useDb = AUTH_OWNED_MASK;
-        if (recheck) *recheck = true;  // recheck since the cached key is changed
-      } else if (pAuthInfo->privType == PRIV_CM_ALTER) {
-        pAuthInfo->privType = PRIV_AUDIT_DB_ALTER;
-        pAuthInfo->objType = PRIV_OBJ_CLUSTER;
-        if (recheck) *recheck = true;  // recheck since the cached key is changed
-      } else if (pAuthInfo->privType == PRIV_CM_DROP) {
-        pAuthInfo->privType = PRIV_AUDIT_DB_DROP;
-        pAuthInfo->objType = PRIV_OBJ_CLUSTER;
-        if (recheck) *recheck = true;  // recheck since the cached key is changed
-      } else if (pAuthInfo->privType == PRIV_TBL_CREATE) {
-        pAuthInfo->privType = PRIV_AUDIT_TBL_CREATE;
-        pAuthInfo->objType = PRIV_OBJ_CLUSTER;
-        if (recheck) *recheck = true;  // recheck since the cached key is changed
+    switch (privInfoDup.objType) {
+      case PRIV_OBJ_DB: {
+        SDbCfgInfo dbCfgInfo = {0};
+        char       dbFName[TSDB_DB_FNAME_LEN] = {0};
+        (void)tNameGetFullDbName(&pAuthInfo->tbName, dbFName);
+        code = getDbCfgFromCache(pCxt->pMetaCache, dbFName, &dbCfgInfo);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
+        // rewrite privilege for audit db
+        if (dbCfgInfo.isAudit && pAuthInfo->objType == PRIV_OBJ_DB) {
+          if (pAuthInfo->privType == PRIV_DB_USE) {
+            pAuthInfo->useDb = AUTH_OWNED_MASK;
+            if (recheck) *recheck = true;  // recheck since the cached key is changed
+          } else if (pAuthInfo->privType == PRIV_CM_ALTER) {
+            pAuthInfo->privType = PRIV_AUDIT_DB_ALTER;
+            pAuthInfo->objType = PRIV_OBJ_CLUSTER;
+            if (recheck) *recheck = true;  // recheck since the cached key is changed
+          } else if (pAuthInfo->privType == PRIV_CM_DROP) {
+            pAuthInfo->privType = PRIV_AUDIT_DB_DROP;
+            pAuthInfo->objType = PRIV_OBJ_CLUSTER;
+            if (recheck) *recheck = true;  // recheck since the cached key is changed
+          } else if (pAuthInfo->privType == PRIV_TBL_CREATE) {
+            pAuthInfo->privType = PRIV_AUDIT_TBL_CREATE;
+            pAuthInfo->objType = PRIV_OBJ_CLUSTER;
+            if (recheck) *recheck = true;  // recheck since the cached key is changed
+          }
+          return TSDB_CODE_SUCCESS;
+        }
+        if (dbCfgInfo.ownerId == pAuthInfo->userId) {
+          pAuthRes->pass[pAuthInfo->isView ? AUTH_RES_VIEW : AUTH_RES_BASIC] = true;
+          return TSDB_CODE_SUCCESS;
+        }
+        break;
       }
-      return TSDB_CODE_SUCCESS;
-    }
-    if (dbCfgInfo.ownerId == pAuthInfo->userId) {
-      pAuthRes->pass[pAuthInfo->isView ? AUTH_RES_VIEW : AUTH_RES_BASIC] = true;
-      return TSDB_CODE_SUCCESS;
+      default:
+        return TSDB_CODE_SUCCESS;
     }
   }
 _exit:
@@ -783,8 +787,14 @@ static int32_t authAlterDatabase(SAuthCxt* pCxt, SAlterDatabaseStmt* pStmt) {
 static int32_t authAlterLocal(SAuthCxt* pCxt, SAlterLocalStmt* pStmt) {
   int32_t privType = cfgGetPrivType(tsCfg, pStmt->config, 0);
   return authSysPrivileges(pCxt, (void*)pStmt, privType);
+}
 
-  return TSDB_CODE_SUCCESS;
+static int32_t authDropRole(SAuthCxt* pCxt, SDropRoleStmt* pStmt) {
+  int32_t code = authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_ROLE_DROP);
+  if (code && pStmt->ignoreNotExists) {
+    code = TSDB_CODE_SUCCESS;
+  }
+  return code;
 }
 
 static int32_t authDropDatabase(SAuthCxt* pCxt, SDropDatabaseStmt* pStmt) {
@@ -844,7 +854,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_CREATE_ROLE_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_ROLE_CREATE);
     case QUERY_NODE_DROP_ROLE_STMT:
-      return authSysPrivileges(pCxt, pStmt, PRIV_ROLE_DROP);
+      return authDropRole(pCxt, (SDropRoleStmt*)pStmt);
     case QUERY_NODE_CREATE_USER_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_USER_CREATE);
     case QUERY_NODE_ALTER_USER_STMT:

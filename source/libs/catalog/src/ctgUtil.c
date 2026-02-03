@@ -2375,16 +2375,11 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
       CTG_ERR_JRET(ctgGetTbMeta(pCtg, req->pConn, &ctx, &pMeta));
     }
 
-    if (req->authInfo.userId == 0) {
-      // userId is 0, skip owner check
-      ctgDebug("%s:%d userId is 0 for %s, skip owner check for  %s.%s", __func__, __LINE__, pReq->user, dbFName, tbName);
-    }
-
     /**
      *  1. skip owner check for audit table
      *  2. compatible with old version where ownerId is 0
      */
-    if (!pMeta->isAudit && (req->authInfo.userId == pMeta->ownerId)) {
+    if (!pMeta->isAudit && (pReq->dbOwner || (req->authInfo.userId == pMeta->ownerId))) {
       isOwner = true;
     } else {
       isOwner = false;
@@ -2525,6 +2520,9 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
       privInfo.objLevel = privObjGetLevel(privInfo.objType);
     }
 
+    int8_t dbOwner = 0;  // 0: unknown, 1: owner
+    char dbFName[TSDB_DB_FNAME_LEN];
+    (void)tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
     if (pReq->useDb) {
       if ((pReq->useDb & AUTH_AUTHORIZED_MASK)) {
         const SPrivInfo* dbPrivInfo = privInfoGet(PRIV_DB_USE);
@@ -2537,13 +2535,12 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
         }
       }
       if ((pReq->useDb & AUTH_OWNED_MASK)) {
-        char dbFName[TSDB_DB_FNAME_LEN];
-        (void)tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
         if (taosHashGet(pInfo->ownedDbs, dbFName, strlen(dbFName) + 1)) {
           if (pReq->tbName.type == TSDB_DB_NAME_T) {
             pRes->pass[AUTH_RES_BASIC] = true;
             return TSDB_CODE_SUCCESS;
           }
+          dbOwner = 1;
           goto _next; // pass for db level, check table level
         }
       }
@@ -2557,6 +2554,11 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
     }
 _next:
     if (pReq->tbName.type == TSDB_TABLE_NAME_T) {
+      if ((dbOwner == 1) || taosHashGet(pInfo->ownedDbs, dbFName, strlen(dbFName) + 1)) {
+        pReq->dbOwner = 1;
+      } else {
+        pReq->dbOwner = 0;
+      }
       req->singleType = pReq->privType;
       req->privInfo = &privInfo;
       switch (pReq->privType) {
@@ -2593,9 +2595,13 @@ _next:
         case PRIV_CM_DROP:
         case PRIV_CM_SHOW_CREATE: {
           if (pReq->objType == PRIV_OBJ_TBL) {
-            // don't support tag condition
+            // don't support tag conditionq
             CTG_ERR_RET(ctgChkSetTbAuthRsp(pCtg, req, res));
           } else {
+            if (pReq->dbOwner) {
+              pRes->pass[AUTH_RES_BASIC] = true;
+              return TSDB_CODE_SUCCESS;
+            }
             CTG_ERR_RET(ctgChkSetCommonAuthRsp(pCtg, req, res));
           }
           break;
@@ -2605,8 +2611,8 @@ _next:
           break;
         }
         default: {
-          if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, pReq->tbName.tname,
-                                  &privInfo, true)) {
+          if (pReq->dbOwner || privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname,
+                                                   pReq->tbName.tname, &privInfo, true)) {
             pRes->pass[AUTH_RES_BASIC] = true;
             return TSDB_CODE_SUCCESS;
           }
