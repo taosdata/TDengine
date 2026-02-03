@@ -244,7 +244,6 @@ static FORCE_INLINE int32_t varToTimestamp(char *buf, SScalarParam *pOut, int32_
   int32_t code = TSDB_CODE_SUCCESS;
   if (taosParseTime(buf, &value, strlen(buf), pOut->columnData->info.precision, pOut->tz) != TSDB_CODE_SUCCESS) {
     value = 0;
-    code = TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
 
   colDataSetInt64(pOut->columnData, rowIndex, &value);
@@ -1968,7 +1967,8 @@ int32_t vectorCompareWithHashParam(SSclComapreCtx* pCtx) {
   int32_t code = TSDB_CODE_SUCCESS, i = pCtx->startIndex;
   SHashParam* pHParam = &pCtx->pRight->hashParam;
   bool isNegativeOp = pCtx->pOut->hashParam.isNegativeOp;
-  bool res = false;
+  bool multiRowsInHash = (taosHashGetSize(pHParam->pHashFilter) > 1 || taosHashGetSize(pHParam->pHashFilterOthers) > 1);
+  bool res = false, resIsNull = false;
   
   if (!pHParam->hasValue) {
     res = (pCtx->optr == OP_TYPE_IN) ? false : true;
@@ -1984,9 +1984,16 @@ int32_t vectorCompareWithHashParam(SSclComapreCtx* pCtx) {
   if ((NULL == pHParam->pHashFilter || 0 == taosHashGetSize(pHParam->pHashFilter)) &&
        (NULL == pHParam->pHashFilterOthers || 0 == taosHashGetSize(pHParam->pHashFilterOthers))){
     if (isNegativeOp) {
-      res = (pCtx->optr == OP_TYPE_IN) ? true : false;
+      if (!pHParam->hasNotNull) {
+        res = false;
+        resIsNull = true;
+      } else {
+        res = (pCtx->optr == OP_TYPE_IN) ? true : false;
+        resIsNull = false;
+      }
     } else {
       res = pHParam->hasNull ? false : ((pCtx->optr == OP_TYPE_IN) ? false : true);
+      resIsNull = true;
     }
     
     for (; i < pCtx->endIndex; i++) {
@@ -2000,7 +2007,7 @@ int32_t vectorCompareWithHashParam(SSclComapreCtx* pCtx) {
       colDataSetInt8(pCtx->pOut->columnData, i, (int8_t *)&res);
       if (res) {
         ++(*pCtx->qualifiedNum);
-      } else if (pHParam->hasNull && !isNegativeOp) {
+      } else if (resIsNull) {
         colDataSetNULL(pCtx->pOut->columnData, i);
       }
     }
@@ -2008,7 +2015,7 @@ int32_t vectorCompareWithHashParam(SSclComapreCtx* pCtx) {
     return code;
   }
 
-  if (OP_TYPE_NOT_IN == pCtx->optr && isNegativeOp && (taosHashGetSize(pHParam->pHashFilter) > 1 || taosHashGetSize(pHParam->pHashFilterOthers) > 1)) {
+  if (OP_TYPE_NOT_IN == pCtx->optr && isNegativeOp && multiRowsInHash) {
     res = false;
     char* pRes = colDataGetData(pCtx->pOut->columnData, pCtx->startIndex);
     memset(pRes, res, pCtx->pLeft->numOfRows);
@@ -2023,13 +2030,18 @@ int32_t vectorCompareWithHashParam(SSclComapreCtx* pCtx) {
 
   for (; i < pCtx->endIndex; i++) {
     if (IS_HELPER_NULL(pCtx->pLeft->columnData, i)) {
-      bool res = false;
       colDataSetInt8(pCtx->pOut->columnData, i, (int8_t *)&res);
       colDataSetNULL(pCtx->pOut->columnData, i);
       continue;
     }
 
-    bool res = pHParam->pHashFilter ? compareForTypeWithColAndHash(pCtx->fp, pCtx->optr, pCtx->pLeft->columnData, i, pHParam->pHashFilter,
+    if (OP_TYPE_IN == pCtx->optr && isNegativeOp && multiRowsInHash) {
+      res = true;
+      colDataSetInt8(pCtx->pOut->columnData, i, (int8_t *)&res);
+      continue;
+    }
+
+    res = pHParam->pHashFilter ? compareForTypeWithColAndHash(pCtx->fp, pCtx->optr, pCtx->pLeft->columnData, i, pHParam->pHashFilter,
                                             pHParam->filterValueType, pHParam->filterValueTypeMod) : false;
     if (!((pCtx->optr == OP_TYPE_IN && res) || (pCtx->optr == OP_TYPE_NOT_IN && !res))) {
       if (pCtx->pLeftVar != NULL && pHParam->pHashFilterOthers && taosHashGetSize(pHParam->pHashFilterOthers) > 0) {

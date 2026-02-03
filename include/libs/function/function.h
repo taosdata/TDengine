@@ -314,6 +314,7 @@ typedef struct SHashParam {
   bool             hasHashParam;
   bool             hasValue;
   bool             hasNull;
+  bool             hasNotNull;
   bool             isNegativeOp;
   SHashObj        *pHashFilter;
   SHashObj        *pHashFilterOthers;

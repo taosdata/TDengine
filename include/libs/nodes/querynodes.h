@@ -170,6 +170,7 @@ typedef struct SRemoteValueListNode {
   STypeMod   targetTypeMod;
   bool       hasValue;
   bool       hasNull;
+  bool       hasNotNull;
   bool       hashAllocated;
   SHashObj  *pHashFilter;
   SHashObj  *pHashFilterOthers;

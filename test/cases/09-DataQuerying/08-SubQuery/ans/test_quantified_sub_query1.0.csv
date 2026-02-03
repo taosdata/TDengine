@@ -44,3 +44,3573 @@ taos> select f1 = ALL (select f2 from ctt1 WHERE 1 = 0) from cts1;
  true                                       |
  true                                       |
 
+taos> select f1 = ALL (select f2 from ctt1 WHERE f2 IS NULL) from cts1;
+ f1 = all (select f2 from ctt1 where f2 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 = ALL (select f2 from ctt1 WHERE f2 IS NOT NULL) from cts1;
+ f1 = all (select f2 from ctt1 where f2 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 = ALL (select f3 from ctt1 ) from cts1;
+ f1 = all (select f3 from ctt1 ) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select f1 = ALL (select f3 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = all (select f3 from ctt1 where 1 = 0) |
+=============================================
+ true                                       |
+ true                                       |
+ true                                       |
+
+taos> select f1 = ALL (select f3 from ctt1 WHERE f3 IS NULL) from cts1;
+ f1 = all (select f3 from ctt1 where f3 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 = ALL (select f3 from ctt1 WHERE f3 IS NOT NULL) from cts1;
+ f1 = all (select f3 from ctt1 where f3 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 = ALL (select f4 from ctt1 ) from cts1;
+ f1 = all (select f4 from ctt1 ) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select f1 = ALL (select f4 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = all (select f4 from ctt1 where 1 = 0) |
+=============================================
+ true                                       |
+ true                                       |
+ true                                       |
+
+taos> select f1 = ALL (select f4 from ctt1 WHERE f4 IS NULL) from cts1;
+ f1 = all (select f4 from ctt1 where f4 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 = ALL (select f4 from ctt1 WHERE f4 IS NOT NULL) from cts1;
+ f1 = all (select f4 from ctt1 where f4 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 = ALL (select f5 from ctt1 ) from cts1;
+ f1 = all (select f5 from ctt1 ) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select f1 = ALL (select f5 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = all (select f5 from ctt1 where 1 = 0) |
+=============================================
+ true                                       |
+ true                                       |
+ true                                       |
+
+taos> select f1 = ALL (select f5 from ctt1 WHERE f5 IS NULL) from cts1;
+ f1 = all (select f5 from ctt1 where f5 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 = ALL (select f5 from ctt1 WHERE f5 IS NOT NULL) from cts1;
+ f1 = all (select f5 from ctt1 where f5 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 = ALL (select f6 from ctt1 ) from cts1;
+ f1 = all (select f6 from ctt1 ) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select f1 = ALL (select f6 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = all (select f6 from ctt1 where 1 = 0) |
+=============================================
+ true                                       |
+ true                                       |
+ true                                       |
+
+taos> select f1 = ALL (select f6 from ctt1 WHERE f6 IS NULL) from cts1;
+ f1 = all (select f6 from ctt1 where f6 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 = ALL (select f6 from ctt1 WHERE f6 IS NOT NULL) from cts1;
+ f1 = all (select f6 from ctt1 where f6 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 = ALL (select f7 from ctt1 ) from cts1;
+ f1 = all (select f7 from ctt1 ) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select f1 = ALL (select f7 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = all (select f7 from ctt1 where 1 = 0) |
+=============================================
+ true                                       |
+ true                                       |
+ true                                       |
+
+taos> select f1 = ALL (select f7 from ctt1 WHERE f7 IS NULL) from cts1;
+ f1 = all (select f7 from ctt1 where f7 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 = ALL (select f7 from ctt1 WHERE f7 IS NOT NULL) from cts1;
+ f1 = all (select f7 from ctt1 where f7 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 = ALL (select f8 from ctt1 ) from cts1;
+ f1 = all (select f8 from ctt1 ) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select f1 = ALL (select f8 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = all (select f8 from ctt1 where 1 = 0) |
+=============================================
+ true                                       |
+ true                                       |
+ true                                       |
+
+taos> select f1 = ALL (select f8 from ctt1 WHERE f8 IS NULL) from cts1;
+ f1 = all (select f8 from ctt1 where f8 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 = ALL (select f8 from ctt1 WHERE f8 IS NOT NULL) from cts1;
+ f1 = all (select f8 from ctt1 where f8 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 = ALL (select f9 from ctt1 ) from cts1;
+ f1 = all (select f9 from ctt1 ) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select f1 = ALL (select f9 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = all (select f9 from ctt1 where 1 = 0) |
+=============================================
+ true                                       |
+ true                                       |
+ true                                       |
+
+taos> select f1 = ALL (select f9 from ctt1 WHERE f9 IS NULL) from cts1;
+ f1 = all (select f9 from ctt1 where f9 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 = ALL (select f9 from ctt1 WHERE f9 IS NOT NULL) from cts1;
+ f1 = all (select f9 from ctt1 where f9 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 = ALL (select f10 from ctt1 ) from cts1;
+ f1 = all (select f10 from ctt1 ) |
+===================================
+ false                            |
+ false                            |
+ false                            |
+
+taos> select f1 = ALL (select f10 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = all (select f10 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 = ALL (select f10 from ctt1 WHERE f10 IS NULL) from cts1;
+ f1 = all (select f10 from ctt1 where f10 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 = ALL (select f10 from ctt1 WHERE f10 IS NOT NULL) from cts1;
+ f1 = all (select f10 from ctt1 where f10 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 = ALL (select f11 from ctt1 ) from cts1;
+ f1 = all (select f11 from ctt1 ) |
+===================================
+ false                            |
+ false                            |
+ false                            |
+
+taos> select f1 = ALL (select f11 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = all (select f11 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 = ALL (select f11 from ctt1 WHERE f11 IS NULL) from cts1;
+ f1 = all (select f11 from ctt1 where f11 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 = ALL (select f11 from ctt1 WHERE f11 IS NOT NULL) from cts1;
+ f1 = all (select f11 from ctt1 where f11 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 = ALL (select f12 from ctt1 ) from cts1;
+ f1 = all (select f12 from ctt1 ) |
+===================================
+ false                            |
+ false                            |
+ false                            |
+
+taos> select f1 = ALL (select f12 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = all (select f12 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 = ALL (select f12 from ctt1 WHERE f12 IS NULL) from cts1;
+ f1 = all (select f12 from ctt1 where f12 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 = ALL (select f12 from ctt1 WHERE f12 IS NOT NULL) from cts1;
+ f1 = all (select f12 from ctt1 where f12 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 = ALL (select f13 from ctt1 ) from cts1;
+ f1 = all (select f13 from ctt1 ) |
+===================================
+ false                            |
+ false                            |
+ false                            |
+
+taos> select f1 = ALL (select f13 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = all (select f13 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 = ALL (select f13 from ctt1 WHERE f13 IS NULL) from cts1;
+ f1 = all (select f13 from ctt1 where f13 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 = ALL (select f13 from ctt1 WHERE f13 IS NOT NULL) from cts1;
+ f1 = all (select f13 from ctt1 where f13 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 = ALL (select f14 from ctt1 ) from cts1;
+ f1 = all (select f14 from ctt1 ) |
+===================================
+ false                            |
+ false                            |
+ false                            |
+
+taos> select f1 = ALL (select f14 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = all (select f14 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 = ALL (select f14 from ctt1 WHERE f14 IS NULL) from cts1;
+ f1 = all (select f14 from ctt1 where f14 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 = ALL (select f14 from ctt1 WHERE f14 IS NOT NULL) from cts1;
+ f1 = all (select f14 from ctt1 where f14 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 = ALL (select f15 from ctt1 ) from cts1;
+ f1 = all (select f15 from ctt1 ) |
+===================================
+ false                            |
+ false                            |
+ false                            |
+
+taos> select f1 = ALL (select f15 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = all (select f15 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 = ALL (select f15 from ctt1 WHERE f15 IS NULL) from cts1;
+ f1 = all (select f15 from ctt1 where f15 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 = ALL (select f15 from ctt1 WHERE f15 IS NOT NULL) from cts1;
+ f1 = all (select f15 from ctt1 where f15 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 = ALL (select f16 from ctt1 ) from cts1;
+ f1 = all (select f16 from ctt1 ) |
+===================================
+ false                            |
+ false                            |
+ false                            |
+
+taos> select f1 = ALL (select f16 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = all (select f16 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 = ALL (select f16 from ctt1 WHERE f16 IS NULL) from cts1;
+ f1 = all (select f16 from ctt1 where f16 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 = ALL (select f16 from ctt1 WHERE f16 IS NOT NULL) from cts1;
+ f1 = all (select f16 from ctt1 where f16 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 = ALL (select f17 from ctt1 ) from cts1;
+ f1 = all (select f17 from ctt1 ) |
+===================================
+ false                            |
+ false                            |
+ false                            |
+
+taos> select f1 = ALL (select f17 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = all (select f17 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 = ALL (select f17 from ctt1 WHERE f17 IS NULL) from cts1;
+ f1 = all (select f17 from ctt1 where f17 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 = ALL (select f17 from ctt1 WHERE f17 IS NOT NULL) from cts1;
+ f1 = all (select f17 from ctt1 where f17 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 = ALL (select f18 from ctt1 ) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 = ALL (select f18 from ctt1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 = ALL (select f18 from ctt1 WHERE f18 IS NULL) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 = ALL (select f18 from ctt1 WHERE f18 IS NOT NULL) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 = ALL (select f19 from ctt1 ) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = ALL (select f19 from ctt1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = ALL (select f19 from ctt1 WHERE f19 IS NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = ALL (select f19 from ctt1 WHERE f19 IS NOT NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = ALL (select tg1->'k1' from st1 ) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = ALL (select tg1->'k1' from st1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = ALL (select tg1->'k1' from st1 WHERE tg1->'k1' IS NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = ALL (select tg1->'k1' from st1 WHERE tg1->'k1' IS NOT NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = ANY (select f1 from ctt1 ) from cts1;
+ f1 = any (select f1 from ctt1 ) |
+==================================
+ true                            |
+ false                           |
+ true                            |
+
+taos> select f1 = ANY (select f1 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = any (select f1 from ctt1 where 1 = 0) |
+=============================================
+ false                                      |
+ false                                      |
+ false                                      |
+
+taos> select f1 = ANY (select f1 from ctt1 WHERE f1 IS NULL) from cts1;
+ f1 = any (select f1 from ctt1 where f1 is null) |
+==================================================
+ false                                           |
+ false                                           |
+ false                                           |
+
+taos> select f1 = ANY (select f1 from ctt1 WHERE f1 IS NOT NULL) from cts1;
+ f1 = any (select f1 from ctt1 where f1 is not null) |
+======================================================
+ true                                                |
+ false                                               |
+ true                                                |
+
+taos> select f1 = ANY (select f2 from ctt1 ) from cts1;
+ f1 = any (select f2 from ctt1 ) |
+==================================
+ NULL                            |
+ NULL                            |
+ NULL                            |
+
+taos> select f1 = ANY (select f2 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = any (select f2 from ctt1 where 1 = 0) |
+=============================================
+ false                                      |
+ false                                      |
+ false                                      |
+
+taos> select f1 = ANY (select f2 from ctt1 WHERE f2 IS NULL) from cts1;
+ f1 = any (select f2 from ctt1 where f2 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 = ANY (select f2 from ctt1 WHERE f2 IS NOT NULL) from cts1;
+ f1 = any (select f2 from ctt1 where f2 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 = ANY (select f3 from ctt1 ) from cts1;
+ f1 = any (select f3 from ctt1 ) |
+==================================
+ NULL                            |
+ NULL                            |
+ NULL                            |
+
+taos> select f1 = ANY (select f3 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = any (select f3 from ctt1 where 1 = 0) |
+=============================================
+ false                                      |
+ false                                      |
+ false                                      |
+
+taos> select f1 = ANY (select f3 from ctt1 WHERE f3 IS NULL) from cts1;
+ f1 = any (select f3 from ctt1 where f3 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 = ANY (select f3 from ctt1 WHERE f3 IS NOT NULL) from cts1;
+ f1 = any (select f3 from ctt1 where f3 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 = ANY (select f4 from ctt1 ) from cts1;
+ f1 = any (select f4 from ctt1 ) |
+==================================
+ NULL                            |
+ NULL                            |
+ NULL                            |
+
+taos> select f1 = ANY (select f4 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = any (select f4 from ctt1 where 1 = 0) |
+=============================================
+ false                                      |
+ false                                      |
+ false                                      |
+
+taos> select f1 = ANY (select f4 from ctt1 WHERE f4 IS NULL) from cts1;
+ f1 = any (select f4 from ctt1 where f4 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 = ANY (select f4 from ctt1 WHERE f4 IS NOT NULL) from cts1;
+ f1 = any (select f4 from ctt1 where f4 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 = ANY (select f5 from ctt1 ) from cts1;
+ f1 = any (select f5 from ctt1 ) |
+==================================
+ NULL                            |
+ NULL                            |
+ NULL                            |
+
+taos> select f1 = ANY (select f5 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = any (select f5 from ctt1 where 1 = 0) |
+=============================================
+ false                                      |
+ false                                      |
+ false                                      |
+
+taos> select f1 = ANY (select f5 from ctt1 WHERE f5 IS NULL) from cts1;
+ f1 = any (select f5 from ctt1 where f5 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 = ANY (select f5 from ctt1 WHERE f5 IS NOT NULL) from cts1;
+ f1 = any (select f5 from ctt1 where f5 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 = ANY (select f6 from ctt1 ) from cts1;
+ f1 = any (select f6 from ctt1 ) |
+==================================
+ NULL                            |
+ NULL                            |
+ NULL                            |
+
+taos> select f1 = ANY (select f6 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = any (select f6 from ctt1 where 1 = 0) |
+=============================================
+ false                                      |
+ false                                      |
+ false                                      |
+
+taos> select f1 = ANY (select f6 from ctt1 WHERE f6 IS NULL) from cts1;
+ f1 = any (select f6 from ctt1 where f6 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 = ANY (select f6 from ctt1 WHERE f6 IS NOT NULL) from cts1;
+ f1 = any (select f6 from ctt1 where f6 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 = ANY (select f7 from ctt1 ) from cts1;
+ f1 = any (select f7 from ctt1 ) |
+==================================
+ NULL                            |
+ NULL                            |
+ NULL                            |
+
+taos> select f1 = ANY (select f7 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = any (select f7 from ctt1 where 1 = 0) |
+=============================================
+ false                                      |
+ false                                      |
+ false                                      |
+
+taos> select f1 = ANY (select f7 from ctt1 WHERE f7 IS NULL) from cts1;
+ f1 = any (select f7 from ctt1 where f7 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 = ANY (select f7 from ctt1 WHERE f7 IS NOT NULL) from cts1;
+ f1 = any (select f7 from ctt1 where f7 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 = ANY (select f8 from ctt1 ) from cts1;
+ f1 = any (select f8 from ctt1 ) |
+==================================
+ NULL                            |
+ NULL                            |
+ NULL                            |
+
+taos> select f1 = ANY (select f8 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = any (select f8 from ctt1 where 1 = 0) |
+=============================================
+ false                                      |
+ false                                      |
+ false                                      |
+
+taos> select f1 = ANY (select f8 from ctt1 WHERE f8 IS NULL) from cts1;
+ f1 = any (select f8 from ctt1 where f8 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 = ANY (select f8 from ctt1 WHERE f8 IS NOT NULL) from cts1;
+ f1 = any (select f8 from ctt1 where f8 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 = ANY (select f9 from ctt1 ) from cts1;
+ f1 = any (select f9 from ctt1 ) |
+==================================
+ NULL                            |
+ NULL                            |
+ NULL                            |
+
+taos> select f1 = ANY (select f9 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = any (select f9 from ctt1 where 1 = 0) |
+=============================================
+ false                                      |
+ false                                      |
+ false                                      |
+
+taos> select f1 = ANY (select f9 from ctt1 WHERE f9 IS NULL) from cts1;
+ f1 = any (select f9 from ctt1 where f9 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 = ANY (select f9 from ctt1 WHERE f9 IS NOT NULL) from cts1;
+ f1 = any (select f9 from ctt1 where f9 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 = ANY (select f10 from ctt1 ) from cts1;
+ f1 = any (select f10 from ctt1 ) |
+===================================
+ true                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 = ANY (select f10 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = any (select f10 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 = ANY (select f10 from ctt1 WHERE f10 IS NULL) from cts1;
+ f1 = any (select f10 from ctt1 where f10 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 = ANY (select f10 from ctt1 WHERE f10 IS NOT NULL) from cts1;
+ f1 = any (select f10 from ctt1 where f10 is not null) |
+========================================================
+ true                                                  |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 = ANY (select f11 from ctt1 ) from cts1;
+ f1 = any (select f11 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 = ANY (select f11 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = any (select f11 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 = ANY (select f11 from ctt1 WHERE f11 IS NULL) from cts1;
+ f1 = any (select f11 from ctt1 where f11 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 = ANY (select f11 from ctt1 WHERE f11 IS NOT NULL) from cts1;
+ f1 = any (select f11 from ctt1 where f11 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 = ANY (select f12 from ctt1 ) from cts1;
+ f1 = any (select f12 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 = ANY (select f12 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = any (select f12 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 = ANY (select f12 from ctt1 WHERE f12 IS NULL) from cts1;
+ f1 = any (select f12 from ctt1 where f12 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 = ANY (select f12 from ctt1 WHERE f12 IS NOT NULL) from cts1;
+ f1 = any (select f12 from ctt1 where f12 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 = ANY (select f13 from ctt1 ) from cts1;
+ f1 = any (select f13 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 = ANY (select f13 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = any (select f13 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 = ANY (select f13 from ctt1 WHERE f13 IS NULL) from cts1;
+ f1 = any (select f13 from ctt1 where f13 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 = ANY (select f13 from ctt1 WHERE f13 IS NOT NULL) from cts1;
+ f1 = any (select f13 from ctt1 where f13 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 = ANY (select f14 from ctt1 ) from cts1;
+ f1 = any (select f14 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 = ANY (select f14 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = any (select f14 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 = ANY (select f14 from ctt1 WHERE f14 IS NULL) from cts1;
+ f1 = any (select f14 from ctt1 where f14 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 = ANY (select f14 from ctt1 WHERE f14 IS NOT NULL) from cts1;
+ f1 = any (select f14 from ctt1 where f14 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 = ANY (select f15 from ctt1 ) from cts1;
+ f1 = any (select f15 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 = ANY (select f15 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = any (select f15 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 = ANY (select f15 from ctt1 WHERE f15 IS NULL) from cts1;
+ f1 = any (select f15 from ctt1 where f15 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 = ANY (select f15 from ctt1 WHERE f15 IS NOT NULL) from cts1;
+ f1 = any (select f15 from ctt1 where f15 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 = ANY (select f16 from ctt1 ) from cts1;
+ f1 = any (select f16 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 = ANY (select f16 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = any (select f16 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 = ANY (select f16 from ctt1 WHERE f16 IS NULL) from cts1;
+ f1 = any (select f16 from ctt1 where f16 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 = ANY (select f16 from ctt1 WHERE f16 IS NOT NULL) from cts1;
+ f1 = any (select f16 from ctt1 where f16 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 = ANY (select f17 from ctt1 ) from cts1;
+ f1 = any (select f17 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 = ANY (select f17 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = any (select f17 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 = ANY (select f17 from ctt1 WHERE f17 IS NULL) from cts1;
+ f1 = any (select f17 from ctt1 where f17 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 = ANY (select f17 from ctt1 WHERE f17 IS NOT NULL) from cts1;
+ f1 = any (select f17 from ctt1 where f17 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 = ANY (select f18 from ctt1 ) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 = ANY (select f18 from ctt1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 = ANY (select f18 from ctt1 WHERE f18 IS NULL) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 = ANY (select f18 from ctt1 WHERE f18 IS NOT NULL) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 = ANY (select f19 from ctt1 ) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = ANY (select f19 from ctt1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = ANY (select f19 from ctt1 WHERE f19 IS NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = ANY (select f19 from ctt1 WHERE f19 IS NOT NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = ANY (select tg1->'k1' from st1 ) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = ANY (select tg1->'k1' from st1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = ANY (select tg1->'k1' from st1 WHERE tg1->'k1' IS NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = ANY (select tg1->'k1' from st1 WHERE tg1->'k1' IS NOT NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = SOME (select f1 from ctt1 ) from cts1;
+ f1 = some (select f1 from ctt1 ) |
+===================================
+ true                             |
+ false                            |
+ true                             |
+
+taos> select f1 = SOME (select f1 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = some (select f1 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 = SOME (select f1 from ctt1 WHERE f1 IS NULL) from cts1;
+ f1 = some (select f1 from ctt1 where f1 is null) |
+===================================================
+ false                                            |
+ false                                            |
+ false                                            |
+
+taos> select f1 = SOME (select f1 from ctt1 WHERE f1 IS NOT NULL) from cts1;
+ f1 = some (select f1 from ctt1 where f1 is not null) |
+=======================================================
+ true                                                 |
+ false                                                |
+ true                                                 |
+
+taos> select f1 = SOME (select f2 from ctt1 ) from cts1;
+ f1 = some (select f2 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 = SOME (select f2 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = some (select f2 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 = SOME (select f2 from ctt1 WHERE f2 IS NULL) from cts1;
+ f1 = some (select f2 from ctt1 where f2 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 = SOME (select f2 from ctt1 WHERE f2 IS NOT NULL) from cts1;
+ f1 = some (select f2 from ctt1 where f2 is not null) |
+=======================================================
+ false                                                |
+ false                                                |
+ false                                                |
+
+taos> select f1 = SOME (select f3 from ctt1 ) from cts1;
+ f1 = some (select f3 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 = SOME (select f3 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = some (select f3 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 = SOME (select f3 from ctt1 WHERE f3 IS NULL) from cts1;
+ f1 = some (select f3 from ctt1 where f3 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 = SOME (select f3 from ctt1 WHERE f3 IS NOT NULL) from cts1;
+ f1 = some (select f3 from ctt1 where f3 is not null) |
+=======================================================
+ false                                                |
+ false                                                |
+ false                                                |
+
+taos> select f1 = SOME (select f4 from ctt1 ) from cts1;
+ f1 = some (select f4 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 = SOME (select f4 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = some (select f4 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 = SOME (select f4 from ctt1 WHERE f4 IS NULL) from cts1;
+ f1 = some (select f4 from ctt1 where f4 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 = SOME (select f4 from ctt1 WHERE f4 IS NOT NULL) from cts1;
+ f1 = some (select f4 from ctt1 where f4 is not null) |
+=======================================================
+ false                                                |
+ false                                                |
+ false                                                |
+
+taos> select f1 = SOME (select f5 from ctt1 ) from cts1;
+ f1 = some (select f5 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 = SOME (select f5 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = some (select f5 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 = SOME (select f5 from ctt1 WHERE f5 IS NULL) from cts1;
+ f1 = some (select f5 from ctt1 where f5 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 = SOME (select f5 from ctt1 WHERE f5 IS NOT NULL) from cts1;
+ f1 = some (select f5 from ctt1 where f5 is not null) |
+=======================================================
+ false                                                |
+ false                                                |
+ false                                                |
+
+taos> select f1 = SOME (select f6 from ctt1 ) from cts1;
+ f1 = some (select f6 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 = SOME (select f6 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = some (select f6 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 = SOME (select f6 from ctt1 WHERE f6 IS NULL) from cts1;
+ f1 = some (select f6 from ctt1 where f6 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 = SOME (select f6 from ctt1 WHERE f6 IS NOT NULL) from cts1;
+ f1 = some (select f6 from ctt1 where f6 is not null) |
+=======================================================
+ false                                                |
+ false                                                |
+ false                                                |
+
+taos> select f1 = SOME (select f7 from ctt1 ) from cts1;
+ f1 = some (select f7 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 = SOME (select f7 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = some (select f7 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 = SOME (select f7 from ctt1 WHERE f7 IS NULL) from cts1;
+ f1 = some (select f7 from ctt1 where f7 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 = SOME (select f7 from ctt1 WHERE f7 IS NOT NULL) from cts1;
+ f1 = some (select f7 from ctt1 where f7 is not null) |
+=======================================================
+ false                                                |
+ false                                                |
+ false                                                |
+
+taos> select f1 = SOME (select f8 from ctt1 ) from cts1;
+ f1 = some (select f8 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 = SOME (select f8 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = some (select f8 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 = SOME (select f8 from ctt1 WHERE f8 IS NULL) from cts1;
+ f1 = some (select f8 from ctt1 where f8 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 = SOME (select f8 from ctt1 WHERE f8 IS NOT NULL) from cts1;
+ f1 = some (select f8 from ctt1 where f8 is not null) |
+=======================================================
+ false                                                |
+ false                                                |
+ false                                                |
+
+taos> select f1 = SOME (select f9 from ctt1 ) from cts1;
+ f1 = some (select f9 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 = SOME (select f9 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = some (select f9 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 = SOME (select f9 from ctt1 WHERE f9 IS NULL) from cts1;
+ f1 = some (select f9 from ctt1 where f9 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 = SOME (select f9 from ctt1 WHERE f9 IS NOT NULL) from cts1;
+ f1 = some (select f9 from ctt1 where f9 is not null) |
+=======================================================
+ false                                                |
+ false                                                |
+ false                                                |
+
+taos> select f1 = SOME (select f10 from ctt1 ) from cts1;
+ f1 = some (select f10 from ctt1 ) |
+====================================
+ true                              |
+ NULL                              |
+ NULL                              |
+
+taos> select f1 = SOME (select f10 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = some (select f10 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 = SOME (select f10 from ctt1 WHERE f10 IS NULL) from cts1;
+ f1 = some (select f10 from ctt1 where f10 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 = SOME (select f10 from ctt1 WHERE f10 IS NOT NULL) from cts1;
+ f1 = some (select f10 from ctt1 where f10 is not null) |
+=========================================================
+ true                                                   |
+ false                                                  |
+ false                                                  |
+
+taos> select f1 = SOME (select f11 from ctt1 ) from cts1;
+ f1 = some (select f11 from ctt1 ) |
+====================================
+ NULL                              |
+ NULL                              |
+ NULL                              |
+
+taos> select f1 = SOME (select f11 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = some (select f11 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 = SOME (select f11 from ctt1 WHERE f11 IS NULL) from cts1;
+ f1 = some (select f11 from ctt1 where f11 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 = SOME (select f11 from ctt1 WHERE f11 IS NOT NULL) from cts1;
+ f1 = some (select f11 from ctt1 where f11 is not null) |
+=========================================================
+ false                                                  |
+ false                                                  |
+ false                                                  |
+
+taos> select f1 = SOME (select f12 from ctt1 ) from cts1;
+ f1 = some (select f12 from ctt1 ) |
+====================================
+ NULL                              |
+ NULL                              |
+ NULL                              |
+
+taos> select f1 = SOME (select f12 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = some (select f12 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 = SOME (select f12 from ctt1 WHERE f12 IS NULL) from cts1;
+ f1 = some (select f12 from ctt1 where f12 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 = SOME (select f12 from ctt1 WHERE f12 IS NOT NULL) from cts1;
+ f1 = some (select f12 from ctt1 where f12 is not null) |
+=========================================================
+ false                                                  |
+ false                                                  |
+ false                                                  |
+
+taos> select f1 = SOME (select f13 from ctt1 ) from cts1;
+ f1 = some (select f13 from ctt1 ) |
+====================================
+ NULL                              |
+ NULL                              |
+ NULL                              |
+
+taos> select f1 = SOME (select f13 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = some (select f13 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 = SOME (select f13 from ctt1 WHERE f13 IS NULL) from cts1;
+ f1 = some (select f13 from ctt1 where f13 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 = SOME (select f13 from ctt1 WHERE f13 IS NOT NULL) from cts1;
+ f1 = some (select f13 from ctt1 where f13 is not null) |
+=========================================================
+ false                                                  |
+ false                                                  |
+ false                                                  |
+
+taos> select f1 = SOME (select f14 from ctt1 ) from cts1;
+ f1 = some (select f14 from ctt1 ) |
+====================================
+ NULL                              |
+ NULL                              |
+ NULL                              |
+
+taos> select f1 = SOME (select f14 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = some (select f14 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 = SOME (select f14 from ctt1 WHERE f14 IS NULL) from cts1;
+ f1 = some (select f14 from ctt1 where f14 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 = SOME (select f14 from ctt1 WHERE f14 IS NOT NULL) from cts1;
+ f1 = some (select f14 from ctt1 where f14 is not null) |
+=========================================================
+ false                                                  |
+ false                                                  |
+ false                                                  |
+
+taos> select f1 = SOME (select f15 from ctt1 ) from cts1;
+ f1 = some (select f15 from ctt1 ) |
+====================================
+ NULL                              |
+ NULL                              |
+ NULL                              |
+
+taos> select f1 = SOME (select f15 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = some (select f15 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 = SOME (select f15 from ctt1 WHERE f15 IS NULL) from cts1;
+ f1 = some (select f15 from ctt1 where f15 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 = SOME (select f15 from ctt1 WHERE f15 IS NOT NULL) from cts1;
+ f1 = some (select f15 from ctt1 where f15 is not null) |
+=========================================================
+ false                                                  |
+ false                                                  |
+ false                                                  |
+
+taos> select f1 = SOME (select f16 from ctt1 ) from cts1;
+ f1 = some (select f16 from ctt1 ) |
+====================================
+ NULL                              |
+ NULL                              |
+ NULL                              |
+
+taos> select f1 = SOME (select f16 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = some (select f16 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 = SOME (select f16 from ctt1 WHERE f16 IS NULL) from cts1;
+ f1 = some (select f16 from ctt1 where f16 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 = SOME (select f16 from ctt1 WHERE f16 IS NOT NULL) from cts1;
+ f1 = some (select f16 from ctt1 where f16 is not null) |
+=========================================================
+ false                                                  |
+ false                                                  |
+ false                                                  |
+
+taos> select f1 = SOME (select f17 from ctt1 ) from cts1;
+ f1 = some (select f17 from ctt1 ) |
+====================================
+ NULL                              |
+ NULL                              |
+ NULL                              |
+
+taos> select f1 = SOME (select f17 from ctt1 WHERE 1 = 0) from cts1;
+ f1 = some (select f17 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 = SOME (select f17 from ctt1 WHERE f17 IS NULL) from cts1;
+ f1 = some (select f17 from ctt1 where f17 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 = SOME (select f17 from ctt1 WHERE f17 IS NOT NULL) from cts1;
+ f1 = some (select f17 from ctt1 where f17 is not null) |
+=========================================================
+ false                                                  |
+ false                                                  |
+ false                                                  |
+
+taos> select f1 = SOME (select f18 from ctt1 ) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 = SOME (select f18 from ctt1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 = SOME (select f18 from ctt1 WHERE f18 IS NULL) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 = SOME (select f18 from ctt1 WHERE f18 IS NOT NULL) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 = SOME (select f19 from ctt1 ) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = SOME (select f19 from ctt1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = SOME (select f19 from ctt1 WHERE f19 IS NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = SOME (select f19 from ctt1 WHERE f19 IS NOT NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = SOME (select tg1->'k1' from st1 ) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = SOME (select tg1->'k1' from st1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = SOME (select tg1->'k1' from st1 WHERE tg1->'k1' IS NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 = SOME (select tg1->'k1' from st1 WHERE tg1->'k1' IS NOT NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != ALL (select f1 from ctt1 ) from cts1;
+ f1 != all (select f1 from ctt1 ) |
+===================================
+ false                            |
+ true                             |
+ false                            |
+
+taos> select f1 != ALL (select f1 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != all (select f1 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 != ALL (select f1 from ctt1 WHERE f1 IS NULL) from cts1;
+ f1 != all (select f1 from ctt1 where f1 is null) |
+===================================================
+ true                                             |
+ true                                             |
+ true                                             |
+
+taos> select f1 != ALL (select f1 from ctt1 WHERE f1 IS NOT NULL) from cts1;
+ f1 != all (select f1 from ctt1 where f1 is not null) |
+=======================================================
+ false                                                |
+ true                                                 |
+ false                                                |
+
+taos> select f1 != ALL (select f2 from ctt1 ) from cts1;
+ f1 != all (select f2 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 != ALL (select f2 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != all (select f2 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 != ALL (select f2 from ctt1 WHERE f2 IS NULL) from cts1;
+ f1 != all (select f2 from ctt1 where f2 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 != ALL (select f2 from ctt1 WHERE f2 IS NOT NULL) from cts1;
+ f1 != all (select f2 from ctt1 where f2 is not null) |
+=======================================================
+ true                                                 |
+ true                                                 |
+ true                                                 |
+
+taos> select f1 != ALL (select f3 from ctt1 ) from cts1;
+ f1 != all (select f3 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 != ALL (select f3 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != all (select f3 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 != ALL (select f3 from ctt1 WHERE f3 IS NULL) from cts1;
+ f1 != all (select f3 from ctt1 where f3 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 != ALL (select f3 from ctt1 WHERE f3 IS NOT NULL) from cts1;
+ f1 != all (select f3 from ctt1 where f3 is not null) |
+=======================================================
+ true                                                 |
+ true                                                 |
+ true                                                 |
+
+taos> select f1 != ALL (select f4 from ctt1 ) from cts1;
+ f1 != all (select f4 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 != ALL (select f4 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != all (select f4 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 != ALL (select f4 from ctt1 WHERE f4 IS NULL) from cts1;
+ f1 != all (select f4 from ctt1 where f4 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 != ALL (select f4 from ctt1 WHERE f4 IS NOT NULL) from cts1;
+ f1 != all (select f4 from ctt1 where f4 is not null) |
+=======================================================
+ true                                                 |
+ true                                                 |
+ true                                                 |
+
+taos> select f1 != ALL (select f5 from ctt1 ) from cts1;
+ f1 != all (select f5 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 != ALL (select f5 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != all (select f5 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 != ALL (select f5 from ctt1 WHERE f5 IS NULL) from cts1;
+ f1 != all (select f5 from ctt1 where f5 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 != ALL (select f5 from ctt1 WHERE f5 IS NOT NULL) from cts1;
+ f1 != all (select f5 from ctt1 where f5 is not null) |
+=======================================================
+ true                                                 |
+ true                                                 |
+ true                                                 |
+
+taos> select f1 != ALL (select f6 from ctt1 ) from cts1;
+ f1 != all (select f6 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 != ALL (select f6 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != all (select f6 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 != ALL (select f6 from ctt1 WHERE f6 IS NULL) from cts1;
+ f1 != all (select f6 from ctt1 where f6 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 != ALL (select f6 from ctt1 WHERE f6 IS NOT NULL) from cts1;
+ f1 != all (select f6 from ctt1 where f6 is not null) |
+=======================================================
+ true                                                 |
+ true                                                 |
+ true                                                 |
+
+taos> select f1 != ALL (select f7 from ctt1 ) from cts1;
+ f1 != all (select f7 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 != ALL (select f7 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != all (select f7 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 != ALL (select f7 from ctt1 WHERE f7 IS NULL) from cts1;
+ f1 != all (select f7 from ctt1 where f7 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 != ALL (select f7 from ctt1 WHERE f7 IS NOT NULL) from cts1;
+ f1 != all (select f7 from ctt1 where f7 is not null) |
+=======================================================
+ true                                                 |
+ true                                                 |
+ true                                                 |
+
+taos> select f1 != ALL (select f8 from ctt1 ) from cts1;
+ f1 != all (select f8 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 != ALL (select f8 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != all (select f8 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 != ALL (select f8 from ctt1 WHERE f8 IS NULL) from cts1;
+ f1 != all (select f8 from ctt1 where f8 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 != ALL (select f8 from ctt1 WHERE f8 IS NOT NULL) from cts1;
+ f1 != all (select f8 from ctt1 where f8 is not null) |
+=======================================================
+ true                                                 |
+ true                                                 |
+ true                                                 |
+
+taos> select f1 != ALL (select f9 from ctt1 ) from cts1;
+ f1 != all (select f9 from ctt1 ) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select f1 != ALL (select f9 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != all (select f9 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 != ALL (select f9 from ctt1 WHERE f9 IS NULL) from cts1;
+ f1 != all (select f9 from ctt1 where f9 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 != ALL (select f9 from ctt1 WHERE f9 IS NOT NULL) from cts1;
+ f1 != all (select f9 from ctt1 where f9 is not null) |
+=======================================================
+ true                                                 |
+ true                                                 |
+ true                                                 |
+
+taos> select f1 != ALL (select f10 from ctt1 ) from cts1;
+ f1 != all (select f10 from ctt1 ) |
+====================================
+ false                             |
+ NULL                              |
+ NULL                              |
+
+taos> select f1 != ALL (select f10 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != all (select f10 from ctt1 where 1 = 0) |
+===============================================
+ true                                         |
+ true                                         |
+ true                                         |
+
+taos> select f1 != ALL (select f10 from ctt1 WHERE f10 IS NULL) from cts1;
+ f1 != all (select f10 from ctt1 where f10 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 != ALL (select f10 from ctt1 WHERE f10 IS NOT NULL) from cts1;
+ f1 != all (select f10 from ctt1 where f10 is not null) |
+=========================================================
+ false                                                  |
+ true                                                   |
+ true                                                   |
+
+taos> select f1 != ALL (select f11 from ctt1 ) from cts1;
+ f1 != all (select f11 from ctt1 ) |
+====================================
+ NULL                              |
+ NULL                              |
+ NULL                              |
+
+taos> select f1 != ALL (select f11 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != all (select f11 from ctt1 where 1 = 0) |
+===============================================
+ true                                         |
+ true                                         |
+ true                                         |
+
+taos> select f1 != ALL (select f11 from ctt1 WHERE f11 IS NULL) from cts1;
+ f1 != all (select f11 from ctt1 where f11 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 != ALL (select f11 from ctt1 WHERE f11 IS NOT NULL) from cts1;
+ f1 != all (select f11 from ctt1 where f11 is not null) |
+=========================================================
+ true                                                   |
+ true                                                   |
+ true                                                   |
+
+taos> select f1 != ALL (select f12 from ctt1 ) from cts1;
+ f1 != all (select f12 from ctt1 ) |
+====================================
+ NULL                              |
+ NULL                              |
+ NULL                              |
+
+taos> select f1 != ALL (select f12 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != all (select f12 from ctt1 where 1 = 0) |
+===============================================
+ true                                         |
+ true                                         |
+ true                                         |
+
+taos> select f1 != ALL (select f12 from ctt1 WHERE f12 IS NULL) from cts1;
+ f1 != all (select f12 from ctt1 where f12 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 != ALL (select f12 from ctt1 WHERE f12 IS NOT NULL) from cts1;
+ f1 != all (select f12 from ctt1 where f12 is not null) |
+=========================================================
+ true                                                   |
+ true                                                   |
+ true                                                   |
+
+taos> select f1 != ALL (select f13 from ctt1 ) from cts1;
+ f1 != all (select f13 from ctt1 ) |
+====================================
+ NULL                              |
+ NULL                              |
+ NULL                              |
+
+taos> select f1 != ALL (select f13 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != all (select f13 from ctt1 where 1 = 0) |
+===============================================
+ true                                         |
+ true                                         |
+ true                                         |
+
+taos> select f1 != ALL (select f13 from ctt1 WHERE f13 IS NULL) from cts1;
+ f1 != all (select f13 from ctt1 where f13 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 != ALL (select f13 from ctt1 WHERE f13 IS NOT NULL) from cts1;
+ f1 != all (select f13 from ctt1 where f13 is not null) |
+=========================================================
+ true                                                   |
+ true                                                   |
+ true                                                   |
+
+taos> select f1 != ALL (select f14 from ctt1 ) from cts1;
+ f1 != all (select f14 from ctt1 ) |
+====================================
+ NULL                              |
+ NULL                              |
+ NULL                              |
+
+taos> select f1 != ALL (select f14 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != all (select f14 from ctt1 where 1 = 0) |
+===============================================
+ true                                         |
+ true                                         |
+ true                                         |
+
+taos> select f1 != ALL (select f14 from ctt1 WHERE f14 IS NULL) from cts1;
+ f1 != all (select f14 from ctt1 where f14 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 != ALL (select f14 from ctt1 WHERE f14 IS NOT NULL) from cts1;
+ f1 != all (select f14 from ctt1 where f14 is not null) |
+=========================================================
+ true                                                   |
+ true                                                   |
+ true                                                   |
+
+taos> select f1 != ALL (select f15 from ctt1 ) from cts1;
+ f1 != all (select f15 from ctt1 ) |
+====================================
+ NULL                              |
+ NULL                              |
+ NULL                              |
+
+taos> select f1 != ALL (select f15 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != all (select f15 from ctt1 where 1 = 0) |
+===============================================
+ true                                         |
+ true                                         |
+ true                                         |
+
+taos> select f1 != ALL (select f15 from ctt1 WHERE f15 IS NULL) from cts1;
+ f1 != all (select f15 from ctt1 where f15 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 != ALL (select f15 from ctt1 WHERE f15 IS NOT NULL) from cts1;
+ f1 != all (select f15 from ctt1 where f15 is not null) |
+=========================================================
+ true                                                   |
+ true                                                   |
+ true                                                   |
+
+taos> select f1 != ALL (select f16 from ctt1 ) from cts1;
+ f1 != all (select f16 from ctt1 ) |
+====================================
+ NULL                              |
+ NULL                              |
+ NULL                              |
+
+taos> select f1 != ALL (select f16 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != all (select f16 from ctt1 where 1 = 0) |
+===============================================
+ true                                         |
+ true                                         |
+ true                                         |
+
+taos> select f1 != ALL (select f16 from ctt1 WHERE f16 IS NULL) from cts1;
+ f1 != all (select f16 from ctt1 where f16 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 != ALL (select f16 from ctt1 WHERE f16 IS NOT NULL) from cts1;
+ f1 != all (select f16 from ctt1 where f16 is not null) |
+=========================================================
+ true                                                   |
+ true                                                   |
+ true                                                   |
+
+taos> select f1 != ALL (select f17 from ctt1 ) from cts1;
+ f1 != all (select f17 from ctt1 ) |
+====================================
+ NULL                              |
+ NULL                              |
+ NULL                              |
+
+taos> select f1 != ALL (select f17 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != all (select f17 from ctt1 where 1 = 0) |
+===============================================
+ true                                         |
+ true                                         |
+ true                                         |
+
+taos> select f1 != ALL (select f17 from ctt1 WHERE f17 IS NULL) from cts1;
+ f1 != all (select f17 from ctt1 where f17 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 != ALL (select f17 from ctt1 WHERE f17 IS NOT NULL) from cts1;
+ f1 != all (select f17 from ctt1 where f17 is not null) |
+=========================================================
+ true                                                   |
+ true                                                   |
+ true                                                   |
+
+taos> select f1 != ALL (select f18 from ctt1 ) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 != ALL (select f18 from ctt1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 != ALL (select f18 from ctt1 WHERE f18 IS NULL) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 != ALL (select f18 from ctt1 WHERE f18 IS NOT NULL) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 != ALL (select f19 from ctt1 ) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != ALL (select f19 from ctt1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != ALL (select f19 from ctt1 WHERE f19 IS NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != ALL (select f19 from ctt1 WHERE f19 IS NOT NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != ALL (select tg1->'k1' from st1 ) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != ALL (select tg1->'k1' from st1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != ALL (select tg1->'k1' from st1 WHERE tg1->'k1' IS NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != ALL (select tg1->'k1' from st1 WHERE tg1->'k1' IS NOT NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != ANY (select f1 from ctt1 ) from cts1;
+ f1 != any (select f1 from ctt1 ) |
+===================================
+ true                             |
+ true                             |
+ true                             |
+
+taos> select f1 != ANY (select f1 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != any (select f1 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 != ANY (select f1 from ctt1 WHERE f1 IS NULL) from cts1;
+ f1 != any (select f1 from ctt1 where f1 is null) |
+===================================================
+ false                                            |
+ false                                            |
+ false                                            |
+
+taos> select f1 != ANY (select f1 from ctt1 WHERE f1 IS NOT NULL) from cts1;
+ f1 != any (select f1 from ctt1 where f1 is not null) |
+=======================================================
+ true                                                 |
+ true                                                 |
+ true                                                 |
+
+taos> select f1 != ANY (select f2 from ctt1 ) from cts1;
+ f1 != any (select f2 from ctt1 ) |
+===================================
+ true                             |
+ true                             |
+ true                             |
+
+taos> select f1 != ANY (select f2 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != any (select f2 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 != ANY (select f2 from ctt1 WHERE f2 IS NULL) from cts1;
+ f1 != any (select f2 from ctt1 where f2 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 != ANY (select f2 from ctt1 WHERE f2 IS NOT NULL) from cts1;
+ f1 != any (select f2 from ctt1 where f2 is not null) |
+=======================================================
+ true                                                 |
+ true                                                 |
+ true                                                 |
+
+taos> select f1 != ANY (select f3 from ctt1 ) from cts1;
+ f1 != any (select f3 from ctt1 ) |
+===================================
+ true                             |
+ true                             |
+ true                             |
+
+taos> select f1 != ANY (select f3 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != any (select f3 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 != ANY (select f3 from ctt1 WHERE f3 IS NULL) from cts1;
+ f1 != any (select f3 from ctt1 where f3 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 != ANY (select f3 from ctt1 WHERE f3 IS NOT NULL) from cts1;
+ f1 != any (select f3 from ctt1 where f3 is not null) |
+=======================================================
+ true                                                 |
+ true                                                 |
+ true                                                 |
+
+taos> select f1 != ANY (select f4 from ctt1 ) from cts1;
+ f1 != any (select f4 from ctt1 ) |
+===================================
+ true                             |
+ true                             |
+ true                             |
+
+taos> select f1 != ANY (select f4 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != any (select f4 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 != ANY (select f4 from ctt1 WHERE f4 IS NULL) from cts1;
+ f1 != any (select f4 from ctt1 where f4 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 != ANY (select f4 from ctt1 WHERE f4 IS NOT NULL) from cts1;
+ f1 != any (select f4 from ctt1 where f4 is not null) |
+=======================================================
+ true                                                 |
+ true                                                 |
+ true                                                 |
+
+taos> select f1 != ANY (select f5 from ctt1 ) from cts1;
+ f1 != any (select f5 from ctt1 ) |
+===================================
+ true                             |
+ true                             |
+ true                             |
+
+taos> select f1 != ANY (select f5 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != any (select f5 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 != ANY (select f5 from ctt1 WHERE f5 IS NULL) from cts1;
+ f1 != any (select f5 from ctt1 where f5 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 != ANY (select f5 from ctt1 WHERE f5 IS NOT NULL) from cts1;
+ f1 != any (select f5 from ctt1 where f5 is not null) |
+=======================================================
+ true                                                 |
+ true                                                 |
+ true                                                 |
+
+taos> select f1 != ANY (select f6 from ctt1 ) from cts1;
+ f1 != any (select f6 from ctt1 ) |
+===================================
+ true                             |
+ true                             |
+ true                             |
+
+taos> select f1 != ANY (select f6 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != any (select f6 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 != ANY (select f6 from ctt1 WHERE f6 IS NULL) from cts1;
+ f1 != any (select f6 from ctt1 where f6 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 != ANY (select f6 from ctt1 WHERE f6 IS NOT NULL) from cts1;
+ f1 != any (select f6 from ctt1 where f6 is not null) |
+=======================================================
+ true                                                 |
+ true                                                 |
+ true                                                 |
+
+taos> select f1 != ANY (select f7 from ctt1 ) from cts1;
+ f1 != any (select f7 from ctt1 ) |
+===================================
+ true                             |
+ true                             |
+ true                             |
+
+taos> select f1 != ANY (select f7 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != any (select f7 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 != ANY (select f7 from ctt1 WHERE f7 IS NULL) from cts1;
+ f1 != any (select f7 from ctt1 where f7 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 != ANY (select f7 from ctt1 WHERE f7 IS NOT NULL) from cts1;
+ f1 != any (select f7 from ctt1 where f7 is not null) |
+=======================================================
+ true                                                 |
+ true                                                 |
+ true                                                 |
+
+taos> select f1 != ANY (select f8 from ctt1 ) from cts1;
+ f1 != any (select f8 from ctt1 ) |
+===================================
+ true                             |
+ true                             |
+ true                             |
+
+taos> select f1 != ANY (select f8 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != any (select f8 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 != ANY (select f8 from ctt1 WHERE f8 IS NULL) from cts1;
+ f1 != any (select f8 from ctt1 where f8 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 != ANY (select f8 from ctt1 WHERE f8 IS NOT NULL) from cts1;
+ f1 != any (select f8 from ctt1 where f8 is not null) |
+=======================================================
+ true                                                 |
+ true                                                 |
+ true                                                 |
+
+taos> select f1 != ANY (select f9 from ctt1 ) from cts1;
+ f1 != any (select f9 from ctt1 ) |
+===================================
+ true                             |
+ true                             |
+ true                             |
+
+taos> select f1 != ANY (select f9 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != any (select f9 from ctt1 where 1 = 0) |
+==============================================
+ false                                       |
+ false                                       |
+ false                                       |
+
+taos> select f1 != ANY (select f9 from ctt1 WHERE f9 IS NULL) from cts1;
+ f1 != any (select f9 from ctt1 where f9 is null) |
+===================================================
+ NULL                                             |
+ NULL                                             |
+ NULL                                             |
+
+taos> select f1 != ANY (select f9 from ctt1 WHERE f9 IS NOT NULL) from cts1;
+ f1 != any (select f9 from ctt1 where f9 is not null) |
+=======================================================
+ true                                                 |
+ true                                                 |
+ true                                                 |
+
+taos> select f1 != ANY (select f10 from ctt1 ) from cts1;
+ f1 != any (select f10 from ctt1 ) |
+====================================
+ true                              |
+ true                              |
+ true                              |
+
+taos> select f1 != ANY (select f10 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != any (select f10 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 != ANY (select f10 from ctt1 WHERE f10 IS NULL) from cts1;
+ f1 != any (select f10 from ctt1 where f10 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 != ANY (select f10 from ctt1 WHERE f10 IS NOT NULL) from cts1;
+ f1 != any (select f10 from ctt1 where f10 is not null) |
+=========================================================
+ true                                                   |
+ true                                                   |
+ true                                                   |
+
+taos> select f1 != ANY (select f11 from ctt1 ) from cts1;
+ f1 != any (select f11 from ctt1 ) |
+====================================
+ true                              |
+ true                              |
+ true                              |
+
+taos> select f1 != ANY (select f11 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != any (select f11 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 != ANY (select f11 from ctt1 WHERE f11 IS NULL) from cts1;
+ f1 != any (select f11 from ctt1 where f11 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 != ANY (select f11 from ctt1 WHERE f11 IS NOT NULL) from cts1;
+ f1 != any (select f11 from ctt1 where f11 is not null) |
+=========================================================
+ true                                                   |
+ true                                                   |
+ true                                                   |
+
+taos> select f1 != ANY (select f12 from ctt1 ) from cts1;
+ f1 != any (select f12 from ctt1 ) |
+====================================
+ true                              |
+ true                              |
+ true                              |
+
+taos> select f1 != ANY (select f12 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != any (select f12 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 != ANY (select f12 from ctt1 WHERE f12 IS NULL) from cts1;
+ f1 != any (select f12 from ctt1 where f12 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 != ANY (select f12 from ctt1 WHERE f12 IS NOT NULL) from cts1;
+ f1 != any (select f12 from ctt1 where f12 is not null) |
+=========================================================
+ true                                                   |
+ true                                                   |
+ true                                                   |
+
+taos> select f1 != ANY (select f13 from ctt1 ) from cts1;
+ f1 != any (select f13 from ctt1 ) |
+====================================
+ true                              |
+ true                              |
+ true                              |
+
+taos> select f1 != ANY (select f13 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != any (select f13 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 != ANY (select f13 from ctt1 WHERE f13 IS NULL) from cts1;
+ f1 != any (select f13 from ctt1 where f13 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 != ANY (select f13 from ctt1 WHERE f13 IS NOT NULL) from cts1;
+ f1 != any (select f13 from ctt1 where f13 is not null) |
+=========================================================
+ true                                                   |
+ true                                                   |
+ true                                                   |
+
+taos> select f1 != ANY (select f14 from ctt1 ) from cts1;
+ f1 != any (select f14 from ctt1 ) |
+====================================
+ true                              |
+ true                              |
+ true                              |
+
+taos> select f1 != ANY (select f14 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != any (select f14 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 != ANY (select f14 from ctt1 WHERE f14 IS NULL) from cts1;
+ f1 != any (select f14 from ctt1 where f14 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 != ANY (select f14 from ctt1 WHERE f14 IS NOT NULL) from cts1;
+ f1 != any (select f14 from ctt1 where f14 is not null) |
+=========================================================
+ true                                                   |
+ true                                                   |
+ true                                                   |
+
+taos> select f1 != ANY (select f15 from ctt1 ) from cts1;
+ f1 != any (select f15 from ctt1 ) |
+====================================
+ true                              |
+ true                              |
+ true                              |
+
+taos> select f1 != ANY (select f15 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != any (select f15 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 != ANY (select f15 from ctt1 WHERE f15 IS NULL) from cts1;
+ f1 != any (select f15 from ctt1 where f15 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 != ANY (select f15 from ctt1 WHERE f15 IS NOT NULL) from cts1;
+ f1 != any (select f15 from ctt1 where f15 is not null) |
+=========================================================
+ true                                                   |
+ true                                                   |
+ true                                                   |
+
+taos> select f1 != ANY (select f16 from ctt1 ) from cts1;
+ f1 != any (select f16 from ctt1 ) |
+====================================
+ true                              |
+ true                              |
+ true                              |
+
+taos> select f1 != ANY (select f16 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != any (select f16 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 != ANY (select f16 from ctt1 WHERE f16 IS NULL) from cts1;
+ f1 != any (select f16 from ctt1 where f16 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 != ANY (select f16 from ctt1 WHERE f16 IS NOT NULL) from cts1;
+ f1 != any (select f16 from ctt1 where f16 is not null) |
+=========================================================
+ true                                                   |
+ true                                                   |
+ true                                                   |
+
+taos> select f1 != ANY (select f17 from ctt1 ) from cts1;
+ f1 != any (select f17 from ctt1 ) |
+====================================
+ true                              |
+ true                              |
+ true                              |
+
+taos> select f1 != ANY (select f17 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != any (select f17 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 != ANY (select f17 from ctt1 WHERE f17 IS NULL) from cts1;
+ f1 != any (select f17 from ctt1 where f17 is null) |
+=====================================================
+ NULL                                               |
+ NULL                                               |
+ NULL                                               |
+
+taos> select f1 != ANY (select f17 from ctt1 WHERE f17 IS NOT NULL) from cts1;
+ f1 != any (select f17 from ctt1 where f17 is not null) |
+=========================================================
+ true                                                   |
+ true                                                   |
+ true                                                   |
+
+taos> select f1 != ANY (select f18 from ctt1 ) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 != ANY (select f18 from ctt1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 != ANY (select f18 from ctt1 WHERE f18 IS NULL) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 != ANY (select f18 from ctt1 WHERE f18 IS NOT NULL) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 != ANY (select f19 from ctt1 ) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != ANY (select f19 from ctt1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != ANY (select f19 from ctt1 WHERE f19 IS NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != ANY (select f19 from ctt1 WHERE f19 IS NOT NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != ANY (select tg1->'k1' from st1 ) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != ANY (select tg1->'k1' from st1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != ANY (select tg1->'k1' from st1 WHERE tg1->'k1' IS NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != ANY (select tg1->'k1' from st1 WHERE tg1->'k1' IS NOT NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != SOME (select f1 from ctt1 ) from cts1;
+ f1 != some (select f1 from ctt1 ) |
+====================================
+ true                              |
+ true                              |
+ true                              |
+
+taos> select f1 != SOME (select f1 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != some (select f1 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 != SOME (select f1 from ctt1 WHERE f1 IS NULL) from cts1;
+ f1 != some (select f1 from ctt1 where f1 is null) |
+====================================================
+ false                                             |
+ false                                             |
+ false                                             |
+
+taos> select f1 != SOME (select f1 from ctt1 WHERE f1 IS NOT NULL) from cts1;
+ f1 != some (select f1 from ctt1 where f1 is not null) |
+========================================================
+ true                                                  |
+ true                                                  |
+ true                                                  |
+
+taos> select f1 != SOME (select f2 from ctt1 ) from cts1;
+ f1 != some (select f2 from ctt1 ) |
+====================================
+ true                              |
+ true                              |
+ true                              |
+
+taos> select f1 != SOME (select f2 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != some (select f2 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 != SOME (select f2 from ctt1 WHERE f2 IS NULL) from cts1;
+ f1 != some (select f2 from ctt1 where f2 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 != SOME (select f2 from ctt1 WHERE f2 IS NOT NULL) from cts1;
+ f1 != some (select f2 from ctt1 where f2 is not null) |
+========================================================
+ true                                                  |
+ true                                                  |
+ true                                                  |
+
+taos> select f1 != SOME (select f3 from ctt1 ) from cts1;
+ f1 != some (select f3 from ctt1 ) |
+====================================
+ true                              |
+ true                              |
+ true                              |
+
+taos> select f1 != SOME (select f3 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != some (select f3 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 != SOME (select f3 from ctt1 WHERE f3 IS NULL) from cts1;
+ f1 != some (select f3 from ctt1 where f3 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 != SOME (select f3 from ctt1 WHERE f3 IS NOT NULL) from cts1;
+ f1 != some (select f3 from ctt1 where f3 is not null) |
+========================================================
+ true                                                  |
+ true                                                  |
+ true                                                  |
+
+taos> select f1 != SOME (select f4 from ctt1 ) from cts1;
+ f1 != some (select f4 from ctt1 ) |
+====================================
+ true                              |
+ true                              |
+ true                              |
+
+taos> select f1 != SOME (select f4 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != some (select f4 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 != SOME (select f4 from ctt1 WHERE f4 IS NULL) from cts1;
+ f1 != some (select f4 from ctt1 where f4 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 != SOME (select f4 from ctt1 WHERE f4 IS NOT NULL) from cts1;
+ f1 != some (select f4 from ctt1 where f4 is not null) |
+========================================================
+ true                                                  |
+ true                                                  |
+ true                                                  |
+
+taos> select f1 != SOME (select f5 from ctt1 ) from cts1;
+ f1 != some (select f5 from ctt1 ) |
+====================================
+ true                              |
+ true                              |
+ true                              |
+
+taos> select f1 != SOME (select f5 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != some (select f5 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 != SOME (select f5 from ctt1 WHERE f5 IS NULL) from cts1;
+ f1 != some (select f5 from ctt1 where f5 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 != SOME (select f5 from ctt1 WHERE f5 IS NOT NULL) from cts1;
+ f1 != some (select f5 from ctt1 where f5 is not null) |
+========================================================
+ true                                                  |
+ true                                                  |
+ true                                                  |
+
+taos> select f1 != SOME (select f6 from ctt1 ) from cts1;
+ f1 != some (select f6 from ctt1 ) |
+====================================
+ true                              |
+ true                              |
+ true                              |
+
+taos> select f1 != SOME (select f6 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != some (select f6 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 != SOME (select f6 from ctt1 WHERE f6 IS NULL) from cts1;
+ f1 != some (select f6 from ctt1 where f6 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 != SOME (select f6 from ctt1 WHERE f6 IS NOT NULL) from cts1;
+ f1 != some (select f6 from ctt1 where f6 is not null) |
+========================================================
+ true                                                  |
+ true                                                  |
+ true                                                  |
+
+taos> select f1 != SOME (select f7 from ctt1 ) from cts1;
+ f1 != some (select f7 from ctt1 ) |
+====================================
+ true                              |
+ true                              |
+ true                              |
+
+taos> select f1 != SOME (select f7 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != some (select f7 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 != SOME (select f7 from ctt1 WHERE f7 IS NULL) from cts1;
+ f1 != some (select f7 from ctt1 where f7 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 != SOME (select f7 from ctt1 WHERE f7 IS NOT NULL) from cts1;
+ f1 != some (select f7 from ctt1 where f7 is not null) |
+========================================================
+ true                                                  |
+ true                                                  |
+ true                                                  |
+
+taos> select f1 != SOME (select f8 from ctt1 ) from cts1;
+ f1 != some (select f8 from ctt1 ) |
+====================================
+ true                              |
+ true                              |
+ true                              |
+
+taos> select f1 != SOME (select f8 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != some (select f8 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 != SOME (select f8 from ctt1 WHERE f8 IS NULL) from cts1;
+ f1 != some (select f8 from ctt1 where f8 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 != SOME (select f8 from ctt1 WHERE f8 IS NOT NULL) from cts1;
+ f1 != some (select f8 from ctt1 where f8 is not null) |
+========================================================
+ true                                                  |
+ true                                                  |
+ true                                                  |
+
+taos> select f1 != SOME (select f9 from ctt1 ) from cts1;
+ f1 != some (select f9 from ctt1 ) |
+====================================
+ true                              |
+ true                              |
+ true                              |
+
+taos> select f1 != SOME (select f9 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != some (select f9 from ctt1 where 1 = 0) |
+===============================================
+ false                                        |
+ false                                        |
+ false                                        |
+
+taos> select f1 != SOME (select f9 from ctt1 WHERE f9 IS NULL) from cts1;
+ f1 != some (select f9 from ctt1 where f9 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 != SOME (select f9 from ctt1 WHERE f9 IS NOT NULL) from cts1;
+ f1 != some (select f9 from ctt1 where f9 is not null) |
+========================================================
+ true                                                  |
+ true                                                  |
+ true                                                  |
+
+taos> select f1 != SOME (select f10 from ctt1 ) from cts1;
+ f1 != some (select f10 from ctt1 ) |
+=====================================
+ true                               |
+ true                               |
+ true                               |
+
+taos> select f1 != SOME (select f10 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != some (select f10 from ctt1 where 1 = 0) |
+================================================
+ false                                         |
+ false                                         |
+ false                                         |
+
+taos> select f1 != SOME (select f10 from ctt1 WHERE f10 IS NULL) from cts1;
+ f1 != some (select f10 from ctt1 where f10 is null) |
+======================================================
+ NULL                                                |
+ NULL                                                |
+ NULL                                                |
+
+taos> select f1 != SOME (select f10 from ctt1 WHERE f10 IS NOT NULL) from cts1;
+ f1 != some (select f10 from ctt1 where f10 is not null) |
+==========================================================
+ true                                                    |
+ true                                                    |
+ true                                                    |
+
+taos> select f1 != SOME (select f11 from ctt1 ) from cts1;
+ f1 != some (select f11 from ctt1 ) |
+=====================================
+ true                               |
+ true                               |
+ true                               |
+
+taos> select f1 != SOME (select f11 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != some (select f11 from ctt1 where 1 = 0) |
+================================================
+ false                                         |
+ false                                         |
+ false                                         |
+
+taos> select f1 != SOME (select f11 from ctt1 WHERE f11 IS NULL) from cts1;
+ f1 != some (select f11 from ctt1 where f11 is null) |
+======================================================
+ NULL                                                |
+ NULL                                                |
+ NULL                                                |
+
+taos> select f1 != SOME (select f11 from ctt1 WHERE f11 IS NOT NULL) from cts1;
+ f1 != some (select f11 from ctt1 where f11 is not null) |
+==========================================================
+ true                                                    |
+ true                                                    |
+ true                                                    |
+
+taos> select f1 != SOME (select f12 from ctt1 ) from cts1;
+ f1 != some (select f12 from ctt1 ) |
+=====================================
+ true                               |
+ true                               |
+ true                               |
+
+taos> select f1 != SOME (select f12 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != some (select f12 from ctt1 where 1 = 0) |
+================================================
+ false                                         |
+ false                                         |
+ false                                         |
+
+taos> select f1 != SOME (select f12 from ctt1 WHERE f12 IS NULL) from cts1;
+ f1 != some (select f12 from ctt1 where f12 is null) |
+======================================================
+ NULL                                                |
+ NULL                                                |
+ NULL                                                |
+
+taos> select f1 != SOME (select f12 from ctt1 WHERE f12 IS NOT NULL) from cts1;
+ f1 != some (select f12 from ctt1 where f12 is not null) |
+==========================================================
+ true                                                    |
+ true                                                    |
+ true                                                    |
+
+taos> select f1 != SOME (select f13 from ctt1 ) from cts1;
+ f1 != some (select f13 from ctt1 ) |
+=====================================
+ true                               |
+ true                               |
+ true                               |
+
+taos> select f1 != SOME (select f13 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != some (select f13 from ctt1 where 1 = 0) |
+================================================
+ false                                         |
+ false                                         |
+ false                                         |
+
+taos> select f1 != SOME (select f13 from ctt1 WHERE f13 IS NULL) from cts1;
+ f1 != some (select f13 from ctt1 where f13 is null) |
+======================================================
+ NULL                                                |
+ NULL                                                |
+ NULL                                                |
+
+taos> select f1 != SOME (select f13 from ctt1 WHERE f13 IS NOT NULL) from cts1;
+ f1 != some (select f13 from ctt1 where f13 is not null) |
+==========================================================
+ true                                                    |
+ true                                                    |
+ true                                                    |
+
+taos> select f1 != SOME (select f14 from ctt1 ) from cts1;
+ f1 != some (select f14 from ctt1 ) |
+=====================================
+ true                               |
+ true                               |
+ true                               |
+
+taos> select f1 != SOME (select f14 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != some (select f14 from ctt1 where 1 = 0) |
+================================================
+ false                                         |
+ false                                         |
+ false                                         |
+
+taos> select f1 != SOME (select f14 from ctt1 WHERE f14 IS NULL) from cts1;
+ f1 != some (select f14 from ctt1 where f14 is null) |
+======================================================
+ NULL                                                |
+ NULL                                                |
+ NULL                                                |
+
+taos> select f1 != SOME (select f14 from ctt1 WHERE f14 IS NOT NULL) from cts1;
+ f1 != some (select f14 from ctt1 where f14 is not null) |
+==========================================================
+ true                                                    |
+ true                                                    |
+ true                                                    |
+
+taos> select f1 != SOME (select f15 from ctt1 ) from cts1;
+ f1 != some (select f15 from ctt1 ) |
+=====================================
+ true                               |
+ true                               |
+ true                               |
+
+taos> select f1 != SOME (select f15 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != some (select f15 from ctt1 where 1 = 0) |
+================================================
+ false                                         |
+ false                                         |
+ false                                         |
+
+taos> select f1 != SOME (select f15 from ctt1 WHERE f15 IS NULL) from cts1;
+ f1 != some (select f15 from ctt1 where f15 is null) |
+======================================================
+ NULL                                                |
+ NULL                                                |
+ NULL                                                |
+
+taos> select f1 != SOME (select f15 from ctt1 WHERE f15 IS NOT NULL) from cts1;
+ f1 != some (select f15 from ctt1 where f15 is not null) |
+==========================================================
+ true                                                    |
+ true                                                    |
+ true                                                    |
+
+taos> select f1 != SOME (select f16 from ctt1 ) from cts1;
+ f1 != some (select f16 from ctt1 ) |
+=====================================
+ true                               |
+ true                               |
+ true                               |
+
+taos> select f1 != SOME (select f16 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != some (select f16 from ctt1 where 1 = 0) |
+================================================
+ false                                         |
+ false                                         |
+ false                                         |
+
+taos> select f1 != SOME (select f16 from ctt1 WHERE f16 IS NULL) from cts1;
+ f1 != some (select f16 from ctt1 where f16 is null) |
+======================================================
+ NULL                                                |
+ NULL                                                |
+ NULL                                                |
+
+taos> select f1 != SOME (select f16 from ctt1 WHERE f16 IS NOT NULL) from cts1;
+ f1 != some (select f16 from ctt1 where f16 is not null) |
+==========================================================
+ true                                                    |
+ true                                                    |
+ true                                                    |
+
+taos> select f1 != SOME (select f17 from ctt1 ) from cts1;
+ f1 != some (select f17 from ctt1 ) |
+=====================================
+ true                               |
+ true                               |
+ true                               |
+
+taos> select f1 != SOME (select f17 from ctt1 WHERE 1 = 0) from cts1;
+ f1 != some (select f17 from ctt1 where 1 = 0) |
+================================================
+ false                                         |
+ false                                         |
+ false                                         |
+
+taos> select f1 != SOME (select f17 from ctt1 WHERE f17 IS NULL) from cts1;
+ f1 != some (select f17 from ctt1 where f17 is null) |
+======================================================
+ NULL                                                |
+ NULL                                                |
+ NULL                                                |
+
+taos> select f1 != SOME (select f17 from ctt1 WHERE f17 IS NOT NULL) from cts1;
+ f1 != some (select f17 from ctt1 where f17 is not null) |
+==========================================================
+ true                                                    |
+ true                                                    |
+ true                                                    |
+
+taos> select f1 != SOME (select f18 from ctt1 ) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 != SOME (select f18 from ctt1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 != SOME (select f18 from ctt1 WHERE f18 IS NULL) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 != SOME (select f18 from ctt1 WHERE f18 IS NOT NULL) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 != SOME (select f19 from ctt1 ) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != SOME (select f19 from ctt1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != SOME (select f19 from ctt1 WHERE f19 IS NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != SOME (select f19 from ctt1 WHERE f19 IS NOT NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != SOME (select tg1->'k1' from st1 ) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != SOME (select tg1->'k1' from st1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != SOME (select tg1->'k1' from st1 WHERE tg1->'k1' IS NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 != SOME (select tg1->'k1' from st1 WHERE tg1->'k1' IS NOT NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 < ALL (select f1 from ctt1 ) from cts1;
+ f1 < all (select f1 from ctt1 ) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select f1 < ALL (select f1 from ctt1 WHERE 1 = 0) from cts1;
+ f1 < all (select f1 from ctt1 where 1 = 0) |
+=============================================
+ true                                       |
+ true                                       |
+ true                                       |
+
+taos> select f1 < ALL (select f1 from ctt1 WHERE f1 IS NULL) from cts1;
+ f1 < all (select f1 from ctt1 where f1 is null) |
+==================================================
+ true                                            |
+ true                                            |
+ true                                            |
+
+taos> select f1 < ALL (select f1 from ctt1 WHERE f1 IS NOT NULL) from cts1;
+ f1 < all (select f1 from ctt1 where f1 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 < ALL (select f2 from ctt1 ) from cts1;
+ f1 < all (select f2 from ctt1 ) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select f1 < ALL (select f2 from ctt1 WHERE 1 = 0) from cts1;
+ f1 < all (select f2 from ctt1 where 1 = 0) |
+=============================================
+ true                                       |
+ true                                       |
+ true                                       |
+
+taos> select f1 < ALL (select f2 from ctt1 WHERE f2 IS NULL) from cts1;
+ f1 < all (select f2 from ctt1 where f2 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 < ALL (select f2 from ctt1 WHERE f2 IS NOT NULL) from cts1;
+ f1 < all (select f2 from ctt1 where f2 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 < ALL (select f3 from ctt1 ) from cts1;
+ f1 < all (select f3 from ctt1 ) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select f1 < ALL (select f3 from ctt1 WHERE 1 = 0) from cts1;
+ f1 < all (select f3 from ctt1 where 1 = 0) |
+=============================================
+ true                                       |
+ true                                       |
+ true                                       |
+
+taos> select f1 < ALL (select f3 from ctt1 WHERE f3 IS NULL) from cts1;
+ f1 < all (select f3 from ctt1 where f3 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 < ALL (select f3 from ctt1 WHERE f3 IS NOT NULL) from cts1;
+ f1 < all (select f3 from ctt1 where f3 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 < ALL (select f4 from ctt1 ) from cts1;
+ f1 < all (select f4 from ctt1 ) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select f1 < ALL (select f4 from ctt1 WHERE 1 = 0) from cts1;
+ f1 < all (select f4 from ctt1 where 1 = 0) |
+=============================================
+ true                                       |
+ true                                       |
+ true                                       |
+
+taos> select f1 < ALL (select f4 from ctt1 WHERE f4 IS NULL) from cts1;
+ f1 < all (select f4 from ctt1 where f4 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 < ALL (select f4 from ctt1 WHERE f4 IS NOT NULL) from cts1;
+ f1 < all (select f4 from ctt1 where f4 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 < ALL (select f5 from ctt1 ) from cts1;
+ f1 < all (select f5 from ctt1 ) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select f1 < ALL (select f5 from ctt1 WHERE 1 = 0) from cts1;
+ f1 < all (select f5 from ctt1 where 1 = 0) |
+=============================================
+ true                                       |
+ true                                       |
+ true                                       |
+
+taos> select f1 < ALL (select f5 from ctt1 WHERE f5 IS NULL) from cts1;
+ f1 < all (select f5 from ctt1 where f5 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 < ALL (select f5 from ctt1 WHERE f5 IS NOT NULL) from cts1;
+ f1 < all (select f5 from ctt1 where f5 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 < ALL (select f6 from ctt1 ) from cts1;
+ f1 < all (select f6 from ctt1 ) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select f1 < ALL (select f6 from ctt1 WHERE 1 = 0) from cts1;
+ f1 < all (select f6 from ctt1 where 1 = 0) |
+=============================================
+ true                                       |
+ true                                       |
+ true                                       |
+
+taos> select f1 < ALL (select f6 from ctt1 WHERE f6 IS NULL) from cts1;
+ f1 < all (select f6 from ctt1 where f6 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 < ALL (select f6 from ctt1 WHERE f6 IS NOT NULL) from cts1;
+ f1 < all (select f6 from ctt1 where f6 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 < ALL (select f7 from ctt1 ) from cts1;
+ f1 < all (select f7 from ctt1 ) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select f1 < ALL (select f7 from ctt1 WHERE 1 = 0) from cts1;
+ f1 < all (select f7 from ctt1 where 1 = 0) |
+=============================================
+ true                                       |
+ true                                       |
+ true                                       |
+
+taos> select f1 < ALL (select f7 from ctt1 WHERE f7 IS NULL) from cts1;
+ f1 < all (select f7 from ctt1 where f7 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 < ALL (select f7 from ctt1 WHERE f7 IS NOT NULL) from cts1;
+ f1 < all (select f7 from ctt1 where f7 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 < ALL (select f8 from ctt1 ) from cts1;
+ f1 < all (select f8 from ctt1 ) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select f1 < ALL (select f8 from ctt1 WHERE 1 = 0) from cts1;
+ f1 < all (select f8 from ctt1 where 1 = 0) |
+=============================================
+ true                                       |
+ true                                       |
+ true                                       |
+
+taos> select f1 < ALL (select f8 from ctt1 WHERE f8 IS NULL) from cts1;
+ f1 < all (select f8 from ctt1 where f8 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 < ALL (select f8 from ctt1 WHERE f8 IS NOT NULL) from cts1;
+ f1 < all (select f8 from ctt1 where f8 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 < ALL (select f9 from ctt1 ) from cts1;
+ f1 < all (select f9 from ctt1 ) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select f1 < ALL (select f9 from ctt1 WHERE 1 = 0) from cts1;
+ f1 < all (select f9 from ctt1 where 1 = 0) |
+=============================================
+ true                                       |
+ true                                       |
+ true                                       |
+
+taos> select f1 < ALL (select f9 from ctt1 WHERE f9 IS NULL) from cts1;
+ f1 < all (select f9 from ctt1 where f9 is null) |
+==================================================
+ NULL                                            |
+ NULL                                            |
+ NULL                                            |
+
+taos> select f1 < ALL (select f9 from ctt1 WHERE f9 IS NOT NULL) from cts1;
+ f1 < all (select f9 from ctt1 where f9 is not null) |
+======================================================
+ false                                               |
+ false                                               |
+ false                                               |
+
+taos> select f1 < ALL (select f10 from ctt1 ) from cts1;
+ f1 < all (select f10 from ctt1 ) |
+===================================
+ false                            |
+ false                            |
+ false                            |
+
+taos> select f1 < ALL (select f10 from ctt1 WHERE 1 = 0) from cts1;
+ f1 < all (select f10 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 < ALL (select f10 from ctt1 WHERE f10 IS NULL) from cts1;
+ f1 < all (select f10 from ctt1 where f10 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 < ALL (select f10 from ctt1 WHERE f10 IS NOT NULL) from cts1;
+ f1 < all (select f10 from ctt1 where f10 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 < ALL (select f11 from ctt1 ) from cts1;
+ f1 < all (select f11 from ctt1 ) |
+===================================
+ false                            |
+ false                            |
+ false                            |
+
+taos> select f1 < ALL (select f11 from ctt1 WHERE 1 = 0) from cts1;
+ f1 < all (select f11 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 < ALL (select f11 from ctt1 WHERE f11 IS NULL) from cts1;
+ f1 < all (select f11 from ctt1 where f11 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 < ALL (select f11 from ctt1 WHERE f11 IS NOT NULL) from cts1;
+ f1 < all (select f11 from ctt1 where f11 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 < ALL (select f12 from ctt1 ) from cts1;
+ f1 < all (select f12 from ctt1 ) |
+===================================
+ false                            |
+ false                            |
+ false                            |
+
+taos> select f1 < ALL (select f12 from ctt1 WHERE 1 = 0) from cts1;
+ f1 < all (select f12 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 < ALL (select f12 from ctt1 WHERE f12 IS NULL) from cts1;
+ f1 < all (select f12 from ctt1 where f12 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 < ALL (select f12 from ctt1 WHERE f12 IS NOT NULL) from cts1;
+ f1 < all (select f12 from ctt1 where f12 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 < ALL (select f13 from ctt1 ) from cts1;
+ f1 < all (select f13 from ctt1 ) |
+===================================
+ false                            |
+ false                            |
+ false                            |
+
+taos> select f1 < ALL (select f13 from ctt1 WHERE 1 = 0) from cts1;
+ f1 < all (select f13 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 < ALL (select f13 from ctt1 WHERE f13 IS NULL) from cts1;
+ f1 < all (select f13 from ctt1 where f13 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 < ALL (select f13 from ctt1 WHERE f13 IS NOT NULL) from cts1;
+ f1 < all (select f13 from ctt1 where f13 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 < ALL (select f14 from ctt1 ) from cts1;
+ f1 < all (select f14 from ctt1 ) |
+===================================
+ false                            |
+ false                            |
+ false                            |
+
+taos> select f1 < ALL (select f14 from ctt1 WHERE 1 = 0) from cts1;
+ f1 < all (select f14 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 < ALL (select f14 from ctt1 WHERE f14 IS NULL) from cts1;
+ f1 < all (select f14 from ctt1 where f14 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 < ALL (select f14 from ctt1 WHERE f14 IS NOT NULL) from cts1;
+ f1 < all (select f14 from ctt1 where f14 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 < ALL (select f15 from ctt1 ) from cts1;
+ f1 < all (select f15 from ctt1 ) |
+===================================
+ false                            |
+ false                            |
+ false                            |
+
+taos> select f1 < ALL (select f15 from ctt1 WHERE 1 = 0) from cts1;
+ f1 < all (select f15 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 < ALL (select f15 from ctt1 WHERE f15 IS NULL) from cts1;
+ f1 < all (select f15 from ctt1 where f15 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 < ALL (select f15 from ctt1 WHERE f15 IS NOT NULL) from cts1;
+ f1 < all (select f15 from ctt1 where f15 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 < ALL (select f16 from ctt1 ) from cts1;
+ f1 < all (select f16 from ctt1 ) |
+===================================
+ false                            |
+ false                            |
+ false                            |
+
+taos> select f1 < ALL (select f16 from ctt1 WHERE 1 = 0) from cts1;
+ f1 < all (select f16 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 < ALL (select f16 from ctt1 WHERE f16 IS NULL) from cts1;
+ f1 < all (select f16 from ctt1 where f16 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 < ALL (select f16 from ctt1 WHERE f16 IS NOT NULL) from cts1;
+ f1 < all (select f16 from ctt1 where f16 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 < ALL (select f17 from ctt1 ) from cts1;
+ f1 < all (select f17 from ctt1 ) |
+===================================
+ false                            |
+ false                            |
+ false                            |
+
+taos> select f1 < ALL (select f17 from ctt1 WHERE 1 = 0) from cts1;
+ f1 < all (select f17 from ctt1 where 1 = 0) |
+==============================================
+ true                                        |
+ true                                        |
+ true                                        |
+
+taos> select f1 < ALL (select f17 from ctt1 WHERE f17 IS NULL) from cts1;
+ f1 < all (select f17 from ctt1 where f17 is null) |
+====================================================
+ NULL                                              |
+ NULL                                              |
+ NULL                                              |
+
+taos> select f1 < ALL (select f17 from ctt1 WHERE f17 IS NOT NULL) from cts1;
+ f1 < all (select f17 from ctt1 where f17 is not null) |
+========================================================
+ false                                                 |
+ false                                                 |
+ false                                                 |
+
+taos> select f1 < ALL (select f18 from ctt1 ) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 < ALL (select f18 from ctt1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 < ALL (select f18 from ctt1 WHERE f18 IS NULL) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 < ALL (select f18 from ctt1 WHERE f18 IS NOT NULL) from cts1;
+
+DB error: Operation not supported for BLOB type [0x80006307] 
+taos> select f1 < ALL (select f19 from ctt1 ) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 < ALL (select f19 from ctt1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 < ALL (select f19 from ctt1 WHERE f19 IS NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 < ALL (select f19 from ctt1 WHERE f19 IS NOT NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 < ALL (select tg1->'k1' from st1 ) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 < ALL (select tg1->'k1' from st1 WHERE 1 = 0) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 < ALL (select tg1->'k1' from st1 WHERE tg1->'k1' IS NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 < ALL (select tg1->'k1' from st1 WHERE tg1->'k1' IS NOT NULL) from cts1;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> select f1 < ANY (select f1 from ctt1 ) from cts1;
+ f1 < any (select f1 from ctt1 ) |
+==================================
+ true                            |
+ true                            |
+ false                           |
+
+taos> select f1 < ANY (select f1 from ctt1 WHERE 1 = 0) from cts1;
+ f1 < any (select f1 from ctt1 where 1 = 0) |
+=============================================
+ false                                      |
+ false                                      |
+ false                                      |
+
+taos> select f1 < ANY (select f1 from ctt1 WHERE f1 IS NULL) from cts1;
+ f1 < any (select f1 from ctt1 where f1 is null) |
+==================================================
+ false                                           |
+ false                                           |
+ false                                           |
+
+taos> select f1 < ANY (select f1 from ctt1 WHERE f1 IS NOT NULL) from cts1;
+ f1 < any (select f1 from ctt1 where f1 is not null) |
+======================================================
+ true                                                |
+ true                                                |
+ false                                               |
+
