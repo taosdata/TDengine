@@ -133,6 +133,13 @@ do_conan_bld() {
   cmake --build ${build_dir} --config ${TD_CONFIG} -j${JOBS} $@
 }
 
+do_conan_test() {
+  echo "Testing with Conna build artifacts..."
+  local build_type=${TD_CONFIG,,}  # Convert to lowercase
+  local build_dir="build/conan-${build_type}"
+  ctest --test-dir ${build_dir} -C ${TD_CONFIG} --output-on-failure "$@"
+}
+
 do_conan_post_build() {
   echo "Installing TDengine with Conan..."
   local build_type=${TD_CONFIG,,}  # Convert to lowercase
@@ -261,6 +268,12 @@ case $1 in
         shift 1
         do_conan_bld "$@" &&
         echo "Built with Conan for '${TD_CONFIG}'" &&
+        echo ==Done==
+        ;;
+    conan-test)
+        shift 1
+        do_conan_test "$@" &&
+        echo "Test with Conan build artifacts for '${TD_CONFIG}'" &&
         echo ==Done==
         ;;
     conan-build-all)
