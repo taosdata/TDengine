@@ -1084,6 +1084,7 @@ typedef struct {
   uint32_t    alg;
 } AuditColumnDef;
 
+// column is consistent with vnodePrepareRow process in vnodeSvr.c
 static const AuditColumnDef audit_columns[] = {
     {"ts", TSDB_DATA_TYPE_TIMESTAMP, 8, 0x2000102},
     {"details", TSDB_DATA_TYPE_VARCHAR, 50000 + VARSTR_HEADER_SIZE, 0xFF000302},
@@ -1116,7 +1117,7 @@ static int32_t mndBuildAuditStb(SMnode *pMnode, SStbObj *pDst, SDbObj *pDb) {
   pDst->keep = -1;
   pDst->source = 0;
   pDst->virtualStb = 0;
-  pDst->numOfColumns = 9;
+  pDst->numOfColumns = sizeof(audit_columns) / sizeof(AuditColumnDef);
   pDst->numOfTags = 1;
   pDst->numOfFuncs = 0;
   pDst->commentLen = -1;

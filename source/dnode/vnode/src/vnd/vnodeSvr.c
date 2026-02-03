@@ -2685,24 +2685,45 @@ static int32_t vnodeDecodeAuditRecord(const SJson *pJson, void *pObj) {
 
 static int32_t vnodeBuildCreateTbReq(SVCreateTbReq *pTbReq, const char *tname, STag *pTag, int64_t suid,
                                      const char *sname, SArray *tagName, uint8_t tagNum, int32_t ttl) {
-  pTbReq->type = TD_CHILD_TABLE;
-  pTbReq->ctb.pTag = (uint8_t *)pTag;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (tname == NULL || sname == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   pTbReq->name = taosStrdup(tname);
-  if (!pTbReq->name) return terrno;
+  if (!pTbReq->name) {
+    code = terrno;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+  }
+
+  pTbReq->ctb.stbName = taosStrdup(sname);
+  if (!pTbReq->ctb.stbName) {
+    code = terrno;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+  }
+
+  pTbReq->type = TD_CHILD_TABLE;
   pTbReq->ctb.suid = suid;
   pTbReq->ctb.tagNum = tagNum;
-  if (sname) {
-    pTbReq->ctb.stbName = taosStrdup(sname);
-    if (!pTbReq->ctb.stbName) {
-      taosMemoryFree(pTbReq->name);
-      return terrno;
-    }
-  }
-  pTbReq->ctb.tagName = tagName;
   pTbReq->ttl = ttl;
   pTbReq->commentLen = -1;
+  pTbReq->ctb.tagName = tagName;
+  pTbReq->ctb.pTag = (uint8_t *)pTag;
 
-  return TSDB_CODE_SUCCESS;
+  return code;
+_exit:
+  if (code != 0) {
+    if (pTbReq->name != NULL) {
+      taosMemoryFreeClear(pTbReq->name);
+    }
+    if (pTbReq->ctb.stbName != NULL) {
+      taosMemoryFreeClear(pTbReq->ctb.stbName);
+    }
+    vError("failed to build create tb at %d since %s", lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t vnodePrepareCreateTb(SVCreateTbReq *pTbReq, char *tbName, int64_t suid, SSchemaWrapper *pTagSchema,
@@ -2719,7 +2740,7 @@ static int32_t vnodePrepareCreateTb(SVCreateTbReq *pTbReq, char *tbName, int64_t
 
   TagNames = taosArrayInit(1, TSDB_COL_NAME_LEN);
   if (!TagNames) {
-    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    code = terrno;
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
@@ -2756,10 +2777,12 @@ _exit:
     if (TagNames != NULL) {
       taosArrayDestroy(TagNames);
       TagNames = NULL;
+      pTbReq->ctb.tagName = NULL;
     }
     if (pTag != NULL) {
       tTagFree(pTag);
       pTag = NULL;
+      pTbReq->ctb.pTag = NULL;
     }
   }
 
@@ -2793,6 +2816,7 @@ static SArray *vnodePrepareRow(SVnode *pVnode, STSchema *pSchema, SAuditRecord *
     const STColumn *pCol = &pSchema->columns[k];
     vTrace("vgId:%d, schema column id:%d, type:%d", TD_VID(pVnode), pCol->colId, pCol->type);
 
+    // colId is consistent with audit_columns in mndStb.c
     void *data = NULL;
     if (pCol->colId == 1) {
       data = &record->curTime;
