@@ -31,7 +31,7 @@ if(NOT DEFINED TD_ENTERPRISE_DIR)
   include(cmake/check_env.cmake)
   include(cmake/define.cmake)
   include(cmake/version.cmake)
-  
+
   # Support for Conan package manager
   option(USE_CONAN "Use Conan for dependency management" OFF)
   if(USE_CONAN)

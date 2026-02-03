@@ -76,13 +76,18 @@ do_conan_install() {
   echo "Installing dependencies with Conan..."
   local build_type=${TD_CONFIG,,}  # Convert to lowercase
   local preset="conan-${build_type}"
-  
+
+  conan create conan/cppstub
+  conan create conan/fast-lzma2
+  conan create conan/avro-c
+
   # Determine options based on build configuration
   local conan_options=""
   conan_options="$conan_options -o with_test=True"
   conan_options="$conan_options -o with_uv=True"
   conan_options="$conan_options -o with_geos=True"
-  
+  conan_options="$conan_options -o with_taos_tools=True"
+
   conan install . \
     --output-folder=build/${preset} \
     --build=missing \
@@ -96,13 +101,13 @@ do_conan_gen() {
   local build_type=${TD_CONFIG,,}  # Convert to lowercase
   local build_dir="build/conan-${build_type}"
   local toolchain_file="$(pwd)/${build_dir}/generators/conan_toolchain.cmake"
-  
+
   if [ ! -f "${toolchain_file}" ]; then
     echo "ERROR: Toolchain file not found: ${toolchain_file}"
     echo "Please run './build.sh conan-install' first"
     return 1
   fi
-  
+
   cmake -B ${build_dir} \
         -DCMAKE_TOOLCHAIN_FILE=${toolchain_file} \
         -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG} \
@@ -122,10 +127,67 @@ do_conan_bld() {
   echo "Building with Conan..."
   local build_type=${TD_CONFIG,,}  # Convert to lowercase
   local build_dir="build/conan-${build_type}"
-  
+
   JOBS=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
   echo "JOBS:${JOBS}"
-  cmake --build ${build_dir} --config ${TD_CONFIG} -j${JOBS} "$@"
+  cmake --build ${build_dir} --config ${TD_CONFIG} -j${JOBS} $@
+}
+
+do_conan_post_build() {
+  echo "Installing TDengine with Conan..."
+  local build_type=${TD_CONFIG,,}  # Convert to lowercase
+  local build_dir="build/conan-${build_type}"
+
+  JOBS=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+  echo "JOBS:${JOBS}"
+  cmake --install ${build_dir} --config ${TD_CONFIG} $@
+}
+
+do_conan_install_gen_bld() {
+  do_conan_install $@ &&
+  do_conan_gen &&
+  do_conan_bld
+}
+
+do_bld() {
+  JOBS=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+  echo "JOBS:${JOBS}"
+  cmake --build debug --config ${TD_CONFIG} -j${JOBS} "$@"
+}
+
+do_test() {
+  ctest --test-dir debug -C ${TD_CONFIG} --output-on-failure "$@"
+}
+
+do_start() {
+  if which systemctl 2>/dev/null; then
+    sudo systemctl start taosd           && echo taosd started &&
+    sudo systemctl start taosadapter     && echo taosadapter started
+  elif which launchctl 2>/dev/null; then
+    sudo launchctl start com.tdengine.taosd       && echo taosd started       &&
+    sudo launchctl start com.tdengine.taosadapter && echo taosadapter started &&
+    sudo launchctl start com.tdengine.taoskeeper  && echo taoskeeper started
+  fi
+}
+
+do_stop() {
+  if which systemctl 2>/dev/null; then
+    sudo systemctl stop taosadapter && echo taosadapter stopped
+    sudo systemctl stop taosd       && echo taosd stopped
+  elif which launchctl 2>/dev/null; then
+    sudo launchctl stop com.tdengine.taoskeeper  && echo taoskeeper stopped
+    sudo launchctl stop com.tdengine.taosadapter && echo taosadapter stopped
+    sudo launchctl stop com.tdengine.taosd       && echo taosd stopped
+  fi
+}
+
+do_purge() {
+  sudo rm -rf /var/lib/taos         # data storage
+  sudo rm -rf /var/log/taos         # logs
+  sudo rm -f  /usr/bin/{taos,taosd,taosadapter,udfd,taoskeeper,taosdump,taosdemo,taosBenchmark,rmtaos,taosudf}             # executables
+  sudo rm -f  /usr/local/bin/{taos,taosd,taosadapter,udfd,taoskeeper,taosdump,taosdemo,taosBenchmark,rmtaos,taosudf}       # executables
+  sudo rm -rf /usr/lib/{libtaos,libtaosnative,libtaosws}.*        # libraries
+  cmake --install ${}
 }
 
 do_conan_install_gen_bld() {
@@ -253,6 +315,11 @@ case $1 in
         do_conan_install_gen_bld "$@" &&
         echo "Complete Conan build finished for '${TD_CONFIG}'" &&
         echo ==Done==
+        ;;
+    conan-post-build)
+        shift 1
+        do_conan_post_build $@ &&
+          echo "Complete installation with build type ${TD_CONFIG}"
         ;;
     senarios)
         shift 1

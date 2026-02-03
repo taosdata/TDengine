@@ -9,6 +9,7 @@ message(STATUS "Loading Conan dependencies...")
 # Core dependencies
 find_package(ZLIB REQUIRED)
 find_package(lz4 REQUIRED)
+find_package(fast-lzma2 REQUIRED)
 find_package(xxHash REQUIRED)
 find_package(LibLZMA REQUIRED)
 find_package(cJSON REQUIRED)  # Note: package name is cJSON, not cjson
@@ -16,6 +17,8 @@ find_package(cJSON REQUIRED)  # Note: package name is cJSON, not cjson
 # Networking
 find_package(OpenSSL REQUIRED)
 find_package(CURL REQUIRED)
+
+find_package(PCRE2 QUIET)
 
 # Optional dependencies based on build options
 #if(${BUILD_WITH_UV})
@@ -30,6 +33,10 @@ endif()
 # Testing
 if(${BUILD_TEST})
     find_package(GTest REQUIRED)
+    find_package(cppstub QUIET)  # Header-only stub library for unit tests
+    if(NOT cppstub_FOUND)
+        message(STATUS "cppstub not found in Conan packages, will use ExternalProject")
+    endif()
 endif()
 
 # Optional features (use QUIET to not fail if not provided by Conan)
@@ -40,12 +47,6 @@ if(${BUILD_GEOS})
     endif()
 endif()
 
-if(${BUILD_PCRE2})
-    find_package(PCRE2 QUIET)
-    if(NOT PCRE2_FOUND)
-        message(STATUS "PCRE2 not found in Conan packages, will use ExternalProject")
-    endif()
-endif()
 
 if(${JEMALLOC_ENABLED})
     find_package(jemalloc QUIET)
@@ -58,7 +59,8 @@ endif()
 if(TD_TAOS_TOOLS)
     find_package(jansson QUIET)
     find_package(Snappy QUIET)
-    if(NOT jansson_FOUND OR NOT Snappy_FOUND)
+    find_package(avro-c QUIET)
+    if(NOT jansson_FOUND OR NOT Snappy_FOUND OR NOT avro-c_FOUND)
         message(STATUS "taos-tools dependencies not found in Conan packages, will use ExternalProject")
     endif()
 endif()
@@ -80,6 +82,7 @@ message(STATUS "All Conan dependencies loaded successfully")
 # Create variables similar to external.cmake for backward compatibility
 set(ext_zlib_build_contrib FALSE)
 set(ext_lz4_build_contrib FALSE)
+set(ext_lzma2_build_contrib FALSE)
 set(ext_xxhash_build_contrib FALSE)
 set(ext_cjson_build_contrib FALSE)
 set(ext_xz_build_contrib FALSE)
@@ -122,16 +125,40 @@ macro(DEP_ext_lz4_LIB tgt)
     target_link_libraries(${tgt} PRIVATE lz4::lz4)
 endmacro()
 
+macro(DEP_ext_lzma2 tgt)
+    target_link_libraries(${tgt} PUBLIC fast-lzma2::fast-lzma2)
+endmacro()
+
+macro(DEP_ext_lzma2_INC tgt)
+    # Handled by target_link_libraries
+endmacro()
+
+macro(DEP_ext_lzma2_LIB tgt)
+    target_link_libraries(${tgt} PRIVATE fast-lzma2::fast-lzma2)
+endmacro()
+
 macro(DEP_ext_cjson tgt)
     target_link_libraries(${tgt} PUBLIC cjson::cjson)
+    # Get cjson include directory and add cjson/ subdirectory for backward compatibility
+    # This allows both #include "cJSON.h" and #include "cjson/cJSON.h"
+    target_include_directories(${tgt} PUBLIC "${cJSON_INCLUDE_DIR}/cjson")
 endmacro()
 
 macro(DEP_ext_cjson_INC tgt)
-    # Handled by target_link_libraries
+    # Handled by target_link_libraries and DEP_ext_cjson
 endmacro()
 
 macro(DEP_ext_cjson_LIB tgt)
     target_link_libraries(${tgt} PRIVATE cjson::cjson)
+    # Get cjson include directory and add cjson/ subdirectory for backward compatibility
+    get_target_property(_cjson_includes cjson::cjson INTERFACE_INCLUDE_DIRECTORIES)
+    if(_cjson_includes)
+        foreach(_inc_dir ${_cjson_includes})
+            if(EXISTS "${_inc_dir}/cjson")
+                target_include_directories(${tgt} PRIVATE "${_inc_dir}/cjson")
+            endif()
+        endforeach()
+    endif()
 endmacro()
 
 macro(DEP_ext_xz tgt)
@@ -239,8 +266,8 @@ macro(DEP_ext_geos_LIB tgt)
 endmacro()
 
 macro(DEP_ext_pcre2 tgt)
-    if(TARGET PCRE2::PCRE2)
-        target_link_libraries(${tgt} PUBLIC PCRE2::PCRE2)
+    if(TARGET pcre2::pcre2)
+        target_link_libraries(${tgt} PUBLIC pcre2::pcre2)
     endif()
 endmacro()
 
@@ -249,8 +276,8 @@ macro(DEP_ext_pcre2_INC tgt)
 endmacro()
 
 macro(DEP_ext_pcre2_LIB tgt)
-    if(TARGET PCRE2::PCRE2)
-        target_link_libraries(${tgt} PRIVATE PCRE2::PCRE2)
+    if(TARGET pcre2::pcre2)
+        target_link_libraries(${tgt} PRIVATE pcre2::pcre2)
     endif()
 endmacro()
 
@@ -335,9 +362,12 @@ endmacro()
 # - Windows-specific: pthread-win32, iconv, msvcregex, wcwidth, wingetopt, crashdump
 # - Internal libraries: TSZ, libaes, libmqtt (in contrib/)
 # - avro-c (may not be in ConanCenter)
-# - cppstub (testing stub library)
 # - sqlite (if BUILD_WITH_SQLITE is used)
 # - taosws (Rust-based, special handling)
+#
+# Successfully migrated to Conan:
+# - cppstub (testing stub library) - now available as Conan package
+# - fast-lzma2 - now available as Conan package
 
 # Stub macros for dependencies not yet migrated to Conan
 # These will be handled by the existing build system
@@ -354,16 +384,6 @@ macro(DEP_ext_xxhash_LIB tgt)
     if(TARGET xxHash::xxhash)
         target_link_libraries(${tgt} PRIVATE xxHash::xxhash)
     endif()
-endmacro()
-
-macro(DEP_ext_lzma2 tgt)
-    # lzma2 not migrated yet
-endmacro()
-
-macro(DEP_ext_lzma2_INC tgt)
-endmacro()
-
-macro(DEP_ext_lzma2_LIB tgt)
 endmacro()
 
 macro(DEP_ext_tz tgt)
@@ -397,13 +417,19 @@ macro(DEP_ext_addr2line_LIB tgt)
 endmacro()
 
 macro(DEP_ext_avro tgt)
-    # avro not migrated yet
+    if(TARGET avro-c::avro-c)
+        target_link_libraries(${tgt} PUBLIC avro-c::avro-c)
+    endif()
 endmacro()
 
 macro(DEP_ext_avro_INC tgt)
+    # Handled by target_link_libraries
 endmacro()
 
 macro(DEP_ext_avro_LIB tgt)
+    if(TARGET avro-c::avro-c)
+        target_link_libraries(${tgt} PRIVATE avro-c::avro-c)
+    endif()
 endmacro()
 
 macro(DEP_ext_libs3 tgt)
@@ -437,13 +463,21 @@ macro(DEP_ext_cos_LIB tgt)
 endmacro()
 
 macro(DEP_ext_cppstub tgt)
-    # cppstub not migrated yet
+    # cppstub is now available as a Conan package (header-only library)
+    if(TARGET cppstub::cppstub)
+        target_link_libraries(${tgt} PUBLIC cppstub::cppstub)
+    endif()
 endmacro()
 
 macro(DEP_ext_cppstub_INC tgt)
+    # Header-only library, handled by target_link_libraries above
+    if(TARGET cppstub::cppstub)
+        target_link_libraries(${tgt} INTERFACE cppstub::cppstub)
+    endif()
 endmacro()
 
 macro(DEP_ext_cppstub_LIB tgt)
+    # Header-only library, no libs to link
 endmacro()
 
 macro(DEP_ext_sqlite tgt)
