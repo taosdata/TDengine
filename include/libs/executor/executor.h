@@ -154,14 +154,6 @@ bool    qTaskIsDone(qTaskInfo_t tinfo);
  */
 int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type);
 
-/**
- * Update the table id list, add or remove.
- *
- * @param tinfo
- * @param id
- * @param isAdd
- * @return
- */
 int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
 int32_t qDeleteTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
 int32_t qAddTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList);

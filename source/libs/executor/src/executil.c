@@ -36,7 +36,6 @@
 #include "tjson.h"
 #include "operator.h"
 
-
 typedef struct tagFilterAssist {
   SHashObj* colHash;
   int32_t   index;

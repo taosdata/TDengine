@@ -1403,6 +1403,7 @@ int32_t tqAddTbUidList(STQ* pTq, SArray* tbUidList) {
   }
   taosHashCancelIterate(pTq->pHandle, pIter);
   taosWUnLockLatch(&pTq->lock);
+
   return code;
 }
 
@@ -1452,6 +1453,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, SArray* tbUidList, SArray* cidList) {
 
   taosHashCancelIterate(pTq->pHandle, pIter);
   taosWUnLockLatch(&pTq->lock);
+
   return code;
 }
 

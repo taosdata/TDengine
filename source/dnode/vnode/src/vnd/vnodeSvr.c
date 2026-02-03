@@ -1306,7 +1306,7 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
 
     code = tqDeleteTbUidList(pVnode->pTq, ttlReq.pTbUids);
     if (code) {
-      vError("vgId:%d, failed to update tbUid list since %s", TD_VID(pVnode), tstrerror(code));
+      vError("vgId:%d, failed to delete tbUid list since %s", TD_VID(pVnode), tstrerror(code));
     }
   }
 
@@ -1520,7 +1520,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
 
   vTrace("vgId:%d, add %d new created tables into query table list", TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUids));
   if (tqAddTbUidList(pVnode->pTq, tbUids) < 0) {
-    vError("vgId:%d, failed to update tbUid list since %s", TD_VID(pVnode), tstrerror(terrno));
+    vError("vgId:%d, failed to add tbUid list since %s", TD_VID(pVnode), tstrerror(terrno));
   }
 
   // prepare rsp
