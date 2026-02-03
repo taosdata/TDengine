@@ -5,18 +5,21 @@ match callExpr(
     doStmt(hasCondition(expr().bind("cond")))
   )),
   unless(hasType(voidType())),
-  unless(hasParent(compoundStmt())),
   unless(hasAncestor(functionDecl(anyOf(
     hasName("tDestroyTSmaWrapper"),
     hasName("tFreeTSmaWrapper")
   )))),
   unless(anyOf(
+    #log and print functions
+    callee(functionDecl(matchesName(".*(Log|Print|Debug|Trace|Warn|Error|Info|Fatal).*"))),
+    # memory functions
     callee(functionDecl(matchesName(".*memcpy.*"))),
     callee(functionDecl(matchesName(".*strcpy.*"))),
     callee(functionDecl(matchesName(".*strcat.*"))),
     callee(functionDecl(matchesName(".*strncpy.*"))),
     callee(functionDecl(matchesName(".*memset.*"))),
     callee(functionDecl(matchesName(".*memmove.*"))),
+    # string functions
     callee(functionDecl(matchesName(".*sprintf.*"))),
     callee(functionDecl(matchesName(".*snprintf.*"))),
     callee(functionDecl(matchesName(".*scanf.*"))),
