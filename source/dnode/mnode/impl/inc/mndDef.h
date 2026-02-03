@@ -401,6 +401,8 @@ typedef struct {
   char*    user;
   int32_t  passLen;
   char*    pass;
+  int32_t  tokenLen;
+  char*    token;
   int64_t  createTime;
   int64_t  updateTime;
   SRWLatch lock;

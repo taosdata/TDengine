@@ -50,6 +50,8 @@ int32_t mndGetUserTokenStatuses(const char* user, SHashObj** pHash);
 
 int32_t mndBuildSMCreateTokenResp(STrans *pTrans, void **ppResp, int32_t *pRespLen);
 
+int32_t mndProcessCreateTokenReq(SRpcMsg *pReq);
+
 #ifdef __cplusplus
 }
 #endif

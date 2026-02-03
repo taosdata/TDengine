@@ -1007,6 +1007,11 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
         mError("db:%s, failed to create, encrypt algorithm not exist, %s", pCreate->db, pCreate->encryptAlgrName);
         TAOS_RETURN(code);
       }
+      if (tsDataKey[0] == '\0') {
+        code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+        mError("db:%s, failed to create db since %s", pCreate->db, tstrerror(code));
+        TAOS_RETURN(code);
+      }
     }
   } else {
     if (pCreate->isAudit == 1) {
