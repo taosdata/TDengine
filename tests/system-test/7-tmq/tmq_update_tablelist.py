@@ -152,10 +152,7 @@ class TDTestCase:
         self.insertData()
         self.consume1()
         self.consume2()
-<<<<<<< HEAD
         self.consume3()
-=======
->>>>>>> 3.3.6
 
     def stop(self):
         tdSql.close()
