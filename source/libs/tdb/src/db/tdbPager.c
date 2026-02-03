@@ -797,6 +797,7 @@ int tdbPagerInsertFreePage(SPager *pPager, SPage *pPage, TXN *pTxn) {
   int tdbTbPushFreePage(TTB *pTb, SPage *pPage, TXN *pTxn);
   
   SPgno pgno = TDB_PAGE_PGNO(pPage);
+  tdbInfo("FREEPAGE INSERT: pgno: %u, dbFileSize: %u, pager: %p.", pgno, pPager->dbFileSize, pPager);
   ASSERT_CORE(pgno <= pPager->dbFileSize, "pgno:%u exceeds dbFileSize:%u.", pgno, pPager->dbFileSize);
 
   tdbTrace("tdb/insert-free-page: tbc recycle page: %d.", TDB_PAGE_PGNO(pPage));
@@ -815,6 +816,7 @@ static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno, TXN *pTxn) {
 
   int  code = 0;
   if (!pPager->pEnv->pFreeDb) {
+    tdbInfo("FREEPAGE REMOVE: no free db, pager: %p.", pPager);
     return code;
   }
 
@@ -823,6 +825,9 @@ static int tdbPagerRemoveFreePage(SPager *pPager, SPgno *pPgno, TXN *pTxn) {
     tdbError("tdb/remove-free-page: pop failed with ret: %d.", code);
   }
 
+  if (*pPgno != 0) {
+    tdbInfo("FREEPAGE REMOVE: pgno: %u, dbFileSize: %u, pager: %p.", *pPgno, pPager->dbFileSize, pPager);
+  }
   return 0;
 }
 
