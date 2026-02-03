@@ -38,7 +38,6 @@ on:
         required: true
         type: string
 
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-
     ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || inputs.specified_target_branch }}-
