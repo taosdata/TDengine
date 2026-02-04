@@ -2,19 +2,16 @@ FROM python:3.9.25 AS builder
 
 WORKDIR /home
 
-# 配置 apt 源
 RUN echo "deb http://deb.debian.org/debian bookworm main" > /etc/apt/sources.list \
     && echo "deb http://deb.debian.org/debian-security bookworm-security main" >> /etc/apt/sources.list \
     && echo "deb http://deb.debian.org/debian bookworm-updates main" >> /etc/apt/sources.list
 
-# 复制必要文件
 COPY requirements.txt /home/
 COPY id_ecdsa /root/.ssh/id_ecdsa
 COPY id_ecdsa.pub /root/.ssh/id_ecdsa.pub
 COPY id_ecdsa.pub /root/.ssh/authorized_keys
 COPY .gitconfig /root/.gitconfig
 
-# 安装依赖
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         locales psmisc sudo tree libgeos-dev libgflags-dev ruby-full \
@@ -32,12 +29,10 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# 配置 pip
 RUN pip3 config set global.index-url http://admin:123456@192.168.0.212:3141/admin/dev/+simple/ \
     && pip3 config set global.trusted-host 192.168.0.212 \
     && pip3 install --no-cache-dir -r /home/requirements.txt
 
-# 安装 Go、JDK、Maven、Node.js（优化解压路径）
 ADD go1.23.4.linux-amd64.tar.gz \
     jdk-8u144-linux-x64.tar.gz \
     apache-maven-3.8.4-bin.tar.gz \
@@ -49,29 +44,26 @@ ENV RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
 ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"
 ENV RUST_VERSION=1.90.0
 
-# 安装 Rust（优化安装过程）
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --verbose --profile minimal --component clippy,rustfmt --default-toolchain $RUST_VERSION
 COPY .cargo/config /root/.cargo/config
 
-# 配置环境变量
 ENV PATH="/usr/local/go/bin:/usr/local/node-v20.17.0-linux-x64/bin:/usr/local/apache-maven-3.8.4/bin:/usr/local/jdk1.8.0_144/bin:/root/.cargo/bin:/home/bin:/usr/local/cmake-3.21.5-linux-x86_64/bin:$PATH"
 ENV JAVA_HOME="/usr/local/jdk1.8.0_144"
 ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"  RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
 RUN go env -w GOPROXY=https://goproxy.cn
 ENV LANG=en_US.UTF-8 LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
 
-# 配置 R 支持 Java 并安装 RJDBC
 RUN R CMD javareconf JAVA_HOME=${JAVA_HOME} JAVA=${JAVA_HOME}/bin/java JAVAC=${JAVA_HOME}/bin/javac JAVAH=${JAVA_HOME}/bin/javah JAR=${JAVA_HOME}/bin/jar \
 &&  echo "install.packages(\"RJDBC\", repos=\"http://cran.us.r-project.org\")" | R --no-save
 
-# 安装覆盖率工具
+# Install coverage tools
 RUN gem install coveralls-lcov \
     && npm config -g set registry https://registry.npmmirror.com
 # COPY ../.nuget /root/.nuget
 # COPY ../.dotnet /root/.dotnet
 # COPY ../.npm /root/.npm
 
-# 配置 SSH（优化配置并设置权限）
+# Configure SSH (optimize configuration and set permissions)
 RUN mkdir -p /root/.ssh \
     && chmod 700 /root/.ssh \
     && echo "StrictHostKeyChecking no" >> /etc/ssh/ssh_config \
@@ -82,7 +74,6 @@ RUN mkdir -p /root/.ssh \
 
 RUN sh -c "rm -f /etc/localtime;ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime;echo \"Asia/Shanghai\" >/etc/timezone"
 
-# 复制应用代码
 # COPY TDinternal /home/TDinternal
 COPY setup.sh /home/setup.sh
 RUN  chmod +x /home/setup.sh
