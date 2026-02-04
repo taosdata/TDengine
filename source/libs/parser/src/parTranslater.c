@@ -5234,6 +5234,8 @@ static int32_t replaceTbName(STranslateContext* pCxt, SSelectStmt* pSelect) {
     PAR_ERR_JRET(pRewriteCxt.errCode);
     nodesRewriteExprsPostOrder(pSelect->pOrderByList, doTranslateTbName, &pRewriteCxt);
     PAR_ERR_JRET(pRewriteCxt.errCode);
+    nodesRewriteExpr(&pSelect->pWindow, doTranslateTbName, &pRewriteCxt);
+    PAR_ERR_JRET(pRewriteCxt.errCode);
   }
 
   return code;
