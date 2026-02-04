@@ -182,6 +182,7 @@ extern "C" {
 
 #ifndef TSDB_COL_NAME_LEN
 #define TSDB_COL_NAME_LEN               65
+#endif
 
 // come from tdef.h 
 #ifndef TSDB_MAX_ALLOWED_SQL_LEN
