@@ -2520,7 +2520,7 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
       privInfo.objLevel = privObjGetLevel(privInfo.objType);
     }
 
-    int8_t dbOwner = 0;  // 0: unknown, 1: owner
+    int8_t dbOwner = 0;
     char dbFName[TSDB_DB_FNAME_LEN];
     (void)tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
     if (pReq->useDb) {
@@ -2595,7 +2595,7 @@ _next:
         case PRIV_CM_DROP:
         case PRIV_CM_SHOW_CREATE: {
           if (pReq->objType == PRIV_OBJ_TBL) {
-            // don't support tag conditionq
+            // don't support tag condition
             CTG_ERR_RET(ctgChkSetTbAuthRsp(pCtg, req, res));
           } else {
             if (pReq->dbOwner) {

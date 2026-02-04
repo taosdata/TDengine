@@ -146,8 +146,7 @@ typedef struct SParseContext {
       uint16_t privInfoSec : 1;
       uint16_t privPerfBasic : 1;
       uint16_t privPerfPrivileged : 1;
-      uint16_t showAllTables : 1;
-      uint16_t reserved1 : 6;
+      uint16_t reserved1 : 7;
     };
   };
   const char* svrVer;
