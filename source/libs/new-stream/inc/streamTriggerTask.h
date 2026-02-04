@@ -237,6 +237,10 @@ typedef struct SSTriggerRealtimeContext {
   int64_t lastCheckpointTime;
   int64_t lastVirtTableInfoTime;
   int64_t lastReportTime;
+
+  // LAST_TS create-table: need groupInfo before send create-table req; pull GROUP_COL_VALUE first
+  SArray              *pPendingCreateTableGids;   // gids to create table, pull groupInfo then send
+  SSTriggerWalProgress *pPendingCreateTableProgress;  // reader progress for pulling groupInfo
 } SSTriggerRealtimeContext;
 
 typedef struct SSTriggerTsdbProgress {
