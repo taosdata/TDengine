@@ -26,10 +26,10 @@
 #include "tref.h"
 #include "ttimer.h"
 
-#define tqErrorC(...) do { if (tqClientDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, tqClientDebugFlag, __VA_ARGS__); }} while(0)
-#define tqInfoC(...)  do { if (tqClientDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  INFO  ", DEBUG_INFO,  tqClientDebugFlag, __VA_ARGS__); }} while(0)
-#define tqDebugC(...) do { if (tqClientDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  DEBUG ", DEBUG_DEBUG, tqClientDebugFlag, __VA_ARGS__); }} while(0)
-#define tqWarnC(...)  do { if (tqClientDebugFlag & DEBUG_WARN)  { taosPrintLog("TQ  WARN  ", DEBUG_WARN,  tqClientDebugFlag, __VA_ARGS__); }} while(0)
+#define tqErrorC(...) do { if (cDebugFlag & DEBUG_ERROR || tqClientDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
+#define tqInfoC(...)  do { if (cDebugFlag & DEBUG_INFO  || tqClientDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  INFO  ", DEBUG_INFO,  tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
+#define tqDebugC(...) do { if (cDebugFlag & DEBUG_DEBUG || tqClientDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  DEBUG ", DEBUG_DEBUG, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
+#define tqWarnC(...)  do { if (cDebugFlag & DEBUG_WARN  || tqClientDebugFlag & DEBUG_WARN)  { taosPrintLog("TQ  WARN  ", DEBUG_WARN,  tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
 
 #define EMPTY_BLOCK_POLL_IDLE_DURATION 10
 #define DEFAULT_AUTO_COMMIT_INTERVAL   5000

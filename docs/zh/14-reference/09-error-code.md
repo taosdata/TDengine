@@ -656,7 +656,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80004001 | Consumer mismatch                            | 订阅请求的 vnode 和重新分配的 vnode 不一致，一般存在于有新消费者加入相同消费者组里时 | 内部错误                           |
 | 0x80004002 | Consumer closed                              | 消费者已经不存在了                                                                   | 查看是否已经 close 掉了            |
 | 0x80004017 | Invalid status, please subscribe topic first | 数据订阅状态不对                                                                     | 没有调用 subscribe，直接 poll 数据 |
-| 0x8000401A | Fetch data timeout                           | 数据订阅拉取数据超时，超时时间通过参数 session.timeout.ms 控制                                                                     | 服务端繁忙可能返回该错误，可继续 poll 数据       |
+| 0x8000401A | Fetch data timeout                           | 数据订阅拉取数据超时，超时时间通过参数 fetch.max.wait.ms 控制                                                                     | 服务端繁忙可能返回该错误，可继续 poll 数据       |
 
 #### 审计
 

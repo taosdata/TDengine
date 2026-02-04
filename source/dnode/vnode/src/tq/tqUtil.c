@@ -168,7 +168,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     goto end;
   }
 
-  if (terrno == TSDB_CODE_TMQ_FETCH_TIMEOUT) {
+  if (terrno == TSDB_CODE_TMQ_FETCH_TIMEOUT && dataRsp.blockNum == 0) {
     dataRsp.timeout = true;
   }
   //   till now, all data has been transferred to consumer, new data needs to push client once arrived.

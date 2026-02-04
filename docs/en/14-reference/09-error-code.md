@@ -658,7 +658,7 @@ Below are the business error codes for each module.
 | 0x80004001 | Consumer mismatch     | The vnode requested for subscription and the reassigned vnode are inconsistent, usually occurs when new consumers join the same consumer group | Internal error        |
 | 0x80004002 | Consumer closed       | The consumer no longer exists                                | Check if it has already been closed          |
 | 0x80004017 | Invalid status, please subscribe topic first | tmq status invalidate                 | Without calling subscribe, directly poll data     |
-| 0x8000401A | Fetch data timeout    | Data subscription pull timeout. Controlled by the parameter session.timeout.ms          | The server may return this error due to being busy, but you can continue to poll for data       |
+| 0x8000401A | Fetch data timeout    | Data subscription pull timeout. Controlled by the parameter fetch.max.wait.ms          | The server may return this error due to being busy, but you can continue to poll for data       |
 
 #### TDgpt
 
