@@ -10,18 +10,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taoskeeper/db"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
+	"github.com/taosdata/taoskeeper/testutil"
 	"github.com/taosdata/taoskeeper/util"
 )
 
 func TestCreateClusterInfoSql(t *testing.T) {
-	conn, _ := db.NewConnector("root", "taosdata", "127.0.0.1", 6041, false)
+	conn, _ := db.NewConnector(testutil.TestUsername(), testutil.TestPassword(), "127.0.0.1", 6041, false)
 	defer conn.Close()
 
 	dbName := "db_202412031539"
 	conn.Exec(context.Background(), "create database "+dbName, util.GetQidOwn(config.Conf.InstanceID))
 	defer conn.Exec(context.Background(), "drop database "+dbName, util.GetQidOwn(config.Conf.InstanceID))
 
-	conn, _ = db.NewConnectorWithDb("root", "taosdata", "127.0.0.1", 6041, dbName, false)
+	conn, _ = db.NewConnectorWithDb(testutil.TestUsername(), testutil.TestPassword(), "127.0.0.1", 6041, dbName, false)
 	defer conn.Close()
 
 	conn.Exec(context.Background(), CreateClusterInfoSql, util.GetQidOwn(config.Conf.InstanceID))
