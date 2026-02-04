@@ -17,6 +17,8 @@ The list of keywords is as follows:
 | ACCOUNT              | |
 | ACCOUNTS             | |
 | ADD                  | |
+| AES_DECRYPT          | 3.4.0.3+ |
+| AES_ENCRYPT          | 3.4.0.3+ |
 | AFTER                | |
 | AGGREGATE            | |
 | ALIAS                | |
@@ -196,6 +198,7 @@ The list of keywords is as follows:
 | FORCE_OUTPUT         | 3.3.7.0+ |
 | FORCE_WINDOW_CLOSE   | 3.3.4.3 - 3.3.7.0 |
 | FROM                 | |
+| FROM_BASE64          | 3.4.0.3+ |
 | FROWTS               | 3.3.4.3+ |
 | FULL                 | |
 | FUNCTION             | |
@@ -309,6 +312,7 @@ The list of keywords is as follows:
 | MERGE                | |
 | META                 | |
 | META_ONLY            | 3.3.6.0+ |
+| MD5                  | 3.4.0.3+ |
 | MINROWS              | |
 | MINUS                | |
 | MNODE                | |
@@ -458,6 +462,9 @@ The list of keywords is as follows:
 | SERVER_VERSION       | |
 | SESSION              | |
 | SESSION_PER_USER     | 3.4.0.0+ |
+| SHA                  | 3.4.0.3+ |
+| SHA1                 | 3.4.0.3+ |
+| SHA2                 | 3.4.0.3+ |
 | SET                  | |
 | SHOW                 | |
 | SINGLE_STABLE        | |
@@ -466,6 +473,8 @@ The list of keywords is as follows:
 | SLIMIT               | |
 | SMA                  | |
 | SMALLINT             | |
+| SM4_DECRYPT          | 3.4.0.3+ |
+| SM4_ENCRYPT          | 3.4.0.3+ |
 | SMIGRATE             | |
 | SNODE                | |
 | SNODES               | |
@@ -516,6 +525,7 @@ The list of keywords is as follows:
 | TIMEZONE             | |
 | TINYINT              | |
 | TO                   | |
+| TO_BASE64            | 3.4.0.3+ |
 | TODAY                | |
 | TOKEN                | 3.4.0.0+ |
 | TOKENS               | 3.4.0.0+ |
