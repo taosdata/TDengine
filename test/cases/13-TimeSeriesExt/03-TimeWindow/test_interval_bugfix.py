@@ -46,6 +46,116 @@ class TestIntervalBugFix:
         self.ts_7676_test_uni_ts()
         self.td_6739571506_test()
 
+    def test_interval_sliding_month_february(self):
+        """Interval 1n with non-natural sliding over February
+
+        Validates that when interval = 1n and sliding = 239201000 (default precision unit),
+        the first window for February starts on Feb-01 and aggregates all Feb rows.
+        Also validates leap year February behavior.
+        """
+        tdLog.info("prepare data for sliding February test (non-leap and leap year)")
+        # Non-leap year: 2021-02 has 28 days
+        self.testSql.execute("create database if not exists db_sliding_feb;")
+        self.testSql.execute("use db_sliding_feb;")
+        self.testSql.execute("create stable if not exists st(ts TIMESTAMP, v INT) tags(t INT);")
+        self.testSql.execute("create table if not exists t2021 using st tags(2021);")
+
+        # Insert three points within Feb 2021
+        self.testSql.execute("insert into t2021 values ('2021-01-01 00:00:00.000', 1);")
+        self.testSql.execute("insert into t2021 values ('2021-01-14 12:00:00.000', 2);")
+        self.testSql.execute("insert into t2021 values ('2021-01-29 23:59:59.000', 3);")
+        self.testSql.execute("insert into t2021 values ('2021-02-01 00:00:00.000', 1);")
+        self.testSql.execute("insert into t2021 values ('2021-02-14 12:00:00.000', 2);")
+        self.testSql.execute("insert into t2021 values ('2021-02-28 23:59:59.000', 3);")
+        self.testSql.execute("insert into t2021 values ('2021-03-01 00:00:00.000', 1);")
+        self.testSql.execute("insert into t2021 values ('2021-03-14 12:00:00.000', 2);")
+        self.testSql.execute("insert into t2021 values ('2021-03-29 23:59:59.000', 3);")
+        
+        def check_helper():
+            self.testSql.checkData(0, 0, "2020-12-24 08:00:00.000")
+            self.testSql.checkData(0, 1, "2021-01-24 08:00:00.000")
+            self.testSql.checkData(0, 2, 2)
+            self.testSql.checkData(1, 0, "2021-01-21 08:00:00.000")
+            self.testSql.checkData(1, 1, "2021-02-21 08:00:00.000")
+            self.testSql.checkData(1, 2, 3)
+            self.testSql.checkData(2, 0, "2021-02-18 08:00:00.000")
+            self.testSql.checkData(2, 1, "2021-03-18 08:00:00.000")
+            self.testSql.checkData(2, 2, 3)
+            self.testSql.checkData(3, 0, "2021-03-18 08:00:00.000")
+            self.testSql.checkData(3, 1, "2021-04-18 08:00:00.000")
+            self.testSql.checkData(3, 2, 1)
+            
+            
+        # 28 days: 2419200000 ms
+        sql = (
+            "select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2419200000)"
+        )
+        self.testSql.query(sql)
+        check_helper()
+        
+        # 4 weeks
+        sql = (
+            "select _wstart, _wend, count(*) from t2021 interval(1n) sliding(4w)"
+        )
+        self.testSql.query(sql)
+        check_helper()
+
+        # 28 days: 2419200000000 us, precision unit is microsecond, so same as 2419200000 ms 
+        self.testSql.query("select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2419200000000u)")
+        check_helper()
+
+        self.testSql.query("select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2419200000999u)")
+        check_helper()
+        
+        # 28 days: 2419200000000000 ns, precision unit is microsecond, so same as 2419200000 ms 
+        self.testSql.query("select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2419200000000000b)")
+        check_helper()
+
+        self.testSql.query("select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2419200000999999b)")
+        check_helper()
+        
+        self.testSql.error("select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2419200001000u)")
+        self.testSql.error("select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2419200001000000b)")
+          
+        # 28 days: 2419200000 ms - 1 ms
+        sql = (
+            "select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2419199999)"
+        )
+        self.testSql.query(sql)
+        
+        self.testSql.checkData(0, 2, 2)
+        self.testSql.checkData(1, 2, 3)
+        self.testSql.checkData(2, 0, "2021-02-18 07:59:59.333")
+        self.testSql.checkData(2, 1, "2021-03-18 07:59:59.333")
+        self.testSql.checkData(2, 2, 3)
+        self.testSql.checkData(3, 0, "2021-03-18 07:59:59.332")
+        self.testSql.checkData(3, 1, "2021-04-18 07:59:59.332")
+        self.testSql.checkData(3, 2, 1)
+
+        # 28 days: 2419200000 ms + 1 ms
+        sql = (
+            "select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2419200001)"
+        )
+        self.testSql.error(sql)
+        
+        # 29 days: 2505600000 ms - 1 ms
+        sql = (
+            "select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2505599999)"
+        )
+        self.testSql.error(sql)
+        
+        # 29 days: 2505600000 ms
+        sql = (
+            "select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2505600000)"
+        )
+        self.testSql.error(sql)
+        
+        # 5 weeks
+        sql = (
+            "select _wstart, _wend, count(*) from t2021 interval(1n) sliding(5w)"
+        )
+        self.testSql.error(sql)
+
     def ts_5400_test(self):        
         self.ts_5400_prepare_data()
         self.testSql.execute("use db_ts5400;")
