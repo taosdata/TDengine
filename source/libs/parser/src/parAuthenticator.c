@@ -871,19 +871,11 @@ static int32_t authAlterLocal(SAuthCxt* pCxt, SAlterLocalStmt* pStmt) {
 }
 
 static int32_t authDropRole(SAuthCxt* pCxt, SDropRoleStmt* pStmt) {
-  int32_t code = authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_ROLE_DROP);
-  if (code && pStmt->ignoreNotExists) {
-    code = TSDB_CODE_SUCCESS;
-  }
-  return code;
+  return authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_ROLE_DROP);
 }
 
 static int32_t authDropDatabase(SAuthCxt* pCxt, SDropDatabaseStmt* pStmt) {
-  int32_t code = authObjPrivileges(pCxt, ((SDropDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_DROP, PRIV_OBJ_DB);
-  if (code && pStmt->ignoreNotExists) {
-    code = TSDB_CODE_SUCCESS;
-  }
-  return code;
+  return authObjPrivileges(pCxt, ((SDropDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_DROP, PRIV_OBJ_DB);
 }
 
 static int32_t authUseDatabase(SAuthCxt* pCxt, SUseDatabaseStmt* pStmt) {

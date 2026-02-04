@@ -2079,6 +2079,10 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
 
   mInfo("db:%s, start to drop", dropReq.db);
 
+  if ((code = mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_DB, pDb))) {
+    goto _OVER;
+  }
+
   pDb = mndAcquireDb(pMnode, dropReq.db);
   if (pDb == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -2086,10 +2090,6 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
     if (dropReq.ignoreNotExists) {
       code = mndBuildDropDbRsp(pDb, &pReq->info.rspLen, &pReq->info.rsp, true);
     }
-    goto _OVER;
-  }
-
-  if ((code = mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_DB, pDb))) {
     goto _OVER;
   }
 

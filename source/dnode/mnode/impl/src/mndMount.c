@@ -679,6 +679,9 @@ static int32_t mndProcessDropMountReq(SRpcMsg *pReq) {
 
   mInfo("mount:%s, start to drop", dropReq.mountName);
 
+  // mount operation share the privileges of db
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_MOUNT, (SDbObj *)pObj), NULL, _exit);
+
   pObj = mndAcquireMount(pMnode, dropReq.mountName);
   if (pObj == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -688,9 +691,6 @@ static int32_t mndProcessDropMountReq(SRpcMsg *pReq) {
     }
     goto _exit;
   }
-
-  // mount operation share the privileges of db
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_MOUNT, (SDbObj *)pObj), NULL, _exit);
 
   code = mndDropMount(pMnode, pReq, pObj);
   if (code == TSDB_CODE_SUCCESS) {
