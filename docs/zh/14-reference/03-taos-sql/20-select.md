@@ -376,7 +376,7 @@ NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如
 
 ### SURROUND 子句
 
-用于限制 FILL 子句的填充范围，只能在 PREV、NEXT、NEAR （仅 INTERP 查询支持）模式下使用。
+用于限制 FILL 子句的填充范围，只能在 PREV、NEXT、NEAR（仅 INTERP 查询支持）模式下使用。
 
 SURROUNDING_TIME_VAL 参数指定有效数据需要满足的时间范围，取值为正数，单位可选除月（n）、年（y）外的时间单位。
 在 INTERVAL 窗口查询中，其值必须大于等于 INTERVAL 窗口的时间长度。
