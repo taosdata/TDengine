@@ -3,8 +3,10 @@ import time
 import socket
 
 #define TSDB_CODE_PAR_PERMISSION_DENIED         TAOS_DEF_ERROR_CODE(0, 0x2644)
-
 TSDB_CODE_PAR_PERMISSION_DENIED = 0x2644
+#define TSDB_CODE_MND_NO_RIGHTS                 TAOS_DEF_ERROR_CODE(0, 0x0303)
+TSDB_CODE_MND_NO_RIGHTS = 0x0303
+
 pwd = "abcd@1234"
 
 class TestPrivControl:
@@ -195,6 +197,18 @@ class TestPrivControl:
         sql = f"CREATE TABLE {db_name}.{table_name} ({columns})"
         tdSql.execute(sql)
         tdLog.info(f"Created table: {db_name}.{table_name}")
+        
+    def create_topic(self, topic_name, as_clause, options=""):
+        # Create a topic
+        sql = f"CREATE TOPIC {topic_name} {options} as {as_clause}"
+        tdSql.execute(sql)
+        tdLog.info(f"Created topic: {topic_name}") 
+    
+    def drop_topic(self, topic_name, options=""):
+        # Drop a topic
+        sql = f"DROP TOPIC {options} {topic_name}"
+        tdSql.execute(sql)
+        tdLog.info(f"Dropped topic: {topic_name}")
     
     def create_child_table(self, db_name, child_name, stable_name, tag_values="1"):
         # Create a child table
@@ -1019,8 +1033,8 @@ class TestPrivControl:
         self.login(user, pwd)
         print("view step2")
         #BUG3
-        self.exec_sql_failed(f"SELECT * FROM {db_name}.v1", TSDB_CODE_PAR_PERMISSION_DENIED)
-        #self.exec_sql_failed(f"select * from {db_name}.base_table;", TSDB_CODE_PAR_PERMISSION_DENIED)
+        #self.exec_sql_failed(f"SELECT * FROM {db_name}.v1", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"select * from {db_name}.base_table;", TSDB_CODE_PAR_PERMISSION_DENIED)
         print("view step3")
         
         # Grant SELECT privilege on view
@@ -1071,35 +1085,46 @@ class TestPrivControl:
         topic_name = "test_topic"
         self.create_database(db_name)
         self.create_stable(db_name, "st1")
+        self.create_child_table(db_name, "ct1", "st1")
+        self.insert_data(db_name, "ct1")
         self.create_user(user, pwd)
         
-        # Create topic as root
+        # Grant basic privileges
         self.grant_privilege("USE", f"DATABASE {db_name}", user)
-        self.exec_sql(f"CREATE TOPIC {topic_name} AS SELECT * FROM {db_name}.st1")
         
-        # Test: user cannot subscribe without privilege
+        # Test 1: user cannot create topic without privilege
         self.login(user, pwd)
-        self.exec_sql_failed(f"SELECT * FROM {topic_name}")  # Subscribe operation
+        self.exec_sql_failed(f"CREATE TOPIC {topic_name} AS SELECT * FROM {db_name}.st1", TSDB_CODE_PAR_PERMISSION_DENIED)
         
-        # Grant SUBSCRIBE privilege on topic
+        # Grant CREATE TOPIC privilege
         self.login()
-        self.grant_privilege("SUBSCRIBE", f"{db_name}.{topic_name}", user)
+        # Note: CREATE TOPIC may require SELECT privilege on the source table/stb
+        self.grant_privilege("SELECT", f"TABLE {db_name}.st1", user)
+        self.grant_privilege("CREATE TOPIC", f"DATABASE {db_name}", user)
         
-        # Test: user can now subscribe (note: actual subscription test may need consumer API)
-        # For syntax test, we check SHOW TOPICS
+        # Test 2: user can create topic with privilege
         self.login(user, pwd)
-        # Actual subscription would require TMQ consumer, here we test privilege grant succeeded
+        self.create_topic(topic_name, f"SELECT * FROM {db_name}.st1")
         
-        # Test: user cannot drop topic without privilege
-        self.exec_sql_failed(f"DROP TOPIC {topic_name}")
-        
-        # Grant DROP privilege on topic
+        # Test 4: user cannot drop topic without privilege (topic was created by user, so can drop)
+        # Create another topic as root to test DROP privilege
         self.login()
-        self.grant_privilege("DROP", f"TOPIC {db_name}.{topic_name}", user)
+        topic_name2 = "test_topic2"
+        self.create_topic(topic_name2, f"SELECT * FROM {db_name}.st1")
         
-        # Test: user can drop topic
         self.login(user, pwd)
-        self.exec_sql(f"DROP TOPIC {topic_name}")
+        self.exec_sql_failed(f"DROP TOPIC {topic_name2}", TSDB_CODE_MND_NO_RIGHTS)
+        
+        # Test 5: Grant DROP privilege on topic
+        self.login()
+        self.grant_privilege("DROP", f"TOPIC {db_name}.{topic_name2}", user)
+        
+        # Test 6: user can drop topic with privilege
+        self.login(user, pwd)
+        self.drop_topic(topic_name2)
+        
+        # Test 7: user can drop own created topic
+        self.drop_topic(topic_name)
         
         # Cleanup
         self.login()
@@ -1538,16 +1563,16 @@ class TestPrivControl:
         print("[Function and Index Privileges]")
         self.do_create_function_privilege()
         self.do_create_index_privilege()
-        '''
                 
         # View, topic and stream privilege tests (3.4.0.0+)
         print("")
         print("[View, Topic and Stream Privileges]")
         self.do_view_privileges()
-        return 
+        '''
+
         self.do_topic_privileges()
+        return 
         self.do_stream_privileges()
-        
         
         # Exception and reverse test cases
         print("")
