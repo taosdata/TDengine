@@ -11,7 +11,7 @@ match callExpr(
   )))),
   unless(anyOf(
     #log and print functions
-    callee(functionDecl(matchesName(".*(Log|Print|Debug|Trace|Warn|Error|Info|Fatal).*"))),
+    callee(functionDecl(matchesName("(?i).*(log|print|debug|trace|warn|error|info|fatal).*"))),
     # memory functions
     callee(functionDecl(matchesName(".*memcpy.*"))),
     callee(functionDecl(matchesName(".*strcpy.*"))),
