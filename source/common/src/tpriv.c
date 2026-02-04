@@ -662,7 +662,7 @@ _exit:
 }
 
 SPrivTblPolicy* privGetConstraintTblPrivileges(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
-                                               SPrivInfo* privInfo) {
+                                               const SPrivInfo* privInfo) {
   if (taosHashGetSize(privs) == 0) return NULL;
 
   const char* pObjName = objName;

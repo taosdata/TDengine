@@ -2234,6 +2234,7 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
   if (TSDB_CODE_SUCCESS == code) {
     if (pPrivCols) pStmt->pPrivCols = pPrivCols;
 #ifdef TD_ENTERPRISE
+#if 0
     if (pStmt->pTableMeta && pStmt->pTableMeta->isAudit) {
       // recheck for audit table
       code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, true, &pCxt->missCache, NULL, NULL, NULL);
@@ -2242,6 +2243,7 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
         return code;
       }
     }
+#endif
     if (!pCxt->missCache) {
       if (TSDB_SUPER_TABLE != pStmt->pTableMeta->tableType) {
         pCxt->needTableTagVal = (NULL != pTagCond);

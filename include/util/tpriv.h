@@ -438,7 +438,7 @@ bool             isPrivInheritName(const char* name);
 bool             privHasObjPrivilege(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
                                      const SPrivInfo* privInfo, bool recursive);
 SPrivTblPolicy* privGetConstraintTblPrivileges(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
-                                               SPrivInfo* privInfo);
+                                               const SPrivInfo* privInfo);
 
 #ifdef __cplusplus
 }

@@ -2302,7 +2302,7 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
   int32_t          code = 0;
   STableMeta*      pMeta = NULL;
   SGetUserAuthRsp* pInfo = &req->authInfo;
-  SPrivInfo*       privInfo = req->privInfo;
+  const SPrivInfo* privInfo = req->privInfo;
   int32_t          sizeTbPrivs = taosHashGetSize(req->tbPrivs);
   SUserAuthInfo*   pReq = req->pRawReq;
   SUserAuthRes*    pRes = res->pRawRes;
@@ -2377,24 +2377,42 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
 
     /**
      *  1. skip owner check for audit table
-     *  2. compatible with old version where ownerId is 0
+     *  2. rewrite privilege for audit table
      */
-    if (!pMeta->isAudit && (pReq->dbOwner || (req->authInfo.userId == pMeta->ownerId))) {
+    if (pMeta->isAudit) {
+      isOwner = false;
+      if (privInfo->privType == PRIV_TBL_INSERT) {
+        privInfo = privInfoGet(PRIV_AUDIT_TBL_INSERT);
+      } else if (privInfo->privType == PRIV_TBL_SELECT) {
+        privInfo = privInfoGet(PRIV_AUDIT_TBL_SELECT);
+      }
+    } else if (pReq->dbOwner || (req->authInfo.userId == pMeta->ownerId)) {
       isOwner = true;
-    } else {
+    } else if (isOwner) {
       isOwner = false;
     }
 
     if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType ||
         TSDB_VIRTUAL_NORMAL_TABLE == pMeta->tableType) {
       // check specific table for normal/super table privilege, and then check recursively to wildcard table
-      if (isOwner || privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, true)) {
+      if (isOwner) {
+        res->pRawRes->pass[AUTH_RES_BASIC] = true;
+      } else if (privInfo->category == PRIV_CATEGORY_SYSTEM) {
+        if (PRIV_HAS(&pInfo->sysPrivs, privInfo->privType)) {
+          pRes->pass[AUTH_RES_BASIC] = true;
+        }
+      } else if (privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, true)) {
         res->pRawRes->pass[AUTH_RES_BASIC] = true;
       }
       goto _return;  // return directly for normal/super table
     } else {
       // check the specific child table privileges, don't check wildcard child table privileges here
-      if (privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, false)) {
+      if (privInfo->category == PRIV_CATEGORY_SYSTEM) {
+        if (PRIV_HAS(&pInfo->sysPrivs, privInfo->privType)) {
+          pRes->pass[AUTH_RES_BASIC] = true;
+          goto _return;
+        }
+      } else if (privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, false)) {
         res->pRawRes->pass[AUTH_RES_BASIC] = true;
         goto _return;
       }
