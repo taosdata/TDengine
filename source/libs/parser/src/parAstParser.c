@@ -204,7 +204,8 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
   if (TSDB_CODE_SUCCESS == code &&
       (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS) || 0 == strcmp(pTable, TSDB_INS_TABLE_TABLES) ||
        0 == strcmp(pTable, TSDB_INS_TABLE_COLS) || 0 == strcmp(pTable, TSDB_INS_TABLE_VC_COLS) ||
-       0 == strcmp(pTable, TSDB_INS_DISK_USAGE) || 0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)) &&
+       0 == strcmp(pTable, TSDB_INS_DISK_USAGE) || 0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS) ||
+       0 == strcmp(pTable, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING)) &&
       QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt)) {
     code = collectMetaKeyFromInsTags(pCxt);
   }
@@ -942,6 +943,17 @@ static int32_t collectMetaKeyFromShowXnodeJobs(SCollectMetaKeyCxt* pCxt, SShowSt
   }
   return code;
 }
+
+static int32_t collectMetaKeyFromShowVirtualTablesReferencing(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB,
+                                         TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_NODES_SHOW, 0,
+                                  pCxt->pMetaCache);
+  }
+  return code;
+}
+
 static int32_t collectMetaKeyFromShowArbGroups(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_ARBGROUPS,
                                          pCxt->pMetaCache);

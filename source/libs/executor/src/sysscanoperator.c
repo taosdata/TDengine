@@ -13,14 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <strings.h>
 #include "executorInt.h"
 #include "filter.h"
 #include "functionMgt.h"
 #include "geosWrapper.h"
 #include "nodes.h"
+#include "osMemPool.h"
 #include "querynodes.h"
 #include "systable.h"
 #include "tcommon.h"
+#include "tdef.h"
 #include "tname.h"
 
 #include "tdatablock.h"
@@ -51,6 +54,24 @@ typedef struct SSysTableIndex {
   SArray* uids;
   int32_t lastIdx;
 } SSysTableIndex;
+
+typedef struct {
+  char vDbName[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE];
+  char vStbName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE];
+  char vTableName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE];
+
+  char vColName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE];
+
+  char    refDbName[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE];
+  char    refStbName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE];
+  char    refTableName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE];
+  char    refColName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE];
+  int8_t  type;
+  int8_t  isValid;
+  int32_t errCode;
+  char    errMsg[64 + VARSTR_HEADER_SIZE];
+
+} SVirtualTableRefInfo;
 
 typedef struct SSysTableScanInfo {
   SRetrieveMetaTableRsp* pRsp;
@@ -181,6 +202,16 @@ static int32_t sysTableUserColsFillOneTableCols(const char* dbname, int32_t* pNu
 static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
                                                             const SSDataBlock* dataBlock, char* tName, char* stName,
                                                             SSchemaWrapper* schemaRow, char* tableType, SColRefWrapper *colRef, tb_uid_t uid, int32_t vgId);
+
+static int32_t sysTableFillOneVirtualTableRef(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
+                                              const SSDataBlock* dataBlock, char* tName, char* stName,
+                                              SSchemaWrapper* schemaRow, char* tableType, SColRefWrapper* colRef,
+                                              tb_uid_t uid, int32_t vgId);
+
+static int32_t sysTableFillOneVirtualTableRefImpl(const SSysTableScanInfo* pInfo, const char* dbname,
+                                                  int32_t* pNumOfRows, const SSDataBlock* dataBlock,
+                                                  SSchemaWrapper* schemaRow, SColRefWrapper* pRefCol,
+                                                  SVirtualTableRefInfo* pRef);
 
 static void relocateAndFilterSysTagsScanResult(SSysTableScanInfo* pInfo, int32_t numOfRows, SSDataBlock* dataBlock,
                                                SFilterInfo* pFilterInfo, SExecTaskInfo* pTaskInfo);
@@ -1049,6 +1080,202 @@ _end:
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
 
+static SSDataBlock* sysTableScanVirtualTableRef(SOperatorInfo* pOperator) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            lino = 0;
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
+  SSysTableScanInfo* pInfo = pOperator->info;
+  int32_t            numOfRows = 0;
+  int32_t            ret = 0;
+  char               dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  SSDataBlock*       pDataBlock = NULL;
+
+  SVirtualTableRefInfo* pVtableRefInfo = taosMemoryCalloc(1, sizeof(SVirtualTableRefInfo));
+  if (pVtableRefInfo == NULL) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, terrstr());
+    pTaskInfo->code = terrno;
+    T_LONG_JMP(pTaskInfo->env, terrno);
+  }
+
+  // skip mnd read
+  if (pInfo->readHandle.mnd != NULL) {
+    taosMemoryFreeClear(pVtableRefInfo);
+    setOperatorCompleted(pOperator);
+    return NULL;
+  }
+
+  if (pOperator->status == OP_EXEC_DONE) {
+    taosMemoryFreeClear(pVtableRefInfo);
+    return NULL;
+  }
+
+  blockDataCleanup(pInfo->pRes);
+
+  pDataBlock = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING);
+  QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
+
+  code = blockDataEnsureCapacity(pDataBlock, pOperator->resultInfo.capacity);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  code = doExtractDbName(pVtableRefInfo->vDbName, pInfo, pAPI);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  // optimize when sql like where table_name='tablename' and xxx.
+  if (pInfo->req.filterTb[0]) {
+    SSDataBlock* p = doOptimizeTableNameFilter(pOperator, pDataBlock, dbname);
+    taosMemoryFreeClear(pVtableRefInfo);
+    blockDataDestroy(pDataBlock);
+    return p;
+  }
+
+  if (pInfo->pCur == NULL) {
+    pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
+  } else {
+    code = pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
+    if (code != 0) {
+      pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+      pInfo->pCur = NULL;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  }
+
+  if (pInfo->pSchema == NULL) {
+    pInfo->pSchema = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    taosHashSetFreeFp(pInfo->pSchema, tDeleteSSchemaWrapperForHash);
+  }
+
+  if (!pInfo->pCur || !pInfo->pSchema) {
+    qError("sysTableScanUserVcCols failed since %s", terrstr());
+    blockDataDestroy(pDataBlock);
+    pInfo->loadInfo.totalRows = 0;
+    return NULL;
+  }
+
+  while (((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_TABLE_MAX)) == 0)) {
+    SSchemaWrapper* schemaRow = NULL;
+    SColRefWrapper* colRef = NULL;
+
+    if (pInfo->pCur->mr.me.type == TSDB_SUPER_TABLE) {
+      continue;
+    } else if (pInfo->pCur->mr.me.type == TSDB_CHILD_TABLE) {
+      continue;
+    } else if (pInfo->pCur->mr.me.type == TSDB_NORMAL_TABLE) {
+      continue;
+    } else if (pInfo->pCur->mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
+      qDebug("sysTableScanUserVcCols cursor get virtual normal table, %s", GET_TASKID(pTaskInfo));
+
+      STR_TO_VARSTR(pVtableRefInfo->vTableName, pInfo->pCur->mr.me.name);
+      STR_TO_VARSTR(pVtableRefInfo->vStbName, pInfo->pCur->mr.me.name);
+
+      colRef = &pInfo->pCur->mr.me.colRef;
+      schemaRow = &pInfo->pCur->mr.me.ntbEntry.schemaRow;
+    } else if (pInfo->pCur->mr.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+      qDebug("sysTableScanUserVcCols cursor get virtual child table, %s", GET_TASKID(pTaskInfo));
+
+      // STR_TO_VARSTR(typeName, "VIRTUAL_CHILD_TABLE");
+      STR_TO_VARSTR(pVtableRefInfo->vTableName, pInfo->pCur->mr.me.name);
+
+      colRef = &pInfo->pCur->mr.me.colRef;
+      int64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
+      void*   schema = taosHashGet(pInfo->pSchema, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t));
+      if (schema != NULL) {
+        schemaRow = *(SSchemaWrapper**)schema;
+        SMetaReader smrSuperTable = {0};
+        pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
+        code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
+        if (code != TSDB_CODE_SUCCESS) {
+          // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
+          qError("sysTableScanUserVcCols get meta by suid:%" PRId64 " error, code:%d, %s", suid, code,
+                 GET_TASKID(pTaskInfo));
+
+          pAPI->metaReaderFn.clearReader(&smrSuperTable);
+          blockDataDestroy(pDataBlock);
+          pInfo->loadInfo.totalRows = 0;
+          return NULL;
+        }
+        STR_TO_VARSTR(pVtableRefInfo->vStbName, smrSuperTable.me.name);
+        pAPI->metaReaderFn.clearReader(&smrSuperTable);
+      } else {
+        SMetaReader smrSuperTable = {0};
+        pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
+        code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
+        if (code != TSDB_CODE_SUCCESS) {
+          // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
+          qError("sysTableScanUserVcCols get meta by suid:%" PRId64 " error, code:%d, %s", suid, code,
+                 GET_TASKID(pTaskInfo));
+
+          pAPI->metaReaderFn.clearReader(&smrSuperTable);
+          blockDataDestroy(pDataBlock);
+          pInfo->loadInfo.totalRows = 0;
+          return NULL;
+        }
+        STR_TO_VARSTR(pVtableRefInfo->vStbName, smrSuperTable.me.name);
+        SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&smrSuperTable.me.stbEntry.schemaRow);
+        if (smrSuperTable.me.stbEntry.schemaRow.pSchema) {
+          if (schemaWrapper == NULL) {
+            code = terrno;
+            lino = __LINE__;
+            pAPI->metaReaderFn.clearReader(&smrSuperTable);
+            goto _end;
+          }
+        }
+        code = taosHashPut(pInfo->pSchema, &suid, sizeof(int64_t), &schemaWrapper, POINTER_BYTES);
+        if (code == TSDB_CODE_DUP_KEY) {
+          code = TSDB_CODE_SUCCESS;
+        }
+        schemaRow = schemaWrapper;
+        pAPI->metaReaderFn.clearReader(&smrSuperTable);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+    } else {
+      qDebug("sysTableScanUserVcCols cursor get invalid table, %s", GET_TASKID(pTaskInfo));
+      continue;
+    }
+
+    if ((numOfRows + schemaRow->nCols) > pOperator->resultInfo.capacity) {
+      relocateAndFilterSysTagsScanResult(pInfo, numOfRows, pDataBlock, pOperator->exprSupp.pFilterInfo, pTaskInfo);
+      numOfRows = 0;
+
+      if (pInfo->pRes->info.rows > 0) {
+        pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
+        break;
+      }
+    }
+
+    // if pInfo->pRes->info.rows == 0, also need to add the meta to pDataBlock
+    code = sysTableFillOneVirtualTableRefImpl(pInfo, dbname, &numOfRows, pDataBlock, schemaRow, colRef, pVtableRefInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  if (numOfRows > 0) {
+    pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
+    relocateAndFilterSysTagsScanResult(pInfo, numOfRows, pDataBlock, pOperator->exprSupp.pFilterInfo, pTaskInfo);
+    numOfRows = 0;
+  }
+
+  blockDataDestroy(pDataBlock);
+  pDataBlock = NULL;
+  if (ret != 0) {
+    pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+    pInfo->pCur = NULL;
+    setOperatorCompleted(pOperator);
+  }
+
+  pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
+  qDebug("get cols success, rows:%" PRIu64 " %s", pInfo->loadInfo.totalRows, GET_TASKID(pTaskInfo));
+
+_end:
+
+  taosMemoryFreeClear(pVtableRefInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pDataBlock);
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
+  return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
+}
 
 static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -1728,6 +1955,243 @@ _end:
   return code;
 }
 
+static int32_t sysTableFillOneVirtualTableRefImpl(const SSysTableScanInfo* pInfo, const char* dbname,
+                                                  int32_t* pNumOfRows, const SSDataBlock* dataBlock,
+                                                  SSchemaWrapper* schemaRow, SColRefWrapper* pColRef,
+                                                  SVirtualTableRefInfo* pRef) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  if (schemaRow == NULL) {
+    qError("sysTableUserColsFillOneTableCols schemaRow is NULL");
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t numOfRows = *pNumOfRows;
+
+  int32_t numOfCols = schemaRow->nCols;
+  for (int32_t i = 1; i < numOfCols; ++i) {
+    SColumnInfoData* pColInfoData = NULL;
+
+    // virtual db name
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 0);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, pRef->vDbName, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    // virtual stable name
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 1);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, pRef->vStbName, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    // virtual table name
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 2);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, pRef->vTableName, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    // virtual col name
+    char colName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(colName, schemaRow->pSchema[i].name);
+
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 3);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, colName, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    // src db name
+    if (!pColRef || i >= pColRef->nCols || !pColRef->pColRef[i].hasRef) {
+      code = TSDB_CODE_INVALID_PARA;
+      QUERY_CHECK_CODE(code, lino, _end);
+    } else {
+      // src db name
+      char db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_TO_VARSTR(db, pColRef->pColRef[i].refDbName);
+
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, db, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      char stableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_TO_VARSTR(stableName, pColRef->pColRef[i].refTableName);
+      // src stable name
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, stableName, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // src table name
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 6);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, stableName, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      char colName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_TO_VARSTR(colName, pColRef->pColRef[i].refColName);
+      // src col name
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 7);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, colName, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // src type
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 8);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&pRef->type, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // src col is valid
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 9);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      int32_t isValid = 1;
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&isValid, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // src col err code
+      int32_t errCode = 0;
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 10);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&errCode, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // src col err msg
+      char errMsg[64 + VARSTR_HEADER_SIZE] = {0};
+      if (errCode != 0) {
+        STR_TO_VARSTR(errMsg, tstrerror(errCode));
+      } else {
+        STR_TO_VARSTR(errMsg, "");
+      }
+
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 11);
+      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+      code = colDataSetVal(pColInfoData, numOfRows, errMsg, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
+    ++numOfRows;
+  }
+
+  *pNumOfRows = numOfRows;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t sysTableFillOneVirtualTableRef(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
+                                              const SSDataBlock* dataBlock, char* tName, char* stName,
+                                              SSchemaWrapper* schemaRow, char* tableType, SColRefWrapper* colRef,
+                                              tb_uid_t uid, int32_t vgId) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  if (schemaRow == NULL) {
+    qError("sysTableUserColsFillOneTableCols schemaRow is NULL");
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t numOfRows = *pNumOfRows;
+
+  int32_t numOfCols = schemaRow->nCols;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pColInfoData = NULL;
+
+    // virtual db name
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 0);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, tName, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    // virtual stable name
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 1);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, stName, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    // virtual table name
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 2);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, dbname, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    // virtual col name
+    char colName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(colName, schemaRow->pSchema[i].name);
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 3);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, colName, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    // src db name
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&uid, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    // src stable name
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    if (!colRef || !colRef->pColRef[i].hasRef) {
+      colDataSetNULL(pColInfoData, numOfRows);
+    } else {
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&colRef->pColRef[i].id, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    // src col name
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 6);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    if (!colRef || !colRef->pColRef[i].hasRef) {
+      colDataSetNULL(pColInfoData, numOfRows);
+    } else {
+      char refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      char tmpColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
+      strcat(tmpColName, colRef->pColRef[i].refDbName);
+      strcat(tmpColName, ".");
+      strcat(tmpColName, colRef->pColRef[i].refTableName);
+      strcat(tmpColName, ".");
+      strcat(tmpColName, colRef->pColRef[i].refColName);
+      STR_TO_VARSTR(refColName, tmpColName);
+
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)refColName, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
+    // src type
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 7);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    // src col is valid
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 8);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    // src col err code
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 9);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    // src col err msg
+
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 10);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    code = colDataSetVal(pColInfoData, numOfRows, (char*)&vgId, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    ++numOfRows;
+  }
+
+  *pNumOfRows = numOfRows;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
 
 static SSDataBlock* buildInfoSchemaTableMetaBlock(char* tableName) {
   size_t               size = 0;
@@ -3291,6 +3755,8 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
       pBlock = sysTableScanUsage(pOperator);
     } else if (strncasecmp(name, TSDB_INS_TABLE_FILESETS, TSDB_TABLE_FNAME_LEN) == 0) {
       pBlock = sysTableScanUserFileSets(pOperator);
+    } else if (strncasecmp(name, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING, TSDB_TABLE_FNAME_LEN) == 0) {
+      pBlock = sysTableScanVirtualTableRef(pOperator);
     } else {  // load the meta from mnode of the given epset
       pBlock = sysTableScanFromMNode(pOperator, pInfo, name, pTaskInfo);
     }
@@ -3466,7 +3932,9 @@ static int32_t resetSysTableScanOperState(SOperatorInfo* pOper) {
     if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
         strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
         strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 ||
-        strncasecmp(name, TSDB_INS_TABLE_VC_COLS, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
+        strncasecmp(name, TSDB_INS_TABLE_VC_COLS, TSDB_TABLE_FNAME_LEN) == 0 ||
+        strncasecmp(name, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING, TSDB_TABLE_FNAME_LEN) == 0 ||
+        pInfo->pCur != NULL) {
       if (pInfo->pAPI != NULL && pInfo->pAPI->metaFn.closeTableMetaCursor != NULL) {
         pInfo->pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
       }
@@ -3654,6 +4122,7 @@ void destroySysScanOperator(void* param) {
         strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
         strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 ||
         strncasecmp(name, TSDB_INS_TABLE_VC_COLS, TSDB_TABLE_FNAME_LEN) == 0 ||
+        strncasecmp(name, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING, TSDB_TABLE_FNAME_LEN) == 0 ||
         pInfo->pCur != NULL) {
       if (pInfo->pAPI != NULL && pInfo->pAPI->metaFn.closeTableMetaCursor != NULL) {
         pInfo->pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);

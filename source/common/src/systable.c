@@ -25,6 +25,7 @@
 #define SYSTABLE_SCH_DB_NAME_LEN    ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_COL_NAME_LEN   ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_VIEW_NAME_LEN  ((TSDB_VIEW_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
+#define SYSTABLE_SCH_COL_NAME_LEN   ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 
 #define PERF_INSTANCE_ID_LEN   (255 + VARSTR_HEADER_SIZE)
 #define PERF_INSTANCE_TYPE_LEN (64 + VARSTR_HEADER_SIZE)
@@ -738,6 +739,22 @@ static const SSysDbTableSchema xnodeAgentsSchema[] = {
     {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
 };
 
+static const SSysDbTableSchema virtualTablesReferencing[] = {
+    {.name = "virtual_db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "virtual_stable_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "virtual_table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "virtual_col_name", .bytes = SYSTABLE_SCH_COL_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "src_db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "src_stable_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "src_table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "src_column_name", .bytes = SYSTABLE_SCH_COL_NAME_LEN , .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "type", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "is_valid", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "err_code", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "err_msg", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+};
+
+
 
 /**
  * @brief Defines the metadata for system tables.
@@ -806,6 +823,8 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_XNODE_TASKS, xnodeTasksSchema, tListLen(xnodeTasksSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_XNODE_AGENTS, xnodeAgentsSchema, tListLen(xnodeAgentsSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_XNODE_JOBS, xnodeTaskJobSchema, tListLen(xnodeTaskJobSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING, virtualTablesReferencing, tListLen(virtualTablesReferencing), true, PRIV_CAT_PRIVILEGED},
+
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {

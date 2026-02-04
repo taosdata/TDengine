@@ -5011,7 +5011,8 @@ static int32_t dnodeToVgroupsInfo(SArray* pDnodes, SVgroupsInfo** pVgsInfo) {
 static bool sysTableFromVnode(const char* pTable) {
   return ((0 == strcmp(pTable, TSDB_INS_TABLE_TABLES)) || (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS)) ||
           (0 == strcmp(pTable, TSDB_INS_TABLE_COLS)) || 0 == strcmp(pTable, TSDB_INS_TABLE_VC_COLS) ||
-          0 == strcmp(pTable, TSDB_INS_DISK_USAGE) || (0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)));
+          0 == strcmp(pTable, TSDB_INS_DISK_USAGE) || (0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)) ||
+          (0 == strcmp(pTable, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING)));
 }
 
 static bool sysTableFromDnode(const char* pTable) { return 0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES); }
@@ -5085,7 +5086,8 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
       ((0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) && !hasUserDbCond) ||
        0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS) ||
        (0 == strcmp(pRealTable->table.tableName, TSDB_INS_DISK_USAGE) && !hasUserDbCond) ||
-       0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS))) {
+       0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS) ||
+       0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING))) {
     code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &pVgs);
   }
 
@@ -5298,7 +5300,8 @@ static bool isSingleTable(SRealTableNode* pRealTable) {
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_COLS) &&
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_DISK_USAGE) &&
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS) &&
-           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_VC_COLS);
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_VC_COLS) &&
+           0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING);
   }
   return (TSDB_CHILD_TABLE == tableType || TSDB_NORMAL_TABLE == tableType || TSDB_VIRTUAL_CHILD_TABLE == tableType ||
           TSDB_VIRTUAL_NORMAL_TABLE == tableType);
