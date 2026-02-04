@@ -14,9 +14,19 @@ func TestTestUsername(t *testing.T) {
 	assert.Equal(t, "test_user", username)
 }
 
+func TestTestUsernameDefault(t *testing.T) {
+	username := TestUsername()
+	assert.Equal(t, "root", username)
+}
+
 func TestTestPassword(t *testing.T) {
 	os.Setenv("TEST_PASSWORD", "test_pass")
 	defer os.Unsetenv("TEST_PASSWORD")
 	password := TestPassword()
 	assert.Equal(t, "test_pass", password)
+}
+
+func TestTestPasswordDefault(t *testing.T) {
+	password := TestPassword()
+	assert.Equal(t, "taosdata", password)
 }

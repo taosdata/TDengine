@@ -3,9 +3,15 @@ package testutil
 import "os"
 
 func TestUsername() string {
-	return os.Getenv("TEST_USERNAME")
+	if v := os.Getenv("TEST_USERNAME"); v != "" {
+		return v
+	}
+	return "root"
 }
 
 func TestPassword() string {
-	return os.Getenv("TEST_PASSWORD")
+	if v := os.Getenv("TEST_PASSWORD"); v != "" {
+		return v
+	}
+	return "taosdata"
 }
