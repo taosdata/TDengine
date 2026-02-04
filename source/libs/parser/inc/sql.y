@@ -1063,12 +1063,31 @@ alter_table_clause(A) ::=
 
 %type column_tag_value_list                                                          { SNodeList* }
 %destructor column_tag_value_list                                                    { nodesDestroyList($$); }
-column_tag_value(A) ::= column_name(C) NK_EQ tags_literal(D).                        { A = createAlterSingleTagColumnNode(pCxt, &C, D); }
+column_tag_value(A) ::= column_name(B) NK_EQ tags_literal(C).                        { A = createAlterSingleTagColumnNode(pCxt, &B, C); }
+
+/* NOTE: the use of REGEXP_REPLACE is a temporary solution, will be replaced by a more general solution like below in the future:
+       column_tag_value(A) ::= column_name(B) NK_EQ expression(C).
+*/
+column_tag_value(A) ::= column_name(B) NK_EQ REGEXP_REPLACE NK_LP NK_ID NK_COMMA NK_STRING(C) NK_COMMA NK_STRING(D) NK_RP. {
+    A = createAlterSingleTagColumnExpressionNode(pCxt, &B, &C, &D);
+  }
+
 column_tag_value_list(A) ::= column_tag_value(B).                                    { A = createNodeList(pCxt, B); }
 column_tag_value_list(A) ::= column_tag_value_list(B) NK_COMMA column_tag_value(C).  { A = addNodeToList(pCxt, B, C);}
 
-alter_table_clause(A) ::=
-  full_table_name(B) SET TAG column_tag_value_list(C).                            { A = createAlterTableSetMultiTagValue(pCxt, B, C); }
+%type alter_single_table_clause                                                      { SNode* }
+%destructor alter_single_table_clause                                                { nodesDestroyNode($$); }
+alter_single_table_clause(A) ::= full_table_name(B) SET TAG column_tag_value_list(C). { A = createAlterSingleTableClause(pCxt, B, C); }
+
+%type alter_multi_table_clause                                                       { SNodeList* }
+%destructor alter_multi_table_clause                                                 { nodesDestroyList($$); }
+alter_multi_table_clause(A) ::= alter_single_table_clause(B).                        { A = createNodeList(pCxt, B); }
+alter_multi_table_clause(A) ::= alter_multi_table_clause(B) alter_single_table_clause(C). { A = addNodeToList(pCxt, B, C); }
+
+alter_table_clause(A) ::= alter_multi_table_clause(B).                               { A = createAlterMultiTableStmt(pCxt, B); }
+alter_table_clause(A) ::= OF full_table_name(B) SET TAG column_tag_value_list(C) where_clause_opt(D). {
+    A = createAlterChildTableStmt(pCxt, B, C, D);
+  }
 
 %type multi_create_clause                                                         { SNodeList* }
 %destructor multi_create_clause                                                   { nodesDestroyList($$); }
