@@ -81,7 +81,8 @@ typedef enum {
 typedef struct SUserAuthRes {
   bool    pass[AUTH_RES_MAX_VALUE];
   SNode*  pCond[AUTH_RES_MAX_VALUE];
-  SArray* pCols; // applicable to basic auth only
+  SArray* pCols;  // applicable to basic auth only
+  int32_t code;
 } SUserAuthRes;
 
 typedef struct SUserAuthRsp {
