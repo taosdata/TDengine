@@ -369,24 +369,26 @@ The differences between NULL, NULL_F, VALUE, VALUE_F filling modes for different
 :::info
 
 1. When using the FILL statement, a large amount of fill output may be generated, so be sure to specify the query time range. For each query, the system can return up to 10 million results with interpolation.
-2. In time dimension aggregation, the returned results have a strictly monotonically increasing time-series.
-3. If the query object is a supertable, the aggregate functions will apply to all tables under the supertable that meet the value filtering conditions. If the query does not use a PARTITION BY statement, the returned results will have a strictly monotonically increasing time-series; if the query uses a PARTITION BY statement for grouping, the results within each PARTITION will have a strictly monotonically increasing time series.
-4. FILL has continuity, if only the first value in a column is not NULL, then fill(prev) will fill all subsequent rows with that value.
+2. FILL has continuity, if only the first value in a column is not NULL, then fill(prev) will fill all subsequent rows with that value.
 
 :::
 
 ### SURROUND Clause
 
-Used to limit the filling range of the FILL clause. Can only be used in PREV, NEXT, NEAR modes.
+The SURROUND clause is used to limit the filling range of the FILL clause. It can only be used in PREV, NEXT, NEAR (only supported in INTERP queries) modes.
 
-The surrounding_time_val parameter is used to specify the time range for valid data. If the time difference between a row with valid data and the current row exceeds surrounding_time_val, its data will not be used, and instead the values specified by the fill_vals parameter will be used for filling. The value must be positive, and the unit can be any time unit except month (n) and year (y). In interval window queries, since data has the same time interval, the surrounding_time_val parameter must exceed the time length of the interval window.
+The SURROUNDING_TIME_VAL parameter specifies the time range that the valid data must meet. It takes a positive number and the unit can be any time unit except for month(n) and year(y).
+In an INTERVAL window query, its value must be greater than or equal to the time length of the INTERVAL window.
 
-The fill_vals parameter is used to specify the filling values. The number and format are the same as the VALUE filling mode of the FILL clause. It can be constants or constant expressions, and subqueries are not supported.
+In an INTERP query, if the time difference between a valid data row and the current row exceeds this parameter, that row will not be used; instead, `FILL_VALS` is used to fill the gap.
+In an INTERVAL window query, if the time difference between a valid data window and the current window (the difference of the windows' start timestamps) exceeds this parameter, that window's data will not be used; instead, `FILL_VALS` is used to fill the gap.
+
+The FILL_VALS parameter specifies the filling values. The number and format are the same as the VALUE filling mode of the FILL clause. It can be constants or constant expressions, and subqueries are not supported.
 
 Example:
 
 ```sql
-select * from fill_example;
+taos> select * from fill_example;
            ts            |   c1        |
 ========================================
  2026-01-01 00:00:00.000 | 2026        |
@@ -397,7 +399,7 @@ select * from fill_example;
  2026-01-01 00:00:05.000 | NULL        |
  2026-01-01 00:00:06.000 | 6202        |
 
-select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00:01', '2026-01-01 00:00:05') every(1s) fill(near);
+taos> select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00:01', '2026-01-01 00:00:05') every(1s) fill(near);
            ts            |   c1        |
 ========================================
  2026-01-01 00:00:01.000 | 2026        |
@@ -406,7 +408,7 @@ select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00:01', 
  2026-01-01 00:00:04.000 | 6202        |
  2026-01-01 00:00:05.000 | 6202        |
 
-select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00:01', '2026-01-01 00:00:05') every(1s) fill(near) surround(2s, 0);
+taos> select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00:01', '2026-01-01 00:00:05') every(1s) fill(near) surround(2s, 0);
            ts            |   c1        |
 ========================================
  2026-01-01 00:00:01.000 | 2026        |
@@ -414,6 +416,28 @@ select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00:01', 
  2026-01-01 00:00:03.000 | 0           |
  2026-01-01 00:00:04.000 | 6202        |
  2026-01-01 00:00:05.000 | 6202        |
+
+taos> select _wstart, _wend, avg(c1), last(c1) from fill_example where ts between "2026-01-01 00:00:00" and "2026-01-01 00:00:06" interval(1s) fill(prev) surround(5s, 0, 0);
+         _wstart         |          _wend          |  avg(c1)   |  last(c1)   |
+===============================================================================
+ 2026-01-01 00:00:00.000 | 2026-01-01 00:00:01.000 |       2026 |        2026 |
+ 2026-01-01 00:00:01.000 | 2026-01-01 00:00:02.000 |       2026 |        2026 |
+ 2026-01-01 00:00:02.000 | 2026-01-01 00:00:03.000 |       2026 |        2026 |
+ 2026-01-01 00:00:03.000 | 2026-01-01 00:00:04.000 |       2026 |        2026 |
+ 2026-01-01 00:00:04.000 | 2026-01-01 00:00:05.000 |       2026 |        2026 |
+ 2026-01-01 00:00:05.000 | 2026-01-01 00:00:06.000 |       2026 |        2026 |
+ 2026-01-01 00:00:06.000 | 2026-01-01 00:00:07.000 |       6202 |        6202 |
+
+taos> select _wstart, _wend, avg(c1), last(c1) from fill_example where ts between "2026-01-01 00:00:00" and "2026-01-01 00:00:06" interval(1s) fill(next) surround(2s, 0, 0);
+         _wstart         |          _wend          |  avg(c1)   |  last(c1)   |
+===============================================================================
+ 2026-01-01 00:00:00.000 | 2026-01-01 00:00:01.000 |       2026 |        2026 |
+ 2026-01-01 00:00:01.000 | 2026-01-01 00:00:02.000 |          0 |           0 |
+ 2026-01-01 00:00:02.000 | 2026-01-01 00:00:03.000 |          0 |           0 |
+ 2026-01-01 00:00:03.000 | 2026-01-01 00:00:04.000 |          0 |           0 |
+ 2026-01-01 00:00:04.000 | 2026-01-01 00:00:05.000 |       6202 |        6202 |
+ 2026-01-01 00:00:05.000 | 2026-01-01 00:00:06.000 |       6202 |        6202 |
+ 2026-01-01 00:00:06.000 | 2026-01-01 00:00:07.000 |       6202 |        6202 |
 ```
 
 ## GROUP BY

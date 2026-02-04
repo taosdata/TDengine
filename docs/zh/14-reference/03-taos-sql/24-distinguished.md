@@ -78,6 +78,8 @@ window_clause: {
 
 INTERVAL 子句用于产生相等时间周期的窗口，SLIDING 用以指定窗口向前滑动的时间。每次执行的查询是一个时间窗口，时间窗口随着时间流动向前滑动。在定义连续查询的时候需要指定时间窗口（time window）大小和每次前向增量时间（forward sliding times）。如图，[t0s, t0e] ，[t1s , t1e]，[t2s, t2e] 是分别是执行三次连续查询的时间窗口范围，窗口的前向滑动的时间范围 sliding time 标识。查询过滤、聚合等操作按照每个时间窗口为独立的单位执行。当 SLIDING 与 INTERVAL 相等的时候，滑动窗口即为翻转窗口。默认情况下，窗口是从 Unix time 0（1970-01-01 00:00:00 UTC）开始划分的；如果设置了 interval_offset，那么窗口的划分将从“Unix time 0 + interval_offset”开始。
 
+查询对象是超级表时，聚合函数会作用于该超级表下满足过滤条件的所有表的数据，返回的结果按照窗口起始时间严格单调递增；如果使用 PARTITION BY 语句分组，则返回结果中每个 PARTITION 内按照窗口起始时间严格单调递增。
+
 ![TDengine TSDB Database 时间窗口示意图](./pic/time_window.webp)
 
 INTERVAL 和 SLIDING 子句需要配合聚合和选择函数来使用。以下 SQL 语句非法：
