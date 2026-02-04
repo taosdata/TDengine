@@ -2388,8 +2388,6 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
       }
     } else if (pReq->dbOwner || (req->authInfo.userId == pMeta->ownerId)) {
       isOwner = true;
-    } else if (isOwner) {
-      isOwner = false;
     }
 
     if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType ||
