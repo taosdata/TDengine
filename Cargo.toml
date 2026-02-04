@@ -90,7 +90,7 @@ metrics-util = { version = "0.20", features = ["storage"] }
 scc = { version = "2" }
 tonic = "0.13.1"
 zerocopy = { version = "0.8.18", features = ["derive"] }
-bytes = "1.10.0"
+bytes = "1.11.1"
 sysinfo = "0.36"
 serde_with = { version = "3.14", features = ["chrono"] }
 serde = "1"
