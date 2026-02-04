@@ -33,7 +33,7 @@ class TDengineConan(ConanFile):
         "with_uv": True,
         "with_sqlite": False,
         "with_s3": False,
-        "with_taos_tools": False,
+        "with_taos_tools": True,
         "build_addr2line": False,
         # Force static libraries for all dependencies
         "*:shared": False,
