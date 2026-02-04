@@ -2014,14 +2014,9 @@ static int32_t sysTableFillOneVirtualTableRefImpl(const SSysTableScanInfo* pInfo
 
       char stableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_TO_VARSTR(stableName, pColRef->pColRef[i].refTableName);
-      // src stable name
-      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
-      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      code = colDataSetVal(pColInfoData, numOfRows, stableName, false);
-      QUERY_CHECK_CODE(code, lino, _end);
 
       // src table name
-      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 6);
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       code = colDataSetVal(pColInfoData, numOfRows, stableName, false);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -2029,27 +2024,20 @@ static int32_t sysTableFillOneVirtualTableRefImpl(const SSysTableScanInfo* pInfo
       char colName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_TO_VARSTR(colName, pColRef->pColRef[i].refColName);
       // src col name
-      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 7);
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 6);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       code = colDataSetVal(pColInfoData, numOfRows, colName, false);
       QUERY_CHECK_CODE(code, lino, _end);
 
       // src type
-      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 8);
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 7);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       code = colDataSetVal(pColInfoData, numOfRows, (char*)&pRef->type, false);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      // src col is valid
-      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 9);
-      QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      int32_t isValid = 1;
-      code = colDataSetVal(pColInfoData, numOfRows, (char*)&isValid, false);
-      QUERY_CHECK_CODE(code, lino, _end);
-
       // src col err code
       int32_t errCode = 0;
-      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 10);
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 8);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       code = colDataSetVal(pColInfoData, numOfRows, (char*)&errCode, false);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -2062,7 +2050,7 @@ static int32_t sysTableFillOneVirtualTableRefImpl(const SSysTableScanInfo* pInfo
         STR_TO_VARSTR(errMsg, "");
       }
 
-      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 11);
+      pColInfoData = taosArrayGet(dataBlock->pDataBlock, 9);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       code = colDataSetVal(pColInfoData, numOfRows, errMsg, false);
       QUERY_CHECK_CODE(code, lino, _end);
