@@ -45,13 +45,19 @@ class TestIntervalBugFix:
         self.ts_7676_test_dup_ts()
         self.ts_7676_test_uni_ts()
         self.td_6739571506_test()
+        self.sliding_month_february()
 
-    def test_interval_sliding_month_february(self):
-        """Interval 1n with non-natural sliding over February
+    def sliding_month_february(self):
+        """Validate interval(1n) monthly windows over February with various sliding values.
 
-        Validates that when interval = 1n and sliding = 239201000 (default precision unit),
-        the first window for February starts on Feb-01 and aggregates all Feb rows.
-        Also validates leap year February behavior.
+        Covers:
+        - Equivalent 28-day sliding representations: 2419200000 (ms), 4w, 2419200000000u (microsecond),
+            2419200000000000b (nanosecond), and near-equal values (e.g., 2419200000999u, 2419200000999999b).
+            Expect identical window boundaries and counts for February (non-leap year).
+        - Boundary checks: 28 days minus 1 ms (2419199999) is accepted and slightly shifts boundaries;
+            28 days plus 1 ms (2419200001) is rejected (error).
+        - Invalid cases: 29 days (2505599999/2505600000) and 5w with interval(1n) are rejected (error).
+        - Data spans January–March to verify natural month boundaries and aggregation results via check_helper().
         """
         tdLog.info("prepare data for sliding February test (non-leap and leap year)")
         # Non-leap year: 2021-02 has 28 days
