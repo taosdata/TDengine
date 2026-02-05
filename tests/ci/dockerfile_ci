@@ -31,7 +31,10 @@ RUN apt-get update \
 
 RUN pip3 config set global.index-url http://admin:123456@192.168.0.212:3141/admin/dev/+simple/ \
     && pip3 config set global.trusted-host 192.168.0.212 \
-    && pip3 install --no-cache-dir -r /home/requirements.txt
+    && pip3 install --no-cache-dir -r /home/requirements.txt \
+    && pip3 install --no-cache-dir \
+        taospy==2.8.8 taos-ws-py==0.6.5 pandas psutil codecov fabric2 requests faker simplejson toml \
+        pexpect tzlocal distro decorator loguru hyperloglog websockets 
 
 ADD go1.23.4.linux-amd64.tar.gz \
     jdk-8u144-linux-x64.tar.gz \
