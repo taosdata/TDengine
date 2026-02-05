@@ -1479,7 +1479,11 @@ bool isPrimaryKeyImpl(SNode* pExpr) {
       return isPrimaryKeyImpl(nodesListGetNode(pFunc->pParameterList, 0));
     } else if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType ||
                FUNCTION_TYPE_IROWTS == pFunc->funcType || FUNCTION_TYPE_IROWTS_ORIGIN == pFunc->funcType ||
-               FUNCTION_TYPE_FORECAST_ROWTS == pFunc->funcType || FUNCTION_TYPE_IMPUTATION_ROWTS == pFunc->funcType) {
+               FUNCTION_TYPE_FORECAST_ROWTS == pFunc->funcType || FUNCTION_TYPE_IMPUTATION_ROWTS == pFunc->funcType ||
+               FUNCTION_TYPE_TPREV_TS == pFunc->funcType || FUNCTION_TYPE_TCURRENT_TS == pFunc->funcType ||
+               FUNCTION_TYPE_TNEXT_TS == pFunc->funcType || FUNCTION_TYPE_TWSTART == pFunc->funcType ||
+               FUNCTION_TYPE_TWEND == pFunc->funcType || FUNCTION_TYPE_TPREV_LOCALTIME == pFunc->funcType ||
+               FUNCTION_TYPE_TNEXT_LOCALTIME == pFunc->funcType || FUNCTION_TYPE_TLOCALTIME == pFunc->funcType) {
       return true;
     }
   } else if (QUERY_NODE_OPERATOR == nodeType(pExpr)) {
@@ -7801,6 +7805,9 @@ static void convertVarDuration(SValueNode* pOffset, uint8_t precision) {
 static const int64_t tsdbMaxKeepMS = (int64_t)60 * 1000 * TSDB_MAX_KEEP;
 
 static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pInterval) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
   uint8_t precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
 
   SValueNode* pInter = (SValueNode*)pInterval->pInterval;
@@ -7831,14 +7838,12 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
     }
     if (!fixed) {
       double  offsetMonth = 0, intervalMonth = 0;
-      int32_t code = getMonthsFromTimeVal(pOffset->datum.i, precision, pOffset->unit, &offsetMonth);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
+      code = getMonthsFromTimeVal(pOffset->datum.i, precision, pOffset->unit, &offsetMonth);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
+
       code = getMonthsFromTimeVal(pInter->datum.i, precision, pInter->unit, &intervalMonth);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
+      TAOS_CHECK_GOTO(code, &lino, _exit);
+
       if (offsetMonth > intervalMonth) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
       }
@@ -7862,17 +7867,29 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL);
     }
     if (valInter) {
-      double  slidingMonth = 0, intervalMonth = 0;
-      int32_t code = getMonthsFromTimeVal(pSliding->datum.i, precision, pSliding->unit, &slidingMonth);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
+      if (IS_CALENDAR_TIME_DURATION(pSliding->unit)) {
+        double  slidingMonth = 0, intervalMonth = 0;
+        code = getMonthsFromTimeVal(pSliding->datum.i, precision, pSliding->unit, &slidingMonth);
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+
+        code = getMonthsFromTimeVal(pInter->datum.i, precision, pInter->unit, &intervalMonth);
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+
+        if (slidingMonth > intervalMonth) {
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG);
+        }
       }
-      code = getMonthsFromTimeVal(pInter->datum.i, precision, pInter->unit, &intervalMonth);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
-      if (slidingMonth > intervalMonth) {
-        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG);
+      else {
+        int64_t interverNano = 0, slidingNano = 0;
+        code = convertCalendarTimeFromUnitToPrecision(pInter->datum.i, pInter->unit, precision, &interverNano);
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+
+        // pSliding->datum.i is already in precision unit
+        slidingNano = pSliding->datum.i;
+
+        if (slidingNano > interverNano) {
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG);
+        }
       }
     }
     if (!valInter && pSliding->datum.i > pInter->datum.i) {
@@ -7881,6 +7898,9 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
   }
 
   return TSDB_CODE_SUCCESS;
+_exit:
+  parserError("line %d: failed to check interval window, %s", lino, tstrerror(code));
+  return code;
 }
 
 // check left time is greater than right time
@@ -9506,8 +9526,15 @@ static int32_t replaceOrderByAlias(STranslateContext* pCxt, SNodeList* pProjecti
   return pCxt->errCode;
 }
 
-static void resetResultTimeline(SSelectStmt* pSelect) {
+static void resetResultTimeline(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL == pSelect->pOrderByList) {
+    if (inStreamCalcClause(pCxt)) {
+      SNode* pNode = nodesListGetNode(pSelect->pProjectionList, 0);
+      if (pNode && QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsPlaceHolderFunc(((SFunctionNode*)pNode)->funcId) && isPrimaryKeyImpl(pNode)) {
+        pSelect->timeLineResMode = TIME_LINE_GLOBAL;
+      }
+    }
+    
     return;
   }
   SNode* pOrder = ((SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, 0))->pExpr;
@@ -9533,7 +9560,7 @@ static void resetResultTimeline(SSelectStmt* pSelect) {
 static int32_t replaceOrderByAliasForSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   int32_t code = replaceOrderByAlias(pCxt, pSelect->pProjectionList, pSelect->pOrderByList, false, false);
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    resetResultTimeline(pSelect);
+    resetResultTimeline(pCxt, pSelect);
   }
   return code;
 }
@@ -13865,6 +13892,10 @@ static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobS
   if (config == NULL) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Missing option: config");
   }
+  if (strlen(config) > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG,
+                                   "Option config must be string with length <= %d", TSDB_XNODE_TASK_JOB_CONFIG_LEN);
+  }
   createReq.tid = pStmt->tid;
   createReq.via = pStmt->options->via;
 
@@ -17065,6 +17096,8 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   SPlanContext calcCxt = {.acctId = pCxt->pParseCxt->acctId,
                           .mgmtEpSet = pCxt->pParseCxt->mgmtEpSet,
                           .pAstRoot = pStmt->pQuery,
+                          .pMsg = pCxt->pParseCxt->pMsg,
+                          .msgLen = pCxt->pParseCxt->msgLen,
                           .streamCalcQuery = true,
                           .streamForceOutput = taosArrayGetSize(pReq->forceOutCols) > 0,
                           .streamTriggerWinType = nodeType(pTriggerWindow),

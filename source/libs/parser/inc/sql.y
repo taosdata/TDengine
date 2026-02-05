@@ -8,6 +8,8 @@
 
 %extra_argument { SAstCreateContext* pCxt }
 
+%token FROM_BASE64 TO_BASE64 MD5 SHA SHA1 SHA2 AES_ENCRYPT AES_DECRYPT SM4_ENCRYPT SM4_DECRYPT.
+
 %include {
 #include <stdio.h>
 #include <stdlib.h>
