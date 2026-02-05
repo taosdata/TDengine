@@ -3436,7 +3436,7 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
 
 void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order) {
   tw->skey = getNextTimeWindowStart(pInterval, tw->skey, order);
-  tw->ekey = taosTimeAdd(tw->skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
+  tw->ekey = taosTimeGetIntervalEnd(tw->skey, pInterval);
 }
 
 bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo) {
