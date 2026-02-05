@@ -760,8 +760,10 @@ int32_t mstGetStreamStatusStr(SStreamObj* pStream, char* status, int32_t statusS
 
   (void)mstWaitLock(&mStreamMgmt.runtimeLock, true);
   
-  SStmStatus* pStatus = (SStmStatus*)taosHashGet(mStreamMgmt.streamMap, &pStream->pCreate->streamId, sizeof(pStream->pCreate->streamId));
+  int64_t streamId = pStream->pCreate->streamId;
+  SStmStatus* pStatus = (SStmStatus*)taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   if (NULL == pStatus) {
+    mstDebug("return Undeployed: stream not in streamMap (show streams)");
     STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_UNDEPLOYED], statusSize);
     STR_WITH_MAXSIZE_TO_VARSTR(msg, "", msgSize);
     goto _exit;
@@ -794,6 +796,9 @@ int32_t mstGetStreamStatusStr(SStreamObj* pStream, char* status, int32_t statusS
     goto _exit;
   }
 
+  mstsDebug("return Idle: pStatus=%p triggerTask=%p triggerStatus=%d (show streams view)",
+      (void*)pStatus, (void*)(pStatus ? pStatus->triggerTask : NULL),
+      (pStatus && pStatus->triggerTask) ? (int)pStatus->triggerTask->status : -1);
   STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_INIT], statusSize);
   snprintf(tmpBuf, sizeof(tmpBuf), "Current deploy times: %" PRId64, pStatus->deployTimes);
   STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
