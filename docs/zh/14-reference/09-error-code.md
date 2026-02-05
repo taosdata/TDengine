@@ -573,6 +573,9 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x800026A3 | Option value too small                                                                                 | 选项的值太小                                            | 检查并修正 SQL 语句                    |
 | 0x800026AA | Aggregate functions cannot be used for sorting in non-aggregate queries                                | order by 子句不合法法                                            | 检查并修正 SQL 语句                    |
 | 0x800026AB | TRUE_FOR COUNT must be a non-negative integer not exceeding INT32_MAX                                  | true_for count 的值必须为非负数并且小于 INT32_MAX         | 检查并修正 SQL 语句                    |
+| 0x800026AC | Invalid fill mode | 在 interval 窗口中使用 fill(near) 模式 | 使用 interval 窗口支持的 fill 模式 |
+| 0x800026AD | Invalid fill values | 错误使用 fill values 参数 | 使用正确的 fill 模式与 fill values 参数配合 |
+| 0x800026AE | Invalid surrounding time value | 填写了错误的 surrounding time 值 | 使用正确有效的时间范围和时间单位 |
 | 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN 条件校验失败                                       | 保留现场和日志，github 上报 issue      |

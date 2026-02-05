@@ -159,7 +159,7 @@ The syntax for the window clause is as follows:
 window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
 }
 ```
@@ -185,7 +185,7 @@ Time windows can be divided into: sliding time windows and tumbling time windows
 ```sql
 INTERVAL(interval_val [, interval_offset]) 
 [SLIDING (sliding_val)] 
-[FILL(fill_mod_and_val)]
+[fill_clause]
 ```
 
 The time window clause includes 3 sub-clauses:
@@ -322,43 +322,9 @@ Query OK, 5 row(s) in set (0.016812s)
 
 #### FILL Clause
 
-The FILL clause is used to specify the fill mode when data is missing in a window interval. The fill modes include the following:
+The INTERVAL clause supports using the FILL clause to specify the data filling method when data is missing. For how to use the FILL clause, please refer to [FILL Clause](../14-reference/03-taos-sql/20-select.md#fill-clause).
 
-1. No fill: NONE (default fill mode).
-1. VALUE fill: Fixed value fill, where the fill value must be specified. For example: FILL(VALUE, 1.23). Note that the final fill value is determined by the type of the corresponding column, such as FILL(VALUE, 1.23) for an INT type column, the fill value would be 1.
-1. PREV fill: Fill data with the previous valid value. For example: FILL(PREV).
-1. NULL fill: Fill data with NULL. For example: FILL(NULL).
-1. LINEAR fill: Perform linear interpolation based on the nearest non-NULL values before and after. For example: FILL(LINEAR).
-1. NEXT fill: Fill data with the next valid value. For example: FILL(NEXT).
-
-Among these fill modes, except for the NONE mode which does not fill by default, other modes will be ignored if there is no data in the entire query time range, resulting in no fill data and an empty query result. This behavior is reasonable under some modes (PREV, NEXT, LINEAR) because no data means no fill value can be generated.
-
-The definition of valid values differs between the INTERVAL clause and the INTERP clause:
-
-1. In the INTERVAL clause, all scanned data are valid values. For example, FILL(PREV) uses the previous data entry for filling.
-1. In the INTERP clause, starting from version v3.4.0.0, whether a NULL value is valid depends on the ignore_null_values parameter of the INTERP function. For example, if FILL(PREV) is specified and NULL values are invalid, the system skips NULL values and continues to search for non-NULL data.
-
-For other modes (NULL, VALUE), theoretically, fill values can be generated. Whether to output fill values depends on the application's requirements. To meet the needs of applications that require forced filling of data or NULL, and to maintain compatibility with existing fill modes, TDengine also supports two new fill modes from version 3.0.3.0:
-
-1. NULL_F: Force fill with NULL values
-1. VALUE_F: Force fill with VALUE
-
-The differences between NULL, NULL_F, VALUE, and VALUE_F for different scenarios are as follows:
-
-1. INTERVAL clause: NULL_F, VALUE_F are forced fill modes; NULL, VALUE are non-forced modes. In this mode, their semantics match their names.
-1. Stream computing's INTERVAL clause: NULL_F and NULL behave the same, both are non-forced modes; VALUE_F and VALUE behave the same, both are non-forced modes. That is, there is no forced mode in stream computing's INTERVAL.
-1. INTERP clause: NULL and NULL_F behave the same, both are forced modes; VALUE and VALUE_F behave the same, both are forced modes. That is, there is no non-forced mode in INTERP.
-
-:::note
-
-1. Using the FILL statement may generate a large amount of filled output, be sure to specify the time range for the query.
-1. For each query, the system can return no more than 10 million results with interpolation.
-1. In time dimension aggregation, the returned results have a strictly monotonic increasing time sequence.
-1. If the query target is a supertable, the aggregate function will apply to the data of all tables under the supertable that meet the value filtering conditions. If the query does not use a PARTITION BY statement, the results are returned in a strictly monotonic increasing time sequence; if the query uses a PARTITION BY statement for grouping, the results within each PARTITION are strictly monotonic increasing in time sequence.
-
-:::
-
-Example:
+#### Example
 
 ```sql
 SELECT tbname, _wstart, _wend, avg(voltage)
