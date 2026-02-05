@@ -40,16 +40,20 @@ ADD go1.23.4.linux-amd64.tar.gz \
     cmake-3.21.5-linux-x86_64.tar.gz \
     /usr/local/
 
-ENV RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
-ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"
-ENV RUST_VERSION=1.90.0
+# Use build-time ARGs and run-time ENVs for flexibility
+ARG RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup
+ARG RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static
+ARG RUST_VERSION=1.90.0
+
+ENV RUSTUP_UPDATE_ROOT=${RUSTUP_UPDATE_ROOT}
+ENV RUSTUP_DIST_SERVER=${RUSTUP_DIST_SERVER}
+ENV RUST_VERSION=${RUST_VERSION}
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --verbose --profile minimal --component clippy,rustfmt --default-toolchain $RUST_VERSION
 COPY .cargo/config /root/.cargo/config
 
 ENV PATH="/usr/local/go/bin:/usr/local/node-v20.17.0-linux-x64/bin:/usr/local/apache-maven-3.8.4/bin:/usr/local/jdk1.8.0_144/bin:/root/.cargo/bin:/home/bin:/usr/local/cmake-3.21.5-linux-x86_64/bin:$PATH"
 ENV JAVA_HOME="/usr/local/jdk1.8.0_144"
-ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"  RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
 RUN go env -w GOPROXY=https://goproxy.cn
 ENV LANG=en_US.UTF-8 LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
 
