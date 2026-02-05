@@ -715,6 +715,9 @@ static int32_t authCreateView(SAuthCxt* pCxt, SCreateViewStmt* pStmt) {
   int32_t code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_VIEW_CREATE, PRIV_OBJ_DB, NULL, NULL);
+    if (code != TSDB_CODE_SUCCESS && pStmt->orReplace) {
+      code = checkAuth(pCxt, pStmt->dbName, pStmt->viewName, PRIV_CM_ALTER, PRIV_OBJ_VIEW, NULL, NULL);
+    }
   } else {
     code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
