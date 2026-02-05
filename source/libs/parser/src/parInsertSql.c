@@ -1693,10 +1693,11 @@ int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf, i
   if ((pToken->type != TK_NOW && pToken->type != TK_TODAY && pToken->type != TK_NK_INTEGER &&
        pToken->type != TK_NK_STRING && pToken->type != TK_NK_FLOAT && pToken->type != TK_NK_BOOL &&
        pToken->type != TK_NULL && pToken->type != TK_NK_HEX && pToken->type != TK_NK_OCT && pToken->type != TK_NK_BIN &&
-       pToken->type != TK_NK_VARIABLE && pToken->type != TK_FROM_BASE64 && pToken->type != TK_TO_BASE64 &&
+       pToken->type != TK_NK_VARIABLE &&
+       pToken->type != TK_FROM_BASE64 && pToken->type != TK_TO_BASE64 &&
        pToken->type != TK_MD5 && pToken->type != TK_SHA && pToken->type != TK_SHA1 && pToken->type != TK_SHA2 &&
-       pToken->type != TK_AES_ENCRYPT && pToken->type != TK_AES_DECRYPT && pToken->type != TK_SM4_ENCRYPT &&
-       pToken->type != TK_SM4_DECRYPT) ||
+       pToken->type != TK_AES_ENCRYPT && pToken->type != TK_AES_DECRYPT &&
+       pToken->type != TK_SM4_ENCRYPT && pToken->type != TK_SM4_DECRYPT) ||
       (pToken->n == 0) || (pToken->type == TK_NK_RP)) {
     return buildSyntaxErrMsg(pMsgBuf, "invalid data or symbol", pToken->z);
   }
