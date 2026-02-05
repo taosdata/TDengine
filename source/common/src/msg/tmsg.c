@@ -15059,6 +15059,12 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       }
       break;
     }
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL: {
+      break;
+    }
+    case TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL: {
+      break;
+    }
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->updateTTL));
       if (pReq->updateTTL) {
@@ -15166,6 +15172,12 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
           TAOS_CHECK_EXIT(terrno);
         }
       }
+      break;
+    }
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL: {
+      break;
+    }
+    case TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL: {
       break;
     }
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:

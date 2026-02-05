@@ -1726,6 +1726,22 @@ int32_t metaUpdateTableMultiTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq
   TAOS_RETURN(code);
 }
 
+
+
+int32_t metaUpdateTableMultiTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  TAOS_RETURN(code);
+}
+
+
+
+int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  TAOS_RETURN(code);
+}
+
+
+
 static int32_t metaCheckUpdateTableOptionsReq(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
 

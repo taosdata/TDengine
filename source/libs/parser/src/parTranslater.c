@@ -13214,11 +13214,14 @@ static int32_t checkAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt* pS
                                    "Cannot alter table of system database: `%s`.`%s`", pStmt->dbName, pStmt->tableName);
   }
 
-  if (TSDB_ALTER_TABLE_UPDATE_TAG_VAL == pStmt->alterType ||
-      TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL == pStmt->alterType) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
-                                   "Set tag value only available for child table");
+  switch(pStmt->alterType) {
+    case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL:
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL:
+    case TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL:
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Set tag value only available for child table");
   }
+
   if (TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF == pStmt->alterType) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
                                    "Add column with column reference only available for virtual normal table");
@@ -22885,6 +22888,8 @@ static int32_t rewriteDropSuperTable(STranslateContext* pCxt, SQuery* pQuery) {
   TAOS_RETURN(0);
 }
 
+
+
 static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                          char* colName, SMultiTagUpateVal* pReq) {
   int32_t  code = TSDB_CODE_SUCCESS;
@@ -22962,6 +22967,9 @@ _err:
   }
   return code;
 }
+
+
+
 static int32_t buildUpdateTagValReqImpl(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                         char* colName, SVAlterTbReq* pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -23036,6 +23044,9 @@ static int32_t buildUpdateTagValReqImpl(STranslateContext* pCxt, SAlterTableStmt
 
   return code;
 }
+
+
+
 static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                     SVAlterTbReq* pReq) {
   SName   tbName = {0};
@@ -23050,8 +23061,9 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
   return buildUpdateTagValReqImpl(pCxt, pStmt, pTableMeta, pStmt->colName, pReq);
 }
 
-static int32_t buildUpdateMultiTagValReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
-                                         SVAlterTbReq* pReq) {
+
+
+static int32_t buildUpdateMultiTableTagValReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta, SVAlterTbReq* pReq) {
   int32_t   code = TSDB_CODE_SUCCESS;
   int32_t   lino = 0;
   SName     tbName = {0};
@@ -23063,7 +23075,7 @@ static int32_t buildUpdateMultiTagValReq(STranslateContext* pCxt, SAlterTableStm
     if (code != TSDB_CODE_SUCCESS) return code;
     if (pTsmas && pTsmas->size > 0) return TSDB_CODE_TSMA_MUST_BE_DROPPED;
   }
-  SNodeList* pNodeList = pStmt->pNodeListTagValue;
+  SNodeList* pNodeList = pStmt->pList;
   if (pNodeList == NULL) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   }
@@ -23113,6 +23125,14 @@ _err:
   taosHashCleanup(pUnique);
   return code;
 }
+
+
+
+static int32_t buildUpdateChildTableTagValReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta, SVAlterTbReq* pReq) {
+  return 0;
+}
+
+
 
 static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbName, char* pRefTableName, char* pRefColName,
                            SDataType type, int8_t precision) {
@@ -23457,8 +23477,12 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
     case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
-    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL:
-      return buildUpdateMultiTagValReq(pCxt, pStmt, pTableMeta, pReq);
+    // TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL is handled as a special case of
+    // TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL.
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL:
+      return buildUpdateMultiTableTagValReq(pCxt, pStmt, pTableMeta, pReq);
+    case TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL:
+      return buildUpdateChildTableTagValReq(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
       return buildUpdateTagValReq(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_ADD_COLUMN:

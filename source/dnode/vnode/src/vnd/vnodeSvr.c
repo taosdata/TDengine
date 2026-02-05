@@ -1698,7 +1698,10 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   }
 
   if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ||
-      vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
+      vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL ||
+      vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL ||
+      vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL
+    ) {
     int64_t uid = metaGetTableEntryUidByName(pVnode->pMeta, vAlterTbReq.tbName);
     if (uid == 0) {
       vError("vgId:%d, %s failed at %s:%d since table %s not found", TD_VID(pVnode), __func__, __FILE__, __LINE__,
