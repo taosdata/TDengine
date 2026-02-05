@@ -97,7 +97,7 @@ The following parameters are available in TDengine Enterprise only.
 
 - **COMPACT_TIME_RANGE:** Time range for automatic compact tasks. The default value is `0, 0`, which indicates the range from `-KEEP2` to `-DURATION`. You can specify a custom time range starting at or after `-KEEP2` and ending at or before `-DURATION`. The time unit of the values in this range can be minutes (m), hours (h), or days (d), and the default unit is days.
 
-  For example, `-300, -200` would compact data between 300 and 200 days ago each time automatic compaction is triggered. If the duration parameter of the database is the default 10 days, `-300, -5` would return an error because the second value is less than duration.
+  For example, `-300, -200` would compact data between 300 and 200 days in the past each time automatic compaction is triggered. If the duration parameter of the database is the default 10 days, `-300, -5` would return an error because the second value (5 days in the past) is more recent than the value of `-DURATION` (10 days in the past).
 
   Note that these values are negative numbers, indicating that the time range to be compacted is in the past.
 
