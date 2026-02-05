@@ -3633,6 +3633,16 @@ void tableListDestroy(STableListInfo* pTableListInfo) {
   taosMemoryFree(pTableListInfo);
 }
 
+void tablePrivInfoDestroy(SUserTablePrivInfo** pInfo) {
+  if (pInfo == NULL || *pInfo == NULL) {
+    return;
+  }
+
+  tSimpleHashCleanup((*pInfo)->pDbSet);
+  tSimpleHashCleanup((*pInfo)->pTableSet);
+  taosMemoryFreeClear(*pInfo);
+}
+
 void tableListClear(STableListInfo* pTableListInfo) {
   if (pTableListInfo == NULL) {
     return;

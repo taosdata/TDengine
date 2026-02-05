@@ -91,6 +91,7 @@ typedef struct SSysTableScanInfo {
   STableListInfo*        pTableListInfo;
   SReadHandle*           pHandle;
   SStorageAPI*           pAPI;
+  SUserTablePrivInfo*    pTbPrivInfo;
 
   // file set iterate
   struct SFileSetReader* pFileSetReader;
@@ -3516,6 +3517,10 @@ static int32_t resetSysTableScanOperState(SOperatorInfo* pOper) {
   }
   pInfo->readHandle.mnd = NULL;
 
+  if (pInfo->pTbPrivInfo) {
+    tablePrivInfoDestroy(&pInfo->pTbPrivInfo);
+  }
+
   return 0;
 }
 
@@ -3680,7 +3685,9 @@ void destroySysScanOperator(void* param) {
     pInfo->pExtSchema = NULL;
   }
   tableListDestroy(pInfo->pSubTableListInfo);
-
+  if (pInfo->pTbPrivInfo) {
+    tablePrivInfoDestroy(&pInfo->pTbPrivInfo);
+  }
   taosArrayDestroy(pInfo->matchInfo.pList);
   taosMemoryFreeClear(pInfo->pUser);
 
