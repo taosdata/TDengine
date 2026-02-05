@@ -1,6 +1,6 @@
 package com.taosdata.example.pool;
 
-import org.apache.commons.dbcp.BasicDataSource;
+import org.apache.commons.dbcp2.BasicDataSource;
 
 import javax.sql.DataSource;
 
@@ -13,7 +13,7 @@ public class DbcpBuilder {
         ds.setUsername("root");
         ds.setPassword("taosdata");
 
-        ds.setMaxActive(poolSize);
+        ds.setMaxTotal(poolSize);
         ds.setMinIdle(poolSize);
         ds.setInitialSize(poolSize);
         return ds;

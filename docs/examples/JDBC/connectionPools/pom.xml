@@ -5,8 +5,9 @@
     <modelVersion>4.0.0</modelVersion>
 
     <properties>
-     <maven.compiler.source>1.8</maven.compiler.source>
-     <maven.compiler.target>1.8</maven.compiler.target>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <java.version>17</java.version>
     </properties>
 
     <groupId>com.taosdata.demo</groupId>
@@ -24,36 +25,31 @@
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>druid</artifactId>
-            <version>1.1.17</version>
+            <version>1.2.23</version>
         </dependency>
         <!-- HikariCP -->
         <dependency>
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>
-            <version>3.2.0</version>
+            <version>5.1.0</version>
         </dependency>
         <!-- dbcp Connection Pool -->
         <dependency>
-            <groupId>commons-pool</groupId>
-            <artifactId>commons-pool</artifactId>
-            <version>1.5.4</version>
-        </dependency>
-        <dependency>
-            <groupId>commons-dbcp</groupId>
-            <artifactId>commons-dbcp</artifactId>
-            <version>1.4</version>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-dbcp2</artifactId>
+            <version>2.12.0</version>
         </dependency>
         <!-- c3p0 -->
         <dependency>
             <groupId>com.mchange</groupId>
             <artifactId>c3p0</artifactId>
-            <version>0.9.5.4</version>
+            <version>0.10.1</version>
         </dependency>
         <!-- log4j -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
-            <version>2.17.1</version>
+            <version>2.25.3</version>
         </dependency>
         <!-- proxool -->
         <dependency>

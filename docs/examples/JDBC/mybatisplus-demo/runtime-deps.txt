@@ -1,0 +1,95 @@
+
+The following files have been resolved:
+   org.springframework.boot:spring-boot-starter:jar:3.2.12:compile[36m -- module spring.boot.starter[0;1m [auto][m
+   org.springframework.boot:spring-boot:jar:3.2.12:compile[36m -- module spring.boot[0;1m [auto][m
+   org.springframework:spring-context:jar:6.1.15:compile[36m -- module spring.context[0;1m [auto][m
+   org.springframework.boot:spring-boot-autoconfigure:jar:3.2.12:compile[36m -- module spring.boot.autoconfigure[0;1m [auto][m
+   org.springframework.boot:spring-boot-starter-logging:jar:3.2.12:compile[36m -- module spring.boot.starter.logging[0;1m [auto][m
+   ch.qos.logback:logback-classic:jar:1.4.14:compile[36m -- module ch.qos.logback.classic[m
+   ch.qos.logback:logback-core:jar:1.4.14:compile[36m -- module ch.qos.logback.core[m
+   org.apache.logging.log4j:log4j-to-slf4j:jar:2.21.1:compile[36m -- module org.apache.logging.log4j.to.slf4j[m
+   org.apache.logging.log4j:log4j-api:jar:2.21.1:compile[36m -- module org.apache.logging.log4j[m
+   org.slf4j:jul-to-slf4j:jar:2.0.16:compile[36m -- module jul.to.slf4j[m
+   jakarta.annotation:jakarta.annotation-api:jar:2.1.1:compile[36m -- module jakarta.annotation[m
+   org.springframework:spring-core:jar:6.1.15:compile[36m -- module spring.core[0;1m [auto][m
+   org.springframework:spring-jcl:jar:6.1.15:compile[36m -- module spring.jcl[0;1m [auto][m
+   org.yaml:snakeyaml:jar:2.2:compile[36m -- module org.yaml.snakeyaml[m
+   org.projectlombok:lombok:jar:1.18.36:compile (optional)[36m -- module lombok[m
+   com.baomidou:mybatis-plus-boot-starter:jar:3.5.3.2:compile[36m -- module com.baomidou.mybatis.plus.boot.starter[0;1m [auto][m
+   com.baomidou:mybatis-plus:jar:3.5.3.2:compile[36m -- module com.baomidou.mybatis.plus[0;1m [auto][m
+   com.baomidou:mybatis-plus-extension:jar:3.5.3.2:compile[36m -- module com.baomidou.mybatis.plus.extension[0;1m [auto][m
+   com.baomidou:mybatis-plus-core:jar:3.5.3.2:compile[36m -- module com.baomidou.mybatis.plus.core[0;1m [auto][m
+   com.baomidou:mybatis-plus-annotation:jar:3.5.3.2:compile[36m -- module com.baomidou.mybatis.plus.annotation[0;1m [auto][m
+   com.github.jsqlparser:jsqlparser:jar:4.6:compile[36m -- module jsqlparser[0;1;33m (auto)[m
+   org.mybatis:mybatis:jar:3.5.13:compile[36m -- module org.mybatis[0;1m [auto][m
+   org.mybatis:mybatis-spring:jar:2.1.1:compile[36m -- module org.mybatis.spring[0;1m [auto][m
+   org.springframework.boot:spring-boot-starter-jdbc:jar:3.2.12:compile[36m -- module spring.boot.starter.jdbc[0;1m [auto][m
+   com.zaxxer:HikariCP:jar:5.0.1:compile[36m -- module com.zaxxer.hikari[m
+   org.springframework:spring-jdbc:jar:6.1.15:compile[36m -- module spring.jdbc[0;1m [auto][m
+   org.springframework:spring-tx:jar:6.1.15:compile[36m -- module spring.tx[0;1m [auto][m
+   com.h2database:h2:jar:2.2.224:runtime[36m -- module com.h2database[0;1m [auto][m
+   com.alibaba:druid:jar:1.2.23:compile[36m -- module druid[0;1;33m (auto)[m
+   com.taosdata.jdbc:taos-jdbcdriver:jar:3.8.0:compile[36m -- module taos.jdbcdriver[0;1;33m (auto)[m
+   org.apache.httpcomponents:httpclient:jar:4.5.14:compile[36m -- module org.apache.httpcomponents.httpclient[0;1m [auto][m
+   org.apache.httpcomponents:httpcore:jar:4.4.16:compile[36m -- module org.apache.httpcomponents.httpcore[0;1m [auto][m
+   commons-logging:commons-logging:jar:1.2:compile[36m -- module commons.logging[0;1;33m (auto)[m
+   commons-codec:commons-codec:jar:1.16.1:compile[36m -- module org.apache.commons.codec[m
+   com.fasterxml.jackson.core:jackson-databind:jar:2.15.4:compile[36m -- module com.fasterxml.jackson.databind[m
+   com.fasterxml.jackson.core:jackson-annotations:jar:2.15.4:compile[36m -- module com.fasterxml.jackson.annotation[m
+   com.fasterxml.jackson.core:jackson-core:jar:2.15.4:compile[36m -- module com.fasterxml.jackson.core[m
+   com.fasterxml.jackson.datatype:jackson-datatype-jsr310:jar:2.15.4:compile[36m -- module com.fasterxml.jackson.datatype.jsr310[m
+   com.google.guava:guava:jar:33.5.0-jre:compile[36m -- module com.google.common[m
+   com.google.guava:failureaccess:jar:1.0.3:compile[36m -- module com.google.common.util.concurrent.internal[m
+   com.google.guava:listenablefuture:jar:9999.0-empty-to-avoid-conflict-with-guava:compile[36m -- module listenablefuture[0;1;33m (auto)[m
+   org.jspecify:jspecify:jar:1.0.0:compile[36m -- module org.jspecify[m
+   com.google.errorprone:error_prone_annotations:jar:2.41.0:compile[36m -- module com.google.errorprone.annotations[m
+   com.google.j2objc:j2objc-annotations:jar:3.1:compile[36m -- module com.google.j2objc.annotations[m
+   io.netty:netty-all:jar:4.1.115.Final:compile[36m -- module io.netty.all[0;1m [auto][m
+   io.netty:netty-buffer:jar:4.1.115.Final:compile[36m -- module io.netty.buffer[0;1m [auto][m
+   io.netty:netty-codec:jar:4.1.115.Final:compile[36m -- module io.netty.codec[0;1m [auto][m
+   io.netty:netty-codec-dns:jar:4.1.115.Final:compile[36m -- module io.netty.codec.dns[0;1m [auto][m
+   io.netty:netty-codec-haproxy:jar:4.1.115.Final:compile[36m -- module io.netty.codec.haproxy[0;1m [auto][m
+   io.netty:netty-codec-http:jar:4.1.115.Final:compile[36m -- module io.netty.codec.http[0;1m [auto][m
+   io.netty:netty-codec-http2:jar:4.1.115.Final:compile[36m -- module io.netty.codec.http2[0;1m [auto][m
+   io.netty:netty-codec-memcache:jar:4.1.115.Final:compile[36m -- module io.netty.codec.memcache[0;1m [auto][m
+   io.netty:netty-codec-mqtt:jar:4.1.115.Final:compile[36m -- module io.netty.codec.mqtt[0;1m [auto][m
+   io.netty:netty-codec-redis:jar:4.1.115.Final:compile[36m -- module io.netty.codec.redis[0;1m [auto][m
+   io.netty:netty-codec-smtp:jar:4.1.115.Final:compile[36m -- module io.netty.codec.smtp[0;1m [auto][m
+   io.netty:netty-codec-socks:jar:4.1.115.Final:compile[36m -- module io.netty.codec.socks[0;1m [auto][m
+   io.netty:netty-codec-stomp:jar:4.1.115.Final:compile[36m -- module io.netty.codec.stomp[0;1m [auto][m
+   io.netty:netty-codec-xml:jar:4.1.115.Final:compile[36m -- module io.netty.codec.xml[0;1m [auto][m
+   io.netty:netty-common:jar:4.1.115.Final:compile[36m -- module io.netty.common[0;1m [auto][m
+   io.netty:netty-handler:jar:4.1.115.Final:compile[36m -- module io.netty.handler[0;1m [auto][m
+   io.netty:netty-transport-native-unix-common:jar:4.1.115.Final:compile[36m -- module io.netty.transport.unix.common[0;1m [auto][m
+   io.netty:netty-handler-proxy:jar:4.1.115.Final:compile[36m -- module io.netty.handler.proxy[0;1m [auto][m
+   io.netty:netty-handler-ssl-ocsp:jar:4.1.115.Final:compile[36m -- module io.netty.handler.ssl.ocsp[0;1m [auto][m
+   io.netty:netty-resolver:jar:4.1.115.Final:compile[36m -- module io.netty.resolver[0;1m [auto][m
+   io.netty:netty-resolver-dns:jar:4.1.115.Final:compile[36m -- module io.netty.resolver.dns[0;1m [auto][m
+   io.netty:netty-transport:jar:4.1.115.Final:compile[36m -- module io.netty.transport[0;1m [auto][m
+   io.netty:netty-transport-rxtx:jar:4.1.115.Final:compile[36m -- module io.netty.transport.rxtx[0;1m [auto][m
+   io.netty:netty-transport-sctp:jar:4.1.115.Final:compile[36m -- module io.netty.transport.sctp[0;1m [auto][m
+   io.netty:netty-transport-udt:jar:4.1.115.Final:compile[36m -- module io.netty.transport.udt[0;1m [auto][m
+   io.netty:netty-transport-classes-epoll:jar:4.1.115.Final:compile[36m -- module io.netty.transport.classes.epoll[0;1m [auto][m
+   io.netty:netty-transport-classes-kqueue:jar:4.1.115.Final:compile[36m -- module io.netty.transport.classes.kqueue[0;1m [auto][m
+   io.netty:netty-resolver-dns-classes-macos:jar:4.1.115.Final:compile[36m -- module io.netty.resolver.dns.classes.macos[0;1m [auto][m
+   io.netty:netty-transport-native-epoll:jar:linux-x86_64:4.1.115.Final:runtime[36m -- module io.netty.transport.epoll.linux.x86_64[0;1m [auto][m
+   io.netty:netty-transport-native-epoll:jar:linux-aarch_64:4.1.115.Final:runtime[36m -- module io.netty.transport.epoll.linux.aarch_64[0;1m [auto][m
+   io.netty:netty-transport-native-epoll:jar:linux-riscv64:4.1.115.Final:runtime[36m -- module io.netty.transport.epoll.linux.riscv64[0;1m [auto][m
+   io.netty:netty-transport-native-kqueue:jar:osx-x86_64:4.1.115.Final:runtime[36m -- module io.netty.transport.kqueue.osx.x86_64[0;1m [auto][m
+   io.netty:netty-transport-native-kqueue:jar:osx-aarch_64:4.1.115.Final:runtime[36m -- module io.netty.transport.kqueue.osx.aarch_64[0;1m [auto][m
+   io.netty:netty-resolver-dns-native-macos:jar:osx-x86_64:4.1.115.Final:runtime[36m -- module io.netty.resolver.dns.macos.osx.x86_64[0;1m [auto][m
+   io.netty:netty-resolver-dns-native-macos:jar:osx-aarch_64:4.1.115.Final:runtime[36m -- module io.netty.resolver.dns.macos.osx.aarch_64[0;1m [auto][m
+   org.slf4j:slf4j-api:jar:2.0.16:compile[36m -- module org.slf4j[m
+   org.springframework.boot:spring-boot-starter-web:jar:3.2.12:compile[36m -- module spring.boot.starter.web[0;1m [auto][m
+   org.springframework.boot:spring-boot-starter-json:jar:3.2.12:compile[36m -- module spring.boot.starter.json[0;1m [auto][m
+   com.fasterxml.jackson.datatype:jackson-datatype-jdk8:jar:2.15.4:compile[36m -- module com.fasterxml.jackson.datatype.jdk8[m
+   com.fasterxml.jackson.module:jackson-module-parameter-names:jar:2.15.4:compile[36m -- module com.fasterxml.jackson.module.paramnames[m
+   org.springframework:spring-web:jar:6.1.15:compile[36m -- module spring.web[0;1m [auto][m
+   org.springframework:spring-beans:jar:6.1.15:compile[36m -- module spring.beans[0;1m [auto][m
+   io.micrometer:micrometer-observation:jar:1.12.13:compile[36m -- module micrometer.observation[0;1m [auto][m
+   io.micrometer:micrometer-commons:jar:1.12.13:compile[36m -- module micrometer.commons[0;1m [auto][m
+   org.springframework:spring-webmvc:jar:6.1.15:compile[36m -- module spring.webmvc[0;1m [auto][m
+   org.springframework:spring-aop:jar:6.1.15:compile[36m -- module spring.aop[0;1m [auto][m
+   org.springframework:spring-expression:jar:6.1.15:compile[36m -- module spring.expression[0;1m [auto][m
+   org.springframework.boot:spring-boot-devtools:jar:3.2.12:runtime (optional)[36m -- module spring.boot.devtools[0;1m [auto][m
+
