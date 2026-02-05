@@ -15,7 +15,8 @@ use tokio_stream::StreamExt;
 
 use crate::sink::point::UpdateMode;
 use crate::sink::point::model::{
-    ColumnConfig, GeneratePointMappingBy, PointConfig, PointModelConfig, TableConfig,
+    ColumnConfig, GeneratePointMappingBy, ObjectNodeConfig, PointConfig, PointModelConfig,
+    TableConfig,
 };
 use crate::sink::point::model::{SourceType, generate_tbname_from_pattern};
 use crate::utils::files::{get_encode, get_encode_from_buffer};
@@ -235,7 +236,7 @@ impl<'a> CsvParser<'a> {
     ) -> anyhow::Result<PointModelConfig> {
         let rdr = Self::load_csv_with_string(content.as_str(), false).await?;
 
-        let (point_config_map, table_config_map) =
+        let (point_config_map, table_config_map, node_config_map) =
             Self::parse_point_mapping(source_type, rdr).await?;
 
         Ok(PointModelConfig {
@@ -244,6 +245,11 @@ impl<'a> CsvParser<'a> {
             point_config_map,
             table_config_map,
             update_mode: None, // 不支持动态点位更新
+            node_config_map: if node_config_map.is_empty() {
+                None
+            } else {
+                Some(node_config_map)
+            },
         })
     }
 
@@ -253,12 +259,14 @@ impl<'a> CsvParser<'a> {
     ) -> anyhow::Result<(
         LinkedHashMap<String, PointConfig>,
         LinkedHashMap<String, TableConfig>,
+        LinkedHashMap<String, ObjectNodeConfig>,
     )>
     where
         R: tokio::io::AsyncRead + Unpin + Send + 'r,
     {
         let mut point_config_map: LinkedHashMap<String, PointConfig> = LinkedHashMap::new();
-        let mut table_config_map = LinkedHashMap::new();
+        let mut table_config_map: LinkedHashMap<String, TableConfig> = LinkedHashMap::new();
+        let mut node_config_map: LinkedHashMap<String, ObjectNodeConfig> = LinkedHashMap::new();
         // Fast-path de-dup set: (stable, tbname, value_col) -> first point_id
         let mut seen_triplets: HashMap<(String, String, String), String> = HashMap::new();
 
@@ -324,8 +332,32 @@ impl<'a> CsvParser<'a> {
                 )?;
             }
 
-            point_config_map.insert(point_id.clone(), p);
+            point_config_map.insert(point_id.clone(), p.clone());
             table_config_map.insert(point_id.clone(), t);
+
+            // build ObjectNodeConfig when stable == "opc_object"
+            if p.stable.as_deref() == Some("opc_object") {
+                let (browse_name, display_name, description, path) =
+                    if let Some(tags) = &p.tag_values {
+                        (
+                            tags.get("BrowseName").cloned(),
+                            tags.get("DisplayName").cloned(),
+                            tags.get("Description").cloned(),
+                            tags.get("Path").cloned(),
+                        )
+                    } else {
+                        (None, None, None, None)
+                    };
+                let node = ObjectNodeConfig {
+                    id: point_id.clone(),
+                    name: browse_name.clone(),
+                    path,
+                    display_name,
+                    description,
+                    browse_name,
+                };
+                node_config_map.insert(point_id.clone(), node);
+            }
 
             row_index += 1;
         }
@@ -333,14 +365,15 @@ impl<'a> CsvParser<'a> {
             bail!("empty csv file");
         }
 
-        Ok((point_config_map, table_config_map))
+        Ok((point_config_map, table_config_map, node_config_map))
     }
 
     /// 读取 self.csv_files 的内容，生成 opc model config
     pub async fn parse(&self) -> anyhow::Result<PointModelConfig> {
         // 点位映射
-        let mut point_config_map = LinkedHashMap::new();
-        let mut table_config_map = LinkedHashMap::new();
+        let mut point_config_map: LinkedHashMap<String, PointConfig> = LinkedHashMap::new();
+        let mut table_config_map: LinkedHashMap<String, TableConfig> = LinkedHashMap::new();
+        let mut node_config_map: LinkedHashMap<String, ObjectNodeConfig> = LinkedHashMap::new();
 
         // 点位映射的生成规则
         let mut generate_rule = Some(GeneratePointMappingBy::Csv((
@@ -351,10 +384,13 @@ impl<'a> CsvParser<'a> {
         // 解析多个 csv 文件，将点位映射合并
         let files = Self::open_csv_many(self.csv_files.clone()).await?;
         for (_file, rdr) in files {
-            let (point_config, table_config) =
+            let (point_config, table_config, nodes) =
                 Self::parse_point_mapping(self.source_type, rdr).await?;
             point_config_map.extend(point_config);
             table_config_map.extend(table_config);
+            if !nodes.is_empty() {
+                node_config_map.extend(nodes);
+            }
         }
 
         // 如果 csv_files 为空且 csv_content 不为空（King Hisotrian的用法），则直接解析 csv_content
@@ -363,10 +399,13 @@ impl<'a> CsvParser<'a> {
                 .delimiter(b',')
                 .create_reader(content.as_bytes());
 
-            let (point_config, table_config) =
+            let (point_config, table_config, nodes) =
                 Self::parse_point_mapping(self.source_type, rdr).await?;
             point_config_map.extend(point_config);
             table_config_map.extend(table_config);
+            if !nodes.is_empty() {
+                node_config_map.extend(nodes);
+            }
             // 使用 csv_content 解析时，不支持“点位映射生成”
             generate_rule = None;
         }
@@ -377,6 +416,11 @@ impl<'a> CsvParser<'a> {
             point_config_map,
             table_config_map,
             update_mode: self.update_mode,
+            node_config_map: if node_config_map.is_empty() {
+                None
+            } else {
+                Some(node_config_map)
+            },
         })
     }
 

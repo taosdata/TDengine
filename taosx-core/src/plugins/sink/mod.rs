@@ -52,6 +52,7 @@ use crate::plugins::transform::archive_records;
 use crate::plugins::transform::handling_strategy::{HandlingResult, ProcessOnAbnormalEnum};
 use crate::plugins::*;
 use crate::sink::flat::handle_sql_too_long;
+use crate::sink::point::model::{ObjectNodeConfig, SourceType, generate_tbname_from_pattern};
 use crate::utils::breakpoints::BreakpointDb;
 use crate::utils::sql::get_minimum_timestamp;
 use crate::utils::trace::{BatchCounter, Qid};
@@ -1084,8 +1085,11 @@ pub async fn handle_point_message_init(
 ) -> anyhow::Result<()> {
     let point_config_map = &config.point_config_map;
     let table_config_map = &config.table_config_map;
+    let node_config_map = &config.node_config_map;
 
     let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
+    // drop disabled tables
+    tracing::info!("point message init, dropping disabled tables...");
     for point_id in point_config_map.keys() {
         let table_config = table_config_map.get(point_id).ok_or(anyhow::anyhow!(
             "point_id: {} not exist in table config map",
@@ -1110,6 +1114,8 @@ pub async fn handle_point_message_init(
         }
     }
 
+    // create tables
+    tracing::info!("point message init, creating tables for variable nodes...");
     let sqls = config.to_create_table_sqls();
     for sql in &sqls {
         match taos.exec(sql).await {
@@ -1121,9 +1127,72 @@ pub async fn handle_point_message_init(
             }
         }
     }
+
+    // create tables for Object Nodes
+    if let Some(node_config_map) = node_config_map {
+        let values = node_config_map.values().collect_vec();
+        let sqls = opc_object_node_sqls(config.source_type, values).with_context(|| {
+            "failed to generate create table sqls for opc object nodes during point message init"
+        })?;
+        for sql in &sqls {
+            match taos.exec(sql).await {
+                Ok(_) => {}
+                Err(err) => {
+                    tracing::warn!(
+                        "failed to execute sql during point message init for opc object nodes, sql: {sql}, err: {err:#}"
+                    );
+                }
+            }
+        }
+    }
     tracing::info!("point message init done");
 
     Ok(())
+}
+
+fn opc_object_node_sqls(
+    source_type: SourceType,
+    node_config_map: Vec<&ObjectNodeConfig>,
+) -> anyhow::Result<Vec<String>> {
+    tracing::info!("point message init, creating tables for object nodes...");
+    let mut sqls: Vec<String> = vec![];
+    sqls.push("CREATE STABLE IF NOT EXISTS opc_object(ts TIMESTAMP, _null INT) TAGS(name VARCHAR(1024), `BrowseName` VARCHAR(1024), `DisplayName` VARCHAR(1024), `Description` VARCHAR(1024), `Path` VARCHAR(1024))".to_string());
+    for node in node_config_map {
+        let tbname_template = match source_type {
+            point::model::SourceType::OPCUA => "t_{ns}_{id#/_}",
+            point::model::SourceType::OPCDA => "t_{tagname}",
+            point::model::SourceType::KingHistorian => "t_{tagname}",
+        };
+        let tbname =
+            generate_tbname_from_pattern(source_type.as_static_str(), tbname_template, &node.id);
+
+        let sql = format!(
+            "CREATE TABLE IF NOT EXISTS `{tbname}` USING opc_object TAGS({}, {}, {}, {}, {})",
+            node.name
+                .as_ref()
+                .map(|n| format!("'{n}'"))
+                .unwrap_or("NULL".to_string()),
+            node.browse_name
+                .as_ref()
+                .map(|n| format!("'{n}'"))
+                .unwrap_or("NULL".to_string()),
+            node.display_name
+                .as_ref()
+                .map(|n| format!("'{n}'"))
+                .unwrap_or("NULL".to_string()),
+            node.description
+                .as_ref()
+                .map(|n| format!("'{n}'"))
+                .unwrap_or("NULL".to_string()),
+            node.path
+                .as_ref()
+                .map(|n| format!("'{n}'"))
+                .unwrap_or("NULL".to_string()),
+        );
+
+        sqls.push(sql);
+    }
+    Ok(sqls)
 }
 
 /// 处理 PointMessage
@@ -3841,6 +3910,7 @@ mod tests {
             point_config_map,
             table_config_map,
             update_mode: None,
+            node_config_map: None, // TODO
         };
         let taos = TaosBuilder::from_dsn(format!("{}/{}", &dsn, &db))
             .unwrap()
@@ -4075,5 +4145,45 @@ mod tests {
 
         metadata.set_ack(RPC_ACK_DECODE_ERROR);
         assert_eq!(metadata.ack(), RPC_ACK_DECODE_ERROR);
+    }
+
+    #[test]
+    fn test_opc_object_node_sqls() {
+        let mut map = LinkedHashMap::new();
+        map.insert(
+            "ns=9;s=/beijing",
+            ObjectNodeConfig {
+                id: "ns=9;s=/beijing".to_string(),
+                name: Some("beijing".to_string()),
+                browse_name: Some("/beijing".to_string()),
+                display_name: Some("北京".to_string()),
+                description: Some("City in China".to_string()),
+                path: Some("/beijing".to_string()),
+            },
+        );
+        map.insert(
+            "ns=9;s=/beijing/chaoyang",
+            ObjectNodeConfig {
+                id: "ns=9;s=/beijing/chaoyang".to_string(),
+                name: Some("beijing.chaoyang".to_string()),
+                browse_name: None,
+                display_name: None,
+                description: None,
+                path: None,
+            },
+        );
+
+        let sql = opc_object_node_sqls(SourceType::OPCUA, map.values().collect_vec()).unwrap();
+        let expects = [
+            "CREATE STABLE IF NOT EXISTS opc_object(ts TIMESTAMP, _null INT) TAGS(name VARCHAR(1024), `BrowseName` VARCHAR(1024), `DisplayName` VARCHAR(1024), `Description` VARCHAR(1024), `Path` VARCHAR(1024))",
+            "CREATE TABLE IF NOT EXISTS `t_9_beijing` USING opc_object TAGS('beijing', '/beijing', '北京', 'City in China', '/beijing')",
+            "CREATE TABLE IF NOT EXISTS `t_9_beijing_chaoyang` USING opc_object TAGS('beijing.chaoyang', NULL, NULL, NULL, NULL)",
+        ];
+
+        assert_eq!(sql.len(), expects.len());
+        for (i, (s, e)) in sql.iter().zip(expects.iter()).enumerate() {
+            assert_eq!(s, e, "Mismatch at index {}", i);
+            println!("{}", s);
+        }
     }
 }

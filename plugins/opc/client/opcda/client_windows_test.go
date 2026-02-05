@@ -81,7 +81,7 @@ func TestDAClient_GetAllPoints1(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    []common.Point
+		want    []*common.Point
 		wantErr assert.ErrorAssertionFunc
 	}{
 		{
@@ -91,7 +91,7 @@ func TestDAClient_GetAllPoints1(t *testing.T) {
 					Limit: 1,
 				},
 			},
-			want: []common.Point{
+			want: []*common.Point{
 				{
 					ID: "bandwidth", Name: "bandwidth",
 				},
@@ -105,7 +105,7 @@ func TestDAClient_GetAllPoints1(t *testing.T) {
 					Limit: 0,
 				},
 			},
-			want: []common.Point{
+			want: []*common.Point{
 
 				{
 					ID:   "bandwidth",
@@ -702,7 +702,7 @@ func TestDAClient_GetAllPoints1(t *testing.T) {
 					Regex: "bandwidth",
 				},
 			},
-			want: []common.Point{
+			want: []*common.Point{
 				{
 					ID: "bandwidth", Name: "bandwidth",
 				},
@@ -752,7 +752,7 @@ func TestDAClient_GetAllPoints1(t *testing.T) {
 					RegexName: `.*reg20`,
 				},
 			},
-			want: []common.Point{
+			want: []*common.Point{
 				{
 					ID:   "storage.time.reg20",
 					Name: "reg20",

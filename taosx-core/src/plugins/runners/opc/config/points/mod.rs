@@ -66,8 +66,8 @@ impl PointsConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PointsUaConfig {
-    root: Option<String>,
-    namespaces: Option<Vec<u16>>,
+    pub root: Option<String>,
+    pub namespaces: Option<Vec<u16>>,
 }
 
 impl PointsUaConfig {

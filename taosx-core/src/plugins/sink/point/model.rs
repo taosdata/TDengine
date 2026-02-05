@@ -1,4 +1,4 @@
-use anyhow::bail;
+use anyhow::{Context, bail};
 use csv_async::StringRecord;
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
@@ -13,10 +13,11 @@ use taosx_ipc::prelude::IpcDataType;
 use taosx_ipc::types::DataSet;
 
 use crate::plugins::sink::point::csv::{CsvColumn, CsvHeader, CsvParser};
+use crate::runners::opc::points::OpcNode;
 use crate::sink::point::UpdateMode;
 use crate::utils::rhai_syntax_validator::check_math_expression;
 use crate::utils::table_meta::{TableMeta, TableMetaQuerier, TableMetaQueryBuilder};
-use crate::utils::validate_table_column_name;
+use crate::utils::{parse_key_in_dsn, validate_table_column_name};
 
 static REGEX: OnceLock<Regex> = OnceLock::new();
 
@@ -84,6 +85,7 @@ pub struct PointModelConfig {
     pub generate_rule: Option<GeneratePointMappingBy>, // 生成点位映射规则的方式
     pub point_config_map: LinkedHashMap<String, PointConfig>, // key: point_id, value: PointConfig
     pub table_config_map: LinkedHashMap<String, TableConfig>, // key: point_id, value: TableConfig
+    pub node_config_map: Option<LinkedHashMap<String, ObjectNodeConfig>>, // key: node_id, value: ObjectNodeConfig
 }
 
 impl PointModelConfig {
@@ -416,7 +418,8 @@ impl PointModelConfig {
         Ok(())
     }
 
-    /// 校验 tbname 配置是否合法，tbname 为任意字符串，如果存在 {}，则{}中间的 string 必须为 ns、id、tag_name
+    /// 校验 tbname 配置是否合法, tbname 为任意字符串
+    /// 如果存在 {}，则{}中间的 string 可以为 generate_tbname_from_pattern 允许的表达式
     fn check_tbname(opc_type: SourceType, tbname: &str) -> anyhow::Result<()> {
         if tbname.is_empty() {
             bail!("tbname is required");
@@ -424,18 +427,18 @@ impl PointModelConfig {
         if !tbname.contains("{") {
             return Ok(());
         }
-        // tbname 为任意字符串，如果存在 {}，则{}中间的 string 必须为 ns、id、tag_name
+
         let regex = get_regex();
         for cap in regex.captures_iter(tbname) {
             let cap_str = cap.get(1).unwrap().as_str();
             match opc_type {
                 SourceType::OPCUA => {
-                    if cap_str != "ns" && cap_str != "id" {
+                    if !cap_str.contains("ns") && !cap_str.contains("id") {
                         bail!("invalid tbname expression: {}", tbname);
                     }
                 }
                 SourceType::OPCDA | SourceType::KingHistorian => {
-                    if cap_str != "tag_name" {
+                    if !cap_str.contains("tag_name") {
                         bail!("invalid tbname expression: {}", tbname);
                     }
                 }
@@ -762,6 +765,8 @@ impl PointModelConfig {
         }
     }
 
+    // 根据 point_id 和 value_type 生成点位映射关系
+    // 任务运行中，发现点位不在 model 的 point_config_map 和 table_config_map 中时，动态生成点位映射关系
     pub async fn generate_point_mapping(
         &self,
         point_id: &str,
@@ -808,7 +813,11 @@ impl PointModelConfig {
 
     pub fn need_transform(&self) -> bool {
         match &self.generate_rule {
-            None | Some(GeneratePointMappingBy::Rule(_)) => false,
+            None => false,
+            Some(GeneratePointMappingBy::Rule(rule)) => {
+                // TODO: 目前仅支持 value_transform，后续要扩展 timestamp transform
+                rule.value_transform.is_some()
+            }
             Some(GeneratePointMappingBy::Csv((_csv, _csv_origin))) => true,
         }
     }
@@ -1110,6 +1119,22 @@ fn parse_stable(header: &CsvHeader, row: &StringRecord) -> Option<String> {
         })
 }
 
+/*
+支持的替换占位符如下：
+* 当 ty = "opcua"（OPC UA）
+    {ns}：替换为 point_id 中的命名空间部分（ns 的值）。例如 point_id="ns=6;s=Foo.Bar" 时，{ns} → "6"。如果 point_id 不含分号（没法拆出 ns），则 {ns} → "", {id} -> "Objects"。
+    {id}：替换为 point_id 中 id 的值（去掉 "i=" / "s=" / "g=" / "b=" 等前缀后的实际值）。例如 "ns=6;s=Foo.Bar" 时，{id} → "Foo.Bar"。
+    {id#/_}: 将 id 中的所有 '/' 变为 '_'，并去掉开头和结尾可能出现的 '_'（例如 "/Device/Type/TagName/" → "Device_Type_TagName"）。
+    {id#-_}: 将 id 中的所有 '-' 变为 '_'，并去掉开头和结尾可能出现的 '_'（例如 "Device-Type-TagName" → "Device_Type_TagName"）。
+* 当 ty = "opcda" 或 "kinghist"（OPC DA 或 KingHistorian）
+    {tag_name} 或 {TagName}：替换为 point_id 中最后一个 . 之后的部分作为 TagName。例如 point_id="Device.DeviceType.TagName" 时，{tag_name} 或 {TagName} → "TagName"。
+    {/tag_name}：替换为 point_id 中最后一个 / 之后的部分作为 TagName。例如 point_id="Device/DeviceType/TagName" 时，{/tag_name} → "TagName"。
+    {id}：替换为 point_id 的完整值。例如： point_id="Device.DeviceType.TagName" 时，{id} → "Device.DeviceType.TagName"。
+    {_id}：替换为 point_id 中的 / 替换为 _ 之后的值。和 {id#/_} 是等价的，为了兼容历史配置。
+    {id#/_}: 将 id 中的所有 '/' 变为 '_'，并去掉开头和结尾可能出现的 '_'（例如 "/Device/Type/TagName/" → "Device_Type_TagName"）。
+    {id#-_}: 将 id 中的所有 '-' 变为 '_'，并去掉开头和结尾可能出现的 '_'（例如 "Device-Type-TagName" → "Device_Type_TagName"）。
+* 其他 ty 类型，直接返回 tb_name 原始值。
+*/
 /// OPC UA: <table_prefix>_{ns}_{id}_<table_suffix>
 /// OPC DA: <table_prefix>_{tag_name/TagName}_<table_suffix>
 pub fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> String {
@@ -1131,43 +1156,54 @@ pub fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> 
                     id
                 };
                 assert!(!id.is_empty(), "id should not be empty: {}", point_id);
-                tb_name.replace("{ns}", ns).replace("{id}", id)
+                // helpers for normalized replacements with trimming
+                let trim_chars = |s: &str, ch: char| -> String {
+                    let s = s.trim_start_matches(ch);
+                    s.trim_end_matches(ch).to_string()
+                };
+                let id_slash_to_underscore = trim_chars(&id.replace('/', "_"), '_');
+                let id_dash_to_underscore = trim_chars(&id.replace('-', "_"), '_');
+
+                tb_name
+                    .replace("{ns}", ns)
+                    .replace("{id}", id)
+                    .replace("{id#/_}", &id_slash_to_underscore)
+                    .replace("{id#-_}", &id_dash_to_underscore)
             } else {
                 assert!(!point_id.is_empty(), "id should not be empty: {}", point_id);
-                tb_name.replace("{ns}", "0").replace("{id}", point_id)
+                tb_name
+                    .replace("{ns}_{id}", "Objects")
+                    .replace("{ns}-{id}", "Objects")
+                    .replace("{ns}", "")
+                    .replace("{id}", "Objects")
             }
         }
         "opcda" | "kinghist" => {
-            // 如果 tb_name 包含 {TagName} 或 {tag_name}，则提取点位 ID 中最后一个 . 之后的部分作为 TagName
-            if tb_name.contains("{TagName}") || tb_name.contains("{tag_name}") {
-                let tag_index = point_id.rfind(".");
-                let tag_name = if let Some(index) = tag_index {
-                    // should be Device.DeviceType.TagName pattern
-                    &point_id[index + 1..]
-                } else {
-                    point_id
-                };
-                let tb_name = tb_name.replace("{TagName}", tag_name);
-                tb_name.replace("{tag_name}", tag_name)
-            } else if tb_name.contains("{/tag_name}") {
-                // 如果 tb_name 包含 {/tag_name}，则提取点位 ID 中最后一个 / 之后的部分作为 TagName
-                let tag_index = point_id.rfind("/");
-                let tag_name = if let Some(index) = tag_index {
-                    // should be Device/DeviceType/TagName pattern
-                    &point_id[index + 1..]
-                } else {
-                    point_id
-                };
-                tb_name.replace("{/tag_name}", tag_name)
-            } else if tb_name.contains("{id}") {
-                // 否则如果 tb_name 包含 {id}，则直接替换为 point_id
-                tb_name.replace("{id}", point_id)
-            } else if tb_name.contains("{_id}") {
-                // 否则如果 tb_name 包含 {_id}，则将 point_id 中的 / 替换为 _ 后替换
-                tb_name.replace("{_id}", &point_id.replace("/", "_"))
-            } else {
-                tb_name.to_string()
-            }
+            // tag_name 等于提取点位 ID 中最后一个 . 之后的部分。例如：point_id="Device.DeviceType.TagName"，则 {tag_name} 或 {TagName} → "TagName"
+            let tag_name = point_id
+                .rfind(".")
+                .map(|idx| &point_id[idx + 1..])
+                .unwrap_or(point_id);
+            let tag_name_slash = point_id
+                .rfind("/")
+                .map(|idx| &point_id[idx + 1..])
+                .unwrap_or(point_id);
+            // 统一处理 id 的替换规则，带修剪
+            let trim_chars = |s: &str, ch: char| -> String {
+                let s = s.trim_start_matches(ch);
+                s.trim_end_matches(ch).to_string()
+            };
+            let id_slash_to_underscore = trim_chars(&point_id.replace('/', "_"), '_');
+            let id_dash_to_underscore = trim_chars(&point_id.replace('-', "_"), '_');
+
+            tb_name
+                .replace("{TagName}", tag_name)
+                .replace("{tag_name}", tag_name)
+                .replace("{/tag_name}", tag_name_slash)
+                .replace("{id}", point_id)
+                .replace("{_id}", &id_slash_to_underscore)
+                .replace("{id#/_}", &id_slash_to_underscore)
+                .replace("{id#-_}", &id_dash_to_underscore)
         }
         _ => tb_name.to_string(),
     };
@@ -1196,15 +1232,17 @@ pub fn generate_stable_from_pattern(stable_expr: &str, value_type: &Option<IpcDa
 /*
 支持的替换占位符如下：
 * 当 ty = "opcua"（OPC UA）
-    {ns}：替换为 point_id 中的命名空间部分（ns 的值）。例如 point_id="ns=6;s=Foo.Bar" 时，{ns} → "6"。如果 point_id 不含分号；形式（没法拆出 ns），则 {ns} → "0"。
+    {ns}：替换为 point_id 中的命名空间部分（ns 的值）。例如 point_id="ns=6;s=Foo.Bar" 时，{ns} → "6"。如果 point_id 不含分号；形式（没法拆出 ns），则 {ns} → "", {id} → "Objects"。
     {id}：替换为 point_id 中 id 的值（去掉 "i=" / "s=" / "g=" / "b=" 等前缀后的实际值）。例如 "ns=6;s=Foo.Bar" 时，{id} → "Foo.Bar"。
     {id.}：替换为 id 去掉最后一个点号及其后缀的前缀部分（相当于取最后一个 '.' 之前的部分）。例如 "Foo.Bar.Baz" → "Foo.Bar"，"Foo.Bar" → "Foo"。
     {id/}：替换为 id 去掉最后一个斜杠及其后缀的前缀部分（取最后一个 '/' 之前的部分）。
     {id_}：替换为 id 去掉最后一个下划线及其后缀的前缀部分（取最后一个 '_' 之前的部分）。
     {id..}：替换为 id 去掉最后两个点号段的前缀部分（取倒数第二个 '.' 之前的整段前缀）。例如 "A.B.C.D" → "A.B"。
     {..id.}：替换为 id 被 '.' 分割后的倒数第二段（“倒数第二个片段”）。例如 "A.B.C" → "B"，"Foo.Bar" → "Foo"。
-    {id#/.}：将 id 中的所有 '/' 变为 '.'（例如 "Device/Type/TagName" → "Device.Type.TagName"）。
-    {id#-.}: 将 id 中的所有 '-' 变为 '.'（例如 "Device-Type-TagName" → "Device.Type.TagName"）。
+    {id#/.}：将 id 中的所有 '/' 变为 '.'，并去掉开头和结尾可能出现的 '.'（例如 "/Device/Type/TagName/" → "Device.Type.TagName"）。
+    {id#-.}: 将 id 中的所有 '-' 变为 '.'，并去掉开头和结尾可能出现的 '.'（例如 "Device-Type-TagName" → "Device.Type.TagName"）。
+    {id#/_}: 将 id 中的所有 '/' 变为 '_'，并去掉开头和结尾可能出现的 '_'（例如 "/Device/Type/TagName/" → "Device_Type_TagName"）。
+    {id#-_}: 将 id 中的所有 '-' 变为 '_'，并去掉开头和结尾可能出现的 '_'（例如 "Device-Type-TagName" → "Device_Type_TagName"）。
     {id/#/.}: 先执行 {id/}，再将结果中的所有 '/' 变为 '.'。 例如： "Device/Type/TagName" → "Device.Type"。
     {id_#_.}: 先执行 {id_}，再将结果中的所有 '_' 变为 '.'。例如： "Device_Type_TagName" → "Device.Type"。
     说明：当 point_id 不包含分号（无法拆出 ns、id）时，使用 {ns}="0"，{id}=point_id，并对上述 {id.}/{id/}/{id_}/{id..}/{..id.} 规则同样基于 point_id 进行计算。
@@ -1212,9 +1250,11 @@ pub fn generate_stable_from_pattern(stable_expr: &str, value_type: &Option<IpcDa
     {TagName} 或 {tag_name}：替换为 point_id 中最后一个 '.' 之后的片段（末段）。例如 "Device.DeviceType.TagName" → "TagName"。
     {/tag_name}：替换为 point_id 中最后一个 '/' 之后的片段。例如 "Device/DeviceType/TagName" → "TagName"。
     {id}：替换为完整的 point_id。例如： "Device.DeviceType.TagName" → "Device.DeviceType.TagName"。
-    {_id}：将 point_id 中的 '/' 和 '.' 全部替换为 '_' 后。例如： "Device/DeviceType.TagName" → "Device_DeviceType_TagName"。
-    {id#/.}：将 id 中的所有 '/' 变为 '.'（例如 "Device/Type/TagName" → "Device.Type.TagName"）。
-    {id#-.}: 将 id 中的所有 '-' 变为 '.'（例如 "Device-Type-TagName" → "Device.Type.TagName"）。
+    {_id}：将 point_id 中的 '/' 替换为 '_' 后。例如： "Device/DeviceType.TagName" → "Device_DeviceType.TagName"。
+    {id#/.}：将 id 中的所有 '/' 变为 '.'，并去掉开头和结尾可能出现的 '.'。（例如 "/Device/Type/TagName/" → "Device.Type.TagName"）。
+    {id#-.}: 将 id 中的所有 '-' 变为 '.'，并去掉开头和结尾可能出现的 '.'（例如 "Device-Type-TagName" → "Device.Type.TagName"）。
+    {id#/_}: 将 id 中的所有 '/' 变为 '_'，并去掉开头和结尾可能出现的 '_'（例如 "/Device/Type/TagName/" → "Device_Type_TagName"）。
+    {id#-_}: 将 id 中的所有 '-' 变为 '_'，并去掉开头和结尾可能出现的 '_'（例如 "Device-Type-TagName" → "Device_Type_TagName"）。
 * 其他情况
     如果模板中不包含上述任何受支持的占位符，则原样返回 template。
 */
@@ -1252,6 +1292,15 @@ pub fn generate_tag_value_from_pattern(ty: &str, template: &str, point_id: &str)
                     .tuples()
                     .next()
                     .map_or(id, |(_, suffix)| suffix);
+                // normalized transforms with trimming
+                let trim_chars = |s: &str, ch: char| -> String {
+                    let s = s.trim_start_matches(ch);
+                    s.trim_end_matches(ch).to_string()
+                };
+                let id_slash_to_dot_trim = trim_chars(&id.replace('/', "."), '.');
+                let id_dash_to_dot_trim = trim_chars(&id.replace('-', "."), '.');
+                let id_slash_to_underscore_trim = trim_chars(&id.replace('/', "_"), '_');
+                let id_dash_to_underscore_trim = trim_chars(&id.replace('-', "_"), '_');
 
                 template
                     .replace("{ns}", ns)
@@ -1261,38 +1310,20 @@ pub fn generate_tag_value_from_pattern(ty: &str, template: &str, point_id: &str)
                     .replace("{id_}", id_trim_underscore)
                     .replace("{id..}", id_trim_two_dots)
                     .replace("{..id.}", id_suffix_two)
-                    .replace("{id#/.}", &id.replace('/', "."))
-                    .replace("{id#-.}", &id.replace('-', "."))
+                    .replace("{id#/.}", &id_slash_to_dot_trim)
+                    .replace("{id#-.}", &id_dash_to_dot_trim)
+                    .replace("{id#/_}", &id_slash_to_underscore_trim)
+                    .replace("{id#-_}", &id_dash_to_underscore_trim)
                     .replace("{id/#/.}", &id_trim_slash.replace('/', "."))
                     .replace("{id_#_.}", &id_trim_underscore.replace('_', "."))
             } else {
                 assert!(!point_id.is_empty(), "id should not be empty: {}", point_id);
-                let id = point_id;
-                let id_trim_dot = id.rsplit_once('.').map_or(id, |(left, _)| left);
-                let id_trim_slash = id.rsplit_once('/').map_or(id, |(left, _)| left);
-                let id_trim_underscore = id.rsplit_once('_').map_or(id, |(left, _)| left);
-                let id_trim_two_dots = id
-                    .rsplit_once('.')
-                    .map(|(prefix, _)| prefix.rsplit_once('.').map_or(prefix, |(left, _)| left))
-                    .unwrap_or(id);
-                let id_suffix_two = id
-                    .rsplit('.')
-                    .tuples()
-                    .next()
-                    .map_or(id, |(_, suffix)| suffix);
-
                 template
-                    .replace("{ns}", "0")
-                    .replace("{id}", id)
-                    .replace("{id.}", id_trim_dot)
-                    .replace("{id/}", id_trim_slash)
-                    .replace("{id_}", id_trim_underscore)
-                    .replace("{id..}", id_trim_two_dots)
-                    .replace("{..id.}", id_suffix_two)
-                    .replace("{id#/.}", &id.replace('/', "."))
-                    .replace("{id#-.}", &id.replace('-', "."))
-                    .replace("{id/#/.}", &id_trim_slash.replace('/', "."))
-                    .replace("{id_#_.}", &id_trim_underscore.replace('_', "."))
+                    .replace("{ns}_{id}", "Objects")
+                    .replace("{ns}_{id#/.}", "Objects")
+                    .replace("{ns}_{id#/_}", "Objects")
+                    .replace("{ns}", "")
+                    .replace("{id}", "Objects")
             }
         }
         "opcda" | "kinghist" => {
@@ -1305,6 +1336,15 @@ pub fn generate_tag_value_from_pattern(ty: &str, template: &str, point_id: &str)
                 .rfind('/')
                 .map(|idx| &point_id[idx + 1..])
                 .unwrap_or(point_id);
+            // normalized transforms with trimming
+            let trim_chars = |s: &str, ch: char| -> String {
+                let s = s.trim_start_matches(ch);
+                s.trim_end_matches(ch).to_string()
+            };
+            let pid_slash_to_dot_trim = trim_chars(&point_id.replace('/', "."), '.');
+            let pid_dash_to_dot_trim = trim_chars(&point_id.replace('-', "."), '.');
+            let pid_slash_to_underscore_trim = trim_chars(&point_id.replace('/', "_"), '_');
+            let pid_dash_to_underscore_trim = trim_chars(&point_id.replace('-', "_"), '_');
 
             template
                 .replace("{TagName}", dot_tag)
@@ -1312,8 +1352,10 @@ pub fn generate_tag_value_from_pattern(ty: &str, template: &str, point_id: &str)
                 .replace("{/tag_name}", slash_tag)
                 .replace("{id}", point_id)
                 .replace("{_id}", &point_id.replace('/', "_"))
-                .replace("{id#/.}", &point_id.replace('/', "."))
-                .replace("{id#-.}", &point_id.replace('-', "."))
+                .replace("{id#/.}", &pid_slash_to_dot_trim)
+                .replace("{id#-.}", &pid_dash_to_dot_trim)
+                .replace("{id#/_}", &pid_slash_to_underscore_trim)
+                .replace("{id#-_}", &pid_dash_to_underscore_trim)
         }
         _ => template.to_string(),
     }
@@ -1407,13 +1449,10 @@ fn parse_tag_values_fast(
 
 #[derive(Clone, Deserialize, Debug, Serialize)]
 pub struct TableConfig {
-    /// enabled: 1 / 0
-    pub enabled: Option<i8>,
+    pub enabled: Option<i8>, // enabled: 1 / 0
     pub stable_prefix: Option<String>,
-    /// column: original_ts / received_ts / value / quality
-    pub column_configs: Vec<ColumnConfig>,
-    /// tags(name, type) in csv header
-    pub tag_configs: Option<Vec<TagConfig>>,
+    pub column_configs: Vec<ColumnConfig>, // column: original_ts / received_ts / value / quality
+    pub tag_configs: Option<Vec<TagConfig>>, // tags(name, type) in csv header
 }
 
 impl TableConfig {
@@ -1814,14 +1853,56 @@ pub enum GeneratePointMappingBy {
 pub struct PointMappingRule {
     #[serde(alias = "opc_type", alias = "sourceType", alias = "opcType")]
     pub source_type: SourceType,
-    /// 超级表名的表达式
-    pub stable_expression: String,
-    /// 字表名的表达式
-    pub tbname_expression: String,
-    /// 主键
-    pub primary_key: String,
-    /// 主键的别名
-    pub primary_key_alias: String,
+    pub stable_expression: String,           // 超级表名的表达式
+    pub tbname_expression: String,           // 字表名的表达式
+    pub value_col: String,                   // 值列名
+    pub value_transform: Option<String>,     // 值列的转换表达式
+    pub primary_key: String,                 // 主键
+    pub primary_key_alias: String,           // 主键的别名
+    pub custom_tags: Option<Vec<CustomTag>>, // 自定义标签
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CustomTag {
+    pub name: String,           // 标签名
+    pub data_type: IpcDataType, // 标签的数据类型
+    pub pattern: String,        // 标签值的表达式
+}
+
+impl CustomTag {
+    // 可以配置多个自定义标签，以";"分隔。每个自定义标签的格式为：<TagType>::<TagName>::<TagPattern>，以"::"做分隔符。
+    // 第一项是 Tag 的数据类型，第二项是 Tag 的名称，第三项是 Tag 值的表达式。
+    pub fn try_from_dsn(dsn: &Dsn) -> anyhow::Result<Option<Vec<CustomTag>>> {
+        if let Some(tags_str) = dsn.params.get("custom_tags") {
+            if tags_str.is_empty() {
+                return Ok(None);
+            }
+            let mut custom_tags = Vec::new();
+            let tags: Vec<&str> = tags_str
+                .split(';')
+                .filter(|tag| !tag.trim().is_empty())
+                .collect();
+            for tag in tags {
+                let parts: Vec<&str> = tag.split("::").collect();
+                if parts.len() != 3 {
+                    bail!("invalid custom_tag format: {}", tag);
+                }
+                let data_type = IpcDataType::from_str(parts[0]).map_err(|_err| {
+                    anyhow::anyhow!("invalid custom_tag data type: {}", parts[0])
+                })?;
+                let name = parts[1].to_string();
+                let pattern = parts[2].to_string();
+                custom_tags.push(CustomTag {
+                    name,
+                    data_type,
+                    pattern,
+                });
+            }
+            Ok(Some(custom_tags))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 impl PointMappingRule {
@@ -1835,20 +1916,35 @@ impl PointMappingRule {
         };
 
         let tbname_expression = ColumnConfig::parse_tbname_expression(dsn)?;
+
+        let value_col = parse_key_in_dsn::<String>(dsn, "value_col")
+            .ok()
+            .flatten()
+            .unwrap_or("val".to_string());
+        let value_transform = parse_key_in_dsn::<String>(dsn, "value_transform")
+            .ok()
+            .flatten();
+
         let primary_key =
             ColumnConfig::parse_primary_key(dsn)?.unwrap_or(ColumnConfig::ORIGINAL_TS.to_string());
         let primary_key_alias =
             ColumnConfig::parse_primary_key_alias(dsn)?.unwrap_or("ts".to_string());
 
+        let custom_tags = CustomTag::try_from_dsn(dsn)?;
+
         Ok(Self {
             source_type,
             stable_expression,
             tbname_expression,
+            value_col,
+            value_transform,
             primary_key,
             primary_key_alias,
+            custom_tags,
         })
     }
 
+    /// 根据点位数据生成点位映射规则。在 OPC 任务开始执行前调用，用于生成点位映射规则
     pub fn generate(
         &self,
         data: Vec<DataSet>,
@@ -1860,25 +1956,37 @@ impl PointMappingRule {
         let mut table_map = LinkedHashMap::new();
 
         for (index, p) in data.into_iter().enumerate() {
-            let point_id = p.id;
-            let point_type = p.r#type;
+            let point_id = p.id.as_str();
 
-            let value_type = point_type
-                .map(|t| {
-                    IpcDataType::from_str(t.as_str()).map_err(|_err| {
-                        anyhow::anyhow!("failed to convert point type: {} to IpcDataType", t)
-                    })
-                })
-                .transpose()?;
+            // 如果 p.type 存在，且不等于 Variable 则跳过
+            if let Some(node_class) = &p.r#type
+                && node_class != "Variable"
+            {
+                continue;
+            }
+
+            // 处理 BrowseName,DisplayName,Description 等
+            let opc_node = OpcNode::try_from(p.clone()).unwrap_or(OpcNode {
+                id: point_id.to_string(),
+                is_static: Some(false),
+                name: None,
+                description: None,
+                display_name: None,
+                node_type: None,
+                parent_id: None,
+                path: None,
+            });
 
             // point_config
-            let point_config =
-                self.gen_point_config(index, point_id.clone(), value_type.clone())?;
-            point_map.insert(point_id.clone(), point_config);
+            let mut point_config = self.gen_point_config(index, point_id.to_string(), None)?;
+            // handle extra custom tag values
+            self.extra_custom_tags(&mut point_config, &opc_node)?;
+
+            point_map.insert(point_id.to_string(), point_config);
 
             // table_config
-            let table_config = self.gen_table_config(value_type.clone())?;
-            table_map.insert(point_id.clone(), table_config);
+            let table_config = self.gen_table_config(None)?;
+            table_map.insert(point_id.to_string(), table_config);
         }
 
         Ok((point_map, table_map))
@@ -1899,15 +2007,62 @@ impl PointMappingRule {
         // 生成 stable
         let stable = generate_stable_from_pattern(&self.stable_expression, &point_type);
 
+        // 生成 tag_values
+        let tag_values = if let Some(custom_tags) = &self.custom_tags {
+            if custom_tags.is_empty() {
+                None
+            } else {
+                let mut map = HashMap::new();
+                for custom_tag in custom_tags {
+                    let tag_value = generate_tag_value_from_pattern(
+                        self.source_type.as_static_str(),
+                        &custom_tag.pattern,
+                        &point_id,
+                    );
+                    map.insert(custom_tag.name.clone(), tag_value);
+                }
+                Some(map)
+            }
+        } else {
+            None
+        };
+
         let point_config = PointConfig {
             row_index: index,
             code: tbname,
             stable: Some(stable),
-            tag_values: None,
+            tag_values,
             value_type: point_type,
         };
 
         Ok(point_config)
+    }
+
+    /// 遍历 PointConfig 的 tag_values，对于每个 map<Key,Value>，如果 Value 中存在以下特殊的pattern，进行替换。
+    /// {BrowseName}: 替换成 opc_node.name, 如果 opc_node.name 为空，替换为空字符串
+    /// {DisplayName}: 替换成 opc_node.display_name, 如果 opc_node.display_name 为空，替换为空字符串
+    /// {Description}: 替换成 opc_node.description, 如果 opc_node.description 为空，替换为空字符串
+    fn extra_custom_tags(
+        &self,
+        point_config: &mut PointConfig,
+        opc_node: &OpcNode,
+    ) -> anyhow::Result<()> {
+        if let Some(tag_values) = point_config.tag_values.as_mut() {
+            for (_tag_name, tag_value) in tag_values.iter_mut() {
+                let browse_name = opc_node.name.as_deref().unwrap_or("");
+                let display_name = opc_node.display_name.as_deref().unwrap_or("");
+                let description = opc_node.description.as_deref().unwrap_or("");
+                let path = opc_node.path.as_deref().unwrap_or("");
+
+                // Replace placeholders; if the corresponding field is empty or None, replace with empty string
+                *tag_value = tag_value.replace("{BrowseName}", browse_name);
+                *tag_value = tag_value.replace("{DisplayName}", display_name);
+                *tag_value = tag_value.replace("{Description}", description);
+                *tag_value = tag_value.replace("{Path}", path);
+            }
+        }
+
+        Ok(())
     }
 
     pub fn gen_table_config(&self, point_type: Option<IpcDataType>) -> anyhow::Result<TableConfig> {
@@ -1917,8 +2072,8 @@ impl PointMappingRule {
         column_configs.push(ColumnConfig {
             name: ColumnConfig::VALUE.to_string(),
             r#type: value_type,
-            alias: Some(String::from("val")),
-            transform: None,
+            alias: Some(self.value_col.clone()),
+            transform: self.value_transform.clone(),
             is_primary_key: false,
         });
         column_configs.push(ColumnConfig {
@@ -1961,14 +2116,65 @@ impl PointMappingRule {
             }
         }
 
+        let tag_configs = if let Some(custom_tags) = &self.custom_tags {
+            if custom_tags.is_empty() {
+                None
+            } else {
+                let tags = custom_tags
+                    .iter()
+                    .map(|custom_tag| TagConfig {
+                        name: custom_tag.name.clone(),
+                        r#type: custom_tag.data_type.clone(),
+                    })
+                    .collect_vec();
+                Some(tags)
+            }
+        } else {
+            None
+        };
+
         let table_config = TableConfig {
             enabled: Some(1),
             stable_prefix: None,
             column_configs,
-            tag_configs: None,
+            tag_configs,
         };
 
         Ok(table_config)
+    }
+
+    pub fn generate_node_config_map(
+        &self,
+        datasets: Vec<DataSet>,
+    ) -> anyhow::Result<LinkedHashMap<String, ObjectNodeConfig>> {
+        let mut node_map = LinkedHashMap::new();
+
+        for d in datasets {
+            let opc_node = OpcNode::try_from(d).context("failed to convert DataSet to OpcNode")?;
+            if opc_node.node_type != Some("Object".to_string()) {
+                continue;
+            }
+
+            // TODO: 让用户可配置 name 的生成规则
+            // name 做了特殊处理，使用 {id#/.} 规则替换斜杠和点，避免生成非法的 tag 值
+            let name = generate_tag_value_from_pattern(
+                self.source_type.as_static_str(),
+                "{id#/.}",
+                opc_node.id.as_str(),
+            );
+
+            let node_config = ObjectNodeConfig {
+                id: opc_node.id.clone(),
+                name: Some(name),
+                browse_name: opc_node.name.clone(), // Node BrowseName
+                path: opc_node.path.clone(),
+                display_name: opc_node.display_name.clone(),
+                description: opc_node.description.clone(),
+            };
+            node_map.insert(opc_node.id.clone(), node_config);
+        }
+
+        Ok(node_map)
     }
 }
 
@@ -1998,6 +2204,16 @@ impl ModelType {
     }
 }
 
+#[derive(Clone, Deserialize, Debug, Serialize)]
+pub struct ObjectNodeConfig {
+    pub id: String,
+    pub name: Option<String>,
+    pub browse_name: Option<String>,  // Node BrowseName
+    pub display_name: Option<String>, // Node DisplayName
+    pub description: Option<String>,  // Node Description
+    pub path: Option<String>,         // Node Path
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2012,8 +2228,11 @@ mod tests {
             source_type: SourceType::OPCUA,
             stable_expression: "opc_{type}".to_string(),
             tbname_expression: "t_{ns}_{id}".to_string(),
+            value_col: "val".to_string(),
+            value_transform: None,
             primary_key: "original_ts".to_string(),
             primary_key_alias: "ts".to_string(),
+            custom_tags: None,
         };
 
         let (p, _t) = rule.generate(res).unwrap();
@@ -2404,6 +2623,7 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
             generate_rule: None,
             point_config_map,
             table_config_map,
+            node_config_map: None,
         }
     }
 
@@ -2723,6 +2943,11 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
             r#"t_3_Special_\"!§$%&/()=?_´\\+~*'#_-:_;,<>|@^°€µ{[]}"#
         );
 
+        assert_eq!(
+            generate_tbname_from_pattern("opcua", "t_{ns}_{id#/_}", "ns=2;s=/Dev/Type-Name/Tag/"),
+            "t_2_Dev_Type-Name_Tag"
+        );
+
         // OPC DA
         assert_eq!(
             generate_tbname_from_pattern("opcda", "t_{TagName}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
@@ -2739,10 +2964,6 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
         assert_eq!(
             generate_tbname_from_pattern("opcda", "t_{id}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
             "t_/ASSETS/AB/EDCGQ_MP706AT_PV"
-        );
-        assert_eq!(
-            generate_tbname_from_pattern("opcda", "t{_id}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
-            "t_ASSETS_AB_EDCGQ_MP706AT_PV"
         );
         assert_eq!(
             generate_tbname_from_pattern("opcda", "t_{TagName}", "02_LI7059.DACA.PV"),
@@ -2764,6 +2985,14 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
             generate_tbname_from_pattern("opcda", "t_{_id}", "02_LI7059.DACA.PV"),
             "t_02_LI7059_DACA_PV"
         );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{id#/_}", "/ASSETS/AB/EDCGQ.MP706AT-PV/"),
+            "t_ASSETS_AB_EDCGQ_MP706AT-PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{id#-_}", "ASSETS-AB-EDCGQ-MP706AT-PV"),
+            "t_ASSETS_AB_EDCGQ_MP706AT_PV"
+        );
     }
 
     #[test]
@@ -2784,6 +3013,35 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
             assert_eq!(v, e);
         }
 
+        // OPC UA additional transforms
+        let point_id2 = "ns=2;s=/Dev/Type_Name/Tag-01/";
+        let expects2 = [
+            ("{id#/.}", "Dev.Type_Name.Tag-01"),
+            ("{id#-.}", "/Dev/Type_Name/Tag.01/"),
+            ("{id#/_}", "Dev_Type_Name_Tag-01"),
+            ("{id#-_}", "/Dev/Type_Name/Tag_01/"),
+            ("{id/#/.}", ".Dev.Type_Name.Tag-01"),
+            ("{id_#_.}", "/Dev/Type"),
+        ];
+        for (t, e) in expects2 {
+            let v = generate_tag_value_from_pattern("opcua", t, point_id2);
+            assert_eq!(v, e);
+        }
+
+        // OPC UA, point_id without ';' (ns should fallback to "0")
+        let pid_no_ns = "/Dev/Type.Name/Tag";
+        let expects3 = [
+            ("{ns}", ""),
+            ("{id}", "Objects"),
+            ("t_{ns}_{id}", "t_Objects"),
+            ("t_{ns}_{id#/.}", "t_Objects"),
+            ("t_{ns}_{id#/_}", "t_Objects"),
+        ];
+        for (t, e) in expects3 {
+            let v = generate_tag_value_from_pattern("opcua", t, pid_no_ns);
+            assert_eq!(v, e);
+        }
+
         let tag_name = "/ASSETS/AB/EDCGQ.MP706AT.PV";
         let expects = [
             ("{TagName}", "PV"),
@@ -2791,8 +3049,10 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
             ("{/tag_name}", "EDCGQ.MP706AT.PV"),
             ("{id}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
             ("{_id}", "_ASSETS_AB_EDCGQ.MP706AT.PV"),
-            ("{id#/.}", ".ASSETS.AB.EDCGQ.MP706AT.PV"),
+            ("{id#/.}", "ASSETS.AB.EDCGQ.MP706AT.PV"),
             ("{id#-.}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
+            ("{id#/_}", "ASSETS_AB_EDCGQ.MP706AT.PV"),
+            ("{id#-_}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
             ("constant_value", "constant_value"),
         ];
         for (t, e) in expects {
@@ -2810,15 +3070,20 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
             assert_eq!(v, e);
         }
 
-        let tag_name_mix = "Dev/Type-Name/Tag-01";
+        let tag_name_mix = "/Dev/Type-Name/Tag-01";
         let expects_mix = [
             ("{id#/.}", "Dev.Type-Name.Tag-01"),
-            ("{id#-.}", "Dev/Type.Name/Tag.01"),
+            ("{id#-.}", "/Dev/Type.Name/Tag.01"),
         ];
         for (t, e) in expects_mix {
             let v = generate_tag_value_from_pattern("opcda", t, tag_name_mix);
             assert_eq!(v, e);
         }
+
+        // Trailing slash should also be trimmed
+        let tag_name_trailing = "/Device/Type/TagName/";
+        let v = generate_tag_value_from_pattern("opcda", "{id#/.}", tag_name_trailing);
+        assert_eq!(v, "Device.Type.TagName");
     }
 
     #[test]
@@ -2952,6 +3217,7 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
             generate_rule: None,
             point_config_map: LinkedHashMap::new(),
             table_config_map: LinkedHashMap::new(),
+            node_config_map: None,
         };
 
         // when
@@ -3010,5 +3276,21 @@ ns=3;i=1001,opc_{type},t_{ns}_{id},val,ts,123,abc"#
         model.to_create_table_sqls().iter().for_each(|sql| {
             println!("{};", sql);
         });
+    }
+
+    #[test]
+    fn test_custom_tag() {
+        let dsn = "opcua://?custom_tags=VARCHAR(20)::location::Beijing{id#/.};INT::age::30"
+            .into_dsn()
+            .unwrap();
+
+        let custom_tags = CustomTag::try_from_dsn(&dsn).unwrap().unwrap();
+        assert_eq!(custom_tags.len(), 2);
+        assert_eq!(custom_tags[0].name, "location");
+        assert_eq!(custom_tags[0].data_type, IpcDataType::VarChar(20));
+        assert_eq!(custom_tags[0].pattern, "Beijing{id#/.}");
+        assert_eq!(custom_tags[1].name, "age");
+        assert_eq!(custom_tags[1].data_type, IpcDataType::Int32);
+        assert_eq!(custom_tags[1].pattern, "30");
     }
 }
