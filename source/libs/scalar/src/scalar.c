@@ -492,8 +492,7 @@ int32_t scalarBuildRemoteListHash(SRemoteValueListNode* pRemote, SColumnInfoData
       SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 1, rows, &hasNull1, &hasNotNull));
     } else if (IS_INTEGER_TYPE(pRemote->targetType) && IS_FLOAT_TYPE(type)) {
       SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 3, rows, &hasNull1, &hasNotNull));
-      SCL_ERR_RET(
-          scalarGenerateSetFromCol((void **)&pRemote->pHashFilterOthers, pCol, pRemote->targetType, typeMod, 4, rows, &hasNull2, &hasNotNull));
+      SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilterOthers, pCol, pRemote->targetType, typeMod, 4, rows, &hasNull2, &hasNotNull));
     } else {
       SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 0, rows, &hasNull1, &hasNotNull));
     }

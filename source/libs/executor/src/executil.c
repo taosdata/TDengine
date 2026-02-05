@@ -4179,7 +4179,6 @@ int32_t setValueFromResBlock(STaskSubJobCtx* ctx, SValueNode* pRes, SSDataBlock*
     return TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS;
   }
   
-  pRes->node.type = QUERY_NODE_VALUE;
   pRes->flag &= (~VALUE_FLAG_VAL_UNSET);
   pRes->translate = true;
   
@@ -4240,6 +4239,7 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
     ctx->code = setValueFromResBlock(ctx, &pRemote->val, pResBlock);
   }
   if (TSDB_CODE_SUCCESS == ctx->code) {
+    pRemote->val.node.type = QUERY_NODE_VALUE;
     taosArraySet(ctx->subResNodes, pParam->subQIdx, &pParam->pRes);
   }
 
