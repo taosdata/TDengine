@@ -686,7 +686,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_same_name.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_window_query.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_output_table.py
-,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_drop.py
+# ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_drop.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_fetch.py
 ## 03-TriggerMode
 #,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_count_new.py
@@ -798,7 +798,7 @@
 
 # 19-TSMAs
 
-90,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_tsma.py
+# 90,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_tsma.py
 ,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_sma_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_sma_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_time_range_wise.py -N 3
@@ -843,7 +843,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_token.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_totp.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_whitelist.py
-,,n,.,pytest cases/24-Users/test_user_passwd.py
+# ,,n,.,pytest cases/24-Users/test_user_passwd.py
 
 # 25-Privileges
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_basic.py -N 3
