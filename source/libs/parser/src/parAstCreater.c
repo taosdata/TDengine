@@ -2556,6 +2556,32 @@ _err:
   return NULL;
 }
 
+SNode* createExternalWindowClause(SAstCreateContext* pCxt, SNode* pSubquery, SToken* pAlias, SNode* pFill) {
+  SExternalWindowNode* pExtWin = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, (SNode**)&pExtWin);
+  CHECK_MAKE_NODE(pExtWin);
+
+  // Attach subquery and optional fill node
+  pExtWin->pSubquery = pSubquery;
+  pExtWin->pFill = pFill;
+
+  // Set alias if provided
+  pExtWin->aliasName[0] = '\0';
+  if (pAlias) {
+    trimEscape(pCxt, pAlias, false);
+    int32_t len = TMIN((int32_t)sizeof(pExtWin->aliasName) - 1, pAlias->n);
+    strncpy(pExtWin->aliasName, pAlias->z, len);
+    pExtWin->aliasName[len] = '\0';
+  }
+
+  return (SNode*)pExtWin;
+_err:
+  nodesDestroyNode(pSubquery);
+  nodesDestroyNode(pFill);
+  return NULL;
+}
+
 SNode* addJLimitClause(SAstCreateContext* pCxt, SNode* pJoin, SNode* pJLimit) {
   CHECK_PARSER_STATUS(pCxt);
   if (NULL == pJLimit) {
