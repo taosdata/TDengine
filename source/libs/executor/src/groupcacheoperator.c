@@ -84,9 +84,9 @@ static void logGroupCacheExecInfo(SGroupCacheOperatorInfo* pGrpCacheOperator) {
   if (NULL == buf) {
     return;
   }
-  int32_t offset = tsnprintf(buf, bufSize, "groupCache exec info, downstreamBlkNum:");
+  int32_t offset = snprintf(buf, bufSize, "groupCache exec info, downstreamBlkNum:");
   for (int32_t i = 0; i < pGrpCacheOperator->downstreamNum; ++i) {
-    offset += tsnprintf(buf + offset, bufSize, " %" PRId64 , pGrpCacheOperator->execInfo.pDownstreamBlkNum[i]);
+    offset += snprintf(buf + offset, bufSize - offset, " %" PRId64, pGrpCacheOperator->execInfo.pDownstreamBlkNum[i]);
   }
   qDebug("%s", buf);
   taosMemoryFree(buf);
@@ -1525,6 +1525,7 @@ static void resetGroupCacheBlockCache(SGcBlkCacheInfo* pCache) {
 
 static int32_t resetGroupCacheDownstreamCtx(SOperatorInfo* pOper) {
   SGroupCacheOperatorInfo* pInfo = pOper->info;
+  int32_t                  code = 0;
   if (NULL == pInfo->pDownstreams) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1538,8 +1539,12 @@ static int32_t resetGroupCacheDownstreamCtx(SOperatorInfo* pOper) {
     if (pInfo->batchFetch) {
       int32_t defaultVg = 0;
       SGcVgroupCtx vgCtx = {0};
-      initGcVgroupCtx(pOper, &vgCtx, pCtx->id, defaultVg, NULL);      
-      tSimpleHashPut(pCtx->pVgTbHash, &defaultVg, sizeof(defaultVg), &vgCtx, sizeof(vgCtx));
+      initGcVgroupCtx(pOper, &vgCtx, pCtx->id, defaultVg, NULL);
+      code = tSimpleHashPut(pCtx->pVgTbHash, &defaultVg, sizeof(defaultVg), &vgCtx, sizeof(vgCtx));
+      if (TSDB_CODE_SUCCESS != code) {
+        qDebug("reset downstream %d vgTbHash failed", pCtx->id);
+        return code;
+      }
     }
     
     taosArrayClearEx(pCtx->pFreeBlock, freeGcBlockInList);
@@ -1568,7 +1573,10 @@ static int32_t resetGroupCacheOperState(SOperatorInfo* pOper) {
 
   taosHashClear(pInfo->pGrpHash);
 
-  resetGroupCacheDownstreamCtx(pOper);
+  code = resetGroupCacheDownstreamCtx(pOper);
+  if (TSDB_CODE_SUCCESS != code) {
+    QUERY_CHECK_CODE(code, lino, _exit);
+  }
 
   memset(pInfo->execInfo.pDownstreamBlkNum, 0, pOper->numOfDownstream * sizeof(int64_t));
   

@@ -19,7 +19,7 @@
 void simLogSql(char *sql, bool useSharp) {
   static TdFilePtr pFile = NULL;
   char             filename[256];
-  sprintf(filename, "%s/sim.sql", simScriptDir);
+  snprintf(filename, sizeof(filename), "%s/sim.sql", simScriptDir);
   if (pFile == NULL) {
     pFile = taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
   }
@@ -44,7 +44,7 @@ char *simParseHostName(char *varName) {
   //  hostName[strEndIndex] = '\"';
   //  hostName[strEndIndex + 1] = '\0';
   //#else
-  sprintf(hostName, "%s", "localhost");
+  snprintf(hostName, sizeof(hostName), "%s", "localhost");
   //#endif
   return hostName;
 }
@@ -252,16 +252,16 @@ int32_t simExecuteExpression(SScript *script, char *exp) {
     int64_t t2l = atoll(t2);
 
     if (op2[0] == '+') {
-      sprintf(t3, "%" PRId64, t1l + t2l);
+      snprintf(t3, sizeof(t3), "%" PRId64, t1l + t2l);
     } else if (op2[0] == '-') {
-      sprintf(t3, "%" PRId64, t1l - t2l);
+      snprintf(t3, sizeof(t3), "%" PRId64, t1l - t2l);
     } else if (op2[0] == '*') {
-      sprintf(t3, "%" PRId64, t1l * t2l);
+      snprintf(t3, sizeof(t3), "%" PRId64, t1l * t2l);
     } else if (op2[0] == '/') {
       if (t2l == 0) {
-        sprintf(t3, "%" PRId64, INT64_MAX);
+        snprintf(t3, sizeof(t3), "%" PRId64, INT64_MAX);
       } else {
-        sprintf(t3, "%" PRId64, t1l / t2l);
+        snprintf(t3, sizeof(t3), "%" PRId64, t1l / t2l);
       }
     } else if (op2[0] == '.') {
       snprintf(t3, sizeof(t3), "%s%s", t1, t2);
@@ -333,13 +333,15 @@ bool simExecuteGotoCmd(SScript *script, char *option) {
 bool simExecuteRunCmd(SScript *script, char *option) {
   char *fileName = option;
   if (fileName == NULL || strlen(fileName) == 0) {
-    sprintf(script->error, "lineNum:%d. script file is null", script->lines[script->linePos].lineNum);
+    snprintf(script->error, sizeof(script->error), "lineNum:%d. script file is null",
+             script->lines[script->linePos].lineNum);
     return false;
   }
 
   SScript *newScript = simParseScript(option);
   if (newScript == NULL) {
-    sprintf(script->error, "lineNum:%d. parse file:%s error", script->lines[script->linePos].lineNum, fileName);
+    snprintf(script->error, sizeof(script->error), "lineNum:%d. parse file:%s error",
+             script->lines[script->linePos].lineNum, fileName);
     return false;
   }
 
@@ -356,13 +358,15 @@ bool simExecuteRunCmd(SScript *script, char *option) {
 bool simExecuteRunBackCmd(SScript *script, char *option) {
   char *fileName = option;
   if (fileName == NULL || strlen(fileName) == 0) {
-    sprintf(script->error, "lineNum:%d. script file is null", script->lines[script->linePos].lineNum);
+    snprintf(script->error, sizeof(script->error), "lineNum:%d. script file is null",
+             script->lines[script->linePos].lineNum);
     return false;
   }
 
   SScript *newScript = simParseScript(option);
   if (newScript == NULL) {
-    sprintf(script->error, "lineNum:%d. parse file:%s error", script->lines[script->linePos].lineNum, fileName);
+    snprintf(script->error, sizeof(script->error), "lineNum:%d. parse file:%s error",
+             script->lines[script->linePos].lineNum, fileName);
     return false;
   }
 
@@ -371,7 +375,8 @@ bool simExecuteRunBackCmd(SScript *script, char *option) {
   simInfo("script:%s, start to execute in background,", newScript->fileName);
 
   if (taosThreadCreate(&newScript->bgPid, NULL, simExecuteScript, (void *)newScript) != 0) {
-    sprintf(script->error, "lineNum:%d. create background thread failed", script->lines[script->linePos].lineNum);
+    snprintf(script->error, sizeof(script->error), "lineNum:%d. create background thread failed",
+             script->lines[script->linePos].lineNum);
     return false;
   } else {
     simDebug("script:%s, background thread:0x%08" PRIx64 " is created", newScript->fileName,
@@ -422,10 +427,10 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
   bool replaced = false;
 
 #ifndef WINDOWS
-  sprintf(buf, "cd %s; ", simScriptDir);
+  snprintf(buf, sizeof(buf), "cd %s; ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
 #else
-  sprintf(buf, "cd %s && ", simScriptDir);
+  snprintf(buf, sizeof(buf), "cd %s && ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
   simReplaceStr(buf, ".sh", ".bat");
   simReplaceDirSep(buf);
@@ -448,7 +453,7 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
     }
   }
 
-  sprintf(script->system_exit_code, "%d", code);
+  snprintf(script->system_exit_code, sizeof(script->system_exit_code), "%d", code);
   script->linePos++;
   if (replaced && strstr(buf, "start") != NULL) {
     simInfo("====> startup is slow in valgrind mode, so sleep 5 seconds after exec.sh -s start");
@@ -473,7 +478,7 @@ void simStoreSystemContentResult(SScript *script, char *filename) {
     }
     taosCloseFile(&pFile);
     char rmCmd[MAX_FILE_NAME_LEN] = {0};
-    sprintf(rmCmd, "rm -f %s", filename);
+    snprintf(rmCmd, sizeof(rmCmd), "rm -f %s", filename);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-result"
     system(rmCmd);
@@ -485,21 +490,21 @@ bool simExecuteSystemContentCmd(SScript *script, char *option) {
   char buf[4096] = {0};
   char buf1[4096 + 512] = {0};
   char filename[400] = {0};
-  sprintf(filename, "%s" TD_DIRSEP "%s.tmp", simScriptDir, script->fileName);
+  snprintf(filename, sizeof(filename), "%s" TD_DIRSEP "%s.tmp", simScriptDir, script->fileName);
 
 #ifdef WINDOWS
-  sprintf(buf, "cd %s && ", simScriptDir);
+  snprintf(buf, sizeof(buf), "cd %s && ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
   simReplaceStr(buf, ".sh", ".bat");
   simReplaceDirSep(buf);
-  sprintf(buf1, "%s > %s 2>nul", buf, filename);
+  snprintf(buf1, sizeof(buf1), "%s > %s 2>nul", buf, filename);
 #else
-  sprintf(buf, "cd %s; ", simScriptDir);
+  snprintf(buf, sizeof(buf), "cd %s; ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
-  sprintf(buf1, "%s > %s 2>/dev/null", buf, filename);
+  snprintf(buf1, sizeof(buf1), "%s > %s 2>/dev/null", buf, filename);
 #endif
 
-  sprintf(script->system_exit_code, "%d", system(buf1));
+  snprintf(script->system_exit_code, sizeof(script->system_exit_code), "%d", system(buf1));
   simStoreSystemContentResult(script, filename);
 
   script->linePos++;
@@ -552,7 +557,7 @@ bool simExecuteSleepCmd(SScript *script, char *option) {
   simInfo("script:%s, sleep %dms finished", script->fileName, delta);
 
   char sleepStr[32] = {0};
-  sprintf(sleepStr, "sleep %d", delta);
+  snprintf(sleepStr, sizeof(sleepStr), "sleep %d", delta);
   simLogSql(sleepStr, true);
 
   script->linePos++;
@@ -569,7 +574,8 @@ bool simExecuteReturnCmd(SScript *script, char *option) {
   if (option && option[0] != 0) ret = atoi(option);
 
   if (ret < 0) {
-    sprintf(script->error, "lineNum:%d. error return %s", script->lines[script->linePos].lineNum, option);
+    snprintf(script->error, sizeof(script->error), "lineNum:%d. error return %s",
+             script->lines[script->linePos].lineNum, option);
     return false;
   } else {
     simInfo("script:%s, return cmd execute with:%d", script->fileName, ret);
@@ -831,8 +837,8 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
   }
 
   taos_free_result(pSql);
-  sprintf(script->rows, "%d", numOfRows);
-  sprintf(script->cols, "%d", num_fields);
+  snprintf(script->rows, sizeof(script->rows), "%d", numOfRows);
+  snprintf(script->cols, sizeof(script->cols), "%d", num_fields);
 
   script->linePos++;
   return true;
@@ -895,7 +901,7 @@ bool simExecuteSqlSlowCmd(SScript *script, char *rest) {
 bool simExecuteRestfulCmd(SScript *script, char *rest) {
   TdFilePtr pFile = NULL;
   char      filename[256];
-  sprintf(filename, "%s/tmp.sql", simScriptDir);
+  snprintf(filename, sizeof(filename), "%s/tmp.sql", simScriptDir);
   // fp = fopen(filename, "w");
   pFile = taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
   if (pFile == NULL) {
@@ -920,12 +926,12 @@ bool simExecuteRestfulCmd(SScript *script, char *rest) {
 
   char cmd[1024] = {0};
   if (strcmp(gzip, "gzip") == 0) {
-    sprintf(cmd,
+    snprintf(cmd, sizeof(cmd),
             "curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' --header "
             "--compressed --data-ascii @%s 127.0.0.1:7111/rest/sql",
             filename);
   } else {
-    sprintf(cmd,
+    snprintf(cmd, sizeof(cmd),
             "curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' --header "
             "'Transfer-Encoding: chunked' --data-ascii @%s 127.0.0.1:7111/rest/sql",
             filename);
@@ -962,8 +968,8 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
     return true;
   }
 
-  sprintf(script->error, "lineNum:%d. sql:%s expect failed, but success, ret:%d:%s", line->lineNum, rest, ret & 0XFFFF,
-          tstrerror(ret));
+  snprintf(script->error, sizeof(script->error), "lineNum:%d. sql:%s expect failed, but success, ret:%d:%s",
+           line->lineNum, rest, ret & 0XFFFF, tstrerror(ret));
 
   return false;
 }
@@ -987,7 +993,7 @@ bool simExecuteLineInsertCmd(SScript *script, char *rest) {
     script->linePos++;
     return true;
   } else {
-    sprintf(script->error, "lineNum: %d. line: %s failed, ret:%d:%s", line->lineNum, rest, ret & 0XFFFF,
+    snprintf(script->error, sizeof(script->error), "lineNum: %d. line: %s failed, ret:%d:%s", line->lineNum, rest, ret & 0XFFFF,
             tstrerror(ret));
     return false;
   }
@@ -1015,7 +1021,7 @@ bool simExecuteLineInsertErrorCmd(SScript *script, char *rest) {
   int32_t ret = 0;
 #endif
   if (ret == TSDB_CODE_SUCCESS) {
-    sprintf(script->error, "script:%s, taos:%p, %s executed. expect failed, but success.", script->fileName,
+    snprintf(script->error, sizeof(script->error), "script:%s, taos:%p, %s executed. expect failed, but success.", script->fileName,
             script->taos, rest);
     script->linePos++;
     return false;

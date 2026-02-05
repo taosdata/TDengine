@@ -949,7 +949,7 @@ static int32_t mndRetrieveSnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     } else if (pObj->leadersId[0] || pObj->leadersId[1]) {
       snprintf(varDataVal(asReplicaOf), sizeof(asReplicaOf) - VARSTR_HEADER_SIZE, "%d", pObj->leadersId[0] ? pObj->leadersId[0] : pObj->leadersId[1]);
     } else {
-      strcpy(varDataVal(asReplicaOf), "None");
+      tstrncpy(varDataVal(asReplicaOf), "None", sizeof(asReplicaOf) - VARSTR_HEADER_SIZE);
     }
     varDataSetLen(asReplicaOf, strlen(varDataVal(asReplicaOf)));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

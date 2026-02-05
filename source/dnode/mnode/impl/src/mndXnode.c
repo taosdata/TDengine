@@ -3180,7 +3180,8 @@ static SHashObj *convertJob2Map(const SXnodeJobObj *pJob) {
   createTime.nd.node.type = QUERY_NODE_VALUE;
   createTime.nd.node.resType.type = TSDB_DATA_TYPE_BINARY;
   createTime.nd.datum.p = taosMemoryCalloc(1, TD_TIME_STR_LEN);
-  createTime.nd.datum.p = formatTimestampLocal(createTime.nd.datum.p, pJob->createTime, TSDB_TIME_PRECISION_MILLI);
+  createTime.nd.datum.p =
+      formatTimestampLocal(createTime.nd.datum.p, TD_TIME_STR_LEN, pJob->createTime, TSDB_TIME_PRECISION_MILLI);
   createTime.shouldFree = true;
   code = taosHashPut(pMap, "create_time", strlen("create_time") + 1, &createTime, sizeof(SXndRefValueNode));
   if (code != 0) {
@@ -3192,7 +3193,8 @@ static SHashObj *convertJob2Map(const SXnodeJobObj *pJob) {
   updateTime.nd.node.type = QUERY_NODE_VALUE;
   updateTime.nd.node.resType.type = TSDB_DATA_TYPE_BINARY;
   updateTime.nd.datum.p = taosMemoryCalloc(1, TD_TIME_STR_LEN);
-  updateTime.nd.datum.p = formatTimestampLocal(updateTime.nd.datum.p, pJob->updateTime, TSDB_TIME_PRECISION_MILLI);
+  updateTime.nd.datum.p =
+      formatTimestampLocal(updateTime.nd.datum.p, TD_TIME_STR_LEN, pJob->updateTime, TSDB_TIME_PRECISION_MILLI);
   updateTime.shouldFree = true;
   code = taosHashPut(pMap, "update_time", strlen("update_time") + 1, &updateTime, sizeof(SXndRefValueNode));
   return pMap;

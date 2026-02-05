@@ -336,7 +336,7 @@ static int32_t mndProcessCreateQnodeReq(SRpcMsg *pReq) {
 
   if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
     char obj[33] = {0};
-    (void)tsnprintf(obj, sizeof(obj), "%d", createReq.dnodeId);
+    (void)snprintf(obj, sizeof(obj), "%d", createReq.dnodeId);
 
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
@@ -475,7 +475,7 @@ static int32_t mndProcessDropQnodeReq(SRpcMsg *pReq) {
 
   if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
     char obj[33] = {0};
-    (void)tsnprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
+    (void)snprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
     duration = duration / 1000;

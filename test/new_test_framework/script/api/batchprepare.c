@@ -2385,7 +2385,7 @@ void prepareCheckResultImpl(TAOS     * taos, char *tname, bool printr, int expec
   char sql[255] = "SELECT * FROM ";
   int32_t rows = 0;
   
-  strcat(sql, tname);
+  snprintf(sql, sizeof(sql), "SELECT * FROM %s", tname);
   bpExecQuery(taos, sql, printr, &rows);
   
   if (rows == expected) {

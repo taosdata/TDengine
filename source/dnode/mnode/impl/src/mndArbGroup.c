@@ -1394,7 +1394,7 @@ _OVER:
   return code;
 }
 
-static char *formatTimestamp(char *buf, int64_t val, int precision) {
+static char *formatTimestamp(char *buf, int32_t cap, int64_t val, int precision) {
   time_t tt;
   if (precision == TSDB_TIME_PRECISION_MICRO) {
     tt = (time_t)(val / 1000000);
@@ -1413,11 +1413,11 @@ static char *formatTimestamp(char *buf, int64_t val, int precision) {
   size_t pos = taosStrfTime(buf, 32, "%Y-%m-%d %H:%M:%S", &tm);
 
   if (precision == TSDB_TIME_PRECISION_MICRO) {
-    sprintf(buf + pos, ".%06d", (int)(val % 1000000));
+    snprintf(buf + pos, cap - (pos), ".%06d", (int)(val % 1000000));
   } else if (precision == TSDB_TIME_PRECISION_NANO) {
-    sprintf(buf + pos, ".%09d", (int)(val % 1000000000));
+    snprintf(buf + pos, cap - (pos), ".%09d", (int)(val % 1000000000));
   } else {
-    sprintf(buf + pos, ".%03d", (int)(val % 1000));
+    snprintf(buf + pos, cap - (pos), ".%03d", (int)(val % 1000));
   }
 
   return buf;
@@ -1472,8 +1472,8 @@ static int32_t mndRetrieveArbGroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 
     char strCheckSyncCode[100] = {0};
     char bufUpdateTime[40] = {0};
-    (void)formatTimestamp(bufUpdateTime, pGroup->updateTimeMs, TSDB_TIME_PRECISION_MILLI);
-    (void)tsnprintf(strCheckSyncCode, 100, "%s(%s)", tstrerror(pGroup->code), bufUpdateTime);
+    (void)formatTimestamp(bufUpdateTime, sizeof(bufUpdateTime), pGroup->updateTimeMs, TSDB_TIME_PRECISION_MILLI);
+    (void)snprintf(strCheckSyncCode, 100, "%s(%s)", tstrerror(pGroup->code), bufUpdateTime);
 
     char checkSyncCode[100 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(checkSyncCode, strCheckSyncCode, 100 + VARSTR_HEADER_SIZE);

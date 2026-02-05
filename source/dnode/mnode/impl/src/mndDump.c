@@ -911,7 +911,7 @@ static int32_t mndGenerateVgroup(SMnode *pMnode, SJson *pJson) {
     if (code) return code;
     tjsonGetNumberValue(pNodeVgroup, "hashEnd", group.hashEnd, code);
     if (code) return code;
-    code = tjsonGetStringValue(pNodeVgroup, "db", group.dbName);
+    code = tjsonGetStringValue1(pNodeVgroup, "db", group.dbName, sizeof(group.dbName));
     if (code) return code;
     mInfo("group.dbname %s", group.dbName);
     tjsonGetNumberValue(pNodeVgroup, "dbUid", group.dbUid, code);

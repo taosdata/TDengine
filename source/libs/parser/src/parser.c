@@ -179,10 +179,10 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
     return code;
   }
 
-  p += sprintf(p, "INSERT INTO ");
+  p += snprintf(p, maxSqlLen, "INSERT INTO ");
   memcpy(p, t.z, t.n);
   p += t.n;
-  p += sprintf(p, " (");
+  p += snprintf(p, maxSqlLen - t.n, " (");
   pSql += index;
 
   // SET
@@ -340,7 +340,7 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
     }
   }
 
-  p += sprintf(p, ") VALUES (");
+  p += snprintf(p, maxSqlLen - (p - newSql), ") VALUES (");
   for (int32_t i = 0; i < columnCount; i++) {
     if (i > 0) {
       *p++ = ',';
@@ -415,8 +415,7 @@ bool qParseDbName(const char* pStr, size_t length, char** pDbName) {
     if (*pDbName == NULL) {
       return false;
     }
-    strncpy(*pDbName, t.z, dbNameLen);
-    (*pDbName)[dbNameLen] = '\0';
+    tstrncpy(*pDbName, t.z, dbNameLen + 1);
     return true;
   }
   return false;

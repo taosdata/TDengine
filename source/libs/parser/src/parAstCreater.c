@@ -63,7 +63,8 @@
     }                 \
   } while (0)
 
-#define COPY_STRING_FORM_ID_TOKEN(buf, pToken) strncpy(buf, (pToken)->z, TMIN((pToken)->n, sizeof(buf) - 1))
+#define COPY_STRING_FORM_ID_TOKEN(buf, pToken) \
+  tstrncpy(buf, (pToken)->z, ((pToken)->n) < sizeof(buf) ? ((pToken)->n) + 1 : sizeof(buf))
 #define TRIM_STRING_FORM_ID_TOKEN(buf, pToken)                      \
   do {                                                              \
     if (pToken->z[0] == '`') {                                      \
@@ -72,11 +73,11 @@
       COPY_STRING_FORM_ID_TOKEN(buf, pToken);                       \
     }                                                               \
   } while (0)
-#define COPY_STRING_FORM_STR_TOKEN(buf, pToken)                              \
-  do {                                                                       \
-    if ((pToken)->n > 2) {                                                   \
-      strncpy(buf, (pToken)->z + 1, TMIN((pToken)->n - 2, sizeof(buf) - 1)); \
-    }                                                                        \
+#define COPY_STRING_FORM_STR_TOKEN(buf, pToken)                                   \
+  do {                                                                            \
+    if ((pToken)->n > 2) {                                                        \
+      tstrncpy(buf, (pToken)->z + 1, TMIN((pToken)->n - 2, sizeof(buf) - 1) + 1); \
+    }                                                                             \
   } while (0)
 
 #define COPY_COW_STR_FROM_ID_TOKEN(cow, pToken)                  \
@@ -426,7 +427,7 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
       // If aliasName is truncated, hash value of aliasName could be the same.
       uint64_t hashVal = MurmurHash3_64(pRawExpr->p, pRawExpr->n);
       snprintf(pExpr->aliasName, TSDB_COL_NAME_LEN, "%" PRIu64, hashVal);
-      strncpy(pExpr->userAlias, pRawExpr->p, len);
+      tstrncpy(pExpr->userAlias, pRawExpr->p, len + 1);
       pExpr->userAlias[len] = 0;
     }
   }
@@ -1435,7 +1436,7 @@ static SNode* createPrimaryKeyCol(SAstCreateContext* pCxt, const SToken* pFuncNa
   if (NULL == pFuncName) {
     tstrncpy(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME, TSDB_COL_NAME_LEN);
   } else {
-    strncpy(pCol->colName, pFuncName->z, pFuncName->n);
+    tstrncpy(pCol->colName, pFuncName->z, pFuncName->n + 1);
   }
   pCol->isPrimTs = true;
   return (SNode*)pCol;
@@ -2347,10 +2348,8 @@ SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, SToken* pAlias)
   trimEscape(pCxt, pAlias, false);
   SExprNode* pExpr = (SExprNode*)pNode;
   int32_t    len = TMIN(sizeof(pExpr->aliasName) - 1, pAlias->n);
-  strncpy(pExpr->aliasName, pAlias->z, len);
-  pExpr->aliasName[len] = '\0';
-  strncpy(pExpr->userAlias, pAlias->z, len);
-  pExpr->userAlias[len] = '\0';
+  tstrncpy(pExpr->aliasName, pAlias->z, len + 1);
+  tstrncpy(pExpr->userAlias, pAlias->z, len + 1);
   pExpr->asAlias = true;
   return pNode;
 _err:
@@ -3229,7 +3228,8 @@ SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, const SToken* 
   char optionType[TSDB_CL_OPTION_LEN];
 
   memset(optionType, 0, TSDB_CL_OPTION_LEN);
-  strncpy(optionType, pVal1->z, TMIN(pVal1->n, TSDB_CL_OPTION_LEN));
+  tstrncpy(optionType, pVal1->z, pVal1->n < TSDB_CL_OPTION_LEN ? pVal1->n + 1 : TSDB_CL_OPTION_LEN);
+
   if (0 == strlen(optionType)) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
     return pOptions;
@@ -3398,8 +3398,8 @@ SNode* createCreateVTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode*
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
-  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, sizeof(pStmt->dbName));
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, sizeof(pStmt->tableName));
   pStmt->ignoreExists = ignoreExists;
   pStmt->pCols = pCols;
   nodesDestroyNode(pRealTable);
@@ -3417,10 +3417,10 @@ SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNo
   SCreateVSubTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
-  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
-  strcpy(pStmt->useDbName, ((SRealTableNode*)pUseRealTable)->table.dbName);
-  strcpy(pStmt->useTableName, ((SRealTableNode*)pUseRealTable)->table.tableName);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, sizeof(pStmt->dbName));
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, sizeof(pStmt->tableName));
+  tstrncpy(pStmt->useDbName, ((SRealTableNode*)pUseRealTable)->table.dbName, sizeof(pStmt->useDbName));
+  tstrncpy(pStmt->useTableName, ((SRealTableNode*)pUseRealTable)->table.tableName, sizeof(pStmt->useTableName));
   pStmt->ignoreExists = ignoreExists;
   pStmt->pSpecificTags = pSpecificTags;
   pStmt->pValsOfTags = pValsOfTags;
@@ -3500,7 +3500,8 @@ SNode* createCreateSubTableFromFileClause(SAstCreateContext* pCxt, bool ignoreEx
   if (TK_NK_STRING == pFilePath->type) {
     (void)trimString(pFilePath->z, pFilePath->n, pStmt->filePath, PATH_MAX);
   } else {
-    strncpy(pStmt->filePath, pFilePath->z, pFilePath->n);
+    tstrncpy(pStmt->filePath, pFilePath->z,
+             pFilePath->n < sizeof(pStmt->filePath) ? pFilePath->n + 1 : sizeof(pStmt->filePath));
   }
 
   nodesDestroyNode(pUseRealTable);
@@ -5492,8 +5493,8 @@ SNode* createCreateXnodeWithUserPassStmt(SAstCreateContext* pCxt, const SToken* 
           generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode password should not be empty");
       goto _err;
     }
-    strncpy(pStmt->pass, pPass->z + 1, pPass->n - 2);
-    pStmt->pass[sizeof(pStmt->pass) - 1] = '\0';
+    tstrncpy(pStmt->pass, pPass->z + 1,
+             (pPass->n - 2) < sizeof(pStmt->pass) ? (pPass->n - 2) + 1 : sizeof(pStmt->pass));
   }
   return (SNode*)pStmt;
 _err:

@@ -162,6 +162,7 @@ int32_t taos_metric_formatter_get_vgroup_id(char *key) {
         return 0;
       }
       char vgroupid[12];
+      len = len < sizeof(vgroupid) ? len : sizeof(vgroupid) - 1;
       strncpy(vgroupid, start, len);
       vgroupid[len] = '\0';
       return strtol(vgroupid, NULL, 10);
@@ -184,7 +185,7 @@ int taos_metric_formatter_load_sample(taos_metric_formatter_t *self, taos_metric
   if (r) return r;
 
   char buffer[50];
-  sprintf(buffer, format, sample->r_value);
+  snprintf(buffer, sizeof(buffer), format, sample->r_value);
   r = taos_string_builder_add_str(self->string_builder, buffer);
   if (r) return r;
 

@@ -82,7 +82,7 @@ static int32_t dmDecodeEps(SJson *pJson, SDnodeData *pData) {
     SDnodeEp dnodeEp = {0};
     tjsonGetInt32ValueFromDouble(dnode, "id", dnodeEp.id, code);
     if (code < 0) return -1;
-    code = tjsonGetStringValue(dnode, "fqdn", dnodeEp.ep.fqdn);
+    code = tjsonGetStringValue1(dnode, "fqdn", dnodeEp.ep.fqdn, sizeof(dnodeEp.ep.fqdn));
     if (code < 0) return -1;
     tjsonGetUInt16ValueFromDouble(dnode, "port", dnodeEp.ep.port, code);
     if (code < 0) return -1;
@@ -435,12 +435,12 @@ void dmGetMnodeEpSet(void* data, SEpSet *pEpSet) {
 
 void dmEpSetToStr(char *buf, int32_t len, SEpSet *epSet) {
   int32_t n = 0;
-  n += tsnprintf(buf + n, len - n, "%s", "{");
+  n += snprintf(buf + n, len - n, "%s", "{");
   for (int i = 0; i < epSet->numOfEps; i++) {
-    n += tsnprintf(buf + n, len - n, "%s:%d%s", epSet->eps[i].fqdn, epSet->eps[i].port,
+    n += snprintf(buf + n, len - n, "%s:%d%s", epSet->eps[i].fqdn, epSet->eps[i].port,
                   (i + 1 < epSet->numOfEps ? ", " : ""));
   }
-  n += tsnprintf(buf + n, len - n, "%s", "}");
+  n += snprintf(buf + n, len - n, "%s", "}");
 }
 
 static FORCE_INLINE void dmSwapEps(SEp *epLhs, SEp *epRhs) {
@@ -553,11 +553,11 @@ static int32_t dmDecodeEpPairs(SJson *pJson, SDnodeData *pData) {
     SDnodeEpPair pair = {0};
     tjsonGetInt32ValueFromDouble(dnode, "id", pair.id, code);
     if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
-    code = tjsonGetStringValue(dnode, "fqdn", pair.oldFqdn);
+    code = tjsonGetStringValue1(dnode, "fqdn", pair.oldFqdn, sizeof(pair.oldFqdn));
     if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
     tjsonGetUInt16ValueFromDouble(dnode, "port", pair.oldPort, code);
     if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
-    code = tjsonGetStringValue(dnode, "new_fqdn", pair.newFqdn);
+    code = tjsonGetStringValue1(dnode, "new_fqdn", pair.newFqdn, sizeof(pair.newFqdn));
     if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
     tjsonGetUInt16ValueFromDouble(dnode, "new_port", pair.newPort, code);
     if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;

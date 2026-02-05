@@ -477,11 +477,10 @@ int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32
     if (dbLength >= (size_t)dbLen) {
       return TSDB_CODE_INVALID_DATA_FMT;
     }
-    strncpy(db, fullDb ? (p + 1) : (pNext + 1), dbLength);
-    db[dbLength] = '\0';
-    strncpy(tb, qNext + 1, tbLen);
+    tstrncpy(db, fullDb ? (p + 1) : (pNext + 1), dbLength + 1);
+    tstrncpy(tb, qNext + 1, tbLen);
   } else {
-    strcpy(db, fullDb ? (p + 1) : (pNext + 1));
+    tstrncpy(db, fullDb ? (p + 1) : (pNext + 1), dbLen);
     tb[0] = '\0';
   }
   return TSDB_CODE_SUCCESS;

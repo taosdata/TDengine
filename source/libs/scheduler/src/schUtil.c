@@ -63,10 +63,10 @@ int32_t schDumpEpSet(SEpSet *pEpSet, char **ppRes) {
   }
 
   int32_t n = 0;
-  n += tsnprintf(str + n, maxSize - n, "numOfEps:%d, inUse:%d eps:", pEpSet->numOfEps, pEpSet->inUse);
+  n += snprintf(str + n, maxSize - n, "numOfEps:%d, inUse:%d eps:", pEpSet->numOfEps, pEpSet->inUse);
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
     SEp *pEp = &pEpSet->eps[i];
-    n += tsnprintf(str + n, maxSize - n, "[%s:%d]", pEp->fqdn, pEp->port);
+    n += snprintf(str + n, maxSize - n, "[%s:%d]", pEp->fqdn, pEp->port);
   }
 
   *ppRes = str;
@@ -214,7 +214,7 @@ void schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask) {
   SQueryNodeEpId epId = {.nodeId = pAddr->nodeId};
 
   SEp *pEp = SCH_GET_CUR_EP(pAddr);
-  TAOS_STRCPY(epId.ep.fqdn, pEp->fqdn);
+  tstrncpy(epId.ep.fqdn, pEp->fqdn, sizeof(epId.ep.fqdn));
   epId.ep.port = pEp->port;
 
   SCH_LOCK(SCH_READ, &schMgmt.hbLock);
@@ -250,7 +250,7 @@ int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask) {
   SQueryNodeEpId epId = {.nodeId = pAddr->nodeId};
 
   SEp *pEp = SCH_GET_CUR_EP(pAddr);
-  TAOS_STRCPY(epId.ep.fqdn, pEp->fqdn);
+  tstrncpy(epId.ep.fqdn, pEp->fqdn, sizeof(epId.ep.fqdn));
   epId.ep.port = pEp->port;
 
   (void)schRegisterHbConnection(pJob, pTask, &epId);

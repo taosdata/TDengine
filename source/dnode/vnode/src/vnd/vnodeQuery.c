@@ -128,7 +128,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   (void)memcpy(metaRsp.dbFName, infoReq.dbFName, sizeof(metaRsp.dbFName));
 
   if (!reqTbUid) {
-    (void)tsnprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", infoReq.dbFName, infoReq.tbName);
+    (void)snprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", infoReq.dbFName, infoReq.tbName);
     if (pVnode->mounted) tTrimMountPrefix(tableFName);
     code = vnodeValidateTableHash(pVnode, tableFName);
     if (code) {
@@ -166,7 +166,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   switch (mer1.me.type) {
     case TSDB_SUPER_TABLE: {
-      (void)strcpy(metaRsp.stbName, mer1.me.name);
+      tstrncpy(metaRsp.stbName, mer1.me.name, sizeof(metaRsp.stbName));
       schema = mer1.me.stbEntry.schemaRow;
       schemaTag = mer1.me.stbEntry.schemaTag;
       metaRsp.suid = mer1.me.uid;
@@ -179,7 +179,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
       if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit2;
 
-      (void)strcpy(metaRsp.stbName, mer2.me.name);
+      tstrncpy(metaRsp.stbName, mer2.me.name, sizeof(metaRsp.stbName));
       metaRsp.suid = mer2.me.uid;
       metaRsp.ownerId = mer2.me.stbEntry.ownerId;  // child table inherits ownerId from stb
       schema = mer2.me.stbEntry.schemaRow;
@@ -322,7 +322,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   tstrncpy(cfgRsp.tbName, cfgReq.tbName, TSDB_TABLE_NAME_LEN);
   (void)memcpy(cfgRsp.dbFName, cfgReq.dbFName, sizeof(cfgRsp.dbFName));
 
-  (void)tsnprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", cfgReq.dbFName, cfgReq.tbName);
+  (void)snprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", cfgReq.dbFName, cfgReq.tbName);
   if (pVnode->mounted) tTrimMountPrefix(tableFName);
   code = vnodeValidateTableHash(pVnode, tableFName);
   if (code) {

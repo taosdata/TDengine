@@ -74,7 +74,7 @@ class TestMnodeBasic3:
         sc.dnodeStart(2)
         sc.dnodeStop(3)
 
-        time.sleep(1)
+        time.sleep(5)
         clusterComCheck.checkDnodes(3)
 
         tdSql.query(f"select * from information_schema.ins_users")
