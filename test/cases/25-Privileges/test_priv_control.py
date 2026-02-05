@@ -165,10 +165,17 @@ class TestPrivControl:
             
         raise Exception(f"try {queryTimes} times, SQL still succeeded (expected to fail): {sql} error:{obje}")
 
-    def query_expect_rows(self, sql, expected_rows):
+    def query_expect_rows(self, sql, expected_rows, queryTimes=30):
         # Execute SQL and return success
-        tdSql.query(sql)
-        tdSql.checkRows(expected_rows)   
+        for i in range(queryTimes):            
+            tdSql.query(sql)
+            actual_rows = tdSql.queryRows
+            if actual_rows == expected_rows:
+                return 
+            print(f"    try {i+1}/{queryTimes} times got {actual_rows} rows, expected {expected_rows} for SQL: {sql}")
+            time.sleep(1)            
+
+        raise Exception(f"Expected {expected_rows} rows, but got {actual_rows} for SQL: {sql}")
     
     def create_database(self, db_name, options=""):
         # Create a database (drop if exists first)
@@ -209,6 +216,12 @@ class TestPrivControl:
         sql = f"DROP TOPIC {options} {topic_name}"
         tdSql.execute(sql)
         tdLog.info(f"Dropped topic: {topic_name}")
+        
+    def drop_stream(self, db_name, stream_name):
+        # Drop a stream
+        sql = f"DROP STREAM {db_name}.{stream_name}"
+        tdSql.execute(sql)
+        tdLog.info(f"Dropped stream: {db_name}.{stream_name}")
     
     def create_child_table(self, db_name, child_name, stable_name, tag_values="1"):
         # Create a child table
@@ -1138,19 +1151,74 @@ class TestPrivControl:
         tdLog.info("=== Testing Stream Privileges ===")
         self.login()  # Login as root
         
-        db_name = "test_db"
+        db_name  = "test_db"
+        db_name2 = "test_db2"
         user = "test_user"
-        stream_name = "test_stream"
+        stream_name1 = "test_stream1"
+        stream_name2 = "test_stream2"
+        # db2
+        stream_name3 = "test_stream3"
+        stream_name4 = "test_stream4"        
         self.exec_sql("create snode on dnode 1;")
         self.create_database(db_name)
         self.create_stable(db_name, "source_table", "ts TIMESTAMP, val INT", "tag1 INT")
+        self.create_database(db_name2)
+        self.create_stable(db_name2, "source_table2", "ts TIMESTAMP, val INT", "tag1 INT")
+
         self.create_user(user, pwd)
         self.revoke_role("`SYSINFO_1`", user)  # SYSINFO_1 is default role
         
         # Create stream as root
         self.grant_privilege("USE", f"DATABASE {db_name}", user)
-        stream_sql = f"CREATE STREAM {db_name}.{stream_name} interval(1s) sliding(1s) FROM {db_name}.source_table INTO {db_name}.stream_result  AS SELECT _twstart, avg(val) FROM %%trows "
+        stream_sql = f"CREATE STREAM {db_name}.{stream_name1} interval(1s) sliding(1s) FROM {db_name}.source_table INTO {db_name}.stream_result1  AS SELECT _twstart, avg(val) FROM %%trows "
         self.exec_sql(stream_sql)
+        stream_sql = f"CREATE STREAM {db_name}.{stream_name2} interval(2s) sliding(2s) FROM {db_name}.source_table INTO {db_name}.stream_result2  AS SELECT _twstart, avg(val) FROM %%trows "
+        self.exec_sql(stream_sql)
+        
+        # db2
+        self.grant_privilege("USE", f"DATABASE {db_name2}", user)
+        stream_sql = f"CREATE STREAM {db_name2}.{stream_name3} interval(1s) sliding(1s) FROM {db_name2}.source_table2 INTO {db_name2}.stream_result3  AS SELECT _twstart, avg(val) FROM %%trows "
+        self.exec_sql(stream_sql)
+        stream_sql = f"CREATE STREAM {db_name2}.{stream_name4} interval(2s) sliding(2s) FROM {db_name2}.source_table2 INTO {db_name2}.stream_result4  AS SELECT _twstart, avg(val) FROM %%trows "
+        self.exec_sql(stream_sql)
+        
+        #
+        # privilege level
+        #
+        
+        # *.*
+        self.grant_privilege("ALL", f"STREAM *.*", user)
+        self.login(user, pwd)
+        self.grant_privilege_failed("ALL", f"STREAM *.*", user)
+        self.query_expect_rows(f"SHOW {db_name}.STREAMS", 2)
+        self.query_expect_rows(f"SHOW {db_name2}.STREAMS", 2)
+        self.login()
+        self.revoke_privilege("ALL", f"STREAM *.*", user)
+        self.login(user, pwd)
+        self.query_expect_rows(f"SHOW {db_name}.STREAMS", 0)
+        self.query_expect_rows(f"SHOW {db_name2}.STREAMS", 0)
+        
+        # db.stream_name
+        self.login()
+        self.grant_privilege("ALL", f"STREAM {db_name}.{stream_name2}", user)
+        self.login(user, pwd)
+        #BUG6
+        self.query_expect_rows(f"SHOW {db_name}.STREAMS", 1)
+        #self.drop_stream(db_name, stream_name2)
+        self.query_expect_rows(f"SHOW {db_name2}.STREAMS", 0)
+        self.login()
+        self.revoke_privilege("ALL", f"STREAM {db_name}.{stream_name2}", user)
+        self.login(user, pwd)
+        self.query_expect_rows(f"SHOW {db_name}.STREAMS", 0)
+        self.query_expect_rows(f"SHOW {db_name2}.STREAMS", 0)
+        
+
+        #
+        # base
+        #
+        self.login()
+        self.drop_stream(db_name, stream_name2) # BUG6 open then comment this line
+        self.revoke_privilege("ALL", f"STREAM {db_name}.*", user)
         
         # Test: user cannot show streams without privilege
         self.login(user, pwd)
@@ -1166,24 +1234,24 @@ class TestPrivControl:
         self.query_expect_rows(f"SHOW {db_name}.STREAMS", 1)
         
         # Test: user cannot stop/start/drop stream without privilege
-        self.exec_sql_failed(f"RECALCULATE STREAM {db_name}.{stream_name} from '2025-01-01 10:00:00'", TSDB_CODE_MND_NO_RIGHTS)
-        self.exec_sql_failed(f"STOP  STREAM {db_name}.{stream_name}", TSDB_CODE_MND_NO_RIGHTS)
-        self.exec_sql_failed(f"START STREAM {db_name}.{stream_name}", TSDB_CODE_MND_NO_RIGHTS)
-        self.exec_sql_failed(f"DROP  STREAM {db_name}.{stream_name}", TSDB_CODE_MND_NO_RIGHTS)   
+        self.exec_sql_failed(f"RECALCULATE STREAM {db_name}.{stream_name1} from '2025-01-01 10:00:00'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed(f"STOP  STREAM {db_name}.{stream_name1}", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed(f"START STREAM {db_name}.{stream_name1}", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed(f"DROP  STREAM {db_name}.{stream_name1}", TSDB_CODE_MND_NO_RIGHTS)   
         
         # Grant start/stop/drop privilege on stream
         self.login()
-        self.grant_privilege("RECALCULATE",  f"STREAM {db_name}.{stream_name}", user)
-        self.grant_privilege("STOP",  f"STREAM {db_name}.{stream_name}", user)
-        self.grant_privilege("START", f"STREAM {db_name}.{stream_name}", user)
-        self.grant_privilege("DROP",  f"STREAM {db_name}.{stream_name}", user)
+        self.grant_privilege("RECALCULATE",  f"STREAM {db_name}.{stream_name1}", user)
+        self.grant_privilege("STOP",  f"STREAM {db_name}.{stream_name1}", user)
+        self.grant_privilege("START", f"STREAM {db_name}.{stream_name1}", user)
+        self.grant_privilege("DROP",  f"STREAM {db_name}.{stream_name1}", user)
 
         #BUG5
         #self.login(user, pwd)        
-        #self.exec_sql(f"RECALCULATE STREAM {db_name}.{stream_name}")
-        #self.exec_sql(f"STOP  STREAM {db_name}.{stream_name}")
-        #self.exec_sql(f"START STREAM {db_name}.{stream_name}")
-        #self.exec_sql(f"DROP  STREAM {db_name}.{stream_name}")
+        #self.exec_sql(f"RECALCULATE STREAM {db_name}.{stream_name1}")
+        #self.exec_sql(f"STOP  STREAM {db_name}.{stream_name1}")
+        #self.exec_sql(f"START STREAM {db_name}.{stream_name1}")
+        #self.exec_sql(f"DROP  STREAM {db_name}.{stream_name1}")
         
         # Cleanup
         self.login()
