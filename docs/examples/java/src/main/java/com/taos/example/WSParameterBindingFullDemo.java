@@ -2,9 +2,11 @@ package com.taos.example;
 
 import com.taosdata.jdbc.ws.TSWSPreparedStatement;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.*;
 import java.util.Random;
+import com.taosdata.jdbc.common.TDBlob;
 
 // ANCHOR: para_bind
 public class WSParameterBindingFullDemo {
@@ -31,7 +33,10 @@ public class WSParameterBindingFullDemo {
                     "utinyint_col tinyint unsigned," +
                     "usmallint_col smallint unsigned," +
                     "uint_col int unsigned," +
-                    "ubigint_col bigint unsigned" +
+                    "ubigint_col bigint unsigned," +
+                    "blob_col BLOB," +
+                    "decimal64_col decimal(4,2)," +
+                    "decimal128_col decimal(30,10)" +
                     ") " +
                     "tags (" +
                     "int_tag INT, " +
@@ -105,13 +110,13 @@ public class WSParameterBindingFullDemo {
     }
 
     private static void stmtAll(Connection conn) throws SQLException {
-        String sql = "INSERT INTO ? using stb tags(?,?,?,?,?,?,?,?,?,?,?) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)";
+        String sql = "INSERT INTO ? using stb tags(?,?,?,?,?,?,?,?,?,?,?) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
         try (TSWSPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSWSPreparedStatement.class)) {
 
             // set table name
             pstmt.setTableName("ntb");
-            // set tags
+            // set tags (11 tags)
             pstmt.setTagInt(0, 1);
             pstmt.setTagDouble(1, 1.1);
             pstmt.setTagBoolean(2, true);
@@ -131,6 +136,7 @@ public class WSParameterBindingFullDemo {
 
             long current = System.currentTimeMillis();
 
+            // set values
             pstmt.setTimestamp(1, new Timestamp(current));
             pstmt.setInt(2, 1);
             pstmt.setDouble(3, 1.1);
@@ -148,6 +154,12 @@ public class WSParameterBindingFullDemo {
             pstmt.setInt(10, 65535);
             pstmt.setLong(11, 4294967295L);
             pstmt.setObject(12, new BigInteger("18446744073709551615"));
+            // Set BLOB column (13)
+            pstmt.setBlob(13, new TDBlob("blob data".getBytes(), true));
+            // Set Decimal64 column (14) - decimal(4,2)
+            pstmt.setBigDecimal(14, new BigDecimal("12.34"));
+            // Set Decimal128 column (15) - decimal(30,10)
+            pstmt.setBigDecimal(15, new BigDecimal("12345678901234567890.123456789"));
             pstmt.addBatch();
             pstmt.executeBatch();
             System.out.println("Successfully inserted rows to example_all_type_stmt.ntb");

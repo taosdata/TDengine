@@ -67,7 +67,9 @@
         <dependency>
             <groupId>com.taosdata.jdbc</groupId>
             <artifactId>taos-jdbcdriver</artifactId>
-            <version>3.8.0</version>
+            <version>3.8.1</version>
+            <!--  <scope>system</scope>-->
+            <!--  <systemPath>${project.basedir}/src/main/resources/lib/taos-jdbcdriver-2.0.15-dist.jar</systemPath>-->
         </dependency>
         <!-- fastjson2 (safe replacement for fastjson) -->
         <dependency>
