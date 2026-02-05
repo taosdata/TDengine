@@ -188,7 +188,7 @@ The effective value of charset is UTF-8.
 
 | Parameter Name             | Supported Version | Dynamic Modification               | Description                                                  |
 | -------------------------- | ----------------- | ---------------------------------- | ------------------------------------------------------------ |
-| supportVnodes              |                   | Supported, effective immediately   | Maximum number of vnodes supported by a dnode, range 0-4096, default value is twice the number of CPU cores + 5 |
+| supportVnodes              |                   | Supported, effective immediately   | Maximum number of vnodes supported by a dnode, range 0-1024, default value is twice the number of CPU cores + 5 |
 | numOfCommitThreads         |                   | Supported, effective after restart | Maximum number of commit threads, range 1-1024, default value 4 |
 | numOfCompactThreads        |                   | Supported, effective after restart | Maximum number of commit threads, range 1-16, default value 2 |
 | numOfMnodeReadThreads      |                   | Supported, effective after restart | Number of Read threads for mnode, range 0-1024, default value is one quarter of the CPU cores (not exceeding 4) |

@@ -273,8 +273,8 @@ class TDTestCase:
             tdSql.error(f'ALTER LOCAL "{var}" "{error_val}"')
 
         var = 'supportVnodes'
-        expect_val = 1240 ## 1.211111 * 1024
-        sql = f'ALTER DNODE 1 "{var}" "1.211111k"'
+        expect_val = 1024
+        sql = f'ALTER DNODE 1 "{var}" "1024"'
         tdSql.execute(sql, queryTimes=1)
         val = int(self.get_variable(var, False))
         if val != expect_val:
