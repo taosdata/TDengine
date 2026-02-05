@@ -2725,7 +2725,7 @@ static int32_t mndCreateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeJob
   jobObj.taskId = pCreate->tid;
 
   jobObj.configLen = pCreate->config.len + 1;
-  if (jobObj.configLen > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
+  if (jobObj.configLen > TSDB_XNODE_TASK_JOB_CONFIG_LEN + 1) {
     code = TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
     goto _OVER;
   }
@@ -2745,7 +2745,7 @@ static int32_t mndCreateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeJob
 
   if (jobObj.reason != NULL) {
     jobObj.reasonLen = pCreate->reason.len + 1;
-    if (jobObj.reasonLen > TSDB_XNODE_TASK_REASON_LEN) {
+    if (jobObj.reasonLen > TSDB_XNODE_TASK_REASON_LEN + 1) {
       code = TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG;
       goto _OVER;
     }

@@ -5841,7 +5841,6 @@ SNode* createXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType re
     }
     case XNODE_AGENT: {
       return createXnodeAgentWithOptionsDirectly(pCxt, pResourceName, pOptions);
-      break;
     }
     default:
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -5849,6 +5848,9 @@ SNode* createXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType re
       goto _err;
   }
 _err:
+  nodesDestroyNode(pSource);
+  nodesDestroyNode(pSink);
+  nodesDestroyNode(pOptions);
   return NULL;
 }
 
@@ -6276,7 +6278,7 @@ SNode* dropXnodeResourceWhere(SAstCreateContext* pCxt, EXnodeResourceType resour
     case XNODE_AGENT:
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                               "Xnode only drop xnode job where ... support");
-      break;
+      goto _err;
     case XNODE_JOB:
       pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_JOB_STMT, (SNode**)&pStmt);
       CHECK_MAKE_NODE(pStmt);
@@ -6287,6 +6289,7 @@ SNode* dropXnodeResourceWhere(SAstCreateContext* pCxt, EXnodeResourceType resour
   }
   return (SNode*)pStmt;
 _err:
+  nodesDestroyNode(pWhere);
   return NULL;
 }
 
@@ -6345,8 +6348,18 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
     }
   } else if (strcmp(key, "parser") == 0 || strcmp(key, "transform") == 0) {
     if (pVal->type == TK_NK_STRING) {
-      (void)trimString(pVal->z, pVal->n, pOptions->parser, sizeof(pOptions->parser));
+      if (pVal->n > TSDB_XNODE_TASK_PARSER_LEN + 2) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_TASK_PARSER_TOO_LONG,
+                                                "Option parser must be string with length <= %d",
+                                                TSDB_XNODE_TASK_PARSER_LEN);
+        goto _err;
+      }
+      if (pOptions->parser) {
+        taosMemFreeClear(pOptions->parser);
+      }
       pOptions->parserLen = pVal->n == 2 ? 1 : pVal->n - 2;
+      pOptions->parser = taosMemoryCalloc(1, pOptions->parserLen + 1);
+      (void)trimString(pVal->z, pVal->n, pOptions->parser, pOptions->parserLen + 1);
     } else {
       pCxt->errCode =
           generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Option parser must be string");
@@ -6414,8 +6427,10 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
       goto _err;
     }
   }
-_err:
   return pTaskOptions;
+_err:
+  nodesDestroyNode(pTaskOptions);
+  return NULL;
 }
 
 SNode* createXnodeTaskJobWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pTidToken,

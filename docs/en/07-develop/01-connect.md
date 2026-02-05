@@ -84,7 +84,7 @@ If you are using Maven to manage your project, simply add the following dependen
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.8.0</version>
+  <version>3.8.1</version>
 </dependency>
 ```
 
