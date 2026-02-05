@@ -71,3 +71,5 @@ test/env
 test/run
 test/screenlog*
 test/output.tmp
+
+CMakeUserPresets.json
