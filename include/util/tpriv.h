@@ -52,7 +52,7 @@ extern "C" {
 #define TSDB_WORD_VARIABLES  "variables"
 #define TSDB_WORD_INFORMATION "information"
 
-#define PRIV_INFO_TABLE_VERSION 2
+#define PRIV_INFO_TABLE_VERSION 3
 typedef enum {
   PRIV_TYPE_UNKNOWN = -1,
   // ==================== Common Privilege ====================
@@ -142,6 +142,7 @@ typedef enum {
   PRIV_USER_LOCK,          // LOCK USER
   PRIV_USER_SHOW,          // SHOW USERS
   PRIV_USER_ALTER,         // ALTER USER
+  PRIV_USER_SHOW_SECURITY, // SHOW USERS SECURITY INFO
 
   // audit management
   PRIV_AUDIT_DB_DROP = 140,  // DROP AUDIT DATABASE
@@ -438,7 +439,7 @@ bool             isPrivInheritName(const char* name);
 bool             privHasObjPrivilege(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
                                      const SPrivInfo* privInfo, bool recursive);
 SPrivTblPolicy* privGetConstraintTblPrivileges(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
-                                               SPrivInfo* privInfo);
+                                               const SPrivInfo* privInfo);
 
 #ifdef __cplusplus
 }

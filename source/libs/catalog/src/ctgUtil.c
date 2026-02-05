@@ -2302,7 +2302,7 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
   int32_t          code = 0;
   STableMeta*      pMeta = NULL;
   SGetUserAuthRsp* pInfo = &req->authInfo;
-  SPrivInfo*       privInfo = req->privInfo;
+  const SPrivInfo* privInfo = req->privInfo;
   int32_t          sizeTbPrivs = taosHashGetSize(req->tbPrivs);
   SUserAuthInfo*   pReq = req->pRawReq;
   SUserAuthRes*    pRes = res->pRawRes;
@@ -2375,31 +2375,42 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
       CTG_ERR_JRET(ctgGetTbMeta(pCtg, req->pConn, &ctx, &pMeta));
     }
 
-    if (req->authInfo.userId == 0) {
-      // userId is 0, skip owner check
-      ctgDebug("%s:%d userId is 0 for %s, skip owner check for  %s.%s", __func__, __LINE__, pReq->user, dbFName, tbName);
-    }
-
     /**
      *  1. skip owner check for audit table
-     *  2. compatible with old version where ownerId is 0
+     *  2. rewrite privilege for audit table
      */
-    if (!pMeta->isAudit && (req->authInfo.userId == pMeta->ownerId)) {
-      isOwner = true;
-    } else {
+    if (pMeta->isAudit) {
       isOwner = false;
+      if (privInfo->privType == PRIV_TBL_INSERT) {
+        privInfo = privInfoGet(PRIV_AUDIT_TBL_INSERT);
+      } else if (privInfo->privType == PRIV_TBL_SELECT) {
+        privInfo = privInfoGet(PRIV_AUDIT_TBL_SELECT);
+      }
+    } else if (pReq->dbOwner || (req->authInfo.userId == pMeta->ownerId)) {
+      isOwner = true;
     }
 
     if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType ||
         TSDB_VIRTUAL_NORMAL_TABLE == pMeta->tableType) {
       // check specific table for normal/super table privilege, and then check recursively to wildcard table
-      if (isOwner || privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, true)) {
+      if (isOwner) {
+        res->pRawRes->pass[AUTH_RES_BASIC] = true;
+      } else if (privInfo->category == PRIV_CATEGORY_SYSTEM) {
+        if (PRIV_HAS(&pInfo->sysPrivs, privInfo->privType)) {
+          pRes->pass[AUTH_RES_BASIC] = true;
+        }
+      } else if (privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, true)) {
         res->pRawRes->pass[AUTH_RES_BASIC] = true;
       }
       goto _return;  // return directly for normal/super table
     } else {
       // check the specific child table privileges, don't check wildcard child table privileges here
-      if (privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, false)) {
+      if (privInfo->category == PRIV_CATEGORY_SYSTEM) {
+        if (PRIV_HAS(&pInfo->sysPrivs, privInfo->privType)) {
+          pRes->pass[AUTH_RES_BASIC] = true;
+          goto _return;
+        }
+      } else if (privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, false)) {
         res->pRawRes->pass[AUTH_RES_BASIC] = true;
         goto _return;
       }
@@ -2525,6 +2536,9 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
       privInfo.objLevel = privObjGetLevel(privInfo.objType);
     }
 
+    int8_t dbOwner = 0;
+    char dbFName[TSDB_DB_FNAME_LEN];
+    (void)tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
     if (pReq->useDb) {
       if ((pReq->useDb & AUTH_AUTHORIZED_MASK)) {
         const SPrivInfo* dbPrivInfo = privInfoGet(PRIV_DB_USE);
@@ -2537,13 +2551,12 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
         }
       }
       if ((pReq->useDb & AUTH_OWNED_MASK)) {
-        char dbFName[TSDB_DB_FNAME_LEN];
-        (void)tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
         if (taosHashGet(pInfo->ownedDbs, dbFName, strlen(dbFName) + 1)) {
           if (pReq->tbName.type == TSDB_DB_NAME_T) {
             pRes->pass[AUTH_RES_BASIC] = true;
             return TSDB_CODE_SUCCESS;
           }
+          dbOwner = 1;
           goto _next; // pass for db level, check table level
         }
       }
@@ -2557,6 +2570,11 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
     }
 _next:
     if (pReq->tbName.type == TSDB_TABLE_NAME_T) {
+      if ((dbOwner == 1) || taosHashGet(pInfo->ownedDbs, dbFName, strlen(dbFName) + 1)) {
+        pReq->dbOwner = 1;
+      } else {
+        pReq->dbOwner = 0;
+      }
       req->singleType = pReq->privType;
       req->privInfo = &privInfo;
       switch (pReq->privType) {
@@ -2596,6 +2614,10 @@ _next:
             // don't support tag condition
             CTG_ERR_RET(ctgChkSetTbAuthRsp(pCtg, req, res));
           } else {
+            if (pReq->dbOwner) {
+              pRes->pass[AUTH_RES_BASIC] = true;
+              return TSDB_CODE_SUCCESS;
+            }
             CTG_ERR_RET(ctgChkSetCommonAuthRsp(pCtg, req, res));
           }
           break;
@@ -2605,8 +2627,8 @@ _next:
           break;
         }
         default: {
-          if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, pReq->tbName.tname,
-                                  &privInfo, true)) {
+          if (pReq->dbOwner || privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname,
+                                                   pReq->tbName.tname, &privInfo, true)) {
             pRes->pass[AUTH_RES_BASIC] = true;
             return TSDB_CODE_SUCCESS;
           }

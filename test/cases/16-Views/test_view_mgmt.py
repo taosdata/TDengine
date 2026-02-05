@@ -179,10 +179,10 @@ class TestViewMgmt:
         tdSql.execute(f"create view view3 as select * from view2;")
 
         # grant/revoke to or from root is allowed since 3.4.0.0
-        tdSql.error(f"grant all on view1 to root;") # default obj is table since not specified, view1 is parsed as database here thus return error since not exist
-        tdSql.execute(f"revoke all on view1 from root;") # view1 is parsed as database here, don't check the existence of view1 when revoke
+        tdSql.error(f"grant all on view1 to root;", expectErrInfo="Table name cannot be empty for non-database level privileges")
+        tdSql.error(f"revoke all on view1 from root;", expectErrInfo="Table name cannot be empty for non-database level privileges")
 
-        tdSql.error(f"grant select on view1 to u1;")
+        tdSql.error(f"grant select on view1 to u1;", expectErrInfo="Table name cannot be empty for non-database level privileges")
         tdSql.execute(f"grant select on view testa.view1 to u1;")
 
         tdSql.query(
