@@ -616,6 +616,7 @@ priv_type(A) ::= ALTER priv_id(B) priv_id(C).                                   
 priv_type(A) ::= READ priv_id(B) priv_id(C).                                      { A = privArgsSet(pCxt, 1, &B, &C); }
 priv_type(A) ::= SHOW priv_id(B) priv_id(C).                                      { A = privArgsSet(pCxt, 2, &B, &C); }
 priv_type(A) ::= SET USER priv_id(B) priv_id(C).                                  { A = privArgsSet(pCxt, 3, &B, &C); }
+priv_type(A) ::= SHOW USERS priv_id(B) priv_id(C).                                { A = privArgsSet(pCxt, 4, &B, &C); }
 
 %type priv_id                                                                     { SToken }
 %destructor priv_id                                                               { }

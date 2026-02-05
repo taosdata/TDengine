@@ -17834,14 +17834,8 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
     }
   } else if (objLevel > 0) {
     if (pStmt->tabName[0] == '\0') {
-      if (strncmp(pStmt->objName, "*", 2) == 0) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                       "Table name cannot be empty for table level privileges");
-      } else {
-        // set table name to * automatically for specific db name
-        pStmt->tabName[0] = '*';
-        pStmt->tabName[1] = '\0';
-      }
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "Table name cannot be empty for non-database level privileges");
     }
   }
 

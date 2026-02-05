@@ -327,7 +327,7 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
       return DEAL_RES_ERROR;
     }
     if (authObjPrivileges(pAuthCxt, pTable->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB) != TSDB_CODE_SUCCESS) {
-      pAuthCxt->errCode = TSDB_CODE_PAR_PERMISSION_DENIED;
+      pAuthCxt->errCode = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
       return DEAL_RES_ERROR;
     }
 #ifdef TD_ENTERPRISE
@@ -411,6 +411,8 @@ static int32_t authDelete(SAuthCxt* pCxt, SDeleteStmt* pDelete) {
   int32_t     code = checkAuth(pCxt, pTable->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkAuth(pCxt, pTable->dbName, pTable->tableName, PRIV_TBL_DELETE, PRIV_OBJ_TBL, &pTagCond, NULL);
+  } else {
+    code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pTagCond) {
     code = rewriteAppendStableTagCond(&pDelete->pWhere, pTagCond, pTable);
@@ -426,6 +428,8 @@ static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
   int32_t code = checkAuth(pCxt, pTable->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkAuth(pCxt, pTable->dbName, pTable->tableName, PRIV_TBL_INSERT, PRIV_OBJ_TBL, &pTagCond, &pPrivCols);
+  } else {
+    code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
   return code;
 }
@@ -433,20 +437,28 @@ static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
 static int32_t authShowTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
   // return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, AUTH_TYPE_READ_OR_WRITE, NULL);
   // stb: more check in server, child table(TODO): more check when filter query result
-  return authObjPrivileges(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
+  if (authObjPrivileges(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, PRIV_DB_USE, PRIV_OBJ_DB)) {
+    return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  }
+  return 0;
 }
 
 static int32_t authShowVtables(SAuthCxt* pCxt, SShowStmt* pStmt) { return authShowTables(pCxt, pStmt); }
 
 static int32_t authShowUsage(SAuthCxt* pCxt, SShowStmt* pStmt) {
-  return authObjPrivileges(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
+  if (authObjPrivileges(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, PRIV_DB_USE, PRIV_OBJ_DB)) {
+    return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  }
+  return 0;
 }
 
 static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) {
   // SNode* pTagCond = NULL;
   // todo check tag condition for subtable
   // return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_READ, &pTagCond);
-  PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB));
+  if (authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB)) {
+    return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  }
   return authObjPrivileges(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_SHOW_CREATE, PRIV_OBJ_TBL);
 }
 
@@ -462,12 +474,16 @@ static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {
   // SNode* pTagCond = NULL;
   // todo check tag condition for subtable
   // return checkAuth(pCxt, pStmt->dbName, NULL, AUTH_TYPE_WRITE, &pTagCond);
-  PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB));
+  if (authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB)) {
+    return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  }
   return authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB);
 }
 
 static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
-  PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB));
+  if (authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB)) {
+    return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  }
   PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB));
   SNode* pCol = NULL;
   FOREACH(pCol, pStmt->pCols) {
@@ -477,7 +493,9 @@ static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
     }
     SColumnOptions* pOptions = (SColumnOptions*)pColDef->pOptions;
     if (pOptions && pOptions->hasRef) {
-      PAR_ERR_RET(authObjPrivileges(pCxt, pOptions->refDb, pOptions->refTable, PRIV_TBL_SELECT, PRIV_OBJ_TBL));
+      if (authObjPrivileges(pCxt, pOptions->refDb, pOptions->refTable, PRIV_TBL_SELECT, PRIV_OBJ_TBL)) {
+        return TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED;
+      }
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -487,7 +505,9 @@ static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) 
   int32_t    code = TSDB_CODE_SUCCESS;
   SNode*     pNode = NULL;
   SNodeList* pTmpList = pStmt->pSpecificColRefs ? pStmt->pSpecificColRefs : pStmt->pColRefs;
-  PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB));
+  if (authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB)) {
+    return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  }
   PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB));
   if (NULL == pTmpList) {
     // no column reference
@@ -499,7 +519,9 @@ static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) 
     if (NULL == pColRef) {
       PAR_ERR_RET(TSDB_CODE_PAR_INVALID_COLUMN);
     }
-    PAR_ERR_RET(authObjPrivileges(pCxt, pColRef->refDbName, pColRef->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL));
+    if (authObjPrivileges(pCxt, pColRef->refDbName, pColRef->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL)) {
+      return TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED;
+    }
   }
   return code;
 }
@@ -518,18 +540,27 @@ static int32_t authCreateStream(SAuthCxt* pCxt, SCreateStreamStmt* pStmt) {
     STableNode*         pTriggerTable = (STableNode*)pTrigger->pTrigerTable;
     if (pTriggerTable) {
       if (IS_SYS_DBNAME(pTriggerTable->dbName)) return TSDB_CODE_PAR_PERMISSION_DENIED;
-      PAR_ERR_RET(
-          authObjPrivileges(pCxt, pTriggerTable->dbName, pTriggerTable->tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL));
-      PAR_ERR_RET(authObjPrivileges(pCxt, pTriggerTable->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB));
+      if (authObjPrivileges(pCxt, pTriggerTable->dbName, pTriggerTable->tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL)) {
+        return TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED;
+      }
+      if (authObjPrivileges(pCxt, pTriggerTable->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB)) {
+        return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+      }
     }
   }
 
-  PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateStreamStmt*)pStmt)->streamDbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB));
+  if (authObjPrivileges(pCxt, ((SCreateStreamStmt*)pStmt)->streamDbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB)) {
+    return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  }
   PAR_ERR_RET(
       authObjPrivileges(pCxt, ((SCreateStreamStmt*)pStmt)->streamDbName, NULL, PRIV_STREAM_CREATE, PRIV_OBJ_DB));
   if (pStmt->targetDbName[0] != '\0') {
-    PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateStreamStmt*)pStmt)->targetDbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB));
-    PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateStreamStmt*)pStmt)->targetDbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB));
+    if (authObjPrivileges(pCxt, ((SCreateStreamStmt*)pStmt)->targetDbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB)) {
+      return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+    }
+    if (authObjPrivileges(pCxt, ((SCreateStreamStmt*)pStmt)->targetDbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB)) {
+      return TSDB_CODE_PAR_TB_CREATE_PERMISSION_DENIED;
+    }
   }
   if (pStmt->pQuery) {
     PAR_ERR_RET(authQuery(pCxt, pStmt->pQuery));
@@ -547,11 +578,15 @@ static int32_t authCreateTopic(SAuthCxt* pCxt, SCreateTopicStmt* pStmt) {
     PAR_ERR_RET(authQuery(pCxt, pStmt->pQuery));
   }
   if (NULL != pStmt->pWhere) {
-    PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateTopicStmt*)pStmt)->subDbName, ((SCreateTopicStmt*)pStmt)->subSTbName,
-                                  PRIV_TBL_SELECT, PRIV_OBJ_TBL));
+    if (authObjPrivileges(pCxt, ((SCreateTopicStmt*)pStmt)->subDbName, ((SCreateTopicStmt*)pStmt)->subSTbName,
+                          PRIV_TBL_SELECT, PRIV_OBJ_TBL)) {
+      return TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED;
+    }
   }
   if (((SCreateTopicStmt*)pStmt)->subDbName[0] != '\0') {
-    PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateTopicStmt*)pStmt)->subDbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB));
+    if (authObjPrivileges(pCxt, ((SCreateTopicStmt*)pStmt)->subDbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB)) {
+      return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+    }
   }
 
   return code;
@@ -565,6 +600,7 @@ static int32_t authCreateMultiTable(SAuthCxt* pCxt, SCreateMultiTablesStmt* pStm
       SCreateSubTableClause* pClause = (SCreateSubTableClause*)pNode;
       code = authObjPrivileges(pCxt, pClause->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
       if (TSDB_CODE_SUCCESS != code) {
+        code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
         break;
       }
       code = authObjPrivileges(pCxt, pClause->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB);
@@ -575,6 +611,7 @@ static int32_t authCreateMultiTable(SAuthCxt* pCxt, SCreateMultiTablesStmt* pStm
       SCreateSubTableFromFileClause* pClause = (SCreateSubTableFromFileClause*)pNode;
       code = authObjPrivileges(pCxt, pClause->useDbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
       if (TSDB_CODE_SUCCESS != code) {
+        code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
         break;
       }
       code = authObjPrivileges(pCxt, pClause->useDbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB);
@@ -594,7 +631,10 @@ static int32_t authDropTable(SAuthCxt* pCxt, SDropTableStmt* pStmt) {
   SNode* pNode = NULL;
   FOREACH(pNode, pStmt->pTables) {
     SDropTableClause* pClause = (SDropTableClause*)pNode;
-    PAR_ERR_RET(checkAuth(pCxt, pClause->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL));
+    if (checkAuth(pCxt, pClause->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL)) {
+      code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+      break;
+    }
 
     if (!pStmt->withOpt) {
       // for child table, check privileges of its super table later
@@ -612,7 +652,9 @@ static int32_t authDropStable(SAuthCxt* pCxt, SDropSuperTableStmt* pStmt) {
   if (pStmt->withOpt && !pCxt->pParseCxt->isSuperUser) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
-  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL));
+  if (checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL)) {
+    return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  }
   if (!pStmt->withOpt) {
     PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_DROP, PRIV_OBJ_TBL, NULL, NULL));
   }
@@ -623,7 +665,9 @@ static int32_t authDropVtable(SAuthCxt* pCxt, SDropVirtualTableStmt* pStmt) {
   if (pStmt->withOpt && !pCxt->pParseCxt->isSuperUser) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
-  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL));
+  if (checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL)) {
+    return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  }
   if (!pStmt->withOpt) {
     PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_DROP, PRIV_OBJ_TBL, NULL, NULL));
   }
@@ -633,17 +677,25 @@ static int32_t authDropVtable(SAuthCxt* pCxt, SDropVirtualTableStmt* pStmt) {
 static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
   SNode* pTagCond = NULL;
   // todo check tag condition for subtable
-  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL));
+  if (checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL)) {
+    return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  }
   return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
 }
 
 static int32_t authAlterVTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
-  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL));
+  if (checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL)) {
+    return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  }
   PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL));
   if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
       pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF) {
-    PAR_ERR_RET(checkAuth(pCxt, pStmt->refDbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL));
-    PAR_ERR_RET(checkAuth(pCxt, pStmt->refDbName, pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL, NULL));
+    if (checkAuth(pCxt, pStmt->refDbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL)) {
+      return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+    }
+    if (checkAuth(pCxt, pStmt->refDbName, pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL, NULL)) {
+      return TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED;
+    }
   }
   PAR_RET(TSDB_CODE_SUCCESS);
 }
@@ -655,6 +707,8 @@ static int32_t authCreateView(SAuthCxt* pCxt, SCreateViewStmt* pStmt) {
   int32_t code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_VIEW_CREATE, PRIV_OBJ_DB, NULL, NULL);
+  } else {
+    code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = authQuery(pCxt, pStmt->pQuery);
@@ -670,6 +724,8 @@ static int32_t authDropView(SAuthCxt* pCxt, SDropViewStmt* pStmt) {
   int32_t code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkViewAuth(pCxt, pStmt->dbName, pStmt->viewName, PRIV_CM_DROP, PRIV_OBJ_VIEW, NULL);
+  } else {
+    code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
   if (code == 0) {
     pStmt->hasPrivilege = true;
@@ -684,8 +740,12 @@ static int32_t authCreateIndex(SAuthCxt* pCxt, SCreateIndexStmt* pStmt) {
   int32_t code = authObjPrivileges(pCxt, ((SCreateIndexStmt*)pStmt)->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = authObjPrivileges(pCxt, ((SCreateIndexStmt*)pStmt)->dbName, ((SCreateIndexStmt*)pStmt)->tableName,
-                             PRIV_TBL_SELECT, PRIV_OBJ_TBL);
+    if (authObjPrivileges(pCxt, ((SCreateIndexStmt*)pStmt)->dbName, ((SCreateIndexStmt*)pStmt)->tableName,
+                          PRIV_TBL_SELECT, PRIV_OBJ_TBL)) {
+      code = TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED;
+    }
+  } else {
+    code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -701,6 +761,8 @@ static int32_t authDropIndex(SAuthCxt* pCxt, SDropIndexStmt* pStmt) {
   if (TSDB_CODE_SUCCESS == code) {
     code = authObjPrivileges(pCxt, ((SDropIndexStmt*)pStmt)->indexDbName, ((SDropIndexStmt*)pStmt)->indexName,
                              PRIV_CM_DROP, PRIV_OBJ_IDX);
+  } else {
+    code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
   return code;
 }
@@ -710,17 +772,24 @@ static int32_t authShowIndexes(SAuthCxt* pCxt, SShowStmt* pStmt) { return authSh
 static int32_t authCreateTsma(SAuthCxt* pCxt, SCreateTSMAStmt* pStmt) {
   int32_t code = authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
   if (TSDB_CODE_SUCCESS == code) {
-    code = authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB);
+    if (authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB)) {
+      code = TSDB_CODE_PAR_TB_CREATE_PERMISSION_DENIED;
+    }
+  } else {
+    code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
   if (!pStmt->pOptions->recursiveTsma) {
     if (TSDB_CODE_SUCCESS == code) {
-      code = authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, ((SCreateTSMAStmt*)pStmt)->tableName,
-                               PRIV_TBL_SELECT, PRIV_OBJ_TBL);
+      if (authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, ((SCreateTSMAStmt*)pStmt)->tableName,
+                            PRIV_TBL_SELECT, PRIV_OBJ_TBL)) {
+        code = TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED;
+      }
     }
 
     if (TSDB_CODE_SUCCESS == code) {
-      code = authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, NULL,
-                               PRIV_STREAM_CREATE, PRIV_OBJ_DB);
+      if (authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, NULL, PRIV_STREAM_CREATE, PRIV_OBJ_DB)) {
+        code = TSDB_CODE_PAR_STREAM_CREATE_PERMISSION_DENIED;
+      }
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, ((SCreateTSMAStmt*)pStmt)->tableName,
@@ -736,6 +805,8 @@ static int32_t authDropTsma(SAuthCxt* pCxt, SDropTSMAStmt* pStmt) {
   if (TSDB_CODE_SUCCESS == code) {
     code = authObjPrivileges(pCxt, ((SDropTSMAStmt*)pStmt)->dbName, ((SDropTSMAStmt*)pStmt)->tsmaName, PRIV_CM_DROP,
                              PRIV_OBJ_TSMA);
+  } else {
+    code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
   return code;
 }
@@ -743,12 +814,18 @@ static int32_t authDropTsma(SAuthCxt* pCxt, SDropTSMAStmt* pStmt) {
 static int32_t authCreateRsma(SAuthCxt* pCxt, SCreateRsmaStmt* pStmt) {
   int32_t code = authObjPrivileges(pCxt, ((SCreateRsmaStmt*)pStmt)->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
   if (TSDB_CODE_SUCCESS == code) {
-    code = authObjPrivileges(pCxt, ((SCreateRsmaStmt*)pStmt)->dbName, ((SCreateRsmaStmt*)pStmt)->tableName,
-                             PRIV_TBL_SELECT, PRIV_OBJ_TBL);
+    if (authObjPrivileges(pCxt, ((SCreateRsmaStmt*)pStmt)->dbName, ((SCreateRsmaStmt*)pStmt)->tableName,
+                          PRIV_TBL_SELECT, PRIV_OBJ_TBL)) {
+      code = TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED;
+    }
+  } else {
+    code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = authObjPrivileges(pCxt, ((SCreateRsmaStmt*)pStmt)->dbName, ((SCreateRsmaStmt*)pStmt)->tableName,
-                             PRIV_TBL_INSERT, PRIV_OBJ_TBL);
+    if (authObjPrivileges(pCxt, ((SCreateRsmaStmt*)pStmt)->dbName, ((SCreateRsmaStmt*)pStmt)->tableName,
+                          PRIV_TBL_INSERT, PRIV_OBJ_TBL)) {
+      code = TSDB_CODE_PAR_TB_INSERT_PERMISSION_DENIED;
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = authObjPrivileges(pCxt, ((SCreateRsmaStmt*)pStmt)->dbName, ((SCreateRsmaStmt*)pStmt)->tableName,
@@ -762,6 +839,8 @@ static int32_t authDropRsma(SAuthCxt* pCxt, SDropRsmaStmt* pStmt) {
   if (TSDB_CODE_SUCCESS == code) {
     code = authObjPrivileges(pCxt, ((SDropRsmaStmt*)pStmt)->dbName, ((SDropRsmaStmt*)pStmt)->rsmaName, PRIV_CM_DROP,
                              PRIV_OBJ_RSMA);
+  } else {
+    code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
   return code;
 }
@@ -771,6 +850,8 @@ static int32_t authShowCreateRsma(SAuthCxt* pCxt, SShowCreateRsmaStmt* pStmt) {
   if (TSDB_CODE_SUCCESS == code) {
     code = authObjPrivileges(pCxt, ((SShowCreateRsmaStmt*)pStmt)->dbName, ((SShowCreateRsmaStmt*)pStmt)->rsmaName,
                              PRIV_CM_SHOW_CREATE, PRIV_OBJ_RSMA);
+  } else {
+    code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
   if (code == 0) pStmt->hasPrivilege = true;
   return 0;  // return 0 and check owner later in translateShowCreateRsma since rsma ctgCatalog not available yet
@@ -787,8 +868,10 @@ static int32_t authAlterDatabase(SAuthCxt* pCxt, SAlterDatabaseStmt* pStmt) {
 static int32_t authAlterLocal(SAuthCxt* pCxt, SAlterLocalStmt* pStmt) {
   int32_t privType = cfgGetPrivType(tsCfg, pStmt->config, 0);
   return authSysPrivileges(pCxt, (void*)pStmt, privType);
+}
 
-  return TSDB_CODE_SUCCESS;
+static int32_t authDropRole(SAuthCxt* pCxt, SDropRoleStmt* pStmt) {
+  return authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_ROLE_DROP);
 }
 
 static int32_t authDropDatabase(SAuthCxt* pCxt, SDropDatabaseStmt* pStmt) {
@@ -844,7 +927,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_CREATE_ROLE_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_ROLE_CREATE);
     case QUERY_NODE_DROP_ROLE_STMT:
-      return authSysPrivileges(pCxt, pStmt, PRIV_ROLE_DROP);
+      return authDropRole(pCxt, (SDropRoleStmt*)pStmt);
     case QUERY_NODE_CREATE_USER_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_USER_CREATE);
     case QUERY_NODE_ALTER_USER_STMT:

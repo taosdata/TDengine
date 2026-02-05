@@ -2240,6 +2240,7 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
   if (TSDB_CODE_SUCCESS == code) {
     if (pPrivCols) pStmt->pPrivCols = pPrivCols;
 #ifdef TD_ENTERPRISE
+#if 0
     if (pStmt->pTableMeta && pStmt->pTableMeta->isAudit) {
       // recheck for audit table
       code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, true, &pCxt->missCache, NULL, NULL, NULL);
@@ -2248,6 +2249,7 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
         return code;
       }
     }
+#endif
     if (!pCxt->missCache) {
       if (TSDB_SUPER_TABLE != pStmt->pTableMeta->tableType) {
         pCxt->needTableTagVal = (NULL != pTagCond);
@@ -4380,7 +4382,7 @@ static int32_t checkAuthUseDb(SParseContext* pCxt, SName* pTbName, bool isAudit)
                            .mgmtEps = pCxt->mgmtEpSet};
   code = catalogChkAuth(pCxt->pCatalog, &conn, &authInfo, &authRes);  // cache used firstly inside the function
   if (TSDB_CODE_SUCCESS == code && !authRes.pass[AUTH_RES_BASIC]) {
-    code = TSDB_CODE_PAR_PERMISSION_DENIED;
+    code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
   return code;
 }
