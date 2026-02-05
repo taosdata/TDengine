@@ -398,7 +398,7 @@ _end:
 
 STimeWindow getFinalTimeWindow(int64_t ts, SInterval* pInterval) {
   STimeWindow w = {.skey = ts, .ekey = INT64_MAX};
-  w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
+  w.ekey = taosTimeGetIntervalEnd(ts, pInterval);
   return w;
 }
 
