@@ -530,6 +530,20 @@ static int32_t remoteValueListCopy(const SRemoteValueListNode* pSrc, SRemoteValu
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t tagValueNodeCopy(const SAlterTagValueNode* pSrc, SAlterTagValueNode* pDst) {
+  COPY_CHAR_ARRAY_FIELD(tagName);
+  CLONE_NODE_FIELD(pVal);
+  pDst->regexp = taosStrdup(pSrc->regexp);
+  if (NULL == pDst->regexp) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pDst->replacement = taosStrdup(pSrc->replacement);
+  if (NULL == pDst->replacement) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pTargets);
   CLONE_NODE_FIELD(pConditions);
@@ -1275,6 +1289,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_REMOTE_VALUE_LIST:
       code = remoteValueListCopy((const SRemoteValueListNode*)pNode, (SRemoteValueListNode*)pDst);
+      break;
+    case QUERY_NODE_ALTER_TAG_VALUE:
+      code = tagValueNodeCopy((const SAlterTagValueNode*)pNode, (SAlterTagValueNode*)pDst);
       break;
     case QUERY_NODE_TRUE_FOR:
       code = trueForNodeCopy((const STrueForNode*)pNode, (STrueForNode*)pDst);

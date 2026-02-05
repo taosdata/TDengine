@@ -3797,49 +3797,99 @@ _err:
   return NULL;
 }
 
-SNode* createAlterSingleTagColumnNode(SAstCreateContext* pCtx, SToken* pTagName, SNode* pVal) {
+
+
+SNode* createAlterTagValueNode(SAstCreateContext* pCtx, const SToken* pTagName, SNode* pVal) {
   CHECK_PARSER_STATUS(pCtx);
-  SAlterTableStmt* pStmt = NULL;
-  pCtx->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-  pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
-  CHECK_NAME(checkColumnName(pCtx, pTagName));
-  COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pTagName);
-  pStmt->pVal = (SValueNode*)pVal;
-  pStmt->pNodeListTagValue = NULL;
-  return (SNode*)pStmt;
+  SAlterTagValueNode* pNode = NULL;
+  pCtx->errCode = nodesMakeNode(QUERY_NODE_ALTER_TAG_VALUE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  COPY_STRING_FORM_ID_TOKEN(pNode->tagName, pTagName);
+  pNode->pVal = (SValueNode*)pVal;
+  return (SNode*)pNode;
+
 _err:
   return NULL;
 }
 
-SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, SToken* pTagName, SNode* pVal) {
+
+// NOTE: this function only supports REGEXP_REPLACE for now, it should be extended
+// for full expression support in the future, and the prototype needs to be changed
+// accordingly.
+SNode* createAlterTagValueNodeWithExpression(SAstCreateContext* pCxt, const SToken* column, const SToken* pattern, const SToken* replacement) {
   CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkColumnName(pCxt, pTagName));
-  SAlterTableStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-  pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
-  COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pTagName);
-  pStmt->pVal = (SValueNode*)pVal;
-  return createAlterTableStmtFinalize(pRealTable, pStmt);
+  SAlterTagValueNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TAG_VALUE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  COPY_STRING_FORM_ID_TOKEN(pNode->tagName, column);
+
+  pNode->regexp = taosStrndup(pattern->z, pattern->n);
+  if (pNode->regexp == NULL) {
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  pNode->replacement = taosStrndup(replacement->z, replacement->n);
+  if (pNode->replacement == NULL) {
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  return (SNode*)pNode;
+
 _err:
-  nodesDestroyNode(pVal);
-  nodesDestroyNode(pRealTable);
+  nodesDestroyNode((SNode*)pNode);
   return NULL;
 }
 
-SNode* createAlterTableSetMultiTagValue(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pList) {
+
+
+SNode* createAlterSingleTableClause(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pList) {
   CHECK_PARSER_STATUS(pCxt);
   SAlterTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
 
   CHECK_MAKE_NODE(pStmt);
   pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL;
-  pStmt->pNodeListTagValue = pList;
+  pStmt->pList = pList;
+  return createAlterTableStmtFinalize(pRealTable, pStmt);
+
+_err:
+  return NULL;
+}
+
+
+
+SNode* createAlterMultiTableStmt(SAstCreateContext* pCxt, SNodeList* pList) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAlterTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
+
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL;
+  pStmt->pList = pList;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+
+
+SNode* createAlterChildTableStmt(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* tags, SNode* where) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAlterTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
+
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL;
+  pStmt->pList = tags;
+  pStmt->pWhere = where;
   return createAlterTableStmtFinalize(pRealTable, pStmt);
 _err:
   return NULL;
 }
+
+
 
 SNode* setAlterSuperTableType(SNode* pStmt) {
   if (!pStmt) return NULL;

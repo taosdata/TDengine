@@ -232,7 +232,7 @@ typedef enum {
 #define TSDB_ALTER_TABLE_ADD_TAG                         1
 #define TSDB_ALTER_TABLE_DROP_TAG                        2
 #define TSDB_ALTER_TABLE_UPDATE_TAG_NAME                 3
-#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL                  4
+#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL                  4 // useless???
 #define TSDB_ALTER_TABLE_ADD_COLUMN                      5
 #define TSDB_ALTER_TABLE_DROP_COLUMN                     6
 #define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES             7
@@ -243,10 +243,12 @@ typedef enum {
 #define TSDB_ALTER_TABLE_DROP_TAG_INDEX                  12
 #define TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS          13
 #define TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION 14
-#define TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL            15
+#define TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL            15 // alter multiple tag values of a single table
 #define TSDB_ALTER_TABLE_ALTER_COLUMN_REF                16
 #define TSDB_ALTER_TABLE_REMOVE_COLUMN_REF               17
 #define TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF      18
+#define TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL       19 // alter multiple tag values of multi tables
+#define TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL       20 // alter multiple tag values of the child tables of a stable
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -362,6 +364,7 @@ typedef enum ENodeType {
   QUERY_NODE_TRUE_FOR,
   QUERY_NODE_REMOTE_VALUE_LIST,
   QUERY_NODE_SURROUND,
+  QUERY_NODE_ALTER_TAG_VALUE,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,

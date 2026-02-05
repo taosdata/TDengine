@@ -391,6 +391,14 @@ typedef struct SDropVirtualTableStmt {
   bool      withOpt;
 } SDropVirtualTableStmt;
 
+typedef struct SAlterTagValueNode {
+  ENodeType   type;
+  char        tagName[TSDB_COL_NAME_LEN];
+  SValueNode* pVal;
+  char* regexp;
+  char* replacement;
+} SAlterTagValueNode;
+
 typedef struct SAlterTableStmt {
   ENodeType       type;
   char            dbName[TSDB_DB_NAME_LEN];
@@ -402,20 +410,12 @@ typedef struct SAlterTableStmt {
   SDataType       dataType;
   SValueNode*     pVal;
   SColumnOptions* pColOptions;
-  SNodeList*      pNodeListTagValue;
+  SNodeList*      pList; // list of tag, table or something else, depending on alter type
   char            refDbName[TSDB_DB_NAME_LEN];
   char            refTableName[TSDB_TABLE_NAME_LEN];
   char            refColName[TSDB_COL_NAME_LEN];
+  SNode*          pWhere;
 } SAlterTableStmt;
-
-typedef struct SAlterTableMultiStmt {
-  ENodeType type;
-  char      dbName[TSDB_DB_NAME_LEN];
-  char      tableName[TSDB_TABLE_NAME_LEN];
-  int8_t    alterType;
-
-  SNodeList* pNodeListTagValue;
-} SAlterTableMultiStmt;
 
 
 // ip range for user options

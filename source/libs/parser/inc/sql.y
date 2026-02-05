@@ -1063,13 +1063,13 @@ alter_table_clause(A) ::=
 
 %type column_tag_value_list                                                          { SNodeList* }
 %destructor column_tag_value_list                                                    { nodesDestroyList($$); }
-column_tag_value(A) ::= column_name(B) NK_EQ tags_literal(C).                        { A = createAlterSingleTagColumnNode(pCxt, &B, C); }
+column_tag_value(A) ::= column_name(B) NK_EQ tags_literal(C).                        { A = createAlterTagValueNode(pCxt, &B, C); }
 
 /* NOTE: the use of REGEXP_REPLACE is a temporary solution, will be replaced by a more general solution like below in the future:
        column_tag_value(A) ::= column_name(B) NK_EQ expression(C).
 */
 column_tag_value(A) ::= column_name(B) NK_EQ REGEXP_REPLACE NK_LP NK_ID NK_COMMA NK_STRING(C) NK_COMMA NK_STRING(D) NK_RP. {
-    A = createAlterSingleTagColumnExpressionNode(pCxt, &B, &C, &D);
+    A = createAlterTagValueNodeWithExpression(pCxt, &B, &C, &D);
   }
 
 column_tag_value_list(A) ::= column_tag_value(B).                                    { A = createNodeList(pCxt, B); }
