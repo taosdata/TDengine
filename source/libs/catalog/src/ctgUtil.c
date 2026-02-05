@@ -2471,11 +2471,7 @@ static int32_t ctgChkSetCommonAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuth
 
   if (privHasObjPrivilege(req->authInfo.objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, pReq->tbName.tname,
                           privInfo, true)) {
-    if (privInfo->objType == PRIV_OBJ_VIEW) {
-      res->pRawRes->pass[AUTH_RES_VIEW] = true;
-    } else {
-      res->pRawRes->pass[AUTH_RES_BASIC] = true;
-    }
+    res->pRawRes->pass[AUTH_RES_BASIC] = true;
   }
 
   CTG_RET(code);
