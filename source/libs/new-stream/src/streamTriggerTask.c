@@ -9133,9 +9133,13 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
       nextExecTime = TMIN(nextExecTime, t);
     }
   }
-  if (initPendingSize == 0 && (pGroup->pPendingCalcParams.neles > 0 || pGroup->pPendingParWinCalcParams.neles > 0)) {
-    int64_t t = pTask->lowLatencyCalc ? now : (now + tsStreamBatchRequestWaitMs * NANOSECOND_PER_MSEC);
-    nextExecTime = TMIN(nextExecTime, t);
+  if (pGroup->pPendingCalcParams.neles > 0 || pGroup->pPendingParWinCalcParams.neles > 0) {
+    if (initPendingSize == 0) {
+      int64_t t = pTask->lowLatencyCalc ? now : (now + tsStreamBatchRequestWaitMs * NANOSECOND_PER_MSEC);
+      nextExecTime = TMIN(nextExecTime, t);
+    } else {
+      nextExecTime = TMIN(nextExecTime, pGroup->nextExecTime);
+    }
   }
 
   if (nextExecTime != INT64_MAX && nextExecTime > pGroup->nextExecTime) {
