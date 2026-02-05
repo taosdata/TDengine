@@ -7411,6 +7411,9 @@ static void convertVarDuration(SValueNode* pOffset, uint8_t precision) {
 static const int64_t tsdbMaxKeepMS = (int64_t)60 * 1000 * TSDB_MAX_KEEP;
 
 static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pInterval) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
   uint8_t precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
 
   SValueNode* pInter = (SValueNode*)pInterval->pInterval;
@@ -7441,14 +7444,12 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
     }
     if (!fixed) {
       double  offsetMonth = 0, intervalMonth = 0;
-      int32_t code = getMonthsFromTimeVal(pOffset->datum.i, precision, pOffset->unit, &offsetMonth);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
+      code = getMonthsFromTimeVal(pOffset->datum.i, precision, pOffset->unit, &offsetMonth);
+      TAOS_CHECK_GOTO(code, &lino, _exit);
+
       code = getMonthsFromTimeVal(pInter->datum.i, precision, pInter->unit, &intervalMonth);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
+      TAOS_CHECK_GOTO(code, &lino, _exit);
+
       if (offsetMonth > intervalMonth) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_OFFSET_TOO_BIG);
       }
@@ -7472,17 +7473,29 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL);
     }
     if (valInter) {
-      double  slidingMonth = 0, intervalMonth = 0;
-      int32_t code = getMonthsFromTimeVal(pSliding->datum.i, precision, pSliding->unit, &slidingMonth);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
+      if (IS_CALENDAR_TIME_DURATION(pSliding->unit)) {
+        double  slidingMonth = 0, intervalMonth = 0;
+        code = getMonthsFromTimeVal(pSliding->datum.i, precision, pSliding->unit, &slidingMonth);
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+
+        code = getMonthsFromTimeVal(pInter->datum.i, precision, pInter->unit, &intervalMonth);
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+
+        if (slidingMonth > intervalMonth) {
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG);
+        }
       }
-      code = getMonthsFromTimeVal(pInter->datum.i, precision, pInter->unit, &intervalMonth);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
-      if (slidingMonth > intervalMonth) {
-        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG);
+      else {
+        int64_t interverNano = 0, slidingNano = 0;
+        code = convertCalendarTimeFromUnitToPrecision(pInter->datum.i, pInter->unit, precision, &interverNano);
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+
+        // pSliding->datum.i is already in precision unit
+        slidingNano = pSliding->datum.i;
+
+        if (slidingNano > interverNano) {
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG);
+        }
       }
     }
     if (!valInter && pSliding->datum.i > pInter->datum.i) {
@@ -7491,6 +7504,9 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
   }
 
   return TSDB_CODE_SUCCESS;
+_exit:
+  parserError("line %d: failed to check interval window, %s", lino, tstrerror(code));
+  return code;
 }
 
 // check left time is greater than right time
