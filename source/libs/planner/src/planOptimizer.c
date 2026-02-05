@@ -2502,7 +2502,7 @@ static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode
   }
 
   bool isStrict = false;
-  PLAN_ERR_JRET(filterGetTimeRange(pPrimaryKeyCond, &timeRange, &isStrict));
+  PLAN_ERR_JRET(filterGetTimeRange(pPrimaryKeyCond, &timeRange, &isStrict, NULL));
   if (isStrict) {
     nodesDestroyNode(pPrimaryKeyCond);
     pPrimaryKeyCond = NULL;
