@@ -36,6 +36,9 @@ database_option: {
   | WAL_FSYNC_PERIOD value
   | WAL_RETENTION_PERIOD value
   | WAL_RETENTION_SIZE value
+  | COMPACT_INTERVAL value
+  | COMPACT_TIME_RANGE value
+  | COMPACT_TIME_OFFSET value
 }
 ```
 
@@ -79,6 +82,28 @@ database_option: {
 - WAL_FSYNC_PERIOD: When the WAL_LEVEL parameter is set to 2, it is used to set the disk writing period. Default is 3000, in milliseconds. Minimum is 0, meaning immediate disk writing upon each write; maximum is 180000, i.e., three minutes.
 - WAL_RETENTION_PERIOD: For data subscription consumption, the maximum duration strategy for additional retention of WAL log files. WAL log cleaning is not affected by the consumption status of subscription clients. In seconds. Default is 3600, meaning WAL retains the most recent 3600 seconds of data, please modify this parameter to an appropriate value according to the needs of data subscription.
 - WAL_RETENTION_SIZE: For data subscription consumption, the maximum cumulative size strategy for additional retention of WAL log files. In KB. Default is 0, meaning there is no upper limit on cumulative size.
+
+:::note
+
+The following parameters are available in TDengine Enterprise only.
+
+:::
+
+- **COMPACT_INTERVAL:** Interval at which to trigger automatic database compaction. The default value is 0, which disables automatic database compaction. To enable automatic database compaction, specify a value between 10m and `KEEP2`. The time unit of the value can be minutes (m), hours (h), or days (d), and the default unit is days.
+
+  - Note that time slices start from 1970-01-01T00:00:00Z.
+
+  - Automatic database compaction is not triggered when an existing compaction task is already running on the database.
+
+- **COMPACT_TIME_RANGE:** Time range for automatic compact tasks. The default value is `0, 0`, which indicates the range from `-KEEP2` to `-DURATION`. You can specify a custom time range starting at or after `-KEEP2` and ending at or before `-DURATION`. The time unit of the values in this range can be minutes (m), hours (h), or days (d), and the default unit is days.
+
+  For example, `-300, -200` would compact data between 300 and 200 days in the past each time automatic compaction is triggered. If the duration parameter of the database is the default 10 days, `-300, -5` would return an error because the second value (5 days in the past) is more recent than the value of `-DURATION` (10 days in the past).
+
+  Note that these values are negative numbers, indicating that the time range to be compacted is in the past.
+
+- **COMPACT_TIME_OFFSET:** Time offset relative to local time at which to trigger automatic database compaction. The default value is 0. You can enter an offset between 0 and 23 to trigger compaction after the specified number of hours.
+
+  For example, if `COMPACT_INTERVAL` is `1d` and `COMPACT_TIME_OFFSET` is `0`, automatic compact is triggered at 00:00 every day. If `COMPACT_TIME_OFFSET` is `2`, automatic compact is triggered at 02:00 every day.
 
 ### Database Creation Example
 
