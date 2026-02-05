@@ -1326,6 +1326,14 @@ int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealti
       }
       if (pCalcRange->ekey != INT64_MAX) {
         STimeWindow win = stTriggerTaskGetTimeWindow(pTask, pCalcRange->ekey);
+        while (pTask->interval.interval > pTask->interval.sliding) {
+          STimeWindow nextWin = win;
+          stTriggerTaskNextTimeWindow(pTask, &nextWin);
+          if (nextWin.skey > pCalcRange->ekey) {
+            break;
+          }
+          win = nextWin;
+        }
         pReq->scanRange.ekey = TMIN(pReq->scanRange.ekey, win.ekey);
       }
     } else if (!isUserRecalc && pTask->fillHistoryStartTime > 0 && pCalcRange->skey != INT64_MIN) {
@@ -9622,12 +9630,26 @@ static int32_t stHistoryGroupAddCalcParam(SSTriggerHistoryGroup *pGroup, SSTrigg
   SStreamTriggerTask      *pTask = pContext->pTask;
   bool                     initSize = pGroup->pPendingCalcParams.neles + pGroup->pPendingParWinCalcParams.neles;
 
-  if (pParam->wstart > pGroup->finishTs) {
+  if (pParam->wstart > pGroup->finishTs && pParam->wstart > pContext->calcRange.ekey) {
     tDestroySSTriggerCalcParam(pParam);
     goto _end;
+  } else if (pTask->triggerType == STREAM_TRIGGER_SLIDING && (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) &&
+             pParam->wstart < pContext->scanRange.skey) {
+    // ignore param with partial data in scan range
+    int64_t hardLimit = INT64_MIN;
+    if (pTask->fillHistory) {
+      hardLimit = pTask->fillHistoryStartTime;
+    } else {
+      void *px = tSimpleHashGet(pTask->pHistoryCutoffTime, &pContext->gid, sizeof(int64_t));
+      hardLimit = ((px == NULL) ? INT64_MIN : *(int64_t *)px) + 1;
+    }
+    if (pContext->scanRange.skey > hardLimit) {
+      tDestroySSTriggerCalcParam(pParam);
+      goto _end;
+    }
   }
   if (!isParent) {
-    if (pParam->wstart < pContext->calcRange.skey) {
+    if (pParam->wend < pContext->calcRange.skey) {
       // skip param before the calc range
       taosObjListClearEx(&pGroup->pPendingParWinCalcParams, tDestroySSTriggerCalcParam);
       taosObjListClearEx(&pGroup->pPendingCalcParams, tDestroySSTriggerCalcParam);
