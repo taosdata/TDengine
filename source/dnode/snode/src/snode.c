@@ -222,6 +222,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   calcReq.runnerTaskId = req.taskId;
   calcReq.brandNew = req.reset;
   calcReq.execId = req.execId;
+  if (req.pStRtFuncInfo) {
   calcReq.sessionId = req.pStRtFuncInfo->sessionId;
   calcReq.triggerType = req.pStRtFuncInfo->triggerType;
   calcReq.isWindowTrigger = req.pStRtFuncInfo->isWindowTrigger;
@@ -230,6 +231,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   TSWAP(calcReq.params, req.pStRtFuncInfo->pStreamPesudoFuncVals);
   calcReq.gid = req.pStRtFuncInfo->groupId;
   calcReq.curWinIdx = req.pStRtFuncInfo->curIdx;
+  }
   calcReq.pOutBlock = NULL;
 
   TAOS_CHECK_EXIT(streamAcquireTask(calcReq.streamId, calcReq.runnerTaskId, (SStreamTask**)&pTask, &taskAddr));

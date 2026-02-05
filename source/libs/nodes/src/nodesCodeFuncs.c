@@ -4643,6 +4643,7 @@ static const char* jkSubplanUser = "User";
 static const char* jkSubplanNodeAddr = "NodeAddr";
 static const char* jkSubplanRootNode = "RootNode";
 static const char* jkSubplanDataSink = "DataSink";
+static const char* jkSubplanSubQ = "SubQ";
 static const char* jkSubplanTagCond = "TagCond";
 static const char* jkSubplanTagIndexCond = "TagIndexCond";
 static const char* jkSubplanVTables = "VTables";
@@ -4684,6 +4685,9 @@ static int32_t subplanToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkSubplanDataSink, nodeToJson, pNode->pDataSink);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkSubplanSubQ, pNode->pSubQ);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkSubplanTagCond, nodeToJson, pNode->pTagCond);
@@ -4840,6 +4844,9 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkSubplanDataSink, (SNode**)&pNode->pDataSink);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkSubplanSubQ, &pNode->pSubQ);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkSubplanTagCond, (SNode**)&pNode->pTagCond);

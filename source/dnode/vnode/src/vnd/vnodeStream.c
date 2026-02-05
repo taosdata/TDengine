@@ -3828,6 +3828,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
     
     SReadHandle handle = {0};
     handle.vnode = pVnode;
+    handle.pMsgCb = &pVnode->msgCb;
     handle.uid = uid;
     handle.cacheSttStatis = true;
 
