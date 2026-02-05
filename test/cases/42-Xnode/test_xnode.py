@@ -1239,6 +1239,7 @@ class TestXnode:
         tdLog.info(f"test alter token:{rid}")
         self.no_syntax_fail_execute(f"CREATE XNODE 'localhost_{rid}:6055'")
         self.wait_transaction_to_commit()
+        time.sleep(1)
         rs = tdSql.query(f"show xnodes where url='localhost_{rid}:6055'", row_tag=True)
         tdLog.info(f"show xnodes where result:' {rs}")
         assert rs[0][1] == f'localhost_{rid}:6055'
