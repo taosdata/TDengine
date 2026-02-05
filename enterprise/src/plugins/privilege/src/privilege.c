@@ -628,6 +628,17 @@ int32_t mndCheckObjPrivilegeRecF(SMnode *pMnode, SUserObj *pUser, EPrivType priv
     TAOS_RETURN(code);
   }
 
+  // rewrite ownerId if the user is db owner
+  if (objType != PRIV_OBJ_DB && !IS_SYS_DBNAME(name.dbname) && (strncmp(name.dbname, "*", 2) != 0)) {
+    SDbObj *pDb = mndAcquireDb(pMnode, objFName);
+    if (pDb) {
+      if ((pDb->ownerId == pUser->uid) && (pDb->ownerId != 0)) {
+        ownerId = pDb->ownerId;
+      }
+      mndReleaseDb(pMnode, pDb);
+    }
+  }
+
   return mndCheckObjPrivilegeRec(pMnode, pUser, privType, objType, ownerId, name.acctId, name.dbname, tbName);
 }
 
@@ -676,7 +687,8 @@ int32_t mndCheckDbPrivilegeByNameRecF(SMnode *pMnode, SUserObj *pUser, EPrivType
   TAOS_RETURN(code);
 }
 
-int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, const char *token, EOperType operType, SDbObj *pDb) {
+static int32_t mndCheckDbPrivilegeImpl(SMnode *pMnode, const char *user, const char *token, EOperType operType,
+                                       SDbObj *pDb, const char *dbFName) {
   int32_t   code = 0;
   SUserObj *pUser = NULL;
 
@@ -718,6 +730,10 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, const char *token,
           goto _OVER;
         }
       }
+    } else if (dbFName) {
+      if (0 == mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_CM_DROP, PRIV_OBJ_DB, 0, dbFName, NULL)) {
+        goto _OVER;
+      }
     }
   } else if (operType == MND_OPER_USE_DB || operType == MND_OPER_SHOW_DATABASES || operType == MND_OPER_SHOW_VGROUPS ||
              operType == MND_OPER_SHOW_VNODES || operType == MND_OPER_CREATE_TOPIC || operType == MND_OPER_COMPACT_DB ||
@@ -732,6 +748,11 @@ int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, const char *token,
         if (0 == mndCheckObjPrivilegeRecF(pMnode, pUser, privType, PRIV_OBJ_DB, pDb->ownerId, pDb->name, NULL)) {
           goto _OVER;
         }
+      }
+    } else if (dbFName) {
+      EPrivType privType = getOperPrivType(operType);
+      if (0 == mndCheckObjPrivilegeRecF(pMnode, pUser, privType, PRIV_OBJ_DB, 0, dbFName, NULL)) {
+        goto _OVER;
       }
     } else {
       goto _OVER;
@@ -749,9 +770,17 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, const char *token, EOperType operType, SDbObj *pDb) {
+  return mndCheckDbPrivilegeImpl(pMnode, user, token, operType, pDb, NULL);
+}
+
 int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, const char *token, EOperType operType,
-                                  const char *dbname) {
+                                  const char *dbname, bool skipExists) {
   int32_t code = 0;
+
+  if (!dbname) {
+    TAOS_RETURN(TSDB_CODE_APP_ERROR);
+  }
 
   const char *realDbName = NULL;
   const char *dot = strchr(dbname, '.');
@@ -759,8 +788,7 @@ int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, const char *
     realDbName = dot + 1;
   }
 
-  if ((0 == strcasecmp(realDbName, TSDB_INFORMATION_SCHEMA_DB) ||
-       (0 == strcasecmp(realDbName, TSDB_PERFORMANCE_SCHEMA_DB)))) {
+  if (realDbName && IS_SYS_DBNAME(realDbName)) {
     if (operType == MND_OPER_USE_DB) {
       return TSDB_CODE_SUCCESS;
     } else {
@@ -771,6 +799,9 @@ int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, const char *
   SDbObj *pDb = mndAcquireDb(pMnode, dbname);
 
   if (pDb == NULL) {
+    if (skipExists) {
+      TAOS_RETURN(mndCheckDbPrivilegeImpl(pMnode, user, token, operType, NULL, dbname));
+    }
     TAOS_RETURN(terrno);
   }
 
