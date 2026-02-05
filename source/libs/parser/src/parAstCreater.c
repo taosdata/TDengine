@@ -4219,7 +4219,19 @@ _err:
   return NULL;
 }
 
-
+SNode* createShowVirtualTableValidateStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pVTable) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowCreateViewStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pVTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->viewName, ((SRealTableNode*)pVTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  nodesDestroyNode(pVTable);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pVTable);
+  return NULL;
+}
 
 static bool parseIp(const char* strIp, SIpRange* pIpRange) {
   if (strchr(strIp, ':') == NULL) {
