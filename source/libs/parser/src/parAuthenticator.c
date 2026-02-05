@@ -491,7 +491,7 @@ static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) 
   PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB));
   if (NULL == pTmpList) {
     // no column reference
-    return 0;
+    return TSDB_CODE_SUCCESS;
   }
 
   FOREACH(pNode, pTmpList) {
