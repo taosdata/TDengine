@@ -88,6 +88,42 @@ void taoskPrintVersion(void) {
   printf("TDengine Storage Security Key Management Tool\n");
 }
 
+/**
+ * Determine data directory based on command line args and config file
+ * This is the centralized logic used by all operations
+ *
+ * Priority order:
+ * 1. Use dataDir from command line argument (-d/--data-dir)
+ * 2. Parse from config file if configDir is specified (-c/--config-dir)
+ * 3. Use default: /var/lib/taos
+ *
+ * @return 0 on success, error code on failure
+ */
+static int32_t taoskDetermineDataDir(void) {
+  int32_t code = 0;
+
+  // Priority 1: Use dataDir from command line argument
+  if (g_args.dataDir[0]) {
+    // Already specified, nothing to do
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Priority 2: Parse from config file if configDir is specified
+  if (g_args.configDir[0]) {
+    code = taoskParseDataDir(g_args.configDir, g_args.dataDir, sizeof(g_args.dataDir));
+    if (code != TSDB_CODE_SUCCESS) {
+      // Failed to parse, use default
+      tstrncpy(g_args.dataDir, "/var/lib/taos", sizeof(g_args.dataDir));
+    }
+  }
+  // Priority 3: Use default
+  else {
+    tstrncpy(g_args.dataDir, "/var/lib/taos", sizeof(g_args.dataDir));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t taoskParseArgs(int argc, char *argv[]) {
   static struct option long_options[] = {{"config-dir", required_argument, 0, 'c'},
                                          {"data-dir", required_argument, 0, 'd'},
@@ -162,11 +198,18 @@ int32_t taoskParseArgs(int argc, char *argv[]) {
         }
         break;
       case 1002:  // --encrypt-server
+        printf("----> --encrypt-server optarg: %s\n", optarg);
         if (optarg != NULL) {
           // Using --encrypt-server=value format
+          if (taoskValidateKey(optarg) != 0) {
+            return -1;
+          }
           strncpy(g_args.svrKey, optarg, ENCRYPT_KEY_LEN);
         } else if (optind < argc && argv[optind][0] != '-') {
           // Using --encrypt-server value format (with space)
+          if (taoskValidateKey(argv[optind]) != 0) {
+            return -1;
+          }
           strncpy(g_args.svrKey, argv[optind], sizeof(g_args.svrKey) - 1);
           optind++;  // Move to next argument
         }
@@ -176,9 +219,15 @@ int32_t taoskParseArgs(int argc, char *argv[]) {
       case 1003:  // --encrypt-database
         if (optarg != NULL) {
           // Using --encrypt-database=value format
+          if (taoskValidateKey(optarg) != 0) {
+            return -1;
+          }
           strncpy(g_args.dbKey, optarg, ENCRYPT_KEY_LEN);
         } else if (optind < argc && argv[optind][0] != '-') {
           // Using --encrypt-database value format (with space)
+          if (taoskValidateKey(argv[optind]) != 0) {
+            return -1;
+          }
           strncpy(g_args.dbKey, argv[optind], sizeof(g_args.dbKey) - 1);
           optind++;  // Move to next argument
         }
@@ -208,9 +257,15 @@ int32_t taoskParseArgs(int argc, char *argv[]) {
       case 1006:  // --encrypt-data
         if (optarg != NULL) {
           // Using --encrypt-data=value format
+          if (taoskValidateKey(optarg) != 0) {
+            return -1;
+          }
           strncpy(g_args.dataKey, optarg, ENCRYPT_KEY_LEN);
         } else if (optind < argc && argv[optind][0] != '-') {
           // Using --encrypt-data value format (with space)
+          if (taoskValidateKey(argv[optind]) != 0) {
+            return -1;
+          }
           strncpy(g_args.dataKey, argv[optind], sizeof(g_args.dataKey) - 1);
           optind++;  // Move to next argument
         }
@@ -219,10 +274,16 @@ int32_t taoskParseArgs(int argc, char *argv[]) {
         g_args.generateKeys = true;
         break;
       case 1007:  // --update-svrkey
+        if (taoskValidateKey(optarg) != 0) {
+          return -1;
+        }
         strncpy(g_args.newSvrKey, optarg, ENCRYPT_KEY_LEN);
         g_args.updateKeys = true;
         break;
       case 1008:  // --update-dbkey
+        if (taoskValidateKey(optarg) != 0) {
+          return -1;
+        }
         strncpy(g_args.newDbKey, optarg, ENCRYPT_KEY_LEN);
         g_args.updateKeys = true;
         break;
@@ -236,6 +297,9 @@ int32_t taoskParseArgs(int argc, char *argv[]) {
         strncpy(g_args.backupFilePath, optarg, sizeof(g_args.backupFilePath) - 1);
         break;
       case 1012:  // --svr-key
+        if (taoskValidateKey(optarg) != 0) {
+          return -1;
+        }
         strncpy(g_args.svrKeyForBackup, optarg, ENCRYPT_KEY_LEN);
         break;
       case 1015:  // --view-config
@@ -294,6 +358,14 @@ int main(int argc, char *argv[]) {
   
   if (opCount > 1) {
     fprintf(stderr, "Error: Multiple operations specified. Please specify only one operation at a time.\n");
+    taosCloseLog();
+    return -1;
+  }
+
+  // Determine data directory (used by all operations)
+  code = taoskDetermineDataDir();
+  if (code != 0) {
+    fprintf(stderr, "Error: Failed to determine data directory: %s\n", tstrerror(code));
     taosCloseLog();
     return -1;
   }

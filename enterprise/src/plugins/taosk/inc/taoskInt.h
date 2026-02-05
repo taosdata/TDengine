@@ -46,6 +46,8 @@ extern "C" {
 #define ENCRYPT_FILE_MAGIC "tdEncrypt"
 #define ENCRYPT_FILE_VERSION 1
 
+// g_args
+
 // Key types
 typedef enum {
   KEY_TYPE_SVR = 0,  // Server key
@@ -187,13 +189,15 @@ typedef struct {
   bool showHelp;
 } STaoskArgs;
 
-// Global variables
 extern STaoskArgs g_args;
 
 // Function declarations
 int32_t taoskParseArgs(int argc, char *argv[]);
 void taoskPrintHelp(void);
 void taoskPrintVersion(void);
+
+// Data directory helper functions
+int32_t taoskParseDataDir(const char *configPath, char *dataDir, int32_t dataDirLen);
 
 // Key generation and management
 int32_t taoskGenerateKeys(void);

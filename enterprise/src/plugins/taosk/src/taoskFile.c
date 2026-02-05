@@ -18,6 +18,148 @@
 #include "taoskInt.h"
 #include "tbase64.h"
 
+extern STaoskArgs g_args;
+
+// ============================================================================
+// Data Directory Helper Functions
+// ============================================================================
+
+/**
+ * Parse taos.cfg to get dataDir value
+ *
+ * @param configPath Config directory or file path
+ * @param dataDir Output buffer for dataDir value
+ * @param dataDirLen Size of dataDir buffer
+ * @return 0 on success, error code on failure
+ */
+int32_t taoskParseDataDir(const char *configPath, char *dataDir, int32_t dataDirLen) {
+  if (configPath == NULL || dataDir == NULL || dataDirLen <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char cfgFile[PATH_MAX] = {0};
+
+  // Check if configPath is a directory or file
+  if (taosIsDir(configPath)) {
+    // It's a directory, append taos.cfg
+    snprintf(cfgFile, sizeof(cfgFile), "%s%staos.cfg", configPath, TD_DIRSEP);
+  } else {
+    // It's a file, use directly
+    tstrncpy(cfgFile, configPath, sizeof(cfgFile));
+  }
+
+  // Check if config file exists
+  if (!taosCheckExistFile(cfgFile)) {
+    fprintf(stderr, "Warning: Config file not found: %s, using default dataDir\n", cfgFile);
+    return TSDB_CODE_CFG_NOT_FOUND;
+  }
+
+  // Open config file
+  TdFilePtr pFile = taosOpenFile(cfgFile, TD_FILE_READ);
+  if (pFile == NULL) {
+    fprintf(stderr, "Warning: Failed to open config file: %s\n", cfgFile);
+    return terrno;
+  }
+
+  // Get file size
+  int64_t fileSize = 0;
+  if (taosStatFile(cfgFile, &fileSize, NULL, NULL) < 0) {
+    taosCloseFile(&pFile);
+    return terrno;
+  }
+
+  if (fileSize <= 0 || fileSize > 10 * 1024 * 1024) {  // Max 10MB
+    taosCloseFile(&pFile);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  // Read file content
+  char *content = taosMemoryMalloc(fileSize + 1);
+  if (content == NULL) {
+    taosCloseFile(&pFile);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (taosReadFile(pFile, content, fileSize) != fileSize) {
+    int32_t err = terrno;
+    taosMemoryFree(content);
+    taosCloseFile(&pFile);
+    return err;
+  }
+  content[fileSize] = '\0';
+  taosCloseFile(&pFile);
+
+  // Parse line by line to find dataDir
+  char *line = content;
+  char *nextLine = NULL;
+  bool  found = false;
+
+  while (line != NULL && *line != '\0') {
+    // Find next line
+    nextLine = strchr(line, '\n');
+    if (nextLine != NULL) {
+      *nextLine = '\0';
+      nextLine++;
+    }
+
+    // Trim leading spaces
+    while (*line == ' ' || *line == '\t') {
+      line++;
+    }
+
+    // Skip empty lines and comments
+    if (*line == '\0' || *line == '#') {
+      line = nextLine;
+      continue;
+    }
+
+    // Check if line starts with "dataDir"
+    if (strncmp(line, "dataDir", 7) == 0) {
+      char *p = line + 7;
+
+      // Skip spaces after "dataDir"
+      while (*p == ' ' || *p == '\t') {
+        p++;
+      }
+
+      // Skip to value (after any separator)
+      if (*p != '\0') {
+        // Trim trailing spaces and comments
+        char *valueStart = p;
+        char *valueEnd = valueStart;
+
+        while (*valueEnd != '\0' && *valueEnd != '#' && *valueEnd != '\n' && *valueEnd != '\r') {
+          valueEnd++;
+        }
+
+        // Trim trailing spaces
+        while (valueEnd > valueStart && (*(valueEnd - 1) == ' ' || *(valueEnd - 1) == '\t')) {
+          valueEnd--;
+        }
+
+        int32_t valueLen = valueEnd - valueStart;
+        if (valueLen > 0 && valueLen < dataDirLen) {
+          strncpy(dataDir, valueStart, valueLen);
+          dataDir[valueLen] = '\0';
+          found = true;
+          break;
+        }
+      }
+    }
+
+    line = nextLine;
+  }
+
+  taosMemoryFree(content);
+
+  if (!found) {
+    fprintf(stderr, "Warning: dataDir not found in config file, using default\n");
+    return TSDB_CODE_CFG_NOT_FOUND;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 // ============================================================================
 // Internal Helper Functions
 // ============================================================================
@@ -826,6 +968,17 @@ int32_t taoskRestoreMasterKeysPortable(const char *backupFile, const char *maste
     fprintf(stderr, "       The provided server key may be incorrect.\n");
     return code != 0 ? code : TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
   }
+
+  // Verify the provided svrKeyPassword matches the decrypted svrKey
+  // In backup, svrKey is encrypted with itself as password, so they should match
+  printf("Verifying server key...\n");
+  if (strcmp(svrKeyDecrypted, svrKeyPassword) != 0) {
+    fprintf(stderr, "Error: Server key verification failed!\n");
+    fprintf(stderr, "       The provided server key does not match the key in the backup.\n");
+    taosMemoryFreeClear(svrKeyDecrypted);
+    return TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+  }
+  printf("Server key verified successfully.\n");
 
   // Decrypt dbKey with svrKey
   code = taoskDecryptData(backupData.dbKeyEncrypted, svrKeyDecrypted, &dbKeyDecrypted);
