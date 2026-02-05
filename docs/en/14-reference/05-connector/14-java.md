@@ -128,10 +128,10 @@ The source code for the example programs is located in `TDengine/docs/examples/J
 - springbootdemo: Using taos-jdbcdriver in Springboot.
 - consumer-demo: Consumer example consuming TDengine data, with controllable consumption speed through parameters.
 
-Please refer to: 
+Please refer to:
+
 - [JDBC JDK17 example](https://github.com/taosdata/TDengine/tree/main/docs/examples/JDBC)
 - [JDBC JDK8 example](https://github.com/taosdata/TDengine/tree/ver-3.4.0.0/docs/examples/JDBC)
-
 
 ## Frequently Asked Questions
 

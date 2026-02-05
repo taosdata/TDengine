@@ -4,6 +4,8 @@ import org.apache.ibatis.mapping.BoundSql;
 import org.apache.ibatis.mapping.MappedStatement;
 import org.apache.ibatis.session.Configuration;
 import org.apache.ibatis.session.SqlSessionFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -19,39 +21,27 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Cached PreparedStatement batch writer for high performance.
  *
- * <p>Originally designed for TDengine time-series database, but applicable
- * to any JDBC database with batch support (MySQL, PostgreSQL, Oracle, etc.).</p>
- *
- * <p><b>IMPORTANT</b>: This writer is a Spring singleton bean.</p>
- *
- * <p><b>Usage Pattern:</b></p>
+ * <p><b>Usage:</b></p>
  * <pre>{@code
  * @Autowired
  * private CachedBatchWriter writer;
  *
- * public void saveData(List<Meters> data) {
+ * public void saveData(List<Meters> data) throws SQLException {
  *     writer.fastBatchWrite("com.example.mapper.MetersMapper.insert", data);
  * }
  * }</pre>
  *
- * <p><b>PreparedStatement Caching Strategy:</b></p>
+ * <p><b>Caching Strategy:</b></p>
  * <ul>
- *   <li>Each thread caches its own Connections and PreparedStatements</li>
- *   <li>Key: {@code threadId + ":" + msId}</li>
- *   <li>Cleanup: On application shutdown via {@link DisposableBean}</li>
+ *   <li>Key: {@code threadId:msId}</li>
+ *   <li>Each thread maintains its own PreparedStatement cache</li>
+ *   <li>Use {@code @Transactional} for transaction control</li>
  * </ul>
- *
- * <p><b>Connection Pool Configuration:</b></p>
- * If your application has N threads processing data, configure Druid:
- * <pre>{@code
- * spring.datasource.druid.max-active: ${N * average_sql_count_per_thread}
- * }</pre>
- *
- * @see SqlSessionFactory
- * @see DataSource
  */
 @Component
 public class CachedBatchWriter implements DisposableBean {
+
+    private static final Logger logger = LoggerFactory.getLogger(CachedBatchWriter.class);
 
     private final SqlSessionFactory sqlSessionFactory;
     private final DataSource dataSource;
@@ -75,12 +65,6 @@ public class CachedBatchWriter implements DisposableBean {
         }
     }
 
-    /**
-     * Creates a new writer instance.
-     *
-     * @param sqlSessionFactory MyBatis SqlSessionFactory
-     * @param dataSource JDBC DataSource
-     */
     @Autowired
     public CachedBatchWriter(SqlSessionFactory sqlSessionFactory, DataSource dataSource) {
         this.sqlSessionFactory = sqlSessionFactory;
@@ -92,85 +76,74 @@ public class CachedBatchWriter implements DisposableBean {
     /**
      * Batch write data with cached PreparedStatement.
      *
-     * <p>On first call for current thread, creates Connection and PreparedStatement.
-     * On subsequent calls, reuses existing PreparedStatement.</p>
-     *
      * @param msId MyBatis Mapper method ID in format "namespace.methodId"
      * @param dataList list of data to insert
-     * @throws RuntimeException if batch write fails
+     * @throws SQLException if batch write fails
      */
-    public <T> void fastBatchWrite(String msId, List<T> dataList) {
+    public <T> void fastBatchWrite(String msId, List<T> dataList) throws SQLException {
         if (dataList == null || dataList.isEmpty()) {
             return;
         }
 
         String cacheKey = getCacheKey(msId);
-        StatementCache sc = cache.get(cacheKey);
 
         try {
-            // Check if we need to create PreparedStatement
-            if (sc == null || sc.ps.isClosed() || sc.ps.getConnection().isClosed()) {
-                // Clean up old PreparedStatement if exists
-                if (sc != null && !sc.ps.isClosed()) {
-                    closeCache(sc);
-                }
+            StatementCache sc = cache.get(cacheKey);
 
-                sc = createStatementCache(msId, dataList.get(0));
-                cache.put(cacheKey, sc);
-                psCreateCount.incrementAndGet();
+            if (sc == null || sc.ps.isClosed()) {
+                StatementCache newSc = createStatementCache(msId, dataList.get(0));
+                StatementCache existingSc = cache.putIfAbsent(cacheKey, newSc);
+                sc = (existingSc != null) ? existingSc : newSc;
+
+                if (existingSc == null) {
+                    psCreateCount.incrementAndGet();
+                    logger.debug("PreparedStatement created for msId: {}, total: {}", msId, psCreateCount.get());
+                } else {
+                    closeCache(newSc);
+                }
+            } else {
+                logger.debug("Reusing cached PreparedStatement for msId: {}", msId);
             }
 
             PreparedStatement ps = sc.ps;
 
-            // Synchronize on StatementCache to prevent concurrent execution
-            // on the same PreparedStatement within the same thread
-            synchronized (sc) {
-                for (T item : dataList) {
-                    BoundSql boundSql = sc.ms.getBoundSql(item);
-                    sc.conf.newParameterHandler(sc.ms, item, boundSql).setParameters(ps);
-                    ps.addBatch();
-                }
-
-                ps.executeBatch();
-                ps.clearBatch();
-                sc.conn.commit();
+            // No synchronization needed - each thread has its own StatementCache
+            for (T item : dataList) {
+                BoundSql boundSql = sc.ms.getBoundSql(item);
+                sc.conf.newParameterHandler(sc.ms, item, boundSql).setParameters(ps);
+                ps.addBatch();
             }
+
+            ps.executeBatch();
+            ps.clearBatch();
 
         } catch (SQLException e) {
+            StatementCache sc = cache.get(cacheKey);
             if (isConnectionError(e)) {
-                closeCache(sc);
+                logger.error("Connection error for msId: {}, removing cache", msId, e);
+                if (sc != null) {
+                    closeCache(sc);
+                }
                 cache.remove(cacheKey);
+            } else {
+                logger.error("SQL error for msId: {}, size: {}", msId, dataList.size(), e);
             }
-            throw new RuntimeException("Batch write failed", e);
+            throw e;
         }
     }
 
-    /**
-     * Gets PreparedStatement creation count.
-     *
-     * @return number of times PreparedStatement was created
-     */
     public long getPsCreateCount() {
         return psCreateCount.get();
     }
 
-    /**
-     * Cleanup all cached PreparedStatements and Connections.
-     *
-     * <p>Called automatically on application shutdown via {@link DisposableBean}.</p>
-     */
     @Override
     public void destroy() {
+        logger.info("Closing {} cached PreparedStatements", cache.size());
         cache.values().forEach(this::closeCache);
         cache.clear();
+        logger.info("CachedBatchWriter destroyed. Total created: {}", psCreateCount.get());
     }
 
-    /**
-     * Generates cache key for current thread and msId.
-     *
-     * @param msId MyBatis Mapper method ID
-     * @return cache key in format "threadId:msId"
-     */
     private String getCacheKey(String msId) {
         return Thread.currentThread().getId() + ":" + msId;
     }
@@ -181,7 +154,6 @@ public class CachedBatchWriter implements DisposableBean {
         String sql = ms.getBoundSql(sample).getSql();
 
         Connection conn = dataSource.getConnection();
-        conn.setAutoCommit(false);
         PreparedStatement ps = conn.prepareStatement(sql);
 
         return new StatementCache(Thread.currentThread().getId(), conn, ps, ms, conf);
@@ -193,15 +165,24 @@ public class CachedBatchWriter implements DisposableBean {
     }
 
     private void closeCache(StatementCache sc) {
-        if (sc != null && sc.conn != null) {
-            try {
-                // Rollback transaction before closing connection
-                if (!sc.conn.getAutoCommit()) {
-                    sc.conn.rollback();
-                }
-            } catch (Exception ignored) {}
+        if (sc == null) {
+            return;
         }
-        try { if (sc != null && sc.ps != null) sc.ps.close(); } catch (Exception ignored) {}
-        try { if (sc != null && sc.conn != null) sc.conn.close(); } catch (Exception ignored) {}
+
+        try {
+            if (sc.ps != null) {
+                sc.ps.close();
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to close PreparedStatement for thread {}", sc.threadId, e);
+        }
+
+        try {
+            if (sc.conn != null) {
+                sc.conn.close();
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to close Connection for thread {}", sc.threadId, e);
+        }
     }
 }

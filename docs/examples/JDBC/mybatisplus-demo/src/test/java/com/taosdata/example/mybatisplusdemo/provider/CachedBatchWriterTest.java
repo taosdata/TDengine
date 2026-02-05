@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
@@ -54,7 +55,7 @@ public class CachedBatchWriterTest {
      * Test single batch insert.
      */
     @Test
-    public void testSingleBatch() {
+    public void testSingleBatch() throws SQLException {
         List<Meters> data = createTestData(1000);
         writer.fastBatchWrite("com.taosdata.example.mybatisplusdemo.mapper.MetersMapper.insert", data);
 
@@ -71,7 +72,7 @@ public class CachedBatchWriterTest {
      * <p>PreparedStatement created on first iteration, reused for subsequent iterations.</p>
      */
     @Test
-    public void testMultipleBatches() {
+    public void testMultipleBatches() throws SQLException {
         int batchSize = 100;
         int batchCount = 5;
 
@@ -112,10 +113,14 @@ public class CachedBatchWriterTest {
                 try {
                     for (int j = 0; j < batchesPerThread; j++) {
                         List<Meters> data = createTestData(batchSize, threadId, j);
-                        writer.fastBatchWrite(
-                            "com.taosdata.example.mybatisplusdemo.mapper.MetersMapper.insert",
-                            data
-                        );
+                        try {
+                            writer.fastBatchWrite(
+                                "com.taosdata.example.mybatisplusdemo.mapper.MetersMapper.insert",
+                                data
+                            );
+                        } catch (SQLException e) {
+                            throw new RuntimeException("Batch write failed", e);
+                        }
                     }
                     successCount.incrementAndGet();
                 } finally {
