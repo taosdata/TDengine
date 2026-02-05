@@ -1326,6 +1326,14 @@ int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealti
       }
       if (pCalcRange->ekey != INT64_MAX) {
         STimeWindow win = stTriggerTaskGetTimeWindow(pTask, pCalcRange->ekey);
+        while (pTask->interval.interval > pTask->interval.sliding) {
+          STimeWindow nextWin = win;
+          stTriggerTaskNextTimeWindow(pTask, &nextWin);
+          if (nextWin.skey > pCalcRange->ekey) {
+            break;
+          }
+          win = nextWin;
+        }
         pReq->scanRange.ekey = TMIN(pReq->scanRange.ekey, win.ekey);
       }
     } else if (!isUserRecalc && pTask->fillHistoryStartTime > 0 && pCalcRange->skey != INT64_MIN) {
@@ -9620,38 +9628,58 @@ static int32_t stHistoryGroupAddCalcParam(SSTriggerHistoryGroup *pGroup, SSTrigg
   int32_t                  lino = 0;
   SSTriggerHistoryContext *pContext = pGroup->pContext;
   SStreamTriggerTask      *pTask = pContext->pTask;
-  bool                     initSize = pGroup->pPendingCalcParams.neles + pGroup->pPendingParWinCalcParams.neles;
+  int32_t                  initSize = pGroup->pPendingCalcParams.neles + pGroup->pPendingParWinCalcParams.neles;
+  bool overlap = (pParam->wstart <= pContext->calcRange.ekey) && (pParam->wend >= pContext->calcRange.skey);
+  bool hasBefore = (pParam->wstart < pContext->calcRange.skey);
+  bool hasAfter = (pParam->wend > pContext->calcRange.ekey);
 
-  if (pParam->wstart > pGroup->finishTs) {
-    tDestroySSTriggerCalcParam(pParam);
-    goto _end;
+  switch (pTask->triggerType) {
+    case STREAM_TRIGGER_SLIDING:
+    case STREAM_TRIGGER_COUNT: {
+      if (!overlap) {
+        goto _end;
+      }
+      break;
+    }
+    case STREAM_TRIGGER_EVENT: {
+      if (!overlap && !(hasAfter && pParam->wstart <= pGroup->finishTs)) {
+        goto _end;
+      }
+      break;
+    }
+    case STREAM_TRIGGER_SESSION:
+    case STREAM_TRIGGER_STATE: {
+      if (!overlap && !hasBefore && !(hasAfter && pParam->wstart <= pGroup->finishTs)) {
+        goto _end;
+      }
+      if (hasBefore) {
+        taosObjListClearEx(&pGroup->pPendingCalcParams, tDestroySSTriggerCalcParam);
+      }
+      break;
+    }
+    default: {
+      ST_TASK_ELOG("invalid stream trigger type %d at %s:%d", pTask->triggerType, __func__, __LINE__);
+      code = TSDB_CODE_INVALID_PARA;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
   }
-  if (!isParent) {
-    if (pParam->wstart < pContext->calcRange.skey) {
-      // skip param before the calc range
-      taosObjListClearEx(&pGroup->pPendingParWinCalcParams, tDestroySSTriggerCalcParam);
-      taosObjListClearEx(&pGroup->pPendingCalcParams, tDestroySSTriggerCalcParam);
-    }
-    code = taosObjListAppend(&pGroup->pPendingCalcParams, pParam);
-    if (code != TSDB_CODE_SUCCESS) {
-      tDestroySSTriggerCalcParam(pParam);
-      goto _end;
-    }
-    if (pParam->wend > pContext->calcRange.ekey) {
-      pGroup->finishTs = pParam->wstart;
-    }
-  } else {
-    code = taosObjListAppend(&pGroup->pPendingParWinCalcParams, pParam);
-    if (code != TSDB_CODE_SUCCESS) {
-      tDestroySSTriggerCalcParam(pParam);
-      goto _end;
-    }
+
+  if (hasAfter) {
+    pGroup->finishTs = pParam->wstart;
   }
+  SObjList *pParamList = isParent ? &pGroup->pPendingParWinCalcParams : &pGroup->pPendingCalcParams;
+  code = taosObjListAppend(pParamList, pParam);
+  QUERY_CHECK_CODE(code, lino, _end);
+  pParam = NULL;
+
   if (initSize == 0) {
     heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
   }
 
 _end:
+  if (pParam != NULL) {
+    tDestroySSTriggerCalcParam(pParam);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
