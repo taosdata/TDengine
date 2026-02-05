@@ -84,14 +84,14 @@ compile_commands_path = f"{TD_project_path}/debug/compile_commands.json"
 
 # the ast parser rule for c file
 clang_scan_rules_path = f"{self_path}/filter_for_return_values"
-scan_dir_list = ["source", "include", "docs/examples", "src/plugins"]
+scan_dir_list = ["source", "include", "docs/examples"]
 
 #
 # all the c files path will be checked
 all_file_path = []
 file_res_path = ""
 
-SCAN_DIRS = ["source", "include", "docs/examples", "src/plugins"]
+SCAN_DIRS = ["source", "include", "docs/examples"]
 SCAN_SKIP_FILE_LIST = [
     "tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl",
     "/test/",
@@ -248,21 +248,11 @@ def scan_one_file(file):
 
 if __name__ == "__main__":
     command_executor = CommandExecutor()
-    # get all the c files path
-    # scan_files_path("/root/TDinternal/community/source/")
-    # input_files(change_file_list)
-    # print(f"all_file_path:{all_file_path}")
     res = []
     web_path = []
     res.append(["scan_source_file", "scan_result_file", "match_num", "check_result"])
-    # create dir
-    # current_time = datetime.now().strftime("%Y%m%d%H%M%S")
-    # scan_result_path = os.path.join(scan_result_base_path, current_time)
-    # scan_result_path = scan_result_base_path
-    # if not os.path.exists(scan_result_path):
-    #     os.makedirs(scan_result_path)
 
-    # 优先用 -d 指定目录，否则用 -f 文件列表，否则默认目录
+    # use -d directory first, else -f file list, else default directories
     if change_file_list:
         input_files(change_file_list)
     elif scan_dir:
@@ -275,43 +265,9 @@ if __name__ == "__main__":
                 scan_files_path(abs_dir)
 
     all_file_path = list(set(all_file_path))
-    # 多进程并发扫描
     with concurrent.futures.ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
         results = list(executor.map(scan_one_file, all_file_path))
     res.extend(results)
-
-    # for file in all_file_path:
-    #     cmd = f"clang-query-16 -p {compile_commands_path} {file} -f {clang_scan_rules_path} 2>&1 | grep -v 'error:' | grep -v 'warning:'"
-    #     logger.debug(f"cmd:{cmd}")
-    #     try:
-    #         stdout, stderr = command_executor.execute(cmd)
-    #         print(stderr)
-    #         lines = stdout.split("\n")
-    #         scan_valid = len(lines) >= 2 and (lines[-2].endswith("matches.") or lines[-2].endswith("match."))
-    #         if scan_valid:
-    #             match_num = int(lines[-2].split(" ")[0])
-    #             logger.info("The match lines of file %s: %s" % (file, match_num))
-    #             this_file_res_path = save_scan_res(log_file_path, file, stdout, stderr)
-    #             if match_num > 0:
-    #                 # logger.info(f"log_file_path: {log_file_path} ,file:{file}")
-    #                 index_tests = this_file_res_path.find("scan_log")
-    #                 if index_tests != -1:
-    #                     web_path_file = this_file_res_path[index_tests:]
-    #                     web_path_file = os.path.join(web_server, web_path_file)
-    #                     web_path.append(web_path_file)
-    #             res.append([file, this_file_res_path, match_num, 'Pass' if match_num == 0 else 'Fail'])
-    #         else:
-    #             logger.warning("The result of scan is invalid for: %s" % file)
-    #             this_file_res_path = save_scan_res(log_file_path, file, stdout, stderr)
-    #             res.append([file, this_file_res_path, 0, 'Invalid'])
-    #     except Exception as e:
-    #         logger.error("Execute command failed: %s" % e)
-    #         this_file_res_path = ""
-    #         res.append([file, this_file_res_path, 0, 'Error'])
-    # data = ""
-    # for item in res:
-    #     data += item[0] + "," + str(item[1]) + "\n"
-    # logger.info("Csv data: %s" % data)
     write_csv(os.path.join(log_file_path, "scan_res.txt"), res)
     scan_result_log = f"{log_file_path}/scan_res.txt"
     # delete the first element of res
@@ -330,7 +286,6 @@ if __name__ == "__main__":
         logger.info("All files passed the scan.")
     
     if web_server:
-        # 打印 web_path
         for index, fail_item in enumerate(fail_files):
             file_res_path = fail_item[1]
             index_tests = file_res_path.find("scan_log")
@@ -342,7 +297,6 @@ if __name__ == "__main__":
                 f"failed number: {index + 1}, failed_result_file: {web_path_file}"
             )
     else:
-        # 打印本地路径
         for index, fail_item in enumerate(fail_files):
             logger.error(
                 f"failed number: {index + 1}, failed_result_file: {fail_item[1]}"
