@@ -722,7 +722,9 @@ static int32_t authCreateView(SAuthCxt* pCxt, SCreateViewStmt* pStmt) {
     code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = authQuery(pCxt, pStmt->pQuery);
+    if ((code = authQuery(pCxt, pStmt->pQuery))) {
+      if (code == TSDB_CODE_PAR_PERMISSION_DENIED) code = TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED;
+    }
   }
   return code;
 #endif
