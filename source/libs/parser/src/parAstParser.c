@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "cmdnodes.h"
 #include "functionMgt.h"
 #include "os.h"
 #include "parAst.h"
@@ -20,6 +21,7 @@
 #include "parToken.h"
 #include "systable.h"
 #include "tglobal.h"
+#include "tmsg.h"
 
 typedef void* (*FMalloc)(size_t);
 typedef void (*FFree)(void*);
@@ -1453,6 +1455,22 @@ static int32_t collectMetaKeyFromShowBlockDist(SCollectMetaKeyCxt* pCxt, SShowTa
   }
   return code;
 }
+static int32_t collectMetaKeyFromShowValidateVtable(SCollectMetaKeyCxt* pCxt, SShowValidateVirtualTable* pStmt) {
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TABLES,
+                                         pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_USE,
+                                  PRIV_OBJ_DB, pCxt->pMetaCache);
+  }
+  return code;
+}
 
 static int32_t collectMetaKeyFromShowSubscriptions(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_SUBSCRIPTIONS,
@@ -2108,6 +2126,9 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       break;
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       code = collectMetaKeyFromShowBlockDist(pCxt, (SShowTableDistributedStmt*)pStmt);
+      break;
+    case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
+      code = collectMetaKeyFromShowValidateVtable(pCxt, (SShowValidateVirtualTable*)pStmt);
       break;
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
       code = collectMetaKeyFromShowSubscriptions(pCxt, (SShowStmt*)pStmt);

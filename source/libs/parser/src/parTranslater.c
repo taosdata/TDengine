@@ -527,7 +527,7 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pShowCols = {"*"}
   },
   {
-    .showType = QUERY_NODE_SHOW_VTABLE_VALIDATE_STMT,
+    .showType = QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING,
     .numOfShowCols = 1,
@@ -554,6 +554,8 @@ static int32_t createOperatorNodeByNode(EOperatorType opType, const SNode* pLeft
 static int32_t createIsOperatorNodeByNode(EOperatorType opType, SNode* pNode, SNode** pOp);
 static int32_t insertCondIntoSelectStmt(SSelectStmt* pSelect, SNode** pCond);
 static int32_t extractCondFromCountWindow(STranslateContext* pCxt, SCountWindowNode* pCountWindow, SNode** pCond);
+
+static int32_t rewriteShowValidateVtable(STranslateContext* pCxt, SQuery* pQuery);
 
 static bool isWindowJoinStmt(SSelectStmt* pSelect) {
   return (QUERY_NODE_JOIN_TABLE == nodeType(pSelect->pFromTable)) &&
@@ -18326,14 +18328,25 @@ static int32_t translateShowCreateVTable(STranslateContext* pCxt, SShowCreateTab
   return translateShowCreateTable(pCxt, pStmt, true);
 }
 
-static int32_t translateShowVtableValidate(STranslateContext* pCxt, SShowStmt* pStmt) {
-  int32_t      code = TSDB_CODE_SUCCESS;
-  SSelectStmt* pSelect = NULL;
-  
-  // Create SELECT statement for SHOW VTABLE VALIDATE
-  //PAR_ERR_JRET(createSelectStmtForShow(QUERY_NODE_SHOW_VTABLE_VALIDATE_STMT, &pSelect));
-  
-  
+static int32_t translateShowVirtualTableValidate(STranslateContext* pCxt, SShowValidateVirtualTable* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  pStmt->pDbCfg = taosMemoryCalloc(1, sizeof(SDbCfgInfo));
+  if (NULL == pStmt->pDbCfg) {
+    return terrno;
+  }
+  PAR_ERR_RET(getDBCfg(pCxt, pStmt->dbName, (SDbCfgInfo*)pStmt->pDbCfg));
+  SName name = {0};
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
+  PAR_ERR_RET(getTableCfg(pCxt, &name, (STableCfg**)&pStmt->pTableCfg));
+
+  bool isVtb = (((STableCfg*)pStmt->pTableCfg)->tableType == TSDB_VIRTUAL_CHILD_TABLE ||
+                ((STableCfg*)pStmt->pTableCfg)->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+                ((STableCfg*)pStmt->pTableCfg)->virtualStb);
+  if (!isVtb) {
+    PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_TYPE, "%s.%s is not virtual",
+                                        pStmt->dbName, pStmt->tableName));
+  }
+
   return code;
 }
 
@@ -19854,8 +19867,8 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
       code = translateShowCreateRsma(pCxt, (SShowCreateRsmaStmt*)pNode);
       break;
-    case QUERY_NODE_SHOW_VTABLE_VALIDATE_STMT:
-      code = translateShowVtableValidate(pCxt, NULL);
+    case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
+      code = translateShowVirtualTableValidate(pCxt, (SShowValidateVirtualTable*)pNode);
       break;
     case QUERY_NODE_RESTORE_DNODE_STMT:
     case QUERY_NODE_RESTORE_QNODE_STMT:
@@ -21247,6 +21260,20 @@ static int32_t rewriteShowVnodes(STranslateContext* pCxt, SQuery* pQuery) {
     pQuery->showRewrite = true;
     nodesDestroyNode(pQuery->pRoot);
     pQuery->pRoot = (SNode*)pStmt;
+  }
+  return code;
+}
+
+static int32_t rewriteShowValidateVtable(STranslateContext* pCxt, SQuery* pQuery) {
+  SShowValidateVirtualTable* pShow = (SShowValidateVirtualTable*)(pQuery->pRoot);
+  SSelectStmt*               pSelect = NULL;
+  int32_t                    code = 0;
+
+  // Create SELECT statement
+  code = createSelectStmtForShow(nodeType(pShow), &pSelect);
+  if (TSDB_CODE_SUCCESS == code) {
+  } else {
+    nodesDestroyNode((SNode*)pSelect);
   }
   return code;
 }
@@ -24544,58 +24571,6 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
   pQuery->pRoot = (SNode*)pStmt;
   return TSDB_CODE_SUCCESS;
 }
-static int32_t rewriteShowVtableValidate(STranslateContext* pCxt, SQuery* pQuery) {
-  SShowStmt*   pShow = (SShowStmt*)(pQuery->pRoot);
-  SSelectStmt* pSelect = NULL;
-  int32_t      code = 0;
-  
-  // Create SELECT statement
-  code = createSelectStmtForShow(nodeType(pShow), &pSelect);
-  if (TSDB_CODE_SUCCESS == code) {
-    // Add WHERE condition: virtual_table_name = <table_name>
-    SNode* pWhere = NULL;
-    if (pShow->pDbName && pShow->pTbName) {
-      SNode* pDbCond = NULL;
-      SNode* pTableNameCond = NULL;
-      
-      code = createOperatorNode(OP_TYPE_EQUAL, "virtual_db_name", pShow->pDbName, &pDbCond);
-      if (code != TSDB_CODE_SUCCESS) {
-        nodesDestroyNode((SNode*)pSelect);
-        return code;
-      }
-      
-      code = createOperatorNode(OP_TYPE_EQUAL, "virtual_table_name", pShow->pTbName, &pTableNameCond);
-      if (code != TSDB_CODE_SUCCESS) {
-        nodesDestroyNode(pDbCond);
-        nodesDestroyNode((SNode*)pSelect);
-        return code;
-      }
-      
-      code = createLogicCondNode(&pDbCond, &pTableNameCond, &pWhere, LOGIC_COND_TYPE_AND);
-      nodesDestroyNode(pDbCond);
-      nodesDestroyNode(pTableNameCond);
-    } else if (pShow->pTbName) {
-      code = createOperatorNode(OP_TYPE_EQUAL, "virtual_table_name", pShow->pTbName, &pWhere);
-    }
-    
-    if (TSDB_CODE_SUCCESS == code && pWhere) {
-      code = nodesCloneNode(pWhere, &pSelect->pWhere);
-      if (code != TSDB_CODE_SUCCESS) {
-        nodesDestroyNode((SNode*)pSelect);
-        nodesDestroyNode(pWhere);
-        return code;
-      }
-      
-      pCxt->showRewrite = true;
-      pQuery->showRewrite = true;
-      nodesDestroyNode(pQuery->pRoot);
-      pQuery->pRoot = (SNode*)pSelect;
-    } else {
-      nodesDestroyNode((SNode*)pSelect);
-    }
-  }
-  return code;
-}
 
 static int32_t rewriteShowXnodeStmt(STranslateContext* pCxt, SQuery* pQuery) {
   SShowStmt*   pShow = (SShowStmt*)(pQuery->pRoot);
@@ -24691,8 +24666,8 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_VNODES_STMT:
       code = rewriteShowVnodes(pCxt, pQuery);
       break;
-    case QUERY_NODE_SHOW_VTABLE_VALIDATE_STMT:
-      code = rewriteShowVtableValidate(pCxt, pQuery);
+    case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
+      code = rewriteShowValidateVtable(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       code = rewriteShowTableDist(pCxt, pQuery);

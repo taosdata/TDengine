@@ -1313,7 +1313,7 @@ cmd ::= SHOW SCANS.                                                             
 cmd ::= SHOW SCAN NK_INTEGER(A).                                                  { pCxt->pRootNode = createShowScanDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
 cmd ::= SHOW SSMIGRATES.                                                          { pCxt->pRootNode = createShowSsMigratesStmt(pCxt, QUERY_NODE_SHOW_SSMIGRATES_STMT); }
 cmd ::= SHOW TOKENS.                                                              { pCxt->pRootNode = createShowTokensStmt(pCxt, QUERY_NODE_SHOW_TOKENS_STMT); }
-cmd ::= SHOW VTABLE VALIDATE FOR full_table_name(A).                             { pCxt->pRootNode = createShowVirtualTableValidateStmt(pCxt, QUERY_NODE_SHOW_VTABLE_VALIDATE_STMT, A); 
+cmd ::= SHOW VTABLE VALIDATE FOR full_table_name(A).                             { pCxt->pRootNode = createShowValidateVirtualTableStmt(pCxt, QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT, A); 
 }
 
 %type table_kind_db_name_cond_opt                                                 { SShowTablesOption }

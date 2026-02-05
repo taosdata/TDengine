@@ -505,7 +505,7 @@ SNode* createShowCompactsStmt(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowSsMigratesStmt(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowTokensStmt(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowTransactionDetailsStmt(SAstCreateContext* pCxt, SNode* pTransactionIdNode);
-SNode* createShowVirtualTableValidateStmt(SAstCreateContext* pCxt, ENodeType type, SNode *pVirtualTable);
+SNode* createShowValidateVirtualTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pTable);
 
 SNode* createCreateRsmaStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* rsmaName, SNode* pRealTable,
                             SNodeList* pFuncs, SNodeList* pIntervals);

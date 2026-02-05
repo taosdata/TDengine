@@ -3818,7 +3818,7 @@ static bool needDbShowStmt(ENodeType type) {
          QUERY_NODE_SHOW_TAGS_STMT == type || QUERY_NODE_SHOW_TABLE_TAGS_STMT == type ||
          QUERY_NODE_SHOW_VIEWS_STMT == type || QUERY_NODE_SHOW_TSMAS_STMT == type ||
          QUERY_NODE_SHOW_USAGE_STMT == type || QUERY_NODE_SHOW_VTABLES_STMT == type ||
-         QUERY_NODE_SHOW_STREAMS_STMT == type;
+         QUERY_NODE_SHOW_STREAMS_STMT == type || QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT;
 }
 
 SNode* createShowStmtWithLike(SAstCreateContext* pCxt, ENodeType type, SNode* pLikePattern) {
@@ -4219,13 +4219,14 @@ _err:
   return NULL;
 }
 
-SNode* createShowVirtualTableValidateStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pVTable) {
+SNode* createShowValidateVirtualTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pVTable) {
   CHECK_PARSER_STATUS(pCxt);
-  SShowCreateViewStmt* pStmt = NULL;
+  SShowValidateVirtualTable* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
+
   tstrncpy(pStmt->dbName, ((SRealTableNode*)pVTable)->table.dbName, TSDB_DB_NAME_LEN);
-  tstrncpy(pStmt->viewName, ((SRealTableNode*)pVTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pVTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   nodesDestroyNode(pVTable);
   return (SNode*)pStmt;
 _err:

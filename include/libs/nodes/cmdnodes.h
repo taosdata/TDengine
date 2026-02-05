@@ -1012,6 +1012,16 @@ typedef struct SAlterKeyExpirationStmt {
   char      strategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1];
 } SAlterKeyExpirationStmt;
 
+typedef struct SValidateTableStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+
+  void* pDbCfg;  // SDbCfgInfo
+
+  void* pTableCfg;  // STableCfg
+} SShowValidateVirtualTable;
+
 typedef struct SDescribeStmt {
   ENodeType   type;
   char        dbName[TSDB_DB_NAME_LEN];
