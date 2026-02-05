@@ -21,42 +21,22 @@
       :data="tableData"
       size="default"
     >
-      <el-table-column prop="id" show-overflow-tooltip label="id">
+      <el-table-column
+        v-for="col in columns"
+        :key="col"
+        :prop="col"
+        :label="col"
+        show-overflow-tooltip
+      >
         <template #header>
           <el-input
-            v-model="searchId"
+            v-model="searchTextMap[col]"
             style="width: 80%"
             size="default"
             :placeholder="t('dataIn.pointFilter')"
             @change="searchInputChange"
           >
-            <template #prepend>id</template>
-          </el-input>
-        </template>
-      </el-table-column>
-      <el-table-column prop="name" show-overflow-tooltip label="name">
-        <template #header>
-          <el-input
-            v-model="searchName"
-            style="width: 80%"
-            size="default"
-            :placeholder="t('dataIn.pointFilter')"
-            @change="searchInputChange"
-          >
-            <template #prepend>name</template>
-          </el-input>
-        </template>
-      </el-table-column>
-      <el-table-column prop="enabled" show-overflow-tooltip label="enabled">
-        <template #header>
-          <el-input
-            v-model="searchEnabled"
-            style="width: 80%"
-            size="default"
-            :placeholder="t('dataIn.pointFilter')"
-            @change="searchInputChange"
-          >
-            <template #prepend>enabled</template>
+            <template #prepend>{{ col }}</template>
           </el-input>
         </template>
       </el-table-column>
@@ -78,42 +58,22 @@
       size="100%"
     >
       <el-table ref="table" border style="width: 100%" :max-height="fullTableHeight" :data="tableData" size="small">
-        <el-table-column prop="id" show-overflow-tooltip label="id">
+        <el-table-column
+          v-for="col in columns"
+          :key="col"
+          :prop="col"
+          :label="col"
+          show-overflow-tooltip
+        >
           <template #header>
             <el-input
-              v-model="searchId"
+              v-model="searchTextMap[col]"
               style="width: 80%"
               size="default"
               :placeholder="t('dataIn.pointFilter')"
               @change="searchInputChange"
             >
-              <template #prepend>id</template>
-            </el-input>
-          </template>
-        </el-table-column>
-        <el-table-column prop="name" show-overflow-tooltip label="name">
-          <template #header>
-            <el-input
-              v-model="searchName"
-              style="width: 80%"
-              size="default"
-              :placeholder="t('dataIn.pointFilter')"
-              @change="searchInputChange"
-            >
-              <template #prepend>name</template>
-            </el-input>
-          </template>
-        </el-table-column>
-        <el-table-column prop="enabled" show-overflow-tooltip label="enabled">
-          <template #header>
-            <el-input
-              v-model="searchEnabled"
-              style="width: 80%"
-              size="default"
-              :placeholder="t('dataIn.pointFilter')"
-              @change="searchInputChange"
-            >
-              <template #prepend>enabled</template>
+              <template #prepend>{{ col }}</template>
             </el-input>
           </template>
         </el-table-column>
@@ -134,6 +94,7 @@
 <script setup lang="ts">
 import { datasetsField, isShowDatasetTable, datasetTableData } from '../model/util';
 import { t } from 'locales';
+import { ElMessage } from 'element-plus';
 
 const loading = ref(true);
 const pageSize = ref(200);
@@ -141,9 +102,8 @@ const total = ref(10);
 const currentPage = ref(1);
 const defaultHeight = ref(495);
 const defaultTop = ref('50%');
-const searchName = ref('');
-const searchId = ref('');
-const searchEnabled = ref('');
+const columns = ref<string[]>([]);
+const searchTextMap = ref<Record<string, string>>({});
 const drawer = ref(false);
 const fullTableHeight = ref(600);
 const tableData = ref<any[]>([]); //表格实际展示的数据
@@ -173,18 +133,16 @@ watch(drawer, val => {
 async function searchInputChange() {
   loading.value = true;
   currentPage.value = 1;
-  if (!searchId.value && !searchName.value && !searchEnabled.value) {
-    getTableData(lists.value);
+  const activeFilters = Object.entries(searchTextMap.value).filter(([, v]) => v && v.trim() !== '');
+  if (activeFilters.length === 0) {
     filterTableData.value = lists.value;
   } else {
-    filterTableData.value = await lists.value.filter(
-      data =>
-        (!searchName.value || data.name.toLowerCase().includes(searchName.value.toLowerCase())) &&
-        (!searchId.value || data.id.toLowerCase().includes(searchId.value.toLowerCase())) &&
-        (!searchEnabled.value || data.enabled.toString().toLowerCase().includes(searchEnabled.value.toLowerCase()))
+    const filters = Object.fromEntries(activeFilters);
+    filterTableData.value = await lists.value.filter(row =>
+      Object.keys(filters).every(key => String(row[key] ?? '').toLowerCase().includes(String(filters[key]).toLowerCase()))
     );
-    getTableData(filterTableData.value);
   }
+  getTableData(filterTableData.value);
   loading.value = false;
 }
 function handlePageChange(page: number) {
@@ -197,15 +155,20 @@ function getTableData(data: Recordable[]) {
 }
 async function getDatasetsData(res: Recordable) {
   if (res?.code == 0) {
-    const { page, list } = res?.data as any;
+    const { page, list, columns: cols } = res?.data as any;
     currentPage.value = page;
     lists.value = list;
     filterTableData.value = list;
+    columns.value = Array.isArray(cols) && cols.length > 0 ? cols : Object.keys(list?.[0] ?? {});
+    // init search map keys
+    searchTextMap.value = Object.fromEntries(columns.value.map(c => [c, '']));
     getTableData(list);
   } else {
     total.value = 0;
     lists.value = [];
     filterTableData.value = [];
+    columns.value = [];
+    searchTextMap.value = {};
     getTableData(lists.value);
     ElMessage.error(res?.message);
   }

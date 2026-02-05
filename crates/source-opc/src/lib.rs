@@ -6,23 +6,24 @@ use ringbuf::traits::{Consumer, RingBuffer};
 use schema::get_schema_path;
 use std::fs::File;
 use std::{io::prelude::*, sync::Arc};
-use taos::{Dsn, IntoDsn};
+use taos::Dsn;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::sink::point::csv::{CsvHeader, CsvParser};
-use taosx_core::plugins::sink::point::model::{ModelType, PointModelConfig};
-use taosx_core::runners::opc::config::{OPCConfig, PointsMode};
+use taosx_core::plugins::sink::point::model::ModelType;
+use taosx_core::runners::opc::config::OPCConfig;
+use taosx_core::runners::opc::points::{
+    OPC_DESCRIPTION, OPC_DISPLAY_NAME, OPC_NODE_CLASS, OPC_PATH, OpcNode,
+};
 use taosx_core::runners::opc::{OpcType, exe_path};
 use taosx_core::runners::{get_data_dir, get_logs_home_dir, new_rolling_file_appender};
 use taosx_core::sink::persist::PersistConfig;
 use taosx_core::sink::point::csv::parse_csv_config_files;
-use taosx_core::sink::point::model::SourceType;
-use taosx_core::utils::dsn::json_to_dsn;
-use taosx_core::utils::monitor::send_sub_process_info;
-use taosx_core::{
-    Action, DataSet, DataSetsReq, Transferred, build_ipc, utils::port_pool::PortPool,
+use taosx_core::sink::point::model::{
+    SourceType, generate_tag_value_from_pattern, generate_tbname_from_pattern,
 };
+use taosx_core::utils::monitor::send_sub_process_info;
+use taosx_core::{Action, DataSet, Transferred, build_ipc, utils::port_pool::PortPool};
 use taosx_core::{TaskNotify, TaskNotifySender, core_metrics, get_log_dir};
-use taosx_ipc::types::OptionSet;
 use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
@@ -39,7 +40,6 @@ mod schema;
 
 /// OPC dataIn task
 #[instrument(skip_all, fields(task.id = with_agent.as_ref().map(| v | v.0)))]
-
 pub async fn opc_to_taos(
     from: Dsn,
     _actions: Vec<Action>,
@@ -289,103 +289,6 @@ fn get_temp_file(dsn: &Dsn, key: &str) -> Option<NamedTempFile> {
         file.write_all(v.as_bytes()).unwrap();
         Some(file)
     })
-}
-
-/// 获取 opc 点位
-pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
-    let req_clone = req.clone();
-    let from = if let Some(from_json) = req_clone.from_json {
-        json_to_dsn(&from_json)?
-    } else if let Some(from) = req_clone.from {
-        from.into_dsn()?
-    } else {
-        anyhow::bail!("from is required");
-    };
-
-    if req.categories.is_empty() {
-        anyhow::bail!("categories is empty");
-    }
-
-    opc_datasets_impl(from).await
-}
-
-async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
-    let certificate = get_temp_file(&from, "certificate");
-    let private_key = get_temp_file(&from, "private_key");
-    let auth_certificate = get_temp_file(&from, "auth_certificate");
-    let auth_private_key = get_temp_file(&from, "auth_private_key");
-
-    let points_mode = PointsMode::from_dsn(&from)?;
-    let opc_points = match points_mode {
-        // 解析 csv 文件中的点位
-        PointsMode::ByCsv => {
-            let opc_type = OpcType::from_dsn(&from)?;
-            let csv_files = parse_csv_config_files(&from).ok_or(anyhow::anyhow!(
-                "csv_config_file not found in dsn: {}",
-                from
-            ))?;
-
-            let source_type = SourceType::try_from(opc_type.as_static_str())?;
-            let parser = CsvParser::try_new(source_type, csv_files)?;
-            let model_config = parser.parse().await?;
-            to_opc_dataset_vec(&model_config).await?
-        }
-        // 通过 taosx-opc points 命令获取点位
-        PointsMode::ByCommand => {
-            let mut config = OPCConfig::from_dsn_point_mode(&from)?;
-
-            config.set_temp_filepath("certificate", certificate.as_ref())?;
-            config.set_temp_filepath("private_key", private_key.as_ref())?;
-            config.set_temp_filepath("auth_certificate", auth_certificate.as_ref())?;
-            config.set_temp_filepath("auth_private_key", auth_private_key.as_ref())?;
-
-            opc_datasets_by_command(&config).await?
-        }
-    };
-
-    certificate.map(|f| f.close());
-    private_key.map(|f| f.close());
-    auth_certificate.map(|f| f.close());
-    auth_private_key.map(|f| f.close());
-
-    Ok(opc_points)
-}
-
-/// 从 model_config 中提取所有 OPC 点位
-async fn to_opc_dataset_vec(model_config: &PointModelConfig) -> anyhow::Result<Vec<DataSet>> {
-    let mut datasets = vec![];
-    for (point_id, point_config) in model_config.point_config_map.iter() {
-        let point_type = point_config.value_type.as_ref().map(|v| v.to_string());
-        let name = point_config.tag_values.as_ref().and_then(|tag_values| {
-            tag_values.iter().find_map(|(tag_name, tag_value)| {
-                if tag_name == "name" {
-                    Some(tag_value.to_string())
-                } else {
-                    None
-                }
-            })
-        });
-        let table_config = model_config.table_config_map.get(point_id).unwrap();
-        let display = table_config.enabled.unwrap_or(1).to_string();
-        let options = vec![OptionSet {
-            name: "enabled".to_string(),
-            display,
-            description: None,
-            required: false,
-        }];
-
-        let ds = DataSet {
-            id: point_id.clone(),
-            name,
-            category: None,
-            r#type: point_type,
-            options: Some(options),
-            format: None,
-        };
-        datasets.push(ds);
-    }
-
-    Ok(datasets)
 }
 
 /// get opc datasets in csv
@@ -670,6 +573,109 @@ async fn check_point_id_duplicated(dsn: &Dsn, csv_line: String) -> anyhow::Resul
     Ok(())
 }
 
+pub async fn to_csv_context_by_mode(
+    opc_points_mode: &str,
+    datasets: Vec<DataSet>,
+) -> anyhow::Result<String> {
+    match opc_points_mode {
+        "variable" => {
+            let filter = |node_class: &str| node_class == "Variable";
+            variables_to_csv(datasets, Some(filter)).await
+        }
+        "object" => {
+            let filter = |node_class: &str| node_class == "Object";
+            variables_to_csv(datasets, Some(filter)).await
+        }
+        "all" => variables_to_csv::<fn(&str) -> bool>(datasets, None).await,
+        _ => anyhow::bail!("unsupported opc points mode: {}", opc_points_mode),
+    }
+}
+
+pub async fn variables_to_csv<F>(
+    datasets: Vec<DataSet>,
+    filter: Option<F>,
+) -> anyhow::Result<String>
+where
+    F: Fn(&str) -> bool,
+{
+    let mut wtr = csv_async::AsyncWriter::from_writer(vec![]);
+
+    // headers
+    let cols = vec![
+        "id",
+        "name",
+        OPC_NODE_CLASS,
+        OPC_DISPLAY_NAME,
+        OPC_DESCRIPTION,
+        OPC_PATH,
+    ];
+    wtr.write_record(&cols).await?;
+    wtr.flush().await?;
+
+    // rows
+    for dataset in datasets {
+        if let Some(ref filter) = filter {
+            let node_class = dataset.r#type.clone().unwrap_or_default();
+            if !filter(&node_class) {
+                continue;
+            }
+        }
+        let mut row = vec![];
+        row.push(dataset.id);
+        row.push(dataset.name.unwrap_or_default());
+        row.push(dataset.r#type.unwrap_or_default());
+
+        match dataset.options {
+            Some(opts) => {
+                let display_name = opts
+                    .iter()
+                    .find(|opt| opt.name == OPC_DISPLAY_NAME)
+                    .map(|opt| opt.display.clone())
+                    .unwrap_or_default();
+                row.push(display_name);
+
+                let description = opts
+                    .iter()
+                    .find(|opt| opt.name == OPC_DESCRIPTION)
+                    .and_then(|opt| opt.description.clone())
+                    .unwrap_or_default();
+                row.push(description);
+
+                let path = opts
+                    .iter()
+                    .find(|opt| opt.name == OPC_PATH)
+                    .map(|opt| opt.display.clone())
+                    .unwrap_or_default();
+                row.push(path);
+            }
+            None => {
+                row.push("".to_string());
+                row.push("".to_string());
+                row.push("".to_string());
+            }
+        }
+
+        wtr.write_record(&row).await?;
+    }
+
+    let data = wtr.into_inner().await?;
+    let csv_content = String::from_utf8(data)?;
+    Ok(csv_content)
+}
+
+pub async fn to_csv_context(opc_type: OpcType, datasets: Vec<DataSet>) -> anyhow::Result<String> {
+    let mut csv_content = get_template(opc_type, false);
+    for (idx, item) in datasets.iter().enumerate() {
+        let row = match opc_type {
+            OpcType::OPCUA => ua_template_row(idx + 1, item),
+            OpcType::OPCDA => da_template_row(idx + 1, item),
+            _ => unimplemented!("template for opc type {:?} is not supported", opc_type),
+        };
+        csv_content.push_str(&row);
+    }
+    Ok(csv_content)
+}
+
 pub fn get_template(opc_type: OpcType, with_demo: bool) -> String {
     match opc_type {
         OpcType::OPCUA => ua_template(with_demo),
@@ -700,7 +706,7 @@ fn da_template(with_demo: bool) -> String {
     template
 }
 
-pub const UA_HEADER: [&str; 16] = [
+pub const UA_HEADER: [&str; 20] = [
     "No.",
     "point_id",
     "enabled",
@@ -716,14 +722,19 @@ pub const UA_HEADER: [&str; 16] = [
     "request_ts_transform",
     "received_ts_col",
     "received_ts_transform",
-    "tag::VARCHAR(200)::name",
+    "tag::VARCHAR(1024)::name",
+    "tag::VARCHAR(1024)::BrowseName",
+    "tag::VARCHAR(1024)::DisplayName",
+    "tag::VARCHAR(1024)::Description",
+    "tag::VARCHAR(1024)::Path",
 ];
-pub const UA_ROW: [&str; 16] = [
+
+pub const UA_ROW: [&str; 20] = [
     "",
     "",
     "",
     "opc_{type}",
-    "t_{ns}_{id}",
+    "t_{ns}_{id#/_}",
     "val",
     "",
     "",
@@ -734,7 +745,11 @@ pub const UA_ROW: [&str; 16] = [
     "",
     "rts",
     "",
-    "",
+    "{id#/.}",
+    "{BrowseName}",
+    "{DisplayName}",
+    "{Description}",
+    "{Path}",
 ];
 
 pub const DA_HEADER: [&str; 16] = [
@@ -774,6 +789,135 @@ pub const DA_ROW: [&str; 16] = [
     "",
     "",
 ];
+
+pub fn ua_template_row(row_idx: usize, item: &DataSet) -> String {
+    let mut cols = vec![];
+
+    let opc_node = OpcNode::try_from(item.clone()).ok();
+
+    for (col_idx, col) in UA_ROW.iter().enumerate() {
+        if col_idx == 0 {
+            // No.
+            cols.push(row_idx.to_string());
+        } else if col_idx == 1 {
+            // point_id
+            let point_id = get_safe_string_for_csv(&item.id);
+            cols.push(point_id.clone());
+        } else if col_idx == 2 {
+            // enabled
+            let enabled = get_enabled(item.clone());
+            cols.push(enabled.to_string());
+        } else if col_idx == 3 {
+            let node_type = opc_node.as_ref().and_then(|n| n.node_type.clone());
+            let stable = if let Some("Object") = node_type.as_deref() {
+                "opc_object"
+            } else {
+                "opc_{type}"
+            };
+            cols.push(stable.to_string());
+        } else if col_idx == 4 {
+            // tbname
+            let point_id = get_safe_string_for_csv(&item.id);
+            let tbname = generate_tbname_from_pattern(
+                SourceType::OPCUA.as_static_str(),
+                "t_{ns}_{id#/_}",
+                &point_id,
+            );
+            cols.push(tbname);
+        } else if col_idx == 15 {
+            // tag::VARCHAR(255)::name
+            let point_id = &item.id;
+            let name = generate_tag_value_from_pattern(
+                SourceType::OPCUA.as_static_str(),
+                "{id#/.}",
+                point_id,
+            );
+            cols.push(name);
+        } else if col_idx == 16 {
+            // tag::VARCHAR(255)::BrowseName
+            let browse_name = opc_node
+                .as_ref()
+                .and_then(|n| n.name.clone())
+                .unwrap_or("{BrowseName}".to_string());
+            cols.push(browse_name.clone());
+        } else if col_idx == 17 {
+            // tag::VARCHAR(255)::DisplayName
+            let display_name = opc_node
+                .as_ref()
+                .and_then(|n| n.display_name.clone())
+                .unwrap_or("{DisplayName}".to_string());
+            cols.push(display_name.clone());
+        } else if col_idx == 18 {
+            // tag::VARCHAR(255)::Description
+            let description = opc_node
+                .as_ref()
+                .and_then(|n| n.description.clone())
+                .unwrap_or("".to_string());
+            cols.push(description.clone());
+        } else if col_idx == 19 {
+            // tag::VARCHAR(255)::Path
+            let path = opc_node
+                .as_ref()
+                .and_then(|n| n.path.clone())
+                .unwrap_or("{Path}".to_string());
+            cols.push(path.clone());
+        } else {
+            cols.push(col.to_string());
+        }
+    }
+    format!("{}\n", cols.join(","))
+}
+
+pub fn da_template_row(row_idx: usize, item: &DataSet) -> String {
+    // 替换 DA_ROW 的前三个字段和最后一个字段
+    let mut cols = vec![];
+    for (idx, col) in DA_ROW.iter().enumerate() {
+        if idx == 0 {
+            // No.
+            cols.push(row_idx.to_string());
+        } else if idx == 1 {
+            // tag_name
+            cols.push(item.id.clone());
+        } else if idx == 2 {
+            // enabled
+            let enabled = get_enabled(item.clone());
+            cols.push(enabled.to_string());
+        } else if idx == (DA_ROW.len() - 1) {
+            // tag::VARCHAR(255)::name
+            cols.push(item.name.clone().unwrap_or("".to_string()));
+        } else {
+            cols.push(col.to_string());
+        }
+    }
+    format!("{}\n", cols.join(","))
+}
+
+fn get_enabled(item: DataSet) -> i8 {
+    item.options
+        .map(|o| {
+            if o.is_empty() {
+                return 1;
+            }
+            o.iter()
+                .find(|o| o.name == "enabled")
+                .map(|o| {
+                    if o.display == "0" {
+                        return 0;
+                    }
+                    1
+                })
+                .unwrap_or(1)
+        })
+        .unwrap_or(1)
+}
+
+fn get_safe_string_for_csv(s: &str) -> String {
+    let mut safe_str = s.to_string();
+    if safe_str.contains(",") {
+        safe_str = format!("\"{}\"", safe_str.replace("\"", "\"\""));
+    }
+    safe_str
+}
 
 #[cfg(test)]
 mod tests {
@@ -818,7 +962,7 @@ mod tests {
         let header = StringRecord::from(lines[0].split(",").collect_vec());
         let header = CsvHeader::try_new(SourceType::OPCUA, &header).unwrap();
         assert_eq!(header.source_type, SourceType::OPCUA);
-        assert_eq!(header.columns.len(), 16);
+        assert_eq!(header.columns.len(), 20);
         assert_eq!(header.get_column("point_id").unwrap().index, 1);
         assert_eq!(header.get_primary_timestamp().unwrap().name, "ts_col");
         assert_eq!(header.get_column("ts_transform").unwrap().index, 10);
@@ -846,6 +990,42 @@ mod tests {
         assert_eq!(
             header.get_column("received_ts_transform").unwrap().index,
             14
+        );
+    }
+
+    #[test]
+    fn test_ua_template_row() {
+        let item = DataSet {
+            id: "ns=3;i=1001".to_string(),
+            name: Some("tag1".to_string()),
+            category: None,
+            r#type: None,
+            options: None,
+            format: None,
+        };
+        let row = ua_template_row(1, &item);
+        // println!("{}", &row);
+        assert_eq!(
+            row,
+            "1,ns=3;i=1001,1,opc_{type},t_3_1001,val,,,quality,ts,,qts,,rts,,1001,{BrowseName},{DisplayName},,{Path}\n".to_string()
+        );
+    }
+
+    #[test]
+    fn test_da_template_row() {
+        let item = DataSet {
+            id: "/ASSETS/AB/EDCGQ".to_string(),
+            name: Some("tag1".to_string()),
+            category: None,
+            r#type: None,
+            options: None,
+            format: None,
+        };
+        let row = da_template_row(1, &item);
+        assert_eq!(
+            row,
+            "1,/ASSETS/AB/EDCGQ,1,opc_{type},t_{tag_name},val,,,quality,ts,,qts,,rts,,tag1\n"
+                .to_string()
         );
     }
 }

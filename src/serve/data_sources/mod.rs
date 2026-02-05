@@ -384,7 +384,7 @@ async fn get_point_options_impl(
     controller: Data<TaskControllerRef>,
     data: DataSetsReq,
 ) -> anyhow::Result<serde_json::Value> {
-    tracing::info!("try to get kinghistorian point options, req: {:?}", data);
+    tracing::info!("try to get point options, req: {:?}", data);
 
     // 解析 from DSN
     let mut from = match (&data.from_json, &data.from) {
@@ -394,7 +394,8 @@ async fn get_point_options_impl(
             anyhow::bail!("from dsn is required");
         }
     };
-    // 为 from dsn 设置参数 only_groups=true
+
+    // TODO: 这里为 from dsn 设置了参数 only_groups=true，应该由前端传递更合适
     from.params
         .insert("only_groups".to_string(), "true".to_string());
     // 构造新的请求，携带修改过的 from

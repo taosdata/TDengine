@@ -291,7 +291,7 @@ func (c *DAClient) Close() error {
 	return nil
 }
 
-func (c *DAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error) {
+func (c *DAClient) GetAllPoints(conf config.PointsConfig) ([]*common.Point, error) {
 	c.logger.Info("opcda start to get all points")
 	if c.conn == nil {
 		return nil, fmt.Errorf("opcda get all points error: connection is nil")
@@ -345,7 +345,7 @@ func (c *DAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 	return tags, nil
 }
 
-func (c *DAClient) browse(tree *opc.Tree, pointRegex, nameRegex, idRegex regexp.Regexp, pointLimit int) (points []common.Point) {
+func (c *DAClient) browse(tree *opc.Tree, pointRegex, nameRegex, idRegex regexp.Regexp, pointLimit int) (points []*common.Point) {
 	l := list.New()
 	l.PushBack(tree)
 
@@ -363,7 +363,7 @@ func (c *DAClient) browse(tree *opc.Tree, pointRegex, nameRegex, idRegex regexp.
 				continue
 			}
 
-			points = append(points, common.Point{
+			points = append(points, &common.Point{
 				ID:   leave.Tag,
 				Name: leave.Name,
 			})

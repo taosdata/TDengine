@@ -191,6 +191,7 @@ import { TransformerfullparamsType } from '../components/commonTransformer/type'
 import DocsContent from 'components/MdRender.vue';
 import { instance } from 'config';
 import { decrypt } from 'utils/crypto';
+import { datasetTableData } from '../model/util';
 
 const dataInProps = getDataInProps();
 provide('sourceParent', getCurrentInstance());
@@ -295,6 +296,9 @@ if (route?.params.page === 'edit' || route?.params.page === 'copy') {
 }
 
 onMounted(async () => {
+  // Reset dataset preview state to avoid showing cached Result Display when entering the page
+  isShowDatasetTable.value = false;
+  datasetTableData.value = undefined;
   if (route?.params.page === 'edit' || route?.params.page === 'copy') {
     await handleDetailData(route?.params.taskId);
   } else {
@@ -346,6 +350,22 @@ async function handleDetailData(id: string | number) {
 
   if (data.parser) {
     transformerState.transformerParserData = data.parser;
+  }
+
+  // 复制任务时清空 OPC 数据点筛选条件，避免沿用旧的 namespaces/root 等造成预览偏差
+  if (currentPageType.value === 'copy' && ['opcua', 'opcua_plus', 'opcda'].includes(sourceForm.type)) {
+    try {
+      const sel = (sourceForm as any)?.data?.datasets?.select_all_points;
+      if (sel && typeof sel === 'object') {
+        sel.root = '';
+        sel.namespaces = [];
+        sel.opc_points_mode = 'all';
+        sel.node_id_pattern = '';
+        sel.browse_name_pattern = '';
+      }
+    } catch (_e) {
+      // ignore
+    }
   }
 }
 
@@ -578,6 +598,9 @@ function goTaskPage() {
 
 onBeforeUnmount(() => {
   resetTransformerState();
+  // Clean dataset preview state to prevent residual UI when navigating
+  isShowDatasetTable.value = false;
+  datasetTableData.value = undefined;
 });
 
 defineExpose({

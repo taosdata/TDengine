@@ -259,6 +259,19 @@ export function recoverFromData(dstype: string, dataDisplay: Recordable, rdata: 
         } else {
           dataDisplay[key] = [];
         }
+      } else if ((dstype === 'opcua' || dstype === 'opcua_plus') && key === 'namespaces') {
+        // OPC UA: 后端保存为逗号分隔字符串（例如 "7,9"），前端需要数组（索引值）
+        const rawNs = rdata[key];
+        if (typeof rawNs === 'string') {
+          dataDisplay[key] = rawNs
+            .split(',')
+            .map(v => Number(v.trim()))
+            .filter(v => Number.isFinite(v));
+        } else if (Array.isArray(rawNs)) {
+          dataDisplay[key] = rawNs;
+        } else {
+          dataDisplay[key] = [];
+        }
       } else if (key === 'port' && typeof rdata[key] === 'number') {
         dataDisplay[key] = String(rdata[key]);
       } else if (typeof dataDisplay[key] === 'boolean') {
@@ -273,6 +286,11 @@ export function recoverFromData(dstype: string, dataDisplay: Recordable, rdata: 
         // 兼容旧版本时间格式：当后端返回的时间为 "YYYY-MM-DD HH:mm:ss" 等非 RFC3339 格式时，转换为前端时间组件所需的
         // "YYYY-MM-DDTHH:mm:ssZ" 规范格式，避免编辑时时间控件不显示。
         const rawVal = rdata[key];
+        // 修复：编辑或复制 OPCUA/OPCUA+ 任务时，Server Endpoint 不应自动带上 opcua_plus:// 或 opc_ua:// 前缀。
+        if ((dstype === 'opcua' || dstype === 'opcua_plus') && key === 'endpoint' && typeof rawVal === 'string') {
+          dataDisplay[key] = rawVal.replace(/^(opcua(?:_plus)?|opc_ua(?:_plus)?):\/\//i, '');
+          return; // 已处理，直接返回
+        }
         if (
           typeof rawVal === 'string' &&
           TimeFormats.includes(key) &&
@@ -287,6 +305,25 @@ export function recoverFromData(dstype: string, dataDisplay: Recordable, rdata: 
     } else if (rdata[`${parentKey}.${key}`] !== undefined) {
       // 有值的情况下，需要恢复
       const rawVal = rdata[`${parentKey}.${key}`];
+      // OPC UA nested case: datasets.select_all_points.namespaces
+      if ((dstype === 'opcua' || dstype === 'opcua_plus') && key === 'namespaces') {
+        if (typeof rawVal === 'string') {
+          dataDisplay[key] = rawVal
+            .split(',')
+            .map(v => Number(v.trim()))
+            .filter(v => Number.isFinite(v));
+        } else if (Array.isArray(rawVal)) {
+          dataDisplay[key] = rawVal;
+        } else {
+          dataDisplay[key] = [];
+        }
+        return; // 已处理
+      }
+      // 同样处理嵌套键的 endpoint 前缀问题
+      if ((dstype === 'opcua' || dstype === 'opcua_plus') && key === 'endpoint' && typeof rawVal === 'string') {
+        dataDisplay[key] = rawVal.replace(/^(opcua(?:_plus)?|opc_ua(?:_plus)?):\/\//i, '');
+        return; // 已处理
+      }
       if (
         typeof rawVal === 'string' &&
         TimeFormats.includes(key) &&

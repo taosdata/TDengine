@@ -14,8 +14,10 @@ use crate::runners::opc::config::collect::CollectConfig;
 use crate::runners::opc::config::connect::ConnectConfig;
 use crate::runners::opc::config::points::PointsConfig;
 use crate::runners::opc::config::report::ReportConfig;
+use crate::runners::opc::points::OpcNode;
 use crate::runners::opc::{OpcType, opc_datasets_impl};
 use crate::sink::point::model::SourceType;
+use crate::utils::parse_key_in_dsn;
 
 pub mod collect;
 pub mod connect;
@@ -48,7 +50,7 @@ pub struct OPCConfig {
     pub collect: Option<CollectConfig>,
 
     #[serde(skip)]
-    pub points_mode: Option<PointsMode>, // 数据点位的模式, csv 或 command
+    pub points_mode: Option<PointsMode>, // 配置数据点位的方式：csv 或 command
     #[serde(skip)]
     model_config: Option<Arc<PointModelConfig>>,
 }
@@ -60,10 +62,6 @@ impl OPCConfig {
         ipc_port: u16,
         task_id: Option<i64>,
     ) -> anyhow::Result<Self> {
-        if dsn.driver != "opc" && dsn.driver != "opcua" && dsn.driver != "opcda" {
-            bail!("invalid opc driver");
-        }
-
         let opc_type = OpcType::from_dsn(dsn)?;
         let debug = Self::parse_debug(dsn)?;
         let connect = ConnectConfig::from_dsn(dsn)?;
@@ -80,12 +78,31 @@ impl OPCConfig {
             }
             PointsMode::ByCommand => {
                 // 选择数据点位
-                // 1. 执行 taosx-opc point 查询点位
-                let points = opc_datasets_impl(dsn.clone()).await?;
+
+                // 1. 执行 taosx-opc points 查询点位
+                let opc_points_mode = parse_key_in_dsn(dsn, "opc_points_mode")
+                    .unwrap_or(Some("variable".to_string()))
+                    .unwrap_or("variable".to_string());
+                let filter = match opc_points_mode.as_str() {
+                    "variable" => Some(OpcNode::variable_node_filter()),
+                    "object" => Some(OpcNode::object_node_filter()),
+                    "all" => None,
+                    _ => {
+                        bail!("unsupported opc_points_mode: {}", opc_points_mode);
+                    }
+                };
+                let points = opc_datasets_impl(dsn.clone(), filter).await?;
                 // 2. 从 dsn 中解析点位到 TDengine 的映射规则
-                let rule = PointMappingRule::from_dsn(dsn)?;
-                // 3. 生成 model_config
-                let (point_map, table_map) = rule.generate(points)?;
+                let rule: PointMappingRule = PointMappingRule::from_dsn(dsn)?;
+                // 3. 生成 point_map 和 table_map
+                let (point_map, table_map) = rule.generate(points.clone())?;
+                // 4. 生成 object node 的配置
+                let node_config_map = rule.generate_node_config_map(points)?;
+                let node_config_map = if node_config_map.is_empty() {
+                    None
+                } else {
+                    Some(node_config_map)
+                };
 
                 PointModelConfig {
                     source_type: SourceType::try_from(opc_type.as_static_str())?,
@@ -93,6 +110,7 @@ impl OPCConfig {
                     point_config_map: point_map,
                     table_config_map: table_map,
                     update_mode: None,
+                    node_config_map,
                 }
             }
         };
@@ -110,10 +128,16 @@ impl OPCConfig {
             .map(|(point_id, point_config)| format!("{}::{}", point_id, point_config.code.clone()))
             .join(",");
 
-        if dsn.driver.as_str() == "opcua" {
-            dsn_clone.set("ua.nodes", points);
-        } else {
-            dsn_clone.set("da.tags", points);
+        match opc_type {
+            OpcType::OPCUA => {
+                dsn_clone.set("ua.nodes", points);
+            }
+            OpcType::OPCDA => {
+                dsn_clone.set("da.tags", points);
+            }
+            _ => {
+                bail!("unsupported opc_type: {:?}", opc_type);
+            }
         }
         let collect = CollectConfig::from_dsn(&dsn_clone, task_id).await?;
 
@@ -131,10 +155,6 @@ impl OPCConfig {
 
     /// taosx-opc points
     pub fn from_dsn_point_mode(dsn: &Dsn) -> anyhow::Result<Self> {
-        if dsn.driver != "opc" && dsn.driver != "opcua" && dsn.driver != "opcda" {
-            bail!("invalid opc driver");
-        }
-
         // enable/keep_raw_data is not needed in point mode
         let mut dsn = dsn.clone();
         if dsn.params.contains_key("enable") {

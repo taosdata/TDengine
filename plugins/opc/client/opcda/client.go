@@ -26,7 +26,7 @@ func (c *DAClient) Collect(collectConfig config.CollectConfig, onMessage client.
 	panic("only support windows")
 }
 
-func (c *DAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error) {
+func (c *DAClient) GetAllPoints(conf config.PointsConfig) ([]*common.Point, error) {
 	panic("only support windows")
 }
 

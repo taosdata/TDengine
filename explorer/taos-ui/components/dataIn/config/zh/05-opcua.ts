@@ -318,20 +318,7 @@ export default {
               multiple: false,
               type: 'pattern'
             },
-            // {
-            //   "name": "pattern",
-            //   "display": "正则匹配",
-            //   "if": "pattern",
-            //   "hint": {
-            //     "type": "str"
-            //   },
-            //   "description": "数据点位名称或 id 需要满足设置的正则表达式。\n",
-            //   "label": "正则匹配",
-            //   "field": "pattern",
-            //   "defaultValue": "",
-            //   "multiple": false,
-            //   "type": "pattern"
-            // },
+
             {
               name: 'super_table_expression',
               display: '超级表名称',
@@ -406,6 +393,20 @@ export default {
               label: '主键别名',
               field: 'table_primary_key_alias',
               defaultValue: 'ts',
+              multiple: false,
+              type: 'input'
+            },
+            {
+              name: 'custom_tags',
+              display: '自定义标签',
+              hint: {
+                type: 'str'
+              },
+              description:
+                '可以配置多个自定义标签，以";"分隔。每个自定义标签的格式为：<TagType>::<TagName>::<TagPattern>，以"::"做分隔符。第一项是 Tag 的数据类型，第二项是 Tag 的名称，第三项是 Tag 值的表达式。\n',
+              label: '自定义标签',
+              field: 'custom_tags',
+              defaultValue: 'VARCHAR(1024)::name::{id#/.}',
               multiple: false,
               type: 'input'
             }

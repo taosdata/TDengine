@@ -50,24 +50,25 @@ func TestUAClient_GetAllPoints(t *testing.T) {
 		Limit: 0,
 		Regex: ".*",
 		Ua: config.UaPointsConfig{
-			Root: "i=85",
+			Root: ObjectRootID,
 		},
 	}
 	points, err := client.GetAllPoints(pointsConf)
 	if err != nil {
 		t.Fatal(err)
 	}
+	assert.Equal(t, 7, len(points))
 	assert.NotEmpty(t, points)
 	pointsConf = config.PointsConfig{
 		Limit: 3,
 		Regex: ".*",
 		Ua: config.UaPointsConfig{
-			Root: "i=85",
+			Root: ObjectRootID,
 		},
 	}
 	points, err = client.GetAllPoints(pointsConf)
 	t.Log(points)
-	assert.Equal(t, 3, len(points))
+	assert.Equal(t, 5, len(points))
 }
 
 func TestUAClient_GetAllPointsNamespaces(t *testing.T) {
@@ -95,14 +96,22 @@ func TestUAClient_GetAllPointsNamespaces(t *testing.T) {
 		Limit: 0,
 		Regex: ".*",
 		Ua: config.UaPointsConfig{
-			Root:       "i=85",
+			Root:       ObjectRootID,
 			Namespaces: []uint16{3},
 		},
 	}
 	points, err := client.GetAllPoints(pointsConf)
 	assert.NoError(t, err)
-	assert.Equal(t, 1, len(points))
+	assert.Equal(t, 3, len(points))
 	assert.Equal(t, "ns=3;i=1001", points[0].ID)
+	assert.Equal(t, "Objects.main.int32", points[0].Path)
+	assert.False(t, points[0].IsStatic)
+	assert.Equal(t, "ns=3;s=main", points[1].ID)
+	assert.Equal(t, "Objects.main", points[1].Path)
+	assert.True(t, points[1].IsStatic)
+	assert.Equal(t, ObjectRootID, points[2].ID)
+	assert.True(t, points[2].IsStatic)
+	assert.Equal(t, "Objects", points[2].Path)
 }
 
 func TestUAClient_Collect_Observer(t *testing.T) {
@@ -334,7 +343,7 @@ func TestTryGetCapabilities(t *testing.T) {
 		Limit: 0,
 		Regex: ".*",
 		Ua: config.UaPointsConfig{
-			Root: "i=85",
+			Root: ObjectRootID,
 		},
 	}
 	points, err := client.GetAllPoints(pointsConf)
@@ -419,12 +428,19 @@ func TestGetPointsInorder(t *testing.T) {
 		Limit: 500,
 		Regex: ".*",
 		Ua: config.UaPointsConfig{
-			Root: "i=85",
+			Root: ObjectRootID,
 		},
 	}
 	points, err := client.GetAllPoints(pointsConf)
 	assert.NoError(t, err)
-	assert.Equal(t, 500, len(points))
+	assert.Greater(t, len(points), 500)
+	var collectPoints []*common.Point
+	for i := 0; i < len(points); i++ {
+		if !points[i].IsStatic {
+			collectPoints = append(collectPoints, points[i])
+		}
+	}
+	assert.Equal(t, 500, len(collectPoints))
 
 	nodes := make([]config.NodeConfig, len(points))
 	for i := 0; i < len(points); i++ {
@@ -443,7 +459,7 @@ func TestGetPointsRegexp(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    []common.Point
+		want    []*common.Point
 		wantErr assert.ErrorAssertionFunc
 	}{
 		{
@@ -488,14 +504,39 @@ func TestGetPointsRegexp(t *testing.T) {
 
 					RegexID:   `ns=2;.*`,
 					RegexName: `.*int32`,
-					Ua:        config.UaPointsConfig{Root: "i=85"},
+					Ua:        config.UaPointsConfig{Root: ObjectRootID},
 				},
 			},
-			want: []common.Point{
+			want: []*common.Point{
 				{
 					ID:          "ns=2;i=1001",
+					IsStatic:    false,
 					Name:        "int32",
 					Description: "int32",
+					DisplayName: "int32",
+					NodeType:    "Variable",
+					ParentID:    "ns=2;s=main",
+					Path:        "Objects.main.int32",
+				},
+				{
+					ID:          "ns=2;s=main",
+					IsStatic:    true,
+					Name:        "main",
+					Description: "main",
+					DisplayName: "main",
+					NodeType:    "Object",
+					ParentID:    ObjectRootID,
+					Path:        "Objects.main",
+				},
+				{
+					ID:          ObjectRootID,
+					IsStatic:    true,
+					Name:        "Objects",
+					Description: "",
+					DisplayName: "Objects",
+					NodeType:    "Object",
+					ParentID:    "",
+					Path:        "Objects",
 				},
 			},
 			wantErr: assert.NoError,

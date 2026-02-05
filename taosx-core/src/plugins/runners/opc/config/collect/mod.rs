@@ -138,7 +138,7 @@ pub async fn parse_opc_node_ids(dsn: &Dsn, param_key: &str) -> anyhow::Result<Ve
         .params
         .get(param_key)
         .and_then(|s| if s.is_empty() { None } else { Some(s) })
-        .ok_or(anyhow::anyhow!(""))?;
+        .ok_or(anyhow::anyhow!("missing parameter: {}", param_key))?;
 
     let mut node_ids = vec![];
     for node in param_val

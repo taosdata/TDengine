@@ -45,7 +45,12 @@ func GetNodeValue() *NodeValue {
 }
 
 type Point struct {
-	ID          string `json:"id,omitempty"`
+	ID          string `json:"id"`
+	IsStatic    bool   `json:"is_static"`
 	Name        string `json:"name,omitempty"`
-	Description string `json:"description"`
+	Description string `json:"description,omitempty"`
+	DisplayName string `json:"display_name,omitempty"`
+	NodeType    string `json:"node_type,omitempty"`
+	ParentID    string `json:"-"`
+	Path        string `json:"path,omitempty"`
 }

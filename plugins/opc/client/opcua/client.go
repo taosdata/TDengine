@@ -1,11 +1,6 @@
 package opcua
 
 import (
-	"collector/client"
-	"collector/common"
-	"collector/config"
-	"collector/log"
-	"collector/types"
 	"context"
 	"crypto/rsa"
 	"crypto/tls"
@@ -18,6 +13,12 @@ import (
 	"sync"
 	"time"
 
+	"collector/client"
+	"collector/common"
+	"collector/config"
+	"collector/log"
+	"collector/types"
+
 	"collector/regexp"
 
 	"github.com/gopcua/opcua"
@@ -25,6 +26,8 @@ import (
 	"github.com/gopcua/opcua/ua"
 	"github.com/sirupsen/logrus"
 )
+
+const ObjectRootID = "i=85"
 
 type UAClient struct {
 	onMessage     client.OnMessage
@@ -54,6 +57,8 @@ type UAClient struct {
 	reconnectMutex sync.Mutex
 
 	autoReconnect bool
+
+	getPointsCache sync.Map
 }
 
 type subscription struct {
@@ -277,6 +282,19 @@ func (c *UAClient) getServerLimit(needMonitorLimit bool) error {
 		c.maxNodesPerRead = 1000
 		c.logger.Warn("get max node per read 0, set maxNodesPerRead 1000")
 	}
+	if errors.Is(resp.Results[2].Status, ua.StatusOK) {
+		c.maxNodesPerBrowse = resp.Results[2].Value.Uint()
+		if c.maxNodesPerBrowse == 0 {
+			c.maxNodesPerBrowse = uint64(resp.Results[2].Value.Int())
+		}
+		c.logger.Info("get max nodes per browse success, ", c.maxNodesPerBrowse)
+	} else {
+		c.logger.Warn("get max node per browse fail")
+	}
+	if c.maxNodesPerBrowse == 0 {
+		c.logger.Warn("get max nodes per browse 0, set maxNodesPerBrowse 1000")
+		c.maxNodesPerBrowse = 1000
+	}
 	if needMonitorLimit {
 		if errors.Is(resp.Results[1].Status, ua.StatusOK) {
 			c.maxMonitoredItemsPerCall = resp.Results[1].Value.Uint()
@@ -292,19 +310,6 @@ func (c *UAClient) getServerLimit(needMonitorLimit bool) error {
 			c.logger.Warn("get max monitored items per call 0, set maxMonitoredItemsPerCall 1000")
 		}
 
-		if errors.Is(resp.Results[2].Status, ua.StatusOK) {
-			c.maxNodesPerBrowse = resp.Results[2].Value.Uint()
-			if c.maxNodesPerBrowse == 0 {
-				c.maxNodesPerBrowse = uint64(resp.Results[2].Value.Int())
-			}
-			c.logger.Info("get max nodes per browse success, ", c.maxNodesPerBrowse)
-		} else {
-			c.logger.Warn("get max node per browse fail")
-		}
-		if c.maxNodesPerBrowse == 0 {
-			c.logger.Warn("get max nodes per browse 0, set maxNodesPerBrowse 1000")
-			c.maxNodesPerBrowse = 1000
-		}
 	}
 	return nil
 }
@@ -808,11 +813,6 @@ func (c *UAClient) Namespaces() []string {
 	return c.conn.Namespaces()
 }
 
-type childrenResp struct {
-	index    int
-	children []*opcua.Node
-}
-
 type TokenBucket struct {
 	token chan struct{}
 }
@@ -835,7 +835,46 @@ func (t *TokenBucket) Put() {
 	t.token <- struct{}{}
 }
 
-func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error) {
+type bfsListElement struct {
+	node        *opcua.Node
+	id          string
+	browseName  string
+	displayName string
+	parentID    string
+	path        string
+	nodeClass   ua.NodeClass
+}
+
+func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]*common.Point, error) {
+	points, err := c.getCollectPoints(conf)
+	if err != nil {
+		return nil, err
+	}
+	var result []*common.Point
+	for _, point := range points {
+		result = c.AppendParent(point, result)
+	}
+	return result, nil
+}
+
+func (c *UAClient) AppendParent(point *common.Point, result []*common.Point) []*common.Point {
+	for {
+		result = append(result, point)
+		val, ok := c.getPointsCache.LoadAndDelete(point.ParentID)
+		if !ok {
+			// parent not exists
+			return result
+		}
+		parentPoint := val.(*common.Point)
+		point = parentPoint
+	}
+}
+
+func escapePathName(name string) string {
+	return strings.ReplaceAll(name, ".", `\.`)
+}
+
+func (c *UAClient) getCollectPoints(conf config.PointsConfig) ([]*common.Point, error) {
 	if c.conn == nil {
 		return nil, fmt.Errorf("opc ua client is nil")
 	}
@@ -868,8 +907,8 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 			return nil, fmt.Errorf("invalid regex_id: %w", err)
 		}
 	}
-
-	rootId, err := ua.ParseNodeID(conf.Ua.Root) // objects node
+	rootIDStr := conf.Ua.Root
+	rootId, err := ua.ParseNodeID(rootIDStr) // objects node
 	if err != nil {
 		return nil, err
 	}
@@ -879,31 +918,86 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 		nsMap[ns] = struct{}{}
 	}
 	rootNode := c.conn.Node(rootId)
+	isObjectRoot := rootIDStr == ObjectRootID
 	ctx := c.ctx
-	bfsList := []*opcua.Node{rootNode}
-	var result []common.Point
+	// BFS list of nodes to traverse at the current level
+	rootElement := &bfsListElement{
+		node:     rootNode,
+		parentID: "",
+		id:       rootIDStr,
+	}
+	rootAttributes, err := rootNode.Attributes(
+		ctx,
+		ua.AttributeIDNodeClass,   // to get node class
+		ua.AttributeIDBrowseName,  // to get browse name
+		ua.AttributeIDDisplayName, // to get display name
+		ua.AttributeIDDescription, // to get description
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get root node attributes error: %w", err)
+	}
+	if !errors.Is(rootAttributes[0].Status, ua.StatusOK) {
+		return nil, fmt.Errorf("get root node node class attributes error: %s", rootAttributes[0].Status)
+	}
+	rootElement.nodeClass = ua.NodeClass(rootAttributes[0].Value.Int())
+	if !errors.Is(rootAttributes[1].Status, ua.StatusOK) {
+		return nil, fmt.Errorf("get root node browse name attributes error: %s", rootAttributes[1].Status)
+	}
+	rootElement.browseName = rootAttributes[1].Value.String()
+	if !errors.Is(rootAttributes[2].Status, ua.StatusOK) {
+		return nil, fmt.Errorf("get root node display name attributes error: %s", rootAttributes[2].Status)
+	}
+	rootElement.displayName = rootAttributes[2].Value.String()
+	description := ""
+	if !errors.Is(rootAttributes[3].Status, ua.StatusOK) {
+		c.logger.WithField("status", rootAttributes[3].Status).Warn("get root node description attributes error")
+	}
+	rootElement.path = escapePathName(rootElement.displayName)
+	point := &common.Point{
+		ID:          rootElement.id,
+		Name:        rootElement.browseName,
+		Description: description,
+		DisplayName: rootElement.displayName,
+		NodeType:    nodeClassNames[rootElement.nodeClass],
+		ParentID:    "",
+		Path:        rootElement.path,
+		IsStatic:    true,
+	}
+	c.getPointsCache.Store(rootIDStr, point)
+
+	bfsList := []*bfsListElement{
+		rootElement,
+	}
+	var result []*common.Point
 	m := sync.Map{}
 	wg := sync.WaitGroup{}
 	bucket := NewTokenBucket(runtime.NumCPU() * 2)
+
+	// each get points operation max points. Each point has len(attributes) attributes
+	maxNodePerGetPoints := 1
+	if int(c.maxNodesPerRead) > len(attributes) {
+		maxNodePerGetPoints = int(c.maxNodesPerRead) / len(attributes)
+	}
+
 	// bfs
 	for {
 		if len(bfsList) == 0 {
 			break
 		}
 		nodeCount := len(bfsList)
-		childrenChannels := make(chan *childrenResp, nodeCount)
-		maxNodePerGetPoints := 1
-		if c.maxNodesPerRead > 3 {
-			maxNodePerGetPoints = int(c.maxNodesPerRead) / 3
-		}
+		// each goroutine get children for one node
+		//childrenChannels := make(chan *childrenResp, nodeCount)
+		// calculate get points operation times. total points / max points per get
 		operation := nodeCount / maxNodePerGetPoints
 		getTimes := operation
 
 		more := false
+		// still have remaining nodes to get attributes
 		if nodeCount%maxNodePerGetPoints != 0 {
 			more = true
 			getTimes += 1
 		}
+		start := time.Now()
 		wg.Add(getTimes)
 		availablePoints := make([][]*common.Point, getTimes)
 		for i := 0; i < operation; i++ {
@@ -911,69 +1005,64 @@ func (c *UAClient) GetAllPoints(conf config.PointsConfig) ([]common.Point, error
 				defer wg.Done()
 				bucket.Get()
 				defer bucket.Put()
-				points := c.getPoints(ctx, c.conn, bfsList[i*maxNodePerGetPoints:(i+1)*maxNodePerGetPoints], reg, regName, regID, nsMap)
+				points := c.getPointsAttribute(ctx, c.conn, bfsList[i*maxNodePerGetPoints:(i+1)*maxNodePerGetPoints], reg, regName, regID, nsMap)
 				availablePoints[i] = points
 			}(i)
 		}
+		// handle remaining nodes
 		if more {
 			go func() {
 				defer wg.Done()
-				points := c.getPoints(ctx, c.conn, bfsList[operation*maxNodePerGetPoints:], reg, regName, regID, nsMap)
+				points := c.getPointsAttribute(ctx, c.conn, bfsList[operation*maxNodePerGetPoints:], reg, regName, regID, nsMap)
 				availablePoints[operation] = points
 			}()
 		}
 		wg.Wait()
-		wg.Add(nodeCount)
-		for i, node := range bfsList {
-			go func(index int, n *opcua.Node) {
-				defer wg.Done()
-				bucket.Get()
-				defer bucket.Put()
-				children, err := getChildren(ctx, n)
-				if err != nil {
-					c.logger.WithError(err).Error("get children error")
-				}
-				m.LoadOrStore(n.String(), struct{}{})
-				childrenChannels <- &childrenResp{
-					index:    index,
-					children: children,
-				}
-			}(i, node)
-		}
-		wg.Wait()
+		c.logger.Debugf("get points attribute spend %d ms", time.Since(start).Milliseconds())
+		// append available points to result
 		for _, points := range availablePoints {
 			if points != nil {
 				for _, point := range points {
-					result = append(result, *point)
+					result = append(result, point)
 					if conf.Limit > 0 && len(result) >= conf.Limit {
 						return result, nil
 					}
 				}
 			}
 		}
+		start = time.Now()
+		children, err := c.getChildrenByList(ctx, bfsList)
+		c.logger.Debugf("get children by list spend %d ms", time.Since(start).Milliseconds())
+		if err != nil {
+			break
+		}
+
+		// Clear the current level's node list to prepare for storing the next level's nodes
 		bfsList = bfsList[:0]
-		for i := 0; i < nodeCount; i++ {
-			select {
-			case resp := <-childrenChannels:
-				for _, child := range resp.children {
-					childID := child.String()
-					if c.isKepServer {
-						paths := strings.Split(childID, ".")
-						if len(paths) > 1 && strings.HasPrefix(paths[len(paths)-1], "_") {
-							continue
-						}
-					}
-					//avoid nested loops
-					_, ok := m.Load(childID)
-					if !ok {
-						bfsList = append(bfsList, child)
-						m.Store(childID, struct{}{})
-					}
+		for _, child := range children {
+			childID := child.id
+			if isObjectRoot {
+				// ignore Server and Aliases
+				if childID == "i=2253" || childID == "i=23470" {
+					continue
 				}
 			}
+			if c.isKepServer {
+				paths := strings.Split(childID, ".")
+				if len(paths) > 1 && strings.HasPrefix(paths[len(paths)-1], "_") {
+					continue
+				}
+			}
+			//avoid nested loops
+			_, ok := m.Load(childID)
+			if !ok {
+				bfsList = append(bfsList, child)
+				m.Store(childID, struct{}{})
+			}
 		}
+		isObjectRoot = false
 		sort.Slice(bfsList, func(i, j int) bool {
-			return bfsList[i].ID.String() < bfsList[j].ID.String()
+			return bfsList[i].node.ID.String() < bfsList[j].node.ID.String()
 		})
 	}
 	return result, nil
@@ -996,26 +1085,27 @@ var convertType = map[ua.TypeID]types.ValueType{
 }
 
 var attributes = []ua.AttributeID{
-	ua.AttributeIDNodeClass,
-	ua.AttributeIDBrowseName,
 	ua.AttributeIDDescription,
 }
 
 var attributeNames = []string{
-	"NodeClass",
-	"BrowseName",
 	"Description",
 }
 
-func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcua.Node, pointRegex, nameRegex, idRegex regexp.Regexp, nsMap map[uint16]struct{}) []*common.Point {
-	nodes := make([]*opcua.Node, 0, len(ns))
+var nodeClassNames = []string{
+	ua.NodeClassObject:   "Object",
+	ua.NodeClassVariable: "Variable",
+}
+
+func (c *UAClient) getPointsAttribute(ctx context.Context, conn *opcua.Client, ns []*bfsListElement, pointRegex, nameRegex, idRegex regexp.Regexp, nsMap map[uint16]struct{}) []*common.Point {
+	nodes := make([]*bfsListElement, 0, len(ns))
 	for i := 0; i < len(ns); i++ {
 		if len(nsMap) == 0 {
-			if ns[i].ID.Namespace() == 0 {
+			if ns[i].node.ID.Namespace() == 0 {
 				continue
 			}
 		} else {
-			if _, ok := nsMap[ns[i].ID.Namespace()]; !ok {
+			if _, ok := nsMap[ns[i].node.ID.Namespace()]; !ok {
 				continue
 			}
 		}
@@ -1025,7 +1115,7 @@ func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcu
 	for _, node := range nodes {
 		for i := 0; i < len(attributes); i++ {
 			req.NodesToRead = append(req.NodesToRead, &ua.ReadValueID{
-				NodeID:      node.ID,
+				NodeID:      node.node.ID,
 				AttributeID: attributes[i],
 			})
 		}
@@ -1041,50 +1131,50 @@ func (c *UAClient) getPoints(ctx context.Context, conn *opcua.Client, ns []*opcu
 	var result []*common.Point
 	for i := 0; i < len(nodes); i++ {
 		index := i * len(attributes)
+		parent := nodes[i].parentID
+		nodeID := nodes[i].id
+		path := nodes[i].path
+		displayName := nodes[i].displayName
+		browseName := nodes[i].browseName
 		// node class
-		err = res.Results[index].Status
-		if !errors.Is(err, ua.StatusOK) {
-			c.logger.WithError(err).WithField("nodeID", nodes[i].ID.String()).Errorf("get node attribute %s error", attributeNames[0])
+		nodeType := nodes[i].nodeClass
+		if nodeType != ua.NodeClassVariable && nodeType != ua.NodeClassObject {
 			continue
-		}
-		v := res.Results[index].Value
-		if v == nil || ua.NodeClass(v.Int()) != ua.NodeClassVariable {
-			continue
-		}
-		// Browse Name
-		err = res.Results[index+1].Status
-		if !errors.Is(err, ua.StatusOK) {
-			c.logger.WithError(err).WithField("nodeID", nodes[i].ID.String()).Errorf("get node attribute %s error", attributeNames[1])
-			continue
-		}
-		browseName := ""
-		if res.Results[index+1].Value != nil {
-			browseName = res.Results[index+1].Value.String()
 		}
 		// get Description attribute
 		description := ""
-		err = res.Results[index+2].Status
+		err = res.Results[index].Status
 		// ignore get description error, some nodes may not have description
 		if errors.Is(err, ua.StatusOK) {
 			// success
-			if res.Results[index+2].Value != nil {
-				description = res.Results[index+2].Value.String()
+			if res.Results[index].Value != nil {
+				description = res.Results[index].Value.String()
 			}
 		} else if !errors.Is(err, ua.StatusBadAttributeIDInvalid) {
 			// log error if not BadAttributeIDInvalid
-			c.logger.WithError(err).WithField("nodeID", nodes[i].ID.String()).Errorf("get node attribute %s error", attributeNames[2])
+			c.logger.WithError(err).WithField("nodeID", nodeID).Errorf("get node attribute %s error", attributeNames[0])
 		}
 
 		point := &common.Point{
-			ID:          nodes[i].ID.String(),
+			ID:          nodeID,
 			Name:        browseName,
 			Description: description,
+			DisplayName: displayName,
+			NodeType:    nodeClassNames[nodeType],
+			ParentID:    parent,
+			Path:        path,
+			IsStatic:    true,
 		}
+		c.getPointsCache.Store(nodeID, point)
 		if (pointRegex != nil && !(pointRegex.MatchString(point.Name) || pointRegex.MatchString(point.ID))) ||
 			(nameRegex != nil && !nameRegex.MatchString(point.Name)) ||
 			(idRegex != nil && !idRegex.MatchString(point.ID)) {
 			continue
 		}
+		if nodeType != ua.NodeClassVariable {
+			continue
+		}
+		point.IsStatic = false
 		result = append(result, point)
 	}
 	if len(result) > 0 {
@@ -1142,16 +1232,174 @@ func (c *UAClient) getKepServerDescription(ctx context.Context, conn *opcua.Clie
 	}
 }
 
-func getChildren(ctx context.Context, n *opcua.Node) ([]*opcua.Node, error) {
-	children := make([]*opcua.Node, 0)
-	refs, err := n.ReferencedNodes(ctx, id.HierarchicalReferences, ua.BrowseDirectionForward, ua.NodeClassAll, true)
+// Get child nodes for the given parent node
+func getChildren(ctx context.Context, n *bfsListElement) ([]*bfsListElement, error) {
+	var children []*bfsListElement
+	parentID := n.node.ID.String()
+	refs, err := n.node.ReferencedNodes(ctx, id.HierarchicalReferences, ua.BrowseDirectionForward, ua.NodeClassAll, true)
 	if err != nil {
 		return nil, fmt.Errorf("reference: %d: %s", id.HierarchicalReferences, err)
 	}
 	if len(refs) > 0 {
-		children = append(children, refs...)
+		for _, ref := range refs {
+			children = append(children, &bfsListElement{
+				node:     ref,
+				parentID: parentID,
+			})
+		}
 	}
 	return children, nil
+}
+
+const refType = uint32(id.HierarchicalReferences)
+
+var refTypeID = ua.NewNumericNodeID(0, refType)
+
+const dir = ua.BrowseDirectionForward
+const mask = uint32(ua.NodeClassObject + ua.NodeClassVariable)
+const resultMask = uint32(ua.BrowseResultMaskAll)
+
+func (c *UAClient) getChildrenByList(ctx context.Context, nodes []*bfsListElement) ([]*bfsListElement, error) {
+	browseNodes := nodes
+	batchTimes := len(browseNodes) / int(c.maxNodesPerBrowse)
+	more := false
+	if len(browseNodes)%int(c.maxNodesPerBrowse) != 0 {
+		batchTimes += 1
+		more = true
+	}
+	var children []*bfsListElement
+	for i := 0; i < batchTimes; i++ {
+		startIndex := i * int(c.maxNodesPerBrowse)
+		endIndex := (i + 1) * int(c.maxNodesPerBrowse)
+		if !more && i == batchTimes-1 {
+			endIndex = len(browseNodes)
+		} else if more && i == batchTimes-1 {
+			endIndex = len(browseNodes)
+		}
+		result, err := c.doBrowse(ctx, browseNodes[startIndex:endIndex])
+		if err != nil {
+			return nil, err
+		}
+		refs := c.browseNext(ctx, result)
+		for j, ref := range refs {
+			if len(ref) > 0 {
+				for _, refItem := range ref {
+					browseName := ""
+					if refItem.BrowseName != nil && refItem.BrowseName.Name != "" {
+						browseName = refItem.BrowseName.Name
+					}
+					displayName := ""
+					if refItem.DisplayName != nil && refItem.DisplayName.Text != "" {
+						displayName = refItem.DisplayName.Text
+					}
+					nodeId := c.conn.NodeFromExpandedNodeID(refItem.NodeID)
+					browseNode := browseNodes[startIndex+j]
+					parentID := browseNode.id
+					path := browseNode.path + "." + escapePathName(displayName)
+
+					children = append(children, &bfsListElement{
+						node:        nodeId,
+						id:          nodeId.String(),
+						browseName:  browseName,
+						displayName: displayName,
+						nodeClass:   refItem.NodeClass,
+						parentID:    parentID,
+						path:        path,
+					})
+				}
+			}
+		}
+	}
+	return children, nil
+}
+
+func (c *UAClient) doBrowse(ctx context.Context, nodes []*bfsListElement) ([]*ua.BrowseResult, error) {
+	browseDesc := make([]*ua.BrowseDescription, 0, len(nodes))
+	for _, node := range nodes {
+		n := node.node
+		desc := &ua.BrowseDescription{
+			NodeID:          n.ID,
+			BrowseDirection: dir,
+			ReferenceTypeID: refTypeID,
+			IncludeSubtypes: true,
+			NodeClassMask:   mask,
+			ResultMask:      resultMask,
+		}
+		browseDesc = append(browseDesc, desc)
+	}
+	req := &ua.BrowseRequest{
+		View: &ua.ViewDescription{
+			ViewID: ua.NewTwoByteNodeID(0),
+		},
+		RequestedMaxReferencesPerNode: 0,
+		NodesToBrowse:                 browseDesc,
+	}
+	resp, err := c.conn.Browse(ctx, req)
+	if err != nil {
+		c.logger.WithError(err).Error("browse error")
+		return nil, fmt.Errorf("browse nodes error: %w", err)
+	}
+	return resp.Results, nil
+}
+
+func (c *UAClient) browseNext(ctx context.Context, results []*ua.BrowseResult) [][]*ua.ReferenceDescription {
+	refResults := make([][]*ua.ReferenceDescription, len(results))
+	for i, result := range results {
+		refResults[i] = result.References
+	}
+	browseResults := results
+	var refs [][]*ua.ReferenceDescription
+	for {
+		browseResults, refs = c.doBrowseNext(ctx, browseResults)
+		if refs == nil {
+			break
+		}
+		for i := 0; i < len(refs); i++ {
+			if len(refs[i]) > 0 {
+				refResults[i] = append(refResults[i], refs[i]...)
+			}
+		}
+	}
+	return refResults
+}
+
+func (c *UAClient) doBrowseNext(ctx context.Context, result []*ua.BrowseResult) ([]*ua.BrowseResult, [][]*ua.ReferenceDescription) {
+	var continuationPoints [][]byte
+	hasContinuationPoint := make([]bool, len(result))
+	resultDescriptions := make([][]*ua.ReferenceDescription, len(result))
+	resultBrowse := make([]*ua.BrowseResult, len(result))
+	for i, res := range result {
+		if res != nil && len(res.ContinuationPoint) > 0 {
+			hasContinuationPoint[i] = true
+			continuationPoints = append(continuationPoints, res.ContinuationPoint)
+		}
+	}
+	if len(continuationPoints) == 0 {
+		return nil, nil
+	}
+	req := &ua.BrowseNextRequest{
+		ContinuationPoints:        continuationPoints,
+		ReleaseContinuationPoints: false,
+	}
+	resp, err := c.conn.BrowseNext(ctx, req)
+	if err != nil {
+		c.logger.WithError(err).Error("browse next error")
+		return nil, nil
+	}
+	resultIndex := 0
+	for i := 0; i < len(result); i++ {
+		if hasContinuationPoint[i] {
+			res := resp.Results[resultIndex]
+			resultIndex++
+			if !errors.Is(res.StatusCode, ua.StatusOK) {
+				c.logger.WithError(err).Error("browse next response status error")
+				continue
+			}
+			resultBrowse[i] = res
+			resultDescriptions[i] = res.References
+		}
+	}
+	return resultBrowse, resultDescriptions
 }
 
 func (c *UAClient) Close() error {

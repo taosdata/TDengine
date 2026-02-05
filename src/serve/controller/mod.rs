@@ -54,15 +54,14 @@ use crate::build;
 pub use crate::serve::controller::agent::Activity;
 use crate::serve::rpc::encode_csv_config_file;
 use crate::serve::task::{DeleteTaskParam, ExportTaskDetail, ExportTasksResult};
-use taosx_core::QueryDataSourceReq;
 use taosx_core::core_metrics::clear_metrics;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::sink::point::csv::CsvParser;
 use taosx_core::plugins::transform::sample::DsSamples;
-use taosx_core::runners::opc::config::OPCConfig;
 use taosx_core::utils::breakpoints::{breakpoints_get_all, export_breakpoints_to_compressed_csv};
 use taosx_core::utils::get_string_content_from_param_value;
 use taosx_core::{DataSet, DataSetsReq, PutFileReq, Response, get_data_dir};
+use taosx_core::{QueryDataSourceReq, utils};
 use tmq_to_local::conf::BackupConfigBuilder;
 
 pub(crate) mod agent;
@@ -668,6 +667,7 @@ async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// 将 DSN 参数中以 @ 开头的文件内容内联到参数值中。
 async fn set_file_contents(dsn: &mut Dsn) -> anyhow::Result<()> {
     let dsn_clone = dsn.clone();
     let mut map = BTreeMap::new();
@@ -2092,7 +2092,10 @@ impl TaskController {
         categories: String,
         via: Option<i64>,
     ) -> anyhow::Result<Vec<DataSet>> {
-        if let Some(csv_config_file) = OPCConfig::parse_csv_config_file(dsn) {
+        // convert csv_config_file to inline content
+        if let Some(csv_config_file) =
+            utils::parse_key_in_dsn::<String>(dsn, "csv_config_file").unwrap_or(None)
+        {
             let new_value = encode_csv_config_file(csv_config_file)?;
             dsn.params.insert("csv_config_file".to_string(), new_value);
         }

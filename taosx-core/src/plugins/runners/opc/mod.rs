@@ -1,6 +1,8 @@
 use anyhow::{Context, bail};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt::Display;
+use std::sync::{Arc, OnceLock};
 use std::{io::prelude::*, path::PathBuf};
 use taos::{Dsn, IntoDsn};
 use taosx_ipc::types::OptionSet;
@@ -14,12 +16,14 @@ use crate::runners::opc::config::{OPCConfig, PointsMode};
 use crate::sink::point::csv::parse_csv_config_files;
 use crate::sink::point::model::SourceType;
 use crate::utils::dsn::json_to_dsn;
+use crate::utils::parse_key_in_dsn;
 use crate::{DataSet, DataSetsReq};
 
 pub mod config;
+pub mod points;
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Hash, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum OpcType {
     OPCUA,
@@ -146,10 +150,34 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         anyhow::bail!("categories is empty");
     }
 
-    opc_datasets_impl(from).await
+    let opc_points_mode = parse_key_in_dsn::<String>(&from, "opc_points_mode")
+        .unwrap_or(Some("variable".to_string()))
+        .unwrap_or("variable".to_string());
+    match opc_points_mode.to_lowercase().as_str() {
+        "variable" => {
+            tracing::info!("OPC points mode: variable");
+            let filter = points::OpcNode::variable_node_filter();
+            opc_datasets_impl(from, Some(filter)).await
+        }
+        "object" => {
+            tracing::info!("OPC points mode: object");
+            let filter = points::OpcNode::object_node_filter();
+            opc_datasets_impl(from, Some(filter)).await
+        }
+        "all" => {
+            tracing::info!("OPC points mode: all");
+            opc_datasets_impl(from, None).await
+        }
+        _ => {
+            anyhow::bail!("invalid opc_points_mode: {}", opc_points_mode);
+        }
+    }
 }
 
-async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
+async fn opc_datasets_impl(
+    from: Dsn,
+    filter: Option<fn(&points::OpcNode) -> bool>,
+) -> anyhow::Result<Vec<DataSet>> {
     let certificate = get_temp_file(&from, "certificate");
     let private_key = get_temp_file(&from, "private_key");
     let auth_certificate = get_temp_file(&from, "auth_certificate");
@@ -179,7 +207,33 @@ async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
             config.set_temp_filepath("auth_certificate", auth_certificate.as_ref())?;
             config.set_temp_filepath("auth_private_key", auth_private_key.as_ref())?;
 
-            opc_datasets_by_command(&config).await?
+            // 尝试缓存命中
+            let cache_key = points::OpcCacheKey::from(&config);
+            let regex_name = config.points.as_ref().and_then(|p| p.regex_name.as_deref());
+            let regex_id = config.points.as_ref().and_then(|p| p.regex_id.as_deref());
+
+            let cache_enabled = is_opc_cache_enabled();
+
+            if cache_enabled {
+                if let Some(nodes) = get_cached_opc_nodes(&cache_key).await {
+                    tracing::info!("OPC points cache hit");
+                    let datasets = nodes_to_datasets(&nodes, filter)?;
+                    filter_datasets_by_regex(datasets, regex_name, regex_id)?
+                } else {
+                    tracing::info!("OPC points cache miss, executing command");
+                    let nodes = fetch_opc_nodes_by_command(&config).await?;
+                    put_cached_opc_nodes(cache_key, nodes.clone()).await;
+                    let datasets = nodes_to_datasets(&nodes, filter)?;
+                    filter_datasets_by_regex(datasets, regex_name, regex_id)?
+                }
+            } else {
+                tracing::info!(
+                    "OPC points cache disabled by TAOSX_OPC_CACHE_ENABLE=false, executing command"
+                );
+                let nodes = fetch_opc_nodes_by_command(&config).await?;
+                let datasets = nodes_to_datasets(&nodes, filter)?;
+                filter_datasets_by_regex(datasets, regex_name, regex_id)?
+            }
         }
     };
 
@@ -228,8 +282,8 @@ async fn to_opc_dataset_vec(model_config: &PointModelConfig) -> anyhow::Result<V
     Ok(datasets)
 }
 
-/// 通过执行 taosx-opc points 命令获取 opc 点位
-async fn opc_datasets_by_command(config: &OPCConfig) -> anyhow::Result<Vec<DataSet>> {
+/// 执行 taosx-opc points 命令并返回原始 OpcNode 列表
+async fn fetch_opc_nodes_by_command(config: &OPCConfig) -> anyhow::Result<Vec<points::OpcNode>> {
     let toml =
         toml::to_string(&config).with_context(|| "toml to_string error encountered".to_string())?;
     let mut config_file = NamedTempFile::new()?;
@@ -287,9 +341,88 @@ async fn opc_datasets_by_command(config: &OPCConfig) -> anyhow::Result<Vec<DataS
         }
     }
     temp_path.close()?;
-
-    let res: Vec<DataSet> = serde_json::from_slice(&output.stdout)?;
+    let res: Vec<points::OpcNode> = serde_json::from_slice(&output.stdout)?;
+    tracing::info!("Get {} OPC Nodes", res.len());
     Ok(res)
+}
+
+/// 将 OpcNode 列表转换为 DataSet，并应用节点级过滤
+fn nodes_to_datasets(
+    nodes: &[points::OpcNode],
+    filter: Option<fn(&points::OpcNode) -> bool>,
+) -> anyhow::Result<Vec<DataSet>> {
+    nodes
+        .iter()
+        .filter(|node| filter.is_none_or(|f| f(node)))
+        .cloned()
+        .map(TryInto::<DataSet>::try_into)
+        .collect::<Result<Vec<_>, _>>()
+        .with_context(|| "Convert OpcNode to DataSet error")
+}
+
+/// 根据 regex_name 和 regex_id 对 DataSet 进行二次过滤
+fn filter_datasets_by_regex(
+    datasets: Vec<DataSet>,
+    regex_name: Option<&str>,
+    regex_id: Option<&str>,
+) -> anyhow::Result<Vec<DataSet>> {
+    let re_name = match regex_name {
+        Some(pat) if !pat.is_empty() => Some(regex::Regex::new(pat)?),
+        _ => None,
+    };
+    let re_id = match regex_id {
+        Some(pat) if !pat.is_empty() => Some(regex::Regex::new(pat)?),
+        _ => None,
+    };
+
+    let filtered = datasets
+        .into_iter()
+        .filter(|ds| {
+            let name_ok = match (&re_name, &ds.name) {
+                (None, _) => true,
+                (Some(re), Some(name)) => re.is_match(name.as_str()),
+                (Some(_), None) => false,
+            };
+            let id_ok = match &re_id {
+                None => true,
+                Some(re) => re.is_match(ds.id.as_str()),
+            };
+            name_ok && id_ok
+        })
+        .collect::<Vec<_>>();
+    Ok(filtered)
+}
+
+// ---- 简易内存缓存：存储原始 OpcNode 结果，用于二次过滤与复用 ----
+static OPC_POINTS_CACHE: OnceLock<
+    tokio::sync::RwLock<HashMap<points::OpcCacheKey, Arc<Vec<points::OpcNode>>>>,
+> = OnceLock::new();
+
+fn get_cache()
+-> &'static tokio::sync::RwLock<HashMap<points::OpcCacheKey, Arc<Vec<points::OpcNode>>>> {
+    OPC_POINTS_CACHE.get_or_init(|| tokio::sync::RwLock::new(HashMap::new()))
+}
+
+/// Check whether OPC points cache is enabled via env `TAOSX_OPC_CACHE_ENABLE`.
+/// - Unset or any value other than explicit "false" (case-insensitive) => enabled
+/// - Explicitly set to "false" => disabled
+fn is_opc_cache_enabled() -> bool {
+    match std::env::var("TAOSX_OPC_CACHE_ENABLE") {
+        Ok(v) => !v.trim().eq_ignore_ascii_case("false"),
+        Err(_) => true,
+    }
+}
+
+async fn get_cached_opc_nodes(key: &points::OpcCacheKey) -> Option<Arc<Vec<points::OpcNode>>> {
+    let cache = get_cache();
+    let guard = cache.read().await;
+    guard.get(key).cloned()
+}
+
+async fn put_cached_opc_nodes(key: points::OpcCacheKey, nodes: Vec<points::OpcNode>) {
+    let cache = get_cache();
+    let mut guard = cache.write().await;
+    guard.insert(key, Arc::new(nodes));
 }
 
 /// 过滤 opc 错误日志，去掉 info 日志
@@ -396,7 +529,7 @@ panic: (*logrus.Entry) 0xc00034aaf0"#.to_string();
                 .unwrap();
             let config = OPCConfig::from_dsn_point_mode(&dsn).unwrap();
 
-            let datasets = opc_datasets_by_command(&config).await.unwrap();
+            let datasets = fetch_opc_nodes_by_command(&config).await.unwrap();
             dbg!(&datasets);
         }
     }
