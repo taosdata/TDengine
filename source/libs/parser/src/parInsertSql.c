@@ -1693,10 +1693,11 @@ int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf, i
   if ((pToken->type != TK_NOW && pToken->type != TK_TODAY && pToken->type != TK_NK_INTEGER &&
        pToken->type != TK_NK_STRING && pToken->type != TK_NK_FLOAT && pToken->type != TK_NK_BOOL &&
        pToken->type != TK_NULL && pToken->type != TK_NK_HEX && pToken->type != TK_NK_OCT && pToken->type != TK_NK_BIN &&
-       pToken->type != TK_NK_VARIABLE && pToken->type != TK_FROM_BASE64 && pToken->type != TK_TO_BASE64 &&
+       pToken->type != TK_NK_VARIABLE &&
+       pToken->type != TK_FROM_BASE64 && pToken->type != TK_TO_BASE64 &&
        pToken->type != TK_MD5 && pToken->type != TK_SHA && pToken->type != TK_SHA1 && pToken->type != TK_SHA2 &&
-       pToken->type != TK_AES_ENCRYPT && pToken->type != TK_AES_DECRYPT && pToken->type != TK_SM4_ENCRYPT &&
-       pToken->type != TK_SM4_DECRYPT) ||
+       pToken->type != TK_AES_ENCRYPT && pToken->type != TK_AES_DECRYPT &&
+       pToken->type != TK_SM4_ENCRYPT && pToken->type != TK_SM4_DECRYPT) ||
       (pToken->n == 0) || (pToken->type == TK_NK_RP)) {
     return buildSyntaxErrMsg(pMsgBuf, "invalid data or symbol", pToken->z);
   }
@@ -2239,6 +2240,7 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
   if (TSDB_CODE_SUCCESS == code) {
     if (pPrivCols) pStmt->pPrivCols = pPrivCols;
 #ifdef TD_ENTERPRISE
+#if 0
     if (pStmt->pTableMeta && pStmt->pTableMeta->isAudit) {
       // recheck for audit table
       code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, true, &pCxt->missCache, NULL, NULL, NULL);
@@ -2247,6 +2249,7 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
         return code;
       }
     }
+#endif
     if (!pCxt->missCache) {
       if (TSDB_SUPER_TABLE != pStmt->pTableMeta->tableType) {
         pCxt->needTableTagVal = (NULL != pTagCond);
@@ -4379,7 +4382,7 @@ static int32_t checkAuthUseDb(SParseContext* pCxt, SName* pTbName, bool isAudit)
                            .mgmtEps = pCxt->mgmtEpSet};
   code = catalogChkAuth(pCxt->pCatalog, &conn, &authInfo, &authRes);  // cache used firstly inside the function
   if (TSDB_CODE_SUCCESS == code && !authRes.pass[AUTH_RES_BASIC]) {
-    code = TSDB_CODE_PAR_PERMISSION_DENIED;
+    code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
   return code;
 }

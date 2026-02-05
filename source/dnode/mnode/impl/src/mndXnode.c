@@ -728,8 +728,8 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
 
   int32_t numOfRows = sdbGetSize(pMnode->pSdb, SDB_XNODE_USER_PASS);
   if (numOfRows <= 0) {
-    (void)mndCreateXnode(pMnode, NULL, &createReq);
     if (createReq.token.ptr != NULL) {
+      (void)mndCreateXnode(pMnode, NULL, &createReq);
       code = mndStoreXnodeUserPassToken(pMnode, pReq, &createReq);
       if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
         lino = __LINE__;
@@ -738,6 +738,7 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
       mndStartXnoded(pMnode, NULL, NULL, createReq.token.ptr);
     } else if (createReq.user != NULL) {
       TAOS_CHECK_GOTO(xnodeCheckPasswordFmt(createReq.pass), &lino, _OVER);
+      (void)mndCreateXnode(pMnode, NULL, &createReq);
       code = mndStoreXnodeUserPassToken(pMnode, pReq, &createReq);
       if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
         lino = __LINE__;
@@ -753,6 +754,7 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
         lino = __LINE__;
         goto _OVER;
       }
+      (void)mndCreateXnode(pMnode, NULL, &createReq);
       createReq.token = xCreateCowStr(strlen(pToken), pToken, false);
       (void)mndStoreXnodeUserPassToken(pMnode, NULL, &createReq);
       mndStartXnoded(pMnode, NULL, NULL, createReq.token.ptr);
@@ -3967,6 +3969,11 @@ SJson *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const
   char      socketPath[PATH_MAX] = {0};
 
   getXnodedPipeName(socketPath, sizeof(socketPath));
+  if (!taosCheckExistFile(socketPath)) {
+    uError("xnode failed to send request, socket path:%s not exist", socketPath);
+    terrno = TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
+    goto _OVER;
+  }
   if (type == HTTP_TYPE_GET) {
     if ((terrno = taosCurlGetRequest(url, &curlRsp, timeout, socketPath)) != 0) {
       goto _OVER;
