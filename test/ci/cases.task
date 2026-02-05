@@ -195,6 +195,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_plan.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_plan_eliminate_virtual_scan.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_plan_pushdown_timerange.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_plan_replace_tbname.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter_origin_table.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
@@ -563,6 +564,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_bugs.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_topics_info.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_max_topics.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_update_tablelist.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_params.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_max_groups.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_discontinuous_data.py
