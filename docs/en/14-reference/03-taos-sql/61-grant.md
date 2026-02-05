@@ -467,7 +467,7 @@ Different object types support different permission types. The specific mapping 
 | CREATE STREAM | ✓ | | | | | | | |
 | USE | ✓ | | | | | | | |
 | SHOW | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SHOW CREATE | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SHOW CREATE | ✓ | ✓ | ✓ | | | ✓ | | |
 | FLUSH | ✓ | | | | | | | |
 | COMPACT | ✓ | | | | | | | |
 | TRIM | ✓ | | | | | | | |

@@ -465,7 +465,7 @@ priv_type: {
 | CREATE STREAM | ✓ | | | | | | | |
 | USE | ✓ | | | | | | | |
 | SHOW | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SHOW CREATE | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SHOW CREATE | ✓ | ✓ | ✓ | | | ✓ | | |
 | FLUSH | ✓ | | | | | | | |
 | COMPACT | ✓ | | | | | | | |
 | TRIM | ✓ | | | | | | | |
