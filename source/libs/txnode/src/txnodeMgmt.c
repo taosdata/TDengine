@@ -66,7 +66,12 @@ static void getXnodedPidPath(char *pipeName, int32_t size) {
 #ifdef _WIN32
   snprintf(pipeName, size, "%s%s", tsDataDir, XNODED_XNODED_PID_NAME);
 #else
-  snprintf(pipeName, size, "%s%s", tsDataDir, XNODED_XNODED_PID_NAME);
+  int32_t len = strlen(tsDataDir);
+  if (len > 0 && tsDataDir[len - 1] != '/') {
+    snprintf(pipeName, size, "%s/%s", tsDataDir, XNODED_XNODED_PID_NAME);
+  } else {
+    snprintf(pipeName, size, "%s%s", tsDataDir, XNODED_XNODED_PID_NAME);
+  }
 #endif
   xndDebug("xnode get xnoded pid path:%s", pipeName);
 }
@@ -74,13 +79,14 @@ static void getXnodedPidPath(char *pipeName, int32_t size) {
 static void    xnodeMgmtXnodedExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal) {
   TAOS_XNODED_MGMT_CHECK_PTR_RVOID(process);
   SXnodedData *pData = process->data;
-  xndDebug("xnoded process exited with status %" PRId64 ", signal %d, isStopped:%d", exitStatus, termSignal, pData->isStopped);
+  xndInfo("process xnoded exit with status %" PRId64 ", signal %d, isStopped:%d", exitStatus, termSignal,
+          pData->isStopped);
   if (pData == NULL) {
     xndError("xnoded process data is NULL");
     return;
   }
-  if ((exitStatus == 0 && termSignal == 0) || atomic_load_32(&pData->isStopped)) {
-    xndInfo("xnoded process exit due to exit status 0 or dnode-mgmt called stop");
+  if ((exitStatus == 0 && (termSignal == 0 || termSignal == SIGINT || termSignal == SIGTERM)) ||
+      atomic_load_32(&pData->isStopped)) {
     if (uv_async_send(&pData->stopAsync) != 0) {
       xndError("stop xnoded: failed to send stop async");
     }
@@ -94,14 +100,14 @@ static void    xnodeMgmtXnodedExit(uv_process_t *process, int64_t exitStatus, in
     memset(pidPath, 0, PATH_MAX);
     getXnodedPidPath(pidPath, PATH_MAX);
     (void)taosRemoveFile(pidPath);
+    xndInfo("xnoded process exit success");
   } else {
     xndInfo("xnoded process restart, exit status %" PRId64 ", signal %d", exitStatus, termSignal);
-    uv_sleep(1000);
     int32_t code = xnodeMgmtSpawnXnoded(pData);
     if (code != 0) {
       xndError("xnoded process restart failed with code:%d", code);
     }
-    uv_sleep(1000);
+    uv_sleep(500);
   }
 }
 void killPreXnoded() {
@@ -418,6 +424,7 @@ int32_t xnodeMgmtStartXnoded(SXnode *pXnode) {
   TAOS_CHECK_GOTO(uv_barrier_init(&pData->barrier, 2), &lino, _exit);
   TAOS_CHECK_GOTO(uv_thread_create(&pData->thread, xnodeMgmtWatchXnoded, pData), &lino, _exit);
   (void)uv_barrier_wait(&pData->barrier);
+  uv_sleep(100);
   int32_t err = atomic_load_32(&pData->spawnErr);
   if (err != 0) {
     uv_barrier_destroy(&pData->barrier);
@@ -452,8 +459,8 @@ void xnodeMgmtStopXnoded(void) {
   }
   atomic_store_32(&pData->isStopped, 1);
   pData->needCleanUp = false;
-  uv_sleep(2000);
   (void)uv_process_kill(&pData->process, SIGTERM);
+  uv_sleep(1000);
   uv_barrier_destroy(&pData->barrier);
 
   xndInfo("xnoded waiting to clean up");

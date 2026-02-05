@@ -892,7 +892,14 @@
 ,,y,.,./ci/pytest.sh pytest cases/30-NameLimits/test_db_tb_name_check.py
 ,,y,.,./ci/pytest.sh pytest cases/30-NameLimits/test_dbtbname_validate.py
 
-# 31-Keywords
+# 31-Security
+
+,,y,.,./ci/pytest.sh pytest cases/31-Security/01-KeyGeneration/test_key_generation.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/02-KeyUpdate/test_key_update.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/03-KeyBackupRestore/test_key_backup_restore.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/04-TransparentEncryption/test_transparent_encryption.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/06-EncryptionStatus/test_encryption_status.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_plaintext_check.py
 
 # 42-xnode
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode.py
