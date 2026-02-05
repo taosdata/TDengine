@@ -2481,6 +2481,9 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  bool    colIdOrdered = true;
+  bool    hasPrevColId = false;
+  int32_t prevColId = 0;
 
   pMatchInfo->matchType = type;
 
@@ -2514,6 +2517,14 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
       c.dataType = pColNode->node.resType;
       void* tmp = taosArrayPush(pList, &c);
       QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+      if (hasPrevColId) {
+        if (c.colId < prevColId) {
+          colIdOrdered = false;
+        }
+      } else {
+        hasPrevColId = true;
+      }
+      prevColId = c.colId;
       if (pNode->slotId >= 0 && pNode->slotId < numOfCols) {
         infoBySlot[pNode->slotId] = (SColMatchItem*)taosArrayGet(pList, taosArrayGetSize(pList) - 1);
       }
@@ -2545,6 +2556,7 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
   }
 
   pMatchInfo->pList = pList;
+  pMatchInfo->colIdOrdered = colIdOrdered;
 
 _end:
   taosMemoryFree(infoBySlot);
