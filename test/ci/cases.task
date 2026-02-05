@@ -847,6 +847,7 @@
 # 25-Privileges
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_bugs.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_control.py
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_rbac.py
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_subscribe.py
 
