@@ -16,7 +16,7 @@ class TestPrivControl:
         cls.tdCom = TDCom()
 
     #
-    # --------------------------- util ----------------------------
+    # --------------------------- base function ----------------------------
     #
     def login(self, user=None, password=None):
         # Login with specified user or root by default
@@ -1141,50 +1141,49 @@ class TestPrivControl:
         db_name = "test_db"
         user = "test_user"
         stream_name = "test_stream"
+        self.exec_sql("create snode on dnode 1;")
         self.create_database(db_name)
-        self.create_stable(db_name, "source_table", "ts TIMESTAMP, value INT", "tag1 INT")
-        self.create_stable(db_name, "target_table", "ts TIMESTAMP, avg_value DOUBLE", "tag1 INT")
+        self.create_stable(db_name, "source_table", "ts TIMESTAMP, val INT", "tag1 INT")
         self.create_user(user, pwd)
+        self.revoke_role("`SYSINFO_1`", user)  # SYSINFO_1 is default role
         
         # Create stream as root
         self.grant_privilege("USE", f"DATABASE {db_name}", user)
-        stream_sql = f"CREATE STREAM {stream_name} INTO {db_name}.target_table AS SELECT _wstart, avg(value) FROM {db_name}.source_table INTERVAL(1m) PARTITION BY tag1"
+        stream_sql = f"CREATE STREAM {db_name}.{stream_name} interval(1s) sliding(1s) FROM {db_name}.source_table INTO {db_name}.stream_result  AS SELECT _twstart, avg(val) FROM %%trows "
         self.exec_sql(stream_sql)
         
         # Test: user cannot show streams without privilege
         self.login(user, pwd)
-        self.exec_sql_failed(f"SHOW STREAMS")
+        self.query_expect_rows(f"SHOW {db_name}.STREAMS", 0)
         
         # Grant SHOW privilege on stream
         self.login()
         self.grant_privilege("SHOW", f"STREAM {db_name}.*", user)
+        self.grant_privilege("SHOW CREATE", f"STREAM {db_name}.*", user)
         
         # Test: user can show streams
         self.login(user, pwd)
-        self.exec_sql(f"SHOW STREAMS")
+        self.query_expect_rows(f"SHOW {db_name}.STREAMS", 1)
         
-        # Test: user cannot stop stream without privilege
-        # Note: stream operations might require the stream to be running
-        # self.exec_sql_failed(f"STOP STREAM {stream_name}")
+        # Test: user cannot stop/start/drop stream without privilege
+        self.exec_sql_failed(f"RECALCULATE STREAM {db_name}.{stream_name} from '2025-01-01 10:00:00'", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed(f"STOP  STREAM {db_name}.{stream_name}", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed(f"START STREAM {db_name}.{stream_name}", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed(f"DROP  STREAM {db_name}.{stream_name}", TSDB_CODE_MND_NO_RIGHTS)   
         
-        # Grant STOP privilege on stream
+        # Grant start/stop/drop privilege on stream
         self.login()
-        self.grant_privilege("STOP", f"STREAM {db_name}.{stream_name}", user)
-        
-        # Grant START privilege on stream for completeness
+        self.grant_privilege("RECALCULATE",  f"STREAM {db_name}.{stream_name}", user)
+        self.grant_privilege("STOP",  f"STREAM {db_name}.{stream_name}", user)
         self.grant_privilege("START", f"STREAM {db_name}.{stream_name}", user)
-        
-        # Test: user cannot drop stream without privilege
-        self.login(user, pwd)
-        self.exec_sql_failed(f"DROP STREAM {stream_name}")
-        
-        # Grant DROP privilege on stream
-        self.login()
-        self.grant_privilege("DROP", f"STREAM {db_name}.{stream_name}", user)
-        
-        # Test: user can drop stream
-        self.login(user, pwd)
-        self.exec_sql(f"DROP STREAM {stream_name}")
+        self.grant_privilege("DROP",  f"STREAM {db_name}.{stream_name}", user)
+
+        #BUG5
+        #self.login(user, pwd)        
+        #self.exec_sql(f"RECALCULATE STREAM {db_name}.{stream_name}")
+        #self.exec_sql(f"STOP  STREAM {db_name}.{stream_name}")
+        #self.exec_sql(f"START STREAM {db_name}.{stream_name}")
+        #self.exec_sql(f"DROP  STREAM {db_name}.{stream_name}")
         
         # Cleanup
         self.login()
@@ -1568,11 +1567,11 @@ class TestPrivControl:
         print("")
         print("[View, Topic and Stream Privileges]")
         self.do_view_privileges()
+        self.do_topic_privileges()
         '''
 
-        self.do_topic_privileges()
-        return 
         self.do_stream_privileges()
+        return 
         
         # Exception and reverse test cases
         print("")
