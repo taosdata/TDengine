@@ -273,7 +273,9 @@ import {
   validOpcFileResult,
   taskId,
   validateFormFields,
-  formatFromData
+  formatFromData,
+  isShowDatasetTable,
+  datasetTableData
 } from '../model/util';
 
 const dataInProps = getDataInProps();
@@ -422,6 +424,16 @@ onMounted(() => {
     oldFiles.value = getFileList(props.modelValue);
     oldValue.value = props.modelValue;
   }
+});
+
+onBeforeUnmount(() => {
+  // Clear polling timer and reset preview state to avoid lingering loading/cached data
+  if (timer.value) {
+    clearInterval(timer.value);
+  }
+  loading.value = false;
+  isShowDatasetTable.value = false;
+  datasetTableData.value = undefined;
 });
 
 function getFileList(data: string) {

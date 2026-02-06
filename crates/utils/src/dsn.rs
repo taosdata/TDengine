@@ -649,6 +649,26 @@ mod tests {
     }
 
     #[test]
+    fn opcua_plus_json_to_dsn_test() -> anyhow::Result<()> {
+        let dsn = json_to_dsn(&serde_json::json!({
+            "agent": "",
+            "type": "opcua",
+            "data": {
+                "endpoint": "192.168.0.34:53530/OPCUA/SimulationServer"
+            }
+        }))?;
+
+        assert_eq!(dsn.driver, "opcua");
+        assert_eq!(dsn.addresses.len(), 1);
+        let addr = dsn.addresses.first().unwrap();
+        assert_eq!(addr.host.as_deref(), Some("192.168.0.34"));
+        assert_eq!(addr.port, Some(53530));
+        assert_eq!(dsn.subject.as_deref(), Some("OPCUA/SimulationServer"));
+
+        Ok(())
+    }
+
+    #[test]
     fn test_option_param_and_parse_option_param() {
         let dsn = Dsn::from_str("taos://?keep_raw_data=true&empty=").unwrap();
         assert_eq!(option_param(&dsn, "keep_raw_data"), Some("true"));

@@ -1,5 +1,5 @@
 import { ref, watch, type ComponentInternalInstance } from 'vue';
-import { validateFormFields, isShowDatasetTable, datasetTableData } from './util';
+import { validateFormFields, isShowDatasetTable, datasetTableData, formatFromData } from './util';
 import { getDataInProps } from './useDataIn';
 
 // 主要是获取预览 opc 点位数据
@@ -28,15 +28,17 @@ export default function () {
     }
   });
 
-  function onValid(param: string, agent: number) {
-    readyData(param, agent);
+  function onValid(param: any, agent: number) {
+    // 使用统一的格式化方法，将前端表单结构转换为后端 from_json 结构
+    const fromJson = formatFromData(param);
+    readyData(fromJson, agent);
   }
   // Methods
   const search = () => {
     validateFormFields(sourceParent?.refs.formRef, onValid);
   };
 
-  const readyData = async (from: string, via: number | string) => {
+  const readyData = async (from: Recordable, via: number | string) => {
     if (loading.value) return;
     try {
       loading.value = true;

@@ -13,13 +13,13 @@ use flume::Sender;
 use ha_core::types::{HaTask, SplitJobResult};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use source_opc::{da_template_row, ua_template_row};
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use taosx_core::runners::opc::OpcType;
 use tracing::instrument;
 
 use self::trigger::Strategy;
 use super::scheduler::TaskScheduler;
-use crate::serve::data_sources::{da_template_row, ua_template_row};
 use crate::serve::rpc::utils::build_activity_batch;
 use crate::serve::scheduler;
 use crate::serve::scheduler::agent::AgentState;
@@ -29,11 +29,10 @@ use ha_core::{activity::Activity, consts::*, jwt::agent::AgentToken};
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::sink::point::csv::CsvParser;
 use taosx_core::plugins::transform::sample::DsSamples;
-use taosx_core::runners::opc::config::OPCConfig;
 use taosx_core::utils::breakpoints::{breakpoints_get_all, export_breakpoints_to_compressed_csv};
 use taosx_core::utils::get_string_content_from_param_value;
-use taosx_core::{DataSet, DataSetsReq, PutFileReq, Response, get_data_dir};
-use taosx_core::{QueryDataSourceReq, list_datasets_from};
+use taosx_core::{DataSet, DataSetsReq, PutFileReq, Response, get_data_dir, list_datasets_from};
+use taosx_core::{QueryDataSourceReq, utils};
 
 pub(crate) mod agent;
 
@@ -395,7 +394,10 @@ impl TaskController {
         categories: String,
         via: Option<i64>,
     ) -> anyhow::Result<Vec<DataSet>> {
-        if let Some(csv_config_file) = OPCConfig::parse_csv_config_file(dsn) {
+        // convert csv_config_file to inline content
+        if let Some(csv_config_file) =
+            utils::parse_key_in_dsn::<String>(dsn, "csv_config_file").unwrap_or(None)
+        {
             let new_value = encode_csv_config_file(csv_config_file).await?;
             dsn.params.insert("csv_config_file".to_string(), new_value);
         }

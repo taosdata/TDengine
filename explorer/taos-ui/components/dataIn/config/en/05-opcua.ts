@@ -128,7 +128,7 @@ export default {
           placeholder: '10',
           type: 'number',
           min: 1,
-          defaultValue: '10'
+          defaultValue: 10
         },
         {
           label: 'Request Timeout',
@@ -223,33 +223,8 @@ export default {
       multiple: false,
       name: 'datasets',
       valueField: 'currentTab',
-      defaultValue: 'csv_config_file',
+      defaultValue: 'select_all_points',
       children: [
-        {
-          label: 'Upload CSV',
-          name: 'csv_config_file',
-          labelShow: false,
-          labelWidth: '0px',
-          category: 'csv_config_file',
-          radio: false,
-          description:
-            'OPC DataIn task uses a csv file to define the mapping rules for each data point to the TDengine table:\n\n(1) point_id: required, the id of the data point on the OPC UA server;\n\n(2) stable: required. TDengine super table corresponding to data points;\n\n(3) tbname: required. TDengine subtable corresponding to the data point;\n\n(4) enable: optional. The default value is \'1\', which specifies whether to collect data at this point. 0- Do not collect and delete the corresponding sub-table, 1- collect the point data, create a sub-table when there is no sub-table;\n\n(5) value_col: optional. The default value is val. The column name corresponding to the data point collection value in TDengine;\n\n(6) value_transform: optional, the transformation function executed in taosX for data point acquisition values. Currently, only numerical calculation expressions are supported. See expr expression description in transform document for details.\n\n(7) type: optional. The default value is the source data type. The data type of the data point collection value, which can be used to replace the placeholder {type} in the supertable name;\n\n(8) quality_col: optional, the column name corresponding to the quality of data point collection value in TDengine;\n\n(9) ts_col/request_ts_col/received_ts_col: required. Definition of the TDengine timestamp primary key: You can keep only one of these columns, and the retained timestamp column will serve as the primary key. You can also fill in multiple columns, and the timestamp column at the front will be used as the primary key. Among them, ts_col uses the time when the data point is reported to the OPC server, request_ts_col uses the time when each polling request is initiated in the observe collection mode, and received_ts_col uses the time when the data is received from the OPC server;\n\n(10) xx_ts_transform: Optional. Timestamp transformation function. Refer to the description of the numerical calculation expression expr in the transform section;\n\n(11) tag::VARCHAR(200)::name: Multiple tag columns are optional or configurable. The Tag column corresponding to the data point in TDengine; tag is reserved keyword, indicating that the column is a tag column. VARCHAR(200) indicates the type of the tag, or any other valid type. name is the column name of the tag.\n\nFor more rules, please refer to the <a target="_blank" href="/docs/advanced/data-in/opcua/">enterprise version document</a>.\n',
-          field: 'csv_config_file',
-          type: 'dataset',
-          accept: '.csv',
-          templateUrl: 'template-en.csv',
-          placeholder: 'Upload a csv file to define the mapping rules for each data point to the TDengine table.\n',
-          required: true,
-          requiredDependsOn: ['datasets/currentTab'],
-          requiredDependsOnValues: {
-            currentTab: ['csv_config_file']
-          },
-          multiple: true,
-          editable: true,
-          selectable: true,
-          defaultValue: '',
-          info2: true
-        },
         {
           label: 'Data Points',
           name: 'select_all_points',
@@ -284,27 +259,49 @@ export default {
             },
             {
               name: 'namespaces',
-              display: 'Namespaces of point',
-              hint: {
-                type: 'str',
-                choices: ['--NONE--']
-              },
+              display: 'Namespaces',
               description: 'Support multiple selections, only query the data points under these namespaces.\n',
               multiple: true,
               placeholder: 'Please select after connection check successfully',
-              label: 'Namespaces of point',
+              label: 'Namespaces',
               field: 'namespaces',
-              type: 'select'
+              type: 'namespace'
+            },
+            {
+              name: 'opc_points_mode',
+              display: 'Node Class',
+              hint: {
+                type: 'str',
+                choices: ['all', 'variable', 'object']
+              },
+              description:
+                'Filter nodes by NodeClass, supporting Variable, Object, and All. All means all types. The default is `Variable`.\n',
+              label: 'Node Class',
+              required: false,
+              field: 'opc_points_mode',
+              defaultValue: 'all',
+              multiple: false,
+              type: 'select',
+              options: [
+                {
+                  label: 'all',
+                  value: 'all'
+                },
+                {
+                  label: 'variable',
+                  value: 'variable'
+                },
+                {
+                  label: 'object',
+                  value: 'object'
+                }
+              ]
             },
             {
               name: 'node_id_pattern',
-              display: 'Point ID',
-              if: '!pattern',
-              hint: {
-                type: 'str'
-              },
+              display: 'Point ID Regex Pattern',
               description: 'Regex pattern match the data point id.\n',
-              label: 'Point ID',
+              label: 'Point ID Regex Pattern',
               field: 'node_id_pattern',
               defaultValue: '',
               multiple: false,
@@ -312,28 +309,11 @@ export default {
             },
             {
               name: 'browse_name_pattern',
-              display: 'Point Name',
+              display: 'Point Name Regex Pattern',
               if: '!pattern',
-              hint: {
-                type: 'str'
-              },
               description: 'Regex pattern match the data point name.\n',
-              label: 'Point Name',
+              label: 'Point Name Regex Pattern',
               field: 'browse_name_pattern',
-              defaultValue: '',
-              multiple: false,
-              type: 'pattern'
-            },
-            {
-              name: 'pattern',
-              display: 'Regex pattern',
-              if: 'pattern',
-              hint: {
-                type: 'str'
-              },
-              description: 'Match the data point name or id',
-              label: 'Regex pattern',
-              field: 'pattern',
               defaultValue: '',
               multiple: false,
               type: 'pattern'
@@ -341,9 +321,6 @@ export default {
             {
               name: 'super_table_expression',
               display: 'Super Table Name',
-              hint: {
-                type: 'str'
-              },
               description:
                 'Support `<super table prefix>_{type}` pattern, `{type}` is the data type of the OPC point.\n',
               required: true,
@@ -357,31 +334,46 @@ export default {
             {
               name: 'child_table_expression',
               display: 'Table Name',
-              hint: {
-                type: 'str'
-              },
               description:
                 'Support `<child table prefix>_{ns}_{id}` pattern, `{ns}` is the namespace of the OPC point, and `{id}` is the id of the OPC point.for example: If the point_id is `ns=3;i=1001`, then the `{ns}` is 3 and the `{id}` is 1001.\n',
               required: true,
-              value: 't_{ns}_{id}',
               label: 'Table Name',
               field: 'child_table_expression',
-              defaultValue: 't_{ns}_{id}',
+              defaultValue: 't_{ns}_{id#/_}',
+              multiple: false,
+              type: 'input'
+            },
+            {
+              name: 'value_col',
+              display: 'Value Column Name',
+              description:
+                'Specified name for the value column in the target TSDB table. For example, `value_name=val` uses `val` as the value column name.\n',
+              required: false,
+              label: 'Value Column Name',
+              field: 'value_col',
+              defaultValue: 'val',
+              multiple: false,
+              type: 'input'
+            },
+            {
+              name: 'value_transform',
+              display: 'Value Transform',
+              description:
+                'Transform expression applied to the `value` before writing to TSDB. For example: `value_transform=(val-32)/1.8` will compute the value using the expression.\n',
+              required: false,
+              label: 'Value Transform',
+              field: 'value_transform',
+              defaultValue: '',
               multiple: false,
               type: 'input'
             },
             {
               name: 'table_primary_key',
-              display: 'Primary Key',
-              hint: {
-                type: 'str',
-                choices: ['original_ts', 'request_ts', 'received_ts']
-              },
+              display: 'Timestamp',
               description:
-                'The selected value will be the primary key of target table. original_ts represents the time when the data point is reported to the OPC server. request_ts is the time when each polling request is initiated in the observe collection mode. received_ts indicates the time when the data is received from the OPC server.\n',
+                'The selected value will be the timestamp in the target table. original_ts represents the time when the data point is reported to the OPC server. request_ts is the time when each polling request is initiated in the observe collection mode. received_ts indicates the time when the data is received from the OPC server.\n',
               required: false,
-              value: 'original_ts',
-              label: 'Primary Key',
+              label: 'Timestamp',
               field: 'table_primary_key',
               defaultValue: 'original_ts',
               multiple: false,
@@ -403,21 +395,56 @@ export default {
             },
             {
               name: 'table_primary_key_alias',
-              display: 'Primary Key Name',
-              hint: {
-                type: 'str'
-              },
-              description: 'The primary key column name in the target table.\n',
+              display: 'Timestamp Name',
+              description: 'The timestamp column name in the target table.\n',
               required: false,
               value: 'ts',
-              label: 'Primary Key Name',
+              label: 'Timestamp Name',
               field: 'table_primary_key_alias',
               defaultValue: 'ts',
+              multiple: false,
+              type: 'input'
+            },
+            {
+              name: 'custom_tags',
+              display: 'Custom Tags',
+              description:
+                'Custom tags for the target table, multiple tags separated by commas. Support static values and dynamic values from OPC point attributes. For example, `location=building1,floor={BrowseName}`. `{BrowseName}` will be replaced by the actual BrowseName attribute of the OPC point.\n',
+              required: false,
+              label: 'Custom Tags',
+              field: 'custom_tags',
+              defaultValue:
+                'VARCHAR(1024)::name::{id#/.};VARCHAR(1024)::BrowseName::{BrowseName};VARCHAR(1024)::DisplayName::{DisplayName};VARCHAR(1024)::Description::{Description};VARCHAR(1024)::Path::{Path}',
               multiple: false,
               type: 'input'
             }
           ],
           defaultValue: ''
+        },
+        {
+          label: 'Upload CSV',
+          name: 'csv_config_file',
+          labelShow: false,
+          labelWidth: '0px',
+          category: 'csv_config_file',
+          radio: false,
+          description:
+            'OPC DataIn task uses a csv file to define the mapping rules for each data point to the TDengine table:\n\n(1) point_id: required, the id of the data point on the OPC UA server;\n\n(2) stable: required. TDengine super table corresponding to data points;\n\n(3) tbname: required. TDengine subtable corresponding to the data point;\n\n(4) enable: optional. The default value is \'1\', which specifies whether to collect data at this point. 0- Do not collect and delete the corresponding sub-table, 1- collect the point data, create a sub-table when there is no sub-table;\n\n(5) value_col: optional. The default value is val. The column name corresponding to the data point collection value in TDengine;\n\n(6) value_transform: optional, the transformation function executed in taosX for data point acquisition values. Currently, only numerical calculation expressions are supported. See expr expression description in transform document for details.\n\n(7) type: optional. The default value is the source data type. The data type of the data point collection value, which can be used to replace the placeholder {type} in the supertable name;\n\n(8) quality_col: optional, the column name corresponding to the quality of data point collection value in TDengine;\n\n(9) ts_col/request_ts_col/received_ts_col: required. Definition of the TDengine timestamp primary key: You can keep only one of these columns, and the retained timestamp column will serve as the primary key. You can also fill in multiple columns, and the timestamp column at the front will be used as the primary key. Among them, ts_col uses the time when the data point is reported to the OPC server, request_ts_col uses the time when each polling request is initiated in the observe collection mode, and received_ts_col uses the time when the data is received from the OPC server;\n\n(10) xx_ts_transform: Optional. Timestamp transformation function. Refer to the description of the numerical calculation expression expr in the transform section;\n\n(11) tag::VARCHAR(200)::name: Multiple tag columns are optional or configurable. The Tag column corresponding to the data point in TDengine; tag is reserved keyword, indicating that the column is a tag column. VARCHAR(200) indicates the type of the tag, or any other valid type. name is the column name of the tag.\n\nFor more rules, please refer to the <a target="_blank" href="/docs/advanced/data-in/opcua/">enterprise version document</a>.\n',
+          field: 'csv_config_file',
+          type: 'dataset',
+          accept: '.csv',
+          templateUrl: 'template-en.csv',
+          placeholder: 'Upload a csv file to define the mapping rules for each data point to the TDengine table.\n',
+          required: true,
+          requiredDependsOn: ['datasets/currentTab'],
+          requiredDependsOnValues: {
+            currentTab: ['csv_config_file']
+          },
+          multiple: true,
+          editable: true,
+          selectable: true,
+          defaultValue: '',
+          info2: true
         }
       ]
     },
@@ -477,7 +504,7 @@ export default {
               requiredDependsOnValues: {
                 collect_mode: ['observe']
               },
-              displayDependsOn: ['groups_after/collect_options/collect_mode'], // 代表层级
+              displayDependsOn: ['groups_after/collect_options/collect_mode'],
               displayDependsOnValues: {
                 collect_mode: ['observe']
               }
@@ -493,7 +520,7 @@ export default {
               grid_two: false,
               type: 'number',
               min: 1,
-              displayDependsOn: ['groups_after/collect_options/collect_mode'], // 代表层级
+              displayDependsOn: ['groups_after/collect_options/collect_mode'],
               displayDependsOnValues: {
                 collect_mode: ['observe']
               }
@@ -532,7 +559,7 @@ export default {
               description: 'Update the OPC data points interval in seconds.\n',
               field: 'update_interval',
               placeholder: '',
-              defaultValue: '600',
+              defaultValue: 600,
               pattern: null,
               grid_two: false,
               type: 'number',
@@ -593,7 +620,7 @@ export default {
           field: 'write_concurrency',
           description:
             'The number of concurrent write requests. The default value is automatically set by collector. If the data source is slow to respond, you can increase this value appropriately.\n',
-          defaultValue: '0',
+          defaultValue: 0,
           required: false,
           hint: {
             type: 'integer',
@@ -609,7 +636,7 @@ export default {
           field: 'batch_size',
           description:
             'The number of data points to be written in a single request. The default value is 1000. If the data source is slow to respond, you can reduce this value appropriately.\n',
-          defaultValue: '1000',
+          defaultValue: 1000,
           required: false,
           hint: {
             type: 'integer',
@@ -625,7 +652,7 @@ export default {
           field: 'batch_timeout',
           description:
             'The maximum time(in seconds) to wait before sending a batch of data points. The default value is 1s. If the data source is slow to respond, you can increase this value appropriately.\n',
-          defaultValue: '1',
+          defaultValue: 1,
           required: false,
           hint: {
             type: 'integer',
@@ -676,7 +703,7 @@ export default {
           label: 'Max Keep Days',
           field: 'keep_raw_data_days',
           description: 'The number of days to keep the raw data. The default value is 1 day.\n',
-          defaultValue: '1',
+          defaultValue: 1,
           required: false,
           hint: {
             type: 'integer',
@@ -767,7 +794,7 @@ export default {
           label: 'Max Write Queue Length',
           field: 'max_queue_length',
           description: 'Indicates the maximum write queue length for a single IPC connection.',
-          defaultValue: '1000',
+          defaultValue: 1000,
           required: false,
           hint: {
             type: 'integer',
@@ -783,7 +810,7 @@ export default {
           field: 'max_errors_in_window',
           description:
             'Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.',
-          defaultValue: '10',
+          defaultValue: 10,
           required: false,
           hint: {
             type: 'integer',

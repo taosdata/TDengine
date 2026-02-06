@@ -1,16 +1,14 @@
 use actix_files::NamedFile;
 use actix_web::web::Json;
 use actix_web::web::{Data, Query};
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use csv::Reader;
 use serde::Deserialize;
 use serde::Serialize;
-use source_opc::{DA_ROW, UA_ROW};
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::{Arc, LazyLock};
 use taosx_core::runners::opc::OpcType;
-use taosx_ipc::types::DataSet;
 use taosx_utils::dsn::json_to_dsn;
 use tempfile::TempPath;
 use tokio::sync::RwLock;
@@ -86,6 +84,8 @@ pub struct Pagination<T> {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub list: Option<Vec<T>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub columns: Option<Vec<String>>, // preserve header order for dynamic rendering
 }
 
 impl<T> Pagination<T> {
@@ -96,6 +96,7 @@ impl<T> Pagination<T> {
             total: None,
             total_page: None,
             list: None,
+            columns: None,
         }
     }
 
@@ -109,13 +110,11 @@ impl<T> Pagination<T> {
         self.list = Some(list);
         self
     }
-}
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct OpcPoint {
-    pub id: String,
-    pub name: Option<String>,
-    pub enabled: Option<i8>,
+    pub fn with_columns(mut self, columns: Vec<String>) -> Self {
+        self.columns = Some(columns);
+        self
+    }
 }
 
 /// 同步下载所有数据点位
@@ -249,7 +248,9 @@ pub async fn load_point_file(ticket: &String, remain: bool) -> anyhow::Result<Na
     }
 }
 
-pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Pagination<OpcPoint>> {
+pub async fn load_point_data_page(
+    params: &TaskTicket,
+) -> anyhow::Result<Pagination<std::collections::HashMap<String, String>>> {
     let map = SHARED_MAP.write().await;
     // adjust page to 0-based
     let page = params.page.unwrap_or(1) - 1;
@@ -262,28 +263,31 @@ pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Paginat
                 let f = NamedFile::open(file_path)?;
                 let mut reader = Reader::from_reader(f.file());
 
-                // skip +1， is the header
-                let data: Vec<OpcPoint> = reader
+                // read header to build dynamic columns and map rows
+                let headers = reader
+                    .headers()
+                    .map(|h| h.iter().map(|s| s.to_string()).collect::<Vec<String>>())
+                    .unwrap_or_default();
+
+                let data: Vec<std::collections::HashMap<String, String>> = reader
                     .records()
                     .skip(page * page_size)
                     .take(page_size)
                     .map(|record| {
                         let record = record.unwrap();
-                        let id = record.get(1).unwrap_or("").to_string();
-                        let enabled = record.get(2).unwrap_or("1").parse::<i8>().unwrap_or(1);
-                        let name = record.get(13).unwrap_or("").to_string();
-
-                        OpcPoint {
-                            id,
-                            name: Some(name),
-                            enabled: Some(enabled),
+                        let mut row = std::collections::HashMap::new();
+                        for (idx, key) in headers.iter().enumerate() {
+                            let val = record.get(idx).unwrap_or("").to_string();
+                            row.insert(key.clone(), val);
                         }
+                        row
                     })
                     .collect();
 
                 // return the page data, 1-based
                 Ok(Pagination::new(page + 1, page_size)
                     .with_total(*point_count)
+                    .with_columns(headers)
                     .with_list(data))
             }
             TaskStatus::Error(err) => Err(anyhow!("task error: {}", err)),
@@ -293,12 +297,10 @@ pub async fn load_point_data_page(params: &TaskTicket) -> anyhow::Result<Paginat
 
 pub async fn get_point_file_template(driver: &str, _lang: &str) -> anyhow::Result<NamedFile> {
     let template = match driver.to_lowercase().as_str() {
-        "kinghist" => source_kinghistorian::get_template(),
         "opcua" => source_opc::get_template(OpcType::OPCUA, true),
         "opcda" => source_opc::get_template(OpcType::OPCDA, true),
-        _ => {
-            return Err(anyhow!("unsupported driver: {}", driver));
-        }
+        source_kinghistorian::KING_HIST_ID => source_kinghistorian::get_template(),
+        _ => bail!("unsupported driver: {}", driver),
     };
 
     let mut config_file = tempfile::NamedTempFile::new()?;
@@ -308,122 +310,4 @@ pub async fn get_point_file_template(driver: &str, _lang: &str) -> anyhow::Resul
     );
     write!(config_file, "{}", &template)?;
     Ok(NamedFile::open(config_file.path())?)
-}
-
-fn get_safe_string_for_csv(s: &str) -> String {
-    let mut safe_str = s.to_string();
-    if safe_str.contains(",") {
-        safe_str = format!("\"{}\"", safe_str.replace("\"", "\"\""));
-    }
-    safe_str
-}
-
-fn get_enabled(item: DataSet) -> i8 {
-    item.options
-        .map(|o| {
-            if o.is_empty() {
-                return 1;
-            }
-            o.iter()
-                .find(|o| o.name == "enabled")
-                .map(|o| {
-                    if o.display == "0" {
-                        return 0;
-                    }
-                    1
-                })
-                .unwrap_or(1)
-        })
-        .unwrap_or(1)
-}
-
-// 替换 UA_ROW 的前三个字段和最后一个字段
-pub fn ua_template_row(row_idx: usize, item: &DataSet) -> String {
-    let mut cols = vec![];
-    for (idx, col) in UA_ROW.iter().enumerate() {
-        if idx == 0 {
-            // No.
-            cols.push(row_idx.to_string());
-        } else if idx == 1 {
-            // point_id
-            let point_id = get_safe_string_for_csv(&item.id);
-            cols.push(point_id.clone());
-        } else if idx == 2 {
-            // enabled
-            let enabled = get_enabled(item.clone());
-            cols.push(enabled.to_string());
-        } else if idx == (UA_ROW.len() - 1) {
-            // tag::VARCHAR(255)::name
-            let safe_name = get_safe_string_for_csv(&(item.name.clone().unwrap_or("".to_string())));
-            cols.push(safe_name.clone());
-        } else {
-            cols.push(col.to_string());
-        }
-    }
-    format!("{}\n", cols.join(","))
-}
-
-pub fn da_template_row(row_idx: usize, item: &DataSet) -> String {
-    // 替换 DA_ROW 的前三个字段和最后一个字段
-    let mut cols = vec![];
-    for (idx, col) in DA_ROW.iter().enumerate() {
-        if idx == 0 {
-            // No.
-            cols.push(row_idx.to_string());
-        } else if idx == 1 {
-            // tag_name
-            cols.push(item.id.clone());
-        } else if idx == 2 {
-            // enabled
-            let enabled = get_enabled(item.clone());
-            cols.push(enabled.to_string());
-        } else if idx == (DA_ROW.len() - 1) {
-            // tag::VARCHAR(255)::name
-            cols.push(item.name.clone().unwrap_or("".to_string()));
-        } else {
-            cols.push(col.to_string());
-        }
-    }
-    format!("{}\n", cols.join(","))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use taosx_ipc::types::DataSet;
-
-    #[test]
-    fn test_ua_template_row() {
-        let item = DataSet {
-            id: "ns=3;i=1001".to_string(),
-            name: Some("tag1".to_string()),
-            category: None,
-            r#type: None,
-            options: None,
-            format: None,
-        };
-        let row = ua_template_row(1, &item);
-        assert_eq!(
-            row,
-            "1,ns=3;i=1001,1,opc_{type},t_{ns}_{id},val,,,quality,ts,,qts,,rts,,tag1\n".to_string()
-        );
-    }
-
-    #[test]
-    fn test_da_template_row() {
-        let item = DataSet {
-            id: "/ASSETS/AB/EDCGQ".to_string(),
-            name: Some("tag1".to_string()),
-            category: None,
-            r#type: None,
-            options: None,
-            format: None,
-        };
-        let row = da_template_row(1, &item);
-        assert_eq!(
-            row,
-            "1,/ASSETS/AB/EDCGQ,1,opc_{type},t_{tag_name},val,,,quality,ts,,qts,,rts,,tag1\n"
-                .to_string()
-        );
-    }
 }

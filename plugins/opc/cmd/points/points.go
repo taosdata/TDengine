@@ -9,7 +9,7 @@ import (
 	"collector/log"
 	"context"
 	"encoding/json"
-	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -66,10 +66,12 @@ func getAllPoint() {
 		logger.WithError(err).Panic("get all points error")
 	}
 	if len(points) == 0 {
-		points = []common.Point{}
+		points = []*common.Point{}
 	}
-	j, _ := json.Marshal(points)
-	fmt.Println(string(j))
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(points)
+	logger.Debugf("get points success, total: %d", len(points))
 }
 
 func init() {
