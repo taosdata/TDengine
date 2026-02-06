@@ -18,7 +18,10 @@
 
 #include "executor.h"
 #include "filter.h"
+#include "osMemory.h"
 #include "qworker.h"
+#include "tarray.h"
+#include "ttypes.h"
 #ifdef USE_ROCKSDB
 #include "rocksdb/c.h"
 #endif
@@ -220,6 +223,13 @@ int32_t       metaFlagCache(SVnode* pVnode);
 
 int64_t metaGetTbNum(SMeta* pMeta);
 void    metaReaderDoInit(SMetaReader* pReader, SMeta* pMeta, int32_t flags);
+
+int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, 
+                 int32_t numOfExpr, SStorageAPI* api, uint64_t uid, 
+                 col_id_t colId, SRWLatch* lock);
+int32_t fillTag(SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr,
+                uint64_t uid, SSDataBlock* pBlock, uint32_t currentRow, 
+                uint32_t numOfRows, uint32_t numOfBlocks, SRWLatch* lock);
 
 int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);

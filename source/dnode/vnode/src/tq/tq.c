@@ -366,7 +366,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   }
   int64_t      consumerId = req.consumerId;
   int32_t      reqEpoch = req.epoch;
-  STqOffsetVal reqOffset = req.reqOffset;
   int32_t      vgId = TD_VID(pTq->pVnode);
   STqHandle*   pHandle = NULL;
 
@@ -415,7 +414,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   char buf[TSDB_OFFSET_LEN] = {0};
-  (void)tFormatOffset(buf, TSDB_OFFSET_LEN, &reqOffset);
+  (void)tFormatOffset(buf, TSDB_OFFSET_LEN, &req.reqOffset);
   tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey %s, recv poll req vgId:%d, req:%s, QID:0x%" PRIx64,
           consumerId, req.epoch, pHandle->subKey, vgId, buf, req.reqId);
 
@@ -630,14 +629,13 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     goto end;
   }
 
-  tqInfo("vgId:%d, tq process subscribe req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
+  tqInfo("vgId:%d, tmq subscribe req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
          req.oldConsumerId, req.newConsumerId);
 
-  taosRLockLatch(&pTq->lock);
-  STqHandle* pHandle = NULL;
+  taosRLockLatch(&pTq->lock);  STqHandle* pHandle = NULL;
   int32_t code = tqMetaGetHandle(pTq, req.subKey, &pHandle);
   if (code != 0){
-    tqInfo("vgId:%d, tq process subscribe req:%s, no such handle, create new one, msg:%s", pTq->pVnode->config.vgId, req.subKey, tstrerror(code));
+    tqInfo("vgId:%d, tmq subscribe req:%s, no such handle, create new one, msg:%s", pTq->pVnode->config.vgId, req.subKey, tstrerror(code));
   }
   taosRUnLockLatch(&pTq->lock);
   if (pHandle == NULL) {
