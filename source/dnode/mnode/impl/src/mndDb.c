@@ -1007,6 +1007,11 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
         mError("db:%s, failed to create, encrypt algorithm not exist, %s", pCreate->db, pCreate->encryptAlgrName);
         TAOS_RETURN(code);
       }
+      if (tsDataKey[0] == '\0') {
+        code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+        mError("db:%s, failed to create db since %s", pCreate->db, tstrerror(code));
+        TAOS_RETURN(code);
+      }
     }
   } else {
     if (pCreate->isAudit == 1) {
@@ -2078,6 +2083,12 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   if (pDb == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
+    int32_t ret =
+        mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_DB, dropReq.db, true);
+    if (ret != 0) {
+      code = ret;
+      goto _OVER;
+    }
     if (dropReq.ignoreNotExists) {
       code = mndBuildDropDbRsp(pDb, &pReq->info.rspLen, &pReq->info.rsp, true);
     }
