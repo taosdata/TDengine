@@ -353,7 +353,7 @@ function run_thread() {
             echo "$current_time" >>"$case_log_file"
             local real_start_time
             real_start_time=$(date +%s)
-            # echo "cmd:${cmd}"
+            echo "cmd:${cmd}"
             if ! is_local_host "${hosts[index]}"; then
                 $cmd >>"$case_log_file" 2>&1
             else
