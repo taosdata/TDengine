@@ -5369,23 +5369,39 @@ static EDealRes doTranslateTbName(SNode** pNode, void* pContext) {
 }
 
 static int32_t replaceTbName(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (QUERY_NODE_REAL_TABLE != nodeType(pSelect->pFromTable)) {
+  if (QUERY_NODE_REAL_TABLE != nodeType(pSelect->pFromTable) &&
+      QUERY_NODE_VIRTUAL_TABLE != nodeType(pSelect->pFromTable)) {
     return TSDB_CODE_SUCCESS;
   }
 
   SRealTableNode* pTable = (SRealTableNode*)pSelect->pFromTable;
   if (TSDB_CHILD_TABLE != pTable->pMeta->tableType && TSDB_NORMAL_TABLE != pTable->pMeta->tableType &&
+      TSDB_VIRTUAL_CHILD_TABLE != pTable->pMeta->tableType && TSDB_VIRTUAL_NORMAL_TABLE != pTable->pMeta->tableType &&
       TSDB_SYSTEM_TABLE != pTable->pMeta->tableType) {
     return TSDB_CODE_SUCCESS;
   }
 
+  int32_t               code = TSDB_CODE_SUCCESS;
   SNode**               pNode = NULL;
   SRewriteTbNameContext pRewriteCxt = {0};
   pRewriteCxt.pTbName = pTable->table.tableName;
 
   nodesRewriteExprPostOrder(&pSelect->pWhere, doTranslateTbName, &pRewriteCxt);
+  PAR_ERR_JRET(pRewriteCxt.errCode);
+  if (TSDB_VIRTUAL_CHILD_TABLE == pTable->pMeta->tableType || TSDB_VIRTUAL_NORMAL_TABLE == pTable->pMeta->tableType) {
+    nodesRewriteExprsPostOrder(pSelect->pPartitionByList, doTranslateTbName, &pRewriteCxt);
+    PAR_ERR_JRET(pRewriteCxt.errCode);
+    nodesRewriteExprsPostOrder(pSelect->pOrderByList, doTranslateTbName, &pRewriteCxt);
+    PAR_ERR_JRET(pRewriteCxt.errCode);
+    nodesRewriteExpr(&pSelect->pWindow, doTranslateTbName, &pRewriteCxt);
+    PAR_ERR_JRET(pRewriteCxt.errCode);
+  }
 
-  return pRewriteCxt.errCode;
+  return code;
+
+_return:
+  parserError("%s failed, code:%d", __func__, code);
+  return code;
 }
 
 static int32_t addPrimJoinEqCond(SNode** pCond, SRealTableNode* leftTable, SRealTableNode* rightTable,
@@ -18252,9 +18268,18 @@ static int32_t translateShowCreateView(STranslateContext* pCxt, SShowCreateViewS
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
+  int32_t code = 0, lino = 0;
   SName name = {0};
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->viewName, &name);
-  return getViewMetaFromMetaCache(pCxt, &name, (SViewMeta**)&pStmt->pViewMeta);
+  TAOS_CHECK_EXIT(getViewMetaFromMetaCache(pCxt, &name, (SViewMeta**)&pStmt->pViewMeta));
+  if (!pStmt->hasPrivilege) {
+    SViewMeta* pView = (SViewMeta*)pStmt->pViewMeta;
+    if (pView->ownerId != pCxt->pParseCxt->userId) {
+      return TSDB_CODE_PAR_PERMISSION_DENIED;
+    }
+  }
+_exit:
+  return code;
 #endif
 }
 
