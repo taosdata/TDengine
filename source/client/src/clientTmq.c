@@ -2493,13 +2493,11 @@ static int32_t processMqRspError(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
     tstrerror(pRspWrapper->code));
   if (pRspWrapper->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||   // for vnode transform
       pRspWrapper->code == TSDB_CODE_SYN_NOT_LEADER) {          // for vnode split
-    terrno = pRspWrapper->code;
     code = askEp(tmq, NULL, false, true);
     if (code != 0) {
       tqErrorC("consumer:0x%" PRIx64 " failed to ask ep when vnode transform, code:%s", tmq->consumerId, tstrerror(code));
     }
   } else if (pRspWrapper->code == TSDB_CODE_TMQ_CONSUMER_MISMATCH) {
-    terrno = pRspWrapper->code;
     code = syncAskEp(tmq);
     if (code != 0) {
       tqErrorC("consumer:0x%" PRIx64 " failed to ask ep when consumer mismatch, code:%s", tmq->consumerId, tstrerror(code));
@@ -2548,16 +2546,14 @@ static int32_t processWrapperData(SMqRspWrapper* pRspWrapper){
   return code;
 }
 
-static SMqRspObj* processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
+static int32_t processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper, SMqRspObj** pRspObj){
   int32_t    code = 0;
-  SMqRspObj* pRspObj = NULL;
 
   if (pRspWrapper->tmqRspType == TMQ_MSG_TYPE__EP_RSP) {
     tqDebugC("consumer:0x%" PRIx64 " ep msg received", tmq->consumerId);
     SMqAskEpRsp*        rspMsg = &pRspWrapper->epRsp;
     doUpdateLocalEp(tmq, pRspWrapper->epoch, rspMsg);
-    terrno = code;
-    return pRspObj;
+    goto END;
   }
 
   code = processWrapperData(pRspWrapper);
@@ -2598,21 +2594,22 @@ static SMqRspObj* processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
                    ", total:%" PRId64 ", QID:0x%" PRIx64,
                tmq->consumerId, pVg->vgId, buf, pVg->numOfRows, tmq->totalRows, pollRspWrapper->reqId);
     } else {
-      pRspObj = buildRsp(pollRspWrapper);
-      if (pRspObj == NULL) {
+      *pRspObj = buildRsp(pollRspWrapper);
+      if (*pRspObj == NULL) {
         tqErrorC("consumer:0x%" PRIx64 " failed to allocate memory for meta rsp", tmq->consumerId);
+        code = terrno;
         goto END;
       }
-      pRspObj->resType = pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_RAW_DATA_RSP ? RES_TYPE__TMQ_RAWDATA :
+      (*pRspObj)->resType = pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_RAW_DATA_RSP ? RES_TYPE__TMQ_RAWDATA :
                          (pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_DATA_RSP ? RES_TYPE__TMQ : RES_TYPE__TMQ_METADATA);
       int64_t numOfRows = 0;
       if (pRspWrapper->tmqRspType != TMQ_MSG_TYPE__POLL_RAW_DATA_RSP){
-        tmqBuildRspFromWrapperInner(pollRspWrapper, pVg, &numOfRows, pRspObj);
+        tmqBuildRspFromWrapperInner(pollRspWrapper, pVg, &numOfRows, *pRspObj);
         tmq->totalRows += numOfRows;
       }
       if (tmq->replayEnable && pRspWrapper->tmqRspType != TMQ_MSG_TYPE__POLL_RAW_DATA_RSP) {
         pVg->blockReceiveTs = taosGetTimestampMs();
-        pVg->blockSleepForReplay = pRspObj->dataRsp.sleepTime;
+        pVg->blockSleepForReplay = (*pRspObj)->dataRsp.sleepTime;
         if (pVg->blockSleepForReplay > 0) {
           if (taosTmrStart(tmqReplayTask, pVg->blockSleepForReplay, (void*)(tmq->refId), tmqMgmt.timer) == NULL) {
             tqErrorC("consumer:0x%" PRIx64 " failed to start replay timer, vgId:%d, sleep:%" PRId64,
@@ -2623,33 +2620,31 @@ static SMqRspObj* processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
       pVg->emptyBlockReceiveTs = 0;
       tqDebugC("consumer:0x%" PRIx64 " process poll rsp, vgId:%d, offset:%s, blocks:%d, rows:%" PRId64
                    ", vg total:%" PRId64 ", total:%" PRId64 ", QID:0x%" PRIx64,
-               tmq->consumerId, pVg->vgId, buf, pRspObj->dataRsp.blockNum, numOfRows, pVg->numOfRows, tmq->totalRows,
+               tmq->consumerId, pVg->vgId, buf, (*pRspObj)->dataRsp.blockNum, numOfRows, pVg->numOfRows, tmq->totalRows,
                pollRspWrapper->reqId);
     }
   } else if (pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_META_RSP || pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_BATCH_META_RSP) {
     updateVgInfo(pVg, &pollRspWrapper->rspOffset, &pollRspWrapper->rspOffset,
                  pollRspWrapper->head.walsver, pollRspWrapper->head.walever, tmq->consumerId, true);
 
-
-    pRspObj = buildRsp(pollRspWrapper);
-    if (pRspObj == NULL) {
+    *pRspObj = buildRsp(pollRspWrapper);
+    if (*pRspObj == NULL) {
       tqErrorC("consumer:0x%" PRIx64 " failed to allocate memory for meta rsp", tmq->consumerId);
+      code = terrno;
       goto END;
     }
-    pRspObj->resType = pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_META_RSP ? RES_TYPE__TMQ_META : RES_TYPE__TMQ_BATCH_META;
+    (*pRspObj)->resType = pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_META_RSP ? RES_TYPE__TMQ_META : RES_TYPE__TMQ_BATCH_META;
   }
 
 END:
-  terrno = code;
   taosWUnLockLatch(&tmq->lock);
-  return pRspObj;
+  return code;
 }
 
-static int32_t tmqHandleAllRsp(tmq_t* tmq, void** returnVal) {
+static int32_t tmqHandleAllRsp(tmq_t* tmq, SMqRspObj** rspObj) {
   tqDebugC("consumer:0x%" PRIx64 " start to handle the rsp, total:%d", tmq->consumerId, taosQueueItemSize(tmq->mqueue));
 
   int32_t code = 0;
-  *returnVal = NULL;
   while (1) {
     SMqRspWrapper* pRspWrapper = NULL;
     taosReadQitem(tmq->mqueue, (void**)&pRspWrapper);
@@ -2659,13 +2654,12 @@ static int32_t tmqHandleAllRsp(tmq_t* tmq, void** returnVal) {
     if (pRspWrapper->code != 0) {
       code = processMqRspError(tmq, pRspWrapper);
     }else{
-      *returnVal = processMqRsp(tmq, pRspWrapper);
-      code = terrno;
+      code = processMqRsp(tmq, pRspWrapper, rspObj);
     }
 
     tmqFreeRspWrapper(pRspWrapper);
     taosFreeQitem(pRspWrapper);
-    if(*returnVal != NULL || code != 0){
+    if(*rspObj != NULL || code != 0){
       break;
     }
   }
@@ -2691,7 +2685,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     code = tmqHandleAllDelayedTask(tmq);
     TSDB_CHECK_CODE(code, lino, END);
 
-    void*   rspObj = NULL;
+    SMqRspObj*   rspObj = NULL;
     code = tmqHandleAllRsp(tmq, &rspObj);
     if (rspObj) {
       tqDebugC("%s consumer:0x%" PRIx64 " end to poll, return rsp:%p", __func__, tmq->consumerId, rspObj);
