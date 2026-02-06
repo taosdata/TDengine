@@ -1711,8 +1711,7 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     TSDB_CHECK_NULL(p, code, lino, _exit, terrno);
 
     vDebug("vgId:%d, remove tags value altered table:%s from query table list", TD_VID(pVnode), vAlterTbReq.tbName);
-    col_id_t cid = 0;
-    getAlterColId(pVnode, uid, vAlterTbReq.tagName, &cid);
+    col_id_t cid = vAlterTbReq.colId;
 
     if ((code = tqUpdateTbUidList(pVnode->pTq, tbUids, false, cid)) < 0) {
       vError("vgId:%d, failed to remove tbUid list since %s", TD_VID(pVnode), tstrerror(code));
