@@ -29,7 +29,9 @@ target_link_libraries(
 )
 
 IF(TD_WEBSOCKET)
-    ADD_DEPENDENCIES(shell ext_taosws)
+    IF(TARGET ext_taosws)
+        ADD_DEPENDENCIES(shell ext_taosws)
+    ENDIF()
 ENDIF()
 
 target_include_directories(

@@ -3015,8 +3015,8 @@ ignore_null_values: {
 
 Usage Instructions:
 
-- INTERP is used to obtain the record value of a specified column at the specified time slice. It has a dedicated syntax (interp_clause) when used. For syntax introduction, see [reference link](../query-data/#interp).
-- When there is no row data that meets the conditions at the specified time slice, the INTERP function will interpolate according to the settings of the [FILL](../time-series-extensions/#fill-clause) parameter.
+- INTERP is used to obtain the record value of a specified column at the specified time slice. It has a dedicated syntax (interp_clause) when used. For syntax introduction, see [reference link](./20-select.md#interp).
+- When there is no row data that meets the conditions at the specified time slice, the INTERP function will interpolate according to the settings of the [FILL clause](./20-select.md#fill-clause).
 - When INTERP is applied to a supertable, it will sort all the subtable data under that supertable by primary key column and perform interpolation calculations, and can also be used with PARTITION BY tbname to force the results to a single timeline.
 - When using INTERP with FILL PREV/NEXT/NEAR modes, its behavior differs from window queries: the `ignore_null_values` parameter affects the search for adjacent valid data. If the parameter is set to ignore NULL data, adjacent NULL data will not be used for interpolation. Instead, the search will continue until a non-NULL value is found.
 - INTERP can be used with the pseudocolumn _irowts to return the timestamp corresponding to the interpolation point (supported from version 3.0.2.0).

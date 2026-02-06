@@ -201,4 +201,3 @@ class TestScalarSubQuery4a1:
         self.rmoveSqlTmpFiles()
 
         return True
-

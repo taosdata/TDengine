@@ -91,7 +91,7 @@ typedef struct SColumnNode {
   char        tableName[TSDB_TABLE_NAME_LEN];
   char        tableAlias[TSDB_TABLE_NAME_LEN];
   char        colName[TSDB_COL_NAME_LEN];
-  int16_t     dataBlockId;
+  int64_t     dataBlockId;
   int16_t     slotId;
   int16_t     numOfPKs;
   bool        tableHasPk;
@@ -122,7 +122,7 @@ typedef struct SColumnRefNode {
 
 typedef struct STargetNode {
   ENodeType type;
-  int16_t   dataBlockId;
+  int64_t   dataBlockId;
   int16_t   slotId;
   SNode*    pExpr;
 } STargetNode;
@@ -574,6 +574,12 @@ typedef enum EShowKind {
   SHOW_KIND_DATABASES_SYSTEM
 } EShowKind;
 
+typedef struct SSurroundNode {
+  ENodeType  type;       // QUERY_NODE_SURROUND
+  SNode*     pSurroundingTime;
+  SNode*     pValues;
+} SSurroundNode;
+
 typedef struct SFillNode {
   ENodeType   type;  // QUERY_NODE_FILL
   EFillMode   mode;
@@ -581,6 +587,8 @@ typedef struct SFillNode {
   SNode*      pWStartTs;  // _wstart pseudo column
   STimeWindow timeRange;
   SNode*      pTimeRange; // STimeRangeNode for create stream
+  // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
+  SNode*      pSurroundingTime;
 } SFillNode;
 
 typedef struct SWhenThenNode {

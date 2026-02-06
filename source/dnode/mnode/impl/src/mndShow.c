@@ -339,6 +339,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
       (code = mndCheckShowPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pShow->type, retrieveReq.db)) != 0) {
     TAOS_RETURN(code);
   }
+#if 0
   if (pShow->type == TSDB_MGMT_TABLE_USER_FULL) {
     if (strcmp(RPC_MSG_USER(pReq), "root") != 0) {
       mError("The operation is not permitted, user:%s, pShow->type:%d", RPC_MSG_USER(pReq), pShow->type);
@@ -346,6 +347,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
       TAOS_RETURN(code);
     }
   }
+#endif
 
   int32_t numOfCols = pShow->pMeta->numOfColumns;
 

@@ -104,6 +104,8 @@ typedef struct SVtbScanDynCtrlInfo {
   int32_t          lastTableIdx;
   STimeWindow      window;
   SArray*          readColList;
+  SHashObj*        readColSet; // key: col_id_t, value: NULL
+  SArray*          refColGroups; // Array of <SRefColIdGroup> (slotId groups)
   SArray*          childTableList; // Array of <Array<SColRefInfo>> used for virtual super table
   SArray*          colRefInfo; // Array of <SColRefInfo> used for single virtual normal/child table
   SHashObj*        newAddedVgInfo;

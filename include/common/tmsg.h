@@ -361,6 +361,7 @@ typedef enum ENodeType {
   QUERY_NODE_TOKEN_OPTIONS,
   QUERY_NODE_TRUE_FOR,
   QUERY_NODE_REMOTE_VALUE_LIST,
+  QUERY_NODE_SURROUND,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -3543,7 +3544,7 @@ void    tFreeSMAlterEncryptKeyReq(SMAlterEncryptKeyReq* pReq);
 
 typedef struct {
   int32_t days;
-  char    strategy[64];
+  char    strategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1];
   int32_t sqlLen;
   char*   sql;
 } SMAlterKeyExpirationReq;
@@ -4272,6 +4273,7 @@ typedef struct SOperatorParam {
 
 void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
 
+// virtual table's colId to origin table's colname
 typedef struct SColIdNameKV {
   col_id_t colId;
   char     colName[TSDB_COL_NAME_LEN];
@@ -4342,11 +4344,16 @@ typedef struct STagScanOperatorParam {
   tb_uid_t vcUid;
 } STagScanOperatorParam;
 
+typedef struct SRefColIdGroup {
+  SArray* pSlotIdList;  // SArray<int32_t>
+} SRefColIdGroup;
+
 typedef struct SVTableScanOperatorParam {
   uint64_t        uid;
   STimeWindow     window;
   SOperatorParam* pTagScanOp;
   SArray*         pOpParamArray;  // SArray<SOperatorParam>
+  SArray*         pRefColGroups;  // SArray<SRefColIdGroup>
 } SVTableScanOperatorParam;
 
 typedef struct SMergeOperatorParam {

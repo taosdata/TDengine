@@ -1328,6 +1328,14 @@ void freeOpParamItem(void* pItem) {
   freeOperatorParam(pParam, OP_GET_PARAM);
 }
 
+static void destroyRefColIdGroupParam(void* info) {
+  SRefColIdGroup* pGroup = (SRefColIdGroup*)info;
+  if (pGroup && pGroup->pSlotIdList) {
+    taosArrayDestroy(pGroup->pSlotIdList);
+    pGroup->pSlotIdList = NULL;
+  }
+}
+
 void freeExternalWindowGetOperatorParam(SOperatorParam* pParam) {
   SExternalWindowOperatorParam *pExtParam = (SExternalWindowOperatorParam*)pParam->value;
   taosArrayDestroy(pExtParam->ExtWins);
@@ -1341,6 +1349,10 @@ void freeExternalWindowGetOperatorParam(SOperatorParam* pParam) {
 void freeVirtualTableScanGetOperatorParam(SOperatorParam* pParam) {
   SVTableScanOperatorParam* pVTableScanParam = (SVTableScanOperatorParam*)pParam->value;
   taosArrayDestroyEx(pVTableScanParam->pOpParamArray, freeOpParamItem);
+  if (pVTableScanParam->pRefColGroups) {
+    taosArrayDestroyEx(pVTableScanParam->pRefColGroups, destroyRefColIdGroupParam);
+    pVTableScanParam->pRefColGroups = NULL;
+  }
   freeOpParamItem(&pVTableScanParam->pTagScanOp);
   freeOperatorParamImpl(pParam, OP_GET_PARAM);
 }

@@ -231,8 +231,8 @@ typedef struct SInterpFuncLogicNode {
   EFillMode     fillMode;
   SNode*        pFillValues;  // SNodeListNode
   SNode*        pTimeSeries;  // SColumnNode
-  int64_t       rangeInterval;
-  int8_t        rangeIntervalUnit;
+  // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
+  int64_t       surroundingTime;
 } SInterpFuncLogicNode;
 
 typedef struct SForecastFuncLogicNode {
@@ -403,6 +403,8 @@ typedef struct SFillLogicNode {
   STimeWindow timeRange;
   SNode*      pTimeRange; // STimeRangeNode for create stream
   SNodeList*  pFillNullExprs;
+  // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
+  SNode*      pSurroundingTime;
 } SFillLogicNode;
 
 typedef struct SSortLogicNode {
@@ -473,7 +475,7 @@ typedef struct SSlotDescNode {
 
 typedef struct SDataBlockDescNode {
   ENodeType  type;
-  int16_t    dataBlockId;
+  int64_t    dataBlockId;
   SNodeList* pSlots;
   int32_t    totalRowSize;
   int32_t    outputRowSize;
@@ -618,8 +620,8 @@ typedef struct SInterpFuncPhysiNode {
   EFillMode         fillMode;
   SNode*            pFillValues;  // SNodeListNode
   SNode*            pTimeSeries;  // SColumnNode
-  int64_t       rangeInterval;
-  int8_t        rangeIntervalUnit;
+  // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
+  int64_t           surroundingTime;
 } SInterpFuncPhysiNode;
 
 typedef struct SForecastFuncPhysiNode {
@@ -804,6 +806,8 @@ typedef struct SFillPhysiNode {
   STimeWindow timeRange;
   SNode*      pTimeRange;  // STimeRangeNode for create stream
   SNodeList*  pFillNullExprs;
+  // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
+  SNode*      pSurroundingTime;
 } SFillPhysiNode;
 
 typedef struct SMultiTableIntervalPhysiNode {
@@ -884,6 +888,7 @@ typedef struct SDataSinkNode {
 
 typedef struct SDataDispatcherNode {
   SDataSinkNode sink;
+  bool          dynamicSchema;
 } SDataDispatcherNode;
 
 typedef struct SDataInserterNode {

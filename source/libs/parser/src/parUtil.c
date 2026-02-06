@@ -306,6 +306,11 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Aggregate functions cannot be used for sorting in non-aggregate queries";
     case TSDB_CODE_PAR_COL_PERMISSION_DENIED:
       return "Permission denied for column: %s";
+    case TSDB_CODE_PAR_NOT_ALLOWED_FILL_MODE:
+      return "FILL NEAR mode is not supported in window query";
+    case TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES:
+      return "Fill values can only be used with fill VALUE/VALUE_F "
+             "or PREV/NEXT/NEAR mode with surrounding time";
     default:
       return "Unknown error";
   }
