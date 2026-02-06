@@ -241,6 +241,7 @@ int32_t tsAuditInterval = 5000;
 int32_t tsAuditLevel = AUDIT_LEVEL_DATABASE;
 bool    tsAuditHttps = false;
 bool    tsAuditUseToken = true;
+bool    tsAuditSaveInSelf = false;
 #else
 bool    tsEnableAudit = false;
 bool    tsEnableAuditCreateTable = false;
@@ -251,6 +252,7 @@ int32_t tsAuditInterval = 200000;
 int32_t tsAuditLevel = AUDIT_LEVEL_NONE;
 bool    tsAuditHttps = false;
 bool    tsAuditUseToken = true;
+bool    tsAuditSaveInSelf = false;
 #endif
 
 // telem
@@ -1033,6 +1035,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "auditInterval", tsAuditInterval, 500, 200000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_AUDIT));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "auditHttps", tsAuditHttps, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_AUDIT));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "auditUseToken", tsAuditUseToken, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_AUDIT));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "auditSaveInSelf", tsAuditSaveInSelf, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_AUDIT));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "telemetryReporting", tsEnableTelem, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "telemetryInterval", tsTelemInterval, 1, 200000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "telemetryServer", tsTelemServer, CFG_SCOPE_SERVER, CFG_DYN_BOTH,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
@@ -1868,6 +1871,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditUseToken");
   tsAuditUseToken = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditSaveInSelf");
+  tsAuditSaveInSelf = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditInterval");
   tsAuditInterval = pItem->i32;
@@ -2910,6 +2916,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"auditLevel", &tsAuditLevel},
                                          {"auditHttps", &tsAuditHttps},
                                          {"auditUseToken", &tsAuditUseToken},
+                                         {"auditSaveInSelf", &tsAuditSaveInSelf},
                                          {"slowLogThreshold", &tsSlowLogThreshold},
                                          {"compressMsgSize", &tsCompressMsgSize},
                                          {"compressor", &tsCompressor},
