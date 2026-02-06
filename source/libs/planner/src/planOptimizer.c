@@ -8920,11 +8920,17 @@ static bool vstableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode;
-  if (pWindow->winType != WINDOW_TYPE_STATE) {
-    return false;
-  }
-  if (nodeType(pWindow->pStateExpr) != QUERY_NODE_COLUMN) {
-    return false;
+  switch (pWindow->winType) {
+      case WINDOW_TYPE_STATE: {
+        if (nodeType(pWindow->pStateExpr) != QUERY_NODE_COLUMN) {
+          return false;
+        }
+      }
+      case WINDOW_TYPE_SESSION:
+        break;
+      default: {
+        return false;
+      }
   }
 
   SNode* pFunc = NULL;
@@ -9105,13 +9111,23 @@ static int32_t vstableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   pScanNode = (SScanLogicNode*) nodesListGetNode(pVirtualScanNode->node.pChildren, 0);
   QUERY_CHECK_NULL(pScanNode, code, lino, _return, terrno)
 
+  switch (pWindow->winType) {
+    case WINDOW_TYPE_SESSION: {
 
-  // only keep col needed by window, remove other cols from pWinColScan
-  removeUselessTargetFromNode((SLogicNode*)pWinColScan, (SColumnNode*)pNewWindow->pStateExpr);
-  // also remove these target from virtual scan node and table scan node
-  removeUselessTargetFromNode((SLogicNode*)pVirtualScanNode, (SColumnNode*)pNewWindow->pStateExpr);
-  removeUselessTargetFromNode((SLogicNode*)pScanNode, (SColumnNode*)pNewWindow->pStateExpr);
-
+      // also remove these target from virtual scan node and table scan node
+      break;
+    }
+    case WINDOW_TYPE_STATE: {
+      // only keep col needed by window, remove other cols from pWinColScan
+      removeUselessTargetFromNode((SLogicNode*)pWinColScan, (SColumnNode*)pNewWindow->pStateExpr);
+      // also remove these target from virtual scan node and table scan node
+      removeUselessTargetFromNode((SLogicNode*)pVirtualScanNode, (SColumnNode*)pNewWindow->pStateExpr);
+      removeUselessTargetFromNode((SLogicNode*)pScanNode, (SColumnNode*)pNewWindow->pStateExpr);
+      break;
+    }
+    default:
+      break;
+  }
   pSysScan->node.pParent = (SLogicNode*)pWinColScan;
   pVirtualScanNode->node.pParent = (SLogicNode*)pWinColScan;
   pScanNode->node.pParent = (SLogicNode*)pVirtualScanNode;
