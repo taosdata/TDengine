@@ -636,7 +636,7 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
   int32_t     valueLen = 0;
 
   if (((0 == strcmp(pCol->colName, "db_name") || 0 == strcmp(pCol->colName, "table_name")) ||
-       0 == strcmp(pCol->colName, "virtual_db_name")) &&
+       0 == strcmp(pCol->colName, "virtual_db_name") || 0 == strcmp(pCol->colName, "virtual_table_name")) &&
       pVal->placeholderNo != 0) {
     if (NULL == pVal->datum.p) {
       qError("getInsTagsTableTargetNameFromOp: placeholderNo=%d but datum.p is NULL, colName=%s, literal=%s",
@@ -683,9 +683,9 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
     code = tNameAddTbName(pName, valueStr, valueLen);
   } else if (0 == strcmp(pCol->colName, "virtual_db_name")) {
     code = tNameSetDbName(pName, acctId, valueStr, valueLen);
-  } /* else if (0 == strcmp(pCol->colName, "virtual_table_name")) {
-     code = tNameAddTbName(pName, valueStr, valueLen);
-   }*/
+  } else if (0 == strcmp(pCol->colName, "virtual_table_name")) {
+    code = tNameAddTbName(pName, valueStr, valueLen);
+  }
 
   if (needFree) {
     taosMemoryFree((char*)valueStr);
