@@ -13,6 +13,7 @@
 
 import random
 import string
+import concurrent
 import requests
 import time
 import socket
@@ -2974,16 +2975,25 @@ class TDCom:
         os.system(taosCmd)
         return self.query_result_file
 
-    def execute_query_file(self, inputfile):
+    def execute_query_file(self, inputfile, max_workers=8):
         if not os.path.exists(inputfile):
             tdLog.exit(f"Input file '{inputfile}' does not exist.")
-        else:
-            cfgPath = self.getClientCfgPath()
-            tdLog.info(f"Executing query file: {inputfile}")
+            return
+
+        cfgPath = self.getClientCfgPath()
+        tdLog.info(f"Executing query file: {inputfile}")
+
+        with open(inputfile, 'r') as f:
+            sql_lines = [line.strip() for line in f if line.strip()]
+
+        def run_sql(sql):
             if platform.system().lower() == "windows":
-                os.system(f"taos -c {cfgPath} -f {inputfile} > nul 2>&1")
+                os.system(f'taos -c {cfgPath} -s "{sql}" > nul 2>&1')
             else:
-                os.system(f"taos -c {cfgPath} -f {inputfile} > /dev/null 2>&1")
+                os.system(f'taos -c {cfgPath} -s "{sql}" > /dev/null 2>&1')
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            list(executor.map(run_sql, sql_lines))
 
     def generate_query_result(self, inputfile, test_case):
         if not os.path.exists(inputfile):
