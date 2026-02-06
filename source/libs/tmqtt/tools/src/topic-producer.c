@@ -546,7 +546,9 @@ int topic_prep(void) {
   }
 
   // thread_stop = 1;
-  if (pthread_join(thread_id, NULL)) {
+  int rc = pthread_join(thread_id, NULL);
+  if (rc) {
+    fprintf(stderr, "Failed to join thread in topic_prep: %s\n", strerror(rc));
     return -1;
   }
 
@@ -1182,9 +1184,10 @@ int main(int argc, char* argv[]) {
   }
 
   thread_stop = 1;
+
   rc = pthread_join(thread_id, NULL);
   if (rc) {
-    fprintf(stderr, "Failed to join %d.\n", thread_id);
+    fprintf(stderr, "Failed to join thread: %s\n", strerror(rc));
     return -1;
   }
 
