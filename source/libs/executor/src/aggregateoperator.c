@@ -219,10 +219,7 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
   }
   while (1) {
     bool blockAllocated = false;
-    pBlock = getNextBlockFromDownstreamRemain(pOperator, 0);
-    if (pOperator->pDownstreamGetParams) {
-      pOperator->pDownstreamGetParams[0] = NULL;
-    }
+    pBlock = getNextBlockFromDownstreamRemainDetach(pOperator, 0);
     if (pBlock == NULL) {
       if (!pAggInfo->hasValidBlock) {
         code = createDataBlockForEmptyInput(pOperator, &pBlock);

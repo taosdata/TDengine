@@ -79,7 +79,7 @@ _return:
   return code;
 }
 
-int32_t getTimeWindowOfBlock(SSDataBlock* pBlock, col_id_t tsSlotId, int64_t* startTs, int64_t* endTs) {
+int32_t getTimeWindowOfBlock(SSDataBlock* pBlock, int64_t* startTs, int64_t* endTs) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -118,7 +118,7 @@ int32_t virtualScanloadNextDataBlockFromParam(void* param, SSDataBlock** ppBlock
   if ((pRes)) {
     qDebug("%s load from downstream, blockId:%" PRId64, __func__, pCtx->blockId);
     (pRes)->info.id.blockId = pCtx->blockId;
-    VTS_ERR_JRET(getTimeWindowOfBlock(pRes, 0, &pCtx->window.skey, &pCtx->window.ekey));
+    VTS_ERR_JRET(getTimeWindowOfBlock(pRes, &pCtx->window.skey, &pCtx->window.ekey));
     VTS_ERR_JRET(createOneDataBlock(pRes, true, &pCtx->pIntermediateBlock));
     *ppBlock = pCtx->pIntermediateBlock;
   } else {
@@ -259,9 +259,7 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
   int32_t                         scanOpIndex = 0;
 
   cleanUpVirtualScanInfo(pVirtualScanInfo);
-  if (pParam->pRefColGroups) {
-    VTS_ERR_JRET(buildRefSlotGroupsFromParam(pVirtualScanInfo, pParam->pRefColGroups));
-  }
+  VTS_ERR_JRET(buildRefSlotGroupsFromParam(pVirtualScanInfo, pParam->pRefColGroups));
   VTS_ERR_JRET(makeTSMergeKey(&pMergeKeys, 0));
   pVirtualScanInfo->pSortInfo = createSortInfo(pMergeKeys);
   TSDB_CHECK_NULL(pVirtualScanInfo->pSortInfo, code, lino, _return, terrno)
@@ -300,7 +298,7 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
 
     pCtx = taosMemoryMalloc(sizeof(SLoadNextCtx));
     QUERY_CHECK_NULL(pCtx, code, lino, _return, terrno)
-    pCtx->blockId = i;
+    pCtx->blockId = (int64_t)i;
     pCtx->pOperator = pOperator->pDownstream[scanOpIndex];
     pCtx->pOperatorGetParam = pOpParam;
     pCtx->window = pParam->window;
@@ -444,7 +442,7 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
     }
 
     int32_t blockId = (int32_t)tsortGetBlockId(pTupleHandle);
-    int32_t colNum = pInfo->virtualScanInfo.scanAllCols ? 1 : tsortGetColNum(pTupleHandle);
+    int32_t colNum = pInfo->virtualScanInfo.scanAllCols ? 1 : (int32_t)tsortGetColNum(pTupleHandle);
     for (int32_t i = 0; i < colNum; i++) {
       char* pData = NULL;
       tsortGetValue(pTupleHandle, i, (void**)&pData);
@@ -512,7 +510,7 @@ static int32_t doGetVStableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo,
     }
 
     int32_t tsIndex = 0;
-    int32_t colNum = tsortGetColNum(pTupleHandle);
+    size_t  colNum = tsortGetColNum(pTupleHandle);
 
     char* pData = NULL;
     // first, set ts slot's data
@@ -685,7 +683,7 @@ static int32_t doSetTagColumnData(SVirtualTableScanInfo* pInfo, SSDataBlock* pTa
   return code;
 }
 
-int32_t   virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
+int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   int32_t                        code = TSDB_CODE_SUCCESS;
   int32_t                        lino = 0;
   SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;
