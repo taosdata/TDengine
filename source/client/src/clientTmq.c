@@ -2487,6 +2487,8 @@ static int32_t processMqRspError(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
     }
   } else if (pRspWrapper->code == TSDB_CODE_TMQ_NO_TABLE_QUALIFIED){
     code = 0;
+  } else {
+    code = pRspWrapper->code;
   }
   
   taosWLockLatch(&tmq->lock);
