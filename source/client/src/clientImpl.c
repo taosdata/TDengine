@@ -1941,19 +1941,10 @@ int32_t doProcessMsgFromServerImpl(SRpcMsg* pMsg, SEpSet* pEpSet) {
 
   SDataBuf buf = {.msgType = pMsg->msgType,
                   .len = pMsg->contLen,
-                  .pData = NULL,
+                  .pData = pMsg->pCont,
                   .handle = pMsg->info.handle,
                   .handleRefId = pMsg->info.refId,
                   .pEpSet = pEpSet};
-
-  if (pMsg->contLen > 0) {
-    buf.pData = taosMemoryCalloc(1, pMsg->contLen);
-    if (buf.pData == NULL) {
-      pMsg->code = terrno;
-    } else {
-      (void)memcpy(buf.pData, pMsg->pCont, pMsg->contLen);
-    }
-  }
 
   (void)pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
 
@@ -1966,7 +1957,6 @@ int32_t doProcessMsgFromServerImpl(SRpcMsg* pMsg, SEpSet* pEpSet) {
     }
   }
 
-  rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
   return TSDB_CODE_SUCCESS;
 }

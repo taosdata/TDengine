@@ -111,7 +111,7 @@ static int32_t monitorReportAsyncCB(void* param, SDataBuf* pMsg, int32_t code) {
     tscError("found error in monitorReport send callback, code:%d, please check the network.", code);
   }
   if (pMsg) {
-    taosMemoryFree(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
   }
   if (param != NULL) {
@@ -955,7 +955,7 @@ int32_t monitorPutData2MonitorQueue(MonitorSlowLogData data) {
 }
 
 int32_t reportCB(void* param, SDataBuf* pMsg, int32_t code) {
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
   tscDebug("[del report]delete reportCB code:%d", code);
   return 0;

@@ -1723,7 +1723,7 @@ int32_t dynProcessUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   code = tDeserializeSUseDbRsp(pMsg->pData, (int32_t)pMsg->len, pScanResInfo->vtbScan.pRsp);
   QUERY_CHECK_CODE(code, lino, _return);
 
-  taosMemoryFreeClear(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
 
   code = tsem_post(&pScanResInfo->vtbScan.ready);
   QUERY_CHECK_CODE(code, lino, _return);

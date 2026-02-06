@@ -4249,7 +4249,7 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
     ctx->transporterId = -1;
   }
 
-  if (0 == code && NULL == pMsg->pData) {
+  if (0 == code && (NULL == pMsg->pData || 0 == pMsg->len)) {
     qError("%s invalid rsp msg, msgType:%d, len:%d", ctx->idStr, pMsg->msgType, pMsg->len);
     code = TSDB_CODE_QRY_INVALID_MSG;
   }
@@ -4307,7 +4307,7 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
 
 _exit:
 
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   blockDataDestroy(pResBlock);
 
   return code;
