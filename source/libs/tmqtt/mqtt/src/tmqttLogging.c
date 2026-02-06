@@ -29,10 +29,10 @@
 #include <sys/stat.h>
 #endif
 
+#include "tmqttBrokerInt.h"
 #include "ttqLogging.h"
 #include "ttqMemory.h"
 #include "ttqMisc.h"
-#include "tmqttBrokerInt.h"
 #include "ttqUtil.h"
 
 static char log_fptr_buffer[BUFSIZ];
@@ -311,7 +311,7 @@ static int log__vprintf(unsigned int priority, const char *fmt, va_list va) {
   return TTQ_ERR_SUCCESS;
 }
 
-int ttq_log(struct tmqtt *ttq, unsigned int priority, const char *fmt, ...) {
+void ttq_log(struct tmqtt *ttq, unsigned int priority, const char *fmt, ...) {
   va_list va;
   int     rc;
 
@@ -321,7 +321,7 @@ int ttq_log(struct tmqtt *ttq, unsigned int priority, const char *fmt, ...) {
   rc = log__vprintf(priority, fmt, va);
   va_end(va);
 
-  return rc;
+  UNUSED(rc);
 }
 
 void ttqLogInternal(const char *fmt, ...) {
