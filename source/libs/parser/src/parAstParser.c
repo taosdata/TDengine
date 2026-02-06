@@ -1581,7 +1581,10 @@ static int32_t collectMetaKeyFromCreateViewStmt(SCollectMetaKeyCxt* pCxt, SCreat
     code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL,
                                   PRIV_VIEW_CREATE, PRIV_OBJ_DB, pCxt->pMetaCache);
   }
-
+  if (TSDB_CODE_SUCCESS == code && pStmt->orReplace) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->viewName,
+                                  PRIV_CM_ALTER, PRIV_OBJ_VIEW, pCxt->pMetaCache);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     if (!pStmt->pQuery ||
         (QUERY_NODE_SELECT_STMT != nodeType(pStmt->pQuery) && QUERY_NODE_SET_OPERATOR != nodeType(pStmt->pQuery))) {
