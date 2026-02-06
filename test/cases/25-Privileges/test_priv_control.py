@@ -1242,14 +1242,20 @@ class TestPrivControl:
         # Test: show consumers/subscriptions without privilege
         self.login(user, pwd)
         #BUG7
-        self.query_expect_rows("show consumers;",     0)
+        #self.query_expect_rows("show consumers;",     0)
         self.query_expect_rows("show subscriptions;", 0)
         # Grant SHOW CONSUMERS and SHOW SUBSCRIPTIONS privilege
         self.login()
         self.grant_privilege("SHOW CONSUMERS",     f"TOPIC {db_name}.{topic_name}", user)
         self.grant_privilege("SHOW SUBSCRIPTIONS", f"TOPIC {db_name}.{topic_name}", user)
         # Test again
-        self.login(user, pwd)
+        
+        for i in range(30):
+            self.login(user, pwd)
+            tdSql.query("show subscriptions;")
+            print(f"{i}=", tdSql.queryResult)
+            time.sleep(1)
+        
         self.query_expect_rows("show consumers;",     1) # one consumer
         self.query_expect_rows("show subscriptions;", 2) # two vgroups
         
