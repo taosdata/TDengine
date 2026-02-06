@@ -24,6 +24,7 @@ static int       g_dumpInDataMinorVer;
 static char      g_dumpInEscapeChar[64] = {0};
 static char      g_dumpInLooseMode[64] = {0};
 static bool      g_dumpInLooseModeFlag = false;
+static bool      g_isVirtualPass = false;
 
 
 #ifdef WINDOWS
@@ -522,6 +523,135 @@ char * replaceNewName(char* cmd, int len) {
     return newCmd;
 }
 
+static inline int ensure_cap(char **out, int *cap, int need, int used) {
+    if (used + need + 1 <= *cap) return 0;
+    int ncap = (*cap) * 2;
+    if (ncap < used + need + 1) ncap = used + need + 1;
+    char *tmp = (char*)realloc(*out, ncap);
+    if (!tmp) return -1;
+    *out = tmp;
+    *cap = ncap;
+    return 0;
+}
+
+static inline void skip_spaces(const char *s, int n, int *i) {
+    while (*i < n && (s[*i] == ' ' || s[*i] == '\t')) (*i)++;
+}
+
+// replace db names inside FROM/USING clauses like:
+//   FROM `olddb`.`tb`.`col`    -> FROM `newdb`.`tb`.`col`
+//   USING `olddb`.`vst` ...    -> USING `newdb`.`vst` ...
+static char* replaceDbNamesInFromUsing(const char *cmd) {
+    if (!cmd) return NULL;
+
+    const char *keys[] = { "FROM", "USING" };
+    const int   kcnt   = sizeof(keys) / sizeof(keys[0]);
+
+    int n = (int)strlen(cmd);
+    int cap = n + 1;
+    char *out = (char*)malloc(cap);
+    if (!out) return NULL;
+
+    int i = 0, w = 0;
+    int changed = 0;
+
+    while (i < n) {
+        int matched = -1;
+        for (int k = 0; k < kcnt; k++) {
+            int klen = (int)strlen(keys[k]);
+            if (i + klen < n && strncasecmp(cmd + i, keys[k], klen) == 0) {
+                matched = k;
+                // copy keyword
+                if (ensure_cap(&out, &cap, klen, w) != 0) { free(out); return NULL; }
+                memcpy(out + w, cmd + i, klen);
+                w += klen;
+                i += klen;
+
+                // spaces
+                int is = i;
+                skip_spaces(cmd, n, &i);
+                if (ensure_cap(&out, &cap, i - is, w) != 0) { free(out); return NULL; }
+                memcpy(out + w, cmd + is, i - is);
+                w += (i - is);
+
+                // optional backtick
+                int backtick = 0;
+                if (i < n && cmd[i] == '`') {
+                    backtick = 1;
+                    if (ensure_cap(&out, &cap, 1, w) != 0) { free(out); return NULL; }
+                    out[w++] = cmd[i++];
+                }
+
+                // db token start
+                int db_start = i;
+                while (i < n) {
+                    char ch = cmd[i];
+                    if (backtick) {
+                        if (ch == '`') break;
+                    }
+                    else {
+                        if (ch == '.' || ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r') break;
+                    }
+                    i++;
+                }
+                int db_end = i;
+
+                // look ahead to decide if it's a qualified name (db.)
+                int j = i;
+                if (backtick && j < n && cmd[j] == '`') j++;
+                int has_dot_after = (j < n && cmd[j] == '.');
+
+                // copy/replace db name
+                int seg_len = db_end - db_start;
+                if (seg_len > 0 && seg_len < TSDB_DB_NAME_LEN && has_dot_after) {
+                    char oldName[TSDB_DB_NAME_LEN];
+                    memcpy(oldName, cmd + db_start, seg_len);
+                    oldName[seg_len] = '\0';
+                    char *newName = findNewName(oldName);
+                    if (newName) {
+                        int newLen = (int)strlen(newName);
+                        if (ensure_cap(&out, &cap, newLen, w) != 0) { free(out); return NULL; }
+                        memcpy(out + w, newName, newLen);
+                        w += newLen;
+                        changed = 1;
+                    } else {
+                        if (ensure_cap(&out, &cap, seg_len, w) != 0) { free(out); return NULL; }
+                        memcpy(out + w, cmd + db_start, seg_len);
+                        w += seg_len;
+                    }
+                } else {
+                    // not a qualified db.name or empty -> copy as-is
+                    if (ensure_cap(&out, &cap, seg_len, w) != 0) { free(out); return NULL; }
+                    memcpy(out + w, cmd + db_start, seg_len);
+                    w += seg_len;
+                }
+
+                // closing backtick if any
+                if (backtick && i < n && cmd[i] == '`') {
+                    if (ensure_cap(&out, &cap, 1, w) != 0) { free(out); return NULL; }
+                    out[w++] = cmd[i++];
+                }
+
+                // continue outer while
+                break;
+            }
+        }
+
+        if (matched < 0) {
+            // normal char copy
+            if (ensure_cap(&out, &cap, 1, w) != 0) { free(out); return NULL; }
+            out[w++] = cmd[i++];
+        }
+    }
+
+    out[w] = '\0';
+    if (!changed) {
+        free(out);
+        return NULL;
+    }
+    return out;
+}
+
 // if have database name rename, return new sql with new database name
 // retrn value need call free() to free memory
 char * afterRenameSql(char *cmd) {
@@ -529,16 +659,28 @@ char * afterRenameSql(char *cmd) {
     const char* CREATE_DB  = "CREATE DATABASE IF NOT EXISTS ";
     const char* CREATE_STB = "CREATE STABLE IF NOT EXISTS ";
     const char* CREATE_TB  = "CREATE TABLE IF NOT EXISTS ";
+    const char* CREATE_VTB = "CREATE VTABLE IF NOT EXISTS ";
 
-    const char* pres[] = {CREATE_DB, CREATE_STB, CREATE_TB};
+    const char* pres[] = {CREATE_DB, CREATE_STB, CREATE_TB, CREATE_VTB};
+    char* out1 = NULL;
+
     for (int i = 0; i < sizeof(pres)/sizeof(char*); i++ ) {
-        int len = strlen(pres[i]);
+        int len = (int)strlen(pres[i]);
         if (strncmp(cmd, pres[i], len) == 0) {
             // found
-            return replaceNewName(cmd, len);
+            out1 = replaceNewName(cmd, len);
+            break;
         }
     }
-    return NULL;
+
+    const char *base = out1 ? out1 : cmd;
+    char *out2 = replaceDbNamesInFromUsing(base);
+
+    if (out2) {
+        if (out1) free(out1);
+        return out2;
+    }
+    return out1;
 }
 
 /* Parse a single option. */
@@ -1276,12 +1418,9 @@ static int64_t getTbCountOfStbNative(const char *dbName, const char *stbName) {
     }
 
     snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
-            g_args.db_escape_char
-            ? "SELECT COUNT(*) FROM (SELECT DISTINCT(TBNAME) "
-                "FROM `%s`.%s%s%s)"
-            : "SELECT COUNT(*) FROM (SELECT DISTINCT(TBNAME) "
-                "FROM %s.%s%s%s)",
-            dbName, g_escapeChar, stbName, g_escapeChar);
+                "SELECT COUNT(*) FROM information_schema.ins_tables "
+                "WHERE stable_name = '%s' AND db_name = '%s'",
+                stbName, dbName);
     debugPrint("get stable child count %s", command);
 
     int64_t count = 0;
@@ -1691,6 +1830,7 @@ void constructTableDesFromStb(const TableDes *stbTableDes,
     TableDes *tableDes = *ppTableDes;
 
     TOOLS_STRNCPY(tableDes->name, table, TSDB_TABLE_NAME_LEN);
+    tableDes->isVirtual = stbTableDes->isVirtual;
     tableDes->columns = stbTableDes->columns;
     tableDes->tags = stbTableDes->tags;
     memcpy(tableDes->cols, stbTableDes->cols,
@@ -1843,7 +1983,7 @@ int getTableDes(TAOS *taos,
 }
 
 // query from server
-char *queryCreateTableSql(void** taos_v, const char *dbName, char *tbName) {
+char *queryCreateTableSql(void** taos_v, const char *dbName, char *tbName, bool *isVirtual) {
     // combine sql
     char sql[TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 128] = "";
     snprintf(sql, sizeof(sql), "show create table `%s`.`%s`", dbName, tbName);
@@ -1865,21 +2005,52 @@ char *queryCreateTableSql(void** taos_v, const char *dbName, char *tbName) {
         return NULL;
     }
 
+    // detect virtual table flag by checking tailing "VIRTUAL 1"
+    if (isVirtual) {
+        size_t end = (size_t)len;
+        // trim trailing whitespace and optional ';'
+        while (end > 0) {
+            char ch = data[end - 1];
+            if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' || ch == ';') {
+                end--;
+            } else {
+                break;
+            }
+        }
+        const char suffix[] = "VIRTUAL 1";
+        size_t suffix_len = sizeof(suffix) - 1;
+        if (end >= suffix_len && strncasecmp(data + end - suffix_len, suffix, suffix_len) == 0) {
+            *isVirtual = true;
+        } else {
+            *isVirtual = false;
+        }
+    }
+
     // prefix check
     const char* pre = "CREATE STABLE ";
     const char* pre1 = "CREATE TABLE ";
+    const char* pre2 = "CREATE VTABLE ";
     int32_t npre = strlen(pre);
+    const char* matched_pre = pre;
     if (strncasecmp(data, pre, npre) != 0) {
-        if (strncasecmp(data, pre1, strlen(pre1)) != 0) {
+        if (strncasecmp(data, pre1, strlen(pre1)) == 0) {
+            // found create table
+            npre = strlen(pre1);
+            matched_pre = pre1;
+        } else if (strncasecmp(data, pre2, strlen(pre2)) == 0) {
+            // found create vtable
+            npre = strlen(pre2);
+            matched_pre = pre2;
+            if (isVirtual) {
+                *isVirtual = true;
+            }
+        } else {
             char buf[64];
             memset(buf, 0, sizeof(buf));
             memcpy(buf, data, len > 63 ? 63 : len);
             errorPrint("Query create table sql prefix unexpect. pre=%s sql=%s\n", pre, buf);
             closeQuery(res);
             return NULL;
-        } else {
-            // foud create table
-            npre = strlen(pre1);
         }
     }
     // table name check
@@ -1903,7 +2074,8 @@ char *queryCreateTableSql(void** taos_v, const char *dbName, char *tbName) {
     int32_t clen = len + TSDB_DB_NAME_LEN + 128;
     char *csql = (char *)calloc(1, clen);
     int32_t nskip = npre + 1 + strlen(tbName) + 1;
-    int32_t pos = snprintf(csql, clen, "CREATE TABLE IF NOT EXISTS `%s`.`%s`", dbName, tb);
+    int32_t pos = snprintf(csql, clen, "%.*s IF NOT EXISTS `%s`.`%s`",
+                           npre - 1, matched_pre, dbName, tb);
     memcpy(csql + pos, data + nskip, len - nskip);
     debugPrint("export create table sql:%s\n", csql);
 
@@ -2219,7 +2391,7 @@ static int dumpCreateTableClauseAvro(
             dbName, "_ntb");
 
     // get create sql
-    char *sql = queryCreateTableSql(taos_v, dbName, tableDes->name);
+    char *sql = queryCreateTableSql(taos_v, dbName, tableDes->name, &tableDes->isVirtual);
     if(sql == NULL) {
         free(jsonSchema);
         return -1;
@@ -2287,11 +2459,10 @@ static int dumpCreateTableClauseAvro(
 static int dumpCreateTableClause(
         void ** taos_v,
         TableDes *tableDes,
-        int numOfCols,
         FILE *fp,
         const char* dbName) {
     // get create sql
-    char *sql = queryCreateTableSql(taos_v, dbName, tableDes->name);
+    char *sql = queryCreateTableSql(taos_v, dbName, tableDes->name, &tableDes->isVirtual);
     if(sql == NULL) {
         return -1;
     }
@@ -2326,7 +2497,7 @@ static int dumpStableClasuse(
         exit(-1);
     }
 
-    return dumpCreateTableClause(taos_v, tableDes, colCount, fp, dbInfo->name);
+    return dumpCreateTableClause(taos_v, tableDes, fp, dbInfo->name);
 }
 
 static void dumpCreateDbClause(
@@ -2459,7 +2630,74 @@ static FILE* openDumpInFile(char *fptr) {
     return f;
 }
 
+static inline bool hasVirtualTag(const char *dbPath, const char *entryName, const char *ext) {
+    if (!dbPath || !entryName || !ext) return false;
+
+    int namelen = (int)strlen(entryName);
+    int extlen  = (int)strlen(ext);
+    if (namelen <= extlen) return false;
+    if (strcmp(ext, entryName + namelen - extlen) != 0) return false;
+
+    bool isTBTAGS = (strncmp(ext, "avro-tbtags", strlen("avro-tbtags")) == 0);
+    bool isNTB    = (strncmp(ext, "avro-ntb",    strlen("avro-ntb"))    == 0);
+    if (!isTBTAGS && !isNTB) {
+        return false;
+    }
+
+    char avroFile[MAX_PATH_LEN] = {0};
+    snprintf(avroFile, sizeof(avroFile), "%s/%s", dbPath, entryName);
+
+    avro_file_reader_t reader = NULL;
+    if (avro_file_reader(avroFile, &reader)) {
+        debugPrint("hasVirtualTag: open %s failed: %s\n", avroFile, avro_strerror());
+        return false;
+    }
+
+    avro_schema_t schema = avro_file_reader_get_writer_schema(reader);
+    avro_value_iface_t *vface = avro_generic_class_from_schema(schema);
+    avro_value_t value;
+    avro_generic_value_new(vface, &value);
+
+    bool isVirtual = false;
+
+    if (!avro_file_reader_read_value(reader, &value)) {
+        avro_value_t sql_value, sql_branch;
+        if (0 == avro_value_get_by_name(&value, "sql", &sql_value, NULL)) {
+            avro_value_get_current_branch(&sql_value, &sql_branch);
+            if (0 != avro_value_get_null(&sql_branch)) {
+                char *buf = NULL;
+                size_t size = 0;
+                avro_value_get_string(&sql_branch, (const char **)&buf, &size);
+                if (buf && size > 0) {
+                    const char *pre_vtb = "CREATE VTABLE";
+                    if (strncasecmp(buf, pre_vtb, strlen(pre_vtb)) == 0) {
+                        isVirtual = true;
+                    }
+                }
+            }
+        }
+    } else {
+        debugPrint("hasVirtualTag: %s no records\n", avroFile);
+    }
+
+    avro_value_decref(&value);
+    avro_value_iface_decref(vface);
+    avro_schema_decref(schema);
+    avro_file_reader_close(reader);
+
+    return isVirtual;
+}
+
+static inline bool isAvroDataExt(const char *ext) {
+    return (ext && strcmp(ext, "avro") == 0);
+}
+
 static uint64_t getFilesNum(const char *dbPath, const char *ext) {
+    if (g_isVirtualPass && isAvroDataExt(ext)) {
+        debugPrint("Virtual pass: skip counting .%s files in %s\n", ext, dbPath);
+        return 0;
+    }
+
     uint64_t count = 0;
 
     int namelen, extlen;
@@ -2482,7 +2720,13 @@ static uint64_t getFilesNum(const char *dbPath, const char *ext) {
                         if (0 == strcmp(entryName, "dbs.sql")) {
                             continue;
                         }
+                    } else {
+                        bool vflag = hasVirtualTag(dbPath, entryName, ext);
+                        if (g_isVirtualPass != vflag) {
+                            continue;
+                        }
                     }
+
                     verbosePrint("%s found\n", entryName);
                     count++;
                 }
@@ -2491,7 +2735,9 @@ static uint64_t getFilesNum(const char *dbPath, const char *ext) {
         toolsCloseDir(&pDir);
     }
 
-    debugPrint("%"PRId64" .%s files found!\n", count, ext);
+    debugPrint("%"PRId64" .%s files found for %s pass in %s\n",
+               count, ext, g_isVirtualPass ? "virtual" : "physical", dbPath);
+
     return count;
 }
 
@@ -2604,6 +2850,14 @@ static enAVROTYPE createDumpinList(const char *dbPath,
 
             if (namelen > extlen) {
                 if (strcmp(ext, &(entryName[namelen - extlen])) == 0) {
+                    // filter
+                    if (avroType != enAVRO_UNKNOWN) {
+                        bool vflag = hasVirtualTag(dbPath, entryName, ext);
+                        if (g_isVirtualPass != vflag) {
+                            continue;
+                        }
+                    }
+
                     verbosePrint("%s found\n", entryName);
                     switch (avroType) {
                         case enAVRO_UNKNOWN:
@@ -2639,13 +2893,18 @@ static enAVROTYPE createDumpinList(const char *dbPath,
                             break;
                     }
                     nCount++;
+                    if (nCount == count) {
+                        break;
+                    }
                 }
             }
         }
         toolsCloseDir(&pDir);
     }
 
-    debugPrint("%"PRId64" .%s files filled to list!\n", nCount, ext);
+    debugPrint("%"PRId64" .%s files filled to list for %s pass!\n",
+               nCount, ext, g_isVirtualPass ? "virtual" : "physical");
+
     return avroType;
 }
 
@@ -2829,6 +3088,12 @@ static int convertTbDesToJsonImpl(
             pstr += sprintf(pstr, "}");
             break;
         }
+    }
+
+    if (!onlyColumn) {
+        pstr += sprintf(pstr,
+                        ",{\"name\":\"%s\",\"type\":[\"null\",\"string\"],\"default\":null}",
+                        "sql");
     }
 
     // fields end
@@ -4211,6 +4476,44 @@ static int64_t dumpInAvroTbTagsImpl(
 
     // loop read each child table
     while (!avro_file_reader_read_value(reader, &value)) {
+        {
+            avro_value_t sql_value, sql_branch;
+            if (0 == avro_value_get_by_name(&value, "sql", &sql_value, NULL)) {
+                avro_value_get_current_branch(&sql_value, &sql_branch);
+
+                if (0 != avro_value_get_null(&sql_branch)) {
+                    char *buf = NULL;
+                    size_t size = 0;
+                    avro_value_get_string(&sql_branch, (const char **)&buf, &size);
+                    if (buf && size > 0) {
+                        if (!g_isVirtualPass) {
+                            continue;
+                        }
+
+                        char *newBuf = afterRenameSql(buf);
+                        const char *execSql = newBuf ? newBuf : buf;
+
+                        int32_t code = 0;
+                        TAOS_RES *res = taosQuery(*taos_v, execSql, &code);
+                        if (code != 0) {
+                            warnPrint("%s() LN%d taosQuery() failed! sql: %s, reason: %s\n",
+                                      __func__, __LINE__, execSql, taos_errstr(res));
+                            failed++;
+                        } else {
+                            success++;
+                        }
+                        taos_free_result(res);
+                        if (newBuf) free(newBuf);
+
+                        continue;
+                    }
+                } else {
+                    if (g_isVirtualPass) continue;
+                }
+            } else {
+                if (g_isVirtualPass) continue;
+            }
+        }
 
         //
         // combine create child table sql with stbName and tags values
@@ -4289,6 +4592,11 @@ static int64_t dumpInAvroTbTagsImpl(
                 // not first
                 FieldStruct *field = (FieldStruct *)
                     (recordSchema->fields + sizeof(FieldStruct) * (i + tagAdjExt));
+
+                // skip field "sql"
+                if (field && field->name[0] && strcasecmp(field->name, "sql") == 0) {
+                    continue;
+                }
 
                 // check filter
                 int16_t idx = i - 1;
@@ -4483,9 +4791,16 @@ static int64_t dumpInAvroNtbImpl(
                 continue;
             }
 
+            const char *pre_vtb = "CREATE VTABLE";
+            bool isVTable = (strncasecmp(buf, pre_vtb, strlen(pre_vtb)) == 0);
+
+            if (g_isVirtualPass != isVTable) {
+                continue;
+            }
+
             char* newBuf = afterRenameSql(buf);
             if(newBuf) {
-                infoPrint(" rename database name for create normal table sql: \n  old=%s\n new=%s\n", buf, newBuf);
+                infoPrint(" rename database name for create normal table sql: \n old=%s\n new=%s\n", buf, newBuf);
                 buf = newBuf;
             }
 
@@ -6059,6 +6374,10 @@ static int dumpInAvroWorkThreadsSub(const char *dbPath, const char *typeExt, DBC
                 debugPrint("%s() LN%d, will dump from %s\n",
                         __func__, __LINE__, dataPath);
                 ret = dumpInAvroWorkThreads(dataPath, typeExt, pDbChange);
+                if (ret != 0) {
+                    errorPrint("Failed to dump in from %s, code=%d\n", dataPath, ret);
+                    break;
+                }
             }
         }
         toolsCloseDir(&pDir);
@@ -6078,6 +6397,10 @@ static int dumpInAvroWorkThreadsSub(const char *dbPath, const char *typeExt, DBC
                 debugPrint("%s() LN%d, will dump from %s\n",
                         __func__, __LINE__, dataPath);
                 ret = dumpInAvroWorkThreads(dataPath, typeExt, pDbChange);
+                if (ret != 0) {
+                    errorPrint("Failed to dump in from %s, code=%d\n", dataPath, ret);
+                    break;
+                }
             }
         }
         closedir(pDir);
@@ -6681,7 +7004,7 @@ int64_t dumpTable(
                 return ret;
             }
         } else {
-            int32_t ret = dumpCreateTableClause(taos_v, tableDes, numColsAndTags, fp, dbInfo->name);
+            int32_t ret = dumpCreateTableClause(taos_v, tableDes, fp, dbInfo->name);
             if (ret != 0) {
                 if (tableDes) {
                     freeTbDes(tableDes, true);
@@ -6695,8 +7018,16 @@ int64_t dumpTable(
     //
     // dump out data
     //
+    bool isVirtual = false;
+    if (stbDes && stbDes->isVirtual) {
+        isVirtual = true;
+    }
+    if (tableDes && tableDes->isVirtual) {
+        isVirtual = true;
+    }
+
     int64_t totalRows = 0;
-    if (!g_args.schemaonly) {
+    if (!g_args.schemaonly && !isVirtual) {
         if (g_args.avro) {
             if (NULL == tableDes) {
                 tableDes = (TableDes *)calloc(1, sizeof(TableDes)
@@ -6861,6 +7192,40 @@ static int createMTableAvroHeadImp(
         outName = tableName;
     }
     avro_value_set_string(&branch, outName);
+
+    // set sql
+    if (stbTableDes->isVirtual) {
+        debugPrint("%s() LN%d, stable %s is virtual table\n",
+                __func__, __LINE__, stbTableDes->name);
+
+        if (0 != avro_value_get_by_name(&record, "sql", &value, NULL)) {
+            errorPrint("%s() LN%d, avro_value_get_by_name(..%s..) failed",
+                    __func__, __LINE__, "sql");
+            return -1;
+        }
+
+        char* sql = queryCreateTableSql(taos_v, dbName, (char*)tbName, NULL);
+        if (sql) {
+            avro_value_set_branch(&value, 1, &branch);
+            avro_value_set_string(&branch, sql);
+            free(sql);
+        } else {
+            // leave null if unavailable
+            avro_value_set_branch(&value, 0, &branch);
+            avro_value_set_null(&branch);
+        }
+    } else {
+        debugPrint("%s() LN%d, stable %s is physical table\n",
+                __func__, __LINE__, stbTableDes->name);
+
+        if (0 != avro_value_get_by_name(&record, "sql", &value, NULL)) {
+            errorPrint("%s() LN%d, avro_value_get_by_name(..%s..) failed",
+                    __func__, __LINE__, "sql");
+            return -1;
+        }
+        avro_value_set_branch(&value, 0, &branch);
+        avro_value_set_null(&branch);
+    }
 
     TableDes *subTableDes = (TableDes *) calloc(1, sizeof(TableDes)
             + sizeof(ColDes) * (stbTableDes->columns + stbTableDes->tags));
@@ -7202,7 +7567,8 @@ static int createMTableAvroHeadSpecified(
         char *dumpFilename,
         const char *dbName,
         const char *stable,
-        const char *specifiedTb) {
+        const char *specifiedTb,
+        bool isVirtual) {
     if (0 == strlen(stable)) {
         errorPrint("%s() LN%d, pass wrong tbname\n", __func__, __LINE__);
         return -1;
@@ -7216,6 +7582,7 @@ static int createMTableAvroHeadSpecified(
 
 
     getTableDes(*taos_v, dbName, stable, stbTableDes, false);
+    stbTableDes->isVirtual = isVirtual;
 
     char *jsonTagsSchema = NULL;
     int32_t ret = 0;
@@ -7346,12 +7713,10 @@ static int64_t fillTbNameArr(
         return -1;
     }
 
-
     snprintf(command2, TSDB_MAX_ALLOWED_SQL_LEN,
-            g_args.db_escape_char
-            ? "SELECT DISTINCT(TBNAME) FROM `%s`.%s%s%s "
-            : "SELECT DISTINCT(TBNAME) FROM %s.%s%s%s ",
-            dbInfo->name, g_escapeChar, stable, g_escapeChar);
+            "SELECT table_name FROM information_schema.ins_tables "
+            "WHERE stable_name='%s' AND db_name='%s'",
+            stable, dbInfo->name);
 
     debugPrint("%s() LN%d, run command <%s>.\n",
                 __func__, __LINE__, command2);
@@ -7368,9 +7733,10 @@ static int64_t fillTbNameArr(
 
 // old createMTableAvroHeadImp
 static int writeTagsToAvro(
+            void  **taos_v,
             const char *dbName,
             const TableDes *stbDes,
-            const TableDes *tbDes,
+            TableDes *tbDes,
             avro_file_writer_t writer,
             avro_value_iface_t *wface) {
     // avro
@@ -7410,6 +7776,41 @@ static int writeTagsToAvro(
         outName = tableName;
     }
     avro_value_set_string(&branch, outName);
+
+    // set sql
+    if (stbDes->isVirtual) {
+        debugPrint("%s() LN%d, stable %s is virtual table\n",
+                __func__, __LINE__, stbDes->name);
+
+        if (0 != avro_value_get_by_name(&record, "sql", &value, NULL)) {
+            errorPrint("%s() LN%d, avro_value_get_by_name(..%s..) failed",
+                    __func__, __LINE__, "sql");
+            return -1;
+        }
+
+        char* sql = queryCreateTableSql(taos_v, dbName, tbDes->name, &tbDes->isVirtual);
+        if (sql) {
+            avro_value_set_branch(&value, 1, &branch);
+            avro_value_set_string(&branch, sql);
+            free(sql);
+        } else {
+            // leave null if unavailable
+            avro_value_set_branch(&value, 0, &branch);
+            avro_value_set_null(&branch);
+        }
+    } else {
+        debugPrint("%s() LN%d, stable %s is physical table\n",
+                __func__, __LINE__, stbDes->name);
+
+        if (0 != avro_value_get_by_name(&record, "sql", &value, NULL)) {
+            errorPrint("%s() LN%d, avro_value_get_by_name(..%s..) failed",
+                    __func__, __LINE__, "sql");
+            return -1;
+        }
+
+        avro_value_set_branch(&value, 0, &branch);
+        avro_value_set_null(&branch);
+    }
 
     for (int tag = 0; tag < tbDes->tags; tag++) {
         debugPrint("%s() LN%d, sub table %s no. %d tags is %s, "
@@ -7905,6 +8306,7 @@ static int dumpStableMeta(
 
         // write tags to avro
         ret = writeTagsToAvro(
+                taos_v,
                 dbInfo->name,
                 stbDes, tbDes,
                 avroWriter, wface);
@@ -7970,7 +8372,9 @@ static int64_t dumpTableBelongStb(
                 dumpFilename,
                 dbInfo->name,
                 stbName,
-                childName);
+                childName,
+                stbTableDes->isVirtual
+            );
         if (-1 == ret) {
             errorPrint("%s() LN%d, failed to open file %s\n",
                     __func__, __LINE__, dumpFilename);
@@ -8828,12 +9232,13 @@ static int dumpInDbs(const char *dbPath) {
 static int dumpInWithDbPath(const char *dbPath) {
     int ret = 0;
 
-
     infoPrint("%s(), dump in from %s ...\n", __func__, dbPath);
 
-    if (dumpInDbs(dbPath)) {
-        errorPrint("Failed to dump database path: %s in!\n", dbPath);
-        return -1;
+    if (!g_isVirtualPass) {
+        if (dumpInDbs(dbPath)) {
+            errorPrint("Failed to dump database path: %s in!\n", dbPath);
+            return -1;
+        }
     }
 
     // create
@@ -8865,10 +9270,9 @@ static int dumpInWithDbPath(const char *dbPath) {
     return ret;
 }
 
-static int dumpIn() {
-    TOOLS_ASSERT(g_args.isDumpIn);
-
+static int dumpInProcess() {
     int ret = 0;
+
     ret = dumpInWithDbPath(g_args.inpath);
     if(ret) {
         return ret;
@@ -8879,44 +9283,63 @@ static int dumpIn() {
     TdDirPtr pDir;
 
     pDir = toolsOpenDir(g_args.inpath);
-
-    if (pDir != NULL) {
-        while ((pDirent = toolsReadDir(pDir)) != NULL) {
-            char *entryName = toolsGetDirEntryName(pDirent);
-            if (strncmp (CUS_PROMPT"dump.", entryName, strlen(CUS_PROMPT"dump."))
-                    == 0) {
-                char dbPath[MAX_PATH_LEN] = {0};
-                snprintf(dbPath, MAX_PATH_LEN, "%s/%s",
-                         g_args.inpath, entryName);
-#else
-    struct dirent *pDirent;
-    DIR *pDir;
-
-    pDir = opendir(g_args.inpath);
-
-    if (pDir != NULL) {
-        while ((pDirent = readdir(pDir)) != NULL) {
-            if (strncmp (CUS_PROMPT"dump.", pDirent->d_name, strlen(CUS_PROMPT"dump."))
-                    == 0) {
-                char dbPath[MAX_PATH_LEN] = {0};
-                snprintf(dbPath, MAX_PATH_LEN, "%s/%s",
-                         g_args.inpath, pDirent->d_name);
-#endif
-                debugPrint("%s() LN%d, will dump from %s\n",
-                        __func__, __LINE__, dbPath);
-                ret = dumpInWithDbPath(dbPath);
-            }
-        }
-#ifdef WINDOWS
-        toolsCloseDir(&pDir);
-#else
-        closedir(pDir);
-#endif
-    } else {
-        errorPrint("opendir(%s)\n", g_args.inpath);
+    if (pDir == NULL) {
+        errorPrint("toolsOpenDir(%s) failed\n", g_args.inpath);
+        return -1;
     }
 
+    while ((pDirent = toolsReadDir(pDir)) != NULL) {
+        char *entryName = toolsGetDirEntryName(pDirent);
+        if (strncmp (CUS_PROMPT"dump.", entryName, strlen(CUS_PROMPT"dump.")) == 0) {
+            char dbPath[MAX_PATH_LEN] = {0};
+            snprintf(dbPath, MAX_PATH_LEN, "%s/%s", g_args.inpath, entryName);
+            debugPrint("%s() LN%d, will dump from %s\n", __func__, __LINE__, dbPath);
+            ret = dumpInWithDbPath(dbPath);
+        }
+    }
+    toolsCloseDir(&pDir);
+#else
+    struct dirent *pDirent;
+    DIR *pDir = opendir(g_args.inpath);
+    if (pDir == NULL) {
+        errorPrint("opendir(%s) failed: %s\n", g_args.inpath, strerror(errno));
+        return -1;
+    }
+
+    while ((pDirent = readdir(pDir)) != NULL) {
+        if (strncmp (CUS_PROMPT"dump.", pDirent->d_name, strlen(CUS_PROMPT"dump.")) == 0) {
+            char dbPath[MAX_PATH_LEN] = {0};
+            snprintf(dbPath, MAX_PATH_LEN, "%s/%s", g_args.inpath, pDirent->d_name);
+            debugPrint("%s() LN%d, will dump from %s\n", __func__, __LINE__, dbPath);
+            ret = dumpInWithDbPath(dbPath);
+        }
+    }
+    closedir(pDir);
+#endif
+
     return ret;
+}
+
+static int dumpIn() {
+    TOOLS_ASSERT(g_args.isDumpIn);
+
+    int ret = 0;
+
+    // physical
+    g_isVirtualPass = false;
+    ret = dumpInProcess();
+    if (ret) {
+        return ret;
+    }
+
+    // virtual
+    g_isVirtualPass = true;
+    ret = dumpInProcess();
+    if (ret) {
+        return ret;
+    }
+
+    return 0;
 }
 
 static void dumpTablesOfStbNative(
@@ -9099,52 +9522,26 @@ void freeTbNameArr(char ** tbNameArr, int64_t tbCount) {
 static int64_t dumpStable(
         void **taos_v,
         SDbInfo *dbInfo,
-        const char *stbName) {
-    // show progress
+        TableDes *stbDes) {
     int ret = -1;
-    infoPrint("start dump out super table data (%s) ...\n", stbName);
 
-    //
-    // get super table meta
-    //
-
-    // malloc stable des
-    TableDes *stbDes = (TableDes *)calloc(1, sizeof(TableDes)
-            + sizeof(ColDes) * TSDB_MAX_COLUMNS);
-    if (NULL == stbDes) {
-        errorPrint("%s() LN%d, memory allocation failed!\n",
-                __func__, __LINE__);
-        return -1;
-    }
-
-    // obtain stable des data
-
-    int32_t colCount = getTableDes(*taos_v, dbInfo->name,
-            stbName, stbDes, true);
-    if (colCount < 0) {
-        errorPrint("%s() LN%d, failed to get stable[%s] schema\n",
-               __func__, __LINE__, stbName);
-        freeTbDes(stbDes, true);
-        exit(-1);
-    }
     // show progress
     infoPrint("start dump super table meta (%s) col:%d tags:%d ...\n",
-                stbName, stbDes->columns, stbDes->tags);
+                stbDes->name, stbDes->columns, stbDes->tags);
 
     // get stable child count
-    int64_t tbCount = getTbCountOfStbNative(dbInfo->name, stbName);
+    int64_t tbCount = getTbCountOfStbNative(dbInfo->name, stbDes->name);
     if(tbCount < 0 ) {
-        errorPrint("get stable %s failed.", stbName);
-        freeTbDes(stbDes, true);
+        errorPrint("get stable %s failed.", stbDes->name);
         exit(-1);
     }
     // show progress
-    infoPrint("The number of tables of %s is %"PRId64"!\n", stbName, tbCount);
+    infoPrint("The number of tables of %s is %"PRId64"!\n", stbDes->name, tbCount);
     // set progress to global
     g_tableCount = tbCount;
     g_tableDone  = 0;
     strcpy(g_dbName,  dbInfo->name);
-    strcpy(g_stbName, stbName);
+    strcpy(g_stbName, stbDes->name);
 
     //
     //  dump meta
@@ -9161,22 +9558,20 @@ static int64_t dumpStable(
             errorPrint("%s() LN%d, failed to dump table\n",
                     __func__, __LINE__);
             freeTbNameArr(tbNameArr, tbCount);
-            freeTbDes(stbDes, true);
             return -1;
         }
     } else {
-        fillTbNameArr(taos_v, tbNameArr, dbInfo, stbName, tbCount);
+        fillTbNameArr(taos_v, tbNameArr, dbInfo, stbDes->name, tbCount);
     }
 
     if(tbCount <= 0) {
         freeTbNameArr(tbNameArr, tbCount);
-        freeTbDes(stbDes, true);
 
         if (tbCount == 0) {
-            infoPrint("super table (%s) no child table, skip dump out.\n", stbName);
+            infoPrint("super table (%s) no child table, skip dump out.\n", stbDes->name);
             return 0;
         } else {
-            infoPrint("super table (%s) get child count failed.\n", stbName);
+            infoPrint("super table (%s) get child count failed.\n", stbDes->name);
             return -1;
         }
     }
@@ -9186,7 +9581,6 @@ static int64_t dumpStable(
     //
     ret = dumpSTableData(dbInfo, stbDes, tbNameArr, tbCount);
     freeTbNameArr(tbNameArr, tbCount);
-    freeTbDes(stbDes, true);
     return ret;
 }
 
@@ -9218,7 +9612,7 @@ int64_t dumpStbAndChildTb(
         ret = dumpStable(
                 taos_v,
                 dbInfo,
-                stable);
+                stbTableDes);
     } else {
         errorPrint("%s() LN%d, dumpNtbOfStb(%s) ByThread failed\n",
                 __func__, __LINE__,
