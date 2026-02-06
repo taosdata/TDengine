@@ -432,7 +432,7 @@ class TDSql:
                 time.sleep(1)
                 continue
 
-    def execute(self, sql, queryTimes=10, show=False):
+    def execute(self, sql, queryTimes=10, show=False, ignore_error=False):
         """
         Executes a SQL statement.
 
@@ -440,12 +440,13 @@ class TDSql:
             sql (str): The SQL statement to be executed.
             queryTimes (int, optional): The number of times to attempt the execution in case of failure. Defaults to 10.
             show (bool, optional): If True, the SQL statement will be logged before execution. Defaults to False.
+            ignore_error (bool, optional): If True, ignore errors and continue. Defaults to False.
 
         Returns:
-            int: The number of affected rows.
+            int: The number of affected rows, or None if failed and ignore_error is True.
 
         Raises:
-            Exception: If the execution fails after the specified number of attempts.
+            Exception: If the execution fails after the specified number of attempts and ignore_error is False.
         """
         self.sql = sql
         if show:
@@ -461,10 +462,13 @@ class TDSql:
                     filename, lineno = _fast_caller(1)
                     args = (filename, lineno, sql, repr(e))
                     tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
-                    raise Exception(repr(e))
+                    if ignore_error:
+                        tdLog.error(f"SQL执行失败但被忽略: {sql}\n{e}")
+                        return None
+                    else:
+                        raise Exception(repr(e))
                 i += 1
                 time.sleep(1)
-                pass
 
     # execute many sql
     def executes(self, sqls, queryTimes=30, show=False):
