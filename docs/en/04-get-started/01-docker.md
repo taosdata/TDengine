@@ -36,13 +36,13 @@ To install TDengine on your local machine instead of in a container, see [Get St
 2. Start a container with the following command:
 
    ```bash
-   docker run -d -p 6030:6030 -p 6041:6041 -p 6043-6060:6043-6060 -p 6043-6060:6043-6060/udp tdengine/tdengine
+   docker run --name tdengine -d -p 6030:6030 -p 6041:6041 -p 6043-6060:6043-6060 -p 6043-6060:6043-6060/udp tdengine/tdengine
    ```
 
    To persist data to your local machine, use the following command:
 
    ```bash
-   docker run -d -v <local-data-directory>:/var/lib/taos -v <local-log-directory>:/var/log/taos -p 6030:6030 -p 6041:6041 -p 6043-6060:6043-6060 -p 6043-6060:6043-6060/udp tdengine/tdengine
+   docker run --name tdengine -d -v <local-data-directory>:/var/lib/taos -v <local-log-directory>:/var/log/taos -p 6030:6030 -p 6041:6041 -p 6043-6060:6043-6060 -p 6043-6060:6043-6060/udp tdengine/tdengine
    ```
 
 3. Verify that the container is running properly:
@@ -54,10 +54,20 @@ To install TDengine on your local machine instead of in a container, see [Get St
 4. Enter the container and open a shell:
 
    ```bash
-   docker exec -it <container-name> bash
+   docker exec -it tdengine bash
    ```
 
    You can now work with TDengine inside your container. For example, you can run the `taos` command to open the TDengine command-line interface.
+
+5. Stop and clean up:
+
+   After you finish using the container, you can run the following commands to stop the container and remove any associated volumes.
+
+   ```bash
+   docker stop tdengine
+   docker rm tdengine -v
+   ```
+
 
 ## What to Do Next
 
