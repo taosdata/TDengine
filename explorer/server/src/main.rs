@@ -225,6 +225,11 @@ async fn main() -> anyhow::Result<()> {
     args.instance_id =
         Some(*INSTANCE_ID.get_or_init(|| args.instance_id.unwrap_or(DEFAULT_INSTANCE_ID)));
 
+    // validate configs loaded from TOML/env/CLI
+    if let Err(e) = args.security.validate() {
+        bail!("Invalid [security] configuration: {e}");
+    }
+
     let log_level = args
         .log
         .as_ref()
@@ -1314,9 +1319,9 @@ async fn login(
     query: Query<HashMap<String, String>>,
     body: web::Json<LoginBody>,
 ) -> impl Responder {
-    const XOR_DECODER: TimeBasedXor = TimeBasedXor::new(60);
+    let xor_decoder = TimeBasedXor::new(args.security.xor_allowed_duration_secs());
     let body = body.into_inner();
-    let password = if let Ok(password) = XOR_DECODER.decrypt(&body.encrypted_password) {
+    let password = if let Ok(password) = xor_decoder.decrypt(&body.encrypted_password) {
         password
     } else {
         tracing::warn!("Invalid login: {}", body.username);
