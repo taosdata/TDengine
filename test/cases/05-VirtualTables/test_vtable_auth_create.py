@@ -62,7 +62,7 @@ class TestVtableAuthCreate:
             for priv_tb1 in priv_list:
                 for priv_tb2 in priv_list:
                     tdSql.execute("use test_vtable_auth_create;")
-                    tdSql.execute(f"grant {priv_db} on test_vtable_auth_create to test_vtable_user_create;")
+                    tdSql.execute(f"grant {priv_db} on test_vtable_auth_create.* to test_vtable_user_create;")
                     tdSql.execute(f"grant use on database test_vtable_auth_create to test_vtable_user_create;")
                     if(priv_db == "insert" or priv_db == "all"):
                         tdSql.execute(f"grant create table on database test_vtable_auth_create to test_vtable_user_create;")
@@ -88,7 +88,7 @@ class TestVtableAuthCreate:
                         testSql.error(f"create vtable test_vtable_auth_vtb_{i}("
                                       "ts timestamp, "
                                       "int_col_1 int from test_vtable_auth_org_table_1.int_col, "
-                                      "int_col_2 int from test_vtable_auth_org_table_2.int_col);", expectErrInfo="Permission denied or target object not exist")
+                                      "int_col_2 int from test_vtable_auth_org_table_2.int_col);", expectErrInfo="Permission denied to select table")
                     else:
                         testSql.execute(f"create vtable test_vtable_auth_vtb_{i}("
                                         "ts timestamp, "
@@ -97,7 +97,7 @@ class TestVtableAuthCreate:
 
 
 
-                    tdSql.execute(f"revoke {priv_db} on test_vtable_auth_create from test_vtable_user_create;")
+                    tdSql.execute(f"revoke {priv_db} on test_vtable_auth_create.* from test_vtable_user_create;")
                     if(priv_db == "insert" or priv_db == "all"):
                         tdSql.execute(f"revoke create table on database test_vtable_auth_create from test_vtable_user_create;")
                     if (priv_tb1 != "none"):
@@ -147,7 +147,7 @@ class TestVtableAuthCreate:
             for priv_tb1 in priv_list:
                 for priv_tb2 in priv_list:
                     tdSql.execute("use test_vctable_auth_create;")
-                    tdSql.execute(f"grant {priv_db} on test_vctable_auth_create to test_vct_user_create;")
+                    tdSql.execute(f"grant {priv_db} on test_vctable_auth_create.* to test_vct_user_create;")
                     tdSql.execute(f"grant use on database test_vctable_auth_create to test_vct_user_create;")
                     if(priv_db == "insert" or priv_db == "all"):
                         tdSql.execute(f"grant create table on database test_vctable_auth_create to test_vct_user_create;")
@@ -177,7 +177,7 @@ class TestVtableAuthCreate:
                                           "test_vtable_auth_org_table_1.int_col, "
                                           "test_vtable_auth_org_table_2.int_col) "
                                           "USING test_vtable_auth_stb_1 "
-                                          "TAGS (1);", expectErrInfo="Permission denied or target object not exist")
+                                          "TAGS (1);", expectErrInfo="Permission denied to select table")
                         else:
                             testSql.execute(f"create vtable test_vctable_auth_vtb_{i}("
                                             "test_vtable_auth_org_table_1.int_col, "
@@ -187,7 +187,7 @@ class TestVtableAuthCreate:
 
 
 
-                    tdSql.execute(f"revoke {priv_db} on test_vctable_auth_create from test_vct_user_create;")
+                    tdSql.execute(f"revoke {priv_db} on test_vctable_auth_create.* from test_vct_user_create;")
                     if(priv_db == "insert" or priv_db == "all"):
                         tdSql.execute(f"revoke create table on database test_vctable_auth_create from test_vct_user_create;")
                     if (priv_tb1 != "none"):

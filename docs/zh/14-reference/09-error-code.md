@@ -744,6 +744,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80008020 | Xnode agent not exist                                 | 查询的 Xnode agent 不存在                             | 检查 agent ID 或 name                            |
 | 0x80008021 | Xnode agent already exist                             | 查询的 Xnode agent 已存在                             | 检查 agent ID 或 name                            |
 | 0x80008022 | Xnode name duplicate                                  | 更新的 name 重复                                      | 检查需要更新的 name 是否与存量数据重复           |
+| 0x80008023 | Xnode task parser too long                            | 任务 parser 字段过长                                  | 检查任务的 parser 字段是否过长                   |
 
 ## 连接器
 

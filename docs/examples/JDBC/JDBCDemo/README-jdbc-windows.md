@@ -159,7 +159,7 @@ Query OK, 2 row(s) in set (0.068000s)
         <dependency>
             <groupId>com.taosdata.jdbc</groupId>
             <artifactId>taos-jdbcdriver</artifactId>
-            <version>3.8.0</version>
+            <version>3.8.1</version>
         </dependency>
     </dependencies>
 </project>
