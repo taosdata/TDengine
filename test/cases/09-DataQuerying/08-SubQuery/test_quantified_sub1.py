@@ -20,6 +20,7 @@ class TestQuantifiedSubQuery1:
     maxColumnIdx = 20
     querySql = "select {row} {compareExpr} {quantifiedExpr} (select {row2} from {targetTableName} {filterExpr}) from {srcTableName};"
     queryTagsSql = "select tags {row} {compareExpr} {quantifiedExpr} (select {row2} from {targetTableName} {filterExpr}) from {srcTableName};"
+    queryConstSql = "select {constExpr} {compareExpr} {quantifiedExpr} (select {row2} from {targetTableName} {filterExpr}) from {srcTableName};"
 
     compareExprs = [
         "=",
@@ -41,6 +42,17 @@ class TestQuantifiedSubQuery1:
         "WHERE 1 = 0",
         "WHERE {row2} IS NULL",
         "WHERE {row2} IS NOT NULL",
+    ]
+
+    constExprs = [
+        "NULL",
+        "1",
+        "'a'",
+        "true",
+        "2.0",
+        "CAST('2025-12-01 00:00:00.000' AS TIMESTAMP)",
+        "abs(-1)",
+        "(select 1)"
     ]
 
     def setup_class(cls):
@@ -194,6 +206,32 @@ class TestQuantifiedSubQuery1:
 
                         self.generated_queries_file.write(self.generatedSql.strip() + "\n")
                         self.generated_queries_file.flush()
+
+        for self.constExprIdx in range(len(self.constExprs)):
+            for self.compareIdx in range(len(self.compareExprs)):
+                for self.quantifiedIdx in range(len(self.quantifiedExprs)):
+                    for self.subColIdx in range(1, self.maxColumnIdx + 1):
+                        if (self.subColIdx != self.maxColumnIdx):
+                            self.colName = f"f{self.subColIdx}"
+                            self.targetTbName = "ctt1"
+                        else:
+                            self.colName = "tg1->'k1'"    
+                            self.targetTbName = "st1"                    
+                        for self.filterIdx in range(len(self.filterExprs)):
+                            self.generatedSql = (
+                                self.queryConstSql
+                                .replace("{constExpr}", self.constExprs[self.constExprIdx])
+                                .replace("{compareExpr}", self.compareExprs[self.compareIdx])
+                                .replace("{quantifiedExpr}", self.quantifiedExprs[self.quantifiedIdx])
+                                .replace("{filterExpr}", self.filterExprs[self.filterIdx])
+                                .replace("{row2}", self.colName)
+                                .replace("{targetTableName}", self.targetTbName)
+                                .replace("{srcTableName}", f"cts1")
+                            )
+                            #tdLog.info(f"generated sql: {self.generatedSql}")
+
+                            self.generated_queries_file.write(self.generatedSql.strip() + "\n")
+                            self.generated_queries_file.flush()
 
         self.generated_queries_file.close()
         # iterate from file 0 to last file index self.fileIdx (inclusive)
