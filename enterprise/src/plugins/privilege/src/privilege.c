@@ -799,7 +799,7 @@ int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, const char *
   SDbObj *pDb = mndAcquireDb(pMnode, dbname);
 
   if (pDb == NULL) {
-    if (skipExists) {
+    if (skipExists || strncmp(realDbName, "*", 2) == 0) {
       TAOS_RETURN(mndCheckDbPrivilegeImpl(pMnode, user, token, operType, NULL, dbname));
     }
     TAOS_RETURN(terrno);

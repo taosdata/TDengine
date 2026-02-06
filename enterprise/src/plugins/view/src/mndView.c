@@ -563,23 +563,30 @@ int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq
     goto _OVER;
   }
 
-  char* sep = strchr(pCreateView->dbFName, '.');
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
+
+  char *sep = strchr(pCreateView->dbFName, '.');
   if (NULL != sep && IS_SYS_DBNAME(sep + 1)) {
-    //DO NOTHING
+    // DO NOTHING
   } else {
     pDb = mndAcquireDb(pMnode, pCreateView->dbFName);
     if (NULL == pDb) {
       code = terrno;
       goto _OVER;
     }
-    TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
 
-    TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL,
-                    _OVER);
+    if ((code = mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb))) {
+      if (code == TSDB_CODE_MND_NO_RIGHTS) code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+      goto _OVER;
+    }
   }
 
   pOldView = mndAcquireView(pMnode, pCreateView->fullname);
   if (pOldView != NULL) {
+    if (pDb && (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_ALTER, PRIV_OBJ_VIEW, pOldView->ownerId,
+                                                pDb->name, pOldView->name))) {
+      goto _OVER;
+    }
     if (!pCreateView->orReplace) {
       code = TSDB_CODE_MND_VIEW_ALREADY_EXIST;
       goto _OVER;
@@ -592,11 +599,11 @@ int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq
     //   code = terrno;
     //   goto _OVER;
     // }
-    if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_VIEW_CREATE, PRIV_OBJ_DB, pDb->name, NULL))) {
-      goto _OVER;
-    }
   } else if (terrno != TSDB_CODE_SUCCESS) {
     code = terrno;
+    goto _OVER;
+  } else if (pDb && (code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_VIEW_CREATE, PRIV_OBJ_DB, pDb->name,
+                                                          NULL))) {
     goto _OVER;
   }
 
@@ -627,26 +634,40 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-int32_t mndProcessDropViewReqImpl(SCMDropViewReq* pDropView, SRpcMsg *pReq) {
-  SMnode     *pMnode = pReq->info.node;
-  int32_t     code = -1;
-  int64_t     tss = taosGetTimestampMs();
-  SViewObj   *pView = mndAcquireView(pMnode, pDropView->fullname);
+int32_t mndProcessDropViewReqImpl(SCMDropViewReq *pDropView, SRpcMsg *pReq) {
+  SMnode   *pMnode = pReq->info.node;
+  int32_t   code = -1;
+  int64_t   tss = taosGetTimestampMs();
+  SUserObj *pOperUser = NULL;
+  SViewObj *pView = mndAcquireView(pMnode, pDropView->fullname);
+
+  if ((code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB,
+                                        pDropView->dbFName, true))) {
+    if (code == TSDB_CODE_MND_NO_RIGHTS) code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+    goto _OVER;
+  }
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
 
   if (pView == NULL) {
+    if ((code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_VIEW, 0, pDropView->dbFName,
+                                         pDropView->name))) {
+      goto _OVER;
+    }
     if (pDropView->igNotExists) {
       mInfo("view:%s, not exist, ignore not exist is set", pDropView->name);
       tFreeSCMDropViewReq(pDropView);
+      mndReleaseUser(pMnode, pOperUser);
       return 0;
     } else {
       terrno = TSDB_CODE_MND_VIEW_NOT_EXIST;
       tFreeSCMDropViewReq(pDropView);
+      mndReleaseUser(pMnode, pOperUser);
       return terrno;
     }
   }
 
-  if (0 != mndCheckViewPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_VIEW, pDropView->fullname)) {
-    code = terrno;
+  if ((code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_VIEW, pView->ownerId,
+                                       pDropView->dbFName, pDropView->name))) {
     goto _OVER;
   }
 
@@ -665,13 +686,13 @@ int32_t mndProcessDropViewReqImpl(SCMDropViewReq* pDropView, SRpcMsg *pReq) {
 _OVER:
 
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("failed to drop view %s since %s", pDropView->fullname, terrstr());
+    mError("failed to drop view %s since %s", pDropView->fullname, tstrerror(code));
   }
 
   tFreeSCMDropViewReq(pDropView);
 
   sdbRelease(pMnode->pSdb, pView);
-
+  mndReleaseUser(pMnode, pOperUser);
   return code;
 }
 
@@ -719,7 +740,7 @@ int32_t mndProcessViewMetaReqImpl(SViewMetaReq* pMetaReq, SRpcMsg *pReq) {
 _OVER:
 
   if (code != 0) {
-    mError("view:%s, failed to retrieve meta since %s", pMetaReq->fullname, terrstr());
+    mError("view:%s, failed to retrieve meta since %s", pMetaReq->fullname, tstrerror(code));
   }
 
   mndReleaseView(pMnode, pView);
@@ -774,14 +795,17 @@ static void mndGenerateViewDefValsListStr(char* buf, int32_t bufSize, int32_t co
 
 
 int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode     *pMnode = pReq->info.node;
-  SSdb       *pSdb = pMnode->pSdb;
-  int32_t     numOfRows = 0;
-  SViewObj   *pView = NULL;
-  char       *sep = NULL;
-  SDbObj     *pDb = NULL;
-  int32_t     code = 0;
-  
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
+  int32_t   numOfRows = 0;
+  SViewObj *pView = NULL;
+  SUserObj *pOperUser = NULL;
+  char     *sep = NULL;
+  SDbObj   *pDb = NULL;
+  int32_t   code = 0;
+  char      objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
+  bool      showAll = false;
+
   if (strlen(pShow->db) > 0) {
     sep = strchr(pShow->db, '.');
     if (sep && ((0 == strcmp(sep + 1, TSDB_INFORMATION_SCHEMA_DB) || (0 == strcmp(sep + 1, TSDB_PERFORMANCE_SCHEMA_DB))))) {
@@ -791,6 +815,16 @@ int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock,
       if (pDb == NULL) return terrno;
     }
   }
+
+  if ((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser)) != 0) {
+    goto _return;
+  }
+
+  (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
+  showAll = (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_VIEW, pDb ? pDb->ownerId : 0,
+                                           pDb ? pDb->name : objFName, "*"));
+  showAll = showAll && (0 == mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB,
+                                                       pDb ? pDb->name : objFName, false));
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_VIEW, pShow->pIter, (void **)&pView);
@@ -803,6 +837,15 @@ int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock,
       }
     } else if (NULL != sep && 0 != strcmp(pView->dbFName, sep)) {
       sdbRelease(pSdb, pView);
+      continue;
+    }
+
+    if (!showAll && (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_VIEW, pView->ownerId,
+                                              pView->dbFName, pView->name) ||
+                     mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB,
+                                               pView->dbFName, false))) {
+      sdbRelease(pSdb, pView);
+      terrno = 0;
       continue;
     }
 
@@ -917,7 +960,11 @@ _return:
   if (pMnode && pDb) {
     mndReleaseDb(pMnode, pDb);
   }
-  
+
+  if (pMnode && pOperUser) {
+    mndReleaseUser(pMnode, pOperUser);
+  }
+
   return numOfRows;
 }
 
