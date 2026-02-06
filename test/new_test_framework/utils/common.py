@@ -2987,12 +2987,13 @@ class TDCom:
             sql_lines = [line.strip() for line in f if line.strip()]
 
         def run_sql(sql):
-            if platform.system().lower() == "windows":
-                os.system(f'taos -c {cfgPath} -s "{sql}" > nul 2>&1')
-            else:
-                os.system(f'taos -c {cfgPath} -s "{sql}" > /dev/null 2>&1')
+            tdsql = newTdSql(cfgPath)
+            try:
+                tdsql.execute(sql)
+            except Exception as e:
+                tdLog.error(f"SQL执行失败: {sql}\n{e}")
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
             list(executor.map(run_sql, sql_lines))
 
     def generate_query_result(self, inputfile, test_case):
