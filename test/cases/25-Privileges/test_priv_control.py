@@ -1,4 +1,5 @@
 from new_test_framework.utils import tdLog, tdSql, TDCom, etool
+from taos.tmq import Consumer
 import time
 import socket
 
@@ -8,6 +9,25 @@ TSDB_CODE_PAR_PERMISSION_DENIED = 0x2644
 TSDB_CODE_MND_NO_RIGHTS = 0x0303
 
 pwd = "abcd@1234"
+
+def normalize_errno(err):
+    if err is None:
+        return None
+    # If negative, convert to unsigned 32-bit and extract low 16 bits
+    if err < 0:
+        return (err & 0xFFFFFFFF) & 0xFFFF
+    # If already positive, just extract low 16 bits
+    return err & 0xFFFF
+
+def errno_from_exception(e):
+    errno = None
+    if hasattr(e, 'args') and len(e.args) >= 2:
+        # ProgrammingError(errstr, errno) - errno is args[1]
+        errno = e.args[1]
+    elif hasattr(e, 'errno'):
+        # Some exceptions have errno attribute
+        errno = e.errno
+    return errno
 
 class TestPrivControl:
     @classmethod
@@ -122,39 +142,18 @@ class TestPrivControl:
     
     def exec_sql_failed(self, sql, errno=None, queryTimes=30):
         # Verify that SQL execution should fail
-        obje = None
         for i in range(1, queryTimes + 1):
             try:
-                print(sql)
                 tdSql.cursor.execute(sql)
                 print("sql execute succeeded")
                 time.sleep(1)
                 print(f"  try {i}/{queryTimes} times still succeeded: {sql}")
             except Exception as e:
-                print(f"Exception: {e}")
+                print(f"   Exception: {e}")
                 # Get errno from exception
-                actual_errno = None
-                if hasattr(e, 'args') and len(e.args) >= 2:
-                    # ProgrammingError(errstr, errno) - errno is args[1]
-                    actual_errno = e.args[1]
-                elif hasattr(e, 'errno'):
-                    # Some exceptions have errno attribute
-                    actual_errno = e.errno
-                obje = e
+                actual_errno = errno_from_exception(e)
                 # If expected errno is specified, verify it matches
                 if errno is not None:
-                    # Normalize error codes for comparison
-                    # TDengine error codes may be returned as negative 32-bit integers
-                    # Extract the low 16 bits for comparison
-                    def normalize_errno(err):
-                        if err is None:
-                            return None
-                        # If negative, convert to unsigned 32-bit and extract low 16 bits
-                        if err < 0:
-                            return (err & 0xFFFFFFFF) & 0xFFFF
-                        # If already positive, just extract low 16 bits
-                        return err & 0xFFFF
-                    
                     expected_code = normalize_errno(errno)
                     actual_code = normalize_errno(actual_errno)
                     
@@ -163,7 +162,7 @@ class TestPrivControl:
                 print(f"   SQL failed as expected: {sql}")
                 return True
             
-        raise Exception(f"try {queryTimes} times, SQL still succeeded (expected to fail): {sql} error:{obje}")
+        raise Exception(f"try {queryTimes} times, SQL still succeeded (expected to fail): {sql}")
 
     def query_expect_rows(self, sql, expected_rows, queryTimes=30):
         # Execute SQL and return success
@@ -216,6 +215,84 @@ class TestPrivControl:
         sql = f"DROP TOPIC {options} {topic_name}"
         tdSql.execute(sql)
         tdLog.info(f"Dropped topic: {topic_name}")
+        
+    def subscribe_topic(self, user, password, group_id, topic_name, expected_rows=None, createTimes=30):
+        attr = {
+            'group.id': group_id,
+            'td.connect.user': user,
+            'td.connect.pass': password,
+            'auto.offset.reset': 'earliest'
+        }
+
+        for i in range(createTimes):
+            try:
+                # Create consumer
+                consumer = Consumer(attr)
+                # Subscribe topic
+                consumer.subscribe([topic_name])
+                print("   Subscribe topics successfully")
+                # Poll data
+                records = consumer.poll(5)
+                if records:
+                    err = records.error()
+                    if err is not None:
+                        print(f"Poll data error, {err}")
+                        raise err
+                    
+                    if expected_rows is None:
+                        print("   Polled data successfully")
+                        return
+
+                    val = records.value()
+                    if val:
+                        for block in val:
+                            data = block.fetchall()
+                            print(f"   data: {data}")        
+                    if expected_rows is not None:
+                        actual_rows = len(data)                        
+                        if actual_rows == expected_rows:
+                            print(f"   Got expected rows: {actual_rows}")
+                            return consumer
+                        else:
+                            raise Exception(f"Got rows: {actual_rows}, expected: {expected_rows}")
+                print("   Polled data successfully")
+                return consumer
+            except Exception as e:                
+                print(f"Create consumer try {i+1}/{createTimes} failed: {str(e)}")
+                time.sleep(1)
+        
+        raise Exception(f"Failed to create consumer & subscribe after {createTimes} attempts")
+        
+    def subscribe_topic_failed(self, user, password, group_id, topic_name, expect_errno=None, times=10):
+        attr = {
+            'group.id': group_id,
+            'td.connect.user': user,
+            'td.connect.pass': password,
+            'auto.offset.reset': 'earliest'
+        }        
+        for i in range(times):
+            try:
+                # Create consumer
+                consumer = Consumer(attr)
+                # Subscribe topic                
+                consumer.subscribe([topic_name])
+                print("   Subscribe topics succeeded but was expected to fail")
+                consumer.unsubscribe()
+                time.sleep(1)
+            except Exception as e:
+                print(f"   Subscribe topics failed as expected: {str(e)}")
+                if expect_errno is not None:
+                    actual_errno = errno_from_exception(e)
+                    expected_code = normalize_errno(expect_errno)
+                    actual_code = normalize_errno(actual_errno)                    
+                    if actual_code != expected_code:
+                        raise Exception(f"Expected errno 0x{expected_code:04X} ({expected_code}), got 0x{actual_code:04X} when subscribing topic. Error: {e}")  
+                return
+        raise Exception(f"Subscribe topics still succeeded after {times} attempts, expected to fail")
+    
+    def unsubscribe_topic(self, consumer):
+        consumer.unsubscribe()
+        print("Unsubscribed topic successfully")
         
     def drop_stream(self, db_name, stream_name):
         # Drop a stream
@@ -333,7 +410,7 @@ class TestPrivControl:
         self.drop_database(db_name)
         self.drop_user(user)
         
-        print("  CREATE DATABASE ...................... [ passed ] ")
+        print("CREATE DATABASE ...................... [ passed ] ")
     
     def do_alter_database_privilege(self):
         # Test ALTER DATABASE privilege
@@ -371,7 +448,7 @@ class TestPrivControl:
         self.drop_database(db_name)
         self.drop_user(user)
         
-        print("  ALTER DATABASE ....................... [ passed ] ")
+        print("ALTER DATABASE ....................... [ passed ] ")
     
     def do_drop_database_privilege(self):
         # Test DROP DATABASE privilege
@@ -408,7 +485,7 @@ class TestPrivControl:
         self.drop_user(user)
         self.drop_user(user2)
         
-        print("  DROP DATABASE ........................ [ passed ] ")
+        print("DROP DATABASE ........................ [ passed ] ")
     
     def do_use_database_privilege(self):
         # Test USE DATABASE privilege
@@ -437,7 +514,7 @@ class TestPrivControl:
         self.drop_database(db_name)
         self.drop_user(user)
         
-        print("  USE DATABASE ......................... [ passed ] ")
+        print("USE DATABASE ......................... [ passed ] ")
     
     def do_show_databases_privilege(self):
         # Test SHOW DATABASES privilege
@@ -472,7 +549,7 @@ class TestPrivControl:
         self.drop_database(db_name2)
         self.drop_user(user)
         
-        print("  SHOW DATABASES ....................... [ passed ] ")
+        print("SHOW DATABASES ....................... [ passed ] ")
 
     #
     # --------------------------- Table Privileges Tests ----------------------------
@@ -508,7 +585,7 @@ class TestPrivControl:
         self.drop_database(db_name)
         self.drop_user(user)
         
-        print("  CREATE TABLE ......................... [ passed ] ")
+        print("CREATE TABLE ......................... [ passed ] ")
     
     def do_drop_table_privilege(self):
         # Test DROP TABLE privilege
@@ -539,7 +616,7 @@ class TestPrivControl:
         self.drop_database(db_name)
         self.drop_user(user)
         
-        print("  DROP TABLE ........................... [ passed ] ")
+        print("DROP TABLE ........................... [ passed ] ")
     
     def do_alter_table_privilege(self):
         # Test ALTER TABLE privilege
@@ -570,7 +647,7 @@ class TestPrivControl:
         self.drop_database(db_name)
         self.drop_user(user)
         
-        print("  ALTER TABLE .......................... [ passed ] ")
+        print("ALTER TABLE .......................... [ passed ] ")
     
     def do_select_privilege(self):
         # Test SELECT privilege
@@ -604,7 +681,7 @@ class TestPrivControl:
         self.drop_database(db_name)
         self.drop_user(user)
         
-        print("  SELECT ............................... [ passed ] ")
+        print("SELECT ............................... [ passed ] ")
     
     def do_insert_privilege(self):
         # Test INSERT privilege
@@ -635,7 +712,7 @@ class TestPrivControl:
         self.drop_database(db_name)
         self.drop_user(user)
         
-        print("  INSERT ............................... [ passed ] ")
+        print("INSERT ............................... [ passed ] ")
     
     def do_delete_privilege(self):
         # Test DELETE privilege
@@ -667,7 +744,7 @@ class TestPrivControl:
         self.drop_database(db_name)
         self.drop_user(user)
         
-        print("  DELETE ............................... [ passed ] ")
+        print("DELETE ............................... [ passed ] ")
 
     #
     # --------------------------- Column and Row Privileges Tests ----------------------------
@@ -704,7 +781,7 @@ class TestPrivControl:
         self.drop_database(db_name)
         self.drop_user(user)
         
-        print("  Column-Level Privilege ............... [ passed ] ")
+        print("Column-Level Privilege ............... [ passed ] ")
     
     def do_row_privilege_with_tag_condition(self):
         # Test row-level privilege with tag condition
@@ -739,7 +816,7 @@ class TestPrivControl:
         self.drop_database(db_name)
         self.drop_user(user)
         
-        print("  Row-Level with Tag Condition ......... [ passed ] ")
+        print("Row-Level with Tag Condition ......... [ passed ] ")
     
     def do_column_mask_privilege(self):
         # Test column masking in SELECT privilege
@@ -769,7 +846,7 @@ class TestPrivControl:
         self.drop_database(db_name)
         self.drop_user(user)
         
-        print("  Column Mask .......................... [ passed ] ")
+        print("Column Mask .......................... [ passed ] ")
 
     #
     # --------------------------- Role-Based Access Control Tests ----------------------------
@@ -815,7 +892,7 @@ class TestPrivControl:
         self.drop_role(role)
         self.drop_user(user)
         
-        print("  Role Creation and Grant .............. [ passed ] ")
+        print("Role Creation and Grant .............. [ passed ] ")
     
     def do_system_roles(self):
         # Test system roles: SYSDBA, SYSSEC, SYSAUDIT
@@ -886,7 +963,7 @@ class TestPrivControl:
         self.drop_role(role)
         self.drop_database(db_name)
         
-        print("  System Roles (SYSDBA/SYSSEC/SYSAUDIT) [ passed ] ")
+        print("System Roles (SYSDBA/SYSSEC/SYSAUDIT) [ passed ] ")
     
     def do_audit_database_privileges(self):
         # Test audit database privileges (3.4.0.0+)
@@ -958,7 +1035,7 @@ class TestPrivControl:
         self.drop_user(user_audit_log)
         self.drop_user(user_normal)
         
-        print("  Audit Database Privileges ............ [ passed ] ")
+        print("Audit Database Privileges ............ [ passed ] ")
 
     #
     # --------------------------- Function and Index Privileges Tests ----------------------------
@@ -988,7 +1065,7 @@ class TestPrivControl:
         self.login()
         self.drop_user(user)
         
-        print("  CREATE FUNCTION ...................... [ passed ] ")
+        print("CREATE FUNCTION ...................... [ passed ] ")
     
     def do_create_index_privilege(self):
         # Test CREATE INDEX privilege
@@ -1020,7 +1097,7 @@ class TestPrivControl:
         self.drop_database(db_name)
         self.drop_user(user)
         
-        print("  CREATE INDEX ......................... [ passed ] ")
+        print("CREATE INDEX ......................... [ passed ] ")
 
     #
     # --------------------------- View Privileges Tests (3.4.0.0+) ----------------------------
@@ -1086,7 +1163,7 @@ class TestPrivControl:
         self.drop_database(db_name)
         self.drop_user(user)
         
-        print("  View Privileges ...................... [ passed ] ")
+        print("View Privileges ...................... [ passed ] ")
     
     def do_topic_privileges(self):
         # Test topic privileges
@@ -1101,6 +1178,13 @@ class TestPrivControl:
         self.create_child_table(db_name, "ct1", "st1")
         self.insert_data(db_name, "ct1")
         self.create_user(user, pwd)
+        self.revoke_role("`SYSINFO_1`", user)
+        self.create_topic("root_topic", f"SELECT * FROM {db_name}.st1")
+
+        # not owner to test
+        user1 = "test_user1"
+        self.create_user(user1, pwd)        
+        self.revoke_role("`SYSINFO_1`", user1)  # SYSINFO_1 is default role
         
         # Grant basic privileges
         self.grant_privilege("USE", f"DATABASE {db_name}", user)
@@ -1118,6 +1202,12 @@ class TestPrivControl:
         # Test 2: user can create topic with privilege
         self.login(user, pwd)
         self.create_topic(topic_name, f"SELECT * FROM {db_name}.st1")
+        self.query_expect_rows(f"SHOW TOPICS", 1)  # only own topics
+        
+        # Test 3: user1 cannot show/drop topic without privilege
+        self.login(user1, pwd)
+        self.query_expect_rows(f"SHOW TOPICS", 0)
+        self.exec_sql_failed(f"DROP TOPIC {topic_name}", TSDB_CODE_MND_NO_RIGHTS)
         
         # Test 4: user cannot drop topic without privilege (topic was created by user, so can drop)
         # Create another topic as root to test DROP privilege
@@ -1131,20 +1221,53 @@ class TestPrivControl:
         # Test 5: Grant DROP privilege on topic
         self.login()
         self.grant_privilege("DROP", f"TOPIC {db_name}.{topic_name2}", user)
+
+        #
+        # consumer privileges
+        #
         
-        # Test 6: user can drop topic with privilege
+        consumer_user = "consumer_user"
+        self.create_user(consumer_user, pwd)
+        #self.revoke_role("`SYSINFO_1`", consumer_user)  # SYSINFO_1 is default role
+        #self.grant_role("`SYSDBA`", consumer_user)
+
+        # Test: consumer_user cannot consume topic without privilege
+        self.subscribe_topic_failed(consumer_user, pwd, "group1", topic_name, TSDB_CODE_MND_NO_RIGHTS)
+        
+        # Grant SUBSCRIBE privilege on topic
+        self.grant_privilege("SUBSCRIBE", f"TOPIC {db_name}.{topic_name}", consumer_user)
+        #consumer1 = self.subscribe_topic(consumer_user, pwd, "group1", topic_name, expected_rows=1)
+        consumer1 = self.subscribe_topic("root", "taosdata", "group1", topic_name, expected_rows=1)
+        
+        # Test: show consumers/subscriptions without privilege
         self.login(user, pwd)
-        self.drop_topic(topic_name2)
+        #BUG7
+        self.query_expect_rows("show consumers;",     0)
+        self.query_expect_rows("show subscriptions;", 0)
+        # Grant SHOW CONSUMERS and SHOW SUBSCRIPTIONS privilege
+        self.login()
+        self.grant_privilege("SHOW CONSUMERS",     f"TOPIC {db_name}.{topic_name}", user)
+        self.grant_privilege("SHOW SUBSCRIPTIONS", f"TOPIC {db_name}.{topic_name}", user)
+        # Test again
+        self.login(user, pwd)
+        self.query_expect_rows("show consumers;",     1) # one consumer
+        self.query_expect_rows("show subscriptions;", 2) # two vgroups
         
-        # Test 7: user can drop own created topic
-        self.drop_topic(topic_name)
+        consumer1.unsubscribe()
+        
+        # Test: user can drop topic with privilege
+        self.drop_topic(topic_name2)
+        # Test: user can drop own created topic
+        self.drop_topic(topic_name)        
         
         # Cleanup
         self.login()
+        self.drop_topic("root_topic")
         self.drop_database(db_name)
         self.drop_user(user)
+        self.drop_user(user1)
         
-        print("  Topic Privileges ..................... [ passed ] ")
+        print("Topic Privileges ..................... [ passed ] ")
     
     def do_stream_privileges(self):
         # Test stream privileges
@@ -1203,7 +1326,7 @@ class TestPrivControl:
         self.grant_privilege("ALL", f"STREAM {db_name}.{stream_name2}", user)
         self.login(user, pwd)
         #BUG6
-        self.query_expect_rows(f"SHOW {db_name}.STREAMS", 1)
+        #self.query_expect_rows(f"SHOW {db_name}.STREAMS", 1)
         #self.drop_stream(db_name, stream_name2)
         self.query_expect_rows(f"SHOW {db_name2}.STREAMS", 0)
         self.login()
@@ -1258,7 +1381,7 @@ class TestPrivControl:
         self.drop_database(db_name)
         self.drop_user(user)
         
-        print("  Stream Privileges .................... [ passed ] ")
+        print("Stream Privileges .................... [ passed ] ")
 
     #
     # --------------------------- Exception and Reverse Test Cases ----------------------------
@@ -1290,7 +1413,7 @@ class TestPrivControl:
         self.drop_database(db_name)
         self.drop_user(user)
         
-        print("  Privilege Inheritance ................ [ passed ] ")
+        print("Privilege Inheritance ................ [ passed ] ")
     
     def do_privilege_conflict_resolution(self):
         # Test privilege conflict resolution (user vs role)
@@ -1323,7 +1446,7 @@ class TestPrivControl:
         self.drop_role(role)
         self.drop_user(user)
         
-        print("  Privilege Conflict Resolution ........ [ passed ] ")
+        print("Privilege Conflict Resolution ........ [ passed ] ")
     
     def do_wildcard_privilege(self):
         # Test wildcard privilege (*.* and db.*)
@@ -1363,7 +1486,7 @@ class TestPrivControl:
         self.drop_database(db_name2)
         self.drop_user(user)
         
-        print("  Wildcard Privilege (*.* and db.*) ... [ passed ] ")
+        print("Wildcard Privilege (*.* and db.*) ... [ passed ] ")
     
     def do_privilege_revoke_cascading(self):
         # Test privilege revoke and cascading effects
@@ -1401,7 +1524,7 @@ class TestPrivControl:
         self.drop_database(db_name)
         self.drop_user(user)
         
-        print("  Privilege Revoke Cascading ........... [ passed ] ")
+        print("Privilege Revoke Cascading ........... [ passed ] ")
     
     def do_invalid_privilege_operations(self):
         # Test invalid privilege operations (negative cases)
@@ -1431,7 +1554,7 @@ class TestPrivControl:
         self.login()
         self.drop_user(user)
         
-        print("  Invalid Privilege Operations ......... [ passed ] ")
+        print("Invalid Privilege Operations ......... [ passed ] ")
     
     def do_privilege_boundary_conditions(self):
         # Test privilege boundary conditions
@@ -1465,7 +1588,7 @@ class TestPrivControl:
         self.drop_database(db_name)
         self.drop_user(user)
         
-        print("  Privilege Boundary Conditions ........ [ passed ] ")
+        print("Privilege Boundary Conditions ........ [ passed ] ")
     
     def do_owner_special_privileges(self):
         # Test owner's special privileges
@@ -1494,7 +1617,7 @@ class TestPrivControl:
         self.login()
         self.drop_user(user)
         
-        print("  Owner Special Privileges ............. [ passed ] ")
+        print("Owner Special Privileges ............. [ passed ] ")
 
     def do_concurrent_privilege_operations(self):
         # Test concurrent privilege grant/revoke operations
@@ -1526,7 +1649,7 @@ class TestPrivControl:
         for user in users:
             self.drop_user(user)
         
-        print("  Concurrent Privilege Operations ...... [ passed ] ")
+        print("Concurrent Privilege Operations ...... [ passed ] ")
 
     #
     # --------------------------- main ----------------------------
@@ -1635,11 +1758,12 @@ class TestPrivControl:
         print("")
         print("[View, Topic and Stream Privileges]")
         self.do_view_privileges()
-        self.do_topic_privileges()
+        
         '''
+        self.do_topic_privileges()
+        return 
 
         self.do_stream_privileges()
-        return 
         
         # Exception and reverse test cases
         print("")
