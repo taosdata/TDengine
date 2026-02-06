@@ -218,6 +218,10 @@ int32_t scalarGenerateSetFromCol(void **data, SColumnInfoData *pCol, uint32_t ty
       buf = colDataGetNumData(pRes, i);
     }
 
+    if (TSDB_DATA_TYPE_BIGINT == type) {
+      sclDebug("%s put %" PRId64 " into hash", __func__, *(int64_t*)buf);
+    }
+
     SCL_ERR_JRET(taosHashPut(pObj, buf, (size_t)len, NULL, 0));
   }
 
@@ -471,11 +475,11 @@ void sclDowngradeValueType(SValueNode *valueNode) {
   }
 }
 
-int32_t scalarBuildRemoteListHash(SRemoteValueListNode* pRemote, SColumnInfoData* pCol, int64_t rows) {
+int32_t scalarBuildRemoteListHash(char* idStr, SRemoteValueListNode* pRemote, SColumnInfoData* pCol, int64_t rows) {
   int32_t  code = 0;
   int32_t  type = (pRemote->targetType != pRemote->node.resType.type) ? vectorGetConvertType(pRemote->targetType, pRemote->node.resType.type) : pRemote->targetType;
   if (type < 0) {
-    sclError("%s not supported convertion between %d and %d", __func__, pRemote->targetType, pRemote->node.resType.type);
+    sclError("%s %s not supported convertion between %d and %d", idStr, __func__, pRemote->targetType, pRemote->node.resType.type);
     return TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
           
@@ -484,6 +488,8 @@ int32_t scalarBuildRemoteListHash(SRemoteValueListNode* pRemote, SColumnInfoData
   if (IS_DECIMAL_TYPE(type)) {
     typeMod = decimalCalcTypeMod(TSDB_DECIMAL_MAX_PRECISION, getScaleFromTypeMod(type, pRemote->targetTypeMod));
   }
+
+  sclDebug("%s %s compare type:%d, targetType:%d, valType:%d, rows:%" PRId64, idStr, __func__, type, pRemote->targetType, pRemote->node.resType.type, rows);
 
   bool hasNull1 = false, hasNull2 = false, hasNotNull = false;
   

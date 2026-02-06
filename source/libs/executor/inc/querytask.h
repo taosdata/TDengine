@@ -115,7 +115,7 @@ void    doDestroyTask(SExecTaskInfo* pTaskInfo);
 void    setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode);
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray* subEndPoints);
+                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray** subEndPoints);
 int32_t qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo);
 int32_t getTableListInfo(const SExecTaskInfo* pTaskInfo, SArray** pList);
 

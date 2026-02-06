@@ -4258,7 +4258,7 @@ int32_t updateValueListFromResBlock(STaskSubJobCtx* ctx, SRemoteValueListNode* p
   pRes->hasValue = true;
   
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, 0);
-  TAOS_CHECK_EXIT(scalarBuildRemoteListHash(pRes, pCol, pBlock->info.rows));
+  TAOS_CHECK_EXIT(scalarBuildRemoteListHash(ctx->idStr, pRes, pCol, pBlock->info.rows));
 
 _exit:
 
@@ -4303,7 +4303,7 @@ void handleRemoteValueListRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SR
     blockDataDestroy(pResBlock);  
   } else if (0 == pRsp->numOfRows && pRsp->completed) {
     if (!pRemote->hasValue) {
-      ctx->code = scalarBuildRemoteListHash(pRemote, NULL, 0);
+      ctx->code = scalarBuildRemoteListHash(ctx->idStr, pRemote, NULL, 0);
     }
     if (TSDB_CODE_SUCCESS == ctx->code) {    
       pRemote->flag &= (~VALUELIST_FLAG_VAL_UNSET);

@@ -605,7 +605,7 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int8_t *overflow) {
     if (vton) {
       (void)memcpy(tmp, data, varDataTLen(data));
     } else {
-      if (TSDB_DATA_TYPE_VARCHAR == convertType || TSDB_DATA_TYPE_GEOMETRY == convertType) {
+      if (TSDB_DATA_TYPE_VARCHAR == convertType || TSDB_DATA_TYPE_GEOMETRY == convertType || TSDB_DATA_TYPE_VARBINARY == convertType) {
         (void)memcpy(tmp, varDataVal(data), varDataLen(data));
         tmp[varDataLen(data)] = 0;
       } else if (TSDB_DATA_TYPE_NCHAR == convertType) {
@@ -1969,6 +1969,10 @@ int32_t vectorCompareWithHashParam(SSclComapreCtx* pCtx) {
   bool isNegativeOp = pCtx->pOut->hashParam.isNegativeOp;
   bool multiRowsInHash = (taosHashGetSize(pHParam->pHashFilter) > 1 || taosHashGetSize(pHParam->pHashFilterOthers) > 1);
   bool res = false, resIsNull = false;
+
+  sclDebug("%s compare param, hasValue:%d, hasNull:%d, hasNotNull:%d, isNevativeOp:%d, hashNum:%d, hashOthersNum:%d", 
+      __func__, pHParam->hasValue, pHParam->hasNull, pHParam->hasNotNull, isNegativeOp, taosHashGetSize(pHParam->pHashFilter),
+      taosHashGetSize(pHParam->pHashFilterOthers));
   
   if (!pHParam->hasValue) {
     res = (pCtx->optr == OP_TYPE_IN) ? false : true;

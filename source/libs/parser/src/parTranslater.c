@@ -3099,7 +3099,7 @@ static bool isValidSubQCompDataType(int32_t leftType, int32_t rightType, EOperat
     return false;
   }
 
-  if (TSDB_DATA_TYPE_JSON == rightType) {
+  if (TSDB_DATA_TYPE_JSON == rightType || TSDB_DATA_TYPE_JSON == leftType) {
     parserError("not supported quantified compare types:%d, %d for op:%s", leftType, rightType, operatorTypeStr(opType));
     return false;
   }

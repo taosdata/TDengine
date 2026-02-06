@@ -100,17 +100,21 @@ void setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status) {
 }
 
 
-int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray* subEndPoints, SReadHandle* readHandle) {
+int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray** subEndPoints, SReadHandle* readHandle) {
   STaskSubJobCtx* ctx = &pTaskInfo->subJobCtx;
 
   ctx->queryId = pTaskInfo->id.queryId;
   ctx->taskId = pTaskInfo->id.taskId;
   ctx->idStr = pTaskInfo->id.str;
   ctx->pTaskInfo = pTaskInfo;
-  ctx->subEndPoints = subEndPoints;
+  ctx->subEndPoints = subEndPoints ? *subEndPoints : NULL;
   ctx->rpcHandle = (readHandle && readHandle->pMsgCb) ? readHandle->pMsgCb->clientRpc : NULL;
+
+  if (subEndPoints) {
+    *subEndPoints = NULL;
+  }
   
-  int32_t subJobNum = taosArrayGetSize(subEndPoints);
+  int32_t subJobNum = taosArrayGetSize(ctx->subEndPoints);
   if (subJobNum > 0) {
     pTaskInfo->subJobCtx.subResNodes = taosArrayInit_s(POINTER_BYTES, subJobNum);
     if (NULL == pTaskInfo->subJobCtx.subResNodes) {
@@ -135,7 +139,7 @@ int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray* subEndPoints, SReadH
 
 
 int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray* subEndPoints) {
+                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray** subEndPoints) {
   int32_t code = doCreateTask(pPlan->id.queryId, taskId, vgId, model, &pHandle->api, pTaskInfo);
   if (*pTaskInfo == NULL || code != 0) {
     nodesDestroyNode((SNode*)pPlan);
@@ -333,7 +337,15 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
     }
     pCtx->transporterId = -1;
   }
-  taosArrayDestroy(pCtx->subResNodes);
+  
+  if (pCtx->subEndPoints && taosArrayGetSize(pCtx->subEndPoints) > 0) {
+    int32_t code = tsem_destroy(&pCtx->ready);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    }  
+    taosArrayDestroy(pCtx->subResNodes);
+    taosArrayDestroyP(pCtx->subEndPoints, NULL);  
+  }
 }
 
 void doDestroyTask(SExecTaskInfo* pTaskInfo) {

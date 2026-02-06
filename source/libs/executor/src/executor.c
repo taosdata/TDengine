@@ -741,12 +741,12 @@ int32_t qSemWait(qTaskInfo_t task, tsem_t* pSem) {
 
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
-                        EOPTR_EXEC_MODEL model, SArray* subEndPoints) {
+                        EOPTR_EXEC_MODEL model, SArray** subEndPoints) {
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
   (void)taosThreadOnce(&initPoolOnce, initRefPool);
 
   qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d, subEndPoinsNum:%d", 
-    taskId, pSubplan->id.queryId, vgId, (int32_t)taosArrayGetSize(subEndPoints));
+    taskId, pSubplan->id.queryId, vgId, (int32_t)taosArrayGetSize(subEndPoints ? *subEndPoints : NULL));
 
   readHandle->uid = 0;
   int32_t code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model, subEndPoints);

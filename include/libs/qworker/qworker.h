@@ -75,7 +75,7 @@ typedef struct SQWMsg {
   ESubQueryType  subQType;
   SQWMsgInfo     msgInfo;
   SRpcHandleInfo connInfo;
-  SArray        *subEndPoints;
+  SArray       **subEndPoints;
   void          *pWorkerCb;
 } SQWMsg;
 
