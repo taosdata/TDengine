@@ -29,13 +29,7 @@
     </el-form>
     <div class="chart-right">
       <Echart width="100%" height="100%" :option="chartOption" @finished="drawing = false"></Echart>
-    </div>
-    <!-- 列表 -->
-    <div class="idmptip">
-      <router-link to="/idmp">
-        <span class="title">{{ t('explorer.idmptip') }}</span>
-      </router-link>
-    </div>
+    </div> 
   </div>
 </template>
 <script lang="ts" setup>
@@ -48,7 +42,7 @@ import JSONBig from 'json-big';
 
 const chartTypes = ['bar', 'line', 'area'];
 const chartForm = reactive({
-  chartType: 'bar',
+  chartType: 'line',
   label: 0,
   series: [] as number[]
 });
@@ -56,9 +50,9 @@ const formRef = shallowRef<FormInstance | null>(null);
 const drawing = ref(false);
 const chartOption = ref<Recordable>({});
 const rules = computed(() => ({
-  chartType: [{ required: true, message: t('common.requiredTemp', [t('explorer.chartType')]) }],
-  label: [{ required: true, message: t('common.requiredTemp', [t('explorer.xAxis')]) }],
-  series: [{ required: true, message: t('common.requiredTemp', [t('explorer.series')]) }]
+  chartType: [{ required: false, message: t('common.requiredTemp', [t('explorer.chartType')]) }],
+  label: [{ required: false, message: t('common.requiredTemp', [t('explorer.xAxis')]) }],
+  series: [{ required: false, message: t('common.requiredTemp', [t('explorer.series')]) }]
 }));
 const fields = computed(() => sqlExecResult.head.map((item: Recordable) => item.field));
 
@@ -71,13 +65,35 @@ watch(
   }
 );
 
-function drawChart() {
+function drawChart(evt?: MouseEvent) {
   if (!formRef.value) return;
   formRef.value.validate(valid => {
     if (valid) {
+      // 如果不是由鼠标点击触发的，自动选择前两个数字类型的列
+      if (!evt) {
+        const numericIndices = fields.value.map((field, index) => {
+          const headItem = sqlExecResult.head.find(h => h.field === field);
+          const headType = headItem?.type.toLowerCase() || '';
+          return headItem && (
+            headType === 'tinyint' || headType === 'tinyint unsigned' 
+            || headType === 'smallint' || headType === 'smallint unsigned' 
+            || headType === 'int' || headType === 'int unsigned' 
+            || headType === 'bigint unsigned' || headType === 'bigint' 
+            || headType === 'float' || headType === 'double'
+            || headType.includes('decimal')
+          ) && index !== chartForm.label ? index : -1;
+        }).filter(index => index !== -1);
+        if (numericIndices.length >= 2) {
+          chartForm.series = numericIndices.slice(0, 2);
+        } else if (numericIndices.length === 1) {
+          chartForm.series = [numericIndices[0]];
+        } else {
+          chartForm.series = [];
+        }
+      }
       const firstData = sqlExecResult.data[0] || {};
       chartOption.value = {
-        grid: { right: 30, bottom: 70 },
+        grid: { left: 30, right: 'auto', bottom: 70 },
         legend: {},
         tooltip: {
           trigger: 'axis'
@@ -131,6 +147,9 @@ function handleSeriesChange() {
     return op;
   });
 }
+defineExpose({
+  drawChart
+});
 </script>
 <style lang="scss" scoped>
 .chart {
@@ -138,7 +157,7 @@ function handleSeriesChange() {
   height: 100%;
 
   .chart-right {
-    height: 380px;
+    height: calc(100% - 30px);
   }
 }
 
@@ -156,6 +175,12 @@ function handleSeriesChange() {
 
   .title:hover {
     color: #1976d2; /* 悬浮时变为蓝色 */
+  }
+}
+
+.el-form-item {
+  .el-input, .el-cascader, .el-select, .el-autocomplete {
+    min-width: 100px;
   }
 }
 </style>

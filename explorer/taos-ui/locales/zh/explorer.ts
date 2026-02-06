@@ -33,7 +33,7 @@ export default {
   exportError: '只能导出查询语句的返回结果',
   exportConfirm: '确定导出全部查询结果吗？',
   exportCurrentData: '导出当前数据为CSV',
-  favorites: '收藏',
+  favorites: '收藏列表',
   grid: '网格',
   copyTMQDSN: '复制 DSN',
   runSqlTip: '执行第一条或鼠标选中的SQL语句',

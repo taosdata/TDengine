@@ -16,7 +16,6 @@
 <script lang="ts" setup>
 import { Codemirror } from 'vue-codemirror';
 import { sql } from '@codemirror/lang-sql';
-import { lintGutter } from '@codemirror/lint';
 import { search } from '@codemirror/search';
 import { keymap, EditorView, ViewPlugin } from '@codemirror/view';
 import { defaultKeymap } from '@codemirror/commands';
@@ -108,7 +107,7 @@ function setExtension() {
   if (props.placeholders) {
     extensionsValue.push(props.placeholders);
   }
-  extensionsValue.push(lintGutter(), search(), EditorView.lineWrapping); // 添加自动换行配置);
+  extensionsValue.push(search(), EditorView.lineWrapping); // 添加自动换行配置);
   extensions.value = extensionsValue;
 }
 function myCompletions(context: CompletionContext) {

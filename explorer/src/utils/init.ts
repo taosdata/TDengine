@@ -51,8 +51,7 @@ export function getBrowserLang(): string {
  * 根据打包版本修改网页标题
  */
 export function setTitle(): void {
-  const title = $IS_COMMUNITY ? 'TDengine TSDB-OSS' : import.meta.env.VITE_APP_CUS_NAME || 'TDengine TSDB-Enterprise';
-  document.title = title;
+  document.title = 'TDengine TSDB';
 }
 
 export function setInit() {

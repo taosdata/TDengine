@@ -73,7 +73,6 @@ import {
   getTagHierarchy,
   getTableWithTags,
   getTableListReq,
-  getSubtbTagAndColumnList,
   getDbList
 } from '../../api';
 import { getSqlProvider } from '../model/useExplorer';
@@ -209,7 +208,7 @@ async function loadNode(node: Node, resolve: LoadedCallback) {
         }))
       );
     case 'table':
-      return resolve(await getSubtbTagAndColumnList(data.parent.split('.')[0], data.name));
+      return resolve([]); 
     default:
       // eslint-disable-next-line no-case-declarations
       const dataList = await getDbList();
@@ -280,7 +279,6 @@ function allNodesLoaded(node: Node) {
   flex-shrink: 0;
   flex-direction: column;
   width: 19%;
-  min-width: 360px;
   height: 100%;
   overflow: hidden;
   border: 1px solid #dcdfe6;
@@ -294,6 +292,7 @@ function allNodesLoaded(node: Node) {
     align-items: center;
     justify-content: space-between;
     width: 100%;
+    height: 40px;
     padding: 4px 10px;
     background-color: #f5f7fa;
     border-bottom: 1px solid #ebeef5;

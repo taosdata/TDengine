@@ -37,14 +37,6 @@
               </template>
             </el-dropdown>
           </template>
-          <el-tooltip
-            v-if="isHasPermission('db:read', 'view') && type == 'table'"
-            effect="light"
-            placement="top"
-            :content="getTooltip(data, 'view')"
-          >
-            <More class="operate-icon rotate-90" @click.stop="view" />
-          </el-tooltip>
           <!-- db 和 stable 更多按钮 -->
           <template v-if="showMoreBtnType.includes(type)">
             <el-dropdown v-if="isHasPermission('db:read', ['read', 'write'])">
@@ -55,7 +47,16 @@
               </div>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item v-if="isHasPermission('db:alter', 'write')" command="add" class="tree-menu">
+                  <el-dropdown-item v-if="isHasPermission('db:read', 'read')" command="view" class="tree-menu">
+                    <el-tooltip effect="light" placement="right" :content="getTooltip(data, 'view')">
+                      <div class="flex-start tree-menu-item" @click.stop="view">
+                        <View class="operate-icon"></View>
+                        <div class="tree-menu-label">{{ t('common.view') }}</div>
+                      </div>
+                    </el-tooltip>
+                  </el-dropdown-item>
+
+                  <el-dropdown-item v-if="isHasPermission('db:alter', 'write') && type !== 'table'" command="add" class="tree-menu">
                     <el-tooltip effect="light" placement="right" :content="getTooltip(data, 'add')">
                       <div class="flex-start tree-menu-item" @click.stop="add()">
                         <Plus class="operate-icon"></Plus>
@@ -96,14 +97,6 @@
                     </el-tooltip>
                   </el-dropdown-item>
 
-                  <el-dropdown-item v-if="isHasPermission('db:read', 'read')" command="view" class="tree-menu">
-                    <el-tooltip effect="light" placement="right" :content="getTooltip(data, 'view')">
-                      <div class="flex-start tree-menu-item" @click.stop="view">
-                        <View class="operate-icon"></View>
-                        <div class="tree-menu-label">{{ t('common.view') }}</div>
-                      </div>
-                    </el-tooltip>
-                  </el-dropdown-item>
                   <el-dropdown-item v-if="isHasPermission('db:alter', 'write')" command="edit" class="tree-menu">
                     <el-tooltip effect="light" placement="right" :content="getTooltip(data, 'edit')">
                       <div class="flex-start tree-menu-item" @click.stop="edit">
@@ -149,7 +142,7 @@
                       </div>
                     </el-tooltip>
                   </el-dropdown-item>
-                  <el-dropdown-item v-if="type == 'stable'" command="clickAdd" class="tree-menu"
+                  <el-dropdown-item v-if="type == 'stable' || type == 'table'" command="clickAdd" class="tree-menu"
                     ><el-tooltip
                       effect="light"
                       placement="right"
@@ -190,31 +183,6 @@
             </el-dropdown>
           </template>
 
-          <!-- table 按钮 -->
-          <template v-if="type == 'table'">
-            <el-tooltip
-              v-if="isHasPermission('db:alter', 'write')"
-              effect="light"
-              placement="top"
-              :content="getTooltip(data, 'edit')"
-            >
-              <Edit class="operate-icon" @click.stop="edit"></Edit>
-            </el-tooltip>
-            <el-tooltip effect="light" :content="t('explorer.viewData', [viewTableDataLimit])">
-              <Search class="operate-icon" @click.stop="clickAdd(true)"></Search>
-            </el-tooltip>
-            <el-tooltip effect="light" :content="t('explorer.appendEditor')">
-              <Icon class="operate-icon ml-10px" name="code" @click.stop="clickAdd()"></Icon>
-            </el-tooltip>
-            <el-tooltip
-              v-if="isHasPermission('db:drop', 'write')"
-              effect="light"
-              placement="top"
-              :content="getTooltip(data, 'del')"
-            >
-              <Delete class="operate-icon ml-10px" @click.stop="del"></Delete>
-            </el-tooltip>
-          </template>
         </template>
       </section>
     </div>
@@ -242,6 +210,7 @@ import { getExplorerProps, getSqlProvider } from '../model/useExplorer';
 import { cloneDeep } from 'lodash-es';
 import { deleteStableReq, deleteTableReq, getStableStructReq, NORMAL_TABLE, VIRTUAL_NORMAL_TABLE } from '../../api';
 import { instance } from 'config';
+import { ElMessage, ElMessageBox } from 'element-plus';
 
 const props = defineProps<{
   node: Node;
@@ -260,7 +229,7 @@ const iconMap: Recordable = {
 const { isCloud, isCommunity, database, customCompCallback } = getExplorerProps();
 const { addSql, sqlStr } = getSqlProvider();
 const currentData = getCurrentInfoDataProvider();
-const showMoreBtnType = ['database', 'stable'];
+const showMoreBtnType = ['database', 'stable', 'table'];
 const showTotalType = ['stable', 'dimension'];
 const delFnMap: Recordable = {
   database: database.deleteApi,
@@ -285,7 +254,7 @@ const emits = defineEmits([
 ]);
 
 function getSubCreateText() {
-  type == 'database' ? 'stb.stable' : isVirtual ? 'stb.virtualSubTable' : 'stb.subTable';
+  type.value == 'database' ? 'stb.stable' : isVirtual.value ? 'stb.virtualSubTable' : 'stb.subTable';
   switch (props.data.typeName) {
     case 'database':
       return t('stb.stable');
@@ -391,7 +360,8 @@ function getTooltip(data: Recordable, operate: string) {
         table: {
           edit: t('stb.editTable', [data.name]),
           view: t('stb.viewTable'),
-          del: t('stb.delTb')
+          del: t('stb.delTb'),
+          moreOperations: t('common.moreOperations')
         }
       } as Recordable
     )[data.typeName]?.[operate] ?? ''

@@ -1046,7 +1046,7 @@ function getTopParserData() {
     switch (parseruleForm.type) {
       case 'split':
         expressionObj = {
-          [parseruleForm.type]: transformerState.splitExpressList
+          [parseruleForm.type]: transformerState.splitExpressionList
         };
         break;
       case 'json':

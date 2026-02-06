@@ -3,7 +3,7 @@
     <div v-show="partActiveTab == 'sql'" class="sql-btn">
       <el-tooltip class="item" effect="light" placement="bottom-end">
         <template #content>
-          <div class="flexCenter">
+          <div class="flex-center">
             <span>{{ t('explorer.runSqlTip') }}</span>
             <Icon class="icon-shift" name="shift" />+
             <Icon class="icon-shift" name="enter" />
@@ -51,6 +51,31 @@
           <PanelView></PanelView>
         </section>
       </el-tab-pane>
+
+      <!-- 新增：Favorites tab -->
+      <el-tab-pane name="favorites" :label="t('explorer.favorites')">
+        <template #label>
+          <div class="flex-center">
+            <Icon name="favorite_fill" class="tab-icon"></Icon>
+            <span>{{ t('explorer.favorites') }}</span>
+          </div>
+        </template>
+        <div class="favorites-wrapper">
+          <component :is="currentFavoriteComponent" v-if="currentFavoriteComponent"></component>
+        </div>
+      </el-tab-pane>
+
+      <!-- 新增：Log tab -->
+      <el-tab-pane name="log" :label="t('common.logs')">
+        <template #label>
+          <div class="flex-center">
+            <Icon name="console_dblist" class="tab-icon"></Icon>
+            <span>{{ t('common.logs') }}</span>
+          </div>
+        </template>
+        <LogView></LogView>
+      </el-tab-pane>
+
       <el-tab-pane v-if="tabName" name="detail" :label="tabName">
         <Detail>
           <slot name="detail"></slot>
@@ -64,6 +89,9 @@
 import Detail from './detail.vue';
 import Sql from './sqlEditor.vue';
 import PanelView from './panel.vue';
+import LogView from './log.vue';
+import FavoriteView from './favoriteList/cloud/index.vue';
+import EnterpriseFavoriteView from './favoriteList/enterprise/index.vue';
 import { getSqlProvider, getExplorerProps } from '../model/useExplorer';
 import {
   currentDetailComponentConfig,
@@ -74,31 +102,33 @@ import {
   favoriteParams,
   favoriteActiveTab
 } from './utils';
-import { ElMessage, ElMessageBox } from 'element-plus';
+
 import { t } from 'locales';
 
 const tabName = computed(() => currentDetailComponentConfig.name);
 const { sqlStr, sqlExecuting } = getSqlProvider();
 const { favorite, isCloud } = getExplorerProps();
 const sqlEditorRef = ref<null | InstanceType<typeof Sql>>(null);
-const unsubscribe = updateFavoriteEvent.on(() => getFavorites());
+const unsubscribe = updateFavoriteEvent.on(async () => await getFavorites());
 const favorited = computed<Recordable | null>(() => {
   const current = normalizeSql(sqlStr.value || '');
-  // 在 personal 与 shared 中同时查找，避免 favoriteActiveTab 不同导致找不到
   const all = [...favoriteData.personal, ...favoriteData.shared];
   const match = all.find(item => {
     const itemNorm = normalizeSql(item.sql);
-    // 调试输出
-    // console.log('compare:', current, itemNorm, current === itemNorm, item.sql, sqlStr.value);
     return itemNorm === current;
   });
   return match || null;
 });
 
-function getFavorites() {
-  return isCloud ? getCloudFavorites() : getEnterpriseFavorites();
+// 选择收藏组件
+const currentFavoriteComponent = computed(() =>
+  isCloud ? (FavoriteView as typeof FavoriteView) : (EnterpriseFavoriteView as typeof EnterpriseFavoriteView)
+);
+
+async function getFavorites() {
+  return isCloud ? await getCloudFavorites() : await getEnterpriseFavorites();
 }
-function getCloudFavorites() {
+async function getCloudFavorites() {
   return Promise.all([
     favorite.api.getList().then((data: Recordable[]) => {
       favoriteData.personal.splice(0, favoriteData.personal.length, ...data);
@@ -108,7 +138,7 @@ function getCloudFavorites() {
     })
   ]);
 }
-function getEnterpriseFavorites() {
+async function getEnterpriseFavorites() {
   if (favoriteActiveTab.value == 'personal') {
     return favorite.api.getList(favoriteParams).then((res: Recordable) => {
       favoriteData.personal.splice(0, favoriteData.personal.length, ...res.data.list);
@@ -215,6 +245,10 @@ function addDesc() {
 $bar-color: #f5f5f5;
 $bar-light-color: #dcdfe6;
 
+.flex-center {
+  height: 100%;
+}
+
 .part {
   position: relative;
   flex: 1;
@@ -231,7 +265,7 @@ $bar-light-color: #dcdfe6;
 
   &:deep(.el-tabs__content) {
     flex: 1;
-    padding: 15px 0;
+    padding: 10px 0;
     overflow: auto;
   }
 
@@ -268,5 +302,28 @@ $bar-light-color: #dcdfe6;
 
 .bar:hover {
   background-color: $bar-light-color;
+}
+
+.favorites-wrapper {
+  padding: 0px 5px 0px 5px; /* 与边界保持间距 */
+  height: 100%;
+  box-sizing: border-box;
+  overflow: auto;
+
+  /* 搜索组件与左边添加间距 */
+  &:deep(.el-input) {
+    margin-left: 12px;
+  }
+}
+
+.flex-center {
+  height: 100%;
+}
+
+.tab-icon {
+  width: 19px;
+  height: 19px;
+  margin-right: 5px;
+  cursor: pointer;
 }
 </style>

@@ -28,7 +28,7 @@ const store = useStore();
 
 withDefaults(
   defineProps<{
-    item: Record;
+    item: Record<string, any>;
   }>(),
   {
     item: () => ({})
@@ -43,16 +43,6 @@ function menuRight(path: string) {
   OpenNewTab(path);
 }
 
-// @click="menuClick($t(item.title))"
-
-// function menuClick(val: string) {
-  // const url = localStorage.getItem('local_grafana');
-  // if (val === 'Dashboard' || val === '面板') {
-    // if (url) {
-    //   OpenNewTab(url);
-    // }
-  // }
-// }
 </script>
 
 <style lang="scss" scoped>
@@ -83,5 +73,9 @@ function menuRight(path: string) {
 
 .menu-item {
   position: relative;
+}
+
+.el-menu-item {
+  padding: 0 0 0 10px !important;
 }
 </style>

@@ -72,6 +72,7 @@
     </el-drawer>
   </div>
 </template>
+
 <script setup lang="ts">
 import { transformerState } from './util';
 import { t } from 'locales';
@@ -134,6 +135,11 @@ onMounted(() => {
 function handleScroll() {
   nextTick(() => {
     const dom = document.querySelector('.block-title.top') as HTMLElement;
+    const docPart = document.querySelector('.doc-part') as HTMLElement;
+    let docPartBottom = 0;
+    if (docPart && resultRef.value) {
+      docPartBottom = docPart.offsetTop + docPart.offsetHeight;
+    }
     if (dom) {
       const mainDom = document.querySelector('.main-content') as HTMLElement;
       const scrollTop = mainDom?.scrollTop;
@@ -146,7 +152,8 @@ function handleScroll() {
           resultRef.value.style.top = `${csvtop}px`;
         } else {
           const commomtop = scrollTop >= dom.offsetTop ? scrollTop - 160 : dom.offsetTop;
-          resultRef.value.style.top = `${commomtop}px`;
+          const finalTop = commomtop >= docPartBottom ? commomtop : docPartBottom + 10;
+          resultRef.value.style.top = `${finalTop}px`;
         }
       }
     }
@@ -195,14 +202,7 @@ function getResultData(data: any[]) {
   state.pageTableData = data2D.map(arr => arr.slice(0, limitOffset.value));
 }
 </script>
-<style>
-/* @media screen and (max-width: 1366px) {
-  .result-table {
-    background: red;
-    display: none !important;
-  }
-} */
-</style>
+
 <style lang="scss" scoped>
 .result-table {
   //   max-width: 600px;

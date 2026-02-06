@@ -25,7 +25,7 @@ export interface TransformerState {
   transformerParserData: TransformerfullparamsType | TransformerSpbfullparamsType | null;
   transformColumnIdentify: [];
   csvTransformerlocalCols: string[]; //csv无头部时候的自定义列
-  splitExpressList: SplitExpressListType | null; //transformer的split;
+  splitExpressionList: SplitExpressionListType | null; //transformer的split;
   convertExpressList: ConvertExpressListType | null;
   jsonExtractListType: JsonParseExtractType | null;
   mappingjoin: ''; //mapping时候映射值是join时候的
@@ -103,7 +103,7 @@ export interface CsvTransformerParserType {
   columns?: string[];
 }
 
-export interface SplitExpressListType {
+export interface SplitExpressionListType {
   n: number | string;
   sep: string;
   names: string[] | string;

@@ -150,8 +150,8 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background-color: #fff;
-  box-shadow: rgb(0 0 0 / 5%) 0 -9px 9px;
+  background-color: #f2f3f3;
+  // box-shadow: rgb(0 0 0 / 5%) 0 -9px 9px;
   transition: width 0.4s ease 0s;
 }
 
@@ -167,7 +167,9 @@ onMounted(() => {
   display: flex;
   flex: 1;
   flex-direction: column;
-  margin-top: 14px;
+  margin-top: 15px;
+  margin-bottom: 15px;
+  margin-left: 15px;
   overflow: hidden auto;
   border-right: none;
 }

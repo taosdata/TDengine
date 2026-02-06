@@ -32,7 +32,7 @@ export default {
   exportError: 'Only result of select statement can be exported',
   exportConfirm: 'Are you sure to export all query result?',
   exportCurrentData: 'Export current data as CSV',
-  favorites: 'Favorites',
+  favorites: 'Favorite List',
   grid: 'Grid',
   copyTMQDSN: 'Copy DSN',
   runSqlTip: 'Run the first or selected SQL statement',

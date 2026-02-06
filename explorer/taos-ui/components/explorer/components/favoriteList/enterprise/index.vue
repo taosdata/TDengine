@@ -1,8 +1,12 @@
 <template>
   <div id="favorites_wrapper" class="favorites-wrapper">
-    <el-tabs v-model="favoriteActiveTab" type="border-card" size="default">
+    <div class="favorites-header" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 12px 0px 12px;">
+      <el-radio-group v-model="favoriteActiveTab" size="default">
+        <el-radio label="personal">{{ t('explorer.persionalFavorites') }}</el-radio>
+        <el-radio label="shared">{{ t('explorer.sharedFavorites') }}</el-radio>
+      </el-radio-group>
       <el-form :inline="true" size="default" label-position="left" @submit.prevent>
-        <el-form-item prop="sql_desc_fuzzy">
+        <el-form-item prop="sql_desc_fuzzy" style="margin-right: 10px; margin-bottom: 0px;">
           <el-input
             v-model="favoriteParams.sql_desc_fuzzy"
             clearable
@@ -12,23 +16,28 @@
             @clear="update"
           />
         </el-form-item>
-        <el-form-item>
+        <el-form-item style="margin-right: 0px; margin-bottom: 0px;">
           <el-button icon="Search" @click="update">{{ t('common.search') }}</el-button>
         </el-form-item>
       </el-form>
-      <el-tab-pane name="personal" :label="t('explorer.persionalFavorites')">
-        <List :list-data="favoriteData.personal" :request-api="itemApi" :total="favoriteData.total" @update="update" />
-      </el-tab-pane>
-      <el-tab-pane name="shared" :label="t('explorer.sharedFavorites')">
-        <List
-          :list-data="favoriteData.shared"
-          :is-shared="true"
-          :request-api="sharedItemApi"
-          :total="favoriteData.total"
-          @update="update"
-        />
-      </el-tab-pane>
-    </el-tabs>
+    </div>
+    <div class="favorites-content" style="padding: 14px;">
+      <List
+        v-if="favoriteActiveTab === 'personal'"
+        :list-data="favoriteData.personal"
+        :request-api="itemApi"
+        :total="favoriteData.total"
+        @update="update"
+      />
+      <List
+        v-if="favoriteActiveTab === 'shared'"
+        :list-data="favoriteData.shared"
+        :is-shared="true"
+        :request-api="sharedItemApi"
+        :total="favoriteData.total"
+        @update="update"
+      />
+    </div>
   </div>
 </template>
 
@@ -92,7 +101,9 @@ function update() {
   }
 
   &:deep(.el-tabs__content > .el-tab-pane) {
-    height: 97%;
+    height: 90%;
+    padding-left: 14px;
+    padding-right: 14px;
   }
 }
 </style>
