@@ -16,7 +16,8 @@ class TestScalarSubQuery4a1:
     fileIdx = 0
     saved_count = 0  # total number of queries saved so far
     maxFileQueryNum = 10000000  # max number of queries to save in a single file
-    tableNames = ["tb1"] #["tb1", "tb3", "tbe", "st1"]
+    # tableNames = ["tb1"] #["tb1", "tb3", "tbe", "st1"]
+    tableNames = ["tb1", "tb3", "tbe", "st1"]
 
     subSqls = [
         # select 
@@ -182,11 +183,10 @@ class TestScalarSubQuery4a1:
                         self.querySql = self.subSqls[self.mainIdx].replace("{scalarSql}", "(" + self.subSqls[self.secondIdx] + ")")
                         self.querySql = self.querySql.replace("{scalarSql}", self.scalarSqls[self.subIdx])
                         self.querySql = self.querySql.replace("{tableName}", self.tableNames[self.tableIdx])
-
                         self.generated_queries_file.write("explain " + self.querySql.strip() + "\G;\n")
                         self.generated_queries_file.write("explain verbose true " + self.querySql.strip() + "\G;\n")
-                        #self.generated_queries_file.write("explain analyze " + self.querySql.strip() + "\G\n")
-                        #self.generated_queries_file.write("explain analyze verbose true " + self.querySql.strip() + "\G;\n")
+                        self.generated_queries_file.write("explain analyze " + self.querySql.strip() + "\G\n")
+                        self.generated_queries_file.write("explain analyze verbose true " + self.querySql.strip() + "\G;\n")
                         self.generated_queries_file.flush()
 
         self.generated_queries_file.close()
