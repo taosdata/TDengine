@@ -746,6 +746,7 @@ Below are the business error codes for each module.
 | 0x80008020 | Xnode agent not exist                                 | The queried Xnode agent does not exist                      | Check queried agent ID or name               |
 | 0x80008021 | Xnode agent already exist                             | The queried Xnode agent already exist                       | Check queried agent ID or name               |
 | 0x80008022 | Xnode name duplicate                                  | The updated name is duplicate                               | Check whether the name to be updated is a duplicate of the existing data |
+| 0x80008023 | Xnode task parser too long                            | The task parser column is too long                          | Check whether the parser column is too long  |
 
 ## Connectors
 

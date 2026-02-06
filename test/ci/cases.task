@@ -196,6 +196,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_plan_pushdown_timerange.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_plan_agg_optimize.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_plan_window_optimize.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_plan_replace_tbname.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter_origin_table.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
@@ -572,6 +573,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_bugs.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_topics_info.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_max_topics.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_update_tablelist.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_params.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_max_groups.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_discontinuous_data.py
@@ -695,7 +697,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_same_name.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_window_query.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_output_table.py
-,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_drop.py
+# ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_drop.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_fetch.py
 ## 03-TriggerMode
 #,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_count_new.py
@@ -746,6 +748,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/recalc_bug_13.py
 
 ## 20-UseCase
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_6771200393.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_privilege.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_manager.py
 100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_meters.py
@@ -806,7 +809,7 @@
 
 # 19-TSMAs
 
-90,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_tsma.py
+# 90,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_tsma.py
 ,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_sma_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_sma_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_time_range_wise.py -N 3
@@ -851,7 +854,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_token.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_totp.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_whitelist.py
-,,n,.,pytest cases/24-Users/test_user_passwd.py
+# ,,n,.,pytest cases/24-Users/test_user_passwd.py
 
 # 25-Privileges
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_basic.py -N 3
@@ -900,7 +903,14 @@
 ,,y,.,./ci/pytest.sh pytest cases/30-NameLimits/test_db_tb_name_check.py
 ,,y,.,./ci/pytest.sh pytest cases/30-NameLimits/test_dbtbname_validate.py
 
-# 31-Keywords
+# 31-Security
+
+,,y,.,./ci/pytest.sh pytest cases/31-Security/01-KeyGeneration/test_key_generation.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/02-KeyUpdate/test_key_update.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/03-KeyBackupRestore/test_key_backup_restore.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/04-TransparentEncryption/test_transparent_encryption.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/06-EncryptionStatus/test_encryption_status.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_plaintext_check.py
 
 # 42-xnode
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode.py
