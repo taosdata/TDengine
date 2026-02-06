@@ -1020,6 +1020,7 @@ typedef struct SValidateTableStmt {
   void* pDbCfg;  // SDbCfgInfo
 
   void* pTableCfg;  // STableCfg
+  int8_t superTable; 
 } SShowValidateVirtualTable;
 
 typedef struct SDescribeStmt {

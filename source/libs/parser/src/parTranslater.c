@@ -21289,9 +21289,10 @@ static int32_t validateShowValidateMeta(STranslateContext* pCxt, SShowValidateVi
       (tableType == TSDB_VIRTUAL_CHILD_TABLE || tableType == TSDB_VIRTUAL_NORMAL_TABLE || pTableMeta->virtualStb == 1);
 
   if (!isVtb) {
-    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_TYPE, "'%s' is not a virtual table",
+   code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_TYPE, "'%s' is not a virtual table",
                                    pStmt->tableName);
   }
+  pStmt->superTable = (tableType == TSDB_VIRTUAL_CHILD_TABLE  || tableType == TSDB_VIRTUAL_NORMAL_TABLE) ? 0 : 1; 
 
 _exit:
   taosMemoryFreeClear(pTableMeta);
@@ -21325,7 +21326,11 @@ static int32_t rewriteShowValidateVtable(STranslateContext* pCxt, SQuery* pQuery
 
   if (strlen(pShow->tableName) > 0) {
     PAR_ERR_JRET(nodesMakeValueNodeFromString(pShow->tableName, &pTableNameValue));
-    PAR_ERR_JRET(createOperatorNode(OP_TYPE_EQUAL, "virtual_table_name", (SNode*)pTableNameValue, &pTableNameCond));
+    if (pShow->superTable) {
+      PAR_ERR_JRET(createOperatorNode(OP_TYPE_EQUAL, "virtual_stable_name", (SNode*)pTableNameValue, &pTableNameCond));
+    } else {
+      PAR_ERR_JRET(createOperatorNode(OP_TYPE_EQUAL, "virtual_table_name", (SNode*)pTableNameValue, &pTableNameCond));
+    }
   }
 
   if (pDbCond && pTableNameCond) {
