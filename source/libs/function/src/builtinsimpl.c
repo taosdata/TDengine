@@ -3549,6 +3549,9 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
 bool funcInputGetNextRowIndex(SInputColumnInfoData* pInput, int32_t from, bool firstOccur, int32_t* pRowIndex,
                               int32_t* nextFrom) {
   if (pInput->pPrimaryKey == NULL) {
+    if (pInput->numOfRows == 0) {
+      return false;
+    }
     if (from == -1) {
       from = pInput->startRowIndex;
     } else if (from >= pInput->numOfRows + pInput->startRowIndex) {
