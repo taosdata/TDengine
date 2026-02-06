@@ -27,6 +27,10 @@
 #include "cJSON.h"
 #include "taos.h"
 
+#ifndef UNUSED
+#define UNUSED(A) (void)(A)
+#endif
+
 volatile int thread_stop = 0;
 static int   running = 1;
 static int   count = 0;
@@ -117,7 +121,7 @@ static void* prep_data(void* arg) {
 #ifdef WINDOWS
     Sleep(1000);
 #else
-    (void)usleep(1);
+    UNUSED(usleep(1));
 #endif
   }
   fprintf(stdout, "Prepare data thread exit\n");
