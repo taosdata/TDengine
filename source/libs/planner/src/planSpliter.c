@@ -1862,6 +1862,9 @@ typedef struct SSmaIndexSplitInfo {
 static bool smaIdxSplFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode,
                                    SSmaIndexSplitInfo* pInfo) {
   if (QUERY_NODE_LOGIC_PLAN_MERGE == nodeType(pNode) && LIST_LENGTH(pNode->pChildren) > 1) {
+    if (((SMergeLogicNode*)pNode)->node.dynamicOp) {
+      return false;
+    }
     int32_t nodeType = nodeType(nodesListGetNode(pNode->pChildren, 0));
     if (nodeType == QUERY_NODE_LOGIC_PLAN_EXCHANGE || nodeType == QUERY_NODE_LOGIC_PLAN_MERGE) {
       pInfo->pMerge = (SMergeLogicNode*)pNode;
@@ -1985,6 +1988,63 @@ typedef struct SMergeAggColsSplitInfo {
   SLogicNode      *pSplitNode;
   SLogicSubplan   *pSubplan;
 } SMergeAggColsSplitInfo;
+
+typedef struct SMergeTableScanSplitInfo {
+  SLogicNode    *pMerge;
+  SLogicNode    *pSplitNode;
+  SLogicSubplan *pSubplan;
+} SMergeTableScanSplitInfo;
+
+static bool mergeTableScanFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode,
+                                        SMergeTableScanSplitInfo* pInfo) {
+  if (QUERY_NODE_LOGIC_PLAN_MERGE != nodeType(pNode)) {
+    return false;
+  }
+  if (!pNode->dynamicOp) {
+    return false;
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) &&
+        ((SScanLogicNode*)pChild)->scanType == SCAN_TYPE_TABLE_MERGE &&
+        ((SLogicNode*)pChild)->dynamicOp) {
+      pInfo->pSplitNode = (SLogicNode*)pChild;
+      pInfo->pSubplan = pSubplan;
+      pInfo->pMerge = pNode;
+      return true;
+    }
+  }
+  return false;
+}
+
+static int32_t mergeTableScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  SMergeTableScanSplitInfo  info = {0};
+  if (!splMatch(pCxt, pSubplan, 0, (FSplFindSplitNode)mergeTableScanFindSplitNode, &info)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t startGroupId = pCxt->groupId;
+  SNode*  pChild = NULL;
+  FOREACH(pChild, info.pMerge->pChildren) {
+    if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) &&
+        ((SScanLogicNode*)pChild)->scanType == SCAN_TYPE_TABLE_MERGE &&
+        ((SLogicNode*)pChild)->dynamicOp) {
+      PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)pChild, SUBPLAN_TYPE_SCAN, false));
+      PLAN_ERR_RET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, (SLogicNode*)pChild, 0)));
+      ++(pCxt->groupId);
+    }
+  }
+
+  SMergeLogicNode* pMerge = (SMergeLogicNode*)info.pMerge;
+  // set group id range for merge node
+  pMerge->srcGroupId = startGroupId;
+  pMerge->srcEndGroupId = pCxt->groupId - 1;
+
+  pCxt->split = true;
+  return code;
+}
 
 static bool mergeAggColsNeedSplit(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode) && 1 == LIST_LENGTH(pNode->pChildren) &&
@@ -2146,7 +2206,8 @@ static bool dynVirtualScanFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSub
   // 1. split for system table scan under dynamic query control node(virtual stable scan)
   if (QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(pParent) &&
       (((SDynQueryCtrlLogicNode*)(pParent))->qType == DYN_QTYPE_VTB_SCAN ||
-       ((SDynQueryCtrlLogicNode*)(pParent))->qType == DYN_QTYPE_VTB_WINDOW) &&
+       ((SDynQueryCtrlLogicNode*)(pParent))->qType == DYN_QTYPE_VTB_WINDOW ||
+       ((SDynQueryCtrlLogicNode*)(pParent))->qType == DYN_QTYPE_VTB_TS_SCAN) &&
       scanType == SCAN_TYPE_SYSTEM_TABLE) {
     pInfo->pDyn = (SScanLogicNode*)pNode;
     pInfo->pSubplan = pSubplan;
@@ -2316,6 +2377,7 @@ static const SSplitRule splitRuleSet[] = {
   {.pName = "SmaIndexSplit",          .splitFunc = smaIndexSplit}, // not used yet
   {.pName = "InsertSelectSplit",      .splitFunc = insertSelectSplit},
   {.pName = "VirtualtableSplit",      .splitFunc = virtualTableSplit},
+  {.pName = "MergeTableScanSplit",    .splitFunc = mergeTableScanSplit},
   {.pName = "MergeAggColsSplit",      .splitFunc = mergeAggColsSplit},
   {.pName = "DynVirtualScanSplit",    .splitFunc = dynVirtualScanSplit},
   {.pName = "MergeExtWinSplit",       .splitFunc = mergeExtWinSplit},

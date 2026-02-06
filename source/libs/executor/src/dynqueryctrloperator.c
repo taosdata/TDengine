@@ -731,7 +731,7 @@ _return:
   return code;
 }
 
-static int32_t buildBatchExchangeOperatorParamForVirtual(SOperatorParam** ppRes, int32_t downstreamIdx, SArray* pTagList, uint64_t groupid,  SHashObj* pBatchMaps, STimeWindow window, EExchangeSourceType type) {
+static int32_t buildBatchExchangeOperatorParamForVirtual(SOperatorParam** ppRes, int32_t downstreamIdx, SArray* pTagList, uint64_t groupid,  SHashObj* pBatchMaps, STimeWindow window, EExchangeSourceType type, ENodeType srcOpType) {
   int32_t                       code = TSDB_CODE_SUCCESS;
   int32_t                       lino = 0;
   SOperatorParam*               pParam = NULL;
@@ -757,7 +757,7 @@ static int32_t buildBatchExchangeOperatorParamForVirtual(SOperatorParam** ppRes,
     SArray*          pOrgTbInfoArray = *(SArray**)pIter;
     int32_t*         vgId = (int32_t*)taosHashGetKey(pIter, &keyLen);
 
-    code = buildExchangeOperatorBasicParam(&basic, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
+    code = buildExchangeOperatorBasicParam(&basic, srcOpType,
                                            type, *vgId, groupid,
                                            NULL, NULL, pTagList, pOrgTbInfoArray,
                                            window, NULL, false, true, false);
@@ -1283,6 +1283,48 @@ _return:
   return code;
 }
 
+static int32_t buildMergeOperatorParamForTsScan(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   lino = 0;
+  SOperatorParam*           pParam = NULL;
+  SOperatorParam*           pExchangeParam = NULL;
+  SVtbScanDynCtrlInfo*      pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+  bool                      freeExchange = false;
+
+  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(pParam, code, lino, _return, terrno)
+
+  pParam->pChildren = taosArrayInit(1, POINTER_BYTES);
+  QUERY_CHECK_NULL(pParam->pChildren, code, lino, _return, terrno)
+
+  pParam->value = taosMemoryMalloc(sizeof(SMergeOperatorParam));
+  QUERY_CHECK_NULL(pParam->value, code, lino, _return, terrno)
+
+  for (int32_t i = 0; i < taosHashGetSize(pVtbScan->otbVgIdToOtbInfoArrayMap); i++) {
+    code = buildBatchExchangeOperatorParamForVirtual(&pExchangeParam, i, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap, (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_TS_SCAN, QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN);
+    QUERY_CHECK_CODE(code, lino, _return);
+    QUERY_CHECK_NULL(taosArrayPush(pParam->pChildren, &pExchangeParam), code, lino, _return, terrno)
+    pExchangeParam = NULL;
+  }
+
+  pParam->opType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
+  pParam->downstreamIdx = 0;
+  pParam->reUse = false;
+
+  *ppRes = pParam;
+
+  return code;
+_return:
+  if (pExchangeParam) {
+    freeOperatorParam(pExchangeParam, OP_GET_PARAM);
+  }
+  if (pParam) {
+    freeOperatorParam(pParam, OP_GET_PARAM);
+  }
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
 static int32_t buildAggOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
@@ -1300,7 +1342,7 @@ static int32_t buildAggOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperator
   pParam->value = taosMemoryMalloc(sizeof(SAggOperatorParam));
   QUERY_CHECK_NULL(pParam->value, code, lino, _return, terrno)
 
-  code = buildBatchExchangeOperatorParamForVirtual(&pExchangeParam, 0, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap, (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_AGG_SCAN);
+  code = buildBatchExchangeOperatorParamForVirtual(&pExchangeParam, 0, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap, (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_AGG_SCAN, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
   QUERY_CHECK_CODE(code, lino, _return);
 
   freeExchange = true;
@@ -1350,7 +1392,7 @@ static int32_t buildAggOperatorParamWithGroupId(SDynQueryCtrlOperatorInfo* pInfo
   pParam->pChildren = taosArrayInit(1, POINTER_BYTES);
   QUERY_CHECK_NULL(pParam->pChildren, code, lino, _return, terrno)
 
-  code = buildBatchExchangeOperatorParamForVirtual(&pExchangeParam, 0, NULL, groupid, otbVgIdToOtbInfoArrayMap, (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_AGG_SCAN);
+  code = buildBatchExchangeOperatorParamForVirtual(&pExchangeParam, 0, NULL, groupid, otbVgIdToOtbInfoArrayMap, (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_AGG_SCAN, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
   QUERY_CHECK_CODE(code, lino, _return);
 
   freeExchange = true;
@@ -1389,7 +1431,7 @@ static int32_t buildAggOperatorParamForSingleChild(SDynQueryCtrlOperatorInfo* pI
   if (pIter) {
     pOtbVgIdToOtbInfoArrayMap = *(SHashObj**)taosHashGet(pVtbScan->vtbUidToVgIdMapMap, &uid, sizeof(uid));
 
-    code = buildBatchExchangeOperatorParamForVirtual(&pParam, 0, pTagList, groupid, pOtbVgIdToOtbInfoArrayMap, (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_AGG_SCAN);
+    code = buildBatchExchangeOperatorParamForVirtual(&pParam, 0, pTagList, groupid, pOtbVgIdToOtbInfoArrayMap, (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_AGG_SCAN, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
     QUERY_CHECK_CODE(code, lino, _return);
 
     *ppRes = pParam;
@@ -2659,7 +2701,7 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
     pVtbScan->otbNameToOtbInfoMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
     QUERY_CHECK_NULL(pVtbScan->otbNameToOtbInfoMap, code, line, _return, terrno)
     pSystableScanOp = pOperator->pDownstream[0];
-  } else if (pInfo->qType == DYN_QTYPE_VTB_WINDOW) {
+  } else if (pInfo->qType == DYN_QTYPE_VTB_WINDOW || pInfo->qType == DYN_QTYPE_VTB_TS_SCAN) {
     pVtbScan->otbNameToOtbInfoMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
     QUERY_CHECK_NULL(pVtbScan->otbNameToOtbInfoMap, code, line, _return, terrno)
     pSystableScanOp = pOperator->pDownstream[1];
@@ -2738,6 +2780,7 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
   }
 
   switch (pInfo->qType) {
+    case DYN_QTYPE_VTB_TS_SCAN:
     case DYN_QTYPE_VTB_WINDOW: {
       code = buildOrgTbInfoBatch(pOperator, false);
       break;
@@ -3086,6 +3129,83 @@ _return:
   return code;
 }
 
+int32_t vtbTsScanOpen(SOperatorInfo* pOperator) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    line = 0;
+  int64_t                    st = 0;
+  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
+  SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+
+  if (OPTR_IS_OPENED(pOperator)) {
+    return code;
+  }
+
+  if (pOperator->cost.openCost == 0) {
+    st = taosGetTimestampUs();
+  }
+
+  code = buildVirtualSuperTableScanChildTableMap(pOperator);
+  QUERY_CHECK_CODE(code, line, _return);
+
+  OPTR_SET_OPENED(pOperator);
+
+_return:
+  if (pOperator->cost.openCost == 0) {
+    pOperator->cost.openCost = (double)(taosGetTimestampUs() - st) / 1000.0;
+  }
+  if (code) {
+    qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
+    pOperator->pTaskInfo->code = code;
+    T_LONG_JMP(pOperator->pTaskInfo->env, code);
+  }
+  return code;
+}
+
+int32_t vtbTsScanNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    line = 0;
+  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
+  SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+  SOperatorInfo*             pMergeOp = pOperator->pDownstream[0];
+  SOperatorParam*            pMergeParam = NULL;
+  SSDataBlock*               pResult = NULL;
+
+  QRY_PARAM_CHECK(pRes);
+  if (pOperator->status == OP_EXEC_DONE) {
+    return code;
+  }
+
+  code = pOperator->fpSet._openFn(pOperator);
+  QUERY_CHECK_CODE(code, line, _return);
+
+  if (pVtbScan->genNewParam) {
+    code = buildMergeOperatorParamForTsScan(pInfo, &pMergeParam);
+    QUERY_CHECK_CODE(code, line, _return);
+
+    code = pMergeOp->fpSet.getNextExtFn(pMergeOp, pMergeParam, &pResult);
+    QUERY_CHECK_CODE(code, line, _return);
+    pVtbScan->genNewParam = false;
+  } else {
+    code = pMergeOp->fpSet.getNextFn(pMergeOp, &pResult);
+    QUERY_CHECK_CODE(code, line, _return);
+  }
+
+  if (pResult) {
+    *pRes = pResult;
+  } else {
+    *pRes = NULL;
+    setOperatorCompleted(pOperator);
+  }
+
+_return:
+  if (code) {
+    qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
+    pOperator->pTaskInfo->code = code;
+    T_LONG_JMP(pOperator->pTaskInfo->env, code);
+  }
+  return code;
+}
+
 int32_t initSeqStbJoinTableHash(SStbJoinPrevJoinCtx* pPrev, bool batchFetch) {
   if (batchFetch) {
     pPrev->leftHash = tSimpleHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
@@ -3394,7 +3514,7 @@ static int32_t buildExternalWindowOperatorParamEx(SDynQueryCtrlOperatorInfo* pIn
   QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
 
   SOperatorParam* pExchangeParam = NULL;
-  code = buildBatchExchangeOperatorParamForVirtual(&pExchangeParam, 0, NULL, 0, pInfo->vtbScan.otbVgIdToOtbInfoArrayMap, (STimeWindow){.skey = firstWin->tw.skey, .ekey = lastWin->tw.ekey}, EX_SRC_TYPE_VSTB_WIN_SCAN);
+  code = buildBatchExchangeOperatorParamForVirtual(&pExchangeParam, 0, NULL, 0, pInfo->vtbScan.otbVgIdToOtbInfoArrayMap, (STimeWindow){.skey = firstWin->tw.skey, .ekey = lastWin->tw.ekey}, EX_SRC_TYPE_VSTB_WIN_SCAN, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
   QUERY_CHECK_CODE(code, lino, _return);
 
   QUERY_CHECK_NULL(taosArrayPush((*ppRes)->pChildren, &pExchangeParam), code, lino, _return, terrno)
@@ -3890,6 +4010,12 @@ int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numO
       QUERY_CHECK_CODE(code, line, _error);
       nextFp = vtbScanNext;
       openFp = vtbScanOpen;
+      break;
+    case DYN_QTYPE_VTB_TS_SCAN:
+      code = initVtbScanInfo(pInfo, pMsgCb, pPhyciNode, pTaskInfo);
+      QUERY_CHECK_CODE(code, line, _error);
+      nextFp = vtbTsScanNext;
+      openFp = vtbTsScanOpen;
       break;
     case DYN_QTYPE_VTB_WINDOW:
       code = initVtbScanInfo(pInfo, pMsgCb, pPhyciNode, pTaskInfo);

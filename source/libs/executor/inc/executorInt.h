@@ -174,6 +174,7 @@ typedef enum EExchangeSourceType {
   EX_SRC_TYPE_VSTB_AGG_SCAN,
   EX_SRC_TYPE_VSTB_TAG_SCAN,
   EX_SRC_TYPE_VTB_WIN_SCAN,
+  EX_SRC_TYPE_VSTB_TS_SCAN,
 } EExchangeSourceType;
 
 typedef enum {
@@ -398,6 +399,7 @@ typedef struct STableMergeScanInfo {
   int32_t         scanTimes;
   int32_t         readIdx;
   SSDataBlock*    pResBlock;
+  SSDataBlock*    pOrgBlock;       // for virtual super table scan
   SSampleExecInfo sample;         // sample execution info
   SSHashObj*      mTableNumRows;  // uid->num of table rows
   SHashObj*       mSkipTables;

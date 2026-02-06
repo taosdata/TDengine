@@ -66,10 +66,12 @@ static int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock);
 
 int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
-  int32_t        code = pOperator->fpSet.getNextFn(pOperator, ppBlock);
+  int32_t        code = TSDB_CODE_SUCCESS;
+  code = pOperator->fpSet.getNextFn(pOperator, ppBlock);
   if (code) {
     qError("failed to get next data block from upstream, %s code:%s", __func__, tstrerror(code));
   }
+  printDataBlock(*ppBlock, __func__ , "got data block from upstream, %s", '1');
   code = blockDataCheck(*ppBlock);
   if (code) {
     qError("failed to check data block got from upstream, %s code:%s", __func__, tstrerror(code));
@@ -101,6 +103,8 @@ int32_t openSortMergeOperator(SOperatorInfo* pOperator) {
       if (code) {
         return code;
       }
+      pDownstream->pOperatorGetParam = pOperator->pDownstreamGetParams[i];
+      pOperator->pDownstreamGetParams[i] = NULL;
     }
 
     SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
@@ -534,6 +538,9 @@ int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   if (NULL != gMultiwayMergeFps[pInfo->type].getNextFn) {
     code = (*gMultiwayMergeFps[pInfo->type].getNextFn)(pOperator, pResBlock);
+    if (*pResBlock) {
+      printDataBlock(*pResBlock, __func__, "multiwayMerge", pTaskInfo->id.queryId);
+    }
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
