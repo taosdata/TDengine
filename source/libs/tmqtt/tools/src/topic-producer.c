@@ -546,7 +546,9 @@ int topic_prep(void) {
   }
 
   // thread_stop = 1;
-  pthread_join(thread_id, NULL);
+  if (pthread_join(thread_id, NULL)) {
+    return -1;
+  }
 
   return 0;
 }
@@ -1180,7 +1182,11 @@ int main(int argc, char* argv[]) {
   }
 
   thread_stop = 1;
-  pthread_join(thread_id, NULL);
+  rc = pthread_join(thread_id, NULL);
+  if (rc) {
+    fprintf(stderr, "Failed to join %d.\n", thread_id);
+    return -1;
+  }
 
   if (drop_topic_without_connect(pConn) < 0) {
     fprintf(stderr, "Failed to drop topic.\n");
