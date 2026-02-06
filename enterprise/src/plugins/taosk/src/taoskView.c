@@ -86,15 +86,14 @@ int32_t taoskViewEncryptedConfig(void) {
 
   printf("File is encrypted, loading keys...\n\n");
 
-  // Build key file paths
+  // Build key file paths (use data directory from global args, already determined in main)
   char masterKeyFile[PATH_MAX] = {0};
   char derivedKeyFile[PATH_MAX] = {0};
-  const char *dataDir = g_args.dataDir[0] ? g_args.dataDir : tsDataDir;
   
   snprintf(masterKeyFile, sizeof(masterKeyFile), "%s/dnode/config/%s", 
-           dataDir, MASTER_KEY_FILE_NAME);
+           g_args.dataDir, MASTER_KEY_FILE_NAME);
   snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s/dnode/config/%s", 
-           dataDir, DERIVED_KEY_FILE_NAME);
+           g_args.dataDir, DERIVED_KEY_FILE_NAME);
 
   // Load encryption keys
   char svrKey[ENCRYPT_KEY_LEN + 1] = {0};
@@ -118,7 +117,7 @@ int32_t taoskViewEncryptedConfig(void) {
                                &svrKeyUpdateTime, &dbKeyUpdateTime);
   if (code != 0) {
     fprintf(stderr, "Error: Failed to load encryption keys: %s\n", tstrerror(code));
-    fprintf(stderr, "Please ensure keys are generated in data directory: %s\n", dataDir);
+    fprintf(stderr, "Please ensure keys are generated in data directory: %s\n", g_args.dataDir);
     fprintf(stderr, "  Master key file: %s\n", masterKeyFile);
     fprintf(stderr, "  Derived key file: %s\n", derivedKeyFile);
     return code;
