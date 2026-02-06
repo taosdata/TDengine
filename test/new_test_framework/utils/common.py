@@ -2983,7 +2983,7 @@ class TDCom:
             except Exception as e:
                 tdLog.error(f"USE数据库失败: {db}\n{e}")
         try:
-            tdsql.execute(sql, ignore_error=True)
+            tdsql.execute_ignore_error(sql)
         except Exception as e:
             tdLog.error(f"SQL执行失败: {sql}\n{e}")
 
