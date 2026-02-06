@@ -1172,6 +1172,7 @@ pub fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> 
             } else {
                 assert!(!point_id.is_empty(), "id should not be empty: {}", point_id);
                 tb_name
+                    .replace("{ns}_{id#/_}", "Objects")
                     .replace("{ns}_{id}", "Objects")
                     .replace("{ns}-{id}", "Objects")
                     .replace("{ns}", "")
@@ -1323,6 +1324,7 @@ pub fn generate_tag_value_from_pattern(ty: &str, template: &str, point_id: &str)
                     .replace("{ns}_{id#/.}", "Objects")
                     .replace("{ns}_{id#/_}", "Objects")
                     .replace("{ns}", "")
+                    .replace("{id#/.}", "Objects")
                     .replace("{id}", "Objects")
             }
         }
