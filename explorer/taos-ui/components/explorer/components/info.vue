@@ -8,7 +8,7 @@
         <el-form-item v-if="infoType !== 'db'" label="tags:"></el-form-item>
         <el-table
           v-if="infoType !== 'db'"
-          style="width: 800px; margin-bottom: 40px"
+          style="width: 800px; margin-bottom: 5px"
           tooltip-effect="light"
           size="small"
           border
@@ -24,7 +24,7 @@
           v-if="infoType !== 'db' && columns?.length > 0"
           tooltip-effect="light"
           size="small"
-          style="width: 800px; margin-bottom: 40px"
+          style="width: 800px; margin-bottom: 0px"
           border
           :data="columns"
         >
@@ -84,12 +84,6 @@ const tmqDNS = computed(() => {
   }
   return `taos+${wsPrefix}://${user}:${password}@${uri}/${dbName}`;
 });
-// watch(
-//   () => infoData.value.name,
-//   () => {
-//     getStruct();
-//   }
-// );
 
 function getStruct() {
   switch (infoType.value) {
@@ -139,6 +133,12 @@ function copyDNS() {
 <style lang="scss" scoped>
 .info {
   height: 100%;
+}
+
+.info-content {
+  .el-form-item {
+    margin-bottom: 0px;
+  }
 }
 
 .tmp-label {

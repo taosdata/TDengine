@@ -1,3 +1,17 @@
-<?xml version="1.0" standalone="no"?>
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg t="1633676173877" class="icon" viewBox="0 -170 1300 1300" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="12420" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="200"><defs><style type="text/css"></style></defs><path d="M224 704a32 32 0 0 1-22.656-54.656L338.752 512 201.344 374.656a32 32 0 0 1 45.248-45.248l160 160a32 32 0 0 1 0 45.248l-160 160A32 32 0 0 1 224 704zM448 640h320v64H448z" fill="" p-id="12421"></path><path d="M960 128v768H64V128z m0-64H64a64 64 0 0 0-64 64v768a64 64 0 0 0 64 64h896a64 64 0 0 0 64-64V128a64 64 0 0 0-64-64z" fill="" p-id="12422"></path></svg>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="_图层_1" data-name="图层 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: none;
+        stroke: #000;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 8px;
+      }
+    </style>
+  </defs>
+  <rect class="cls-1" x="13.43" y="22.83" width="173.13" height="154.33" rx="14.19" ry="14.19"/>
+  <polyline class="cls-1" points="45.01 71.58 80.32 106.9 49.45 137.76"/>
+  <line class="cls-1" x1="94.13" y1="137.76" x2="155.57" y2="137.76"/>
+</svg>

@@ -1,7 +1,7 @@
 <template>
   <div class="config-form">
     <template v-for="item in config" :key="item.label">
-      <template v-if="item.children">
+      <template v-if="item.children && item.label !== 'Groups-after' && item.label !== 'Groups-before'">
         <ConnectivityCheck
           v-if="item.type == 'checkConnectivity'"
           :key="item.label"
@@ -9,89 +9,92 @@
           :data="localData[item.field]"
           :parent="parent"
         ></ConnectivityCheck>
-        <div v-else-if="item.type == 'collapse'" class="block-wrapper">
+        <div v-else class="block-wrapper">
           <el-collapse :class="`advanced-${lang}`" accordion>
-            <el-collapse-item name="one">
+            <el-collapse-item :name="item.field || 'one'">
               <template #title>
                 <div class="mb10">
                   <BlockHeader :title="item.label"> </BlockHeader>
-                  <DocsContent v-if="item.description" class="docs-content" :content="item.description" />
                 </div>
               </template>
-              <FormItem
-                v-for="(child, index) in item.children"
-                :key="child.label + '-' + index"
-                :config="child"
-                :data="localData[item.field]"
-                :parent-config-list="item.children"
-                :parent="parent + item.field + '.'"
-              />
+
+              <!-- 添加 description 到内容区 -->
+              <DocsContent v-if="item.description" class="docs-content" :content="item.description" />
+
+              <!-- 原 collapse 类型的内容 -->
+              <template v-if="item.type == 'collapse'">
+                <FormItem
+                  v-for="(child, index) in item.children"
+                  :key="child.label + '-' + index"
+                  :config="child"
+                  :data="localData[item.field]"
+                  :parent-config-list="item.children"
+                  :parent="parent + item.field + '.'"
+                />
+              </template>
+
+              <!-- 原 section 的内容 -->
+              <section v-else-if="!hide(item)" :id="item.field">
+                <CommonTransformer
+                  v-if="item.type == 'parser'"
+                  ref="transformRef"
+                  :parser-columns="item.fields"
+                  :editable-sample="item.editableSample !== undefined ? item.editableSample : parser?.editableSample"
+                ></CommonTransformer>
+                <CsvTransformer
+                  v-else-if="item.type == 'csvData'"
+                  ref="csvDataRef"
+                  v-model="localData[item.field]"
+                ></CsvTransformer>
+                <template v-else-if="item.type == 'tabs'">
+                  <el-tabs
+                    class="form-tabs"
+                    :model-value="item.valueField ? localData[item.field][item.valueField] : '0'"
+                    @tab-click="
+                      ({ paneName }) => (item.valueField ? (localData[item.field][item.valueField] = paneName) : '0')
+                    "
+                  >
+                    <el-tab-pane
+                      v-for="child in item.children"
+                      :key="child.label"
+                      :label="child.label"
+                      :name="child.name"
+                      :disabled="tabDisabled(child)"
+                    >
+                      <p v-if="child.short_description" class="docs-content">{{ child.short_description }}</p>
+                      <FormItem
+                        v-if="tabContentShow(child, item)"
+                        :config="child"
+                        :data="localData[item.field]"
+                        :parent="parent + item.field + '.'"
+                      />
+                    </el-tab-pane>
+                  </el-tabs>
+                </template>
+
+                <template v-else-if="item.type == 'grouping'">
+                  <HostPort
+                    :config="item.children"
+                    :data="localData[item.field]"
+                    :parent="parent + item.field + '.'"
+                    :parent-config-list="item.children"
+                  />
+                </template>
+                <template v-else>
+                  <FormItem
+                    v-for="(child, index) in item.children"
+                    :key="child.label + '-' + index"
+                    :config="child"
+                    :data="localData[item.field]"
+                    :parent-config-list="item.children"
+                    :parent-config="item"
+                    :parent="parent + item.field + '.'"
+                  />
+                </template>
+              </section>
             </el-collapse-item>
           </el-collapse>
         </div>
-        <section v-else-if="!hide(item)" :id="item.field" class="block-wrapper">
-          <div :class="{ mb10: !mb10Type.includes(item.type) && !item.hasValue }">
-            <BlockHeader :title="item.label"> </BlockHeader>
-            <FormItem v-if="item.hasValue" :config="item" :data="localData[item.field]" :parent="parent" />
-            <DocsContent v-else-if="item.description" class="docs-content" :content="item.description" />
-          </div>
-          <CommonTransformer
-            v-if="item.type == 'parser'"
-            ref="transformRef"
-            :parser-columns="item.fields"
-            :editable-sample="item.editableSample !== undefined ? item.editableSample : parser?.editableSample"
-          ></CommonTransformer>
-          <CsvTransformer
-            v-else-if="item.type == 'csvData'"
-            ref="csvDataRef"
-            v-model="localData[item.field]"
-          ></CsvTransformer>
-          <template v-else-if="item.type == 'tabs'">
-            <el-tabs
-              class="form-tabs"
-              :model-value="item.valueField ? localData[item.field][item.valueField] : '0'"
-              @tab-click="
-                ({ paneName }) => (item.valueField ? (localData[item.field][item.valueField] = paneName) : '0')
-              "
-            >
-              <el-tab-pane
-                v-for="child in item.children"
-                :key="child.label"
-                :label="child.label"
-                :name="child.name"
-                :disabled="tabDisabled(child, item)"
-              >
-                <p v-if="child.short_description" class="docs-content">{{ child.short_description }}</p>
-                <FormItem
-                  v-if="tabContentShow(child, item)"
-                  :config="child"
-                  :data="localData[item.field]"
-                  :parent="parent + item.field + '.'"
-                />
-              </el-tab-pane>
-            </el-tabs>
-          </template>
-
-          <template v-else-if="item.type == 'grouping'">
-            <HostPort
-              :config="item.children"
-              :data="localData[item.field]"
-              :parent="parent + item.field + '.'"
-              :parent-config-list="item.children"
-            />
-          </template>
-          <template v-else>
-            <FormItem
-              v-for="(child, index) in item.children"
-              :key="child.label + '-' + index"
-              :config="child"
-              :data="localData[item.field]"
-              :parent-config-list="item.children"
-              :parent-config="item"
-              :parent="parent + item.field + '.'"
-            />
-          </template>
-        </section>
         <ConfigForm
           v-if="hide(item) && !item.hideall && localData[item.field]"
           :key="item.label"
@@ -101,7 +104,35 @@
         ></ConfigForm>
       </template>
 
-      <FormItem v-else :key="item.label" :config="item" :data="data" :parent="parent" />
+      <!-- 特殊处理 Groups-after 和 Groups-before 的子元素 -->
+      <template v-if="item.children && (item.label === 'Groups-after' || item.label === 'Groups-before') && item.children.length > 0">
+        <div v-for="child in item.children" :key="child.label" class="block-wrapper">
+          <el-collapse :class="`advanced-${lang}`" accordion>
+            <el-collapse-item :name="child.field || child.label">
+              <template #title>
+                <div class="mb10">
+                  <BlockHeader :title="child.label"> </BlockHeader>
+                </div>
+              </template>
+
+              <!-- 添加 description 到内容区 -->
+              <DocsContent v-if="child.description" class="docs-content" :content="child.description" />
+
+              <!-- 渲染子元素的 children -->
+              <FormItem
+                v-for="(grandChild, index) in child.children"
+                :key="grandChild.label + '-' + index"
+                :config="grandChild"
+                :data="localData[item.field][child.field]"
+                :parent-config-list="child.children"
+                :parent="parent + item.field + '.' + child.field + '.'"
+              />
+            </el-collapse-item>
+          </el-collapse>
+        </div>
+      </template>
+
+      <FormItem v-else-if="!item.children" :key="item.label" :config="item" :data="data" :parent="parent" />
     </template>
   </div>
 </template>
@@ -135,7 +166,7 @@ const props = withDefaults(
 );
 
 const localData = reactive(props.data);
-const mb10Type = ['opcTable', 'parser', 'tabs', 'advanced', 'collapse', 'csvData'];
+// const mb10Type = ['opcTable', 'parser', 'tabs', 'advanced', 'collapse', 'csvData'];
 const emit = defineEmits(['update:data']);
 const lang = computed(() => (isEn.value ? 'en' : 'zh'));
 
@@ -194,8 +225,8 @@ $color-description: rgb(137 130 130);
 
 .config-form {
   .block-wrapper {
-    padding: 15px;
-    margin-bottom: 20px;
+    padding: 0px 15px 5px 15px;
+    margin-bottom: 10px;
     border: 1px solid #ececef;
     border-radius: 12px;
   }
@@ -225,7 +256,7 @@ $color-description: rgb(137 130 130);
   }
 
   .mb10 {
-    margin-bottom: 10px;
+    margin-bottom: 0px;
   }
 
   .advanced-en {
@@ -240,6 +271,14 @@ $color-description: rgb(137 130 130);
 
     :deep(.el-collapse-item__wrap) {
       border-bottom: 0;
+    }
+
+    :deep(.el-collapse-item__arrow) {
+      transform: rotate(90deg);
+    }
+
+    :deep(.el-collapse-item.is-active .el-collapse-item__arrow) {
+      transform: rotate(-90deg);
     }
 
     border-top: 0;
@@ -257,6 +296,14 @@ $color-description: rgb(137 130 130);
 
     :deep(.el-collapse-item__wrap) {
       border-bottom: 0;
+    }
+
+    :deep(.el-collapse-item__arrow) {
+      transform: rotate(90deg);
+    }
+
+    :deep(.el-collapse-item.is-active .el-collapse-item__arrow) {
+      transform: rotate(-90deg);
     }
 
     border-top: 0;

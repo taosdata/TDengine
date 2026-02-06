@@ -22,40 +22,23 @@
             <span>{{ t('common.chart') }}</span>
           </div>
         </template>
-        <ChartView></ChartView>
-      </el-tab-pane>
-      <el-tab-pane name="favorites">
-        <template #label>
-          <div class="flex-center">
-            <Icon name="favorite_fill" class="tab-icon"></Icon>
-            <span>{{ t('explorer.favorites') }}</span>
-          </div>
-        </template>
-        <component :is="currentFavoriteComponent" v-if="currentFavoriteComponent"></component>
-      </el-tab-pane>
-      <el-tab-pane name="log">
-        <template #label>
-          <div class="flex-center">
-            <Icon name="console_dblist" class="tab-icon"></Icon>
-            <span>{{ t('common.logs') }}</span>
-          </div>
-        </template>
-        <LogView></LogView>
+        <ChartView ref="chartViewRef"></ChartView>
       </el-tab-pane>
     </el-tabs>
     <div class="panel-right">
       <p class="data-nums">{{ dataSource.length }} rows</p>
       <el-tooltip
-        v-if="panelActiveTab == 'log'"
+        v-if="partActiveTab == 'log'"
         effect="light"
         :content="t('common.' + (isDesc ? 'orderByAscending' : 'orderByDescending'))"
       >
         <el-button class="log-sort-btn" icon="sort" plain size="small" @click="logSortChange"></el-button>
       </el-tooltip>
       <el-tooltip effect="light" :content="t('explorer.exportCurrentData')">
-        <el-button :disabled="dataSource.length == 0 || loading" plain size="small" @click="exportAll">{{
-          t('common.export')
-        }}</el-button>
+        <el-button :disabled="dataSource.length == 0 || loading" plain size="small" @click="exportAll">
+          <Icon name="export" class="export-icon"></Icon>
+          {{ t('common.export') }}
+        </el-button>
       </el-tooltip>
     </div>
   </div>
@@ -65,11 +48,8 @@
 import { t } from 'locales';
 import GridView from './grid.vue';
 import ChartView from './chart.vue';
-import FavoriteView from './favoriteList/cloud/index.vue';
-import EnterpriseFavoriteView from './favoriteList/enterprise/index.vue';
-import LogView from './log.vue';
 import { wsExport, localExport } from 'utils/wsexporter';
-import { sqlExecResult, panelActiveTab, changeLogSortEvent } from './utils';
+import { sqlExecResult, panelActiveTab, changeLogSortEvent, partActiveTab } from './utils';
 import { getSqlProvider } from '../model/useExplorer';
 import { ElMessageBox, ElMessage } from 'element-plus';
 import { instance, project } from 'config';
@@ -80,9 +60,16 @@ const logSort = ref(localStorage.getItem(ExplorerLogSortKey) ?? 'desc');
 const isDesc = computed(() => logSort.value === 'desc');
 const loading = ref(false);
 const dataSource = computed(() => sqlExecResult.data);
-const currentFavoriteComponent = computed(() =>
-  project.isCloud ? (FavoriteView as typeof FavoriteView) : (EnterpriseFavoriteView as typeof EnterpriseFavoriteView)
-);
+
+const chartViewRef = ref();
+
+watch(panelActiveTab, (newVal) => {
+  if (newVal === 'chart') {
+    nextTick(() => {
+      chartViewRef.value?.drawChart();
+    });
+  }
+});
 
 function exportAll() {
   const trimmedSql = sqlStr.value.toLowerCase().trim();
@@ -116,7 +103,7 @@ function exportAll() {
     } else {
       try {
         localExport(sqlExecResult);
-      } catch (err) {
+      } catch (err: any) {
         ElMessage.error(err?.message);
       } finally {
         loading.value = false;
@@ -197,5 +184,12 @@ function logSortChange() {
 .data-nums {
   margin-right: 10px;
   font-size: 17px;
+  color: var(--el-text-color-secondary);
+}
+
+.export-icon {
+  width: 12px;
+  height: 12px;
+  margin-right: 5px;
 }
 </style>

@@ -7,6 +7,14 @@
         <router-view v-if="isRouterAlive"></router-view>
       </main>
     </div>
+    <div class="status-bar">
+      <div class="status-left">
+        <Version :statusBar="true" />
+      </div>
+      <div class="status-right">
+        <International />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -14,6 +22,8 @@
 import { useStore } from 'vuex';
 import { Sider, LayoutHeader } from './components/index';
 import { useResizeHandler } from '@/hooks/useResizeHandler';
+import Version from './components/Header/components/Version/index.vue';
+import International from './components/Header/components/International/index.vue';
 
 const store = useStore();
 const { $_initResizeEvent, $_destroyResizeEvent } = useResizeHandler();
@@ -73,5 +83,42 @@ onBeforeUnmount(() => {
   padding: 15px;
   overflow-y: auto;
   background-color: #f2f3f3;
+  padding-bottom: 40px; // 状态栏高度
+}
+
+.status-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background-color: #f2f3f3;
+  border-top: 1px solid #ececef;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 15px;
+  z-index: 1000;
+
+  .status-left :deep(.license span) {
+    font-size: 14px;
+    color: var(--el-text-color-secondary);
+  }
+
+  .status-right :deep(.language) {
+    font-size: 13px;
+    margin-top: 0px;
+    margin-right: 0px;
+    border-color: var(--el-text-color-secondary);
+    color: var(--el-text-color-secondary);
+  }
+}
+
+.status-left {
+  flex: 1;
+}
+
+.status-right {
+  flex-shrink: 0;
 }
 </style>

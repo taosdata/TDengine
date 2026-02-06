@@ -4,7 +4,7 @@
     <div class="headerRight">
       <Timezone/>
       <Document v-if="docUrl"/>
-      <International/>
+      <!-- <International/> -->
       <Avatar/>
     </div>
   </div>
@@ -17,7 +17,7 @@ import {
   Document,
   Timezone,
   Version,
-  International,
+  // International,
 } from "./components";
 const { $IS_COMMUNITY } = inject("globalCustomProperties") as GlobalCustomProperties;
 

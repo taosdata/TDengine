@@ -193,7 +193,7 @@ const initialState: TransformerState = {
   transformerParserData: null,
   transformColumnIdentify: [],
   csvTransformerlocalCols: [], //csv无头部时候的自定义列
-  splitExpressList: null, //transformer的split
+  splitExpressionList: null, //transformer的split
   mappingjoin: '', //mapping时候映射值是join时候的
   definitions: [],
   topParse: null,

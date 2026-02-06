@@ -14,7 +14,12 @@ import { getUser, getPassword, getClusterID, getBaseUrl } from '@/utils';
 import { setInstanceData } from 'taos-ui/config';
 import _ from 'lodash-es';
 
-const { OEM_NAME, $IS_TSDBLITE, $INDUSTRY } = inject('globalCustomProperties') as GlobalCustomProperties;
+const props = withDefaults(defineProps<{
+  statusBar?: boolean;
+}>(), {
+  statusBar: false
+});
+
 const route = useRoute();
 const showHeaderLeft = ref<boolean>(true);
 const clickCount = ref(0);
@@ -24,11 +29,10 @@ const local_version = localStorage.getItem('td_version') || '';
 const version = ref(local_version || '0.0.0');
 console.log('version', local_version, version.value);
 const grants = ref<any>([]);
-const industry = ref('version');
 
 watch(
   () => route,
-  (to, from, next) => {
+  (to, _from, next) => {
     try {
       if (to.name != 'Login') {
         getLicense();
@@ -63,7 +67,7 @@ function clickShowVersion() {
     }
   }
 }
-function getVersion(val) {
+function getVersion(val: any) {
   if (val.match(/\./g).length > 3) {
     return val.substr(0, val.lastIndexOf('.'));
   } else {
@@ -73,17 +77,17 @@ function getVersion(val) {
 async function getLicense() {
   try {
     const res = await sendSQLReq('show grants;');
-    grants.value = res.data.map(data => {
+    grants.value = res.data.map((data: any) => {
       return Object.fromEntries(
-        res.column_meta.map((item, index) => {
+        res.column_meta.map((item:any, index: any) => {
           return [item[0], data[index]];
         })
       );
     });
     await sendSQLReq(`select server_version(), version from information_schema.ins_grants;`).then(res => {
-      license.value = res.data.map(data => {
+      license.value = res.data.map((data: any) => {
         return Object.fromEntries(
-          res.column_meta.map((item, index) => {
+          res.column_meta.map((item:any, index: any) => {
             return [item[0], data[index]];
           })
         );
@@ -103,8 +107,13 @@ async function getLicense() {
       });
       let versionName = license.value[0]['version'];
       versionName = versionName.replace('official', '').trim();
-      version.value = versionName + ' ' + getVersion(license.value[0]['server_version()']);
-      localStorage.setItem('serverVersion', version.value);
+      const fullVersion = versionName + ' ' + getVersion(license.value[0]['server_version()']);
+      if (props.statusBar) {
+        version.value = fullVersion;
+      } else {
+        version.value = versionName.replace('trial', '') + ' Explorer';
+      }
+      localStorage.setItem('serverVersion', fullVersion);
     });
   } catch (error: any) {
     console.error('Get license error: ', error);

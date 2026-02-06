@@ -127,18 +127,15 @@ export function handleStableDataKey(data: Recordable[], dbName: string) {
       }
       item.parent = dbName;
       item['node-key'] = item.name + nType + dbName;
-    } else {
-      if (item.create_time != 'NULL') {
-        reusultItem.create_time = item.create_time;
-      }
-      if (item.last_update != 'NULL') {
-        reusultItem.last_update = item.last_update;
-      }
-      if (item.total > 0) {
-        {
-          reusultItem.total = item.total;
-        }
-      }
+    }
+    if (item.create_time && item.create_time !== 'NULL') {
+      result[item.stable_name].create_time = item.create_time;
+    }
+    if (item.last_update && item.last_update !== 'NULL') {
+      result[item.stable_name].last_update = item.last_update;
+    }
+    if (item.total > 0) {
+      result[item.stable_name].total = item.total;
     }
   });
 
@@ -358,8 +355,7 @@ export async function createStableReq(formData: CreateStableForm, dbName: string
       `CREATE STABLE \`${dbName}\`.${name} (${columns
         .map(
           item =>
-            `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${
-              item.level ? ' LEVEL ' + `'${item.level}'` : ''
+            `${addStrBackquote(escapeSpecialChar(item.field))} ${composeType(item)}${item.encode ? ' ENCODE ' + `'${item.encode}'` : ''}${item.compress ? ' COMPRESS ' + `'${item.compress}'` : ''}${item.level ? ' LEVEL ' + `'${item.level}'` : ''
             }${item.primaryKey ? (lt_3363 ? ' COMPOSITE KEY' : ' PRIMARY KEY') : ''}`
         )
         .join(

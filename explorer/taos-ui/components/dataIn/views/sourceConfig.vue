@@ -9,84 +9,96 @@
         size="default"
         :rules="rules"
       >
-        <section class="block-wrapper">
-          <el-form-item :label="t('dataIn.name2')" prop="name">
-            <el-input id="name" v-model="sourceForm.name" :placeholder="t('dataIn.placeholders.taskName')"></el-input>
-          </el-form-item>
-          <el-form-item :label="t('dataIn.type')" prop="type" class="hidden-required">
-            <el-select id="type" v-model="sourceForm.type" :disabled="!!taskId" @change="typeChang">
-              <el-option
-                v-for="item in definitionsList"
-                :key="item.name"
-                :label="item.name"
-                :value="item.id"
-              ></el-option>
-            </el-select>
-          </el-form-item>
-          <el-form-item v-if="isShowAgent" prop="agent" class="hidden-required">
-            <template #label>
-              <el-tooltip placement="top" effect="light">
-                <template #content>
-                  <div v-dompurify-html="t('dataIn.needAgentTip')"></div>
-                </template>
-                <div>
-                  <span>{{ t('dataIn.agent') }}</span>
-                  <span style="margin-left: 1px">
-                    <Icon name="label_info" class="info-icon-custom"></Icon>
-                  </span>
+        <div class="block-wrapper">
+          <el-collapse :class="`advanced-${lang}`" accordion>
+            <el-collapse-item name="basic">
+              <template #title>
+                <div class="mb10">
+                  <BlockHeader :title="basicConfigLabel"> </BlockHeader>
                 </div>
-              </el-tooltip>
-            </template>
-            <el-select
-              id="agent"
-              v-model="sourceForm.agent"
-              style="width: 190px"
-              :placeholder="t('dataIn.placeholders.agentPlaceholder')"
-              clearable
-            >
-              <el-option v-for="item in agentList" :key="item.name" :label="item.name" :value="item.id"></el-option>
-            </el-select>
-            <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
-              <template #content>
-                <span v-dompurify-html="t('common.communityTip')"></span>
               </template>
-              <el-button
-                :disabled="dataInProps.isCommunity"
-                :type="dataInProps.isIdmp ? 'default' : 'primary'"
-                plain
-                class="ml15"
-                icon="Plus"
-                @click="createAgent"
-                >{{ t('dataIn.createNewAgent') }}</el-button
-              >
-            </el-tooltip>
-          </el-form-item>
-          <el-form-item :label="t('dataIn.target')" prop="targetDB">
-            <el-select
-              id="targetDB"
-              v-model="sourceForm.targetDB"
-              :placeholder="t('dataIn.placeholders.chooseTargetDbTip')"
-              style="width: 190px"
-              @change="targetDBChange"
-            >
-              <el-option v-for="item in databaseList" :key="item.name" :value="item.name"></el-option>
-            </el-select>
-            <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
-              <template #content>
-                <span v-dompurify-html="t('common.communityTip')"></span>
-              </template>
-              <el-button
-                :disabled="dataInProps.isCommunity"
-                :type="dataInProps.isIdmp ? 'default' : 'primary'"
-                plain
-                class="ml15"
-                icon="Plus"
-                @click="createDatabase"
-                >{{ t('dataIn.createDatabase') }}</el-button
-              >
-            </el-tooltip>
-          </el-form-item>
-        </section>
+
+              <section>
+                <el-form-item :label="t('dataIn.name2')" prop="name">
+                  <el-input id="name" v-model="sourceForm.name" :placeholder="t('dataIn.placeholders.taskName')"></el-input>
+                </el-form-item>
+                <el-form-item :label="t('dataIn.type')" prop="type" class="hidden-required">
+                  <el-select id="type" v-model="sourceForm.type" :disabled="!!taskId" @change="typeChang">
+                    <el-option
+                      v-for="item in definitionsList"
+                      :key="item.name"
+                      :label="item.name"
+                      :value="item.id"
+                    ></el-option>
+                  </el-select>
+                </el-form-item>
+                <el-form-item v-if="isShowAgent" prop="agent" class="hidden-required">
+                  <template #label>
+                    <el-tooltip placement="top" effect="light">
+                      <template #content>
+                        <div v-dompurify-html="t('dataIn.needAgentTip')"></div>
+                      </template>
+                      <div>
+                        <span>{{ t('dataIn.agent') }}</span>
+                        <span style="margin-left: 1px">
+                          <Icon name="label_info" class="info-icon-custom"></Icon>
+                        </span>
+                      </div>
+                    </el-tooltip>
+                  </template>
+                  <el-select
+                    id="agent"
+                    v-model="sourceForm.agent"
+                    style="width: 190px"
+                    :placeholder="t('dataIn.placeholders.agentPlaceholder')"
+                    clearable
+                  >
+                    <el-option v-for="item in agentList" :key="item.name" :label="item.name" :value="item.id"></el-option>
+                  </el-select>
+                  <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
+                    <template #content>
+                      <span v-dompurify-html="t('common.communityTip')"></span>
+                    </template>
+                    <el-button
+                      :disabled="dataInProps.isCommunity"
+                      :type="dataInProps.isIdmp ? 'default' : 'primary'"
+                      plain
+                      class="ml15"
+                      icon="Plus"
+                      @click="createAgent"
+                      >{{ t('dataIn.createNewAgent') }}</el-button
+                    >
+                  </el-tooltip>
+                </el-form-item>
+                <el-form-item :label="t('dataIn.target')" prop="targetDB">
+                  <el-select
+                    id="targetDB"
+                    v-model="sourceForm.targetDB"
+                    :placeholder="t('dataIn.placeholders.chooseTargetDbTip')"
+                    style="width: 190px"
+                    @change="targetDBChange"
+                  >
+                    <el-option v-for="item in databaseList" :key="item.name" :value="item.name"></el-option>
+                  </el-select>
+                  <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
+                    <template #content>
+                      <span v-dompurify-html="t('common.communityTip')"></span>
+                    </template>
+                    <el-button
+                      :disabled="dataInProps.isCommunity"
+                      :type="dataInProps.isIdmp ? 'default' : 'primary'"
+                      plain
+                      class="ml15"
+                      icon="Plus"
+                      @click="createDatabase"
+                      >{{ t('dataIn.createDatabase') }}</el-button
+                    >
+                  </el-tooltip>
+                </el-form-item>
+              </section>
+            </el-collapse-item>
+          </el-collapse>
+        </div>
         <ConfigForm
           v-if="currentDefinition && currentDefinition.config && sourceForm.data"
           ref="configformRef"
@@ -155,6 +167,7 @@
     />
   </div>
 </template>
+
 <script setup lang="ts">
 import { ElMessage, ElMessageBox, FormInstance, ElAffix } from 'element-plus';
 import { isEqualWith, isEqual, isArray, cloneDeep } from 'lodash-es';
@@ -192,10 +205,15 @@ import DocsContent from 'components/MdRender.vue';
 import { instance } from 'config';
 import { decrypt } from 'utils/crypto';
 import { datasetTableData } from '../model/util';
+import BlockHeader from '../components/blockHeader.vue';
 
 const dataInProps = getDataInProps();
 provide('sourceParent', getCurrentInstance());
 provide('getCurrentDefinition', () => currentDefinition);
+
+const lang = computed(() => (isEn.value ? 'en' : 'zh'));
+
+const basicConfigLabel = computed(() => (isEn.value ? 'General Information' : '基本信息'));
 
 const route = useRoute();
 const router = useRouter();
@@ -641,9 +659,9 @@ $color-description: rgb(137 130 130);
     }
 
     section {
-      padding: 15px;
+      // padding: 15px;
       margin-bottom: 20px;
-      border: 1px solid #ececef;
+      // border: 1px solid #ececef;
       border-radius: 12px;
 
       // border-bottom: 1px solid #ececef;
@@ -676,6 +694,91 @@ $color-description: rgb(137 130 130);
       justify-content: center;
       height: 30px;
     }
+
+    .block-wrapper {
+    padding: 0px 15px 5px 15px;
+    margin-bottom: 10px;
+    border: 1px solid #ececef;
+    border-radius: 12px;
+  }
+
+  &:deep(.el-tabs__item.is-disabled) {
+    cursor: not-allowed;
+  }
+
+  .docs-content {
+    margin-bottom: 10px;
+    font-size: 14px;
+    color: $color-description;
+    text-align: left;
+  }
+
+  &:deep(.el-tabs__item) {
+    display: table-cell;
+    max-width: 240px;
+    line-height: 22px !important;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    vertical-align: middle;
+  }
+
+  .form-tabs {
+    margin-top: 1.5rem;
+  }
+
+  .mb10 {
+    margin-bottom: 0px;
+  }
+
+  .advanced-en {
+    :deep(.el-collapse-item__header) {
+      min-height: 80px;
+      border-bottom: 0;
+    }
+
+    :deep(.el-collapse-item__content) {
+      padding-bottom: 0;
+    }
+
+    :deep(.el-collapse-item__wrap) {
+      border-bottom: 0;
+    }
+
+    :deep(.el-collapse-item__arrow) {
+      transform: rotate(90deg);
+    }
+
+    :deep(.el-collapse-item.is-active .el-collapse-item__arrow) {
+      transform: rotate(-90deg);
+    }
+
+    border-top: 0;
+  }
+
+  .advanced-zh {
+    :deep(.el-collapse-item__header) {
+      min-height: 60px;
+      border-bottom: 0;
+    }
+
+    :deep(.el-collapse-item__content) {
+      padding-bottom: 0;
+    }
+
+    :deep(.el-collapse-item__wrap) {
+      border-bottom: 0;
+    }
+
+    :deep(.el-collapse-item__arrow) {
+      transform: rotate(90deg);
+    }
+
+    :deep(.el-collapse-item.is-active .el-collapse-item__arrow) {
+      transform: rotate(-90deg);
+    }
+
+    border-top: 0;
+  }
   }
 
   .right-ui {
@@ -730,4 +833,5 @@ $color-description: rgb(137 130 130);
     }
   }
 }
+
 </style>

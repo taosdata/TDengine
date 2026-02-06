@@ -17,41 +17,85 @@
               </pre>
             </span>
           </template>
-          <TextCopy :text="scope.row.sql" :is-show-btn-text="true"></TextCopy>
+          <span>{{ scope.row.sql }}</span>
         </el-tooltip>
       </template>
     </el-table-column>
-    <el-table-column :label="t('explorer.desc')" prop="description" width="310"> </el-table-column>
+    <el-table-column :label="t('explorer.desc')" prop="description" width="300"> </el-table-column>
     <el-table-column v-if="isShared" :label="t('explorer.user')" prop="username" width="120" show-overflow-tooltip>
     </el-table-column>
-    <el-table-column :label="t('common.action')" width="150">
+    <el-table-column width="30" fixed="right">
       <template #default="scope">
-        <template v-if="!isShared">
-          <el-tooltip :content="t('common.edit')" placement="top" effect="light">
-            <el-button size="small" icon="Edit" @click="edit(scope.row)"></el-button>
-          </el-tooltip>
-          <el-tooltip v-if="!scope.row.is_public" :content="t('explorer.share')" placement="top" effect="light">
-            <el-button size="small" icon="Share" @click="manage(scope.row)"></el-button>
-          </el-tooltip>
-          <el-tooltip v-if="scope.row.is_public" :content="t('explorer.unshare')" placement="top" effect="light">
-            <el-button size="small" icon="RefreshLeft" @click="manage(scope.row)"></el-button>
-          </el-tooltip>
-        </template>
-        <el-tooltip v-if="isShared" :content="t('explorer.addToPersonal')" placement="top" effect="light">
-          <el-button
-            :disabled="scope.row.username == instance.user"
-            size="small"
-            icon="Star"
-            @click="add(scope.row)"
-          ></el-button>
-        </el-tooltip>
-        <el-tooltip :content="t('common.delete')" placement="top" effect="light">
-          <el-button plain size="small" icon="Delete" @click="del(scope.row)"></el-button>
-        </el-tooltip>
+        <el-dropdown :data="scope.row" :trigger="'hover'">
+          <el-button icon="MoreFilled" size="small" class="rotate-90!" text></el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="copy" class="tree-menu">
+                <el-tooltip :content="t('common.copy')" placement="top" effect="light">
+                  <div class="flex-start tree-menu-item" @click="copySql(scope.row)">
+                    <CopyDocument class="operate-icon"></CopyDocument>
+                    <div class="tree-menu-label">{{ t('common.copy') }}</div>
+                  </div>
+                </el-tooltip>
+              </el-dropdown-item>
+              <el-dropdown-item command="exec" class="tree-menu">
+                <el-tooltip :content="t('common.run')" placement="top" effect="light">
+                  <div class="flex-start tree-menu-item" @click="exec(scope.row)">
+                    <VideoPlay class="operate-icon"></VideoPlay>
+                    <div class="tree-menu-label">{{ t('common.run') }}</div>
+                  </div>
+                </el-tooltip>
+              </el-dropdown-item>
+              <template v-if="!isShared">
+                <el-dropdown-item command="edit" class="tree-menu">
+                  <el-tooltip :content="t('common.edit')" placement="top" effect="light">
+                    <div class="flex-start tree-menu-item" @click="edit(scope.row)">
+                      <Edit class="operate-icon"></Edit>
+                      <div class="tree-menu-label">{{ t('common.edit') }}</div>
+                    </div>
+                  </el-tooltip>
+                </el-dropdown-item>
+                <el-dropdown-item v-if="!scope.row.is_public" command="share" class="tree-menu">
+                  <el-tooltip v-if="!scope.row.is_public" :content="t('explorer.share')" placement="top" effect="light">
+                    <div class="flex-start tree-menu-item" @click="manage(scope.row)">
+                      <Share class="operate-icon"></Share>
+                      <div class="tree-menu-label">{{ t('explorer.share') }}</div>
+                    </div>
+                  </el-tooltip>
+                </el-dropdown-item>
+                <el-dropdown-item v-if="scope.row.is_public" command="unshare" class="tree-menu">
+                  <el-tooltip v-if="scope.row.is_public" :content="t('explorer.unshare')" placement="top" effect="light">
+                    <div class="flex-start tree-menu-item" @click="manage(scope.row)">
+                      <RefreshLeft class="operate-icon"></RefreshLeft>
+                      <div class="tree-menu-label">{{ t('explorer.unshare') }}</div>
+                    </div>
+                  </el-tooltip>
+                </el-dropdown-item>
+              </template>
+              <el-dropdown-item v-if="isShared" command="add" class="tree-menu">
+                <el-tooltip v-if="isShared" :content="t('explorer.addToPersonal')" placement="top" effect="light">
+                  <div class="flex-start tree-menu-item" @click="add(scope.row)">
+                    <Star class="operate-icon"></Star>
+                    <div class="tree-menu-label">{{ t('explorer.addToPersonal') }}</div>
+                  </div>
+                </el-tooltip>
+              </el-dropdown-item>
+              <el-dropdown-item command="delete" class="tree-menu">
+                <el-tooltip :content="t('common.delete')" placement="top" effect="light">
+                  <div class="flex-start tree-menu-item" @click="del(scope.row)">
+                    <Delete class="operate-icon"></Delete>
+                    <div class="tree-menu-label">{{ t('common.delete') }}</div>
+                  </div>
+                </el-tooltip>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </template>
     </el-table-column>
   </el-table>
   <el-pagination
+    v-if="total > 10"
     v-model:current-page="favoriteParams.page"
     class="pagination"
     layout="sizes, total, prev, pager, next"
@@ -64,14 +108,16 @@
   ></el-pagination>
 </template>
 <script setup lang="ts">
-import { instance } from 'config';
+// import { instance } from 'config';
+// import { instance } from 'config';
 import { getSqlProvider } from '../../../model/useExplorer';
-import { favoriteParams } from '../../utils';
+import { favoriteParams, partActiveTab } from '../../utils';
 import { ElMessageBox, ElMessage } from 'element-plus';
 import { t } from 'locales';
+import { VideoPlay, Edit, Share, RefreshLeft, Star, Delete, CopyDocument } from '@element-plus/icons-vue';
 
 const emits = defineEmits(['update']);
-const { addSql } = getSqlProvider();
+const { addSql, executeSql } = getSqlProvider();
 
 interface Props {
   isShared?: boolean;
@@ -144,6 +190,13 @@ function selectSQL(row: Recordable, column: Recordable) {
   }
 }
 
+function exec(row: Recordable) {
+  console.log('=============exec sql:', row.sql);
+  executeSql(row.sql);
+  addSql('\n' + row.sql, true);
+  partActiveTab.value = 'sql';
+}
+
 function handleSizeChange(val: number) {
   favoriteParams.page_size = val;
   emits('update');
@@ -151,12 +204,62 @@ function handleSizeChange(val: number) {
 function handlePageChange() {
   emits('update');
 }
+
+function copySql(row: Recordable) {
+  navigator.clipboard.writeText(row.sql).then(() => {
+    ElMessage.success(t('msg.copySuccess'));
+  }).catch(() => {
+    ElMessage.error(t('msg.copyFailed'));
+  });
+}
+
+// function handleCommand(command: string, data: Recordable) {
+//   switch (command) {
+//     case 'exec':
+//       exec(data);
+//       break;
+//     case 'edit':
+//       edit(data);
+//       break;
+//     case 'share':
+//     case 'unshare':
+//       manage(data);
+//       break;
+//     case 'add':
+//       add(data);
+//       break;
+//     case 'delete':
+//       del(data);
+//       break;
+//   }
+// }
 </script>
+
 <style scoped lang="scss">
 .my-popper {
   max-width: 600px;
   max-height: 600px;
   overflow: auto;
   white-space: wrap;
+}
+
+:deep(.el-dropdown-menu__item) {
+    padding: 1px 5px;
+}
+
+:deep(.tree-menu) {
+  padding: 0;
+
+  .tree-menu-item {
+    width: 100%;
+    height: 30px;
+    padding: 0 10px;
+    font-size: 12px;
+
+    .tree-menu-label {
+      margin-left: 5px;
+      line-height: 30px;
+    }
+  }
 }
 </style>
