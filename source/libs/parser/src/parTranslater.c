@@ -18329,9 +18329,27 @@ static int32_t translateShowCreateVTable(STranslateContext* pCxt, SShowCreateTab
 }
 
 static int32_t translateShowVirtualTableValidate(STranslateContext* pCxt, SShowValidateVirtualTable* pStmt) {
-  pStmt->pDbCfg = NULL;
-  pStmt->pTableCfg = NULL;
-  return TSDB_CODE_SUCCESS;
+  // 1. 从缓存获取表配置
+  SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
+  tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(name.tname, pStmt->tableName, TSDB_TABLE_NAME_LEN);
+
+  int32_t code = getTableCfgFromCache(pCxt->pMetaCache, &name, (STableCfg**)&pStmt->pTableCfg);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  // 2. 验证表类型：必须为虚拟表
+  STableCfg* pTableCfg = (STableCfg*)pStmt->pTableCfg;
+  bool isVtb = (pTableCfg->tableType == TSDB_VIRTUAL_CHILD_TABLE || pTableCfg->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+                pTableCfg->virtualStb);
+
+  if (!isVtb) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_TYPE, "'%s' is not a virtual table",
+                                   pStmt->tableName);
+  }
+
+  return code;
 }
 
 static int32_t translateShowCreateView(STranslateContext* pCxt, SShowCreateViewStmt* pStmt) {
@@ -21248,11 +21266,46 @@ static int32_t rewriteShowVnodes(STranslateContext* pCxt, SQuery* pQuery) {
   return code;
 }
 
+static int32_t validateShowValidateMeta(STranslateContext* pCxt, SShowValidateVirtualTable* pStmt) {
+  int32_t     code = 0;
+  SName       name = {0};
+  STableMeta* pTableMeta = NULL;
+
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
+  code = getTargetMeta(pCxt, &name, &pTableMeta, false);
+  if (TSDB_CODE_SUCCESS != code) {
+    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
+    goto _exit;
+  }
+  if ((TSDB_SUPER_TABLE != pTableMeta->tableType && TSDB_CHILD_TABLE != pTableMeta->tableType) &&
+      (pTableMeta->virtualStb != 1 && pTableMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE)) {
+    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_PC,
+                                "The _TAGS pseudo column can only be used for child table and super table queries");
+    goto _exit;
+  }
+
+  int8_t tableType = pTableMeta->tableType;
+  bool   isVtb =
+      (tableType == TSDB_VIRTUAL_CHILD_TABLE || tableType == TSDB_VIRTUAL_NORMAL_TABLE || pTableMeta->virtualStb == 1);
+
+  if (!isVtb) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_TYPE, "'%s' is not a virtual table",
+                                   pStmt->tableName);
+  }
+
+_exit:
+  taosMemoryFreeClear(pTableMeta);
+  return code;
+}
 static int32_t rewriteShowValidateVtable(STranslateContext* pCxt, SQuery* pQuery) {
   SShowValidateVirtualTable* pShow = (SShowValidateVirtualTable*)(pQuery->pRoot);
   SSelectStmt*               pSelect = NULL;
   int32_t                    code = 0;
   SNode*                     pWhere = NULL;
+  code = validateShowValidateMeta(pCxt, pShow);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
 
   code = createSelectStmtForShow(nodeType(pShow), &pSelect);
   if (TSDB_CODE_SUCCESS != code) {
