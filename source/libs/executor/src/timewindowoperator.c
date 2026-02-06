@@ -979,7 +979,7 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
 
   pInfo->cleanGroupResInfo = false;
   while (1) {
-    SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
+    SSDataBlock* pBlock = getNextBlockFromDownstreamRemainDetach(pOperator, 0);
     if (pBlock == NULL) {
       break;
     }
@@ -1384,10 +1384,20 @@ static int32_t doBuildIntervalResultNext(SOperatorInfo* pOperator, SSDataBlock**
   int32_t                   lino = 0;
   SIntervalAggOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
+  size_t                    rows = 0;
 
-  if (pOperator->status == OP_EXEC_DONE) {
+  if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
     (*ppRes) = NULL;
     return code;
+  }
+
+  if (pOperator->pOperatorGetParam) {
+    if (pOperator->status == OP_EXEC_DONE && pOperator->fpSet.resetStateFn) {
+      code = pOperator->fpSet.resetStateFn(pOperator);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
+    pOperator->pOperatorGetParam = NULL;
   }
 
   SSDataBlock* pBlock = pInfo->binfo.pRes;
@@ -1410,7 +1420,7 @@ static int32_t doBuildIntervalResultNext(SOperatorInfo* pOperator, SSDataBlock**
     }
   }
 
-  size_t rows = pBlock->info.rows;
+  rows = pBlock->info.rows;
   pOperator->resultInfo.totalRows += rows;
 
 _end:

@@ -1097,43 +1097,29 @@ _return:
   return code;
 }
 
-int32_t buildAggOperatorParam(SOperatorParam** ppRes, uint64_t groupid, SArray* pUidList, int32_t srcOpType, SArray *pBatchMap, SArray *pTagList, bool tableSeq, STimeWindow *window, bool isNewParam, EExchangeSourceType type) {
+int32_t buildAggOperatorParam(SOperatorParam** ppRes, uint64_t groupid, SArray* pUidList, int32_t srcOpType,
+                              SArray* pBatchMap, SArray* pTagList, bool tableSeq, STimeWindow* window,
+                              bool isNewParam) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
   SOperatorParam*          pParam = NULL;
 
-  switch (type) {
-    case EX_SRC_TYPE_VSTB_AGG_SCAN: {
-      pParam = taosMemoryMalloc(sizeof(SOperatorParam));
-      QUERY_CHECK_NULL(pParam, code, lino, _return, terrno);
+  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(pParam, code, lino, _return, terrno);
 
-      pParam->pChildren = taosArrayInit(1, POINTER_BYTES);
-      QUERY_CHECK_NULL(pParam->pChildren, code, lino, _return, terrno);
+  pParam->pChildren = taosArrayInit(1, POINTER_BYTES);
+  QUERY_CHECK_NULL(pParam->pChildren, code, lino, _return, terrno);
 
-      SOperatorParam* pTableScanParam = NULL;
-      code = buildTableScanOperatorParamBatchInfo(&pTableScanParam, groupid, pUidList, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, pBatchMap, pTagList, tableSeq, window, isNewParam);
-      QUERY_CHECK_CODE(code, lino, _return);
+  SOperatorParam* pTableScanParam = NULL;
+  code = buildTableScanOperatorParamBatchInfo(&pTableScanParam, groupid, pUidList, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, pBatchMap, pTagList, tableSeq, window, isNewParam);
+  QUERY_CHECK_CODE(code, lino, _return);
 
-      QUERY_CHECK_NULL(taosArrayPush(pParam->pChildren, &pTableScanParam), code, lino, _return, terrno);
+  QUERY_CHECK_NULL(taosArrayPush(pParam->pChildren, &pTableScanParam), code, lino, _return, terrno);
 
-      pParam->opType = QUERY_NODE_PHYSICAL_PLAN_HASH_AGG;
-      pParam->downstreamIdx = 0;
-      pParam->value = NULL;
-      pParam->reUse = false;
-
-      break;
-    }
-    case EX_SRC_TYPE_VSTB_WIN_SCAN: {
-      code = buildTableScanOperatorParamBatchInfo(&pParam, groupid, pUidList, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, pBatchMap, pTagList, tableSeq, window, isNewParam);
-      QUERY_CHECK_CODE(code, lino, _return);
-      break;
-    }
-    default: {
-      code = TSDB_CODE_INVALID_PARA;
-      qError("%s failed at %d, invalid exchange source type:%d", __FUNCTION__, lino, type);
-      goto _return;
-    }
-  }
+  pParam->opType = QUERY_NODE_PHYSICAL_PLAN_HASH_AGG;
+  pParam->downstreamIdx = 0;
+  pParam->value = NULL;
+  pParam->reUse = false;
 
   *ppRes = pParam;
   return code;
@@ -1202,13 +1188,37 @@ static int32_t getCurrentWinCalcTimeRange(SStreamRuntimeFuncInfo* pRuntimeInfo, 
   return TSDB_CODE_SUCCESS;
 }
 
+void clearVtbScanDataInfo(void* pItem) {
+  SSourceDataInfo *pInfo = (SSourceDataInfo *)pItem;
+  if (pInfo->orgTbInfo) {
+    taosArrayDestroy(pInfo->orgTbInfo->colMap);
+    taosMemoryFreeClear(pInfo->orgTbInfo);
+  }
+  if (pInfo->batchOrgTbInfo) {
+    for (int32_t i = 0; i < taosArrayGetSize(pInfo->batchOrgTbInfo); ++i) {
+      SOrgTbInfo* pColMap = taosArrayGet(pInfo->batchOrgTbInfo, i);
+      if (pColMap) {
+        taosArrayDestroy(pColMap->colMap);
+      }
+    }
+    taosArrayDestroy(pInfo->batchOrgTbInfo);
+    pInfo->batchOrgTbInfo = NULL;
+  }
+  if (pInfo->tagList) {
+    taosArrayDestroyEx(pInfo->tagList, destroyTagVal);
+    pInfo->tagList = NULL;
+  }
+  if (pInfo->pSrcUidList) {
+    taosArrayDestroy(pInfo->pSrcUidList);
+    pInfo->pSrcUidList = NULL;
+  }
+}
+
 int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   SSourceDataInfo* pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, sourceIndex);
-  if (!pDataInfo) {
-    return terrno;
-  }
+  QUERY_CHECK_NULL(pDataInfo, code, lino, _end, terrno);
 
   if (EX_SOURCE_DATA_NOT_READY != pDataInfo->status) {
     return TSDB_CODE_SUCCESS;
@@ -1216,9 +1226,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
   pDataInfo->status = EX_SOURCE_DATA_STARTED;
   SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, pDataInfo->index);
-  if (!pSource) {
-    return terrno;
-  }
+  QUERY_CHECK_NULL(pSource, code, lino, _end, terrno);
 
   pDataInfo->startTime = taosGetTimestampUs();
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
@@ -1231,12 +1239,13 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
   if (pSource->localExec) {
     SDataBuf pBuf = {0};
-    int32_t  code =
+    code =
       (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->sId,
                                   pTaskInfo->id.queryId, pSource->clientId,
                                   pSource->taskId, 0, pSource->execId,
                                   &pBuf.pData,
                                   pTaskInfo->localFetch.explainRes);
+    QUERY_CHECK_CODE(code, lino, _end);
     code = loadRemoteDataCallback(pWrapper, &pBuf, code);
     taosMemoryFree(pWrapper);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1272,15 +1281,8 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     switch (pDataInfo->type) {
       case EX_SRC_TYPE_VSTB_SCAN: {
         code = buildTableScanOperatorParamEx(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType, pDataInfo->orgTbInfo, pDataInfo->tableSeq, &pDataInfo->window, pDataInfo->isNewParam, DYN_TYPE_VSTB_SINGLE_SCAN);
-        taosArrayDestroy(pDataInfo->orgTbInfo->colMap);
-        taosMemoryFreeClear(pDataInfo->orgTbInfo);
-        taosArrayDestroy(pDataInfo->pSrcUidList);
-        pDataInfo->pSrcUidList = NULL;
-        if (TSDB_CODE_SUCCESS != code) {
-          pTaskInfo->code = code;
-          taosMemoryFree(pWrapper);
-          return pTaskInfo->code;
-        }
+        clearVtbScanDataInfo(pDataInfo);
+        QUERY_CHECK_CODE(code, lino, _end);
         break;
       }
       case EX_SRC_TYPE_VTB_WIN_SCAN: {
@@ -1288,11 +1290,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
           code = buildTableScanOperatorParamEx(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType, NULL, pDataInfo->tableSeq, &pDataInfo->window, false, DYN_TYPE_VSTB_WIN_SCAN);
           taosArrayDestroy(pDataInfo->pSrcUidList);
           pDataInfo->pSrcUidList = NULL;
-          if (TSDB_CODE_SUCCESS != code) {
-            pTaskInfo->code = code;
-            taosMemoryFree(pWrapper);
-            return pTaskInfo->code;
-          }
+          QUERY_CHECK_CODE(code, lino, _end);
         }
         break;
       }
@@ -1300,41 +1298,33 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
         code = buildTagScanOperatorParam(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType);
         taosArrayDestroy(pDataInfo->pSrcUidList);
         pDataInfo->pSrcUidList = NULL;
-        if (TSDB_CODE_SUCCESS != code) {
-          pTaskInfo->code = code;
-          taosMemoryFree(pWrapper);
-          return pTaskInfo->code;
-        }
+        QUERY_CHECK_CODE(code, lino, _end);
         break;
       }
       case EX_SRC_TYPE_VSTB_WIN_SCAN:
+      case EX_SRC_TYPE_VSTB_INTERVAL_SCAN:
+      case EX_SRC_TYPE_VSTB_TS_SCAN: {
+        if (pDataInfo->batchOrgTbInfo) {
+          int32_t srcOpType =
+              (pDataInfo->type == EX_SRC_TYPE_VSTB_TS_SCAN)
+                  ? QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN
+                  : QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+          code = buildTableScanOperatorParamBatchInfo(
+              &req.pOpParam, pDataInfo->groupid, pDataInfo->pSrcUidList, srcOpType,
+              pDataInfo->batchOrgTbInfo, pDataInfo->tagList, pDataInfo->tableSeq, &pDataInfo->window,
+              pDataInfo->isNewParam);
+          clearVtbScanDataInfo(pDataInfo);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        break;
+      }
       case EX_SRC_TYPE_VSTB_AGG_SCAN: {
         if (pDataInfo->batchOrgTbInfo) {
-          code = buildAggOperatorParam(&req.pOpParam, pDataInfo->groupid, pDataInfo->pSrcUidList, pDataInfo->srcOpType, pDataInfo->batchOrgTbInfo, pDataInfo->tagList, pDataInfo->tableSeq, &pDataInfo->window, pDataInfo->isNewParam, pDataInfo->type);
-          if (pDataInfo->batchOrgTbInfo) {
-            for (int32_t i = 0; i < taosArrayGetSize(pDataInfo->batchOrgTbInfo); ++i) {
-              SOrgTbInfo* pColMap = taosArrayGet(pDataInfo->batchOrgTbInfo, i);
-              if (pColMap) {
-                taosArrayDestroy(pColMap->colMap);
-              }
-            }
-            taosArrayDestroy(pDataInfo->batchOrgTbInfo);
-            pDataInfo->batchOrgTbInfo = NULL;
-          }
-          if (pDataInfo->tagList) {
-            taosArrayDestroyEx(pDataInfo->tagList, destroyTagVal);
-            pDataInfo->tagList = NULL;
-          }
-          if (pDataInfo->pSrcUidList) {
-            taosArrayDestroy(pDataInfo->pSrcUidList);
-            pDataInfo->pSrcUidList = NULL;
-          }
-
-          if (TSDB_CODE_SUCCESS != code) {
-            pTaskInfo->code = code;
-            taosMemoryFree(pWrapper);
-            return pTaskInfo->code;
-          }
+          code = buildAggOperatorParam(&req.pOpParam, pDataInfo->groupid, pDataInfo->pSrcUidList,
+                                       pDataInfo->srcOpType, pDataInfo->batchOrgTbInfo, pDataInfo->tagList,
+                                       pDataInfo->tableSeq, &pDataInfo->window, pDataInfo->isNewParam);
+          clearVtbScanDataInfo(pDataInfo);
+          QUERY_CHECK_CODE(code, lino, _end);
         }
         break;
       }
@@ -1348,22 +1338,14 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
           /* source uid list can be reused in vnode size, so only use once */
           taosArrayDestroy(pDataInfo->pSrcUidList);
           pDataInfo->pSrcUidList = NULL;
-          if (TSDB_CODE_SUCCESS != code) {
-            pTaskInfo->code = code;
-            taosMemoryFree(pWrapper);
-            return pTaskInfo->code;
-          }
+          QUERY_CHECK_CODE(code, lino, _end);
         }
         if (pExchangeInfo->notifyToSend) {
           if (NULL == req.pOpParam) {
             code = buildTableScanOperatorParamNotify(&req.pOpParam,
                                                      pDataInfo->srcOpType,
                                                      pExchangeInfo->notifyTs);
-            if (TSDB_CODE_SUCCESS != code) {
-              pTaskInfo->code = code;
-              taosMemoryFree(pWrapper);
-              return pTaskInfo->code;
-            }
+            QUERY_CHECK_CODE(code, lino, _end);
           } else {
             /**
               Currently don't support use the same param for multiple times!
@@ -1440,6 +1422,9 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    if (pWrapper) {
+      taosMemoryFree(pWrapper);
+    }
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
@@ -1819,28 +1804,6 @@ _error:
   return code;
 }
 
-void clearVtbScanDataInfo(void* pItem) {
-  SSourceDataInfo *pInfo = (SSourceDataInfo *)pItem;
-  if (pInfo->orgTbInfo) {
-    taosArrayDestroy(pInfo->orgTbInfo->colMap);
-    taosMemoryFreeClear(pInfo->orgTbInfo);
-  }
-  if (pInfo->batchOrgTbInfo) {
-    for (int32_t i = 0; i < taosArrayGetSize(pInfo->batchOrgTbInfo); ++i) {
-      SOrgTbInfo* pColMap = taosArrayGet(pInfo->batchOrgTbInfo, i);
-      if (pColMap) {
-        taosArrayDestroy(pColMap->colMap);
-      }
-    }
-    taosArrayDestroy(pInfo->batchOrgTbInfo);
-  }
-  if (pInfo->tagList) {
-    taosArrayDestroyEx(pInfo->tagList, destroyTagVal);
-    pInfo->tagList = NULL;
-  }
-  taosArrayDestroy(pInfo->pSrcUidList);
-}
-
 static int32_t loadTagListFromBasicParam(SSourceDataInfo* pDataInfo, SExchangeOperatorBasicParam* pBasicParam) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
@@ -1971,6 +1934,12 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator,
       }
       pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pBasicParam->vgId, sizeof(pBasicParam->vgId));
       QUERY_CHECK_NULL(pIdx, code, lino, _return, TSDB_CODE_INVALID_PARA);
+    } else if (pBasicParam->type == EX_SRC_TYPE_VSTB_TS_SCAN) {
+      // For VSTB_TS_SCAN, each exchange operator only has one source, if the source is not found in hash, it means this
+      // source is added in other exchange operator, this source will be processed in other exchange operator, so just skip it here.
+      qDebug("addSingleExchangeSource found no existing source for vgId: %d, but it's VSTB_TS_SCAN, skip it",
+             pBasicParam->vgId);
+      return TSDB_CODE_SUCCESS;
     } else {
       qError("No exchange source for vgId: %d", pBasicParam->vgId);
       return TSDB_CODE_INVALID_PARA;
@@ -1980,7 +1949,9 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator,
   qDebug("start to add single exchange source");
 
   switch (pBasicParam->type) {
+    case EX_SRC_TYPE_VSTB_TS_SCAN:
     case EX_SRC_TYPE_VSTB_WIN_SCAN:
+    case EX_SRC_TYPE_VSTB_INTERVAL_SCAN:
     case EX_SRC_TYPE_VSTB_AGG_SCAN: {
       if (pIdx->inUseIdx < 0) {
         SSourceDataInfo dataInfo = {0};
