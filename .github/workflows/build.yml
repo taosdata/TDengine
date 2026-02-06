@@ -29,7 +29,7 @@ jobs:
     steps:
       - name: checkout TDengine by pr
         if: github.event_name == 'pull_request'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: 'taosdata/TDengine'
           path: 'TDengine'
@@ -37,7 +37,7 @@ jobs:
 
       - name: checkout TDengine by push
         if: github.event_name == 'push'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: 'taosdata/TDengine'
           path: 'TDengine'
@@ -45,7 +45,7 @@ jobs:
 
       - name: checkout TDengine manually
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: 'taosdata/TDengine'
           path: 'TDengine'
@@ -60,7 +60,7 @@ jobs:
       - name: Cache server by pr
         if: github.event_name == 'pull_request'
         id: cache-server-pr
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: server.tar.gz
           key: ${{ runner.os }}-build-${{ github.base_ref }}-${{ steps.get_commit_id.outputs.commit_id }}
@@ -68,7 +68,7 @@ jobs:
       - name: Cache server by push
         if: github.event_name == 'push'
         id: cache-server-push
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: server.tar.gz
           key: ${{ runner.os }}-build-${{ github.ref_name }}-${{ steps.get_commit_id.outputs.commit_id }}
@@ -76,7 +76,7 @@ jobs:
       - name: Cache server manually
         if: github.event_name == 'workflow_dispatch'
         id: cache-server-manually
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: server.tar.gz
           key: ${{ runner.os }}-build-${{ inputs.tbBranch }}-${{ steps.get_commit_id.outputs.commit_id }}
@@ -86,7 +86,7 @@ jobs:
           (github.event_name == 'workflow_dispatch' && steps.cache-server-manually.outputs.cache-hit != 'true') ||
           (github.event_name == 'pull_request' && steps.cache-server-pr.outputs.cache-hit != 'true') ||
           (github.event_name == 'push' && steps.cache-server-push.outputs.cache-hit != 'true')
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: cache-ext
         with:
           path: TDengine/.externals
@@ -138,12 +138,12 @@ jobs:
     name: Build C# ${{ matrix.dotnet }}
     steps:
       - name: Setup dotnet
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ matrix.dotnet }}
 
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: 'csharp-driver'
 
@@ -190,7 +190,7 @@ jobs:
       - name: get cache server by pr
         if: github.event_name == 'pull_request'
         id: get-cache-server-pr
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: server.tar.gz
           key: ${{ runner.os }}-build-${{ github.base_ref }}-${{ needs.build.outputs.commit_id }}
@@ -200,7 +200,7 @@ jobs:
       - name: get cache server by push
         if: github.event_name == 'push'
         id: get-cache-server-push
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: server.tar.gz
           key: ${{ runner.os }}-build-${{ github.ref_name }}-${{ needs.build.outputs.commit_id }}
@@ -210,7 +210,7 @@ jobs:
       - name: get cache server manually
         if: github.event_name == 'workflow_dispatch'
         id: get-cache-server-manually
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: server.tar.gz
           key: ${{ runner.os }}-build-${{ inputs.tbBranch }}-${{ needs.build.outputs.commit_id }}
@@ -223,7 +223,7 @@ jobs:
           cd release && sudo sh install.sh
           
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: copy taos cfg
         run: |
@@ -232,7 +232,7 @@ jobs:
           sudo cp ./.github/workflows/taosadapter.toml /etc/taos/taosadapter.toml
 
       - name: Setup dotnet
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ matrix.dotnet }}
 
@@ -263,7 +263,7 @@ jobs:
           dotnet test -f ${{ matrix.tfm }} --logger "console;verbosity=detailed" --collect:"XPlat Code Coverage" --results-directory:./testresults
         timeout-minutes: 15
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always() && (steps.test.outcome == 'failure' || steps.test.outcome == 'cancelled')
         with:
           name: ${{ runner.os }}-${{ matrix.dotnet }}-log

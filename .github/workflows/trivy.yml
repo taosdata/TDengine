@@ -1,0 +1,42 @@
+name: trivy
+on:
+  pull_request:
+    branches:
+      - '3.0'
+      - 'main'
+  push:
+    branches:
+      - '3.0'
+      - 'main'
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  trivy-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install CycloneDX
+        run: dotnet tool install --global CycloneDX
+
+      - name: Add dotnet tools to PATH
+        run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Generate SBOM
+        run: |
+          dotnet-CycloneDX csharpTaos.sln -j -fn taos-connector-dotnet.cdx.json
+
+      - name: Run Trivy Scan
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: 'sbom'
+          format: 'table'
+          scan-ref: 'taos-connector-dotnet.cdx.json'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          exit-code: '1'
+          ignore-unfixed: 'true'
+          vuln-type: 'library'
+          scanners: 'vuln,license'
+          version: 'latest'

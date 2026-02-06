@@ -1,0 +1,39 @@
+# Dependency Review Action
+#
+# This Action will scan dependency manifest files that change as part of a Pull Request,
+# surfacing known-vulnerable versions of the packages declared or updated in the PR.
+# Once installed, if the workflow run is marked as required, PRs introducing known-vulnerable
+# packages will be blocked from merging.
+#
+# Source repository: https://github.com/actions/dependency-review-action
+# Public documentation: https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/about-dependency-review#dependency-review-enforcement
+name: 'Dependency review'
+on:
+  pull_request:
+    branches: [ "main", "3.0" ]
+
+
+# If using a dependency submission action in this workflow this permission will need to be set to:
+#
+# permissions:
+#   contents: write
+#
+# https://docs.github.com/en/enterprise-cloud@latest/code-security/supply-chain-security/understanding-your-software-supply-chain/using-the-dependency-submission-api
+permissions:
+  contents: read
+  # Write permissions for pull-requests are required for using the `comment-summary-in-pr` option, comment out if you aren't using this option
+  pull-requests: write
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout repository'
+        uses: actions/checkout@v6
+
+      - name: 'Dependency Review'
+        uses: actions/dependency-review-action@v4
+        # Commonly enabled options, see https://github.com/actions/dependency-review-action#configuration-options for all available options.
+        with:
+          fail-on-severity: moderate
+          allow-licenses: "AFL-1.1,AFL-1.2,AFL-2.0,AFL-2.1,AFL-3.0,Apache-1.0,Apache-1.1,Apache-2.0,Artistic-1.0-cl8,Artistic-1.0-Perl,Artistic-1.0,Artistic-2.0,BSL-1.0,BSD-2-Clause-FreeBSD,BSD-2-Clause-NetBSD,BSD-2-Clause,BSD-3-Clause-Attribution,BSD-3-Clause-Clear,BSD-3-Clause-LBNL,BSD-3-Clause,BSD-4-Clause,BSD-4-Clause-UC,BSD-Protection,CC-BY-1.0,CC-BY-2.0,CC-BY-2.5,CC-BY-3.0,CC-BY-4.0,FTL,ISC,ImageMagick,Libpng,Linux-OpenIB,LPL-1.02,LPL-1.0,MS-PL,MIT,NCSA,OpenSSL,PHP-3.01,PHP-3.0,Python-2.0,PostgreSQL,SGI-B-1.0,SGI-B-1.1,SGI-B-2.0,Unicode-DFS-2015,Unicode-DFS-2016,Unicode-TOU,UPL-1.0,W3C-19980720,W3C-20150513,W3C,X11,Xnet,Zend-2.0,zlib-acknowledgement,Zlib,ZPL-1.1,ZPL-2.0,ZPL-2.1"

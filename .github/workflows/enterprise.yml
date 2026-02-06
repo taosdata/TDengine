@@ -52,10 +52,10 @@ jobs:
           sudo ./install.sh
 
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         
       - name: Setup dotnet
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ matrix.dotnet }}
 
@@ -90,7 +90,7 @@ jobs:
           dotnet test -f ${{ matrix.tfm }} --logger "console;verbosity=detailed" --collect:"XPlat Code Coverage" --results-directory:./testresults
         timeout-minutes: 15
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always() && (steps.test.outcome == 'failure' || steps.test.outcome == 'cancelled')
         with:
           name: ${{ runner.os }}-${{ matrix.dotnet }}-log
