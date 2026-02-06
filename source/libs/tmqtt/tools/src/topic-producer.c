@@ -117,7 +117,7 @@ static void* prep_data(void* arg) {
 #ifdef WINDOWS
     Sleep(1000);
 #else
-    usleep(1);
+    (void)usleep(1);
 #endif
   }
   fprintf(stdout, "Prepare data thread exit\n");
