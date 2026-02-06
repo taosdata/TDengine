@@ -1122,12 +1122,12 @@ static SSDataBlock* sysTableScanVirtualTableRef(SOperatorInfo* pOperator) {
   QUERY_CHECK_CODE(code, lino, _end);
 
   // optimize when sql like where table_name='tablename' and xxx.
-  if (pInfo->req.filterTb[0]) {
-    SSDataBlock* p = doOptimizeTableNameFilter(pOperator, pDataBlock, dbname);
-    taosMemoryFreeClear(pVtableRefInfo);
-    blockDataDestroy(pDataBlock);
-    return p;
-  }
+  // if (pInfo->req.filterTb[0]) {
+  //   SSDataBlock* p = doOptimizeTableNameFilter(pOperator, pDataBlock, dbname);
+  //   taosMemoryFreeClear(pVtableRefInfo);
+  //   blockDataDestroy(pDataBlock);
+  //   return p;
+  // }
 
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
