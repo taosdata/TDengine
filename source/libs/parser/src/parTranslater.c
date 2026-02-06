@@ -18329,25 +18329,9 @@ static int32_t translateShowCreateVTable(STranslateContext* pCxt, SShowCreateTab
 }
 
 static int32_t translateShowVirtualTableValidate(STranslateContext* pCxt, SShowValidateVirtualTable* pStmt) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  pStmt->pDbCfg = taosMemoryCalloc(1, sizeof(SDbCfgInfo));
-  if (NULL == pStmt->pDbCfg) {
-    return terrno;
-  }
-  PAR_ERR_RET(getDBCfg(pCxt, pStmt->dbName, (SDbCfgInfo*)pStmt->pDbCfg));
-  SName name = {0};
-  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
-  PAR_ERR_RET(getTableCfg(pCxt, &name, (STableCfg**)&pStmt->pTableCfg));
-
-  bool isVtb = (((STableCfg*)pStmt->pTableCfg)->tableType == TSDB_VIRTUAL_CHILD_TABLE ||
-                ((STableCfg*)pStmt->pTableCfg)->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
-                ((STableCfg*)pStmt->pTableCfg)->virtualStb);
-  if (!isVtb) {
-    PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_TYPE, "%s.%s is not virtual",
-                                        pStmt->dbName, pStmt->tableName));
-  }
-
-  return code;
+  pStmt->pDbCfg = NULL;
+  pStmt->pTableCfg = NULL;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateShowCreateView(STranslateContext* pCxt, SShowCreateViewStmt* pStmt) {
@@ -21268,11 +21252,52 @@ static int32_t rewriteShowValidateVtable(STranslateContext* pCxt, SQuery* pQuery
   SShowValidateVirtualTable* pShow = (SShowValidateVirtualTable*)(pQuery->pRoot);
   SSelectStmt*               pSelect = NULL;
   int32_t                    code = 0;
+  SNode*                     pWhere = NULL;
 
-  // Create SELECT statement
   code = createSelectStmtForShow(nodeType(pShow), &pSelect);
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pSelect);
+    return code;
+  }
+
+  SNode*      pDbCond = NULL;
+  SNode*      pTableNameCond = NULL;
+  SValueNode* pDbValue = NULL;
+  SValueNode* pTableNameValue = NULL;
+
+  if (strlen(pShow->dbName) > 0) {
+    PAR_ERR_JRET(nodesMakeValueNodeFromString(pShow->dbName, &pDbValue));
+    PAR_ERR_JRET(createOperatorNode(OP_TYPE_EQUAL, "virtual_db_name", (SNode*)pDbValue, &pDbCond));
+  }
+
+  if (strlen(pShow->tableName) > 0) {
+    PAR_ERR_JRET(nodesMakeValueNodeFromString(pShow->tableName, &pTableNameValue));
+    PAR_ERR_JRET(createOperatorNode(OP_TYPE_EQUAL, "virtual_table_name", (SNode*)pTableNameValue, &pTableNameCond));
+  }
+
+  if (pDbCond && pTableNameCond) {
+    PAR_ERR_JRET(createLogicCondNode(&pDbCond, &pTableNameCond, &pWhere, LOGIC_COND_TYPE_AND));
   } else {
+    pWhere = (NULL == pDbCond ? pTableNameCond : pDbCond);
+  }
+
+  if (pWhere) {
+    PAR_ERR_JRET(insertCondIntoSelectStmt(pSelect, &pWhere));
+  }
+
+  pCxt->showRewrite = true;
+  pQuery->showRewrite = true;
+
+  nodesDestroyNode(pQuery->pRoot);
+  pQuery->pRoot = (SNode*)pSelect;
+
+_return:
+  nodesDestroyNode((SNode*)pDbValue);
+  nodesDestroyNode((SNode*)pTableNameValue);
+  nodesDestroyNode(pDbCond);
+  nodesDestroyNode(pTableNameCond);
+  nodesDestroyNode(pWhere);
+  if (TSDB_CODE_SUCCESS != code && pSelect) {
     nodesDestroyNode((SNode*)pSelect);
   }
   return code;

@@ -1456,8 +1456,17 @@ static int32_t collectMetaKeyFromShowBlockDist(SCollectMetaKeyCxt* pCxt, SShowTa
   return code;
 }
 static int32_t collectMetaKeyFromShowValidateVtable(SCollectMetaKeyCxt* pCxt, SShowValidateVirtualTable* pStmt) {
-  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TABLES,
-                                         pCxt->pMetaCache);
+  // SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
+  // tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
+  // tstrncpy(name.tname, pStmt->tableName, TSDB_TABLE_NAME_LEN);
+  // int32_t code = catalogRemoveTableMeta(pCxt->pParseCxt->pCatalog, &name);
+  // if (TSDB_CODE_SUCCESS == code) {
+  //   code = collectMetaKeyFromRealTableImpl(pCxt, pStmt->dbName, pStmt->tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL);
+  // }
+  // return code;
+
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB,
+                                         TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING, pCxt->pMetaCache);
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   }
