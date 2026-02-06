@@ -330,9 +330,9 @@ class TestUserBasic:
             elif 'jiacy0' in user_name.lower():
                 tdSql.execute(f'create user {user_name} pass "123abc!@#" sysinfo 0')
         for user_name in ['jiacy1_all', 'jiacy1_read', 'jiacy0_all', 'jiacy0_read']:
-            tdSql.execute(f'grant select on db to {user_name}')
+            tdSql.execute(f'grant select on db.* to {user_name}')
         for user_name in ['jiacy1_all', 'jiacy1_write', 'jiacy0_all', 'jiacy0_write']:
-            tdSql.execute(f'grant insert on db to {user_name}')
+            tdSql.execute(f'grant insert on db.* to {user_name}')
 
     def user_privilege_check(self):
         jiacy1_read_conn = taos.connect(user='jiacy1_read', password='123abc!@#')

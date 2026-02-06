@@ -441,6 +441,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_NODE_LIST:
       code = makeNode(type, sizeof(SNodeListNode), &pNode);
       break;
+    case QUERY_NODE_SURROUND:
+      code = makeNode(type, sizeof(SSurroundNode), &pNode);
+      break;
     case QUERY_NODE_FILL:
       code = makeNode(type, sizeof(SFillNode), &pNode);
       break;
@@ -1160,9 +1163,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_DRAIN_XNODE_STMT:
       code = makeNode(type, sizeof(SDrainXnodeStmt), &pNode);
       break;
-    // case QUERY_NODE_UPDATE_XNODE_STMT:
-    //   code = makeNode(type, sizeof(SUpdateXnodeStmt), &pNode);
-    //   break;
+    case QUERY_NODE_ALTER_XNODE_STMT:
+      code = makeNode(type, sizeof(SAlterXnodeStmt), &pNode);
+      break;
     case QUERY_NODE_CREATE_XNODE_TASK_STMT:
       code = makeNode(type, sizeof(SCreateXnodeTaskStmt), &pNode);
       break;
@@ -1450,11 +1453,18 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_NODE_LIST:
       nodesDestroyList(((SNodeListNode*)pNode)->pNodeList);
       break;
+    case QUERY_NODE_SURROUND: {
+      SSurroundNode* pSurround = (SSurroundNode*)pNode;
+      nodesDestroyNode(pSurround->pSurroundingTime);
+      nodesDestroyNode(pSurround->pValues);
+      break;
+    }
     case QUERY_NODE_FILL: {
       SFillNode* pFill = (SFillNode*)pNode;
       nodesDestroyNode(pFill->pValues);
       nodesDestroyNode(pFill->pWStartTs);
       nodesDestroyNode(pFill->pTimeRange);
+      nodesDestroyNode(pFill->pSurroundingTime);
       break;
     }
     case QUERY_NODE_RAW_EXPR:
@@ -2247,6 +2257,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pWStartTs);
       nodesDestroyNode(pLogicNode->pValues);
       nodesDestroyNode(pLogicNode->pTimeRange);
+      nodesDestroyNode(pLogicNode->pSurroundingTime);
       nodesDestroyList(pLogicNode->pFillExprs);
       nodesDestroyList(pLogicNode->pNotFillExprs);
       nodesDestroyList(pLogicNode->pFillNullExprs);
@@ -2455,6 +2466,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pValues);
       nodesDestroyList(pPhyNode->pFillNullExprs);
       nodesDestroyNode(pPhyNode->pTimeRange);
+      nodesDestroyNode(pPhyNode->pSurroundingTime);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
@@ -2586,10 +2598,19 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_XNODE_TASK_OPTIONS: {
       // xFreeTaskOptions(&((SXnodeTaskOptions*)pNode)->opts);
       SXnodeTaskOptions* pOptions = (SXnodeTaskOptions*)pNode;
-      // printf("Destroying Xnode task options with %d options\n", pOptions->optionsNum);
+      taosMemFreeClear(pOptions->parser);
       for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
         taosMemFreeClear(pOptions->options[i]);
       }
+      break;
+    }
+    case QUERY_NODE_ALTER_XNODE_STMT: {
+      SAlterXnodeStmt* pStmt = (SAlterXnodeStmt*)pNode;
+      xFreeCowStr(&pStmt->url);
+      xFreeCowStr(&pStmt->token);
+      xFreeCowStr(&pStmt->user);
+      xFreeCowStr(&pStmt->pass);
+      nodesDestroyNode((SNode*)pStmt->options);
       break;
     }
     case QUERY_NODE_CREATE_XNODE_TASK_STMT: {
@@ -2606,6 +2627,11 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_CREATE_XNODE_JOB_STMT: {
       SCreateXnodeJobStmt* pStmt = (SCreateXnodeJobStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->options);
+      break;
+    }
+    case QUERY_NODE_ALTER_XNODE_JOB_STMT: {
+      SAlterXnodeJobStmt* pStmt = (SAlterXnodeJobStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->options);
       break;
     }

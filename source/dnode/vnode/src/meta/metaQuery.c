@@ -1629,6 +1629,7 @@ int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
   int32_t sz = uidList ? taosArrayGetSize(uidList) : 0;
   for (int i = 0; i < sz; i++) {
     STUidTagInfo *p = taosArrayGet(uidList, i);
+    if (p->pTagVal != NULL) continue;
 
     if (i % LIMIT == 0) {
       if (isLock) metaULock(pMeta);

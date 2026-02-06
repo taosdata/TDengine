@@ -576,8 +576,8 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateXnodeStmt";
     case QUERY_NODE_DROP_XNODE_STMT:
       return "DropXnodeStmt";
-    // case QUERY_NODE_UPDATE_XNODE_STMT:
-    //   return "UpdateXnodeStmt";
+    case QUERY_NODE_ALTER_XNODE_STMT:
+      return "AlterXnodeStmt";
     case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
       return "ShowXnodeJobsStmt";
     default:
@@ -1331,6 +1331,7 @@ static const char* jkFillLogicPlanWStartTs = "WStartTs";
 static const char* jkFillLogicPlanValues = "Values";
 static const char* jkFillLogicPlanStartTime = "StartTime";
 static const char* jkFillLogicPlanEndTime = "EndTime";
+static const char* jkFillLogicPlanSurroundingTime = "SurroundingTime";
 
 static int32_t logicFillNodeToJson(const void* pObj, SJson* pJson) {
   const SFillLogicNode* pNode = (const SFillLogicNode*)pObj;
@@ -1350,6 +1351,10 @@ static int32_t logicFillNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkFillLogicPlanEndTime, pNode->timeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkFillLogicPlanSurroundingTime, nodeToJson,
+                          pNode->pSurroundingTime);
   }
 
   return code;
@@ -1373,6 +1378,10 @@ static int32_t jsonToLogicFillNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkFillLogicPlanEndTime, &pNode->timeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkFillLogicPlanSurroundingTime,
+                            &pNode->pSurroundingTime);
   }
 
   return code;
@@ -1459,8 +1468,7 @@ static const char* jkInterpFuncLogicPlanPrecision = "Precision";
 static const char* jkInterpFuncLogicPlanFillMode = "fillMode";
 static const char* jkInterpFuncLogicPlanFillValues = "FillValues";
 static const char* jkInterpFuncLogicPlanTimeSeries = "TimeSeries";
-static const char* jkInterpFuncLogicPlanRangeInterval = "RangeInterval";
-static const char* jkInterpFuncLogicPlanRangeIntervalUnit = "RangeIntervalUnit";
+static const char* jkInterpFuncLogicPlanSurroundingTime = "SurroundingTime";
 
 static int32_t logicInterpFuncNodeToJson(const void* pObj, SJson* pJson) {
   const SInterpFuncLogicNode* pNode = (const SInterpFuncLogicNode*)pObj;
@@ -1494,10 +1502,7 @@ static int32_t logicInterpFuncNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddObject(pJson, jkInterpFuncLogicPlanTimeSeries, nodeToJson, pNode->pTimeSeries);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkInterpFuncLogicPlanRangeInterval, pNode->rangeInterval);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkInterpFuncLogicPlanRangeIntervalUnit, pNode->rangeIntervalUnit);
+    code = tjsonAddIntegerToObject(pJson, jkInterpFuncLogicPlanSurroundingTime, pNode->surroundingTime);
   }
 
   return code;
@@ -1535,10 +1540,7 @@ static int32_t jsonToLogicInterpFuncNode(const SJson* pJson, void* pObj) {
     code = jsonToNodeObject(pJson, jkInterpFuncLogicPlanTimeSeries, &pNode->pTimeSeries);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBigIntValue(pJson, jkInterpFuncLogicPlanRangeInterval, &pNode->rangeInterval);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetTinyIntValue(pJson, jkInterpFuncLogicPlanRangeIntervalUnit, &pNode->rangeIntervalUnit);
+    code = tjsonGetBigIntValue(pJson, jkInterpFuncLogicPlanSurroundingTime, &pNode->surroundingTime);
   }
 
   return code;
@@ -3552,6 +3554,7 @@ static const char* jkFillPhysiPlanStartTime = "StartTime";
 static const char* jkFillPhysiPlanEndTime = "EndTime";
 static const char* jkFillPhysiPlanFillNullExprs = "FillNullExprs";
 static const char* jkFillPhysiPlanFillTimeRangeExpr = "TimeRangeExpr";
+static const char* jkFillPhysiPlanSurroundingTime = "SurroundingTime";
 
 static int32_t physiFillNodeToJson(const void* pObj, SJson* pJson) {
   const SFillPhysiNode* pNode = (const SFillPhysiNode*)pObj;
@@ -3583,6 +3586,10 @@ static int32_t physiFillNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkFillPhysiPlanFillTimeRangeExpr, nodeToJson, pNode->pTimeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkFillPhysiPlanSurroundingTime, nodeToJson,
+                          pNode->pSurroundingTime);
   }
 
   return code;
@@ -3618,6 +3625,10 @@ static int32_t jsonToPhysiFillNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkFillPhysiPlanFillTimeRangeExpr, &pNode->pTimeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkFillPhysiPlanSurroundingTime,
+                            &pNode->pSurroundingTime);
   }
 
   return code;
@@ -3905,8 +3916,7 @@ static const char* jkInterpFuncPhysiPlanPrecision = "precision";
 static const char* jkInterpFuncPhysiPlanFillMode = "FillMode";
 static const char* jkInterpFuncPhysiPlanFillValues = "FillValues";
 static const char* jkInterpFuncPhysiPlanTimeSeries = "TimeSeries";
-static const char* jkInterpFuncPhysiPlanRangeInterval = "RangeInterval";
-static const char* jkInterpFuncPhysiPlanRangeIntervalUnit = "RangeIntervalUnit";
+static const char* jkInterpFuncPhysiPlanSurroundingTime = "SurroundingTime";
 
 static int32_t physiInterpFuncNodeToJson(const void* pObj, SJson* pJson) {
   const SInterpFuncPhysiNode* pNode = (const SInterpFuncPhysiNode*)pObj;
@@ -3946,10 +3956,7 @@ static int32_t physiInterpFuncNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddObject(pJson, jkInterpFuncPhysiPlanTimeSeries, nodeToJson, pNode->pTimeSeries);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkInterpFuncPhysiPlanRangeInterval, pNode->rangeInterval);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkInterpFuncPhysiPlanRangeIntervalUnit, pNode->rangeIntervalUnit);
+    code = tjsonAddIntegerToObject(pJson, jkInterpFuncPhysiPlanSurroundingTime, pNode->surroundingTime);
   }
 
   return code;
@@ -3993,10 +4000,7 @@ static int32_t jsonToPhysiInterpFuncNode(const SJson* pJson, void* pObj) {
     code = jsonToNodeObject(pJson, jkInterpFuncPhysiPlanTimeSeries, &pNode->pTimeSeries);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBigIntValue(pJson, jkInterpFuncPhysiPlanRangeInterval, &pNode->rangeInterval);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetTinyIntValue(pJson, jkInterpFuncPhysiPlanRangeIntervalUnit, &pNode->rangeIntervalUnit);
+    code = tjsonGetBigIntValue(pJson, jkInterpFuncPhysiPlanSurroundingTime, &pNode->surroundingTime);
   }
 
   return code;
@@ -6697,6 +6701,7 @@ static const char* jkFillValues = "Values";
 static const char* jkFillWStartTs = "WStartTs";
 static const char* jkFillStartTime = "StartTime";
 static const char* jkFillEndTime = "EndTime";
+static const char* jkFillSurroundingTime = "SurroundingTime";
 
 static int32_t fillNodeToJson(const void* pObj, SJson* pJson) {
   const SFillNode* pNode = (const SFillNode*)pObj;
@@ -6713,6 +6718,10 @@ static int32_t fillNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkFillEndTime, pNode->timeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkFillSurroundingTime, nodeToJson,
+                          pNode->pSurroundingTime);
   }
 
   return code;
@@ -6734,6 +6743,10 @@ static int32_t jsonToFillNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkFillEndTime, &pNode->timeRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkFillSurroundingTime,
+                            &pNode->pSurroundingTime);
   }
 
   return code;
@@ -8857,14 +8870,14 @@ static int32_t jsonToCreateXnodeStmt(const SJson* pJson, void* pObj) {
   return tjsonGetStringValue(pJson, jkCreateXnodeStmtUrl, pNode->url);
 }
 
-static int32_t updateXnodeStmtToJson(const void* pObj, SJson* pJson) {
-  const SUpdateXnodeStmt* pNode = (const SUpdateXnodeStmt*)pObj;
-  return tjsonAddIntegerToObject(pJson, jkUpdateDropXNodeStmtId, pNode->xnodeId);
+static int32_t alterXnodeStmtToJson(const void* pObj, SJson* pJson) {
+  const SAlterXnodeStmt* pNode = (const SAlterXnodeStmt*)pObj;
+  return tjsonAddIntegerToObject(pJson, jkUpdateDropXNodeStmtId, pNode->id);
 }
 
 static int32_t jsonToUpdateXnodeStmt(const SJson* pJson, void* pObj) {
-  SUpdateXnodeStmt* pNode = (SUpdateXnodeStmt*)pObj;
-  return tjsonGetIntValue(pJson, jkUpdateDropXNodeStmtId, &pNode->xnodeId);
+  SAlterXnodeStmt* pNode = (SAlterXnodeStmt*)pObj;
+  return tjsonGetIntValue(pJson, jkUpdateDropXNodeStmtId, &pNode->id);
 }
 
 static int32_t dropXnodeStmtToJson(const void* pObj, SJson* pJson) {
@@ -10609,8 +10622,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return createXnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_XNODE_STMT:
       return dropXnodeStmtToJson(pObj, pJson);
-    // case QUERY_NODE_UPDATE_XNODE_STMT:
-    //   return updateXnodeStmtToJson(pObj, pJson);
+    case QUERY_NODE_ALTER_XNODE_STMT:
+      return alterXnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_XNODE_TASK_STMT:
       return createXnodeTaskStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_XNODE_TASK_STMT:
