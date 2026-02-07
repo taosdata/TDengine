@@ -409,15 +409,15 @@ class TDCreateData():
         elif i ==1:
             self.logger.info("======this case test cachemodel last_row =========")
             sql = "alter database %s cachemodel 'last_row' cachesize %d;"  %(database,cachesize)
-            self.tdSql.query(sql,queryTimes=1)  
+            self.tdSql.query(sql,queryTimes=120)  
         elif i ==2:
             self.logger.info("======this case test cachemodel last_value =========")
             sql = "alter database %s cachemodel 'last_value' cachesize %d;"  %(database,cachesize)
-            self.tdSql.query(sql,queryTimes=1)
+            self.tdSql.query(sql,queryTimes=120)
         else:
             self.logger.info("======this case test cachemodel both =========")
             sql = "alter database %s cachemodel 'both' cachesize %d;"  %(database,cachesize)
-            self.tdSql.query(sql,queryTimes=1)
+            self.tdSql.query(sql,queryTimes=120)
         
     def add_data_random(self,database,n,ts):
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
