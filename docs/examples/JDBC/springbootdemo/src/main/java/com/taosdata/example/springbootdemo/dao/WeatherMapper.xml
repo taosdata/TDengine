@@ -50,6 +50,9 @@
         ), groupId int)
     </update>
 
+    <update id="createTable">
+        create table if not exists test.t${groupId} using test.weather tags('${location}', ${groupId})
+    </update>
 
     <select id="select" resultMap="BaseResultMap">
         select * from test.weather order by ts desc
