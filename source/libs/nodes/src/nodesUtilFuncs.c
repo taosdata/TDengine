@@ -2579,6 +2579,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesClearList(pSubplan->pChildren);
       nodesDestroyNode((SNode*)pSubplan->pNode);
       nodesDestroyNode((SNode*)pSubplan->pDataSink);
+      nodesDestroyList(pSubplan->pSubQ);
       nodesDestroyNode((SNode*)pSubplan->pTagCond);
       nodesDestroyNode((SNode*)pSubplan->pTagIndexCond);
       tSimpleHashCleanup(pSubplan->pVTables);

@@ -1699,7 +1699,7 @@ _exit:
   return code;
 }
 
-int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* pInfo, SStreamObj* pStream) {
+static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* pInfo, SStreamObj* pStream, SQueryPlan* pRoot, SNodeList** subEP) {
   int32_t code = 0;
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
@@ -1711,6 +1711,7 @@ int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* 
   SNodeListNode *plans = NULL;
   int32_t        taskNum = 0;
   int32_t        totalTaskNum = 0;
+  bool           subQ = (pRoot != pDag);
 
   if (pDag->numOfSubplans <= 0) {
     mstsError("invalid subplan num:%d", pDag->numOfSubplans);
@@ -1755,7 +1756,9 @@ int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* 
     }
 
     taskIdx = 0;
-    
+    // SQueryPlan* calcSubQPlan = ((SQueryPlan*)pDag->pChildren->pHead->pNode);
+    // SNodeList*  subQSubplans = calcSubQPlan->pSubplans;
+
     for (int32_t i = lowestLevelIdx; i >= 0; --i) {
       plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, i);
       if (NULL == plans) {
@@ -1804,11 +1807,40 @@ int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* 
         pDeploy->task.deployId = pState->id.deployId;
         pDeploy->task.nodeId = pState->id.nodeId;
         pDeploy->task.taskIdx = pState->id.taskIdx;
-        TAOS_CHECK_EXIT(msmBuildRunnerDeployInfo(pDeploy, plan, pStream, pInfo, 0 == i));
+        TAOS_CHECK_EXIT(msmBuildRunnerDeployInfo(pDeploy, plan, pStream, pInfo, 0 == i && !subQ));
 
         SStreamTask* pTask = &pDeploy->task;
         msttDebug("runner task deploy built, subplan level:%d, taskIdx:%d, groupId:%d, subplanId:%d",
             i, pTask->taskIdx, plan->id.groupId, plan->id.subplanId);
+
+	if (subQ) {
+          SStmTaskSrcAddr addr = {0};
+          SDownstreamSourceNode* pSource = NULL;
+
+          TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_DOWNSTREAM_SOURCE, (SNode**)&pSource));
+
+          addr.taskId = pDeploy->task.taskId;
+          addr.vgId = pDeploy->task.nodeId;
+          addr.groupId = plan->id.groupId;
+          addr.epset = mndGetDnodeEpsetById(pCtx->pMnode, pDeploy->task.nodeId);
+
+          pSource->addr.epSet = addr.epset;
+          pSource->addr.nodeId = addr.vgId;
+
+          pSource->clientId = streamId;
+          pSource->taskId = pDeploy->task.taskId;
+          pSource->sId = 0;
+          pSource->execId = 0;
+          pSource->fetchMsgType = TDMT_STREAM_FETCH_FROM_RUNNER;
+          pSource->localExec = false;
+
+          code = nodesListMakeStrictAppend(subEP, (SNode *)pSource);
+          if (code) {
+            TAOS_CHECK_EXIT(code);
+          }
+	} else {
+	  TAOS_CHECK_EXIT(nodesCloneList(*subEP, &plan->pSubQ));
+	}
       }
 
       mstsDebug("deploy %d level %d initialized, taskNum:%d", deployId, i, taskNum);
@@ -1823,20 +1855,27 @@ int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* 
 
     TAOS_CHECK_EXIT(msmTDAddRunnersToSnodeMap(deployTaskList, pStream));
 
-    nodesDestroyNode((SNode *)pDag);
-    pDag = NULL;
+    nodesDestroyNode((SNode *)pRoot);
+    pRoot = NULL;
     
-    TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pDag));
+    TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pRoot));
+    if (subQ) {
+      pDag = (SQueryPlan*)pRoot->pChildren->pHead->pNode;
+    } else {
+      pDag = pRoot;
+    }
 
     mstsDebug("total %d runner tasks added for deploy %d", totalTaskNum, deployId);
   }
 
-  for (int32_t i = 0; i < pInfo->runnerDeploys; ++i) {
-    TAOS_CHECK_EXIT(msmSTAddToTaskMap(pCtx, streamId, pInfo->runners[i], NULL, NULL));
-    TAOS_CHECK_EXIT(msmSTAddToSnodeMap(pCtx, streamId, pInfo->runners[i], NULL, 0, i));
+  if (!subQ) {
+    for (int32_t i = 0; i < pInfo->runnerDeploys; ++i) {
+      TAOS_CHECK_EXIT(msmSTAddToTaskMap(pCtx, streamId, pInfo->runners[i], NULL, NULL));
+      TAOS_CHECK_EXIT(msmSTAddToSnodeMap(pCtx, streamId, pInfo->runners[i], NULL, 0, i));
+    }
   }
   
-  pInfo->runnerNum = totalTaskNum;
+  pInfo->runnerNum += totalTaskNum;
   
 _exit:
 
@@ -1845,7 +1884,8 @@ _exit:
   }
 
   taosArrayDestroy(deployTaskList);
-  nodesDestroyNode((SNode *)pDag);
+  //nodesDestroyNode((SNode *)pDag);
+  nodesDestroyNode((SNode *)pRoot);
 
   return code;
 }
@@ -1959,6 +1999,52 @@ _exit:
 }
 
 
+static int32_t msmUpdateCalcReaderTasks(SStreamObj* pStream, SNodeList* pSubEP) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int64_t streamId = pStream->pCreate->streamId;
+  void* pIter = NULL;
+  SSubplan* pSubplan = NULL;
+
+  while ((pIter = taosHashIterate(mStreamMgmt.toDeployVgMap, pIter))) {
+    SStmVgTasksToDeploy* pVg = (SStmVgTasksToDeploy*)pIter;
+    (void)mstWaitLock(&pVg->lock, true);
+
+    int32_t taskNum = taosArrayGetSize(pVg->taskList);
+    if (atomic_load_32(&pVg->deployed) == taskNum) {
+      taosRUnLockLatch(&pVg->lock);
+      continue;
+    }
+
+    for (int32_t i = 0; i < taskNum; ++i) {
+      SStmTaskToDeployExt* pExt = taosArrayGet(pVg->taskList, i);
+      if (pExt->deploy.task.streamId != pStream->pCreate->streamId || STREAM_READER_TASK != pExt->deploy.task.type) {
+        continue;
+      }
+
+      if (!STREAM_IS_TRIGGER_READER(pExt->deploy.task.flags)) {
+        SStreamReaderDeployFromCalc* pCalcReaderDeploy = &pExt->deploy.msg.reader.msg.calc;
+        TAOS_CHECK_EXIT(nodesStringToNode(pCalcReaderDeploy->calcScanPlan, (SNode**)&pSubplan));
+        TAOS_CHECK_EXIT(nodesCloneList(pSubEP, &pSubplan->pSubQ));
+        TAOS_CHECK_EXIT(nodesNodeToString((SNode*)pSubplan, false, (char**)&pCalcReaderDeploy->calcScanPlan, NULL));
+        nodesDestroyNode((SNode *)pSubplan);
+      }
+      // string to node
+      // for each subplan, adjoin subEP
+      // node to the string of calcScanPlan
+    }
+
+    taosRUnLockLatch(&pVg->lock);
+  }
+
+_exit:
+  if (code) {
+    mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
 static int32_t msmBuildRunnerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStreamObj* pStream) {
   if (NULL == pStream->pCreate->calcPlan) {
     return TSDB_CODE_SUCCESS;
@@ -1968,15 +2054,22 @@ static int32_t msmBuildRunnerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStreamO
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
   SQueryPlan* pPlan = NULL;
+  SQueryPlan* pSubQPlan = NULL;
+  SNodeList*     pSubEP = NULL;
 
   TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pPlan));
+  pSubQPlan = (SQueryPlan*)pPlan->pChildren->pHead->pNode;
 
   for (int32_t i = 0; i < pInfo->runnerDeploys; ++i) {
-    pInfo->runners[i] = taosArrayInit(pPlan->numOfSubplans, sizeof(SStmTaskStatus));
+    pInfo->runners[i] = taosArrayInit(pPlan->numOfSubplans + pSubQPlan->numOfSubplans, sizeof(SStmTaskStatus));
     TSDB_CHECK_NULL(pInfo->runners[i], code, lino, _exit, terrno);
   }
 
-  code = msmBuildRunnerTasksImpl(pCtx, pPlan, pInfo, pStream);
+  code = msmBuildRunnerTasksImpl(pCtx, pSubQPlan, pInfo, pStream, pPlan, &pSubEP);
+  pPlan = NULL;
+  TAOS_CHECK_EXIT(code);
+  TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pPlan));
+  code = msmBuildRunnerTasksImpl(pCtx, pPlan, pInfo, pStream, pPlan, &pSubEP);
   pPlan = NULL;
   
   TAOS_CHECK_EXIT(code);
@@ -1984,9 +2077,14 @@ static int32_t msmBuildRunnerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStreamO
   taosHashClear(mStreamMgmt.toUpdateScanMap);
   mStreamMgmt.toUpdateScanNum = 0;
 
+  TAOS_CHECK_EXIT(msmUpdateCalcReaderTasks(pStream, pSubEP));
+
 _exit:
 
   nodesDestroyNode((SNode *)pPlan);
+  if (pSubEP) {
+    nodesDestroyList(pSubEP);
+  }
 
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
