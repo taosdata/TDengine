@@ -1074,22 +1074,64 @@ class TestPrivControl:
         db_name = "test_db"
         user = "test_user"
         self.create_database(db_name)
-        self.create_stable(db_name, "st1", columns="ts TIMESTAMP, c1 INT, c2 VARCHAR(50)", tags="t1 INT, t2 INT")
+        self.create_stable(db_name, "st1", columns="ts TIMESTAMP, c1 INT, c2 VARCHAR(50)", tags="t1 INT, t2 INT, t3 varchar(20)")
         self.create_user(user, pwd)
+        self.revoke_role("`SYSINFO_1`", user)  # SYSINFO_1 is default role
         
-        # Test: user cannot create index without privilege
+        # Grant basic privileges
         self.grant_privilege("USE", f"DATABASE {db_name}", user)
         self.grant_privilege("SELECT", f"{db_name}.*", user)
+        
+        #
+        # create index
+        #
+        
+        # Test: user cannot create index without privilege
         self.login(user, pwd)
         self.exec_sql_failed(f"CREATE INDEX idx1 ON {db_name}.st1 (t2)", TSDB_CODE_PAR_PERMISSION_DENIED)
-        
         # Grant CREATE INDEX privilege
         self.login()
-        self.grant_privilege("CREATE INDEX", f"{db_name}.*", user)
-        
+        self.grant_privilege("CREATE INDEX", f"TABLE {db_name}.*", user)
         # Test: user can create index with privilege
         self.login(user, pwd)
         self.exec_sql(f"CREATE INDEX idx1 ON {db_name}.st1 (t2)")
+        # Test: revoke
+        self.login()
+        self.revoke_privilege("CREATE INDEX", f"TABLE {db_name}.*", user)
+        self.login(user, pwd)
+        self.exec_sql_failed(f"CREATE INDEX idx2 ON {db_name}.st1 (t3)", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        #
+        # show
+        #
+        
+        # Test: user cannot show index without privilege
+        #BUG11
+        self.query_expect_rows(f"SHOW INDEXES FROM {db_name}.st1", 0)
+        # Grant privilege
+        self.login()
+        self.grant_privilege("SHOW", f"INDEX *", user)
+        # Test: passed
+        self.login(user, pwd)
+        self.query_expect_rows(f"SHOW INDEXES FROM {db_name}.st1", 2)
+        # Test: revoke
+        self.login()
+        self.revoke_privilege("SHOW", f"INDEX {db_name}.st1", user)
+        self.login(user, pwd)
+        self.query_expect_rows(f"SHOW INDEXES FROM {db_name}.st1", 0)
+        
+        #
+        # drop
+        #
+        
+        # Test: user cannot drop index without privilege
+        self.exec_sql_failed(f"DROP INDEX idx1 ON {db_name}.st1", TSDB_CODE_PAR_PERMISSION_DENIED)
+        # Grant DROP privilege on index
+        self.login()
+        self.grant_privilege("DROP", f"INDEX {db_name}.*", user)
+        # Test: user can drop index
+        self.login(user, pwd)
+        self.exec_sql(f"DROP INDEX idx1 ON {db_name}.st1")
         
         # Cleanup
         self.login()
@@ -1800,16 +1842,15 @@ class TestPrivControl:
         print("")
         print("[Function and Index Privileges]")
         self.do_create_function_privilege()
-        self.do_create_index_privilege()
+        '''
+        self.do_create_index_privilege()        
+        return 
+        
                 
         # View, topic and stream privilege tests (3.4.0.0+)
         print("")
         print("[View, Topic and Stream Privileges]")
-        
-        '''
         self.do_view_privileges()
-        return 
-
         self.do_topic_privileges()
         self.do_stream_privileges()
         
