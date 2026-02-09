@@ -1451,7 +1451,7 @@ static int32_t compareSVTColInfo(const void* p1, const void* p2) {
 }
 
 static void freeTableSchemaCache(const void* key, size_t keyLen, void* value, void* ud) {
-  if (value) {
+  if (value) { 
     SSchemaWrapper* pSchemaWrapper = value;
     tDeleteSchemaWrapper(pSchemaWrapper);
   }
