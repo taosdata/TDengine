@@ -62,6 +62,10 @@ typedef struct {
   STqOffsetVal          currentOffset;  // for tmq
   SMqBatchMetaRsp       btMetaRsp;      // for tmq fetching meta
   int8_t                sourceExcluded;
+  int32_t               minPollRows;
+  int64_t               timeout;
+  int8_t                enableReplay;
+
   int64_t               snapshotVer;
   SSchemaWrapper*       schema;
   char                  tbName[TSDB_TABLE_NAME_LEN];  // this is the current scan table: todo refactor

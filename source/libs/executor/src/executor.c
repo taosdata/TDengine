@@ -33,6 +33,7 @@
 #include "tdatablock.h"
 #include "tref.h"
 #include "trpc.h"
+#include "ttypes.h"
 #include "tudf.h"
 #include "wal.h"
 
@@ -535,7 +536,7 @@ _error:
   return code;
 }
 
-int32_t qDeleteTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList) {
+int32_t qDeleteTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   const char*    id = GET_TASKID(pTaskInfo);
   int32_t        code = 0;
@@ -548,16 +549,6 @@ int32_t qDeleteTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
   }
 
   SStreamScanInfo* pScanInfo = pInfo->info;
-  STableScanInfo*  pTableScanInfo = pScanInfo->pTableScanOp->info;
-  if (pInfo->pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE &&
-      pTableScanInfo->base.metaCache.pTableMetaEntryCache) {  // clear meta cache for subscription if tag is changed
-    for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
-      int64_t* uid = (int64_t*)taosArrayGet(tableIdList, i);
-
-      taosLRUCacheErase(pTableScanInfo->base.metaCache.pTableMetaEntryCache, uid, LONG_BYTES);
-    }
-  }
-  
   qDebug("%d remove child tables from the stream scanner, %s", (int32_t)taosArrayGetSize(tableIdList), id);
   taosWLockLatch(&pTaskInfo->lock);
   pTaskInfo->storageAPI.tqReaderFn.tqReaderRemoveTables(pScanInfo->tqReader, tableIdList);
@@ -635,7 +626,15 @@ static int32_t filterTableForTmqQuery(SStreamScanInfo* pScanInfo, const SArray* 
   return 0;
 }
 
-int32_t qAddTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList) {
+static void qUpdateTableTagCache(SStreamScanInfo* pScanInfo, const SArray* tableIdList, col_id_t cid, SStorageAPI* api) {
+  STqReader*   tqReader = pScanInfo->tqReader;
+  for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
+    int64_t* uid = (int64_t*)taosArrayGet(tableIdList, i);
+    (void)api->tqReaderFn.tqUpdateTableTagCache(pScanInfo->tqReader, pScanInfo->pPseudoExpr, pScanInfo->numOfPseudoExpr, *uid, cid);
+  }
+}
+
+int32_t qAddTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   const char*    id = GET_TASKID(pTaskInfo);
   int32_t        code = 0;
@@ -650,20 +649,32 @@ int32_t qAddTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdLi
   }
 
   SStreamScanInfo* pScanInfo = pInfo->info;
-  STableScanInfo*  pTableScanInfo = pScanInfo->pTableScanOp->info;
-  if (pInfo->pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE &&
-      pTableScanInfo->base.metaCache.pTableMetaEntryCache) {  // clear meta cache for subscription if tag is changed
-    for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
-      int64_t* uid = (int64_t*)taosArrayGet(tableIdList, i);
-
-      taosLRUCacheErase(pTableScanInfo->base.metaCache.pTableMetaEntryCache, uid, LONG_BYTES);
-    }
-  }
+  qUpdateTableTagCache(pScanInfo, tableIdList, 0, &pTaskInfo->storageAPI);
 
   return filterTableForTmqQuery(pScanInfo, tableIdList, id, &pTaskInfo->storageAPI, &pTaskInfo->lock);
 }
 
-int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList) {
+void qUpdateTableTagCacheForTmq(qTaskInfo_t tinfo, const SArray* tableIdList, SArray* cids) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  const char*    id = GET_TASKID(pTaskInfo);
+  int32_t        code = 0;
+
+  // traverse to the stream scanner node to add this table id
+  SOperatorInfo* pInfo = NULL;
+  code = extractOperatorInTree(pTaskInfo->pRoot, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, id, &pInfo);
+  if (code != 0 || pInfo == NULL) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    return;
+  }
+
+  SStreamScanInfo* pScanInfo = pInfo->info;
+  for (int32_t i = 0; i < taosArrayGetSize(cids); ++i) {
+    int32_t* cid = (int32_t*)taosArrayGet(cids, i);
+    qUpdateTableTagCache(pScanInfo, tableIdList, *cid, &pTaskInfo->storageAPI);
+  }
+}
+
+int32_t qUpdateTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   const char*    id = GET_TASKID(pTaskInfo);
   int32_t        code = 0;
@@ -676,15 +687,6 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
   }
 
   SStreamScanInfo* pScanInfo = pInfo->info;
-  STableScanInfo*  pTableScanInfo = pScanInfo->pTableScanOp->info;
-  if (pInfo->pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE &&
-      pTableScanInfo->base.metaCache.pTableMetaEntryCache) {  // clear meta cache for subscription if tag is changed
-    for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
-      int64_t* uid = (int64_t*)taosArrayGet(tableIdList, i);
-
-      taosLRUCacheErase(pTableScanInfo->base.metaCache.pTableMetaEntryCache, uid, LONG_BYTES);
-    }
-  }
 
   qDebug("%s %d remove child tables from the stream scanner, %s", __func__, (int32_t)taosArrayGetSize(tableIdList), id);
   taosWLockLatch(&pTaskInfo->lock);
@@ -1321,11 +1323,6 @@ int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   tOffsetCopy(pOffset, &pTaskInfo->streamInfo.currentOffset);
   return 0;
-  /*if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-    pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
-  }*/
 }
 
 int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* sContext, SMetaTableInfo* pMtInfo) {
@@ -1368,9 +1365,12 @@ void qStreamSetOpen(qTaskInfo_t tinfo) {
   pOperator->status = OP_NOT_OPENED;
 }
 
-void qStreamSetSourceExcluded(qTaskInfo_t tinfo, int8_t sourceExcluded) {
+void qStreamSetParams(qTaskInfo_t tinfo, int8_t sourceExcluded, int32_t minPollRows, int64_t timeout, int8_t enableReplay) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   pTaskInfo->streamInfo.sourceExcluded = sourceExcluded;
+  pTaskInfo->streamInfo.minPollRows = minPollRows;
+  pTaskInfo->streamInfo.timeout = timeout;
+  pTaskInfo->streamInfo.enableReplay = enableReplay;
 }
 
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType) {

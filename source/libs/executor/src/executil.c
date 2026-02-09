@@ -2563,7 +2563,6 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
       }
     }
   }
-
   // set the output flag for each column in SColMatchInfo, according to the
   *numOfOutputCols = 0;
   SNode* slotNode = NULL;

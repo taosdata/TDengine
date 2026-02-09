@@ -378,11 +378,6 @@ class TestComTaosdConfigRefresh:
                     "category": "global"
                 },
                 {
-                    "name": "tmqRowSize",
-                    "value": 8192,
-                    "category": "global"
-                },
-                {
                     "name": "transPullupInterval",
                     "value": 4,
                     "category": "global"
