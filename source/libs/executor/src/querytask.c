@@ -334,6 +334,7 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
     pCtx->transporterId = -1;
   }
   taosArrayDestroy(pCtx->subResNodes);
+  taosArrayDestroyP(pCtx->subEndPoints, (FDelete)nodesDestroyNode);
 }
 
 void doDestroyTask(SExecTaskInfo* pTaskInfo) {

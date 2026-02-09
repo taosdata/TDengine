@@ -4272,8 +4272,13 @@ _exit:
 void handleRemoteValueListRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetrieveTableRsp* pRsp, bool* fetchDone) {
   SSDataBlock* pResBlock = NULL;
   SRemoteValueListNode* pRemote = (SRemoteValueListNode*)pParam->pRes;
+  SExecTaskInfo* pTaskInfo = ctx->pTaskInfo;
 
   qDebug("%s scl fetch rsp received, subQIdx:%d, rows:%" PRId64 , ctx->idStr, pParam->subQIdx, pRsp->numOfRows);
+
+  if (IS_STREAM_MODE(pTaskInfo)) {
+    pRsp->completed = true;
+  }
 
   if (pRsp->numOfRows > 0) {
     ctx->code = createExprSubQResBlock(&pResBlock, &((SExprNode*)pParam->pRes)->resType);

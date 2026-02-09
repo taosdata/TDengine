@@ -1884,7 +1884,8 @@ _exit:
   }
 
   taosArrayDestroy(deployTaskList);
-  nodesDestroyNode((SNode *)pDag);
+  //nodesDestroyNode((SNode *)pDag);
+  nodesDestroyNode((SNode *)pRoot);
 
   return code;
 }
