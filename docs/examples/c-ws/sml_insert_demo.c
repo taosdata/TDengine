@@ -14,7 +14,7 @@
  */
 
 // TAOS standard API example. The same syntax as MySQL, but only a subset
-// to compile: gcc -o sml_insert_demo sml_insert_demo.c -ltaos
+// to compile: gcc -o sml_insert_demo sml_insert_demo.c -ltaosws
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,20 +38,42 @@ static int DemoSmlInsert() {
   code = ws_errno(result);
   if (code != 0) {
     fprintf(stderr, "Failed to create database power, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(result));
-    ws_close(taos);
+    code = ws_close(taos);
+    if (code != 0) {
+      fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    }
     return -1;
   }
-  ws_free_result(result);
+  code = ws_free_result(result);
+  if (code != 0) {
+    fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s\n.", code, ws_errstr(result));
+    code = ws_close(taos);
+    if (code != 0) {
+      fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    }
+    return -1;
+  }
 
   // use database
   result = ws_query(taos, "USE power");
   code = ws_errno(result);
   if (code != 0) {
     fprintf(stderr, "Failed to execute use power, ErrCode: 0x%x, ErrMessage: %s\n.", code, ws_errstr(result));
-    ws_close(taos);
+    code = ws_close(taos);
+    if (code != 0) {
+      fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    }
     return -1;
   }
-  ws_free_result(result);
+  code = ws_free_result(result);
+  if (code != 0) {
+    fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s\n.", code, ws_errstr(result));
+    code = ws_close(taos);
+    if (code != 0) {
+      fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    }
+    return -1;
+  }
 
   // schemaless demo data
   char *line_demo =
@@ -71,12 +93,23 @@ static int DemoSmlInsert() {
   if (code != 0) {
     fprintf(stderr, "Failed to insert schemaless line data, data: %s, ErrCode: 0x%x, ErrMessage: %s\n.", line_demo,
             code, ws_errstr(result));
-    ws_close(taos);
+    code = ws_close(taos);
+    if (code != 0) {
+      fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    }
     return -1;
   }
 
   fprintf(stdout, "Insert %d rows of schemaless line data successfully.\n", totalLines);
-  ws_free_result(result);
+  code = ws_free_result(result);
+  if (code != 0) {
+    fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s\n.", code, ws_errstr(result));
+    code = ws_close(taos);
+    if (code != 0) {
+      fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    }
+    return -1;
+  }
 
   // opentsdb telnet protocol
   totalLines = 0;
@@ -86,12 +119,23 @@ static int DemoSmlInsert() {
   if (code != 0) {
     fprintf(stderr, "Failed to insert schemaless telnet data, data: %s, ErrCode: 0x%x, ErrMessage: %s\n.", telnet_demo,
             code, ws_errstr(result));
-    ws_close(taos);
+    code = ws_close(taos);
+    if (code != 0) {
+      fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    }
     return -1;
   }
 
   fprintf(stdout, "Insert %d rows of schemaless telnet data successfully.\n", totalLines);
-  ws_free_result(result);
+  code = ws_free_result(result);
+  if (code != 0) {
+    fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s\n.", code, ws_errstr(result));
+    code = ws_close(taos);
+    if (code != 0) {
+      fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    }
+    return -1;
+  }
 
   // opentsdb json protocol
   char *jsons[1] = {0};
@@ -104,16 +148,32 @@ static int DemoSmlInsert() {
     free(jsons[0]);
     fprintf(stderr, "Failed to insert schemaless json data, Server: %s, ErrCode: 0x%x, ErrMessage: %s\n.", json_demo,
             code, ws_errstr(result));
-    ws_close(taos);
+    code = ws_close(taos);
+    if (code != 0) {
+      fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    }
     return -1;
   }
   free(jsons[0]);
 
   fprintf(stdout, "Insert %d rows of schemaless json data successfully.\n", totalLines);
-  ws_free_result(result);
+  code = ws_free_result(result);
+  if (code != 0) {
+    fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s\n.", code, ws_errstr(result));
+    code = ws_close(taos);
+    if (code != 0) {
+      fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    }
+    return -1;
+  }
 
   // close & clean
-  ws_close(taos);
+  code = ws_close(taos);
+  if (code != 0) {
+    fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    return -1;
+  }
+
   return 0;
   // ANCHOR_END: schemaless
 }
