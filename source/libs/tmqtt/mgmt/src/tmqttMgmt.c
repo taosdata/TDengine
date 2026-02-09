@@ -320,7 +320,7 @@ void mqttMgmtStopMqttd() {
   }
   atomic_store_32(&pData->stopCalled, 1);
   pData->needCleanUp = false;
-  uv_process_kill(&pData->process, SIGTERM);
+  UNUSED(uv_process_kill(&pData->process, SIGTERM));
   uv_barrier_destroy(&pData->barrier);
 
   if (uv_thread_join(&pData->thread) != 0) {

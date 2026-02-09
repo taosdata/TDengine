@@ -3,7 +3,6 @@ package com.taosdata.example;
 import java.sql.*;
 import java.util.Properties;
 
-import com.sun.org.apache.bcel.internal.generic.ACONST_NULL;
 import com.taosdata.jdbc.TSDBDriver;
 
 public class JdbcDemo {

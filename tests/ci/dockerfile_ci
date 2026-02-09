@@ -15,7 +15,7 @@ COPY .gitconfig /root/.gitconfig
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         locales psmisc sudo tree libgeos-dev libgflags-dev ruby-full \
-        libgoogle-glog-dev libsnappy-dev liblzma-dev libz-dev \
+        libgoogle-glog-dev libsnappy-dev liblzma-dev zlib1g-dev \
         libjansson-dev zlib1g pkg-config build-essential valgrind rsync vim \
         libjemalloc-dev openssh-server screen sshpass net-tools dirmngr gnupg \
         apt-transport-https ca-certificates software-properties-common iputils-ping \
