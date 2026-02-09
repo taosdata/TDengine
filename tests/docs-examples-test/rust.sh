@@ -26,6 +26,7 @@ cargo run --example stmt
 cargo run --example subscribe_demo
 cargo run --example subscribe
 cargo run --example tmq
+cargo clean
 
 cd ../restexample
 
@@ -38,3 +39,4 @@ cargo run --example stmt_all
 cargo run --example stmt
 cargo run --example subscribe_demo
 cargo run --example tmq
+cargo clean
