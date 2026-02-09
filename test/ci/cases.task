@@ -474,12 +474,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/08-Window/test_fun_win_fill_forward.py
 
 # 12-UDFs
-
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_c.py
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_py.py
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_with_const.py
 ,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_restart_taosd.py
-,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_test.py
 ,,n,.,pytest cases/12-UDFs/test_udf_test.py
 ,,n,.,pytest cases/12-UDFs/test_udf_create.py
 ,,n,.,pytest cases/12-UDFs/test_udf_cfg1.py
