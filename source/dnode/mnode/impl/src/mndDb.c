@@ -1132,6 +1132,13 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
     }
   }
 
+  if (dbObj.cfg.isAudit) {
+    if (dbObj.cfg.numOfVgroups > 1) {
+      code = TSDB_CODE_AUDIT_DB_NOT_MULTI_VGROUP;
+      TAOS_CHECK_GOTO(code, NULL, _OVER);
+    }
+  }
+
   mndTransSetOper(pTrans, MND_OPER_CREATE_DB);
   TAOS_CHECK_GOTO(mndSetCreateDbPrepareAction(pMnode, pTrans, &dbObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
@@ -1139,6 +1146,13 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   TAOS_CHECK_GOTO(mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups, pNewUserDuped, auditOwnedDbs), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateDbUndoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
+
+  if (dbObj.cfg.isAudit) {
+    if (tsAuditSaveInSelf) {
+      // when create audit database, pVgroups num always is 1
+      TAOS_CHECK_GOTO(mndCreateAuditStb(pMnode, &dbObj, pUser, pTrans, pVgroups), NULL, _OVER);
+    }
+  }
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
 _OVER:
