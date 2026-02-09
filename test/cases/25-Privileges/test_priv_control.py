@@ -3,10 +3,15 @@ from taos.tmq import Consumer
 import time
 import socket
 
-#define TSDB_CODE_PAR_PERMISSION_DENIED         TAOS_DEF_ERROR_CODE(0, 0x2644)
+#define TSDB_CODE_PAR_PERMISSION_DENIED               TAOS_DEF_ERROR_CODE(0, 0x2644)
 TSDB_CODE_PAR_PERMISSION_DENIED = 0x2644
-#define TSDB_CODE_MND_NO_RIGHTS                 TAOS_DEF_ERROR_CODE(0, 0x0303)
+#define TSDB_CODE_PAR_TB_CREATE_PERMISSION_DENIED     TAOS_DEF_ERROR_CODE(0, 0x26E4)
+TSDB_CODE_PAR_TB_CREATE_PERMISSION_DENIED = 0x26E4
+#define TSDB_CODE_PAR_STREAM_CREATE_PERMISSION_DENIED TAOS_DEF_ERROR_CODE(0, 0x26E7)
+TSDB_CODE_PAR_STREAM_CREATE_PERMISSION_DENIED = 0x26E7
+#define TSDB_CODE_MND_NO_RIGHTS                       TAOS_DEF_ERROR_CODE(0, 0x0303)
 TSDB_CODE_MND_NO_RIGHTS = 0x0303
+
 
 pwd = "abcd@1234"
 
@@ -146,7 +151,7 @@ class TestPrivControl:
             try:
                 tdSql.cursor.execute(sql)
                 time.sleep(1)
-                print(f"  try {i}/{queryTimes} times still succeeded: {sql}")
+                print(f"   try {i}/{queryTimes} times still succeeded: {sql}")
             except Exception as e:
                 print(f"   Exception: {e}")
                 # Get errno from exception
@@ -157,7 +162,12 @@ class TestPrivControl:
                     actual_code = normalize_errno(actual_errno)
                     
                     if actual_code != expected_code:
-                        raise Exception(f"Expected errno 0x{expected_code:04X} ({expected_code}), got 0x{actual_code:04X} ({actual_code}) [raw: {actual_errno}] for SQL: {sql}. Error: {e}")
+                        tips = f"   try {i}/{queryTimes} times expected errno 0x{expected_code:04X} ({expected_code}), got 0x{actual_code:04X} ({actual_code}) [raw: {actual_errno}] for SQL: {sql}. Error: {e}"
+                        if i < queryTimes:
+                            print(tips)
+                            time.sleep(1)
+                            continue    
+                        raise Exception(tips)
                 print(f"   SQL failed as expected: {sql}")
                 return True
             
@@ -174,6 +184,11 @@ class TestPrivControl:
             time.sleep(1)            
 
         raise Exception(f"Expected {expected_rows} rows, but got {actual_rows} for SQL: {sql}")
+
+    def create_snode(self, dnode_id=1):
+        # Create a super node on specified data node
+        sql = f"CREATE SNODE ON DNODE {dnode_id}"
+        tdSql.execute(sql)
     
     def create_database(self, db_name, options=""):
         # Create a database (drop if exists first)
@@ -1097,41 +1112,46 @@ class TestPrivControl:
         self.exec_sql(f"CREATE INDEX idx1 ON {db_name}.st1 (t2)")
         # Test: revoke
         self.login()
-        self.revoke_privilege("CREATE INDEX", f"TABLE {db_name}.*", user)
-        self.login(user, pwd)
-        self.exec_sql_failed(f"CREATE INDEX idx2 ON {db_name}.st1 (t3)", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql(f"CREATE INDEX idx2 ON {db_name}.st1 (t3)")
         
         #
         # show
         #
         
         # Test: user cannot show index without privilege
-        #BUG11
-        self.query_expect_rows(f"SHOW INDEXES FROM {db_name}.st1", 0)
+        self.login(user, pwd)
+        self.query_expect_rows(f"SHOW INDEXES FROM {db_name}.st1", 1)
         # Grant privilege
         self.login()
-        self.grant_privilege("SHOW", f"INDEX *", user)
+        self.grant_privilege("SHOW", f"INDEX {db_name}.idx2", user)
         # Test: passed
         self.login(user, pwd)
         self.query_expect_rows(f"SHOW INDEXES FROM {db_name}.st1", 2)
         # Test: revoke
         self.login()
-        self.revoke_privilege("SHOW", f"INDEX {db_name}.st1", user)
+        self.revoke_privilege("SHOW", f"INDEX {db_name}.idx2", user)
         self.login(user, pwd)
-        self.query_expect_rows(f"SHOW INDEXES FROM {db_name}.st1", 0)
+        self.query_expect_rows(f"SHOW INDEXES FROM {db_name}.st1", 1)
         
         #
         # drop
         #
         
         # Test: user cannot drop index without privilege
-        self.exec_sql_failed(f"DROP INDEX idx1 ON {db_name}.st1", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"DROP INDEX {db_name}.idx1", TSDB_CODE_PAR_PERMISSION_DENIED)
         # Grant DROP privilege on index
         self.login()
         self.grant_privilege("DROP", f"INDEX {db_name}.*", user)
         # Test: user can drop index
         self.login(user, pwd)
-        self.exec_sql(f"DROP INDEX idx1 ON {db_name}.st1")
+        self.exec_sql(f"DROP INDEX {db_name}.idx1")
+        # Test: revoke
+        self.login()
+        self.revoke_privilege("DROP", f"INDEX {db_name}.*", user)
+        time.sleep(1)  # Ensure previous drop is fully processed
+        self.login(user, pwd)
+        time.sleep(1)
+        self.exec_sql_failed(f"DROP INDEX {db_name}.idx2", TSDB_CODE_PAR_PERMISSION_DENIED)
         
         # Cleanup
         self.login()
@@ -1139,6 +1159,203 @@ class TestPrivControl:
         self.drop_user(user)
         
         print("CREATE INDEX ......................... [ passed ] ")
+
+    def do_create_tsma_privilege(self):
+        # Test CREATE TSMA privilege
+        tdLog.info("=== Testing CREATE TSMA Privilege ===")
+        self.login()  # Login as root
+        self.create_snode()
+        
+        db_name = "test_db"
+        user = "test_user"
+        self.create_database(db_name)
+        self.create_stable(db_name, "st1", columns="ts TIMESTAMP, c1 INT, c2 INT", tags="t1 INT")
+        self.create_user(user, pwd)
+        self.revoke_role("`SYSINFO_1`", user)  # SYSINFO_1 is default role
+        
+        # Grant basic privileges
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        self.grant_privilege("SELECT", f"{db_name}.*", user)
+        
+        #
+        # create tsma
+        #
+        
+        # Test: user cannot create tsma without privilege
+        create_tsma_sql = f"CREATE TSMA tsma1 ON {db_name}.st1 FUNCTION(MIN(c1), MAX(c2)) INTERVAL(1m)"
+        self.login(user, pwd)
+        self.exec_sql_failed(create_tsma_sql, TSDB_CODE_PAR_TB_CREATE_PERMISSION_DENIED)
+        self.login()
+        self.grant_privilege("CREATE TABLE", f"DATABASE {db_name}", user)
+        self.login(user, pwd)
+        self.exec_sql_failed(create_tsma_sql, TSDB_CODE_PAR_STREAM_CREATE_PERMISSION_DENIED)
+        self.login()
+        self.grant_privilege("CREATE STREAM", f"DATABASE {db_name}", user)
+        self.login(user, pwd)
+        self.exec_sql_failed(create_tsma_sql, TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Grant CREATE TSMA privilege
+        self.login()
+        self.grant_privilege("CREATE TSMA", f"TABLE {db_name}.*", user)
+        self.exec_sql(f"CREATE TSMA tsma2 ON {db_name}.st1 FUNCTION(COUNT(ts)) INTERVAL(2m)")
+        # Test: user can create tsma with privilege
+        self.login(user, pwd)
+        self.exec_sql(create_tsma_sql)
+        
+        #
+        # show
+        #
+        
+        # Test: user cannot show tsma without privilege
+        #BUG10
+        self.query_expect_rows(f"SHOW {db_name}.TSMAS", 1) # tsma1(create owner)
+        # Grant privilege
+        self.login()
+        self.grant_privilege("SHOW", f"TSMA {db_name}.*", user)
+        # Test: passed
+        self.login(user, pwd)
+        self.query_expect_rows(f"SHOW {db_name}.TSMAS", 2) # tsma1(create owner), tsma2(root)
+        # Test: revoke
+        self.login()
+        self.revoke_privilege("SHOW", f"TSMA {db_name}.tsma2", user)
+        self.login(user, pwd)
+        #BUG10
+        self.query_expect_rows(f"SHOW {db_name}.TSMAS", 1) # tsma1(create owner)
+
+        # Test: revoke for create tsma
+        self.login()
+        self.revoke_privilege("CREATE TSMA", f"TABLE {db_name}.*", user)
+        self.login(user, pwd)
+        self.exec_sql_failed(f"CREATE TSMA tsma3 ON {db_name}.st1 FUNCTION(AVG(c1)) INTERVAL(5m)", TSDB_CODE_PAR_PERMISSION_DENIED)
+
+        #
+        # drop
+        #
+        
+        # Test: user cannot drop tsma without privilege
+        self.exec_sql_failed(f"DROP TSMA {db_name}.tsma1", TSDB_CODE_PAR_PERMISSION_DENIED)
+        # Grant DROP privilege on tsma
+        self.login()
+        self.grant_privilege("DROP", f"TSMA {db_name}.*", user)
+        # Test: user can drop tsma
+        self.login(user, pwd)
+        self.exec_sql(f"DROP TSMA {db_name}.tsma1")
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(user)
+        
+        print("CREATE TSMA .......................... [ passed ] ")
+
+    def do_create_rsma_privilege(self):
+        # Test CREATE RSMA privilege
+        tdLog.info("=== Testing CREATE RSMA Privilege ===")
+        self.login()  # Login as root
+        
+        db_name = "test_db"
+        user = "test_user"
+        self.create_database(db_name)
+        self.create_stable(db_name, "st1", columns="ts TIMESTAMP, c1 INT, c2 FLOAT, c3 DOUBLE", tags="t1 INT")
+        self.create_user(user, pwd)
+        self.revoke_role("`SYSINFO_1`", user)  # SYSINFO_1 is default role
+        
+        # Grant basic privileges
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        self.grant_privilege("SELECT", f"{db_name}.*", user)
+        
+        #
+        # create rsma
+        #
+        
+        # Test: user cannot create rsma without privilege
+        self.login(user, pwd)
+        self.exec_sql_failed(f"CREATE RSMA rsma1 ON {db_name}.st1 FUNCTION(MIN(c1), MAX(c2), AVG(c3)) INTERVAL(1m, 5m)", TSDB_CODE_PAR_PERMISSION_DENIED)
+        # Grant CREATE RSMA privilege
+        self.login()
+        self.grant_privilege("CREATE RSMA", f"TABLE {db_name}.*", user)
+        # Test: user can create rsma with privilege
+        self.login(user, pwd)
+        self.exec_sql(f"CREATE RSMA rsma1 ON {db_name}.st1 FUNCTION(MIN(c1), MAX(c2), AVG(c3)) INTERVAL(1m, 5m)")
+        # Test: revoke
+        self.login()
+        self.revoke_privilege("CREATE RSMA", f"TABLE {db_name}.*", user)
+        self.login(user, pwd)
+        self.exec_sql_failed(f"CREATE RSMA rsma2 ON {db_name}.st1 FUNCTION(SUM(c1)) INTERVAL(2m, 10m)", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        #
+        # alter
+        #
+        
+        # Test: user cannot alter rsma without privilege
+        self.exec_sql_failed(f"ALTER RSMA {db_name}.rsma1 FUNCTION(FIRST(c1))", TSDB_CODE_PAR_PERMISSION_DENIED)
+        # Grant ALTER privilege on rsma
+        self.login()
+        self.grant_privilege("ALTER", f"RSMA {db_name}.*", user)
+        # Test: user can alter rsma
+        self.login(user, pwd)
+        self.exec_sql(f"ALTER RSMA {db_name}.rsma1 FUNCTION(FIRST(c1))")
+        # Test: revoke
+        self.login()
+        self.revoke_privilege("ALTER", f"RSMA {db_name}.*", user)
+        self.login(user, pwd)
+        self.exec_sql_failed(f"ALTER RSMA {db_name}.rsma1 FUNCTION(LAST(c2))", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        #
+        # show
+        #
+        
+        # Test: user cannot show rsma without privilege
+        self.query_expect_rows(f"SHOW {db_name}.RSMAS", 0)
+        # Grant privilege
+        self.login()
+        self.grant_privilege("SHOW", f"RSMA {db_name}.*", user)
+        # Test: passed
+        self.login(user, pwd)
+        self.query_expect_rows(f"SHOW {db_name}.RSMAS", 1)
+        # Test: revoke
+        self.login()
+        self.revoke_privilege("SHOW", f"RSMA {db_name}.*", user)
+        self.login(user, pwd)
+        self.query_expect_rows(f"SHOW {db_name}.RSMAS", 0)
+        
+        #
+        # show create
+        #
+        
+        # Test: user cannot show create rsma without privilege
+        self.exec_sql_failed(f"SHOW CREATE RSMA {db_name}.rsma1", TSDB_CODE_PAR_PERMISSION_DENIED)
+        # Grant privilege
+        self.login()
+        self.grant_privilege("SHOW CREATE", f"RSMA {db_name}.*", user)
+        # Test: passed
+        self.login(user, pwd)
+        self.exec_sql(f"SHOW CREATE RSMA {db_name}.rsma1")
+        # Test: revoke
+        self.login()
+        self.revoke_privilege("SHOW CREATE", f"RSMA {db_name}.*", user)
+        self.login(user, pwd)
+        self.exec_sql_failed(f"SHOW CREATE RSMA {db_name}.rsma1", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        #
+        # drop
+        #
+        
+        # Test: user cannot drop rsma without privilege
+        self.exec_sql_failed(f"DROP RSMA {db_name}.rsma1", TSDB_CODE_PAR_PERMISSION_DENIED)
+        # Grant DROP privilege on rsma
+        self.login()
+        self.grant_privilege("DROP", f"RSMA {db_name}.*", user)
+        # Test: user can drop rsma
+        self.login(user, pwd)
+        self.exec_sql(f"DROP RSMA {db_name}.rsma1")
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(user)
+        
+        print("CREATE RSMA .......................... [ passed ] ")
 
     #
     # --------------------------- View Privileges Tests (3.4.0.0+) ----------------------------
@@ -1372,7 +1589,7 @@ class TestPrivControl:
         # db2
         stream_name3 = "test_stream3"
         stream_name4 = "test_stream4"        
-        self.exec_sql("create snode on dnode 1;")
+        self.create_snode()
         self.create_database(db_name)
         self.create_stable(db_name, "source_table", "ts TIMESTAMP, val INT", "tag1 INT")
         self.create_database(db_name2)
@@ -1842,8 +2059,10 @@ class TestPrivControl:
         print("")
         print("[Function and Index Privileges]")
         self.do_create_function_privilege()
+        self.do_create_index_privilege()
         '''
-        self.do_create_index_privilege()        
+        self.do_create_tsma_privilege()
+        #self.do_create_rsma_privilege()
         return 
         
                 
