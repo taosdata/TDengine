@@ -58,6 +58,7 @@ impl ColumnMeta {
             "YEAR" => Ok(IpcDataType::Int16),
             // 二进制
             "BIT" => Ok(IpcDataType::UInt8),
+            "BOOLEAN" => Ok(IpcDataType::Bool),
             // 其他
             _ => anyhow::bail!("unsupported data type: {}", self.type_name),
         }
@@ -104,6 +105,7 @@ pub fn to_arrow_data_type(type_name: String) -> anyhow::Result<DataType> {
         "YEAR" => Ok(DataType::UInt16),
         // 二进制
         "BIT" => Ok(DataType::UInt8),
+        "BOOLEAN" => Ok(DataType::Boolean),
         // 其他
         _ => anyhow::bail!("unsupported data type: {}", type_name),
     }
