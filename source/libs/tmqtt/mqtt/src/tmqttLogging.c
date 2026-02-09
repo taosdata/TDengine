@@ -29,10 +29,10 @@
 #include <sys/stat.h>
 #endif
 
+#include "tmqttBrokerInt.h"
 #include "ttqLogging.h"
 #include "ttqMemory.h"
 #include "ttqMisc.h"
-#include "tmqttBrokerInt.h"
 #include "ttqUtil.h"
 
 static char log_fptr_buffer[BUFSIZ];
@@ -105,7 +105,7 @@ int ttqLogInit(struct tmqtt__config *config) {
   if (log_destinations & MQTT3_LOG_FILE) {
     config->log_fptr = tmqtt__fopen(config->log_file, "at", true);
     if (config->log_fptr) {
-      setvbuf(config->log_fptr, log_fptr_buffer, _IOLBF, sizeof(log_fptr_buffer));
+      UNUSED(setvbuf(config->log_fptr, log_fptr_buffer, _IOLBF, sizeof(log_fptr_buffer)));
     } else {
       log_destinations = MQTT3_LOG_STDERR;
       log_priorities = TTQ_LOG_ERR;
@@ -113,7 +113,7 @@ int ttqLogInit(struct tmqtt__config *config) {
     }
   }
   if (log_destinations & MQTT3_LOG_STDOUT) {
-    setvbuf(stdout, NULL, _IOLBF, 0);
+    UNUSED(setvbuf(stdout, NULL, _IOLBF, 0));
   }
 #ifdef WITH_DLT
   if (log_destinations & MQTT3_LOG_DLT) {
@@ -133,7 +133,7 @@ int ttqLogClose(struct tmqtt__config *config) {
   }
   if (log_destinations & MQTT3_LOG_FILE) {
     if (config->log_fptr) {
-      fclose(config->log_fptr);
+      UNUSED(fclose(config->log_fptr));
       config->log_fptr = NULL;
     }
   }
@@ -251,7 +251,7 @@ static int log__vprintf(unsigned int priority, const char *fmt, va_list va) {
     if (log_timestamp) {
       if (log_timestamp_format) {
         struct tm *ti = NULL;
-        get_time(&ti);
+        UNUSED(get_time(&ti));
         log_line_pos = strftime(log_line, sizeof(log_line), log_timestamp_format, ti);
         if (log_line_pos == 0) {
           log_line_pos = (size_t)snprintf(log_line, sizeof(log_line), "Time error");
@@ -311,7 +311,7 @@ static int log__vprintf(unsigned int priority, const char *fmt, va_list va) {
   return TTQ_ERR_SUCCESS;
 }
 
-int ttq_log(struct tmqtt *ttq, unsigned int priority, const char *fmt, ...) {
+void ttq_log(struct tmqtt *ttq, unsigned int priority, const char *fmt, ...) {
   va_list va;
   int     rc;
 
@@ -321,7 +321,7 @@ int ttq_log(struct tmqtt *ttq, unsigned int priority, const char *fmt, ...) {
   rc = log__vprintf(priority, fmt, va);
   va_end(va);
 
-  return rc;
+  UNUSED(rc);
 }
 
 void ttqLogInternal(const char *fmt, ...) {
