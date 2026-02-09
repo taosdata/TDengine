@@ -96,14 +96,14 @@ int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rs
         SCH_ERR_JRET(schNotifyJobAllTasks(pJob, pTask, TASK_NOTIFY_FINISHED));
       }
   
-      taosMemoryFreeClear(msg);
+      rpcFreeCont(msg);
   
       return TSDB_CODE_SUCCESS;
     }
   
     SCH_ERR_JRET(schLaunchFetchTask(pJob));
   
-    taosMemoryFreeClear(msg);
+    rpcFreeCont(msg);
   
     return TSDB_CODE_SUCCESS;
   }
@@ -127,7 +127,7 @@ int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rs
 
 _return:
 
-  taosMemoryFreeClear(msg);
+  rpcFreeCont(msg);
 
   SCH_RET(code);
 }
@@ -206,7 +206,7 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
       }
 
       SCH_ERR_JRET(rspCode);
-      taosMemoryFreeClear(pMsg->pData);
+      rpcFreeCont(pMsg->pData);
 
       SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
       break;
@@ -232,14 +232,14 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
       }
 
       SCH_ERR_JRET(rspCode);
-      taosMemoryFreeClear(pMsg->pData);
+      rpcFreeCont(pMsg->pData);
 
       SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
       break;
     }
     case TDMT_VND_ALTER_TABLE_RSP: {
       SVAlterTbRsp rsp = {0};
-      if (pMsg->pData) {
+      if (pMsg->pData &&  pMsg->len > 0) {
         SDecoder coder = {0};
         tDecoderInit(&coder, pMsg->pData, msgSize);
         code = tDecodeSVAlterTbRsp(&coder, &rsp);
@@ -256,11 +256,11 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
 
       SCH_ERR_JRET(rspCode);
 
-      if (NULL == pMsg->pData) {
+      if (NULL == pMsg->pData || pMsg->len == 0) {
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
-      taosMemoryFreeClear(pMsg->pData);
+      rpcFreeCont(pMsg->pData);
 
       SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
       break;
@@ -268,7 +268,7 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
     case TDMT_VND_SUBMIT_RSP: {
       SCH_ERR_JRET(rspCode);
 
-      if (pMsg->pData) {
+      if (pMsg->pData && pMsg->len > 0) {
         SDecoder    coder = {0};
         SSubmitRsp2 *rsp = taosMemoryMalloc(sizeof(*rsp));
         if (NULL == rsp) {
@@ -325,7 +325,7 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
         }
       }
 
-      taosMemoryFreeClear(pMsg->pData);
+      rpcFreeCont(pMsg->pData);
 
       SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
 
@@ -334,7 +334,7 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
     case TDMT_VND_DELETE_RSP: {
       SCH_ERR_JRET(rspCode);
 
-      if (pMsg->pData) {
+      if (pMsg->pData && pMsg->len > 0) {
         SDecoder    coder = {0};
         SVDeleteRsp rsp = {0};
         tDecoderInit(&coder, pMsg->pData, msgSize);
@@ -349,7 +349,7 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
         SCH_TASK_DLOG("delete succeed, affectedRows:%" PRId64, rsp.affectedRows);
       }
 
-      taosMemoryFreeClear(pMsg->pData);
+      rpcFreeCont(pMsg->pData);
 
       SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
 
@@ -358,7 +358,7 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
     case TDMT_SCH_QUERY_RSP:
     case TDMT_SCH_MERGE_QUERY_RSP: {
       SCH_ERR_JRET(rspCode);
-      if (NULL == pMsg->pData) {
+      if (NULL == pMsg->pData || pMsg->len == 0) {
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
@@ -382,7 +382,7 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
 
       (void)atomic_add_fetch_64(&pJob->resNumOfRows, rsp.affectedRows);
 
-      taosMemoryFreeClear(pMsg->pData);
+      rpcFreeCont(pMsg->pData);
 
       SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
 
@@ -390,7 +390,7 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
     }
     case TDMT_SCH_EXPLAIN_RSP: {
       SCH_ERR_JRET(rspCode);
-      if (NULL == pMsg->pData) {
+      if (NULL == pMsg->pData || pMsg->len == 0) {
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
@@ -412,7 +412,7 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
 
       SCH_ERR_JRET(schProcessExplainRsp(pJob, pTask, &rsp));
 
-      taosMemoryFreeClear(pMsg->pData);
+      rpcFreeCont(pMsg->pData);
       break;
     }
     case TDMT_SCH_FETCH_RSP:
@@ -453,7 +453,7 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
 
 _return:
 
-  taosMemoryFreeClear(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
 
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 } 
@@ -488,7 +488,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, uint64_t seriesId, 
   SCH_RET(schProcessResponseMsg(pJob, pTask, pMsg, rspCode));
 
 _return:
-  taosMemoryFreeClear(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 } 
 
@@ -510,7 +510,7 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
 
 _return:
 
-  taosMemoryFreeClear(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFreeClear(pMsg->pEpSet);
 
   qTrace("QID:0x%" PRIx64 ", end to handle rsp msg, type:%s, handle:%p, code:%s", qid, TMSG_INFO(pMsg->msgType), pMsg->handle,
@@ -530,7 +530,7 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
     qError("sch handle is NULL, may be already released and mem lea");
   }
   if (pMsg) {
-    taosMemoryFree(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
   }
   return TSDB_CODE_SUCCESS;
@@ -541,7 +541,7 @@ int32_t schHandleNotifyCallback(void *param, SDataBuf *pMsg, int32_t code) {
   qDebug("QID:0x%" PRIx64 ", SID:0x%" PRIx64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 " SJID:%d task notify rsp received, code:0x%x", 
          pParam->queryId, pParam->seriesId, pParam->clientId, pParam->taskId, pParam->subJobId, code);
   if (pMsg) {
-    taosMemoryFreeClear(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
     taosMemoryFreeClear(pMsg->pEpSet);
   }
   return TSDB_CODE_SUCCESS;
@@ -555,7 +555,7 @@ int32_t schHandleLinkBrokenCallback(void *param, SDataBuf *pMsg, int32_t code) {
   qDebug("handle %p is broken", pMsg->handle);
 
   if (head->isHbParam) {
-    taosMemoryFreeClear(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
     taosMemoryFreeClear(pMsg->pEpSet);
 
     SSchHbCallbackParam *hbParam = (SSchHbCallbackParam *)param;
@@ -600,7 +600,7 @@ int32_t schHandleHbCallback(void *param, SDataBuf *pMsg, int32_t code) {
 _return:
 
   tFreeSSchedulerHbRsp(&rsp);
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
   SCH_RET(code);
 }

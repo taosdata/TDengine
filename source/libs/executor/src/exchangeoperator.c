@@ -156,7 +156,7 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
       if (pDataInfo->seqId != currSeqId) {
         qDebug("%s seq rsp reqId %" PRId64 " mismatch with exchange %p curr seqId %" PRId64 ", ignore it", 
             GET_TASKID(pTaskInfo), pDataInfo->seqId, pExchangeInfo, currSeqId);
-        taosMemoryFreeClear(pDataInfo->pRsp);
+        rpcFreeCont(pDataInfo->pRsp);
         continue;
       }
 
@@ -193,7 +193,7 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
       } else {
         pExchangeInfo->current += 1;
       }
-      taosMemoryFreeClear(pDataInfo->pRsp);
+      rpcFreeCont(pDataInfo->pRsp);
       continue;
     }
 
@@ -211,7 +211,7 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
       pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
       if (isVstbScan(pDataInfo)) {
         pExchangeInfo->current = -1;
-        taosMemoryFreeClear(pDataInfo->pRsp);
+        rpcFreeCont(pDataInfo->pRsp);
         continue;
       }
     } else {
@@ -226,7 +226,7 @@ static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchange
 
     pExchangeInfo->current++;
 
-    taosMemoryFreeClear(pDataInfo->pRsp);
+    rpcFreeCont(pDataInfo->pRsp);
     return;
   }
 
@@ -279,7 +279,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
       int64_t currSeqId = atomic_load_64(&pExchangeInfo->seqId);
       if (pDataInfo->seqId != currSeqId) {
         qDebug("concurrent rsp reqId %" PRId64 " mismatch with exchange %p curr seqId %" PRId64 ", ignore it", pDataInfo->seqId, pExchangeInfo, currSeqId);
-        taosMemoryFreeClear(pDataInfo->pRsp);
+        rpcFreeCont(pDataInfo->pRsp);
         break;
       }
 
@@ -300,7 +300,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
           pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
           code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
           if (code != TSDB_CODE_SUCCESS) {
-            taosMemoryFreeClear(pDataInfo->pRsp);
+            rpcFreeCont(pDataInfo->pRsp);
             TAOS_CHECK_EXIT(code);
           }
         } else {
@@ -309,7 +309,7 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
                  " execId:%d index:%d completed, rowsOfSource:%" PRIu64 ", totalRows:%" PRIu64 ", try next %d/%" PRIzu, pDataInfo,
                  GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->clientId, pSource->taskId, pSource->execId, i,
                  pDataInfo->totalRows, pExchangeInfo->loadInfo.totalRows, i + 1, totalSources);
-          taosMemoryFreeClear(pDataInfo->pRsp);
+          rpcFreeCont(pDataInfo->pRsp);
         }
         break;
       }
@@ -335,13 +335,13 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
                pRsp->numOfBlocks, pRsp->numOfRows, pLoadInfo->totalRows, pLoadInfo->totalSize / 1024.0);
       }
 
-      taosMemoryFreeClear(pDataInfo->pRsp);
+      rpcFreeCont(pDataInfo->pRsp);
 
       if ((pDataInfo->status != EX_SOURCE_DATA_EXHAUSTED || NULL != pDataInfo->pSrcUidList) && !isVstbScan(pDataInfo) && !isVstbTagScan(pDataInfo)) {
         pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
         code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
         if (code != TSDB_CODE_SUCCESS) {
-          taosMemoryFreeClear(pDataInfo->pRsp);
+          rpcFreeCont(pDataInfo->pRsp);
           TAOS_CHECK_EXIT(code);
         }
       }
@@ -617,7 +617,7 @@ int32_t resetExchangeOperState(SOperatorInfo* pOper) {
     SSourceDataInfo* pDataInfo = taosArrayGet(pInfo->pSourceDataInfo, i);
     taosWLockLatch(&pDataInfo->lock);
     taosMemoryFreeClear(pDataInfo->decompBuf);
-    taosMemoryFreeClear(pDataInfo->pRsp);
+    rpcFreeCont(pDataInfo->pRsp);
 
     pDataInfo->totalRows = 0;
     pDataInfo->code = 0;
@@ -733,7 +733,7 @@ void freeBlock(void* pParam) {
 void freeSourceDataInfo(void* p) {
   SSourceDataInfo* pInfo = (SSourceDataInfo*)p;
   taosMemoryFreeClear(pInfo->decompBuf);
-  taosMemoryFreeClear(pInfo->pRsp);
+  rpcFreeCont(pInfo->pRsp);
 
   pInfo->decompBufSize = 0;
 }
@@ -779,14 +779,14 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SExchangeInfo* pExchangeInfo = taosAcquireRef(exchangeObjRefPool, pWrapper->exchangeId);
   if (pExchangeInfo == NULL) {
     qWarn("failed to acquire exchange operator, since it may have been released, %p", pExchangeInfo);
-    taosMemoryFree(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
     return TSDB_CODE_SUCCESS;
   }
 
   int64_t currSeqId = atomic_load_64(&pExchangeInfo->seqId);
   if (pWrapper->seqId != currSeqId) {
     qDebug("rsp reqId %" PRId64 " mismatch with exchange %p curr seqId %" PRId64 ", ignore it", pWrapper->seqId, pExchangeInfo, currSeqId);
-    taosMemoryFree(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
     code = taosReleaseRef(exchangeObjRefPool, pWrapper->exchangeId);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -812,7 +812,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     return terrno;
   }
 
-  if (0 == code && NULL == pMsg->pData) {
+  if (0 == code && (NULL == pMsg->pData || pMsg->len == 0)) {
     qError("invalid rsp msg, msgType:%d, len:%d", pMsg->msgType, pMsg->len);
     code = TSDB_CODE_QRY_INVALID_MSG;
   }
@@ -833,7 +833,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     qDebug("%s fetch rsp received, index:%d, blocks:%d, rows:%" PRId64 ", %p", pSourceDataInfo->taskId, index,
            pRsp->numOfBlocks, pRsp->numOfRows, pExchangeInfo);
   } else {
-    taosMemoryFree(pMsg->pData);
+    rpcFreeCont(pMsg->pData);
     pSourceDataInfo->code = rpcCvtErrCode(code);
     if (pSourceDataInfo->code != code) {
       qError("%s fetch rsp received, index:%d, error:%s, cvted error: %s, %p", pSourceDataInfo->taskId, index,
@@ -1529,7 +1529,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
 
     code = extractDataBlockFromFetchRsp(pb, pStart, NULL, &pStart);
     if (code != 0) {
-      taosMemoryFreeClear(pDataInfo->pRsp);
+      rpcFreeCont(pDataInfo->pRsp);
       goto _end;
     }
 
@@ -1609,7 +1609,7 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
       int64_t currSeqId = atomic_load_64(&pExchangeInfo->seqId);
       if (pDataInfo->seqId != currSeqId) {
         qDebug("seq rsp reqId %" PRId64 " mismatch with exchange %p curr seqId %" PRId64 ", ignore it", pDataInfo->seqId, pExchangeInfo, currSeqId);
-        taosMemoryFreeClear(pDataInfo->pRsp);
+        rpcFreeCont(pDataInfo->pRsp);
         continue;
       }
 
@@ -1639,7 +1639,7 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
       } else {
         pExchangeInfo->current += 1;
       }
-      taosMemoryFreeClear(pDataInfo->pRsp);
+      rpcFreeCont(pDataInfo->pRsp);
       continue;
     }
 
@@ -1674,7 +1674,7 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
     updateLoadRemoteInfo(pLoadInfo, pRetrieveRsp->numOfRows, pRetrieveRsp->compLen, startTs, pOperator);
     pDataInfo->totalRows += pRetrieveRsp->numOfRows;
 
-    taosMemoryFreeClear(pDataInfo->pRsp);
+    rpcFreeCont(pDataInfo->pRsp);
     return TSDB_CODE_SUCCESS;
   }
 

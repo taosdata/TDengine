@@ -805,3 +805,46 @@ void qDestroyBoundColInfo(void* pInfo) {
   taosMemoryFreeClear(pBoundInfo->pColIndex);
   destroySTagsInfo(pBoundInfo->parseredTags);
 }
+
+
+void dataBufInit(SDataBuf* pBuf, void* pData, int32_t len, SEpSet *pEpSet) {
+  memset(pBuf, 0, sizeof(SDataBuf));
+  pBuf->pData = pData;
+  pBuf->len = len;   
+  pBuf->pEpSet = pEpSet;
+  
+}
+int32_t dataBufDump(SDataBuf* pBuf, void** p, int32_t* len) {
+  QUERY_PARAM_CHECK(pBuf);
+  if (pBuf->pData == NULL || pBuf->len <= 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  void *t = taosMemoryMalloc(pBuf->len);   
+  if (t == NULL) {
+    return terrno;
+  }
+
+  memcpy(t, pBuf->pData, pBuf->len);
+  *p = t;
+  *len = pBuf->len;
+
+  return TSDB_CODE_SUCCESS;
+}
+void dataBufClear(SDataBuf* pBuf) {
+   pBuf->pData = NULL;
+   pBuf->len = 0;
+   pBuf->pEpSet = NULL;
+}
+void dataBufDestroy(SDataBuf* pBuf) {
+  if (pBuf) {
+    rpcFreeCont(pBuf->pData);
+    pBuf->len = 0;
+    taosMemoryFreeClear(pBuf->pEpSet);
+  }
+}
+int8_t dataBufIsEmpty(SDataBuf* pBuf) {
+  if (pBuf == NULL) {
+    return 1;
+  }
+  return (pBuf->pData == NULL || pBuf->len == 0);
+}
