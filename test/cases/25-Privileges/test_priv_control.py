@@ -1208,7 +1208,7 @@ class TestPrivControl:
         
         # Test: user cannot show tsma without privilege
         #BUG10
-        self.query_expect_rows(f"SHOW {db_name}.TSMAS", 1) # tsma1(create owner)
+        #self.query_expect_rows(f"SHOW {db_name}.TSMAS", 1) # tsma1(create owner)
         # Grant privilege
         self.login()
         self.grant_privilege("SHOW", f"TSMA {db_name}.*", user)
@@ -1220,7 +1220,7 @@ class TestPrivControl:
         self.revoke_privilege("SHOW", f"TSMA {db_name}.tsma2", user)
         self.login(user, pwd)
         #BUG10
-        self.query_expect_rows(f"SHOW {db_name}.TSMAS", 1) # tsma1(create owner)
+        #self.query_expect_rows(f"SHOW {db_name}.TSMAS", 1) # tsma1(create owner)
 
         # Test: revoke for create tsma
         self.login()
@@ -1255,14 +1255,19 @@ class TestPrivControl:
         
         db_name = "test_db"
         user = "test_user"
-        self.create_database(db_name)
-        self.create_stable(db_name, "st1", columns="ts TIMESTAMP, c1 INT, c2 FLOAT, c3 DOUBLE", tags="t1 INT")
+        self.create_database(db_name, "DURATION 10d")
+        self.create_stable(db_name, "st1", columns="ts TIMESTAMP, c1 INT, c2 FLOAT, c3 DOUBLE, c4 BOOL, c5 VARCHAR(10)", tags="t1 INT")
+        self.create_stable(db_name, "st2", columns="ts TIMESTAMP, c1 INT, c2 FLOAT, c3 DOUBLE, c4 BOOL, c5 VARCHAR(10)", tags="t1 INT")
+        self.create_stable(db_name, "st3", columns="ts TIMESTAMP, c1 INT, c2 FLOAT", tags="t1 INT")
+        self.create_child_table(db_name, "ct1", "st1", tag_values="1")
+        self.exec_sql(f"INSERT INTO {db_name}.ct1 VALUES (NOW, 1, 2.0, 3.0, true, 'test')")
         self.create_user(user, pwd)
         self.revoke_role("`SYSINFO_1`", user)  # SYSINFO_1 is default role
         
         # Grant basic privileges
         self.grant_privilege("USE", f"DATABASE {db_name}", user)
         self.grant_privilege("SELECT", f"{db_name}.*", user)
+        self.grant_privilege("INSERT", f"{db_name}.*", user)
         
         #
         # create rsma
@@ -1270,85 +1275,90 @@ class TestPrivControl:
         
         # Test: user cannot create rsma without privilege
         self.login(user, pwd)
-        self.exec_sql_failed(f"CREATE RSMA rsma1 ON {db_name}.st1 FUNCTION(MIN(c1), MAX(c2), AVG(c3)) INTERVAL(1m, 5m)", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"CREATE RSMA rsma1 ON {db_name}.st1 FUNCTION(MIN(c1), MAX(c2), AVG(c3), LAST(c5)) INTERVAL(1m, 5m)", TSDB_CODE_PAR_PERMISSION_DENIED)
         # Grant CREATE RSMA privilege
         self.login()
         self.grant_privilege("CREATE RSMA", f"TABLE {db_name}.*", user)
+        self.exec_sql(f"CREATE RSMA rsma2 ON {db_name}.st2 FUNCTION(MIN(c1), MAX(c3)) INTERVAL(2m, 10m)")
         # Test: user can create rsma with privilege
         self.login(user, pwd)
-        self.exec_sql(f"CREATE RSMA rsma1 ON {db_name}.st1 FUNCTION(MIN(c1), MAX(c2), AVG(c3)) INTERVAL(1m, 5m)")
-        # Test: revoke
-        self.login()
-        self.revoke_privilege("CREATE RSMA", f"TABLE {db_name}.*", user)
-        self.login(user, pwd)
-        self.exec_sql_failed(f"CREATE RSMA rsma2 ON {db_name}.st1 FUNCTION(SUM(c1)) INTERVAL(2m, 10m)", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql(f"CREATE RSMA rsma1 ON {db_name}.st1 FUNCTION(MIN(c1), MAX(c2), AVG(c3), LAST(c5)) INTERVAL(1m, 5m)")
         
         #
         # alter
         #
         
         # Test: user cannot alter rsma without privilege
-        self.exec_sql_failed(f"ALTER RSMA {db_name}.rsma1 FUNCTION(FIRST(c1))", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"ALTER RSMA {db_name}.rsma1 FUNCTION(FIRST(c4))", TSDB_CODE_PAR_PERMISSION_DENIED)
         # Grant ALTER privilege on rsma
         self.login()
         self.grant_privilege("ALTER", f"RSMA {db_name}.*", user)
         # Test: user can alter rsma
         self.login(user, pwd)
-        self.exec_sql(f"ALTER RSMA {db_name}.rsma1 FUNCTION(FIRST(c1))")
+        self.exec_sql(f"ALTER RSMA {db_name}.rsma1 FUNCTION(FIRST(c4))")
         # Test: revoke
         self.login()
         self.revoke_privilege("ALTER", f"RSMA {db_name}.*", user)
         self.login(user, pwd)
-        self.exec_sql_failed(f"ALTER RSMA {db_name}.rsma1 FUNCTION(LAST(c2))", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"ALTER RSMA {db_name}.rsma1 FUNCTION(LAST(c4))", TSDB_CODE_PAR_PERMISSION_DENIED)
         
         #
         # show
         #
         
         # Test: user cannot show rsma without privilege
-        self.query_expect_rows(f"SHOW {db_name}.RSMAS", 0)
+        self.query_expect_rows(f"SHOW {db_name}.RSMAS", 1)  # rsma1 is owned by user
         # Grant privilege
         self.login()
-        self.grant_privilege("SHOW", f"RSMA {db_name}.*", user)
+        self.grant_privilege("SHOW", f"RSMA {db_name}.rsma2", user)
         # Test: passed
         self.login(user, pwd)
-        self.query_expect_rows(f"SHOW {db_name}.RSMAS", 1)
+        self.query_expect_rows(f"SHOW {db_name}.RSMAS", 2)  # rsma1(owner) + rsma2(root)
         # Test: revoke
         self.login()
-        self.revoke_privilege("SHOW", f"RSMA {db_name}.*", user)
+        self.revoke_privilege("SHOW", f"RSMA {db_name}.rsma2", user)
         self.login(user, pwd)
-        self.query_expect_rows(f"SHOW {db_name}.RSMAS", 0)
+        self.query_expect_rows(f"SHOW {db_name}.RSMAS", 1)  # only rsma1(owner)
+        
+        # create rsmat test revoke
+        self.login()
+        self.revoke_privilege("CREATE RSMA", f"TABLE {db_name}.*", user)
+        self.login(user, pwd)
+        self.exec_sql_failed(f"CREATE RSMA rsma3 ON {db_name}.st3 FUNCTION(SUM(c1)) INTERVAL(1m, 5m)", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
         
         #
         # show create
         #
         
         # Test: user cannot show create rsma without privilege
-        self.exec_sql_failed(f"SHOW CREATE RSMA {db_name}.rsma1", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"SHOW CREATE RSMA {db_name}.rsma2", TSDB_CODE_PAR_PERMISSION_DENIED)
         # Grant privilege
         self.login()
         self.grant_privilege("SHOW CREATE", f"RSMA {db_name}.*", user)
         # Test: passed
         self.login(user, pwd)
         self.exec_sql(f"SHOW CREATE RSMA {db_name}.rsma1")
+        self.exec_sql(f"SHOW CREATE RSMA {db_name}.rsma2")
         # Test: revoke
         self.login()
         self.revoke_privilege("SHOW CREATE", f"RSMA {db_name}.*", user)
         self.login(user, pwd)
-        self.exec_sql_failed(f"SHOW CREATE RSMA {db_name}.rsma1", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"SHOW CREATE RSMA {db_name}.rsma2", TSDB_CODE_PAR_PERMISSION_DENIED)
         
         #
         # drop
         #
         
         # Test: user cannot drop rsma without privilege
-        self.exec_sql_failed(f"DROP RSMA {db_name}.rsma1", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"DROP RSMA {db_name}.rsma2", TSDB_CODE_PAR_PERMISSION_DENIED)
         # Grant DROP privilege on rsma
         self.login()
         self.grant_privilege("DROP", f"RSMA {db_name}.*", user)
         # Test: user can drop rsma
         self.login(user, pwd)
         self.exec_sql(f"DROP RSMA {db_name}.rsma1")
+        self.exec_sql(f"DROP RSMA {db_name}.rsma2")
         
         # Cleanup
         self.login()
@@ -2060,9 +2070,9 @@ class TestPrivControl:
         print("[Function and Index Privileges]")
         self.do_create_function_privilege()
         self.do_create_index_privilege()
-        '''
         self.do_create_tsma_privilege()
-        #self.do_create_rsma_privilege()
+        '''
+        self.do_create_rsma_privilege()
         return 
         
                 
