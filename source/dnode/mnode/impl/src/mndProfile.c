@@ -1174,8 +1174,13 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
       return code;
     }
 
+    char qid[64] = {0};
+    char queryIdStr[26] = {0};
+    (void)tsnprintf(qid, sizeof(qid), "0x%"PRIx64, pQuery->queryId);
+    STR_TO_VARSTR(queryIdStr, qid);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->queryId, false);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)queryIdStr, false);
     if (code != 0) {
       mError("failed to set query id:%" PRIx64 " since %s", pQuery->queryId, tstrerror(code));
       taosRUnLockLatch(&pConn->queryLock);
@@ -1239,7 +1244,8 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->useconds, false);
+    double sec = pQuery->useconds/1000000.0;  // in sec
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&sec, false);
     if (code != 0) {
       mError("failed to set useconds since %s", tstrerror(code));
       taosRUnLockLatch(&pConn->queryLock);
@@ -1262,6 +1268,7 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
       return code;
     }
 
+    // subNum
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->subPlanNum, false);
     if (code != 0) {
@@ -1281,7 +1288,7 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
       if (offset + reserve < strSize) {
         SQuerySubDesc *pDesc = taosArrayGet(pQuery->subDesc, i);
         offset +=
-            tsnprintf(subStatus + offset, sizeof(subStatus) - offset, "%" PRIu64 ":%s", pDesc->tid, pDesc->status);
+            tsnprintf(subStatus + offset, sizeof(subStatus) - offset, "0x%" PRIx64 ":%d:%s", pDesc->tid, pDesc->vgId, pDesc->status);
       } else {
         break;
       }

@@ -299,6 +299,7 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
           SQuerySubDesc *sDesc = taosArrayGet(desc->subDesc, m);
           TAOS_CHECK_RETURN(tEncodeI64(pEncoder, sDesc->tid));
           TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, sDesc->status));
+          TAOS_CHECK_RETURN(tEncodeI32(pEncoder, sDesc->vgId));
         }
       }
     } else {
@@ -416,6 +417,10 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
 
               code = (tDecodeCStrTo(pDecoder, sDesc.status));
               TAOS_CHECK_GOTO(code, &line, _error);
+
+              code = tDecodeI32(pDecoder, &sDesc.vgId);
+              TAOS_CHECK_GOTO(code, &line, _error);
+
               if (!taosArrayPush(desc.subDesc, &sDesc)) {
                 code = terrno;
                 TAOS_CHECK_GOTO(code, &line, _error);

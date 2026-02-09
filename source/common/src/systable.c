@@ -852,14 +852,14 @@ static const SSysDbTableSchema offsetSchema[] = {
 
 static const SSysDbTableSchema querySchema[] = {
     {.name = "kill_id", .bytes = TSDB_QUERY_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "query_id", .bytes = 8, .type = TSDB_DATA_TYPE_UBIGINT, .sysInfo = false},
+    {.name = "query_id", .bytes = 24, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "conn_id", .bytes = 4, .type = TSDB_DATA_TYPE_UINT, .sysInfo = false},
     {.name = "app", .bytes = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "user", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "end_point", .bytes = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
-    {.name = "exec_usec", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "exec_sec", .bytes = 8, .type = TSDB_DATA_TYPE_DOUBLE, .sysInfo = false},
     {.name = "stable_query", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = false},
     {.name = "sub_query", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = false},
     {.name = "sub_num", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},

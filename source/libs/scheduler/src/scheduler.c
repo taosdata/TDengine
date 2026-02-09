@@ -115,8 +115,7 @@ int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
         SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
       }
 
-      SQuerySubDesc subDesc = {0};
-      subDesc.tid = pTask->taskId;
+      SQuerySubDesc subDesc = {.tid = pTask->taskId, .vgId = pTask->plan->execNode.nodeId};
       TAOS_STRCPY(subDesc.status, jobTaskStatusStr(pTask->status));
 
       if (NULL == taosArrayPush(pSub, &subDesc)) {

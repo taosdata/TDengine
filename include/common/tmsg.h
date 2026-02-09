@@ -5044,6 +5044,7 @@ typedef struct {
 
 typedef struct {
   int64_t tid;
+  int32_t vgId;
   char    status[TSDB_JOB_STATUS_LEN];
 } SQuerySubDesc;
 
