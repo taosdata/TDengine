@@ -30,6 +30,8 @@ extern "C" {
 
 #define AUDIT_DETAIL_MAX 65472
 
+typedef SEpSet (*mndGetDnodeEpsetByIdFn)(void *pMnode, int32_t dnodeId);
+
 typedef struct {
   const char *server;
   uint16_t    port;
@@ -44,7 +46,7 @@ typedef struct {
   char    operation[AUDIT_OPERATION_LEN];
   char    target1[TSDB_DB_NAME_LEN]; //put db name
   char    target2[TSDB_STREAM_NAME_LEN]; //put stb name, table name, topic name, user name, stream name, use max
-  char*   detail;
+  char   *detail;
   double  duration;
   int64_t affectedRows;
 } SAuditRecord;
@@ -53,11 +55,11 @@ int32_t auditInit(const SAuditCfg *pCfg);
 void    auditSetDnodeId(int32_t dnodeId);
 void    auditCleanup();
 
-void    auditRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, char *detail,
+void auditRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, char *detail,
+                 int32_t len, double duration, int64_t affectedRows);
+void auditAddRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, char *detail,
                     int32_t len, double duration, int64_t affectedRows);
-void    auditAddRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, char *detail,
-                       int32_t len, double duration, int64_t affectedRows);
-void    auditSendRecordsInBatch();
+void auditSendRecordsInBatch();
 
 #ifdef __cplusplus
 }

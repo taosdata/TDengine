@@ -67,6 +67,7 @@ static int32_t mndProcessDropIndexReq(SRpcMsg *pReq);
 static int32_t mndProcessDropStbReqFromMNode(SRpcMsg *pReq);
 static int32_t mndProcessDropTbWithTsma(SRpcMsg *pReq);
 static int32_t mndProcessFetchTtlExpiredTbs(SRpcMsg *pReq);
+static int32_t mndProcessAuditRecordRsp(SRpcMsg *pRsp);
 
 int32_t mndInitStb(SMnode *pMnode) {
   SSdbTable table = {
@@ -103,6 +104,7 @@ int32_t mndInitStb(SMnode *pMnode) {
   // mndSetMsgHandle(pMnode, TDMT_MND_DROP_INDEX, mndProcessDropIndexReq);
   // mndSetMsgHandle(pMnode, TDMT_VND_CREATE_INDEX_RSP, mndTransProcessRsp);
   // mndSetMsgHandle(pMnode, TDMT_VND_DROP_INDEX_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_AUDIT_RECORD_RSP, mndProcessAuditRecordRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STB, mndRetrieveStb);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_STB, mndCancelGetNextStb);
@@ -757,6 +759,7 @@ int32_t mndSetCreateStbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, S
     if (terrno != 0) code = terrno;
     TAOS_RETURN(code);
   }
+  mInfo("trans:%d, add stb to commit log", pTrans->id);
   if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
     sdbFreeRaw(pCommitRaw);
     TAOS_RETURN(code);
@@ -798,6 +801,7 @@ static int32_t mndSetCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     action.msgType = TDMT_VND_CREATE_STB;
     action.acceptableCode = TSDB_CODE_TDB_STB_ALREADY_EXIST;
     action.retryCode = TSDB_CODE_TDB_STB_NOT_EXIST;
+    mInfo("trans:%d, add create stb to redo action", pTrans->id);
     if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
       taosMemoryFree(pReq);
       sdbCancelFetch(pSdb, pIter);
@@ -868,6 +872,7 @@ static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     action.contLen = contLen;
     action.msgType = TDMT_VND_DROP_STB;
     action.acceptableCode = TSDB_CODE_TDB_STB_NOT_EXIST;
+    mInfo("trans:%d, add drop stb to undo action", pTrans->id);
     if ((code = mndTransAppendUndoAction(pTrans, &action)) != 0) {
       taosMemoryFree(pReq);
       sdbCancelFetch(pSdb, pIter);
@@ -1038,6 +1043,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
 
   SSchema *pSchema = &(stbObj.pTags[0]);
   if (mndGenIdxNameForFirstTag(fullIdxName, pDb->name, stbObj.name, pSchema->name) < 0) {
+    code = terrno;
     goto _OVER;
   }
   SSIdx idx = {0};
@@ -1069,6 +1075,219 @@ _OVER:
   mndTransDrop(pTrans);
   if (mndStbActionDelete(pMnode->pSdb, &stbObj) != 0) mError("failed to mndStbActionDelete");
   TAOS_RETURN(code);
+}
+
+typedef struct {
+  const char *name;
+  uint8_t     type;
+  int32_t     bytes;
+  uint32_t    alg;
+} AuditColumnDef;
+
+// column is consistent with vnodePrepareRow process in vnodeSvr.c
+static const AuditColumnDef audit_columns[] = {
+    {"ts", TSDB_DATA_TYPE_TIMESTAMP, 8, 0x2000102},
+    {"details", TSDB_DATA_TYPE_VARCHAR, 50000 + VARSTR_HEADER_SIZE, 0xFF000302},
+    {"user_name", TSDB_DATA_TYPE_VARCHAR, 25 + VARSTR_HEADER_SIZE, 0xFF000302},
+    {"operation", TSDB_DATA_TYPE_VARCHAR, 20 + VARSTR_HEADER_SIZE, 0xFF000302},
+    {"db", TSDB_DATA_TYPE_VARCHAR, TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE, 0xFF000302},
+    {"resource", TSDB_DATA_TYPE_VARCHAR, TSDB_STREAM_NAME_LEN + VARSTR_HEADER_SIZE, 0xFF000302},
+    {"client_address", TSDB_DATA_TYPE_VARCHAR, 64 + VARSTR_HEADER_SIZE, 0xFF000302},
+    {"duration", TSDB_DATA_TYPE_DOUBLE, 8, 0x5000102},
+    {"affected_rows", TSDB_DATA_TYPE_UBIGINT, 8, 0x1000102}};
+
+static int32_t mndBuildAuditStb(SMnode *pMnode, SStbObj *pDst, SDbObj *pDb) {
+  int32_t code = 0;
+  char   *name = AUDIT_STABLE_NAME;
+  (void)tsnprintf(pDst->name, TSDB_TABLE_FNAME_LEN, "%s.%s", pDb->name, name);
+  memcpy(pDst->db, pDb->name, TSDB_DB_FNAME_LEN);
+  pDst->createdTime = taosGetTimestampMs();
+  pDst->updateTime = pDst->createdTime;
+  pDst->uid = mndGenerateUid(pDst->name, strlen(pDst->name));
+  pDst->dbUid = pDb->uid;
+  pDst->tagVer = 1;
+  pDst->colVer = 1;
+  pDst->smaVer = 1;
+  pDst->nextColId = 1;
+  pDst->maxdelay[0] = -1;
+  pDst->maxdelay[1] = -1;
+  pDst->watermark[0] = 5000;
+  pDst->watermark[1] = 5000;
+  pDst->ttl = 0;
+  pDst->keep = -1;
+  pDst->source = 0;
+  pDst->virtualStb = 0;
+  pDst->numOfColumns = sizeof(audit_columns) / sizeof(AuditColumnDef);
+  pDst->numOfTags = 1;
+  pDst->numOfFuncs = 0;
+  pDst->commentLen = -1;
+  pDst->pFuncs = NULL;
+
+  pDst->ast1Len = 0;
+  pDst->ast2Len = 0;
+
+  pDst->pColumns = taosMemoryCalloc(1, pDst->numOfColumns * sizeof(SSchema));
+  pDst->pTags = taosMemoryCalloc(1, pDst->numOfTags * sizeof(SSchema));
+  pDst->pCmpr = taosMemoryCalloc(1, pDst->numOfColumns * sizeof(SCmprObj));
+  if (pDst->pColumns == NULL || pDst->pTags == NULL || pDst->pCmpr == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
+
+  if (pDst->nextColId < 0 || pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags) {
+    code = TSDB_CODE_OUT_OF_RANGE;
+    TAOS_RETURN(code);
+  }
+
+  SSchema *pSchema = NULL;
+  for (int32_t i = 0; i < sizeof(audit_columns) / sizeof(AuditColumnDef); ++i) {
+    pSchema = &pDst->pColumns[pDst->nextColId - 1];
+    pSchema->type = audit_columns[i].type;
+    pSchema->bytes = audit_columns[i].bytes;
+    pSchema->flags = 1;
+    tstrncpy(pSchema->name, audit_columns[i].name, TSDB_COL_NAME_LEN);
+    pSchema->colId = pDst->nextColId;
+    // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
+    SColCmpr *pColCmpr = &pDst->pCmpr[pDst->nextColId - 1];
+    pColCmpr->id = pSchema->colId;
+    pColCmpr->alg = audit_columns[i].alg;
+    pDst->nextColId++;
+  }
+
+  // tag
+  pSchema = &pDst->pTags[0];
+  pSchema->type = TSDB_DATA_TYPE_VARCHAR;
+  pSchema->bytes = 64 + VARSTR_HEADER_SIZE;
+  SSCHMEA_SET_IDX_ON(pSchema);
+  tstrncpy(pSchema->name, "cluster_id", TSDB_COL_NAME_LEN);
+  pSchema->colId = pDst->nextColId;
+  pDst->nextColId++;
+
+  /*
+    if (hasTypeMods) {
+      pDst->pExtSchemas = taosMemoryCalloc(pDst->numOfColumns, sizeof(SExtSchema));
+      if (!pDst->pExtSchemas) {
+        code = terrno;
+        TAOS_RETURN(code);
+      }
+      for (int32_t i = 0; i < pDst->numOfColumns; ++i) {
+        SFieldWithOptions *pField = taosArrayGet(pCreate->pColumns, i);
+        pDst->pExtSchemas[i].typeMod = pField->typeMod;
+      }
+    }
+  */
+  TAOS_RETURN(code);
+}
+
+static int32_t mndSetCreateAuditStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb,
+                                               SVgObj *pVgroup) {
+  int32_t code = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+
+  int32_t contLen;
+
+  if (pVgroup == NULL) {
+    code = TSDB_CODE_INVALID_PARA;
+    TAOS_RETURN(code);
+  }
+
+  void *pReq = mndBuildVCreateStbReq(pMnode, pVgroup, pStb, &contLen, NULL, 0);
+  if (pReq == NULL) {
+    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+
+  STransAction action = {0};
+  action.mTraceId = pTrans->mTraceId;
+  action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+  action.pCont = pReq;
+  action.contLen = contLen;
+  action.msgType = TDMT_VND_CREATE_STB;
+  action.acceptableCode = TSDB_CODE_TDB_STB_ALREADY_EXIST;
+  action.retryCode = TSDB_CODE_TDB_STB_NOT_EXIST;
+  mInfo("trans:%d, add create stb to redo action", pTrans->id);
+  if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
+    taosMemoryFree(pReq);
+    TAOS_RETURN(code);
+  }
+
+  TAOS_RETURN(code);
+}
+
+// Note: pVgroup is expected to point to the first element of a vgroup array (e.g. pVgroups at the call site).
+// Only the first element is used for creating the audit super table.
+int32_t mndCreateAuditStb(SMnode *pMnode, SDbObj *pDb, SUserObj *pOperUser, STrans *pTrans, SVgObj *pVgroup) {
+  SStbObj stbObj = {0};
+  int32_t code = -1;
+
+  char fullIdxName[TSDB_INDEX_FNAME_LEN * 2] = {0};
+
+  TAOS_CHECK_GOTO(mndBuildAuditStb(pMnode, &stbObj, pDb), NULL, _OVER);
+  memcpy(stbObj.createUser, pOperUser->name, TSDB_USER_LEN);
+  stbObj.ownerId = pOperUser->uid;
+
+  SSchema *pSchema = &(stbObj.pTags[0]);
+  if (mndGenIdxNameForFirstTag(fullIdxName, pDb->name, stbObj.name, pSchema->name) < 0) {
+    code = terrno;
+    goto _OVER;
+  }
+
+  SSIdx idx = {0};
+  if (mndAcquireGlobalIdx(pMnode, fullIdxName, SDB_IDX, &idx) == 0 && idx.pIdx != NULL) {
+    code = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
+    mndReleaseIdx(pMnode, idx.pIdx);
+    goto _OVER;
+  }
+
+  SIdxObj idxObj = {0};
+  memcpy(idxObj.name, fullIdxName, TSDB_INDEX_FNAME_LEN);
+  memcpy(idxObj.stb, stbObj.name, TSDB_TABLE_FNAME_LEN);
+  memcpy(idxObj.db, stbObj.db, TSDB_DB_FNAME_LEN);
+  memcpy(idxObj.colName, pSchema->name, TSDB_COL_NAME_LEN);
+  memcpy(idxObj.createUser, pOperUser->name, TSDB_USER_LEN);
+  idxObj.ownerId = pOperUser->uid;
+  idxObj.createdTime = taosGetTimestampMs();
+  idxObj.uid = mndGenerateUid(fullIdxName, strlen(fullIdxName));
+  idxObj.stbUid = stbObj.uid;
+  idxObj.dbUid = stbObj.dbUid;
+
+  mndTransSetDbName(pTrans, pDb->name, stbObj.name);
+  TAOS_CHECK_RETURN(mndTransCheckConflict(pMnode, pTrans));
+  TAOS_CHECK_GOTO(mndSetCreateIdxCommitLogs(pMnode, pTrans, &idxObj), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateStbCommitLogs(pMnode, pTrans, pDb, &stbObj), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateAuditStbRedoActions(pMnode, pTrans, pDb, &stbObj, pVgroup), NULL, _OVER);
+
+  code = 0;
+
+_OVER:
+  if (mndStbActionDelete(pMnode->pSdb, &stbObj) != 0) mError("failed to mndStbActionDelete");
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessAuditRecordRsp(SRpcMsg *pRsp) {
+  int32_t code = 0;
+
+  SMnode *pMnode = pRsp->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  (void)pMnode;  // currently unused, kept for potential future use
+  (void)pSdb;    // currently unused, kept for potential future use
+
+  if (pRsp == NULL) {
+    mError("audit record rsp, null response message");
+    return -1;
+  }
+
+  if (pRsp->code != 0) {
+    mError("audit record rsp failed, code:%d", pRsp->code);
+    return pRsp->code;
+  }
+
+  mDebug("audit record rsp succeeded, code:%d", pRsp->code);
+
+  // no need to implement this rsp, since we do not care about the result of audit record insertion
+
+  return code;
 }
 
 int32_t mndAddStbToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
