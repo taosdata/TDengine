@@ -2802,6 +2802,10 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       if (code) {
         terrno = code;
         STMT2_ELOG("set tags failed, code:%s", tstrerror(code));
+        if(pCreateTbReq) {
+          tdDestroySVCreateTbReq(pCreateTbReq);
+          taosMemoryFreeClear(pCreateTbReq);
+        }
         return terrno;
       }
     }
@@ -2819,6 +2823,10 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       if (TSDB_CODE_SUCCESS != code) {
         terrno = code;
         STMT2_ELOG("bind batch failed, code:%s", tstrerror(code));
+        if(pCreateTbReq) {
+          tdDestroySVCreateTbReq(pCreateTbReq);
+          taosMemoryFreeClear(pCreateTbReq);
+        }
         return terrno;
       }
     }
