@@ -1,3 +1,5 @@
+import os.path
+
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
@@ -13,8 +15,8 @@ from taosanalytics.conf import app_logger
 def hampel_filter(values, window_size=7, n_sigmas=3):
     if window_size <= 0 or n_sigmas > 3:
         app_logger.log_inst.error(
-            "invalid parameters for hampel filter, window size:%d, sigma:%d".format(window_size, n_sigmas))
-        raise ValueError("invalid parameters for hampel filter, window size:%d, sigma:%d".format(window_size, n_sigmas))
+            "invalid parameters for hampel filter, window size:%d, sigma:%d" % (window_size, n_sigmas))
+        raise ValueError("invalid parameters for hampel filter, window size:%d, sigma:%d" % (window_size, n_sigmas))
 
     values = np.array(values)
     new_vals = values.copy()
@@ -56,7 +58,7 @@ def derivative_check(time, values, max_rate=np.inf):
 
     mask = np.abs(rate) <= max_rate
 
-    # 保留第一个点
+    # Keep the first point
     mask[0] = True
 
     return time[mask], values[mask]
@@ -212,12 +214,12 @@ def do_batch_process(ts_list:list, val_list:list, win_list:list, config):
         if len(v) < 10:
             if t.size >= 2:
                 app_logger.log_inst.warn(
-                    "data points less than threshold, discard time window [%d, %d]".format(t[0], t[1]))
+                    f"data points less than threshold, discard time window [{t[0]}, {t[1]}]")
             else:
                 app_logger.log_inst.warn("data points less than threshold, discard empty time window")
             continue
 
-        save_dir = config.get("plot_dir", "plots") + f"/batch_{idx}"
+        save_dir = f"./batch_{idx}"
 
         # Hampel filter
         if config['hampel']['active']:
@@ -267,8 +269,8 @@ def do_batch_process(ts_list:list, val_list:list, win_list:list, config):
         if config['savgol']['active']:
             sg_cfg = config["savgol"]
             if sg_cfg["window"] % 2 == 0 or sg_cfg["window"] <= 0:
-                app_logger.log_inst.error("Savitzky-Golay window must be even, input size: %d".format(sg_cfg["window"]))
-                raise ValueError("Savitzky-Golay window must be even, input size: %d".format(sg_cfg["window"]))
+                app_logger.log_inst.error(f"Savitzky-Golay window must be a positive odd integer, input size: {sg_cfg['window']}")
+                raise ValueError(f"Savitzky-Golay window must be a positive odd integer, input size: {sg_cfg['window']}")
 
             v_sg = savgol_filter(
                 v_norm,
@@ -284,7 +286,7 @@ def do_batch_process(ts_list:list, val_list:list, win_list:list, config):
 
         processed_batches.append(v_sg)
 
-    app_logger.log_inst.debug("total %d time windows data to build golden batch results".format(len(processed_batches)))
+    app_logger.log_inst.debug("total %d time windows data to build golden batch results" % (len(processed_batches)))
 
     if len(processed_batches) <= 0:
         app_logger.log_inst.warn("empty results return since no valid input time window for golden batch process")
@@ -311,19 +313,17 @@ def do_batch_process(ts_list:list, val_list:list, win_list:list, config):
         plt.legend()
         plt.title(f'Golden Batch with Envelope ({config["golden"]["method"]})')
 
-        Path(config.get("plot_dir", "plots")).mkdir(exist_ok=True)
-        plt.savefig(f"{config.get('plot_dir', 'plots')}/golden_batch.png")
+        Path(os.getcwd()).mkdir(exist_ok=True)
+        plt.savefig(f"./golden_batch.png")
         plt.close()
 
-    app_logger.log_inst.debug(f"build golden batch completed, center: {center}, lower:{lower}, uppper:{upper}")
+    app_logger.log_inst.debug(f"build golden batch completed, center: {center}, lower:{lower}, upper:{upper}")
     return center, lower, upper, processed_batches
 
 
 def get_default_config():
     default_config = {
         "plot": True,
-        "plot_dir": "plots",
-
         "hampel": {
             "window_size": 7,
             "sigma": 3,

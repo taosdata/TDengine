@@ -13,7 +13,7 @@ from taosanalytics.algo.tool.batch import do_batch_process, get_default_config
 ############################################
 
 class TestBoundaryConditions:
-    """边界条件测试"""
+    """Tests for boundary conditions"""
 
     def test_empty_input_data(self):
         """test case:空输入数据"""
