@@ -4946,4 +4946,52 @@ TEST(stmt2Case, query_interval) {
   taos_close(taos);
 }
 
+// 6788971938
+TEST(stmt2Case, query_vtable_core) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+
+  do_query(taos, "drop database if exists stmt2_testdb_32");
+  do_query(taos, "create database stmt2_testdb_32");
+  do_query(taos, "use stmt2_testdb_32");
+  do_query(taos, "create table tb1(ts timestamp, bool_v bool)");
+  do_query(taos, "create table tb2(ts timestamp, bool_v bool)");
+
+  do_query(taos, "create stable ts_kv_data(ts timestamp, bool_v bool) tags(dataname binary(20)) virtual 1");
+  do_query(taos, "create vtable tbv1 (bool_v from tb1.bool_v) using ts_kv_data tags('abc')");
+  do_query(taos, "create vtable tbv2 (bool_v from tb2.bool_v) using ts_kv_data tags('def')");
+
+  do_query(taos, "insert into tb1 values(1591060629000, true)");
+  do_query(taos, "insert into tb1 values(1591060630000, false)");
+  do_query(taos, "insert into tb2 values(1591060629000, true)");
+  do_query(taos, "insert into tb2 values(1591060630000, false)");
+
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+
+  int code =
+      taos_stmt2_prepare(stmt, "select last(bool_v) from ts_kv_data tbv1 where dataname in (?) partition by tbname", 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+  int32_t         dataname_len = 3;
+  char*           dataname = "abc";
+  TAOS_STMT2_BIND params[1] = {
+      {TSDB_DATA_TYPE_BINARY, dataname, &dataname_len, NULL, 1},
+  };
+  TAOS_STMT2_BIND* paramv = &params[0];
+  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv};
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  checkError(stmt, code, __FILE__, __LINE__);
+  code = taos_stmt2_exec(stmt, NULL);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  TAOS_RES* res = taos_stmt2_result(stmt);
+  ASSERT_NE(res, nullptr);
+  TAOS_ROW row = taos_fetch_row(res);
+  ASSERT_NE(row, nullptr);
+  ASSERT_EQ(*(bool*)row[0], false);
+
+  taos_stmt2_close(stmt);
+}
+
 #pragma GCC diagnostic pop

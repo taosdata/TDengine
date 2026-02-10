@@ -2472,6 +2472,12 @@ int stmtClose2(TAOS_STMT2* stmt) {
     }
   }
 
+  /* On macOS dispatch_semaphore_dispose requires value >= orig (1). After tsem_wait above value is 0; post once before
+   * destroy. */
+  if (pStmt->options.asyncExecFn) {
+    (void)tsem_post(&pStmt->asyncExecSem);
+  }
+
   STMT2_DLOG("stbInterlaceMode:%d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
              ", parseSqlNum=>%" PRId64 ", pStmt->stat.bindDataNum=>%" PRId64
              ", settbnameAPI:%u, bindAPI:%u, addbatchAPI:%u, execAPI:%u"
