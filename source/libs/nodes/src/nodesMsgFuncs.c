@@ -3859,14 +3859,17 @@ static int32_t msgToPhysiSessionWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_EXT_CODE_WINDOW = 1,
-       PHY_EXT_CODE_SKEY,
-       PHY_EXT_CODE_EKEY,
-       PHY_EXT_CODE_TIME_RANGE_EXPR,
-       PHY_EXT_CODE_IS_SINGLE_TABLE,
-       PHY_EXT_CODE_INPUT_HAS_ORDER,
-       PHY_EXT_CODE_ORG_TABLE_UID,
-       PHY_EXT_CODE_ORG_TABLE_VGID };
+enum {
+  PHY_EXT_CODE_WINDOW = 1,
+  PHY_EXT_CODE_SKEY,
+  PHY_EXT_CODE_EKEY,
+  PHY_EXT_CODE_TIME_RANGE_EXPR,
+  PHY_EXT_CODE_IS_SINGLE_TABLE,
+  PHY_EXT_CODE_INPUT_HAS_ORDER,
+  PHY_EXT_CODE_ORG_TABLE_UID,
+  PHY_EXT_CODE_ORG_TABLE_VGID,
+  PHY_EXT_CODE_SUB_QUERY
+};
 
 static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SExternalWindowPhysiNode* pNode = (const SExternalWindowPhysiNode*)pObj;
@@ -3891,6 +3894,9 @@ static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEnco
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, PHY_EXT_CODE_ORG_TABLE_VGID, pNode->orgTableVgId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_EXT_CODE_SUB_QUERY, nodeToMsg, pNode->pSubquery);
   }
 
   return code;
@@ -3926,6 +3932,9 @@ static int32_t msgToPhysiExternalWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_EXT_CODE_ORG_TABLE_VGID:
         code = tlvDecodeI32(pTlv, &pNode->orgTableVgId);
+        break;
+      case PHY_EXT_CODE_SUB_QUERY:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pSubquery);
         break;
       default:
         break;

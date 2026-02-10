@@ -7400,8 +7400,44 @@ static int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt*
 }
 #endif
 
+typedef struct STranslateExtCtx {
+  SExternalWindowNode* pExternalWin;
+  int32_t              code;
+} STranslateExtCtx;
+
+static EDealRes replaceExternalWindowPlace(SNode** pNode, void* pContext) {
+  STranslateExtCtx* pCxt = (STranslateExtCtx*)pContext;
+
+  if (nodeType(*pNode) == QUERY_NODE_COLUMN) {
+    SColumnNode* pCol = (SColumnNode*)(*pNode);
+
+    if ('\0' != pCol->tableAlias[0] &&
+        (0 == strncmp(pCol->tableAlias, pCxt->pExternalWin->aliasName, TSDB_COL_NAME_LEN))) {
+      SNode*  pNew = NULL;
+      int32_t code = nodesCloneNode((SNode*)pCol, &pNew);
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t translateExternalWindowSelectList(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  SExternalWindowNode* pExternalWin = (SExternalWindowNode*)pSelect->pWindow;
+  STranslateExtCtx   extCxt = {.pExternalWin = pExternalWin, .code = TSDB_CODE_SUCCESS};
+  int32_t code = translateExprSubquery(pCxt, &pExternalWin->pSubquery);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  nodesRewriteExprsPostOrder(pSelect->pProjectionList, replaceExternalWindowPlace, &extCxt);
+  return pCxt->errCode = extCxt.code;
+}
+
 static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_SELECT;
+
+  if (pSelect->pWindow && nodeType(pSelect->pWindow) == QUERY_NODE_EXTERNAL_WINDOW) {
+    translateExternalWindowSelectList(pCxt, pSelect);
+  }
+
   int32_t code = prepareColumnExpansion(pCxt, SQL_CLAUSE_SELECT, pSelect);
   if (TSDB_CODE_SUCCESS == code) {
     code = translateExprList(pCxt, pSelect->pProjectionList);
@@ -8586,6 +8622,10 @@ static int32_t translatePeriodWindow(STranslateContext* pCxt, SSelectStmt* pSele
   return code;
 }
 
+static int32_t translateExternalWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   switch (nodeType(pSelect->pWindow)) {
     case QUERY_NODE_STATE_WINDOW:
@@ -8602,6 +8642,8 @@ static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSe
       return translateAnomalyWindow(pCxt, pSelect);
     case QUERY_NODE_PERIOD_WINDOW:
       return translatePeriodWindow(pCxt, pSelect);
+    case QUERY_NODE_EXTERNAL_WINDOW:
+      return translateExternalWindow(pCxt, pSelect);
     default:
       break;
   }

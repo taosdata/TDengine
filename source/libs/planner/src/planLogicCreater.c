@@ -2117,9 +2117,220 @@ static int32_t createWindowLogicNodeByAnomaly(SLogicPlanContext* pCxt, SAnomalyW
   return code;
 }
 
+static int32_t setColTableInfo(SNode* pFromTable, SColumnNode* pCol) {
+  if (NULL == pFromTable || NULL == pCol) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Default to a normal column
+  pCol->colType = COLUMN_TYPE_COLUMN;
+
+  switch (nodeType(pFromTable)) {
+    case QUERY_NODE_REAL_TABLE: {
+      SRealTableNode* pTable = (SRealTableNode*)pFromTable;
+      tstrncpy(pCol->dbName, pTable->table.dbName, TSDB_DB_NAME_LEN);
+      tstrncpy(pCol->tableName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(pCol->tableAlias, pTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
+      if (pTable->pMeta) {
+        pCol->tableId = pTable->pMeta->uid;
+        pCol->tableType = pTable->pMeta->tableType;
+      }
+      break;
+    }
+    case QUERY_NODE_VIRTUAL_TABLE: {
+      SVirtualTableNode* pTable = (SVirtualTableNode*)pFromTable;
+      tstrncpy(pCol->dbName, pTable->table.dbName, TSDB_DB_NAME_LEN);
+      tstrncpy(pCol->tableName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(pCol->tableAlias, pTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
+      if (pTable->pMeta) {
+        pCol->tableId = pTable->pMeta->uid;
+        pCol->tableType = pTable->pMeta->tableType;
+      }
+      break;
+    }
+    case QUERY_NODE_PLACE_HOLDER_TABLE: {
+      SPlaceHolderTableNode* pTable = (SPlaceHolderTableNode*)pFromTable;
+      tstrncpy(pCol->dbName, pTable->table.dbName, TSDB_DB_NAME_LEN);
+      tstrncpy(pCol->tableName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(pCol->tableAlias, pTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
+      if (pTable->pMeta) {
+        pCol->tableId = pTable->pMeta->uid;
+        pCol->tableType = pTable->pMeta->tableType;
+      }
+      break;
+    }
+    case QUERY_NODE_TEMP_TABLE: {
+      STempTableNode* pTable = (STempTableNode*)pFromTable;
+      tstrncpy(pCol->dbName, pTable->table.dbName, TSDB_DB_NAME_LEN);
+      tstrncpy(pCol->tableName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(pCol->tableAlias, pTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
+      // temp table may not have meta; leave tableId/tableType unset
+      break;
+    }
+    case QUERY_NODE_JOIN_TABLE: {
+      // External window does not apply to joins; minimal alias propagation
+      SJoinTableNode* pTable = (SJoinTableNode*)pFromTable;
+      tstrncpy(pCol->dbName, pTable->table.dbName, TSDB_DB_NAME_LEN);
+      tstrncpy(pCol->tableName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(pCol->tableAlias, pTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
+      break;
+    }
+    default: {
+      // Fallback: try to copy common table fields if layout matches STableNode
+      // No-op if not applicable
+      break;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// Helper: create a timestamp comparison operator with a placeholder function on the right
+static int32_t makeTsPlaceholderOp(SNode* pFromTable, EOperatorType opType, const char* funcName, const char* alias,
+                                   SOperatorNode** pOutOp) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SFunctionNode* pFunc = NULL;
+  SOperatorNode* pOper = NULL;
+
+  code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (TSDB_CODE_SUCCESS != code || NULL == pFunc) return code;
+  tstrncpy(pFunc->functionName, funcName, TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, alias, TSDB_FUNC_NAME_LEN);
+
+  code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOper);
+  if (TSDB_CODE_SUCCESS != code || NULL == pOper) {
+    nodesDestroyNode((SNode*)pFunc);
+    return code;
+  }
+
+  pOper->opType = opType;
+  code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pOper->pLeft);
+  if (TSDB_CODE_SUCCESS != code || NULL == pOper->pLeft) {
+    nodesDestroyNode((SNode*)pOper);
+    nodesDestroyNode((SNode*)pFunc);
+    return code;
+  }
+  ((SColumnNode*)pOper->pLeft)->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  ((SColumnNode*)pOper->pLeft)->isPrimTs = true;
+  snprintf(((SColumnNode*)pOper->pLeft)->colName, sizeof(((SColumnNode*)pOper->pLeft)->colName), "%s", "_c0");
+  setColTableInfo(pFromTable, (SColumnNode*)pOper->pLeft);
+
+
+  code = nodesCloneNode((SNode*)pFunc, &pOper->pRight);
+  nodesDestroyNode((SNode*)pFunc); // function node no longer needed after clone
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pOper);
+    return code;
+  }
+
+  *pOutOp = pOper;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t buildDefaultTimeRangeForExternalWindow(SLogicPlanContext* pCxt, SSelectStmt* pSelect) {
+  if (pSelect->pWindow == NULL || nodeType(pSelect->pWindow) != QUERY_NODE_EXTERNAL_WINDOW ||
+      pSelect->pTimeRange != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t         code = TSDB_CODE_SUCCESS;
+  STimeRangeNode* pTimeRange = NULL;
+  SOperatorNode*  pStartOp = NULL;
+  SOperatorNode*  pEndOp = NULL;
+
+  code = nodesMakeNode(QUERY_NODE_TIME_RANGE, (SNode**)&pTimeRange);
+  if (TSDB_CODE_SUCCESS != code || NULL == pTimeRange) return code;
+
+  pTimeRange->pStart = NULL;
+  pTimeRange->pEnd = NULL;
+  pTimeRange->needCalc = false;
+
+  // ts >= _twstart, ts < _twend
+  code = makeTsPlaceholderOp(pSelect->pFromTable, OP_TYPE_GREATER_EQUAL, "_twstart", "_twstart", &pStartOp);
+  if (TSDB_CODE_SUCCESS != code || NULL == pStartOp) {
+    nodesDestroyNode((SNode*)pTimeRange);
+    return code;
+  }
+  code = makeTsPlaceholderOp(pSelect->pFromTable, OP_TYPE_LOWER_THAN, "_twend", "_twend", &pEndOp);
+  if (TSDB_CODE_SUCCESS != code || NULL == pEndOp) {
+    nodesDestroyNode((SNode*)pStartOp);
+    nodesDestroyNode((SNode*)pTimeRange);
+    return code;
+  }
+
+  pTimeRange->pStart = (SNode*)pStartOp;
+  pTimeRange->pEnd = (SNode*)pEndOp;
+  pSelect->pTimeRange = (SNode*)pTimeRange;
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExternalWindowNode* pExternal,
                                                SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  if (pCxt->pPlanCxt->withExtWindow) return TSDB_CODE_SUCCESS;
+  pCxt->pPlanCxt->withExtWindow = true;
+
+  SWindowLogicNode* pWindow = NULL;
+  int32_t           code = TSDB_CODE_SUCCESS;
+
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pWindow));
+
+  pWindow->winType = WINDOW_TYPE_EXTERNAL;
+  pWindow->node.groupAction = GROUP_ACTION_NONE;
+  pWindow->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+  pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+  pWindow->partType = 0;
+  pWindow->pTspk = NULL;
+  if (nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE) {
+    SRealTableNode* pTable = (SRealTableNode*)pSelect->pFromTable;
+    if (pTable->pMeta->tableType == TSDB_NORMAL_TABLE || pTable->pMeta->tableType == TSDB_CHILD_TABLE) {
+      pWindow->isSingleTable = true;
+    } else {
+      pWindow->isSingleTable = false;
+    }
+  } else if (nodeType(pSelect->pFromTable) == QUERY_NODE_VIRTUAL_TABLE) {
+    SVirtualTableNode* pTable = (SVirtualTableNode*)pSelect->pFromTable;
+    if (pTable->pMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE || pTable->pMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+      pWindow->isSingleTable = true;
+    } else {
+      pWindow->isSingleTable = false;
+    }
+  } else {
+    pWindow->isSingleTable = false;
+  }
+  PLAN_ERR_RET(nodesCloneNode(pSelect->pTimeRange, &pWindow->pTimeRange));
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pCxt->pCurrRoot->pTargets) {
+    if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+      SColumnNode* pCol = (SColumnNode*)pNode;
+      
+      if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        PLAN_ERR_RET(nodesCloneNode(pNode, &pWindow->pTspk));
+        break;
+      }
+    }
+  }
+
+  if (pWindow->pTspk == NULL) {
+    nodesDestroyNode((SNode*)pWindow);
+    planError("External window can not find pk column, listSize:%d", pCxt->pCurrRoot->pTargets->length);
+    // TODO(smj): proper error code;
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  pWindow->pSubquery = pExternal->pSubquery;
+  return createExternalWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
+
+_return:
+  planError("%s failed, code:%d", __func__, code);
+  nodesDestroyNode((SNode*)pWindow);
+  return code;
+}
+
+static int32_t createWindowLogicNodeByStreamExternal(SLogicPlanContext* pCxt, SExternalWindowNode* pExternal,
+                                               SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  if (pCxt->pPlanCxt->withExtWindow) return TSDB_CODE_SUCCESS;
+  pCxt->pPlanCxt->withExtWindow = true;
+
   SWindowLogicNode* pWindow = NULL;
   int32_t           code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, (SNode**)&pWindow);
   if (NULL == pWindow) {
@@ -2191,7 +2402,7 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
     case QUERY_NODE_ANOMALY_WINDOW:
       return createWindowLogicNodeByAnomaly(pCxt, (SAnomalyWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
     case QUERY_NODE_EXTERNAL_WINDOW:
-      return TSDB_CODE_SUCCESS;
+      return createWindowLogicNodeByExternal(pCxt, (SExternalWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
     default:
       break;
   }
@@ -2376,6 +2587,7 @@ _return:
 }
 
 static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
+  PLAN_ERR_RET(buildDefaultTimeRangeForExternalWindow(pCxt, pSelect));
   if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList ||
       !pCxt->pPlanCxt->streamCalcQuery ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE ||
@@ -2396,8 +2608,7 @@ static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStm
   }
 
   PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, &pSelect->pWindow));
-  pCxt->pPlanCxt->withExtWindow = true;
-  PLAN_RET(createWindowLogicNodeByExternal(pCxt, (SExternalWindowNode*)pSelect->pWindow, pSelect, pLogicNode));
+  PLAN_RET(createWindowLogicNodeByStreamExternal(pCxt, (SExternalWindowNode*)pSelect->pWindow, pSelect, pLogicNode));
 }
 
 typedef struct SCollectFillExprsCtx {

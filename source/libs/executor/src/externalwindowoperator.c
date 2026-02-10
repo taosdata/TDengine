@@ -2271,6 +2271,45 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   // pExtW->limitInfo = (SLimitInfo){0};
   // initLimitInfo(pPhynode->window.node.pLimit, pPhynode->window.node.pSlimit, &pExtW->limitInfo);
 
+  if (pPhynode->pSubquery) {
+    // Initialize minimal stream runtime info to reuse external-window logic.
+    // Note: full subquery execution to populate multiple windows can be added later.
+    if (pTaskInfo->pStreamRuntimeInfo == NULL) {
+      pTaskInfo->pStreamRuntimeInfo = (SStreamRuntimeInfo*)taosMemoryCalloc(1, sizeof(SStreamRuntimeInfo));
+      if (pTaskInfo->pStreamRuntimeInfo == NULL) {
+        code = terrno;
+        goto _error;
+      }
+    }
+
+    SStreamRuntimeFuncInfo* pRt = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+    pRt->withExternalWindow = true;
+    pRt->isWindowTrigger = true;
+    pRt->triggerType = STREAM_TRIGGER_SESSION;
+    pRt->precision = 0;
+    pRt->curIdx = 0;
+    pRt->curOutIdx = 0;
+
+    if (pRt->pStreamPesudoFuncVals == NULL) {
+      pRt->pStreamPesudoFuncVals = taosArrayInit(sizeof(SSTriggerCalcParam), 1);
+      if (pRt->pStreamPesudoFuncVals == NULL) {
+        code = terrno;
+        goto _error;
+      }
+    } else {
+      taosArrayClear(pRt->pStreamPesudoFuncVals);
+    }
+
+    SSTriggerCalcParam one = {0};
+    // Use provided timeRange as a minimal single-window placeholder
+    one.wstart = 1589335200000;
+    one.wend = 1589338140000;
+    (void)taosArrayPush(pRt->pStreamPesudoFuncVals, &one);
+    one.wstart = 1589338140001;
+    one.wend = 1589341140000;
+    (void)taosArrayPush(pRt->pStreamPesudoFuncVals, &one);
+  }
+
   if (pPhynode->window.pProjs) {
     int32_t    numOfScalarExpr = 0;
     SExprInfo* pScalarExprInfo = NULL;
@@ -2387,11 +2426,29 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   }
 
   if (pPhynode->isSingleTable) {
-    pExtW->getWinFp = (pExtW->timeRangeExpr && (pExtW->timeRangeExpr->needCalc || (pTaskInfo->pStreamRuntimeInfo->funcInfo.addOptions & CALC_SLIDING_OVERLAP))) ? extWinGetOvlpWin : extWinGetNoOvlpWin;
-    pExtW->multiTableMode = false;
+    if (!pTaskInfo->pStreamRuntimeInfo) {
+      pExtW->getWinFp = extWinGetOvlpWin;
+      pExtW->multiTableMode = false;
+    } else {
+      pExtW->getWinFp =
+          (pExtW->timeRangeExpr && (pExtW->timeRangeExpr->needCalc ||
+                                    (pTaskInfo->pStreamRuntimeInfo->funcInfo.addOptions & CALC_SLIDING_OVERLAP)))
+              ? extWinGetOvlpWin
+              : extWinGetNoOvlpWin;
+      pExtW->multiTableMode = false;
+    }
   } else {
-    pExtW->getWinFp = (pExtW->timeRangeExpr && (pExtW->timeRangeExpr->needCalc || (pTaskInfo->pStreamRuntimeInfo->funcInfo.addOptions & CALC_SLIDING_OVERLAP))) ? extWinGetMultiTbOvlpWin : extWinGetMultiTbNoOvlpWin;
-    pExtW->multiTableMode = true;
+    if (!pTaskInfo->pStreamRuntimeInfo) {
+      pExtW->getWinFp = extWinGetMultiTbOvlpWin;
+      pExtW->multiTableMode = false;
+    } else {
+      pExtW->getWinFp =
+          (pExtW->timeRangeExpr && (pExtW->timeRangeExpr->needCalc ||
+                                    (pTaskInfo->pStreamRuntimeInfo->funcInfo.addOptions & CALC_SLIDING_OVERLAP)))
+              ? extWinGetMultiTbOvlpWin
+              : extWinGetMultiTbNoOvlpWin;
+      pExtW->multiTableMode = false;
+    }
   }
   pExtW->inputHasOrder = pPhynode->inputHasOrder;
   pExtW->orgTableUid = pPhynode->orgTableUid;

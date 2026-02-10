@@ -517,6 +517,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/06-SessionWindow/test_session.py
 ## 07-CountWindow
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/07-CountWindow/test_count.py
+## 08-ExternalWindow
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/08-ExternalWindow/test_external.py
 
 # 14-JoinQueries
 

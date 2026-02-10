@@ -391,6 +391,8 @@ typedef struct SWindowLogicNode {
   // for anomaly window
   SNode*                pAnomalyExpr;
   char                  anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
+
+  SNode*                pSubquery;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -858,6 +860,7 @@ typedef struct SExternalWindowPhysiNode {
   bool             inputHasOrder;
   int32_t          orgTableVgId; // for vtable window query
   tb_uid_t         orgTableUid;  // for vtable window query
+  SNode*           pSubquery;
 } SExternalWindowPhysiNode;
 
 typedef struct SSortPhysiNode {

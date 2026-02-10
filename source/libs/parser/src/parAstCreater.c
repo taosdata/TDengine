@@ -2566,17 +2566,22 @@ SNode* createExternalWindowClause(SAstCreateContext* pCxt, SNode* pSubquery, STo
   pExtWin->pSubquery = pSubquery;
   pExtWin->pFill = pFill;
 
-  // Set alias if provided
+  // Set alias if provided; enforce length constraint (report error if too long)
   pExtWin->aliasName[0] = '\0';
-  if (pAlias) {
+  if (pAlias && pAlias->type != TK_NK_NIL) {
     trimEscape(pCxt, pAlias, false);
-    int32_t len = TMIN((int32_t)sizeof(pExtWin->aliasName) - 1, pAlias->n);
+    if (pAlias->n >= TSDB_COL_NAME_LEN || pAlias->n == 0) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pAlias->z);
+      goto _err;
+    }
+    int32_t len = pAlias->n;
     strncpy(pExtWin->aliasName, pAlias->z, len);
     pExtWin->aliasName[len] = '\0';
   }
 
   return (SNode*)pExtWin;
 _err:
+  nodesDestroyNode((SNode*)pExtWin);
   nodesDestroyNode(pSubquery);
   nodesDestroyNode(pFill);
   return NULL;

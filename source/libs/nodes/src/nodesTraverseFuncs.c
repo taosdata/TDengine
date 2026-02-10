@@ -584,10 +584,11 @@ void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalke
       nodesWalkExpr(pSelect->pFill, walker, pContext);
     case SQL_CLAUSE_WINDOW:
       if (NULL != pSelect->pWindow) {
-        if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
+        if (QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
+          nodesWalkExpr(((SExternalWindowNode*)pSelect->pWindow)->pSubquery, walker, pContext);
+        } else if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
           nodesWalkExpr(((SIntervalWindowNode*)pSelect->pWindow)->pFill, walker, pContext);
-        }
-        else if (QUERY_NODE_COUNT_WINDOW == nodeType(pSelect->pWindow)) {
+        } else if (QUERY_NODE_COUNT_WINDOW == nodeType(pSelect->pWindow)) {
           nodesWalkExprs(((SCountWindowNode*)pSelect->pWindow)->pColList, walker, pContext);
         }
       }
