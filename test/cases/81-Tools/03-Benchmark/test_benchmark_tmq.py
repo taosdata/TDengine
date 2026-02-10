@@ -21,8 +21,9 @@ import psutil
 
 class TestBenchmarkTmq:
     updatecfgDict = {
-        'slowLogScope' : "others"
-    }    
+        'slowLogScope' : "others",
+        'debugFlag' : 143
+    }
     #
     # ------------------- test_tmp_basic.py ----------------
     #
@@ -57,7 +58,7 @@ class TestBenchmarkTmq:
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         time.sleep(5)
-                
+
         cmd = "%s -f %s/json/tmq_basic2.json " % (binPath, os.path.dirname(__file__))
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
@@ -77,7 +78,7 @@ class TestBenchmarkTmq:
 #            print("taosBenchmark be killed on purpose")
 #        except:
 #            tdLog.exit("failed to kill taosBenchmark")
-   
+
         print("do tmq case .......................... [passed]")
 
     #
@@ -95,15 +96,15 @@ class TestBenchmarkTmq:
         time.sleep(10)
         pids = self.get_pids_by_name("taosBenchmark")
         if pids:
-            tdLog.info(f"Find a process named taosBbenchmark with PID: {pids}")
+            tdLog.info(f"Find a process named taosBenchmark with PID: {pids}")
         else:
-            tdLog.exit("No process named taosBbenchmark was found.")
+            tdLog.exit("No process named taosBenchmark was found.")
 
         os.kill(pids[0], signal.SIGINT)
         time.sleep(10)
-        
+
         if self._rlist:
-            tdLog.info(self._rlist)   
+            tdLog.info(self._rlist)
             self.checkListString(self._rlist, "Receive SIGINT or other signal, quit benchmark")
         else:
             tdLog.exit("The benchmark process has not stopped!")
@@ -122,11 +123,11 @@ class TestBenchmarkTmq:
 
     # run
     def do_tmq_cancel(self):
-        self._rlist = None 
+        self._rlist = None
         tdLog.info(f"start to excute {__file__}")
         tdSql.execute("drop topic if exists topic_benchmark_meters")
         self.dbInsert()
-        tdLog.info(f"dbInsert finish！")   
+        tdLog.info(f"dbInsert finish！")
 
         t1 = threading.Thread(target=self.dbTmqThread)
         t2 = threading.Thread(target=self.stopThread, args=(False,))
@@ -134,8 +135,8 @@ class TestBenchmarkTmq:
         t2.start()
         # wait for threads to complete
         t1.join()
-        t2.join()    
-    
+        t2.join()
+
         print("do tmq cancel ......................... [passed]")
 
     #

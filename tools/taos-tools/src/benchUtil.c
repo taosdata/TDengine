@@ -19,7 +19,7 @@
 #include <sys/sysctl.h>
 #include <mach/mach.h>
 #include <mach/mach_host.h>
-#include <mach/vm_page_size.h> 
+#include <mach/vm_page_size.h>
 #endif
 
 char resEncodingChunk[] = "Encoding: chunked";
@@ -54,7 +54,7 @@ FORCE_INLINE void tmfree(void *buf) {
     }
 }
 
-FORCE_INLINE bool isRest(int32_t iface) { 
+FORCE_INLINE bool isRest(int32_t iface) {
     return REST_IFACE == iface || SML_REST_IFACE == iface;
 }
 
@@ -249,7 +249,7 @@ int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex) {
     if (0 == pos) {
         errorPrint("sql format error, sql not found mark string '%s'", mark);
         return -1;
-    }        
+    }
 
     char subTblName[TSDB_TABLE_NAME_LEN];
     snprintf(subTblName, TSDB_TABLE_NAME_LEN,
@@ -259,7 +259,7 @@ int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex) {
     TOOLS_STRNCPY(outSql, inSql, pos - inSql + 1);
     snprintf(outSql + (pos - inSql), TSDB_MAX_ALLOWED_SQL_LEN - 1,
              "%s%s", subTblName, pos + strlen(mark));
-    return 0;         
+    return 0;
 }
 
 int64_t toolsGetTimestamp(int32_t precision) {
@@ -369,8 +369,8 @@ SBenchConn* initBenchConn(char *dbName) {
         infoPrint("sleep %dms and try to connect... %d/%d  \n", g_arguments->trying_interval, keep_trying, g_arguments->keep_trying);
         if(g_arguments->trying_interval > 0) {
             toolsMsleep(g_arguments->trying_interval);
-        }        
-    } 
+        }
+    }
 
     return conn;
 }
@@ -380,11 +380,13 @@ void closeBenchConn(SBenchConn* conn) {
        return ;
 
     if(conn->taos) {
+        infoPrint("%s", "closing connection...\n");
         taos_close(conn->taos);
         conn->taos = NULL;
     }
 
     if (conn->ctaos) {
+        infoPrint("%s", "closing check connection...\n");
         taos_close(conn->ctaos);
         conn->ctaos = NULL;
     }
@@ -400,7 +402,7 @@ int64_t fetchResult(TAOS_RES *res, char * filePath) {
     int64_t     rows       = 0;
     char       *databuf    = NULL;
     bool        toFile     = strlen(filePath) > 0;
-    
+
 
     if(toFile) {
         num_fields = taos_field_count(res);
@@ -469,7 +471,7 @@ char *convertDatatypeToString(int type) {
         case TSDB_DATA_TYPE_DOUBLE:
             return "double";
         case TSDB_DATA_TYPE_JSON:
-            return "json";    
+            return "json";
         case TSDB_DATA_TYPE_VARBINARY:
             return "varbinary";
         case TSDB_DATA_TYPE_GEOMETRY:
@@ -635,7 +637,7 @@ void getDecimal64DefaultMax(uint8_t precision, uint8_t scale, Decimal64* dec) {
         maxStr[i] = '9';
     }
     maxStr[precision] = '\0';
-    
+
     stringToDecimal64(maxStr, precision, scale, dec);
     return;
 }
@@ -650,7 +652,7 @@ void getDecimal64DefaultMin(uint8_t precision, uint8_t scale, Decimal64* dec) {
         minStr[i] = '9';
     }
     minStr[precision + 1] = '\0';
-    
+
     stringToDecimal64(minStr, precision, scale, dec);
     return;
 }
@@ -664,7 +666,7 @@ void getDecimal128DefaultMax(uint8_t precision, uint8_t scale, Decimal128* dec) 
         maxStr[i] = '9';
     }
     maxStr[precision] = '\0';
-    
+
     stringToDecimal128(maxStr, precision, scale, dec);
     return;
 }
@@ -679,7 +681,7 @@ void getDecimal128DefaultMin(uint8_t precision, uint8_t scale, Decimal128* dec) 
         minStr[i] = '9';
     }
     minStr[precision + 1] = '\0';
-    
+
     stringToDecimal128(minStr, precision, scale, dec);
     return;
 }
@@ -938,15 +940,15 @@ int convertServAddr(int iface, bool tcp, int protocol) {
     if (tcp
             && iface == SML_REST_IFACE
             && protocol == TSDB_SML_TELNET_PROTOCOL) {
-        // telnet_tcp_port        
+        // telnet_tcp_port
         if (convertHostToServAddr(host,
                     g_arguments->telnet_tcp_port,
                     &(g_arguments->serv_addr))) {
-            errorPrint("failed to convertHostToServAddr host=%s telnet_tcp_port:%d iface=%d \n", 
+            errorPrint("failed to convertHostToServAddr host=%s telnet_tcp_port:%d iface=%d \n",
                     host, g_arguments->telnet_tcp_port, iface);
             return -1;
         }
-        infoPrint("restful connect -> convertServAddr host=%s telnet_tcp_port:%d to serv_addr=%p iface=%d \n", 
+        infoPrint("restful connect -> convertServAddr host=%s telnet_tcp_port:%d to serv_addr=%p iface=%d \n",
                 host, g_arguments->telnet_tcp_port, &g_arguments->serv_addr, iface);
     } else {
         // port
@@ -957,7 +959,7 @@ int convertServAddr(int iface, bool tcp, int protocol) {
             errorPrint("%s\n", "convert host to server address");
             return -1;
         }
-        infoPrint("restful connect -> convertServAddr host=%s port:%d to serv_addr=%p iface=%d \n", 
+        infoPrint("restful connect -> convertServAddr host=%s port:%d to serv_addr=%p iface=%d \n",
                 host, port, &g_arguments->serv_addr, iface);
     }
     return 0;
@@ -1042,7 +1044,7 @@ void destroySockFd(int sockfd) {
     closeSockFd(sockfd);
 }
 
-FORCE_INLINE void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res) {    
+FORCE_INLINE void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res) {
     char buff[530];
     char *msg = cmd;
     if (strlen(cmd) >= sizeof(buff)) {
@@ -1076,7 +1078,7 @@ char *genColNames(BArray *cols, bool tbName, char * primaryKeyName) {
     } else {
         strcpy(buf, primaryKeyName);
     }
-   
+
     for (int32_t i = 0; i < cols->size; i++) {
         Field * col = benchArrayGet(cols, i);
         strcat(buf, ",");
@@ -1086,13 +1088,13 @@ char *genColNames(BArray *cols, bool tbName, char * primaryKeyName) {
 }
 
 //
-//  STMT2  
+//  STMT2
 //
 
 // create
 TAOS_STMT2_BINDV* createBindV(int32_t capacity, int32_t tagCnt, int32_t colCnt) {
     // calc total size
-    int32_t tableSize = sizeof(char *) + sizeof(TAOS_STMT2_BIND *) + sizeof(TAOS_STMT2_BIND *) + 
+    int32_t tableSize = sizeof(char *) + sizeof(TAOS_STMT2_BIND *) + sizeof(TAOS_STMT2_BIND *) +
                         sizeof(TAOS_STMT2_BIND) * tagCnt + sizeof(TAOS_STMT2_BIND) * colCnt;
     int32_t size = sizeof(TAOS_STMT2_BINDV) + tableSize * capacity;
     TAOS_STMT2_BINDV *bindv = benchCalloc(1, size, false);
@@ -1140,7 +1142,7 @@ void freeBindV(TAOS_STMT2_BINDV *bindv) {
 }
 
 //
-//   debug show 
+//   debug show
 //
 
 void showBind(TAOS_STMT2_BIND* bind) {
@@ -1163,7 +1165,7 @@ void showBind(TAOS_STMT2_BIND* bind) {
             break;
         default:
             break;
-        } 
+        }
     }
 
 }
@@ -1182,14 +1184,14 @@ void showTableBinds(char* label, TAOS_STMT2_BIND* binds, int32_t cnt) {
 // show bindv
 void showBindV(TAOS_STMT2_BINDV *bindv, BArray *tags, BArray *cols) {
     // num and base info
-    debugPrint("show bindv table count=%d names=%p tags=%p bind_cols=%p\n", 
+    debugPrint("show bindv table count=%d names=%p tags=%p bind_cols=%p\n",
                 bindv->count, bindv->tbnames, bindv->tags, bindv->bind_cols);
-    
+
     for(int32_t i=0; i< bindv->count; i++) {
         debugPrint(" show bindv table index=%d name=%s \n", i, bindv->tbnames[i]);
         if(bindv->tags)
             showTableBinds("tag",    bindv->tags[i],      tags->size);
-        if(bindv->bind_cols)    
+        if(bindv->bind_cols)
             showTableBinds("column", bindv->bind_cols[i], cols->size + 1);
     }
 }
@@ -1397,7 +1399,7 @@ int fetchChildTableName(char *dbName, char *stbName) {
                 conn->taos, dbName, stbName,
                 g_queryInfo.superQueryInfo.childTblName,
                 g_queryInfo.superQueryInfo.childTblCount)) {
-        // faild            
+        // failed
         tmfree(g_queryInfo.superQueryInfo.childTblName);
         closeBenchConn(conn);
         return -1;
@@ -1425,7 +1427,7 @@ int trimCaseCmp(char *str1, char *str2) {
     }
 
     // Check if the remaining characters in str1 are all whitespace
-    while (*str1 != '\0') {    
+    while (*str1 != '\0') {
         if (!isblank((unsigned char)*str1)) {
             return -1;
         }
@@ -1685,7 +1687,7 @@ static int getServerVersionRestImpl(int16_t rest_port, int sockfd) {
         tools_cJSON *versionObj = tools_cJSON_GetArrayItem(dataObj, 0);
         tools_cJSON *versionStrObj = tools_cJSON_GetArrayItem(versionObj, 0);
         server_ver = atoi(versionStrObj->valuestring);
-        char* pstr = tools_cJSON_Print(versionStrObj);        
+        char* pstr = tools_cJSON_Print(versionStrObj);
         debugPrint("versionStrObj: %s, version: %s, server_ver: %d\n",
                    pstr ? pstr : "null",
                    versionStrObj->valuestring, server_ver);
@@ -1861,6 +1863,6 @@ int check_write_permission(const char *path) {
         return -1;
     }
     fclose(fp);
-    
+
     return 0;
 }

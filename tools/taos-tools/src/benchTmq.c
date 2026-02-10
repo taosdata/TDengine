@@ -44,11 +44,11 @@ void printfTmqConfigIntoFile() {
   infoPrintToFile( "msgWithTableName: %s\n", pConsumerInfo->msgWithTableName);
   infoPrintToFile( "rowsFile: %s\n", pConsumerInfo->rowsFile);
   infoPrintToFile( "expectRows: %d\n", pConsumerInfo->expectRows);
-  
+
   for (int i = 0; i < pConsumerInfo->topicCount; ++i) {
       infoPrintToFile( "topicName[%d]: %s\n", i, pConsumerInfo->topicName[i]);
       infoPrintToFile( "topicSql[%d]: %s\n", i, pConsumerInfo->topicSql[i]);
-  }  
+  }
 }
 
 
@@ -85,7 +85,7 @@ static int create_topic() {
             closeBenchConn(conn);
             return -1;
         }
-        
+
     }
     closeBenchConn(conn);
     return 0;
@@ -149,9 +149,9 @@ int buildConsumerAndSubscribe(tmqThreadInfo * pThreadInfo, char* groupId) {
     SConsumerInfo*  pConsumerInfo = &g_tmqInfo.consumerInfo;
 
     tmq_list_t * topic_list = buildTopicList();
-	
+
     tmq_conf_t * conf = tmq_conf_new();
-	
+
     tmq_conf_set(conf, "td.connect.user", g_arguments->user);
     tmq_conf_set(conf, "td.connect.pass", g_arguments->password);
     tmq_conf_set(conf, "td.connect.ip", g_arguments->host);
@@ -203,9 +203,9 @@ static void* tmqConsume(void* arg) {
     tmqThreadInfo* pThreadInfo = (tmqThreadInfo*)arg;
 	SConsumerInfo* pConsumerInfo = &g_tmqInfo.consumerInfo;
     char groupId[16] = {0};
-	
+
 	// "sequential" or "parallel"
-	if (pConsumerInfo->createMode && 0 != strncasecmp(pConsumerInfo->createMode, "sequential", 10)) {			
+	if (pConsumerInfo->createMode && 0 != strncasecmp(pConsumerInfo->createMode, "sequential", 10)) {
 
         char* tPtr = pConsumerInfo->groupId;
 	    // "share" or "independent"
@@ -225,7 +225,7 @@ static void* tmqConsume(void* arg) {
             infoPrint("%s\n", "buildConsumerAndSubscribe() fail in tmqConsume()");
             return NULL;
         }
-	}	
+	}
 
     int64_t totalMsgs = 0;
     int64_t totalRows = 0;
@@ -234,7 +234,7 @@ static void* tmqConsume(void* arg) {
     infoPrint("consumer id %d start to loop pull msg\n", pThreadInfo->id);
 
 	if ((NULL != pConsumerInfo->enableManualCommit) && (0 == strncmp("true", pConsumerInfo->enableManualCommit, 4))) {
-        manualCommit = 1;		
+        manualCommit = 1;
         infoPrint("consumer id %d enable manual commit\n", pThreadInfo->id);
 	}
 
@@ -258,7 +258,7 @@ static void* tmqConsume(void* arg) {
 		if (0 != manualCommit) {
             tmq_commit_sync(pThreadInfo->tmq, tmqMsg);
 		}
-		
+
         taos_free_result(tmqMsg);
 
         totalMsgs++;
@@ -297,8 +297,15 @@ static void* tmqConsume(void* arg) {
 
     code = tmq_consumer_close(pThreadInfo->tmq);
     if (code != 0) {
-        errorPrint("thread %d tmq_consumer_close() fail, reason: %s\n",
-                   pThreadInfo->id, tmq_err2str(code));
+        errorPrint("thread %d tmq_consumer_close() failed, reason: %s, try again after 3s\n",
+                pThreadInfo->id, tmq_err2str(code));
+
+        toolsMsleep(3000);
+        code = tmq_consumer_close(pThreadInfo->tmq);
+        if (code != 0) {
+            errorPrint("thread %d tmq_consumer_close() failed after retry, reason: %s\n",
+                    pThreadInfo->id, tmq_err2str(code));
+        }
     }
     pThreadInfo->tmq = NULL;
 
@@ -331,7 +338,7 @@ int subscribeTestProcess() {
 		    tPtr = groupId;
 		}
     }
-	
+
     pthread_t * pids = benchCalloc(pConsumerInfo->concurrent, sizeof(pthread_t), true);
     tmqThreadInfo *infos = benchCalloc(pConsumerInfo->concurrent, sizeof(tmqThreadInfo), true);
 
@@ -355,7 +362,7 @@ int subscribeTestProcess() {
         }
 
         // "sequential" or "parallel"
-		if (pConsumerInfo->createMode && 0 == strncasecmp(pConsumerInfo->createMode, "sequential", 10)) {			
+		if (pConsumerInfo->createMode && 0 == strncasecmp(pConsumerInfo->createMode, "sequential", 10)) {
             int retVal = buildConsumerAndSubscribe(pThreadInfo, tPtr);
             if (0 != retVal) {
                 infoPrint("%s\n", "buildConsumerAndSubscribe() fail!");
@@ -390,12 +397,12 @@ int subscribeTestProcess() {
     infoPrintToFile(
                     "Consumed total msgs: %" PRId64 ","
                     "total rows: %" PRId64 "\n", totalMsgs, totalRows);
-    
+
     if (g_arguments->output_json_file) {
         tools_cJSON *root = tools_cJSON_CreateObject();
         if (root) {
-            tools_cJSON_AddNumberToObject(root, "total_msgs", totalMsgs); 
-            tools_cJSON_AddNumberToObject(root, "total_rows", totalRows); 
+            tools_cJSON_AddNumberToObject(root, "total_msgs", totalMsgs);
+            tools_cJSON_AddNumberToObject(root, "total_rows", totalRows);
             char *jsonStr = tools_cJSON_PrintUnformatted(root);
             if (jsonStr) {
                 FILE *fp = fopen(g_arguments->output_json_file, "w");
@@ -411,7 +418,7 @@ int subscribeTestProcess() {
             tools_cJSON_Delete(root);
         }
     }
-    
+
 tmq_over:
     free(pids);
     free(infos);
