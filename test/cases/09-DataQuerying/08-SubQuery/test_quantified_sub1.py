@@ -17,10 +17,20 @@ class TestQuantifiedSubQuery1:
     quantifiedIdx = 0
     filterIdx = 0
     tableIdx = 0
+    existIdx = 0
+    sqlIdx = 0
     maxColumnIdx = 20
     querySql = "select {row} {compareExpr} {quantifiedExpr} (select {row2} from {targetTableName} {filterExpr}) from {srcTableName};"
     queryTagsSql = "select tags {row} {compareExpr} {quantifiedExpr} (select {row2} from {targetTableName} {filterExpr}) from {srcTableName};"
     queryConstSql = "select {constExpr} {compareExpr} {quantifiedExpr} (select {row2} from {targetTableName} {filterExpr}) from {srcTableName};"
+    queryExistsSqls = ["select {existExpr} (select f2 from ctt1 {filterExpr}) from cts1;",
+                       "select f1 from cts1 where {existExpr} (select f2 from ctt1 {filterExpr});"
+                      ]
+
+    existExprs = [
+        "EXISTS",
+        "NOT EXISTS"
+    ]
 
     compareExprs = [
         "=",
@@ -232,6 +242,20 @@ class TestQuantifiedSubQuery1:
 
                             self.generated_queries_file.write(self.generatedSql.strip() + "\n")
                             self.generated_queries_file.flush()
+
+        for self.existIdx in range(len(self.existExprs)):
+            for self.sqlIdx in range(len(self.queryExistsSqls)):
+                for self.filterIdx in range(len(self.filterExprs)):
+                    self.generatedSql = (
+                        self.queryExistsSqls[self.sqlIdx]
+                        .replace("{existExpr}", self.existExprs[self.existIdx])
+                        .replace("{filterExpr}", self.filterExprs[self.filterIdx])
+                        .replace("{row2}", "f2")
+                    )
+                    #tdLog.info(f"generated sql: {self.generatedSql}")
+
+                    self.generated_queries_file.write(self.generatedSql.strip() + "\n")
+                    self.generated_queries_file.flush()
 
         self.generated_queries_file.close()
         # iterate from file 0 to last file index self.fileIdx (inclusive)
