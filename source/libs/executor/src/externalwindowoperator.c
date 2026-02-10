@@ -2242,6 +2242,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   QRY_PARAM_CHECK(pOptrOut);
   int32_t                  code = 0;
   int32_t                  lino = 0;
+  bool                     isInStream = true;
   SExternalWindowOperator* pExtW = taosMemoryCalloc(1, sizeof(SExternalWindowOperator));
   SOperatorInfo*           pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   pOperator->pPhyNode = pNode;
@@ -2274,6 +2275,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   if (pPhynode->pSubquery) {
     // Initialize minimal stream runtime info to reuse external-window logic.
     // Note: full subquery execution to populate multiple windows can be added later.
+    isInStream = false;
     if (pTaskInfo->pStreamRuntimeInfo == NULL) {
       pTaskInfo->pStreamRuntimeInfo = (SStreamRuntimeInfo*)taosMemoryCalloc(1, sizeof(SStreamRuntimeInfo));
       if (pTaskInfo->pStreamRuntimeInfo == NULL) {
@@ -2291,7 +2293,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     pRt->curOutIdx = 0;
 
     if (pRt->pStreamPesudoFuncVals == NULL) {
-      pRt->pStreamPesudoFuncVals = taosArrayInit(sizeof(SSTriggerCalcParam), 1);
+      pRt->pStreamPesudoFuncVals = taosArrayInit(4, sizeof(SSTriggerCalcParam));
       if (pRt->pStreamPesudoFuncVals == NULL) {
         code = terrno;
         goto _error;
@@ -2426,7 +2428,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   }
 
   if (pPhynode->isSingleTable) {
-    if (!pTaskInfo->pStreamRuntimeInfo) {
+    if (!isInStream) {
       pExtW->getWinFp = extWinGetOvlpWin;
       pExtW->multiTableMode = false;
     } else {
@@ -2438,16 +2440,16 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
       pExtW->multiTableMode = false;
     }
   } else {
-    if (!pTaskInfo->pStreamRuntimeInfo) {
+    if (!isInStream) {
       pExtW->getWinFp = extWinGetMultiTbOvlpWin;
-      pExtW->multiTableMode = false;
+      pExtW->multiTableMode = true;
     } else {
       pExtW->getWinFp =
           (pExtW->timeRangeExpr && (pExtW->timeRangeExpr->needCalc ||
                                     (pTaskInfo->pStreamRuntimeInfo->funcInfo.addOptions & CALC_SLIDING_OVERLAP)))
               ? extWinGetMultiTbOvlpWin
               : extWinGetMultiTbNoOvlpWin;
-      pExtW->multiTableMode = false;
+      pExtW->multiTableMode = true;
     }
   }
   pExtW->inputHasOrder = pPhynode->inputHasOrder;
