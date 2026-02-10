@@ -1031,12 +1031,11 @@ class TestStreamSubqueryCount:
 
         stream = StreamItem(
             id=108,
-            stream="create stream rdb.s108 count_window(1, c1) from tdb.t1 into rdb.r108 as select _twstart, count(cts), first(cuint), last(cuint), sum(cuint), tbname from qdb.meters where tbname in ('t1', 't2', 't3', 't4') and cts >= _twstart and cts < _twstart + 5m partition by tbname slimit 1 soffset 2",
+            stream="create stream rdb.s108 count_window(1, c1) from tdb.t1 into rdb.r108 as select _twstart, count(cts), first(cuint), last(cuint), sum(cuint), tbname from qdb.meters where tbname in ('t1', 't2', 't3', 't4') and cts >= _twstart and cts < _twstart + 5m partition by tbname order by tbname limit 1 offset 2",
             res_query="select * from rdb.r108 limit 1",
-            exp_query="select cast('2025-01-01 00:00:00.000' as timestamp) ts, count(cts), first(cuint), last(cuint), sum(cuint), tbname from qdb.meters where tbname in ('t1', 't2', 't3', 't4') and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' partition by tbname slimit 1 soffset 2",
+            exp_query="select cast('2025-01-01 00:00:00.000' as timestamp) ts, count(cts), first(cuint), last(cuint), sum(cuint), tbname from qdb.meters where tbname in ('t1', 't2', 't3', 't4') and cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:05:00.000' partition by tbname order by tbname limit 1 offset 2",
         )
-        # random expect results, skip this test
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=109,
@@ -1124,8 +1123,7 @@ class TestStreamSubqueryCount:
             res_query="select * from rdb.r119 where id =2 limit 1",
             exp_query="select cast('2025-01-01 00:00:00.000' as timestamp) ts, count(tac1), sum(tbcint), 2, 'v2' from (select ta.ts tats, tb.cts tbts, ta.c1 tac1, tb.cint tbcint from qdb.meters tb right asof join tdb.t1 ta on ta.ts < tb.cts jlimit 10 where tb.tint=1 and ta.ts >= '2025-01-01 00:00:00.000' and ta.ts < '2025-01-01 00:05:00.000' and cos(tb.cint) >= 0 and cos(ta.c1) > 0);",
         )
-        # random expect results, skip this test
-        # self.streams.append(stream)
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=120,
