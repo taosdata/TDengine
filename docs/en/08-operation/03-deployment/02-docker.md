@@ -13,7 +13,7 @@ The TDengine image is launched with HTTP service activated by default. Use the f
 docker run -d --name tdengine \
 -v ~/data/taos/dnode/data:/var/lib/taos \
 -v ~/data/taos/dnode/log:/var/log/taos \
--p 6041:6041 tdengine/tdengine
+-p 6041:6041 tdengine/tsdb-ee
 ```
 
 Detailed parameter explanations are as follows:
@@ -47,7 +47,7 @@ Within the container, TDengine CLI or various connectors (such as JDBC-JNI) conn
 Run the following command to start TDengine in host network mode, which allows using the host's FQDN to establish connections, rather than using the container's hostname.
 
 ```shell
-docker run -d --name tdengine --network host tdengine/tdengine
+docker run -d --name tdengine --network host tdengine/tsdb-ee
 ```
 
 This method is similar to starting TDengine on the host using the systemctl command. If the TDengine client is already installed on the host, you can directly use the following command to access the TDengine service.
@@ -79,7 +79,7 @@ docker run -d \
    -p 6030:6030 \
    -p 6041-6049:6041-6049 \
    -p 6041-6049:6041-6049/udp \
-   tdengine/tdengine
+   tdengine/tsdb-ee
 ```
 
 First, the above command starts a TDengine service in the container, listening on the hostname tdengine, and maps the container's port 6030 to the host's port 6030, and the container's port range [6041, 6049] to the host's port range [6041, 6049]. If the port range on the host is already in use, you can modify the command to specify a free port range on the host.
@@ -106,18 +106,18 @@ Contents of docker-compose.yaml:
 ```yaml
 services:
   td1:
-    image: tdengine/tdengine
+    image: tdengine/tsdb-ee
     environment:
       - TAOS_FQDN=td1
 
   td2:
-    image: tdengine/tdengine
+    image: tdengine/tsdb-ee
     environment:
       - TAOS_FQDN=td2
       - TAOS_FIRST_EP=td1:6030
 
   td3:
-    image: tdengine/tdengine
+    image: tdengine/tsdb-ee
     environment:
       - TAOS_FQDN=td3
       - TAOS_FIRST_EP=td1:6030
