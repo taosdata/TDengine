@@ -208,7 +208,7 @@ def build_golden(batches, config):
 ############################################
 # Main Pipeline
 ############################################
-def do_batch_process(ts_list:list, val_list:list, win_list:list, config):
+def do_batch_process(ts_list, val_list, win_list, config):
     segments = split_by_windows(ts_list, val_list, win_list)
 
     processed_batches = []
