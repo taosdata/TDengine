@@ -163,7 +163,7 @@ def create_sequences(values, time_steps):
         output.append(values[i: (i + time_steps)])
     return np.stack(output)
 
-def do_check_before_exec(request, check_rows=True):
+def do_initial_check(request):
     if not request.is_json:
         app_logger.log_inst.error('recv invalid request, %s', request.data)
         raise ValueError("invalid request format")
@@ -174,6 +174,11 @@ def do_check_before_exec(request, check_rows=True):
         raise ValueError(e)
 
     app_logger.log_inst.debug('req payload: %s', req_json)
+
+    return req_json
+
+def do_check_before_exec(request, check_rows=True):
+    req_json = do_initial_check(request)
 
     # 1. validate the input data in json format
     try:
