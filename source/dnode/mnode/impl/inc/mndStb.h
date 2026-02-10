@@ -51,6 +51,8 @@ int32_t mndAllocStbSchemas(const SStbObj *pOld, SStbObj *pNew);
 void   *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen, void *alterOriData,
                               int32_t alterOriDataLen);
 int32_t mndSetForceDropCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup, SStbObj *pStb);
+int32_t mndGetTagValueFromTable(SMnode *pMnode, const char *pDbName, const char *pTableName, const char *pTagName,
+                                void **ppTagVal);
 
 #ifdef __cplusplus
 }

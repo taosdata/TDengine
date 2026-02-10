@@ -290,7 +290,7 @@ typedef enum {
 #define TSDB_COL_IS_TAG(f)        (((f & (~(TSDB_COL_NULL))) & TSDB_COL_TAG) != 0)
 #define TSDB_COL_IS_NORMAL_COL(f) ((f & (~(TSDB_COL_NULL))) == TSDB_COL_NORMAL)
 #define TSDB_COL_IS_UD_COL(f)     ((f & (~(TSDB_COL_NULL))) == TSDB_COL_UDC)
-#define TSDB_COL_REQ_NULL(f)      (((f) & TSDB_COL_NULL) != 0)
+#define TSDB_COL_REQ_NULL(f)      (((f)&TSDB_COL_NULL) != 0)
 
 #define TD_SUPER_TABLE          TSDB_SUPER_TABLE
 #define TD_CHILD_TABLE          TSDB_CHILD_TABLE
@@ -362,6 +362,7 @@ typedef enum ENodeType {
   QUERY_NODE_TOKEN_OPTIONS,
   QUERY_NODE_TRUE_FOR,
   QUERY_NODE_REMOTE_VALUE_LIST,
+  QUERY_NODE_TAG_REF_VALUE,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -803,6 +804,23 @@ typedef struct {
   char    refTableName[TSDB_TABLE_NAME_LEN];
   char    refColName[TSDB_COL_NAME_LEN];
 } SRefColInfo;
+
+typedef struct {
+  char    refDbName[TSDB_DB_NAME_LEN];
+  char    refTableName[TSDB_TABLE_NAME_LEN];
+  char    refColName[TSDB_COL_NAME_LEN];
+  char    tagName[TSDB_COL_NAME_LEN];
+  bool    hasTagName;
+  bool    isConst;
+  void*   pConstValue;
+  int32_t constValueLen;
+} STagRef;
+
+typedef struct {
+  int32_t  nTagRefs;
+  int32_t  version;
+  STagRef* pTagRef;
+} STagRefWrapper;
 
 typedef struct SVCTableRefCols {
   uint64_t     uid;
@@ -4811,6 +4829,7 @@ typedef struct SVCreateTbReq {
   SColCmprWrapper colCmpr;
   SExtSchema*     pExtSchemas;
   SColRefWrapper  colRef;  // col reference for virtual table
+  STagRefWrapper  tagRef;  // tag reference for virtual table
 } SVCreateTbReq;
 
 int  tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
@@ -6396,7 +6415,6 @@ void setFieldWithOptions(SFieldWithOptions* fieldWithOptions, SField* field);
 
 int32_t tSerializeSVSubTablesRspImpl(SEncoder* pEncoder, SVSubTablesRsp* pRsp);
 int32_t tDeserializeSVSubTablesRspImpl(SDecoder* pDecoder, SVSubTablesRsp* pRsp);
-
 
 typedef struct {
   char    id[TSDB_INSTANCE_ID_LEN];

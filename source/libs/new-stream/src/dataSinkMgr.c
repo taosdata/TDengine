@@ -35,25 +35,25 @@ void setDataSinkMaxMemSize(int64_t maxMemSize) {
 
 static void destroySStreamDSTaskMgr(void* pData);
 int32_t     initStreamDataSink() {
-  int32_t code = 0;
-  code = initDataSinkFileDir();
-  if (code != 0) {
-    stError("failed to create data sink file dir, err: 0x%0x", code);
-    return code;
+      int32_t code = 0;
+      code = initDataSinkFileDir();
+      if (code != 0) {
+        stError("failed to create data sink file dir, err: 0x%0x", code);
+        return code;
   }
 
-  g_pDataSinkManager.memAlterSize = TMIN(100 * 1024 * 1024, tsStreamBufferSizeBytes * 0.1);
-  g_pDataSinkManager.usedMemSize = 0;
-  g_pDataSinkManager.fileBlockSize = 0;
-  g_pDataSinkManager.readDataFromFileTimes = 0;
-  g_pDataSinkManager.dsStreamTaskList =
-      taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
-  if (g_pDataSinkManager.dsStreamTaskList == NULL) {
-    return terrno;
+      g_pDataSinkManager.memAlterSize = TMIN(100 * 1024 * 1024, tsStreamBufferSizeBytes * 0.1);
+      g_pDataSinkManager.usedMemSize = 0;
+      g_pDataSinkManager.fileBlockSize = 0;
+      g_pDataSinkManager.readDataFromFileTimes = 0;
+      g_pDataSinkManager.dsStreamTaskList =
+          taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+      if (g_pDataSinkManager.dsStreamTaskList == NULL) {
+        return terrno;
   }
-  taosHashSetFreeFp(g_pDataSinkManager.dsStreamTaskList, destroySStreamDSTaskMgr);
-  stInfo("data sink manager init success, max mem size: %" PRId64, tsStreamBufferSizeBytes);
-  return TSDB_CODE_SUCCESS;
+      taosHashSetFreeFp(g_pDataSinkManager.dsStreamTaskList, destroySStreamDSTaskMgr);
+      stInfo("data sink manager init success, max mem size: %" PRId64, tsStreamBufferSizeBytes);
+      return TSDB_CODE_SUCCESS;
 };
 
 static bool isManagerReady() {
@@ -246,13 +246,13 @@ static int32_t createSlidingTaskMgr(int64_t streamId, int64_t taskId, int64_t se
   return TSDB_CODE_SUCCESS;
 }
 
-// @brief 初始化数据缓存
+// @brief Initialize data cache
 int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t cleanMode, int32_t tsSlotId,
                             void** ppCache) {
-  int32_t code = 0;                            
+  int32_t code = 0;
   *ppCache = NULL;
   char key[64] = {0};
-  snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64 "_%"PRId64, streamId, taskId, sessionId);
+  snprintf(key, sizeof(key), "%" PRId64 "_%" PRId64 "_%" PRId64, streamId, taskId, sessionId);
 
   void** ppStreamTaskDSManager = (void**)taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
   if (ppStreamTaskDSManager == NULL) {
@@ -280,7 +280,7 @@ int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
   return code;
 }
 
-// @brief 销毁数据缓存
+// @brief Destroy data cache
 void destroyStreamDataCache(void* pCache) {
   int32_t code = 0;
   if (pCache == NULL) {
@@ -533,8 +533,8 @@ _exit:
   if (code) {
     stError("%s failed at line %d since %s", __FUNCTION__, lino, tstrerror(code));
   } else {
-    stDebug("group %" PRId64 " time range [%" PRId64 ", %" PRId64 "] rows range [%d, %d] added to cache", 
-        groupId, wstart, wend, startIndex, endIndex);
+    stDebug("group %" PRId64 " time range [%" PRId64 ", %" PRId64 "] rows range [%d, %d] added to cache", groupId,
+            wstart, wend, startIndex, endIndex);
   }
   return code;
 }
@@ -615,8 +615,8 @@ int32_t getSlidingDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY en
   SResultIter*       pResultIter = NULL;
   *pIter = NULL;
 
-  stDebug("[get data cache] init groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 " STREAMID:%" PRIx64 ,
-          groupId, start, end, pStreamTaskMgr->streamId);
+  stDebug("[get data cache] init groupID:%" PRId64 ",  start:%" PRId64 " end:%" PRId64 " STREAMID:%" PRIx64, groupId,
+          start, end, pStreamTaskMgr->streamId);
 
   SSlidingGrpMgr** ppExistGrpMgr =
       (SSlidingGrpMgr**)taosHashGet(pStreamTaskMgr->pSlidingGrpList, &groupId, sizeof(groupId));
@@ -982,7 +982,7 @@ int32_t moveMemCache() {
   stInfo("moveMemCache finished, used mem size: %" PRId64 ", max mem size: %" PRId64, g_pDataSinkManager.usedMemSize,
          tsStreamBufferSizeBytes);
   status = atomic_val_compare_exchange_8(&g_slidigGrpMemList.status, DATA_MOVING, DATA_NORMAL);
-  if(status != DATA_MOVING) {
+  if (status != DATA_MOVING) {
     stError("moveMemCache status not changed, expected: %d, actual: %d", DATA_MOVING, status);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
@@ -1024,9 +1024,11 @@ static void disableSlidingGrpMemList() {
 
 int32_t checkAndMoveMemCache(bool forWrite) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (!g_slidigGrpMemList.enabled && g_pDataSinkManager.usedMemSize > tsStreamBufferSizeBytes - g_pDataSinkManager.memAlterSize) {
+  if (!g_slidigGrpMemList.enabled &&
+      g_pDataSinkManager.usedMemSize > tsStreamBufferSizeBytes - g_pDataSinkManager.memAlterSize) {
     return enableSlidingGrpMemList();
-  } else if (g_slidigGrpMemList.enabled && g_pDataSinkManager.usedMemSize < tsStreamBufferSizeBytes - DS_MEM_SIZE_ALTER_QUIT) {
+  } else if (g_slidigGrpMemList.enabled &&
+             g_pDataSinkManager.usedMemSize < tsStreamBufferSizeBytes - DS_MEM_SIZE_ALTER_QUIT) {
     disableSlidingGrpMemList();
     return TSDB_CODE_SUCCESS;
   }

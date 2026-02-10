@@ -188,6 +188,7 @@ SNode*     createValueNode(SAstCreateContext* pCxt, int32_t dataType, const STok
 SNode*     createRawValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral, SNode* pNode);
 SNode*     createRawValueNodeExt(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral, SNode* pLeft,
                                  SNode* pRight);
+SNode*     createTagRefValueNode(SAstCreateContext* pCxt, const SToken* pTagName, SNode* pValueNode);
 SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral);
 SNode*     createIdentifierValueNode(SAstCreateContext* pCxt, SToken* pLiteral);
 SNode*     createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral);
@@ -425,12 +426,12 @@ SNode*  dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceTy
 // pWhere);
 SNode*  dropXnodeResourceWhere(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere);
 SNode*  createXnodeTaskJobWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pTidToken,
-                                      SNode* pNodeOptions);
+                                     SNode* pNodeOptions);
 SNode*  createRebalanceXnodeJobStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* resourceId,
-                                    SNode* pNodeOptions);
+                                   SNode* pNodeOptions);
 SNode*  createRebalanceXnodeJobWhereStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere);
 SNode*  alterXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResIdOrName,
-                                  SNode* pSource, SNode* pSink, SNode* pNode);
+                                 SNode* pSource, SNode* pSink, SNode* pNode);
 /** end @section xnode */
 
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue);
@@ -515,7 +516,7 @@ SNode* createAlterRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode*
 SNode* createKillRsmaTasksStmt(SAstCreateContext* pCxt, SNodeList* pTaskIds, STokenPair* pLevel);
 SNode* createRollupStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd);
 SNode* createRollupVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,
-                                SNode* pEnd);
+                               SNode* pEnd);
 SNode* createShowRetentionDetailsStmt(SAstCreateContext* pCxt, SNode* pId);
 
 SNode*     createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,

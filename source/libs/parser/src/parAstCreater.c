@@ -836,6 +836,41 @@ _err:
   return NULL;
 }
 
+SNode* createTagRefValueNode(SAstCreateContext* pCxt, const SToken* pTagName, SNode* pValueNode) {
+  CHECK_PARSER_STATUS(pCxt);
+  STagRefValueNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TAG_REF_VALUE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+
+  if (pTagName != NULL) {
+    // Reference value: [tag_name FROM] table_name.col_name
+    strncpy(pNode->tagName, pTagName->z, pTagName->n);
+    pNode->tagName[pTagName->n] = '\0';
+    pNode->hasTagName = true;
+    pNode->isConst = false;
+
+    SColumnRefNode* pRef = (SColumnRefNode*)pValueNode;
+    strncpy(pNode->refDbName, pRef->refDbName, sizeof(pNode->refDbName) - 1);
+    strncpy(pNode->refTableName, pRef->refTableName, sizeof(pNode->refTableName) - 1);
+    strncpy(pNode->refColName, pRef->refColName, sizeof(pNode->refColName) - 1);
+    pNode->pConstValue = NULL;
+  } else {
+    // Constant value: literal
+    pNode->hasTagName = false;
+    pNode->tagName[0] = '\0';
+    pNode->isConst = true;
+    pNode->pConstValue = pValueNode;
+    memset(pNode->refDbName, 0, sizeof(pNode->refDbName));
+    memset(pNode->refTableName, 0, sizeof(pNode->refTableName));
+    memset(pNode->refColName, 0, sizeof(pNode->refColName));
+  }
+
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode(pValueNode);
+  return NULL;
+}
+
 SNode* createRawValueNodeExt(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral, SNode* pLeft,
                              SNode* pRight) {
   SValueNode* val = NULL;
@@ -4414,7 +4449,7 @@ SUserOptions* createDefaultUserOptions(SAstCreateContext* pCxt) {
 
 SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOptions* b) {
   if (a == NULL && b == NULL) {
-      return createDefaultUserOptions(pCxt);
+    return createDefaultUserOptions(pCxt);
   }
   if (b == NULL) {
     return a;
@@ -4952,7 +4987,7 @@ STokenOptions* createDefaultTokenOptions(SAstCreateContext* pCxt) {
 
 STokenOptions* mergeTokenOptions(SAstCreateContext* pCxt, STokenOptions* a, STokenOptions* b) {
   if (a == NULL && b == NULL) {
-      return createDefaultTokenOptions(pCxt);
+    return createDefaultTokenOptions(pCxt);
   }
   if (b == NULL) {
     return a;
@@ -5508,15 +5543,15 @@ SNode* createDropXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool f
   if (pXnode->type == TK_NK_STRING) {
     if (pXnode->n <= 2) {
       pCxt->errCode =
-        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode url should not be all be NULL");
-        goto _err;
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode url should not be all be NULL");
+      goto _err;
     }
     COPY_STRING_FORM_STR_TOKEN(pStmt->url, pXnode);
   } else if(pXnode->type == TK_NK_INTEGER) {
     pStmt->xnodeId = taosStr2Int32(pXnode->z, NULL, 10);
   } else {
     pCxt->errCode =
-      generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode id or url should not be all be NULL");
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode id or url should not be all be NULL");
   }
 
   return (SNode*)pStmt;
@@ -6382,7 +6417,7 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
         pOptions->via = taosStr2Int32(via, NULL, 10);
         if (pOptions->via <= 0) {
           pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                                   "Invalid xnode task option via: %s", pVal->z);
+                                                  "Invalid xnode task option via: %s", pVal->z);
           goto _err;
         }
         break;
@@ -6424,7 +6459,7 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
       pOptions->optionsNum++;
     } else {
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                               "reaches max options number(%d) %s", pOptions->optionsNum, key);
+                                              "reaches max options number(%d) %s", pOptions->optionsNum, key);
       goto _err;
     }
   }
@@ -7691,7 +7726,7 @@ _err:
 }
 
 SNode* createRollupVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,
-                                SNode* pEnd) {
+                               SNode* pEnd) {
   CHECK_PARSER_STATUS(pCxt);
   if (NULL == pDbName) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "database not specified");

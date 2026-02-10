@@ -856,7 +856,7 @@ int32_t resetVirtualTableMergeOperState(SOperatorInfo* pOper) {
   SVirtualScanMergeOperatorInfo* pMergeInfo = pOper->info;
   SVirtualScanPhysiNode* pPhynode = (SVirtualScanPhysiNode*)pOper->pPhyNode;
   SVirtualTableScanInfo* pInfo = &pMergeInfo->virtualScanInfo;
-  
+
   pOper->status = OP_NOT_OPENED;
   resetBasicOperatorState(&pMergeInfo->binfo);
 
@@ -952,7 +952,7 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
       (uint64_t)pVirtualScanInfo->bufPageSize * (uint64_t)(numOfDownstream + 1); // one additional is reserved for merged result.
   VTS_ERR_JRET(
       extractColMap(pVirtualScanPhyNode->pTargets, &pVirtualScanInfo->dataSlotMap, &pVirtualScanInfo->tsSlotId,
-                    &pVirtualScanInfo->tagBlockId, &pVirtualScanInfo->useOrgTsCol));
+                             &pVirtualScanInfo->tagBlockId, &pVirtualScanInfo->useOrgTsCol));
 
   pVirtualScanInfo->scanAllCols = pVirtualScanPhyNode->scanAllCols;
 
@@ -992,4 +992,24 @@ _return:
   pTaskInfo->code = code;
   destroyOperatorAndDownstreams(pOperator, pDownstream, numOfDownstream);
   return code;
+}
+
+// Virtual table tag reference data processing function
+static int32_t processTagRefValue(SVirtualTableScanInfo* pScanInfo, STagRef* pTagRef, SColumnInfoData* pTagCol,
+                                  int32_t rowIndex) {
+  return 0;
+  // if (pTagRef->isConst) {
+  //   // Constant value: use directly
+  //   SColumnInfoData* pColInfo = &pTagCol[0];
+  //   colDataAppend(pColInfo, pTagRef->pConstValue, 1, pTagRef->constValueLen);
+  //   return TSDB_CODE_SUCCESS;
+  // } else {
+  //   // Reference value: get tag value from source table
+  //   // TODO: Implement actual tag value query
+  //   // Simplified version: return empty value
+  //   SColumnInfoData* pColInfo = &pTagCol[0];
+  //   char             nullValue[8] = {0};
+  //   colDataAppend(pColInfo, nullValue, 1, 0);
+  //   return TSDB_CODE_SUCCESS;
+  // }
 }

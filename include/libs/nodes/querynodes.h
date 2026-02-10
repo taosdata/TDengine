@@ -156,9 +156,20 @@ typedef struct SValueNode {
   void*      charsetCxt;
 } SValueNode;
 
+typedef struct STagRefValueNode {
+  SExprNode node;                               
+  bool      isConst;                            
+  SNode*    pConstValue;                        
+  char      tagName[TSDB_COL_NAME_LEN];         
+  bool      hasTagName;                         
+  char      refDbName[TSDB_DB_NAME_LEN];        
+  char      refTableName[TSDB_TABLE_NAME_LEN];  
+  char      refColName[TSDB_COL_NAME_LEN]; 
+} STagRefValueNode;
+
 typedef struct SRemoteValueNode {
   SValueNode val;
-//  bool       valSet;
+  //  bool       valSet;
   int32_t    subQIdx;
 } SRemoteValueNode;
 
@@ -907,7 +918,7 @@ int32_t nodesMakeValueNodeFromInt32(int32_t value, SNode** ppNode);
 int32_t nodesMakeValueNodeFromInt64(int64_t value, SNode** ppNode);
 int32_t nodesMakeValueNodeFromTimestamp(int64_t value, SNode** ppNode);
 
-    char*   nodesGetFillModeString(EFillMode mode);
+char*   nodesGetFillModeString(EFillMode mode);
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);
 
 const char* operatorTypeStr(EOperatorType type);

@@ -18329,7 +18329,7 @@ static int32_t translateShowCreateVTable(STranslateContext* pCxt, SShowCreateTab
 }
 
 static int32_t translateShowVirtualTableValidate(STranslateContext* pCxt, SShowValidateVirtualTable* pStmt) {
-  // 1. 从缓存获取表配置
+  // 1. Get table configuration from cache
   SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
   tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
   tstrncpy(name.tname, pStmt->tableName, TSDB_TABLE_NAME_LEN);
@@ -18339,7 +18339,7 @@ static int32_t translateShowVirtualTableValidate(STranslateContext* pCxt, SShowV
     return code;
   }
 
-  // 2. 验证表类型：必须为虚拟表
+  // 2. Validate table type: must be virtual table
   STableCfg* pTableCfg = (STableCfg*)pStmt->pTableCfg;
   bool isVtb = (pTableCfg->tableType == TSDB_VIRTUAL_CHILD_TABLE || pTableCfg->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
                 pTableCfg->virtualStb);
@@ -21289,10 +21289,10 @@ static int32_t validateShowValidateMeta(STranslateContext* pCxt, SShowValidateVi
       (tableType == TSDB_VIRTUAL_CHILD_TABLE || tableType == TSDB_VIRTUAL_NORMAL_TABLE || pTableMeta->virtualStb == 1);
 
   if (!isVtb) {
-   code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_TYPE, "'%s' is not a virtual table",
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_TYPE, "'%s' is not a virtual table",
                                    pStmt->tableName);
   }
-  pStmt->superTable = (tableType == TSDB_VIRTUAL_CHILD_TABLE  || tableType == TSDB_VIRTUAL_NORMAL_TABLE) ? 0 : 1; 
+  pStmt->superTable = (tableType == TSDB_VIRTUAL_CHILD_TABLE || tableType == TSDB_VIRTUAL_NORMAL_TABLE) ? 0 : 1;
 
 _exit:
   taosMemoryFreeClear(pTableMeta);
@@ -21945,26 +21945,61 @@ static int32_t buildKVRowForAllTags(STranslateContext* pCxt, SNodeList* pValsOfT
   char        tokenBuf[TSDB_MAX_TAGS_LEN];
   const char* tagStr = NULL;
   FOREACH(pNode, pValsOfTags) {
-    tagStr = ((SValueNode*)pNode)->literal;
-    NEXT_TOKEN_WITH_PREV(tagStr, token);
+    if (nodeType(pNode) == QUERY_NODE_TAG_REF_VALUE) {
+      STagRefValueNode* pTagRef = (STagRefValueNode*)pNode;
 
-    code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pTagSchema->type);
-    if (TSDB_CODE_SUCCESS == code && TK_NK_VARIABLE == token.type) {
-      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
-    }
+      if (pTagRef->isConst) {
+        // Constant value: use directly
+        tagStr = ((SValueNode*)pTagRef->pConstValue)->literal;
+        NEXT_TOKEN_WITH_PREV(tagStr, token);
 
-    if (TSDB_CODE_SUCCESS == code) {
-      if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
-        isJson = true;
+        code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pTagSchema->type);
+        if (TSDB_CODE_SUCCESS == code && TK_NK_VARIABLE == token.type) {
+          code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+        }
+
+        if (TSDB_CODE_SUCCESS == code) {
+          if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
+            isJson = true;
+          }
+          code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pTagSchema, &token, tagName, pTagArray, ppTag,
+                               pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
+        }
+
+        if (TSDB_CODE_SUCCESS == code) {
+          NEXT_VALID_TOKEN(tagStr, token);
+          if (token.n != 0) {
+            code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+          }
+        }
+      } else {
+        // Tag value reference: need to get tag value from other tables
+        // TODO: Implement cross-table tag value query in Mnode layer
+        code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Tag reference not implemented yet");
       }
-      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pTagSchema, &token, tagName, pTagArray, ppTag,
-                           pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
-    }
+    } else {
+      // Original constant value processing logic (backward compatible)
+      tagStr = ((SValueNode*)pNode)->literal;
+      NEXT_TOKEN_WITH_PREV(tagStr, token);
 
-    if (TSDB_CODE_SUCCESS == code) {
-      NEXT_VALID_TOKEN(tagStr, token);
-      if (token.n != 0) {
+      code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pTagSchema->type);
+      if (TSDB_CODE_SUCCESS == code && TK_NK_VARIABLE == token.type) {
         code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+      }
+
+      if (TSDB_CODE_SUCCESS == code) {
+        if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
+          isJson = true;
+        }
+        code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pTagSchema, &token, tagName, pTagArray, ppTag,
+                             pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
+      }
+
+      if (TSDB_CODE_SUCCESS == code) {
+        NEXT_VALID_TOKEN(tagStr, token);
+        if (token.n != 0) {
+          code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+        }
       }
     }
 

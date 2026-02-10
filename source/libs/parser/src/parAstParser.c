@@ -1456,7 +1456,7 @@ static int32_t collectMetaKeyFromShowBlockDist(SCollectMetaKeyCxt* pCxt, SShowTa
   return code;
 }
 static int32_t collectMetaKeyFromShowValidateVtable(SCollectMetaKeyCxt* pCxt, SShowValidateVirtualTable* pStmt) {
-  // 收集数据库信息
+  // Collect database information
   int32_t code = 0;
 
   code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB,

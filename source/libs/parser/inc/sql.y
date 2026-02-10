@@ -1019,13 +1019,18 @@ cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
   NK_LP specific_column_ref_list(C) NK_RP USING full_table_name(D)
   specific_cols_opt(E) TAGS NK_LP tags_literal_list(F) NK_RP.                     { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, C, NULL, D, E, F); }
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
+  NK_LP specific_column_ref_list(C) NK_RP USING full_table_name(D)
+  specific_cols_opt(E) TAGS NK_LP tag_ref_value_list(F) NK_RP.                  { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, C, NULL, D, E, F); }
+cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_ref_list(C) NK_RP USING full_table_name(D)
   specific_cols_opt(E) TAGS NK_LP tags_literal_list(F) NK_RP.                     { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, NULL, C, D, E, F); }
+cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
+  NK_LP column_ref_list(C) NK_RP USING full_table_name(D)
+  specific_cols_opt(E) TAGS NK_LP tag_ref_value_list(F) NK_RP.                  { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, NULL, C, D, E, F); }
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B) USING full_table_name(C)
   specific_cols_opt(D) TAGS NK_LP tags_literal_list(E) NK_RP.                     { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, NULL, NULL, C, D, E); }
-
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B) USING full_table_name(C)
-  specific_cols_opt(D) TAGS NK_LP specific_column_ref_list(E) NK_RP.                     { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, NULL, NULL, C, D, E); }
+  specific_cols_opt(D) TAGS NK_LP tag_ref_value_list(E) NK_RP.                  { pCxt->pRootNode = createCreateVSubTableStmt(pCxt, A, B, NULL, NULL, C, D, E); }
 
 cmd ::= DROP TABLE with_opt(A) multi_drop_clause(B).                              { pCxt->pRootNode = createDropTableStmt(pCxt, A, B); }
 cmd ::= DROP STABLE with_opt(A) exists_opt(B) full_table_name(C).                 { pCxt->pRootNode = createDropSuperTableStmt(pCxt, A, B, C); }
@@ -1941,6 +1946,15 @@ tags_literal(A) ::= literal_func(B) NK_MINUS duration_literal(C).               
 %destructor tags_literal_list                                                     { nodesDestroyList($$); }
 tags_literal_list(A) ::= tags_literal(B).                                         { A = createNodeList(pCxt, B); }
 tags_literal_list(A) ::= tags_literal_list(B) NK_COMMA tags_literal(C).           { A = addNodeToList(pCxt, B, C); }
+
+%type tag_ref_value                                                                { SNode* }
+%destructor tag_ref_value                                                          { nodesDestroyNode($$); }
+tag_ref_value(A) ::= column_name(B) FROM column_ref(C).                           { A = createTagRefValueNode(pCxt, &B, C); }
+
+%type tag_ref_value_list                                                           { SNodeList* }
+%destructor tag_ref_value_list                                                     { nodesDestroyList($$); }
+tag_ref_value_list(A) ::= tag_ref_value(B).                                         { A = createNodeList(pCxt, B); }
+tag_ref_value_list(A) ::= tag_ref_value_list(B) NK_COMMA tag_ref_value(C).           { A = addNodeToList(pCxt, B, C); }
 
 /************************************************ literal *************************************************************/
 literal(A) ::= NK_INTEGER(B).                                                     { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B)); }

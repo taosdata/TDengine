@@ -57,9 +57,9 @@ static int32_t  mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 static void     mndCancelGetNextStb(SMnode *pMnode, void *pIter);
 static int32_t  mndProcessTableCfgReq(SRpcMsg *pReq);
 static int32_t  mndAlterStbImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp,
-                               void *alterOriData, int32_t alterOriDataLen);
+                              void *alterOriData, int32_t alterOriDataLen);
 static int32_t  mndAlterStbAndUpdateTagIdxImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp,
-                                              void *alterOriData, int32_t alterOriDataLen, const SMAlterStbReq *pAlter);
+                                             void *alterOriData, int32_t alterOriDataLen, const SMAlterStbReq *pAlter);
 
 static int32_t mndProcessCreateIndexReq(SRpcMsg *pReq);
 static int32_t mndProcessDropIndexReq(SRpcMsg *pReq);
@@ -462,7 +462,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->ttl = pNew->ttl;
   pOld->keep = pNew->keep;
   pOld->ownerId = pNew->ownerId;
-  
+
   if (pNew->numOfColumns > 0) {
     pOld->numOfColumns = pNew->numOfColumns;
     memcpy(pOld->pColumns, pNew->pColumns, pOld->numOfColumns * sizeof(SSchema));
@@ -2259,7 +2259,7 @@ static int32_t mndBuildStbSchemaImp(SMnode *pMnode, SDbObj *pDb, SStbObj *pStb, 
     pSchema->colId = pSrcSchema->colId;
     pSchema->bytes = pSrcSchema->bytes;
   }
-  
+
   for (int32_t i = 0; i < pStb->numOfTags; ++i) {
     SSchema *pSchema = &pRsp->pSchemas[i + pStb->numOfColumns];
     SSchema *pSrcSchema = &pStb->pTags[i];
@@ -3434,7 +3434,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     char watermark[64 + VARSTR_HEADER_SIZE] = {0};
     (void)tsnprintf(varDataVal(watermark), sizeof(watermark) - VARSTR_HEADER_SIZE, "%" PRId64 "a,%" PRId64 "a",
-              pStb->watermark[0], pStb->watermark[1]);
+                    pStb->watermark[0], pStb->watermark[1]);
     varDataSetLen(watermark, strlen(varDataVal(watermark)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -3442,7 +3442,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     char maxDelay[64 + VARSTR_HEADER_SIZE] = {0};
     (void)tsnprintf(varDataVal(maxDelay), sizeof(maxDelay) - VARSTR_HEADER_SIZE, "%" PRId64 "a,%" PRId64 "a",
-              pStb->maxdelay[0], pStb->maxdelay[1]);
+                    pStb->maxdelay[0], pStb->maxdelay[1]);
     varDataSetLen(maxDelay, strlen(varDataVal(maxDelay)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -3753,7 +3753,7 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pStb->pColumns[i].bytes, false), pStb,
                             &lino, _OVER);
-        
+
         // col precision, col scale, col nullable, col source
         for (int32_t j = 6; j <= 9; ++j) {
           pColInfo = taosArrayGet(pBlock->pDataBlock, j);
@@ -4232,3 +4232,72 @@ _end:
   tFreeFetchTtlExpiredTbsRsp(&rsp);
   TAOS_RETURN(code);
 }
+
+// Cross-table tag value query function
+// int32_t mndGetTagValueFromTable(SMnode *pMnode, const char *pDbName, const char *pTableName, const char *pTagName,
+//                                 void **ppTagVal) {
+//   if (pMnode == NULL || pDbName == NULL || pTableName == NULL || pTagName == NULL || ppTagVal == NULL) {
+//     terrno = TSDB_CODE_INVALID_PARA;
+//     return terrno;
+//   }
+
+//   int32_t code = TSDB_CODE_SUCCESS;
+
+//   // Get database object
+//   SDbObj *pDb = mndAcquireDb(pMnode, pDbName);
+//   if (pDb == NULL) {
+//     code = TSDB_CODE_PAR_DB_NOT_EXIST;
+//     mError("db:%s not found", pDbName);
+//     return code;
+//   }
+
+//   // Get source table meta
+//   char fullName[TSDB_TABLE_FNAME_LEN] = {0};
+//   snprintf(fullName, sizeof(fullName), "%s.%s", pDbName, pTableName);
+
+//   STableMeta *pTableMeta = NULL;
+//   code = catalogGetTableMeta(pMnode->pCatalog, pMnode->pMetaRid, pMnode->acctId, pDbName, pTableName, &pTableMeta);
+//   if (code != TSDB_CODE_SUCCESS) {
+//     mError("table:%s not found", fullName);
+//     mndReleaseDb(pMnode, pDb);
+//     return code;
+//   }
+
+//   // Find tag
+//   SSchema *pTagSchema = getTableTagSchema(pTableMeta);
+//   int32_t  numOfTags = getNumOfTags(pTableMeta);
+
+//   for (int32_t i = 0; i < numOfTags; ++i) {
+//     if (strcmp(pTagSchema[i].name, pTagName) == 0) {
+//       // Found tag, allocate memory and return
+//       int32_t bytes = pTagSchema[i].bytes;
+//       *ppTagVal = taosMemoryMalloc(bytes);
+//       if (*ppTagVal == NULL) {
+//         code = TSDB_CODE_OUT_OF_MEMORY;
+//         taosMemoryFree(pTableMeta);
+//         mndReleaseDb(pMnode, pDb);
+//         return code;
+//       }
+
+//       // Should get tag value from actual data here
+//       // Simplified version: return default value
+//       if (IS_VAR_DATA_TYPE(pTagSchema[i].type)) {
+//         memset(*ppTagVal, 0, bytes);
+//       } else {
+//         memset(*ppTagVal, 0, bytes);
+//       }
+
+//       taosMemoryFree(pTableMeta);
+//       mndReleaseDb(pMnode, pDb);
+//       return TSDB_CODE_SUCCESS;
+//     }
+//   }
+
+//   // Tag not found
+//   code = TSDB_CODE_PAR_TAG_NOT_FOUND;
+//   mError("tag:%s not found in table:%s", pTagName, fullName);
+
+//   taosMemoryFree(pTableMeta);
+//   mndReleaseDb(pMnode, pDb);
+//   return code;
+// }
