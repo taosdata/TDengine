@@ -2934,6 +2934,14 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
       }
       pDst->trigger.event.trueForDuration = pSrc->trigger.event.trueForDuration;
       break;
+    case WINDOW_TYPE_COUNT:
+      pDst->trigger.count.countVal = pSrc->trigger.count.countVal;
+      pDst->trigger.count.sliding = pSrc->trigger.count.sliding;
+      if (pSrc->trigger.count.condCols) {
+        pDst->trigger.count.condCols = COPY_STR(pSrc->trigger.count.condCols);
+        TSDB_CHECK_NULL(pDst->trigger.count.condCols, code, lino, _exit, terrno);
+      }
+      break;
     default:
       pDst->trigger = pSrc->trigger;
       break;

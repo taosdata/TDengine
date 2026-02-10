@@ -849,7 +849,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->triggerHasPF = pStream->pCreate->triggerHasPF;
   pMsg->isTriggerTblStb = (pStream->pCreate->triggerTblType == TSDB_SUPER_TABLE);
   pMsg->precision = pStream->pCreate->triggerPrec;
-  pMsg->partitionCols = pStream->pCreate->partitionCols;
+  pMsg->partitionCols = pInfo->pCreate->partitionCols;
 
   pMsg->pNotifyAddrUrls = pInfo->pCreate->pNotifyAddrUrls;
   pMsg->notifyEventTypes = pStream->pCreate->notifyEventTypes;
@@ -5321,6 +5321,3 @@ _exit:
 
   return code;
 }
-
-
-
