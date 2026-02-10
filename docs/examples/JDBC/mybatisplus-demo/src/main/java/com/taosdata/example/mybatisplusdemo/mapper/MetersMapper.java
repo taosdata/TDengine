@@ -3,12 +3,8 @@ package com.taosdata.example.mybatisplusdemo.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.taosdata.example.mybatisplusdemo.domain.Meters;
 import org.apache.ibatis.annotations.Insert;
-import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
-import org.apache.ibatis.executor.BatchResult;
-
-import java.util.List;
 
 public interface MetersMapper extends BaseMapper<Meters> {
 

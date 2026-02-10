@@ -3539,7 +3539,7 @@ void    tFreeSMAlterEncryptKeyReq(SMAlterEncryptKeyReq* pReq);
 
 typedef struct {
   int32_t days;
-  char    strategy[64];
+  char    strategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1];
   int32_t sqlLen;
   char*   sql;
 } SMAlterKeyExpirationReq;

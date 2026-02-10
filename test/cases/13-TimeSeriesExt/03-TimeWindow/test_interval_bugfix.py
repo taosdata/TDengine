@@ -1,5 +1,6 @@
 import taos
 import socket
+import random
 from new_test_framework.utils import tdLog, tdSql, TDSql, tdDnodes
 
 
@@ -43,6 +44,123 @@ class TestIntervalBugFix:
         self.ts_5400_test()
         self.ts_7676_test_dup_ts()
         self.ts_7676_test_uni_ts()
+        self.td_6739571506_test()
+        self.sliding_month_february()
+
+    def sliding_month_february(self):
+        """Validate interval(1n) monthly windows over February with various sliding values.
+
+        Covers:
+        - Equivalent 28-day sliding representations: 2419200000 (ms), 4w, 2419200000000u (microsecond),
+            2419200000000000b (nanosecond), and near-equal values (e.g., 2419200000999u, 2419200000999999b).
+            Expect identical window boundaries and counts for February (non-leap year).
+        - Boundary checks: 28 days minus 1 ms (2419199999) is accepted and slightly shifts boundaries;
+            28 days plus 1 ms (2419200001) is rejected (error).
+        - Invalid cases: 29 days (2505599999/2505600000) and 5w with interval(1n) are rejected (error).
+        - Data spans January–March to verify natural month boundaries and aggregation results via check_helper().
+        """
+        tdLog.info("prepare data for sliding February test (non-leap and leap year)")
+        # Non-leap year: 2021-02 has 28 days
+        self.testSql.execute("create database if not exists db_sliding_feb;")
+        self.testSql.execute("use db_sliding_feb;")
+        self.testSql.execute("create stable if not exists st(ts TIMESTAMP, v INT) tags(t INT);")
+        self.testSql.execute("create table if not exists t2021 using st tags(2021);")
+
+        # Insert three points within Feb 2021
+        self.testSql.execute("insert into t2021 values ('2021-01-01 00:00:00.000', 1);")
+        self.testSql.execute("insert into t2021 values ('2021-01-14 12:00:00.000', 2);")
+        self.testSql.execute("insert into t2021 values ('2021-01-29 23:59:59.000', 3);")
+        self.testSql.execute("insert into t2021 values ('2021-02-01 00:00:00.000', 1);")
+        self.testSql.execute("insert into t2021 values ('2021-02-14 12:00:00.000', 2);")
+        self.testSql.execute("insert into t2021 values ('2021-02-28 23:59:59.000', 3);")
+        self.testSql.execute("insert into t2021 values ('2021-03-01 00:00:00.000', 1);")
+        self.testSql.execute("insert into t2021 values ('2021-03-14 12:00:00.000', 2);")
+        self.testSql.execute("insert into t2021 values ('2021-03-29 23:59:59.000', 3);")
+        
+        def check_helper():
+            self.testSql.checkData(0, 0, "2020-12-24 08:00:00.000")
+            self.testSql.checkData(0, 1, "2021-01-24 08:00:00.000")
+            self.testSql.checkData(0, 2, 2)
+            self.testSql.checkData(1, 0, "2021-01-21 08:00:00.000")
+            self.testSql.checkData(1, 1, "2021-02-21 08:00:00.000")
+            self.testSql.checkData(1, 2, 3)
+            self.testSql.checkData(2, 0, "2021-02-18 08:00:00.000")
+            self.testSql.checkData(2, 1, "2021-03-18 08:00:00.000")
+            self.testSql.checkData(2, 2, 3)
+            self.testSql.checkData(3, 0, "2021-03-18 08:00:00.000")
+            self.testSql.checkData(3, 1, "2021-04-18 08:00:00.000")
+            self.testSql.checkData(3, 2, 1)
+            
+            
+        # 28 days: 2419200000 ms
+        sql = (
+            "select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2419200000)"
+        )
+        self.testSql.query(sql)
+        check_helper()
+        
+        # 4 weeks
+        sql = (
+            "select _wstart, _wend, count(*) from t2021 interval(1n) sliding(4w)"
+        )
+        self.testSql.query(sql)
+        check_helper()
+
+        # 28 days: 2419200000000 us, precision unit is microsecond, so same as 2419200000 ms 
+        self.testSql.query("select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2419200000000u)")
+        check_helper()
+
+        self.testSql.query("select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2419200000999u)")
+        check_helper()
+        
+        # 28 days: 2419200000000000 ns, precision unit is microsecond, so same as 2419200000 ms 
+        self.testSql.query("select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2419200000000000b)")
+        check_helper()
+
+        self.testSql.query("select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2419200000999999b)")
+        check_helper()
+        
+        self.testSql.error("select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2419200001000u)")
+        self.testSql.error("select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2419200001000000b)")
+          
+        # 28 days: 2419200000 ms - 1 ms
+        sql = (
+            "select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2419199999)"
+        )
+        self.testSql.query(sql)
+        
+        self.testSql.checkData(0, 2, 2)
+        self.testSql.checkData(1, 2, 3)
+        self.testSql.checkData(2, 0, "2021-02-18 07:59:59.333")
+        self.testSql.checkData(2, 1, "2021-03-18 07:59:59.333")
+        self.testSql.checkData(2, 2, 3)
+        self.testSql.checkData(3, 0, "2021-03-18 07:59:59.332")
+        self.testSql.checkData(3, 1, "2021-04-18 07:59:59.332")
+        self.testSql.checkData(3, 2, 1)
+
+        # 28 days: 2419200000 ms + 1 ms
+        sql = (
+            "select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2419200001)"
+        )
+        self.testSql.error(sql)
+        
+        # 29 days: 2505600000 ms - 1 ms
+        sql = (
+            "select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2505599999)"
+        )
+        self.testSql.error(sql)
+        
+        # 29 days: 2505600000 ms
+        sql = (
+            "select _wstart, _wend, count(*) from t2021 interval(1n) sliding(2505600000)"
+        )
+        self.testSql.error(sql)
+        
+        # 5 weeks
+        sql = (
+            "select _wstart, _wend, count(*) from t2021 interval(1n) sliding(5w)"
+        )
+        self.testSql.error(sql)
 
     def ts_5400_test(self):        
         self.ts_5400_prepare_data()
@@ -491,3 +609,35 @@ class TestIntervalBugFix:
         tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         
+    def td_6739571506_test(self):
+        tdLog.info("prepare data for TD-6739571506 test")
+        self.testSql.execute("create database test_6739571506;")
+        self.testSql.execute("use test_6739571506;")
+        
+        self.testSql.execute("create stable stb(ts TIMESTAMP, `q_int` int) tags(ta int);")
+        self.testSql.execute("create table t1 using stb tags(1);")
+        
+        self.testSql.execute("insert into t1 values (1633450000000, 1);")
+        
+        self.testSql.query("select bottom(q_int,71) from (select * from stb)  interval(11n,9n) order by ts;")
+        self.testSql.checkRows(1)
+        self.testSql.query("select bottom(q_int,71) from (select * from stb)  interval(15n,9n) order by ts;")
+        self.testSql.checkRows(1)
+        self.testSql.query("select bottom(q_int,71) from (select * from stb)  interval(1088n,500n) order by ts;")
+        self.testSql.checkRows(1)
+
+        # Insert 100 rows with random timestamps and values
+        tdLog.info("insert 100 random timestamp rows for td_6739571506_test")
+        base_ts = 1633450000000  # base timestamp in ms
+        for _ in range(100):
+            rand_ts = base_ts + random.randint(0, 800 * 24 * 60 * 60 * 1000)  # within 800 days
+            rand_q = random.randint(0, 100)
+            tdLog.info(f"Inserting row: ts={rand_ts}, q_int={rand_q}")
+            self.testSql.execute(f"insert into t1 values ({rand_ts}, {rand_q});")
+            
+            # random data, should not crash or hang, just check it runs successfully
+            self.testSql.query("select bottom(q_int,1) from (select * from stb)  interval(11n,9n) order by ts;")
+            self.testSql.query("select bottom(q_int,71) from (select * from stb)  interval(15n,9n) order by ts;")
+            self.testSql.query("select bottom(q_int,71) from (select * from stb)  interval(1088n,500n) order by ts;")
+            
+        return

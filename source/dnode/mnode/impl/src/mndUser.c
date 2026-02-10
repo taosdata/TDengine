@@ -1361,7 +1361,7 @@ static int32_t mndUserPrivUpgradeUser(SMnode *pMnode, SUserObj *pObj) {
   TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pAlterTbs, PRIV_CM_ALTER, PRIV_OBJ_TBL));
   TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pReadViews, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW));
   TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pAlterViews, PRIV_CM_ALTER, PRIV_OBJ_VIEW));
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pWriteViews, PRIV_CM_DROP, PRIV_OBJ_VIEW));
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pAlterViews, PRIV_CM_DROP, PRIV_OBJ_VIEW));
   // used dbs
   TAOS_CHECK_EXIT(mndUserPrivUpgradeUsedDbs(pMnode, pObj, pPrivSet->pUseDbs));
   // subscribe
@@ -4901,6 +4901,7 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 #ifdef TD_ENTERPRISE
   SMnode   *pMnode = pReq->info.node;
   SSdb     *pSdb = pMnode->pSdb;
+  SUserObj *pOperUser = NULL;
   SUserObj *pUser = NULL;
   int32_t   code = 0;
   int32_t   lino = 0;
@@ -4912,6 +4913,15 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   char     *pBuf = NULL;
   char      tBuf[TSDB_MAX_SUBROLE * TSDB_ROLE_LEN + VARSTR_HEADER_SIZE] = {0};
   int32_t   bufSize = sizeof(tBuf) - VARSTR_HEADER_SIZE;
+  bool      showSecurityInfo = false;
+
+  code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser);
+  if (pOperUser == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_NO_USER_FROM_CONN);
+  }
+  if (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), PRIV_USER_SHOW_SECURITY, 0, 0, NULL, NULL)) {
+    showSecurityInfo = true;
+  }
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_USER, pShow->pIter, (void **)&pUser);
@@ -4956,7 +4966,8 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     char pass[TSDB_PASSWORD_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(pass, pUser->passwords[0].pass, pShow->pMeta->pSchemas[cols].bytes);
+    STR_WITH_MAXSIZE_TO_VARSTR(pass, showSecurityInfo ? pUser->passwords[0].pass : "*",
+                               pShow->pMeta->pSchemas[cols].bytes);
     COL_DATA_SET_VAL_GOTO((const char *)pass, false, pUser, pShow->pIter, _exit);
 
     cols++;
@@ -5076,6 +5087,7 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 _exit:
   taosMemoryFreeClear(buf);
   taosMemoryFreeClear(varstr);
+  mndReleaseUser(pMnode, pOperUser);
   if (code < 0) {
     mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);

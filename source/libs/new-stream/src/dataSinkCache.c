@@ -99,7 +99,7 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
             *ppBlock = pMoveWinInfo->pData;
             pMoveWinInfo->pData = NULL;
           }
-          atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pMoveWinInfo->moveSize);
+          (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pMoveWinInfo->moveSize);
         } else {
           code = getRangeInWindowBlock(pWindowData, pResult->tsColSlotId, TSKEY_MIN, TSKEY_MAX,
                                        ppBlock);
@@ -167,11 +167,11 @@ static void updateSlidingGrpUsedMemSize(SSlidingGrpMgr* pSlidingGrpMgr) {
       code = taosHashPut(g_slidigGrpMemList.pSlidingGrpList, &pSlidingGrpMgr, sizeof(SSlidingGrpMgr*),
                          &pSlidingGrpMgr->usedMemSize, sizeof(int64_t));
       if (code == TSDB_CODE_SUCCESS) {
-        atomic_add_fetch_64(&g_slidigGrpMemList.waitMoveMemSize, pSlidingGrpMgr->usedMemSize);
+        (void)atomic_add_fetch_64(&g_slidigGrpMemList.waitMoveMemSize, pSlidingGrpMgr->usedMemSize);
       }
     } else {
-      atomic_add_fetch_64(&g_slidigGrpMemList.waitMoveMemSize, pSlidingGrpMgr->usedMemSize);
-      atomic_sub_fetch_64(&g_slidigGrpMemList.waitMoveMemSize, *oldSize);
+      (void)atomic_add_fetch_64(&g_slidigGrpMemList.waitMoveMemSize, pSlidingGrpMgr->usedMemSize);
+      (void)atomic_sub_fetch_64(&g_slidigGrpMemList.waitMoveMemSize, *oldSize);
     }
   }
 }
@@ -216,8 +216,8 @@ int32_t readDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, bool* finis
 }
 
 void slidingGrpMgrUsedMemAdd(SSlidingGrpMgr* pGrpCacheMgr, int64_t size) {
-  atomic_add_fetch_64(&pGrpCacheMgr->usedMemSize, size);
-  atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, size);
+  (void)atomic_add_fetch_64(&pGrpCacheMgr->usedMemSize, size);
+  (void)atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, size);
 }
 
 bool setNextIteratorFromMem(SResultIter** ppResult) {
@@ -275,7 +275,7 @@ _end:
 void destroySlidingWindowInMem(void* pData) {
   SSlidingWindowInMem* pSlidingWinInMem = (SSlidingWindowInMem*)pData;
   if (pSlidingWinInMem) {
-    atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pSlidingWinInMem->dataLen + sizeof(SSlidingWindowInMem));
+    (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pSlidingWinInMem->dataLen + sizeof(SSlidingWindowInMem));
     taosMemoryFree(pSlidingWinInMem);
   }
 }
@@ -283,7 +283,7 @@ void destroySlidingWindowInMem(void* pData) {
 void destroySlidingWindowInMemPP(void* pData) {
   SSlidingWindowInMem* pSlidingWinInMem = *(SSlidingWindowInMem**)pData;
   if (pSlidingWinInMem) {
-    atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pSlidingWinInMem->dataLen + sizeof(SSlidingWindowInMem));
+    (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pSlidingWinInMem->dataLen + sizeof(SSlidingWindowInMem));
     taosMemoryFree(pSlidingWinInMem);
     *(SSlidingWindowInMem**)pData = NULL;
   }
@@ -292,7 +292,7 @@ void destroySlidingWindowInMemPP(void* pData) {
 void destroyAlignBlockInMemPP(void* ppData) {
   SAlignBlocksInMem* pAlignBlockInfo = *(SAlignBlocksInMem**)ppData;
   if (pAlignBlockInfo) {
-    atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, DS_FILE_BLOCK_SIZE + sizeof(SAlignBlocksInMem));
+    (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, DS_FILE_BLOCK_SIZE + sizeof(SAlignBlocksInMem));
     taosMemoryFree(pAlignBlockInfo);
     *(SAlignBlocksInMem**)ppData = NULL;
   }
@@ -302,7 +302,7 @@ void destroyAlignBlockInMem(void* pData) {
   SAlignBlocksInMem* pAlignBlockInfo = (SAlignBlocksInMem*)pData;
   if (pAlignBlockInfo) {
     taosMemoryFree(pAlignBlockInfo);
-    atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, DS_FILE_BLOCK_SIZE + sizeof(SAlignBlocksInMem));
+    (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, DS_FILE_BLOCK_SIZE + sizeof(SAlignBlocksInMem));
   }
 }
 
@@ -336,7 +336,7 @@ int32_t getEnoughBuffWindow(SAlignGrpMgr* pAlignGrpMgr, size_t dataEncodeBufSize
   }
   *ppAlignBlockInfo = pAlignBlockInfo;
 
-  atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, DS_FILE_BLOCK_SIZE + sizeof(SAlignBlocksInMem));
+  (void)atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, DS_FILE_BLOCK_SIZE + sizeof(SAlignBlocksInMem));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -399,7 +399,7 @@ int32_t buildMoveAlignWindowInMem(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBloc
   SMoveWindowInfo* pMoveInfo = (SMoveWindowInfo*)pStart;
   pMoveInfo->moveSize = moveSize;
   pMoveInfo->pData = pBlock;
-  atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, moveSize);
+  (void)atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, moveSize);
   setUsedBlockBuf(pAlignBlockInfo, dataEncodeBufSize);
 
   return TSDB_CODE_SUCCESS;
@@ -441,7 +441,7 @@ int32_t moveMemFromWaitList(int8_t mode) {
     }
 
     code = moveSlidingGrpMemCache(NULL, pSlidingGrp);
-    changeMgrStatus(&pSlidingGrp->status, GRP_DATA_IDLE);
+    (void)changeMgrStatus(&pSlidingGrp->status, GRP_DATA_IDLE);
     if (code != TSDB_CODE_SUCCESS) {
       stError("failed to move sliding group mem cache, code: %d err: %s", code, terrMsg);
     }
@@ -471,7 +471,7 @@ int32_t moveSlidingTaskMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr) {
       continue;  // another thread is using this group, skip it
     }
     code = moveSlidingGrpMemCache(pSlidingTaskMgr, pSlidingGrp);
-    changeMgrStatus(&pSlidingGrp->status, GRP_DATA_IDLE);
+    (void)changeMgrStatus(&pSlidingGrp->status, GRP_DATA_IDLE);
     if (code != TSDB_CODE_SUCCESS) {
       stError("failed to move sliding group mem cache, code: %d err: %s", code, terrMsg);
     }

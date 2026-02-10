@@ -33,6 +33,7 @@ The JDBC driver implementation for TDengine strives to be consistent with relati
 
 | taos-jdbcdriver Version | Major Changes                                                                                                                                                                                                                                                                                                                                                                                                                              | TDengine Version   |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
+| 3.8.1                   | Decimal and Blob types support writing via parameter binding.                                                                                                                                                                                                                                                                                                                                                            | -                  |
 | 3.8.0                   | 1. Load balancing adopts the least connections algorithm. <br/> 2. Supports connection rebalancing after failure node recovery. <br/> 3. Supports reporting connector type and version. <br/> 4. Supports BearerToken authentication. <br/> 5. Fixed the nanosecond precision issue when parameter binding includes sub-table names. <br/> 6. Log desensitization optimization. <br/>                                                                                                                                                                                                                                                                                                                                                            | -                  |
 | 3.7.8                   | Fixed the bug that the `getTables` method requires an identifier quote string.                                                                                                                                                                                                                                                                                                                                                             | -                  |
 | 3.7.7                   | 1. Fixed the issue of loading configuration files on the Windows platform. <br/> 2. Fixed the problem of mutual interference between WebSocket connection Statement timeout settings                                                                                                                                                                                                                                                       | -                  |
@@ -108,8 +109,8 @@ TDengine currently supports timestamp, numeric, character, boolean types, and th
 | JSON              | java.lang.String     | only supported in tags                                       |
 | VARBINARY         | byte[]               |                                                              |
 | GEOMETRY          | byte[]               |                                                              |
-| BLOB              | byte[]               | only supported in columns                                    |
-| DECIMAL           | java.math.BigDecimal | only supported in WebSocket connections                      |
+| BLOB              | byte[]               | Only supported for columns in WebSocket connections.         |
+| DECIMAL           | java.math.BigDecimal | Only supported for columns in WebSocket connections.         |
 
 **Note**: Due to historical reasons, the BINARY type in TDengine is not truly binary data and is no longer recommended. Please use VARBINARY type instead.  
 GEOMETRY type is binary data in little endian byte order, complying with the WKB standard. For more details, please refer to [Data Types](../../sql-manual/data-types/)  
@@ -127,7 +128,10 @@ The source code for the example programs is located in `TDengine/docs/examples/J
 - springbootdemo: Using taos-jdbcdriver in Springboot.
 - consumer-demo: Consumer example consuming TDengine data, with controllable consumption speed through parameters.
 
-Please refer to: [JDBC example](https://github.com/taosdata/TDengine/tree/main/docs/examples/JDBC)
+Please refer to:
+
+- [JDBC JDK17 example](https://github.com/taosdata/TDengine/tree/main/docs/examples/JDBC)
+- [JDBC JDK8 example](https://github.com/taosdata/TDengine/tree/ver-3.4.0.0/docs/examples/JDBC)
 
 ## Frequently Asked Questions
 
