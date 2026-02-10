@@ -23,7 +23,7 @@
           </el-option>
         </el-select>
       </el-form-item>
-      <el-form-item label=" ">
+      <el-form-item label="">
         <el-button type="primary" :disabled="drawing" @click="drawChart">{{ t('explorer.draw') }}</el-button>
       </el-form-item>
     </el-form>
@@ -65,6 +65,49 @@ watch(
   }
 );
 
+// 计算合适的 y 轴范围和间隔
+function calculateYAxisRange(min: number, max: number) {
+  if (!isFinite(min) || !isFinite(max)) {
+    return { min: undefined, max: undefined, interval: undefined };
+  }
+  
+  const range = max - min;
+  if (range === 0) {
+    return {
+      min: min - 1,
+      max: max + 1,
+      interval: 1
+    };
+  }
+  
+  // 计算合适的间隔，使用 1, 2, 5 的倍数
+  const roughInterval = range / 5; // 目标是 5-6 个刻度
+  const magnitude = Math.pow(10, Math.floor(Math.log10(roughInterval)));
+  const normalized = roughInterval / magnitude;
+  
+  let interval: number;
+  if (normalized <= 1) {
+    interval = magnitude;
+  } else if (normalized <= 2) {
+    interval = 2 * magnitude;
+  } else if (normalized <= 5) {
+    interval = 5 * magnitude;
+  } else {
+    interval = 10 * magnitude;
+  }
+  
+  // 将最小值向下取整到间隔的倍数
+  const adjustedMin = Math.floor(min / interval) * interval;
+  // 将最大值向上取整到间隔的倍数
+  const adjustedMax = Math.ceil(max / interval) * interval;
+  
+  return {
+    min: adjustedMin,
+    max: adjustedMax,
+    interval: interval
+  };
+}
+
 function drawChart(evt?: MouseEvent) {
   if (!formRef.value) return;
   formRef.value.validate(valid => {
@@ -92,11 +135,55 @@ function drawChart(evt?: MouseEvent) {
         }
       }
       const firstData = sqlExecResult.data[0] || {};
+      
+      // 计算所有系列数据的最大最小值
+      let minValue = Infinity;
+      let maxValue = -Infinity;
+      
+      chartForm.series.forEach(seriesIndex => {
+        sqlExecResult.data.forEach(row => {
+          const value = row[seriesIndex];
+          let parsedValue: number | undefined;
+          // 处理 BigNumber2 类型
+          if (value && typeof value === 'object' && 'c' in value) {
+            const numStr = JSONBig.stringify(value);
+            parsedValue = parseFloat(numStr);
+          } else if (typeof value === 'string') {
+            parsedValue = parseFloat(value);
+          } else if (typeof value === 'number') {
+            parsedValue = value;
+          }
+          if (typeof parsedValue === 'number' && !isNaN(parsedValue) && isFinite(parsedValue)) {
+            minValue = Math.min(minValue, parsedValue);
+            maxValue = Math.max(maxValue, parsedValue);
+          }
+        });
+      });
+      
+      // 计算合适的 y 轴范围
+      const yAxisRange = calculateYAxisRange(minValue, maxValue);
+      
+      // 检查 y 轴区间值是否都是整数
+      const isYAxisInteger = 
+        Number.isInteger(yAxisRange.min) && 
+        Number.isInteger(yAxisRange.max) && 
+        Number.isInteger(yAxisRange.interval);
+      
+      // 只有当 y 轴区间包含小数时才格式化为小数
+      const shouldFormatAsDecimal = !isYAxisInteger;
       chartOption.value = {
-        grid: { left: 30, right: 'auto', bottom: 70 },
-        legend: {},
+        grid: { 
+          top: 50,
+          left: 'auto',
+          right: 'auto', 
+          bottom: 70,
+          containLabel: true
+        },
+        legend: {
+          top: 10
+        },
         tooltip: {
-          trigger: 'axis'
+          trigger: 'axis',
         },
         dataZoom: [
           {
@@ -110,7 +197,21 @@ function drawChart(evt?: MouseEvent) {
           type: getAxisType(firstData[chartForm.label])
         },
         yAxis: {
-          type: getAxisType(firstData[chartForm.series[0]])
+          type: getAxisType(firstData[chartForm.series[0]]),
+          min: yAxisRange.min,
+          max: yAxisRange.max,
+          interval: yAxisRange.interval,
+          axisLabel: {
+            formatter: (value: number | string) => {
+              if (shouldFormatAsDecimal) {
+                const numValue = typeof value === 'string' ? parseFloat(value) : value;
+                if (!isNaN(numValue)) {
+                  return numValue.toFixed(3);
+                }
+              }
+              return value;
+            }
+          }
         },
         series: handleSeriesChange()
       };
@@ -179,6 +280,8 @@ defineExpose({
 }
 
 .el-form-item {
+  margin-right: 10px;
+
   .el-input, .el-cascader, .el-select, .el-autocomplete {
     min-width: 100px;
   }

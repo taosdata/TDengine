@@ -1,5 +1,5 @@
 <template>
-  <div class="config-form">
+  <div class="config-form" :class="{ 'readonly-mode': isReadonly }">
     <template v-for="item in config" :key="item.label">
       <template v-if="item.children && item.label !== 'Groups-after' && item.label !== 'Groups-before'">
         <ConnectivityCheck
@@ -10,7 +10,7 @@
           :parent="parent"
         ></ConnectivityCheck>
         <div v-else class="block-wrapper">
-          <el-collapse :class="`advanced-${lang}`" accordion>
+          <el-collapse v-model="activeNames" :class="`advanced-${lang}`">
             <el-collapse-item :name="item.field || 'one'">
               <template #title>
                 <div class="mb10">
@@ -107,7 +107,7 @@
       <!-- 特殊处理 Groups-after 和 Groups-before 的子元素 -->
       <template v-if="item.children && (item.label === 'Groups-after' || item.label === 'Groups-before') && item.children.length > 0">
         <div v-for="child in item.children" :key="child.label" class="block-wrapper">
-          <el-collapse :class="`advanced-${lang}`" accordion>
+          <el-collapse v-model="activeNames" :class="`advanced-${lang}`">
             <el-collapse-item :name="child.field || child.label">
               <template #title>
                 <div class="mb10">
@@ -148,6 +148,13 @@ import ConnectivityCheck from './connectivityCheck.vue';
 import HostPort from './hostPort.vue';
 import CommonTransformer from './commonTransformer/index.vue';
 import CsvTransformer from './csv/csvTransformer.vue';
+import { useRoute } from 'vue-router';
+
+const route = useRoute();
+const injectedReadonly = inject<Ref<boolean>>('isReadonly', computed(() => route.query.readonly === 'true'));
+const isReadonly = computed(() => injectedReadonly.value);
+
+provide('isReadonly', isReadonly);
 
 const props = withDefaults(
   defineProps<{
@@ -169,6 +176,23 @@ const localData = reactive(props.data);
 // const mb10Type = ['opcTable', 'parser', 'tabs', 'advanced', 'collapse', 'csvData'];
 const emit = defineEmits(['update:data']);
 const lang = computed(() => (isEn.value ? 'en' : 'zh'));
+const activeNames = ref<string[]>([]); // 添加默认展开项数组
+
+// 初始化所有折叠项为展开状态
+onMounted(() => {
+  props.config.forEach(item => {
+    if (item.children && item.label !== 'Groups-after' && item.label !== 'Groups-before') {
+      if (!['advanced_options', 'write_config'].includes(item.field)) {
+        activeNames.value.push(item.field || 'one');
+      }
+    }
+    if (item.children && (item.label === 'Groups-after' || item.label === 'Groups-before')) {
+      item.children.forEach((child: any) => {
+        activeNames.value.push(child.field || child.label);
+      });
+    }
+  });
+});
 
 watch(localData, newData => {
   emit('update:data', newData);
@@ -225,7 +249,7 @@ $color-description: rgb(137 130 130);
 
 .config-form {
   .block-wrapper {
-    padding: 0px 15px 5px 15px;
+    padding: 0px 15px 0px 15px;
     margin-bottom: 10px;
     border: 1px solid #ececef;
     border-radius: 12px;
@@ -261,8 +285,21 @@ $color-description: rgb(137 130 130);
 
   .advanced-en {
     :deep(.el-collapse-item__header) {
-      min-height: 80px;
+      display: flex;
+      align-items: center;
+      min-height: 40px;
+      font-weight: 300;
+      line-height: 1.2;
       border-bottom: 0;
+
+      .mb10 {
+        margin-bottom: 0;
+        font-weight: 400;
+
+        * {
+          font-weight: 400 !important;
+        }
+      }
     }
 
     :deep(.el-collapse-item__content) {
@@ -286,8 +323,21 @@ $color-description: rgb(137 130 130);
 
   .advanced-zh {
     :deep(.el-collapse-item__header) {
-      min-height: 60px;
+      display: flex;
+      align-items: center;
+      min-height: 40px;
+      font-weight: 300;
+      line-height: 1.2;
       border-bottom: 0;
+
+      .mb10 {
+        margin-bottom: 0;
+        font-weight: 400;
+
+        * {
+          font-weight: 400 !important;
+        }
+      }
     }
 
     :deep(.el-collapse-item__content) {
@@ -308,5 +358,71 @@ $color-description: rgb(137 130 130);
 
     border-top: 0;
   }
+}
+
+.config-form.readonly-mode {
+  :deep(.el-input__inner),
+  :deep(.el-textarea__inner),
+  :deep(.el-input-number),
+  :deep(.el-select),
+  :deep(.el-switch),
+  :deep(.el-checkbox),
+  :deep(.el-radio),
+  :deep(.el-upload),
+  :deep(.el-button:not(.el-collapse-item__header *)) {
+    pointer-events: none !important;
+    opacity: 0.7;
+    cursor: not-allowed !important;
+  }
+
+  :deep(.el-input.is-disabled .el-input__wrapper),
+  :deep(.el-input__wrapper) {
+    background-color: var(--el-disabled-bg-color, #f5f7fa) !important;
+  }
+
+  :deep(.el-input__inner) {
+    color: var(--el-disabled-text-color, #a8abb2) !important;
+    -webkit-text-fill-color: var(--el-disabled-text-color, #a8abb2) !important;
+  }
+
+  :deep(.el-select .el-input .el-select__caret) {
+    display: none;
+  }
+
+  /* 强制覆盖：禁用输入的文字颜色为常规文本色 */
+  :deep(.el-input.is-disabled .el-input__inner),
+  :deep(.el-input__inner.is-disabled),
+  :deep(.el-input__inner[disabled]) {
+    color: var(--el-text-color-regular) !important;
+    -webkit-text-fill-color: var(--el-text-color-regular) !important;
+    opacity: 1 !important;
+  }
+
+  /* 强制覆盖：禁用下拉已选项文字颜色为常规文本色 */
+  :deep(.el-select__wrapper.is-disabled .el-select__selected-item),
+  :deep(.el-select.is-disabled .el-input__inner),
+  :deep(.el-select__wrapper.is-disabled .el-select__single),
+  :deep(.el-select__wrapper.is-disabled .el-select__tags),
+  :deep(.el-select__wrapper.is-disabled .el-select__tags-text),
+  :deep(.el-select__tags .el-select__tags-text),
+  :deep(.el-select__selected-tag__text) {
+    color: var(--el-text-color-regular) !important;
+    -webkit-text-fill-color: #282b31 !important;
+    opacity: 1 !important;
+  }
+
+  /* 保留已有的 disabled 文本色变量同步 webkit 文本填充色 */
+  :deep(.el-input__inner) {
+    color: var(--el-disabled-text-color, #a8abb2) !important;
+    -webkit-text-fill-color: var(--el-disabled-text-color, #a8abb2) !important;
+  }
+}
+
+.el-select__wrapper.is-disabled .el-select__selected-item {
+  color: var(--el-text-color-regular);
+}
+
+.el-input.is-disabled .el-input__inner {
+  color: var(--el-text-color-regular);
 }
 </style>

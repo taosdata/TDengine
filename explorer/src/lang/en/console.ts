@@ -48,13 +48,13 @@ export default {
     compress: "Compression Algorithm",
     level: "Compression Level",
     desc: "Description",
-    share: "Add to shared favorites",
+    share: "Shared favorites",
     unshare: "Unshare",
     addDesc: "Add description",
     editDesc: "Edit description",
     descPlaceholder: "Description of the SQL,no more than {0} characters.",
     characterLen: "Only {0} characters are allowed",
-    addToPersonal: "Add to personal favorite"
+    addToPersonal: "Personal favorites"
   },
   sql: {
     analysis: "Analysis",

@@ -37,6 +37,7 @@
           type="primary"
           size="default"
           icon="VideoPlay"
+          class="action-button"
           :disabled="isDisabled || dataInProps.isCommunity"
           @click="handleBatchTask('start')"
           >{{ startCase(t('dataIn.start') + t('dataIn.task')) }}</el-button
@@ -54,6 +55,7 @@
           type="primary"
           size="default"
           icon="VideoPause"
+          class="action-button"
           :disabled="isDisabled || dataInProps.isCommunity"
           @click="handleBatchTask('stop')"
           >{{ startCase(t('dataIn.stop') + t('dataIn.task')) }}</el-button
@@ -71,6 +73,7 @@
           type="primary"
           size="default"
           icon="Delete"
+          class="action-button"
           :disabled="isDisabled || dataInProps.isCommunity"
           @click="handleBatchTask('delete')"
           >{{ startCase(t('dataIn.delete') + t('dataIn.task')) }}</el-button
@@ -82,12 +85,13 @@
         type="primary"
         size="default"
         icon="Sell"
+        class="action-button"
         :disabled="isDisabled || dataInProps.isCommunity"
         @click="handleExportTask"
         >{{ startCase(t('dataIn.export') + t('dataIn.task')) }}</el-button
       >
 
-      <task-import @import-o-k="refresh" />
+      <task-import class="action-button" @import-o-k="refresh" />
     </PageTitle>
     <div class="container-right-table">
       <el-table
@@ -105,14 +109,20 @@
         @cell-mouse-leave="onTaskTableMouseLeave"
       >
         <el-table-column type="selection" :reserve-selection="true" width="30"> </el-table-column>
-        <el-table-column type="expand" width="20">
+        <el-table-column type="expand" width="40">
           <template #default="rowData">
             <Activities :data="rowData.row.activities" />
           </template>
         </el-table-column>
-        <el-table-column :label="t('dataIn.taskid')" prop="taskid" width="40">
+        <el-table-column
+          id="task-id-column"
+          class-name="task-id-cell"
+          :label="t('dataIn.taskid')"
+          prop="taskid"
+          width="30"
+        >
           <template #default="scope">
-            <span style="padding-left: 5px">{{ scope.row.taskid }}</span>
+            <span style="padding-left: 0px; padding-right: 0px">{{ scope.row.taskid }}</span>
           </template>
         </el-table-column>
         <el-table-column
@@ -261,7 +271,7 @@
         <el-table-column
           class="with-operations"
           :width="dataInProps.isIdmp ? 45 : 50"
-          :fixed="dataInProps.isIdmp ? 'right' : false"
+          fixed="right"
         >
           <template #default="scope">
             <el-dropdown
@@ -278,6 +288,10 @@
 
               <template #dropdown>
                 <el-dropdown-menu @mouseenter="onMenuMouseEnter" @mouseleave="onMenuMouseLeave">
+                  <el-dropdown-item @click="viewTask(scope.row, scope.row.status.toLowerCase())">
+                      <el-icon><View /></el-icon>
+                      {{ t('common.view') }}
+                    </el-dropdown-item>
                   <template v-if="permitStartStatus.includes(scope.row.status.toLowerCase())">
                     <el-dropdown-item @click="start(scope.row)">
                       <el-icon><VideoPlay /></el-icon>
@@ -759,6 +773,17 @@ async function edit(data: Recordable, status: string) {
       : `/dataIn/${data.id}/${data.from.type}/edit`
   });
 }
+
+async function viewTask(data: Recordable, status: string) {
+  currentTaskStatus.value = status;
+  router.push({
+    path: dataInProps.isIdmp
+      ? `/management/tsdb-dataIn/tasks/${data.id}/${data.from.type}/edit`
+      : `/dataIn/${data.id}/${data.from.type}/edit`,
+    query: { readonly: 'true' }
+  });
+}
+
 //copy一个新的task
 async function copyTask(data: Recordable, status: string) {
   currentTaskStatus.value = status;
@@ -1031,7 +1056,18 @@ const skipToLatest = async () => {
 }
 
 :deep(.el-button.is-link) {
-  padding: 8px 10px;
+  padding: 0 10px;
+  margin: 0;
+}
+
+/* 统一 PageTitle 内按钮的样式 */
+.action-button {
+  margin: 0;
+}
+
+:deep(.action-button.el-button.is-link) {
+  padding: 0 10px;
+  margin: 0;
 }
 
 .table-expand {
@@ -1109,7 +1145,7 @@ td {
   .operations {
     position: absolute;
     top: 20%;
-    right: 30px;
+    right: 10px; /* 调整右侧距离以适配固定列 */
     z-index: 1;
     display: none;
     width: max-content;
@@ -1119,24 +1155,41 @@ td {
   }
 }
 
-.name-cell {
-  display: flex;
-  align-items: center;
+/* 确保固定列在滚动时正常显示 */
+:deep(.el-table__fixed-right) {
+  .operations {
+    right: 10px;
+  }
 }
 
-.status-icon {
-  flex-shrink: 0;
+/* 新增：所有 el-table-column 单元格文本不换行，溢出显示省略号 */
+:deep(.el-table .el-table__cell) {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 100%;
 }
 
-.status-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* 保证内部常用类也遵循单行省略规则 */
+:deep(.el-table .el-table__cell .nowrap),
+:deep(.el-table .el-table__cell .status-name),
+:deep(.el-table .el-table__cell span),
+:deep(.el-table .el-table__cell div) {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  min-width: 0; /* 允许 flex 子项收缩 */
 }
 
-.mr-5px {
-  margin-right: 5px;
+/* 新增：task id 列单元格左右内边距为 0 */
+:deep(.task-id-cell) {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* 兼容 Element 单元格内部 .cell 容器 */
+:deep(.task-id-cell .cell) {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
 }
 </style>

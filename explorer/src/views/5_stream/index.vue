@@ -52,9 +52,21 @@
             </template>
           </el-table-column> 
 
-          <el-table-column :label="$t('operate')" width="80">
+          <el-table-column width="50" fixed="right">
             <template #default="scope">
-              <el-button plain size="small" icon="Delete" @click="del(scope.row)"></el-button>
+              <div class="operations-wrapper">
+                <el-dropdown trigger="hover">
+                  <el-button icon="MoreFilled" size="small" class="rotate-90!" text></el-button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item @click="del(scope.row)">
+                        <el-icon><Delete /></el-icon>
+                        {{ $t('delete') }}
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -161,4 +173,9 @@ getStreamsData();
   text-align: left;
 }
 
+.operations-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
 </style>

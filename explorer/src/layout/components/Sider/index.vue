@@ -167,10 +167,11 @@ onMounted(() => {
   display: flex;
   flex: 1;
   flex-direction: column;
-  margin-top: 15px;
-  margin-bottom: 15px;
+  margin-top: 10px;
+  margin-bottom: 40px;
   margin-left: 15px;
   overflow: hidden auto;
-  border-right: none;
+  border: 1px solid #dbdfe6;
+  border-radius: 6px;
 }
 </style>

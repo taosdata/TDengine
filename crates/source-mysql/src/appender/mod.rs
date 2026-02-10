@@ -525,6 +525,27 @@ pub async fn to_record_batches(
                         }
                     }
                 }
+                "BOOLEAN" => {
+                    let val = row.try_get::<Option<bool>, _>(col_cidx);
+                    match val {
+                        Ok(val) => match val {
+                            None => {
+                                append_null!(builders[col_cidx], array::BooleanBuilder);
+                            }
+                            Some(val) => {
+                                builders[col_cidx]
+                                    .as_any_mut()
+                                    .downcast_mut::<array::BooleanBuilder>()
+                                    .unwrap()
+                                    .append_value(val);
+                            }
+                        },
+                        Err(e) => {
+                            tracing::warn!("migrate mysql, decoding 'BOOLEAN' result error: {e:?}");
+                            append_null!(builders[col_cidx], array::BooleanBuilder);
+                        }
+                    }
+                }
                 _ => {
                     tracing::warn!("migrate mysql, unknown column type: {col_type}");
                     append_null!(builders[col_cidx], array::StringBuilder);

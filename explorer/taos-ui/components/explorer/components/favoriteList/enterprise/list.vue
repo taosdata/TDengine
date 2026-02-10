@@ -17,16 +17,28 @@
               </pre>
             </span>
           </template>
-          <span>{{ scope.row.sql }}</span>
+          <span class="sql-cell">{{ scope.row.sql }}</span>
         </el-tooltip>
       </template>
     </el-table-column>
-    <el-table-column :label="t('explorer.desc')" prop="description" width="300"> </el-table-column>
+    <el-table-column :label="t('explorer.desc')" prop="description" width="300">
+      <template #default="scope">
+        <el-tooltip v-if="scope.row.description" :content="scope.row.description" placement="top" effect="light">
+          <span class="desc-cell">{{ scope.row.description }}</span>
+        </el-tooltip>
+        <span v-else class="desc-cell"></span>
+      </template>
+    </el-table-column>
     <el-table-column v-if="isShared" :label="t('explorer.user')" prop="username" width="120" show-overflow-tooltip>
     </el-table-column>
     <el-table-column width="30" fixed="right">
       <template #default="scope">
         <el-dropdown :data="scope.row" :trigger="'hover'">
+          <div>
+                <el-tooltip effect="light" placement="right" :content="t('common.moreOperations')">
+                  <MoreFilled class="operate-icon more-btn mt-5px rotate-90" />
+                </el-tooltip>
+              </div>
           <el-button icon="MoreFilled" size="small" class="rotate-90!" text></el-button>
           <template #dropdown>
             <el-dropdown-menu>
@@ -111,7 +123,7 @@
 // import { instance } from 'config';
 // import { instance } from 'config';
 import { getSqlProvider } from '../../../model/useExplorer';
-import { favoriteParams, partActiveTab } from '../../utils';
+import { favoriteParams, panelActiveTab } from '../../utils';
 import { ElMessageBox, ElMessage } from 'element-plus';
 import { t } from 'locales';
 import { VideoPlay, Edit, Share, RefreshLeft, Star, Delete, CopyDocument } from '@element-plus/icons-vue';
@@ -191,10 +203,8 @@ function selectSQL(row: Recordable, column: Recordable) {
 }
 
 function exec(row: Recordable) {
-  console.log('=============exec sql:', row.sql);
   executeSql(row.sql);
-  addSql('\n' + row.sql, true);
-  partActiveTab.value = 'sql';
+  panelActiveTab.value = 'grid';
 }
 
 function handleSizeChange(val: number) {
@@ -241,6 +251,25 @@ function copySql(row: Recordable) {
   max-height: 600px;
   overflow: auto;
   white-space: wrap;
+}
+
+/* 新增：单行省略显示 SQL 单元格 */
+.sql-cell {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 新增：单行省略显示 description 单元格 */
+.desc-cell {
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
 :deep(.el-dropdown-menu__item) {

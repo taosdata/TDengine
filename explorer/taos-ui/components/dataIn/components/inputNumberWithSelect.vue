@@ -69,5 +69,21 @@ const onChange = () => {
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
   }
+
+  /* 新增：统一数字输入与下拉已选文本颜色（普通/禁用） */
+  :deep(.el-input-number .el-input__inner),
+  :deep(.el-input-number.is-disabled .el-input__inner),
+  :deep(.el-input-number .el-input__inner[disabled]) {
+    color: var(--el-text-color-regular) !important;
+    -webkit-text-fill-color: var(--el-text-color-regular) !important;
+    opacity: 1 !important;
+  }
+
+  :deep(.el-select__wrapper .el-select__selected-item),
+  :deep(.el-select__wrapper.is-disabled .el-select__selected-item) {
+    color: var(--el-text-color-regular) !important;
+    -webkit-text-fill-color: var(--el-text-color-regular) !important;
+    opacity: 1 !important;
+  }
 }
 </style>

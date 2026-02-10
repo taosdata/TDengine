@@ -577,6 +577,7 @@ export default {
   createDatabase: '创建数据库',
   submit: '提交',
   saveAndApply: '保存并应用',
+  ViewBackPage: '返回',
   downloadTemplate: 'CSV 空模版',
   downloadTemplateTip: '下载CSV文件模版',
   downloadCSVInUse: '使用中的CSV文件',

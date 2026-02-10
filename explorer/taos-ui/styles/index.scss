@@ -53,3 +53,13 @@
   max-width: 600px;
   font-size: 14px;
 }
+
+.el-select__wrapper.is-disabled .el-select__selected-item {
+  color: var(--el-text-color-regular);
+  -webkit-text-fill-color: var(--el-text-color-regular);
+}
+
+.el-input.is-disabled .el-input__inner {
+  color: var(--el-text-color-regular);
+  -webkit-text-fill-color: var(--el-text-color-regular);
+}

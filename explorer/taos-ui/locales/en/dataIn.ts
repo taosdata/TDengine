@@ -569,6 +569,7 @@ export default {
   createDatabase: 'Create Database',
   submit: 'Submit',
   saveAndApply: 'Save & Apply',
+  ViewBackPage: 'Back',
   downloadTemplate: 'CSV Empty Template',
   downloadTemplateTip: 'Download the csv template file',
   downloadCSVInUse: 'CSV file in Use',

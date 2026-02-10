@@ -123,10 +123,12 @@ function loadLeft() {
 .gird {
   position: relative;
   height: 100%;
-  padding-bottom: 30px;
+  display: flex;
+  flex-direction: column;
 
-  // overflow: auto;
-  overflow: hidden;
+  &:deep(.el-table) {
+    flex: 1;
+  }
 
   &:deep(.el-table::before) {
     height: 0;
@@ -155,12 +157,18 @@ function loadLeft() {
   .time-wrapper {
     position: absolute;
     right: 0;
-    bottom: -3px;
-    left: 10px;
+    bottom: 0;
+    left: 0;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    background-color: #ffffff;
+    z-index: 1;
 
     .time-block {
       display: inline-block;
       margin-right: 20px;
+      margin-left: 5px;
       line-height: 20px;
 
       .title {

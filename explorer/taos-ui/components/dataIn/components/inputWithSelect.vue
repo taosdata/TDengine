@@ -146,5 +146,23 @@ function handleDatatype() {
       box-shadow: none;
     }
   }
+
+  /* 新增：统一表单项文本颜色（普通/禁用/placeholder） */
+  :deep(.el-input__inner),
+  :deep(.el-input.is-disabled .el-input__inner),
+  :deep(.el-input__inner[disabled]),
+  :deep(.el-input__inner::placeholder) {
+    color: var(--el-text-color-regular) !important;
+    -webkit-text-fill-color: var(--el-text-color-regular) !important;
+    opacity: 1 !important;
+  }
+
+  :deep(.el-select__wrapper .el-select__selected-item),
+  :deep(.el-select__wrapper.is-disabled .el-select__selected-item),
+  :deep(.el-select .el-input__inner) {
+    color: var(--el-text-color-regular) !important;
+    -webkit-text-fill-color: var(--el-text-color-regular) !important;
+    opacity: 1 !important;
+  }
 }
 </style>

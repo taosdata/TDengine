@@ -416,6 +416,13 @@ fn generate_json_value(
                 Some(val) => Ok(json!(val)),
             }
         }
+        "BOOLEAN" => {
+            let val = row.try_get::<Option<bool>, _>(cidx)?;
+            match val {
+                None => Ok(json!(null)),
+                Some(val) => Ok(json!(val)),
+            }
+        }
         _ => {
             let val = row.try_get::<Option<String>, _>(cidx)?;
             match val {

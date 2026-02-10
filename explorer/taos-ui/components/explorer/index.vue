@@ -68,10 +68,10 @@ function executeSql(sql = sqlStr.value) {
   const startTime = Date.now();
   executeSqlFn(sql, false)
     .then(data => {
-      handleSqlExecuteSuccess(data, sqlStr.value, startTime);
+      handleSqlExecuteSuccess(data, sql, startTime);
     })
     .catch(data => {
-      handleSqlExecuteFail(data, sqlStr.value, startTime);
+      handleSqlExecuteFail(data, sql, startTime);
     })
     .finally(() => {
       sqlExecuting.value = false;
@@ -106,6 +106,7 @@ $drag-bar-light-color: #dcdfe6;
   height: 100%;
   padding: 0;
   overflow: hidden;
+  border: none;
 }
 
 #drag-bar {

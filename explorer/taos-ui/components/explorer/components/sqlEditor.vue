@@ -89,7 +89,7 @@ function handleBlur() {
 }
 function addCodeAtPosition(code: string) {
   if (!editoIns.value) return;
-  const line = editoIns.value.state.doc.line(currentPosition.line);
+  const line = editoIns.value.state.doc.line(currentPosition.line || 1);
   const pos = line.from + currentPosition.ch;
   editoIns.value.dispatch({
     changes: { from: pos, insert: code }
@@ -101,10 +101,10 @@ function addCodeAtPosition(code: string) {
 .sql-code-editor {
   position: relative;
   display: flex;
-  flex-shrink: 0;
+  flex: 1;
   flex-direction: column;
   width: 100%;
-  min-height: 20vh;
+  height: 100%;
   padding: 0;
   margin-top: -20px;
   overflow: auto;
@@ -137,9 +137,16 @@ function addCodeAtPosition(code: string) {
 
 .editor-area {
   flex: 1;
-  min-height: 18vh;
-  margin-top: 5px;
+  min-height: 100px;
   overflow: auto;
+
+  :deep(.cm-editor .cm-content) {
+    line-height: 2.3;
+  }
+
+  :deep(.cm-editor .cm-gutters) {
+    line-height: 2.3;
+  }
 }
 
 .primary-tip {

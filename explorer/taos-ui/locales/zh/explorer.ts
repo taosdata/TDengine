@@ -55,13 +55,13 @@ export default {
   logComponentName: `数据库“{0}”的日志`,
   desc: '描述',
   user: '用户',
-  share: '添加到共享收藏',
+  share: '共享',
   unshare: '取消共享',
   addDesc: '添加描述',
   editDesc: '编辑描述',
   descPlaceholder: '对收藏的 SQL 进行描述，可不填，不超过{0}个字符。',
   characterLen: '只允许输入{0}个字符',
-  addToPersonal: '添加到个人收藏',
+  addToPersonal: '收藏',
   configurationParametersForAd: '高级用户的配置参数',
   sqlGoesHere: '此处输入 sql 语句...'
 };

@@ -36,13 +36,10 @@
       </el-table-column>
       <el-table-column width="90" :label="$t('getDsn')" prop="dsn">
         <template #default="scope">
-          <el-tooltip :content="scope.row.dsn" placement="top-start">
-            <!-- <copy-text :text="scope.row.dsn" isShowBtnText></copy-text> -->
-            <el-button class="copy-btn" size="small" @click="copyDsn(scope.row.dsn)">
-              <el-icon><CopyDocument /></el-icon>
-              {{ $t('copy') }}
-            </el-button>
-          </el-tooltip>
+          <el-button class="copy-btn" size="small" @click="copyDsn(scope.row.dsn)">
+            <el-icon><CopyDocument /></el-icon>
+            {{ $t('copy') }}
+          </el-button>
         </template>
       </el-table-column>
       <el-table-column width="210" :label="$t('createTime')" prop="create_time" show-overflow-tooltip>
@@ -50,18 +47,29 @@
           <span>{{ parsinginZone(scope.row.create_time) }}</span>
         </template>
       </el-table-column>
-      <!-- 云服务有自己的用户管理，企业版没有，从 schema 中无法获取 topic 的创建用户 -->
-      <el-table-column :label="$t('topic.action')" width="150">
+      <el-table-column width="50" fixed="right">
         <template #default="scope">
-          <el-tooltip effect="light" :content="$t('topic.sampleCode')" placement="top">
-            <el-button class="mini-btn" size="small" icon="CopyDocument" @click="document(scope.row)"></el-button>
-          </el-tooltip>
-          <el-tooltip effect="light" :content="$t('topic.shareTopic')" placement="top">
-            <el-button class="mini-btn" size="small" icon="Share" @click="manage(scope.row)"></el-button>
-          </el-tooltip>
-          <el-tooltip effect="light" :content="$t('delete')" placement="top">
-            <el-button plain size="small" icon="Delete" @click="del(scope.row)"></el-button>
-          </el-tooltip>
+          <div class="operations-wrapper">
+            <el-dropdown trigger="hover">
+              <el-button icon="MoreFilled" size="small" class="rotate-90!" text></el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="document(scope.row)">
+                    <el-icon><CopyDocument /></el-icon>
+                    {{ $t('topic.sampleCode') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="manage(scope.row)">
+                    <el-icon><Share /></el-icon>
+                    {{ $t('topic.shareTopic') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="del(scope.row)">
+                    <el-icon><Delete /></el-icon>
+                    {{ $t('delete') }}
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -218,6 +226,12 @@ getTopicsData();
 
 .copy-btn {
   cursor: pointer;
+}
+
+.operations-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
 }
 </style>
 

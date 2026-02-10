@@ -8,6 +8,7 @@
         type="primary"
         size="default"
         icon="Refresh"
+        class="action-button"
         :disabled="requestIng || props.isCommunity"
         @click="refresh"
         >{{ t('common.refresh') }}</el-button
@@ -16,7 +17,7 @@
         <template #content>
           <span v-dompurify-html="t('common.communityTip')"></span>
         </template>
-        <el-button size="default" icon="Plus" link type="primary" @click="add">{{ props.addTitle }}</el-button>
+        <el-button size="default" icon="Plus" link type="primary" class="action-button" @click="add">{{ props.addTitle }}</el-button>
       </el-tooltip>
     </div>
   </div>
@@ -61,15 +62,24 @@ function add() {
   border-radius: 4px;
 
   .flex-end {
+    display: flex;
+    align-items: center;
+
     :deep(.el-button) {
       font-size: 14px;
-
-      // background: transparent;
+      padding: 0 10px;
+      margin: 0;
     }
 
     :deep(.el-button):hover {
       color: #4259ce;
       border: 1px solid #4259ce !important;
+    }
+
+    /* 统一按钮样式 */
+    :deep(.action-button.el-button.is-link) {
+      padding: 0 10px;
+      margin: 0;
     }
   }
 }

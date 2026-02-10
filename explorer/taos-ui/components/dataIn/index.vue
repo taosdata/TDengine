@@ -1,7 +1,7 @@
 <template>
   <div class="page-wrapper">
     <!-- <PageHeader :title="routeTitle"></PageHeader> -->
-    <section class="content" style="border: none !important">
+    <section class="content">
       <router-view></router-view>
     </section>
   </div>
@@ -27,4 +27,10 @@ provide(dataInPropsKey, props);
 // });
 </script>
 
-<style lang="scss" scoped></style>
+<style lang="scss" scoped>
+.content {
+  padding-bottom: 0px;
+  border: 1px solid #dbdfe6 !important;
+  border-radius: 6px;
+}
+</style>

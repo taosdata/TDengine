@@ -82,6 +82,10 @@ function update() {
 .favorites-wrapper {
   height: 100%;
 
+  &:deep(.el-radio__label) {
+    color: #303133;
+  }
+
   &:deep(.el-tab-pane) {
     top: 51px !important;
   }
