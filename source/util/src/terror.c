@@ -916,8 +916,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_PERMISSION_DENIED,      "Permission denied f
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_LACK_OF_PRIMARY_KEY_COL,    "Lack of primary key column")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED,        "Permission denied to use database")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TB_CREATE_PERMISSION_DENIED,     "Permission denied to create table")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TB_INSERT_PERMISSION_DENIED,     "Permission denied to insert table")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED,     "Permission denied to select table")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TB_INSERT_PERMISSION_DENIED,     "Permission denied to insert into table")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED,     "Permission denied to select from table or view")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_STREAM_CREATE_PERMISSION_DENIED, "Permission denied to create stream")
 
 //planner

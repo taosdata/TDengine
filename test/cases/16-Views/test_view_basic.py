@@ -500,7 +500,7 @@ class TestViewBasic:
         try:
             testSql.execute("create view v3 as select * from stb;") # stb is created by root, view_test has no permission to select stb
         except Exception as ex:
-            assert("Permission denied or target object not exist" in str(ex))
+            assert("Permission denied to select from table or view" in str(ex))
         testSql.execute("drop view v2;")
         try:
             testSql.execute("drop view v1;")

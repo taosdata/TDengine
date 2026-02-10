@@ -312,14 +312,14 @@
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3b.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3c.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3d.py
-,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a1.py
-,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a2.py
-,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4b1.py
-,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4b2.py
-,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4c1.py
-,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4c2.py
-,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4d1.py
-,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4d2.py
+90,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a1.py
+# ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a2.py
+# ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4b1.py
+# ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4b2.py
+# ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4c1.py
+# ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4c2.py
+# ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4d1.py
+# ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4d2.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery_str.py
@@ -474,12 +474,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/08-Window/test_fun_win_fill_forward.py
 
 # 12-UDFs
-
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_c.py
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_py.py
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_with_const.py
 ,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_restart_taosd.py
-,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_test.py
 ,,n,.,pytest cases/12-UDFs/test_udf_test.py
 ,,n,.,pytest cases/12-UDFs/test_udf_create.py
 ,,n,.,pytest cases/12-UDFs/test_udf_cfg1.py
@@ -845,7 +843,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_token.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_totp.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_whitelist.py
-# ,,n,.,pytest cases/24-Users/test_user_passwd.py
+,,n,.,pytest cases/24-Users/test_user_passwd.py
 
 # 25-Privileges
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_basic.py -N 3

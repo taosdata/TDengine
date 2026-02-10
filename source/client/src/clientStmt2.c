@@ -2501,7 +2501,7 @@ int stmtClose2(TAOS_STMT2* stmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-const char* stmtErrstr2(TAOS_STMT2* stmt) {
+const char* stmt2Errstr(TAOS_STMT2* stmt) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
   if (stmt == NULL || NULL == pStmt->exec.pRequest) {
