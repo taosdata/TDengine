@@ -357,7 +357,6 @@ class TestBoundary:
         self.fullname_length_check()
         
         #tdSql.close()
-
     
     def test_sql_length_boundary(self):
         """SQL length boundary
@@ -381,6 +380,9 @@ class TestBoundary:
         tdSql.execute("create database db_maxsql_large")
         tdSql.execute("use db_maxsql_large")
         
+        # Fixed base timestamp (ms) to avoid duplicate ts from now+offset
+        base_ts_ms = 1704067200000  # 2024-01-01 00:00:00.000
+        
         cols = []
         for i in range(100):
             cols.append(f"c{i} int")
@@ -391,7 +393,7 @@ class TestBoundary:
         insert_sql = "insert into t1 values "
         values = []
         for i in range(1000):
-            val_cols = [f"now+{i}s"] + [str(j) for j in range(100)]
+            val_cols = [str(base_ts_ms + i)] + [str(j) for j in range(100)]
             values.append(f"({', '.join(val_cols)})")
         insert_sql += ", ".join(values)
         
@@ -403,13 +405,13 @@ class TestBoundary:
         # test 10MB sql - generate INSERT SQL with exact length 10485760 bytes
         tdSql.execute("create table t2 (ts timestamp, c0 int)")
         
-        # Generate INSERT SQL with exact length 10485760 bytes
+        # Generate INSERT SQL with exact length 10485760 bytes (fixed ts to avoid duplicates)
         target_length = 10485760  # 10MB
         base_sql = "insert into t2 values "
         base_len = len(base_sql)
         tdLog.info(f"10MB sql length: {base_len}")
         num_values = (target_length - base_len) // 16
-        values = [f"(now+{i}s,{i})" for i in range(num_values)]
+        values = [f"({base_ts_ms + i},{i})" for i in range(num_values)]
         insert_sql = base_sql + ",".join(values)
         current_len = len(insert_sql)
         if current_len < target_length:
@@ -430,15 +432,17 @@ class TestBoundary:
         tdSql.execute("alter local 'maxSQLLength' '10485760'")
         tdSql.execute(insert_sql)
         tdSql.query("select * from t2")
-        tdSql.checkRows(509902)
+        tdSql.checkRows(460732)
         
-        # Test with 64MB limit - generate INSERT SQL with length slightly less than 64MB
+        # Test with 64MB limit - generate INSERT SQL with length slightly less than 64MB (fixed ts)
         target_length_64mb = 64 * 1024 * 1024 - 100  # 64MB minus 100 bytes (slightly less)
         base_sql_64mb = "insert into t2 values "
         base_len_64mb = len(base_sql_64mb)
         tdLog.info(f"64MB sql length: {base_len_64mb}")
         num_values_64mb = (target_length_64mb - base_len_64mb) // 16
-        values_64mb = [f"(now+{i}s,{i})" for i in range(num_values_64mb)]
+        # Use offset from first batch so ts stays unique across 10MB and 64MB inserts
+        base_ts_64mb = base_ts_ms + num_values
+        values_64mb = [f"({base_ts_64mb + i},{i})" for i in range(num_values_64mb)]
         insert_sql_64mb = base_sql_64mb + ",".join(values_64mb)
         
         # Adjust to target length
@@ -462,7 +466,7 @@ class TestBoundary:
         tdSql.execute("alter local 'maxSQLLength' '67108864'")
         tdSql.execute(insert_sql_64mb)
         tdSql.query("select * from t2")
-        tdSql.checkRows(3524291)
+        tdSql.checkRows(3303225)
 
         # test out of boundary value
         tdSql.error("alter local 'maxSQLLength' '67108865'")

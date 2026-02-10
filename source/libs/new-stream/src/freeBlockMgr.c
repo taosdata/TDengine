@@ -49,7 +49,7 @@ void insertFreeBlock(SRBTree *tree, FreeBlock *newBlock) {
     existing->nextInBucket = newBlock;
   } else {
     newBlock->nextInBucket = NULL;
-    tRBTreePut(tree, &newBlock->node);
+    (void)tRBTreePut(tree, &newBlock->node);
   }
 }
 
@@ -87,7 +87,7 @@ void removeFreeBlock(SRBTree *tree, FreeBlock *target) {
       FreeBlock *newHead = target->nextInBucket;
       newHead->node = target->node;  // Copy Red-Black Tree node fields (preserving tree structure)
       tRBTreeDrop(tree, &target->node);
-      tRBTreePut(tree, &newHead->node);
+      (void)tRBTreePut(tree, &newHead->node);
     } else {
       tRBTreeDrop(tree, &target->node);
     }

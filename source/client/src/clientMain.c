@@ -2786,7 +2786,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
         code = stmtSetTbName2(stmt, bindv->tbnames[i]);
         if (code) {
           terrno = code;
-          STMT2_ELOG("set tbname failed, code:%s", tstrerror(code));
+          STMT2_ELOG("set tbname failed, code:%s", stmt2Errstr(stmt));
           return terrno;
         }
       }
@@ -2801,7 +2801,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
       if (code) {
         terrno = code;
-        STMT2_ELOG("set tags failed, code:%s", tstrerror(code));
+        STMT2_ELOG("set tags failed, code:%s", stmt2Errstr(stmt));
         return terrno;
       }
     }
@@ -2818,7 +2818,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       code = stmtBindBatch2(stmt, bind, col_idx, pCreateTbReq);
       if (TSDB_CODE_SUCCESS != code) {
         terrno = code;
-        STMT2_ELOG("bind batch failed, code:%s", tstrerror(code));
+        STMT2_ELOG("bind batch failed, code:%s", stmt2Errstr(stmt));
         return terrno;
       }
     }
@@ -2934,7 +2934,7 @@ TAOS_RES *taos_stmt2_result(TAOS_STMT2 *stmt) {
   return stmtUseResult2(stmt);
 }
 
-char *taos_stmt2_error(TAOS_STMT2 *stmt) { return (char *)stmtErrstr2(stmt); }
+char *taos_stmt2_error(TAOS_STMT2 *stmt) { return (char *)stmt2Errstr(stmt); }
 
 int taos_set_conn_mode(TAOS *taos, int mode, int value) {
   int32_t code = 0;

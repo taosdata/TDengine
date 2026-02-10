@@ -432,6 +432,19 @@ class TDSql:
                 time.sleep(1)
                 continue
 
+    def execute_ignore_error(self, sql, show=False):
+        """
+        Executes a SQL statement, ignore all errors, no retry.
+        """
+        self.sql = sql
+        if show:
+            tdLog.info(sql)
+        try:
+            self.affectedRows = self.cursor.execute(sql)
+            return self.affectedRows
+        except Exception as e:
+            return None
+    
     def execute(self, sql, queryTimes=10, show=False):
         """
         Executes a SQL statement.

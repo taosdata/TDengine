@@ -3,7 +3,6 @@ package com.taosdata.example.mybatisplusdemo.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.taosdata.example.mybatisplusdemo.domain.Temperature;
 import org.apache.ibatis.annotations.Insert;
-import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
 
 public interface TemperatureMapper extends BaseMapper<Temperature> {

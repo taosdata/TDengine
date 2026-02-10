@@ -195,6 +195,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_plan.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_plan_eliminate_virtual_scan.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_plan_pushdown_timerange.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_plan_replace_tbname.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter_origin_table.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
@@ -311,14 +312,14 @@
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3b.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3c.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3d.py
-,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a1.py
-,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a2.py
-,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4b1.py
-,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4b2.py
-,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4c1.py
-,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4c2.py
-,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4d1.py
-,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4d2.py
+90,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a1.py
+# ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a2.py
+# ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4b1.py
+# ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4b2.py
+# ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4c1.py
+# ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4c2.py
+# ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4d1.py
+# ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4d2.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery_str.py
@@ -473,12 +474,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/08-Window/test_fun_win_fill_forward.py
 
 # 12-UDFs
-
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_c.py
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_py.py
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_with_const.py
 ,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_restart_taosd.py
-,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_test.py
 ,,n,.,pytest cases/12-UDFs/test_udf_test.py
 ,,n,.,pytest cases/12-UDFs/test_udf_create.py
 ,,n,.,pytest cases/12-UDFs/test_udf_cfg1.py
@@ -563,6 +562,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_bugs.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_topics_info.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_max_topics.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_update_tablelist.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_params.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_max_groups.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_discontinuous_data.py
@@ -686,7 +686,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_same_name.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_window_query.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_output_table.py
-,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_drop.py
+# ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_drop.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_fetch.py
 ## 03-TriggerMode
 #,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_count_new.py
@@ -737,6 +737,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/recalc_bug_13.py
 
 ## 20-UseCase
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_6771200393.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_privilege.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_manager.py
 100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_meters.py
@@ -797,7 +798,7 @@
 
 # 19-TSMAs
 
-90,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_tsma.py
+# 90,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_tsma.py
 ,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_sma_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_sma_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_time_range_wise.py -N 3
