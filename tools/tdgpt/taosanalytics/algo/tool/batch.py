@@ -220,30 +220,37 @@ def do_batch_process(ts_list:list, val_list:list, win_list:list, config):
         save_dir = config.get("plot_dir", "plots") + f"/batch_{idx}"
 
         # Hampel filter
-        v_hampel, outlier_indices = hampel_filter(
-            v,
-            config["hampel"]["window_size"],
-            config["hampel"]["sigma"],
-        )
+        if config['hampel']['active']:
+            v_hampel, outlier_indices = hampel_filter(
+                v,
+                config["hampel"]["window_size"],
+                config["hampel"]["sigma"],
+            )
 
-        if config["plot"]:
-            info = f'window_size: {config["hampel"]["window_size"]}, sigma:{config["hampel"]["sigma"]}'
-            plot_hempel_filter(v, v_hampel, outlier_indices, info, save_dir)
+            if config["plot"]:
+                info = f'window_size: {config["hampel"]["window_size"]}, sigma:{config["hampel"]["sigma"]}'
+                plot_hempel_filter(v, v_hampel, outlier_indices, info, save_dir)
+        else:
+            v_hampel = v
 
         # Derivative check
-        threshold = config["derivative"].get("max_rate", np.inf)
-        if threshold <= 0:
-            app_logger.log_inst.warn("the max rate is set to 0, no results generated")
-            return np.array([]), np.array([]), np.array([]), np.array([])
+        if config['derivative']['active']:
+            threshold = config["derivative"].get("max_rate", np.inf)
+            if threshold <= 0:
+                app_logger.log_inst.warn("the max rate is set to 0, no results generated")
+                return np.array([]), np.array([]), np.array([]), np.array([])
 
-        t_der, v_der = derivative_check(
-            t,
-            v_hampel,
-            config["derivative"].get("max_rate", np.inf),
-        )
+            t_der, v_der = derivative_check(
+                t,
+                v_hampel,
+                config["derivative"].get("max_rate", np.inf),
+            )
 
-        if config["plot"]:
-            plot_compare(v_hampel, v_der, "2_derivative", save_dir)
+            if config["plot"]:
+                plot_compare(v_hampel, v_der, "2_derivative", save_dir)
+        else:
+            t_der = t
+            v_der = v_hampel
 
         # Normalize
         t_norm, v_norm = normalize_progress(
@@ -257,22 +264,26 @@ def do_batch_process(ts_list:list, val_list:list, win_list:list, config):
             plot_compare(v_der, v_norm, "3_normalize", save_dir)
 
         # SG smoothing
-        sg_cfg = config["savgol"]
-        if sg_cfg["window"] % 2 == 0 or sg_cfg["window"] <= 0:
-            app_logger.log_inst.error("Savitzky-Golay window must be even, input size: %d".format(sg_cfg["window"]))
-            raise ValueError("Savitzky-Golay window must be even, input size: %d".format(sg_cfg["window"]))
+        if config['savgol']['active']:
+            sg_cfg = config["savgol"]
+            if sg_cfg["window"] % 2 == 0 or sg_cfg["window"] <= 0:
+                app_logger.log_inst.error("Savitzky-Golay window must be even, input size: %d".format(sg_cfg["window"]))
+                raise ValueError("Savitzky-Golay window must be even, input size: %d".format(sg_cfg["window"]))
 
-        v_sg = savgol_filter(
-            v_norm,
-            window_length=sg_cfg["window"],
-            polyorder=sg_cfg["polyorder"],
-        )
+            v_sg = savgol_filter(
+                v_norm,
+                window_length=sg_cfg["window"],
+                polyorder=sg_cfg["polyorder"],
+            )
 
-        if config["plot"]:
-            info = f'window_size: {sg_cfg["window"]}, poly_order:{sg_cfg["polyorder"]}'
-            plot_sg_smoothing(v_norm, v_sg, "4_savgol", info, save_dir)
+            if config["plot"]:
+                info = f'window_size: {sg_cfg["window"]}, poly_order:{sg_cfg["polyorder"]}'
+                plot_sg_smoothing(v_norm, v_sg, "4_savgol", info, save_dir)
+        else:
+            v_sg = v_norm
 
         processed_batches.append(v_sg)
+
     app_logger.log_inst.debug("total %d time windows data to build golden batch results".format(len(processed_batches)))
 
     if len(processed_batches) <= 0:
