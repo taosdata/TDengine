@@ -8,7 +8,7 @@ html {
   font-size: 16px;
 }
 
-@media screen and (width <= 1000px) {
+@media screen and (width <=1000px) {
   html {
     font-size: calc(100vmin / 600);
   }
@@ -163,7 +163,7 @@ a {
   background-color: #f6f8fa;
   border-radius: 6px;
 
-  & > code {
+  &>code {
     display: inline;
     max-width: auto;
     padding: 0;
@@ -268,4 +268,14 @@ a {
 
 .docker-tip {
   color: #e6a23c;
+}
+
+.el-select__wrapper.is-disabled .el-select__selected-item {
+  color: var(--el-text-color-regular);
+  -webkit-text-fill-color: var(--el-text-color-regular);
+}
+
+.el-input.is-disabled .el-input__inner {
+  color: var(--el-text-color-regular);
+  -webkit-text-fill-color: var(--el-text-color-regular);
 }

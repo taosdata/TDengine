@@ -3,7 +3,7 @@
     v-model="code"
     :placeholder="placeholder"
     class="w-full"
-    :style="{ height: props.height, minHeight: props.minHeight }"
+    :style="{ height: props.height, minHeight: props.minHeight, lineHeight: 1.8 }"
     :autofocus="true"
     :indent-with-tab="true"
     :disabled="props.disabled"
@@ -13,7 +13,7 @@
   />
 </template>
 
-<script lang="ts" setup>
+<script setup lang="ts">
 import { Codemirror } from 'vue-codemirror';
 import { sql } from '@codemirror/lang-sql';
 import { search } from '@codemirror/search';
@@ -144,8 +144,12 @@ onMounted(() => {
   setExtension();
 });
 </script>
+
 <style scoped>
 :deep(.cm-editor) {
   width: 100%;
+}
+:deep(.cm-scroller) {
+  padding-top: 5px;
 }
 </style>

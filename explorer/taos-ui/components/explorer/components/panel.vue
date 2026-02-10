@@ -7,7 +7,7 @@
             <Icon name="table" class="tab-icon"></Icon>
             <span>{{ t('explorer.grid') }}</span>
             <el-tooltip effect="light" :content="t('explorer.cellCopyTip')" placement="bottom">
-              <el-icon :size="12">
+              <el-icon class="info-icon" :size="12">
                 <InfoFilled />
               </el-icon>
             </el-tooltip>
@@ -122,38 +122,52 @@ function logSortChange() {
   height: 100%;
 }
 
-.el-tabs--border-card {
-  box-shadow: none;
-}
-
 .panel {
   position: relative;
   height: 100%;
-  min-height: 300px;
+  min-height: 200px;
+  background-color: #ffffff;
 
-  /* overflow: hidden; */
+  /* override el-tabs border-card styles */
+  &:deep(.el-tabs--border-card) {
+    border: none;
+    border-radius: 6px;
+    box-shadow: none;
+    height: 100%;
+    background-color: #f2f3f3;
+  }
+
+  &:deep(.el-tabs--border-card > .el-tabs__header) {
+    border-radius: 6px 6px 0 0;
+    margin-bottom: 0;
+    background-color: #f2f3f3;
+  }
+
+  /* 第一个 tab 左上角圆角 */
+  &:deep(.el-tabs--border-card > .el-tabs__header .el-tabs__item:first-child) {
+    border-top-left-radius: 6px !important;
+  }
+  &:deep(.el-tabs--border-card > .el-tabs__header .el-tabs__item:first-child.is-active) {
+    border-top-left-radius: 6px !important;
+  }
+
   &:deep(.el-tabs__content) {
     flex: 1;
-    padding: 15px 15px 0 !important;
-    overflow: auto;
+    padding: 15px !important;
+    overflow: hidden;
+    background-color: #ffffff;
 
     & > .el-tab-pane {
-      right: 15px;
-      left: 15px;
+      height: 100%;
     }
   }
 
   &:deep(.el-tabs) {
-    border-bottom: none;
-    border-left: none;
+    border: none;
   }
 
   &:deep(.el-tabs--border-card > .el-tabs__header) {
     padding-right: 230px;
-  }
-
-  &:deep(.el-tabs--border-card > .el-tabs__header .el-tabs__item) {
-    font-size: 16px;
   }
 }
 
@@ -167,7 +181,7 @@ function logSortChange() {
 .panel-right {
   position: absolute;
   top: 8px;
-  right: 20px;
+  right: 15px;
   display: flex;
   align-items: center;
   color: #333;
@@ -178,12 +192,12 @@ function logSortChange() {
 }
 
 .info-icon {
-  margin-left: 5px;
+  margin-left: 2px;
 }
 
 .data-nums {
   margin-right: 10px;
-  font-size: 17px;
+  font-size: 14px;
   color: var(--el-text-color-secondary);
 }
 

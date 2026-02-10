@@ -8,9 +8,10 @@
         label-position="left"
         size="default"
         :rules="rules"
+        :disabled="isView"
       >
         <div class="block-wrapper">
-          <el-collapse :class="`advanced-${lang}`" accordion>
+          <el-collapse v-model="activeCollapse" :class="`advanced-${lang}`" accordion>
             <el-collapse-item name="basic">
               <template #title>
                 <div class="mb10">
@@ -108,30 +109,46 @@
           :parser="currentDefinition.parser"
           parent="data."
           :level="1"
+          :readonly="isView"
         />
       </el-form>
 
       <section class="bottom">
         <el-affix position="bottom" :offset="0">
           <div class="btn-group-task">
-            <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
-              <template #content>
-                <span v-dompurify-html="t('common.communityTip')"></span>
-              </template>
+            <template v-if="isView">
               <el-button
                 type="primary"
                 size="default"
                 :round="dataInProps.isIdmp"
-                :loading="loading"
-                :disabled="dataInProps.isCommunity"
-                @click="save"
+                @click="enterEditMode"
               >
-                {{ currentPageType === 'edit' ? t('dataIn.saveAndApply') : t('dataIn.submit') }}
+                {{ t('dataIn.editconfig') }}
               </el-button>
-            </el-tooltip>
-            <el-button :round="dataInProps.isIdmp" class="cancel-btn" size="default" @click="goTaskPage">{{
-              t('common.cancel')
-            }}</el-button>
+              <el-button :round="dataInProps.isIdmp" size="default" @click="goBack">
+                {{ t('dataIn.ViewBackPage') }}
+              </el-button>
+            </template>
+            <template v-else>
+              <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
+                <template #content>
+                  <span v-dompurify-html="t('common.communityTip')"></span>
+                </template>
+                <el-button
+                  type="primary"
+                  size="default"
+                  :round="dataInProps.isIdmp"
+                  :loading="loading"
+                  :disabled="dataInProps.isCommunity"
+                  @click="save"
+                >
+                  {{ currentPageType === 'edit' ? t('dataIn.saveAndApply') : t('dataIn.submit') }}
+                </el-button>
+              </el-tooltip>
+              <el-button :round="dataInProps.isIdmp" class="cancel-btn" size="default" @click="goTaskPage">{{
+                t('common.cancel')
+              }}</el-button>
+            </template>
           </div>
         </el-affix>
       </section>
@@ -228,6 +245,7 @@ const componentKey = ref(0);
 const oldParams = reactive({});
 const definitionsList: Recordable = ref([]);
 let defaultConfig = reactive<Recordable>({});
+const activeCollapse = ref('basic'); // 添加默认展开项
 
 const isAddable = computed(() => currentPageType.value === 'add');
 const isEditable = computed(() => currentPageType.value === 'edit');
@@ -324,6 +342,9 @@ onMounted(async () => {
     getDataSource();
   }
 });
+
+const isView = ref(route?.query?.readonly === 'true');
+provide('isReadonly', computed(() => isView.value));
 
 const isShowAgent = computed(() => !NoNeedAgentType.includes(sourceForm.type));
 
@@ -613,6 +634,17 @@ function goTaskPage() {
     path: dataInProps.isIdmp ? `/management/tsdb-dataIn/tasks/task` : `/dataIn/Task`
   });
 }
+function goBack() {
+  if (window.history.length > 1) {
+    router.back();
+    return;
+  }
+  goTaskPage();
+}
+
+function enterEditMode() {
+  isView.value = false;
+}
 
 onBeforeUnmount(() => {
   resetTransformerState();
@@ -675,7 +707,7 @@ $color-description: rgb(137 130 130);
       .btn-group-task {
         display: flex;
         padding: 20px 15px;
-        background: #fafafa;
+        background: transparent;
 
         .el-button {
           flex: 1;
@@ -696,7 +728,7 @@ $color-description: rgb(137 130 130);
     }
 
     .block-wrapper {
-    padding: 0px 15px 5px 15px;
+    padding: 0px 15px 0px 15px;
     margin-bottom: 10px;
     border: 1px solid #ececef;
     border-radius: 12px;
@@ -732,8 +764,18 @@ $color-description: rgb(137 130 130);
 
   .advanced-en {
     :deep(.el-collapse-item__header) {
-      min-height: 80px;
+      min-height: 40px;
+      font-weight: 300;
+      line-height: 1.2;
       border-bottom: 0;
+      
+      .mb10 {
+        font-weight: 400;
+        
+        * {
+          font-weight: 400 !important;
+        }
+      }
     }
 
     :deep(.el-collapse-item__content) {
@@ -757,8 +799,18 @@ $color-description: rgb(137 130 130);
 
   .advanced-zh {
     :deep(.el-collapse-item__header) {
-      min-height: 60px;
+      min-height: 40px;
+      font-weight: 300;
+      line-height: 1.2;
       border-bottom: 0;
+      
+      .mb10 {
+        font-weight: 400;
+        
+        * {
+          font-weight: 400 !important;
+        }
+      }
     }
 
     :deep(.el-collapse-item__content) {
@@ -834,4 +886,13 @@ $color-description: rgb(137 130 130);
   }
 }
 
+.el-select__wrapper.is-disabled .el-select__selected-item {
+  color: var(--el-text-color-regular);
+  -webkit-text-fill-color: var(--el-text-color-regular);
+}
+
+.el-input.is-disabled .el-input__inner {
+  color: var(--el-text-color-regular);
+  -webkit-text-fill-color: var(--el-text-color-regular);
+}
 </style>

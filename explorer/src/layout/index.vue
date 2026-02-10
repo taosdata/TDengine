@@ -74,16 +74,17 @@ onBeforeUnmount(() => {
   flex: 1;
   flex-direction: column;
   overflow-x: auto;
+  background-color: #f2f3f3;
 }
 
 .main-content {
   flex: 1;
   width: 100%;
-  min-height: calc(100% - 58px);
-  padding: 15px;
+  height: calc(100% - 58px);
+  padding: 10px 15px 0px 10px;
   overflow-y: auto;
   background-color: #f2f3f3;
-  padding-bottom: 40px; // 状态栏高度
+  margin-bottom: 40px; // 状态栏高度
 }
 
 .status-bar {
@@ -93,7 +94,7 @@ onBeforeUnmount(() => {
   right: 0;
   height: 40px;
   background-color: #f2f3f3;
-  border-top: 1px solid #ececef;
+  border-top: 1px solid #f2f3f3;
   display: flex;
   justify-content: space-between;
   align-items: center;

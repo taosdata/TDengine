@@ -42,7 +42,7 @@
             <el-dropdown v-if="isHasPermission('db:read', ['read', 'write'])">
               <div>
                 <el-tooltip effect="light" placement="right" :content="getTooltip(data, 'moreOperations')">
-                  <More class="operate-icon more-btn ml-10px rotate-90" />
+                  <MoreFilled class="operate-icon more-btn ml-10px rotate-90" />
                 </el-tooltip>
               </div>
               <template #dropdown>
@@ -654,7 +654,7 @@ async function isDatasourceUsedDB() {
     overflow-y: hidden;
     font-size: 12px;
     color: inherit;
-    background-color: #fff;
+    background-color: transparent;
     opacity: 0;
 
     &.show {
@@ -682,11 +682,12 @@ async function isDatasourceUsedDB() {
     align-items: center;
     font-family: Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
     line-height: 30px;
+    color: #303133;
   }
 
   &:hover {
     .operate-btn-wrapper {
-      background-color: #409eff;
+      background-color: #ecf5ff;
       opacity: 1;
     }
   }
@@ -694,7 +695,7 @@ async function isDatasourceUsedDB() {
 
 .is-current > div > .custom-node-wrapper {
   .operate-btn-wrapper {
-    background-color: #409eff;
+    background-color: #eceefa;
   }
 }
 
@@ -743,6 +744,35 @@ async function isDatasourceUsedDB() {
     width: 12px;
     height: 12px;
     color: #909399;
+  }
+}
+
+.custom-node-wrapper:hover {
+  background-color: transparent;
+}
+</style>
+
+<style lang="scss">
+.el-tree {
+  --el-tree-node-hover-bg-color: #ecf5ff;
+
+  .el-tree-node {
+    &:focus > .el-tree-node__content,
+    &.is-focusable > .el-tree-node__content {
+      background-color: transparent !important;
+    }
+
+    > .el-tree-node__content:hover {
+      background-color: #ecf5ff !important;
+    }
+
+    &.is-current > .el-tree-node__content {
+      background-color: #eceefa !important;
+
+      &:hover {
+        background-color: #eceefa !important;
+      }
+    }
   }
 }
 </style>

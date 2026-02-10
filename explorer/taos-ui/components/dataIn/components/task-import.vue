@@ -1,6 +1,6 @@
 <template>
   <el-upload
-    class="upload-demo"
+    class="upload-demo inline-upload"
     :action="dataInProps.uploadFileUrl"
     :data="{ req_id: 'taosx-demo-file' }"
     :on-success="handleSuccess"
@@ -176,4 +176,21 @@ onMounted(async () => {
 });
 </script>
 
-<style scoped lang="scss"></style>
+<style scoped lang="scss">
+/* 确保 upload 组件内的按钮样式与其他按钮一致 */
+.inline-upload {
+  display: inline-block;
+  vertical-align: middle;
+  position: relative;
+  top: -2px; /* 向上移动 2 像素 */
+}
+
+:deep(.el-upload) {
+  display: inline-block;
+}
+
+:deep(.el-button.is-link) {
+  padding: 0 10px;
+  margin: 0;
+}
+</style>

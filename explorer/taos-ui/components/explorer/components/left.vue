@@ -1,13 +1,13 @@
 <template>
-  <section class="dbs-tree">
+  <section ref="dbsTreeRef" class="dbs-tree">
     <div class="dbs-tree-header">
       <div class="flex-center">
         <Icon name="database" class="database-icon mr-10px"></Icon>
         <span class="title">{{ t('common.databases') }}</span>
       </div>
-      <div>
+      <div v-if="showButtons" class="header-buttons">
         <el-tooltip effect="light" placement="top" :content="t('explorer.refreshDatabaseList')">
-          <el-button icon="refresh" size="small" @click="refersh"></el-button>
+          <el-button icon="refresh" size="small" class="square-btn" @click="refersh"></el-button>
         </el-tooltip>
         <el-tooltip
           v-if="explorerProps.database.isCanCreateDatabase"
@@ -15,7 +15,7 @@
           placement="top"
           :content="t('explorer.createDatabase')"
         >
-          <el-button size="small" icon="plus" plain @click="addDatabase"></el-button>
+          <el-button size="small" icon="plus" plain class="square-btn" @click="addDatabase" style="margin: 0px;"></el-button>
         </el-tooltip>
       </div>
     </div>
@@ -33,6 +33,7 @@
         :filter-node-method="nodeFilter"
         @node-collapse="expandChange"
         @node-expand="expandChange"
+        @node-click="handleNodeClick"
         @all-nodes-loaded="allNodesLoaded"
       >
         <template #default="{ node, data }">
@@ -62,7 +63,8 @@ import {
   partActiveTab,
   dbList,
   backSqlPart,
-  viewTableDataLimit
+  viewTableDataLimit,
+  panelActiveTab
 } from './utils';
 import Node from '../../tree/src/model/node';
 import type { LoadedCallback } from '../../tree/src/tree.type';
@@ -79,6 +81,24 @@ import { getSqlProvider } from '../model/useExplorer';
 import { instance } from 'config';
 
 const explorerProps = getExplorerProps();
+const dbsTreeRef = ref<HTMLElement | null>(null);
+const showButtons = ref(true);
+let _dbsResizeObserver: ResizeObserver | null = null;
+
+onMounted(() => {
+  if (typeof ResizeObserver !== 'undefined' && dbsTreeRef.value) {
+    _dbsResizeObserver = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        showButtons.value = (entry.contentRect?.width ?? 0) >= 200;
+      }
+    });
+    _dbsResizeObserver.observe(dbsTreeRef.value);
+  }
+});
+onBeforeUnmount(() => {
+  _dbsResizeObserver && _dbsResizeObserver.disconnect();
+});
+
 const treeKey = inject('treeKey', ref(0));
 const height = useTreeHeight();
 const defaultExpandedKeys = shallowRef<string[]>([]);
@@ -260,10 +280,18 @@ function advancedFilter(node: Node, data: Recordable) {
   stableAdvancedFilterNodeMap[data['node-key']] = node;
 }
 function expandChange(data: Recordable) {
+  fetchTableData(data);
+}
+function handleNodeClick(data: Recordable) {
+  fetchTableData(data); 
+}
+
+function fetchTableData(data: Recordable) {
   if (data.typeName == 'table') {
     executeSql(
       `select * from \`${data.parent.split('.')[0]}\`.\`${data.name}\` order by _C0 desc limit ${viewTableDataLimit}`
     );
+    panelActiveTab.value = 'grid';
   }
 }
 function allNodesLoaded(node: Node) {
@@ -281,10 +309,23 @@ function allNodesLoaded(node: Node) {
   width: 19%;
   height: 100%;
   overflow: hidden;
-  border: 1px solid #dcdfe6;
+  border: 1px solid #dbdfe6;
+  border-radius: 6px; /* 添加圆角 */
+
+  /* 保证头部和内容区域背景与圆角一致 */
+  &-header {
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+  }
+
+  .dbs-tree-container {
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+  }
 
   &:deep(.el-tree-node__content) {
     height: 30px;
+    color: #303133;
   }
 
   &-header {
@@ -301,6 +342,21 @@ function allNodesLoaded(node: Node) {
       font-size: 14px;
       font-weight: 500;
       color: #303133;
+    }
+
+    .header-buttons {
+      display: flex;
+      gap: 10px;
+
+      .square-btn {
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        
+        :deep(.el-icon) {
+          margin: 0;
+        }
+      }
     }
   }
 }
@@ -320,18 +376,28 @@ function allNodesLoaded(node: Node) {
     color: inherit;
   }
 
-  &:deep(.el-tree--highlight-current .el-tree-node.is-current > .el-tree-node__content),
-  &:deep(.el-tree-node:focus > .el-tree-node__content),
   &:deep(.el-tree-node__content:hover) {
-    color: #fff;
-    background-color: #409eff !important;
+    background-color: #ecf5ff !important;
+  }
 
+  &:deep(.el-tree--highlight-current .el-tree-node.is-current > .el-tree-node__content),
+  &:deep(.el-tree-node:focus > .el-tree-node__content) {
+    background-color: #eceefa !important;
+  }
+
+  &:deep(.el-tree--highlight-current .el-tree-node.is-current > .el-tree-node__content:hover) {
+    background-color: #eceefa !important;
+  }
+
+  &:deep(.el-tree-node__content:hover),
+  &:deep(.el-tree--highlight-current .el-tree-node.is-current > .el-tree-node__content),
+  &:deep(.el-tree-node:focus > .el-tree-node__content) {
     .more-btn {
-      color: #fff;
+      color: inherit;
     }
 
     .operate-btn {
-      background-color: #409eff;
+      background-color: transparent;
     }
   }
 }

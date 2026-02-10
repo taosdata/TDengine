@@ -55,13 +55,13 @@ export default {
   logComponentName: `Database "{0}" logs`,
   desc: 'Description',
   user: 'User',
-  share: 'Add to shared favorites',
+  share: 'Share',
   unshare: 'Unshare',
   addDesc: 'Add description',
   editDesc: 'Edit description',
   descPlaceholder: 'Description of the SQL,no more than {0} characters.',
   characterLen: 'Only {0} characters are allowed',
-  addToPersonal: 'Add to personal favorite',
+  addToPersonal: 'Favorite',
   configurationParametersForAd: 'Configuration Parameters For Advanced Users',
   sqlGoesHere: 'Sql goes here...'
 };

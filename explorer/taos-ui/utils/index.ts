@@ -396,6 +396,7 @@ export function requestInterval(fn: AnyFunction, delay: number, immediate = true
 
 // 根据图表轴的数据判断轴的类型
 export function getAxisType(data: string | number): 'category' | 'value' | 'time' {
+  if (Number(data) === 0) return 'value';
   if (!data) return 'category';
   if (!isNaN(Number(data))) return 'value';
   if (new Date(data).toString() != 'Invalid Date') return 'time';
