@@ -4,7 +4,7 @@ ARG ARCH=amd64
 FROM python:3.10-slim-trixie AS base-builder
 ARG ARCH=amd64
 RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update -y && \
-    apt-get install -y --no-install-recommends gcc libc-dev procps && \
+    apt-get install -y --no-install-recommends gcc g++ libc-dev procps && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
