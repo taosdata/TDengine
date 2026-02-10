@@ -207,7 +207,7 @@ def handle_correlation_req():
 
 @app.route("/tool/batch", methods=['POST'])
 def handle_batch_req():
-    """handle the correlation request """
+    """handle the batch request request """
     app_logger.log_inst.info('recv batch req from %s', request.remote_addr)
 
     try:

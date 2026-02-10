@@ -68,7 +68,11 @@ def derivative_check(time, values, max_rate=np.inf):
 # Progress Normalization
 ############################################
 def normalize_progress(time, values, target_len=1000, method="linear"):
-    t_norm = (time - time.min()) / (time.max() - time.min())
+    time_range = time.max() - time.min()
+    if time_range > 0:
+        t_norm = (time - time.min()) / time_range
+    else:
+        t_norm = np.zeros_like(time, dtype=float)
 
     if method == "cubic" and len(values) >= 4:
         kind = "cubic"
@@ -141,7 +145,7 @@ def plot_sg_smoothing(before, after, title, info, save_dir):
     plt.grid(True, alpha=0.3)
     plt.legend()
 
-    # 绘制差异图
+    # draw difference
     plt.subplot(2, 1, 2)
     difference = after - before
     plt.plot(difference, 'g-', linewidth=1)
@@ -362,9 +366,11 @@ def update_config(param) -> dict:
     config = get_default_config()
 
     if param is not None:
-        for key in config.keys():
-            if param.get(key):
-                config[key] = param.get(key)
+        for key, value in param.items():
+            if key in config and isinstance(config[key], dict) and isinstance(value, dict):
+                config[key].update(value)
+            elif key in config:
+                config[key] = value
 
     app_logger.log_inst.debug(f"conf for batch process: {config}")
     return config
