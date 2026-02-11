@@ -7163,8 +7163,8 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
       STableCols* pTblCols = tSimpleHashGet(pTblColHash, (const void*)&pCol->tableId, sizeof(pCol->tableId));
       if (pTblCols == NULL) {
         STableCols tblCols = {0};
-        strncpy(tblCols.tbName.dbname, pCol->dbName, sizeof(tblCols.tbName.dbname));
-        strncpy(tblCols.tbName.tname, pCol->tableName, sizeof(tblCols.tbName.tname));
+        tstrncpy(tblCols.tbName.dbname, pCol->dbName, sizeof(tblCols.tbName.dbname));
+        tstrncpy(tblCols.tbName.tname, pCol->tableName, sizeof(tblCols.tbName.tname));
         tblCols.tbName.acctId = pParseCxt->acctId;
         tblCols.tbName.type = TSDB_TABLE_NAME_T;
         tblCols.cols = taosArrayInit(nProjCols, sizeof(SColIdNameKV));
@@ -13765,7 +13765,7 @@ static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTas
   }
   const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
   if (xnodeId != NULL && strlen(xnodeId) > 0) {
-    createReq.xnodeId = atoi(xnodeId);
+    createReq.xnodeId = taosStr2Int32(xnodeId, NULL, 10);
   }
   if (pStmt->options != NULL) {
     code = covertXNodeTaskOptions(pStmt->options, &createReq.options);
@@ -13836,7 +13836,7 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
     }
     const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
     if (xnodeId != NULL) {
-      updateReq.xnodeId = atoi(xnodeId);
+      updateReq.xnodeId = taosStr2Int32(xnodeId, NULL, 10);
     }
     const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
     if (status != NULL) {
@@ -13875,7 +13875,7 @@ static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobS
 
   const char* xnode_id = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
   if (xnode_id != NULL) {
-    createReq.xnodeId = atoi(xnode_id);
+    createReq.xnodeId = taosStr2Int32(xnode_id, NULL, 10);
   }
 
   const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
@@ -13909,7 +13909,7 @@ static int32_t translateAlterXnodeJob(STranslateContext* pCxt, SAlterXnodeJobStm
 
   const char* xnode_id = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
   if (xnode_id != NULL) {
-    updateReq.xnodeId = atoi(xnode_id);
+    updateReq.xnodeId = taosStr2Int32(xnode_id, NULL, 10);
   }
 
   const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
@@ -13961,7 +13961,7 @@ static int32_t translateRebalanceXnodeJob(STranslateContext* pCxt, SRebalanceXno
   if (xnodeId == NULL) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Missing option: xnode_id");
   }
-  rebalanceReq.xnodeId = atoi(xnodeId);
+  rebalanceReq.xnodeId = taosStr2Int32(xnodeId, NULL, 10);
 
   int32_t code =
       buildCmdMsg(pCxt, TDMT_MND_REBALANCE_XNODE_JOB, (FSerializeFunc)tSerializeSMRebalanceXnodeJobReq, &rebalanceReq);

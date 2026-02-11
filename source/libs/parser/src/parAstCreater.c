@@ -202,7 +202,7 @@ static int32_t parseEndpoint(SAstCreateContext* pCxt, const SToken* pEp, char* p
     tstrncpy(pFqdn, ep, TSDB_FQDN_LEN);
     return TSDB_CODE_SUCCESS;
   }
-  strncpy(pFqdn, ep, pColon - ep);
+  TAOS_STRNCPY(pFqdn, ep, pColon - ep);
   return parsePort(pCxt, pColon + 1, pPort);
 }
 
@@ -5458,8 +5458,7 @@ SNode* createCreateXnodeWithTokenStmt(SAstCreateContext* pCxt, const SToken* pUr
           generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode token length is illegal");
       goto _err;
     }
-    strncpy(pStmt->token, pToken->z + 1, pToken->n - 2);
-    pStmt->token[sizeof(pStmt->token) - 1] = '\0';
+    tstrncpy(pStmt->token, pToken->z + 1, TMIN(pToken->n - 2 + 1, sizeof(pStmt->token)));
   }
   return (SNode*)pStmt;
 _err:
@@ -5963,7 +5962,7 @@ SNode* rebalanceXnodeJobWithOptionsDirectly(SAstCreateContext* pCxt, const SToke
   SRebalanceXnodeJobStmt* pJobStmt = (SRebalanceXnodeJobStmt*)pStmt;
   char                    buf[TSDB_XNODE_RESOURCE_ID_LEN] = {0};
   COPY_STRING_FORM_ID_TOKEN(buf, pResourceId);
-  pJobStmt->jid = atoi(buf);
+  pJobStmt->jid = taosStr2Int32(buf, NULL, 10);
 
   if (nodeType(pNode) == QUERY_NODE_XNODE_TASK_OPTIONS) {
     SXnodeTaskOptions* options = (SXnodeTaskOptions*)(pNode);
@@ -6102,7 +6101,7 @@ SNode* alterXnodeJobWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* p
   SAlterXnodeJobStmt* pJobStmt = (SAlterXnodeJobStmt*)pStmt;
   char                buf[TSDB_XNODE_RESOURCE_ID_LEN] = {0};
   COPY_STRING_FORM_ID_TOKEN(buf, pResourceName);
-  pJobStmt->jid = atoi(buf);
+  pJobStmt->jid = taosStr2Int32(buf, NULL, 10);
 
   if (nodeType(pNode) == QUERY_NODE_XNODE_TASK_OPTIONS) {
     SXnodeTaskOptions* options = (SXnodeTaskOptions*)(pNode);
@@ -6397,7 +6396,7 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
         if (pVal->type == TK_NK_STRING) {
           (void)trimString(pVal->z, pVal->n, pKeyVal + pos, pVal->n + 1);
         } else {
-          strncpy(pKeyVal + pos, pVal->z, TMIN(pVal->n, pKey->n + pVal->n + 2 - pos - 1));
+          TAOS_STRNCPY(pKeyVal + pos, pVal->z, TMIN(pVal->n, pKey->n + pVal->n + 2 - pos - 1));
           pKeyVal[pos + pVal->n] = '\0';
         }
       } else {
@@ -6440,7 +6439,7 @@ SNode* createXnodeTaskJobWithOptions(SAstCreateContext* pCxt, EXnodeResourceType
       CHECK_MAKE_NODE(pStmt);
       SCreateXnodeJobStmt* pJobStmt = (SCreateXnodeJobStmt*)pStmt;
       pJobStmt->options = (SXnodeTaskOptions*)pNodeOptions;
-      pJobStmt->tid = pTidToken->type == TK_NK_STRING ? atoi(pTidToken->z) : taosStr2Int32(pTidToken->z, NULL, 10);
+      pJobStmt->tid = taosStr2Int32(pTidToken->z, NULL, 10);
       break;
     }
     default:

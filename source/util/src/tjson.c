@@ -203,7 +203,7 @@ int32_t tjsonGetStringValue(const SJson* pJson, const char* pName, char* pVal) {
   if (NULL == p) {
     return TSDB_CODE_SUCCESS;
   }
-  strcpy(pVal, p);
+  TAOS_STRCPY(pVal, p);
   return TSDB_CODE_SUCCESS;
 }
 int32_t tjsonGetStringValue1(const SJson* pJson, const char* pName, char* pVal, int32_t cap) {

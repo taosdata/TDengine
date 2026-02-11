@@ -163,7 +163,7 @@ int32_t taos_metric_formatter_get_vgroup_id(char *key) {
       }
       char vgroupid[12];
       len = len < sizeof(vgroupid) ? len : sizeof(vgroupid) - 1;
-      strncpy(vgroupid, start, len);
+      memcpy(vgroupid, start, len);
       vgroupid[len] = '\0';
       return strtol(vgroupid, NULL, 10);
     }

@@ -149,7 +149,7 @@ static bool initInstance(SSharedStorageS3* ss, const char* as) {
         } else if (taosStrcasecmp(key, "maxChunks") == 0 && val != NULL) {
             ss->maxChunks = (uint32_t)atoll(val);
         } else if (taosStrcasecmp(key, "maxRetry") == 0 && val != NULL) {
-            ss->maxRetry = (int32_t)atol(val);
+            ss->maxRetry = (int32_t)taosStr2Int64(val, NULL, 10);
         } else if (taosStrcasecmp(key, "verifyPeer") == 0 && val != NULL) {
             ss->verifyPeer = taosStrcasecmp(val, "true") == 0;
         } else {

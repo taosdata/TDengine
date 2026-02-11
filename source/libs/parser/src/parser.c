@@ -493,7 +493,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam, vo
         return terrno;
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
-      strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
+      TAOS_STRNCPY(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
       pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
       break;
     case TSDB_DATA_TYPE_NCHAR: {
@@ -772,7 +772,7 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
         return terrno;
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
-      strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
+      TAOS_STRNCPY(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
       pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
       if (IS_DURATION_VAL(pVal->flag)) {
         taosMemoryFreeClear(pVal->literal);

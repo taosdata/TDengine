@@ -791,7 +791,7 @@ static int32_t  mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   }
 
   char configName[TSDB_DNODE_CONFIG_LEN] = {0};
-  strncpy(configName, cfgReq.config, sizeof(configName) - 1);
+  tstrncpy(configName, cfgReq.config, sizeof(configName));
   const char *p = strstr(configName, " ");
   if (p) *(char *)p = 0;
   EPrivType privType = cfgGetPrivType(tsCfg, configName, 0);

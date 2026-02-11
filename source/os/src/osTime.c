@@ -478,8 +478,10 @@ time_t taosTimeGm(struct tm *tmp) {
   return _mkgmtime(tmp);
 #elif defined(TD_ASTRA)
   time_t    local = mktime(tmp);
-  struct tm local_tm = *localtime(&local);
-  struct tm utc_tm = *gmtime(&local);
+  struct tm local_tm = {0};
+  taosLocalTime(&local, &local_tm, NULL, 0, NULL);
+  struct tm utc_tm = {0};
+  taosGmTimeR(&local, &utc_tm);
   time_t    offset = (local_tm.tm_hour - utc_tm.tm_hour) * 3600 + (local_tm.tm_min - utc_tm.tm_min) * 60 +
                   (local_tm.tm_sec - utc_tm.tm_sec);
   return local - offset;

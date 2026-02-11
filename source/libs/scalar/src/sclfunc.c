@@ -3755,11 +3755,11 @@ int32_t toTimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
     char *tsData = colDataGetData(pInput[0].columnData, i);
     char *formatData = colDataGetData(pInput[1].columnData, pInput[1].numOfRows > 1 ? i : 0);
     len = TMIN(TS_FORMAT_MAX_LEN - 1, varDataLen(tsData));
-    (void)strncpy(tsStr, varDataVal(tsData), len);  // No need to handle the return value.
+    (void)TAOS_STRNCPY(tsStr, varDataVal(tsData), len);  // No need to handle the return value.
     tsStr[len] = '\0';
     len = TMIN(TS_FORMAT_MAX_LEN - 1, varDataLen(formatData));
     if (pInput[1].numOfRows > 1 || i == 0) {
-      (void)strncpy(format, varDataVal(formatData), len);  // No need to handle the return value.
+      (void)TAOS_STRNCPY(format, varDataVal(formatData), len);  // No need to handle the return value.
       format[len] = '\0';
       if (formats) {
         taosArrayDestroy(formats);
@@ -3848,7 +3848,7 @@ int32_t toCharFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     char *formatData = colDataGetData(pInput[1].columnData, pInput[1].numOfRows > 1 ? i : 0);
     len = TMIN(TS_FORMAT_MAX_LEN - VARSTR_HEADER_SIZE, varDataLen(formatData));
     if (pInput[1].numOfRows > 1 || i == 0) {
-      (void)strncpy(format, varDataVal(formatData), len);
+      (void)TAOS_STRNCPY(format, varDataVal(formatData), len);
       format[len] = '\0';
       if (formats) {
         taosArrayDestroy(formats);

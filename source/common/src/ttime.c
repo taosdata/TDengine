@@ -1355,7 +1355,7 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
     TSFormatNode* format = taosArrayGet(formats, i);
     if (format->type != TS_FORMAT_NODE_TYPE_KEYWORD) {
       if (s - start + format->len + 1 > outLen) break;
-      (void)strncpy(s, format->c, format->len);
+      (void)TAOS_STRNCPY(s, format->c, format->len);
       s += format->len;
       continue;
     }

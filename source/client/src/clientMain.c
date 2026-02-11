@@ -401,7 +401,7 @@ TAOS *taos_connect_with(const OPTIONS *options) {
       } else if (strcmp(key, "db") == 0) {
         db = value;
       } else if (strcmp(key, "port") == 0) {
-        port = (uint16_t)atoi(value);
+        port = (uint16_t)taosStr2Int32(value, NULL, 10);
       } else if (strcmp(key, "charset") == 0) {
         charset = value;
       } else if (strcmp(key, "timezone") == 0) {

@@ -196,7 +196,7 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
   while(pos2 < len) {
     if (isdigit(str[pos2] || str[pos] == '.')) continue;
     if (str[pos2] == 'e' || str[pos2] == 'E') {
-      result->exponent = atoi(str + pos2 + 1);
+      result->exponent = taosStr2Int32(str + pos2 + 1, NULL, 10);
       break;
     }
     pos2++;
