@@ -30,7 +30,6 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         self.threshold = None
         self.time_interval = None
         self.model = None
-        # self.dir = 'sample-ad-autoencoder'
 
     def get_status(self) -> str:
         """return model status """
@@ -43,7 +42,7 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
             return []
 
         if self.model is None:
-            raise FileNotFoundError("not load autoencoder model yet, or load model failed")
+            failed_load_model_except(self.name)
 
         array_2d = np.reshape(self.list, (len(self.list), 1))
         df = pd.DataFrame(array_2d)
