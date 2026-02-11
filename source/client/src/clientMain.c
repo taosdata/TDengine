@@ -2801,6 +2801,10 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       if (bind->num <= 0 || bind->num > INT16_MAX) {
         STMT2_ELOG("bind num:%d must > 0 and < INT16_MAX", bind->num);
         code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
+        if (pCreateTbReq) {
+          tdDestroySVCreateTbReq(pCreateTbReq);
+          taosMemoryFreeClear(pCreateTbReq);
+        }
         return terrno;
       }
 
