@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -11,7 +12,7 @@ using Xunit.Abstractions;
 
 namespace Driver.Test.Client.TMQ
 {
-    public partial class Consumer
+    public partial class Consumer:IDisposable
     {
         private readonly ITestOutputHelper _output;
         private readonly string _nativeConnectString;
@@ -23,14 +24,58 @@ namespace Driver.Test.Client.TMQ
         private readonly Dictionary<string, string> _wsTMQCfg;
         private readonly Dictionary<string, string> _wsTMQCfgAutoCommit;
         private readonly Dictionary<string, string> _cloudTMQCfg;
+        private readonly Dictionary<string, string> _nativeBearerTokenCfg;
+        private readonly Dictionary<string, string> _wsBearerTokenCfg;
+        private readonly ConsumerConfig _wsConsumerConfig =new ConsumerConfig
+        {
+            GroupId = "config_test",
+            ClientId = "config_test_client",
+            TDConnectUser = "root",
+            TDConnectPasswd = "taosdata",
+            TDConnectPort = "6041",
+            TDConnectType = "WebSocket",
+            TDReconnect = "true",
+            TDReconnectRetryCount = "5",
+            TDReconnectIntervalMs = "2000",
+            SessionTimeoutMs = "12000",
+            MaxPollIntervalMs = "300000",
+            MsgWithTableName = "true",
+            TDConnectIp = "127.0.0.1",
+            EnableAutoCommit = "true",
+            AutoCommitIntervalMs = "1000",
+            AutoOffsetReset = "earliest",
+            TDUseSSL = "false",
+            TDEnableCompression = "true",
+        };
+        private readonly ConsumerConfig _nativeConsumerConfig = new ConsumerConfig
+        {
+            GroupId = "config_test",
+            ClientId = "config_test_client",
+            TDConnectUser = "root",
+            TDConnectPasswd = "taosdata",
+            TDConnectPort = "6030",
+            TDConnectType = "Native",
+            SessionTimeoutMs = "12000",
+            MaxPollIntervalMs = "300000",
+            MsgWithTableName = "true",
+            TDConnectIp = "127.0.0.1",
+            EnableAutoCommit = "true",
+            AutoCommitIntervalMs = "1000",
+            AutoOffsetReset = "earliest",
+        };
+        private readonly ConsumerConfig _wsBearerTokenConsumerConfig;
+        private readonly ConsumerConfig _nativeBearerTokenConsumerConfig;
+        
+        public static bool IsEnterpriseTest => Environment.GetEnvironmentVariable("TDENGINE_ENTERPRISE_TEST") == "true";
+        // public static bool IsEnterpriseTest => true;
 
 
         public Consumer(ITestOutputHelper output)
         {
             this._output = output;
-            this._nativeConnectString = "host=localhost;port=6030;username=root;password=taosdata";
+            this._nativeConnectString = "host=127.0.0.1;port=6030;username=root;password=taosdata";
             this._wsConnectString =
-                "protocol=WebSocket;host=localhost;port=6041;useSSL=false;username=root;password=taosdata;enableCompression=true";
+                "protocol=WebSocket;host=127.0.0.1;port=6041;useSSL=false;username=root;password=taosdata;enableCompression=true";
             var cloudHost = Environment.GetEnvironmentVariable("TDENGINE_CLOUD_ENDPOINT");
             var cloudToken = Environment.GetEnvironmentVariable("TDENGINE_CLOUD_TOKEN");
             if (!string.IsNullOrEmpty(cloudHost) && !string.IsNullOrEmpty(cloudToken))
@@ -83,7 +128,7 @@ namespace Driver.Test.Client.TMQ
             {
                 { "group.id", "test" },
                 { "auto.offset.reset", "earliest" },
-                { "td.connect.ip", "localhost" },
+                { "td.connect.ip", "127.0.0.1" },
                 { "td.connect.user", "root" },
                 { "td.connect.pass", "taosdata" },
                 { "td.connect.port", "6030" },
@@ -99,7 +144,7 @@ namespace Driver.Test.Client.TMQ
             {
                 { "group.id", "test" },
                 { "auto.offset.reset", "earliest" },
-                { "td.connect.ip", "localhost" },
+                { "td.connect.ip", "127.0.0.1" },
                 { "td.connect.user", "root" },
                 { "td.connect.pass", "taosdata" },
                 { "td.connect.port", "6030" },
@@ -116,7 +161,7 @@ namespace Driver.Test.Client.TMQ
                 { "td.connect.type", "WebSocket" },
                 { "group.id", "test" },
                 { "auto.offset.reset", "earliest" },
-                { "td.connect.ip", "localhost" },
+                { "td.connect.ip", "127.0.0.1" },
                 { "td.connect.user", "root" },
                 { "td.connect.pass", "taosdata" },
                 { "td.connect.port", "6041" },
@@ -135,7 +180,7 @@ namespace Driver.Test.Client.TMQ
                 { "td.connect.type", "WebSocket" },
                 { "group.id", "test" },
                 { "auto.offset.reset", "earliest" },
-                { "td.connect.ip", "localhost" },
+                { "td.connect.ip", "127.0.0.1" },
                 { "td.connect.user", "root" },
                 { "td.connect.pass", "taosdata" },
                 { "td.connect.port", "6041" },
@@ -148,6 +193,123 @@ namespace Driver.Test.Client.TMQ
                 { "session.timeout.ms", "12000" },
                 { "max.poll.interval.ms", "300000" }
             };
+            if (IsEnterpriseTest)
+            {
+                var token = CreateTestToken();
+                this._wsBearerTokenCfg = new Dictionary<string, string>()
+                {
+                    { "td.connect.type", "WebSocket" },
+                    { "group.id", "test" },
+                    { "auto.offset.reset", "earliest" },
+                    { "td.connect.ip", "127.0.0.1" },
+                    { "td.connect.port", "6041" },
+                    { "client.id", "test_tmq_c" },
+                    { "enable.auto.commit", "false" },
+                    { "msg.with.table.name", "true" },
+                    { "useSSL", "false" },
+                    { "ws.message.enableCompression", "true" },
+                    { "td.connect.token", token },
+                    { "session.timeout.ms", "12000" },
+                    { "max.poll.interval.ms", "300000" }
+                };
+                this._wsBearerTokenConsumerConfig = new ConsumerConfig
+                {
+                    TDConnectType = "WebSocket",
+                    GroupId = "config_test",
+                    AutoOffsetReset = "earliest",
+                    TDConnectIp = "127.0.0.1",
+                    TDConnectPort = "6041",
+                    ClientId = "test_tmq_c",
+                    EnableAutoCommit = "false",
+                    MsgWithTableName = "true",
+                    TDUseSSL = "false",
+                    TDEnableCompression = "true",
+                    TDConnectToken = token,
+                    SessionTimeoutMs = "12000",
+                    MaxPollIntervalMs = "300000",
+                };
+                this._nativeBearerTokenCfg = new Dictionary<string, string>()
+                {
+                    { "group.id", "test" },
+                    { "auto.offset.reset", "earliest" },
+                    { "td.connect.ip", "127.0.0.1" },
+                    { "td.connect.port", "6030" },
+                    { "client.id", "test_tmq_c" },
+                    { "enable.auto.commit", "false" },
+                    { "msg.with.table.name", "true" },
+                    { "td.connect.token", token },
+                    { "session.timeout.ms", "12000" },
+                    { "max.poll.interval.ms", "300000" },
+                };
+                this._nativeBearerTokenConsumerConfig = new ConsumerConfig
+                {
+                    GroupId = "config_test",
+                    AutoOffsetReset = "earliest",
+                    TDConnectIp = "127.0.0.1",
+                    TDConnectPort = "6030",
+                    ClientId = "test_tmq_c",
+                    EnableAutoCommit = "false",
+                    MsgWithTableName = "true",
+                    TDConnectToken = token,
+                    SessionTimeoutMs = "12000",
+                    MaxPollIntervalMs = "300000",
+                };
+            }
+        }
+        
+        public void Dispose()
+        {
+            if (!IsEnterpriseTest) return;
+            var builder = new ConnectionStringBuilder(_wsConnectString);
+            using (var client = DbDriver.Open(builder))
+            {
+                DoRequest(client, "drop token if exists test_token_tmq");
+            }
+        }
+
+        private string CreateTestToken()
+        {
+            var builder = new ConnectionStringBuilder(_wsConnectString);
+            using (var client = DbDriver.Open(builder))
+            {
+                string token;
+                using (var rows = client.Query($"create token test_token_tmq from user {builder.Username}"))
+                {
+                    rows.Read();
+                    token = rows.GetString(0);
+                }
+
+                for (int i = 0; i < 100; i++)
+                {
+                    var count = 0;
+                    using (var rows = client.Query(
+                               "select * from performance_schema.perf_trans where oper = 'create-token'"))
+                    {
+                        while (rows.Read())
+                        {
+                            count = rows.GetInt32(0);
+                        }
+                    }
+
+                    if (count != 0)
+                    {
+                        Thread.Sleep(500);
+                        continue;
+                    }
+
+                    using (var rows = client.Query(
+                               "select count(*) from information_schema.ins_tokens where name = 'test_token_tmq'"))
+                    {
+                        rows.Read();
+                        count = rows.GetInt32(0);
+                    }
+
+                    if (count == 1) return token;
+                    Thread.Sleep(500);
+                }
+
+            }
+            throw new Exception("Create test token timeout");
         }
 
         private static string GetCloudConnectString(string host, string token)
@@ -156,9 +318,16 @@ namespace Driver.Test.Client.TMQ
                 $"protocol=WebSocket;host={host};port=443;useSSL=true;token={token};enableCompression=true";
         }
 
-        private static bool IsCloudTest(Dictionary<string, string> cfg)
+        private static bool IsCloudTest(IEnumerable<KeyValuePair<string, string>> cfg)
         {
-            return cfg.ContainsKey("token") && !string.IsNullOrEmpty(cfg["token"]);
+            foreach (var valuePair in cfg)
+            {
+                if (valuePair.Key == "token")
+                {
+                    return !string.IsNullOrEmpty(valuePair.Value);
+                }
+            }
+            return false;
         }
 
         private void checkValue(Dictionary<string, object> value)
@@ -186,8 +355,25 @@ namespace Driver.Test.Client.TMQ
             Assert.Equal(decimal.Parse("6581.4932"), value["c17"]);
         }
 
-        private void NewConsumerTest(string connectString, string db, string topic, Dictionary<string, string> cfg)
+        private void ConsumerConfigTest(string connectString, string db, string topic, ConsumerConfig cfg)
         {
+            cfg.TDDatabase = db;
+            NewConsumerTest(connectString, db, topic, cfg);
+        }
+
+        private void NewConsumerTest(string connectString, string db, string topic, IEnumerable<KeyValuePair<string, string>> cfg)
+        {
+            var dict = new Dictionary<string, string>();
+
+            foreach (var kv in cfg)
+            {
+                if (dict.ContainsKey(kv.Key))
+                {
+                    throw new ArgumentException($"Duplicate key: {kv.Key}");
+                }
+
+                dict.Add(kv.Key, kv.Value);
+            }
             var builder =
                 new ConnectionStringBuilder(connectString);
             using (var client = DbDriver.Open(builder))
@@ -299,7 +485,7 @@ namespace Driver.Test.Client.TMQ
                     }
                     else
                     {
-                        var groupId = cfg["group.id"];
+                        var groupId = dict["group.id"];
                         for (int i = 0; i < 20; i++)
                         {
                             Thread.Sleep(1000);

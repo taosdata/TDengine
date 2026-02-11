@@ -26,7 +26,7 @@ jobs:
 
       - name: Generate SBOM
         run: |
-          dotnet-CycloneDX csharpTaos.sln -j -fn taos-connector-dotnet.cdx.json
+          dotnet-CycloneDX csharpTaos.sln --output-format json -fn taos-connector-dotnet.cdx.json
 
       - name: Run Trivy Scan
         uses: aquasecurity/trivy-action@0.33.1
@@ -40,3 +40,30 @@ jobs:
           vuln-type: 'library'
           scanners: 'vuln,license'
           version: 'latest'
+          
+      - name: feishu_report
+        if: failure() && github.event_name == 'schedule'
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+        run: |
+          REPO_NAME=${GITHUB_REPOSITORY}
+          WORKFLOW_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          curl -X POST $FEISHU_WEBHOOK_URL \
+               -H 'Content-Type: application/json' \
+               -d "{
+                 \"msg_type\": \"interactive\",
+                 \"card\": {
+                   \"config\": {\"wide_screen_mode\": true},
+                   \"header\": {\"title\": {\"tag\": \"plain_text\",\"content\": \"Dependency Scan Alert\"}},
+                   \"elements\": [
+                     {
+                       \"tag\": \"div\",
+                       \"text\": {
+                         \"tag\": \"lark_md\",
+                         \"content\": \"${REPO_NAME} Dependency check failed. [View Workflow](${WORKFLOW_URL})\"
+                       }
+                     }
+                   ]
+                 }
+               }"

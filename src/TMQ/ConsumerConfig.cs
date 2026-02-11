@@ -90,6 +90,12 @@ namespace TDengine.TMQ
             set => SetObject("td.connect.pass", value);
         }
 
+        public string TDConnectToken
+        {
+            get => Get("td.connect.token");
+            set => SetObject("td.connect.token", value);
+        }
+
         public string TDConnectPort
         {
             get => Get("td.connect.port");

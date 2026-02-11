@@ -113,5 +113,13 @@ namespace Driver.Test.Client.TMQ
             var topic = "ws_tmq_result_test_topic";
             this.ResultTest(this._wsConnectString, db, topic, this._wsTMQCfg);
         }
+        
+        [Fact]
+        public void WSConsumerConfigTest()
+        {
+            var db = "ws_tmq_consumer_config_test";
+            var topic = "ws_tmq_consumer_config_test_topic";
+            this.ConsumerConfigTest(this._wsConnectString, db, topic, this._wsConsumerConfig);
+        }
     }
 }

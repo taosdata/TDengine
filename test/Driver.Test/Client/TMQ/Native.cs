@@ -64,5 +64,13 @@ namespace Driver.Test.Client.TMQ
             var topic = "tmq_result_test_topic";
             this.ResultTest(this._nativeConnectString, db, topic, this._nativeTMQCfg);
         }
+
+        [Fact]
+        public void NativeConsumerConfigTest()
+        {
+            var db = "tmq_consumer_config_test";
+            var topic = "tmq_consumer_config_test_topic";
+            this.ConsumerConfigTest(this._nativeConnectString, db, topic, this._nativeConsumerConfig);
+        }
     }
 }

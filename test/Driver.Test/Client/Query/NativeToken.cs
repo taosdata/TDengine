@@ -5,13 +5,7 @@ namespace Driver.Test.Client.Query
 {
     public class EnterpriseFactAttribute : FactAttribute
     {
-        public EnterpriseFactAttribute()
-        {
-            if (!Client.IsEnterpriseTest)
-            {
-                Skip = "Enterprise edition is required for token-based authentication. Skipping.";
-            }
-        }
+        public override string Skip => !Client.IsEnterpriseTest ? "Enterprise edition is required for token-based authentication. Skipping." : string.Empty;
     }
 
     public partial class Client

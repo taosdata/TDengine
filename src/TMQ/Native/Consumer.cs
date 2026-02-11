@@ -34,11 +34,16 @@ namespace TDengine.TMQ.Native
             NullReferenceHandler(conf);
             foreach (var v in values)
             {
-                if (v.Key == "connectionTimezone")
+                switch (v.Key)
                 {
-                    _tz = TimeZoneInfo.FindSystemTimeZoneById(v.Value);
-                    continue;
+                    case "td.connect.type":
+                        // ignore set connection type here
+                        continue;
+                    case "connectionTimezone":
+                        _tz = TimeZoneInfo.FindSystemTimeZoneById(v.Value);
+                        continue;
                 }
+
                 int code = NativeMethods.TmqConfSet(conf, v.Key, v.Value);
                 if ((TMQ_CONF_RES)code == TMQ_CONF_RES.TMQ_CONF_UNKNOWN)
                 {

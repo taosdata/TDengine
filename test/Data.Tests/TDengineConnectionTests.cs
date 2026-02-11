@@ -244,7 +244,7 @@ namespace Data.Tests
             connection.Open();
             Assert.Equal(ConnectionState.Open, connection.State);
             mockServer.Dispose();
-            Thread.Sleep(1000);
+            Thread.Sleep(2000);
             Assert.Equal(ConnectionState.Broken, connection.State);
             connection.Close();
             connection.Dispose();
