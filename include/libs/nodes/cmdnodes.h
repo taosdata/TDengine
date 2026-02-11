@@ -332,6 +332,8 @@ typedef struct SCreateVSubTableStmt {
   SNodeList* pValsOfTags;
   SNodeList* pSpecificColRefs;
   SNodeList* pColRefs;
+  SNodeList* pSpecificTagRefs;  // tag_name FROM db.table.tag_col (same as specific_column_ref)
+  SNodeList* pTagRefs;          // db.table.tag_col (same as column_ref, positional)
 } SCreateVSubTableStmt;
 
 typedef struct SCreateSubTableClause {

@@ -623,13 +623,17 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   int32_t metaSize = sizeof(STableMeta) + numOfField * sizeof(SSchema);
   int32_t schemaExtSize = 0;
   int32_t colRefSize = 0;
+  int32_t tagRefSize = 0;
   if (withExtSchema(pSrc->tableType) && pSrc->schemaExt) {
     schemaExtSize = pSrc->tableInfo.numOfColumns * sizeof(SSchemaExt);
   }
   if (hasRefCol(pSrc->tableType) && pSrc->colRef) {
     colRefSize = pSrc->numOfColRefs * sizeof(SColRef);
   }
-  *pDst = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize);
+  if (hasRefCol(pSrc->tableType) && pSrc->tagRef) {
+    tagRefSize = pSrc->numOfTagRefs * sizeof(SColRef);
+  }
+  *pDst = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize + tagRefSize);
   if (NULL == *pDst) {
     return terrno;
   }
@@ -645,6 +649,14 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
     memcpy((*pDst)->colRef, pSrc->colRef, colRefSize);
   } else {
     (*pDst)->colRef = NULL;
+  }
+  if (hasRefCol(pSrc->tableType) && pSrc->tagRef) {
+    (*pDst)->tagRef = (SColRef*)((char*)*pDst + metaSize + schemaExtSize + colRefSize);
+    memcpy((*pDst)->tagRef, pSrc->tagRef, tagRefSize);
+    (*pDst)->numOfTagRefs = pSrc->numOfTagRefs;
+  } else {
+    (*pDst)->tagRef = NULL;
+    (*pDst)->numOfTagRefs = 0;
   }
 
   return TSDB_CODE_SUCCESS;

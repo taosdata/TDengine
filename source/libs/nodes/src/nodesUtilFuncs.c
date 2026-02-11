@@ -1752,6 +1752,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pStmt->pColRefs);
       nodesDestroyList(pStmt->pSpecificTags);
       nodesDestroyList(pStmt->pValsOfTags);
+      nodesDestroyList(pStmt->pSpecificTagRefs);
+      nodesDestroyList(pStmt->pTagRefs);
       break;
     }
     case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE: {

@@ -430,27 +430,42 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
                                      PRIV_OBJ_DB, pCxt->pMetaCache));
   PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL,
                                      PRIV_TBL_CREATE, PRIV_OBJ_DB, pCxt->pMetaCache));
-  // check org table's read auth
+  // check org table's read auth for column references
   SNode*     pNode = NULL;
   SNodeList* pTmpNodeList = pStmt->pSpecificColRefs ? pStmt->pSpecificColRefs : pStmt->pColRefs;
-  if (NULL == pTmpNodeList) {
-    // no column reference
-    return TSDB_CODE_SUCCESS;
+  if (pTmpNodeList) {
+    FOREACH(pNode, pTmpNodeList) {
+      SColumnRefNode* pColRef = (SColumnRefNode*)pNode;
+      if (NULL == pColRef) {
+        code = TSDB_CODE_PAR_INVALID_COLUMN;
+        break;
+      }
+      PAR_ERR_RET(
+          reserveTableMetaInCache(pCxt->pParseCxt->acctId, pColRef->refDbName, pColRef->refTableName, pCxt->pMetaCache));
+      PAR_ERR_RET(reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pColRef->refDbName, pColRef->refTableName,
+                                            pCxt->pMetaCache));
+      PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pColRef->refDbName,
+                                         pColRef->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache));
+    }
   }
 
-  FOREACH(pNode, pTmpNodeList) {
-    SColumnRefNode* pColRef = (SColumnRefNode*)pNode;
-    if (NULL == pColRef) {
-      code = TSDB_CODE_PAR_INVALID_COLUMN;
-      break;
+  // collect metadata for tag reference tables (SColumnRefNode nodes in pValsOfTags)
+  // Handles all tag ref syntax forms: legacy (FROM db.table.tag), specific (tag_name FROM db.table.tag),
+  // and positional (db.table.tag) - all produce SColumnRefNode in pValsOfTags.
+  if (pStmt->pValsOfTags) {
+    FOREACH(pNode, pStmt->pValsOfTags) {
+      if (nodeType(pNode) == QUERY_NODE_COLUMN_REF) {
+        SColumnRefNode* pTagRef = (SColumnRefNode*)pNode;
+        PAR_ERR_RET(
+            reserveTableMetaInCache(pCxt->pParseCxt->acctId, pTagRef->refDbName, pTagRef->refTableName, pCxt->pMetaCache));
+        PAR_ERR_RET(reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pTagRef->refDbName, pTagRef->refTableName,
+                                              pCxt->pMetaCache));
+        PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pTagRef->refDbName,
+                                           pTagRef->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache));
+      }
     }
-    PAR_ERR_RET(
-        reserveTableMetaInCache(pCxt->pParseCxt->acctId, pColRef->refDbName, pColRef->refTableName, pCxt->pMetaCache));
-    PAR_ERR_RET(reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pColRef->refDbName, pColRef->refTableName,
-                                          pCxt->pMetaCache));
-    PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pColRef->refDbName,
-                                       pColRef->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache));
   }
+
   return code;
 }
 

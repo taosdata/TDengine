@@ -21520,9 +21520,20 @@ _return:
   return code;
 }
 
+static col_id_t getTagSchemaIndex(const STableMeta* pTableMeta, const char* pTagName) {
+  int32_t  numOfTags = getNumOfTags(pTableMeta);
+  SSchema* pTagsSchema = getTableTagSchema(pTableMeta);
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    if (0 == strcmp(pTagName, pTagsSchema[i].name)) {
+      return (col_id_t)i;
+    }
+  }
+  return -1;
+}
+
 static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, STableMeta* pStbMeta, SArray* tagName,
                                             uint8_t tagNum, const STag* pTag, const SVgroupInfo* pVgroupInfo,
-                                            SVgroupCreateTableBatch* pBatch) {
+                                            SVgroupCreateTableBatch* pBatch, SNodeList* pTagRefNodes) {
   int32_t       code = TSDB_CODE_SUCCESS;
   SVCreateTbReq req = {0};
   SNode*        pCol;
@@ -21567,6 +21578,26 @@ static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, S
     }
   } else {
     // no column reference.
+  }
+
+  // Handle tag references
+  if (pTagRefNodes && LIST_LENGTH(pTagRefNodes) > 0) {
+    int32_t numOfTags = getNumOfTags(pStbMeta);
+    SSchema* pTagsSchema = getTableTagSchema(pStbMeta);
+    PAR_ERR_JRET(tInitDefaultSColRefWrapperByTags(&req.colRef, numOfTags,
+                                                   pTagsSchema[0].colId));
+
+    SNode* pRefNode = NULL;
+    FOREACH(pRefNode, pTagRefNodes) {
+      SColumnRefNode* pTagRef = (SColumnRefNode*)pRefNode;
+      col_id_t tagIdx = getTagSchemaIndex(pStbMeta, pTagRef->colName);
+      if (tagIdx == -1) {
+        PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_TAG_NAME);
+      }
+      const SSchema* pSchema = pTagsSchema + tagIdx;
+      PAR_ERR_JRET(setColRef(&req.colRef.pTagRef[tagIdx], pSchema->colId, pTagRef->refColName, pTagRef->refTableName,
+                             pTagRef->refDbName));
+    }
   }
 
   pBatch->info = *pVgroupInfo;
@@ -23307,6 +23338,38 @@ _return:
   return code;
 }
 
+static int32_t checkTagRef(STranslateContext* pCxt, char* tagName, char* pRefDbName, char* pRefTableName,
+                           char* pRefColName, SDataType type) {
+  STableMeta* pRefTableMeta = NULL;
+  int32_t     code = TSDB_CODE_SUCCESS;
+
+  PAR_ERR_JRET(getTableMeta(pCxt, pRefDbName, pRefTableName, &pRefTableMeta));
+
+  // referenced table must be child table (which has tags)
+  if (pRefTableMeta->tableType != TSDB_CHILD_TABLE) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
+                                         "virtual table's tag:\"%s\"'s reference can only be child table",
+                                         tagName));
+  }
+
+  const SSchema* pRefTag = getTagSchema(pRefTableMeta, pRefColName);
+  if (NULL == pRefTag) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
+                                         "virtual table's tag:\"%s\"'s reference tag:\"%s\" not exist",
+                                         tagName, pRefColName));
+  }
+
+  if (pRefTag->type != type.type || pRefTag->bytes != type.bytes) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
+                                         "virtual table's tag:\"%s\"'s type and reference tag:\"%s\"'s type not match",
+                                         tagName, pRefColName));
+  }
+
+_return:
+  taosMemoryFreeClear(pRefTableMeta);
+  return code;
+}
+
 static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                               SVAlterTbReq* pReq) {
   // only super and normal and virtual normal support
@@ -23806,10 +23869,10 @@ _return:
 
 static int32_t buildCreateVSubTableDataBlock(const SCreateVSubTableStmt* pStmt, const SVgroupInfo* pInfo,
                                              SArray* pBufArray, STableMeta* pStbMeta, SArray* tagName, uint8_t tagNum,
-                                             const STag* pTag) {
+                                             const STag* pTag, SNodeList* pTagRefNodes) {
   SVgroupCreateTableBatch tbatch = {0};
   int32_t                 code = TSDB_CODE_SUCCESS;
-  PAR_ERR_JRET(buildVirtualSubTableBatchReq(pStmt, pStbMeta, tagName, tagNum, pTag, pInfo, &tbatch));
+  PAR_ERR_JRET(buildVirtualSubTableBatchReq(pStmt, pStbMeta, tagName, tagNum, pTag, pInfo, &tbatch, pTagRefNodes));
   PAR_ERR_JRET(serializeVgroupCreateTableBatch(&tbatch, pBufArray));
 
 _return:
@@ -23897,6 +23960,106 @@ _return:
   return code;
 }
 
+// Check if pValsOfTags contains any tag references (SColumnRefNode), validate them,
+// and replace them with NULL value nodes so buildKVRowForBindTags/buildKVRowForAllTags can proceed.
+// Returns the tag reference info in pTagRefNodes (caller should destroy).
+static int32_t checkAndReplaceTagRefs(STranslateContext* pCxt, SNodeList* pSpecificTags, SNodeList* pValsOfTags,
+                                      STableMeta* pSuperTableMeta, SNodeList** ppTagRefNodes) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SNodeList* pTagRefNodes = NULL;
+  bool       hasTagRef = false;
+
+  // First pass: check if there are any tag references
+  SNode* pNode = NULL;
+  FOREACH(pNode, pValsOfTags) {
+    if (nodeType(pNode) == QUERY_NODE_COLUMN_REF) {
+      hasTagRef = true;
+      break;
+    }
+  }
+
+  if (!hasTagRef) {
+    *ppTagRefNodes = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Second pass: validate tag references and replace with NULL value nodes
+  SSchema* pTagSchema = getTableTagSchema(pSuperTableMeta);
+  int32_t  tagIdx = 0;
+  SNode*   pTagNode = NULL;
+
+  SListCell* pCell = pValsOfTags->pHead;
+  while (pCell != NULL) {
+    pNode = pCell->pNode;
+    if (nodeType(pNode) == QUERY_NODE_COLUMN_REF) {
+      SColumnRefNode* pColRef = (SColumnRefNode*)pNode;
+
+      // Determine the tag schema for this position
+      const SSchema* pSchema = NULL;
+      if (pColRef->colName[0] != '\0') {
+        // New syntax: tag name is already specified in colName (e.g., tag1 FROM db.table.tag)
+        pSchema = getTagSchema(pSuperTableMeta, pColRef->colName);
+      } else if (pSpecificTags) {
+        // Legacy syntax with specific tag names: get the corresponding tag name from pSpecificTags
+        SNode* pSpecTag = nodesListGetNode(pSpecificTags, tagIdx);
+        if (pSpecTag) {
+          pSchema = getTagSchema(pSuperTableMeta, ((SColumnNode*)pSpecTag)->colName);
+        }
+      } else {
+        // Legacy syntax positional: use tagIdx
+        if (tagIdx < getNumOfTags(pSuperTableMeta)) {
+          pSchema = pTagSchema + tagIdx;
+        }
+      }
+
+      if (NULL == pSchema) {
+        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME,
+                                             "tag reference at position %d: tag not found", tagIdx));
+      }
+
+      // Validate the tag reference
+      PAR_ERR_JRET(checkTagRef(pCxt, (char*)pSchema->name, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
+                               (SDataType){.type = pSchema->type, .bytes = pSchema->bytes}));
+
+      // Store the tag reference info (with tag name filled in)
+      if (NULL == pTagRefNodes) {
+        PAR_ERR_JRET(nodesMakeList(&pTagRefNodes));
+      }
+      // Clone the column ref node and set colName to the tag name
+      SColumnRefNode* pClone = NULL;
+      PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN_REF, (SNode**)&pClone));
+      tstrncpy(pClone->colName, pSchema->name, TSDB_COL_NAME_LEN);
+      tstrncpy(pClone->refDbName, pColRef->refDbName, TSDB_DB_NAME_LEN);
+      tstrncpy(pClone->refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(pClone->refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
+      PAR_ERR_JRET(nodesListAppend(pTagRefNodes, (SNode*)pClone));
+
+      // Replace the column ref node with a NULL value node
+      SValueNode* pNull = NULL;
+      PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pNull));
+      pNull->literal = taosStrdup("NULL");
+      if (NULL == pNull->literal) {
+        nodesDestroyNode((SNode*)pNull);
+        PAR_ERR_JRET(terrno);
+      }
+      pNull->node.resType.type = TSDB_DATA_TYPE_NULL;
+
+      // Replace in list
+      nodesDestroyNode(pCell->pNode);
+      pCell->pNode = (SNode*)pNull;
+    }
+    tagIdx++;
+    pCell = pCell->pNext;
+  }
+
+  *ppTagRefNodes = pTagRefNodes;
+  return code;
+
+_return:
+  nodesDestroyList(pTagRefNodes);
+  return code;
+}
+
 static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t               code = TSDB_CODE_SUCCESS;
   SCreateVSubTableStmt* pStmt = (SCreateVSubTableStmt*)pQuery->pRoot;
@@ -23907,6 +24070,7 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
   STag*                 pTag = NULL;
   SArray*               tagName = NULL;
   SNode*                pCol = NULL;
+  SNodeList*            pTagRefNodes = NULL;
 
   PAR_ERR_JRET(checkCreateVSubTable(pCxt, pStmt));
 
@@ -23955,6 +24119,11 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
   PAR_ERR_JRET(getTableHashVgroupImpl(pCxt, &name, &info));
   PAR_ERR_JRET(collectUseTable(&name, pCxt->pTargetTables));
 
+  // Check and extract tag references from pValsOfTags, replacing them with NULL values.
+  // Supports both legacy syntax (FROM db.table.tag) and new unified syntax
+  // (tag_name FROM db.table.tag, or db.table.tag positional).
+  PAR_ERR_JRET(checkAndReplaceTagRefs(pCxt, pStmt->pSpecificTags, pStmt->pValsOfTags, pSuperTableMeta, &pTagRefNodes));
+
   if (NULL != pStmt->pSpecificTags) {
     PAR_ERR_JRET(
         buildKVRowForBindTags(pCxt, pStmt->pSpecificTags, pStmt->pValsOfTags, pSuperTableMeta, &pTag, tagName));
@@ -23963,13 +24132,15 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
   }
 
   PAR_ERR_JRET(buildCreateVSubTableDataBlock(pStmt, &info, pBufArray, pSuperTableMeta, tagName,
-                                             taosArrayGetSize(tagName), pTag));
+                                             taosArrayGetSize(tagName), pTag, pTagRefNodes));
   PAR_ERR_JRET(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
 
+  nodesDestroyList(pTagRefNodes);
   taosMemoryFreeClear(pSuperTableMeta);
   taosArrayDestroy(tagName);
   return code;
 _return:
+  nodesDestroyList(pTagRefNodes);
   destroyCreateTbReqArray(pBufArray);
   taosArrayDestroy(tagName);
   taosMemoryFreeClear(pSuperTableMeta);

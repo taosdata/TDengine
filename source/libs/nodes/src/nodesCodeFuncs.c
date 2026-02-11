@@ -8102,6 +8102,8 @@ static const char* jkCreateVSubTableStmtSpecificTags = "SpecificTags";
 static const char* jkCreateVSubTableStmtValsOfTags = "ValsOfTags";
 static const char* jkCreateVSubTableStmtSpecificColRefs = "SpecificColRefs";
 static const char* jkCreateVSubTableStmtValsOfColRefs = "ValsOfColRefs";
+static const char* jkCreateVSubTableStmtSpecificTagRefs = "SpecificTagRefs";
+static const char* jkCreateVSubTableStmtTagRefs = "TagRefs";
 
 static int32_t createVSubTableStmtToJson(const void* pObj, SJson* pJson) {
   const SCreateVSubTableStmt* pNode = (const SCreateVSubTableStmt*)pObj;
@@ -8130,6 +8132,12 @@ static int32_t createVSubTableStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkCreateVSubTableStmtValsOfColRefs, pNode->pColRefs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkCreateVSubTableStmtSpecificTagRefs, pNode->pSpecificTagRefs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkCreateVSubTableStmtTagRefs, pNode->pTagRefs);
   }
   return code;
 }
@@ -8161,6 +8169,12 @@ static int32_t jsonToCreateVSubTableStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkCreateVSubTableStmtValsOfColRefs, &pNode->pColRefs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkCreateVSubTableStmtSpecificTagRefs, &pNode->pSpecificTagRefs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkCreateVSubTableStmtTagRefs, &pNode->pTagRefs);
   }
 
   return code;

@@ -3335,6 +3335,41 @@ _err:
   return NULL;
 }
 
+// Create a SColumnRefNode from db.table.col triplet tokens (for positional tag refs in vtags_literal)
+SNode* createColumnRefNodeFromTriplet(SAstCreateContext* pCxt, SToken* pDb, SToken* pTable, SToken* pCol) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkDbName(pCxt, pDb, true));
+  CHECK_NAME(checkTableName(pCxt, pTable));
+  CHECK_NAME(checkColumnName(pCxt, pCol));
+
+  SColumnRefNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN_REF, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  COPY_STRING_FORM_ID_TOKEN(pNode->refDbName, pDb);
+  COPY_STRING_FORM_ID_TOKEN(pNode->refTableName, pTable);
+  COPY_STRING_FORM_ID_TOKEN(pNode->refColName, pCol);
+  return (SNode*)pNode;
+_err:
+  return NULL;
+}
+
+// Create a SColumnRefNode from table.col pair tokens (for positional tag refs in vtags_literal)
+SNode* createColumnRefNodeFromPair(SAstCreateContext* pCxt, SToken* pTable, SToken* pCol) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkTableName(pCxt, pTable));
+  CHECK_NAME(checkColumnName(pCxt, pCol));
+
+  SColumnRefNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN_REF, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  snprintf(pNode->refDbName, TSDB_DB_NAME_LEN, "%s", pCxt->pQueryCxt->db);
+  COPY_STRING_FORM_ID_TOKEN(pNode->refTableName, pTable);
+  COPY_STRING_FORM_ID_TOKEN(pNode->refColName, pCol);
+  return (SNode*)pNode;
+_err:
+  return NULL;
+}
+
 STokenTriplet* createTokenTriplet(SAstCreateContext* pCxt, SToken pName) {
   CHECK_PARSER_STATUS(pCxt);
 
@@ -3462,7 +3497,8 @@ _err:
 
 SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
                                  SNodeList* pSpecificColRefs, SNodeList* pColRefs, SNode* pUseRealTable,
-                                 SNodeList* pSpecificTags, SNodeList* pValsOfTags) {
+                                 SNodeList* pSpecificTags, SNodeList* pValsOfTags,
+                                 SNodeList* pSpecificTagRefs, SNodeList* pTagRefs) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateVSubTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT, (SNode**)&pStmt);
@@ -3476,6 +3512,8 @@ SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNo
   pStmt->pValsOfTags = pValsOfTags;
   pStmt->pSpecificColRefs = pSpecificColRefs;
   pStmt->pColRefs = pColRefs;
+  pStmt->pSpecificTagRefs = pSpecificTagRefs;
+  pStmt->pTagRefs = pTagRefs;
   nodesDestroyNode(pRealTable);
   nodesDestroyNode(pUseRealTable);
   return (SNode*)pStmt;
@@ -3486,6 +3524,8 @@ _err:
   nodesDestroyList(pValsOfTags);
   nodesDestroyList(pSpecificColRefs);
   nodesDestroyList(pColRefs);
+  nodesDestroyList(pSpecificTagRefs);
+  nodesDestroyList(pTagRefs);
   return NULL;
 }
 

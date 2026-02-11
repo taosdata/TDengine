@@ -671,10 +671,11 @@ int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta) 
   QUERY_PARAM_CHECK(msg->pColRefs);
 
   int32_t pColRefSize = sizeof(SColRef) * msg->numOfColRefs;
+  int32_t pTagRefSize = (msg->pTagRefs && msg->numOfTagRefs > 0) ? sizeof(SColRef) * msg->numOfTagRefs : 0;
 
-  SVCTableMeta *pTableMeta = taosMemoryCalloc(1, sizeof(SVCTableMeta) + pColRefSize);
+  SVCTableMeta *pTableMeta = taosMemoryCalloc(1, sizeof(SVCTableMeta) + pColRefSize + pTagRefSize);
   if (NULL == pTableMeta) {
-    qError("calloc size[%d] failed", (int32_t)sizeof(SVCTableMeta) + pColRefSize);
+    qError("calloc size[%d] failed", (int32_t)sizeof(SVCTableMeta) + pColRefSize + pTagRefSize);
     return terrno;
   }
 
@@ -687,6 +688,15 @@ int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta) 
 
   pTableMeta->colRef = (SColRef *)((char *)pTableMeta + sizeof(SVCTableMeta));
   memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
+
+  if (pTagRefSize > 0) {
+    pTableMeta->tagRef = (SColRef *)((char *)pTableMeta + sizeof(SVCTableMeta) + pColRefSize);
+    memcpy(pTableMeta->tagRef, msg->pTagRefs, pTagRefSize);
+    pTableMeta->numOfTagRefs = msg->numOfTagRefs;
+  } else {
+    pTableMeta->tagRef = NULL;
+    pTableMeta->numOfTagRefs = 0;
+  }
 
   qDebug("ctable %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s suid %" PRIx64, msg->tbName, (pTableMeta)->uid,
          (pTableMeta)->tableType, (pTableMeta)->vgId, msg->dbFName, (pTableMeta)->suid);
@@ -702,14 +712,16 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
   int32_t schemaExtSize = (withExtSchema(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
   int32_t pColRefSize = (hasRefCol(msg->tableType) && msg->pColRefs && !isStb) ? sizeof(SColRef) * msg->numOfColRefs : 0;
+  int32_t pTagRefSize = (hasRefCol(msg->tableType) && msg->pTagRefs && !isStb) ? sizeof(SColRef) * msg->numOfTagRefs : 0;
 
-  STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + pColRefSize);
+  STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + pColRefSize + pTagRefSize);
   if (NULL == pTableMeta) {
     qError("calloc size[%d] failed", metaSize);
     return terrno;
   }
   SSchemaExt *pSchemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
   SColRef    *pColRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
+  SColRef    *pTagRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize + pColRefSize);
 
   pTableMeta->vgId = isStb ? 0 : msg->vgId;
   pTableMeta->tableType = isStb ? TSDB_SUPER_TABLE : msg->tableType;
@@ -750,6 +762,15 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
     memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
   } else {
     pTableMeta->colRef = NULL;
+  }
+
+  if (hasRefCol(msg->tableType) && msg->pTagRefs && !isStb) {
+    pTableMeta->tagRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize + pColRefSize);
+    memcpy(pTableMeta->tagRef, msg->pTagRefs, pTagRefSize);
+    pTableMeta->numOfTagRefs = msg->numOfTagRefs;
+  } else {
+    pTableMeta->tagRef = NULL;
+    pTableMeta->numOfTagRefs = 0;
   }
 
   bool hasPK = (msg->numOfColumns > 1) && (pTableMeta->schema[1].flags & COL_IS_KEY);
