@@ -1225,8 +1225,8 @@ SSdbRaw *mndXnodeTaskActionEncode(SXnodeTaskObj *pObj) {
     return NULL;
   }
 
-  int32_t totalStrLen =
-      pObj->nameLen + pObj->sourceDsnLen + pObj->sinkDsnLen + pObj->parserLen + pObj->reasonLen + pObj->statusLen;
+  int32_t totalStrLen = pObj->nameLen + pObj->sourceDsnLen + pObj->sinkDsnLen + pObj->parserLen + pObj->reasonLen +
+                        pObj->statusLen + pObj->createdByLen + pObj->labelsLen;
   int32_t rawDataLen = sizeof(SXnodeTaskObj) + TSDB_XNODE_RESERVE_SIZE + totalStrLen;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_XNODE_TASK, TSDB_XNODE_VER_NUMBER, rawDataLen);
@@ -2404,7 +2404,8 @@ SSdbRaw *mndXnodeJobActionEncode(SXnodeJobObj *pObj) {
 
   mDebug("xnode tid:%d, jid:%d, start to encode to raw, row:%p", pObj->taskId, pObj->id, pObj);
 
-  int32_t rawDataLen = sizeof(SXnodeJobObj) + TSDB_XNODE_RESERVE_SIZE + pObj->configLen + pObj->reasonLen;
+  int32_t rawDataLen =
+      sizeof(SXnodeJobObj) + TSDB_XNODE_RESERVE_SIZE + pObj->configLen + pObj->reasonLen + pObj->statusLen;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_XNODE_JOB, TSDB_XNODE_VER_NUMBER, rawDataLen);
   if (pRaw == NULL) goto _OVER;
