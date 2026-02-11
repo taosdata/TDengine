@@ -1,3 +1,5 @@
+import os.path
+
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
@@ -56,7 +58,7 @@ def derivative_check(time, values, max_rate=np.inf):
 
     mask = np.abs(rate) <= max_rate
 
-    # 保留第一个点
+    # Keep the first point
     mask[0] = True
 
     return time[mask], values[mask]
@@ -66,7 +68,11 @@ def derivative_check(time, values, max_rate=np.inf):
 # Progress Normalization
 ############################################
 def normalize_progress(time, values, target_len=1000, method="linear"):
-    t_norm = (time - time.min()) / (time.max() - time.min())
+    time_range = time.max() - time.min()
+    if time_range > 0:
+        t_norm = (time - time.min()) / time_range
+    else:
+        t_norm = np.zeros_like(time, dtype=float)
 
     if method == "cubic" and len(values) >= 4:
         kind = "cubic"
@@ -139,7 +145,7 @@ def plot_sg_smoothing(before, after, title, info, save_dir):
     plt.grid(True, alpha=0.3)
     plt.legend()
 
-    # 绘制差异图
+    # draw difference
     plt.subplot(2, 1, 2)
     difference = after - before
     plt.plot(difference, 'g-', linewidth=1)
@@ -202,7 +208,7 @@ def build_golden(batches, config):
 ############################################
 # Main Pipeline
 ############################################
-def do_batch_process(ts_list:list, val_list:list, win_list:list, config):
+def do_batch_process(ts_list, val_list, win_list, config):
     segments = split_by_windows(ts_list, val_list, win_list)
 
     processed_batches = []
@@ -212,38 +218,45 @@ def do_batch_process(ts_list:list, val_list:list, win_list:list, config):
         if len(v) < 10:
             if t.size >= 2:
                 app_logger.log_inst.warn(
-                    "data points less than threshold, discard time window [%d, %d]".format(t[0], t[1]))
+                    f"data points less than threshold, discard time window [{t[0]}, {t[1]}]")
             else:
                 app_logger.log_inst.warn("data points less than threshold, discard empty time window")
             continue
 
-        save_dir = config.get("plot_dir", "plots") + f"/batch_{idx}"
+        save_dir = f"./batch_{idx}"
 
         # Hampel filter
-        v_hampel, outlier_indices = hampel_filter(
-            v,
-            config["hampel"]["window_size"],
-            config["hampel"]["sigma"],
-        )
+        if config['hampel']['active']:
+            v_hampel, outlier_indices = hampel_filter(
+                v,
+                config["hampel"]["window_size"],
+                config["hampel"]["sigma"],
+            )
 
-        if config["plot"]:
-            info = f'window_size: {config["hampel"]["window_size"]}, sigma:{config["hampel"]["sigma"]}'
-            plot_hempel_filter(v, v_hampel, outlier_indices, info, save_dir)
+            if config["plot"]:
+                info = f'window_size: {config["hampel"]["window_size"]}, sigma:{config["hampel"]["sigma"]}'
+                plot_hempel_filter(v, v_hampel, outlier_indices, info, save_dir)
+        else:
+            v_hampel = v
 
         # Derivative check
-        threshold = config["derivative"].get("max_rate", np.inf)
-        if threshold <= 0:
-            app_logger.log_inst.warn("the max rate is set to 0, no results generated")
-            return np.array([]), np.array([]), np.array([]), np.array([])
+        if config['derivative']['active']:
+            threshold = config["derivative"].get("max_rate", np.inf)
+            if threshold <= 0:
+                app_logger.log_inst.warn("the max rate is set to 0, no results generated")
+                return np.array([]), np.array([]), np.array([]), np.array([])
 
-        t_der, v_der = derivative_check(
-            t,
-            v_hampel,
-            config["derivative"].get("max_rate", np.inf),
-        )
+            t_der, v_der = derivative_check(
+                t,
+                v_hampel,
+                config["derivative"].get("max_rate", np.inf),
+            )
 
-        if config["plot"]:
-            plot_compare(v_hampel, v_der, "2_derivative", save_dir)
+            if config["plot"]:
+                plot_compare(v_hampel, v_der, "2_derivative", save_dir)
+        else:
+            t_der = t
+            v_der = v_hampel
 
         # Normalize
         t_norm, v_norm = normalize_progress(
@@ -257,23 +270,28 @@ def do_batch_process(ts_list:list, val_list:list, win_list:list, config):
             plot_compare(v_der, v_norm, "3_normalize", save_dir)
 
         # SG smoothing
-        sg_cfg = config["savgol"]
-        if sg_cfg["window"] % 2 == 0 or sg_cfg["window"] <= 0:
-            app_logger.log_inst.error("Savitzky-Golay window must be even, input size: %d".format(sg_cfg["window"]))
-            raise ValueError("Savitzky-Golay window must be even, input size: %d".format(sg_cfg["window"]))
+        if config['savgol']['active']:
+            sg_cfg = config["savgol"]
+            if sg_cfg["window"] % 2 == 0 or sg_cfg["window"] <= 0:
+                app_logger.log_inst.error(f"Savitzky-Golay window must be a positive odd integer, input size: {sg_cfg['window']}")
+                raise ValueError(f"Savitzky-Golay window must be a positive odd integer, input size: {sg_cfg['window']}")
 
-        v_sg = savgol_filter(
-            v_norm,
-            window_length=sg_cfg["window"],
-            polyorder=sg_cfg["polyorder"],
-        )
+            v_sg = savgol_filter(
+                v_norm,
+                window_length=sg_cfg["window"],
+                polyorder=sg_cfg["polyorder"],
+            )
 
-        if config["plot"]:
-            info = f'window_size: {sg_cfg["window"]}, poly_order:{sg_cfg["polyorder"]}'
-            plot_sg_smoothing(v_norm, v_sg, "4_savgol", info, save_dir)
+            if config["plot"]:
+                info = f'window_size: {sg_cfg["window"]}, poly_order:{sg_cfg["polyorder"]}'
+                plot_sg_smoothing(v_norm, v_sg, "4_savgol", info, save_dir)
+        else:
+            v_sg = v_norm
 
         processed_batches.append(v_sg)
     app_logger.log_inst.debug("total %d time windows data to build golden batch results".format(len(processed_batches)))
+
+    app_logger.log_inst.debug("total %d time windows data to build golden batch results" % (len(processed_batches)))
 
     if len(processed_batches) <= 0:
         app_logger.log_inst.warn("empty results return since no valid input time window for golden batch process")
@@ -300,11 +318,11 @@ def do_batch_process(ts_list:list, val_list:list, win_list:list, config):
         plt.legend()
         plt.title(f'Golden Batch with Envelope ({config["golden"]["method"]})')
 
-        Path(config.get("plot_dir", "plots")).mkdir(exist_ok=True)
-        plt.savefig(f"{config.get('plot_dir', 'plots')}/golden_batch.png")
+        Path(os.getcwd()).mkdir(exist_ok=True)
+        plt.savefig(f"./golden_batch.png")
         plt.close()
 
-    app_logger.log_inst.debug(f"build golden batch completed, center: {center}, lower:{lower}, uppper:{upper}")
+    app_logger.log_inst.debug(f"build golden batch completed, center: {center}, lower:{lower}, upper:{upper}")
     return center, lower, upper, processed_batches
 
 
@@ -351,9 +369,11 @@ def update_config(param) -> dict:
     config = get_default_config()
 
     if param is not None:
-        for key in config.keys():
-            if param.get(key):
-                config[key] = param.get(key)
+        for key, value in param.items():
+            if key in config and isinstance(config[key], dict) and isinstance(value, dict):
+                config[key].update(value)
+            elif key in config:
+                config[key] = value
 
     app_logger.log_inst.debug(f"conf for batch process: {config}")
     return config
