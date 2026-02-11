@@ -713,7 +713,7 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_CREATE_XNODE);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed check permisson for create xnode, code:%s", tstrerror(code));
+    mError("failed check permission for create xnode, code:%s", tstrerror(code));
     goto _OVER;
   }
   TAOS_CHECK_GOTO(tDeserializeSMCreateXnodeReq(pReq->pCont, pReq->contLen, &createReq), &lino, _OVER);
@@ -868,7 +868,7 @@ static int32_t mndProcessUpdateXnodeReq(SRpcMsg *pReq) {
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_UPDATE_XNODE);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed check permisson for update xnode, code:%s", tstrerror(code));
+    mError("failed check permission for update xnode, code:%s", tstrerror(code));
     goto _OVER;
   }
   TAOS_CHECK_GOTO(tDeserializeSMUpdateXnodeReq(pReq->pCont, pReq->contLen, &updateReq), NULL, _OVER);
@@ -979,7 +979,7 @@ static int32_t mndProcessDropXnodeReq(SRpcMsg *pReq) {
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_DROP_XNODE);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed check permisson for drop xnode, code:%s", tstrerror(code));
+    mError("failed check permission for drop xnode, code:%s", tstrerror(code));
     goto _OVER;
   }
   TAOS_CHECK_GOTO(tDeserializeSMDropXnodeReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
@@ -1040,7 +1040,7 @@ static int32_t mndProcessDrainXnodeReq(SRpcMsg *pReq) {
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_DRAIN_XNODE);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed check permisson for drain xnode, code:%s", tstrerror(code));
+    mError("failed check permission for drain xnode, code:%s", tstrerror(code));
     goto _OVER;
   }
   TAOS_CHECK_GOTO(tDeserializeSMDrainXnodeReq(pReq->pCont, pReq->contLen, &drainReq), NULL, _OVER);
@@ -1664,7 +1664,7 @@ static int32_t mndProcessCreateXnodeTaskReq(SRpcMsg *pReq) {
   // Step 1: Validate permissions
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_CREATE_XNODE_TASK);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed check permisson for create xnode task, code:%s", tstrerror(code));
+    mError("failed check permission for create xnode task, code:%s", tstrerror(code));
     goto _OVER;
   }
 
@@ -1777,7 +1777,7 @@ static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_START_XNODE_TASK);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed check permisson for start xnode task, code:%s", tstrerror(code));
+    mError("failed check permission for start xnode task, code:%s", tstrerror(code));
     goto _OVER;
   }
   TAOS_CHECK_GOTO(tDeserializeSMStartXnodeTaskReq(pReq->pCont, pReq->contLen, &startReq), NULL, _OVER);
@@ -1823,7 +1823,7 @@ static int32_t mndProcessStopXnodeTaskReq(SRpcMsg *pReq) {
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_STOP_XNODE_TASK);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed check permisson for stop xnode task, code:%s", tstrerror(code));
+    mError("failed check permission for stop xnode task, code:%s", tstrerror(code));
     goto _OVER;
   }
   TAOS_CHECK_GOTO(tDeserializeSMStopXnodeTaskReq(pReq->pCont, pReq->contLen, &stopReq), NULL, _OVER);
@@ -2002,7 +2002,7 @@ static int32_t mndProcessUpdateXnodeTaskReq(SRpcMsg *pReq) {
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_UPDATE_XNODE_TASK);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed check permisson for update xnode task, code:%s", tstrerror(code));
+    mError("failed check permission for update xnode task, code:%s", tstrerror(code));
     goto _OVER;
   }
 
@@ -2123,7 +2123,7 @@ static int32_t mndProcessDropXnodeTaskReq(SRpcMsg *pReq) {
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_DROP_XNODE_TASK);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed check permisson for drop xnode task, code:%s", tstrerror(code));
+    mError("failed check permission for drop xnode task, code:%s", tstrerror(code));
     goto _OVER;
   }
   TAOS_CHECK_GOTO(tDeserializeSMDropXnodeTaskReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
@@ -2953,7 +2953,7 @@ static int32_t mndProcessCreateXnodeJobReq(SRpcMsg *pReq) {
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_CREATE_XNODE_JOB);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed check permisson for create xnode job, code:%s", tstrerror(code));
+    mError("failed check permission for create xnode job, code:%s", tstrerror(code));
     goto _OVER;
   }
   TAOS_CHECK_GOTO(tDeserializeSMCreateXnodeJobReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
@@ -2979,7 +2979,7 @@ static int32_t mndProcessUpdateXnodeJobReq(SRpcMsg *pReq) {
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_UPDATE_XNODE_JOB);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed check permisson for update xnode job, code:%s", tstrerror(code));
+    mError("failed check permission for update xnode job, code:%s", tstrerror(code));
     goto _OVER;
   }
   TAOS_CHECK_GOTO(tDeserializeSMUpdateXnodeJobReq(pReq->pCont, pReq->contLen, &updateReq), NULL, _OVER);
@@ -3014,7 +3014,7 @@ static int32_t mndProcessRebalanceXnodeJobReq(SRpcMsg *pReq) {
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_REBALANCE_XNODE_JOB);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed check permisson for rebalance xnode job, code:%s", tstrerror(code));
+    mError("failed check permission for rebalance xnode job, code:%s", tstrerror(code));
     goto _OVER;
   }
   TAOS_CHECK_GOTO(tDeserializeSMRebalanceXnodeJobReq(pReq->pCont, pReq->contLen, &rebalanceReq), NULL, _OVER);
@@ -3561,7 +3561,7 @@ static int32_t mndProcessRebalanceXnodeJobsWhereReq(SRpcMsg *pReq) {
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_REBALANCE_XNODE_JOB);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed check permisson for rebalance xnode jobs where, code:%s", tstrerror(code));
+    mError("failed check permission for rebalance xnode jobs where, code:%s", tstrerror(code));
     goto _OVER;
   }
   TAOS_CHECK_GOTO(tDeserializeSMRebalanceXnodeJobsWhereReq(pReq->pCont, pReq->contLen, &rebalanceReq), NULL, _OVER);
@@ -3650,7 +3650,7 @@ static int32_t mndProcessDropXnodeJobReq(SRpcMsg *pReq) {
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_DROP_XNODE_JOB);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed check permisson for drop xnode jobs, code:%s", tstrerror(code));
+    mError("failed check permission for drop xnode jobs, code:%s", tstrerror(code));
     goto _OVER;
   }
   TAOS_CHECK_GOTO(tDeserializeSMDropXnodeJobReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
@@ -4754,7 +4754,7 @@ static int32_t mndProcessCreateXnodeAgentReq(SRpcMsg *pReq) {
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_CREATE_XNODE_AGENT);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed check permisson for create xnode agent, code:%s", tstrerror(code));
+    mError("failed check permission for create xnode agent, code:%s", tstrerror(code));
     goto _OVER;
   }
 
@@ -4844,7 +4844,7 @@ static int32_t mndProcessUpdateXnodeAgentReq(SRpcMsg *pReq) {
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_UPDATE_XNODE_AGENT);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed check permisson for update xnode agent, code:%s", tstrerror(code));
+    mError("failed check permission for update xnode agent, code:%s", tstrerror(code));
     goto _OVER;
   }
 
@@ -4946,7 +4946,7 @@ static int32_t mndProcessDropXnodeAgentReq(SRpcMsg *pReq) {
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_DROP_XNODE_AGENT);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed check permisson for drop xnode agent, code:%s", tstrerror(code));
+    mError("failed check permission for drop xnode agent, code:%s", tstrerror(code));
     goto _OVER;
   }
   TAOS_CHECK_GOTO(tDeserializeSMDropXnodeAgentReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
