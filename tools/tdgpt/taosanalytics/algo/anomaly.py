@@ -41,7 +41,6 @@ def draw_ad_results(input_list, res, fig_name, valid_code):
     if not conf.get_draw_result_option():
         return
 
-    plt.clf()
     plt.figure(figsize=(9, 6))
 
     plt.plot(input_list, 'b-', label='Data')
