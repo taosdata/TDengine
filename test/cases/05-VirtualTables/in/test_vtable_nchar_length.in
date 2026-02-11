@@ -1,0 +1,143 @@
+-- ============================================================
+-- Case 1: vtable col len > src col len
+-- Virtual table binary(64)/nchar(64) referencing source binary(32)/nchar(32)
+-- Should return actual source data without any issue
+-- ============================================================
+
+-- 1.1 Direct projection
+select binary_col from test_vtable_nchar_len.vtb_nchar_gt order by ts;
+select nchar_col from test_vtable_nchar_len.vtb_nchar_gt order by ts;
+select varchar_col from test_vtable_nchar_len.vtb_nchar_gt order by ts;
+select binary_col, nchar_col, varchar_col, int_col from test_vtable_nchar_len.vtb_nchar_gt order by ts;
+
+-- 1.2 Length/char_length functions
+select length(binary_col) from test_vtable_nchar_len.vtb_nchar_gt order by ts;
+select length(nchar_col) from test_vtable_nchar_len.vtb_nchar_gt order by ts;
+select char_length(binary_col) from test_vtable_nchar_len.vtb_nchar_gt order by ts;
+select char_length(nchar_col) from test_vtable_nchar_len.vtb_nchar_gt order by ts;
+
+-- 1.3 String functions
+select lower(binary_col) from test_vtable_nchar_len.vtb_nchar_gt order by ts;
+select upper(binary_col) from test_vtable_nchar_len.vtb_nchar_gt order by ts;
+select ltrim(binary_col) from test_vtable_nchar_len.vtb_nchar_gt order by ts;
+select rtrim(binary_col) from test_vtable_nchar_len.vtb_nchar_gt order by ts;
+
+-- 1.4 Concat function
+select concat(binary_col, '-suffix') from test_vtable_nchar_len.vtb_nchar_gt order by ts;
+select concat(nchar_col, '-后缀') from test_vtable_nchar_len.vtb_nchar_gt order by ts;
+
+-- 1.5 Substring function
+select substring(binary_col, 1, 10) from test_vtable_nchar_len.vtb_nchar_gt order by ts;
+select substring(nchar_col, 1, 5) from test_vtable_nchar_len.vtb_nchar_gt order by ts;
+
+-- ============================================================
+-- Case 2: vtable col len = src col len
+-- Virtual table binary(32)/nchar(32) referencing source binary(32)/nchar(32)
+-- Should return actual source data
+-- ============================================================
+
+-- 2.1 Direct projection
+select binary_col from test_vtable_nchar_len.vtb_nchar_eq order by ts;
+select nchar_col from test_vtable_nchar_len.vtb_nchar_eq order by ts;
+select varchar_col from test_vtable_nchar_len.vtb_nchar_eq order by ts;
+select binary_col, nchar_col, varchar_col, int_col from test_vtable_nchar_len.vtb_nchar_eq order by ts;
+
+-- 2.2 Length/char_length functions
+select length(binary_col) from test_vtable_nchar_len.vtb_nchar_eq order by ts;
+select length(nchar_col) from test_vtable_nchar_len.vtb_nchar_eq order by ts;
+select char_length(binary_col) from test_vtable_nchar_len.vtb_nchar_eq order by ts;
+select char_length(nchar_col) from test_vtable_nchar_len.vtb_nchar_eq order by ts;
+
+-- 2.3 String functions
+select lower(binary_col) from test_vtable_nchar_len.vtb_nchar_eq order by ts;
+select upper(binary_col) from test_vtable_nchar_len.vtb_nchar_eq order by ts;
+select concat(binary_col, '-suffix') from test_vtable_nchar_len.vtb_nchar_eq order by ts;
+select concat(nchar_col, '-后缀') from test_vtable_nchar_len.vtb_nchar_eq order by ts;
+select substring(binary_col, 1, 10) from test_vtable_nchar_len.vtb_nchar_eq order by ts;
+select substring(nchar_col, 1, 5) from test_vtable_nchar_len.vtb_nchar_eq order by ts;
+
+-- ============================================================
+-- Case 3: vtable col len < src col len (KEY SCENARIO)
+-- Virtual table binary(8)/nchar(8) referencing source binary(32)/nchar(32)
+-- Should return actual source data WITHOUT truncation
+-- ============================================================
+
+-- 3.1 Direct projection - must NOT truncate
+select binary_col from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+select nchar_col from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+select varchar_col from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+select binary_col, nchar_col, varchar_col, int_col from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+
+-- 3.2 Length/char_length functions - must reflect actual data length, not vtable defined length
+select length(binary_col) from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+select length(nchar_col) from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+select char_length(binary_col) from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+select char_length(nchar_col) from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+
+-- 3.3 String functions on potentially "oversized" data
+select lower(binary_col) from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+select upper(binary_col) from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+select ltrim(binary_col) from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+select rtrim(binary_col) from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+
+-- 3.4 Concat function on "oversized" data
+select concat(binary_col, '-suffix') from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+select concat(nchar_col, '-后缀') from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+
+-- 3.5 Substring function
+select substring(binary_col, 1, 10) from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+select substring(nchar_col, 1, 5) from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+
+-- 3.6 Replace function
+select replace(binary_col, ' ', '_') from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+
+-- 3.7 Ascii function
+select ascii(binary_col) from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+
+-- 3.8 Position function
+select position('-' IN binary_col) from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+
+-- ============================================================
+-- Case 4: Mixed references with different lengths
+-- vtb_nchar_mix has binary(16) referencing src_ntb_32.binary_col(32)
+-- and binary(32) referencing src_ntb_16.binary_col(16)
+-- ============================================================
+
+-- 4.1 Direct projection
+select binary_32_col, nchar_32_col, binary_16_col, nchar_16_col from test_vtable_nchar_len.vtb_nchar_mix order by ts;
+
+-- 4.2 Length functions
+select length(binary_32_col), length(binary_16_col) from test_vtable_nchar_len.vtb_nchar_mix order by ts;
+select length(nchar_32_col), length(nchar_16_col) from test_vtable_nchar_len.vtb_nchar_mix order by ts;
+select char_length(binary_32_col), char_length(binary_16_col) from test_vtable_nchar_len.vtb_nchar_mix order by ts;
+select char_length(nchar_32_col), char_length(nchar_16_col) from test_vtable_nchar_len.vtb_nchar_mix order by ts;
+
+-- 4.3 Concat across mixed-length columns
+select concat(binary_32_col, binary_16_col) from test_vtable_nchar_len.vtb_nchar_mix order by ts;
+
+-- ============================================================
+-- Case 5: Verify data consistency across all three vtable definitions
+-- All three should return identical results
+-- ============================================================
+
+-- 5.1 Compare data across gt/eq/lt definitions
+select count(*) from test_vtable_nchar_len.vtb_nchar_gt;
+select count(*) from test_vtable_nchar_len.vtb_nchar_eq;
+select count(*) from test_vtable_nchar_len.vtb_nchar_lt;
+
+-- 5.2 First/Last functions
+select first(binary_col) from test_vtable_nchar_len.vtb_nchar_gt;
+select first(binary_col) from test_vtable_nchar_len.vtb_nchar_eq;
+select first(binary_col) from test_vtable_nchar_len.vtb_nchar_lt;
+
+select last(nchar_col) from test_vtable_nchar_len.vtb_nchar_gt;
+select last(nchar_col) from test_vtable_nchar_len.vtb_nchar_eq;
+select last(nchar_col) from test_vtable_nchar_len.vtb_nchar_lt;
+
+-- 5.3 Filter on character columns
+select binary_col, int_col from test_vtable_nchar_len.vtb_nchar_lt where binary_col = 'short' order by ts;
+select nchar_col, int_col from test_vtable_nchar_len.vtb_nchar_lt where nchar_col = '短' order by ts;
+
+-- 5.4 Cast function
+select cast(int_col as binary(16)) from test_vtable_nchar_len.vtb_nchar_lt order by ts;
+select cast(int_col as nchar(16)) from test_vtable_nchar_len.vtb_nchar_lt order by ts;
