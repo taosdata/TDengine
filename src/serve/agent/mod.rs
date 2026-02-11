@@ -183,10 +183,7 @@ async fn send_all_agents_activities_ws(
         }
     };
 
-    let match_info = req.match_info();
-    let cluster_id = match_info.get("cluster_id").unwrap();
-    let mut filter = AgentFilter::default();
-    filter.cluster_id = Some(cluster_id.to_string());
+    let filter = AgentFilter::default();
     let agents = match task_store.get_agents(filter).await {
         Ok(agents) => agents,
         Err(err) => {

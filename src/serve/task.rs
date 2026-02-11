@@ -813,10 +813,8 @@ async fn send_all_tasks_activities_ws(
         }
     };
 
-    let match_info = req.match_info();
-    let cluster_id = match_info.get("cluster_id").unwrap();
     let mut filter = TaskFilter::default();
-    filter.labels = Some(format!("type::datain,cluster-id::{cluster_id}"));
+    filter.labels = Some("type::datain".to_string());
     let tasks = match task_store.tasks(filter).await {
         Ok(tasks) => tasks,
         Err(err) => {

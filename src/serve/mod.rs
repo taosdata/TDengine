@@ -598,11 +598,11 @@ impl Cli {
                         .route(web::get().to(metrics::ws::send_task_metrics)),
                 )
                 .service(
-                    resource("/activities/tasks/{cluster_id}")
+                    resource("/activities/tasks")
                         .route(web::get().to(task::send_all_tasks_activities)),
                 )
                 .service(
-                    resource("/activities/agents/{cluster_id}")
+                    resource("/activities/agents")
                         .route(web::get().to(agent::send_all_agents_activities)),
                 )
         });

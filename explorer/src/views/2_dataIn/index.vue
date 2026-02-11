@@ -47,7 +47,6 @@ const taoxAddress = localStorage.getItem('local_endpoint') ?? '';
 
 const { $IS_COMMUNITY, $IS_OEM, $INDUSTRY } = inject('globalCustomProperties') as GlobalCustomProperties;
 
-const clusterId = localStorage.getItem('local_clusterID') ?? '';
 const xApiBasePath = pathDetector.getXApiBasePath();
 function getUrl(path: string) {
   const base_api = xApiBasePath;
@@ -76,7 +75,7 @@ const props: Props = {
   uploadFileUrl: pathDetector.getXApiBasePath() + `/upload`,
   hover: false,
   task: {
-    webSocketUrl: getUrl(`/activities/tasks/${clusterId}`),
+    webSocketUrl: getUrl(`/activities/tasks`),
     api: {
       getTask,
       refreshTask,
@@ -101,7 +100,7 @@ const props: Props = {
     }
   },
   agent: {
-    webSocketUrl: getUrl(`/activities/agents/${clusterId}`),
+    webSocketUrl: getUrl(`/activities/agents`),
     api: {
       getAgentsData,
       addNewAgent,

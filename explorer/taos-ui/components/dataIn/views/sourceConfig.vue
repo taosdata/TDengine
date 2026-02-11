@@ -301,11 +301,10 @@ const labels = computed(() => {
       'ds',
       sourceForm.type,
       'name::' + sourceForm.name,
-      'dsType::' + sourceForm.type,
-      'cluster-id::' + instance?.id
+      'dsType::' + sourceForm.type
     ];
   }
-  return ['type::datain', `cluster-id::${instance?.tdClusterId}`, `user::${instance?.user}`];
+  return ['type::datain', `user::${instance?.user}`];
 });
 
 provide('toUrl', toUrl);

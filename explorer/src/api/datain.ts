@@ -5,34 +5,18 @@ import pathDetector from '@/utils/pathDetector';
 
 const language = getLocalLang();
 export function getTask(type: string) {
-  const id = localStorage.getItem('local_clusterID');
   const user = getUser();
-  if (!id) {
-    return request({
-      baseURL: pathDetector.getXApiBasePath(),
-      url: `/tasks?lang=${language}&detail=true&labels=type::${type},user::${user}`,
-      method: 'get'
-    });
-  }
   return request({
     baseURL: pathDetector.getXApiBasePath(),
-    url: `/tasks?lang=${language}&detail=true&labels=type::${type},cluster-id::${id},user::${user}`,
+    url: `/tasks?lang=${language}&detail=true&labels=type::${type},user::${user}`,
     method: 'get'
   });
 }
 
 export function getRunningTask() {
-  const id = localStorage.getItem('local_clusterID');
-  if (!id) {
-    return request({
-      baseURL: pathDetector.getXApiBasePath(),
-      url: `/tasks?lang=${language}&detail=true&labels=type::datain&in_scheduler=true`,
-      method: 'get'
-    });
-  }
   return request({
     baseURL: pathDetector.getXApiBasePath(),
-    url: `/tasks?lang=${language}&detail=true&labels=type::datain,cluster-id::${id}&in_scheduler=true`,
+    url: `/tasks?lang=${language}&detail=true&labels=type::datain&in_scheduler=true`,
     method: 'get'
   });
 }

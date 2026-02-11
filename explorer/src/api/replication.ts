@@ -9,20 +9,20 @@ export function getTaskList(appId: string) {
 }
 
 //获取replication列表
-export function getReplicationList(id: string | number) {
+export function getReplicationList() {
     const language = getLocalLang()
     return request({
         baseURL: pathDetector.getXApiBasePath(),
-        url: `/tasks?lang=${language}&detail=true&labels=type::replication,cluster-id::${id}`,
+        url: `/tasks?lang=${language}&detail=true&labels=type::replication`,
         method: "get"
     });
 }
 
-export function addReplicationData(id: string | number, data: Recordable) {
+export function addReplicationData(data: Recordable) {
     const language = getLocalLang()
     return request({
         baseURL: pathDetector.getXApiBasePath(),
-        url: `/tasks?lang=${language}&detail=true&labels=type::replication,cluster-id::${id}`,
+        url: `/tasks?lang=${language}&detail=true&labels=type::replication`,
         method: "post",
         headers: {
             "Content-Type": "application/json",

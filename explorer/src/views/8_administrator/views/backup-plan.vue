@@ -605,7 +605,6 @@ function closeDialog(formEl: FormInstance | undefined) {
 }
 
 const constructPostData = () => {
-  const clusterID = localStorage.getItem('local_clusterID');
 
   const base_url = localStorage.getItem('base_url');
   if (!base_url) {
@@ -620,7 +619,7 @@ const constructPostData = () => {
   const toDSN = `local:${ruleForm.directory}?max_size=${ruleForm.backup_max_size_value}${ruleForm.backup_max_size_unit}&compression_level=${ruleForm.compression_level}&${concatS3Config(ruleForm)}`;
 
   return {
-    labels: ['type::backup', `cluster-id::${clusterID}`],
+    labels: ['type::backup'],
     trigger: {
       upcoming: ruleForm.upcoming,
       interval: `${ruleForm.interval_value}${ruleForm.interval_unit}`
