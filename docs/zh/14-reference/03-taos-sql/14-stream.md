@@ -355,10 +355,11 @@ notification_options: {
 
 ```sql
 CREATE STREAM avg_current_stream FILL_HISTORY 1
+    INTO dst_table
     AS SELECT _wstart, _wend, AVG(current) FROM meters
     INTERVAL (1m)
     NOTIFY ('ws://localhost:8080/notify', 'wss://192.168.1.1:8080/notify?key=foo')
-    ON ('WINDOW_OPEN', 'WINDOW_CLOSE');
+    ON ('WINDOW_OPEN', 'WINDOW_CLOSE')
     NOTIFY_HISTORY 0
     ON_FAILURE PAUSE;
 ```
