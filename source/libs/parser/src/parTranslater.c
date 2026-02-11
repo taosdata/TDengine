@@ -23482,7 +23482,13 @@ static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbN
                                          pRefColName));
   }
 
-  if (pRefCol->type != type.type || pRefCol->bytes != type.bytes) {
+  if (pRefCol->type != type.type) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(
+        &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
+        "virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match", colName, pRefColName));
+  }
+
+  if (!IS_VAR_DATA_TYPE(pRefCol->type) && pRefCol->bytes != type.bytes) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(
         &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
         "virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match", colName, pRefColName));
