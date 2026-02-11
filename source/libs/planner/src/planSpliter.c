@@ -2024,8 +2024,10 @@ static int32_t mergeTableScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan)
   if (!splMatch(pCxt, pSubplan, 0, (FSplFindSplitNode)mergeTableScanFindSplitNode, &info)) {
     return TSDB_CODE_SUCCESS;
   }
+  SMergeLogicNode* pMerge = (SMergeLogicNode*)info.pMerge;
+  // set group id range for merge node
+  pMerge->srcGroupId = pCxt->groupId;
 
-  int32_t startGroupId = pCxt->groupId;
   SNode*  pChild = NULL;
   FOREACH(pChild, info.pMerge->pChildren) {
     if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) &&
@@ -2037,9 +2039,6 @@ static int32_t mergeTableScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan)
     }
   }
 
-  SMergeLogicNode* pMerge = (SMergeLogicNode*)info.pMerge;
-  // set group id range for merge node
-  pMerge->srcGroupId = startGroupId;
   pMerge->srcEndGroupId = pCxt->groupId - 1;
 
   pCxt->split = true;
