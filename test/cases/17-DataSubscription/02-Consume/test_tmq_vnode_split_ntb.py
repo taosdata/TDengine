@@ -89,7 +89,6 @@ class TestCase:
         splitSql = "split vgroup %d" %(vnodeId)
         tdLog.debug("splitSql:%s"%(splitSql))
         tdSql.query(splitSql)
-        tdLog.debug("splitSql ok")
 
     def tmqCase1(self, deleteWal=False):
         tdLog.printNoPrefix("======== test case 1: ")

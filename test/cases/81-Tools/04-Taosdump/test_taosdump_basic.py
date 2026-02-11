@@ -25,7 +25,7 @@ class TestTaosdumpBasic:
     # ------------------- test_taosdump_test_basic.py ----------------
     #
     def do_taosdump_test_basic(self):
-        self.tmpdir = "./taosdumptest/tmpdir_basic"        
+        self.tmpdir = "./taosdumptest/tmpdir_basic"
         tdSql.prepare()
 
         tdSql.execute("drop database if exists db")
@@ -55,6 +55,20 @@ class TestTaosdumpBasic:
         )
         tdSql.execute(
             "insert into nt1 values(1640000000000, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)"
+        )
+
+        # virtual table
+        tdSql.execute(
+            "create stable vst(ts timestamp, c1 INT, c2 BOOL, c3 TINYINT, c4 SMALLINT, c5 BIGINT, c6 FLOAT, c7 DOUBLE, c8 TIMESTAMP, c9 BINARY(10), c10 NCHAR(10), c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED) tags(n1 INT, w2 BOOL, t3 TINYINT, t4 SMALLINT, t5 BIGINT, t6 FLOAT, t7 DOUBLE, t8 TIMESTAMP, t9 BINARY(10), t10 NCHAR(10), t11 TINYINT UNSIGNED, t12 SMALLINT UNSIGNED, t13 INT UNSIGNED, t14 BIGINT UNSIGNED) VIRTUAL 1"
+        )
+
+        tdSql.execute(
+            "create vtable vt1(c1 from t1.c1, c2 from t2.c2, c3 from t1.c3, c4 from t2.c4, c5 from t1.c5, c6 from t2.c6, c7 from t1.c7, c8 from t2.c8, c9 from t1.c9, c10 from t2.c10" \
+            ", c11 from t1.c11, c12 from t2.c12, c13 from t1.c13, c14 from t2.c14) using vst(n1, w2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14) tags(1, true, 1, 1, 1, 1.0, 1.0, 1, '1', '一', 1, 1, 1, 1)"
+        )
+
+        tdSql.execute(
+            "create vtable vnt1(ts timestamp, c1 INT from nt1.c1, c2 BOOL from nt1.c2, c3 TINYINT from nt1.c3, c4 SMALLINT from nt1.c4, c5 BIGINT from nt1.c5, c6 FLOAT from nt1.c6, c7 DOUBLE from nt1.c7, c8 TIMESTAMP from nt1.c8, c9 BINARY(10) from nt1.c9, c10 NCHAR(10) from nt1.c10, c11 TINYINT UNSIGNED from nt1.c11, c12 SMALLINT UNSIGNED from nt1.c12, c13 INT UNSIGNED from nt1.c13, c14 BIGINT UNSIGNED from nt1.c14)"
         )
 
         #        sys.exit(1)
@@ -93,11 +107,15 @@ class TestTaosdumpBasic:
 
         tdSql.execute("use db")
         tdSql.query("show stables")
-        tdSql.checkRows(1)
+        tdSql.checkRows(2)
         tdSql.checkData(0, 0, "st")
+        tdSql.checkData(1, 0, "vst")
 
         tdSql.query("show tables")
         tdSql.checkRows(3)
+
+        tdSql.query("show vtables")
+        tdSql.checkRows(2)
 
         print("do test basic ......................... [passed]")
 
@@ -148,6 +166,12 @@ class TestTaosdumpBasic:
             sql += "(%d, %d, 'nchar%d')" % (currts + i, i % 100, i % 100)
         tdSql.execute(sql)
 
+        # virtual table
+        tdSql.execute(
+            "create stable vst(ts timestamp, c1 int, c2 nchar(10)) tags(t1 int, t2 binary(10)) VIRTUAL 1"
+        )
+        tdSql.execute("create vtable vt1(c1 from t1.c1, c2 from t1.c2) using vst(t1, t2) tags(1, 'beijing')")
+
         binPath = etool.taosDumpFile()
         if binPath == "":
             tdLog.exit("taosdump not found!")
@@ -188,8 +212,11 @@ class TestTaosdumpBasic:
                 assert dbresult[i][7] == "3640d,3640d,3640d"
 
         tdSql.query("show stables")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "st")
+        tdSql.checkRows(2)
+        dbresult = tdSql.queryResult
+        print(dbresult)
+        for i in range(len(dbresult)):
+            assert (dbresult[i][0] == "st") or (dbresult[i][0] == "vst")
 
         tdSql.query("show tables")
         tdSql.checkRows(2)
@@ -197,6 +224,12 @@ class TestTaosdumpBasic:
         print(dbresult)
         for i in range(len(dbresult)):
             assert (dbresult[i][0] == "t1") or (dbresult[i][0] == "t2")
+
+        tdSql.query("show vtables")
+        tdSql.checkRows(1)
+        dbresult = tdSql.queryResult
+        print(dbresult)
+        assert dbresult[0][0] == "vt1"
 
         tdSql.query("select * from t1")
         tdSql.checkRows(100)
@@ -210,6 +243,12 @@ class TestTaosdumpBasic:
             tdSql.checkData(i, 1, i)
             tdSql.checkData(i, 2, "nchar%d" % i)
 
+        tdSql.query("select * from vt1")
+        tdSql.checkRows(100)
+        for i in range(100):
+            tdSql.checkData(i, 1, i)
+            tdSql.checkData(i, 2, "nchar%d" % i)
+
         # drop all databases，boundary value testing.
         # length(databasename)<=32;length(tablesname)<=192
         tdSql.execute("drop database newdb")
@@ -218,7 +257,7 @@ class TestTaosdumpBasic:
         os.system("rm -rf ./taosdumptest/tmp2")
         os.makedirs("./taosdumptest/tmp1")
         tdSql.execute("create database db12312313231231321312312312_323")
-        
+
         tdSql.error(
             "create database db012345678911234567892234567893323456789423456789523456789bcdefe"
         )
@@ -628,7 +667,7 @@ class TestTaosdumpBasic:
         tdSql.query("show tables")
         tdSql.checkRows(1)
 
-        print("do normal table dump .................. [passed]")        
+        print("do normal table dump .................. [passed]")
 
     #
     # ------------------- test_taosdump_db_stb.py ----------------
@@ -927,13 +966,13 @@ class TestTaosdumpBasic:
     #
     # ------------------- main ----------------
     #
-    
+
         print("do many cols .......................... [passed]")
 
     #
     # ------------------- main ----------------
     #
-    
+
         print("do many cols .......................... [passed]")
 
 
@@ -959,8 +998,8 @@ class TestTaosdumpBasic:
         14. Dump/restore database with escaped argument -e
         15. Dump/restore into different data types
         16. Dump/restore table with many columns(MAX 300 columns)
-        
-        
+
+
         Since: v3.0.0.0
 
         Labels: common,ci

@@ -146,7 +146,7 @@ int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t ad
   return 0;
 }
 
-int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp) {
+int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, int64_t ownerId, STableMetaRsp *pMetaRsp) {
   pMetaRsp->pSchemas = taosMemoryMalloc(pSchema->nCols * sizeof(SSchema));
   if (NULL == pMetaRsp->pSchemas) {
     return terrno;
@@ -165,6 +165,7 @@ int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STabl
   pMetaRsp->rversion = 1;
   pMetaRsp->tuid = uid;
   pMetaRsp->virtualStb = false; // super table will never be processed here
+  if (ownerId != 0) pMetaRsp->ownerId = ownerId;
 
   memcpy(pMetaRsp->pSchemas, pSchema->pSchema, pSchema->nCols * sizeof(SSchema));
 
@@ -172,7 +173,7 @@ int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STabl
 }
 
 int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, SSchemaWrapper *pSchema, SColRefWrapper *pRef,
-                             STableMetaRsp *pMetaRsp, int8_t tableType) {
+                             int64_t ownerId, STableMetaRsp *pMetaRsp, int8_t tableType) {
   int32_t   code = TSDB_CODE_SUCCESS;
   SHashObj* pColRefHash = NULL;
   if (!pRef) {
@@ -230,6 +231,21 @@ int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, SSchemaWrapper *p
   pMetaRsp->virtualStb = false; // super table will never be processed here
   pMetaRsp->numOfColRefs = pRef->nCols;
   pMetaRsp->rversion = pRef->version;
+  if (ownerId != 0) pMetaRsp->ownerId = ownerId;
+
+  // Populate tag references
+  if (pRef->nTagRefs > 0 && pRef->pTagRef) {
+    pMetaRsp->pTagRefs = taosMemoryMalloc(pRef->nTagRefs * sizeof(SColRef));
+    if (NULL == pMetaRsp->pTagRefs) {
+      code = terrno;
+      goto _return;
+    }
+    memcpy(pMetaRsp->pTagRefs, pRef->pTagRef, pRef->nTagRefs * sizeof(SColRef));
+    pMetaRsp->numOfTagRefs = pRef->nTagRefs;
+  } else {
+    pMetaRsp->pTagRefs = NULL;
+    pMetaRsp->numOfTagRefs = 0;
+  }
 
   taosHashCleanup(pColRefHash);
   return code;
@@ -238,6 +254,7 @@ _return:
   taosMemoryFreeClear(pMetaRsp->pSchemaExt);
   taosMemoryFreeClear(pMetaRsp->pSchemas);
   taosMemoryFreeClear(pMetaRsp->pColRefs);
+  taosMemoryFreeClear(pMetaRsp->pTagRefs);
   return code;
 }
 

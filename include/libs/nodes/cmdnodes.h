@@ -332,6 +332,8 @@ typedef struct SCreateVSubTableStmt {
   SNodeList* pValsOfTags;
   SNodeList* pSpecificColRefs;
   SNodeList* pColRefs;
+  SNodeList* pSpecificTagRefs;  // tag_name FROM db.table.tag_col (same as specific_column_ref)
+  SNodeList* pTagRefs;          // db.table.tag_col (same as column_ref, positional)
 } SCreateVSubTableStmt;
 
 typedef struct SCreateSubTableClause {
@@ -684,12 +686,19 @@ typedef struct {
 
 typedef struct {
   ENodeType type;
-  char      url[TSDB_XNODE_URL_LEN + 3];
-  // Create xnode with new user.
-  char user[TSDB_USER_LEN + 3];
-  // Create xnode with new user password. `user` and `pass` should exist along with each other.
-  char pass[TSDB_USER_PASSWORD_LONGLEN + 3];
-} SCreateXnodeStmt;
+  // xTaskOptions opts;
+  // taosX Agent ID.
+  int32_t via;
+  int32_t triggerLen;
+  char    trigger[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
+  int32_t healthLen;
+  char    health[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
+  int32_t parserLen;
+  char*   parser;
+  int32_t optionsNum;
+  char*   options[TSDB_XNODE_TASK_OPTIONS_MAX_NUM];  // options in the form of "key=value", e.g., "group.id=task1",
+                                                     // "via=1", "parser=taosx"
+} SXnodeTaskOptions;
 
 typedef struct {
   ENodeType type;
@@ -705,24 +714,13 @@ typedef struct {
 
 typedef struct {
   ENodeType type;
-  int32_t   xnodeId;
-} SUpdateXnodeStmt;
-
-typedef struct {
-  ENodeType    type;
-  // xTaskOptions opts;
-  // taosX Agent ID.
-  int32_t via;
-  int32_t triggerLen;
-  char    trigger[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
-  int32_t healthLen;
-  char    health[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
-  int32_t parserLen;
-  char    parser[TSDB_XNODE_TASK_PARSER_LEN + 3];
-  int32_t optionsNum;
-  char*   options[TSDB_XNODE_TASK_OPTIONS_MAX_NUM];  // options in the form of "key=value", e.g., "group.id=task1",
-                                                     // "via=1", "parser=taosx"
-} SXnodeTaskOptions;
+  int32_t            id;
+  CowStr             url;
+  CowStr             token;
+  CowStr             user;
+  CowStr             pass;
+  SXnodeTaskOptions* options;
+} SAlterXnodeStmt;
 
 typedef struct {
   ENodeType   type;
@@ -737,6 +735,16 @@ typedef struct {
   ENodeType type;
   xTaskSink sink;
 } SXTaskSink;
+
+typedef struct {
+  ENodeType type;
+  char      url[TSDB_XNODE_URL_LEN + 3];
+  // Create xnode with new user.
+  char user[TSDB_USER_LEN + 3];
+  // Create xnode with new user password. `user` and `pass` should exist along with each other.
+  char pass[TSDB_USER_PASSWORD_LONGLEN + 3];
+  char token[TSDB_TOKEN_LEN + 3];
+} SCreateXnodeStmt;
 
 typedef struct {
   ENodeType          type;

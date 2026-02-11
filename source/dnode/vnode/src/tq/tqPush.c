@@ -82,7 +82,7 @@ int32_t tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg) {
   (void)memcpy(pHandle->msg->pCont, pMsg->pCont, pMsg->contLen);
   pHandle->msg->contLen = pMsg->contLen;
   int32_t ret = taosHashPut(pTq->pPushMgr, pHandle->subKey, strlen(pHandle->subKey), &pHandle, POINTER_BYTES);
-  tqDebug("vgId:%d data is over, ret:%d, consumerId:0x%" PRIx64 ", register to pHandle:%p, pCont:%p, len:%d", vgId, ret,
+  tqInfo("vgId:%d data is over, ret:%d, consumerId:0x%" PRIx64 ", register to pHandle:%p, pCont:%p, len:%d", vgId, ret,
           pHandle->consumerId, pHandle, pHandle->msg->pCont, pHandle->msg->contLen);
   if (ret != 0) {
     rpcFreeCont(pHandle->msg->pCont);

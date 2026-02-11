@@ -143,6 +143,9 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pFill->pWStartTs, order, walker, pContext);
       }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pFill->pSurroundingTime, order, walker, pContext);
+      }
       break;
     }
     case QUERY_NODE_RAW_EXPR:
@@ -430,6 +433,10 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       }
       if (DEAL_RES_ERROR!= res && DEAL_RES_END!= res) {
         res = rewriteExpr(&(pFill->pTimeRange), order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR!= res && DEAL_RES_END!= res) {
+        res = rewriteExpr(&(pFill->pSurroundingTime), order, rewriter,
+                          pContext);
       }
       break;
     }

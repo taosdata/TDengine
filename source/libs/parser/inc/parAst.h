@@ -235,7 +235,10 @@ SNode*     createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, S
 SNode*     createSlidingWindowNode(SAstCreateContext* pCxt, SNode* pSlidingVal, SNode* pOffset);
 SNode*     createPeriodWindowNode(SAstCreateContext* pCxt, SNode* pPeriodTime, SNode* pOffset);
 SNode*     createWindowOffsetNode(SAstCreateContext* pCxt, SNode* pStartOffset, SNode* pEndOffset);
+SNode*     createSurroundNode(SAstCreateContext* pCxt, SNode* pSurroundingTime, SNode* pValues);
 SNode*     createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues);
+SNode*     createFillNodeWithSurroundNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pSurroundNode);
+SNode*     createFillNodeWithSurroundingTime(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues, SNode* pSurroundingTime);
 SNode*     createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode);
 SNode*     createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd, SNode* pInterval);
 SNode*     createInterpTimePoint(SAstCreateContext* pCxt, SNode* pPoint);
@@ -300,6 +303,8 @@ STokenTriplet* createTokenTriplet(SAstCreateContext* pCxt, SToken pName);
 STokenTriplet* setColumnName(SAstCreateContext* pCxt, STokenTriplet* pTokenTri, SToken pName);
 SNode*         createColumnRefNodeByName(SAstCreateContext* pCxt, STokenTriplet* pTokenTri);
 SNode*         createColumnRefNodeByNode(SAstCreateContext* pCxt, SToken* pColName, SNode* pRef);
+SNode*         createColumnRefNodeFromTriplet(SAstCreateContext* pCxt, SToken* pDb, SToken* pTable, SToken* pCol);
+SNode*         createColumnRefNodeFromPair(SAstCreateContext* pCxt, SToken* pTable, SToken* pCol);
 SNode*         createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, SNode* pOptions);
 SNode*         setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal1, void* pVal2);
 SNode*         setColumnOptionsPK(SAstCreateContext* pCxt, SNode* pOptions);
@@ -312,7 +317,8 @@ SNode* createCreateSubTableClause(SAstCreateContext* pCxt, bool ignoreExists, SN
 SNode* createCreateVTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols);
 SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
                                  SNodeList* pSpecificColRefs, SNodeList* pColRefs, SNode* pUseRealTable,
-                                 SNodeList* pSpecificTags, SNodeList* pValsOfTags);
+                                 SNodeList* pSpecificTags, SNodeList* pValsOfTags,
+                                 SNodeList* pSpecificTagRefs, SNodeList* pTagRefs);
 SNode* createCreateSubTableFromFileClause(SAstCreateContext* pCxt, bool ignoreExists, SNode* pUseRealTable,
                                           SNodeList* pSpecificTags, const SToken* pFilePath);
 SNode* createCreateMultiTableStmt(SAstCreateContext* pCxt, SNodeList* pSubTables);
@@ -408,10 +414,12 @@ SNode* createXnodeSinkAsDsn(SAstCreateContext* pCxt, const SToken* pToken);
 SNode* createXnodeSinkAsDatabase(SAstCreateContext* pCxt, const SToken* pToken);
 SNode* createCreateXnodeWithUserPassStmt(SAstCreateContext* pCxt, const SToken* pUrl, SToken* pUser,
                                          const SToken* pPass);
+
+SNode* createCreateXnodeWithTokenStmt(SAstCreateContext* pCxt, const SToken* pUrl, SToken* pToken);
 SNode* createCreateXnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl);
 SNode* createStartXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType resourceType, SToken* pResourceId);
 SNode* createStopXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType resourceType, SToken* pResourceId);
-SNode* createUpdateXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool updateAll);
+SNode* createAlterXnodeStmt(SAstCreateContext* pCxt, const SToken* pToken, const SToken* pUser, const SToken* pPass);
 SNode* createDropXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool force);
 SNode* createDrainXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode);
 
@@ -421,8 +429,6 @@ SNode* createDefaultXnodeTaskOptions(SAstCreateContext* pCxt);
 SToken* createTriggerToken();
 SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pOptions, SToken* pKey, SToken* pVal);
 SNode*  dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResourceName);
-// SNode*  dropXnodeResourceOn(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResource, SNode*
-// pWhere);
 SNode*  dropXnodeResourceWhere(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere);
 SNode*  createXnodeTaskJobWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pTidToken,
                                       SNode* pNodeOptions);

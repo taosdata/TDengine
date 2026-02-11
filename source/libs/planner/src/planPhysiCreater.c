@@ -2461,8 +2461,7 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
     pInterpFunc->intervalUnit = pFuncLogicNode->intervalUnit;
     pInterpFunc->precision = pFuncLogicNode->node.precision;
     pInterpFunc->pFillValues = NULL;
-    pInterpFunc->rangeInterval = pFuncLogicNode->rangeInterval;
-    pInterpFunc->rangeIntervalUnit = pFuncLogicNode->rangeIntervalUnit;
+    pInterpFunc->surroundingTime = pFuncLogicNode->surroundingTime;
     code = nodesCloneNode(pFuncLogicNode->pTimeRange, &pInterpFunc->pTimeRange);
   }
   
@@ -3230,6 +3229,11 @@ static int32_t createFillPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
 
   if (TSDB_CODE_SUCCESS == code && NULL != pFillNode->pValues) {
     code = nodesCloneNode(pFillNode->pValues, &pFill->pValues);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pFillNode->pSurroundingTime) {
+    code = nodesCloneNode(pFillNode->pSurroundingTime,
+                          &pFill->pSurroundingTime);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

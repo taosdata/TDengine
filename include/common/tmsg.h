@@ -362,6 +362,7 @@ typedef enum ENodeType {
   QUERY_NODE_TOKEN_OPTIONS,
   QUERY_NODE_TRUE_FOR,
   QUERY_NODE_REMOTE_VALUE_LIST,
+  QUERY_NODE_SURROUND,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -656,7 +657,6 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_XNODE_STMT = 1200,  // Xnode
   QUERY_NODE_DROP_XNODE_STMT,
   QUERY_NODE_DRAIN_XNODE_STMT,
-  // QUERY_NODE_UPDATE_XNODE_STMT,
   QUERY_NODE_XNODE_TASK_OPTIONS,              // XNode task options
   QUERY_NODE_XNODE_TASK_SOURCE_OPT,           // XNode task source
   QUERY_NODE_XNODE_TASK_SINK_OPT,             // XNode task sink
@@ -673,6 +673,7 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_XNODE_AGENT_STMT,         // XNode agent
   QUERY_NODE_DROP_XNODE_AGENT_STMT,           // XNode agent
   QUERY_NODE_ALTER_XNODE_AGENT_STMT,          // XNode agent
+  QUERY_NODE_ALTER_XNODE_STMT,                // Alter xnode
 } ENodeType;
 
 typedef struct {
@@ -788,6 +789,8 @@ typedef struct {
   int32_t  nCols;
   int32_t  version;
   SColRef* pColRef;
+  int32_t  nTagRefs;
+  SColRef* pTagRef;
 } SColRefWrapper;
 
 int32_t tEncodeSColRefWrapper(SEncoder* pCoder, const SColRefWrapper* pWrapper);
@@ -882,6 +885,8 @@ typedef struct {
   int8_t      virtualStb;
   int32_t     numOfColRefs;
   SColRef*    pColRefs;
+  int32_t     numOfTagRefs;
+  SColRef*    pTagRefs;
 } STableMetaRsp;
 
 typedef struct {
@@ -994,6 +999,22 @@ static FORCE_INLINE int32_t tInitDefaultSColRefWrapperByCols(SColRefWrapper* pRe
   for (int32_t i = 0; i < nCols; i++) {
     pRef->pColRef[i].hasRef = false;
     pRef->pColRef[i].id = (col_id_t)(i + 1);
+  }
+  return 0;
+}
+
+static FORCE_INLINE int32_t tInitDefaultSColRefWrapperByTags(SColRefWrapper* pRef, int32_t nTags, col_id_t startColId) {
+  if (pRef->pTagRef) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  pRef->pTagRef = (SColRef*)taosMemoryCalloc(nTags, sizeof(SColRef));
+  if (pRef->pTagRef == NULL) {
+    return terrno;
+  }
+  pRef->nTagRefs = nTags;
+  for (int32_t i = 0; i < nTags; i++) {
+    pRef->pTagRef[i].hasRef = false;
+    pRef->pTagRef[i].id = (col_id_t)(startColId + i);
   }
   return 0;
 }
@@ -3544,7 +3565,7 @@ void    tFreeSMAlterEncryptKeyReq(SMAlterEncryptKeyReq* pReq);
 
 typedef struct {
   int32_t days;
-  char    strategy[64];
+  char    strategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1];
   int32_t sqlLen;
   char*   sql;
 } SMAlterKeyExpirationReq;
@@ -3649,47 +3670,6 @@ int32_t tDeserializeSMDropBnodeReq(void* buf, int32_t bufLen, SMDropBnodeReq* pR
 void    tFreeSMDropBnodeReq(SMDropBnodeReq* pReq);
 
 typedef struct {
-  int32_t sqlLen;
-  int32_t urlLen;
-  int32_t userLen;
-  int32_t passLen;
-  int32_t passIsMd5;
-  char*   sql;
-  char*   url;
-  char*   user;
-  char*   pass;
-} SMCreateXnodeReq, SDCreateXnodeReq;
-
-int32_t tSerializeSMCreateXnodeReq(void* buf, int32_t bufLen, SMCreateXnodeReq* pReq);
-int32_t tDeserializeSMCreateXnodeReq(void* buf, int32_t bufLen, SMCreateXnodeReq* pReq);
-void    tFreeSMCreateXnodeReq(SMCreateXnodeReq* pReq);
-
-typedef struct {
-  int32_t xnodeId;
-  int32_t force;
-  int32_t urlLen;
-  int32_t sqlLen;
-  char*   url;
-  char*   sql;
-} SMDropXnodeReq, SMUpdateXnodeReq, SDDropXnodeReq;
-
-int32_t tSerializeSMDropXnodeReq(void* buf, int32_t bufLen, SMDropXnodeReq* pReq);
-int32_t tDeserializeSMDropXnodeReq(void* buf, int32_t bufLen, SMDropXnodeReq* pReq);
-void    tFreeSMDropXnodeReq(SMDropXnodeReq* pReq);
-int32_t tSerializeSMUpdateXnodeReq(void* buf, int32_t bufLen, SMUpdateXnodeReq* pReq);
-int32_t tDeserializeSMUpdateXnodeReq(void* buf, int32_t bufLen, SMUpdateXnodeReq* pReq);
-void    tFreeSMUpdateXnodeReq(SMUpdateXnodeReq* pReq);
-
-typedef struct {
-  int32_t xnodeId;
-  int32_t sqlLen;
-  char*   sql;
-} SMDrainXnodeReq;
-int32_t tSerializeSMDrainXnodeReq(void* buf, int32_t bufLen, SMDrainXnodeReq* pReq);
-int32_t tDeserializeSMDrainXnodeReq(void* buf, int32_t bufLen, SMDrainXnodeReq* pReq);
-void    tFreeSMDrainXnodeReq(SMDrainXnodeReq* pReq);
-
-typedef struct {
   bool        shouldFree;
   int32_t     len;
   const char* ptr;
@@ -3749,6 +3729,58 @@ int32_t xEncodeCowStr(SEncoder* encoder, CowStr* cow);
  */
 int32_t xDecodeCowStr(SDecoder* decoder, CowStr* cow, bool shouldClone);
 
+typedef struct {
+  int32_t sqlLen;
+  int32_t urlLen;
+  int32_t userLen;
+  int32_t passLen;
+  int32_t passIsMd5;
+  char*   sql;
+  char*   url;
+  char*   user;
+  char*   pass;
+  CowStr  token;
+} SMCreateXnodeReq, SDCreateXnodeReq;
+
+int32_t tSerializeSMCreateXnodeReq(void* buf, int32_t bufLen, SMCreateXnodeReq* pReq);
+int32_t tDeserializeSMCreateXnodeReq(void* buf, int32_t bufLen, SMCreateXnodeReq* pReq);
+void    tFreeSMCreateXnodeReq(SMCreateXnodeReq* pReq);
+
+typedef struct {
+  int32_t xnodeId;
+  int32_t force;
+  int32_t urlLen;
+  int32_t sqlLen;
+  char*   url;
+  char*   sql;
+} SMDropXnodeReq, SDDropXnodeReq;
+
+int32_t tSerializeSMDropXnodeReq(void* buf, int32_t bufLen, SMDropXnodeReq* pReq);
+int32_t tDeserializeSMDropXnodeReq(void* buf, int32_t bufLen, SMDropXnodeReq* pReq);
+void    tFreeSMDropXnodeReq(SMDropXnodeReq* pReq);
+
+typedef struct {
+  int32_t id;
+  CowStr  token;
+  CowStr  user;
+  CowStr  pass;
+  int32_t urlLen;
+  int32_t sqlLen;
+  char*   url;
+  char*   sql;
+} SMUpdateXnodeReq;
+int32_t tSerializeSMUpdateXnodeReq(void* buf, int32_t bufLen, SMUpdateXnodeReq* pReq);
+int32_t tDeserializeSMUpdateXnodeReq(void* buf, int32_t bufLen, SMUpdateXnodeReq* pReq);
+void    tFreeSMUpdateXnodeReq(SMUpdateXnodeReq* pReq);
+
+typedef struct {
+  int32_t xnodeId;
+  int32_t sqlLen;
+  char*   sql;
+} SMDrainXnodeReq;
+int32_t tSerializeSMDrainXnodeReq(void* buf, int32_t bufLen, SMDrainXnodeReq* pReq);
+int32_t tDeserializeSMDrainXnodeReq(void* buf, int32_t bufLen, SMDrainXnodeReq* pReq);
+void    tFreeSMDrainXnodeReq(SMDrainXnodeReq* pReq);
 typedef enum {
   XNODE_TASK_SOURCE_DSN = 1,
   XNODE_TASK_SOURCE_DATABASE,
@@ -4837,6 +4869,7 @@ static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
   taosMemoryFreeClear(req->colCmpr.pColCmpr);
   taosMemoryFreeClear(req->pExtSchemas);
   taosMemoryFreeClear(req->colRef.pColRef);
+  taosMemoryFreeClear(req->colRef.pTagRef);
 }
 
 typedef struct {

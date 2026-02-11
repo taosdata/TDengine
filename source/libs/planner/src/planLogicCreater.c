@@ -92,6 +92,17 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
     case FUNCTION_TYPE_IS_WINDOW_FILLED:
       pCol->colType = COLUMN_TYPE_IS_WINDOW_FILLED;
       break;
+    case FUNCTION_TYPE_TPREV_TS:
+    case FUNCTION_TYPE_TCURRENT_TS:
+    case FUNCTION_TYPE_TNEXT_TS:
+    case FUNCTION_TYPE_TWSTART:
+    case FUNCTION_TYPE_TWEND:
+    case FUNCTION_TYPE_TPREV_LOCALTIME:
+    case FUNCTION_TYPE_TNEXT_LOCALTIME:
+    case FUNCTION_TYPE_TLOCALTIME:
+      pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+      pCol->isPrimTs = true;
+      break;
     default:
       break;
   }
@@ -1691,6 +1702,11 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
     pInterpFunc->pTimeSeries = NULL;
     PLAN_ERR_JRET(nodesCloneNode(pFill->pWStartTs, &pInterpFunc->pTimeSeries));
     PLAN_ERR_JRET(nodesCloneNode(pFill->pValues, &pInterpFunc->pFillValues));
+    if (NULL != pFill->pSurroundingTime &&
+        nodeType(pFill->pSurroundingTime) == QUERY_NODE_VALUE) {
+      SValueNode* pSurroundingTime = (SValueNode*)pFill->pSurroundingTime;
+      pInterpFunc->surroundingTime = pSurroundingTime->datum.i;
+    }
   }
 
   if (NULL != pSelect->pEvery) {
@@ -1705,10 +1721,10 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
       planError("%s failed at line %d since range interval is invalid", __func__, __LINE__);
       PLAN_ERR_JRET(TSDB_CODE_PLAN_INTERNAL_ERROR);
     } else {
-      pInterpFunc->rangeInterval = ((SValueNode*)pRangeInterval)->datum.i;
-      pInterpFunc->rangeIntervalUnit = ((SValueNode*)pRangeInterval)->unit;
+      pInterpFunc->surroundingTime = ((SValueNode*)pRangeInterval)->datum.i;
     }
   }
+
 
   // set the output
   PLAN_ERR_JRET(createColumnByRewriteExprs(pInterpFunc->pFuncs, &pInterpFunc->node.pTargets));
@@ -2575,6 +2591,10 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   code = nodesCloneNode(pFillNode->pValues, &pFill->pValues);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCloneNode(pFillNode->pWStartTs, &pFill->pWStartTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCloneNode(pFillNode->pSurroundingTime,
+                          &pFill->pSurroundingTime);
   }
 
   if (TSDB_CODE_SUCCESS == code && 0 == LIST_LENGTH(pFill->node.pTargets)) {
