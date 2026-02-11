@@ -956,8 +956,14 @@ _return:
 }
 
 static int32_t checkColRefType(const SSchema* vtbSchema, const SSchema* refSchema) {
-  if (vtbSchema->type != refSchema->type || vtbSchema->bytes != refSchema->bytes) {
+  if (vtbSchema->type != refSchema->type) {
     qError("virtual table column:%s type mismatch, virtual table column type:%d, bytes:%d, "
+        "ref table column:%s, type:%d, bytes:%d",
+        vtbSchema->name, vtbSchema->type, vtbSchema->bytes, refSchema->name, refSchema->type, refSchema->bytes);
+    return TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE;
+  }
+  if (!IS_VAR_DATA_TYPE(vtbSchema->type) && vtbSchema->bytes != refSchema->bytes) {
+    qError("virtual table column:%s bytes mismatch, virtual table column type:%d, bytes:%d, "
         "ref table column:%s, type:%d, bytes:%d",
         vtbSchema->name, vtbSchema->type, vtbSchema->bytes, refSchema->name, refSchema->type, refSchema->bytes);
     return TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE;
