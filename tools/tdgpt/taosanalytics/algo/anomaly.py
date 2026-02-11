@@ -4,6 +4,7 @@
 
 from matplotlib import pyplot as plt
 from taosanalytics.conf import app_logger, conf
+from taosanalytics.error import failed_load_model_except
 from taosanalytics.servicemgmt import loader
 from taosanalytics.util import convert_results_to_windows
 
@@ -13,10 +14,8 @@ def do_ad_check(input_list, ts_list, algo_name, params):
     s = loader.get_service(algo_name)
 
     if s is None:
-        s = loader.get_service("ksigma")
-
-    if s is None:
-        raise ValueError(f"failed to load {algo_name} or ksigma analysis service")
+        app_logger.log_inst.error("specified model not found:%s" % (algo_name))
+        failed_load_model_except(algo_name)
 
     s.set_input_list(input_list, ts_list)
     s.set_params(params)

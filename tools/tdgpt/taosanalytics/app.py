@@ -3,6 +3,8 @@
 """the main route definition for restful service"""
 import os.path, sys
 
+import numpy as np
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
 from flask import Flask, request
@@ -12,13 +14,14 @@ from taosanalytics.algo.imputation import (do_imputation, do_set_imputation_para
 from taosanalytics.algo.anomaly import do_ad_check
 from taosanalytics.algo.forecast import do_forecast, do_add_fc_params
 from taosanalytics.algo.correlation import do_dtw, do_tlcc
+from taosanalytics.algo.tool.batch import do_batch_process, update_config
 
 from taosanalytics.conf import conf
 from taosanalytics.model import model_manager
 from taosanalytics.servicemgmt import loader
 from taosanalytics.util import (app_logger, parse_options, get_past_dynamic_data, get_dynamic_data,
                                 get_second_data_list,
-                                do_check_before_exec)
+                                do_check_before_exec, do_initial_check)
 
 app = Flask(__name__)
 
@@ -28,6 +31,7 @@ app_logger.set_log_level(conf.get_log_level())
 loader.load_all_service()
 
 _ANODE_VER = f'TDgpt - TDengine TSDB© Time-Series Data Analytics Platform (ver {taosanalytics.__version__})'
+
 
 @app.route("/")
 def start():
@@ -50,6 +54,7 @@ def list_all_services():
     API function to return all available services, including both fc and anomaly detection
     """
     return loader.get_service_list()
+
 
 @app.route("/models")
 def list_all_models():
@@ -82,7 +87,7 @@ def handle_ad_request():
     # 4. do anomaly detection
     try:
         res_list, ano_window, mask_list = do_ad_check(payload[data_index], payload[ts_index], algo, params)
-        result = {"algo": algo, "option": options, "res": ano_window, "rows": len(ano_window), "mask":mask_list}
+        result = {"algo": algo, "option": options, "res": ano_window, "rows": len(ano_window), "mask": mask_list}
 
         app_logger.log_inst.debug("anomaly-detection result: %s", str(result))
         return result
@@ -198,6 +203,35 @@ def handle_correlation_req():
     except Exception as e:
         app_logger.log_inst.error('correlation failed, %s', str(e))
         return {"msg": str(e), "rows": -1}
+
+
+@app.route("/tool/batch", methods=['POST'])
+def handle_batch_req():
+    """handle the batch request request """
+    app_logger.log_inst.info('recv batch req from %s', request.remote_addr)
+
+    try:
+        payload_obj = do_initial_check(request)
+    except Exception as e:
+        return {"msg": str(e), "rows": -1}
+
+    data = payload_obj.get("data", None)
+    ts = payload_obj.get("ts", None)
+    windows = payload_obj.get("window", None)
+    conf = update_config(payload_obj.get("config", None))
+
+    try:
+        # median, lower bounding, upper bounding, processed_batches
+        center, lower, upper, processed_batches = do_batch_process(np.array(ts), np.array(data), windows, conf)
+
+        res = {"rows": lower.size, "center": center.tolist(), "lower": lower.tolist(), "upper": upper.tolist()}
+        app_logger.log_inst.debug("batch processed result: %s", res)
+
+        return res
+    except Exception as e:
+        app_logger.log_inst.error('golden batch process failed, %s', str(e))
+        return {"msg": str(e), "rows": -1}
+
 
 if __name__ == '__main__':
     app.run(port=6035)
