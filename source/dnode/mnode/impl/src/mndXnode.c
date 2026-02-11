@@ -1598,6 +1598,17 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
     TAOS_CHECK_GOTO(tjsonAddDoubleToObject(postContent, "xnode_id", (double)pCreateReq->xnodeId), NULL, _OVER);
   }
 
+  if (pCreateReq->options.via > 0) {
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(postContent, "via", (double)pCreateReq->options.via), NULL, _OVER);
+  }
+
+  const char *labels = getXTaskOptionByName(&pCreateReq->options, "labels");
+  if (labels != NULL) {
+    TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "labels", labels), NULL, _OVER);
+  }
+
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "created_by", pReq->info.conn.user), NULL, _OVER);
+
   pContStr = tjsonToUnformattedString(postContent);
   if (pContStr == NULL) {
     code = terrno;
