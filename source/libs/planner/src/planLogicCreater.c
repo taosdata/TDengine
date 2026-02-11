@@ -901,10 +901,13 @@ static int32_t findRefColId(SNode *pRefTable, const char *colName, col_id_t *col
   return TSDB_CODE_NOT_FOUND;
 }
 
-static int32_t scanAddCol(SLogicNode* pLogicNode, SColRef* colRef, STableNode* pVirtualTableNode, const SSchema* pSchema, col_id_t colId) {
+static int32_t scanAddCol(SLogicNode* pLogicNode, SColRef* colRef, STableNode* pVirtualTableNode, const SSchema* pSchema,
+                          col_id_t colId, const SSchema* pRefSchema) {
   int32_t         code = TSDB_CODE_SUCCESS;
   SColumnNode    *pRefTableScanCol = NULL;
   SScanLogicNode *pLogicScan = (SScanLogicNode*)pLogicNode;
+  planError("scanAddCol: colId=%d, pSchema->bytes=%d, pRefSchema=%p, IS_VAR=%d",
+           colId, pSchema->bytes, pRefSchema, IS_VAR_DATA_TYPE(pSchema->type));
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pRefTableScanCol));
   if (colRef) {
     tstrncpy(pRefTableScanCol->tableAlias, colRef->refTableName, sizeof(pRefTableScanCol->tableAlias));
@@ -940,7 +943,16 @@ static int32_t scanAddCol(SLogicNode* pLogicNode, SColRef* colRef, STableNode* p
   pRefTableScanCol->tableId = pLogicScan->tableId;
   pRefTableScanCol->tableType = pLogicScan->tableType;
   pRefTableScanCol->node.resType.type = pSchema->type;
-  pRefTableScanCol->node.resType.bytes = pSchema->bytes;
+  // For variable-length types (BINARY/NCHAR/VARCHAR), use the source table's bytes when available.
+  // This ensures the TSDB reader allocates enough buffer for source data that may be longer
+  // than the virtual table's defined column length.
+  if (pRefSchema && IS_VAR_DATA_TYPE(pSchema->type)) {
+    pRefTableScanCol->node.resType.bytes = TMAX(pSchema->bytes, pRefSchema->bytes);
+    planWarn("scanAddCol: col %s, vtb bytes=%d, ref bytes=%d, final bytes=%d",
+             pRefTableScanCol->colName, pSchema->bytes, pRefSchema->bytes, pRefTableScanCol->node.resType.bytes);
+  } else {
+    pRefTableScanCol->node.resType.bytes = pSchema->bytes;
+  }
   pRefTableScanCol->colType = COLUMN_TYPE_COLUMN;
   pRefTableScanCol->isPk = false;
   pRefTableScanCol->tableHasPk = false;
@@ -991,16 +1003,17 @@ static int32_t addSubScanNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SVi
   strcat(tableNameKey, pColRef->refTableName);
 
   SLogicNode **ppRefScan = (SLogicNode **)taosHashGet(refTablesMap, &tableNameKey, strlen(tableNameKey));
+  const SSchema* pRefColSchema = &((SRealTableNode*)pRefTable)->pMeta->schema[colIdx];
   if (NULL == ppRefScan) {
     PLAN_ERR_JRET(createRefScanLogicNode(pCxt, pSelect, (SRealTableNode*)pRefTable, &pRefScan));
-    PLAN_ERR_JRET(checkColRefType(&pVirtualTable->pMeta->schema[schemaIndex], &((SRealTableNode*)pRefTable)->pMeta->schema[colIdx]));
-    PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->table, &pVirtualTable->pMeta->schema[schemaIndex], colId));
+    PLAN_ERR_JRET(checkColRefType(&pVirtualTable->pMeta->schema[schemaIndex], pRefColSchema));
+    PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->table, &pVirtualTable->pMeta->schema[schemaIndex], colId, pRefColSchema));
     PLAN_ERR_JRET(taosHashPut(refTablesMap, &tableNameKey, strlen(tableNameKey), &pRefScan, POINTER_BYTES));
     put = true;
   } else {
     pRefScan = *ppRefScan;
-    PLAN_ERR_JRET(checkColRefType(&pVirtualTable->pMeta->schema[schemaIndex], &((SRealTableNode*)pRefTable)->pMeta->schema[colIdx]));
-    PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->table, &pVirtualTable->pMeta->schema[schemaIndex], colId));
+    PLAN_ERR_JRET(checkColRefType(&pVirtualTable->pMeta->schema[schemaIndex], pRefColSchema));
+    PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->table, &pVirtualTable->pMeta->schema[schemaIndex], colId, pRefColSchema));
   }
 
   nodesDestroyNode((SNode*)pRefTable);
@@ -1179,7 +1192,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
       if (pVirtualTable->pMeta->schema[i].colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         continue;
       } else {
-        PLAN_ERR_JRET(scanAddCol(pRealTableScan, NULL, &pVirtualTable->table, &pVirtualTable->pMeta->schema[i], pVirtualTable->pMeta->schema[i].colId));
+        PLAN_ERR_JRET(scanAddCol(pRealTableScan, NULL, &pVirtualTable->table, &pVirtualTable->pMeta->schema[i], pVirtualTable->pMeta->schema[i].colId, NULL));
       }
     }
     PLAN_ERR_JRET(createColumnByRewriteExprs(((SScanLogicNode*)pRealTableScan)->pScanCols, &((SScanLogicNode*)pRealTableScan)->node.pTargets));

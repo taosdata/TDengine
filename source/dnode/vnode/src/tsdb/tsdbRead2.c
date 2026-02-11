@@ -1218,6 +1218,8 @@ int32_t lino = 0;
       } else {
         TSDB_CHECK_NULL(pSup, code, lino, _end, TSDB_CODE_INVALID_PARA);
         varDataSetLen(pSup->buildBuf[colIndex], pColVal->value.nData);
+        tsdbDebug("column cid:%d data len %d, schema bytes %d, colIndex:%d", pColVal->cid, pColVal->value.nData,
+                  pColInfoData->info.bytes, colIndex);
         if ((pColVal->value.nData + VARSTR_HEADER_SIZE) > pColInfoData->info.bytes) {
           tsdbWarn("column cid:%d actual data len %d is bigger than schema len %d", pColVal->cid, pColVal->value.nData,
                    pColInfoData->info.bytes);

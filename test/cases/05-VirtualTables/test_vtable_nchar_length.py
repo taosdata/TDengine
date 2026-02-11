@@ -403,12 +403,10 @@ class TestVtableNcharLength:
         self._check_position_function("vtb_nchar_eq", self.SRC_32_BINARY)
 
     def test_vtable_nchar_len_lt(self):
-        """Query: vtable col len < src col len
+        """Query: vtable col len < src col len (KEY SCENARIO - no truncation)
 
         Virtual table binary(8)/nchar(8) referencing source binary(32)/nchar(32).
-        Creation succeeds (planner allows variable-length type mismatch),
-        but query fails with 'Table schema is old' when actual data exceeds
-        the virtual table's defined column length at TSDB read layer.
+        Should return actual source data WITHOUT truncation.
 
         Catalog:
             - VirtualTable
@@ -422,27 +420,27 @@ class TestVtableNcharLength:
         History:
             - 2026-2-11 Created
         """
-        tdLog.info("Case 3: vtable col len < src col len - query expected to fail")
-        db = self.DB_NAME
+        tdLog.info("Case 3: vtable col len < src col len - must NOT truncate")
 
-        # Virtual table was created successfully (binary(8) referencing binary(32))
-        # Verify the table exists via information_schema
-        tdSql.query(f"select table_name from information_schema.ins_tables "
-                    f"where db_name = '{db}' and table_name = 'vtb_nchar_lt';")
-        tdSql.checkRows(1)
-
-        # Query should fail because source data (up to 32 bytes) exceeds
-        # virtual table column length (8 bytes) at TSDB read layer
-        tdSql.error(f"select binary_col from {db}.vtb_nchar_lt order by ts;")
-        tdLog.info("Case 3: query correctly rejected for col len < src col len")
+        self._check_projection("vtb_nchar_lt",
+                               self.SRC_32_BINARY, self.SRC_32_NCHAR,
+                               self.SRC_32_VARCHAR, self.SRC_32_INT)
+        self._check_length_functions("vtb_nchar_lt",
+                                     self.SRC_32_BINARY, self.SRC_32_NCHAR)
+        self._check_string_functions("vtb_nchar_lt", self.SRC_32_BINARY)
+        self._check_concat_function("vtb_nchar_lt",
+                                    self.SRC_32_BINARY, self.SRC_32_NCHAR)
+        self._check_substring_function("vtb_nchar_lt",
+                                       self.SRC_32_BINARY, self.SRC_32_NCHAR)
+        self._check_replace_function("vtb_nchar_lt", self.SRC_32_BINARY)
+        self._check_ascii_function("vtb_nchar_lt", self.SRC_32_BINARY)
+        self._check_position_function("vtb_nchar_lt", self.SRC_32_BINARY)
 
     def test_vtable_nchar_len_mix(self):
         """Query: vtable with mixed references and different lengths
 
         Virtual table with binary(16) referencing src_ntb_32.binary_col(32)
         and binary(32) referencing src_ntb_16.binary_col(16).
-        Columns where vtable len < src len will cause query failure;
-        columns where vtable len >= src len should work fine.
 
         Catalog:
             - VirtualTable
@@ -459,21 +457,15 @@ class TestVtableNcharLength:
         tdLog.info("Case 4: mixed references with different lengths")
         db = self.DB_NAME
 
-        # Combined projection includes columns where vtable len < src len
-        # (binary_32_col: binary(16) referencing binary(32) source),
-        # so the query should fail at TSDB read layer
-        tdSql.error(f"select binary_32_col, nchar_32_col, binary_16_col, nchar_16_col "
-                    f"from {db}.vtb_nchar_mix order by ts;")
-
-        # Querying only columns where vtable len >= src len should succeed
-        # binary_16_col: binary(32) referencing binary(16) source - OK
-        # nchar_16_col: nchar(32) referencing nchar(16) source - OK
-        tdSql.query(f"select binary_16_col, nchar_16_col "
+        # Check combined projection
+        tdSql.query(f"select binary_32_col, nchar_32_col, binary_16_col, nchar_16_col "
                     f"from {db}.vtb_nchar_mix order by ts;")
         tdSql.checkRows(5)
         for i in range(5):
-            tdSql.checkData(i, 0, self.SRC_16_BINARY[i])
-            tdSql.checkData(i, 1, self.SRC_16_NCHAR[i])
+            tdSql.checkData(i, 0, self.SRC_32_BINARY[i])
+            tdSql.checkData(i, 1, self.SRC_32_NCHAR[i])
+            tdSql.checkData(i, 2, self.SRC_16_BINARY[i])
+            tdSql.checkData(i, 3, self.SRC_16_NCHAR[i])
 
         # int_col (fixed-length) should also work
         tdSql.query(f"select int_col from {db}.vtb_nchar_mix order by ts;")
@@ -482,12 +474,10 @@ class TestVtableNcharLength:
             tdSql.checkData(i, 0, self.SRC_32_INT[i])
 
     def test_vtable_nchar_len_consistency(self):
-        """Query: data consistency across gt and eq vtable definitions
+        """Query: data consistency across all three vtable definitions
 
-        Virtual tables with col len >= src col len (gt, eq) reference the same
-        source data and should return identical results.
-        vtb_nchar_lt (col len < src len) is excluded because its queries fail
-        at the TSDB read layer.
+        All three virtual tables (gt, eq, lt) reference the same source data
+        and should return identical results.
 
         Catalog:
             - VirtualTable
@@ -501,41 +491,38 @@ class TestVtableNcharLength:
         History:
             - 2026-2-11 Created
         """
-        tdLog.info("Case 5: data consistency across gt/eq definitions")
+        tdLog.info("Case 5: data consistency across gt/eq/lt definitions")
         db = self.DB_NAME
 
-        # Count should be the same for gt and eq
-        for vtable in ["vtb_nchar_gt", "vtb_nchar_eq"]:
+        # Count should be the same
+        for vtable in ["vtb_nchar_gt", "vtb_nchar_eq", "vtb_nchar_lt"]:
             tdSql.query(f"select count(*) from {db}.{vtable};")
             tdSql.checkData(0, 0, 5)
 
         # first(binary_col) should be the same
-        for vtable in ["vtb_nchar_gt", "vtb_nchar_eq"]:
+        for vtable in ["vtb_nchar_gt", "vtb_nchar_eq", "vtb_nchar_lt"]:
             tdSql.query(f"select first(binary_col) from {db}.{vtable};")
             tdSql.checkData(0, 0, 'Shanghai - Los Angles')
 
         # last(nchar_col) should be the same
-        for vtable in ["vtb_nchar_gt", "vtb_nchar_eq"]:
+        for vtable in ["vtb_nchar_gt", "vtb_nchar_eq", "vtb_nchar_lt"]:
             tdSql.query(f"select last(nchar_col) from {db}.{vtable};")
             tdSql.checkData(0, 0, '旧金山 - San Francisco City')
 
         # Filter on character columns
-        for vtable in ["vtb_nchar_gt", "vtb_nchar_eq"]:
+        for vtable in ["vtb_nchar_gt", "vtb_nchar_eq", "vtb_nchar_lt"]:
             tdSql.query(f"select binary_col, int_col from {db}.{vtable} "
                         f"where binary_col = 'short' order by ts;")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 'short')
             tdSql.checkData(0, 1, 2)
 
-        for vtable in ["vtb_nchar_gt", "vtb_nchar_eq"]:
+        for vtable in ["vtb_nchar_gt", "vtb_nchar_eq", "vtb_nchar_lt"]:
             tdSql.query(f"select nchar_col, int_col from {db}.{vtable} "
                         f"where nchar_col = '短' order by ts;")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, '短')
             tdSql.checkData(0, 1, 2)
-
-        # vtb_nchar_lt: query should fail (col len < src len)
-        tdSql.error(f"select count(*) from {db}.vtb_nchar_lt;")
 
     def test_vtable_nchar_len_cast(self):
         """Query: cast function on virtual table with mismatched lengths
