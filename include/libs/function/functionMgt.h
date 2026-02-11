@@ -356,6 +356,7 @@ bool fmIsRowTsOriginFunc(int32_t funcId);
 bool fmIsSelectColsFunc(int32_t funcId);
 bool fmIsGroupIdFunc(int32_t funcId);
 bool fmIsPlaceHolderFunc(int32_t funcId);
+bool fmIsPlaceHolderFuncForExternalWin(int32_t funcId);
 
 void    getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);
@@ -393,6 +394,10 @@ int32_t fmCreateStateMergeFuncs(SNodeList* pFuncs);
 int32_t fmGetFuncId(const char* name);
 bool    fmIsMyStateFunc(int32_t funcId, int32_t stateFuncId);
 bool    fmIsCountLikeFunc(int32_t funcId);
+
+int32_t fmGetTwstartFuncId();
+int32_t fmGetTwendFuncId();
+int32_t fmGetTwdurationFuncId();
 
 // typedef enum SStreamPseudoFuncType {
 //   STREAM_PSEUDO_FUNC_CURRENT_TS = 0,

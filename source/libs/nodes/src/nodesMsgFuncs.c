@@ -3564,6 +3564,7 @@ enum {
   PHY_WINDOW_CODE_INPUT_TS_ORDER,
   PHY_WINDOW_CODE_OUTPUT_TS_ORDER,
   PHY_WINDOW_CODE_MERGE_DATA_BLOCK,
+  PHY_WINDOW_CODE_PROJS,
 };
 
 static int32_t physiWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3599,6 +3600,9 @@ static int32_t physiWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI8(pEncoder, PHY_WINDOW_CODE_INDEF_ROWS_FUNC, pNode->indefRowsFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_WINDOW_CODE_PROJS, nodeListToMsg, pNode->pProjs);
   }
 
   return code;
@@ -3643,6 +3647,9 @@ static int32_t msgToPhysiWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_WINDOW_CODE_INDEF_ROWS_FUNC:
         code = tlvDecodeI8(pTlv, &pNode->indefRowsFunc);
+        break;
+      case PHY_WINDOW_CODE_PROJS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pProjs);
         break;
       default:
         break;

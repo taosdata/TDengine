@@ -61,6 +61,8 @@ class TestExternal:
         
     def basic_query(self):
         tdLog.info(f"=============== basic query of external window")
+        # select _wstart, _wend, ts from st1_1 external_window((select ts, ts+1, first(c1) c1 from st2) w) ;
+        # select _wstart, _wend, ts, cast(ts as bigint)- cast(_wstart as bigint) from st1_1 external_window((select ts, ts+1, first(c1) c1 from st2) w) ;
         # tdSql.execute("select count(*) from st1_1 external_window((select ts, ts+10, first(c1) c1 from st2) w);")
         # tdSql.execute("select _wstart, count(*) from st1_1 external_window((select ts, ts+10, first(c1) c1 from st2) w) ;")
         # select _wstart, * from st1_1 external_window((select ts, ts+10, first(c1) c1 from st2) w) ;

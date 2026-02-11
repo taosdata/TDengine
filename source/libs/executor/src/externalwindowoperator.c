@@ -2308,7 +2308,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     one.wend = 1589338140000;
     (void)taosArrayPush(pRt->pStreamPesudoFuncVals, &one);
     one.wstart = 1589338140001;
-    one.wend = 1589341140000;
+    one.wend = 1589340110000;
     (void)taosArrayPush(pRt->pStreamPesudoFuncVals, &one);
   }
 

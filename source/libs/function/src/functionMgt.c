@@ -33,6 +33,13 @@ static SFuncMgtService gFunMgtService;
 static TdThreadOnce    functionHashTableInit = PTHREAD_ONCE_INIT;
 static int32_t         initFunctionCode = 0;
 
+static void InitSpecialFuncId() {
+  // just to make sure the funcId of these functions are initialized before used.
+  int32_t funcId = fmGetTwstartFuncId();
+  funcId = fmGetTwendFuncId();
+  funcId = fmGetTwdurationFuncId();
+}
+
 static void doInitFunctionTable() {
   gFunMgtService.pFuncNameHashTable =
       taosHashInit(funcMgtBuiltinsNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
@@ -48,6 +55,7 @@ static void doInitFunctionTable() {
       return;
     }
   }
+  InitSpecialFuncId();
 }
 
 static bool isSpecificClassifyFunc(int32_t funcId, uint64_t classification) {
@@ -416,6 +424,11 @@ bool fmIsPrimaryKeyFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, 
 
 bool fmIsPlaceHolderFunc(int32_t funcId) {return isSpecificClassifyFunc(funcId, FUNC_MGT_PLACE_HOLDER_FUNC); }
 
+bool fmIsPlaceHolderFuncForExternalWin(int32_t funcId) {
+  return (funcMgtBuiltins[funcId].type == FUNCTION_TYPE_WSTART || funcMgtBuiltins[funcId].type == FUNCTION_TYPE_WEND ||
+          funcMgtBuiltins[funcId].type == FUNCTION_TYPE_WDURATION);
+}
+
 void getLastCacheDataType(SDataType* pType, int32_t pkBytes) {
   // TODO: do it later.
   pType->bytes = getFirstLastInfoSize(pType->bytes, pkBytes) + VARSTR_HEADER_SIZE;
@@ -718,6 +731,30 @@ int32_t fmGetFuncId(const char* name) {
     }
   }
   return -1;
+}
+
+int32_t fmGetTwstartFuncId() {
+  static int32_t twstartFuncId = -2;
+  if (twstartFuncId == -2) {
+    twstartFuncId = fmGetFuncId("_twstart");
+  }
+  return twstartFuncId;
+}
+
+int32_t fmGetTwendFuncId() {
+  static int32_t twendFuncId = -2;
+  if (twendFuncId == -2) {
+    twendFuncId = fmGetFuncId("_twend");
+  }
+  return twendFuncId;
+}
+
+int32_t fmGetTwdurationFuncId() {
+  static int32_t twdurationFuncId = -2;
+  if (twdurationFuncId == -2) {
+    twdurationFuncId = fmGetFuncId("_twduration");
+  }
+  return twdurationFuncId;
 }
 
 bool fmIsMyStateFunc(int32_t funcId, int32_t stateFuncId) {

@@ -3439,6 +3439,57 @@ _return:
   nodesDestroyNode(extraValue);
   return DEAL_RES_ERROR;
 }
+
+static EDealRes translateExternalWindowPlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SNode*         extraValue = NULL;
+  SFunctionNode* pFuncNode = (SFunctionNode*)(*pFunc);
+
+  if (pCxt->currClause != SQL_CLAUSE_SELECT && pCxt->currClause != SQL_CLAUSE_WHERE && pCxt->currClause != SQL_CLAUSE_ORDER_BY) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INTERNAL_ERROR,
+                                         "external window placeholder should only appear in select, where and order by clause"));
+  }
+
+  switch (pFuncNode->funcType) {
+    case FUNCTION_TYPE_WSTART: {
+      pFuncNode->funcType = FUNCTION_TYPE_TWSTART;
+      pFuncNode->funcId = fmGetTwstartFuncId();
+      tstrncpy(pFuncNode->functionName, "_twstart", sizeof(pFuncNode->functionName));
+      BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_WSTART);
+      PAR_ERR_JRET(nodesMakeValueNodeFromTimestamp(0, &extraValue));
+      break;
+    }
+    case FUNCTION_TYPE_WEND: {
+      pFuncNode->funcType = FUNCTION_TYPE_TWEND;
+      pFuncNode->funcId = fmGetTwendFuncId();
+      tstrncpy(pFuncNode->functionName, "_twend", sizeof(pFuncNode->functionName));
+      BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_WEND);
+      PAR_ERR_JRET(nodesMakeValueNodeFromTimestamp(0, &extraValue));
+      break;
+    }
+    case FUNCTION_TYPE_WDURATION: {
+      pFuncNode->funcType = FUNCTION_TYPE_TWDURATION;
+      pFuncNode->funcId = fmGetTwdurationFuncId();
+      tstrncpy(pFuncNode->functionName, "_twduration", sizeof(pFuncNode->functionName));
+      BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_WDURATION);
+      PAR_ERR_JRET(nodesMakeValueNodeFromInt64(0, &extraValue));
+      break;
+    }
+    default:
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INTERNAL_ERROR,
+                                           "unsupported placeholder function %s in external window", pFuncNode->functionName));
+  }
+
+  ((SValueNode*)extraValue)->notReserved = true;
+  PAR_ERR_JRET(nodesListMakePushFront(&pFuncNode->pParameterList, extraValue));
+  return DEAL_RES_CONTINUE;
+_return:
+  pCxt->errCode = code;
+  parserError("external window translateExternalWindowPlaceHolderFunc failed with code %d", code);
+  nodesDestroyNode(extraValue);
+  return DEAL_RES_ERROR;
+}
+
 static int32_t translateForbidFillFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
   if (!fmIsForbidFillFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
@@ -3993,6 +4044,16 @@ static int32_t rewriteClientPseudoColumnFunc(STranslateContext* pCxt, SNode** pN
                                  "%s get invalid funcType: %d", ((SFunctionNode*)*pNode)->functionName, ((SFunctionNode*)*pNode)->funcType);
 }
 
+static bool currentStmtWithExternalWindow(STranslateContext* pCxt) {
+  if (NULL != pCxt->pCurrStmt && QUERY_NODE_SELECT_STMT == nodeType(pCxt->pCurrStmt)) {
+    SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+    if (NULL != pSelect->pWindow && QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static int32_t translateFunctionImpl(STranslateContext* pCxt, SFunctionNode** pFunc) {
   if (fmIsSystemInfoFunc((*pFunc)->funcId)) {
     return rewriteSystemInfoFunc(pCxt, (SNode**)pFunc);
@@ -4044,6 +4105,10 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
 
   if (fmIsPlaceHolderFunc((*pFunc)->funcId)) {
     return translatePlaceHolderFunc(pCxt, (SNode**)pFunc);
+  }
+
+  if(currentStmtWithExternalWindow(pCxt) && fmIsPlaceHolderFuncForExternalWin((*pFunc)->funcId)) {
+    return translateExternalWindowPlaceHolderFunc(pCxt, (SNode**)pFunc);
   }
 
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
