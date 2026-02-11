@@ -5757,15 +5757,20 @@ int32_t validateJoinConds(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
 }
 
 static int32_t cloneVgroups(SVgroupsInfo** pDst, SVgroupsInfo* pSrc) {
+  if (pDst == NULL) return terrno;
+
+  /* free previous allocation if any */
+  if (*pDst) taosMemoryFreeClear(*pDst);
+
   if (pSrc == NULL) {
     *pDst = NULL;
     return TSDB_CODE_SUCCESS;
   }
+
   int32_t len = VGROUPS_INFO_SIZE(pSrc);
   *pDst = taosMemoryMalloc(len);
-  if (NULL == *pDst) {
-    return terrno;
-  }
+  if (*pDst == NULL) return terrno;
+
   memcpy(*pDst, pSrc, len);
   return TSDB_CODE_SUCCESS;
 }
