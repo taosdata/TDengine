@@ -1,4 +1,5 @@
 from conan import ConanFile
+from conan.errors import ConanInvalidConfiguration
 from conan.tools.files import copy, get
 from conan.tools.gnu import Autotools, AutotoolsToolchain
 import os
@@ -12,6 +13,25 @@ class FastLzma2Conan(ConanFile):
     description = "Fast LZMA2 Library - an optimized LZMA2 compression algorithm"
     topics = ("compression", "lzma2", "fast-lzma2")
 
+    def _src_dir(self):
+        """Return the directory containing the upstream Makefile.
+
+        Depending on how the sources are exported, they might live in:
+        - <source_folder>/fast-lzma2 (expected)
+        - <source_folder> (flattened export)
+        """
+        candidates = [
+            os.path.join(self.source_folder, "fast-lzma2"),
+            self.source_folder,
+        ]
+        for d in candidates:
+            if os.path.isfile(os.path.join(d, "Makefile")):
+                return d
+        raise ConanInvalidConfiguration(
+            "fast-lzma2 sources not found: expected a Makefile in one of: "
+            + ", ".join(candidates)
+        )
+
     settings = "os", "compiler", "build_type", "arch"
     options = {
         "shared": [True, False],
@@ -23,13 +43,16 @@ class FastLzma2Conan(ConanFile):
     }
 
     def export_sources(self):
-        # Export source code directory if available locally
-        copy(
-            self,
-            "*",
-            src=os.path.join(self.recipe_folder, "fast-lzma2"),
-            dst=os.path.join(self.export_sources_folder, "fast-lzma2"),
-        )
+        # Export bundled source tree.
+        # NOTE:
+        # - Conan's pattern matching can miss root-level files like "Makefile" when using only "**/*".
+        # - Exclude .git to avoid exporting VCS metadata.
+        src_dir = os.path.join(self.recipe_folder, "fast-lzma2")
+        dst_dir = os.path.join(self.export_sources_folder, "fast-lzma2")
+        excludes = [".git/*", ".git/**"]
+
+        copy(self, "*", src=src_dir, dst=dst_dir, keep_path=True, excludes=excludes)
+        copy(self, "**/*", src=src_dir, dst=dst_dir, keep_path=True, excludes=excludes)
 
     def config_options(self):
         if self.settings.os == "Windows":
@@ -49,8 +72,7 @@ class FastLzma2Conan(ConanFile):
         pass
 
     def build(self):
-        # Enter source code directory
-        source_folder = os.path.join(self.source_folder, "fast-lzma2")
+        source_folder = self._src_dir()
 
         # Build make command
         cflags = "-Wall -O2 -pthread"
@@ -62,13 +84,14 @@ class FastLzma2Conan(ConanFile):
             cflags = cflags.replace("-O2", "-O0 -g")
 
         # Execute make compilation
+        # NOTE: don't force CC here; conan profiles / environment may override it.
         self.run(
-            f'make CFLAGS="{cflags}" CC={self.settings.get_safe("compiler", default="gcc")} libfast-lzma2',
+            f'make CFLAGS="{cflags}" libfast-lzma2',
             cwd=source_folder,
         )
 
     def package(self):
-        source_folder = os.path.join(self.source_folder, "fast-lzma2")
+        source_folder = self._src_dir()
 
         # Copy license files
         copy(
