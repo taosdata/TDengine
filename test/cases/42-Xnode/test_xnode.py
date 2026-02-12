@@ -17,6 +17,7 @@ class TestXnode:
     """
 
     replicaVar = 1
+    is_local = False
 
     @classmethod
     def setup_class(cls):
@@ -53,6 +54,26 @@ class TestXnode:
             ), f"Syntax failure for [{sql}]: {err}"
             tdLog.notice(f"runtime/semantic error tolerated for sql: {sql} | {err}")
             return False
+
+    def must_fail_execute(self, sql: str):
+        """test with syntax fail
+
+        1. execute sql
+
+        Since: v3.4.0.5
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-02-11 GuiChuan Zhang Created
+        """
+        try:
+            tdSql.execute(sql)
+        except Exception:
+            return True
+        assert False, f"sql should fail: [{sql}]"
 
     def no_syntax_fail_query(self, sql: str):
         """test no syntax fail query
@@ -138,7 +159,6 @@ class TestXnode:
             self.no_syntax_fail_execute(sql)
 
         self.no_syntax_fail_execute(f"CREATE XNODE '{ep2}'")
-        self.no_syntax_fail_execute(sql)
 
         rs = tdSql.query("show tokens", row_tag=True)
         tdLog.info(f"show tokens result:' {rs}")
@@ -150,17 +170,31 @@ class TestXnode:
 
         sqls = [
             f"CREATE XNODE '{ep1}' USER root PASS 'taosdata'",
-            f"SHOW XNODES where id > 1",
             f"SHOW XNODES where status != 'online'",
             f"SHOW XNODES where status = 'online'",
             f"SHOW XNODES where url = '{ep2}'",
-            f"DROP XNODE '{ep2}'",
-            f"DROP XNODE {node_id}",
-            f"DRAIN XNODE {self.rand_ids[1]}",
         ]
         for sql in sqls:
             tdLog.debug(f"exec: {sql}")
             self.no_syntax_fail_execute(sql)
+
+        rs = tdSql.query(f"SHOW XNODES where id > 0", row_tag=True)
+        assert len(rs) == 2
+
+        for row in rs:
+            xnode_id = row[0]
+            url = row[1]
+            del_sqls = [
+                f"DRAIN XNODE {xnode_id}",
+                f"DROP XNODE '{url}'",
+                f"DROP XNODE {xnode_id}",
+            ]
+            for sql in del_sqls:
+                tdLog.debug(f"exec: {sql}")
+                self.no_syntax_fail_execute(sql)
+
+        rs = tdSql.query(f"SHOW XNODES where id > 0", row_tag=True)
+        assert len(rs) == 0
 
     def test_task_lifecycle(self):
         """测试 XNode Task 生命周期
@@ -184,52 +218,115 @@ class TestXnode:
         History:
             - 2025-12-30 GuiChuan Zhang Created
         """
-
         dbname = f"xnode_db_{self.suffix}"
-        t_ingest = f"t_ingest_{self.suffix}"
+        t_ingest_1 = f"t_ingest_1_{self.suffix}"
+        t_ingest_2 = f"t_ingest_2_{self.suffix}"
+        t_ingest_3 = f"t_ingest_3_{self.suffix}"
         t_export = f"t_export_{self.suffix}"
-        t_opts = f"t_opts_{self.suffix}"
         topic = f"tp_{self.suffix}"
-        task_id_1 = self.rand_ids[2]
-        task_id_2 = self.rand_ids[3]
+
+        rs = tdSql.query(f"SHOW XNODE TASKS", row_tag=True)
+        for row in rs:
+            id = row[0]
+            self.no_syntax_fail_execute(f"DROP XNODE TASK {id}")
+
+        self.no_syntax_fail_execute(f"DROP DATABASE {dbname}")
+        self.no_syntax_fail_execute(f"CREATE DATABASE {dbname}")
 
         task_sqls = [
             # create with FROM/TO and WITH options (comma separated + trigger)
-            f"CREATE XNODE TASK '{t_ingest}' FROM 'mqtt://broker:1883' TO DATABASE {dbname} "
+            f"CREATE XNODE TASK '{t_ingest_1}' FROM 'mqtt://broker:1883' TO DATABASE {dbname} "
              "WITH parser 'parser_json', batch 1024, TRIGGER 'manual'",
-            f"CREATE XNODE TASK '{t_ingest}' FROM 'mqtt://broker:1883' TO DATABASE {dbname} "
+            f"CREATE XNODE TASK '{t_ingest_2}' FROM 'mqtt://broker:1883' TO DATABASE {dbname} "
              "WITH parser 'parser_json', batch 1024, TRIGGER 'manual' labels ''",
-            f"CREATE XNODE TASK '{t_ingest}' FROM 'mqtt://broker:1883' TO DATABASE {dbname} "
+            f"CREATE XNODE TASK '{t_ingest_3}' FROM 'mqtt://broker:1883' TO 'taos://localhost:6030/{dbname}' "
              "WITH parser 'parser_json', batch 1024, TRIGGER 'manual' labels '{\"key\":\"value\"}'",
             # create with topic source and DSN sink using AND
             f"CREATE XNODE TASK '{t_export}' FROM TOPIC {topic} TO 'kafka://broker:9092' "
              "WITH group_id 'g1' AND client_id 'c1'",
-            # create task without FROM/TO but with options only
-            f"CREATE XNODE TASK '{t_opts}' WITH retry 5 AND TRIGGER 'cron_5m'",
-
-            # alter with new source/sink/options
-            f"ALTER XNODE TASK {task_id_1} FROM DATABASE {dbname} TO 'influxdb://remote' "
-             "WITH parser 'parser_line', concurrency 4",
-            # alter task with options only
-            f"ALTER XNODE TASK {task_id_2} WITH batch 2048 AND timeout 30",
-            f'ALTER XNODE TASK {task_id_2} WITH batch 2048 AND timeout 30 labels \'{{"k":"v"}}\'',
-            # start/stop task
-            f"START XNODE TASK {task_id_1}",
-            f"STOP XNODE TASK {task_id_1}",
-            # rebalance by id with options
-            f"REBALANCE XNODE JOB {self.rand_ids[4]} WITH xnode_id 3",
-            # rebalance by where clause
-            f"REBALANCE XNODE JOB WHERE id > 0",
-            # drop variations
-            f"DROP XNODE TASK '{t_ingest}'",
-            f"DROP XNODE TASK {task_id_2}",
-
-            #f"DROP XNODE TASK WHERE name = '{t_export}'",
-            #f"DROP XNODE TASK ON 1 WHERE id = {task_id_1}",
         ]
         for sql in task_sqls:
             tdLog.debug(f"exec: {sql}")
             self.no_syntax_fail_execute(sql)
+        rs = tdSql.query(f"SHOW XNODE TASKS", row_tag=True)
+        if self.is_local:
+            assert len(rs) == 4
+
+        alter_sqls = [
+            # alter with new source/sink/options
+            f"ALTER XNODE TASK '{t_ingest_1}' FROM DATABASE {dbname} TO 'influxdb://remote' "
+             "WITH parser 'parser_line', concurrency 4",
+            # alter task with options only
+            f"ALTER XNODE TASK '{t_ingest_2}' WITH batch 2048 AND timeout 30 status 'running' via 10 xnode_id 11 parser 'parser_json' reason 'why'",
+            f'ALTER XNODE TASK "{t_ingest_2}" WITH batch 2048 AND timeout 30 labels \'{{"k":"v"}}\'',
+            # start/stop task
+            f"START XNODE TASK '{t_ingest_1}'",
+            f"STOP XNODE TASK '{t_ingest_1}'",
+            # rebalance by id with options
+            f"REBALANCE XNODE JOB {self.rand_ids[4]} WITH xnode_id 3",
+            # rebalance by where clause
+            f"REBALANCE XNODE JOB WHERE id > 0",
+        ]
+        for sql in alter_sqls:
+            tdLog.debug(f"exec: {sql}")
+            self.no_syntax_fail_execute(sql)
+        
+        rs = tdSql.query(f"SHOW XNODE TASKS where name = '{t_ingest_1}'", row_tag=True)
+        if self.is_local:
+            assert rs[0][4] == 'parser_line'
+        rs = tdSql.query(f"SHOW XNODE TASKS where name = '{t_ingest_2}'", row_tag=True)
+        if self.is_local:
+            assert rs[0][4] == "parser_json"
+            assert rs[0][5] == 10
+            assert rs[0][6] == 11
+            assert rs[0][7] == 'running'
+            assert rs[0][8] == 'why'
+            assert rs[0][10] == '{"k":"v"}'
+
+        rs = tdSql.query(f"SHOW XNODE TASKS", row_tag=True)
+        for row in rs[:1]:
+            id = row[0]
+            self.no_syntax_fail_execute(f"DROP XNODE TASK {id}")
+        for row in rs[1:]:
+            name = row[1]
+            self.no_syntax_fail_execute(f"DROP XNODE TASK '{name}'")
+
+        rs = tdSql.query(f"SHOW XNODE TASKS", row_tag=True)
+        assert len(rs) == 0
+
+        rid = random.randint(1000, 9999)
+        self.no_syntax_fail_execute(f"""CREATE XNODE TASK 'backup_1770775738739_{rid}'
+                                    FROM 'tmq+http://root:taosdata@localhost:6041/test?max_retry=3&retry_interval=5s&stable=mqtt'
+                                    TO 'local:/Users/yanyuxing/Downloads/taosxdata/backup?max_size=1GB&compression_level=fastest&s3_enable=false'
+                                    WITH STATUS 'created'
+                                    LABELS '{{\\\"type\\\":\\\"backup\\\",\\\"cluster-id\\\":\\\"3627252377939833465\\\",\\\"trigger\\\":{{\\\"upcoming\\\":\\\"2026-02-11T02:10:00.000Z\\\",\\\"interval\\\":\\\"5m\\\"}}}}'
+                                    """)
+        rs = tdSql.query(f"SHOW XNODE TASKS", row_tag=True)
+        if self.is_local:
+            assert len(rs) == 1
+        self.no_syntax_fail_execute(f"DROP XNODE TASK 'backup_1770775738739_{rid}'")
+    
+        self.no_syntax_fail_execute(f"CREATE DATABASE test_{rid}")
+        self.no_syntax_fail_execute(f"CREATE DATABASE zgc_{rid}")
+        self.no_syntax_fail_execute(f"CREATE XNODE TASK 't_{rid}' FROM 'taos://root:taosdata@localhost:6030/test_{rid}' TO 'taos://root:taosdata@localhost:6030/zgc_{rid}' WITH STATUS 'created' VIA 1 labels 'labels';")
+        rs = tdSql.query(f"SHOW XNODE TASKS where name = 't_{rid}'", row_tag=True)
+        # in local_test env
+        if self.is_local:
+            assert len(rs) == 1
+        self.no_syntax_fail_execute(f"DROP XNODE TASK 't_{rid}'")
+        rs = tdSql.query(f"SHOW XNODE TASKS where name = 't_{rid}'", row_tag=True)
+        assert len(rs) == 0
+
+        long_name = "t"*65
+        self.must_fail_execute(f"CREATE XNODE TASK '{long_name}' FROM 'taos://root:taosdata@localhost:6030/test_{rid}' TO 'taos://root:taosdata@localhost:6030/zgc_{rid}' WITH STATUS 'created' VIA 1 labels 'labels';")
+        rs = tdSql.query(f"SHOW XNODE TASKS where name = '{long_name}'", row_tag=True)
+        # in local_test env
+        assert len(rs) == 0
+        self.must_fail_execute(f"DROP XNODE TASK '{long_name}'")
+        rs = tdSql.query(f"SHOW XNODE TASKS where name = '{long_name}'", row_tag=True)
+        assert len(rs) == 0
+        self.no_syntax_fail_execute(f"DROP DATABASE zgc_{rid}")
+        self.no_syntax_fail_execute(f"DROP DATABASE test_{rid}")
 
     def test_agent_lifecycle(self):
         """test no syntax fail query
@@ -255,11 +352,26 @@ class TestXnode:
             f"CREATE XNODE AGENT '{agent2}' WITH `regionA` 'cn-north-1' AND TRIGGER 'heartbeat'",
             f"ALTER XNODE AGENT '{agent2}' WITH status 'running', `regionA` 'cn-north-1' AND TRIGGER 'heartbeat'",
             f"ALTER XNODE AGENT '{agent2}' WITH status 'stop' `regionA` 'cn-north-1' TRIGGER 'heartbeat'",
+            f"DROP XNODE AGENT '{agent1}'",
             f"DROP XNODE AGENT '{agent2}'",
         ]
         for sql in agent_sqls:
             tdLog.debug(f"exec: {sql}")
             self.no_syntax_fail_execute(sql)
+
+        rid = random.randint(1000, 9999)
+        self.no_syntax_fail_execute(f"CREATE XNODE AGENT 'a_{rid}' WITH status 'created'")
+        rs = tdSql.query(f"SHOW XNODE AGENT where name = 'a_{rid}' AND status = 'created'", row_tag=True)
+        assert len(rs) == 1
+
+        self.no_syntax_fail_execute(f"alter XNODE AGENT 'a_{rid}' set status 'run'")
+        rs = tdSql.query(f"SHOW XNODE AGENT where name = 'a_{rid}' AND status = 'run'", row_tag=True)
+        assert len(rs) == 1
+
+        self.no_syntax_fail_execute(f"DROP XNODE AGENT 'a_{rid}'")
+        rs = tdSql.query(f"SHOW XNODE AGENT where name = 'a_{rid}'", row_tag=True)
+        assert len(rs) == 0
+
 
     def test_job_lifecycle(self):
         """测试 XNode Job 生命周期
@@ -283,22 +395,46 @@ class TestXnode:
         """
 
         job_on = self.rand_ids[5]
-        job_id = self.rand_ids[6]
 
         job_sqls = [
-            f"DROP XNODE JOB {job_id}",
-            f"CREATE XNODE JOB ON {job_on} WITH config '{{\"json\":true}}'",
-            #f"ALTER XNODE JOB {job_id} WITH TRIGGER 'manual', priority 10",
-            f"REBALANCE XNODE JOB {job_id} WITH xnode_id {job_on}",
+            "DROP XNODE JOB WHERE id >= 1",
+            f"CREATE XNODE JOB ON {job_on} WITH config '{{\"json\":true}}' xnode_id 1",
+            f"CREATE XNODE JOB ON {job_on} WITH config '{{\"test\":true}}' xnode_id 2",
             f"REBALANCE XNODE JOB WHERE jid >= 1",
-            #f"DROP XNODE JOB ON {job_on} WHERE jid = {job_id}",
-            "DROP XNODE JOB WHERE jid > 1",
-            "DROP XNODE JOB WHERE task_id = 2 and status = 'running'",
         ]
 
         for sql in job_sqls:
             tdLog.debug(f"exec: {sql}")
             self.no_syntax_fail_execute(sql)
+
+        rs = tdSql.query(f"show xnode jobs", row_tag=True)
+        assert len(rs) == 2
+
+        job_id = rs[0][0]
+        sql = f"REBALANCE XNODE JOB {job_id} WITH xnode_id 1"
+        self.no_syntax_fail_execute(sql)
+
+        rs = tdSql.query(f"show xnode jobs where id={job_id}", row_tag=True)
+        tdLog.info(f"show job rs: {rs}")
+        assert rs[0][5] is None
+
+        sql = f"ALTER XNODE JOB {job_id} SET xnode_id 1 status 'running' config 'test'"
+        self.no_syntax_fail_execute(sql)
+
+        rs = tdSql.query(f"show xnode jobs where id={job_id}", row_tag=True)
+        assert rs[0][5] == 'running'
+
+        del_sqls = [
+            "DROP XNODE JOB WHERE task_id = 2 and status = 'running'",
+            "DROP XNODE JOB WHERE id > 0",
+        ]
+        for sql in del_sqls:
+            tdLog.debug(f"exec: {sql}")
+            self.no_syntax_fail_execute(sql)
+
+        rs = tdSql.query(f"show xnode jobs", row_tag=True)
+        assert len(rs) == 0
+
 
     def test_sources_and_sinks_variants(self):
         """测试 XNode 任务源和 sink 变体
@@ -1274,12 +1410,13 @@ class TestXnode:
 
         col_len = 48*1024
         rid = random.randint(1000, 9999)
-        # s = ''.join(random.choices(string.ascii_letters + string.digits, k=col_len))
-        # self.no_syntax_fail_execute(f"CREATE XNODE TASK 'task_{rid}' FROM 'f1' TO 't1' WITH parser '{s}'")
-        # self.wait_transaction_to_commit()
-        # rs = tdSql.query(f"show xnode task where name='task_{rid}'", row_tag=True)
-        # tdLog.info(f"show xnodes where result:' {rs}")
-        # assert len(rs[0][4]) == col_len
+        if self.is_local:
+            s = ''.join(random.choices(string.ascii_letters + string.digits, k=col_len))
+            self.no_syntax_fail_execute(f"CREATE XNODE TASK 'task_{rid}' FROM 'f1' TO 't1' WITH parser '{s}'")
+            self.wait_transaction_to_commit()
+            rs = tdSql.query(f"show xnode task where name='task_{rid}'", row_tag=True)
+            tdLog.info(f"show xnodes where result:' {rs}")
+            assert len(rs[0][4]) == col_len
 
         s = ''.join(random.choices(string.ascii_letters + string.digits, k=col_len))
         self.no_syntax_fail_execute(f"CREATE XNODE JOB ON {rid} WITH config '{s}'")
@@ -1288,13 +1425,14 @@ class TestXnode:
         tdLog.info(f"show xnodes where result:' {rs}")
         assert len(rs[0][2]) == col_len
 
-        # rid = random.randint(1000, 9999)
-        # s = ''.join(random.choices(string.ascii_letters + string.digits, k=col_len))
-        # self.no_syntax_fail_execute(f"CREATE XNODE TASK 'task_{rid}' FROM 'f1' TO 't1' WITH parser ''")
-        # self.wait_transaction_to_commit()
-        # rs = tdSql.query(f"show xnode task where name='task_{rid}'", row_tag=True)
-        # tdLog.info(f"show xnodes where result:' {rs}")
-        # assert rs[0][4] == ''
+        if self.is_local:
+            rid = random.randint(1000, 9999)
+            s = ''.join(random.choices(string.ascii_letters + string.digits, k=col_len))
+            self.no_syntax_fail_execute(f"CREATE XNODE TASK 'task_{rid}' FROM 'f1' TO 't1' WITH parser ''")
+            self.wait_transaction_to_commit()
+            rs = tdSql.query(f"show xnode task where name='task_{rid}'", row_tag=True)
+            tdLog.info(f"show xnodes where result:' {rs}")
+            assert rs[0][4] == ''
 
         rid = random.randint(1000, 9999)
         s = ''.join(random.choices(string.ascii_letters + string.digits, k=col_len))

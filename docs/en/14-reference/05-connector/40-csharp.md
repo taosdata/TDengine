@@ -25,6 +25,7 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 
 | Connector Version | Major Changes                                                                                                            | TDengine Version   |
 |-------------------|--------------------------------------------------------------------------------------------------------------------------|--------------------|
+| 3.1.10            | Support TDengine TSDB Token authentication.                                                                              | -                  |
 | 3.1.9             | The external interface of stmt remains unchanged; the internal implementation has been refactored into stmt2.            | -                  |
 | 3.1.8             | Support connection-level timezone settings and strictly validate the binding types of statements against database types. | -                  |
 | 3.1.7             | Support IPv6 connections and DECIMAL data type.                                                                          | 3.3.6.0 and higher |

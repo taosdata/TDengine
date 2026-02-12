@@ -11,7 +11,6 @@ _ANODE_SECTION_NAME = "taosanode"
 
 class Configure:
     """ configuration class """
-
     def __init__(self, conf_path="/etc/taos/taosanode.ini"):
         self.path = None
 
