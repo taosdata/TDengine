@@ -1,0 +1,2 @@
+def batch():
+    return None

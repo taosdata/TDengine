@@ -9419,6 +9419,7 @@ static int32_t vstableAggOptimizeWithoutPartition(SOptimizeContext* pCxt, SLogic
   if (batchProcessChild) {
     PLAN_ERR_JRET(nodesCloneNode((SNode*)pNewAgg, (SNode**)&pVirtualChildAgg));
     nodesDestroyList(pVirtualChildAgg->node.pChildren);
+    pVirtualChildAgg->node.pChildren = NULL;
   } else {
     PLAN_ERR_JRET(createPartAggNode(pNewAgg, (SLogicNode**)&pVirtualChildAgg));
   }
@@ -9512,6 +9513,7 @@ static int32_t vstableAggOptimizeWithPartition(SOptimizeContext* pCxt, SLogicSub
     pVirtualAgg->node.dynamicOp = true;
     pVirtualAgg->hasGroupKeyOptimized = true;
     nodesDestroyList(pVirtualAgg->node.pChildren);
+    pVirtualAgg->node.pChildren = NULL;
   } else {
     PLAN_ERR_JRET(createPartAggNode(pNewAgg, (SLogicNode**)&pVirtualAgg));
     pVirtualAgg->node.dynamicOp = true;

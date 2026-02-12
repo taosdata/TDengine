@@ -605,11 +605,6 @@ check_python3_env() {
     fi
   fi
 
-  if [[ $python_minor_ver -eq 12 ]]; then
-    echo "Python 3.12: Update Pandas from 1.5.3 to 2.2.0 in Requirements_ess.txt"
-    sed -i '1s/pandas==1.5.3/pandas==2.2.0/' ${script_dir}/requirements_ess.txt
-  fi
-
 #  echo -e "Python3 minor version is:${python_minor_ver}"
 
   # check the existence pip3.10/pip3.11/pip3.12

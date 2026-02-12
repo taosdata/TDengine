@@ -1,4 +1,5 @@
-pandas==1.5.3
+pandas==1.5.3 ; python_version <= "3.11"
+pandas==2.2.0 ; python_version >= "3.12"
 scipy==1.15.0
 scikit-learn==1.5.2
 outlier-utils==0.0.5
