@@ -1307,6 +1307,31 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
         }
         break;
       }
+      case EX_SRC_TYPE_VSTB_TS_SCAN: {
+        if (pDataInfo->batchOrgTbInfo) {
+          code = buildTableScanOperatorParamBatchInfo(
+              &req.pOpParam, pDataInfo->groupid, pDataInfo->pSrcUidList, QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN,
+              pDataInfo->batchOrgTbInfo, pDataInfo->tagList, pDataInfo->tableSeq, &pDataInfo->window,
+              pDataInfo->isNewParam);
+          if (TSDB_CODE_SUCCESS != code) {
+            pTaskInfo->code = code;
+            taosMemoryFree(pWrapper);
+            return pTaskInfo->code;
+          }
+          taosArrayDestroy(pDataInfo->batchOrgTbInfo);
+          pDataInfo->batchOrgTbInfo = NULL;
+
+          if (pDataInfo->tagList) {
+            taosArrayDestroyEx(pDataInfo->tagList, destroyTagVal);
+            pDataInfo->tagList = NULL;
+          }
+          if (pDataInfo->pSrcUidList) {
+            taosArrayDestroy(pDataInfo->pSrcUidList);
+            pDataInfo->pSrcUidList = NULL;
+          }
+        }
+        break;
+      }
       case EX_SRC_TYPE_VSTB_WIN_SCAN:
       case EX_SRC_TYPE_VSTB_AGG_SCAN: {
         if (pDataInfo->batchOrgTbInfo) {
@@ -1971,6 +1996,10 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator,
       }
       pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pBasicParam->vgId, sizeof(pBasicParam->vgId));
       QUERY_CHECK_NULL(pIdx, code, lino, _return, TSDB_CODE_INVALID_PARA);
+    } else if (pBasicParam->type == EX_SRC_TYPE_VSTB_TS_SCAN) {
+      qDebug("addSingleExchangeSource found no existing source for vgId: %d, but it's VSTB_TS_SCAN, skip it",
+             pBasicParam->vgId);
+      return TSDB_CODE_SUCCESS;
     } else {
       qError("No exchange source for vgId: %d", pBasicParam->vgId);
       return TSDB_CODE_INVALID_PARA;
@@ -1980,6 +2009,7 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator,
   qDebug("start to add single exchange source");
 
   switch (pBasicParam->type) {
+    case EX_SRC_TYPE_VSTB_TS_SCAN:
     case EX_SRC_TYPE_VSTB_WIN_SCAN:
     case EX_SRC_TYPE_VSTB_AGG_SCAN: {
       if (pIdx->inUseIdx < 0) {

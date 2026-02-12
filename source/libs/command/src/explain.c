@@ -43,6 +43,8 @@ char *qExplainGetDynQryCtrlType(EDynQueryType type) {
       return "Virtual Table Window";
     case DYN_QTYPE_VTB_AGG:
       return "Virtual Table Agg";
+    case DYN_QTYPE_VTB_TS_SCAN:
+      return "Virtual Stable Ts Scan";
     default:
       break;
   }
@@ -2006,6 +2008,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
           EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
           break;
         }
+        case DYN_QTYPE_VTB_TS_SCAN:
         case DYN_QTYPE_VTB_SCAN: {
           EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT, pDyn->vtbScan.pScanCols->length);
           EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);

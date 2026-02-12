@@ -89,11 +89,11 @@ static void *dmKeySyncThreadFp(void *param) {
         int64_t dbKeyAge = curTime - tsDbKeyUpdateTime;
 
         if (svrKeyAge > keyExpirationThreshold || dbKeyAge > keyExpirationThreshold) {
-          const char *action = (strcmp(tsKeyExpirationStrategy, "ALARM") == 0) ? "warning" : "attempting reload";
-          dWarn("encryption keys may be expired (threshold:%d days, strategy:%s), svrKeyAge:%" PRId64
-                " days, dbKeyAge:%" PRId64 " days, %s",
-                tsKeyExpirationDays, tsKeyExpirationStrategy, svrKeyAge / MILLISECONDS_PER_DAY,
-                dbKeyAge / MILLISECONDS_PER_DAY, action);
+          const char* action = (strcmp(tsKeyExpirationStrategy, "ALARM") == 0) ? "warning" : "attempting reload";
+          // dWarn("encryption keys may be expired (threshold:%d days, strategy:%s), svrKeyAge:%" PRId64
+          //       " days, dbKeyAge:%" PRId64 " days, %s",
+          //       tsKeyExpirationDays, tsKeyExpirationStrategy, svrKeyAge / MILLISECONDS_PER_DAY,
+          //       dbKeyAge / MILLISECONDS_PER_DAY, action);
 #if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
           // Try to reload keys from file
           char masterKeyFile[PATH_MAX] = {0};

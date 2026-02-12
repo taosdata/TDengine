@@ -8920,16 +8920,21 @@ static bool vstableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode;
-  if (pWindow->winType != WINDOW_TYPE_STATE) {
-    return false;
-  }
-  if (nodeType(pWindow->pStateExpr) != QUERY_NODE_COLUMN) {
-    return false;
+  switch (pWindow->winType) {
+    case WINDOW_TYPE_STATE:
+      if (nodeType(pWindow->pStateExpr) != QUERY_NODE_COLUMN) {
+        return false;
+      }
+      // fall through
+    case WINDOW_TYPE_SESSION:
+      break;
+    default:
+      return false;
   }
 
   SNode* pFunc = NULL;
   FOREACH(pFunc, pWindow->pFuncs) {
-    SFunctionNode *pFunction = (SFunctionNode *)pFunc;
+    SFunctionNode* pFunction = (SFunctionNode*)pFunc;
     if (windowFuncHasTagPKParam(pFunction)) {
       return false;
     }
@@ -8957,6 +8962,116 @@ static void removeUselessTargetFromNode(SLogicNode* pNode, SColumnNode* pStateCo
   }
 }
 
+static int32_t createOrderByExprNode(SNode* pExpr, EOrder order, SOrderByExprNode** ppOrderByExpr) {
+  int32_t           code = TSDB_CODE_SUCCESS;
+  SOrderByExprNode* pOrderByExpr = NULL;
+
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&pOrderByExpr));
+  pOrderByExpr->pExpr = NULL;
+  PLAN_ERR_JRET(nodesCloneNode(pExpr, &pOrderByExpr->pExpr));
+
+  pOrderByExpr->order = order;
+  pOrderByExpr->nullOrder = (order == ORDER_ASC) ? NULL_ORDER_FIRST : NULL_ORDER_LAST;
+  *ppOrderByExpr = pOrderByExpr;
+  return code;
+
+_return:
+  planError("%s failed to create order by expr node, error code: %d", __func__, code);
+  nodesDestroyNode((SNode*)pOrderByExpr);
+  *ppOrderByExpr = NULL;
+  return code;
+}
+
+static int32_t createMergeScanNodeByScanNode(SScanLogicNode* pScan, SLogicNode** pOutputMergeScan) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SScanLogicNode* pMergeScan = NULL;
+
+  PLAN_ERR_JRET(nodesCloneNode((SNode*)pScan, (SNode**)&pMergeScan));
+  pMergeScan->scanType = SCAN_TYPE_TABLE_MERGE;
+  pMergeScan->filesetDelimited = true;
+  optResetParent((SLogicNode*)pMergeScan);
+
+  *pOutputMergeScan = (SLogicNode*)pMergeScan;
+
+  return code;
+
+_return:
+  planError("%s failed to create merge scan node by scan node, error code: %d", __func__, code);
+  nodesDestroyNode((SNode*)pMergeScan);
+  *pOutputMergeScan = NULL;
+  return code;
+}
+
+static int32_t setSingleVgroupForMergeScan(SScanLogicNode* pMergeScan, const SVgroupInfo* pVgroup) {
+  if (NULL == pMergeScan || NULL == pVgroup || NULL == pMergeScan->pVgroupList ||
+      pMergeScan->pVgroupList->numOfVgroups <= 0) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  pMergeScan->pVgroupList->vgroups[0] = *pVgroup;
+  pMergeScan->pVgroupList->numOfVgroups = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t appendSingleVgroupMergeScan(
+    SScanLogicNode* pScanNode, SMergeLogicNode* pMerge, const SVgroupInfo* pVgroup) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SLogicNode* pMergeScan = NULL;
+
+  PLAN_ERR_JRET(createMergeScanNodeByScanNode(pScanNode, &pMergeScan));
+  PLAN_ERR_JRET(setSingleVgroupForMergeScan((SScanLogicNode*)pMergeScan, pVgroup));
+
+  pMergeScan->pParent = (SLogicNode*)pMerge;
+  pMergeScan->dynamicOp = true;
+  PLAN_ERR_JRET(nodesListMakeAppend(&pMerge->node.pChildren, (SNode*)pMergeScan));
+
+  return code;
+
+_return:
+  planError("%s failed to append single vgroup merge scan, error code: %d", __func__, code);
+  nodesDestroyNode((SNode*)pMergeScan);
+  return code;
+}
+
+// create merge sort node for win col scan node, sort by ts column asc
+static int32_t createMergeSortNodeForTsScan(SScanLogicNode* pScanNode, SNode* pSortKey, SMergeLogicNode** ppMerge) {
+  int32_t           code = TSDB_CODE_SUCCESS;
+  SMergeLogicNode*  pMerge = NULL;
+  SOrderByExprNode* pMergeKey = NULL;
+  int32_t           numOfVgroups = (pScanNode->pVgroupList ? pScanNode->pVgroupList->numOfVgroups : 0);
+
+  if (numOfVgroups <= 0) {
+    planError("%s invalid vgroup info in scan node", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_MERGE, (SNode**)&pMerge));
+
+  pMerge->needSort = true;
+  pMerge->groupSort = true;
+  pMerge->numOfChannels = numOfVgroups;
+  pMerge->node.precision = pScanNode->node.precision;
+  pMerge->numOfSubplans = 1;
+  pMerge->node.dynamicOp = true;
+
+  PLAN_ERR_JRET(nodesCloneList(pScanNode->node.pTargets, &pMerge->node.pTargets));
+
+  PLAN_ERR_JRET(createOrderByExprNode(pSortKey, ORDER_ASC, &pMergeKey));
+  PLAN_ERR_JRET(nodesListMakeStrictAppend(&pMerge->pMergeKeys, (SNode*)pMergeKey));
+
+  for (int32_t i = 0; i < numOfVgroups; ++i) {
+    PLAN_ERR_JRET(appendSingleVgroupMergeScan(pScanNode, pMerge, pScanNode->pVgroupList->vgroups + i));
+  }
+
+  *ppMerge = pMerge;
+  return code;
+
+_return:
+  planError("%s failed to create merge sort node for win col scan, error code: %d", __func__, code);
+  nodesDestroyNode((SNode*)pMerge);
+  return code;
+}
+
 // create sort node for win col scan node, sort by ts column asc
 static int32_t createSortNodeForWinColScan(SColumnNode* pSortCol, SLogicNode* pWinColScan, SSortLogicNode** ppSort) {
   int32_t           code = TSDB_CODE_SUCCESS;
@@ -8970,11 +9085,7 @@ static int32_t createSortNodeForWinColScan(SColumnNode* pSortCol, SLogicNode* pW
   pSort->node.pTargets = NULL;
   PLAN_ERR_JRET(nodesCloneList(pWinColScan->pTargets, &pSort->node.pTargets));
 
-  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&pOrder));
-  pOrder->order = ORDER_ASC;
-  pOrder->pExpr = NULL;
-  pOrder->nullOrder = (ORDER_ASC == pOrder->order) ? NULL_ORDER_FIRST : NULL_ORDER_LAST;
-  PLAN_ERR_JRET(nodesCloneNode((SNode*)pSortCol, &pOrder->pExpr));
+  PLAN_ERR_JRET(createOrderByExprNode((SNode*)pSortCol, ORDER_ASC, &pOrder));
 
   PLAN_ERR_JRET(nodesListMakeStrictAppend(&pSort->pSortKeys, (SNode*)pOrder));
 
@@ -9002,7 +9113,7 @@ static int32_t createExternalWindowFromOriginWindow(SWindowLogicNode* pSrcWindow
 
   int32_t index = 0;
   WHERE_EACH(pFunc, pSrcWindow->pFuncs) {
-    SFunctionNode *pFunction = (SFunctionNode *)pFunc;
+    SFunctionNode* pFunction = (SFunctionNode*)pFunc;
     if (fmIsPseudoColumnFunc(pFunction->funcId)) {
       if (pFunction->funcType == FUNCTION_TYPE_WSTART) {
         pDynWindowNode->vtbWindow.wstartSlotId = index;
@@ -9027,7 +9138,6 @@ static int32_t createExternalWindowFromOriginWindow(SWindowLogicNode* pSrcWindow
   PLAN_ERR_JRET(createColumnByRewriteExprs(pSrcWindow->pFuncs, &pSrcWindow->node.pTargets));
   PLAN_ERR_JRET(createColumnByRewriteExprs((pExtWindow)->pFuncs, &(pExtWindow)->node.pTargets));
 
-
   *ppExtWindow = pExtWindow;
   return code;
 _return:
@@ -9043,6 +9153,27 @@ static void clearChildList(SLogicNode* pNode) {
 static int32_t appendNewChild(SLogicNode* pParent, SLogicNode* pChild) {
   pChild->pParent = pParent;
   PLAN_RET(nodesListMakeAppend(&pParent->pChildren, (SNode*)pChild));
+}
+
+static int32_t rebuildScanColsAndTargetsByTsEnd(SScanLogicNode* pScanNode, SNode* pTsEnd) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pCol = NULL;
+
+  nodesDestroyList(pScanNode->pScanCols);
+  pScanNode->pScanCols = NULL;
+  PLAN_ERR_JRET(nodesCloneNode(pTsEnd, &pCol));
+  PLAN_ERR_JRET(nodesListMakeAppend(&pScanNode->pScanCols, pCol));
+  pCol = NULL;
+
+  nodesDestroyList(pScanNode->node.pTargets);
+  pScanNode->node.pTargets = NULL;
+  PLAN_ERR_JRET(createColumnByRewriteExprs(pScanNode->pScanCols, &pScanNode->node.pTargets));
+
+  return code;
+_return:
+  planError("%s failed since %d", __func__, code);
+  nodesDestroyNode(pCol);
+  return code;
 }
 
 // this rule optimize plan from
@@ -9068,10 +9199,10 @@ static int32_t vstableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   int32_t                 lino = 0;
   SWindowLogicNode*       pNewWindow = NULL;
   SDynQueryCtrlLogicNode* pDynVstbScan = NULL;
-  SDynQueryCtrlLogicNode* pWinColScan = NULL;
+  SDynQueryCtrlLogicNode* pWinScan = NULL;
   SDynQueryCtrlLogicNode* pDynWindowNode = NULL;
-  SNode*                  pFunc = NULL;
   SSortLogicNode*         pSort = NULL;
+  SMergeLogicNode*        pMergeSort = NULL;
   SWindowLogicNode*       pExtWindow = NULL;
   SVirtualScanLogicNode*  pVirtualScanNode = NULL;
   SScanLogicNode*         pScanNode = NULL;
@@ -9086,7 +9217,7 @@ static int32_t vstableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   // create dyn window node, which is the top node of the new plan
   PLAN_ERR_JRET(nodesCloneNode((SNode*)pDynVstbScan, (SNode**)&pDynWindowNode));
   nodesDestroyList(pDynWindowNode->node.pChildren);
-  clearChildList((SLogicNode*)pDynWindowNode);
+  pDynWindowNode->node.pChildren = NULL;
   pDynWindowNode->node.pParent = NULL;
   pDynWindowNode->vtbWindow.wstartSlotId = -1;
   pDynWindowNode->vtbWindow.wendSlotId = -1;
@@ -9096,38 +9227,58 @@ static int32_t vstableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   pDynWindowNode->qType = DYN_QTYPE_VTB_WINDOW;
   OPTIMIZE_FLAG_SET_MASK(pDynWindowNode->node.optimizedFlag, OPTIMIZE_FLAG_VTB_WINDOW);
 
-  PLAN_ERR_JRET(nodesCloneNode((SNode*)pDynVstbScan, (SNode**)&pWinColScan));
+  PLAN_ERR_JRET(nodesCloneNode((SNode*)pDynVstbScan, (SNode**)&pWinScan));
 
-  pVirtualScanNode = (SVirtualScanLogicNode*)nodesListGetNode(pWinColScan->node.pChildren, 0);
+  // process window-generate part
+  pVirtualScanNode = (SVirtualScanLogicNode*)nodesListGetNode(pWinScan->node.pChildren, 0);
   QUERY_CHECK_NULL(pVirtualScanNode, code, lino, _return, terrno)
-  pSysScan = (SScanLogicNode *)nodesListGetNode(pWinColScan->node.pChildren, 1);
+  pSysScan = (SScanLogicNode*)nodesListGetNode(pWinScan->node.pChildren, 1);
   QUERY_CHECK_NULL(pSysScan, code, lino, _return, terrno)
-  pScanNode = (SScanLogicNode*) nodesListGetNode(pVirtualScanNode->node.pChildren, 0);
+  pScanNode = (SScanLogicNode*)nodesListGetNode(pVirtualScanNode->node.pChildren, 0);
   QUERY_CHECK_NULL(pScanNode, code, lino, _return, terrno)
 
+  switch (pWindow->winType) {
+    case WINDOW_TYPE_SESSION: {
+      pWinScan->qType = DYN_QTYPE_VTB_TS_SCAN;
+      PLAN_ERR_JRET(rebuildScanColsAndTargetsByTsEnd(pScanNode, pNewWindow->pTsEnd));
 
-  // only keep col needed by window, remove other cols from pWinColScan
-  removeUselessTargetFromNode((SLogicNode*)pWinColScan, (SColumnNode*)pNewWindow->pStateExpr);
-  // also remove these target from virtual scan node and table scan node
-  removeUselessTargetFromNode((SLogicNode*)pVirtualScanNode, (SColumnNode*)pNewWindow->pStateExpr);
-  removeUselessTargetFromNode((SLogicNode*)pScanNode, (SColumnNode*)pNewWindow->pStateExpr);
+      PLAN_ERR_JRET(createMergeSortNodeForTsScan(pScanNode, (SNode*)pNewWindow->pTsEnd, &pMergeSort));
+      clearChildList((SLogicNode*)pWinScan);
+      nodesDestroyNode((SNode*)pVirtualScanNode);
+      PLAN_ERR_JRET(appendNewChild((SLogicNode*)pWinScan, (SLogicNode*)pMergeSort));
+      PLAN_ERR_JRET(appendNewChild((SLogicNode*)pWinScan, (SLogicNode*)pSysScan));
+      break;
+    }
+    case WINDOW_TYPE_STATE: {
+      // only keep col needed by window, remove other cols from pWinScan
+      removeUselessTargetFromNode((SLogicNode*)pWinScan, (SColumnNode*)pNewWindow->pStateExpr);
+      // also remove these targets from virtual scan node and table scan node
+      removeUselessTargetFromNode((SLogicNode*)pVirtualScanNode, (SColumnNode*)pNewWindow->pStateExpr);
+      removeUselessTargetFromNode((SLogicNode*)pScanNode, (SColumnNode*)pNewWindow->pStateExpr);
+      pSysScan->node.pParent = (SLogicNode*)pWinScan;
+      pVirtualScanNode->node.pParent = (SLogicNode*)pWinScan;
+      pScanNode->node.pParent = (SLogicNode*)pVirtualScanNode;
 
-  pSysScan->node.pParent = (SLogicNode*)pWinColScan;
-  pVirtualScanNode->node.pParent = (SLogicNode*)pWinColScan;
-  pScanNode->node.pParent = (SLogicNode*)pVirtualScanNode;
+      // create sort node
+      PLAN_ERR_JRET(createSortNodeForWinColScan((SColumnNode*)pNewWindow->pTspk, (SLogicNode*)pWinScan, &pSort));
+      break;
+    }
+    default: {
+      break;
+    }
+  }
 
-  // create sort node 
-  PLAN_ERR_JRET(createSortNodeForWinColScan((SColumnNode*)pNewWindow->pTspk,(SLogicNode*)pWinColScan, &pSort));
-
+  // process calculate part, which use window list generated by window-generate part to calculate final result
   pVirtualScanNode = (SVirtualScanLogicNode*)nodesListGetNode(pDynVstbScan->node.pChildren, 0);
   QUERY_CHECK_NULL(pVirtualScanNode, code, lino, _return, terrno)
-  pSysScan = (SScanLogicNode *)nodesListGetNode(pDynVstbScan->node.pChildren, 1);
+  pSysScan = (SScanLogicNode*)nodesListGetNode(pDynVstbScan->node.pChildren, 1);
   QUERY_CHECK_NULL(pSysScan, code, lino, _return, terrno)
-  pScanNode = (SScanLogicNode*) nodesListGetNode(pVirtualScanNode->node.pChildren, 0);
+  pScanNode = (SScanLogicNode*)nodesListGetNode(pVirtualScanNode->node.pChildren, 0);
   QUERY_CHECK_NULL(pScanNode, code, lino, _return, terrno)
 
   clearChildList((SLogicNode*)pDynVstbScan);
   clearChildList((SLogicNode*)pVirtualScanNode);
+  nodesDestroyNode((SNode*)pVirtualScanNode);
   clearChildList((SLogicNode*)pNewWindow);
 
   nodesDestroyList(pDynWindowNode->node.pTargets);
@@ -9139,8 +9290,15 @@ static int32_t vstableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
 
   PLAN_ERR_JRET(appendNewChild((SLogicNode*)pExtWindow, (SLogicNode*)pScanNode));
 
-  PLAN_ERR_JRET(appendNewChild((SLogicNode*)pSort, (SLogicNode*)pWinColScan));
-  PLAN_ERR_JRET(appendNewChild((SLogicNode*)pNewWindow, (SLogicNode*)pSort));
+  switch (pWindow->winType) {
+    case WINDOW_TYPE_SESSION:
+      PLAN_ERR_JRET(appendNewChild((SLogicNode*)pNewWindow, (SLogicNode*)pWinScan));
+      break;
+    default:
+      PLAN_ERR_JRET(appendNewChild((SLogicNode*)pSort, (SLogicNode*)pWinScan));
+      PLAN_ERR_JRET(appendNewChild((SLogicNode*)pNewWindow, (SLogicNode*)pSort));
+      break;
+  }
 
   PLAN_ERR_JRET(appendNewChild((SLogicNode*)pDynWindowNode, (SLogicNode*)pNewWindow));
   PLAN_ERR_JRET(appendNewChild((SLogicNode*)pDynWindowNode, (SLogicNode*)pSysScan));

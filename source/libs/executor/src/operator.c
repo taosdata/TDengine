@@ -353,20 +353,26 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         return terrno;
       }
 
-      code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, true, pHandle, pTableListInfo,
-                                     pTagCond, pTagIndexCond, pTaskInfo, NULL);
-      if (code) {
-        pTaskInfo->code = code;
-        tableListDestroy(pTableListInfo);
-        qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
-        return code;
-      }
+      if (pTableScanNode->scan.node.dynamicOp) {
+        pTaskInfo->dynamicTask = true;
+        pTableListInfo->idInfo.suid = pTableScanNode->scan.suid;
+        pTableListInfo->idInfo.tableType = pTableScanNode->scan.tableType;
+      } else {
+        code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, true, pHandle, pTableListInfo,
+                                       pTagCond, pTagIndexCond, pTaskInfo, NULL);
+        if (code) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          qError("failed to createScanTableListInfo, code:%s, %s", tstrerror(code), idstr);
+          return code;
+        }
 
-      code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
-      if (code) {
-        pTaskInfo->code = code;
-        tableListDestroy(pTableListInfo);
-        return code;
+        code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
+        if (code) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          return code;
+        }
       }
 
       code = createTableMergeScanOperatorInfo(pTableScanNode, pHandle, pTableListInfo, pTaskInfo, &pOperator);
