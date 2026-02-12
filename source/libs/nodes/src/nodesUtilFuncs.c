@@ -1214,7 +1214,11 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_ALTER_KEY_EXPIRATION_STMT:
       code = makeNode(type, sizeof(SAlterKeyExpirationStmt), &pNode);
       break;
+    case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
+      code = makeNode(type, sizeof(SShowValidateVirtualTable), &pNode);
+      break;
     default:
+
       code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
   }
@@ -1752,6 +1756,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pStmt->pColRefs);
       nodesDestroyList(pStmt->pSpecificTags);
       nodesDestroyList(pStmt->pValsOfTags);
+      nodesDestroyList(pStmt->pSpecificTagRefs);
+      nodesDestroyList(pStmt->pTagRefs);
       break;
     }
     case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE: {
@@ -2088,6 +2094,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_KILL_RETENTION_STMT:          // no pointer field
     case QUERY_NODE_KILL_SCAN_STMT:
     case QUERY_NODE_KILL_SSMIGRATE_STMT:          // no pointer field
+      break;
+    case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
+      taosMemoryFreeClear(((SShowValidateVirtualTable*)pNode)->pDbCfg);
+      destroyTableCfg((STableCfg*)(((SShowValidateVirtualTable*)pNode)->pTableCfg));
       break;
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT: {
       SRsmaInfoRsp* pMeta = ((SShowCreateRsmaStmt*)pNode)->pRsmaMeta;

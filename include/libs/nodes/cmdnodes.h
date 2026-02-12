@@ -332,6 +332,8 @@ typedef struct SCreateVSubTableStmt {
   SNodeList* pValsOfTags;
   SNodeList* pSpecificColRefs;
   SNodeList* pColRefs;
+  SNodeList* pSpecificTagRefs;  // tag_name FROM db.table.tag_col (same as specific_column_ref)
+  SNodeList* pTagRefs;          // db.table.tag_col (same as column_ref, positional)
 } SCreateVSubTableStmt;
 
 typedef struct SCreateSubTableClause {
@@ -1017,6 +1019,17 @@ typedef struct SAlterKeyExpirationStmt {
   int32_t   days;
   char      strategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1];
 } SAlterKeyExpirationStmt;
+
+typedef struct SShowValidateVirtualTable {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      tableName[TSDB_TABLE_NAME_LEN];
+
+  void* pDbCfg;  // SDbCfgInfo
+
+  void* pTableCfg;  // STableCfg
+  int8_t superTable; 
+} SShowValidateVirtualTable;
 
 typedef struct SDescribeStmt {
   ENodeType   type;

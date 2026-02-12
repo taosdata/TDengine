@@ -117,6 +117,8 @@ typedef struct SVCTableMeta {
   int32_t  numOfColRefs;
   int32_t  rversion; // virtual table's column ref's version
   SColRef* colRef;
+  int32_t  numOfTagRefs;
+  SColRef* tagRef;
 } SVCTableMeta;
 #pragma pack(pop)
 
@@ -133,6 +135,8 @@ typedef struct STableMeta {
   int32_t       numOfColRefs;
   int32_t       rversion; // virtual table's column ref's version
   SColRef*      colRef;
+  int32_t       numOfTagRefs;
+  SColRef*      tagRef;
   // END: KEEP THIS PART SAME WITH SVCTableMeta
 
   // if the table is TSDB_CHILD_TABLE, the following information is acquired from the corresponding super table meta

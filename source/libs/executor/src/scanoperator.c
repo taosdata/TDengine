@@ -1446,14 +1446,20 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
     QUERY_CHECK_NULL(pBlockColArray, code, lino, _return, terrno);
 
     // virtual table's origin table scan do not has ts column.
-    SColIdPair tsPair = {.vtbColId = PRIMARYKEY_TIMESTAMP_COL_ID, .orgColId = PRIMARYKEY_TIMESTAMP_COL_ID};
+    SColIdPair tsPair = {.vtbColId = PRIMARYKEY_TIMESTAMP_COL_ID,
+                         .orgColId = PRIMARYKEY_TIMESTAMP_COL_ID,
+                         .type.type = TSDB_DATA_TYPE_TIMESTAMP,
+                         .type.bytes = 8};
     QUERY_CHECK_NULL(taosArrayPush(pColArray, &tsPair), code, lino, _return, terrno);
 
     for (int32_t i = 0; i < taosArrayGetSize(pOrgTbInfo->colMap); ++i) {
       SColIdNameKV* kv = taosArrayGet(pOrgTbInfo->colMap, i);
       for (int32_t j = 0; j < schema->nCols; j++) {
         if (strcmp(kv->colName, schema->pSchema[j].name) == 0) {
-          SColIdPair pPair = {.vtbColId = kv->colId, .orgColId = (col_id_t)(schema->pSchema[j].colId)};
+          SColIdPair pPair = {.vtbColId = kv->colId,
+                              .orgColId = (col_id_t)(schema->pSchema[j].colId),
+                              .type.type = schema->pSchema[j].type,
+                              .type.bytes = schema->pSchema[j].bytes};
           QUERY_CHECK_NULL(taosArrayPush(pColArray, &pPair), code, lino, _return, terrno);
           qDebug("dynamic vtable scan map col:%s, orgColId:%d, vtbColId:%d, %s", kv->colName, pPair.orgColId,
                  pPair.vtbColId, GET_TASKID(pTaskInfo));
@@ -1557,6 +1563,22 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
 
   code = createOneDataBlockWithColArray(pInfo->pOrgBlock, pBlockColArray, &pInfo->pResBlock);
   QUERY_CHECK_CODE(code, lino, _return);
+
+  // For variable-length types, update pResBlock column info.bytes to use the source table's bytes.
+  // This ensures tsdb reader's doCopyColVal length check won't fail when source data is longer
+  // than the virtual table's defined length.
+  for (int32_t i = 0; i < pInfo->base.cond.numOfCols; ++i) {
+    SColumnInfo* pCondCol = &pInfo->base.cond.colList[i];
+    if (IS_VAR_DATA_TYPE(pCondCol->type)) {
+      for (int32_t j = 0; j < taosArrayGetSize(pInfo->pResBlock->pDataBlock); ++j) {
+        SColumnInfoData* pColData = taosArrayGet(pInfo->pResBlock->pDataBlock, j);
+        if (pColData && pColData->info.colId == pCondCol->colId) {
+          pColData->info.bytes = pCondCol->bytes;
+          break;
+        }
+      }
+    }
+  }
 
   if (isNewTable) {
     if (pInfo->base.dataReader != NULL) {
@@ -1710,8 +1732,14 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
     SColIdPair* pPair = (SColIdPair*)taosArrayGet(pColArray, i);
     SColMatchItem* pItem = findMatchItemByColId(pMatchList, pPair->vtbColId);
     if (pItem) {
-      if (pItem->dataType.type != pPair->type.type || pItem->dataType.bytes != pPair->type.bytes) {
+      if (pItem->dataType.type != pPair->type.type) {
         qError("column type not match for vtable colId:%d, org colId:%d, org table name:%s", pPair->vtbColId,
+               pPair->orgColId, orgTable.me.name);
+        code = TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH;
+        goto _return;
+      }
+      if (!IS_VAR_DATA_TYPE(pItem->dataType.type) && pItem->dataType.bytes != pPair->type.bytes) {
+        qError("column bytes not match for vtable colId:%d, org colId:%d, org table name:%s", pPair->vtbColId,
                pPair->orgColId, orgTable.me.name);
         code = TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH;
         goto _return;
@@ -1756,6 +1784,22 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
 
   code = createOneDataBlockWithColArray(pInfo->pOrgBlock, pBlockColArray, &pInfo->pResBlock);
   QUERY_CHECK_CODE(code, lino, _return);
+
+  // For variable-length types, update pResBlock column info.bytes to use the source table's bytes.
+  // This ensures tsdb reader's doCopyColVal length check won't fail when source data is longer
+  // than the virtual table's defined length.
+  for (int32_t i = 0; i < pInfo->base.cond.numOfCols; ++i) {
+    SColumnInfo* pCondCol = &pInfo->base.cond.colList[i];
+    if (IS_VAR_DATA_TYPE(pCondCol->type)) {
+      for (int32_t j = 0; j < taosArrayGetSize(pInfo->pResBlock->pDataBlock); ++j) {
+        SColumnInfoData* pColData = taosArrayGet(pInfo->pResBlock->pDataBlock, j);
+        if (pColData && pColData->info.colId == pCondCol->colId) {
+          pColData->info.bytes = pCondCol->bytes;
+          break;
+        }
+      }
+    }
+  }
 
   void **reader = taosHashGet(pInfo->readerCache, &pUid, sizeof(uint64_t));
   if (reader) {

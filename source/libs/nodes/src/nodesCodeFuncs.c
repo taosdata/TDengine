@@ -416,6 +416,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowRetentionsStmt";
     case QUERY_NODE_SHOW_INSTANCES_STMT:
       return "ShowInstancesStmt";
+    case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
+      return "ShowValidateVirtualTableStmt";
     case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT:
       return "ShowRetentionDetailsStmt";
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
@@ -8102,6 +8104,8 @@ static const char* jkCreateVSubTableStmtSpecificTags = "SpecificTags";
 static const char* jkCreateVSubTableStmtValsOfTags = "ValsOfTags";
 static const char* jkCreateVSubTableStmtSpecificColRefs = "SpecificColRefs";
 static const char* jkCreateVSubTableStmtValsOfColRefs = "ValsOfColRefs";
+static const char* jkCreateVSubTableStmtSpecificTagRefs = "SpecificTagRefs";
+static const char* jkCreateVSubTableStmtTagRefs = "TagRefs";
 
 static int32_t createVSubTableStmtToJson(const void* pObj, SJson* pJson) {
   const SCreateVSubTableStmt* pNode = (const SCreateVSubTableStmt*)pObj;
@@ -8130,6 +8134,12 @@ static int32_t createVSubTableStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkCreateVSubTableStmtValsOfColRefs, pNode->pColRefs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkCreateVSubTableStmtSpecificTagRefs, pNode->pSpecificTagRefs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkCreateVSubTableStmtTagRefs, pNode->pTagRefs);
   }
   return code;
 }
@@ -8161,6 +8171,12 @@ static int32_t jsonToCreateVSubTableStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkCreateVSubTableStmtValsOfColRefs, &pNode->pColRefs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkCreateVSubTableStmtSpecificTagRefs, &pNode->pSpecificTagRefs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkCreateVSubTableStmtTagRefs, &pNode->pTagRefs);
   }
 
   return code;
@@ -9897,6 +9913,17 @@ static int32_t showTableDistributedStmtToJson(const void* pObj, SJson* pJson) {
   return code;
 }
 
+static int32_t showValidateVTableStmtToJson(const void* pObj, SJson* pJson) {
+  const SShowValidateVirtualTable* pNode = (const SShowValidateVirtualTable*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, jkShowTableDistributedStmtDbName, pNode->dbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkShowTableDistributedStmtTableName, pNode->tableName);
+  }
+
+  return code;
+}
+
 static int32_t jsonToShowTableDistributedStmt(const SJson* pJson, void* pObj) {
   SShowTableDistributedStmt* pNode = (SShowTableDistributedStmt*)pObj;
 
@@ -9905,6 +9932,15 @@ static int32_t jsonToShowTableDistributedStmt(const SJson* pJson, void* pObj) {
     code = tjsonGetStringValue(pJson, jkShowTableDistributedStmtTableName, pNode->tableName);
   }
 
+  return code;
+}
+static int32_t jsonToShowValidateVirtualTableStmt(const SJson* pJson, void* pObj) {
+  SShowValidateVirtualTable* pNode = (SShowValidateVirtualTable*)pObj;
+
+  int32_t code = tjsonGetStringValue(pJson, jkShowTableDistributedStmtDbName, pNode->dbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkShowTableDistributedStmtTableName, pNode->tableName);
+  }
   return code;
 }
 
@@ -10478,6 +10514,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showCreateViewStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       return showTableDistributedStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
+      return showValidateVTableStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
       return showLocalVariablesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
@@ -10948,6 +10986,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToShowCreateViewStmt(pJson, pObj);
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       return jsonToShowTableDistributedStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
+      return jsonToShowValidateVirtualTableStmt(pJson, pObj);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
       return jsonToShowLocalVariablesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:

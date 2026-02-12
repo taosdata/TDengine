@@ -656,6 +656,8 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_USERS     2000
 #define TSDB_MAX_ROLES     200
 
+#define TSDB_SHOW_VALIDATE_VIRTUAL_TABLE_ERROR 512
+
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
 

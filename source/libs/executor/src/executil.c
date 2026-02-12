@@ -3326,12 +3326,20 @@ int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTab
     for (int32_t j = 0; j < pOrgCond->numOfCols; ++j) {
       if (pOrgCond->colList[j].colId == pColPair->vtbColId) {
         pCond->colList[i].type = pOrgCond->colList[j].type;
-        pCond->colList[i].bytes = pOrgCond->colList[j].bytes;
+        // For variable-length types (nchar/binary/varchar/varbinary), use the source table's bytes
+        // to avoid tsdb reader doCopyColVal length check failure when source data is longer
+        // than the virtual table's defined length.
+        if (IS_VAR_DATA_TYPE(pOrgCond->colList[j].type) && pColPair->type.bytes > 0) {
+          pCond->colList[i].bytes = TMAX(pOrgCond->colList[j].bytes, pColPair->type.bytes);
+        } else {
+          pCond->colList[i].bytes = pOrgCond->colList[j].bytes;
+        }
         pCond->colList[i].colId = pColPair->orgColId;
         pCond->colList[i].pk = pOrgCond->colList[j].pk;
         pCond->pSlotList[i] = i;
         find = true;
-        qDebug("%s mapped vtb colId:%d to org colId:%d", __func__, pColPair->vtbColId, pColPair->orgColId);
+        qDebug("%s mapped vtb colId:%d to org colId:%d, type:%d, bytes:%d", __func__, pColPair->vtbColId,
+               pColPair->orgColId, pCond->colList[i].type, pCond->colList[i].bytes);
         break;
       }
     }
