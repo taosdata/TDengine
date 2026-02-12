@@ -18477,7 +18477,7 @@ static int32_t translateShowCreateVTable(STranslateContext* pCxt, SShowCreateTab
 }
 
 static int32_t translateShowVirtualTableValidate(STranslateContext* pCxt, SShowValidateVirtualTable* pStmt) {
-  // 1. 从缓存获取表配置
+  // 1. Get table configuration from cache
   SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
   tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
   tstrncpy(name.tname, pStmt->tableName, TSDB_TABLE_NAME_LEN);
@@ -18487,7 +18487,7 @@ static int32_t translateShowVirtualTableValidate(STranslateContext* pCxt, SShowV
     return code;
   }
 
-  // 2. 验证表类型：必须为虚拟表
+  // 2. Validate table type: must be a virtual table
   STableCfg* pTableCfg = (STableCfg*)pStmt->pTableCfg;
   bool isVtb = (pTableCfg->tableType == TSDB_VIRTUAL_CHILD_TABLE || pTableCfg->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
                 pTableCfg->virtualStb);
