@@ -97,6 +97,7 @@ def draw_fc_results(input_list, return_conf, conf_val, fc, fig_name):
     plt.legend(['input', 'forecast', f'pred:{conf_val}'], loc='upper left')
 
     plt.savefig(fig_name)
+    plt.close()
 
     app_logger.log_inst.debug("draw results completed in debug model")
 

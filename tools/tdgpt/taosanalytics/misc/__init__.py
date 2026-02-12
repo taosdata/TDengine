@@ -1,2 +1,0 @@
-def batch():
-    return None

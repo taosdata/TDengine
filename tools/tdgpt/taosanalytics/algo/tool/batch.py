@@ -15,8 +15,8 @@ from taosanalytics.conf import app_logger
 def hampel_filter(values, window_size=7, n_sigmas=3):
     if window_size <= 0 or n_sigmas > 3:
         app_logger.log_inst.error(
-            "invalid parameters for hampel filter, window size:%d, sigma:%d" % (window_size, n_sigmas))
-        raise ValueError("invalid parameters for hampel filter, window size:%d, sigma:%d" % (window_size, n_sigmas))
+            f"invalid parameters for hampel filter, window size:{window_size}, sigma:{n_sigmas}")
+        raise ValueError(f"invalid parameters for hampel filter, window size:{window_size}, sigma:{n_sigmas}")
 
     values = np.array(values)
     new_vals = values.copy()

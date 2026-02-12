@@ -218,6 +218,12 @@ def handle_batch_req():
     data = payload_obj.get("data", None)
     ts = payload_obj.get("ts", None)
     windows = payload_obj.get("window", None)
+
+    if data is None or ts is None or windows is None:
+        msg = "'data', 'ts', and 'window' are required fields in the payload."
+        app_logger.log_inst.error(msg)
+        return {"msg": msg, "rows": -1}
+
     conf = update_config(payload_obj.get("config", None))
 
     try:

@@ -121,7 +121,9 @@ def do_train_model():
 
     plt.plot(x_train[0])
     plt.plot(x_train_pred[0])
+
     plt.savefig('valid_data_pred.png')
+    plt.close()
 
     print("save model successfully")
 
