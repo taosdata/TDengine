@@ -743,7 +743,7 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
   if (!pParam || IS_NULL_TYPE(pParam->buffer_type)) {
     return TSDB_CODE_APP_ERROR;
   }
-  if (IS_VAR_DATA_TYPE(pVal->node.resType.type) || IS_DECIMAL_TYPE(pVal->node.resType.type)) {
+  if (IS_VAR_DATA_TYPE(pVal->node.resType.type) || pVal->node.resType.type == TSDB_DATA_TYPE_DECIMAL) {
     taosMemoryFreeClear(pVal->datum.p);
   }
 
