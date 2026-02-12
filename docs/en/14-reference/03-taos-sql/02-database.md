@@ -39,6 +39,9 @@ database_option: {
   | SS_KEEPLOCAL value
   | SS_CHUNKPAGES value
   | SS_COMPACT value
+  | COMPACT_INTERVAL value
+  | COMPACT_TIME_RANGE value
+  | COMPACT_TIME_OFFSET value
 }
 ```
 
@@ -84,6 +87,28 @@ database_option: {
 - SS_KEEPLOCAL: When shared storage is enabled, data will be kept local at least this duration before being migrated to shared storage, only available in the enterprise version 3.3.7.0 and later. Minimum is 1 day, maximum is 36500 days, default is 365 days.
 - SS_CHUNKPAGES: When shared storage is enabled, data files larger than this size will be migrated to shared storage, only available in the enterprise version 3.3.7.0 and later. Minimum is 131072, maximum is 1048576, default is 131072. The unit is TSDB page, which is typically 4KB.
 - SS_COMPACT: When shared storage is enabled, if set to 1, file will be compacted before its first migration; if set to 0, compact is skipped. Only available in the enterprise version 3.3.7.0 and later.
+
+:::note
+
+The following parameters are available in TDengine Enterprise only.
+
+:::
+
+- **COMPACT_INTERVAL:** Interval at which to trigger automatic database compaction. The default value is 0, which disables automatic database compaction. To enable automatic database compaction, specify a value between 10m and `KEEP2`. The time unit of the value can be minutes (m), hours (h), or days (d), and the default unit is days.
+
+  - Note that time slices start from 1970-01-01T00:00:00Z.
+
+  - Automatic database compaction is not triggered when an existing compaction task is already running on the database.
+
+- **COMPACT_TIME_RANGE:** Time range for automatic compact tasks. The default value is `0, 0`, which indicates the range from `-KEEP2` to `-DURATION`. You can specify a custom time range starting at or after `-KEEP2` and ending at or before `-DURATION`. The time unit of the values in this range can be minutes (m), hours (h), or days (d), and the default unit is days.
+
+  For example, `-300, -200` would compact data between 300 and 200 days in the past each time automatic compaction is triggered. If the duration parameter of the database is the default 10 days, `-300, -5` would return an error because the second value (5 days in the past) is more recent than the value of `-DURATION` (10 days in the past).
+
+  Note that these values are negative numbers, indicating that the time range to be compacted is in the past.
+
+- **COMPACT_TIME_OFFSET:** Time offset relative to local time at which to trigger automatic database compaction. The default value is 0. You can enter an offset between 0 and 23 to trigger compaction after the specified number of hours.
+
+  For example, if `COMPACT_INTERVAL` is `1d` and `COMPACT_TIME_OFFSET` is `0`, automatic compact is triggered at 00:00 every day. If `COMPACT_TIME_OFFSET` is `2`, automatic compact is triggered at 02:00 every day.
 
 ### Database Creation Example
 
