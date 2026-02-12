@@ -884,7 +884,8 @@ enum {
   VALUE_CODE_TRANSLATE,
   VALUE_CODE_NOT_RESERVED,
   VALUE_CODE_IS_NULL,
-  VALUE_CODE_DATUM
+  VALUE_CODE_DATUM,
+  VALUE_CODE_PLACEHOLDER_NO
 };
 
 static int32_t datumToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -961,6 +962,9 @@ static int32_t valueNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code && !pNode->isNull && !IS_VAL_UNSET(pNode->flag)) {
     code = datumToMsg(pNode, pEncoder);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI16(pEncoder, VALUE_CODE_PLACEHOLDER_NO, pNode->placeholderNo);
   }
 
   return code;
@@ -1110,6 +1114,9 @@ static int32_t msgToValueNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case VALUE_CODE_DATUM:
         code = msgToDatum(pTlv, pNode);
+        break;
+      case VALUE_CODE_PLACEHOLDER_NO:
+        code = tlvDecodeI16(pTlv, &pNode->placeholderNo);
         break;
       default:
         break;
