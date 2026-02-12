@@ -44,14 +44,15 @@ void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdReaderRetrieveDataBlock = tsdbRetrieveDataBlock2;
   pReader->tsdReaderReleaseDataBlock = tsdbReleaseDataBlock2;
 
-  pReader->tsdReaderRetrieveBlockSMAInfo = tsdbRetrieveDatablockSMA2;
+  pReader->tsdReaderRetrieveBlockSMAInfo =
+    (int32_t (*)(void*, SSDataBlock*, bool*, bool*))tsdbRetrieveDatablockSMA2;
 
   pReader->tsdReaderNotifyClosing = tsdbReaderSetCloseFlag;
   pReader->tsdReaderResetStatus = tsdbReaderReset2;
 
   pReader->tsdReaderGetDataBlockDistInfo = tsdbGetFileBlocksDistInfo2;
   pReader->tsdReaderGetDatablock = tsdbGetDataBlock;
-  pReader->tsdReaderSetDatablock = tsdbSetDataBlock;
+  pReader->tsdReaderSetDatablock = (void (*)(void*, SSDataBlock*))tsdbSetDataBlock;
   pReader->tsdReaderGetNumOfInMemRows = tsdbGetNumOfRowsInMemTable2;  // todo this function should be moved away
 
   pReader->tsdSetQueryTableList = tsdbSetTableList2;
@@ -121,34 +122,31 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->metaPutRefDbsToCache = metaPutRefDbsToCache;
 }
 
-void initTqAPI(SStoreTqReader* pTq) {
+static void initTqAPI(SStoreTqReader* pTq) {
 #ifdef USE_TQ
-  pTq->tqReaderOpen = tqReaderOpen;
-  pTq->tqReaderSetColIdList = tqReaderSetColIdList;
+  pTq->tqReaderOpen = (struct STqReader* (*)(void*))tqReaderOpen;
+  pTq->tqReaderSetColIdList = &tqReaderSetColIdList;
 
-  pTq->tqReaderClose = tqReaderClose;
-  pTq->tqReaderSeek = tqReaderSeek;
+  pTq->tqReaderClose = &tqReaderClose;
+  pTq->tqReaderSeek = &tqReaderSeek;
 
-  pTq->tqGetTablePrimaryKey = tqGetTablePrimaryKey;
-  pTq->tqSetTablePrimaryKey = tqSetTablePrimaryKey;
-  pTq->tqReaderNextBlockInWal = tqNextBlockInWal;
+  pTq->tqGetTablePrimaryKey = &tqGetTablePrimaryKey;
+  pTq->tqSetTablePrimaryKey = &tqSetTablePrimaryKey;
+  pTq->tqReaderNextBlockInWal = &tqNextBlockInWal;
 
-  pTq->tqNextBlockImpl = tqNextBlockImpl;  // todo remove it
+  pTq->tqReaderAddTables = &tqReaderAddTbUidList;
+  pTq->tqReaderSetQueryTableList = &tqReaderSetTbUidList;
 
-  pTq->tqReaderAddTables = tqReaderAddTbUidList;
-  pTq->tqReaderSetQueryTableList = tqReaderSetTbUidList;
+  pTq->tqReaderRemoveTables = &tqReaderRemoveTbUidList;
 
-  pTq->tqReaderRemoveTables = tqReaderRemoveTbUidList;
+  pTq->tqReaderIsQueriedTable = &tqReaderIsQueriedTable;
+  pTq->tqReaderCurrentBlockConsumed = &tqCurrentBlockConsumed;
 
-  pTq->tqReaderIsQueriedTable = tqReaderIsQueriedTable;
-  pTq->tqReaderCurrentBlockConsumed = tqCurrentBlockConsumed;
+  pTq->tqReaderGetWalReader = &tqGetWalReader;
 
-  pTq->tqReaderGetWalReader = tqGetWalReader;  // todo remove it
+  pTq->tqGetResultBlock = &tqGetResultBlock;
 
-  pTq->tqReaderSetSubmitMsg = tqReaderSetSubmitMsg;  // todo remove it
-  pTq->tqGetResultBlock = tqGetResultBlock;
-
-  pTq->tqGetResultBlockTime = tqGetResultBlockTime;
+  pTq->tqGetResultBlockTime = &tqGetResultBlockTime;
 #endif
 }
 

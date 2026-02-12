@@ -197,7 +197,7 @@ typedef struct TsdReader {
   int32_t      (*tsdSetQueryTableList)(void* p, const void* pTableList, int32_t num);
   int32_t      (*tsdNextDataBlock)(void* pReader, bool* hasNext);
 
-  int32_t      (*tsdReaderRetrieveBlockSMAInfo)();
+  int32_t      (*tsdReaderRetrieveBlockSMAInfo)(void*, SSDataBlock*, bool*, bool*);
   int32_t      (*tsdReaderRetrieveDataBlock)(void* p, SSDataBlock** pBlock);
 
   void         (*tsdReaderReleaseDataBlock)(void* pReader);
@@ -205,7 +205,7 @@ typedef struct TsdReader {
   int32_t      (*tsdReaderResetStatus)(void* p, SQueryTableDataCond* pCond);
   int32_t      (*tsdReaderGetDataBlockDistInfo)();
   void         (*tsdReaderGetDatablock)();
-  void         (*tsdReaderSetDatablock)();
+  void         (*tsdReaderSetDatablock)(void*, SSDataBlock*);
   int64_t      (*tsdReaderGetNumOfInMemRows)();
   void         (*tsdReaderNotifyClosing)();
 
@@ -225,6 +225,7 @@ typedef struct TsdReader {
   void     (*tsdDestroyFirstLastTsIter)(void *pIter);
 
   int32_t (*tsdReaderStepDone)(void *pReader, int64_t notifyTs);
+  void    (*tsdReaderSetExecInfo)(const void* pReader, STableScanAnalyzeInfo* pExecInfo);
 } TsdReader;
 
 typedef struct SStoreCacheReader {
@@ -242,30 +243,26 @@ typedef struct SStoreCacheReader {
 /*------------------------------------------------------------------------------------------------------------------*/
 // todo rename
 typedef struct SStoreTqReader {
-  struct STqReader* (*tqReaderOpen)();
-  void (*tqReaderClose)();
+  struct STqReader* (*tqReaderOpen)(void*);
+  void (*tqReaderClose)(struct STqReader*);
 
-  int32_t (*tqReaderSeek)();
-  bool (*tqReaderNextBlockInWal)();
-  bool (*tqNextBlockImpl)();  // todo remove it
-  SSDataBlock* (*tqGetResultBlock)();
-  int64_t (*tqGetResultBlockTime)();
+  int32_t (*tqReaderSeek)(struct STqReader*, int64_t, const char*);
+  bool (*tqReaderNextBlockInWal)(struct STqReader*, const char*, int);
+  SSDataBlock* (*tqGetResultBlock)(struct STqReader*);
+  int64_t (*tqGetResultBlockTime)(struct STqReader*);
 
-  int32_t (*tqReaderSetColIdList)();
-  int32_t (*tqReaderSetQueryTableList)();
+  int32_t (*tqReaderSetColIdList)(struct STqReader*, SArray*, const char*);
+  int32_t (*tqReaderSetQueryTableList)(struct STqReader*, const SArray*, const char*);
 
-  void (*tqReaderAddTables)();
-  void (*tqReaderRemoveTables)();
+  void (*tqReaderAddTables)(struct STqReader*, const SArray*);
+  void (*tqReaderRemoveTables)(struct STqReader*, const SArray*);
 
-  void (*tqSetTablePrimaryKey)();
-  bool (*tqGetTablePrimaryKey)();
-  bool (*tqReaderIsQueriedTable)();
-  bool (*tqReaderCurrentBlockConsumed)();
+  void (*tqSetTablePrimaryKey)(struct STqReader*, int64_t);
+  bool (*tqGetTablePrimaryKey)(struct STqReader*);
+  bool (*tqReaderIsQueriedTable)(struct STqReader*, uint64_t);
+  bool (*tqReaderCurrentBlockConsumed)(const struct STqReader*);
 
-  struct SWalReader* (*tqReaderGetWalReader)();  // todo remove it
-                                                 //  int32_t (*tqReaderRetrieveTaosXBlock)();       // todo remove it
-
-  int32_t (*tqReaderSetSubmitMsg)();  // todo remove it
+  struct SWalReader* (*tqReaderGetWalReader)(struct STqReader*);
 } SStoreTqReader;
 
 typedef struct SStoreSnapshotFn {
