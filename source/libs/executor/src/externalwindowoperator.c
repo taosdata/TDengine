@@ -2273,6 +2273,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   // initLimitInfo(pPhynode->window.node.pLimit, pPhynode->window.node.pSlimit, &pExtW->limitInfo);
 
   if (pPhynode->pSubquery) {
+    // todo xs
     // Initialize minimal stream runtime info to reuse external-window logic.
     // Note: full subquery execution to populate multiple windows can be added later.
     isInStream = false;
@@ -2306,9 +2307,27 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     // Use provided timeRange as a minimal single-window placeholder
     one.wstart = 1589335200000;
     one.wend = 1589338140000;
+    one.wduration = one.wend - one.wstart;
+    SValue val = {0};
+    one.pExternalWindowData = taosArrayInit(1, sizeof(SValue));
+    QUERY_CHECK_NULL(one.pExternalWindowData, code, lino, _error, terrno);
+    val.type = TSDB_DATA_TYPE_BIGINT;
+    val.val = 10;
+    (void)taosArrayPush(one.pExternalWindowData, &val);
+    val.val = 11;
+    (void)taosArrayPush(one.pExternalWindowData, &val);
+
     (void)taosArrayPush(pRt->pStreamPesudoFuncVals, &one);
     one.wstart = 1589338140001;
     one.wend = 1589340110000;
+    one.wduration = one.wend - one.wstart;
+    one.pExternalWindowData = taosArrayInit(1, sizeof(SValue));
+    QUERY_CHECK_NULL(one.pExternalWindowData, code, lino, _error, terrno);
+    val.type = TSDB_DATA_TYPE_BIGINT;
+    val.val = 20;
+    (void)taosArrayPush(one.pExternalWindowData, &val);
+    val.val = 21;
+    (void)taosArrayPush(one.pExternalWindowData, &val);
     (void)taosArrayPush(pRt->pStreamPesudoFuncVals, &one);
   }
 

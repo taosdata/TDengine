@@ -3318,11 +3318,18 @@ static int32_t createTbnameFunction(SFunctionNode** ppFunc) {
   return code;
 }
 
+static bool externalWindowColumnFunc(SFunctionNode* pFunc) {
+  return pFunc->funcType == FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN;
+}
+
 static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc) {
   int32_t        code = TSDB_CODE_SUCCESS;
   SNode*         extraValue = NULL;
   SFunctionNode* pFuncNode = (SFunctionNode*)(*pFunc);
 
+  if (externalWindowColumnFunc(pFuncNode)) {
+    return DEAL_RES_CONTINUE;
+  }
   if (!inStreamCalcClause(pCxt) && !inStreamOutTableClause(pCxt)) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
                                          "stream placeholder should only appear in create stream's query part"));
@@ -3423,6 +3430,9 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
       ((SValueNode*)extraValue)->isNull = true;
 
       pFuncNode->node.resType = pExpr->resType;
+      break;
+    }
+    case FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN: {
       break;
     }
     default:
@@ -4044,16 +4054,6 @@ static int32_t rewriteClientPseudoColumnFunc(STranslateContext* pCxt, SNode** pN
                                  "%s get invalid funcType: %d", ((SFunctionNode*)*pNode)->functionName, ((SFunctionNode*)*pNode)->funcType);
 }
 
-static bool currentStmtWithExternalWindow(STranslateContext* pCxt) {
-  if (NULL != pCxt->pCurrStmt && QUERY_NODE_SELECT_STMT == nodeType(pCxt->pCurrStmt)) {
-    SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
-    if (NULL != pSelect->pWindow && QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 static int32_t translateFunctionImpl(STranslateContext* pCxt, SFunctionNode** pFunc) {
   if (fmIsSystemInfoFunc((*pFunc)->funcId)) {
     return rewriteSystemInfoFunc(pCxt, (SNode**)pFunc);
@@ -4065,6 +4065,16 @@ static int32_t translateFunctionImpl(STranslateContext* pCxt, SFunctionNode** pF
     return translatePlaceHolderFunc(pCxt, (SNode**)pFunc);
   }
   return translateNormalFunction(pCxt, (SNode**)pFunc);
+}
+
+static bool currentStmtWithExternalWindow(STranslateContext* pCxt) {
+  if (NULL != pCxt->pCurrStmt && QUERY_NODE_SELECT_STMT == nodeType(pCxt->pCurrStmt)) {
+    SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+    if (NULL != pSelect->pWindow && QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
@@ -7470,7 +7480,58 @@ typedef struct STranslateExtCtx {
   int32_t              code;
 } STranslateExtCtx;
 
+static int32_t getColIndexFromSubquery(SColumnNode* pCol, SNode* pSubquery, int32_t* pIndex, SNode** pExpr) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  // todo xs
+  return 0;
+}
+
+static int32_t translateExternalWindowColumnFunc(SNode** pNode, SExternalWindowNode* pExternalWin, int32_t colIndex,
+                                                 SNode* pSrcExpr) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  SFunctionNode* pFunc = NULL;
+  SExprNode*     pExpr = (SExprNode*)pSrcExpr;
+  SValueNode*    pColIndexVal = NULL;
+
+  code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  pFunc->funcType = FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN;
+  pFunc->funcId = fmGetExternalWindowColumnFuncId();
+  tstrncpy(pFunc->functionName, "_external_window_column", TSDB_COL_NAME_LEN);
+  // todo xs
+  // pFunc->node.resType = pExpr->resType;
+  pFunc->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  pFunc->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+
+  code = nodesMakeValueNodeFromInt32(colIndex, (SNode**)&pColIndexVal);
+  QUERY_CHECK_CODE(code, lino, _exit);
+
+  pColIndexVal->notReserved = true;
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pColIndexVal);
+  QUERY_CHECK_CODE(code, lino, _exit);
+
+  nodesDestroyNode(*pNode);
+  *pNode = (SNode*)pFunc;
+
+  return code;
+_exit:
+
+  parserError("translateExternalWindowColumnFunc failed, lino: %d, code: %d, reason: %s", lino, code, tstrerror(code));
+  if (pColIndexVal) {
+    nodesDestroyNode((SNode*)pColIndexVal);
+  }
+  if (pFunc) {
+    nodesDestroyNode((SNode*)pFunc);
+  }
+
+  return code;
+}
+
 static EDealRes replaceExternalWindowPlace(SNode** pNode, void* pContext) {
+  int32_t           code = TSDB_CODE_SUCCESS;
   STranslateExtCtx* pCxt = (STranslateExtCtx*)pContext;
 
   if (nodeType(*pNode) == QUERY_NODE_COLUMN) {
@@ -7478,8 +7539,18 @@ static EDealRes replaceExternalWindowPlace(SNode** pNode, void* pContext) {
 
     if ('\0' != pCol->tableAlias[0] &&
         (0 == strncmp(pCol->tableAlias, pCxt->pExternalWin->aliasName, TSDB_COL_NAME_LEN))) {
-      SNode*  pNew = NULL;
-      int32_t code = nodesCloneNode((SNode*)pCol, &pNew);
+      int32_t colIndex = -1;
+      SNode* pExpr = NULL;
+      code = getColIndexFromSubquery(pCol, pCxt->pExternalWin->pSubquery, &colIndex, &pExpr);
+      if (TSDB_CODE_SUCCESS != code) {
+        pCxt->code = code;
+        return DEAL_RES_ERROR;
+      }
+      code = translateExternalWindowColumnFunc(pNode, pCxt->pExternalWin, colIndex, pExpr);
+      if (TSDB_CODE_SUCCESS != code) {
+        pCxt->code = code;
+        return DEAL_RES_ERROR;
+      }
     }
   }
   return DEAL_RES_CONTINUE;
@@ -7488,22 +7559,24 @@ static EDealRes replaceExternalWindowPlace(SNode** pNode, void* pContext) {
 static int32_t translateExternalWindowSelectList(STranslateContext* pCxt, SSelectStmt* pSelect) {
   SExternalWindowNode* pExternalWin = (SExternalWindowNode*)pSelect->pWindow;
   STranslateExtCtx   extCxt = {.pExternalWin = pExternalWin, .code = TSDB_CODE_SUCCESS};
-  int32_t code = translateExprSubquery(pCxt, &pExternalWin->pSubquery);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
+  EDealRes res = translateExprSubquery(pCxt, &pExternalWin->pSubquery);
+  if (DEAL_RES_ERROR == res) {
+    return pCxt->errCode;
   }
   nodesRewriteExprsPostOrder(pSelect->pProjectionList, replaceExternalWindowPlace, &extCxt);
   return pCxt->errCode = extCxt.code;
 }
 
 static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  int32_t code = TSDB_CODE_SUCCESS;
   pCxt->currClause = SQL_CLAUSE_SELECT;
 
   if (pSelect->pWindow && nodeType(pSelect->pWindow) == QUERY_NODE_EXTERNAL_WINDOW) {
-    translateExternalWindowSelectList(pCxt, pSelect);
+    code = translateExternalWindowSelectList(pCxt, pSelect);
   }
-
-  int32_t code = prepareColumnExpansion(pCxt, SQL_CLAUSE_SELECT, pSelect);
+  if(TSDB_CODE_SUCCESS == code) {
+    code = prepareColumnExpansion(pCxt, SQL_CLAUSE_SELECT, pSelect);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateExprList(pCxt, pSelect->pProjectionList);
   }

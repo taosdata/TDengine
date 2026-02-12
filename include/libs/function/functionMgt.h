@@ -76,6 +76,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TLCC,
   FUNCTION_TYPE_LAG,
   FUNCTION_TYPE_FILL_FORWARD,
+  FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN,
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
@@ -398,6 +399,7 @@ bool    fmIsCountLikeFunc(int32_t funcId);
 int32_t fmGetTwstartFuncId();
 int32_t fmGetTwendFuncId();
 int32_t fmGetTwdurationFuncId();
+int32_t fmGetExternalWindowColumnFuncId();
 
 // typedef enum SStreamPseudoFuncType {
 //   STREAM_PSEUDO_FUNC_CURRENT_TS = 0,

@@ -854,6 +854,22 @@ int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset,
       }
       return colDataSetNItems(pResColData, offset, (const char *)buf, rows, 1, false);
     }
+    case FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN: {
+      // external window column from external data, handle type accordingly
+      SValue *pValue = taosArrayGet(pParams->pExternalWindowData, 0);
+      if (pValue == NULL) {
+        sclError("null external window column data");
+        return TSDB_CODE_INTERNAL_ERROR;
+      }
+      
+      if (IS_VAR_DATA_TYPE(pValue->type)) {
+        // variable-length type: use pData pointer directly
+        return colDataSetNItems(pResColData, offset, (const char *)pValue->pData, rows, 1, false);
+      } else {
+        // fixed-length type: use val field (stored as int64_t)
+        return colDataSetNItems(pResColData, offset, (const char *)&pValue->val, rows, 1, false);
+      }
+    }
     default:
       uError("invalid placeholder function type: %d in ext win range expr", t);
       return TSDB_CODE_INTERNAL_ERROR;

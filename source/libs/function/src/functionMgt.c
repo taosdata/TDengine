@@ -35,9 +35,10 @@ static int32_t         initFunctionCode = 0;
 
 static void InitSpecialFuncId() {
   // just to make sure the funcId of these functions are initialized before used.
-  int32_t funcId = fmGetTwstartFuncId();
-  funcId = fmGetTwendFuncId();
-  funcId = fmGetTwdurationFuncId();
+  int32_t tmp = fmGetTwstartFuncId();
+  tmp = fmGetTwendFuncId();
+  tmp = fmGetTwdurationFuncId();
+  tmp = fmGetExternalWindowColumnFuncId();
 }
 
 static void doInitFunctionTable() {
@@ -735,7 +736,7 @@ int32_t fmGetFuncId(const char* name) {
 
 int32_t fmGetTwstartFuncId() {
   static int32_t twstartFuncId = -2;
-  if (twstartFuncId == -2) {
+  if (twstartFuncId < 0) {
     twstartFuncId = fmGetFuncId("_twstart");
   }
   return twstartFuncId;
@@ -743,7 +744,7 @@ int32_t fmGetTwstartFuncId() {
 
 int32_t fmGetTwendFuncId() {
   static int32_t twendFuncId = -2;
-  if (twendFuncId == -2) {
+  if (twendFuncId < 0) {
     twendFuncId = fmGetFuncId("_twend");
   }
   return twendFuncId;
@@ -751,10 +752,18 @@ int32_t fmGetTwendFuncId() {
 
 int32_t fmGetTwdurationFuncId() {
   static int32_t twdurationFuncId = -2;
-  if (twdurationFuncId == -2) {
+  if (twdurationFuncId < 0) {
     twdurationFuncId = fmGetFuncId("_twduration");
   }
   return twdurationFuncId;
+}
+
+int32_t fmGetExternalWindowColumnFuncId() {
+  static int32_t externalWindowColumnFuncId = -2;
+  if (externalWindowColumnFuncId < 0) {
+    externalWindowColumnFuncId = fmGetFuncId("_external_window_column");
+  }
+  return externalWindowColumnFuncId;
 }
 
 bool fmIsMyStateFunc(int32_t funcId, int32_t stateFuncId) {
