@@ -9,6 +9,8 @@ on:
     paths-ignore:
       - 'docs/**'
       - '**/*.md'
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
@@ -183,9 +185,22 @@ jobs:
           }
 
           $out = 'build/conan-release'
-          conan install . --output-folder=$out --build=missing -s build_type=Release -o with_test=True -o with_uv=True -o with_geos=True -o with_pcre2=True -o with_taos_tools=False -o with_taosws=False
 
-          $toolchain = (Resolve-Path "$out/generators/conan_toolchain.cmake").Path
+          # Conan's default MSVC profile often sets cppstd=14; RocksDB requires C++17.
+          conan install . --output-folder=$out --build=missing -s build_type=Release -s compiler.cppstd=17 -o '&:with_test=True' -o '&:with_uv=True' -o '&:with_geos=True' -o '&:with_pcre2=True' -o '&:with_taos_tools=False' -o '&:with_taosws=False'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $toolchain = "$out/generators/conan_toolchain.cmake"
+          if (-not (Test-Path $toolchain)) {
+            throw "Conan toolchain file not found: $toolchain"
+          }
+
+          # Ensure runtime deps (DLLs) are discoverable for tests when any dependency is shared.
+          $conanrun = "$out/generators/conanrun.ps1"
+          if (Test-Path $conanrun) {
+            & $conanrun
+          }
+
           cmake -B $out -G Ninja -DCMAKE_TOOLCHAIN_FILE=$toolchain -DCMAKE_BUILD_TYPE=Release -DUSE_CONAN:BOOL=ON -DBUILD_TEST:BOOL=ON -DBUILD_DEPENDENCY_TESTS:BOOL=OFF -DBUILD_HTTP:BOOL=OFF -DWEBSOCKET:STRING=false -DBUILD_TOOLS=false -DBUILD_KEEPER=false
           cmake --build $out --target osTimeTests
           ctest --test-dir $out -C Release -R osTimeTests --output-on-failure
