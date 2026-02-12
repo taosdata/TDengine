@@ -255,7 +255,7 @@ def usage():
         "Usage:",
         f"Python {name}                    #use implicit download of small model",
         f"Python {name} model_index        #specify the model that would load when starting",
-        f"Python {name} model_path model_name enable_ep  #specify the model name, local directory, and the proxy"
+        f"Python {name} model_path model_name enable_ep  #specify the model name, local directory, and the proxy",
         "",
         "Available models as follows:",
         'Salesforce/moirai-moe-1.0-R-small',  # small model with 117M parameters
