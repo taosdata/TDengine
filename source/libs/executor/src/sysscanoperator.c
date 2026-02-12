@@ -204,7 +204,8 @@ static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* 
                                                        char* stName, SSchemaWrapper* schemaRow, char* tableType,
                                                        SColRefWrapper* colRef, tb_uid_t uid, int32_t vgId);
 
-// static int32_t sysTableFillOneVirtualTableRef(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
+// static int32_t sysTableFillOneVirtualTableRef(const SSysTableScanInfo* pInfo, const char* dbname, int32_t*
+// pNumOfRows,
 //                                               const SSDataBlock* dataBlock, char* tName, char* stName,
 //                                               SSchemaWrapper* schemaRow, char* tableType, SColRefWrapper* colRef,
 //                                               tb_uid_t uid, int32_t vgId);
@@ -2110,6 +2111,87 @@ typedef struct SVtbRefValidateCtx {
   int32_t rspLen;
 } SVtbRefValidateCtx;
 
+// ===================== Table Schema Cache for Validation =====================
+
+// Cached schema for a single table (used to avoid repeated meta reads)
+typedef struct SVtbRefSchemaCache {
+  SSchemaWrapper schemaRow;  // Data column schema
+  SSchemaWrapper schemaTag;  // Tag schema (optional)
+  bool           hasTagSchema;
+} SVtbRefSchemaCache;
+
+// Cache entry for a single table
+typedef struct SVtbRefTableCacheEntry {
+  int32_t             errCode;       // Table validation result (TSDB_CODE_SUCCESS or error)
+  SVtbRefSchemaCache* pSchemaCache;  // Schema cache (NULL if errCode != SUCCESS)
+} SVtbRefTableCacheEntry;
+
+// Create schema cache from SMetaReader
+static SVtbRefSchemaCache* vtbRefCreateSchemaCache(ETableType type, SMetaReader* pReader) {
+  SVtbRefSchemaCache* pCache = taosMemoryCalloc(1, sizeof(SVtbRefSchemaCache));
+  if (pCache == NULL) {
+    return NULL;
+  }
+
+  if (type == TSDB_NORMAL_TABLE) {
+    pCache->schemaRow = pReader->me.ntbEntry.schemaRow;
+    pCache->hasTagSchema = false;
+  } else if (type == TSDB_CHILD_TABLE || type == TSDB_SUPER_TABLE) {
+    pCache->schemaRow = pReader->me.stbEntry.schemaRow;
+    pCache->schemaTag = pReader->me.stbEntry.schemaTag;
+    pCache->hasTagSchema = true;
+  } else {
+    taosMemoryFree(pCache);
+    return NULL;
+  }
+
+  return pCache;
+}
+
+// Free schema cache
+static void vtbRefFreeSchemaCache(SVtbRefSchemaCache* pCache) {
+  if (pCache == NULL) {
+    return;
+  }
+  // Note: schemaRow.pSchema and schemaTag.pSchema point to reader's memory,
+  // so we only free the cache structure itself
+  taosMemoryFree(pCache);
+}
+
+// Free cache entry (for hash table cleanup)
+static void vtbRefFreeTableCacheEntry(void* p) {
+  SVtbRefTableCacheEntry* pEntry = (SVtbRefTableCacheEntry*)p;
+  if (pEntry != NULL) {
+    vtbRefFreeSchemaCache(pEntry->pSchemaCache);
+    taosMemoryFree(pEntry);
+  }
+}
+
+// Check if column exists in cached schema
+static bool vtbRefCheckColumnInCache(const SVtbRefSchemaCache* pCache, const char* colName) {
+  if (pCache == NULL || colName == NULL) {
+    return false;
+  }
+
+  // Check data columns
+  for (int32_t j = 0; j < pCache->schemaRow.nCols; ++j) {
+    if (strcmp(pCache->schemaRow.pSchema[j].name, colName) == 0) {
+      return true;
+    }
+  }
+
+  // Check tag columns
+  if (pCache->hasTagSchema) {
+    for (int32_t j = 0; j < pCache->schemaTag.nCols; ++j) {
+      if (strcmp(pCache->schemaTag.pSchema[j].name, colName) == 0) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 // Callback for async RPC responses during validation
 static int32_t vtbRefValidateCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SVtbRefValidateCtx* pCtx = (SVtbRefValidateCtx*)param;
@@ -2367,6 +2449,71 @@ static bool vtbRefColExistsInSchema(SSchema* pSchemas, int32_t numOfCols, int32_
   return false;
 }
 
+// Get table schema from local vnode meta and cache it
+// Returns: TSDB_CODE_SUCCESS with pEntry filled, or error code
+static int32_t vtbRefGetTableSchemaLocal(const SSysTableScanInfo* pInfo, SStorageAPI* pAPI, const char* refTableName,
+                                         SHashObj* pTableCache, SVtbRefTableCacheEntry** ppEntry) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SMetaReader srcReader = {0};
+
+  // Check cache first
+  SVtbRefTableCacheEntry* pEntry = taosHashGet(pTableCache, refTableName, strlen(refTableName));
+  if (pEntry != NULL) {
+    *ppEntry = pEntry;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Create new cache entry
+  pEntry = taosMemoryCalloc(1, sizeof(SVtbRefTableCacheEntry));
+  if (pEntry == NULL) {
+    return terrno;
+  }
+
+  pAPI->metaReaderFn.initReader(&srcReader, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
+  code = pAPI->metaReaderFn.getTableEntryByName(&srcReader, refTableName);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    pAPI->metaReaderFn.clearReader(&srcReader);
+    pEntry->errCode = TSDB_CODE_TDB_TABLE_NOT_EXIST;
+    pEntry->pSchemaCache = NULL;
+  } else {
+    ETableType tableType = srcReader.me.type;
+    if (tableType == TSDB_CHILD_TABLE) {
+      int64_t suid = srcReader.me.ctbEntry.suid;
+      pAPI->metaReaderFn.clearReader(&srcReader);
+      pAPI->metaReaderFn.initReader(&srcReader, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn);
+      code = pAPI->metaReaderFn.getTableEntryByUid(&srcReader, suid);
+      if (code != TSDB_CODE_SUCCESS) {
+        pAPI->metaReaderFn.clearReader(&srcReader);
+        pEntry->errCode = TSDB_CODE_TDB_TABLE_NOT_EXIST;
+        pEntry->pSchemaCache = NULL;
+      } else {
+        pEntry->pSchemaCache = vtbRefCreateSchemaCache(srcReader.me.type, &srcReader);
+        pEntry->errCode = (pEntry->pSchemaCache != NULL) ? TSDB_CODE_SUCCESS : terrno;
+        pAPI->metaReaderFn.clearReader(&srcReader);
+      }
+    } else if (tableType == TSDB_NORMAL_TABLE || tableType == TSDB_SUPER_TABLE) {
+      pEntry->pSchemaCache = vtbRefCreateSchemaCache(tableType, &srcReader);
+      pEntry->errCode = (pEntry->pSchemaCache != NULL) ? TSDB_CODE_SUCCESS : terrno;
+      pAPI->metaReaderFn.clearReader(&srcReader);
+    } else {
+      pAPI->metaReaderFn.clearReader(&srcReader);
+      pEntry->errCode = TSDB_CODE_PAR_INVALID_REF_COLUMN;
+      pEntry->pSchemaCache = NULL;
+    }
+  }
+
+  // Add to cache
+  code = taosHashPut(pTableCache, refTableName, strlen(refTableName), pEntry, sizeof(SVtbRefTableCacheEntry));
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
+    vtbRefFreeTableCacheEntry(pEntry);
+    return code;
+  }
+
+  *ppEntry = pEntry;
+  return TSDB_CODE_SUCCESS;
+}
+
 // Try to validate source table and column using local vnode meta
 static int32_t vtbRefValidateLocal(const SSysTableScanInfo* pInfo, SStorageAPI* pAPI, const char* refTableName,
                                    const char* refColName, int32_t* pErrCode) {
@@ -2517,22 +2664,24 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
     return TSDB_CODE_INVALID_PARA;
   }
 
-  // Get local vnode's vgId to avoid sending RPC to ourselves (which would deadlock)
   int32_t localVgId = 0;
   pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, NULL, &localVgId, NULL, NULL);
 
-  // Create a cache for DB vgroup info to avoid redundant RPCs
   SHashObj* pDbVgInfoCache = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pDbVgInfoCache == NULL) {
     return terrno;
   }
 
-  // For each column, validate its reference
+  SHashObj* pTableCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (pTableCache == NULL) {
+    taosHashCleanup(pDbVgInfoCache);
+    return terrno;
+  }
+
   for (int32_t i = 0; i < pSchema->nCols; ++i) {
     int32_t errCode = TSDB_CODE_SUCCESS;
 
     if (i == 0 || pColRef == NULL || i >= pColRef->nCols || !pColRef->pColRef[i].hasRef) {
-      // Timestamp column (i==0) or no reference - skip validation
       if (NULL == taosArrayPush(pResult, &errCode)) {
         code = terrno;
         QUERY_CHECK_CODE(code, lino, _end);
@@ -2544,17 +2693,27 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
     const char* refTableName = pColRef->pColRef[i].refTableName;
     const char* refColName = pColRef->pColRef[i].refColName;
 
-    // Try local validation first
-    code = vtbRefValidateLocal(pInfo, pAPI, refTableName, refColName, &errCode);
+    SVtbRefTableCacheEntry* pEntry = NULL;
+    code = vtbRefGetTableSchemaLocal(pInfo, pAPI, refTableName, pTableCache, &pEntry);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    if (errCode == TSDB_CODE_TDB_TABLE_NOT_EXIST && pInfo->readHandle.pMsgCb && pInfo->readHandle.pMsgCb->clientRpc) {
-      // Table not found locally, try remote validation
-      errCode = TSDB_CODE_SUCCESS;
-      code =
-          vtbRefValidateRemote(pInfo->readHandle.pMsgCb->clientRpc, (SEpSet*)&pInfo->epSet, pInfo->accountId, refDbName,
-                               refTableName, refColName, pTaskInfo->id.queryId, pDbVgInfoCache, localVgId, &errCode);
-      QUERY_CHECK_CODE(code, lino, _end);
+    if (pEntry != NULL && pEntry->errCode == TSDB_CODE_SUCCESS && pEntry->pSchemaCache != NULL) {
+      errCode = vtbRefCheckColumnInCache(pEntry->pSchemaCache, refColName) ? TSDB_CODE_SUCCESS
+                                                                           : TSDB_CODE_PAR_INVALID_REF_COLUMN;
+    } else if (pEntry != NULL && pEntry->errCode == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+      if (pInfo->readHandle.pMsgCb && pInfo->readHandle.pMsgCb->clientRpc) {
+        errCode = TSDB_CODE_SUCCESS;
+        code = vtbRefValidateRemote(pInfo->readHandle.pMsgCb->clientRpc, (SEpSet*)&pInfo->epSet, pInfo->accountId,
+                                    refDbName, refTableName, refColName, pTaskInfo->id.queryId, pDbVgInfoCache,
+                                    localVgId, &errCode);
+        QUERY_CHECK_CODE(code, lino, _end);
+      } else {
+        errCode = TSDB_CODE_TDB_TABLE_NOT_EXIST;
+      }
+    } else if (pEntry != NULL) {
+      errCode = pEntry->errCode;
+    } else {
+      errCode = TSDB_CODE_PAR_INVALID_REF_COLUMN;
     }
 
     if (NULL == taosArrayPush(pResult, &errCode)) {
@@ -2563,8 +2722,15 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
     }
   }
 
-_end:
-  // Cleanup DB vgroup info cache
+_end : {
+  void* pIter = taosHashIterate(pTableCache, NULL);
+  while (pIter) {
+    SVtbRefTableCacheEntry* pEntry = *(SVtbRefTableCacheEntry**)pIter;
+    vtbRefFreeTableCacheEntry(pEntry);
+    pIter = taosHashIterate(pTableCache, pIter);
+  }
+  taosHashCleanup(pTableCache);
+}
   {
     void* pIter = taosHashIterate(pDbVgInfoCache, NULL);
     while (pIter) {
@@ -2717,7 +2883,8 @@ _end:
   return code;
 }
 
-// static int32_t sysTableFillOneVirtualTableRef(const SSysTableScanInfo* pInfo, const char* dbname, int32_t* pNumOfRows,
+// static int32_t sysTableFillOneVirtualTableRef(const SSysTableScanInfo* pInfo, const char* dbname, int32_t*
+// pNumOfRows,
 //                                               const SSDataBlock* dataBlock, char* tName, char* stName,
 //                                               SSchemaWrapper* schemaRow, char* tableType, SColRefWrapper* colRef,
 //                                               tb_uid_t uid, int32_t vgId) {
