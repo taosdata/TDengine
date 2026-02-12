@@ -7483,6 +7483,7 @@ typedef struct STranslateExtCtx {
 static int32_t getColIndexFromSubquery(SColumnNode* pCol, SNode* pSubquery, int32_t* pIndex, SNode** pExpr) {
   int32_t code = TSDB_CODE_SUCCESS;
   // todo xs
+  *pIndex = 1;
   return 0;
 }
 

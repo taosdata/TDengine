@@ -802,7 +802,7 @@ int32_t sclSetStreamExtWinParam(int32_t funcId, SNodeList* pParamNodes, SScalarP
   return code;
 }
 
-int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset, int64_t rows, int16_t funcId, const void* pExtraParams) {
+int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset, int64_t rows, int16_t funcId, const void* pExtraParams, SNode* pParamNode) {
   int32_t t = fmGetFuncTypeFromId(funcId);
   SStreamRuntimeFuncInfo* pInfo = (SStreamRuntimeFuncInfo*)pExtraParams;
   SSTriggerCalcParam *pParams = taosArrayGet(pInfo->pStreamPesudoFuncVals, pInfo->curIdx);
@@ -856,7 +856,8 @@ int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset,
     }
     case FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN: {
       // external window column from external data, handle type accordingly
-      SValue *pValue = taosArrayGet(pParams->pExternalWindowData, 0);
+      int32_t placeHoderIndex = ((SValueNode*)pParamNode)->datum.i;
+      SValue *pValue = taosArrayGet(pParams->pExternalWindowData, placeHoderIndex);
       if (pValue == NULL) {
         sclError("null external window column data");
         return TSDB_CODE_INTERNAL_ERROR;
