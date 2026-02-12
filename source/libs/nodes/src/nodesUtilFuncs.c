@@ -537,8 +537,11 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_REMOTE_ZERO_ROWS:
       code = makeNode(type, sizeof(SRemoteZeroRowsNode), &pNode);
       break;
-    case QUERY_NODE_ALTER_TAG_VALUE:
-      code = makeNode(type, sizeof(SAlterTagValueNode), &pNode);
+    case QUERY_NODE_UPDATE_TAG_VALUE:
+      code = makeNode(type, sizeof(SUpdateTagValueNode), &pNode);
+      break;
+    case QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE:
+      code = makeNode(type, sizeof(SAlterTableUpdateTagValClause), &pNode);
       break;
     case QUERY_NODE_TRUE_FOR:
       code = makeNode(type, sizeof(STrueForNode), &pNode);
@@ -1343,11 +1346,16 @@ void nodesDestroyNode(SNode* pNode) {
       }
       break;
     }
-    case QUERY_NODE_ALTER_TAG_VALUE: {
-      SAlterTagValueNode* pTagVal = (SAlterTagValueNode*)pNode;
+    case QUERY_NODE_UPDATE_TAG_VALUE: {
+      SUpdateTagValueNode* pTagVal = (SUpdateTagValueNode*)pNode;
       nodesDestroyNode((SNode*)pTagVal->pVal);
       taosMemoryFree(pTagVal->regexp);
       taosMemoryFree(pTagVal->replacement);
+      break;
+    }
+    case QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE: {
+      SAlterTableUpdateTagValClause* pClause = (SAlterTableUpdateTagValClause*)pNode;
+      nodesDestroyList(pClause->pTagList);
       break;
     }
     case QUERY_NODE_OPERATOR: {

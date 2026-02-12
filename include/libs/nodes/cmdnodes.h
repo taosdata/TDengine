@@ -391,13 +391,20 @@ typedef struct SDropVirtualTableStmt {
   bool      withOpt;
 } SDropVirtualTableStmt;
 
-typedef struct SAlterTagValueNode {
+typedef struct SUpdateTagValueNode {
   ENodeType   type;
   char        tagName[TSDB_COL_NAME_LEN];
   SValueNode* pVal;
   char* regexp;
   char* replacement;
-} SAlterTagValueNode;
+} SUpdateTagValueNode;
+
+typedef struct SAlterTableUpdateTagValClause {
+  ENodeType       type;
+  char            dbName[TSDB_DB_NAME_LEN];
+  char            tableName[TSDB_TABLE_NAME_LEN];
+  SNodeList*      pTagList; // list of SUpdateTagValueNode
+} SAlterTableUpdateTagValClause;
 
 typedef struct SAlterTableStmt {
   ENodeType       type;
