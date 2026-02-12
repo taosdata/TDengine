@@ -314,13 +314,13 @@ function run_thread() {
         fi
         cmd="$cmd --source-dir ${workdirs[index]}/TDinternal --docker-network ${docker_network} --sql_recording"
         local ret=0
-        local redo_count=1
+        local redo_count=0
         start_time=`date +%s`
         local real_start_time=`date +%s`
         local real_end_time=`date +%s`
         local log_file=${case_file}.txt
         local log_full_path=$log_dir/$log_file
-        while [ ${redo_count} -lt 6 ]; do
+        while [ ${redo_count} -lt 2 ]; do
             if [ -f $log_full_path ]; then
                 cp $log_full_path $log_dir/$case_file.${redo_count}.redotxt
             fi
