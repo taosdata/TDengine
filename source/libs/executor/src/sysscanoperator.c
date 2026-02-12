@@ -2118,7 +2118,8 @@ typedef struct SVtbRefSchemaCache {
   SSchemaWrapper schemaRow;  // Data column schema
   SSchemaWrapper schemaTag;  // Tag schema (optional)
   bool           hasTagSchema;
-  bool           ownsSchema;  // true if schema is deep-copied (remote tables), false if shallow (local tables)
+  bool           ownsSchema;     // true if schema is deep-copied (remote tables), false if shallow (local tables)
+  SHashObj*      pColNameIndex;  // Column name hash index for O(1) lookup
 } SVtbRefSchemaCache;
 
 // Cache entry for a single table
@@ -2127,7 +2128,19 @@ typedef struct SVtbRefTableCacheEntry {
   SVtbRefSchemaCache* pSchemaCache;  // Schema cache (NULL if errCode != SUCCESS)
 } SVtbRefTableCacheEntry;
 
-// Create schema cache from SMetaReader
+static SHashObj* vtbRefBuildColNameIndex(SSchema* pSchemas, int32_t numOfCols, int32_t numOfTags) {
+  int32_t   totalCols = numOfCols + numOfTags;
+  SHashObj* pIndex = taosHashInit(totalCols > 0 ? totalCols : 8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
+                                  true, HASH_NO_LOCK);
+  if (pIndex == NULL) {
+    return NULL;
+  }
+  for (int32_t i = 0; i < totalCols; ++i) {
+    taosHashPut(pIndex, pSchemas[i].name, strlen(pSchemas[i].name), &i, sizeof(int32_t));
+  }
+  return pIndex;
+}
+
 static SVtbRefSchemaCache* vtbRefCreateSchemaCache(ETableType type, SMetaReader* pReader) {
   SVtbRefSchemaCache* pCache = taosMemoryCalloc(1, sizeof(SVtbRefSchemaCache));
   if (pCache == NULL) {
@@ -2137,11 +2150,19 @@ static SVtbRefSchemaCache* vtbRefCreateSchemaCache(ETableType type, SMetaReader*
   if (type == TSDB_NORMAL_TABLE) {
     pCache->schemaRow = pReader->me.ntbEntry.schemaRow;
     pCache->hasTagSchema = false;
+    pCache->pColNameIndex = vtbRefBuildColNameIndex(pCache->schemaRow.pSchema, pCache->schemaRow.nCols, 0);
   } else if (type == TSDB_CHILD_TABLE || type == TSDB_SUPER_TABLE) {
     pCache->schemaRow = pReader->me.stbEntry.schemaRow;
     pCache->schemaTag = pReader->me.stbEntry.schemaTag;
     pCache->hasTagSchema = true;
+    pCache->pColNameIndex =
+        vtbRefBuildColNameIndex(pCache->schemaRow.pSchema, pCache->schemaRow.nCols, pCache->schemaTag.nCols);
   } else {
+    taosMemoryFree(pCache);
+    return NULL;
+  }
+
+  if (pCache->pColNameIndex == NULL) {
     taosMemoryFree(pCache);
     return NULL;
   }
@@ -2149,7 +2170,6 @@ static SVtbRefSchemaCache* vtbRefCreateSchemaCache(ETableType type, SMetaReader*
   return pCache;
 }
 
-// Free schema cache
 static void vtbRefFreeSchemaCache(SVtbRefSchemaCache* pCache) {
   if (pCache == NULL) {
     return;
@@ -2158,6 +2178,7 @@ static void vtbRefFreeSchemaCache(SVtbRefSchemaCache* pCache) {
     taosMemoryFree(pCache->schemaRow.pSchema);
     taosMemoryFree(pCache->schemaTag.pSchema);
   }
+  taosHashCleanup(pCache->pColNameIndex);
   taosMemoryFree(pCache);
 }
 
@@ -2170,29 +2191,11 @@ static void vtbRefFreeTableCacheEntry(void* p) {
   }
 }
 
-// Check if column exists in cached schema
 static bool vtbRefCheckColumnInCache(const SVtbRefSchemaCache* pCache, const char* colName) {
-  if (pCache == NULL || colName == NULL) {
+  if (pCache == NULL || colName == NULL || pCache->pColNameIndex == NULL) {
     return false;
   }
-
-  // Check data columns
-  for (int32_t j = 0; j < pCache->schemaRow.nCols; ++j) {
-    if (strcmp(pCache->schemaRow.pSchema[j].name, colName) == 0) {
-      return true;
-    }
-  }
-
-  // Check tag columns
-  if (pCache->hasTagSchema) {
-    for (int32_t j = 0; j < pCache->schemaTag.nCols; ++j) {
-      if (strcmp(pCache->schemaTag.pSchema[j].name, colName) == 0) {
-        return true;
-      }
-    }
-  }
-
-  return false;
+  return taosHashGet(pCache->pColNameIndex, colName, strlen(colName)) != NULL;
 }
 
 static SVtbRefSchemaCache* vtbRefCreateSchemaCacheFromMetaRsp(STableMetaRsp* pMetaRsp) {
@@ -2222,6 +2225,13 @@ static SVtbRefSchemaCache* vtbRefCreateSchemaCacheFromMetaRsp(STableMetaRsp* pMe
   pCache->schemaTag.pSchema = (numOfTags > 0) ? pAllSchemas + numOfCols : NULL;
   pCache->hasTagSchema = (numOfTags > 0);
   pCache->ownsSchema = true;
+  pCache->pColNameIndex = vtbRefBuildColNameIndex(pAllSchemas, numOfCols, numOfTags);
+
+  if (pCache->pColNameIndex == NULL) {
+    taosMemoryFree(pAllSchemas);
+    taosMemoryFree(pCache);
+    return NULL;
+  }
 
   return pCache;
 }
