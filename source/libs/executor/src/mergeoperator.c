@@ -103,7 +103,7 @@ int32_t openSortMergeOperator(SOperatorInfo* pOperator) {
     if (pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
       code = pDownstream->fpSet._openFn(pDownstream);
       QUERY_CHECK_CODE(code, lino, _return);
-      if (pOperator->pDownstreamGetParams[i]) {
+      if (pOperator->pDownstreamGetParams && pOperator->pDownstreamGetParams[i]) {
         pDownstream->pOperatorGetParam = pOperator->pDownstreamGetParams[i];
         pOperator->pDownstreamGetParams[i] = NULL;
       }
