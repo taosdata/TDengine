@@ -799,6 +799,11 @@ bool fmIsGroupIdFunc(int32_t funcId) {
   return FUNCTION_TYPE_GROUP_ID == funcMgtBuiltins[funcId].type;
 }
 
+const void* fmGetExternalWindowColumnFuncVal(const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, int32_t index) {
+  SSTriggerCalcParam *pParams = taosArrayGet(pStreamRuntimeFuncInfo->pStreamPesudoFuncVals, pStreamRuntimeFuncInfo->curIdx);
+  return taosArrayGet(pParams->pExternalWindowData, index);
+}
+
 const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo) {
   SSTriggerCalcParam *pParams = taosArrayGet(pStreamRuntimeFuncInfo->pStreamPesudoFuncVals, pStreamRuntimeFuncInfo->curIdx);
   switch (funcMgtBuiltins[funcId].type) {
@@ -934,6 +939,19 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
         varDataLen(((SValueNode*)pFirstParam)->datum.p) = pValue->data.nData;
         break;
       }
+    }
+  } else if(FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN == t) {
+    // todo xs external_window_column
+    SNode* pParamNode = nodesListGetNode(pParamNodes, 0);
+    const void* pVal = fmGetExternalWindowColumnFuncVal(pStreamRuntimeInfo, ((SValueNode*)pParamNode)->placeholderNo);
+    if (!pVal) {
+      uError("failed to set stream pseudo func param val, NULL val for funcId: %d", funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+    code = nodesSetValueNodeValue((SValueNode*)pFirstParam, &((SValue*)pVal)->val);
+    if (code != 0) {
+      uError("failed to set value node value: %s", tstrerror(code));
+      return code;
     }
   } else if (LIST_LENGTH(pParamNodes) == 1) {
     // twstart, twend

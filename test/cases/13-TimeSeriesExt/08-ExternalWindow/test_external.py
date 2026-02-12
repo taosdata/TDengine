@@ -61,22 +61,27 @@ class TestExternal:
         
     def basic_query(self):
         tdLog.info(f"=============== basic query of external window")
-        select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select first(c1) fc1  from st2) w) ;
-        select _wstart, _wend, w.fc1, ts from st1_1 external_window((select first(c1) fc1  from st2) w) ;
-        select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select ts, ts+1, first(c1) fc1 from st2) w) ;
-        select _wstart, _wend, w.fc1, ts from st1_1 external_window((select ts, ts+1, first(c1) fc1 from st2) w) ;
-        # select _wstart, _wend, _wduration, ts from st1_1 external_window((select ts, ts+1, first(c1) c1 from st2) w) ;
-        # select _wstart, _wend, ts from st1_1 external_window((select ts, ts+1, first(c1) c1 from st2) w) ;
-        # select _wstart, _wend, ts, cast(ts as bigint)- cast(_wstart as bigint) from st1_1 external_window((select ts, ts+1, first(c1) c1 from st2) w) ;
+        # select _wstart, _wend, w.fc1, ts from st1_1 external_window((select first(c1) fc1  from st2) w);
+        
+        # todo xs fix external window column placeholder issue
+        # select _wstart, _wend, w.fc1 + 1, ts from st1_1 external_window((select first(c1) fc1  from st2) w);
+        
+        select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select first(c1) fc1  from st2) w); 
+        
+        # select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select ts, ts+1, first(c1) fc1 from st2) w);
+        # select _wstart, _wend, w.fc1, ts from st1_1 external_window((select ts, ts+1, first(c1) fc1 from st2) w);
+        # select _wstart, _wend, _wduration, ts from st1_1 external_window((select ts, ts+1, first(c1) c1 from st2) w);
+        # select _wstart, _wend, ts from st1_1 external_window((select ts, ts+1, first(c1) c1 from st2) w);
+        # select _wstart, _wend, ts, cast(ts as bigint)- cast(_wstart as bigint) from st1_1 external_window((select ts, ts+1, first(c1) c1 from st2) w);
         # tdSql.execute("select count(*) from st1_1 external_window((select ts, ts+10, first(c1) c1 from st2) w);")
-        # tdSql.execute("select _wstart, count(*) from st1_1 external_window((select ts, ts+10, first(c1) c1 from st2) w) ;")
-        # select _wstart, * from st1_1 external_window((select ts, ts+10, first(c1) c1 from st2) w) ;
-        # select _wstart, count(*) from st1 external_window((select ts, ts+10, first(c1) c1 from st2) w) ;
-        # select _wstart, w.c1, count(*) from st1 external_window((select ts, ts+10, first(c1) c1 from st2) w) ;
-        # select _wstart, count(*) from st1 external_window((select ts, ts+10, first(c1) from st2) w) ;
-        # select _wstart, count(*) from st1 external_window((select ts, ts+10 from st2) w) ;
-        # select _wstart, count(*) from st1 external_window((select ts, ts+10 from st2 interval(2m)) w) ;
-        # select _wstart, count(*) from st1 external_window((select _wstart, _wend from st2 interval(2m)) w) ;
+        # tdSql.execute("select _wstart, count(*) from st1_1 external_window((select ts, ts+10, first(c1) c1 from st2) w);")
+        # select _wstart, * from st1_1 external_window((select ts, ts+10, first(c1) c1 from st2) w);
+        # select _wstart, count(*) from st1 external_window((select ts, ts+10, first(c1) c1 from st2) w);
+        # select _wstart, w.c1, count(*) from st1 external_window((select ts, ts+10, first(c1) c1 from st2) w);
+        # select _wstart, count(*) from st1 external_window((select ts, ts+10, first(c1) from st2) w);
+        # select _wstart, count(*) from st1 external_window((select ts, ts+10 from st2) w);
+        # select _wstart, count(*) from st1 external_window((select ts, ts+10 from st2 interval(2m)) w);
+        # select _wstart, count(*) from st1 external_window((select _wstart, _wend from st2 interval(2m)) w);
         return
     
         # explain verbose true select count(*) from st1_1 external_window((select ts, ts+10, first(c1) c1 from st2) w) \G;

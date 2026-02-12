@@ -7507,10 +7507,12 @@ static int32_t translateExternalWindowColumnFunc(SNode** pNode, SExternalWindowN
   pFunc->node.resType.type = TSDB_DATA_TYPE_BIGINT;
   pFunc->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
 
-  code = nodesMakeValueNodeFromInt32(colIndex, (SNode**)&pColIndexVal);
+  // todo xs pColIndexVal 应该从 pExpr 获取，表示结果的类型和长度
+  code = nodesMakeValueNodeFromInt64(colIndex, (SNode**)&pColIndexVal);
   QUERY_CHECK_CODE(code, lino, _exit);
 
   pColIndexVal->notReserved = true;
+  pColIndexVal->placeholderNo = colIndex;
   code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pColIndexVal);
   QUERY_CHECK_CODE(code, lino, _exit);
 

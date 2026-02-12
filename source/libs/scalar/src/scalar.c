@@ -856,7 +856,7 @@ int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset,
     }
     case FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN: {
       // external window column from external data, handle type accordingly
-      int32_t placeHoderIndex = ((SValueNode*)pParamNode)->datum.i;
+      int32_t placeHoderIndex = ((SValueNode*)pParamNode)->placeholderNo;
       SValue *pValue = taosArrayGet(pParams->pExternalWindowData, placeHoderIndex);
       if (pValue == NULL) {
         sclError("null external window column data");
