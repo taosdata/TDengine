@@ -2035,6 +2035,10 @@ int32_t vectorCompareWithHashParam(SSclComapreCtx* pCtx) {
     if (isNegativeOp && multiRowsInHash) {
       res = OP_TYPE_IN == pCtx->optr ? true : false;
       colDataSetInt8(pCtx->pOut->columnData, i, (int8_t *)&res);
+      if (res) {
+        ++(*pCtx->qualifiedNum);
+      }
+
       continue;
     }
 

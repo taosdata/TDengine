@@ -4206,7 +4206,7 @@ void nodesGetSubQType(SNode* pNode, int32_t* pType) {
       break;
     }
     default:
-      *pType = E_SUB_QUERY_ERROR;
+      *pType = E_SUB_QUERY_NOT_SET;
       break;
   }
 

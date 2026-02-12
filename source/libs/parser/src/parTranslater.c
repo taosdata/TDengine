@@ -2807,6 +2807,8 @@ static int32_t replaceExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode
     pCxt->errCode = code;
   }
 
+  pCxt->expSubQueryType = E_SUB_QUERY_NOT_SET;
+
   return code;
 }
 
@@ -3166,6 +3168,8 @@ static int32_t rewriteExprSubQuery(STranslateContext* pCxt, SOperatorNode* pOp) 
       break;
   }
 
+  pCxt->expSubQueryType = E_SUB_QUERY_NOT_SET;
+
   return pCxt->errCode;
 }
 
@@ -3180,7 +3184,7 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
     return DEAL_RES_ERROR;
   }
 
-  if (E_SUB_QUERY_ERROR != pCxt->expSubQueryType && E_SUB_QUERY_SCALAR != pCxt->expSubQueryType) {
+  if (E_SUB_QUERY_NOT_SET != pCxt->expSubQueryType && E_SUB_QUERY_SCALAR != pCxt->expSubQueryType) {
     code = rewriteExprSubQuery(pCxt, pOp);
   }
 

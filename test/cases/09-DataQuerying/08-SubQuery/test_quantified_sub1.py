@@ -72,7 +72,7 @@ class TestQuantifiedSubQuery1:
         """quantified expr sub query test case
         
         1. Prepare data.
-        2. Execute various queries with different kind of quantified expr sub queries.
+        2. Execute various select clause with different kind of quantified expr sub queries.
         3. Validate the results against expected result files.
 
         Since: v3.4.1.0
