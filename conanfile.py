@@ -19,6 +19,9 @@ class TDengineConan(ConanFile):
         "with_uv": [True, False],
         "with_sqlite": [True, False],
         "with_s3": [True, False],
+        "with_azure": [True, False],
+        "with_cos": [True, False],
+        "with_taosws": [True, False],
         "with_taos_tools": [True, False],
         "build_addr2line": [True, False],
     }
@@ -33,6 +36,9 @@ class TDengineConan(ConanFile):
         "with_uv": True,
         "with_sqlite": False,
         "with_s3": False,
+        "with_azure": False,
+        "with_cos": False,
+        "with_taosws": False,
         "with_taos_tools": True,
         "build_addr2line": False,
         # Force static libraries for all dependencies
@@ -48,7 +54,11 @@ class TDengineConan(ConanFile):
         self.folders.generators = "generators"
 
     def requirements(self):
-        """Define all dependencies from Conan Center"""
+        """Define all dependencies (ConanCenter + local recipes under conan/)"""
+
+        # tzcode (libtz.a) is linked by source/os on non-Windows
+        if self.settings.os != "Windows":
+            self.requires("tz/2025a")
 
         # Core compression libraries
         self.requires("zlib/1.3.1")
@@ -70,6 +80,7 @@ class TDengineConan(ConanFile):
 
         # Database/Storage
         self.requires("rocksdb/9.7.4")
+        self.requires("cyrus-sasl/2.1.27")
 
         # Optional: jemalloc
         if self.options.with_jemalloc:
@@ -87,6 +98,12 @@ class TDengineConan(ConanFile):
         if self.options.with_pcre2:
             self.requires("pcre2/10.44")
 
+        # Optional: addr2line/backtrace support (libdwarf-based)
+        if self.options.build_addr2line and self.settings.os != "Windows":
+            self.requires("libdwarf/0.3.1")
+            # Tool (optional)
+            self.requires("libdwarf-addr2line/0.3.1")
+
         # Testing framework
         if self.options.with_test:
             self.requires("gtest/1.12.1")
@@ -99,18 +116,32 @@ class TDengineConan(ConanFile):
             # Apache Avro C - using local recipe in conan/avro-c
             self.requires("avro-c/1.11.3")
 
-        # S3 dependencies (Linux/macOS only)
+        # Shared storage dependencies (S3)
         if self.options.with_s3 and self.settings.os != "Windows":
             self.requires("libxml2/2.15.0")
-            # Note: libs3, azure-sdk, cos-sdk not in ConanCenter
-            # These will remain as ExternalProject
+            self.requires("libs3/4.1")
+            if self.options.with_azure:
+                self.requires("td-azure-sdk/12.13.0-beta.1")
 
-        # Windows specific dependencies
+        # COS (optional)
+        if self.options.with_cos and self.settings.os != "Windows":
+            self.requires("apr/1.7.6")
+            self.requires("apr-util/1.6.3")
+            self.requires("mxml/2.12")
+            self.requires("cos-c-sdk/5.0.16")
+
+        # taosws (optional, Rust-based)
+        if self.options.with_taosws:
+            self.requires("taosws/0.1.0")
+
+        # Windows specific dependencies (local recipes)
         if self.settings.os == "Windows":
-            # Note: Most Windows-specific libs not in ConanCenter
-            # pthread-win32, iconv, msvcregex, wcwidth, wingetopt, crashdump
-            # These will remain as ExternalProject
-            pass
+            self.requires("pthread-win32/3.0.3.1")
+            self.requires("win-iconv/0.0.8")
+            self.requires("libgnurx-msvc/master")
+            self.requires("wcwidth-cjk/master")
+            self.requires("wingetopt/master")
+            self.requires("crashdump/master")
 
     def configure(self):
         """Configure options based on settings"""

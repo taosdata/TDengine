@@ -14,6 +14,11 @@ find_package(xxHash REQUIRED)
 find_package(LibLZMA REQUIRED)
 find_package(cJSON REQUIRED)  # Note: package name is cJSON, not cjson
 
+# tzcode (libtz.a) - linked by source/os on non-Windows
+if(NOT ${TD_WINDOWS})
+    find_package(tz REQUIRED)
+endif()
+
 # Networking
 find_package(OpenSSL REQUIRED)
 find_package(CURL REQUIRED)
@@ -37,6 +42,16 @@ if(${BUILD_TEST})
     if(NOT cppstub_FOUND)
         message(STATUS "cppstub not found in Conan packages, will use ExternalProject")
     endif()
+endif()
+
+# Windows-only migrated dependencies
+if(${TD_WINDOWS})
+    find_package(pthread-win32 QUIET)
+    find_package(win-iconv QUIET)
+    find_package(libgnurx-msvc QUIET)
+    find_package(wcwidth-cjk QUIET)
+    find_package(wingetopt QUIET)
+    find_package(crashdump QUIET)
 endif()
 
 # Optional features (use QUIET to not fail if not provided by Conan)
@@ -67,9 +82,35 @@ endif()
 
 # S3 dependencies
 if(${BUILD_WITH_S3})
-    find_package(LibXml2 QUIET)
-    if(NOT LibXml2_FOUND)
-        message(STATUS "LibXml2 not found in Conan packages, will use ExternalProject")
+    find_package(LibXml2 REQUIRED)
+    find_package(libs3 REQUIRED)
+endif()
+
+# Azure SDK (optional, used by source/libs/azure when shared storage is enabled)
+if(${BUILD_SHARED_STORAGE})
+    find_package(td-azure-sdk QUIET)
+endif()
+
+# COS (optional)
+if(${BUILD_WITH_COS})
+    find_package(apr QUIET)
+    find_package(aprutil QUIET)
+    find_package(mxml QUIET)
+    find_package(cos-c-sdk QUIET)
+endif()
+
+# libdwarf (optional, used when BUILD_ADDR2LINE is enabled)
+if(${BUILD_ADDR2LINE} AND NOT ${TD_WINDOWS})
+    find_package(libdwarf REQUIRED)
+    # Tool package (optional)
+    find_package(libdwarf-addr2line QUIET)
+endif()
+
+# taosws (optional, Rust-based)
+if(TD_WEBSOCKET)
+    find_package(taosws QUIET)
+    if(TARGET taosws::taosws)
+        set(LINK_WEBSOCKET taosws::taosws)
     endif()
 endif()
 
@@ -387,27 +428,38 @@ macro(DEP_ext_xxhash_LIB tgt)
 endmacro()
 
 macro(DEP_ext_tz tgt)
-    # tz not migrated yet
+    if(TARGET tz::tz)
+        target_link_libraries(${tgt} PUBLIC tz::tz)
+    endif()
 endmacro()
 
 macro(DEP_ext_tz_INC tgt)
+    # Handled by target_link_libraries
 endmacro()
 
 macro(DEP_ext_tz_LIB tgt)
+    if(TARGET tz::tz)
+        target_link_libraries(${tgt} PRIVATE tz::tz)
+    endif()
 endmacro()
 
 macro(DEP_ext_dwarf tgt)
-    # libdwarf not migrated yet
+    if(TARGET libdwarf::libdwarf)
+        target_link_libraries(${tgt} PUBLIC libdwarf::libdwarf)
+    endif()
 endmacro()
 
 macro(DEP_ext_dwarf_INC tgt)
 endmacro()
 
 macro(DEP_ext_dwarf_LIB tgt)
+    if(TARGET libdwarf::libdwarf)
+        target_link_libraries(${tgt} PRIVATE libdwarf::libdwarf)
+    endif()
 endmacro()
 
+# ext_addr2line remains unused in the source tree (addr2line functionality is libdwarf-based)
 macro(DEP_ext_addr2line tgt)
-    # addr2line not migrated yet
 endmacro()
 
 macro(DEP_ext_addr2line_INC tgt)
@@ -433,33 +485,48 @@ macro(DEP_ext_avro_LIB tgt)
 endmacro()
 
 macro(DEP_ext_libs3 tgt)
-    # libs3 not migrated yet
+    if(TARGET libs3::libs3)
+        target_link_libraries(${tgt} PUBLIC libs3::libs3)
+    endif()
 endmacro()
 
 macro(DEP_ext_libs3_INC tgt)
 endmacro()
 
 macro(DEP_ext_libs3_LIB tgt)
+    if(TARGET libs3::libs3)
+        target_link_libraries(${tgt} PRIVATE libs3::libs3)
+    endif()
 endmacro()
 
 macro(DEP_ext_azure tgt)
-    # azure not migrated yet
+    if(TARGET td-azure-sdk::td-azure-sdk)
+        target_link_libraries(${tgt} PUBLIC td-azure-sdk::td-azure-sdk)
+    endif()
 endmacro()
 
 macro(DEP_ext_azure_INC tgt)
 endmacro()
 
 macro(DEP_ext_azure_LIB tgt)
+    if(TARGET td-azure-sdk::td-azure-sdk)
+        target_link_libraries(${tgt} PRIVATE td-azure-sdk::td-azure-sdk)
+    endif()
 endmacro()
 
 macro(DEP_ext_cos tgt)
-    # cos not migrated yet
+    if(TARGET cos-c-sdk::cos-c-sdk)
+        target_link_libraries(${tgt} PUBLIC cos-c-sdk::cos-c-sdk)
+    endif()
 endmacro()
 
 macro(DEP_ext_cos_INC tgt)
 endmacro()
 
 macro(DEP_ext_cos_LIB tgt)
+    if(TARGET cos-c-sdk::cos-c-sdk)
+        target_link_libraries(${tgt} PRIVATE cos-c-sdk::cos-c-sdk)
+    endif()
 endmacro()
 
 macro(DEP_ext_cppstub tgt)
@@ -490,59 +557,95 @@ endmacro()
 macro(DEP_ext_sqlite_LIB tgt)
 endmacro()
 
-# Windows-specific stubs
+# Windows-specific
 macro(DEP_ext_pthread tgt)
+    if(TARGET pthread-win32::pthread-win32)
+        target_link_libraries(${tgt} PUBLIC pthread-win32::pthread-win32)
+    endif()
 endmacro()
 
 macro(DEP_ext_pthread_INC tgt)
 endmacro()
 
 macro(DEP_ext_pthread_LIB tgt)
+    if(TARGET pthread-win32::pthread-win32)
+        target_link_libraries(${tgt} PRIVATE pthread-win32::pthread-win32)
+    endif()
 endmacro()
 
 macro(DEP_ext_iconv tgt)
+    if(TARGET win-iconv::win-iconv)
+        target_link_libraries(${tgt} PUBLIC win-iconv::win-iconv)
+    endif()
 endmacro()
 
 macro(DEP_ext_iconv_INC tgt)
 endmacro()
 
 macro(DEP_ext_iconv_LIB tgt)
+    if(TARGET win-iconv::win-iconv)
+        target_link_libraries(${tgt} PRIVATE win-iconv::win-iconv)
+    endif()
 endmacro()
 
 macro(DEP_ext_msvcregex tgt)
+    if(TARGET libgnurx-msvc::libgnurx-msvc)
+        target_link_libraries(${tgt} PUBLIC libgnurx-msvc::libgnurx-msvc)
+    endif()
 endmacro()
 
 macro(DEP_ext_msvcregex_INC tgt)
 endmacro()
 
 macro(DEP_ext_msvcregex_LIB tgt)
+    if(TARGET libgnurx-msvc::libgnurx-msvc)
+        target_link_libraries(${tgt} PRIVATE libgnurx-msvc::libgnurx-msvc)
+    endif()
 endmacro()
 
 macro(DEP_ext_wcwidth tgt)
+    if(TARGET wcwidth-cjk::wcwidth-cjk)
+        target_link_libraries(${tgt} PUBLIC wcwidth-cjk::wcwidth-cjk)
+    endif()
 endmacro()
 
 macro(DEP_ext_wcwidth_INC tgt)
 endmacro()
 
 macro(DEP_ext_wcwidth_LIB tgt)
+    if(TARGET wcwidth-cjk::wcwidth-cjk)
+        target_link_libraries(${tgt} PRIVATE wcwidth-cjk::wcwidth-cjk)
+    endif()
 endmacro()
 
 macro(DEP_ext_wingetopt tgt)
+    if(TARGET wingetopt::wingetopt)
+        target_link_libraries(${tgt} PUBLIC wingetopt::wingetopt)
+    endif()
 endmacro()
 
 macro(DEP_ext_wingetopt_INC tgt)
 endmacro()
 
 macro(DEP_ext_wingetopt_LIB tgt)
+    if(TARGET wingetopt::wingetopt)
+        target_link_libraries(${tgt} PRIVATE wingetopt::wingetopt)
+    endif()
 endmacro()
 
 macro(DEP_ext_crashdump tgt)
+    if(TARGET crashdump::crashdump)
+        target_link_libraries(${tgt} PUBLIC crashdump::crashdump)
+    endif()
 endmacro()
 
 macro(DEP_ext_crashdump_INC tgt)
 endmacro()
 
 macro(DEP_ext_crashdump_LIB tgt)
+    if(TARGET crashdump::crashdump)
+        target_link_libraries(${tgt} PRIVATE crashdump::crashdump)
+    endif()
 endmacro()
 
 message(STATUS "Conan compatibility layer loaded")

@@ -77,9 +77,31 @@ do_conan_install() {
   local build_type=${TD_CONFIG,,}  # Convert to lowercase
   local preset="conan-${build_type}"
 
-  conan create conan/cppstub
-  conan create conan/fast-lzma2
-  conan create conan/avro-c
+  # Export local recipes (so `conan install .` can resolve them).
+  # We intentionally avoid `conan create` here to prevent rebuilding every time.
+  for recipe in \
+    conan/cppstub \
+    conan/fast-lzma2 \
+    conan/avro-c \
+    conan/tz \
+    conan/libdwarf \
+    conan/libdwarf-addr2line \
+    conan/libs3 \
+    conan/td-azure-sdk \
+    conan/mxml \
+    conan/apr \
+    conan/apr-util \
+    conan/cos-c-sdk \
+    conan/taosws \
+    conan/pthread-win32 \
+    conan/win-iconv \
+    conan/libgnurx-msvc \
+    conan/wcwidth-cjk \
+    conan/wingetopt \
+    conan/crashdump
+  do
+    conan export "$recipe"
+  done
 
   # Determine options based on build configuration
   local conan_options=""
