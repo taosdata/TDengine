@@ -731,9 +731,10 @@ _return:
   return code;
 }
 
-static int32_t buildBatchExchangeOperatorParamForVirtual(
-    SOperatorParam** ppRes, int32_t downstreamIdx, SArray* pTagList, uint64_t groupid, SHashObj* pBatchMaps,
-    STimeWindow window, EExchangeSourceType type, ENodeType srcOpType) {
+static int32_t buildBatchExchangeOperatorParamForVirtual(SOperatorParam** ppRes, int32_t downstreamIdx,
+                                                         SArray* pTagList, uint64_t groupid, SHashObj* pBatchMaps,
+                                                         STimeWindow window, EExchangeSourceType type,
+                                                         ENodeType srcOpType) {
   int32_t                       code = TSDB_CODE_SUCCESS;
   int32_t                       lino = 0;
   SOperatorParam*               pParam = NULL;
@@ -1291,7 +1292,6 @@ static int32_t buildMergeOperatorParamForTsScan(SDynQueryCtrlOperatorInfo* pInfo
   SOperatorParam*           pParam = NULL;
   SOperatorParam*           pExchangeParam = NULL;
   SVtbScanDynCtrlInfo*      pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
-  bool                      freeExchange = false;
 
   pParam = taosMemoryMalloc(sizeof(SOperatorParam));
   QUERY_CHECK_NULL(pParam, code, lino, _return, terrno)
@@ -1303,10 +1303,10 @@ static int32_t buildMergeOperatorParamForTsScan(SDynQueryCtrlOperatorInfo* pInfo
   QUERY_CHECK_NULL(pParam->value, code, lino, _return, terrno)
 
   for (int32_t i = 0; i < taosHashGetSize(pVtbScan->otbVgIdToOtbInfoArrayMap); i++) {
-    code = buildBatchExchangeOperatorParamForVirtual(
-        &pExchangeParam, i, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap,
-        (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_TS_SCAN,
-        QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN);
+    code = buildBatchExchangeOperatorParamForVirtual(&pExchangeParam, i, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap,
+                                                     (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN},
+                                                     EX_SRC_TYPE_VSTB_TS_SCAN,
+                                                     QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN);
     QUERY_CHECK_CODE(code, lino, _return);
     QUERY_CHECK_NULL(taosArrayPush(pParam->pChildren, &pExchangeParam), code, lino, _return, terrno)
     pExchangeParam = NULL;

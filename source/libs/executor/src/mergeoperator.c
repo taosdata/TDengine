@@ -67,31 +67,33 @@ static int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock);
 int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
   int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+
   code = pOperator->fpSet.getNextFn(pOperator, ppBlock);
-  if (code) {
-    qError("failed to get next data block from upstream, %s code:%s", __func__, tstrerror(code));
-  }
-  printDataBlock(*ppBlock, __func__, "got data block from upstream, %s", '1');
+  QUERY_CHECK_CODE(code, lino, _return);
+
   code = blockDataCheck(*ppBlock);
-  if (code) {
-    qError("failed to check data block got from upstream, %s code:%s", __func__, tstrerror(code));
-  }
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  return code;
+_return:
+  qError("%s failed to load next data block from upstream, %s line: %d, code:%s", __func__, GET_TASKID(pOperator->pTaskInfo),
+         lino, tstrerror(code));
   return code;
 }
 
 int32_t openSortMergeOperator(SOperatorInfo* pOperator) {
+  int32_t                     code = TSDB_CODE_SUCCESS;
+  int32_t                     lino = 0;
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*              pTaskInfo = pOperator->pTaskInfo;
   SSortMergeInfo*             pSortMergeInfo = &pInfo->sortMergeInfo;
-
-  int32_t numOfBufPage = pSortMergeInfo->sortBufSize / pSortMergeInfo->bufPageSize;
+  int32_t                     numOfBufPage = (int32_t)pSortMergeInfo->sortBufSize / pSortMergeInfo->bufPageSize;
 
   pSortMergeInfo->pSortHandle = NULL;
-  int32_t code = tsortCreateSortHandle(pSortMergeInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pSortMergeInfo->bufPageSize,
-                                       numOfBufPage, pSortMergeInfo->pInputBlock, pTaskInfo->id.str, 0, 0, 0, &pSortMergeInfo->pSortHandle);
-  if (code) {
-    return code;
-  }
+  code = tsortCreateSortHandle(pSortMergeInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pSortMergeInfo->bufPageSize,
+                               numOfBufPage, pSortMergeInfo->pInputBlock, pTaskInfo->id.str, 0, 0, 0, &pSortMergeInfo->pSortHandle);
+  QUERY_CHECK_CODE(code, lino, _return);
 
   tsortSetFetchRawDataFp(pSortMergeInfo->pSortHandle, sortMergeloadNextDataBlock, NULL, NULL);
   tsortSetCompareGroupId(pSortMergeInfo->pSortHandle, pInfo->groupMerge);
@@ -100,28 +102,31 @@ int32_t openSortMergeOperator(SOperatorInfo* pOperator) {
     SOperatorInfo* pDownstream = pOperator->pDownstream[i];
     if (pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
       code = pDownstream->fpSet._openFn(pDownstream);
-      if (code) {
-        return code;
+      QUERY_CHECK_CODE(code, lino, _return);
+      if (pOperator->pDownstreamGetParams[i]) {
+        pDownstream->pOperatorGetParam = pOperator->pDownstreamGetParams[i];
+        pOperator->pDownstreamGetParams[i] = NULL;
       }
-      pDownstream->pOperatorGetParam = pOperator->pDownstreamGetParams[i];
-      pOperator->pDownstreamGetParams[i] = NULL;
     }
 
     SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
-    if (ps == NULL) {
-      return terrno;
-    }
+    QUERY_CHECK_NULL(ps, code, lino, _return, terrno);
 
     ps->param = pDownstream;
     ps->onlyRef = true;
 
     code = tsortAddSource(pSortMergeInfo->pSortHandle, ps);
-    if (code) {
-      return code;
-    }
+    QUERY_CHECK_CODE(code, lino, _return);
   }
 
-  return tsortOpen(pSortMergeInfo->pSortHandle);
+  code = tsortOpen(pSortMergeInfo->pSortHandle);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+_return:
+  if (code) {
+    qError("%s failed to open sort merge operator, %s at line %d, code:%s", __func__, GET_TASKID(pTaskInfo), lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t doGetSortedBlockData(SMultiwayMergeOperatorInfo* pInfo, SSortHandle* pHandle, int32_t capacity,
