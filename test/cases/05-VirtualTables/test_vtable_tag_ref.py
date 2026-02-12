@@ -763,6 +763,68 @@ class TestVtableTagRef:
 
         tdLog.info("tag reference error cases test passed")
 
+    def test_tag_ref_must_reference_tag_column(self):
+        """Create: tag ref must point to actual tag column, not data column
+
+        Verify that when a tag reference points to a column that exists
+        but is not a tag column, the error message clearly indicates
+        that the referenced column is not a tag column.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, create, tag_ref, negative
+
+        Jira: None
+
+        History:
+            - 2026-2-12 Created
+
+        """
+        tdLog.info("=== Test: tag ref must point to tag column, not data column ===")
+
+        tdSql.execute(f"use {DB_NAME};")
+
+        err = tdSql.error("CREATE VTABLE `vctb_not_tag_0` ("
+                    "int_col FROM org_child_0.int_col"
+                    ") USING vstb TAGS ("
+                    "int_tag FROM org_child_0.int_col, "
+                    "false, 1.0, 2.0, 'nchar', 'bin')")
+        assert "not a tag column" in err, f"Expected 'not a tag column' in error, got: {err}"
+
+        err = tdSql.error("CREATE VTABLE `vctb_not_tag_1` ("
+                    "int_col FROM org_child_0.int_col"
+                    ") USING vstb TAGS ("
+                    "int_tag FROM org_child_0.ts, "
+                    "false, 1.0, 2.0, 'nchar', 'bin')")
+        assert "not a tag column" in err, f"Expected 'not a tag column' in error, got: {err}"
+
+        err = tdSql.error("CREATE VTABLE `vctb_not_tag_2` ("
+                    "int_col FROM org_child_0.int_col"
+                    ") USING vstb TAGS ("
+                    "org_child_0.bigint_col, "
+                    "false, 1.0, 2.0, 'nchar', 'bin')")
+        assert "not a tag column" in err, f"Expected 'not a tag column' in error, got: {err}"
+
+        err = tdSql.error("CREATE VTABLE `vctb_not_tag_3` ("
+                    "int_col FROM org_child_0.int_col"
+                    ") USING vstb TAGS ("
+                    "int_tag FROM org_child_0.nonexistent_col, "
+                    "false, 1.0, 2.0, 'nchar', 'bin')")
+        assert "non-existent tag" in err, f"Expected 'non-existent tag' in error, got: {err}"
+
+        err = tdSql.error("CREATE VTABLE `vctb_not_tag_4` ("
+                    "int_col FROM org_child_0.int_col"
+                    ") USING vstb TAGS ("
+                    "int_tag FROM org_child_0.int_col, "
+                    "bool_tag FROM org_child_0.bigint_col, "
+                    "1.0, 2.0, 'nchar', 'bin')")
+        assert "not a tag column" in err, f"Expected 'not a tag column' in error, got: {err}"
+
+        tdLog.info("tag ref must point to tag column test passed")
+
     # =========================================================================
     # 11. Query data from virtual child tables with tag refs
     # =========================================================================

@@ -23515,9 +23515,16 @@ static int32_t checkTagRef(STranslateContext* pCxt, char* tagName, char* pRefDbN
 
   const SSchema* pRefTag = getTagSchema(pRefTableMeta, pRefColName);
   if (NULL == pRefTag) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-                                         "virtual table's tag:\"%s\"'s reference tag:\"%s\" not exist",
-                                         tagName, pRefColName));
+    const SSchema* pRefCol = getNormalColSchema(pRefTableMeta, pRefColName);
+    if (pRefCol != NULL) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
+                                           "virtual table's tag:\"%s\" references column:\"%s\" which is not a tag column",
+                                           tagName, pRefColName));
+    } else {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
+                                           "virtual table's tag:\"%s\" references non-existent tag:\"%s\"",
+                                           tagName, pRefColName));
+    }
   }
 
   if (pRefTag->type != type.type || pRefTag->bytes != type.bytes) {
