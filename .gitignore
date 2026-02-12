@@ -73,3 +73,4 @@ test/screenlog*
 test/output.tmp
 
 CMakeUserPresets.json
+.cursor

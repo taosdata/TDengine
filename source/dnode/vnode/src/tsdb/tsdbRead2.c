@@ -2259,6 +2259,7 @@ static int32_t buildDataBlockFromBuf(STsdbReader* pReader, STableBlockScanInfo* 
             pReader->idStr);
 
   pReader->cost.buildmemBlock += el;
+  pReader->cost.memBlocks++;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -5932,17 +5933,17 @@ void tsdbReaderClose2(void* ptr) {
   (void)tsdbUninitReaderLock(pReader);
 
   tsdbDebug(
-      "%p :io-cost summary: head-file:%" PRIu64 ", head-file time:%.2f ms, SMA:%" PRId64
-      " SMA-time:%.2f ms, fileBlocks:%" PRId64
-      ", fileBlocks-load-time:%.2f ms, "
-      "build in-memory-block-time:%.2f ms, sttBlocks:%" PRId64 ", sttBlocks-time:%.2f ms, sttStatisBlock:%" PRId64
-      ", stt-statis-Block-time:%.2f ms, composed-blocks:%" PRId64
-      ", composed-blocks-time:%.2fms, STableBlockScanInfo size:%.2f Kb, createTime:%.2f ms,createSkylineIterTime:%.2f "
-      "ms, initSttBlockReader:%.2fms, %s",
-      pReader, pCost->headFileLoad, pCost->headFileLoadTime, pCost->smaDataLoad, pCost->smaLoadTime, pCost->numOfBlocks,
-      pCost->blockLoadTime, pCost->buildmemBlock, pCost->sttCost.loadBlocks, pCost->sttCost.blockElapsedTime,
-      pCost->sttCost.loadStatisBlocks, pCost->sttCost.statisElapsedTime, pCost->composedBlocks,
-      pCost->buildComposedBlockTime, numOfTables * sizeof(STableBlockScanInfo) / 1000.0, pCost->createScanInfoList,
+      "%p :io-cost summary: head-file:%" PRIu64 ", head-file time:%.3f ms, "
+      "SMA:%" PRId64 ", SMA-time:%.3f ms, fileBlocks:%" PRId64 ", fileBlocks-load-time:%.3f ms, "
+      "in-memory-blocks:%" PRId64 ", build in-memory-block-time:%.3f ms, sttBlocks:%" PRId64 ", sttBlocks-time:%.3f ms, "
+      "sttStatisBlock:%" PRId64 ", stt-statis-Block-time:%.3f ms, composed-blocks:%" PRId64 ", composed-blocks-time:%.3fms, "
+      "STableBlockScanInfo size:%.3f Kb, createTime:%.3f ms,createSkylineIterTime:%.3f "
+      "ms, initSttBlockReader:%.3fms, %s",
+      pReader, pCost->headFileLoad, pCost->headFileLoadTime,
+      pCost->smaDataLoad, pCost->smaLoadTime, pCost->numOfBlocks, pCost->blockLoadTime,
+      pCost->memBlocks, pCost->buildmemBlock, pCost->sttCost.loadBlocks, pCost->sttCost.blockElapsedTime,
+      pCost->sttCost.loadStatisBlocks, pCost->sttCost.statisElapsedTime, pCost->composedBlocks, pCost->buildComposedBlockTime,
+      numOfTables * sizeof(STableBlockScanInfo) / 1000.0, pCost->createScanInfoList,
       pCost->createSkylineIterTime, pCost->initSttBlockReader, pReader->idStr);
 
   taosMemoryFree(pReader->idStr);
@@ -7484,4 +7485,29 @@ _end:
     tsdbError("%s failed at %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+/**
+  @brief Set the execution information from the reader to table scan operator
+  @param pReader the reader to get the execution information
+  @param pExecInfo the target execution information to set
+*/
+void tsdbReaderSetExecInfo(const STsdbReader* pReader, STableScanAnalyzeInfo* pExecInfo) {
+  if (pReader == NULL) {
+    return;
+  }
+
+  pExecInfo->fileLoadBlocks  += pReader->cost.numOfBlocks;
+  pExecInfo->fileLoadElapsed += pReader->cost.blockLoadTime;
+  pExecInfo->sttLoadBlocks   += pReader->cost.sttCost.loadBlocks;
+  pExecInfo->sttLoadElapsed  += pReader->cost.sttCost.blockElapsedTime;
+  pExecInfo->memLoadBlocks   += pReader->cost.memBlocks;
+  pExecInfo->memLoadElapsed  += pReader->cost.buildmemBlock;
+  pExecInfo->smaLoadBlocks   += pReader->cost.smaDataLoad;
+  pExecInfo->smaLoadElapsed  += pReader->cost.smaLoadTime;
+  pExecInfo->composedBlocks  += pReader->cost.composedBlocks;
+  pExecInfo->composedElapsed += pReader->cost.buildComposedBlockTime;
+
+  tsdbReaderSetExecInfo(pReader->innerReader[0], pExecInfo);
+  tsdbReaderSetExecInfo(pReader->innerReader[1], pExecInfo);
 }
