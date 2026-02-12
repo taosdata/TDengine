@@ -1,12 +1,15 @@
 cmake_minimum_required(VERSION 3.16)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+
 project(
   TDengine
   VERSION 3.0
   DESCRIPTION
     "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
 )
+
+
 
 # ref: https://cmake.org/cmake/help/latest/command/cmake_policy.html
 #     `CMake keeps policy settings on a stack`
@@ -74,3 +77,4 @@ message(STATUS "TAOSADAPTER_GIT_TAG_SHALLOW:${TAOSADAPTER_GIT_TAG_SHALLOW}")
 
 message(STATUS "TAOSWS_GIT_TAG_NAME:${TAOSWS_GIT_TAG_NAME}")
 
+ 
