@@ -80,13 +80,17 @@
             <span v-dompurify-html="$t('communityTip')"></span>
           </template>
           <ul>
-            <li v-for="item in topicList" :key="item">
-              <label class="db-label">{{ item }}</label>
-              <el-checkbox-group v-model="selectedTopicPrivileges[item]" class="db-pri">
-                <el-checkbox :disabled="$IS_COMMUNITY" label="Subscribe" value="Subscribe"
-                  >{{ $t('subscribe') }}
+            <li v-for="{ topic_name, db_name } in topicList" :key="topic_name">
+              <label class="db-label">{{ topic_name }}</label>
+              <div class="db-pri">
+                <el-checkbox
+                  :disabled="$IS_COMMUNITY"
+                  :model-value="selectedTopicPrivileges[topic_name]?.length > 0"
+                  @change="(val: string | number | boolean) => onTopicChange(topic_name, db_name, !!val)"
+                >
+                  {{ $t('subscribe') }}
                 </el-checkbox>
-              </el-checkbox-group>
+              </div>
             </li>
           </ul>
         </el-tooltip>
@@ -185,11 +189,12 @@ const rules = reactive<FormRules<typeof ruleForm>>({
   ]
 });
 const databaseList = reactive<string[]>([]);
-const topicList = reactive<string[]>([]);
+const topicList = reactive<{ db_name: string; topic_name: string }[]>([]);
 const prevDatabasePrivileges: Record<string, any> = reactive({});
-let prevTopicPrivileges: Record<string, any> = reactive({});
+const prevTopicPrivileges: Record<string, any> = reactive({});
 const selectedDatabasePrivileges: Record<string, any> = reactive({});
 const selectedTopicPrivileges: Record<string, any> = reactive({});
+
 const loading: Ref<boolean> = ref(true);
 const confirmStatus: Ref<boolean> = ref(false);
 const ruleFormOld = ref<RuleForm>({
@@ -205,6 +210,15 @@ const verLessThan3400 = compareVersion(tdVersion, "<3.4.0.0");
 
 const READ_PRIV = verLessThan3400 ? 'Read' : 'SELECT';
 const WRITE_PRIV = verLessThan3400 ? 'Write' : 'INSERT';
+const SUBSCRIBE_PRIV = verLessThan3400 ? 'Subscribe' : 'SUBSCRIBE';
+
+function onTopicChange(topicName: string, dbName: string, checked: boolean) {
+  if (checked) {
+    selectedTopicPrivileges[topicName] = [{ priv_type: SUBSCRIBE_PRIV, database: dbName }];
+  } else {
+    selectedTopicPrivileges[topicName] = [];
+  }
+}
 
 watch(
   () => props.status,
@@ -265,7 +279,7 @@ async function getDatabaseList() {
 
 async function getTopicList() {
   try {
-    const res = await sendSQLReq(`show topics;`);
+    const res = await sendSQLReq(`select db_name, topic_name from information_schema.ins_topics;`);
     const topicArr = res.data.map((data: { [x: string]: any }) => {
       return Object.fromEntries(
         res.column_meta.map((item: any[], index: string | number) => {
@@ -274,8 +288,8 @@ async function getTopicList() {
       );
     });
     topicList.splice(0, topicList.length);
-    topicArr.forEach((item: { topic_name: string }) => {
-      topicList.push(item.topic_name);
+    topicArr.forEach((item: { db_name: string; topic_name: string }) => {
+      topicList.push({ db_name: item.db_name, topic_name: item.topic_name });
       selectedTopicPrivileges[item.topic_name] = [];
     });
   } catch (error) {
@@ -319,13 +333,15 @@ async function getUserPrivileges() {
     );
     res.data.map((data: string[]) => {
       const dbName = verLessThan3400 ? data[2] : data[3];
-      const pri = verLessThan3400 ? data[1].slice(0, 1).toUpperCase() + data[1].slice(1) : data[1].toUpperCase();
-      if (selectedDatabasePrivileges[dbName] === undefined) {
-        selectedDatabasePrivileges[dbName] = [pri];
-        prevDatabasePrivileges[dbName] = [pri];
-      } else {
-        selectedDatabasePrivileges[dbName].push(pri);
-        prevDatabasePrivileges[dbName] = selectedDatabasePrivileges[dbName];
+      if (dbName) {
+        const pri = verLessThan3400 ? data[1].slice(0, 1).toUpperCase() + data[1].slice(1) : data[1].toUpperCase();
+        if (selectedDatabasePrivileges[dbName] === undefined) {
+          selectedDatabasePrivileges[dbName] = [pri];
+          prevDatabasePrivileges[dbName] = [pri];
+        } else {
+          selectedDatabasePrivileges[dbName].push(pri);
+          prevDatabasePrivileges[dbName] = selectedDatabasePrivileges[dbName];
+        }
       }
     });
   } catch (error) {
@@ -340,10 +356,16 @@ async function getUserTopics() {
        from information_schema.ins_user_privileges
        where user_name = '${ruleForm.user}' and ${privFilter}`);
     loading.value = false;
-    res.data.map((data: (string | number)[]) => {
-      const database = verLessThan3400 ? data[2] : data[3];
-      selectedTopicPrivileges[database] = ['Subscribe'];
-      prevTopicPrivileges = selectedTopicPrivileges;
+    res.data.map((data: (string)[]) => {
+      const topicName = verLessThan3400 ? data[3] : data[4];
+      const dbName = verLessThan3400 ? data[2] : data[3];
+      if (selectedTopicPrivileges[topicName] === undefined) {
+        selectedTopicPrivileges[topicName] = [{ priv_type: SUBSCRIBE_PRIV, database: dbName }];
+        prevTopicPrivileges[topicName] = [{ priv_type: SUBSCRIBE_PRIV, database: dbName }];
+      } else {  
+        selectedTopicPrivileges[topicName] = [{ priv_type: SUBSCRIBE_PRIV, database: dbName }];
+        prevTopicPrivileges[topicName] = selectedTopicPrivileges[topicName];
+      }
     });
   } catch (error) {
     console.log(error);
@@ -378,8 +400,8 @@ async function grantPrivilege(privileges: string, dbName: string, userName: stri
     });
 }
 
-async function grantTopic(topicName: string, userName: string) {
-  const sql = verLessThan3400 ? `GRANT subscribe ON \`${topicName}\` to \`${userName}\`` : `GRANT subscribe ON topic \`${topicName}\` to \`${userName}\``;
+async function grantTopic(topicName: string, userName: string, databaseName: string) {
+  const sql = verLessThan3400 ? `GRANT subscribe ON \`${topicName}\` to \`${userName}\`` : `GRANT subscribe ON topic \`${databaseName}\`.\`${topicName}\` to \`${userName}\``;
   return await sendSQLReq(sql)
     .then((res: any) => {
       return Promise.resolve(res);
@@ -409,8 +431,8 @@ async function cancelPrivilege(privilege: string, dbName: string) {
     });
 }
 
-async function cancelTopic(topicName: string) {
-  const sql = verLessThan3400 ? `REVOKE subscribe ON \`${topicName}\` FROM \`${props.user}\`;` : `REVOKE subscribe ON topic \`${topicName}\` FROM \`${props.user}\`;`;
+async function cancelTopic(topicName: string, databaseName: string) {
+  const sql = verLessThan3400 ? `REVOKE subscribe ON \`${topicName}\` FROM \`${props.user}\`;` : `REVOKE subscribe ON topic \`${databaseName}\`.\`${topicName}\` FROM \`${props.user}\`;`;
   return await sendSQLReq(sql)
     .then((res: any) => {
       return Promise.resolve(res);
@@ -433,21 +455,18 @@ function createUser(formEl: FormInstance | undefined) {
         return sendSQLReq(
           `CREATE USER \`${ruleForm.user}\` PASS '${ruleForm.pwd}' SYSINFO ${ruleForm.sysinfo} CREATEDB ${ruleForm.createdb} ${hostStr};`
         )
-          .then(() => {
+          .then(async () => {
             for (const key in selectedDatabasePrivileges) {
               if (selectedDatabasePrivileges[key].length > 0) {
                 const privileges = selectedDatabasePrivileges[key];
-                privileges.forEach(async (item: string) => {
+                for (const item of privileges) {
                   await grantPrivilege(item, key, ruleForm.user);
-                });
+                }
               }
             }
-            for (const key in selectedTopicPrivileges) {
-              if (selectedTopicPrivileges[key].length > 0) {
-                const privileges = selectedTopicPrivileges[key];
-                privileges.forEach(async () => {
-                  await grantTopic(key, ruleForm.user);
-                });
+            for (const topicName in selectedTopicPrivileges) {
+              if (selectedTopicPrivileges[topicName].length > 0) {
+                await grantTopic(topicName, ruleForm.user, selectedTopicPrivileges[topicName][0].database);
               }
             }
             ElMessage.success(t('taosuser.createNewUserSucTip'));
@@ -522,19 +541,19 @@ function editUser(formEl: FormInstance | undefined) {
           }
         }
 
-        for (const key in prevTopicPrivileges) {
-          if (selectedTopicPrivileges[key] === undefined) {
-            await cancelTopic(key);
+        for (const topicName in prevTopicPrivileges) {
+          if (selectedTopicPrivileges[topicName] === undefined) {
+            await cancelTopic(topicName, prevTopicPrivileges[topicName][0].database);
           } else {
-            if (selectedTopicPrivileges[key].indexOf('Subscribe') === -1) {
-              await cancelTopic(key);
+            if (selectedTopicPrivileges[topicName].length === 0) {
+              await cancelTopic(topicName, prevTopicPrivileges[topicName][0].database);
             }
           }
         }
 
-        for (const key in selectedTopicPrivileges) {
-          if (selectedTopicPrivileges[key].length > 0) {
-            await grantTopic(key, ruleForm.user);
+        for (const topicName in selectedTopicPrivileges) {
+          if (selectedTopicPrivileges[topicName].length > 0) {
+            await grantTopic(topicName, ruleForm.user, selectedTopicPrivileges[topicName][0].database);
           }
         }
         ElMessage.success(t('operateSucc'));

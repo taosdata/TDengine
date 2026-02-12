@@ -70,6 +70,7 @@
 
 <script setup lang="ts">
 import { sendSQLReq } from '@/api/explorer';
+import { compareVersion, getTDVersion } from '@/utils';
 import { FormInstance, FormRules } from 'element-plus';
 import { useStore } from 'vuex';
 const { $IS_COMMUNITY } = inject('globalCustomProperties') as GlobalCustomProperties;
@@ -104,6 +105,9 @@ const rules = reactive<FormRules>({
   ]
 });
 let currentUser = reactive<Recordable>({});
+
+const tdVersion = getTDVersion();
+const verLessThan3400 = compareVersion(tdVersion, "<3.4.0.0");
 
 watch(
   () => props.topicId,
@@ -181,8 +185,10 @@ async function getUserData() {
         })
       );
     });
+    const priv_type = verLessThan3400 ? 'privilege' : 'priv_type';
+    const subscribepriv = verLessThan3400 ? 'subscribe' : 'SUBSCRIBE';
     const res = await sendSQLReq(
-      `select user_name from information_schema.ins_user_privileges where privilege in ('all', 'subscribe') and db_name in ('${props.topicId}', 'all');`
+      `select user_name from information_schema.ins_user_privileges where ${priv_type} in ('all', '${subscribepriv}') and table_name in ('${props.topicId}', 'all');`
     );
     const privilegeMap = res.data.map(data => {
       return Object.fromEntries(
@@ -201,10 +207,12 @@ async function getUserData() {
       return privilegeMap.every(data => data.user_name != item.name);
     });
     let rootUserIndex = permissionMap.findIndex(item => item.user_name === 'root');
-    const rooUser = permissionMap[rootUserIndex];
-    rooUser.user_name = '*' + rooUser.user_name;
-    permissionMap.unshift(rooUser);
-    permissionMap.splice(++rootUserIndex, 1);
+    if (rootUserIndex !== -1) {
+      const rooUser = permissionMap.splice(rootUserIndex, 1)[0];
+      rooUser.user_name = '*' + rooUser.user_name;
+      permissionMap.unshift(rooUser);
+      permissionMap.splice(++rootUserIndex, 1);
+    }
     subscriptionList.value = permissionMap;
     userList.value = noSubscriptionList;
   } catch (error) {
