@@ -1,7 +1,6 @@
 from conan import ConanFile
 from conan.errors import ConanInvalidConfiguration
 from conan.tools.files import copy, get
-from conan.tools.gnu import Autotools, AutotoolsToolchain
 import os
 
 
@@ -17,12 +16,14 @@ class FastLzma2Conan(ConanFile):
         """Return the directory containing the upstream Makefile.
 
         Depending on how the sources are exported, they might live in:
-        - <source_folder>/fast-lzma2 (expected)
-        - <source_folder> (flattened export)
+        - <source_folder>/fast-lzma2
+        - <source_folder>
+        - <source_folder>/fast-lzma2/fast-lzma2 (observed in some Conan export/copy layouts)
         """
         candidates = [
             os.path.join(self.source_folder, "fast-lzma2"),
             self.source_folder,
+            os.path.join(self.source_folder, "fast-lzma2", "fast-lzma2"),
         ]
         for d in candidates:
             if os.path.isfile(os.path.join(d, "Makefile")):
@@ -47,10 +48,14 @@ class FastLzma2Conan(ConanFile):
         # NOTE:
         # - Conan's pattern matching can miss root-level files like "Makefile" when using only "**/*".
         # - Exclude .git to avoid exporting VCS metadata.
+        #
+        # Keep export layout flat (export_sources_folder/Makefile, etc.). This avoids an extra
+        # directory layer that can appear in Conan's source→build copy step on CI.
         src_dir = os.path.join(self.recipe_folder, "fast-lzma2")
-        dst_dir = os.path.join(self.export_sources_folder, "fast-lzma2")
+        dst_dir = self.export_sources_folder
         excludes = [".git/*", ".git/**"]
 
+        copy(self, "Makefile", src=src_dir, dst=dst_dir, keep_path=False, excludes=excludes)
         copy(self, "*", src=src_dir, dst=dst_dir, keep_path=True, excludes=excludes)
         copy(self, "**/*", src=src_dir, dst=dst_dir, keep_path=True, excludes=excludes)
 
@@ -66,10 +71,21 @@ class FastLzma2Conan(ConanFile):
         self.settings.rm_safe("compiler.cppstd")
 
     def source(self):
-        # If source code is not provided via export_sources, download from GitHub
-        # get(self, f"https://github.com/conor42/fast-lzma2/archive/v{self.version}.tar.gz",
-        #     strip_root=True)
-        pass
+        # Prefer bundled sources via export_sources(); fallback to downloading upstream tarball
+        # if sources are missing (e.g. mis-exported recipe in CI cache).
+        candidates = [
+            os.path.join(self.source_folder, "Makefile"),
+            os.path.join(self.source_folder, "fast-lzma2", "Makefile"),
+            os.path.join(self.source_folder, "fast-lzma2", "fast-lzma2", "Makefile"),
+        ]
+        if any(os.path.isfile(p) for p in candidates):
+            return
+
+        get(
+            self,
+            f"https://github.com/conor42/fast-lzma2/archive/v{self.version}.tar.gz",
+            strip_root=True,
+        )
 
     def build(self):
         source_folder = self._src_dir()
