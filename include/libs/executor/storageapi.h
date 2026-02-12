@@ -225,6 +225,7 @@ typedef struct TsdReader {
   void     (*tsdDestroyFirstLastTsIter)(void *pIter);
 
   int32_t (*tsdReaderStepDone)(void *pReader, int64_t notifyTs);
+  void (*tsdReaderSetExecInfo)(const void *pReader, STableScanAnalyzeInfo* pExecInfo);
 } TsdReader;
 
 typedef struct SStoreCacheReader {
