@@ -3801,14 +3801,15 @@ _err:
 
 SNode* createAlterTagValueNode(SAstCreateContext* pCtx, const SToken* pTagName, SNode* pVal) {
   CHECK_PARSER_STATUS(pCtx);
-  SAlterTagValueNode* pNode = NULL;
-  pCtx->errCode = nodesMakeNode(QUERY_NODE_ALTER_TAG_VALUE, (SNode**)&pNode);
+  SUpdateTagValueNode* pNode = NULL;
+  pCtx->errCode = nodesMakeNode(QUERY_NODE_UPDATE_TAG_VALUE, (SNode**)&pNode);
   CHECK_MAKE_NODE(pNode);
   COPY_STRING_FORM_ID_TOKEN(pNode->tagName, pTagName);
   pNode->pVal = (SValueNode*)pVal;
   return (SNode*)pNode;
 
 _err:
+  nodesDestroyNode((SNode*)pNode);
   return NULL;
 }
 
@@ -3818,8 +3819,8 @@ _err:
 // accordingly.
 SNode* createAlterTagValueNodeWithExpression(SAstCreateContext* pCxt, const SToken* column, const SToken* pattern, const SToken* replacement) {
   CHECK_PARSER_STATUS(pCxt);
-  SAlterTagValueNode* pNode = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TAG_VALUE, (SNode**)&pNode);
+  SUpdateTagValueNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_UPDATE_TAG_VALUE, (SNode**)&pNode);
   CHECK_MAKE_NODE(pNode);
   COPY_STRING_FORM_ID_TOKEN(pNode->tagName, column);
 
@@ -3844,48 +3845,57 @@ _err:
 
 
 
-SNode* createAlterSingleTableClause(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pList) {
+SNode* createAlterTableUpdateTagValClause(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pTagList) {
   CHECK_PARSER_STATUS(pCxt);
-  SAlterTableStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
+  SAlterTableUpdateTagValClause* pClause = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE, (SNode**)&pClause);
 
-  CHECK_MAKE_NODE(pStmt);
-  pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL;
-  pStmt->pList = pList;
-  return createAlterTableStmtFinalize(pRealTable, pStmt);
+  CHECK_MAKE_NODE(pClause);
+  pClause->pTagList = pTagList;
+
+  tstrncpy(pClause->dbName, ((SRealTableNode*)pRealTable)->table.dbName, sizeof(pClause->dbName));
+  tstrncpy(pClause->tableName, ((SRealTableNode*)pRealTable)->table.tableName, sizeof(pClause->tableName));
+  nodesDestroyNode(pRealTable);
+
+  return (SNode*)pClause;
 
 _err:
+  nodesDestroyNode((SNode*)pClause);
   return NULL;
 }
 
 
 
-SNode* createAlterMultiTableStmt(SAstCreateContext* pCxt, SNodeList* pList) {
+SNode* createAlterMultiTableUpdateTagValStmt(SAstCreateContext* pCxt, SNodeList* pTableList) {
   CHECK_PARSER_STATUS(pCxt);
   SAlterTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
 
   CHECK_MAKE_NODE(pStmt);
   pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL;
-  pStmt->pList = pList;
+  pStmt->pList = pTableList;
   return (SNode*)pStmt;
+
 _err:
+  nodesDestroyNode((SNode*)pStmt);
   return NULL;
 }
 
 
 
-SNode* createAlterChildTableStmt(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* tags, SNode* where) {
+SNode* createAlterChildTableUpdateTagValStmt(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pTagList, SNode* pWhere) {
   CHECK_PARSER_STATUS(pCxt);
   SAlterTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
 
   CHECK_MAKE_NODE(pStmt);
   pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL;
-  pStmt->pList = tags;
-  pStmt->pWhere = where;
+  pStmt->pList = pTagList;
+  pStmt->pWhere = pWhere;
   return createAlterTableStmtFinalize(pRealTable, pStmt);
+
 _err:
+  nodesDestroyNode((SNode*)pStmt);
   return NULL;
 }
 

@@ -339,9 +339,9 @@ SNode* createAlterTableAlterColRef(SAstCreateContext* pCxt, SNode* pRealTable, i
                                    SNode* pRef);
 SNode* createAlterTableRemoveColRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
                                     const SToken* pLiteral);
-SNode* createAlterSingleTableClause(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pList);
-SNode* createAlterMultiTableStmt(SAstCreateContext* pCxt, SNodeList* pAlterTableList);
-SNode* createAlterChildTableStmt(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* tags, SNode* where);
+SNode* createAlterTableUpdateTagValClause(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pTagList);
+SNode* createAlterMultiTableUpdateTagValStmt(SAstCreateContext* pCxt, SNodeList* pTableList);
+SNode* createAlterChildTableUpdateTagValStmt(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pTagList, SNode* pWhere);
 SNode* setAlterSuperTableType(SNode* pStmt);
 SNode* setAlterVirtualTableType(SNode* pStmt);
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
