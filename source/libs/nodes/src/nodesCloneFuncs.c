@@ -560,6 +560,7 @@ static int32_t updateTagValueNodeCopy(const SUpdateTagValueNode* pSrc, SUpdateTa
   if (pSrc->replacement != NULL) {
     pDst->replacement = taosStrdup(pSrc->replacement);
     if (NULL == pDst->replacement) {
+      taosMemoryFreeClear(pDst->regexp);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
