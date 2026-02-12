@@ -9217,7 +9217,7 @@ static int32_t vstableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   // create dyn window node, which is the top node of the new plan
   PLAN_ERR_JRET(nodesCloneNode((SNode*)pDynVstbScan, (SNode**)&pDynWindowNode));
   nodesDestroyList(pDynWindowNode->node.pChildren);
-  clearChildList((SLogicNode*)pDynWindowNode);
+  pDynWindowNode->node.pChildren = NULL;
   pDynWindowNode->node.pParent = NULL;
   pDynWindowNode->vtbWindow.wstartSlotId = -1;
   pDynWindowNode->vtbWindow.wendSlotId = -1;
@@ -9244,6 +9244,7 @@ static int32_t vstableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
 
       PLAN_ERR_JRET(createMergeSortNodeForTsScan(pScanNode, (SNode*)pNewWindow->pTsEnd, &pMergeSort));
       clearChildList((SLogicNode*)pWinScan);
+      nodesDestroyNode((SNode*)pVirtualScanNode);
       PLAN_ERR_JRET(appendNewChild((SLogicNode*)pWinScan, (SLogicNode*)pMergeSort));
       PLAN_ERR_JRET(appendNewChild((SLogicNode*)pWinScan, (SLogicNode*)pSysScan));
       break;
@@ -9277,6 +9278,7 @@ static int32_t vstableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
 
   clearChildList((SLogicNode*)pDynVstbScan);
   clearChildList((SLogicNode*)pVirtualScanNode);
+  nodesDestroyNode((SNode*)pVirtualScanNode);
   clearChildList((SLogicNode*)pNewWindow);
 
   nodesDestroyList(pDynWindowNode->node.pTargets);
