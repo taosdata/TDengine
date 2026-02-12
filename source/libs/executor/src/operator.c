@@ -366,7 +366,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
           qError("failed to createScanTableListInfo, code:%s, %s", tstrerror(code), idstr);
           return code;
         }
-        
+
         code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
         if (code) {
           pTaskInfo->code = code;
@@ -374,7 +374,6 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
           return code;
         }
       }
-
 
       code = createTableMergeScanOperatorInfo(pTableScanNode, pHandle, pTableListInfo, pTaskInfo, &pOperator);
       if (NULL == pOperator || code != 0) {

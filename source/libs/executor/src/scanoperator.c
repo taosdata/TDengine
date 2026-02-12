@@ -4752,7 +4752,7 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   } else {
     (*ppRes) = pBlock;
-    printDataBlock(pBlock, __func__ , "mergescan result", '1');
+    printDataBlock(pBlock, __func__, "mergescan result", '1');
   }
 
   return code;
@@ -5311,7 +5311,8 @@ static int32_t keepTsOnlyForQueryTableCond(SQueryTableDataCond* pCond) {
   int32_t*     pOldSlotList = NULL;
 
   QUERY_CHECK_NULL(pCond, code, lino, _return, TSDB_CODE_INVALID_PARA);
-  QUERY_CHECK_CONDITION(pCond->colList != NULL && pCond->numOfCols > 0, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(pCond->colList != NULL && pCond->numOfCols > 0, code, lino, _return,
+                        TSDB_CODE_INVALID_PARA);
 
   int32_t tsIdx = -1;
   for (int32_t i = 0; i < pCond->numOfCols; ++i) {
@@ -5353,7 +5354,6 @@ _return:
   }
   return code;
 }
-
 
 int32_t doTableMergeScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {

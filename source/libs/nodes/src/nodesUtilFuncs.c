@@ -2557,7 +2557,8 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL: {
       SDynQueryCtrlPhysiNode* pPhyNode = (SDynQueryCtrlPhysiNode*)pNode;
-      if (pPhyNode->qType == DYN_QTYPE_VTB_SCAN || pPhyNode->qType == DYN_QTYPE_VTB_TS_SCAN || pPhyNode->qType == DYN_QTYPE_VTB_AGG || pPhyNode->qType == DYN_QTYPE_VTB_WINDOW) {
+      if (pPhyNode->qType == DYN_QTYPE_VTB_SCAN || pPhyNode->qType == DYN_QTYPE_VTB_TS_SCAN ||
+          pPhyNode->qType == DYN_QTYPE_VTB_AGG || pPhyNode->qType == DYN_QTYPE_VTB_WINDOW) {
         nodesDestroyList(pPhyNode->vtbScan.pScanCols);
         nodesDestroyList(pPhyNode->vtbScan.pOrgVgIds);
       }

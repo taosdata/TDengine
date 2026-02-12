@@ -1309,7 +1309,10 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       }
       case EX_SRC_TYPE_VSTB_TS_SCAN: {
         if (pDataInfo->batchOrgTbInfo) {
-          code = buildTableScanOperatorParamBatchInfo(&req.pOpParam, pDataInfo->groupid, pDataInfo->pSrcUidList, QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN, pDataInfo->batchOrgTbInfo, pDataInfo->tagList, pDataInfo->tableSeq, &pDataInfo->window, pDataInfo->isNewParam);
+          code = buildTableScanOperatorParamBatchInfo(
+              &req.pOpParam, pDataInfo->groupid, pDataInfo->pSrcUidList, QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN,
+              pDataInfo->batchOrgTbInfo, pDataInfo->tagList, pDataInfo->tableSeq, &pDataInfo->window,
+              pDataInfo->isNewParam);
           if (TSDB_CODE_SUCCESS != code) {
             pTaskInfo->code = code;
             taosMemoryFree(pWrapper);
@@ -1994,7 +1997,8 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator,
       pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pBasicParam->vgId, sizeof(pBasicParam->vgId));
       QUERY_CHECK_NULL(pIdx, code, lino, _return, TSDB_CODE_INVALID_PARA);
     } else if (pBasicParam->type == EX_SRC_TYPE_VSTB_TS_SCAN) {
-      qDebug("addSingleExchangeSource found no existing source for vgId: %d, but it's VSTB_TS_SCAN, skip it", pBasicParam->vgId);
+      qDebug("addSingleExchangeSource found no existing source for vgId: %d, but it's VSTB_TS_SCAN, skip it",
+             pBasicParam->vgId);
       return TSDB_CODE_SUCCESS;
     } else {
       qError("No exchange source for vgId: %d", pBasicParam->vgId);

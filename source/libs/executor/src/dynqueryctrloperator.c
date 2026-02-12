@@ -731,7 +731,9 @@ _return:
   return code;
 }
 
-static int32_t buildBatchExchangeOperatorParamForVirtual(SOperatorParam** ppRes, int32_t downstreamIdx, SArray* pTagList, uint64_t groupid,  SHashObj* pBatchMaps, STimeWindow window, EExchangeSourceType type, ENodeType srcOpType) {
+static int32_t buildBatchExchangeOperatorParamForVirtual(
+    SOperatorParam** ppRes, int32_t downstreamIdx, SArray* pTagList, uint64_t groupid, SHashObj* pBatchMaps,
+    STimeWindow window, EExchangeSourceType type, ENodeType srcOpType) {
   int32_t                       code = TSDB_CODE_SUCCESS;
   int32_t                       lino = 0;
   SOperatorParam*               pParam = NULL;
@@ -1301,7 +1303,10 @@ static int32_t buildMergeOperatorParamForTsScan(SDynQueryCtrlOperatorInfo* pInfo
   QUERY_CHECK_NULL(pParam->value, code, lino, _return, terrno)
 
   for (int32_t i = 0; i < taosHashGetSize(pVtbScan->otbVgIdToOtbInfoArrayMap); i++) {
-    code = buildBatchExchangeOperatorParamForVirtual(&pExchangeParam, i, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap, (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_TS_SCAN, QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN);
+    code = buildBatchExchangeOperatorParamForVirtual(
+        &pExchangeParam, i, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap,
+        (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_TS_SCAN,
+        QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN);
     QUERY_CHECK_CODE(code, lino, _return);
     QUERY_CHECK_NULL(taosArrayPush(pParam->pChildren, &pExchangeParam), code, lino, _return, terrno)
     pExchangeParam = NULL;
@@ -1342,7 +1347,10 @@ static int32_t buildAggOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperator
   pParam->value = taosMemoryMalloc(sizeof(SAggOperatorParam));
   QUERY_CHECK_NULL(pParam->value, code, lino, _return, terrno)
 
-  code = buildBatchExchangeOperatorParamForVirtual(&pExchangeParam, 0, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap, (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_AGG_SCAN, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+  code = buildBatchExchangeOperatorParamForVirtual(
+      &pExchangeParam, 0, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap,
+      (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_AGG_SCAN,
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
   QUERY_CHECK_CODE(code, lino, _return);
 
   freeExchange = true;
@@ -1392,7 +1400,10 @@ static int32_t buildAggOperatorParamWithGroupId(SDynQueryCtrlOperatorInfo* pInfo
   pParam->pChildren = taosArrayInit(1, POINTER_BYTES);
   QUERY_CHECK_NULL(pParam->pChildren, code, lino, _return, terrno)
 
-  code = buildBatchExchangeOperatorParamForVirtual(&pExchangeParam, 0, NULL, groupid, otbVgIdToOtbInfoArrayMap, (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_AGG_SCAN, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+  code = buildBatchExchangeOperatorParamForVirtual(
+      &pExchangeParam, 0, NULL, groupid, otbVgIdToOtbInfoArrayMap,
+      (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_AGG_SCAN,
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
   QUERY_CHECK_CODE(code, lino, _return);
 
   freeExchange = true;
@@ -1431,7 +1442,10 @@ static int32_t buildAggOperatorParamForSingleChild(SDynQueryCtrlOperatorInfo* pI
   if (pIter) {
     pOtbVgIdToOtbInfoArrayMap = *(SHashObj**)taosHashGet(pVtbScan->vtbUidToVgIdMapMap, &uid, sizeof(uid));
 
-    code = buildBatchExchangeOperatorParamForVirtual(&pParam, 0, pTagList, groupid, pOtbVgIdToOtbInfoArrayMap, (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_AGG_SCAN, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+    code = buildBatchExchangeOperatorParamForVirtual(
+        &pParam, 0, pTagList, groupid, pOtbVgIdToOtbInfoArrayMap,
+        (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_AGG_SCAN,
+        QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
     QUERY_CHECK_CODE(code, lino, _return);
 
     *ppRes = pParam;
@@ -3507,14 +3521,17 @@ static int32_t buildExternalWindowOperatorParamEx(SDynQueryCtrlOperatorInfo* pIn
   pExtWinOp->ExtWins = taosArrayDup(pWins, NULL);
   QUERY_CHECK_NULL(pExtWinOp->ExtWins, code, lino, _return, terrno)
 
-  SExtWinTimeWindow *firstWin = (SExtWinTimeWindow *)taosArrayGet(pWins, 0);
-  SExtWinTimeWindow *lastWin = (SExtWinTimeWindow *)taosArrayGetLast(pWins);
+  SExtWinTimeWindow* firstWin = (SExtWinTimeWindow*)taosArrayGet(pWins, 0);
+  SExtWinTimeWindow* lastWin = (SExtWinTimeWindow*)taosArrayGetLast(pWins);
 
   (*ppRes)->pChildren = taosArrayInit(1, POINTER_BYTES);
   QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
 
   SOperatorParam* pExchangeParam = NULL;
-  code = buildBatchExchangeOperatorParamForVirtual(&pExchangeParam, 0, NULL, 0, pInfo->vtbScan.otbVgIdToOtbInfoArrayMap, (STimeWindow){.skey = firstWin->tw.skey, .ekey = lastWin->tw.ekey}, EX_SRC_TYPE_VSTB_WIN_SCAN, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+  code = buildBatchExchangeOperatorParamForVirtual(
+      &pExchangeParam, 0, NULL, 0, pInfo->vtbScan.otbVgIdToOtbInfoArrayMap,
+      (STimeWindow){.skey = firstWin->tw.skey, .ekey = lastWin->tw.ekey}, EX_SRC_TYPE_VSTB_WIN_SCAN,
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
   QUERY_CHECK_CODE(code, lino, _return);
 
   QUERY_CHECK_NULL(taosArrayPush((*ppRes)->pChildren, &pExchangeParam), code, lino, _return, terrno)
