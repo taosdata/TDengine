@@ -2470,7 +2470,7 @@ static SMqRspObj* buildRsp(SMqPollRspWrapper* pollRspWrapper){
 }
 
 static int32_t processMqRspError(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
-  int32_t code = 0;
+  int32_t code = pRspWrapper->code;
   SMqPollRspWrapper* pollRspWrapper = &pRspWrapper->pollRsp;
 
   tqErrorC("consumer:0x%" PRIx64 " msg from vgId:%d discarded, since %s", tmq->consumerId, pollRspWrapper->vgId,

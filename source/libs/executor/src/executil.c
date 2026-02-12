@@ -1150,7 +1150,7 @@ static int32_t getTableListInInOperator(void* pVnode, SArray* pExistedUidList, S
 
     ETableType tbType = TSDB_TABLE_MAX;
     if (pStoreAPI->metaFn.getTableTypeSuidByName(pVnode, name, &tbType, &csuid) == 0 &&
-        tbType == TSDB_CHILD_TABLE &&
+        (tbType == TSDB_CHILD_TABLE || tbType == TSDB_VIRTUAL_CHILD_TABLE) &&
         csuid == suid) {
       if (NULL == uHash || taosHashGet(uHash, &uid, sizeof(uid)) != NULL) {
         STUidTagInfo s = {.uid = uid, .name = name, .pTagVal = NULL};
