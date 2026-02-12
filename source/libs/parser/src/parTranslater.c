@@ -23995,7 +23995,12 @@ static int32_t doRewriteAlterMultiTableTagVal(STranslateContext* pCxt, SQuery* p
         }
       }
 
-      (void)taosArrayPush(table.tags, &val); // no need to check return value, as we have reserved enough space
+      if (taosArrayPush(table.tags, &val) == NULL) {
+        tfreeMultiTagUpateVal(&val);
+        tfreeUpdateTableTagVal(&table);
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _error;
+      }
     }
 
     SVgroupInfo vgInfo = {0};
