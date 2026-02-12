@@ -60,3 +60,4 @@ def draw_ad_results(input_list, res, fig_name, valid_code):
     plt.grid(True, alpha=0.3)
 
     plt.savefig(fig_name)
+    plt.close()

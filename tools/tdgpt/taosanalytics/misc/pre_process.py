@@ -84,6 +84,7 @@ def plot_comparison(df_orig, df_proc, col, config, bounds=None, scaler=None):
     plt.tight_layout()
 
     plt.savefig(config.get('figure_path', 'result.png'))
+    plt.close()
 
 
 def preprocess_v1():
