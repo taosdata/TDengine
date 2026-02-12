@@ -2282,6 +2282,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   }
 
   pTask->leaderSnodeId = pMsg->leaderSnodeId;
+  pTask->nodelayCreateSubtable = pMsg->nodelayCreateSubtable;
   TSWAP(pTask->readerList, pMsg->readerList);
   if (pTask->isVirtualTable) {
     pTask->virtReaderList = taosArrayInit(0, sizeof(SStreamTaskAddr));

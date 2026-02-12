@@ -15472,6 +15472,7 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
   PAR_ERR_JRET(createStreamReqBuildOutSubtable(
       pCxt, pStmt->streamDbName, pStmt->streamName, pStmt->targetDbName, pStmt->targetTabName, pStmt->pSubtable,
       pTriggerSlotHash, ((SStreamTriggerNode*)pStmt->pTrigger)->pPartitionList, (char**)&pReq->subTblNameExpr));
+  pReq->nodelayCreateSubtable = pStmt->nodelayCreateSubtable;
 
 _return:
 
@@ -16720,6 +16721,7 @@ static int32_t createStreamReqBuildDefaultReq(STranslateContext* pCxt, SCreateSt
   pReq->flags = CREATE_STREAM_FLAG_NONE;
   pReq->placeHolderBitmap = PLACE_HOLDER_NONE;
   pReq->triTsSlotId = -1;
+  pReq->nodelayCreateSubtable = 0;
 
   return TSDB_CODE_SUCCESS;
 }

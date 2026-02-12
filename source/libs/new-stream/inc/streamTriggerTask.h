@@ -403,6 +403,7 @@ typedef struct SStreamTriggerTask {
   SArray            *pNotifyAddrUrls;
   int32_t            addOptions;
   bool               notifyHistory;
+  int8_t             nodelayCreateSubtable;  // 1 = sub-tables created at stream create; 0 = create on the fly
 
   // task info
   int32_t leaderSnodeId;

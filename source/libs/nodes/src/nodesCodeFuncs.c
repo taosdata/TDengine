@@ -9224,6 +9224,7 @@ static const char* jkCreateStreamStmtQuery = "Query";
 static const char* jkCreateStreamStmtTags = "Tags";
 static const char* jkCreateStreamStmtSubtable = "Subtable";
 static const char* jkCreateStreamStmtCols = "Cols";
+static const char* jkCreateStreamStmtNodelayCreateSubtable = "nodelayCreateSubtable";
 
 static int32_t createStreamStmtToJson(const void* pObj, SJson* pJson) {
   const SCreateStreamStmt* pNode = (const SCreateStreamStmt*)pObj;
@@ -9255,6 +9256,9 @@ static int32_t createStreamStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkCreateStreamStmtCols, pNode->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkCreateStreamStmtNodelayCreateSubtable, pNode->nodelayCreateSubtable);
   }
   return code;
 }
@@ -9289,6 +9293,9 @@ static int32_t jsonToCreateStreamStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkCreateStreamStmtCols, &pNode->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    (void)tjsonGetTinyIntValue(pJson, jkCreateStreamStmtNodelayCreateSubtable, &pNode->nodelayCreateSubtable);
   }
   return code;
 }
