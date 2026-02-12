@@ -56,6 +56,12 @@
 TD_CONFIG=${TD_CONFIG:-Debug}
 USE_CONAN=${USE_CONAN:-false}
 
+# macOS ships bash 3.2 by default; it doesn't support `${var,,}`.
+# Use a portable lowercase helper instead.
+to_lower() {
+  printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'
+}
+
 _this_file=$0
 
 do_gen() {
@@ -72,9 +78,49 @@ do_gen() {
 }
 
 # Conan-related functions
+
+taosws_resolve_main_commit() {
+  # Allow pinning to an explicit commit/ref.
+  if [ -n "${TAOSWS_GIT_COMMIT}" ]; then
+    echo "${TAOSWS_GIT_COMMIT}"
+    return 0
+  fi
+
+  # Resolve latest commit hash for upstream main branch.
+  # Note: network required.
+  git ls-remote https://github.com/taosdata/taos-connector-rust.git refs/heads/main 2>/dev/null | head -n 1 | cut -f 1
+}
+
+taosws_conan_export_tracking_main() {
+  local commit
+  commit="$(taosws_resolve_main_commit)"
+
+  if [ -z "${commit}" ]; then
+    echo "WARN: failed to resolve taos-connector-rust main commit; exporting taosws recipe without pinning"
+    conan export conan/taosws
+    return 0
+  fi
+
+  local tmpdir
+  tmpdir="$(mktemp -d 2>/dev/null || mktemp -d -t taosws-conan)"
+
+  # Copy recipe to temp dir and inject conandata.yml so the recipe revision changes
+  # whenever upstream main moves.
+  cp -a conan/taosws/. "${tmpdir}/"
+  cat > "${tmpdir}/conandata.yml" <<EOF
+sources:
+  commit: "${commit}"
+EOF
+
+  echo "taosws: tracking taos-connector-rust main @ ${commit}"
+  conan export "${tmpdir}"
+  rm -rf "${tmpdir}"
+}
+
 do_conan_install() {
   echo "Installing dependencies with Conan..."
-  local build_type=${TD_CONFIG,,}  # Convert to lowercase
+  local build_type
+  build_type="$(to_lower "${TD_CONFIG}")"
   local preset="conan-${build_type}"
 
   # Export local recipes (so `conan install .` can resolve them).
@@ -100,7 +146,11 @@ do_conan_install() {
     conan/wingetopt \
     conan/crashdump
   do
-    conan export "$recipe"
+    if [ "${recipe}" = "conan/taosws" ]; then
+      taosws_conan_export_tracking_main
+    else
+      conan export "$recipe"
+    fi
   done
 
   # Determine options for the *current* consumer package (tdengine).
@@ -123,7 +173,8 @@ do_conan_install() {
 
 do_conan_gen() {
   echo "Configuring build with Conan..."
-  local build_type=${TD_CONFIG,,}  # Convert to lowercase
+  local build_type
+  build_type="$(to_lower "${TD_CONFIG}")"
   local build_dir="build/conan-${build_type}"
   local toolchain_file="$(pwd)/${build_dir}/generators/conan_toolchain.cmake"
 
@@ -150,7 +201,8 @@ do_conan_gen() {
 
 do_conan_bld() {
   echo "Building with Conan..."
-  local build_type=${TD_CONFIG,,}  # Convert to lowercase
+  local build_type
+  build_type="$(to_lower "${TD_CONFIG}")"
   local build_dir="build/conan-${build_type}"
 
   JOBS=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
@@ -160,14 +212,16 @@ do_conan_bld() {
 
 do_conan_test() {
   echo "Testing with Conna build artifacts..."
-  local build_type=${TD_CONFIG,,}  # Convert to lowercase
+  local build_type
+  build_type="$(to_lower "${TD_CONFIG}")"
   local build_dir="build/conan-${build_type}"
   ctest --test-dir ${build_dir} -C ${TD_CONFIG} --output-on-failure "$@"
 }
 
 do_conan_post_build() {
   echo "Installing TDengine with Conan..."
-  local build_type=${TD_CONFIG,,}  # Convert to lowercase
+  local build_type
+  build_type="$(to_lower "${TD_CONFIG}")"
   local build_dir="build/conan-${build_type}"
 
   JOBS=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
