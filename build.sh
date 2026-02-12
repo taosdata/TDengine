@@ -103,19 +103,22 @@ do_conan_install() {
     conan export "$recipe"
   done
 
-  # Determine options based on build configuration
-  local conan_options=""
-  conan_options="$conan_options -o with_test=True"
-  conan_options="$conan_options -o with_uv=True"
-  conan_options="$conan_options -o with_geos=True"
-  conan_options="$conan_options -o with_taos_tools=True"
+  # Determine options for the *current* consumer package (tdengine).
+  # Use '&:' scope to avoid Conan 2 warnings about ambiguous unscoped options.
+  local conan_options=()
+  conan_options+=( -o "&:with_test=True" )
+  conan_options+=( -o "&:with_uv=True" )
+  conan_options+=( -o "&:with_geos=True" )
+  conan_options+=( -o "&:with_pcre2=True" )
+  conan_options+=( -o "&:with_taos_tools=True" )
 
   conan install . \
     --output-folder=build/${preset} \
     --build=missing \
     -s build_type=${TD_CONFIG} \
-    ${conan_options} \
+    "${conan_options[@]}" \
     "$@"
+
 }
 
 do_conan_gen() {

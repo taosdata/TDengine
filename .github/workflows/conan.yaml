@@ -143,7 +143,7 @@ jobs:
         shell: bash
         run: |
           chmod +x ./build.sh
-          ./build.sh conan-install -o with_taos_tools=False -o with_taosws=False
+          ./build.sh conan-install -o '&:with_taos_tools=False' -o '&:with_taosws=False'
           ./build.sh conan-gen \
             -DWEBSOCKET:STRING=false \
             -DBUILD_TOOLS=false \
@@ -238,7 +238,7 @@ jobs:
             export CONAN_NON_INTERACTIVE=1
             chmod +x ./build.sh
             conan profile detect --force
-            ./build.sh conan-install -o with_taos_tools=False -o with_taosws=False
+            ./build.sh conan-install -o '&:with_taos_tools=False' -o '&:with_taosws=False'
             ./build.sh conan-gen \
               -DWEBSOCKET:STRING=false \
               -DBUILD_TOOLS=false \

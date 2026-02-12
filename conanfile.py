@@ -80,7 +80,7 @@ class TDengineConan(ConanFile):
 
         # Database/Storage
         self.requires("rocksdb/9.7.4")
-        self.requires("cyrus-sasl/2.1.27")
+        self.requires("cyrus-sasl/2.1.28")
 
         # Optional: jemalloc
         if self.options.with_jemalloc:
@@ -147,6 +147,11 @@ class TDengineConan(ConanFile):
         """Configure options based on settings"""
         # Force static linking for all dependencies
         self.options["*"].shared = False
+
+        # Cyrus SASL: ConanCenter recipe doesn't support building static libs with MSVC.
+        # Use shared on Windows/MSVC to keep the dependency available.
+        if self.settings.os == "Windows" and str(self.settings.compiler) == "msvc":
+            self.options["cyrus-sasl"].shared = True
 
         # Configure dependency options
         if self.settings.os != "Windows":
