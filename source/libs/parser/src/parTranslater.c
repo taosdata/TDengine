@@ -4539,61 +4539,6 @@ static int32_t getDBVgInfoForPrivilege(STranslateContext* pCxt, const char* dbFN
   return code;
 }
 
-// Helper function to add vgroups from all databases known to mnode (via user auth cache)
-static int32_t addVgroupsFromAllCachedDbs(STranslateContext* pCxt, SArray** pVgs) {
-  int32_t        code = TSDB_CODE_SUCCESS;
-  SParseContext* pParseCxt = pCxt->pParseCxt;
-  SArray*        dbList = NULL;
-
-  // Get all databases from user's cached auth info
-  // For superuser, mnode returns all databases in readDbs
-  code = catalogGetUserCachedDbs(pParseCxt->pCatalog, pParseCxt->pUser, &dbList);
-  if (TSDB_CODE_SUCCESS != code || NULL == dbList || 0 == taosArrayGetSize(dbList)) {
-    taosArrayDestroy(dbList);
-    return TSDB_CODE_SUCCESS;  // No databases, not an error
-  }
-
-  SSHashObj* addedDbs = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
-  if (NULL == addedDbs) {
-    taosArrayDestroy(dbList);
-    return terrno;
-  }
-
-  int32_t dbNum = taosArrayGetSize(dbList);
-  for (int32_t i = 0; i < dbNum; ++i) {
-    const char* dbFName = taosArrayGet(dbList, i);
-    // Skip system databases
-    size_t dbFNameLen = strlen(dbFName);
-    if (dbFNameLen >= strlen(TSDB_INFORMATION_SCHEMA_DB) &&
-        (0 == strcasecmp(dbFName + dbFNameLen - strlen(TSDB_INFORMATION_SCHEMA_DB), TSDB_INFORMATION_SCHEMA_DB) ||
-         0 == strcasecmp(dbFName + dbFNameLen - strlen(TSDB_PERFORMANCE_SCHEMA_DB), TSDB_PERFORMANCE_SCHEMA_DB))) {
-      continue;
-    }
-    if (NULL == tSimpleHashGet(addedDbs, dbFName, strlen(dbFName) + 1)) {
-      SArray* dbVgs = NULL;
-      code = getDBVgInfoForPrivilege(pCxt, dbFName, &dbVgs);
-      if (TSDB_CODE_SUCCESS == code && dbVgs != NULL) {
-        for (int32_t j = 0; j < taosArrayGetSize(dbVgs); ++j) {
-          SVgroupInfo* vgInfo = taosArrayGet(dbVgs, j);
-          if (NULL == taosArrayPush(*pVgs, vgInfo)) {
-            code = terrno;
-            break;
-          }
-        }
-        taosArrayDestroy(dbVgs);
-      }
-      if (TSDB_CODE_SUCCESS == code) {
-        (void)tSimpleHashPut(addedDbs, dbFName, strlen(dbFName) + 1, NULL, 0);
-      }
-    }
-    if (TSDB_CODE_SUCCESS != code) break;
-  }
-
-  tSimpleHashCleanup(addedDbs);
-  taosArrayDestroy(dbList);
-  return code;
-}
-
 // Convert table names in pReadTbs to uids in pReadUids for fast int64_t comparison
 static int32_t convertTbNamesToUids(STranslateContext* pCxt) {
   SParseContext* pParseCxt = pCxt->pParseCxt;
@@ -4746,9 +4691,10 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
       if (TSDB_CODE_SUCCESS == code) {
         code = convertTbNamesToUids(pCxt);
       }
-    } else if (pParseCxt->isSuperUser) {
-      // Fallback: get from cache for older mnode versions that don't populate readDbs for superuser
-      code = addVgroupsFromAllCachedDbs(pCxt, &pVgs);
+      // For superuser, skip per-table privilege checks in executor
+      if (pParseCxt->isSuperUser) {
+        pParseCxt->showAllTbls = true;
+      }
     }
   }
 
