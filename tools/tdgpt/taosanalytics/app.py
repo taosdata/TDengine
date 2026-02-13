@@ -13,6 +13,7 @@ from taosanalytics.algo.anomaly import do_ad_check
 from taosanalytics.algo.forecast import do_forecast, do_add_fc_params
 from taosanalytics.algo.correlation import do_dtw, do_tlcc
 
+from taosanalytics.model import model_manager
 from taosanalytics.conf import conf
 from taosanalytics.model import model_manager
 from taosanalytics.servicemgmt import loader

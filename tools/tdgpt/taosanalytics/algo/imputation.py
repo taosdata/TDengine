@@ -66,7 +66,7 @@ def do_set_imputation_params(params, json_obj):
     else:
         params['precision'] = 'ms'
 
-    valid_freq_dict = {'d':'D', 'h':'H', 'm':'T', 's':'S', 'ms':'L', 'us':'U'}
+    valid_freq_dict = {'d': 'D', 'h': 'H', 'm': 'T', 's': 'S', 'ms': 'L', 'us': 'U'}
     if "freq" in json_obj:
         freq_str = json_obj["freq"]
 

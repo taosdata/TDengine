@@ -2,6 +2,7 @@
 # pylint: disable=c0103
 """configuration model definition"""
 import configparser
+import importlib.util
 import logging
 import os.path
 from pathlib import Path
@@ -12,15 +13,15 @@ _ANODE_SECTION_NAME = "taosanode"
 class Configure:
     """ configuration class """
 
-    def __init__(self, conf_path="/etc/taos/taosanode.ini"):
+    def __init__(self, conf_path="/etc/taos/taosanode.config.py"):
         self.path = None
 
         self._log_path = 'taosanode.app.log'
         self._log_level = logging.INFO
         self._model_directory = '/var/lib/taos/taosanode/model/'
-        self._draw_result = 0
+        self._draw_result = False
+        self._all = {}
 
-        self.conf = configparser.ConfigParser()
         self.reload(conf_path)
 
     def get_log_path(self) -> str:
@@ -36,10 +37,7 @@ class Configure:
         return self._model_directory
 
     def get_tsfm_service(self, service_name):
-        if self.conf.has_option("tsfm-service", service_name):
-            return self.conf.get("tsfm-service", service_name)
-        else:
-            return None
+        return self._all.get(service_name, None)
 
     def get_draw_result_option(self):
         """ get the option for draw results or not"""
@@ -51,34 +49,38 @@ class Configure:
         if not os.path.exists(self.path):
             print(f"Configuration file not found: {self.path}. Using default settings.")
 
-        self.conf.read(self.path)
+        if not os.path.exists(self.path):
+            print("failed to found configure file, load configure failed. Use default")
+            return
 
-        if self.conf.has_option(_ANODE_SECTION_NAME, 'app-log'):
-            self._log_path = self.conf.get(_ANODE_SECTION_NAME, 'app-log')
+        # 动态加载配置文件
+        spec = importlib.util.spec_from_file_location("gunicorn_config", self.path)
+        config_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(config_module)
 
-        if self.conf.has_option(_ANODE_SECTION_NAME, 'log-level'):
-            log_level = self.conf.get(_ANODE_SECTION_NAME, 'log-level')
+        # config_vars = {}
+        for key in dir(config_module):
+            if not key.startswith('__'):
+                value = getattr(config_module, key)
+                if not callable(value):  # 排除函数
+                    self._all[key] = value
 
-            log_flag = {
-                'DEBUG': logging.DEBUG, 'INFO': logging.INFO, 'CRITICAL': logging.CRITICAL,
-                'ERROR': logging.ERROR, 'WARN': logging.WARN
-            }
+        self._log_path = self._all.get('app_log', '/var/log/taos/taosanode/taosanode.app.log')
 
-            if log_level.upper() in log_flag:
-                self._log_level = log_flag[log_level.upper()]
-            else:
-                self._log_level = logging.INFO
+        log_level = self._all.get('log_level', 'DEBUG')
 
-        if self.conf.has_option(_ANODE_SECTION_NAME, 'model-dir'):
-            self._model_directory = self.conf.get(_ANODE_SECTION_NAME, 'model-dir')
+        log_flag = {
+            'DEBUG': logging.DEBUG, 'INFO': logging.INFO, 'CRITICAL': logging.CRITICAL,
+            'ERROR': logging.ERROR, 'WARN': logging.WARN
+        }
 
-        if self.conf.has_option(_ANODE_SECTION_NAME, 'draw-result'):
-            draw_result = self.conf.get(_ANODE_SECTION_NAME, 'draw-result').lower()
-            if draw_result not in ('true', 'false'):
-                draw_result = int(draw_result)
-                self._draw_result = bool(draw_result)
-            else:
-                self._draw_result = False if draw_result=='false' else True
+        if log_level.upper() in log_flag:
+            self._log_level = log_flag[log_level.upper()]
+        else:
+            self._log_level = logging.INFO
+
+        self._model_directory = self._all.get('model_dir', '/usr/local/taos/taosanode/model/')
+        self._draw_result = self._all.get('draw_result', False)
 
 
 

@@ -39,7 +39,6 @@ class _TlccService(AbstractCorrelationService):
                 raise ValueError("lag_end value out of range, should be less than list length")
             self.lag_end = lag_end
 
-
     def do_tlcc(self):
         ccf_vals = []
         if len(self.list) != len(self.list1) or len(self.list) == 0 or len(self.list1) == 0:
