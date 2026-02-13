@@ -866,6 +866,8 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->placeHolderBitmap = pStream->pCreate->placeHolderBitmap;
   pMsg->calcTsSlotId = pStream->pCreate->calcTsSlotId;
   pMsg->triTsSlotId = pStream->pCreate->triTsSlotId;
+  pMsg->calcPkSlotId = pStream->pCreate->calcPkSlotId;
+  pMsg->triPkSlotId = pStream->pCreate->triPkSlotId;
   pMsg->triggerPrevFilter = pInfo->pCreate->triggerPrevFilter;
   if (STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags)) {
     pMsg->triggerScanPlan = pInfo->pCreate->triggerScanPlan;
