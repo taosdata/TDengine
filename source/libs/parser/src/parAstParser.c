@@ -706,27 +706,8 @@ static int32_t collectMetaKeyFromAlterStable(SCollectMetaKeyCxt* pCxt, SAlterTab
 
 
 static int32_t collectMetaKeyFromAlterVtable(SCollectMetaKeyCxt* pCxt, SAlterTableStmt* pStmt) {
-  PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache));
+  PAR_ERR_RET(collectMetaKeyFromAlterTable(pCxt, pStmt));
 
-  if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_TAG_VAL || pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
-    SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
-    tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
-    tstrncpy(name.tname, pStmt->tableName, TSDB_TABLE_NAME_LEN);
-    PAR_ERR_RET(catalogRemoveTableRelatedMeta(pCxt->pParseCxt->pCatalog, &name));
-  } else if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
-    // TODO:
-  } else if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
-    // TODO:
-  }
-  
-
-
-  PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache));
-  PAR_ERR_RET(reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache));
-  PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_USE,
-                                     PRIV_OBJ_DB, pCxt->pMetaCache));
-  PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
-                                     PRIV_CM_ALTER, PRIV_OBJ_TBL, pCxt->pMetaCache));
   if (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
       pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) {
     PAR_ERR_RET(
@@ -736,6 +717,7 @@ static int32_t collectMetaKeyFromAlterVtable(SCollectMetaKeyCxt* pCxt, SAlterTab
     PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->refDbName,
                                        pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache));
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
