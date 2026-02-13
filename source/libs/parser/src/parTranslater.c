@@ -4581,12 +4581,13 @@ static int32_t convertTbNamesToUids(STranslateContext* pCxt) {
     }
 
     if (TSDB_CODE_SUCCESS == code && pMeta != NULL) {
-      // Add uid to pReadUids
-      int64_t uid = pMeta->uid;
-      tSimpleHashPut(pParseCxt->pReadUids, &uid, sizeof(int64_t), NULL, 0);
+      code = tSimpleHashPut(pParseCxt->pReadUids, &pMeta->uid, sizeof(pMeta->uid), NULL, 0);
       taosMemoryFree(pMeta);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
     }
-    // If lookup fails, skip this table (it may have been deleted)
+    // If lookup fails, skip this table since it may have been dropped
   }
 
   return TSDB_CODE_SUCCESS;
@@ -4606,8 +4607,9 @@ static int32_t addVgroupsFromTablePrivileges(STranslateContext* pCxt, SArray** p
     void*   pIter = NULL;
     int32_t iter = 0;
     while ((pIter = tSimpleHashIterate(pParseCxt->pReadDbs, pIter, &iter)) != NULL) {
-      char* dbFName = tSimpleHashGetKey(pIter, NULL);
-      if (NULL == tSimpleHashGet(addedDbs, dbFName, strlen(dbFName) + 1)) {
+      size_t dbFNameLen = 0;
+      char*  dbFName = tSimpleHashGetKey(pIter, &dbFNameLen);
+      if (NULL == tSimpleHashGet(addedDbs, dbFName, dbFNameLen)) {
         SArray* dbVgs = NULL;
         code = getDBVgInfoForPrivilege(pCxt, dbFName, &dbVgs);
         if (TSDB_CODE_SUCCESS == code && dbVgs != NULL) {
@@ -4621,7 +4623,7 @@ static int32_t addVgroupsFromTablePrivileges(STranslateContext* pCxt, SArray** p
           taosArrayDestroy(dbVgs);
         }
         if (TSDB_CODE_SUCCESS == code) {
-          tSimpleHashPut(addedDbs, dbFName, strlen(dbFName) + 1, NULL, 0);
+          tSimpleHashPut(addedDbs, dbFName, dbFNameLen, NULL, 0);
         }
       }
       if (TSDB_CODE_SUCCESS != code) break;
@@ -4681,19 +4683,18 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   }
 
   // For ins_tables query without WHERE db_name condition, add vgroups to enable querying user tables
-  // For superuser, pReadDbs is populated with all databases by mnode, so use same logic as normal user
-  if (TSDB_CODE_SUCCESS == code && 0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) && !hasUserDbCond) {
-    SParseContext* pParseCxt = pCxt->pParseCxt;
-    if (pParseCxt->pReadDbs != NULL || pParseCxt->pReadTbs != NULL) {
-      // Add vgroups from privilege databases (for superuser, pReadDbs contains all dbs)
-      code = addVgroupsFromTablePrivileges(pCxt, &pVgs);
-      // Convert table names to uids for fast int64_t comparison in executor
-      if (TSDB_CODE_SUCCESS == code) {
-        code = convertTbNamesToUids(pCxt);
-      }
-      // For superuser, skip per-table privilege checks in executor
-      if (pParseCxt->isSuperUser) {
-        pParseCxt->showAllTbls = true;
+  SParseContext* pParseCxt = pCxt->pParseCxt;
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pParseCxt->isSuperUser) {
+      pParseCxt->showAllTbls = true;
+    } else if (!hasUserDbCond && (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES))) {
+      if (pParseCxt->pReadDbs != NULL || pParseCxt->pReadTbs != NULL) {
+        // Add vgroups from privilege databases
+        code = addVgroupsFromTablePrivileges(pCxt, &pVgs);
+        // Convert table names to uids for fast int64_t comparison in executor
+        if (TSDB_CODE_SUCCESS == code) {
+          code = convertTbNamesToUids(pCxt);
+        }
       }
     }
   }
@@ -5874,7 +5875,6 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
           if (isSelectStmt(pCxt->pCurrStmt)) {
             ((SSelectStmt*)pCxt->pCurrStmt)->timeLineResMode = TIME_LINE_NONE;
             ((SSelectStmt*)pCxt->pCurrStmt)->timeLineCurMode = TIME_LINE_NONE;
-
           } else if (isDeleteStmt(pCxt->pCurrStmt)) {
             code = TSDB_CODE_TSC_INVALID_OPERATION;
             break;

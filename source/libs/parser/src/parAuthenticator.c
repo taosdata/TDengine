@@ -47,7 +47,7 @@ static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const c
     int32_t code = tNameSetDbName(&pAuth->tbName, pCxt->acctId, pDbName, strlen(pDbName));
     if (TSDB_CODE_SUCCESS != code) {
       if ((type == AUTH_TYPE_SHOW) && pDbName[0] == '\0') {
-        // for SHOW TABLES without FROM db_name, set empty table name
+        // select * from information_schema.ins_tables without where dbName=''
         pAuth->tbName.type = TSDB_TABLE_NAME_T;
         pAuth->tbName.acctId = pCxt->acctId;
       } else {
@@ -98,10 +98,8 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
   // Save AUTH_TYPE_SHOW results to pParseCxt for passing to executor
   if (TSDB_CODE_SUCCESS == code && AUTH_TYPE_SHOW == type) {
     pParseCxt->showAllTbls = authRes.showAllTbls;
-    pParseCxt->pReadDbs = authRes.pReadDbs;  // ownership transferred
-    pParseCxt->pReadTbs = authRes.pReadTbs;
-    authRes.pReadDbs = NULL;
-    authRes.pReadTbs = NULL;
+    TSWAP(pParseCxt->pReadDbs, authRes.pReadDbs);
+    TSWAP(pParseCxt->pReadTbs, authRes.pReadTbs);
   }
   return TSDB_CODE_SUCCESS == code ? (authRes.pass[auth_res_type] ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED)
                                    : code;
@@ -244,10 +242,9 @@ static int32_t authSelect(SAuthCxt* pCxt, SSelectStmt* pSelect) {
   }
 
   // Special handling for SELECT * FROM information_schema.ins_tables
-  // Need to collect table-level privileges for filtering results
   if (QUERY_NODE_REAL_TABLE == nodeType(pSelect->pFromTable)) {
     SRealTableNode* pRealTable = (SRealTableNode*)pSelect->pFromTable;
-    if (0 == strcmp(pRealTable->table.dbName, TSDB_INFORMATION_SCHEMA_DB) &&
+    if (IS_INFORMATION_SCHEMA_DB(pRealTable->table.dbName) &&
         0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES)) {
       // Extract db_name from WHERE condition if present
       char    dbName[TSDB_DB_NAME_LEN] = {0};

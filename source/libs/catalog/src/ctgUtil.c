@@ -2350,15 +2350,15 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
           }
         }
       } else {
-        // Single db: check db-level privilege first
-        if ((pInfo->readDbs && taosHashGet(pInfo->readDbs, dbFName, strlen(dbFName) + 1)) ||
-            (pInfo->writeDbs && taosHashGet(pInfo->writeDbs, dbFName, strlen(dbFName) + 1))) {
+        // single db: check db-level privilege first
+        int32_t dbFNameLen = strlen(dbFName);
+        if ((pInfo->readDbs && taosHashGet(pInfo->readDbs, dbFName, dbFNameLen + 1)) ||
+            (pInfo->writeDbs && taosHashGet(pInfo->writeDbs, dbFName, dbFNameLen + 1))) {
           pRes->showAllTbls = 1;
           return TSDB_CODE_SUCCESS;
         }
 
-        // Collect tables with privileges in this db
-        int32_t   dbFNameLen = strlen(dbFName);
+        // collect tables with privileges in this db
         SHashObj* tbHashes[] = {pInfo->readTbs, pInfo->writeTbs, pInfo->alterTbs};
         for (int i = 0; i < 3; ++i) {
           if (NULL == tbHashes[i]) continue;
@@ -2366,7 +2366,7 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
           while ((pIter = taosHashIterate(tbHashes[i], pIter))) {
             char* tbFName = (char*)taosHashGetKey(pIter, NULL);
             // Check if this table belongs to the target db (format: acctId.dbName.tbName)
-            if (strncmp(tbFName, dbFName, dbFNameLen) == 0 && tbFName[dbFNameLen] == '.') {
+            if ((tbFName[dbFNameLen] == '.') && (strncmp(tbFName, dbFName, dbFNameLen) == 0)) {
               if (NULL == pRes->pReadTbs) {
                 pRes->pReadTbs = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
                 if (NULL == pRes->pReadTbs) {

@@ -87,21 +87,9 @@ typedef struct SSysTableScanInfo {
   SHashObj*              pExtSchema;
 } SSysTableScanInfo;
 
-// Helper function for uid-based privilege check (fast int64_t comparison)
-// Returns true if uid or suid is in pReadUids
-static inline bool checkUidPrivilege(SSHashObj* pReadUids, int64_t uid, int64_t suid) {
-  if (NULL == pReadUids) {
-    return false;
-  }
-  // Check direct uid match first
-  if (tSimpleHashGet(pReadUids, &uid, sizeof(int64_t)) != NULL) {
-    return true;
-  }
-  // For child tables, check if parent super-table uid is in allowed set
-  if (suid != 0 && tSimpleHashGet(pReadUids, &suid, sizeof(int64_t)) != NULL) {
-    return true;
-  }
-  return false;
+
+static inline bool checkUidPrivilege(SSHashObj* pReadUids, int64_t uid) {
+  return (pReadUids && tSimpleHashGet(pReadUids, &uid, sizeof(int64_t))) ? true : false;
 }
 
 typedef struct {
@@ -2027,14 +2015,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       // Table-level read privilege filtering for child tables
       if (!pInfo->showAllTbls) {
         // Check db-level privilege first (db format: acctId.dbName)
-        if (pInfo->pReadDbs != NULL && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1) != NULL) {
+        if (pInfo->pReadDbs && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1)) {
           // Has db-level privilege, allow all tables in this db
         } else {
-          // Check table-level privilege using fast uid comparison if available
-          int64_t childUid = pInfo->pCur->mr.me.uid;
-          int64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
-          if (pInfo->pReadUids == NULL || tSimpleHashGetSize(pInfo->pReadUids) == 0 ||
-              !checkUidPrivilege(pInfo->pReadUids, childUid, suid)) {
+          if (!pInfo->pReadUids ||
+              tSimpleHashGet(pInfo->pReadUids, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t)) == NULL) {
             pAPI->metaReaderFn.clearReader(&mr);
             continue;
           }
@@ -2086,16 +2071,10 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(n, "CHILD_TABLE");
     } else if (tableType == TSDB_NORMAL_TABLE) {
-      // Table-level read privilege filtering for normal tables
       if (!pInfo->showAllTbls) {
-        // Check db-level privilege first
-        if (pInfo->pReadDbs != NULL && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1) != NULL) {
-          // Has db-level privilege, allow this table
+        if (pInfo->pReadDbs && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1)) {
         } else {
-          // Check table-level privilege using fast uid comparison if available
-          int64_t ntbUid = pInfo->pCur->mr.me.uid;
-          if (pInfo->pReadUids == NULL || tSimpleHashGetSize(pInfo->pReadUids) == 0 ||
-              !checkUidPrivilege(pInfo->pReadUids, ntbUid, 0)) {
+          if (!pInfo->pReadUids || !tSimpleHashGet(pInfo->pReadUids, &pInfo->pCur->mr.me.uid, sizeof(int64_t))) {
             continue;
           }
         }
@@ -2149,16 +2128,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(n, "NORMAL_TABLE");
     } else if (tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
-      // Table-level read privilege filtering for virtual normal tables
       if (!pInfo->showAllTbls) {
-        // Check db-level privilege first
-        if (pInfo->pReadDbs != NULL && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1) != NULL) {
-          // Has db-level privilege, allow this table
+        if (pInfo->pReadDbs && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1)) {
         } else {
-          // Check table-level privilege using fast uid comparison if available
           int64_t vntbUid = pInfo->pCur->mr.me.uid;
-          if (pInfo->pReadUids == NULL || tSimpleHashGetSize(pInfo->pReadUids) == 0 ||
-              !checkUidPrivilege(pInfo->pReadUids, vntbUid, 0)) {
+          if (!pInfo->pReadUids || !tSimpleHashGet(pInfo->pReadUids, &vntbUid, sizeof(int64_t))) {
             continue;
           }
         }
@@ -2226,17 +2200,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
         continue;
       }
 
-      // Table-level read privilege filtering for virtual child tables
       if (!pInfo->showAllTbls) {
-        // Check db-level privilege first
-        if (pInfo->pReadDbs != NULL && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1) != NULL) {
-          // Has db-level privilege, allow this table
+        if (pInfo->pReadDbs && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1)) {
         } else {
-          // Check table-level privilege using fast uid comparison if available
-          int64_t vctbUid = pInfo->pCur->mr.me.uid;
-          int64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
-          if (pInfo->pReadUids == NULL || tSimpleHashGetSize(pInfo->pReadUids) == 0 ||
-              !checkUidPrivilege(pInfo->pReadUids, vctbUid, suid)) {
+          if (!pInfo->pReadUids ||
+              !tSimpleHashGet(pInfo->pReadUids, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t))) {
             pAPI->metaReaderFn.clearReader(&mr);
             continue;
           }
