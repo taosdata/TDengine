@@ -22,6 +22,7 @@ pub async fn heartbeat_loop(
 ) -> Result<()> {
     let _cleanup = utils::defer::defer(|| {
         xnodes.set_offline(id);
+        tracing::info!(xnode_id = id, "heartbeat loop exited");
     });
     let _guard = cancel.drop_guard_ref();
     let mut backoff = RetryBackoff::new(Duration::from_millis(500), Duration::from_secs(5));
@@ -60,24 +61,36 @@ pub async fn heartbeat_loop(
         };
         match client.heartbeat(&xnoded_id).await {
             Ok(metrics) => {
+                tracing::debug!(xnode_id = id, "heartbeat ok");
                 xnodes.update_metrics(id, metrics);
             }
             Err(ha_rpc_client::error::Error::EventLoopDropped) => {
                 xnodes.set_offline(id);
-                tracing::error!("eventloop dropped");
+                tracing::error!(xnode_id = id, "eventloop dropped");
             }
             Err(ha_rpc_client::error::Error::Timeout) => {
                 xnodes.set_offline(id);
-                tracing::error!("heartbeat timeout");
+                tracing::error!(xnode_id = id, "heartbeat timeout");
             }
             Err(ha_rpc_client::error::Error::Flight {
                 source: FlightError::Tonic(e),
-            }) if matches!(e.code(), tonic::Code::Unavailable | tonic::Code::DataLoss) => {
+            }) if matches!(
+                e.code(),
+                tonic::Code::Unavailable | tonic::Code::DataLoss | tonic::Code::Cancelled
+            ) =>
+            {
                 xnodes.set_offline(id);
-                tracing::error!("heartbeat failed with flight error: {e}, reconnect");
+                tracing::error!(
+                    xnode_id = id,
+                    "heartbeat failed with flight error: {e}, reconnect"
+                );
             }
             Err(e) => {
-                tracing::error!("heartbeat failed with error: {e}");
+                tracing::error!(
+                    xnode_id = id,
+                    "heartbeat failed with error: {:#}",
+                    anyhow::Error::new(e)
+                );
             }
         }
     }

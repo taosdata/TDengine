@@ -130,6 +130,7 @@ pub async fn event_loop(
 ) -> Result<()> {
     let _cleanup = crate::utils::defer::defer(|| {
         xnodes.set_offline(id);
+        tracing::info!(xnode_id = id, "event loop exited");
     });
     let _guard = cancel.drop_guard_ref();
     let taos_conn = Arc::new(
@@ -137,6 +138,8 @@ pub async fn event_loop(
             .await
             .context(BuildTaosConnSnafu)?,
     );
+
+    init_log_db(&taos_conn).await;
 
     macro_rules! call_with_cancel {
         ($fut: expr) => {

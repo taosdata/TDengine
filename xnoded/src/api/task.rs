@@ -19,6 +19,7 @@ pub struct TaskConfigParam {
     pub xnode_id: Option<i32>,
     pub parser: Option<String>,
     pub via: Option<i64>,
+    pub labels: Option<String>,
 }
 
 impl TryFrom<&TaskConfigParam> for HaTask {
@@ -29,11 +30,17 @@ impl TryFrom<&TaskConfigParam> for HaTask {
             .as_ref()
             .map(|v| serde_json::from_str(v))
             .transpose()?;
+        let labels = value
+            .labels
+            .as_ref()
+            .map(|v| serde_json::from_str(v))
+            .transpose()?;
         Ok(Self {
             from: value.from.clone(),
             to: value.to.clone(),
             parser,
             via: value.via,
+            labels,
         })
     }
 }

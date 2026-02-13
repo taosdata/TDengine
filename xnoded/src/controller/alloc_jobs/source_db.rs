@@ -44,7 +44,8 @@ pub fn alloc_jobs(
                 from: from.to_string(),
                 to: task.to,
                 parser: task.parser,
-                via,
+                via: None,
+                labels: None,
             },
         ));
     }
@@ -67,7 +68,8 @@ pub fn alloc_jobs(
                 from: from.to_string(),
                 to: task.to.clone(),
                 parser: task.parser.clone(),
-                via,
+                via: None,
+                labels: None,
             },
         ));
     }

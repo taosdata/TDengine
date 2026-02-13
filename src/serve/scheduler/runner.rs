@@ -103,9 +103,7 @@ impl GlobalState {
     pub fn send_task_activity(&self, activity: Activity) {
         if let Err(err) = self
             .notify_sender
-            .upgrade()
-            .map(|sender| sender.send(SchedulerNotify::TaskActivity(activity)))
-            .transpose()
+            .send(SchedulerNotify::TaskActivity(activity))
         {
             error!("send task activity error: {:#}", err);
         }
@@ -113,9 +111,7 @@ impl GlobalState {
     pub fn send_agent_activity(&self, activity: Activity) {
         if let Err(err) = self
             .notify_sender
-            .upgrade()
-            .map(|sender| sender.send(SchedulerNotify::AgentActivity(activity)))
-            .transpose()
+            .send(SchedulerNotify::AgentActivity(activity))
         {
             error!("send agent activity error: {:#}", err);
         }
@@ -170,6 +166,8 @@ pub enum InnerState {
     Stopped,
     /// Task is completed.
     Completed,
+    /// Task is ticked.
+    Tick,
     /// Task is failed.
     Failed(String),
 }
@@ -184,7 +182,7 @@ impl InnerState {
     pub fn is_idle(&self) -> bool {
         matches!(
             self,
-            InnerState::Queued | InnerState::Stopped | InnerState::Completed
+            InnerState::Queued | InnerState::Stopped | InnerState::Completed | InnerState::Tick
         )
     }
 
@@ -208,7 +206,7 @@ impl InnerState {
     pub fn safe_to_delete(&self) -> bool {
         matches!(
             self,
-            InnerState::Completed | InnerState::Stopped | InnerState::Failed(_)
+            InnerState::Completed | InnerState::Stopped | InnerState::Failed(_) | InnerState::Tick
         )
     }
 
@@ -219,7 +217,7 @@ impl InnerState {
     pub(crate) fn ready_to_remove_job(&self) -> bool {
         matches!(
             self,
-            InnerState::Completed | InnerState::Stopped | InnerState::Failed(_)
+            InnerState::Completed | InnerState::Stopped | InnerState::Failed(_) | InnerState::Tick
         )
     }
 
@@ -227,7 +225,6 @@ impl InnerState {
         match self {
             InnerState::Running => Ok(self),
             InnerState::Stopping | InnerState::Stopped => bail!("Task is stopping"),
-
             _ => {
                 *self = Self::Running;
                 Ok(self)
@@ -256,6 +253,11 @@ impl InnerState {
         self
     }
 
+    pub fn ticked(&mut self) -> &mut Self {
+        *self = Self::Tick;
+        self
+    }
+
     pub fn fail(&mut self, message: impl Display) -> &mut Self {
         *self = Self::Failed(format!("{}", message));
         self
@@ -267,6 +269,7 @@ impl From<InnerState> for ha_core::activity::TaskStatus {
         match value {
             InnerState::Queued => Self::Queued,
             InnerState::Running => Self::Running,
+            InnerState::Tick => Self::Tick,
             InnerState::Stopping => Self::Stopping,
             InnerState::Stopped => Self::Stopped,
             InnerState::Completed => Self::Completed,
@@ -581,6 +584,8 @@ impl TaskJob {
             let mut state = self.task.state.write().await;
             if state.is_idle() {
                 state.stopped();
+                self.global
+                    .send_task_activity(Activity::stopped(task_id, job_id));
             } else {
                 // Set task state to stopping so that it will be stopped when it's ticked properly.
                 state.stop();

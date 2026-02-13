@@ -12,6 +12,7 @@ use snafu::ResultExt;
 use tokio::sync::oneshot;
 use tokio_util::{future::FutureExt, sync::CancellationToken};
 use tonic::transport::Channel;
+use tracing::Instrument;
 
 use crate::{
     client::HaRpcClient,
@@ -121,7 +122,7 @@ impl<'a> ClientBuilder<'a> {
             let mut stream = match flight_client.do_exchange(data).await {
                 Ok(stream) => stream,
                 Err(e) => {
-                    tracing::error!("Do exchange error: {e:#}");
+                    tracing::error!("rpc client do exchange error: {e:#}");
                     return;
                 }
             };
@@ -146,7 +147,7 @@ impl<'a> ClientBuilder<'a> {
                         match cancel.run_until_cancelled(message_tx.send_async(Ok(message))).await {
                             Some(Ok(_)) => {},
                             Some(Err(_)) => {
-                                tracing::error!("Do exchange stream dropped");
+                                tracing::error!("rpc client do exchange stream dropped");
                                 break
                             }
                             None => break,
@@ -186,7 +187,7 @@ impl<'a> ClientBuilder<'a> {
                             Err(e) => match cancel.run_until_cancelled(event_tx.send_async(Err(e))).await {
                                 Some(Ok(_)) => continue,
                                 Some(Err(_)) => {
-                                    tracing::warn!("Event channel dropped");
+                                    tracing::warn!("rpc client event channel dropped");
                                     break
                                 }
                                 None => break,
@@ -205,7 +206,7 @@ impl<'a> ClientBuilder<'a> {
                             match cancel.run_until_cancelled(event_tx.send_async(batch)).await {
                                 Some(Ok(_)) => continue,
                                 Some(Err(_)) => {
-                                    tracing::warn!("Event channel dropped");
+                                    tracing::warn!("rpc client event channel dropped");
                                     break
                                 }
                                 None => break,
@@ -215,17 +216,17 @@ impl<'a> ClientBuilder<'a> {
                         match flight_reqs.remove(&req_id) {
                             Some(ack_tx) => {
                                 if ack_tx.send(Ok(batch)).is_err() {
-                                    tracing::warn!("Ack waiter {req_id} dropped");
+                                    tracing::warn!("rpc client ack waiter {req_id} dropped");
                                 }
                             },
                             None => {
-                                tracing::warn!("Ack waiter {req_id} removed");
+                                tracing::warn!("rpc client ack waiter {req_id} removed");
                             },
                         }
                     }
                 }
             }
-        });
+        }.in_current_span());
 
         Ok(HaRpcClient::new(request_tx))
     }

@@ -33,10 +33,6 @@ impl Tasks {
         self.0.read().contains_key(&(tid, jid))
     }
 
-    pub fn all_tasks(&self) -> Vec<i64> {
-        self.0.read().keys().map(|(tid, _)| *tid).collect()
-    }
-
     pub fn is_stopped(&self, tid: i64) -> bool {
         self.0
             .read()

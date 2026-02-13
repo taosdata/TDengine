@@ -31,6 +31,7 @@ pub async fn reconnect_loop(
 ) -> Result<()> {
     let _cleanup = crate::utils::defer::defer(|| {
         xnodes.set_offline(id);
+        tracing::info!(xnode_id = id, "reconnect loop exited");
     });
     let _guard = cancel.drop_guard_ref();
 
@@ -91,7 +92,7 @@ async fn reconnect(
         }
     };
     xnodes.set_online(xnode_id, client.clone(), new_event_rx);
-    tracing::info!("xnode {xnode_id} connected");
+    tracing::info!(xnode_id, "xnode connected");
     true
 }
 
@@ -134,11 +135,11 @@ async fn restart_tasks(
     conn: &Arc<TaosConn>,
     cancel: CancellationToken,
 ) {
-    let sql = format!("SHOW XNODE JOBS WHERE XNODE_ID = {xnode_id}");
+    let sql = format!("SHOW XNODE TASKS WHERE XNODE_ID = {xnode_id}");
     let db_tasks = match conn.query::<sql_types::TaskRecord>(&sql).await {
         Ok(tasks) => tasks,
         Err(e) => {
-            tracing::error!("show xnode jobs error: {:#}", anyhow::Error::new(e));
+            tracing::error!("show xnode tasks error: {:#}", anyhow::Error::new(e));
             return;
         }
     };
@@ -158,11 +159,19 @@ async fn restart_tasks(
                 continue;
             }
         };
+        let labels = match task.labels.map(|v| serde_json::from_str(&v)).transpose() {
+            Ok(labels) => labels,
+            Err(e) => {
+                tracing::error!("parse task labels error: {e}",);
+                continue;
+            }
+        };
         let config = HaTask {
             from: task.from,
             to: task.to,
             parser,
             via: task.via,
+            labels,
         };
 
         tokio::spawn({

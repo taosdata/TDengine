@@ -9,6 +9,7 @@ pub struct TaskRecord {
     pub parser: Option<String>,
     pub status: Option<TaskStatus>,
     pub via: Option<i64>,
+    pub labels: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize)]

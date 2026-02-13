@@ -49,13 +49,11 @@ where
 #[get("/backup/{id}/points")]
 pub async fn get_backup_points(
     id: Path<i64>,
-    job_id: Path<i64>,
     task_store: Data<TaskControllerRef>,
 ) -> impl Responder {
     let id = id.into_inner();
-    let job_id = job_id.into_inner();
 
-    match get_backup_points_impl(id, job_id, task_store).await {
+    match get_backup_points_impl(id, -1, task_store).await {
         Ok(v) => Ok(HttpResponse::Ok().json(v)),
         Err(err) => {
             tracing::error!("failed to get backup points: {:?}", err);

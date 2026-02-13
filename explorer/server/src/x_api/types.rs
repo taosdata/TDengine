@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{Context, bail};
 use chrono::{DateTime, Utc};
@@ -7,12 +7,15 @@ use ha_core::{
     types::{CheckValidParam, HaTask},
 };
 use taos::Dsn;
-use taosx_utils::dsn::{dsn_to_json, json_to_dsn};
+use taosx_utils::{
+    dsn::{dsn_to_json, json_to_dsn},
+    labels::build_json_labels_from_iter,
+};
 
 macro_rules! extract_from {
     ($value: expr) => {
-        match ($value.from, $value.from_json) {
-            (Some(from), _) if !from.is_empty() => from,
+        match ($value.from.as_ref(), $value.from_json.as_ref()) {
+            (Some(from), _) if !from.is_empty() => from.clone(),
             (_, Some(from_json)) if from_json.as_object().is_some_and(|v| !v.is_empty()) => {
                 json_to_dsn(&from_json)?.to_string()
             }
@@ -32,24 +35,23 @@ pub struct TaskRecord {
     pub status: Option<TaskStatus>,
     pub create_time: DateTime<Utc>,
     pub xnode_id: Option<i32>,
-}
-
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub struct ExpandDsn {
-    subject: Option<String>,
+    pub labels: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct GetTaskResult {
     id: i64,
     name: String,
+    from: String,
     from_json: serde_json::Value,
     parser: Option<serde_json::Value>,
     to: String,
     via: Option<i64>,
     status: TaskStatus,
     created_at: String,
-    to_expand: Option<ExpandDsn>,
+    trigger: Option<serde_json::Value>,
+    from_expand: Option<ExpandedDsn>,
+    to_expand: Option<ExpandedDsn>,
 }
 
 impl TryFrom<TaskRecord> for GetTaskResult {
@@ -63,18 +65,25 @@ impl TryFrom<TaskRecord> for GetTaskResult {
             .map(|v| serde_json::from_str(&v))
             .transpose()
             .context("invalid `parser` task param")?;
+        let trigger = v
+            .labels
+            .map(|v| serde_json::from_str::<serde_json::Value>(&v))
+            .transpose()
+            .context("invalid `labels` task param")?
+            .and_then(|v| v.as_object().and_then(|v| v.get("trigger").cloned()));
         Ok(GetTaskResult {
             id: v.id,
             name: v.name,
+            from: v.from,
             from_json: dsn_to_json(&from_dsn),
             parser,
             to: v.to,
             via: v.via,
             status: v.status.unwrap_or(TaskStatus::Created),
             created_at: v.create_time.to_rfc3339(),
-            to_expand: Some(ExpandDsn {
-                subject: to_dsn.subject,
-            }),
+            trigger,
+            from_expand: Some(from_dsn.into()),
+            to_expand: Some(to_dsn.into()),
         })
     }
 }
@@ -87,6 +96,16 @@ pub struct Task {
     to: String,
     parser: Option<serde_json::Value>,
     via: Option<i64>,
+    labels: Vec<String>,
+    trigger: Option<serde_json::Value>,
+}
+
+impl Task {
+    pub fn extract_from_to(&self) -> anyhow::Result<(Dsn, Dsn)> {
+        let from_dsn = Dsn::from_str(&extract_from!(self)).context("invalid `from` dsn")?;
+        let to_dsn = Dsn::from_str(&self.to).context("invalid `to` dsn")?;
+        Ok((from_dsn, to_dsn))
+    }
 }
 
 impl TryFrom<Task> for HaTask {
@@ -97,11 +116,16 @@ impl TryFrom<Task> for HaTask {
         let to = task.to;
         let parser = task.parser;
         let via = task.via;
+        let mut labels = build_json_labels_from_iter(&task.labels);
+        if let (Some(labels), Some(trigger)) = (labels.as_object_mut(), task.trigger) {
+            labels.insert("trigger".into(), trigger);
+        }
         Ok(HaTask {
             from,
             to,
             parser,
             via,
+            labels: Some(labels),
         })
     }
 }
@@ -136,6 +160,7 @@ pub struct ExportedTask {
     parser: Option<serde_json::Value>,
     via: Option<i64>,
     created_at: DateTime<Utc>,
+    trigger: Option<serde_json::Value>,
 }
 
 impl From<ExportedTask> for Task {
@@ -147,6 +172,8 @@ impl From<ExportedTask> for Task {
             to: value.to,
             parser: value.parser,
             via: value.via,
+            labels: vec![],
+            trigger: value.trigger,
         }
     }
 }
@@ -163,6 +190,12 @@ impl TryFrom<TaskRecord> for ExportedTask {
             .map(|v| serde_json::from_str(&v))
             .transpose()
             .context("param `parser` not valid json")?;
+        let mut labels = task
+            .labels
+            .map(|v| serde_json::from_str::<HashMap<String, serde_json::Value>>(&v))
+            .transpose()
+            .context("param `labels` no valid json")?
+            .unwrap_or_default();
         Ok(Self {
             id: task.id,
             name: task.name,
@@ -171,6 +204,7 @@ impl TryFrom<TaskRecord> for ExportedTask {
             parser,
             via: task.via,
             created_at: task.create_time,
+            trigger: labels.remove("trigger"),
         })
     }
 }
@@ -225,24 +259,55 @@ pub struct ActivityLog {
 }
 
 #[derive(Debug, serde::Deserialize)]
-pub struct WsId {
-    pub cluster_id: String,
-    pub token: String,
-}
-
-#[derive(Debug, serde::Deserialize)]
 pub struct TaskWsId {
     pub task_id: i64,
     pub token: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
-pub struct Cluster {
-    pub id: String,
-}
-
-#[derive(Debug, serde::Deserialize)]
 pub struct JobRecord {
     pub via: Option<i64>,
     pub status: Option<TaskStatus>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct GetTaskParam {
+    pub labels: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct ExpandedDsn {
+    pub id: String,
+    pub protocol: Option<String>,
+    pub path: Option<String>,
+    pub host: Option<String>,
+    pub port: Option<u16>,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub subject: Option<String>,
+    pub params: HashMap<String, Option<String>>,
+}
+
+impl From<Dsn> for ExpandedDsn {
+    fn from(value: Dsn) -> Self {
+        let (host, port) = match value.addresses.into_iter().next() {
+            Some(addr) => (addr.host, addr.port),
+            None => (None, None),
+        };
+        Self {
+            id: value.driver,
+            protocol: value.protocol,
+            path: value.path,
+            host,
+            port,
+            username: value.username,
+            password: value.password,
+            subject: value.subject,
+            params: value
+                .params
+                .into_iter()
+                .map(|(k, v)| (k, if v.is_empty() { None } else { Some(v) }))
+                .collect(),
+        }
+    }
 }

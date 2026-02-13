@@ -53,12 +53,16 @@ pub async fn tmq_to_local(
 
     let interval = config.interval.unwrap_or(Duration::from_secs(60 * 10));
     loop {
+        if cancel.is_cancelled() {
+            break;
+        }
         let next_upcoming = config.upcoming.unwrap_or(Utc::now()) + interval;
 
         tmq_to_local_impl(config.clone(), cancel.clone()).await?;
         // update upcoming
         config.upcoming = Some(next_upcoming);
     }
+    Ok(())
 }
 
 async fn tmq_to_local_impl(mut config: BackupConfig, cancel: CancellationToken) -> Result<()> {
@@ -69,6 +73,7 @@ async fn tmq_to_local_impl(mut config: BackupConfig, cancel: CancellationToken) 
         tracing::info!("tmq_to_local: cancelled before upcoming time");
         return Ok(());
     }
+
     if config.upcoming.is_some() {
         config.upcoming = Some(Utc::now());
     }

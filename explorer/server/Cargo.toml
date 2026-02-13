@@ -99,6 +99,7 @@ ha-rpc-client.workspace = true
 taosx-core.workspace = true
 taosx-utils.workspace = true
 futures-ext.workspace = true
+tmq-to-local.workspace = true
 
 [dependencies.taos]
 workspace = true

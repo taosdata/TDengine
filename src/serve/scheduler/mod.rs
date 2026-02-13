@@ -40,7 +40,7 @@ pub enum SchedulerNotify {
     AgentActivity(Activity),
 }
 pub type NotifyChannel = tokio::sync::broadcast::Receiver<SchedulerNotify>;
-pub type NotifySender = Weak<tokio::sync::broadcast::Sender<SchedulerNotify>>;
+pub type NotifySender = Arc<tokio::sync::broadcast::Sender<SchedulerNotify>>;
 pub type SchedulerNotifier = Arc<tokio::sync::broadcast::Sender<SchedulerNotify>>;
 
 pub trait NotifySenderExt {
@@ -50,15 +50,11 @@ pub trait NotifySenderExt {
 
 impl NotifySenderExt for NotifySender {
     fn push_task_activity(&self, activity: Activity) {
-        if let Some(sender) = self.upgrade() {
-            let _ = sender.send(SchedulerNotify::TaskActivity(activity));
-        }
+        self.send(SchedulerNotify::TaskActivity(activity)).ok();
     }
 
     fn push_agent_activity(&self, activity: Activity) {
-        if let Some(sender) = self.upgrade() {
-            let _ = sender.send(SchedulerNotify::AgentActivity(activity));
-        }
+        self.send(SchedulerNotify::AgentActivity(activity)).ok();
     }
 }
 
@@ -124,7 +120,6 @@ impl TaskScheduler {
         let task_breakpoint_db = Arc::new(RwLock::new(HashMap::new()));
         // let (notify_sender, notify_receiver) = tokio::sync::broadcast::channel(1024);
         // let owned_notify_sender = Arc::new(notify_sender);
-        let notify_sender = Arc::downgrade(&owned_notify_sender);
         let mut scheduler = JobScheduler::new().await?;
         let shutdown_barrier = Arc::new(tokio::sync::Barrier::new(4));
         let shutdown_notifier = Arc::new(Notify::const_new());
@@ -243,13 +238,12 @@ impl TaskScheduler {
         });
 
         let notify_rx = scheduler.context.notify_tx.subscribe();
-        let task_notify_tx = Arc::downgrade(&owned_notify_sender);
         let shutdown_barrier_clone = shutdown_barrier.clone();
         let tasks_index_map = tasks.clone();
 
         let global_state = Arc::new(GlobalState::new(
             scheduler.clone(),
-            notify_sender,
+            owned_notify_sender,
             agent_worker,
         ));
         let global_state_in_notify_handler = global_state.clone();
@@ -293,8 +287,6 @@ impl TaskScheduler {
                 shutdown_notifier.notify_waiters();
                 tokio::time::timeout(Duration::from_secs(5), shutdown_barrier.wait()).await;
                 tracing::info!("Scheduler is shutdown completely");
-                // owned_notify_sender.receiver_count();
-                debug_assert!(Arc::strong_count(&owned_notify_sender) == 1);
             })
             .await;
 
@@ -342,15 +334,11 @@ impl TaskScheduler {
     }
 
     pub fn notify_channel(&self) -> NotifyChannel {
-        self.global_state
-            .notify_sender
-            .upgrade()
-            .unwrap()
-            .subscribe()
+        self.global_state.notify_sender.subscribe()
     }
 
-    pub fn notify_sender(&self) -> Option<Arc<tokio::sync::broadcast::Sender<SchedulerNotify>>> {
-        self.global_state.notify_sender.upgrade()
+    pub fn notify_sender(&self) -> &Arc<tokio::sync::broadcast::Sender<SchedulerNotify>> {
+        &self.global_state.notify_sender
     }
 
     /// Stop a task, note that this does not imply that the task is already finished.
@@ -440,7 +428,7 @@ impl TaskScheduler {
         task: Task,
         xnoded_tx: flume::Sender<Result<RecordBatch, FlightError>>,
     ) -> anyhow::Result<()> {
-        tracing::info!("Push task to scheduler: {:?}", task);
+        tracing::info!("Push task to scheduler: {task:?}");
         self.global_state.ensure_alive()?;
         let task_id = task.id;
         let job_id = task.job_id;
@@ -500,24 +488,59 @@ impl TaskScheduler {
         let job = {
             let task = task_state.clone();
             let file = file.clone();
-            Job::new_one_shot_async(Duration::from_secs(0), move |sid, _| {
-                tracing::info!(job.id = job_id, task.id = task_id, sched.id = %sid, "job is scheduled");
-                Box::pin(runner::task_job_run(
-                    sid,
-                    task.clone(),
-                    global.clone(),
-                    file.clone(),
-                ))
-            })?
+            if let Some((Some((_, interval)), Some(start_at))) = task
+                .task
+                .trigger
+                .as_ref()
+                .map(|v| (v.interval.as_ref(), v.upcoming))
+            {
+                tracing::info!(
+                    task.id = task_id,
+                    job.id = job_id,
+                    "scheduling repeated job every {} seconds starting at {}",
+                    interval.as_secs(),
+                    start_at,
+                );
+                JobBuilder::new()
+                    .with_timezone(chrono::Utc)
+                    .with_repeated_job_type()
+                    .every_seconds(interval.as_secs())
+                    .start_at(start_at)
+                    .with_run_async(Box::new(move |jid, _| {
+                        Box::pin(runner::task_job_run(
+                            jid,
+                            task.clone(),
+                            global.clone(),
+                            file.clone(),
+                        ))
+                    }))
+                    .build()?
+            } else {
+                tracing::info!(
+                    task.id = task_id,
+                    job.id = job_id,
+                    "scheduling one-shot job",
+                );
+                Job::new_one_shot_async(Duration::from_secs(0), move |sid, _| {
+                    tracing::info!(job.id = job_id, task.id = task_id, sched.id = %sid, "job is scheduled");
+                    Box::pin(runner::task_job_run(
+                        sid,
+                        task.clone(),
+                        global.clone(),
+                        file.clone(),
+                    ))
+                })?
+            }
         };
 
         tracing::info!(task.id = task_id, job.id = job_id, "job created");
 
-        let job_scheduler = &self.global_state.scheduler;
-        let sched_id = job_scheduler.add(job).await.with_context(|| {
-            tracing::error!(task.id = task_id, "Add task `{}` error", task_id);
-            format!("Add task `{}` error", task_id)
-        })?;
+        let sched_id = self
+            .global_state
+            .scheduler
+            .add(job)
+            .await
+            .with_context(|| format!("Add task `{task_id}` error"))?;
 
         self.global_state
             .send_task_activity(Activity::queued(task_id, job_id, sched_id));

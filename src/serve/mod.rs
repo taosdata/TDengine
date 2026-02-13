@@ -286,12 +286,10 @@ impl Cli {
         let (scheduler_notify_sender, _) = tokio::sync::broadcast::channel::<SchedulerNotify>(1024);
         let scheduler_notify_sender = Arc::new(scheduler_notify_sender);
 
-        let weak_notify_sender = Arc::downgrade(&scheduler_notify_sender);
-
         let agent_worker = AgentWorker::new(
             agent_action_sender,
             agent_notify_receiver,
-            weak_notify_sender,
+            scheduler_notify_sender.clone(),
             agent_spawn_receiver,
         )
         .await;

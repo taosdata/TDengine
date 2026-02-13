@@ -60,7 +60,9 @@ pub fn init(args: &Args) -> anyhow::Result<()> {
     let level_filter = EnvFilter::builder()
         .with_default_directive(args.log.level.unwrap_or(LevelFilter::INFO).into())
         .from_env_lossy()
-        .add_directive("h2=warn".parse()?);
+        .add_directive("h2=warn".parse()?)
+        .add_directive("tower=warn".parse()?)
+        .add_directive("typer_util=warn".parse()?);
 
     use tracing_subscriber::Layer;
     #[allow(unused_mut)]

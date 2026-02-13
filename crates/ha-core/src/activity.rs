@@ -9,6 +9,7 @@ pub enum TaskStatus {
     Created,
     Queued,
     Running,
+    Tick,
     Stopping,
     Stopped,
     Completed,
@@ -24,7 +25,10 @@ impl TaskStatus {
     }
 
     pub fn is_running(&self) -> bool {
-        matches!(self, TaskStatus::Queued | TaskStatus::Running)
+        matches!(
+            self,
+            TaskStatus::Queued | TaskStatus::Running | TaskStatus::Tick
+        )
     }
 }
 
@@ -35,6 +39,7 @@ impl std::fmt::Display for TaskStatus {
             TaskStatus::Created => "created",
             TaskStatus::Queued => "queued",
             TaskStatus::Running => "running",
+            TaskStatus::Tick => "tick",
             TaskStatus::Stopping => "stopping",
             TaskStatus::Stopped => "stopped",
             TaskStatus::Completed => "completed",
@@ -346,6 +351,18 @@ impl Activity {
             level: ActivityLevel::Info,
             activity: "task completed".to_string(),
             status: ActivityStatus::Task(TaskStatus::Completed),
+        }
+    }
+
+    pub fn tick(task_id: i64, job_id: i64) -> Self {
+        Self {
+            agent_id: -1,
+            task_id,
+            job_id,
+            at: Utc::now(),
+            level: ActivityLevel::Info,
+            activity: "Wait for next tick in schedule".to_string(),
+            status: ActivityStatus::Task(TaskStatus::Tick),
         }
     }
 

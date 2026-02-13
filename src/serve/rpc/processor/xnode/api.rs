@@ -135,8 +135,9 @@ pub async fn start_task_job(
         .context("deserialize xnode_start_task_job context error")
         .map_err(decode_err)?;
 
+    let task = task.try_into().map_err(internal_err)?;
     controller
-        .start_task(task.into(), xnoded_tx)
+        .start_task(task, xnoded_tx)
         .await
         .map_err(internal_err)?;
 
@@ -259,7 +260,7 @@ pub async fn list_task_states(
     let states = controller.list_task_states().await;
     let mut context = Vec::with_capacity(states.len());
     for ((task_id, job_id), state) in states {
-        context.push(ListTaskJobStatesParam {
+        context.push(ListTaskJobStates {
             task_id,
             job_id,
             state: state.into(),

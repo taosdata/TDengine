@@ -85,7 +85,8 @@ pub fn alloc_jobs(
                 from: task.from.to_string(),
                 to: task_to,
                 parser: task.parser,
-                via,
+                via: None,
+                labels: None,
             };
             AllocatedJobs::Task(xnode, job)
         }

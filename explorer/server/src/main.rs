@@ -466,11 +466,11 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/x/ds/in/sample", web::post().to(get_sample))
             // websockets
             .route(
-                "/api/x/activities/tasks/{cluster_id}/{token}",
+                "/api/x/activities/tasks/{token}",
                 web::get().to(get_ws_tasks_activities),
             )
             .route(
-                "/api/x/activities/agents/{cluster_id}/{token}",
+                "/api/x/activities/agents/{token}",
                 web::get().to(get_ws_agents_activities),
             )
             .route(

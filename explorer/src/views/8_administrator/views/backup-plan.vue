@@ -58,7 +58,7 @@
             <el-tooltip
               v-if="['interrupted', 'failed'].includes(scope.row.status.toLowerCase())"
               placement="top"
-              :open-delay="0" 
+              :open-delay="0"
             >
               <template #content>
                 <div>{{ scope.row.last_modified_at }}</div>
@@ -201,15 +201,35 @@
           <el-input v-model="ruleForm.created_at"></el-input>
         </el-form-item>
         <el-form-item prop="s3_enable" :label="$t('taosuser.backupForm.s3Enable')">
-          <el-switch v-model="ruleForm.s3_enable" :disabled="!s3EnableEditable" active-color="#13ce66" inactive-color="#dcdfe6"></el-switch>
+          <el-switch
+            v-model="ruleForm.s3_enable"
+            :disabled="!s3EnableEditable"
+            active-color="#13ce66"
+            inactive-color="#dcdfe6"
+          ></el-switch>
         </el-form-item>
-        <el-form-item v-if="ruleForm.s3_enable" required prop="s3_endpoint" :label="$t('taosuser.backupForm.s3Endpoint')">
+        <el-form-item
+          v-if="ruleForm.s3_enable"
+          required
+          prop="s3_endpoint"
+          :label="$t('taosuser.backupForm.s3Endpoint')"
+        >
           <el-input v-model="ruleForm.s3_endpoint"></el-input>
         </el-form-item>
-        <el-form-item v-if="ruleForm.s3_enable" required prop="s3_access_key_id" :label="$t('taosuser.backupForm.s3AccessKeyId')">
+        <el-form-item
+          v-if="ruleForm.s3_enable"
+          required
+          prop="s3_access_key_id"
+          :label="$t('taosuser.backupForm.s3AccessKeyId')"
+        >
           <el-input v-model="ruleForm.s3_access_key_id"></el-input>
         </el-form-item>
-        <el-form-item v-if="ruleForm.s3_enable" required prop="s3_secret_access_key" :label="$t('taosuser.backupForm.s3SecretAccessKey')">
+        <el-form-item
+          v-if="ruleForm.s3_enable"
+          required
+          prop="s3_secret_access_key"
+          :label="$t('taosuser.backupForm.s3SecretAccessKey')"
+        >
           <el-input v-model="ruleForm.s3_secret_access_key"></el-input>
         </el-form-item>
         <el-form-item v-if="ruleForm.s3_enable" required prop="s3_region" :label="$t('taosuser.backupForm.s3Region')">
@@ -218,10 +238,18 @@
         <el-form-item v-if="ruleForm.s3_enable" required prop="s3_bucket" :label="$t('taosuser.backupForm.s3Bucket')">
           <el-input v-model="ruleForm.s3_bucket"></el-input>
         </el-form-item>
-        <el-form-item v-if="ruleForm.s3_enable" prop="s3_object_prefix" :label="$t('taosuser.backupForm.s3ObjectPrefix')">
+        <el-form-item
+          v-if="ruleForm.s3_enable"
+          prop="s3_object_prefix"
+          :label="$t('taosuser.backupForm.s3ObjectPrefix')"
+        >
           <el-input v-model="ruleForm.s3_object_prefix"></el-input>
         </el-form-item>
-        <el-form-item v-if="ruleForm.s3_enable" prop="backup_retention_period_value" :label="$t('taosuser.backupForm.backupRetentionPeriod')">
+        <el-form-item
+          v-if="ruleForm.s3_enable"
+          prop="backup_retention_period_value"
+          :label="$t('taosuser.backupForm.backupRetentionPeriod')"
+        >
           <el-input v-model.number="ruleForm.backup_retention_period_value" class="input-with-select">
             <template #append>
               <el-select v-model="ruleForm.backup_retention_period_unit" style="width: 100px">
@@ -231,7 +259,11 @@
             </template>
           </el-input>
         </el-form-item>
-        <el-form-item v-if="ruleForm.s3_enable" prop="backup_retention_size" :label="$t('taosuser.backupForm.backupRetentionSize')">
+        <el-form-item
+          v-if="ruleForm.s3_enable"
+          prop="backup_retention_size"
+          :label="$t('taosuser.backupForm.backupRetentionSize')"
+        >
           <el-input v-model.number="ruleForm.backup_retention_size"></el-input>
         </el-form-item>
       </el-form>
@@ -619,7 +651,12 @@ const constructPostData = () => {
   }
   const toDSN = `local:${ruleForm.directory}?max_size=${ruleForm.backup_max_size_value}${ruleForm.backup_max_size_unit}&compression_level=${ruleForm.compression_level}&${concatS3Config(ruleForm)}`;
 
+  // generate current datetime timestamp (ms)
+  const currentDateTime = Date.now();
+  const name = `backup_${currentDateTime}`;
+
   return {
+    name,
     labels: ['type::backup', `cluster-id::${clusterID}`],
     trigger: {
       upcoming: ruleForm.upcoming,

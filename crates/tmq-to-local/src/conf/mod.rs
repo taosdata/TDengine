@@ -60,17 +60,16 @@ pub struct BackupConfig {
 }
 
 impl BackupConfig {
-    pub fn group_id(task_id: Option<(i64, i64)>, from: &Dsn, to: &Dsn) -> String {
+    pub fn group_id(timestamp: i64, from: &Dsn, to: &Dsn) -> String {
         if let Some(oneshot_topic) = from.get("use.topic.name") {
             return oneshot_topic.to_string();
         }
 
-        let mut salt = vec![from.to_string(), to.to_string()];
-        if let Some((task_id, job_id)) = task_id {
-            salt.push(task_id.to_string());
-            salt.push(job_id.to_string());
-        }
-        generate_hash(salt)
+        generate_hash(vec![
+            from.to_string(),
+            to.to_string(),
+            timestamp.to_string(),
+        ])
     }
 
     /// 如果 topic 在 taosd 中不存在，则是初始备份，反之则不是
@@ -376,7 +375,7 @@ impl BackupConfigBuilder {
         let backup_dir = utils::parse_backup_dir(&self.to, self.task_job_id)?;
 
         // topic 与 group.id 相同
-        let topic = BackupConfig::group_id(self.task_job_id, &self.from, &self.to);
+        let topic = BackupConfig::group_id(Utc::now().timestamp_millis(), &self.from, &self.to);
 
         // error.retry.max
         let error_retry_max =

@@ -6,7 +6,7 @@ use actix_web::{
     web::{self, Data, Json, Path, Query},
 };
 use anyhow::{Context, bail};
-use chrono::Local;
+use chrono::{Local, Utc};
 use ha_core::{
     activity::TaskStatus,
     consts::{TASK_ACTIVITIES_STABLE, TASK_METRICS_STABLE},
@@ -15,7 +15,10 @@ use ha_core::{
 use http::StatusCode;
 use taos::Dsn;
 use taosx_core::core_metrics::{CoreMetrics, get_task_metrics_string};
-use taosx_utils::sql::sql_value_escaped_fmt;
+use taosx_utils::{
+    labels::{LabelFilter, build_json_labels_from_string},
+    sql::sql_value_escaped_fmt,
+};
 use tokio::{fs::OpenOptions, io::AsyncWriteExt};
 use tracing::instrument;
 
@@ -26,14 +29,44 @@ use crate::{
     x_api::{JsonResult, JsonStatusResult, Result},
 };
 
-pub async fn get_tasks(args: web::Data<Args>, req: HttpRequest) -> JsonResult<Vec<GetTaskResult>> {
+pub async fn get_tasks(
+    args: web::Data<Args>,
+    req: HttpRequest,
+    param: Query<GetTaskParam>,
+) -> JsonResult<Vec<GetTaskResult>> {
+    let param = param.into_inner();
+
+    let query_labels = param
+        .labels
+        .as_ref()
+        .and_then(|v| {
+            build_json_labels_from_string(v)
+                .as_object()
+                .and_then(|v| v.get("type"))
+                .cloned()
+        })
+        .map(|v| LabelFilter::new().with("type", v));
+
     let dsn = get_dsn(&args, &req).await?;
-    let data = query::<TaskRecord>(&dsn, "SHOW XNODE TASKS").await?;
-    Ok(Json(
-        data.into_iter()
-            .map(|v| v.try_into())
-            .collect::<anyhow::Result<_>>()?,
-    ))
+    let tasks = query::<TaskRecord>(&dsn, "SHOW XNODE TASKS").await?;
+    let mut res = Vec::with_capacity(tasks.len());
+    for task in tasks {
+        let Some(query_labels) = query_labels.as_ref() else {
+            res.push(task.try_into()?);
+            continue;
+        };
+
+        // When a label filter is provided, only keep tasks whose labels match.
+        let Some(task_labels_str) = task.labels.as_ref() else {
+            continue;
+        };
+        let task_labels =
+            serde_json::from_str(task_labels_str).context("task labels invalid json")?;
+        if !query_labels.matches(&task_labels) {
+            continue;
+        }
+    }
+    Ok(Json(res))
 }
 
 pub async fn get_task(
@@ -71,6 +104,15 @@ async fn create_task_inner(
     task: Task,
     start: bool,
 ) -> Result<GetTaskResult> {
+    let (from, to) = task.extract_from_to()?;
+    let backup_topic = match (from.driver.as_str(), to.driver.as_str()) {
+        ("tmq", "local") => Some(tmq_to_local::conf::BackupConfig::group_id(
+            Utc::now().timestamp_millis(),
+            &from,
+            &to,
+        )),
+        _ => None,
+    };
     // create
     let task_name = task.name.clone();
     let config: HaTask = task.try_into()?;
@@ -92,6 +134,27 @@ async fn create_task_inner(
 
     if let Some(via) = config.via {
         sql.push_str(&format!(" VIA {via}"));
+    }
+
+    let labels = match (config.labels, backup_topic) {
+        (Some(labels), Some(oneshot_topic)) => {
+            let mut labels = labels.clone();
+            if let Some(map) = labels.as_object_mut() {
+                map.insert("oneshot_topic".to_string(), oneshot_topic.into());
+            }
+            Some(labels)
+        }
+        (Some(labels), None) => Some(labels),
+        (None, Some(oneshot_topic)) => Some(serde_json::json!({"oneshot_topic": oneshot_topic})),
+        (None, None) => None,
+    };
+    if let Some(labels) = labels
+        .as_ref()
+        .map(serde_json::to_string::<serde_json::Value>)
+        .transpose()
+        .context("invalid `labels` param")?
+    {
+        sql.push_str(&format!(" LABELS {}", sql_value_escaped_fmt(&labels)));
     }
 
     tracing::debug!(sql, "create task sql");

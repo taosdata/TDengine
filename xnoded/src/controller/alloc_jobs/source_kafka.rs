@@ -75,6 +75,7 @@ where
                     to: task.to.clone(),
                     parser: task.parser.clone(),
                     via,
+                    labels: None,
                 };
                 jobs.push((id, job));
                 concurrency -= tp.concurrency;
@@ -86,6 +87,7 @@ where
                     to: task.to.clone(),
                     parser: task.parser.clone(),
                     via,
+                    labels: None,
                 };
                 jobs.push((id, job));
                 tp.concurrency -= concurrency;
@@ -141,7 +143,8 @@ mod tests {
                         from: "kafka://?read_concurrency=3&topics=a".into(),
                         to: "taos://localhost:6030".into(),
                         parser: None,
-                        via: None
+                        via: None,
+                        labels: None
                     },
                 ),
                 (
@@ -150,7 +153,8 @@ mod tests {
                         from: "kafka://?read_concurrency=4&topics=b".into(),
                         to: "taos://localhost:6030".into(),
                         parser: None,
-                        via: None
+                        via: None,
+                        labels: None
                     },
                 ),
                 (
@@ -159,7 +163,8 @@ mod tests {
                         from: "kafka://?read_concurrency=1&topics=b".into(),
                         to: "taos://localhost:6030".into(),
                         parser: None,
-                        via: None
+                        via: None,
+                        labels: None
                     },
                 ),
                 (
@@ -168,7 +173,8 @@ mod tests {
                         from: "kafka://?read_concurrency=8&topics=c".into(),
                         to: "taos://localhost:6030".into(),
                         parser: None,
-                        via: None
+                        via: None,
+                        labels: None
                     },
                 )
             ]

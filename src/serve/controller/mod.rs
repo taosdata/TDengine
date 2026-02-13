@@ -689,26 +689,42 @@ pub struct Task {
     /// Task trigger events, default will be oneshot.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trigger: Option<Strategy>,
-
-    /// break points
-    #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub breakpoints: Option<String>,
 }
 
-impl From<ha_core::types::StartTaskJobParam> for Task {
-    fn from(param: ha_core::types::StartTaskJobParam) -> Self {
-        Self {
+impl TryFrom<ha_core::types::StartTaskJobParam> for Task {
+    type Error = anyhow::Error;
+    fn try_from(mut param: ha_core::types::StartTaskJobParam) -> anyhow::Result<Self> {
+        macro_rules! extract_json_field {
+            ($labels:expr, $field_name:expr, $error_msg:expr) => {
+                $labels
+                    .as_mut()
+                    .and_then(|v| v.as_object_mut())
+                    .and_then(|v| v.remove($field_name))
+                    .map(serde_json::from_value)
+                    .transpose()
+                    .context($error_msg)?
+            };
+        }
+        let trigger = extract_json_field!(
+            param.labels,
+            "trigger",
+            "StartTaskJobParam field `trigger` not valid"
+        );
+        let oneshot_topic = extract_json_field!(
+            param.labels,
+            "oneshot_topic",
+            "StartTaskJobParam field `oneshot_topic` not valid"
+        );
+        Ok(Self {
             id: param.task_id,
             job_id: param.job_id,
             from: param.from,
             to: param.to,
             parser: param.parser,
             via: param.via,
-            oneshot_topic: None,
-            trigger: None,
-            breakpoints: None,
-        }
+            oneshot_topic,
+            trigger,
+        })
     }
 }
 

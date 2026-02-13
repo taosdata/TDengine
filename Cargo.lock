@@ -10284,6 +10284,7 @@ dependencies = [
  "taosx-utils",
  "tempfile",
  "thiserror 2.0.18",
+ "tmq-to-local",
  "tokio",
  "tokio-stream",
  "tokio-util",

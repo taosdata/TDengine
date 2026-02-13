@@ -27,7 +27,7 @@ use crate::{
     x_api::{
         FlightResult, Result, get_client,
         tasks::get_all_task_job_metrics,
-        types::{ActivityLog, Cluster, TaskWsId, WsId, Xnode},
+        types::{ActivityLog, TaskWsId, Xnode},
     },
 };
 
@@ -37,15 +37,13 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
 
 pub async fn get_ws_tasks_activities(
     args: Data<Args>,
-    ws_id: Path<WsId>,
+    token: Path<String>,
     req: HttpRequest,
     stream: Payload,
 ) -> Result<HttpResponse> {
-    let dsn = build_dsn_from_ws_token(&args, &ws_id.token)?;
+    let dsn = build_dsn_from_ws_token(&args, &token)?;
 
     let xnodes = get_xnode_ids(&dsn).await?;
-
-    check_cluster_id(&dsn, &ws_id.cluster_id).await?;
 
     let (resp, mut session, msg_stream) =
         actix_ws::handle(&req, stream).map_err(|e| anyhow::anyhow!("handle ws error: {e}"))?;
@@ -82,13 +80,11 @@ pub async fn get_ws_tasks_activities(
 
 pub async fn get_ws_agents_activities(
     args: Data<Args>,
-    ws_id: Path<WsId>,
+    token: Path<String>,
     req: HttpRequest,
     stream: Payload,
 ) -> Result<HttpResponse> {
-    let dsn = build_dsn_from_ws_token(&args, &ws_id.token)?;
-
-    check_cluster_id(&dsn, &ws_id.cluster_id).await?;
+    let dsn = build_dsn_from_ws_token(&args, &token)?;
 
     let xnodes = get_xnode_ids(&dsn).await?;
 
@@ -238,14 +234,6 @@ fn build_dsn_from_ws_token(args: &Args, token: &str) -> Result<Dsn> {
         })
         .map_err(|e| anyhow::anyhow!("build dns error: {e}"))?;
     Ok(dsn)
-}
-
-async fn check_cluster_id(dsn: &Dsn, cluster_id: &str) -> Result<()> {
-    let mut cluster = query::<Cluster>(dsn, "SHOW CLUSTER").await?;
-    if cluster.pop().is_some_and(|v| v.id == cluster_id) {
-        return Ok(());
-    }
-    Err(anyhow::anyhow!("cluster id not match").into())
 }
 
 async fn handle_ws<F, Fut>(

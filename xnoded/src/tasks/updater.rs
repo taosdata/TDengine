@@ -14,7 +14,7 @@ use crate::{
 };
 
 #[instrument(skip_all)]
-pub async fn start_ticker(
+pub async fn start_updater(
     dsn: String,
     xnodes: XNodes,
     tasks: Tasks,

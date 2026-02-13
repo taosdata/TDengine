@@ -289,7 +289,7 @@ export default {
     disconnected: 'Disconnected',
     paused: 'Paused',
     waken: 'Waken',
-    ticked: 'Ticked',
+    tick: 'Tick',
     cleared: 'Clear target database',
     scheduled: 'Scheduled',
     transferring: 'Transferring'

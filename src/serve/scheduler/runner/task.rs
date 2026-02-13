@@ -96,6 +96,7 @@ pub async fn spawn_task(
     }
     let state_guard = opts.last_state.read().await;
     let last_state = state_guard.as_ref().expect("task should have a last state");
+
     let (task_id, job_id) = (opts.task.id, opts.task.job_id);
     match last_state {
         LastState::Done => match opts.operator.operator() {
@@ -104,8 +105,13 @@ pub async fn spawn_task(
                 opts.state.write().await.stopped();
             }
             Operator::Run => {
-                global.send_task_activity(Activity::completed(task_id, job_id));
-                opts.state.write().await.completed();
+                if should_stop {
+                    global.send_task_activity(Activity::completed(opts.task.id, opts.task.job_id));
+                    opts.state.write().await.completed();
+                } else {
+                    global.send_task_activity(Activity::tick(opts.task.id, opts.task.job_id));
+                    opts.state.write().await.ticked();
+                }
             }
         },
         LastState::Stopped => {

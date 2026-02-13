@@ -89,6 +89,11 @@ pub enum Error {
         task_id: i64,
         source: serde_json::Error,
     },
+    #[snafu(display("Failed to deserialize task {task_id} labels"))]
+    DeserializeTaskLabels {
+        task_id: i64,
+        source: serde_json::Error,
+    },
     #[snafu(display("Failed to start task {task_id} job {job_id} on xnode {xnode_id}"))]
     StartTaskJob {
         xnode_id: i32,
@@ -290,11 +295,18 @@ impl Controller {
                 .map(|v| serde_json::from_str(v))
                 .transpose()
                 .context(DeserializeTaskParserSnafu { task_id })?;
+            let labels = task
+                .labels
+                .as_ref()
+                .map(|v| serde_json::from_str(v))
+                .transpose()
+                .context(DeserializeTaskLabelsSnafu { task_id })?;
             let config = HaTask {
                 from: task.from,
                 to: task.to,
                 parser,
                 via: task.via,
+                labels,
             };
             db_status_configs.insert((task_id, -1), (xnode_id, task.status, config.clone()));
         }
@@ -642,11 +654,18 @@ impl Controller {
         {
             parser = Some(inner_parser.clone());
         }
+        let labels = task
+            .labels
+            .as_ref()
+            .map(|v| serde_json::from_str(v))
+            .transpose()
+            .context(DeserializeTaskLabelsSnafu { task_id })?;
         let config = HaTask {
             from: task.from.clone(),
             to: task.to.clone(),
             parser: parser.clone(),
             via: task.via,
+            labels: labels.clone(),
         };
         match task.xnode_id {
             Some(xnode_id) => {
@@ -722,7 +741,8 @@ impl Controller {
                     alloc_jobs(split_config, &self.xnodes, task.via).context(SplitJobSnafu)?;
                 tracing::debug!(?jobs, "alloc jobs result");
                 match jobs {
-                    AllocatedJobs::Task(xnode_id, task) => {
+                    AllocatedJobs::Task(xnode_id, mut task) => {
+                        task.labels = config.labels.clone();
                         self.start_task(task_id, xnode_id, task).await?;
                     }
                     AllocatedJobs::Jobs(jobs) => {
@@ -734,6 +754,9 @@ impl Controller {
                                 "CREATE XNODE JOB ON {task_id} WITH CONFIG {} XNODE_ID {xnode_id}",
                                 sql_value_escaped_fmt(&job_config)
                             );
+                            if let Some(labels) = task.labels.as_ref() {
+                                sql.push_str(&format!(" LABELS {}", sql_value_escaped_fmt(labels)));
+                            }
                             if let Some(via) = config.via {
                                 sql.push_str(&format!(" VIA {via}"));
                             }
@@ -980,6 +1003,7 @@ impl Controller {
                         to: task.to,
                         parser: task.parser,
                         via: task.via,
+                        labels: task.labels,
                     };
                     self.plan_start_task(task_id, &param).await?;
                 }
@@ -1121,6 +1145,7 @@ pub async fn start_task(
         to: config.to,
         parser: config.parser,
         via: config.via,
+        labels: config.labels,
     };
     client
         .start_task_job(&param)
@@ -1162,6 +1187,7 @@ pub async fn start_job(
         to: config.to,
         parser: config.parser,
         via: config.via,
+        labels: config.labels,
     };
     client
         .start_task_job(&param)

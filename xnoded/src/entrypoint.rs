@@ -9,10 +9,7 @@ use crate::{
     Args,
     api::start_http,
     controller::Controller,
-    tasks::{
-        monitor::start_monitor, rebalancer::start_rebalancer,
-        updater::start_ticker as start_updater,
-    },
+    tasks::{monitor::start_monitor, rebalancer::start_rebalancer, updater::start_updater},
     utils::signal::{Signal, wait_signal},
 };
 

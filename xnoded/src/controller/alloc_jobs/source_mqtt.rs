@@ -56,6 +56,7 @@ pub fn alloc_jobs(
                             to: task.to.clone(),
                             parser: task.parser.clone(),
                             via,
+                            labels: None,
                         },
                     ))
                 }

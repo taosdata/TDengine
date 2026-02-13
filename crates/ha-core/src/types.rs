@@ -95,6 +95,7 @@ pub struct HaTask {
     pub to: String,
     pub parser: Option<serde_json::Value>,
     pub via: Option<i64>,
+    pub labels: Option<serde_json::Value>,
 }
 
 #[derive(Debug)]
@@ -174,6 +175,8 @@ pub struct StartTaskJobParam {
     /// Agent Id
     #[serde(skip_serializing_if = "Option::is_none")]
     pub via: Option<i64>,
+
+    pub labels: Option<serde_json::Value>,
 }
 
 pub type StopTaskJobParam = TaskJobId;
@@ -205,10 +208,10 @@ pub struct ListAgentStatusResult {
     pub status: AgentStatus,
 }
 
-pub type ListTaskJobStatesResult = Vec<ListTaskJobStatesParam>;
+pub type ListTaskJobStatesResult = Vec<ListTaskJobStates>;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
-pub struct ListTaskJobStatesParam {
+pub struct ListTaskJobStates {
     pub task_id: i64,
     pub job_id: i64,
     pub state: TaskStatus,

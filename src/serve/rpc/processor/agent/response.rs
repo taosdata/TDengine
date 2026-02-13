@@ -3,12 +3,11 @@ use arrow::array::timezone::Tz;
 use arrow_flight::error::FlightError;
 use chrono::{DateTime, Utc};
 use metrics::{IntoLabels, counter, gauge, histogram};
-use tokio::sync::broadcast;
 
 use crate::serve::{
     rpc::{DataSetsSenders, DsvSenders, SplitTaskSenders, StringSenders, utils::internal_err},
     scheduler::{
-        SchedulerNotify,
+        NotifySender, NotifySenderExt,
         agent::{AgentNotify, AgentNotifySender},
     },
 };
@@ -127,7 +126,7 @@ pub fn agent_activity(
     agent_id: i64,
     context: &str,
     notify_sender: &AgentNotifySender,
-    activity_sender: Option<&broadcast::Sender<SchedulerNotify>>,
+    activity_sender: &NotifySender,
 ) {
     let activity: Activity = match serde_json::from_str(context) {
         Ok(activity) => activity,
@@ -143,16 +142,14 @@ pub fn agent_activity(
     notify_sender
         .send(AgentNotify::AgentActivity(agent_id, activity.clone()))
         .ok();
-    if let Some(sender) = activity_sender {
-        sender.send(SchedulerNotify::AgentActivity(activity)).ok();
-    }
+    activity_sender.push_agent_activity(activity);
 }
 
 pub fn task_activity(
     agent_id: i64,
     context: &str,
     notify_sender: &AgentNotifySender,
-    activity_sender: Option<&broadcast::Sender<SchedulerNotify>>,
+    activity_sender: &NotifySender,
 ) {
     let activity: Activity = match serde_json::from_str(context) {
         Ok(activity) => activity,
@@ -165,9 +162,7 @@ pub fn task_activity(
     notify_sender
         .send(AgentNotify::TaskActivity(agent_id, activity.clone()))
         .ok();
-    if let Some(sender) = activity_sender {
-        sender.send(SchedulerNotify::AgentActivity(activity)).ok();
-    }
+    activity_sender.push_task_activity(activity);
 }
 
 pub fn heartbeat_ok(agent_id: i64, context: &str) {

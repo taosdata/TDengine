@@ -88,20 +88,10 @@ pub async fn process(
                 agent::response::query_datasource_response(agent_id, context, string_senders).await;
             }
             (MESSAGE_AGENT_ACTIVITY, Some(agent_id), RpcClientType::Agent) => {
-                agent::response::agent_activity(
-                    agent_id,
-                    context,
-                    notify_sender,
-                    activity_sender.as_deref(),
-                );
+                agent::response::agent_activity(agent_id, context, notify_sender, activity_sender);
             }
             (MESSAGE_TASK_ACTIVITY, Some(agent_id), RpcClientType::Agent) => {
-                agent::response::task_activity(
-                    agent_id,
-                    context,
-                    notify_sender,
-                    activity_sender.as_deref(),
-                );
+                agent::response::task_activity(agent_id, context, notify_sender, activity_sender);
             }
             (MESSAGE_HEARTBEAT_OK, Some(agent_id), RpcClientType::Agent) => {
                 agent::response::heartbeat_ok(agent_id, context);

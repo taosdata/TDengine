@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::LazyLock};
 
 use ha_core::{
     activity::{AgentStatus, TaskStatus},
-    types::{ListTaskJobStatesParam, ListTaskJobStatesResult},
+    types::{ListTaskJobStates, ListTaskJobStatesResult},
 };
 use parking_lot::RwLock;
 use tracing::instrument;
@@ -82,7 +82,8 @@ pub async fn update_task_status(
     tasks: &Tasks,
     tid: Option<i64>,
 ) -> ListTaskJobStatesResult {
-    let mut task_status = Vec::new();
+    // Step 1: Collect x_states from all xnodes into a HashMap<(task_id, job_id), TaskStatus>
+    let mut state_map: HashMap<(i64, i64), TaskStatus> = HashMap::new();
     let all_xnodes = xnodes.all();
     for xnode_id in all_xnodes {
         let Some(client) = xnodes.get_client(xnode_id) else {
@@ -91,6 +92,11 @@ pub async fn update_task_status(
         };
         let x_states = match client.list_task_job_states().await {
             Ok(states) => states,
+            Err(ha_rpc_client::error::Error::EventLoopDropped) => {
+                xnodes.set_offline(xnode_id);
+                tracing::error!(xnode_id, "rpc eventloop dropped");
+                continue;
+            }
             Err(e) => {
                 tracing::error!(
                     xnode_id,
@@ -100,66 +106,159 @@ pub async fn update_task_status(
                 continue;
             }
         };
-        task_status.extend(&x_states);
-        // 设置内存状态和数据库状态
-        for ListTaskJobStatesParam {
+        for ListTaskJobStates {
             task_id,
             job_id,
             state,
         } in x_states
         {
-            if tid.is_some_and(|v| v != task_id) {
-                continue;
-            }
-            if get_job_status(task_id, job_id).is_some_and(|v| v == state) {
-                continue;
-            }
-            tasks.set_status(task_id, job_id, state);
-            let sql = if job_id < 0 {
-                format!("ALTER XNODE TASK {task_id} WITH STATUS '{state}'",)
-            } else {
-                format!("ALTER XNODE JOB {job_id} WITH STATUS '{state}'")
-            };
-            if let Err(e) = conn.exec(&sql).await {
-                tracing::error!(
-                    xnode_id,
-                    task_id,
-                    job_id,
-                    "failed to update task/job status: {:#}",
-                    anyhow::Error::new(e)
-                );
-            } else {
-                set_job_status(task_id, job_id, state);
-            }
+            state_map.insert((task_id, job_id), state);
         }
     }
 
-    let tids = match tid {
-        Some(tid) => vec![tid],
-        None => tasks.all_tasks(),
+    // Step 2: Query database for tasks and jobs (optionally filtered by tid)
+    let tasks_sql = match tid {
+        Some(tid) => format!("SHOW XNODE TASKS WHERE ID = {tid}"),
+        None => "SHOW XNODE TASKS".to_string(),
     };
-    for tid in tids {
-        if !tasks.task_has_jobs(tid) {
-            continue;
+    let jobs_sql = match tid {
+        Some(tid) => format!("SHOW XNODE JOBS WHERE TASK_ID = {tid}"),
+        None => "SHOW XNODE JOBS".to_string(),
+    };
+
+    let db_tasks = match conn.query::<super::sql_types::TaskRecord>(&tasks_sql).await {
+        Ok(tasks) => tasks,
+        Err(e) => {
+            tracing::error!("show xnode tasks error: {:#}", anyhow::Error::new(e));
+            Vec::new()
         }
-        let state = if tasks.is_stopped(tid) {
-            TaskStatus::Stopped
+    };
+
+    let db_jobs = match conn.query::<super::sql_types::JobRecord>(&jobs_sql).await {
+        Ok(jobs) => jobs,
+        Err(e) => {
+            tracing::error!("show xnode jobs error: {:#}", anyhow::Error::new(e));
+            Vec::new()
+        }
+    };
+
+    let mut task_status = Vec::new();
+
+    // Step 3: Iterate DB jobs, combine with state_map, update tasks memory and database
+    for job in &db_jobs {
+        let key = (job.task_id, job.id);
+        let state = if let Some(s) = state_map.get(&key).copied() {
+            Some(s)
         } else {
-            TaskStatus::Running
+            // Not in state_map: only set Stopped if cached status is not already stopped
+            let cached = get_job_status(job.task_id, job.id);
+            if let Some(cached_state) = cached {
+                if !cached_state.is_stopped() {
+                    Some(TaskStatus::Stopped)
+                } else {
+                    Some(cached_state)
+                }
+            } else {
+                job.status
+            }
         };
-        let old_state = get_task_status(tid);
-        if old_state.is_some_and(|v| v == state) {
+        let Some(state) = state else {
+            continue;
+        };
+
+        task_status.push(ListTaskJobStates {
+            task_id: job.task_id,
+            job_id: job.id,
+            state,
+        });
+
+        if get_job_status(job.task_id, job.id).is_some_and(|v| v == state) {
             continue;
         }
-        let sql = format!("ALTER XNODE TASK {tid} WITH STATUS '{state}'",);
+
+        tasks.set_status(job.task_id, job.id, state);
+        let sql = format!("ALTER XNODE JOB {} WITH STATUS '{state}'", job.id);
         if let Err(e) = conn.exec(&sql).await {
             tracing::error!(
-                task_id = tid,
+                task_id = job.task_id,
+                job_id = job.id,
+                "failed to update job status: {:#}",
+                anyhow::Error::new(e)
+            );
+        } else {
+            set_job_status(job.task_id, job.id, state);
+        }
+    }
+
+    // Step 4: Handle task-level entries against DB tasks
+    for task in &db_tasks {
+        let key = (task.id, -1);
+        // Find task-level xnode state entry (job_id < 0) for this task in state_map
+        let state = if let Some(s) = state_map.get(&key).copied() {
+            Some(s)
+        } else {
+            // Not in state_map: only set Stopped if cached status is not already stopped
+            let cached = get_task_status(task.id);
+            if let Some(cached_state) = cached {
+                if !cached_state.is_stopped() {
+                    Some(TaskStatus::Stopped)
+                } else {
+                    Some(cached_state)
+                }
+            } else {
+                task.status
+            }
+        };
+        let Some(state) = state else {
+            continue;
+        };
+
+        task_status.push(ListTaskJobStates {
+            task_id: task.id,
+            job_id: -1,
+            state,
+        });
+
+        if get_task_status(task.id).is_some_and(|v| v == state) {
+            continue;
+        }
+
+        tasks.set_status(task.id, -1, state);
+        let sql = format!("ALTER XNODE TASK {} WITH STATUS '{state}'", task.id);
+        if let Err(e) = conn.exec(&sql).await {
+            tracing::error!(
+                task_id = task.id,
                 "failed to update task status: {:#}",
                 anyhow::Error::new(e)
             );
         } else {
-            set_task_status(tid, state);
+            set_task_status(task.id, state);
+        }
+    }
+
+    // Step 5: Compute and update aggregate task status for each DB task
+    for task in &db_tasks {
+        if !tasks.task_has_jobs(task.id) {
+            continue;
+        }
+        let state = if tasks.is_stopped(task.id) {
+            TaskStatus::Stopped
+        } else {
+            TaskStatus::Running
+        };
+        let old_state = get_task_status(task.id);
+        if old_state.is_some_and(|v| v == state) {
+            continue;
+        }
+        let sql = format!("ALTER XNODE TASK {} WITH STATUS '{state}'", task.id);
+        if let Err(e) = conn.exec(&sql).await {
+            tracing::error!(
+                task_id = task.id,
+                "failed to update task status: {:#}",
+                anyhow::Error::new(e)
+            );
+        } else {
+            set_task_status(task.id, state);
         }
     }
 

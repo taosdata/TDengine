@@ -32,8 +32,6 @@ pub enum Error {
     EventLoopDropped,
     #[snafu(display("Ack waiter dropped unexpectedly"))]
     AckWaiterDroppedUnexpectedly,
-    #[snafu(display("Do exchange error"))]
-    DoExchange { source: FlightError },
     #[snafu(display("Response fail: {error}"))]
     ResponseFail { error: String },
 }

@@ -186,7 +186,7 @@ export default {
     cleared: '目标数据库被删除',
     paused: '手动暂停',
     waken: '唤醒中',
-    ticked: '等待下次执行',
+    tick: '等待下次执行',
     scheduled: '调度中'
   }
 };
