@@ -3078,6 +3078,9 @@ int32_t nodesSetValueNodeValueExt(SValueNode* pNode, void* value, bool* needFree
 
 char* nodesGetStrValueFromNode(SValueNode* pNode) {
   switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_NULL: {
+      return tstrdup("NULL");
+    }
     case TSDB_DATA_TYPE_BOOL: {
       void* buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
       if (NULL == buf) {

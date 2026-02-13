@@ -1,0 +1,3344 @@
+
+taos> use db1;
+Database changed.
+
+taos> select 1 < all (select 0 from st1) from st1;
+ 1 < all (select 0 from st1) |
+==============================
+ false                       |
+ false                       |
+ false                       |
+ false                       |
+ false                       |
+ false                       |
+
+taos> select 1 > all (select 0 from st1) from st1;
+ 1 > all (select 0 from st1) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+ true                        |
+ true                        |
+ true                        |
+
+taos> select NULL = any (select 2 from st1) from st1;
+ null = any (select 2 from st1) |
+=================================
+ NULL                           |
+ NULL                           |
+ NULL                           |
+ NULL                           |
+ NULL                           |
+ NULL                           |
+
+taos> select exists (select f1 from db2.tba) from st1;
+ exists (select f1 from db2.tba) |
+==================================
+ true                            |
+ true                            |
+ true                            |
+ true                            |
+ true                            |
+ true                            |
+
+taos> select 1 < all (select 0 from st1) a from st1;
+   a   |
+========
+ false |
+ false |
+ false |
+ false |
+ false |
+ false |
+
+taos> select 1 > all (select 0 from st1) a from st1;
+   a   |
+========
+ true  |
+ true  |
+ true  |
+ true  |
+ true  |
+ true  |
+
+taos> select NULL = any (select 2 from st1) a from st1;
+   a   |
+========
+ NULL  |
+ NULL  |
+ NULL  |
+ NULL  |
+ NULL  |
+ NULL  |
+
+taos> select exists (select f1 from db2.tba) a from st1;
+   a   |
+========
+ true  |
+ true  |
+ true  |
+ true  |
+ true  |
+ true  |
+
+taos> select distinct 1 < all (select 0 from st1) from st1;
+ 1 < all (select 0 from st1) |
+==============================
+ false                       |
+
+taos> select distinct 1 > all (select 0 from st1) from st1;
+ 1 > all (select 0 from st1) |
+==============================
+ true                        |
+
+taos> select distinct NULL = any (select 2 from st1) from st1;
+ null = any (select 2 from st1) |
+=================================
+ NULL                           |
+
+taos> select distinct exists (select f1 from db2.tba) from st1;
+ exists (select f1 from db2.tba) |
+==================================
+ true                            |
+
+taos> select distinct 1 < all (select 0 from st1), f1 from st1;
+ 1 < all (select 0 from st1) |     f1      |
+============================================
+ false                       |           3 |
+ false                       |           6 |
+ false                       |           5 |
+ false                       |           4 |
+ false                       |           1 |
+ false                       |           2 |
+
+taos> select distinct 1 > all (select 0 from st1), f1 from st1;
+ 1 > all (select 0 from st1) |     f1      |
+============================================
+ true                        |           1 |
+ true                        |           5 |
+ true                        |           4 |
+ true                        |           3 |
+ true                        |           6 |
+ true                        |           2 |
+
+taos> select distinct NULL = any (select 2 from st1), f1 from st1;
+ null = any (select 2 from st1) |     f1      |
+===============================================
+ NULL                           |           2 |
+ NULL                           |           6 |
+ NULL                           |           5 |
+ NULL                           |           1 |
+ NULL                           |           4 |
+ NULL                           |           3 |
+
+taos> select distinct exists (select f1 from db2.tba), f1 from st1;
+ exists (select f1 from db2.tba) |     f1      |
+================================================
+ true                            |           1 |
+ true                            |           5 |
+ true                            |           4 |
+ true                            |           3 |
+ true                            |           6 |
+ true                            |           2 |
+
+taos> select distinct tags 1 < all (select 0 from st1) + 1 from st1;
+
+DB error: syntax error near "+ 1 from st1;" [0x80002600] 
+taos> select distinct tags 1 > all (select 0 from st1) + 1 from st1;
+
+DB error: syntax error near "+ 1 from st1;" [0x80002600] 
+taos> select distinct tags NULL = any (select 2 from st1) + 1 from st1;
+
+DB error: syntax error near "+ 1 from st1;" [0x80002600] 
+taos> select distinct tags exists (select f1 from db2.tba) + 1 from st1;
+
+DB error: syntax error near "+ 1 from st1;" [0x80002600] 
+taos> select 1 < all (select 0 from st1), 1 < all (select 0 from st1) from st1;
+ 1 < all (select 0 from st1) | 1 < all (select 0 from st1) |
+============================================================
+ false                       | false                       |
+ false                       | false                       |
+ false                       | false                       |
+ false                       | false                       |
+ false                       | false                       |
+ false                       | false                       |
+
+taos> select 1 > all (select 0 from st1), 1 > all (select 0 from st1) from st1;
+ 1 > all (select 0 from st1) | 1 > all (select 0 from st1) |
+============================================================
+ true                        | true                        |
+ true                        | true                        |
+ true                        | true                        |
+ true                        | true                        |
+ true                        | true                        |
+ true                        | true                        |
+
+taos> select NULL = any (select 2 from st1), NULL = any (select 2 from st1) from st1;
+ null = any (select 2 from st1) | null = any (select 2 from st1) |
+==================================================================
+ NULL                           | NULL                           |
+ NULL                           | NULL                           |
+ NULL                           | NULL                           |
+ NULL                           | NULL                           |
+ NULL                           | NULL                           |
+ NULL                           | NULL                           |
+
+taos> select exists (select f1 from db2.tba), exists (select f1 from db2.tba) from st1;
+ exists (select f1 from db2.tba) | exists (select f1 from db2.tba) |
+====================================================================
+ true                            | true                            |
+ true                            | true                            |
+ true                            | true                            |
+ true                            | true                            |
+ true                            | true                            |
+ true                            | true                            |
+
+taos> select abs(1 < all (select 0 from st1)) from st1;
+
+DB error: syntax error near "< all (select 0 from st1)) from st1;" [0x80002600] 
+taos> select abs(1 > all (select 0 from st1)) from st1;
+
+DB error: syntax error near "> all (select 0 from st1)) from st1;" [0x80002600] 
+taos> select abs(NULL = any (select 2 from st1)) from st1;
+
+DB error: syntax error near "= any (select 2 from st1)) from st1;" [0x80002600] 
+taos> select abs(exists (select f1 from db2.tba)) from st1;
+
+DB error: syntax error near "exists (select f1 from db2.tba)) from st1;" [0x80002600] 
+taos> select abs(1 < all (select 0 from st1) + 1) from st1;
+
+DB error: syntax error near "< all (select 0 from st1) + 1) from st1;" [0x80002600] 
+taos> select abs(1 > all (select 0 from st1) + 1) from st1;
+
+DB error: syntax error near "> all (select 0 from st1) + 1) from st1;" [0x80002600] 
+taos> select abs(NULL = any (select 2 from st1) + 1) from st1;
+
+DB error: syntax error near "= any (select 2 from st1) + 1) from st1;" [0x80002600] 
+taos> select abs(exists (select f1 from db2.tba) + 1) from st1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) + 1) from st1;" [0x80002600] 
+taos> select sum(1 < all (select 0 from st1)) from st1;
+
+DB error: syntax error near "< all (select 0 from st1)) from st1;" [0x80002600] 
+taos> select sum(1 > all (select 0 from st1)) from st1;
+
+DB error: syntax error near "> all (select 0 from st1)) from st1;" [0x80002600] 
+taos> select sum(NULL = any (select 2 from st1)) from st1;
+
+DB error: syntax error near "= any (select 2 from st1)) from st1;" [0x80002600] 
+taos> select sum(exists (select f1 from db2.tba)) from st1;
+
+DB error: syntax error near "exists (select f1 from db2.tba)) from st1;" [0x80002600] 
+taos> select case when 1 < all (select 0 from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
+ case when 1 < all (select 0 from st1) then 1 else 2 end |        sum(f1)        |
+==================================================================================
+                                                       2 |                     5 |
+                                                       2 |                     1 |
+                                                       2 |                     3 |
+                                                       2 |                     4 |
+                                                       2 |                     6 |
+                                                       2 |                     2 |
+
+taos> select case when 1 > all (select 0 from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
+ case when 1 > all (select 0 from st1) then 1 else 2 end |        sum(f1)        |
+==================================================================================
+                                                       1 |                     5 |
+                                                       1 |                     1 |
+                                                       1 |                     3 |
+                                                       1 |                     4 |
+                                                       1 |                     6 |
+                                                       1 |                     2 |
+
+taos> select case when NULL = any (select 2 from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
+ case when null = any (select 2 from st1) then 1 else 2 end |        sum(f1)        |
+=====================================================================================
+                                                          2 |                     5 |
+                                                          2 |                     1 |
+                                                          2 |                     3 |
+                                                          2 |                     4 |
+                                                          2 |                     6 |
+                                                          2 |                     2 |
+
+taos> select case when exists (select f1 from db2.tba) then 1 else 2 end, sum(f1) from st1 group by f1;
+ case when exists (select f1 from db2.tba) then 1 else 2 end |        sum(f1)        |
+======================================================================================
+                                                           1 |                     5 |
+                                                           1 |                     1 |
+                                                           1 |                     3 |
+                                                           1 |                     4 |
+                                                           1 |                     6 |
+                                                           1 |                     2 |
+
+taos> select case when 1 < all (select 0 from st1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
+
+DB error: syntax error near "> 0 then 1 else 2 end, sum(f1) from st1 group by f1;" [0x80002600] 
+taos> select case when 1 > all (select 0 from st1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
+
+DB error: syntax error near "> 0 then 1 else 2 end, sum(f1) from st1 group by f1;" [0x80002600] 
+taos> select case when NULL = any (select 2 from st1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
+
+DB error: syntax error near "> 0 then 1 else 2 end, sum(f1) from st1 group by f1;" [0x80002600] 
+taos> select case when exists (select f1 from db2.tba) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
+
+DB error: syntax error near "> 0 then 1 else 2 end, sum(f1) from st1 group by f1;" [0x80002600] 
+taos> select case when 1 = 1 then 1 < all (select 0 from st1) else 2 end, sum(f1) from st1 group by f1;
+ case when 1 = 1 then 1 < all (select 0 from st1) else 2 end |        sum(f1)        |
+======================================================================================
+                                                           0 |                     5 |
+                                                           0 |                     1 |
+                                                           0 |                     3 |
+                                                           0 |                     4 |
+                                                           0 |                     6 |
+                                                           0 |                     2 |
+
+taos> select case when 1 = 1 then 1 > all (select 0 from st1) else 2 end, sum(f1) from st1 group by f1;
+ case when 1 = 1 then 1 > all (select 0 from st1) else 2 end |        sum(f1)        |
+======================================================================================
+                                                           1 |                     5 |
+                                                           1 |                     1 |
+                                                           1 |                     3 |
+                                                           1 |                     4 |
+                                                           1 |                     6 |
+                                                           1 |                     2 |
+
+taos> select case when 1 = 1 then NULL = any (select 2 from st1) else 2 end, sum(f1) from st1 group by f1;
+ case when 1 = 1 then null = any (select 2 from st1) else 2 end |        sum(f1)        |
+=========================================================================================
+ NULL                                                           |                     5 |
+ NULL                                                           |                     1 |
+ NULL                                                           |                     3 |
+ NULL                                                           |                     4 |
+ NULL                                                           |                     6 |
+ NULL                                                           |                     2 |
+
+taos> select case when 1 = 1 then exists (select f1 from db2.tba) else 2 end, sum(f1) from st1 group by f1;
+ case when 1 = 1 then exists (select f1 from db2.tba) else 2 end |        sum(f1)        |
+==========================================================================================
+                                                               1 |                     5 |
+                                                               1 |                     1 |
+                                                               1 |                     3 |
+                                                               1 |                     4 |
+                                                               1 |                     6 |
+                                                               1 |                     2 |
+
+taos> select case when 0 = 1 then 1 else 1 < all (select 0 from st1) end, sum(f1) from st1 group by f1;
+ case when 0 = 1 then 1 else 1 < all (select 0 from st1) end |        sum(f1)        |
+======================================================================================
+                                                           0 |                     5 |
+                                                           0 |                     1 |
+                                                           0 |                     3 |
+                                                           0 |                     4 |
+                                                           0 |                     6 |
+                                                           0 |                     2 |
+
+taos> select case when 0 = 1 then 1 else 1 > all (select 0 from st1) end, sum(f1) from st1 group by f1;
+ case when 0 = 1 then 1 else 1 > all (select 0 from st1) end |        sum(f1)        |
+======================================================================================
+                                                           1 |                     5 |
+                                                           1 |                     1 |
+                                                           1 |                     3 |
+                                                           1 |                     4 |
+                                                           1 |                     6 |
+                                                           1 |                     2 |
+
+taos> select case when 0 = 1 then 1 else NULL = any (select 2 from st1) end, sum(f1) from st1 group by f1;
+ case when 0 = 1 then 1 else null = any (select 2 from st1) end |        sum(f1)        |
+=========================================================================================
+ NULL                                                           |                     5 |
+ NULL                                                           |                     1 |
+ NULL                                                           |                     3 |
+ NULL                                                           |                     4 |
+ NULL                                                           |                     6 |
+ NULL                                                           |                     2 |
+
+taos> select case when 0 = 1 then 1 else exists (select f1 from db2.tba) end, sum(f1) from st1 group by f1;
+ case when 0 = 1 then 1 else exists (select f1 from db2.tba) end |        sum(f1)        |
+==========================================================================================
+                                                               1 |                     5 |
+                                                               1 |                     1 |
+                                                               1 |                     3 |
+                                                               1 |                     4 |
+                                                               1 |                     6 |
+                                                               1 |                     2 |
+
+taos> select 1 < all (select 0 from st1) from information_schema.ins_tables limit 3;
+ 1 < all (select 0 from st1) |
+==============================
+ false                       |
+ false                       |
+ false                       |
+
+taos> select 1 > all (select 0 from st1) from information_schema.ins_tables limit 3;
+ 1 > all (select 0 from st1) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+
+taos> select NULL = any (select 2 from st1) from information_schema.ins_tables limit 3;
+ null = any (select 2 from st1) |
+=================================
+ NULL                           |
+ NULL                           |
+ NULL                           |
+
+taos> select exists (select f1 from db2.tba) from information_schema.ins_tables limit 3;
+ exists (select f1 from db2.tba) |
+==================================
+ true                            |
+ true                            |
+ true                            |
+
+taos> select 1 < all (select 0 from st1) from vtb1;
+ 1 < all (select 0 from st1) |
+==============================
+ false                       |
+
+taos> select 1 > all (select 0 from st1) from vtb1;
+ 1 > all (select 0 from st1) |
+==============================
+ true                        |
+
+taos> select NULL = any (select 2 from st1) from vtb1;
+ null = any (select 2 from st1) |
+=================================
+ NULL                           |
+
+taos> select exists (select f1 from db2.tba) from vtb1;
+ exists (select f1 from db2.tba) |
+==================================
+ true                            |
+
+taos> select a.ts from st1 a join st1 b on a.ts = b.ts and 1 < all (select 0 from st1) order by 1;
+
+taos> select a.ts from st1 a join st1 b on a.ts = b.ts and 1 > all (select 0 from st1) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select a.ts from st1 a join st1 b on a.ts = b.ts and NULL = any (select 2 from st1) order by 1;
+
+taos> select a.ts from st1 a join st1 b on a.ts = b.ts and exists (select f1 from db2.tba) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select a.ts from st1 a join st1 b on a.ts = b.ts and a.f1 = 1 < all (select 0 from st1) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a join st1 b on a.ts = b.ts and a.f1 = 1 > all (select 0 from st1) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a join st1 b on a.ts = b.ts and a.f1 = NULL = any (select 2 from st1) order by 1;
+
+DB error: syntax error near "= any (select 2 from st1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a join st1 b on a.ts = b.ts and a.f1 = exists (select f1 from db2.tba) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) order by 1;" [0x80002600] 
+taos> select b.ts from st1 a left join st1 b on a.ts = b.ts and 1 < all (select 0 from st1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+
+taos> select b.ts from st1 a left join st1 b on a.ts = b.ts and 1 > all (select 0 from st1) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select b.ts from st1 a left join st1 b on a.ts = b.ts and NULL = any (select 2 from st1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+
+taos> select b.ts from st1 a left join st1 b on a.ts = b.ts and exists (select f1 from db2.tba) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select a.ts from st1 a right join st1 b on a.ts = b.ts and 1 < all (select 0 from st1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+
+taos> select a.ts from st1 a right join st1 b on a.ts = b.ts and 1 > all (select 0 from st1) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select a.ts from st1 a right join st1 b on a.ts = b.ts and NULL = any (select 2 from st1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+
+taos> select a.ts from st1 a right join st1 b on a.ts = b.ts and exists (select f1 from db2.tba) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select a.ts from st1 a full join st1 b on a.ts = b.ts and 1 < all (select 0 from st1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select a.ts from st1 a full join st1 b on a.ts = b.ts and 1 > all (select 0 from st1) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select a.ts from st1 a full join st1 b on a.ts = b.ts and NULL = any (select 2 from st1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select a.ts from st1 a full join st1 b on a.ts = b.ts and exists (select f1 from db2.tba) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select b.ts from st1 a left semi join st1 b on a.ts = b.ts and 1 < all (select 0 from st1) order by 1;
+
+taos> select b.ts from st1 a left semi join st1 b on a.ts = b.ts and 1 > all (select 0 from st1) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select b.ts from st1 a left semi join st1 b on a.ts = b.ts and NULL = any (select 2 from st1) order by 1;
+
+taos> select b.ts from st1 a left semi join st1 b on a.ts = b.ts and exists (select f1 from db2.tba) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select a.ts from st1 a right semi join st1 b on a.ts = b.ts and 1 < all (select 0 from st1) order by 1;
+
+taos> select a.ts from st1 a right semi join st1 b on a.ts = b.ts and 1 > all (select 0 from st1) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select a.ts from st1 a right semi join st1 b on a.ts = b.ts and NULL = any (select 2 from st1) order by 1;
+
+taos> select a.ts from st1 a right semi join st1 b on a.ts = b.ts and exists (select f1 from db2.tba) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select b.ts from st1 a left anti join st1 b on a.ts = b.ts and 1 < all (select 0 from st1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+
+taos> select b.ts from st1 a left anti join st1 b on a.ts = b.ts and 1 > all (select 0 from st1) order by 1;
+
+taos> select b.ts from st1 a left anti join st1 b on a.ts = b.ts and NULL = any (select 2 from st1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+
+taos> select b.ts from st1 a left anti join st1 b on a.ts = b.ts and exists (select f1 from db2.tba) order by 1;
+
+taos> select a.ts from st1 a right anti join st1 b on a.ts = b.ts and 1 < all (select 0 from st1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+
+taos> select a.ts from st1 a right anti join st1 b on a.ts = b.ts and 1 > all (select 0 from st1) order by 1;
+
+taos> select a.ts from st1 a right anti join st1 b on a.ts = b.ts and NULL = any (select 2 from st1) order by 1;
+           ts            |
+==========================
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+ NULL                    |
+
+taos> select a.ts from st1 a right anti join st1 b on a.ts = b.ts and exists (select f1 from db2.tba) order by 1;
+
+taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts and 1 < all (select 0 from st1) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts and 1 > all (select 0 from st1) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts and NULL = any (select 2 from st1) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts and exists (select f1 from db2.tba) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts and 1 < all (select 0 from st1) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts and 1 > all (select 0 from st1) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts and NULL = any (select 2 from st1) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts and exists (select f1 from db2.tba) order by 1;
+
+DB error: Not supported join on condition [0x80000733] 
+taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts jlimit 1 < all (select 0 from st1) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts jlimit 1 > all (select 0 from st1) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts jlimit NULL = any (select 2 from st1) order by 1;
+
+DB error: syntax error near "null = any (select 2 from st1) order by 1;" [0x80002600] 
+taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts jlimit exists (select f1 from db2.tba) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts jlimit 1 < all (select 0 from st1) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts jlimit 1 > all (select 0 from st1) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts jlimit NULL = any (select 2 from st1) order by 1;
+
+DB error: syntax error near "null = any (select 2 from st1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts jlimit exists (select f1 from db2.tba) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) order by 1;" [0x80002600] 
+taos> select b.ts from st1 a left window join st1 b on a.f1 = 1 < all (select 0 from st1) window_offset(-1d, 1d) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1) window_offset(-1d, 1d) order by 1;" [0x80002600] 
+taos> select b.ts from st1 a left window join st1 b on a.f1 = 1 > all (select 0 from st1) window_offset(-1d, 1d) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1) window_offset(-1d, 1d) order by 1;" [0x80002600] 
+taos> select b.ts from st1 a left window join st1 b on a.f1 = NULL = any (select 2 from st1) window_offset(-1d, 1d) order by 1;
+
+DB error: syntax error near "= any (select 2 from st1) window_offset(-1d, 1d) order by 1;" [0x80002600] 
+taos> select b.ts from st1 a left window join st1 b on a.f1 = exists (select f1 from db2.tba) window_offset(-1d, 1d) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) window_offset(-1d, 1d) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a right window join st1 b on b.f1 = 1 < all (select 0 from st1) window_offset(-1d, 1d) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1) window_offset(-1d, 1d) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a right window join st1 b on b.f1 = 1 > all (select 0 from st1) window_offset(-1d, 1d) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1) window_offset(-1d, 1d) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a right window join st1 b on b.f1 = NULL = any (select 2 from st1) window_offset(-1d, 1d) order by 1;
+
+DB error: syntax error near "= any (select 2 from st1) window_offset(-1d, 1d) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a right window join st1 b on b.f1 = exists (select f1 from db2.tba) window_offset(-1d, 1d) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) window_offset(-1d, 1d) order by 1;" [0x80002600] 
+taos> select b.ts from st1 a left window join st1 b window_offset(-1d, 1d) jlimit 1 < all (select 0 from st1) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select b.ts from st1 a left window join st1 b window_offset(-1d, 1d) jlimit 1 > all (select 0 from st1) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select b.ts from st1 a left window join st1 b window_offset(-1d, 1d) jlimit NULL = any (select 2 from st1) order by 1;
+
+DB error: syntax error near "null = any (select 2 from st1) order by 1;" [0x80002600] 
+taos> select b.ts from st1 a left window join st1 b window_offset(-1d, 1d) jlimit exists (select f1 from db2.tba) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a right window join st1 b window_offset(-1d, 1d) jlimit 1 < all (select 0 from st1) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a right window join st1 b window_offset(-1d, 1d) jlimit 1 > all (select 0 from st1) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a right window join st1 b window_offset(-1d, 1d) jlimit NULL = any (select 2 from st1) order by 1;
+
+DB error: syntax error near "null = any (select 2 from st1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a right window join st1 b window_offset(-1d, 1d) jlimit exists (select f1 from db2.tba) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a , st1 b where a.ts = b.ts and 1 < all (select 0 from st1) order by 1;
+
+taos> select a.ts from st1 a , st1 b where a.ts = b.ts and 1 > all (select 0 from st1) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select a.ts from st1 a , st1 b where a.ts = b.ts and NULL = any (select 2 from st1) order by 1;
+
+taos> select a.ts from st1 a , st1 b where a.ts = b.ts and exists (select f1 from db2.tba) order by 1;
+           ts            |
+==========================
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-01 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-02 00:00:00.000 |
+ 2025-12-03 00:00:00.000 |
+
+taos> select a.ts from st1 a , st1 b where a.ts = b.ts and a.f1 = 1 < all (select 0 from st1) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a , st1 b where a.ts = b.ts and a.f1 = 1 > all (select 0 from st1) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a , st1 b where a.ts = b.ts and a.f1 = NULL = any (select 2 from st1) order by 1;
+
+DB error: syntax error near "= any (select 2 from st1) order by 1;" [0x80002600] 
+taos> select a.ts from st1 a , st1 b where a.ts = b.ts and a.f1 = exists (select f1 from db2.tba) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) order by 1;" [0x80002600] 
+taos> select f1 from st1 where 1 < all (select 0 from st1) order by 1;
+
+taos> select f1 from st1 where 1 > all (select 0 from st1) order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 where NULL = any (select 2 from st1) order by 1;
+
+taos> select f1 from st1 where exists (select f1 from db2.tba) order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 where f1 = 1 < all (select 0 from st1) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 = 1 > all (select 0 from st1) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 = NULL = any (select 2 from st1) order by 1;
+
+DB error: syntax error near "= any (select 2 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 = exists (select f1 from db2.tba) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 in (1 < all (select 0 from st1)) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 in (1 > all (select 0 from st1)) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 in (NULL = any (select 2 from st1)) order by 1;
+
+DB error: syntax error near "= any (select 2 from st1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 in (exists (select f1 from db2.tba)) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 not in (1 < all (select 0 from st1)) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 not in (1 > all (select 0 from st1)) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 not in (NULL = any (select 2 from st1)) order by 1;
+
+DB error: syntax error near "= any (select 2 from st1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 not in (exists (select f1 from db2.tba)) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 like (1 < all (select 0 from st1)) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 like (1 > all (select 0 from st1)) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 like (NULL = any (select 2 from st1)) order by 1;
+
+DB error: syntax error near "= any (select 2 from st1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 like (exists (select f1 from db2.tba)) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 not like (1 < all (select 0 from st1)) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 not like (1 > all (select 0 from st1)) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 not like (NULL = any (select 2 from st1)) order by 1;
+
+DB error: syntax error near "= any (select 2 from st1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 not like (exists (select f1 from db2.tba)) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 match (1 < all (select 0 from st1)) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 match (1 > all (select 0 from st1)) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 match (NULL = any (select 2 from st1)) order by 1;
+
+DB error: syntax error near "= any (select 2 from st1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 match (exists (select f1 from db2.tba)) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 nmatch (1 < all (select 0 from st1)) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 nmatch (1 > all (select 0 from st1)) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 nmatch (NULL = any (select 2 from st1)) order by 1;
+
+DB error: syntax error near "= any (select 2 from st1)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 nmatch (exists (select f1 from db2.tba)) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba)) order by 1;" [0x80002600] 
+taos> select f1 from st1 where 1 < all (select 0 from st1) is null order by 1;
+
+DB error: syntax error near "is null order by 1;" [0x80002600] 
+taos> select f1 from st1 where 1 > all (select 0 from st1) is null order by 1;
+
+DB error: syntax error near "is null order by 1;" [0x80002600] 
+taos> select f1 from st1 where NULL = any (select 2 from st1) is null order by 1;
+
+DB error: syntax error near "is null order by 1;" [0x80002600] 
+taos> select f1 from st1 where exists (select f1 from db2.tba) is null order by 1;
+
+DB error: syntax error near "is null order by 1;" [0x80002600] 
+taos> select f1 from st1 where 1 < all (select 0 from st1) is not null order by 1;
+
+DB error: syntax error near "is not null order by 1;" [0x80002600] 
+taos> select f1 from st1 where 1 > all (select 0 from st1) is not null order by 1;
+
+DB error: syntax error near "is not null order by 1;" [0x80002600] 
+taos> select f1 from st1 where NULL = any (select 2 from st1) is not null order by 1;
+
+DB error: syntax error near "is not null order by 1;" [0x80002600] 
+taos> select f1 from st1 where exists (select f1 from db2.tba) is not null order by 1;
+
+DB error: syntax error near "is not null order by 1;" [0x80002600] 
+taos> select f1 from st1 where abs(1 < all (select 0 from st1)) > 0 order by 1;
+
+DB error: syntax error near "< all (select 0 from st1)) > 0 order by 1;" [0x80002600] 
+taos> select f1 from st1 where abs(1 > all (select 0 from st1)) > 0 order by 1;
+
+DB error: syntax error near "> all (select 0 from st1)) > 0 order by 1;" [0x80002600] 
+taos> select f1 from st1 where abs(NULL = any (select 2 from st1)) > 0 order by 1;
+
+DB error: syntax error near "= any (select 2 from st1)) > 0 order by 1;" [0x80002600] 
+taos> select f1 from st1 where abs(exists (select f1 from db2.tba)) > 0 order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba)) > 0 order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 > 1 < all (select 0 from st1) or f1 < 1 < all (select 0 from st1) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1) or f1 < 1 < all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 > 1 > all (select 0 from st1) or f1 < 1 > all (select 0 from st1) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1) or f1 < 1 > all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 > NULL = any (select 2 from st1) or f1 < NULL = any (select 2 from st1) order by 1;
+
+DB error: syntax error near "= any (select 2 from st1) or f1 < null = any (select 2 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 > exists (select f1 from db2.tba) or f1 < exists (select f1 from db2.tba) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) or f1 < exists (select f1 from db2.tba) order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 between 1 < all (select 0 from st1) and 1 < all (select 0 from st1) + 1 order by 1;
+
+DB error: syntax error near "< all (select 0 from st1) and 1 < all (select 0 from st1) + 1 order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 between 1 > all (select 0 from st1) and 1 > all (select 0 from st1) + 1 order by 1;
+
+DB error: syntax error near "> all (select 0 from st1) and 1 > all (select 0 from st1) + 1 order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 between NULL = any (select 2 from st1) and NULL = any (select 2 from st1) + 1 order by 1;
+
+DB error: syntax error near "= any (select 2 from st1) and null = any (select 2 from st1) + 1 order by 1;" [0x80002600] 
+taos> select f1 from st1 where f1 between exists (select f1 from db2.tba) and exists (select f1 from db2.tba) + 1 order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) and exists (select f1 from db2.tba) + 1 order by 1;" [0x80002600] 
+taos> select f1 from st1 where 1 < all (select 0 from st1) > 0 and f1 > 1 < all (select 0 from st1) order by 1;
+
+DB error: syntax error near "> 0 and f1 > 1 < all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where 1 > all (select 0 from st1) > 0 and f1 > 1 > all (select 0 from st1) order by 1;
+
+DB error: syntax error near "> 0 and f1 > 1 > all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where NULL = any (select 2 from st1) > 0 and f1 > NULL = any (select 2 from st1) order by 1;
+
+DB error: syntax error near "> 0 and f1 > null = any (select 2 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where exists (select f1 from db2.tba) > 0 and f1 > exists (select f1 from db2.tba) order by 1;
+
+DB error: syntax error near "> 0 and f1 > exists (select f1 from db2.tba) order by 1;" [0x80002600] 
+taos> select f1 from st1 where tg1 = 1 < all (select 0 from st1) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where tg1 = 1 > all (select 0 from st1) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where tg1 = NULL = any (select 2 from st1) order by 1;
+
+DB error: syntax error near "= any (select 2 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where tg1 = exists (select f1 from db2.tba) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) order by 1;" [0x80002600] 
+taos> select f1 from st1 where tbname = cast(1 < all (select 0 from st1) as varchar) order by 1;
+
+taos> select f1 from st1 where tbname = cast(1 > all (select 0 from st1) as varchar) order by 1;
+
+taos> select f1 from st1 where tbname = cast(NULL = any (select 2 from st1) as varchar) order by 1;
+
+taos> select f1 from st1 where tbname = cast(exists (select f1 from db2.tba) as varchar) order by 1;
+
+taos> select f1 from st1 where ts >= 1 < all (select 0 from st1) and ts <= 1 < all (select 0 from st1) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1) and ts <= 1 < all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where ts >= 1 > all (select 0 from st1) and ts <= 1 > all (select 0 from st1) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1) and ts <= 1 > all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where ts >= NULL = any (select 2 from st1) and ts <= NULL = any (select 2 from st1) order by 1;
+
+DB error: syntax error near "= any (select 2 from st1) and ts <= null = any (select 2 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where ts >= exists (select f1 from db2.tba) and ts <= exists (select f1 from db2.tba) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) and ts <= exists (select f1 from db2.tba) order by 1;" [0x80002600] 
+taos> select f1 from st1 where _c0 between 1 < all (select 0 from st1) and 1 < all (select 0 from st1) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1) and 1 < all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where _c0 between 1 > all (select 0 from st1) and 1 > all (select 0 from st1) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1) and 1 > all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where _c0 between NULL = any (select 2 from st1) and NULL = any (select 2 from st1) order by 1;
+
+DB error: syntax error near "= any (select 2 from st1) and null = any (select 2 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where _c0 between exists (select f1 from db2.tba) and exists (select f1 from db2.tba) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) and exists (select f1 from db2.tba) order by 1;" [0x80002600] 
+taos> select table_name from information_schema.ins_tables where table_name = cast(1 < all (select 0 from st1) as varchar) order by 1 limit 3;
+
+taos> select table_name from information_schema.ins_tables where table_name = cast(1 > all (select 0 from st1) as varchar) order by 1 limit 3;
+
+taos> select table_name from information_schema.ins_tables where table_name = cast(NULL = any (select 2 from st1) as varchar) order by 1 limit 3;
+
+taos> select table_name from information_schema.ins_tables where table_name = cast(exists (select f1 from db2.tba) as varchar) order by 1 limit 3;
+
+taos> select * from information_schema.ins_tables where db_name = cast(1 < all (select 0 from st1) as varchar) order by 1 limit 3;
+
+taos> select * from information_schema.ins_tables where db_name = cast(1 > all (select 0 from st1) as varchar) order by 1 limit 3;
+
+taos> select * from information_schema.ins_tables where db_name = cast(NULL = any (select 2 from st1) as varchar) order by 1 limit 3;
+
+taos> select * from information_schema.ins_tables where db_name = cast(exists (select f1 from db2.tba) as varchar) order by 1 limit 3;
+
+taos> select * from vtb1 where f1 = 1 < all (select 0 from st1) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select * from vtb1 where f1 = 1 > all (select 0 from st1) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select * from vtb1 where f1 = NULL = any (select 2 from st1) order by 1;
+
+DB error: syntax error near "= any (select 2 from st1) order by 1;" [0x80002600] 
+taos> select * from vtb1 where f1 = exists (select f1 from db2.tba) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) order by 1;" [0x80002600] 
+taos> select f1 from st1 partition by 1 < all (select 0 from st1) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 partition by 1 > all (select 0 from st1) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 partition by NULL = any (select 2 from st1) order by 1;
+
+DB error: syntax error near "= any (select 2 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 partition by exists (select f1 from db2.tba) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) order by 1;" [0x80002600] 
+taos> select f1 from st1 partition by 1 < all (select 0 from st1) + 1 order by 1;
+
+DB error: syntax error near "< all (select 0 from st1) + 1 order by 1;" [0x80002600] 
+taos> select f1 from st1 partition by 1 > all (select 0 from st1) + 1 order by 1;
+
+DB error: syntax error near "> all (select 0 from st1) + 1 order by 1;" [0x80002600] 
+taos> select f1 from st1 partition by NULL = any (select 2 from st1) + 1 order by 1;
+
+DB error: syntax error near "= any (select 2 from st1) + 1 order by 1;" [0x80002600] 
+taos> select f1 from st1 partition by exists (select f1 from db2.tba) + 1 order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) + 1 order by 1;" [0x80002600] 
+taos> select f1 from st1 partition by tbname, 1 < all (select 0 from st1) order by 1;
+
+DB error: syntax error near "< all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 partition by tbname, 1 > all (select 0 from st1) order by 1;
+
+DB error: syntax error near "> all (select 0 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 partition by tbname, NULL = any (select 2 from st1) order by 1;
+
+DB error: syntax error near "= any (select 2 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 partition by tbname, exists (select f1 from db2.tba) order by 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) order by 1;" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1 < all (select 0 from st1));
+
+DB error: syntax error near "< all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1 > all (select 0 from st1));
+
+DB error: syntax error near "> all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(NULL = any (select 2 from st1));
+
+DB error: syntax error near "null = any (select 2 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(exists (select f1 from db2.tba));
+
+DB error: syntax error near "exists (select f1 from db2.tba));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1 < all (select 0 from st1)d);
+
+DB error: syntax error near "< all (select 0 from st1)d);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1 > all (select 0 from st1)d);
+
+DB error: syntax error near "> all (select 0 from st1)d);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(NULL = any (select 2 from st1)d);
+
+DB error: syntax error near "null = any (select 2 from st1)d);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(exists (select f1 from db2.tba)d);
+
+DB error: syntax error near "exists (select f1 from db2.tba)d);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d, 1 < all (select 0 from st1));
+
+DB error: syntax error near "< all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d, 1 > all (select 0 from st1));
+
+DB error: syntax error near "> all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d, NULL = any (select 2 from st1));
+
+DB error: syntax error near "null = any (select 2 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d, exists (select f1 from db2.tba));
+
+DB error: syntax error near "exists (select f1 from db2.tba));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d, 1 < all (select 0 from st1)d);
+
+DB error: syntax error near "< all (select 0 from st1)d);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d, 1 > all (select 0 from st1)d);
+
+DB error: syntax error near "> all (select 0 from st1)d);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d, NULL = any (select 2 from st1)d);
+
+DB error: syntax error near "null = any (select 2 from st1)d);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d, exists (select f1 from db2.tba)d);
+
+DB error: syntax error near "exists (select f1 from db2.tba)d);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) FILL(1 < all (select 0 from st1));
+
+DB error: syntax error near "1 < all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) FILL(1 > all (select 0 from st1));
+
+DB error: syntax error near "1 > all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) FILL(NULL = any (select 2 from st1));
+
+DB error: syntax error near "= any (select 2 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) FILL(exists (select f1 from db2.tba));
+
+DB error: syntax error near "exists (select f1 from db2.tba));" [0x80002600] 
+taos> select avg(f1) from st1 where ts >= '2025-12-01 00:00:00.000' and ts <= '2025-12-05 00:00:00.000' INTERVAL(1d) FILL(value, 1 < all (select 0 from st1));
+
+DB error: syntax error near "< all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 where ts >= '2025-12-01 00:00:00.000' and ts <= '2025-12-05 00:00:00.000' INTERVAL(1d) FILL(value, 1 > all (select 0 from st1));
+
+DB error: syntax error near "> all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 where ts >= '2025-12-01 00:00:00.000' and ts <= '2025-12-05 00:00:00.000' INTERVAL(1d) FILL(value, NULL = any (select 2 from st1));
+
+DB error: syntax error near "= any (select 2 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 where ts >= '2025-12-01 00:00:00.000' and ts <= '2025-12-05 00:00:00.000' INTERVAL(1d) FILL(value, exists (select f1 from db2.tba));
+
+DB error: syntax error near "exists (select f1 from db2.tba));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) SLIDING(1 < all (select 0 from st1));
+
+DB error: syntax error near "< all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) SLIDING(1 > all (select 0 from st1));
+
+DB error: syntax error near "> all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) SLIDING(NULL = any (select 2 from st1));
+
+DB error: syntax error near "null = any (select 2 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) SLIDING(exists (select f1 from db2.tba));
+
+DB error: syntax error near "exists (select f1 from db2.tba));" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) SLIDING(1 < all (select 0 from st1)h);
+
+DB error: syntax error near "< all (select 0 from st1)h);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) SLIDING(1 > all (select 0 from st1)h);
+
+DB error: syntax error near "> all (select 0 from st1)h);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) SLIDING(NULL = any (select 2 from st1)h);
+
+DB error: syntax error near "null = any (select 2 from st1)h);" [0x80002600] 
+taos> select avg(f1) from st1 INTERVAL(1d) SLIDING(exists (select f1 from db2.tba)h);
+
+DB error: syntax error near "exists (select f1 from db2.tba)h);" [0x80002600] 
+taos> select avg(f1) from st1 SESSION(ts, 1 < all (select 0 from st1));
+
+DB error: syntax error near "< all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 SESSION(ts, 1 > all (select 0 from st1));
+
+DB error: syntax error near "> all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 SESSION(ts, NULL = any (select 2 from st1));
+
+DB error: syntax error near "null = any (select 2 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 SESSION(ts, exists (select f1 from db2.tba));
+
+DB error: syntax error near "exists (select f1 from db2.tba));" [0x80002600] 
+taos> select avg(f1) from st1 SESSION(ts, 1 < all (select 0 from st1)h);
+
+DB error: syntax error near "< all (select 0 from st1)h);" [0x80002600] 
+taos> select avg(f1) from st1 SESSION(ts, 1 > all (select 0 from st1)h);
+
+DB error: syntax error near "> all (select 0 from st1)h);" [0x80002600] 
+taos> select avg(f1) from st1 SESSION(ts, NULL = any (select 2 from st1)h);
+
+DB error: syntax error near "null = any (select 2 from st1)h);" [0x80002600] 
+taos> select avg(f1) from st1 SESSION(ts, exists (select f1 from db2.tba)h);
+
+DB error: syntax error near "exists (select f1 from db2.tba)h);" [0x80002600] 
+taos> select avg(f1) from st1 SESSION(1 < all (select 0 from st1), 1d);
+
+DB error: syntax error near "1 < all (select 0 from st1), 1d);" [0x80002600] 
+taos> select avg(f1) from st1 SESSION(1 > all (select 0 from st1), 1d);
+
+DB error: syntax error near "1 > all (select 0 from st1), 1d);" [0x80002600] 
+taos> select avg(f1) from st1 SESSION(NULL = any (select 2 from st1), 1d);
+
+DB error: syntax error near "null = any (select 2 from st1), 1d);" [0x80002600] 
+taos> select avg(f1) from st1 SESSION(exists (select f1 from db2.tba), 1d);
+
+DB error: syntax error near "exists (select f1 from db2.tba), 1d);" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(1 < all (select 0 from st1));
+
+DB error: syntax error near "< all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(1 > all (select 0 from st1));
+
+DB error: syntax error near "> all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(NULL = any (select 2 from st1));
+
+DB error: syntax error near "= any (select 2 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(exists (select f1 from db2.tba));
+
+DB error: syntax error near "exists (select f1 from db2.tba));" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1, 1 < all (select 0 from st1));
+
+DB error: syntax error near "< all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1, 1 > all (select 0 from st1));
+
+DB error: syntax error near "> all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1, NULL = any (select 2 from st1));
+
+DB error: syntax error near "null = any (select 2 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1, exists (select f1 from db2.tba));
+
+DB error: syntax error near "exists (select f1 from db2.tba));" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR(1 < all (select 0 from st1));
+
+DB error: syntax error near "< all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR(1 > all (select 0 from st1));
+
+DB error: syntax error near "> all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR(NULL = any (select 2 from st1));
+
+DB error: syntax error near "null = any (select 2 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR(exists (select f1 from db2.tba));
+
+DB error: syntax error near "exists (select f1 from db2.tba));" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR(1 < all (select 0 from st1)d);
+
+DB error: syntax error near "< all (select 0 from st1)d);" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR(1 > all (select 0 from st1)d);
+
+DB error: syntax error near "> all (select 0 from st1)d);" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR(NULL = any (select 2 from st1)d);
+
+DB error: syntax error near "null = any (select 2 from st1)d);" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR(exists (select f1 from db2.tba)d);
+
+DB error: syntax error near "exists (select f1 from db2.tba)d);" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' EVENT_WINDOW START WITH f1 >= 1 < all (select 0 from st1) END WITH f1 <= 1 < all (select 0 from st1) + 1;
+
+DB error: syntax error near "< all (select 0 from st1) end with f1 <= 1 < all (select 0 from st1) + 1;" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' EVENT_WINDOW START WITH f1 >= 1 > all (select 0 from st1) END WITH f1 <= 1 > all (select 0 from st1) + 1;
+
+DB error: syntax error near "> all (select 0 from st1) end with f1 <= 1 > all (select 0 from st1) + 1;" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' EVENT_WINDOW START WITH f1 >= NULL = any (select 2 from st1) END WITH f1 <= NULL = any (select 2 from st1) + 1;
+
+DB error: syntax error near "= any (select 2 from st1) end with f1 <= null = any (select 2 from st1) + 1;" [0x80002600] 
+taos> select avg(f1) from st1 where tbname = 'tb1' EVENT_WINDOW START WITH f1 >= exists (select f1 from db2.tba) END WITH f1 <= exists (select f1 from db2.tba) + 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) end with f1 <= exists (select f1 from db2.tba) + 1;" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW(1 < all (select 0 from st1));
+
+DB error: syntax error near "< all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW(1 > all (select 0 from st1));
+
+DB error: syntax error near "> all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW(NULL = any (select 2 from st1));
+
+DB error: syntax error near "null = any (select 2 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW(exists (select f1 from db2.tba));
+
+DB error: syntax error near "exists (select f1 from db2.tba));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW(1 < all (select 0 from st1), 1 < all (select 0 from st1));
+
+DB error: syntax error near "< all (select 0 from st1), 1 < all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW(1 > all (select 0 from st1), 1 > all (select 0 from st1));
+
+DB error: syntax error near "> all (select 0 from st1), 1 > all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW(NULL = any (select 2 from st1), NULL = any (select 2 from st1));
+
+DB error: syntax error near "null = any (select 2 from st1), null = any (select 2 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW(exists (select f1 from db2.tba), exists (select f1 from db2.tba));
+
+DB error: syntax error near "exists (select f1 from db2.tba), exists (select f1 from db2.tba));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW(3, 1, 1 < all (select 0 from st1));
+
+DB error: syntax error near "1 < all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW(3, 1, 1 > all (select 0 from st1));
+
+DB error: syntax error near "1 > all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW(3, 1, NULL = any (select 2 from st1));
+
+DB error: syntax error near "null = any (select 2 from st1));" [0x80002600] 
+taos> select avg(f1) from st1 COUNT_WINDOW(3, 1, exists (select f1 from db2.tba));
+
+DB error: syntax error near "exists (select f1 from db2.tba));" [0x80002600] 
+taos> select avg(f1) from st1 group by 1 < all (select 0 from st1);
+
+DB error: syntax error near "< all (select 0 from st1);" [0x80002600] 
+taos> select avg(f1) from st1 group by 1 > all (select 0 from st1);
+
+DB error: syntax error near "> all (select 0 from st1);" [0x80002600] 
+taos> select avg(f1) from st1 group by NULL = any (select 2 from st1);
+
+DB error: syntax error near "= any (select 2 from st1);" [0x80002600] 
+taos> select avg(f1) from st1 group by exists (select f1 from db2.tba);
+
+DB error: syntax error near "exists (select f1 from db2.tba);" [0x80002600] 
+taos> select avg(f1) from st1 group by f1, 1 < all (select 0 from st1);
+
+DB error: syntax error near "< all (select 0 from st1);" [0x80002600] 
+taos> select avg(f1) from st1 group by f1, 1 > all (select 0 from st1);
+
+DB error: syntax error near "> all (select 0 from st1);" [0x80002600] 
+taos> select avg(f1) from st1 group by f1, NULL = any (select 2 from st1);
+
+DB error: syntax error near "= any (select 2 from st1);" [0x80002600] 
+taos> select avg(f1) from st1 group by f1, exists (select f1 from db2.tba);
+
+DB error: syntax error near "exists (select f1 from db2.tba);" [0x80002600] 
+taos> select avg(f1) from st1 group by 1 < all (select 0 from st1) + 1;
+
+DB error: syntax error near "< all (select 0 from st1) + 1;" [0x80002600] 
+taos> select avg(f1) from st1 group by 1 > all (select 0 from st1) + 1;
+
+DB error: syntax error near "> all (select 0 from st1) + 1;" [0x80002600] 
+taos> select avg(f1) from st1 group by NULL = any (select 2 from st1) + 1;
+
+DB error: syntax error near "= any (select 2 from st1) + 1;" [0x80002600] 
+taos> select avg(f1) from st1 group by exists (select f1 from db2.tba) + 1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) + 1;" [0x80002600] 
+taos> select avg(f1) from st1 group by f1 having avg(1 < all (select 0 from st1)) > 0;
+
+DB error: syntax error near "< all (select 0 from st1)) > 0;" [0x80002600] 
+taos> select avg(f1) from st1 group by f1 having avg(1 > all (select 0 from st1)) > 0;
+
+DB error: syntax error near "> all (select 0 from st1)) > 0;" [0x80002600] 
+taos> select avg(f1) from st1 group by f1 having avg(NULL = any (select 2 from st1)) > 0;
+
+DB error: syntax error near "= any (select 2 from st1)) > 0;" [0x80002600] 
+taos> select avg(f1) from st1 group by f1 having avg(exists (select f1 from db2.tba)) > 0;
+
+DB error: syntax error near "exists (select f1 from db2.tba)) > 0;" [0x80002600] 
+taos> select avg(f1) from st1 group by f1 having 1 < all (select 0 from st1) > 0;
+
+DB error: syntax error near "> 0;" [0x80002600] 
+taos> select avg(f1) from st1 group by f1 having 1 > all (select 0 from st1) > 0;
+
+DB error: syntax error near "> 0;" [0x80002600] 
+taos> select avg(f1) from st1 group by f1 having NULL = any (select 2 from st1) > 0;
+
+DB error: syntax error near "> 0;" [0x80002600] 
+taos> select avg(f1) from st1 group by f1 having exists (select f1 from db2.tba) > 0;
+
+DB error: syntax error near "> 0;" [0x80002600] 
+taos> select avg(f1) from st1 group by f1 having avg(1 < all (select 0 from st1) + 1) > 0;
+
+DB error: syntax error near "< all (select 0 from st1) + 1) > 0;" [0x80002600] 
+taos> select avg(f1) from st1 group by f1 having avg(1 > all (select 0 from st1) + 1) > 0;
+
+DB error: syntax error near "> all (select 0 from st1) + 1) > 0;" [0x80002600] 
+taos> select avg(f1) from st1 group by f1 having avg(NULL = any (select 2 from st1) + 1) > 0;
+
+DB error: syntax error near "= any (select 2 from st1) + 1) > 0;" [0x80002600] 
+taos> select avg(f1) from st1 group by f1 having avg(exists (select f1 from db2.tba) + 1) > 0;
+
+DB error: syntax error near "exists (select f1 from db2.tba) + 1) > 0;" [0x80002600] 
+taos> select interp(f1) from st1 range(1 < all (select 0 from st1)) FILL(PREV);
+
+DB error: syntax error near "< all (select 0 from st1)) fill(prev);" [0x80002600] 
+taos> select interp(f1) from st1 range(1 > all (select 0 from st1)) FILL(PREV);
+
+DB error: syntax error near "> all (select 0 from st1)) fill(prev);" [0x80002600] 
+taos> select interp(f1) from st1 range(NULL = any (select 2 from st1)) FILL(PREV);
+
+DB error: syntax error near "= any (select 2 from st1)) fill(prev);" [0x80002600] 
+taos> select interp(f1) from st1 range(exists (select f1 from db2.tba)) FILL(PREV);
+
+DB error: syntax error near "exists (select f1 from db2.tba)) fill(prev);" [0x80002600] 
+taos> select interp(f1) from st1 range(1 < all (select 0 from st1), 1 < all (select 0 from st1)) every(1d);
+
+DB error: syntax error near "< all (select 0 from st1), 1 < all (select 0 from st1)) every(1d);" [0x80002600] 
+taos> select interp(f1) from st1 range(1 > all (select 0 from st1), 1 > all (select 0 from st1)) every(1d);
+
+DB error: syntax error near "> all (select 0 from st1), 1 > all (select 0 from st1)) every(1d);" [0x80002600] 
+taos> select interp(f1) from st1 range(NULL = any (select 2 from st1), NULL = any (select 2 from st1)) every(1d);
+
+DB error: syntax error near "= any (select 2 from st1), null = any (select 2 from st1)) every(1d);" [0x80002600] 
+taos> select interp(f1) from st1 range(exists (select f1 from db2.tba), exists (select f1 from db2.tba)) every(1d);
+
+DB error: syntax error near "exists (select f1 from db2.tba), exists (select f1 from db2.tba)) every(1d);" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now, 1 < all (select 0 from st1)) every(1d);
+
+DB error: syntax error near "< all (select 0 from st1)) every(1d);" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now, 1 > all (select 0 from st1)) every(1d);
+
+DB error: syntax error near "> all (select 0 from st1)) every(1d);" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now, NULL = any (select 2 from st1)) every(1d);
+
+DB error: syntax error near "= any (select 2 from st1)) every(1d);" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now, exists (select f1 from db2.tba)) every(1d);
+
+DB error: syntax error near "exists (select f1 from db2.tba)) every(1d);" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(1 < all (select 0 from st1));
+
+DB error: syntax error near "1 < all (select 0 from st1));" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(1 > all (select 0 from st1));
+
+DB error: syntax error near "1 > all (select 0 from st1));" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(NULL = any (select 2 from st1));
+
+DB error: syntax error near "null = any (select 2 from st1));" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(exists (select f1 from db2.tba));
+
+DB error: syntax error near "exists (select f1 from db2.tba));" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(1 < all (select 0 from st1)m);
+
+DB error: syntax error near "1 < all (select 0 from st1)m);" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(1 > all (select 0 from st1)m);
+
+DB error: syntax error near "1 > all (select 0 from st1)m);" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(NULL = any (select 2 from st1)m);
+
+DB error: syntax error near "null = any (select 2 from st1)m);" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(exists (select f1 from db2.tba)m);
+
+DB error: syntax error near "exists (select f1 from db2.tba)m);" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill(1 < all (select 0 from st1));
+
+DB error: syntax error near "1 < all (select 0 from st1));" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill(1 > all (select 0 from st1));
+
+DB error: syntax error near "1 > all (select 0 from st1));" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill(NULL = any (select 2 from st1));
+
+DB error: syntax error near "= any (select 2 from st1));" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill(exists (select f1 from db2.tba));
+
+DB error: syntax error near "exists (select f1 from db2.tba));" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill(value, 1 < all (select 0 from st1));
+
+DB error: syntax error near "< all (select 0 from st1));" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill(value, 1 > all (select 0 from st1));
+
+DB error: syntax error near "> all (select 0 from st1));" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill(value, NULL = any (select 2 from st1));
+
+DB error: syntax error near "= any (select 2 from st1));" [0x80002600] 
+taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill(value, exists (select f1 from db2.tba));
+
+DB error: syntax error near "exists (select f1 from db2.tba));" [0x80002600] 
+taos> select f1 from tb1 order by 1 < all (select 0 from st1);
+
+DB error: syntax error near "< all (select 0 from st1);" [0x80002600] 
+taos> select f1 from tb1 order by 1 > all (select 0 from st1);
+
+DB error: syntax error near "> all (select 0 from st1);" [0x80002600] 
+taos> select f1 from tb1 order by NULL = any (select 2 from st1);
+
+DB error: syntax error near "= any (select 2 from st1);" [0x80002600] 
+taos> select f1 from tb1 order by exists (select f1 from db2.tba);
+
+DB error: syntax error near "exists (select f1 from db2.tba);" [0x80002600] 
+taos> select f1 from tb1 order by 1 < all (select 0 from st1) desc;
+
+DB error: syntax error near "< all (select 0 from st1) desc;" [0x80002600] 
+taos> select f1 from tb1 order by 1 > all (select 0 from st1) desc;
+
+DB error: syntax error near "> all (select 0 from st1) desc;" [0x80002600] 
+taos> select f1 from tb1 order by NULL = any (select 2 from st1) desc;
+
+DB error: syntax error near "= any (select 2 from st1) desc;" [0x80002600] 
+taos> select f1 from tb1 order by exists (select f1 from db2.tba) desc;
+
+DB error: syntax error near "exists (select f1 from db2.tba) desc;" [0x80002600] 
+taos> select f1 from tb1 order by f1 + 1 < all (select 0 from st1);
+
+DB error: syntax error near "< all (select 0 from st1);" [0x80002600] 
+taos> select f1 from tb1 order by f1 + 1 > all (select 0 from st1);
+
+DB error: syntax error near "> all (select 0 from st1);" [0x80002600] 
+taos> select f1 from tb1 order by f1 + NULL = any (select 2 from st1);
+
+DB error: syntax error near "= any (select 2 from st1);" [0x80002600] 
+taos> select f1 from tb1 order by f1 + exists (select f1 from db2.tba);
+
+DB error: syntax error near "exists (select f1 from db2.tba);" [0x80002600] 
+taos> select f1 from st1 order by f1, 1 < all (select 0 from st1);
+
+DB error: syntax error near "< all (select 0 from st1);" [0x80002600] 
+taos> select f1 from st1 order by f1, 1 > all (select 0 from st1);
+
+DB error: syntax error near "> all (select 0 from st1);" [0x80002600] 
+taos> select f1 from st1 order by f1, NULL = any (select 2 from st1);
+
+DB error: syntax error near "= any (select 2 from st1);" [0x80002600] 
+taos> select f1 from st1 order by f1, exists (select f1 from db2.tba);
+
+DB error: syntax error near "exists (select f1 from db2.tba);" [0x80002600] 
+taos> select f1 from tb1 order by abs(1 < all (select 0 from st1));
+
+DB error: syntax error near "< all (select 0 from st1));" [0x80002600] 
+taos> select f1 from tb1 order by abs(1 > all (select 0 from st1));
+
+DB error: syntax error near "> all (select 0 from st1));" [0x80002600] 
+taos> select f1 from tb1 order by abs(NULL = any (select 2 from st1));
+
+DB error: syntax error near "= any (select 2 from st1));" [0x80002600] 
+taos> select f1 from tb1 order by abs(exists (select f1 from db2.tba));
+
+DB error: syntax error near "exists (select f1 from db2.tba));" [0x80002600] 
+taos> select avg(f1) from tb1 order by sum(1 < all (select 0 from st1));
+
+DB error: syntax error near "< all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from tb1 order by sum(1 > all (select 0 from st1));
+
+DB error: syntax error near "> all (select 0 from st1));" [0x80002600] 
+taos> select avg(f1) from tb1 order by sum(NULL = any (select 2 from st1));
+
+DB error: syntax error near "= any (select 2 from st1));" [0x80002600] 
+taos> select avg(f1) from tb1 order by sum(exists (select f1 from db2.tba));
+
+DB error: syntax error near "exists (select f1 from db2.tba));" [0x80002600] 
+taos> select f1 from st1 limit 1 < all (select 0 from st1);
+
+DB error: syntax error near "< all (select 0 from st1);" [0x80002600] 
+taos> select f1 from st1 limit 1 > all (select 0 from st1);
+
+DB error: syntax error near "> all (select 0 from st1);" [0x80002600] 
+taos> select f1 from st1 limit NULL = any (select 2 from st1);
+
+DB error: syntax error near "null = any (select 2 from st1);" [0x80002600] 
+taos> select f1 from st1 limit exists (select f1 from db2.tba);
+
+DB error: syntax error near "exists (select f1 from db2.tba);" [0x80002600] 
+taos> select f1 from st1 limit 1 offset 1 < all (select 0 from st1);
+
+DB error: syntax error near "< all (select 0 from st1);" [0x80002600] 
+taos> select f1 from st1 limit 1 offset 1 > all (select 0 from st1);
+
+DB error: syntax error near "> all (select 0 from st1);" [0x80002600] 
+taos> select f1 from st1 limit 1 offset NULL = any (select 2 from st1);
+
+DB error: syntax error near "null = any (select 2 from st1);" [0x80002600] 
+taos> select f1 from st1 limit 1 offset exists (select f1 from db2.tba);
+
+DB error: syntax error near "exists (select f1 from db2.tba);" [0x80002600] 
+taos> select f1 from st1 partition by tbname slimit 1 < all (select 0 from st1);
+
+DB error: syntax error near "< all (select 0 from st1);" [0x80002600] 
+taos> select f1 from st1 partition by tbname slimit 1 > all (select 0 from st1);
+
+DB error: syntax error near "> all (select 0 from st1);" [0x80002600] 
+taos> select f1 from st1 partition by tbname slimit NULL = any (select 2 from st1);
+
+DB error: syntax error near "null = any (select 2 from st1);" [0x80002600] 
+taos> select f1 from st1 partition by tbname slimit exists (select f1 from db2.tba);
+
+DB error: syntax error near "exists (select f1 from db2.tba);" [0x80002600] 
+taos> select f1 from st1 partition by tbname slimit 1 soffset 1 < all (select 0 from st1);
+
+DB error: syntax error near "< all (select 0 from st1);" [0x80002600] 
+taos> select f1 from st1 partition by tbname slimit 1 soffset 1 > all (select 0 from st1);
+
+DB error: syntax error near "> all (select 0 from st1);" [0x80002600] 
+taos> select f1 from st1 partition by tbname slimit 1 soffset NULL = any (select 2 from st1);
+
+DB error: syntax error near "null = any (select 2 from st1);" [0x80002600] 
+taos> select f1 from st1 partition by tbname slimit 1 soffset exists (select f1 from db2.tba);
+
+DB error: syntax error near "exists (select f1 from db2.tba);" [0x80002600] 
+taos> select f1 from st1 where f1 > 1 < all (select 0 from st1) union select f1 from st1 order by f1;
+
+DB error: syntax error near "< all (select 0 from st1) union select f1 from st1 order by f1;" [0x80002600] 
+taos> select f1 from st1 where f1 > 1 > all (select 0 from st1) union select f1 from st1 order by f1;
+
+DB error: syntax error near "> all (select 0 from st1) union select f1 from st1 order by f1;" [0x80002600] 
+taos> select f1 from st1 where f1 > NULL = any (select 2 from st1) union select f1 from st1 order by f1;
+
+DB error: syntax error near "= any (select 2 from st1) union select f1 from st1 order by f1;" [0x80002600] 
+taos> select f1 from st1 where f1 > exists (select f1 from db2.tba) union select f1 from st1 order by f1;
+
+DB error: syntax error near "exists (select f1 from db2.tba) union select f1 from st1 order by f1;" [0x80002600] 
+taos> select f1 from st1 union all select 1 < all (select 0 from st1) from st1 order by f1;
+     f1      |
+==============
+           0 |
+           0 |
+           0 |
+           0 |
+           0 |
+           0 |
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 union all select 1 > all (select 0 from st1) from st1 order by f1;
+     f1      |
+==============
+           1 |
+           1 |
+           1 |
+           1 |
+           1 |
+           1 |
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 union all select NULL = any (select 2 from st1) from st1 order by f1;
+     f1      |
+==============
+ NULL        |
+ NULL        |
+ NULL        |
+ NULL        |
+ NULL        |
+ NULL        |
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 union all select exists (select f1 from db2.tba) from st1 order by f1;
+     f1      |
+==============
+           1 |
+           1 |
+           1 |
+           1 |
+           1 |
+           1 |
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from tb1 union select f1 from tb1 order by 1 < all (select 0 from st1);
+
+DB error: syntax error near "< all (select 0 from st1);" [0x80002600] 
+taos> select f1 from tb1 union select f1 from tb1 order by 1 > all (select 0 from st1);
+
+DB error: syntax error near "> all (select 0 from st1);" [0x80002600] 
+taos> select f1 from tb1 union select f1 from tb1 order by NULL = any (select 2 from st1);
+
+DB error: syntax error near "= any (select 2 from st1);" [0x80002600] 
+taos> select f1 from tb1 union select f1 from tb1 order by exists (select f1 from db2.tba);
+
+DB error: syntax error near "exists (select f1 from db2.tba);" [0x80002600] 
+taos> select f1 from tb1 union all select f1 from tb1 limit 1 < all (select 0 from st1);
+
+DB error: syntax error near "< all (select 0 from st1);" [0x80002600] 
+taos> select f1 from tb1 union all select f1 from tb1 limit 1 > all (select 0 from st1);
+
+DB error: syntax error near "> all (select 0 from st1);" [0x80002600] 
+taos> select f1 from tb1 union all select f1 from tb1 limit NULL = any (select 2 from st1);
+
+DB error: syntax error near "null = any (select 2 from st1);" [0x80002600] 
+taos> select f1 from tb1 union all select f1 from tb1 limit exists (select f1 from db2.tba);
+
+DB error: syntax error near "exists (select f1 from db2.tba);" [0x80002600] 
+taos> explain select f1 from st1 where 1 < all (select 0 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 (width=4)
+*************************** 2.row ***************************
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 4.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+*************************** 6.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
+*************************** 7.row ***************************
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+*************************** 8.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+
+taos> explain select f1 from st1 where 1 > all (select 0 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 (width=4)
+*************************** 2.row ***************************
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 4.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+*************************** 6.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
+*************************** 7.row ***************************
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+*************************** 8.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+
+taos> explain select f1 from st1 where NULL = any (select 2 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 (width=4)
+*************************** 2.row ***************************
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 4.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
+*************************** 6.row ***************************
+QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+*************************** 7.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+
+taos> explain select f1 from st1 where exists (select f1 from db2.tba)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 (width=4)
+*************************** 2.row ***************************
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 4.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 5.row ***************************
+QUERY_PLAN:       -> Table Scan on tba (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+
+taos> explain select f1 from st1 where f1 = 1 < all (select 0 from st1)\G;
+
+DB error: syntax error near "< all (select 0 from st1)" [0x80002600] 
+taos> explain select f1 from st1 where f1 = 1 > all (select 0 from st1)\G;
+
+DB error: syntax error near "> all (select 0 from st1)" [0x80002600] 
+taos> explain select f1 from st1 where f1 = NULL = any (select 2 from st1)\G;
+
+DB error: syntax error near "= any (select 2 from st1)" [0x80002600] 
+taos> explain select f1 from st1 where f1 = exists (select f1 from db2.tba)\G;
+
+DB error: syntax error near "exists (select f1 from db2.tba)" [0x80002600] 
+taos> explain verbose true select f1 from st1 where 1 < all (select 0 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 (width=4)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=1 width=4
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=1 width=4
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: true
+*************************** 6.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 9.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 10.row ***************************
+QUERY_PLAN:             Filter: (1 < $(InitPlan 1))
+*************************** 11.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+*************************** 13.row ***************************
+QUERY_PLAN:             Output: columns=2 width=9 blocking=1
+*************************** 14.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 17.row ***************************
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+*************************** 18.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 19.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: true
+*************************** 20.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: True
+*************************** 21.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 22.row ***************************
+QUERY_PLAN:                      Output: columns=1 width=8
+*************************** 23.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select f1 from st1 where 1 > all (select 0 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 (width=4)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=1 width=4
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=1 width=4
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: true
+*************************** 6.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 9.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 10.row ***************************
+QUERY_PLAN:             Filter: (1 > $(InitPlan 1))
+*************************** 11.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+*************************** 13.row ***************************
+QUERY_PLAN:             Output: columns=2 width=9 blocking=1
+*************************** 14.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 17.row ***************************
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+*************************** 18.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 19.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: true
+*************************** 20.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: True
+*************************** 21.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 22.row ***************************
+QUERY_PLAN:                      Output: columns=1 width=8
+*************************** 23.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select f1 from st1 where NULL = any (select 2 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 (width=4)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=1 width=4
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=1 width=4
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: true
+*************************** 6.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 9.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 10.row ***************************
+QUERY_PLAN:             Filter: (NULL IN $(InitPlan 1))
+*************************** 11.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
+*************************** 13.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 14.row ***************************
+QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+*************************** 15.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 16.row ***************************
+QUERY_PLAN:                Output: Ignore Group Id: true
+*************************** 17.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 18.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 19.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 20.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select f1 from st1 where exists (select f1 from db2.tba)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 (width=4)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=1 width=4
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Projection (columns=1 width=4 input_order=asc )
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=1 width=4
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: true
+*************************** 6.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 8.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 9.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 10.row ***************************
+QUERY_PLAN:             Filter: ($(InitPlan 1) > 0)
+*************************** 11.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Table Scan on tba (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 13.row ***************************
+QUERY_PLAN:             Output: columns=1 width=4
+*************************** 14.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain analyze select f1 from st1 where 1 < all (select 0 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 ( rows=0 width=4)
+*************************** 2.row ***************************
+QUERY_PLAN:    -> Projection ( rows=0 columns=1 width=4 input_order=asc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 4.row ***************************
+QUERY_PLAN:             I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=0.0 check_rows=3.0 
+*************************** 5.row ***************************
+QUERY_PLAN:              total_rows:0, ep:tbd () 
+*************************** 6.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+*************************** 8.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+*************************** 9.row ***************************
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+*************************** 10.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 11.row ***************************
+QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 12.row ***************************
+QUERY_PLAN:                       total_rows:4, ep:tbd () 
+*************************** 13.row ***************************
+QUERY_PLAN: Ratio: 0.001000
+*************************** 14.row ***************************
+QUERY_PLAN: 
+*************************** 15.row ***************************
+QUERY_PLAN: 
+
+taos> explain analyze select f1 from st1 where 1 > all (select 0 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 ( rows=6 width=4)
+*************************** 2.row ***************************
+QUERY_PLAN:    -> Projection ( rows=4 columns=1 width=4 input_order=asc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 4.row ***************************
+QUERY_PLAN:             I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 5.row ***************************
+QUERY_PLAN:              total_rows:4, ep:tbd () 
+*************************** 6.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+*************************** 8.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+*************************** 9.row ***************************
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+*************************** 10.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 11.row ***************************
+QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 12.row ***************************
+QUERY_PLAN:                       total_rows:4, ep:tbd () 
+*************************** 13.row ***************************
+QUERY_PLAN: Ratio: 0.001000
+*************************** 14.row ***************************
+QUERY_PLAN: 
+*************************** 15.row ***************************
+QUERY_PLAN: 
+
+taos> explain analyze select f1 from st1 where NULL = any (select 2 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 ( rows=0 width=4)
+*************************** 2.row ***************************
+QUERY_PLAN:    -> Projection ( rows=0 columns=1 width=4 input_order=asc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 4.row ***************************
+QUERY_PLAN:             I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=0.0 check_rows=3.0 
+*************************** 5.row ***************************
+QUERY_PLAN:              total_rows:0, ep:tbd () 
+*************************** 6.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
+*************************** 8.row ***************************
+QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+*************************** 9.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 11.row ***************************
+QUERY_PLAN:                    total_rows:4, ep:tbd () 
+*************************** 12.row ***************************
+QUERY_PLAN: Ratio: 0.001000
+*************************** 13.row ***************************
+QUERY_PLAN: 
+*************************** 14.row ***************************
+QUERY_PLAN: 
+
+taos> explain analyze select f1 from st1 where exists (select f1 from db2.tba)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 ( rows=6 width=4)
+*************************** 2.row ***************************
+QUERY_PLAN:    -> Projection ( rows=4 columns=1 width=4 input_order=asc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 4.row ***************************
+QUERY_PLAN:             I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 5.row ***************************
+QUERY_PLAN:              total_rows:4, ep:tbd () 
+*************************** 6.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Table Scan on tba ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 8.row ***************************
+QUERY_PLAN:             I/O: total_blocks=1.0 load_blocks=1.0 load_block_SMAs=0.0 total_rows=1.0 check_rows=1.0 
+*************************** 9.row ***************************
+QUERY_PLAN:              total_rows:1, ep:tbd () 
+*************************** 10.row ***************************
+QUERY_PLAN: Ratio: 0.001000
+*************************** 11.row ***************************
+QUERY_PLAN: 
+*************************** 12.row ***************************
+QUERY_PLAN: 
+
+taos> explain analyze verbose true select f1 from st1 where 1 < all (select 0 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 ( rows=0 width=4)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=1 width=4
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Projection ( rows=0 columns=1 width=4 input_order=asc )
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=1 width=4
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: true
+*************************** 6.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 8.row ***************************
+QUERY_PLAN:             I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=0.0 check_rows=3.0 
+*************************** 9.row ***************************
+QUERY_PLAN:              total_rows:0, ep:tbd () 
+*************************** 10.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 11.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 12.row ***************************
+QUERY_PLAN:             Filter: (1 < $(InitPlan 1))
+*************************** 13.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 14.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+*************************** 15.row ***************************
+QUERY_PLAN:             Output: columns=2 width=9 blocking=1
+*************************** 16.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 17.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 19.row ***************************
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+*************************** 20.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 21.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: true
+*************************** 22.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: True
+*************************** 23.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 24.row ***************************
+QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 25.row ***************************
+QUERY_PLAN:                       total_rows:4, ep:tbd () 
+*************************** 26.row ***************************
+QUERY_PLAN:                      Output: columns=1 width=8
+*************************** 27.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 28.row ***************************
+QUERY_PLAN: Ratio: 0.001000
+*************************** 29.row ***************************
+QUERY_PLAN: 
+*************************** 30.row ***************************
+QUERY_PLAN: 
+
+taos> explain analyze verbose true select f1 from st1 where 1 > all (select 0 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 ( rows=6 width=4)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=1 width=4
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Projection ( rows=4 columns=1 width=4 input_order=asc )
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=1 width=4
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: true
+*************************** 6.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 8.row ***************************
+QUERY_PLAN:             I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 9.row ***************************
+QUERY_PLAN:              total_rows:4, ep:tbd () 
+*************************** 10.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 11.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 12.row ***************************
+QUERY_PLAN:             Filter: (1 > $(InitPlan 1))
+*************************** 13.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 14.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+*************************** 15.row ***************************
+QUERY_PLAN:             Output: columns=2 width=9 blocking=1
+*************************** 16.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 17.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 19.row ***************************
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+*************************** 20.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 21.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: true
+*************************** 22.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: True
+*************************** 23.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 24.row ***************************
+QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 25.row ***************************
+QUERY_PLAN:                       total_rows:4, ep:tbd () 
+*************************** 26.row ***************************
+QUERY_PLAN:                      Output: columns=1 width=8
+*************************** 27.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 28.row ***************************
+QUERY_PLAN: Ratio: 0.001000
+*************************** 29.row ***************************
+QUERY_PLAN: 
+*************************** 30.row ***************************
+QUERY_PLAN: 
+
+taos> explain analyze verbose true select f1 from st1 where NULL = any (select 2 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 ( rows=0 width=4)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=1 width=4
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Projection ( rows=0 columns=1 width=4 input_order=asc )
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=1 width=4
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: true
+*************************** 6.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 8.row ***************************
+QUERY_PLAN:             I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=0.0 check_rows=3.0 
+*************************** 9.row ***************************
+QUERY_PLAN:              total_rows:0, ep:tbd () 
+*************************** 10.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 11.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 12.row ***************************
+QUERY_PLAN:             Filter: (NULL IN $(InitPlan 1))
+*************************** 13.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 14.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
+*************************** 15.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 16.row ***************************
+QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+*************************** 17.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 18.row ***************************
+QUERY_PLAN:                Output: Ignore Group Id: true
+*************************** 19.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 20.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 21.row ***************************
+QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 22.row ***************************
+QUERY_PLAN:                    total_rows:4, ep:tbd () 
+*************************** 23.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 24.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 25.row ***************************
+QUERY_PLAN: Ratio: 0.001000
+*************************** 26.row ***************************
+QUERY_PLAN: 
+*************************** 27.row ***************************
+QUERY_PLAN: 
+
+taos> explain analyze verbose true select f1 from st1 where exists (select f1 from db2.tba)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Data Exchange 2:1 ( rows=6 width=4)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=1 width=4
+*************************** 3.row ***************************
+QUERY_PLAN:    -> Projection ( rows=4 columns=1 width=4 input_order=asc )
+*************************** 4.row ***************************
+QUERY_PLAN:          Output: columns=1 width=4
+*************************** 5.row ***************************
+QUERY_PLAN:          Output: Ignore Group Id: true
+*************************** 6.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 8.row ***************************
+QUERY_PLAN:             I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 9.row ***************************
+QUERY_PLAN:              total_rows:4, ep:tbd () 
+*************************** 10.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 11.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 12.row ***************************
+QUERY_PLAN:             Filter: ($(InitPlan 1) > 0)
+*************************** 13.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 14.row ***************************
+QUERY_PLAN:       -> Table Scan on tba ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 15.row ***************************
+QUERY_PLAN:             I/O: total_blocks=1.0 load_blocks=1.0 load_block_SMAs=0.0 total_rows=1.0 check_rows=1.0 
+*************************** 16.row ***************************
+QUERY_PLAN:              total_rows:1, ep:tbd () 
+*************************** 17.row ***************************
+QUERY_PLAN:             Output: columns=1 width=4
+*************************** 18.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 19.row ***************************
+QUERY_PLAN: Ratio: 0.001000
+*************************** 20.row ***************************
+QUERY_PLAN: 
+*************************** 21.row ***************************
+QUERY_PLAN: 
+
+taos> explain select avg(f1), 1 < all (select 0 from st1) from st1 group by f1 having 1 < all (select 0 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+*************************** 2.row ***************************
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
+*************************** 4.row ***************************
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+*************************** 5.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 6.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+*************************** 8.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
+*************************** 9.row ***************************
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+*************************** 10.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 11.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+*************************** 13.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
+*************************** 14.row ***************************
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+*************************** 15.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+
+taos> explain select avg(f1), 1 > all (select 0 from st1) from st1 group by f1 having 1 > all (select 0 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+*************************** 2.row ***************************
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
+*************************** 4.row ***************************
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+*************************** 5.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 6.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+*************************** 8.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
+*************************** 9.row ***************************
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+*************************** 10.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 11.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+*************************** 13.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
+*************************** 14.row ***************************
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+*************************** 15.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+
+taos> explain select avg(f1), NULL = any (select 2 from st1) from st1 group by f1 having NULL = any (select 2 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+*************************** 2.row ***************************
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
+*************************** 4.row ***************************
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+*************************** 5.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 6.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
+*************************** 8.row ***************************
+QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+*************************** 9.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 11.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
+*************************** 12.row ***************************
+QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+*************************** 13.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+
+taos> explain select avg(f1), exists (select f1 from db2.tba) from st1 group by f1 having exists (select f1 from db2.tba)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+*************************** 2.row ***************************
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
+*************************** 4.row ***************************
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+*************************** 5.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 6.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 7.row ***************************
+QUERY_PLAN:       -> Table Scan on tba (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 8.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 9.row ***************************
+QUERY_PLAN:       -> Table Scan on tba (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+
+taos> explain verbose true select avg(f1), 1 < all (select 0 from st1) from st1 group by f1 having 1 < all (select 0 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=9
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: Ignore Group Id: true
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: columns=1 width=8 blocking=1
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=2 width=62
+*************************** 10.row ***************************
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=62 blocking=1
+*************************** 12.row ***************************
+QUERY_PLAN:                Merge ResBlocks: False
+*************************** 13.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 14.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 15.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 16.row ***************************
+QUERY_PLAN:                   Filter: (1 < $(InitPlan 1))
+*************************** 17.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 18.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+*************************** 19.row ***************************
+QUERY_PLAN:             Output: columns=2 width=9 blocking=1
+*************************** 20.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 21.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
+*************************** 22.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 23.row ***************************
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+*************************** 24.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 25.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: true
+*************************** 26.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: True
+*************************** 27.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 28.row ***************************
+QUERY_PLAN:                      Output: columns=1 width=8
+*************************** 29.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 30.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 31.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+*************************** 32.row ***************************
+QUERY_PLAN:             Output: columns=2 width=9 blocking=1
+*************************** 33.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 34.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
+*************************** 35.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 36.row ***************************
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+*************************** 37.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 38.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: true
+*************************** 39.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: True
+*************************** 40.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 41.row ***************************
+QUERY_PLAN:                      Output: columns=1 width=8
+*************************** 42.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select avg(f1), 1 > all (select 0 from st1) from st1 group by f1 having 1 > all (select 0 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=9
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: Ignore Group Id: true
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: columns=1 width=8 blocking=1
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=2 width=62
+*************************** 10.row ***************************
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=62 blocking=1
+*************************** 12.row ***************************
+QUERY_PLAN:                Merge ResBlocks: False
+*************************** 13.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 14.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 15.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 16.row ***************************
+QUERY_PLAN:                   Filter: (1 > $(InitPlan 1))
+*************************** 17.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 18.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+*************************** 19.row ***************************
+QUERY_PLAN:             Output: columns=2 width=9 blocking=1
+*************************** 20.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 21.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
+*************************** 22.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 23.row ***************************
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+*************************** 24.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 25.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: true
+*************************** 26.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: True
+*************************** 27.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 28.row ***************************
+QUERY_PLAN:                      Output: columns=1 width=8
+*************************** 29.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 30.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 31.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=2 width=9 input_order=unknown )
+*************************** 32.row ***************************
+QUERY_PLAN:             Output: columns=2 width=9 blocking=1
+*************************** 33.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 34.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 (width=16)
+*************************** 35.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 36.row ***************************
+QUERY_PLAN:             -> Projection (columns=1 width=8 input_order=asc )
+*************************** 37.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 38.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: true
+*************************** 39.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: True
+*************************** 40.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 41.row ***************************
+QUERY_PLAN:                      Output: columns=1 width=8
+*************************** 42.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select avg(f1), NULL = any (select 2 from st1) from st1 group by f1 having NULL = any (select 2 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=9
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: Ignore Group Id: true
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: columns=1 width=8 blocking=1
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=2 width=62
+*************************** 10.row ***************************
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=62 blocking=1
+*************************** 12.row ***************************
+QUERY_PLAN:                Merge ResBlocks: False
+*************************** 13.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 14.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 15.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 16.row ***************************
+QUERY_PLAN:                   Filter: (NULL IN $(InitPlan 1))
+*************************** 17.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 18.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
+*************************** 19.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 20.row ***************************
+QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+*************************** 21.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 22.row ***************************
+QUERY_PLAN:                Output: Ignore Group Id: true
+*************************** 23.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 24.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 25.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 26.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 27.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 28.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
+*************************** 29.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 30.row ***************************
+QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+*************************** 31.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 32.row ***************************
+QUERY_PLAN:                Output: Ignore Group Id: true
+*************************** 33.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 34.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 35.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 36.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain verbose true select avg(f1), exists (select f1 from db2.tba) from st1 group by f1 having exists (select f1 from db2.tba)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=9
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: Ignore Group Id: true
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=12 groups=1 input_order=asc )
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: columns=1 width=8 blocking=1
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 (width=62)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=2 width=62
+*************************** 10.row ***************************
+QUERY_PLAN:          -> GroupAggregate (functions=1 width=62 groups=1 input_order=asc )
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=62 blocking=1
+*************************** 12.row ***************************
+QUERY_PLAN:                Merge ResBlocks: False
+*************************** 13.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 14.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 15.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 16.row ***************************
+QUERY_PLAN:                   Filter: ($(InitPlan 1) > 0)
+*************************** 17.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 18.row ***************************
+QUERY_PLAN:       -> Table Scan on tba (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 19.row ***************************
+QUERY_PLAN:             Output: columns=1 width=4
+*************************** 20.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 21.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 22.row ***************************
+QUERY_PLAN:       -> Table Scan on tba (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 23.row ***************************
+QUERY_PLAN:             Output: columns=1 width=4
+*************************** 24.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+
+taos> explain analyze select avg(f1), 1 < all (select 0 from st1) from st1 group by f1 having 1 < all (select 0 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown )
+*************************** 2.row ***************************
+QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=0 width=62)
+*************************** 4.row ***************************
+QUERY_PLAN:          -> GroupAggregate ( rows=0 functions=1 width=62 groups=1 input_order=asc )
+*************************** 5.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 6.row ***************************
+QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=0.0 check_rows=3.0 
+*************************** 7.row ***************************
+QUERY_PLAN:                    total_rows:0, ep:tbd () 
+*************************** 8.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 9.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+*************************** 11.row ***************************
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+*************************** 12.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 13.row ***************************
+QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 14.row ***************************
+QUERY_PLAN:                       total_rows:4, ep:tbd () 
+*************************** 15.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 16.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+*************************** 17.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+*************************** 18.row ***************************
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+*************************** 19.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 20.row ***************************
+QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 21.row ***************************
+QUERY_PLAN:                       total_rows:4, ep:tbd () 
+*************************** 22.row ***************************
+QUERY_PLAN: Ratio: 0.001000
+*************************** 23.row ***************************
+QUERY_PLAN: 
+*************************** 24.row ***************************
+QUERY_PLAN: 
+
+taos> explain analyze select avg(f1), 1 > all (select 0 from st1) from st1 group by f1 having 1 > all (select 0 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown )
+*************************** 2.row ***************************
+QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=62)
+*************************** 4.row ***************************
+QUERY_PLAN:          -> GroupAggregate ( rows=4 functions=1 width=62 groups=1 input_order=asc )
+*************************** 5.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 6.row ***************************
+QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 7.row ***************************
+QUERY_PLAN:                    total_rows:4, ep:tbd () 
+*************************** 8.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 9.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+*************************** 11.row ***************************
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+*************************** 12.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 13.row ***************************
+QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 14.row ***************************
+QUERY_PLAN:                       total_rows:4, ep:tbd () 
+*************************** 15.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 16.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+*************************** 17.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+*************************** 18.row ***************************
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+*************************** 19.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 20.row ***************************
+QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 21.row ***************************
+QUERY_PLAN:                       total_rows:4, ep:tbd () 
+*************************** 22.row ***************************
+QUERY_PLAN: Ratio: 0.001000
+*************************** 23.row ***************************
+QUERY_PLAN: 
+*************************** 24.row ***************************
+QUERY_PLAN: 
+
+taos> explain analyze select avg(f1), NULL = any (select 2 from st1) from st1 group by f1 having NULL = any (select 2 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown )
+*************************** 2.row ***************************
+QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=0 width=62)
+*************************** 4.row ***************************
+QUERY_PLAN:          -> GroupAggregate ( rows=0 functions=1 width=62 groups=1 input_order=asc )
+*************************** 5.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 6.row ***************************
+QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=0.0 check_rows=3.0 
+*************************** 7.row ***************************
+QUERY_PLAN:                    total_rows:0, ep:tbd () 
+*************************** 8.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 9.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+*************************** 11.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 12.row ***************************
+QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 13.row ***************************
+QUERY_PLAN:                    total_rows:4, ep:tbd () 
+*************************** 14.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 15.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
+*************************** 16.row ***************************
+QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+*************************** 17.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 18.row ***************************
+QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 19.row ***************************
+QUERY_PLAN:                    total_rows:4, ep:tbd () 
+*************************** 20.row ***************************
+QUERY_PLAN: Ratio: 0.001000
+*************************** 21.row ***************************
+QUERY_PLAN: 
+*************************** 22.row ***************************
+QUERY_PLAN: 
+
+taos> explain analyze select avg(f1), exists (select f1 from db2.tba) from st1 group by f1 having exists (select f1 from db2.tba)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown )
+*************************** 2.row ***************************
+QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc )
+*************************** 3.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=62)
+*************************** 4.row ***************************
+QUERY_PLAN:          -> GroupAggregate ( rows=4 functions=1 width=62 groups=1 input_order=asc )
+*************************** 5.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 6.row ***************************
+QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 7.row ***************************
+QUERY_PLAN:                    total_rows:4, ep:tbd () 
+*************************** 8.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 9.row ***************************
+QUERY_PLAN:       -> Table Scan on tba ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:             I/O: total_blocks=1.0 load_blocks=1.0 load_block_SMAs=0.0 total_rows=1.0 check_rows=1.0 
+*************************** 11.row ***************************
+QUERY_PLAN:              total_rows:1, ep:tbd () 
+*************************** 12.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Table Scan on tba ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 14.row ***************************
+QUERY_PLAN:             I/O: total_blocks=1.0 load_blocks=1.0 load_block_SMAs=0.0 total_rows=1.0 check_rows=1.0 
+*************************** 15.row ***************************
+QUERY_PLAN:              total_rows:1, ep:tbd () 
+*************************** 16.row ***************************
+QUERY_PLAN: Ratio: 0.001000
+*************************** 17.row ***************************
+QUERY_PLAN: 
+*************************** 18.row ***************************
+QUERY_PLAN: 
+
+taos> explain analyze verbose true select avg(f1), 1 < all (select 0 from st1) from st1 group by f1 having 1 < all (select 0 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown )
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=9
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: Ignore Group Id: true
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc )
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: columns=1 width=8 blocking=1
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=0 width=62)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=2 width=62
+*************************** 10.row ***************************
+QUERY_PLAN:          -> GroupAggregate ( rows=0 functions=1 width=62 groups=1 input_order=asc )
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=62 blocking=1
+*************************** 12.row ***************************
+QUERY_PLAN:                Merge ResBlocks: False
+*************************** 13.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 14.row ***************************
+QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=0.0 check_rows=3.0 
+*************************** 15.row ***************************
+QUERY_PLAN:                    total_rows:0, ep:tbd () 
+*************************** 16.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 18.row ***************************
+QUERY_PLAN:                   Filter: (1 < $(InitPlan 1))
+*************************** 19.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 20.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+*************************** 21.row ***************************
+QUERY_PLAN:             Output: columns=2 width=9 blocking=1
+*************************** 22.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 23.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+*************************** 24.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 25.row ***************************
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+*************************** 26.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 27.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: true
+*************************** 28.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: True
+*************************** 29.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 30.row ***************************
+QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 31.row ***************************
+QUERY_PLAN:                       total_rows:4, ep:tbd () 
+*************************** 32.row ***************************
+QUERY_PLAN:                      Output: columns=1 width=8
+*************************** 33.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 34.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 35.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+*************************** 36.row ***************************
+QUERY_PLAN:             Output: columns=2 width=9 blocking=1
+*************************** 37.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 38.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+*************************** 39.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 40.row ***************************
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+*************************** 41.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 42.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: true
+*************************** 43.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: True
+*************************** 44.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 45.row ***************************
+QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 46.row ***************************
+QUERY_PLAN:                       total_rows:4, ep:tbd () 
+*************************** 47.row ***************************
+QUERY_PLAN:                      Output: columns=1 width=8
+*************************** 48.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 49.row ***************************
+QUERY_PLAN: Ratio: 0.001000
+*************************** 50.row ***************************
+QUERY_PLAN: 
+*************************** 51.row ***************************
+QUERY_PLAN: 
+
+taos> explain analyze verbose true select avg(f1), 1 > all (select 0 from st1) from st1 group by f1 having 1 > all (select 0 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown )
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=9
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: Ignore Group Id: true
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc )
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: columns=1 width=8 blocking=1
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=62)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=2 width=62
+*************************** 10.row ***************************
+QUERY_PLAN:          -> GroupAggregate ( rows=4 functions=1 width=62 groups=1 input_order=asc )
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=62 blocking=1
+*************************** 12.row ***************************
+QUERY_PLAN:                Merge ResBlocks: False
+*************************** 13.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 14.row ***************************
+QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 15.row ***************************
+QUERY_PLAN:                    total_rows:4, ep:tbd () 
+*************************** 16.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 18.row ***************************
+QUERY_PLAN:                   Filter: (1 > $(InitPlan 1))
+*************************** 19.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 20.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+*************************** 21.row ***************************
+QUERY_PLAN:             Output: columns=2 width=9 blocking=1
+*************************** 22.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 23.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+*************************** 24.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 25.row ***************************
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+*************************** 26.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 27.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: true
+*************************** 28.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: True
+*************************** 29.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 30.row ***************************
+QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 31.row ***************************
+QUERY_PLAN:                       total_rows:4, ep:tbd () 
+*************************** 32.row ***************************
+QUERY_PLAN:                      Output: columns=1 width=8
+*************************** 33.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 34.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 35.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=9 input_order=unknown )
+*************************** 36.row ***************************
+QUERY_PLAN:             Output: columns=2 width=9 blocking=1
+*************************** 37.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 38.row ***************************
+QUERY_PLAN:          -> Data Exchange 2:1 ( rows=6 width=16)
+*************************** 39.row ***************************
+QUERY_PLAN:                Output: columns=2 width=16
+*************************** 40.row ***************************
+QUERY_PLAN:             -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+*************************** 41.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 42.row ***************************
+QUERY_PLAN:                   Output: Ignore Group Id: true
+*************************** 43.row ***************************
+QUERY_PLAN:                   Merge ResBlocks: True
+*************************** 44.row ***************************
+QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 45.row ***************************
+QUERY_PLAN:                      I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 46.row ***************************
+QUERY_PLAN:                       total_rows:4, ep:tbd () 
+*************************** 47.row ***************************
+QUERY_PLAN:                      Output: columns=1 width=8
+*************************** 48.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 49.row ***************************
+QUERY_PLAN: Ratio: 0.001000
+*************************** 50.row ***************************
+QUERY_PLAN: 
+*************************** 51.row ***************************
+QUERY_PLAN: 
+
+taos> explain analyze verbose true select avg(f1), NULL = any (select 2 from st1) from st1 group by f1 having NULL = any (select 2 from st1)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown )
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=9
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: Ignore Group Id: true
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+QUERY_PLAN:    -> GroupAggregate ( rows=0 functions=1 width=12 groups=1 input_order=asc )
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: columns=1 width=8 blocking=1
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=0 width=62)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=2 width=62
+*************************** 10.row ***************************
+QUERY_PLAN:          -> GroupAggregate ( rows=0 functions=1 width=62 groups=1 input_order=asc )
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=62 blocking=1
+*************************** 12.row ***************************
+QUERY_PLAN:                Merge ResBlocks: False
+*************************** 13.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 14.row ***************************
+QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=0.0 check_rows=3.0 
+*************************** 15.row ***************************
+QUERY_PLAN:                    total_rows:0, ep:tbd () 
+*************************** 16.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 18.row ***************************
+QUERY_PLAN:                   Filter: (NULL IN $(InitPlan 1))
+*************************** 19.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 20.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
+*************************** 21.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 22.row ***************************
+QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+*************************** 23.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 24.row ***************************
+QUERY_PLAN:                Output: Ignore Group Id: true
+*************************** 25.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 26.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 27.row ***************************
+QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 28.row ***************************
+QUERY_PLAN:                    total_rows:4, ep:tbd () 
+*************************** 29.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 30.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 31.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 32.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
+*************************** 33.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 34.row ***************************
+QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+*************************** 35.row ***************************
+QUERY_PLAN:                Output: columns=1 width=8
+*************************** 36.row ***************************
+QUERY_PLAN:                Output: Ignore Group Id: true
+*************************** 37.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 38.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 39.row ***************************
+QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 40.row ***************************
+QUERY_PLAN:                    total_rows:4, ep:tbd () 
+*************************** 41.row ***************************
+QUERY_PLAN:                   Output: columns=1 width=8
+*************************** 42.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 43.row ***************************
+QUERY_PLAN: Ratio: 0.001000
+*************************** 44.row ***************************
+QUERY_PLAN: 
+*************************** 45.row ***************************
+QUERY_PLAN: 
+
+taos> explain analyze verbose true select avg(f1), exists (select f1 from db2.tba) from st1 group by f1 having exists (select f1 from db2.tba)\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection ( rows=6 columns=2 width=9 input_order=unknown )
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=9
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: Ignore Group Id: true
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+QUERY_PLAN:    -> GroupAggregate ( rows=6 functions=1 width=12 groups=1 input_order=asc )
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: columns=1 width=8 blocking=1
+*************************** 7.row ***************************
+QUERY_PLAN:          Merge ResBlocks: True
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=62)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=2 width=62
+*************************** 10.row ***************************
+QUERY_PLAN:          -> GroupAggregate ( rows=4 functions=1 width=62 groups=1 input_order=asc )
+*************************** 11.row ***************************
+QUERY_PLAN:                Output: columns=2 width=62 blocking=1
+*************************** 12.row ***************************
+QUERY_PLAN:                Merge ResBlocks: False
+*************************** 13.row ***************************
+QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 14.row ***************************
+QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+*************************** 15.row ***************************
+QUERY_PLAN:                    total_rows:4, ep:tbd () 
+*************************** 16.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 17.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 18.row ***************************
+QUERY_PLAN:                   Filter: ($(InitPlan 1) > 0)
+*************************** 19.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 20.row ***************************
+QUERY_PLAN:       -> Table Scan on tba ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 21.row ***************************
+QUERY_PLAN:             I/O: total_blocks=1.0 load_blocks=1.0 load_block_SMAs=0.0 total_rows=1.0 check_rows=1.0 
+*************************** 22.row ***************************
+QUERY_PLAN:              total_rows:1, ep:tbd () 
+*************************** 23.row ***************************
+QUERY_PLAN:             Output: columns=1 width=4
+*************************** 24.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 25.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 26.row ***************************
+QUERY_PLAN:       -> Table Scan on tba ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 27.row ***************************
+QUERY_PLAN:             I/O: total_blocks=1.0 load_blocks=1.0 load_block_SMAs=0.0 total_rows=1.0 check_rows=1.0 
+*************************** 28.row ***************************
+QUERY_PLAN:              total_rows:1, ep:tbd () 
+*************************** 29.row ***************************
+QUERY_PLAN:             Output: columns=1 width=4
+*************************** 30.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 31.row ***************************
+QUERY_PLAN: Ratio: 0.001000
+*************************** 32.row ***************************
+QUERY_PLAN: 
+*************************** 33.row ***************************
+QUERY_PLAN: 
+
+taos> select f1 from st1 where f1 = (select * from v1 where 1 < all (select 0 from st1)) order by 1;
+
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select f1 from st1 where f1 = (select * from v1 where 1 > all (select 0 from st1)) order by 1;
+     f1      |
+==============
+           1 |
+
+taos> select f1 from st1 where f1 = (select * from v1 where NULL = any (select 2 from st1)) order by 1;
+
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
+taos> select f1 from st1 where f1 = (select * from v1 where exists (select f1 from db2.tba)) order by 1;
+     f1      |
+==============
+           1 |
+
