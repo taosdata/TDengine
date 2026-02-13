@@ -54,6 +54,11 @@ typedef struct SPlanContext {
   char        pGroupIdName[TSDB_COL_NAME_LEN];
   char        pIsWindowFilledName[TSDB_COL_NAME_LEN];
   bool        virtualStableQuery;
+  // for table privilege filtering (AUTH_TYPE_SHOW)
+  bool       showAllTbls;  // user has db-level privilege
+  SSHashObj* pReadDbs;     // key is dbFName
+  SSHashObj* pReadTbs;     // key is tbFName (legacy)
+  SSHashObj* pReadUids;    // key is int64_t (suid or uid), optimized
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

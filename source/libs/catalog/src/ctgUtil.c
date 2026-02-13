@@ -18,6 +18,7 @@
 #include "systable.h"
 #include "tname.h"
 #include "trpc.h"
+#include "tsimplehash.h"
 
 void ctgFreeSViewMeta(SViewMeta* pMeta) {
   if (NULL == pMeta) {
@@ -2226,11 +2227,17 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
   }
 
   if (pInfo->superAuth) {
+    if (pReq->type == AUTH_TYPE_SHOW) {
+      pRes->showAllTbls = 1;
+    }
     pRes->pass[AUTH_RES_BASIC] = true;
     return TSDB_CODE_SUCCESS;
   }
 
   if (IS_SYS_DBNAME(pReq->tbName.dbname)) {
+    if (pReq->type == AUTH_TYPE_SHOW) {
+      pRes->showAllTbls = 1;
+    }
     pRes->pass[AUTH_RES_BASIC] = true;
     ctgDebug("sysdb %s, pass", pReq->tbName.dbname);
     return TSDB_CODE_SUCCESS;
@@ -2295,6 +2302,86 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
       }
 
       break;
+    }
+    case AUTH_TYPE_SHOW: {
+      pRes->pass[AUTH_RES_BASIC] = true;
+
+      // If dbname is empty, collect all privileges across all dbs
+      bool allDbs = (pReq->tbName.dbname[0] == '\0');
+
+      if (allDbs) {
+        // Collect all db-level privileges into pReadDbs
+        SHashObj* dbHashes[] = {pInfo->readDbs, pInfo->writeDbs};
+        for (int i = 0; i < 2; ++i) {
+          if (NULL == dbHashes[i]) continue;
+          void* pIter = NULL;
+          while ((pIter = taosHashIterate(dbHashes[i], pIter))) {
+            char* dbName = (char*)taosHashGetKey(pIter, NULL);
+            if (NULL == pRes->pReadDbs) {
+              pRes->pReadDbs = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+              if (NULL == pRes->pReadDbs) {
+                CTG_ERR_RET(terrno);
+              }
+            }
+            int32_t code = tSimpleHashPut(pRes->pReadDbs, dbName, strlen(dbName) + 1, NULL, 0);
+            if (TSDB_CODE_SUCCESS != code) {
+              CTG_ERR_RET(code);
+            }
+          }
+        }
+
+        // Collect all table-level privileges into pReadTbs
+        SHashObj* tbHashes[] = {pInfo->readTbs, pInfo->writeTbs, pInfo->alterTbs};
+        for (int i = 0; i < 3; ++i) {
+          if (NULL == tbHashes[i]) continue;
+          void* pIter = NULL;
+          while ((pIter = taosHashIterate(tbHashes[i], pIter))) {
+            char* tbFName = (char*)taosHashGetKey(pIter, NULL);
+            if (NULL == pRes->pReadTbs) {
+              pRes->pReadTbs = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+              if (NULL == pRes->pReadTbs) {
+                CTG_ERR_RET(terrno);
+              }
+            }
+            int32_t code = tSimpleHashPut(pRes->pReadTbs, tbFName, strlen(tbFName) + 1, NULL, 0);
+            if (TSDB_CODE_SUCCESS != code) {
+              CTG_ERR_RET(code);
+            }
+          }
+        }
+      } else {
+        // Single db: check db-level privilege first
+        if ((pInfo->readDbs && taosHashGet(pInfo->readDbs, dbFName, strlen(dbFName) + 1)) ||
+            (pInfo->writeDbs && taosHashGet(pInfo->writeDbs, dbFName, strlen(dbFName) + 1))) {
+          pRes->showAllTbls = 1;
+          return TSDB_CODE_SUCCESS;
+        }
+
+        // Collect tables with privileges in this db
+        int32_t   dbFNameLen = strlen(dbFName);
+        SHashObj* tbHashes[] = {pInfo->readTbs, pInfo->writeTbs, pInfo->alterTbs};
+        for (int i = 0; i < 3; ++i) {
+          if (NULL == tbHashes[i]) continue;
+          void* pIter = NULL;
+          while ((pIter = taosHashIterate(tbHashes[i], pIter))) {
+            char* tbFName = (char*)taosHashGetKey(pIter, NULL);
+            // Check if this table belongs to the target db (format: acctId.dbName.tbName)
+            if (strncmp(tbFName, dbFName, dbFNameLen) == 0 && tbFName[dbFNameLen] == '.') {
+              if (NULL == pRes->pReadTbs) {
+                pRes->pReadTbs = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+                if (NULL == pRes->pReadTbs) {
+                  CTG_ERR_RET(terrno);
+                }
+              }
+              int32_t code = tSimpleHashPut(pRes->pReadTbs, tbFName, strlen(tbFName) + 1, NULL, 0);
+              if (TSDB_CODE_SUCCESS != code) {
+                CTG_ERR_RET(code);
+              }
+            }
+          }
+        }
+      }
+      return TSDB_CODE_SUCCESS;
     }
     default:
       break;

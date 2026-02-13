@@ -16,6 +16,7 @@
 #include "nodesUtil.h"
 #include "plannodes.h"
 #include "tdatablock.h"
+#include "tsimplehash.h"
 
 #ifndef htonll
 
@@ -2602,7 +2603,11 @@ enum {
   PHY_SYSTABLE_SCAN_CODE_MGMT_EP_SET,
   PHY_SYSTABLE_SCAN_CODE_SHOW_REWRITE,
   PHY_SYSTABLE_SCAN_CODE_ACCOUNT_ID,
-  PHY_SYSTABLE_SCAN_CODE_SYS_INFO
+  PHY_SYSTABLE_SCAN_CODE_SYS_INFO,
+  PHY_SYSTABLE_SCAN_CODE_SHOW_ALL_TBLS,
+  PHY_SYSTABLE_SCAN_CODE_READ_DBS,
+  PHY_SYSTABLE_SCAN_CODE_READ_TBS,
+  PHY_SYSTABLE_SCAN_CODE_READ_UIDS
 };
 
 static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2620,6 +2625,68 @@ static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncode
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_SYSTABLE_SCAN_CODE_SYS_INFO, pNode->sysInfo);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_SYSTABLE_SCAN_CODE_SHOW_ALL_TBLS, pNode->showAllTbls);
+  }
+  // Encode pReadDbs
+  if (TSDB_CODE_SUCCESS == code && pNode->pReadDbs != NULL) {
+    int32_t numKeys = tSimpleHashGetSize(pNode->pReadDbs);
+    int32_t bufLen = sizeof(int32_t) + numKeys * TSDB_DB_FNAME_LEN;
+    char*   buf = taosMemoryMalloc(bufLen);
+    if (NULL == buf) {
+      return terrno;
+    }
+    *(int32_t*)buf = numKeys;
+    char*   p = buf + sizeof(int32_t);
+    void*   pIter = NULL;
+    int32_t iter = 0;
+    while ((pIter = tSimpleHashIterate(pNode->pReadDbs, pIter, &iter)) != NULL) {
+      char* key = tSimpleHashGetKey(pIter, NULL);
+      tstrncpy(p, key, TSDB_DB_FNAME_LEN);
+      p += TSDB_DB_FNAME_LEN;
+    }
+    code = tlvEncodeBinary(pEncoder, PHY_SYSTABLE_SCAN_CODE_READ_DBS, buf, bufLen);
+    taosMemoryFree(buf);
+  }
+  // Encode pReadTbs
+  if (TSDB_CODE_SUCCESS == code && pNode->pReadTbs != NULL) {
+    int32_t numKeys = tSimpleHashGetSize(pNode->pReadTbs);
+    int32_t bufLen = sizeof(int32_t) + numKeys * TSDB_TABLE_FNAME_LEN;
+    char*   buf = taosMemoryMalloc(bufLen);
+    if (NULL == buf) {
+      return terrno;
+    }
+    *(int32_t*)buf = numKeys;
+    char*   p = buf + sizeof(int32_t);
+    void*   pIter = NULL;
+    int32_t iter = 0;
+    while ((pIter = tSimpleHashIterate(pNode->pReadTbs, pIter, &iter)) != NULL) {
+      char* key = tSimpleHashGetKey(pIter, NULL);
+      tstrncpy(p, key, TSDB_TABLE_FNAME_LEN);
+      p += TSDB_TABLE_FNAME_LEN;
+    }
+    code = tlvEncodeBinary(pEncoder, PHY_SYSTABLE_SCAN_CODE_READ_TBS, buf, bufLen);
+    taosMemoryFree(buf);
+  }
+  // Encode pReadUids (int64_t keys)
+  if (TSDB_CODE_SUCCESS == code && pNode->pReadUids != NULL) {
+    int32_t numKeys = tSimpleHashGetSize(pNode->pReadUids);
+    int32_t bufLen = sizeof(int32_t) + numKeys * sizeof(int64_t);
+    char*   buf = taosMemoryMalloc(bufLen);
+    if (NULL == buf) {
+      return terrno;
+    }
+    *(int32_t*)buf = numKeys;
+    int64_t* p = (int64_t*)(buf + sizeof(int32_t));
+    void*    pIter = NULL;
+    int32_t  iter = 0;
+    while ((pIter = tSimpleHashIterate(pNode->pReadUids, pIter, &iter)) != NULL) {
+      int64_t* key = tSimpleHashGetKey(pIter, NULL);
+      *p++ = *key;
+    }
+    code = tlvEncodeBinary(pEncoder, PHY_SYSTABLE_SCAN_CODE_READ_UIDS, buf, bufLen);
+    taosMemoryFree(buf);
   }
 
   return code;
@@ -2647,6 +2714,87 @@ static int32_t msgToPhysiSysTableScanNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_SYSTABLE_SCAN_CODE_SYS_INFO:
         code = tlvDecodeBool(pTlv, &pNode->sysInfo);
         break;
+      case PHY_SYSTABLE_SCAN_CODE_SHOW_ALL_TBLS:
+        code = tlvDecodeBool(pTlv, &pNode->showAllTbls);
+        break;
+      case PHY_SYSTABLE_SCAN_CODE_READ_DBS: {
+        // Deserialize pReadDbs keys
+        char* buf = taosMemoryMalloc(pTlv->len);
+        if (NULL == buf) {
+          code = terrno;
+          break;
+        }
+        code = tlvDecodeBinary(pTlv, buf);
+        if (TSDB_CODE_SUCCESS == code) {
+          int32_t numKeys = *(int32_t*)buf;
+          if (numKeys > 0) {
+            pNode->pReadDbs = tSimpleHashInit(numKeys, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+            if (NULL == pNode->pReadDbs) {
+              code = terrno;
+            } else {
+              char* p = buf + sizeof(int32_t);
+              for (int32_t i = 0; i < numKeys && TSDB_CODE_SUCCESS == code; ++i) {
+                code = tSimpleHashPut(pNode->pReadDbs, p, strlen(p) + 1, NULL, 0);
+                p += TSDB_DB_FNAME_LEN;
+              }
+            }
+          }
+        }
+        taosMemoryFree(buf);
+        break;
+      }
+      case PHY_SYSTABLE_SCAN_CODE_READ_TBS: {
+        // Deserialize pReadTbs keys
+        char* buf = taosMemoryMalloc(pTlv->len);
+        if (NULL == buf) {
+          code = terrno;
+          break;
+        }
+        code = tlvDecodeBinary(pTlv, buf);
+        if (TSDB_CODE_SUCCESS == code) {
+          int32_t numKeys = *(int32_t*)buf;
+          if (numKeys > 0) {
+            pNode->pReadTbs = tSimpleHashInit(numKeys, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+            if (NULL == pNode->pReadTbs) {
+              code = terrno;
+            } else {
+              char* p = buf + sizeof(int32_t);
+              for (int32_t i = 0; i < numKeys && TSDB_CODE_SUCCESS == code; ++i) {
+                code = tSimpleHashPut(pNode->pReadTbs, p, strlen(p) + 1, NULL, 0);
+                p += TSDB_TABLE_FNAME_LEN;
+              }
+            }
+          }
+        }
+        taosMemoryFree(buf);
+        break;
+      }
+      case PHY_SYSTABLE_SCAN_CODE_READ_UIDS: {
+        // Deserialize pReadUids keys (int64_t)
+        char* buf = taosMemoryMalloc(pTlv->len);
+        if (NULL == buf) {
+          code = terrno;
+          break;
+        }
+        code = tlvDecodeBinary(pTlv, buf);
+        if (TSDB_CODE_SUCCESS == code) {
+          int32_t numKeys = *(int32_t*)buf;
+          if (numKeys > 0) {
+            pNode->pReadUids = tSimpleHashInit(numKeys, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+            if (NULL == pNode->pReadUids) {
+              code = terrno;
+            } else {
+              int64_t* p = (int64_t*)(buf + sizeof(int32_t));
+              for (int32_t i = 0; i < numKeys && TSDB_CODE_SUCCESS == code; ++i) {
+                code = tSimpleHashPut(pNode->pReadUids, p, sizeof(int64_t), NULL, 0);
+                p++;
+              }
+            }
+          }
+        }
+        taosMemoryFree(buf);
+        break;
+      }
       default:
         break;
     }

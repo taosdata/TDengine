@@ -32,6 +32,7 @@
 #include "tcompare.h"
 #include "thash.h"
 #include "trpc.h"
+#include "tsimplehash.h"
 #include "ttypes.h"
 
 typedef int (*__optSysFilter)(void* a, void* b, int16_t dtype);
@@ -76,11 +77,33 @@ typedef struct SSysTableScanInfo {
   STableListInfo*        pTableListInfo;
   SReadHandle*           pHandle;
   SStorageAPI*           pAPI;
+  // Table-level read privilege filtering
+  bool       showAllTbls;  // true if user has full access (read+write on db)
+  SSHashObj* pReadDbs;     // key is dbFName, db-level privilege
+  SSHashObj* pReadTbs;     // key is tbFName, table-level privilege
+  SSHashObj* pReadUids;    // key is int64_t uid, for fast uid/suid comparison
 
   // file set iterate
   struct SFileSetReader* pFileSetReader;
   SHashObj*              pExtSchema;
 } SSysTableScanInfo;
+
+// Helper function for uid-based privilege check (fast int64_t comparison)
+// Returns true if uid or suid is in pReadUids
+static inline bool checkUidPrivilege(SSHashObj* pReadUids, int64_t uid, int64_t suid) {
+  if (NULL == pReadUids) {
+    return false;
+  }
+  // Check direct uid match first
+  if (tSimpleHashGet(pReadUids, &uid, sizeof(int64_t)) != NULL) {
+    return true;
+  }
+  // For child tables, check if parent super-table uid is in allowed set
+  if (suid != 0 && tSimpleHashGet(pReadUids, &suid, sizeof(int64_t)) != NULL) {
+    return true;
+  }
+  return false;
+}
 
 typedef struct {
   const char* name;
@@ -2002,6 +2025,37 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
         continue;
       }
 
+      // Table-level read privilege filtering for child tables
+      if (!pInfo->showAllTbls) {
+        // Check db-level privilege first (db format: acctId.dbName)
+        if (pInfo->pReadDbs != NULL && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1) != NULL) {
+          // Has db-level privilege, allow all tables in this db
+        } else {
+          // Check table-level privilege using fast uid comparison if available
+          int64_t childUid = pInfo->pCur->mr.me.uid;
+          int64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
+          if (pInfo->pReadUids != NULL && tSimpleHashGetSize(pInfo->pReadUids) > 0) {
+            // Fast path: uid-based comparison
+            if (!checkUidPrivilege(pInfo->pReadUids, childUid, suid)) {
+              pAPI->metaReaderFn.clearReader(&mr);
+              continue;
+            }
+          } else if (pInfo->pReadTbs != NULL) {
+            // Slow path: string-based comparison (fallback)
+            char stbFName[TSDB_TABLE_FNAME_LEN] = {0};
+            snprintf(stbFName, sizeof(stbFName), "%s.%s", db, mr.me.name);
+            if (NULL == tSimpleHashGet(pInfo->pReadTbs, stbFName, strlen(stbFName) + 1)) {
+              pAPI->metaReaderFn.clearReader(&mr);
+              continue;
+            }
+          } else {
+            // No table-level privilege, skip this table
+            pAPI->metaReaderFn.clearReader(&mr);
+            continue;
+          }
+        }
+      }
+
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -2047,6 +2101,33 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(n, "CHILD_TABLE");
     } else if (tableType == TSDB_NORMAL_TABLE) {
+      // Table-level read privilege filtering for normal tables
+      if (!pInfo->showAllTbls) {
+        // Check db-level privilege first
+        if (pInfo->pReadDbs != NULL && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1) != NULL) {
+          // Has db-level privilege, allow this table
+        } else {
+          // Check table-level privilege using fast uid comparison if available
+          int64_t ntbUid = pInfo->pCur->mr.me.uid;
+          if (pInfo->pReadUids != NULL && tSimpleHashGetSize(pInfo->pReadUids) > 0) {
+            // Fast path: uid-based comparison (suid=0 for normal tables)
+            if (!checkUidPrivilege(pInfo->pReadUids, ntbUid, 0)) {
+              continue;
+            }
+          } else if (pInfo->pReadTbs != NULL) {
+            // Slow path: string-based comparison (fallback)
+            char ntbFName[TSDB_TABLE_FNAME_LEN] = {0};
+            snprintf(ntbFName, sizeof(ntbFName), "%s.%s", db, pInfo->pCur->mr.me.name);
+            if (NULL == tSimpleHashGet(pInfo->pReadTbs, ntbFName, strlen(ntbFName) + 1)) {
+              continue;
+            }
+          } else {
+            // No table-level privilege, skip this normal table
+            continue;
+          }
+        }
+      }
+
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -2095,6 +2176,33 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(n, "NORMAL_TABLE");
     } else if (tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
+      // Table-level read privilege filtering for virtual normal tables
+      if (!pInfo->showAllTbls) {
+        // Check db-level privilege first
+        if (pInfo->pReadDbs != NULL && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1) != NULL) {
+          // Has db-level privilege, allow this table
+        } else {
+          // Check table-level privilege using fast uid comparison if available
+          int64_t vntbUid = pInfo->pCur->mr.me.uid;
+          if (pInfo->pReadUids != NULL && tSimpleHashGetSize(pInfo->pReadUids) > 0) {
+            // Fast path: uid-based comparison (suid=0 for virtual normal tables)
+            if (!checkUidPrivilege(pInfo->pReadUids, vntbUid, 0)) {
+              continue;
+            }
+          } else if (pInfo->pReadTbs != NULL) {
+            // Slow path: string-based comparison (fallback)
+            char vntbFName[TSDB_TABLE_FNAME_LEN] = {0};
+            snprintf(vntbFName, sizeof(vntbFName), "%s.%s", db, pInfo->pCur->mr.me.name);
+            if (NULL == tSimpleHashGet(pInfo->pReadTbs, vntbFName, strlen(vntbFName) + 1)) {
+              continue;
+            }
+          } else {
+            // No table-level privilege, skip this table
+            continue;
+          }
+        }
+      }
+
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -2155,6 +2263,37 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       if (isTsmaResSTb(mr.me.name)) {
         pAPI->metaReaderFn.clearReader(&mr);
         continue;
+      }
+
+      // Table-level read privilege filtering for virtual child tables
+      if (!pInfo->showAllTbls) {
+        // Check db-level privilege first
+        if (pInfo->pReadDbs != NULL && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1) != NULL) {
+          // Has db-level privilege, allow this table
+        } else {
+          // Check table-level privilege using fast uid comparison if available
+          int64_t vctbUid = pInfo->pCur->mr.me.uid;
+          int64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
+          if (pInfo->pReadUids != NULL && tSimpleHashGetSize(pInfo->pReadUids) > 0) {
+            // Fast path: uid-based comparison
+            if (!checkUidPrivilege(pInfo->pReadUids, vctbUid, suid)) {
+              pAPI->metaReaderFn.clearReader(&mr);
+              continue;
+            }
+          } else if (pInfo->pReadTbs != NULL) {
+            // Slow path: string-based comparison (fallback)
+            char stbFName[TSDB_TABLE_FNAME_LEN] = {0};
+            snprintf(stbFName, sizeof(stbFName), "%s.%s", db, mr.me.name);
+            if (NULL == tSimpleHashGet(pInfo->pReadTbs, stbFName, strlen(stbFName) + 1)) {
+              pAPI->metaReaderFn.clearReader(&mr);
+              continue;
+            }
+          } else {
+            // No table-level privilege, skip this table
+            pAPI->metaReaderFn.clearReader(&mr);
+            continue;
+          }
+        }
       }
 
       // number of columns
@@ -3127,6 +3266,10 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   QUERY_CHECK_NULL(pInfo->pUser, code, lino, _error, terrno);
   pInfo->sysInfo = pScanPhyNode->sysInfo;
   pInfo->showRewrite = pScanPhyNode->showRewrite;
+  pInfo->showAllTbls = pScanPhyNode->showAllTbls;
+  pInfo->pReadDbs = pScanPhyNode->pReadDbs;
+  pInfo->pReadTbs = pScanPhyNode->pReadTbs;
+  pInfo->pReadUids = pScanPhyNode->pReadUids;
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
 

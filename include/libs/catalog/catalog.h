@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "nodes.h"
 #include "os.h"
 #include "query.h"
 #include "taosdef.h"
@@ -29,7 +30,7 @@ extern "C" {
 #include "tmsg.h"
 #include "tname.h"
 #include "transport.h"
-#include "nodes.h"
+#include "tsimplehash.h"
 
 typedef struct SCatalog SCatalog;
 
@@ -49,6 +50,7 @@ typedef enum {
   AUTH_TYPE_ALTER,
   AUTH_TYPE_OTHER,
   AUTH_TYPE_READ_OR_WRITE,
+  AUTH_TYPE_SHOW,  // for SHOW tables / SELECT * FROM ins_tables
 } AUTH_TYPE;
 
 typedef struct SUserAuthInfo {
@@ -67,6 +69,16 @@ typedef enum {
 typedef struct SUserAuthRes {
   bool   pass[AUTH_RES_MAX_VALUE];
   SNode* pCond[AUTH_RES_MAX_VALUE];
+  // for AUTH_TYPE_SHOW
+  union {
+    uint8_t showFlags;
+    struct {
+      uint8_t showAllTbls : 1;  // user has db-level read/write privilege (for single-db query)
+      uint8_t reserved : 7;
+    };
+  };
+  SSHashObj* pReadDbs;  // key is dbFName, db-level read/write privilege
+  SSHashObj* pReadTbs;  // key is tbFName, table-level read/write privilege
 } SUserAuthRes;
 
 typedef struct SDbInfo {
@@ -386,6 +398,17 @@ int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *p
 int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth, SUserAuthRes* pRes, bool* exists);
 
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
+
+/**
+ * Get all database names from user's cached auth info.
+ * For superuser, this returns all databases in the system.
+ * Caller must free the returned array with taosArrayDestroy.
+ * @param pCatalog (input, got with catalogGetHandle)
+ * @param pUser (input, user name)
+ * @param pDbList (output, array of char*, each is dbFName)
+ * @return error code
+ */
+int32_t catalogGetUserCachedDbs(SCatalog* pCtg, const char* pUser, SArray** pDbList);
 
 int32_t catalogUpdateVgEpSet(SCatalog* pCtg, const char* dbFName, int32_t vgId, SEpSet* epSet);
 
