@@ -737,6 +737,15 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
   pExplainInfo->totalCost = operatorInfo->cost.totalCost;
   pExplainInfo->verboseLen = 0;
   pExplainInfo->verboseInfo = NULL;
+  pExplainInfo->vgId = operatorInfo->pTaskInfo->id.vgId;
+  pExplainInfo->execCreate = 0;
+  pExplainInfo->execStart = 0;
+  pExplainInfo->execFirstRow = 0;
+  pExplainInfo->execLastRow = 0;
+  pExplainInfo->execTimes = 0;
+  pExplainInfo->execElapsed = 0;
+  pExplainInfo->inputWaitElapsed = 0;
+  pExplainInfo->outputWaitElapsed = 0;
 
   if (operatorInfo->fpSet.getExplainFn) {
     int32_t code =

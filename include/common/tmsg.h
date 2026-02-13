@@ -3433,6 +3433,28 @@ typedef struct SExplainExecInfo {
   uint64_t numOfRows;
   uint32_t verboseLen;
   void*    verboseInfo;
+  
+  /* the timestamp when the operator is created */
+  TSKEY    execCreate;
+  /* the first timestamp when the operator's next interface is called */
+  TSKEY    execStart;
+  /* the timestamp when the first row is returned */
+  TSKEY    execFirstRow;
+  /* the timestamp when the last row is returned */
+  TSKEY    execLastRow;
+  /* the number of times the operator's next interface is called */
+  uint32_t execTimes;
+  /**
+    the time elapsed for executing the operator's next interface,
+    not including waiting time for data from downstream
+  */
+  TSKEY    execElapsed;
+  /* the time elapsed for waiting for data from downstream */
+  TSKEY    inputWaitElapsed;
+  /* the time elapsed for waiting call from upstream */
+  TSKEY    outputWaitElapsed;
+
+  int32_t  vgId;
 } SExplainExecInfo;
 
 typedef struct {
