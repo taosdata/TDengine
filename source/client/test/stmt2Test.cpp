@@ -173,7 +173,7 @@ void do_stmt(const char* msg, TAOS* taos, TAOS_STMT2_OPTION* option, const char*
     tbs[i] = (char*)taosMemoryMalloc(sizeof(char) * 20);
     sprintf(tbs[i], "ctb_%d", i);
     if (createTable) {
-      char* tmp = (char*)taosMemoryMalloc(sizeof(char) * 100);
+      char tmp[100];
       sprintf(tmp, "create table stmt2_testdb_1.%s using stmt2_testdb_1.stb tags(0, 'after')", tbs[i]);
       do_query(taos, tmp);
     }
@@ -1212,6 +1212,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     ASSERT_EQ(fieldNum, 2);
     ASSERT_STREQ(pFields[0].name, "tbname");
     ASSERT_STREQ(pFields[1].name, "ts");
+    taos_stmt2_free_fields(stmt, pFields);
 
     int total_affect_rows = 0;
 
@@ -1240,6 +1241,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
       ASSERT_EQ(fieldNum, 2);
       ASSERT_STREQ(pFields[0].name, "tbname");
       ASSERT_STREQ(pFields[1].name, "ts");
+      taos_stmt2_free_fields(stmt, pFields);
 
       int affected_rows;
       taos_stmt2_exec(stmt, &affected_rows);
@@ -1251,6 +1253,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
       ASSERT_EQ(fieldNum, 2);
       ASSERT_STREQ(pFields[0].name, "tbname");
       ASSERT_STREQ(pFields[1].name, "ts");
+      taos_stmt2_free_fields(stmt, pFields);
     }
 
     ASSERT_EQ(total_affect_rows, 12);
@@ -1464,6 +1467,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     ASSERT_STREQ(pFields[0].name, "tbname");
     ASSERT_STREQ(pFields[1].name, "ts");
     ASSERT_STREQ(pFields[2].name, "b");
+    taos_stmt2_free_fields(stmt, pFields);
 
     taos_stmt2_close(stmt);
   }
@@ -1502,6 +1506,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
     checkError(stmt, code, __FILE__, __LINE__);
     ASSERT_EQ(fieldNum, 7);
+    taos_stmt2_free_fields(stmt, pFields);
 
     int total_affect_rows = 0;
 
@@ -4687,7 +4692,6 @@ TEST(stmt2Case, bool_bind) {
   taos_close(taos);
 }
 
-
 TEST(stmt2Case, mixed_literal) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
   ASSERT_NE(taos, nullptr);
@@ -4717,24 +4721,26 @@ TEST(stmt2Case, mixed_literal) {
     time_t tm;
     taosTime(&tm);
 
-    int64_t          ts       = ((int64_t)tm) * 1000;
-    int32_t          t64_len  = (int32_t)sizeof(ts);
-    TAOS_STMT2_BIND  ts_param = {TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len, NULL, ROWS};
+    int64_t         ts = ((int64_t)tm) * 1000;
+    int32_t         t64_len = (int32_t)sizeof(ts);
+    TAOS_STMT2_BIND ts_param = {TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len, NULL, ROWS};
 
-    char             name[]   = "hello";
-    int32_t          name_len = (int32_t)sizeof(name);
-    TAOS_STMT2_BIND  name_param = {TSDB_DATA_TYPE_VARCHAR, &name[0], &name_len, NULL, ROWS};
+    char            name[] = "hello";
+    int32_t         name_len = (int32_t)sizeof(name);
+    TAOS_STMT2_BIND name_param = {TSDB_DATA_TYPE_VARCHAR, &name[0], &name_len, NULL, ROWS};
 
-    int32_t          i32       = 70;
-    int32_t          i32_len   = sizeof(i32);
-    TAOS_STMT2_BIND  i32_param = {TSDB_DATA_TYPE_INT, &i32, &i32_len, NULL, ROWS};
+    int32_t         i32 = 70;
+    int32_t         i32_len = sizeof(i32);
+    TAOS_STMT2_BIND i32_param = {TSDB_DATA_TYPE_INT, &i32, &i32_len, NULL, ROWS};
 
     TAOS_STMT2_BIND params_for_this_table[] = {
-      ts_param, name_param, i32_param,
+        ts_param,
+        name_param,
+        i32_param,
     };
 
     TAOS_STMT2_BIND* binds_for_all_tables[TABLES] = {
-      params_for_this_table,
+        params_for_this_table,
     };
 
     TAOS_STMT2_BINDV bindv = {TABLES, NULL, NULL, binds_for_all_tables};
@@ -4758,20 +4764,21 @@ TEST(stmt2Case, mixed_literal) {
     time_t tm;
     taosTime(&tm);
 
-    int64_t          ts       = ((int64_t)tm) * 1000;
-    int32_t          t64_len  = (int32_t)sizeof(ts);
-    TAOS_STMT2_BIND  ts_param = {TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len, NULL, ROWS};
+    int64_t         ts = ((int64_t)tm) * 1000;
+    int32_t         t64_len = (int32_t)sizeof(ts);
+    TAOS_STMT2_BIND ts_param = {TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len, NULL, ROWS};
 
-    int32_t          i32       = 70;
-    int32_t          i32_len   = sizeof(i32);
-    TAOS_STMT2_BIND  i32_param = {TSDB_DATA_TYPE_INT, &i32, &i32_len, NULL, ROWS};
+    int32_t         i32 = 70;
+    int32_t         i32_len = sizeof(i32);
+    TAOS_STMT2_BIND i32_param = {TSDB_DATA_TYPE_INT, &i32, &i32_len, NULL, ROWS};
 
     TAOS_STMT2_BIND params_for_this_table[] = {
-      ts_param, i32_param,
+        ts_param,
+        i32_param,
     };
 
     TAOS_STMT2_BIND* binds_for_all_tables[TABLES] = {
-      params_for_this_table,
+        params_for_this_table,
     };
 
     TAOS_STMT2_BINDV bindv = {TABLES, NULL, NULL, binds_for_all_tables};
@@ -4946,6 +4953,55 @@ TEST(stmt2Case, query_interval) {
   taos_close(taos);
 }
 
+TEST(stmt2Case, stmt2_insert_fixed_tag_value) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+  do_query(taos, "drop database if exists stmt2_testdb_6");
+  do_query(taos, "create database IF NOT EXISTS stmt2_testdb_6");
+
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+
+  // TD-34123 disorder pk ts
+  {
+    do_query(taos, "create stable stmt2_testdb_6.stb2  (ts timestamp, int_col int PRIMARY KEY) tags(int_tag int);");
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+    const char* sql =
+        "INSERT INTO stmt2_testdb_6.? using  stmt2_testdb_6.stb2 (int_tag)tags(1) (ts,int_col)VALUES (?,?)";
+    printf("stmt2 [%s] : %s\n", "disorder pk ts", sql);
+    int code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    int             tag_i = 0;
+    int             tag_l = sizeof(int);
+    int             tag_bl = 3;
+    int64_t         ts[5] = {1591060628003, 1591060628002, 1591060628002, 1591060628002, 1591060628001};
+    int             t64_len[5] = {sizeof(int64_t), sizeof(int64_t), sizeof(int64_t), sizeof(int64_t), sizeof(int64_t)};
+    int             coli[5] = {1, 4, 4, 3, 2};
+    int             ilen[5] = {sizeof(int), sizeof(int), sizeof(int), sizeof(int), sizeof(int)};
+    char            is_null[2] = {1, 1};
+    TAOS_STMT2_BIND params1[2] = {
+        {TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len[0], NULL, 5},
+        {TSDB_DATA_TYPE_INT, &coli, &ilen[0], NULL, 5},
+    };
+
+    TAOS_STMT2_BIND* paramv = &params1[0];
+    char*            tbname = "tb3";
+    TAOS_STMT2_BINDV bindv = {1, &tbname, NULL, &paramv};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    int affected_rows;
+    taos_stmt2_exec(stmt, &affected_rows);
+    checkError(stmt, code, __FILE__, __LINE__);
+    ASSERT_EQ(affected_rows, 4);
+
+    taos_stmt2_close(stmt);
+  }
+
+  do_query(taos, "drop database if exists stmt2_testdb_6");
+  taos_close(taos);
+}
 // 6788971938
 TEST(stmt2Case, query_vtable_core) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);

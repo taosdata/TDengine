@@ -17,6 +17,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
+#include "clientSession.h"
 #include "clientStmt.h"
 #include "clientStmt2.h"
 #include "functionMgt.h"
@@ -31,10 +32,9 @@
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
+#include "ttime.h"
 #include "tversion.h"
 #include "version.h"
-#include "clientSession.h"
-#include "ttime.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -374,7 +374,7 @@ TAOS *taos_connect_with(const OPTIONS *options) {
   const char *user = NULL;
   const char *pass = NULL;
   const char *db = NULL;
-  uint16_t port = 0;
+  uint16_t    port = 0;
 
   const char *charset = NULL;
   const char *timezone = NULL;
@@ -418,14 +418,15 @@ TAOS *taos_connect_with(const OPTIONS *options) {
     }
   }
 
-  TAOS* taos = taos_connect(ip, user, pass, db, port);
+  TAOS *taos = taos_connect(ip, user, pass, db, port);
   if (taos == NULL) return NULL;
 
   if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_CHARSET, charset) != TSDB_CODE_SUCCESS) return NULL;
   if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_TIMEZONE, timezone) != TSDB_CODE_SUCCESS) return NULL;
   if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_USER_IP, userIp) != TSDB_CODE_SUCCESS) return NULL;
   if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_USER_APP, userApp) != TSDB_CODE_SUCCESS) return NULL;
-  if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_CONNECTOR_INFO, connectorInfo) != TSDB_CODE_SUCCESS) return NULL;
+  if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_CONNECTOR_INFO, connectorInfo) != TSDB_CODE_SUCCESS)
+    return NULL;
 
   return taos;
 }
@@ -618,17 +619,13 @@ void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *pa
   return;
 }
 
-
-
 typedef struct SFetchIpWhiteListInfo {
   int64_t connId;
-  bool supportNeg;
+  bool    supportNeg;
   void   *userParam;
 
   __taos_async_ip_whitelist_fn_t userCbFn;
 } SFetchIpWhiteListInfo;
-
-
 
 int32_t fetchIpWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
   int32_t lino = 0;
@@ -637,7 +634,7 @@ int32_t fetchIpWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
   SGetUserIpWhiteListRsp wlRsp = {0};
 
   SFetchIpWhiteListInfo *pInfo = (SFetchIpWhiteListInfo *)param;
-  TAOS *taos = &pInfo->connId;
+  TAOS                  *taos = &pInfo->connId;
 
   if (code != TSDB_CODE_SUCCESS) {
     pInfo->userCbFn(pInfo->userParam, code, taos, 0, NULL);
@@ -654,13 +651,13 @@ int32_t fetchIpWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
-  int32_t numWhiteLists =0;
+  int32_t numWhiteLists = 0;
   for (int32_t i = 0; i < wlRsp.numWhiteLists; i++) {
     SIpRange *pIpRange = &wlRsp.pWhiteListsDual[i];
     if (!pInfo->supportNeg && pIpRange->neg) {
       continue;
     }
-    SIpAddr   ipAddr = {0};
+    SIpAddr ipAddr = {0};
 
     code = tIpUintToStr(pIpRange, &ipAddr);
     TAOS_CHECK_GOTO(code, &lino, _error);
@@ -703,8 +700,6 @@ _error:
   tFreeSGetUserIpWhiteListDualRsp(&wlRsp);
   return code;
 }
-
-
 
 static void taosFetchIpWhiteList(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param, bool supportNeg) {
   if (NULL == taos) {
@@ -779,18 +774,13 @@ static void taosFetchIpWhiteList(TAOS *taos, __taos_async_whitelist_dual_stack_f
   return;
 }
 
-
-
 void taos_fetch_whitelist_dual_stack_a(TAOS *taos, __taos_async_whitelist_dual_stack_fn_t fp, void *param) {
   taosFetchIpWhiteList(taos, fp, param, false);
 }
 
-
-
 void taos_fetch_ip_whitelist_a(TAOS *taos, __taos_async_ip_whitelist_fn_t fp, void *param) {
   taosFetchIpWhiteList(taos, fp, param, true);
 }
-
 
 typedef struct SFetchDateTimeWhiteListInfo {
   int64_t                              connId;
@@ -798,17 +788,15 @@ typedef struct SFetchDateTimeWhiteListInfo {
   __taos_async_datetime_whitelist_fn_t userCbFn;
 } SFetchDateTimeWhiteListInfo;
 
-
-
-static const char* weekdays[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
-int32_t fetchDateTimeWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
+static const char *weekdays[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+int32_t            fetchDateTimeWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t code) {
   int32_t lino = 0;
   char  **pWhiteLists = NULL;
 
   SUserDateTimeWhiteList wlRsp = {0};
 
   SFetchDateTimeWhiteListInfo *pInfo = (SFetchDateTimeWhiteListInfo *)param;
-  TAOS *taos = &pInfo->connId;
+  TAOS                        *taos = &pInfo->connId;
 
   if (code != TSDB_CODE_SUCCESS) {
     pInfo->userCbFn(pInfo->userParam, code, taos, 0, NULL);
@@ -825,7 +813,7 @@ int32_t fetchDateTimeWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t co
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
-  int32_t numWhiteLists =0;
+  int32_t numWhiteLists = 0;
   for (int32_t i = 0; i < wlRsp.numWhiteLists; i++) {
     SDateTimeWhiteListItem *item = &wlRsp.pWhiteLists[i];
 
@@ -840,7 +828,8 @@ int32_t fetchDateTimeWhiteListCallbackFn(void *param, SDataBuf *pMsg, int32_t co
     if (item->absolute) {
       struct STm tm;
       (void)taosTs2Tm(item->start, TSDB_TIME_PRECISION_SECONDS, &tm, NULL);
-      snprintf(p, 128, "%c %04d-%02d-%02d %02d:%02d %d", item->neg ? '-' : '+', tm.tm.tm_year + 1900, tm.tm.tm_mon + 1, tm.tm.tm_mday, tm.tm.tm_hour, tm.tm.tm_min, duration);
+      snprintf(p, 128, "%c %04d-%02d-%02d %02d:%02d %d", item->neg ? '-' : '+', tm.tm.tm_year + 1900, tm.tm.tm_mon + 1,
+                          tm.tm.tm_mday, tm.tm.tm_hour, tm.tm.tm_min, duration);
     } else {
       int day = item->start / 86400;
       int hour = (item->start % 86400) / 3600;
@@ -864,8 +853,6 @@ _error:
   tFreeSUserDateTimeWhiteList(&wlRsp);
   return code;
 }
-
-
 
 void taos_fetch_datetime_whitelist_a(TAOS *taos, __taos_async_datetime_whitelist_fn_t fp, void *param) {
   if (NULL == taos) {
@@ -939,8 +926,6 @@ void taos_fetch_datetime_whitelist_a(TAOS *taos, __taos_async_datetime_whitelist
   return;
 }
 
-
-
 void taos_close_internal(void *taos) {
   if (taos == NULL) {
     return;
@@ -998,7 +983,7 @@ const char *taos_errstr(TAOS_RES *res) {
       return (const char *)tstrerror(terrno);
     } else {
       (void)snprintf(taosGetErrMsgReturn(), ERR_MSG_LEN, "%s", taosGetErrMsg());
-      return (const char*)taosGetErrMsgReturn();
+      return (const char *)taosGetErrMsgReturn();
     }
   }
 
@@ -1660,7 +1645,7 @@ _return:
 // buffer is allocated by caller, len is in/out parameter, input is buffer length, output is actual length.
 // because this is a general purpose api, buffer is not null-terminated string even for string info, and
 // the return length is the actual length of the info, not including null-terminator.
-int taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char* buffer, int* len) {
+int taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char *buffer, int *len) {
   if (len == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -1701,7 +1686,7 @@ int taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char* buffer
     }
 
     default:
-        TSC_ERR_JRET(TSDB_CODE_INVALID_PARA);
+      TSC_ERR_JRET(TSDB_CODE_INVALID_PARA);
   }
 
 _return:
@@ -2802,6 +2787,10 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       if (code) {
         terrno = code;
         STMT2_ELOG("set tags failed, code:%s", stmt2Errstr(stmt));
+        if (pCreateTbReq) {
+          tdDestroySVCreateTbReq(pCreateTbReq);
+          taosMemoryFreeClear(pCreateTbReq);
+        }
         return terrno;
       }
     }
@@ -2812,6 +2801,10 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       if (bind->num <= 0 || bind->num > INT16_MAX) {
         STMT2_ELOG("bind num:%d must > 0 and < INT16_MAX", bind->num);
         code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
+        if (pCreateTbReq) {
+          tdDestroySVCreateTbReq(pCreateTbReq);
+          taosMemoryFreeClear(pCreateTbReq);
+        }
         return terrno;
       }
 
@@ -2819,6 +2812,10 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       if (TSDB_CODE_SUCCESS != code) {
         terrno = code;
         STMT2_ELOG("bind batch failed, code:%s", stmt2Errstr(stmt));
+        if (pCreateTbReq) {
+          tdDestroySVCreateTbReq(pCreateTbReq);
+          taosMemoryFreeClear(pCreateTbReq);
+        }
         return terrno;
       }
     }
