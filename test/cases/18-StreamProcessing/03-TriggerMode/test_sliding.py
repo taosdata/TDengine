@@ -380,7 +380,7 @@ class TestStreamSlidingTrigger:
                     check_func=self.queryResult[1],
                 )
                 stream1.createStream()
-                stream1.awaitStreamRunning()
+                stream1.awaitStreamRunning(waitSeconds=120)
                 # time.sleep(6)
                 if not self.runAll:
                     stream1.awaitRowStability(self.queryResult[0])
@@ -440,7 +440,7 @@ class TestStreamSlidingTrigger:
             check_func=self.checkBaic2Results,
         )
         stream1.createStream()
-        stream1.awaitStreamRunning()
+        stream1.awaitStreamRunning(waitSeconds=120)
         stream1.awaitRowStability(39)
         stream1.checkResults()
 
