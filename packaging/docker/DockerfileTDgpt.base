@@ -23,7 +23,6 @@ RUN if [ "$ARCH" = "arm64" ]; then \
     pip3 install --no-cache-dir --ignore-installed blinker && \
     pip3 install --no-cache-dir $TORCH_PKG --index-url $TORCH_INDEX && \
     pip3 install --no-cache-dir \
-                    $TENSORFLOW_PKG \
                     -r /tmp/requirements_docker.txt \
                     -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     find /usr/local/lib/python3.10 -name "*.pyc" -delete && \
