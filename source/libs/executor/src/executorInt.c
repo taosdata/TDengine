@@ -36,7 +36,7 @@
 #include "ttypes.h"
 
 #define SET_REVERSE_SCAN_FLAG(runtime)    ((runtime)->scanFlag = REVERSE_SCAN)
-#define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
+#define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) != TSDB_ORDER_DESC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
 
 #if 0
 static UNUSED_FUNC void *u_malloc (size_t __size) {
@@ -204,7 +204,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
 
     // add a new result set for a new group
     SResultRowPosition pos = {.pageId = pResult->pageId, .offset = pResult->offset};
-    int32_t code = tSimpleHashPut(pSup->pResultRowHashTable, pSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes), &pos,
+     int32_t code = tSimpleHashPut(pSup->pResultRowHashTable, pSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes), &pos,
                                   sizeof(SResultRowPosition));
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -842,7 +842,7 @@ _end:
 }
 
 void doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
-                        SGroupResInfo* pGroupResInfo, int32_t threshold, bool ignoreGroup, int64_t minWindowSize) {
+                        SGroupResInfo* pGroupResInfo, int32_t threshold, bool ignoreGroup, STrueForInfo *pTrueForInfo) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SExprInfo*      pExprInfo = pSup->pExprInfo;
@@ -871,9 +871,9 @@ void doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp
       continue;
     }
     // skip the window which is less than the windowMinSize
-    if (llabs(pRow->win.ekey - pRow->win.skey) < minWindowSize) {
-      qDebug("skip small window, groupId: %" PRId64 ", windowSize: %" PRId64 ", minWindowSize: %" PRId64, pPos->groupId,
-             pRow->win.ekey - pRow->win.skey, minWindowSize);
+    if (!isTrueForSatisfied(pTrueForInfo, pRow->win.skey, pRow->win.ekey, pRow->nOrigRows)) {
+      qDebug("skip small window, groupId: %" PRId64 ", skey: %" PRId64 ", ekey: %" PRId64 ", nrows: %u", pPos->groupId,
+             pRow->win.skey, pRow->win.ekey, pRow->nOrigRows);
       pGroupResInfo->index += 1;
       releaseBufPage(pBuf, page);
       continue;
@@ -941,11 +941,11 @@ void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SG
   pBlock->info.id.groupId = 0;
   if (!pbInfo->mergeResultBlock) {
     doCopyToSDataBlock(pTaskInfo, pBlock, &pOperator->exprSupp, pBuf, pGroupResInfo, pOperator->resultInfo.threshold,
-                       false, getMinWindowSize(pOperator));
+                       false, getTrueForInfo(pOperator));
   } else {
     while (hasRemainResults(pGroupResInfo)) {
       doCopyToSDataBlock(pTaskInfo, pBlock, &pOperator->exprSupp, pBuf, pGroupResInfo, pOperator->resultInfo.threshold,
-                         true, getMinWindowSize(pOperator));
+                         true, getTrueForInfo(pOperator));
       if (pBlock->info.rows >= pOperator->resultInfo.threshold) {
         break;
       }
@@ -1037,6 +1037,10 @@ void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOf
     }
     for (int32_t j = 0; j < pCtx[i].numOfParams; ++j) {
       taosVariantDestroy(&pCtx[i].param[j].param);
+    }
+
+    if(pCtx[i].fpSet.cleanup) {
+      pCtx[i].fpSet.cleanup(&pCtx[i]);
     }
 
     taosMemoryFreeClear(pCtx[i].subsidiaries.pCtx);
@@ -1222,10 +1226,21 @@ void freeOperatorParamImpl(SOperatorParam* pParam, SOperatorParamType type) {
 
 void freeExchangeGetBasicOperatorParam(void* pParam) {
   SExchangeOperatorBasicParam* pBasic = (SExchangeOperatorBasicParam*)pParam;
-  taosArrayDestroy(pBasic->uidList);
-  if (pBasic->colMap) {
-    taosArrayDestroy(pBasic->colMap->colMap);
-    taosMemoryFreeClear(pBasic->colMap);
+  if (pBasic->uidList) {
+    taosArrayDestroy(pBasic->uidList);
+    pBasic->uidList = NULL;
+  }
+  if (pBasic->orgTbInfo) {
+    taosArrayDestroy(pBasic->orgTbInfo->colMap);
+    taosMemoryFreeClear(pBasic->orgTbInfo);
+  }
+  if (pBasic->batchOrgTbInfo) {
+    taosArrayDestroyEx(pBasic->batchOrgTbInfo, destroySOrgTbInfo);
+    pBasic->batchOrgTbInfo = NULL;
+  }
+  if (pBasic->tagList) {
+    taosArrayDestroyEx(pBasic->tagList, destroyTagVal);
+    pBasic->tagList = NULL;
   }
 }
 
@@ -1233,6 +1248,7 @@ void freeExchangeGetOperatorParam(SOperatorParam* pParam) {
   SExchangeOperatorParam* pExcParam = (SExchangeOperatorParam*)pParam->value;
   if (pExcParam->multiParams) {
     SExchangeOperatorBatchParam* pExcBatch = (SExchangeOperatorBatchParam*)pParam->value;
+    tSimpleHashSetFreeFp(pExcBatch->pBatchs, freeExchangeGetBasicOperatorParam);
     tSimpleHashCleanup(pExcBatch->pBatchs);
   } else {
     freeExchangeGetBasicOperatorParam(&pExcParam->basic);
@@ -1259,12 +1275,43 @@ void freeDynQueryCtrlGetOperatorParam(SOperatorParam* pParam) { freeOperatorPara
 
 void freeDynQueryCtrlNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
+void freeInterpFuncGetOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
+}
+
+void freeInterpFuncNotifyOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM);
+}
+
 void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
-  STableScanOperatorParam* pTableScanParam = (STableScanOperatorParam*)pParam->value;
+  STableScanOperatorParam* pTableScanParam =
+    (STableScanOperatorParam*)pParam->value;
   taosArrayDestroy(pTableScanParam->pUidList);
   if (pTableScanParam->pOrgTbInfo) {
     taosArrayDestroy(pTableScanParam->pOrgTbInfo->colMap);
     taosMemoryFreeClear(pTableScanParam->pOrgTbInfo);
+  }
+  if (pTableScanParam->pBatchTbInfo) {
+    for (int32_t i = 0;
+      i < taosArrayGetSize(pTableScanParam->pBatchTbInfo); ++i) {
+      SOrgTbInfo* pOrgTbInfo =
+        (SOrgTbInfo*)taosArrayGet(pTableScanParam->pBatchTbInfo, i);
+      taosArrayDestroy(pOrgTbInfo->colMap);
+    }
+    taosArrayDestroy(pTableScanParam->pBatchTbInfo);
+    pTableScanParam->pBatchTbInfo = NULL;
+  }
+  if (pTableScanParam->pTagList) {
+    for (int32_t i = 0;
+      i < taosArrayGetSize(pTableScanParam->pTagList); ++i) {
+      STagVal* pTagVal =
+        (STagVal*)taosArrayGet(pTableScanParam->pTagList, i);
+      if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+        taosMemoryFreeClear(pTagVal->pData);
+      }
+    }
+    taosArrayDestroy(pTableScanParam->pTagList);
+    pTableScanParam->pTagList = NULL;
   }
   freeOperatorParamImpl(pParam, OP_GET_PARAM);
 }
@@ -1281,6 +1328,14 @@ void freeOpParamItem(void* pItem) {
   freeOperatorParam(pParam, OP_GET_PARAM);
 }
 
+static void destroyRefColIdGroupParam(void* info) {
+  SRefColIdGroup* pGroup = (SRefColIdGroup*)info;
+  if (pGroup && pGroup->pSlotIdList) {
+    taosArrayDestroy(pGroup->pSlotIdList);
+    pGroup->pSlotIdList = NULL;
+  }
+}
+
 void freeExternalWindowGetOperatorParam(SOperatorParam* pParam) {
   SExternalWindowOperatorParam *pExtParam = (SExternalWindowOperatorParam*)pParam->value;
   taosArrayDestroy(pExtParam->ExtWins);
@@ -1294,6 +1349,10 @@ void freeExternalWindowGetOperatorParam(SOperatorParam* pParam) {
 void freeVirtualTableScanGetOperatorParam(SOperatorParam* pParam) {
   SVTableScanOperatorParam* pVTableScanParam = (SVTableScanOperatorParam*)pParam->value;
   taosArrayDestroyEx(pVTableScanParam->pOpParamArray, freeOpParamItem);
+  if (pVTableScanParam->pRefColGroups) {
+    taosArrayDestroyEx(pVTableScanParam->pRefColGroups, destroyRefColIdGroupParam);
+    pVTableScanParam->pRefColGroups = NULL;
+  }
   freeOpParamItem(&pVTableScanParam->pTagScanOp);
   freeOperatorParamImpl(pParam, OP_GET_PARAM);
 }
@@ -1326,6 +1385,7 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       type == OP_GET_PARAM ? freeTagScanGetOperatorParam(pParam) : freeTagScanNotifyOperatorParam(pParam);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE:
       type == OP_GET_PARAM ? freeMergeGetOperatorParam(pParam) : freeMergeNotifyOperatorParam(pParam);
       break;
@@ -1335,8 +1395,12 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
       type == OP_GET_PARAM ? freeDynQueryCtrlGetOperatorParam(pParam) : freeDynQueryCtrlNotifyOperatorParam(pParam);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+      type == OP_GET_PARAM ? freeInterpFuncGetOperatorParam(pParam) : freeInterpFuncNotifyOperatorParam(pParam);
+      break;
     default:
-      qError("unsupported op %d param, type %d", pParam->opType, type);
+      qError("%s unsupported op %d param, param type %d",
+             __func__, pParam->opType, type);
       break;
   }
 }

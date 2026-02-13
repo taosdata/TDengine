@@ -57,7 +57,10 @@ const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                    .ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE,
                                    .ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL,
                                    .ssCompact = TSDB_DEFAULT_SS_COMPACT,
-                                   .tsdbPageSize = TSDB_DEFAULT_PAGE_SIZE};
+                                   .tsdbPageSize = TSDB_DEFAULT_PAGE_SIZE,
+                                   .isAudit = 0,
+                                   .allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP,
+                                  };
 
 int vnodeCheckCfg(const SVnodeCfg *pCfg) {
   // TODO
@@ -117,6 +120,8 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "ssKeepLocal", pCfg->ssKeepLocal));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "ssCompact", pCfg->ssCompact));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "tsdbPageSize", pCfg->tsdbPageSize));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "isAudit", pCfg->isAudit));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "allowDrop", pCfg->allowDrop));
   if (pCfg->tsdbCfg.retentions[0].keep > 0) {
     int32_t nRetention = 1;
     if (pCfg->tsdbCfg.retentions[1].freq > 0) {
@@ -274,10 +279,10 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   }
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   if (pCfg->tsdbCfg.encryptAlgr == DND_CA_SM4 || pCfg->tsdbCfg.encryptData.encryptAlgrName[0] != '\0') {
-    if (tsEncryptKey[0] == 0) {
+    if (tsDataKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
-      tstrncpy(pCfg->tsdbCfg.encryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+      tstrncpy(pCfg->tsdbCfg.encryptData.encryptKey, tsDataKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif
@@ -306,10 +311,10 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   }
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   if (pCfg->walCfg.encryptAlgr == DND_CA_SM4 || pCfg->walCfg.encryptData.encryptAlgrName[0] != '\0') {
-    if (tsEncryptKey[0] == 0) {
+    if (tsDataKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
-      tstrncpy(pCfg->walCfg.encryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+      tstrncpy(pCfg->walCfg.encryptData.encryptKey, tsDataKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif
@@ -322,10 +327,10 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   }
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   if (pCfg->tdbEncryptData.encryptAlgrName[0] != '\0') {
-    if (tsEncryptKey[0] == 0) {
+    if (tsDataKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
-      tstrncpy(pCfg->tdbEncryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+      tstrncpy(pCfg->tdbEncryptData.encryptKey, tsDataKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif
@@ -396,6 +401,19 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "tsdbPageSize", pCfg->tsdbPageSize, code);
   if (code < 0 || pCfg->tsdbPageSize < TSDB_MIN_PAGESIZE_PER_VNODE * 1024) {
     pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE * 1024;
+  }
+  tjsonGetNumberValue(pJson, "isAudit", pCfg->isAudit, code);
+  if (pCfg->isAudit < TSDB_MIN_DB_IS_AUDIT || pCfg->isAudit > TSDB_MAX_DB_IS_AUDIT) {
+    pCfg->isAudit = 0;
+  }
+  if (tjsonGetObjectItem(pJson, "allowDrop") == NULL) {
+    pCfg->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
+  } else {
+    tjsonGetNumberValue(pJson, "allowDrop", pCfg->allowDrop, code);
+  }
+
+  if (pCfg->allowDrop < TSDB_MIN_DB_ALLOW_DROP || pCfg->allowDrop > TSDB_MAX_DB_ALLOW_DROP) {
+    pCfg->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
 
   if (tjsonGetObjectItem(pJson, "ssChunkSize") != NULL) {

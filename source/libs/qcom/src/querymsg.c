@@ -718,6 +718,8 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   pTableMeta->sversion = msg->sversion;
   pTableMeta->tversion = msg->tversion;
   pTableMeta->rversion = msg->rversion;
+  pTableMeta->ownerId = msg->ownerId;
+  pTableMeta->flag = msg->flag;
   if (msg->virtualStb) {
     pTableMeta->virtualStb = 1;
     pTableMeta->numOfColRefs = 0;
@@ -799,6 +801,7 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   pTableMeta->rversion = msg->rversion;
   pTableMeta->virtualStb = msg->virtualStb;
   pTableMeta->numOfColRefs = msg->numOfColRefs;
+  pTableMeta->ownerId = msg->ownerId;
 
   pTableMeta->tableInfo.numOfTags = msg->numOfTags;
   pTableMeta->tableInfo.precision = msg->precision;

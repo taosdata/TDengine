@@ -26,6 +26,7 @@
 #include "mndQnode.h"
 #include "mndShow.h"
 #include "mndSnode.h"
+#include "mndToken.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
@@ -34,6 +35,9 @@
 #include "tjson.h"
 #include "tmisce.h"
 #include "tunit.h"
+#if defined(TD_ENTERPRISE)
+#include "taoskInt.h"
+#endif
 
 #define TSDB_DNODE_VER_NUMBER   2
 #define TSDB_DNODE_RESERVE_SIZE 40
@@ -97,8 +101,12 @@ static void    mndCancelGetNextConfig(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
 
+static int32_t mndProcessKeySyncReq(SRpcMsg *pReq);
+static int32_t mndProcessKeySyncRsp(SRpcMsg *pReq);
 static int32_t mndProcessUpdateDnodeReloadTls(SRpcMsg *pReq);
 static int32_t mndProcessReloadDnodeTlsRsp(SRpcMsg *pRsp);
+static int32_t mndProcessAlterEncryptKeyReq(SRpcMsg *pReq);
+static int32_t mndProcessAlterKeyExpirationReq(SRpcMsg *pReq);
 
 #ifdef _GRANT
 int32_t mndUpdClusterInfo(SRpcMsg *pReq);
@@ -137,6 +145,11 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndCancelGetNextConfig);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_DNODE, mndRetrieveDnodes);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_DNODE, mndCancelGetNextDnode);
+
+  mndSetMsgHandle(pMnode, TDMT_MND_KEY_SYNC, mndProcessKeySyncReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_KEY_SYNC_RSP, mndProcessKeySyncRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_ENCRYPT_KEY, mndProcessAlterEncryptKeyReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_KEY_EXPIRATION, mndProcessAlterKeyExpirationReq);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -574,6 +587,16 @@ static bool mndUpdateVnodeState(int32_t vgId, SVnodeGid *pGid, SVnodeLoad *pVloa
   pGid->syncCommitIndex = pVload->syncCommitIndex;
   pGid->bufferSegmentUsed = pVload->bufferSegmentUsed;
   pGid->bufferSegmentSize = pVload->bufferSegmentSize;
+  pGid->learnerProgress = pVload->learnerProgress;
+  pGid->snapSeq = pVload->snapSeq;
+  pGid->syncTotalIndex = pVload->syncTotalIndex;
+  if (pVload->snapSeq > 0 && pVload->snapSeq < SYNC_SNAPSHOT_SEQ_END || pVload->syncState == TAOS_SYNC_STATE_LEARNER) {
+    mInfo("vgId:%d, update vnode state:%s from dnode:%d, syncAppliedIndex:%" PRId64 " , syncCommitIndex:%" PRId64
+          " , syncTotalIndex:%" PRId64 " ,learnerProgress:%d, snapSeq:%d",
+          vgId, syncStr(pVload->syncState), pGid->dnodeId, pVload->syncAppliedIndex, pVload->syncCommitIndex,
+          pVload->syncTotalIndex, pVload->learnerProgress, pVload->snapSeq);
+  }
+
   if (roleChanged || pGid->syncRestore != pVload->syncRestore || pGid->syncCanRead != pVload->syncCanRead ||
       pGid->startTimeMs != pVload->startTimeMs) {
     mInfo(
@@ -813,17 +836,40 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    analVerChanged = (analVer != statusReq.analVer);
   bool    auditDBChanged = false;
   char    auditDB[TSDB_DB_FNAME_LEN] = {0};
-  SDbObj *pDb = mndAcquireAuditDb(pMnode);
-  if (pDb != NULL) {
-    tstrncpy(auditDB, pDb->name, TSDB_DB_FNAME_LEN);
-    mndReleaseDb(pMnode, pDb);
-  }
+  bool    auditTokenChanged = false;
+  char    auditToken[TSDB_TOKEN_LEN] = {0};
 
-  if (strncmp(statusReq.auditDB, auditDB, TSDB_DB_FNAME_LEN) != 0) auditDBChanged = true;
+  if (tsAuditUseToken) {
+    SDbObj *pDb = mndAcquireAuditDb(pMnode);
+    if (pDb != NULL) {
+      SName name = {0};
+      if (tNameFromString(&name, pDb->name, T_NAME_ACCT | T_NAME_DB) < 0)
+        mError("db:%s, failed to parse db name", pDb->name);
+      tstrncpy(auditDB, name.dbname, TSDB_DB_FNAME_LEN);
+      mndReleaseDb(pMnode, pDb);
+    }
+    if (strncmp(statusReq.auditDB, auditDB, TSDB_DB_FNAME_LEN) != 0) auditDBChanged = true;
+
+    char    auditUser[TSDB_USER_LEN] = {0};
+    int32_t ret = 0;
+    if ((ret = mndGetAuditUser(pMnode, auditUser)) != 0) {
+      mTrace("dnode:%d, failed to get audit user since %s", pDnode->id, tstrerror(ret));
+    } else {
+      mTrace("dnode:%d, get audit user:%s", pDnode->id, auditUser);
+      int32_t ret = 0;
+      if ((ret = mndGetUserActiveToken("audit", auditToken)) != 0) {
+        mTrace("dnode:%d, failed to get audit user active token, token:%s, since %s", pDnode->id, auditToken,
+               tstrerror(ret));
+      } else {
+        mTrace("dnode:%d, get audit user active token:%s", pDnode->id, auditToken);
+        if (strncmp(statusReq.auditToken, auditToken, TSDB_TOKEN_LEN) != 0) auditTokenChanged = true;
+      }
+    }
+  } 
 
   bool needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || analVerChanged ||
                    pMnode->ipWhiteVer != statusReq.ipWhiteVer || pMnode->timeWhiteVer != statusReq.timeWhiteVer ||
-                   encryptKeyChanged || enableWhiteListChanged || auditDBChanged;
+                   encryptKeyChanged || enableWhiteListChanged || auditDBChanged || auditTokenChanged;
   const STraceId *trace = &pReq->info.traceId;
   char            timestamp[TD_TIME_STR_LEN] = {0};
   if (mDebugFlag & DEBUG_TRACE) (void)formatTimestampLocal(timestamp, statusReq.timestamp, TSDB_TIME_PRECISION_MILLI);
@@ -928,19 +974,24 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     }
 
     // Verify whether the cluster parameters are consistent when status change from offline to ready
-    pDnode->offlineReason = mndCheckClusterCfgPara(pMnode, pDnode, &statusReq.clusterCfg);
-    if (pDnode->offlineReason != 0) {
-      mError("dnode:%d, cluster cfg inconsistent since:%s", pDnode->id, offlineReason[pDnode->offlineReason]);
-      if (terrno == 0) terrno = TSDB_CODE_MND_INVALID_CLUSTER_CFG;
-      goto _OVER;
-    }
+    // pDnode->offlineReason = mndCheckClusterCfgPara(pMnode, pDnode, &statusReq.clusterCfg);
+    // if (pDnode->offlineReason != 0) {
+    //   mError("dnode:%d, cluster cfg inconsistent since:%s", pDnode->id, offlineReason[pDnode->offlineReason]);
+    //   if (terrno == 0) terrno = TSDB_CODE_MND_INVALID_CLUSTER_CFG;
+    //   goto _OVER;
+    // }
 
     if (!online) {
       mInfo("dnode:%d, from offline to online, memory avail:%" PRId64 " total:%" PRId64 " cores:%.2f", pDnode->id,
             statusReq.memAvail, statusReq.memTotal, statusReq.numOfCores);
     } else {
-      mInfo("dnode:%d, send dnode epset, online:%d dnodeVer:%" PRId64 ":%" PRId64 " reboot:%d", pDnode->id, online,
-            statusReq.dnodeVer, dnodeVer, reboot);
+      mInfo("dnode:%d, do check in status req, online:%d dnodeVer:%" PRId64 ":%" PRId64
+            " reboot:%d, dnodeChanged:%d supportVnodesChanged:%d analVerChanged:%d encryptKeyChanged:%d "
+            "enableWhiteListChanged:%d auditDBChanged:%d auditTokenChanged:%d pMnode->ipWhiteVer:%" PRId64
+            " statusReq.ipWhiteVer:%" PRId64 " pMnode->timeWhiteVer:%" PRId64 " statusReq.timeWhiteVer:%" PRId64,
+            pDnode->id, online, statusReq.dnodeVer, dnodeVer, reboot, dnodeChanged, supportVnodesChanged,
+            analVerChanged, encryptKeyChanged, enableWhiteListChanged, auditDBChanged, auditTokenChanged,
+            pMnode->ipWhiteVer, statusReq.ipWhiteVer, pMnode->timeWhiteVer, statusReq.timeWhiteVer);
     }
 
     pDnode->rebootTime = statusReq.rebootTime;
@@ -978,7 +1029,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       mInfo("dnode:%d, set audit db %s in process status rsp", statusReq.dnodeId, auditDB);
       tstrncpy(statusRsp.auditDB, auditDB, TSDB_DB_FNAME_LEN);
     }
-    // TODO dmchen get audit db token
+    if (auditToken[0] != '\0') {
+      mInfo("dnode:%d, set audit token %s in process status rsp", statusReq.dnodeId, auditToken);
+      tstrncpy(statusRsp.auditToken, auditToken, TSDB_TOKEN_LEN);
+    }
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);
@@ -1190,7 +1244,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(code, &lino, _OVER);
 
   mInfo("dnode:%s:%d, start to create", createReq.fqdn, createReq.port);
-  code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DNODE);
+  code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_DNODE);
   TAOS_CHECK_GOTO(code, &lino, _OVER);
 
   if (createReq.fqdn[0] == 0 || createReq.port <= 0 || createReq.port > UINT16_MAX) {
@@ -1360,7 +1414,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
 
   mInfo("dnode:%d, start to drop, ep:%s:%d, force:%s, unsafe:%s", dropReq.dnodeId, dropReq.fqdn, dropReq.port,
         dropReq.force ? "true" : "false", dropReq.unsafe ? "true" : "false");
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_MNODE), NULL, _OVER);
 
   bool force = dropReq.force;
   if (dropReq.unsafe) {
@@ -1568,7 +1622,7 @@ static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pReq) {
   SMCfgDnodeReq cfgReq = {0};
   TAOS_CHECK_RETURN(tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &cfgReq));
 
-  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE)) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CONFIG_DNODE)) != 0) {
     tFreeSMCfgDnodeReq(&cfgReq);
     TAOS_RETURN(code);
   }
@@ -1580,7 +1634,7 @@ static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pReq) {
     tFreeSMCfgDnodeReq(&cfgReq);
     return mndProcessCreateEncryptKeyReqImpl(pReq, cfgReq.dnodeId, &dcfgReq);
   } else {
-    code = TSDB_CODE_PAR_INTERNAL_ERROR;
+    code = TSDB_CODE_MND_INTERNAL_ERROR;
     tFreeSMCfgDnodeReq(&cfgReq);
     TAOS_RETURN(code);
   }
@@ -1820,6 +1874,119 @@ _error:
   return fqdns;
 }
 
+static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
+  SMnode     *pMnode = pReq->info.node;
+  SKeySyncReq req = {0};
+  SKeySyncRsp rsp = {0};
+  int32_t     code = TSDB_CODE_SUCCESS;
+
+  code = tDeserializeSKeySyncReq(pReq->pCont, pReq->contLen, &req);
+  if (code != 0) {
+    mError("failed to deserialize key sync req, since %s", tstrerror(code));
+    goto _OVER;
+  }
+
+  mInfo("received key sync req from dnode:%d, keyVersion:%d", req.dnodeId, req.keyVersion);
+
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+  // Load mnode's encryption keys
+  char masterKeyFile[PATH_MAX] = {0};
+  snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%sdnode%sconfig%smaster.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP,
+           TD_DIRSEP);
+  char derivedKeyFile[PATH_MAX] = {0};
+  snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sdnode%sconfig%sderived.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP,
+           TD_DIRSEP);
+  char    svrKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dbKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    cfgKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    metaKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dataKey[ENCRYPT_KEY_LEN + 1] = {0};
+  int32_t algorithm = 0;
+  int32_t cfgAlgorithm = 0;
+  int32_t metaAlgorithm = 0;
+  int32_t fileVersion = 0;
+  int32_t keyVersion = 0;
+  int64_t createTime = 0;
+  int64_t svrKeyUpdateTime = 0;
+  int64_t dbKeyUpdateTime = 0;
+
+  if (tsEncryptKeysStatus == TSDB_ENCRYPT_KEY_STAT_LOADED) {
+    keyVersion = tsEncryptKeyVersion;
+    tstrncpy(svrKey, tsSvrKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(dbKey, tsDbKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(cfgKey, tsCfgKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(metaKey, tsMetaKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(dataKey, tsDataKey, ENCRYPT_KEY_LEN + 1);
+    algorithm = tsEncryptAlgorithmType;
+    cfgAlgorithm = tsCfgAlgorithm;
+    metaAlgorithm = tsMetaAlgorithm;
+    fileVersion = tsEncryptFileVersion;
+    createTime = tsEncryptKeyCreateTime;
+    svrKeyUpdateTime = tsSvrKeyUpdateTime;
+    dbKeyUpdateTime = tsDbKeyUpdateTime;
+    rsp.encryptionKeyStatus = TSDB_ENCRYPT_KEY_STAT_LOADED;
+  } else {
+    rsp.encryptionKeyStatus = TSDB_ENCRYPT_KEY_STAT_DISABLED;
+  }
+
+  // Check if dnode needs update
+  if (req.keyVersion != keyVersion) {
+    mInfo("dnode:%d key version mismatch, mnode:%d, dnode:%d, will send keys", req.dnodeId, keyVersion, req.keyVersion);
+
+    rsp.keyVersion = keyVersion;
+    rsp.needUpdate = 1;
+    tstrncpy(rsp.svrKey, svrKey, sizeof(rsp.svrKey));
+    tstrncpy(rsp.dbKey, dbKey, sizeof(rsp.dbKey));
+    tstrncpy(rsp.cfgKey, cfgKey, sizeof(rsp.cfgKey));
+    tstrncpy(rsp.metaKey, metaKey, sizeof(rsp.metaKey));
+    tstrncpy(rsp.dataKey, dataKey, sizeof(rsp.dataKey));
+    rsp.algorithm = algorithm;
+    rsp.createTime = createTime;
+    rsp.svrKeyUpdateTime = svrKeyUpdateTime;
+    rsp.dbKeyUpdateTime = dbKeyUpdateTime;
+  } else {
+    mInfo("dnode:%d key version matches, version:%d", req.dnodeId, keyVersion);
+    rsp.keyVersion = keyVersion;
+    rsp.needUpdate = 0;
+  }
+#else
+  // Community edition - no encryption support
+  mWarn("enterprise features not enabled, key sync not supported");
+  rsp.keyVersion = 0;
+  rsp.needUpdate = 0;
+#endif
+
+  int32_t contLen = tSerializeSKeySyncRsp(NULL, 0, &rsp);
+  if (contLen < 0) {
+    code = contLen;
+    goto _OVER;
+  }
+
+  void *pHead = rpcMallocCont(contLen);
+  if (pHead == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  contLen = tSerializeSKeySyncRsp(pHead, contLen, &rsp);
+  if (contLen < 0) {
+    rpcFreeCont(pHead);
+    code = contLen;
+    goto _OVER;
+  }
+
+  pReq->info.rspLen = contLen;
+  pReq->info.rsp = pHead;
+
+_OVER:
+  if (code != 0) {
+    mError("failed to process key sync req, since %s", tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t mndProcessKeySyncRsp(SRpcMsg *pReq) { return 0; }
+
 static SDnodeObj *getDnodeObjByType(void *p, ESdbType type) {
   if (p == NULL) return NULL;
 
@@ -1904,7 +2071,7 @@ static int32_t mndProcessUpdateDnodeReloadTls(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_DNODE_RELOAD_TLS)) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_ALTER_DNODE_RELOAD_TLS)) != 0) {
     goto _OVER;
   }
 
@@ -1917,7 +2084,6 @@ static int32_t mndProcessUpdateDnodeReloadTls(SRpcMsg *pReq) {
 
   for (int32_t i = 0; i < taosArrayGetSize(pAddr); i++) {
     SEpSet *pEpSet = (SEpSet *)taosArrayGet(pAddr, i);
-    // SEpSet epSet = mndCreateEpSetByStr(addr);
     SRpcMsg rpcMsg = {.msgType = TDMT_DND_RELOAD_DNODE_TLS, .pCont = NULL, .contLen = 0};
     code = tmsgSendReq(pEpSet, &rpcMsg);
     if (code != 0) {
@@ -1939,4 +2105,240 @@ static int32_t mndProcessReloadDnodeTlsRsp(SRpcMsg *pRsp) {
     mInfo("succeed to reload dnode tls config");
   }
   return code;
+}
+
+static int32_t mndProcessAlterEncryptKeyReqImpl(SRpcMsg *pReq, SMAlterEncryptKeyReq *pAlterReq) {
+  int32_t code = 0;
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+
+  const STraceId *trace = &pReq->info.traceId;
+
+  // Validate key type
+  if (pAlterReq->keyType != 0 && pAlterReq->keyType != 1) {
+    mGError("msg:%p, failed to alter encrypt key since invalid key type:%d, must be 0 (SVR_KEY) or 1 (DB_KEY)", pReq,
+            pAlterReq->keyType);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Validate new key length
+  int32_t klen = strlen(pAlterReq->newKey);
+  if (klen > ENCRYPT_KEY_LEN || klen < ENCRYPT_KEY_LEN_MIN) {
+    mGError("msg:%p, failed to alter encrypt key since invalid key length:%d, valid range:[%d, %d]", pReq, klen,
+            ENCRYPT_KEY_LEN_MIN, ENCRYPT_KEY_LEN);
+    return TSDB_CODE_DNODE_INVALID_ENCRYPT_KLEN;
+  }
+
+  // Prepare SMAlterEncryptKeyReq for distribution to dnodes
+  SMAlterEncryptKeyReq alterKeyReq = {0};
+  alterKeyReq.keyType = pAlterReq->keyType;
+  tstrncpy(alterKeyReq.newKey, pAlterReq->newKey, sizeof(alterKeyReq.newKey));
+  alterKeyReq.sqlLen = 0;
+  alterKeyReq.sql = NULL;
+
+  // Send request to all online dnodes
+  while (1) {
+    SDnodeObj *pDnode = NULL;
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) break;
+
+    if (pDnode->offlineReason != DND_REASON_ONLINE) {
+      mGWarn("msg:%p, don't send alter encrypt_key req since dnode:%d in offline state:%s", pReq, pDnode->id,
+             offlineReason[pDnode->offlineReason]);
+      sdbRelease(pSdb, pDnode);
+      continue;
+    }
+
+    SEpSet  epSet = mndGetDnodeEpset(pDnode);
+    int32_t bufLen = tSerializeSMAlterEncryptKeyReq(NULL, 0, &alterKeyReq);
+    void   *pBuf = rpcMallocCont(bufLen);
+
+    if (pBuf != NULL) {
+      if ((bufLen = tSerializeSMAlterEncryptKeyReq(pBuf, bufLen, &alterKeyReq)) <= 0) {
+        code = bufLen;
+        sdbRelease(pSdb, pDnode);
+        goto _exit;
+      }
+      SRpcMsg rpcMsg = {.msgType = TDMT_MND_ALTER_ENCRYPT_KEY, .pCont = pBuf, .contLen = bufLen};
+      int32_t ret = tmsgSendReq(&epSet, &rpcMsg);
+      if (ret != 0) {
+        mGError("msg:%p, failed to send alter encrypt_key req to dnode:%d, error:%s", pReq, pDnode->id, tstrerror(ret));
+      } else {
+        mGInfo("msg:%p, send alter encrypt_key req to dnode:%d, keyType:%d", pReq, pDnode->id, pAlterReq->keyType);
+      }
+    }
+
+    sdbRelease(pSdb, pDnode);
+  }
+
+  // Note: mnode runs on dnode, so the local keys will be updated by dnode itself
+  // when it receives the alter encrypt key request from mnode
+  mGInfo("msg:%p, successfully sent alter encrypt key request to all dnodes, keyType:%d", pReq, pAlterReq->keyType);
+
+_exit:
+  if (code != 0) {
+    if (terrno == 0) terrno = code;
+  }
+  return code;
+}
+
+static int32_t mndProcessAlterEncryptKeyReq(SRpcMsg *pReq) {
+  SMnode              *pMnode = pReq->info.node;
+  SMAlterEncryptKeyReq alterReq = {0};
+  int32_t              code = TSDB_CODE_SUCCESS;
+  int32_t              lino = 0;
+
+  // Check privilege - only admin can alter encryption keys
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, RPC_MSG_TOKEN(pReq), MND_OPER_CONFIG_DNODE),
+                  &lino, _OVER);
+
+  // Deserialize request
+  code = tDeserializeSMAlterEncryptKeyReq(pReq->pCont, pReq->contLen, &alterReq);
+  if (code != 0) {
+    mError("failed to deserialize alter encrypt key req, since %s", tstrerror(code));
+    goto _OVER;
+  }
+
+  mInfo("received alter encrypt key req, keyType:%d", alterReq.keyType);
+
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+  // Process and distribute to all dnodes
+  code = mndProcessAlterEncryptKeyReqImpl(pReq, &alterReq);
+  if (code == 0) {
+    // Audit log
+    auditRecord(pReq, pMnode->clusterId, "alterEncryptKey", "", alterReq.keyType == 0 ? "SVR_KEY" : "DB_KEY",
+                alterReq.sql, alterReq.sqlLen, 0, 0);
+  }
+#else
+  // Community edition - no encryption support
+  mError("encryption key management is only available in enterprise edition");
+  code = TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+
+_OVER:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("failed to alter encrypt key, keyType:%d, since %s", alterReq.keyType, tstrerror(code));
+  }
+
+  tFreeSMAlterEncryptKeyReq(&alterReq);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessAlterKeyExpirationReqImpl(SRpcMsg *pReq, SMAlterKeyExpirationReq *pAlterReq) {
+  int32_t code = 0;
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+
+  const STraceId *trace = &pReq->info.traceId;
+
+  // Validate days value
+  if (pAlterReq->days < 0) {
+    mGError("msg:%p, failed to alter key expiration since invalid days:%d, must be >= 0", pReq, pAlterReq->days);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Validate strategy
+  if (strlen(pAlterReq->strategy) == 0) {
+    mGError("msg:%p, failed to alter key expiration since empty strategy", pReq);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Prepare SMAlterKeyExpirationReq for distribution to dnodes
+  SMAlterKeyExpirationReq alterReq = {0};
+  alterReq.days = pAlterReq->days;
+  tstrncpy(alterReq.strategy, pAlterReq->strategy, sizeof(alterReq.strategy));
+  alterReq.sqlLen = 0;
+  alterReq.sql = NULL;
+
+  // Send request to all online dnodes
+  while (1) {
+    SDnodeObj *pDnode = NULL;
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) break;
+
+    if (pDnode->offlineReason != DND_REASON_ONLINE) {
+      mGWarn("msg:%p, don't send alter key_expiration req since dnode:%d in offline state:%s", pReq, pDnode->id,
+             offlineReason[pDnode->offlineReason]);
+      sdbRelease(pSdb, pDnode);
+      continue;
+    }
+
+    SEpSet  epSet = mndGetDnodeEpset(pDnode);
+    int32_t bufLen = tSerializeSMAlterKeyExpirationReq(NULL, 0, &alterReq);
+    void   *pBuf = rpcMallocCont(bufLen);
+
+    if (pBuf != NULL) {
+      if ((bufLen = tSerializeSMAlterKeyExpirationReq(pBuf, bufLen, &alterReq)) <= 0) {
+        code = bufLen;
+        sdbRelease(pSdb, pDnode);
+        goto _exit;
+      }
+      SRpcMsg rpcMsg = {.msgType = TDMT_MND_ALTER_KEY_EXPIRATION, .pCont = pBuf, .contLen = bufLen};
+      int32_t ret = tmsgSendReq(&epSet, &rpcMsg);
+      if (ret != 0) {
+        mGError("msg:%p, failed to send alter key_expiration req to dnode:%d, error:%s", pReq, pDnode->id,
+                tstrerror(ret));
+      } else {
+        mGInfo("msg:%p, send alter key_expiration req to dnode:%d, days:%d, strategy:%s", pReq, pDnode->id,
+               pAlterReq->days, pAlterReq->strategy);
+      }
+    }
+
+    sdbRelease(pSdb, pDnode);
+  }
+
+  mGInfo("msg:%p, successfully sent alter key expiration request to all dnodes, days:%d, strategy:%s", pReq,
+         pAlterReq->days, pAlterReq->strategy);
+
+_exit:
+  if (code != 0) {
+    if (terrno == 0) terrno = code;
+  }
+  return code;
+}
+
+static int32_t mndProcessAlterKeyExpirationReq(SRpcMsg *pReq) {
+  SMnode                 *pMnode = pReq->info.node;
+  SMAlterKeyExpirationReq alterReq = {0};
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  int32_t                 lino = 0;
+
+  // Check privilege - only admin can alter key expiration
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, RPC_MSG_TOKEN(pReq), MND_OPER_CONFIG_DNODE),
+                  &lino, _OVER);
+
+  // Deserialize request
+  code = tDeserializeSMAlterKeyExpirationReq(pReq->pCont, pReq->contLen, &alterReq);
+  if (code != 0) {
+    mError("failed to deserialize alter key expiration req, since %s", tstrerror(code));
+    goto _OVER;
+  }
+
+  mInfo("received alter key expiration req, days:%d, strategy:%s", alterReq.days, alterReq.strategy);
+
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+  // Process and distribute to all dnodes
+  code = mndProcessAlterKeyExpirationReqImpl(pReq, &alterReq);
+  if (code == 0) {
+    // Audit log
+    char detail[128];
+    snprintf(detail, sizeof(detail), "%d DAYS %s", alterReq.days, alterReq.strategy);
+    auditRecord(pReq, pMnode->clusterId, "alterKeyExpiration", "", detail, alterReq.sql, alterReq.sqlLen, 0, 0);
+  }
+#else
+  // Community edition - no encryption support
+  mError("key expiration management is only available in enterprise edition");
+  code = TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+
+_OVER:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("failed to alter key expiration, days:%d, strategy:%s, since %s", alterReq.days, alterReq.strategy,
+           tstrerror(code));
+  }
+
+  tFreeSMAlterKeyExpirationReq(&alterReq);
+  TAOS_RETURN(code);
 }

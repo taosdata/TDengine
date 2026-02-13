@@ -1,6 +1,5 @@
 # encoding:utf-8
 # pylint: disable=c0103
-import json
 import threading
 import time
 from datetime import datetime
@@ -41,7 +40,8 @@ class ModelInfo:
             "model_name": self.name,
             "path": self.path,
             "load_time": self.load_time.strftime('%Y-%m-%d %H:%M:%S'),
-            "invoke_cls_name": self.invoke_cls_name
+            "invoke_cls_name": self.invoke_cls_name,
+            'note':self.note
         }
 
 class ModelManager:
@@ -69,12 +69,12 @@ class ModelManager:
                 if model_name not in self._models:
                     app_logger.log_inst.info("try to load module:%s", model_path)
 
-                    model = None
+                    model, model_desc = None, ''
                     elapsed = 0
 
                     try:
                         st = time.time()
-                        model = model_loader(model_path)
+                        model, model_desc = model_loader(model_path)
                         elapsed = (int) ((time.time() - st) * 1000)
                     except Exception as e:
                         app_logger.log_inst.error(
@@ -88,11 +88,11 @@ class ModelManager:
 
                     # only lock the set procedure
                     with self._lock:
-                        info = ModelInfo.create_model_info(model_name, model_path, datetime.now(), "", elapsed, class_name, model)
+                        info = ModelInfo.create_model_info(model_name, model_path, datetime.now(), model_desc, elapsed, class_name, model)
                         if info is not None:
                             self._models[model_name] = info
 
-        return self._models[model_name]
+        return self._models.get(model_name, None)
 
     def get_model(self, model_name: str) -> Any:
         """get already loaded model"""

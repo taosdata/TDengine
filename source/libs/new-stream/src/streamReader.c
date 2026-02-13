@@ -15,9 +15,14 @@
 void qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo) { 
   if (pTableListInfo == NULL) return;
   taosArrayDestroyP(pTableListInfo->pTableList, taosMemFree);
+  pTableListInfo->pTableList = NULL;
   taosHashCancelIterate(pTableListInfo->gIdMap, pTableListInfo->pIter);
   taosHashCleanup(pTableListInfo->gIdMap);
+  stDebug("release gIdMap:%p", pTableListInfo->gIdMap);
+  pTableListInfo->pIter = NULL;
+  pTableListInfo->gIdMap = NULL;
   taosHashCleanup(pTableListInfo->uIdMap);
+  pTableListInfo->uIdMap = NULL;
 }
 
 static int32_t removeList(SHashObj* idMap, SStreamTableKeyInfo* table, uint64_t key){
@@ -855,6 +860,7 @@ int32_t stReaderTaskUndeployImpl(SStreamReaderTask** ppTask, const SStreamUndepl
   STREAM_CHECK_NULL_GOTO(ppTask, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_NULL_GOTO(pMsg, TSDB_CODE_INVALID_PARA);
   if ((*ppTask)->triggerReader == 1) {
+    stInfo("release stream reader info:%p", (*ppTask)->info);
     releaseStreamReaderInfo((*ppTask)->info);
   } else {
     taosArrayDestroyP((*ppTask)->info, releaseStreamReaderCalcInfo);

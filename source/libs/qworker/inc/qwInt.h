@@ -152,20 +152,49 @@ typedef struct SQWJobInfo {
   SHashObj*           pSessions;
 } SQWJobInfo;
 
-typedef struct SQWTaskCtx {
+typedef struct SQWRspItem {
+  void*   rsp;
+  int32_t dataLen;
+} SQWRspItem;
+
+typedef struct SQWWaitItem {
+  uint64_t       srcTaskId;
+  uint64_t       blockIdx;
+  int32_t        reqMsgType;
+  SRpcHandleInfo connInfo;
+} SQWWaitItem;
+
+typedef struct SQWSubQRes {
+  // common
+  int32_t code;
+  int8_t  fetchDone;
+
+  // for scalar subQ
+  SQWRspItem scalarRsp;
+
+  // for non-scalar subQ
   SRWLatch lock;
-  int8_t   phase;
-  int8_t   inFetch;
-  int8_t   taskType;
-  int8_t   explain;
-  int8_t   needFetch;
-  int8_t   localExec;
-  int8_t   dynamicTask;
-  int32_t  queryMsgType;
-  int32_t  fetchMsgType;
-  int32_t  level;
-  int32_t  dynExecId;
-  uint64_t sId;
+  uint64_t firstSrcTaskId;
+  SArray*  rspList;  // SArray<SQWRspItem>
+  SArray*  waitList;  // SArray<SQWWaitItem>
+} SQWSubQRes;
+
+typedef struct SQWTaskCtx {
+  SRWLatch      lock;
+  int8_t        phase;
+  int8_t        inFetch;
+  int8_t        taskType;
+  int8_t        explain;
+  int8_t        needFetch;
+  int8_t        localExec;
+  int8_t        dynamicTask;
+  int8_t        subQuery;
+  ESubQueryType subQType;
+  int32_t       queryMsgType;
+  int32_t       fetchMsgType;
+  int32_t       level;
+  int32_t       dynExecId;
+  uint64_t      sId;
 
   bool    queryGotData;
   bool    queryRsped;
@@ -192,6 +221,7 @@ typedef struct SQWTaskCtx {
 
   void      *memPoolSession;
   SQWJobInfo *pJobInfo;
+  SQWSubQRes  subQRes;
 } SQWTaskCtx;
 
 typedef struct SQWSchStatus {
@@ -328,6 +358,9 @@ extern SQueryMgmt gQueryMgmt;
 
 #define QW_SET_RSP_CODE(ctx, code)    atomic_store_32(&(ctx)->rspCode, code)
 #define QW_UPDATE_RSP_CODE(ctx, code) (void)atomic_val_compare_exchange_32(&(ctx)->rspCode, 0, code)
+
+#define QW_IS_SUBQ(_ctx) ((_ctx) && (_ctx)->subQuery)
+#define QW_IS_SCALAR_SUBQ(_ctx) (QW_IS_SUBQ(_ctx) && E_SUB_QUERY_SCALAR == (_ctx)->subQType)
 
 #define QW_QUERY_RUNNING(ctx)     (QW_GET_PHASE(ctx) == QW_PHASE_PRE_QUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_CQUERY)
 #define QW_FETCH_RUNNING(ctx)     ((ctx)->inFetch)
@@ -566,6 +599,8 @@ void    qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session, bo
 int32_t qwInitSession(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppSession);
 void    qwFreeTaskHandle(SQWTaskCtx *ctx);
 void    qwFreeSinkHandle(SQWTaskCtx *ctx);
+int32_t qwChkSaveSubQFetchRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code, bool queryEnd);
+int32_t qwCloneSubQRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppRes, int32_t* dataLen, bool* toFetch, SQWRspItem* pItem);
 
 #ifdef __cplusplus
 }

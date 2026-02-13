@@ -3061,6 +3061,37 @@ IRATE(expr)
 
 **适用于**：表和超级表。
 
+#### FILL_FORWARD
+
+```sql
+FILL_FORWARD(expr)
+```
+
+**功能说明**：遇到空值时使用上一个非空值，如果之前的数据均为空值，则保持空值不变。
+
+**返回结果类型**：与输入类型一致。
+
+**适用数据类型**：数值类型，字符串类型。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 支持 +、-、*、/ 运算，如 fill_forward(col1) + fill_forward(col2);
+
+**举例**：
+
+```sql
+taos> select _rowts,f1,f2,fill_forward(f1),fill_forward(f2),fill_forward(f1)*fill_forward(f2) from db.tb;
+         _rowts          |     f1      |       f2       |   fill_forward(f1)   |   fill_forward(f2)     | fill_forward(f1)*fill_forward(f2) |
+============================================================================================================================================
+ 2025-12-02 01:01:01.000 |           1 |       2.000000 |                    1 |               2.000000 |                          2.000000 |
+ 2025-12-02 01:01:02.000 |        NULL |       4.000000 |                    1 |               4.000000 |                          4.000000 |
+ 2025-12-02 01:01:03.000 |           5 |           NULL |                    5 |               4.000000 |                         20.000000 |
+ 2025-12-02 01:01:04.000 |           7 |       8.000000 |                    7 |               8.000000 |                         56.000000 |
+Query OK, 4 row(s) in set (56.155269s)
+```
+
 #### MAVG
 
 ```sql
@@ -3162,7 +3193,7 @@ ignore_null_values: {
 }
 ```
 
-**功能说明**：返回指定时间截面指定列的记录值或插值。ignore_null_values 参数的值可以是 0 或 1，为 1 时表示忽略 NULL 值，缺省值为 0。
+**功能说明**：返回指定时间截面指定列的记录值或插值。ignore_null_values 参数的值可以是 0 或 1，为 1 时表示忽略 NULL 值，缺省值为 0。当 ignore_null_values 为 1 时，插值时将会忽略其他 NULL 值采样数据。
 
 **返回数据类型**：同字段类型。
 
@@ -3172,10 +3203,10 @@ ignore_null_values: {
 
 **使用说明**：
 
-- INTERP 用于在指定时间断面获取指定列的记录值，使用时有专用语法 (interp_clause)，语法介绍 [参考链接](../select/#interp) 。
-- 当指定时间断面不存在符合条件的行数据时，INTERP 函数会根据 [FILL](../distinguished/#fill-子句) 参数的设定进行插值。
+- INTERP 用于在指定时间断面获取指定列的记录值，使用时有专用语法 (interp_clause)，语法介绍 [参考链接](./20-select.md#interp) 。
+- 当指定时间断面不存在符合条件的行数据时，INTERP 函数会根据 [FILL](./20-select.md#fill-子句) 参数的设定进行插值。
 - INTERP 作用于超级表时，会将该超级表下的所有子表数据按照主键列排序后进行插值计算，也可以搭配 PARTITION BY tbname 使用，将结果强制规约到单个时间线。
-- INTERP 在 FILL PREV/NEXT/NEAR时, 行为与窗口查询有所区别，当截面存在数据时，不会进行 FILL, 即便当前值为 NULL.
+- INTERP 在 FILL PREV/NEXT/NEAR时, 行为与窗口查询有所区别：在寻找相邻有效数据时会受到 ignore_null_values 参数影响，若参数设置忽略 NULL 数据，则不使用相邻的 NULL 数据进行插值，而是向周围探索直到找到非 NULL 值。
 - INTERP 可以与伪列 `_irowts` 一起使用，返回插值点所对应的时间戳 (v3.0.2.0 以后支持)。
 - INTERP 可以与伪列 `_isfilled` 一起使用，显示返回结果是否为原始记录或插值算法产生的数据 (v3.0.3.0 以后支持)。
 - 只有在使用 FILL PREV/NEXT/NEAR 模式时才可以使用伪列 `_irowts_origin`, 用于返回 `interp` 函数所使用的原始数据的时间戳列。若范围内无值，则返回 NULL。`_irowts_origin` 在 v3.3.4.9 以后支持。

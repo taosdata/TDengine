@@ -132,7 +132,9 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   pInfo->tsSlotId = tsSlotId;
   pInfo->pPreDataBlock = NULL;
   pInfo->pOperator = pOperator;
-  pInfo->trueForLimit = pEventWindowNode->trueForLimit;
+  pInfo->trueForInfo.trueForType = pEventWindowNode->trueForType;
+  pInfo->trueForInfo.count = pEventWindowNode->trueForCount;
+  pInfo->trueForInfo.duration = pEventWindowNode->trueForDuration;
 
   setOperatorInfo(pOperator, "EventWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
@@ -177,8 +179,13 @@ void destroyEWindowOperatorInfo(void* param) {
     return;
   }
 
+  // First cleanup function contexts that may reference result buffers/state.
+  // This must happen before freeing any buffers that those cleanups might touch.
+  cleanupResultInfoInEventWindow(pInfo->pOperator, pInfo);
+
   if (pInfo->pRow != NULL) {
     taosMemoryFree(pInfo->pRow);
+    pInfo->pRow = NULL;
   }
 
   if (pInfo->pStartCondInfo != NULL) {
@@ -193,8 +200,6 @@ void destroyEWindowOperatorInfo(void* param) {
 
   cleanupBasicInfo(&pInfo->binfo);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
-
-  cleanupResultInfoInEventWindow(pInfo->pOperator, pInfo);
   pInfo->pOperator = NULL;
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSup);
@@ -299,6 +304,7 @@ static int32_t doEventWindowAggImpl(SEventWindowOperatorInfo* pInfo, SExprSupp* 
   }
 
   updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pRowSup->win, 0);
+  pInfo->pRow->nOrigRows += numOfRows;
   code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startIndex, numOfRows,
                                          pBlock->info.rows, numOfOutput);
   return code;
@@ -317,7 +323,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
   TSKEY*           tsList = (TSKEY*)pColInfoData->pData;
   SWindowRowsSup*  pRowSup = &pInfo->winSup;
   int32_t          rowIndex = 0;
-  int64_t          minWindowSize = getMinWindowSize(pOperator);
+  STrueForInfo*    pTrueForInfo = getTrueForInfo(pOperator);
 
   pRowSup->numOfRows = 0;
   if (pInfo->groupId == 0) {
@@ -379,9 +385,9 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
         QUERY_CHECK_CODE(code, lino, _return);
         doUpdateNumOfRows(pSup->pCtx, pInfo->pRow, pSup->numOfExprs, pSup->rowEntryInfoOffset);
 
-        if (pRowSup->win.ekey - pRowSup->win.skey < minWindowSize) {
-          qDebug("skip small window, groupId: %" PRId64 ", windowSize: %" PRId64 ", minWindowSize: %" PRId64,
-                 pInfo->groupId, pRowSup->win.ekey - pRowSup->win.skey, minWindowSize);
+        if (!isTrueForSatisfied(pTrueForInfo, pRowSup->win.skey, pRowSup->win.ekey, pInfo->pRow->nOrigRows)) {
+          qDebug("skip small window, groupId: %" PRId64 ", skey: %" PRId64 ", ekey: %" PRId64 ", nrows: %u",
+                 pInfo->groupId, pRowSup->win.skey, pRowSup->win.ekey, pInfo->pRow->nOrigRows);
         } else {
           // check buffer size
           if (pRes->info.rows + pInfo->pRow->numOfRows >= pRes->info.capacity) {
@@ -397,6 +403,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
           pRes->info.rows += pInfo->pRow->numOfRows;
         }
         pInfo->pRow->numOfRows = 0;
+        pInfo->pRow->nOrigRows = 0;
 
         pInfo->inWindow = false;
         rowIndex += 1;

@@ -66,6 +66,9 @@ typedef struct SSvrConn {
   char    secret[TSDB_PASSWORD_LEN];
   char    ckey[TSDB_PASSWORD_LEN];  // ciphering key
 
+  char   identifier[128];  // token or user
+  int8_t isToken;
+
   int64_t whiteListVer;
   int64_t dataTimeWhiteListVer;
 
@@ -429,47 +432,61 @@ static char* ip2Str(SIpAddr* p) {
   }
 }
 bool uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, SIpAddr* pIp, int64_t ver) {
-  // impl check
-  SHashObj* pWhiteList = pWhite->pList;
-  bool      valid = false;
+  if (pWhite == NULL || user == NULL || pIp == NULL) {
+    return false;
+  }
 
-  if (uvWhiteListIsDefaultAddr(pIp)) return true;
+  /* Default local addresses are always allowed */
+  if (uvWhiteListIsDefaultAddr(pIp)) {
+    return true;
+  }
+
+  SHashObj* pWhiteList = pWhite->pList;
+  if (pWhiteList == NULL) {
+    return false;
+  }
 
   SWhiteUserList** ppList = taosHashGet(pWhiteList, user, strlen(user));
   if (ppList == NULL || *ppList == NULL) {
     return false;
   }
-  SWhiteUserList* pUserList = *ppList;
-  if (pUserList->ver == ver) return true;
 
-  int8_t inBlackList = 0;
-  int8_t inWhiteList = 0;
+  SWhiteUserList* pUserList = *ppList;
+  /* if version matches, whitelist is already applied for this connection */
+  if (pUserList->ver == ver) {
+    return true;
+  }
 
   SIpWhiteListDual* pIpWhiteList = pUserList->pList;
+  if (pIpWhiteList == NULL || pIpWhiteList->num <= 0) {
+    tError("ip-white-list filter failed, ip:%s, empty white list", ip2Str(pIp));
+    return false;
+  }
+
+  bool inWhiteList = false;
+  bool inBlackList = false;
+
+  /* single pass: set flags; break early on blacklist match */
   for (int i = 0; i < pIpWhiteList->num; i++) {
     SIpRange* pRange = &pIpWhiteList->pIpRanges[i];
-    if (pRange->neg == 0 && uvCheckIp(pRange, pIp)) {
-      inWhiteList = 1;
+    if (!uvCheckIp(pRange, pIp)) {
+      continue;
+    }
+    if (pRange->neg) {
+      inBlackList = true;
       break;
+    } else {
+      inWhiteList = true;
     }
   }
 
-  for (int i = 0; i < pIpWhiteList->num; i++) {
-    SIpRange* pRange = &pIpWhiteList->pIpRanges[i];
-    if (pRange->neg == 1 && uvCheckIp(pRange, pIp)) {
-      inBlackList = 1;
-      break;
-    }
+  if (inWhiteList && !inBlackList) {
+    return true;
   }
 
-  if (inBlackList == 0 && inWhiteList == 1) {
-    valid = true;
-  } else {
-    tError("ip-white-list filter failed, ip:%s inBlockList:%d, inWhiteList:%d", ip2Str(pIp), inBlackList, inWhiteList);
-    valid = false;
-  }
-
-  return valid;
+  tError("ip-white-list filter failed, ip:%s inBlockList:%d, inWhiteList:%d", ip2Str(pIp), (int)inBlackList,
+         (int)inWhiteList);
+  return false;
 }
 bool uvWhiteListCheckConn(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
   if (pConn->inType == TDMT_MND_STATUS || pConn->inType == TDMT_MND_RETRIEVE_IP_WHITELIST ||
@@ -485,7 +502,7 @@ void uvWhiteListSetConnVer(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
   pConn->whiteListVer = pWhite->ver;
 }
 // data time white list
-SDataTimeWhiteListTab* uvDataTimeWhiteListCreate() {
+SDataTimeWhiteListTab* uvDataTimeWhiteListCreate(void) {
   SDataTimeWhiteListTab* pWhiteList = taosMemoryCalloc(1, sizeof(SDataTimeWhiteListTab));
   if (pWhiteList == NULL) {
     return NULL;
@@ -500,63 +517,78 @@ SDataTimeWhiteListTab* uvDataTimeWhiteListCreate() {
   pWhiteList->ver = -1;
   return pWhiteList;
 }
-void uvDataTimeWhiteListDestroy(SDataTimeWhiteListTab* pWhite) {
-  if (pWhite == NULL) {
-    return;
-  }
-  SHashObj* pWhiteList = pWhite->pList;
-  void*     pIter = taosHashIterate(pWhiteList, NULL);
-  while (pIter) {
-    SUserDateTimeWhiteList* pUserList = (SUserDateTimeWhiteList*)pIter;
-    tFreeSUserDateTimeWhiteList(pUserList);
 
-    pIter = taosHashIterate(pWhiteList, pIter);
+void uvDataTimeWhiteListDestroy(SDataTimeWhiteListTab* pWhite) {
+  if (pWhite == NULL) return;
+
+  SHashObj* pWhiteList = pWhite->pList;
+  if (pWhiteList != NULL) {
+    void* pIter = taosHashIterate(pWhiteList, NULL);
+    while (pIter) {
+      /* taosHashIterate returns an iterator pointer whose stored value is a pointer
+       * to the actual entry (void*). Dereference to get the stored pointer. */
+      SUserDateTimeWhiteList* pUserList = *(SUserDateTimeWhiteList**)pIter;
+      if (pUserList != NULL) {
+        /* free internal arrays */
+        tFreeSUserDateTimeWhiteList(pUserList);
+        /* free the struct */
+        taosMemoryFree(pUserList);
+      }
+      pIter = taosHashIterate(pWhiteList, pIter);
+    }
+    taosHashCleanup(pWhiteList);
   }
-  taosHashCleanup(pWhiteList);
+
   taosMemoryFree(pWhite);
 }
 
 static int32_t uvDataTimeWhiteListToStr(SUserDateTimeWhiteList* plist, char* user, char** ppBuf) {
-  int32_t code = 0;
-  if (plist == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+  if (plist == NULL || user == NULL || ppBuf == NULL) {
+    return 0;
   }
-  int32_t len = 0;
+
+  /* estimate: each item roughly 64 bytes + header */
   int32_t limit = plist->numWhiteLists * sizeof(SDateTimeWhiteListItem) + 128;
   char*   pBuf = taosMemoryCalloc(1, limit);
+  if (pBuf == NULL) {
+    return 0;
+  }
+
+  int32_t written = 0;
   for (int32_t i = 0; i < plist->numWhiteLists; i++) {
     SDateTimeWhiteListItem* pItem = &plist->pWhiteLists[i];
     if (i == 0) {
-      len = snprintf(pBuf + strlen(pBuf), limit - strlen(pBuf), "user:%s duration:%" PRId64 ", start:%" PRId64 "; ",
-                     user, (int64_t)(pItem->duration), pItem->start);
+      written = snprintf(pBuf, limit, "user:%s duration:%" PRId64 ", start:%" PRId64 "; ", user,
+                         (int64_t)(pItem->duration), pItem->start);
     } else {
-      len = sprintf(pBuf + strlen(pBuf), "duration:%" PRId64 ", start:%" PRId64 "; ", (int64_t)(pItem->duration),
-                    pItem->start);
+      int32_t rem = limit - written;
+      written += snprintf(pBuf + written, rem, "duration:%" PRId64 ", start:%" PRId64 "; ", (int64_t)(pItem->duration),
+                          pItem->start);
     }
   }
-  return len;
+
+  *ppBuf = pBuf;
+  return written;
 }
+
 void uvDataTimeWhiteListDebug(SDataTimeWhiteListTab* pWrite) {
-  if (!(rpcDebugFlag & DEBUG_DEBUG)) {
-    return;
-  }
-  if (pWrite == NULL) {
-    return;
-  }
-  int32_t   len = 0;
+  if (!(rpcDebugFlag & DEBUG_DEBUG) || pWrite == NULL) return;
+
   SHashObj* pWhiteList = pWrite->pList;
   void*     pIter = taosHashIterate(pWhiteList, NULL);
   while (pIter) {
     size_t klen = 0;
     char   user[TSDB_USER_LEN + 1] = {0};
     char*  pUser = taosHashGetKey(pIter, &klen);
-    memcpy(user, pUser, klen);
+    if (pUser && klen > 0) {
+      memcpy(user, pUser, (klen < sizeof(user) ? klen : sizeof(user) - 1));
+    }
 
     SUserDateTimeWhiteList* pUserList = *(SUserDateTimeWhiteList**)pIter;
 
-    char* pBuf = NULL;
-    len = uvDataTimeWhiteListToStr(pUserList, user, &pBuf);
-    if (len > 0) {
+    char*   pBuf = NULL;
+    int32_t len = uvDataTimeWhiteListToStr(pUserList, user, &pBuf);
+    if (len > 0 && pBuf != NULL) {
       tDebug("dataTime white list %s", pBuf);
       taosMemoryFree(pBuf);
     }
@@ -564,59 +596,112 @@ void uvDataTimeWhiteListDebug(SDataTimeWhiteListTab* pWrite) {
     pIter = taosHashIterate(pWhiteList, pIter);
   }
 }
-int32_t uvDataTimeWhiteListAdd(SDataTimeWhiteListTab* pWhite, char* user, SUserDateTimeWhiteList* plist, int64_t ver) {
-  int32_t   code = 0;
-  if (pWhite == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  SHashObj* pWhiteList = pWhite->pList;
-  if (pWhiteList == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
 
-  SUserDateTimeWhiteList* pUserList = taosHashGet(pWhiteList, user, strlen(user));
-  if (pUserList == NULL) {
-    code = taosHashPut(pWhiteList, user, strlen(user), &plist, sizeof(void*));
+int32_t uvDataTimeWhiteListAdd(SDataTimeWhiteListTab* pWhite, char* user, SUserDateTimeWhiteList* plist, int64_t ver) {
+  if (pWhite == NULL || user == NULL || plist == NULL) return TSDB_CODE_INVALID_PARA;
+
+  SHashObj* pWhiteList = pWhite->pList;
+  if (pWhiteList == NULL) return TSDB_CODE_INVALID_PARA;
+
+  /* Check existing entry */
+  SUserDateTimeWhiteList** ppUserList = taosHashGet(pWhiteList, user, strlen(user));
+  if (ppUserList == NULL || *ppUserList == NULL) {
+    /* allocate heap object and take ownership of plist->pWhiteLists */
+    SUserDateTimeWhiteList* pNew = taosMemoryCalloc(1, sizeof(SUserDateTimeWhiteList));
+    if (pNew == NULL) return terrno;
+
+    pNew->numWhiteLists = plist->numWhiteLists;
+    pNew->pWhiteLists = plist->pWhiteLists;
+    pNew->ver = ver;
+
+    int32_t code = taosHashPut(pWhiteList, user, strlen(user), &pNew, sizeof(void*));
     if (code != 0) {
+      /* put failed: free only the allocated struct, not its internals (owned by caller) */
+      taosMemoryFree(pNew);
       return code;
     }
+
+    /* put succeeded: ownership has moved to pNew; clear caller's pointers */
+    plist->pWhiteLists = NULL;
+    plist->numWhiteLists = 0;
   } else {
-    taosMemoryFreeClear(pUserList->pWhiteLists);
-    pUserList->numWhiteLists = plist->numWhiteLists;
-    pUserList->pWhiteLists = plist->pWhiteLists;
-    pUserList->ver = ver;
+    /* replace existing: free old internals and adopt new internals */
+    SUserDateTimeWhiteList* pExist = *ppUserList;
+    if (pExist->pWhiteLists != NULL) {
+      taosMemoryFree(pExist->pWhiteLists);
+      pExist->pWhiteLists = NULL;
+    }
+    pExist->numWhiteLists = plist->numWhiteLists;
+    pExist->pWhiteLists = plist->pWhiteLists;
+    pExist->ver = ver;
+    plist->pWhiteLists = NULL;  // Prevent double-free
+    plist->numWhiteLists = 0;   // Clear count too
   }
-  return code;
+
+  return 0;
 }
 
 static bool uvDataTimeWhiteListIsDefaultAddr(SIpAddr* ip) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  return code;
+  if (ip == NULL) return false;
+
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  SIpRange addr4 = {0};
+  SIpRange addr6 = {0};
+
+  SIpRange target = {0};
+  code = tIpStrToUint(ip, &target);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+  if (target.type == 0) {
+    code = createDefaultIp4Range(&addr4);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+    return (target.ipV4.ip == addr4.ipV4.ip);
+  } else {
+    code = createDefaultIp6Range(&addr6);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+    return (addr6.ipV6.addr[0] == target.ipV6.addr[0] && addr6.ipV6.addr[1] == target.ipV6.addr[1]);
+  }
+
+_error:
+  tError("failed to create default ip range since %s", tstrerror(code));
+  return false;
 }
 
+bool uvListIsTimeInWhiteList(SUserDateTimeWhiteList* pWhiteList) {
+  if (pWhiteList == NULL) return false;
+
+  int64_t now = taosGetTimestampSec();
+  /* The helper expects an SDateTimeWhiteList view starting at the numWhiteLists field
+     inside SUserDateTimeWhiteList. Build that pointer explicitly for clarity. */
+  const SDateTimeWhiteList* pList =
+      (const SDateTimeWhiteList*)((const char*)pWhiteList + offsetof(SUserDateTimeWhiteList, numWhiteLists));
+  return isTimeInDateTimeWhiteList(pList, now);
+}
 bool uvDataTimeWhiteListFilte(SDataTimeWhiteListTab* pWhite, char* user, SIpAddr* pIp, int64_t ver) {
-  // impl check
+  if (pWhite == NULL || user == NULL || pIp == NULL) return true;
+
   SHashObj* pWhiteList = pWhite->pList;
-  bool      valid = true;
+  if (pWhiteList == NULL) return true;
 
-  // if (uvDataTimeWhiteListIsDefaultAddr(pIp)) return true;
+  /* default local addresses always allowed */
 
-  SUserDateTimeWhiteList* pList = taosHashGet(pWhiteList, user, strlen(user));
-  if (pList == NULL) {
+  SUserDateTimeWhiteList** ppList = taosHashGet(pWhiteList, user, strlen(user));
+  if (ppList == NULL || *ppList == NULL) {
+    /* no rule for this user -> allow */
     return true;
   }
 
-  SDateTimeWhiteList* p = (SDateTimeWhiteList*)&pList->numWhiteLists;
-  int64_t             now = taosGetTimestampSec();
+  SUserDateTimeWhiteList* pList = *ppList;
 
-  if (isTimeInDateTimeWhiteList(p, now)) {
-    valid = true;
-  } else {
-    valid = false;
-  }
+  /* version match -> allow */
+  // if (pList->ver == ver) return true;
 
-  return valid;
+  /* Evaluate time-based rules.
+   * The helper isTimeInDateTimeWhiteList expects pointer(s) describing the whitelist.
+   * The original code relied on a specific layout; reuse that helper as-is.
+   */
+  return uvListIsTimeInWhiteList(pList);
 }
 bool uvDataTimeWhiteListCheckConn(SDataTimeWhiteListTab* pWhite, SSvrConn* pConn) {
   if (pWhite == NULL) {
@@ -627,7 +712,7 @@ bool uvDataTimeWhiteListCheckConn(SDataTimeWhiteListTab* pWhite, SSvrConn* pConn
       pWhite->ver == pConn->dataTimeWhiteListVer /*|| strncmp(pConn->user, "_dnd", strlen("_dnd")) == 0*/)
     return true;
 
-  return uvDataTimeWhiteListFilte(pWhite, pConn->user, &pConn->clientIp, pConn->whiteListVer);
+  return uvDataTimeWhiteListFilte(pWhite, pConn->user, &pConn->clientIp, pConn->dataTimeWhiteListVer);
 }
 
 void uvDataTimeWhiteListSetVer(SDataTimeWhiteListTab* pWhite, SSvrConn* pConn) {
@@ -681,24 +766,11 @@ static void uvPerfLog_receive(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* 
           pConn->refId);
 }
 
-static int8_t uvValidConn(SSvrConn* pConn) {
-  STrans*    pInst = pConn->pInst;
-  SWorkThrd* pThrd = pConn->hostThrd;
-  int8_t     forbiddenIp = 0;
-  if (pThrd->enableIpWhiteList) {
-    forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
-    if (forbiddenIp == 0) {
-      uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
-    }
-  }
-  return forbiddenIp;
-}
-
 static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
   int32_t code = 0;
   STrans* pInst = pConn->pInst;
   if (pHead->msgType == TDMT_SCH_TASK_RELEASE) {
-    int64_t qId = taosHton64(pHead->qid);
+    int64_t qId = taosNtoh64(pHead->qid);
     if (qId <= 0) {
       tError("conn:%p, recv release, but invalid sid:%" PRId64, pConn, qId);
       code = TSDB_CODE_RPC_NO_STATE;
@@ -724,7 +796,7 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
                       .msgType = pHead->msgType + 1,
                       .info.qId = qId,
                       .info.traceId = pHead->traceId,
-                      .info.seqNum = taosHton64(pHead->seqNum)};
+                      .info.seqNum = taosNtoh64(pHead->seqNum)};
 
     SSvrRespMsg* srvMsg = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
     if (srvMsg == NULL) {
@@ -753,23 +825,34 @@ bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgL
   STrans*        pInst = pConn->pInst;
   STransMsgHead* pHead = *ppHead;
   int32_t        len = *msgLen;
+
+  int32_t offset = sizeof(pConn->user);
+  char*   pUser = pConn->user;
+  if (pHead->isToken) {
+    offset = sizeof(pConn->identifier);
+    pUser = pConn->identifier;
+    pConn->isToken = 1;
+  } else {
+    pConn->isToken = 0;
+  }
+
   if (pHead->withUserInfo) {
-    STransMsgHead* tHead = taosMemoryCalloc(1, len - sizeof(pInst->user));
+    STransMsgHead* tHead = taosMemoryCalloc(1, len - offset);
     if (tHead == NULL) {
       tError("conn:%p, failed to get user info since %s", pConn, tstrerror(terrno));
       return false;
     }
     memcpy((char*)tHead, (char*)pHead, TRANS_MSG_OVERHEAD);
-    memcpy((char*)tHead + TRANS_MSG_OVERHEAD, (char*)pHead + TRANS_MSG_OVERHEAD + sizeof(pInst->user),
-           len - sizeof(STransMsgHead) - sizeof(pInst->user));
-    tHead->msgLen = htonl(htonl(pHead->msgLen) - sizeof(pInst->user));
+    memcpy((char*)tHead + TRANS_MSG_OVERHEAD, (char*)pHead + TRANS_MSG_OVERHEAD + offset,
+           len - sizeof(STransMsgHead) - offset);
+    tHead->msgLen = htonl(ntohl(pHead->msgLen) - offset);
 
-    memcpy(pConn->user, (char*)pHead + TRANS_MSG_OVERHEAD, sizeof(pConn->user));
+    memcpy(pUser, (char*)pHead + TRANS_MSG_OVERHEAD, offset);
     pConn->userInited = 1;
 
     taosMemoryFree(pHead);
     *ppHead = tHead;
-    *msgLen = len - sizeof(pInst->user);
+    *msgLen = len - offset;
     return true;
   }
   return false;
@@ -781,6 +864,9 @@ static int8_t uvCheckConn(SSvrConn* pConn) {
   int8_t     forbiddenIp = 0;
   int8_t     timeForbiddenIp = 0;
 
+  if (pConn->isToken) {
+    return status;
+  }
   if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
     forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
     if (forbiddenIp == 0) {
@@ -804,18 +890,27 @@ static int8_t uvCheckConn(SSvrConn* pConn) {
 
   return status;
 }
+static void uvSetConnInfo(SSvrConn* pConn, SRpcConnInfo* pInfo) {
+  pInfo->cliAddr = pConn->clientIp;
 
+  if (pConn->isToken) {
+    tstrncpy(pInfo->identifier, pConn->identifier, sizeof(pInfo->identifier));
+    pInfo->isToken = 1;
+  } else {
+    tstrncpy(pInfo->user, pConn->user, sizeof(pInfo->user));
+    pInfo->isToken = 0;
+  }
+}
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pInst = pConn->pInst;
   SWorkThrd* pThrd = pConn->hostThrd;
 
-  int8_t         acquire = 0;
   STransMsgHead* pHead = NULL;
-
-  int8_t resetBuf = 0;
-  int    msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0);
-  if (msgLen <= 0) {
-    tError("%s conn:%p, read invalid packet", transLabel(pInst), pConn);
+  int8_t         resetBuf = 0;
+  int32_t        msgLen = 0;
+  int32_t        code = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0, &msgLen);
+  if (code != 0) {
+    tError("%s conn:%p, read invalid packet since %s", transLabel(pInst), pConn, tstrerror(code));
     return false;
   }
   if (transDecompressMsg((char**)&pHead, &msgLen) < 0) {
@@ -845,16 +940,6 @@ static bool uvHandleReq(SSvrConn* pConn) {
   pConn->inType = pHead->msgType;
 
   int8_t forbiddenIp = uvCheckConn(pConn);
-  // int8_t forbiddenIp = 0;
-  // int8_t timeForbiddenIp = 0;
-  // if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
-  //   forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
-  //   if (forbiddenIp == 0) {
-  //     uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
-  //   }
-  // }
-
-  // timeForbiddenIp = uvDataTimeWhiteListCheckConn(pThrd->pDataTimeWhiteList, pConn);
 
   if (uvMayHandleReleaseReq(pConn, pHead)) {
     return true;
@@ -881,20 +966,17 @@ static bool uvHandleReq(SSvrConn* pConn) {
   // 3. not mixed with persist
   transMsg.info.refId = pHead->noResp == 1 ? -1 : pConn->refId;
   transMsg.info.traceId = pHead->traceId;
-  transMsg.info.cliVer = htonl(pHead->compatibilityVer);
+  transMsg.info.cliVer = ntohl(pHead->compatibilityVer);
   transMsg.info.forbiddenIp = forbiddenIp;
   transMsg.info.noResp = pHead->noResp == 1 ? 1 : 0;
-  transMsg.info.seqNum = taosHton64(pHead->seqNum);
-  transMsg.info.qId = taosHton64(pHead->qid);
+  transMsg.info.seqNum = taosNtoh64(pHead->seqNum);
+  transMsg.info.qId = taosNtoh64(pHead->qid);
   transMsg.info.msgType = pHead->msgType;
 
   uvPerfLog_receive(pConn, pHead, &transMsg);
 
   // set up conn info
-  SRpcConnInfo* pConnInfo = &(transMsg.info.conn);
-  pConnInfo->cliAddr = pConn->clientIp;
-  // pConnInfo->clientPort = pConn->port;
-  tstrncpy(pConnInfo->user, pConn->user, sizeof(pConnInfo->user));
+  uvSetConnInfo(pConn, &(transMsg.info.conn));
 
   transReleaseExHandle(uvGetConnRefOfThrd(pThrd), pConn->refId);
 
@@ -1037,6 +1119,7 @@ void uvOnRecvCbSSL(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   } else {
     tError("%s conn:%p, read error since %s, received from %s, local info:%s", transLabel(pInst), conn,
            uv_err_name(nread), conn->dst, conn->src);
+    conn->broken = true;
     transUnrefSrvHandle(conn);
     return;
   }
@@ -1160,7 +1243,6 @@ static int32_t uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
   pHead->traceId = pMsg->info.traceId;
   pHead->hasEpSet = pMsg->info.hasEpSet;
-  pHead->magicNum = htonl(TRANS_MAGIC_NUM);
   pHead->compatibilityVer = htonl(((STrans*)pConn->pInst)->compatibilityVer);
   pHead->version = TRANS_VER;
   pHead->seqNum = taosHton64(pMsg->info.seqNum);
@@ -1195,6 +1277,8 @@ static int32_t uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
 
   wb->base = (char*)pHead;
   wb->len = len;
+
+  TAOS_UNUSED(transDoCrc((char*)pHead, len));
   return 0;
 }
 
@@ -1527,11 +1611,25 @@ void uvGetSockInfo(struct sockaddr* addr, SIpAddr* ip) {
   } else if (addr->sa_family == AF_INET6) {
     struct sockaddr_in6* addr_in = (struct sockaddr_in6*)addr;
     ip->port = ntohs(addr_in->sin6_port);
-    if (inet_ntop(AF_INET6, &addr_in->sin6_addr, ip->ipv6, INET6_ADDRSTRLEN) == NULL) {
-      uInfo("failed to convert ipv6 address");
+
+    // Check for IPv4-mapped IPv6 address (::ffff:x.x.x.x)
+    if (IN6_IS_ADDR_V4MAPPED(&addr_in->sin6_addr)) {
+      // Convert IPv4-mapped IPv6 address to IPv4
+      struct in_addr ipv4_addr;
+      memcpy(&ipv4_addr, ((const uint8_t*)&addr_in->sin6_addr) + 12, sizeof(ipv4_addr));
+      if (inet_ntop(AF_INET, &ipv4_addr, ip->ipv4, INET_ADDRSTRLEN) == NULL) {
+        uInfo("failed to convert ipv4-mapped ipv6 address to ipv4");
+      }
+      ip->type = 0;
+      ip->mask = 32;
+    } else {
+      // Pure IPv6 address
+      if (inet_ntop(AF_INET6, &addr_in->sin6_addr, ip->ipv6, INET6_ADDRSTRLEN) == NULL) {
+        uInfo("failed to convert ipv6 address");
+      }
+      ip->type = 1;
+      ip->mask = 128;
     }
-    ip->type = 1;
-    ip->mask = 128;
   }
 }
 void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
@@ -1774,12 +1872,35 @@ static int32_t addHandleToAcceptloop(void* arg) {
       tError("failed to bind addr since %s", uv_err_name(code));
       return TSDB_CODE_THIRDPARTY_ERROR;
     }
-
-    if ((code = uv_tcp_bind(&srv->server, (const struct sockaddr*)&bind_addr, 1)) != 0) {
+    if ((code = uv_tcp_bind(&srv->server, (const struct sockaddr*)&bind_addr, 0)) != 0) {
       tError("failed to bind since %s", uv_err_name(code));
       return TSDB_CODE_THIRDPARTY_ERROR;
     }
-    tInfo("bind to ipv6 addr");
+    // set IPV6_V6ONLY to 0 to allow both IPv4 and IPv6 connections
+    #if !defined(WINDOWS)
+      uv_os_fd_t fd;
+      if ((code = uv_fileno((const uv_handle_t*)&srv->server, &fd)) == 0) {
+        int opt = 0;
+        if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt)) < 0) {
+        tWarn("failed to set IPV6_V6ONLY=0: %s, continue with default setting", strerror(errno));
+        } else {
+        tInfo("successfully set IPV6_V6ONLY=0 (dual-stack enabled)");
+        }
+      }
+    #else
+      /* Windows: optional, only if you really need to change IPV6_V6ONLY.
+         uv_os_fd_t is a SOCKET on Windows; use BOOL (or char) and WSA error helpers.
+         Ensure Winsock is started (WSAStartup) elsewhere if required. */
+      uv_os_fd_t s;
+      if ((code = uv_fileno((const uv_handle_t*)&srv->server, &s)) == 0) {
+        BOOL opt = FALSE;
+        if (setsockopt((SOCKET)s, IPPROTO_IPV6, IPV6_V6ONLY, (const char*)&opt, sizeof(opt)) == SOCKET_ERROR) {
+        tWarn("failed to set IPV6_V6ONLY=0 on Windows: %d, continue with default setting", WSAGetLastError());
+        } else {
+        tInfo("successfully set IPV6_V6ONLY=0 on Windows (dual-stack enabled)");
+        }
+      }
+    #endif
   } else {
     struct sockaddr_in bind_addr;
     if ((code = uv_ip4_addr("0.0.0.0", srv->port, &bind_addr)) != 0) {
@@ -2839,7 +2960,7 @@ int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 
 
 void *transInitServer(SIpAddr *pAddr, char *label, int numOfThreads, void *fp, void *pInit) { return NULL; }
 void  transCloseServer(void *arg) {
-  // impl later
+   // impl later
   return;
 }
 

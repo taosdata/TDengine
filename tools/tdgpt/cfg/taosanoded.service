@@ -5,9 +5,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-Environment=PATH=/usr/lib/taos/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-ExecStart=/usr/local/taos/taosanode/bin/start.sh
-ExecStop=/usr/local/taos/taosanode/bin/stop.sh
+Environment=PATH=/var/lib/taos/taosanode/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/var/lib/taos/taosanode/venv/bin/uwsgi /usr/local/taos/taosanode/cfg/taosanode.ini
+ExecStop=/var/lib/taos/taosanode/venv/bin/uwsgi --stop /usr/local/taos/taosanode/taosanode.pid
 TimeoutStartSec=0
 TimeoutStopSec=120s
 LimitNOFILE=1048576

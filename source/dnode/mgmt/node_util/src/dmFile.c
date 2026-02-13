@@ -17,29 +17,44 @@
 #include "crypt.h"
 #include "dmUtil.h"
 #include "tchecksum.h"
+#include "tencrypt.h"
 #include "tgrant.h"
 #include "tjson.h"
+#include "tglobal.h"
+
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+#include "taoskInt.h"
+#endif
 
 #define MAXLEN               1024
 #define DM_KEY_INDICATOR     "this indicator!"
 #define DM_ENCRYPT_CODE_FILE "encryptCode.cfg"
 #define DM_CHECK_CODE_FILE   "checkCode.bin"
 
-static int32_t dmDecodeFile(SJson *pJson, bool *deployed) {
+static int32_t dmDecodeFile(SJson *pJson, bool *deployed, bool *encrypted) {
   int32_t code = 0;
   int32_t value = 0;
 
   tjsonGetInt32ValueFromDouble(pJson, "deployed", value, code);
   if (code < 0) return code;
-
   *deployed = (value != 0);
+
+  // Read encrypted flag (optional, defaults to false for backward compatibility)
+  if (encrypted != NULL) {
+    int32_t encryptedValue = 0;
+    tjsonGetInt32ValueFromDouble(pJson, "encrypted", encryptedValue, code);
+    *encrypted = (encryptedValue != 0);
+    // Reset code to 0 for backward compatibility if encrypted field not found
+    code = 0;
+  }
+
   return code;
 }
 
 int32_t dmReadFile(const char *path, const char *name, bool *pDeployed) {
   int32_t   code = -1;
-  TdFilePtr pFile = NULL;
   char     *content = NULL;
+  int32_t   contentLen = 0;
   SJson    *pJson = NULL;
   char      file[PATH_MAX] = {0};
   int32_t   nBytes = snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
@@ -54,33 +69,12 @@ int32_t dmReadFile(const char *path, const char *name, bool *pDeployed) {
     goto _OVER;
   }
 
-  pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
-    code = terrno;
-    dError("failed to open file:%s since %s", file, tstrerror(code));
-    goto _OVER;
-  }
-
-  int64_t size = 0;
-  code = taosFStatFile(pFile, &size, NULL);
+  // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)
+  code = taosReadCfgFile(file, &content, &contentLen);
   if (code != 0) {
-    dError("failed to fstat file:%s since %s", file, tstrerror(code));
-    goto _OVER;
-  }
-
-  content = taosMemoryMalloc(size + 1);
-  if (content == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  if (taosReadFile(pFile, content, size) != size) {
-    code = terrno;
     dError("failed to read file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
-
-  content[size] = '\0';
 
   pJson = tjsonParse(content);
   if (pJson == NULL) {
@@ -88,7 +82,7 @@ int32_t dmReadFile(const char *path, const char *name, bool *pDeployed) {
     goto _OVER;
   }
 
-  if (dmDecodeFile(pJson, pDeployed) < 0) {
+  if (dmDecodeFile(pJson, pDeployed, NULL) < 0) {
     code = TSDB_CODE_INVALID_JSON_FORMAT;
     goto _OVER;
   }
@@ -99,7 +93,6 @@ int32_t dmReadFile(const char *path, const char *name, bool *pDeployed) {
 _OVER:
   if (content != NULL) taosMemoryFree(content);
   if (pJson != NULL) cJSON_Delete(pJson);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     dError("failed to read dnode file:%s since %s", file, tstrerror(code));
@@ -107,10 +100,11 @@ _OVER:
   return code;
 }
 
-int32_t dmReadFileJson(const char *path, const char *name, SJson **ppJson, bool* deployed) {
+int32_t dmReadFileJsonWithEncrypted(const char *path, const char *name, SJson **ppJson, bool *deployed,
+                                    bool *encrypted) {
   int32_t   code = -1;
-  TdFilePtr pFile = NULL;
   char     *content = NULL;
+  int32_t   contentLen = 0;
   char      file[PATH_MAX] = {0};
   int32_t   nBytes = snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
   if (nBytes <= 0 || nBytes >= PATH_MAX) {
@@ -124,33 +118,12 @@ int32_t dmReadFileJson(const char *path, const char *name, SJson **ppJson, bool*
     goto _OVER;
   }
 
-  pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
-    code = terrno;
-    dError("failed to open file:%s since %s", file, tstrerror(code));
-    goto _OVER;
-  }
-
-  int64_t size = 0;
-  code = taosFStatFile(pFile, &size, NULL);
+  // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)
+  code = taosReadCfgFile(file, &content, &contentLen);
   if (code != 0) {
-    dError("failed to fstat file:%s since %s", file, tstrerror(code));
-    goto _OVER;
-  }
-
-  content = taosMemoryMalloc(size + 1);
-  if (content == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  if (taosReadFile(pFile, content, size) != size) {
-    code = terrno;
     dError("failed to read file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
-
-  content[size] = '\0';
 
   *ppJson = tjsonParse(content);
   if (*ppJson == NULL) {
@@ -158,17 +131,16 @@ int32_t dmReadFileJson(const char *path, const char *name, SJson **ppJson, bool*
     goto _OVER;
   }
 
-  if (dmDecodeFile(*ppJson, deployed) < 0) {
+  if (dmDecodeFile(*ppJson, deployed, encrypted) < 0) {
     code = TSDB_CODE_INVALID_JSON_FORMAT;
     goto _OVER;
   }
 
   code = 0;
-  dInfo("succceed to read mnode file %s", file);
+  dInfo("succeed to read file:%s, deployed:%d, encrypted:%d", file, *deployed, encrypted ? *encrypted : 0);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     if (*ppJson != NULL) cJSON_Delete(*ppJson);
@@ -177,27 +149,24 @@ _OVER:
   return code;
 }
 
+int32_t dmReadFileJson(const char *path, const char *name, SJson **ppJson, bool *deployed) {
+  bool encrypted = false;
+  return dmReadFileJsonWithEncrypted(path, name, ppJson, deployed, &encrypted);
+}
 
-static int32_t dmEncodeFile(SJson *pJson, bool deployed) {
+static int32_t dmEncodeFile(SJson *pJson, bool deployed, bool encrypted) {
   if (tjsonAddDoubleToObject(pJson, "deployed", deployed) < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
+  if (tjsonAddDoubleToObject(pJson, "encrypted", encrypted ? 1 : 0) < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
   return 0;
 }
 
-int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
+int32_t dmWriteFileWithEncrypted(const char *path, const char *name, bool deployed, bool encrypted) {
   int32_t   code = -1;
   char     *buffer = NULL;
   SJson    *pJson = NULL;
-  TdFilePtr pFile = NULL;
-  char      file[PATH_MAX] = {0};
   char      realfile[PATH_MAX] = {0};
 
-  int32_t nBytes = snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
-  if (nBytes <= 0 || nBytes >= PATH_MAX) {
-    code = TSDB_CODE_OUT_OF_BUFFER;
-    goto _OVER;
-  }
-
-  nBytes = snprintf(realfile, sizeof(realfile), "%s%s%s.json", path, TD_DIRSEP, name);
+  int32_t nBytes = snprintf(realfile, sizeof(realfile), "%s%s%s.json", path, TD_DIRSEP, name);
   if (nBytes <= 0 || nBytes >= PATH_MAX) {
     code = TSDB_CODE_OUT_OF_BUFFER;
     goto _OVER;
@@ -209,7 +178,7 @@ int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
     goto _OVER;
   }
 
-  if ((code = dmEncodeFile(pJson, deployed)) != 0) goto _OVER;
+  if ((code = dmEncodeFile(pJson, deployed, encrypted)) != 0) goto _OVER;
 
   buffer = tjsonToString(pJson);
   if (buffer == NULL) {
@@ -217,56 +186,38 @@ int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
     goto _OVER;
   }
 
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pFile == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
   int32_t len = strlen(buffer);
-  if (taosWriteFile(pFile, buffer, len) <= 0) {
-    code = terrno;
-    goto _OVER;
-  }
-  if (taosFsyncFile(pFile) < 0) {
-    code = terrno;
+  
+  // Use encrypted write if tsCfgKey is enabled
+  code = taosWriteCfgFile(realfile, buffer, len);
+  if (code != 0) {
     goto _OVER;
   }
 
-  if (taosCloseFile(&pFile) != 0) {
-    code = TAOS_SYSTEM_ERROR(ERRNO);
-    goto _OVER;
-  }
-  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
-
-  dInfo("succeed to write file:%s", realfile);
+  dInfo("succeed to write file:%s, deployed:%d, encrypted:%d", realfile, deployed, encrypted);
 
 _OVER:
 
   if (pJson != NULL) tjsonDelete(pJson);
   if (buffer != NULL) taosMemoryFree(buffer);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
-    dError("failed to write file:%s since %s", realfile, tstrerror(code));
+    dError("failed to write file:%s since %s, deployed:%d, encrypted:%d", realfile, tstrerror(code), deployed,
+           encrypted);
   }
   return code;
+}
+
+int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
+  return dmWriteFileWithEncrypted(path, name, deployed, false);
 }
 
 int32_t dmWriteFileJson(const char *path, const char *name, SJson *pJson) {
   int32_t   code = -1;
   char     *buffer = NULL;
-  TdFilePtr pFile = NULL;
-  char      file[PATH_MAX] = {0};
   char      realfile[PATH_MAX] = {0};
 
-  int32_t nBytes = snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
-  if (nBytes <= 0 || nBytes >= PATH_MAX) {
-    code = TSDB_CODE_OUT_OF_BUFFER;
-    goto _OVER;
-  }
-
-  nBytes = snprintf(realfile, sizeof(realfile), "%s%s%s.json", path, TD_DIRSEP, name);
+  int32_t nBytes = snprintf(realfile, sizeof(realfile), "%s%s%s.json", path, TD_DIRSEP, name);
   if (nBytes <= 0 || nBytes >= PATH_MAX) {
     code = TSDB_CODE_OUT_OF_BUFFER;
     goto _OVER;
@@ -278,27 +229,13 @@ int32_t dmWriteFileJson(const char *path, const char *name, SJson *pJson) {
     goto _OVER;
   }
 
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pFile == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
   int32_t len = strlen(buffer);
-  if (taosWriteFile(pFile, buffer, len) <= 0) {
-    code = terrno;
+  
+  // Use encrypted write if tsCfgKey is enabled
+  code = taosWriteCfgFile(realfile, buffer, len);
+  if (code != 0) {
     goto _OVER;
   }
-  if (taosFsyncFile(pFile) < 0) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  if (taosCloseFile(&pFile) != 0) {
-    code = TAOS_SYSTEM_ERROR(ERRNO);
-    goto _OVER;
-  }
-  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
 
   dInfo("succeed to write file:%s", realfile);
 
@@ -306,7 +243,6 @@ _OVER:
 
   if (pJson != NULL) tjsonDelete(pJson);
   if (buffer != NULL) taosMemoryFree(buffer);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     dError("failed to write file:%s since %s", realfile, tstrerror(code));
@@ -595,6 +531,13 @@ _OVER:
 
 extern int32_t checkAndGetCryptKey(const char *encryptCode, const char *machineId, char **key);
 
+extern int32_t dmGetEncryptKeyFromTaosk();
+
+extern int32_t taoskLoadEncryptKeys(const char *masterKeyFile, const char *derivedKeyFile, char *svrKey, char *dbKey,
+                                    char *cfgKey, char *metaKey, char *dataKey, int32_t *algorithm, int32_t *cfgAlgorithm,
+                                    int32_t *metaAlgorithm, int32_t *fileVersion, int32_t *keyVersion, int64_t *createTime,
+                                    int64_t *svrKeyUpdateTime, int64_t *dbKeyUpdateTime);
+
 static int32_t dmReadEncryptCodeFile(char *file, char **output) {
   TdFilePtr pFile = NULL;
   int32_t   code = -1;
@@ -640,6 +583,107 @@ _OVER:
   return code;
 }
 
+int32_t dmGetEncryptKeyFromTaosk() {
+#if (defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)) || defined(TD_ASTRA_TODO)
+  char keyFileDir[PATH_MAX] = {0};
+  char masterKeyFile[PATH_MAX] = {0};
+  char derivedKeyFile[PATH_MAX] = {0};
+
+  // Build path to key file directory: tsDataDir/dnode/config/
+  int32_t nBytes = snprintf(keyFileDir, sizeof(keyFileDir), "%s%sdnode%sconfig", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(keyFileDir)) {
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  // Build path to master.bin
+  nBytes = snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%smaster.bin", keyFileDir, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(masterKeyFile)) {
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  // Build path to derived.bin
+  nBytes = snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sderived.bin", keyFileDir, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(derivedKeyFile)) {
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  // Check if master.bin exists
+  if (!taosCheckExistFile(masterKeyFile)) {
+    dInfo("taosk master key file not found: %s, encryption not configured", masterKeyFile);
+    return TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;
+  }
+
+  dInfo("loading encryption keys from taosk split files: %s, %s", masterKeyFile, derivedKeyFile);
+
+  // Prepare variables for decrypted keys
+  int32_t algorithm = 0;
+  int32_t fileVersion = 0;
+  int32_t keyVersion = 0;
+  int64_t createTime = 0;
+  int64_t svrKeyUpdateTime = 0;
+  int64_t dbKeyUpdateTime = 0;
+  int32_t cfgAlgorithm = 0;
+  int32_t metaAlgorithm = 0;
+
+  // Call enterprise function to decrypt and load multi-layer keys from split files
+  int32_t code = taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile,
+                                      tsSvrKey,           // output: SVR_KEY (server master key)
+                                      tsDbKey,            // output: DB_KEY (database master key)
+                                      tsCfgKey,           // output: CFG_KEY (config encryption key)
+                                      tsMetaKey,          // output: META_KEY (metadata encryption key)
+                                      tsDataKey,          // output: DATA_KEY (data encryption key)
+                                      &algorithm,         // output: encryption algorithm type for master keys
+                                      &cfgAlgorithm,      // output: encryption algorithm type for CFG_KEY
+                                      &metaAlgorithm,     // output: encryption algorithm type for META_KEY
+                                      &fileVersion,       // output: file format version
+                                      &keyVersion,        // output: key update version
+                                      &createTime,        // output: key creation timestamp
+                                      &svrKeyUpdateTime,  // output: SVR_KEY update timestamp
+                                      &dbKeyUpdateTime    // output: DB_KEY update timestamp
+  );
+
+  if (code != 0) {
+    dError("failed to load encryption keys from taosk since %s", tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  // Store decrypted keys in global variables
+  tsUseTaoskEncryption = true;
+
+  // Store metadata
+  tsEncryptAlgorithmType = algorithm;
+  tsCfgAlgorithm = cfgAlgorithm;
+  tsMetaAlgorithm = metaAlgorithm;
+  tsEncryptFileVersion = fileVersion;   // file format version for compatibility
+  tsEncryptKeyVersion = keyVersion;     // key update version
+  tsEncryptKeyCreateTime = createTime;
+  tsSvrKeyUpdateTime = svrKeyUpdateTime;
+  tsDbKeyUpdateTime = dbKeyUpdateTime;
+
+  // For backward compatibility: copy DATA_KEY to tsEncryptKey (truncated to 16 bytes)
+  int keyLen = strlen(tsDataKey);
+  if (keyLen > ENCRYPT_KEY_LEN) {
+    keyLen = ENCRYPT_KEY_LEN;
+  }
+  memset(tsEncryptKey, 0, ENCRYPT_KEY_LEN + 1);
+  memcpy(tsEncryptKey, tsDataKey, keyLen);
+  tsEncryptKey[ENCRYPT_KEY_LEN] = '\0';
+
+  // Update encryption key status
+  tsEncryptionKeyChksum = taosCalcChecksum(0, (const uint8_t *)tsEncryptKey, strlen(tsEncryptKey));
+  tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED;
+
+  dInfo("successfully loaded taosk encryption keys (algorithm:%d, cfg:%s, meta:%s, data:%s)", algorithm,
+        (tsCfgKey[0] != '\0') ? "enabled" : "disabled", 
+        (tsMetaKey[0] != '\0') ? "enabled" : "disabled", 
+        (tsDataKey[0] != '\0') ? "enabled" : "disabled");
+
+  TAOS_RETURN(0);
+#else
+  return 0;
+#endif
+}
+
 int32_t dmGetEncryptKey() {
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   int32_t code = -1;
@@ -648,6 +692,19 @@ int32_t dmGetEncryptKey() {
   char   *machineId = NULL;
   char   *encryptKey = NULL;
   char   *content = NULL;
+
+  // First try to load from taosk key files (master.bin and derived.bin)
+  code = dmGetEncryptKeyFromTaosk();
+  if (code == 0) {
+    tsEncryptKeysStatus = TSDB_ENCRYPT_KEY_STAT_LOADED;
+    dInfo("encryption keys loaded from taosk key files");
+    return 0;
+  }
+
+  tsEncryptKeysStatus = TSDB_ENCRYPT_KEY_STAT_NOT_EXIST;
+
+  // Fallback to legacy encryptCode.cfg format (pre-taosk)
+  dInfo("falling back to legacy encryptCode.cfg format");
 
   int32_t nBytes = snprintf(encryptFile, sizeof(encryptFile), "%s%sdnode%s%s", tsDataDir, TD_DIRSEP, TD_DIRSEP,
                             DM_ENCRYPT_CODE_FILE);

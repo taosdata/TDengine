@@ -163,7 +163,7 @@ class TestCompositePrimaryKeyCreate:
         tdSql.error(f"alter table {table_name} drop column pk", show=SHOW_LOG)
 
     def test_primary_key_create(self):
-        """ Composite Primary Key Create Test
+        """Composite Primary Key Create
 
         1. Check legal data type
         2. Check illegal data type
@@ -237,5 +237,5 @@ class TestCompositePrimaryKeyCreate:
         self.check_update_pk('s_table', TableType.SUPERTABLE)
         self.check_update_pk('n_table', TableType.NORNALTABLE)
         
-        tdLog.success(f"{__file__} successfully executed")
+
         

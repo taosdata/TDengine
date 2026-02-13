@@ -73,6 +73,66 @@ static void dumpLogicPlan(SLogicSubplan* pLogicSubplan, int32_t level) {
   return;
 }
 
+static void initSubQueryPlanContext(SPlanContext* pDst, SPlanContext* pSrc, SNode* pRoot) {
+  memcpy(pDst, pSrc, sizeof(*pSrc));
+
+  pDst->groupId++;
+  pDst->withExtWindow = false;
+  pDst->hasScan = false;
+  
+  pDst->pAstRoot = pRoot;
+}
+
+static int32_t createSubQueryPlans(SPlanContext* pSrc, SQueryPlan* pParent, SArray* pExecNodeList) {
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
+  SPlanContext ctx;
+  SNodeList* pSubQueries = NULL;
+  SNode* pNode = NULL;
+  SQueryPlan* pPlan = NULL;
+  SNode* pRoot = NULL;
+
+  switch (nodeType(pSrc->pAstRoot)) {
+    case QUERY_NODE_EXPLAIN_STMT:
+      pRoot = ((SExplainStmt*)pSrc->pAstRoot)->pQuery;
+      break;
+    case QUERY_NODE_INSERT_STMT:
+      pRoot = ((SInsertStmt*)pSrc->pAstRoot)->pQuery;
+      break;
+    default:
+      pRoot = pSrc->pAstRoot;
+      break;
+  }
+  
+  switch (nodeType(pRoot)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pRoot;
+      pSubQueries = pSelect->pSubQueries;
+      break;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pRoot;
+      pSubQueries = pSet->pSubQueries;
+      break;
+    }
+    default:
+      return code;
+  }
+
+  FOREACH(pNode, pSubQueries) {
+    initSubQueryPlanContext(&ctx, pSrc, pNode);
+    TAOS_CHECK_EXIT(qCreateQueryPlan(&ctx, &pPlan, pExecNodeList));
+    TAOS_CHECK_EXIT(nodesListMakeStrictAppend(&pParent->pChildren, (SNode*)pPlan));
+    pParent->numOfSubplans += pPlan->numOfSubplans;
+    pPlan->subSql = nodesGetSubSql(pNode);
+    nodesGetSubQType(pNode, (int32_t*)&pPlan->subQType);
+    pSrc->groupId = ++ctx.groupId;
+  }
+
+_exit:
+
+  return code;
+}
+
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
   SLogicSubplan*   pLogicSubplan = NULL;
   SQueryLogicPlan* pLogicPlan = NULL;
@@ -96,13 +156,18 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   if (TSDB_CODE_SUCCESS == code) {
     code = validateQueryPlan(pCxt, *pPlan);
   }
+  (void)nodesReleaseAllocator(pCxt->allocatorId);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createSubQueryPlans(pCxt, *pPlan, pExecNodeList);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = dumpQueryPlan(*pPlan);
   }
-  (void)nodesReleaseAllocator(pCxt->allocatorId);
-
+  
   nodesDestroyNode((SNode*)pLogicSubplan);
   nodesDestroyNode((SNode*)pLogicPlan);
+  
   terrno = code;
   return code;
 }

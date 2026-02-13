@@ -143,6 +143,9 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pFill->pWStartTs, order, walker, pContext);
       }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pFill->pSurroundingTime, order, walker, pContext);
+      }
       break;
     }
     case QUERY_NODE_RAW_EXPR:
@@ -222,6 +225,11 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
     case QUERY_NODE_STREAM_TRIGGER_OPTIONS: {
       SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pNode;
       res = walkExpr(pOptions->pPreFilter, order, walker, pContext);
+      break;
+    }
+    case QUERY_NODE_TRUE_FOR: {
+      STrueForNode* pTrueFor = (STrueForNode*)pNode;
+      res = walkExpr(pTrueFor->pDuration, order, walker, pContext);
       break;
     }
     default:
@@ -426,6 +434,10 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       if (DEAL_RES_ERROR!= res && DEAL_RES_END!= res) {
         res = rewriteExpr(&(pFill->pTimeRange), order, rewriter, pContext);
       }
+      if (DEAL_RES_ERROR!= res && DEAL_RES_END!= res) {
+        res = rewriteExpr(&(pFill->pSurroundingTime), order, rewriter,
+                          pContext);
+      }
       break;
     }
     case QUERY_NODE_RAW_EXPR:
@@ -512,6 +524,11 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       }
       break;
     }
+    case QUERY_NODE_TRUE_FOR: {
+      STrueForNode* pTrueFor = (STrueForNode*)pNode;
+      res = rewriteExpr(&pTrueFor->pDuration, order, rewriter, pContext);
+      break;
+    }
 
     default:
       break;
@@ -564,6 +581,7 @@ void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalke
       nodesWalkExprs(pSelect->pPartitionByList, walker, pContext);
     case SQL_CLAUSE_PARTITION_BY:
       nodesWalkExpr(pSelect->pWindow, walker, pContext);
+      nodesWalkExpr(pSelect->pFill, walker, pContext);
     case SQL_CLAUSE_WINDOW:
       if (NULL != pSelect->pWindow) {
         if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {

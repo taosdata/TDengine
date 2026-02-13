@@ -181,16 +181,16 @@ class TestFullopt:
         self.doTaos()
         # do action
         self.doTaosd()
-        tdLog.success(f"{__file__} successfully executed")
+
 
     def test_tools_cmdline_taosd(self):
-        """taosd command line test
+        """Taosd support arguments
         
         1. Insert data with taosBenchmark json format
-        2. Check taosd all command lines
-        
-        Catalog:
-            - Components:Taosd
+        2. Check taosd arguments -c/e/s/-C/-k/-V/--help
+        3. Check taosd except arguments
+        4. Check taos as client when taosd stopped
+        5. Check taos arguments -h/-u/-d/-a/-p/-w/-V/-?/-N/-l
 
         Since: v3.0.0.0
 

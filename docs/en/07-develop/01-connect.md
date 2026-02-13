@@ -12,6 +12,7 @@ import ConnNode from "../assets/resources/_connect_node.mdx";
 import ConnPythonNative from "../assets/resources/_connect_python.mdx";
 import ConnCSNative from "../assets/resources/_connect_cs.mdx";
 import ConnC from "../assets/resources/_connect_c.mdx";
+import ConnCWebSocket from "../assets/resources/_connect_c_ws.mdx";
 import InstallOnLinux from "../assets/resources/_linux_install.mdx";
 import InstallOnWindows from "../assets/resources/_windows_install.mdx";
 import InstallOnMacOS from "../assets/resources/_macos_install.mdx";
@@ -83,12 +84,11 @@ If you are using Maven to manage your project, simply add the following dependen
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.5.2</version>
+  <version>3.8.1</version>
 </dependency>
 ```
 
 </TabItem>
-
 <TabItem label="Python" value="python">
 
 - **Pre-installation Preparation**
@@ -115,7 +115,7 @@ If you are using Maven to manage your project, simply add the following dependen
     - Install a specific version
 
     ```shell
-    pip3 install taospy==2.8.6
+    pip3 install taospy==2.8.8
     ```
 
     - Install from GitHub
@@ -176,7 +176,7 @@ import taosws
 
 Edit `go.mod` to add the `driver-go` dependency.
 
-```go-mod title=go.mod
+```go-mod title="go.mod"
 module goexample
 
 go 1.17
@@ -196,7 +196,7 @@ driver-go uses cgo to wrap the taosc API. cgo requires GCC to compile C source c
 
 Edit `Cargo.toml` to add the `taos` dependency.
 
-```toml title=Cargo.toml
+```toml title="Cargo.toml"
 [dependencies]
 taos = { version = "*"}
 ```
@@ -245,7 +245,7 @@ taos = { version = "*", default-features = false, features = ["ws"] }
 
 Edit the project configuration file to add a reference to [TDengine.Connector](https://www.nuget.org/packages/TDengine.Connector/):
 
-```xml title=csharp.csproj
+```xml title="csharp.csproj"
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
@@ -357,6 +357,7 @@ REST connection:
 - `token` the token used when connecting to cloud services.
 - `skipVerify` whether to skip certificate verification, default is false which means not skipping certificate verification, set to true if connecting to an insecure service.
 - `timezone` specifies the timezone used for the connection. Both SQL parsing and query results will be converted according to this timezone. Only IANA timezone formats are supported, and special characters need to be encoded. Taking the Shanghai timezone (`Asia/Shanghai`) as an example: `timezone=Asia%2FShanghai`.
+- `bearerToken` the token used for authentication.
 
 WebSocket connection:
 
@@ -364,6 +365,8 @@ WebSocket connection:
 - `readTimeout` the timeout for reading data, default is 5m.
 - `writeTimeout` the timeout for writing data, default is 10s.
 - `timezone` specifies the timezone used for the connection. Both SQL parsing and query results will be converted according to this timezone. Only IANA timezone formats are supported, and special characters need to be encoded. Taking the Shanghai timezone (`Asia/Shanghai`) as an example: `timezone=Asia%2FShanghai`.
+- `bearerToken` the token used for authentication.
+- `totpCode` the TOTP code used for two-factor authentication.
 
 </TabItem>
 
@@ -428,6 +431,7 @@ Supported parameters are as follows:
 - `db`: Database to connect to.
 - `timezone`: Time zone, default is the local time zone.
 - `connTimeout`: Connection timeout, default is 1 minute.
+- `bearerToken`: Token for connecting to TDengine TSDB.
 
 Additional parameters supported for WebSocket connections:
 
@@ -528,11 +532,7 @@ SQLAlchemy supports configuring multiple server addresses through the `hosts` pa
 </TabItem>
 
 <TabItem label="C" value="c">
-
-```c
-{{#include docs/examples/c-ws-new/connect_example.c}}
-```
-
+  <ConnCWebSocket />
 </TabItem>
 
 <TabItem label="REST API" value="rest">

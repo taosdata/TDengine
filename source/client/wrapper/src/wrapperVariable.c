@@ -21,11 +21,13 @@ int (*fp_taos_init)(void) = NULL;
 void (*fp_taos_cleanup)(void) = NULL;
 int (*fp_taos_options)(TSDB_OPTION option, const void *arg, ...) = NULL;
 int (*fp_taos_options_connection)(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...) = NULL;
+void (*fp_taos_set_option)(OPTIONS *options, const char *key, const char *value) = NULL;
 TAOS *(*fp_taos_connect)(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) = NULL;
 TAOS *(*fp_taos_connect_totp)(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port) = NULL;
 int (*fp_taos_connect_test)(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port) = NULL;
 TAOS *(*fp_taos_connect_token)(const char *ip, const char *token, const char *db, uint16_t port) = NULL;
 TAOS *(*fp_taos_connect_auth)(const char *ip, const char *user, const char *auth, const char *db, uint16_t port) = NULL;
+TAOS *(*fp_taos_connect_with)(const OPTIONS *options) = NULL;
 TAOS *(*fp_taos_connect_with_dsn)(const char *dsn) = NULL;
 void (*fp_taos_close)(TAOS *taos) = NULL;
 
@@ -104,6 +106,7 @@ TAOS_ROW *(*fp_taos_result_block)(TAOS_RES *res) = NULL;
 const char *(*fp_taos_get_server_info)(TAOS *taos) = NULL;
 const char *(*fp_taos_get_client_info)() = NULL;
 int (*fp_taos_get_current_db)(TAOS *taos, char *database, int len, int *required) = NULL;
+int (*fp_taos_get_connection_info)(TAOS *taos, TSDB_CONNECTION_INFO info, char *buffer, int *len) = NULL;
 
 const char *(*fp_taos_errstr)(TAOS_RES *res) = NULL;
 int (*fp_taos_errno)(TAOS_RES *res) = NULL;
@@ -214,4 +217,4 @@ TSDB_SERVER_STATUS (*fp_taos_check_server_status)(const char *fqdn, int port, ch
 void (*fp_taos_write_crashinfo)(int signum, void *sigInfo, void *context) = NULL;
 char *(*fp_getBuildInfo)() = NULL;
 
-//int32_t (*fp_taos_connect_is_alive)(TAOS *taos) = NULL;
+int32_t (*fp_taos_connect_is_alive)(TAOS *taos) = NULL;

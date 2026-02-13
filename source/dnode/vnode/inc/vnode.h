@@ -212,6 +212,7 @@ int32_t  tsdbCreateFirstLastTsIter(void *pVnode, STimeWindow *pWindow, SVersionR
                                    int32_t numOfTables, int32_t order, void **pIter, const char *idstr);
 int32_t  tsdbNextFirstLastTsBlock(void *pIter, SSDataBlock *pRes, bool* hasNext);
 void     tsdbDestroyFirstLastTsIter(void *pIter);
+int32_t  tsdbReaderStepDone(STsdbReader *pReader, int64_t notifyTs);
 
 int32_t tsdbReuseCacherowsReader(void *pReader, void *pTableIdList, int32_t numOfTables);
 int32_t tsdbCacherowsReaderOpen(void *pVnode, int32_t type, void *pTableIdList, int32_t numOfTables, int32_t numOfCols,
@@ -382,6 +383,8 @@ struct SVnodeCfg {
   int32_t     ssChunkSize;
   int32_t     ssKeepLocal;
   int8_t      ssCompact;
+  int8_t      isAudit;
+  int8_t      allowDrop;
 };
 
 #define TABLE_ROLLUP_ON         ((int8_t)0x1)

@@ -114,6 +114,9 @@ Below are the business error codes for each module.
 | 0x8000013C | Invalid disk id                   | Invalid disk id                                              | Check users whether the mounted disk is invalid or use the parameter diskIDCheckEnabled to skip the disk check. |
 | 0x8000013D | Decimal value overflow            | Decimal value overflow                                       | Check query expression and decimal values |
 | 0x8000013E | Division by zero error            | Division by zero                                             | Check division expression |
+| 0x8000013F | Decimal value parse error         | Decimal value parse error                                    | Preserve the scene and logs, report issue on github |
+| 0x80000140 | Edition not compatible            | Edition incompatibility between nodes                        | Check editions(enterprise or community) of all nodes (including server and client), ensure node editions are consistent or compatible |
+| 0x80000141 | Invalid signature                 | Message signature is invalid or mismatch                     | Check if client and server are using the same signature algorithm |
 
 #### tsc
 
@@ -144,6 +147,7 @@ Below are the business error codes for each module.
 | 0x8000023B |   reached the maximum connection idle timeout limit| reached the maximum connection idle timeout limit |  Check user parameter |
 | 0x8000023C |   reached the maximum concurrency limit        |  reached the maximum concurrency limit           |  Check user parameter |
 | 0x8000023D | reached the maximum call vnode limit           | reached the maximum call vnode limit    | Check user parameter |
+| 0x8000023E | Invalid token                     | Invalid token format                            | Check and enter the correct token                                                 |
 | 0x800002FF | Tsc internal error                | TSC internal error                              | Preserve the scene and logs, report issue on GitHub                               |
 
 #### mnode
@@ -177,6 +181,13 @@ Below are the business error codes for each module.
 | 0x80000340 | Account already exists                                       | (Enterprise only) Internal error                             | Report issue                                                 |
 | 0x80000342 | Invalid account options                                      | (Enterprise only) Operation not supported                    | Confirm if the operation is correct                          |
 | 0x80000344 | Invalid account                                              | Account does not exist                                       | Confirm if the account is correct                            |
+| 0x80000348 | Token not available                                          | Internal error                                               | Report issue                                                 |
+| 0x80000349 | Token not exist                                              | Token not exist                                              | Confirm if the token name is correct                         |
+| 0x8000034A | Token already exist                                          | Token already exist                                          | Use a new token name                                        |
+| 0x8000034B | Too many tokens                                              | User has created too many tokens                             | Increase limitation or remove unused tokens                  |
+| 0x8000034C | Invalid token name                                           | Token name is invalid                                        | Use a correct token name                                     |
+| 0x8000034D | Token expired                                                | Token is expired                                             | Set a new expire time                                        |
+| 0x8000034E | Token disabled                                               | Token is disabled                                            | Enable the token                                             |
 | 0x80000350 | User already exists                                          | Create user, duplicate creation                              | Confirm if the operation is correct                          |
 | 0x80000351 | Invalid user                                                 | User does not exist                                          | Confirm if the operation is correct                          |
 | 0x80000352 | Invalid user format                                          | Incorrect format                                             | Confirm if the operation is correct                          |
@@ -186,6 +197,7 @@ Below are the business error codes for each module.
 | 0x80000357 | Authentication failure                                       | Incorrect password                                           | Confirm if the operation is correct                          |
 | 0x80000358 | User not available                                           | User does not exist                                          | Confirm if the operation is correct                          |
 | 0x8000035B | Wrong TOTP code                                              | TOTP code not provided or wrong TOTP code                    | Check and enter the correct TOTP code                        |
+| 0x8000035E | TOTP secret not exists                                       | TOTP secret does not exist for the user                      | Confirm if the operation is correct                          |
 | 0x80000360 | STable already exists                                        | Internal error                                               | Report issue                                                 |
 | 0x80000361 | STable not exist                                             | Internal error                                               | Report issue                                                 |
 | 0x80000364 | Too many tags                                                | Too many tags                                                | Cannot be modified, code-level restriction                   |
@@ -367,6 +379,7 @@ Below are the business error codes for each module.
 | 0x8000073C | Memory pool not initialized          | Memory pool not initialized in dnode                                                                                                                                                                                                                                                               | Confirm if the switch queryUseMemoryPool is enabled; if queryUseMemoryPool is already enabled, check if the server meets the basic conditions for enabling the memory pool: 1. The total available system memory is not less than 5GB; 2. The available system memory after deducting the reserved portion is not less than 4GB. |
 | 0x8000073D | Alter minReservedMemorySize failed since no enough system available memory | Failed to update minReservedMemorySize                                                                                                                                                                                                                                                             | Check current system memory: 1. Total available system memory should not be less than 5G; 2. Available system memory after deducting reserved portion should not be less than 4G                                                                                                                                                 |
 | 0x8000073E | Duplicate timestamp not allowed in count/event/state window                                          | Duplicate timestamps in the window's input primary key column. When querying supertables with count/event/state window, all subtable data will be sorted by timestamp and merged into one timeline for calculation, which may result in duplicate timestamps, causing errors in some calculations. | Ensure there are no duplicate timestamp data in subtables when querying supertables using count/event/state window.                                                                                                                                                                                                              |
+| 0x80000741 | VSTB slotId not found for column     | Failed to map a source column to a virtual table slotId during query execution                                                                                                                                                                                                                    | Preserve the scene and logs, report issue on GitHub                                                                                                                                                                                                                                                                              |
 
 #### grant
 
@@ -560,6 +573,11 @@ Below are the business error codes for each module.
 | 0x800026A1 | Option value too short                                                                                 | Option value too short                                                     | Check and correct the SQL statement                          |
 | 0x800026A2 | Option value too big                                                                                   | Option value too big                                                       | Check and correct the SQL statement                          |
 | 0x800026A3 | Option value too small                                                                                 | Option value too small                                                     | Check and correct the SQL statement                          |
+| 0x800026AA | Aggregate functions cannot be used for sorting in non-aggregate queries                                | Invalid ORDER BY clause clause                                             | Check and correct the SQL statement                          |
+| 0x800026AB | TRUE_FOR COUNT must be a non-negative integer not exceeding INT32_MAX                                  | The value for COUNT in a TRUE_FOR expr is invalid                          | Check and correct the SQL statement                          |
+| 0x800026AC | Invalid fill mode | Using fill(near) mode in interval window | Use supported fill modes for interval window |
+| 0x800026AD | Invalid fill values | Incorrect use of fill values parameter | Use the correct fill mode with fill values parameter |
+| 0x800026AE | Invalid surrounding time values | Incorrect surrounding time value provided | Use correct and valid time range and time unit  |
 | 0x800026FF | Parser internal error                                                                                  | Internal error in parser                                                   | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002700 | Planner internal error                                                                                 | Internal error in planner                                                  | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN condition validation failed                                           | Preserve the scene and logs, report issue on GitHub          |
@@ -682,8 +700,9 @@ Below are the business error codes for each module.
 | 0x80006204 | Virtual table not support decimal type                  | Create virtual table using decimal type                                                                                                                              | create virtual table without using decimal type                               |
 | 0x80006205 | Virtual table not support in STMT query and STMT insert | Use virtual table in stmt query and stmt insert                                                                                                                      | do not use virtual table in stmt query and insert                             |
 | 0x80006206 | Virtual table not support in Topic                      | Use virtual table in topic                                                                                                                                           | do not use virtual table in topic                                             |
-| 0x80006207 | Virtual super table query not support origin table from different databases                      | Virtual super table's child table's origin table from different databases                                                                                            | make sure virtual super table's child table's origin table from same database |
-| 0x80006208 | Virtual table has too many reference tables                                                      | Virtual table's origin table num is too many.                                                                                                                        | make sure virtual table's origin table num do not exceed 1000.                |
+| 0x80006207 | Virtual super table query not support origin table from different databases | Virtual super table's child table's origin table from different databases                                                                        | make sure virtual super table's child table's origin table from same database |
+| 0x80006208 | Virtual super table query find column type mismatch                         | Virtual super table's child table's column type and origin table's column type mismatch  | make sure virtual child table's column type same with origin table's column type                                                      |
+| 0x80006209 | Virtual table has too many reference tables                                 | Virtual table's origin table num is too many.                                                                                                    | make sure virtual table's origin table num do not exceed 1000.                |
 
 #### stream
 
@@ -695,6 +714,39 @@ Below are the business error codes for each module.
 | 0x80007016 | Stream output table name calc failed  | Output table name calculation failed      | Check if the output table name rules in the stream creation statement are correct and if NULL values exist      |
 | 0x80007017 | Stream vtable calculate need redeploy | Stream vtable calculate need redeploy      | Stream will handle this error automatically                                                                      |
 | 0x80007018 | Stream info contains invalid JSON format messages | Internal encoding compatibility issues in stream computing | Report the issue to developers on GitHub. |
+
+#### xnode
+
+| Error Code | Description                                           | Possible Error Scenarios or Reasons                         | Recommended Actions for Users                |
+|------------|-------------------------------------------------------|-------------------------------------------------------------|----------------------------------------------|
+| 0x80008000 | Xnode already exists                                  | Xnode is already created                                    | Check the taosx node address                 |
+| 0x80008001 | Xnode already deployed                                | Xnode is already deployed                                   | -                                            |
+| 0x80008002 | Xnode not there                                       | No xnode has been created                                   | Create xnode with taosx address              |
+| 0x80008003 | Xnode tool long url                                   | Xnode url is too long                                       | Make the url shorter                         |
+| 0x80008004 | Xnode invalid protocol                                | Xnode invalid protocol                                      | Check and correct the taosx port             |
+| 0x80008006 | Xnode invalid message content                         | Xnode invalid message content                               | Check and correct the Xnode request          |
+| 0x80008007 | Xnode not found                                       | Xnode id or url not found                                   | Check the xnode id or url                    |
+| 0x80008008 | Xnode xnoded exec failure                             | xnode process exited                                        | Check the xnoded process and restart taosd   |
+| 0x80008009 | Xnode xnoded can't access                             | xnoded process does not running                             | restart taosd                                |
+| 0x8000800A | Xnode xnoded response is null                         | xnoded response error                                       | Retry                                        |
+| 0x8000800C | Xnode request action response not success code        | xnode request failure                                       | Check the configuration and retry            |
+| 0x8000800D | Xnode first-time setup requires username and password | Error when first create XNODE without username and password | Correct the SQL                              |
+| 0x8000800E | Xnode username or password error when setup           | Username and password error when creating XNODE             | Check the username and password              |
+| 0x8000800F | Xnode task already exist                              | Xnode task is already exist                                 | Check the task configuration and correct it  |
+| 0x80008010 | Xnode task not exist                                  | Xnode task not exist                                        | Use an exist task to operate                 |
+| 0x80008011 | Xnode task name too long                              | Xnode task name is too long                                 | Correct the configuration and retry          |
+| 0x80008012 | Xnode task job syntax error                           | Xnode task job syntax error                                 | Correct the task job configuration and retry |
+| 0x80008013 | Xnode task job config too long                        | Xnode task job config too long                              | Correct the task job configuration and retry |
+| 0x80008014 | Xnode job not exist                                   | Xnode task job not exist                                    | Check task job id                            |
+| 0x80008015 | Xnode task/job reason too long                        | Xnode task/job reason too long                              | Report the issue to developers on GitHub    |
+| 0x80008016 | Xnode xnoded response timeout                         | xnoded response timeout                                     | Retry                                        |
+| 0x80008017 | Xnode where clause column not exist                   | Xnode where clause column not exist                         | Check the where condition                    |
+| 0x80008018 | Xnode where clause column type diff                   | Xnode where clause column type is not expected              | Check the where condition                    |
+| 0x80008019 | Xnode where clause operator not support               | Xnode where clause does not support NOT                     | Check the where condition                    |
+| 0x80008020 | Xnode agent not exist                                 | The queried Xnode agent does not exist                      | Check queried agent ID or name               |
+| 0x80008021 | Xnode agent already exist                             | The queried Xnode agent already exist                       | Check queried agent ID or name               |
+| 0x80008022 | Xnode name duplicate                                  | The updated name is duplicate                               | Check whether the name to be updated is a duplicate of the existing data |
+| 0x80008023 | Xnode task parser too long                            | The task parser column is too long                          | Check whether the parser column is too long  |
 
 ## Connectors
 

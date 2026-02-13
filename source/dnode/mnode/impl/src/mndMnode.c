@@ -503,6 +503,8 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
   memcpy(createReq.learnerReplicas[numOfLearnerReplicas].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
 
   createReq.lastIndex = pObj->lastIndex;
+  // Pass current sdb encryption status to new mnode
+  createReq.encrypted = pSdb->encrypted ? 1 : 0;
 
   createEpset.inUse = 0;
   createEpset.numOfEps = 1;
@@ -551,6 +553,8 @@ int32_t mndSetRestoreCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
   createReq.learnerReplica++;
 
   createReq.lastIndex = pObj->lastIndex;
+  // Pass current sdb encryption status to restored mnode
+  createReq.encrypted = pSdb->encrypted ? 1 : 0;
 
   createEpset.inUse = 0;
   createEpset.numOfEps = 1;
@@ -594,6 +598,8 @@ static int32_t mndSetAlterMnodeTypeRedoActions(SMnode *pMnode, STrans *pTrans, S
   alterReq.replica++;
 
   alterReq.lastIndex = pObj->lastIndex;
+  // Pass current sdb encryption status to altered mnode
+  alterReq.encrypted = pSdb->encrypted ? 1 : 0;
 
   createEpset.inUse = 0;
   createEpset.numOfEps = 1;
@@ -642,6 +648,8 @@ int32_t mndSetRestoreAlterMnodeTypeRedoActions(SMnode *pMnode, STrans *pTrans, S
   alterReq.replica++;
 
   alterReq.lastIndex = pObj->lastIndex;
+  // Pass current sdb encryption status to restored and altered mnode
+  alterReq.encrypted = pSdb->encrypted ? 1 : 0;
 
   createEpset.inUse = 0;
   createEpset.numOfEps = 1;
@@ -705,7 +713,7 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
   mInfo("mnode:%d, start to create", createReq.dnodeId);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_MNODE), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_MNODE), NULL, _OVER);
 
   pObj = mndAcquireMnode(pMnode, createReq.dnodeId);
   if (pObj != NULL) {
@@ -865,7 +873,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
   mInfo("mnode:%d, start to drop", dropReq.dnodeId);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_MNODE), NULL, _OVER);
 
   if (dropReq.dnodeId <= 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -944,7 +952,6 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
     if (code != 0) {
       mError("mnode:%d, failed to set col data val since %s", pObj->id, tstrerror(code));
-      sdbCancelFetch(pSdb, pShow->pIter);
       sdbRelease(pSdb, pObj);
       goto _out;
     }

@@ -46,6 +46,8 @@ class Configure:
     def reload(self, new_path: str):
         """ load the info from config file """
         self.path = new_path
+        if not os.path.exists(self.path):
+            print(f"Configuration file not found: {self.path}. Using default settings.")
 
         if not os.path.exists(self.path):
             print("failed to found configure file, load configure failed. Use default")
@@ -107,9 +109,9 @@ class AppLogger():
         """adjust log level"""
         try:
             self.log_inst.setLevel(log_level)
-            self.log_inst.info("set log level:%d", log_level)
+            self.log_inst.info(f"set log level:{log_level}")
         except ValueError as e:
-            self.log_inst.error("failed to set log level: %d, %s", log_level, str(e))
+            self.log_inst.error(f"failed to set log level: {log_level}, {e}")
 
 
 conf = Configure()
@@ -123,4 +125,4 @@ def setup_log_info(name: str):
     try:
         app_logger.set_log_level(logging.DEBUG)
     except ValueError as e:
-        print("set log level failed:%s", e)
+        print(f"set log level failed:{e}")

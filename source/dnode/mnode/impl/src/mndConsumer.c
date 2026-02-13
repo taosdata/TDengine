@@ -21,6 +21,7 @@
 #include "mndSubscribe.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 #include "mndVgroup.h"
 #include "tcompare.h"
 #include "tname.h"
@@ -94,7 +95,7 @@ END:
   return code;
 }
 
-static int32_t validateOneTopic(STrans* pTrans,char *pOneTopic, SCMSubscribeReq *subscribe, SMnode *pMnode, const char *pUser) {
+static int32_t validateOneTopic(STrans* pTrans,char *pOneTopic, SCMSubscribeReq *subscribe, SMnode *pMnode, const char *user, const char* token) {
   int32_t      code = 0;
   int32_t lino = 0;
   SMqTopicObj *pTopic = NULL;
@@ -103,7 +104,7 @@ static int32_t validateOneTopic(STrans* pTrans,char *pOneTopic, SCMSubscribeReq 
   MND_TMQ_RETURN_CHECK(mndAcquireTopic(pMnode, pOneTopic, &pTopic));
   taosRLockLatch(&pTopic->lock);
 
-  MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pUser, MND_OPER_SUBSCRIBE, pTopic));
+  MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, user, token, MND_OPER_SUBSCRIBE, pTopic));
   MND_TMQ_RETURN_CHECK(grantCheckExpire(TSDB_GRANT_SUBSCRIPTION));
 
   if (subscribe->enableReplay) {
@@ -139,8 +140,8 @@ END:
   return code;
 }
 
-static int32_t validateTopics(STrans* pTrans, SCMSubscribeReq *subscribe, SMnode *pMnode, const char *pUser) {
-  if (pTrans == NULL || subscribe == NULL || pMnode == NULL || pUser == NULL) {
+static int32_t validateTopics(STrans* pTrans, SCMSubscribeReq *subscribe, SMnode *pMnode, const char *user, const char* token) {
+  if (pTrans == NULL || subscribe == NULL || pMnode == NULL || user == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t      code = 0;
@@ -150,7 +151,7 @@ static int32_t validateTopics(STrans* pTrans, SCMSubscribeReq *subscribe, SMnode
   int32_t numOfTopics = taosArrayGetSize(subscribe->topicNames);
   for (int32_t i = 0; i < numOfTopics; i++) {
     char *pOneTopic = taosArrayGetP(subscribe->topicNames, i);
-    MND_TMQ_RETURN_CHECK(validateOneTopic(pTrans, pOneTopic, subscribe, pMnode, pUser));
+    MND_TMQ_RETURN_CHECK(validateOneTopic(pTrans, pOneTopic, subscribe, pMnode, user, token));
   }
 
 END:
@@ -193,7 +194,7 @@ END:
   return code;
 }
 
-static void checkOnePrivilege(const char* topic, SMnode *pMnode, SMqHbRsp *rsp, const char *user) {
+static void checkOnePrivilege(const char* topic, SMnode *pMnode, SMqHbRsp *rsp, const char *user, const char* token) {
   int32_t code = 0;
   int32_t lino = 0;
   SMqTopicObj *pTopic = NULL;
@@ -203,7 +204,7 @@ static void checkOnePrivilege(const char* topic, SMnode *pMnode, SMqHbRsp *rsp, 
   STopicPrivilege *data = taosArrayReserve(rsp->topicPrivileges, 1);
   MND_TMQ_NULL_CHECK(data);
   tstrncpy(data->topic, topic, TSDB_TOPIC_FNAME_LEN);
-  if (mndCheckTopicPrivilege(pMnode, user, MND_OPER_SUBSCRIBE, pTopic) != 0 ||
+  if (mndCheckTopicPrivilege(pMnode, user, token, MND_OPER_SUBSCRIBE, pTopic) != 0 ||
       grantCheckExpire(TSDB_GRANT_SUBSCRIPTION) < 0) {
     data->noPrivilege = 1;
   } else {
@@ -218,7 +219,7 @@ END:
   mndReleaseTopic(pMnode, pTopic);
 }
 
-static int32_t checkPrivilege(SMnode *pMnode, SMqConsumerObj *pConsumer, SMqHbRsp *rsp, char *user) {
+static int32_t checkPrivilege(SMnode *pMnode, SMqConsumerObj *pConsumer, SMqHbRsp *rsp, const char *user, const char* token) {
   if (pMnode == NULL || pConsumer == NULL || rsp == NULL || user == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -230,7 +231,7 @@ static int32_t checkPrivilege(SMnode *pMnode, SMqConsumerObj *pConsumer, SMqHbRs
   MND_TMQ_NULL_CHECK(rsp->topicPrivileges);
   for (int32_t i = 0; i < taosArrayGetSize(pConsumer->currentTopics); i++) {
     char        *topic = taosArrayGetP(pConsumer->currentTopics, i);
-    checkOnePrivilege(topic, pMnode, rsp, user);
+    checkOnePrivilege(topic, pMnode, rsp, user, token);
   }
 
 END:
@@ -308,7 +309,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   int64_t consumerId = req.consumerId;
   MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, consumerId, &pConsumer));
   taosWLockLatch(&pConsumer->lock);
-  MND_TMQ_RETURN_CHECK(checkPrivilege(pMnode, pConsumer, &rsp, pMsg->info.conn.user));
+  MND_TMQ_RETURN_CHECK(checkPrivilege(pMnode, pConsumer, &rsp, RPC_MSG_USER(pMsg), RPC_MSG_TOKEN(pMsg)));
   atomic_store_32(&pConsumer->hbStatus, 0);
   mDebug("consumer:0x%" PRIx64 " receive hb pollFlag:%d pollStatus:%d", consumerId, req.pollFlag, pConsumer->pollStatus);
   if (req.pollFlag == 1){
@@ -461,23 +462,21 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
   }
 
   // 1. check consumer status
+  int32_t serverEpoch = atomic_load_32(&pConsumer->epoch);
   int32_t status = atomic_load_32(&pConsumer->status);
   if (status != MQ_CONSUMER_STATUS_READY) {
     mInfo("consumer:0x%" PRIx64 " not ready, status: %s", consumerId, mndConsumerStatusName(status));
-    code = TSDB_CODE_MND_CONSUMER_NOT_READY;
-    goto END;
+    rsp.code = TSDB_CODE_MND_CONSUMER_NOT_READY;
+  } else {
+    int32_t epoch = req.epoch;
+
+    // 2. check epoch, only send ep info when epochs do not match
+    if (epoch != serverEpoch) {
+      mInfo("process ask ep, consumer:0x%" PRIx64 "(epoch %d) update with server epoch %d",
+            consumerId, epoch, serverEpoch);
+      MND_TMQ_RETURN_CHECK(addEpSetInfo(pMnode, pConsumer, epoch, &rsp));
+    }
   }
-
-  int32_t epoch = req.epoch;
-  int32_t serverEpoch = atomic_load_32(&pConsumer->epoch);
-
-  // 2. check epoch, only send ep info when epochs do not match
-  if (epoch != serverEpoch) {
-    mInfo("process ask ep, consumer:0x%" PRIx64 "(epoch %d) update with server epoch %d",
-          consumerId, epoch, serverEpoch);
-    MND_TMQ_RETURN_CHECK(addEpSetInfo(pMnode, pConsumer, epoch, &rsp));
-  }
-
   code = buildAskEpRsp(pMsg, &rsp, serverEpoch, consumerId);
 
 END:
@@ -677,10 +676,10 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   if (pMsg == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  SMnode *pMnode = pMsg->info.node;
-  char   *msgStr = pMsg->pCont;
-  int32_t code = 0;
-  int32_t lino = 0;
+  SMnode         *pMnode = pMsg->info.node;
+  char           *msgStr = pMsg->pCont;
+  int32_t         code = 0;
+  int32_t         lino = 0;
   SMqConsumerObj *pConsumerNew = NULL;
   STrans         *pTrans = NULL;
 
@@ -705,7 +704,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
                           pMsg, "subscribe");
   MND_TMQ_NULL_CHECK(pTrans);
 
-  MND_TMQ_RETURN_CHECK(validateTopics(pTrans, &subscribe, pMnode, pMsg->info.conn.user));
+  MND_TMQ_RETURN_CHECK(validateTopics(pTrans, &subscribe, pMnode, RPC_MSG_USER(pMsg), RPC_MSG_TOKEN(pMsg)));
   MND_TMQ_RETURN_CHECK(buildSubConsumer(pMnode, &subscribe, &pConsumerNew));
   MND_TMQ_RETURN_CHECK(mndSetConsumerCommitLogs(pTrans, pConsumerNew));
   MND_TMQ_RETURN_CHECK(mndTransPrepare(pMnode, pTrans));
@@ -1102,9 +1101,11 @@ END:
   return code;
 }
 
-static int32_t retrieveOneConsumer(SMqConsumerObj *pConsumer, int32_t* numOfRows, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
-  int32_t         code = 0;
-  int32_t         lino = 0;
+static int32_t retrieveOneConsumer(SRpcMsg *pReq, SMqConsumerObj *pConsumer, SUserObj *pOperUser, bool showAll,
+                                   int32_t *numOfRows, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SMnode *pMnode = pReq->info.node;
   PRINT_LOG_START
   taosRLockLatch(&pConsumer->lock);
   mDebug("showing consumer:0x%" PRIx64, pConsumer->consumerId);
@@ -1112,7 +1113,6 @@ static int32_t retrieveOneConsumer(SMqConsumerObj *pConsumer, int32_t* numOfRows
     mInfo("showing consumer:0x%" PRIx64 " no assigned topic, skip", pConsumer->consumerId);
     goto END;
   }
-
 
   int32_t topicSz = taosArrayGetSize(pConsumer->assignedTopics);
   bool    hasTopic = true;
@@ -1126,7 +1126,28 @@ static int32_t retrieveOneConsumer(SMqConsumerObj *pConsumer, int32_t* numOfRows
   }
 
   for (int32_t i = 0; i < topicSz; i++) {
-    MND_TMQ_RETURN_CHECK(buildResult(pConsumer, pShow, pBlock, *numOfRows, taosArrayGetP(pConsumer->assignedTopics, i), hasTopic));
+    char *pTopicFName = taosArrayGetP(pConsumer->assignedTopics, i);
+    if (!showAll && (strncmp(pOperUser->name, pConsumer->user, TSDB_USER_LEN) != 0)) {
+      bool         showConsumer = false;
+      SMqTopicObj *pTopic = NULL;
+      (void)mndAcquireTopic(pMnode, pTopicFName, &pTopic);
+      if (pTopic) {
+        SName name = {0};  // 1.topic1
+        if (0 == tNameFromString(&name, pTopic->name, T_NAME_ACCT | T_NAME_DB)) {
+          if (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CONSUMER_SHOW, PRIV_OBJ_TOPIC, pTopic->ownerId,
+                                            pTopic->db, name.dbname)) {
+            showConsumer = true;
+          }
+        }
+        mndReleaseTopic(pMnode, pTopic);
+      }
+      if (!showConsumer) {
+        continue;
+      }
+    }
+    // char  topic[TSDB_TOPIC_FNAME_LEN] = {0};
+    // mndTopicGetShowName(showTopic, topic);
+    MND_TMQ_RETURN_CHECK(buildResult(pConsumer, pShow, pBlock, *numOfRows, pTopicFName, hasTopic));
     (*numOfRows)++;
   }
 
@@ -1144,16 +1165,23 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
   SSdb           *pSdb = pMnode->pSdb;
   int32_t         numOfRows = 0;
   SMqConsumerObj *pConsumer = NULL;
+  SUserObj       *pOperUser = NULL;
   int32_t         code = 0;
   int32_t         lino = 0;
+  bool            showAll = false;
+  char            objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
   PRINT_LOG_START
 
+  MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
+  (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
+  showAll = (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), PRIV_CONSUMER_SHOW,
+                                          PRIV_OBJ_TOPIC, 0, objFName, "*"));
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_CONSUMER, pShow->pIter, (void **)&pConsumer);
     if (pShow->pIter == NULL) {
       break;
     }
-    MND_TMQ_RETURN_CHECK(retrieveOneConsumer(pConsumer, &numOfRows, pShow, pBlock, rowsCapacity));
+    MND_TMQ_RETURN_CHECK(retrieveOneConsumer(pReq, pConsumer, pOperUser, showAll,  &numOfRows, pShow, pBlock, rowsCapacity));
     
     pBlock->info.rows = numOfRows;
     sdbRelease(pSdb, pConsumer);

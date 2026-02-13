@@ -28,7 +28,7 @@ extern "C" {
 typedef struct SPhysiPlanContext {
   SPlanContext* pPlanCxt;
   int32_t       errCode;
-  int16_t       nextDataBlockId;
+  int64_t       nextDataBlockId;
   SArray*       pLocationHelper;
   SArray*       pProjIdxLocHelper;
 } SPhysiPlanContext;
@@ -106,7 +106,7 @@ int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, S
                                                    bool* pNotOptimize, SNodeList** pSequencingNodes, bool* keepSort);
 bool isColRefExpr(const SColumnNode* pCol, const SExprNode* pExpr);
 void rewriteTargetsWithResId(SNodeList* pTargets);
-
+bool checkScanLogicNode(SLogicNode* pNode);
 
 #ifdef __cplusplus
 }

@@ -100,7 +100,7 @@ class TestTaosinspect:
         # 9. information_schema.ins_user_privileges
         result = tdSql.getResult("desc information_schema.ins_user_privileges")
         self.check_column(result, "user_name", "information_schema.ins_user_privileges")
-        self.check_column(result, "privilege", "information_schema.ins_user_privileges")
+        self.check_column(result, "priv_type", "information_schema.ins_user_privileges") # privilege as keyword since 3.4.0.0, rename to priv_type
         self.check_column(result, "db_name", "information_schema.ins_user_privileges")
         self.check_column(result, "table_name", "information_schema.ins_user_privileges")
         # tdSql.query("select user_name, privilege, db_name, table_name from information_schema.ins_user_privileges")
@@ -248,5 +248,5 @@ class TestTaosinspect:
         # Prepare test data
         self.run_system_table_schema_verification()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

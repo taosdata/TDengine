@@ -9,7 +9,7 @@ ADD_EXECUTABLE(clientTest clientTests.cpp)
 DEP_ext_gtest(clientTest)
 TARGET_LINK_LIBRARIES(
         clientTest PRIVATE
-        os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
+        os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function totp
 )
 
 ADD_EXECUTABLE(connectOptionsTest connectOptionsTest.cpp)
@@ -33,11 +33,12 @@ TARGET_LINK_LIBRARIES(
         PUBLIC os util common transport parser catalog scheduler function ${TAOS_NATIVE_LIB_STATIC} qcom geometry
 )
 
-#ADD_EXECUTABLE(clientMonitorTest clientMonitorTests.cpp)
-#TARGET_LINK_LIBRARIES(
-#        clientMonitorTest
-#        PUBLIC os util common transport monitor parser catalog scheduler function gtest ${TAOS_NATIVE_LIB_STATIC} qcom executor
-#)
+ADD_EXECUTABLE(clientMonitorTest clientMonitorTests.cpp)
+DEP_ext_gtest(clientMonitorTest)
+TARGET_LINK_LIBRARIES(
+       clientMonitorTest
+       PUBLIC os util common transport monitor parser catalog scheduler function ${TAOS_NATIVE_LIB_STATIC} qcom executor
+)
 
 ADD_EXECUTABLE(userOperTest ../../../test/new_test_framework/script/api/passwdTest.c)
 if (TD_WINDOWS)
@@ -91,6 +92,8 @@ TARGET_INCLUDE_DIRECTORIES(
         clientTest
         PUBLIC "${TD_SOURCE_DIR}/include/client/"
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+        PRIVATE "${TD_SOURCE_DIR}/source/libs/totp/inc"
 )
 
 TARGET_INCLUDE_DIRECTORIES(
@@ -144,11 +147,11 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 
-#TARGET_INCLUDE_DIRECTORIES(
-#        clientMonitorTest
-#        PUBLIC "${TD_SOURCE_DIR}/include/client/"
-#        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
-#)
+TARGET_INCLUDE_DIRECTORIES(
+       clientMonitorTest
+       PUBLIC "${TD_SOURCE_DIR}/include/client/"
+       PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+)
 
 TARGET_INCLUDE_DIRECTORIES(
         stmt2Test

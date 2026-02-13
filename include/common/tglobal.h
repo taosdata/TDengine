@@ -58,9 +58,10 @@ extern char          tsLocalEp[];
 extern char          tsVersionName[];
 extern uint16_t      tsServerPort;
 extern int32_t       tsVersion;
-extern int32_t       tsForceReadConfig;
 extern int32_t       tsdmConfigVersion;
 extern int32_t       tsConfigInited;
+extern int32_t        tsEncryptKeysStatus;
+extern int32_t       tsLocalKeyVersion;
 extern int32_t       tsStatusInterval;
 extern int32_t       tsStatusIntervalMs;
 extern int32_t       tsStatusSRTimeoutMs;
@@ -72,8 +73,9 @@ extern char          tsEncryptScope[];
 extern EEncryptAlgor tsiEncryptAlgorithm;
 extern EEncryptScope tsiEncryptScope;
 // extern char     tsAuthCode[];
-extern char   tsEncryptKey[];
-extern int8_t tsEnableStrongPassword;
+extern char          tsEncryptKey[];
+extern int8_t        tsEnableStrongPassword;
+extern int8_t        tsAllowDefaultPassword;
 extern char          tsEncryptPassAlgorithm[];
 extern EEncryptAlgor tsiEncryptPassAlgorithm;
 
@@ -96,6 +98,8 @@ extern int32_t tsCountAlwaysReturnValue;
 extern float   tsSelectivityRatio;
 extern int32_t tsTagFilterResCacheSize;
 extern int32_t tsBypassFlag;
+extern int64_t tsMetaEntryCacheSize;
+extern char    tsMetaEntryCache;
 
 // queue & threads
 extern int32_t tsQueryMinConcurrentTaskNum;
@@ -190,6 +194,34 @@ extern uint32_t tsEncryptionKeyChksum;
 extern int8_t   tsEncryptionKeyStat;
 extern uint32_t tsGrant;
 
+// taosk encryption keys (multi-layer encryption)
+
+enum {
+  TSDB_ENCRYPT_KEY_STAT_UNLOADED = 0,
+  TSDB_ENCRYPT_KEY_STAT_LOADED,
+  TSDB_ENCRYPT_KEY_STAT_NOT_EXIST,
+  TSDB_ENCRYPT_KEY_STAT_DISABLED,
+  TSDB_ENCRYPT_KEY_STAT_MAX
+};
+
+extern bool     tsUseTaoskEncryption;      // Flag: using taosk encrypt.bin format
+extern bool     tsSkipKeyCheckMode;        // Flag: skip key check mode
+extern char     tsSvrKey[ENCRYPT_KEY_LEN + 1];   // SVR_KEY: exactly 16 bytes (128 bits)
+extern char     tsDbKey[ENCRYPT_KEY_LEN + 1];    // DB_KEY: exactly 16 bytes (128 bits)
+extern char     tsCfgKey[ENCRYPT_KEY_LEN + 1];   // CFG_KEY: exactly 16 bytes (128 bits)
+extern char     tsMetaKey[ENCRYPT_KEY_LEN + 1];  // META_KEY: exactly 16 bytes (128 bits)
+extern char     tsDataKey[ENCRYPT_KEY_LEN + 1];  // DATA_KEY: exactly 16 bytes (128 bits)
+extern int32_t  tsEncryptAlgorithmType;    // Algorithm type for master keys (SVR_KEY, DB_KEY)
+extern int32_t  tsCfgAlgorithm;            // Algorithm type for CFG_KEY
+extern int32_t  tsMetaAlgorithm;           // Algorithm type for META_KEY
+extern int32_t  tsEncryptFileVersion;      // File format version for compatibility
+extern int32_t  tsEncryptKeyVersion;       // Key update version (starts from 1, increments on update)
+extern int64_t  tsEncryptKeyCreateTime;    // Key creation timestamp
+extern int64_t  tsSvrKeyUpdateTime;        // SVR_KEY last update timestamp
+extern int64_t  tsDbKeyUpdateTime;         // DB_KEY last update timestamp
+extern int32_t  tsKeyExpirationDays;       // Key expiration days (default: 30)
+extern char     tsKeyExpirationStrategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1];  // Key expiration strategy (default: "ALARM")
+
 // monitor
 extern bool     tsEnableMonitor;
 extern int32_t  tsMonitorInterval;
@@ -212,6 +244,7 @@ extern bool    tsEnableAuditInsert;
 extern int32_t tsAuditLevel;
 extern int32_t tsAuditInterval;
 extern bool    tsAuditHttps;
+extern bool    tsAuditUseToken;
 
 // telem
 extern bool     tsEnableTelem;
@@ -273,6 +306,7 @@ extern char td_version[];
 extern char td_compatible_version[];
 extern char td_gitinfo[];
 extern char td_buildinfo[];
+extern char td_edition_signature_salt[];
 
 // lossy
 extern char     tsLossyColumns[];
@@ -369,11 +403,18 @@ extern bool    tsAuthReq;
 extern int32_t tsAuthReqInterval;
 extern int32_t tsAuthReqHBInterval;
 extern char    tsAuthReqUrl[];
+extern bool    tsSessionControl;
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
 int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl,
                            SArray *pArgs);
+
+int32_t taosPreLoadCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
+                       bool tsc);
+int32_t taosApplyCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
+                     bool tsc);
+int32_t tryLoadCfgFromDataDir(SConfig *pCfg);
 int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
                     bool tsc);
 void    taosCleanupCfg();
@@ -397,7 +438,7 @@ int32_t setAllConfigs(SConfig *pCfg);
 
 bool    isConifgItemLazyMode(SConfigItem *item);
 int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs);
-
+void    taosSetSkipKeyCheckMode(void);
 #ifdef __cplusplus
 }
 #endif

@@ -141,6 +141,8 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "compact_time_range", .bytes = 24 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "compact_time_offset", .bytes = 4 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "is_audit", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = true},
+    {.name = "owner", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "allow_drop", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = true},
 };
 
 static const SSysDbTableSchema userFuncSchema[] = {
@@ -180,6 +182,7 @@ static const SSysDbTableSchema userStbsSchema[] = {
     {.name = "uid", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
     {.name = "isvirtual", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = false},
     {.name = "keep",.bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "owner", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
 };
 
 static const SSysDbTableSchema streamSchema[] = {
@@ -295,6 +298,7 @@ static const SSysDbTableSchema userUsersSchema[] = {
     {.name = "totp", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = true},
     {.name = "allowed_host", .bytes = TSDB_PRIVILEDGE_HOST_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "allowed_datetime", .bytes = TSDB_PRIVILEDGE_HOST_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "roles", .bytes = TSDB_MAX_SUBROLE * TSDB_ROLE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
 static const SSysDbTableSchema userUsersFullSchema[] = {
@@ -311,7 +315,7 @@ static const SSysDbTableSchema userUsersFullSchema[] = {
     {.name = "connect_time", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "connect_idle_timeout", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "call_per_session", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
-    //{.name = "vnode_per_call", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "vnode_per_call", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "failed_login_attempts", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "password_life_time", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "password_reuse_time", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
@@ -322,6 +326,7 @@ static const SSysDbTableSchema userUsersFullSchema[] = {
     {.name = "allow_token_num", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "allowed_host", .bytes = TSDB_PRIVILEDGE_HOST_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "allowed_datetime", .bytes = TSDB_PRIVILEDGE_HOST_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "roles", .bytes = TSDB_MAX_SUBROLE * TSDB_ROLE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
 GRANTS_SCHEMA;
@@ -343,7 +348,7 @@ static const SSysDbTableSchema vgroupsSchema[] = {
     {.name = "v4_status", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false },
     {.name = "v4_applied/committed", .bytes = TSDB_SYNC_APPLY_COMMIT_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "is_ready", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = true},
-    {.name = "cacheload", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "cacheload", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
     {.name = "cacheelements", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "tsma", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = true},
     {.name = "mount_vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
@@ -431,11 +436,14 @@ static const SSysDbTableSchema vnodesSchema[] = {
 
 static const SSysDbTableSchema userUserPrivilegesSchema[] = {
     {.name = "user_name", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
-    {.name = "privilege", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "priv_type", .bytes = 128 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "priv_scope", .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "db_name", .bytes = TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "table_name", .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "condition", .bytes = TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "notes", .bytes = 64 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "columns", .bytes = TSDB_PRIVILEGE_COLS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "update_time", .bytes = 40 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
 static const SSysDbTableSchema userViewsSchema[] = {
@@ -465,6 +473,12 @@ static const SSysDbTableSchema userEncryptAlgrSchema[] = {
     {.name = "type", .bytes = 200, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "source", .bytes = 200, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "ossl_algr_name", .bytes = TSDB_ENCRYPT_ALGR_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+};
+
+static const SSysDbTableSchema userEncryptStatusSchema[] = {
+    {.name = "encrypt_scope", .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "algorithm", .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "status", .bytes = 16 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
 };
 
 static const SSysDbTableSchema userScansSchema[] = {
@@ -634,58 +648,164 @@ static const SSysDbTableSchema retentionDetailsSchema[] = {
     {.name = "remain_time(s)", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
 };
 
+static const SSysDbTableSchema tokenSchema[] = {
+    {.name = "name", .bytes = TSDB_TOKEN_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "user", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "provider", .bytes = TSDB_TOKEN_PROVIDER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "enable", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = false},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "expire_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "extra_info", .bytes = TSDB_TOKEN_EXTRA_INFO_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+};
+
+static const SSysDbTableSchema userRolesSchema[] = {
+    {.name = "name", .bytes = TSDB_ROLE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "enable", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = true},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
+    {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
+    {.name = "role_type", .bytes =  7 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "subroles", .bytes = TSDB_MAX_SUBROLE * TSDB_ROLE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+};
+
+static const SSysDbTableSchema userRoleColumnPrivilegesSchema[] = {
+    {.name = "role_name", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "priv_type", .bytes = 128 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "priv_scope", .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "db_name", .bytes = TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "table_name", .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "column_name", .bytes = TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "condition", .bytes = TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "update_time", .bytes = 40 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "notes", .bytes = 64 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+};
+
+static const SSysDbTableSchema userRolePrivilegesSchema[] = {
+    {.name = "role_name", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "priv_type", .bytes = 128 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "priv_scope", .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "db_name", .bytes = TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "table_name", .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "condition", .bytes = TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "notes", .bytes = 64 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "columns", .bytes = TSDB_PRIVILEGE_COLS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "update_time", .bytes = 40 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+};
+
+static const SSysDbTableSchema xnodesSchema[] = {
+    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "url", .bytes = TSDB_XNODE_URL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "status", .bytes = TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+};
+
+/** Migrate task table from old taosx */
+static const SSysDbTableSchema xnodeTasksSchema[] = {
+    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "name", .bytes = TSDB_XNODE_TASK_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "from", .bytes = TSDB_XNODE_TASK_SOURCE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "to", .bytes = TSDB_XNODE_TASK_SINK_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "parser", .bytes = TSDB_XNODE_TASK_PARSER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    /// Agent ID.
+    {.name = "via", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "xnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "status", .bytes = TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "reason", .bytes = TSDB_XNODE_TASK_REASON_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "created_by", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "labels", .bytes = TSDB_XNODE_TASK_LABELS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+};
+/** For xnode task slices, one task may have multiple slices. */
+static const SSysDbTableSchema xnodeTaskJobSchema[] = {
+    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "task_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "config", .bytes = TSDB_XNODE_TASK_JOB_CONFIG_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "via", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "xnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "status", .bytes = TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "reason", .bytes = TSDB_XNODE_TASK_REASON_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+};
+/** Migrate agents table from old taosx */
+static const SSysDbTableSchema xnodeAgentsSchema[] = {
+    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "name", .bytes = TSDB_XNODE_AGENT_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "token", .bytes = TSDB_XNODE_AGENT_TOKEN_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "status", .bytes = TSDB_XNODE_AGENT_STATUS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+};
+
+
+/**
+ * @brief Defines the metadata for system tables.
+ *
+ * @note The order of system tables in this array must match the order in which EShowType is defined in the header file.
+ *       This ensures that the system tables are correctly mapped to their respective show types.
+ */
 static const SSysTableMeta infosMeta[] = {
-    {TSDB_INS_TABLE_DNODES, dnodesSchema, tListLen(dnodesSchema), true},
-    {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema), true},
-    // {TSDB_INS_TABLE_MODULES, modulesSchema, tListLen(modulesSchema), true},
-    {TSDB_INS_TABLE_QNODES, qnodesSchema, tListLen(qnodesSchema), true},
-    {TSDB_INS_TABLE_SNODES, snodesSchema, tListLen(snodesSchema), true},
-    {TSDB_INS_TABLE_BNODES, bnodesSchema, tListLen(bnodesSchema), true},
-    {TSDB_INS_TABLE_CLUSTER, clusterSchema, tListLen(clusterSchema), true},
-    {TSDB_INS_TABLE_DATABASES, userDBSchema, tListLen(userDBSchema), false},
-    {TSDB_INS_TABLE_FUNCTIONS, userFuncSchema, tListLen(userFuncSchema), false},
-    {TSDB_INS_TABLE_INDEXES, userIdxSchema, tListLen(userIdxSchema), false},
-    {TSDB_INS_TABLE_STABLES, userStbsSchema, tListLen(userStbsSchema), false},
-    {TSDB_INS_TABLE_TABLES, userTblsSchema, tListLen(userTblsSchema), false},
-    {TSDB_INS_TABLE_TAGS, userTagsSchema, tListLen(userTagsSchema), false},
-    {TSDB_INS_TABLE_COLS, userColsSchema, tListLen(userColsSchema), false},
-    {TSDB_INS_TABLE_VC_COLS, userVctbColsSchema, tListLen(userVctbColsSchema), false},
-    // {TSDB_INS_TABLE_TABLE_DISTRIBUTED, userTblDistSchema, tListLen(userTblDistSchema)},
-    {TSDB_INS_TABLE_USERS, userUsersSchema, tListLen(userUsersSchema), true},
-    {TSDB_INS_TABLE_USERS_FULL, userUsersFullSchema, tListLen(userUsersFullSchema), true},
-    {TSDB_INS_TABLE_LICENCES, grantsSchema, tListLen(grantsSchema), true},
-    {TSDB_INS_TABLE_VGROUPS, vgroupsSchema, tListLen(vgroupsSchema), false},
-    {TSDB_INS_TABLE_CONFIGS, configSchema, tListLen(configSchema), false},
-    {TSDB_INS_TABLE_DNODE_VARIABLES, variablesSchema, tListLen(variablesSchema), true},
-    {TSDB_INS_TABLE_TOPICS, topicSchema, tListLen(topicSchema), false},
-    {TSDB_INS_TABLE_SUBSCRIPTIONS, subscriptionSchema, tListLen(subscriptionSchema), false},
-    {TSDB_INS_TABLE_STREAMS, streamSchema, tListLen(streamSchema), false},
-    {TSDB_INS_TABLE_STREAM_TASKS, streamTaskSchema, tListLen(streamTaskSchema), false},
-    {TSDB_INS_TABLE_STREAM_RECALCULATES, streamRecalculateSchema, tListLen(streamRecalculateSchema), false},
-    {TSDB_INS_TABLE_VNODES, vnodesSchema, tListLen(vnodesSchema), true},
-    {TSDB_INS_TABLE_USER_PRIVILEGES, userUserPrivilegesSchema, tListLen(userUserPrivilegesSchema), true},
-    {TSDB_INS_TABLE_VIEWS, userViewsSchema, tListLen(userViewsSchema), false},
-    {TSDB_INS_TABLE_COMPACTS, userCompactsSchema, tListLen(userCompactsSchema), false},
-    {TSDB_INS_TABLE_COMPACT_DETAILS, userCompactsDetailSchema, tListLen(userCompactsDetailSchema), false},
-    {TSDB_INS_TABLE_SSMIGRATES, userSsMigratesSchema, tListLen(userSsMigratesSchema), false},
-    {TSDB_INS_TABLE_GRANTS_FULL, userGrantsFullSchema, tListLen(userGrantsFullSchema), true},
-    {TSDB_INS_TABLE_GRANTS_LOGS, userGrantsLogsSchema, tListLen(userGrantsLogsSchema), true},
-    {TSDB_INS_TABLE_MACHINES, userMachinesSchema, tListLen(userMachinesSchema), true},
-    {TSDB_INS_TABLE_ARBGROUPS, arbGroupsSchema, tListLen(arbGroupsSchema), true},
-    {TSDB_INS_TABLE_ENCRYPTIONS, encryptionsSchema, tListLen(encryptionsSchema), true},
-    {TSDB_INS_TABLE_TSMAS, tsmaSchema, tListLen(tsmaSchema), false},
-    {TSDB_INS_TABLE_ANODES, anodesSchema, tListLen(anodesSchema), true},
-    {TSDB_INS_TABLE_ANODES_FULL, anodesFullSchema, tListLen(anodesFullSchema), true},
-    {TSDB_INS_DISK_USAGE, diskUsageSchema, tListLen(diskUsageSchema), false},
-    {TSDB_INS_TABLE_FILESETS, filesetsFullSchema, tListLen(filesetsFullSchema), false},
-    {TSDB_INS_TABLE_TRANSACTION_DETAILS, userTransactionDetailSchema, tListLen(userTransactionDetailSchema), false},
-    {TSDB_INS_TABLE_MOUNTS, mountSchema, tListLen(mountSchema), true},
-    {TSDB_INS_TABLE_SCANS, userScansSchema, tListLen(userScansSchema), false},
-    {TSDB_INS_TABLE_SCAN_DETAILS, userScanDetailSchema, tListLen(userScanDetailSchema), false},
-    {TSDB_INS_TABLE_RSMAS, rsmaSchema, tListLen(rsmaSchema), false},
-    {TSDB_INS_TABLE_RETENTIONS, retentionsSchema, tListLen(retentionsSchema), false},
-    {TSDB_INS_TABLE_RETENTION_DETAILS, retentionDetailsSchema, tListLen(retentionDetailsSchema), false},
-    {TSDB_INS_TABLE_ENCRYPT_ALGORITHMS, userEncryptAlgrSchema, tListLen(userEncryptAlgrSchema), false},
+    {TSDB_INS_TABLE_DNODES, dnodesSchema, tListLen(dnodesSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema), true, PRIV_CAT_PRIVILEGED},
+    // {TSDB_INS_TABLE_MODULES, modulesSchema, tListLen(modulesSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_QNODES, qnodesSchema, tListLen(qnodesSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_SNODES, snodesSchema, tListLen(snodesSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_BNODES, bnodesSchema, tListLen(bnodesSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_CLUSTER, clusterSchema, tListLen(clusterSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_DATABASES, userDBSchema, tListLen(userDBSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_FUNCTIONS, userFuncSchema, tListLen(userFuncSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_INDEXES, userIdxSchema, tListLen(userIdxSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_STABLES, userStbsSchema, tListLen(userStbsSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_TABLES, userTblsSchema, tListLen(userTblsSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_TAGS, userTagsSchema, tListLen(userTagsSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_COLS, userColsSchema, tListLen(userColsSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_VC_COLS, userVctbColsSchema, tListLen(userVctbColsSchema), false, PRIV_CAT_BASIC},
+    // {TSDB_INS_TABLE_TABLE_DISTRIBUTED, userTblDistSchema, tListLen(userTblDistSchema), PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_USERS, userUsersSchema, tListLen(userUsersSchema), true, PRIV_CAT_SECURITY},
+    {TSDB_INS_TABLE_USERS_FULL, userUsersFullSchema, tListLen(userUsersFullSchema), true, PRIV_CAT_SECURITY},
+    {TSDB_INS_TABLE_LICENCES, grantsSchema, tListLen(grantsSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_VGROUPS, vgroupsSchema, tListLen(vgroupsSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_CONFIGS, configSchema, tListLen(configSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_DNODE_VARIABLES, variablesSchema, tListLen(variablesSchema), true, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_TOPICS, topicSchema, tListLen(topicSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_SUBSCRIPTIONS, subscriptionSchema, tListLen(subscriptionSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_STREAMS, streamSchema, tListLen(streamSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_STREAM_TASKS, streamTaskSchema, tListLen(streamTaskSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_STREAM_RECALCULATES, streamRecalculateSchema, tListLen(streamRecalculateSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_VNODES, vnodesSchema, tListLen(vnodesSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_USER_PRIVILEGES, userUserPrivilegesSchema, tListLen(userUserPrivilegesSchema), true, PRIV_CAT_SECURITY},
+    {TSDB_INS_TABLE_VIEWS, userViewsSchema, tListLen(userViewsSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_COMPACTS, userCompactsSchema, tListLen(userCompactsSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_COMPACT_DETAILS, userCompactsDetailSchema, tListLen(userCompactsDetailSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_SSMIGRATES, userSsMigratesSchema, tListLen(userSsMigratesSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_GRANTS_FULL, userGrantsFullSchema, tListLen(userGrantsFullSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_GRANTS_LOGS, userGrantsLogsSchema, tListLen(userGrantsLogsSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_MACHINES, userMachinesSchema, tListLen(userMachinesSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_ARBGROUPS, arbGroupsSchema, tListLen(arbGroupsSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_ENCRYPTIONS, encryptionsSchema, tListLen(encryptionsSchema), true, PRIV_CAT_SECURITY},
+    {TSDB_INS_TABLE_TSMAS, tsmaSchema, tListLen(tsmaSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_ANODES, anodesSchema, tListLen(anodesSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_ANODES_FULL, anodesFullSchema, tListLen(anodesFullSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_DISK_USAGE, diskUsageSchema, tListLen(diskUsageSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_FILESETS, filesetsFullSchema, tListLen(filesetsFullSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_TRANSACTION_DETAILS, userTransactionDetailSchema, tListLen(userTransactionDetailSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_MOUNTS, mountSchema, tListLen(mountSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_SCANS, userScansSchema, tListLen(userScansSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_SCAN_DETAILS, userScanDetailSchema, tListLen(userScanDetailSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_RSMAS, rsmaSchema, tListLen(rsmaSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_RETENTIONS, retentionsSchema, tListLen(retentionsSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_RETENTION_DETAILS, retentionDetailsSchema, tListLen(retentionDetailsSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_ENCRYPT_ALGORITHMS, userEncryptAlgrSchema, tListLen(userEncryptAlgrSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_ENCRYPT_STATUS, userEncryptStatusSchema, tListLen(userEncryptStatusSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_TOKENS, tokenSchema, tListLen(tokenSchema), false, PRIV_CAT_SECURITY},
+    {TSDB_INS_TABLE_ROLES, userRolesSchema, tListLen(userRolesSchema), true, PRIV_CAT_SECURITY},
+    {TSDB_INS_TABLE_ROLE_PRIVILEGES, userRolePrivilegesSchema, tListLen(userRolePrivilegesSchema), true, PRIV_CAT_SECURITY},
+    {TSDB_INS_TABLE_ROLE_COL_PRIVILEGES, userRoleColumnPrivilegesSchema, tListLen(userRoleColumnPrivilegesSchema), true, PRIV_CAT_SECURITY},
+    {TSDB_INS_TABLE_XNODES, xnodesSchema, tListLen(xnodesSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_XNODE_TASKS, xnodeTasksSchema, tListLen(xnodeTasksSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_XNODE_AGENTS, xnodeAgentsSchema, tListLen(xnodeAgentsSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_XNODE_JOBS, xnodeTaskJobSchema, tListLen(xnodeTaskJobSchema), true, PRIV_CAT_PRIVILEGED},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {
@@ -700,6 +820,8 @@ static const SSysDbTableSchema connectionsSchema[] = {
     {.name = "user_ip", .bytes = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "native_version", .bytes = TSDB_VERSION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
     {.name = "connector_info", .bytes = CONNECTOR_INFO_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
+    {.name = "type", .bytes = 16 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
+    {.name = "token", .bytes = TSDB_TOKEN_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
 };
 
 static const SSysDbTableSchema consumerSchema[] = {
@@ -766,15 +888,16 @@ static const SSysDbTableSchema appSchema[] = {
 };
 
 static const SSysTableMeta perfsMeta[] = {
-    {TSDB_PERFS_TABLE_CONNECTIONS, connectionsSchema, tListLen(connectionsSchema), false},
-    {TSDB_PERFS_TABLE_QUERIES, querySchema, tListLen(querySchema), false},
-    {TSDB_PERFS_TABLE_CONSUMERS, consumerSchema, tListLen(consumerSchema), false},
+    {TSDB_PERFS_TABLE_CONNECTIONS, connectionsSchema, tListLen(connectionsSchema), false, PRIV_CAT_BASIC},
+    {TSDB_PERFS_TABLE_QUERIES, querySchema, tListLen(querySchema), false, PRIV_CAT_BASIC},
+    {TSDB_PERFS_TABLE_CONSUMERS, consumerSchema, tListLen(consumerSchema), false, PRIV_CAT_BASIC},
     // {TSDB_PERFS_TABLE_OFFSETS, offsetSchema, tListLen(offsetSchema)},
-    {TSDB_PERFS_TABLE_TRANS, transSchema, tListLen(transSchema), false},
-    {TSDB_PERFS_TABLE_INSTANCES, instanceSchema, tListLen(instanceSchema), false},
+    {TSDB_PERFS_TABLE_TRANS, transSchema, tListLen(transSchema), false, PRIV_CAT_BASIC},
+    {TSDB_PERFS_TABLE_INSTANCES, instanceSchema, tListLen(instanceSchema), false, PRIV_CAT_PRIVILEGED},
     // {TSDB_PERFS_TABLE_SMAS, smaSchema, tListLen(smaSchema), false},
-    {TSDB_PERFS_TABLE_APPS, appSchema, tListLen(appSchema), false}};
-// clang-format on
+    {TSDB_PERFS_TABLE_APPS, appSchema, tListLen(appSchema), false, PRIV_CAT_BASIC},
+    // clang-format on
+};
 
 void getInfosDbMeta(const SSysTableMeta** pInfosTableMeta, size_t* size) {
   if (pInfosTableMeta) {

@@ -1,40 +1,16 @@
-from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
+from new_test_framework.utils import (
+    tdLog, tdSql, tdStream, sc, clusterComCheck, etool, StreamItem)
+from new_test_framework.utils.common import tdCom
 
 
 class TestInterval:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
-
-    def test_interval(self):
-        """Interval: basic test
-
-        1. Testing the use of interval, offset, and sliding
-        2. Testing their use with GROUP BY, ORDER BY, and PARTITION BY
-        3. Testing different fill methods, such as NULL, prev, next
-        4. Mixed use with functions such as count, sum, max, min, count, stddev, last, spread
-
-        Catalog:
-            - Timeseries:TimeWindow
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-8-27 Simon Guan Migrated from tsim/query/interval.sim
-            - 2025-8-27 Simon Guan Migrated from tsim/query/interval-offset.sim
-            - 2025-8-27 Simon Guan Migrated from tsim/query/emptyTsRange.sim
-            - 2025-8-27 Simon Guan Migrated from tsim/query/emptyTsRange_scl.sim
-            - 2025-8-27 Simon Guan Migrated from tsim/parser/sliding.sim
-            - 2025-8-27 Simon Guan Migrated from tsim/parser/function.sim
-            - 2025-8-27 Simon Guan Migrated from tsim/compute/interval.sim
-            - 2025-8-27 Simon Guan Migrated from tsim/compute/interval1.sim
-
-        """
-
+    #
+    # ------------------- 1 ----------------
+    #
+    def do_interval(self):
         self.QueryInterval()
         tdStream.dropAllStreamsAndDbs()
         self.QueryIntervalOffset()
@@ -51,6 +27,7 @@ class TestInterval:
         tdStream.dropAllStreamsAndDbs()
         self.WithoutAggInterval()
         tdStream.dropAllStreamsAndDbs()
+        print("do sim interval ....................... [passed]")
 
     def QueryInterval(self):
         dbPrefix = "m_in_db"
@@ -348,19 +325,19 @@ class TestInterval:
         )
 
     def QueryEmptyTsRange(self):
-        tdSql.execute(f"drop database if exists db1;")
-        tdSql.execute(f"create database if not exists db1;")
-        tdSql.execute(f"use db1;")
+        tdSql.execute(f"drop database if exists db1")
+        tdSql.execute(f"create database if not exists db1")
+        tdSql.execute(f"use db1")
         tdSql.execute(
-            f"create stable sta (ts timestamp, f1 double, f2 binary(200)) tags(t1 int);"
+            f"create stable sta (ts timestamp, f1 double, f2 binary(200)) tags(t1 int)"
         )
-        tdSql.execute(f"create table tba1 using sta tags(1);")
-        tdSql.execute(f"insert into tba1 values ('2022-04-26 15:15:01', 1.0, \"a\");")
-        tdSql.execute(f"insert into tba1 values ('2022-04-26 15:15:02', 2.0, \"b\");")
-        tdSql.execute(f"insert into tba1 values ('2022-04-26 15:15:04', 4.0, \"b\");")
-        tdSql.execute(f"insert into tba1 values ('2022-04-26 15:15:05', 5.0, \"b\");")
+        tdSql.execute(f"create table tba1 using sta tags(1)")
+        tdSql.execute(f"insert into tba1 values ('2022-04-26 15:15:01', 1.0, \"a\")")
+        tdSql.execute(f"insert into tba1 values ('2022-04-26 15:15:02', 2.0, \"b\")")
+        tdSql.execute(f"insert into tba1 values ('2022-04-26 15:15:04', 4.0, \"b\")")
+        tdSql.execute(f"insert into tba1 values ('2022-04-26 15:15:05', 5.0, \"b\")")
         tdSql.query(
-            f"select last_row(*) from sta where ts >= 1678901803783 and ts <= 1678901803783 and  _c0 <= 1678901803782 interval(10d,8d) fill(linear) order by _wstart desc;"
+            f"select last_row(*) from sta where ts >= 1678901803783 and ts <= 1678901803783 and  _c0 <= 1678901803782 interval(10d,8d) fill(linear) order by _wstart desc"
         )
         tdSql.checkRows(0)
 
@@ -433,7 +410,7 @@ class TestInterval:
 
         tdLog.info(f"===============================interval_sliding query")
         tdSql.query(
-            f"select _wstart, count(*) from sliding_tb0 interval(3s) sliding(3s);"
+            f"select _wstart, count(*) from sliding_tb0 interval(3s) sliding(3s)"
         )
         tdSql.checkRows(10)
         tdSql.checkData(0, 0, "2000-01-01 00:00:00")
@@ -442,7 +419,7 @@ class TestInterval:
         tdSql.checkData(1, 1, 100)
 
         tdSql.query(
-            f"select _wstart, stddev(c1) from sliding_tb0 interval(10a) sliding(10a);"
+            f"select _wstart, stddev(c1) from sliding_tb0 interval(10a) sliding(10a)"
         )
         tdSql.checkRows(1000)
         tdSql.checkData(0, 0, "2000-01-01 00:00:00")
@@ -451,7 +428,7 @@ class TestInterval:
         tdSql.checkData(9, 1, 0.000000000)
 
         tdSql.query(
-            f"select _wstart, stddev(c1),count(c2),first(c3),last(c4) from sliding_tb0 interval(10a) sliding(10a) order by _wstart desc;"
+            f"select _wstart, stddev(c1),count(c2),first(c3),last(c4) from sliding_tb0 interval(10a) sliding(10a) order by _wstart desc"
         )
         tdSql.checkRows(1000)
         tdSql.checkData(0, 0, "2000-01-01 00:00:29.970")
@@ -466,7 +443,7 @@ class TestInterval:
         tdSql.checkData(9, 4, 90)
 
         tdSql.query(
-            f"select _wstart, count(c2),last(c4) from sliding_tb0 interval(3s) sliding(1s) order by _wstart asc;"
+            f"select _wstart, count(c2),last(c4) from sliding_tb0 interval(3s) sliding(1s) order by _wstart asc"
         )
         tdSql.checkRows(32)
         tdSql.checkData(0, 0, "1999-12-31 23:59:58")
@@ -474,7 +451,7 @@ class TestInterval:
         tdSql.checkData(0, 2, 33)
 
         tdSql.query(
-            f"select _wstart, count(c2),stddev(c3),first(c4),last(c4) from sliding_tb0 where ts>'2000-01-01 0:0:0' and ts<'2000-1-1 0:0:4' interval(3s) sliding(3s) order by _wstart asc;"
+            f"select _wstart, count(c2),stddev(c3),first(c4),last(c4) from sliding_tb0 where ts>'2000-01-01 0:0:0' and ts<'2000-1-1 0:0:4' interval(3s) sliding(3s) order by _wstart asc"
         )
         tdSql.checkRows(2)
         tdSql.checkData(0, 4, 99)
@@ -483,7 +460,7 @@ class TestInterval:
 
         # interval offset + limit
         tdSql.query(
-            f"select _wstart, count(c2), first(c3),stddev(c4) from sliding_tb0 interval(10a) sliding(10a) order by _wstart desc limit 10 offset 90;"
+            f"select _wstart, count(c2), first(c3),stddev(c4) from sliding_tb0 interval(10a) sliding(10a) order by _wstart desc limit 10 offset 90"
         )
         tdSql.checkRows(10)
         tdSql.checkData(0, 0, "2000-01-01 00:00:27.270")
@@ -497,7 +474,7 @@ class TestInterval:
 
         # interval offset test
         tdSql.query(
-            f"select _wstart, count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(3s) order by _wstart asc limit 100 offset 1;"
+            f"select _wstart, count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(3s) order by _wstart asc limit 100 offset 1"
         )
         tdSql.checkRows(9)
         tdSql.checkData(0, 0, "2000-01-01 00:00:03")
@@ -507,7 +484,7 @@ class TestInterval:
         tdSql.checkData(8, 1, 100)
 
         tdSql.query(
-            f"select _wstart, count(c2),last(c4),stddev(c3) from sliding_tb0 where ts>'2000-1-1 0:0:0' and ts<'2000-1-1 0:0:4' interval(3s) sliding(3s) order by _wstart asc limit 100 offset 0;"
+            f"select _wstart, count(c2),last(c4),stddev(c3) from sliding_tb0 where ts>'2000-1-1 0:0:0' and ts<'2000-1-1 0:0:4' interval(3s) sliding(3s) order by _wstart asc limit 100 offset 0"
         )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, "2000-01-01 00:00:00")
@@ -520,7 +497,7 @@ class TestInterval:
         tdSql.checkData(1, 3, 9.810708435)
 
         tdSql.query(
-            f"select _wstart, count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 1;"
+            f"select _wstart, count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 1"
         )
         tdSql.checkRows(15)
         tdSql.checkData(0, 0, "2000-01-01 00:00:00")
@@ -532,67 +509,67 @@ class TestInterval:
         tdSql.checkData(9, 2, 99)
 
         tdSql.query(
-            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 5;"
+            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 5"
         )
         tdSql.checkRows(11)
 
         tdSql.query(
-            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 6;"
+            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 6"
         )
         tdSql.checkRows(10)
 
         tdSql.query(
-            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 7;"
+            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 7"
         )
         tdSql.checkRows(9)
 
         tdSql.query(
-            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 8;"
+            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 8"
         )
         tdSql.checkRows(8)
 
         tdSql.query(
-            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 9;"
+            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 9"
         )
         tdSql.checkRows(7)
 
         tdSql.query(
-            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 10;"
+            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 10"
         )
         tdSql.checkRows(6)
 
         tdSql.query(
-            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 11;"
+            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 11"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 12;"
+            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 12"
         )
         tdSql.checkRows(4)
 
         tdSql.query(
-            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 13;"
+            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 13"
         )
         tdSql.checkRows(3)
 
         tdSql.query(
-            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 14;"
+            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 14"
         )
         tdSql.checkRows(2)
 
         tdSql.query(
-            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 15;"
+            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 15"
         )
         tdSql.checkRows(1)
 
         tdSql.query(
-            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 16;"
+            f"select count(c2),last(c4),stddev(c3) from sliding_tb0 interval(3s) sliding(2s) order by _wstart asc limit 100 offset 16"
         )
         tdSql.checkRows(0)
 
         tdSql.query(
-            f"select _wstart, count(c2),last(c4),stddev(c3),spread(c3) from sliding_tb0 where c2 = 0 interval(3s) order by _wstart desc;"
+            f"select _wstart, count(c2),last(c4),stddev(c3),spread(c3) from sliding_tb0 where c2 = 0 interval(3s) order by _wstart desc"
         )
         tdSql.checkRows(10)
 
@@ -603,22 +580,22 @@ class TestInterval:
         tdSql.checkData(0, 3, 0.000000000)
 
         tdSql.query(
-            f"select count(c2),last(c4),stddev(c3),spread(c3) from sliding_tb0 where c2 = 0 interval(3s) sliding(2s) order by _wstart desc limit 1 offset 14;"
+            f"select count(c2),last(c4),stddev(c3),spread(c3) from sliding_tb0 where c2 = 0 interval(3s) sliding(2s) order by _wstart desc limit 1 offset 14"
         )
         tdSql.checkRows(1)
 
         tdSql.query(
-            f"select count(c2),last(c4),stddev(c3),spread(c3) from sliding_tb0 where c2 = 0 interval(3s) sliding(2s) order by _wstart desc limit 1 offset 15;"
+            f"select count(c2),last(c4),stddev(c3),spread(c3) from sliding_tb0 where c2 = 0 interval(3s) sliding(2s) order by _wstart desc limit 1 offset 15"
         )
         tdSql.checkRows(0)
 
         tdSql.query(
-            f"select _wstart, count(c2), first(c3),stddev(c4) from sliding_tb0 interval(10a) order by _wstart desc limit 10 offset 2;"
+            f"select _wstart, count(c2), first(c3),stddev(c4) from sliding_tb0 interval(10a) order by _wstart desc limit 10 offset 2"
         )
         tdSql.checkData(0, 0, "2000-01-01 00:00:29.910")
 
         tdSql.query(
-            f"select _wstart, count(*),stddev(c1),count(c1),first(c2),last(c3) from sliding_tb0 where ts>'2000-1-1 00:00:00' and ts<'2000-1-1 00:00:01.002' and c2 >= 0 interval(30s) sliding(10s) order by _wstart asc limit 1000;"
+            f"select _wstart, count(*),stddev(c1),count(c1),first(c2),last(c3) from sliding_tb0 where ts>'2000-1-1 00:00:00' and ts<'2000-1-1 00:00:01.002' and c2 >= 0 interval(30s) sliding(10s) order by _wstart asc limit 1000"
         )
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, "1999-12-31 23:59:40")
@@ -630,7 +607,7 @@ class TestInterval:
         tdSql.checkData(2, 5, 33)
 
         tdSql.query(
-            f"select _wstart, count(*),stddev(c1),count(c1),first(c2),last(c3) from sliding_tb0 where ts>'2000-1-1 00:00:00' and ts<'2000-1-1 00:00:01.002' and c2 >= 0 interval(30s) sliding(10s) order by _wstart desc limit 1000;"
+            f"select _wstart, count(*),stddev(c1),count(c1),first(c2),last(c3) from sliding_tb0 where ts>'2000-1-1 00:00:00' and ts<'2000-1-1 00:00:01.002' and c2 >= 0 interval(30s) sliding(10s) order by _wstart desc limit 1000"
         )
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, "2000-01-01 00:00:00")
@@ -645,23 +622,23 @@ class TestInterval:
         tdSql.checkData(2, 2, 9.521904571)
 
         tdLog.info(f"====================>check boundary check crash at client side")
-        tdSql.query(f"select count(*) from sliding_mt0 where ts>now and ts < now-1h;")
+        tdSql.query(f"select count(*) from sliding_mt0 where ts>now and ts < now-1h")
 
-        tdSql.query(f"select sum(c1) from sliding_tb0 interval(1a) sliding(1a);")
+        tdSql.query(f"select sum(c1) from sliding_tb0 interval(1a) sliding(1a)")
 
         tdLog.info(f"========================query on super table")
 
         tdLog.info(f"========================error case")
-        tdSql.error(f"select sum(c1) from sliding_tb0 interval(10a) sliding(12a);")
-        tdSql.error(f"select sum(c1) from sliding_tb0 sliding(1n) interval(1y);")
-        tdSql.error(f"select sum(c1) from sliding_tb0 interval(-1y)  sliding(1n);")
-        tdSql.error(f"select sum(c1) from sliding_tb0 interval(1y)  sliding(-1n);")
-        tdSql.error(f"select sum(c1) from sliding_tb0 interval(0)  sliding(0);")
-        tdSql.error(f"select sum(c1) from sliding_tb0 interval(0m)  sliding(0m);")
-        tdSql.error(f"select sum(c1) from sliding_tb0 interval(m)  sliding(m);")
-        tdSql.error(f"select sum(c1) from sliding_tb0 sliding(4m);")
-        tdSql.error(f"select count(*) from sliding_tb0 interval(1s) sliding(10s);")
-        tdSql.error(f"select count(*) from sliding_tb0 interval(10s) sliding(10a);")
+        tdSql.error(f"select sum(c1) from sliding_tb0 interval(10a) sliding(12a)")
+        tdSql.error(f"select sum(c1) from sliding_tb0 sliding(1n) interval(1y)")
+        tdSql.error(f"select sum(c1) from sliding_tb0 interval(-1y)  sliding(1n)")
+        tdSql.error(f"select sum(c1) from sliding_tb0 interval(1y)  sliding(-1n)")
+        tdSql.error(f"select sum(c1) from sliding_tb0 interval(0)  sliding(0)")
+        tdSql.error(f"select sum(c1) from sliding_tb0 interval(0m)  sliding(0m)")
+        tdSql.error(f"select sum(c1) from sliding_tb0 interval(m)  sliding(m)")
+        tdSql.error(f"select sum(c1) from sliding_tb0 sliding(4m)")
+        tdSql.error(f"select count(*) from sliding_tb0 interval(1s) sliding(10s)")
+        tdSql.error(f"select count(*) from sliding_tb0 interval(10s) sliding(10a)")
 
     def ParserFunction(self):
         dbPrefix = "m_func_db"
@@ -689,13 +666,13 @@ class TestInterval:
             f"=====================================> test case for twa in single block"
         )
 
-        tdSql.execute(f"create table t1 (ts timestamp, k float);")
-        tdSql.execute(f"insert into t1 values('2015-08-18 00:00:00', 2.064);")
-        tdSql.execute(f"insert into t1 values('2015-08-18 00:06:00', 2.116);")
-        tdSql.execute(f"insert into t1 values('2015-08-18 00:12:00', 2.028);")
-        tdSql.execute(f"insert into t1 values('2015-08-18 00:18:00', 2.126);")
-        tdSql.execute(f"insert into t1 values('2015-08-18 00:24:00', 2.041);")
-        tdSql.execute(f"insert into t1 values('2015-08-18 00:30:00', 2.051);")
+        tdSql.execute(f"create table t1 (ts timestamp, k float)")
+        tdSql.execute(f"insert into t1 values('2015-08-18 00:00:00', 2.064)")
+        tdSql.execute(f"insert into t1 values('2015-08-18 00:06:00', 2.116)")
+        tdSql.execute(f"insert into t1 values('2015-08-18 00:12:00', 2.028)")
+        tdSql.execute(f"insert into t1 values('2015-08-18 00:18:00', 2.126)")
+        tdSql.execute(f"insert into t1 values('2015-08-18 00:24:00', 2.041)")
+        tdSql.execute(f"insert into t1 values('2015-08-18 00:30:00', 2.051)")
 
         tdSql.query(
             f"select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:05:00'"
@@ -789,20 +766,20 @@ class TestInterval:
 
         # sql select count(*),TWA(k) from tm0 where ts>='1970-1-1 13:43:00' and ts<='1970-1-1 13:44:10' interval(9s)
 
-        tdSql.execute(f"create table tm0 (ts timestamp, k float);")
-        tdSql.execute(f"insert into tm0 values(100000000, 5);")
-        tdSql.execute(f"insert into tm0 values(100003000, -9);")
+        tdSql.execute(f"create table tm0 (ts timestamp, k float)")
+        tdSql.execute(f"insert into tm0 values(100000000, 5)")
+        tdSql.execute(f"insert into tm0 values(100003000, -9)")
         tdSql.query(f"select twa(k) from tm0 where ts<now")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, -2.000000000)
 
-        tdSql.execute(f"create table tm1 (ts timestamp,  k int);")
-        tdSql.execute(f"insert into tm1 values('2020-10-30 18:11:56.680', -1000);")
-        tdSql.execute(f"insert into tm1 values('2020-11-19 18:11:45.773', NULL);")
-        tdSql.execute(f"insert into tm1 values('2020-12-09 18:11:17.098', NULL);")
-        tdSql.execute(f"insert into tm1 values('2020-12-20 18:11:49.412', 1);")
-        tdSql.execute(f"insert into tm1 values('2020-12-23 18:11:50.412', 2);")
-        tdSql.execute(f"insert into tm1 values('2020-12-28 18:11:52.412', 3);")
+        tdSql.execute(f"create table tm1 (ts timestamp,  k int)")
+        tdSql.execute(f"insert into tm1 values('2020-10-30 18:11:56.680', -1000)")
+        tdSql.execute(f"insert into tm1 values('2020-11-19 18:11:45.773', NULL)")
+        tdSql.execute(f"insert into tm1 values('2020-12-09 18:11:17.098', NULL)")
+        tdSql.execute(f"insert into tm1 values('2020-12-20 18:11:49.412', 1)")
+        tdSql.execute(f"insert into tm1 values('2020-12-23 18:11:50.412', 2)")
+        tdSql.execute(f"insert into tm1 values('2020-12-28 18:11:52.412', 3)")
 
         tdLog.info(f"=====================> td-2610")
         tdSql.query(
@@ -854,47 +831,47 @@ class TestInterval:
 
         tdLog.info(f"=============================> TD-6086")
         tdSql.execute(
-            f"create stable td6086st(ts timestamp, d double) tags(t nchar(50));"
+            f"create stable td6086st(ts timestamp, d double) tags(t nchar(50))"
         )
-        tdSql.execute(f'create table td6086ct1 using td6086st tags("ct1");')
-        tdSql.execute(f'create table td6086ct2 using td6086st tags("ct2");')
+        tdSql.execute(f'create table td6086ct1 using td6086st tags("ct1")')
+        tdSql.execute(f'create table td6086ct2 using td6086st tags("ct2")')
 
         tdSql.query(
-            f"SELECT LAST(d),t FROM td6086st WHERE tbname in ('td6086ct1', 'td6086ct2') and ts>=\"2019-07-30 00:00:00\" and ts<=\"2021-08-31 00:00:00\" partition BY tbname interval(1800s) fill(prev);"
+            f"SELECT LAST(d),t FROM td6086st WHERE tbname in ('td6086ct1', 'td6086ct2') and ts>=\"2019-07-30 00:00:00\" and ts<=\"2021-08-31 00:00:00\" partition BY tbname interval(1800s) fill(prev)"
         )
 
         tdLog.info(f"==================> td-2624")
-        tdSql.execute(f"create table tm2(ts timestamp, k int, b binary(12));")
+        tdSql.execute(f"create table tm2(ts timestamp, k int, b binary(12))")
         tdSql.execute(
-            f"insert into tm2 values('2011-01-02 18:42:45.326',      -1,'abc');"
+            f"insert into tm2 values('2011-01-02 18:42:45.326',      -1,'abc')"
         )
         tdSql.execute(
-            f"insert into tm2 values('2020-07-30 17:44:06.283',       0, null);"
+            f"insert into tm2 values('2020-07-30 17:44:06.283',       0, null)"
         )
         tdSql.execute(
-            f"insert into tm2 values('2020-07-30 17:44:19.578', 9999999, null);"
+            f"insert into tm2 values('2020-07-30 17:44:19.578', 9999999, null)"
         )
         tdSql.execute(
-            f"insert into tm2 values('2020-07-30 17:46:06.417',    NULL, null);"
+            f"insert into tm2 values('2020-07-30 17:46:06.417',    NULL, null)"
         )
         tdSql.execute(
-            f"insert into tm2 values('2020-11-09 18:42:25.538',       0, null);"
+            f"insert into tm2 values('2020-11-09 18:42:25.538',       0, null)"
         )
         tdSql.execute(
-            f"insert into tm2 values('2020-12-29 17:43:11.641',       0, null);"
+            f"insert into tm2 values('2020-12-29 17:43:11.641',       0, null)"
         )
         tdSql.execute(
-            f"insert into tm2 values('2020-12-29 18:43:17.129',       0, null);"
+            f"insert into tm2 values('2020-12-29 18:43:17.129',       0, null)"
         )
         tdSql.execute(
-            f"insert into tm2 values('2020-12-29 18:46:19.109',    NULL, null);"
+            f"insert into tm2 values('2020-12-29 18:46:19.109',    NULL, null)"
         )
         tdSql.execute(
-            f"insert into tm2 values('2021-01-03 18:40:40.065',       0, null);"
+            f"insert into tm2 values('2021-01-03 18:40:40.065',       0, null)"
         )
 
         tdSql.query(
-            f"select _wstart, twa(k),first(ts) from tm2 where k <50 interval(17s);"
+            f"select _wstart, twa(k),first(ts) from tm2 where k <50 interval(17s)"
         )
         tdSql.checkRows(6)
         tdSql.checkData(0, 0, "2011-01-02 18:42:42")
@@ -902,11 +879,11 @@ class TestInterval:
         tdSql.checkData(1, 0, "2020-07-30 17:43:59")
         tdSql.checkData(2, 1, 0.000000000)
 
-        tdSql.query(f"select twa(k),first(ts) from tm2 where k <50 interval(17s);")
+        tdSql.query(f"select twa(k),first(ts) from tm2 where k <50 interval(17s)")
         tdSql.checkRows(6)
 
         tdSql.query(
-            f"select _wstart, twa(k),first(ts),count(k),first(k) from tm2 interval(17s) limit 20 offset 0;"
+            f"select _wstart, twa(k),first(ts),count(k),first(k) from tm2 interval(17s) limit 20 offset 0"
         )
         tdSql.checkRows(9)
         tdSql.checkData(0, 0, "2011-01-02 18:42:42")
@@ -921,75 +898,75 @@ class TestInterval:
         tdSql.checkData(0, 0, None)
 
         tdLog.info(f"========================> TD-1787")
-        tdSql.execute(f"create table cars(ts timestamp, c int) tags(id int);")
-        tdSql.execute(f"create table car1 using cars tags(1);")
-        tdSql.execute(f"create table car2 using cars tags(2);")
+        tdSql.execute(f"create table cars(ts timestamp, c int) tags(id int)")
+        tdSql.execute(f"create table car1 using cars tags(1)")
+        tdSql.execute(f"create table car2 using cars tags(2)")
         tdSql.execute(
-            f"insert into car1 (ts, c) values (now,1) car2(ts, c) values(now, 2);"
+            f"insert into car1 (ts, c) values (now,1) car2(ts, c) values(now, 2)"
         )
-        tdSql.execute(f"drop table cars;")
-        tdSql.execute(f"create table cars(ts timestamp, c int) tags(id int);")
-        tdSql.execute(f"create table car1 using cars tags(1);")
-        tdSql.execute(f"create table car2 using cars tags(2);")
+        tdSql.execute(f"drop table cars")
+        tdSql.execute(f"create table cars(ts timestamp, c int) tags(id int)")
+        tdSql.execute(f"create table car1 using cars tags(1)")
+        tdSql.execute(f"create table car2 using cars tags(2)")
         tdSql.execute(
-            f"insert into car1 (ts, c) values (now,1) car2(ts, c) values(now, 2);"
+            f"insert into car1 (ts, c) values (now,1) car2(ts, c) values(now, 2)"
         )
 
         tdLog.info(f"========================> TD-2700")
-        tdSql.execute(f"create table tx(ts timestamp, k int);")
-        tdSql.execute(f"insert into tx values(1500000001000, 0);")
-        tdSql.query(f"select sum(k) from tx interval(1d) sliding(1h);")
+        tdSql.execute(f"create table tx(ts timestamp, k int)")
+        tdSql.execute(f"insert into tx values(1500000001000, 0)")
+        tdSql.query(f"select sum(k) from tx interval(1d) sliding(1h)")
         tdSql.checkRows(24)
 
         tdLog.info(f"========================> TD-3948")
         tdSql.execute(f"drop table if exists meters")
         tdSql.execute(
-            f"create stable meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupId int);"
+            f"create stable meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupId int)"
         )
         tdSql.error(
-            f'insert into td3948Err1(phase) using meters tags ("Beijng.Chaoyang", 2) (ts, current) values (now, 10.2);'
+            f'insert into td3948Err1(phase) using meters tags ("Beijng.Chaoyang", 2) (ts, current) values (now, 10.2)'
         )
         tdSql.error(
-            f'insert into td3948Err2(phase, voltage) using meters tags ("Beijng.Chaoyang", 2) (ts, current) values (now, 10.2);'
+            f'insert into td3948Err2(phase, voltage) using meters tags ("Beijng.Chaoyang", 2) (ts, current) values (now, 10.2)'
         )
         tdSql.error(
-            f'insert into td3948Err3(phase, current) using meters tags ("Beijng.Chaoyang", 2) (ts, current) values (now, 10.2);'
+            f'insert into td3948Err3(phase, current) using meters tags ("Beijng.Chaoyang", 2) (ts, current) values (now, 10.2)'
         )
         tdSql.execute(
-            f'insert into td3948 using meters tags ("Beijng.Chaoyang", 2) (ts, current) values (now, 10.2);'
+            f'insert into td3948 using meters tags ("Beijng.Chaoyang", 2) (ts, current) values (now, 10.2)'
         )
-        tdSql.query(f"select count(ts) from td3948;")
+        tdSql.query(f"select count(ts) from td3948")
         tdSql.checkRows(1)
 
         tdLog.info(f"========================> TD-2740")
-        tdSql.execute(f"drop table if exists m1;")
-        tdSql.execute(f"create table m1(ts timestamp, k int) tags(a int);")
-        tdSql.execute(f"create table tm10 using m1 tags(0);")
-        tdSql.execute(f"create table tm11 using m1 tags(1);")
-        tdSql.execute(f"create table tm12 using m1 tags(2);")
-        tdSql.execute(f"create table tm13 using m1 tags(3);")
-        tdSql.execute(f"insert into tm10 values('2020-1-1 1:1:1', 0);")
-        tdSql.execute(f"insert into tm11 values('2020-1-5 1:1:1', 0);")
-        tdSql.execute(f"insert into tm12 values('2020-1-7 1:1:1', 0);")
-        tdSql.execute(f"insert into tm13 values('2020-1-1 1:1:1', 0);")
+        tdSql.execute(f"drop table if exists m1")
+        tdSql.execute(f"create table m1(ts timestamp, k int) tags(a int)")
+        tdSql.execute(f"create table tm10 using m1 tags(0)")
+        tdSql.execute(f"create table tm11 using m1 tags(1)")
+        tdSql.execute(f"create table tm12 using m1 tags(2)")
+        tdSql.execute(f"create table tm13 using m1 tags(3)")
+        tdSql.execute(f"insert into tm10 values('2020-1-1 1:1:1', 0)")
+        tdSql.execute(f"insert into tm11 values('2020-1-5 1:1:1', 0)")
+        tdSql.execute(f"insert into tm12 values('2020-1-7 1:1:1', 0)")
+        tdSql.execute(f"insert into tm13 values('2020-1-1 1:1:1', 0)")
         tdSql.query(
             f"select count(*) from m1 where ts='2020-1-1 1:1:1' partition by tbname interval(1h)"
         )
         tdSql.checkRows(2)
 
-        tdSql.execute(f"drop table m1;")
-        tdSql.execute(f"drop table if exists tm1;")
-        tdSql.execute(f"drop table if exists tm2;")
+        tdSql.execute(f"drop table m1")
+        tdSql.execute(f"drop table if exists tm1")
+        tdSql.execute(f"drop table if exists tm2")
         tdSql.execute(
-            f"create table m1(ts timestamp, k double, b double, c int, d smallint, e int unsigned) tags(a int);"
+            f"create table m1(ts timestamp, k double, b double, c int, d smallint, e int unsigned) tags(a int)"
         )
-        tdSql.execute(f"create table tm1 using m1 tags(1);")
-        tdSql.execute(f"create table tm2 using m1 tags(2);")
+        tdSql.execute(f"create table tm1 using m1 tags(1)")
+        tdSql.execute(f"create table tm2 using m1 tags(2)")
         tdSql.execute(
-            f"insert into tm1 values('2021-01-27 22:22:39.294', 1, 10, NULL, 110, 123) ('2021-01-27 22:22:40.294', 2, 20, NULL, 120, 124) ('2021-01-27 22:22:41.294', 3, 30, NULL, 130, 125)('2021-01-27 22:22:43.294', 4, 40, NULL, 140, 126)('2021-01-27 22:22:44.294', 5, 50, NULL, 150, 127);"
+            f"insert into tm1 values('2021-01-27 22:22:39.294', 1, 10, NULL, 110, 123) ('2021-01-27 22:22:40.294', 2, 20, NULL, 120, 124) ('2021-01-27 22:22:41.294', 3, 30, NULL, 130, 125)('2021-01-27 22:22:43.294', 4, 40, NULL, 140, 126)('2021-01-27 22:22:44.294', 5, 50, NULL, 150, 127)"
         )
         tdSql.execute(
-            f"insert into tm2 values('2021-01-27 22:22:40.688', 5, 101, NULL, 210, 321) ('2021-01-27 22:22:41.688', 5, 102, NULL, 220, 322) ('2021-01-27 22:22:42.688', 5, 103, NULL, 230, 323)('2021-01-27 22:22:43.688', 5, 104, NULL, 240, 324)('2021-01-27 22:22:44.688', 5, 105, NULL, 250, 325)('2021-01-27 22:22:45.688', 5, 106, NULL, 260, 326);"
+            f"insert into tm2 values('2021-01-27 22:22:40.688', 5, 101, NULL, 210, 321) ('2021-01-27 22:22:41.688', 5, 102, NULL, 220, 322) ('2021-01-27 22:22:42.688', 5, 103, NULL, 230, 323)('2021-01-27 22:22:43.688', 5, 104, NULL, 240, 324)('2021-01-27 22:22:44.688', 5, 105, NULL, 250, 325)('2021-01-27 22:22:45.688', 5, 106, NULL, 260, 326)"
         )
 
         tdSql.query(f"select stddev(k) from m1")
@@ -1004,7 +981,7 @@ class TestInterval:
         tdSql.checkData(0, 0, 1.378704626)
         tdSql.checkData(0, 1, None)
 
-        tdSql.query(f"select stddev(b),stddev(b),stddev(k) from m1;")
+        tdSql.query(f"select stddev(b),stddev(b),stddev(k) from m1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 37.840465463)
         tdSql.checkData(0, 1, 37.840465463)
@@ -1120,12 +1097,12 @@ class TestInterval:
         tdSql.checkData(0, 1, 1.414213562)
 
         tdSql.execute(
-            f"create stable st1 (ts timestamp, f1 int, f2 int) tags (id int);"
+            f"create stable st1 (ts timestamp, f1 int, f2 int) tags (id int)"
         )
-        tdSql.execute(f"create table tb1 using st1 tags(1);")
-        tdSql.execute(f"insert into tb1 values ('2021-07-02 00:00:00', 1, 1);")
+        tdSql.execute(f"create table tb1 using st1 tags(1)")
+        tdSql.execute(f"insert into tb1 values ('2021-07-02 00:00:00', 1, 1)")
 
-        tdSql.query(f"select stddev(f1) from st1 group by f1;")
+        tdSql.query(f"select stddev(f1) from st1 group by f1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0.000000000)
 
@@ -1140,8 +1117,8 @@ class TestInterval:
         tdLog.info(f"====================> TODO stddev + normal column filter")
 
         tdLog.info(f"====================> irate")
-        tdSql.query(f"select irate(f1) from st1;")
-        tdSql.query(f"select irate(f1) from  st1 group by tbname;")
+        tdSql.query(f"select irate(f1) from st1")
+        tdSql.query(f"select irate(f1) from  st1 group by tbname")
 
         tdSql.query(f"select irate(k) from t1")
         tdSql.checkRows(1)
@@ -1152,7 +1129,7 @@ class TestInterval:
         tdSql.checkData(0, 0, 0.000000000)
 
         tdSql.query(
-            f"select irate(k) from t1 where ts>='2015-8-18 00:06:00.000' and ts<='2015-8-18 00:12:00.000';"
+            f"select irate(k) from t1 where ts>='2015-8-18 00:06:00.000' and ts<='2015-8-18 00:12:00.000'"
         )
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0.005633334)
@@ -1188,10 +1165,10 @@ class TestInterval:
 
         tdLog.info(f"===========================> derivative")
         tdSql.execute(f"drop table t1")
-        tdSql.execute(f"drop table tx;")
-        tdSql.execute(f"drop table if exists m1;")
-        tdSql.execute(f"drop table if exists tm0;")
-        tdSql.execute(f"drop table if exists tm1;")
+        tdSql.execute(f"drop table tx")
+        tdSql.execute(f"drop table if exists m1")
+        tdSql.execute(f"drop table if exists tm0")
+        tdSql.execute(f"drop table if exists tm1")
 
         tdSql.execute(f"create table tm0(ts timestamp, k double)")
         tdSql.execute(
@@ -1201,16 +1178,16 @@ class TestInterval:
             f"insert into tm0 values('2015-08-18T00:18:00Z', 2.126) ('2015-08-18T00:24:00Z', 2.041) ('2015-08-18T00:30:00Z', 2.051)"
         )
 
-        tdSql.error(f"select derivative(ts) from tm0;")
-        tdSql.error(f"select derivative(k) from tm0;")
-        tdSql.error(f"select derivative(k, 0, 0) from tm0;")
-        tdSql.error(f"select derivative(k, 1, 911) from tm0;")
-        tdSql.error(f"select derivative(kx, 1s, 1) from tm0;")
-        tdSql.error(f"select derivative(k, -20s, 1) from tm0;")
-        tdSql.query(f"select derivative(k, 20a, 0) from tm0;")
-        tdSql.query(f"select derivative(k, 200a, 0) from tm0;")
-        tdSql.query(f"select derivative(k, 999a, 0) from tm0;")
-        tdSql.error(f"select derivative(k, 20s, -12) from tm0;")
+        tdSql.error(f"select derivative(ts) from tm0")
+        tdSql.error(f"select derivative(k) from tm0")
+        tdSql.error(f"select derivative(k, 0, 0) from tm0")
+        tdSql.error(f"select derivative(k, 1, 911) from tm0")
+        tdSql.error(f"select derivative(kx, 1s, 1) from tm0")
+        tdSql.error(f"select derivative(k, -20s, 1) from tm0")
+        tdSql.query(f"select derivative(k, 20a, 0) from tm0")
+        tdSql.query(f"select derivative(k, 200a, 0) from tm0")
+        tdSql.query(f"select derivative(k, 999a, 0) from tm0")
+        tdSql.error(f"select derivative(k, 20s, -12) from tm0")
 
         tdSql.query(f"select ts, derivative(k, 1s, 0) from tm0")
         tdSql.checkRows(5)
@@ -1223,7 +1200,7 @@ class TestInterval:
         tdSql.checkData(3, 0, "2015-08-18 08:24:00")
         tdSql.checkData(3, 1, -0.000236111)
 
-        tdSql.query(f"select ts ,derivative(k, 6m, 0) from tm0;")
+        tdSql.query(f"select ts ,derivative(k, 6m, 0) from tm0")
         tdSql.checkRows(5)
         tdSql.checkData(0, 0, "2015-08-18 08:06:00")
         tdSql.checkData(0, 1, 0.052000000)
@@ -1234,76 +1211,76 @@ class TestInterval:
         tdSql.checkData(3, 0, "2015-08-18 08:24:00")
         tdSql.checkData(3, 1, -0.085000000)
 
-        tdSql.query(f"select ts, derivative(k, 12m, 0) from tm0;")
+        tdSql.query(f"select ts, derivative(k, 12m, 0) from tm0")
         tdSql.checkRows(5)
         tdSql.checkData(0, 0, "2015-08-18 08:06:00")
         tdSql.checkData(0, 1, 0.104000000)
 
-        tdSql.query(f"select derivative(k, 6m, 1) from tm0;")
+        tdSql.query(f"select derivative(k, 6m, 1) from tm0")
         tdSql.checkRows(3)
 
-        tdSql.error(f"select derivative(k, 6m, 1) from tm0 interval(1s);")
-        tdSql.error(f"select derivative(k, 6m, 1) from tm0 session(ts, 1s);")
-        tdSql.error(f"select derivative(k, 6m, 1) from tm0 group by k;")
+        tdSql.error(f"select derivative(k, 6m, 1) from tm0 interval(1s)")
+        tdSql.error(f"select derivative(k, 6m, 1) from tm0 session(ts, 1s)")
+        tdSql.error(f"select derivative(k, 6m, 1) from tm0 group by k")
 
         tdSql.execute(f"drop table if exists tm0")
         tdSql.execute(f"drop table if exists m1")
 
-        tdSql.execute(f"create table m1 (ts timestamp, k double ) tags(a int);")
-        tdSql.execute(f"create table if not exists t0 using m1 tags(1);")
-        tdSql.execute(f"create table if not exists t1 using m1 tags(2);")
+        tdSql.execute(f"create table m1 (ts timestamp, k double ) tags(a int)")
+        tdSql.execute(f"create table if not exists t0 using m1 tags(1)")
+        tdSql.execute(f"create table if not exists t1 using m1 tags(2)")
 
-        tdSql.execute(f"insert into t0 values('2020-1-1 1:1:1', 1);")
-        tdSql.execute(f"insert into t0 values('2020-1-1 1:1:3', 3);")
-        tdSql.execute(f"insert into t0 values('2020-1-1 1:2:4', 4);")
-        tdSql.execute(f"insert into t0 values('2020-1-1 1:2:5', 5);")
-        tdSql.execute(f"insert into t0 values('2020-1-1 1:2:6', 6);")
-        tdSql.execute(f"insert into t0 values('2020-1-1 1:3:7', 7);")
-        tdSql.execute(f"insert into t0 values('2020-1-1 1:3:8', 8);")
-        tdSql.execute(f"insert into t0 values('2020-1-1 1:3:9', 9);")
-        tdSql.execute(f"insert into t0 values('2020-1-1 1:4:10', 10);")
+        tdSql.execute(f"insert into t0 values('2020-1-1 1:1:1', 1)")
+        tdSql.execute(f"insert into t0 values('2020-1-1 1:1:3', 3)")
+        tdSql.execute(f"insert into t0 values('2020-1-1 1:2:4', 4)")
+        tdSql.execute(f"insert into t0 values('2020-1-1 1:2:5', 5)")
+        tdSql.execute(f"insert into t0 values('2020-1-1 1:2:6', 6)")
+        tdSql.execute(f"insert into t0 values('2020-1-1 1:3:7', 7)")
+        tdSql.execute(f"insert into t0 values('2020-1-1 1:3:8', 8)")
+        tdSql.execute(f"insert into t0 values('2020-1-1 1:3:9', 9)")
+        tdSql.execute(f"insert into t0 values('2020-1-1 1:4:10', 10)")
 
-        tdSql.execute(f"insert into t1 values('2020-1-1 1:1:2', 2);")
+        tdSql.execute(f"insert into t1 values('2020-1-1 1:1:2', 2)")
         tdLog.info(f"===========================>td-4739")
         tdSql.query(
-            f"select diff(val) from (select ts, derivative(k, 1s, 0) val from t1);"
+            f"select diff(val) from (select ts, derivative(k, 1s, 0) val from t1)"
         )
         tdSql.checkRows(0)
 
-        tdSql.execute(f"insert into t1 values('2020-1-1 1:1:4', 20);")
-        tdSql.execute(f"insert into t1 values('2020-1-1 1:1:6', 200);")
-        tdSql.execute(f"insert into t1 values('2020-1-1 1:1:8', 2000);")
-        tdSql.execute(f"insert into t1 values('2020-1-1 1:1:10', 20000);")
+        tdSql.execute(f"insert into t1 values('2020-1-1 1:1:4', 20)")
+        tdSql.execute(f"insert into t1 values('2020-1-1 1:1:6', 200)")
+        tdSql.execute(f"insert into t1 values('2020-1-1 1:1:8', 2000)")
+        tdSql.execute(f"insert into t1 values('2020-1-1 1:1:10', 20000)")
 
-        tdSql.query(f"select derivative(k, 1s, 0) from m1;")
-        tdSql.error(f"select derivative(k, 1s, 0) from m1 group by a;")
-        tdSql.error(f"select derivative(f1, 1s, 0) from (select k from t1);")
+        tdSql.query(f"select derivative(k, 1s, 0) from m1")
+        tdSql.error(f"select derivative(k, 1s, 0) from m1 group by a")
+        tdSql.error(f"select derivative(f1, 1s, 0) from (select k from t1)")
 
         tdSql.query(f"select ts, derivative(k, 1s, 0) from m1")
         tdSql.checkRows(13)
 
         tdLog.info(f"=========================>TD-5190")
         tdSql.query(
-            f"select _wstart, stddev(f1) from st1 where ts>'2021-07-01 1:1:1' and ts<'2021-07-30 00:00:00' interval(1d) fill(NULL);"
+            f"select _wstart, stddev(f1) from st1 where ts>'2021-07-01 1:1:1' and ts<'2021-07-30 00:00:00' interval(1d) fill(NULL)"
         )
         tdSql.checkRows(29)
         tdSql.checkData(0, 0, "2021-07-01 00:00:00")
         tdSql.checkData(0, 1, None)
 
         tdSql.query(
-            f"select derivative(test_column_alias_name, 1s, 0) from (select _wstart, avg(k) test_column_alias_name from t1 interval(1s));"
+            f"select derivative(test_column_alias_name, 1s, 0) from (select _wstart, avg(k) test_column_alias_name from t1 interval(1s))"
         )
 
         tdSql.execute(
-            f"create table smeters (ts timestamp, current float, voltage int) tags (t1 int);"
+            f"create table smeters (ts timestamp, current float, voltage int) tags (t1 int)"
         )
-        tdSql.execute(f"create table smeter1 using smeters tags (1);")
-        tdSql.execute(f"insert into smeter1 values ('2021-08-08 10:10:10', 10, 2);")
-        tdSql.execute(f"insert into smeter1 values ('2021-08-08 10:10:12', 10, 2);")
-        tdSql.execute(f"insert into smeter1 values ('2021-08-08 10:10:14', 20, 1);")
+        tdSql.execute(f"create table smeter1 using smeters tags (1)")
+        tdSql.execute(f"insert into smeter1 values ('2021-08-08 10:10:10', 10, 2)")
+        tdSql.execute(f"insert into smeter1 values ('2021-08-08 10:10:12', 10, 2)")
+        tdSql.execute(f"insert into smeter1 values ('2021-08-08 10:10:14', 20, 1)")
 
         tdSql.query(
-            f"select _wstart, stddev(voltage) from smeters where ts>='2021-08-08 10:10:10.000' and ts < '2021-08-08 10:10:20.000'  and current=10 interval(1000a);"
+            f"select _wstart, stddev(voltage) from smeters where ts>='2021-08-08 10:10:10.000' and ts < '2021-08-08 10:10:20.000'  and current=10 interval(1000a)"
         )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, "2021-08-08 10:10:10")
@@ -1312,50 +1289,50 @@ class TestInterval:
         tdSql.checkData(1, 1, 0.000000000)
 
         tdSql.query(
-            f"select stddev(voltage) from smeters where ts>='2021-08-08 10:10:10.000' and ts < '2021-08-08 10:10:20.000'  and current=10;"
+            f"select stddev(voltage) from smeters where ts>='2021-08-08 10:10:10.000' and ts < '2021-08-08 10:10:20.000'  and current=10"
         )
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0.000000000)
 
         tdSql.execute(
-            f"create table ft1(ts timestamp, a int, b int , c int, d double);"
+            f"create table ft1(ts timestamp, a int, b int , c int, d double)"
         )
 
-        tdSql.execute(f"insert into ft1 values(1648791213000,1,2,3,1.0);")
-        tdSql.error(f"select sum(_wduration), a from ft1 state_window(a);")
+        tdSql.execute(f"insert into ft1 values(1648791213000,1,2,3,1.0)")
+        tdSql.error(f"select sum(_wduration), a from ft1 state_window(a)")
 
-        tdSql.error(f"select count(_wduration), a from ft1 state_window(a);")
+        tdSql.error(f"select count(_wduration), a from ft1 state_window(a)")
 
-        tdSql.error(f"select max(_wduration), a from ft1 state_window(a);")
+        tdSql.error(f"select max(_wduration), a from ft1 state_window(a)")
 
-        tdSql.error(f"select sum(1 + _wduration), a from ft1 state_window(a);")
+        tdSql.error(f"select sum(1 + _wduration), a from ft1 state_window(a)")
 
-        tdSql.error(f"select sum(cast(_wstart as bigint)), a from ft1 state_window(a);")
+        tdSql.error(f"select sum(cast(_wstart as bigint)), a from ft1 state_window(a)")
 
-        tdSql.error(f"select sum(cast(_wend as bigint)), a from ft1 state_window(a);")
+        tdSql.error(f"select sum(cast(_wend as bigint)), a from ft1 state_window(a)")
 
         tdSql.error(
-            f"create stream streams1 trigger at_once  into streamt as select  _wstart, sum(_wduration) from ft1 interval(10s);"
+            f"create stream streams1 trigger at_once  into streamt as select  _wstart, sum(_wduration) from ft1 interval(10s)"
         )
 
         tdSql.error(
-            f"create stream streams1 trigger at_once  into streamt as select  _wstart, sum(cast(_wend as bigint)) from ft1 interval(10s);"
+            f"create stream streams1 trigger at_once  into streamt as select  _wstart, sum(cast(_wend as bigint)) from ft1 interval(10s)"
         )
 
-        tdSql.execute(f"create database test  vgroups 1;")
-        tdSql.execute(f"use test;")
-        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double);")
-        tdSql.execute(f"insert into t1 values(1648791213000,1,1,3,1.0);")
-        tdSql.execute(f"insert into t1 values(1648791223000,1,2,NULL,NULL);")
+        tdSql.execute(f"create database test  vgroups 1")
+        tdSql.execute(f"use test")
+        tdSql.execute(f"create table t1(ts timestamp, a int, b int , c int, d double)")
+        tdSql.execute(f"insert into t1 values(1648791213000,1,1,3,1.0)")
+        tdSql.execute(f"insert into t1 values(1648791223000,1,2,NULL,NULL)")
 
         tdSql.query(
-            f'select apercentile(c, 50), apercentile(d, 50, "t-digest")  from t1;'
+            f'select apercentile(c, 50), apercentile(d, 50, "t-digest")  from t1'
         )
         tdSql.checkData(0, 0, 3.000000000)
         tdSql.checkData(0, 1, 1.000000000)
 
         tdSql.query(
-            f'select apercentile(c, 50) a, apercentile(d, 50, "t-digest")  from t1 partition by b session(ts, 5s) order by a desc;'
+            f'select apercentile(c, 50) a, apercentile(d, 50, "t-digest")  from t1 partition by b session(ts, 5s) order by a desc'
         )
         tdSql.checkData(0, 0, 3.000000000)
         tdSql.checkData(0, 1, 1.000000000)
@@ -1363,7 +1340,7 @@ class TestInterval:
         tdSql.checkData(1, 1, None)
 
         tdSql.query(
-            f'select apercentile(c, 50) a, apercentile(d, 50, "t-digest")  from t1 state_window(b) order by a desc;'
+            f'select apercentile(c, 50) a, apercentile(d, 50, "t-digest")  from t1 state_window(b) order by a desc'
         )
         tdSql.checkData(0, 0, 3.000000000)
         tdSql.checkData(0, 1, 1.000000000)
@@ -1518,22 +1495,22 @@ class TestInterval:
 
     def ComputeInterval1(self):
         tdSql.execute(
-            f"CREATE DATABASE `alphacloud_alphaess` BUFFER 512 CACHESIZE 1024 CACHEMODEL 'both' COMP 2 DURATION 10d WAL_FSYNC_PERIOD 3000 MAXROWS 4096 MINROWS 100 KEEP 365000d;"
+            f"CREATE DATABASE `alphacloud_alphaess` BUFFER 512 CACHESIZE 1024 CACHEMODEL 'both' COMP 2 DURATION 10d WAL_FSYNC_PERIOD 3000 MAXROWS 4096 MINROWS 100 KEEP 365000d"
         )
 
-        tdSql.execute(f"use alphacloud_alphaess;")
+        tdSql.execute(f"use alphacloud_alphaess")
 
         tdSql.execute(
-            f"create stable st(ts TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `uk` VARCHAR(64) ENCODE 'disabled' COMPRESS 'lz4' LEVEL 'medium' PRIMARY KEY ) tags(ta int,tb int,tc int);"
+            f"create stable st(ts TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', `uk` VARCHAR(64) ENCODE 'disabled' COMPRESS 'lz4' LEVEL 'medium' PRIMARY KEY ) tags(ta int,tb int,tc int)"
         )
 
-        tdSql.execute(f"create table t1 using st tags(1,1,1);")
+        tdSql.execute(f"create table t1 using st tags(1,1,1)")
 
         tdSql.execute(
-            f'insert into t1 values ("1970-01-29 05:04:53.000"," 22::     ");'
+            f'insert into t1 values ("1970-01-29 05:04:53.000"," 22::     ")'
         )
 
-        tdSql.query(f"select _wstart, count(*) from st  interval(1y);")
+        tdSql.query(f"select _wstart, count(*) from st  interval(1y)")
 
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 1)
@@ -1624,9 +1601,1058 @@ class TestInterval:
         
         sql = "select _wstart, 1 from (select _wstart, _wend, tbname, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m)) interval(10m)"
         tdSql.query(sql)
-        tdSql.checkRows(3)
+        tdSql.checkRows(2)
         
         sql = "select 1 from (select _wstart, _wend, tbname, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m)) interval(10m)"
         tdSql.query(sql)
-        tdSql.checkRows(3)
+        tdSql.checkRows(2)
+
+    #
+    # ------------------- 2 ----------------
+    # 
+    def create_database(self,tsql, dbName,dropFlag=1,vgroups=2,replica=1, duration:str='1d', precision: str='ms'):
+        if dropFlag == 1:
+            tsql.execute("drop database if exists %s"%(dbName), 1)
+
+        tsql.execute("create database if not exists %s vgroups %d replica %d duration %s precision '%s'"%(dbName, vgroups, replica, duration, precision), 1)
+        tdLog.debug("complete to create database %s"%(dbName))
+        return
+
+    def create_stable(self,tsql, paraDict):
+        colString = tdCom.gen_column_type_str(colname_prefix=paraDict["colPrefix"], column_elm_list=paraDict["colSchema"])
+        tagString = tdCom.gen_tag_type_str(tagname_prefix=paraDict["tagPrefix"], tag_elm_list=paraDict["tagSchema"])
+        sqlString = f"create table if not exists %s.%s (%s) tags (%s)"%(paraDict["dbName"], paraDict["stbName"], colString, tagString)
+        tdLog.debug("%s"%(sqlString))
+        tsql.execute(sqlString, 1)
+        return
+
+    def create_ctable(self,tsql=None, dbName='dbx',stbName='stb',ctbPrefix='ctb',ctbNum=1,ctbStartIdx=0):
+        for i in range(ctbNum):
+            sqlString = "create table %s.%s%d using %s.%s tags(%d, 'tb%d', 'tb%d', %d, %d, %d)" % \
+                    (dbName,ctbPrefix,i+ctbStartIdx,dbName,stbName,(i+ctbStartIdx) % 5,i+ctbStartIdx,i+ctbStartIdx,i+ctbStartIdx,i+ctbStartIdx,i+ctbStartIdx)
+            tsql.execute(sqlString, 1)
+
+        tdLog.debug("complete to create %d child tables by %s.%s" %(ctbNum, dbName, stbName))
+        return
+
+    def insert_data(self,tsql,dbName,ctbPrefix,ctbNum,rowsPerTbl,batchNum,startTs,tsStep):
+        tdLog.debug("start to insert data ............")
+        tsql.execute("use %s" %dbName, 1)
+        pre_insert = "insert into "
+        sql = pre_insert
+
+        for i in range(ctbNum):
+            rowsBatched = 0
+            sql += " %s%d values "%(ctbPrefix,i)
+            for j in range(rowsPerTbl):
+                if (i < ctbNum/2):
+                    sql += "(%d, %d, %d, %d,%d,%d,%d,true,'binary%d', 'nchar%d') "%(startTs + j*tsStep, j%10, j%10, j%10, j%10, j%10, j%10, j%10, j%10)
+                else:
+                    sql += "(%d, %d, NULL, %d,NULL,%d,%d,true,'binary%d', 'nchar%d') "%(startTs + j*tsStep, j%10, j%10, j%10, j%10, j%10, j%10)
+                rowsBatched += 1
+                if ((rowsBatched == batchNum) or (j == rowsPerTbl - 1)):
+                    tsql.execute(sql, 1)
+                    rowsBatched = 0
+                    if j < rowsPerTbl - 1:
+                        sql = "insert into %s%d values " %(ctbPrefix,i)
+                    else:
+                        sql = "insert into "
+        if sql != pre_insert:
+            tsql.execute(sql, 1)
+        tdLog.debug("insert data ............ [OK]")
+        return
+
+    def prepare_db_for_interval_unit_test(self, dbname: str, precision: str = 'ms', startTs = 1537146000000):
+        self.create_database(tdSql, dbname, precision=precision)
+        paraDict = {'dbName':     dbname,
+                    'dropFlag':   1,
+                    'vgroups':    2,
+                    'stbName':    'meters',
+                    'colPrefix':  'c',
+                    'tagPrefix':  't',
+                    'colSchema':   [{'type': 'INT', 'count':1},
+                                    {'type': 'BIGINT', 'count':1},
+                                    {'type': 'FLOAT', 'count':1},
+                                    {'type': 'DOUBLE', 'count':1},
+                                    {'type': 'smallint', 'count':1},
+                                    {'type': 'tinyint', 'count':1},
+                                    {'type': 'bool', 'count':1},
+                                    {'type': 'binary', 'len':10, 'count':1},
+                                    {'type': 'nchar', 'len':10, 'count':1} ],
+                    'tagSchema':   [{'type': 'INT', 'count':1},
+                                    {'type': 'nchar', 'len':20, 'count':1},
+                                    {'type': 'binary', 'len':20, 'count':1},
+                                    {'type': 'BIGINT', 'count':1},
+                                    {'type': 'smallint', 'count':1},
+                                    {'type': 'DOUBLE', 'count':1}],
+                    'ctbPrefix':  't',
+                    'ctbStartIdx': 0,
+                    'ctbNum':     100,
+                    'rowsPerTbl': 1000,
+                    'batchNum':   3000,
+                    'startTs':    startTs,
+                    'tsStep':     100}
+
+        self.create_stable(tdSql, paraDict)
+
+        self.create_ctable(tsql=tdSql, dbName=paraDict["dbName"], \
+                stbName=paraDict["stbName"],ctbPrefix=paraDict["ctbPrefix"],\
+                ctbNum=paraDict["ctbNum"],ctbStartIdx=paraDict["ctbStartIdx"])
+        self.insert_data(tsql=tdSql, dbName=paraDict["dbName"],\
+                ctbPrefix=paraDict["ctbPrefix"],ctbNum=paraDict["ctbNum"],\
+                rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],\
+                startTs=paraDict["startTs"],tsStep=paraDict["tsStep"])
+
+    def prepare_for_interval_unit_test(self):
+        self.prepare_db_for_interval_unit_test('msdb', 'ms', startTs=1600000000000)
+        self.prepare_db_for_interval_unit_test('usdb', 'us', startTs=1600000000000000)
+        self.prepare_db_for_interval_unit_test('nsdb', 'ns', startTs=1600000000000000000)
+
+    def check_explain_res_has_row(self, plan_str_expect: str, rows):
+        plan_found = False
+        for row in rows:
+            if str(row).find(plan_str_expect) >= 0:
+                tdLog.debug("plan: [%s] found in: [%s]" % (plan_str_expect, str(row)))
+                plan_found = True
+                break
+        if not plan_found:
+            tdLog.exit("plan: %s not found in res: [%s]" % (plan_str_expect, str(rows)))
+
+    def explain_and_assert_res(self, sql, expect):
+        tdSql.query(sql)
+        res = tdSql.queryResult
+        self.check_explain_res_has_row(expect, res)
+
+    def check_interval_normal_cases(self):
+        tdSql.execute('use msdb')
+        sql_template = 'explain verbose true select count(*), min(c1) from meters interval(%s) sliding(%s)'
+
+        fail_durations = ["'1 s'", "'11ns'", "'11ms'", "'11+2s'",
+        "' 112s '", '"100s "', "' 112 s '", "'112a20s'", "'s'",
+        '"1 s"', '"1"', '"100"', '"1y"', '1y', '"1s""', "'12s'12s'", "'12s\""]
+
+        for dura in fail_durations:
+            tdSql.error(sql_template % (dura, dura))
+
+        msdb_success_durations = ['1s', '"1s"', '"1000000a"', "'100d'",
+                             "'10m'", '"10h"', '1000']
+
+        for dura in msdb_success_durations:
+            tdSql.query(sql_template % (dura, dura), queryTimes=1)
+            unit = ''
+            if dura.isdigit():
+                unit = 'a'
+            self.check_explain_res_has_row('interval=' + dura.lstrip('\'"').rstrip('\'"') + unit, tdSql.queryResult)
+            self.check_explain_res_has_row('sliding=' + dura.lstrip('\'"').rstrip('\'"') + unit, tdSql.queryResult)
+
+        usdb_success_durations = ['"1s"', "'10s'", '"10d"', '"1000000u"', '1000000']
+        for dura in usdb_success_durations:
+            tdSql.execute("use usdb")
+            tdSql.query(sql_template % (dura, dura), queryTimes=1)
+            unit = ''
+            if dura.isdigit():
+                unit = 'u'
+            self.check_explain_res_has_row('interval=' + dura.lstrip('\'"').rstrip('\'"') + unit, tdSql.queryResult)
+            self.check_explain_res_has_row('sliding=' + dura.lstrip('\'"').rstrip('\'"') + unit, tdSql.queryResult)
+
+        nsdb_success_durations = ['"1s"', "'10s'", '"10d"', '"1000000u"', '"1000000000b"', '1000000000']
+        for dura in usdb_success_durations:
+            tdSql.execute("use nsdb")
+            tdSql.query(sql_template % (dura, dura), queryTimes=1)
+            unit = ''
+            if dura.isdigit():
+                unit = 'b'
+            self.check_explain_res_has_row('interval=' + dura.lstrip('\'"').rstrip('\'"') + unit, tdSql.queryResult)
+            self.check_explain_res_has_row('sliding=' + dura.lstrip('\'"').rstrip('\'"') + unit, tdSql.queryResult)
+
+    def check_interval_unit_feature(self):
+        self.prepare_for_interval_unit_test()
+        self.check_interval_normal_cases()
+
+    def do_interval_unit(self):        
+        self.check_interval_unit_feature()
+        print("do interval unit ...................... [passed]")
+
+    #
+    # ------------------- 3 ----------------
+    #
+    def prepareTestEnv(self):
+        tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
+        paraDict = {'dbName':     'test',
+                    'dropFlag':   1,
+                    'vgroups':    2,
+                    'stbName':    'meters',
+                    'colPrefix':  'c',
+                    'tagPrefix':  't',
+                    'colSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'FLOAT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'smallint', 'count':1},{'type': 'tinyint', 'count':1},{'type': 'bool', 'count':1},{'type': 'binary', 'len':10, 'count':1},{'type': 'nchar', 'len':10, 'count':1}],
+                    'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'nchar', 'len':20, 'count':1},{'type': 'binary', 'len':20, 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'smallint', 'count':1},{'type': 'DOUBLE', 'count':1}],
+                    'ctbPrefix':  't',
+                    'ctbStartIdx': 0,
+                    'ctbNum':     100,
+                    'rowsPerTbl': 10000,
+                    'batchNum':   3000,
+                    'startTs':    1537146000000,
+                    'tsStep':     600000}
+
+        paraDict['vgroups'] = self.vgroups
+        paraDict['ctbNum'] = self.ctbNum
+        paraDict['rowsPerTbl'] = self.rowsPerTbl
+
+        tdLog.info("create database")
+        self.create_database(tsql=tdSql, dbName=paraDict["dbName"], dropFlag=paraDict["dropFlag"], vgroups=paraDict["vgroups"], replica=1, duration=self.duration)
+
+        tdLog.info("create stb")
+        self.create_stable(tsql=tdSql, paraDict=paraDict)
+
+        tdLog.info("create child tables")
+        self.create_ctable(tsql=tdSql, dbName=paraDict["dbName"], \
+                stbName=paraDict["stbName"],ctbPrefix=paraDict["ctbPrefix"],\
+                ctbNum=paraDict["ctbNum"],ctbStartIdx=paraDict["ctbStartIdx"])
+        self.insert_data(tsql=tdSql, dbName=paraDict["dbName"],\
+                ctbPrefix=paraDict["ctbPrefix"],ctbNum=paraDict["ctbNum"],\
+                rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],\
+                startTs=paraDict["startTs"],tsStep=paraDict["tsStep"])
+        return
+
+    def check_first_rows(self, all_rows, limited_rows, offset: int = 0):
+        for i in range(0, len(limited_rows) - 1):
+            if limited_rows[i] != all_rows[i + offset]:
+                tdLog.info("row: %d, row in all:    %s" % (i+offset+1, str(all_rows[i+offset])))
+                tdLog.info("row: %d, row in limted: %s" % (i+1, str(limited_rows[i])))
+                tdLog.exit("row data check failed")
+        tdLog.info("all rows are the same as query without limit..")
+
+    def query_and_check_with_slimit(self, sql: str, max_limit: int, step: int, offset: int = 0):
+        self.query_and_check_with_limit(sql, max_limit, step, offset, ' slimit ')
+
+    def query_and_check_with_limit(self, sql: str, max_limit: int, step: int, offset: int = 0, limit_str: str = ' limit '):
+        for limit in range(0, max_limit, step):
+            limited_sql = sql + limit_str + str(offset) + "," + str(limit)
+            tdLog.info("query with sql: %s "  % (sql) + limit_str + " %d,%d" % (offset, limit))
+            all_rows = tdSql.getResult(sql)
+            limited_rows = tdSql.getResult(limited_sql)
+            tdLog.info("all rows: %d, limited rows: %d" % (len(all_rows), len(limited_rows)))
+            if limit_str == ' limit ':
+                if limit + offset <= len(all_rows) and len(limited_rows) != limit:
+                    tdLog.exit("limited sql has less rows than limit value which is not right, \
+                            limit: %d, limited_rows: %d, all_rows: %d, offset: %d" % (limit, len(limited_rows), len(all_rows), offset))
+                elif limit + offset > len(all_rows) and offset < len(all_rows) and offset + len(limited_rows) != len(all_rows):
+                    tdLog.exit("limited sql has less rows than all_rows which is not right, \
+                            limit: %d, limited_rows: %d, all_rows: %d, offset: %d" % (limit, len(limited_rows), len(all_rows), offset))
+                elif offset >= len(all_rows) and len(limited_rows) != 0:
+                    tdLog.exit("limited rows should be zero, \
+                            limit: %d, limited_rows: %d, all_rows: %d, offset: %d" % (limit, len(limited_rows), len(all_rows), offset))
+
+            self.check_first_rows(all_rows, limited_rows, offset)
+
+    def check_interval_limit_offset(self):
+        for offset in range(0, 1000, 500):
+            self.check_interval_fill_limit(offset)
+            self.check_interval_order_by_limit(offset)
+            self.check_interval_partition_by_slimit(offset)
+
+    def check_interval_fill_limit(self, offset: int = 0):
+        sqls = [
+                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
+                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-09-17 09:30:00.000' interval(1s) fill(linear)",
+                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
+                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-09-17 09:30:00.000' interval(1m) fill(linear)",
+                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
+                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-09-17 09:30:00.000' interval(1h) fill(linear)",
+                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
+                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-09-17 09:30:00.000' interval(1d) fill(linear)"
+                ]
+        for sql in sqls:
+            self.query_and_check_with_limit(sql, 5000, 1000, offset)
+
+    def check_interval_order_by_limit(self, offset: int = 0):
+        sqls = [
+                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
+                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) order by b",
+                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
+                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) order by a desc",
+                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), last(ts) from meters \
+                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) order by a desc",
+                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
+                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) order by count(*), sum(c1), a",
+                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
+                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) order by a, count(*), sum(c1)",
+                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
+                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) fill(linear) order by b",
+                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
+                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) fill(linear) order by a desc",
+                "select _wstart as a, _wend as b, count(*), sum(c1), last(c2), first(ts) from meters \
+                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) fill(linear) order by a desc",
+                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
+                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) fill(linear) order by count(*), sum(c1), a",
+                "select _wstart as a, _wend as b, count(*), sum(c1), avg(c2), first(ts) from meters \
+                        where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' interval(1m) fill(linear) order by a, count(*), sum(c1)",
+                ]
+        for sql in sqls:
+            self.query_and_check_with_limit(sql, 6000, 2000, offset)
+
+    def check_interval_partition_by_slimit(self, offset: int = 0):
+        sqls = [
+                "select _wstart as a, _wend as b, count(*), sum(c1), last(c2), first(ts) from meters "
+                "where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' partition by t1 interval(1m)",
+                "select _wstart as a, _wend as b, count(*), sum(c1), last(c2), first(ts) from meters "
+                "where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' partition by t1 interval(1h)",
+                "select _wstart as a, _wend as b, count(*), sum(c1), last(c2), first(ts) from meters "
+                "where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-10-17 09:30:00.000' partition by c3 interval(1m)",
+                ]
+        for sql in sqls:
+            self.query_and_check_with_slimit(sql, 10, 2, offset)
+
+    def check_group_by_operator(self):
+        tdSql.query('select count(*), c1+1 from meters group by tbname, c1+1', 1)
+
+    def do_interval_limit_opt_2(self):
+        self.vgroups = 4
+        self.ctbNum = 10
+        self.rowsPerTbl = 10000
+        self.duration = '1h'
         
+        self.prepareTestEnv()
+        self.check_group_by_operator()
+        self.check_interval_limit_offset()
+
+        print("do interval limit ..................... [passed]")
+
+    #
+    # ------------------- main ----------------
+    #
+    def test_interval_basic(self):
+        """Interval: basic test
+
+        1. Testing the use of interval, offset, and sliding
+        2. Testing their use with GROUP BY, ORDER BY, and PARTITION BY
+        3. Testing different fill methods, such as NULL, prev, next
+        4. Testing mixed use with functions such as count, sum, max, min, count, stddev, last, spread
+        5. Testing unit interval:
+            - percision ms/us/ns
+            - different interval/sliding/offset units: a/s/m/h/d/w/M/y
+            - invalid unit handling
+        6. Testing explain plan for interval/sliding/offset
+        7. Testing limit/offset with interval queries
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-8-27 Simon Guan Migrated from tsim/query/interval.sim
+            - 2025-8-27 Simon Guan Migrated from tsim/query/interval-offset.sim
+            - 2025-8-27 Simon Guan Migrated from tsim/query/emptyTsRange.sim
+            - 2025-8-27 Simon Guan Migrated from tsim/query/emptyTsRange_scl.sim
+            - 2025-8-27 Simon Guan Migrated from tsim/parser/sliding.sim
+            - 2025-8-27 Simon Guan Migrated from tsim/parser/function.sim
+            - 2025-8-27 Simon Guan Migrated from tsim/compute/interval.sim
+            - 2025-8-27 Simon Guan Migrated from tsim/compute/interval1.sim
+            - 2025-12-12 Alex Duan Migrated from uncatalog/system-test/2-query/test_interval_unit.py
+            - 2025-12-12 Alex Duan Migrated from uncatalog/system-test/2-query/test_interval_limit_opt_2.py
+
+        """
+        self.do_interval()
+        self.do_interval_unit()
+        self.do_interval_limit_opt_2()
+
+    def test_interval_fill_surround(self):
+        """Interval: test fill with surrounding time
+
+        1. Testing basic query of interval fill with surrounding time
+        2. Testing abnormal query of interval fill with surrounding time,
+           e.g. 'near' mode, wrong parameters, etc.
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-01-19 Tony Zhang created
+
+        """
+        tdSql.execute("create database test_surround keep 36500")
+        tdSql.execute("use test_surround")
+        tdSql.execute("create table test_surround.ntb (ts timestamp, c1 int, c2 int, c3 int)")
+        tdSql.execute("create table test_surround.stb (ts timestamp, c1 int) tags (gid int)")
+        tdSql.execute("create table test_surround.ctb1 using test_surround.stb tags (1)")
+        tdSql.execute("create table test_surround.ctb2 using test_surround.stb tags (2)")
+        tdSql.execute("create table test_surround.ctb3 using test_surround.stb tags (3)")
+        tdSql.execute("create table test_surround.stb1 (ts timestamp, v int) tags(gid int)")
+        tdSql.execute("create table test_surround.sub_1 using test_surround.stb1 tags(1)")
+        tdSql.execute("create table test_surround.sub_2 using test_surround.stb1 tags(2)")
+        tdSql.execute("create table test_surround.sub_3 using test_surround.stb1 tags(3)")
+        tdSql.execute("""
+            insert into test_surround.ntb values
+            ("2026-01-01 12:00:00", null, null, null)
+            ("2026-01-01 18:00:00", 1,    null, 2)
+            ("2026-01-02 12:00:00", null,   -1, null)
+            ("2026-01-02 18:00:00", null,   -1, null)
+            ("2026-01-03 12:00:00", null, null, null)
+            ("2026-01-03 18:00:00", null, null, null)
+            ("2026-01-06 12:00:00", 2,    null, null)
+            ("2026-01-06 18:00:00", null, null, null)
+            ("2026-01-07 12:00:00", null,   -2, null)
+            ("2026-01-07 18:00:00", null, null, null)
+            ("2026-01-08 12:00:00", null, null, null)
+            ("2026-01-08 18:00:00", null,   -3, null)
+            ("2026-01-09 12:00:00", 3,    null, null)
+            ("2026-01-09 18:00:00", null, null, 4)""")
+        tdSql.execute("""
+            insert into test_surround.ctb1 values
+            ("2026-01-01 12:00:00", 1)
+            ("2026-01-02 12:00:00", null)
+            ("2026-01-03 12:00:00", null)
+            ("2026-01-06 12:00:00", 2)
+            ("2026-01-07 12:00:00", null)
+            ("2026-01-08 12:00:00", null)
+            ("2026-01-09 12:00:00", 3)""")
+        tdSql.execute("""
+            insert into test_surround.ctb2 values
+            ("2026-01-01 12:00:00", null)
+            ("2026-01-02 12:00:00", null)
+            ("2026-01-03 12:00:00", 1)
+            ("2026-01-04 12:00:00", 2)
+            ("2026-01-07 12:00:00", 3)
+            ("2026-01-08 12:00:00", null)
+            ("2026-01-09 12:00:00", null)""")
+        tdSql.execute("""
+            insert into test_surround.ctb3 values
+            ("2026-01-01 12:00:00", null)
+            ("2026-01-02 12:00:00", 1)
+            ("2026-01-03 12:00:00", null)
+            ("2026-01-05 12:00:00", 2)
+            ("2026-01-07 12:00:00", null)
+            ("2026-01-08 12:00:00", 3)
+            ("2026-01-09 12:00:00", null)""")
+        tdSql.execute("""
+            insert into sub_1 values
+            ("2026-01-01", NULL)
+            ("2026-01-02", NULL)
+            ("2026-01-03", NULL)
+            ("2026-01-04", NULL)""")
+        tdSql.execute("""
+            insert into sub_2 values
+            ("2026-01-05", 1)
+            ("2026-01-06", 2)
+            ("2026-01-07", 3)
+            ("2026-01-08", 4)""")
+        tdSql.execute("""
+            insert into sub_3 values
+            ("2026-01-09", NULL)
+            ("2026-01-10", NULL)
+            ("2026-01-11", 3)
+            ("2026-01-12", NULL)
+            ("2026-01-13", 1)""")
+
+        self.check_surround_abnormal()
+        self.check_surround_normal()
+        self.check_surround_stream()
+
+    def check_surround_normal(self):
+        tdSql.execute("use test_surround")
+        # basic fill prev scenario
+        tdSql.query("""select _wstart, _wend, max(c1) from ntb where ts between
+            '2026-01-02 12:00:00' and '2026-01-06 12:00:00' interval(12h, auto)
+            fill(prev) surround(1d, 100)""")
+        tdSql.checkRows(9)
+        tdSql.checkData(0, 0, "2026-01-02 12:00:00.000")
+        tdSql.checkData(0, 1, "2026-01-03 00:00:00.000")
+        tdSql.checkData(0, 2, 100)
+        tdSql.checkData(1, 0, "2026-01-03 00:00:00.000")
+        tdSql.checkData(1, 1, "2026-01-03 12:00:00.000")
+        tdSql.checkData(1, 2, 100)
+        tdSql.checkData(2, 2, 100)
+        tdSql.checkData(3, 2, 100)
+        tdSql.checkData(4, 2, 100)
+        tdSql.checkData(5, 2, 100)
+        tdSql.checkData(6, 2, 100)
+        tdSql.checkData(7, 0, "2026-01-06 00:00:00.000")
+        tdSql.checkData(7, 1, "2026-01-06 12:00:00.000")
+        tdSql.checkData(7, 2, 100)
+        tdSql.checkData(8, 0, "2026-01-06 12:00:00.000")
+        tdSql.checkData(8, 1, "2026-01-07 00:00:00.000")
+        tdSql.checkData(8, 2, 2)
+
+        tdSql.query("""select _wstart, _wend, max(c1), count(*) from ntb where
+            ts between '2026-01-01 12:00:00' and '2026-01-10 00:00:00'
+            interval(2d, auto) fill(prev) surround(2d, 100, 0)""")
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "2026-01-01 12:00:00.000")
+        tdSql.checkData(0, 1, "2026-01-03 12:00:00.000")
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 4)
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(1, 3, 2)
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(2, 3, 2)
+        tdSql.checkData(3, 2, 2)
+        tdSql.checkData(3, 3, 4)
+        tdSql.checkData(4, 0, "2026-01-09 12:00:00.000")
+        tdSql.checkData(4, 1, "2026-01-11 12:00:00.000")
+        tdSql.checkData(4, 2, 3)
+        tdSql.checkData(4, 3, 2)
+
+        # basic fill next scenario
+        tdSql.query("""select _wstart, _wend, max(c1) from ntb where ts between
+            '2026-01-04 12:00:00' and '2026-01-06 12:00:00' interval(12h, auto)
+            fill(next) surround(1d, 100)""")
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "2026-01-04 12:00:00.000")
+        tdSql.checkData(0, 1, "2026-01-05 00:00:00.000")
+        tdSql.checkData(0, 2, 100)
+        tdSql.checkData(1, 0, "2026-01-05 00:00:00.000")
+        tdSql.checkData(1, 1, "2026-01-05 12:00:00.000")
+        tdSql.checkData(1, 2, 100)
+        tdSql.checkData(2, 0, "2026-01-05 12:00:00.000")
+        tdSql.checkData(2, 1, "2026-01-06 00:00:00.000")
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(3, 0, "2026-01-06 00:00:00.000")
+        tdSql.checkData(3, 1, "2026-01-06 12:00:00.000")
+        tdSql.checkData(3, 2, 2)
+        tdSql.checkData(4, 0, "2026-01-06 12:00:00.000")
+        tdSql.checkData(4, 1, "2026-01-07 00:00:00.000")
+        tdSql.checkData(4, 2, 2)
+
+        tdSql.query("""select _wstart, _wend, max(c1) from ntb where ts between
+            '2026-01-03 12:00:00' and '2026-01-06 12:00:00' interval(12h, auto)
+            fill(next) surround(1d, 100)""")
+        tdSql.checkRows(7)
+        tdSql.checkData(0, 0, "2026-01-03 12:00:00.000")
+        tdSql.checkData(0, 1, "2026-01-04 00:00:00.000")
+        tdSql.checkData(0, 2, 100)
+        tdSql.checkData(1, 0, "2026-01-04 00:00:00.000")
+        tdSql.checkData(1, 1, "2026-01-04 12:00:00.000")
+        tdSql.checkData(1, 2, 100)
+        tdSql.checkData(2, 2, 100)
+        tdSql.checkData(3, 2, 100)
+        tdSql.checkData(4, 2, 2)
+        tdSql.checkData(5, 0, "2026-01-06 00:00:00.000")
+        tdSql.checkData(5, 1, "2026-01-06 12:00:00.000")
+        tdSql.checkData(5, 2, 2)
+        tdSql.checkData(6, 0, "2026-01-06 12:00:00.000")
+        tdSql.checkData(6, 1, "2026-01-07 00:00:00.000")
+        tdSql.checkData(6, 2, 2)
+
+        tdSql.query("""select _wstart, _wend, max(c1), count(*) from ntb where
+            ts between '2026-01-01 12:00:00' and '2026-01-10 00:00:00'
+            interval(2d, auto) fill(next) surround(2d, 100, 0)""")
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "2026-01-01 12:00:00.000")
+        tdSql.checkData(0, 1, "2026-01-03 12:00:00.000")
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 4)
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(1, 3, 2)
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(2, 3, 2)
+        tdSql.checkData(3, 2, 3)
+        tdSql.checkData(3, 3, 4)
+        tdSql.checkData(4, 0, "2026-01-09 12:00:00.000")
+        tdSql.checkData(4, 1, "2026-01-11 12:00:00.000")
+        tdSql.checkData(4, 2, 3)
+        tdSql.checkData(4, 3, 2)
+
+        # fill tbname and multi-group scenario
+        tdSql.query("""select _wstart, max(v), tbname from stb1 where ts between
+            "2026-01-01" and "2026-01-13" partition by tbname interval(1d)
+            fill(next) surround(1w, 99) order by tbname, _wstart""")
+        tdSql.checkRows(39)
+        # sub_1 rows: all 99 for 2026-01-01..2026-01-13
+        for i in range(13):
+            tdSql.checkData(i, 0, f"2026-01-{i+1:02d} 00:00:00.000")
+            tdSql.checkData(i, 1, 99)
+            tdSql.checkData(i, 2, "sub_1") # tbname
+        # sub_2
+        tdSql.checkData(13, 1, 1)
+        tdSql.checkData(14, 1, 1)
+        tdSql.checkData(15, 1, 1)
+        tdSql.checkData(16, 1, 1)
+        tdSql.checkData(17, 1, 1)
+        tdSql.checkData(18, 1, 2)
+        tdSql.checkData(19, 1, 3)
+        tdSql.checkData(20, 1, 4)
+        tdSql.checkData(21, 1, 99)
+        tdSql.checkData(22, 1, 99)
+        tdSql.checkData(23, 1, 99)
+        tdSql.checkData(24, 1, 99)
+        tdSql.checkData(25, 1, 99)
+        # sub_3
+        tdSql.checkData(26, 1, 99)
+        tdSql.checkData(27, 1, 99)
+        tdSql.checkData(28, 1, 99)
+        tdSql.checkData(29, 1, 3)
+        tdSql.checkData(30, 1, 3)
+        tdSql.checkData(31, 1, 3)
+        tdSql.checkData(32, 1, 3)
+        tdSql.checkData(33, 1, 3)
+        tdSql.checkData(34, 1, 3)
+        tdSql.checkData(35, 1, 3)
+        tdSql.checkData(36, 1, 3)
+        tdSql.checkData(37, 1, 1)
+        tdSql.checkData(38, 1, 1)
+
+        # multi column scenario, each column has different reference row
+        ## fill prev
+        tdSql.query("""select _wstart, _wend, max(c1), sum(abs(c2)), avg(c3)
+            from ntb where ts between '2026-01-01 00:00:00' and
+            '2026-01-10 00:00:00' interval(1d, auto) fill(prev)
+            surround(2d, NULL, 100, 100)""")
+        # Check the results for the interval query with fill(prev) and surround.
+        expected1 = [
+            ("2026-01-01 00:00:00.000", "2026-01-02 00:00:00.000", 1,   100, 2),
+            ("2026-01-02 00:00:00.000", "2026-01-03 00:00:00.000", 1,     2, 2),
+            ("2026-01-03 00:00:00.000", "2026-01-04 00:00:00.000", 1,     2, 2),
+            ("2026-01-04 00:00:00.000", "2026-01-05 00:00:00.000", None,  2, 100),
+            ("2026-01-05 00:00:00.000", "2026-01-06 00:00:00.000", None,100, 100),
+            ("2026-01-06 00:00:00.000", "2026-01-07 00:00:00.000", 2,   100, 100),
+            ("2026-01-07 00:00:00.000", "2026-01-08 00:00:00.000", 2,     2, 100),
+            ("2026-01-08 00:00:00.000", "2026-01-09 00:00:00.000", 2,     3, 100),
+            ("2026-01-09 00:00:00.000", "2026-01-10 00:00:00.000", 3,     3, 4),
+            ("2026-01-10 00:00:00.000", "2026-01-11 00:00:00.000", 3,     3, 4),
+        ]
+        for i, (wstart, wend, c1, c2, c3) in enumerate(expected1):
+            tdSql.checkData(i, 0, wstart)
+            tdSql.checkData(i, 1, wend)
+            tdSql.checkData(i, 2, c1)
+            tdSql.checkData(i, 3, c2)
+            tdSql.checkData(i, 4, c3)
+        ## fill next
+        tdSql.query("""select _wstart, _wend, max(c1), sum(abs(c2)), avg(c3)
+            from ntb where ts between '2026-01-01 00:00:00' and
+            '2026-01-10 00:00:00' interval(1d, auto) fill(next)
+            surround(2d, NULL, 100, 100)""")
+        expected2 = [
+            ("2026-01-01 00:00:00.000", "2026-01-02 00:00:00.000", 1,   2,   2),
+            ("2026-01-02 00:00:00.000", "2026-01-03 00:00:00.000", None, 2, 100),
+            ("2026-01-03 00:00:00.000", "2026-01-04 00:00:00.000", None,100,100),
+            ("2026-01-04 00:00:00.000", "2026-01-05 00:00:00.000", 2,  100,100),
+            ("2026-01-05 00:00:00.000", "2026-01-06 00:00:00.000", 2,    2,100),
+            ("2026-01-06 00:00:00.000", "2026-01-07 00:00:00.000", 2,    2,100),
+            ("2026-01-07 00:00:00.000", "2026-01-08 00:00:00.000", 3,    2,  4),
+            ("2026-01-08 00:00:00.000", "2026-01-09 00:00:00.000", 3,    3,  4),
+            ("2026-01-09 00:00:00.000", "2026-01-10 00:00:00.000", 3,  100,  4),
+            ("2026-01-10 00:00:00.000", "2026-01-11 00:00:00.000", None,100,100),
+        ]
+        for i, (wstart, wend, c1, c2, c3) in enumerate(expected2):
+            tdSql.checkData(i, 0, wstart)
+            tdSql.checkData(i, 1, wend)
+            tdSql.checkData(i, 2, c1)
+            tdSql.checkData(i, 3, c2)
+            tdSql.checkData(i, 4, c3)
+
+        # desc scan scenario, fill operator processes descending data
+        tdSql.query("""select _wstart, _wend, max(c1), sum(abs(c2)), avg(c3)
+            from (select * from ntb order by ts desc) where ts
+            between '2026-01-01 00:00:00' and '2026-01-10 00:00:00'
+            interval(1d, auto) fill(prev) surround(2d, NULL, 100, 100)
+            order by _wstart desc""")
+        # expected1 in reverse order
+        for i, (wstart, wend, c1, c2, c3) in enumerate(reversed(expected1)):
+            tdSql.checkData(i, 0, wstart)
+            tdSql.checkData(i, 1, wend)
+            tdSql.checkData(i, 2, c1)
+            tdSql.checkData(i, 3, c2)
+            tdSql.checkData(i, 4, c3)
+        ## fill next
+        tdSql.query("""select _wstart, _wend, max(c1), sum(abs(c2)), avg(c3)
+            from (select * from ntb order by ts desc) where ts
+            between '2026-01-01 00:00:00' and '2026-01-10 00:00:00'
+            interval(1d, auto) fill(next) surround(2d, NULL, 100, 100)
+            order by _wstart desc""")
+        for i, (wstart, wend, c1, c2, c3) in enumerate(reversed(expected2)):
+            tdSql.checkData(i, 0, wstart)
+            tdSql.checkData(i, 1, wend)
+            tdSql.checkData(i, 2, c1)
+            tdSql.checkData(i, 3, c2)
+            tdSql.checkData(i, 4, c3)
+
+        # primary key not pseudo-timestamp scenario
+        tdSql.query("""select cols(first(c1), ts) as wstart, last(c1) from ntb
+            where ts between '2026-01-01 00:00:00' and '2026-01-10 00:00:00'
+            interval(1d, auto) fill(prev) surround(2d, 0, NULL)""")
+        expected_pk_results = [
+            ("2026-01-01 18:00:00.000", 1),
+            ("2026-01-01 18:00:00.000", 1),
+            ("2026-01-01 18:00:00.000", 1),
+            ("1970-01-01 08:00:00.000", None),
+            ("1970-01-01 08:00:00.000", None),
+            ("2026-01-06 12:00:00.000", 2),
+            ("2026-01-06 12:00:00.000", 2),
+            ("2026-01-06 12:00:00.000", 2),
+            ("2026-01-09 12:00:00.000", 3),
+            ("2026-01-09 12:00:00.000", 3),
+        ]
+        for i, (wstart, c1) in enumerate(expected_pk_results):
+            tdSql.checkData(i, 0, wstart)
+            tdSql.checkData(i, 1, c1)
+
+
+        # multi-datablock scenario, each datablock has consecutive NULLs at the
+        # beginning and end (a full datablock from scan operator has 512 * 0.75 = 384 rows).
+        tdSql.execute("create table tt (ts timestamp, c1 int)")
+        datafile = etool.getFilePath(__file__, "in", "test_surround.csv")
+        tdSql.execute(f"insert into tt file '{datafile}'")
+
+        step = "2s"
+        tdSql.query(f"""select _wstart, min(c1) from tt where ts between
+            '2026-01-01 00:00:00' and '2026-01-01 00:39:58' interval({step}, auto)
+            fill(prev) surround(10s, 1001)""")
+        tdSql.checkData(383, 1, 987)   # last NULL in first datablock
+        tdSql.checkData(384, 1, 987)   # first NULL in second datablock
+        tdSql.checkData(385, 1, 987)
+        tdSql.checkData(386, 1, 1001)
+        tdSql.checkData(767, 1, 365)   # last NULL in second datablock
+        tdSql.checkData(768, 1, 365)   # first NULL in third datablock
+        tdSql.checkData(769, 1, 1001)
+        tdSql.checkData(1151, 1, 777)  # last NULL in third datablock
+        tdSql.checkData(1152, 1, 777)  # first NULL in fourth datablock
+        tdSql.query(f"""select _wstart, min(c1) from tt where ts between
+            '2026-01-01 00:00:00' and '2026-01-01 00:39:58' interval({step}, auto)
+            fill(next) surround(10s, 1001)""")
+        tdSql.checkData(384, 1, 777)   # last NULL in first datablock
+        tdSql.checkData(385, 1, 777)   # first NULL in second datablock
+        tdSql.checkData(386, 1, 777)
+        tdSql.checkData(387, 1, 777)
+        tdSql.checkData(768, 1, 999)   # last NULL in second datablock
+        tdSql.checkData(769, 1, 999)   # first NULL in third datablock
+        tdSql.checkData(770, 1, 999)
+        tdSql.checkData(1152, 1, 888)  # last NULL in third datablock
+        tdSql.checkData(1153, 1, 888)  # first NULL in fourth datablock
+
+    def check_surround_stream(self):
+        tdStream.createSnode()
+        tdSql.execute("use test_surround")
+        tdSql.execute("create table triggertb (ts timestamp, c1 int)")
+        streams: list[StreamItem] = []
+        stream = StreamItem(
+            id=0,
+            stream="""create stream s0 state_window(c1) from triggertb into
+            res0 as select _twstart, _twend, _wstart, _wend, first(c1), max(c1),
+            count(*) from ntb where ts >= _twstart and ts < _twend
+            interval(1d) fill(prev) surround(1d, 100, 100, 0)""",
+            check_func=self.check_s0,
+        )
+        streams.append(stream)
+
+        tdSql.execute("alter dnode 1 'qdebugflag 141'")
+        stream = StreamItem(
+            id=1,
+            stream="""create stream s1 state_window(c1) from triggertb into
+            res1 as select _wstart, _wend, _twstart, _twend, first(c1), max(c1),
+            count(c1) from stb where ts >= _twstart and ts < _twend
+            interval(8h) fill(next) surround(8h, 100, 100, 100)""",
+            check_func=self.check_s1,
+        )
+        streams.append(stream)
+
+        stream = StreamItem(
+            id=2,
+            stream="""create stream s2 state_window(c1) from triggertb into
+            res2 as select _wstart, _wend, _twstart, _twend, first(c1), max(c1),
+            count(c1) from ctb1 where ts >= _twstart and ts < _twend
+            interval(8h) fill(prev) surround(50h, 100, 100, 100)""",
+            check_func=self.check_s2,
+        )
+        streams.append(stream)
+
+        stream = StreamItem(
+            id=3,
+            stream="""create stream s3 count_window(2) from stb partition by
+            tbname into res3 as select _wstart, _wend, _twstart, _twend,
+            first(c1), max(c1), count(c1) from %%tbname
+            where ts >= _twstart and ts < _twend interval(8h) fill(prev)
+            surround(12h, 100, 100, 100)""",
+            check_func=self.check_s3,
+        )
+        streams.append(stream)
+
+        for stream in streams:
+            stream.createStream()
+
+        tdStream.checkStreamStatus()
+
+        # trigger data for s0, s1, s2
+        tdSql.execute("""insert into triggertb values
+            ('2026-01-01 00:00:00', 1)
+            ('2026-01-02 00:00:00', 1)
+            ('2026-01-03 00:00:00', 2)
+            ('2026-01-04 00:00:00', 2)
+            ('2026-01-07 00:00:00', 1)
+            ('2026-01-08 00:00:00', 1)
+            ('2026-01-09 00:00:00', 2)
+            ('2026-01-10 00:00:00', 2)
+            ('2026-01-11 00:00:00', 3)
+            """)
+
+        # trigger data for s3
+        tdSql.execute("""insert into ctb1 values
+            ('2026-01-10 12:00:00', 4)
+            ('2026-01-11 12:00:00', NULL)
+        """)
+        tdSql.execute("""insert into ctb2 values
+            ('2026-01-10 00:00:00', 4)
+            ('2026-01-11 00:00:00', NULL)
+        """)
+        tdSql.execute("""insert into ctb3 values
+            ('2026-01-10 11:00:00', 4)
+            ('2026-01-11 11:00:00', 5)
+        """)
+
+        for stream in streams:
+            stream.checkResults()
+
+    def check_s0(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from res0",
+            func=lambda: tdSql.getRows() == 4
+            and tdSql.compareData(0, 0, "2026-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, "2026-01-02 00:00:00.000")
+            and tdSql.compareData(0, 2, "2026-01-01 00:00:00.000")
+            and tdSql.compareData(0, 3, "2026-01-02 00:00:00.000")
+            and tdSql.compareData(0, 4, 1)
+            and tdSql.compareData(0, 5, 1)
+            and tdSql.compareData(0, 6, 2)
+            and tdSql.compareData(1, 0, "2026-01-03 00:00:00.000")
+            and tdSql.compareData(1, 1, "2026-01-04 00:00:00.000")
+            and tdSql.compareData(1, 2, "2026-01-03 00:00:00.000")
+            and tdSql.compareData(1, 3, "2026-01-04 00:00:00.000")
+            and tdSql.compareData(1, 4, 100)
+            and tdSql.compareData(1, 5, 100)
+            and tdSql.compareData(1, 6, 2)
+            and tdSql.compareData(2, 0, "2026-01-07 00:00:00.000")
+            and tdSql.compareData(2, 1, "2026-01-08 00:00:00.000")
+            and tdSql.compareData(2, 2, "2026-01-07 00:00:00.000")
+            and tdSql.compareData(2, 3, "2026-01-08 00:00:00.000")
+            and tdSql.compareData(2, 4, 100)
+            and tdSql.compareData(2, 5, 100)
+            and tdSql.compareData(2, 6, 2)
+            and tdSql.compareData(3, 0, "2026-01-09 00:00:00.000")
+            and tdSql.compareData(3, 1, "2026-01-10 00:00:00.000")
+            and tdSql.compareData(3, 2, "2026-01-09 00:00:00.000")
+            and tdSql.compareData(3, 3, "2026-01-10 00:00:00.000")
+            and tdSql.compareData(3, 4, 3)
+            and tdSql.compareData(3, 5, 3)
+            and tdSql.compareData(3, 6, 2)
+        )
+
+    def check_s1(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from res1",
+            func=lambda: tdSql.getRows() == 12
+            and tdSql.compareData(0, 0, "2026-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, "2026-01-01 08:00:00.000")
+            and tdSql.compareData(0, 2, "2026-01-01 00:00:00.000")
+            and tdSql.compareData(0, 3, "2026-01-02 00:00:00.000")
+            and tdSql.compareData(0, 4, 1)
+            and tdSql.compareData(0, 5, 1)
+            and tdSql.compareData(0, 6, 1)
+            and tdSql.compareData(1, 0, "2026-01-01 08:00:00.000")
+            and tdSql.compareData(1, 1, "2026-01-01 16:00:00.000")
+            and tdSql.compareData(1, 4, 1)
+            and tdSql.compareData(1, 5, 1)
+            and tdSql.compareData(1, 6, 1)
+            and tdSql.compareData(2, 0, "2026-01-01 16:00:00.000")
+            and tdSql.compareData(2, 1, "2026-01-02 00:00:00.000")
+            and tdSql.compareData(2, 2, "2026-01-01 00:00:00.000")
+            and tdSql.compareData(2, 3, "2026-01-02 00:00:00.000")
+            and tdSql.compareData(2, 4, 100)
+            and tdSql.compareData(2, 5, 100)
+            and tdSql.compareData(2, 6, 100)
+            and tdSql.compareData(3, 0, "2026-01-03 00:00:00.000")
+            and tdSql.compareData(3, 1, "2026-01-03 08:00:00.000")
+            and tdSql.compareData(3, 4, 1)
+            and tdSql.compareData(3, 5, 1)
+            and tdSql.compareData(3, 6, 1)
+            and tdSql.compareData(4, 0, "2026-01-03 08:00:00.000")
+            and tdSql.compareData(4, 1, "2026-01-03 16:00:00.000")
+            and tdSql.compareData(4, 2, "2026-01-03 00:00:00.000")
+            and tdSql.compareData(4, 3, "2026-01-04 00:00:00.000")
+            and tdSql.compareData(4, 4, 1)
+            and tdSql.compareData(4, 5, 1)
+            and tdSql.compareData(4, 6, 1)
+            and tdSql.compareData(5, 0, "2026-01-03 16:00:00.000")
+            and tdSql.compareData(5, 1, "2026-01-04 00:00:00.000")
+            and tdSql.compareData(5, 4, 100)
+            and tdSql.compareData(5, 5, 100)
+            and tdSql.compareData(5, 6, 100)
+            and tdSql.compareData(6, 0, "2026-01-07 00:00:00.000")
+            and tdSql.compareData(6, 1, "2026-01-07 08:00:00.000")
+            and tdSql.compareData(6, 2, "2026-01-07 00:00:00.000")
+            and tdSql.compareData(6, 3, "2026-01-08 00:00:00.000")
+            and tdSql.compareData(6, 4, 3)
+            and tdSql.compareData(6, 5, 3)
+            and tdSql.compareData(6, 6, 1)
+            and tdSql.compareData(7, 0, "2026-01-07 08:00:00.000")
+            and tdSql.compareData(7, 1, "2026-01-07 16:00:00.000")
+            and tdSql.compareData(7, 4, 3)
+            and tdSql.compareData(7, 5, 3)
+            and tdSql.compareData(7, 6, 1)
+            and tdSql.compareData(8, 0, "2026-01-07 16:00:00.000")
+            and tdSql.compareData(8, 1, "2026-01-08 00:00:00.000")
+            and tdSql.compareData(8, 4, 100)
+            and tdSql.compareData(8, 5, 100)
+            and tdSql.compareData(8, 6, 100)
+            and tdSql.compareData(9, 0, "2026-01-09 00:00:00.000")
+            and tdSql.compareData(9, 1, "2026-01-09 08:00:00.000")
+            and tdSql.compareData(9, 4, 3)
+            and tdSql.compareData(9, 5, 3)
+            and tdSql.compareData(9, 6, 1)
+            and tdSql.compareData(10, 0, "2026-01-09 08:00:00.000")
+            and tdSql.compareData(10, 1, "2026-01-09 16:00:00.000")
+            and tdSql.compareData(10, 4, 3)
+            and tdSql.compareData(10, 5, 3)
+            and tdSql.compareData(10, 6, 1)
+            and tdSql.compareData(11, 0, "2026-01-09 16:00:00.000")
+            and tdSql.compareData(11, 1, "2026-01-10 00:00:00.000")
+            and tdSql.compareData(11, 2, "2026-01-09 00:00:00.000")
+            and tdSql.compareData(11, 3, "2026-01-10 00:00:00.000")
+            and tdSql.compareData(11, 4, 100)
+            and tdSql.compareData(11, 5, 100)
+            and tdSql.compareData(11, 6, 100)
+        )
+
+    def check_s2(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from res2",
+            func=lambda: tdSql.getRows() == 12
+            and tdSql.compareData(0, 0, "2026-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, "2026-01-01 08:00:00.000")
+            and tdSql.compareData(0, 2, "2026-01-01 00:00:00.000")
+            and tdSql.compareData(0, 3, "2026-01-02 00:00:00.000")
+            and tdSql.compareData(0, 4, 100)
+            and tdSql.compareData(0, 5, 100)
+            and tdSql.compareData(0, 6, 100)
+            and tdSql.compareData(1, 0, "2026-01-01 08:00:00.000")
+            and tdSql.compareData(1, 1, "2026-01-01 16:00:00.000")
+            and tdSql.compareData(1, 2, "2026-01-01 00:00:00.000")
+            and tdSql.compareData(1, 3, "2026-01-02 00:00:00.000")
+            and tdSql.compareData(1, 4, 1)
+            and tdSql.compareData(1, 5, 1)
+            and tdSql.compareData(1, 6, 1)
+            and tdSql.compareData(2, 0, "2026-01-01 16:00:00.000")
+            and tdSql.compareData(2, 1, "2026-01-02 00:00:00.000")
+            and tdSql.compareData(2, 2, "2026-01-01 00:00:00.000")
+            and tdSql.compareData(2, 3, "2026-01-02 00:00:00.000")
+            and tdSql.compareData(2, 4, 1)
+            and tdSql.compareData(2, 5, 1)
+            and tdSql.compareData(2, 6, 1)
+            and tdSql.compareData(3, 0, "2026-01-03 00:00:00.000")
+            and tdSql.compareData(3, 1, "2026-01-03 08:00:00.000")
+            and tdSql.compareData(3, 2, "2026-01-03 00:00:00.000")
+            and tdSql.compareData(3, 3, "2026-01-04 00:00:00.000")
+            and tdSql.compareData(3, 4, 100)
+            and tdSql.compareData(3, 5, 100)
+            and tdSql.compareData(3, 6, 100)
+            and tdSql.compareData(8, 0, "2026-01-07 16:00:00.000")
+            and tdSql.compareData(8, 1, "2026-01-08 00:00:00.000")
+            and tdSql.compareData(8, 2, "2026-01-07 00:00:00.000")
+            and tdSql.compareData(8, 3, "2026-01-08 00:00:00.000")
+            and tdSql.compareData(8, 4, 100)
+            and tdSql.compareData(8, 5, 100)
+            and tdSql.compareData(8, 6, 0)
+            and tdSql.compareData(9, 0, "2026-01-09 00:00:00.000")
+            and tdSql.compareData(9, 1, "2026-01-09 08:00:00.000")
+            and tdSql.compareData(9, 2, "2026-01-09 00:00:00.000")
+            and tdSql.compareData(9, 3, "2026-01-10 00:00:00.000")
+            and tdSql.compareData(9, 4, 100)
+            and tdSql.compareData(9, 5, 100)
+            and tdSql.compareData(9, 6, 100)
+            and tdSql.compareData(10, 0, "2026-01-09 08:00:00.000")
+            and tdSql.compareData(10, 1, "2026-01-09 16:00:00.000")
+            and tdSql.compareData(10, 2, "2026-01-09 00:00:00.000")
+            and tdSql.compareData(10, 3, "2026-01-10 00:00:00.000")
+            and tdSql.compareData(10, 4, 3)
+            and tdSql.compareData(10, 5, 3)
+            and tdSql.compareData(10, 6, 1)
+            and tdSql.compareData(11, 0, "2026-01-09 16:00:00.000")
+            and tdSql.compareData(11, 1, "2026-01-10 00:00:00.000")
+            and tdSql.compareData(11, 2, "2026-01-09 00:00:00.000")
+            and tdSql.compareData(11, 3, "2026-01-10 00:00:00.000")
+            and tdSql.compareData(11, 4, 3)
+            and tdSql.compareData(11, 5, 3)
+            and tdSql.compareData(11, 6, 1)
+        )
+
+    def check_s3(self):
+        # Expected data: list of tuples corresponding to each expected row
+        expected_data = [
+            # (_wstart, _wend, _twstart, _twend, first(c1), max(c1), count(c1), tbname)
+            ("2026-01-10 08:00:00.000", "2026-01-10 16:00:00.000", "2026-01-10 12:00:00.000", "2026-01-11 12:00:00.000", 4, 4, 1, "ctb1"),
+            ("2026-01-10 16:00:00.000", "2026-01-11 00:00:00.000", "2026-01-10 12:00:00.000", "2026-01-11 12:00:00.000", 4, 4, 1, "ctb1"),
+            ("2026-01-11 00:00:00.000", "2026-01-11 08:00:00.000", "2026-01-10 12:00:00.000", "2026-01-11 12:00:00.000", 100, 100, 100, "ctb1"),
+            ("2026-01-11 08:00:00.000", "2026-01-11 16:00:00.000", "2026-01-10 12:00:00.000", "2026-01-11 12:00:00.000", 100, 100, 100, "ctb1"),
+
+            ("2026-01-10 00:00:00.000", "2026-01-10 08:00:00.000", "2026-01-10 00:00:00.000", "2026-01-11 00:00:00.000", 4, 4, 1, "ctb2"),
+            ("2026-01-10 08:00:00.000", "2026-01-10 16:00:00.000", "2026-01-10 00:00:00.000", "2026-01-11 00:00:00.000", 4, 4, 1, "ctb2"),
+            ("2026-01-10 16:00:00.000", "2026-01-11 00:00:00.000", "2026-01-10 00:00:00.000", "2026-01-11 00:00:00.000", 100, 100, 100, "ctb2"),
+
+            ("2026-01-10 08:00:00.000", "2026-01-10 16:00:00.000", "2026-01-10 11:00:00.000", "2026-01-11 11:00:00.000", 4, 4, 1, "ctb3"),
+            ("2026-01-10 16:00:00.000", "2026-01-11 00:00:00.000", "2026-01-10 11:00:00.000", "2026-01-11 11:00:00.000", 4, 4, 1, "ctb3"),
+            ("2026-01-11 00:00:00.000", "2026-01-11 08:00:00.000", "2026-01-10 11:00:00.000", "2026-01-11 11:00:00.000", 100, 100, 100, "ctb3"),
+            ("2026-01-11 08:00:00.000", "2026-01-11 16:00:00.000", "2026-01-10 11:00:00.000", "2026-01-11 11:00:00.000", 100, 100, 100, "ctb3"),
+        ]
+
+        tdSql.checkResultsByFunc(
+            sql="select * from res3 order by tbname, _wstart",
+            func=lambda: tdSql.getRows() == len(expected_data)
+                and all(
+                    tdSql.compareData(i, 0, row[0]) and
+                    tdSql.compareData(i, 1, row[1]) and
+                    tdSql.compareData(i, 2, row[2]) and
+                    tdSql.compareData(i, 3, row[3]) and
+                    tdSql.compareData(i, 4, row[4]) and
+                    tdSql.compareData(i, 5, row[5]) and
+                    tdSql.compareData(i, 6, row[6]) and
+                    tdSql.compareData(i, 7, row[7])
+                    for i, row in enumerate(expected_data)
+                )
+        )
+
+    def check_surround_abnormal(self):
+        prefix = """select _wstart, _wend, max(c1), count(*), tbname from ntb
+                where ts between '2026-01-02 12:00:00' and '2026-01-06 12:00:00'
+                interval(12h, auto)"""
+        err_suffixes = [
+            "fill(near)",
+            "fill(near) surround(1d, 100, 0)",
+            "fill(prev) surround(1d)",
+            "fill(prev) surround(1d, 100)",
+            "fill(prev) surround(1d, 100, 0, 'abc')",
+            "fill(prev) surround(0h, 100, 0)",
+            "fill(prev) surround(-5h, 100, 0)",
+            "fill(prev) surround(10h, 100, 0)",
+            "fill(prev) surround(10h + 2h, 100, 0)",
+            "fill(prev, 100, 0) surround(12h, 100, 0)",
+            "fill(next, 100, 0) surround(12h)",
+            "fill(linear) surround(1d, 100, 0)",
+            "fill(prev) surround(~10d, 100, 0)",
+            "fill(prev) surround(aaa, 100, 0)",
+            "fill(prev) surround(2h+2h, 100, 0)",
+            "fill(prev) surround(1y, 100, 0)",
+            "fill(prev) surround(1n, 100, 0)",
+            "fill(prev) surround(2h, 100, (select count(*) from ntb))",
+        ]
+        for suffix in err_suffixes:
+            tdSql.error(f"""{prefix} {suffix}""")
+
+        # if ZERO select element needs to be filled, fill_values must be empty
+        tdSql.error("""select _wstart, _wend, tbname from ntb
+                where ts between '2026-01-02 12:00:00' and '2026-01-06 12:00:00'
+                interval(12h, auto) fill(prev) surround(12h, 100)""")
+        tdSql.execute("""select _wstart, _wend, tbname from ntb
+                where ts between '2026-01-02 12:00:00' and '2026-01-06 12:00:00'
+                interval(12h, auto) fill(prev) surround(12h)""")
+        tdSql.error("""select _wstart, _wend, tbname from ntb
+                where ts between '2026-01-02 12:00:00' and '2026-01-06 12:00:00'
+                interval(12h, auto) fill(value) surround(12h, 100)""")
+        tdSql.execute("""select _wstart, _wend, tbname from ntb
+                where ts between '2026-01-02 12:00:00' and '2026-01-06 12:00:00'
+                interval(12h, auto) fill(value)""")
+        tdSql.error("""create stream s4 count_window(2) from stb partition by
+            tbname into res4 as select _wstart, _wend, _twstart, _twend,
+            first(c1), max(c1), count(c1) from %%tbname
+            where ts >= _twstart and ts < _twend interval(8h) fill(near)
+            surround(12h, 100, 100, 100)""")

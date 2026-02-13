@@ -411,7 +411,7 @@ class TestBlockWise:
         self.rows = 10
         
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+
 
         tdLog.printNoPrefix("==========step0:all check")
 
@@ -469,4 +469,4 @@ class TestBlockWise:
         self.__insert_data()
         self.all_test()
         
-        tdLog.success(f"{__file__} successfully executed")
+

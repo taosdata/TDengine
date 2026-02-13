@@ -27,21 +27,33 @@ extern "C" {
 int32_t mndInitUser(SMnode *pMnode);
 void    mndCleanupUser(SMnode *pMnode);
 int32_t mndAcquireUser(SMnode *pMnode, const char *userName, SUserObj **ppUser);
-void    mndUpdateUser(SMnode *pMnode, SUserObj *pUser, SRpcMsg *pReq);
+int32_t mndAcquireUserById(SMnode *pMnode, int64_t userId, SUserObj **ppUser);
+int32_t mndBuildUidNamesHash(SMnode *pMnode, SSHashObj **ppHash);
 void    mndReleaseUser(SMnode *pMnode, SUserObj *pUser);
+
 int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo);
 
 // for trans test
 SSdbRaw *mndUserActionEncode(SUserObj *pUser);
 int32_t  mndDupDbHash(SHashObj *pOld, SHashObj **ppNew);
+int32_t  mndDupKVHash(SHashObj *pOld, SHashObj **ppNew);
 int32_t  mndDupTableHash(SHashObj *pOld, SHashObj **ppNew);
 int32_t  mndDupTopicHash(SHashObj *pOld, SHashObj **ppNew);
+int32_t  mndDupRoleHash(SHashObj *pOld, SHashObj **ppNew);
+int32_t  mndDupPrivObjHash(SHashObj *pOld, SHashObj **ppNew);
+int32_t  mndDupPrivTblHash(SHashObj *pOld, SHashObj **ppNew, bool setUpdateTimeMax);
+int32_t  mndMergePrivObjHash(SHashObj *pOld, SHashObj **ppNew);
+int32_t  mndMergePrivTblHash(SHashObj *pOld, SHashObj **ppNew, bool updateWithLatest);
 int32_t  mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_t numOfUses, void **ppRsp,
                                  int32_t *pRspLen, int64_t ipWhiteListVer);
-int32_t  mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSHashObj **ppUsers);
+int32_t  mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows, void *pObj,
+                                const char *principalName, SHashObj *privTbs, EPrivType privType, char *pBuf,
+                                int32_t bufSize, int32_t *pNumOfRows);
+int32_t  mndPrincipalRemoveDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSHashObj **ppUsers, SSHashObj **ppRoles);
 int32_t  mndUserRemoveStb(SMnode *pMnode, STrans *pTrans, char *stb);
 int32_t  mndUserRemoveView(SMnode *pMnode, STrans *pTrans, char *view);
 int32_t  mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic);
+int32_t  mndUserDropRole(SMnode *pMnode, STrans *pTrans, SRoleObj *pObj);
 
 int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew);
 void    mndUserFreeObj(SUserObj *pUser);
@@ -54,10 +66,17 @@ int64_t mndGetTimeWhiteListVersion(SMnode *pMnode);
 int32_t mndRefreshUserDateTimeWhiteList(SMnode *pMnode);
 int64_t mndGetUserTimeWhiteListVer(SMnode *pMnode, SUserObj *pUser);
 
+int32_t mndGetAuditUser(SMnode *pMnode, char *user);
+int32_t mndResetAuditLogUser(SMnode *pMnode, const char *user, bool isAdd);
+
 void mndGetUserLoginInfo(const char *user, SLoginInfo *pLoginInfo);
 void mndSetUserLoginInfo(const char *user, const SLoginInfo *pLoginInfo);
 bool mndIsTotpEnabledUser(SUserObj *pUser);
 
+int64_t mndGetUserIpWhiteListVer(SMnode *pMnode, SUserObj *pUser);
+int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *pAlterReq);
+
+int32_t mndBuildSMCreateTotpSecretResp(STrans *pTrans, void **ppResp, int32_t *pRespLen);
 #ifdef __cplusplus
 }
 #endif

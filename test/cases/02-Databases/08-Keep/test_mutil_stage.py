@@ -273,4 +273,4 @@ class TestMutilStage:
         tdSql.execute(f"flush database {DBNAME}")
         
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+

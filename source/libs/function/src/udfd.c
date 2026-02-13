@@ -31,6 +31,7 @@
 #include "trpc.h"
 #include "tmisce.h"
 #include "tversion.h"
+#include "dmUtil.h"
 // clang-format on
 
 #define UDFD_MAX_SCRIPT_PLUGINS 64
@@ -649,6 +650,9 @@ int32_t udfdNewUdf(SUdf **pUdf, const char *udfName) {
     }
   }
   *pUdf =  udfNew;
+
+  fnTrace("udf new succeeded. name %s(%p)", udfNew->name, udfNew);
+
   return 0;
 }
 
@@ -666,6 +670,9 @@ void udfdFreeUdf(void *pData) {
 
   uv_mutex_destroy(&pSudf->lock);
   uv_cond_destroy(&pSudf->condReady);
+
+  fnTrace("udf free succeeded. name %s(%p)", pSudf->name, pSudf);
+
   taosMemoryFree(pSudf);
 }
 
@@ -740,12 +747,17 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     }
     uv_mutex_unlock(&udf->lock);
   }
-  SUdfcFuncHandle *handle = taosMemoryMalloc(sizeof(SUdfcFuncHandle));
-  if(handle == NULL) {
-    fnError("udfdProcessSetupRequest: malloc failed.");
-    code = terrno;
+
+  SUdfcFuncHandle *handle = NULL;
+  if (!code) {
+    handle = taosMemoryMalloc(sizeof(SUdfcFuncHandle));
+    if (handle == NULL) {
+      fnError("udfdProcessSetupRequest: malloc failed.");
+      code = terrno;
+    } else {
+      handle->udf = udf;
+    }
   }
-  handle->udf = udf;
 
 _send:
   ;
@@ -761,25 +773,42 @@ _send:
   int32_t len = encodeUdfResponse(NULL, &rsp);
   if(len < 0) {
     fnError("udfdProcessSetupRequest: encode udf response failed. len %d", len);
-    return;
+    code = terrno;
+    goto _exit;
   }
   rsp.msgLen = len;
   void *bufBegin = taosMemoryMalloc(len);
   if(bufBegin == NULL) {
     fnError("udfdProcessSetupRequest: malloc failed. len %d", len);
-    return;
+    code = terrno;
+    goto _exit;
   }
+
   void *buf = bufBegin;
   if(encodeUdfResponse(&buf, &rsp) < 0) {
     fnError("udfdProcessSetupRequest: encode udf response failed. len %d", len);
     taosMemoryFree(bufBegin);
-    return;
+    code = terrno;
+    goto _exit;
   }
   
   uvUdf->output = uv_buf_init(bufBegin, len);
 
   taosMemoryFreeClear(uvUdf->input.base);
-  return;
+
+_exit:
+  if (code) {
+    uv_mutex_lock(&global.udfsMutex);
+    int32_t removeCode = taosHashRemove(global.udfsHash, udf->name, strlen(udf->name));
+    if (removeCode) {
+      fnError("udf name %s remove from hash failed/setup, err:%0x %s", udf->name, removeCode, tstrerror(removeCode));
+    }
+    uv_mutex_unlock(&global.udfsMutex);
+
+    fnError("udf free: setup failed. name %s(%p) err:%0x %s", udf->name, udf, code, tstrerror(code));
+
+    udfdFreeUdf(udf);
+  }
 }
 
 static int32_t checkUDFScalaResult(SSDataBlock *block, SUdfColumn *output) {
@@ -991,11 +1020,8 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   uv_mutex_unlock(&global.udfsMutex);
   if (unloadUdf) {
     fnInfo("udf teardown. udf name: %s type %d: context %p", udf->name, udf->scriptType, (void *)(udf->scriptUdfCtx));
-    uv_cond_destroy(&udf->condReady);
-    uv_mutex_destroy(&udf->lock);
-    code = udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
-    fnDebug("udfd destroy function returns %d", code);
-    taosMemoryFree(udf);
+
+    udfdFreeUdf(udf);
   }
 
 _send:
@@ -1763,6 +1789,7 @@ int main(int argc, char *argv[]) {
   bool residentFuncsInited = false;
   bool udfSourceDirInited = false;
   bool globalDataInited = false;
+  taosSetSkipKeyCheckMode();
 
   if (!taosCheckSystemIsLittleEnd()) {
     (void)printf("failed to start since on non-little-end machines\n");
@@ -1786,9 +1813,23 @@ int main(int argc, char *argv[]) {
     logInitialized = true;  // log is initialized
   }
 
-  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0) != 0) {
-    fnError("failed to start since read config error");
-    code = -2;
+  if ((code = taosPreLoadCfg(configDir, NULL, NULL, NULL, NULL, 0)) != 0) {
+    fnError("failed to start since pre load config error");
+    goto _exit;
+  }
+
+  if ((code = dmGetEncryptKey()) != 0) {
+    fnError("failed to start since failed to get encrypt key");
+    goto _exit;
+  }
+
+  if ((code = tryLoadCfgFromDataDir(tsCfg)) != 0) {
+    fnError("failed to start since try load config from data dir error");
+    goto _exit;
+  }
+
+  if ((code = taosApplyCfg(configDir, NULL, NULL, NULL, NULL, 0)) != 0) {
+    fnError("failed to start since apply config error");
     goto _exit;
   }
   cfgInitialized = true;  // cfg is initialized

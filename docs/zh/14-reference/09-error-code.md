@@ -111,7 +111,10 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80000135 | Invalid fqdn                            | 无效 FQDN                                                                  | 检查配置或输入的 FQDN 值是否正确                                                                                                                      |
 | 0x8000013C | Invalid disk id                         | 不合法的 disk id                                                           | 建议用户检查挂载磁盘是否失效或者使用参数 diskIDCheckEnabled 来跳过磁盘检查                                                                            |
 | 0x8000013D | Decimal value overflow                  | Decimal 计算溢出                                                           | 检查计算表达式和参数值是否计算结果导致类型溢出                                                                                                        |
-| 0x8000013E | Division by zero error                  | Division by zero                                                           | 检查除法操作是否除以 0                                                                                                                                |
+| 0x8000013E | Division by zero error                  | Division by zero                                                           | 检查除法操作是否除以 0                                                                                                                              |
+| 0x8000013F | Decimal value parse error               | Decimal 解析错误                                                           | 保留现场和日志，github 上报 issue                                                                                                                           |
+| 0x80000140 | Edition not compatible                  | 社区版/企业版不匹配                                                        | 检查各节点（包括服务端和客户端）是否有社区版和企业版混用的情况，确保都是企业版或都是社区版 |
+| 0x80000141 | Invalid signature                       | 消息签名无效或不正确                                                       | 检查客户端和服务端是否使用了相同的签名算法 |
 
 #### tsc
 
@@ -142,6 +145,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000023B | reached the maximum connection idle timeout limit | conn 空闲超时              |  无              |
 | 0x8000023C | reached the maximum concurrency limit            | 单个用户超过了最大并发限制   |  检查参数 |
 | 0x8000023D | reached the maximum call vnode limit              | 单条 SQL 涉及到太多 VNODE   | 检查 SQL |
+| 0x8000023E | Invalid token                     | 令牌格式错误                 | 检查并重新输入正确的令牌                                                         |
 | 0x800002FF | Tsc internal error                | TSC 内部错误                 | 保留现场和日志，github 上报 issue                                                |
 
 #### mnode
@@ -175,6 +179,13 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80000340 | Account already exists                                                                       | （仅企业版）内部错误                                                              | 上报 issue                                                                                           |
 | 0x80000342 | Invalid account options                                                                      | （仅企业版）该操作不支持                                                          | 确认操作是否正确                                                                                     |
 | 0x80000344 | Invalid account                                                                              | 账户不存在                                                                        | 确认账户是否正确                                                                                     |
+| 0x80000348 | Token not available                                                                          | 内部错误                                                                          | 上报 issue                                                                                           |
+| 0x80000349 | Token not exist                                                                              | 令牌不存在                                                                        | 确认令牌是否正确                                                                                     |
+| 0x8000034A | Token already exist                                                                          | 令牌已存在                                                                        | 使用新的令牌名称                                                                                     |
+| 0x8000034B | Too many tokens                                                                              | 令牌数量太多                                                                      | 调整限额或删除不再使用的令牌                                                                         |
+| 0x8000034C | Invalid token name                                                                           | 令牌名称不合法                                                                    | 使用正确的令牌名称                                                                                   |
+| 0x8000034D | Token expired                                                                                | 令牌已过期                                                                        | 重新设置令牌的过期时间                                                                               |
+| 0x8000034E | Token Disabled                                                                               | 令牌被禁用                                                                        | 重新启用令牌                                                                                         |
 | 0x80000350 | User already exists                                                                          | Create user, 重复创建                                                             | 确认操作是否正确                                                                                     |
 | 0x80000351 | Invalid user                                                                                 | 用户不存在                                                                        | 确认操作是否正确                                                                                     |
 | 0x80000352 | Invalid user format                                                                          | 格式不正确                                                                        | 确认操作是否正确                                                                                     |
@@ -184,6 +195,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80000357 | Authentication failure                                                                       | 密码不正确                                                                        | 确认操作是否正确                                                                                     |
 | 0x80000358 | User not available                                                                           | 用户不存在                                                                        | 确认操作是否正确                                                                                     |
 | 0x8000035B | Wrong TOTP code                                                                              | 未提供或提供了错误的 TOTP 验证码                                                  | 检查并输入正确的 TOTP 验证码                                                                         |
+| 0x8000035E | TOTP secret not exists                                                                       | 未启用 TOTP 认证，没有 TOTP 密钥                                                  | 确认操作是否正确                                                         |
 | 0x80000360 | STable already exists                                                                        | 内部错误                                                                          | 上报 issue                                                                                           |
 | 0x80000361 | STable not exist                                                                             | 内部错误                                                                          | 上报 issue                                                                                           |
 | 0x80000364 | Too many tags                                                                                | tag 数量太多                                                                      | 不能修改，代码级别限制                                                                               |
@@ -365,6 +377,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000073C | Memory pool not initialized                                                 | 内存池没有初始化                                                                                             | 确认开关 queryUseMemoryPool 是否打开；如果 queryUseMemoryPool 已经打开，检查服务器是否达到了开启内存池的基本条件：1. 系统的可用内存总量不低于 5G；2. 扣除预留部分后系统的可用内存不低于 4G |
 | 0x8000073D | Alter minReservedMemorySize failed since no enough system available memory  | 更新 minReservedMemorySize 失败                                                                          | 确认当前的系统内存：1. 系统的可用内存总量不低于 5G；2. 扣除预留部分后系统的可用内存不低于 4G                                                                    |
 | 0x8000073E | Duplicate timestamp not allowed in count/event/state window                  | 窗口输入主键列有重复时间戳。对状态窗口、事件窗口、计数窗口做超级表查询时，所有子表数据会按照时间戳进行排序后合并为一条时间线进行计算，因此子表合并后的时间戳可能会出现重复，导致某些计算没有意义而报错。 | 如果需要对超级表查询并且使用这些窗口时，确保子表中不存在重复时间戳数据。                                                                                    |
+| 0x80000741 | VSTB slotId not found for column                                            | 查询执行时未能将源列映射到虚拟表的 slotId                                                                   | 保留现场和日志，github 上报 issue                                                                                                 |
 
 #### grant
 
@@ -558,6 +571,11 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x800026A1 | Option value too short                                                                                 | 选项的值太短                                            | 检查并修正 SQL 语句                    |
 | 0x800026A2 | Option value too big                                                                                   | 选项的值太大                                            | 检查并修正 SQL 语句                    |
 | 0x800026A3 | Option value too small                                                                                 | 选项的值太小                                            | 检查并修正 SQL 语句                    |
+| 0x800026AA | Aggregate functions cannot be used for sorting in non-aggregate queries                                | order by 子句不合法法                                            | 检查并修正 SQL 语句                    |
+| 0x800026AB | TRUE_FOR COUNT must be a non-negative integer not exceeding INT32_MAX                                  | true_for count 的值必须为非负数并且小于 INT32_MAX         | 检查并修正 SQL 语句                    |
+| 0x800026AC | Invalid fill mode | 在 interval 窗口中使用 fill(near) 模式 | 使用 interval 窗口支持的 fill 模式 |
+| 0x800026AD | Invalid fill values | 错误使用 fill values 参数 | 使用正确的 fill 模式与 fill values 参数配合 |
+| 0x800026AE | Invalid surrounding time value | 填写了错误的 surrounding time 值 | 使用正确有效的时间范围和时间单位 |
 | 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN 条件校验失败                                       | 保留现场和日志，github 上报 issue      |
@@ -665,7 +683,8 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80006205 | Virtual table not support in STMT query and STMT insert                    | 不支持在 stmt 写入和查询中使用虚拟表                          | 不在 stmt 写入和查询中使用虚拟表        |
 | 0x80006206 | Virtual table not support in Topic                                         | 不支持在订阅中使用虚拟表                                   | 不在订阅中使用虚拟表                 |
 | 0x80006207 | Virtual super table query not support origin table from different databases | 虚拟超级表不支持子表的数据源来自不同的数据库                         | 确保虚拟超级表的子表的数据源都来自同一个数据库    |
-| 0x80006208 | Virtual table has too many reference tables                                | 虚拟表的列对应的原始表数量过多                                | 确保虚拟表的列对应的原始表数量不超过 1000    |
+| 0x80006208 | Virtual super table query find column type mismatch                        | 虚拟超级表查询时发现虚拟子表的列来源和虚拟子表的列类型不匹配                 | 确保原始表和虚拟子表的列类型匹配           |
+| 0x80006209 | Virtual table has too many reference tables                                | 虚拟表的列对应的原始表数量过多                                | 确保虚拟表的列对应的原始表数量不超过 1000    |
 
 #### TDgpt
 
@@ -693,6 +712,39 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80007016 | Stream output table name calc failed  | 输出表名计算失败                         | 检查建流语句中输出表名规则是否正确，是否有 NULL 值存在 |
 | 0x80007017 | Stream vtable calculate need redeploy | 流计算语句中的虚拟表的原始表分布发生变更 | 流会自动处理该错误，无需处理                           |
 | 0x80007018 | Stream info contains invalid JSON format messages | 流计算内部编码兼容性问题 | 保留现场和日志，github 上报         |
+
+#### xnode
+
+| 错误码      | 错误描述                                               | 可能的出错场景或者可能的原因                           | 建议用户采取的措施                              |
+|------------|-------------------------------------------------------|---------------------------------------------------|----------------------------------------------|
+| 0x80008000 | Xnode already exists                                  | Xnode 已经创建                                     | 检查 taosx 节点地址                             |
+| 0x80008001 | Xnode already deployed                                | Xnode 已经部署                                     | -                                              |
+| 0x80008002 | Xnode not there                                       | 没有创建任何 xnode                                  | 使用 taosx 地址创建 xnode                      |
+| 0x80008003 | Xnode tool long url                                   | Xnode URL 太长                                     | 缩短 URL                                       |
+| 0x80008004 | Xnode invalid protocol                                | Xnode 协议无效                                        | 检查并修正 taosx 端口                          |
+| 0x80008006 | Xnode invalid message content                         | Xnode 消息内容无效                                    | 检查并修正 Xnode 请求                          |
+| 0x80008007 | Xnode not found                                       | 找不到 Xnode ID 或 URL                                | 检查 xnode ID 或 URL                            |
+| 0x80008008 | Xnode xnoded exec failure                             | xnode 进程已退出                                      | 检查 xnoded 进程并重启 taosd                  |
+| 0x80008009 | Xnode xnoded can't access                             | xnoded 进程未运行                                     | 重启 taosd                                     |
+| 0x8000800A | Xnode xnoded response is null                         | xnoded 响应错误                                       | 重试                                            |
+| 0x8000800C | Xnode request action response not success code        | xnode 请求失败                                       | 检查配置并重试                                  |
+| 0x8000800D | Xnode first-time setup requires username and password | 创建 XNODE 时未提供用户名和密码的错误                | 修正 SQL                                        |
+| 0x8000800E | Xnode username or password error when setup           | 创建 XNODE 时用户名和密码错误                        | 检查用户名和密码                                |
+| 0x8000800F | Xnode task already exist                              | Xnode 任务已经存在                                    | 检查任务配置并修正                              |
+| 0x80008010 | Xnode task not exist                                  | Xnode 任务不存在                                      | 使用已存在的任务进行操作                        |
+| 0x80008011 | Xnode task name too long                              | Xnode 任务名称太长                                    | 修正配置并重试                                  |
+| 0x80008012 | Xnode task job syntax error                           | Xnode 任务作业语法错误                                | 修正任务作业配置并重试                          |
+| 0x80008013 | Xnode task job config too long                        | Xnode 任务作业配置太长                                | 修正任务作业配置并重试                          |
+| 0x80008014 | Xnode job not exist                                   | Xnode 任务作业不存在                                  | 检查任务作业 ID                                  |
+| 0x80008015 | Xnode task/job reason too long                        | Xnode 任务/作业原因太长                              | 向开发人员报告此问题至 GitHub                    |
+| 0x80008016 | Xnode xnoded response timeout                         | xnoded 响应超时                                       | 重试                                            |
+| 0x80008017 | Xnode where clause column not exist                   | Xnode where 子句列不存在                              | 检查 where 条件                                  |
+| 0x80008018 | Xnode where clause column type diff                   | Xnode where 子句列类型不匹配                          | 检查 where 条件                                  |
+| 0x80008019 | Xnode where clause operator not support               | Xnode where 子句不支持 NOT                            | 检查 where 条件                                  |
+| 0x80008020 | Xnode agent not exist                                 | 查询的 Xnode agent 不存在                             | 检查 agent ID 或 name                            |
+| 0x80008021 | Xnode agent already exist                             | 查询的 Xnode agent 已存在                             | 检查 agent ID 或 name                            |
+| 0x80008022 | Xnode name duplicate                                  | 更新的 name 重复                                      | 检查需要更新的 name 是否与存量数据重复           |
+| 0x80008023 | Xnode task parser too long                            | 任务 parser 字段过长                                  | 检查任务的 parser 字段是否过长                   |
 
 ## 连接器
 

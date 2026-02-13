@@ -146,7 +146,7 @@ int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t ad
   return 0;
 }
 
-int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STableMetaRsp *pMetaRsp) {
+int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, int64_t ownerId, STableMetaRsp *pMetaRsp) {
   pMetaRsp->pSchemas = taosMemoryMalloc(pSchema->nCols * sizeof(SSchema));
   if (NULL == pMetaRsp->pSchemas) {
     return terrno;
@@ -165,6 +165,7 @@ int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STabl
   pMetaRsp->rversion = 1;
   pMetaRsp->tuid = uid;
   pMetaRsp->virtualStb = false; // super table will never be processed here
+  if (ownerId != 0) pMetaRsp->ownerId = ownerId;
 
   memcpy(pMetaRsp->pSchemas, pSchema->pSchema, pSchema->nCols * sizeof(SSchema));
 
@@ -172,7 +173,7 @@ int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema, STabl
 }
 
 int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, SSchemaWrapper *pSchema, SColRefWrapper *pRef,
-                             STableMetaRsp *pMetaRsp, int8_t tableType) {
+                             int64_t ownerId, STableMetaRsp *pMetaRsp, int8_t tableType) {
   int32_t   code = TSDB_CODE_SUCCESS;
   SHashObj* pColRefHash = NULL;
   if (!pRef) {
@@ -217,13 +218,6 @@ int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, SSchemaWrapper *p
     }
   }
 
-  if (taosHashGetSize(pColRefHash) > 1000) {
-    code = TSDB_CODE_VTABLE_TOO_MANY_REFERENCE;
-    goto _return;
-  }
-
-
-
   memcpy(pMetaRsp->pColRefs, pRef->pColRef, pRef->nCols * sizeof(SColRef));
   tstrncpy(pMetaRsp->tbName, tbName, TSDB_TABLE_NAME_LEN);
   if (tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
@@ -237,6 +231,7 @@ int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, SSchemaWrapper *p
   pMetaRsp->virtualStb = false; // super table will never be processed here
   pMetaRsp->numOfColRefs = pRef->nCols;
   pMetaRsp->rversion = pRef->version;
+  if (ownerId != 0) pMetaRsp->ownerId = ownerId;
 
   taosHashCleanup(pColRefHash);
   return code;

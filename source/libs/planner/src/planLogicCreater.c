@@ -47,9 +47,25 @@ typedef struct SRewriteExprCxt {
   SNodeList* pExprs;
   bool*      pOutputs;
   bool       isPartitionBy;
+  SNode*     pOrderByFirstExpr;  // May be invalid after rewriting, use getOrderByFirstExpr() instead
+  SSelectStmt* pSelect;  // Used to get the current first order by expr after rewriting
 } SRewriteExprCxt;
 
-static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartitionBy) {
+// Helper function to safely get the first order by expression after rewriting
+static SNode* getOrderByFirstExpr(SRewriteExprCxt* pCxt) {
+  if (pCxt->pSelect && pCxt->pSelect->pOrderByList && pCxt->pSelect->pOrderByList->length > 0) {
+    SOrderByExprNode* pOrderByExpr = (SOrderByExprNode*)nodesListGetNode(pCxt->pSelect->pOrderByList, 0);
+    if (pOrderByExpr && pOrderByExpr->pExpr) {
+      return pOrderByExpr->pExpr;
+    }
+  }
+  return NULL;
+}
+
+static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartitionBy, SRewriteExprCxt* pCxt) {
+  // Get the current first order by expression (may have been rewritten)
+  SNode* pOrderByFirstExpr = getOrderByFirstExpr(pCxt);
+  
   switch (pFunc->funcType) {
     case FUNCTION_TYPE_TBNAME:
       pCol->colType = COLUMN_TYPE_TBNAME;
@@ -62,16 +78,10 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
     case FUNCTION_TYPE_WSTART:
       pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pCol->colType = COLUMN_TYPE_WINDOW_START;
-      if (!isPartitionBy) {
-        pCol->isPrimTs = true;
-      }
       break;
     case FUNCTION_TYPE_WEND:
       pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pCol->colType = COLUMN_TYPE_WINDOW_END;
-      if (!isPartitionBy) {
-        pCol->isPrimTs = true;
-      }
       break;
     case FUNCTION_TYPE_WDURATION:
       pCol->colType = COLUMN_TYPE_WINDOW_DURATION;
@@ -82,8 +92,25 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
     case FUNCTION_TYPE_IS_WINDOW_FILLED:
       pCol->colType = COLUMN_TYPE_IS_WINDOW_FILLED;
       break;
+    case FUNCTION_TYPE_TPREV_TS:
+    case FUNCTION_TYPE_TCURRENT_TS:
+    case FUNCTION_TYPE_TNEXT_TS:
+    case FUNCTION_TYPE_TWSTART:
+    case FUNCTION_TYPE_TWEND:
+    case FUNCTION_TYPE_TPREV_LOCALTIME:
+    case FUNCTION_TYPE_TNEXT_LOCALTIME:
+    case FUNCTION_TYPE_TLOCALTIME:
+      pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+      pCol->isPrimTs = true;
+      break;
     default:
       break;
+  }
+  if (fmIsKeepOrderFunc(pFunc) && isPrimaryKeyImpl((SNode*)pFunc)) {
+    if (!isPartitionBy || (pOrderByFirstExpr && ((SExprNode*)pOrderByFirstExpr)->projIdx == pCol->node.projIdx &&
+                           isPrimaryKeyImpl(pOrderByFirstExpr))) {
+      pCol->isPrimTs = true;
+    }
   }
 }
 
@@ -131,7 +158,7 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
           pCol->node.projIdx = ((SExprNode*)(*pNode))->projIdx;
           pCol->node.relatedTo = ((SExprNode*)(*pNode))->relatedTo;
           if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
-            setColumnInfo((SFunctionNode*)pExpr, pCol, pCxt->isPartitionBy);
+            setColumnInfo((SFunctionNode*)pExpr, pCol, pCxt->isPartitionBy, pCxt);
           }
           nodesDestroyNode(*pNode);
           *pNode = (SNode*)pCol;
@@ -170,9 +197,16 @@ static EDealRes doNameExpr(SNode* pNode, void* pContext) {
 
 static int32_t rewriteExprForSelect(SNode* pExpr, SSelectStmt* pSelect, ESqlClause clause) {
   nodesWalkExpr(pExpr, doNameExpr, NULL);
-  bool            isPartitionBy = (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? true : false;
-  SRewriteExprCxt cxt = {
-      .errCode = TSDB_CODE_SUCCESS, .pExprs = NULL, .pOutputs = NULL, .isPartitionBy = isPartitionBy};
+  bool isPartitionBy = (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? true : false;
+  SNode*          pOrderByFirstExpr = (pSelect->pOrderByList && pSelect->pOrderByList->length > 0)
+                                          ? ((SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, 0))->pExpr
+                                          : NULL;
+  SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
+                         .pExprs = NULL,
+                         .pOutputs = NULL,
+                         .isPartitionBy = isPartitionBy,
+                         .pOrderByFirstExpr = pOrderByFirstExpr,
+                         .pSelect = pSelect};
   cxt.errCode = nodesListMakeAppend(&cxt.pExprs, pExpr);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
     nodesRewriteSelectStmt(pSelect, clause, doRewriteExpr, &cxt);
@@ -205,9 +239,17 @@ static int32_t cloneRewriteExprs(SNodeList* pExprs, bool* pOutputs, SNodeList** 
 static int32_t rewriteExprsForSelect(SNodeList* pExprs, SSelectStmt* pSelect, ESqlClause clause,
                                      SNodeList** pRewriteExprs) {
   nodesWalkExprs(pExprs, doNameExpr, NULL);
-  bool            isPartitionBy = (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? true : false;
-  SRewriteExprCxt cxt = {
-      .errCode = TSDB_CODE_SUCCESS, .pExprs = pExprs, .pOutputs = NULL, .isPartitionBy = isPartitionBy};
+  bool isPartitionBy = (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? true : false;
+  SNode*     pOrderByFirstExpr =
+      (pSelect->pOrderByList && pSelect->pOrderByList->length > 0)
+          ? ((SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, 0))->pExpr : NULL;
+
+  SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
+                         .pExprs = pExprs,
+                         .pOutputs = NULL,
+                         .isPartitionBy = isPartitionBy,
+                         .pOrderByFirstExpr = pOrderByFirstExpr,
+                         .pSelect = pSelect};
   if (NULL != pRewriteExprs) {
     cxt.pOutputs = taosMemoryCalloc(LIST_LENGTH(pExprs), sizeof(bool));
     if (NULL == cxt.pOutputs) {
@@ -224,14 +266,24 @@ static int32_t rewriteExprsForSelect(SNodeList* pExprs, SSelectStmt* pSelect, ES
 
 static int32_t rewriteExpr(SNodeList* pExprs, SNode** pTarget) {
   nodesWalkExprs(pExprs, doNameExpr, NULL);
-  SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pExprs = pExprs, .pOutputs = NULL, .isPartitionBy = false};
+  SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
+                         .pExprs = pExprs,
+                         .pOutputs = NULL,
+                         .isPartitionBy = false,
+                         .pOrderByFirstExpr = NULL,
+                         .pSelect = NULL};
   nodesRewriteExpr(pTarget, doRewriteExpr, &cxt);
   return cxt.errCode;
 }
 
 static int32_t rewriteExprs(SNodeList* pExprs, SNodeList* pTarget) {
   nodesWalkExprs(pExprs, doNameExpr, NULL);
-  SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pExprs = pExprs, .pOutputs = NULL, .isPartitionBy = false};
+  SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
+                         .pExprs = pExprs,
+                         .pOutputs = NULL,
+                         .isPartitionBy = false,
+                         .pOrderByFirstExpr = NULL,
+                         .pSelect = NULL};
   nodesRewriteExprs(pTarget, doRewriteExpr, &cxt);
   return cxt.errCode;
 }
@@ -642,6 +694,7 @@ static int32_t createRefScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
 
   SNode *pTsCol = nodesListGetNode(pScan->pScanCols, 0);
   ((SColumnNode*)pTsCol)->hasDep = true;
+  tstrncpy(((SColumnNode*)pTsCol)->dbName, pRealTable->table.dbName, TSDB_DB_NAME_LEN);
   *pLogicNode = (SLogicNode*)pScan;
   // pCxt->hasScan = true;
 
@@ -810,15 +863,30 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   return code;
 }
 
-static int32_t findRefTableNode(SNodeList *refTableList, const char *dbName, const char *tableName, SNode **pRefTable) {
-  SNode *pRef = NULL;
-  FOREACH(pRef, refTableList) {
-    if (0 == strcasecmp(((SRealTableNode*)pRef)->table.tableName, tableName) &&
-        0 == strcasecmp(((SRealTableNode*)pRef)->table.dbName, dbName)) {
-      PLAN_RET(nodesCloneNode(pRef, pRefTable));
-    }
+static void buildRefTableKey(char* buf, size_t bufSize, const char* dbName, const char* tableName) {
+  size_t dbLen = strnlen(dbName, TSDB_DB_NAME_LEN);
+  size_t tbLen = strnlen(tableName, TSDB_TABLE_NAME_LEN);
+  if (dbLen + 1 + tbLen >= bufSize) {
+    buf[0] = '\0';
+    return;
   }
-  return TSDB_CODE_NOT_FOUND;
+  if (snprintf(buf, bufSize, "%.*s.%.*s", (int)dbLen, dbName, (int)tbLen, tableName) >= (int)bufSize) {
+    buf[0] = '\0';
+  }
+}
+
+static int32_t findRefTableNode(SHashObj* pRefTableMap, const char* dbName, const char* tableName,
+                                SNode** pRefTable) {
+  char tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
+  buildRefTableKey(tableNameKey, sizeof(tableNameKey), dbName, tableName);
+  if (tableNameKey[0] == '\0') {
+    return TSDB_CODE_NOT_FOUND;
+  }
+  SNode** ppRefTable = (SNode**)taosHashGet(pRefTableMap, tableNameKey, strlen(tableNameKey));
+  if (NULL == ppRefTable) {
+    return TSDB_CODE_NOT_FOUND;
+  }
+  return nodesCloneNode(*ppRefTable, pRefTable);
 }
 
 static int32_t findRefColId(SNode *pRefTable, const char *colName, col_id_t *colId, int32_t *colIdx) {
@@ -898,7 +966,8 @@ static int32_t checkColRefType(const SSchema* vtbSchema, const SSchema* refSchem
 }
 
 static int32_t addSubScanNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SVirtualTableNode* pVirtualTable,
-                              int32_t colRefIndex, int32_t schemaIndex, SHashObj *refTablesMap) {
+                              int32_t colRefIndex, int32_t schemaIndex, SHashObj* refTablesMap,
+                              SHashObj* refTableNodeMap) {
   int32_t     code = TSDB_CODE_SUCCESS;
   col_id_t    colId = 0;
   int32_t     colIdx = 0;
@@ -907,7 +976,7 @@ static int32_t addSubScanNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SVi
   SLogicNode *pRefScan = NULL;
   bool        put = false;
 
-  PLAN_ERR_JRET(findRefTableNode(pVirtualTable->refTables, pColRef->refDbName, pColRef->refTableName, &pRefTable));
+  PLAN_ERR_JRET(findRefTableNode(refTableNodeMap, pColRef->refDbName, pColRef->refTableName, &pRefTable));
   PLAN_ERR_JRET(findRefColId(pRefTable, pColRef->refColName, &colId, &colIdx));
 
   char tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
@@ -1167,6 +1236,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   PLAN_ERR_JRET(nodesListMakeStrictAppend(&pDynCtrl->node.pChildren, (SNode*)pVtableScan));
   PLAN_ERR_JRET(nodesListMakeStrictAppend(&pDynCtrl->node.pChildren, (SNode*)pInsColumnsScan));
   PLAN_ERR_JRET(nodesCloneList(pVtableScan->node.pTargets, &pDynCtrl->node.pTargets));
+
   TSWAP(pVtableScan->pVgroupList, pDynCtrl->vtbScan.pVgroupList);
   pVtableScan->node.pParent = (SLogicNode*)pDynCtrl;
   ((SScanLogicNode*)pInsColumnsScan)->node.pParent = (SLogicNode*)pDynCtrl;
@@ -1188,11 +1258,29 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   SNode*    pNode = NULL;
   bool      scanAllCols = true;
   SHashObj* pRefTablesMap = NULL;
+  SHashObj* pRefTableNodeMap = NULL;
   SNode*    pTagScan = NULL;
 
   pRefTablesMap = taosHashInit(LIST_LENGTH(pVtableScan->pScanCols), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (NULL == pRefTablesMap) {
     PLAN_ERR_JRET(terrno);
+  }
+  pRefTableNodeMap =
+      taosHashInit(LIST_LENGTH(pVirtualTable->refTables), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
+                   HASH_ENTRY_LOCK);
+  if (NULL == pRefTableNodeMap) {
+    PLAN_ERR_JRET(terrno);
+  }
+
+  SNode* pRefNode = NULL;
+  FOREACH(pRefNode, pVirtualTable->refTables) {
+    SRealTableNode* pRefTable = (SRealTableNode*)pRefNode;
+    char            tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
+    buildRefTableKey(tableNameKey, sizeof(tableNameKey), pRefTable->table.dbName, pRefTable->table.tableName);
+    if (tableNameKey[0] == '\0') {
+      PLAN_ERR_JRET(TSDB_CODE_INVALID_PARA);
+    }
+    PLAN_ERR_JRET(taosHashPut(pRefTableNodeMap, tableNameKey, strlen(tableNameKey), &pRefNode, POINTER_BYTES));
   }
 
   if (pCxt->pPlanCxt->streamCalcQuery && pSelect->pTimeRange != NULL) {
@@ -1208,10 +1296,11 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
     int32_t schemaIndex = findSchemaIndex(pVirtualTable->pMeta->schema, pVirtualTable->pMeta->tableInfo.numOfColumns, pCol->colId);
     if (colRefIndex != -1 && pVirtualTable->pMeta->colRef[colRefIndex].hasRef) {
       if (pCol->isPrimTs || pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-        PLAN_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
+        continue;
       }
       scanAllCols &= false;
-      PLAN_ERR_JRET(addSubScanNode(pCxt, pSelect, pVirtualTable, colRefIndex, schemaIndex, pRefTablesMap));
+      PLAN_ERR_JRET(addSubScanNode(pCxt, pSelect, pVirtualTable, colRefIndex, schemaIndex, pRefTablesMap,
+                                   pRefTableNodeMap));
     } else if (pCol->isPrimTs || pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
       // do nothing
     } else {
@@ -1232,7 +1321,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
       } else {
         col_id_t colRefIndex = (col_id_t)findColRefIndex(pVirtualTable->pMeta->colRef, pVirtualTable, pVirtualTable->pMeta->schema[i].colId);
         if (colRefIndex != -1 && pVirtualTable->pMeta->colRef[colRefIndex].hasRef) {
-          PLAN_ERR_JRET(addSubScanNode(pCxt, pSelect, pVirtualTable, colRefIndex, i, pRefTablesMap));
+          PLAN_ERR_JRET(addSubScanNode(pCxt, pSelect, pVirtualTable, colRefIndex, i, pRefTablesMap, pRefTableNodeMap));
         }
       }
     }
@@ -1256,11 +1345,13 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
 
   *pLogicNode = (SLogicNode*)pVtableScan;
   taosHashCleanup(pRefTablesMap);
+  taosHashCleanup(pRefTableNodeMap);
   return code;
 _return:
   planError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
   taosHashSetFreeFp(pRefTablesMap, destroyScanLogicNode);
   taosHashCleanup(pRefTablesMap);
+  taosHashCleanup(pRefTableNodeMap);
   return code;
 }
 
@@ -1361,6 +1452,7 @@ static SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) 
   if (NULL != pStmtName) {
     snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", pStmtName);
   }
+  snprintf(pCol->node.userAlias, sizeof(pCol->node.userAlias), "%s", pExpr->userAlias);
   pCol->node.relatedTo = pExpr->relatedTo;
   return pCol;
 }
@@ -1589,60 +1681,60 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   }
 
   SInterpFuncLogicNode* pInterpFunc = NULL;
-  int32_t               code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_INTERP_FUNC, (SNode**)&pInterpFunc);
-  if (NULL == pInterpFunc) {
-    return code;
-  }
+  int32_t               code = TSDB_CODE_SUCCESS;
+
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_INTERP_FUNC, (SNode**)&pInterpFunc));
 
   pInterpFunc->node.groupAction = getGroupAction(pCxt, pSelect);
   pInterpFunc->node.requireDataOrder = getRequireDataOrder(true, pSelect);
   pInterpFunc->node.resultDataOrder = pInterpFunc->node.requireDataOrder;
 
   // interp functions and _group_key functions
-  code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, isInterpFunc, &pInterpFunc->pFuncs);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteExprsForSelect(pInterpFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL);
-  }
+  PLAN_ERR_JRET(nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, isInterpFunc, &pInterpFunc->pFuncs));
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pFill) {
+  PLAN_ERR_JRET(rewriteExprsForSelect(pInterpFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL));
+
+  if (NULL != pSelect->pFill) {
     SFillNode* pFill = (SFillNode*)pSelect->pFill;
     pInterpFunc->timeRange = pFill->timeRange;
     TSWAP(pInterpFunc->pTimeRange, pFill->pTimeRange);    
     pInterpFunc->fillMode = pFill->mode;
     pInterpFunc->pTimeSeries = NULL;
-    code = nodesCloneNode(pFill->pWStartTs, &pInterpFunc->pTimeSeries);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = nodesCloneNode(pFill->pValues, &pInterpFunc->pFillValues);
+    PLAN_ERR_JRET(nodesCloneNode(pFill->pWStartTs, &pInterpFunc->pTimeSeries));
+    PLAN_ERR_JRET(nodesCloneNode(pFill->pValues, &pInterpFunc->pFillValues));
+    if (NULL != pFill->pSurroundingTime &&
+        nodeType(pFill->pSurroundingTime) == QUERY_NODE_VALUE) {
+      SValueNode* pSurroundingTime = (SValueNode*)pFill->pSurroundingTime;
+      pInterpFunc->surroundingTime = pSurroundingTime->datum.i;
     }
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pEvery) {
+  if (NULL != pSelect->pEvery) {
     pInterpFunc->interval = ((SValueNode*)pSelect->pEvery)->datum.i;
     pInterpFunc->intervalUnit = ((SValueNode*)pSelect->pEvery)->unit;
     pInterpFunc->precision = pSelect->precision;
   }
 
-  if (TSDB_CODE_SUCCESS == code && pSelect->pRangeAround) {
+  if (pSelect->pRangeAround) {
     SNode* pRangeInterval = ((SRangeAroundNode*)pSelect->pRangeAround)->pInterval;
     if (!pRangeInterval || nodeType(pRangeInterval) != QUERY_NODE_VALUE) {
-      code = TSDB_CODE_PAR_INTERNAL_ERROR;
+      planError("%s failed at line %d since range interval is invalid", __func__, __LINE__);
+      PLAN_ERR_JRET(TSDB_CODE_PLAN_INTERNAL_ERROR);
     } else {
-      pInterpFunc->rangeInterval = ((SValueNode*)pRangeInterval)->datum.i;
-      pInterpFunc->rangeIntervalUnit = ((SValueNode*)pRangeInterval)->unit;
+      pInterpFunc->surroundingTime = ((SValueNode*)pRangeInterval)->datum.i;
     }
   }
 
+
   // set the output
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExprs(pInterpFunc->pFuncs, &pInterpFunc->node.pTargets);
-  }
+  PLAN_ERR_JRET(createColumnByRewriteExprs(pInterpFunc->pFuncs, &pInterpFunc->node.pTargets));
 
-  if (TSDB_CODE_SUCCESS == code) {
-    *pLogicNode = (SLogicNode*)pInterpFunc;
-  } else {
-    nodesDestroyNode((SNode*)pInterpFunc);
-  }
+  *pLogicNode = (SLogicNode*)pInterpFunc;
+  return code;
 
+_return:
+  planError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  nodesDestroyNode((SNode*)pInterpFunc);
   return code;
 }
 
@@ -1728,7 +1820,7 @@ static int32_t createGenericAnalysisLogicNode(SLogicPlanContext* pCxt, SSelectSt
 
 static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SWindowLogicNode* pWindow,
                                              SLogicNode** pLogicNode) {
-  pWindow->node.inputTsOrder = ORDER_ASC;
+  pWindow->node.inputTsOrder = ORDER_UNKNOWN;
   pWindow->node.outputTsOrder = ORDER_ASC;
 
   int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_WINDOW, NULL, fmIsWindowClauseFunc, &pWindow->pFuncs);
@@ -1812,6 +1904,8 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
   pWindow->node.requireDataOrder = getRequireDataOrder(true, pSelect);
   pWindow->node.resultDataOrder = pWindow->node.requireDataOrder;
   pWindow->pStateExpr = NULL;
+  pWindow->partType |= (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? WINDOW_PART_HAS : 0;
+  pWindow->partType |= (pSelect->pPartitionByList && keysHasTbname(pSelect->pPartitionByList)) ? WINDOW_PART_TB : 0;
   code = nodesCloneNode(pState->pExpr, &pWindow->pStateExpr);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pWindow);
@@ -1826,7 +1920,16 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
     pWindow->extendOption = ((SValueNode*)pState->pExtend)->datum.i;
   }
   if (pState->pTrueForLimit) {
-    pWindow->trueForLimit = ((SValueNode*)pState->pTrueForLimit)->datum.i;
+    if (QUERY_NODE_VALUE == nodeType(pState->pTrueForLimit)) {
+      pWindow->trueForType = TRUE_FOR_DURATION_ONLY;
+      pWindow->trueForCount = 0;
+      pWindow->trueForDuration = ((SValueNode*)pState->pTrueForLimit)->datum.i;
+    } else {
+      pWindow->trueForType = ((STrueForNode*)pState->pTrueForLimit)->trueForType;
+      pWindow->trueForCount = ((STrueForNode*)pState->pTrueForLimit)->count;
+      SNode* pDuration = ((STrueForNode*)pState->pTrueForLimit)->pDuration;
+      pWindow->trueForDuration = pDuration ? ((SValueNode*)pDuration)->datum.i : 0;
+    }
   }
   // rewrite the expression in subsequent clauses
   code = rewriteExprForSelect(pWindow->pStateExpr, pSelect, SQL_CLAUSE_WINDOW);
@@ -1853,6 +1956,8 @@ static int32_t createWindowLogicNodeBySession(SLogicPlanContext* pCxt, SSessionW
   pWindow->node.groupAction = getGroupAction(pCxt, pSelect);
   pWindow->node.requireDataOrder = getRequireDataOrder(true, pSelect);
   pWindow->node.resultDataOrder = pWindow->node.requireDataOrder;
+  pWindow->partType |= (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? WINDOW_PART_HAS : 0;
+  pWindow->partType |= (pSelect->pPartitionByList && keysHasTbname(pSelect->pPartitionByList)) ? WINDOW_PART_TB : 0;
 
   pWindow->pTspk = NULL;
   code = nodesCloneNode((SNode*)pSession->pCol, &pWindow->pTspk);
@@ -1887,7 +1992,7 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
       (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
   pWindow->windowAlgo = INTERVAL_ALGO_HASH;
   pWindow->node.groupAction = (NULL != pInterval->pFill ? GROUP_ACTION_KEEP : getGroupAction(pCxt, pSelect));
-  pWindow->node.requireDataOrder = (pSelect->hasTimeLineFunc ? getRequireDataOrder(true, pSelect) : DATA_ORDER_LEVEL_IN_BLOCK);
+  pWindow->node.requireDataOrder = (pSelect->hasTimeLineFunc ? getRequireDataOrder(true, pSelect) : DATA_ORDER_LEVEL_NONE);
   pWindow->node.resultDataOrder = getRequireDataOrder(true, pSelect);
   pWindow->pTspk = NULL;
   code = nodesCloneNode(pInterval->pCol, &pWindow->pTspk);
@@ -1895,7 +2000,8 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
     nodesDestroyNode((SNode*)pWindow);
     return code;
   }
-  pWindow->isPartTb = pSelect->pPartitionByList ? keysHasTbname(pSelect->pPartitionByList) : 0;
+  pWindow->partType |= (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? WINDOW_PART_HAS : 0;
+  pWindow->partType |= (pSelect->pPartitionByList && keysHasTbname(pSelect->pPartitionByList)) ? WINDOW_PART_TB : 0;
   pWindow->timeRange = pInterval->timeRange;
 
   return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
@@ -1934,8 +2040,20 @@ static int32_t createWindowLogicNodeByEvent(SLogicPlanContext* pCxt, SEventWindo
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   if (pEvent->pTrueForLimit) {
-    pWindow->trueForLimit = ((SValueNode*)pEvent->pTrueForLimit)->datum.i;
+    if (QUERY_NODE_VALUE == nodeType(pEvent->pTrueForLimit)) {
+      pWindow->trueForType = TRUE_FOR_DURATION_ONLY;
+      pWindow->trueForCount = 0;
+      pWindow->trueForDuration = ((SValueNode*)pEvent->pTrueForLimit)->datum.i;
+    } else {
+      pWindow->trueForType = ((STrueForNode*)pEvent->pTrueForLimit)->trueForType;
+      pWindow->trueForCount = ((STrueForNode*)pEvent->pTrueForLimit)->count;
+      SNode* pDuration = ((STrueForNode*)pEvent->pTrueForLimit)->pDuration;
+      pWindow->trueForDuration = pDuration ? ((SValueNode*)pDuration)->datum.i : 0;
+    }
   }
+  pWindow->partType |= (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? WINDOW_PART_HAS : 0;
+  pWindow->partType |= (pSelect->pPartitionByList && keysHasTbname(pSelect->pPartitionByList)) ? WINDOW_PART_TB : 0;
+
   return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }
 
@@ -1953,6 +2071,9 @@ static int32_t createWindowLogicNodeByCount(SLogicPlanContext* pCxt, SCountWindo
   pWindow->windowCount = pCount->windowCount;
   pWindow->windowSliding = pCount->windowSliding;
   pWindow->pTspk = NULL;
+  pWindow->partType |= (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? WINDOW_PART_HAS : 0;
+  pWindow->partType |= (pSelect->pPartitionByList && keysHasTbname(pSelect->pPartitionByList)) ? WINDOW_PART_TB : 0;
+
   PLAN_ERR_JRET(nodesCloneNode(pCount->pCol, &pWindow->pTspk));
   if (pCount->pColList != NULL) {
     PLAN_ERR_JRET(nodesCloneList(pCount->pColList, &pWindow->pColList));
@@ -2020,7 +2141,7 @@ static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExterna
   pWindow->node.groupAction = GROUP_ACTION_NONE;
   pWindow->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
   pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
-  pWindow->isPartTb = 0;
+  pWindow->partType = 0;
   pWindow->pTspk = NULL;
   if (nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE) {
     SRealTableNode* pTable = (SRealTableNode*)pSelect->pFromTable;
@@ -2272,6 +2393,7 @@ static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStm
       nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE ||
       NULL != pSelect->pSlimit || NULL != pSelect->pLimit || pSelect->hasInterpFunc ||
       pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
+      (pSelect->pOrderByList != NULL && pCxt->pPlanCxt->streamForceOutput) ||
       !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange)) {
     pCxt->pPlanCxt->withExtWindow = false;
     return TSDB_CODE_SUCCESS;
@@ -2470,6 +2592,10 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCloneNode(pFillNode->pWStartTs, &pFill->pWStartTs);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCloneNode(pFillNode->pSurroundingTime,
+                          &pFill->pSurroundingTime);
+  }
 
   if (TSDB_CODE_SUCCESS == code && 0 == LIST_LENGTH(pFill->node.pTargets)) {
     code = createColumnByRewriteExpr(pFill->pWStartTs, &pFill->node.pTargets);
@@ -2497,7 +2623,7 @@ static bool isPrimaryKeySort(SNodeList* pOrderByList) {
 }
 
 static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (NULL == pSelect->pOrderByList) {
+  if (NULL == pSelect->pOrderByList || pSelect->pOrderByList->length == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2510,11 +2636,11 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pSort->groupSort = pSelect->groupSort;
   pSort->node.groupAction = pSort->groupSort ? GROUP_ACTION_KEEP : GROUP_ACTION_CLEAR;
   pSort->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+
   pSort->node.resultDataOrder = isPrimaryKeySort(pSelect->pOrderByList)
                                     ? (pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
                                     : DATA_ORDER_LEVEL_NONE;
-  if (pCxt->pPlanCxt->streamCalcQuery &&
-      nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE &&
+  if (pCxt->pPlanCxt->streamCalcQuery && nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE &&
       ((SRealTableNode*)pSelect->pFromTable)->placeholderType == SP_PARTITION_ROWS) {
     pSort->skipPKSortOpt = true;
   }
@@ -2537,7 +2663,8 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     if (TSDB_CODE_SUCCESS == code) {
       SNode*            pNode = NULL;
       SOrderByExprNode* firstSortKey = (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0);
-      if (isPrimaryKeySort(pSelect->pOrderByList)) pSort->node.outputTsOrder = firstSortKey->order;
+
+      if (isPrimaryKeyImpl(firstSortKey->pExpr)) pSort->node.outputTsOrder = firstSortKey->order;
       if (firstSortKey->pExpr->type == QUERY_NODE_COLUMN) {
         SColumnNode* pCol = (SColumnNode*)firstSortKey->pExpr;
         int16_t      projIdx = 1;
@@ -3233,7 +3360,7 @@ int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
     return code;
   }
   pSubplan->id.queryId = pCxt->queryId;
-  pSubplan->id.groupId = 1;
+  pSubplan->id.groupId = ++pCxt->groupId;
   pSubplan->id.subplanId = 1;
 
   code = createQueryLogicNode(&cxt, pCxt->pAstRoot, &pSubplan->pNode);

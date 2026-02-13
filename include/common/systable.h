@@ -31,6 +31,11 @@ extern "C" {
 #define TSDB_INS_TABLE_SNODES              "ins_snodes"
 #define TSDB_INS_TABLE_ANODES              "ins_anodes"
 #define TSDB_INS_TABLE_ANODES_FULL         "ins_anodes_full"
+#define TSDB_INS_TABLE_XNODES              "ins_xnodes"
+#define TSDB_INS_TABLE_XNODE_TASKS         "ins_xnode_tasks"
+#define TSDB_INS_TABLE_XNODE_AGENTS        "ins_xnode_agents"
+#define TSDB_INS_TABLE_XNODE_JOBS          "ins_xnode_jobs"
+#define TSDB_INS_TABLE_XNODES_FULL         "ins_xnodes_full"
 #define TSDB_INS_TABLE_BNODES              "ins_bnodes"
 #define TSDB_INS_TABLE_ARBGROUPS           "ins_arbgroups"
 #define TSDB_INS_TABLE_CLUSTER             "ins_cluster"
@@ -45,6 +50,7 @@ extern "C" {
 #define TSDB_INS_TABLE_TABLE_DISTRIBUTED   "ins_table_distributed"
 #define TSDB_INS_TABLE_USERS               "ins_users"
 #define TSDB_INS_TABLE_USERS_FULL          "ins_users_full"
+#define TSDB_INS_TABLE_TOKENS              "ins_tokens"
 #define TSDB_INS_TABLE_LICENCES            "ins_grants"
 #define TSDB_INS_TABLE_VGROUPS             "ins_vgroups"
 #define TSDB_INS_TABLE_VNODES              "ins_vnodes"
@@ -75,6 +81,10 @@ extern "C" {
 #define TSDB_INS_TABLE_RETENTIONS          "ins_retentions"
 #define TSDB_INS_TABLE_RETENTION_DETAILS   "ins_retention_details"
 #define TSDB_INS_TABLE_ENCRYPT_ALGORITHMS  "ins_encrypt_algorithms"
+#define TSDB_INS_TABLE_ENCRYPT_STATUS      "ins_encrypt_status"
+#define TSDB_INS_TABLE_ROLES               "ins_roles"
+#define TSDB_INS_TABLE_ROLE_PRIVILEGES     "ins_role_privileges"
+#define TSDB_INS_TABLE_ROLE_COL_PRIVILEGES "ins_role_column_privileges"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS          "perf_smas"
@@ -92,6 +102,13 @@ extern "C" {
 #define TSDB_AUDIT_CTB_OPERATION     "t_operations_"
 #define TSDB_AUDIT_CTB_OPERATION_LEN 13
 
+typedef enum {
+  PRIV_CAT_BASIC = 0,
+  PRIV_CAT_PRIVILEGED = 1,
+  PRIV_CAT_SECURITY = 2,
+  PRIV_CAT_AUDIT = 3,
+} ESysTblPrivCat;
+
 typedef struct SSysDbTableSchema {
   const char*   name;
   const int32_t type;
@@ -104,6 +121,7 @@ typedef struct SSysTableMeta {
   const SSysDbTableSchema* schema;
   const int32_t            colNum;
   const bool               sysInfo;
+  const int8_t             privCat;  // ESysTblPrivCat
 } SSysTableMeta;
 
 void getInfosDbMeta(const SSysTableMeta** pInfosTableMeta, size_t* size);

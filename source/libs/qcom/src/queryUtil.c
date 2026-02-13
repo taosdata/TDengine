@@ -62,56 +62,69 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
   if (!pSchema) {
     return false;
   }
-  int32_t rowLen = 0;
+  int32_t    rowLen = 0;
+  SSHashObj* pNameHash = tSimpleHashInit(numOfCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  if (!pNameHash) {
+    return false;
+  }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     // 1. valid types
     if (!isValidDataType(pSchema[i].type)) {
       qError("The %d col/tag data type error, type:%d", i, pSchema[i].type);
-      return false;
+      goto _error;
     }
 
     // 2. valid length for each type
     if (pSchema[i].type == TSDB_DATA_TYPE_BINARY || pSchema[i].type == TSDB_DATA_TYPE_VARBINARY) {
       if (pSchema[i].bytes > TSDB_MAX_BINARY_LEN) {
         qError("The %d col/tag var data len error, type:%d, len:%d", i, pSchema[i].type, pSchema[i].bytes);
-        return false;
+        goto _error;
       }
     } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
       if (pSchema[i].bytes > TSDB_MAX_NCHAR_LEN) {
         qError("The %d col/tag nchar data len error, len:%d", i, pSchema[i].bytes);
-        return false;
+        goto _error;
       }
     } else if (pSchema[i].type == TSDB_DATA_TYPE_GEOMETRY) {
       if (pSchema[i].bytes > TSDB_MAX_GEOMETRY_LEN) {
         qError("The %d col/tag geometry data len error, len:%d", i, pSchema[i].bytes);
-        return false;
+        goto _error;
       }
     } else if (IS_STR_DATA_BLOB(pSchema[i].type)) {
       if (pSchema[i].bytes >= TSDB_MAX_BLOB_LEN) {
         qError("The %d col/tag blob data len error, len:%d", i, pSchema[i].bytes);
-        return false;
+        goto _error;
       } 
 
-    }else {
+    } else {
       if (pSchema[i].bytes != tDataTypes[pSchema[i].type].bytes) {
         qError("The %d col/tag data len error, type:%d, len:%d", i, pSchema[i].type, pSchema[i].bytes);
-        return false;
+        goto _error;
       }
     }
 
     // 3. valid column names
-    for (int32_t j = i + 1; j < numOfCols; ++j) {
-      if (strncmp(pSchema[i].name, pSchema[j].name, sizeof(pSchema[i].name) - 1) == 0) {
-        qError("The %d col/tag name %s is same with %d col/tag name %s", i, pSchema[i].name, j, pSchema[j].name);
-        return false;
-      }
+    size_t   nameLen = strnlen(pSchema[i].name, sizeof(pSchema[i].name));
+    int32_t  nameIdx = i;
+    int32_t* pIdx = tSimpleHashGet(pNameHash, pSchema[i].name, nameLen);
+    if (pIdx != NULL) {
+      qError("The %d col/tag name %s is same with %d col/tag name %s", i, pSchema[i].name, *pIdx,
+             pSchema[*pIdx].name);
+      goto _error;
+    }
+    if (tSimpleHashPut(pNameHash, pSchema[i].name, nameLen, &nameIdx, sizeof(nameIdx)) != TSDB_CODE_SUCCESS) {
+      goto _error;
     }
 
     rowLen += pSchema[i].bytes;
   }
 
+  tSimpleHashCleanup(pNameHash);
   return rowLen <= maxLen;
+_error:
+  tSimpleHashCleanup(pNameHash);
+  return false;
 }
 
 bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags, bool isVirtual) {
@@ -363,6 +376,7 @@ void destroyQueryExecRes(SExecResult* pRes) {
     }
     case TDMT_SCH_QUERY:
     case TDMT_SCH_MERGE_QUERY: {
+      qDebug("query execRes %p freed", pRes->res);
       taosArrayDestroy((SArray*)pRes->res);
       break;
     }
@@ -777,3 +791,30 @@ void* getTaskPoolWorkerCb() { return taskQueue.wrokrerPool.pCb; }
 void tFreeStreamVtbOtbInfo(void* param);
 void tFreeStreamVtbVtbInfo(void* param);
 void tFreeStreamVtbDbVgInfo(void* param);
+
+void destroySTagsInfo(STagsInfo* pInfo) {
+  if (NULL == pInfo) {
+    return;
+  }
+  taosArrayDestroy(pInfo->STagNames);
+
+  for (int i = 0; i < taosArrayGetSize(pInfo->pTagVals); ++i) {
+    STagVal* p = (STagVal*)taosArrayGet(pInfo->pTagVals, i);
+    if (IS_VAR_DATA_TYPE(p->type)) {
+      taosMemoryFreeClear(p->pData);
+    }
+  }
+  taosArrayDestroy(pInfo->pTagVals);
+  taosMemoryFreeClear(pInfo->pTagIndex);
+  taosMemoryFreeClear(pInfo);
+}
+
+void qDestroyBoundColInfo(void* pInfo) {
+  if (NULL == pInfo) {
+    return;
+  }
+  SBoundColInfo* pBoundInfo = (SBoundColInfo*)pInfo;
+
+  taosMemoryFreeClear(pBoundInfo->pColIndex);
+  destroySTagsInfo(pBoundInfo->parseredTags);
+}

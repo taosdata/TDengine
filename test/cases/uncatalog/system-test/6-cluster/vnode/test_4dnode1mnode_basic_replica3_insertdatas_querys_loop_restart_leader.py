@@ -366,5 +366,5 @@ class Test4dnode1mnodeBasicReplica3InsertdatasQuerysLoopRestartLeader:
         reading.join()
         restart_servers.join()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

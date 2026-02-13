@@ -2,6 +2,8 @@
 # pylint: disable=c0103
 """ auto encoder algorithms to detect anomaly for time series data"""
 import os.path
+import time
+from pathlib import Path
 
 import joblib
 import keras
@@ -9,7 +11,9 @@ import numpy as np
 import pandas as pd
 
 from taosanalytics.conf import app_logger, conf
-from taosanalytics.service import AbstractAnomalyDetectionService
+from taosanalytics.error import failed_load_model_except
+from taosanalytics.model import model_manager
+from taosanalytics.service import AbstractAnomalyDetectionService, AnalyticsService
 from taosanalytics.util import create_sequences
 
 
@@ -26,19 +30,13 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         self.threshold = None
         self.time_interval = None
         self.model = None
-        self.dir = 'sample-ad-autoencoder'
+        # self.dir = 'sample-ad-autoencoder'
 
-        self.root_path = conf.get_model_directory()
-
-        self.root_path = self.root_path + f'/{self.dir}/'
-
-        if not os.path.exists(self.root_path):
-            app_logger.log_inst.error(
-                "%s ad algorithm failed to locate default module directory:"
-                "%s, not active", self.__class__.__name__, self.root_path)
-        else:
-            app_logger.log_inst.info("%s ad algorithm root path is: %s", self.__class__.__name__,
-                                     self.root_path)
+    def get_status(self) -> str:
+        """return model status """
+        info = model_manager.get_model(self.name)
+        return AnalyticsService._toStatusName[
+            AnalyticsService.UNAVAILABLE if info is None else AnalyticsService.READY]
 
     def execute(self):
         if self.input_is_empty():
@@ -75,42 +73,56 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         return [-1 if i in ad_indices else 1 for i in range(len(self.list))]
 
     def set_params(self, params):
+        info = model_manager.get_model(self.name)
+        if info is None:
+            failed_load_model_except(self.name)
 
-        if "model" not in params:
-            raise ValueError("model needs to be specified")
+        self.mean = info["mean"]
+        self.std = info["std"]
+        self.threshold = info["threshold"]
+        self.time_interval = info["timesteps"]
+        self.model = info["model"]
 
-        name = params['model']
-
-        module_file_path = f'{self.root_path}/{name}.keras'
-        module_info_path = f'{self.root_path}/{name}.info'
-
-        app_logger.log_inst.info("try to load module:%s", module_file_path)
-
-        if os.path.exists(module_file_path):
-            self.model = keras.models.load_model(module_file_path)
-        else:
-            app_logger.log_inst.error("failed to load autoencoder model file: %s", module_file_path)
-            raise FileNotFoundError(f"{module_file_path} not found")
-
-        if os.path.exists(module_info_path):
-            info = joblib.load(module_info_path)
-        else:
-            app_logger.log_inst.error("failed to load autoencoder model file: %s", module_file_path)
-            raise FileNotFoundError("%s not found", module_info_path)
-
-        if info is not None:
-            self.mean = info["mean"]
-            self.std = info["std"]
-            self.threshold = info["threshold"]
-            self.time_interval = info["timesteps"]
-
-            app_logger.log_inst.info(
-                "load ac module success, mean: %f, std: %f, threshold: %f, time_interval: %d",
-                self.mean[0], self.std[0], self.threshold, self.time_interval
-            )
-        else:
-            app_logger.log_inst.error("failed to load %s model", name)
-            raise RuntimeError(f"failed to load model {name}")
+        app_logger.log_inst.info(
+            "load ac module success, mean: %f, std: %f, threshold: %f, time_interval: %d",
+            self.mean[0], self.std[0], self.threshold, self.time_interval
+        )
 
     def get_params(self):
-        return {"dir": self.dir + '/*'}
+        return {}
+
+    @classmethod
+    def do_load_model(cls, path):
+        model_file_path = f'{path}.keras'
+        model_info_path = f'{path}.info'
+
+        app_logger.log_inst.info("try to load module:%s", model_file_path)
+
+        if os.path.exists(model_file_path):
+            model = keras.models.load_model(model_file_path)
+        else:
+            app_logger.log_inst.error("failed to load autoencoder model file: %s", model_file_path)
+            raise FileNotFoundError(f"{model_file_path} not found")
+
+        if os.path.exists(model_info_path):
+            info = joblib.load(model_info_path)
+        else:
+            app_logger.log_inst.error("failed to load autoencoder model file: %s", model_file_path)
+            raise FileNotFoundError("%s not found", model_info_path)
+
+        info["model"] = model
+
+        stat_info = Path(model_file_path).stat()
+        try:
+            create_time = stat_info.st_birthtime
+        except AttributeError:
+            create_time = stat_info.st_mtime
+
+        create_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(create_time))
+        return info, create_time
+
+
+model_manager.load_model(_AutoEncoderDetectionService.name,
+                         conf.get_model_directory() + 'sample-ad-autoencoder/sample-ad-autoencoder',
+                         _AutoEncoderDetectionService.do_load_model,
+                         _AutoEncoderDetectionService.name)

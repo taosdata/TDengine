@@ -502,6 +502,13 @@ class BeforeTest:
         with open(os.path.join(self.root_dir, 'env', 'ci_default.yaml'), 'w') as file:
             yaml.dump(self.request.session.yaml_data, file)
 
+    def update_encrypt_config(self, encryptConfig):
+        for dnode in self.request.session.yaml_data["settings"][0]["spec"]["dnodes"]:
+            if "config" not in dnode:
+                dnode["config"] = {}
+            dnode["config"]["encrypt"] = encryptConfig
+        with open(os.path.join(self.root_dir, 'env', 'ci_default.yaml'), 'w') as file:
+            yaml.dump(self.request.session.yaml_data, file)
 
     def getPath(self, binary="taosd"):
         selfPath = os.path.dirname(os.path.realpath(__file__))

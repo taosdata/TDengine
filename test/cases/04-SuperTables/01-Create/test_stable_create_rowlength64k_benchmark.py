@@ -31,7 +31,7 @@ class TestRowlength64kBenchmark:
     
 
     def test_rowlength64k_benchmark(self):
-        """Stable max row length 64k Benchmark
+        """Stable max row length benchmark
 
         1. taosBenchmark create table with column 1023
         2. taosBenchmark create table with column 4095
@@ -174,4 +174,3 @@ class TestRowlength64kBenchmark:
 
         endTime_all = time.time()
         print("total time %ds" % (endTime_all - startTime_all))
-        tdLog.success("%s successfully executed" % __file__)

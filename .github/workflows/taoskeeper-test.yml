@@ -1,0 +1,100 @@
+name: taosKeeper Test
+
+on:
+  pull_request:
+    branches:
+      - "main"
+      - "3.0"
+      - "3.3.6"
+      - "3.3.8"
+    paths:
+      - "tools/keeper/**"
+      - ".github/workflows/taoskeeper*.yml"
+  push:
+    branches:
+      - "main"
+      - "3.0"
+      - "3.3.6"
+      - "3.3.8"
+    paths:
+      - "tools/keeper/**"
+      - ".github/workflows/taoskeeper*.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build and test on ubuntu-latest
+
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y build-essential cmake libgeos-dev
+
+      - name: Get CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+
+      - name: Determine taosadapter git tag
+        id: taosadapter_tag
+        run: |
+          branch="${{ github.base_ref }}"
+          if [ -z "$branch" ]; then
+            branch="${{ github.ref_name }}"
+          fi
+          case "$branch" in
+            3.0) tag="3.0" ;;
+            3.3.6) tag="3.3.6" ;;
+            3.3.8) tag="3.3.8" ;;
+            *) tag="main" ;;
+          esac
+          echo "value=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Install TDengine
+        env:
+          TAOSADAPTER_FLAG: -DTAOSADAPTER_GIT_TAG:STRING=${{ steps.taosadapter_tag.outputs.value }}
+        run: |
+          mkdir debug
+          cd debug
+          cmake .. -DBUILD_HTTP=false -DBUILD_JDBC=false -DBUILD_TOOLS=false -DBUILD_TEST=off -DBUILD_KEEPER=true -DBUILD_DEPENDENCY_TESTS=false $TAOSADAPTER_FLAG
+          make -j 4
+          sudo make install
+          which taosd
+          which taosadapter
+          which taoskeeper
+
+      - name: Start taosd
+        run: |
+          cp /etc/taos/taos.cfg ./
+          sudo echo "supportVnodes 256" >> taos.cfg
+          nohup sudo taosd -c taos.cfg &
+
+      - name: Start taosadapter
+        run: nohup sudo taosadapter &
+
+      - name: Run tests with coverage
+        working-directory: tools/keeper
+        run: |
+          go mod tidy
+          sudo TEST_USERNAME=${{ secrets.KEEPER_TEST_USERNAME }} \
+            TEST_PASSWORD=${{ secrets.KEEPER_TEST_PASSWORD }} \
+            go test -v -ldflags="-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true'" \
+            -coverpkg=./... -coverprofile=coverage.out ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.KEEPER_CODECOV_TOKEN }}
+          files: coverage.out
+          fail_ci_if_error: true
+          verbose: true
+          slug: taosdata/taoskeeper

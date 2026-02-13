@@ -10,11 +10,12 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
+	"github.com/taosdata/taoskeeper/testutil"
 	"github.com/taosdata/taoskeeper/version"
 )
 
 func TestConfig(t *testing.T) {
-	data := `
+	data := fmt.Sprintf(`
 # Start with debug middleware for gin
 debug = true
 # Listen port, default is 6043
@@ -28,9 +29,9 @@ RotationInterval = "10s"
 [tdengine]
 address = "http://localhost:6041"
 authtype = "Basic"
-username = "root"
-password = "taosdata"
-`
+username = "%s"
+password = "%s"
+`, testutil.TestUsername(), testutil.TestPassword())
 	var c config.Config
 	_, err := toml.Decode(data, &c)
 	if err != nil {
@@ -66,18 +67,18 @@ func copyConfigFile() bool {
 		return false
 	}
 
-	source, err := os.Open(sourceFile) //open the source file
+	source, err := os.Open(sourceFile) // open the source file
 	if err != nil {
 		panic(err)
 	}
 	defer source.Close()
 
-	destination, err := os.Create(destinationFile) //create the destination file
+	destination, err := os.Create(destinationFile) // create the destination file
 	if err != nil {
 		panic(err)
 	}
 	defer destination.Close()
-	_, err = io.Copy(destination, source) //copy the contents of source to destination file
+	_, err = io.Copy(destination, source) // copy the contents of source to destination file
 	if err != nil {
 		panic(err)
 	}

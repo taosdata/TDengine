@@ -17,6 +17,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
+#include "clientSession.h"
 #include "cmdnodes.h"
 #include "command.h"
 #include "os.h"
@@ -25,6 +26,7 @@
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
+#include "tmsg.h"
 #include "tname.h"
 #include "tversion.h"
 
@@ -135,6 +137,12 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   pTscObj->sysInfo = connectRsp.sysInfo;
   pTscObj->connId = connectRsp.connId;
   pTscObj->acctId = connectRsp.acctId;
+  if (pTscObj->user[0] == 0) {
+    tstrncpy(pTscObj->user, connectRsp.user, tListLen(pTscObj->user));
+    tstrncpy(pTscObj->tokenName, connectRsp.tokenName, tListLen(pTscObj->tokenName));
+  } else {
+    pTscObj->tokenName[0] = 0;
+  }
   tstrncpy(pTscObj->sVer, connectRsp.sVer, tListLen(pTscObj->sVer));
   tstrncpy(pTscObj->sDetailVer, connectRsp.sDetailVer, tListLen(pTscObj->sDetailVer));
 
@@ -153,6 +161,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   pTscObj->passInfo.ver = connectRsp.passVer;
   pTscObj->authVer = connectRsp.authVer;
   pTscObj->whiteListInfo.ver = connectRsp.whiteListVer;
+  pTscObj->userId = connectRsp.userId;
 
   if (taosHashGet(appInfo.pInstMapByClusterId, &connectRsp.clusterId, LONG_BYTES) == NULL) {
     if (taosHashPut(appInfo.pInstMapByClusterId, &connectRsp.clusterId, LONG_BYTES, &pTscObj->pAppInfo,
@@ -162,18 +171,33 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 #ifdef USE_MONITOR
       MonitorSlowLogData data = {0};
       data.clusterId = pTscObj->pAppInfo->clusterId;
-      data.type = SLOW_LOG_READ_BEGINNIG;
-      (void)monitorPutData2MonitorQueue(data);  // ignore
+      data.type = SLOW_LOG_READ_ALL;
+      (void)monitorPutData2MonitorQueue(data);  // ignore return code
       monitorClientSlowQueryInit(connectRsp.clusterId);
       monitorClientSQLReqInit(connectRsp.clusterId);
 #endif
     }
   }
 
+  code = tscRefSessMetric(pTscObj);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to connect with user:%s, code:%s", pTscObj->user, tstrerror(code));
+    goto End;
+  }
+
+  sessMetricRef(pTscObj->pSessMetric);
+
+  SSessParam pPara = {.type = SESSION_PER_USER, .value = 1};
+  code = tscUpdateSessMetric(pTscObj, &pPara);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to connect with user:%s, code:%s", pTscObj->user, tstrerror(code));
+    goto End;
+  }
+
   (void)taosThreadMutexLock(&clientHbMgr.lock);
   SAppHbMgr* pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, pTscObj->appHbMgrIdx);
   if (pAppHbMgr) {
-    if (hbRegisterConn(pAppHbMgr, pTscObj->id, connectRsp.clusterId, connectRsp.connType) != 0) {
+    if (hbRegisterConn(pAppHbMgr, pTscObj->id, pTscObj->user, pTscObj->tokenName, connectRsp.clusterId, connectRsp.connType) != 0) {
       tscError("QID:0x%" PRIx64 ", failed to register conn to hbMgr", pRequest->requestId);
     }
   } else {
@@ -1057,6 +1081,284 @@ int32_t processTrimDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
+static int32_t buildCreateTokenBlock(SCreateTokenRsp* pRsp, SSDataBlock** block) {
+  int32_t      code = 0;
+  int32_t      line = 0;
+  SSDataBlock* pBlock = taosMemoryCalloc(CREATE_TOKEN_RESULT_COLS, sizeof(SSDataBlock));
+  TSDB_CHECK_NULL(pBlock, code, line, END, terrno);
+  pBlock->info.hasVarCol = true;
+
+  pBlock->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
+  TSDB_CHECK_NULL(pBlock->pDataBlock, code, line, END, terrno);
+  SColumnInfoData infoData = {0};
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = CREATE_TOKEN_RESULT_FIELD1_LEN;
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
+
+  // Handle empty result case (when pRsp is NULL)
+  if (pRsp == NULL) {
+    pBlock->info.rows = 0;
+    *block = pBlock;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  code = blockDataEnsureCapacity(pBlock, 1);
+  TSDB_CHECK_CODE(code, line, END);
+
+  SColumnInfoData* pResultCol = taosArrayGet(pBlock->pDataBlock, 0);
+  TSDB_CHECK_NULL(pResultCol, code, line, END, terrno);
+
+  char result[sizeof(pRsp->token) + 64] = {0};
+  STR_TO_VARSTR(result, pRsp->token);
+  code = colDataSetVal(pResultCol, 0, result, false);
+  TSDB_CHECK_CODE(code, line, END);
+
+  pBlock->info.rows = 1;
+
+  *block = pBlock;
+  return TSDB_CODE_SUCCESS;
+
+END:
+  if (pBlock) {
+    taosArrayDestroy(pBlock->pDataBlock);
+    taosMemoryFree(pBlock);
+  }
+  return code;
+}
+
+static int32_t buildTableRspForCreateToken(SCreateTokenRsp* pResp, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildCreateTokenBlock(pResp, &pBlock);
+  if (code) {
+    return code;
+  }
+
+  size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
+  size_t rspSize = sizeof(SRetrieveTableRsp) + dataEncodeBufSize + PAYLOAD_PREFIX_LEN;
+  *pRsp = taosMemoryCalloc(1, rspSize);
+  if (NULL == *pRsp) {
+    code = terrno;
+    goto _exit;
+  }
+
+  (*pRsp)->useconds = 0;
+  (*pRsp)->completed = 1;
+  (*pRsp)->precision = 0;
+  (*pRsp)->compressed = 0;
+
+  (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
+  (*pRsp)->numOfCols = htonl(CREATE_TOKEN_RESULT_COLS);
+
+  int32_t len = 0;
+  if (pBlock->info.rows > 0) {
+    len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, CREATE_TOKEN_RESULT_COLS);
+    if (len < 0) {
+      uError("buildTableRspFroCreateToken error, len:%d", len);
+      code = terrno;
+      goto _exit;
+    }
+
+    SET_PAYLOAD_LEN((*pRsp)->data, len, len);
+
+    int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
+    (*pRsp)->payloadLen = htonl(payloadLen);
+    (*pRsp)->compLen = htonl(payloadLen);
+
+    if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
+      uError("buildTableRspFroCreateToken error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
+             (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
+      code = TSDB_CODE_TSC_INVALID_INPUT;
+      goto _exit;
+    }
+  } else {
+    // Empty result case
+    SET_PAYLOAD_LEN((*pRsp)->data, 0, 0);
+    (*pRsp)->payloadLen = htonl(PAYLOAD_PREFIX_LEN);
+    (*pRsp)->compLen = htonl(PAYLOAD_PREFIX_LEN);
+  }
+  blockDataDestroy(pBlock);
+  return TSDB_CODE_SUCCESS;
+
+_exit:
+  if (*pRsp) {
+    taosMemoryFree(*pRsp);
+    *pRsp = NULL;
+  }
+  if (pBlock) {
+    blockDataDestroy(pBlock);
+    pBlock = NULL;
+  }
+  return code;
+}
+
+int32_t processCreateTokenRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+  } else {
+    SCreateTokenRsp    rsp = {0};
+    SRetrieveTableRsp* pRes = NULL;
+    
+    // Handle empty message case
+    if (pMsg->len == 0) {
+      code = buildTableRspForCreateToken(NULL, &pRes);
+    } else {
+      code = tDeserializeSCreateTokenResp(pMsg->pData, pMsg->len, &rsp);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = buildTableRspForCreateToken(&rsp, &pRes);
+      }
+    }
+    
+    if (TSDB_CODE_SUCCESS == code) {
+      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, pRequest->stmtBindVersion > 0);
+    }
+
+    if (code != 0) {
+      pRequest->body.resInfo.pRspMsg = NULL;
+      taosMemoryFree(pRes);
+    }
+  }
+
+  taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
+
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+  } else if (tsem_post(&pRequest->body.rspSem) != 0) {
+    tscError("failed to post semaphore");
+  }
+  return code;
+}
+
+static int32_t buildCreateTotpSecretBlock(SCreateTotpSecretRsp* pRsp, SSDataBlock** block) {
+  int32_t      code = 0;
+  int32_t      line = 0;
+  SSDataBlock* pBlock = taosMemoryCalloc(CREATE_TOTP_SECRET_RESULT_COLS, sizeof(SSDataBlock));
+  TSDB_CHECK_NULL(pBlock, code, line, END, terrno);
+  pBlock->info.hasVarCol = true;
+
+  pBlock->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
+  TSDB_CHECK_NULL(pBlock->pDataBlock, code, line, END, terrno);
+  SColumnInfoData infoData = {0};
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = CREATE_TOTP_SECRET_RESULT_FIELD1_LEN;
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
+
+  code = blockDataEnsureCapacity(pBlock, 1);
+  TSDB_CHECK_CODE(code, line, END);
+
+  SColumnInfoData* pResultCol = taosArrayGet(pBlock->pDataBlock, 0);
+  TSDB_CHECK_NULL(pResultCol, code, line, END, terrno);
+
+  char result[sizeof(pRsp->totpSecret) + 64] = {0};
+  STR_TO_VARSTR(result, pRsp->totpSecret);
+  code = colDataSetVal(pResultCol, 0, result, false);
+  TSDB_CHECK_CODE(code, line, END);
+
+  pBlock->info.rows = 1;
+
+  *block = pBlock;
+  return TSDB_CODE_SUCCESS;
+
+END:
+  if (pBlock) {
+    taosArrayDestroy(pBlock->pDataBlock);
+    taosMemoryFree(pBlock);
+  }
+  return code;
+}
+
+static int32_t buildTableRspForCreateTotpSecret(SCreateTotpSecretRsp* pResp, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildCreateTotpSecretBlock(pResp, &pBlock);
+  if (code) {
+    return code;
+  }
+
+  size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
+  size_t rspSize = sizeof(SRetrieveTableRsp) + dataEncodeBufSize + PAYLOAD_PREFIX_LEN;
+  *pRsp = taosMemoryCalloc(1, rspSize);
+  if (NULL == *pRsp) {
+    code = terrno;
+    goto _exit;
+  }
+
+  (*pRsp)->useconds = 0;
+  (*pRsp)->completed = 1;
+  (*pRsp)->precision = 0;
+  (*pRsp)->compressed = 0;
+
+  (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
+  (*pRsp)->numOfCols = htonl(CREATE_TOTP_SECRET_RESULT_COLS);
+
+  int32_t len =
+      blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, CREATE_TOTP_SECRET_RESULT_COLS);
+  if (len < 0) {
+    uError("buildTableRspFroCreateTotpSecret error, len:%d", len);
+    code = terrno;
+    goto _exit;
+  }
+
+  blockDataDestroy(pBlock);
+  SET_PAYLOAD_LEN((*pRsp)->data, len, len);
+
+  int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
+  (*pRsp)->payloadLen = htonl(payloadLen);
+  (*pRsp)->compLen = htonl(payloadLen);
+
+  if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
+    uError("buildTableRspFroCreateTotpSecret error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
+           (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
+    code = TSDB_CODE_TSC_INVALID_INPUT;
+    goto _exit;
+  }
+  return TSDB_CODE_SUCCESS;
+
+_exit:
+  if (*pRsp) {
+    taosMemoryFree(*pRsp);
+    *pRsp = NULL;
+  }
+  if (pBlock) {
+    blockDataDestroy(pBlock);
+    pBlock = NULL;
+  }
+  return code;
+}
+
+int32_t processCreateTotpSecretRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+  } else {
+    SCreateTotpSecretRsp    rsp = {0};
+    SRetrieveTableRsp* pRes = NULL;
+    code = tDeserializeSCreateTotpSecretRsp(pMsg->pData, pMsg->len, &rsp);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = buildTableRspForCreateTotpSecret(&rsp, &pRes);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, pRequest->stmtBindVersion > 0);
+    }
+
+    if (code != 0) {
+      pRequest->body.resInfo.pRspMsg = NULL;
+      taosMemoryFree(pRes);
+    }
+  }
+
+  taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
+
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+  } else if (tsem_post(&pRequest->body.rspSem) != 0) {
+    tscError("failed to post semaphore");
+  }
+  return code;
+}
+
+
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
   switch (msgType) {
     case TDMT_MND_CONNECT:
@@ -1079,6 +1381,11 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
       return processTrimDbRsp;
     case TDMT_MND_SCAN_DB:
       return processScanDbRsp;
+    case TDMT_MND_CREATE_TOKEN:
+      return processCreateTokenRsp;
+    case TDMT_MND_CREATE_TOTP_SECRET:
+      return processCreateTotpSecretRsp;
+
     default:
       return genericRspCallback;
   }

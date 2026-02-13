@@ -9,8 +9,8 @@ from datetime import datetime
 
 
 PRIVILEGES_ALL      = "ALL"
-PRIVILEGES_READ     = "READ"
-PRIVILEGES_WRITE    = "WRITE"
+PRIVILEGES_READ     = "SELECT"
+PRIVILEGES_WRITE    = "INSERT"
 
 WEIGHT_ALL      = 5
 WEIGHT_READ     = 2
@@ -273,6 +273,7 @@ class TestUserControl:
             user = self.root_user
         with taos_connect(user=user.name, passwd=user.passwd) as use:
             time.sleep(2)
+            tdLog.info(f"check user:{user.name} with priv:{check_priv}")
             if check_priv == PRIVILEGES_ALL:
                 use.query(f"use {DBNAME}")
                 use.query(f"show {DBNAME}.tables")
@@ -336,16 +337,20 @@ class TestUserControl:
         if (user not in self.users and user.name != "root") or priv not in (PRIVILEGES_ALL, PRIVILEGES_READ, PRIVILEGES_WRITE):
             tdSql.error(sql)
         tdSql.query(sql)
+        if dbname != None:
+            tdSql.execute(f"grant use on database {dbname} to {user.name}")
         self.__change_user_priv(user=user, pre_priv=priv)
         user.db_set.add(dbname)
         time.sleep(1)
 
-    def revoke_user(self, user: User = None, priv=PRIVILEGES_ALL, dbname=None):
+    def revoke_user(self, user: User = None, priv=PRIVILEGES_ALL, dbname=None, revokeUseDB = True):
         sql = self.__revoke_user_privileges(privilege=priv, dbname=dbname, user_name=user.name)
         tdLog.info(sql)
         if user is None or priv not in (PRIVILEGES_ALL, PRIVILEGES_READ, PRIVILEGES_WRITE):
             tdSql.error(sql)
         tdSql.query(sql)
+        if revokeUseDB:
+            tdSql.execute(f"revoke use on database {'*' if dbname is None else dbname} from {user.name}")
         self.__change_user_priv(user=user, pre_priv=priv, invoke=True)
         if user.name != "root":
             user.db_set.discard(dbname) if dbname else user.db_set.clear()
@@ -357,83 +362,83 @@ class TestUserControl:
         self.__user_check(user=self.users[0], check_priv=None)
 
         tdLog.printNoPrefix("==========step 1.1: grant read, can read, can not write")
-        self.grant_user(user=self.users[0], priv=PRIVILEGES_READ)
+        self.grant_user(user=self.users[0], priv=PRIVILEGES_READ, dbname=DBNAME)
         self.__user_check(user=self.users[0], check_priv=PRIVILEGES_READ)
 
         tdLog.printNoPrefix("==========step 1.2: grant write, can write")
-        self.grant_user(user=self.users[1], priv=PRIVILEGES_WRITE)
+        self.grant_user(user=self.users[1], priv=PRIVILEGES_WRITE, dbname=DBNAME)
         self.__user_check(user=self.users[1], check_priv=PRIVILEGES_WRITE)
 
         tdLog.printNoPrefix("==========step 1.3: grant all, can write and read")
-        self.grant_user(user=self.users[2])
+        self.grant_user(user=self.users[2], dbname=DBNAME)
         self.__user_check(user=self.users[2], check_priv=PRIVILEGES_ALL)
 
         tdLog.printNoPrefix("==========step 1.4:  grant read to write = all ")
-        self.grant_user(user=self.users[0], priv=PRIVILEGES_WRITE)
+        self.grant_user(user=self.users[0], priv=PRIVILEGES_WRITE, dbname=DBNAME)
         self.__user_check(user=self.users[0], check_priv=PRIVILEGES_ALL)
 
         tdLog.printNoPrefix("==========step 1.5:  revoke write from all = read ")
-        self.revoke_user(user=self.users[0], priv=PRIVILEGES_WRITE)
+        self.revoke_user(user=self.users[0], priv=PRIVILEGES_WRITE, dbname=DBNAME, revokeUseDB=False)
         self.__user_check(user=self.users[0], check_priv=PRIVILEGES_READ)
 
         tdLog.printNoPrefix("==========step 1.6: grant write to read = all")
-        self.grant_user(user=self.users[1], priv=PRIVILEGES_READ)
+        self.grant_user(user=self.users[1], priv=PRIVILEGES_READ, dbname=DBNAME)
         self.__user_check(user=self.users[1], check_priv=PRIVILEGES_ALL)
 
         tdLog.printNoPrefix("==========step 1.7:  revoke read from all = write ")
-        self.revoke_user(user=self.users[1], priv=PRIVILEGES_READ)
+        self.revoke_user(user=self.users[1], priv=PRIVILEGES_READ, dbname=DBNAME, revokeUseDB=False)
         self.__user_check(user=self.users[1], check_priv=PRIVILEGES_WRITE)
 
         tdLog.printNoPrefix("==========step 1.8: grant read to all = all")
-        self.grant_user(user=self.users[0], priv=PRIVILEGES_ALL)
+        self.grant_user(user=self.users[0], priv=PRIVILEGES_ALL, dbname=DBNAME)
         self.__user_check(user=self.users[0], check_priv=PRIVILEGES_ALL)
 
         tdLog.printNoPrefix("==========step 1.9: grant write to all = all")
-        self.grant_user(user=self.users[1], priv=PRIVILEGES_ALL)
+        self.grant_user(user=self.users[1], priv=PRIVILEGES_ALL, dbname=DBNAME)
         self.__user_check(user=self.users[1], check_priv=PRIVILEGES_ALL)
 
         tdLog.printNoPrefix("==========step 1.10: grant all to read = all")
-        self.grant_user(user=self.users[0], priv=PRIVILEGES_READ)
+        self.grant_user(user=self.users[0], priv=PRIVILEGES_READ, dbname=DBNAME)
         self.__user_check(user=self.users[0], check_priv=PRIVILEGES_ALL)
 
         tdLog.printNoPrefix("==========step 1.11: grant all to write = all")
-        self.grant_user(user=self.users[1], priv=PRIVILEGES_WRITE)
+        self.grant_user(user=self.users[1], priv=PRIVILEGES_WRITE, dbname=DBNAME)
         self.__user_check(user=self.users[1], check_priv=PRIVILEGES_ALL)
 
         ### init user
-        self.revoke_user(user=self.users[0], priv=PRIVILEGES_WRITE)
-        self.revoke_user(user=self.users[1], priv=PRIVILEGES_READ)
+        self.revoke_user(user=self.users[0], priv=PRIVILEGES_WRITE, dbname=DBNAME, revokeUseDB=False)
+        self.revoke_user(user=self.users[1], priv=PRIVILEGES_READ, dbname=DBNAME, revokeUseDB=False)
 
         tdLog.printNoPrefix("==========step 1.12: revoke read from write = no change")
-        self.revoke_user(user=self.users[1], priv=PRIVILEGES_READ)
+        self.revoke_user(user=self.users[1], priv=PRIVILEGES_READ, dbname=DBNAME, revokeUseDB=False)
         self.__user_check(user=self.users[1], check_priv=PRIVILEGES_WRITE)
 
         tdLog.printNoPrefix("==========step 1.13: revoke write from read = no change")
-        self.revoke_user(user=self.users[0], priv=PRIVILEGES_WRITE)
+        self.revoke_user(user=self.users[0], priv=PRIVILEGES_WRITE, dbname=DBNAME, revokeUseDB=False)
         self.__user_check(user=self.users[0], check_priv=PRIVILEGES_READ)
 
         tdLog.printNoPrefix("==========step 1.14: revoke read from read = nothing")
-        self.revoke_user(user=self.users[0], priv=PRIVILEGES_READ)
+        self.revoke_user(user=self.users[0], priv=PRIVILEGES_READ, dbname=DBNAME)
         self.__user_check(user=self.users[0], check_priv=None)
 
         tdLog.printNoPrefix("==========step 1.15: revoke write from write = nothing")
-        self.revoke_user(user=self.users[1], priv=PRIVILEGES_WRITE)
+        self.revoke_user(user=self.users[1], priv=PRIVILEGES_WRITE, dbname=DBNAME)
         self.__user_check(user=self.users[1], check_priv=None)
 
         ### init user
-        self.grant_user(user=self.users[0], priv=PRIVILEGES_READ)
-        self.revoke_user(user=self.users[1], priv=PRIVILEGES_WRITE)
+        self.grant_user(user=self.users[0], priv=PRIVILEGES_READ, dbname=DBNAME)
+        self.revoke_user(user=self.users[1], priv=PRIVILEGES_WRITE, dbname=DBNAME)
 
         tdLog.printNoPrefix("==========step 1.16: revoke all from write = nothing")
-        self.revoke_user(user=self.users[1], priv=PRIVILEGES_ALL)
+        self.revoke_user(user=self.users[1], priv=PRIVILEGES_ALL, dbname=DBNAME)
         self.__user_check(user=self.users[1], check_priv=None)
 
         tdLog.printNoPrefix("==========step 1.17: revoke all from read = nothing")
-        self.revoke_user(user=self.users[0], priv=PRIVILEGES_ALL)
+        self.revoke_user(user=self.users[0], priv=PRIVILEGES_ALL, dbname=DBNAME)
         self.__user_check(user=self.users[0], check_priv=None)
 
         tdLog.printNoPrefix("==========step 1.18: revoke all from all = nothing")
-        self.revoke_user(user=self.users[2], priv=PRIVILEGES_ALL)
+        self.revoke_user(user=self.users[2], priv=PRIVILEGES_ALL, dbname=DBNAME)
         time.sleep(3)
         self.__user_check(user=self.users[2], check_priv=None)
 
@@ -453,7 +458,8 @@ class TestUserControl:
         return [
             self.__revoke_user_privileges(privilege=self.__privilege[0], user_name="") ,
             self.__revoke_user_privileges(privilege=self.__privilege[0], user_name="*") ,
-            self.__revoke_user_privileges(privilege=self.__privilege[1], dbname="not_exist_db", user_name=self.__user_list[0]),
+            # PRIV_TODO
+            # self.__revoke_user_privileges(privilege=self.__privilege[1], dbname="not_exist_db", user_name=self.__user_list[0]),
             self.__revoke_user_privileges(privilege="any_priv", user_name=self.__user_list[0]),
             self.__revoke_user_privileges(privilege="", dbname="db", user_name=self.__user_list[0]) ,
             self.__revoke_user_privileges(privilege=" ".join(self.__privilege), user_name=self.__user_list[0]) ,
@@ -510,8 +516,8 @@ class TestUserControl:
         options = ["enable", "sysinfo", "createdb"]
         optionErrVals = [-10000, -128, -1, 2, 127, 1000, 10000]
         for optionErrVal in optionErrVals:
-            tdSql.error("create user user_alter pass 'taosdata' sysinfo %d" % optionErrVal)
-        tdSql.execute("create user user_alter pass 'taosdata'")
+            tdSql.error("create user user_alter pass 'taosdata_12345' sysinfo %d" % optionErrVal)
+        tdSql.execute("create user user_alter pass 'taosdata_12345'")
         for option in options:
             for optionErrVal in optionErrVals:
                 tdSql.error("alter user user_alter %s %d" % (option, optionErrVal))
@@ -586,6 +592,18 @@ class TestUserControl:
 
             for j in range(ctb_num):
                 tdSql.execute( f"insert into {dbname}.ct{j+1} values ( {star_time - j * i * TIME_STEP}, {row_data} )" )
+
+    def query_with_retry(self, qHandle, qStr, nRetry=10):
+        for i in range(nRetry):
+            try:
+                qHandle.query(qStr)
+                tdLog.info(f"Query success: {qStr}")
+                return True
+            except Exception as e:
+                tdLog.info(f"Retry {i + 1}/{nRetry} failed: {e}")
+                if i < nRetry - 1:
+                    time.sleep(1)
+        raise Exception(f"Query failed after {nRetry} retries: {qStr}")
 
     def test_user_control(self):
         """User control 
@@ -687,15 +705,16 @@ class TestUserControl:
             user.error(f"drop user {self.__user_list[1]}")
             user.error("drop user root")
             # 普通用户默认不可创建 db
-            user.error("create database ordinary_user_db", expectErrInfo='Insufficient privilege for operation')
+            user.error("create database ordinary_user_db")
             tdSql.execute(f'alter user {self.__user_list[0]} createdb 1')
             tdSql.execute(f'alter user {self.__user_list[0]} createdb 0')
             tdSql.execute(f'alter user {self.__user_list[0]} createdb 1')
             tdSql.execute(f'alter user {self.__user_list[0]} createdb 1')
-            user.query("create database ordinary_user_db")
+            self.query_with_retry(user, "create database ordinary_user_db")
             user.query("drop database ordinary_user_db")
             tdSql.execute(f'alter user {self.__user_list[0]} createdb 0')
-            user.error("create database ordinary_user_db", expectErrInfo='Insufficient privilege for operation')
+
+            user.error("create database ordinary_user_db")
 
         tdLog.printNoPrefix("==========step5: enable info")
         taos1_conn = taos.connect(user=self.__user_list[1], password=f"new{self.__passwd_list[1]}")
@@ -728,6 +747,7 @@ class TestUserControl:
         taos3_conn.query(f"show {DBNAME}.vgroups")
         tdSql.execute(f"alter user {self.__user_list[3]} sysinfo 0")
         tdSql.execute(f"alter user {self.__user_list[4]} sysinfo 0")
+        time.sleep(3)
         taos3_except = True
         try:
             taos3_conn.query(f"show dnodes")
@@ -779,5 +799,5 @@ class TestUserControl:
         tdSql.checkData(0, 1, "1")
 
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

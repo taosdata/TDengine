@@ -385,6 +385,9 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   }
   if (pME->type == TSDB_SUPER_TABLE) {
     TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->stbEntry.keep));
+    TAOS_CHECK_RETURN(tEncodeI64v(pCoder, pME->stbEntry.ownerId));
+  } else if (pME->type == TSDB_NORMAL_TABLE) {
+    TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ntbEntry.ownerId));
   }
 
   tEndEncode(pCoder);
@@ -483,6 +486,13 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
   if (pME->type == TSDB_SUPER_TABLE) {
     if (!tDecodeIsEnd(pCoder)) {
       TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->stbEntry.keep));
+    }
+    if (!tDecodeIsEnd(pCoder)) {
+      TAOS_CHECK_RETURN(tDecodeI64v(pCoder, &pME->stbEntry.ownerId));
+    }
+  } else if (pME->type == TSDB_NORMAL_TABLE) {
+    if (!tDecodeIsEnd(pCoder)) {
+      TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->ntbEntry.ownerId));
     }
   }
 
@@ -644,6 +654,7 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
       }
     }
     (*ppEntry)->stbEntry.keep = pEntry->stbEntry.keep;
+    (*ppEntry)->stbEntry.ownerId = pEntry->stbEntry.ownerId;
   } else if (pEntry->type == TSDB_CHILD_TABLE || pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
     (*ppEntry)->ctbEntry.btime = pEntry->ctbEntry.btime;
     (*ppEntry)->ctbEntry.ttlDays = pEntry->ctbEntry.ttlDays;
@@ -674,6 +685,7 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
     (*ppEntry)->ntbEntry.btime = pEntry->ntbEntry.btime;
     (*ppEntry)->ntbEntry.ttlDays = pEntry->ntbEntry.ttlDays;
     (*ppEntry)->ntbEntry.ncid = pEntry->ntbEntry.ncid;
+    (*ppEntry)->ntbEntry.ownerId = pEntry->ntbEntry.ownerId;
 
     // schema
     code = metaCloneSchema(&pEntry->ntbEntry.schemaRow, &(*ppEntry)->ntbEntry.schemaRow);

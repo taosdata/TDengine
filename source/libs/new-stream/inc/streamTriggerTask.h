@@ -75,16 +75,26 @@ typedef struct SSTriggerRealtimeGroup {
   int64_t    oldThreshold;
   int64_t    newThreshold;
 
-  SValue      stateVal;            // for state window trigger
-  int64_t     pendingNullStart;    // for state window trigger
-  int32_t     numPendingNull;      // for state window trigger
-  STimeWindow prevWindow;          // the last closed window, for sliding trigger
-  int64_t     totalCount;          // for count window trigger
-  SObjList    windows;             // SObjList<SSTriggerWindow>, windows not yet closed
-  SObjList    pPendingCalcParams;  // SObjList<SSTriggerCalcParam>
-  SSHashObj  *pDoneVersions;       // SSHashObj<vgId, SObjList<{skey, ver}>>
-  bool        pendingWinOpen;      // for event window trigger and state window trigger
-  char       *pPendWinOpenNotify;  // for event window trigger and state window trigger
+  union {
+    struct {  // for state window trigger
+      SValue  stateVal;
+      int64_t pendingNullStart;
+      int32_t numPendingNull;
+    };
+    struct {  // for event window trigger with sub-event
+      SSTriggerNotifyWindow parentWindow;
+      int32_t               numSubWindows;
+      int32_t               conditionIdx;
+    };
+    int64_t totalCount;  // for count window trigger
+  };
+  STimeWindow prevWindow;                // the last closed window
+  SObjList    windows;                   // SObjList<SSTriggerWindow>, windows not yet closed
+  SObjList    pPendingParWinCalcParams;  // SObjList<SSTriggerCalcParam>
+  SObjList    pPendingCalcParams;        // SObjList<SSTriggerCalcParam>
+  int64_t     prevParentWinStart;        // for event window trigger with parent windows
+  bool        pendingWinOpen;            // for event window trigger and state window trigger
+  char       *pPendWinOpenNotify;        // for event window trigger and state window trigger
 
   int64_t  nextExecTime;  // used for max delay and batch window mode
   HeapNode heapNode;      // used for max delay and batch window mode
@@ -98,16 +108,29 @@ typedef struct SSTriggerHistoryGroup {
   SArray    *pVirtTableInfos;  // SArray<SSTriggerVirtTableInfo *>
   SSHashObj *pTableMetas;      // SSHashObj<tbUid, SSTriggerTableMeta>
 
-  bool finished;
+  int64_t finishTs;
 
   TriggerWindowBuf winBuf;
-  STimeWindow      nextWindow;
-  SValue           stateVal;
-  int64_t          pendingNullStart;
-  int64_t          numPendingNull;
+  union {
+    STimeWindow nextWindow;  // for sliding/period trigger
+    struct {                 // for state window trigger
+      SValue  stateVal;
+      int64_t pendingNullStart;
+      int32_t numPendingNull;
+    };
+    struct {  // for event window trigger with sub-event
+      SSTriggerNotifyWindow parentWindow;
+      int32_t               numSubWindows;
+      int32_t               conditionIdx;
+    };
+  };
 
-  SObjList pPendingCalcParams;  // SObjList<SSTriggerCalcParam>
-  HeapNode heapNode;
+  SObjList           pPendingParWinCalcParams;  // SObjList<SSTriggerCalcParam>
+  SObjList           pPendingCalcParams;        // SObjList<SSTriggerCalcParam>
+  int64_t            prevParentWinStart;        // for event window trigger with parent windows
+  bool               pendingWinOpen;            // for event window trigger and state window trigger
+  SSTriggerCalcParam pendingWinParam;           // for event window trigger and state window trigger
+  HeapNode           heapNode;
 } SSTriggerHistoryGroup;
 
 typedef enum ESTriggerContextStatus {
@@ -159,7 +182,7 @@ typedef struct SSTriggerRealtimeContext {
 
   SSDataBlock *pMetaBlock;
   SSDataBlock *pDeleteBlock;
-  SSDataBlock *pDropBlock;
+  SSDataBlock *pTableBlock;
   SArray      *pTempSlices;  // SSArray<{gid, uid, startIdx, endIdx}>
   SSHashObj   *pRanges;      // SSHashObj<gid, STimeWindow>
 
@@ -178,8 +201,9 @@ typedef struct SSTriggerRealtimeContext {
   bool                         needCheckAgain;
   SSTriggerNewTimestampSorter *pSorter;
   SSTriggerNewVtableMerger    *pMerger;
-  SArray                      *pWindows;       // SArray<SSTriggerNotifyWindow>, valid windows in this round
-  SArray                      *pNotifyParams;  // SArray<SSTriggerCalcParam>
+  SArray                      *pParentWindows;  // SArray<SSTriggerNotifyWindow>, valid parent windows in this round
+  SArray                      *pWindows;        // SArray<SSTriggerNotifyWindow>, valid windows in this round
+  SArray                      *pNotifyParams;   // SArray<SSTriggerCalcParam>
   STimeWindow                  calcRange;
   SSTriggerCalcParam          *pCurParam;
   int64_t                      curParamRows;
@@ -268,8 +292,6 @@ typedef struct SSTriggerHistoryContext {
   SSTriggerVtableMerger    *pMerger;
   SArray                   *pSavedWindows;  // for sliding trigger and session window trigger
   SArray                   *pInitWindows;   // for sliding trigger and session window trigger
-  SFilterInfo              *pStartCond;     // for event window trigger
-  SFilterInfo              *pEndCond;       // for event window trigger
   SArray                   *pNotifyParams;  // SArray<SSTriggerCalcParam>
   SObjPool                  calcParamPool;  // SObjPool<SSTriggerCalcParam>
 
@@ -308,7 +330,12 @@ typedef struct SSTriggerRecalcRequest {
   TD_DLIST_NODE(SSTriggerRecalcRequest);
 } SSTriggerRecalcRequest;
 
-typedef TD_DLIST(SSTriggerRecalcRequest) TriggerRecalcRequestList;
+typedef TD_DLIST(SSTriggerRecalcRequest) SSTriggerRecalcReqList;
+
+typedef struct SSTriggerGroupPendingRecalc {
+  int64_t                progressTs;
+  SSTriggerRecalcReqList pendingRequests;
+} SSTriggerGroupPendingRecalc;
 
 typedef struct SStreamTriggerTask {
   SStreamTask task;
@@ -323,18 +350,18 @@ typedef struct SStreamTriggerTask {
       int64_t windowSliding;
     };
     struct {  // for state window
-      int64_t stateSlotId;
-      int64_t stateExtend;
-      SNode  *pStateZeroth;
-      int64_t stateTrueFor;
-      SNode  *pStateExpr;
+      int64_t      stateSlotId;
+      int64_t      stateExtend;
+      SNode       *pStateZeroth;
+      STrueForInfo stateTrueForInfo;
+      SNode       *pStateExpr;
     };
     struct {  // for event window
-      SNode     *pStartCond;
-      SNode     *pEndCond;
-      SNodeList *pStartCondCols;
-      SNodeList *pEndCondCols;
-      int64_t    eventTrueFor;
+      SNode       *pStartCond;
+      SNode       *pEndCond;
+      SNodeList   *pStartCondCols;
+      SNodeList   *pEndCondCols;
+      STrueForInfo eventTrueForInfo;
     };
   };
   int32_t trigTsIndex;
@@ -357,13 +384,15 @@ typedef struct SStreamTriggerTask {
   int64_t placeHolderBitmap;
   SNode  *triggerFilter;
   // trigger options: old version, to be removed
-  int32_t histTrigTsIndex;
-  int32_t histCalcTsIndex;
-  int64_t histStateSlotId;
-  SNode  *histTriggerFilter;
-  SNode  *histStateExpr;
-  SNode  *histStartCond;
-  SNode  *histEndCond;
+  int32_t    histTrigTsIndex;
+  int32_t    histCalcTsIndex;
+  int64_t    histStateSlotId;
+  SNode     *histTriggerFilter;
+  SNode     *histStateExpr;
+  SNode     *histStartCond;
+  SNode     *histEndCond;
+  SNodeList *histStartCondCols;
+  SNodeList *histEndCondCols;
   // notify options
   ESTriggerEventType calcEventType;
   ESTriggerEventType notifyEventType;
@@ -407,8 +436,9 @@ typedef struct SStreamTriggerTask {
   SSHashObj *pSessionRunning;  // SSHashObj<sessionId, cnt>
 
   SRWLatch   recalcRequestLock;
-  SList     *pRecalcRequests;    // SList<SSTriggerRecalcRequest>
-  SSHashObj *pRecalcRequestMap;  // SSHashObj<gid, TriggerRecalcRequestList>
+  SList     *pRecalcRequests;       // SList<SSTriggerRecalcRequest>
+  SSHashObj *pRecalcRequestMap;     // SSHashObj<gid, SSTriggerRecalcRequestList>
+  SSHashObj *pGroupPendingRecalcs;  // SSHashObj<gid, SSTriggerGroupPendingRecalc>
 
   SRWLatch userRecalcRequestLock;
   SArray  *pUserRecalcRequests;  // SArray<SStreamRecalcReq>
@@ -434,8 +464,8 @@ int32_t stTriggerTaskReleaseRequest(SStreamTriggerTask *pTask, SSTriggerCalcRequ
 int32_t stTriggerTaskGetRunningReq(SStreamTriggerTask *pTask, int64_t sessionId, int64_t *pNumRunningReq);
 
 int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
-                                      STimeWindow *pCalcRange, SSHashObj *pWalProgress, bool isHistory,
-                                      bool shrinkRange);
+                                      STimeWindow *pCalcRange, bool isHistory, bool isUserRecalc, bool isDetermined);
+int32_t stTriggerTaskReadyRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup);
 int32_t stTriggerTaskFetchRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRecalcRequest **ppReq);
 
 // interfaces called by stream mgmt thread
@@ -445,7 +475,7 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg);
 
 // helper function in trigger task
 // check whether the state data equals to the zeroth state
-int32_t stIsStateEqualZeroth(void* pStateData, void* pZeroth, bool* pIsEqual);
+int32_t stIsStateEqualZeroth(void *pStateData, void *pZeroth, bool *pIsEqual);
 
 #ifdef __cplusplus
 }

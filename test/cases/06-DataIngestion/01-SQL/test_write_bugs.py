@@ -484,7 +484,21 @@ class TestWriteBug:
 
         print("bug TS-4479 ................. [passed]")
 
+    #
+    # ------------------ TD_20592 ------------------
+    #
+    def do_td20592(self):
+        database = 'bug_td_20592'
+        tdSql.execute('''drop database if exists %s ;''' %database)
+        tdSql.execute('''create database %s keep 36500 ;'''%(database))
+        tdSql.execute('''use %s;'''%database)
 
+        tdSql.execute('''create table %s.sav_stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 int, t2 int);'''%database)
+        tdSql.execute('''create table %s.tb1 using %s.sav_stb tags( 9 , 0);'''%(database,database))
+        
+        tdSql.error('''insert into %s.tb1 (c8, c9) values(now, 1);'''%(database))
+        
+        print("bug TD_20592 ................ [passed]")
 
     #
     # ------------------ main ------------------
@@ -514,9 +528,11 @@ class TestWriteBug:
             - 2025-9-23 Alex Duan Migrated from uncatalog/system-test/1-insert/test_ts4272.py
             - 2025-9-23 Alex Duan Migrated from uncatalog/system-test/1-insert/test_test_ts4295.py
             - 2025-9-23 Alex Duan Migrated from uncatalog/system-test/1-insert/test_test_ts4479.py
+            - 2025-12-22 Alex Duan Migrated from uncatalog/system-test/2-query/test_system_insert_select.py
 
         """        
         # td
+        self.do_td20592()
         self.do_td27388()
         self.do_td29157()
         self.do_td29793()
@@ -525,5 +541,6 @@ class TestWriteBug:
         self.do_ts4272()
         self.do_ts4295()
         self.do_ts4479()
+        
 
-        tdLog.success(f"{__file__} successfully executed")
+

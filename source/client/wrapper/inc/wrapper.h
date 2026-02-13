@@ -23,6 +23,9 @@
 extern "C" {
 #endif
 
+#define STR_NATIVE    "native"
+#define STR_WEBSOCKET "websocket"
+
 typedef enum {
   DRIVER_NATIVE = 0,
   DRIVER_WEBSOCKET = 1,
@@ -32,6 +35,7 @@ typedef enum {
 extern EDriverType tsDriverType;
 extern void       *tsDriver;
 
+extern void    taosDriverEnvInit(void);
 extern int32_t taosDriverInit(EDriverType driverType);
 extern void    taosDriverCleanup();
 
@@ -41,11 +45,13 @@ extern int (*fp_taos_init)(void);
 extern void (*fp_taos_cleanup)(void);
 extern int (*fp_taos_options)(TSDB_OPTION option, const void *arg, ...);
 extern int (*fp_taos_options_connection)(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...);
+extern void (*fp_taos_set_option)(OPTIONS *options, const char *key, const char *value);
 extern TAOS *(*fp_taos_connect)(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
 extern TAOS *(*fp_taos_connect_totp)(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port);
 extern int (*fp_taos_connect_test)(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port);
 extern TAOS *(*fp_taos_connect_token)(const char *ip, const char *token, const char *db, uint16_t port);
 extern TAOS *(*fp_taos_connect_auth)(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
+extern TAOS *(*fp_taos_connect_with)(const OPTIONS *options);
 extern TAOS *(*fp_taos_connect_with_dsn)(const char *dsn);
 extern void (*fp_taos_close)(TAOS *taos);
 
@@ -124,6 +130,7 @@ extern TAOS_ROW *(*fp_taos_result_block)(TAOS_RES *res);
 extern const char *(*fp_taos_get_server_info)(TAOS *taos);
 extern const char *(*fp_taos_get_client_info)();
 extern int (*fp_taos_get_current_db)(TAOS *taos, char *database, int len, int *required);
+extern int (*fp_taos_get_connection_info)(TAOS *taos, TSDB_CONNECTION_INFO info, char *buffer, int* len);
 
 extern const char *(*fp_taos_errstr)(TAOS_RES *res);
 extern int (*fp_taos_errno)(TAOS_RES *res);

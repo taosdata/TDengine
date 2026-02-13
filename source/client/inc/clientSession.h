@@ -19,6 +19,7 @@
 extern "C" {
 #endif
 
+#include "clientInt.h"
 #include "tdef.h"
 #include "tglobal.h"
 #include "tqueue.h"
@@ -34,7 +35,7 @@ typedef enum {
   SESSION_MAX_TYPE = 5
 } ESessionType;
 
-typedef int32_t (*sessCheckFn)(int64_t value, int64_t limit);
+typedef int32_t (*sessCheckFn)(int64_t* pValue, int64_t* limit);
 typedef int32_t (*sessUpdateValueFn)(int64_t* pValue, int64_t delta);
 typedef int32_t (*sessUpdateLimitFn)(int64_t* pValue, int64_t limit);
 typedef struct {
@@ -44,40 +45,48 @@ typedef struct {
   sessUpdateLimitFn limitFn;
 } SSessionError;
 
-
-
 typedef struct SSessMetric {
   int32_t refCnt;
   int64_t accessTime;
   int64_t lastAccessTime;
 
-  int64_t value[SESSION_MAX_TYPE]; 
+  int64_t value[SESSION_MAX_TYPE];
   int64_t limit[SESSION_MAX_TYPE];
-
-  TdThreadRwlock lock;
+  char    user[TSDB_USER_LEN];
 } SSessMetric;
 
 typedef struct {
   ESessionType type;
   int64_t      value;
+  int8_t       noCheck;
 } SSessParam;
 
 typedef struct SSessionMgt {
   TdThreadRwlock lock;
-  SHashObj* pSessMetricMap;
+  SHashObj*      pSessMetricMap;
+  int8_t         inited;
 } SSessionMgt;
 
 int32_t sessMgtInit();
+
 int32_t sessMgtUpdataLimit(char* user, ESessionType type, int32_t value);
-int32_t sessMgtGet(char* user, ESessionType type, int32_t* pValue);
-
-int32_t sessMgtUpdateUserMetric(char* user, SSessParam *pPara);
-
-int32_t sessMgtCheckUser(char* user, ESessionType type);
-
+int32_t sessMgtUpdateUserMetric(char* user, SSessParam* pPara);
 int32_t sessMgtRemoveUser(char* user);
+void    sessMgtDestroy();
 
-void sessMgtDestroy();
+int32_t sessMetricCreate(const char* user, SSessMetric** ppMetric);
+void    sessMetricRef(SSessMetric* pMetric);
+int32_t sessMetricUnref(SSessMetric* pMetric);
+int32_t sessMetricUpdateLimit(SSessMetric* pMetric, ESessionType type, int32_t value);
+int32_t sessMetricUpdate(SSessMetric* pMetric, SSessParam* p);
+int32_t sessMetricCheckValue(SSessMetric* pMetric, ESessionType type, int64_t value);
+void    sessMetricDestroy(SSessMetric* pMetric);
+
+int32_t connCheckAndUpateMetric(int64_t connId);
+int32_t tscUpdateSessMetric(STscObj* pTscObj, SSessParam* pParam);
+int32_t tscCheckConnSessionMetric(STscObj* pTscObj);
+int32_t tscRefSessMetric(STscObj* pTscObj);
+int32_t tscUnrefSessMetric(STscObj* pTscObj);
 
 #ifdef __cplusplus
 }

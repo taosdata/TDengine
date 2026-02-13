@@ -68,7 +68,8 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
     case QUERY_NODE_FUNCTION:
-    case QUERY_NODE_CASE_WHEN: {
+    case QUERY_NODE_CASE_WHEN: 
+    case QUERY_NODE_REMOTE_VALUE: {
       SExprNode*   pExpr = (SExprNode*)pNode;
       SColumnNode* pCol = NULL;
       pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
@@ -194,11 +195,32 @@ static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel 
 
 static int32_t adjustJoinDataRequirement(SJoinLogicNode* pJoin, EDataOrderLevel requirement) {
   // The lowest sort level of join input and output data is DATA_ORDER_LEVEL_GLOBAL
-  return TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (!pJoin->leftConstPrimGot) {
+    code = adjustLogicNodeDataRequirement((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0),
+                                          pJoin->node.requireDataOrder);
+  } else {
+    code =
+        adjustScanDataRequirement((SScanLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0), DATA_ORDER_LEVEL_NONE);
+  }
+  if (TSDB_CODE_SUCCESS == code && pJoin->node.pChildren->length > 1) {
+    if (!pJoin->rightConstPrimGot) {
+      code = adjustLogicNodeDataRequirement((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1),
+                                            pJoin->node.requireDataOrder);
+    } else {
+      code =
+          adjustScanDataRequirement((SScanLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1), DATA_ORDER_LEVEL_NONE);
+    }
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    planError("adjust join input data requirement failed, err:%s", tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t adjustAggDataRequirement(SAggLogicNode* pAgg, EDataOrderLevel requirement) {
   // The sort level of agg with group by output data can only be DATA_ORDER_LEVEL_NONE
+  /* agg could meet the requirement when the primary key is const like function, so this check may be failed
   if (requirement > DATA_ORDER_LEVEL_NONE && (NULL != pAgg->pGroupKeys || !pAgg->onlyHasKeepOrderFunc)) {
     planError(
         "The output of aggregate cannot meet the requirements(%s) of the upper operator. "
@@ -206,6 +228,7 @@ static int32_t adjustAggDataRequirement(SAggLogicNode* pAgg, EDataOrderLevel req
         dataOrderStr(requirement));
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
+  */
   pAgg->node.resultDataOrder = requirement;
   if (pAgg->hasTimeLineFunc) {
     pAgg->node.requireDataOrder = requirement < DATA_ORDER_LEVEL_IN_GROUP ? DATA_ORDER_LEVEL_IN_GROUP : requirement;
@@ -367,7 +390,7 @@ int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requir
       break;
     case QUERY_NODE_LOGIC_PLAN_JOIN:
       code = adjustJoinDataRequirement((SJoinLogicNode*)pNode, requirement);
-      break;
+      return code;
     case QUERY_NODE_LOGIC_PLAN_AGG:
       code = adjustAggDataRequirement((SAggLogicNode*)pNode, requirement);
       break;
@@ -570,6 +593,10 @@ int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
       }
     }
 
+    if(pCol->tableAlias[0] == '\0') {
+      continue;
+    }
+
     code = tSimpleHashPut(*ppRes, pCol->tableAlias, strlen(pCol->tableAlias), NULL, 0);
     if (TSDB_CODE_SUCCESS != code) {
       break;
@@ -604,7 +631,7 @@ bool isPartTagAgg(SAggLogicNode* pAgg) {
 }
 
 bool isPartTableWinodw(SWindowLogicNode* pWindow) {
-  return pWindow->isPartTb || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
+  return (pWindow->partType & WINDOW_PART_TB) || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
 }
 
 int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, bool* pCloned) {
@@ -701,7 +728,7 @@ int32_t getTimeRangeFromNode(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, b
   int32_t code = scalarCalculateConstants(*pPrimaryKeyCond, &pNew);
   if (TSDB_CODE_SUCCESS == code) {
     *pPrimaryKeyCond = pNew;
-    code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict);
+    code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict, NULL);
   }
   return code;
 }
@@ -733,7 +760,7 @@ static bool tagScanNodeHasTbname(SNode* pKeys) {
 int32_t tagScanSetExecutionMode(SScanLogicNode* pScan) {
   pScan->onlyMetaCtbIdx = false;
 
-  if (pScan->tableType == TSDB_CHILD_TABLE) {
+  if (pScan->tableType != TSDB_SUPER_TABLE) {
     pScan->onlyMetaCtbIdx = false;
     return TSDB_CODE_SUCCESS;
   }
@@ -781,4 +808,23 @@ void rewriteTargetsWithResId(SNodeList* pTargets) {
     SColumnNode* pCol = (SColumnNode*)pNode;
     pCol->resIdx = pCol->projRefIdx;
   }
+}
+
+bool checkScanLogicNode(SLogicNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    return true;
+  }
+
+  SNode* node = NULL;
+  FOREACH(node, pNode->pChildren) {
+    if (checkScanLogicNode((SLogicNode*)node)) {
+      return true;
+    }
+  }
+
+  return false;
 }

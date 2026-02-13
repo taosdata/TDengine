@@ -12,7 +12,7 @@ class TestWalKeepVersionTrim:
 
 
     def test_wal_keep_version_and_trim(self):
-        """Test WAL keep version and trim functionality
+        """WAL keep log dropped
         
         This test verifies:
         1. prepare data
@@ -20,9 +20,6 @@ class TestWalKeepVersionTrim:
         3. check wal keep version
         4. trim database wal
         5. check wal log dropped after trim
-
-        Catalog:
-            - Database:WAL
 
         Since: v3.3.6.31
 
@@ -75,6 +72,8 @@ class TestWalKeepVersionTrim:
         
 
         # trim database wal
+        tdSql.execute("trim database test wal")
+        # duplicate exec trim database test wal to test the core from feishu project 6686737748
         tdSql.execute("trim database test wal")
 
         # check wal vgId 2 firstVer is greater than 0 after trim

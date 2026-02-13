@@ -1825,7 +1825,7 @@ static int32_t extWinAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   blockDataCleanup(pBlock);
   taosArrayClear(pExtW->pWinRowIdx);
 
-  for (; pExtW->outputWinId < pExtW->pWins->size; pExtW->outputWinId += 1) {
+  for (; pExtW->outputWinId < pExtW->pWins->size; ++pExtW->outputWinId) {
     SExtWinTimeWindow* pWin = taosArrayGet(pExtW->pWins, pExtW->outputWinId);
     int32_t            winIdx = pWin->winOutIdx;
     if (winIdx < 0) {
@@ -1856,6 +1856,7 @@ static int32_t extWinAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pExtW->pWinRowIdx, pBlock, pRow->winIdx, pRow->numOfRows));
 
     if (pBlock->info.rows >= pOperator->resultInfo.threshold) {
+      ++pExtW->outputWinId;
       break;
     }
   }
@@ -2063,19 +2064,21 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     QUERY_CHECK_CONDITION(pOperator->numOfDownstream == 1, code, lino, _exit, TSDB_CODE_INVALID_PARA)
 
     switch (pDownParam->opType) {
-      case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL: {
-        break;
-      }
       case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE: {
         pExecParam = (SExchangeOperatorParam*)((SOperatorParam*)(pOperator->pDownstreamGetParams[0]))->value;
-        pExecParam->basic.vgId = pExtW->orgTableVgId;
-        taosArrayClear(pExecParam->basic.uidList);
-        QUERY_CHECK_NULL(taosArrayPush(pExecParam->basic.uidList, &pExtW->orgTableUid), code, lino, _exit, terrno)
+        if (!pExecParam->multiParams) {
+          pExecParam->basic.vgId = pExtW->orgTableVgId;
+          taosArrayClear(pExecParam->basic.uidList);
+          QUERY_CHECK_NULL(taosArrayPush(pExecParam->basic.uidList, &pExtW->orgTableUid), code, lino, _exit, terrno)
+        }
         break;
       }
       default:
-        QUERY_CHECK_CONDITION(false, code, lino, _exit, TSDB_CODE_INVALID_PARA)
+        break;
     }
+
+    freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
+    pOperator->pOperatorGetParam = NULL;
   } else {
     TAOS_CHECK_EXIT(extWinInitWindowList(pExtW, pTaskInfo));
   }
@@ -2085,7 +2088,10 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     pExtW->blkWinStartSet = false;
     pExtW->blkRowStartIdx = 0;
 
-    SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
+    SSDataBlock* pBlock = getNextBlockFromDownstreamRemain(pOperator, 0);
+    if (pOperator->pDownstreamGetParams) {
+      pOperator->pDownstreamGetParams[0] = NULL;
+    }
     if (pBlock == NULL) {
       if (EEXT_MODE_AGG == pExtW->mode) {
         TAOS_CHECK_EXIT(extWinAggHandleEmptyWins(pOperator, pBlock, true, NULL));
@@ -2167,9 +2173,17 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     return code;
   }
 
+  if (pOperator->pOperatorGetParam) {
+    if (pOperator->status == OP_EXEC_DONE) {
+      pOperator->status = OP_NOT_OPENED;
+    }
+  }
+
   extWinRecycleBlkNode(pExtW, &pExtW->pLastBlkNode);
 
-  TAOS_CHECK_EXIT(pOperator->fpSet._openFn(pOperator));
+  if (pOperator->status == OP_NOT_OPENED) {
+    TAOS_CHECK_EXIT(pOperator->fpSet._openFn(pOperator));
+  }
 
   if (pExtW->mode == EEXT_MODE_SCALAR || pExtW->mode == EEXT_MODE_INDEFR_FUNC) {
     TAOS_CHECK_EXIT(extWinNonAggOutputRes(pOperator, ppRes));
@@ -2188,9 +2202,11 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (pExtW->binfo.pRes->info.rows > 0) break;
 #else
     TAOS_CHECK_EXIT(extWinAggOutputRes(pOperator, ppRes));
-    setOperatorCompleted(pOperator);
-    if (pTaskInfo->pStreamRuntimeInfo) {
-      extWinFreeResultRow(pExtW);
+    if (NULL == *ppRes) {
+      setOperatorCompleted(pOperator);
+      if (pTaskInfo->pStreamRuntimeInfo) {
+        extWinFreeResultRow(pExtW);
+      }
     }
 #endif      
   }

@@ -1,0 +1,1037 @@
+
+taos> select count(*) from keeporderdb.meters;
+       count(*)        |
+========================
+                  6220 |
+
+taos> select max(current) from keeporderdb.meters;
+     max(current)     |
+=======================
+                  699 |
+
+taos> select min(current) from keeporderdb.meters;
+     min(current)     |
+=======================
+                    0 |
+
+taos> select top(voltage, 1) from keeporderdb.meters;
+ top(voltage, 1) |
+==================
+             262 |
+
+taos> select top(voltage, 10) from keeporderdb.meters;
+ top(voltage, 10) |
+===================
+              262 |
+              262 |
+              262 |
+              262 |
+              262 |
+              262 |
+              262 |
+              262 |
+              262 |
+              262 |
+
+taos> select bottom(voltage, 1) from keeporderdb.meters;
+ bottom(voltage, 1) |
+=====================
+                215 |
+
+taos> select bottom(voltage, 10) from keeporderdb.meters;
+ bottom(voltage, 10) |
+======================
+                 215 |
+                 215 |
+                 215 |
+                 215 |
+                 215 |
+                 215 |
+                 215 |
+                 215 |
+                 215 |
+                 215 |
+
+taos> select statecount(voltage, 'LE', 223) from keeporderdb.meters;
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> select stateduration(voltage, 'LE', 223) from keeporderdb.meters;
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> select mavg(voltage, 4) from keeporderdb.meters;
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> select tail(voltage, 1) from keeporderdb.meters;
+ tail(voltage, 1) |
+===================
+              262 |
+
+taos> select max(current) from keeporderdb.meters;
+     max(current)     |
+=======================
+                  699 |
+
+taos> select count(*) from keeporderdb.t1;
+       count(*)        |
+========================
+                   622 |
+
+taos> select max(current) from keeporderdb.t1;
+     max(current)     |
+=======================
+                  699 |
+
+taos> select min(current) from keeporderdb.t1;
+     min(current)     |
+=======================
+                    0 |
+
+taos> select top(voltage, 1) from keeporderdb.t1;
+ top(voltage, 1) |
+==================
+             262 |
+
+taos> select top(voltage, 10) from keeporderdb.t1;
+ top(voltage, 10) |
+===================
+              260 |
+              261 |
+              260 |
+              261 |
+              261 |
+              262 |
+              262 |
+              261 |
+              261 |
+              261 |
+
+taos> select bottom(voltage, 1) from keeporderdb.t1;
+ bottom(voltage, 1) |
+=====================
+                215 |
+
+taos> select bottom(voltage, 10) from keeporderdb.t1;
+ bottom(voltage, 10) |
+======================
+                 216 |
+                 216 |
+                 215 |
+                 215 |
+                 215 |
+                 215 |
+                 215 |
+                 215 |
+                 215 |
+                 215 |
+
+taos> select ts, statecount(voltage, 'LE', 223) from keeporderdb.t1 order by ts limit 10;
+           ts            | statecount(voltage, 'LE', 223) |
+===========================================================
+ 2025-03-12 13:31:25.230 |                              1 |
+ 2025-03-12 13:31:26.230 |                              2 |
+ 2025-03-12 13:31:27.230 |                              3 |
+ 2025-03-12 13:31:28.230 |                              4 |
+ 2025-03-12 13:31:29.230 |                              5 |
+ 2025-03-12 13:31:30.230 |                              6 |
+ 2025-03-12 13:31:31.230 |                              7 |
+ 2025-03-12 13:31:32.230 |                              8 |
+ 2025-03-12 13:31:33.230 |                              9 |
+ 2025-03-12 13:31:34.230 |                             10 |
+
+taos> select ts, statecount(voltage, 'GE', 223) from keeporderdb.t1 order by ts limit 10;
+           ts            | statecount(voltage, 'GE', 223) |
+===========================================================
+ 2025-03-12 13:31:25.230 |                             -1 |
+ 2025-03-12 13:31:26.230 |                             -1 |
+ 2025-03-12 13:31:27.230 |                             -1 |
+ 2025-03-12 13:31:28.230 |                             -1 |
+ 2025-03-12 13:31:29.230 |                             -1 |
+ 2025-03-12 13:31:30.230 |                             -1 |
+ 2025-03-12 13:31:31.230 |                             -1 |
+ 2025-03-12 13:31:32.230 |                             -1 |
+ 2025-03-12 13:31:33.230 |                             -1 |
+ 2025-03-12 13:31:34.230 |                             -1 |
+
+taos> select ts, statecount(voltage, 'GE', 216) from keeporderdb.t1 order by ts limit 10;
+           ts            | statecount(voltage, 'GE', 216) |
+===========================================================
+ 2025-03-12 13:31:25.230 |                             -1 |
+ 2025-03-12 13:31:26.230 |                             -1 |
+ 2025-03-12 13:31:27.230 |                             -1 |
+ 2025-03-12 13:31:28.230 |                             -1 |
+ 2025-03-12 13:31:29.230 |                             -1 |
+ 2025-03-12 13:31:30.230 |                             -1 |
+ 2025-03-12 13:31:31.230 |                             -1 |
+ 2025-03-12 13:31:32.230 |                             -1 |
+ 2025-03-12 13:31:33.230 |                              1 |
+ 2025-03-12 13:31:34.230 |                              2 |
+
+taos> select mavg(voltage, 4) from keeporderdb.t1 limit 10;
+     mavg(voltage, 4)      |
+============================
+                       215 |
+                       215 |
+                       215 |
+                       215 |
+                       215 |
+                    215.25 |
+                     215.5 |
+                    215.75 |
+                       216 |
+                       216 |
+
+taos> select tail(voltage, 1) from keeporderdb.t1;
+ tail(voltage, 1) |
+===================
+              262 |
+
+taos> select max(current) from keeporderdb.t1;
+     max(current)     |
+=======================
+                  699 |
+
+taos> select max(current) from keeporderdb.meters group by tbname;
+     max(current)     |
+=======================
+                  699 |
+                  699 |
+                  699 |
+                  699 |
+                  699 |
+                  699 |
+                  699 |
+                  699 |
+                  699 |
+                  699 |
+
+taos> select min(current) from keeporderdb.meters group by tbname;
+     min(current)     |
+=======================
+                    0 |
+                    0 |
+                    0 |
+                    0 |
+                    0 |
+                    0 |
+                    0 |
+                    0 |
+                    0 |
+                    0 |
+
+taos> select top(voltage, 1) from keeporderdb.meters group by tbname;
+ top(voltage, 1) |
+==================
+             262 |
+             262 |
+             262 |
+             262 |
+             262 |
+             262 |
+             262 |
+             262 |
+             262 |
+             262 |
+
+taos> select top(voltage, 5) from keeporderdb.meters group by tbname;
+ top(voltage, 5) |
+==================
+             261 |
+             261 |
+             261 |
+             262 |
+             262 |
+             261 |
+             261 |
+             261 |
+             262 |
+             262 |
+             261 |
+             261 |
+             261 |
+             262 |
+             262 |
+             261 |
+             261 |
+             261 |
+             262 |
+             262 |
+             261 |
+             261 |
+             261 |
+             262 |
+             262 |
+             261 |
+             261 |
+             261 |
+             262 |
+             262 |
+             261 |
+             261 |
+             261 |
+             262 |
+             262 |
+             261 |
+             261 |
+             261 |
+             262 |
+             262 |
+             261 |
+             261 |
+             261 |
+             262 |
+             262 |
+             261 |
+             261 |
+             261 |
+             262 |
+             262 |
+
+taos> select bottom(voltage, 1) from keeporderdb.meters group by tbname;
+ bottom(voltage, 1) |
+=====================
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+
+taos> select bottom(voltage, 5) from keeporderdb.meters group by tbname;
+ bottom(voltage, 5) |
+=====================
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+                215 |
+
+taos> select ts, statecount(voltage, 'LE', 223) from keeporderdb.meters group by tbname order by ts limit 3;
+
+DB error: Function 'statecount' is not supported in window query or group query [0x8000264F] 
+taos> select ts, statecount(voltage, 'GE', 223) from keeporderdb.meters group by tbname order by ts limit 3;
+
+DB error: Function 'statecount' is not supported in window query or group query [0x8000264F] 
+taos> select ts, statecount(voltage, 'GE', 216) from keeporderdb.meters group by tbname order by ts limit 3;
+
+DB error: Function 'statecount' is not supported in window query or group query [0x8000264F] 
+taos> select mavg(voltage, 4) from keeporderdb.meters group by tbname limit 10;
+
+DB error: Function 'mavg' is not supported in window query or group query [0x8000264F] 
+taos> select tail(voltage, 1) from keeporderdb.meters group by tbname;
+
+DB error: Function 'tail' is not supported in window query or group query [0x8000264F] 
+taos> select count(*) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 10);
+       count(*)        |
+========================
+                    10 |
+
+taos> select max(current) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 10);
+     max(current)     |
+=======================
+                  699 |
+
+taos> select min(current) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 10);
+     min(current)     |
+=======================
+                  699 |
+
+taos> select top(voltage, 1) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 10);
+ top(voltage, 1) |
+==================
+             262 |
+
+taos> select top(voltage, 10) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 10);
+ top(voltage, 10) |
+===================
+              262 |
+              262 |
+              262 |
+              262 |
+              262 |
+              262 |
+              262 |
+              262 |
+              262 |
+              262 |
+
+taos> select bottom(voltage, 1) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 10);
+ bottom(voltage, 1) |
+=====================
+                262 |
+
+taos> select bottom(voltage, 10) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 10);
+ bottom(voltage, 10) |
+======================
+                 262 |
+                 262 |
+                 262 |
+                 262 |
+                 262 |
+                 262 |
+                 262 |
+                 262 |
+                 262 |
+                 262 |
+
+taos> select statecount(voltage, 'LE', 223) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 10);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> select stateduration(voltage, 'LE', 223) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 10);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> select mavg(voltage, 4) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 10);
+
+DB error: Duplicate timestamps not allowed in function [0x80002805] 
+taos> select tail(voltage, 1) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 10);
+ tail(voltage, 1) |
+===================
+              262 |
+
+taos> select max(current) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 10);
+     max(current)     |
+=======================
+                  699 |
+
+taos> select count(*) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
+       count(*)        |
+========================
+                    50 |
+                   270 |
+                   270 |
+                   260 |
+                   250 |
+                   300 |
+                   240 |
+                   300 |
+                   230 |
+                   300 |
+                   250 |
+                   270 |
+                   300 |
+                   210 |
+                   300 |
+                   300 |
+                   200 |
+                   300 |
+                   300 |
+                   250 |
+                   240 |
+                   300 |
+                   300 |
+                   180 |
+                    50 |
+
+taos> select max(current) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
+     max(current)     |
+=======================
+                    4 |
+                   34 |
+                   64 |
+                   94 |
+                  119 |
+                  154 |
+                  184 |
+                  214 |
+                  244 |
+                  274 |
+                  299 |
+                  334 |
+                  364 |
+                  394 |
+                  424 |
+                  454 |
+                  484 |
+                  514 |
+                  544 |
+                  569 |
+                  604 |
+                  634 |
+                  664 |
+                  694 |
+                  699 |
+
+taos> select min(current) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
+     min(current)     |
+=======================
+                    0 |
+                    5 |
+                   35 |
+                   65 |
+                   95 |
+                  125 |
+                  155 |
+                  185 |
+                  215 |
+                  245 |
+                  275 |
+                  308 |
+                  335 |
+                  365 |
+                  395 |
+                  425 |
+                  455 |
+                  485 |
+                  515 |
+                  545 |
+                  581 |
+                  605 |
+                  635 |
+                  665 |
+                  695 |
+
+taos> select top(voltage, 1) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
+ top(voltage, 1) |
+==================
+             215 |
+             217 |
+             219 |
+             221 |
+             223 |
+             225 |
+             227 |
+             229 |
+             231 |
+             233 |
+             235 |
+             237 |
+             239 |
+             241 |
+             243 |
+             245 |
+             247 |
+             249 |
+             251 |
+             253 |
+             255 |
+             257 |
+             259 |
+             261 |
+             262 |
+
+taos> select top(voltage, 10) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
+ top(voltage, 10) |
+===================
+              215 |
+              215 |
+              215 |
+              215 |
+              215 |
+              215 |
+              215 |
+              215 |
+              215 |
+              215 |
+              217 |
+              217 |
+              217 |
+              217 |
+              217 |
+              217 |
+              217 |
+              217 |
+              217 |
+              217 |
+              219 |
+              219 |
+              219 |
+              219 |
+              219 |
+              219 |
+              219 |
+              219 |
+              219 |
+              219 |
+              221 |
+              221 |
+              221 |
+              221 |
+              221 |
+              221 |
+              221 |
+              221 |
+              221 |
+              221 |
+              223 |
+              223 |
+              223 |
+              223 |
+              223 |
+              223 |
+              223 |
+              223 |
+              223 |
+              223 |
+              225 |
+              225 |
+              225 |
+              225 |
+              225 |
+              225 |
+              225 |
+              225 |
+              225 |
+              225 |
+              227 |
+              227 |
+              227 |
+              227 |
+              227 |
+              227 |
+              227 |
+              227 |
+              227 |
+              227 |
+              229 |
+              229 |
+              229 |
+              229 |
+              229 |
+              229 |
+              229 |
+              229 |
+              229 |
+              229 |
+              231 |
+              231 |
+              231 |
+              231 |
+              231 |
+              231 |
+              231 |
+              231 |
+              231 |
+              231 |
+              233 |
+              233 |
+              233 |
+              233 |
+              233 |
+              233 |
+              233 |
+              233 |
+              233 |
+              233 |
+              235 |
+              235 |
+              235 |
+              235 |
+              235 |
+              235 |
+              235 |
+              235 |
+              235 |
+              235 |
+              237 |
+              237 |
+              237 |
+              237 |
+              237 |
+              237 |
+              237 |
+              237 |
+              237 |
+              237 |
+              239 |
+              239 |
+              239 |
+              239 |
+              239 |
+              239 |
+              239 |
+              239 |
+              239 |
+              239 |
+              241 |
+              241 |
+              241 |
+              241 |
+              241 |
+              241 |
+              241 |
+              241 |
+              241 |
+              241 |
+              243 |
+              243 |
+              243 |
+              243 |
+              243 |
+              243 |
+              243 |
+              243 |
+              243 |
+              243 |
+              245 |
+              245 |
+              245 |
+              245 |
+              245 |
+              245 |
+              245 |
+              245 |
+              245 |
+              245 |
+              247 |
+              247 |
+              247 |
+              247 |
+              247 |
+              247 |
+              247 |
+              247 |
+              247 |
+              247 |
+              249 |
+              249 |
+              249 |
+              249 |
+              249 |
+              249 |
+              249 |
+              249 |
+              249 |
+              249 |
+              251 |
+              251 |
+              251 |
+              251 |
+              251 |
+              251 |
+              251 |
+              251 |
+              251 |
+              251 |
+              253 |
+              253 |
+              253 |
+              253 |
+              253 |
+              253 |
+              253 |
+              253 |
+              253 |
+              253 |
+              255 |
+              255 |
+              255 |
+              255 |
+              255 |
+              255 |
+              255 |
+              255 |
+              255 |
+              255 |
+              257 |
+              257 |
+              257 |
+              257 |
+              257 |
+              257 |
+              257 |
+              257 |
+              257 |
+              257 |
+              259 |
+              259 |
+              259 |
+              259 |
+              259 |
+              259 |
+              259 |
+              259 |
+              259 |
+              259 |
+              261 |
+              261 |
+              261 |
+              261 |
+              261 |
+              261 |
+              261 |
+              261 |
+              261 |
+              261 |
+              262 |
+              262 |
+              262 |
+              262 |
+              262 |
+              262 |
+              262 |
+              262 |
+              262 |
+              262 |
+
+taos> select bottom(voltage, 1) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
+ bottom(voltage, 1) |
+=====================
+                215 |
+                215 |
+                217 |
+                219 |
+                221 |
+                223 |
+                225 |
+                227 |
+                229 |
+                231 |
+                233 |
+                236 |
+                237 |
+                239 |
+                241 |
+                243 |
+                245 |
+                247 |
+                249 |
+                251 |
+                254 |
+                255 |
+                257 |
+                259 |
+                261 |
+
+taos> select bottom(voltage, 2) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
+ bottom(voltage, 2) |
+=====================
+                215 |
+                215 |
+                215 |
+                215 |
+                217 |
+                217 |
+                219 |
+                219 |
+                221 |
+                221 |
+                223 |
+                223 |
+                225 |
+                225 |
+                227 |
+                227 |
+                229 |
+                229 |
+                231 |
+                231 |
+                233 |
+                233 |
+                236 |
+                236 |
+                237 |
+                237 |
+                239 |
+                239 |
+                241 |
+                241 |
+                243 |
+                243 |
+                245 |
+                245 |
+                247 |
+                247 |
+                249 |
+                249 |
+                251 |
+                251 |
+                254 |
+                254 |
+                255 |
+                255 |
+                257 |
+                257 |
+                259 |
+                259 |
+                261 |
+                261 |
+
+taos> select statecount(voltage, 'LE', 223) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
+
+DB error: Function 'statecount' is not supported in window query or group query [0x8000264F] 
+taos> select stateduration(voltage, 'LE', 223) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
+
+DB error: Function 'stateduration' is not supported in window query or group query [0x8000264F] 
+taos> select mavg(voltage, 4) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
+
+DB error: Function 'mavg' is not supported in window query or group query [0x8000264F] 
+taos> select tail(voltage, 1) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
+
+DB error: Function 'tail' is not supported in window query or group query [0x8000264F] 
+taos> select max(current) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
+     max(current)     |
+=======================
+                    4 |
+                   34 |
+                   64 |
+                   94 |
+                  119 |
+                  154 |
+                  184 |
+                  214 |
+                  244 |
+                  274 |
+                  299 |
+                  334 |
+                  364 |
+                  394 |
+                  424 |
+                  454 |
+                  484 |
+                  514 |
+                  544 |
+                  569 |
+                  604 |
+                  634 |
+                  664 |
+                  694 |
+                  699 |
+
+taos> select unique(current) from keeporderdb.meters order by _wstart limit 2;
+
+DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658] 
+taos> select unique(current) from keeporderdb.meters order by _wstart limit 2;
+
+DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658] 
+taos> select unique(current) from keeporderdb.t1 order by _wstart limit 2;
+
+DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658] 
+taos> select unique(current) from keeporderdb.t1 order by _wstart limit 2;
+
+DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658] 
+taos> select unique(current) from keeporderdb.meters group by tbname order by _wstart limit 2;;
+
+DB error: Function 'unique' is not supported in window query or group query [0x8000264F] 
+taos> select unique(current) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 100);
+   unique(current)    |
+=======================
+                  698 |
+                  695 |
+                  696 |
+                  699 |
+                  692 |
+                  694 |
+                  697 |
+                  678 |
+                  693 |
+                  679 |
+
+taos> select unique(current) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 100);
+   unique(current)    |
+=======================
+                  698 |
+                  695 |
+                  696 |
+                  699 |
+                  692 |
+                  694 |
+                  697 |
+                  678 |
+                  693 |
+                  679 |
+
+taos> select unique(current) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
+
+DB error: Function 'unique' is not supported in window query or group query [0x8000264F] 
+taos> select mode(current) from keeporderdb.meters order by _wstart limit 2;
+
+DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658] 
+taos> select mode(current) from keeporderdb.meters order by _wstart limit 2;
+
+DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658] 
+taos> select mode(current) from keeporderdb.t1 order by _wstart limit 2;
+
+DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658] 
+taos> select mode(current) from keeporderdb.t1 order by _wstart limit 2;
+
+DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658] 
+taos> select mode(current) from keeporderdb.meters group by tbname order by _wstart limit 2;;
+
+DB error: _WSTART, _WEND, _WDURATION, and _ANOMALYMARK can only be used in window query [0x80002658] 
+taos> select mode(current) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 100);
+    mode(current)     |
+=======================
+                  694 |
+
+taos> select mode(current) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 100);
+    mode(current)     |
+=======================
+                  694 |
+
+taos> select mode(current) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
+    mode(current)     |
+=======================
+                    2 |
+                   14 |
+                   60 |
+                   90 |
+                   97 |
+                  140 |
+                  169 |
+                  206 |
+                  241 |
+                  264 |
+                  285 |
+                  331 |
+                  345 |
+                  366 |
+                  420 |
+                  448 |
+                  464 |
+                  514 |
+                  533 |
+                  557 |
+                  595 |
+                  614 |
+                  649 |
+                  671 |
+                  698 |
+

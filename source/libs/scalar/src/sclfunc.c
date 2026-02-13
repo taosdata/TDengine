@@ -5296,6 +5296,10 @@ int32_t diffScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
   return nonCalcScalarFunction(pInput, inputNum, pOutput);
 }
 
+int32_t fillforwardScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return nonCalcScalarFunction(pInput, inputNum, pOutput);
+}
+
 int32_t forecastScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return nonCalcScalarFunction(pInput, inputNum, pOutput);
 }
@@ -6016,8 +6020,10 @@ int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, ST
   SStreamTSRangeParas timeEndParas = {.eType = SCL_VALUE_TYPE_END, .timeValue = INT64_MAX};
   int32_t             code = 0, lino = 0;
   if ((type & 0x1) && node->pStart) {
-    TAOS_CHECK_EXIT(scalarCalculate(node->pStart, NULL, NULL, pStRtFuncInfo, &timeStartParas));
-
+    gTaskScalarExtra.pStreamInfo = pStRtFuncInfo;
+    gTaskScalarExtra.pStreamRange = &timeStartParas;
+    TAOS_CHECK_EXIT(scalarCalculate(node->pStart, NULL, NULL, &gTaskScalarExtra));
+    
     if (timeStartParas.opType == OP_TYPE_GREATER_THAN) {
       // For greater than or lower than, used different param, rigth or left.
       pWinRange->skey = timeStartParas.timeValue + 1;
@@ -6032,8 +6038,10 @@ int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, ST
   }
 
   if ((type & 0x2) && node->pEnd) {
-    TAOS_CHECK_EXIT(scalarCalculate(node->pEnd, NULL, NULL, pStRtFuncInfo, &timeEndParas));
-
+    gTaskScalarExtra.pStreamInfo = pStRtFuncInfo;
+    gTaskScalarExtra.pStreamRange = &timeEndParas;
+    TAOS_CHECK_EXIT(scalarCalculate(node->pEnd, NULL, NULL, &gTaskScalarExtra));
+    
     if (timeEndParas.opType == OP_TYPE_LOWER_THAN) {
       pWinRange->ekey = timeEndParas.timeValue;
     } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL) {

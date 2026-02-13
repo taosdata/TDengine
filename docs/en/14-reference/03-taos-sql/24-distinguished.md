@@ -46,9 +46,9 @@ The syntax for the window clause is as follows:
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_duration)]
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
-  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
+  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
 }
 ```
@@ -71,41 +71,14 @@ Here, `interval_val` and `sliding_val` both represent time periods, and `interva
 - The window clause cannot be used together with the GROUP BY clause.
 - WHERE statements can specify the start and end time of the query and other filtering conditions.
 
-### FILL Clause
-
-The FILL statement specifies the filling mode when data is missing in a window interval. The filling modes include:
-
-1. No filling: NONE (default filling mode).
-1. VALUE filling: Fixed value filling, where the fill value must be specified. For example: FILL(VALUE, 1.23). Note that the final fill value is determined by the type of the corresponding column, such as FILL(VALUE, 1.23), if the corresponding column is of INT type, then the fill value is 1. If multiple columns in the query list need FILL, then each FILL column must specify a VALUE, such as `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`. Note, only ordinary columns in the SELECT expression need to specify FILL VALUE, such as `_wstart`, `_wstart+1a`, `now`, `1+1` and the partition key (like tbname) used with partition by do not need to specify VALUE, like `timediff(last(ts), _wstart)` needs to specify VALUE.
-1. PREV filling: Fill data using the previous value. For example: FILL(PREV).
-1. NULL filling: Fill data with NULL. For example: FILL(NULL).
-1. LINEAR filling: Perform linear interpolation filling based on the nearest values before and after. For example: FILL(LINEAR).
-1. NEXT filling: Fill data using the next value. For example: FILL(NEXT).
-
-Among these filling modes, except for the NONE mode which does not fill by default, other modes will be ignored if there is no data in the entire query time range, resulting in no fill data and an empty query result. This behavior is reasonable under some modes (PREV, NEXT, LINEAR) because no data means no fill value can be generated. For other modes (NULL, VALUE), theoretically, fill values can be generated, and whether to output fill values depends on the application's needs. To meet the needs of applications that require forced filling of data or NULL, without breaking the compatibility of existing filling modes, two new filling modes have been added starting from version 3.0.3.0:
-
-1. NULL_F: Force fill with NULL values
-1. VALUE_F: Force fill with VALUE values
-
-The differences between NULL, NULL_F, VALUE, VALUE_F filling modes for different scenarios are as follows:
-
-- INTERVAL clause: NULL_F, VALUE_F are forced filling modes; NULL, VALUE are non-forced modes. In this mode, their semantics match their names.
-- Stream computing's INTERVAL clause: NULL_F behaves the same as NULL, both are non-forced modes; VALUE_F behaves the same as VALUE, both are non-forced modes. Thus, there are no forced modes in the INTERVAL of stream computing.
-- INTERP clause: NULL and NULL_F behave the same, both are forced modes; VALUE and VALUE_F behave the same, both are forced modes. Thus, there are no non-forced modes in INTERP.
-
-:::info
-
-1. When using the FILL statement, a large amount of fill output may be generated, so be sure to specify the query time range. For each query, the system can return up to 10 million results with interpolation.
-1. In time dimension aggregation, the returned results have a strictly monotonically increasing time-series.
-1. If the query object is a supertable, the aggregate functions will apply to all tables under the supertable that meet the value filtering conditions. If the query does not use a PARTITION BY statement, the returned results will have a strictly monotonically increasing time-series; if the query uses a PARTITION BY statement for grouping, the results within each PARTITION will have a strictly monotonically increasing time series.
-
-:::
-
 ### Time Windows
 
 Time windows can be divided into sliding time windows and tumbling time windows.
 
 The INTERVAL clause is used to generate windows of equal time periods, and SLIDING is used to specify the time the window slides forward. Each executed query is a time window, and the time window slides forward as time flows. When defining continuous queries, it is necessary to specify the size of the time window (time window) and the forward sliding times for each execution. As shown, [t0s, t0e], [t1s, t1e], [t2s, t2e] are the time window ranges for three continuous queries, and the sliding time range is indicated by sliding time. Query filtering, aggregation, and other operations are performed independently for each time window. When SLIDING is equal to INTERVAL, the sliding window becomes a tumbling window. By default, windows begin at Unix time 0 (1970-01-01 00:00:00 UTC). If interval_offset is specified, the windows start from "Unix time 0 + interval_offset".
+
+When the query object is a super table, the aggregate functions will apply to all data that meets the filtering conditions from all tables under that super table, and the results will be strictly monotonically increasing according to the window start time.
+If the query uses a PARTITION BY statement for grouping, the results will be strictly monotonically increasing according to the window start time within each PARTITION.
 
 ![Time window](./assets/time-series-extensions-01-time-window.png)
 
@@ -133,6 +106,10 @@ SELECT COUNT(*) FROM meters WHERE _rowts < '2018-10-03 15:00:00' INTERVAL (1m, A
 -- Unclear start time limit, defaults to an offset of 0
 SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
 ```
+
+The INTERVAL clause supports using the FILL clause to specify the data
+filling method when data is missing, except for the NEAR filling mode. For how to use the FILL clause,
+please refer to [FILL Clause](./20-select.md#fill-clause).
 
 When using time windows, note:
 
@@ -232,10 +209,29 @@ taos> select _wstart, _wduration, _wend, count(*) from state_window_example stat
  2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
 ```
 
-The state window supports using the TRUE_FOR parameter to set its minimum duration. If the window's duration is less than the specified value, it will be discarded automatically and no result will be returned. For example, setting the minimum duration to 3 seconds:
+The state window supports using the TRUE_FOR parameter to set the filtering condition for windows. Only windows that meet the condition will return calculation results. Supports the following four modes:
+
+- `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
+- `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
+- `TRUE_FOR(duration_time AND COUNT n)`: Both duration and row count conditions must be satisfied.
+- `TRUE_FOR(duration_time OR COUNT n)`: Either duration or row count condition must be satisfied.
+
+For example, setting the minimum duration to 3 seconds:
 
 ```sql
 SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (3s);
+```
+
+Or setting the minimum row count to 100:
+
+```sql
+SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (COUNT 100);
+```
+
+Or requiring both duration and row count conditions:
+
+```sql
+SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (3s AND COUNT 50);
 ```
 
 ### Session Window
@@ -269,10 +265,29 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 
 ![Event windows](./assets/time-series-extensions-04-event-window.png)
 
-The event window supports using the TRUE_FOR parameter to set its minimum duration. If the window's duration is less than the specified value, it will be discarded automatically and no result will be returned. For example, setting the minimum duration to 3 seconds:
+The event window supports using the TRUE_FOR parameter to set the filtering condition for windows. Only windows that meet the condition will return calculation results. Supports the following four modes:
+
+- `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
+- `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
+- `TRUE_FOR(duration_time AND COUNT n)`: Both duration and row count conditions must be satisfied.
+- `TRUE_FOR(duration_time OR COUNT n)`: Either duration or row count condition must be satisfied.
+
+For example, setting the minimum duration to 3 seconds:
 
 ```sql
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (3s);
+```
+
+Or setting the minimum row count to 100:
+
+```sql
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (COUNT 100);
+```
+
+Or requiring both duration and row count conditions:
+
+```sql
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (3s AND COUNT 50);
 ```
 
 ### Count Window

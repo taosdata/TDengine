@@ -60,7 +60,7 @@ class TestStreamPrivilegesRecalc:
         self.createOneStream()
 
         # check normal user no write privilege to recalc stream
-        tdSql.connect(self.username1)
+        tdSql.connect(self.username1, "AAbb1122")
         tdLog.info(f"connect user {self.username1} ")
 
         # check normal user no query/write privilege to recalc stream
@@ -68,13 +68,13 @@ class TestStreamPrivilegesRecalc:
 
         # check normal user no write privilege to recalc stream
         self.grantRead()
-        tdSql.connect(self.username1)
+        tdSql.connect(self.username1, "AAbb1122")
         tdLog.info(f"connect user {self.username1} ")
         self.recalcStream()
 
         # check normal user have write privilege to recalc stream
         self.grantWrite()
-        tdSql.connect(self.username1)
+        tdSql.connect(self.username1, "AAbb1122")
         tdLog.info(f"connect user {self.username1} ")
         self.recalcStream()
 
@@ -99,8 +99,8 @@ class TestStreamPrivilegesRecalc:
 
     def createUser(self):
         tdLog.info(f"create user")
-        tdSql.execute(f'create user {self.username1} pass "taosdata"')
-        tdSql.execute(f'create user {self.username2} pass "taosdata"')
+        tdSql.execute(f'create user {self.username1} pass "AAbb1122"')
+        tdSql.execute(f'create user {self.username2} pass "AAbb1122"')
         self.checkResultRows(2)
 
     def noSysInfo(self):
@@ -130,54 +130,54 @@ class TestStreamPrivilegesRecalc:
     def grantRead(self):
         tdLog.info(f"grant read privilege to user")
         tdSql.connect("root")
-        tdSql.execute(f"grant read on {self.dbname} to {self.username1}")
-        tdSql.execute(f"grant read on {self.dbname2} to {self.username2}")
+        tdSql.execute(f"grant select on {self.dbname}.* to {self.username1}")
+        tdSql.execute(f"grant select on {self.dbname2}.* to {self.username2}")
 
         tdSql.query(
-            f"select * from information_schema.ins_user_privileges where user_name !='root' and privilege ='read';"
+            f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='SELECT';"
         )
         if tdSql.getRows() != 2:
-            raise Exception("grant read privileges user failed")
+            raise Exception("grant select privileges user failed")
 
     def grantWrite(self):
-        tdLog.info(f"grant write privilege to user")
+        tdLog.info(f"grant insert privilege to user")
         tdSql.connect("root")
-        tdSql.execute(f"grant write on {self.dbname} to {self.username1}")
-        tdSql.execute(f"grant write on {self.dbname2} to {self.username2}")
+        tdSql.execute(f"grant insert on {self.dbname}.* to {self.username1}")
+        tdSql.execute(f"grant insert on {self.dbname2}.* to {self.username2}")
 
         tdSql.query(
-            f"select * from information_schema.ins_user_privileges where user_name !='root' and privilege ='write';"
+            f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='INSERT';"
         )
         if tdSql.getRows() != 2:
-            raise Exception("grant write privileges user failed")
+            raise Exception("grant insert privileges user failed")
 
     def revokeRead(self):
-        tdLog.info(f"revoke read privilege from user")
+        tdLog.info(f"revoke select privilege from user")
         tdSql.connect("root")
-        tdSql.execute(f"revoke read on {self.dbname} from {self.username1}")
-        tdSql.execute(f"revoke read on {self.dbname2} from {self.username2}")
+        tdSql.execute(f"revoke select on {self.dbname}.* from {self.username1}")
+        tdSql.execute(f"revoke select on {self.dbname2}.* from {self.username2}")
 
         tdSql.query(
-            f"select * from information_schema.ins_user_privileges where user_name !='root' and privilege ='read';"
+            f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='SELECT';"
         )
         if tdSql.getRows() != 0:
-            raise Exception("revoke read privileges user failed")
+            raise Exception("revoke select privileges user failed")
 
     def revokeWrite(self):
-        tdLog.info(f"revoke write privilege from user")
+        tdLog.info(f"revoke insert privilege from user")
         tdSql.connect("root")
-        tdSql.execute(f"revoke write on {self.dbname} from {self.username1}")
-        tdSql.execute(f"revoke write on {self.dbname2} from {self.username2}")
+        tdSql.execute(f"revoke insert on {self.dbname}.* from {self.username1}")
+        tdSql.execute(f"revoke insert on {self.dbname2}.* from {self.username2}")
 
         tdSql.query(
-            f"select * from information_schema.ins_user_privileges where user_name !='root' and privilege ='write';"
+            f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='INSERT';"
         )
         if tdSql.getRows() != 0:
-            raise Exception("revoke write privileges user failed")
+            raise Exception("revoke insert privileges user failed")
 
     def userCreateStream(self):
         tdLog.info(f"connect with normal user {self.username2}")
-        tdSql.connect("lvze2")
+        tdSql.connect(self.username2, "AAbb1122")
         sql = (
             f"create stream {self.dbname2}.`s100` sliding(1s) from {self.dbname}.st1  partition by tbname "
             "stream_options(fill_history('2025-01-01 00:00:00')) "
@@ -196,7 +196,7 @@ class TestStreamPrivilegesRecalc:
 
     def userStopStream(self):
         tdLog.info(f"connect with normal user {self.username2}")
-        tdSql.connect("lvze2")
+        tdSql.connect(self.username2, "AAbb1122")
         tdSql.query(f"show {self.dbname}.streams;")
         numOfStreams = tdSql.getRows()
         if numOfStreams > 0:
@@ -218,7 +218,7 @@ class TestStreamPrivilegesRecalc:
 
     def userStartStream(self):
         tdLog.info(f"connect with normal user {self.username2}")
-        tdSql.connect("lvze2")
+        tdSql.connect(self.username2, "AAbb1122")
         tdSql.query(f"show {self.dbname}.streams;")
         numOfStreams = tdSql.getRows()
         if numOfStreams > 0:

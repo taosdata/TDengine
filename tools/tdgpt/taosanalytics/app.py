@@ -7,6 +7,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
 from flask import Flask, request
 
+import taosanalytics
 from taosanalytics.algo.imputation import (do_imputation, do_set_imputation_params, check_freq_param)
 from taosanalytics.algo.anomaly import do_ad_check
 from taosanalytics.algo.forecast import do_forecast, do_add_fc_params
@@ -14,6 +15,7 @@ from taosanalytics.algo.correlation import do_dtw, do_tlcc
 
 from taosanalytics.model import model_manager
 from taosanalytics.conf import conf
+from taosanalytics.model import model_manager
 from taosanalytics.servicemgmt import loader
 from taosanalytics.util import (app_logger, parse_options, get_past_dynamic_data, get_dynamic_data,
                                 get_second_data_list,
@@ -26,7 +28,7 @@ app_logger.set_handler(conf.get_log_path())
 app_logger.set_log_level(conf.get_log_level())
 loader.load_all_service()
 
-_ANODE_VER = 'TDgpt - TDengine TSDB© Time-Series Data Analytics Platform (ver 3.3.7.1)'
+_ANODE_VER = f'TDgpt - TDengine TSDB© Time-Series Data Analytics Platform (ver {taosanalytics.__version__})'
 
 @app.route("/")
 def start():
@@ -49,7 +51,6 @@ def list_all_services():
     API function to return all available services, including both fc and anomaly detection
     """
     return loader.get_service_list()
-
 
 @app.route("/models")
 def list_all_models():

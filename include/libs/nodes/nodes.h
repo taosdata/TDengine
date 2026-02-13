@@ -25,6 +25,7 @@ extern "C" {
 
 #define nodeType(nodeptr)              (((const SNode*)(nodeptr))->type)
 #define setNodeType(nodeptr, nodetype) (((SNode*)(nodeptr))->type = (nodetype))
+#define isSubQueryNode(nodeptr) (nodeptr && ((QUERY_NODE_SELECT_STMT == nodeType(nodeptr)) || (QUERY_NODE_SET_OPERATOR == nodeType(nodeptr))))
 
 #define LIST_LENGTH(l) (NULL != (l) ? (l)->length : 0)
 
@@ -32,6 +33,11 @@ extern "C" {
   for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL), *pNext;                                     \
        (NULL != cell ? (node = cell->pNode, pNext = cell->pNext, true) : (node = NULL, pNext = NULL, false)); \
        cell = pNext)
+
+#define FOREACH_R(node, list)                                                                                   \
+  for (SListCell* cell = (NULL != (list) ? (list)->pTail : NULL), *pPrev;                                     \
+       (NULL != cell ? (node = cell->pNode, pPrev = cell->pPrev, true) : (node = NULL, pPrev = NULL, false)); \
+       cell = pPrev)
 
 #define REPLACE_NODE(newNode) cell->pNode = (SNode*)(newNode)
 
@@ -156,7 +162,6 @@ void nodesRewriteExprPostOrder(SNode** pNode, FNodeRewriter rewriter, void* pCon
 void nodesRewriteExprsPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
 
 bool nodesEqualNode(const SNode* a, const SNode* b);
-bool nodeListNodeEqual(const SNodeList* a, const SNode* b);
 
 bool nodesMatchNode(const SNode* pSub, const SNode* pNode);
 
@@ -180,7 +185,9 @@ int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots);
 void    nodesSortList(SNodeList** pList, int32_t (*)(SNode* pNode1, SNode* pNode2));
 void    destroyFuncParam(void* pFuncStruct);
 int32_t nodesListDeduplicate(SNodeList** pList);
-
+bool    nodesIsScalarSubQuery(SNode* pNode);
+char*   nodesGetSubSql(SNode* pNode);
+void    nodesGetSubQType(SNode* pNode, int32_t* pType);
 
 #ifdef __cplusplus
 }

@@ -60,6 +60,7 @@ typedef struct SMetaEntry {
       SSchemaWrapper schemaTag;
       SRSmaParam     rsmaParam;
       int64_t        keep;
+      int64_t        ownerId;
     } stbEntry;
     struct {
       int64_t  btime;
@@ -75,6 +76,7 @@ typedef struct SMetaEntry {
       int32_t        commentLen;
       char*          comment;
       int32_t        ncid;  // next column id
+      int64_t        ownerId;
       SSchemaWrapper schemaRow;
     } ntbEntry;
     struct {
@@ -222,6 +224,7 @@ typedef struct TsdReader {
   int32_t  (*tsdNextFirstLastTsBlock)(void *pIter, SSDataBlock *pRes, bool* hasNext);
   void     (*tsdDestroyFirstLastTsIter)(void *pIter);
 
+  int32_t (*tsdReaderStepDone)(void *pReader, int64_t notifyTs);
 } TsdReader;
 
 typedef struct SStoreCacheReader {

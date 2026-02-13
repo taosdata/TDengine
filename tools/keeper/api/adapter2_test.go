@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taoskeeper/db"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
+	"github.com/taosdata/taoskeeper/testutil"
 	"github.com/taosdata/taoskeeper/util"
 )
 
@@ -27,11 +28,11 @@ func TestAdapter2(t *testing.T) {
 		TDengine: config.TDengineRestful{
 			Host:     "127.0.0.1",
 			Port:     6041,
-			Username: "root",
-			Password: "taosdata",
+			Username: testutil.TestUsername(),
+			Password: testutil.TestPassword(),
 			Usessl:   false,
 		},
-		Metrics: config.MetricsConfig{
+		Metrics: config.Metrics{
 			Database: config.Database{
 				Name:    "adapter_report_test",
 				Options: map[string]interface{}{},
@@ -132,14 +133,14 @@ func TestAdapter2(t *testing.T) {
 }
 
 func Test_adapterTableSql(t *testing.T) {
-	conn, _ := db.NewConnector("root", "taosdata", "127.0.0.1", 6041, false)
+	conn, _ := db.NewConnector(testutil.TestUsername(), testutil.TestPassword(), "127.0.0.1", 6041, false)
 	defer conn.Close()
 
 	dbName := "db_202412031446"
 	conn.Exec(context.Background(), "create database "+dbName, util.GetQidOwn(config.Conf.InstanceID))
 	defer conn.Exec(context.Background(), "drop database "+dbName, util.GetQidOwn(config.Conf.InstanceID))
 
-	conn, _ = db.NewConnectorWithDb("root", "taosdata", "127.0.0.1", 6041, dbName, false)
+	conn, _ = db.NewConnectorWithDb(testutil.TestUsername(), testutil.TestPassword(), "127.0.0.1", 6041, dbName, false)
 	defer conn.Close()
 
 	conn.Exec(context.Background(), adapterTableSql, util.GetQidOwn(config.Conf.InstanceID))

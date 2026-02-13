@@ -22,7 +22,7 @@ extern "C" {
 
 #include "plannodes.h"
 
-#define SYS_SCAN_FLAG  0x01  
+#define SYS_SCAN_FLAG  0x01
 #define HSYS_SCAN_FLAG 0x03
 
 #define IS_SYS_SCAN(_flag)  (((_flag) & (SYS_SCAN_FLAG)) != 0)
@@ -34,11 +34,13 @@ extern "C" {
 typedef struct SPlanContext {
   uint64_t    queryId;
   int32_t     acctId;
+  int32_t     groupId;
   SEpSet      mgmtEpSet;
   SNode*      pAstRoot;
   bool        topicQuery;
   bool        streamCalcQuery;
   bool        streamTriggerQuery;
+  bool        streamForceOutput;
   bool        rSmaQuery;
   bool        showRewrite;
   bool        isView;
@@ -55,7 +57,21 @@ typedef struct SPlanContext {
   int32_t     msgLen;
   const char* pUser;
   bool        sysInfo;
+  union {
+    uint16_t privInfo;
+    struct {
+      uint16_t privLevel : 3;  // user privilege level
+      uint16_t privInfoBasic : 1;
+      uint16_t privInfoPrivileged : 1;
+      uint16_t privInfoAudit : 1;
+      uint16_t privInfoSec : 1;
+      uint16_t privPerfBasic : 1;
+      uint16_t privPerfPrivileged : 1;
+      uint16_t reserved1 : 7;
+    };
+  };
   int64_t     allocatorId;
+  int64_t     userId;
   void*       timezone;
   int64_t     recalculateInterval;
   bool        streamVtableCalc;

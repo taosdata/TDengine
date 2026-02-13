@@ -179,6 +179,7 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
     if (pVgroup->replica == 1) {
       pVgid->syncState = TAOS_SYNC_STATE_LEADER;
     }
+    pVgid->snapSeq = -1;
   }
   if (dataPos + 2 * sizeof(int32_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_INT32(pRaw, dataPos, &pVgroup->syncConfChangeVer, _OVER)
@@ -283,6 +284,9 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
         pNewGid->syncCommitIndex = pOldGid->syncCommitIndex;
         pNewGid->bufferSegmentUsed = pOldGid->bufferSegmentUsed;
         pNewGid->bufferSegmentSize = pOldGid->bufferSegmentSize;
+        pNewGid->learnerProgress = pOldGid->learnerProgress;
+        pNewGid->snapSeq = pOldGid->snapSeq;
+        pNewGid->syncTotalIndex = pOldGid->syncTotalIndex;
       }
     }
   }
@@ -364,6 +368,8 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   if (pDb->cfg.encryptAlgorithm > 0) {
     mndGetEncryptOsslAlgrNameById(pMnode, pDb->cfg.encryptAlgorithm, createReq.encryptAlgrName);
   }
+  createReq.isAudit = pDb->cfg.isAudit ? 1 : 0;
+  createReq.allowDrop = pDb->cfg.allowDrop;
   int32_t code = 0;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
@@ -468,6 +474,7 @@ static void *mndBuildAlterVnodeConfigReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pV
   alterReq.walRetentionSize = pDb->cfg.walRetentionSize;
   alterReq.ssKeepLocal = pDb->cfg.ssKeepLocal;
   alterReq.ssCompact = pDb->cfg.ssCompact;
+  alterReq.allowDrop = (int8_t)pDb->cfg.allowDrop;
 
   mInfo("vgId:%d, build alter vnode config req", pVgroup->vgId);
   int32_t contLen = tSerializeSAlterVnodeConfigReq(NULL, 0, &alterReq);
@@ -1166,19 +1173,27 @@ SEpSet mndGetVgroupEpsetById(SMnode *pMnode, int32_t vgId) {
 }
 
 static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode *pMnode = pReq->info.node;
-  SSdb   *pSdb = pMnode->pSdb;
-  int32_t numOfRows = 0;
-  SVgObj *pVgroup = NULL;
-  int32_t cols = 0;
-  int64_t curMs = taosGetTimestampMs();
-  int32_t code = 0, lino = 0;
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
+  int32_t   numOfRows = 0;
+  SVgObj   *pVgroup = NULL;
+  SDbObj   *pVgDb = NULL;
+  int32_t   cols = 0;
+  int64_t   curMs = taosGetTimestampMs();
+  int32_t   code = 0, lino = 0;
+  SDbObj   *pDb = NULL;
+  SUserObj *pUser = NULL;
+  SDbObj   *pIterDb = NULL;
+  char      objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
+  bool      showAll = false, showIter = false;
+  int64_t   dbUid = 0;
 
-  SDbObj *pDb = NULL;
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), PRIV_SHOW_VGROUPS, PRIV_OBJ_DB, 0, _OVER);
+
   if (strlen(pShow->db) > 0) {
     pDb = mndAcquireDb(pMnode, pShow->db);
     if (pDb == NULL) {
-      return 0;
+      goto _OVER;
     }
   }
 
@@ -1191,6 +1206,8 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
       continue;
     }
 
+    MND_SHOW_CHECK_DB_PRIVILEGE(pDb, pVgroup->dbName, pVgroup, RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_VGROUPS, _OVER);
+
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO((const char *)&pVgroup->vgId, false, pVgroup, pShow->pIter, _OVER);
@@ -1201,8 +1218,8 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     if (code != 0) {
       mError("vgId:%d, failed to set dbName, since %s", pVgroup->vgId, tstrerror(code));
       sdbRelease(pSdb, pVgroup);
-      sdbCancelFetch(pSdb, pShow->pIter);
-      return code;
+      // sdbCancelFetch(pSdb, pShow->pIter);
+      goto _OVER;
     }
     (void)tNameGetDbName(&name, varDataVal(db));
     varDataSetLen(db, strlen(varDataVal(db)));
@@ -1252,29 +1269,6 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
               pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_ASSIGNED_LEADER)
             leaderState = pVgroup->vnodeGid[i].syncState;
           snprintf(role, sizeof(role), "%s", syncStr(pVgroup->vnodeGid[i].syncState));
-          /*
-          mInfo("db:%s, learner progress:%d", pDb->name, pVgroup->vnodeGid[i].learnerProgress);
-
-          if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEARNER) {
-            if(pVgroup->vnodeGid[i].learnerProgress < 0){
-              snprintf(role, sizeof(role), "%s-",
-                syncStr(pVgroup->vnodeGid[i].syncState));
-
-            }
-            else if(pVgroup->vnodeGid[i].learnerProgress >= 100){
-              snprintf(role, sizeof(role), "%s--",
-                syncStr(pVgroup->vnodeGid[i].syncState));
-            }
-            else{
-              snprintf(role, sizeof(role), "%s%d",
-                syncStr(pVgroup->vnodeGid[i].syncState), pVgroup->vnodeGid[i].learnerProgress);
-            }
-          }
-          else{
-            snprintf(role, sizeof(role), "%s%s", syncStr(pVgroup->vnodeGid[i].syncState), star);
-          }
-          */
-        } else {
         }
         STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->pMeta->pSchemas[cols].bytes);
 
@@ -1283,8 +1277,38 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
         char applyStr[TSDB_SYNC_APPLY_COMMIT_LEN + 1] = {0};
         char buf[TSDB_SYNC_APPLY_COMMIT_LEN + VARSTR_HEADER_SIZE + 1] = {0};
-        snprintf(applyStr, sizeof(applyStr), "%" PRId64 "/%" PRId64, pVgroup->vnodeGid[i].syncAppliedIndex,
-                 pVgroup->vnodeGid[i].syncCommitIndex);
+
+        if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEARNER &&
+            (pVgroup->vnodeGid[i].snapSeq > 0 && pVgroup->vnodeGid[i].snapSeq < SYNC_SNAPSHOT_SEQ_END)) {
+          if (pDb != NULL) {
+            mInfo("db:%s, learner progress:%d", pDb->name, pVgroup->vnodeGid[i].learnerProgress);
+          } else {
+            mInfo("db:null, learner progress:%d", pVgroup->vnodeGid[i].learnerProgress);
+          }
+
+          snprintf(applyStr, sizeof(applyStr), "%" PRId64 "/%" PRId64 "/%" PRId64 "(snap:%d)(learner:%d)",
+                   pVgroup->vnodeGid[i].syncAppliedIndex, pVgroup->vnodeGid[i].syncCommitIndex,
+                   pVgroup->vnodeGid[i].syncTotalIndex, pVgroup->vnodeGid[i].snapSeq,
+                   pVgroup->vnodeGid[i].learnerProgress);
+        } else if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEARNER) {
+          if (pDb != NULL) {
+            mInfo("db:%s, learner progress:%d", pDb->name, pVgroup->vnodeGid[i].learnerProgress);
+          } else {
+            mInfo("db:null, learner progress:%d", pVgroup->vnodeGid[i].learnerProgress);
+          }
+
+          snprintf(applyStr, sizeof(applyStr), "%" PRId64 "/%" PRId64 "/%" PRId64 "(learner:%d)",
+                   pVgroup->vnodeGid[i].syncAppliedIndex, pVgroup->vnodeGid[i].syncCommitIndex,
+                   pVgroup->vnodeGid[i].syncTotalIndex, pVgroup->vnodeGid[i].learnerProgress);
+        } else if (pVgroup->vnodeGid[i].snapSeq > 0 && pVgroup->vnodeGid[i].snapSeq < SYNC_SNAPSHOT_SEQ_END) {
+          snprintf(applyStr, sizeof(applyStr), "%" PRId64 "/%" PRId64 "(snap:%d)",
+                   pVgroup->vnodeGid[i].syncAppliedIndex, pVgroup->vnodeGid[i].syncCommitIndex,
+                   pVgroup->vnodeGid[i].snapSeq);
+        } else {
+          snprintf(applyStr, sizeof(applyStr), "%" PRId64 "/%" PRId64, pVgroup->vnodeGid[i].syncAppliedIndex,
+                   pVgroup->vnodeGid[i].syncCommitIndex);
+        }
+
         STR_WITH_MAXSIZE_TO_VARSTR(buf, applyStr, pShow->pMeta->pSchemas[cols].bytes);
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1310,14 +1334,10 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
       if (isLeaderRestored) isReady = true;
     }
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)&isReady, false);
-    if (code != 0) {
-      mError("vgId:%d, failed to set is_ready, since %s", pVgroup->vgId, tstrerror(code));
-      return code;
-    }
+    COL_DATA_SET_VAL_GOTO((const char *)&isReady, false, pVgroup, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    int32_t cacheUsage = (int32_t)pVgroup->cacheUsage;
+    int64_t cacheUsage = (int64_t)pVgroup->cacheUsage;
     COL_DATA_SET_VAL_GOTO((const char *)&cacheUsage, false, pVgroup, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1330,23 +1350,16 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     COL_DATA_SET_VAL_GOTO((const char *)&pVgroup->mountVgId, false, pVgroup, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->keepVersion, false);
-    if (code != 0) {
-      mError("vgId:%d, failed to set keepVersion, since %s", pVgroup->vgId, tstrerror(code));
-      return code;
-    }
+    COL_DATA_SET_VAL_GOTO((const char *)&pVgroup->keepVersion, false, pVgroup, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->keepVersionTime, false);
-    if (code != 0) {
-      mError("vgId:%d, failed to set keepVersionTime, since %s", pVgroup->vgId, tstrerror(code));
-      return code;
-    }
+    COL_DATA_SET_VAL_GOTO((const char *)&pVgroup->keepVersionTime, false, pVgroup, pShow->pIter, _OVER);
 
     numOfRows++;
     sdbRelease(pSdb, pVgroup);
   }
 _OVER:
+  if (pUser) mndReleaseUser(pMnode, pUser);
   if (pDb != NULL) {
     mndReleaseDb(pMnode, pDb);
   }
@@ -1445,17 +1458,27 @@ void calculateRstoreFinishTime(double rate, int64_t applyCount, char *restoreStr
 }
 
 static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode *pMnode = pReq->info.node;
-  SSdb   *pSdb = pMnode->pSdb;
-  int32_t numOfRows = 0;
-  SVgObj *pVgroup = NULL;
-  int32_t cols = 0;
-  int64_t curMs = taosGetTimestampMs();
-  int32_t code = 0;
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
+  int32_t   numOfRows = 0;
+  SVgObj   *pVgroup = NULL;
+  SDbObj   *pVgDb = NULL;
+  int32_t   cols = 0;
+  int64_t   curMs = taosGetTimestampMs();
+  int32_t   code = 0, lino = 0;
+  SUserObj *pUser = NULL;
+  SDbObj   *pDb = NULL, *pIterDb = NULL;
+  char      objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
+  bool      showAll = false, showIter = false;
+  int64_t   dbUid = 0;
+
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), PRIV_SHOW_VNODES, PRIV_OBJ_DB, 0, _OVER);
 
   while (numOfRows < rows - TSDB_MAX_REPLICA) {
     pShow->pIter = sdbFetch(pSdb, SDB_VGROUP, pShow->pIter, (void **)&pVgroup);
     if (pShow->pIter == NULL) break;
+
+    MND_SHOW_CHECK_DB_PRIVILEGE(pDb, pVgroup->dbName, pVgroup, RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_VNODES, _OVER);
 
     for (int32_t i = 0; i < pVgroup->replica && numOfRows < rows; ++i) {
       SVnodeGid       *pGid = &pVgroup->vnodeGid[i];
@@ -1463,17 +1486,9 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       cols = 0;
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->dnodeId, false);
-      if (code != 0) {
-        mError("vgId:%d, failed to set dnodeId, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
-      }
+      COL_DATA_SET_VAL_GOTO((const char *)&pGid->dnodeId, false, pVgroup, pShow->pIter, _OVER);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
-      if (code != 0) {
-        mError("vgId:%d, failed to set vgId, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
-      }
+      COL_DATA_SET_VAL_GOTO((const char *)&pVgroup->vgId, false, pVgroup, pShow->pIter, _OVER);
 
       // db_name
       const char *dbname = mndGetDbStr(pVgroup->dbName);
@@ -1484,11 +1499,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         STR_WITH_MAXSIZE_TO_VARSTR(b1, "NULL", TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE);
       }
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)b1, false);
-      if (code != 0) {
-        mError("vgId:%d, failed to set dbName, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
-      }
+      COL_DATA_SET_VAL_GOTO((const char *)b1, false, pVgroup, pShow->pIter, _OVER);
 
       // dnode is online?
       SDnodeObj *pDnode = mndAcquireDnode(pMnode, pGid->dnodeId);
@@ -1497,39 +1508,24 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         break;
       }
       bool isDnodeOnline = mndIsDnodeOnline(pDnode, curMs);
+      sdbRelease(pSdb, pDnode);
 
       char       buf[20] = {0};
       ESyncState syncState = (isDnodeOnline) ? pGid->syncState : TAOS_SYNC_STATE_OFFLINE;
       STR_TO_VARSTR(buf, syncStr(syncState));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
-      if (code != 0) {
-        mError("vgId:%d, failed to set syncState, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
-      }
+      COL_DATA_SET_VAL_GOTO((const char *)buf, false, pVgroup, pShow->pIter, _OVER);
 
       int64_t roleTimeMs = (isDnodeOnline) ? pGid->roleTimeMs : 0;
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)&roleTimeMs, false);
-      if (code != 0) {
-        mError("vgId:%d, failed to set roleTimeMs, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
-      }
+      COL_DATA_SET_VAL_GOTO((const char *)&roleTimeMs, false, pVgroup, pShow->pIter, _OVER);
 
       int64_t startTimeMs = (isDnodeOnline) ? pGid->startTimeMs : 0;
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)&startTimeMs, false);
-      if (code != 0) {
-        mError("vgId:%d, failed to set startTimeMs, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
-      }
+      COL_DATA_SET_VAL_GOTO((const char *)&startTimeMs, false, pVgroup, pShow->pIter, _OVER);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->syncRestore, false);
-      if (code != 0) {
-        mError("vgId:%d, failed to set syncRestore, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
-      }
+      COL_DATA_SET_VAL_GOTO((const char *)&pGid->syncRestore, false, pVgroup, pShow->pIter, _OVER);
 
       int64_t unappliedCount = pGid->syncCommitIndex - pGid->syncAppliedIndex;
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1538,40 +1534,28 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         calculateRstoreFinishTime(pGid->appliedRate, unappliedCount, restoreStr, sizeof(restoreStr));
       }
       STR_TO_VARSTR(buf, restoreStr);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)&buf, false);
-      if (code != 0) {
-        mError("vgId:%d, failed to set syncRestore finish time, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
-      }
+      COL_DATA_SET_VAL_GOTO((const char *)&buf, false, pVgroup, pShow->pIter, _OVER);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)&unappliedCount, false);
-      if (code != 0) {
-        mError("vgId:%d, failed to set syncRestore, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
-      }
+      COL_DATA_SET_VAL_GOTO((const char *)&unappliedCount, false, pVgroup, pShow->pIter, _OVER);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->bufferSegmentUsed, false);
-      if (code != 0) {
-        mError("vgId:%d, failed to set buffer segment used, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
-      }
+      COL_DATA_SET_VAL_GOTO((const char *)&pGid->bufferSegmentUsed, false, pVgroup, pShow->pIter, _OVER);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->bufferSegmentSize, false);
-      if (code != 0) {
-        mError("vgId:%d, failed to set buffer segment size, since %s", pVgroup->vgId, tstrerror(code));
-        return code;
-      }
+      COL_DATA_SET_VAL_GOTO((const char *)&pGid->bufferSegmentSize, false, pVgroup, pShow->pIter, _OVER);
 
       numOfRows++;
-      sdbRelease(pSdb, pDnode);
     }
-
     sdbRelease(pSdb, pVgroup);
   }
-
+_OVER:
+  if (pUser) mndReleaseUser(pMnode, pUser);
+  if (pDb) mndReleaseDb(pMnode, pDb);
+  if (code != 0) {
+    mError("failed to retrieve vnode info at line %d since %s", lino, tstrerror(code));
+    return code;
+  }
   pShow->numOfRows += numOfRows;
   return numOfRows;
 }
@@ -2632,7 +2616,7 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
   }
 
   mInfo("vgId:%d, start to redistribute vgroup to dnode %d:%d:%d", req.vgId, req.dnodeId1, req.dnodeId2, req.dnodeId3);
-  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_REDISTRIBUTE_VGROUP)) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_REDISTRIBUTE_VGROUP)) != 0) {
     goto _OVER;
   }
 
@@ -3979,7 +3963,7 @@ static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
   }
 
   mInfo("start to balance vgroup");
-  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_BALANCE_VGROUP)) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_BALANCE_VGROUP)) != 0) {
     goto _OVER;
   }
 
@@ -4161,7 +4145,7 @@ static int32_t mndProcessSetVgroupKeepVersionReq(SRpcMsg *pReq) {
   mInfo("start to set vgroup keep version, vgId:%d, keepVersion:%" PRId64, req.vgId, req.keepVersion);
 
   // Check permission
-  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB)) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_WRITE_DB)) != 0) {
     goto _OVER;
   }
 

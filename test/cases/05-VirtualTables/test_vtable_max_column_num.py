@@ -22,7 +22,7 @@ class TestVtableCreate:
         tdSql.execute("alter local 'maxSQLLength' '4194304'")
 
         sql = "insert into "
-        for i in range(32767):
+        for i in range(5000):
             tdSql.execute(f"create table d_{i}(ts timestamp, double_col double)")
             sql += f" d_{i} values(1696000000000, {i})"
             sql += f" (1696000001000, {i+1})"
@@ -291,6 +291,67 @@ class TestVtableCreate:
         for i in range(total_double_cols):
             tdSql.checkData(0, 1 + i, i)
 
+    def test_virtual_table_max_column_exceed_ref_mapping(self):
+        """Virtual table max column exceed ref mapping
+
+        test create and query virtual tables mapping each column from distinct tables
+
+        Since: v3.3.8.0
+
+        Labels: virtual, create
+
+        Jira: None
+
+        History:
+            - 2026-01-27 Codex Created
+
+        """
+        tdLog.info("test create virtual tables with max columns and check every column.")
+
+        tdSql.execute("use test_vtable_max_column;")
+        tdSql.execute("select database();")
+
+        sql = "CREATE STABLE `vtb_virtual_stb_max_col_exceed_ref` (ts timestamp"
+        for i in range(32763):
+            sql += f", col_{i} double"
+        sql += ") TAGS (id int) VIRTUAL 1;"
+        tdSql.execute(sql)
+
+        tdLog.info("test create virtual child tables.")
+        sql = "CREATE VTABLE vtb_virtual_child_exceed_ref ("
+        for i in range(32763):
+            sql += f"col_{i} from d_{i%5000}.double_col"
+            if i != 32762:
+                sql += ", "
+        sql += ") USING vtb_virtual_stb_max_col_exceed_ref TAGS (1);"
+        tdSql.execute(sql)
+
+        sql = "CREATE VTABLE `vtb_virtual_ntb_max_col_exceed_ref` (ts timestamp"
+        for i in range(32766):
+            sql += f", col_{i} double from d_{i%5000}.double_col"
+        sql += ")"
+        tdSql.execute(sql)
+
+        tdLog.info("test query virtual child tables and check every column.")
+        tdSql.query("SELECT * FROM vtb_virtual_child_exceed_ref;")
+        tdSql.checkRows(2)
+        tdSql.checkCols(32764)
+        tdSql.checkData(0, 0, 1696000000000)
+        tdSql.checkData(1, 0, 1696000001000)
+        for i in range(32763):
+            tdSql.checkData(0, 1 + i, i % 5000)
+            tdSql.checkData(1, 1 + i, i % 5000 + 1)
+
+        tdLog.info("test query virtual normal table and check every column.")
+        tdSql.query("SELECT * FROM vtb_virtual_ntb_max_col_exceed_ref;")
+        tdSql.checkRows(2)
+        tdSql.checkCols(32767)
+        tdSql.checkData(0, 0, 1696000000000)
+        tdSql.checkData(1, 0, 1696000001000)
+        for i in range(32766):
+            tdSql.checkData(0, 1 + i, i % 5000)
+            tdSql.checkData(1, 1 + i, i % 5000 + 1)
+
     def test_virtual_table_error_case(self):
         """Virtual table max column except
 
@@ -375,26 +436,3 @@ class TestVtableCreate:
         tdSql.execute("ALTER VTABLE vtb_virtual_ntb_max_col_no_error ADD COLUMN var_col_last varchar(1);")
         tdSql.execute("ALTER VTABLE vtb_virtual_ntb_max_col_no_error MODIFY COLUMN var_col_last varchar(22265);")
         tdSql.error("ALTER VTABLE vtb_virtual_ntb_max_col_no_error MODIFY COLUMN var_col_last varchar(22266);")
-
-        # Case 5: create virtual table with column reference table exceed 1000
-        sql = "CREATE STABLE `vtb_virtual_stb_max_col_exceed_ref` (ts timestamp"
-        for i in range(32763):
-            sql += f", col_{i} double"
-        sql += ") TAGS (id int) VIRTUAL 1;"
-        tdSql.execute(sql)
-
-        tdLog.info(f"test create virtual child tables.")
-        sql = "CREATE VTABLE vtb_virtual_child_exceed_ref ("
-        for i in range(32763):
-            sql += f"col_{i} from d_{i%1001}.double_col"
-            if i != 32762:
-                sql += ", "
-        sql += ") USING vtb_virtual_stb_max_col_exceed_ref TAGS (1);"
-        tdSql.error(sql)
-
-        sql = "CREATE VTABLE `vtb_virtual_ntb_max_col_exceed_ref` (ts timestamp"
-        for i in range(32766):
-            sql += f", col_{i} double from d_{i%1001}.double_col"
-        sql += ")"
-        tdSql.error(sql)
-

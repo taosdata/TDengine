@@ -35,6 +35,8 @@
 #define SYNC_TIMEOUT_SR_DIVISOR    4
 #define SYNC_TIMEOUT_HB_DIVISOR    8
 
+extern SConfig *tsCfg;
+
 static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t optLen, int32_t *pOutValue);
 static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
@@ -764,11 +766,12 @@ static int32_t mndSendCfgDnodeReq(SMnode *pMnode, int32_t dnodeId, SDCfgDnodeReq
   TAOS_RETURN(code);
 }
 
-static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
+static int32_t  mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   int32_t       code = 0;
   int32_t       lino = -1;
   SMnode       *pMnode = pReq->info.node;
   SMCfgDnodeReq cfgReq = {0};
+  SUserObj     *pOperUser = NULL;
   int64_t       tss = taosGetTimestampMs();
   SConfigObj   *vObj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
   if (vObj == NULL) {
@@ -780,7 +783,19 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   TAOS_CHECK_RETURN(tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &cfgReq));
   int8_t updateWhiteList = 0;
   mInfo("dnode:%d, start to config, option:%s, value:%s", cfgReq.dnodeId, cfgReq.config, cfgReq.value);
-  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE)) != 0) {
+
+  code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser);
+  if (pOperUser == NULL) {
+    code = TSDB_CODE_MND_NO_USER_FROM_CONN;
+    goto _err_out;
+  }
+
+  char configName[TSDB_DNODE_CONFIG_LEN] = {0};
+  strncpy(configName, cfgReq.config, sizeof(configName) - 1);
+  const char *p = strstr(configName, " ");
+  if (p) *(char *)p = 0;
+  EPrivType privType = cfgGetPrivType(tsCfg, configName, 0);
+  if ((code = mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), privType, 0, 0, NULL, NULL))) {
     goto _err_out;
   }
 
@@ -873,12 +888,14 @@ _success:
   }
   tFreeSMCfgDnodeReq(&cfgReq);
   sdbRelease(pMnode->pSdb, vObj);
+  mndReleaseUser(pMnode, pOperUser);
   TAOS_RETURN(code);
 
 _err_out:
   mError("failed to process config dnode req, since %s", tstrerror(code));
   tFreeSMCfgDnodeReq(&cfgReq);
   sdbRelease(pMnode->pSdb, vObj);
+  mndReleaseUser(pMnode, pOperUser);
   TAOS_RETURN(code);
 }
 
@@ -1310,7 +1327,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((code = mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_SHOW_VARIABLES)) != 0) {
+  if ((code = mndCheckOperPrivilege(pReq->info.node, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_VARIABLES)) != 0) {
     goto _OVER;
   }
 

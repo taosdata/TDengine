@@ -23,6 +23,8 @@ extern "C" {
 #include "thash.h"
 #include "querynodes.h"
 #include "function.h"
+#include "scalar.h"
+
 
 typedef struct SOperatorValueType {
   int32_t  opResType;
@@ -40,14 +42,19 @@ typedef struct SScalarStreamCtx {
   SScalarParam       twend;
 } SScalarStreamCtx;
 
+
 typedef struct SScalarCtx {
   int32_t            code;
   bool               dual;       /* whether select stmt has from stmt */
+  bool               remoteIncluded; /* whether include remote node calc */
+  bool               nullResExpected; /* whether null value as result expected in compare operation */
   SArray*            pBlockList; /* element is SSDataBlock* */
   SHashObj*          pRes;       /* element is SScalarParam */
   void*              param;      // additional parameter (meta actually) for acquire value such as tbname/tags values
   SOperatorValueType type;
   SScalarStreamCtx   stream;
+  void*              pSubJobCtx;
+  sclFetchFromRemote fetchFp;
 } SScalarCtx;
 
 #define SCL_DATA_TYPE_DUMMY_HASH 9000
@@ -66,6 +73,9 @@ typedef struct SScalarCtx {
 #define SCL_IS_NULL_VALUE_NODE(_node)       \
   ((QUERY_NODE_VALUE == nodeType(_node)) && \
    ((TSDB_DATA_TYPE_NULL == ((SValueNode*)_node)->node.resType.type) || (((SValueNode*)_node)->isNull)))
+
+#define SCL_IS_QUERY_NODE(_node) ((_node) && (QUERY_NODE_SELECT_STMT == nodeType(_node) || QUERY_NODE_SET_OPERATOR == nodeType(_node)))
+#define SCL_IS_REMOTE_NODE(_node) ((_node) && (QUERY_NODE_REMOTE_VALUE == nodeType(_node) || QUERY_NODE_REMOTE_VALUE_LIST == nodeType(_node)))
 
 #define SCL_IS_COMPARISON_OPERATOR(_opType) ((_opType) >= OP_TYPE_GREATER_THAN && (_opType) < OP_TYPE_IS_NOT_UNKNOWN)
 #define SCL_DOWNGRADE_DATETYPE(_type) \
@@ -149,11 +159,11 @@ typedef struct SScalarCtx {
     }                                \
   } while (0)
 
-int32_t sclConvertValueToSclParam(SValueNode* pValueNode, SScalarParam* out, int32_t* overflow);
+int32_t sclConvertValueToSclParam(SValueNode* pValueNode, SScalarParam* out, int8_t* overflow);
 int32_t sclCreateColumnInfoData(SDataType* pType, int32_t numOfRows, SScalarParam* pParam);
 int32_t sclConvertToTsValueNode(int8_t precision, SValueNode* valueNode);
 
-#define GET_PARAM_TYPE(_c)     ((_c)->columnData ? (_c)->columnData->info.type : (_c)->filterValueType)
+#define GET_PARAM_TYPE(_c)     ((_c)->hashParam.hasHashParam ? (_c)->hashParam.filterValueType : ((_c)->columnData ? (_c)->columnData->info.type : 0))
 #define GET_PARAM_BYTES(_c)    ((_c)->columnData->info.bytes)
 #define GET_PARAM_PRECISON(_c) ((_c)->columnData->info.precision)
 #define GET_PARAM_SCALE(_c)    ((_c)->columnData->info.scale)

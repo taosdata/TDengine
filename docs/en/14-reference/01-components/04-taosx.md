@@ -56,6 +56,7 @@ Data in [] is optional.
 - kafka: Enable Kafka connector to subscribe to messages from Kafka Topics
 - influxdb: Enable influxdb connector to get data from InfluxDB
 - csv: Parse data from CSV files
+- parquet: Read data from Parquet files
 
 1. +protocol includes the following options:
 
@@ -240,9 +241,151 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 
 It will import data from `./meters/meters.csv.gz` (a gzip-compressed CSV file) into the supertable `meters`, inserting each row into the specified table name - `${tbname}` using the `tbname` column from the CSV content as the table name (i.e., in the JSON parser's `.model.name`).
 
+#### Importing Parquet File Data
+
+Basic usage is as follows:
+
+```shell
+taosx run -f parquet:/data/sensors.parquet -t taos:///iot_db -v
+```
+
+DSN Parameter Description:
+
+Parquet data source uses the following DSN format:
+
+```text
+parquet:<file_path1>[,<file_path2>...]?[batch_size=<size>][&projection=<columns>][&unprocessed_batches=<count>]
+```
+
+Supported parameters:
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| file_path | string | Yes | - | Parquet file path, multiple files can be separated by commas |
+| batch_size | integer | No | 1000 | Number of rows to read per batch |
+| projection | string | No | all | Column projection, can be column names or indices (starting from 0) |
+| unprocessed_batches | integer | No | 64 | Maximum number of unprocessed batches for backpressure control |
+
+Usage Examples:
+
+1. Read a single Parquet file:
+
+```shell
+taosx run -f parquet:/data/sensors.parquet -t taos:///iot_db -v
+```
+
+2. Read multiple Parquet files:
+
+```shell
+taosx run -f 'parquet:/data/sensors_2024_01.parquet,/data/sensors_2024_02.parquet' \
+  -t taos:///iot_db -v
+```
+
+3. Use column projection (by column name):
+
+```shell
+taosx run -f 'parquet:/data/sensors.parquet?projection=ts,temperature,humidity' \
+  -t taos:///iot_db -v
+```
+
+4. Use column projection (by index):
+
+```shell
+taosx run -f 'parquet:/data/sensors.parquet?projection=0,2,5' \
+  -t taos:///iot_db -v
+```
+
+5. Custom batch size:
+
+```shell
+taosx run -f 'parquet:/data/large_file.parquet?batch_size=5000' \
+  -t taos:///iot_db -v
+```
+
+6. Complete configuration example:
+
+```shell
+taosx run -f 'parquet:/data/sensors.parquet?batch_size=2000&projection=ts,device_id,temperature&unprocessed_batches=100' \
+  -t taos:///iot_db -v
+```
+
+Data Type Mapping:
+
+Parquet data types are automatically mapped to TDengine data types:
+
+| Parquet Type | TDengine Type |
+| --- | --- |
+| BOOLEAN | BOOL |
+| INT32 | INT |
+| INT64 | BIGINT |
+| FLOAT | FLOAT |
+| DOUBLE | DOUBLE |
+| BYTE_ARRAY (UTF8) | NCHAR |
+| BYTE_ARRAY (Binary) | BINARY |
+| INT96 (Timestamp) | TIMESTAMP |
+
+#### Exporting SQL Query Results to Parquet Files
+
+taosx supports exporting SQL query results from TDengine database to Parquet file format, facilitating data analysis and integration with other systems.
+
+Basic usage is as follows:
+
+```shell
+taosx run -f "taos:///test?query=select tbname,* from test.meters" -t "parquet:./test.parquet"
+```
+
+Parameter Description:
+
+- `-f` specifies the data source as TDengine database, with SQL query statement specified via the `query` parameter
+- `-t` specifies the export target as Parquet file, including the file path
+
+Usage Examples:
+
+1. Export complete query results:
+
+```shell
+taosx run -f "taos:///test?query=select tbname,* from test.meters" \
+  -t "parquet:./test.parquet"
+```
+
+2. Export query results with time range:
+
+```shell
+taosx run -f "taos:///db1?query=select * from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-02-01 00:00:00'" \
+  -t "parquet:./meters_202401.parquet"
+```
+
+3. Export aggregated query results:
+
+```shell
+taosx run -f "taos:///test?query=select tbname, avg(voltage) as avg_voltage, max(current) as max_current from test.meters group by tbname" \
+  -t "parquet:./meters_stats.parquet"
+```
+
+4. Export using WebSocket connection:
+
+```shell
+taosx run -f "taos+ws://root:taosdata@localhost:6041/test?query=select * from test.meters" \
+  -t "parquet:./test.parquet"
+```
+
+Notes:
+
+- SQL query statements need to be URL encoded, especially when containing special characters
+- Ensure the query result set size is moderate to avoid memory overflow
+- TDengine data types will be automatically mapped to corresponding Parquet data types
+- The exported Parquet files can be read by various data analysis tools, such as Apache Spark, Pandas, etc.
+
 ## Service Mode
 
 This section discusses how to deploy `taosX` in service mode. When running taosX in service mode, its functions need to be used through the graphical interface on taosExplorer.
+
+:::tip
+
+1. Starting from version 3.4.0.0, taosX uses TSDB as the metadata storage medium and no longer uses SQLite to store metadata. It is not compatible with earlier versions.
+2. Starting from version 3.4.0.0, taosX requires creating an XNODE before creating tasks. Refer to [Creating XNODE](../03-taos-sql/94-datain.md#create-xnode).
+
+:::
 
 ### Configuration
 
@@ -259,7 +402,6 @@ This section discusses how to deploy `taosX` in service mode. When running taosX
 - `serve.ssl_cert`: SSL/TLS certificate file.
 - `serve.ssl_key`: SSL/TLS server's private key.
 - `serve.ssl_ca`: SSL/TLS certificate authority (CA) certificates.
-- `serve.database_url`: Address of the `taosX` database, format is `sqlite:<path>`.
 - `serve.request_timeout`: Global interface API timeout.
 - `serve.grpc`:`taosX` gRPC listening address, default value is `0.0.0.0:6055`. Supports IPv6 and multiple comma-separated addresses with the same port.
 - `rest_api_threads`: Runtime worker threads for rest api service, default value is `current server cores*2`.
@@ -307,13 +449,10 @@ As shown below:
 # TLS/SSL CA certificate
 #ssl_ca = "/path/to/tls/ca.pem"
 
-# database url
-#database_url = "sqlite:taosx.db"
-
 # default global request timeout which unit is second. This parameter takes effect for certain interfaces that require a timeout setting
 #request_timeout = 30
 
-# GRPC listen address，use ip:port like `0.0.0.0:6055`.
+# GRPC listen address; use ip:port like `0.0.0.0:6055`.
 #
 # When use this in explorer, please set explorer grpc configuration to **Public** IP or
 # FQDN with correct port, which might be changed exposing to Public network.

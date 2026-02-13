@@ -158,9 +158,9 @@ The syntax for the window clause is as follows:
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(duration_time)]
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
-  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
+  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
 }
 ```
 
@@ -185,7 +185,7 @@ Time windows can be divided into: sliding time windows and tumbling time windows
 ```sql
 INTERVAL(interval_val [, interval_offset]) 
 [SLIDING (sliding_val)] 
-[FILL(fill_mod_and_val)]
+[fill_clause]
 ```
 
 The time window clause includes 3 sub-clauses:
@@ -307,7 +307,7 @@ INTERVAL(1m) SLIDING(1m)
 SLIMIT 1;
 ```
 
-The above SQL queries the supertable `meters` for data with timestamps greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`. The data is first partitioned by the subtable name `tbname`, then divided into 1-minute time windows, with each time window also being 1 minute long; finally, only the data from the first partition is taken as the result. The query results are as follows:
+The above SQL queries the supertable `meters` for data with timestamps greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`. The data is first partitioned by the subtable name `tbname`, then divided into 1-minute time windows, with the time windows sliding every 1 minute; finally, only the data from the first partition is taken as the result. The query results are as follows:
 
 ```text
  tbname |         _wstart         |          _wend          |     avg(voltage)      |
@@ -322,38 +322,9 @@ Query OK, 5 row(s) in set (0.016812s)
 
 #### FILL Clause
 
-The FILL clause is used to specify the fill mode when data is missing in a window interval. The fill modes include the following:
+The INTERVAL clause supports using the FILL clause to specify the data filling method when data is missing. For how to use the FILL clause, please refer to [FILL Clause](../14-reference/03-taos-sql/20-select.md#fill-clause).
 
-1. No fill: NONE (default fill mode).
-1. VALUE fill: Fixed value fill, where the fill value must be specified. For example: FILL(VALUE, 1.23). Note that the final fill value is determined by the type of the corresponding column, such as FILL(VALUE, 1.23) for an INT type column, the fill value would be 1.
-1. PREV fill: Fill with the previous non-NULL value. For example: FILL(PREV).
-1. NULL fill: Fill with NULL. For example: FILL(NULL).
-1. LINEAR fill: Perform linear interpolation based on the nearest non-NULL values before and after. For example: FILL(LINEAR).
-1. NEXT fill: Fill with the next non-NULL value. For example: FILL(NEXT).
-
-Among these fill modes, except for the NONE mode which does not fill by default, other modes will be ignored if there is no data in the entire query time range, resulting in no fill data and an empty query result. This behavior is reasonable under some modes (PREV, NEXT, LINEAR) because no data means no fill value can be generated.
-
-For other modes (NULL, VALUE), theoretically, fill values can be generated. Whether to output fill values depends on the application's requirements. To meet the needs of applications that require forced filling of data or NULL, and to maintain compatibility with existing fill modes, TDengine also supports two new fill modes:
-
-1. NULL_F: Force fill with NULL values
-1. VALUE_F: Force fill with VALUE
-
-The differences between NULL, NULL_F, VALUE, and VALUE_F for different scenarios are as follows:
-
-1. INTERVAL clause: NULL_F, VALUE_F are forced fill modes; NULL, VALUE are non-forced modes. In this mode, their semantics match their names.
-1. Stream computing's INTERVAL clause: NULL_F and NULL behave the same, both are non-forced modes; VALUE_F and VALUE behave the same, both are non-forced modes. That is, there is no forced mode in stream computing's INTERVAL.
-1. INTERP clause: NULL and NULL_F behave the same, both are forced modes; VALUE and VALUE_F behave the same, both are forced modes. That is, there is no non-forced mode in INTERP.
-
-:::note
-
-1. Using the FILL statement may generate a large amount of filled output, be sure to specify the time range for the query.
-1. For each query, the system can return no more than 10 million results with interpolation.
-1. In time dimension aggregation, the returned results have a strictly monotonic increasing time sequence.
-1. If the query target is a supertable, the aggregate function will apply to the data of all tables under the supertable that meet the value filtering conditions. If the query does not use a PARTITION BY statement, the results are returned in a strictly monotonic increasing time sequence; if the query uses a PARTITION BY statement for grouping, the results within each PARTITION are strictly monotonic increasing in time sequence.
-
-:::
-
-Example:
+#### Example
 
 ```sql
 SELECT tbname, _wstart, _wend, avg(voltage)

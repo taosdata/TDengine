@@ -46,8 +46,6 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 typedef struct STsdbReader STsdbReader;
 typedef struct STqReader   STqReader;
 
-typedef enum SOperatorParamType { OP_GET_PARAM = 1, OP_NOTIFY_PARAM } SOperatorParamType;
-
 typedef enum EExtWinMode {
   EEXT_MODE_SCALAR = 1,
   EEXT_MODE_AGG,
@@ -78,7 +76,7 @@ typedef struct STableQueryInfo {
 } STableQueryInfo;
 
 typedef struct SLimit {
-  int64_t limit;
+  int64_t limit;       // default -1, no limit
   int64_t offset;
 } SLimit;
 
@@ -169,19 +167,38 @@ typedef struct SSortMergeJoinOperatorParam {
   bool initDownstream;
 } SSortMergeJoinOperatorParam;
 
+typedef enum EExchangeSourceType {
+  EX_SRC_TYPE_STB_JOIN_SCAN = 1,
+  EX_SRC_TYPE_VSTB_SCAN,
+  EX_SRC_TYPE_VSTB_WIN_SCAN,
+  EX_SRC_TYPE_VSTB_AGG_SCAN,
+  EX_SRC_TYPE_VSTB_TAG_SCAN,
+  EX_SRC_TYPE_VTB_WIN_SCAN,
+} EExchangeSourceType;
+
+typedef enum {
+  DYN_TYPE_EXCHANGE_PARAM = 1,
+  NOTIFY_TYPE_EXCHANGE_PARAM,
+} EExchangeGetParamType;
+
 typedef struct SExchangeOperatorBasicParam {
+  EExchangeGetParamType paramType;
+  /* dynamic scan params */
   int32_t               vgId;
   int32_t               srcOpType;
   bool                  tableSeq;
   SArray*               uidList;
-  bool                  isVtbWinScan;
-  bool                  isVtbRefScan;
-  bool                  isVtbTagScan;
+  EExchangeSourceType   type;
   bool                  isNewDeployed; // used with newDeployedSrc
   bool                  isNewParam;
-  SOrgTbInfo*           colMap;
+  uint64_t              groupid;
+  SOrgTbInfo*           orgTbInfo;
+  SArray*               batchOrgTbInfo; // SArray<SOrgTbInfo>
+  SArray*               tagList;
   STimeWindow           window;
   SDownstreamSourceNode newDeployedSrc; // used with isNewDeployed
+  /* notify scan params */
+  TSKEY notifyTs;
 } SExchangeOperatorBasicParam;
 
 typedef struct SExchangeOperatorBatchParam {
@@ -222,6 +239,8 @@ typedef struct SExchangeInfo {
   int64_t             openedTs;  // start exec time stamp, todo: move to SLoadRemoteDataInfo
   char*               pTaskId;
   SArray*             pFetchRpcHandles;
+  bool                notifyToSend;  // need to send notify STEP DONE message
+  TSKEY               notifyTs;      // notify timestamp
 } SExchangeInfo;
 
 typedef struct SScanInfo {
@@ -303,12 +322,23 @@ typedef struct STableScanInfo {
   bool            hasGroupByTag;
   bool            filesetDelimited;
   bool            needCountEmptyTable;
+  // for virtual super table scan
   SSDataBlock*    pOrgBlock;
   bool            ignoreTag;
   bool            virtualStableScan;
   SHashObj*       readerCache;
   bool            newReader;
   SArray*         pBlockColMap;
+  // for virtual super table batch scan
+  int32_t         lastBatchIdx;
+  int32_t         currentBatchIdx;
+  STimeWindow     lastTimeWindow;
+  SArray*         lastColArray;
+  SArray*         lastBlockColArray;
+  SArray*         pBatchColMap;  // SArray<SOrgTbInfo>
+  STimeWindow     cachedTimeWindow;
+  SArray*         cachedTagList;
+  uint64_t        cachedGroupId;
 } STableScanInfo;
 
 typedef enum ESubTableInputType {
@@ -676,12 +706,12 @@ typedef struct SDataGroupInfo {
 
 typedef struct SWindowRowsSup {
   STimeWindow win;
-  TSKEY       prevTs;  // previous timestamp
+  TSKEY       prevTs;  // previous timestamp, used for window aggregation
   int32_t     startRowIndex;
   int32_t     numOfRows;
   uint64_t    groupId;
   uint32_t    numNullRows;  // number of continuous rows with null state col
-  TSKEY       lastTs; // this ts is used to record the last timestamp, so that we can know whether the new row's ts is duplicated
+  TSKEY       lastTs;  // last row's timestamp, used for checking duplicated ts
 } SWindowRowsSup;
 
 // return true if there are continuous rows with null state col
@@ -729,13 +759,13 @@ typedef struct SStateWindowOperatorInfo {
   SGroupResInfo         groupResInfo;
   SWindowRowsSup        winSup;
   SColumn               stateCol;
-  bool                  hasKey;
+  bool                  hasKey;    // has key means the state window has started
   SStateKeys            stateKey;
   int32_t               tsSlotId;  // primary timestamp column slot id
   STimeWindowAggSupp    twAggSup;
   struct SOperatorInfo* pOperator;
   bool                  cleanGroupResInfo;
-  int64_t               trueForLimit;
+  STrueForInfo          trueForInfo;
   EStateWinExtendOption extendOption;
 } SStateWindowOperatorInfo;
 
@@ -754,7 +784,7 @@ typedef struct SEventWindowOperatorInfo {
   SResultRow*        pRow;
   SSDataBlock*       pPreDataBlock;
   struct SOperatorInfo*     pOperator;
-  int64_t            trueForLimit;
+  STrueForInfo              trueForInfo;
 } SEventWindowOperatorInfo;
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)
@@ -799,7 +829,7 @@ void doBuildResultDatablock(struct SOperatorInfo* pOperator, SOptrBasicInfo* pbI
 void doCopyToSDataBlockByHash(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
                               SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t threshold, bool ignoreGroup);
 void doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
-                        SGroupResInfo* pGroupResInfo, int32_t threshold, bool ignoreGroup, int64_t minWindowSize);
+                        SGroupResInfo* pGroupResInfo, int32_t threshold, bool ignoreGroup, STrueForInfo *pTrueForInfo);
 
 bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo);
 bool hasSlimitOffsetInfo(SLimitInfo* pLimitInfo);
@@ -813,7 +843,7 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
 int32_t setFunctionResultOutput(struct SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t stage,
                              int32_t numOfExprs);
 int32_t      setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols, SArray** pResList);                             
-int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pColList, char** pNextStart);
+int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pColList, char** pNextStart, bool isVstbScan);
 void    updateLoadRemoteInfo(SLoadRemoteDataInfo* pInfo, int64_t numOfRows, int32_t dataLen, int64_t startTs,
                              struct SOperatorInfo* pOperator);
 
@@ -868,7 +898,6 @@ void finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPositi
                         SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
 bool    groupbyTbname(SNodeList* pGroupList);
-void    getNextIntervalWindow(SInterval* pInterval, STimeWindow* tw, int32_t order);
 int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey, int32_t pos, int32_t order,
                                int64_t* pData);
 SSDataBlock* buildCreateTableBlock(SExprSupp* tbName, SExprSupp* tag);
@@ -940,9 +969,10 @@ void*   decodeSTimeWindowAggSupp(void* buf, STimeWindowAggSupp* pTwAggSup);
 void    destroyOperatorParamValue(void* pValues);
 int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc);
 int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq);
-int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window, bool isNewParam);
+int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window, bool isNewParam, ETableScanDynType type);
+int32_t buildTableScanOperatorParamNotify(SOperatorParam** ppRes,
+                                          int32_t srcOpType, TSKEY notifyTs);
 void    freeExchangeGetBasicOperatorParam(void* pParam);
-void    freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
 void    freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);
 int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam,
                                        SSDataBlock** pResBlock);
@@ -954,8 +984,8 @@ void    removeSessionResults(SStreamAggSupporter* pAggSup, SSHashObj* pHashMap, 
 int32_t copyDeleteWindowInfo(SArray* pResWins, SSHashObj* pStDeleted);
 int32_t copyDeleteSessionKey(SSHashObj* source, SSHashObj* dest);
 
-bool inSlidingWindow(SInterval* pInterval, STimeWindow* pWin, SDataBlockInfo* pBlockInfo);
-bool inCalSlidingWindow(SInterval* pInterval, STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType);
+bool inSlidingWindow(const SInterval* pInterval, const STimeWindow* pWin, const SDataBlockInfo* pBlockInfo);
+bool inCalSlidingWindow(const SInterval* pInterval, const STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType);
 bool compareVal(const char* v, const SStateKeys* pKey);
 bool inWinRange(STimeWindow* range, STimeWindow* cur);
 int32_t doDeleteTimeWindows(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SArray* result);
@@ -965,7 +995,7 @@ int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBl
 int32_t extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status);
 bool    getIgoreNullRes(SExprSupp* pExprSup);
 bool    checkNullRow(SExprSupp* pExprSup, SSDataBlock* pSrcBlock, int32_t index, bool ignoreNull);
-int64_t getMinWindowSize(struct SOperatorInfo* pOperator);
+STrueForInfo* getTrueForInfo(struct SOperatorInfo* pOperator);
 
 void    destroyTmqScanOperatorInfo(void* param);
 int32_t checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock* pBlock, bool out);

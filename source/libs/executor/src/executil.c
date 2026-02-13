@@ -31,8 +31,12 @@
 #include "executorInt.h"
 #include "querytask.h"
 #include "storageapi.h"
+#include "ttypes.h"
 #include "tutil.h"
 #include "tjson.h"
+#include "trpc.h"
+#include "filter.h"
+#include "operator.h"
 
 typedef struct tagFilterAssist {
   SHashObj* colHash;
@@ -52,13 +56,8 @@ typedef enum {
   FILTER_OTHER,
 } FilterCondType;
 
-static FilterCondType checkTagCond(SNode* cond);
-static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond, SStorageAPI* pAPI);
-static int32_t optimizeTbnameInCondImpl(void* metaHandle, SArray* list, SNode* pTagCond, SStorageAPI* pStoreAPI,
+static int32_t optimizeTbnameInCondImpl(void* pVnode, SArray* list, SNode* pTagCond, SStorageAPI* pStoreAPI,
                                         uint64_t suid);
-
-static int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
-                            STableListInfo* pListInfo, uint8_t* digest, const char* idstr, SStorageAPI* pStorageAPI, void* pStreamInfo);
 
 static int64_t getLimit(const SNode* pLimit) {
   return (NULL == pLimit || NULL == ((SLimitNode*)pLimit)->limit) ? -1 : ((SLimitNode*)pLimit)->limit->datum.i;
@@ -67,6 +66,7 @@ static int64_t getOffset(const SNode* pLimit) {
   return (NULL == pLimit || NULL == ((SLimitNode*)pLimit)->offset) ? -1 : ((SLimitNode*)pLimit)->offset->datum.i;
 }
 static void releaseColInfoData(void* pCol);
+int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes);
 
 void initResultRowInfo(SResultRowInfo* pResultRowInfo) {
   pResultRowInfo->size = 0;
@@ -77,6 +77,7 @@ void closeResultRow(SResultRow* pResultRow) { pResultRow->closed = true; }
 
 void resetResultRow(SResultRow* pResultRow, size_t entrySize) {
   pResultRow->numOfRows = 0;
+  pResultRow->nOrigRows = 0;
   pResultRow->closed = false;
   pResultRow->endInterp = false;
   pResultRow->startInterp = false;
@@ -389,26 +390,21 @@ SSDataBlock* createDataBlockFromDescNode(void* p) {
   SDataBlockDescNode* pNode = (SDataBlockDescNode*)p;
   int32_t      numOfCols = LIST_LENGTH(pNode->pSlots);
   SSDataBlock* pBlock = NULL;
-  int32_t      code = createDataBlock(&pBlock);
-  if (code) {
-    terrno = code;
-    return NULL;
-  }
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+
+  code = createDataBlock(&pBlock);
+  QUERY_CHECK_CODE(code, lino, _return);
 
   pBlock->info.id.blockId = pNode->dataBlockId;
   pBlock->info.type = STREAM_INVALID;
   pBlock->info.calWin = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
   pBlock->info.watermark = INT64_MIN;
 
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SSlotDescNode* pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
-    if (!pDescNode) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      blockDataDestroy(pBlock);
-      pBlock = NULL;
-      terrno = TSDB_CODE_INVALID_PARA;
-      break;
-    }
+  int32_t i = 0;
+  SNode*  node = NULL;
+  FOREACH(node, pNode->pSlots) {
+    SSlotDescNode* pDescNode = (SSlotDescNode*)node;
     SColumnInfoData idata =
         createColumnInfoData(pDescNode->dataType.type, pDescNode->dataType.bytes, pDescNode->slotId);
     idata.info.scale = pDescNode->dataType.scale;
@@ -416,16 +412,21 @@ SSDataBlock* createDataBlockFromDescNode(void* p) {
     idata.info.noData = pDescNode->reserve;
 
     code = blockDataAppendColInfo(pBlock, &idata);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      blockDataDestroy(pBlock);
-      pBlock = NULL;
-      terrno = code;
-      break;
-    }
+    QUERY_CHECK_CODE(code, lino, _return);
+    ++i;
+  }
+
+  if (pBlock != NULL && i != numOfCols) {
+    code = TSDB_CODE_INVALID_PARA;
+    QUERY_CHECK_CODE(code, lino, _return);
   }
 
   return pBlock;
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  blockDataDestroy(pBlock);
+  terrno = code;
+  return NULL;
 }
 
 int32_t prepareDataBlockBuf(SSDataBlock* pDataBlock, SColMatchInfo* pMatchInfo) {
@@ -558,12 +559,12 @@ EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified, SStorageAPI* pAPI) {
+int32_t isQualifiedTable(int64_t uid, SNode* pTagCond, void* vnode, bool* pQualified, SStorageAPI* pAPI) {
   int32_t     code = TSDB_CODE_SUCCESS;
   SMetaReader mr = {0};
 
-  pAPI->metaReaderFn.initReader(&mr, metaHandle, META_READER_LOCK, &pAPI->metaFn);
-  code = pAPI->metaReaderFn.getEntryGetUidCache(&mr, info->uid);
+  pAPI->metaReaderFn.initReader(&mr, vnode, META_READER_LOCK, &pAPI->metaFn);
+  code = pAPI->metaReaderFn.getEntryGetUidCache(&mr, uid);
   if (TSDB_CODE_SUCCESS != code) {
     pAPI->metaReaderFn.clearReader(&mr);
     *pQualified = false;
@@ -583,6 +584,7 @@ int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle,
   pAPI->metaReaderFn.clearReader(&mr);
   if (TSDB_CODE_SUCCESS != ctx.code) {
     *pQualified = false;
+    nodesDestroyNode(pTagCondTmp);
     terrno = code;
     return code;
   }
@@ -1109,7 +1111,9 @@ static void getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* group, 
     } else if (nodeType(pNode) == QUERY_NODE_VALUE) {
       continue;
     } else {
-      code = scalarCalculate(pNode, pBlockList, &output, NULL, NULL);
+      gTaskScalarExtra.pStreamInfo = NULL;
+      gTaskScalarExtra.pStreamRange = NULL;
+      code = scalarCalculate(pNode, pBlockList, &output, &gTaskScalarExtra);
     }
 
     if (code != TSDB_CODE_SUCCESS) {
@@ -1271,7 +1275,13 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
         }
         break;
       }
-
+      case QUERY_NODE_REMOTE_VALUE: {
+        SRemoteValueNode* pRemote = (SRemoteValueNode*)pNode;
+        code = qFetchRemoteNode(gTaskScalarExtra.pSubJobCtx, pRemote->subQIdx, pNode);
+        QUERY_CHECK_CODE(code, lino, end);
+        break;
+      }
+      
       default:
         code = TSDB_CODE_OPS_NOT_SUPPORT;
         goto end;
@@ -1285,7 +1295,9 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
     } else if (nodeType(pNode) == QUERY_NODE_VALUE) {
       continue;
     } else {
-      code = scalarCalculate(pNode, pBlockList, &output, NULL, NULL);
+      gTaskScalarExtra.pStreamInfo = NULL;
+      gTaskScalarExtra.pStreamRange = NULL;
+      code = scalarCalculate(pNode, pBlockList, &output, &gTaskScalarExtra);
     }
 
     if (code != TSDB_CODE_SUCCESS) {
@@ -1528,60 +1540,115 @@ static FilterCondType checkTagCond(SNode* cond) {
   if (nodeType(cond) == QUERY_NODE_OPERATOR) {
     return FILTER_NO_LOGIC;
   }
-  if (nodeType(cond) != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
+  if (nodeType(cond) == QUERY_NODE_LOGIC_CONDITION && ((SLogicConditionNode*)cond)->condType == LOGIC_COND_TYPE_AND) {
     return FILTER_AND;
   }
   return FILTER_OTHER;
 }
 
-static int32_t optimizeTbnameInCond(void* pVnode, int64_t suid, SArray* list, SNode* cond, SStorageAPI* pAPI) {
-  int32_t ret = -1;
-  int32_t ntype = nodeType(cond);
-
-  if (ntype == QUERY_NODE_OPERATOR) {
-    ret = optimizeTbnameInCondImpl(pVnode, list, cond, pAPI, suid);
+static int32_t doInWithAnd(SNode* cond, void* pVnode, SArray* list, SStorageAPI* pAPI, uint64_t suid) {
+  if (nodeType(cond) != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
+    return -1;
   }
 
-  if (ntype != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
-    return ret;
-  }
-
-  bool                 hasTbnameCond = false;
   SLogicConditionNode* pNode = (SLogicConditionNode*)cond;
   SNodeList*           pList = (SNodeList*)pNode->pParameterList;
 
   int32_t len = LIST_LENGTH(pList);
   if (len <= 0) {
-    return ret;
+    return -1;
   }
 
   SListCell* cell = pList->pHead;
   for (int i = 0; i < len; i++) {
     if (cell == NULL) break;
-    if (optimizeTbnameInCondImpl(pVnode, list, cell->pNode, pAPI, suid) == 0) {
-      hasTbnameCond = true;
-      break;
+    if (nodeType(cell->pNode) == QUERY_NODE_OPERATOR && optimizeTbnameInCondImpl(pVnode, list, cell->pNode, pAPI, suid) == 0) {
+      return 0;
     }
     cell = cell->pNext;
   }
+  return -1;
+}
 
-  taosArraySort(list, filterTableInfoCompare);
-  taosArrayRemoveDuplicate(list, filterTableInfoCompare, NULL);
-
-  if (hasTbnameCond) {
-    ret = pAPI->metaFn.getTableTagsByUid(pVnode, suid, list);
+static int32_t optimizeTbnameInCond(void* pVnode, int64_t suid, SArray* list, SNode* cond, SStorageAPI* pAPI) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  if (nodeType(cond) == QUERY_NODE_OPERATOR) {
+    code = optimizeTbnameInCondImpl(pVnode, list, cond, pAPI, suid);
+  } else {
+    code = doInWithAnd(cond, pVnode, list, pAPI, suid);
+    QUERY_CHECK_CODE(code, lino, end);
+    code = pAPI->metaFn.getTableTagsByUid(pVnode, suid, list);
   }
+  
+end:
+  return code;
+}
 
-  return ret;
+static int32_t getTableListInInOperator(void* pVnode, SArray* pExistedUidList, SNodeListNode* pList, SStorageAPI* pStoreAPI,
+                                        uint64_t suid) {
+  int32_t   code = 0;                                          
+  SArray*   pTbList = getTableNameList(pList);
+  int32_t   numOfTables = taosArrayGetSize(pTbList);
+  SHashObj* uHash = NULL;
+
+  size_t numOfExisted = taosArrayGetSize(pExistedUidList);  // len > 0 means there already have uids
+  if (numOfExisted > 0) {
+    uHash = taosHashInit(numOfExisted / 0.7, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+    if (!uHash) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      code = terrno;
+      goto end;
+    }
+
+    for (int i = 0; i < numOfExisted; i++) {
+      STUidTagInfo* pTInfo = taosArrayGet(pExistedUidList, i);
+      if (!pTInfo) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+        code = terrno;
+        goto end;
+      }
+      code = taosHashPut(uHash, &pTInfo->uid, sizeof(uint64_t), &i, sizeof(i));
+      if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        goto end;
+      }
+    }
+  }
+  taosArrayClear(pExistedUidList);
+
+  for (int i = 0; i < numOfTables; i++) {
+    char* name = taosArrayGetP(pTbList, i);
+    uint64_t uid = 0, csuid = 0;
+    if (pStoreAPI->metaFn.getTableUidByName(pVnode, name, &uid) != 0) {
+      continue;
+    }
+
+    ETableType tbType = TSDB_TABLE_MAX;
+    if (pStoreAPI->metaFn.getTableTypeSuidByName(pVnode, name, &tbType, &csuid) == 0 &&
+        (tbType == TSDB_CHILD_TABLE || tbType == TSDB_VIRTUAL_CHILD_TABLE) &&
+        csuid == suid) {
+      if (NULL == uHash || taosHashGet(uHash, &uid, sizeof(uid)) != NULL) {
+        STUidTagInfo s = {.uid = uid, .name = name, .pTagVal = NULL};
+        void*        tmp = taosArrayPush(pExistedUidList, &s);
+        if (!tmp) {
+          code = terrno;
+          goto end;
+        }
+      }
+    } 
+  }
+  taosArraySort(pExistedUidList, filterTableInfoCompare);
+  taosArrayRemoveDuplicate(pExistedUidList, filterTableInfoCompare, NULL);
+end:
+  taosArrayDestroy(pTbList);
+  taosHashCleanup(uHash);
+  return code;
 }
 
 // only return uid that does not contained in pExistedUidList
 static int32_t optimizeTbnameInCondImpl(void* pVnode, SArray* pExistedUidList, SNode* pTagCond, SStorageAPI* pStoreAPI,
                                         uint64_t suid) {
-  if (nodeType(pTagCond) != QUERY_NODE_OPERATOR) {
-    return -1;
-  }
-
   SOperatorNode* pNode = (SOperatorNode*)pTagCond;
   if (pNode->opType != OP_TYPE_IN) {
     return -1;
@@ -1598,64 +1665,7 @@ static int32_t optimizeTbnameInCondImpl(void* pVnode, SArray* pExistedUidList, S
       return -1;
     }
 
-    SArray*   pTbList = getTableNameList(pList);
-    int32_t   numOfTables = taosArrayGetSize(pTbList);
-    SHashObj* uHash = NULL;
-
-    size_t numOfExisted = taosArrayGetSize(pExistedUidList);  // len > 0 means there already have uids
-    if (numOfExisted > 0) {
-      uHash = taosHashInit(numOfExisted / 0.7, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-      if (!uHash) {
-        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-        return terrno;
-      }
-
-      for (int i = 0; i < numOfExisted; i++) {
-        STUidTagInfo* pTInfo = taosArrayGet(pExistedUidList, i);
-        if (!pTInfo) {
-          qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-          return terrno;
-        }
-        int32_t tempRes = taosHashPut(uHash, &pTInfo->uid, sizeof(uint64_t), &i, sizeof(i));
-        if (tempRes != TSDB_CODE_SUCCESS && tempRes != TSDB_CODE_DUP_KEY) {
-          qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(tempRes));
-          return tempRes;
-        }
-      }
-    }
-
-    for (int i = 0; i < numOfTables; i++) {
-      char* name = taosArrayGetP(pTbList, i);
-
-      uint64_t uid = 0, csuid = 0;
-      if (pStoreAPI->metaFn.getTableUidByName(pVnode, name, &uid) == 0) {
-        ETableType tbType = TSDB_TABLE_MAX;
-        if (pStoreAPI->metaFn.getTableTypeSuidByName(pVnode, name, &tbType, &csuid) == 0 &&
-            tbType == TSDB_CHILD_TABLE) {
-          if (suid != csuid) {
-            continue;
-          }
-          if (NULL == uHash || taosHashGet(uHash, &uid, sizeof(uid)) == NULL) {
-            STUidTagInfo s = {.uid = uid, .name = name, .pTagVal = NULL};
-            void*        tmp = taosArrayPush(pExistedUidList, &s);
-            if (!tmp) {
-              return terrno;
-            }
-          }
-        } else {
-          taosArrayDestroy(pTbList);
-          taosHashCleanup(uHash);
-          return -1;
-        }
-      } else {
-        //        qWarn("failed to get tableIds from by table name: %s, reason: %s", name, tstrerror(terrno));
-        terrno = 0;
-      }
-    }
-
-    taosHashCleanup(uHash);
-    taosArrayDestroy(pTbList);
-    return 0;
+    return getTableListInInOperator(pVnode, pExistedUidList, pList, pStoreAPI, suid);
   }
 
   return -1;
@@ -1764,38 +1774,26 @@ _end:
   return pResBlock;
 }
 
-static int32_t doSetQualifiedUid(STableListInfo* pListInfo, SArray* pUidList, const SArray* pUidTagList,
-                                 bool* pResultList, bool addUid) {
+static int32_t doSetQualifiedUid(SArray* pUidList, const SArray* pUidTagList, SColumnInfoData* colData) {
   taosArrayClear(pUidList);
 
-  STableKeyInfo info = {.uid = 0, .groupId = 0};
   int32_t       numOfTables = taosArrayGetSize(pUidTagList);
+  bool* pResultList = colData == NULL ? NULL : (bool*)colData->pData;
   for (int32_t i = 0; i < numOfTables; ++i) {
-    if (pResultList[i]) {
-      STUidTagInfo* tmpTag = (STUidTagInfo*)taosArrayGet(pUidTagList, i);
-      if (!tmpTag) {
-        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-        return terrno;
-      }
-      uint64_t uid = tmpTag->uid;
-      qDebug("tagfilter get uid:%" PRId64 ", res:%d", uid, pResultList[i]);
+    if (pResultList != NULL && !pResultList[i]) {
+       continue;
+    }
+    STUidTagInfo* tmpTag = (STUidTagInfo*)taosArrayGet(pUidTagList, i);
+    if (!tmpTag) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      return terrno;
+    }
+    uint64_t uid = tmpTag->uid;
+    qDebug("tagfilter get uid:%" PRId64, uid);
 
-      info.uid = uid;
-      //qInfo("doSetQualifiedUid row:%d added to pTableList", i);
-      void* p = taosArrayPush(pListInfo->pTableList, &info);
-      if (p == NULL) {
-        return terrno;
-      }
-
-      if (addUid) {
-        //qInfo("doSetQualifiedUid row:%d added to pUidList", i);
-        void* tmp = taosArrayPush(pUidList, &uid);
-        if (tmp == NULL) {
-          return terrno;
-        }
-      }
-    } else {
-      //qInfo("doSetQualifiedUid row:%d failed", i);
+    void* tmp = taosArrayPush(pUidList, &uid);
+    if (tmp == NULL) {
+      return terrno;
     }
   }
 
@@ -1825,9 +1823,75 @@ static int32_t copyExistedUids(SArray* pUidTagList, const SArray* pUidList) {
   return code;
 }
 
-int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, void* pVnode,
-                                 SIdxFltStatus status, SStorageAPI* pAPI, bool addUid, bool* listAdded, void* pStreamInfo) {
-  *listAdded = false;
+static EDealRes getCids(SNode** pNode, void* pContext) {
+  SHashObj* colHash = (SHashObj*)pContext;
+  col_id_t colId = 0;
+  if (QUERY_NODE_COLUMN == nodeType((*pNode))) {
+    colId = (*(SColumnNode**)pNode)->colId;
+  } else {
+    return DEAL_RES_CONTINUE;
+  }
+
+  int32_t tempRes = taosHashPut(colHash, &colId, sizeof(colId), pNode, sizeof((*pNode)));
+  if (tempRes != TSDB_CODE_SUCCESS ) {
+    return DEAL_RES_ERROR;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+SNode* getTagCondNodeForQueryTmq(void* tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  const char*    id = GET_TASKID(pTaskInfo);
+  int32_t        code = 0;
+
+  // traverse to the stream scanner node to add this table id
+  SOperatorInfo* pInfo = NULL;
+  code = extractOperatorInTree(pTaskInfo->pRoot, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, id, &pInfo);
+  if (code != 0 || pInfo == NULL) {
+    return NULL;
+  }
+
+  SStreamScanInfo* pScanInfo = pInfo->info;
+  return pScanInfo->pTagCond;
+}
+
+SNode* getTagCondNodeForStableTmq(void* node) {
+  return node == NULL ? NULL : ((SSubplan*)node)->pTagCond;
+}
+
+bool checkCidInTagCondition(SNode* pTagCond, SArray* cidList) {
+  if (pTagCond == NULL) { 
+    return false;
+  }
+  bool result = true;
+  SHashObj *colHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), true, HASH_NO_LOCK);
+  if (colHash == NULL) {
+    goto end;
+  }
+
+  nodesRewriteExprPostOrder(&pTagCond, getCids, (void*)colHash);
+  if (cidList != NULL) {
+    int32_t numOfCols = taosArrayGetSize(cidList);
+    int32_t i = 0;
+    for (; i < numOfCols; ++i) {
+      col_id_t* pCid = taosArrayGet(cidList, i);
+      void* data = taosHashGet(colHash, pCid, sizeof(*pCid));
+      if (data != NULL) break;
+    }
+    if (i == numOfCols) { // no tag column involved in condition
+      result = false;
+      goto end;
+    }
+  }
+
+end:
+  taosHashCleanup(colHash);
+  return result;
+}
+
+int32_t doFilterByTagCond(int64_t suid, SArray* pUidList, SNode* pTagCond, void* pVnode,
+                                 SIdxFltStatus status, SStorageAPI* pAPI, void* pStreamInfo) {
   if (pTagCond == NULL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1843,41 +1907,32 @@ int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pT
 
   SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
 
-  //  int64_t stt = taosGetTimestampUs();
   pUidTagList = taosArrayInit(10, sizeof(STUidTagInfo));
   QUERY_CHECK_NULL(pUidTagList, code, lino, end, terrno);
 
+  // pUidList size is 0 if tagIndex is NULL and in query condition
   code = copyExistedUids(pUidTagList, pUidList);
   QUERY_CHECK_CODE(code, lino, end);
 
-  FilterCondType condType = checkTagCond(pTagCond);
-
-  int32_t filter = optimizeTbnameInCond(pVnode, pListInfo->idInfo.suid, pUidTagList, pTagCond, pAPI);
-  if (filter == 0) {  // tbname in filter is activated, do nothing and return
-    taosArrayClear(pUidList);
-
-    int32_t numOfRows = taosArrayGetSize(pUidTagList);
-    code = taosArrayEnsureCap(pUidList, numOfRows);
-    QUERY_CHECK_CODE(code, lino, end);
-
-    for (int32_t i = 0; i < numOfRows; ++i) {
-      STUidTagInfo* pInfo = taosArrayGet(pUidTagList, i);
-      QUERY_CHECK_NULL(pInfo, code, lino, end, terrno);
-      void* tmp = taosArrayPush(pUidList, &pInfo->uid);
-      QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
+  // Narrow down the scope of the tablelist set if there is tbname in condition and And Logical operator
+  code = optimizeTbnameInCond(pVnode, suid, pUidTagList, pTagCond, pAPI);
+  if (code == 0) {
+    if (nodeType(pTagCond) == QUERY_NODE_OPERATOR) {
+      goto end;
     }
-    terrno = 0;
   } else {
     qDebug("pUidTagList size:%d", (int32_t)taosArrayGetSize(pUidTagList));
-    
-    if (((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && status != SFLT_NOT_INDEX) ||
-          taosArrayGetSize(pUidTagList) > 0) {
-      code = pAPI->metaFn.getTableTagsByUid(pVnode, pListInfo->idInfo.suid, pUidTagList);
+
+    FilterCondType condType = checkTagCond(pTagCond);
+    if (((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && status != SFLT_NOT_INDEX) || // (super table) use tagIndex and operator is and
+        (status == SFLT_NOT_INDEX && taosArrayGetSize(pUidTagList) > 0)) {                       // (child table with tagCond)
+      code = pAPI->metaFn.getTableTagsByUid(pVnode, suid, pUidTagList);
     } else {
-      code = pAPI->metaFn.getTableTags(pVnode, pListInfo->idInfo.suid, pUidTagList);
+      taosArrayClearEx(pUidTagList, freeItem);       // clear tablelist if using tagIndex and or condition
+      code = pAPI->metaFn.getTableTags(pVnode, suid, pUidTagList);
     }
     if (code != TSDB_CODE_SUCCESS) {
-      qError("failed to get table tags from meta, reason:%s, suid:%" PRIu64, tstrerror(code), pListInfo->idInfo.suid);
+      qError("failed to get table tags from meta, reason:%s, suid:%" PRIu64, tstrerror(code),suid);
       terrno = code;
       QUERY_CHECK_CODE(code, lino, end);
     }
@@ -1918,22 +1973,22 @@ int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pT
     QUERY_CHECK_CODE(code, lino, end);
   }
 
-  code = scalarCalculate(pTagCond, pBlockList, &output, pStreamInfo, NULL);
+  gTaskScalarExtra.pStreamInfo = pStreamInfo;
+  gTaskScalarExtra.pStreamRange = NULL;
+  code = scalarCalculate(pTagCond, pBlockList, &output, &gTaskScalarExtra);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to calculate scalar, reason:%s", tstrerror(code));
     terrno = code;
     QUERY_CHECK_CODE(code, lino, end);
   }
 
-  code = doSetQualifiedUid(pListInfo, pUidList, pUidTagList, (bool*)output.columnData->pData, addUid);
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-    QUERY_CHECK_CODE(code, lino, end);
-  }
-  *listAdded = true;
-
 end:
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code == 0) {
+    code = doSetQualifiedUid(pUidList, pUidTagList, output.columnData);
+    lino = __LINE__;
+  }
+  
+  if (code != 0) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   blockDataDestroy(pResBlock);
@@ -2065,19 +2120,19 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   size_t  numOfTables = 0;
-  bool    listAdded = false;
 
   pListInfo->idInfo.suid = pScanNode->suid;
   pListInfo->idInfo.tableType = pScanNode->tableType;
 
   SArray* pUidList = taosArrayInit(8, sizeof(uint64_t));
-  QUERY_CHECK_NULL(pUidList, code, lino, _error, terrno);
+  QUERY_CHECK_NULL(pUidList, code, lino, end, terrno);
 
-  SIdxFltStatus status = SFLT_NOT_INDEX;
   char*   pTagCondKey = NULL;
   int32_t tagCondKeyLen;
   SArray* pTagColIds = NULL;
   char*   pPayload = NULL;
+  SIdxFltStatus status = SFLT_NOT_INDEX;
+
   qTrace("getTableList called, suid:%" PRIu64
     ", tagCond:%p, tagIndexCond:%p, %d %d", pScanNode->suid, pTagCond,
     pTagIndexCond, pScanNode->tableType, pScanNode->virtualStableScan);
@@ -2085,10 +2140,10 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
     pListInfo->idInfo.uid = pScanNode->uid;
     if (pStorageAPI->metaFn.isTableExisted(pVnode, pScanNode->uid)) {
       void* tmp = taosArrayPush(pUidList, &pScanNode->uid);
-      QUERY_CHECK_NULL(tmp, code, lino, _error, terrno);
+      QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
     }
-    code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status, pStorageAPI, false, &listAdded, pStreamInfo);
-    QUERY_CHECK_CODE(code, lino, _end);
+    code = doFilterByTagCond(pScanNode->suid, pUidList, pTagCond, pVnode, status, pStorageAPI, pStreamInfo);
+    QUERY_CHECK_CODE(code, lino, end);
   } else {
     bool      isStream = (pStreamInfo != NULL);
     bool      hasTagCond = (pTagCond != NULL);
@@ -2111,43 +2166,43 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       if (((SStreamRuntimeFuncInfo*)pStreamInfo)->hasPlaceHolder) {
         SNode* tmp = NULL;
         code = nodesCloneNode((SNode*)pTagCond, &tmp);
-        QUERY_CHECK_CODE(code, lino, _error);
+        QUERY_CHECK_CODE(code, lino, end);
 
         PlaceHolderContext ctx = {.code = TSDB_CODE_SUCCESS, .pStreamRuntimeInfo = (SStreamRuntimeFuncInfo*)pStreamInfo};
         nodesRewriteExpr(&tmp, replacePlaceHolderColumn, (void*)&ctx);
         if (TSDB_CODE_SUCCESS != ctx.code) {
           nodesDestroyNode(tmp);
           code = ctx.code;
-          goto _error;
+          goto end;
         }
         code = genStableTagFilterDigest(tmp, &context);
         nodesDestroyNode(tmp);
       } else {
         code = genStableTagFilterDigest(pTagCond, &context);
       }
-      QUERY_CHECK_CODE(code, lino, _error);
+      QUERY_CHECK_CODE(code, lino, end);
 
       code = buildTagCondKey(
         pTagCond, &pTagCondKey, &tagCondKeyLen, &pTagColIds);
-      QUERY_CHECK_CODE(code, lino, _error);
+      QUERY_CHECK_CODE(code, lino, end);
       code = pStorageAPI->metaFn.getStableCachedTableList(
         pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
         context.digest, tListLen(context.digest), pUidList, &acquired);
-      QUERY_CHECK_CODE(code, lino, _error);
+      QUERY_CHECK_CODE(code, lino, end);
     } else if (tsTagFilterCache) {
       // second, try to use normal tag filter cache
       qDebug("%s using normal tag filter cache", idstr);
       if (pStreamInfo != NULL && ((SStreamRuntimeFuncInfo*)pStreamInfo)->hasPlaceHolder) {
         SNode* tmp = NULL;
         code = nodesCloneNode((SNode*)pTagCond, &tmp);
-        QUERY_CHECK_CODE(code, lino, _error);
+        QUERY_CHECK_CODE(code, lino, end);
 
         PlaceHolderContext ctx = {.code = TSDB_CODE_SUCCESS, .pStreamRuntimeInfo = (SStreamRuntimeFuncInfo*)pStreamInfo};
         nodesRewriteExpr(&tmp, replacePlaceHolderColumn, (void*)&ctx);
         if (TSDB_CODE_SUCCESS != ctx.code) {
           nodesDestroyNode(tmp);
           code = ctx.code;
-          goto _error;
+          goto end;
         }
         code = genTagFilterDigest(tmp, &context);
         nodesDestroyNode(tmp);
@@ -2155,23 +2210,24 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         code = genTagFilterDigest(pTagCond, &context);
       }
       // try to retrieve the result from meta cache
-      QUERY_CHECK_CODE(code, lino, _error);      
+      QUERY_CHECK_CODE(code, lino, end);      
       code = pStorageAPI->metaFn.getCachedTableList(
         pVnode, pScanNode->suid, context.digest,
         tListLen(context.digest), pUidList, &acquired);
-      QUERY_CHECK_CODE(code, lino, _error);
+      QUERY_CHECK_CODE(code, lino, end);
     }
     if (acquired) {
       taosArrayDestroy(pTagColIds);
       pTagColIds = NULL;
       
-      digest[0] = 1;
-      memcpy(
-        digest + 1, context.digest, tListLen(context.digest));
-      qDebug("suid:%" PRIu64 ", %s retrieve table uid list from cache,"
-        " numOfTables:%d", 
+      if (digest != NULL) {
+        digest[0] = 1;
+        memcpy(digest + 1, context.digest, tListLen(context.digest));
+      }
+      
+      qDebug("suid:%" PRIu64 ", %s retrieve table uid list from cache, numOfTables:%d", 
         pScanNode->suid, idstr, (int32_t)taosArrayGetSize(pUidList));
-      goto _end;
+      goto end;
     } else {
       qDebug("suid:%" PRIu64 
         ", failed to get table uid list from cache", pScanNode->suid);
@@ -2179,10 +2235,10 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
 
     if (!pTagCond) {  // no tag filter condition exists, let's fetch all tables of this super table
       code = pStorageAPI->metaFn.getChildTableList(pVnode, pScanNode->suid, pUidList);
-      QUERY_CHECK_CODE(code, lino, _error);
+      QUERY_CHECK_CODE(code, lino, end);
       qTrace("no tag filter, get all child tables, numOfTables:%d", (int32_t)taosArrayGetSize(pUidList));
     } else {
-      // failed to find the result in the cache, let try to calculate the results
+      SIdxFltStatus status = SFLT_NOT_INDEX;
       if (pTagIndexCond) {
         void* pIndex = pStorageAPI->metaFn.getInvertIndex(pVnode);
 
@@ -2190,8 +2246,6 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
                                  .idx = pStorageAPI->metaFn.storeGetIndexInfo(pVnode),
                                  .ivtIdx = pIndex,
                                  .suid = pScanNode->uid};
-
-        status = SFLT_NOT_INDEX;
         code = doFilterTag(pTagIndexCond, &metaArg, pUidList, &status, &pStorageAPI->metaFilter);
         if (code != 0 || status == SFLT_NOT_INDEX) {  // temporarily disable it for performance sake
           qDebug("failed to get tableIds from index, suid:%" PRIu64 ", uidListSize:%d", pScanNode->uid, (int32_t)taosArrayGetSize(pUidList));
@@ -2201,10 +2255,8 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       }
     }
     qTrace("after index filter, pTagCond:%p uidListSize:%d", pTagCond, (int32_t)taosArrayGetSize(pUidList));
-    code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status,
-      pStorageAPI, tsTagFilterCache || tsStableTagFilterCache,
-      &listAdded, pStreamInfo);
-    QUERY_CHECK_CODE(code, lino, _error);
+    code = doFilterByTagCond(pScanNode->suid, pUidList, pTagCond, pVnode, status, pStorageAPI, pStreamInfo);
+    QUERY_CHECK_CODE(code, lino, end);
 
     // let's add the filter results into meta-cache
     numOfTables = taosArrayGetSize(pUidList);
@@ -2219,10 +2271,12 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         pVnode, pScanNode->suid, pTagCondKey, tagCondKeyLen,
         context.digest, tListLen(context.digest),
         pUidList, &pTagColIds);
-      QUERY_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CODE(code, lino, end);
 
-      digest[0] = 1;
-      memcpy(digest + 1, context.digest, tListLen(context.digest));
+      if (digest != NULL) {
+        digest[0] = 1;
+        memcpy(digest + 1, context.digest, tListLen(context.digest));
+      }
     } else if (tsTagFilterCache) {
       qInfo("%s, suid:%" PRIu64 ", add uid list to normal tag filter cache, "
             "uidListSize:%d, origin key:%" PRIu64 ",%" PRIu64,
@@ -2230,12 +2284,12 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
             *(uint64_t*)context.digest, *(uint64_t*)(context.digest + 8));
       size_t size = numOfTables * sizeof(uint64_t) + sizeof(int32_t);
       pPayload = taosMemoryMalloc(size);
-      QUERY_CHECK_NULL(pPayload, code, lino, _end, terrno);
+      QUERY_CHECK_NULL(pPayload, code, lino, end, terrno);
 
       *(int32_t*)pPayload = (int32_t)numOfTables;
       if (numOfTables > 0) {
         void* tmp = taosArrayGet(pUidList, 0);
-        QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+        QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
         memcpy(pPayload + sizeof(int32_t), tmp, numOfTables * sizeof(uint64_t));
       }
 
@@ -2257,43 +2311,38 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
           */
           code = TSDB_CODE_SUCCESS;
         }
-        QUERY_CHECK_CODE(code, lino, _end);
+        QUERY_CHECK_CODE(code, lino, end);
       }
 
 
-      digest[0] = 1;
-      memcpy(digest + 1, context.digest, tListLen(context.digest));
-    }
-  }
-
-_end:
-  if (!listAdded) {
-    numOfTables = taosArrayGetSize(pUidList);
-    for (int i = 0; i < numOfTables; i++) {
-      void* tmp = taosArrayGet(pUidList, i);
-      QUERY_CHECK_NULL(tmp, code, lino, _error, terrno);
-      STableKeyInfo info = {.uid = *(uint64_t*)tmp, .groupId = 0};
-
-      void* p = taosArrayPush(pListInfo->pTableList, &info);
-      if (p == NULL) {
-        taosArrayDestroy(pUidList);
-        return terrno;
+      if (digest != NULL) {
+        digest[0] = 1;
+        memcpy(digest + 1, context.digest, tListLen(context.digest));
       }
-
-      qTrace("tagfilter get uid:%" PRIu64 ", %s", info.uid, idstr);
     }
   }
 
   qDebug("%s, table list with %d uids built", idstr, (int32_t)numOfTables);
 
-_error:
+end:
+  if (code == 0) {
+     STableKeyInfo info = {.uid = 0, .groupId = 0};
+    for (int32_t i = 0; i < taosArrayGetSize(pUidList); ++i) {
+      int64_t* uid = (int64_t*)taosArrayGet(pUidList, i);
+      QUERY_CHECK_NULL(uid, code, lino, end, terrno);
+
+      info.uid = *uid;
+        //qInfo("doSetQualifiedUid row:%d added to pTableList", i);
+      void* p = taosArrayPush(pListInfo->pTableList, &info);
+      QUERY_CHECK_NULL(p, code, lino, end, terrno);
+    }
+  } else {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
   taosArrayDestroy(pUidList);
   taosArrayDestroy(pTagColIds);
   taosMemFreeClear(pTagCondKey);
   taosMemFreeClear(pPayload);
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
   return code;
 }
 
@@ -2308,15 +2357,14 @@ int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList
 
   STableListInfo* pTableListInfo = tableListCreate();
   QUERY_CHECK_NULL(pTableListInfo, code, lino, _end, terrno);
-  uint8_t digest[17] = {0};
   code = getTableList(pVnode, &pNode, pSubplan ? pSubplan->pTagCond : NULL, pSubplan ? pSubplan->pTagIndexCond : NULL,
-                      pTableListInfo, digest, "qGetTableList", &((SExecTaskInfo*)pTaskInfo)->storageAPI, NULL);
+                      pTableListInfo, NULL, "qGetTableList", &((SExecTaskInfo*)pTaskInfo)->storageAPI, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
   *tableList = pTableListInfo->pTableList;
   pTableListInfo->pTableList = NULL;
-  tableListDestroy(pTableListInfo);
 
 _end:
+  tableListDestroy(pTableListInfo);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -2466,6 +2514,9 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  bool    colIdOrdered = true;
+  bool    hasPrevColId = false;
+  int32_t prevColId = 0;
 
   pMatchInfo->matchType = type;
 
@@ -2475,8 +2526,18 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
     return code;
   }
 
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    STargetNode* pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
+  SColMatchItem** infoBySlot = NULL;
+  if (numOfCols > 0) {
+    infoBySlot = taosMemoryCalloc(numOfCols, sizeof(*infoBySlot));
+    if (infoBySlot == NULL) {
+      code = terrno;
+      goto _end;
+    }
+  }
+
+  SNode* node = NULL;
+  FOREACH(node, pNodeList) {
+    STargetNode* pNode = (STargetNode*)node;
     QUERY_CHECK_NULL(pNode, code, lino, _end, terrno);
     if (nodeType(pNode->pExpr) == QUERY_NODE_COLUMN) {
       SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
@@ -2489,14 +2550,25 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
       c.dataType = pColNode->node.resType;
       void* tmp = taosArrayPush(pList, &c);
       QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+      if (hasPrevColId) {
+        if (c.colId < prevColId) {
+          colIdOrdered = false;
+        }
+      } else {
+        hasPrevColId = true;
+      }
+      prevColId = c.colId;
+      if (pNode->slotId >= 0 && pNode->slotId < numOfCols) {
+        infoBySlot[pNode->slotId] = (SColMatchItem*)taosArrayGet(pList, taosArrayGetSize(pList) - 1);
+      }
     }
   }
 
   // set the output flag for each column in SColMatchInfo, according to the
   *numOfOutputCols = 0;
-  int32_t num = LIST_LENGTH(pOutputNodeList->pSlots);
-  for (int32_t i = 0; i < num; ++i) {
-    SSlotDescNode* pNode = (SSlotDescNode*)nodesListGetNode(pOutputNodeList->pSlots, i);
+  SNode* slotNode = NULL;
+  FOREACH(slotNode, pOutputNodeList->pSlots) {
+    SSlotDescNode* pNode = (SSlotDescNode*)slotNode;
     QUERY_CHECK_NULL(pNode, code, lino, _end, terrno);
 
     // todo: add reserve flag check
@@ -2506,14 +2578,7 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
       continue;
     }
 
-    SColMatchItem* info = NULL;
-    for (int32_t j = 0; j < taosArrayGetSize(pList); ++j) {
-      info = taosArrayGet(pList, j);
-      QUERY_CHECK_NULL(info, code, lino, _end, terrno);
-      if (info->dstSlotId == pNode->slotId) {
-        break;
-      }
-    }
+    SColMatchItem* info = infoBySlot ? infoBySlot[pNode->slotId] : NULL;
 
     if (pNode->output) {
       (*numOfOutputCols) += 1;
@@ -2524,8 +2589,10 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
   }
 
   pMatchInfo->pList = pList;
+  pMatchInfo->colIdOrdered = colIdOrdered;
 
 _end:
+  taosMemoryFree(infoBySlot);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -2608,6 +2675,25 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     pExp->base.pParam[0].type = FUNC_PARAM_TYPE_VALUE;
     code = nodesValueNodeToVariant(pValNode, &pExp->base.pParam[0].param);
     QUERY_CHECK_CODE(code, lino, _end);
+  } else if (type == QUERY_NODE_REMOTE_VALUE) {
+    SRemoteValueNode* pRemote = (SRemoteValueNode*)pNode;
+    code = qFetchRemoteNode(gTaskScalarExtra.pSubJobCtx, pRemote->subQIdx, pNode);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    pExp->pExpr->nodeType = QUERY_NODE_VALUE;
+    SValueNode* pValNode = (SValueNode*)pNode;
+
+    pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
+    QUERY_CHECK_NULL(pExp->base.pParam, code, lino, _end, terrno);
+
+    pExp->base.numOfParams = 1;
+
+    SDataType* pType = &pValNode->node.resType;
+    pExp->base.resSchema =
+        createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pValNode->node.aliasName);
+    pExp->base.pParam[0].type = FUNC_PARAM_TYPE_VALUE;
+    code = nodesValueNodeToVariant(pValNode, &pExp->base.pParam[0].param);
+    QUERY_CHECK_CODE(code, lino, _end);
   } else if (type == QUERY_NODE_FUNCTION) {
     pExp->pExpr->nodeType = QUERY_NODE_FUNCTION;
     SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
@@ -2666,6 +2752,15 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
         QUERY_CHECK_NULL(pExp->base.pParam[j].pCol, code, lino, _end, terrno);
       } else if (p1->type == QUERY_NODE_VALUE) {
         SValueNode* pvn = (SValueNode*)p1;
+        pExp->base.pParam[j].type = FUNC_PARAM_TYPE_VALUE;
+        code = nodesValueNodeToVariant(pvn, &pExp->base.pParam[j].param);
+        QUERY_CHECK_CODE(code, lino, _end);
+      } else if (p1->type == QUERY_NODE_REMOTE_VALUE) {
+        SRemoteValueNode* pRemote = (SRemoteValueNode*)p1;
+        code = qFetchRemoteNode(gTaskScalarExtra.pSubJobCtx, pRemote->subQIdx, p1);
+        QUERY_CHECK_CODE(code, lino, _end);
+
+        SValueNode* pvn = (SValueNode*)pRemote;
         pExp->base.pParam[j].type = FUNC_PARAM_TYPE_VALUE;
         code = nodesValueNodeToVariant(pvn, &pExp->base.pParam[j].param);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -2747,6 +2842,7 @@ int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** 
   QRY_PARAM_CHECK(pExprInfo);
 
   int32_t code = 0;
+  int32_t lino = 0;
   int32_t numOfFuncs = LIST_LENGTH(pNodeList);
   int32_t numOfGroupKeys = 0;
   if (pGroupKeys != NULL) {
@@ -2759,35 +2855,36 @@ int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** 
   }
 
   SExprInfo* pExprs = taosMemoryCalloc(*numOfExprs, sizeof(SExprInfo));
-  if (pExprs == NULL) {
-    return terrno;
+  QUERY_CHECK_NULL(pExprs, code, lino, _return, terrno);
+
+  int32_t i = 0;
+  if (pNodeList != NULL) {
+    SNode* node = NULL;
+    FOREACH(node, pNodeList) {
+      STargetNode* pTargetNode = (STargetNode*)node;
+      SExprInfo*   pExp = &pExprs[i++];
+      code = createExprFromTargetNode(pExp, pTargetNode);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
   }
 
-  for (int32_t i = 0; i < (*numOfExprs); ++i) {
-    STargetNode* pTargetNode = NULL;
-    if (i < numOfFuncs) {
-      pTargetNode = (STargetNode*)nodesListGetNode(pNodeList, i);
-    } else {
-      pTargetNode = (STargetNode*)nodesListGetNode(pGroupKeys, i - numOfFuncs);
-    }
-    if (!pTargetNode) {
-      destroyExprInfo(pExprs, *numOfExprs);
-      taosMemoryFreeClear(pExprs);
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-      return terrno;
-    }
-
-    SExprInfo* pExp = &pExprs[i];
-    code = createExprFromTargetNode(pExp, pTargetNode);
-    if (code != TSDB_CODE_SUCCESS) {
-      destroyExprInfo(pExprs, *numOfExprs);
-      taosMemoryFreeClear(pExprs);
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      return code;
+  if (pGroupKeys != NULL) {
+    SNode* node = NULL;
+    FOREACH(node, pGroupKeys) {
+      STargetNode* pTargetNode = (STargetNode*)node;
+      SExprInfo*   pExp = &pExprs[i++];
+      code = createExprFromTargetNode(pExp, pTargetNode);
+      QUERY_CHECK_CODE(code, lino, _return);
     }
   }
 
   *pExprInfo = pExprs;
+  return code;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  destroyExprInfo(pExprs, *numOfExprs);
+  taosMemoryFreeClear(pExprs);
   return code;
 }
 
@@ -2975,6 +3072,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->pStore = pStore;
     pCtx->hasWindowOrGroup = false;
     pCtx->needCleanup = false;
+    pCtx->skipDynDataCheck = false;
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {
@@ -3110,7 +3208,19 @@ static int32_t getQueryExtWindow(const STimeWindow* cond, const STimeWindow* ran
   return code;
 }
 
-int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode,
+static int32_t getPrimaryTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bool* isStrict) {
+  SNode*  pNew = NULL;
+  int32_t code = scalarCalculateRemoteConstants(*pPrimaryKeyCond, &pNew);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pPrimaryKeyCond = pNew;
+    if (nodeType(pNew) != QUERY_NODE_VALUE) {
+      code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, isStrict, NULL);
+    }
+  }
+  return code;
+}
+
+int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, STableScanPhysiNode* pTableScanNode,
                                const SReadHandle* readHandle, bool applyExtWin) {
   int32_t code = 0;                             
   pCond->order = pTableScanNode->scanSeq[0] > 0 ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
@@ -3142,8 +3252,9 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
                        (pTableScanNode->scan.node.pConditions == NULL) && (pTableScanNode->interval == 0);
 
   int32_t j = 0;
-  for (int32_t i = 0; i < pCond->numOfCols; ++i) {
-    STargetNode* pNode = (STargetNode*)nodesListGetNode(pTableScanNode->scan.pScanCols, i);
+  SNode*  node = NULL;
+  FOREACH(node, pTableScanNode->scan.pScanCols) {
+    STargetNode* pNode = (STargetNode*)node;
     if (!pNode) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       return terrno;
@@ -3173,7 +3284,15 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
       code = getQueryExtWindow(&pCond->twindows, &readHandle->extWinRange, &pCond->twindows, pCond->extTwindows);
     }
   }
-  
+
+  if (pTableScanNode->pPrimaryCond) {
+    bool isStrict = false;
+    code = getPrimaryTimeRange((SNode**)&pTableScanNode->pPrimaryCond, &pCond->twindows, &isStrict);
+    if (code || !isStrict) {
+      code = nodesMergeNode((SNode**)&pTableScanNode->scan.node.pConditions, &pTableScanNode->pPrimaryCond);
+    }
+  }
+
   return code;
 }
 
@@ -3192,6 +3311,7 @@ int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTab
   QUERY_CHECK_NULL(pCond->pSlotList, code, lino, _return, terrno);
 
   pCond->twindows = pOrgCond->twindows;
+  pCond->order = pOrgCond->order;
   pCond->type = pOrgCond->type;
   pCond->startVersion = -1;
   pCond->endVersion = -1;
@@ -3211,6 +3331,7 @@ int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTab
         pCond->colList[i].pk = pOrgCond->colList[j].pk;
         pCond->pSlotList[i] = i;
         find = true;
+        qDebug("%s mapped vtb colId:%d to org colId:%d", __func__, pColPair->vtbColId, pColPair->orgColId);
         break;
       }
     }
@@ -3301,7 +3422,7 @@ STimeWindow getFirstQualifiedTimeWindow(int64_t ts, STimeWindow* pWindow, SInter
   while (win.skey <= ts && win.ekey >= ts) {
     save = win;
     // get previous time window
-    getNextTimeWindow(pInterval, &win, order == TSDB_ORDER_ASC ? TSDB_ORDER_DESC : TSDB_ORDER_ASC);
+    getNextTimeWindow(pInterval, &win, order == TSDB_ORDER_DESC ? TSDB_ORDER_ASC : TSDB_ORDER_DESC);
   }
 
   return save;
@@ -3313,7 +3434,7 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
                                 int32_t order) {
   STimeWindow w = {0};
   if (pResultRowInfo->cur.pageId == -1) {  // the first window, from the previous stored value
-    getInitialStartTimeWindow(pInterval, ts, &w, (order == TSDB_ORDER_ASC));
+    getInitialStartTimeWindow(pInterval, ts, &w, (order != TSDB_ORDER_DESC));
     return w;
   }
 
@@ -3336,17 +3457,9 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
   return w;
 }
 
-TSKEY getNextTimeWindowStart(const SInterval* pInterval, TSKEY start, int32_t order) {
-  int32_t factor = GET_FORWARD_DIRECTION_FACTOR(order);
-  TSKEY   nextStart = taosTimeAdd(start, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
-  nextStart = taosTimeAdd(nextStart, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
-  nextStart = taosTimeAdd(nextStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
-  return nextStart;
-}
-
 void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order) {
   tw->skey = getNextTimeWindowStart(pInterval, tw->skey, order);
-  tw->ekey = taosTimeAdd(tw->skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
+  tw->ekey = taosTimeGetIntervalEnd(tw->skey, pInterval);
 }
 
 bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo) {
@@ -3871,7 +3984,7 @@ TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols) { return tsCols == NU
 void updateTimeWindowInfo(SColumnInfoData* pColData, const STimeWindow* pWin, int64_t delta) {
   int64_t* ts = (int64_t*)pColData->pData;
 
-  int64_t duration = pWin->ekey - pWin->skey + delta;
+  int64_t duration = pWin->ekey > pWin->skey ? pWin->ekey - pWin->skey + delta : pWin->skey - pWin->ekey + delta;
   ts[2] = duration;            // set the duration
   ts[3] = pWin->skey;          // window start key
   ts[4] = pWin->ekey + delta;  // window end key
@@ -4022,6 +4135,489 @@ int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* pId) {
     }
   } else {
     qError("%s failed to extract msg from server, unknown error", pId);
+  }
+
+  return code;
+}
+
+
+int32_t createExprSubQResBlock(SSDataBlock** ppBlock, SDataType* pResType) {
+  int32_t code = 0;
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (pBlock == NULL) {
+    return terrno;
+  }
+
+  pBlock->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
+  if (pBlock->pDataBlock == NULL) {
+    code = terrno;
+    taosMemoryFree(pBlock);
+    return code;
+  }
+
+  SColumnInfoData idata =
+      createColumnInfoData(pResType->type, pResType->bytes, 0);
+  idata.info.scale = pResType->scale;
+  idata.info.precision = pResType->precision;
+
+  code = blockDataAppendColInfo(pBlock, &idata);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    blockDataDestroy(pBlock);
+    *ppBlock = NULL;
+    return code;
+  }
+
+  *ppBlock = pBlock;
+
+  return code;
+}
+
+
+int32_t extractSingleRspBlock(SRetrieveTableRsp* pRetrieveRsp, SSDataBlock* pb) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            lino = 0;
+  void*              decompBuf = NULL;
+
+  char* pNextStart = pRetrieveRsp->data;
+  char* pStart = pNextStart;
+
+  int32_t index = 0;
+
+  if (pRetrieveRsp->compressed) {  // decompress the data
+    decompBuf = taosMemoryMalloc(pRetrieveRsp->payloadLen);
+    QUERY_CHECK_NULL(decompBuf, code, lino, _end, terrno);
+  }
+
+  int32_t compLen = *(int32_t*)pStart;
+  pStart += sizeof(int32_t);
+
+  int32_t rawLen = *(int32_t*)pStart;
+  pStart += sizeof(int32_t);
+  QUERY_CHECK_CONDITION((compLen <= rawLen && compLen != 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+
+  pNextStart = pStart + compLen;
+  if (pRetrieveRsp->compressed && (compLen < rawLen)) {
+    int32_t t = tsDecompressString(pStart, compLen, 1, decompBuf, rawLen, ONE_STAGE_COMP, NULL, 0);
+    QUERY_CHECK_CONDITION((t == rawLen), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    pStart = decompBuf;
+  }
+
+  code = blockDecodeInternal(pb, pStart, (const char**)&pStart);
+  if (code != 0) {
+    taosMemoryFreeClear(pRetrieveRsp);
+    goto _end;
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pb);
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t setValueFromResBlock(STaskSubJobCtx* ctx, SRemoteValueNode* pRes, SSDataBlock* pBlock) {
+  int32_t code = 0;
+  bool needFree = true;
+  int32_t colNum = taosArrayGetSize(pBlock->pDataBlock);
+  if (NULL == pBlock->pDataBlock || 1 != colNum || pBlock->info.rows > 1) {
+    qError("%s invalid scl fetch res block, pDataBlock:%p, colNum:%d, rows:%" PRId64, 
+      ctx->idStr, pBlock->pDataBlock, colNum, pBlock->info.rows);
+    return TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS;
+  }
+  
+  pRes->val.node.type = QUERY_NODE_VALUE;
+  pRes->val.flag &= (~VALUE_FLAG_VAL_UNSET);
+  pRes->val.translate = true;
+  
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, 0);
+  if (colDataIsNull_s(pCol, 0)) {
+    pRes->val.isNull = true;
+  } else {
+    code = nodesSetValueNodeValueExt(&pRes->val, colDataGetData(pCol, 0), &needFree);
+  }
+
+  if (!needFree) {
+    pCol->pData = NULL;
+  }
+
+  return code;
+}
+
+void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetrieveTableRsp* pRsp) {
+  SSDataBlock* pResBlock = NULL;
+
+  qDebug("%s scl fetch rsp received, subQIdx:%d, rows:%" PRId64 , ctx->idStr, pParam->subQIdx, pRsp->numOfRows);
+
+  if (pRsp->numOfRows > 1 || pRsp->numOfBlocks > 1 || !pRsp->completed) {
+    qError("%s invalid scl fetch rsp received, subQIdx:%d, rows:%" PRId64 ", blocks:%d, completed:%d", 
+      ctx->idStr, pParam->subQIdx, pRsp->numOfRows, pRsp->numOfBlocks, pRsp->completed);
+    ctx->code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS;
+
+    return;
+  }
+
+  if (0 == pRsp->numOfRows) {
+    SRemoteValueNode* pRemote = (SRemoteValueNode*)pParam->pRes;
+    pRemote->val.node.type = QUERY_NODE_VALUE;
+    pRemote->val.isNull = true;
+    pRemote->val.translate = true;
+    pRemote->val.flag &= (~VALUE_FLAG_VAL_UNSET);
+    taosArraySet(ctx->subResNodes, pParam->subQIdx, &pParam->pRes);
+
+    return;
+  }
+  
+  ctx->code = createExprSubQResBlock(&pResBlock, &((SRemoteValueNode*)pParam->pRes)->val.node.resType);
+  if (TSDB_CODE_SUCCESS == ctx->code) {
+    ctx->code = blockDataEnsureCapacity(pResBlock, 1);
+  }
+  if (TSDB_CODE_SUCCESS == ctx->code) {
+    ctx->code = extractSingleRspBlock(pRsp, pResBlock);
+  }
+  if (TSDB_CODE_SUCCESS == ctx->code) {
+    ctx->code = setValueFromResBlock(ctx, (SRemoteValueNode*)pParam->pRes, pResBlock);
+  }
+  if (TSDB_CODE_SUCCESS == ctx->code) {
+    taosArraySet(ctx->subResNodes, pParam->subQIdx, &pParam->pRes);
+  }
+
+  blockDataDestroy(pResBlock);  
+}
+
+
+int32_t updateValueListFromResBlock(STaskSubJobCtx* ctx, SRemoteValueListNode* pRes, SSDataBlock* pBlock) {
+  int32_t code = 0, lino = 0;
+  int32_t colNum = taosArrayGetSize(pBlock->pDataBlock);
+  if (NULL == pBlock->pDataBlock || 1 != colNum) {
+    qError("%s invalid scl fetch res block, pDataBlock:%p, colNum:%d", ctx->idStr, pBlock->pDataBlock, colNum);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  pRes->hasValue = true;
+  
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, 0);
+  TAOS_CHECK_EXIT(scalarBuildRemoteListHash(pRes, pCol, pBlock->info.rows));
+
+_exit:
+
+  if (code) {
+    qError("%s %s failed with error: %s", ctx->idStr, __func__, tstrerror(code));
+  }
+  
+  return code;
+}
+
+
+
+void handleRemoteValueListRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetrieveTableRsp* pRsp, bool* fetchDone) {
+  SSDataBlock* pResBlock = NULL;
+  SRemoteValueListNode* pRemote = (SRemoteValueListNode*)pParam->pRes;
+
+  qDebug("%s scl fetch rsp received, subQIdx:%d, rows:%" PRId64 , ctx->idStr, pParam->subQIdx, pRsp->numOfRows);
+
+  if (pRsp->numOfRows > 0) {
+    ctx->code = createExprSubQResBlock(&pResBlock, &((SExprNode*)pParam->pRes)->resType);
+    if (TSDB_CODE_SUCCESS == ctx->code) {
+      ctx->code = blockDataEnsureCapacity(pResBlock, pRsp->numOfRows);
+    }
+    if (TSDB_CODE_SUCCESS == ctx->code) {
+      ctx->code = extractSingleRspBlock(pRsp, pResBlock);
+    }
+    if (TSDB_CODE_SUCCESS == ctx->code) {
+      ctx->code = updateValueListFromResBlock(ctx, pRemote, pResBlock);
+    }
+    if (TSDB_CODE_SUCCESS == ctx->code && pRsp->completed) {
+      pRemote->flag &= (~VALUELIST_FLAG_VAL_UNSET);
+      taosArraySet(ctx->subResNodes, pParam->subQIdx, &pParam->pRes);
+    }
+
+    blockDataDestroy(pResBlock);  
+  } else if (0 == pRsp->numOfRows && pRsp->completed) {
+    if (!pRemote->hasValue) {
+      ctx->code = scalarBuildRemoteListHash(pRemote, NULL, 0);
+    }
+    if (TSDB_CODE_SUCCESS == ctx->code) {    
+      pRemote->flag &= (~VALUELIST_FLAG_VAL_UNSET);
+      taosArraySet(ctx->subResNodes, pParam->subQIdx, &pParam->pRes);
+    }
+  }
+
+  *fetchDone = (TSDB_CODE_SUCCESS != ctx->code || pRsp->completed) ? true : false;
+
+  if (!(*fetchDone)) {
+    int32_t code = sendFetchRemoteNodeReq(ctx, pParam->subQIdx, pParam->pRes);
+    if (TSDB_CODE_SUCCESS != code) {
+      ctx->code = code;
+      *fetchDone = true;
+    }
+  }
+}
+
+
+int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
+  SScalarFetchParam* pParam = (SScalarFetchParam*)param;
+  STaskSubJobCtx* ctx = pParam->pSubJobCtx;
+  char idStr[64];
+  
+  taosMemoryFreeClear(pMsg->pEpSet);
+
+  if (NULL == ctx) {
+    qWarn("scl fetch ctx not exists since it may have been released");
+    goto _exit;
+  }
+
+  if (qDebugFlag & DEBUG_DEBUG) {
+    strncpy(idStr, ctx->idStr, sizeof(idStr));
+  }
+  
+  qDebug("%s subQIdx %d got rsp, blockIdx:%" PRId64 ", code:%d, rsp:%p", ctx->idStr, pParam->subQIdx, ctx->blockIdx, code, pMsg->pData);
+
+  taosWLockLatch(&ctx->lock);
+  ctx->param = NULL;
+  taosWUnLockLatch(&ctx->lock);
+
+  if (ctx->transporterId > 0) {
+    int32_t ret = asyncFreeConnById(ctx->rpcHandle, ctx->transporterId);
+    if (ret != 0) {
+      qDebug("%s failed to free subQ rpc handle, code:%s, subQIdx:%d", ctx->idStr, tstrerror(ret), pParam->subQIdx);
+    }
+    ctx->transporterId = -1;
+  }
+
+  if (0 == code && NULL == pMsg->pData) {
+    qError("%s invalid rsp msg, msgType:%d, len:%d", ctx->idStr, pMsg->msgType, pMsg->len);
+    code = TSDB_CODE_QRY_INVALID_MSG;
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    SRetrieveTableRsp* pRsp = pMsg->pData;
+    pRsp->numOfRows = htobe64(pRsp->numOfRows);
+    pRsp->compLen = htonl(pRsp->compLen);
+    pRsp->payloadLen = htonl(pRsp->payloadLen);
+    pRsp->numOfCols = htonl(pRsp->numOfCols);
+    pRsp->useconds = htobe64(pRsp->useconds);
+    pRsp->numOfBlocks = htonl(pRsp->numOfBlocks);
+
+    qDebug("%s subQIdx %d blockIdx:%" PRIu64 " rsp detail, numOfBlocks:%d, numOfRows:%" PRId64 ", completed:%d", 
+      ctx->idStr, pParam->subQIdx, ctx->blockIdx, pRsp->numOfBlocks, pRsp->numOfRows, pRsp->completed);
+
+    ctx->blockIdx++;
+
+    switch (nodeType(pParam->pRes)) {
+      case QUERY_NODE_REMOTE_VALUE:
+        handleRemoteValueRes(pParam, ctx, pRsp);
+        break;
+      case QUERY_NODE_REMOTE_VALUE_LIST: {
+        bool fetchDone = false;
+        handleRemoteValueListRes(pParam, ctx, pRsp, &fetchDone);
+        qDebug("%s subQIdx %d handle remote value list finished, fetchDone:%d", idStr, pParam->subQIdx, fetchDone);
+        if (!fetchDone) {
+          goto _exit;
+        }
+        break;
+      }  
+      default:
+        qError("%s invalid scl fetch res node %d, subQIdx:%d", ctx->idStr, nodeType(pParam->pRes), pParam->subQIdx);
+        ctx->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        break;
+    }
+  } else {
+    ctx->code = rpcCvtErrCode(code);
+    if (ctx->code != code) {
+      qError("%s scl fetch rsp received, subQIdx:%d, error:%s, cvted error: %s", ctx->idStr, pParam->subQIdx,
+             tstrerror(code), tstrerror(ctx->code));
+    } else {
+      qError("%s scl fetch rsp received, subQIdx:%d, error:%s", ctx->idStr, pParam->subQIdx, tstrerror(code));
+    }
+  }
+
+  qDebug("%s subQIdx %d sem_post subQ ready", ctx->idStr, pParam->subQIdx);
+  
+  code = tsem_post(&pParam->pSubJobCtx->ready);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to invoke post when scl fetch rsp is ready, code:%s", tstrerror(code));
+  }
+
+_exit:
+
+  taosMemoryFree(pMsg->pData);
+
+  return code;
+}
+
+
+int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SDownstreamSourceNode* pSource = (SDownstreamSourceNode*)taosArrayGetP(ctx->subEndPoints, subQIdx);
+
+  SResFetchReq req = {0};
+  req.header.vgId = pSource->addr.nodeId;
+  req.sId = pSource->sId;
+  req.clientId = pSource->clientId;
+  req.taskId = pSource->taskId;
+  req.srcTaskId = ctx->taskId;
+  req.blockIdx = ctx->blockIdx;
+  req.queryId = ctx->queryId;
+  req.execId = pSource->execId;
+
+  int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req, false);
+  if (msgSize < 0) {
+    return msgSize;
+  }
+
+  void* msg = taosMemoryCalloc(1, msgSize);
+  if (NULL == msg) {
+    return terrno;
+  }
+
+  msgSize = tSerializeSResFetchReq(msg, msgSize, &req, false);
+  if (msgSize < 0) {
+    taosMemoryFree(msg);
+    return msgSize;
+  }
+
+  qDebug("%s scl build fetch msg and send to nodeId:%d, ep:%s, clientId:0x%" PRIx64 " taskId:0x%" PRIx64
+         ", execId:%d, blockIdx:%" PRId64,
+         ctx->idStr, pSource->addr.nodeId, pSource->addr.epSet.eps[0].fqdn, pSource->clientId,
+         pSource->taskId, pSource->execId, req.blockIdx);
+
+  // send the fetch remote task result reques
+  SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  if (NULL == pMsgSendInfo) {
+    taosMemoryFreeClear(msg);
+    qError("%s prepare message %d failed", ctx->idStr, (int32_t)sizeof(SMsgSendInfo));
+    return terrno;
+  }
+
+  SScalarFetchParam* param = taosMemoryMalloc(sizeof(SScalarFetchParam));
+  if (NULL == param) {
+    taosMemoryFreeClear(msg);
+    taosMemoryFreeClear(pMsgSendInfo);
+    qError("%s prepare param %d failed", ctx->idStr, (int32_t)sizeof(SScalarFetchParam));
+    return terrno;
+  }
+
+  taosWLockLatch(&ctx->lock);
+  
+  if (ctx->code) {
+    qError("task has been killed, error:%s", tstrerror(ctx->code));
+    taosMemoryFree(param);
+    taosMemoryFreeClear(msg);
+    taosMemoryFreeClear(pMsgSendInfo);
+    code = ctx->code;
+    taosWUnLockLatch(&ctx->lock);
+    goto _end;
+  } else {
+    ctx->param = param;
+  }
+  
+  taosWUnLockLatch(&ctx->lock);
+
+  param->subQIdx = subQIdx;
+  param->pRes = pRes;
+  param->pSubJobCtx = ctx;
+
+  pMsgSendInfo->param = param;
+  pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
+  pMsgSendInfo->msgInfo.pData = msg;
+  pMsgSendInfo->msgInfo.len = msgSize;
+  pMsgSendInfo->msgType = pSource->fetchMsgType;
+  pMsgSendInfo->fp = remoteFetchCallBack;
+  pMsgSendInfo->requestId = ctx->queryId;
+
+  code = asyncSendMsgToServer(ctx->rpcHandle, &pSource->addr.epSet, &ctx->transporterId, pMsgSendInfo);
+  QUERY_CHECK_CODE(code, lino, _end);
+      
+_end:
+
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s %s failed at line %d since %s", ctx->idStr, __func__, lino, tstrerror(code));
+  }
+  
+  return code;
+}
+
+int32_t fetchRemoteNodeImpl(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  ctx->blockIdx = 0;
+
+  code = sendFetchRemoteNodeReq(ctx, subQIdx, pRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  code = qSemWait(ctx->pTaskInfo, &ctx->ready);
+  if (isTaskKilled(ctx->pTaskInfo)) {
+    code = getTaskCode(ctx->pTaskInfo);
+  } else {
+    code = ctx->code;
+  }
+      
+_end:
+
+  taosWLockLatch(&ctx->lock);
+  ctx->param = NULL;
+  taosWUnLockLatch(&ctx->lock);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s %s failed at line %d since %s", ctx->idStr, __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t remoteNodeCopy(SNode* pSrc, SNode* pDst) {
+  int32_t code = 0, lino = 0;
+  
+  switch (nodeType(pSrc)) {
+    case QUERY_NODE_VALUE:
+      TAOS_CHECK_EXIT(valueNodeCopy((SValueNode*)pSrc, &((SRemoteValueNode*)pDst)->val));
+      ((SRemoteValueNode*)pDst)->val.node.type = QUERY_NODE_VALUE;
+      break;
+    case QUERY_NODE_REMOTE_VALUE_LIST: {
+      SRemoteValueListNode* pDstNode = (SRemoteValueListNode*)pDst;
+      memcpy(pDst, pSrc, sizeof(SRemoteValueListNode));
+      pDstNode->hashAllocated = false;      
+      break;
+    } 
+    default:
+      break;
+  }
+
+_exit:
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+
+int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes) {
+  STaskSubJobCtx*  ctx = (STaskSubJobCtx*)pCtx;
+  int32_t code = 0, lino = 0;
+  int32_t       subEndPoinsNum = taosArrayGetSize(ctx->subEndPoints);
+  if (subQIdx >= subEndPoinsNum) {
+    qError("%s invalid subQIdx %d, subEndPointsNum:%d", ctx->idStr, subQIdx, subEndPoinsNum);
+    return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
+  }
+
+  SNode** ppRes = taosArrayGet(ctx->subResNodes, subQIdx);
+  if (NULL == *ppRes) {
+    TAOS_CHECK_EXIT(fetchRemoteNodeImpl(ctx, subQIdx, pRes));
+    *ppRes = pRes;
+  } else {
+    TAOS_CHECK_EXIT(remoteNodeCopy(*ppRes, pRes));
+  }
+
+_exit:
+
+  if (code) {
+    qError("%s %s failed at line %d since %s", ctx->idStr, __func__, lino, tstrerror(code));
+  } else {
+    qDebug("%s %s subQIdx %d succeed", ctx->idStr, __func__, subQIdx);
   }
 
   return code;

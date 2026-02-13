@@ -31,8 +31,9 @@
 #include "tlockfree.h"
 #include "tname.h"
 
-#define MND_TOPIC_VER_NUMBER   4
-#define MND_TOPIC_RESERVE_SIZE 64
+#define MND_TOPIC_VER_SUPPORT_OWNER 4
+#define MND_TOPIC_VER_NUMBER        MND_TOPIC_VER_SUPPORT_OWNER
+#define MND_TOPIC_RESERVE_SIZE      64
 
 SHashObj *topicsToReload = NULL;
 
@@ -85,7 +86,6 @@ void mndTopicGetShowName(const char *fullTopic, char *topic) {
     tstrncpy(topic, tmp + 1, TSDB_TOPIC_FNAME_LEN);
   }
 }
-
 SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   if (pTopic == NULL) {
     return NULL;
@@ -143,7 +143,7 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
     }
     SDB_SET_BINARY(pRaw, dataPos, swBuf, schemaLen, TOPIC_ENCODE_OVER);
   }
-
+  SDB_SET_INT64(pRaw, dataPos, pTopic->ownerId, TOPIC_ENCODE_OVER); // since ver 4
   SDB_SET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_ENCODE_OVER);
   SDB_SET_DATALEN(pRaw, dataPos, TOPIC_ENCODE_OVER);
 
@@ -212,7 +212,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   }
   SDB_GET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen, TOPIC_DECODE_OVER);
 
-  if (sver < 4) {
+  if (sver < MND_TOPIC_VER_SUPPORT_OWNER) {
     int32_t astLen = 0;
     SDB_GET_INT32(pRaw, dataPos, &astLen, TOPIC_DECODE_OVER);
     if (astLen) {
@@ -256,6 +256,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
       pTopic->schema.version = 0;
       pTopic->schema.pSchema = NULL;
     }
+    SDB_GET_INT64(pRaw, dataPos, &pTopic->ownerId, TOPIC_DECODE_OVER);
   }
 
   SDB_GET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_DECODE_OVER);
@@ -378,8 +379,8 @@ END:
 }
 
 static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *pCreate, SDbObj *pDb,
-                              const char *userName) {
-  if (pMnode == NULL || pReq == NULL || pCreate == NULL || pDb == NULL || userName == NULL)
+                              SUserObj *pOperUser) {
+  if (pMnode == NULL || pReq == NULL || pCreate == NULL || pDb == NULL || pOperUser == NULL)
     return TSDB_CODE_INVALID_PARA;
   STrans *    pTrans = NULL;
   int32_t     code = 0;
@@ -395,9 +396,15 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
 
   tstrncpy(topicObj.name, pCreate->name, TSDB_TOPIC_FNAME_LEN);
   tstrncpy(topicObj.db, pDb->name, TSDB_DB_FNAME_LEN);
-  tstrncpy(topicObj.createUser, userName, TSDB_USER_LEN);
+  tstrncpy(topicObj.createUser, pOperUser->name, TSDB_USER_LEN);
+  topicObj.ownerId = pOperUser->uid;
 
-  MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_TOPIC, &topicObj));
+  // MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_CREATE_TOPIC, &topicObj));
+  if (pDb) {
+    // already checked in parser, just check db use privilege here
+    MND_TMQ_RETURN_CHECK(
+        mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_TOPIC, pDb));
+  }
 
   topicObj.createTime = taosGetTimestampMs();
   topicObj.updateTime = topicObj.createTime;
@@ -417,8 +424,22 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     tstrncpy(topicObj.stbName, pCreate->subStbName, TSDB_TABLE_FNAME_LEN);
     SStbObj *pStb = mndAcquireStb(pMnode, topicObj.stbName);
     MND_TMQ_NULL_CHECK(pStb);
+    char stbName[TSDB_TABLE_NAME_LEN] = {0};
+    mndExtractTbNameFromStbFullName(pStb->name, stbName, TSDB_TABLE_NAME_LEN);
+    MND_TMQ_RETURN_CHECK(
+        mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TOPIC_CREATE, PRIV_OBJ_DB, pStb->ownerId, pDb->name, NULL));
+    MND_TMQ_RETURN_CHECK(
+        mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pStb->ownerId, pDb->name, stbName));
     topicObj.stbUid = pStb->uid;
     mndReleaseStb(pMnode, pStb);
+  }
+
+  if (pCreate->subType == TOPIC_SUB_TYPE__DB) {
+    MND_TMQ_RETURN_CHECK(
+        mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TOPIC_CREATE, PRIV_OBJ_DB, pDb->ownerId, pDb->name, NULL));
+    MND_TMQ_RETURN_CHECK(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TBL_SELECT, PRIV_OBJ_TBL, 0, pDb->name, "*"));
+  } else if (pCreate->subType == TOPIC_SUB_TYPE__COLUMN) {
+    // TODO: check privilege on table
   }
 
   SSdbRaw *pCommitRaw = mndTopicActionEncode(&topicObj);
@@ -463,7 +484,7 @@ static int32_t mndReloadTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   tstrncpy(topicObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   tstrncpy(topicObj.createUser, userName, TSDB_USER_LEN);
 
-  MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_TOPIC, &topicObj));
+  MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_TOPIC, &topicObj));
 
   taosRLockLatch(&topicObjOri->lock);
   topicObj.createTime = topicObjOri->createTime;
@@ -510,7 +531,7 @@ END:
   return code;
 }
 
-static int32_t creatTopic(SRpcMsg *pReq, SCMCreateTopicReq *createTopicReq) {
+static int32_t creatTopic(SRpcMsg *pReq, SCMCreateTopicReq *createTopicReq, SUserObj *pOperUser) {
   SMqTopicObj *pTopic = NULL;
   SDbObj *     pDb = NULL;
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -547,7 +568,7 @@ static int32_t creatTopic(SRpcMsg *pReq, SCMCreateTopicReq *createTopicReq) {
   }
 
   MND_TMQ_RETURN_CHECK(grantCheck(TSDB_GRANT_SUBSCRIPTION));
-  MND_TMQ_RETURN_CHECK(mndCreateTopic(pMnode, pReq, createTopicReq, pDb, pReq->info.conn.user));
+  MND_TMQ_RETURN_CHECK(mndCreateTopic(pMnode, pReq, createTopicReq, pDb, pOperUser));
   if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
@@ -592,7 +613,7 @@ static int32_t reloadTopic(SRpcMsg *pReq, SCMCreateTopicReq *createTopicReq) {
   MND_TMQ_NULL_CHECK(pDb);
 
   MND_TMQ_RETURN_CHECK(grantCheck(TSDB_GRANT_SUBSCRIPTION));
-  MND_TMQ_RETURN_CHECK(mndReloadTopic(pMnode, pReq, createTopicReq, pDb, pReq->info.conn.user, pTopic));
+  MND_TMQ_RETURN_CHECK(mndReloadTopic(pMnode, pReq, createTopicReq, pDb, RPC_MSG_USER(pReq), pTopic));
 
   if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
     int64_t tse = taosGetTimestampMs();
@@ -629,6 +650,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     return TSDB_CODE_INVALID_MSG;
   }
   SMnode *pMnode = pReq->info.node;
+  SUserObj *pOperUser = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -637,6 +659,8 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   PRINT_LOG_START
   MND_TMQ_RETURN_CHECK(tDeserializeSCMCreateTopicReq(pReq->pCont, pReq->contLen, &createTopicReq));
 
+  if ((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser)) != 0) goto END;
+
   mInfo("topic:%s start to create, sql:%s", createTopicReq.name, createTopicReq.sql);
 
   MND_TMQ_RETURN_CHECK(mndCheckCreateTopicReq(&createTopicReq));
@@ -644,11 +668,12 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   if (createTopicReq.reload) {
     MND_TMQ_RETURN_CHECK(reloadTopic(pReq, &createTopicReq));
   } else {
-    MND_TMQ_RETURN_CHECK(creatTopic(pReq, &createTopicReq));
+    MND_TMQ_RETURN_CHECK(creatTopic(pReq, &createTopicReq, pOperUser));
   }
 
 END:
   tFreeSCMCreateTopicReq(&createTopicReq);
+  mndReleaseUser(pMnode, pOperUser);
   return code;
 }
 
@@ -660,7 +685,11 @@ static int32_t mndDropTopic(SMnode *pMnode, STrans *pTrans, SRpcMsg *pReq, SMqTo
   int32_t  lino = 0;
   SSdbRaw *pCommitRaw = NULL;
   PRINT_LOG_START
-  MND_TMQ_RETURN_CHECK(mndUserRemoveTopic(pMnode, pTrans, pTopic->name));
+  char topicFName[TSDB_TOPIC_FNAME_LEN + 1] = {0};                       // 1.topic
+  mndTopicGetShowName(pTopic->name, topicFName);
+  char topicDbFName[TSDB_DB_NAME_LEN + TSDB_TOPIC_FNAME_LEN + 1] = {0};  // 1.db.topic
+  (void)snprintf(topicDbFName, sizeof(topicDbFName), "%s.%s", pTopic->db, topicFName);
+  MND_TMQ_RETURN_CHECK(mndUserRemoveTopic(pMnode, pTrans, topicDbFName));
   pCommitRaw = mndTopicActionEncode(pTopic);
   MND_TMQ_NULL_CHECK(pCommitRaw);
   code = mndTransAppendCommitlog(pTrans, pCommitRaw);
@@ -756,6 +785,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   int32_t        lino = 0;
   SMqTopicObj *  pTopic = NULL;
   STrans *       pTrans = NULL;
+  SUserObj      *pOperUser = NULL;
   int64_t        tss = taosGetTimestampMs();
 
   PRINT_LOG_START
@@ -778,8 +808,14 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
   mInfo("trans:%d, used to drop topic:%s, force:%d", pTrans->id, pTopic->name, dropReq.force);
 
-  MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_TOPIC, pTopic));
-  MND_TMQ_RETURN_CHECK(mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pTopic->db));
+  MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
+
+  // MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_DROP_TOPIC, pTopic));
+  // MND_TMQ_RETURN_CHECK(mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), MND_OPER_READ_DB, pTopic->db));
+  MND_TMQ_RETURN_CHECK(
+      mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pTopic->db, true));
+  MND_TMQ_RETURN_CHECK(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_TOPIC, pTopic->ownerId,
+                                                pTopic->db, mndGetDbStr(pTopic->name)));
   MND_TMQ_RETURN_CHECK(mndCheckConsumerByTopic(pMnode, pTrans, dropReq.name, dropReq.force));
   MND_TMQ_RETURN_CHECK(mndDropSubByTopic(pMnode, pTrans, dropReq.name, dropReq.force));
   MND_TMQ_RETURN_CHECK(mndDropTopic(pMnode, pTrans, pReq, pTopic));
@@ -803,6 +839,7 @@ END:
     taosRUnLockLatch(&pTopic->lock);
   }
   mndReleaseTopic(pMnode, pTopic);
+  mndReleaseUser(pMnode, pOperUser);
   mndTransDrop(pTrans);
   tFreeSMDropTopicReq(&dropReq);
   return code;
@@ -983,28 +1020,48 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   if (pReq == NULL || pShow == NULL || pBlock == NULL) {
     return TSDB_CODE_INVALID_MSG;
   }
-  SMnode *     pMnode = pReq->info.node;
-  SSdb *       pSdb = pMnode->pSdb;
+  SMnode      *pMnode = pReq->info.node;
+  SSdb        *pSdb = pMnode->pSdb;
   int32_t      numOfRows = 0;
   SMqTopicObj *pTopic = NULL;
-  int32_t      code = 0;
-  int32_t      lino = 0;
+  SUserObj    *pOperUser = NULL;
+  int32_t      code = 0, lino = 0;
+  char        *sql = NULL;
+  char        *schemaJson = NULL;
+  char         objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
+  bool         showAll = false;
+
+  MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
+  (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
+  int32_t objLevel = privObjGetLevel(PRIV_OBJ_TOPIC);
+  showAll =
+      (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), PRIV_CM_SHOW, PRIV_OBJ_TOPIC, 0, objFName,
+                                    objLevel == 0 ? NULL : "*"));  // 1.*.*
+
   PRINT_LOG_START
 
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_TOPIC, pShow->pIter, (void **)&pTopic);
     if (pShow->pIter == NULL) break;
 
+    if (!showAll) {
+      if (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TOPIC, pTopic->ownerId, pTopic->db,
+                                   objLevel == 0 ? NULL : mndGetDbStr(pTopic->name)) != 0) {  // 1.topic1
+        sdbRelease(pSdb, pTopic);
+        continue;
+      }
+    }
+
     MND_TMQ_RETURN_CHECK(buildResult(pTopic, &numOfRows, pMnode, pBlock));
     sdbRelease(pSdb, pTopic);
     pTopic = NULL;
   }
-
   pShow->numOfRows += numOfRows;
 
 END:
   sdbCancelFetch(pSdb, pShow->pIter);
   sdbRelease(pSdb, pTopic);
+  mndReleaseUser(pMnode, pOperUser);
   if (code != TSDB_CODE_SUCCESS) {
     mError("%s failed since %s", __func__, tstrerror(code));
     return code;

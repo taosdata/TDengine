@@ -40,6 +40,7 @@
 #include "mndQuery.h"
 #include "mndRetention.h"
 #include "mndRetentionDetail.h"
+#include "mndRole.h"
 #include "mndRsma.h"
 #include "mndScan.h"
 #include "mndScanDetail.h"
@@ -55,8 +56,11 @@
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndToken.h"
 #include "mndVgroup.h"
 #include "mndView.h"
+#include "mndXnode.h"
+#include "tencrypt.h"
 
 static inline int32_t mndAcquireRpc(SMnode *pMnode) {
   int32_t code = 0;
@@ -321,6 +325,8 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
           pGid->syncRestore = 0;
           pGid->syncCanRead = 0;
           pGid->startTimeMs = 0;
+          pGid->learnerProgress = 0;
+          pGid->snapSeq = -1;
           stateChanged = true;
         }
         break;
@@ -501,25 +507,30 @@ void mndDoTimerCheckSync(SMnode *pMnode, int64_t sec) {
 
 static void *mndThreadSecFp(void *param) {
   SMnode *pMnode = param;
-  int64_t lastTime = 0;
+  int64_t lastSec = 0;
   setThreadName("mnode-timer");
 
   while (1) {
-    lastTime++;
-    taosMsleep(100);
-
     if (mndGetStop(pMnode)) break;
-    if (lastTime % 10 != 0) continue;
+
+    int64_t nowSec = taosGetTimestampMs() / 1000;
+    if (nowSec == lastSec) {
+      taosMsleep(100);
+      continue;
+    }
+    lastSec = nowSec;
 
     if (mnodeIsNotLeader(pMnode)) {
+      taosMsleep(100);
       mTrace("timer not process since mnode is not leader");
       continue;
     }
 
-    int64_t sec = lastTime / 10;
-    mndDoTimerCheckSync(pMnode, sec);
+    mndDoTimerCheckSync(pMnode, nowSec);
 
-    mndDoTimerPullupTask(pMnode, sec);
+    mndDoTimerPullupTask(pMnode, nowSec);
+
+    taosMsleep(100);
   }
 
   return NULL;
@@ -625,14 +636,12 @@ static int32_t mndInitWal(SMnode *pMnode) {
                  .encryptData = {0}};
 
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
-  if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL) {
-    cfg.encryptAlgr = (tsiEncryptScope & DND_CS_MNODE_WAL) ? tsiEncryptAlgorithm : 0;
-    if (tsEncryptKey[0] == '\0') {
-      code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
-      TAOS_RETURN(code);
-    } else {
-      tstrncpy(cfg.encryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
-    }
+  if (taosWaitCfgKeyLoaded() != 0) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
+  if (tsMetaKey[0] != '\0') {
+    tstrncpy(cfg.encryptData.encryptKey, tsMetaKey, ENCRYPT_KEY_LEN + 1);
   }
 #endif
 
@@ -654,6 +663,40 @@ static void mndCloseWal(SMnode *pMnode) {
   }
 }
 
+// Forward declarations for mmFile.c functions
+extern int32_t mmReadFile(const char *path, SMnodeOpt *pOption);
+extern int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption);
+
+// Callback function to persist encrypted flag to mnode.json
+static int32_t mndPersistEncryptedFlag(void *param) {
+  SMnode *pMnode = (SMnode *)param;
+  if (pMnode == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  
+  mInfo("persisting encrypted flag to mnode.json");
+  
+  SMnodeOpt option = {0};
+  int32_t code = mmReadFile(pMnode->path, &option);
+  if (code != 0) {
+    mError("failed to read mnode.json for persisting encrypted flag since %s", tstrerror(code));
+    return code;
+  }
+  
+  option.encrypted = true;
+  code = mmWriteFile(pMnode->path, &option);
+  if (code != 0) {
+    mError("failed to write mnode.json for persisting encrypted flag since %s", tstrerror(code));
+    return code;
+  }
+  
+  // Also update mnode's encrypted flag
+  pMnode->encrypted = true;
+  
+  mInfo("successfully persisted encrypted flag to mnode.json");
+  return 0;
+}
+
 static int32_t mndInitSdb(SMnode *pMnode) {
   int32_t code = 0;
   SSdbOpt opt = {0};
@@ -673,6 +716,13 @@ static int32_t mndInitSdb(SMnode *pMnode) {
 
 static int32_t mndOpenSdb(SMnode *pMnode) {
   int32_t code = 0;
+  
+  pMnode->pSdb->encrypted = pMnode->encrypted;
+  
+  // Set callback for persisting encrypted flag
+  pMnode->pSdb->persistEncryptedFlagFp = mndPersistEncryptedFlag;
+  pMnode->pSdb->pMnodeForCallback = pMnode;
+
   if (!pMnode->deploy) {
     code = sdbReadFile(pMnode->pSdb);
   }
@@ -713,10 +763,13 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-snode", mndInitSnode, mndCleanupSnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-anode", mndInitAnode, mndCleanupAnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-bnode", mndInitBnode, mndCleanupBnode));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-xnode", mndInitXnode, mndCleanupXnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-arbgroup", mndInitArbGroup, mndCleanupArbGroup));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-config", mndInitConfig, NULL));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-role", mndInitRole, mndCleanupRole));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-token", mndInitToken, mndCleanupToken));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-grant", mndInitGrant, mndCleanupGrant));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-privilege", mndInitPrivilege, mndCleanupPrivilege));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-acct", mndInitAcct, mndCleanupAcct));
@@ -805,6 +858,7 @@ static void mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->syncMgmt.lastIndex = pOption->lastIndex;
   (void)memcpy(pMnode->syncMgmt.replicas, pOption->replicas, sizeof(pOption->replicas));
   (void)memcpy(pMnode->syncMgmt.nodeRoles, pOption->nodeRoles, sizeof(pOption->nodeRoles));
+  pMnode->encrypted = pOption->encrypted;
 }
 
 SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
@@ -836,6 +890,9 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     terrno = code;
     return NULL;
   }
+
+  mInfo("vgId:1, mnode set options to syncMgmt, dnodeId:%d, numOfTotalReplicas:%d", pOption->selfIndex,
+        pOption->numOfTotalReplicas);
   mndSetOptions(pMnode, pOption);
 
   pMnode->deploy = pOption->deploy;
@@ -926,6 +983,8 @@ int32_t mndStart(SMnode *pMnode) {
 bool mndNeedUpgrade(SMnode *pMnode, int32_t version) { return pMnode->version > version; }
 
 int32_t mndGetVersion(SMnode *pMnode) { return pMnode->version; }
+
+int32_t mndGetEncryptedFlag(SMnode *pMnode) { return pMnode->encrypted; }
 
 int32_t mndIsCatchUp(SMnode *pMnode) {
   int64_t rid = pMnode->syncMgmt.sync;
@@ -1062,6 +1121,28 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg, SQueueInfo *pQueueInfo) {
   SMnode         *pMnode = pMsg->info.node;
   const STraceId *trace = &pMsg->info.traceId;
   int32_t         code = TSDB_CODE_SUCCESS;
+
+#ifdef TD_ENTERPRISE
+  if (pMsg->msgType != TDMT_MND_HEARTBEAT && pMsg->info.conn.isToken) {
+    SCachedTokenInfo ti = {0};
+    if (mndGetCachedTokenInfo(pMsg->info.conn.identifier, &ti) == NULL) {
+      mGError("msg:%p, failed to get token info, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+      code = TSDB_CODE_MND_TOKEN_NOT_EXIST;
+      TAOS_RETURN(code);
+    }
+    if (ti.enabled == 0) {
+      mGError("msg:%p, token is disabled, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+      code = TSDB_CODE_MND_TOKEN_DISABLED;
+      TAOS_RETURN(code);
+    }
+    if (ti.expireTime > 0 && taosGetTimestampSec() > (ti.expireTime + TSDB_TOKEN_EXPIRY_LEEWAY)) {
+      mGError("msg:%p, token is expired, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+      code = TSDB_CODE_MND_TOKEN_EXPIRED;
+      TAOS_RETURN(code);
+    }
+    tstrncpy(pMsg->info.conn.user, ti.user, sizeof(pMsg->info.conn.user));
+  }
+#endif
 
   MndMsgFp    fp = pMnode->msgFp[TMSG_INDEX(pMsg->msgType)];
   MndMsgFpExt fpExt = NULL;
@@ -1229,6 +1310,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     code = tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
     if (code < 0) {
       mError("failed to get db name since %s", tstrerror(code));
+      sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
       TAOS_RETURN(code);
     }

@@ -106,12 +106,17 @@ void mstDestroySStmVgroupStatus(void* param) {
   taosHashCleanup(pVg->streamTasks);
 }
 
+void mstFreeTrigOReaderList(void* param) {
+  SArray** ppList = (SArray**)param;
+  taosArrayDestroy(*ppList);
+}
+
 void mstResetSStmStatus(SStmStatus* pStatus) {
   (void)mstWaitLock(&pStatus->resetLock, false);
 
   taosArrayDestroy(pStatus->trigReaders);
   pStatus->trigReaders = NULL;
-  taosArrayDestroy(pStatus->trigOReaders);
+  taosArrayDestroyEx(pStatus->trigOReaders, mstFreeTrigOReaderList);
   pStatus->trigOReaders = NULL;
   pStatus->calcReaders = tdListFree(pStatus->calcReaders);
   if (pStatus->triggerTask) {
@@ -124,6 +129,7 @@ void mstResetSStmStatus(SStmStatus* pStatus) {
     taosArrayDestroy(pStatus->runners[i]);
     pStatus->runners[i] = NULL;
   }
+  pStatus->lastTrigMgmtReqId = 0;
 
   taosWUnLockLatch(&pStatus->resetLock);
 }
@@ -580,12 +586,18 @@ void mstLogSStreamObj(char* tips, SStreamObj* p) {
     }
     case WINDOW_TYPE_STATE: {
       SStateWinTrigger* t = &q->trigger.stateWin;
-      mstsDebug("state trigger options, slotId:%d, expr:%s, extend:%d, zeroth:%s, trueForDuration:%" PRId64, t->slotId, (char *)t->expr, t->extend, (char *)t->zeroth, t->trueForDuration);
+      mstsDebug(
+          "state trigger options, slotId:%d, expr:%s, extend:%d, zeroth:%s, trueForType: %d, trueForCount: %d, "
+          "trueForDuration:%" PRId64,
+          t->slotId, (char*)t->expr, t->extend, (char*)t->zeroth, t->trueForType, t->trueForCount, t->trueForDuration);
       break;
     }
     case WINDOW_TYPE_EVENT:{
       SEventTrigger* t = &q->trigger.event;
-      mstsDebug("event trigger options, startCond:%s, endCond:%s, trueForDuration:%" PRId64, (char*)t->startCond, (char*)t->endCond, t->trueForDuration);
+      mstsDebug(
+          "event trigger options, startCond:%s, endCond:%s, trueForType: %d, trueForCount: %d, "
+          "trueForDuration:%" PRId64,
+          (char*)t->startCond, (char*)t->endCond, t->trueForType, t->trueForCount, t->trueForDuration);
       break;
     }
     case WINDOW_TYPE_COUNT: {
@@ -661,7 +673,7 @@ void mstLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
   }
 
   int32_t trigReaderNum = taosArrayGetSize(p->trigReaders);
-  int32_t trigOReaderNum = taosArrayGetSize(p->trigOReaders);
+  int32_t trigOReaderNum = msmGetTrigOReaderSize(p->trigOReaders);
   int32_t calcReaderNum = MST_LIST_SIZE(p->calcReaders);
   int32_t triggerNum = p->triggerTask ? 1 : 0;
   int32_t runnerNum = 0;
@@ -683,7 +695,7 @@ void mstLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
   }
 
   for (int32_t i = 0; i < trigOReaderNum; ++i) {
-    pTask = taosArrayGet(p->trigOReaders, i);
+    pTask = msmGetTrigOReader(p->trigOReaders, i);
     mstLogSStmTaskStatus("trigOReader task", streamId, pTask, i);
   }
 
@@ -1063,7 +1075,7 @@ _end:
 }
 
 int32_t mstGetNumOfStreamTasks(SStmStatus* pStatus) {
-  int32_t num = taosArrayGetSize(pStatus->trigReaders) + taosArrayGetSize(pStatus->trigOReaders) + MST_LIST_SIZE(pStatus->calcReaders) + (pStatus->triggerTask ? 1 : 0);
+  int32_t num = taosArrayGetSize(pStatus->trigReaders) + msmGetTrigOReaderSize(pStatus->trigOReaders) + MST_LIST_SIZE(pStatus->calcReaders) + (pStatus->triggerTask ? 1 : 0);
   for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
     num += taosArrayGetSize(pStatus->runners[i]);
   }
@@ -1115,9 +1127,9 @@ int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int3
     }
   }
 
-  trigReaderNum = taosArrayGetSize(pStatus->trigOReaders);
+  trigReaderNum = msmGetTrigOReaderSize(pStatus->trigOReaders);
   for (int32_t i = 0; i < trigReaderNum; ++i) {
-    pTask = taosArrayGet(pStatus->trigOReaders, i);
+    pTask = msmGetTrigOReader(pStatus->trigOReaders, i);
   
     code = mstSetStreamTaskResBlock(pStream, pTask, pBlock, *numOfRows);
     if (code == TSDB_CODE_SUCCESS) {

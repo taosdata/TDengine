@@ -25,7 +25,7 @@ class TestVtableAuthAlterDrop:
     def test_alter_drop_virtual_normal_table(self):
         """Auth: alter virtual normal table
 
-        test "write", "read", "none", "all" each auth user alter opration
+        test "alter", "select", "none", "all" each auth user alter opration
 
         Catalog:
             - VirtualTable
@@ -46,7 +46,7 @@ class TestVtableAuthAlterDrop:
         tdSql.execute("create table test_vtable_auth_org_table_2(ts timestamp, int_col int, bin_32_col binary(32), bin_64_col binary(64));")
         tdSql.execute("create user test_vtable_user_alter PASS 'test12@#*';")
 
-        priv_list = ["write", "read", "none", "all"]
+        priv_list = ["alter", "select", "none", "all"]
 
         testconn = taos.connect(user='test_vtable_user_alter', password='test12@#*')
         cursor = testconn.cursor()
@@ -66,7 +66,12 @@ class TestVtableAuthAlterDrop:
                                   "int_col_2 int, "
                                   "bin_32_col_1 binary(32) from test_vtable_auth_org_table_2.bin_32_col);")
 
-                    tdSql.execute(f"grant {priv_db} on test_vtable_auth_alter to test_vtable_user_alter;")
+                    tdSql.execute(f"grant {priv_db} on test_vtable_auth_alter.* to test_vtable_user_alter;")
+                    tdSql.execute(f"grant use on database test_vtable_auth_alter to test_vtable_user_alter;")
+                    if (priv_db == "alter"):
+                        tdSql.execute(f"grant drop on test_vtable_auth_alter.* to test_vtable_user_alter;")
+                    if(priv_vtb == "alter"):
+                        tdSql.execute(f"grant drop on test_vtable_auth_alter.test_vtable_auth_vtb_{i} to test_vtable_user_alter;")
                     if (priv_vtb != "none"):
                         tdSql.execute(f"grant {priv_vtb} on test_vtable_auth_alter.test_vtable_auth_vtb_{i} to test_vtable_user_alter;")
                     if (priv_orgtb != "none"):
@@ -76,8 +81,8 @@ class TestVtableAuthAlterDrop:
 
                     tdLog.info(f"priv_db: {priv_db}, priv_tb1: {priv_vtb}, priv_tb2: {priv_orgtb}")
                     testSql.execute("use test_vtable_auth_alter;")
-                    if (priv_db == "read"):
-                        if (priv_vtb == "write" or priv_vtb == "all"):
+                    if (priv_db == "select"):
+                        if (priv_vtb == "alter" or priv_vtb == "all"):
                             testSql.execute(f"alter vtable test_vtable_auth_vtb_{i} add column int_col_3 int;")
                             testSql.execute(f"alter vtable test_vtable_auth_vtb_{i} add column int_col_4 int from test_vtable_auth_org_table_2.int_col;")
                             testSql.execute(f"alter vtable test_vtable_auth_vtb_{i} alter column int_col_2 set test_vtable_auth_org_table_2.int_col;")
@@ -105,7 +110,7 @@ class TestVtableAuthAlterDrop:
                         testSql.execute(f"alter vtable test_vtable_auth_vtb_{i} rename column bin_32_col_1 bin_64_col_1;")
                         testSql.execute(f"alter vtable test_vtable_auth_vtb_{i} drop column int_col_2;")
                     else:
-                        if (priv_orgtb == "none" or priv_orgtb == "write"):
+                        if (priv_orgtb == "none" or priv_orgtb == "alter"):
                             testSql.execute(f"alter vtable test_vtable_auth_vtb_{i} add column int_col_3 int;")
                             testSql.error(f"alter vtable test_vtable_auth_vtb_{i} add column int_col_4 int from test_vtable_auth_org_table_2.int_col;")
                             testSql.error(f"alter vtable test_vtable_auth_vtb_{i} alter column int_col_2 set test_vtable_auth_org_table_2.int_col;")
@@ -125,8 +130,8 @@ class TestVtableAuthAlterDrop:
                             testSql.execute(f"alter vtable test_vtable_auth_vtb_{i} drop column int_col_2;")
 
 
-                    if (priv_db == "read"):
-                        if (priv_vtb == "write" or priv_vtb == "all"):
+                    if (priv_db == "select"):
+                        if (priv_vtb == "alter" or priv_vtb == "all"):
                             testSql.execute(f"drop vtable test_vtable_auth_vtb_{i};")
                         else:
                             testSql.error(f"drop vtable test_vtable_auth_vtb_{i};", expectErrInfo="Permission denied or target object not exist")
@@ -135,7 +140,11 @@ class TestVtableAuthAlterDrop:
                     else:
                         testSql.execute(f"drop vtable test_vtable_auth_vtb_{i};")
 
-                    tdSql.execute(f"revoke {priv_db} on test_vtable_auth_alter from test_vtable_user_alter;")
+                    tdSql.execute(f"revoke {priv_db} on test_vtable_auth_alter.* from test_vtable_user_alter;")
+                    if (priv_db == "alter"):
+                        tdSql.execute(f"revoke drop on test_vtable_auth_alter.* from test_vtable_user_alter;")
+                    if (priv_vtb == "alter"):
+                        tdSql.execute(f"revoke drop on test_vtable_auth_alter.test_vtable_auth_vtb_{i} from test_vtable_user_alter;")
                     if (priv_vtb != "none"):
                         tdSql.execute(f"revoke {priv_vtb} on test_vtable_auth_alter.test_vtable_auth_vtb_{i} from test_vtable_user_alter;")
                     if (priv_orgtb != "none"):

@@ -901,7 +901,7 @@ class TestCompositePrimaryKeyInsert:
         tdSql.query(f'select * from {table_nam} order by ts desc, pk asc')
 
     def test_composite_primary_key_insert(self):
-        """ Composite Primary Key Insert Test
+        """Composite Primary Key Insert
 
         1. insert into value with pk
         2. insert into value without pk
@@ -969,4 +969,4 @@ class TestCompositePrimaryKeyInsert:
         # while(True):
         #     self.test_stmt(LegalDataType.VARCHAR) 
 
-        tdLog.success(f"{__file__} successfully executed")
+

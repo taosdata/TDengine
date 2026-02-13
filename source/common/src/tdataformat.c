@@ -2964,6 +2964,14 @@ _err:
   return code;
 }
 
+
+void destroyTagVal(void *pTag) {
+  STagVal* pTagVal = (STagVal*)pTag;
+  if (pTagVal && IS_VAR_DATA_TYPE(pTagVal->type)) {
+    taosMemoryFree(pTagVal->pData);
+  }
+}
+
 // STSchema ========================================
 STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
   STSchema *pTSchema = taosMemoryCalloc(1, sizeof(STSchema) + sizeof(STColumn) * numOfCols);
@@ -5066,6 +5074,7 @@ int32_t tColDataAddValueByBind2WithDecimal(SColData *pColData, TAOS_STMT2_BIND *
         if (!pV) return terrno;
         memcpy(pV, &dec, DECIMAL_WORD_NUM(Decimal128) * sizeof(DecimalWord));
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pV, TYPE_BYTES[pColData->type]);
+        taosMemoryFree(pV);
       }
     }
   }
@@ -5099,6 +5108,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
   SColVal colVal;
   int32_t numOfFixedValue = 0;
   int32_t lino = 0;
+  bool    hasDecimal128 = false;
 
   if ((colValArray = taosArrayInit(numOfInfos, sizeof(SColVal))) == NULL) {
     return terrno;
@@ -5137,9 +5147,6 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
           colVal = *pParsedVal;
 
           if (taosArrayPush(colValArray, &colVal) == NULL) {
-            if (IS_VAR_DATA_TYPE(pParsedVal->value.type)) {
-              taosMemoryFree(colVal.value.pData);
-            }
             code = terrno;
             TAOS_CHECK_GOTO(code, &lino, _exit);
           }
@@ -5192,7 +5199,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
           if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL) {
             if (!pSchemaExt) {
               uError("stmt2 decimal64 type without ext schema info, cannot parse decimal values");
-              code = TSDB_CODE_PAR_INTERNAL_ERROR;
+              code = TSDB_CODE_DECIMAL_PARSE_ERROR;
               goto _exit;
             }
             uint8_t precision = 0, scale = 0;
@@ -5202,6 +5209,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
             int32_t    length = infos[iInfo].bind->length[iRow];
             code = decimal128FromStr(*(char **)data, length, precision, scale, &dec);
             *data += length;
+            hasDecimal128 = true;
             TAOS_CHECK_GOTO(code, &lino, _exit);
 
             // precision check
@@ -5213,7 +5221,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
           } else if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL64) {
             if (!pSchemaExt) {
               uError("stmt2 decimal128 type without ext schema info, cannot parse decimal values");
-              code = TSDB_CODE_PAR_INTERNAL_ERROR;
+              code = TSDB_CODE_DECIMAL_PARSE_ERROR;
               goto _exit;
             }
             uint8_t precision = 0, scale = 0;
@@ -5261,6 +5269,18 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
       goto _exit;
     }
 
+    // fix decimal memory leak
+    if (hasDecimal128) {
+      int32_t num = taosArrayGetSize(colValArray);
+      for (int32_t i = 0; i < num; ++i) {
+        SColVal *pCol = taosArrayGet(colValArray, i);
+        if (pCol->value.type == TSDB_DATA_TYPE_DECIMAL) {
+          taosMemoryFreeClear(pCol->value.pData);
+        }
+      }
+      hasDecimal128 = false;
+    }
+
     if (pOrdered && pDupTs) {
       tRowGetKey(row, &rowKey);
       if (iRow == 0) {
@@ -5280,6 +5300,15 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
   }
 _exit:
   if (code != 0) {
+    if (hasDecimal128) {
+      int32_t num = taosArrayGetSize(colValArray);
+      for (int32_t i = 0; i < num; ++i) {
+        SColVal *pCol = taosArrayGet(colValArray, i);
+        if (pCol->value.type == TSDB_DATA_TYPE_DECIMAL) {
+          taosMemoryFreeClear(pCol->value.pData);
+        }
+      }
+    }
     uError("tRowBuildFromBind2 failed at line %d, ErrCode=0x%x", lino, code);
   }
   taosArrayDestroy(colValArray);

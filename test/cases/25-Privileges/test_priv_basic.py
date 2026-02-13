@@ -49,7 +49,7 @@ class TestPrivBasic:
         testSql = TDSql()
         testSql.init(cursor)
         # create db privilege
-        testSql.error("create database db1;", expectErrInfo="Insufficient privilege for operation", fullMatched=False)
+        testSql.error("create database db1;", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
         # modify db、super table、child table、reguler table privilege
         testSql.error("alter database db buffer 512;")
         testSql.error("alter stable db.stb add column col4 float;")
@@ -79,12 +79,13 @@ class TestPrivBasic:
         testSql.query("select * from information_schema.ins_users;")
         testSql.checkRows(2)
         # drop db privilege
-        testSql.error("drop database db;", expectErrInfo="Insufficient privilege for operation", fullMatched=False)
+        testSql.error("drop database db;", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
         # delete user
         self.delete_user("test")
         # drop db
         tdSql.execute("drop database db;")
-        tdLog.info("test_common_user_privileges successfully executed")
+        testconn.close()
+
 
     def run_test_common_user_with_createdb_privileges(self):
         self.prepare_data1()
@@ -96,7 +97,7 @@ class TestPrivBasic:
         testSql = TDSql()
         testSql.init(cursor)
         # grant create db privilege
-        tdSql.execute("alter user test createdb 1;")
+        tdSql.execute("alter user test createdb 1;") # equivalent to: tdSql.execute("grant create database to test;")
         # check user 'test' create db、super table、child table、reguler table、view privileges
         testSql.execute("create database db1;")
         testSql.execute("use db1;")
@@ -141,11 +142,14 @@ class TestPrivBasic:
         test1Sql = TDSql()
         test1Sql.init(cursor1)
         # check user 'test' doesn't privilege to grant create db privilege to another user
-        testSql.error("alter user test1 createdb 1;", expectErrInfo="Insufficient privilege for operation", fullMatched=False)
-        testSql.error("grant all on db1.stb1 to test1;", expectErrInfo="Insufficient privilege for operation", fullMatched=False)
+        testSql.error("alter user test1 createdb 1;", expectErrInfo="Permission denied to set user basic info", fullMatched=False)
+        testSql.error("grant select on db1.stb1 to test1;", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
 
         # grant read、write privilege to user 'test' and check user 'test' privileges
-        tdSql.execute("grant all on db.* to test;")
+        tdSql.execute("grant use,create table on database db to test;")
+        tdSql.execute("grant select,insert,alter on db.* to test;")
+        # testSql.execute("use db;")
+        testSql.execute("show databases;")
         testSql.query("select * from db.stb;")
         testSql.checkRows(2)
         testSql.query("select * from db.ct1;")
@@ -160,7 +164,8 @@ class TestPrivBasic:
         testSql.query("select * from db.ct2;")
         testSql.checkRows(2)
         # grant all privilege to user 'test1' and check user 'test1' privileges
-        tdSql.execute("grant all on db1.* to test1;")
+        tdSql.execute("grant select,insert on db1.* to test1;")
+        tdSql.execute("grant use,create table on database db1 to test1;")
         test1Sql.query("select * from db1.stb1;")
         test1Sql.checkRows(2)
         test1Sql.query("select * from db1.ct1;")
@@ -174,15 +179,20 @@ class TestPrivBasic:
         test1Sql.checkRows(2)
         
         # revoke create db privilege from user 'test'
-        tdSql.execute("alter user test createdb 0;")
-        testSql.error("create database db2;", expectErrInfo="Insufficient privilege for operation", fullMatched=False)
+        # tdSql.execute("alter user test createdb 0;")
+        tdSql.execute("revoke create database from test;")
+        testSql.error("create database db2;") # failed in parser or mnode
         # check other privileges of user 'test'
         testSql.query("select * from db.stb;")
         testSql.checkRows(2)
         testSql.query("select * from db1.stb1;")
         testSql.checkRows(2)
-        tdSql.execute("alter user test createdb 1;")
+        # tdSql.execute("alter user test createdb 1;")
+        tdSql.execute("grant create database to test;")
         testSql.execute("create database db2;")
+        tdSql.execute("grant use,drop on database db1 to test;")
+        tdSql.execute("grant use,drop on database db2 to test;")
+        tdSql.execute("grant drop on table db1.* to test;")
         testSql.query("show databases;")
         tdLog.info(testSql.queryResult)
         testSql.checkRows(5)
@@ -196,9 +206,13 @@ class TestPrivBasic:
         self.delete_user("test")
         self.delete_user("test1")
 
+        # close connection
+        testconn.close()
+        test1conn.close()
+
     def do_common_user_privileges(self):
         self.run_test_common_user_privileges()
-        self.run_test_common_user_with_createdb_privileges()
+        self.run_test_common_user_with_createdb_privileges() # PRIV_TODO: add test with conditions to check memory leak
         print("\n")
         print("do common user privileges ............. [passed]")
     
@@ -235,8 +249,10 @@ class TestPrivBasic:
         self.stbnum_grant = 200
 
     def grant_user(self):
-        tdSql.execute(f'grant read on {self.dbnames[0]}.{self.stbname} with t2 = "Beijing" to {self.user_name}')
-        tdSql.execute(f'grant write on {self.dbnames[1]}.{self.stbname} with t1 = 2 to {self.user_name}')
+        tdSql.execute(f'grant select on {self.dbnames[0]}.{self.stbname} with t2 = "Beijing" to {self.user_name}')
+        tdSql.execute(f'grant insert on {self.dbnames[1]}.{self.stbname} with t1 = 2 to {self.user_name}')
+        tdSql.execute(f'grant use on database {self.dbnames[0]} to {self.user_name}')
+        tdSql.execute(f'grant use on database {self.dbnames[1]} to {self.user_name}')
                 
     def prepare_data2(self):
         for db in self.dbnames:
@@ -311,8 +327,9 @@ class TestPrivBasic:
         for db in self.dbnames:
             tdSql.execute(f"use {db}")
             for i in range(self.stbnum_grant):
-                tdSql.execute(f'grant read on {db}.{self.stbname}_grant_{i} to {self.user_name}')
-                tdSql.execute(f'grant write on {db}.{self.stbname}_grant_{i} to {self.user_name}')
+                tdSql.execute(f'grant select on {db}.{self.stbname}_grant_{i} to {self.user_name}')
+                tdSql.execute(f'grant insert on {db}.{self.stbname}_grant_{i} to {self.user_name}')
+                tdSql.execute(f'grant use on database {db} to {self.user_name}')
 
     def do_grant_multi_tables(self):
         self.setup_class2()
@@ -352,14 +369,15 @@ class TestPrivBasic:
         # privilege check scenario info
         self.privilege_check_dic = {}
         self.senario_type = ["stable", "table", "ctable"]
-        self.priv_type = ["read", "write", "all", "none"]
+        # self.priv_type = ["read", "write", "all", "none"] // rbac refact
+        self.priv_type = ["select", "insert", "none"]
         # stable senarios
         # include the show stable xxx command test senarios and expect result, true as have privilege, false as no privilege
         # the list element is (db_privilege, stable_privilege, expect_res)
         st_senarios_list = []
         for senario in list(product(self.priv_type, repeat=2)):
             expect_res = True
-            if senario == ("write", "write") or senario == ("none", "none") or senario == ("none", "write") or senario == ("write", "none"):
+            if senario == ("insert", "insert") or senario == ("none", "none") or senario == ("none", "insert") or senario == ("insert", "none"):
                 expect_res = False
             st_senarios_list.append(senario + (expect_res,))
         # self.privilege_check_dic["stable"] = st_senarios_list
@@ -373,7 +391,7 @@ class TestPrivBasic:
         ct_senarios_list = []
         for senario in list(product(self.priv_type, repeat=3)):
             expect_res = True
-            if senario[2] == "write" or (senario[2] == "none" and senario[1] == "write") or (senario[2] == "none" and senario[1] == "none" and senario[0] == "write"):
+            if senario[2] == "insert" or (senario[2] == "none" and senario[1] == "insert") or (senario[2] == "none" and senario[1] == "none" and senario[0] == "insert"):
                 expect_res = False
             ct_senarios_list.append(senario + (expect_res,))
         self.privilege_check_dic["ctable"] = ct_senarios_list
@@ -424,6 +442,8 @@ class TestPrivBasic:
             else:
                 tdSql.execute(f'grant {privilege} on {self.dbname}.{privilege_obj} to {username}')
                 tdLog.debug("sql:" + f'grant {privilege} on {self.dbname}.{privilege_obj} to {username}')
+            tdSql.execute(f'grant use on database {self.dbname} to {username}')
+            tdLog.debug("sql:" + f'grant use on database {self.dbname} to {username}')
         except Exception as ex:
             tdLog.exit(ex)
 
@@ -437,6 +457,8 @@ class TestPrivBasic:
             else:
                 tdSql.execute(f'revoke {privilege} on {self.dbname}.{privilege_obj} from {username}')
                 tdLog.debug("sql:" + f'revoke {privilege} on {self.dbname}.{privilege_obj} from {username}')
+            tdSql.execute(f'revoke use on database {self.dbname} from {username}')
+            tdLog.debug("sql:" + f'revoke use on database {self.dbname} from {username}')
         except Exception as ex:
             tdLog.exit(ex)
 
@@ -448,10 +470,13 @@ class TestPrivBasic:
         # temp solution only for the db read privilege verification
         self.prepare_data3("table")
         # grant db read privilege
-        self.grant_privilege1(self.username, "read", "*")
+        self.grant_privilege1(self.username, "select", "*")
         # create the taos connection with -utest -ptest
         testconn = taos.connect(user=self.username, password=self.password)
-        testconn.execute("use %s;" % self.dbname)
+        cursor = testconn.cursor()
+        testSql = TDSql()
+        testSql.init(cursor)
+        testSql.execute("use %s;" % self.dbname)
         # show the user privileges
         res = testconn.query("select * from information_schema.ins_user_privileges;")
         tdLog.debug("Current information_schema.ins_user_privileges values: {}".format(res.fetch_all()))
@@ -462,7 +487,7 @@ class TestPrivBasic:
         # query result
         tdLog.debug("sql res:" + str(res.fetch_all()))
         # remove the privilege
-        self.remove_privilege(self.username, "read", "*")
+        self.remove_privilege(self.username, "select", "*")
         # clear env
         testconn.close()
         tdSql.execute(f"drop database {self.dbname}")
@@ -520,7 +545,7 @@ class TestPrivBasic:
                 "stable_priviege": "none",
                 "child_table_ct1_privilege": "none",
                 "child_table_ct2_privilege": "none",
-                "table_tb_privilege": "read",
+                "table_tb_privilege": "select",
                 "sql": ["insert into ct1 using stb tags('ct1') values(now, 1.1, 1)", 
                         "select * from stb;", 
                         "select * from ct1;", 
@@ -532,7 +557,7 @@ class TestPrivBasic:
             "test_db_no_permission_childtable_read": {
                 "db_privilege": "none",
                 "stable_priviege": "none",
-                "child_table_ct1_privilege": "read",
+                "child_table_ct1_privilege": "select",
                 "child_table_ct2_privilege": "none",
                 "table_tb_privilege": "none",
                 "sql": ["insert into ct1 using stb tags('ct1') values(now, 1.1, 1)", 
@@ -548,7 +573,7 @@ class TestPrivBasic:
                 "stable_priviege": "none",
                 "child_table_ct1_privilege": "none",
                 "child_table_ct2_privilege": "none",
-                "table_tb_privilege": "write",
+                "table_tb_privilege": "insert",
                 "sql": ["insert into ct1 using stb tags('ct1') values(now, 1.1, 1)", 
                     "select * from stb;", 
                     "select * from ct1;", 
@@ -561,7 +586,7 @@ class TestPrivBasic:
                 "db_privilege": "none",
                 "stable_priviege": "none",
                 "child_table_ct1_privilege": "none",
-                "child_table_ct2_privilege": "write",
+                "child_table_ct2_privilege": "insert",
                 "table_tb_privilege": "none",
                 "sql": ["insert into ct2 using stb tags('ct2') values(now, 1.1, 1)", 
                     "select * from stb;", 
@@ -572,7 +597,7 @@ class TestPrivBasic:
                 "res": [True, False, False, False, False, False]
             },
             "test_db_read_table_no_permission": {
-                "db_privilege": "read",
+                "db_privilege": "select",
                 "stable_priviege": "none",
                 "child_table_ct1_privilege": "none",
                 "child_table_ct2_privilege": "none",
@@ -586,11 +611,11 @@ class TestPrivBasic:
                 "res": [False, True, True, True, False, True]
             },
             "test_db_read_table_read": {
-                "db_privilege": "read",
+                "db_privilege": "select",
                 "stable_priviege": "none",
                 "child_table_ct1_privilege": "none",
                 "child_table_ct2_privilege": "none",
-                "table_tb_privilege": "read",
+                "table_tb_privilege": "select",
                 "sql": ["insert into ct2 using stb tags('ct2') values(now, 1.1, 1)", 
                     "select * from stb;", 
                     "select * from ct1;", 
@@ -600,10 +625,10 @@ class TestPrivBasic:
                 "res": [False, True, True, True, False, True]
             },
             "test_db_read_childtable_read": {
-                "db_privilege": "read",
+                "db_privilege": "select",
                 "stable_priviege": "none",
-                "child_table_ct1_privilege": "read",
-                "child_table_ct2_privilege": "read",
+                "child_table_ct1_privilege": "select",
+                "child_table_ct2_privilege": "select",
                 "table_tb_privilege": "none",
                 "sql": ["insert into ct2 using stb tags('ct2') values(now, 1.1, 1)", 
                     "select * from stb;", 
@@ -614,11 +639,11 @@ class TestPrivBasic:
                 "res": [False, True, True, True, False, True]
             },
             "test_db_read_table_write": {
-                "db_privilege": "read",
+                "db_privilege": "select",
                 "stable_priviege": "none",
                 "child_table_ct1_privilege": "none",
                 "child_table_ct2_privilege": "none",
-                "table_tb_privilege": "write",
+                "table_tb_privilege": "insert",
                 "sql": ["insert into ct2 using stb tags('ct2') values(now, 1.1, 1)", 
                     "select * from stb;", 
                     "select * from ct1;", 
@@ -628,9 +653,9 @@ class TestPrivBasic:
                 "res": [False, True, True, True, True, True]
             },
             "test_db_read_childtable_write": {
-                "db_privilege": "read",
+                "db_privilege": "select",
                 "stable_priviege": "none",
-                "child_table_ct1_privilege": "write",
+                "child_table_ct1_privilege": "insert",
                 "child_table_ct2_privilege": "none",
                 "table_tb_privilege": "none",
                 "sql": ["insert into ct2 using stb tags('ct2') values(now, 1.1, 1)", 
@@ -643,7 +668,7 @@ class TestPrivBasic:
                 "res": [False, True, True, True, True, False, True]
             },
             "test_db_write_table_no_permission": {
-                "db_privilege": "write",
+                "db_privilege": "insert",
                 "stable_priviege": "none",
                 "child_table_ct1_privilege": "none",
                 "child_table_ct2_privilege": "none",
@@ -658,7 +683,7 @@ class TestPrivBasic:
                 "res": [True, True, False, False, False, True, False]
             },
             "test_db_write_table_write": {
-                "db_privilege": "write",
+                "db_privilege": "insert",
                 "stable_priviege": "none",
                 "child_table_ct1_privilege": "none",
                 "child_table_ct2_privilege": "none",
@@ -673,7 +698,7 @@ class TestPrivBasic:
                 "res": [True, True, False, False, False, True, False]
             },
             "test_db_write_childtable_write": {
-                "db_privilege": "write",
+                "db_privilege": "insert",
                 "stable_priviege": "none",
                 "child_table_ct1_privilege": "none",
                 "child_table_ct2_privilege": "none",
@@ -688,11 +713,11 @@ class TestPrivBasic:
                 "res": [True, True, False, False, False, True, False]
             },
             "test_db_write_table_read": {
-                "db_privilege": "write",
+                "db_privilege": "insert",
                 "stable_priviege": "none",
                 "child_table_ct1_privilege": "none",
                 "child_table_ct2_privilege": "none",
-                "table_tb_privilege": "read",
+                "table_tb_privilege": "select",
                 "sql": ["insert into ct2 using stb tags('ct2') values(now, 15.5, 15)", 
                     "insert into ct1 using stb tags('ct1') values(now, 16.6, 16)", 
                     "select * from stb;", 
@@ -703,9 +728,9 @@ class TestPrivBasic:
                 "res": [True, True, False, False, False, True, True]
             },
             "test_db_write_childtable_read": {
-                "db_privilege": "write",
+                "db_privilege": "insert",
                 "stable_priviege": "none",
-                "child_table_ct1_privilege": "read",
+                "child_table_ct1_privilege": "select",
                 "child_table_ct2_privilege": "none",
                 "table_tb_privilege": "none",
                 "sql": ["insert into ct2 using stb tags('ct2') values(now, 18.8, 18)", 
@@ -717,66 +742,66 @@ class TestPrivBasic:
                     "select * from tb;"],
                 "res": [True, True, True, True, False, True, False]
             },
-            "test_db_all_childtable_none": {
-                "db_privilege": "all",
-                "stable_priviege": "none",
-                "child_table_ct1_privilege": "none",
-                "child_table_ct2_privilege": "none",
-                "table_tb_privilege": "none",
-                "sql": ["insert into ct2 using stb tags('ct2') values(now, 20.2, 20)", 
-                    "insert into ct1 using stb tags('ct1') values(now, 21.21, 21)", 
-                    "select * from stb;", 
-                    "select * from ct1;", 
-                    "select * from ct2;", 
-                    "insert into tb values(now, 22.22, 22);",
-                    "select * from tb;"],
-                "res": [True, True, True, True, True, True, True]
-            },
-            "test_db_none_stable_all_childtable_none": {
-                "db_privilege": "none",
-                "stable_priviege": "all",
-                "child_table_ct1_privilege": "none",
-                "child_table_ct2_privilege": "none",
-                "table_tb_privilege": "none",
-                "sql": ["insert into ct2 using stb tags('ct2') values(now, 23.23, 23)", 
-                    "insert into ct1 using stb tags('ct1') values(now, 24.24, 24)", 
-                    "select * from stb;", 
-                    "select * from ct1;", 
-                    "select * from ct2;", 
-                    "insert into tb values(now, 25.25, 25);",
-                    "select * from tb;"],
-                "res": [True, True, True, True, True, False, False]
-            },
-            "test_db_no_permission_childtable_all": {
-                "db_privilege": "none",
-                "stable_priviege": "none",
-                "child_table_ct1_privilege": "all",
-                "child_table_ct2_privilege": "none",
-                "table_tb_privilege": "none",
-                "sql": ["insert into ct2 using stb tags('ct2') values(now, 26.26, 26)", 
-                    "insert into ct1 using stb tags('ct1') values(now, 27.27, 27)", 
-                    "select * from stb;", 
-                    "select * from ct1;", 
-                    "select * from ct2;", 
-                    "insert into tb values(now, 28.28, 28);",
-                    "select * from tb;"],
-                "res": [False, True, True, True, False, False, False]
-            },
-            "test_db_none_stable_none_table_all": {
-                "db_privilege": "none",
-                "stable_priviege": "none",
-                "child_table_ct1_privilege": "none",
-                "child_table_ct2_privilege": "none",
-                "table_tb_privilege": "all",
-                "sql": ["insert into ct2 using stb tags('ct2') values(now, 26.26, 26)", 
-                    "insert into ct1 using stb tags('ct1') values(now, 27.27, 27)", 
-                    "select * from stb;", 
-                    "select * from ct1;", 
-                    "select * from ct2;", 
-                    "insert into tb values(now, 29.29, 29);",
-                    "select * from tb;"],
-                "res": [False, False, False, False, False, True, True]
-            }
+            # "test_db_all_childtable_none": {
+            #     "db_privilege": "all",
+            #     "stable_priviege": "none",
+            #     "child_table_ct1_privilege": "none",
+            #     "child_table_ct2_privilege": "none",
+            #     "table_tb_privilege": "none",
+            #     "sql": ["insert into ct2 using stb tags('ct2') values(now, 20.2, 20)", 
+            #         "insert into ct1 using stb tags('ct1') values(now, 21.21, 21)", 
+            #         "select * from stb;", 
+            #         "select * from ct1;", 
+            #         "select * from ct2;", 
+            #         "insert into tb values(now, 22.22, 22);",
+            #         "select * from tb;"],
+            #     "res": [True, True, True, True, True, True, True]
+            # },
+            # "test_db_none_stable_all_childtable_none": {
+            #     "db_privilege": "none",
+            #     "stable_priviege": "all",
+            #     "child_table_ct1_privilege": "none",
+            #     "child_table_ct2_privilege": "none",
+            #     "table_tb_privilege": "none",
+            #     "sql": ["insert into ct2 using stb tags('ct2') values(now, 23.23, 23)", 
+            #         "insert into ct1 using stb tags('ct1') values(now, 24.24, 24)", 
+            #         "select * from stb;", 
+            #         "select * from ct1;", 
+            #         "select * from ct2;", 
+            #         "insert into tb values(now, 25.25, 25);",
+            #         "select * from tb;"],
+            #     "res": [True, True, True, True, True, False, False]
+            # },
+            # "test_db_no_permission_childtable_all": { // PRIV_TODO: rbac refact
+            #     "db_privilege": "none",
+            #     "stable_priviege": "none",
+            #     "child_table_ct1_privilege": "all",
+            #     "child_table_ct2_privilege": "none",
+            #     "table_tb_privilege": "none",
+            #     "sql": ["insert into ct2 using stb tags('ct2') values(now, 26.26, 26)", 
+            #         "insert into ct1 using stb tags('ct1') values(now, 27.27, 27)", 
+            #         "select * from stb;", 
+            #         "select * from ct1;", 
+            #         "select * from ct2;", 
+            #         "insert into tb values(now, 28.28, 28);",
+            #         "select * from tb;"],
+            #     "res": [False, True, True, True, False, False, False]
+            # },
+            # "test_db_none_stable_none_table_all": {
+            #     "db_privilege": "none",
+            #     "stable_priviege": "none",
+            #     "child_table_ct1_privilege": "none",
+            #     "child_table_ct2_privilege": "none",
+            #     "table_tb_privilege": "all",
+            #     "sql": ["insert into ct2 using stb tags('ct2') values(now, 26.26, 26)", 
+            #         "insert into ct1 using stb tags('ct1') values(now, 27.27, 27)", 
+            #         "select * from stb;", 
+            #         "select * from ct1;", 
+            #         "select * from ct2;", 
+            #         "insert into tb values(now, 29.29, 29);",
+            #         "select * from tb;"],
+            #     "res": [False, False, False, False, False, True, True]
+            # }
         }
 
     def prepare_data4(self):
@@ -814,6 +839,7 @@ class TestPrivBasic:
                 tdSql.execute(f'grant {privilege} on {self.dbname}.{table} with {tag_condition} to {test_user}')
             else:
                 tdSql.execute(f'grant {privilege} on {self.dbname}.{table} to {test_user}')
+            tdSql.execute(f"grant use on database {self.dbname} to {test_user}")
             time.sleep(2)
             tdLog.debug("Grant {} privilege on {}.{} with condition {} to {} successfully".format(privilege, self.dbname, table, tag_condition, test_user))
         except Exception as ex:

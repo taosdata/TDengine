@@ -8,8 +8,7 @@ class TestTS_7622:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_ts_7622(self):
-        """
-        Verify that stream processing can run stably when adding new column mappings during operation.
+        """Stream event window
 
         Description:
             - Create a stream for a virtual table with an event window trigger mode
@@ -20,8 +19,6 @@ class TestTS_7622:
 
         Since: v.3.3.7.0
 
-        Catalog:
-            - Streams: 03-TriggerMode
 
         Labels: common,ci
 
@@ -33,6 +30,7 @@ class TestTS_7622:
         """
 
         tdStream.createSnode()
+        tdSql.execute(f"alter all dnodes 'debugflag 135';")
 
         streams = []
         streams.append(self.ts_7622())

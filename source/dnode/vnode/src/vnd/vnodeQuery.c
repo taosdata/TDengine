@@ -162,6 +162,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   metaRsp.tableType = mer1.me.type;
   metaRsp.vgId = TD_VID(pVnode);
   metaRsp.tuid = mer1.me.uid;
+  metaRsp.isAudit = pVnode->config.isAudit ? 1 : 0;
 
   switch (mer1.me.type) {
     case TSDB_SUPER_TABLE: {
@@ -170,6 +171,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       schemaTag = mer1.me.stbEntry.schemaTag;
       metaRsp.suid = mer1.me.uid;
       metaRsp.virtualStb = TABLE_IS_VIRTUAL(mer1.me.flags);
+      metaRsp.ownerId = mer1.me.stbEntry.ownerId;
       break;
     }
     case TSDB_CHILD_TABLE:
@@ -179,6 +181,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
       (void)strcpy(metaRsp.stbName, mer2.me.name);
       metaRsp.suid = mer2.me.uid;
+      metaRsp.ownerId = mer2.me.stbEntry.ownerId;  // child table inherits ownerId from stb
       schema = mer2.me.stbEntry.schemaRow;
       schemaTag = mer2.me.stbEntry.schemaTag;
       break;
@@ -186,6 +189,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     case TSDB_NORMAL_TABLE:
     case TSDB_VIRTUAL_NORMAL_TABLE: {
       schema = mer1.me.ntbEntry.schemaRow;
+      metaRsp.ownerId = mer1.me.ntbEntry.ownerId;
       break;
     }
     default: {
@@ -334,6 +338,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
 
   cfgRsp.tableType = mer1.me.type;
+  cfgRsp.isAudit = pVnode->config.isAudit ? 1 : 0;
 
   if (mer1.me.type == TSDB_SUPER_TABLE) {
     code = TSDB_CODE_VND_HASH_MISMATCH;
@@ -345,6 +350,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     tstrncpy(cfgRsp.stbName, mer2.me.name, TSDB_TABLE_NAME_LEN);
     schema = mer2.me.stbEntry.schemaRow;
     schemaTag = mer2.me.stbEntry.schemaTag;
+    cfgRsp.ownerId = mer2.me.stbEntry.ownerId;  // child table inherits ownerId from stb
     cfgRsp.ttl = mer1.me.ctbEntry.ttlDays;
     cfgRsp.commentLen = mer1.me.ctbEntry.commentLen;
     if (mer1.me.ctbEntry.commentLen > 0) {
@@ -365,6 +371,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   } else if (mer1.me.type == TSDB_NORMAL_TABLE || mer1.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
     schema = mer1.me.ntbEntry.schemaRow;
     cfgRsp.ttl = mer1.me.ntbEntry.ttlDays;
+    cfgRsp.ownerId = mer1.me.ntbEntry.ownerId;
     cfgRsp.commentLen = mer1.me.ntbEntry.commentLen;
     if (mer1.me.ntbEntry.commentLen > 0) {
       cfgRsp.pComment = taosStrdup(mer1.me.ntbEntry.comment);
@@ -966,7 +973,6 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->roleTimeMs = state.roleTimeMs;
   pLoad->startTimeMs = state.startTimeMs;
   pLoad->syncCanRead = state.canRead;
-  pLoad->learnerProgress = state.progress;
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
   pLoad->numOfCachedTables = tsdbCacheGetElems(pVnode);
   VNODE_DO_META_QUERY(pVnode, pLoad->numOfTables = metaGetTbNum(pVnode->pMeta));
@@ -980,6 +986,11 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->numOfBatchInsertReqs = atomic_load_64(&pVnode->statis.nBatchInsert);
   pLoad->numOfBatchInsertSuccessReqs = atomic_load_64(&pVnode->statis.nBatchInsertSuccess);
   vnodeGetBufferInfo(pVnode, &pLoad->bufferSegmentUsed, &pLoad->bufferSegmentSize);
+  vDebug("vgId:%d, get vnode load, state:%s snapSeq:%d, learnerProgress:%d, totalIndex:%" PRId64, TD_VID(pVnode),
+         syncStr(state.state), state.snapSeq, state.progress, state.totalIndex);
+  pLoad->learnerProgress = state.progress;
+  pLoad->snapSeq = state.snapSeq;
+  pLoad->syncTotalIndex = state.totalIndex;
   return 0;
 }
 

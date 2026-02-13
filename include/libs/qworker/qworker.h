@@ -69,9 +69,13 @@ typedef struct SQWMsg {
   int32_t        code;
   int32_t        msgType;
   void          *msg;
+  void          *req;
   int32_t        msgLen;
+  int32_t        msgMask;
+  ESubQueryType  subQType;
   SQWMsgInfo     msgInfo;
   SRpcHandleInfo connInfo;
+  SArray        *subEndPoints;
   void          *pWorkerCb;
 } SQWMsg;
 

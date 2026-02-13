@@ -74,6 +74,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_DTW,
   FUNCTION_TYPE_DTW_PATH,
   FUNCTION_TYPE_TLCC,
+  FUNCTION_TYPE_LAG,
+  FUNCTION_TYPE_FILL_FORWARD,
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
@@ -336,7 +338,7 @@ bool fmIsSystemInfoFunc(int32_t funcId);
 bool fmIsImplicitTsFunc(int32_t funcId);
 bool fmIsClientPseudoColumnFunc(int32_t funcId);
 bool fmIsMultiRowsFunc(int32_t funcId);
-bool fmIsKeepOrderFunc(int32_t funcId);
+bool fmIsKeepOrderFunc(SFunctionNode* pFunc);
 bool fmIsCumulativeFunc(int32_t funcId);
 bool fmIsInterpPseudoColumnFunc(int32_t funcId);
 bool fmIsAnalysisPseudoColumnFunc(int32_t funcId);

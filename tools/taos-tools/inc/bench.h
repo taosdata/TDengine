@@ -24,7 +24,9 @@ extern "C" {
 #define _GNU_SOURCE
 #endif
 
+#ifndef CURL_STATICLIB
 #define CURL_STATICLIB
+#endif
 #define ALLOW_FORBID_FUNC
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))

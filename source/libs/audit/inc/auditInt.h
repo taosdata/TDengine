@@ -26,7 +26,7 @@ typedef struct {
   int32_t         dnodeId;
   TdThreadRwlock  infoLock;
   char            auditDB[TSDB_DB_FNAME_LEN];
-  char            auditToken[AUDIT_TOKEN_LEN];
+  char            auditToken[TSDB_TOKEN_LEN];
 } SAudit;
 
 #endif /*_TD_AUDIT_INT_H_*/

@@ -266,4 +266,4 @@ class TestFunTimetruncate:
         self.function_check_stb()
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+
