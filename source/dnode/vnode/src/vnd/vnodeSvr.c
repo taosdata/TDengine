@@ -1743,6 +1743,14 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
 
 _exit:
   taosArrayDestroy(vAlterTbReq.pMultiTag);
+  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
+    for (int32_t i = 0; i < taosArrayGetSize(vAlterTbReq.tables); i++) {
+      SUpdateTableTagVal* pTable = taosArrayGet(vAlterTbReq.tables, i);
+      tfreeUpdateTableTagVal(pTable);
+    }
+    taosArrayDestroy(vAlterTbReq.tables);
+  }
+
   tEncodeSize(tEncodeSVAlterTbRsp, &vAlterTbRsp, pRsp->contLen, ret);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);
   tEncoderInit(&ec, pRsp->pCont, pRsp->contLen);
