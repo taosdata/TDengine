@@ -531,6 +531,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_REMOTE_VALUE_LIST:
       code = makeNode(type, sizeof(SRemoteValueListNode), &pNode);
       break;
+    case QUERY_NODE_UPDATE_TAG_VALUE:
+      code = makeNode(type, sizeof(SUpdateTagValueNode), &pNode);
+      break;
+    case QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE:
+      code = makeNode(type, sizeof(SAlterTableUpdateTagValClause), &pNode);
+      break;
     case QUERY_NODE_TRUE_FOR:
       code = makeNode(type, sizeof(STrueForNode), &pNode);
       break;
@@ -1332,6 +1338,18 @@ void nodesDestroyNode(SNode* pNode) {
       }
       break;
     }
+    case QUERY_NODE_UPDATE_TAG_VALUE: {
+      SUpdateTagValueNode* pTagVal = (SUpdateTagValueNode*)pNode;
+      nodesDestroyNode((SNode*)pTagVal->pVal);
+      taosMemoryFree(pTagVal->regexp);
+      taosMemoryFree(pTagVal->replacement);
+      break;
+    }
+    case QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE: {
+      SAlterTableUpdateTagValClause* pClause = (SAlterTableUpdateTagValClause*)pNode;
+      nodesDestroyList(pClause->pTagList);
+      break;
+    }
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOp = (SOperatorNode*)pNode;
       destroyExprNode((SExprNode*)pNode);
@@ -1776,15 +1794,8 @@ void nodesDestroyNode(SNode* pNode) {
       SAlterTableStmt* pStmt = (SAlterTableStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->pOptions);
       nodesDestroyNode((SNode*)pStmt->pVal);
-      if (pStmt->pNodeListTagValue != NULL) {
-        SNodeList* pNodeList = pStmt->pNodeListTagValue;
-        SNode*     pSubNode = NULL;
-        FOREACH(pSubNode, pNodeList) {
-          SAlterTableStmt* pSubAlterTable = (SAlterTableStmt*)pSubNode;
-          nodesDestroyNode((SNode*)pSubAlterTable->pOptions);
-          nodesDestroyNode((SNode*)pSubAlterTable->pVal);
-        }
-      }
+      nodesDestroyNode(pStmt->pWhere);
+      nodesDestroyList(pStmt->pList);
       break;
     }
     case QUERY_NODE_CREATE_MOUNT_STMT:  // no pointer field

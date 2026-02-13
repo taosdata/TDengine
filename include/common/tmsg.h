@@ -232,7 +232,7 @@ typedef enum {
 #define TSDB_ALTER_TABLE_ADD_TAG                         1
 #define TSDB_ALTER_TABLE_DROP_TAG                        2
 #define TSDB_ALTER_TABLE_UPDATE_TAG_NAME                 3
-#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL                  4
+#define TSDB_ALTER_TABLE_UPDATE_TAG_VAL                  4 // useless???
 #define TSDB_ALTER_TABLE_ADD_COLUMN                      5
 #define TSDB_ALTER_TABLE_DROP_COLUMN                     6
 #define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES             7
@@ -243,10 +243,12 @@ typedef enum {
 #define TSDB_ALTER_TABLE_DROP_TAG_INDEX                  12
 #define TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS          13
 #define TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION 14
-#define TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL            15
+#define TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL            15 // useless???
 #define TSDB_ALTER_TABLE_ALTER_COLUMN_REF                16
 #define TSDB_ALTER_TABLE_REMOVE_COLUMN_REF               17
 #define TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF      18
+#define TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL      19 // alter multiple tag values of multi tables
+#define TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL      20 // alter multiple tag values of the child tables of a stable
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -362,6 +364,8 @@ typedef enum ENodeType {
   QUERY_NODE_TRUE_FOR,
   QUERY_NODE_REMOTE_VALUE_LIST,
   QUERY_NODE_SURROUND,
+  QUERY_NODE_UPDATE_TAG_VALUE,
+  QUERY_NODE_ALTER_TABLE_UPDATE_TAG_VAL_CLAUSE,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -4925,7 +4929,7 @@ int32_t tEncodeSVDropTbBatchRsp(SEncoder* pCoder, const SVDropTbBatchRsp* pRsp);
 int32_t tDecodeSVDropTbBatchRsp(SDecoder* pCoder, SVDropTbBatchRsp* pRsp);
 
 // TDMT_VND_ALTER_TABLE =====================
-typedef struct SMultiTagUpateVal {
+typedef struct SMultiTagUpdateVal {
   char*    tagName;
   int32_t  colId;
   int8_t   tagType;
@@ -4934,7 +4938,18 @@ typedef struct SMultiTagUpateVal {
   uint8_t* pTagVal;
   int8_t   isNull;
   SArray*  pTagArray;
-} SMultiTagUpateVal;
+  // NOTE: regexp and replacement are only a temporal solution for tag value update,
+  // they should be replaced by a more generic solution in the future for full expression
+  // support
+  char*    regexp;
+  char*    replacement;
+} SMultiTagUpdateVal;
+
+typedef struct SUpdateTableTagVal {
+  char *tbName;
+  SArray* tags; // Array of SMultiTagUpdateVal
+} SUpdateTableTagVal;
+
 typedef struct SVAlterTbReq {
   char*   tbName;
   int8_t  action;
@@ -4965,6 +4980,7 @@ typedef struct SVAlterTbReq {
   int8_t   source;     // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
   uint32_t compress;   // TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS
   SArray*  pMultiTag;  // TSDB_ALTER_TABLE_ADD_MULTI_TAGS
+  SArray*  tables;     // Array of SUpdateTableTagVal, for TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL
   // for Add column
   STypeMod typeMod;
   // TSDB_ALTER_TABLE_ALTER_COLUMN_REF
@@ -4978,6 +4994,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReq(SDecoder* pDecoder, SVAlterTbReq* pReq);
 int32_t tDecodeSVAlterTbReqSetCtime(SDecoder* pDecoder, SVAlterTbReq* pReq, int64_t ctimeMs);
 void    tfreeMultiTagUpateVal(void* pMultiTag);
+void    tfreeUpdateTableTagVal(void* pMultiTable);
 
 typedef struct {
   int32_t        code;

@@ -603,31 +603,89 @@ static int32_t collectMetaKeyFromDropVtable(SCollectMetaKeyCxt* pCxt, SDropVirtu
   return code;
 }
 
+
+
 static int32_t collectMetaKeyFromAlterTable(SCollectMetaKeyCxt* pCxt, SAlterTableStmt* pStmt) {
-  int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
-  if (TSDB_CODE_SUCCESS == code && (TSDB_ALTER_TABLE_UPDATE_TAG_VAL == pStmt->alterType ||
-                                    TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL == pStmt->alterType)) {
-    SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
-    tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
-    tstrncpy(name.tname, pStmt->tableName, TSDB_TABLE_NAME_LEN);
-    code = catalogRemoveTableRelatedMeta(pCxt->pParseCxt->pCatalog, &name);
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
+    SNode*  pNode = NULL;
+    FOREACH(pNode, pStmt->pList) {
+      SAlterTableUpdateTagValClause* pClause = (SAlterTableUpdateTagValClause*)pNode;
+      code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pClause->dbName, pCxt->pMetaCache);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+
+      SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
+      tstrncpy(name.dbname, pClause->dbName, TSDB_DB_NAME_LEN);
+      tstrncpy(name.tname, pClause->tableName, TSDB_TABLE_NAME_LEN);
+      code = catalogRemoveTableRelatedMeta(pCxt->pParseCxt->pCatalog, &name);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+
+      code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+
+      code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+                                      
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName, pClause->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, pCxt->pMetaCache);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+    }
+
+    return code;
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
+  
+  if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
+    /*
+    if (pStmt->withOpt) {
+      code = reserveTableUidInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
+    } else {
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
+                                    PRIV_CM_DROP, PRIV_OBJ_TBL, pCxt->pMetaCache);
+    }
+                                    */
+    return code;
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
+
+  code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_USE,
-                                  PRIV_OBJ_DB, pCxt->pMetaCache);
+
+  code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
-                                  PRIV_CM_ALTER, PRIV_OBJ_TBL, pCxt->pMetaCache);
+
+  code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
+
+  code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+                                  
+  code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, pCxt->pMetaCache);
   return code;
 }
+
+
 
 static int32_t collectMetaKeyFromAlterStable(SCollectMetaKeyCxt* pCxt, SAlterTableStmt* pStmt) {
   int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
@@ -645,21 +703,11 @@ static int32_t collectMetaKeyFromAlterStable(SCollectMetaKeyCxt* pCxt, SAlterTab
   return code;
 }
 
+
+
 static int32_t collectMetaKeyFromAlterVtable(SCollectMetaKeyCxt* pCxt, SAlterTableStmt* pStmt) {
-  PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache));
-  if (TSDB_ALTER_TABLE_UPDATE_TAG_VAL == pStmt->alterType ||
-      TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL == pStmt->alterType) {
-    SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
-    tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
-    tstrncpy(name.tname, pStmt->tableName, TSDB_TABLE_NAME_LEN);
-    PAR_ERR_RET(catalogRemoveTableRelatedMeta(pCxt->pParseCxt->pCatalog, &name));
-  }
-  PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache));
-  PAR_ERR_RET(reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache));
-  PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_USE,
-                                     PRIV_OBJ_DB, pCxt->pMetaCache));
-  PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
-                                     PRIV_CM_ALTER, PRIV_OBJ_TBL, pCxt->pMetaCache));
+  PAR_ERR_RET(collectMetaKeyFromAlterTable(pCxt, pStmt));
+
   if (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
       pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) {
     PAR_ERR_RET(
@@ -669,8 +717,11 @@ static int32_t collectMetaKeyFromAlterVtable(SCollectMetaKeyCxt* pCxt, SAlterTab
     PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->refDbName,
                                        pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache));
   }
+
   return TSDB_CODE_SUCCESS;
 }
+
+
 
 static int32_t collectMetaKeyFromUseDatabase(SCollectMetaKeyCxt* pCxt, SUseDatabaseStmt* pStmt) {
   int32_t code = reserveDbVgVersionInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);

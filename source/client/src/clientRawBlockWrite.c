@@ -917,7 +917,7 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
         RAW_NULL_CHECK(member);
         RAW_FALSE_CHECK(tmqAddJsonArrayItem(tags, member));
 
-        SMultiTagUpateVal* pTagVal = taosArrayGet(vAlterTbReq.pMultiTag, i);
+        SMultiTagUpdateVal* pTagVal = taosArrayGet(vAlterTbReq.pMultiTag, i);
         cJSON*             tagName = cJSON_CreateString(pTagVal->tagName);
         RAW_NULL_CHECK(tagName);
         RAW_FALSE_CHECK(tmqAddJsonObjectItem(member, "colName", tagName));

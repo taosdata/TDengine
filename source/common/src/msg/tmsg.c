@@ -15036,6 +15036,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colNewName));
       break;
+#if 0 // should be useless, but keep the code for now.
     case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->tagName));
       TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->isNull));
@@ -15048,7 +15049,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       int32_t nTags = taosArrayGetSize(pReq->pMultiTag);
       TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, nTags));
       for (int32_t i = 0; i < nTags; i++) {
-        SMultiTagUpateVal *pTag = taosArrayGet(pReq->pMultiTag, i);
+        SMultiTagUpdateVal *pTag = taosArrayGet(pReq->pMultiTag, i);
         TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pTag->colId));
         TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pTag->tagName));
         TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTag->isNull));
@@ -15057,6 +15058,38 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
           TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pTag->pTagVal, pTag->nTagVal));
         }
       }
+      break;
+    }
+#endif
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL: {
+      int32_t nTables = taosArrayGetSize(pReq->tables);
+      TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, nTables));
+      for (int32_t i = 0; i < nTables; i++) {
+        SUpdateTableTagVal *pTable = taosArrayGet(pReq->tables, i);
+        TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pTable->tbName));
+        int32_t nTags = taosArrayGetSize(pTable->tags);
+        TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, nTags));
+        for (int32_t j = 0; j < nTags; j++) {
+          SMultiTagUpdateVal *pTag = taosArrayGet(pTable->tags, j);
+          int8_t useRegexp = (pTag->regexp != NULL) ? 1 : 0;
+          TAOS_CHECK_EXIT(tEncodeI8(pEncoder, useRegexp));
+          TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pTag->colId));
+          TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pTag->tagName));
+          TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTag->tagType));
+          if (useRegexp) {
+            TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pTag->regexp));
+            TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pTag->replacement));
+          } else {
+            TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTag->isNull));
+            if (!pTag->isNull) {
+              TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pTag->pTagVal, pTag->nTagVal));
+            }
+          }
+        }
+      }
+      break;
+    }
+    case TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL: {
       break;
     }
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
@@ -15138,6 +15171,7 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colNewName));
       break;
+#if 0 // should be useless, but keep the code for now.
     case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->tagName));
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->isNull));
@@ -15149,12 +15183,12 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
     case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL: {
       int32_t nTags;
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nTags));
-      pReq->pMultiTag = taosArrayInit(nTags, sizeof(SMultiTagUpateVal));
+      pReq->pMultiTag = taosArrayInit(nTags, sizeof(SMultiTagUpdateVal));
       if (pReq->pMultiTag == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
       for (int32_t i = 0; i < nTags; i++) {
-        SMultiTagUpateVal tag;
+        SMultiTagUpdateVal tag;
         TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &tag.colId));
         TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.tagName));
         TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.isNull));
@@ -15166,6 +15200,54 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
           TAOS_CHECK_EXIT(terrno);
         }
       }
+      break;
+    }
+#endif
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL: {
+      int32_t nTables;
+      TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nTables));
+      pReq->tables = taosArrayInit(nTables, sizeof(SUpdateTableTagVal));
+      if (pReq->tables == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      for (int32_t i = 0; i < nTables; i++) {
+        SUpdateTableTagVal table = {0};
+        TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &table.tbName));
+        int32_t nTags;
+        TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nTags));
+        table.tags = taosArrayInit(nTags, sizeof(SMultiTagUpdateVal));
+        if (table.tags == NULL) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+        for (int32_t j = 0; j < nTags; j++) {
+          SMultiTagUpdateVal tag = {0};
+          int8_t useRegexp;
+          TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &useRegexp));
+          TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &tag.colId));
+          TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.tagName));
+          TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.tagType));
+          if (useRegexp) {
+            TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.regexp));
+            TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.replacement));
+          } else {
+            TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.isNull));
+            if (!tag.isNull) {
+              TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &tag.pTagVal, &tag.nTagVal));
+            }
+          }
+          if (taosArrayPush(table.tags, &tag) == NULL) {
+            tfreeMultiTagUpateVal(&tag);
+            TAOS_CHECK_EXIT(terrno);
+          }
+        }
+        if (taosArrayPush(pReq->tables, &table) == NULL) {
+          tfreeUpdateTableTagVal(&table);
+          TAOS_CHECK_EXIT(terrno);
+        }
+      }
+      break;
+    }
+    case TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL: {
       break;
     }
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
@@ -15257,8 +15339,10 @@ _exit:
   return code;
 }
 
+
+
 void tfreeMultiTagUpateVal(void *val) {
-  SMultiTagUpateVal *pTag = val;
+  SMultiTagUpdateVal *pTag = val;
   taosMemoryFree(pTag->tagName);
   for (int i = 0; i < taosArrayGetSize(pTag->pTagArray); ++i) {
     STagVal *p = (STagVal *)taosArrayGet(pTag->pTagArray, i);
@@ -15268,7 +15352,20 @@ void tfreeMultiTagUpateVal(void *val) {
   }
 
   taosArrayDestroy(pTag->pTagArray);
+  taosMemoryFree(pTag->regexp);
+  taosMemoryFree(pTag->replacement);
 }
+
+
+
+void tfreeUpdateTableTagVal(void* val) {
+  SUpdateTableTagVal* pTable = (SUpdateTableTagVal*)val;
+  taosMemoryFree(pTable->tbName);
+  taosArrayDestroyEx(pTable->tags, tfreeMultiTagUpateVal);
+}
+
+
+
 int32_t tEncodeSVAlterTbRsp(SEncoder *pEncoder, const SVAlterTbRsp *pRsp) {
   int32_t code = 0;
   int32_t lino;
