@@ -1931,6 +1931,8 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
 
   pTask->histTrigTsIndex = 0;
   pTask->histCalcTsIndex = 0;
+  pTask->histTrigPkIndex = -1;
+  pTask->histCalcPkIndex = -1;
 
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
     if (pTask->histStateSlotId != -1) {
@@ -2199,6 +2201,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
 
   pTask->trigTsIndex = pMsg->triTsSlotId;
   pTask->calcTsIndex = pMsg->calcTsSlotId;
+  pTask->trigPkIndex = pMsg->triPkSlotId;
+  pTask->calcPkIndex = pMsg->calcPkSlotId;
   pTask->maxDelayNs = pMsg->maxDelay * NANOSECOND_PER_MSEC;
   pTask->fillHistoryStartTime = pMsg->fillHistoryStartTime;
   pTask->watermark = pMsg->watermark;
@@ -2250,6 +2254,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
     pTask->histTrigTsIndex = pTask->trigTsIndex;
   }
   pTask->histCalcTsIndex = pTask->calcTsIndex;
+  pTask->histTrigPkIndex = pTask->trigPkIndex;
+  pTask->histCalcPkIndex = pTask->calcPkIndex;
   if (pTask->triggerFilter != NULL) {
     code = nodesCloneNode(pTask->triggerFilter, &pTask->histTriggerFilter);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -8055,7 +8061,8 @@ static int32_t stRealtimeGroupNextDataBlock(SSTriggerRealtimeGroup *pGroup, SSDa
         SObjList *pMetas = tSimpleHashGet(pGroup->pWalMetas, &vgId, sizeof(int32_t));
         QUERY_CHECK_NULL(pMetas, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
         STimeWindow range = {.skey = pGroup->oldThreshold + 1, .ekey = pGroup->newThreshold};
-        code = stNewTimestampSorterSetData(pContext->pSorter, tbUid, pTask->trigTsIndex, &range, pMetas, pSlice);
+        code = stNewTimestampSorterSetData(pContext->pSorter, tbUid, pTask->trigTsIndex, pTask->trigPkIndex, &range,
+                                           pMetas, pSlice);
         QUERY_CHECK_CODE(code, lino, _end);
       }
       code = stNewTimestampSorterNextDataBlock(pContext->pSorter, ppDataBlock, pStartIdx, pEndIdx);
@@ -8078,8 +8085,8 @@ static int32_t stRealtimeGroupNextDataBlock(SSTriggerRealtimeGroup *pGroup, SSDa
           break;
         }
         STimeWindow range = {.skey = pGroup->oldThreshold + 1, .ekey = pGroup->newThreshold};
-        code = stNewVtableMergerSetData(pContext->pMerger, vtbUid, pTask->trigTsIndex, &range, &pGroup->tableUids,
-                                        pInfo->pTrigColRefs, pGroup->pWalMetas, pContext->pSlices);
+        code = stNewVtableMergerSetData(pContext->pMerger, vtbUid, pTask->trigTsIndex, pTask->trigPkIndex, &range,
+                                        &pGroup->tableUids, pInfo->pTrigColRefs, pGroup->pWalMetas, pContext->pSlices);
         QUERY_CHECK_CODE(code, lino, _end);
       }
       code = stNewVtableMergerNextDataBlock(pContext->pMerger, ppDataBlock, pStartIdx, pEndIdx);
@@ -8113,7 +8120,8 @@ static int32_t stRealtimeGroupNextDataBlock(SSTriggerRealtimeGroup *pGroup, SSDa
         if (TARRAY_DATA(pContext->pCalcReq->params) != pContext->pCurParam) {
           range.skey = TMAX(range.skey, (pContext->pCurParam - 1)->wend + 1);
         }
-        code = stNewTimestampSorterSetData(pContext->pCalcSorter, tbUid, pTask->calcTsIndex, &range, pMetas, pSlice);
+        code = stNewTimestampSorterSetData(pContext->pCalcSorter, tbUid, pTask->calcTsIndex, pTask->calcPkIndex, &range,
+                                           pMetas, pSlice);
         QUERY_CHECK_CODE(code, lino, _end);
       }
       code = stNewTimestampSorterNextDataBlock(pContext->pCalcSorter, ppDataBlock, pStartIdx, pEndIdx);
@@ -8140,7 +8148,7 @@ static int32_t stRealtimeGroupNextDataBlock(SSTriggerRealtimeGroup *pGroup, SSDa
         if (TARRAY_DATA(pContext->pCalcReq->params) != pContext->pCurParam) {
           range.skey = TMAX(range.skey, (pContext->pCurParam - 1)->wend + 1);
         }
-        code = stNewVtableMergerSetData(pContext->pCalcMerger, vtbUid, pTask->calcTsIndex, &range,
+        code = stNewVtableMergerSetData(pContext->pCalcMerger, vtbUid, pTask->calcTsIndex, pTask->calcPkIndex, &range,
                                         &pContext->pCalcTableUids, pInfo->pCalcColRefs, pGroup->pWalMetas,
                                         pContext->pSlices);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -10253,7 +10261,8 @@ static int32_t stHistoryGroupGetDataBlock(SSTriggerHistoryGroup *pGroup, bool sa
           QUERY_CHECK_CODE(code, lino, _end);
         }
         code = stTimestampSorterSetSortInfo(pContext->pSorter, &range, pContext->pCurTableMeta->tbUid,
-                                            isCalcData ? pTask->histCalcTsIndex : pTask->histTrigTsIndex);
+                                            isCalcData ? pTask->histCalcTsIndex : pTask->histTrigTsIndex,
+                                            isCalcData ? pTask->histCalcPkIndex : pTask->histTrigPkIndex);
         QUERY_CHECK_CODE(code, lino, _end);
         code = stTimestampSorterSetMetaDatas(pContext->pSorter, pContext->pCurTableMeta);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -10485,7 +10494,7 @@ static int32_t stHistoryGroupDoSessionCheck(SSTriggerHistoryGroup *pGroup) {
         QUERY_CHECK_CODE(code, lino, _end);
         STimeWindow range = pContext->stepRange;
         code = stTimestampSorterSetSortInfo(pContext->pSorter, &range, pContext->pCurTableMeta->tbUid,
-                                            pTask->histTrigTsIndex);
+                                            pTask->histTrigTsIndex, pTask->histTrigPkIndex);
         QUERY_CHECK_CODE(code, lino, _end);
         code = stTimestampSorterSetMetaDatas(pContext->pSorter, pContext->pCurTableMeta);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -10584,7 +10593,7 @@ static int32_t stHistoryGroupDoCountCheck(SSTriggerHistoryGroup *pGroup) {
         }
         STimeWindow range = pContext->stepRange;
         code = stTimestampSorterSetSortInfo(pContext->pSorter, &range, pContext->pCurTableMeta->tbUid,
-                                            pTask->histTrigTsIndex);
+                                            pTask->histTrigTsIndex, pTask->histTrigPkIndex);
         QUERY_CHECK_CODE(code, lino, _end);
         code = stTimestampSorterSetMetaDatas(pContext->pSorter, pContext->pCurTableMeta);
         QUERY_CHECK_CODE(code, lino, _end);
