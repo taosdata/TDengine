@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, AutoGen
+from new_test_framework.utils import tdCom, tdLog, tdSql, AutoGen 
 from random import randint
 
 import datetime
@@ -6,7 +6,6 @@ import threading
 import time
 import os
 import random
-
 
 
 
@@ -267,7 +266,8 @@ class TestInsertDouble:
     def genMultiThreadSeq(self, sql_list):
         tlist = list()
         for insert_sql in sql_list:
-            t = threading.Thread(target=tdSql.execute, args=(insert_sql,))
+            new_sql = tdCom.newTdSql()
+            t = threading.Thread(target=new_sql.execute, args=(insert_sql,))
             tlist.append(t)
         return tlist
 
