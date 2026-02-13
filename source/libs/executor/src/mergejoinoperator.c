@@ -1750,6 +1750,8 @@ void mJoinResetCtx(SMJoinOperatorInfo* pJoin) {
 void mJoinResetOperator(struct SOperatorInfo* pOperator) {
   SMJoinOperatorInfo* pJoin = pOperator->info;
 
+  qInfo("[stream] %s merge join output rows: %" PRId64, GET_TASKID(pJoin->pOperator->pTaskInfo), pJoin->execInfo.resRows);
+
   mJoinResetTableCtx(pJoin->build);
   mJoinResetTableCtx(pJoin->probe);
 
@@ -1843,6 +1845,8 @@ void destroyMergeJoinTableCtx(SMJoinTableCtx* pTable) {
 
 void destroyMergeJoinOperator(void* param) {
   SMJoinOperatorInfo* pJoin = (SMJoinOperatorInfo*)param;
+
+  qInfo("[query] %s merge join output rows: %" PRId64, GET_TASKID(pJoin->pOperator->pTaskInfo), pJoin->execInfo.resRows);
 
   mJoinDestroyCtx(pJoin);
 

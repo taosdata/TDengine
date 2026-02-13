@@ -319,32 +319,35 @@ class Test_checkpoint_info_Case:
     def StopStream(self):
         tdLog.info(f"stop stream:")
         tdSql.query(f"show {self.dbname}.streams;")
-        streamname = tdSql.getColData(0)
-        for i in streamname:
-            tdLog.info(f"stop stream {i}")
-            tdSql.execute(f"stop stream {i}")
+        streamName = tdSql.getColData(0)
+        for name in streamName:
+            tdLog.info(f"stop stream {name}")
+            tdSql.execute(f"stop stream {name}")
         
+        time.sleep(5)
         tdSql.query(f"show {self.dbname}.streams;")
-        stateStream = tdSql.getData(0,1)
-        for i in stateStream:
-            if stateStream != 'Stopped' :
-                raise Exception(f"Stop stream error")
+        streamName = tdSql.getColData(0)
+        streamStatus = tdSql.getColData(1)
+        for name, status in zip(streamName,streamStatus):
+            if status != 'Stopped':
+                raise Exception(f"Stop stream {name} error, status {status}")
         tdLog.info(f"stop all stream  success")
                 
     def StartStream(self):
         tdLog.info(f"start stream:")
         tdSql.query(f"show {self.dbname}.streams;")
-        streamname = tdSql.getColData(0)
-        for i in streamname:
-            tdLog.info(f"start stream {i}")
-            tdSql.execute(f"start stream {i}")
+        streamName = tdSql.getColData(0)
+        for name in streamName:
+            tdLog.info(f"start stream {name}")
+            tdSql.execute(f"start stream {name}")
             
         self.checkStreamRunning()
         tdSql.query(f"show {self.dbname}.streams;")
-        stateStream = tdSql.getData(0,1)
-        for i in stateStream:
-            if stateStream != 'Running' :
-                raise Exception(f"Start stream error")
+        streamName = tdSql.getColData(0)
+        streamStatus = tdSql.getColData(1)
+        for name, status in zip(streamName,streamStatus):
+            if status != 'Running':
+                raise Exception(f"Start stream {name} error, status {status}")
         
         tdLog.info(f"start all stream  success")
                 
