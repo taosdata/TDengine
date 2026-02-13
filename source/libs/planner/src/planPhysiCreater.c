@@ -946,7 +946,6 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   // Pass table privilege info to physical node (move ownership to avoid double-free)
   pScan->showAllTbls = pCxt->pPlanCxt->showAllTbls;
   TSWAP(pScan->pReadDbs, pCxt->pPlanCxt->pReadDbs);
-  TSWAP(pScan->pReadTbs, pCxt->pPlanCxt->pReadTbs);
   TSWAP(pScan->pReadUids, pCxt->pPlanCxt->pReadUids);
   if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TABLES) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TAGS) ||

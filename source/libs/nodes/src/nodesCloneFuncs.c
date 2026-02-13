@@ -883,23 +883,6 @@ static int32_t physiSysTableScanCopy(const SSystemTableScanPhysiNode* pSrc, SSys
       }
     }
   }
-  // Clone SSHashObj pReadTbs
-  if (pSrc->pReadTbs != NULL) {
-    int32_t numKeys = tSimpleHashGetSize(pSrc->pReadTbs);
-    pDst->pReadTbs = tSimpleHashInit(numKeys > 0 ? numKeys : 4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
-    if (NULL == pDst->pReadTbs) {
-      return terrno;
-    }
-    void*   pIter = NULL;
-    int32_t iter = 0;
-    while ((pIter = tSimpleHashIterate(pSrc->pReadTbs, pIter, &iter)) != NULL) {
-      char*   key = tSimpleHashGetKey(pIter, NULL);
-      int32_t code = tSimpleHashPut(pDst->pReadTbs, key, strlen(key) + 1, NULL, 0);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
-    }
-  }
   // Clone SSHashObj pReadUids (int64_t keys)
   if (pSrc->pReadUids != NULL) {
     int32_t numKeys = tSimpleHashGetSize(pSrc->pReadUids);

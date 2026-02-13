@@ -1918,7 +1918,6 @@ void nodesDestroyNode(SNode* pNode) {
       SSystemTableScanPhysiNode* pSysNode = (SSystemTableScanPhysiNode*)pNode;
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       tSimpleHashCleanup(pSysNode->pReadDbs);
-      tSimpleHashCleanup(pSysNode->pReadTbs);
       tSimpleHashCleanup(pSysNode->pReadUids);
       break;
     }

@@ -57,7 +57,6 @@ typedef struct SPlanContext {
   // for table privilege filtering (AUTH_TYPE_SHOW)
   bool       showAllTbls;  // user has db-level privilege
   SSHashObj* pReadDbs;     // key is dbFName
-  SSHashObj* pReadTbs;     // key is tbFName (legacy)
   SSHashObj* pReadUids;    // key is int64_t (suid or uid), optimized
 } SPlanContext;
 

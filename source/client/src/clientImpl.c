@@ -1447,18 +1447,15 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .allocatorId = pRequest->isStmtBind ? 0 : pRequest->allocatorRefId,
                         .showAllTbls = pWrapper->pParseCtx->showAllTbls,
                         .pReadDbs = pWrapper->pParseCtx->pReadDbs,
-                        .pReadTbs = pWrapper->pParseCtx->pReadTbs,
                         .pReadUids = pWrapper->pParseCtx->pReadUids};
     // Transfer ownership to plan context (will be moved to SSystemTableScanPhysiNode)
     pWrapper->pParseCtx->pReadDbs = NULL;
-    pWrapper->pParseCtx->pReadTbs = NULL;
     pWrapper->pParseCtx->pReadUids = NULL;
     if (TSDB_CODE_SUCCESS == code) {
       code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
     }
-    // Clean up pReadDbs/pReadTbs/pReadUids if not transferred to plan node (NULL is safe)
+    // Clean up pReadDbs/pReadUids if not transferred to plan node (NULL is safe)
     tSimpleHashCleanup(cxt.pReadDbs);
-    tSimpleHashCleanup(cxt.pReadTbs);
     tSimpleHashCleanup(cxt.pReadUids);
     if (code) {
       tscError("req:0x%" PRIx64 ", failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
