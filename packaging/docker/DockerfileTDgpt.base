@@ -3,6 +3,7 @@ ARG ARCH=amd64
 
 FROM python:3.10-slim-trixie AS base-builder
 ARG ARCH=amd64
+COPY ./requirements_docker.txt /tmp/requirements_docker.txt
 RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update -y && \
     apt-get install -y --no-install-recommends gcc libc-dev procps && \
     apt-get clean && \
@@ -22,21 +23,7 @@ RUN if [ "$ARCH" = "arm64" ]; then \
     pip3 install --no-cache-dir --ignore-installed blinker && \
     pip3 install --no-cache-dir $TORCH_PKG --index-url $TORCH_INDEX && \
     pip3 install --no-cache-dir \
-                    $TENSORFLOW_PKG \
-                    numpy==1.26.4 \
-                    pandas==1.5.0 \
-                    scikit-learn==1.7.0 \
-                    outlier_utils==0.0.5 \
-                    statsmodels==0.14.4 \
-                    pyculiarity==0.0.7 \
-                    pmdarima==2.0.4 \
-                    flask==3.1.1 \
-                    matplotlib==3.10.3 \
-                    taospy \
-                    uwsgi==2.0.30 \
-                    accelerate==1.8.1 \
-                    prophet==1.1.7 \
-                    fastdtw==0.3.4 \
+                    -r /tmp/requirements_docker.txt \
                     -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     find /usr/local/lib/python3.10 -name "*.pyc" -delete && \
     find /usr/local/lib/python3.10 -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && \
@@ -98,7 +85,7 @@ RUN if [ "$ARCH" = "arm64" ]; then \
 
 FROM python:3.10-slim-trixie
 RUN apt-get update -y && \
-    apt-get install -y --no-install-recommends procps && \
+    apt-get install -y --no-install-recommends gcc libc-dev g++ build-essential procps && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 COPY --from=base-builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
