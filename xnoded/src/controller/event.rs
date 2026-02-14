@@ -239,6 +239,9 @@ pub async fn event_loop(
                                 agent_status,
                                 &activity,
                             ));
+                            if matches!(agent_status, AgentStatus::Unknown) {
+                                continue;
+                            }
                             call_with_cancel!(process_agent_status(
                                 id,
                                 &taos_conn,
@@ -264,6 +267,10 @@ pub async fn event_loop(
                             task_status,
                             &activity,
                         ));
+
+                        if matches!(task_status, TaskStatus::Unknown) {
+                            continue;
+                        }
 
                         // 更新原子任务的 status
                         call_with_cancel!(update_task_job(

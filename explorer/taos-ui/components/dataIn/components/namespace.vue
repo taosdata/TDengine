@@ -4,7 +4,6 @@
       v-model="localData[config.field]"
       :allow-create="true"
       style="flex: 1"
-      class="mr20"
       :placeholder="config.placeholder"
       :multiple="config.multiple"
       clearable

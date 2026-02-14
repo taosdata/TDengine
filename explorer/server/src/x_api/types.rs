@@ -311,3 +311,8 @@ impl From<Dsn> for ExpandedDsn {
         }
     }
 }
+
+#[derive(Debug, serde::Deserialize)]
+pub struct BatchOpsParam {
+    pub ids: Vec<i64>,
+}

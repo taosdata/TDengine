@@ -253,10 +253,10 @@ pub async fn stop_task(
 
 pub async fn batch_start_tasks(
     args: web::Data<Args>,
-    task_ids: web::Json<Vec<i64>>,
+    task_ids: web::Json<BatchOpsParam>,
     req: HttpRequest,
 ) -> JsonResult<()> {
-    let task_ids = task_ids.into_inner();
+    let task_ids = task_ids.into_inner().ids;
     let dsn = get_dsn(&args, &req).await?;
     for task_id in task_ids {
         let sql = format!("START XNODE TASK {}", task_id);
@@ -267,10 +267,10 @@ pub async fn batch_start_tasks(
 
 pub async fn batch_stop_tasks(
     args: web::Data<Args>,
-    task_ids: web::Json<Vec<i64>>,
+    task_ids: web::Json<BatchOpsParam>,
     req: HttpRequest,
 ) -> JsonResult<()> {
-    let task_ids = task_ids.into_inner();
+    let task_ids = task_ids.into_inner().ids;
     let dsn = get_dsn(&args, &req).await?;
     for task_id in task_ids {
         let sql = format!("STOP XNODE TASK {}", task_id);
@@ -281,10 +281,10 @@ pub async fn batch_stop_tasks(
 
 pub async fn batch_delete_tasks(
     args: web::Data<Args>,
-    task_ids: web::Json<Vec<i64>>,
+    task_ids: web::Json<BatchOpsParam>,
     req: HttpRequest,
 ) -> JsonResult<()> {
-    let task_ids = task_ids.into_inner();
+    let task_ids = task_ids.into_inner().ids;
     let dsn = get_dsn(&args, &req).await?;
     for task_id in task_ids {
         let sql = format!("DROP XNODE TASK {}", task_id);

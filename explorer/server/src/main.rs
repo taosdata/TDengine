@@ -453,7 +453,7 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/x/tasks/{id}/stop", web::post().to(stop_task))
             .route("/api/x/tasks/start", web::post().to(batch_start_tasks))
             .route("/api/x/tasks/stop", web::post().to(batch_stop_tasks))
-            .route("/api/x/tasks/delete", web::delete().to(batch_delete_tasks))
+            .route("/api/x/tasks/delete", web::post().to(batch_delete_tasks))
             .route(
                 "/api/x/tasks/{task_id}/activities",
                 web::get().to(get_task_activities),
