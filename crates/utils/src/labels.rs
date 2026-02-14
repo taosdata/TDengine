@@ -302,6 +302,13 @@ mod tests {
         assert!(filter2.matches(&serde_json::json!({"a": "b"})));
     }
 
+    #[test]
+    fn test_label_filter_multi() {
+        let filter = LabelFilter::default().with("a", "b");
+        let json = serde_json::json!({"a": "b", "b": "c"});
+        assert!(filter.matches(&json));
+    }
+
     // ==================== parse_label_pairs Tests ====================
 
     #[test]

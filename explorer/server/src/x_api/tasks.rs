@@ -65,6 +65,7 @@ pub async fn get_tasks(
         if !query_labels.matches(&task_labels) {
             continue;
         }
+        res.push(task.try_into()?);
     }
     Ok(Json(res))
 }
