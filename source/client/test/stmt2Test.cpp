@@ -3191,6 +3191,35 @@ TEST(stmt2Case, decimal) {
     taos_stmt2_close(stmt);
   }
 
+  // query decimal
+  {
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option[0]);
+    ASSERT_NE(stmt, nullptr);
+    char* sql = "select b1,b2 from stmt2_testdb_20.ntb where b1 < ? and b2 < ?";
+    int   code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    TAOS_STMT2_BIND  col[2] = {{TSDB_DATA_TYPE_DECIMAL64, &b1_data[0], &b1_len[0], NULL, 1},
+                               {TSDB_DATA_TYPE_DECIMAL, &b2_data[0], &b2_len[0], NULL, 1}};
+    TAOS_STMT2_BIND* cols = &col[0];
+    TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &cols};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    code = taos_stmt2_exec(stmt, NULL);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    TAOS_RES* result = taos_stmt2_result(stmt);
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), 0);
+
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_STREQ((char*)row[0], "1.02");
+    ASSERT_STREQ((char*)row[1], "123000.0000000000");
+    taos_stmt2_close(stmt);
+  }
+
   do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_20");
   taos_close(taos);
 }
