@@ -6376,6 +6376,10 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
   }
   if (!pCxt->refTable) {
     if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
+      if (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_VC_COLS)) {
+        PAR_ERR_JRET(
+            generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED, pRealTable->table.tableName));
+      }
       if (isSelectStmt(pCxt->pCurrStmt)) {
         ((SSelectStmt*)pCxt->pCurrStmt)->timeLineResMode = TIME_LINE_NONE;
         ((SSelectStmt*)pCxt->pCurrStmt)->timeLineCurMode = TIME_LINE_NONE;
