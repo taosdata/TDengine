@@ -9534,6 +9534,7 @@ dependencies = [
  "anyhow",
  "arrow-schema",
  "bytes",
+ "csv",
  "csv-async",
  "futures-util",
  "itertools 0.14.0",

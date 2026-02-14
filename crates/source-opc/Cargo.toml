@@ -7,6 +7,7 @@ rust-version.workspace = true
 [dependencies]
 anyhow.workspace = true
 arrow-schema.workspace = true
+csv.workspace = true
 csv-async.workspace = true
 futures-util.workspace = true
 itertools.workspace = true
