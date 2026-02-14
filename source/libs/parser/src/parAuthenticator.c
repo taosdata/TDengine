@@ -242,7 +242,7 @@ static int32_t authSelect(SAuthCxt* pCxt, SSelectStmt* pSelect) {
   }
 
   // Special handling for SELECT * FROM information_schema.ins_tables
-  if (QUERY_NODE_REAL_TABLE == nodeType(pSelect->pFromTable)) {
+  if (pSelect->pFromTable && QUERY_NODE_REAL_TABLE == nodeType(pSelect->pFromTable)) {
     SRealTableNode* pRealTable = (SRealTableNode*)pSelect->pFromTable;
     if (IS_INFORMATION_SCHEMA_DB(pRealTable->table.dbName) &&
         0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES)) {
