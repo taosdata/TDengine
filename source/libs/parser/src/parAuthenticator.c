@@ -297,6 +297,10 @@ static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
   return code;
 }
 
+static int32_t authShowSTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
+  return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, AUTH_TYPE_READ_OR_WRITE, NULL);
+}
+
 static int32_t authShowTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
   return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, AUTH_TYPE_SHOW, NULL);
 }
@@ -506,8 +510,9 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
       return TSDB_CODE_SUCCESS;
     case QUERY_NODE_SHOW_TABLES_STMT:
-    case QUERY_NODE_SHOW_STABLES_STMT:
       return authShowTables(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_STABLES_STMT:
+      return authShowSTables(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_VTABLES_STMT:
       return authShowVtables(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
