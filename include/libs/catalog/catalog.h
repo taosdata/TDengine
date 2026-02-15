@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "nodes.h"
 #include "os.h"
 #include "query.h"
 #include "taosdef.h"
@@ -29,7 +30,7 @@ extern "C" {
 #include "tmsg.h"
 #include "tname.h"
 #include "transport.h"
-#include "nodes.h"
+#include "tsimplehash.h"
 
 typedef struct SCatalog SCatalog;
 
@@ -49,6 +50,7 @@ typedef enum {
   AUTH_TYPE_ALTER,
   AUTH_TYPE_OTHER,
   AUTH_TYPE_READ_OR_WRITE,
+  AUTH_TYPE_SHOW,  // for SHOW tables / SELECT * FROM ins_tables
 } AUTH_TYPE;
 
 typedef struct SUserAuthInfo {
@@ -67,6 +69,16 @@ typedef enum {
 typedef struct SUserAuthRes {
   bool   pass[AUTH_RES_MAX_VALUE];
   SNode* pCond[AUTH_RES_MAX_VALUE];
+  // for AUTH_TYPE_SHOW
+  union {
+    uint8_t showFlags;
+    struct {
+      uint8_t showAllTbls : 1;  // user with db-level read/write privilege (for single-db query) or superUser
+      uint8_t reserved : 7;
+    };
+  };
+  SSHashObj* pReadDbs;  // key is dbFName, db-level read/write privilege
+  SSHashObj* pReadTbs;  // key is tbFName, table-level read/write/alter privilege
 } SUserAuthRes;
 
 typedef struct SDbInfo {

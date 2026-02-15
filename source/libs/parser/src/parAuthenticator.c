@@ -16,6 +16,7 @@
 #include "catalog.h"
 #include "cmdnodes.h"
 #include "parInt.h"
+#include "systable.h"
 
 typedef struct SAuthCxt {
   SParseContext*   pParseCxt;
@@ -44,7 +45,15 @@ static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const c
 
   if (NULL == pTabName) {
     int32_t code = tNameSetDbName(&pAuth->tbName, pCxt->acctId, pDbName, strlen(pDbName));
-    if (TSDB_CODE_SUCCESS != code) return code;
+    if (TSDB_CODE_SUCCESS != code) {
+      if ((type == AUTH_TYPE_SHOW) && pDbName[0] == '\0') {
+        // select * from information_schema.ins_tables without where dbName=''
+        pAuth->tbName.type = TSDB_TABLE_NAME_T;
+        pAuth->tbName.acctId = pCxt->acctId;
+      } else {
+        return code;
+      }
+    }
   } else {
     toName(pCxt->acctId, pDbName, pTabName, &pAuth->tbName);
   }
@@ -57,6 +66,9 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
                              bool isView, bool effective) {
   SParseContext* pParseCxt = pCxt->pParseCxt;
   if (pParseCxt->isSuperUser) {
+    if (AUTH_TYPE_SHOW == type) {
+      pParseCxt->showAllTbls = true;
+    }
     return TSDB_CODE_SUCCESS;
   }
 
@@ -82,6 +94,12 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pCond) {
     *pCond = authRes.pCond[auth_res_type];
+  }
+  // Save AUTH_TYPE_SHOW results to pParseCxt for passing to executor
+  if (TSDB_CODE_SUCCESS == code && AUTH_TYPE_SHOW == type) {
+    pParseCxt->showAllTbls = authRes.showAllTbls;
+    TSWAP(pParseCxt->pReadDbs, authRes.pReadDbs);
+    TSWAP(pParseCxt->pReadTbs, authRes.pReadTbs);
   }
   return TSDB_CODE_SUCCESS == code ? (authRes.pass[auth_res_type] ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED)
                                    : code;
@@ -204,9 +222,42 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+// Helper function to extract db_name from WHERE condition for ins_tables query
+static int32_t getDbNameFromInsTablesWhere(SParseContext* pParseCxt, SNode* pWhere, char* pDbName, int32_t bufLen) {
+  SName   name = {0};
+  int32_t code = getVnodeSysTableTargetName(pParseCxt->acctId, pWhere, &name);
+  if (TSDB_CODE_SUCCESS == code && TSDB_DB_NAME_T == name.type) {
+    tstrncpy(pDbName, name.dbname, bufLen);
+    return TSDB_CODE_SUCCESS;
+  }
+  pDbName[0] = '\0';  // No specific db, will collect privileges for all dbs
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t authSelect(SAuthCxt* pCxt, SSelectStmt* pSelect) {
   SSelectAuthCxt cxt = {.pAuthCxt = pCxt, .pSelect = pSelect};
   nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, authSelectImpl, &cxt);
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    return pCxt->errCode;
+  }
+
+  // Special handling for SELECT * FROM information_schema.ins_tables
+  if (pSelect->pFromTable && QUERY_NODE_REAL_TABLE == nodeType(pSelect->pFromTable)) {
+    SRealTableNode* pRealTable = (SRealTableNode*)pSelect->pFromTable;
+    if (IS_INFORMATION_SCHEMA_DB(pRealTable->table.dbName) &&
+        0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES)) {
+      // Extract db_name from WHERE condition if present
+      char    dbName[TSDB_DB_NAME_LEN] = {0};
+      int32_t code = getDbNameFromInsTablesWhere(pCxt->pParseCxt, pSelect->pWhere, dbName, sizeof(dbName));
+      if (TSDB_CODE_SUCCESS == code) {
+        // Call AUTH_TYPE_SHOW to collect table-level privileges
+        // Use empty dbName for all dbs, or specific dbName if WHERE db_name='xxx' is present
+        code = checkAuth(pCxt, dbName[0] ? dbName : "", NULL, AUTH_TYPE_SHOW, NULL);
+        // AUTH_TYPE_SHOW always passes, just collects privilege info
+      }
+    }
+  }
+
   return pCxt->errCode;
 }
 
@@ -246,8 +297,12 @@ static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
   return code;
 }
 
-static int32_t authShowTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
+static int32_t authShowSTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
   return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, AUTH_TYPE_READ_OR_WRITE, NULL);
+}
+
+static int32_t authShowTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
+  return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, AUTH_TYPE_SHOW, NULL);
 }
 
 static int32_t authShowVtables(SAuthCxt* pCxt, SShowStmt* pStmt) {
@@ -455,8 +510,9 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
       return TSDB_CODE_SUCCESS;
     case QUERY_NODE_SHOW_TABLES_STMT:
-    case QUERY_NODE_SHOW_STABLES_STMT:
       return authShowTables(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_STABLES_STMT:
+      return authShowSTables(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_VTABLES_STMT:
       return authShowVtables(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:

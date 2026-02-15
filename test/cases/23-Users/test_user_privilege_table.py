@@ -24,6 +24,7 @@ class TestUserPrivilegeTable:
         History:
             - 2025-4-30 Simon Guan Migrated from tsim/user/privilege_table.sim
             - 2025-9-29 Cary  Xu   TS-6667: Check privilege of show stables
+            - 2026-2-14 Cary  Xu   6745760688: Check privilege of show tables
 
         """
 
@@ -46,6 +47,14 @@ class TestUserPrivilegeTable:
         tdSql.execute(f"create user wxy pass 'taosdata';")
         tdSql.query(f"show test.stables;")
         tdSql.checkRows(2)
+        tdSql.query(f"select * from information_schema.ins_stables where db_name='test';")
+        tdSql.checkRows(2)
+        tdSql.query(f"show test.tables;")
+        tdSql.checkRows(4)
+        tdSql.query(f"select * from information_schema.ins_tables where db_name='test';")
+        tdSql.checkRows(4)
+        tdSql.query(f"select * from information_schema.ins_tables")
+        tdSql.checkRows(46)
 
         tdLog.info(
             f"=============== case 1: database unauthorized and table unauthorized"

@@ -525,6 +525,10 @@ typedef struct SSystemTableScanPhysiNode {
   bool           showRewrite;
   int32_t        accountId;
   bool           sysInfo;
+  // for table privilege filtering (AUTH_TYPE_SHOW)
+  bool       showAllTbls;  // user has db-level privilege, can see all tables
+  SSHashObj* pReadDbs;     // key is dbFName, db-level read/write privilege
+  SSHashObj* pReadUids;    // key is int64_t (suid or uid), optimized privilege check
 } SSystemTableScanPhysiNode;
 
 typedef struct STableScanPhysiNode {

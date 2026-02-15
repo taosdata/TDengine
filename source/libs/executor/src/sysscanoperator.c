@@ -32,6 +32,7 @@
 #include "tcompare.h"
 #include "thash.h"
 #include "trpc.h"
+#include "tsimplehash.h"
 #include "ttypes.h"
 
 typedef int (*__optSysFilter)(void* a, void* b, int16_t dtype);
@@ -76,11 +77,20 @@ typedef struct SSysTableScanInfo {
   STableListInfo*        pTableListInfo;
   SReadHandle*           pHandle;
   SStorageAPI*           pAPI;
+  // Table-level read privilege filtering
+  bool       showAllTbls;  // true if user has full access (read+write on db)
+  SSHashObj* pReadDbs;     // key is dbFName, db-level privilege
+  SSHashObj* pReadUids;    // key is int64_t uid, for fast uid/suid comparison
 
   // file set iterate
   struct SFileSetReader* pFileSetReader;
   SHashObj*              pExtSchema;
 } SSysTableScanInfo;
+
+
+static inline bool checkUidPrivilege(SSHashObj* pReadUids, int64_t uid) {
+  return (pReadUids && tSimpleHashGet(pReadUids, &uid, sizeof(int64_t))) ? true : false;
+}
 
 typedef struct {
   const char* name;
@@ -2002,6 +2012,20 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
         continue;
       }
 
+      // Table-level read privilege filtering for child tables
+      if (!pInfo->showAllTbls) {
+        // Check db-level privilege first (db format: acctId.dbName)
+        if (pInfo->pReadDbs && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1)) {
+          // Has db-level privilege, allow all tables in this db
+        } else {
+          if (!pInfo->pReadUids ||
+              tSimpleHashGet(pInfo->pReadUids, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t)) == NULL) {
+            pAPI->metaReaderFn.clearReader(&mr);
+            continue;
+          }
+        }
+      }
+
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -2047,6 +2071,15 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(n, "CHILD_TABLE");
     } else if (tableType == TSDB_NORMAL_TABLE) {
+      if (!pInfo->showAllTbls) {
+        if (pInfo->pReadDbs && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1)) {
+        } else {
+          if (!pInfo->pReadUids || !tSimpleHashGet(pInfo->pReadUids, &pInfo->pCur->mr.me.uid, sizeof(int64_t))) {
+            continue;
+          }
+        }
+      }
+
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -2095,6 +2128,16 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(n, "NORMAL_TABLE");
     } else if (tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
+      if (!pInfo->showAllTbls) {
+        if (pInfo->pReadDbs && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1)) {
+        } else {
+          int64_t vntbUid = pInfo->pCur->mr.me.uid;
+          if (!pInfo->pReadUids || !tSimpleHashGet(pInfo->pReadUids, &vntbUid, sizeof(int64_t))) {
+            continue;
+          }
+        }
+      }
+
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -2155,6 +2198,17 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       if (isTsmaResSTb(mr.me.name)) {
         pAPI->metaReaderFn.clearReader(&mr);
         continue;
+      }
+
+      if (!pInfo->showAllTbls) {
+        if (pInfo->pReadDbs && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1)) {
+        } else {
+          if (!pInfo->pReadUids ||
+              !tSimpleHashGet(pInfo->pReadUids, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t))) {
+            pAPI->metaReaderFn.clearReader(&mr);
+            continue;
+          }
+        }
       }
 
       // number of columns
@@ -3127,6 +3181,9 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   QUERY_CHECK_NULL(pInfo->pUser, code, lino, _error, terrno);
   pInfo->sysInfo = pScanPhyNode->sysInfo;
   pInfo->showRewrite = pScanPhyNode->showRewrite;
+  pInfo->showAllTbls = pScanPhyNode->showAllTbls;
+  pInfo->pReadDbs = pScanPhyNode->pReadDbs;
+  pInfo->pReadUids = pScanPhyNode->pReadUids;
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
 

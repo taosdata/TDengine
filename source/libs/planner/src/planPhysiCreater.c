@@ -943,6 +943,10 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   pScan->showRewrite = pScanLogicNode->showRewrite;
   pScan->accountId = pCxt->pPlanCxt->acctId;
   pScan->sysInfo = pCxt->pPlanCxt->sysInfo;
+  // Pass table privilege info to physical node (move ownership to avoid double-free)
+  pScan->showAllTbls = pCxt->pPlanCxt->showAllTbls;
+  TSWAP(pScan->pReadDbs, pCxt->pPlanCxt->pReadDbs);
+  TSWAP(pScan->pReadUids, pCxt->pPlanCxt->pReadUids);
   if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TABLES) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TAGS) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_COLS) ||

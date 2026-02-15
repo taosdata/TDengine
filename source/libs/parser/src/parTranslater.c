@@ -4524,6 +4524,154 @@ static int32_t getVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   return code;
 }
 
+// Helper function to get DB vgroup info, always use sync mode since db vginfo may not be in cache
+static int32_t getDBVgInfoForPrivilege(STranslateContext* pCxt, const char* dbFName, SArray** pVgInfo) {
+  SParseContext*   pParCxt = pCxt->pParseCxt;
+  SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                           .requestId = pParCxt->requestId,
+                           .requestObjRefId = pParCxt->requestRid,
+                           .mgmtEps = pParCxt->mgmtEpSet};
+  int32_t          code = catalogGetDBVgList(pParCxt->pCatalog, &conn, dbFName, pVgInfo);
+  if (TSDB_CODE_SUCCESS != code) {
+    // Database may not exist or user may not have access, just ignore
+    code = TSDB_CODE_SUCCESS;
+  }
+  return code;
+}
+
+// Convert table names in pReadTbs to uids in pReadUids for fast int64_t comparison
+static int32_t convertTbNamesToUids(STranslateContext* pCxt) {
+  SParseContext* pParseCxt = pCxt->pParseCxt;
+
+  if (NULL == pParseCxt->pReadTbs || tSimpleHashGetSize(pParseCxt->pReadTbs) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Initialize pReadUids if not already initialized
+  if (NULL == pParseCxt->pReadUids) {
+    pParseCxt->pReadUids =
+        tSimpleHashInit(tSimpleHashGetSize(pParseCxt->pReadTbs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    if (NULL == pParseCxt->pReadUids) {
+      return terrno;
+    }
+  }
+
+  SRequestConnInfo conn = {.pTrans = pParseCxt->pTransporter,
+                           .requestId = pParseCxt->requestId,
+                           .requestObjRefId = pParseCxt->requestRid,
+                           .mgmtEps = pParseCxt->mgmtEpSet};
+
+  void*   pIter = NULL;
+  int32_t iter = 0;
+  while ((pIter = tSimpleHashIterate(pParseCxt->pReadTbs, pIter, &iter)) != NULL) {
+    char* tbFName = tSimpleHashGetKey(pIter, NULL);
+
+    // Parse tbFName to SName (format: acctId.dbName.tbName)
+    SName name = {0};
+    if (tNameFromString(&name, tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE) != 0) {
+      continue;  // Skip invalid names
+    }
+
+    // Try to get cached table meta first, then fallback to network call
+    STableMeta* pMeta = NULL;
+    int32_t     code = catalogGetCachedTableMeta(pParseCxt->pCatalog, &name, &pMeta);
+    if (TSDB_CODE_SUCCESS != code || NULL == pMeta) {
+      // Try network call
+      code = catalogGetTableMeta(pParseCxt->pCatalog, &conn, &name, &pMeta);
+    }
+
+    if (TSDB_CODE_SUCCESS == code && pMeta != NULL) {
+      code = tSimpleHashPut(pParseCxt->pReadUids, &pMeta->uid, sizeof(pMeta->uid), NULL, 0);
+      taosMemoryFree(pMeta);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+    }
+    // If lookup fails, skip this table since it may have been dropped
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// Helper function to add vgroups from databases in user's table-level privileges
+static int32_t addVgroupsFromTablePrivileges(STranslateContext* pCxt, SArray** pVgs) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SParseContext* pParseCxt = pCxt->pParseCxt;
+  SSHashObj*     addedDbs = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  if (NULL == addedDbs) {
+    return terrno;
+  }
+
+  // Add vgroups from db-level privileges (pReadDbs)
+  if (pParseCxt->pReadDbs != NULL) {
+    void*   pIter = NULL;
+    int32_t iter = 0;
+    while ((pIter = tSimpleHashIterate(pParseCxt->pReadDbs, pIter, &iter)) != NULL) {
+      size_t dbFNameLen = 0;
+      char*  dbFName = tSimpleHashGetKey(pIter, &dbFNameLen);
+      if (NULL == tSimpleHashGet(addedDbs, dbFName, dbFNameLen)) {
+        SArray* dbVgs = NULL;
+        code = getDBVgInfoForPrivilege(pCxt, dbFName, &dbVgs);
+        if (TSDB_CODE_SUCCESS == code && dbVgs != NULL) {
+          for (int32_t i = 0; i < taosArrayGetSize(dbVgs); ++i) {
+            SVgroupInfo* vgInfo = taosArrayGet(dbVgs, i);
+            if (NULL == taosArrayPush(*pVgs, vgInfo)) {
+              code = terrno;
+              break;
+            }
+          }
+          taosArrayDestroy(dbVgs);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          tSimpleHashPut(addedDbs, dbFName, dbFNameLen, NULL, 0);
+        }
+      }
+      if (TSDB_CODE_SUCCESS != code) break;
+    }
+  }
+
+  // Add vgroups from table-level privileges (pReadTbs)
+  if (TSDB_CODE_SUCCESS == code && pParseCxt->pReadTbs != NULL) {
+    void*   pIter = NULL;
+    int32_t iter = 0;
+    while ((pIter = tSimpleHashIterate(pParseCxt->pReadTbs, pIter, &iter)) != NULL) {
+      char* tbFName = tSimpleHashGetKey(pIter, NULL);
+      // tbFName format: acctId.dbName.tableName, extract dbFName (acctId.dbName)
+      char        dbFName[TSDB_DB_FNAME_LEN] = {0};
+      const char* firstDot = strchr(tbFName, '.');
+      const char* secondDot = firstDot ? strchr(firstDot + 1, '.') : NULL;
+      if (secondDot != NULL) {
+        size_t dbFNameLen = secondDot - tbFName;
+        if (dbFNameLen < TSDB_DB_FNAME_LEN) {
+          strncpy(dbFName, tbFName, dbFNameLen);
+          dbFName[dbFNameLen] = '\0';
+        }
+      }
+      if (dbFName[0] != '\0' && NULL == tSimpleHashGet(addedDbs, dbFName, strlen(dbFName) + 1)) {
+        SArray* dbVgs = NULL;
+        code = getDBVgInfoForPrivilege(pCxt, dbFName, &dbVgs);
+        if (TSDB_CODE_SUCCESS == code && dbVgs != NULL) {
+          for (int32_t i = 0; i < taosArrayGetSize(dbVgs); ++i) {
+            SVgroupInfo* vgInfo = taosArrayGet(dbVgs, i);
+            if (NULL == taosArrayPush(*pVgs, vgInfo)) {
+              code = terrno;
+              break;
+            }
+          }
+          taosArrayDestroy(dbVgs);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          tSimpleHashPut(addedDbs, dbFName, strlen(dbFName) + 1, NULL, 0);
+        }
+      }
+      if (TSDB_CODE_SUCCESS != code) break;
+    }
+  }
+
+  tSimpleHashCleanup(addedDbs);
+  return code;
+}
+
 static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
   bool    hasUserDbCond = false;
   SArray* pVgs = NULL;
@@ -4532,6 +4680,23 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   if (TSDB_CODE_SUCCESS == code && 0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TAGS) &&
       isSelectStmt(pCxt->pCurrStmt) && 0 == taosArrayGetSize(pVgs)) {
     ((SSelectStmt*)pCxt->pCurrStmt)->isEmptyResult = true;
+  }
+
+  // For ins_tables query without WHERE db_name condition, add vgroups to enable querying user tables
+  SParseContext* pParseCxt = pCxt->pParseCxt;
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pParseCxt->isSuperUser) {
+      pParseCxt->showAllTbls = true;
+    } else if (!hasUserDbCond && (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES))) {
+      if (pParseCxt->pReadDbs != NULL || pParseCxt->pReadTbs != NULL) {
+        // Add vgroups from privilege databases
+        code = addVgroupsFromTablePrivileges(pCxt, &pVgs);
+        // Convert table names to uids for fast int64_t comparison in executor
+        if (TSDB_CODE_SUCCESS == code) {
+          code = convertTbNamesToUids(pCxt);
+        }
+      }
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code &&
