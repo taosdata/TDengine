@@ -302,11 +302,17 @@ static int32_t authShowSTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
 }
 
 static int32_t authShowTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
-  return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, AUTH_TYPE_SHOW, NULL);
+  int32_t code = checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, AUTH_TYPE_SHOW, NULL);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (!pCxt->pParseCxt->showAllTbls && tSimpleHashGetSize(pCxt->pParseCxt->pReadTbs) <= 0) {
+      code = TSDB_CODE_PAR_PERMISSION_DENIED;
+    }
+  }
+  return code;
 }
 
-static int32_t authShowVtables(SAuthCxt* pCxt, SShowStmt* pStmt) {
-  return authShowTables(pCxt, pStmt);
+static int32_t authShowVtables(SAuthCxt* pCxt, SShowStmt* pStmt) { 
+  return authShowTables(pCxt, pStmt); 
 }
 
 static int32_t authShowUsage(SAuthCxt* pCxt, SShowStmt* pStmt) {
