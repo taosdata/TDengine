@@ -58,18 +58,21 @@ impl TryFrom<TaskRecord> for GetTaskResult {
     type Error = anyhow::Error;
 
     fn try_from(v: TaskRecord) -> anyhow::Result<Self> {
-        let from_dsn = Dsn::from_str(&v.from).context("invalid `from` task param")?;
-        let to_dsn = Dsn::from_str(&v.to).context("invalid `to` task param")?;
+        let task_id = v.id;
+        let from_dsn = Dsn::from_str(&v.from)
+            .with_context(|| format!("invalid `from` task {task_id} param"))?;
+        let to_dsn =
+            Dsn::from_str(&v.to).with_context(|| format!("invalid `to` task {task_id} param"))?;
         let parser = v
             .parser
             .map(|v| serde_json::from_str(&v))
             .transpose()
-            .context("invalid `parser` task param")?;
+            .with_context(|| format!("invalid `parser` task {task_id} param"))?;
         let trigger = v
             .labels
             .map(|v| serde_json::from_str::<serde_json::Value>(&v))
             .transpose()
-            .context("invalid `labels` task param")?
+            .with_context(|| format!("invalid `labels` task {task_id} param"))?
             .and_then(|v| v.as_object().and_then(|v| v.get("trigger").cloned()));
         Ok(GetTaskResult {
             id: v.id,

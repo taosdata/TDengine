@@ -82,7 +82,7 @@ pub async fn get_task(
     Ok(Json(
         data.map(|v| v.try_into())
             .transpose()?
-            .context("task {} not found")?,
+            .with_context(|| format!("task {task_id} not found"))?,
     ))
 }
 
@@ -199,11 +199,11 @@ pub async fn update_task(
         .transpose()
         .context("invalid `parser` param")?
     {
-        sql.push_str(&format!(" PARSER '{}'", parser));
+        sql.push_str(&format!(" PARSER {} ", sql_value_escaped_fmt(&parser)));
     }
 
     if let Some(via) = config.via {
-        sql.push_str(&format!(" VIA '{}'", via));
+        sql.push_str(&format!(" VIA {}", via));
     }
 
     let dsn = get_dsn(&args, &req).await?;
