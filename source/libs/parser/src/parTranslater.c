@@ -4685,7 +4685,7 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   // For ins_tables query without WHERE db_name condition, add vgroups to enable querying user tables
   SParseContext* pParseCxt = pCxt->pParseCxt;
   if (TSDB_CODE_SUCCESS == code) {
-    if (pParseCxt->isSuperUser) {
+    if (pParseCxt->isSuperUser || pParseCxt->isStmtBind) {
       pParseCxt->showAllTbls = true;
     } else if (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES)) {
       if (pParseCxt->pReadTbs != NULL) {
