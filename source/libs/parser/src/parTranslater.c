@@ -4687,14 +4687,16 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   if (TSDB_CODE_SUCCESS == code) {
     if (pParseCxt->isSuperUser) {
       pParseCxt->showAllTbls = true;
-    } else if (!hasUserDbCond && (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES))) {
-      if (pParseCxt->pReadDbs != NULL || pParseCxt->pReadTbs != NULL) {
-        // Add vgroups from privilege databases
-        code = addVgroupsFromTablePrivileges(pCxt, &pVgs);
+    } else if (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES)) {
+      if (pParseCxt->pReadTbs != NULL) {
         // Convert table names to uids for fast int64_t comparison in executor
         if (TSDB_CODE_SUCCESS == code) {
           code = convertTbNamesToUids(pCxt);
         }
+      }
+      if (!hasUserDbCond && (pParseCxt->pReadDbs != NULL || pParseCxt->pReadTbs != NULL)) {
+        // Add vgroups from privilege databases
+        code = addVgroupsFromTablePrivileges(pCxt, &pVgs);
       }
     }
   }

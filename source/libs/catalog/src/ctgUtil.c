@@ -2304,8 +2304,6 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
       break;
     }
     case AUTH_TYPE_SHOW: {
-      pRes->pass[AUTH_RES_BASIC] = true;
-
       // If dbname is empty, collect all privileges across all dbs
       bool allDbs = (pReq->tbName.dbname[0] == '\0');
 
@@ -2349,12 +2347,15 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
             }
           }
         }
+        pRes->pass[AUTH_RES_BASIC] = true;
+        return TSDB_CODE_SUCCESS;
       } else {
         // single db: check db-level privilege first
         int32_t dbFNameLen = strlen(dbFName);
         if ((pInfo->readDbs && taosHashGet(pInfo->readDbs, dbFName, dbFNameLen + 1)) ||
             (pInfo->writeDbs && taosHashGet(pInfo->writeDbs, dbFName, dbFNameLen + 1))) {
           pRes->showAllTbls = 1;
+          pRes->pass[AUTH_RES_BASIC] = true;
           return TSDB_CODE_SUCCESS;
         }
 
@@ -2379,6 +2380,9 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
               }
             }
           }
+        }
+        if (pRes->pReadTbs && tSimpleHashGetSize(pRes->pReadTbs) > 0) {
+          pRes->pass[AUTH_RES_BASIC] = true;
         }
       }
       return TSDB_CODE_SUCCESS;

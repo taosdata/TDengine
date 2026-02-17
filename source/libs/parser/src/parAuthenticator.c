@@ -302,13 +302,7 @@ static int32_t authShowSTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
 }
 
 static int32_t authShowTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
-  int32_t code = checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, AUTH_TYPE_SHOW, NULL);
-  if (TSDB_CODE_SUCCESS == code) {
-    if (!pCxt->pParseCxt->showAllTbls && tSimpleHashGetSize(pCxt->pParseCxt->pReadTbs) <= 0) {
-      code = TSDB_CODE_PAR_PERMISSION_DENIED;
-    }
-  }
-  return code;
+  return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, NULL, AUTH_TYPE_SHOW, NULL);
 }
 
 static int32_t authShowVtables(SAuthCxt* pCxt, SShowStmt* pStmt) { 
@@ -540,5 +534,5 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
 
 int32_t authenticate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
   SAuthCxt cxt = {.pParseCxt = pParseCxt, .pMetaCache = pMetaCache, .errCode = TSDB_CODE_SUCCESS};
-  return authQuery(&cxt, pQuery->pRoot);
+  return  authQuery(&cxt, pQuery->pRoot);
 }
