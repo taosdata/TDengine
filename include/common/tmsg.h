@@ -873,7 +873,7 @@ typedef struct {
       uint8_t sysInfo : 1;
       uint8_t isAudit : 1;
       uint8_t privCat : 3;  // ESysTblPrivCat
-      uint8_t reserved : 3;
+      uint8_t secLvl : 3; // 
     };
   };
   int64_t     ownerId;
@@ -1596,6 +1596,8 @@ typedef struct {
   int8_t isImport;
   int8_t changepass;
   int8_t enable;
+  int8_t minSecurityLevel;
+  int8_t maxSecurityLevel;
 
   int8_t negIpRanges;
   int8_t negTimeRanges;
@@ -1681,11 +1683,14 @@ typedef struct {
   int8_t hasPasswordGraceTime;
   int8_t hasInactiveAccountTime;
   int8_t hasAllowTokenNum;
+  int8_t hasSecurityLevel;
 
   int8_t enable;
   int8_t sysinfo;
   int8_t createdb;
   int8_t changepass;
+  int8_t minSecurityLevel;
+  int8_t maxSecurityLevel;
 
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_USER_PASSWORD_LONGLEN];

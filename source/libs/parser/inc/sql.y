@@ -119,6 +119,7 @@ user_option(A) ::= SYSINFO NK_INTEGER(B).                                       
 user_option(A) ::= IS_IMPORT NK_INTEGER(B).                                       { A = mergeUserOptions(pCxt, NULL, NULL); A->isImport = taosStr2Int8(B.z, NULL, 10); A->hasIsImport = true; }
 user_option(A) ::= CREATEDB NK_INTEGER(B).                                        { A = mergeUserOptions(pCxt, NULL, NULL); A->createdb = taosStr2Int8(B.z, NULL, 10); A->hasCreatedb = true; }
 user_option(A) ::= CHANGEPASS NK_INTEGER(B).                                      { A = mergeUserOptions(pCxt, NULL, NULL); A->changepass = taosStr2Int8(B.z, NULL, 10); A->hasChangepass = true; }
+user_option(A) ::= SECURITY_LEVEL integer_list(B).                                { A = mergeUserOptions(pCxt, NULL, NULL); A->pSecurityLevels = B; } 
 user_option(A) ::= SESSION_PER_USER option_value(B).                              {
     A = mergeUserOptions(pCxt, NULL, NULL);
     if (B.type == TK_DEFAULT) {

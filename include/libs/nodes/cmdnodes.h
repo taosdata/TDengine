@@ -483,6 +483,7 @@ typedef struct SUserOptions {
   SNodeList* pDropIpRanges;  // only for alter user
   SNodeList* pTimeRanges;
   SNodeList* pDropTimeRanges;  // only for alter user
+  SNodeList* pSecurityLevels;
 
 } SUserOptions;
 

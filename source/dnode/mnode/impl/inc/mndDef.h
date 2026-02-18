@@ -606,7 +606,9 @@ typedef struct {
     uint8_t flag;
     struct {
       uint8_t createdb : 1;
-      uint8_t reserve : 7;
+      uint8_t minSecurityLevel : 3;  // TD: 6671585124
+      uint8_t maxSecurityLevel : 3;  // TD: 6671585124
+      uint8_t reserve : 1;
     };
   };
 
@@ -666,8 +668,9 @@ typedef struct {
     uint8_t flag;
     struct {
       uint8_t enable : 1;
-      uint8_t sys : 1;  // system role
-      uint8_t reserve : 6;
+      uint8_t sys : 1;            // system role
+      uint8_t securityLevel : 3;  // TD: 6671585124
+      uint8_t reserve : 3;
     };
   };
 
@@ -719,7 +722,8 @@ typedef struct {
     struct {
       uint8_t isMount : 1;    // TS-5868
       uint8_t allowDrop : 1;  // TS-7232
-      uint8_t padding : 6;
+      uint8_t securityLevel : 3; // TD: 6671585124
+      uint8_t padding : 3;
     };
   };
   int16_t hashPrefix;
@@ -948,6 +952,13 @@ typedef struct {
   int64_t     keep;
   SExtSchema* pExtSchemas;
   int8_t      virtualStb;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t securityLevel : 3;  // TD: 6671585124
+      uint8_t padding : 5;
+    };
+  };
 } SStbObj;
 
 typedef struct {

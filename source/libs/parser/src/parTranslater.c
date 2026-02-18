@@ -13499,7 +13499,8 @@ static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, void* pStmt, 
 
   if (ops->hasTotpseed || ops->hasSysinfo || ops->hasFailedLoginAttempts || ops->hasPasswordLifeTime ||
       ops->hasPasswordReuseTime || ops->hasPasswordReuseMax || ops->hasPasswordLockTime || ops->hasPasswordGraceTime ||
-      ops->hasInactiveAccountTime || ops->hasAllowTokenNum) {
+      ops->hasInactiveAccountTime || ops->hasAllowTokenNum || ops->pIpRanges || ops->pDropIpRanges ||
+      ops->pTimeRanges || ops->pDropTimeRanges || ops->pSecurityLevels) {
     if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_USER_SET_SECURITY)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
                                      "Permission denied to set user security info");
@@ -13510,6 +13511,44 @@ _exit:
   return code;
 }
 #endif
+
+static int32_t translateCheckUserSecurityLevel(STranslateContext* pCxt, SNodeList* pSecurityLevels, int8_t* pMinLevel,
+                                               int8_t* pMaxLevel) {
+  if (pSecurityLevels) {
+    int32_t nSecurityLevels = LIST_LENGTH(pSecurityLevels);
+    if (nSecurityLevels != 2) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_OPTION,
+                                     "Invalid number of security levels, expected 2 but got %d", nSecurityLevels);
+    }
+    SNode*  pNode = NULL;
+    int32_t idx = 0;
+    FOREACH(pNode, pSecurityLevels) {
+      SValueNode* pVal = (SValueNode*)pNode;
+      if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_OPTION, "Invalid security level value: %s",
+                                       pVal->literal);
+      }
+      int64_t securityLevel = getBigintFromValueNode(pVal);
+      if (securityLevel < TSDB_MIN_SECURITY_LEVEL || securityLevel > TSDB_MAX_SECURITY_LEVEL) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_OPTION,
+                                       "Security level value out of range, expected between %d and %d but got %" PRIi64,
+                                       TSDB_MIN_SECURITY_LEVEL, TSDB_MAX_SECURITY_LEVEL, securityLevel);
+      }
+      if (idx == 0) {
+        *pMinLevel = (int8_t)securityLevel;
+        ++idx;
+      } else {
+        *pMaxLevel = (int8_t)securityLevel;
+        if (*pMaxLevel < *pMinLevel) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_OPTION,
+                                         "Min security level cannot be larger than max security level: %d,%d",
+                                         *pMinLevel, *pMaxLevel);
+        }
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pStmt) {
   int32_t        code = 0;
@@ -13526,6 +13565,15 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   if (isPrivInheritName(pStmt->userName)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                    "Cannot create user with inherit roles: %s", pStmt->userName);
+  }
+  if (pStmt->userOps.pSecurityLevels) {
+    if ((code = translateCheckUserSecurityLevel(pCxt, pStmt->userOps.pSecurityLevels, &createReq.minSecurityLevel,
+                                                &createReq.maxSecurityLevel))) {
+      return code;
+    }
+  } else {
+    createReq.minSecurityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
+    createReq.maxSecurityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
   }
   tstrncpy(createReq.user, pStmt->userName, TSDB_USER_LEN);
   createReq.createType = 0;
@@ -13706,6 +13754,15 @@ if (alterReq.numIpRanges > 0) {
     FOREACH(pNode, opts->pDropTimeRanges) {
       SDateTimeRangeNode* node = (SDateTimeRangeNode*)(pNode);
       alterReq.pDropTimeRanges[i++] = node->range;
+    }
+  }
+
+  if (opts->pSecurityLevels) {
+    alterReq.hasSecurityLevel = 1;
+    if ((code = translateCheckUserSecurityLevel(pCxt, opts->pSecurityLevels, &alterReq.minSecurityLevel,
+                                                &alterReq.maxSecurityLevel))) {
+      tFreeSAlterUserReq(&alterReq);
+      return code;
     }
   }
 

@@ -3103,6 +3103,8 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.timeWhiteListVer = 0;
 
 #endif  // TD_ENTERPRISE
+  userObj.minSecurityLevel = (uint8_t)pCreate->minSecurityLevel;
+  userObj.maxSecurityLevel = (uint8_t)pCreate->maxSecurityLevel;
 
   userObj.roles = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (userObj.roles == NULL) {

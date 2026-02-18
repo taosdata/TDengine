@@ -11,7 +11,7 @@
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- */hh
+ */
 #ifndef TD_ASTRA
 #include <uv.h>
 #endif
@@ -4445,6 +4445,8 @@ SUserOptions* createDefaultUserOptions(SAstCreateContext* pCxt) {
   pOptions->createdb = 0;
   pOptions->isImport = 0;
   pOptions->changepass = 2;
+  pOptions->minSecurityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
+  pOptions->maxSecurityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
   pOptions->sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
   pOptions->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
   pOptions->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
@@ -4694,6 +4696,15 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
     b->pDropTimeRanges = NULL;
   }
 
+  if (b->pSecurityLevels != NULL) {
+    if (a->pSecurityLevels == NULL) {
+      a->pSecurityLevels = b->pSecurityLevels;
+      b->pSecurityLevels = NULL;
+    } else {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "SECURITY_LEVELS");
+    }
+  }
+
   nodesDestroyNode((SNode*)b);
   return a;
 }
@@ -4919,6 +4930,7 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOpt
     SDateTimeRangeNode* node = (SDateTimeRangeNode*)(pNode);
     pStmt->pTimeRanges[i++] = node->range;
   }
+  TSWAP(pStmt->pSecurityLevels, opts->pSecurityLevels);
 
   nodesDestroyNode((SNode*)opts);
   return (SNode*)pStmt;

@@ -1853,6 +1853,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(opts->pDropIpRanges);
       nodesDestroyList(opts->pTimeRanges);
       nodesDestroyList(opts->pDropTimeRanges);
+      nodesDestroyList(opts->pSecurityLevels);
       break;
     }
     case QUERY_NODE_CREATE_INDEX_STMT: {

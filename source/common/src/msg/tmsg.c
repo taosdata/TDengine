@@ -3452,6 +3452,8 @@ int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq
   for (int32_t i = 0; i < pReq->numTimeRanges; ++i) {
     TAOS_CHECK_EXIT(tEncodeSDateTimeRange(&encoder, &pReq->pTimeRanges[i]));
   }
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->minSecurityLevel));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->maxSecurityLevel)); 
 
   tEndEncode(&encoder);
 
@@ -3532,6 +3534,11 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
     for (int32_t i = 0; i < pReq->numTimeRanges; ++i) {
       TAOS_CHECK_EXIT(tDecodeSDateTimeRange(&decoder, &pReq->pTimeRanges[i]));
     }
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->minSecurityLevel));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->maxSecurityLevel));
   }
 
   tEndDecode(&decoder);
@@ -4158,8 +4165,13 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tabName));
   }
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->tagCond, pReq->tagCondLen));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, 0)); // obsolete
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, 0));  // obsolete
   ENCODESQL();
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasSecurityLevel));
+  if (pReq->hasSecurityLevel) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->minSecurityLevel));
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->maxSecurityLevel));
+  }
 
   tEndEncode(&encoder);
 
@@ -4330,6 +4342,13 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
   int64_t obsolete;
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &obsolete));
   DECODESQL();
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasSecurityLevel));
+    if (pReq->hasSecurityLevel) {
+      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->minSecurityLevel));
+      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->maxSecurityLevel));
+    }
+  }
 
   tEndDecode(&decoder);
 
