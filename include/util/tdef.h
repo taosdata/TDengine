@@ -633,6 +633,9 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_COMPACT_TIME_OFFSET     0
 #define TSDB_MAX_COMPACT_TIME_OFFSET     23
 #define TSDB_DEFAULT_COMPACT_TIME_OFFSET 0
+#define TSDB_DEFAULT_SECURITY_LEVEL      1
+#define TSDB_MIN_SECURITY_LEVEL          0
+#define TSDB_MAX_SECURITY_LEVEL          4
 
 #define TSDB_MIN_EXPLAIN_RATIO     0
 #define TSDB_MAX_EXPLAIN_RATIO     1

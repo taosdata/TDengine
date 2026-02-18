@@ -925,6 +925,7 @@ db_options(A) ::= db_options(B) COMPACT_TIME_RANGE signed_duration_list(C).     
 db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_INTEGER(C).                { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_OFFSET, &C); }
 db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_VARIABLE(C).               { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_OFFSET, &C); }
 db_options(A) ::= db_options(B) IS_AUDIT NK_INTEGER(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_IS_AUDIT, &C); }
+db_options(A) ::= db_options(B) SECURITY_LEVEL NK_INTEGER(C).                     { A = setDatabaseOption(pCxt, B, DB_OPTION_SECURITY_LEVEL, &C); }
 
 
 alter_db_options(A) ::= alter_db_option(B).                                       { A = createAlterDatabaseOptions(pCxt); A = setAlterDatabaseOption(pCxt, A, &B); }
@@ -969,6 +970,7 @@ alter_db_option(A) ::= COMPACT_TIME_RANGE signed_duration_list(B).              
 alter_db_option(A) ::= COMPACT_TIME_OFFSET NK_INTEGER(B).                         { A.type = DB_OPTION_COMPACT_TIME_OFFSET; A.val = B; }
 alter_db_option(A) ::= COMPACT_TIME_OFFSET NK_VARIABLE(B).                        { A.type = DB_OPTION_COMPACT_TIME_OFFSET; A.val = B; }
 alter_db_option(A) ::= ALLOW_DROP NK_INTEGER(B).                                  { A.type = DB_OPTION_ALLOW_DROP; A.val = B; }
+alter_db_option(A) ::= SECURITY_LEVEL(B).                                         { A.type = DB_OPTION_SECURITY_LEVEL; A.val = B; } 
 
 %type integer_list                                                                { SNodeList* }
 %destructor integer_list                                                          { nodesDestroyList($$); }
@@ -1184,6 +1186,7 @@ table_options(A) ::= table_options(B) DELETE_MARK duration_list(C).             
 table_options(A) ::= table_options(B) KEEP NK_INTEGER(C).                         { A = setTableOption(pCxt, B, TABLE_OPTION_KEEP, &C); }
 table_options(A) ::= table_options(B) KEEP NK_VARIABLE(C).                        { A = setTableOption(pCxt, B, TABLE_OPTION_KEEP, &C); }
 table_options(A) ::= table_options(B) VIRTUAL NK_INTEGER(C).                      { A = setTableOption(pCxt, B, TABLE_OPTION_VIRTUAL, &C); }
+table_options(A) ::= table_options(B) SECURITY_LEVEL NK_INTEGER(C).               { A = setTableOption(pCxt, B, TABLE_OPTION_SECURITY_LEVEL, &C); }
 
 alter_table_options(A) ::= alter_table_option(B).                                 { A = createAlterTableOptions(pCxt); A = setTableOption(pCxt, A, B.type, &B.val); }
 alter_table_options(A) ::= alter_table_options(B) alter_table_option(C).          { A = setTableOption(pCxt, B, C.type, &C.val); }
@@ -1194,6 +1197,7 @@ alter_table_option(A) ::= COMMENT NK_STRING(B).                                 
 alter_table_option(A) ::= TTL NK_INTEGER(B).                                      { A.type = TABLE_OPTION_TTL; A.val = B; }
 alter_table_option(A) ::= KEEP NK_INTEGER(B).                                     { A.type = TABLE_OPTION_KEEP; A.val = B; }
 alter_table_option(A) ::= KEEP NK_VARIABLE(B).                                    { A.type = TABLE_OPTION_KEEP; A.val = B; }
+alter_table_option(A) ::= SECURITY_LEVEL NK_INTEGER(B).                           { A.type = TABLE_OPTION_SECURITY_LEVEL; A.val = B; }
 
 
 %type duration_list                                                               { SNodeList* }

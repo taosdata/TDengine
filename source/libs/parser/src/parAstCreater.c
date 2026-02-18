@@ -11,7 +11,7 @@
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- */
+ */hh
 #ifndef TD_ASTRA
 #include <uv.h>
 #endif
@@ -2926,6 +2926,9 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
     case DB_OPTION_ALLOW_DROP:
       pDbOptions->allowDrop = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
+    case DB_OPTION_SECURITY_LEVEL:
+      pDbOptions->securityLevel = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      break;
     default:
       break;
   }
@@ -3216,6 +3219,15 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
         pCxt->errCode = TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
       } else {
         ((STableOptions*)pOptions)->virtualStb = virtualStb;
+      }
+      break;
+    }
+    case TABLE_OPTION_SECURITY_LEVEL: {
+      int64_t securityLevel = taosStr2Int64(((SToken*)pVal)->z, NULL, 10);
+      if (securityLevel < TSDB_MIN_SECURITY_LEVEL || securityLevel > TSDB_MAX_SECURITY_LEVEL) {
+        pCxt->errCode = TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+      } else {
+        ((STableOptions*)pOptions)->securityLevel = securityLevel;
       }
       break;
     }

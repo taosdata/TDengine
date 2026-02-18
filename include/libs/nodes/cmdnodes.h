@@ -144,6 +144,7 @@ typedef struct SDatabaseOptions {
   int8_t      withArbitrator;
   int8_t      isAudit;
   int8_t      allowDrop;
+  int8_t      securityLevel;
   // for auto-compact
   int32_t     compactTimeOffset;  // hours
   int32_t     compactInterval;    // minutes
@@ -264,6 +265,7 @@ typedef struct STableOptions {
   ENodeType   type;
   bool        virtualStb;
   bool        commentNull;
+  int8_t      securityLevel;
   char        comment[TSDB_TB_COMMENT_LEN];
   SNodeList*  pMaxDelay;
   int64_t     maxDelay1;
