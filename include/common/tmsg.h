@@ -2062,7 +2062,8 @@ typedef struct {
     struct {
       uint8_t virtualStb : 1;  // no compatibility problem for little-endian arch
       uint8_t isAudit : 1;
-      uint8_t reserve : 6;
+      uint8_t securityLevel : 3;
+      uint8_t reserve : 3;
     };
   };
   SColRef* pColRefs;

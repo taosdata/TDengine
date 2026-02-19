@@ -2354,6 +2354,7 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
   }
   pRsp->virtualStb = pStb->virtualStb;
   pRsp->pColRefs = NULL;
+  pRsp->securityLevel = pStb->securityLevel;
 
   taosRUnLockLatch(&pStb->lock);
   TAOS_RETURN(code);
