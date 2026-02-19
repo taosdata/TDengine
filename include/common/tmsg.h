@@ -1282,6 +1282,7 @@ typedef struct {
   char*    sql;
   int64_t  keep;
   int8_t   virtualStb;
+  int8_t   securityLevel;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -1837,9 +1838,10 @@ typedef struct {
   union {
     uint8_t flags;
     struct {
-      uint8_t privLevel : 3;
+      uint8_t minSecLevel : 3;
       uint8_t withInsertCond : 1;
-      uint8_t reserve : 4;
+      uint8_t maxSecLevel : 3;
+      uint8_t reserve : 1;
     };
   };
   SPrivSet  sysPrivs;

@@ -4446,8 +4446,6 @@ SUserOptions* createDefaultUserOptions(SAstCreateContext* pCxt) {
   pOptions->createdb = 0;
   pOptions->isImport = 0;
   pOptions->changepass = 2;
-  // pOptions->minSecurityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
-  // pOptions->maxSecurityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
   pOptions->sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
   pOptions->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
   pOptions->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;

@@ -836,6 +836,7 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
   ENCODESQL();
 
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->virtualStb));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->securityLevel));
 
   tEndEncode(&encoder);
 
@@ -955,6 +956,12 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->virtualStb));
   } else {
     pReq->virtualStb = 0;
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->securityLevel));
+  } else {
+    pReq->securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
   }
 
   tEndDecode(&decoder);
@@ -7026,6 +7033,7 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->compactTimeOffset));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->encryptAlgrName));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isAudit));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->securityLevel));
 
   tEndEncode(&encoder);
 
@@ -7138,6 +7146,12 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   } else {
     pReq->encryptAlgrName[0] = '\0';
     pReq->isAudit = 0;
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->securityLevel));
+  } else {
+    pReq->securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
   }
 
   tEndDecode(&decoder);

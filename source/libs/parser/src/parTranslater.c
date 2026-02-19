@@ -10687,6 +10687,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->compactEndTime = pStmt->pOptions->compactEndTime;
   pReq->compactTimeOffset = pStmt->pOptions->compactTimeOffset;
   pReq->isAudit = pStmt->pOptions->isAudit;
+  pReq->securityLevel = pStmt->pOptions->securityLevel;
 
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
@@ -11289,7 +11290,7 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbEnumOption(pCxt, "allowDrop", pOptions->allowDrop, TSDB_MIN_DB_ALLOW_DROP, TSDB_MAX_DB_ALLOW_DROP);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbEnumOption(pCxt, "securityLevel", pOptions->securityLevel, TSDB_MIN_SECURITY_LEVEL,
+    code = checkDbRangeOption(pCxt, "securityLevel", pOptions->securityLevel, TSDB_MIN_SECURITY_LEVEL,
                              TSDB_MAX_SECURITY_LEVEL);
   }
   /*
@@ -12560,6 +12561,14 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
   if (pCxt->pParseCxt->biMode != 0 && TSDB_CODE_SUCCESS == code) {
     code = biCheckCreateTableTbnameCol(pCxt, pStmt->pTags, pStmt->pCols);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pStmt->pOptions->securityLevel < TSDB_MIN_SECURITY_LEVEL ||
+        pStmt->pOptions->securityLevel > TSDB_MAX_SECURITY_LEVEL) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
+                                     "Invalid option security_level: %d, only %d to %d allowed",
+                                     pStmt->pOptions->securityLevel, TSDB_MIN_SECURITY_LEVEL, TSDB_MAX_SECURITY_LEVEL);
+    }
+  }
   return code;
 }
 
@@ -12971,6 +12980,7 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   pReq->colVer = 1;
   pReq->tagVer = 1;
   pReq->source = TD_REQ_FROM_APP;
+  pReq->securityLevel = pStmt->pOptions->securityLevel;
   // columnDefNodeToField(pStmt->pCols, &pReq->pColumns, true);
   // columnDefNodeToField(pStmt->pTags, &pReq->pTags, true);
   code = columnDefNodeToField(pStmt->pCols, &pReq->pColumns, true, pStmt->pOptions->virtualStb);
@@ -13577,8 +13587,8 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
       return code;
     }
   } else {
-    createReq.minSecurityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
-    createReq.maxSecurityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
+    createReq.minSecurityLevel = TSDB_DEFAULT_USER_MIN_SECURITY_LEVEL;
+    createReq.maxSecurityLevel = TSDB_DEFAULT_USER_MAX_SECURITY_LEVEL;
   }
   tstrncpy(createReq.user, pStmt->userName, TSDB_USER_LEN);
   createReq.createType = 0;
