@@ -10687,6 +10687,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->compactEndTime = pStmt->pOptions->compactEndTime;
   pReq->compactTimeOffset = pStmt->pOptions->compactTimeOffset;
   pReq->isAudit = pStmt->pOptions->isAudit;
+  pReq->allowDrop = pStmt->pOptions->allowDrop;
   pReq->securityLevel = pStmt->pOptions->securityLevel;
 
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);

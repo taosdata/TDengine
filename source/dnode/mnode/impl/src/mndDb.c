@@ -1042,11 +1042,8 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       mError("db:%s, failed to create, walLevel not match for audit db, %d", pCreate->db, dbObj.cfg.walLevel);
       TAOS_RETURN(code);
     }
-    dbObj.cfg.allowDrop = TSDB_MIN_DB_ALLOW_DROP;
-  } else {
-    dbObj.cfg.allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
-
+  dbObj.cfg.allowDrop = (uint8_t)pCreate->allowDrop;
   dbObj.cfg.securityLevel = (uint8_t)pCreate->securityLevel;
 
   mndSetDefaultDbCfg(&dbObj.cfg);

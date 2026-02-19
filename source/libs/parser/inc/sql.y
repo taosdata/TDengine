@@ -926,6 +926,7 @@ db_options(A) ::= db_options(B) COMPACT_TIME_RANGE signed_duration_list(C).     
 db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_INTEGER(C).                { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_OFFSET, &C); }
 db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_VARIABLE(C).               { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_OFFSET, &C); }
 db_options(A) ::= db_options(B) IS_AUDIT NK_INTEGER(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_IS_AUDIT, &C); }
+db_options(A) ::= db_options(B) ALLOW_DROP NK_INTEGER(C).                         { A = setDatabaseOption(pCxt, B, DB_OPTION_ALLOW_DROP, &C); }
 db_options(A) ::= db_options(B) SECURITY_LEVEL NK_INTEGER(C).                     { A = setDatabaseOption(pCxt, B, DB_OPTION_SECURITY_LEVEL, &C); }
 
 

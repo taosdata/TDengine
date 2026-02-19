@@ -7033,6 +7033,7 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->compactTimeOffset));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->encryptAlgrName));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isAudit));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->allowDrop));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->securityLevel));
 
   tEndEncode(&encoder);
@@ -7149,8 +7150,10 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   }
 
   if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->allowDrop));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->securityLevel));
   } else {
+    pReq->allowDrop = pReq->isAudit ? 0 : 1;
     pReq->securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
   }
 
