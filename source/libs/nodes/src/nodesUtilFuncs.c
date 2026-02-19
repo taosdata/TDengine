@@ -1806,6 +1806,7 @@ void nodesDestroyNode(SNode* pNode) {
       SCreateUserStmt* pStmt = (SCreateUserStmt*)pNode;
       taosMemoryFree(pStmt->pIpRanges);
       taosMemoryFree(pStmt->pTimeRanges);
+      nodesDestroyList(pStmt->pSecurityLevels);
       break;
     }
     case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT: {

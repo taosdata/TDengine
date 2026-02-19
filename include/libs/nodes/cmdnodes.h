@@ -519,6 +519,7 @@ typedef struct SCreateUserStmt {
 
   int32_t         numTimeRanges;
   SDateTimeRange* pTimeRanges;
+  SNodeList*      pSecurityLevels;
   // for privilege check
   SUserOptions userOps;
 } SCreateUserStmt;

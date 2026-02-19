@@ -2751,6 +2751,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->encryptAlgorithmStr[0] = 0;
   pOptions->isAudit = -1;
   pOptions->allowDrop = -1;
+  pOptions->securityLevel = -1;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -4445,8 +4446,8 @@ SUserOptions* createDefaultUserOptions(SAstCreateContext* pCxt) {
   pOptions->createdb = 0;
   pOptions->isImport = 0;
   pOptions->changepass = 2;
-  pOptions->minSecurityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
-  pOptions->maxSecurityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
+  // pOptions->minSecurityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
+  // pOptions->maxSecurityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
   pOptions->sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
   pOptions->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
   pOptions->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
@@ -4930,6 +4931,7 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOpt
     SDateTimeRangeNode* node = (SDateTimeRangeNode*)(pNode);
     pStmt->pTimeRanges[i++] = node->range;
   }
+  pStmt->userOps = *opts;  // only for privilege checking
   TSWAP(pStmt->pSecurityLevels, opts->pSecurityLevels);
 
   nodesDestroyNode((SNode*)opts);

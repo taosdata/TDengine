@@ -2151,6 +2151,7 @@ typedef struct {
   char    encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
   int8_t  isAudit;
   int8_t  allowDrop;
+  int8_t  securityLevel;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -2190,6 +2191,7 @@ typedef struct {
   char    encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
   int8_t  isAudit;
   int8_t  allowDrop;
+  int8_t  securityLevel;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -2418,7 +2420,8 @@ typedef struct {
     struct {
       uint8_t isMount : 1;    // TS-5868
       uint8_t allowDrop : 1;  // TS-7232
-      uint8_t padding : 6;
+      uint8_t securityLevel : 3;   // 6671585124
+      uint8_t padding : 3;
     };
   };
   int8_t  compactTimeOffset;
@@ -3028,7 +3031,8 @@ typedef struct {
     struct {
       uint8_t isAudit : 1;
       uint8_t allowDrop : 1;
-      uint8_t padding : 6;
+      uint8_t securityLevel : 3;   // 6671585124
+      uint8_t padding : 3;
     };
   };
 } SCreateVnodeReq;
@@ -3183,6 +3187,7 @@ typedef struct {
   int32_t ssKeepLocal;
   int8_t  ssCompact;
   int8_t  allowDrop;
+  int8_t  securityLevel;
 } SAlterVnodeConfigReq;
 
 int32_t tSerializeSAlterVnodeConfigReq(void* buf, int32_t bufLen, SAlterVnodeConfigReq* pReq);
@@ -6516,7 +6521,8 @@ typedef struct {
     struct {
       uint8_t isAudit : 1;
       uint8_t allowDrop : 1;
-      uint8_t reserved : 6;
+      uint8_t securityLevel : 3;
+      uint8_t reserved : 3;
     };
   };
   // walInfo

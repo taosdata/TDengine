@@ -4883,6 +4883,13 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       COL_DATA_SET_VAL_GOTO((const char *)tBuf, false, pUser, pShow->pIter, _exit);
     }
 
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+      char  *pBuf = POINTER_SHIFT(tBuf, VARSTR_HEADER_SIZE);
+      size_t vlen = snprintf(pBuf, bufSize, "[%d,%d]", pUser->minSecurityLevel, pUser->maxSecurityLevel);
+      varDataSetLen(tBuf, vlen);
+      COL_DATA_SET_VAL_GOTO((const char *)tBuf, false, pUser, pShow->pIter, _exit);
+    }
+
     numOfRows++;
     sdbRelease(pSdb, pUser);
   }
@@ -5078,6 +5085,13 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
         pBuf[0] = 0;
       }
       varDataSetLen(tBuf, tlen);
+      COL_DATA_SET_VAL_GOTO((const char *)tBuf, false, pUser, pShow->pIter, _exit);
+    }
+
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+      char  *pBuf = POINTER_SHIFT(tBuf, VARSTR_HEADER_SIZE);
+      size_t vlen = snprintf(pBuf, bufSize, "[%d,%d]", pUser->minSecurityLevel, pUser->maxSecurityLevel);
+      varDataSetLen(tBuf, vlen);
       COL_DATA_SET_VAL_GOTO((const char *)tBuf, false, pUser, pShow->pIter, _exit);
     }
 

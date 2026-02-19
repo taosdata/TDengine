@@ -385,6 +385,7 @@ struct SVnodeCfg {
   int8_t      ssCompact;
   int8_t      isAudit;
   int8_t      allowDrop;
+  int8_t      securityLevel;
 };
 
 #define TABLE_ROLLUP_ON         ((int8_t)0x1)
