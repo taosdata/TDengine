@@ -11288,11 +11288,14 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbEnumOption(pCxt, "isAudit", pOptions->isAudit, TSDB_MIN_DB_IS_AUDIT, TSDB_MAX_DB_IS_AUDIT);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    if (pOptions->allowDrop == INT8_MIN) {  // means not specified by user, set default value based on isAudit
+      pOptions->allowDrop = pOptions->isAudit ? 0 : 1;
+    }
     code = checkDbEnumOption(pCxt, "allowDrop", pOptions->allowDrop, TSDB_MIN_DB_ALLOW_DROP, TSDB_MAX_DB_ALLOW_DROP);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "securityLevel", pOptions->securityLevel, TSDB_MIN_SECURITY_LEVEL,
-                             TSDB_MAX_SECURITY_LEVEL);
+                              TSDB_MAX_SECURITY_LEVEL);
   }
   /*
   if (TSDB_CODE_SUCCESS == code) {

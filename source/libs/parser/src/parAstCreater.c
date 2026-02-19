@@ -2700,6 +2700,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->compactTimeOffset = TSDB_DEFAULT_COMPACT_TIME_OFFSET;
   pOptions->encryptAlgorithmStr[0] = 0;
   pOptions->isAudit = 0;
+  pOptions->allowDrop = INT8_MIN;  // means not set
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2926,6 +2927,10 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       break;
     case DB_OPTION_ALLOW_DROP:
       pDbOptions->allowDrop = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      if(pDbOptions->allowDrop != 0 && pDbOptions->allowDrop != 1) {
+        snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Invalid value for allow_drop, should be 0 or 1");
+        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+      }
       break;
     case DB_OPTION_SECURITY_LEVEL:
       pDbOptions->securityLevel = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
