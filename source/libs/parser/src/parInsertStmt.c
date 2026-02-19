@@ -798,6 +798,235 @@ end:
   return code;
 }
 
+int32_t qBindStmtTagsValue2_column_sheyj(void* pBlock, void* boundTags, int64_t suid, const char* sTableName,
+                                         char* tName, const TAOS_STMT2_COLUMN_BINDV* bindv, int32_t rowIndex,
+                                         char* msgBuf, int32_t msgBufLen, void* charsetCxt, SVCreateTbReq* pCreateTbReq) {
+  STableDataCxt* pDataBlock = (STableDataCxt*)pBlock;
+  SMsgBuf        pBuf = {.buf = msgBuf, .len = msgBufLen};
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SBoundColInfo* tags = (SBoundColInfo*)boundTags;
+
+  if (NULL == tags) {
+    return buildInvalidOperationMsg(&pBuf, "tags is null");
+  }
+
+  SArray* pTagArray;
+  if (tags->parseredTags) {
+    pTagArray = taosArrayDup(tags->parseredTags->pTagVals, NULL);
+  } else {
+    pTagArray = taosArrayInit(tags->numOfBound, sizeof(STagVal));
+  }
+  if (!pTagArray) {
+    return buildInvalidOperationMsg(&pBuf, "out of memory");
+  }
+
+  SArray* tagName;
+  if (tags->parseredTags) {
+    tagName = taosArrayDup(tags->parseredTags->STagNames, NULL);
+  } else {
+    tagName = taosArrayInit(8, TSDB_COL_NAME_LEN);
+  }
+
+  if (!tagName) {
+    code = buildInvalidOperationMsg(&pBuf, "out of memory");
+    goto end;
+  }
+
+  SSchema* pSchema = getTableTagSchema(pDataBlock->pMeta);
+
+  bool  isJson = false;
+  STag* pTag = NULL;
+
+  int bindIdx = 0;
+  for (int c = 0; c < tags->numOfBound; ++c) {
+    if (bindv == NULL) {
+      break;
+    }
+    if (tags->parseredTags) {
+      bool found = false;
+      for (int k = 0; k < tags->parseredTags->numOfTags; k++) {
+        if (tags->parseredTags->pTagIndex[k] == tags->pColIndex[c]) {
+          found = true;
+          break;
+        }
+      }
+      if (found) {
+        continue;
+      }
+    }
+
+    // Extract data from columnar structure for the specified row
+    const TAOS_STMT2_COLUMN_BIND* col = &bindv->columns[bindIdx++];
+
+    // Calculate buffer pointer and length for the specified row
+    void*   buffer = NULL;
+    int32_t length = 0;
+    bool    is_null = false;
+
+    if (col->length == NULL) {
+      // Fixed-length type: use schema bytes for offset calculation
+      SSchema* pTagSchema = &pSchema[tags->pColIndex[c]];
+      int32_t  typeSize = pTagSchema->bytes;
+      buffer = (char*)col->buffer + (rowIndex * typeSize);
+      length = typeSize;
+    } else {
+      // Variable-length type: accumulate offsets
+      int32_t offset = 0;
+      for (int32_t i = 0; i < rowIndex; ++i) {
+        offset += col->length[i];
+      }
+      buffer = (char*)col->buffer + offset;
+      length = col->length[rowIndex];
+    }
+
+    // Check if null
+    if (col->is_null != NULL) {
+      is_null = col->is_null[rowIndex];
+    }
+
+    if (is_null) {
+      continue;
+    }
+
+    SSchema* pTagSchema = &pSchema[tags->pColIndex[c]];
+    int32_t  colLen = pTagSchema->bytes;
+    if (IS_VAR_DATA_TYPE(pTagSchema->type)) {
+      if (IS_STR_DATA_BLOB(pTagSchema->type)) {
+        return TSDB_CODE_BLOB_NOT_SUPPORT_TAG;
+      }
+      colLen = length;
+      if ((colLen + VARSTR_HEADER_SIZE) > pTagSchema->bytes) {
+        code = buildInvalidOperationMsg(&pBuf, "tag length is too big");
+        goto end;
+      }
+    }
+    if (NULL == taosArrayPush(tagName, pTagSchema->name)) {
+      code = terrno;
+      goto end;
+    }
+    if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
+      if (colLen > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
+        code = buildSyntaxErrMsg(&pBuf, "json string too long than 4095", buffer);
+        goto end;
+      }
+
+      isJson = true;
+      char* tmp = taosMemoryCalloc(1, colLen + 1);
+      if (!tmp) {
+        code = terrno;
+        goto end;
+      }
+      memcpy(tmp, buffer, colLen);
+      code = parseJsontoTagData(tmp, pTagArray, &pTag, &pBuf, charsetCxt);
+      taosMemoryFree(tmp);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto end;
+      }
+    } else {
+      STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
+
+      if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
+          pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+        if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+          code = initCtxAsText();
+          if (code) {
+            qError("geometry init failed:%s", tstrerror(code));
+            goto end;
+          }
+          code = checkWKB(buffer, colLen);
+          if (code) {
+            qError("stmt2 bind invalid geometry tag:%s, must be WKB format", (char*)buffer);
+            goto end;
+          }
+        }
+        val.pData = (uint8_t*)buffer;
+        val.nData = colLen;
+      } else if (pTagSchema->type == TSDB_DATA_TYPE_NCHAR) {
+        int32_t output = 0;
+        void*   p = taosMemoryCalloc(1, colLen * TSDB_NCHAR_SIZE);
+        if (p == NULL) {
+          code = terrno;
+          goto end;
+        }
+        if (colLen != 0) {
+          if (!taosMbsToUcs4(buffer, colLen, (TdUcs4*)(p), colLen * TSDB_NCHAR_SIZE, &output, charsetCxt)) {
+            if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
+              taosMemoryFree(p);
+              code = generateSyntaxErrMsg(&pBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pTagSchema->name);
+              goto end;
+            }
+            char buf[512] = {0};
+            snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(terrno));
+            taosMemoryFree(p);
+            code = buildSyntaxErrMsg(&pBuf, buf, buffer);
+            goto end;
+          }
+        }
+        val.pData = p;
+        val.nData = output;
+
+      } else {
+        uint8_t* buf = (uint8_t*)buffer;
+        if (TSDB_DATA_TYPE_BOOL == pTagSchema->type && *buf > 1) {
+          *buf = 1;
+        }
+        memcpy(&val.i64, buf, colLen);
+      }
+      if (IS_VAR_DATA_TYPE(pTagSchema->type) && val.nData > pTagSchema->bytes) {
+        code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+        goto end;
+      }
+      if (NULL == taosArrayPush(pTagArray, &val)) {
+        code = terrno;
+        goto end;
+      }
+    }
+  }
+
+  if (!isJson && (code = tTagNew(pTagArray, 1, false, &pTag)) != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+
+  if (pCreateTbReq) {
+    code = insBuildCreateTbReq(pCreateTbReq, tName, pTag, suid, sTableName, tagName,
+                               pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
+    pTag = NULL;
+    goto end;
+  }
+
+  if (NULL == pDataBlock->pData->pCreateTbReq) {
+    pDataBlock->pData->pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+    if (NULL == pDataBlock->pData->pCreateTbReq) {
+      code = terrno;
+      goto end;
+    }
+  } else {
+    SVCreateTbReq* tmp = pDataBlock->pData->pCreateTbReq;
+    taosMemoryFreeClear(tmp->name);
+    taosMemoryFreeClear(tmp->ctb.pTag);
+    taosMemoryFreeClear(tmp->ctb.stbName);
+    taosArrayDestroy(tmp->ctb.tagName);
+    tmp->ctb.tagName = NULL;
+  }
+
+  code = insBuildCreateTbReq(pDataBlock->pData->pCreateTbReq, tName, pTag, suid, sTableName, tagName,
+                             pDataBlock->pMeta->tableInfo.numOfTags, TSDB_DEFAULT_TABLE_TTL);
+  pTag = NULL;
+
+end:
+  for (int i = 0; i < taosArrayGetSize(pTagArray); ++i) {
+    STagVal* p = (STagVal*)taosArrayGet(pTagArray, i);
+    if (p->type == TSDB_DATA_TYPE_NCHAR) {
+      taosMemoryFreeClear(p->pData);
+    }
+  }
+  taosArrayDestroy(pTagArray);
+  taosArrayDestroy(tagName);
+  taosMemoryFree(pTag);
+
+  return code;
+}
+
 static int32_t convertStmtStbNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STMT2_BIND* src, TAOS_STMT2_BIND* dst,
                                        void* charsetCxt) {
   int32_t       output = 0;

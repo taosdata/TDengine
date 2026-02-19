@@ -298,6 +298,202 @@ DLL_EXPORT int         taos_stmt2_prepare(TAOS_STMT2 *stmt, const char *sql, uns
 DLL_EXPORT int         taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx);
 DLL_EXPORT int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp,
                                        void *param);
+
+/**
+ * @brief Columnar bind structure for single column
+ *
+ * Defines binding information for a single column, optimized for serialization
+ * and batch processing scenarios.
+ *
+ * @par Design Principles
+ * @par
+ * - buffer must be stored contiguously
+ * - Variable-length types do NOT rely on null terminator ('\0'), boundaries are
+ *   determined solely by the length array
+ * - Fixed-length types do not need length (set to NULL)
+ * - Only use length array, do not use offset array
+ *
+ * @par Fixed-Length Types (length must be NULL)
+ * @par
+ * - TSDB_DATA_TYPE_TINYINT, SMALLINT, INT, BIGINT
+ * - TSDB_DATA_TYPE_UNSIGNED_TINYINT, UNSIGNED_SMALLINT, UNSIGNED_INT, UNSIGNED_BIGINT
+ * - TSDB_DATA_TYPE_FLOAT, DOUBLE
+ * - TSDB_DATA_TYPE_TIMESTAMP, BOOL
+ *
+ * @par Variable-Length Types (length must be valid pointer, cannot be NULL)
+ * @par
+ * - TSDB_DATA_TYPE_BINARY, NCHAR, VARBINARY, GEOMETRY
+ * - String data does NOT end with '\0', boundary of i-th element is determined by length[i]
+ *
+ * @par Contiguous Storage Layout for Variable-Length Types
+ * @par
+ * @code
+ *   // Example: 3 strings "hello", "world", "tdengine"
+ *   // Contiguous storage (without '\0'):
+ *   //
+ *   // buffer:  [h e l l o w o r l d t d e n g i n e]
+ *   //           ↑         ↑         ↑
+ *   // index:   [0         5         10     ]
+ *   // length:  [5         5         8      ]
+ *
+ *   char buffer[] = "helloworldtdengine";  // contiguous, no '\0'
+ *   int32_t length[] = {5, 5, 8};          // length of each string
+ *
+ *   // Sequential access:
+ *   int32_t pos = 0;
+ *   for (int i = 0; i < row_count; i++) {
+ *       char *value = (char*)buffer + pos;
+ *       int32_t len = length[i];
+ *       // use value and len
+ *       pos += len;  // move to next element
+ *   }
+ * @endcode
+ *
+ * @par Binary Data Containing '\0'
+ * @par
+ * @code
+ *   // Data 1: "hello\0" (6 bytes)
+ *   // Data 2: "world\0\0" (8 bytes)
+ *   char buffer[] = {
+ *       'h', 'e', 'l', 'l', 'o', '\0',
+ *       'w', 'o', 'r', 'l', 'd', '\0', '\0', '\0'
+ *   };
+ *   int32_t length[] = {6, 8};
+ *   // Does NOT rely on '\0' terminator, boundaries determined solely by length
+ * @endcode
+ */
+typedef struct TAOS_STMT2_COLUMN_BIND {
+  int      buffer_type;    ///< Column data type (TSDB_DATA_TYPE_*)
+
+  void    *buffer;         ///< Column data pointer (must be contiguous storage)
+                           ///<
+                           ///< Fixed-length types: element array (e.g., int64_t[])
+                           ///< Variable-length types: contiguous memory (e.g., char[]), no '\0'
+
+  int32_t *length;         ///< Length of each element (in bytes)
+                           ///<
+                           ///< Fixed-length types: must be NULL
+                           ///< Variable-length types: must provide valid pointer, cannot be NULL
+                           ///<                       length[i] represents byte length of i-th element
+                           ///<
+                           ///< @note Only use length array, do not use offset array
+                           ///<       Sequential access implemented by accumulating length
+
+  char    *is_null;        ///< Null flag array (can be NULL)
+                           ///<
+                           ///< NULL: indicates no NULL values
+                           ///< Non-NULL: is_null[i] = 1 means i-th row is NULL
+                           ///<           is_null[i] = 0 means i-th row is NOT NULL
+} TAOS_STMT2_COLUMN_BIND;
+
+/**
+ * @brief Columnar bind vector
+ *
+ * Used to bind multiple columns of data at once. All columns must have the same number of rows.
+ *
+ * @par Design Features
+ * @par
+ * - All columns (including tbname, tags, normal columns) are treated uniformly
+ * - Column meaning is determined by binding order, must correspond one-to-one with
+ *   placeholder order in SQL
+ * - Server automatically identifies number of tables and rows per table from tbname column
+ * - No need to explicitly provide table_count and row_per_table
+ *
+ * @par Example: Single Table Insert
+ * @par
+ * @code
+ *   // SQL: INSERT INTO t0 (ts, val) VALUES (?, ?)
+ *
+ *   int64_t ts[] = {1000, 1001, 1002};
+ *   int     val[] = {10, 11, 12};
+ *
+ *   TAOS_STMT2_COLUMN_BIND columns[] = {
+ *       {TSDB_DATA_TYPE_TIMESTAMP, ts,  NULL, NULL},
+ *       {TSDB_DATA_TYPE_INT,       val, NULL, NULL}
+ *   };
+ *
+ *   TAOS_STMT2_COLUMN_BINDV bindv = {
+ *       .column_count = 2,
+ *       .columns = columns,
+ *       .row_count = 3
+ *   };
+ * @endcode
+ *
+ * @par Example: Multi-Table Insert (Auto Create Tables)
+ * @par
+ * @code
+ *   // SQL: INSERT INTO stb (tbname, ts, val, tag1, tag2) VALUES (?, ?, ?, ?, ?)
+ *   // 3 tables, 2 rows per table, 6 rows total
+ *
+ *   char    *tbname_src = "t0t1t2";
+ *   int32_t  tbname_len[] = {2, 2, 2};
+ *
+ *   int64_t  ts[] = {1000, 1001, 2000, 2001, 3000, 3001};
+ *   int      val[] = {10, 11, 20, 21, 30, 31};
+ *   int      tag1[] = {0, 0, 1, 1, 2, 2};
+ *
+ *   char    *tag2_src = "aabbc c";
+ *   int32_t  tag2_len[] = {1, 1, 1, 1, 1, 1};
+ *
+ *   TAOS_STMT2_COLUMN_BIND columns[] = {
+ *       {TSDB_DATA_TYPE_BINARY,    tbname_src, tbname_len, NULL},  // col 0: tbname
+ *       {TSDB_DATA_TYPE_TIMESTAMP, ts,         NULL,      NULL},  // col 1: ts
+ *       {TSDB_DATA_TYPE_INT,       val,        NULL,      NULL},  // col 2: val
+ *       {TSDB_DATA_TYPE_INT,       tag1,       NULL,      NULL},  // col 3: tag1
+ *       {TSDB_DATA_TYPE_BINARY,    tag2_src,   tag2_len,  NULL}   // col 4: tag2
+ *   };
+ *
+ *   TAOS_STMT2_COLUMN_BINDV bindv = {
+ *       .column_count = 5,
+ *       .columns = columns,
+ *       .row_count = 6
+ *   };
+ * @endcode
+ */
+typedef struct TAOS_STMT2_COLUMN_BINDV {
+  int32_t                 column_count;  ///< Number of columns (corresponds to placeholder count in SQL)
+  TAOS_STMT2_COLUMN_BIND *columns;      ///< Column array (arranged in SQL placeholder order)
+  int32_t                 row_count;     ///< Total number of rows (all columns must have same value)
+} TAOS_STMT2_COLUMN_BINDV;
+
+/**
+ * @brief Bind parameters by column (new interface)
+ *
+ * Bind columnar data to stmt2 statement.
+ *
+ * @param stmt Statement handle (created by taos_stmt2_init)
+ * @param bindv Columnar bind vector
+ * @return 0 for success, non-zero for failure (use taos_stmt2_error to get error message)
+ *
+ * @note All columns (including tbname, tags, normal columns) are treated uniformly
+ * @note Column meaning is determined by binding order, must correspond one-to-one with SQL placeholders
+ * @note Data is organized by column, suitable for serialization and batch processing
+ * @note Server automatically identifies number of tables and rows per table from tbname column
+ *
+ * @par Difference from taos_stmt2_bind_param
+ * @par
+ * - taos_stmt2_bind_param: data organized by table (bind_cols[table][column])
+ * - taos_stmt2_bind_param_column: data organized by column (columns[column])
+ *
+ * @par Memory Layout Comparison
+ * @par Organized by Table (old interface):
+ * @code
+ *   Table 0: ts[0] = {1000, 1001, 1002},  val[0] = {10, 11, 12}
+ *   Table 1: ts[1] = {2000, 2001, 2002},  val[1] = {20, 21, 22}
+ *   Scattered storage, not suitable for serialization
+ * @endcode
+ * @par Organized by Column (new interface):
+ * @code
+ *   ts column:  {1000, 1001, 1002, 2000, 2001, 2002}  // contiguous storage
+ *   val column: {10, 11, 12, 20, 21, 22}              // contiguous storage
+ *   Suitable for serialization and network transmission
+ * @endcode
+ */
+DLL_EXPORT int taos_stmt2_bind_param_column(
+    TAOS_STMT2 *stmt,
+    const TAOS_STMT2_COLUMN_BINDV *bindv
+);
+
 DLL_EXPORT int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows);
 DLL_EXPORT int taos_stmt2_close(TAOS_STMT2 *stmt);
 DLL_EXPORT int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert);

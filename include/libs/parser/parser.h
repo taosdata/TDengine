@@ -236,6 +236,10 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
                             TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt,
                             SVCreateTbReq* pCreateTbReq);
 
+int32_t qBindStmtTagsValue2_column_sheyj(void* pBlock, void* boundTags, int64_t suid, const char* sTableName,
+                                         char* tName, const TAOS_STMT2_COLUMN_BINDV* bindv, int32_t rowIndex,
+                                         char* msgBuf, int32_t msgBufLen, void* charsetCxt, SVCreateTbReq* pCreateTbReq);
+
 void    destroyBoundColumnInfo(void* pBoundInfo);
 int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
                      int32_t msgBufLen);

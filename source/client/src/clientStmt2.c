@@ -516,6 +516,143 @@ static int32_t stmtPrintBindv(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bindv, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t stmtPrintColumnBindv(TAOS_STMT2* stmt, const TAOS_STMT2_COLUMN_BINDV* bindv, int32_t rowIndex,
+                                     bool isTags) {
+  STscStmt2* pStmt = (STscStmt2*)stmt;
+  int32_t    count = 0;
+  int32_t    code = 0;
+
+  if (bindv == NULL) {
+    STMT2_TLOG("column bindv is NULL, rowIndex:%d, isTags:%d", rowIndex, isTags);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (STMT_TYPE_INSERT == pStmt->sql.type || STMT_TYPE_MULTI_INSERT == pStmt->sql.type ||
+      (pStmt->sql.type == 0 && stmt2IsInsert(stmt))) {
+    if (pStmt->sql.placeholderOfTags == 0 && pStmt->sql.placeholderOfCols == 0) {
+      code = stmtGetStbColFields2(pStmt, NULL, NULL);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+    if (isTags) {
+      count = pStmt->sql.placeholderOfTags;
+      STMT2_TLOG("print tags column bindv, cols:%d, rowIndex:%d", count, rowIndex);
+    } else {
+      count = pStmt->sql.placeholderOfCols;
+      STMT2_TLOG("print cols column bindv, cols:%d, rowIndex:%d", count, rowIndex);
+    }
+  } else if (STMT_TYPE_QUERY == pStmt->sql.type || (pStmt->sql.type == 0 && stmt2IsSelect(stmt))) {
+    count = taosArrayGetSize(pStmt->sql.pQuery->pPlaceholderValues);
+    STMT2_TLOG("print query column bindv, cols:%d, rowIndex:%d", count, rowIndex);
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    STMT2_ELOG("failed to get param count, code:%d", code);
+    return code;
+  }
+
+  if (count > bindv->column_count) {
+    STMT2_ELOG("column bindv has insufficient columns, expected:%d, actual:%d", count, bindv->column_count);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (rowIndex >= bindv->row_count) {
+    STMT2_ELOG("rowIndex out of range, rowIndex:%d, rowCount:%d", rowIndex, bindv->row_count);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  for (int i = 0; i < count; i++) {
+    int32_t                       type = bindv->columns[i].buffer_type;
+    char*                         current_buf = (char*)bindv->columns[i].buffer;
+    char                          buf[256] = {0};
+    int32_t                       len = 0;
+    bool                          isNull = (bindv->columns[i].is_null && bindv->columns[i].is_null[rowIndex]);
+
+    if (isNull) {
+      snprintf(buf, sizeof(buf), "NULL");
+    } else {
+      if (current_buf == NULL) {
+        snprintf(buf, sizeof(buf), "NULL(Buf)");
+      } else {
+        // Calculate buffer pointer for the specified row
+        if (bindv->columns[i].length == NULL) {
+          // Fixed-length type: use schema bytes
+          // Need to get type size from somewhere
+          // For now, we'll skip printing or use a default size
+          int32_t typeSize = 8;  // Default to 8 bytes for most types
+          current_buf = (char*)bindv->columns[i].buffer + (rowIndex * typeSize);
+          len = typeSize;
+        } else {
+          // Variable-length type: accumulate offsets
+          int32_t offset = 0;
+          for (int32_t j = 0; j < rowIndex; ++j) {
+            offset += bindv->columns[i].length[j];
+          }
+          current_buf = (char*)bindv->columns[i].buffer + offset;
+          len = bindv->columns[i].length[rowIndex];
+        }
+
+        if (IS_VAR_DATA_TYPE(type) && bindv->columns[i].length) {
+          len = bindv->columns[i].length[rowIndex];
+        }
+
+        switch (type) {
+          case TSDB_DATA_TYPE_BOOL:
+            snprintf(buf, sizeof(buf), "%d", *(int8_t*)current_buf);
+            break;
+          case TSDB_DATA_TYPE_TINYINT:
+            snprintf(buf, sizeof(buf), "%d", *(int8_t*)current_buf);
+            break;
+          case TSDB_DATA_TYPE_SMALLINT:
+            snprintf(buf, sizeof(buf), "%d", *(int16_t*)current_buf);
+            break;
+          case TSDB_DATA_TYPE_INT:
+            snprintf(buf, sizeof(buf), "%d", *(int32_t*)current_buf);
+            break;
+          case TSDB_DATA_TYPE_BIGINT:
+            snprintf(buf, sizeof(buf), "%" PRId64, *(int64_t*)current_buf);
+            break;
+          case TSDB_DATA_TYPE_FLOAT:
+            snprintf(buf, sizeof(buf), "%f", *(float*)current_buf);
+            break;
+          case TSDB_DATA_TYPE_DOUBLE:
+            snprintf(buf, sizeof(buf), "%f", *(double*)current_buf);
+            break;
+          case TSDB_DATA_TYPE_BINARY:
+          case TSDB_DATA_TYPE_NCHAR:
+          case TSDB_DATA_TYPE_GEOMETRY:
+          case TSDB_DATA_TYPE_VARBINARY:
+            snprintf(buf, sizeof(buf), "len:%d, val:%.*s", len, len, current_buf);
+            break;
+          case TSDB_DATA_TYPE_TIMESTAMP:
+            snprintf(buf, sizeof(buf), "%" PRId64, *(int64_t*)current_buf);
+            break;
+          case TSDB_DATA_TYPE_UTINYINT:
+            snprintf(buf, sizeof(buf), "%u", *(uint8_t*)current_buf);
+            break;
+          case TSDB_DATA_TYPE_USMALLINT:
+            snprintf(buf, sizeof(buf), "%u", *(uint16_t*)current_buf);
+            break;
+          case TSDB_DATA_TYPE_UINT:
+            snprintf(buf, sizeof(buf), "%u", *(uint32_t*)current_buf);
+            break;
+          case TSDB_DATA_TYPE_UBIGINT:
+            snprintf(buf, sizeof(buf), "%" PRIu64, *(uint64_t*)current_buf);
+            break;
+          default:
+            snprintf(buf, sizeof(buf), "UnknownType:%d", type);
+            break;
+        }
+      }
+    }
+
+    STMT2_TLOG("column bindv[%d] row[%d]: type:%s, val:%s", i, rowIndex, tDataTypes[type].name, buf);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static void resetRequest(STscStmt2* pStmt) {
   if (pStmt->exec.pRequest) {
     taos_free_result(pStmt->exec.pRequest);
@@ -1597,6 +1734,81 @@ int stmtCheckTags2(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
     taosMemoryFreeClear((*pDataBlock)->pData->pCreateTbReq);
     (*pDataBlock)->pData->pCreateTbReq = NULL;
   }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int stmtSetTbTags2_column_sheyj(TAOS_STMT2* stmt, const TAOS_STMT2_COLUMN_BINDV* bindv,
+                                 int32_t rowIndex, SVCreateTbReq** pCreateTbReq) {
+  STscStmt2* pStmt = (STscStmt2*)stmt;
+
+  STMT2_TLOG_E("start to set tbTags from columnar data (sheyj)");
+  if (qDebugFlag & DEBUG_TRACE) {
+    (void)stmtPrintColumnBindv(stmt, bindv, rowIndex, true);
+  }
+
+  if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+    return pStmt->errCode;
+  }
+
+  STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_SETTAGS));
+
+  if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
+      STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
+    pStmt->bInfo.needParse = false;
+  }
+  STMT_ERR_RET(stmtCreateRequest(pStmt));
+
+  if (pStmt->bInfo.needParse) {
+    STMT_ERR_RET(stmtParseSql(pStmt));
+  }
+  if (pStmt->sql.stbInterlaceMode && NULL == pStmt->sql.siInfo.pDataCtx) {
+    STMT_ERR_RET(stmtInitStbInterlaceTableInfo(pStmt));
+  }
+
+  SBoundColInfo* tags_info = (SBoundColInfo*)pStmt->bInfo.boundTags;
+
+  STableDataCxt** pDataBlock = NULL;
+  if (pStmt->exec.pCurrBlock) {
+    pDataBlock = &pStmt->exec.pCurrBlock;
+  } else {
+    pDataBlock =
+        (STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
+    if (NULL == pDataBlock) {
+      STMT2_ELOG("table %s not found in exec blockHash:%p", pStmt->bInfo.tbFName, pStmt->exec.pBlockHash);
+      STMT_ERR_RET(TSDB_CODE_TSC_STMT_CACHE_ERROR);
+    }
+    if (pStmt->sql.stbInterlaceMode && (*pDataBlock)->pData->pCreateTbReq) {
+      tdDestroySVCreateTbReq((*pDataBlock)->pData->pCreateTbReq);
+      taosMemoryFreeClear((*pDataBlock)->pData->pCreateTbReq);
+      (*pDataBlock)->pData->pCreateTbReq = NULL;
+    }
+  }
+  if (pStmt->bInfo.inExecCache && !pStmt->sql.autoCreateTbl) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STMT2_TLOG_E("start to bind stmt tag values from columnar data");
+
+  void* boundTags = NULL;
+  if (pStmt->sql.stbInterlaceMode) {
+    boundTags = pStmt->sql.siInfo.boundTags;
+    *pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+    if (NULL == pCreateTbReq) {
+      return terrno;
+    }
+    int32_t vgId = -1;
+    STMT_ERR_RET(stmtTryAddTableVgroupInfo(pStmt, &vgId));
+    (*pCreateTbReq)->uid = vgId;
+  } else {
+    boundTags = pStmt->bInfo.boundTags;
+  }
+
+  STMT_ERR_RET(qBindStmtTagsValue2_column_sheyj(*pDataBlock, boundTags, pStmt->bInfo.tbSuid, pStmt->bInfo.stbFName,
+                                                pStmt->bInfo.sname.tname, bindv, rowIndex,
+                                                pStmt->exec.pRequest->msgBuf,
+                                                pStmt->exec.pRequest->msgBufLen, pStmt->taos->optionInfo.charsetCxt,
+                                                *pCreateTbReq));
 
   return TSDB_CODE_SUCCESS;
 }
