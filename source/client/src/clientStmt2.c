@@ -577,10 +577,8 @@ static int32_t stmtPrintColumnBindv(TAOS_STMT2* stmt, const TAOS_STMT2_COLUMN_BI
       } else {
         // Calculate buffer pointer for the specified row
         if (bindv->columns[i].length == NULL) {
-          // Fixed-length type: use schema bytes
-          // Need to get type size from somewhere
-          // For now, we'll skip printing or use a default size
-          int32_t typeSize = 8;  // Default to 8 bytes for most types
+          // Fixed-length type: use type size from tDataTypes
+          int32_t typeSize = tDataTypes[type].bytes;
           current_buf = (char*)bindv->columns[i].buffer + (rowIndex * typeSize);
           len = typeSize;
         } else {
