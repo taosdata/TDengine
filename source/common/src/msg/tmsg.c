@@ -3459,8 +3459,8 @@ int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq
   for (int32_t i = 0; i < pReq->numTimeRanges; ++i) {
     TAOS_CHECK_EXIT(tEncodeSDateTimeRange(&encoder, &pReq->pTimeRanges[i]));
   }
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->minSecurityLevel));
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->maxSecurityLevel)); 
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->minSecLevel));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->maxSecLevel));
 
   tEndEncode(&encoder);
 
@@ -3544,8 +3544,8 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
   }
 
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->minSecurityLevel));
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->maxSecurityLevel));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->minSecLevel));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->maxSecLevel));
   }
 
   tEndDecode(&decoder);
@@ -4176,8 +4176,8 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
   ENCODESQL();
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasSecurityLevel));
   if (pReq->hasSecurityLevel) {
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->minSecurityLevel));
-    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->maxSecurityLevel));
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->minSecLevel));
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->maxSecLevel));
   }
 
   tEndEncode(&encoder);
@@ -4352,8 +4352,8 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasSecurityLevel));
     if (pReq->hasSecurityLevel) {
-      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->minSecurityLevel));
-      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->maxSecurityLevel));
+      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->minSecLevel));
+      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->maxSecLevel));
     }
   }
 
@@ -10528,6 +10528,7 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->user));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->tokenName));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->userId));
+  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pRsp->flags));
   tEndEncode(&encoder);
 
 _exit:
@@ -10602,6 +10603,12 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
     pRsp->user[0] = 0;
     pRsp->tokenName[0] = 0;
     pRsp->userId = 0;
+  }
+
+  if(!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pRsp->flags));
+  } else {
+    pRsp->flags = 0;
   }
   
   tEndDecode(&decoder);

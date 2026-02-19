@@ -1387,6 +1387,14 @@ typedef struct {
   int8_t        enableAuditSelect;
   int8_t        enableAuditInsert;
   int8_t        auditLevel;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t minSecLevel : 3;
+      uint8_t maxSecLevel : 3;
+      uint8_t reserve : 2;
+    };
+  };
 } SConnectRsp;
 
 int32_t tSerializeSConnectRsp(void* buf, int32_t bufLen, SConnectRsp* pRsp);
@@ -1597,8 +1605,8 @@ typedef struct {
   int8_t isImport;
   int8_t changepass;
   int8_t enable;
-  int8_t minSecurityLevel;
-  int8_t maxSecurityLevel;
+  int8_t minSecLevel;
+  int8_t maxSecLevel;
 
   int8_t negIpRanges;
   int8_t negTimeRanges;
@@ -1690,8 +1698,8 @@ typedef struct {
   int8_t sysinfo;
   int8_t createdb;
   int8_t changepass;
-  int8_t minSecurityLevel;
-  int8_t maxSecurityLevel;
+  int8_t minSecLevel;
+  int8_t maxSecLevel;
 
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_USER_PASSWORD_LONGLEN];

@@ -602,7 +602,9 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .pUser = pRequest->pTscObj->user,
                       .userId = pRequest->pTscObj->userId,
                       .timezone = pRequest->pTscObj->optionInfo.timezone,
-                      .sysInfo = pRequest->pTscObj->sysInfo};
+                      .sysInfo = pRequest->pTscObj->sysInfo,
+                      .minSecLevel = pRequest->pTscObj->minSecLevel,
+                      .maxSecLevel = pRequest->pTscObj->maxSecLevel};
 
   return qCreateQueryPlan(&cxt, pPlan, pNodeList);
 }
@@ -1467,6 +1469,8 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .pUser = pRequest->pTscObj->user,
                         .userId = pRequest->pTscObj->userId,
                         .sysInfo = pRequest->pTscObj->sysInfo,
+                        .minSecLevel = pRequest->pTscObj->minSecLevel,
+                        .maxSecLevel = pRequest->pTscObj->maxSecLevel,
                         .timezone = pRequest->pTscObj->optionInfo.timezone,
                         .allocatorId = pRequest->stmtBindVersion > 0 ? 0 : pRequest->allocatorRefId};
     if (TSDB_CODE_SUCCESS == code) {

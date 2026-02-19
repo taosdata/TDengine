@@ -193,6 +193,14 @@ typedef struct STscObj {
   int8_t         connType;
   int8_t         dropped;
   int8_t         biMode;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t minSecLevel : 3;
+      uint8_t maxSecLevel : 3;
+      uint8_t reserve : 2;
+    };
+  };
   int32_t        acctId;
   uint32_t       connId;
   int32_t        appHbMgrIdx;

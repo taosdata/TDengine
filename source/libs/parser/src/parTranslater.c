@@ -13582,13 +13582,13 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
                                    "Cannot create user with inherit roles: %s", pStmt->userName);
   }
   if (pStmt->pSecurityLevels) {
-    if ((code = translateCheckUserSecurityLevel(pCxt, pStmt->pSecurityLevels, &createReq.minSecurityLevel,
-                                                &createReq.maxSecurityLevel))) {
+    if ((code = translateCheckUserSecurityLevel(pCxt, pStmt->pSecurityLevels, &createReq.minSecLevel,
+                                                &createReq.maxSecLevel))) {
       return code;
     }
   } else {
-    createReq.minSecurityLevel = TSDB_DEFAULT_USER_MIN_SECURITY_LEVEL;
-    createReq.maxSecurityLevel = TSDB_DEFAULT_USER_MAX_SECURITY_LEVEL;
+    createReq.minSecLevel = TSDB_DEFAULT_USER_MIN_SECURITY_LEVEL;
+    createReq.maxSecLevel = TSDB_DEFAULT_USER_MAX_SECURITY_LEVEL;
   }
   tstrncpy(createReq.user, pStmt->userName, TSDB_USER_LEN);
   createReq.createType = 0;
@@ -13774,8 +13774,8 @@ if (alterReq.numIpRanges > 0) {
 
   if (opts->pSecurityLevels) {
     alterReq.hasSecurityLevel = 1;
-    if ((code = translateCheckUserSecurityLevel(pCxt, opts->pSecurityLevels, &alterReq.minSecurityLevel,
-                                                &alterReq.maxSecurityLevel))) {
+    if ((code = translateCheckUserSecurityLevel(pCxt, opts->pSecurityLevels, &alterReq.minSecLevel,
+                                                &alterReq.maxSecLevel))) {
       tFreeSAlterUserReq(&alterReq);
       return code;
     }

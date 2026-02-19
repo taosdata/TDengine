@@ -606,8 +606,8 @@ typedef struct {
     uint8_t flag;
     struct {
       uint8_t createdb : 1;
-      uint8_t minSecurityLevel : 3;  // TD: 6671585124
-      uint8_t maxSecurityLevel : 3;  // TD: 6671585124
+      uint8_t minSecLevel : 3;  // TD: 6671585124
+      uint8_t maxSecLevel : 3;  // TD: 6671585124
       uint8_t reserve : 1;
     };
   };

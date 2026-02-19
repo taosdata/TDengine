@@ -984,6 +984,8 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.uid = mndGenerateUid(userObj.user, strlen(userObj.user));
   userObj.sysInfo = 1;
   userObj.enable = 1;
+  userObj.minSecLevel = TSDB_MIN_SECURITY_LEVEL;
+  userObj.maxSecLevel = TSDB_MAX_SECURITY_LEVEL;
 
 #ifdef TD_ENTERPRISE
 
@@ -2938,6 +2940,8 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.enable = pCreate->enable;
   userObj.createdb = pCreate->createDb;
   userObj.uid = mndGenerateUid(userObj.user, strlen(userObj.user));
+  userObj.minSecLevel = (uint8_t)pCreate->minSecLevel;
+  userObj.maxSecLevel = (uint8_t)pCreate->maxSecLevel;
 
   if (userObj.createdb == 1) {
     privAddType(&userObj.sysPrivs, PRIV_DB_CREATE);
@@ -3103,8 +3107,6 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.timeWhiteListVer = 0;
 
 #endif  // TD_ENTERPRISE
-  userObj.minSecurityLevel = (uint8_t)pCreate->minSecurityLevel;
-  userObj.maxSecurityLevel = (uint8_t)pCreate->maxSecurityLevel;
 
   userObj.roles = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (userObj.roles == NULL) {
@@ -4066,6 +4068,12 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     newUser.sysInfo = pAlterReq->sysinfo;
   }
 
+  if(pAlterReq->hasSecurityLevel) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "securityLevels:[%d,%d],", pAlterReq->minSecLevel, pAlterReq->maxSecLevel);
+    newUser.minSecLevel= pAlterReq->minSecLevel;
+    newUser.maxSecLevel= pAlterReq->maxSecLevel;
+  }
+
   if (pAlterReq->hasCreatedb) {
     auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "createdb:%d,", pAlterReq->createdb);
     newUser.createdb = pAlterReq->createdb;
@@ -4885,7 +4893,7 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
       char  *pBuf = POINTER_SHIFT(tBuf, VARSTR_HEADER_SIZE);
-      size_t vlen = snprintf(pBuf, bufSize, "[%d,%d]", pUser->minSecurityLevel, pUser->maxSecurityLevel);
+      size_t vlen = snprintf(pBuf, bufSize, "[%d,%d]", pUser->minSecLevel, pUser->maxSecLevel);
       varDataSetLen(tBuf, vlen);
       COL_DATA_SET_VAL_GOTO((const char *)tBuf, false, pUser, pShow->pIter, _exit);
     }
@@ -5090,7 +5098,7 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
       char  *pBuf = POINTER_SHIFT(tBuf, VARSTR_HEADER_SIZE);
-      size_t vlen = snprintf(pBuf, bufSize, "[%d,%d]", pUser->minSecurityLevel, pUser->maxSecurityLevel);
+      size_t vlen = snprintf(pBuf, bufSize, "[%d,%d]", pUser->minSecLevel, pUser->maxSecLevel);
       varDataSetLen(tBuf, vlen);
       COL_DATA_SET_VAL_GOTO((const char *)tBuf, false, pUser, pShow->pIter, _exit);
     }
