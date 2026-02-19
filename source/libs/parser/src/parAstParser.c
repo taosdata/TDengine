@@ -958,6 +958,16 @@ static int32_t collectMetaKeyFromShowCluster(SCollectMetaKeyCxt* pCxt, SShowStmt
   return code;
 }
 
+static int32_t collectMetaKeyFromShowSecurityPolicies(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_SECURITY_POLICIES,
+                                   pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_SECURITY_POLICIES_SHOW, 0,
+                                  pCxt->pMetaCache);
+  }
+  return code;
+}
+
 static int32_t collectMetaKeyFromShowDatabases(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_DATABASES,
                                  pCxt->pMetaCache);
@@ -1755,6 +1765,11 @@ static int32_t collectMetaKeyFromShowRsmasStmt(SCollectMetaKeyCxt* pCxt, SShowSt
                                  pCxt->pMetaCache);
 }
 
+static int32_t collectMetaKeyFromShowSecurityPoliciesStmt(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_SECURITY_POLICIES,
+                                 pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromShowRetentionsStmt(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_RETENTIONS,
                                  pCxt->pMetaCache);
@@ -1943,6 +1958,9 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       break;
     case QUERY_NODE_SHOW_CLUSTER_STMT:
       code = collectMetaKeyFromShowCluster(pCxt, (SShowStmt*)pStmt);
+      break;
+    case QUERY_NODE_SHOW_SECURITY_POLICIES_STMT:
+      code = collectMetaKeyFromShowSecurityPolicies(pCxt, (SShowStmt*)pStmt);
       break;
     case QUERY_NODE_SHOW_DATABASES_STMT:
       code = collectMetaKeyFromShowDatabases(pCxt, (SShowStmt*)pStmt);

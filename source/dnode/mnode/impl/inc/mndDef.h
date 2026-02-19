@@ -273,6 +273,17 @@ typedef struct {
   int64_t createdTime;
   int64_t updateTime;
   int32_t upTime;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t sodMode : 1;  // Separation of Duties' mode. 0: enabled (root as fallback), 1: mandatory (root locked
+                            // forever, strict separation)
+      uint8_t reserve : 7;
+    };
+  };
+  char    sodActivator[TSDB_USER_LEN];
+  int64_t sodActivateTime;
+  int64_t macActivateTime;
 } SClusterObj;
 
 typedef struct {

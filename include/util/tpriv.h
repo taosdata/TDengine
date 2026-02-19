@@ -52,7 +52,7 @@ extern "C" {
 #define TSDB_WORD_VARIABLES  "variables"
 #define TSDB_WORD_INFORMATION "information"
 
-#define PRIV_INFO_TABLE_VERSION 3
+#define PRIV_INFO_TABLE_VERSION 4
 typedef enum {
   PRIV_TYPE_UNKNOWN = -1,
   // ==================== Common Privilege ====================
@@ -215,6 +215,7 @@ typedef enum {
   PRIV_GRANTS_SHOW,                  // SHOW GRANTS
   PRIV_CLUSTER_SHOW,                 // SHOW CLUSTER
   PRIV_APPS_SHOW,                    // SHOW APPS
+  PRIV_SECURITY_POLICIES_SHOW,       // SHOW SECURITY POLICIES
 
   // extended privileges can be defined here (255 bits reserved in total)
   // ==================== Maximum Privilege Bit ====================

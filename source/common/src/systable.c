@@ -333,6 +333,14 @@ static const SSysDbTableSchema userUsersFullSchema[] = {
     {.name = "sec_levels", .bytes = 5 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = true},
 };
 
+static const SSysDbTableSchema securityPoliciesSchema[] = {
+    {.name = "name", .bytes = 3 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "mode", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "operator", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "last_update", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = true},
+    {.name = "desc", .bytes = 64 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+};
+
 GRANTS_SCHEMA;
 
 static const SSysDbTableSchema vgroupsSchema[] = {
@@ -811,6 +819,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_XNODE_TASKS, xnodeTasksSchema, tListLen(xnodeTasksSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_XNODE_AGENTS, xnodeAgentsSchema, tListLen(xnodeAgentsSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_XNODE_JOBS, xnodeTaskJobSchema, tListLen(xnodeTaskJobSchema), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_SECURITY_POLICIES, securityPoliciesSchema, tListLen(securityPoliciesSchema), true, PRIV_CAT_SECURITY},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {

@@ -527,6 +527,12 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  {
+    .showType = QUERY_NODE_SHOW_SECURITY_POLICIES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_SECURITY_POLICIES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
 };
 // clang-format on
 
@@ -24771,6 +24777,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
+    case QUERY_NODE_SHOW_SECURITY_POLICIES_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
     case QUERY_NODE_SHOW_APPS_STMT:

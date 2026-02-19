@@ -1113,6 +1113,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authSysPrivileges(pCxt, pStmt, PRIV_APPS_SHOW);
     case QUERY_NODE_SHOW_CLUSTER_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_CLUSTER_SHOW);
+    case QUERY_NODE_SHOW_SECURITY_POLICIES_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_SECURITY_POLICIES_SHOW); 
       // check in mnode
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_VNODES_STMT:

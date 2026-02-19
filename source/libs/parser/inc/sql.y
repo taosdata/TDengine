@@ -591,6 +591,7 @@ priv_type(A) ::= KILL QUERY.                                                    
 priv_type(A) ::= SHOW GRANTS.                                                     { A = PRIV_SET_TYPE(PRIV_GRANTS_SHOW); }
 priv_type(A) ::= SHOW CLUSTER.                                                    { A = PRIV_SET_TYPE(PRIV_CLUSTER_SHOW); }
 priv_type(A) ::= SHOW APPS.                                                       { A = PRIV_SET_TYPE(PRIV_APPS_SHOW); }
+priv_type(A) ::= SHOW SECURITY_POLICIES.                                          { A = PRIV_SET_TYPE(PRIV_SECURITY_POLICIES_SHOW); }
 
 %type priv_type_tbl_dml                                                           { SPrivSetArgs }
 %destructor priv_type_tbl_dml                                                     {
@@ -1297,6 +1298,7 @@ cmd ::= SHOW DNODE NK_INTEGER(A) VARIABLES like_pattern_opt(B).                 
 cmd ::= SHOW SNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SNODES_STMT); }
 cmd ::= SHOW BNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_BNODES_STMT); }
 cmd ::= SHOW CLUSTER.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CLUSTER_STMT); }
+cmd ::= SHOW SECURITY_POLICIES.                                                   { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SECURITY_POLICES_STMT); }
 cmd ::= SHOW TRANSACTIONS.                                                        { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_TRANSACTIONS_STMT); }
 cmd ::= SHOW TRANSACTION NK_INTEGER(A).                                           { pCxt->pRootNode = createShowTransactionDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
 cmd ::= SHOW TABLE DISTRIBUTED full_table_name(A).                                { pCxt->pRootNode = createShowTableDistributedStmt(pCxt, A); }

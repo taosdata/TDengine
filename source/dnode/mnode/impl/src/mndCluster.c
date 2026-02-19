@@ -22,7 +22,7 @@
 #include "mndTrans.h"
 
 #define CLUSTER_VER_NUMBE    1
-#define CLUSTER_RESERVE_SIZE 60
+#define CLUSTER_RESERVE_SIZE 19
 int64_t tsExpireTime = 0;
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster);
@@ -33,6 +33,8 @@ static int32_t  mndClusterActionUpdate(SSdb *pSdb, SClusterObj *pOldCluster, SCl
 static int32_t  mndCreateDefaultCluster(SMnode *pMnode);
 static int32_t  mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextCluster(SMnode *pMnode, void *pIter);
+static int32_t  mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static void     mndCancelGetNextSecurityPolicy(SMnode *pMnode, void *pIter);
 static int32_t  mndProcessUptimeTimer(SRpcMsg *pReq);
 static int32_t  mndProcessConfigClusterReq(SRpcMsg *pReq);
 static int32_t  mndProcessConfigClusterRsp(SRpcMsg *pReq);
@@ -54,6 +56,8 @@ int32_t mndInitCluster(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_CLUSTER_RSP, mndProcessConfigClusterRsp);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CLUSTER, mndRetrieveClusters);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CLUSTER, mndCancelGetNextCluster);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_SECURITY_POLICIES, mndRetrieveSecurityPolicies);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_SECURITY_POLICIES, mndCancelGetNextSecurityPolicy);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -157,6 +161,10 @@ static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {
   SDB_SET_INT64(pRaw, dataPos, pCluster->updateTime, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pCluster->upTime, _OVER)
+  SDB_SET_UINT8(pRaw, dataPos, pCluster->flag, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pCluster->sodActivator, TSDB_USER_LEN, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pCluster->sodActivateTime, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pCluster->macActivateTime, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, CLUSTER_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER);
 
@@ -200,6 +208,10 @@ static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pCluster->updateTime, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pCluster->upTime, _OVER)
+  SDB_GET_UINT8(pRaw, dataPos, &pCluster->flag, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pCluster->sodActivator, TSDB_USER_LEN, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pCluster->sodActivateTime, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pCluster->macActivateTime, _OVER)
   SDB_GET_RESERVE(pRaw, dataPos, CLUSTER_RESERVE_SIZE, _OVER)
 
   terrno = 0;
@@ -240,6 +252,7 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
   SClusterObj clusterObj = {0};
   clusterObj.createdTime = taosGetTimestampMs();
   clusterObj.updateTime = clusterObj.createdTime;
+  clusterObj.macActivateTime = clusterObj.createdTime;
 
   int32_t code = taosGetSystemUUIDLen(clusterObj.name, TSDB_CLUSTER_ID_LEN);
   if (code != 0) {
@@ -353,6 +366,67 @@ _OVER:
 }
 
 static void mndCancelGetNextCluster(SMnode *pMnode, void *pIter) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetchByType(pSdb, pIter, SDB_CLUSTER);
+}
+
+static int32_t mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode      *pMnode = pMsg->info.node;
+  SSdb        *pSdb = pMnode->pSdb;
+  int32_t      code = 0;
+  int32_t      lino = 0;
+  int32_t      numOfRows = 0;
+  int32_t      cols = 0;
+  SClusterObj *pCluster = NULL;
+
+  while (numOfRows < rows) {
+    pShow->pIter = sdbFetch(pSdb, SDB_CLUSTER, pShow->pIter, (void **)&pCluster);
+    if (pShow->pIter == NULL) break;
+
+    cols = 0;
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO((const char *)&pCluster->id, false, pCluster, pShow->pIter, _OVER);
+
+    char buf[tListLen(pCluster->name) + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, pCluster->name, pShow->pMeta->pSchemas[cols].bytes);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
+
+    int32_t upTime = mndGetClusterUpTimeImp(pCluster);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO((const char *)&upTime, false, pCluster, pShow->pIter, _OVER);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO((const char *)&pCluster->createdTime, false, pCluster, pShow->pIter, _OVER);
+
+    char ver[12] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(ver, tsVersionName, pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO((const char *)ver, false, pCluster, pShow->pIter, _OVER);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (tsExpireTime <= 0) {
+      colDataSetNULL(pColInfo, numOfRows);
+    } else {
+      COL_DATA_SET_VAL_GOTO((const char *)&tsExpireTime, false, pCluster, pShow->pIter, _OVER);
+    }
+
+    sdbRelease(pSdb, pCluster);
+    numOfRows++;
+  }
+
+  pShow->numOfRows += numOfRows;
+
+_OVER:
+  if (code != 0) {
+    mError("failed to retrieve cluster info at line %d since %s", lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  return numOfRows;
+}
+
+static void mndCancelGetNextSecurityPolicy(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetchByType(pSdb, pIter, SDB_CLUSTER);
 }
