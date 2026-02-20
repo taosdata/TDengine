@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use anyhow::Context;
+use chrono::{DateTime, Utc};
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
@@ -10,7 +11,7 @@ use crate::utils::taos_conn::TaosConn;
 struct MNodeStatus {
     role: String,
     endpoint: String,
-    role_time: String,
+    role_time: DateTime<Utc>,
 }
 
 #[instrument(skip_all)]
@@ -26,7 +27,7 @@ pub async fn start_monitor(
         .await
         .context("create db connection error")?;
 
-    let mut role_time: Option<String> = None;
+    let mut role_time: Option<DateTime<Utc>> = None;
     loop {
         match cancel
             .run_until_cancelled(conn.query::<MNodeStatus>("SHOW MNODES"))
@@ -34,7 +35,7 @@ pub async fn start_monitor(
         {
             Some(Ok(mnodes)) => {
                 for status in mnodes {
-                    if status.role_time.starts_with("1970") {
+                    if status.role_time == DateTime::UNIX_EPOCH {
                         continue;
                     }
                     if status.role != "leader" {
@@ -49,7 +50,7 @@ pub async fn start_monitor(
                         return Ok(());
                     }
 
-                    let rt = role_time.get_or_insert(status.role_time.clone());
+                    let rt = role_time.get_or_insert(status.role_time);
                     if rt != &status.role_time {
                         tracing::error!(
                             "fetch leader role time {} not eq {}",
@@ -62,7 +63,7 @@ pub async fn start_monitor(
                 }
             }
             Some(Err(e)) => {
-                tracing::error!("exec `SHOW MNODES` error: {}", anyhow::Error::new(e))
+                tracing::error!("exec `SHOW MNODES` error: {:#}", anyhow::Error::new(e))
             }
             None => break,
         }
