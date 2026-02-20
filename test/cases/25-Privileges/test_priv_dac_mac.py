@@ -15,7 +15,8 @@ class TestCase:
         cls.setsql = TDSetSql()
 
     def do_check_init_env(self):
-        """Check initial environment, including users and security levels"""
+        """Check initial environment, including users and security policies"""
+        # check users and their security levels
         tdSql.query("show users")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "root")
@@ -29,6 +30,17 @@ class TestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "root")
         tdSql.checkData(0, 1, "[0,4]")
+        # check security policies
+        tdSql.query("show security_policies")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "SoD")
+        tdSql.checkData(0, 1, "enabled")
+        tdSql.checkData(0, 2, "")
+        tdSql.checkData(0, 4, "SoD enabled; root still available")
+        tdSql.checkData(1, 0, "MAC")
+        tdSql.checkData(1, 1, "mandatory")
+        tdSql.checkData(1, 2, "SYSTEM")
+        tdSql.checkData(1, 4, "Security Levels 0-4; non-configurable")
 
     def do_check_sod(self):
         """Test basic Separation of Duties (SoD) with Mandatory Access Control (MAC)"""
@@ -85,7 +97,6 @@ class TestCase:
 
     def do_check_mac(self):
         """Test basic mandatory access control with security levels"""
-
 
         tdSql.execute("drop database if exists d0")
         tdSql.execute("create database d0")
