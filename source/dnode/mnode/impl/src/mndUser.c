@@ -1056,9 +1056,9 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
     TAOS_CHECK_GOTO(terrno, &lino, _ERROR);
   }
 
-  if ((code = taosHashPut(userObj.roles, TSDB_ROLE_SYSDBA, strlen(TSDB_ROLE_SYSDBA) + 1, NULL, 0)) ||
-      (code = taosHashPut(userObj.roles, TSDB_ROLE_SYSSEC, strlen(TSDB_ROLE_SYSSEC) + 1, NULL, 0)) ||
-      (code = taosHashPut(userObj.roles, TSDB_ROLE_SYSAUDIT, strlen(TSDB_ROLE_SYSAUDIT) + 1, NULL, 0))) {
+  if ((code = taosHashPut(userObj.roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA), NULL, 0)) ||
+      (code = taosHashPut(userObj.roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC), NULL, 0)) ||
+      (code = taosHashPut(userObj.roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT), NULL, 0))) {
     TAOS_CHECK_GOTO(code, &lino, _ERROR);
   }
 
@@ -1335,16 +1335,16 @@ static int32_t mndUserPrivUpgradeUser(SMnode *pMnode, SUserObj *pObj) {
   // assign roles and system privileges
   uint8_t flag = 0x01;
   if (pObj->superUser) {
-    TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSDBA, strlen(TSDB_ROLE_SYSDBA) + 1, &flag, sizeof(flag)));
-    TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSSEC, strlen(TSDB_ROLE_SYSSEC) + 1, &flag, sizeof(flag)));
-    TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSAUDIT, strlen(TSDB_ROLE_SYSAUDIT) + 1, &flag, sizeof(flag)));
+    TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA), &flag, sizeof(flag)));
+    TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC), &flag, sizeof(flag)));
+    TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT), &flag, sizeof(flag)));
   } else {
     if (pObj->sysInfo == 1) {
       TAOS_CHECK_EXIT(
-          taosHashPut(pObj->roles, TSDB_ROLE_SYSINFO_1, strlen(TSDB_ROLE_SYSINFO_1) + 1, &flag, sizeof(flag)));
+          taosHashPut(pObj->roles, TSDB_ROLE_SYSINFO_1, sizeof(TSDB_ROLE_SYSINFO_1), &flag, sizeof(flag)));
     } else {
       TAOS_CHECK_EXIT(
-          taosHashPut(pObj->roles, TSDB_ROLE_SYSINFO_0, strlen(TSDB_ROLE_SYSINFO_0) + 1, &flag, sizeof(flag)));
+          taosHashPut(pObj->roles, TSDB_ROLE_SYSINFO_0, sizeof(TSDB_ROLE_SYSINFO_0), &flag, sizeof(flag)));
     }
     if (pObj->createdb == 1) {
       privAddType(&pObj->sysPrivs, PRIV_DB_CREATE);
@@ -3114,7 +3114,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   }
 
   uint8_t flag = 0x01;
-  if ((code = taosHashPut(userObj.roles, TSDB_ROLE_DEFAULT, strlen(TSDB_ROLE_DEFAULT) + 1, &flag, sizeof(flag))) != 0) {
+  if ((code = taosHashPut(userObj.roles, TSDB_ROLE_DEFAULT, sizeof(TSDB_ROLE_DEFAULT), &flag, sizeof(flag))) != 0) {
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
@@ -3144,7 +3144,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
-  if (taosHashGet(userObj.roles, TSDB_ROLE_SYSAUDIT_LOG, strlen(TSDB_ROLE_SYSAUDIT_LOG) + 1)) {
+  if (taosHashGet(userObj.roles, TSDB_ROLE_SYSAUDIT_LOG, sizeof(TSDB_ROLE_SYSAUDIT_LOG))) {
     (void)mndResetAuditLogUser(pMnode, userObj.user, true);
   }
 
@@ -4353,7 +4353,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   TAOS_CHECK_GOTO(mndAlterUser(pMnode, &newUser, pReq), &lino, _OVER);
   if (pAlterReq->hasEnable) {
     if (newUser.enable) {
-      if (taosHashGet(newUser.roles, TSDB_ROLE_SYSAUDIT_LOG, strlen(TSDB_ROLE_SYSAUDIT_LOG) + 1)) {
+      if (taosHashGet(newUser.roles, TSDB_ROLE_SYSAUDIT_LOG, sizeof(TSDB_ROLE_SYSAUDIT_LOG))) {
         (void)mndResetAuditLogUser(pMnode, newUser.user, true);
       }
     } else {
@@ -4431,13 +4431,12 @@ int32_t mndResetAuditLogUser(SMnode *pMnode, const char *user, bool isAdd) {
   void     *pIter = NULL;
   SSdb     *pSdb = pMnode->pSdb;
   SUserObj *pUser = NULL;
-  int32_t   len = strlen(TSDB_ROLE_SYSAUDIT_LOG) + 1;
   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
     if (pUser->enable == 0) {
       mndReleaseUser(pMnode, pUser);
       continue;
     }
-    if (taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, len) != NULL) {
+    if (taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, sizeof(TSDB_ROLE_SYSAUDIT_LOG)) != NULL) {
       (void)taosThreadRwlockWrlock(&userCache.rw);
       (void)tsnprintf(userCache.auditLogUser, TSDB_USER_LEN, "%s", pUser->name);
       (void)taosThreadRwlockUnlock(&userCache.rw);
@@ -6238,3 +6237,41 @@ int64_t mndGetUserTimeWhiteListVer(SMnode *pMnode, SUserObj *pUser) {
   // ver > 0, enable datetime white list
   return tsEnableWhiteList ? pUser->timeWhiteListVer : 0;
 }
+
+// #ifdef TD_ENTERPRISE
+int32_t mndCheckManagementRoleStatus(SMnode *pMnode, const char *skipUser) {
+  SUserObj *pUser = NULL;
+  SSdb     *pSdb = pMnode->pSdb;
+  uint8_t   sodState = 0;  // 0x01: SYSDBA, 0x02: SYSSEC, 0x04: SYSAUDIT
+
+  void *pIter = NULL;
+  while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
+    if (pUser->enable == 0 || pUser->superUser == 1 || taosHashGetSize(pUser->roles) == 0 ||
+        (skipUser && strncmp(pUser->user, skipUser, TSDB_USER_LEN) == 0)) {
+      sdbRelease(pSdb, pUser);
+      continue;
+    }
+
+    if ((sodState & 0x01) == 0 && taosHashGet(pUser->roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA))) {
+      sodState |= 0x01;
+    } else if ((sodState & 0x02) == 0 && taosHashGet(pUser->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC))) {
+      sodState |= 0x02;
+    } else if ((sodState & 0x04) == 0 && taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT))) {
+      sodState |= 0x04;
+    }
+    sdbRelease(pSdb, pUser);
+    if (sodState == 0x07) {
+      sdbCancelFetch(pSdb, pIter);
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  if ((sodState & 0x01) == 0) {
+    return TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA;
+  } else if ((sodState & 0x02) == 0) {
+    return TSDB_CODE_MND_ROLE_NO_VALID_SYSSEC;
+  }
+  return TSDB_CODE_MND_ROLE_NO_VALID_SYSAUDIT;
+}
+
+// #endif

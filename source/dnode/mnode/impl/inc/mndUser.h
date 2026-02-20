@@ -73,6 +73,8 @@ void mndGetUserLoginInfo(const char *user, SLoginInfo *pLoginInfo);
 void mndSetUserLoginInfo(const char *user, const SLoginInfo *pLoginInfo);
 bool mndIsTotpEnabledUser(SUserObj *pUser);
 
+int32_t mndCheckManagementRoleStatus(SMnode *pMnode, const char *skipUser);
+
 int64_t mndGetUserIpWhiteListVer(SMnode *pMnode, SUserObj *pUser);
 int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *pAlterReq);
 

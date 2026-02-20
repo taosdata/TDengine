@@ -215,6 +215,12 @@ static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pCluster->macActivateTime, _OVER)
   SDB_GET_RESERVE(pRaw, dataPos, CLUSTER_RESERVE_SIZE, _OVER)
 
+  // for backward compatibility
+  if (pCluster->sodActivateTime == 0 && pCluster->macActivateTime == 0 && pCluster->createdTime != 0) {
+    pCluster->sodActivateTime = taosGetTimestampMs();
+    pCluster->macActivateTime = pCluster->sodActivateTime;
+  }
+
   terrno = 0;
 
 _OVER:
@@ -472,7 +478,8 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
 
   int32_t code = 0;
   mInfo("update cluster uptime to %d", clusterObj.upTime);
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-uptime");
+  // SoD mode also exists in cluster table, so use TRN_CONFLICT_ROLE aligned with SoD transaction.
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "update-uptime");
   if (pTrans == NULL) {
     code = terrno;
     TAOS_RETURN(code);
@@ -540,6 +547,11 @@ static int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgCluste
     TAOS_RETURN(0);
   }
 
+  if ((code = mndCheckManagementRoleStatus(pMnode, NULL))) {
+    mndReleaseCluster(pMnode, pCluster, pIter);
+    TAOS_CHECK_EXIT(code);
+  }
+
   mInfo("update cluster SoD mode to mandatory by %s", RPC_MSG_USER(pReq));
   (void)memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
   clusterObj.sodMode = SOD_MODE_MANDATORY;
@@ -547,7 +559,9 @@ static int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgCluste
   clusterObj.sodActivateTime = taosGetTimestampMs();
   mndReleaseCluster(pMnode, pCluster, pIter);
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_CLUSTER, pReq, "update-sod-mode");
+  // When SoD mode is updated to mandatory, root user will be disabled permanently and 3 common users with
+  // SYSDBA、SYSSEC and SYSAUDIT should exist.
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "update-sod-mode");
   if (pTrans == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }

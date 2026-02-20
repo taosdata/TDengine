@@ -154,7 +154,6 @@ typedef enum {
   TRN_CONFLICT_ARBGROUP = 6,
   TRN_CONFLICT_TSMA = 7,
   TRN_CONFLICT_ROLE = 8,
-  TRN_CONFLICT_CLUSTER = 9,
 } ETrnConflct;
 
 typedef enum {
