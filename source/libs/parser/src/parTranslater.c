@@ -533,6 +533,7 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pTableName = TSDB_INS_TABLE_SECURITY_POLICIES,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
+  },
 };
 // clang-format on
 

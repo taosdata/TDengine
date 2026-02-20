@@ -1298,7 +1298,7 @@ cmd ::= SHOW DNODE NK_INTEGER(A) VARIABLES like_pattern_opt(B).                 
 cmd ::= SHOW SNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SNODES_STMT); }
 cmd ::= SHOW BNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_BNODES_STMT); }
 cmd ::= SHOW CLUSTER.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CLUSTER_STMT); }
-cmd ::= SHOW SECURITY_POLICIES.                                                   { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SECURITY_POLICES_STMT); }
+cmd ::= SHOW SECURITY_POLICIES.                                                   { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SECURITY_POLICIES_STMT); }
 cmd ::= SHOW TRANSACTIONS.                                                        { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_TRANSACTIONS_STMT); }
 cmd ::= SHOW TRANSACTION NK_INTEGER(A).                                           { pCxt->pRootNode = createShowTransactionDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
 cmd ::= SHOW TABLE DISTRIBUTED full_table_name(A).                                { pCxt->pRootNode = createShowTableDistributedStmt(pCxt, A); }

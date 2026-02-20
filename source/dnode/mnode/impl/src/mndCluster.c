@@ -253,6 +253,8 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
   clusterObj.createdTime = taosGetTimestampMs();
   clusterObj.updateTime = clusterObj.createdTime;
   clusterObj.macActivateTime = clusterObj.createdTime;
+  clusterObj.sodActivateTime = clusterObj.createdTime;
+
 
   int32_t code = taosGetSystemUUIDLen(clusterObj.name, TSDB_CLUSTER_ID_LEN);
   if (code != 0) {
@@ -373,54 +375,70 @@ static void mndCancelGetNextCluster(SMnode *pMnode, void *pIter) {
 static int32_t mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode      *pMnode = pMsg->info.node;
   SSdb        *pSdb = pMnode->pSdb;
-  int32_t      code = 0;
-  int32_t      lino = 0;
+  int32_t      code = 0, lino = 0;
   int32_t      numOfRows = 0;
   int32_t      cols = 0;
   SClusterObj *pCluster = NULL;
+  char         buf[64 + VARSTR_HEADER_SIZE] = {0};
 
-  while (numOfRows < rows) {
+  while ((numOfRows + 1) < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_CLUSTER, pShow->pIter, (void **)&pCluster);
     if (pShow->pIter == NULL) break;
 
     cols = 0;
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, "SoD", pShow->pMeta->pSchemas[cols].bytes);
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO((const char *)&pCluster->id, false, pCluster, pShow->pIter, _OVER);
+    COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
 
-    char buf[tListLen(pCluster->name) + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, pCluster->name, pShow->pMeta->pSchemas[cols].bytes);
-
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, pCluster->sodMode == 0 ? "enabled" : "mandatory",
+                               pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
 
-    int32_t upTime = mndGetClusterUpTimeImp(pCluster);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, pCluster->sodActivator, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO((const char *)&upTime, false, pCluster, pShow->pIter, _OVER);
+    COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO((const char *)&pCluster->createdTime, false, pCluster, pShow->pIter, _OVER);
+    COL_DATA_SET_VAL_GOTO((const char *)&pCluster->sodActivateTime, false, pCluster, pShow->pIter, _OVER);
 
-    char ver[12] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(ver, tsVersionName, pShow->pMeta->pSchemas[cols].bytes);
+    STR_WITH_MAXSIZE_TO_VARSTR(
+        buf, pCluster->sodMode == 0 ? "SoD enabled; root still available" : "SoD enforced; root disabled permanently",
+        pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    COL_DATA_SET_VAL_GOTO((const char *)ver, false, pCluster, pShow->pIter, _OVER);
+    COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
+
+    ++numOfRows;
+
+    cols = 0;
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, "MAC", pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
+
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, "mandatory", pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
+
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, "SYSTEM", pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    if (tsExpireTime <= 0) {
-      colDataSetNULL(pColInfo, numOfRows);
-    } else {
-      COL_DATA_SET_VAL_GOTO((const char *)&tsExpireTime, false, pCluster, pShow->pIter, _OVER);
-    }
+    COL_DATA_SET_VAL_GOTO((const char *)&pCluster->macActivateTime, false, pCluster, pShow->pIter, _OVER);
+
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, "Security Levels 0-4; non-configurable", pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
 
     sdbRelease(pSdb, pCluster);
-    numOfRows++;
+    ++numOfRows;
   }
 
   pShow->numOfRows += numOfRows;
 
 _OVER:
   if (code != 0) {
-    mError("failed to retrieve cluster info at line %d since %s", lino, tstrerror(code));
+    mError("failed to retrieve security policies at line %d since %s", lino, tstrerror(code));
     TAOS_RETURN(code);
   }
   return numOfRows;

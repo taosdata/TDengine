@@ -274,6 +274,7 @@ static SKeyword keywordTable[] = {
     {"SCHEMALESS",           TK_SCHEMALESS},
     {"SCORES",               TK_SCORES},
     {"SECURITY_LEVEL",       TK_SECURITY_LEVEL},
+    {"SECURITY_POLICIES",    TK_SECURITY_POLICIES},
     {"SELECT",               TK_SELECT},
     {"SEMI",                 TK_SEMI},
     {"SERVER_STATUS",        TK_SERVER_STATUS},
