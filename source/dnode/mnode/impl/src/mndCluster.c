@@ -414,7 +414,7 @@ static int32_t mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDat
     COL_DATA_SET_VAL_GOTO((const char *)&pCluster->sodActivateTime, false, pCluster, pShow->pIter, _OVER);
 
     STR_WITH_MAXSIZE_TO_VARSTR(
-        buf, pCluster->sodMode == 0 ? "SoD enabled; root still available" : "SoD enforced; root disabled permanently",
+        buf, pCluster->sodMode == 0 ? "SoD enabled: root still available" : "SoD mandatory: root disabled permanently",
         pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
@@ -437,7 +437,7 @@ static int32_t mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDat
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO((const char *)&pCluster->macActivateTime, false, pCluster, pShow->pIter, _OVER);
 
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, "Security Levels 0-4; non-configurable", pShow->pMeta->pSchemas[cols].bytes);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, "MAC mandatory: levels 0-4; non-configurable", pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
 
@@ -657,4 +657,16 @@ _exit:
 int32_t mndProcessConfigClusterRsp(SRpcMsg *pRsp) {
   mInfo("config rsp from cluster");
   return 0;
+}
+
+int32_t mndGetClusterSoDMode(SMnode *pMnode) {
+  int32_t      sodMode = 0;
+  void        *pIter = NULL;
+  SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
+  if (pCluster != NULL) {
+    sodMode = pCluster->sodMode;
+    mndReleaseCluster(pMnode, pCluster, pIter);
+  }
+
+  return sodMode;
 }
