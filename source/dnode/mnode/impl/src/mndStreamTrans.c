@@ -120,7 +120,6 @@ int32_t mndStreamTransAppend(SStreamObj *pStream, STrans *pTrans, int32_t status
 
   if (sdbSetRawStatus(pCommitRaw, status) != 0) {
     mstsError("stream trans:%d failed to set raw status:%d since %s", pTrans->id, status, terrstr());
-    sdbFreeRaw(pCommitRaw);
     mndTransDrop(pTrans);
     return terrno;
   }

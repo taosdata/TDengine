@@ -20,6 +20,7 @@
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 
 #define CLUSTER_VER_NUMBE    1
 #define CLUSTER_RESERVE_SIZE 19
@@ -245,6 +246,10 @@ static int32_t mndClusterActionUpdate(SSdb *pSdb, SClusterObj *pOld, SClusterObj
          pNew, pOld->upTime, pNew->upTime);
   pOld->upTime = pNew->upTime;
   pOld->updateTime = taosGetTimestampMs();
+  pOld->flag = pNew->flag;
+  tstrncpy(pOld->sodActivator, pNew->sodActivator, sizeof(pOld->sodActivator));
+  pOld->sodActivateTime = pNew->sodActivateTime;
+  pOld->macActivateTime = pNew->macActivateTime;
   return 0;
 }
 
@@ -483,12 +488,12 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
 
   if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    sdbFreeRaw(pCommitRaw);
     mndTransDrop(pTrans);
     TAOS_RETURN(code);
   }
   code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
   if (code != 0) {
-    sdbFreeRaw(pCommitRaw);
     mndTransDrop(pTrans);
     TAOS_RETURN(code);
   }
@@ -502,6 +507,68 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
   mndTransDrop(pTrans);
   return 0;
 }
+
+/**
+ * @brief Separation of Duties(SoD) is a security principle that restricts the permissions of users to prevent them from
+ * having excessive privileges that could lead to security breaches.
+ *
+ * @param pMnode
+ * @param pReq
+ * @param pCfg 
+ * @return int32_t
+ */
+// #ifdef TD_ENTERPRISE
+static int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgClusterReq *pCfg) {
+  int32_t     code = 0, lino = 0;
+  SClusterObj clusterObj = {0};
+  STrans     *pTrans = NULL;
+
+  // Only support to set SoD mode to mandatory, which means SoD is enforced and root user is disabled permanently.
+  if (taosStrncasecmp(pCfg->value, "mandatory", 10) != 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_CFG_VALUE);
+  }
+
+  void        *pIter = NULL;
+  SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
+  if (!pCluster || pCluster->id <= 0) {
+    if (pCluster) mndReleaseCluster(pMnode, pCluster, pIter);
+    TAOS_CHECK_EXIT(TSDB_CODE_APP_IS_STARTING);
+  }
+
+  if (pCluster->sodMode == SOD_MODE_MANDATORY) {
+    mndReleaseCluster(pMnode, pCluster, pIter);
+    TAOS_RETURN(0);
+  }
+
+  mInfo("update cluster SoD mode to mandatory by %s", RPC_MSG_USER(pReq));
+  (void)memcpy(&clusterObj, pCluster, sizeof(SClusterObj));
+  clusterObj.sodMode = SOD_MODE_MANDATORY;
+  tstrncpy(clusterObj.sodActivator, RPC_MSG_USER(pReq), sizeof(clusterObj.sodActivator));
+  clusterObj.sodActivateTime = taosGetTimestampMs();
+  mndReleaseCluster(pMnode, pCluster, pIter);
+
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_CLUSTER, pReq, "update-sod-mode");
+  if (pTrans == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  SSdbRaw *pCommitRaw = mndClusterActionEncode(&clusterObj);
+  if (pCommitRaw == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw))) {
+    sdbFreeRaw(pCommitRaw);
+    TAOS_CHECK_EXIT(code);
+  }
+  TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
+  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
+_exit:
+  mndTransDrop(pTrans);
+  if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
+// #endif
 
 int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
   int32_t         code = 0;
@@ -532,6 +599,16 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
   if (strncmp(cfgReq.config, GRANT_ACTIVE_CODE, TSDB_DNODE_CONFIG_LEN) == 0) {
 #ifdef TD_ENTERPRISE
     if (0 != (code = mndProcessConfigGrantReq(pMnode, pReq, &cfgReq))) {
+      goto _exit;
+    }
+#else
+    code = TSDB_CODE_OPS_NOT_SUPPORT;
+    goto _exit;
+#endif
+  } else if (taosStrncasecmp(cfgReq.config, "SoD", 4) == 0 ||
+             taosStrncasecmp(cfgReq.config, "separation_of_duties", 22) == 0) {
+#ifdef TD_ENTERPRISE
+    if (0 != (code = mndProcessConfigSoDReq(pMnode, pReq, &cfgReq))) {
       goto _exit;
     }
 #else
