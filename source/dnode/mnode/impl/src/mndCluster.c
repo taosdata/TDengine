@@ -529,6 +529,8 @@ static int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgCluste
   int32_t     code = 0, lino = 0;
   SClusterObj clusterObj = {0};
   STrans     *pTrans = NULL;
+  SUserObj   *pRootUser = NULL;
+  SUserObj    newRootUser = {0};
 
   // Only support to set SoD mode to mandatory, which means SoD is enforced and root user is disabled permanently.
   if (taosStrncasecmp(pCfg->value, "mandatory", 10) != 0) {
@@ -559,6 +561,11 @@ static int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgCluste
   clusterObj.sodActivateTime = taosGetTimestampMs();
   mndReleaseCluster(pMnode, pCluster, pIter);
 
+  
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, "root", &pRootUser));
+  TAOS_CHECK_EXIT(mndUserDupObj(&newRootUser, pRootUser));
+  newRootUser.enable = 0;
+
   // When SoD mode is updated to mandatory, root user will be disabled permanently and 3 common users with
   // SYSDBA、SYSSEC and SYSAUDIT should exist.
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "update-sod-mode");
@@ -566,16 +573,22 @@ static int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgCluste
     TAOS_CHECK_EXIT(terrno);
   }
   SSdbRaw *pCommitRaw = mndClusterActionEncode(&clusterObj);
-  if (pCommitRaw == NULL) {
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    if (pCommitRaw) sdbFreeRaw(pCommitRaw);
     TAOS_CHECK_EXIT(terrno);
   }
-  if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw))) {
-    sdbFreeRaw(pCommitRaw);
-    TAOS_CHECK_EXIT(code);
-  }
   TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
+  // disable root user
+  SSdbRaw *pCommitRawRoot = mndUserActionEncode(&newRootUser);
+  if (pCommitRawRoot == NULL || mndTransAppendCommitlog(pTrans, pCommitRawRoot) != 0) {
+    if (pCommitRawRoot) sdbFreeRaw(pCommitRawRoot);
+    TAOS_CHECK_EXIT(terrno);
+  }
+  TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRawRoot, SDB_STATUS_READY));
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 _exit:
+  if(pRootUser) mndReleaseUser(pMnode, pRootUser);
+  mndUserFreeObj(&newRootUser);
   mndTransDrop(pTrans);
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
