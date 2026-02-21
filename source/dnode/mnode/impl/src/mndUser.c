@@ -3953,7 +3953,7 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
   SUserObj  newUser = {0};
 
   // Check SoD pending state: sodPending == 2 forbids revoke role
-  int8_t sodPending = mndGetSoDPending(pMnode);
+  int8_t sodPending = mndGetSoDStatus(pMnode);
   if (sodPending == 2 && pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE && pAlterReq->add == 0) {
     mError("user:%s, revoke role blocked during SoD SQL pending mode", pAlterReq->principal);
     TAOS_RETURN(TSDB_CODE_MND_SOD_PENDING);

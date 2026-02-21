@@ -135,6 +135,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   pTscObj->sysInfo = connectRsp.sysInfo;
+  pTscObj->sodInitial = connectRsp.sodInitial;
   pTscObj->minSecLevel = connectRsp.minSecLevel;
   pTscObj->maxSecLevel = connectRsp.maxSecLevel;
   pTscObj->connId = connectRsp.connId;

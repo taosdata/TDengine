@@ -979,16 +979,16 @@ int32_t mndStart(SMnode *pMnode) {
       if ((code = mndProcessEnforceSod(pMnode)) != 0) {
         if (code == TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA || code == TSDB_CODE_MND_ROLE_NO_VALID_SYSSEC ||
             code == TSDB_CODE_MND_ROLE_NO_VALID_SYSAUDIT) {
-          mndSetSoDPending(pMnode, 1);
+          mndSetSoDStatus(pMnode, TSDB_SOD_STATUS_INITIAL);
           mInfo("enter SoD pending mode. Enforce SoD by command line failed since %s", tstrerror(code));
         } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
           int32_t nRetry = 0, maxRetry = 90;
           bool    sodPending = true;
           mInfo("enforce SoD by command line is in progress, wait for it to complete with max retry times:%d",
                 maxRetry);
-          while ((nRetry < maxRetry) && (sodPending = mndGetSoDPending(pMnode))) {
+          while ((nRetry < maxRetry) && (sodPending = mndGetSoDStatus(pMnode))) {
             if (mndGetClusterSoDMode(pMnode) == SOD_MODE_MANDATORY) {
-              mndSetSoDPending(pMnode, 0);
+              mndSetSoDStatus(pMnode, TSDB_SOD_STATUS_NORMAL);
             } else {
               taosSsleep(1);
               ++nRetry;
@@ -1006,7 +1006,7 @@ int32_t mndStart(SMnode *pMnode) {
           TAOS_RETURN(code);
         }
       } else {
-        mndSetSoDPending(pMnode, 0);
+        mndSetSoDStatus(pMnode, TSDB_SOD_STATUS_NORMAL);
       }
     }
 #endif
@@ -1060,77 +1060,6 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   }
 
   return code;
-}
-
-/**
- * @brief Check SoD pending state and restrict operations accordingly.
- *
- * sodPending == 1: Command line triggered, only allow whitelist operations:
- *   - create user, grant role, show users, show security_policies
- * sodPending == 2: SQL command triggered, forbid revoke role and drop user
- *   - revoke role check is done in mndAlterUserFromRole
- */
-static int32_t mndCheckSodPendingState(SRpcMsg *pMsg) {
-  SMnode *pMnode = pMsg->info.node;
-  int8_t  sodPending = mndGetSoDPending(pMnode);
-
-  if (sodPending == 0) {
-    return 0;
-  }
-
-  tmsg_t msgType = pMsg->msgType;
-
-  // sodPending == 1: Strict whitelist mode for command line triggered SoD
-  if (sodPending == 1) {
-    // Always allowed: basic system messages
-    if (msgType == TDMT_MND_CONNECT || msgType == TDMT_MND_HEARTBEAT || msgType == TDMT_MND_CONFIG_CLUSTER ||
-        msgType == TDMT_MND_CONFIG_CLUSTER_RSP) {
-      return 0;
-    }
-
-    // Always allowed: timer messages
-    if (msgType == TDMT_MND_TMQ_TIMER || msgType == TDMT_MND_TELEM_TIMER || msgType == TDMT_MND_TRANS_TIMER ||
-        msgType == TDMT_MND_TTL_TIMER || msgType == TDMT_MND_TRIM_DB_TIMER || msgType == TDMT_MND_UPTIME_TIMER ||
-        msgType == TDMT_MND_COMPACT_TIMER || msgType == TDMT_MND_NODECHECK_TIMER ||
-        msgType == TDMT_MND_GRANT_HB_TIMER || msgType == TDMT_MND_STREAM_REQ_CHKPT ||
-        msgType == TDMT_MND_SSMIGRATE_DB_TIMER || msgType == TDMT_MND_ARB_HEARTBEAT_TIMER ||
-        msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER || msgType == TDMT_MND_CHECK_STREAM_TIMER ||
-        msgType == TDMT_MND_UPDATE_SSMIGRATE_PROGRESS_TIMER || msgType == TDMT_MND_SCAN_TIMER ||
-        msgType == TDMT_MND_QUERY_TRIM_TIMER || msgType == TDMT_MND_AUTH_HB_TIMER) {
-      return 0;
-    }
-
-    // Always allowed: query messages (for show users, show security_policies)
-    if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_QUERY_CONTINUE ||
-        msgType == TDMT_SCH_QUERY_HEARTBEAT || msgType == TDMT_SCH_FETCH || msgType == TDMT_SCH_MERGE_FETCH ||
-        msgType == TDMT_SCH_DROP_TASK || msgType == TDMT_SCH_TASK_NOTIFY) {
-      return 0;
-    }
-
-    // Allowed: create user, grant role (alter role will be further checked internally)
-    if (msgType == TDMT_MND_CREATE_USER || msgType == TDMT_MND_ALTER_ROLE) {
-      return 0;
-    }
-
-    // Allowed: sync and internal messages
-    if (msgType == TDMT_MND_STATUS || msgType == TDMT_MND_STATUS_RSP || msgType == TDMT_MND_GRANT_NOTIFY_RSP) {
-      return 0;
-    }
-
-    // All other messages are blocked during sodPending == 1
-    mError("msg:%p, type:%s blocked during SoD pending mode (pending=%d)", pMsg, TMSG_INFO(msgType), sodPending);
-    return TSDB_CODE_MND_SOD_PENDING;
-  }
-
-  // sodPending == 2: Only block drop user (revoke role is checked in mndAlterUserFromRole)
-  if (sodPending == 2) {
-    if (msgType == TDMT_MND_DROP_USER) {
-      mError("msg:%p, drop user blocked during SoD SQL pending mode", pMsg);
-      return TSDB_CODE_MND_SOD_PENDING;
-    }
-  }
-
-  return 0;
 }
 
 static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
@@ -1264,7 +1193,6 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg, SQueueInfo *pQueueInfo) {
   }
 
   TAOS_CHECK_RETURN(mndCheckMnodeState(pMsg));
-  TAOS_CHECK_RETURN(mndCheckSodPendingState(pMsg));
 
   mGTrace("msg:%p, start to process in mnode, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
   if (fp)
@@ -1545,23 +1473,16 @@ void mndSetStop(SMnode *pMnode) {
 
 bool mndGetStop(SMnode *pMnode) { return pMnode->stopped; }
 
-/**
- * @brief Set Separation of Duty (SoD) pending status for the mnode.
- *
- * @param pMnode Pointer to the mnode structure.
- * @param pending 0: no pending, 1: pending by command line, only "create user/grant role/show
- * users/show security_policies" allowed, 2: pending by SQL command, "revoke role" or "drop user" is forbidden
- */
-void mndSetSoDPending(SMnode *pMnode, int8_t pending) {
+void mndSetSoDStatus(SMnode *pMnode, int8_t status) {
   (void)taosThreadRwlockWrlock(&pMnode->lock);
-  pMnode->sodPending = pending;
+  pMnode->sodStatus = status;
   (void)taosThreadRwlockUnlock(&pMnode->lock);
 }
 
-int8_t mndGetSoDPending(SMnode *pMnode) {
-  int8_t result = 0;
+int8_t mndGetSoDStatus(SMnode *pMnode) {
+  int8_t result = TSDB_SOD_STATUS_NORMAL;
   (void)taosThreadRwlockRdlock(&pMnode->lock);
-  result = pMnode->sodPending;
+  result = pMnode->sodStatus;
   (void)taosThreadRwlockUnlock(&pMnode->lock);
   return result;
 }

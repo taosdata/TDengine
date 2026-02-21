@@ -688,12 +688,12 @@ int32_t mndGetClusterSoDMode(SMnode *pMnode) {
 
 void mndSodTransStart(SMnode *pMnode, void *param, int32_t paramLen) {
   mInfo("SoD trans start, set sodPending to 2");
-  mndSetSoDPending(pMnode, 2);
+  mndSetSoDStatus(pMnode, TSDB_SOD_STATUS_TRANSITION);
 }
 
 void mndSodTransStop(SMnode *pMnode, void *param, int32_t paramLen) {
   mInfo("SoD trans stop, set sodPending to 0");
-  mndSetSoDPending(pMnode, 0);
+  mndSetSoDStatus(pMnode, TSDB_SOD_STATUS_NORMAL);
 }
 
 static int32_t mndProcessEnforceSodImpl(SMnode *pMnode) {
@@ -733,7 +733,7 @@ static int32_t mndProcessEnforceSodImpl(SMnode *pMnode) {
 
   SEpSet epSet = {0};
   mndGetMnodeEpSet(pMnode, &epSet);
-  mndSetSoDPending(pMnode, 1);
+  mndSetSoDStatus(pMnode, TSDB_SOD_STATUS_INITIAL);
   TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
 _exit:
   if (code < 0) {

@@ -25,6 +25,22 @@
 extern "C" {
 #endif
 
+/* * Separation of Duties (SoD) Runtime Status
+ */
+
+/* Default state: SoD in a stable mode (Enabled or Mandatory). No temporary restrictions apply. */
+#define TSDB_SOD_STATUS_STABLE 0
+
+/* Initialization phase: Bootstrapped via CLI but roles are incomplete.
+ * Root is restricted to whitelist: CREATE USER, GRANT ROLE, SHOW USERS/POLICIES.
+ */
+#define TSDB_SOD_STATUS_INITIAL 1
+
+/* Transition phase: Triggered via SQL command: alter cluster 'sod' 'mandatory'.
+ * Destructive ops are blocked: DROP USER, REVOKE ROLE, DISABLE USER.
+ */
+#define TSDB_SOD_STATUS_TRANSITION 2
+
 #define T_ROLE_SYSDBA       0x01
 #define T_ROLE_SYSSEC       0x02
 #define T_ROLE_SYSAUDIT     0x04

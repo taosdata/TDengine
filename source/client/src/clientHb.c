@@ -230,6 +230,9 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       if (pTscObj->enable != (uint8_t)pRsp->enable) {
         pTscObj->enable = (uint8_t)pRsp->enable;
       }
+      if (pTscObj->sodInitial != pRsp->sodInitial) {
+        pTscObj->sodInitial = pRsp->sodInitial;
+      }
 
       // update password version
       if (pTscObj->passInfo.fp) {

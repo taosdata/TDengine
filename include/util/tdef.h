@@ -824,6 +824,25 @@ typedef enum {
 } ESecurityLevel;
 
 typedef enum {
+  /* * Default state: SoD is either disabled or the mandatory configuration
+   * has been fully satisfied.
+   */
+  TSDB_SOD_STATUS_NORMAL = 0,
+
+  /* * Initialization phase: Triggered via command line when SoD requirements
+   * are not yet met. Root privileges are restricted to a whitelist:
+   * (CREATE USER, GRANT ROLE, SHOW USERS, SHOW SECURITY_POLICIES).
+   */
+  TSDB_SOD_STATUS_INITIAL = 1,
+
+  /* * Transition phase: Triggered via SQL command to enforce mandatory SoD.
+   * "Destructive" operations are blocked to prevent state rollback:
+   * (DROP USER, REVOKE ROLE, DISABLE USER).
+   */
+  TSDB_SOD_STATUS_TRANSITION = 2,
+} ESodStatus;
+
+typedef enum {
   ANALY_ALGO_TYPE_ANOMALY_DETECT = 0,
   ANALY_ALGO_TYPE_FORECAST = 1,
   ANALY_ALGO_TYPE_IMPUTATION = 2,

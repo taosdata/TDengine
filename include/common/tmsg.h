@@ -1394,7 +1394,8 @@ typedef struct {
     struct {
       uint8_t minSecLevel : 3;
       uint8_t maxSecLevel : 3;
-      uint8_t reserve : 2;
+      uint8_t sodInitial : 1;
+      uint8_t reserve : 1;
     };
   };
 } SConnectRsp;
@@ -1851,7 +1852,7 @@ typedef struct {
       uint8_t minSecLevel : 3;
       uint8_t withInsertCond : 1;
       uint8_t maxSecLevel : 3;
-      uint8_t reserve : 1;
+      uint8_t sodInitial : 1;
     };
   };
   SPrivSet  sysPrivs;

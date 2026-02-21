@@ -133,7 +133,8 @@ typedef struct SParseContext {
     struct {
       uint8_t hasPrivCols : 1;  // user has priv columns
       uint8_t hasMaskCols : 1;  // user has mask columns
-      uint8_t reserved : 6;     // reserved bits for future use
+      uint8_t sodInitial : 1;   // 0 stable, 1 initial (pending)
+      uint8_t reserved : 5;     // reserved bits for future use
     };
   };
   union {
