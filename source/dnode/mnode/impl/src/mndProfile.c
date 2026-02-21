@@ -425,7 +425,6 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.acctId = pUser->acctId;
   connectRsp.superUser = pUser->superUser;
   connectRsp.sysInfo = pUser->sysInfo;
-  connectRsp.enable = (uint8_t)pUser->enable;
   connectRsp.minSecLevel = pUser->minSecLevel;
   connectRsp.maxSecLevel = pUser->maxSecLevel;
   connectRsp.clusterId = pMnode->clusterId;

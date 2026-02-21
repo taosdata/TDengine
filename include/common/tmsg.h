@@ -1394,8 +1394,7 @@ typedef struct {
     struct {
       uint8_t minSecLevel : 3;
       uint8_t maxSecLevel : 3;
-      uint8_t enable : 1;
-      uint8_t reserve : 1;
+      uint8_t reserve : 2;
     };
   };
 } SConnectRsp;

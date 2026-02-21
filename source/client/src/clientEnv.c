@@ -528,6 +528,7 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
     (void)memcpy((*pObj)->pass, auth, TSDB_PASSWORD_LEN);
   }
   (*pObj)->tokenName[0] = 0;
+  (*pObj)->enable = 1;  // enabled by default
 
   if (db != NULL) {
     tstrncpy((*pObj)->db, db, tListLen((*pObj)->db));
