@@ -19,6 +19,7 @@
 #include <uv.h>
 #endif
 #include "crypt.h"
+#include "mndCluster.h"
 #include "mndRole.h"
 #include "mndUser.h"
 #include "audit.h"
@@ -3952,11 +3953,9 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
   SUserObj *pUser = NULL;
   SUserObj  newUser = {0};
 
-  // Check SoD pending state: sodPending == 2 forbids revoke role
-  int8_t sodPending = mndGetSoDStatus(pMnode);
-  if (sodPending == 2 && pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE && pAlterReq->add == 0) {
-    mError("user:%s, revoke role blocked during SoD SQL pending mode", pAlterReq->principal);
-    TAOS_RETURN(TSDB_CODE_MND_SOD_PENDING);
+  if (pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE && pAlterReq->add == 0 &&
+      mndGetSoDStatus(pMnode) == TSDB_SOD_STATUS_TRANSITION) {
+    TAOS_RETURN(TSDB_CODE_MND_SOD_RESTRICTED);
   }
 
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pAlterReq->principal, &pUser));
@@ -4062,6 +4061,17 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
 
   if (pAlterReq->hasEnable) {
     auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "enable:%d,", pAlterReq->enable);
+
+    if (pAlterReq->enable == 0) {
+      if (mndGetSoDStatus(pMnode) == TSDB_SOD_STATUS_TRANSITION) {
+        TAOS_CHECK_GOTO(TSDB_CODE_MND_SOD_RESTRICTED, &lino, _OVER);
+      }
+    } else {
+      if ((strncmp(pUser->name, TSDB_DEFAULT_USER, TSDB_USER_LEN) == 0) &&
+          (mndGetClusterSoDMode(pMnode) == SOD_MODE_MANDATORY)) {
+        TAOS_CHECK_GOTO(TSDB_CODE_MND_SOD_RESTRICTED, &lino, _OVER);
+      }
+    }
 
     newUser.enable = pAlterReq->enable;  // lock or unlock user manually
     if (newUser.enable) {
@@ -4537,6 +4547,10 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
 
   if (0 == strcmp(dropReq.user, TSDB_DEFAULT_USER)) {
     return TSDB_CODE_MND_NO_RIGHTS;
+  }
+
+  if (mndGetSoDStatus(pMnode) == TSDB_SOD_STATUS_TRANSITION) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_SOD_RESTRICTED, &lino, _OVER);
   }
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, dropReq.user, &pUser), &lino, _OVER);

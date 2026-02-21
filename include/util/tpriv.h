@@ -32,7 +32,7 @@ extern "C" {
 #define TSDB_SOD_STATUS_STABLE 0
 
 /* Initialization phase: Bootstrapped via CLI but roles are incomplete.
- * Root is restricted to whitelist: CREATE USER, GRANT ROLE, SHOW USERS/POLICIES.
+ * Root is restricted to whitelist: CREATE/DROP/ALTER USER, GRANT/REVOKE ROLE, SHOW USERS, SHOW SECURITY_POLICIES.
  */
 #define TSDB_SOD_STATUS_INITIAL 1
 

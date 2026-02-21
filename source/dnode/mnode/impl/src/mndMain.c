@@ -1480,7 +1480,7 @@ void mndSetSoDStatus(SMnode *pMnode, int8_t status) {
 }
 
 int8_t mndGetSoDStatus(SMnode *pMnode) {
-  int8_t result = TSDB_SOD_STATUS_NORMAL;
+  int8_t result = TSDB_SOD_STATUS_STABLE;
   (void)taosThreadRwlockRdlock(&pMnode->lock);
   result = pMnode->sodStatus;
   (void)taosThreadRwlockUnlock(&pMnode->lock);

@@ -586,8 +586,12 @@ static int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgCluste
     TAOS_CHECK_EXIT(terrno);
   }
   TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRawRoot, SDB_STATUS_READY));
+  mndSetSoDStatus(pMnode, TSDB_SOD_STATUS_TRANSITION);
   mndTransSetCb(pTrans, TRANS_START_FUNC_SOD, TRANS_STOP_FUNC_SOD, NULL, 0);
-  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
+  if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
+    mndSetSoDStatus(pMnode, TSDB_SOD_STATUS_STABLE);  // restore SoD status to stable since transition won't happen
+    TAOS_CHECK_EXIT(code);
+  }
 _exit:
   if(pRootUser) mndReleaseUser(pMnode, pRootUser);
   mndUserFreeObj(&newRootUser);
@@ -686,14 +690,11 @@ int32_t mndGetClusterSoDMode(SMnode *pMnode) {
   return sodMode;
 }
 
-void mndSodTransStart(SMnode *pMnode, void *param, int32_t paramLen) {
-  mInfo("SoD trans start, set sodPending to 2");
-  mndSetSoDStatus(pMnode, TSDB_SOD_STATUS_TRANSITION);
-}
+void mndSodTransStart(SMnode *pMnode, void *param, int32_t paramLen) {}
 
 void mndSodTransStop(SMnode *pMnode, void *param, int32_t paramLen) {
-  mInfo("SoD trans stop, set sodPending to 0");
-  mndSetSoDStatus(pMnode, TSDB_SOD_STATUS_NORMAL);
+  mInfo("SoD trans stop, set sod status to %d", TSDB_SOD_STATUS_STABLE);
+  mndSetSoDStatus(pMnode, TSDB_SOD_STATUS_STABLE);
 }
 
 static int32_t mndProcessEnforceSodImpl(SMnode *pMnode) {
@@ -710,7 +711,7 @@ static int32_t mndProcessEnforceSodImpl(SMnode *pMnode) {
     TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  if((code = tSerializeSMCfgClusterReq(pCont, contLen, &cfgReq)) != contLen) {
+  if ((code = tSerializeSMCfgClusterReq(pCont, contLen, &cfgReq)) != contLen) {
     rpcFreeCont(pCont);
     TAOS_CHECK_EXIT(code);
   }
@@ -720,17 +721,6 @@ static int32_t mndProcessEnforceSodImpl(SMnode *pMnode) {
                     .msgType = TDMT_MND_CONFIG_CLUSTER,
                     .info.ahandle = 0,
                     .info.notFreeAhandle = 1};
-
-  // msg.contLen = dataLen + sizeof(SMsgHead);
-  // msg.pCont = rpcMallocCont(msg.contLen);
-  // if (msg.pCont == NULL) {
-  //   return terrno;
-  // }
-  // SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
-  // pMsgHead->contLen = htonl(msg.contLen);
-  // pMsgHead->vgId = htonl(SNODE_HANDLE);
-  // memcpy((char*)msg.pCont + sizeof(SMsgHead), data, dataLen);
-
   SEpSet epSet = {0};
   mndGetMnodeEpSet(pMnode, &epSet);
   mndSetSoDStatus(pMnode, TSDB_SOD_STATUS_INITIAL);
