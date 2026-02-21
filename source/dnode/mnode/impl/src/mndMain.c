@@ -960,6 +960,7 @@ void mndClose(SMnode *pMnode) {
 }
 
 int32_t mndStart(SMnode *pMnode) {
+  int32_t code = 0;
   mndSyncStart(pMnode);
   if (pMnode->deploy) {
     if (sdbDeploy(pMnode->pSdb) != 0) {
@@ -973,6 +974,12 @@ int32_t mndStart(SMnode *pMnode) {
       mError("failed to upgrade sdb while start mnode");
       return -1;
     }
+#ifdef TD_ENTERPRISE
+    if (tsSodEnforceMode && (code = mndProcessEnforceSod(pMnode)) != 0) {
+      mError("failed to process enforce sod while start mnode since %s", tstrerror(code));
+      return code;
+    }
+#endif
   }
   pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
   grantReset(pMnode, TSDB_GRANT_ALL, 0);
@@ -1435,3 +1442,11 @@ void mndSetStop(SMnode *pMnode) {
 }
 
 bool mndGetStop(SMnode *pMnode) { return pMnode->stopped; }
+
+void mndSetSodPending(SMnode *pMnode, bool pending) {
+  (void)taosThreadRwlockWrlock(&pMnode->lock);
+  pMnode->sodPending = pending;
+  (void)taosThreadRwlockUnlock(&pMnode->lock);
+  mInfo("mnode set sodPending:%d", pending);
+}
+bool mndGetSodPending(SMnode *pMnode) { return pMnode->sodPending; }

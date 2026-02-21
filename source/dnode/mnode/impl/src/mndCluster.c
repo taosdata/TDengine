@@ -683,3 +683,78 @@ int32_t mndGetClusterSoDMode(SMnode *pMnode) {
 
   return sodMode;
 }
+
+static int32_t mndProcessEnforceSodImpl(SMnode *pMnode) {
+  int32_t code = 0, lino = 0;
+  int32_t contLen = 0;
+  void   *pCont = NULL;
+
+  SMCfgClusterReq cfgReq = {0};
+  tsnprintf(cfgReq.config, sizeof(cfgReq.config), "SoD");
+  tsnprintf(cfgReq.value, sizeof(cfgReq.value), "mandatory");
+  contLen = tSerializeSMCfgClusterReq(NULL, 0, &cfgReq);
+  TAOS_CHECK_EXIT(contLen);
+  if (!(pCont = rpcMallocCont(contLen))) {
+    TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  if((code = tSerializeSMCfgClusterReq(pCont, contLen, &cfgReq)) != contLen) {
+    rpcFreeCont(pCont);
+    TAOS_CHECK_EXIT(code);
+  }
+
+  SRpcMsg rpcMsg = {.pCont = pCont,
+                    .contLen = contLen,
+                    .msgType = TDMT_MND_CONFIG_CLUSTER,
+                    .info.ahandle = 0,
+                    .info.notFreeAhandle = 1};
+
+  // msg.contLen = dataLen + sizeof(SMsgHead);
+  // msg.pCont = rpcMallocCont(msg.contLen);
+  // if (msg.pCont == NULL) {
+  //   return terrno;
+  // }
+  // SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
+  // pMsgHead->contLen = htonl(msg.contLen);
+  // pMsgHead->vgId = htonl(SNODE_HANDLE);
+  // memcpy((char*)msg.pCont + sizeof(SMsgHead), data, dataLen);
+
+  SEpSet epSet = {0};
+  mndGetMnodeEpSet(pMnode, &epSet);
+  TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
+_exit:
+  if (code < 0) {
+    mError("failed at line %d to enforce SoD since %s", lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
+
+int32_t mndProcessEnforceSod(SMnode *pMnode) {
+  int32_t      code = 0, lino = 0;
+  void        *pIter = NULL;
+  SUserObj    *pRootUser = NULL;
+  SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
+  if (pCluster == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+
+  if (pCluster->sodMode == SOD_MODE_MANDATORY) {
+    mInfo("cluster is already in SoD mandatory mode");
+    mndReleaseCluster(pMnode, pCluster, pIter);
+    TAOS_RETURN(0);
+  }
+
+  if ((code = mndCheckManagementRoleStatus(pMnode, NULL))) {
+    mndReleaseCluster(pMnode, pCluster, pIter);
+    TAOS_CHECK_EXIT(code);
+  }
+
+  TAOS_CHECK_EXIT(mndProcessEnforceSodImpl(pMnode));
+
+_exit:
+  if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("failed to enforce SoD at line %d since %s", lino, tstrerror(code));
+  }
+  if (pRootUser) mndReleaseUser(pMnode, pRootUser);
+  TAOS_RETURN(code);
+}

@@ -125,6 +125,7 @@ typedef struct SMnode {
   bool           stopped;
   bool           restored;
   bool           deploy;
+  bool           sodPending;
   char          *path;
   int64_t        checkTime;
   SyncIndex      applied;
@@ -157,6 +158,8 @@ void mndSetRestored(SMnode *pMnode, bool restored);
 bool mndGetRestored(SMnode *pMnode);
 void mndSetStop(SMnode *pMnode);
 bool mndGetStop(SMnode *pMnode);
+void mndSetSodPending(SMnode *pMnode, bool pending);
+bool mndGetSodPending(SMnode *pMnode);
 
 SArray *mndGetAllDnodeFqdns(SMnode *pMnode);
 
