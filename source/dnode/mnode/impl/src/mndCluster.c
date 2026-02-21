@@ -563,7 +563,7 @@ static int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgCluste
 
   
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, "root", &pRootUser));
-  TAOS_CHECK_EXIT(mndUserDupObj(&newRootUser, pRootUser));
+  TAOS_CHECK_EXIT(mndUserDupObj(pRootUser, &newRootUser));
   newRootUser.enable = 0;
 
   // When SoD mode is updated to mandatory, root user will be disabled permanently and 3 common users with
