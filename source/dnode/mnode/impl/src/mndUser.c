@@ -3952,6 +3952,13 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
   SUserObj *pUser = NULL;
   SUserObj  newUser = {0};
 
+  // Check SoD pending state: sodPending == 2 forbids revoke role
+  int8_t sodPending = mndGetSoDPending(pMnode);
+  if (sodPending == 2 && pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE && pAlterReq->add == 0) {
+    mError("user:%s, revoke role blocked during SoD SQL pending mode", pAlterReq->principal);
+    TAOS_RETURN(TSDB_CODE_MND_SOD_PENDING);
+  }
+
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pAlterReq->principal, &pUser));
 
   if (pUser->enable == 0) {
@@ -6239,10 +6246,19 @@ int64_t mndGetUserTimeWhiteListVer(SMnode *pMnode, SUserObj *pUser) {
 }
 
 // #ifdef TD_ENTERPRISE
-int32_t mndCheckManagementRoleStatus(SMnode *pMnode, const char *skipUser) {
+/**
+ * @brief Check if there is at least one valid user with SYSDBA, SYSSEC or SYSAUDIT role in the system, if not, return
+ * error code.
+ *
+ * @param pMnode
+ * @param skipUser
+ * @param skipRole  0 or T_ROLE_SYSDBA, T_ROLE_SYSSEC, T_ROLE_SYSAUDIT
+ * @return int32_t
+ */
+int32_t mndCheckManagementRoleStatus(SMnode *pMnode, const char *skipUser, uint8_t skipRole) {
   SUserObj *pUser = NULL;
   SSdb     *pSdb = pMnode->pSdb;
-  uint8_t   sodState = 0;  // 0x01: SYSDBA, 0x02: SYSSEC, 0x04: SYSAUDIT
+  uint8_t   sodState = skipRole;  // 0x01: T_ROLE_SYSDBA, 0x02: T_ROLE_SYSSEC, 0x04: T_ROLE_SYSAUDIT
 
   void *pIter = NULL;
   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
@@ -6252,26 +6268,30 @@ int32_t mndCheckManagementRoleStatus(SMnode *pMnode, const char *skipUser) {
       continue;
     }
 
-    if ((sodState & 0x01) == 0 && taosHashGet(pUser->roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA))) {
-      sodState |= 0x01;
-    } else if ((sodState & 0x02) == 0 && taosHashGet(pUser->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC))) {
-      sodState |= 0x02;
-    } else if ((sodState & 0x04) == 0 && taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT))) {
-      sodState |= 0x04;
+    if ((sodState & T_ROLE_SYSDBA) == 0 && taosHashGet(pUser->roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA))) {
+      sodState |= T_ROLE_SYSDBA;
+    } else if ((sodState & T_ROLE_SYSSEC) == 0 &&
+               taosHashGet(pUser->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC))) {
+      sodState |= T_ROLE_SYSSEC;
+    } else if ((sodState & T_ROLE_SYSAUDIT) == 0 &&
+               taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT))) {
+      sodState |= T_ROLE_SYSAUDIT;
     }
     sdbRelease(pSdb, pUser);
-    if (sodState == 0x07) {
+    if (sodState == (T_ROLE_SYSDBA | T_ROLE_SYSSEC | T_ROLE_SYSAUDIT)) {
       sdbCancelFetch(pSdb, pIter);
       return TSDB_CODE_SUCCESS;
     }
   }
 
-  if ((sodState & 0x01) == 0) {
+  if ((sodState & T_ROLE_SYSDBA) == 0) {
     return TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA;
-  } else if ((sodState & 0x02) == 0) {
+  } else if ((sodState & T_ROLE_SYSSEC) == 0) {
     return TSDB_CODE_MND_ROLE_NO_VALID_SYSSEC;
+  } else if ((sodState & T_ROLE_SYSAUDIT) == 0) {
+    return TSDB_CODE_MND_ROLE_NO_VALID_SYSAUDIT;
   }
-  return TSDB_CODE_MND_ROLE_NO_VALID_SYSAUDIT;
+  return TSDB_CODE_SUCCESS;
 }
 
 // #endif

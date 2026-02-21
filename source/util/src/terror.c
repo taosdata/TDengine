@@ -494,6 +494,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_PRIV_OBJS,       "Too many privilege ob
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_PRIVS,           "Too many privileges for single user/role")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NO_VALID_SYSSEC,     "No enabled user with SYSSEC role found to satisfy SoD policy")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NO_VALID_SYSAUDIT,   "No enabled user with SYSAUDIT role found to satisfy SoD policy")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SOD_PENDING,              "Operation not allowed during SoD pending state")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")

@@ -550,7 +550,7 @@ static int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgCluste
     TAOS_RETURN(0);
   }
 
-  if ((code = mndCheckManagementRoleStatus(pMnode, NULL))) {
+  if ((code = mndCheckManagementRoleStatus(pMnode, NULL, 0))) {
     mndReleaseCluster(pMnode, pCluster, pIter);
     TAOS_CHECK_EXIT(code);
   }
@@ -586,6 +586,7 @@ static int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgCluste
     TAOS_CHECK_EXIT(terrno);
   }
   TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRawRoot, SDB_STATUS_READY));
+  mndTransSetCb(pTrans, TRANS_START_FUNC_SOD, TRANS_STOP_FUNC_SOD, NULL, 0);
   TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 _exit:
   if(pRootUser) mndReleaseUser(pMnode, pRootUser);
@@ -685,6 +686,16 @@ int32_t mndGetClusterSoDMode(SMnode *pMnode) {
   return sodMode;
 }
 
+void mndSodTransStart(SMnode *pMnode, void *param, int32_t paramLen) {
+  mInfo("SoD trans start, set sodPending to 2");
+  mndSetSoDPending(pMnode, 2);
+}
+
+void mndSodTransStop(SMnode *pMnode, void *param, int32_t paramLen) {
+  mInfo("SoD trans stop, set sodPending to 0");
+  mndSetSoDPending(pMnode, 0);
+}
+
 static int32_t mndProcessEnforceSodImpl(SMnode *pMnode) {
   int32_t code = 0, lino = 0;
   int32_t contLen = 0;
@@ -722,7 +733,7 @@ static int32_t mndProcessEnforceSodImpl(SMnode *pMnode) {
 
   SEpSet epSet = {0};
   mndGetMnodeEpSet(pMnode, &epSet);
-  mndSetSodPending(pMnode, true);
+  mndSetSoDPending(pMnode, 1);
   TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
 _exit:
   if (code < 0) {
@@ -745,7 +756,7 @@ int32_t mndProcessEnforceSod(SMnode *pMnode) {
     TAOS_RETURN(0);
   }
 
-  if ((code = mndCheckManagementRoleStatus(pMnode, NULL))) {
+  if ((code = mndCheckManagementRoleStatus(pMnode, NULL, 0))) {
     mndReleaseCluster(pMnode, pCluster, pIter);
     TAOS_CHECK_EXIT(code);
   }

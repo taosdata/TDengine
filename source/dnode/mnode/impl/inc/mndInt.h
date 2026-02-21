@@ -125,7 +125,7 @@ typedef struct SMnode {
   bool           stopped;
   bool           restored;
   bool           deploy;
-  bool           sodPending;
+  int8_t         sodPending;  // 0: no pending, 1: pending by command line, 2: pending by SQL command
   char          *path;
   int64_t        checkTime;
   SyncIndex      applied;
@@ -153,13 +153,13 @@ typedef struct SMnode {
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 void    mndSetMsgHandleExt(SMnode *pMnode, tmsg_t msgType, MndMsgFpExt fp);
 int64_t mndGenerateUid(const char *name, int32_t len);
+void    mndSetSoDPending(SMnode *pMnode, int8_t pending);
+int8_t  mndGetSoDPending(SMnode *pMnode);
 
 void mndSetRestored(SMnode *pMnode, bool restored);
 bool mndGetRestored(SMnode *pMnode);
 void mndSetStop(SMnode *pMnode);
 bool mndGetStop(SMnode *pMnode);
-void mndSetSodPending(SMnode *pMnode, bool pending);
-bool mndGetSodPending(SMnode *pMnode);
 
 SArray *mndGetAllDnodeFqdns(SMnode *pMnode);
 

@@ -74,6 +74,17 @@ class TestCase:
         tdSql.error("alter cluster 'sod' 'mandatory'", expectErrInfo="No enabled user with SYSAUDIT role found to satisfy SoD policy", fullMatched=False)
         tdSql.execute("grant role `SYSAUDIT` to u3")
         tdSql.execute("alter cluster 'sod' 'mandatory'")
+        time.sleep(5) # wait for hb dispatch and SoD state update
+        tdSql.error("show security_policies", expectErrInfo="User is disabled", fullMatched=False)
+        tdSql.error("show cluster", expectErrInfo="User is disabled", fullMatched=False)
+        tdSql.error("select server_version()", expectErrInfo="User is disabled", fullMatched=False)
+        tdSql.error("show grants", expectErrInfo="User is disabled", fullMatched=False)
+        tdSql.error("create database d1", expectErrInfo="User is disabled", fullMatched=False)
+        tdSql.error("grant create database to u1", expectErrInfo="User is disabled", fullMatched=False)
+        tdSql.error("select now()", expectErrInfo="User is disabled", fullMatched=False)
+
+
+        tdSql.connect(user="u1", password=self.test_pass)
         tdSql.query("show security_policies")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, "SoD")
@@ -111,7 +122,7 @@ class TestCase:
         tdSql.execute("flush database d0")
 
 
-
+        tdSql.connect(user="u2", password=self.test_pass)
         tdSql.execute("grant role r1 to u1")
         tdSql.execute("revoke role `SYSINFO_1` from u1")
         tdSql.execute("show users")
@@ -125,6 +136,7 @@ class TestCase:
     def do_check_mac(self):
         """Test basic mandatory access control with security levels"""
 
+        tdSql.connect(user="u1", password=self.test_pass)
         tdSql.execute("drop database if exists d0")
         tdSql.execute("create database d0")
         tdSql.query("select name, sec_level from information_schema.ins_databases where name='d0'")
