@@ -17,6 +17,7 @@
 #include "audit.h"
 #include "mndCluster.h"
 #include "mndGrant.h"
+#include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
@@ -673,7 +674,7 @@ int32_t mndProcessConfigClusterRsp(SRpcMsg *pRsp) {
 }
 
 int32_t mndGetClusterSoDMode(SMnode *pMnode) {
-  int32_t      sodMode = 0;
+  int32_t      sodMode = SOD_MODE_ENABLED;
   void        *pIter = NULL;
   SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
   if (pCluster != NULL) {
@@ -721,6 +722,7 @@ static int32_t mndProcessEnforceSodImpl(SMnode *pMnode) {
 
   SEpSet epSet = {0};
   mndGetMnodeEpSet(pMnode, &epSet);
+  mndSetSodPending(pMnode, true);
   TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
 _exit:
   if (code < 0) {
@@ -732,7 +734,6 @@ _exit:
 int32_t mndProcessEnforceSod(SMnode *pMnode) {
   int32_t      code = 0, lino = 0;
   void        *pIter = NULL;
-  SUserObj    *pRootUser = NULL;
   SClusterObj *pCluster = mndAcquireCluster(pMnode, &pIter);
   if (pCluster == NULL) {
     TAOS_CHECK_EXIT(terrno);
@@ -750,11 +751,11 @@ int32_t mndProcessEnforceSod(SMnode *pMnode) {
   }
 
   TAOS_CHECK_EXIT(mndProcessEnforceSodImpl(pMnode));
+  code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _exit:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("failed to enforce SoD at line %d since %s", lino, tstrerror(code));
   }
-  if (pRootUser) mndReleaseUser(pMnode, pRootUser);
   TAOS_RETURN(code);
 }

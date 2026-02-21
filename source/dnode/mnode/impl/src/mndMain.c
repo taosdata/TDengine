@@ -975,9 +975,37 @@ int32_t mndStart(SMnode *pMnode) {
       return -1;
     }
 #ifdef TD_ENTERPRISE
-    if (tsSodEnforceMode && (code = mndProcessEnforceSod(pMnode)) != 0) {
-      mError("failed to process enforce sod while start mnode since %s", tstrerror(code));
-      return code;
+    if (tsSodEnforceMode) {
+      if ((code = mndProcessEnforceSod(pMnode)) != 0) {
+        if (code == TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA || code == TSDB_CODE_MND_ROLE_NO_VALID_SYSSEC ||
+            code == TSDB_CODE_MND_ROLE_NO_VALID_SYSAUDIT) {
+          mndSetSodPending(pMnode, true);
+          mInfo("enter SoD pending mode. Enforce SoD by command line failed since %s", tstrerror(code));
+        } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+          int32_t nRetry = 0, maxRetry = 60;
+          bool    sodPending = true;
+          while ((nRetry < maxRetry) && (sodPending = mndGetSodPending(pMnode))) {
+            if (mndGetClusterSoDMode(pMnode) == SOD_MODE_MANDATORY) {
+              mndSetSodPending(pMnode, false);
+            } else {
+              taosSsleep(1);
+              ++nRetry;
+              mInfo("waiting for enforce SoD by command line to complete, retry:[%d-%d]", nRetry, maxRetry);
+            }
+          }
+          if (sodPending) {
+            mError("failed to enforce SoD by command line since it's still in progress after %d seconds", maxRetry);
+            TAOS_RETURN(TSDB_CODE_ACTION_IN_PROGRESS);
+          } else {
+            mInfo("enforce SoD by command line is completed after waiting for %d seconds", nRetry);
+          }
+        } else {
+          mError("failed to enforce SoD by command line since %s", tstrerror(code));
+          TAOS_RETURN(code);
+        }
+      } else {
+        mndSetSodPending(pMnode, false);
+      }
     }
 #endif
   }
@@ -1447,6 +1475,11 @@ void mndSetSodPending(SMnode *pMnode, bool pending) {
   (void)taosThreadRwlockWrlock(&pMnode->lock);
   pMnode->sodPending = pending;
   (void)taosThreadRwlockUnlock(&pMnode->lock);
-  mInfo("mnode set sodPending:%d", pending);
 }
-bool mndGetSodPending(SMnode *pMnode) { return pMnode->sodPending; }
+bool mndGetSodPending(SMnode *pMnode) {
+  bool result = false;
+  (void)taosThreadRwlockRdlock(&pMnode->lock);
+  result = pMnode->sodPending;
+  (void)taosThreadRwlockUnlock(&pMnode->lock);
+  return result;
+}
