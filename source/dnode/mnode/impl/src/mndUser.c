@@ -3960,8 +3960,8 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
   SUserObj *pUser = NULL;
   SUserObj  newUser = {0};
 
-  if (pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE && pAlterReq->add == 0 &&
-      mndGetSoDPhase(pMnode) == TSDB_SOD_PHASE_ENFORCE) {
+  if ((pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE) && (pAlterReq->add == 0) &&
+      (mndGetSoDPhase(pMnode) == TSDB_SOD_PHASE_ENFORCE)) {
     TAOS_RETURN(TSDB_CODE_MND_SOD_RESTRICTED);
   }
 
@@ -3982,6 +3982,28 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
       TAOS_CHECK_EXIT(code);
     }
   } else if (pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE) {
+    bool isSysRole = IS_SYS_PREFIX(pAlterReq->roleName);
+    // SoD mandatory mode: check revoke of management roles
+    if ((pAlterReq->add == 0) && isSysRole && (mndGetClusterSoDMode(pMnode) == SOD_MODE_MANDATORY)) {
+      uint8_t skipRole = 0;
+      if (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSDBA) == 0) {
+        if (taosHashGet(pUser->roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA))) {
+          skipRole = T_ROLE_SYSDBA;
+        }
+      } else if (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSSEC) == 0) {
+        if (taosHashGet(pUser->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC))) {
+          skipRole = T_ROLE_SYSSEC;
+        }
+      } else if (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSAUDIT) == 0) {
+        if (taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT))) {
+          skipRole = T_ROLE_SYSAUDIT;
+        }
+      }
+      if (skipRole != 0) {
+        TAOS_CHECK_EXIT(mndCheckManagementRoleStatus(pMnode, pAlterReq->principal, skipRole));
+      }
+    }
+
     if ((code = mndAlterUserRoleInfo(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), pUser, &newUser, pAlterReq)) ==
         TSDB_CODE_QRY_DUPLICATED_OPERATION) {
       code = 0;
@@ -3989,8 +4011,8 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
     } else {
       TAOS_CHECK_EXIT(code);
     }
-      // Check if we need to set SoD role check callback
-    if ((pAlterReq->add == 1) && IS_SYS_PREFIX(pAlterReq->roleName) &&
+    // Check if we need to set SoD role check callback
+    if ((pAlterReq->add == 1) && isSysRole &&
         (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSDBA) == 0 || strcmp(pAlterReq->roleName, TSDB_ROLE_SYSSEC) == 0 ||
          strcmp(pAlterReq->roleName, TSDB_ROLE_SYSAUDIT) == 0) &&
         (mndGetSoDPhase(pMnode) == TSDB_SOD_PHASE_INITIAL)) {
@@ -4076,10 +4098,14 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
 
   if (pAlterReq->hasEnable) {
     auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "enable:%d,", pAlterReq->enable);
-
+#ifdef TD_ENTERPRISE
     if (pAlterReq->enable == 0) {
       if (mndGetSoDPhase(pMnode) == TSDB_SOD_PHASE_ENFORCE) {
         TAOS_CHECK_GOTO(TSDB_CODE_MND_SOD_RESTRICTED, &lino, _OVER);
+      }
+      // SoD mandatory mode: ensure 3 management roles still satisfied after disable
+      if (mndGetClusterSoDMode(pMnode) == SOD_MODE_MANDATORY) {
+        TAOS_CHECK_GOTO(mndCheckManagementRoleStatus(pMnode, pUser->user, 0), &lino, _OVER);
       }
     } else {
       if ((strncmp(pUser->name, TSDB_DEFAULT_USER, TSDB_USER_LEN) == 0) &&
@@ -4087,6 +4113,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
         TAOS_CHECK_GOTO(TSDB_CODE_MND_SOD_RESTRICTED, &lino, _OVER);
       }
     }
+#endif
 
     newUser.enable = pAlterReq->enable;  // lock or unlock user manually
     if (newUser.enable) {
@@ -4564,11 +4591,19 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
     return TSDB_CODE_MND_NO_RIGHTS;
   }
 
+#ifdef TD_ENTERPRISE
   if (mndGetSoDPhase(pMnode) == TSDB_SOD_PHASE_ENFORCE) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_SOD_RESTRICTED, &lino, _OVER);
   }
+#endif
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, dropReq.user, &pUser), &lino, _OVER);
+#ifdef TD_ENTERPRISE
+  // SoD mandatory mode: ensure 3 management roles still satisfied after drop
+  if (mndGetClusterSoDMode(pMnode) == SOD_MODE_MANDATORY) {
+    TAOS_CHECK_GOTO(mndCheckManagementRoleStatus(pMnode, dropReq.user, 0), &lino, _OVER);
+  }
+#endif
 
   code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser);
   if (pOperUser == NULL) {
