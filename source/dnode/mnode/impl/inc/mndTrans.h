@@ -29,6 +29,7 @@ typedef enum {
   TRANS_STOP_FUNC_MQ_REB = 4,
   TRANS_FUNC_RECOVER_STREAM_STEP_NEXT = 5,
   TRANS_STOP_FUNC_SOD = 6,
+  TRANS_STOP_FUNC_SOD_ROLE_CHECK = 7,
 } ETrnFunc;
 
 typedef enum {

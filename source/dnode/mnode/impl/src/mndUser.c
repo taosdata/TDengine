@@ -3588,9 +3588,9 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pNew, SRpcMsg *pReq) {
+static int32_t mndAlterUserEx(SMnode *pMnode, SUserObj *pNew, SRpcMsg *pReq, ETrnFunc stopFunc) {
   int32_t code = 0, lino = 0;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "alter-user");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_ROLE, pReq, "alter-user");
   if (pTrans == NULL) {
     mError("user:%s, failed to alter since %s", pNew->user, terrstr());
     TAOS_RETURN(terrno);
@@ -3605,6 +3605,9 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pNew, SRpcMsg *pReq) {
   }
   TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
 
+  if (stopFunc > 0) {
+    mndTransSetCb(pTrans, 0, stopFunc, NULL, 0);
+  }
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
@@ -3620,6 +3623,10 @@ _exit:
   }
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
+}
+
+static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pNew, SRpcMsg *pReq) {
+  return mndAlterUserEx(pMnode, pNew, pReq, 0);
 }
 
 static int32_t mndDupObjHash(SHashObj *pOld, int32_t dataLen, SHashObj **ppNew) {
@@ -3964,6 +3971,7 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
     TAOS_CHECK_EXIT(TSDB_CODE_MND_USER_DISABLED);
   }
 
+  ETrnFunc stopFunc = 0;
   if (pAlterReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
 #ifdef TD_ENTERPRISE
     TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
@@ -3981,11 +3989,18 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
     } else {
       TAOS_CHECK_EXIT(code);
     }
+      // Check if we need to set SoD role check callback
+    if ((pAlterReq->add == 1) && IS_SYS_PREFIX(pAlterReq->roleName) &&
+        (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSDBA) == 0 || strcmp(pAlterReq->roleName, TSDB_ROLE_SYSSEC) == 0 ||
+         strcmp(pAlterReq->roleName, TSDB_ROLE_SYSAUDIT) == 0) &&
+        (mndGetSoDPhase(pMnode) == TSDB_SOD_PHASE_INITIAL)) {
+      stopFunc = TRANS_STOP_FUNC_SOD_ROLE_CHECK;
+    }
 #endif
   } else {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
-  code = mndAlterUser(pMnode, &newUser, pReq);
+  TAOS_CHECK_EXIT(mndAlterUserEx(pMnode, &newUser, pReq, stopFunc));
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _exit:
@@ -6259,7 +6274,7 @@ int64_t mndGetUserTimeWhiteListVer(SMnode *pMnode, SUserObj *pUser) {
   return tsEnableWhiteList ? pUser->timeWhiteListVer : 0;
 }
 
-// #ifdef TD_ENTERPRISE
+#ifdef TD_ENTERPRISE
 /**
  * @brief Check if there is at least one valid user with SYSDBA, SYSSEC or SYSAUDIT role in the system, if not, return
  * error code.
@@ -6308,4 +6323,4 @@ int32_t mndCheckManagementRoleStatus(SMnode *pMnode, const char *skipUser, uint8
   return TSDB_CODE_SUCCESS;
 }
 
-// #endif
+#endif

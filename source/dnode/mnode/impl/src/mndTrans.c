@@ -660,6 +660,8 @@ static TransCbFp mndTransGetCbFp(ETrnFunc ftype) {
       return mndRebCntDec;
     case TRANS_STOP_FUNC_SOD:
       return mndSodTransStop;
+    case TRANS_STOP_FUNC_SOD_ROLE_CHECK:
+      return mndSodGrantRoleStop;
     default:
       return NULL;
   }

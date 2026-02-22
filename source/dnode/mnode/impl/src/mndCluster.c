@@ -40,6 +40,7 @@ static void     mndCancelGetNextSecurityPolicy(SMnode *pMnode, void *pIter);
 static int32_t  mndProcessUptimeTimer(SRpcMsg *pReq);
 static int32_t  mndProcessConfigClusterReq(SRpcMsg *pReq);
 static int32_t  mndProcessConfigClusterRsp(SRpcMsg *pReq);
+static int32_t  mndProcessEnforceSodImpl(SMnode *pMnode);
 
 int32_t mndInitCluster(SMnode *pMnode) {
   SSdbTable table = {
@@ -700,8 +701,23 @@ int32_t mndGetClusterSoDMode(SMnode *pMnode) {
 }
 
 void mndSodTransStop(SMnode *pMnode, void *param, int32_t paramLen) {
-  mInfo("SoD trans stop, set sod phase to %d", TSDB_SOD_PHASE_STABLE);
+#ifdef TD_ENTERPRISE
+  mInfo("SoD trans stop, set SoD phase to %d", TSDB_SOD_PHASE_STABLE);
   mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_STABLE);
+#endif
+}
+
+void mndSodGrantRoleStop(SMnode *pMnode, void *param, int32_t paramLen) {
+#ifdef TD_ENTERPRISE
+  if (mndGetSoDPhase(pMnode) != TSDB_SOD_PHASE_INITIAL) {
+    return;
+  }
+
+  if (mndCheckManagementRoleStatus(pMnode, NULL, 0) == 0) {
+    mInfo("SoD role check completed, all mandatory roles satisfied, trigger enforce SoD");
+    (void)mndProcessEnforceSodImpl(pMnode);
+  }
+#endif
 }
 
 static int32_t mndProcessEnforceSodImpl(SMnode *pMnode) {
