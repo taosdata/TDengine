@@ -39,7 +39,7 @@ extern "C" {
 
 /* Phase 2: Enforcing. Triggered by SQL command 'ALTER CLUSTER ... MANDATORY'.
  * Awaiting transition completion.
- * Destructive operations are blocked: DROP USER, REVOKE ROLE, DISABLE USER.
+ * Destructive operations are blocked: DISABLE USER, DROP USER, REVOKE ROLE.
  */
 #define TSDB_SOD_PHASE_ENFORCE 2
 

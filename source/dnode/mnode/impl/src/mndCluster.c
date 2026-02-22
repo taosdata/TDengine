@@ -384,10 +384,10 @@ static void mndCancelGetNextCluster(SMnode *pMnode, void *pIter) {
   sdbCancelFetchByType(pSdb, pIter, SDB_CLUSTER);
 }
 
-static const char* _SoDMandatoryInfo[3][2] = {
-    {"mandatory", "SoD mandatory: system is operational, root disabled permanently"},
-    {"mandatory(initial)", "Initial phase: mandatory roles missing, only account setup operations are allowed."},
-    {"mandatory(enforcing)", "Enforce phase: transitioning mode, account destructive operations are blocked."},
+static const char *_SoDMandatoryInfo[3][2] = {
+    {"mandatory", "system is operational, root disabled permanently"},
+    {"mandatory(initial)", "Initial phase: mandatory roles missing, only account setup operations are allowed"},
+    {"mandatory(enforcing)", "Enforce phase: transitioning mode, account destructive operations are blocked"},
 };
 
 static int32_t mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
@@ -409,30 +409,22 @@ static int32_t mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDat
     COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
 
     int32_t sodMode = pCluster->sodMode;
-    int32_t sodMandatoryPhase = 0;
-    if (sodMode == SOD_MODE_MANDATORY) {
-      sodMandatoryPhase = mndGetSoDPhase(pMnode);
-      if (sodMandatoryPhase < TSDB_SOD_PHASE_STABLE || sodMandatoryPhase > TSDB_SOD_PHASE_ENFORCE) {
-        sodMandatoryPhase = TSDB_SOD_PHASE_STABLE;
-      }
-    }
+    int32_t sodPhase = mndGetSoDPhase(pMnode);
+    bool    sodEnabled = (sodMode == SOD_MODE_ENABLED && sodPhase == TSDB_SOD_PHASE_STABLE);
 
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, sodMode == SOD_MODE_ENABLED ? "enabled" : _SoDMandatoryInfo[sodMandatoryPhase][0],
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, sodEnabled ? "enabled" : _SoDMandatoryInfo[sodPhase][0],
                                pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
 
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, sodMode == SOD_MODE_ENABLED ? "SYSTEM" : pCluster->sodActivator,
-                               pShow->pMeta->pSchemas[cols].bytes);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, sodEnabled ? "SYSTEM" : pCluster->sodActivator, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO((const char *)&pCluster->sodActivateTime, false, pCluster, pShow->pIter, _OVER);
 
-    STR_WITH_MAXSIZE_TO_VARSTR(buf,
-                               sodMode == SOD_MODE_ENABLED ? "SoD enabled: non-mandatory, root not disabled"
-                                                           : _SoDMandatoryInfo[sodMandatoryPhase][1],
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, sodEnabled ? "non-mandatory, root not disabled" : _SoDMandatoryInfo[sodPhase][1],
                                pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
@@ -455,7 +447,7 @@ static int32_t mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDat
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO((const char *)&pCluster->macActivateTime, false, pCluster, pShow->pIter, _OVER);
 
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, "MAC mandatory: levels 0-4; non-configurable", pShow->pMeta->pSchemas[cols].bytes);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, "security levels 0-4; non-configurable", pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
 
@@ -710,8 +702,8 @@ int32_t mndGetClusterSoDMode(SMnode *pMnode) {
 void mndSodTransStart(SMnode *pMnode, void *param, int32_t paramLen) {}
 
 void mndSodTransStop(SMnode *pMnode, void *param, int32_t paramLen) {
-  mInfo("SoD trans stop, set sod status to %d", TSDB_SOD_PHASE_STABLE);
-  // mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_STABLE);
+  mInfo("SoD trans stop, set sod phase to %d", TSDB_SOD_PHASE_STABLE);
+  mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_STABLE);
 }
 
 static int32_t mndProcessEnforceSodImpl(SMnode *pMnode) {
@@ -740,7 +732,6 @@ static int32_t mndProcessEnforceSodImpl(SMnode *pMnode) {
                     .info.notFreeAhandle = 1};
   SEpSet epSet = {0};
   mndGetMnodeEpSet(pMnode, &epSet);
-  mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_INITIAL);
   TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
 _exit:
   if (code < 0) {
@@ -763,6 +754,8 @@ int32_t mndProcessEnforceSod(SMnode *pMnode) {
     TAOS_RETURN(0);
   }
 
+  mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_INITIAL);
+  mInfo("start to enforce SoD from initial phase, cluster:%" PRId64, pCluster->id);
   if ((code = mndCheckManagementRoleStatus(pMnode, NULL, 0))) {
     mndReleaseCluster(pMnode, pCluster, pIter);
     TAOS_CHECK_EXIT(code);

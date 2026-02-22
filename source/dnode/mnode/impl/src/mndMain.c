@@ -979,9 +979,9 @@ int32_t mndStart(SMnode *pMnode) {
       if ((code = mndProcessEnforceSod(pMnode)) != 0) {
         if (code == TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA || code == TSDB_CODE_MND_ROLE_NO_VALID_SYSSEC ||
             code == TSDB_CODE_MND_ROLE_NO_VALID_SYSAUDIT) {
-          mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_INITIAL);
           mInfo("enter SoD pending mode. Enforce SoD by command line failed since %s", tstrerror(code));
         } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+#if 0
           int32_t nRetry = 0, maxRetry = 90;
           int8_t  sodPhase = TSDB_SOD_PHASE_INITIAL;
           mInfo("enforce SoD by command line is in progress, wait for it to complete with max retry times:%d",
@@ -1001,6 +1001,7 @@ int32_t mndStart(SMnode *pMnode) {
           } else {
             mInfo("enforce SoD by command line is completed after waiting for %d seconds", nRetry);
           }
+#endif
         } else {
           mError("failed to enforce SoD by command line since %s", tstrerror(code));
           TAOS_RETURN(code);
@@ -1484,5 +1485,9 @@ int8_t mndGetSoDPhase(SMnode *pMnode) {
   (void)taosThreadRwlockRdlock(&pMnode->lock);
   result = pMnode->sodPhase;
   (void)taosThreadRwlockUnlock(&pMnode->lock);
+  if (result < TSDB_SOD_PHASE_STABLE || result > TSDB_SOD_PHASE_ENFORCE) {
+    mWarn("invalid SoD phase:%d, reset to stable", result);
+    result = TSDB_SOD_PHASE_STABLE;
+  }
   return result;
 }
