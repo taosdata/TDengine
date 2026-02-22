@@ -35,12 +35,12 @@ class TestCase:
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, "SoD")
         tdSql.checkData(0, 1, "enabled")
-        tdSql.checkData(0, 2, "")
-        tdSql.checkData(0, 4, "SoD enabled: root still available")
+        tdSql.checkData(0, 2, "SYSTEM")
+        tdSql.checkData(0, 4, "non-mandatory, root not disabled")
         tdSql.checkData(1, 0, "MAC")
         tdSql.checkData(1, 1, "mandatory")
         tdSql.checkData(1, 2, "SYSTEM")
-        tdSql.checkData(1, 4, "MAC mandatory: levels 0-4; non-configurable")
+        tdSql.checkData(1, 4, "security levels 0-4, non-configurable")
 
     def do_check_sod(self):
         """Test basic Separation of Duties (SoD) with Mandatory Access Control (MAC)"""
@@ -90,11 +90,11 @@ class TestCase:
         tdSql.checkData(0, 0, "SoD")
         tdSql.checkData(0, 1, "mandatory")
         tdSql.checkData(0, 2, "root")
-        tdSql.checkData(0, 4, "SoD mandatory: root disabled permanently")
+        tdSql.checkData(0, 4, "system is operational, root disabled permanently")
         tdSql.checkData(1, 0, "MAC")
         tdSql.checkData(1, 1, "mandatory")
         tdSql.checkData(1, 2, "SYSTEM")
-        tdSql.checkData(1, 4, "MAC mandatory: levels 0-4; non-configurable")
+        tdSql.checkData(1, 4, "security levels 0-4, non-configurable")
 
         tdSql.execute("drop database if exists d0")
         tdSql.execute("create database d0")

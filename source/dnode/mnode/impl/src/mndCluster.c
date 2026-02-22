@@ -447,7 +447,7 @@ static int32_t mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDat
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO((const char *)&pCluster->macActivateTime, false, pCluster, pShow->pIter, _OVER);
 
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, "security levels 0-4; non-configurable", pShow->pMeta->pSchemas[cols].bytes);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, "security levels 0-4, non-configurable", pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
 
@@ -596,7 +596,7 @@ static int32_t mndProcessConfigSoDReq(SMnode *pMnode, SRpcMsg *pReq, SMCfgCluste
   }
   TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRawRoot, SDB_STATUS_READY));
   mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_ENFORCE);
-  mndTransSetCb(pTrans, TRANS_START_FUNC_SOD, TRANS_STOP_FUNC_SOD, NULL, 0);
+  mndTransSetCb(pTrans, 0, TRANS_STOP_FUNC_SOD, NULL, 0);
   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) {
     mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_STABLE);  // restore SoD status to stable since transition won't happen
     TAOS_CHECK_EXIT(code);
@@ -698,8 +698,6 @@ int32_t mndGetClusterSoDMode(SMnode *pMnode) {
 
   return sodMode;
 }
-
-void mndSodTransStart(SMnode *pMnode, void *param, int32_t paramLen) {}
 
 void mndSodTransStop(SMnode *pMnode, void *param, int32_t paramLen) {
   mInfo("SoD trans stop, set sod phase to %d", TSDB_SOD_PHASE_STABLE);

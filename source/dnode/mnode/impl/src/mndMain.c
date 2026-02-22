@@ -981,27 +981,7 @@ int32_t mndStart(SMnode *pMnode) {
             code == TSDB_CODE_MND_ROLE_NO_VALID_SYSAUDIT) {
           mInfo("enter SoD pending mode. Enforce SoD by command line failed since %s", tstrerror(code));
         } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
-#if 0
-          int32_t nRetry = 0, maxRetry = 90;
-          int8_t  sodPhase = TSDB_SOD_PHASE_INITIAL;
-          mInfo("enforce SoD by command line is in progress, wait for it to complete with max retry times:%d",
-                maxRetry);
-          while ((nRetry < maxRetry) && (sodPhase = mndGetSoDPhase(pMnode))) {
-            if (mndGetClusterSoDMode(pMnode) == SOD_MODE_MANDATORY) {
-              mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_STABLE);
-            } else {
-              taosSsleep(1);
-              ++nRetry;
-              mInfo("waiting for enforce SoD by command line to complete, retry:[%d-%d]", nRetry, maxRetry);
-            }
-          }
-          if (sodPhase) {
-            mError("failed to enforce SoD by command line since it's still in progress after %d seconds", maxRetry);
-            TAOS_RETURN(TSDB_CODE_ACTION_IN_PROGRESS);
-          } else {
-            mInfo("enforce SoD by command line is completed after waiting for %d seconds", nRetry);
-          }
-#endif
+          mInfo("enter SoD pending mode. Enforce SoD is in progress");
         } else {
           mError("failed to enforce SoD by command line since %s", tstrerror(code));
           TAOS_RETURN(code);
