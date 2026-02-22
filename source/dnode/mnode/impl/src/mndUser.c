@@ -3985,22 +3985,22 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
     bool isSysRole = IS_SYS_PREFIX(pAlterReq->roleName);
     // SoD mandatory mode: check revoke of management roles
     if ((pAlterReq->add == 0) && isSysRole && (mndGetClusterSoDMode(pMnode) == SOD_MODE_MANDATORY)) {
-      uint8_t skipRole = 0;
+      uint8_t roleType = 0;
       if (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSDBA) == 0) {
         if (taosHashGet(pUser->roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA))) {
-          skipRole = T_ROLE_SYSDBA;
+          roleType = T_ROLE_SYSDBA;
         }
       } else if (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSSEC) == 0) {
         if (taosHashGet(pUser->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC))) {
-          skipRole = T_ROLE_SYSSEC;
+          roleType = T_ROLE_SYSSEC;
         }
       } else if (strcmp(pAlterReq->roleName, TSDB_ROLE_SYSAUDIT) == 0) {
         if (taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT))) {
-          skipRole = T_ROLE_SYSAUDIT;
+          roleType = T_ROLE_SYSAUDIT;
         }
       }
-      if (skipRole != 0) {
-        TAOS_CHECK_EXIT(mndCheckManagementRoleStatus(pMnode, pAlterReq->principal, skipRole));
+      if (roleType != 0) {
+        TAOS_CHECK_EXIT(mndCheckManagementRoleStatus(pMnode, pAlterReq->principal, 0));
       }
     }
 

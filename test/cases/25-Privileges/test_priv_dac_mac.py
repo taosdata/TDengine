@@ -96,6 +96,35 @@ class TestCase:
         tdSql.checkData(1, 2, "SYSTEM")
         tdSql.checkData(1, 4, "security levels 0-4, non-configurable")
 
+
+        # drop user restricted in SoD mandatory mode
+        tdSql.error("drop user u1", expectErrInfo="No enabled user with SYSDBA role found to satisfy SoD policy", fullMatched=False)
+        tdSql.error("drop user u2", expectErrInfo="No enabled user with SYSSEC role found to satisfy SoD policy", fullMatched=False)
+        tdSql.error("drop user u3", expectErrInfo="No enabled user with SYSAUDIT role found to satisfy SoD policy", fullMatched=False)
+        tdSql.error("drop user u3", expectErrInfo="No enabled user with SYSAUDIT role found to satisfy SoD policy", fullMatched=False)
+        tdSql.error("drop user u2", expectErrInfo="No enabled user with SYSSEC role found to satisfy SoD policy", fullMatched=False)
+        tdSql.error("drop user u1", expectErrInfo="No enabled user with SYSDBA role found to satisfy SoD policy", fullMatched=False)
+        # disable user retricted in SoD mandatory mode
+        tdSql.error("alter user u1 enable 0", expectErrInfo="No enabled user with SYSDBA role found to satisfy SoD policy", fullMatched=False)
+        tdSql.error("alter user u2 enable 0", expectErrInfo="No enabled user with SYSSEC role found to satisfy SoD policy", fullMatched=False)
+        tdSql.error("alter user u3 enable 0", expectErrInfo="No enabled user with SYSAUDIT role found to satisfy SoD policy", fullMatched=False)
+        # enable root is restricted in SoD mandatory mode
+        tdSql.error("alter user root enable 1", expectErrInfo="Insufficient privilege for operation", fullMatched=False)
+        # revoke role from user restricted in SoD mandatory mode
+        tdSql.error("revoke role `SYSDBA` from u1", expectErrInfo="No enabled user with SYSDBA role found to satisfy SoD policy", fullMatched=False)
+        tdSql.error("revoke role `SYSSEC` from u2", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.error("revoke role `SYSAUDIT` from u3", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.connect(user="u2", password=self.test_pass)
+        tdSql.error("revoke role `SYSSEC` from u2", expectErrInfo="No enabled user with SYSSEC role found to satisfy SoD policy", fullMatched=False)
+        tdSql.error("revoke role `SYSAUDIT` from u3", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.error("revoke role `SYSDBA` from u1", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.connect(user="u3", password=self.test_pass)
+        tdSql.error("revoke role `SYSAUDIT` from u3", expectErrInfo="No enabled user with SYSAUDIT role found to satisfy SoD policy", fullMatched=False)
+        tdSql.error("revoke role `SYSSEC` from u2", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.error("revoke role `SYSDBA` from u1", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+
+
+        tdSql.connect(user="u1", password=self.test_pass)
         tdSql.execute("drop database if exists d0")
         tdSql.execute("create database d0")
         tdSql.query("select name, sec_level from information_schema.ins_databases where name='d0'")
