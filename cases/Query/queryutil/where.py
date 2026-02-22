@@ -161,7 +161,7 @@ class TDWhere():
         t_match = ['t_binary match \'binary\' and','t_binary nmatch \'binarynchar\' and','t_nchar match \'nchar\' and','t_nchar nmatch \'binarynchar\' and',]
         t_match_regular = ['loc match \'<table>\' and', 'loc match \'<^qwryuiop>\' and','loc nmatch \'<qwryuiop>\' and', 'loc nmatch \'<^t>\' and', #[abc] 匹配[...]的所有字符
                            't_binary match \'<binary>\' and', 't_binary match \'<^爨龘>\' and','t_binary nmatch \'<爨龘>\' and', #, 't_binary nmatch \'<^z>\' and' [^abc] 取反，除了[...]的其他字符
-                           't_nchar match \'<nchar>\' and', 't_nchar match \'<^爨龘>\' and','t_nchar nmatch \'<爨龘>\' and', 't_nchar nmatch \'<^a>\' and',
+                           't_nchar match \'<nchar>\' and', 't_nchar match \'<^爨龘>\' and','t_nchar nmatch \'<爨龘>\' and', 't_nchar nmatch \'<b>\' and',
                            'loc match \'<a-z>\' and','t_binary match \'<a-z>\' and','t_nchar match \'<a-z>\' and', #[A-Z] 区间字母A到Z
                            'loc match \'<a-zA-Z>\' and','t_binary match \'<a-zA-Z>\' and','t_nchar match \'<a-zA-Z>\' and',
                            'loc match \'.\' and','t_binary match \'.\' and','t_nchar match \'.\' and',  # . 匹配除（\n换行符 \r 回车符）的任何单个字符
