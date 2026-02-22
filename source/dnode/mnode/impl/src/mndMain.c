@@ -979,16 +979,16 @@ int32_t mndStart(SMnode *pMnode) {
       if ((code = mndProcessEnforceSod(pMnode)) != 0) {
         if (code == TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA || code == TSDB_CODE_MND_ROLE_NO_VALID_SYSSEC ||
             code == TSDB_CODE_MND_ROLE_NO_VALID_SYSAUDIT) {
-          mndSetSoDStatus(pMnode, TSDB_SOD_STATUS_INITIAL);
+          mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_INITIAL);
           mInfo("enter SoD pending mode. Enforce SoD by command line failed since %s", tstrerror(code));
         } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
           int32_t nRetry = 0, maxRetry = 90;
           bool    sodPending = true;
           mInfo("enforce SoD by command line is in progress, wait for it to complete with max retry times:%d",
                 maxRetry);
-          while ((nRetry < maxRetry) && (sodPending = mndGetSoDStatus(pMnode))) {
+          while ((nRetry < maxRetry) && (sodPending = mndGetSoDPhase(pMnode))) {
             if (mndGetClusterSoDMode(pMnode) == SOD_MODE_MANDATORY) {
-              mndSetSoDStatus(pMnode, TSDB_SOD_STATUS_NORMAL);
+              mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_STABLE);
             } else {
               taosSsleep(1);
               ++nRetry;
@@ -1006,7 +1006,7 @@ int32_t mndStart(SMnode *pMnode) {
           TAOS_RETURN(code);
         }
       } else {
-        mndSetSoDStatus(pMnode, TSDB_SOD_STATUS_NORMAL);
+        mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_STABLE);
       }
     }
 #endif
@@ -1473,16 +1473,16 @@ void mndSetStop(SMnode *pMnode) {
 
 bool mndGetStop(SMnode *pMnode) { return pMnode->stopped; }
 
-void mndSetSoDStatus(SMnode *pMnode, int8_t status) {
+void mndSetSoDPhase(SMnode *pMnode, int8_t phase) {
   (void)taosThreadRwlockWrlock(&pMnode->lock);
-  pMnode->sodStatus = status;
+  pMnode->sodPhase = phase;
   (void)taosThreadRwlockUnlock(&pMnode->lock);
 }
 
-int8_t mndGetSoDStatus(SMnode *pMnode) {
-  int8_t result = TSDB_SOD_STATUS_STABLE;
+int8_t mndGetSoDPhase(SMnode *pMnode) {
+  int8_t result = TSDB_SOD_PHASE_STABLE;
   (void)taosThreadRwlockRdlock(&pMnode->lock);
-  result = pMnode->sodStatus;
+  result = pMnode->sodPhase;
   (void)taosThreadRwlockUnlock(&pMnode->lock);
   return result;
 }

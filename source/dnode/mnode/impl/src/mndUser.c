@@ -3954,7 +3954,7 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
   SUserObj  newUser = {0};
 
   if (pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE && pAlterReq->add == 0 &&
-      mndGetSoDStatus(pMnode) == TSDB_SOD_STATUS_TRANSITION) {
+      mndGetSoDPhase(pMnode) == TSDB_SOD_PHASE_ENFORCE) {
     TAOS_RETURN(TSDB_CODE_MND_SOD_RESTRICTED);
   }
 
@@ -4063,7 +4063,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "enable:%d,", pAlterReq->enable);
 
     if (pAlterReq->enable == 0) {
-      if (mndGetSoDStatus(pMnode) == TSDB_SOD_STATUS_TRANSITION) {
+      if (mndGetSoDPhase(pMnode) == TSDB_SOD_PHASE_ENFORCE) {
         TAOS_CHECK_GOTO(TSDB_CODE_MND_SOD_RESTRICTED, &lino, _OVER);
       }
     } else {
@@ -4549,7 +4549,7 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
     return TSDB_CODE_MND_NO_RIGHTS;
   }
 
-  if (mndGetSoDStatus(pMnode) == TSDB_SOD_STATUS_TRANSITION) {
+  if (mndGetSoDPhase(pMnode) == TSDB_SOD_PHASE_ENFORCE) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_SOD_RESTRICTED, &lino, _OVER);
   }
 
@@ -6272,7 +6272,7 @@ int64_t mndGetUserTimeWhiteListVer(SMnode *pMnode, SUserObj *pUser) {
 int32_t mndCheckManagementRoleStatus(SMnode *pMnode, const char *skipUser, uint8_t skipRole) {
   SUserObj *pUser = NULL;
   SSdb     *pSdb = pMnode->pSdb;
-  uint8_t   sodState = skipRole;  // 0x01: T_ROLE_SYSDBA, 0x02: T_ROLE_SYSSEC, 0x04: T_ROLE_SYSAUDIT
+  uint8_t   foundRoles = skipRole;  // 0x01: T_ROLE_SYSDBA, 0x02: T_ROLE_SYSSEC, 0x04: T_ROLE_SYSAUDIT
 
   void *pIter = NULL;
   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
@@ -6282,27 +6282,27 @@ int32_t mndCheckManagementRoleStatus(SMnode *pMnode, const char *skipUser, uint8
       continue;
     }
 
-    if ((sodState & T_ROLE_SYSDBA) == 0 && taosHashGet(pUser->roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA))) {
-      sodState |= T_ROLE_SYSDBA;
-    } else if ((sodState & T_ROLE_SYSSEC) == 0 &&
+    if ((foundRoles & T_ROLE_SYSDBA) == 0 && taosHashGet(pUser->roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA))) {
+      foundRoles |= T_ROLE_SYSDBA;
+    } else if ((foundRoles & T_ROLE_SYSSEC) == 0 &&
                taosHashGet(pUser->roles, TSDB_ROLE_SYSSEC, sizeof(TSDB_ROLE_SYSSEC))) {
-      sodState |= T_ROLE_SYSSEC;
-    } else if ((sodState & T_ROLE_SYSAUDIT) == 0 &&
+      foundRoles |= T_ROLE_SYSSEC;
+    } else if ((foundRoles & T_ROLE_SYSAUDIT) == 0 &&
                taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT))) {
-      sodState |= T_ROLE_SYSAUDIT;
+      foundRoles |= T_ROLE_SYSAUDIT;
     }
     sdbRelease(pSdb, pUser);
-    if (sodState == (T_ROLE_SYSDBA | T_ROLE_SYSSEC | T_ROLE_SYSAUDIT)) {
+    if (foundRoles == (T_ROLE_SYSDBA | T_ROLE_SYSSEC | T_ROLE_SYSAUDIT)) {
       sdbCancelFetch(pSdb, pIter);
       return TSDB_CODE_SUCCESS;
     }
   }
 
-  if ((sodState & T_ROLE_SYSDBA) == 0) {
+  if ((foundRoles & T_ROLE_SYSDBA) == 0) {
     return TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA;
-  } else if ((sodState & T_ROLE_SYSSEC) == 0) {
+  } else if ((foundRoles & T_ROLE_SYSSEC) == 0) {
     return TSDB_CODE_MND_ROLE_NO_VALID_SYSSEC;
-  } else if ((sodState & T_ROLE_SYSAUDIT) == 0) {
+  } else if ((foundRoles & T_ROLE_SYSAUDIT) == 0) {
     return TSDB_CODE_MND_ROLE_NO_VALID_SYSAUDIT;
   }
   return TSDB_CODE_SUCCESS;

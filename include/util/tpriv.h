@@ -25,21 +25,23 @@
 extern "C" {
 #endif
 
-/* * Separation of Duties (SoD) Runtime Status
+/* * Separation of Duties (SoD) Mandatory Activation Phases
  */
 
-/* Default state: SoD in a stable mode (Enabled or Mandatory). No temporary restrictions apply. */
-#define TSDB_SOD_STATUS_STABLE 0
+/* Phase 0: Stable. Fully satisfied, no transition is in progress. */
+#define TSDB_SOD_PHASE_STABLE 0
 
-/* Initialization phase: Bootstrapped via CLI but roles are incomplete.
- * Root is restricted to whitelist: CREATE/DROP/ALTER USER, GRANT/REVOKE ROLE, SHOW USERS, SHOW SECURITY_POLICIES.
+/* Phase 1: Initial: Bootstrapped by CLI 'taosd --sod=mandatory', but SoD requirements are not yet met.
+ * Awaiting initial role assignment.
+ * Operations restricted to whitelist: CREATE/DROP/ALTER USER, GRANT/REVOKE ROLE, SHOW USERS, SHOW SECURITY_POLICIES.
  */
-#define TSDB_SOD_STATUS_INITIAL 1
+#define TSDB_SOD_PHASE_INITIAL 1
 
-/* Transition phase: Triggered via SQL command: alter cluster 'sod' 'mandatory'.
- * Destructive ops are blocked: DROP USER, REVOKE ROLE, DISABLE USER.
+/* Phase 2: Enforcing. Triggered by SQL command 'ALTER CLUSTER ... MANDATORY'.
+ * Awaiting transition completion.
+ * Destructive operations are blocked: DROP USER, REVOKE ROLE, DISABLE USER.
  */
-#define TSDB_SOD_STATUS_TRANSITION 2
+#define TSDB_SOD_PHASE_ENFORCE 2
 
 #define T_ROLE_SYSDBA       0x01
 #define T_ROLE_SYSSEC       0x02

@@ -427,7 +427,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.sysInfo = pUser->sysInfo;
   connectRsp.minSecLevel = pUser->minSecLevel;
   connectRsp.maxSecLevel = pUser->maxSecLevel;
-  connectRsp.sodInitial = (pMnode->sodStatus == TSDB_SOD_STATUS_INITIAL ? 1 : 0);
+  connectRsp.sodInitial = (pMnode->sodPhase == TSDB_SOD_PHASE_INITIAL ? 1 : 0);
   connectRsp.clusterId = pMnode->clusterId;
   connectRsp.connId = pConn->id;
   connectRsp.connType = connReq.connType;
