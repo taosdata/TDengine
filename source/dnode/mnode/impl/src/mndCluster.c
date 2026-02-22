@@ -412,6 +412,9 @@ static int32_t mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDat
     int32_t sodMandatoryPhase = 0;
     if (sodMode == SOD_MODE_MANDATORY) {
       sodMandatoryPhase = mndGetSoDPhase(pMnode);
+      if (sodMandatoryPhase < TSDB_SOD_PHASE_STABLE || sodMandatoryPhase > TSDB_SOD_PHASE_ENFORCE) {
+        sodMandatoryPhase = TSDB_SOD_PHASE_STABLE;
+      }
     }
 
     STR_WITH_MAXSIZE_TO_VARSTR(buf, sodMode == SOD_MODE_ENABLED ? "enabled" : _SoDMandatoryInfo[sodMandatoryPhase][0],
@@ -419,17 +422,18 @@ static int32_t mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDat
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
 
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, pCluster->sodActivator, pShow->pMeta->pSchemas[cols].bytes);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, sodMode == SOD_MODE_ENABLED ? "SYSTEM" : pCluster->sodActivator,
+                               pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO((const char *)&pCluster->sodActivateTime, false, pCluster, pShow->pIter, _OVER);
 
-    STR_WITH_MAXSIZE_TO_VARSTR(
-        buf,
-        sodMode == SOD_MODE_ENABLED ? "SoD enabled: root still available" : _SoDMandatoryInfo[sodMandatoryPhase][1],
-        pShow->pMeta->pSchemas[cols].bytes);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf,
+                               sodMode == SOD_MODE_ENABLED ? "SoD enabled: non-mandatory, root not disabled"
+                                                           : _SoDMandatoryInfo[sodMandatoryPhase][1],
+                               pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     COL_DATA_SET_VAL_GOTO(buf, false, pCluster, pShow->pIter, _OVER);
 
