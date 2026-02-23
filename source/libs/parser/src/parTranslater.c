@@ -16111,6 +16111,19 @@ static void findTsSlotId(SScanPhysiNode* pScanNode, int16_t* pTsSlotId) {
   }
 }
 
+static void findPkSlotId(SScanPhysiNode* pScanNode, int16_t* pPkSlotId) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pScanNode->pScanCols) {
+    STargetNode* pTarget = (STargetNode*)pNode;
+    if (nodeType(pTarget->pExpr) == QUERY_NODE_COLUMN) {
+      if (((SColumnNode*)pTarget->pExpr)->isPk) {
+        *pPkSlotId = pTarget->slotId;
+        break;
+      }
+    }
+  }
+}
+
 // build trigger query plan in create stream request
 static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSelectStmt* pTriggerSelect,
                                                     SCMCreateStreamReq* pReq, SHashObj** pTriggerSlotHash,
@@ -16154,6 +16167,7 @@ static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSe
   }
 
   findTsSlotId(pScanNode, &pReq->triTsSlotId);
+  findPkSlotId(pScanNode, &pReq->triPkSlotId);
 
   if (pReq->triTsSlotId == -1) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
@@ -16977,6 +16991,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan*
   }
 
   pReq->calcTsSlotId = -1;
+  pReq->calcPkSlotId = -1;
   // traverse all scan plans in calculation plan, split them from their parents, and make a fake value node to replace them.
   // value node's value is the scan plan's (groupId << 32 | subplanId).
   for (int32_t i = 0; i < taosArrayGetSize(pScanPlanArray); i++) {
@@ -17030,6 +17045,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan*
         PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
                                              "Can not find timestamp primary key in trigger query scan"));
       }
+      findPkSlotId((SScanPhysiNode*)pScanSubPlan->pNode, &pReq->calcPkSlotId);
     }
 
     SStreamCalcScan pNewScan = {0};
@@ -17177,6 +17193,9 @@ static int32_t createStreamReqBuildDefaultReq(STranslateContext* pCxt, SCreateSt
   pReq->flags = CREATE_STREAM_FLAG_NONE;
   pReq->placeHolderBitmap = PLACE_HOLDER_NONE;
   pReq->triTsSlotId = -1;
+  pReq->calcTsSlotId = -1;
+  pReq->triPkSlotId = -1;
+  pReq->calcPkSlotId = -1;
 
   return TSDB_CODE_SUCCESS;
 }

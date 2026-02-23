@@ -3103,6 +3103,10 @@ class TDSql:
                 return idx
         filename, lineno = _fast_caller(1)
         tdLog.exit(f"{filename}({lineno}) failed: field name {fieldName} not exist")   
+    
+    def checkHaveSameResult(self, sql1, sql2, data):
+        self.checkDataMemLoop(sql1, data)
+        self.checkDataMemLoop(sql2, data)
 
 # global
 tdSql = TDSql()

@@ -454,6 +454,8 @@ static const char* jkCreateStreamReqTsmaId               = "tsmaId";
 static const char* jkCreateStreamReqPlaceHolderBitmap    = "placeHolderBitmap";
 static const char* jkCreateStreamReqCalcTsSlotId         = "calcTsSlotId";
 static const char* jkCreateStreamReqTriTsSlotId          = "triTsSlotId";
+static const char* jkCreateStreamReqCalcPkSlotId         = "calcPkSlotId";
+static const char* jkCreateStreamReqTriPkSlotId          = "triPkSlotId";
 
 static const char* jkCreateStreamReqTriggerTblVgId       = "triggerTblVgId";
 static const char* jkCreateStreamReqOutTblVgId           = "outTblVgId";
@@ -647,6 +649,10 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
     pJson, jkCreateStreamReqCalcTsSlotId, pReq->calcTsSlotId));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkCreateStreamReqTriTsSlotId, pReq->triTsSlotId));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+    pJson, jkCreateStreamReqCalcPkSlotId, pReq->calcPkSlotId));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
+    pJson, jkCreateStreamReqTriPkSlotId, pReq->triPkSlotId));
   
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkCreateStreamReqTriggerTblVgId, pReq->triggerTblVgId));
@@ -739,6 +745,10 @@ _end:
 
 int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
   SCMCreateStreamReq* pReq = (SCMCreateStreamReq*)pObj;
+  pReq->calcTsSlotId = -1;
+  pReq->triTsSlotId = -1;
+  pReq->calcPkSlotId = -1;
+  pReq->triPkSlotId = -1;
   TAOS_CHECK_RETURN(tjsonDupStringValue(
     pJson, jkCreateStreamReqName, (char**)&pReq->name));
   TAOS_CHECK_RETURN(tjsonGetBigIntValue(
@@ -882,6 +892,10 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
     pJson, jkCreateStreamReqCalcTsSlotId, &pReq->calcTsSlotId));
   TAOS_CHECK_RETURN(tjsonGetSmallIntValue(
     pJson, jkCreateStreamReqTriTsSlotId, &pReq->triTsSlotId));
+  TAOS_CHECK_RETURN(tjsonGetSmallIntValue(
+    pJson, jkCreateStreamReqCalcPkSlotId, &pReq->calcPkSlotId));
+  TAOS_CHECK_RETURN(tjsonGetSmallIntValue(
+    pJson, jkCreateStreamReqTriPkSlotId, &pReq->triPkSlotId));
 
   TAOS_CHECK_RETURN(tjsonGetIntValue(
     pJson, jkCreateStreamReqTriggerTblVgId, &pReq->triggerTblVgId));
