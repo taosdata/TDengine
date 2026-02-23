@@ -3170,12 +3170,18 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   }
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
-    if (colDataIsNull_s(pInput[0].columnData, i)) {
+    // Some var-type inputs may carry null metadata without hasNull being set.
+    if (colDataIsNull_s(pInput[0].columnData, i) ||
+        (IS_VAR_DATA_TYPE(inputType) && colDataIsNull_var(pInput[0].columnData, i))) {
       colDataSetNULL(pOutput->columnData, i);
       continue;
     }
 
     char *input = colDataGetData(pInput[0].columnData, i);
+    if (input == NULL) {
+      colDataSetNULL(pOutput->columnData, i);
+      continue;
+    }
 
     switch (outputType) {
       case TSDB_DATA_TYPE_TINYINT: {

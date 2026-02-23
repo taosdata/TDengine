@@ -1394,6 +1394,30 @@ class TestFunCast:
         tdSql.query("SELECT c0, CAST(c0 AS BINARY(50)) FROM ts5972.t1 WHERE CAST(c0 AS BINARY(50)) == c0;")
         tdSql.checkRows(3)
 
+    def ts_ifnull_trim_orderby_cast(self):
+        tdSql.execute("drop database if exists tdsqlsmith_shared;")
+        tdSql.execute("create database tdsqlsmith_shared;")
+        tdSql.execute("use tdsqlsmith_shared;")
+
+        tdSql.execute(
+            "create table if not exists t1(ts timestamp, id int, v int, c1 int, c2 int, a binary(32), b binary(32));"
+        )
+        tdSql.execute(
+            "create table if not exists t2(ts timestamp, id int, v int, c1 int, c2 int, a binary(32), b binary(32));"
+        )
+        tdSql.execute(
+            "create table if not exists t3(ts timestamp, id int, v int, c1 int, c2 int, a binary(32), b binary(32));"
+        )
+
+        tdSql.execute("insert into t1 values(now,1,10,1,2,'alpha','beta');")
+        tdSql.execute("insert into t2 values(now,1,20,3,4,'left','right');")
+        tdSql.execute("insert into t3 values(now,1,30,5,6,'foo','bar');")
+
+        # Regression case: this query should not crash taosd.
+        tdSql.query("select 1 from t2 order by ifnull(trim(b), cast(c2 as bigint));")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
 
     def cast_without_from(self):
         self.cast_from_int_to_other()
@@ -1410,6 +1434,7 @@ class TestFunCast:
     def do_army_cast(self):
         # 'from table' case see system-test/2-query/cast.py
         self.cast_without_from()
+        self.ts_ifnull_trim_orderby_cast()
         self.ts5972()
 
     # main
