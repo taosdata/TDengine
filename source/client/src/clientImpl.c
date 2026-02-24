@@ -1443,26 +1443,13 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                         .pUser = pRequest->pTscObj->user,
                         .showAllTbls = pWrapper->pParseCtx->showAllTbls,
+                        .pReadDbs = pWrapper->pParseCtx->pReadDbs,
+                        .pReadUids = pWrapper->pParseCtx->pReadUids,
                         .sysInfo = pRequest->pTscObj->sysInfo,
                         .timezone = pRequest->pTscObj->optionInfo.timezone,
                         .allocatorId = pRequest->isStmtBind ? 0 : pRequest->allocatorRefId};
-    if (pWrapper->pParseCtx->pReadDbs) {
-      TSWAP(cxt.pReadDbs, pWrapper->pParseCtx->pReadDbs);
-    }
-    if (pWrapper->pParseCtx->pReadUids) {
-      TSWAP(cxt.pReadUids, pWrapper->pParseCtx->pReadUids);
-    }
     if (TSDB_CODE_SUCCESS == code) {
       code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
-    }
-    // clean up pReadDbs/pReadUids after use
-    if (cxt.pReadDbs) {
-      tSimpleHashCleanup(cxt.pReadDbs);
-      cxt.pReadDbs = NULL;
-    }
-    if (cxt.pReadUids) {
-      tSimpleHashCleanup(cxt.pReadUids);
-      cxt.pReadUids = NULL;
     }
     if (code) {
       tscError("req:0x%" PRIx64 ", failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),

@@ -1911,16 +1911,14 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(((SQueryLogicPlan*)pNode)->pTopSubplans);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
-    case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
-      destroyScanPhysiNode((SScanPhysiNode*)pNode);
-      break;
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN: {
       SSystemTableScanPhysiNode* pSysNode = (SSystemTableScanPhysiNode*)pNode;
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
-      tSimpleHashCleanup(pSysNode->pReadDbs);
-      tSimpleHashCleanup(pSysNode->pReadUids);
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
+      destroyScanPhysiNode((SScanPhysiNode*)pNode);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN: {
       SVirtualScanPhysiNode* pPhyNode = (SVirtualScanPhysiNode*)pNode;
       destroyScanPhysiNode((SScanPhysiNode*)pNode);

@@ -427,21 +427,45 @@ class TestUserPrivilegeTable:
         tdSql.connect("root")
         tdSql.execute(f"create database test2 vgroups 4;")
         tdSql.execute(f"use test2;")
-        for i in range(0, 2):
+        for i in range(0, 10):
             tdSql.execute(f"create stable st{i}(ts timestamp, i int) tags(id int, loc varchar(20));")
-            for j in range(0, 2):
+            for j in range(0, 10):
                 tdSql.execute(f"create table st{i}s{j} using st{i} tags({j}, 'loc{j}');")
                 tdSql.execute(f"insert into st{i}s{j} values(now, {i * j});")
-        for i in range(0, 2):
+        for i in range(0, 10):
             tdSql.execute(f"create table ntb{i}(ts timestamp, i int);")
             tdSql.execute(f"insert into ntb{i} values(now, {i});")
 
-        tdSql.execute(f"grant read on test2.st1 to wxy;")
+        tdSql.execute(f"grant read on test2.st0 to wxy;")
 
         tdSql.connect("wxy")
         tdSql.execute(f"reset query cache;")
-        self.check_show_tables("test", 2, 5, 42)
+        self.check_show_tables("test", 2, 5, 42, 10)
         self.check_show_tables("test2", 1, 10, 42, 5)
+
+        tdSql.connect("root")
+        tdSql.execute(f"grant write on test2.st1 to wxy;")
+        tdSql.execute(f"grant alter on test2.st2 to wxy;")
+        tdSql.execute(f"grant read on test2.st3 with id = 1 to wxy;")
+        tdSql.connect("wxy")
+        tdSql.execute(f"reset query cache;")
+        self.check_show_tables("test", 2, 5, 42, 40)
+        self.check_show_tables("test2", 4, 40, 42, 5)
+
+        tdSql.connect("root")
+        tdSql.execute(f"grant read on test2.ntb0 to wxy;")
+        tdSql.execute(f"grant read on test2.ntb9 to wxy;")
+        tdSql.connect("wxy")
+        tdSql.execute(f"reset query cache;")
+        self.check_show_tables("test", 2, 5, 42, 42)
+        self.check_show_tables("test2", 4, 42, 42, 5)
+
+        tdSql.connect("root")
+        tdSql.execute(f"grant read on test2.* to wxy;")
+        tdSql.connect("wxy")
+        tdSql.execute(f"reset query cache;")
+        self.check_show_tables("test", 2, 5, 42, 110)
+        self.check_show_tables("test2", 10, 110, 42, 5)
 
 
 

@@ -4524,21 +4524,6 @@ static int32_t getVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   return code;
 }
 
-// Helper function to get DB vgroup info, always use sync mode since db vginfo may not be in cache
-static int32_t getDBVgInfoForPrivilege(STranslateContext* pCxt, const char* dbFName, SArray** pVgInfo) {
-  SParseContext*   pParCxt = pCxt->pParseCxt;
-  SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
-                           .requestId = pParCxt->requestId,
-                           .requestObjRefId = pParCxt->requestRid,
-                           .mgmtEps = pParCxt->mgmtEpSet};
-  int32_t          code = catalogGetDBVgList(pParCxt->pCatalog, &conn, dbFName, pVgInfo);
-  if (TSDB_CODE_SUCCESS != code) {
-    // Database may not exist or user may not have access, just ignore
-    code = TSDB_CODE_SUCCESS;
-  }
-  return code;
-}
-
 // Convert table names in pReadTbs to uids in pReadUids for fast int64_t comparison
 static int32_t convertTbNamesToUids(STranslateContext* pCxt) {
   SParseContext* pParseCxt = pCxt->pParseCxt;
@@ -4593,93 +4578,6 @@ static int32_t convertTbNamesToUids(STranslateContext* pCxt) {
   return TSDB_CODE_SUCCESS;
 }
 
-// Helper function to add vgroups from databases in user's table-level privileges
-static int32_t addVgroupsFromTablePrivileges(STranslateContext* pCxt, SArray** pVgs) {
-  int32_t        code = TSDB_CODE_SUCCESS;
-  SParseContext* pParseCxt = pCxt->pParseCxt;
-  SSHashObj*     addedDbs = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
-  if (NULL == addedDbs) {
-    return terrno;
-  }
-
-  // Add vgroups from db-level privileges (pReadDbs)
-  if (pParseCxt->pReadDbs != NULL) {
-    void*   pIter = NULL;
-    int32_t iter = 0;
-    while ((pIter = tSimpleHashIterate(pParseCxt->pReadDbs, pIter, &iter)) != NULL) {
-      size_t dbFNameLen = 0;
-      char*  dbFName = tSimpleHashGetKey(pIter, &dbFNameLen);
-      if (NULL == tSimpleHashGet(addedDbs, dbFName, dbFNameLen)) {
-        SArray* dbVgs = NULL;
-        code = getDBVgInfoForPrivilege(pCxt, dbFName, &dbVgs);
-        if (TSDB_CODE_SUCCESS == code && dbVgs != NULL) {
-          for (int32_t i = 0; i < TARRAY_SIZE(dbVgs); ++i) {
-            SVgroupInfo* vgInfo = TARRAY_GET_ELEM(dbVgs, i);
-            if (!(*pVgs) && !(*pVgs = taosArrayInit(TARRAY_SIZE(dbVgs), sizeof(SVgroupInfo)))) {
-              code = terrno;
-              break;
-            }
-            if (NULL == taosArrayPush(*pVgs, vgInfo)) {
-              code = terrno;
-              break;
-            }
-          }
-          taosArrayDestroy(dbVgs);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          tSimpleHashPut(addedDbs, dbFName, dbFNameLen, NULL, 0);
-        }
-      }
-      if (TSDB_CODE_SUCCESS != code) break;
-    }
-  }
-
-  // Add vgroups from table-level privileges (pReadTbs)
-  if (TSDB_CODE_SUCCESS == code && pParseCxt->pReadTbs != NULL) {
-    void*   pIter = NULL;
-    int32_t iter = 0;
-    while ((pIter = tSimpleHashIterate(pParseCxt->pReadTbs, pIter, &iter)) != NULL) {
-      char* tbFName = tSimpleHashGetKey(pIter, NULL);
-      // tbFName format: acctId.dbName.tableName, extract dbFName (acctId.dbName)
-      char        dbFName[TSDB_DB_FNAME_LEN] = {0};
-      const char* firstDot = strchr(tbFName, '.');
-      const char* secondDot = firstDot ? strchr(firstDot + 1, '.') : NULL;
-      if (secondDot != NULL) {
-        size_t dbFNameLen = secondDot - tbFName;
-        if (dbFNameLen < TSDB_DB_FNAME_LEN) {
-          strncpy(dbFName, tbFName, dbFNameLen);
-          dbFName[dbFNameLen] = '\0';
-        }
-      }
-      if (dbFName[0] != '\0' && NULL == tSimpleHashGet(addedDbs, dbFName, strlen(dbFName) + 1)) {
-        SArray* dbVgs = NULL;
-        code = getDBVgInfoForPrivilege(pCxt, dbFName, &dbVgs);
-        if (TSDB_CODE_SUCCESS == code && dbVgs != NULL) {
-          for (int32_t i = 0; i < TARRAY_SIZE(dbVgs); ++i) {
-            SVgroupInfo* vgInfo = TARRAY_GET_ELEM(dbVgs, i);
-            if (!(*pVgs) && !(*pVgs = taosArrayInit(TARRAY_SIZE(dbVgs), sizeof(SVgroupInfo)))) {
-              code = terrno;
-              break;
-            }
-            if (NULL == taosArrayPush(*pVgs, vgInfo)) {
-              code = terrno;
-              break;
-            }
-          }
-          taosArrayDestroy(dbVgs);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          tSimpleHashPut(addedDbs, dbFName, strlen(dbFName) + 1, NULL, 0);
-        }
-      }
-      if (TSDB_CODE_SUCCESS != code) break;
-    }
-  }
-
-  tSimpleHashCleanup(addedDbs);
-  return code;
-}
-
 static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
   bool    hasUserDbCond = false;
   SArray* pVgs = NULL;
@@ -4701,10 +4599,6 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
         if (TSDB_CODE_SUCCESS == code) {
           code = convertTbNamesToUids(pCxt);
         }
-      }
-      if (!hasUserDbCond && (pParseCxt->pReadDbs != NULL || pParseCxt->pReadTbs != NULL)) {
-        // Add vgroups from privilege databases
-        code = addVgroupsFromTablePrivileges(pCxt, &pVgs);
       }
     }
   }
