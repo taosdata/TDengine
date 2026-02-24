@@ -51,6 +51,18 @@ typedef struct SSysTableIndex {
   int32_t lastIdx;
 } SSysTableIndex;
 
+// Two-level cache for suid privilege lookup:
+// Level 1: single last-used suid (covers consecutive child tables of same super table)
+// Level 2: 16-slot direct-mapped array (covers interleaved access of multiple super tables)
+// Only on cache miss does the actual hash lookup into pReadUids occur.
+typedef struct SSuidPrivCache {
+  uint64_t suid;
+  bool     allowed;
+} SSuidPrivCache;
+
+#define SUID_CACHE_SLOTS      16
+#define SUID_CACHE_HASH(suid) (((uint64_t)(suid)) & (SUID_CACHE_SLOTS - 1))
+
 typedef struct SSysTableScanInfo {
   SRetrieveMetaTableRsp* pRsp;
   SRetrieveTableReq      req;
@@ -1960,6 +1972,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
   bool hasDbPrivilege = pInfo->showAllTbls ||
                         (pInfo->pReadDbs && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1));
 
+  // Two-level suid privilege cache (only used when !hasDbPrivilege && pReadUids != NULL)
+  SSuidPrivCache suidSlots[SUID_CACHE_SLOTS] = {0};
+  uint64_t       lastSuid = 0;
+  bool           lastSuidAllowed = false;
+
   int32_t ret = 0;
   while ((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_SUPER_TABLE)) == 0) {
     STR_TO_VARSTR(n, pInfo->pCur->mr.me.name);
@@ -2013,8 +2030,20 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       // Table-level read privilege filtering for child tables
       if (!hasDbPrivilege) {
-        if (!pInfo->pReadUids ||
-            tSimpleHashGet(pInfo->pReadUids, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t)) == NULL) {
+        if (suid != lastSuid) {
+          bool    suidAllowed = false;
+          uint64_t slot = ((uint64_t)suid & (SUID_CACHE_SLOTS - 1));
+          if (suidSlots[slot].suid == suid) {
+            suidAllowed = suidSlots[slot].allowed;
+          } else {
+            suidAllowed = (pInfo->pReadUids && tSimpleHashGet(pInfo->pReadUids, &suid, sizeof(int64_t)));
+            suidSlots[slot].suid = suid;
+            suidSlots[slot].allowed = suidAllowed;
+          }
+          lastSuid = suid;
+          lastSuidAllowed = suidAllowed;
+        }
+        if (!lastSuidAllowed) {
           pAPI->metaReaderFn.clearReader(&mr);
           continue;
         }
