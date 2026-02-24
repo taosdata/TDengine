@@ -1741,6 +1741,7 @@ static int32_t scanSubmitData(SVnode* pVnode, SStreamTriggerReaderInfo* sStreamR
       WalMetaResult* pMeta = (WalMetaResult*)px;
       STREAM_CHECK_RET_GOTO(buildWalMetaBlockNew(rsp->metaBlock, pMeta->id, pMeta->skey, pMeta->ekey, ver));
       ((SSDataBlock*)rsp->metaBlock)->info.rows++;
+      rsp->totalRows++;
       ST_TASK_DLOG("%s process meta data:skey %" PRId64 ", ekey %" PRId64 ", id %" PRIu64
             ", ver:%"PRId64, __func__, pMeta->skey, pMeta->ekey, pMeta->id, ver);
       px = tSimpleHashIterate(gidHash, px, &iter);
