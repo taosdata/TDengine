@@ -11,7 +11,8 @@ RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false upd
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN if [ "$ARCH" = "arm64" ]; then \
+RUN # Use CPU-only torch/tensorflow in this image (no CUDA dependency) \
+    if [ "$ARCH" = "arm64" ]; then \
         TORCH_PKG="torch"; \
         TORCH_INDEX="https://download.pytorch.org/whl/cpu"; \
         TENSORFLOW_PKG="tensorflow"; \
@@ -24,6 +25,7 @@ RUN if [ "$ARCH" = "arm64" ]; then \
     PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
     pip3 install --upgrade pip && \
     pip3 install --no-cache-dir --ignore-installed blinker && \
+    # Install torch/tensorflow first, then install requirements to avoid dependency override/conflicts \
     pip3 install --no-cache-dir $TORCH_PKG --index-url $TORCH_INDEX && \
     pip3 install --no-cache-dir \
                 -r /tmp/requirements_docker.txt \
