@@ -1,6 +1,6 @@
 # tdengine/tdgpt-env-amd64:1.1
 ARG ARCH=amd64
-ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ARG PIP_INDEX_URL
 
 FROM python:3.10-slim-trixie AS base-builder
 ARG ARCH=amd64
@@ -21,14 +21,13 @@ RUN if [ "$ARCH" = "arm64" ]; then \
         TENSORFLOW_PKG="tensorflow-cpu==2.15.0"; \
     fi && \
     echo "arch=$ARCH, pkg1=${TORCH_PKG}, pkg2=${TENSORFLOW_PKG}" && \
+    PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
     pip3 install --upgrade pip && \
     pip3 install --no-cache-dir --ignore-installed blinker && \
     pip3 install --no-cache-dir $TORCH_PKG --index-url $TORCH_INDEX && \
-    (pip3 install --no-cache-dir \
-                    -r /tmp/requirements_docker.txt \
-                    -i ${PIP_INDEX_URL} || \
-     pip3 install --no-cache-dir \
-                    -r /tmp/requirements_docker.txt) && \
+    pip3 install --no-cache-dir \
+                -r /tmp/requirements_docker.txt \
+                ${PIP_INDEX_ARG} && \
     find /usr/local/lib/python3.10 -name "*.pyc" -delete && \
     find /usr/local/lib/python3.10 -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && \
     find /usr/local/lib/python3.10 -type d -name 'tests' -exec rm -rf {} + 2>/dev/null || true
@@ -40,9 +39,8 @@ COPY --from=base-builder /usr/local/bin /usr/local/bin
 ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN python3.10 -m venv --system-site-packages $VIRTUAL_ENV && \
-    (pip install --no-cache-dir transformers==4.40 \
-        -i ${PIP_INDEX_URL} || \
-     pip install --no-cache-dir transformers==4.40) && \
+    PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
+    pip install --no-cache-dir transformers==4.40 ${PIP_INDEX_ARG} && \
     find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
     find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
 
@@ -53,11 +51,8 @@ COPY --from=base-builder /usr/local/bin /usr/local/bin
 ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv_chronos
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN python -m venv --system-site-packages $VIRTUAL_ENV && \
-    (pip install --no-cache-dir transformers==4.55 \
-        chronos-forecasting \
-        -i ${PIP_INDEX_URL} || \
-     pip install --no-cache-dir transformers==4.55 \
-        chronos-forecasting) && \
+    PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
+    pip install --no-cache-dir transformers==4.55 chronos-forecasting ${PIP_INDEX_ARG} && \
     find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
     find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
 
@@ -68,9 +63,8 @@ COPY --from=base-builder /usr/local/bin /usr/local/bin
 ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv_timesfm
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN python -m venv --system-site-packages $VIRTUAL_ENV && \
-    (pip install --no-cache-dir transformers==4.33.3 momentfm \
-        -i ${PIP_INDEX_URL} || \
-     pip install --no-cache-dir transformers==4.33.3 momentfm) && \
+    PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
+    pip install --no-cache-dir transformers==4.33.3 momentfm ${PIP_INDEX_ARG} && \
     find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
     find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
 
@@ -88,11 +82,10 @@ RUN if [ "$ARCH" = "arm64" ]; then \
         TORCH_PKG="torch==2.3.1+cpu"; \
         TORCH_INDEX="https://download.pytorch.org/whl/cpu"; \
     fi && \
+    PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
     python -m venv --system-site-packages $VIRTUAL_ENV && \
     pip3 install --no-cache-dir $TORCH_PKG --index-url $TORCH_INDEX && \
-    (pip install --no-cache-dir uni2ts flask \
-        -i ${PIP_INDEX_URL} || \
-     pip install --no-cache-dir uni2ts flask) && \
+    pip install --no-cache-dir uni2ts flask ${PIP_INDEX_ARG} && \
     find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
     find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
 
