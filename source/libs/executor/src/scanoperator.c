@@ -2256,9 +2256,22 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t         lino = 0;
   STableScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
+  const TSKEY     st = QUERY_GET_ANALYZE_TIMESTAMP(pTaskInfo);
+  TSKEY           et = 0;
   SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
   QRY_PARAM_CHECK(ppRes);
   qTrace("%s call", __FUNCTION__);
+
+  if (QUERY_ENABLE_EXPLAIN(pTaskInfo)) {
+    // calculate output wait time (time since last call returned)
+    if (pOperator->cost.execStart > 0 && pOperator->cost.execLastRow > 0) {
+      pOperator->cost.outputWaitElapsed += st - pOperator->cost.execLastRow;
+    }
+    // record the first time next is called
+    if (pOperator->cost.execStart == 0) {
+      pOperator->cost.execStart = st;
+    }
+  }
 
   code = pOperator->fpSet._openFn(pOperator);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -2273,7 +2286,7 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (*ppRes != NULL || (type != DYN_TYPE_STB_JOIN && type != DYN_TYPE_VSTB_WIN_SCAN)) {
-      return code;
+      goto _end;
     }
   }
 
@@ -2290,7 +2303,7 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
       if (result || (pOperator->status == OP_EXEC_DONE) || isTaskKilled(pTaskInfo)) {
         (*ppRes) = result;
-        return code;
+        goto _end;
       }
 
       // if no data, switch to next table and continue scan
@@ -2308,7 +2321,7 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         qDebug("all table checked in table list, total:%d, return NULL, %s", numOfTables, GET_TASKID(pTaskInfo));
         taosRUnLockLatch(&pTaskInfo->lock);
         (*ppRes) = NULL;
-        return code;
+        goto _end;
       }
 
       STableKeyInfo* tmp = (STableKeyInfo*)tableListGetInfo(pInfo->base.pTableListInfo, pInfo->currentTable);
@@ -2336,8 +2349,23 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   }
 
 _end:
+  if (QUERY_ENABLE_EXPLAIN(pTaskInfo)) {
+    et = QUERY_GET_ANALYZE_TIMESTAMP(pTaskInfo);
+    // update performance metrics
+    pOperator->cost.execTimes++;
+    pOperator->cost.execElapsed += et - st;
+
+    if (*ppRes != NULL && (*ppRes)->info.rows > 0) {
+      if (pOperator->cost.execFirstRow == 0) {
+        pOperator->cost.execFirstRow = et;
+      }
+      pOperator->cost.execLastRow = et;
+    }
+  }
+
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s %s failed at line %d since %s", GET_TASKID(pTaskInfo), __func__, lino, tstrerror(code));
+    qError("%s %s failed at line %d since %s", GET_TASKID(pTaskInfo), __func__,
+           lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
@@ -2489,6 +2517,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
                                     SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
+  TSKEY           createTs = taosGetTimestampUs();
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   STableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableScanInfo));

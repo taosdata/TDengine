@@ -17,12 +17,12 @@
 #define _TD_EXECUTOR_H_
 
 #include <stdint.h>
+#include "plannodes.h"
 #include "tarray.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "query.h"
 #include "storageapi.h"
 #include "tcommon.h"
 #include "tmsgcb.h"
@@ -183,7 +183,7 @@ void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam);
  */
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
-                        EOPTR_EXEC_MODEL model, SArray** subEndPoints);
+                        EOPTR_EXEC_MODEL model, SArray** subEndPoints, bool enableExplain);
 
 /**
  *

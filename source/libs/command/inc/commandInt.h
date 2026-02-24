@@ -108,6 +108,7 @@ extern "C" {
 #define EXPLAIN_INTERVAL_VALUE_FORMAT "interval=%" PRId64 "%c"
 #define EXPLAIN_FUNCTIONS_FORMAT "functions=%d"
 #define EXPLAIN_EXECINFO_FORMAT "cost=%.3f..%.3f rows=%" PRIu64
+#define EXPLAIN_EXECINFO_FORMAT_EXT "cost=%.3f(%.3f)..%.3f(%.3f) rows=%" PRIu64 "(%" PRIu64 ")"
 #define EXPLAIN_MODE_FORMAT "mode=%s"
 #define EXPLAIN_STRING_TYPE_FORMAT "%s"
 #define EXPLAIN_INPUT_ORDER_FORMAT "input_order=%s"
@@ -160,6 +161,19 @@ extern "C" {
 #define EXPLAIN_CHECK_ROWS_FORMAT "check_rows=%" PRId64
 #define EXPLAIN_CHECK_ROWS_FORMAT_EXT "check_rows=%.1f(%" PRId64 ")"
 #define EXPLAIN_SLOWEST_NODE_FORMAT "slowest_vgroup_id=%d slow_deviation=%d%% cost_ratio=%.1f data_deviation=%d%%"
+#define EXPLAIN_EXEC_FORMAT "Exec cost: "
+#define EXPLAIN_COMPUTE_FORMAT "compute=%.3f"
+#define EXPLAIN_COMPUTE_FORMAT_EXT "compute=%.3f(%.3f)"
+#define EXPLAIN_CREATE_FORMAT "create=%.3f"
+#define EXPLAIN_CREATE_FORMAT_EXT "create=%.3f(%.3f)"
+#define EXPLAIN_START_FORMAT "start=%.3f"
+#define EXPLAIN_START_FORMAT_EXT "start=%.3f(%.3f)"
+#define EXPLAIN_TIMES_FORMAT "times=%" PRId64
+#define EXPLAIN_TIMES_FORMAT_EXT "times=%.1f(%" PRId64 ")"
+#define EXPLAIN_INPUT_WAIT_ELAPSED_FORMAT "input_wait=%.3f"
+#define EXPLAIN_INPUT_WAIT_ELAPSED_FORMAT_EXT "input_wait=%.3f(%.3f)"
+#define EXPLAIN_OUTPUT_WAIT_ELAPSED_FORMAT "output_wait=%.3f"
+#define EXPLAIN_OUTPUT_WAIT_ELAPSED_FORMAT_EXT "output_wait=%.3f(%.3f)"
 
 #define COMMAND_RESET_LOG "resetLog"
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"
