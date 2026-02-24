@@ -15468,12 +15468,10 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
             }
           }
           if (taosArrayPush(table.tags, &tag) == NULL) {
-            tfreeMultiTagUpateVal(&tag);
             TAOS_CHECK_EXIT(terrno);
           }
         }
         if (taosArrayPush(pReq->tables, &table) == NULL) {
-          tfreeUpdateTableTagVal(&table);
           TAOS_CHECK_EXIT(terrno);
         }
       }
@@ -15583,6 +15581,9 @@ void tfreeMultiTagUpateVal(void *val) {
     }
   }
 
+  if (pTag->tagFree) {
+    tTagFree((STag*)pTag->pTagVal);
+  }
   taosArrayDestroy(pTag->pTagArray);
   taosMemoryFree(pTag->regexp);
   taosMemoryFree(pTag->replacement);

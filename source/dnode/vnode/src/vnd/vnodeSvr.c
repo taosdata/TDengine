@@ -172,15 +172,18 @@ static int32_t vnodePreProcessAlterTableMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
   SVAlterTbReq vAlterTbReq = {0};
   int64_t      ctimeMs = taosGetTimestampMs();
-  if (tDecodeSVAlterTbReqSetCtime(&dc, &vAlterTbReq, ctimeMs) < 0) {
-    taosArrayDestroy(vAlterTbReq.pMultiTag);
-    vAlterTbReq.pMultiTag = NULL;
-    goto _exit;
-  }
+  code = tDecodeSVAlterTbReqSetCtime(&dc, &vAlterTbReq, ctimeMs);
+
   taosArrayDestroy(vAlterTbReq.pMultiTag);
   vAlterTbReq.pMultiTag = NULL;
 
-  code = 0;
+  for (int32_t i = 0; i < taosArrayGetSize(vAlterTbReq.tables); i++) {
+    SUpdateTableTagVal* pTable = taosArrayGet(vAlterTbReq.tables, i);
+    taosArrayDestroy(pTable->tags);
+  }
+  taosArrayDestroy(vAlterTbReq.tables);
+  vAlterTbReq.tables = NULL;
+
 
 _exit:
   tDecoderClear(&dc);
@@ -1759,13 +1762,11 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
 
 _exit:
   taosArrayDestroy(vAlterTbReq.pMultiTag);
-  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
-    for (int32_t i = 0; i < taosArrayGetSize(vAlterTbReq.tables); i++) {
-      SUpdateTableTagVal* pTable = taosArrayGet(vAlterTbReq.tables, i);
-      tfreeUpdateTableTagVal(pTable);
-    }
-    taosArrayDestroy(vAlterTbReq.tables);
+  for (int32_t i = 0; i < taosArrayGetSize(vAlterTbReq.tables); i++) {
+    SUpdateTableTagVal* pTable = taosArrayGet(vAlterTbReq.tables, i);
+    taosArrayDestroy(pTable->tags);
   }
+  taosArrayDestroy(vAlterTbReq.tables);
 
   tEncodeSize(tEncodeSVAlterTbRsp, &vAlterTbRsp, pRsp->contLen, ret);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);
