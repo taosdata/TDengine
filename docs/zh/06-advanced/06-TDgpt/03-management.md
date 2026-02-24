@@ -119,13 +119,13 @@ timemoe_fc = 'http://127.0.0.1:6037/ds_predict'
 
 **提示**
 
-上面的示例配置文件 `taosanode.config.py` 只包含了使用 Anode 提供服务的基础配置参数，对于 Gunicorn 的其他配置参数的设置及其说明请参考 [Gunicorn官方文档](https://uwsgi-docs-zh.readthedocs.io/zh-cn/latest/Options.html)。
+上面的示例配置文件 `taosanode.config.py` 只包含了使用 Anode 提供服务的基础配置参数，对于 Gunicorn 的其他配置参数的设置及其说明请参考 [Gunicorn官方文档](gunicorn.org/reference/settings/)。
 
 Anode 运行配置主要是以下：
 
-- app-log: Anode 服务运行产生的日志，用户可以调整其到需要的位置
-- model-dir: 采用算法针对已经存在的数据集的运行完成生成的模型存储位置
-- log-level: app-log 文件的日志级别。可选的配置选项：DEBUG，INFO，CRITICAL，ERROR，WARN
+- app_log: Anode 服务运行产生的日志，用户可以调整其到需要的位置
+- model_dir: 采用算法针对已经存在的数据集的运行完成生成的模型存储位置
+- log_level: app-log 文件的日志级别。可选的配置选项：DEBUG，INFO，CRITICAL，ERROR，WARN
 
 ### Anode 基本操作
 
