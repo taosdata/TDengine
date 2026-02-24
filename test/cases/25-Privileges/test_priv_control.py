@@ -1164,7 +1164,6 @@ class TestPrivControl:
         # Test CREATE TSMA privilege
         tdLog.info("=== Testing CREATE TSMA Privilege ===")
         self.login()  # Login as root
-        self.create_snode()
         
         db_name = "test_db"
         user = "test_user"
@@ -1599,8 +1598,7 @@ class TestPrivControl:
         stream_name2 = "test_stream2"
         # db2
         stream_name3 = "test_stream3"
-        stream_name4 = "test_stream4"        
-        self.create_snode()
+        stream_name4 = "test_stream4"
         self.create_database(db_name)
         self.create_stable(db_name, "source_table", "ts TIMESTAMP, val INT", "tag1 INT")
         self.create_database(db_name2)
@@ -1782,7 +1780,7 @@ class TestPrivControl:
         self.create_user(user, pwd)
         
         # Grant wildcard privilege on all databases
-        self.grant_privilege("USE", "*", user)
+        self.grant_privilege("USE", "DATABASE *", user)
         self.grant_privilege("SELECT", "*.*", user)
         
         # Test: user can access all tables
@@ -1851,7 +1849,9 @@ class TestPrivControl:
         self.login()  # Login as root
         
         user = "test_user"
+        db_name = "test_db"
         self.create_user(user, pwd)
+        self.create_database(db_name)
         
         # Test: grant non-existent privilege
         self.exec_sql_failed(f"GRANT INVALID_PRIVILEGE ON *.* TO {user}")
@@ -1862,8 +1862,8 @@ class TestPrivControl:
         # Test: grant privilege to non-existent user
         self.exec_sql_failed(f"GRANT SELECT ON *.* TO non_existent_user")
         
-        # Test: revoke privilege that was never granted
-        self.revoke_privilege_failed("DELETE", "*.*", user)
+        # Test: revoke privilege that was never granted(MYSQL report error but PG does not, we choose following with PG)
+        self.revoke_privilege("DELETE", f"{db_name}.*", user)
         
         # Test: user cannot grant privileges to others without proper privilege
         self.login(user, pwd)
@@ -1872,6 +1872,7 @@ class TestPrivControl:
         # Cleanup
         self.login()
         self.drop_user(user)
+        self.drop_database(db_name)
         
         print("Invalid Privilege Operations ......... [ passed ] ")
     
@@ -1888,7 +1889,7 @@ class TestPrivControl:
         
         # Test: grant and immediately revoke
         self.grant_privilege("USE", f"DATABASE {db_name}", user)
-        self.revoke_privilege("USE", db_name, user)
+        self.revoke_privilege("USE", f"DATABASE {db_name}", user)
         
         self.login(user, pwd)
         self.exec_sql_failed(f"USE {db_name}")
@@ -1899,8 +1900,7 @@ class TestPrivControl:
         self.grant_privilege("USE", f"DATABASE {db_name}", user)  # Should not error
         
         # Test: revoke same privilege multiple times
-        self.revoke_privilege("USE", db_name, user)
-        self.revoke_privilege_failed("USE", f"DATABASE {db_name}", user)  # Should error
+        self.revoke_privilege("USE", f"DATABASE {db_name}", user)
         
         # Cleanup
         self.login()
@@ -1922,15 +1922,28 @@ class TestPrivControl:
         self.login(user, pwd)
         db_name = "test_db"
         self.create_database(db_name)
-        
-        # Test: owner can perform all operations without explicit grants
-        self.exec_sql(f"CREATE TABLE {db_name}.t1 (ts TIMESTAMP, c1 INT)")
-        self.exec_sql(f"INSERT INTO {db_name}.t1 VALUES (NOW, 1)")
-        self.exec_sql(f"SELECT * FROM {db_name}.t1")
         self.exec_sql(f"ALTER DATABASE {db_name} KEEP 365")
         
+        # Test: owner can perform all operations without explicit grants
+        self.create_stable(db_name, "st")
+        self.create_child_table(db_name, "t1", "st")
+        self.create_child_table(db_name, "t2", "st")
+        self.insert_data(db_name, "t1")
+        self.insert_data(db_name, "t2")
+        self.exec_sql(f"ALTER TABLE {db_name}.st ADD COLUMN c4 INT")
+        self.exec_sql(f"SELECT * FROM {db_name}.st")
+        self.exec_sql(f"SELECT * FROM {db_name}.t1")
+        # ntb
+        self.create_table(db_name, "ntb")
+        self.insert_data(db_name, "ntb")
+        self.exec_sql(f"ALTER TABLE {db_name}.ntb ADD COLUMN c4 INT")    
+        
         # Test: owner can drop their own database
-        self.exec_sql(f"DROP DATABASE {db_name}")
+        self.delete_data(db_name, "t2")
+        self.exec_sql(f"DROP TABLE {db_name}.t1")
+        self.exec_sql(f"DROP TABLE {db_name}.st")
+        self.exec_sql(f"DROP TABLE {db_name}.ntb")
+        self.drop_database(db_name)
         
         # Cleanup
         self.login()
@@ -1948,10 +1961,17 @@ class TestPrivControl:
         users = ["test_user", "test_user2", "test_user3"]
         
         self.create_database(db_name)
+        self.create_stable(db_name, "st")
+        self.create_child_table(db_name, "t1", "st")
+        self.create_child_table(db_name, "t2", "st")
+        self.insert_data(db_name, "t1")
+        self.insert_data(db_name, "t2")
+        
         for user in users:
             self.create_user(user, pwd)
             self.grant_privilege("USE", f"DATABASE {db_name}", user)
             self.grant_privilege("SELECT", f"{db_name}.*", user)
+            self.exec_sql(f"SELECT * FROM {db_name}.st")
         
         # Revoke privileges from all users
         for user in users:
@@ -1961,6 +1981,7 @@ class TestPrivControl:
         for user in users:
             self.login(user, pwd)
             # Note: would need actual table to test SELECT
+            self.exec_sql_failed(f"SELECT * FROM {db_name}.st", TSDB_CODE_PAR_PERMISSION_DENIED)            
         
         # Cleanup
         self.login()
@@ -2032,11 +2053,10 @@ class TestPrivControl:
         print("\n")
         print("========== Privilege Control Test Suite ==========")
         print("")
-        
-        '''
 
         # Database privilege tests
         print("[Database Privileges]")
+        self.create_snode()
         self.do_create_database_privilege()
         self.do_alter_database_privilege()
         self.do_drop_database_privilege()
@@ -2087,12 +2107,9 @@ class TestPrivControl:
         print("[Exception and Reverse Test Cases]")
         self.do_privilege_inheritance()
         self.do_privilege_conflict_resolution()
-        '''
         self.do_wildcard_privilege()
-        return         
         self.do_privilege_revoke_cascading()
         self.do_invalid_privilege_operations()
         self.do_privilege_boundary_conditions()
         self.do_owner_special_privileges()
         self.do_concurrent_privilege_operations()
-        
