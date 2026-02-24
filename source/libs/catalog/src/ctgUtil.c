@@ -2230,11 +2230,15 @@ static int32_t ctgCollectHashKeys(SHashObj** pSrcHashes, int32_t numSrc, SSHashO
       if (NULL == *ppDst) {
         *ppDst = tSimpleHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
         if (NULL == *ppDst) {
+          taosHashCancelIterate(pSrcHashes[i], pIter);
           CTG_ERR_RET(terrno);
         }
       }
       int32_t code = tSimpleHashPut(*ppDst, key, klen, NULL, 0);
       if (TSDB_CODE_SUCCESS != code) {
+        taosHashCancelIterate(pSrcHashes[i], pIter);
+        tSimpleHashCleanup(*ppDst);
+        *ppDst = NULL;
         CTG_ERR_RET(code);
       }
     }
@@ -2343,7 +2347,12 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
 
         // Collect all table-level privileges into pReadTbs
         SHashObj* tbHashes[] = {pInfo->readTbs, pInfo->writeTbs, pInfo->alterTbs};
-        CTG_ERR_RET(ctgCollectHashKeys(tbHashes, tListLen(tbHashes), &pRes->pReadTbs, NULL, 0));
+        int32_t   code = ctgCollectHashKeys(tbHashes, tListLen(tbHashes), &pRes->pReadTbs, NULL, 0);
+        if (TSDB_CODE_SUCCESS != code) {
+          tSimpleHashCleanup(pRes->pReadDbs);
+          pRes->pReadDbs = NULL;
+          CTG_ERR_RET(code);
+        }
 
         pRes->pass[AUTH_RES_BASIC] = true;
         return TSDB_CODE_SUCCESS;

@@ -253,8 +253,8 @@ static int32_t authSelect(SAuthCxt* pCxt, SSelectStmt* pSelect) {
         // Call AUTH_TYPE_SHOW to collect table-level privileges
         // Use empty dbName for all dbs, or specific dbName if WHERE db_name='xxx' is present
         code = checkAuth(pCxt, dbName[0] ? dbName : "", NULL, AUTH_TYPE_SHOW, NULL);
-        // AUTH_TYPE_SHOW always passes, just collects privilege info
       }
+      pCxt->errCode = code;
     }
   }
 

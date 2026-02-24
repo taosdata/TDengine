@@ -4597,7 +4597,7 @@ static int32_t convertTbNamesToUids(STranslateContext* pCxt) {
 static int32_t addVgroupsFromTablePrivileges(STranslateContext* pCxt, SArray** pVgs) {
   int32_t        code = TSDB_CODE_SUCCESS;
   SParseContext* pParseCxt = pCxt->pParseCxt;
-  SSHashObj*     addedDbs = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  SSHashObj*     addedDbs = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
   if (NULL == addedDbs) {
     return terrno;
   }
@@ -4615,6 +4615,10 @@ static int32_t addVgroupsFromTablePrivileges(STranslateContext* pCxt, SArray** p
         if (TSDB_CODE_SUCCESS == code && dbVgs != NULL) {
           for (int32_t i = 0; i < taosArrayGetSize(dbVgs); ++i) {
             SVgroupInfo* vgInfo = taosArrayGet(dbVgs, i);
+            if (!(*pVgs) && !(*pVgs = taosArrayInit(1, sizeof(SVgroupInfo)))) {
+              code = terrno;
+              break;
+            }
             if (NULL == taosArrayPush(*pVgs, vgInfo)) {
               code = terrno;
               break;
@@ -4653,6 +4657,10 @@ static int32_t addVgroupsFromTablePrivileges(STranslateContext* pCxt, SArray** p
         if (TSDB_CODE_SUCCESS == code && dbVgs != NULL) {
           for (int32_t i = 0; i < taosArrayGetSize(dbVgs); ++i) {
             SVgroupInfo* vgInfo = taosArrayGet(dbVgs, i);
+            if (!(*pVgs) && !(*pVgs = taosArrayInit(1, sizeof(SVgroupInfo)))) {
+              code = terrno;
+              break;
+            }
             if (NULL == taosArrayPush(*pVgs, vgInfo)) {
               code = terrno;
               break;
@@ -4684,7 +4692,7 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
 
   // For ins_tables query without WHERE db_name condition, add vgroups to enable querying user tables
   SParseContext* pParseCxt = pCxt->pParseCxt;
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && isSelectStmt(pCxt->pCurrStmt)) {
     if (pParseCxt->isSuperUser || pParseCxt->isStmtBind) {
       pParseCxt->showAllTbls = true;
     } else if (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES)) {
