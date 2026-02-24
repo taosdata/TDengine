@@ -30,11 +30,19 @@ options: {
     
 trigger_type: {
     PERIOD(period_time[, offset_time])
-  | [INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val[, offset_time]) 
+  | SLIDING(sliding_val[, offset_time])
+  | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time])
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(duration_time)] 
-  | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
-  | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
+  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
+  | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
+}
+
+true_for_expr: {
+    duration_time
+  | COUNT count_val
+  | duration_time AND COUNT count_val
+  | duration_time OR COUNT count_val
 }
 
 stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types)}
@@ -56,7 +64,8 @@ tag_definition:
 ### Trigger Methods
 
 - Periodic trigger: drives execution by fixed intervals of system time. The baseline is midnight of the day the stream is created, and subsequent trigger times are determined by the specified interval. A time offset can be applied to adjust the baseline.
-- Sliding trigger: drives execution based on a fixed interval of event time for data written to the trigger table. An INTERVAL window can be specified if desired.
+- Sliding trigger: drives execution based on a fixed interval of event time for data written to the trigger table. The division rules are the same as periodic triggers, with the only difference being that system time is replaced by event time.
+- Time window trigger: divides the incoming data written to the trigger table into windows based on time windows, and triggers when a window starts and/or closes.
 - Session window trigger: divides the incoming data written to the trigger table into windows based on session boundaries, and triggers when a window starts and/or closes.
 - State window trigger: divides the written data of the trigger table into windows based on the values in a state column. A trigger occurs when a window is opened and/or closed.
 - Event window trigger: partitions the incoming data of the trigger table into windows based on defined event start and end conditions, and triggers when the window opens and/or closes.

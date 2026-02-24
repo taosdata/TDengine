@@ -427,7 +427,6 @@ static int32_t anomalyParseJson(SJson* pJson, SArray* pWindows, SArray* pMasks, 
 
   if (rows < 0 && code == 0) {  // error happens, parse the error msg and return to client
     code = parseErrorMsgFromAnalyticServer(pJson, pId);
-    tjsonDelete(pJson);
     return code;
   } else if (rows == 0) {
     return TSDB_CODE_SUCCESS;

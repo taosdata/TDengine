@@ -85,7 +85,6 @@ typedef enum ETriggerTimestampSorterMask {
   TRIGGER_TS_SORTER_MASK_META_DATA_SET = BIT_FLAG_MASK(1),
   TRIGGER_TS_SORTER_MASK_DATA_MERGER_BUILD = BIT_FLAG_MASK(2),
   TRIGGER_TS_SORTER_MASK_SESS_WIN_BUILD = BIT_FLAG_MASK(3),
-  TRIGGER_TS_SORTER_MASK_NO_META_DATA = BIT_FLAG_MASK(4),
 } ETriggerTimestampSorterMask;
 
 typedef struct SSTriggerTimestampSorter {
@@ -95,6 +94,7 @@ typedef struct SSTriggerTimestampSorter {
   STimeWindow readRange;
   int64_t     tbUid;
   int32_t     tsSlotId;
+  int32_t     pkSlotId;
 
   SArray *pMetaNodeBuf;
   SArray *pMetaLists;
@@ -136,10 +136,11 @@ void stTimestampSorterReset(SSTriggerTimestampSorter *pSorter);
  * @param pRange The time range for sorting, containing start and end timestamps
  * @param tbUid The UID of the table to be sorted
  * @param tsSlotId The index of the timestamp column in the data block, starting from 0
+ * @param pkSlotId The index of the primary key column in the data block, starting from 0
  * @return int32_t Status code indicating success or error
  */
 int32_t stTimestampSorterSetSortInfo(SSTriggerTimestampSorter *pSorter, STimeWindow *pRange, int64_t tbUid,
-                                     int32_t tsSlotId);
+                                     int32_t tsSlotId, int32_t pkSlotId);
 
 /**
  * @brief Sets metadata for data blocks in the timestamp sorter.
@@ -149,14 +150,6 @@ int32_t stTimestampSorterSetSortInfo(SSTriggerTimestampSorter *pSorter, STimeWin
  * @return int32_t Status code indicating success or error
  */
 int32_t stTimestampSorterSetMetaDatas(SSTriggerTimestampSorter *pSorter, SSTriggerTableMeta *pTableMeta);
-
-/**
- * @brief Sets the timestamp sorter without metadata; it would only be used to return bound data blocks.
- *
- * @param pSorter The SSTriggerTimestampSorter instance responsible for merging
- * @return int32_t Status code indicating success or error
- */
-int32_t stTimestampSorterSetEmptyMetaDatas(SSTriggerTimestampSorter *pSorter);
 
 /**
  * @brief Get next data block from the sorter.
@@ -304,14 +297,6 @@ int32_t stVtableMergerSetPseudoCols(SSTriggerVtableMerger *pMerger, SSDataBlock 
 int32_t stVtableMergerSetMetaDatas(SSTriggerVtableMerger *pMerger, SSHashObj *pOrigTableMetas);
 
 /**
- * @brief Sets the underlying timestamp sorters without metadata.
- *
- * @param pMerger The SSTriggerVtableMerger instance responsible for merging
- * @return int32_t Status code indicating success or error
- */
-int32_t stVtableMergerSetEmptyMetaDatas(SSTriggerVtableMerger *pMerger);
-
-/**
  * @brief Gets next data block from the vtable merger.
  *
  * @param pMerger The SSTriggerVtableMerger instance responsible for merging
@@ -356,6 +341,7 @@ typedef struct SSTriggerNewTimestampSorter {
   bool         inUse;
   SSDataBlock *pDataBlock;
   int32_t      tsSlotId;
+  int32_t      pkSlotId;
 
   SArray                 *pSliceBuf;    // SArray<SNewTimestampSorterSlice>
   SArray                 *pSliceLists;  // SArray<SNewTimestampSorterSliceList>
@@ -393,13 +379,15 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter);
  * @param pSorter The SSTriggerNewTimestampSorter instance to set the data
  * @param tbUid The UID of the table to be sorted
  * @param tsSlotId The index of the timestamp column in the data block, starting from 0
+ * @param pkSlotId The index of the primary key column in the data block, starting from 0
  * @param pReadRange The time range for sorting, containing start and end timestamps
  * @param pMetas The metadatas of current table
  * @param pSlice The data slice containing the data block and the range of rows to be considered
  * @return int32_t Status code indicating success or error
  */
 int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_t tbUid, int32_t tsSlotId,
-                                    STimeWindow *pReadRange, SObjList *pMetas, SSTriggerDataSlice *pSlice);
+                                    int32_t pkSlotId, STimeWindow *pReadRange, SObjList *pMetas,
+                                    SSTriggerDataSlice *pSlice);
 
 /**
  * @brief Get next data block from the sorter.
@@ -464,6 +452,7 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger);
  * @param pMerger The SSTriggerNewVtableMerger instance responsible for merging
  * @param vtbUid The UID of the virtual table
  * @param tsSlotId The index of the timestamp column in the data block, starting from 0
+ * @param pkSlotId The index of the primary key column in the data block, starting from 0
  * @param pReadRange The time range for sorting, containing start and end timestamps
  * @param pTableUids List of original table UIDs involved in the merge
  * @param pTableColRefs Array of table column references, each containing original and virtual table column mappings
@@ -471,7 +460,7 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger);
  * @param pSlices The hash map from original table uid to its data slice
  * @return int32_t
  */
-int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId,
+int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId, int32_t pkSlotId,
                                  STimeWindow *pReadRange, SObjList *pTableUids, SArray *pTableColRefs,
                                  SSHashObj *pMetas, SSHashObj *pSlices);
 

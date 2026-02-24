@@ -285,4 +285,4 @@ class TestAlterReplica:
         self.alter_replica_31()
         
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+

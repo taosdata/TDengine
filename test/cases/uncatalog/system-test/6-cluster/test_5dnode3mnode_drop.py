@@ -336,5 +336,5 @@ class Test5dnode3mnodeDrop:
         self.buildcluster(5)
         self.five_dnode_three_mnode()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

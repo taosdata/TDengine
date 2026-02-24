@@ -4750,6 +4750,21 @@ static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
   return TSDB_CODE_SUCCESS;
 }
 
+/**
+   * Extract a time-range window from a filter AST node.
+   *
+   * This tries to derive a timestamp range from the condition tree (typically a WHERE clause).
+   * If a single, strict range can be determined, it is written to `win` and `*isStrict` stays true.
+   * If multiple ranges or non-deterministic conditions are found, `*isStrict` is set to false and
+   * `win` may be set to a full/unknown window.
+   *
+   * @param pNode         Filter expression AST root (e.g., WHERE condition).
+   * @param win           Output time window (skey/ekey).
+   * @param isStrict      Output flag: true if `win` exactly matches the single time range
+   *                      in `pNode`, false if only a conservative/unknown range is available.
+   *
+   * @return TSDB_CODE_SUCCESS on success, otherwise an error code.
+ */
 int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict, bool* hasRemoteNode) {
   SFilterInfo *info = NULL;
   int32_t      code = 0;

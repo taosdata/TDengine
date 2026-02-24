@@ -2,7 +2,6 @@ package system
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"strconv"
@@ -117,16 +116,23 @@ func (p *program) Start(s service.Service) error {
 
 	server := p.server
 	go func() {
+		fail := func(err error) {
+			if err == nil || err == http.ErrServerClosed {
+				return
+			}
+			logger.Errorf("taoskeeper start up fail: %v", err)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			log.Close(ctx)
+			cancel()
+			os.Exit(1)
+		}
+
 		if ssl := config.Conf.SSL; ssl.Enable {
 			logger.Infof("Starting HTTPS service at %s", server.Addr)
-			if err := server.ListenAndServeTLS(ssl.CertFile, ssl.KeyFile); err != nil && err != http.ErrServerClosed {
-				panic(fmt.Errorf("taoskeeper HTTPS start up fail! %v", err))
-			}
+			fail(server.ListenAndServeTLS(ssl.CertFile, ssl.KeyFile))
 		} else {
 			logger.Infof("Starting HTTP service at %s", server.Addr)
-			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				panic(fmt.Errorf("taoskeeper start up fail! %v", err))
-			}
+			fail(server.ListenAndServe())
 		}
 	}()
 	return nil

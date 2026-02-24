@@ -200,7 +200,6 @@ SWords shellCommands[] = {
     {"show create view <all_table> \\G;", 0, 0, NULL},
     {"show compact", 0, 0, NULL},
     {"show compacts;", 0, 0, NULL},
-    {"show tokens;", 0, 0, NULL},
 #endif
     {"show connections;", 0, 0, NULL},
     {"show cluster;", 0, 0, NULL},
@@ -241,6 +240,7 @@ SWords shellCommands[] = {
     {"show role privileges;", 0, 0, NULL},
     {"show role column privileges;", 0, 0, NULL},
     {"show users;", 0, 0, NULL},
+    {"show users full;", 0, 0, NULL},
     {"show user privileges;", 0, 0, NULL},
     {"show user column privileges;", 0, 0, NULL},
     {"show variables;", 0, 0, NULL},
@@ -260,6 +260,7 @@ SWords shellCommands[] = {
     {"ssmigrate database <db_name>;", 0, 0, NULL},
     {"show mounts;", 0, 0, NULL},
     {"show ssmigrates;", 0, 0, NULL},
+    {"show tokens;", 0, 0, NULL},
 #endif
     {"insert into <tb_name> values(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> tags(", 0, 0, NULL},
@@ -772,6 +773,7 @@ void showHelp() {
     show role privileges;\n\
     show role column privileges;\n\
     show users;\n\
+    show users full;\n\
     show user privileges;\n\
     show user column privileges;\n\
     show variables;\n\

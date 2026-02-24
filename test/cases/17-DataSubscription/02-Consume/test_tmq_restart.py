@@ -117,5 +117,5 @@ class TestCase:
             - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_tmq_tx484.py
         """
         self.check()
-        tdLog.success(f"{__file__} successfully executed")
+
 

@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
+#include "sdb.h"
 #include "tencrypt.h"
 #include "tjson.h"
 
@@ -28,6 +29,9 @@ static int32_t mmDecodeOption(SJson *pJson, SMnodeOpt *pOption) {
   tjsonGetInt32ValueFromDouble(pJson, "selfIndex", pOption->selfIndex, code);
   if (code < 0) return code;
   tjsonGetInt32ValueFromDouble(pJson, "lastIndex", pOption->lastIndex, code);
+  if (code < 0) return code;
+
+  tjsonGetInt32ValueFromDouble(pJson, "encrypted", pOption->encrypted, code);
   if (code < 0) return code;
 
   SJson *replicas = tjsonGetObjectItem(pJson, "replicas");
@@ -78,7 +82,8 @@ int32_t mmReadFile(const char *path, SMnodeOpt *pOption) {
     return 0;
   }
 
-  // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)
+  // Read file with potential decryption
+  // First try to read with taosReadCfgFile (supports encrypted files)
   code = taosReadCfgFile(file, &pData, &dataLen);
   if (code != 0) {
     dError("failed to read mnode file:%s since %s", file, tstrerror(code));
@@ -96,7 +101,7 @@ int32_t mmReadFile(const char *path, SMnodeOpt *pOption) {
   }
 
   code = 0;
-  dInfo("succceed to read mnode file %s", file);
+  dInfo("succeed to read mnode file %s, sdb.data encrypted flag:%d", file, pOption->encrypted);
 
 _OVER:
   if (pData != NULL) taosMemoryFree(pData);
@@ -140,6 +145,9 @@ static int32_t mmEncodeOption(SJson *pJson, const SMnodeOpt *pOption) {
 
   if ((code = tjsonAddDoubleToObject(pJson, "version", pOption->version)) < 0) return code;
 
+  // Add encrypted flag
+  if ((code = tjsonAddDoubleToObject(pJson, "encrypted", pOption->encrypted ? 1 : 0)) < 0) return code;
+
   return code;
 }
 
@@ -171,14 +179,16 @@ int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
   }
 
   int32_t len = strlen(buffer);
-  
-  // Use encrypted write if tsCfgKey is enabled
+
+  // mnode.json itself is not encrypted, just write as plain JSON
+  // The encrypted flag indicates whether sdb.data is encrypted
   code = taosWriteCfgFile(realfile, buffer, len);
   if (code != 0) {
     goto _OVER;
   }
 
-  dInfo("succeed to write mnode file:%s, deloyed:%d", realfile, pOption->deploy);
+  dInfo("succeed to write mnode file:%s, deployed:%d, sdb.data encrypted:%d", realfile, pOption->deploy,
+        pOption->encrypted);
 
 _OVER:
   if (pJson != NULL) tjsonDelete(pJson);
@@ -188,4 +198,38 @@ _OVER:
     dError("failed to write mnode file:%s since %s, deloyed:%d", realfile, tstrerror(code), pOption->deploy);
   }
   return code;
+}
+
+// Update and persist encrypted flag (exposed via mnode.h for sdb module)
+int32_t mndSetEncryptedFlag(SSdb *pSdb) {
+  int32_t   code = 0;
+  SMnodeOpt option = {0};
+
+  if (pSdb == NULL || pSdb->mnodePath[0] == '\0') {
+    dError("invalid parameters, pSdb:%p", pSdb);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Read current mnode.json
+  code = mmReadFile(pSdb->mnodePath, &option);
+  if (code != 0) {
+    dError("failed to read mnode.json for setting encrypted flag since %s", tstrerror(code));
+    return code;
+  }
+
+  // Update encrypted flag
+  option.encrypted = true;
+  pSdb->encrypted = true;
+
+  // Write back to mnode.json
+  code = mmWriteFile(pSdb->mnodePath, &option);
+  if (code != 0) {
+    dError("failed to persist encrypted flag to mnode.json since %s", tstrerror(code));
+    // Rollback in-memory flag
+    pSdb->encrypted = false;
+    return code;
+  }
+
+  dInfo("successfully set and persisted encrypted flag in mnode.json");
+  return 0;
 }

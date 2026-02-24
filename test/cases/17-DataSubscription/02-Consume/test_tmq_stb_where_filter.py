@@ -227,6 +227,6 @@ class TestCase:
         self.tmqCase("t5", "t3 = t4")
         self.tmqCase_addNewTable_dropTag("t6", "t1 = 1")
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 event = threading.Event()

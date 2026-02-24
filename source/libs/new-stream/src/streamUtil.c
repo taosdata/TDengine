@@ -728,6 +728,12 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
       int64_t wend = pParam->wend;
       JSON_CHECK_ADD_ITEM(obj, "windowEnd", cJSON_CreateNumber(wend));
     }
+  } else if (triggerType == STREAM_TRIGGER_PERIOD) {
+    JSON_CHECK_ADD_ITEM(obj, "windowStart", cJSON_CreateNumber(pParam->triggerTime));
+    JSON_CHECK_ADD_ITEM(obj, "windowEnd", cJSON_CreateNumber(pParam->triggerTime));
+  } else if (triggerType == STREAM_TRIGGER_SLIDING) {
+    JSON_CHECK_ADD_ITEM(obj, "windowStart", cJSON_CreateNumber(pParam->prevTs));
+    JSON_CHECK_ADD_ITEM(obj, "windowEnd", cJSON_CreateNumber(pParam->currentTs));
   }
 
   temp = cJSON_PrintUnformatted(obj);

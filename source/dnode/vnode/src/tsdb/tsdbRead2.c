@@ -4152,6 +4152,13 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
     if (notOverlapWithFiles(pBlockInfo, pScanInfo, asc)) {
       int64_t keyInStt = pScanInfo->sttKeyInfo.nextProcKey.ts;
 
+      // make sure the pSttBlock match the current data block
+      // actually the pSttBlockReader may not fit current data block, but 
+      // it's OK since we only need the clean datablock or clean stt block.
+      initSttBlockReader(pSttBlockReader, pScanInfo, pReader);
+      code = pReader->code;
+      TSDB_CHECK_CODE(code, lino, _end);
+
       if ((!hasDataInSttBlock(pScanInfo)) || (asc && pBlockInfo->lastKey < keyInStt) ||
           (!asc && pBlockInfo->firstKey > keyInStt)) {
         // the stt blocks may located in the gap of different data block, but the whole sttRange may overlap with the
@@ -7183,12 +7190,21 @@ void tsdbReaderSetNotifyCb(STsdbReader* pReader, TsdReaderNotifyCbFn notifyFn, v
   pReader->notifyParam = param;
 }
 
-static int32_t initQueryTableCond(SQueryTableDataCond* pCond, uint64_t suid, const STimeWindow* pWindow,
+static int32_t initQueryTableCond(SMeta* meta, SQueryTableDataCond* pCond, uint64_t suid, const STimeWindow* pWindow,
                                   const SVersionRange* pRange, int32_t order, const char* id) {
-  pCond->numOfCols = 1;
+
+
+  bool            hasPrimaryKey = false;
+  SSchemaWrapper* schema = metaGetTableSchema(meta, suid, -1, 1, NULL, 0);
+  if (schema && schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY) {
+    hasPrimaryKey = true;
+  }
+
+  pCond->numOfCols = hasPrimaryKey ? 2 : 1;
 
   pCond->colList = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnInfo));
   if (pCond->colList == NULL) {
+    tDeleteSchemaWrapper(schema);
     tsdbError("failed to prepare col list for query cond, code:%s, %s", tstrerror(terrno), id);
     return terrno;
   }                                  
@@ -7196,6 +7212,16 @@ static int32_t initQueryTableCond(SQueryTableDataCond* pCond, uint64_t suid, con
   pCond->colList[0].colId = 1;
   pCond->colList[0].type = TSDB_DATA_TYPE_TIMESTAMP;
   pCond->colList[0].bytes = sizeof(int64_t);
+
+  if (hasPrimaryKey) {
+    SSchema* s = schema->pSchema + 1;
+    pCond->colList[1].colId = s->colId;
+    pCond->colList[1].type = s->type;
+    pCond->colList[1].bytes = s->bytes;
+    pCond->colList[1].pk = 1;
+  }
+
+  tDeleteSchemaWrapper(schema);
 
   pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t) * pCond->numOfCols);
   if (pCond->pSlotList == NULL) {
@@ -7205,6 +7231,9 @@ static int32_t initQueryTableCond(SQueryTableDataCond* pCond, uint64_t suid, con
   }
 
   pCond->pSlotList[0] = 0;
+  if (hasPrimaryKey) {
+    pCond->pSlotList[1] = 1;
+  }
   pCond->twindows = *pWindow;
 
   pCond->startVersion = pRange->minVer;
@@ -7242,7 +7271,7 @@ int32_t tsdbCreateFirstLastTsIter(void* pVnode, STimeWindow* pWindow, SVersionRa
   TSDB_CHECK_NULL(pVerRange, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pTableList, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  code = initQueryTableCond(&cond, suid, pWindow, pVerRange, order, idstr);
+  code = initQueryTableCond(((SVnode*)pVnode)->pMeta, &cond, suid, pWindow, pVerRange, order, idstr);
   TSDB_CHECK_CODE(code, lino, _end);
 
   pTsIter = taosMemoryCalloc(1, sizeof(STableFirstLastTsIter));

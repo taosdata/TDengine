@@ -47,9 +47,9 @@ TDengine TSDB 支持按时间窗口切分方式进行聚合结果查询，比如
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(true_for_duration)]
+  | STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
-  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
 }
 ```
@@ -236,10 +236,29 @@ taos> select _wstart, _wduration, _wend, count(*) from state_window_example stat
  2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
 ```
 
-状态窗口支持使用 TRUE_FOR 参数来设定窗口的最小持续时长。如果某个状态窗口的宽度低于该设定值，则会自动舍弃，不返回任何计算结果。例如，设置最短持续时长为 3s。
+状态窗口支持使用 TRUE_FOR 参数来设定窗口的过滤条件。只有满足条件的窗口才会返回计算结果。支持以下四种模式：
+
+- `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
+- `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
+- `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
+- `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
+
+例如，设置最短持续时长为 3s：
 
 ```sql
 SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (3s);
+```
+
+或者设置最少行数为 100 行：
+
+```sql
+SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (COUNT 100);
+```
+
+或者同时满足持续时长和行数条件：
+
+```sql
+SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (3s AND COUNT 50);
 ```
 
 ### 会话窗口
@@ -273,10 +292,29 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 
 ![TDengine TSDB Database 事件窗口示意图](./pic/event_window.png)
 
-事件窗口支持使用 TRUE_FOR 参数来设定窗口的最小持续时长。如果某个事件窗口的宽度低于该设定值，则会自动舍弃，不返回任何计算结果。例如，设置最短持续时长为 3s。
+事件窗口支持使用 TRUE_FOR 参数来设定窗口的过滤条件。只有满足条件的窗口才会返回计算结果。支持以下四种模式：
+
+- `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
+- `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
+- `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
+- `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
+
+例如，设置最短持续时长为 3s：
 
 ```sql
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (3s);
+```
+
+或者设置最少行数为 100 行：
+
+```sql
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (COUNT 100);
+```
+
+或者同时满足持续时长和行数条件：
+
+```sql
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (3s AND COUNT 50);
 ```
 
 ### 计数窗口

@@ -66,6 +66,7 @@ Python Connector historical versions (it is recommended to use the latest versio
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
+|2.8.8 | Support TOTP authentication and token authentication | - |
 |2.8.6 | Support for pandas' read_Sql_table, to_Sql, and read_Sql interface calls                                    | - |
 |2.8.5 | Support the SQLAlchemy feature of taos-ws-py                                                                | - |
 |2.8.4 | Support DBUtils connection pool.                                                                            | - |
@@ -455,6 +456,8 @@ The interface for binding parameters of the standard Stmt.
       - `port`: Port number
       - `database`: Database name
       - `timezone`: Time zone
+      - `totp_code`: Used for Time-Based One-Time Password (TOTP) authentication
+      - `bearer_token`: Used for token authentication
   - **Return Value**: `TaosConnection` connection object.
   - **Exceptions**: Throws `AttributeError` or `ConnectionError` if operation fails.
 - `def cursor(self)`

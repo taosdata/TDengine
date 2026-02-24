@@ -224,6 +224,11 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       res = walkExpr(pOptions->pPreFilter, order, walker, pContext);
       break;
     }
+    case QUERY_NODE_TRUE_FOR: {
+      STrueForNode* pTrueFor = (STrueForNode*)pNode;
+      res = walkExpr(pTrueFor->pDuration, order, walker, pContext);
+      break;
+    }
     default:
       break;
   }
@@ -510,6 +515,11 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pTimeRange->pEnd, order, rewriter, pContext);
       }
+      break;
+    }
+    case QUERY_NODE_TRUE_FOR: {
+      STrueForNode* pTrueFor = (STrueForNode*)pNode;
+      res = rewriteExpr(&pTrueFor->pDuration, order, rewriter, pContext);
       break;
     }
 

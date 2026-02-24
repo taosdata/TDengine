@@ -269,6 +269,6 @@ class TestBenchmarkQueryMain:
         # exception test
         self.exceptTest(benchmark, tbCnt, tbRow);
 
-        tdLog.success("%s successfully executed" % __file__)
+
 
 

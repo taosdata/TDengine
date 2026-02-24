@@ -6,11 +6,12 @@ spring:
     password: taosdata
 
     druid:
-      initial-size: 5
+      initial-size: 10
       min-idle: 5
-      max-active: 5
+      max-active: 50
 
 mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
   configuration:
     map-underscore-to-camel-case: false
 
@@ -21,4 +22,3 @@ logging:
         example:
           mybatisplusdemo:
             mapper: debug
-

@@ -2409,11 +2409,11 @@ int32_t tSerializeSKeySyncRsp(void *buf, int32_t bufLen, SKeySyncRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->needUpdate));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->encryptionKeyStatus));
   if (pRsp->needUpdate) {
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->svrKey, 129));
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dbKey, 129));
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->cfgKey, 129));
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->metaKey, 129));
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dataKey, 129));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->svrKey, ENCRYPT_KEY_LEN + 1));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dbKey, ENCRYPT_KEY_LEN + 1));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->cfgKey, ENCRYPT_KEY_LEN + 1));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->metaKey, ENCRYPT_KEY_LEN + 1));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dataKey, ENCRYPT_KEY_LEN + 1));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->algorithm));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->cfgAlgorithm));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->metaAlgorithm));
@@ -2919,6 +2919,10 @@ void tFreeSAlterRoleReq(SAlterRoleReq *pReq) {
     taosArrayDestroy(pReq->privileges.insertCols);
     taosArrayDestroy(pReq->privileges.updateCols);
     taosMemoryFreeClear(pReq->privileges.cond);
+    pReq->privileges.condLen = 0;
+    pReq->privileges.selectCols = NULL;
+    pReq->privileges.insertCols = NULL;
+    pReq->privileges.updateCols = NULL;
   }
   FREESQL();
 }
@@ -3256,7 +3260,8 @@ SDateTimeWhiteList* cloneDateTimeWhiteList(const SDateTimeWhiteList* src) {
 //
 // otherwise, it returns false.
 //
-// Note: tm is seconds since 1970-01-01 00:00:00 UTC, can be obtained by taosGetTimestampSec.
+// Note: tm is seconds since 1970-01-01 00:00:00 UTC, interpreted as local time,
+//       can be obtained by taosGetTimestampSec().
 //
 // TODO: the whitelist entries are sorted, we can use binary search to optimize the performance.
 bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm) {
@@ -3265,9 +3270,14 @@ bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm) {
   }
 
   bool hasWhite = false, inWhite = false;
-  // convert tm to week seconds, because week starts from Sunday and 1970-01-01 is
-  // Thursday, we need add 4 days offset.
-  int32_t weekSec = (tm + (4 * 86400)) % (7 * 86400);
+  // convert tm to week seconds based on localtime
+  // week starts from Sunday (tm_wday = 0)
+  time_t t = (time_t)tm;
+  struct tm ltm;
+  if (taosLocalTime(&t, &ltm, NULL, 0, NULL) == NULL) {
+    return false;
+  }
+  int32_t weekSec = ltm.tm_wday * 86400 + ltm.tm_hour * 3600 + ltm.tm_min * 60 + ltm.tm_sec;
 
   for (int32_t i = 0; i < wl->num; ++i) {
     const SDateTimeWhiteListItem *item = &wl->ranges[i];
@@ -4822,6 +4832,58 @@ _exit:
   return code;
 }
 
+int32_t tSerializeTokenStatuses(SEncoder *pEncoder, SHashObj *pHash) {
+  int32_t code = 0, lino = 0;
+  size_t  klen = 0, vlen = 0;
+  int32_t nTokens = (pHash == NULL ? 0 : taosHashGetSize(pHash));
+  TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, nTokens));
+  if (nTokens == 0) {
+    return code;
+  }
+
+  void *pIter = NULL;
+  while ((pIter = taosHashIterate((SHashObj *)pHash, pIter))) {
+    char *name = taosHashGetKey(pIter, &klen);
+    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, name));
+
+    STokenStatus *status = (STokenStatus *)pIter;
+    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, status->enabled));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, status->expireTime));
+  }
+
+_exit:
+  return code;
+}
+
+
+int32_t tDeserializeTokenStatuses(SDecoder *pDecoder, SHashObj **pHash) {
+  int32_t code = 0, lino = 0;
+  size_t  klen = 0;
+  int32_t nTokens = 0;
+  TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nTokens));
+  if (nTokens <= 0) {
+    *pHash = NULL;
+    return 0;
+  }
+
+  *pHash = taosHashInit(nTokens, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (*pHash == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  
+  for (int32_t i = 0; i < nTokens; ++i) {
+    char name[TSDB_TOKEN_NAME_LEN] = {0};
+    TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, name));
+    STokenStatus status = {0};
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &status.enabled));
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &status.expireTime));
+    TAOS_CHECK_EXIT(taosHashPut(*pHash, name, strlen(name) + 1, &status, sizeof(STokenStatus)));
+  }
+
+_exit:
+  return code;
+}
+
 int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pRsp->user));
   TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pRsp->superAuth));
@@ -4838,6 +4900,15 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   TAOS_CHECK_RETURN(tSerializePrivTblPolicies(pEncoder, pRsp->selectTbs));
   TAOS_CHECK_RETURN(tSerializePrivTblPolicies(pEncoder, pRsp->insertTbs));
   TAOS_CHECK_RETURN(tSerializePrivTblPolicies(pEncoder, pRsp->deleteTbs));
+  TAOS_CHECK_RETURN(tSerializeTokenStatuses(pEncoder, pRsp->tokens));
+  TAOS_CHECK_RETURN(tEncodeU8(pEncoder, pRsp->flags));
+  int32_t nOwnedDbs = taosHashGetSize(pRsp->ownedDbs);
+  TAOS_CHECK_RETURN(tEncodeI32v(pEncoder, nOwnedDbs));
+  void *pIter = NULL;
+  while ((pIter = taosHashIterate(pRsp->ownedDbs, pIter))) {
+    char  *key = taosHashGetKey(pIter, NULL);  // key: dbFName
+    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, key));
+  }
 
   return 0;
 }
@@ -4881,6 +4952,30 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(pDecoder, &pRsp->selectTbs));
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(pDecoder, &pRsp->insertTbs));
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(pDecoder, &pRsp->deleteTbs));
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_EXIT(tDeserializeTokenStatuses(pDecoder, &pRsp->tokens));
+    TAOS_CHECK_EXIT(tDecodeU8(pDecoder, &pRsp->flags));
+    int32_t nOwnedDbs = 0;
+    TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nOwnedDbs));
+    if (nOwnedDbs > 0) {
+      if (!pRsp->ownedDbs &&
+          !(pRsp->ownedDbs =
+                taosHashInit(nOwnedDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), 1, HASH_ENTRY_LOCK))) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      for (int32_t i = 0; i < nOwnedDbs; ++i) {
+        int32_t keyLen = 0;
+        char   *key = NULL;
+        TAOS_CHECK_EXIT(tDecodeCStrAndLen(pDecoder, &key, &keyLen));
+        TAOS_CHECK_EXIT(taosHashPut(pRsp->ownedDbs, key, keyLen + 1, NULL, 0));
+      }
+    }
+  } else {
+    pRsp->tokens = NULL;
+    pRsp->flags = 0;
+    pRsp->ownedDbs = NULL;
+  }
+
 _exit:
   if (code < 0) {
     uError("tDeserializeSGetUserAuthRsp failed at line %d since: %s", lino, tstrerror(code));
@@ -4910,10 +5005,14 @@ void tFreeSGetUserAuthRsp(SGetUserAuthRsp *pRsp) {
   taosHashCleanup(pRsp->selectTbs);
   taosHashCleanup(pRsp->insertTbs);
   taosHashCleanup(pRsp->deleteTbs);
+  taosHashCleanup(pRsp->tokens);
+  taosHashCleanup(pRsp->ownedDbs);
   pRsp->objPrivs = NULL;
   pRsp->selectTbs = NULL;
   pRsp->insertTbs = NULL;
   pRsp->deleteTbs = NULL;
+  pRsp->tokens = NULL;
+  pRsp->ownedDbs = NULL;
 }
 
 int32_t tSerializeSGetUserWhiteListReq(void *buf, int32_t bufLen, SGetUserWhiteListReq *pReq) {
@@ -5917,6 +6016,48 @@ _exit:
 
 void tFreeSMAlterEncryptKeyReq(SMAlterEncryptKeyReq *pReq) { FREESQL(); }
 
+int32_t tSerializeSMAlterKeyExpirationReq(void *buf, int32_t bufLen, SMAlterKeyExpirationReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->days));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->strategy));
+  ENCODESQL();
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMAlterKeyExpirationReq(void *buf, int32_t bufLen, SMAlterKeyExpirationReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->days));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->strategy));
+  DECODESQL();
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSMAlterKeyExpirationReq(SMAlterKeyExpirationReq *pReq) { FREESQL(); }
+
 int32_t tSerializeSDCfgDnodeReq(void *buf, int32_t bufLen, SDCfgDnodeReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
@@ -6637,7 +6778,7 @@ int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) {
     }
   }
 
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->virtualStb));
+  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pRsp->flag));
   if (hasRefCol(pRsp->tableType)) {
     for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
       SColRef *pColRef = &pRsp->pColRefs[i];
@@ -6733,7 +6874,7 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
   }
 
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->virtualStb));
+    TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pRsp->flag));
     if (hasRefCol(pRsp->tableType) && pRsp->numOfColumns > 0) {
       pRsp->pColRefs = taosMemoryMalloc(sizeof(SColRef) * pRsp->numOfColumns);
       if (pRsp->pColRefs == NULL) {
@@ -7019,6 +7160,7 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
 
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->encryptAlgrName));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isAudit));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->allowDrop));
   tEndEncode(&encoder);
 
 _exit:
@@ -7106,6 +7248,12 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   } else {
     pReq->encryptAlgrName[0] = '\0';
     pReq->isAudit = 0;
+  }
+
+  if(!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->allowDrop));
+  } else {
+    pReq->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
 
   tEndDecode(&decoder);
@@ -9083,6 +9231,9 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
 
   if (!tDecodeIsEnd(decoder)) {
     TAOS_CHECK_RETURN(tDecodeU8(decoder, &pRsp->flags));
+  } else {
+    pRsp->isMount = 0;
+    pRsp->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
   if (!tDecodeIsEnd(decoder)) {
     TAOS_CHECK_RETURN(tDecodeCStrTo(decoder, pRsp->algorithmsId));
@@ -9613,6 +9764,7 @@ static int32_t tEncodeSTableMetaRsp(SEncoder *pEncoder, STableMetaRsp *pRsp) {
   }
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pRsp->rversion));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pRsp->ownerId));
+  TAOS_CHECK_RETURN(tEncodeU8(pEncoder, pRsp->flag));
 
   return 0;
 }
@@ -9684,6 +9836,9 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
   }
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pRsp->ownerId));
+  }
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_RETURN(tDecodeU8(pDecoder, &pRsp->flag));
   }
 
   return 0;
@@ -10580,6 +10735,7 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssKeepLocal));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ssCompact));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->encryptAlgrName));
+  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->flags));
 
   tEndEncode(&encoder);
 
@@ -10691,6 +10847,12 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->encryptAlgrName));
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pReq->flags));
+  } else {
+    pReq->isAudit = 0;
+    pReq->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
 
   tEndDecode(&decoder);
@@ -11059,6 +11221,7 @@ int32_t tSerializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeCon
 
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssKeepLocal));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ssCompact));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->allowDrop));
 
   tEndEncode(&encoder);
 
@@ -11123,6 +11286,11 @@ int32_t tDeserializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeC
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssKeepLocal) < 0);
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ssCompact) < 0);
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->allowDrop) < 0);
+  } else {
+    pReq->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
 
   tEndDecode(&decoder);
@@ -11696,6 +11864,7 @@ int32_t tSerializeSDCreateMnodeReq(void *buf, int32_t bufLen, SDCreateMnodeReq *
     TAOS_CHECK_EXIT(tEncodeSReplica(&encoder, pReplica));
   }
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->lastIndex));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->encrypted));
   tEndEncode(&encoder);
 
 _exit:
@@ -11727,6 +11896,12 @@ int32_t tDeserializeSDCreateMnodeReq(void *buf, int32_t bufLen, SDCreateMnodeReq
       TAOS_CHECK_EXIT(tDecodeSReplica(&decoder, pReplica));
     }
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->lastIndex));
+    // For backward compatibility: encrypted field is optional
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->encrypted));
+  } else {
+    pReq->encrypted = 0;  // Default to false for old requests
   }
   tEndDecode(&decoder);
 
@@ -14396,6 +14571,9 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   } else {
     TAOS_CHECK_EXIT(tEncodeI8(pCoder, 0));
   }
+  if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
+    TAOS_CHECK_EXIT(tEncodeI64v(pCoder, pReq->ntb.userId));
+  }
 
   tEndEncode(pCoder);
 _exit:
@@ -14470,6 +14648,12 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
       TAOS_CHECK_EXIT(tDecodeI8(pCoder, &hasExtSchema));
       if (hasExtSchema) {
         TAOS_CHECK_EXIT(tDecodeSExtSchemas(pCoder, &pReq->pExtSchemas, pReq->ntb.schemaRow.nCols));
+      }
+    }
+
+    if (!tDecodeIsEnd(pCoder)) {
+      if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
+        TAOS_CHECK_EXIT(tDecodeI64v(pCoder, &pReq->ntb.userId));
       }
     }
   }
@@ -17533,6 +17717,7 @@ int32_t tSerializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
       TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pVgInfo->numOfCTables));
       TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pVgInfo->numOfNTables));
       TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pVgInfo->dbId));
+      TAOS_CHECK_EXIT(tEncodeU8(&encoder, pVgInfo->flags));
     }
     nStb = taosArrayGetSize(pDbInfo->pStbs);
     TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nStb));
@@ -17621,6 +17806,7 @@ int32_t tDeserializeSMountInfo(SDecoder *decoder, SMountInfo *pInfo, bool extrac
           TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pVgInfo->numOfCTables));
           TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pVgInfo->numOfNTables));
           TAOS_CHECK_EXIT(tDecodeU64v(decoder, &pVgInfo->dbId));
+          TAOS_CHECK_EXIT(tDecodeU8(decoder, &pVgInfo->flags));
         }
       }
       TAOS_CHECK_EXIT(tDecodeI32v(decoder, &nStb));

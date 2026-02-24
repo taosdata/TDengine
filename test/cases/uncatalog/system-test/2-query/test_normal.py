@@ -342,4 +342,4 @@ class TestNormal:
         self.orderBySelectFuncTest()
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+

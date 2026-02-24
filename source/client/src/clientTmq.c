@@ -21,6 +21,7 @@
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
+#include "tmsg.h"
 #include "tqueue.h"
 #include "tref.h"
 #include "ttimer.h"
@@ -1838,7 +1839,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   }
 
   // init connection
-  code = taos_connect_internal(conf->ip, user, pass, NULL, NULL, conf->port, CONN_TYPE__TMQ, &pTmq->pTscObj);
+  code = taos_connect_internal(conf->ip, user, pass, NULL, NULL, conf->port, CONN_TYPE__QUERY, &pTmq->pTscObj);
   if (code) {
     terrno = code;
     tqErrorC("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
@@ -2381,6 +2382,10 @@ static int32_t tmqPollImpl(tmq_t* tmq) {
       int32_t vgStatus = atomic_val_compare_exchange_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE, TMQ_VG_STATUS__WAIT);
       if (vgStatus == TMQ_VG_STATUS__WAIT) {
         int32_t vgSkipCnt = atomic_add_fetch_32(&pVg->vgSkipCnt, 1);
+        if (vgSkipCnt % 1000 == 0) {
+          tqInfoC("consumer:0x%" PRIx64 " epoch %d, vgId:%d has skipped poll %d times in a row", tmq->consumerId,
+                  tmq->epoch, pVg->vgId, vgSkipCnt);
+        }
         tqDebugC("consumer:0x%" PRIx64 " epoch %d wait poll-rsp, skip vgId:%d skip cnt %d", tmq->consumerId, tmq->epoch,
                  pVg->vgId, vgSkipCnt);
         continue;
@@ -2633,7 +2638,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
   void*   rspObj = NULL;
   int64_t startTime = taosGetTimestampMs();
 
-  tqDebugC("consumer:0x%" PRIx64 " start to poll at %" PRId64 ", timeout:%" PRId64, tmq->consumerId, startTime, timeout);
+  tqDebugC("%s consumer:0x%" PRIx64 " start to poll at %" PRId64 ", timeout:%" PRId64, __func__, tmq->consumerId, startTime, timeout);
   TSDB_CHECK_CONDITION(atomic_load_8(&tmq->status) != TMQ_CONSUMER_STATUS__INIT, code, lino, END, TSDB_CODE_TMQ_INVALID_STATUS);
 
   (void)atomic_val_compare_exchange_8(&tmq->pollFlag, 0, 1);
@@ -2644,7 +2649,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
 
     rspObj = tmqHandleAllRsp(tmq);
     if (rspObj) {
-      tqDebugC("consumer:0x%" PRIx64 "end to poll, return rsp:%p", tmq->consumerId, rspObj);
+      tqDebugC("%s consumer:0x%" PRIx64 " end to poll, return rsp:%p", __func__, tmq->consumerId, rspObj);
       return (TAOS_RES*)rspObj;
     }
     code = terrno;
@@ -2666,9 +2671,9 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
 END:
   terrno = code;
   if (tmq != NULL && terrno != 0) {
-    tqErrorC("consumer:0x%" PRIx64 " poll error at line:%d, msg:%s", tmq->consumerId, lino, tstrerror(terrno));
+    tqErrorC("%s consumer:0x%" PRIx64 " poll error at line:%d, msg:%s", __func__, tmq->consumerId, lino, tstrerror(terrno));
   } else {
-    tqDebugC("consumer:0x%" PRIx64 " poll end with no data", tmq->consumerId);
+    tqDebugC("%s consumer:0x%" PRIx64 " poll end with no data", __func__, tmq != NULL ? tmq->consumerId : 0);
   }
   return NULL;
 }
@@ -3703,7 +3708,8 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
 
   int32_t msgSize = tSerializeSMqSeekReq(NULL, 0, &req);
   if (msgSize < 0) {
-    return TSDB_CODE_PAR_INTERNAL_ERROR;
+    tqErrorC("%s get invalid msg at line %d", __func__, __LINE__);
+    return TSDB_CODE_TMQ_INVALID_MSG;
   }
 
   char* msg = taosMemoryCalloc(1, msgSize);
@@ -3712,8 +3718,9 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   }
 
   if (tSerializeSMqSeekReq(msg, msgSize, &req) < 0) {
+    tqErrorC("%s serialize seek req failed at line %d", __func__, __LINE__);
     taosMemoryFree(msg);
-    return TSDB_CODE_PAR_INTERNAL_ERROR;
+    return TSDB_CODE_TMQ_INVALID_MSG;
   }
 
   SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));

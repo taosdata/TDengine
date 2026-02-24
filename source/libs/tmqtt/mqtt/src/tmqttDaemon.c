@@ -707,6 +707,8 @@ int main(int argc, char *argv[]) {
   bool logInitialized = false;
   bool cfgInitialized = false;
 
+  taosSetSkipKeyCheckMode();
+
   if (!taosCheckSystemIsLittleEnd()) {
     bndError("failed to start since on non-little-end machines\n");
     return -1;

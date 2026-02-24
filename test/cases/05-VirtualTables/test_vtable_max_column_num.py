@@ -22,7 +22,7 @@ class TestVtableCreate:
         tdSql.execute("alter local 'maxSQLLength' '4194304'")
 
         sql = "insert into "
-        for i in range(32767):
+        for i in range(3000):
             tdSql.execute(f"create table d_{i}(ts timestamp, double_col double)")
             sql += f" d_{i} values(1696000000000, {i})"
             sql += f" (1696000001000, {i+1})"
@@ -386,7 +386,7 @@ class TestVtableCreate:
         tdLog.info(f"test create virtual child tables.")
         sql = "CREATE VTABLE vtb_virtual_child_exceed_ref ("
         for i in range(32763):
-            sql += f"col_{i} from d_{i%1001}.double_col"
+            sql += f"col_{i} from d_{i%2001}.double_col"
             if i != 32762:
                 sql += ", "
         sql += ") USING vtb_virtual_stb_max_col_exceed_ref TAGS (1);"
@@ -394,7 +394,7 @@ class TestVtableCreate:
 
         sql = "CREATE VTABLE `vtb_virtual_ntb_max_col_exceed_ref` (ts timestamp"
         for i in range(32766):
-            sql += f", col_{i} double from d_{i%1001}.double_col"
+            sql += f", col_{i} double from d_{i%2001}.double_col"
         sql += ")"
         tdSql.error(sql)
 

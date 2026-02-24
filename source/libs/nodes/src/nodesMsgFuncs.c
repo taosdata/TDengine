@@ -2745,7 +2745,8 @@ enum {
   PHY_SYSTABLE_SCAN_CODE_MGMT_EP_SET,
   PHY_SYSTABLE_SCAN_CODE_SHOW_REWRITE,
   PHY_SYSTABLE_SCAN_CODE_ACCOUNT_ID,
-  PHY_SYSTABLE_SCAN_CODE_SYS_INFO
+  PHY_SYSTABLE_SCAN_CODE_SYS_INFO,
+  PHY_SYSTABLE_SCAN_CODE_PRIV_INFO,
 };
 
 static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2763,6 +2764,9 @@ static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncode
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_SYSTABLE_SCAN_CODE_SYS_INFO, pNode->sysInfo);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeU16(pEncoder, PHY_SYSTABLE_SCAN_CODE_PRIV_INFO, pNode->privInfo);
   }
 
   return code;
@@ -2790,6 +2794,8 @@ static int32_t msgToPhysiSysTableScanNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_SYSTABLE_SCAN_CODE_SYS_INFO:
         code = tlvDecodeBool(pTlv, &pNode->sysInfo);
         break;
+      case PHY_SYSTABLE_SCAN_CODE_PRIV_INFO:
+        code = tlvDecodeU16(pTlv, &pNode->privInfo);
       default:
         break;
     }
@@ -3862,7 +3868,7 @@ static int32_t msgToPhysiExternalWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_STATE_CODE_WINDOW = 1, PHY_STATE_CODE_KEY, PHY_STATE_CODE_TRUE_FOR_LIMIT, PHY_STATE_CODE_EXTEND_OPTION };
+enum { PHY_STATE_CODE_WINDOW = 1, PHY_STATE_CODE_KEY, PHY_STATE_CODE_TRUE_FOR_DURATION, PHY_STATE_CODE_EXTEND_OPTION, PHY_STATE_CODE_TRUE_FOR_TYPE, PHY_STATE_CODE_TRUE_FOR_COUNT };
 
 static int32_t physiStateWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SStateWindowPhysiNode* pNode = (const SStateWindowPhysiNode*)pObj;
@@ -3872,7 +3878,13 @@ static int32_t physiStateWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder
     code = tlvEncodeObj(pEncoder, PHY_STATE_CODE_KEY, nodeToMsg, pNode->pStateKey);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI64(pEncoder, PHY_STATE_CODE_TRUE_FOR_LIMIT, pNode->trueForLimit);
+    code = tlvEncodeI32(pEncoder, PHY_STATE_CODE_TRUE_FOR_TYPE, pNode->trueForType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_STATE_CODE_TRUE_FOR_COUNT, pNode->trueForCount);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PHY_STATE_CODE_TRUE_FOR_DURATION, pNode->trueForDuration);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, PHY_STATE_CODE_EXTEND_OPTION, pNode->extendOption);
@@ -3894,8 +3906,14 @@ static int32_t msgToPhysiStateWindowNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_STATE_CODE_KEY:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pStateKey);
         break;
-      case PHY_STATE_CODE_TRUE_FOR_LIMIT:
-        code = tlvDecodeI64(pTlv, &pNode->trueForLimit);
+      case PHY_STATE_CODE_TRUE_FOR_TYPE:
+        code = tlvDecodeI32(pTlv, (int32_t*)&pNode->trueForType);
+        break;
+      case PHY_STATE_CODE_TRUE_FOR_COUNT:
+        code = tlvDecodeI32(pTlv, &pNode->trueForCount);
+        break;
+      case PHY_STATE_CODE_TRUE_FOR_DURATION:
+        code = tlvDecodeI64(pTlv, &pNode->trueForDuration);
         break;
       case PHY_STATE_CODE_EXTEND_OPTION:
         code = tlvDecodeI32(pTlv, (int32_t*)&pNode->extendOption);
@@ -3907,7 +3925,7 @@ static int32_t msgToPhysiStateWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_EVENT_CODE_WINDOW = 1, PHY_EVENT_CODE_START_COND, PHY_EVENT_CODE_END_COND, PHY_EVENT_CODE_TRUE_FOR_LIMIT };
+enum { PHY_EVENT_CODE_WINDOW = 1, PHY_EVENT_CODE_START_COND, PHY_EVENT_CODE_END_COND, PHY_EVENT_CODE_TRUE_FOR_DURATION, PHY_EVENT_CODE_TRUE_FOR_TYPE, PHY_EVENT_CODE_TRUE_FOR_COUNT };
 
 static int32_t physiEventWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SEventWinodwPhysiNode* pNode = (const SEventWinodwPhysiNode*)pObj;
@@ -3920,7 +3938,13 @@ static int32_t physiEventWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder
     code = tlvEncodeObj(pEncoder, PHY_EVENT_CODE_END_COND, nodeToMsg, pNode->pEndCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI64(pEncoder, PHY_EVENT_CODE_TRUE_FOR_LIMIT, pNode->trueForLimit);
+    code = tlvEncodeI32(pEncoder, PHY_EVENT_CODE_TRUE_FOR_TYPE, pNode->trueForType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_EVENT_CODE_TRUE_FOR_COUNT, pNode->trueForCount);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PHY_EVENT_CODE_TRUE_FOR_DURATION, pNode->trueForDuration);
   }
 
   return code;
@@ -3942,8 +3966,14 @@ static int32_t msgToPhysiEventWindowNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_EVENT_CODE_END_COND:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pEndCond);
         break;
-      case PHY_EVENT_CODE_TRUE_FOR_LIMIT:
-        code = tlvDecodeI64(pTlv, &pNode->trueForLimit);
+      case PHY_EVENT_CODE_TRUE_FOR_TYPE:
+        code = tlvDecodeI32(pTlv, (int32_t *)&pNode->trueForType);
+        break;
+      case PHY_EVENT_CODE_TRUE_FOR_COUNT:
+        code = tlvDecodeI32(pTlv, &pNode->trueForCount);
+        break;
+      case PHY_EVENT_CODE_TRUE_FOR_DURATION:
+        code = tlvDecodeI64(pTlv, &pNode->trueForDuration);
         break;
       default:
         break;

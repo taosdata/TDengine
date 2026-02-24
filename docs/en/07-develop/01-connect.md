@@ -84,7 +84,7 @@ If you are using Maven to manage your project, simply add the following dependen
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.8.0</version>
+  <version>3.8.1</version>
 </dependency>
 ```
 
@@ -115,7 +115,7 @@ If you are using Maven to manage your project, simply add the following dependen
     - Install a specific version
 
     ```shell
-    pip3 install taospy==2.8.6
+    pip3 install taospy==2.8.8
     ```
 
     - Install from GitHub
@@ -431,6 +431,7 @@ Supported parameters are as follows:
 - `db`: Database to connect to.
 - `timezone`: Time zone, default is the local time zone.
 - `connTimeout`: Connection timeout, default is 1 minute.
+- `bearerToken`: Token for connecting to TDengine TSDB.
 
 Additional parameters supported for WebSocket connections:
 

@@ -13,8 +13,11 @@ IF(NOT TD_WINDOWS)
 
     TARGET_LINK_LIBRARIES(
             tqTest
-            PUBLIC os util common vnode
+            PUBLIC os util common
     )
+    # Handle circular dependencies by listing libraries multiple times
+    # This works on all platforms (Linux, macOS, Windows)
+    target_link_libraries(tqTest PUBLIC vnode mgmt_mnode vnode mgmt_mnode)
 
     enable_testing()
 

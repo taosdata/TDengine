@@ -142,6 +142,8 @@ typedef struct SDatabaseOptions {
   SValueNode* ssKeepLocalStr;
   int8_t      ssCompact;
   int8_t      withArbitrator;
+  int8_t      isAudit;
+  int8_t      allowDrop;
   // for auto-compact
   int32_t     compactTimeOffset;  // hours
   int32_t     compactInterval;    // minutes
@@ -152,7 +154,6 @@ typedef struct SDatabaseOptions {
   SNodeList*  pCompactTimeRangeList;
   // for cache
   SDbCfgInfo* pDbCfg;
-  int8_t      isAudit;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -489,7 +490,7 @@ typedef struct SCreateUserStmt {
   char      password[TSDB_USER_PASSWORD_LONGLEN];
   char      totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
 
-  int8_t  ignoreExists;
+  int8_t ignoreExists;
   int8_t sysinfo;
   int8_t createDb;
   int8_t isImport;
@@ -515,6 +516,8 @@ typedef struct SCreateUserStmt {
 
   int32_t         numTimeRanges;
   SDateTimeRange* pTimeRanges;
+  // for privilege check
+  SUserOptions userOps;
 } SCreateUserStmt;
 
 typedef struct SCreateEncryptAlgrStmt {
@@ -681,12 +684,19 @@ typedef struct {
 
 typedef struct {
   ENodeType type;
-  char      url[TSDB_XNODE_URL_LEN + 3];
-  // Create xnode with new user.
-  char user[TSDB_USER_LEN + 3];
-  // Create xnode with new user password. `user` and `pass` should exist along with each other.
-  char pass[TSDB_USER_PASSWORD_LONGLEN + 3];
-} SCreateXnodeStmt;
+  // xTaskOptions opts;
+  // taosX Agent ID.
+  int32_t via;
+  int32_t triggerLen;
+  char    trigger[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
+  int32_t healthLen;
+  char    health[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
+  int32_t parserLen;
+  char*   parser;
+  int32_t optionsNum;
+  char*   options[TSDB_XNODE_TASK_OPTIONS_MAX_NUM];  // options in the form of "key=value", e.g., "group.id=task1",
+                                                     // "via=1", "parser=taosx"
+} SXnodeTaskOptions;
 
 typedef struct {
   ENodeType type;
@@ -702,24 +712,13 @@ typedef struct {
 
 typedef struct {
   ENodeType type;
-  int32_t   xnodeId;
-} SUpdateXnodeStmt;
-
-typedef struct {
-  ENodeType    type;
-  // xTaskOptions opts;
-  // taosX Agent ID.
-  int32_t via;
-  int32_t triggerLen;
-  char    trigger[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
-  int32_t healthLen;
-  char    health[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
-  int32_t parserLen;
-  char    parser[TSDB_XNODE_TASK_PARSER_LEN + 3];
-  int32_t optionsNum;
-  char*   options[TSDB_XNODE_TASK_OPTIONS_MAX_NUM];  // options in the form of "key=value", e.g., "group.id=task1",
-                                                     // "via=1", "parser=taosx"
-} SXnodeTaskOptions;
+  int32_t            id;
+  CowStr             url;
+  CowStr             token;
+  CowStr             user;
+  CowStr             pass;
+  SXnodeTaskOptions* options;
+} SAlterXnodeStmt;
 
 typedef struct {
   ENodeType   type;
@@ -734,6 +733,16 @@ typedef struct {
   ENodeType type;
   xTaskSink sink;
 } SXTaskSink;
+
+typedef struct {
+  ENodeType type;
+  char      url[TSDB_XNODE_URL_LEN + 3];
+  // Create xnode with new user.
+  char user[TSDB_USER_LEN + 3];
+  // Create xnode with new user password. `user` and `pass` should exist along with each other.
+  char pass[TSDB_USER_PASSWORD_LONGLEN + 3];
+  char token[TSDB_TOKEN_LEN + 3];
+} SCreateXnodeStmt;
 
 typedef struct {
   ENodeType          type;
@@ -760,24 +769,10 @@ typedef struct {
 
 typedef struct {
   ENodeType type;
-  int32_t   tid;      // Short for XNode task id.
-  int32_t   nameLen;  // length of name
+  int32_t   id;  // Short for XNode task id.
   char*     name;
   bool      force;  // DROP XNODE TASK FORCE 'name'
 } SDropXnodeTaskStmt;
-
-typedef struct {
-  ENodeType          type;
-  char               name[TSDB_TABLE_NAME_LEN + 3];
-  SXnodeTaskOptions* options;
-} SXnodeAgentCreateStmt;
-
-// typedef struct {
-//   ENodeType type;
-//   char      name[TSDB_TABLE_NAME_LEN + 3];
-//   bool      force;  // DROP XNODE TASK FORCE 'name'
-// } SXnodeTaskDropStmt;
-// typedef SXnodeTaskDropStmt SXnodeAgentDropStmt;
 
 typedef struct {
   ENodeType          type;
@@ -794,11 +789,27 @@ typedef struct {
   int32_t            jid;
   int32_t            tid;
   SXnodeTaskOptions* options;
+  SNode*             pWhere;
 } SDropXnodeJobStmt;
 typedef struct {
   ENodeType type;
   SNode*    pWhere;
 } SRebalanceXnodeJobWhereStmt;
+
+typedef struct {
+  ENodeType          type;
+  char               name[TSDB_XNODE_TASK_NAME_LEN + 3];
+  SXnodeTaskOptions* options;
+} SCreateXnodeAgentStmt;
+
+typedef struct {
+  ENodeType          type;
+  int32_t            id;
+  CowStr             name;
+  SXnodeTaskOptions* options;
+} SAlterXnodeAgentStmt;
+
+typedef SDropXnodeTaskStmt SDropXnodeAgentStmt;
 
 typedef struct SShowStmt {
   ENodeType     type;
@@ -807,6 +818,7 @@ typedef struct SShowStmt {
   EOperatorType tableCondType;
   EShowKind     showKind;  // show databases: user/system, show tables: normal/child, others NULL
   bool          withFull;  // for show users full;
+  SNode*        pWhere;    // WHERE clause
 } SShowStmt;
 
 typedef struct SShowCreateDatabaseStmt {
@@ -999,6 +1011,12 @@ typedef struct SAlterEncryptKeyStmt {
   int8_t    keyType;  // 0: SVR_KEY, 1: DB_KEY
   char      newKey[ENCRYPT_KEY_LEN + 1];
 } SAlterEncryptKeyStmt;
+
+typedef struct SAlterKeyExpirationStmt {
+  ENodeType type;
+  int32_t   days;
+  char      strategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1];
+} SAlterKeyExpirationStmt;
 
 typedef struct SDescribeStmt {
   ENodeType   type;

@@ -199,5 +199,5 @@ class Test4dnode1mnodeBasicReplica3Vgroups:
         self.run_TS_5968()
 
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

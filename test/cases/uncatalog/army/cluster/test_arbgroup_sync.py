@@ -78,6 +78,6 @@ class TestArbgroupSync:
             tdLog.exit("check assigned failed")
             return
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 

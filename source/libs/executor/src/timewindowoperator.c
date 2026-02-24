@@ -1057,25 +1057,30 @@ void doKeepStateWindowNullInfo(SWindowRowsSup* pRowSup, TSKEY nullRowTs) {
   pRowSup->prevTs = nullRowTs;
 }
 
-// process a closed state window
-// do aggregation on the tuples within the window
-// partial aggregation results are stored in the output buffer
+/**
+  @brief Process the closed state window and do aggregation on the tuples
+  within the window. Partial results are stored in the output buffer. If window
+  has no valid rows, return success.
+*/
 static int32_t processClosedStateWindow(SStateWindowOperatorInfo* pInfo,
-  SWindowRowsSup* pRowSup, SExecTaskInfo* pTaskInfo,
-  SExprSupp* pSup, int32_t numOfOutput) {
-  int32_t     code = 0;
-  int32_t     lino = 0;
-  SResultRow* pResult = NULL;
+                                        SWindowRowsSup* pRowSup,
+                                        SExecTaskInfo* pTaskInfo,
+                                        SExprSupp* pSup,
+                                        int32_t numOfOutput) {
   if (pRowSup->numOfRows == 0) {
-    // no valid rows within the window
+    // no valid rows in the window
     return TSDB_CODE_SUCCESS;
   }
+  int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     lino = 0;
+  SResultRow* pResult = NULL;
   code = setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &pRowSup->win,
     true, &pResult, pRowSup->groupId, pSup->pCtx, numOfOutput,
     pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
   QUERY_CHECK_CODE(code, lino, _return);
 
   updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pRowSup->win, 0);
+  pResult->nOrigRows += pRowSup->numOfRows;
   code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx,
     &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
     pRowSup->numOfRows, 0, numOfOutput);
@@ -1201,13 +1206,14 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
       null rows before valid state window, mark them as processed and drop them
     */
     *numPartialCalcRows = pBlock->info.rows;
+    resetNumNullRows(pRowSup);
     return;
   }
   if (pRowSup->numOfRows == 0 && 
       extendOption != STATE_WIN_EXTEND_OPTION_BACKWARD) {
     /*
       If no valid state window or we don't know the belonging of
-      these null rows, return and handle them with next block
+      null rows in the end of the block, handle them with next block
     */
     return;
   }
@@ -2034,7 +2040,9 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhy
   pInfo->pOperator = pOperator;
   pInfo->cleanGroupResInfo = false;
   pInfo->extendOption = pStateNode->extendOption;
-  pInfo->trueForLimit = pStateNode->trueForLimit;
+  pInfo->trueForInfo.trueForType = pStateNode->trueForType;
+  pInfo->trueForInfo.count = pStateNode->trueForCount;
+  pInfo->trueForInfo.duration = pStateNode->trueForDuration;
   pInfo->winSup.lastTs = INT64_MIN;
 
   setOperatorInfo(pOperator, "StateWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE, true, OP_NOT_OPENED, pInfo,

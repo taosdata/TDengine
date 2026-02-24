@@ -242,6 +242,8 @@ typedef enum ELogicConditionType {
 #define ENCRYPT_KEY_LEN     16
 #define ENCRYPT_KEY_LEN_MIN 8
 
+#define ENCRYPT_KEY_EXPIRE_STRATEGY_LEN 16
+
 #define TSDB_INT32_ID_LEN 11
 
 #define TSDB_NAME_DELIMITER_LEN 1
@@ -265,7 +267,6 @@ typedef enum ELogicConditionType {
 #define TSDB_NODE_NAME_LEN            64
 #define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_TOPIC_NAME_LEN           193                                // it is a null-terminated string
-#define TSDB_TOKEN_NAME_LEN           32                                 // it is a null-terminated string
 #define TSDB_TOKEN_LEN                64                                 // it is a null-terminated string
 #define TSDB_TOKEN_EXPIRY_LEEWAY      30                                 // in seconds
 #define TSDB_TOKEN_PROVIDER_LEN       64                                 // it is a null-terminated string
@@ -406,18 +407,21 @@ typedef enum ELogicConditionType {
 
 #define TSDB_XNODE_OPT_PROTO            1
 #define TSDB_XNODE_URL_LEN              256
-#define TSDB_XNODE_NAME_LEN             64
 #define TSDB_XNODE_STATUS_LEN           16
 #define TSDB_XNODE_TASK_NAME_LEN        64
-#define TSDB_XNODE_TASK_PARSER_LEN      4096
+#define TSDB_XNODE_TASK_PARSER_LEN      48*1024
 #define TSDB_XNODE_TASK_TRIGGER_LEN     128
 #define TSDB_XNODE_RESOURCE_ID_LEN      8
 #define TSDB_XNODE_RESOURCE_NAME_LEN    64
-#define TSDB_XNODE_TASK_SOURCE_LEN      1024
-#define TSDB_XNODE_TASK_SINK_LEN        1024
+#define TSDB_XNODE_TASK_SOURCE_LEN      4096
+#define TSDB_XNODE_TASK_SINK_LEN        2048
 #define TSDB_XNODE_TASK_REASON_LEN      1024
 #define TSDB_XNODE_TASK_OPTIONS_MAX_NUM 64
-#define TSDB_XNODE_TASK_JOB_CONFIG_LEN  4096
+#define TSDB_XNODE_TASK_JOB_CONFIG_LEN  48*1024
+#define TSDB_XNODE_TASK_LABELS_LEN      4096
+#define TSDB_XNODE_AGENT_NAME_LEN       TSDB_XNODE_TASK_NAME_LEN
+#define TSDB_XNODE_AGENT_STATUS_LEN     TSDB_XNODE_STATUS_LEN
+#define TSDB_XNODE_AGENT_TOKEN_LEN      512
 
 #define TSDB_MAX_EP_NUM 10
 
@@ -551,6 +555,9 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_DB_CACHE_SIZE          1  // MB
 #define TSDB_MAX_DB_CACHE_SIZE          65536
 #define TSDB_DEFAULT_CACHE_SIZE         1
+#define TSDB_DEFAULT_MECACHE_SIZE       (1024 * 128)
+#define TSDB_MIN_MECACHE_SIZE           (1024 * 4)
+#define TSDB_MAX_MECACHE_SIZE           (4ll * 1024 * 1024 * 1024)
 #define TSDB_DB_STREAM_MODE_OFF         0
 #define TSDB_DB_STREAM_MODE_ON          1
 #define TSDB_DEFAULT_DB_STREAM_MODE     0
@@ -603,6 +610,9 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_DB_WITH_ARBITRATOR     1
 #define TSDB_MIN_DB_IS_AUDIT            0
 #define TSDB_MAX_DB_IS_AUDIT            1
+#define TSDB_DEFAULT_DB_ALLOW_DROP      1
+#define TSDB_MIN_DB_ALLOW_DROP          0
+#define TSDB_MAX_DB_ALLOW_DROP          1
 
 #define TSDB_MIN_ROLLUP_MAX_DELAY       1  // unit millisecond
 #define TSDB_MAX_ROLLUP_MAX_DELAY       (15 * 60 * 1000)
@@ -641,10 +651,10 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MAX_BLOB_LEN (4 << 20)
 
-#define TSDB_MAX_SUBROLE 32
-#define TSDB_MAX_PRIVS   512
-#define TSDB_MAX_USERS   2000
-#define TSDB_MAX_ROLES   200
+#define TSDB_MAX_SUBROLE   32
+#define TSDB_MAX_PRIV_OBJS 512
+#define TSDB_MAX_USERS     2000
+#define TSDB_MAX_ROLES     200
 
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))

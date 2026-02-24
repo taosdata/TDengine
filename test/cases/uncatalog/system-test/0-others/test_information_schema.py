@@ -398,5 +398,5 @@ class TestInformationSchema:
         self.ins_grants_check()
         # self.ins_encryptions_check()
         self.run_query_ins_tags()
-        tdLog.success("%s successfully executed" % __file__)
+
 
