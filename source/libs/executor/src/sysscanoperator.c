@@ -80,17 +80,12 @@ typedef struct SSysTableScanInfo {
   // Table-level read privilege filtering
   bool       showAllTbls;  // true if user has full access (read+write on db)
   SSHashObj* pReadDbs;     // key is dbFName, db-level privilege
-  SSHashObj* pReadUids;    // key is int64_t uid, for fast uid/suid comparison
+  SSHashObj* pReadUids;    // key is table uid, for fast comparison
 
   // file set iterate
   struct SFileSetReader* pFileSetReader;
   SHashObj*              pExtSchema;
 } SSysTableScanInfo;
-
-
-static inline bool checkUidPrivilege(SSHashObj* pReadUids, int64_t uid) {
-  return (pReadUids && tSimpleHashGet(pReadUids, &uid, sizeof(int64_t))) ? true : false;
-}
 
 typedef struct {
   const char* name;
@@ -1961,6 +1956,10 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
   char n[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
+  // Check db-level privilege once before the loop since all tables in a vnode belong to the same db
+  bool hasDbPrivilege = pInfo->showAllTbls ||
+                        (pInfo->pReadDbs && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1));
+
   int32_t ret = 0;
   while ((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_SUPER_TABLE)) == 0) {
     STR_TO_VARSTR(n, pInfo->pCur->mr.me.name);
@@ -2013,16 +2012,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       }
 
       // Table-level read privilege filtering for child tables
-      if (!pInfo->showAllTbls) {
-        // Check db-level privilege first (db format: acctId.dbName)
-        if (pInfo->pReadDbs && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1)) {
-          // Has db-level privilege, allow all tables in this db
-        } else {
-          if (!pInfo->pReadUids ||
-              tSimpleHashGet(pInfo->pReadUids, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t)) == NULL) {
-            pAPI->metaReaderFn.clearReader(&mr);
-            continue;
-          }
+      if (!hasDbPrivilege) {
+        if (!pInfo->pReadUids ||
+            tSimpleHashGet(pInfo->pReadUids, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t)) == NULL) {
+          pAPI->metaReaderFn.clearReader(&mr);
+          continue;
         }
       }
 
@@ -2071,12 +2065,9 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(n, "CHILD_TABLE");
     } else if (tableType == TSDB_NORMAL_TABLE) {
-      if (!pInfo->showAllTbls) {
-        if (pInfo->pReadDbs && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1)) {
-        } else {
-          if (!pInfo->pReadUids || !tSimpleHashGet(pInfo->pReadUids, &pInfo->pCur->mr.me.uid, sizeof(int64_t))) {
-            continue;
-          }
+      if (!hasDbPrivilege) {
+        if (!pInfo->pReadUids || !tSimpleHashGet(pInfo->pReadUids, &pInfo->pCur->mr.me.uid, sizeof(int64_t))) {
+          continue;
         }
       }
 
@@ -2128,13 +2119,9 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(n, "NORMAL_TABLE");
     } else if (tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
-      if (!pInfo->showAllTbls) {
-        if (pInfo->pReadDbs && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1)) {
-        } else {
-          int64_t vntbUid = pInfo->pCur->mr.me.uid;
-          if (!pInfo->pReadUids || !tSimpleHashGet(pInfo->pReadUids, &vntbUid, sizeof(int64_t))) {
-            continue;
-          }
+      if (!hasDbPrivilege) {
+        if (!pInfo->pReadUids || !tSimpleHashGet(pInfo->pReadUids, &pInfo->pCur->mr.me.uid, sizeof(int64_t))) {
+          continue;
         }
       }
 
@@ -2200,14 +2187,11 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
         continue;
       }
 
-      if (!pInfo->showAllTbls) {
-        if (pInfo->pReadDbs && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1)) {
-        } else {
-          if (!pInfo->pReadUids ||
-              !tSimpleHashGet(pInfo->pReadUids, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t))) {
-            pAPI->metaReaderFn.clearReader(&mr);
-            continue;
-          }
+      if (!hasDbPrivilege) {
+        if (!pInfo->pReadUids ||
+            !tSimpleHashGet(pInfo->pReadUids, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t))) {
+          pAPI->metaReaderFn.clearReader(&mr);
+          continue;
         }
       }
 

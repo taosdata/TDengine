@@ -2213,6 +2213,35 @@ _return:
   CTG_RET(code);
 }
 
+static int32_t ctgCollectHashKeys(SHashObj** pSrcHashes, int32_t numSrc, SSHashObj** ppDst, const char* filterPrefix,
+                                  int32_t filterPrefixLen) {
+  for (int32_t i = 0; i < numSrc; ++i) {
+    if (NULL == pSrcHashes[i]) continue;
+    void* pIter = NULL;
+    while ((pIter = taosHashIterate(pSrcHashes[i], pIter))) {
+      size_t klen = 0;
+      char*  key = (char*)taosHashGetKey(pIter, &klen);
+      if (filterPrefix != NULL) {
+        if (klen <= filterPrefixLen || key[filterPrefixLen] != '.' ||
+            strncmp(key, filterPrefix, filterPrefixLen) != 0) {
+          continue;
+        }
+      }
+      if (NULL == *ppDst) {
+        *ppDst = tSimpleHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+        if (NULL == *ppDst) {
+          CTG_ERR_RET(terrno);
+        }
+      }
+      int32_t code = tSimpleHashPut(*ppDst, key, klen, NULL, 0);
+      if (TSDB_CODE_SUCCESS != code) {
+        CTG_ERR_RET(code);
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
   SUserAuthInfo*   pReq = req->pRawReq;
@@ -2310,43 +2339,12 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
       if (allDbs) {
         // Collect all db-level privileges into pReadDbs
         SHashObj* dbHashes[] = {pInfo->readDbs, pInfo->writeDbs};
-        for (int i = 0; i < 2; ++i) {
-          if (NULL == dbHashes[i]) continue;
-          void* pIter = NULL;
-          while ((pIter = taosHashIterate(dbHashes[i], pIter))) {
-            char* dbName = (char*)taosHashGetKey(pIter, NULL);
-            if (NULL == pRes->pReadDbs) {
-              pRes->pReadDbs = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
-              if (NULL == pRes->pReadDbs) {
-                CTG_ERR_RET(terrno);
-              }
-            }
-            int32_t code = tSimpleHashPut(pRes->pReadDbs, dbName, strlen(dbName) + 1, NULL, 0);
-            if (TSDB_CODE_SUCCESS != code) {
-              CTG_ERR_RET(code);
-            }
-          }
-        }
+        CTG_ERR_RET(ctgCollectHashKeys(dbHashes, tListLen(dbHashes), &pRes->pReadDbs, NULL, 0));
 
         // Collect all table-level privileges into pReadTbs
         SHashObj* tbHashes[] = {pInfo->readTbs, pInfo->writeTbs, pInfo->alterTbs};
-        for (int i = 0; i < 3; ++i) {
-          if (NULL == tbHashes[i]) continue;
-          void* pIter = NULL;
-          while ((pIter = taosHashIterate(tbHashes[i], pIter))) {
-            char* tbFName = (char*)taosHashGetKey(pIter, NULL);
-            if (NULL == pRes->pReadTbs) {
-              pRes->pReadTbs = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
-              if (NULL == pRes->pReadTbs) {
-                CTG_ERR_RET(terrno);
-              }
-            }
-            int32_t code = tSimpleHashPut(pRes->pReadTbs, tbFName, strlen(tbFName) + 1, NULL, 0);
-            if (TSDB_CODE_SUCCESS != code) {
-              CTG_ERR_RET(code);
-            }
-          }
-        }
+        CTG_ERR_RET(ctgCollectHashKeys(tbHashes, tListLen(tbHashes), &pRes->pReadTbs, NULL, 0));
+
         pRes->pass[AUTH_RES_BASIC] = true;
         return TSDB_CODE_SUCCESS;
       } else {
@@ -2359,28 +2357,10 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
           return TSDB_CODE_SUCCESS;
         }
 
-        // collect tables with privileges in this db
+        // collect tables with privileges in this db (filter by dbFName prefix)
         SHashObj* tbHashes[] = {pInfo->readTbs, pInfo->writeTbs, pInfo->alterTbs};
-        for (int i = 0; i < 3; ++i) {
-          if (NULL == tbHashes[i]) continue;
-          void* pIter = NULL;
-          while ((pIter = taosHashIterate(tbHashes[i], pIter))) {
-            char* tbFName = (char*)taosHashGetKey(pIter, NULL);
-            // Check if this table belongs to the target db (format: acctId.dbName.tbName)
-            if ((tbFName[dbFNameLen] == '.') && (strncmp(tbFName, dbFName, dbFNameLen) == 0)) {
-              if (NULL == pRes->pReadTbs) {
-                pRes->pReadTbs = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
-                if (NULL == pRes->pReadTbs) {
-                  CTG_ERR_RET(terrno);
-                }
-              }
-              int32_t code = tSimpleHashPut(pRes->pReadTbs, tbFName, strlen(tbFName) + 1, NULL, 0);
-              if (TSDB_CODE_SUCCESS != code) {
-                CTG_ERR_RET(code);
-              }
-            }
-          }
-        }
+        CTG_ERR_RET(ctgCollectHashKeys(tbHashes, tListLen(tbHashes), &pRes->pReadTbs, dbFName, dbFNameLen));
+
         if (pRes->pReadTbs && tSimpleHashGetSize(pRes->pReadTbs) > 0) {
           pRes->pass[AUTH_RES_BASIC] = true;
         }
