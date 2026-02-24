@@ -1557,19 +1557,20 @@ class TestPrivControl:
         consumer1 = self.subscribe_topic("root", "taosdata", "group1", topic_name, expected_rows=1)
         
         # Test: show consumers/subscriptions without privilege
-        self.login(user, pwd)
-        #BUG7
-        #self.query_expect_rows("show consumers;",     0)
+        self.login(user1, pwd)
+        self.query_expect_rows("show consumers;",     0)
         self.query_expect_rows("show subscriptions;", 0)
         # Grant SHOW CONSUMERS and SHOW SUBSCRIPTIONS privilege
         self.login()
-        self.grant_privilege("SHOW CONSUMERS",     f"TOPIC {db_name}.{topic_name}", user)
-        self.grant_privilege("SHOW SUBSCRIPTIONS", f"TOPIC {db_name}.{topic_name}", user)
-        # Test again        
+        self.grant_privilege("SHOW CONSUMERS",     f"TOPIC {db_name}.{topic_name}", user1)
+        self.grant_privilege("SHOW SUBSCRIPTIONS", f"TOPIC {db_name}.{topic_name}", user1)
+        # Test again
+        self.login(user1, pwd)
         self.query_expect_rows("show consumers;",     1) # one consumer
         #BUG8
         #self.query_expect_rows("show subscriptions;", 2) # two vgroups
         
+        self.login()
         consumer1.unsubscribe()
         
         # Test: user can drop topic with privilege
@@ -2071,8 +2072,9 @@ class TestPrivControl:
         self.do_create_function_privilege()
         self.do_create_index_privilege()
         self.do_create_tsma_privilege()
-        '''
         self.do_create_rsma_privilege()
+        '''
+        self.do_topic_privileges()
         return 
         
                 
