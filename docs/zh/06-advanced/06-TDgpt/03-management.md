@@ -119,7 +119,7 @@ timemoe_fc = 'http://127.0.0.1:6037/ds_predict'
 
 #### 提示
 
-上面的示例配置文件 `taosanode.config.py` 只包含了使用 Anode 提供服务的基础配置参数，对于其他配置参数的设置及其说明请参考 [Gunicorn官方文档](https://gunicorn.org/reference/settings/)。
+上面的配置文件 `taosanode.config.py` 只包含了基础配置参数，其他配置参数的设置及其说明请参考 [Gunicorn官方文档](https://gunicorn.org/reference/settings/)。
 
 Anode 运行配置主要是以下：
 
