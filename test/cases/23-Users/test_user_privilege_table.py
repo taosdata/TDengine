@@ -8,7 +8,7 @@ class TestUserPrivilegeTable:
         tdLog.debug(f"start to execute {__file__}")
 
     
-    def check_show_tables(self, dbName = 'test', stbNum = 0, tbNum = 0, sysTbNum = 42):
+    def check_show_tables(self, dbName = 'test', stbNum = 0, tbNum = 0, sysTbNum = 42, otherDbTbNum = 0):
         tdSql.query(f"show {dbName}.stables;")
         tdSql.checkRows(stbNum)
         tdSql.query(f"select * from information_schema.ins_stables where db_name='{dbName}';")
@@ -18,7 +18,7 @@ class TestUserPrivilegeTable:
         tdSql.query(f"select * from information_schema.ins_tables where db_name='{dbName}';")
         tdSql.checkRows(tbNum)
         tdSql.query(f"select * from information_schema.ins_tables")
-        tdSql.checkRows(tbNum + sysTbNum)
+        tdSql.checkRows(tbNum + sysTbNum + otherDbTbNum)
 
     def test_user_privilege_table(self):
         """Privilege:  table
@@ -419,6 +419,30 @@ class TestUserPrivilegeTable:
         tdSql.execute(
             f"insert into test.st2s1 values(now, 10) test.st2s2 values(now, 20);"
         )
+
+        tdLog.info(
+            f"=============== case 16: create new database and tables and check privileges"
+        )
+
+        tdSql.connect("root")
+        tdSql.execute(f"create database test2 vgroups 4;")
+        tdSql.execute(f"use test2;")
+        for i in range(0, 2):
+            tdSql.execute(f"create stable st{i}(ts timestamp, i int) tags(id int, loc varchar(20));")
+            for j in range(0, 2):
+                tdSql.execute(f"create table st{i}s{j} using st{i} tags({j}, 'loc{j}');")
+                tdSql.execute(f"insert into st{i}s{j} values(now, {i * j});")
+        for i in range(0, 2):
+            tdSql.execute(f"create table ntb{i}(ts timestamp, i int);")
+            tdSql.execute(f"insert into ntb{i} values(now, {i});")
+
+        tdSql.execute(f"grant read on test2.st1 to wxy;")
+
+        tdSql.connect("wxy")
+        tdSql.execute(f"reset query cache;")
+        self.check_show_tables("test", 2, 5, 42)
+        self.check_show_tables("test2", 1, 10, 42, 5)
+
 
 
 # system sh/exec.sh -n dnode1 -s stop -x SIGINT

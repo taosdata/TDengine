@@ -4613,9 +4613,9 @@ static int32_t addVgroupsFromTablePrivileges(STranslateContext* pCxt, SArray** p
         SArray* dbVgs = NULL;
         code = getDBVgInfoForPrivilege(pCxt, dbFName, &dbVgs);
         if (TSDB_CODE_SUCCESS == code && dbVgs != NULL) {
-          for (int32_t i = 0; i < taosArrayGetSize(dbVgs); ++i) {
-            SVgroupInfo* vgInfo = taosArrayGet(dbVgs, i);
-            if (!(*pVgs) && !(*pVgs = taosArrayInit(1, sizeof(SVgroupInfo)))) {
+          for (int32_t i = 0; i < TARRAY_SIZE(dbVgs); ++i) {
+            SVgroupInfo* vgInfo = TARRAY_GET_ELEM(dbVgs, i);
+            if (!(*pVgs) && !(*pVgs = taosArrayInit(TARRAY_SIZE(dbVgs), sizeof(SVgroupInfo)))) {
               code = terrno;
               break;
             }
@@ -4655,9 +4655,9 @@ static int32_t addVgroupsFromTablePrivileges(STranslateContext* pCxt, SArray** p
         SArray* dbVgs = NULL;
         code = getDBVgInfoForPrivilege(pCxt, dbFName, &dbVgs);
         if (TSDB_CODE_SUCCESS == code && dbVgs != NULL) {
-          for (int32_t i = 0; i < taosArrayGetSize(dbVgs); ++i) {
-            SVgroupInfo* vgInfo = taosArrayGet(dbVgs, i);
-            if (!(*pVgs) && !(*pVgs = taosArrayInit(1, sizeof(SVgroupInfo)))) {
+          for (int32_t i = 0; i < TARRAY_SIZE(dbVgs); ++i) {
+            SVgroupInfo* vgInfo = TARRAY_GET_ELEM(dbVgs, i);
+            if (!(*pVgs) && !(*pVgs = taosArrayInit(TARRAY_SIZE(dbVgs), sizeof(SVgroupInfo)))) {
               code = terrno;
               break;
             }

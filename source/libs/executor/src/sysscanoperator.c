@@ -61,7 +61,6 @@ typedef struct SSuidPrivCache {
 } SSuidPrivCache;
 
 #define SUID_CACHE_SLOTS      16
-#define SUID_CACHE_HASH(suid) (((uint64_t)(suid)) & (SUID_CACHE_SLOTS - 1))
 
 typedef struct SSysTableScanInfo {
   SRetrieveMetaTableRsp* pRsp;
