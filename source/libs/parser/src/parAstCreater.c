@@ -5776,6 +5776,12 @@ SNode* createXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
   CHECK_MAKE_NODE(pStmt);
   SCreateXnodeTaskStmt* pTaskStmt = (SCreateXnodeTaskStmt*)pStmt;
   if (pResourceName->type == TK_NK_STRING) {
+    if (pResourceName->n > TSDB_XNODE_TASK_NAME_LEN + 2) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                  "Xnode task name should be less than %d characters", TSDB_XNODE_TASK_NAME_LEN);
+      goto _err;
+    }
     COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
   } else if (pResourceName->type == TK_NK_ID) {
     COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
@@ -5824,6 +5830,12 @@ SNode* createXnodeAgentWithOptionsDirectly(SAstCreateContext* pCxt, const SToken
   }
 
   if (pResourceName->type == TK_NK_STRING && pResourceName->n > 2) {
+    if (pResourceName->n > TSDB_XNODE_AGENT_NAME_LEN + 2) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                  "Xnode agent name should be less than %d characters", TSDB_XNODE_AGENT_NAME_LEN);
+      goto _err;
+    }
     COPY_STRING_FORM_STR_TOKEN(pAgentStmt->name, pResourceName);
   } else {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -5845,10 +5857,18 @@ SNode* createXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType re
 
   switch (resourceType) {
     case XNODE_TASK: {
-      return createXnodeTaskWithOptionsDirectly(pCxt, pResourceName, pSource, pSink, pOptions);
+      SNode* rs = createXnodeTaskWithOptionsDirectly(pCxt, pResourceName, pSource, pSink, pOptions);
+      if (rs == NULL) {
+        goto _err;
+      }
+      return rs;
     }
     case XNODE_AGENT: {
-      return createXnodeAgentWithOptionsDirectly(pCxt, pResourceName, pOptions);
+      SNode* rs = createXnodeAgentWithOptionsDirectly(pCxt, pResourceName, pOptions);
+      if (rs == NULL) {
+        goto _err;
+      }
+      return rs;
     }
     default:
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,

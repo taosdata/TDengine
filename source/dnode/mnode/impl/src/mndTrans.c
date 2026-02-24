@@ -1772,6 +1772,13 @@ static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransActi
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
+  // TEST: delay stream persist to SDB so that first deploy runs before stream is in SDB -> "ignore deploy",
+  // then next deploy only comes from SDB loop after 5*MST_SHORT_ISOLATION_DURATION(10s)=50s -> reproduce 50s wait
+  // if (pAction->pRaw->type == SDB_STREAM) {
+  //   mInfo("trans:%d, delay 2s before writing stream to sdb for test repro 50s wait", pTrans->id);
+  //   taosMsleep(2000);
+  // }
+
   int32_t code = sdbWriteWithoutFree(pMnode->pSdb, pAction->pRaw);
   if (code == 0 || terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
     pAction->rawWritten = true;

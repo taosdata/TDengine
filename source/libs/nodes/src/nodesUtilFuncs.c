@@ -2594,6 +2594,16 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->options);
       break;
     }
+    case QUERY_NODE_START_XNODE_TASK_STMT: {
+      SStartXnodeTaskStmt* pStmt = (SStartXnodeTaskStmt*)pNode;
+      xFreeCowStr(&pStmt->name);
+      break;
+    }
+    case QUERY_NODE_STOP_XNODE_TASK_STMT: {
+      SStopXnodeTaskStmt* pStmt = (SStopXnodeTaskStmt*)pNode;
+      xFreeCowStr(&pStmt->name);
+      break;
+    }
     case QUERY_NODE_DROP_XNODE_TASK_STMT: {
       SDropXnodeTaskStmt* pStmt = (SDropXnodeTaskStmt*)pNode;
       taosMemFreeClear(pStmt->name);
