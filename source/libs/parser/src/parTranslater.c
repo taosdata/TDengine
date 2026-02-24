@@ -23604,9 +23604,6 @@ static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, const char* ta
   if (TSDB_CODE_SUCCESS == code) {
     code = parseTagValue(&pCxt->msgBuf, &tagStr, pTableMeta->tableInfo.precision, pSchema, &token, NULL,
                          pReq->pTagArray, &pTag, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
-    if (pSchema->type == TSDB_DATA_TYPE_JSON && token.type == TK_NULL && code == TSDB_CODE_SUCCESS) {
-      pReq->tagFree = true;
-    }
   }
   if (TSDB_CODE_SUCCESS == code && tagStr) {
     NEXT_VALID_TOKEN(tagStr, token);
@@ -23617,7 +23614,9 @@ static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, const char* ta
 
   if (TSDB_CODE_SUCCESS == code) {
     if (pSchema->type == TSDB_DATA_TYPE_JSON) {
-      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values ", token.z);
+      pReq->nTagVal = pTag->len;
+      pReq->pTagVal = (uint8_t*)pTag;
+      pReq->tagFree = true;
     } else {
       STagVal* pTagVal = taosArrayGet(pReq->pTagArray, 0);
       if (pTagVal) {
