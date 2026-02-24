@@ -11,6 +11,8 @@ TSDB_CODE_PAR_TB_CREATE_PERMISSION_DENIED = 0x26E4
 TSDB_CODE_PAR_STREAM_CREATE_PERMISSION_DENIED = 0x26E7
 #define TSDB_CODE_MND_NO_RIGHTS                       TAOS_DEF_ERROR_CODE(0, 0x0303)
 TSDB_CODE_MND_NO_RIGHTS = 0x0303
+#define TSDB_CODE_MND_ROLE_CONFLICTS            TAOS_DEF_ERROR_CODE(0, 0x04F6)
+TSDB_CODE_MND_ROLE_CONFLICTS = 0x04F6
 
 
 pwd = "abcd@1234"
@@ -1571,6 +1573,7 @@ class TestPrivControl:
         
         self.login()
         consumer1.unsubscribe()
+        self.revoke_privilege("SUBSCRIBE", f"TOPIC {db_name}.{topic_name}", consumer_user)
         
         # Test: user can drop topic with privilege
         self.drop_topic(topic_name2)
@@ -1695,6 +1698,7 @@ class TestPrivControl:
         # Cleanup
         self.login()
         self.drop_database(db_name)
+        self.drop_database(db_name2)
         self.drop_user(user)
         
         print("Stream Privileges .................... [ passed ] ")
@@ -1989,7 +1993,50 @@ class TestPrivControl:
         for user in users:
             self.drop_user(user)
         
-        print("Concurrent Privilege Operations ...... [ passed ] ")
+        print("Concurrent Privilege Operations ....... [ passed ] ")
+
+    def do_constraint(self):
+        # Test constraint 
+        tdLog.info("=== Testing Constraint Operations ===")
+        self.login()  # Login as root
+        db_name = "test_db"
+        user = "test_user"
+        self.create_user(user, pwd)        
+        self.create_database(db_name)
+        self.create_stable(db_name, "st")
+        self.create_child_table(db_name, "t1", "st")
+        self.create_child_table(db_name, "t2", "st")
+        self.insert_data(db_name, "t1")
+        self.insert_data(db_name, "t2")
+        
+        # Test1: Not allowed to grant both SYSDBA/SYSSEC/SYSAUDIT to the same user
+        self.grant_role("`SYSDBA`", user)
+        self.exec_sql_failed(f"GRANT ROLE `SYSSEC` TO {user}", TSDB_CODE_MND_ROLE_CONFLICTS)
+        self.exec_sql_failed(f"GRANT ROLE `SYSAUDIT` TO {user}", TSDB_CODE_MND_ROLE_CONFLICTS)
+        self.revoke_role("`SYSDBA`", user)
+        self.grant_role("`SYSSEC`", user)
+        self.exec_sql_failed(f"GRANT ROLE `SYSDBA` TO {user}", TSDB_CODE_MND_ROLE_CONFLICTS)
+        self.exec_sql_failed(f"GRANT ROLE `SYSAUDIT` TO {user}", TSDB_CODE_MND_ROLE_CONFLICTS)
+        self.revoke_role("`SYSSEC`", user)
+        self.grant_role("`SYSAUDIT`", user)
+        self.exec_sql_failed(f"GRANT ROLE `SYSDBA` TO {user}", TSDB_CODE_MND_ROLE_CONFLICTS)
+        self.exec_sql_failed(f"GRANT ROLE `SYSSEC` TO {user}", TSDB_CODE_MND_ROLE_CONFLICTS)
+        
+        # Test2: System allows multiple users to own the same system role
+        user2 = "test_user2"
+        user3 = "test_user3"
+        self.create_user(user2, pwd)
+        self.create_user(user3, pwd)
+        self.revoke_role("`SYSINFO_1`", user2)
+        self.grant_role("`SYSDBA`", user)
+        self.grant_role("`SYSDBA`", user2)  # Should be allowed
+        self.grant_role("`SYSDBA`", user3)  # Should be allowed
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        
+        print("Constraint ............................ [ passed ] ")
 
     #
     # --------------------------- main ----------------------------
@@ -2053,6 +2100,10 @@ class TestPrivControl:
         print("\n")
         print("========== Privilege Control Test Suite ==========")
         print("")
+        
+        # test
+        self.do_constraint()
+        return 
 
         # Database privilege tests
         print("[Database Privileges]")
@@ -2099,7 +2150,7 @@ class TestPrivControl:
         print("")
         print("[View, Topic and Stream Privileges]")
         self.do_view_privileges()
-        self.do_topic_privileges()    
+        self.do_topic_privileges() 
         self.do_stream_privileges()
 
         # Exception and reverse test cases
@@ -2113,3 +2164,4 @@ class TestPrivControl:
         self.do_privilege_boundary_conditions()
         self.do_owner_special_privileges()
         self.do_concurrent_privilege_operations()
+        self.do_constraint()
