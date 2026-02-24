@@ -20,7 +20,6 @@
 extern "C" {
 #endif
 
-#include "nodes.h"
 #include "os.h"
 #include "query.h"
 #include "taosdef.h"
@@ -31,6 +30,7 @@ extern "C" {
 #include "tname.h"
 #include "transport.h"
 #include "tsimplehash.h"
+#include "nodes.h"
 
 typedef struct SCatalog SCatalog;
 

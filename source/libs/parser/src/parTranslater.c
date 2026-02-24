@@ -4588,7 +4588,6 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
     ((SSelectStmt*)pCxt->pCurrStmt)->isEmptyResult = true;
   }
 
-  // For ins_tables query without WHERE db_name condition, add vgroups to enable querying user tables
   SParseContext* pParseCxt = pCxt->pParseCxt;
   if (TSDB_CODE_SUCCESS == code && isSelectStmt(pCxt->pCurrStmt)) {
     if (pParseCxt->isSuperUser || pParseCxt->isStmtBind) {
