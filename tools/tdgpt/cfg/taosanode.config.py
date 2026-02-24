@@ -36,6 +36,15 @@ loglevel = 'debug'
 # Set process name
 proc_name = 'tdgpt_taosanode_app'
 
+# set the pid file 
+pidfile = '/usr/local/taos/taosanode/taosanode.pid'
+
+# set the taosanoded basic python library directory
+pythonpath = '/usr/local/taos/taosanode/lib/taosanalytics/'
+
+# wsgi app name
+wsgi_app = 'app:app'
+
 # Preload application before forking worker processes. This can improve startup time and save memory
 preload_app = True
 
