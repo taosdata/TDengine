@@ -177,6 +177,7 @@ async fn get_connection(dsn: &Dsn) -> anyhow::Result<Object<Manager<TaosBuilder>
 
 #[actix_web::main]
 async fn main() -> anyhow::Result<()> {
+    dotenv::dotenv().ok();
     // info!(env!("CUS_NAME"));
 
     #[cfg(target_os = "windows")]

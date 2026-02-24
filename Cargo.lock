@@ -10237,6 +10237,7 @@ dependencies = [
  "csv",
  "csv-async",
  "deadpool",
+ "dotenv",
  "faststr",
  "flume",
  "futures",
