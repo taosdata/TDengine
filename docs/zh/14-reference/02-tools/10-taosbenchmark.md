@@ -158,7 +158,7 @@ taosBenchmark -f <json file>
 
 - **childtable_prefix**：子表名称的前缀，必选配置项，没有默认值。
 
-- **auto_create_table**：仅当 insert_mode 为 taosc、stmt 、stmt2 并且 child_table_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示先提前建好所有表再进行插入。
+- **auto_create_table**：仅当 insert_mode 为 taosc、stmt、stmt2 并且 child_table_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示先提前建好所有表再进行插入。
 
 - **batch_create_tbl_num**：创建子表时每批次的建表数量，默认为 10。注：实际的批数不一定与该值相同，当执行的 SQL 语句大于支持的最大长度时，会自动截断再执行，继续创建。
 
@@ -319,7 +319,7 @@ taosBenchmark -f <json file>
 
 - **mixed_query**：混合查询开关。
   “yes”: 开启“混合查询”。
-  “no” : 关闭“混合查询” ，即“普通查询”。
+  “no” : 关闭“混合查询”，即“普通查询”。
 
   - 普通查询：
 
@@ -331,7 +331,7 @@ taosBenchmark -f <json file>
   `sqls` 中所有 sql 分成 `threads` 个组，每个线程执行一组，每个 sql 都需执行 `query_times` 次查询
   `查询总次数` = `sqls` 个数 * `query_times`
 
-- **batch_query**：批查询功开关。
+- **batch_query**：批查询功能开关。
   取值范围“yes”表示开启，"no" 不开启，其它值报错。
   批查询是指 `sqls` 中所有 sql 分成 `threads` 个组，每个线程执行一组，每个 sql 只执行一次查询后退出，主线程等待所有线程都执行完，再判断是否设置有 `query_interval` 参数，如果有需要 sleep 指定时间，再启动各线程组重复前面的过程，直到查询次数耗尽为止。
   功能限制条件：

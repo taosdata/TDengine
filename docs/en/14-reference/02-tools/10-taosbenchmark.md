@@ -391,7 +391,7 @@ For other common parameters, see [General Configuration Parameters](#general-con
 
 Configuration parameters for querying specified tables (can specify supertables, subtables, or regular tables) are set in `specified_table_query`.
 
-- **mixed_query:** Query Mode . "yes" is `Mixed Query`, "no" is `General Query`, default is "no".
+- **mixed_query:** Query Mode. "yes" is `Mixed Query`, "no" is `General Query`, default is "no".
   `General Query`:
   Each SQL in `sqls` starts `threads` threads to query this SQL, Each thread exits after executing the `query_times` queries, and only after all threads executing this SQL have completed can the next SQL be executed.
   The total number of queries(`General Query`) = the number of `sqls` *`query_times`* `threads`
@@ -399,7 +399,7 @@ Configuration parameters for querying specified tables (can specify supertables,
   All SQL statements in `sqls` are divided into `threads` groups, with each thread executing one group. Each SQL statement needs to execute `query_times` queries.
   The total number of queries(`Mixed Query`) = the number of `sqls` * `query_times`.
 
-- **batch_query:** Batch query power switch.
+- **batch_query:** Batch query function switch.
 "yes": indicates that it is enabled.
 "no":  indicates that it is not enabled, and other values report errors.
 Batch query refers to dividing all SQL statements in SQL into `threads` groups, with each thread executing one group.
