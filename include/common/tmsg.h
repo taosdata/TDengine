@@ -3464,7 +3464,7 @@ typedef struct SExplainExecInfo {
   uint64_t numOfRows;
   uint32_t verboseLen;
   void*    verboseInfo;
-  
+
   /* the timestamp when the operator is created */
   TSKEY    execCreate;
   /* the first timestamp when the operator's next interface is called */

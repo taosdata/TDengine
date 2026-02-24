@@ -24,6 +24,14 @@ extern "C" {
 typedef struct SOperatorCostInfo {
   double openCost;
   double totalCost;
+  TSKEY  execCreate;
+  TSKEY  execStart;
+  TSKEY  execFirstRow;
+  TSKEY  execLastRow;
+  uint32_t execTimes;
+  TSKEY  execElapsed;
+  TSKEY  inputWaitElapsed;
+  TSKEY  outputWaitElapsed;
 } SOperatorCostInfo;
 
 struct SOperatorInfo;

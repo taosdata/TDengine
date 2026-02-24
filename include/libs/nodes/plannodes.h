@@ -951,7 +951,11 @@ typedef struct SSubplan {
   bool           dynTbname;
 } SSubplan;
 
-typedef enum EExplainMode { EXPLAIN_MODE_DISABLE = 1, EXPLAIN_MODE_STATIC, EXPLAIN_MODE_ANALYZE } EExplainMode;
+typedef enum EExplainMode {
+  EXPLAIN_MODE_DISABLE = 1,
+  EXPLAIN_MODE_STATIC,
+  EXPLAIN_MODE_ANALYZE
+} EExplainMode;
 
 typedef struct SExplainInfo {
   EExplainMode mode;

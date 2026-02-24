@@ -60,6 +60,14 @@ void setOperatorResetStateFn(SOperatorInfo* pOperator, __optr_reset_state_fn_t r
 int32_t optrDummyOpenFn(SOperatorInfo* pOperator) {
   OPTR_SET_OPENED(pOperator);
   pOperator->cost.openCost = 0;
+  pOperator->cost.execCreate = taosGetTimestampUs();
+  pOperator->cost.execStart = 0;
+  pOperator->cost.execFirstRow = 0;
+  pOperator->cost.execLastRow = 0;
+  pOperator->cost.execTimes = 0;
+  pOperator->cost.execElapsed = 0;
+  pOperator->cost.inputWaitElapsed = 0;
+  pOperator->cost.outputWaitElapsed = 0;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -744,14 +752,14 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
   pExplainInfo->verboseLen = 0;
   pExplainInfo->verboseInfo = NULL;
   pExplainInfo->vgId = operatorInfo->pTaskInfo->id.vgId;
-  pExplainInfo->execCreate = 0;
-  pExplainInfo->execStart = 0;
-  pExplainInfo->execFirstRow = 0;
-  pExplainInfo->execLastRow = 0;
-  pExplainInfo->execTimes = 0;
-  pExplainInfo->execElapsed = 0;
-  pExplainInfo->inputWaitElapsed = 0;
-  pExplainInfo->outputWaitElapsed = 0;
+  pExplainInfo->execCreate = operatorInfo->cost.execCreate;
+  pExplainInfo->execStart = operatorInfo->cost.execStart;
+  pExplainInfo->execFirstRow = operatorInfo->cost.execFirstRow;
+  pExplainInfo->execLastRow = operatorInfo->cost.execLastRow;
+  pExplainInfo->execTimes = operatorInfo->cost.execTimes;
+  pExplainInfo->execElapsed = operatorInfo->cost.execElapsed;
+  pExplainInfo->inputWaitElapsed = operatorInfo->cost.inputWaitElapsed;
+  pExplainInfo->outputWaitElapsed = operatorInfo->cost.outputWaitElapsed;
 
   if (operatorInfo->fpSet.getExplainFn) {
     int32_t code =

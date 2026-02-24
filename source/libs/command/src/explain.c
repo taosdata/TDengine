@@ -21,6 +21,7 @@
 #include "tdatablock.h"
 #include "systable.h"
 #include "functionMgt.h"
+#include "tmsg.h"
 
 char *gJoinTypeStr[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
            /* NONE                OUTER                  SEMI                  ANTI                   ASOF                   WINDOW */
@@ -286,25 +287,34 @@ _return:
 static int32_t qExplainBufAppendExecInfo(SArray *pExecInfo, char *tbuf, int32_t *len) {
   int32_t          tlen = *len;
   int32_t          nodeNum = taosArrayGetSize(pExecInfo);
+  SExplainExecInfo execInfo = {0};
   SExplainExecInfo maxExecInfo = {0};
 
   for (int32_t i = 0; i < nodeNum; ++i) {
-    SExplainExecInfo *execInfo = taosArrayGet(pExecInfo, i);
-    if (execInfo->startupCost > maxExecInfo.startupCost) {
-      maxExecInfo.startupCost = execInfo->startupCost;
-    }
-    if (execInfo->totalCost > maxExecInfo.totalCost) {
-      maxExecInfo.totalCost = execInfo->totalCost;
-    }
-    if (execInfo->numOfRows > maxExecInfo.numOfRows) {
-      maxExecInfo.numOfRows = execInfo->numOfRows;
-    }
+    SExplainExecInfo *pExec = taosArrayGet(pExecInfo, i);
+    execInfo.execFirstRow += pExec->execFirstRow;
+    execInfo.execLastRow += pExec->execLastRow;
+    execInfo.numOfRows += pExec->numOfRows;
+
+    maxExecInfo.execFirstRow = TMAX(maxExecInfo.execFirstRow, pExec->execFirstRow);
+    maxExecInfo.execLastRow = TMAX(maxExecInfo.execLastRow, pExec->execLastRow);
+    maxExecInfo.numOfRows = TMAX(maxExecInfo.numOfRows, pExec->numOfRows);
   }
 
-  EXPLAIN_ROW_APPEND(EXPLAIN_EXECINFO_FORMAT, maxExecInfo.startupCost, maxExecInfo.totalCost, maxExecInfo.numOfRows);
+  if (nodeNum == 1) {
+    EXPLAIN_ROW_APPEND(EXPLAIN_EXECINFO_FORMAT, execInfo.execFirstRow,
+                       execInfo.execLastRow, execInfo.numOfRows);
+  } else {
+    EXPLAIN_ROW_APPEND(EXPLAIN_EXECINFO_FORMAT_EXT, 
+                       (double)execInfo.execFirstRow / 1000.0 / nodeNum,
+                       (double)maxExecInfo.execFirstRow / 1000.0,
+                       (double)execInfo.execLastRow / 1000.0 / nodeNum,
+                       (double)maxExecInfo.execLastRow / 1000.0,
+                       execInfo.numOfRows / nodeNum,
+                       maxExecInfo.numOfRows);
+  }
 
   *len = tlen;
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -433,14 +443,83 @@ static bool qExplainCouldApplyTagIndex(SSubplan* pPlan) {
 }
 
 /**
- @brief Compare the total cost of two explain execution information by totalCost
- in ascending order.
+ @brief Compare the execution time of two explain execution information
+ by execElapsed in ascending order.
 */
 static int32_t compareExecInfo(const void* p1, const void* p2) {
   const SExplainExecInfo* p11 = (const SExplainExecInfo*)p1;
   const SExplainExecInfo* p22 = (const SExplainExecInfo*)p2;
 
-  return p11->totalCost < p22->totalCost ? 1 : -1;
+  return p11->execElapsed <= p22->execElapsed ? -1 : 1;
+}
+
+static int32_t qExplainExecAnalyze(SExplainResNode *pResNode, SExplainCtx *ctx,
+                                 int32_t level, int32_t* len) {
+  bool    isVerboseLine = true;
+  char    *tbuf = ctx->tbuf;
+  int32_t tlen = *len;
+  EXPLAIN_ROW_NEW(level + 1, EXPLAIN_EXEC_FORMAT);
+
+  int32_t nodeNum = (int32_t)taosArrayGetSize(pResNode->pExecInfo);
+  SExplainExecInfo execInfo = {0};
+  SExplainExecInfo maxExecInfo = {0};
+
+  for (int32_t i = 0; i < nodeNum; ++i) {
+    SExplainExecInfo *pExecInfo = taosArrayGet(pResNode->pExecInfo, i);
+    execInfo.execElapsed += pExecInfo->execElapsed;
+    execInfo.execCreate += pExecInfo->execCreate;
+    execInfo.execStart += pExecInfo->execStart;
+    execInfo.execTimes += pExecInfo->execTimes;
+    execInfo.inputWaitElapsed += pExecInfo->inputWaitElapsed;
+    execInfo.outputWaitElapsed += pExecInfo->outputWaitElapsed;
+
+    maxExecInfo.execElapsed = TMAX(maxExecInfo.execElapsed, pExecInfo->execElapsed);
+    maxExecInfo.execCreate = TMAX(maxExecInfo.execCreate, pExecInfo->execCreate);
+    maxExecInfo.execStart = TMAX(maxExecInfo.execStart, pExecInfo->execStart);
+    maxExecInfo.execTimes = TMAX(maxExecInfo.execTimes, pExecInfo->execTimes);
+    maxExecInfo.inputWaitElapsed = TMAX(maxExecInfo.inputWaitElapsed, pExecInfo->inputWaitElapsed);
+    maxExecInfo.outputWaitElapsed = TMAX(maxExecInfo.outputWaitElapsed, pExecInfo->outputWaitElapsed);
+  }
+
+  if (nodeNum == 1) {
+    EXPLAIN_ROW_APPEND(EXPLAIN_COMPUTE_FORMAT, execInfo.execElapsed / 1000.0);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_CREATE_FORMAT, execInfo.execCreate);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_START_FORMAT, execInfo.execStart );
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_TIMES_FORMAT, execInfo.execTimes);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_INPUT_WAIT_ELAPSED_FORMAT, execInfo.inputWaitElapsed / 1000.0);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_OUTPUT_WAIT_ELAPSED_FORMAT, execInfo.outputWaitElapsed / 1000.0);
+  } else {
+    EXPLAIN_ROW_APPEND(EXPLAIN_COMPUTE_FORMAT_EXT, 
+                       (double)execInfo.execElapsed / 1000.0 / nodeNum,
+                       maxExecInfo.execElapsed / 1000.0);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_CREATE_FORMAT_EXT, 
+                       (double)execInfo.execCreate / nodeNum, maxExecInfo.execCreate);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_START_FORMAT_EXT, 
+                       (double)execInfo.execStart / nodeNum, maxExecInfo.execStart);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_TIMES_FORMAT_EXT, 
+                       (double)execInfo.execTimes / nodeNum, maxExecInfo.execTimes);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_INPUT_WAIT_ELAPSED_FORMAT_EXT, 
+                       (double)execInfo.inputWaitElapsed / 1000.0 / nodeNum,
+                       maxExecInfo.inputWaitElapsed / 1000.0);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_OUTPUT_WAIT_ELAPSED_FORMAT_EXT, 
+                       (double)execInfo.outputWaitElapsed / 1000.0 / nodeNum,
+                       maxExecInfo.outputWaitElapsed / 1000.0);
+  }
+  EXPLAIN_ROW_END();
+  QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level+1));
+
+  *len = tlen;
+  return TSDB_CODE_SUCCESS;
 }
 
 /**
@@ -448,132 +527,145 @@ static int32_t compareExecInfo(const void* p1, const void* p2) {
   explain results.
 */
 static int32_t qExplainIOAnalyze(SExplainResNode *pResNode, SExplainCtx *ctx,
-                                 int32_t level) {
+                                 int32_t level, int32_t* len) {
   bool    isVerboseLine = false;
   char    *tbuf = ctx->tbuf;
-  int32_t tlen = 0;
-        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_IO_FORMAT);
+  int32_t tlen = *len;
+  EXPLAIN_ROW_NEW(level + 1, EXPLAIN_IO_FORMAT);
 
-        taosArraySort(pResNode->pExecInfo, compareExecInfo);
-        int32_t nodeNum = (int32_t)taosArrayGetSize(pResNode->pExecInfo);
-        STableScanAnalyzeInfo analyzeInfo = {0};
-        STableScanAnalyzeInfo maxAnalyzeInfo = {0};
+  taosArraySort(pResNode->pExecInfo, compareExecInfo);
+  int32_t nodeNum = (int32_t)taosArrayGetSize(pResNode->pExecInfo);
+  STableScanAnalyzeInfo analyzeInfo = {0};
+  STableScanAnalyzeInfo maxAnalyzeInfo = {0};
 
-        for (int32_t i = 0; i < nodeNum; ++i) {
-          SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, i);
-          const STableScanAnalyzeInfo *pScanInfo = (STableScanAnalyzeInfo *)execInfo->verboseInfo;
+  for (int32_t i = 0; i < nodeNum; ++i) {
+    SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, i);
+    const STableScanAnalyzeInfo *pScanInfo = (STableScanAnalyzeInfo *)execInfo->verboseInfo;
 
-          analyzeInfo.totalBlocks += pScanInfo->totalBlocks;
-          analyzeInfo.fileLoadBlocks += pScanInfo->fileLoadBlocks;
-          analyzeInfo.fileLoadElapsed += pScanInfo->fileLoadElapsed;
-          analyzeInfo.sttLoadBlocks += pScanInfo->sttLoadBlocks;
-          analyzeInfo.sttLoadElapsed += pScanInfo->sttLoadElapsed;
-          analyzeInfo.memLoadBlocks += pScanInfo->memLoadBlocks;
-          analyzeInfo.memLoadElapsed += pScanInfo->memLoadElapsed;
-          analyzeInfo.smaLoadBlocks += pScanInfo->smaLoadBlocks;
-          analyzeInfo.smaLoadElapsed += pScanInfo->smaLoadElapsed;
-          analyzeInfo.composedBlocks += pScanInfo->composedBlocks;
-          analyzeInfo.composedElapsed += pScanInfo->composedElapsed;
-          analyzeInfo.totalRows += pScanInfo->totalRows;
-          analyzeInfo.checkRows += pScanInfo->checkRows;
+    analyzeInfo.totalBlocks += pScanInfo->totalBlocks;
+    analyzeInfo.fileLoadBlocks += pScanInfo->fileLoadBlocks;
+    analyzeInfo.fileLoadElapsed += pScanInfo->fileLoadElapsed;
+    analyzeInfo.sttLoadBlocks += pScanInfo->sttLoadBlocks;
+    analyzeInfo.sttLoadElapsed += pScanInfo->sttLoadElapsed;
+    analyzeInfo.memLoadBlocks += pScanInfo->memLoadBlocks;
+    analyzeInfo.memLoadElapsed += pScanInfo->memLoadElapsed;
+    analyzeInfo.smaLoadBlocks += pScanInfo->smaLoadBlocks;
+    analyzeInfo.smaLoadElapsed += pScanInfo->smaLoadElapsed;
+    analyzeInfo.composedBlocks += pScanInfo->composedBlocks;
+    analyzeInfo.composedElapsed += pScanInfo->composedElapsed;
+    analyzeInfo.totalRows += pScanInfo->totalRows;
+    analyzeInfo.checkRows += pScanInfo->checkRows;
 
-          maxAnalyzeInfo.totalBlocks = TMAX(maxAnalyzeInfo.totalBlocks, pScanInfo->totalBlocks);
-          maxAnalyzeInfo.fileLoadBlocks = TMAX(maxAnalyzeInfo.fileLoadBlocks, pScanInfo->fileLoadBlocks);
-          maxAnalyzeInfo.fileLoadElapsed = TMAX(maxAnalyzeInfo.fileLoadElapsed, pScanInfo->fileLoadElapsed);
-          maxAnalyzeInfo.sttLoadBlocks = TMAX(maxAnalyzeInfo.sttLoadBlocks, pScanInfo->sttLoadBlocks);
-          maxAnalyzeInfo.sttLoadElapsed = TMAX(maxAnalyzeInfo.sttLoadElapsed, pScanInfo->sttLoadElapsed);
-          maxAnalyzeInfo.memLoadBlocks = TMAX(maxAnalyzeInfo.memLoadBlocks, pScanInfo->memLoadBlocks);
-          maxAnalyzeInfo.memLoadElapsed = TMAX(maxAnalyzeInfo.memLoadElapsed, pScanInfo->memLoadElapsed);
-          maxAnalyzeInfo.smaLoadBlocks = TMAX(maxAnalyzeInfo.smaLoadBlocks, pScanInfo->smaLoadBlocks);
-          maxAnalyzeInfo.smaLoadElapsed = TMAX(maxAnalyzeInfo.smaLoadElapsed, pScanInfo->smaLoadElapsed);
-          maxAnalyzeInfo.composedBlocks = TMAX(maxAnalyzeInfo.composedBlocks, pScanInfo->composedBlocks);
-          maxAnalyzeInfo.composedElapsed = TMAX(maxAnalyzeInfo.composedElapsed, pScanInfo->composedElapsed);
-          maxAnalyzeInfo.totalRows = TMAX(maxAnalyzeInfo.totalRows, pScanInfo->totalRows);
-          maxAnalyzeInfo.checkRows = TMAX(maxAnalyzeInfo.checkRows, pScanInfo->checkRows);
-        }
+    maxAnalyzeInfo.totalBlocks = TMAX(maxAnalyzeInfo.totalBlocks, pScanInfo->totalBlocks);
+    maxAnalyzeInfo.fileLoadBlocks = TMAX(maxAnalyzeInfo.fileLoadBlocks, pScanInfo->fileLoadBlocks);
+    maxAnalyzeInfo.fileLoadElapsed = TMAX(maxAnalyzeInfo.fileLoadElapsed, pScanInfo->fileLoadElapsed);
+    maxAnalyzeInfo.sttLoadBlocks = TMAX(maxAnalyzeInfo.sttLoadBlocks, pScanInfo->sttLoadBlocks);
+    maxAnalyzeInfo.sttLoadElapsed = TMAX(maxAnalyzeInfo.sttLoadElapsed, pScanInfo->sttLoadElapsed);
+    maxAnalyzeInfo.memLoadBlocks = TMAX(maxAnalyzeInfo.memLoadBlocks, pScanInfo->memLoadBlocks);
+    maxAnalyzeInfo.memLoadElapsed = TMAX(maxAnalyzeInfo.memLoadElapsed, pScanInfo->memLoadElapsed);
+    maxAnalyzeInfo.smaLoadBlocks = TMAX(maxAnalyzeInfo.smaLoadBlocks, pScanInfo->smaLoadBlocks);
+    maxAnalyzeInfo.smaLoadElapsed = TMAX(maxAnalyzeInfo.smaLoadElapsed, pScanInfo->smaLoadElapsed);
+    maxAnalyzeInfo.composedBlocks = TMAX(maxAnalyzeInfo.composedBlocks, pScanInfo->composedBlocks);
+    maxAnalyzeInfo.composedElapsed = TMAX(maxAnalyzeInfo.composedElapsed, pScanInfo->composedElapsed);
+    maxAnalyzeInfo.totalRows = TMAX(maxAnalyzeInfo.totalRows, pScanInfo->totalRows);
+    maxAnalyzeInfo.checkRows = TMAX(maxAnalyzeInfo.checkRows, pScanInfo->checkRows);
+  }
 
-        if (nodeNum == 1) {
-          EXPLAIN_ROW_APPEND(EXPLAIN_TOTAL_BLOCKS_FORMAT, analyzeInfo.totalBlocks);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_FILE_LOAD_BLOCKS_FORMAT, analyzeInfo.fileLoadBlocks);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_STT_LOAD_BLOCKS_FORMAT, analyzeInfo.sttLoadBlocks);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_MEM_LOAD_BLOCKS_FORMAT, analyzeInfo.memLoadBlocks);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_SMA_LOAD_BLOCKS_FORMAT, analyzeInfo.smaLoadBlocks);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_COMPOSED_BLOCKS_FORMAT, analyzeInfo.composedBlocks);
-          EXPLAIN_ROW_END();
-          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level+1));
+  if (nodeNum == 1) {
+    EXPLAIN_ROW_APPEND(EXPLAIN_TOTAL_BLOCKS_FORMAT, analyzeInfo.totalBlocks);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_FILE_LOAD_BLOCKS_FORMAT, analyzeInfo.fileLoadBlocks);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_STT_LOAD_BLOCKS_FORMAT, analyzeInfo.sttLoadBlocks);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_MEM_LOAD_BLOCKS_FORMAT, analyzeInfo.memLoadBlocks);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_SMA_LOAD_BLOCKS_FORMAT, analyzeInfo.smaLoadBlocks);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_COMPOSED_BLOCKS_FORMAT, analyzeInfo.composedBlocks);
+    EXPLAIN_ROW_END();
+    QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level+1));
 
-          EXPLAIN_ROW_NEW(level+2, EXPLAIN_FILE_LOAD_ELAPSED_FORMAT, analyzeInfo.fileLoadElapsed);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_STT_LOAD_ELAPSED_FORMAT, analyzeInfo.sttLoadElapsed);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_MEM_LOAD_ELAPSED_FORMAT, analyzeInfo.memLoadElapsed);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_SMA_LOAD_ELAPSED_FORMAT, analyzeInfo.smaLoadElapsed);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_COMPOSED_ELAPSED_FORMAT, analyzeInfo.composedElapsed);
-          EXPLAIN_ROW_END();
-          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level+2));
+    EXPLAIN_ROW_NEW(level+2, EXPLAIN_FILE_LOAD_ELAPSED_FORMAT, analyzeInfo.fileLoadElapsed);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_STT_LOAD_ELAPSED_FORMAT, analyzeInfo.sttLoadElapsed);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_MEM_LOAD_ELAPSED_FORMAT, analyzeInfo.memLoadElapsed);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_SMA_LOAD_ELAPSED_FORMAT, analyzeInfo.smaLoadElapsed);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_COMPOSED_ELAPSED_FORMAT, analyzeInfo.composedElapsed);
+    EXPLAIN_ROW_END();
+    QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level+2));
 
-          EXPLAIN_ROW_NEW(level+2, EXPLAIN_TOTAL_ROWS_FORMAT, analyzeInfo.totalRows);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_CHECK_ROWS_FORMAT, analyzeInfo.checkRows);
-        } else {
-          EXPLAIN_ROW_APPEND(EXPLAIN_TOTAL_BLOCKS_FORMAT_EXT, 
-                             (double)analyzeInfo.totalBlocks / nodeNum, maxAnalyzeInfo.totalBlocks);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_FILE_LOAD_BLOCKS_FORMAT_EXT, 
-                             (double)analyzeInfo.fileLoadBlocks / nodeNum, maxAnalyzeInfo.fileLoadBlocks);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_STT_LOAD_BLOCKS_FORMAT_EXT, 
-                             (double)analyzeInfo.sttLoadBlocks / nodeNum, maxAnalyzeInfo.sttLoadBlocks);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_MEM_LOAD_BLOCKS_FORMAT_EXT, 
-                             (double)analyzeInfo.memLoadBlocks / nodeNum, maxAnalyzeInfo.memLoadBlocks);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_SMA_LOAD_BLOCKS_FORMAT_EXT, 
-                             (double)analyzeInfo.smaLoadBlocks / nodeNum, maxAnalyzeInfo.smaLoadBlocks);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_COMPOSED_BLOCKS_FORMAT_EXT, 
-                             (double)analyzeInfo.composedBlocks / nodeNum, maxAnalyzeInfo.composedBlocks);
-          EXPLAIN_ROW_END();
-          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level+1));
+    EXPLAIN_ROW_NEW(level+2, EXPLAIN_TOTAL_ROWS_FORMAT, analyzeInfo.totalRows);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_CHECK_ROWS_FORMAT, analyzeInfo.checkRows);
+  } else {
+    EXPLAIN_ROW_APPEND(EXPLAIN_TOTAL_BLOCKS_FORMAT_EXT, 
+                       (double)analyzeInfo.totalBlocks / nodeNum, maxAnalyzeInfo.totalBlocks);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_FILE_LOAD_BLOCKS_FORMAT_EXT, 
+                       (double)analyzeInfo.fileLoadBlocks / nodeNum, maxAnalyzeInfo.fileLoadBlocks);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_STT_LOAD_BLOCKS_FORMAT_EXT, 
+                       (double)analyzeInfo.sttLoadBlocks / nodeNum, maxAnalyzeInfo.sttLoadBlocks);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_MEM_LOAD_BLOCKS_FORMAT_EXT, 
+                       (double)analyzeInfo.memLoadBlocks / nodeNum, maxAnalyzeInfo.memLoadBlocks);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_SMA_LOAD_BLOCKS_FORMAT_EXT, 
+                       (double)analyzeInfo.smaLoadBlocks / nodeNum, maxAnalyzeInfo.smaLoadBlocks);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_COMPOSED_BLOCKS_FORMAT_EXT, 
+                       (double)analyzeInfo.composedBlocks / nodeNum, maxAnalyzeInfo.composedBlocks);
+    EXPLAIN_ROW_END();
+    QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level+1));
 
-          EXPLAIN_ROW_NEW(level+2, EXPLAIN_FILE_LOAD_ELAPSED_FORMAT_EXT, 
-                          (double)analyzeInfo.fileLoadElapsed / nodeNum, maxAnalyzeInfo.fileLoadElapsed);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_STT_LOAD_ELAPSED_FORMAT_EXT, 
-                             (double)analyzeInfo.sttLoadElapsed / nodeNum, maxAnalyzeInfo.sttLoadElapsed);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_MEM_LOAD_ELAPSED_FORMAT_EXT, 
-                             (double)analyzeInfo.memLoadElapsed / nodeNum, maxAnalyzeInfo.memLoadElapsed);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_SMA_LOAD_ELAPSED_FORMAT_EXT, 
-                             (double)analyzeInfo.smaLoadElapsed / nodeNum, maxAnalyzeInfo.smaLoadElapsed);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_COMPOSED_ELAPSED_FORMAT_EXT, 
-                             (double)analyzeInfo.composedElapsed / nodeNum, maxAnalyzeInfo.composedElapsed);
-          EXPLAIN_ROW_END();
-          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level+2));
+    EXPLAIN_ROW_NEW(level+2, EXPLAIN_FILE_LOAD_ELAPSED_FORMAT_EXT, 
+                    (double)analyzeInfo.fileLoadElapsed / nodeNum, maxAnalyzeInfo.fileLoadElapsed);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_STT_LOAD_ELAPSED_FORMAT_EXT, 
+                       (double)analyzeInfo.sttLoadElapsed / nodeNum, maxAnalyzeInfo.sttLoadElapsed);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_MEM_LOAD_ELAPSED_FORMAT_EXT, 
+                       (double)analyzeInfo.memLoadElapsed / nodeNum, maxAnalyzeInfo.memLoadElapsed);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_SMA_LOAD_ELAPSED_FORMAT_EXT, 
+                       (double)analyzeInfo.smaLoadElapsed / nodeNum, maxAnalyzeInfo.smaLoadElapsed);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_COMPOSED_ELAPSED_FORMAT_EXT, 
+                       (double)analyzeInfo.composedElapsed / nodeNum, maxAnalyzeInfo.composedElapsed);
+    EXPLAIN_ROW_END();
+    QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level+2));
 
-          EXPLAIN_ROW_NEW(level+2, EXPLAIN_TOTAL_ROWS_FORMAT_EXT, 
-                             (double)analyzeInfo.totalRows / nodeNum, maxAnalyzeInfo.totalRows);
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_CHECK_ROWS_FORMAT_EXT,
-                           (double)analyzeInfo.checkRows / nodeNum, maxAnalyzeInfo.checkRows);
-          /* slowest query node */
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          SExplainExecInfo* slowestExecInfo = taosArrayGetLast(pResNode->pExecInfo);
-          if (slowestExecInfo) {
-            EXPLAIN_ROW_APPEND(EXPLAIN_SLOWEST_NODE_FORMAT, 0, 0, 0, 0);
-          }
-        }
-        EXPLAIN_ROW_END();
-        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level+2));
+    EXPLAIN_ROW_NEW(level+2, EXPLAIN_TOTAL_ROWS_FORMAT_EXT, 
+                       (double)analyzeInfo.totalRows / nodeNum, maxAnalyzeInfo.totalRows);
+    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+    EXPLAIN_ROW_APPEND(EXPLAIN_CHECK_ROWS_FORMAT_EXT,
+                     (double)analyzeInfo.checkRows / nodeNum, maxAnalyzeInfo.checkRows);
+
+    /* slowest query node information */
+    SExplainExecInfo* slowestExecInfo = taosArrayGetLast(pResNode->pExecInfo);
+    if (slowestExecInfo) {
+      EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      int32_t midIndex = (nodeNum - 1) / 2;
+      SExplainExecInfo* midExecInfo = taosArrayGet(pResNode->pExecInfo, midIndex);
+      SExplainExecInfo* fastestExecInfo = taosArrayGet(pResNode->pExecInfo, 0);
+      int32_t slowDeviation = midExecInfo->execElapsed > 0 ?
+        (slowestExecInfo->execElapsed - midExecInfo->execElapsed) * 100 / midExecInfo->execElapsed : 0;
+      int32_t dataDeviation = midExecInfo->numOfRows > 0 ?
+        (slowestExecInfo->numOfRows - midExecInfo->numOfRows) * 100 / midExecInfo->numOfRows : 0;
+      double costRatio = fastestExecInfo->execElapsed > 0 ?
+        (double)slowestExecInfo->execElapsed / (double)fastestExecInfo->execElapsed : 0;
+      EXPLAIN_ROW_APPEND(EXPLAIN_SLOWEST_NODE_FORMAT, slowestExecInfo->vgId,
+                         slowDeviation, costRatio, dataDeviation);
+    }
+  }
+  EXPLAIN_ROW_END();
+  QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level+2));
+
+  *len = tlen;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -730,11 +822,6 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       EXPLAIN_ROW_END();
       QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
 
-      if (EXPLAIN_MODE_ANALYZE == ctx->mode) {
-        /* table scan I/O analyze information */
-        QRY_ERR_RET(qExplainIOAnalyze(pResNode, ctx, level));
-      }
-
       if (verbose) {
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_OUTPUT_FORMAT);
         EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT,
@@ -781,6 +868,16 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
           EXPLAIN_ROW_END();
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
+
+        /* table scan Exec analyze information */
+        if (pResNode->pExecInfo) {
+          QRY_ERR_RET(qExplainExecAnalyze(pResNode, ctx, level, &tlen));
+        }
+      }
+
+      if (EXPLAIN_MODE_ANALYZE == ctx->mode && pResNode->pExecInfo) {
+        /* table scan I/O analyze information */
+        QRY_ERR_RET(qExplainIOAnalyze(pResNode, ctx, level, &tlen));
       }
       break;
     }

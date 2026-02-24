@@ -470,6 +470,9 @@ bool taosIsSpecialChar(char c);
 // at least 3 types of characters: upper, lower, digit, special
 bool taosIsComplexString(const char *str);
 
+#define QUERY_ENABLE_EXPLAIN(pTaskInfo) (pTaskInfo->enableExplain)
+#define QUERY_GET_ANALYZE_TIMESTAMP(pTaskInfo) (QUERY_ENABLE_EXPLAIN(pTaskInfo) ? taosGetTimestampUs() : 0)
+
 #ifdef __cplusplus
 }
 #endif
