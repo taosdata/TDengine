@@ -1748,7 +1748,7 @@ class TestPrivControl:
         
         # Grant different column privileges to user and role
         self.grant_privilege("USE", f"DATABASE {db_name}", user)
-        self.grant_privilege("USE", db_name, role)
+        self.grant_privilege("USE", f"DATABASE {db_name}", role)
         self.grant_privilege("SELECT(c1)", f"{db_name}.st1", user)  # User: only c1
         self.grant_privilege("SELECT(c2)", f"{db_name}.st1", role)  # Role: only c2
         self.grant_role(role, user)
@@ -1757,6 +1757,7 @@ class TestPrivControl:
         self.login(user, pwd)
         self.exec_sql(f"SELECT c1 FROM {db_name}.st1")
         # According to FS: user's explicit fine-grained rule > role's rule
+        self.exec_sql_failed(f"SELECT c2 FROM {db_name}.st1")
         
         # Cleanup
         self.login()
@@ -2066,33 +2067,32 @@ class TestPrivControl:
         self.do_system_roles()
         self.do_audit_database_privileges()
         
-        # Function and index privilege tests
+        # Function/index/tsrma/rsma privilege tests
         print("")
         print("[Function and Index Privileges]")
         self.do_create_function_privilege()
         self.do_create_index_privilege()
         self.do_create_tsma_privilege()
-        self.do_create_rsma_privilege()
-        '''
-        self.do_topic_privileges()
-        return 
-        
+        self.do_create_rsma_privilege()    
                 
         # View, topic and stream privilege tests (3.4.0.0+)
         print("")
         print("[View, Topic and Stream Privileges]")
         self.do_view_privileges()
-        self.do_topic_privileges()
+        self.do_topic_privileges()    
         self.do_stream_privileges()
-        
+
         # Exception and reverse test cases
         print("")
         print("[Exception and Reverse Test Cases]")
         self.do_privilege_inheritance()
         self.do_privilege_conflict_resolution()
+        '''
         self.do_wildcard_privilege()
+        return         
         self.do_privilege_revoke_cascading()
         self.do_invalid_privilege_operations()
         self.do_privilege_boundary_conditions()
         self.do_owner_special_privileges()
         self.do_concurrent_privilege_operations()
+        
