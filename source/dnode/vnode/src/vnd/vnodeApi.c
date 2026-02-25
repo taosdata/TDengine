@@ -46,7 +46,7 @@ void initTsdbReaderAPI(TsdReader* pReader) {
 
   pReader->tsdReaderRetrieveBlockSMAInfo = tsdbRetrieveDatablockSMA2;
 
-  pReader->tsdReaderNotifyClosing = tsdbReaderSetCloseFlag;
+  pReader->tsdReaderNotifyClosing = (void (*)(void*))tsdbReaderSetCloseFlag;
   pReader->tsdReaderResetStatus = tsdbReaderReset2;
 
   pReader->tsdReaderGetDataBlockDistInfo = tsdbGetFileBlocksDistInfo2;

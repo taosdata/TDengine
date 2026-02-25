@@ -88,6 +88,7 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
     code = terrno;
     goto _error;
   }
+  recordOpCreateTime(pOperator, pTaskInfo);
 
   pOperator->pTaskInfo = pTaskInfo;
   SDataBlockDescNode* pDescNode = pSortNode->node.pOutputDataBlockDesc;
@@ -439,7 +440,11 @@ int32_t doSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   QRY_PARAM_CHECK(pResBlock);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+
+  recordOpExecBegin(pOperator);
+
   if (pOperator->status == OP_EXEC_DONE) {
+    recordOpExecEnd(pOperator, false);
     return code;
   }
 
@@ -462,7 +467,7 @@ int32_t doSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     QUERY_CHECK_CODE(code, lino, _end);
     if (pBlock == NULL) {
       setOperatorCompleted(pOperator);
-      return code;
+      goto _end;
     }
 
     code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo, NULL);
@@ -491,6 +496,7 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
+  recordOpExecEnd(pOperator, *pResBlock != NULL && (*pResBlock)->info.rows > 0);
   return code;
 }
 
@@ -743,6 +749,7 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SGroupSortOperatorInfo* pInfo = pOperator->info;
   int32_t                 code = TSDB_CODE_SUCCESS;
   int32_t                 lino = 0;
+  recordOpExecBegin(pOperator);
 
   if (pOperator->status == OP_EXEC_DONE) {
     return code;
@@ -757,7 +764,7 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     pInfo->prefetchedSortInput = getNextBlockFromDownstream(pOperator, 0);
     if (pInfo->prefetchedSortInput == NULL) {
       setOperatorCompleted(pOperator);
-      return code;
+      goto _end;
     }
 
     pInfo->currGroupId = pInfo->prefetchedSortInput->info.id.groupId;
@@ -786,7 +793,7 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       pBlock->info.id.groupId = pInfo->currGroupId;
       pOperator->resultInfo.totalRows += pBlock->info.rows;
       *pResBlock = pBlock;
-      return code;
+      goto _end;
     } else {
       if (pInfo->childOpStatus == CHILD_OP_NEW_GROUP) {
         (void) finishSortGroup(pOperator);
@@ -796,7 +803,7 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       } else if (pInfo->childOpStatus == CHILD_OP_FINISHED) {
         (void) finishSortGroup(pOperator);
         setOperatorCompleted(pOperator);
-        return code;
+        goto _end;
       }
     }
   }
@@ -807,6 +814,7 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
+  recordOpExecEnd(pOperator, *pResBlock != NULL && (*pResBlock)->info.rows > 0);
   return code;
 }
 
@@ -866,6 +874,7 @@ int32_t createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNo
     code = terrno;
     goto _error;
   }
+  recordOpCreateTime(pOperator, pTaskInfo);
 
   SExprSupp*          pSup = &pOperator->exprSupp;
   SDataBlockDescNode* pDescNode = pSortPhyNode->node.pOutputDataBlockDesc;

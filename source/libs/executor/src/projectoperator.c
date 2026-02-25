@@ -125,6 +125,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   pOperator->pPhyNode = pProjPhyNode;
   pOperator->exprSupp.hasWindowOrGroup = false;
   pOperator->pTaskInfo = pTaskInfo;
+  recordOpCreateTime(pOperator, pTaskInfo);
 
   int32_t    lino = 0;
 
@@ -293,19 +294,15 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SSDataBlock*          pFinalRes = pProjectInfo->pFinalRes;
   int32_t               code = 0;
   int32_t               lino = 0;
-  int64_t               st = 0;
   int32_t               order = pInfo->inputTsOrder;
   int32_t               scanFlag = 0;
 
   blockDataCleanup(pFinalRes);
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  recordOpExecBegin(pOperator);
 
   if (pOperator->status == OP_EXEC_DONE) {
     return code;
-  }
-
-  if (pOperator->cost.openCost == 0) {
-    st = taosGetTimestampUs();
   }
 
   SOperatorInfo* downstream = pOperator->numOfDownstream > 0 ? pOperator->pDownstream[0] : NULL;
@@ -320,6 +317,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     }
 
     *pResBlock = (pRes->info.rows > 0)? pRes:NULL;
+    recordOpExecEnd(pOperator, *pResBlock != NULL && (*pResBlock)->info.rows > 0);
     return code;
   }
 
@@ -420,10 +418,6 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   pOperator->resultInfo.totalRows += p->info.rows;
   p->info.dataLoad = 1;
 
-  if (pOperator->cost.openCost == 0) {
-    pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-  }
-
   if (pProjectInfo->outputIgnoreGroup) {
     p->info.id.groupId = 0;
   }
@@ -440,6 +434,7 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
+  recordOpExecEnd(pOperator, *pResBlock != NULL && (*pResBlock)->info.rows > 0);
   return code;
 }
 
@@ -484,6 +479,7 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
 
   pOperator->pPhyNode = pNode;
   pOperator->pTaskInfo = pTaskInfo;
+  recordOpCreateTime(pOperator, pTaskInfo);
 
   SExprSupp* pSup = &pOperator->exprSupp;
   pSup->hasWindowOrGroup = false;
@@ -601,7 +597,6 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
   SIndefOperatorInfo* pIndefInfo = pOperator->info;
   SOptrBasicInfo*     pInfo = &pIndefInfo->binfo;
   SExprSupp*          pSup = &pOperator->exprSupp;
-  int64_t             st = 0;
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SSDataBlock*        pRes = pInfo->pRes;
@@ -609,12 +604,10 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
   blockDataCleanup(pRes);
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  recordOpExecBegin(pOperator);
+
   if (pOperator->status == OP_EXEC_DONE) {
     return code;
-  }
-
-  if (pOperator->cost.openCost == 0) {
-    st = taosGetTimestampUs();
   }
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
@@ -675,10 +668,6 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
   size_t rows = pInfo->pRes->info.rows;
   pOperator->resultInfo.totalRows += rows;
 
-  if (pOperator->cost.openCost == 0) {
-    pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-  }
-
   *pResBlock = (rows > 0) ? pInfo->pRes : NULL;
 
 _end:
@@ -687,6 +676,7 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
+  recordOpExecEnd(pOperator, *pResBlock != NULL && (*pResBlock)->info.rows > 0);
   return code;
 }
 

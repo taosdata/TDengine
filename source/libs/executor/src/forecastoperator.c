@@ -400,7 +400,7 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int64_t                st = taosGetTimestampUs();
   int32_t                numOfBlocks = pSupp->numOfBlocks;
   const char*            pId = GET_TASKID(pOperator->pTaskInfo);
-
+  recordOpExecBegin(pOperator);
   blockDataCleanup(pResBlock);
 
   while (1) {
@@ -441,6 +441,7 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (pResBlock->info.rows > 0) {
       (*ppRes) = pResBlock;
       qDebug("%s group:%" PRId64 ", return to upstream, blocks:%d", pId, pResBlock->info.id.groupId, numOfBlocks);
+      recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
       return code;
     }
   }
@@ -462,6 +463,7 @@ _end:
   }
 
   (*ppRes) = (pResBlock->info.rows == 0) ? NULL : pResBlock;
+  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
   return code;
 }
 
@@ -1123,7 +1125,7 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
     code = terrno;
     goto _error;
   }
-
+  recordOpCreateTime(pOperator, pTaskInfo);
   pOperator->pPhyNode = pPhyNode;
 
   const char*             pId = pTaskInfo->id.str;

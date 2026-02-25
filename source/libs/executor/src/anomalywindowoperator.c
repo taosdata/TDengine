@@ -155,6 +155,7 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
     code = terrno;
     goto _error;
   }
+  recordOpCreateTime(pOperator, pTaskInfo);
 
   pOperator->pPhyNode = physiNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
@@ -327,7 +328,7 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   int64_t                     st = taosGetTimestampUs();
   int32_t                     numOfBlocks = taosArrayGetSize(pSupp->blocks);
   const char*                 idstr = GET_TASKID(pTaskInfo);
-
+  recordOpExecBegin(pOperator);
   blockDataCleanup(pRes);
 
   while (1) {
@@ -361,6 +362,7 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
     if (pRes->info.rows > 0) {
       (*ppRes) = pRes;
       qDebug("group:%" PRId64 ", return to upstream, blocks:%d", pRes->info.id.groupId, numOfBlocks);
+      recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
       return code;
     }
   }
@@ -381,6 +383,7 @@ _end:
   }
 
   (*ppRes) = (pBInfo->pRes->info.rows == 0) ? NULL : pBInfo->pRes;
+  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
   return code;
 }
 

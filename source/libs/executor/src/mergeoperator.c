@@ -14,7 +14,6 @@
  */
 
 #include "executorInt.h"
-#include "filter.h"
 #include "operator.h"
 #include "querytask.h"
 #include "tdatablock.h"
@@ -530,6 +529,7 @@ int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   QRY_PARAM_CHECK(pResBlock);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  recordOpExecBegin(pOperator);
 
   if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
     return 0;
@@ -560,6 +560,7 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
+  recordOpExecEnd(pOperator, *pResBlock != NULL && (*pResBlock)->info.rows > 0);
   return code;
 }
 
@@ -643,6 +644,7 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
     code = terrno;
     goto _error;
   }
+  recordOpCreateTime(pOperator, pTaskInfo);
 
   pOperator->pPhyNode = pPhyNode;
   pInfo->groupMerge = pMergePhyNode->groupSort;

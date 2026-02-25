@@ -315,7 +315,7 @@ static int32_t qExplainBufAppendExecInfo(SArray *pExecInfo, char *tbuf,
                        EXPLAIN_CONVERT_TS_US_TO_MS(maxExecInfo.execFirstRow),
                        EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execLastRow) / nodeNum,
                        EXPLAIN_CONVERT_TS_US_TO_MS(maxExecInfo.execLastRow),
-                       execInfo.numOfRows / nodeNum,
+                       (double)execInfo.numOfRows / nodeNum,
                        maxExecInfo.numOfRows);
   }
 
@@ -463,6 +463,8 @@ static int32_t qExplainExecAnalyze(const SExplainResNode *pResNode,
   bool    isVerboseLine = true;
   char   *tbuf = ctx->tbuf;
   int32_t tlen = 0;
+  char    createAvgTs[32] = {0}; // 32 is enough for formatted ts: "%Y-%m-%d %H:%M:%S.ffffff"
+  char    createMaxTs[32] = {0};
   EXPLAIN_ROW_NEW(level + 1, EXPLAIN_EXEC_FORMAT);
 
   int32_t nodeNum = (int32_t)taosArrayGetSize(pResNode->pExecInfo);
@@ -489,9 +491,17 @@ static int32_t qExplainExecAnalyze(const SExplainResNode *pResNode,
   }
 
   if (nodeNum == 1) {
+    if (formatTimestampLocal(createAvgTs, execInfo.execCreate,
+                             TSDB_TIME_PRECISION_MICRO) == NULL) {
+      /*
+        If formatTimestampLocal fails, set the first char to '\0' to ensure
+        createAvgTs is an empty string to avoid using uninitialized data.
+      */
+      createAvgTs[0] = '\0';
+    }
     EXPLAIN_ROW_APPEND(EXPLAIN_COMPUTE_FORMAT, EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execElapsed));
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-    EXPLAIN_ROW_APPEND(EXPLAIN_CREATE_FORMAT, EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execCreate));
+    EXPLAIN_ROW_APPEND(EXPLAIN_CREATE_TIME_FORMAT, createAvgTs);
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
     EXPLAIN_ROW_APPEND(EXPLAIN_START_FORMAT, EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execStart));
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
@@ -503,13 +513,21 @@ static int32_t qExplainExecAnalyze(const SExplainResNode *pResNode,
     EXPLAIN_ROW_APPEND(EXPLAIN_OUTPUT_WAIT_ELAPSED_FORMAT,
                        EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.outputWaitElapsed));
   } else if (nodeNum > 1) {
+    int64_t createAvgUs = execInfo.execCreate / nodeNum;
+    int64_t createMaxUs = maxExecInfo.execCreate;
+    if (formatTimestampLocal(createAvgTs, createAvgUs,
+                             TSDB_TIME_PRECISION_MICRO) == NULL) {
+      createAvgTs[0] = '\0';
+    }
+    if (formatTimestampLocal(createMaxTs, createMaxUs,
+                             TSDB_TIME_PRECISION_MICRO) == NULL) {
+      createMaxTs[0] = '\0';
+    }
     EXPLAIN_ROW_APPEND(EXPLAIN_COMPUTE_FORMAT_EXT,
                        EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execElapsed) / nodeNum,
                        EXPLAIN_CONVERT_TS_US_TO_MS(maxExecInfo.execElapsed));
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-    EXPLAIN_ROW_APPEND(EXPLAIN_CREATE_FORMAT_EXT,
-                       EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execCreate) / nodeNum,
-                       EXPLAIN_CONVERT_TS_US_TO_MS(maxExecInfo.execCreate));
+    EXPLAIN_ROW_APPEND(EXPLAIN_CREATE_TIME_FORMAT_EXT, createAvgTs, createMaxTs);
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
     EXPLAIN_ROW_APPEND(EXPLAIN_START_FORMAT_EXT,
                        EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execStart) / nodeNum,

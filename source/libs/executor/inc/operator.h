@@ -16,6 +16,7 @@
 #ifndef TDENGINE_OPERATOR_H
 #define TDENGINE_OPERATOR_H
 
+#include "tcommon.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -33,6 +34,8 @@ typedef struct SOperatorCostInfo {
   TSKEY  inputWaitElapsed;
   TSKEY  outputWaitElapsed;
   uint64_t inputRows;
+  TSKEY  startTs;   // helper variable to record the start time of the operator
+  TSKEY  endTs;     // helper variable to record the end time of the operator
 } SOperatorCostInfo;
 
 struct SOperatorInfo;
@@ -217,6 +220,13 @@ int32_t resetAggSup(SExprSupp* pExprSupp, SAggSupporter* pSup, SExecTaskInfo* pT
 int32_t resetExprSupp(SExprSupp* pExprSupp, SExecTaskInfo* pTaskInfo, SNodeList* pNodeList,
                       SNodeList* pGroupKeys, SFunctionStateStore* pStore);
 int32_t copyColumnsValue(SNodeList* pNodeList, int64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc, int32_t totalRows);
+
+void recordOpCreateTime(SOperatorInfo* pOperator, SExecTaskInfo* pTaskInfo);
+void recordOpExecBegin(SOperatorInfo* pOperator);
+void recordOpExecBeforeDownstream(SOperatorInfo* pOperator);
+void recordOpExecAfterDownstream(SOperatorInfo* pOperator, size_t inputRows);
+void recordOpExecEnd(SOperatorInfo* pOperator, bool hasData);
+
 #ifdef __cplusplus
 }
 #endif

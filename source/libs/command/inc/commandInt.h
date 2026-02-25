@@ -109,7 +109,7 @@ extern "C" {
 #define EXPLAIN_INTERVAL_VALUE_FORMAT "interval=%" PRId64 "%c"
 #define EXPLAIN_FUNCTIONS_FORMAT "functions=%d"
 #define EXPLAIN_EXECINFO_FORMAT "cost=%.3f..%.3f rows=%" PRIu64
-#define EXPLAIN_EXECINFO_FORMAT_EXT "cost=%.3f(%.3f)..%.3f(%.3f) rows=%" PRIu64 "(%" PRIu64 ")"
+#define EXPLAIN_EXECINFO_FORMAT_EXT "cost=%.3f(%.3f)..%.3f(%.3f) rows=%.1f(%" PRIu64 ")"
 #define EXPLAIN_MODE_FORMAT "mode=%s"
 #define EXPLAIN_STRING_TYPE_FORMAT "%s"
 #define EXPLAIN_INPUT_ORDER_FORMAT "input_order=%s"
@@ -167,6 +167,8 @@ extern "C" {
 #define EXPLAIN_COMPUTE_FORMAT_EXT "compute=%.3f(%.3f)"
 #define EXPLAIN_CREATE_FORMAT "create=%.3f"
 #define EXPLAIN_CREATE_FORMAT_EXT "create=%.3f(%.3f)"
+#define EXPLAIN_CREATE_TIME_FORMAT "create=%s"
+#define EXPLAIN_CREATE_TIME_FORMAT_EXT "create=%s(%s)"
 #define EXPLAIN_START_FORMAT "start=%.3f"
 #define EXPLAIN_START_FORMAT_EXT "start=%.3f(%.3f)"
 #define EXPLAIN_TIMES_FORMAT "times=%" PRId64

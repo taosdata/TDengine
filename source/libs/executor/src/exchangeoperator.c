@@ -149,7 +149,10 @@ static void streamSequenciallyLoadRemoteData(SOperatorInfo* pOperator,
     }
 
     while (true) {
+      recordOpExecBeforeDownstream(pOperator);
       code = exchangeWait(pOperator, pExchangeInfo);
+      recordOpExecAfterDownstream(pOperator, 0);
+
       if (code != TSDB_CODE_SUCCESS || isTaskKilled(pTaskInfo)) {
         T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
       }
@@ -261,7 +264,9 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
 
   while (1) {
     qDebug("prepare wait for ready, %p, %s", pExchangeInfo, GET_TASKID(pTaskInfo));
+    recordOpExecBeforeDownstream(pOperator);
     code = exchangeWait(pOperator, pExchangeInfo);
+    recordOpExecAfterDownstream(pOperator, 0);
 
     if (code != TSDB_CODE_SUCCESS || isTaskKilled(pTaskInfo)) {
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
@@ -445,6 +450,7 @@ static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   int32_t        lino = 0;
   SExchangeInfo* pExchangeInfo = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  recordOpExecBegin(pOperator);
 
   qDebug("%s start to load from exchange %p", pTaskInfo->id.str, pExchangeInfo);
 
@@ -460,6 +466,7 @@ static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     SSDataBlock* pBlock = doLoadRemoteDataImpl(pOperator);
     if (pBlock == NULL) {
       (*ppRes) = NULL;
+      recordOpExecEnd(pOperator, false);
       return code;
     }
 
@@ -481,15 +488,18 @@ static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
         if (pBlock->info.rows == 0) {
           setOperatorCompleted(pOperator);
           (*ppRes) = NULL;
+          recordOpExecEnd(pOperator, false);
           return code;
         } else {
           (*ppRes) = pBlock;
+          recordOpExecEnd(pOperator, true);
           return code;
         }
       }
     } else {
       (*ppRes) = pBlock;
       qDebug("block with rows %" PRId64 " returned in exechange", pBlock->info.rows);
+      recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
       return code;
     }
   }
@@ -661,6 +671,7 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
     code = terrno;
     goto _error;
   }
+  recordOpCreateTime(pOperator, pTaskInfo);
 
   pInfo->isExchange = true;
   pOperator->pPhyNode = pExNode;
@@ -1799,7 +1810,10 @@ int32_t seqLoadRemoteData(SOperatorInfo* pOperator) {
     }
 
     while (true) {
+      recordOpExecBeforeDownstream(pOperator);
       code = exchangeWait(pOperator, pExchangeInfo);
+      recordOpExecAfterDownstream(pOperator, 0);
+
       if (code != TSDB_CODE_SUCCESS || isTaskKilled(pTaskInfo)) {
         T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
       }
