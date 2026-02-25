@@ -2573,7 +2573,16 @@ static int32_t vtbRefGetTableSchemaLocal(const SSysTableScanInfo* pInfo, SStorag
     return code;
   }
 
-  *ppEntry = pEntry;
+  if (code == TSDB_CODE_DUP_KEY) {
+    // Another thread inserted first - free our new entry completely
+    vtbRefFreeTableCacheEntry(pEntry);
+  } else {
+    // Success - free original struct only, schema cache owned by hash table copy
+    taosMemoryFree(pEntry);
+  }
+
+  // Return pointer to hash table's entry (not the freed original)
+  *ppEntry = (SVtbRefTableCacheEntry*)taosHashGet(pTableCache, refTableName, strlen(refTableName));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2713,8 +2722,10 @@ static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_
       if (pNewEntry->pSchemaCache != NULL) {
         pNewEntry->errCode = TSDB_CODE_SUCCESS;
         int32_t putCode = vtbRefPutRemoteCacheEntry(pTableCache, refDbName, refTableName, pNewEntry);
-        if (putCode != TSDB_CODE_SUCCESS) {
-          vtbRefFreeTableCacheEntry(pNewEntry);
+        if (putCode == TSDB_CODE_SUCCESS) {
+          taosMemoryFree(pNewEntry);  // Free struct only, schema cache owned by hash table
+        } else {
+          vtbRefFreeTableCacheEntry(pNewEntry);  // Free both on failure
         }
       } else {
         taosMemoryFree(pNewEntry);
@@ -2811,8 +2822,8 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
 _end : {
   void* pIter = taosHashIterate(pTableCache, NULL);
   while (pIter) {
-    SVtbRefTableCacheEntry* pEntry = *(SVtbRefTableCacheEntry**)pIter;
-    vtbRefFreeTableCacheEntry(pEntry);
+    SVtbRefTableCacheEntry* pEntry = (SVtbRefTableCacheEntry*)pIter;
+    vtbRefFreeSchemaCache(pEntry->pSchemaCache);
     pIter = taosHashIterate(pTableCache, pIter);
   }
   taosHashCleanup(pTableCache);

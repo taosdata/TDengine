@@ -23527,7 +23527,13 @@ static int32_t checkTagRef(STranslateContext* pCxt, char* tagName, char* pRefDbN
     }
   }
 
-  if (pRefTag->type != type.type || pRefTag->bytes != type.bytes) {
+  if (pRefTag->type != type.type) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
+                                         "virtual table's tag:\"%s\"'s type and reference tag:\"%s\"'s type not match",
+                                         tagName, pRefColName));
+  }
+
+  if (!IS_VAR_DATA_TYPE(pRefTag->type) && pRefTag->bytes != type.bytes) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
                                          "virtual table's tag:\"%s\"'s type and reference tag:\"%s\"'s type not match",
                                          tagName, pRefColName));
