@@ -781,7 +781,11 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
   tDecoderInit(&decoder, data, len);
   
   STREAM_CHECK_RET_GOTO(tDecodeSVAlterTbReq(&decoder, &req));
-  // TODO:
+
+
+  // TODO: localvar, need handle TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL & TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL
+
+
   STREAM_CHECK_CONDITION_GOTO(req.action != TSDB_ALTER_TABLE_UPDATE_TAG_VAL && req.action != TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL && 
     req.action != TSDB_ALTER_TABLE_ALTER_COLUMN_REF && req.action != TSDB_ALTER_TABLE_REMOVE_COLUMN_REF, TDB_CODE_SUCCESS);
 
@@ -848,6 +852,7 @@ end:
   taosArrayDestroy(uidListDel);
   taosArrayDestroy(tableList);
   taosArrayDestroy(req.pMultiTag);
+  taosArrayDestroyEx(req.tables, tfreeUpdateTableTagVal);
   tDecoderClear(&decoder);
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   return code;
