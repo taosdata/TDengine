@@ -19,17 +19,21 @@ docker-compose down
 ## Configuration
 
 ### Cron Job Schedule
+
 - **10:10** - Run test report
 - **10:12** - Run test report with cleanup
 - **10:50** - Execute cleanup
 
 ### Image Selection
+
 Using `python:3-slim` image, advantages:
+
 - Based on Debian, good compatibility
 - Small size (approximately 45MB compressed)
 - Includes complete Python standard library
 
 ### Log Management
+
 Log files are stored in the host's `./cron_logs` directory for easy viewing and debugging.
 
 ## Manual Testing
