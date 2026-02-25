@@ -1,6 +1,12 @@
 import { expect, type Locator, type Page } from 'playwright/test';
 import { routes } from './routes';
 
+async function clickConfirmIfAny(page: Page) {
+  const confirm = page.locator('.el-message-box__btns .el-button--primary');
+  if (await confirm.isVisible().catch(() => false)) {
+    await confirm.click();
+  }
+}
 export async function gotoDataInTask(page: Page) {
   await page.goto(routes.dataInTask, { waitUntil: 'networkidle' });
   await expect(page.locator('.tasks-table')).toBeVisible({ timeout: 15000 });
@@ -47,24 +53,68 @@ export async function findTaskRow(page: Page, taskName: string): Promise<Locator
 export async function openRowOperations(page: Page, row: Locator) {
   await row.scrollIntoViewIfNeeded();
 
+  // Close any previously opened dropdown to avoid interacting with a stale menu.
+  await page.keyboard.press('Escape').catch(() => {});
+
   // The operations button is only shown when the table row's `hover` flag is set,
   // which is driven by Element Plus `cell-mouse-enter` events.
   const hoverTarget = row.locator('.name-cell').first();
   if (await hoverTarget.count()) {
-    await hoverTarget.hover();
+    await hoverTarget.hover({ force: true });
   } else {
-    await row.locator('td').nth(1).hover();
+    await row.hover({ force: true });
   }
 
-  const operationsCell = row.locator('td').last();
-  await operationsCell.scrollIntoViewIfNeeded();
+  const menu = page.locator('.el-dropdown-menu:visible');
 
-  const btn = operationsCell.locator('button').first();
-  await expect(btn).toBeVisible({ timeout: 5_000 });
+  const openFrom = async (rowForOps: Locator) => {
+    const dropdown = rowForOps.locator('.el-dropdown').first();
 
-  // el-dropdown is configured with trigger="hover" in non-IDMP mode.
-  await btn.hover();
-  await expect(page.locator('.el-dropdown-menu:visible')).toBeVisible({ timeout: 5_000 });
+    const idmpTrigger = dropdown.locator('span.cursor-pointer').first();
+    const buttonTrigger = dropdown.locator('button').first();
+
+    // In non-IDMP mode dropdown trigger is hover; in IDMP it's click.
+    if (await buttonTrigger.count()) {
+      await expect(buttonTrigger).toBeVisible({ timeout: 5_000 });
+
+      await buttonTrigger.hover({ force: true });
+      if (!(await menu.isVisible().catch(() => false))) {
+        // Fallback: some environments may require click.
+        await buttonTrigger.click({ force: true });
+      }
+    } else {
+      await expect(idmpTrigger).toBeVisible({ timeout: 5_000 });
+      await idmpTrigger.click({ force: true });
+    }
+
+    await expect(menu).toBeVisible({ timeout: 5_000 });
+  };
+
+  // First try to open from the provided row.
+  try {
+    await openFrom(row);
+    return;
+  } catch {
+    // Element Plus fixed-right columns can render operations in a separate fixed table.
+    // In that case, resolve the row index in the main body table and open the dropdown
+    // from the corresponding fixed-right row.
+  }
+
+  const rowIndex = await row.evaluate(el => {
+    const tr = el.closest('tr');
+    if (!tr) return -1;
+
+    const rows = Array.from(document.querySelectorAll('.tasks-table .el-table__body-wrapper .el-table__row'));
+    return rows.indexOf(tr);
+  });
+
+  if (rowIndex < 0) {
+    throw new Error('Failed to resolve DataIn table row index for operations dropdown');
+  }
+
+  const fixedRow = page.locator('.tasks-table .el-table__fixed-right .el-table__row').nth(rowIndex);
+  await expect(fixedRow).toBeVisible({ timeout: 5_000 });
+  await openFrom(fixedRow);
 }
 
 export async function startTaskFromRow(page: Page, row: Locator) {
@@ -73,7 +123,11 @@ export async function startTaskFromRow(page: Page, row: Locator) {
   const menu = page.locator('.el-dropdown-menu:visible');
   await expect(menu).toBeVisible({ timeout: 5_000 });
 
-  const startItem = menu.getByRole('menuitem', { name: 'Start' });
+  // Element Plus dropdown items are rendered as <li>. Don't rely on ARIA roles.
+  const startItem = menu
+    .locator('li')
+    .filter({ hasText: /Start\b/i })
+    .first();
   if (await startItem.count()) {
     await startItem.click();
 
@@ -85,7 +139,10 @@ export async function startTaskFromRow(page: Page, row: Locator) {
   }
 
   // Some environments may auto-start the task after creation.
-  const stopItem = menu.getByRole('menuitem', { name: 'Stop' });
+  const stopItem = menu
+    .locator('li')
+    .filter({ hasText: /Stop\b/i })
+    .first();
   if (await stopItem.count()) {
     await page.keyboard.press('Escape');
     return;
@@ -94,12 +151,34 @@ export async function startTaskFromRow(page: Page, row: Locator) {
   throw new Error('Neither Start nor Stop action is available for the selected task row');
 }
 
+export async function stopTaskFromRow(page: Page, row: Locator) {
+  await openRowOperations(page, row);
+
+  const menu = page.locator('.el-dropdown-menu:visible');
+  await expect(menu).toBeVisible({ timeout: 5_000 });
+  // Some environments may auto-start the task after creation.
+  const stopItem = menu
+    .locator('li')
+    .filter({ hasText: /Stop\b/i })
+    .first();
+  if (await stopItem.count()) {
+    await stopItem.click();
+    await clickConfirmIfAny(page);
+    return;
+  }
+  await page.keyboard.press('Escape');
+}
+
 export async function viewTaskReadonlyFromRow(page: Page, row: Locator) {
   await openRowOperations(page, row);
 
   const menu = page.locator('.el-dropdown-menu:visible');
   await expect(menu).toBeVisible({ timeout: 5_000 });
-  await menu.getByRole('menuitem', { name: 'View' }).click();
+  await menu
+    .locator('li')
+    .filter({ hasText: /View\b/i })
+    .first()
+    .click();
 
   await expect(page).toHaveURL(/\/dataIn\/.+\/edit\?readonly=true/, { timeout: 15_000 });
   await expect(page.locator('.btn-group-task')).toContainText('Modify');

@@ -1,5 +1,6 @@
 import { test, expect } from './_utils/test';
 import { runSqlBatch } from './_utils/explorerSql';
+import { cleanupTmqResourcesBestEffort } from './_utils/cleanup';
 import { openAddSourceFromList, selectElOptionByText } from './_utils/datain';
 import { routes } from './_utils/routes';
 
@@ -15,32 +16,43 @@ test.describe('DataIn - TMQ connectivity check', () => {
     const clientId = `e2e_client_cc_${ts}`;
     const topicDsn = `ws://root:taosdata@127.0.0.1:6041/${topic}`;
 
-    await runSqlBatch(page, [
-      `CREATE DATABASE IF NOT EXISTS ${srcDb};`,
-      `CREATE DATABASE IF NOT EXISTS ${dstDb};`,
-      `CREATE TOPIC IF NOT EXISTS ${topic} AS DATABASE ${srcDb};`
-    ]);
+    try {
+      await runSqlBatch(page, [
+        `CREATE DATABASE IF NOT EXISTS ${srcDb};`,
+        `CREATE DATABASE IF NOT EXISTS ${dstDb};`,
+        `CREATE TOPIC IF NOT EXISTS ${topic} AS DATABASE ${srcDb};`
+      ]);
 
-    await page.goto(routes.dataInTask, { waitUntil: 'networkidle' });
-    await openAddSourceFromList(page);
+      await page.goto(routes.dataInTask, { waitUntil: 'networkidle' });
+      await openAddSourceFromList(page);
 
-    await page.locator('#name').fill(taskName);
-    await selectElOptionByText(page, 'targetDB', dstDb);
+      await page.locator('#name').fill(taskName);
+      await selectElOptionByText(page, 'targetDB', dstDb);
 
-    const endpoint = page.locator('#data\\.connection_options\\.endpoint');
-    const clientIdInput = page.locator(
-      '#data\\.groups_after\\.d5209d3d-4964-437b-8762-f76a279adbc6\\.client\\.id'
-    );
+      const endpoint = page.locator('#data\\.connection_options\\.endpoint');
+      // Avoid relying on a hardcoded groups_after UUID; match by stable prefix+suffix.
+      const clientIdInput = page
+        .locator('input[id^="data.groups_after."][id$=".client.id"]')
+        .first();
 
-    await endpoint.fill(topicDsn);
-    await clientIdInput.fill(clientId);
+      await expect(endpoint).toBeVisible();
+      await endpoint.fill(topicDsn);
 
-    const checkBtn = page.locator('.btn-check-connectivity');
-    await checkBtn.scrollIntoViewIfNeeded();
-    await checkBtn.click();
+      await expect(clientIdInput).toBeVisible();
+      await clientIdInput.fill(clientId);
 
-    const result = page.locator('.box-check-connectivity .text');
-    await expect(result).toBeVisible({ timeout: 60_000 });
-    await expect(result).toContainText(/reachable/i);
+      const checkBtn = page.locator('.btn-check-connectivity');
+      await checkBtn.scrollIntoViewIfNeeded();
+      await checkBtn.click();
+
+      const result = page.locator('.box-check-connectivity .text');
+      await expect(result).toBeVisible({ timeout: 60_000 });
+      await expect(result).toContainText(/reachable/i);
+    } finally {
+      await cleanupTmqResourcesBestEffort(page, {
+        topics: [topic],
+        databases: [srcDb, dstDb]
+      });
+    }
   });
 });

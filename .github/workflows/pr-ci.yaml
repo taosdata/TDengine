@@ -95,9 +95,19 @@ jobs:
         name: Build Explorer UI
         continue-on-error: true
         run: cargo make explorer-ui-prod
+
       - name: Unit Test
         run: |
           cargo make test
+
+      - name: Upload Playwright artifacts
+        if: always() && !cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: explorer-playwright-artifacts
+          path: |
+            explorer/playwright-report
+          retention-days: 7
 
       - name: Upload LCOV
         uses: actions/upload-artifact@v4
@@ -457,7 +467,7 @@ jobs:
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, test]
     needs: [deploy_with_docker, run_test, unit-test]
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && github.base_ref != 'main' }}
     steps:
       - name: download taosx-unit-test.xml
         uses: actions/download-artifact@v4

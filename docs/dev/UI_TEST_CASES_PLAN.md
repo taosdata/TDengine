@@ -33,37 +33,98 @@
 
 ### A1. 测试运行与报告标准化
 
-- [ ] A1.1（P0）统一 CI/本地命令说明与环境变量
+- [x] A1.1（P0）统一 CI/本地命令说明与环境变量
   - Owner: @zitsen
-  - Status: TODO
-  - DoD: 在 `explorer/README` 或 `docs/dev/` 增加一段可复制的 Playwright 运行说明（baseURL、skip global setup、trace/report）。
-  - 相关：`explorer/playwright.config.ts`
+  - Status: DONE
+  - 相关：`explorer/playwright.config.ts`、`explorer/tests/global.setup.ts`
+  - 运行手册（可复制粘贴）：
 
-- [ ] A1.2（P1）补齐测试 artifacts 归档策略（report/trace）
+    1) 基本约定
+       - 默认 baseURL：`http://localhost:6060`
+       - 默认通过 globalSetup 生成并复用登录态：`explorer/tests/.auth/root.json`
+       - 强制英文：globalSetup 会写入 `localStorage.local_language = 'en'`
+
+    2) 环境变量（与代码一致）
+       - `PLAYWRIGHT_BASE_URL`：覆盖 baseURL（默认 `http://localhost:6060`）
+       - `PLAYWRIGHT_SKIP_GLOBAL_SETUP=true`：若 `tests/.auth/root.json` 已存在，则跳过重新生成（便于本地调试提速）
+
+    3) 运行命令
+
+       ```bash
+       # 运行全部用例（推荐入口）
+       pnpm -C explorer exec playwright test
+
+       # 指定 baseURL（CI/远端/非默认端口）
+       PLAYWRIGHT_BASE_URL=http://127.0.0.1:6060 pnpm -C explorer exec playwright test
+
+       # 本地调试：复用已有登录态，不重复 globalSetup
+       PLAYWRIGHT_SKIP_GLOBAL_SETUP=true pnpm -C explorer exec playwright test
+
+       # 仅跑某个 spec
+       pnpm -C explorer exec playwright test tests/login.spec.ts
+
+       # UI 模式 / Debug
+       pnpm -C explorer exec playwright test --ui
+       pnpm -C explorer exec playwright test --debug
+       ```
+
+    4) 报告与 Trace
+       - HTML report：默认输出到 `explorer/playwright-report/`
+       - trace：配置为 `on-first-retry`，失败且发生 retry 时会在 `explorer/test-results/**/trace.zip` 生成
+
+       ```bash
+       # 打开 HTML report
+       pnpm -C explorer exec playwright show-report
+
+       # 打开 trace（将路径替换为实际 trace.zip）
+       pnpm -C explorer exec playwright show-trace test-results/**/trace.zip
+       ```
+
+- [x] A1.2（P1）补齐测试 artifacts 归档策略（report/trace）
   - Owner: @zitsen
-  - Status: TODO
-  - DoD: CI 产物中可下载 HTML report + trace（如 repo 现有 CI 支持）。
+  - Status: DONE
+  - DoD: CI 产物中可下载 HTML report + trace。
+  - 建议归档目录（Playwright 默认约定）：
+    - `explorer/playwright-report/`（HTML report）
+  - 建议 GitHub Actions 配置片段（示例）：
+
+    ```yaml
+    - name: Run Explorer Playwright tests
+      run: pnpm -C explorer exec playwright test
+      env:
+        PLAYWRIGHT_BASE_URL: http://127.0.0.1:6060
+
+    - name: Upload Playwright artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: explorer-playwright-artifacts
+        path: |
+          explorer/playwright-report
+        retention-days: 7
+    ```
 
 ### A2. 稳定性与可维护性改进
 
-- [ ] A2.1（P0）消除 TMQ 用例对“groups_after UUID”的硬编码依赖（改为更稳健定位）
-  - Owner:
-  - Status: TODO
-  - 思路（二选一）：
-    - UI 侧：为关键字段增加稳定 `data-testid` 或稳定 id（推荐）
-    - 测试侧：从页面中按 label 定位到 input（在英文下仍可能受 i18n 影响）
+- [x] A2.1（P0）消除 TMQ 用例对“groups_after UUID”的硬编码依赖（改为更稳健定位）
+  - Owner: @zitsen
+  - Status: DONE
+  - 方案：测试侧改为按 `id` 的稳定前后缀匹配，不再写死 `groups_after.<uuid>`。
+    - `input[id^="data.groups_after."][id$=".client.id"]`
   - DoD: `task-creation.spec.ts` / `tmq-task.spec.ts` 不再依赖固定 UUID 字符串。
   - 相关：`explorer/taos-ui/components/dataIn/config/en/01-tmq.ts`、`explorer/taos-ui/components/dataIn/components/formItem.vue`
 
-- [ ] A2.2（P1）增加统一的“资源命名与清理”工具
-  - Owner:
-  - Status: TODO
-  - DoD: 提供 `explorer/tests/_utils/cleanup.ts`（或同等方式），用于清理：测试 DB / topic / task（在能力范围内）。
+- [x] A2.2（P1）增加统一的“资源命名与清理”工具
+  - Owner: @zitsen
+  - Status: DONE
+  - DoD: 提供 `explorer/tests/_utils/cleanup.ts`，用于 best-effort 清理：测试 DB / topic / task。
+  - 备注：本地调试如需保留现场，可设置 `PLAYWRIGHT_SKIP_CLEANUP=true` 跳过清理。
 
-- [ ] A2.3（P1）为 DataIn 列表行操作封装更健壮的菜单打开逻辑
-  - Owner:
-  - Status: TODO
-  - DoD: `openRowOperations` 在不同 UI 模式/不同渲染时序下仍稳定；新增回归用例验证。
+- [x] A2.3（P1）为 DataIn 列表行操作封装更健壮的菜单打开逻辑
+  - Owner: @zitsen
+  - Status: DONE
+  - DoD: `openRowOperations` 同时兼容 hover/click trigger，并处理 Element Plus fixed-right 列导致的 DOM 拆分。
+  - 回归验证：现有 TMQ 用例通过 `startTaskFromRow` 间接覆盖该逻辑。
   - 相关：`explorer/tests/_utils/datain.ts`
 
 ---
