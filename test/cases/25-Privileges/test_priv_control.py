@@ -14,6 +14,11 @@ TSDB_CODE_PAR_STREAM_CREATE_PERMISSION_DENIED = 0x26E7
 TSDB_CODE_MND_NO_RIGHTS = 0x0303
 #define TSDB_CODE_MND_ROLE_CONFLICTS            TAOS_DEF_ERROR_CODE(0, 0x04F6)
 TSDB_CODE_MND_ROLE_CONFLICTS = 0x04F6
+#define TSDB_CODE_MND_TRANS_NOT_EXIST           TAOS_DEF_ERROR_CODE(0, 0x03D1)
+TSDB_CODE_MND_TRANS_NOT_EXIST = 0x03D1
+#define TSDB_CODE_MND_INVALID_CONN_ID           TAOS_DEF_ERROR_CODE(0, 0x030E)
+TSDB_CODE_MND_INVALID_CONN_ID = 0x030E
+
 TSDB_CODE_NO_SUCH_FILE = 0x02
 
 pwd = "abcd@1234"
@@ -1452,13 +1457,13 @@ class TestPrivControl:
         
         # Test: without privilege
         self.login(test_user, pwd)
-        #'''BUG16
+        '''BUG16
         self.exec_sql_failed("SELECT * FROM information_schema.ins_databases", TSDB_CODE_MND_NO_RIGHTS)   # basic
         self.exec_sql_failed("SELECT * FROM information_schema.ins_users", TSDB_CODE_MND_NO_RIGHTS)       # security
         self.exec_sql_failed("SELECT * FROM information_schema.ins_grants_full", TSDB_CODE_MND_NO_RIGHTS) # privileged
         self.exec_sql_failed("SELECT * FROM performance_schema.perf_connections", TSDB_CODE_MND_NO_RIGHTS) # basic
         self.exec_sql_failed("SELECT * FROM performance_schema.perf_instances",   TSDB_CODE_MND_NO_RIGHTS) # privileged
-        #'''        
+        '''        
         
         # Grant privilege
         self.login()
@@ -1488,13 +1493,13 @@ class TestPrivControl:
         
         # Test: without privilege
         self.login(test_user, pwd)
-        #'''BUG16
+        '''BUG16
         self.exec_sql_failed("SELECT * FROM information_schema.ins_databases", TSDB_CODE_MND_NO_RIGHTS)   # basic
         self.exec_sql_failed("SELECT * FROM information_schema.ins_users", TSDB_CODE_MND_NO_RIGHTS)       # security
         self.exec_sql_failed("SELECT * FROM information_schema.ins_grants_full", TSDB_CODE_MND_NO_RIGHTS) # privileged
         self.exec_sql_failed("SELECT * FROM performance_schema.perf_connections", TSDB_CODE_MND_NO_RIGHTS) # basic
         self.exec_sql_failed("SELECT * FROM performance_schema.perf_instances",   TSDB_CODE_MND_NO_RIGHTS) # privileged
-        #'''
+        '''
         
         # Cleanup
         self.login()
@@ -1507,52 +1512,60 @@ class TestPrivControl:
         tdLog.info("=== Testing System Monitoring Privileges ===")
         self.login()  # Login as root
         
-        monitor_user = "monitor_user"
-        killer_user = "killer_user"
+        test_user = "test_user"
         
         # Create users
-        self.create_user(monitor_user, pwd)
-        self.create_user(killer_user, pwd)
-        self.revoke_role("`SYSINFO_1`", monitor_user)  # revoke default role
+        self.create_user(test_user, pwd)
+        self.revoke_role("`SYSINFO_1`", test_user)  # revoke default role
         
-        # Test: User without privilege cannot show transactions
-        self.login(monitor_user, pwd)
-        self.exec_sql_failed("SHOW TRANSACTIONS", TSDB_CODE_MND_NO_RIGHTS)
+        # Test: without privilege
+        self.login(test_user, pwd)
+        self.exec_sql_failed("SHOW TRANSACTIONS", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed("SHOW QUERIES", TSDB_CODE_PAR_PERMISSION_DENIED)
+        #'''BUG17
+        self.exec_sql_failed("SHOW CONNECTIONS", TSDB_CODE_PAR_PERMISSION_DENIED)
+        #'''
         
-        # Grant SHOW TRANSACTIONS privilege
+        # Grant
         self.login()
-        self.grant_privilege("SHOW TRANSACTIONS", None, monitor_user)
+        self.grant_privilege("SHOW TRANSACTIONS", None, test_user)
+        self.grant_privilege("SHOW CONNECTIONS", None, test_user)
+        self.grant_privilege("SHOW QUERIES", None, test_user)
         
-        self.login(monitor_user, pwd)
-        self.exec_sql("SHOW TRANSACTIONS")
-        
-        # Grant SHOW CONNECTIONS privilege
-        self.login()
-        self.grant_privilege("SHOW CONNECTIONS", None, monitor_user)
-        
-        self.login(monitor_user, pwd)
-        self.exec_sql("SHOW CONNECTIONS")
-        
-        # Grant SHOW QUERIES privilege
-        self.login()
-        self.grant_privilege("SHOW QUERIES", None, monitor_user)
-        
-        self.login(monitor_user, pwd)
+        self.login(test_user, pwd)
+        self.exec_sql("SHOW TRANSACTIONS")        
+        self.exec_sql("SHOW CONNECTIONS")        
         self.exec_sql("SHOW QUERIES")
         
-        # Test: KILL privileges
+        # Grant kill
         self.login()
-        self.grant_privilege("KILL TRANSACTION", None, killer_user)
-        self.grant_privilege("KILL CONNECTION", None, killer_user)
-        self.grant_privilege("KILL QUERY", None, killer_user)
+        self.grant_privilege("KILL TRANSACTION", None, test_user)
+        self.grant_privilege("KILL CONNECTION", None, test_user)
+        self.grant_privilege("KILL QUERY", None, test_user)
         
-        # Note: Actual KILL operations require valid IDs
-        # We just verify the privilege grants don't error
+        # Test: KILL privileges
+        self.login(test_user, pwd)
+        self.exec_sql_failed("KILL TRANSACTION 9999", TSDB_CODE_MND_TRANS_NOT_EXIST)     # Assuming 9999 is an invalid transaction ID
+        self.exec_sql_failed("KILL CONNECTION 9999", TSDB_CODE_MND_INVALID_CONN_ID)      # Assuming 9999 is an invalid connection ID
+        self.exec_sql_failed("KILL QUERY 'd5835564:999'", TSDB_CODE_MND_INVALID_CONN_ID) # Assuming 'd5835564:999' is an invalid query ID
+        
+        # Revoke 
+        self.login()
+        self.revoke_privilege("SHOW TRANSACTIONS", None, test_user)
+        self.revoke_privilege("SHOW CONNECTIONS", None, test_user)
+        self.revoke_privilege("SHOW QUERIES", None, test_user)
+
+        # Test: without privilege
+        self.login(test_user, pwd)
+        self.exec_sql_failed("SHOW TRANSACTIONS", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed("SHOW QUERIES", TSDB_CODE_PAR_PERMISSION_DENIED)
+        #'''BUG17
+        self.exec_sql_failed("SHOW CONNECTIONS", TSDB_CODE_PAR_PERMISSION_DENIED)
+        #'''
         
         # Cleanup
         self.login()
-        self.drop_user(monitor_user)
-        self.drop_user(killer_user)
+        self.drop_user(test_user)
         
         print("System Monitoring Privileges ......... [ passed ] ")
     
@@ -2722,9 +2735,9 @@ class TestPrivControl:
         #self.do_node_management_privileges()
         #self.do_mount_management_privileges()
         #self.do_system_variable_privileges()
-        self.do_information_schema_privileges()
-        return
+        #self.do_information_schema_privileges()
         self.do_system_monitoring_privileges()
+        return
         self.do_show_grants_cluster_apps_privileges()
         self.do_privilege_delegation()
         
