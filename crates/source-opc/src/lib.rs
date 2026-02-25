@@ -1,4 +1,5 @@
 use anyhow::Context;
+use csv::{Terminator, WriterBuilder};
 use csv_async::AsyncReader;
 use futures_util::StreamExt;
 use itertools::Itertools;
@@ -791,7 +792,7 @@ pub const DA_ROW: [&str; 16] = [
 ];
 
 pub fn ua_template_row(row_idx: usize, item: &DataSet) -> String {
-    let mut cols = vec![];
+    let mut cols = Vec::with_capacity(UA_ROW.len());
 
     let opc_node = OpcNode::try_from(item.clone()).ok();
 
@@ -801,8 +802,7 @@ pub fn ua_template_row(row_idx: usize, item: &DataSet) -> String {
             cols.push(row_idx.to_string());
         } else if col_idx == 1 {
             // point_id
-            let point_id = get_safe_string_for_csv(&item.id);
-            cols.push(point_id.clone());
+            cols.push(item.id.clone());
         } else if col_idx == 2 {
             // enabled
             let enabled = get_enabled(item.clone());
@@ -817,20 +817,18 @@ pub fn ua_template_row(row_idx: usize, item: &DataSet) -> String {
             cols.push(stable.to_string());
         } else if col_idx == 4 {
             // tbname
-            let point_id = get_safe_string_for_csv(&item.id);
             let tbname = generate_tbname_from_pattern(
                 SourceType::OPCUA.as_static_str(),
                 "t_{ns}_{id#/_}",
-                &point_id,
+                &item.id,
             );
             cols.push(tbname);
         } else if col_idx == 15 {
             // tag::VARCHAR(255)::name
-            let point_id = &item.id;
             let name = generate_tag_value_from_pattern(
                 SourceType::OPCUA.as_static_str(),
                 "{id#/.}",
-                point_id,
+                &item.id,
             );
             cols.push(name);
         } else if col_idx == 16 {
@@ -839,38 +837,40 @@ pub fn ua_template_row(row_idx: usize, item: &DataSet) -> String {
                 .as_ref()
                 .and_then(|n| n.name.clone())
                 .unwrap_or("{BrowseName}".to_string());
-            cols.push(browse_name.clone());
+            cols.push(browse_name);
         } else if col_idx == 17 {
             // tag::VARCHAR(255)::DisplayName
             let display_name = opc_node
                 .as_ref()
                 .and_then(|n| n.display_name.clone())
                 .unwrap_or("{DisplayName}".to_string());
-            cols.push(display_name.clone());
+            cols.push(display_name);
         } else if col_idx == 18 {
             // tag::VARCHAR(255)::Description
             let description = opc_node
                 .as_ref()
                 .and_then(|n| n.description.clone())
-                .unwrap_or("".to_string());
-            cols.push(description.clone());
+                .unwrap_or_default();
+            cols.push(description);
         } else if col_idx == 19 {
             // tag::VARCHAR(255)::Path
             let path = opc_node
                 .as_ref()
                 .and_then(|n| n.path.clone())
                 .unwrap_or("{Path}".to_string());
-            cols.push(path.clone());
+            cols.push(path);
         } else {
             cols.push(col.to_string());
         }
     }
-    format!("{}\n", cols.join(","))
+
+    build_csv_row(&cols)
 }
 
 pub fn da_template_row(row_idx: usize, item: &DataSet) -> String {
     // 替换 DA_ROW 的前三个字段和最后一个字段
-    let mut cols = vec![];
+    let mut cols = Vec::with_capacity(DA_ROW.len());
+
     for (idx, col) in DA_ROW.iter().enumerate() {
         if idx == 0 {
             // No.
@@ -884,12 +884,13 @@ pub fn da_template_row(row_idx: usize, item: &DataSet) -> String {
             cols.push(enabled.to_string());
         } else if idx == (DA_ROW.len() - 1) {
             // tag::VARCHAR(255)::name
-            cols.push(item.name.clone().unwrap_or("".to_string()));
+            cols.push(item.name.clone().unwrap_or_default());
         } else {
             cols.push(col.to_string());
         }
     }
-    format!("{}\n", cols.join(","))
+
+    build_csv_row(&cols)
 }
 
 fn get_enabled(item: DataSet) -> i8 {
@@ -911,12 +912,17 @@ fn get_enabled(item: DataSet) -> i8 {
         .unwrap_or(1)
 }
 
-fn get_safe_string_for_csv(s: &str) -> String {
-    let mut safe_str = s.to_string();
-    if safe_str.contains(",") {
-        safe_str = format!("\"{}\"", safe_str.replace("\"", "\"\""));
-    }
-    safe_str
+fn build_csv_row(cols: &[String]) -> String {
+    let mut wtr = WriterBuilder::new()
+        .has_headers(false)
+        .terminator(Terminator::Any(b'\n'))
+        .from_writer(vec![]);
+
+    // Writing to Vec<u8> is infallible unless the record is too large.
+    wtr.write_record(cols).expect("failed to build csv row");
+
+    let data = wtr.into_inner().expect("failed to get csv row");
+    String::from_utf8(data).expect("csv row should be valid UTF-8")
 }
 
 #[cfg(test)]
@@ -1027,5 +1033,100 @@ mod tests {
             "1,/ASSETS/AB/EDCGQ,1,opc_{type},t_{tag_name},val,,,quality,ts,,qts,,rts,,tag1\n"
                 .to_string()
         );
+    }
+
+    #[test]
+    fn test_ua_template_row_csv_escape() {
+        use taosx_core::runners::opc::points::{
+            OPC_BROWSE_NAME, OPC_DESCRIPTION, OPC_DISPLAY_NAME, OPC_PATH,
+        };
+        use taosx_ipc::types::OptionSet;
+
+        let browse_name = "name,with,comma";
+        let display_name = "display\"quote";
+        let description = "desc\nnewline";
+        let path = "a/b,c";
+
+        let item = DataSet {
+            id: "ns=3;i=1001".to_string(),
+            name: Some("tag1".to_string()),
+            category: None,
+            r#type: Some("Object".to_string()),
+            options: Some(vec![
+                OptionSet {
+                    name: OPC_BROWSE_NAME.to_string(),
+                    display: browse_name.to_string(),
+                    description: None,
+                    required: false,
+                },
+                OptionSet {
+                    name: OPC_DISPLAY_NAME.to_string(),
+                    display: display_name.to_string(),
+                    description: None,
+                    required: false,
+                },
+                OptionSet {
+                    name: OPC_DESCRIPTION.to_string(),
+                    display: description.to_string(),
+                    description: None,
+                    required: false,
+                },
+                OptionSet {
+                    name: OPC_PATH.to_string(),
+                    display: path.to_string(),
+                    description: None,
+                    required: false,
+                },
+            ]),
+            format: None,
+        };
+
+        let row = ua_template_row(1, &item);
+
+        let mut rdr = csv::ReaderBuilder::new()
+            .has_headers(false)
+            .from_reader(row.as_bytes());
+        let records = rdr
+            .records()
+            .collect::<Result<Vec<csv::StringRecord>, _>>()
+            .unwrap();
+
+        assert_eq!(records.len(), 1);
+        let record = &records[0];
+        assert_eq!(record.len(), UA_ROW.len());
+        assert_eq!(record.get(1).unwrap(), item.id);
+        assert_eq!(record.get(3).unwrap(), "opc_object");
+        assert_eq!(record.get(16).unwrap(), browse_name);
+        assert_eq!(record.get(17).unwrap(), display_name);
+        assert_eq!(record.get(18).unwrap(), description);
+        assert_eq!(record.get(19).unwrap(), path);
+    }
+
+    #[test]
+    fn test_da_template_row_csv_escape() {
+        let item = DataSet {
+            id: "/ASSETS/AB,EDCGQ".to_string(),
+            name: Some("tag\"1,2\n3".to_string()),
+            category: None,
+            r#type: None,
+            options: None,
+            format: None,
+        };
+
+        let row = da_template_row(1, &item);
+
+        let mut rdr = csv::ReaderBuilder::new()
+            .has_headers(false)
+            .from_reader(row.as_bytes());
+        let records = rdr
+            .records()
+            .collect::<Result<Vec<csv::StringRecord>, _>>()
+            .unwrap();
+
+        assert_eq!(records.len(), 1);
+        let record = &records[0];
+        assert_eq!(record.len(), DA_ROW.len());
+        assert_eq!(record.get(1).unwrap(), item.id);
+        assert_eq!(record.get(15).unwrap(), item.name.unwrap());
     }
 }
