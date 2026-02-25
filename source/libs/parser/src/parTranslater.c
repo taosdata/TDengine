@@ -16921,6 +16921,133 @@ _return:
   return code;
 }
 
+// traverse all scan plans in calculation plan, split them from their parents, and make a fake value node to replace them.
+// value node's value is the scan plan's (groupId << 32 | subplanId).
+static int32_t streamSplitCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan,
+                                            SArray* pScanPlanArray, SCMCreateStreamReq* pReq,
+					    SHashObj* pPlanMap) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  SStreamCalcScan* pCalcScan = NULL;
+  bool             cutoff = false;
+
+  for (int32_t i = 0; i < taosArrayGetSize(pScanPlanArray); i++) {
+    pCalcScan = taosArrayGet(pScanPlanArray, i);
+    if (pCalcScan == NULL) {
+      PAR_ERR_JRET(terrno);
+    }
+    cutoff = false;
+    SSubplan* pScanSubPlan = (SSubplan*)pCalcScan->scanPlan;
+    SNode*    pTargetNode = (SNode*)pScanSubPlan->pNode;
+    SNode*    pNode = NULL;
+    int64_t   hashKey = (int64_t)pScanSubPlan->id.groupId << 32 | pScanSubPlan->id.subplanId;
+
+    if (((SPhysiNode*)pTargetNode)->pParent) {
+      eliminateNodeFromList(pTargetNode, ((SPhysiNode*)pTargetNode)->pParent->pChildren);
+      ((SPhysiNode*)pTargetNode)->pParent = NULL;
+    }
+
+    if (pScanSubPlan->pParents) {
+      FOREACH(pNode, pScanSubPlan->pParents) {
+        PAR_ERR_JRET(replaceSubPlanFromList((SNode*)pScanSubPlan, ((SSubplan*)pNode)->pChildren));
+      }
+      pScanSubPlan->pParents = NULL;
+    }
+
+    WHERE_EACH(pNode, calcPlan->pSubplans) {
+      SNodeListNode* pGroup = (SNodeListNode*)pNode;
+      if (findNodeInList((SNode*)pScanSubPlan, pGroup->pNodeList)) {
+        eliminateNodeFromList((SNode*)pScanSubPlan, pGroup->pNodeList);
+        if (LIST_LENGTH(pGroup->pNodeList) == 0) {
+          REPLACE_NODE(NULL);
+          ERASE_NODE(calcPlan->pSubplans);
+        }
+        calcPlan->numOfSubplans--;
+        break;
+      }
+      WHERE_NEXT;
+    }
+
+    cutoff = true;
+
+    if (taosHashGet(pPlanMap, &hashKey, sizeof(int64_t)) != NULL) {
+      continue;
+    } else {
+      PAR_ERR_JRET(taosHashPut(pPlanMap, &hashKey, sizeof(int64_t), NULL, 0));
+    }
+
+    if (pCalcScan->readFromCache) {
+      findTsSlotId((SScanPhysiNode*)pScanSubPlan->pNode, &pReq->calcTsSlotId);
+      if (pReq->calcTsSlotId == -1) {
+        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
+                                             "Can not find timestamp primary key in trigger query scan"));
+      }
+    }
+
+    SStreamCalcScan pNewScan = {0};
+    pNewScan.readFromCache = pCalcScan->readFromCache;
+    TSWAP(pNewScan.vgList, pCalcScan->vgList);
+    PAR_ERR_JRET(nodesNodeToString(pCalcScan->scanPlan, false, (char**)&pNewScan.scanPlan, NULL));
+    if (NULL == taosArrayPush(pReq->calcScanPlanList, &pNewScan)) {
+      PAR_ERR_JRET(terrno);
+    }
+    taosArrayDestroy(pCalcScan->vgList);
+    nodesDestroyNode(pCalcScan->scanPlan);
+    cutoff = false;
+  }
+
+  return code;
+
+_return:
+  if (cutoff) {
+    taosArrayDestroy(pCalcScan->vgList);
+    nodesDestroyNode(pCalcScan->scanPlan);
+  }
+
+  parserError("streamSplitCalcPlan failed, code:%d", code);
+
+  return code;
+}
+
+// Build calculation plan in create stream request
+static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan,
+                                            SArray* pScanPlanArray, SCMCreateStreamReq* pReq) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  SHashObj*        pPlanMap = NULL;
+  SNode*           pNode = NULL;
+  int32_t          subQueryPlans = 0;
+
+  parserDebug("translate create stream req start build calculate plan");
+
+  pReq->calcScanPlanList = taosArrayInit(1, sizeof(SStreamCalcScan));
+  pPlanMap = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  if (NULL == pReq->calcScanPlanList || NULL == pPlanMap) {
+    PAR_ERR_JRET(terrno);
+  }
+
+  pReq->calcTsSlotId = -1;
+
+  PAR_ERR_JRET(streamSplitCalcPlan(pCxt, calcPlan, pScanPlanArray, pReq, pPlanMap));
+  FOREACH(pNode, calcPlan->pChildren) {
+    SQueryPlan *calcSubQPlan = (SQueryPlan *)pNode;
+
+    PAR_ERR_JRET(streamSplitCalcPlan(pCxt, calcSubQPlan, pScanPlanArray, pReq, pPlanMap));
+
+    subQueryPlans += calcSubQPlan->numOfSubplans;
+  }
+
+  calcPlan->numOfSubplans -= subQueryPlans * 2;
+  pReq->numOfCalcSubplan = calcPlan->numOfSubplans;
+  PAR_ERR_JRET(nodesNodeToString((SNode*)calcPlan, false, (char**)&pReq->calcPlan, NULL));
+
+  taosHashCleanup(pPlanMap);
+  return code;
+
+_return:
+  parserError("createStreamReqBuildCalcPlan failed, code:%d", code);
+  taosHashCleanup(pPlanMap);
+  return code;
+}
+/*
 // Build calculation plan in create stream request
 static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan,
                                             SArray* pScanPlanArray, SCMCreateStreamReq* pReq) {
@@ -17089,7 +17216,7 @@ _return:
   taosHashCleanup(pPlanMap);
   return code;
 }
-
+*/
 int32_t checkSubQueryStmt(SNode* pNode) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT:

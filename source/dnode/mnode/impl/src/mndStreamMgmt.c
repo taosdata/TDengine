@@ -2049,6 +2049,64 @@ static int32_t msmBuildRunnerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStreamO
   if (NULL == pStream->pCreate->calcPlan) {
     return TSDB_CODE_SUCCESS;
   }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int64_t streamId = pStream->pCreate->streamId;
+  SQueryPlan* pPlan = NULL;
+  SNodeList*  pSubEP = NULL;
+  SNode*      pNode = NULL;
+  int32_t     subQueryPlans = 0;
+
+  TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pPlan));
+
+  FOREACH(pNode, pPlan->pChildren) {
+    SQueryPlan *calcSubQPlan = (SQueryPlan *)pNode;
+
+    subQueryPlans += calcSubQPlan->numOfSubplans;
+  }
+
+  for (int32_t i = 0; i < pInfo->runnerDeploys; ++i) {
+    pInfo->runners[i] = taosArrayInit(pPlan->numOfSubplans + subQueryPlans, sizeof(SStmTaskStatus));
+    TSDB_CHECK_NULL(pInfo->runners[i], code, lino, _exit, terrno);
+  }
+
+  FOREACH(pNode, pPlan->pChildren) {
+    SQueryPlan *calcSubQPlan = (SQueryPlan *)pNode;
+
+    code = msmBuildRunnerTasksImpl(pCtx, calcSubQPlan, pInfo, pStream, pPlan, &pSubEP);
+    pPlan = NULL;
+    TAOS_CHECK_EXIT(code);
+  }
+
+  TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pPlan));
+  code = msmBuildRunnerTasksImpl(pCtx, pPlan, pInfo, pStream, pPlan, &pSubEP);
+  pPlan = NULL;
+
+  TAOS_CHECK_EXIT(code);
+
+  taosHashClear(mStreamMgmt.toUpdateScanMap);
+  mStreamMgmt.toUpdateScanNum = 0;
+
+  TAOS_CHECK_EXIT(msmUpdateCalcReaderTasks(pStream, pSubEP));
+
+_exit:
+  nodesDestroyNode((SNode *)pPlan);
+  if (pSubEP) {
+    nodesDestroyList(pSubEP);
+  }
+
+  if (code) {
+    mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
+  }
+
+  return code;
+}
+/*
+static int32_t msmBuildRunnerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStreamObj* pStream) {
+  if (NULL == pStream->pCreate->calcPlan) {
+    return TSDB_CODE_SUCCESS;
+  }
   
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -2092,7 +2150,7 @@ _exit:
 
   return code;
 }
-
+*/
 
 static int32_t msmBuildStreamTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStreamObj* pStream) {
   int32_t code = TSDB_CODE_SUCCESS;
