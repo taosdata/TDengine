@@ -237,7 +237,7 @@ watch(localParentConfig, newConfig => {
 });
 
 const field = computed(() => props.config.valueField || props.config.field);
-const labelWidth = computed(() => props.config.labelWidth || '');
+const labelWidth = computed(() => props.config.labelWidth || undefined);
 const labelText = computed(() => (props.config.labelShow !== false ? props.config.label : ''));
 const nolabel = computed(() => !props.config.type || noLabelType.includes(props.config.type));
 const doscShow = computed(() => props.config.description && !props.config.info);

@@ -2,7 +2,6 @@
   <div class="input-number-with-select">
     <el-input-number
       v-model="val"
-      style="width: 80%"
       :placeholder="config.placeholder"
       :max="config.max"
       :min="config.min"
@@ -10,7 +9,7 @@
       @change="onChange"
     >
     </el-input-number>
-    <el-select v-model="unit" style="width: 20%" @change="onChange">
+    <el-select v-model="unit" class="unit-select" @change="onChange">
       <el-option v-for="item in options" :key="item.value" v-bind="item" :title="item.label"></el-option>
     </el-select>
   </div>
@@ -53,7 +52,16 @@ const onChange = () => {
 <style scoped lang="scss">
 .input-number-with-select {
   display: inline-flex;
-  width: 100%;
+  max-width: 50%;
+
+  :deep(.el-input-number) {
+    flex: 1;
+  }
+
+  .unit-select {
+    width: 100px;
+    flex-shrink: 0;
+  }
 
   :deep(.el-input-number .el-input__wrapper) {
     border-top-right-radius: 0;

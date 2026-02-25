@@ -418,9 +418,9 @@ function handleSuccess(_response: any, _file: any, fileList: []) {
   localData.upload_csv_file.file_url = dataInProps.isCloud
     ? _response.data.join(',')
     : fileList
-      .filter((item: any) => item.response)
-      .map((item: any) => item.response[0])
-      .join(',');
+        .filter((item: any) => item.response)
+        .map((item: any) => item.response[0])
+        .join(',');
 }
 function csvFileInputOK() {
   if (localData.currentTab == 'upload_csv_file' && state.fileList.length == 0) {
@@ -529,7 +529,7 @@ function formatCsvTransformerData(columns: string[], values: any[]) {
         value: ''
       };
     });
-    (obj['columnname'] = ''), (obj['expression'] = ''), (obj['type'] = '');
+    ((obj['columnname'] = ''), (obj['expression'] = ''), (obj['type'] = ''));
     state.extractArr.push(obj);
   });
   const csvTransformer = {
