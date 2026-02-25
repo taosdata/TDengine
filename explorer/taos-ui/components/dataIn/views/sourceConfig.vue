@@ -4,7 +4,7 @@
       <el-form
         ref="formRef"
         :model="sourceForm"
-        label-width="260px"
+        label-width="240px"
         label-position="left"
         size="default"
         :rules="rules"
@@ -768,10 +768,10 @@ $color-description: rgb(137 130 130);
       font-weight: 300;
       line-height: 1.2;
       border-bottom: 0;
-      
+
       .mb10 {
         font-weight: 400;
-        
+
         * {
           font-weight: 400 !important;
         }
@@ -803,10 +803,10 @@ $color-description: rgb(137 130 130);
       font-weight: 300;
       line-height: 1.2;
       border-bottom: 0;
-      
+
       .mb10 {
         font-weight: 400;
-        
+
         * {
           font-weight: 400 !important;
         }
