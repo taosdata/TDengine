@@ -18,6 +18,7 @@
 
 #include "dmUtil.h"
 #include "mnode.h"
+#include "sdb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,6 +50,7 @@ typedef struct SMnodeMgmt {
 // mmFile.c
 int32_t mmReadFile(const char *path, SMnodeOpt *pOption);
 int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption);
+int32_t mndSetEncryptedFlag(SSdb *pSdb);
 
 // mmHandle.c
 SArray *mmGetMsgHandles();

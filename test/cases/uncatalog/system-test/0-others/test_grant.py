@@ -87,12 +87,12 @@ class TestGrant:
         tdSql.checkData(0,3,'ready')
         tdSql.error("create mnode on dnode 1;")
         tdSql.error("drop mnode on dnode 1;")
-        tdSql.execute("create database if not exists audit");
+        tdSql.execute("create database if not exists audit keep 36500d");
         tdSql.execute("use audit");
         tdSql.execute("create table operations(ts timestamp, c0 int primary key,c1 bigint,c2 int,c3 float,c4 double) tags(t0 bigint unsigned)");
         tdSql.execute("create table t_operations_abc using operations tags(1)");
         tdSql.execute("drop database if exists db")
-        tdSql.execute("create database if not exists db replica 1")
+        tdSql.execute("create database if not exists db replica 1 keep 36500d")
         tdSql.execute("use db")
         tdSql.execute("create table stb0(ts timestamp, c0 int primary key,c1 bigint,c2 int,c3 float,c4 double) tags(t0 bigint unsigned)");
         tdSql.execute("create table ctb0 using stb0 tags(0)");
@@ -159,7 +159,7 @@ class TestGrant:
         for i in range(0, 3):
             tdLog.printNoPrefix(f"======== test timeseries: loop{i}")
             self.checkGrantsTimeSeries("initial check", tss_grant)
-            tdSql.execute("create database if not exists db100")
+            tdSql.execute("create database if not exists db100 keep 36500d")
             tdSql.execute("create table db100.stb100(ts timestamp, c0 int,c1 bigint,c2 int,c3 float,c4 double) tags(t0 bigint unsigned)")
             tdSql.execute("create table db100.ctb100 using db100.stb100 tags(100)")
             tdSql.execute("create table db100.ctb101 using db100.stb100 tags(101)")
@@ -233,7 +233,7 @@ class TestGrant:
                 tdLog.info(f"expireTime: {expireTime}, serviceTime: {serviceTime}")
                 tdSql.checkEqual(True, abs(expireTime - serviceTime - 864000) < 15)
                 tdSql.query(f'show grants full;')
-                nGrantItems = 47
+                nGrantItems = 49
                 tdSql.checkRows(nGrantItems)
                 tdSql.checkEqual(tdSql.queryResult[0][2], serviceTimeStr)
                 for i in range(1, nGrantItems):
@@ -345,5 +345,5 @@ class TestGrant:
         self.s4_ts6191_check_dual_replica()
 
         self.clearEnv()
-        tdLog.success(f"{__file__} successfully executed")
+
 

@@ -1490,6 +1490,8 @@ TEST(otherTest, branch) {
   SSchJob job = {0};
   SSchTask task = {0};
   memset(&schMgmt, 0, sizeof(schMgmt));
+
+  job.subJobId = -1;
   
   schValidateRspMsgType(&job, &task, TDMT_SCH_MERGE_FETCH_RSP);
 

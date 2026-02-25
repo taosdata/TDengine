@@ -376,7 +376,7 @@ int32_t scltMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nod
   SCL_RET(TSDB_CODE_SUCCESS);
 }
 
-int32_t scltMakeTargetNode(SNode **pNode, int16_t dataBlockId, int16_t slotId, SNode *snode) {
+int32_t scltMakeTargetNode(SNode **pNode, int64_t dataBlockId, int16_t slotId, SNode *snode) {
   SNode       *node = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_TARGET, &node);
   if (NULL == node) {
@@ -1538,7 +1538,7 @@ int32_t makeCalculate(void *json, void *key, int32_t rightType, void *rightData,
 
   SCL_ERR_RET(makeOperator(&opNode, blockList, opType, rightType, rightData, isReverse));
 
-  SCL_ERR_RET(scalarCalculate(opNode, blockList, NULL, NULL, NULL));
+  SCL_ERR_RET(scalarCalculate(opNode, blockList, NULL, NULL));
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
   if (res->info.rows != 1) {
@@ -1827,14 +1827,13 @@ TEST(columnTest, json_column_logic_op) {
   (void)printf("--------------------json null---null {1, 8, 2, 2, 3, 0, 0, 0, 0}------------------\n");
 
   key = "k3";  // (null is true) return NULL, so use DBL_MAX represent NULL
-  bool eRes2[len + len1] = {false, false, false, false, false, false, true, false, false, false, false, false, false};
+  double eRes2[len + len1] = {DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, 1, 0, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX};
   for (int i = 0; i < len; i++) {
     code = makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes2[i], op[i], false);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
-  bool eRes_2[len0] = {false, false, false, false, false, false};
   for (int i = 0; i < len0; i++) {
-    code = makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_2[i], op[i], true);
+    code = makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes2[i], op[i], true);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
 
@@ -1977,14 +1976,13 @@ TEST(columnTest, json_column_logic_op) {
   (void)printf("---------------------json not exist-- NULL {1, 8, 2, 2, 3, 0, 0, 0, 0}------------------\n");
 
   key = "k10";  // (NULL is true) return NULL, so use DBL_MAX represent NULL
-  bool eRes9[len + len1] = {false, false, false, false, false, false, true, false, false, false, false, false, false};
+  double eRes9[len + len1] = {DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, 1, 0, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX};
   for (int i = 0; i < len; i++) {
     code = makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes9[i], op[i], false);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
-  bool eRes_9[len0] = {false, false, false, false, false, false};
   for (int i = 0; i < len0; i++) {
-    code = makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_9[i], op[i], true);
+    code = makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes9[i], op[i], true);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
 
@@ -2026,7 +2024,7 @@ TEST(columnTest, smallint_value_add_int_column) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2070,7 +2068,7 @@ TEST(columnTest, bigint_column_multi_binary_column) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2115,7 +2113,7 @@ TEST(columnTest, smallint_column_and_binary_column) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2155,7 +2153,7 @@ TEST(columnTest, smallint_column_or_float_column) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2195,7 +2193,7 @@ TEST(columnTest, smallint_column_or_double_value) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2235,7 +2233,7 @@ TEST(columnTest, smallint_column_greater_double_value) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2290,7 +2288,7 @@ TEST(columnTest, int_column_in_double_list) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2364,7 +2362,7 @@ TEST(columnTest, binary_column_in_binary_list) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2415,7 +2413,7 @@ TEST(columnTest, binary_column_like_binary) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2459,7 +2457,7 @@ TEST(columnTest, binary_column_is_true) {
   code = scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
 
-  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2510,7 +2508,7 @@ TEST(columnTest, binary_column_is_null) {
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2560,7 +2558,7 @@ TEST(columnTest, binary_column_is_not_null) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL, NULL, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2613,7 +2611,7 @@ TEST(columnTest, greater_and_lower) {
   code = scltMakeTargetNode(&logicNode, dataBlockId, slotId, logicNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(logicNode, blockList, NULL, NULL, NULL);
+  code = scalarCalculate(logicNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);

@@ -2,13 +2,14 @@
 """train the model for anomaly detection"""
 import joblib
 import keras
+import os, sys
 import numpy as np
 import pandas as pd
 from keras.api import layers
-
 from matplotlib import pyplot as plt
-from taosanalytics.util import create_sequences
 
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
+from taosanalytics.util import create_sequences
 
 def get_training_data():
     """ load the remote training data """
@@ -91,6 +92,13 @@ def do_train_model():
 
     print(history)
 
+    plt.plot(history.history["loss"], label="Training Loss")
+    plt.plot(history.history["val_loss"], label="Validation Loss")
+    plt.legend()
+    plt.savefig('train_loss.png')
+
+    plt.clf()
+
     # Get train MAE loss.
     x_train_pred = model.predict(x_train)
     train_mae_loss = np.mean(np.abs(x_train_pred - x_train), axis=1)
@@ -98,7 +106,9 @@ def do_train_model():
     plt.hist(train_mae_loss, bins=50)
     plt.xlabel("Train MAE loss")
     plt.ylabel("No of samples")
-    plt.show()
+    plt.savefig('train_mae.png')
+
+    plt.clf()
 
     # Get reconstruction loss threshold.
     threshold = np.max(train_mae_loss)
@@ -111,10 +121,9 @@ def do_train_model():
 
     plt.plot(x_train[0])
     plt.plot(x_train_pred[0])
-    plt.show()
+    plt.savefig('valid_data_pred.png')
 
     print("save model successfully")
-
 
 if __name__ == '__main__':
     do_train_model()

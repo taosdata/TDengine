@@ -6,7 +6,7 @@
 
 （1）安装jdk
 
-官网下载jdk-1.8，下载页面：https://www.oracle.com/java/technologies/javase/javase-jdk8-downloads.html
+官网下载jdk-1.8，下载页面：[JDK 8 下载](https://www.oracle.com/java/technologies/javase/javase-jdk8-downloads.html)
 
 安装，配置环境变量，把jdk加入到环境变量里。
 
@@ -19,10 +19,9 @@ Java(TM) SE Runtime Environment (build 1.8.0_131-b11)
 Java HotSpot(TM) 64-Bit Server VM (build 25.131-b11, mixed mode)
 ```
 
-
 （2）安装配置maven
 
-官网下载maven，下载地址：http://maven.apache.org/download.cgi
+官网下载maven，下载地址：[maven 下载](http://maven.apache.org/download.cgi)
 
 配置环境变量MAVEN_HOME，将MAVEN_HOME/bin添加到PATH
 
@@ -75,11 +74,9 @@ OS name: "windows 10", version: "10.0", arch: "amd64", family: "windows"
 </settings>
 ```
 
-
-
 （3）在linux服务器上安装TDengine-server
 
-在taosdata官网下载TDengine-server，下载地址：https://www.taosdata.com/cn/all-downloads/
+在taosdata官网下载TDengine-server，下载地址：[TDengine 产品下载中心](https://www.taosdata.com/download-center?product=TDengine+TSDB-Enterprise&platform=Windows)
 
 在linux服务器上安装TDengine-server
 
@@ -115,17 +112,14 @@ td01
 
 注意，如果安装TDengine后，使用默认的taos.cfg配置文件，taosd会使用当前server的hostname创建dnode实例。之后，在client也需要使用这个hostname来连接taosd。
 
-
-
 （4）在windows上安装TDengine-client
 
-在taosdata官网下载taos客户端，下载地址：
-https://www.taosdata.com/cn/all-downloads/
+在taosdata官网下载taos客户端，下载地址：[TDengine 产品下载中心](https://www.taosdata.com/download-center?product=TDengine+TSDB-Enterprise+Client&platform=Windows)
 下载后，双击exe安装。
 
 修改client的hosts文件（C:\Windows\System32\drivers\etc\hosts），将server的hostname和ip配置到client的hosts文件中
 
-```
+```text
 192.168.236.136    td01
 ```
 
@@ -146,8 +140,6 @@ Query OK, 2 row(s) in set (0.068000s)
 
 如果windows上的client能够正常连接，并打印database信息，说明client可以正常连接server了。
 
-
-
 ## 应用开发
 
 （1）新建maven工程，在pom.xml中引入taos-jdbcdriver依赖。
@@ -167,7 +159,7 @@ Query OK, 2 row(s) in set (0.068000s)
         <dependency>
             <groupId>com.taosdata.jdbc</groupId>
             <artifactId>taos-jdbcdriver</artifactId>
-            <version>2.0.8</version>
+            <version>3.8.1</version>
         </dependency>
     </dependencies>
 </project>
@@ -223,19 +215,18 @@ public class JdbcDemo {
 
 console输出：
 
-```
+```text
 insert 2 rows.
 2020-08-26 00:06:34.575, 23, 10.3
 2020-08-26 00:06:35.575, 20, 9.3
 ```
-
-
 
 ## 指南
 
 （1）如何设置主机名和hosts
 
 在server上查看hostname和fqdn
+
 ```shell
 查看hostname
 # hostname
@@ -256,7 +247,6 @@ C:\\Windows\System32\drivers\etc\hosts
 
 （2）什么是fqdn？
 
-
 > 什么是FQDN？
 >
 > FQDN（Full qualified domain name）全限定域名，fqdn由2部分组成：hostname+domainname。
@@ -265,4 +255,4 @@ C:\\Windows\System32\drivers\etc\hosts
 >
 > 当连接服务器时，必须指定fqdn，然后，dns服务器通过查看dns表，将hostname解析为相应的ip地址。如果只指定hostname（不指定domainname），应用程序可能服务解析主机名。因为如果你试图访问不在本地的远程服务器时，本地的dns服务器和可能没有远程服务器的hostname列表。
 >
-> 参考：https://kb.iu.edu/d/aiuv
+> 参考：[Knowledge Base](https://kb.iu.edu/d/aiuv)

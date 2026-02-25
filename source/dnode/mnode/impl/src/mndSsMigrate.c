@@ -12,13 +12,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "audit.h"
 #include "mndSsMigrate.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 #include "mndVgroup.h"
 #include "tmisce.h"
 #include "tmsgcb.h"
@@ -375,6 +375,8 @@ int32_t mndAddSsMigrateToTran(SMnode *pMnode, STrans *pTrans, SSsMigrateObj *pSs
       code = terrno;
       taosArrayDestroy(pSsMigrate->vgroups);
       pSsMigrate->vgroups = NULL;
+      sdbCancelFetch(pSdb, pIter);
+      sdbRelease(pSdb, pVgroup);
       TAOS_RETURN(code);
     }
   }
@@ -402,14 +404,19 @@ int32_t mndAddSsMigrateToTran(SMnode *pMnode, STrans *pTrans, SSsMigrateObj *pSs
 
 // retrieve ssmigrate
 int32_t mndRetrieveSsMigrate(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode      *pMnode = pReq->info.node;
-  SSdb        *pSdb = pMnode->pSdb;
-  int32_t      numOfRows = 0;
+  SMnode        *pMnode = pReq->info.node;
+  SSdb          *pSdb = pMnode->pSdb;
+  int32_t        numOfRows = 0;
   SSsMigrateObj *pSsMigrate = NULL;
-  char        *sep = NULL;
-  SDbObj      *pDb = NULL;
-  int32_t      code = 0;
-  int32_t      lino = 0;
+  char          *sep = NULL;
+  SDbObj        *pDb = NULL;
+  int32_t        code = 0;
+  int32_t        lino = 0;
+  SUserObj      *pUser = NULL;
+  SDbObj        *pIterDb = NULL;
+  char           objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
+  bool           showAll = false, showIter = false;
+  int64_t        dbUid = 0;
 
   if (strlen(pShow->db) > 0) {
     sep = strchr(pShow->db, '.');
@@ -422,9 +429,14 @@ int32_t mndRetrieveSsMigrate(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
     }
   }
 
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), PRIV_SHOW_SSMIGRATES, PRIV_OBJ_DB, 0,
+                                   _OVER);
+
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_SSMIGRATE, pShow->pIter, (void **)&pSsMigrate);
     if (pShow->pIter == NULL) break;
+
+    MND_SHOW_CHECK_DB_PRIVILEGE(pDb, pSsMigrate->dbname, pSsMigrate, RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_SSMIGRATES, _OVER);
 
     SColumnInfoData *pColInfo;
     SName            n;
@@ -514,9 +526,13 @@ int32_t mndRetrieveSsMigrate(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
   }
 
 _OVER:
-  if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
-  pShow->numOfRows += numOfRows;
+  if (pUser) mndReleaseUser(pMnode, pUser);
   mndReleaseDb(pMnode, pDb);
+  if (code != 0) {
+    mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 
@@ -665,7 +681,7 @@ int32_t mndProcessKillSsMigrateReq(SRpcMsg *pReq) {
     TAOS_RETURN(code);
   }
 
-  //TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SSMIGRATE_DB), &lino, _OVER);
+  //TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_SSMIGRATE_DB), &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndKillSsMigrate(pMnode, pReq, pSsMigrate), &lino, _OVER);
 

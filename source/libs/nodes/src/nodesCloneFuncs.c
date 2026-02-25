@@ -75,7 +75,7 @@
       break;                                                            \
     }                                                                   \
     int32_t code = nodesCloneList((pSrc)->fldname, &((pDst)->fldname)); \
-    if (NULL == (pDst)->fldname) {                                      \
+    if (TSDB_CODE_SUCCESS != code) {                                    \
       return code;                                                      \
     }                                                                   \
   } while (0)
@@ -107,6 +107,8 @@ static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   COPY_SCALAR_FIELD(asParam);
   COPY_SCALAR_FIELD(asPosition);
   COPY_SCALAR_FIELD(joinSrc);
+  COPY_SCALAR_FIELD(asList);
+  COPY_SCALAR_FIELD(hasNull);
   COPY_SCALAR_FIELD(projIdx);
   COPY_SCALAR_FIELD(relatedTo);
   COPY_SCALAR_FIELD(bindExprID);
@@ -149,7 +151,7 @@ static int32_t columnDefNodeCopy(const SColumnDefNode* pSrc, SColumnDefNode* pDs
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
+int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_CHAR_POINT_FIELD(literal);
   COPY_SCALAR_FIELD(flag);
@@ -437,7 +439,7 @@ static int32_t intervalWindowNodeCopy(const SIntervalWindowNode* pSrc, SInterval
 }
 
 static int32_t nodeListNodeCopy(const SNodeListNode* pSrc, SNodeListNode* pDst) {
-  COPY_OBJECT_FIELD(node.resType, sizeof(SDataType));
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   CLONE_NODE_LIST_FIELD(pNodeList);
   return TSDB_CODE_SUCCESS;
 }
@@ -447,6 +449,8 @@ static int32_t fillNodeCopy(const SFillNode* pSrc, SFillNode* pDst) {
   CLONE_NODE_FIELD(pValues);
   CLONE_NODE_FIELD(pWStartTs);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  CLONE_NODE_FIELD(pTimeRange);
+  CLONE_NODE_FIELD(pSurroundingTime);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -507,6 +511,25 @@ static int32_t timeRangeNodeCopy(const STimeRangeNode* pSrc, STimeRangeNode* pDs
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t remoteValueCopy(const SRemoteValueNode* pSrc, SRemoteValueNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(val, valueNodeCopy);
+  //COPY_SCALAR_FIELD(valSet);
+  COPY_SCALAR_FIELD(subQIdx);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t remoteValueListCopy(const SRemoteValueListNode* pSrc, SRemoteValueListNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
+  COPY_SCALAR_FIELD(flag);
+  COPY_SCALAR_FIELD(targetType);
+  COPY_SCALAR_FIELD(targetTypeMod);
+  COPY_SCALAR_FIELD(hasValue);
+  COPY_SCALAR_FIELD(filterValueType);
+  COPY_SCALAR_FIELD(filterValueTypeMod);
+  COPY_SCALAR_FIELD(subQIdx);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pTargets);
   CLONE_NODE_FIELD(pConditions);
@@ -526,6 +549,16 @@ static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   return TSDB_CODE_SUCCESS;
 }
 
+
+static STimeWindow* timeWindowClone(const STimeWindow* pSrc) {
+  STimeWindow* pDst = taosMemoryMalloc(sizeof(*pSrc));
+  if (NULL == pDst) {
+    return NULL;
+  }
+  memcpy(pDst, pSrc, sizeof(*pSrc));
+  return pDst;
+}
+
 static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pScanCols);
@@ -537,7 +570,10 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(scanType);
   COPY_OBJECT_FIELD(scanSeq[0], sizeof(uint8_t) * 2);
   COPY_OBJECT_FIELD(scanRange, sizeof(STimeWindow));
+  CLONE_OBJECT_FIELD(pExtScanRange, timeWindowClone);
   CLONE_NODE_FIELD(pTimeRange);
+  CLONE_NODE_FIELD(pExtTimeRange);
+  CLONE_NODE_FIELD(pPrimaryCond);
   COPY_OBJECT_FIELD(tableName, sizeof(SName));
   COPY_SCALAR_FIELD(showRewrite);
   COPY_SCALAR_FIELD(ratio);
@@ -708,23 +744,21 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   CLONE_NODE_FIELD(pStateExpr);
   CLONE_NODE_FIELD(pStartCond);
   CLONE_NODE_FIELD(pEndCond);
-  COPY_SCALAR_FIELD(trueForLimit);
-  COPY_SCALAR_FIELD(triggerType);
-  COPY_SCALAR_FIELD(watermark);
-  COPY_SCALAR_FIELD(deleteMark);
-  COPY_SCALAR_FIELD(igExpired);
-  COPY_SCALAR_FIELD(igCheckUpdate);
+  COPY_SCALAR_FIELD(trueForType);
+  COPY_SCALAR_FIELD(trueForCount);
+  COPY_SCALAR_FIELD(trueForDuration);
   COPY_SCALAR_FIELD(windowAlgo);
   COPY_SCALAR_FIELD(windowCount);
   COPY_SCALAR_FIELD(windowSliding);
   COPY_SCALAR_FIELD(indefRowsFunc);
   CLONE_NODE_FIELD(pAnomalyExpr);
   COPY_CHAR_ARRAY_FIELD(anomalyOpt);
-  COPY_SCALAR_FIELD(recalculateInterval);
   CLONE_NODE_LIST_FIELD(pProjs);
   COPY_SCALAR_FIELD(isSingleTable);
   COPY_SCALAR_FIELD(inputHasOrder);
   COPY_SCALAR_FIELD(extendOption);
+  COPY_SCALAR_FIELD(orgTableUid);
+  COPY_SCALAR_FIELD(orgTableVgId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -738,6 +772,7 @@ static int32_t logicFillCopy(const SFillLogicNode* pSrc, SFillLogicNode* pDst) {
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
   CLONE_NODE_FIELD(pTimeRange);
   CLONE_NODE_LIST_FIELD(pFillNullExprs);
+  CLONE_NODE_FIELD(pSurroundingTime);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -772,14 +807,14 @@ static int32_t logicInterpFuncCopy(const SInterpFuncLogicNode* pSrc, SInterpFunc
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pFuncs);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  CLONE_NODE_FIELD(pTimeRange);
   COPY_SCALAR_FIELD(interval);
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(fillMode);
   CLONE_NODE_FIELD(pFillValues);
   CLONE_NODE_FIELD(pTimeSeries);
-  COPY_SCALAR_FIELD(rangeInterval);
-  COPY_SCALAR_FIELD(rangeIntervalUnit);
+  COPY_SCALAR_FIELD(surroundingTime);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -807,6 +842,8 @@ static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQue
   CLONE_NODE_LIST_FIELD(stbJoin.pVgList);
   CLONE_NODE_LIST_FIELD(stbJoin.pUidList);
   COPY_OBJECT_FIELD(stbJoin.srcScan, sizeof(pDst->stbJoin.srcScan));
+  COPY_SCALAR_FIELD(vtbScan.batchProcessChild);
+  COPY_SCALAR_FIELD(vtbScan.hasPartition);
   COPY_SCALAR_FIELD(vtbScan.scanAllCols);
   COPY_SCALAR_FIELD(vtbScan.isSuperTable);
   COPY_SCALAR_FIELD(vtbScan.useTagScan);
@@ -817,6 +854,12 @@ static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQue
   COPY_CHAR_ARRAY_FIELD(vtbScan.tbName);
   CLONE_OBJECT_FIELD(vtbScan.pVgroupList, vgroupsInfoClone);
   CLONE_NODE_LIST_FIELD(vtbScan.pOrgVgIds);
+  CLONE_NODE_LIST_FIELD(vtbScan.pScanCols);
+  COPY_SCALAR_FIELD(vtbWindow.wstartSlotId);
+  COPY_SCALAR_FIELD(vtbWindow.wendSlotId);
+  COPY_SCALAR_FIELD(vtbWindow.wdurationSlotId);
+  COPY_SCALAR_FIELD(vtbWindow.isVstb);
+  COPY_SCALAR_FIELD(vtbWindow.extendOption);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -877,7 +920,9 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_BASE_OBJECT_FIELD(scan, physiScanCopy);
   COPY_OBJECT_FIELD(scanSeq[0], sizeof(uint8_t) * 2);
   COPY_OBJECT_FIELD(scanRange, sizeof(STimeWindow));
+  CLONE_OBJECT_FIELD(pExtScanRange, timeWindowClone);
   CLONE_NODE_FIELD(pTimeRange);
+  CLONE_NODE_FIELD(pExtTimeRange);
   COPY_SCALAR_FIELD(ratio);
   COPY_SCALAR_FIELD(dataRequired);
   CLONE_NODE_LIST_FIELD(pDynamicScanFuncs);
@@ -903,6 +948,7 @@ static int32_t physiSysTableScanCopy(const SSystemTableScanPhysiNode* pSrc, SSys
   COPY_SCALAR_FIELD(showRewrite);
   COPY_SCALAR_FIELD(accountId);
   COPY_SCALAR_FIELD(sysInfo);
+  COPY_SCALAR_FIELD(privInfo);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -913,9 +959,6 @@ static int32_t physiWindowCopy(const SWindowPhysiNode* pSrc, SWindowPhysiNode* p
   CLONE_NODE_LIST_FIELD(pProjs);
   CLONE_NODE_FIELD(pTspk);
   CLONE_NODE_FIELD(pTsEnd);
-  COPY_SCALAR_FIELD(triggerType);
-  COPY_SCALAR_FIELD(watermark);
-  COPY_SCALAR_FIELD(igExpired);
   COPY_SCALAR_FIELD(indefRowsFunc);
   return TSDB_CODE_SUCCESS;
 }
@@ -1046,6 +1089,7 @@ static int32_t downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstre
 }
 
 static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_SCALAR_FIELD(isDistinct);
   CLONE_NODE_LIST_FIELD(pProjectionList);
   CLONE_NODE_FIELD(pFromTable);
@@ -1095,6 +1139,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
 }
 
 static int32_t setOperatorCopy(const SSetOperator* pSrc, SSetOperator* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_SCALAR_FIELD(opType);
   CLONE_NODE_LIST_FIELD(pProjectionList);
   CLONE_NODE_FIELD(pLeft);
@@ -1106,6 +1151,14 @@ static int32_t setOperatorCopy(const SSetOperator* pSrc, SSetOperator* pDst) {
   COPY_SCALAR_FIELD(timeLineResMode);
   COPY_SCALAR_FIELD(timeLineFromOrderBy);
   
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t trueForNodeCopy(const STrueForNode* pSrc, STrueForNode* pDst) {
+  COPY_SCALAR_FIELD(trueForType);
+  COPY_SCALAR_FIELD(count);
+  CLONE_NODE_FIELD(pDuration);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1217,6 +1270,15 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_TIME_RANGE:
       code = timeRangeNodeCopy((const STimeRangeNode*)pNode, (STimeRangeNode*)pDst);
       break;
+    case QUERY_NODE_REMOTE_VALUE:
+      code = remoteValueCopy((const SRemoteValueNode*)pNode, (SRemoteValueNode*)pDst);
+      break;
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      code = remoteValueListCopy((const SRemoteValueListNode*)pNode, (SRemoteValueListNode*)pDst);
+      break;
+    case QUERY_NODE_TRUE_FOR:
+      code = trueForNodeCopy((const STrueForNode*)pNode, (STrueForNode*)pDst);
+      break;
     case QUERY_NODE_SET_OPERATOR:
       code = setOperatorCopy((const SSetOperator*)pNode, (SSetOperator*)pDst);
       break;
@@ -1265,7 +1327,7 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
       code = logicForecastFuncCopy((const SForecastFuncLogicNode*)pNode, (SForecastFuncLogicNode*)pDst);
       break;
-    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC:
+    case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC:
       code = logicForecastFuncCopy((const SForecastFuncLogicNode*)pNode, (SForecastFuncLogicNode*)pDst);
       break;
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:

@@ -567,6 +567,85 @@ class TestJoin:
         print("\n")
         print("do sim join ........................... [passed]")
 
+    def join_bug_6613241466(self):
+        tdLog.info(f"=============== join_bug_6613241466")
+        tdSql.execute(f"drop database if exists test")
+        tdSql.execute(f"create database test")
+        tdSql.execute(f"use test")
+        
+        tdSql.execute(f"""CREATE STABLE `stable_olt_gpon_traffic_ods` (
+            `ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium',
+            `in_speed_kbps` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium',
+            `out_speed_kbps` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium'
+            ) TAGS (
+                `pid` INT
+            )""")
+        
+        tdSql.execute(f"""create table if not exists test.d1 using stable_olt_gpon_traffic_ods tags (1);""")
+        tdSql.execute(f"""create table if not exists test.d2 using stable_olt_gpon_traffic_ods tags (2);""")
+        
+        tdSql.execute(f"""INSERT INTO d1 USING stable_olt_gpon_traffic_ods TAGS (1) VALUES
+        ('2025-11-17 00:00:00', 100.0, 200.0),
+        ('2025-11-17 01:00:00', 150.0, 250.0),
+        ('2025-11-17 02:00:00', 200.0, 300.0),
+        ('2025-11-18 00:00:00', 300.0, 400.0),
+        ('2025-11-18 01:00:00', 350.0, 450.0),
+        ('2025-11-18 02:00:00', 400.0, 500.0);""")
+        
+        tdSql.execute(f"""INSERT INTO d2 USING stable_olt_gpon_traffic_ods TAGS (2) VALUES
+        ('2025-11-17 00:00:00', 100.0, 200.0),
+        ('2025-11-17 01:00:00', 150.0, 250.0),
+        ('2025-11-17 02:00:00', 200.0, 300.0),
+        ('2025-11-18 00:00:00', 300.0, 400.0),
+        ('2025-11-18 01:00:00', 350.0, 450.0),
+        ('2025-11-18 02:00:00', 400.0, 500.0);""")
+        
+        tdSql.query(f"""
+        select * from
+        (
+                SELECT
+                        TODAY() AS time,
+                        last_row(in_speed_spread),
+                        last_row(out_speed_spread),
+                        a.pid
+                FROM (
+                        SELECT
+                                _wstart,
+                                max(in_speed_kbps) AS in_speed_spread,
+                                max(out_speed_kbps) AS out_speed_spread,
+                                pid
+                        FROM test.stable_olt_gpon_traffic_ods
+                        WHERE ts > '2025-11-17 00:00:00'
+                        PARTITION BY pid
+                        INTERVAL (1d)
+                ) a
+                GROUP BY a.pid
+        ) b
+        JOIN (
+                SELECT
+                        ts,
+                        in_speed_kbps AS speed_spread,
+                        pid,
+                        TODAY() AS time
+                FROM test.stable_olt_gpon_traffic_ods
+                WHERE ts > '2025-11-17 00:00:00'
+                        AND pid = 1
+        ) c ON b.time = c.time """)
+        
+        tdSql.checkRows(10)
+        tdSql.checkData(0, 1, 400.0)
+        tdSql.checkData(0, 2, 500.0)
+        tdSql.checkData(0, 3, 2)
+        tdSql.checkData(0, 6, 1)
+        tdSql.checkData(2, 1, 400.0)
+        tdSql.checkData(2, 2, 500.0)
+        tdSql.checkData(2, 3, 2)
+        tdSql.checkData(2, 6, 1)
+        tdSql.checkData(3, 1, 400.0)
+        tdSql.checkData(3, 2, 500.0)
+        tdSql.checkData(3, 3, 2)
+        tdSql.checkData(3, 6, 1)
+        tdSql.execute(f"drop database if exists test")
 
     #
     # ---------------- main ---------------------
@@ -1145,6 +1224,164 @@ class TestJoin:
         self.ts5863(dbname=dbname1)
         print("do system-test join ................... [passed]")
 
+    #
+    # ---------------- 4 ---------------------
+    #
+    def init_data(self):
+        tdSql.prepare()
+
+        tdSql.execute(f'''create table sta(ts timestamp, col1 int, col2 bigint) tags(tg1 int, tg2 binary(20))''')
+        sql = "create table "
+        sql += " sta1 using sta tags(1, 'a')"
+        sql += " sta2 using sta tags(2, 'b')"
+        sql += " sta3 using sta tags(3, 'c')"
+        sql += " sta4 using sta tags(4, 'a')"
+        tdSql.execute(sql)
+
+        sql = "insert into "
+        sql += " sta1 values(1537146000001, 11, 110)"
+        sql += " sta1 values(1537146000002, 12, 120)"
+        sql += " sta1 values(1537146000003, 13, 130)"
+        sql += " sta2 values(1537146000001, 21, 210)"
+        sql += " sta2 values(1537146000002, 22, 220)"
+        sql += " sta2 values(1537146000003, 23, 230)"
+        sql += " sta3 values(1537146000001, 31, 310)"
+        sql += " sta3 values(1537146000002, 32, 320)"
+        sql += " sta3 values(1537146000003, 33, 330)"
+        sql += " sta4 values(1537146000001, 41, 410)"
+        sql += " sta4 values(1537146000002, 42, 420)"
+        sql += " sta4 values(1537146000003, 43, 430)"
+        tdSql.execute(sql)
+
+        tdSql.execute(f'''create table stb(ts timestamp, col1 int, col2 bigint) tags(tg1 int, tg2 binary(20))''')
+        sql = "create table "
+        sql += " stb1 using stb tags(1, 'a')"
+        sql += " stb2 using stb tags(2, 'b')"
+        sql += " stb3 using stb tags(3, 'c')"
+        sql += " stb4 using stb tags(4, 'a')"
+        tdSql.execute(sql)
+        
+        sql = "insert into "
+        sql += " stb1 values(1537146000001, 911, 9110)"
+        sql += " stb1 values(1537146000002, 912, 9120)"
+        sql += " stb1 values(1537146000003, 913, 9130)"
+        sql += " stb2 values(1537146000001, 921, 9210)"
+        sql += " stb2 values(1537146000002, 922, 9220)"
+        sql += " stb2 values(1537146000003, 923, 9230)"
+        sql += " stb3 values(1537146000001, 931, 9310)"
+        sql += " stb3 values(1537146000002, 932, 9320)"
+        sql += " stb3 values(1537146000003, 933, 9330)"
+        sql += " stb4 values(1537146000001, 941, 9410)"
+        sql += " stb4 values(1537146000002, 942, 9420)"
+        sql += " stb4 values(1537146000003, 943, 9430)"
+        tdSql.execute(sql)
+        
+    def do_stbJoin(self):
+        tdSql.query(f"select * from sta a, stb b where a.ts=b.ts")
+        tdSql.checkRows(48)
+
+        tdSql.query(f"select * from sta a join stb b on a.tg1=b.tg1 where a.ts=b.ts;")
+        tdSql.checkRows(12)
+
+        tdSql.query(f"select a.* from sta a join stb b on a.tg1=b.tg1 where a.ts=b.ts;")
+        tdSql.checkRows(12)
+
+        tdSql.query(f"select b.* from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts;")
+        tdSql.checkRows(12)
+
+        tdSql.query(f"select b.* from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts order by a.ts;")
+        tdSql.checkRows(12)
+
+        tdSql.query(f"select b.* from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts order by a.ts, a.tg1;")
+        tdSql.checkRows(12)
+
+        tdSql.query(f"select b.* from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts order by a.tg1, a.ts;")
+        tdSql.checkRows(12)
+
+        tdSql.query(f"select b.* from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts order by b.tg1, a.ts;")
+        tdSql.checkRows(12)
+
+        tdSql.query(f"select b.* from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts order by b.ts, b.tg1;")
+        tdSql.checkRows(12)
+
+        tdSql.query(f"select a.tg1,a.tg2,b.* from sta a, stb b where (a.tg1=b.tg1 or a.tg2=b.tg2) and a.ts=b.ts;")
+        tdSql.checkRows(18)
+
+        tdSql.query(f"select a.* from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and a.tg2=b.tg2;")
+        tdSql.checkRows(12)
+
+        tdSql.query(f"select a.* from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and a.tg2 > 'a';")
+        tdSql.checkRows(6)
+
+        tdSql.query(f"select a.* from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a';")
+        tdSql.checkRows(6)
+
+        tdSql.query(f"select count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"select /*+ batch_scan() */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"select /*+ no_batch_scan() */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"select a.ts, b.ts from sta a, stb b where a.ts=b.ts and (a.tg1=b.tg1 and a.tg1 > b.tg1);")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select a.* from sta a join stb b on a.tg1=b.tg1 and a.ts=b.ts and a.tg2=b.tg2;")
+        tdSql.checkRows(12)
+
+        tdSql.query(f"select a.* from sta a join stb b on a.tg1 != b.tg1 and a.ts=b.ts;")
+        tdSql.checkRows(36)
+
+        tdSql.query(f"select a.* from sta a join stb b on a.ts=b.ts and a.ts is null;")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select a.* from sta a join stb b on a.ts=b.ts and a.ts is not null;")
+        tdSql.checkRows(48)
+
+        tdSql.query(f"select a.* from sta a ,stb b where a.ts=b.ts and a.ts is null;")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select a.* from sta a ,stb b where a.ts=b.ts and a.ts is not null;")
+        tdSql.checkRows(48)
+
+        tdSql.query(f"select a.* from sta a join stb b on a.ts=b.ts where a.tg1=b.tg1 or a.tg2=b.tg2;"); #!!!!it works now
+        tdSql.checkRows(18)
+
+        tdSql.error(f"select a.* from sta a join stb b on a.tg1=b.tg1 where a.ts=b.ts or a.tg2=b.tg2;")
+        tdSql.error(f"select b.* from sta a, stb b where a.tg1=b.tg1 or a.ts=b.ts;")
+        print("do stb join ........................... [passed]")
+
+    #
+    # ---------------- 5 ---------------------
+    #
+    def do_join_hint(self):
+        tdSql.query(f"select /*+ batch_scan() */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"select /*+ no_batch_scan() */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"select /*+ batch_scan(a) */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"select /*+ batch_scan(a,) */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"select /*+ a,a */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"select /*+*/ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"select /*+ batch_scan(),no_batch_scan() */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
+        tdSql.checkRows(3)
+
+        tdSql.query(f"select /*+ no_batch_scan() batch_scan() */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
+        tdSql.checkRows(3)
+
+        print("do hint join .......................... [passed]")
 
     #
     # ---------------- main ---------------------
@@ -1157,12 +1394,16 @@ class TestJoin:
         3. Join with tb1.int = tb2.int limit 
         4. Join with tb1.int = tb2.int and ts filter
         5. Join with multiple tables
-        6. Join with group by
+        6. Join with group by/order by/limit
         7. Join with having condition
         8. Join error cases
-        9. Cross database join test
-        10. Join semantic test
-        11. Verify bug TS-5863
+        9. Join on two database
+        11. Join on two super table
+        12. Join on two normal table
+        13. Join on normal table and super table
+        14. Join semantic test
+        15. Join with interval
+        16. Join bug TS-5863
 
         Since: v3.0.0.0
 
@@ -1174,8 +1415,15 @@ class TestJoin:
             - 2025-5-7 Simon Guan migrated from tsim/parser/join.sim
             - 2025-10-21 Alex Duan Migrated from 25-JoinQueries/test_join2.py
             - 2025-10-21 Alex Duan Migrated from uncatalog/system-test/2-query/test_join.py
+            - 2025-12-10 Alex Duan Migrated from uncatalog/system-test/2-query/test_stbJoin.py
 
         """
+        self.join_bug_6613241466()
         self.do_sim_join()
         self.do_sim_join2()
         self.do_system_test_join()
+        self.init_data()
+        self.do_stbJoin()
+        self.do_join_hint()
+
+    

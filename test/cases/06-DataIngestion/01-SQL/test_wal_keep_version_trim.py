@@ -12,7 +12,7 @@ class TestWalKeepVersionTrim:
 
 
     def test_wal_keep_version_and_trim(self):
-        """Test WAL keep version and trim functionality
+        """Wal keep trim
         
         This test verifies:
         1. prepare data
@@ -75,6 +75,7 @@ class TestWalKeepVersionTrim:
         
 
         # trim database wal
+        tdSql.execute("trim database test wal")
         tdSql.execute("trim database test wal")
 
         # check wal vgId 2 firstVer is greater than 0 after trim

@@ -2,6 +2,7 @@ aux_source_directory(src TRANSPORT_SRC)
 
 IF(TD_ENTERPRISE)
 	LIST(APPEND TRANSPORT_SRC ${TD_ENTERPRISE_DIR}/src/plugins/trans/src/transTLSImpl.c)
+    #LIST(APPEND TRANSPORT_SRC ${TD_ENTERPRISE_DIR}/src/plugins/trans/src/transSaslImpl.c) 
 ENDIF()
 
 add_library(transport STATIC ${TRANSPORT_SRC})
@@ -24,6 +25,12 @@ if (NOT ${TD_WINDOWS})
 endif()
 
 
+if (${TD_LINUX})
+  if (${TD_ENTERPRISE})        # {
+    DEP_ext_sasl2(transport)
+  endif()
+endif()
+
 if(${BUILD_WITH_UV_TRANS})
   if(${BUILD_WITH_UV})
     DEP_ext_libuv(transport)
@@ -38,3 +45,8 @@ if(${BUILD_WITH_UV_TRANS})
     add_definitions(-DUSE_UV)
   endif(${BUILD_WITH_UV})
 endif(${BUILD_WITH_UV_TRANS})
+
+
+# if(${BUILD_TEST})
+#     add_subdirectory(test)
+# endif(${BUILD_TEST})

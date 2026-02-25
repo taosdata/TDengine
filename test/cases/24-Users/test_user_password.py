@@ -14,11 +14,11 @@ class TestUserPassword:
     #
     def do_user_password(self):
         tdLog.info(f"============= step1")
-        tdSql.execute(f"create user u_read pass 'tbx12F132!'")
-        tdSql.execute(f"create user u_write pass 'tbx12145&*'")
+        tdSql.execute(f"create user u_read pass 'tbx12F132!' password_reuse_time 0 password_reuse_max 0")
+        tdSql.execute(f"create user u_write pass 'tbx12145&*' password_reuse_time 0 password_reuse_max 0")
 
-        tdSql.execute(f"alter user u_read pass 'taosdata'")
-        tdSql.execute(f"alter user u_write pass 'taosdata'")
+        tdSql.execute(f"alter user u_read pass 'AAbb1122'")
+        tdSql.execute(f"alter user u_write pass 'AAbb1122'")
 
         tdSql.query(f"show users")
         tdSql.checkRows(3)
@@ -180,14 +180,14 @@ class TestUserPassword:
 
         tdSql.execute(f"drop user user_p1")
 
-        tdSql.execute(f"create user user_px pass 'taosdata'")
+        tdSql.execute(f"create user user_px pass 'AAbb1122'")
         tdSql.execute(f"drop user user_px")
 
         tdLog.info(f"============= step2")
         tdLog.info(f"user u_read login")
-        tdSql.connect("u_read")
+        tdSql.connect("u_read", "AAbb1122")
 
-        tdSql.execute(f"alter user u_read pass 'taosdata'")
+        tdSql.execute(f"alter user u_read pass 'AAbb1133'")
         tdSql.error(f"alter user u_write pass 'taosdata1'")
 
         tdSql.error(f"create user read1 pass 'taosdata1'")
@@ -198,11 +198,11 @@ class TestUserPassword:
 
         tdLog.info(f"============= step3")
         tdLog.info(f"user u_write login")
-        tdSql.connect("u_write")
+        tdSql.connect("u_write", "AAbb1122")
 
         tdSql.error(f"create user read2 pass 'taosdata1'")
         tdSql.error(f"create user write2 pass 'taosdata1'")
-        tdSql.execute(f"alter user u_write pass 'taosdata'")
+        tdSql.execute(f"alter user u_write pass 'AAbb1133'")
         tdSql.error(f"alter user u_read pass 'taosdata'")
 
         tdSql.query(f"show users")
@@ -211,12 +211,12 @@ class TestUserPassword:
         tdLog.info(f"============= step4")
         tdLog.info(f"user root login")
         tdSql.connect("root")
-        tdSql.execute(f"create user oroot pass 'taosdata'")
+        tdSql.execute(f"create user oroot pass 'AAbb1122'")
         tdSql.error(
             f"create user PASS 'abcd012345678901234567891234567890abcd012345678901234567891234567890abcd012345678901234567891234567890abcd012345678901234567891234567890123'"
         )
         tdSql.error(
-            f"create userabcd012345678901234567891234567890abcd01234567890123456789123456789  PASS 'taosdata'"
+            f"create userabcd012345678901234567891234567890abcd01234567890123456789123456789  PASS 'AAbb1133'"
         )
         tdSql.error(f"create user abcd0123456789012345678901234567890111 PASS '123'")
         tdSql.execute(f"create user abc01234567890123456789 PASS '123xyzYDE'")
@@ -276,7 +276,7 @@ class TestUserPassword:
         tdSql.execute(f"create user u27 pass 'taosdata1.'")
 
         tdSql.execute(
-            f"CREATE USER `_xTest1` PASS '2729c41a99b2c5222aa7dd9fc1ce3de7' SYSINFO 1 CREATEDB 0 IS_IMPORT 1 HOST '127.0.0.1';"
+            f"CREATE USER `_xTest1` PASS '2729c41a99b2c5222aa7dd9fc1ce3dE7' SYSINFO 1 CREATEDB 0 IS_IMPORT 1 HOST '127.0.0.1';"
         )
         tdSql.error(
             f"CREATE USER `_xTest2` PASS '2729c41a99b2c5222aa7dd9fc1ce3de7' SYSINFO 1 CREATEDB 0 IS_IMPORT 0 HOST '127.0.0.1';"
@@ -319,7 +319,7 @@ class TestUserPassword:
         time.sleep(3)
 
         # weak
-        tdSql.execute("create user test1 pass '12345678' sysinfo 0;")
+        tdSql.execute("create user test1 pass '12345678' sysinfo 0 password_reuse_time 0 password_reuse_max 0;")
 
         tdSql.execute("alter user test1 pass '12345678';")
 
@@ -337,7 +337,7 @@ class TestUserPassword:
             raise Exception("failed to execute system command. cmd: %s" % cmd)
 
         tdSql.error("alter user test2 pass '1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456';", expectErrInfo="Name or password too long", fullMatched=False)      
-        tdLog.success(f"{__file__} successfully executed")    
+
 
         print("do army password ...................... [passed]")
 

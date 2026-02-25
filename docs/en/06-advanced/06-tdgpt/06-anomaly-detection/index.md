@@ -5,7 +5,7 @@ description: Anomaly Detection
 
 This service is provided via an anomaly window that has been introduced into TDengine. An anomaly window is a special type of event window, defined by the anomaly detection algorithm as a time window during which an anomaly is occurring. This window differs from an event window in that the algorithm determines when it opens and closes instead of expressions input by the user. You can use the `ANOMALY_WINDOW` keyword in a `WHERE` clause to invoke the anomaly detection service. The window pseudocolumns `_WSTART`, `_WEND`, and `_WDURATION` record the start, end, and duration of the window. For example:
 
-```SQL
+```sql
 --- Use the IQR algorithm to detect anomalies in the `col_val` column. Also return the start and end time of the anomaly window as well as the sum of the `col` column within the window.
 SELECT _wstart, _wend, SUM(col) 
 FROM foo
@@ -20,7 +20,7 @@ You can then query, aggregate, or perform other operations on the data in the wi
 
 ### Syntax
 
-```SQL
+```sql
 ANOMALY_WINDOW(column_name, option_expr)
 
 option_expr: {"
@@ -44,7 +44,7 @@ algo=expr1
 
 ### Example
 
-```SQL
+```sql
 --- Use the IQR algorithm to detect anomalies in the `i32` column.
 SELECT _wstart, _wend, SUM(i32) 
 FROM foo
@@ -55,7 +55,7 @@ SELECT _wstart, _wend, SUM(i32)
 FROM foo
 ANOMALY_WINDOW(i32, "algo=ksigma,k=2");
 
-taos> SELECT _wstart, _wend, count(*) FROM foo ANOMAYL_WINDOW(i32);
+taos> SELECT _wstart, _wend, count(*) FROM foo ANOMALY_WINDOW(i32);
          _wstart         |          _wend          |   count(*)    |
 ====================================================================
  2020-01-01 00:00:16.000 | 2020-01-01 00:00:17.000 |             2 |

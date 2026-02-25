@@ -64,7 +64,7 @@ Your classes must initialize the following properties:
 - `name`: identifier of the algorithm. Use lowercase letters only. This identifier is displayed when you use the `SHOW` statement to display available algorithms.
 - `desc`: basic description of the algorithm.
 
-```SQL
+```sql
 --- The `algo` key takes the defined `name` value.
 SELECT COUNT(*)
 FROM foo ANOMALY_WINDOW(col_name, 'algo=name')

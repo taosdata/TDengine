@@ -107,6 +107,7 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
 - `db`：连接的数据库。
 - `timezone`：查询结果集解析时间类型使用的时区，默认为本地时区，详情见[时区说明](#时区说明)。
 - `connectionTimezone`：连接级别的时区设置（3.1.8 及以上版本支持），仅支持 .NET 6 及以上版本，只支持 IANA 时区格式，与 `timezone` 不可同时设置，详情见[时区说明](#时区说明)。
+- `bearerToken`：连接 TDengine TSDB 的 token 验证信息（3.1.10 及以上版本支持）。
 
 ##### WebSocket 连接
 
@@ -131,6 +132,7 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
 - `autoReconnect`：是否自动重连，默认为 false。
 - `reconnectRetryCount`：重连次数，默认为 3。
 - `reconnectIntervalMs`：重连间隔毫秒时间，默认为 2000。
+- `bearerToken`：连接 TDengine TSDB 的 token 验证信息（3.1.10 及以上版本支持）。
 
 #### 时区说明
 

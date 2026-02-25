@@ -497,8 +497,8 @@ int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, SQueueInfo *qinfo)
       queue->memOfItems -= (pNode->size + pNode->dataSize);
       (void)atomic_sub_fetch_32(&qset->numOfItems, 1);
       code = 1;
-      uTrace("item:%p, is read out from queue:%p, items:%d mem:%" PRId64, *ppItem, queue, queue->numOfItems - 1,
-             queue->memOfItems);
+      uTrace("item:%p, is read out from queue:%p, timeInQueue:%" PRId64 "us , items:%d mem:%" PRId64, 
+          *ppItem, queue, taosGetTimestampUs() - pNode->timestamp, queue->numOfItems - 1, queue->memOfItems);
     }
 
     (void)taosThreadMutexUnlock(&queue->mutex);

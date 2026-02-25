@@ -16,13 +16,13 @@ taosdump is the default installation component in the TDengine server and client
 
 taosdump needs to be run in the command line terminal. It must be run with parameters to indicate backup or restore operations, such as:
 
-``` bash
+```bash
 taosdump -h my-server -D test -o /root/test/
 ```
 
 The above command means to backup the `test` database on the `my server` machine to the `/root/test/` directory.
 
-``` bash
+```bash
 taosdump -h my-server -i /root/test/
 ```
 

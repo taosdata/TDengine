@@ -33,6 +33,7 @@ void* serverLoop(void* param) {
 
 bool TestServer::Start() {
   tstrncpy(tsVersionName, "trial", strlen("trial"));
+  tsSkipKeyCheckMode = true;
   running = false;
   TdThreadAttr thAttr;
   taosThreadAttrInit(&thAttr);

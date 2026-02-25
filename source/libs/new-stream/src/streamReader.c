@@ -15,9 +15,14 @@
 void qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo) { 
   if (pTableListInfo == NULL) return;
   taosArrayDestroyP(pTableListInfo->pTableList, taosMemFree);
+  pTableListInfo->pTableList = NULL;
   taosHashCancelIterate(pTableListInfo->gIdMap, pTableListInfo->pIter);
   taosHashCleanup(pTableListInfo->gIdMap);
+  stDebug("release gIdMap:%p", pTableListInfo->gIdMap);
+  pTableListInfo->pIter = NULL;
+  pTableListInfo->gIdMap = NULL;
   taosHashCleanup(pTableListInfo->uIdMap);
+  pTableListInfo->uIdMap = NULL;
 }
 
 static int32_t removeList(SHashObj* idMap, SStreamTableKeyInfo* table, uint64_t key){
@@ -501,7 +506,6 @@ static void destroyBlock(void* data) {
 static void releaseStreamReaderInfo(void* p) {
   if (p == NULL) return;
   SStreamTriggerReaderInfo* pInfo = (SStreamTriggerReaderInfo*)p;
-  if (pInfo == NULL) return;
   taosHashCleanup(pInfo->streamTaskMap);
   taosHashCleanup(pInfo->groupIdMap);
   pInfo->streamTaskMap = NULL;
@@ -856,6 +860,7 @@ int32_t stReaderTaskUndeployImpl(SStreamReaderTask** ppTask, const SStreamUndepl
   STREAM_CHECK_NULL_GOTO(ppTask, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_NULL_GOTO(pMsg, TSDB_CODE_INVALID_PARA);
   if ((*ppTask)->triggerReader == 1) {
+    stInfo("release stream reader info:%p", (*ppTask)->info);
     releaseStreamReaderInfo((*ppTask)->info);
   } else {
     taosArrayDestroyP((*ppTask)->info, releaseStreamReaderCalcInfo);
@@ -915,7 +920,7 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
     SSDataBlock* pBlock = taosArrayGetP(pResList, i);
     if (pBlock == NULL || pBlock->info.rows == 0) continue;
-    int32_t blockSize = blockGetEncodeSize(pBlock);
+    int32_t blockSize = blockGetInternalEncodeSize(pBlock);
     dataEncodeBufSize += (INT_BYTES * 2 + blockSize);
     blockNum++;
   }
@@ -934,12 +939,12 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
     SSDataBlock* pBlock = taosArrayGetP(pResList, i);
     if (pBlock == NULL || pBlock->info.rows == 0) continue;
-    int32_t blockSize = blockGetEncodeSize(pBlock);
+    int32_t blockSize = blockGetInternalEncodeSize(pBlock);
     *((int32_t*)(dataBuf)) = blockSize;
     *((int32_t*)(dataBuf + INT_BYTES)) = blockSize;
     pRetrieve->numOfRows += pBlock->info.rows;
     int32_t actualLen =
-        blockEncode(pBlock, dataBuf + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
+        blockEncodeInternal(pBlock, dataBuf + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
     STREAM_CHECK_CONDITION_GOTO(actualLen < 0, terrno);
     dataBuf += (INT_BYTES * 2 + actualLen);
   }

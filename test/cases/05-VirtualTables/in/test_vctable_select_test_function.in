@@ -10,7 +10,7 @@ select pow(tinyint_col, 2) from test_vtable_select.vtb_virtual_ctb_full limit 50
 select round(double_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
 select sin(u_tinyint_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
 select sqrt(u_tinyint_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
-select tan(u_tinyint_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
+select round(tan(u_tinyint_col)) from test_vtable_select.vtb_virtual_ctb_full limit 50;
 select PI() from test_vtable_select.vtb_virtual_ctb_full limit 50;
 select PI(), u_tinyint_col from test_vtable_select.vtb_virtual_ctb_full limit 50;
 select exp(tinyint_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
@@ -76,7 +76,7 @@ select irate(int_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
 select mavg(int_col, 100) from test_vtable_select.vtb_virtual_ctb_full limit 50;
 select statecount(u_tinyint_col, "GT", 20) from test_vtable_select.vtb_virtual_ctb_full limit 50;
 select stateduration(u_tinyint_col, "GT", 20, 1a) from test_vtable_select.vtb_virtual_ctb_full limit 50;
-select twa(int_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
+select round(twa(int_col), -4) from test_vtable_select.vtb_virtual_ctb_full limit 50;
 
 
 select abs(int_tag) from test_vtable_select.vtb_virtual_ctb_full limit 5;

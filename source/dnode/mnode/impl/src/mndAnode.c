@@ -15,12 +15,9 @@
 
 #define _DEFAULT_SOURCE
 #include "mndAnode.h"
-#include "audit.h"
-#include "mndDnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
-#include "mndUser.h"
 #include "tanalytics.h"
 #include "tjson.h"
 
@@ -224,12 +221,19 @@ static void mndFreeAnode(SAnodeObj *pObj) {
   taosMemoryFreeClear(pObj->url);
   for (int32_t i = 0; i < pObj->numOfAlgos; ++i) {
     SArray *algos = pObj->algos[i];
+    if (algos == NULL) {
+      continue;
+    }
+
     for (int32_t j = 0; j < (int32_t)taosArrayGetSize(algos); ++j) {
       SAnodeAlgo *algo = taosArrayGet(algos, j);
       taosMemoryFreeClear(algo->name);
+      taosMemoryFreeClear(algo->pStatus);
+      taosMemoryFreeClear(algo->pNote);
     }
     taosArrayDestroy(algos);
   }
+
   taosMemoryFreeClear(pObj->algos);
 }
 
@@ -379,7 +383,7 @@ static int32_t mndProcessCreateAnodeReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeSMCreateAnodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
   mInfo("anode:%s, start to create", createReq.url);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_ANODE), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_ANODE), NULL, _OVER);
 
   pObj = mndAcquireAnodeByURL(pMnode, createReq.url);
   if (pObj != NULL) {
@@ -471,7 +475,7 @@ static int32_t mndProcessUpdateAnodeReq(SRpcMsg *pReq) {
   }
 
   TAOS_CHECK_GOTO(tDeserializeSMUpdateAnodeReq(pReq->pCont, pReq->contLen, &updateReq), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_UPDATE_ANODE), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_UPDATE_ANODE), NULL, _OVER);
 
   if (updateReq.anodeId == -1) {
     code = mndUpdateAllAnodes(pMnode, pReq);
@@ -562,7 +566,7 @@ static int32_t mndProcessDropAnodeReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeSMDropAnodeReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
   mInfo("anode:%d, start to drop", dropReq.anodeId);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_ANODE), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_ANODE), NULL, _OVER);
 
   if (dropReq.anodeId <= 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -685,13 +689,70 @@ void mndRetrieveAlgoList(SMnode* pMnode, SArray* pFc, SArray* pAd) {
   }
 }
 
+int32_t updateModelStatus(SAnodeObj *pAnode) {
+  SAnodeObj anodeObj = {.id = pAnode->id, .updateTime = taosGetTimestampMs()};
+  int32_t   code = mndGetAnodeAlgoList(pAnode->url, &anodeObj);
+
+  taosWLockLatch(&pAnode->lock);
+
+  if (code == TSDB_CODE_ANA_URL_CANT_ACCESS) {
+    mError("failed to extract anode status from url:%s, code:%s", pAnode->url, tstrerror(code));
+
+    // set the unavailable status for all models/algorithms
+    for (int32_t i = 0; i < pAnode->numOfAlgos; ++i) {
+      SArray *algos = pAnode->algos[i];
+
+      for (int32_t j = 0; j < (int32_t)taosArrayGetSize(algos); ++j) {
+        SAnodeAlgo *pAlgo = taosArrayGet(algos, j);
+        if (pAlgo != NULL) {
+          taosMemoryFreeClear(pAlgo->pStatus);
+          taosMemoryFreeClear(pAlgo->pNote);
+        }
+      }
+    }
+  }
+
+  // update the model status according to the retrieved info
+  for (int32_t i = 0; i < anodeObj.numOfAlgos; ++i) {
+    SArray *algos = anodeObj.algos[i];
+
+    for (int32_t j = 0; j < (int32_t)taosArrayGetSize(algos); ++j) {
+      SAnodeAlgo *pNewAlgo = taosArrayGet(algos, j);
+      SAnodeAlgo *pOldAlgo = NULL;
+
+      if (pAnode->numOfAlgos > i) {
+        SArray *oldAlgos = pAnode->algos[i];
+        for (int32_t k = 0; k < (int32_t)taosArrayGetSize(oldAlgos); ++k) {
+          SAnodeAlgo *tmp = taosArrayGet(oldAlgos, k);
+          if (strcmp(tmp->name, pNewAlgo->name) == 0) {
+            pOldAlgo = tmp;
+            break;
+          }
+        }
+      }
+
+      if (pOldAlgo != NULL) {
+        taosMemoryFreeClear(pOldAlgo->pStatus);
+        taosMemoryFreeClear(pOldAlgo->pNote);
+        TSWAP(pOldAlgo->pStatus, pNewAlgo->pStatus);
+        TSWAP(pOldAlgo->pNote, pNewAlgo->pNote);
+      }
+    }
+  }
+
+  taosWUnLockLatch(&pAnode->lock);
+
+  mndFreeAnode(&anodeObj);
+  return code;
+}
+
 static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode    *pMnode = pReq->info.node;
-  SSdb      *pSdb = pMnode->pSdb;
+  SMnode *   pMnode = pReq->info.node;
+  SSdb *     pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;
   int32_t    cols = 0;
   SAnodeObj *pObj = NULL;
-  char       buf[TSDB_ANALYTIC_ALGO_NAME_LEN + VARSTR_HEADER_SIZE];
+  char       buf[TSDB_ANALYTIC_ALGO_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
   int32_t    code = 0;
 
   if ((code = grantCheckExpire(TSDB_GRANT_TD_GPT)) != TSDB_CODE_SUCCESS) {
@@ -701,7 +762,11 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_ANODE, pShow->pIter, (void **)&pObj);
-    if (pShow->pIter == NULL) break;
+    if (pShow->pIter == NULL || pObj == NULL) {
+      break;
+    }
+
+    code = updateModelStatus(pObj);
 
     for (int32_t t = 0; t < pObj->numOfAlgos; ++t) {
       SArray *algos = pObj->algos[t];
@@ -709,17 +774,31 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       for (int32_t a = 0; a < taosArrayGetSize(algos); ++a) {
         SAnodeAlgo *algo = taosArrayGet(algos, a);
 
-        cols = 0;
+        cols = 0;  // id
         SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
         if (code != 0) goto _end;
 
+        // type
         STR_TO_VARSTR(buf, taosAnalysisAlgoType(t));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
 
+        // name
         STR_TO_VARSTR(buf, algo->name);
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        code = colDataSetVal(pColInfo, numOfRows, buf, false);
+        if (code != 0) goto _end;
+
+        // status
+        STR_TO_VARSTR(buf, algo->pStatus == NULL ? "UNAVAIL" : algo->pStatus);
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        code = colDataSetVal(pColInfo, numOfRows, buf, false);
+        if (code != 0) goto _end;
+
+        // note
+        STR_TO_VARSTR(buf, algo->pNote == NULL ? "" : algo->pNote);
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
@@ -778,7 +857,7 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
     SJson *detail = tjsonGetArrayItem(details, d);
     if (detail == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
 
-    code = tjsonGetStringValue2(detail, "type", buf, sizeof(buf));
+    code = tjsonGetStringValue2(detail, "type", buf, tListLen(buf));
     if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
     EAnalyAlgoType type = taosAnalyAlgoInt(buf);
 
@@ -793,23 +872,45 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
       SJson *algo = tjsonGetArrayItem(algos, a);
       if (algo == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
 
-      code = tjsonGetStringValue2(algo, "name", buf, sizeof(buf));
-      if (code < 0) return TSDB_CODE_MND_ANODE_TOO_LONG_ALGO_NAME;
+      char *pBuf = NULL;
+      code = tjsonDupStringValue(algo, "name", &pBuf);
+      if (code != 0) {
+        mError("failed to extract name for algo index:%d of type:%s, code:%s", a, taosAnalysisAlgoType(type), tstrerror(code)); 
+        return code;
+      }
 
-      SAnodeAlgo algoObj = {0};
-      algoObj.nameLen = strlen(buf) + 1;
-      if (algoObj.nameLen <= 1) return TSDB_CODE_INVALID_JSON_FORMAT;
-      algoObj.name = taosMemoryCalloc(algoObj.nameLen, 1);
-      tstrncpy(algoObj.name, buf, algoObj.nameLen);
+      int32_t len = strlen(pBuf) + 1;
+      if (len > TSDB_ANALYTIC_ALGO_NAME_LEN) {
+        taosMemoryFree(pBuf);
+        mError("algo name too long:%s, longer than the threshold:%d", buf, TSDB_ANALYTIC_ALGO_NAME_LEN);
+        return TSDB_CODE_MND_ANODE_TOO_LONG_ALGO_NAME;
+      } else if (len < 2) {
+        taosMemoryFree(pBuf);
+        mError("algo name too short:%s", buf);
+        return TSDB_CODE_INVALID_JSON_FORMAT;
+      }
 
-      if (taosArrayPush(pObj->algos[type], &algoObj) == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+      SAnodeAlgo algoObj = {.nameLen = len, .name = pBuf};
+      code = tjsonDupStringValue(algo, "status", &algoObj.pStatus);
+      if (code != 0) {
+        mError("failed to extract status for algo:%s, code:%s", algoObj.name, tstrerror(code)); 
+        return code;
+      }
+
+      if (taosArrayPush(pObj->algos[type], &algoObj) == NULL) {
+        mError("failed to push algo:%s into anode algos array, code:%s", algoObj.name, tstrerror(terrno));
+
+        taosMemoryFree(algoObj.pStatus);
+        taosMemoryFree(algoObj.name);
+        return terrno;
+      }
     }
   }
 
   return 0;
 }
 
-static int32_t mndGetAnodeAlgoList(const char *url, SAnodeObj *pObj) {
+int32_t mndGetAnodeAlgoList(const char *url, SAnodeObj *pObj) {
   char anodeUrl[TSDB_ANALYTIC_ANODE_URL_LEN + 1] = {0};
   snprintf(anodeUrl, TSDB_ANALYTIC_ANODE_URL_LEN, "%s/%s", url, "list");
 

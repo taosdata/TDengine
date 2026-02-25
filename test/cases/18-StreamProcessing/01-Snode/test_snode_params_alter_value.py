@@ -50,7 +50,8 @@ class TestStreamParametersAlterParam:
         tdStream.dropAllStreamsAndDbs()
 
         # test root user alter  value
-        self.alternumOfMnodeStreamMgmtThreads(4)
+        # support alter numOfMnodeStreamMgmtThreads, so stop test
+        #self.alternumOfMnodeStreamMgmtThreads(4)
         self.alterstreamBufferSize(2000)
 
         # alter out of range value

@@ -6,14 +6,12 @@ class TestStreamOutputTable:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_output_table_schema_validation(self):
-        """
-        Verify that calculation result must match output table schema
+        """Stream result match schema
 
-        Description:
-            - Verify error is raised when calculation result and output table column type do not match
-            - Verify error is raised when calculation result and output table column name do not match
-            - Verify error is raised when calculation result and output table Tag column type do not match
-            - Verify error is raised when calculation result and output table Tag column name do not match
+        1. Verify error is raised when calculation result and output table column type do not match
+        2. Verify error is raised when calculation result and output table column name do not match
+        3. Verify error is raised when calculation result and output table Tag column type do not match
+        4. Verify error is raised when calculation result and output table Tag column name do not match
 
         Since: v3.3.7.0
 

@@ -1,10 +1,17 @@
 from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
-
+import random
+import os
+import time
+import subprocess
 
 class TestWriteBasic:
+    updatecfgDict = {'maxSQLLength':1048576,'debugFlag': 143 ,"querySmaOptimize":1}
 
     def setup_class(cls):
-        tdLog.debug(f"start to execute {__file__}")
+        cls.testcasePath = os.path.split(__file__)[0]
+        cls.testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf %s/%s.sql" % (cls.testcasePath,cls.testcaseFilename))
+        cls.db = "insert_select"
 
     def test_write_basic(self):
         """Write basic
@@ -13,6 +20,10 @@ class TestWriteBasic:
         2. Write data to regular tables and child tables
         3. Write data to specified columns
         4. Batch write multiple records to different child tables in a single operation
+        5. Write data covering all supported data types
+        6. Insert data into multiple tables and databases
+        7. Query with order by desc
+        8. Validate data integrity after write operations and system restarts        
 
         Since: v3.0.0.0
 
@@ -27,6 +38,7 @@ class TestWriteBasic:
             - 2025-8-12 Simon Guan Migrated from tsim/insert/insert_stb.sim
             - 2025-8-12 Simon Guan Migrated from tsim/parser/insert_multiTbl.sim
             - 2025-8-12 Simon Guan Migrated from tsim/stable/values.sim
+            - 2025-12-22 Alex Duan Migrated from uncatalog/system-test/2-query/test_system_insert_select.py
             
         """
 
@@ -42,6 +54,7 @@ class TestWriteBasic:
         tdStream.dropAllStreamsAndDbs()
         self.Values()
         tdStream.dropAllStreamsAndDbs()
+        self.do_insert_select()
 
     def Basic(self):
         i = 0
@@ -713,3 +726,169 @@ class TestWriteBasic:
         tdSql.query(f"select ts from vdb0.mt")
 
         tdSql.checkRows(25)
+
+    #
+    # ------------------ test_system_insert_select.py ------------------
+    #
+    def dropandcreateDB_random(self,database,n):
+        ts = 1604298064000
+
+        tdSql.execute('''drop database if exists %s ;''' %database)
+        tdSql.execute('''create database %s keep 36500 ;'''%(database))
+        tdSql.execute('''use %s;'''%database)
+
+        tdSql.execute('''create table %s.tb (ts timestamp , i tinyint );'''%database)
+        tdSql.execute('''create table %s.tb1 (speed timestamp , c1 int , c2 int , c3 int );'''%database)
+
+        sql_before = "insert into %s.tb1 values" %database
+        sql_value = ''
+        for i in range(n):         
+            sql_value = sql_value +"(%d, %d, %d, %d)"  % (ts + i, i, i, i)
+
+        sql = sql_before + sql_value
+        tdSql.execute(sql)
+
+        tdSql.query("select count(*) from %s.tb1;"%database)    
+        sql_result = tdSql.getData(0,0)
+        tdLog.info("result: %s" %(sql_result))
+        tdSql.query("reset query cache;")
+        tdSql.query("insert into %s.tb1 select * from %s.tb1;"%(database,database))        
+        tdSql.query("select count(*) from %s.tb1;"%database)
+        sql_result = tdSql.getData(0,0)
+        tdLog.info("result: %s" %(sql_result))
+        
+        
+
+
+    def use_select_sort(self,database):  
+        ts = 1604298064000
+          
+        tdSql.execute('''drop database if exists %s ;''' %database)
+        tdSql.execute('''create database %s keep 36500 ;'''%(database))
+        tdSql.execute('''use %s;'''%database)
+
+        tdSql.execute('''create stable %s.st (ts timestamp, val int, vt timestamp)  tags (location NCHAR(100));'''%(database))
+        tdSql.execute('''create table %s.t1 using %s.st (location) tags ("0001");'''%(database,database))
+        tdSql.execute('''create table %s.t2 using %s.st (location) tags ("0002");'''%(database,database))
+        tdSql.execute('''create table %s.mt (ts timestamp, val int);'''%(database))
+        
+        
+        tdSql.execute(f'''insert into %s.t1 values({ts}, 1, {ts}) ({ts}, 2, {ts});'''%(database))
+        tdSql.query("select ts, val from %s.t1;"%database)
+        tdSql.checkData(0,1,2)
+        
+        ts += 1
+        tdSql.execute(f'''insert into %s.t2 values({ts}, 1, {ts}) ({ts}, 5, {ts}) ({ts}, 2, {ts});'''%(database))
+        tdSql.query("select ts, val from %s.t2;"%database)
+        tdSql.checkData(0,1,2)
+        
+        tdSql.execute('''delete from %s.t2;'''%(database))
+        tdSql.execute('''delete from %s.t1;'''%(database))
+        
+        ts -= 10
+        tdSql.execute(f'''insert into %s.t1 values({ts}, 1, {ts}) %s.t2 values({ts}, 2, {ts});'''%(database,database))
+        ts += 11
+        tdSql.execute(f'''insert into %s.t1 values({ts}, 1, {ts}) %s.t2 values({ts}, 2, {ts});'''%(database,database))
+        ts += 1
+        tdSql.execute(f'''insert into %s.t1 values({ts}, 1, {ts}) %s.t2 values({ts}, 2, {ts});'''%(database,database))
+        
+        tdSql.query("select count(*) from %s.st;"%database)
+        tdSql.checkData(0,0,6)
+        
+        tdSql.query('''select vt, val from %s.st order by vt, val desc;'''%(database))
+        tdSql.checkData(0,1,2)
+        tdSql.checkData(1,1,1)
+        tdSql.checkData(2,1,2)
+        tdSql.checkData(3,1,1)
+        tdSql.checkData(4,1,2)
+        tdSql.checkData(5,1,1)
+        
+        tdSql.execute('''insert into %s.mt select vt, val from %s.st order by vt, val desc;'''%(database,database))
+        tdSql.query("select count(*) from %s.mt;"%database)
+        tdSql.checkData(0,0,3)
+        
+        tdSql.query('''select ts, val from %s.mt order by ts asc;'''%(database))
+        tdSql.checkData(0,1,1)
+        tdSql.checkData(1,1,1)
+        tdSql.checkData(2,1,1)
+        
+        tdSql.execute('''delete from %s.mt;'''%(database))
+        tdSql.query('''select vt, val from %s.st order by vt, val asc;'''%(database))
+        tdSql.checkData(0,1,1)
+        tdSql.checkData(1,1,2)
+        tdSql.checkData(2,1,1)
+        tdSql.checkData(3,1,2)
+        tdSql.checkData(4,1,1)
+        tdSql.checkData(5,1,2)
+        
+        tdSql.execute('''insert into %s.mt select vt, val from %s.st order by vt, val asc;'''%(database,database))
+        tdSql.query("select count(*) from %s.mt;"%database)
+        tdSql.checkData(0,0,3)
+        
+        tdSql.query('''select ts, val from %s.mt order by ts asc;'''%(database))
+        tdSql.checkData(0,1,2)
+        tdSql.checkData(1,1,2)
+        tdSql.checkData(2,1,2) 
+        
+        tdSql.execute('''delete from %s.mt;'''%(database))
+        tdSql.query('''select vt, val from %s.st order by ts, val asc;'''%(database))
+        tdSql.checkData(0,1,1)
+        tdSql.checkData(1,1,2)
+        tdSql.checkData(2,1,1)
+        tdSql.checkData(3,1,2)
+        tdSql.checkData(4,1,1)
+        tdSql.checkData(5,1,2)
+
+        tdSql.execute('''insert into %s.mt select vt, val from %s.st order by ts, val asc;'''%(database,database))
+        tdSql.query("select count(*) from %s.mt;"%database)
+        tdSql.checkData(0,0,3)
+
+        tdSql.query('''select ts, val from %s.mt order by ts asc;'''%(database))
+        tdSql.checkData(0,1,2)
+        tdSql.checkData(1,1,2)
+        tdSql.checkData(2,1,2)
+
+        tdSql.execute('''delete from %s.mt;'''%(database))
+        ts += 1
+        tdSql.execute(f'''insert into %s.t1 values({ts}, -1, {ts}) %s.t2 values({ts}, -2, {ts});'''%(database,database))
+        tdSql.query('''select vt, val from %s.st order by val asc;'''%(database))
+        tdSql.checkData(0,1,-2)
+        tdSql.checkData(1,1,-1)
+        tdSql.checkData(2,1,1)
+        tdSql.checkData(3,1,1)
+        tdSql.checkData(4,1,1)
+        tdSql.checkData(5,1,2)
+        tdSql.checkData(6,1,2)
+        tdSql.checkData(7,1,2)
+
+        tdSql.execute('''insert into %s.mt select vt, val from %s.st order by val asc;'''%(database,database))
+        tdSql.query("select count(*) from %s.mt;"%database)
+        tdSql.checkData(0,0,4)
+        
+        tdSql.query('''select ts, val from %s.mt order by ts asc;'''%(database))
+        tdSql.checkData(0,1,2)
+        tdSql.checkData(1,1,2)
+        tdSql.checkData(2,1,2)
+        tdSql.checkData(3,1,-1)
+                            
+    def do_insert_select(self):
+        startTime = time.time()  
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
+        self.dropandcreateDB_random("%s" %self.db, random.randint(10000,30000))
+            
+        #taos -f sql 
+        print("taos -f sql start!")
+        taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+        _ = subprocess.check_output(taos_cmd1, shell=True)
+        print("taos -f sql over!")   
+        
+        self.use_select_sort("%s" %self.db)
+
+        #taos -f sql 
+        print("taos -f sql start!")
+        taos_cmd1 = "taos -f %s/%s.sql" % (self.testcasePath,self.testcaseFilename)
+        _ = subprocess.check_output(taos_cmd1, shell=True)
+        print("taos -f sql over!")   
+
+        endTime = time.time()
+        print("total time %ds" % (endTime - startTime))

@@ -167,6 +167,7 @@ typedef struct SSchTaskCallbackParam {
   int64_t                 refId;
   uint64_t                clientId;
   uint64_t                taskId;
+  int32_t                 subJobId;
   int32_t                 execId;
   void                   *pTrans;
 } SSchTaskCallbackParam;
@@ -220,6 +221,7 @@ typedef struct SSchTimerParam {
   int64_t  rId;
   uint64_t queryId;
   uint64_t taskId;
+  int32_t  subJobId;
 } SSchTimerParam;
 
 typedef struct SSchTask {
@@ -283,9 +285,14 @@ typedef struct SSchJob {
   uint64_t         queryId;
   uint64_t         seriesId;
   SSchJobAttr      attr;
+  void*            parent;
+  int32_t          subJobId;
+  int32_t          subJobExecIdx;
+  int32_t          subJobDoneNum;
   int32_t          levelNum;
   int32_t          taskNum;
   SRequestConnInfo conn;
+  SArray          *subJobs;
   SArray          *nodeList;  // qnode/vnode list, SArray<SQueryNodeLoad>
   SArray          *levels;    // starting from 0. SArray<SSchLevel>
   SQueryPlan      *pDag;
@@ -324,6 +331,7 @@ typedef struct SSchJob {
 
 typedef struct SSchTaskCtx {
   int64_t   jobRid;
+  int32_t   subJobId;
   SSchTask *pTask;
   bool      asyncLaunch;
 } SSchTaskCtx;
@@ -353,6 +361,12 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_IS_LOCAL_EXEC_TASK(_job, _task)                                          \
   ((_job)->attr.localExec && SCH_IS_QUERY_JOB(_job) && (!SCH_IS_INSERT_JOB(_job)) && \
    (!SCH_IS_DATA_BIND_QRY_TASK(_task)))
+#define SCH_IS_ROOT_TASK(_task) (0 == (_task)->level->level)   
+
+#define SCH_IS_PARENT_JOB(job) (NULL == (job)->parent) 
+#define SCH_IS_SUBQ_JOB(job) ((job)->subJobId >= 0) 
+#define SCH_JOB_GOT_SUB_JOBS(job) (NULL != (job)->subJobs && taosArrayGetSize((job)->subJobs) > 0)
+#define SCH_SUB_JOBS_EXEC_FINISHED(job, dn) ((dn) == (job)->subJobs->size)
 
 #define SCH_UPDATE_REDIRECT_CODE(job, _code) (void)atomic_val_compare_exchange_32(&((job)->redirectCode), 0, _code)
 #define SCH_GET_REDIRECT_CODE(job, _code) \
@@ -371,6 +385,9 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_SET_JOB_STATUS(job, st) atomic_store_8(&(job)->status, st)
 #define SCH_GET_JOB_STATUS(job)     atomic_load_8(&(job)->status)
 #define SCH_GET_JOB_STATUS_STR(job) jobTaskStatusStr(SCH_GET_JOB_STATUS(job))
+
+#define SCH_JOB_EXPLAIN_CTX(job) ((job)->parent ? ((SSchJob*)(job)->parent)->explainCtx : (job)->explainCtx)
+#define SCH_PARENT_JOB(job) (SCH_IS_PARENT_JOB(job) ? (job) : (SSchJob*)job->parent)
 
 #define SCH_JOB_IN_SYNC_OP(job) ((job)->opStatus.op && (job)->opStatus.syncReq)
 #define SCH_JOB_IN_ASYNC_EXEC_OP(job)                                                                \
@@ -462,27 +479,27 @@ void schSetJobType(SSchJob* pJob, ESubplanType type);
     (_task)->profile.endTs = us;                                                 \
   } while (0)
 
-#define SCH_JOB_ELOG(param, ...) qError("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriesId, __VA_ARGS__)
-#define SCH_JOB_DLOG(param, ...) qDebug("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriesId, __VA_ARGS__)
-#define SCH_JOB_TLOG(param, ...) qTrace("QID:0x%" PRIx64 ", SID:%" PRId64 ", " param, pJob->queryId, pJob->seriesId, __VA_ARGS__)
+#define SCH_JOB_ELOG(param, ...) qError("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", " param, pJob->queryId, pJob->subJobId, pJob->seriesId, __VA_ARGS__)
+#define SCH_JOB_DLOG(param, ...) qDebug("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", " param, pJob->queryId, pJob->subJobId, pJob->seriesId, __VA_ARGS__)
+#define SCH_JOB_TLOG(param, ...) qTrace("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", " param, pJob->queryId, pJob->subJobId, pJob->seriesId, __VA_ARGS__)
 
 #define SCH_TASK_ELOG(param, ...)                                                                                    \
-  qError("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
+  qError("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->subJobId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
          SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_DLOG(param, ...)                                                                                    \
-  qDebug("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
+  qDebug("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->subJobId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
          SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_TLOG(param, ...)                                                                                    \
-  qTrace("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
+  qTrace("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->subJobId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
          SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_DLOGL(param, ...)                                                                                    \
-  qDebugL("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
+  qDebugL("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->subJobId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
           SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_WLOG(param, ...)                                                                                   \
-  qWarn("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
+  qWarn("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->subJobId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
         SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_ILOG(param, ...)                                                                                   \
-  qInfo("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
+  qInfo("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->subJobId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
           SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 
 #define SCH_SET_ERRNO(_err)                     \
@@ -646,7 +663,7 @@ int32_t  schHandleTaskSetRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, 
 void     schProcessOnOpEnd(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq *pReq, int32_t errCode);
 int32_t  schProcessOnOpBegin(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq *pReq);
 void     schProcessOnCbEnd(SSchJob *pJob, SSchTask *pTask, int32_t errCode);
-int32_t  schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_t rId, uint64_t tId);
+int32_t  schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_t rId, int32_t sjId, uint64_t tId);
 void     schDropTaskOnExecNode(SSchJob *pJob, SSchTask *pTask);
 bool     schJobDone(SSchJob *pJob);
 int32_t  schRemoveTaskFromExecList(SSchJob *pJob, SSchTask *pTask);
@@ -681,6 +698,7 @@ int32_t  schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, bool resetRetry
 int32_t  schNotifyJobAllTasks(SSchJob *pJob, SSchTask *pTask, ETaskNotifyType type);
 int32_t  schFailedTaskNeedRetry(SSchTask *pTask, SSchJob *pJob, int32_t rspCode);
 int32_t  schGetTaskCurrentNodeAddr(SSchTask *pTask, SSchJob *pJob, SQueryNodeAddr **ppAddr);
+int32_t  schLaunchJobImpl(SSchJob *pJob);
 
 extern SSchDebug gSCHDebug;
 

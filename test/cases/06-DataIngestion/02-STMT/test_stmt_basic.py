@@ -104,7 +104,7 @@ class TestStmtBasic:
             assert stmt.affected_rows == rows
 
             #query 1
-            querystmt=conn.statement("select ?,bu from stb1")
+            querystmt=conn.statement("select ?,bu,(select 1 from stb1 limit 1), 2 in (select 1 from stb1), 10 not in (select bu from stb1) from stb1")
             queryparam=new_bind_params(1)
             print(type(queryparam))
             queryparam[0].binary("ts")
@@ -119,6 +119,8 @@ class TestStmtBasic:
             # rows=result.fetch_all()
             logging.info(rows)
             assert rows[1][0] == "ts"
+            assert rows[0][2] == 1
+            assert rows[0][3] == False
             if asc == True:
                 assert rows[0][1] == 3
                 assert rows[3][1] == None
@@ -147,7 +149,7 @@ class TestStmtBasic:
 
             # conn.execute("drop database if exists %s" % dbname)
             # conn.close()
-            tdLog.success("%s successfully executed, asc:%s" % (__file__, asc))
+
 
         except Exception as err:
             # conn.execute("drop database if exists %s" % dbname)
@@ -163,7 +165,7 @@ class TestStmtBasic:
         self.check_stmt_insert_multi(connectstmt, True)
         self.check_stmt_insert_multi(connectstmt, False)
         self.clear_env(connectstmt)
-        tdLog.success(f"{__file__} successfully executed")
+
         return
 
     #
@@ -327,7 +329,7 @@ class TestStmtBasic:
 
             # conn.execute("drop database if exists %s" % dbname)
             conn.close()
-            tdLog.success("%s successfully executed" % __file__)
+
 
         except Exception as err:
             # conn.execute("drop database if exists %s" % dbname)
@@ -341,7 +343,7 @@ class TestStmtBasic:
         connectstmt=self.newcon(host,config)
         self.check_stmt_set_tbname_tag(connectstmt)
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
         return
 
@@ -369,4 +371,3 @@ class TestStmtBasic:
 
         self.do_stmt_muti_insert_query()
         self.do_stmt_set_tbname_tag()
-        tdLog.success(f"{__file__} successfully executed")

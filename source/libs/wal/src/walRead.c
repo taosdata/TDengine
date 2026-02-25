@@ -71,9 +71,6 @@ int32_t walNextValidMsg(SWalReader *pReader, bool scanMeta) {
   wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64
          ", applied index:%" PRId64,
          pReader->pWal->cfg.vgId, fetchVer, lastVer, committedVer, appliedVer);
-  if (fetchVer > appliedVer) {
-    TAOS_RETURN(TSDB_CODE_WAL_LOG_NOT_EXIST);
-  }
 
   while (fetchVer <= appliedVer) {
     TAOS_CHECK_RETURN(walFetchHead(pReader, fetchVer));
@@ -88,7 +85,7 @@ int32_t walNextValidMsg(SWalReader *pReader, bool scanMeta) {
     }
   }
 
-  TAOS_RETURN(TSDB_CODE_FAILED);
+  TAOS_RETURN(TSDB_CODE_WAL_LOG_NOT_EXIST);
 }
 
 int64_t walReaderGetCurrentVer(const SWalReader *pReader) { return pReader->curVersion; }
@@ -280,8 +277,8 @@ int32_t walSkipFetchBody(SWalReader *pRead) {
 
   int32_t plainBodyLen = pRead->pHead->head.bodyLen;
   int32_t cryptedBodyLen = plainBodyLen;
-  // TODO: dmchen emun
-  if (pRead->pWal->cfg.encryptAlgorithm == 1) {
+
+  if (pRead->pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
     cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
   }
   int64_t ret = taosLSeekFile(pRead->pLogFile, cryptedBodyLen, SEEK_CUR);
@@ -309,8 +306,7 @@ int32_t walFetchBody(SWalReader *pRead) {
   int32_t plainBodyLen = pReadHead->bodyLen;
   int32_t cryptedBodyLen = plainBodyLen;
 
-  // TODO: dmchen emun
-  if (pRead->pWal->cfg.encryptAlgorithm == 1) {
+  if (pRead->pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
     cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
   }
 
@@ -432,8 +428,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
   int32_t plainBodyLen = pReader->pHead->head.bodyLen;
   int32_t cryptedBodyLen = plainBodyLen;
 
-  // TODO: dmchen emun
-  if (pReader->pWal->cfg.encryptAlgorithm == 1) {
+  if (pReader->pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
     cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
   }
 
@@ -497,24 +492,24 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
 }
 
 int32_t decryptBody(SWalCfg *cfg, SWalCkHead *pHead, int32_t plainBodyLen, const char *func) {
-  // TODO: dmchen emun
-  if (cfg->encryptAlgorithm == 1) {
+  if (cfg->encryptData.encryptAlgrName[0] != '\0') {
     int32_t cryptedBodyLen = ENCRYPTED_LEN(plainBodyLen);
     char   *newBody = taosMemoryMalloc(cryptedBodyLen);
     if (!newBody) {
       TAOS_RETURN(terrno);
     }
 
-    SCryptOpts opts;
+    SCryptOpts opts = {0};
     opts.len = cryptedBodyLen;
     opts.source = pHead->head.body;
     opts.result = newBody;
     opts.unitLen = 16;
-    tstrncpy((char *)opts.key, cfg->encryptKey, sizeof(opts.key));
+    opts.pOsslAlgrName = cfg->encryptData.encryptAlgrName;
+    tstrncpy((char *)opts.key, cfg->encryptData.encryptKey, sizeof(opts.key));
 
     int32_t count = CBC_Decrypt(&opts);
-
-    // wDebug("CBC_Decrypt cryptedBodyLen:%d, plainBodyLen:%d, %s", count, plainBodyLen, func);
+    if (count != opts.len) return terrno;
+    // wDebug("CBC Decrypt cryptedBodyLen:%d, plainBodyLen:%d, %s", count, plainBodyLen, func);
 
     (void)memcpy(pHead->head.body, newBody, plainBodyLen);
 

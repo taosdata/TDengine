@@ -12,18 +12,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
 #define _DEFAULT_SOURCE
+
 #include "dmMgmt.h"
-#include "mnode.h"
-#include "osFile.h"
-#include "tconfig.h"
-#include "tglobal.h"
-#include "version.h"
-#include "tconv.h"
 #include "dmUtil.h"
+#include "mnode.h"
+#include "osEnv.h"
+#include "osFile.h"
 #include "qworker.h"
+#include "tconfig.h"
+#include "tconv.h"
+#include "tglobal.h"
 #include "tss.h"
+#include "version.h"
 
 #ifdef TD_JEMALLOC_ENABLED
 #define ALLOW_FORBID_FUNC
@@ -75,6 +76,7 @@ static struct {
   char         encryptKey[ENCRYPT_KEY_LEN + 1];
 } global = {0};
 
+extern int32_t cryptLoadProviders();
 static void dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { (void)taosSetGlobalDebugFlag(143); }
 static void dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert = 1; }
 
@@ -523,9 +525,29 @@ int mainWindows(int argc, char **argv) {
   }
 
   dmPrintArgs(argc, argv);
+  if ((code = taosPreLoadCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0)) != 0) {
+    dError("failed to start since pre load config error");
+    taosCloseLog();
+    taosCleanupArgs();
+    return code;
+  }
 
-  if ((code = taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0)) != 0) {
-    dError("failed to start since read config error");
+  if ((code = dmGetEncryptKey()) != 0) {
+    dError("failed to start since failed to get encrypt key");
+    taosCloseLog();
+    taosCleanupArgs();
+    return code;
+  };
+
+  if ((code = tryLoadCfgFromDataDir(tsCfg)) != 0) {
+    dError("failed to start since try load config from data dir error");
+    taosCloseLog();
+    taosCleanupArgs();
+    return code;
+  }
+
+  if ((code = taosApplyCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0)) != 0) {
+    dError("failed to start since apply config error");
     taosCloseLog();
     taosCleanupArgs();
     return code;
@@ -569,6 +591,7 @@ int mainWindows(int argc, char **argv) {
 
   if (global.dumpSdb) {
     int32_t code = 0;
+    tsSkipKeyCheckMode = true;  // Set global flag to skip key check mode
     TAOS_CHECK_RETURN(mndDumpSdb());
     taosCleanupCfg();
     taosCloseLog();
@@ -613,12 +636,16 @@ int mainWindows(int argc, char **argv) {
   osSetProcPath(argc, (char **)argv);
   taosCleanupArgs();
 
-  if ((code = dmGetEncryptKey()) != 0) {
-    dError("failed to start since failed to get encrypt key");
-    taosCloseLog();
-    taosCleanupArgs();
-    return code;
-  };
+  if (tsEncryptExtDir[0] != '\0') {
+#if defined(TD_ENTERPRISE) && defined(LINUX)
+    if ((code = cryptLoadProviders()) != 0) {
+      dError("failed to load encrypt providers since %s", tstrerror(code));
+      taosCloseLog();
+      taosCleanupArgs();
+      return code;
+    }
+#endif
+  }
 
   if ((code = dmInit()) != 0) {
     if (code == TSDB_CODE_NOT_FOUND) {

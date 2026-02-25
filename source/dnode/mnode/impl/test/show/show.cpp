@@ -67,6 +67,8 @@ TEST_F(MndTestShow, 03_ShowMsg_Conn) {
   strcpy(connectReq.user, "root");
   memcpy(connectReq.passwd, secretEncrypt, sizeof(connectReq.passwd));
   strcpy(connectReq.sVer, td_version);
+  connectReq.connectTime = taosGetTimestampMs();
+  tSignConnectReq(&connectReq);
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
   void*   pReq = rpcMallocCont(contLen);

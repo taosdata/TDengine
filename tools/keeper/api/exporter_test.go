@@ -287,11 +287,11 @@ func TestPutMetrics(t *testing.T) {
 	conf.Drop = "old_taosd_metric_stables"
 	cmd.Process(conf)
 
-	data, err = conn.Query(ctx, "select * from  information_schema.ins_stables where stable_name = 'm_info'", util.GetQidOwn(config.Conf.InstanceID))
+	data, err = conn.Query(ctx, "select * from information_schema.ins_stables where stable_name = 'm_info'", util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		logger.Errorf("execute sql:%s, error:%s", "m_info is not droped", err)
 		t.Fatal(err)
 	}
 	assert.Equal(t, 0, len(data.Data))
-	logger.Infof("ALL  OK  !!!")
+	logger.Infof("ALL OK!!!")
 }

@@ -1,8 +1,8 @@
-import PkgListV37 from "/components/PkgListV37";
+import PkgList from "/src/components/PkgList";
 
 1. Download the client installation package
 
-  <PkgListV37 productName="TDengine TSDB-OSS Client" version="3.3.8.8" platform="macOS" pkgType="Client"/>
+   <PkgList productName="TDengine TSDB-OSS Client" platform="macOS" />
 
 2. Run the installer and follow the prompts to select the default values to complete the installation. If the installation is blocked, you can right-click or press Ctrl and click on the installation package, then choose `Open`.
 3. Configure taos.cfg
@@ -11,7 +11,8 @@ import PkgListV37 from "/components/PkgListV37";
 
 :::tip
 
-1. If the TDengine service is not deployed on the local machine and only the application driver is installed, then only `firstEP` needs to be configured in `taos.cfg`, there is no need to configure `FQDN` on the local machine.
-2. To prevent the “Unable to resolve FQDN” error when connecting to the server, it is recommended to ensure that the local `/etc/hosts` file has been configured with the correct FQDN value of the server, or that the DNS service has been properly set up.
+1. Starting from version 3.4.0.0, the Enterprise Edition is not fully compatible with the Community Edition. To avoid compatibility issues when the two are interconnected, please ensure that you install the client driver corresponding to the server. Using a Community Edition driver to connect to an Enterprise Edition server will fail with error "Edition not compatible", and vice versa.
+2. If the TDengine service is not deployed on the local machine and only the application driver is installed, then only `firstEP` needs to be configured in `taos.cfg`, there is no need to configure `FQDN` on the local machine.
+3. To prevent the "Unable to resolve FQDN" error when connecting to the server, it is recommended to ensure that the local `/etc/hosts` file has been configured with the correct FQDN value of the server, or that the DNS service has been properly set up.
 
 :::

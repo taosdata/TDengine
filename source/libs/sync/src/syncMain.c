@@ -686,7 +686,8 @@ SSyncState syncGetState(int64_t rid) {
     } else {
       state.canRead = state.restored;
     }
-    /*
+    state.totalIndex = pSyncNode->pLogBuf->totalIndex;
+
     double progress = 0;
     if(pSyncNode->pLogBuf->totalIndex > 0 && pSyncNode->pLogBuf->commitIndex > 0){
       progress = (double)pSyncNode->pLogBuf->commitIndex/(double)pSyncNode->pLogBuf->totalIndex;
@@ -695,12 +696,15 @@ SSyncState syncGetState(int64_t rid) {
     else{
       state.progress = -1;
     }
-    sDebug("vgId:%d, learner progress state, commitIndex:%" PRId64 " totalIndex:%" PRId64 ", "
+    if (pSyncNode->state == TAOS_SYNC_STATE_LEARNER) {
+      sInfo("vgId:%d, learner progress state, commitIndex:%" PRId64 " totalIndex:%" PRId64
+            ", "
             "progress:%lf, progress:%d",
-          pSyncNode->vgId,
-         pSyncNode->pLogBuf->commitIndex, pSyncNode->pLogBuf->totalIndex, progress, state.progress);
-    */
+            pSyncNode->vgId, pSyncNode->pLogBuf->commitIndex, pSyncNode->pLogBuf->totalIndex, progress, state.progress);
+    }
+
     state.term = raftStoreGetTerm(pSyncNode);
+    state.snapSeq = pSyncNode->snapSeq;
     syncNodeRelease(pSyncNode);
   }
 
@@ -1192,7 +1196,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion, int32_t elec
     pSyncNode->raftCfg.configIndexCount = 1;
     pSyncNode->raftCfg.configIndexArr[0] = -1;
 
-    if ((code = syncWriteCfgFile(pSyncNode)) != 0) {
+    if ((code = syncWriteCfgFile(pSyncNode, "new")) != 0) {
       terrno = code;
       sError("vgId:%d, failed to create sync cfg file", pSyncNode->vgId);
       goto _error;
@@ -1206,10 +1210,12 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion, int32_t elec
     }
 
     if (vnodeVersion > pSyncNode->raftCfg.cfg.changeVersion) {
+      sInfo("vgId:%d, is going to judge update, in SyncInfo, totalReplicaNum:%d", pSyncNode->vgId,
+            pSyncInfo->syncCfg.totalReplicaNum);
       if (pSyncInfo->syncCfg.totalReplicaNum > 0 && syncIsConfigChanged(&pSyncNode->raftCfg.cfg, &pSyncInfo->syncCfg)) {
         sInfo("vgId:%d, use sync config from input options and write to cfg file", pSyncNode->vgId);
         pSyncNode->raftCfg.cfg = pSyncInfo->syncCfg;
-        if ((code = syncWriteCfgFile(pSyncNode)) != 0) {
+        if ((code = syncWriteCfgFile(pSyncNode, "changed")) != 0) {
           terrno = code;
           sError("vgId:%d, failed to write sync cfg file", pSyncNode->vgId);
           goto _error;
@@ -1243,7 +1249,7 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion, int32_t elec
   if (vnodeVersion > pSyncInfo->syncCfg.changeVersion) {
     if (updated) {
       sInfo("vgId:%d, save config info since dnode info changed", pSyncNode->vgId);
-      if ((code = syncWriteCfgFile(pSyncNode)) != 0) {
+      if ((code = syncWriteCfgFile(pSyncNode, "updated")) != 0) {
         terrno = code;
         sError("vgId:%d, failed to write sync cfg file on dnode info updated", pSyncNode->vgId);
         goto _error;
@@ -1511,6 +1517,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion, int32_t elec
   pSyncNode->hbSlowNum = 0;
   pSyncNode->hbrSlowNum = 0;
   pSyncNode->tmrRoutineNum = 0;
+
+  pSyncNode->snapSeq = -1;
 
   sNInfo(pSyncNode, "sync node opened, node:%p electBaseLine:%d hbBaseLine:%d heartbeatTimeout:%d", pSyncNode,
          pSyncNode->electBaseLine, pSyncNode->hbBaseLine, tsHeartbeatTimeout);
@@ -2143,10 +2151,10 @@ int32_t syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncI
     }
 
     // persist cfg
-    TAOS_CHECK_RETURN(syncWriteCfgFile(pSyncNode));
+    TAOS_CHECK_RETURN(syncWriteCfgFile(pSyncNode, "config_change_with_new_members"));
   } else {
     // persist cfg
-    TAOS_CHECK_RETURN(syncWriteCfgFile(pSyncNode));
+    TAOS_CHECK_RETURN(syncWriteCfgFile(pSyncNode, "config_change_no_new_members"));
     sNInfo(pSyncNode, "do not config change from %d to %d", oldConfig.totalReplicaNum, pNewConfig->totalReplicaNum);
   }
 
@@ -3554,7 +3562,7 @@ int32_t syncNodeChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry, char* str) 
 
   syncNodeLogConfigInfo(ths, &cfg, "after config change");
 
-  if ((code = syncWriteCfgFile(ths)) != 0) {
+  if ((code = syncWriteCfgFile(ths, "apply_config_change_entry")) != 0) {
     sError("vgId:%d, failed to create sync cfg file", ths->vgId);
     TAOS_RETURN(code);
   };

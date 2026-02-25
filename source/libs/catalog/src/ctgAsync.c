@@ -377,6 +377,7 @@ int32_t ctgInitGetUserTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
   SCtgUserCtx* ctx = task.taskCtx;
 
   TAOS_MEMCPY(&ctx->user, user, sizeof(*user));
+  ctx->user.userId = user->userId;
 
   if (NULL == taosArrayPush(pJob->pTasks, &task)) {
     ctgFreeTask(&task, true);
@@ -1557,7 +1558,15 @@ int32_t ctgCallSubCb(SCtgTask* pTask) {
     SCtgMsgCtx* pParMsgCtx = CTG_GET_TASK_MSGCTX(pParent, -1);
 
     pParMsgCtx->pBatchs = pMsgCtx->pBatchs;
-    CTG_ERR_JRET(pParent->subRes.fp(pParent));
+    // all parents' cb should be called even if one fails
+    int32_t ret = pParent->subRes.fp(pParent);
+    if (ret) {
+      code = ret;
+      qDebug("QID:0x%" PRIx64 ", job:0x%" PRIx64
+             ", task:%d, type:%d,%s,  subTask:%d, target:%s, call sub cb failed, error:%s",
+             pTask->pJob->queryId, pTask->pJob->refId, pTask->taskId, pTask->type, ctgTaskTypeStr(pTask->type),
+             pTask->subTask, pTask->msgCtx.target, tstrerror(ret));
+    }
   }
 
 _return:
@@ -1608,12 +1617,14 @@ int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
   pTask->code = rspCode;
   pTask->status = CTG_TASK_DONE;
 
-  CTG_ERR_JRET(ctgCallSubCb(pTask));
+  // Should not return directly, need to update job errCode and check whether all tasks are done. Otherwise, jobs may
+  // not end properly and cause memory leak.
+  code = ctgCallSubCb(pTask);
 
   int32_t taskDone = atomic_add_fetch_32(&pJob->taskDone, 1);
   if (taskDone < taosArrayGetSize(pJob->pTasks)) {
-    qDebug("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", task done:%d, total:%d", pJob->queryId, pJob->refId, taskDone,
-           (int32_t)taosArrayGetSize(pJob->pTasks));
+    qDebug("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", task:%d,%s, task done:%d, total:%d", pJob->queryId, pJob->refId,
+           pTask->type, ctgTaskTypeStr(pTask->type), taskDone, (int32_t)taosArrayGetSize(pJob->pTasks));
 
     ctgUpdateJobErrCode(pJob, rspCode);
     return TSDB_CODE_SUCCESS;
@@ -3853,7 +3864,7 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
   SCtgMsgCtx*       pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, -1);
   if (NULL == pMsgCtx) {
     ctgError("fail to get the %dth pMsgCtx", -1);
-    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
   if (NULL == pMsgCtx->pBatchs) {
@@ -3862,7 +3873,7 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
 
   rsp.pRawRes = taosMemoryCalloc(1, sizeof(SUserAuthRes));
   if (NULL == rsp.pRawRes) {
-    CTG_ERR_RET(terrno);
+    CTG_ERR_JRET(terrno);
   }
 
   if (TSDB_CODE_SUCCESS != pCtx->subTaskCode) {
@@ -3870,11 +3881,11 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
       tbNotExists = true;
       pCtx->subTaskCode = 0;
     } else {
-      CTG_ERR_RET(pCtx->subTaskCode);
+      CTG_ERR_JRET(pCtx->subTaskCode);
     }
   }
 
-  CTG_ERR_RET(ctgChkAuthFromCache(pCtg, &pCtx->user, tbNotExists, &inCache, &rsp));
+  CTG_ERR_JRET(ctgChkAuthFromCache(pCtg, &pCtx->user, tbNotExists, &inCache, &rsp));
   if (inCache) {
     pTask->res = rsp.pRawRes;
 
@@ -3891,12 +3902,25 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
     SCtgTbMetaParam param;
     param.pName = &pCtx->user.tbName;
     param.flag = CTG_FLAG_SYNC_OP;
-    CTG_ERR_RET(ctgLaunchSubTask(&pTask, CTG_TASK_GET_TB_META, ctgGetUserCb, &param));
+    CTG_ERR_JRET(ctgLaunchSubTask(&pTask, CTG_TASK_GET_TB_META, ctgGetUserCb, &param));
   } else {
-    CTG_ERR_RET(ctgGetUserDbAuthFromMnode(pCtg, pConn, pCtx->user.user, NULL, pTask));
+    CTG_ERR_JRET(ctgGetUserDbAuthFromMnode(pCtg, pConn, pCtx->user.user, NULL, pTask));
   }
 
   return TSDB_CODE_SUCCESS;
+
+_return:
+
+  taosMemoryFreeClear(rsp.pRawRes);
+
+  if (CTG_TASK_LAUNCHED == pTask->status) {
+    int32_t newCode = ctgHandleTaskEnd(pTask, code);
+    if (newCode && TSDB_CODE_SUCCESS == code) {
+      code = newCode;
+    }
+  }
+
+  CTG_RET(code);
 }
 
 int32_t ctgLaunchGetSvrVerTask(SCtgTask* pTask) {

@@ -33,7 +33,7 @@ class TestBenchmarkQueryMain:
         s = content.find(key)
         if s == -1:
             return False,""
-        
+
         # skip self
         s += len(key)
         # skip blank
@@ -45,27 +45,27 @@ class TestBenchmarkQueryMain:
         # end check
         if s + 1 == len(content):
             return False, ""
-        
+
         # find end
         if len(end) == 0:
             e = -1
         else:
             e = content.find(end, s)
-        
+
         # get value
         if e == -1:
             value = content[s : ]
         else:
             value = content[s : e]
 
-        return True, value    
+        return True, value
 
     def getDbRows(self, times):
         sql = f"select count(*) from test.meters"
         tdSql.waitedQuery(sql, 1, times)
         dbRows = tdSql.getData(0, 0)
         return dbRows
-    
+
     def checkItem(self, output, key, end, expect, equal):
         ret, value = self.getKeyValue(output, key, end)
         if ret == False:
@@ -86,7 +86,6 @@ class TestBenchmarkQueryMain:
             else:
                 tdLog.info(f"check successfully. key:'{key}' {fval} > {expect}")
 
-    
     def checkAfterRun(self, benchmark, jsonFile, specMode, tbCnt):
         # run
         cmd = f"{benchmark} -f {jsonFile}"
@@ -102,7 +101,7 @@ class TestBenchmarkQueryMain:
         #
         with open(jsonFile, "r") as file:
             data = json.load(file)
-        
+
         queryTimes = data["query_times"]
         # contineIfFail
         try:
@@ -136,17 +135,17 @@ class TestBenchmarkQueryMain:
             allEnd = " "
         else:
             allEnd = "\n"
-        
+
         if specMode and mixedQuery.lower() != "yes":
             # spec
             threadQueries = queryTimes * threads
             totalQueries  = queryTimes * threads * len(sqls)
-            threadKey     = f"complete query with {threads} threads and " 
+            threadKey     = f"complete query with {threads} threads and "
             avgKey = "query delay avg: "
             minKey = "min:"
         else:
-            # spec mixed or super 
-            
+            # spec mixed or super
+
             if specMode:
                 totalQueries  = queryTimes * len(sqls)
                 # spec mixed
@@ -158,7 +157,7 @@ class TestBenchmarkQueryMain:
             else:
                 # super
                 totalQueries  = queryTimes * len(sqls) * tbCnt
-                threadQueries = totalQueries            
+                threadQueries = totalQueries
 
             nSql = len(sqls)
             if specMode and nSql < threads :
@@ -179,11 +178,26 @@ class TestBenchmarkQueryMain:
             ["INFO: Spend ", " ", 0, False],
             ["completed total queries: ", ",", totalQueries, True],
         ]
-    
+
         # check
         for item in items:
             if len(item[0]) > 0:
                 self.checkItem(output, item[0], item[1], item[2], item[3])
+
+        # check delay values
+        tdLog.info("output:\n%s" % output)
+        try:
+            min = float(self.getKeyValue(output, "min: ", "s")[1])
+        except Exception as e:
+            min = float(self.getKeyValue(output, "min delay: ", "s")[1])
+        #
+        max = float(self.getKeyValue(output, "max: ", "s")[1])
+        p90 = float(self.getKeyValue(output, "p90: ", "s")[1])
+        p95 = float(self.getKeyValue(output, "p95: ", "s")[1])
+        p99 = float(self.getKeyValue(output, "p99: ", "s")[1])
+        if not (min <= p90 <= p95 <= p99 <= max):
+            tdLog.exit(f"check delay order failed. not (min <= p90 <= p95 <= p99 <= max), "
+                       f"min={min}, p90={p90}, p95={p95}, p99={p99}, max={max}")
 
     # native
     def threeQueryMode(self, benchmark, tbCnt, tbRow):
@@ -243,7 +257,7 @@ class TestBenchmarkQueryMain:
         tbRow = 1000
         benchmark = etool.benchMarkFile()
 
-        # insert 
+        # insert
         command = f"{benchmark} -d test -t {tbCnt} -n {tbRow} -I stmt2 -r 100 -y"
         ret = os.system(command)
         if ret !=0 :
@@ -253,8 +267,8 @@ class TestBenchmarkQueryMain:
         self.threeQueryMode(benchmark, tbCnt, tbRow)
 
         # exception test
-        self.exceptTest(benchmark, tbCnt, tbRow); 
+        self.exceptTest(benchmark, tbCnt, tbRow);
 
-        tdLog.success("%s successfully executed" % __file__)
+
 
 

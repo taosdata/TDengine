@@ -51,6 +51,7 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 - kafka：启用 Kafka 连接器从 Kafka Topics 中订阅消息写入
 - influxdb：启用 influxdb 连接器从 InfluxDB 获取数据
 - csv：从 CSV 文件解析数据
+- parquet：从 Parquet 文件读取数据
 
 2. +protocol 包含如下选项：
 
@@ -295,9 +296,151 @@ MQTT DSN 参数：
 
 **注意**: 如果 topic 中包含了消息中不存在的变量，则当前消息不会被处理，即不会被发布到 MQTT broker。
 
+#### 导入 Parquet 文件数据
+
+基本用法如下：
+
+```shell
+taosx run -f parquet:/data/sensors.parquet -t taos:///iot_db -v
+```
+
+DSN 参数说明：
+
+Parquet 数据源使用以下 DSN 格式：
+
+```text
+parquet:<file_path1>[,<file_path2>...]?[batch_size=<size>][&projection=<columns>][&unprocessed_batches=<count>]
+```
+
+支持的参数：
+
+| 参数名称 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| file_path | string | 是 | - | Parquet 文件路径，支持多个文件用逗号分隔 |
+| batch_size | integer | 否 | 1000 | 每批读取的行数 |
+| projection | string | 否 | all | 列投影，可以是列名或列索引（从 0 开始） |
+| unprocessed_batches | integer | 否 | 64 | 允许的最大未处理批次数，用于背压控制 |
+
+使用示例：
+
+1. 读取单个 Parquet 文件：
+
+```shell
+taosx run -f parquet:/data/sensors.parquet -t taos:///iot_db -v
+```
+
+2. 读取多个 Parquet 文件：
+
+```shell
+taosx run -f 'parquet:/data/sensors_2024_01.parquet,/data/sensors_2024_02.parquet' \
+  -t taos:///iot_db -v
+```
+
+3. 使用列投影（按列名）：
+
+```shell
+taosx run -f 'parquet:/data/sensors.parquet?projection=ts,temperature,humidity' \
+  -t taos:///iot_db -v
+```
+
+4. 使用列投影（按索引）：
+
+```shell
+taosx run -f 'parquet:/data/sensors.parquet?projection=0,2,5' \
+  -t taos:///iot_db -v
+```
+
+5. 自定义批量大小：
+
+```shell
+taosx run -f 'parquet:/data/large_file.parquet?batch_size=5000' \
+  -t taos:///iot_db -v
+```
+
+6. 完整配置示例：
+
+```shell
+taosx run -f 'parquet:/data/sensors.parquet?batch_size=2000&projection=ts,device_id,temperature&unprocessed_batches=100' \
+  -t taos:///iot_db -v
+```
+
+数据类型映射：
+
+Parquet 数据类型会自动映射到 TDengine 数据类型：
+
+| Parquet 类型 | TDengine 类型 |
+| --- | --- |
+| BOOLEAN | BOOL |
+| INT32 | INT |
+| INT64 | BIGINT |
+| FLOAT | FLOAT |
+| DOUBLE | DOUBLE |
+| BYTE_ARRAY (UTF8) | NCHAR |
+| BYTE_ARRAY (Binary) | BINARY |
+| INT96 (Timestamp) | TIMESTAMP |
+
+#### 导出 SQL 查询结果到 Parquet 文件
+
+taosx 支持将 TDengine 数据库的 SQL 查询结果导出为 Parquet 文件格式，方便数据分析和与其他系统集成。
+
+基本用法如下：
+
+```shell
+taosx run -f "taos:///test?query=select tbname,* from test.meters" -t "parquet:./test.parquet"
+```
+
+参数说明：
+
+- `-f` 指定数据源为 TDengine 数据库，通过 `query` 参数指定 SQL 查询语句
+- `-t` 指定导出目标为 Parquet 文件，包含文件路径
+
+使用示例：
+
+1. 导出完整查询结果：
+
+```shell
+taosx run -f "taos:///test?query=select tbname,* from test.meters" \
+  -t "parquet:./test.parquet"
+```
+
+2. 导出带有时间范围的查询结果：
+
+```shell
+taosx run -f "taos:///db1?query=select * from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-02-01 00:00:00'" \
+  -t "parquet:./meters_202401.parquet"
+```
+
+3. 导出聚合查询结果：
+
+```shell
+taosx run -f "taos:///test?query=select tbname, avg(voltage) as avg_voltage, max(current) as max_current from test.meters group by tbname" \
+  -t "parquet:./meters_stats.parquet"
+```
+
+4. 使用 WebSocket 连接导出：
+
+```shell
+taosx run -f "taos+ws://root:taosdata@localhost:6041/test?query=select * from test.meters" \
+  -t "parquet:./test.parquet"
+```
+
+注意事项：
+
+- SQL 查询语句需要进行 URL 编码，特别是包含特殊字符时
+- 确保查询结果集大小适中，避免内存溢出
+- TDengine 数据类型会自动映射为对应的 Parquet 数据类型
+- 导出的 Parquet 文件可以被各种数据分析工具读取，如 Apache Spark、Pandas 等
+
 ## 服务模式
 
 本节讲述如何以服务模式部署 `taosX`。以服务模式运行的 taosX，其各项功能需要通过 taosExplorer 上的图形界面来使用。
+
+:::tip
+
+1. 从 3.4.0.0 版本开始，taosX 使用 TSDB 作为元数据存储介质，不再使用 sqlite 存储元数据。不与旧版本兼容。
+2. 3.4.0.0 版本开始，taosX 需要先创建 XNODE，然后才能创建任务。参考 [创建 XNODE 节点](../03-taos-sql/94-datain.md#创建节点)。
+
+:::
 
 ### 配置
 
@@ -314,7 +457,6 @@ MQTT DSN 参数：
 - `serve.ssl_cert`：是 SSL/TLS 证书。
 - `serve.ssl_key`：是 SSL/TLS 秘钥。
 - `serve.ssl_ca`：是 SSL/TLS 根证书。
-- `serve.database_url`：`taosX` 数据库的地址，格式为 `sqlite:<path>`。
 - `serve.request_timeout`：全局接口 API 超时时间。
 - `serve.grpc`：是 `taosX` gRPC 服务监听地址，默认值为 `0.0.0.0:6055`。支持 IPv6 协议的地址，同时支持多地址，多地址需保证端口一致，且使用英文逗号，作为分割。
 - `rest_api_threads`：rest api 服务的运行时线程数。默认线程数为`当前服务器内核*2`。
@@ -361,9 +503,6 @@ MQTT DSN 参数：
 #ssl_key = "/path/to/tls/server.key"
 # TLS/SSL CA certificate
 #ssl_ca = "/path/to/tls/ca.pem"
-
-# database url
-#database_url = "sqlite:taosx.db"
 
 # default global request timeout which unit is second. This parameter takes effect for certain interfaces that require a timeout setting
 #request_timeout = 30

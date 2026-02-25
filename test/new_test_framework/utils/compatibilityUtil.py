@@ -25,7 +25,7 @@ from .server.dnodes import *
 from .common import *
 from taos.tmq import Consumer
 from new_test_framework.utils import clusterComCheck
-
+from taos.error import TmqError
 
 deletedDataSql = '''drop database if exists deldata;create database deldata duration 100 stt_trigger 1; ;use deldata;
                             create table deldata.stb1 (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp) tags (t1 int);
@@ -287,8 +287,8 @@ class CompatibilityBase:
         consumer = taosws.Consumer(consumer_dict)
         try:
             consumer.subscribe([select_topic])
-        except TmqError:
-            tdLog.exit(f"subscribe error")
+        except TmqError as e:
+            tdLog.exit(f"subscribe error: {e}")
         
         while True:
             message = consumer.poll(timeout=1.0)

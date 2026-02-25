@@ -51,11 +51,25 @@ typedef enum {
   AUTH_TYPE_READ_OR_WRITE,
 } AUTH_TYPE;
 
+#define AUTH_OWNED_MASK 0x1
+#define AUTH_AUTHORIZED_MASK 0x2
+
 typedef struct SUserAuthInfo {
-  char      user[TSDB_USER_LEN];
-  SName     tbName;
-  bool      isView;
-  AUTH_TYPE type;
+  char    user[TSDB_USER_LEN];
+  int64_t userId;
+  SName   tbName;
+  bool    isView;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t useDb : 2;  // check use db firstly: 0x1 owned db, 0x2 authorized db
+      uint8_t smlInsert : 1;
+      uint8_t dbOwner : 1;
+      uint8_t reserve : 4;
+    };
+  };
+  EPrivType    privType;
+  EPrivObjType objType;
 } SUserAuthInfo;
 
 typedef enum {
@@ -65,9 +79,21 @@ typedef enum {
 } AUTH_RES_TYPE;
 
 typedef struct SUserAuthRes {
-  bool   pass[AUTH_RES_MAX_VALUE];
-  SNode* pCond[AUTH_RES_MAX_VALUE];
+  bool    pass[AUTH_RES_MAX_VALUE];
+  SNode*  pCond[AUTH_RES_MAX_VALUE];
+  SArray* pCols;  // applicable to basic auth only
 } SUserAuthRes;
+
+typedef struct SUserAuthRsp {
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t exists : 1;
+      uint8_t withInsertCond : 1;
+      uint8_t reserve : 6;
+    };
+  };
+} SUserAuthRsp;
 
 typedef struct SDbInfo {
   int32_t vgVer;
@@ -383,7 +409,7 @@ int32_t catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* f
 
 int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pAuth, SUserAuthRes* pRes);
 
-int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth, SUserAuthRes* pRes, bool* exists);
+int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth, SUserAuthRes* pRes, SUserAuthRsp *pRsp);
 
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
 
@@ -424,6 +450,8 @@ int32_t catalogGetTableTsmas(SCatalog* pCtg, SRequestConnInfo* pConn, const SNam
 int32_t catalogGetTsma(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTsmaName, STableTSMAInfo** pTsma);
 
 int32_t catalogGetRsma(SCatalog* pCtg, SRequestConnInfo* pConn, const char* name, SRsmaInfoRsp** pRes);
+
+int32_t catalogGetUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, SGetUserAuthRsp* pRes);
 
 int32_t catalogAsyncUpdateDbTsmaVersion(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId);
 

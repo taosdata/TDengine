@@ -20,8 +20,8 @@
 #include "sync.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
-#include "trpc.h"
 #include "tqueue.h"
+#include "trpc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,6 +33,7 @@ typedef struct SMnode SMnode;
 typedef struct {
   int32_t  dnodeId;
   bool     deploy;
+  int32_t  version;
   int8_t   selfIndex;
   int8_t   numOfReplicas;
   int8_t   numOfTotalReplicas;
@@ -40,6 +41,7 @@ typedef struct {
   int32_t  nodeRoles[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
   SMsgCb   msgCb;
   int64_t  lastIndex;
+  int32_t  encrypted;  // 0: not encrypted, 1: encrypted
 } SMnodeOpt;
 
 /* ------------------------ SMnode ------------------------ */
@@ -67,6 +69,10 @@ void mndPreClose(SMnode *pMnode);
  */
 int32_t mndStart(SMnode *pMnode);
 
+bool mndNeedUpgrade(SMnode *pMnode, int32_t version);
+
+int32_t mndGetVersion(SMnode *pMnode);
+int32_t mndGetEncryptedFlag(SMnode *pMnode);
 /**
  * @brief Stop mnode
  *

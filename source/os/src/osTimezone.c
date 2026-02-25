@@ -744,6 +744,57 @@ char *tz_win[W_TZ_CITY_NUM][2] = {{"Asia/Shanghai", "China Standard Time"},
 #include <unistd.h>
 #endif
 
+#define TZ_SLOTS 8
+
+typedef struct {
+  timezone_t tz;
+  uint64_t   gen;
+} tz_slot_t;
+static tz_slot_t g_tz_slots[TZ_SLOTS];
+
+/*
+ * g_tz_gen is a monotonically increasing generation counter.
+ * Each reset gets a unique generation number, which maps
+ * to a slot in the ring buffer to guarantee delayed reclamation.
+ */
+static uint64_t  g_tz_gen = 0;
+static uint32_t  g_tz_idx = 0;
+
+int32_t resetTimezoneInfo(const char *tzname)
+{
+#ifndef WINDOWS
+  if (!tzname) {
+    return TSDB_CODE_TIME_ERROR;
+  }
+
+  timezone_t ntz = tzalloc(tzname);
+  if (!ntz) {
+    uError("tzalloc(%s) failed", tzname);
+    return TSDB_CODE_TIME_ERROR;
+  }
+
+  uint64_t gen = atomic_fetch_add_64((int64_t*)&g_tz_gen, 1);
+
+  uint32_t idx = gen % TZ_SLOTS;
+
+  timezone_t old = g_tz_slots[idx].tz;
+  if (old) {
+    tzfree(old);
+  }
+
+  g_tz_slots[idx].tz  = ntz;
+  g_tz_slots[idx].gen = gen;
+
+  atomic_store_32((int32_t*)&g_tz_idx, idx);
+
+  uInfo("[tz] switched to %s (slot=%u gen=%" PRIu64 ")", tzname, idx, gen);
+
+  return TSDB_CODE_SUCCESS;
+#else
+  return TSDB_CODE_SUCCESS;
+#endif
+}
+
 int32_t taosSetGlobalTimezone(const char *tz) {
   if (tz == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
@@ -780,22 +831,20 @@ int32_t taosSetGlobalTimezone(const char *tz) {
   _tzset();
   return 0;
 #else
-      code = setenv("TZ", tz, 1);
-  if (-1 == code) {
-    terrno = TAOS_SYSTEM_ERROR(ERRNO);
-    return terrno;
+  code = resetTimezoneInfo(tz);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
-  tzset();
   time_t tx1 = taosGetTimestampSec();
-  return taosFormatTimezoneStr(tx1, tz, NULL, tsTimezoneStr);
+  return taosFormatTimezoneStr(tx1, tz, getGlobalDefaultTZ(), tsTimezoneStr);
 #endif
 }
 
 int32_t taosGetLocalTimezoneOffset() {
   time_t    tx1 = taosGetTimestampSec();
   struct tm tm1;
-  if (taosLocalTime(&tx1, &tm1, NULL, 0, NULL) == NULL) {
+  if (taosLocalTime(&tx1, &tm1, NULL, 0, getGlobalDefaultTZ()) == NULL) {
     uError("%s failed to get local time: code:%d", __FUNCTION__, ERRNO);
     return TSDB_CODE_TIME_ERROR;
   }
@@ -924,6 +973,49 @@ int32_t taosGetSystemTimezone(char *outTimezoneStr) {
   char tz[TD_TIMEZONE_LEN] = {0};
   getTimezoneStr(tz);
   time_t tx1 = taosGetTimestampSec();
-  return taosFormatTimezoneStr(tx1, tz, NULL, outTimezoneStr);
+
+  return taosFormatTimezoneStr(tx1, tz, getGlobalDefaultTZ(), outTimezoneStr);
+#endif
+}
+
+int32_t initTimezoneInfo(void) {
+#ifdef WINDOWS
+#else
+  uint64_t gen = atomic_val_compare_exchange_64((int64_t *)&g_tz_gen, 0, 1);
+  if (gen > 0) return TSDB_CODE_SUCCESS;
+  timezone_t tz = tzalloc(NULL);  // system default
+  if (!tz) {
+    uError("tzalloc(NULL) failed");
+    return TSDB_CODE_TIME_ERROR;
+  }
+
+  g_tz_slots[0].tz = tz;
+  g_tz_slots[0].gen = 0;
+
+  atomic_store_32((int32_t *)&g_tz_idx, 0);
+
+  uInfo("[tz]timezone initTimezoneInfo.");
+#endif
+  return TSDB_CODE_SUCCESS;
+}
+
+void cleanupTimezoneInfo(void) {
+#ifdef WINDOWS
+#else
+  for (int i = 0; i < TZ_SLOTS; ++i) {
+    if (g_tz_slots[i].tz) {
+      tzfree(g_tz_slots[i].tz);
+      g_tz_slots[i].tz = NULL;
+    }
+  }
+#endif
+}
+
+timezone_t getGlobalDefaultTZ() {
+#ifdef WINDOWS
+  return NULL;
+#else
+  uint32_t idx = atomic_load_32((int32_t *)&g_tz_idx);
+  return g_tz_slots[idx].tz;
 #endif
 }

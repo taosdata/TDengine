@@ -18,12 +18,12 @@ You can use these models in TDgpt without any configuration, only specifying the
 
 - The following statement forecasts 10 rows of data using TDtsfm:
 
-```SQL
+```sql
 SELECT _frowts, FORECAST(i32, "algo=tdtsfm_1,rows=10") from foo
 ```
 
 - The following statement forecasts 10 rows of data using Time-MoE:
 
-```SQL
+```sql
 SELECT _frowts, FORECAST(i32, "algo=timemoe-fc,rows=10") from foo
 ```

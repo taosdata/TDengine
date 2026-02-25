@@ -33,4 +33,19 @@ add_test(
     NAME dataSinkTest
     COMMAND dataSinkTest
 )
+
+ADD_EXECUTABLE(checkpointEncryptionTest checkpointEncryptionTest.cpp)
+DEP_ext_gtest(checkpointEncryptionTest)
+TARGET_INCLUDE_DIRECTORIES(
+  checkpointEncryptionTest
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/qcom"
+)
+TARGET_LINK_LIBRARIES(checkpointEncryptionTest PUBLIC taos os common executor function index)
+
+add_test(
+    NAME checkpointEncryptionTest
+    COMMAND checkpointEncryptionTest
+)
 endif(NOT ${TD_WINDOWS})

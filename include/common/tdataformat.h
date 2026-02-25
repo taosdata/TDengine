@@ -208,8 +208,10 @@ char   *tTagValToData(const STagVal *pTagVal, bool isJson);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
+void    destroyTagVal(void *pTag);
 void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remove
 int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf, void *charsetCxt);
+void    destroyColVal(void *p);
 
 // SColData ================================
 typedef struct {
@@ -344,14 +346,12 @@ typedef struct {
 #define DATUM_MAX_SIZE 16
 
 struct SValue {
-  int8_t type;
   union {
-    int64_t val;
-    struct {
-      uint8_t *pData;
-      uint32_t nData;
-    };
+    int64_t  val;
+    uint8_t *pData;
   };
+  uint32_t nData;
+  int8_t   type;
 };
 
 struct SBlobValOffset {

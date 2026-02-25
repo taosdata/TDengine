@@ -17,6 +17,7 @@
 #if defined(TD_ENTERPRISE) && defined(LINUX)
 #include <openssl/err.h>
 #include <openssl/ssl.h>
+#include <openssl/x509.h>
 #else
 typedef struct {
   void* p;
@@ -45,30 +46,36 @@ typedef struct {
   char*    cafile;    // CA file path
   char*    capath;    // CA directory path
   SSL_CTX* sslCtx;    // SSL context
+  volatile int32_t  refCount;
 } SSslCtx;
 
-int32_t transTlsCtxCreate(const SRpcInit* pInit, SSslCtx** ppCtx);
+int32_t transTlsCxtCreate(const SRpcInit* pInit, SSslCtx** ppCtx);
+void    transTlsCtxDestroy(SSslCtx* pCtx);
 
-void transTlsCtxDestroy(SSslCtx* pCtx);
+void   transTlsCxtRef(SSslCtx* pCtx);
+void   transTlsCxtUnref(SSslCtx* pCtx);
+
 typedef struct {
   int32_t  cap;
   int32_t  len;
   int8_t   invalid;  // whether the buffer is invalid
   int8_t   ref;
-  uint8_t* buf;      // buffer for encrypted data
+  uint8_t* buf;  // buffer for encrypted data
 } SSslBuffer;
 
 typedef struct {
   SSslCtx* pTlsCtx;   // pointer to TLS context
-  SSL*    ssl;       // SSL connection
-  int32_t refCount;  // reference count
-  int32_t status;    // connection status
+  SSL*     ssl;       // SSL connection
+  int32_t  refCount;  // reference count
+  int32_t  status;    // connection status
+  int8_t   inited;
 
   BIO* readBio;
   BIO* writeBio;  // BIO for reading and writing data
 
   void* pStream;
-  void *pConn;
+  void* pConn;
+
 
   SSslBuffer readBuf;  // buffer for reading data
   SSslBuffer sendBuf;  // buffer for sending data
@@ -76,6 +83,8 @@ typedef struct {
   void (*connCb)(uv_connect_t* pStream, int32_t status);                        // callback for connection events
   void (*readCb)(uv_stream_t* pStream, ssize_t nread, const uv_buf_t* buffer);  // callback for read events
   void (*writeCb)(uv_write_t* pReq, int32_t status);                            // callback for write events
+
+  char certDn[512];
 } STransTLS;
 
 int32_t sslInit(SSslCtx* pCtx, STransTLS** ppTLs);
@@ -90,7 +99,8 @@ int32_t sslWrite(STransTLS* pTls, uv_stream_t* stream, uv_write_t* req, uv_buf_t
 
 int32_t sslRead(STransTLS* pTls, SConnBuffer* pBuf, int32_t nread, int8_t cliMode);
 
-int8_t sslIsInited(STransTLS* pTls);
+int32_t sslGetCertificate(STransTLS* pTls, char buf[]);
+int8_t  sslIsInited(STransTLS* pTls);
 
 int32_t sslBufferInit(SSslBuffer* buf, int32_t cap);
 void    sslBufferDestroy(SSslBuffer* buf);
@@ -106,6 +116,31 @@ void sslBufferUnref(SSslBuffer* buf);
 #define SSL_BUFFER_CAP(buf)               ((buf)->cap)
 #define SSL_BUFFER_DATA(buf)              ((buf)->buf)
 #define SSL_BUFFER_OFFSET_DATA(b, offset) ((b)->buf + (offset))
+
+typedef struct {
+  TdThreadRwlock lock;
+  SSslCtx*       pTlsCtx;
+
+  SSslCtx*       pNewTlsCtx;
+  int8_t tlsLoading;
+  int32_t loadTlsCount;
+  
+} STlsCxtMgt;
+
+int32_t transTlsCxtMgtInit(STlsCxtMgt** pMgt); 
+
+int32_t transTlsCxtMgtGet(STlsCxtMgt* pMgt, SSslCtx** ppCtx);
+
+int32_t transTlsCxtMgtAppend(STlsCxtMgt* pMgt, SSslCtx* pNewCtx); 
+
+void transTlsCxtMgtDestroy(STlsCxtMgt* pMgt); 
+
+int32_t transTlsCxtMgtCreateNewCxt(STlsCxtMgt* pMgt, int8_t cliMode); 
+
+int8_t transDoReloadTlsConfig(STlsCxtMgt *pMgt, int32_t numOfThreads); 
+
+int8_t transShouldDoReloadTlsConfig(STlsCxtMgt *pMgt);
+
 
 #ifdef __cplusplus
 }

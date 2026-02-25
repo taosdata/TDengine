@@ -365,7 +365,7 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pReq, SUserAuthRes* pRes, bool* exists) {
+int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pReq, SUserAuthRes* pRes, SUserAuthRsp *pRsp) {
   bool    inCache = false;
   int32_t code = 0;
   SCtgAuthRsp rsp = {0};
@@ -373,16 +373,22 @@ int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pReq,
 
   CTG_ERR_RET(ctgChkAuthFromCache(pCtg, pReq, false, &inCache, &rsp));
 
+  if (pRsp) {
+    pRsp->withInsertCond = rsp.withInsertCond;
+  }
+
   if (inCache) {
-    if (exists) {
-      *exists = true;
+    if (pRsp) {
+      pRsp->exists = 1;
     }
-    
+
     return TSDB_CODE_SUCCESS;
-  } else if (exists) {
-    *exists = false;
+  } else if (pRsp) {
+    pRsp->exists = 0;
     return TSDB_CODE_SUCCESS;
   }
+
+  if (!pConn) return TSDB_CODE_SUCCESS;
 
   SCtgAuthReq req = {0};
   req.pRawReq = pReq;
@@ -1825,21 +1831,55 @@ _return:
   CTG_API_LEAVE(code);
 }
 
-int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth,        SUserAuthRes* pRes, bool* exists) {
+int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth, SUserAuthRes* pRes, SUserAuthRsp *pRsp) {
   CTG_API_ENTER();
 
-  if (NULL == pCtg || NULL == pAuth || NULL == pRes || NULL == exists) {
+  if (NULL == pCtg || NULL == pAuth || NULL == pRes) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
   int32_t code = 0;
-  CTG_ERR_JRET(ctgChkAuth(pCtg, NULL, pAuth, pRes, exists));
+  CTG_ERR_JRET(ctgChkAuth(pCtg, NULL, pAuth, pRes, pRsp));
 
 _return:
 
   CTG_API_LEAVE(code);
 }
 
+static int32_t ctgGetUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, SGetUserAuthRsp* pRsp) {
+  bool    inCache = false;
+  int32_t code = 0;
+
+  CTG_ERR_RET(ctgGetUserAuthFromCache(pCtg, user, &inCache, pRsp));
+
+  if (inCache) {
+    return code;
+  }
+
+  CTG_ERR_RET(ctgGetUserDbAuthFromMnode(pCtg, pConn, user, pRsp, NULL));
+
+  (void)ctgUpdateUserEnqueue(pCtg, pRsp, false);  // cache update not fatal error
+
+  CTG_RET(code);
+}
+
+/**
+ * @brief shallow copy
+ */
+int32_t catalogGetUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, SGetUserAuthRsp* pRes) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == pConn || NULL == user || NULL == pRes) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  int32_t code = 0;
+  CTG_ERR_JRET(ctgGetUserAuth(pCtg, pConn, user, pRes));
+
+_return:
+
+  CTG_API_LEAVE(code);
+}
 
 int32_t catalogGetServerVersion(SCatalog* pCtg, SRequestConnInfo* pConn, char** pVersion) {
   CTG_API_ENTER();

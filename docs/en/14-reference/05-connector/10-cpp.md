@@ -193,8 +193,7 @@ The basic API is used to establish database connections and provide a runtime en
   - **Interface Description**: Gets client version information.
   - **Return Value**: Returns client version information.
 
-- `TAOS *taos_connect(const char *ip, the char *user, the char *pass, the char *db, uint16_t port);`
-
+- `TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);`
   - **Interface Description**: Creates a database connection, initializes the connection context.
   - **Parameter Description**:
     - ip: [Input] FQDN of any node in the TDengine cluster.
@@ -204,11 +203,32 @@ The basic API is used to establish database connections and provide a runtime en
     - port: [Input] Port on which the taosd program listens.
   - **Return Value**: Returns the database connection, a null return value indicates failure. The application needs to save the returned parameter for subsequent use.
     :::info
-    The same process can connect to multiple TDengine clusters based on different hosts/ports.
+    The same process can connect to multiple TDengine clusters based on different hosts/ports. When TOTP is enabled for the user, calling this function fails with error code `TSDB_CODE_MND_WRONG_TOTP_CODE`, in which case the application should ask user for the TOTP code and call `taos_connect_totp` to try again.
     :::
 
-- `TAOS *taos_connect_auth(const char *host, const char *user, const char *auth, const char *db, uint16_t port)`
+- `TAOS *taos_connect_totp(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port);`
+  - **Interface Description**: Same functionality as `taos_connect` but support using [TOTP](https://www.rfc-editor.org/rfc/rfc6238) as 2FA method.
+  - **Parameter Description**:
+    - ip: [Input] FQDN of any node in the TDengine cluster.
+    - user: [Input] Username.
+    - pass: [Input] Password.
+    - totp: [Input] TOTP code, if NULL, the behavior of this function is same as `taos_connect`.
+    - db: [Input] Database name, if not provided by the user, connection can still be established, and the user can create a new database through this connection. If a database name is provided, it indicates that the database has already been created by the user, and it will be used by default.
+    - port: [Input] Port on which the taosd program listens.
+  - **Return Value**: Returns the database connection, a null return value indicates failure. The application needs to save the returned parameter for subsequent use.
+  - **Supported Versions**: `v3.4.0.0` and above
 
+- `TAOS *taos_connect_token(const char *ip, const char *token, const char *db, uint16_t port);`
+  - **Interface Description**: Same functionality as `taos_connect` but use token instead of user name and password for authentication.
+  - **Parameter Description**:
+    - ip: [Input] FQDN of any node in the TDengine cluster.
+    - token: [Input] Token.
+    - db: [Input] Database name, if not provided by the user, connection can still be established, and the user can create a new database through this connection. If a database name is provided, it indicates that the database has already been created by the user, and it will be used by default.
+    - port: [Input] Port on which the taosd program listens.
+  - **Return Value**: Returns the database connection, a null return value indicates failure. The application needs to save the returned parameter for subsequent use.
+  - **Supported Versions**: `v3.4.0.0` and above
+
+- `TAOS *taos_connect_auth(const char *host, const char *user, const char *auth, const char *db, uint16_t port)`
   - **Interface Description**: Same functionality as taos_connect. Except the pass parameter is replaced by auth, other parameters are the same as taos_connect.
   - **Parameter Description**:
     - ip: [Input] FQDN of any node in the TDengine cluster.
@@ -217,6 +237,69 @@ The basic API is used to establish database connections and provide a runtime en
     - db: [Input] Database name, if not provided by the user, connection can still be established, and the user can create a new database through this connection. If a database name is provided, it indicates that the database has already been created, and it will be used by default.
     - port: [Input] Port listened by the taosd program.
   - **Return Value**: Returns the database connection, a null return value indicates failure. The application needs to save the returned parameter for subsequent use.
+
+- `int taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char* buffer, int* len);`
+  - **Interface Description**: Get connection information。
+  - **Parameter Description**:
+    - taos: [Input] Database connection.
+    - info: [Input] Specifies which information item to get.
+    - buffer: [Output] Buffer to receive the information data. Note that the buffer is always treated as a byte array, this is to say, it does not include the trailing zero even if the data is a zero-terminated string.
+    - len: [Input/Output] As input, represent the size of the buffer; as output, returns the size of the result information.
+  - **Supported Information Items**:
+
+    | Key                        |  Description                                                                                                 |
+    |----------------------------|--------------------------------------------------------------------------------------------------------------|
+    | TSDB_CONNECTION_INFO_USER  |  The name of the user who create this connection                                                             |
+    | TSDB_CONNECTION_INFO_TOKEN |  The name of the token which was used to create this connection (if the connection was created via a token)  |
+
+  - **Return Value**: Error code.
+  - **Supported Versions**: `v3.4.0.0` and above
+
+- `void taos_set_option(OPTIONS *options, const char *key, const char *value)`
+
+  - **Interface Description**: Adds a connection configuration item (key-value pair) to the OPTIONS structure. This function constructs the connection configuration, which takes effect when `taos_connect_with()` is called.
+  - **Parameter Description**:
+    - `options`: [Input] A pointer to a valid OPTIONS structure used to store the connection configuration items.
+    - `key`: [Input] The key name (string) of the configuration item. Supported key names are listed in the table below.
+    - `value`: [Input] The value (string) of the configuration item, corresponding to the specific configuration content of `key`.
+  - **Supported Configuration Items**:
+
+    | Key               | Applicable Connection Method | Description                                            |
+    |-------------------|------------------------------|--------------------------------------------------------|
+    | ip                | Native/WebSocket | FQDN or IP address of any node in the TDengine cluster |
+    | user              | Native/WebSocket | Username |
+    | pass              | Native/WebSocket | Password |
+    | db                | Native/WebSocket | Database name |
+    | port              | Native/WebSocket | Service port number. The default port for Native connections is 6030, and the default port for WebSocket connections is 6041. |
+    | charset           | Native           | Character set |
+    | timezone          | Native/WebSocket | Time zone |
+    | userIp            | Native/WebSocket | User IP address |
+    | userApp           | Native/WebSocket | User app name |
+    | connectorInfo     | Native           | Connector information |
+    | adapterList       | WebSocket        | List of taosAdapter addresses, used for load balancing and failover. Multiple addresses are separated by commas, in the format `host1:port1,host2:port2,...`. They have higher priority than the `ip` parameter. |
+    | compression       | WebSocket        | Data compression switch. 0: Disabled, 1: Enabled. Default is 0. |
+    | connRetries       | WebSocket        | Maximum number of retries on connection failure. Default is 5. |
+    | retryBackoffMs    | WebSocket        | Initial wait time (milliseconds) on connection failure. This value increases exponentially with consecutive failures until the maximum wait time is reached. Default is 200. |
+    | retryBackoffMaxMs | WebSocket        | Maximum wait time (milliseconds) on connection failure. Default is 2000. |
+    | token             | WebSocket        | Cloud service authentication token |
+    | wsTlsMode         | WebSocket        | TLS encryption modes:<br/> - 0: Disable TLS encryption. If the server enables TLS, the client will automatically upgrade the connection.<br/> - 1: Enable TLS encryption, but do not verify the server certificate. <br/> - 2: Enable TLS encryption and verify the server certificate, but not the hostname. <br/> - 3: Enable TLS encryption and verify both the server certificate and hostname (the server certificate must include SAN; CN will be ignored).<br/> Default is 0. |
+    | wsTlsVersion      | WebSocket        | List of TLS protocol versions, separated by commas. Optional values: TLSv1.2, TLSv1.3. The default value is TLSv1.3. |
+    | wsTlsCa           | WebSocket        | The client uses the path to the CA certificate file or the certificate content in PEM format to verify the server certificate. This certificate should be the CA certificate that issued the server certificate. |
+
+  - **Important Notes**:
+    - The OPTIONS struct supports a maximum of 256 configuration items.
+    - Configuration item keys are case-sensitive.
+    - When setting the same key name multiple times, later values ​​will overwrite earlier values.
+    - WebSocket connection-specific configuration items are ignored in Native connection mode, and vice versa.
+  - **Supported Versions**: `v3.3.8.12` and above
+
+- `TAOS *taos_connect_with(const OPTIONS *options)`
+
+  - **Interface Description**: Creates a database connection using the connection configuration options in the OPTIONS structure and initializes the connection context.
+  - **Parameter Description**:
+    - `options`: [Input] Points to a valid OPTIONS structure containing the connection configuration options added via `taos_set_option()`. If NULL or the configuration options are empty, default connection parameters will be used.
+  - **Return Value**: Returns the database connection. A null return value indicates failure. The application needs to save the returned parameters for later use.
+  - **Supported Versions**: `v3.3.8.12` and above
 
 - `char *taos_get_server_info(TAOS *taos)`
 
@@ -516,7 +599,7 @@ Starting from versions 2.1.1.0 and 2.1.2.0, TDengine has significantly improved 
 
 Note: If `taos_stmt_execute()` is successful and there is no need to change the SQL statement, then it is possible to reuse the parsing result of `taos_stmt_prepare()` and directly proceed to steps 3 to 6 to bind new data. However, if there is an error in execution, it is not recommended to continue working in the current context. Instead, it is advisable to release resources and start over from the `taos_stmt_init()` step.
 
-The specific functions related to the interface are as follows (you can also refer to the [prepare.c](https://github.com/taosdata/TDengine/blob/develop/docs/examples/c/prepare.c) file for how to use the corresponding functions):
+The specific functions related to the interface are as follows (you can also refer to the [prepare.c](https://github.com/taosdata/TDengine/blob/main/docs/examples/c/prepare.c) file for how to use the corresponding functions):
 
 - `TAOS_STMT* taos_stmt_init(TAOS *taos)`
 

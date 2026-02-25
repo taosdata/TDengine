@@ -164,7 +164,7 @@ static int tKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) 
 static TDB *openEnv(char const *envName, int const pageSize, int const pageNum) {
   TDB *pEnv = NULL;
 
-  int ret = tdbOpen(envName, pageSize, pageNum, &pEnv, 0, 0, NULL);
+  int ret = tdbOpen(envName, pageSize, pageNum, &pEnv, 0, NULL);
   if (ret) {
     pEnv = NULL;
   }

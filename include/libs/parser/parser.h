@@ -58,7 +58,7 @@ extern "C" {
 typedef struct SStmtCallback {
   TAOS_STMT* pStmt;
   int32_t (*getTbNameFn)(TAOS_STMT*, char**);
-  int32_t (*setInfoFn)(TAOS_STMT*, STableMeta*, void*, SArray*, SName*, bool, SHashObj*, SHashObj*, const char*,
+  int32_t (*setInfoFn)(TAOS_STMT*, STableMeta*, void*, SSHashObj**, SName*, bool, SHashObj*, SHashObj*, const char*,
                        uint8_t);
   int32_t (*getExecInfoFn)(TAOS_STMT*, SHashObj**, SHashObj**);
 } SStmtCallback;
@@ -114,6 +114,8 @@ typedef struct SParseContext {
   SStmtCallback*   pStmtCb;
   const char*      pUser;
   const char*      pEffectiveUser;
+  int64_t          userId;
+  int64_t          effectiveUserId;
   bool             topicQuery;
   bool             parseOnly;
   bool             isSuperUser;
@@ -125,17 +127,38 @@ typedef struct SParseContext {
   bool             isAudit;
   bool             nodeOffline;
   uint8_t          stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
-  const char*      svrVer;
-  SArray*          pTableMetaPos;    // sql table pos => catalog data pos
-  SArray*          pTableVgroupPos;  // sql table pos => catalog data pos
-  int64_t          allocatorId;
-  parseSqlFn       parseSqlFp;
-  void*            parseSqlParam;
   int8_t           biMode;
-  SArray*          pSubMetaList;
-  setQueryFn       setQueryFp;
-  timezone_t       timezone;
-  void            *charsetCxt;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t hasPrivCols : 1;  // user has priv columns
+      uint8_t hasMaskCols : 1;  // user has mask columns
+      uint8_t reserved : 6;     // reserved bits for future use
+    };
+  };
+  union {
+    uint16_t privInfo;
+    struct {
+      uint16_t privLevel : 3;  // user privilege level
+      uint16_t privInfoBasic : 1;
+      uint16_t privInfoPrivileged : 1;
+      uint16_t privInfoAudit : 1;
+      uint16_t privInfoSec : 1;
+      uint16_t privPerfBasic : 1;
+      uint16_t privPerfPrivileged : 1;
+      uint16_t reserved1 : 7;
+    };
+  };
+  const char* svrVer;
+  SArray*     pTableMetaPos;    // sql table pos => catalog data pos
+  SArray*     pTableVgroupPos;  // sql table pos => catalog data pos
+  int64_t     allocatorId;
+  parseSqlFn  parseSqlFp;
+  void*       parseSqlParam;
+  SArray*     pSubMetaList;
+  setQueryFn  setQueryFp;
+  timezone_t  timezone;
+  void*       charsetCxt;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
@@ -218,8 +241,6 @@ int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char*
                      int32_t msgBufLen);
 int32_t qCreateSName2(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
                       int32_t msgBufLen);
-
-void qDestroyBoundColInfo(void* pInfo);
 
 int32_t smlInitHandle(SQuery** query);
 int32_t smlBuildRow(STableDataCxt* pTableCxt);

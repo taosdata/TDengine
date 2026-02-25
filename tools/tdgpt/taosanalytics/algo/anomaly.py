@@ -29,7 +29,7 @@ def do_ad_check(input_list, ts_list, algo_name, params):
                               n_error,
                               res)
 
-    # draw_ad_results(input_list, res, algo_name, s.valid_code)
+    draw_ad_results(input_list, res, algo_name, s.valid_code)
 
     ano_window, mask_list = convert_results_to_windows(res, ts_list, s.valid_code)
     return res, ano_window, mask_list

@@ -270,11 +270,11 @@ int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg);
 // injection error
 void streamMetaFreeTQDuringScanWalError(STQ* pTq);
 
-int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
-int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId);
+int32_t tqAddTbUidList(STQ* pTq, SArray* tbUidList);
+int32_t tqDeleteTbUidList(STQ* pTq, SArray* tbUidList);
+int32_t tqUpdateTbUidList(STQ* pTq, SArray* tbUidList, SArray* cidList);
+
 // tq-mq
-int32_t tqProcessAddCheckInfoReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessDelCheckInfoReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
@@ -601,7 +601,7 @@ enum {
   SNAP_DATA_STREAM_TASK_CHECKPOINT = 10,
   SNAP_DATA_STREAM_STATE = 11,
   SNAP_DATA_STREAM_STATE_BACKEND = 12,
-  SNAP_DATA_TQ_CHECKINFO = 13,
+  // SNAP_DATA_TQ_CHECKINFO = 13,
   SNAP_DATA_RAW = 14,
   SNAP_DATA_BSE = 15,
 };

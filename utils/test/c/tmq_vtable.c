@@ -122,3 +122,11 @@ int main(int argc, char* argv[]) {
   basic_consume_loop(tmq, topic_list);
   tmq_list_destroy(topic_list);
 }
+
+// snapshot = true, stable topic / db topic, check get_raw/tmq_get_json
+// snapshot = false, stable topic / db topic, check get_raw/write_raw
+// ref is from another db table col, virtual_normal_table, virtual_child_table
+// ref is all, or ref is partial
+// create vtable, create normal v table.
+// add col for normal v table
+// alter ref for child vtable

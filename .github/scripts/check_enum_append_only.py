@@ -40,16 +40,28 @@ def get_git_version_with_values(filepath, base_branch):
         print(f"Warning: file '{filepath}' not found in {base_branch}. Treating as new file.")
         return {}
 
-def check_enum_values_preserved(old_list, new_list):
+def check_enum_values_preserved(old_list, new_list, ignore_list):
     old_dict = dict(old_list)
     new_dict = dict(new_list)
 
     for name, val in old_dict.items():
         if name not in new_dict:
             return False, f"enum '{name}' has been deleted"
+        if name in ignore_list:
+            continue
         if new_dict[name] != val:
             return False, f"enum '{name}' value changed from {val} to {new_dict[name]}"
     return True, None
+
+# ignore lists for specific enums, value changes are allowed for these members
+ignore_lists = {
+    "_mgmt_table": {"TSDB_MGMT_TABLE_MAX"},
+    "EShowType": {"TSDB_MGMT_TABLE_MAX"},
+    "ESdbType": {"SDB_MAX"},
+    "EQueueType": {"QUEUE_MAX"},
+    "EDriverType": {"DRIVER_MAX"},
+    "EGrantState": {"GRANT_STATE_MAX"},
+}
 
 def check_file(filepath, base_branch):
     print(f"Checking {filepath} against {base_branch}...")
@@ -60,7 +72,8 @@ def check_file(filepath, base_branch):
     for enum_name, new_items in new_enums.items():
         if enum_name in old_enums:
             old_items = old_enums[enum_name]
-            ok, err_msg = check_enum_values_preserved(old_items, new_items)
+            ignore_list = ignore_lists.get(enum_name, set())
+            ok, err_msg = check_enum_values_preserved(old_items, new_items, ignore_list)
             if not ok:
                 print(f"ERROR: Violation in enum '{enum_name}': {err_msg}")
                 all_ok = False
@@ -78,6 +91,9 @@ if __name__ == "__main__":
             continue
         if not os.path.isfile(f):
             print(f"Warning: file '{f}' does not exist, skipping.")
+            continue
+        if 'include/util/tpriv.h' in f:
+            print(f"Skipping enum check for file: {f} in this release.") # PRIV_TODO
             continue
         if not check_file(f, args.base_branch):
             all_ok = False

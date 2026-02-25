@@ -43,7 +43,7 @@ class TestUserPrivilegeTable:
         tdSql.execute(f"create table st2s1 using st2 tags(1, 'beijing');")
         tdSql.execute(f"create table st2s2 using st2 tags(2, 'shanghai');")
         tdSql.execute(f"insert into st2s1 values(now, 1) st2s2 values(now, 2);")
-        tdSql.execute(f"create user wxy pass 'taosdata';")
+        tdSql.execute(f"create user wxy pass 'taosdata_12345';")
         tdSql.query(f"show test.stables;")
         tdSql.checkRows(2)
 
@@ -51,7 +51,7 @@ class TestUserPrivilegeTable:
             f"=============== case 1: database unauthorized and table unauthorized"
         )
 
-        tdSql.connect("wxy")
+        tdSql.connect("wxy", "taosdata_12345")
 
         tdSql.execute(f"reset query cache;")
         tdSql.error(f"select * from test.st1;")
@@ -70,9 +70,11 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"grant read on test.st1 to wxy;")
-
-        tdSql.connect("wxy")
+        tdSql.execute(f"grant select on test.st1 to wxy;")
+        tdSql.execute(f"grant use on database test to wxy;")
+        tdSql.execute(f"revoke role `SYSINFO_1` from wxy;")
+        tdSql.execute(f"grant show on table test.st1 to wxy;")
+        tdSql.connect("wxy", "taosdata_12345")
 
         tdSql.execute(f"reset query cache;")
         tdSql.query(f"select * from test.st1;")
@@ -94,12 +96,12 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke read on test.st1 from wxy;")
-        tdSql.execute(f"grant read on test.st1 with id = 1 to wxy;")
+        tdSql.execute(f"revoke select on test.st1 from wxy;")
+        tdSql.execute(f"grant select on test.st1 with id = 1 to wxy;")
         tdSql.query(f"show test.stables;")
         tdSql.checkRows(2)
 
-        tdSql.connect("wxy")
+        tdSql.connect("wxy", "taosdata_12345")
 
         tdSql.execute(f"reset query cache;")
         tdSql.query(f"select * from test.st1;")
@@ -120,12 +122,12 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke read on test.st1 with id = 1 from wxy;")
-        tdSql.execute(f"grant write on test.st1 to wxy;")
+        tdSql.execute(f"revoke select on test.st1 with id = 1 from wxy;")
+        tdSql.execute(f"grant insert on test.st1 to wxy;")
         tdSql.query(f"show test.stables;")
         tdSql.checkRows(2)
 
-        tdSql.connect("wxy")
+        tdSql.connect("wxy", "taosdata_12345")
 
         tdSql.execute(f"reset query cache;")
         tdSql.error(f"select tbname, * from test.st1;")
@@ -144,12 +146,12 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke write on test.st1 from wxy;")
-        tdSql.execute(f"grant write on test.st1 with id = 1 to wxy;")
+        tdSql.execute(f"revoke insert on test.st1 from wxy;")
+        tdSql.execute(f"grant insert on test.st1 with id = 1 to wxy;")
         tdSql.query(f"show test.stables;")
         tdSql.checkRows(2)
 
-        tdSql.connect("wxy")
+        tdSql.connect("wxy", "taosdata_12345")
 
         tdSql.execute(f"reset query cache;")
         tdSql.error(f"select tbname, * from test.st1;")
@@ -174,12 +176,13 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke write on test.st1 with id = 1 from wxy;")
-        tdSql.execute(f"grant read on test.* to wxy;")
+        tdSql.execute(f"revoke insert on test.st1 with id = 1 from wxy;")
+        tdSql.execute(f"grant select on test.* to wxy;")
+        tdSql.execute(f"grant show on table test.* to wxy;")
         tdSql.query(f"show test.stables;")
         tdSql.checkRows(2)
 
-        tdSql.connect("wxy")
+        tdSql.connect("wxy", "taosdata_12345")
 
         tdSql.execute(f"reset query cache;")
         tdSql.query(f"select * from test.st1;")
@@ -203,9 +206,9 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"grant read on test.st1 to wxy;")
+        tdSql.execute(f"grant select on test.st1 to wxy;")
 
-        tdSql.connect("wxy")
+        tdSql.connect("wxy", "taosdata_12345")
 
         tdSql.execute(f"reset query cache;")
         tdSql.query(f"select * from test.st1;")
@@ -229,10 +232,12 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke read on test.st1 from wxy;")
-        tdSql.execute(f"grant read on test.st1 with id = 1 to wxy;")
+        tdSql.execute(f"revoke select on test.st1 from wxy;")
+        tdSql.execute(f"revoke select on test.* from wxy;")
+        tdSql.execute(f"grant select on test.st1 with id = 1 to wxy;")
+        tdSql.execute(f"grant select on test.st2 to wxy;")
 
-        tdSql.connect("wxy")
+        tdSql.connect("wxy", "taosdata_12345")
 
         tdSql.execute(f"reset query cache;")
         tdSql.query(f"select * from test.st1;")
@@ -256,10 +261,11 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke read on test.st1 with id = 1 from wxy;")
-        tdSql.execute(f"grant write on test.st1 to wxy;")
+        tdSql.execute(f"revoke select on test.st1 with id = 1 from wxy;")
+        tdSql.execute(f"grant select on test.st1 to wxy;")
+        tdSql.execute(f"grant insert on test.st1 to wxy;")
 
-        tdSql.connect("wxy")
+        tdSql.connect("wxy", "taosdata_12345")
 
         tdSql.execute(f"reset query cache;")
         tdSql.query(f"select * from test.st1;")
@@ -283,10 +289,10 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke write on test.st1 from wxy;")
-        tdSql.execute(f"grant write on test.st1 with id = 1 to wxy;")
+        tdSql.execute(f"revoke insert on test.st1 from wxy;")
+        tdSql.execute(f"grant insert on test.st1 with id = 1 to wxy;")
 
-        tdSql.connect("wxy")
+        tdSql.connect("wxy", "taosdata_12345")
 
         tdSql.execute(f"reset query cache;")
         tdSql.query(f"select * from test.st1;")
@@ -309,11 +315,13 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke read on test.* from wxy;")
-        tdSql.execute(f"revoke write on test.st1 with id = 1 from wxy;")
-        tdSql.execute(f"grant write on test.* to wxy;")
+        tdSql.execute(f"revoke select on test.* from wxy;")
+        tdSql.execute(f"revoke select on test.st1 from wxy;")
+        tdSql.execute(f"revoke select on test.st2 from wxy;")
+        tdSql.execute(f"revoke insert on test.st1 with id = 1 from wxy;")
+        tdSql.execute(f"grant insert on test.* to wxy;")
 
-        tdSql.connect("wxy")
+        tdSql.connect("wxy", "taosdata_12345")
 
         tdSql.execute(f"reset query cache;")
         tdSql.error(f"select * from test.st1;")
@@ -333,9 +341,9 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"grant read on test.st1 to wxy;")
+        tdSql.execute(f"grant select on test.st1 to wxy;")
 
-        tdSql.connect("wxy")
+        tdSql.connect("wxy", "taosdata_12345")
 
         tdSql.execute(f"reset query cache;")
         tdSql.query(f"select * from test.st1;")
@@ -357,10 +365,10 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke read on test.st1 from wxy;")
-        tdSql.execute(f"grant read on test.st1 with id = 1 to wxy;")
+        tdSql.execute(f"revoke select on test.st1 from wxy;")
+        tdSql.execute(f"grant select on test.st1 with id = 1 to wxy;")
 
-        tdSql.connect("wxy")
+        tdSql.connect("wxy", "taosdata_12345")
 
         tdSql.execute(f"reset query cache;")
         tdSql.query(f"select * from test.st1;")
@@ -382,10 +390,10 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke read on test.st1 with id = 1 from wxy;")
-        tdSql.execute(f"grant write on test.st1 to wxy;")
+        tdSql.execute(f"revoke select on test.st1 with id = 1 from wxy;")
+        tdSql.execute(f"grant insert on test.st1 to wxy;")
 
-        tdSql.connect("wxy")
+        tdSql.connect("wxy", "taosdata_12345")
 
         tdSql.execute(f"reset query cache;")
         tdSql.error(f"select * from test.st1;")
@@ -405,10 +413,12 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke write on test.st1 from wxy;")
-        tdSql.execute(f"grant write on test.st1 with id = 1 to wxy;")
+        tdSql.execute(f"revoke insert on test.st1 from wxy;")
+        tdSql.execute(f"grant insert on test.st1 with id = 1 to wxy;")
+        tdSql.execute(f"grant insert on test.st2 to wxy;")
+        tdSql.execute(f"revoke insert on test.* from wxy;")
 
-        tdSql.connect("wxy")
+        tdSql.connect("wxy", "taosdata_12345")
 
         tdSql.execute(f"reset query cache;")
         tdSql.error(f"select * from test.st1;")

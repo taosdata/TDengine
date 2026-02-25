@@ -258,7 +258,7 @@ class TestConcat2:
         )
 
     def test_fun_sca_concat2(self):
-        """ Fun: concat() extend test
+        """ Fun: concat() extend
 
         1. Create super table and child tables
         2. Insert data with null/chinese/single char values
@@ -298,4 +298,4 @@ class TestConcat2:
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test(dbname="db")
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+

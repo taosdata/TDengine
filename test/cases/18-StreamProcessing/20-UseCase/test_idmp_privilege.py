@@ -147,8 +147,8 @@ class Test_IDMP_Meters:
     def createUsers(self):
 
         sqls = [
-            "create user user1 pass 'taosdata' sysinfo 1 createdb 1",
-            "create user user2 pass 'taosdata' sysinfo 0 createdb 0"
+            "create user user1 pass 'AAbb1122' sysinfo 1 createdb 1",
+            "create user user2 pass 'AAbb1122' sysinfo 0 createdb 0"
         ]
 
         self.execs(sqls)
@@ -163,15 +163,31 @@ class Test_IDMP_Meters:
             # user1
             #
 
+            # # db1 all
+            # "grant all   on db1        to user1",
+            # "grant all   on db1_out    to user1",
+            # # db2 read
+            # "grant read  on db2        to user1",
+            # "grant read  on db2_out    to user1",
+            # # db3 write
+            # "grant write on db3        to user1",
+            # "grant write on db3_out    to user1",
             # db1 all
-            "grant all   on db1        to user1",
-            "grant all   on db1_out    to user1",
+            "grant all on db1.* to user1",
+            "grant create stream on database db1 to user1",
+            "grant use on database db1 to user1",
+            "grant all on db1_out.* to user1",
+            "grant use,create table on database db1_out to user1",
             # db2 read
-            "grant read  on db2        to user1",
-            "grant read  on db2_out    to user1",
+            "grant select on db2.* to user1",
+            "grant use on database db2 to user1",
+            "grant select  on db2_out.* to user1",
+            "grant use on database db2_out to user1",
             # db3 write
-            "grant write on db3        to user1",
-            "grant write on db3_out    to user1",            
+            "grant insert on db3.* to user1",
+            "grant use,create stream on database db3 to user1",
+            "grant insert on db3_out.*    to user1",
+            "grant use,create table on database db3_out to user1",
         ]
 
         self.execs(sqls)
@@ -195,6 +211,8 @@ class Test_IDMP_Meters:
         # exec
         sql = f"CREATE STREAM {streamName} INTERVAL(5s) SLIDING(5s) FROM {trigger} PARTITION BY tbname STREAM_OPTIONS(FILL_HISTORY) INTO {into}  AS {select}"
         if ok:
+            print(f"create stream {streamName} ...")
+            print(f"exec sql: {sql}")
             tdSql.execute(sql)
             print(f"create stream {streamName} successfully.")
         else:
@@ -212,7 +230,7 @@ class Test_IDMP_Meters:
     #
     def connectCheckUser1(self):
         print("connect with user1 ...")
-        tdSql.connect(user="user1", password="taosdata")
+        tdSql.connect(user="user1", password="AAbb1122")
 
         #
         #     -------------- ok --------------

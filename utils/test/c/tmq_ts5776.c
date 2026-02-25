@@ -230,18 +230,6 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     fprintf(stderr, "%% Consumer closed\n");
 }
 
-void check_result(){
-  TAOS* taos = use_db();
-  TAOS_RES *res = taos_query(taos, "select * from st1");
-  int       code = taos_errno(res);
-  assert(code == 0);
-  int affectedRows = taos_affected_rows(res);
-  printf("affected rows %d\n", affectedRows);
-  assert(affectedRows == 10);
-  taos_free_result(res);
-  taos_close(taos);
-
-}
 int main(int argc, char* argv[]) {
   if (init_env() < 0) {
     return -1;

@@ -665,7 +665,8 @@ static int32_t buildDbVgInfoMap(void* clientRpc, const char* dbFName, SUseDbOutp
   while (pIter) {
     if (NULL == taosArrayPush(output->dbVgroup->vgArray, pIter)) {
       taosHashCancelIterate(output->dbVgroup->vgHash, pIter);
-      return terrno;
+      code = terrno;
+      QUERY_CHECK_CODE(code, lino, _return);
     }
 
     pIter = taosHashIterate(output->dbVgroup->vgHash, pIter);
@@ -938,7 +939,7 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
       goto _end;
     }
     void*   data = colDataGetVarData(tbname, j);
-    SValue  sv = (SValue){TSDB_DATA_TYPE_VARCHAR, .nData = varDataLen(data), .pData = varDataVal(data)};
+    SValue  sv = (SValue){.type = TSDB_DATA_TYPE_VARCHAR, .nData = varDataLen(data), .pData = varDataVal(data)};
     SColVal cv = COL_VAL_VALUE(0, sv);
 
     char tbFullName[TSDB_TABLE_FNAME_LEN];
@@ -1297,7 +1298,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         goto _end;
       }
       void*   data = colDataGetVarData(tbname, j);
-      SValue  sv = (SValue){TSDB_DATA_TYPE_VARCHAR, .nData = varDataLen(data),
+      SValue  sv = (SValue){.type = TSDB_DATA_TYPE_VARCHAR, .nData = varDataLen(data),
                             .pData = varDataVal(data)};  // address copy, no value
       SColVal cv = COL_VAL_VALUE(0, sv);
 
@@ -1797,7 +1798,7 @@ _end:
 }
 
 static int32_t getTagValsFromStreamInserterInfo(SStreamDataInserterInfo* pInserterInfo, int32_t preCols,
-                                                SArray** ppTagVals) {
+                                                SArray** ppTagVals, SArray* pTagCids) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t nTags = pInserterInfo->pTagVals->size;
   *ppTagVals = taosArrayInit(nTags, sizeof(STagVal));
@@ -1807,7 +1808,7 @@ static int32_t getTagValsFromStreamInserterInfo(SStreamDataInserterInfo* pInsert
   for (int32_t i = 0; i < pInserterInfo->pTagVals->size; ++i) {
     SStreamTagInfo* pTagInfo = taosArrayGet(pInserterInfo->pTagVals, i);
     STagVal         tagVal = {
-                .cid = preCols + i + 1,
+                .cid = pTagCids ? *(col_id_t*)taosArrayGet(pTagCids, i) : preCols + i + 1,
                 .type = pTagInfo->val.data.type,
     };
     if (!pTagInfo->val.isNull) {
@@ -1832,26 +1833,29 @@ _end:
   return code;
 }
 
-static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStreamInserterParam* pInsertParam,
-                                            SStreamDataInserterInfo* pInserterInfo, SSubmitTbData* tbData) {
+static int32_t buildStreamSubTableCreateReq(SStreamRunnerTask* pTask, SDataInserterHandle* pInserter,
+                                            SStreamInserterParam* pInsertParam, SStreamDataInserterInfo* pInserterInfo,
+                                            SSubmitTbData* tbData) {
   int32_t code = TSDB_CODE_SUCCESS;
-  STag* pTag = NULL;
+  STag*   pTag = NULL;
   SArray* pTagVals = NULL;
   SArray* TagNames = NULL;
 
   if (pInsertParam->pTagFields == NULL) {
-    stError("buildStreamSubTableCreateReq, pTagFields is NULL");
+    ST_TASK_ELOG("buildStreamSubTableCreateReq, pTagFields is NULL, suid:%" PRId64 ", sver:%d", pInsertParam->suid,
+                 pInsertParam->sver);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
   if (pInserterInfo->pTagVals == NULL || pInserterInfo->pTagVals->size == 0) {
-    stError("buildStreamSubTableCreateReq, pTagVals is NULL");
+    ST_TASK_ELOG("buildStreamSubTableCreateReq, pTagVals is NULL, suid:%" PRId64 ", sver:%d", pInsertParam->suid,
+                 pInsertParam->sver);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
   if (pInsertParam->suid <= 0 || pInsertParam->sver <= 0) {
-    stError("buildStreamSubTableCreateReq, suid:%" PRId64
-            ", sver:%d"
-            " must be greater than 0",
-            pInsertParam->suid, pInsertParam->sver);
+    ST_TASK_ELOG("buildStreamSubTableCreateReq, suid:%" PRId64
+                 ", sver:%d"
+                 " must be greater than 0",
+                 pInsertParam->suid, pInsertParam->sver);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
   int32_t nTags = pInserterInfo->pTagVals->size;
@@ -1864,6 +1868,7 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
   for (int32_t i = 0; i < nTags; ++i) {
     SFieldWithOptions* pField = taosArrayGet(pInsertParam->pTagFields, i);
     if (NULL == taosArrayPush(TagNames, pField->name)) {
+      code = terrno;
       goto _end;
     }
   }
@@ -1881,25 +1886,26 @@ static int32_t buildStreamSubTableCreateReq(SDataInserterHandle* pInserter, SStr
   tbData->pCreateTbReq->type = TSDB_CHILD_TABLE;
   tbData->pCreateTbReq->flags |= (TD_CREATE_SUB_TB_IN_STREAM | TD_CREATE_IF_NOT_EXISTS);
 
-  code = getTagValsFromStreamInserterInfo(pInserterInfo, pInsertParam->pFields->size, &pTagVals);
+  code = getTagValsFromStreamInserterInfo(pInserterInfo, pInsertParam->pFields->size, &pTagVals, pInsertParam->tagCids);
   if (code != TSDB_CODE_SUCCESS) {
     goto _end;
   }
 
   code = tTagNew(pTagVals, pInsertParam->sver, false, &pTag);
   if (code != TSDB_CODE_SUCCESS) {
-    qError("failed to create tag, error:%s", tstrerror(code));
+    ST_TASK_ELOG("failed to create tag, error:%s", tstrerror(code));
     goto _end;
   }
   code = inserterBuildCreateTbReq(tbData->pCreateTbReq, pInserterInfo->tbName, pTag, tbData->suid,
                                   pInsertParam->stbname, TagNames, nTags, TSDB_DEFAULT_TABLE_TTL);
   if (code != TSDB_CODE_SUCCESS) {
-    qError("failed to build create table request, error:%s", tstrerror(code));
+    ST_TASK_ELOG("failed to build create table request, error:%s", tstrerror(code));
     goto _end;
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("buildStreamSubTableCreateReq failed, error:%s", tstrerror(code));
     if (tbData->pCreateTbReq) {
       taosMemoryFreeClear(tbData->pCreateTbReq->name);
       taosMemoryFreeClear(tbData->pCreateTbReq);
@@ -2074,9 +2080,9 @@ _end:
   return code;
 }
 
-// todo 和 buildStreamSubmitReqFromBlock 总的公共部分提取接口，待其他修改稳定后进行防止多人修改冲突
-int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDataInserterInfo* pInserterInfo,
-                                      SSubmitReq2** ppReq, const SSDataBlock* pDataBlock, SVgroupInfo* vgInfo,
+int32_t buildStreamSubmitReqFromBlock(SStreamRunnerTask* pTask, SDataInserterHandle* pInserter,
+                                      SStreamDataInserterInfo* pInserterInfo, SSubmitReq2** ppReq,
+                                      const SSDataBlock* pDataBlock, SVgroupInfo* vgInfo,
                                       SBuildInsertDataInfo* tbDataInfo) {
   SSubmitReq2* pReq = *ppReq;
   int32_t      numOfBlks = 0;
@@ -2118,10 +2124,10 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
       if (pInsertParam->tbType == TSDB_NORMAL_TABLE) {
         code = buildNormalTableCreateReq(pInserter, pInsertParam, tbData);
       } else if (pInsertParam->tbType == TSDB_SUPER_TABLE) {
-        code = buildStreamSubTableCreateReq(pInserter, pInsertParam, pInserterInfo, tbData);
+        code = buildStreamSubTableCreateReq(pTask, pInserter, pInsertParam, pInserterInfo, tbData);
       } else {
         code = TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
-        stError("buildStreamSubmitReqFromBlock, unknown table type %d", pInsertParam->tbType);
+        ST_TASK_ELOG("buildStreamSubmitReqFromBlock, unknown table type %d", pInsertParam->tbType);
       }
       QUERY_CHECK_CODE(code, lino, _end);
     }
@@ -2151,10 +2157,10 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
   code = getTableVgInfo(pInserter, pInsertParam->dbFName, pTbInfo->tbname, vgInfo);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  stDebug("[data inserter], Handle:%p, STREAM:0x%" PRIx64 " GROUP:%" PRId64 " tbname:%s autoCreate:%d uid:%" PRId64
-          " suid:%" PRId64 " sver:%d vgid:%d isLastBlock:%d",
-          pInserter, pInserterInfo->streamId, pInserterInfo->groupId, pInserterInfo->tbName,
-          pInserterInfo->isAutoCreateTable, tbData->uid, tbData->suid, tbData->sver, vgInfo->vgId, tbDataInfo->isFirstBlock);
+  ST_TASK_DLOG("[data inserter], Handle:%p, GROUP:%" PRId64 " tbname:%s autoCreate:%d uid:%" PRId64 " suid:%" PRId64
+               " sver:%d vgid:%d isLastBlock:%d",
+               pInserter, pInserterInfo->groupId, pInserterInfo->tbName, pInserterInfo->isAutoCreateTable, tbData->uid,
+               tbData->suid, tbData->sver, vgInfo->vgId, tbDataInfo->isFirstBlock);
 
   code = appendInsertData(pInsertParam, pDataBlock, tbData, pTSchema, tbDataInfo);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -2162,15 +2168,15 @@ int32_t buildStreamSubmitReqFromBlock(SDataInserterHandle* pInserter, SStreamDat
 _end:
   releaseStreamInsertTableInfo(ppTbInfo);
   if (code != TSDB_CODE_SUCCESS) {
-    stError(
-        "buildStreamSubmitReqFromBlock, code:0x%0x, streamId:0x%" PRIx64 " groupId:%" PRId64 " tbname:%s autoCreate:%d",
-        code, pInserterInfo->streamId, pInserterInfo->groupId, pInserterInfo->tbName, pInserterInfo->isAutoCreateTable);
+    ST_TASK_ELOG("buildStreamSubmitReqFromBlock, code:0x%0x, groupId:%" PRId64 " tbname:%s autoCreate:%d", code,
+                 pInserterInfo->groupId, pInserterInfo->tbName, pInserterInfo->isAutoCreateTable);
   }
   return code;
 }
 
-int32_t streamDataBlocksToSubmitReq(SDataInserterHandle* pInserter, SStreamDataInserterInfo* pInserterInfo, void** pMsg,
-                                    int32_t* msgLen, SVgroupInfo* vgInfo) {
+int32_t streamDataBlocksToSubmitReq(SStreamRunnerTask* pTask, SDataInserterHandle* pInserter,
+                                    SStreamDataInserterInfo* pInserterInfo, void** pMsg, int32_t* msgLen,
+                                    SVgroupInfo* vgInfo) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -2190,7 +2196,7 @@ int32_t streamDataBlocksToSubmitReq(SDataInserterHandle* pInserter, SStreamDataI
   }
   code = initInsertProcessInfo(&tbDataInfo, rows);
   if (code != TSDB_CODE_SUCCESS) {
-    stError("streamDataBlocksToSubmitReq, initInsertDataInfo failed, code:%d", code);
+    ST_TASK_ELOG("streamDataBlocksToSubmitReq, initInsertDataInfo failed, code:%d", code);
     return code;
   }
 
@@ -2198,11 +2204,11 @@ int32_t streamDataBlocksToSubmitReq(SDataInserterHandle* pInserter, SStreamDataI
     tbDataInfo.isFirstBlock = (i == 0);
     tbDataInfo.isLastBlock = (i == sz - 1);
     SSDataBlock* pDataBlock = taosArrayGetP(pBlocks, i);  // pDataBlock select查询到的结果
-    stDebug("[data inserter], Handle:%p, STREAM:0x%" PRIx64 " GROUP:%" PRId64
+    ST_TASK_DLOG("[data inserter], Handle:%p, GROUP:%" PRId64
             " tbname:%s autoCreate:%d block: %d/%d rows:%" PRId64,
-            pInserter, pInserterInfo->streamId, pInserterInfo->groupId, pInserterInfo->tbName,
-            pInserterInfo->isAutoCreateTable, i + 1, sz, pDataBlock ? pDataBlock->info.rows : 0);
-    code = buildStreamSubmitReqFromBlock(pInserter, pInserterInfo, &pReq, pDataBlock, vgInfo, &tbDataInfo);
+            pInserter, pInserterInfo->groupId, pInserterInfo->tbName,
+            pInserterInfo->isAutoCreateTable, i + 1, sz, (pDataBlock != NULL ? pDataBlock->info.rows : 0));
+    code = buildStreamSubmitReqFromBlock(pTask, pInserter, pInserterInfo, &pReq, pDataBlock, vgInfo, &tbDataInfo);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -2214,10 +2220,8 @@ int32_t streamDataBlocksToSubmitReq(SDataInserterHandle* pInserter, SStreamDataI
   code = submitReqToMsg(vgInfo->vgId, pReq, pMsg, msgLen);
   tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
   taosMemoryFree(pReq);
-  stDebug("[data inserter], submit req, vgid:%d, TREAM:0x%" PRIx64 " GROUP:%" PRId64
-          " tbname:%s autoCreate:%d code:%d ",
-          vgInfo->vgId, pInserterInfo->streamId, pInserterInfo->groupId, pInserterInfo->tbName,
-          pInserterInfo->isAutoCreateTable, code);
+  ST_TASK_DLOG("[data inserter], submit req, vgid:%d, GROUP:%" PRId64 " tbname:%s autoCreate:%d code:%d ", vgInfo->vgId,
+               pInserterInfo->groupId, pInserterInfo->tbName, pInserterInfo->isAutoCreateTable, code);
 
 _end:
   if (code != 0) {
@@ -2324,8 +2328,10 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
   int32_t              code = 0;
   int32_t              lino = 0;
   SDataInserterHandle* pInserter = (SDataInserterHandle*)pHandle;
+  SStreamRunnerTask*   pTask = pInput->pTask;
   if (!pInserter || !pInserter->pParam || !pInserter->pParam->streamInserterParam) {
-    stError("putStreamDataBlock invalid param, pInserter: %p, pParam:%p", pInserter, pInserter ? pInserter->pParam : NULL);
+    ST_TASK_ELOG("putStreamDataBlock invalid param, pInserter: %p, pParam:%p", pInserter,
+                 pInserter ? pInserter->pParam : NULL);
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
   if (!pInserter->explain) {
@@ -2337,7 +2343,7 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
     int32_t     msgLen = 0;
     SVgroupInfo vgInfo = {0};
 
-    code = streamDataBlocksToSubmitReq(pInserter, pInput->pStreamDataInserterInfo, &pMsg, &msgLen, &vgInfo);
+    code = streamDataBlocksToSubmitReq(pTask, pInserter, pInput->pStreamDataInserterInfo, &pMsg, &msgLen, &vgInfo);
     QUERY_CHECK_CODE(code, lino, _return);
 
     code = sendSubmitRequest(pInserter, pInput->pStreamDataInserterInfo, pMsg, msgLen,
@@ -2352,7 +2358,7 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
       code = resetInserterTbVersion(pInserter, pInput);
       QUERY_CHECK_CODE(code, lino, _return);
 
-      code = streamDataBlocksToSubmitReq(pInserter, pInput->pStreamDataInserterInfo, &pMsg, &msgLen, &vgInfo);
+      code = streamDataBlocksToSubmitReq(pTask, pInserter, pInput->pStreamDataInserterInfo, &pMsg, &msgLen, &vgInfo);
       QUERY_CHECK_CODE(code, lino, _return);
 
       code = sendSubmitRequest(pInserter, pInput->pStreamDataInserterInfo, pMsg, msgLen,
@@ -2366,25 +2372,26 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
     if (pInput->pStreamDataInserterInfo->isAutoCreateTable &&
         pInserter->submitRes.code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
       rmDbVgInfoFromCache(pInserter->pParam->streamInserterParam->dbFName);
-      stInfo("putStreamDataBlock, stream inserter table info not found, groupId:%" PRId64
-             ", tbName:%s. so reset dbVgInfo and try again",
-             pInput->pStreamDataInserterInfo->groupId, pInput->pStreamDataInserterInfo->tbName);
+      ST_TASK_ILOG("putStreamDataBlock, stream inserter table info not found, groupId:%" PRId64
+                   ", tbName:%s. so reset dbVgInfo and try again",
+                   pInput->pStreamDataInserterInfo->groupId, pInput->pStreamDataInserterInfo->tbName);
       return putStreamDataBlock(pHandle, pInput, pContinue);
     }
 
     if ((pInserter->submitRes.code == TSDB_CODE_TDB_TABLE_NOT_EXIST &&
-        !pInput->pStreamDataInserterInfo->isAutoCreateTable) || pInserter->submitRes.code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
+         !pInput->pStreamDataInserterInfo->isAutoCreateTable) ||
+        pInserter->submitRes.code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
       rmDbVgInfoFromCache(pInserter->pParam->streamInserterParam->dbFName);
-      stInfo("putStreamDataBlock, stream inserter table info not found, groupId:%" PRId64
-             ", tbName:%s. so reset dbVgInfo",
-             pInput->pStreamDataInserterInfo->groupId, pInput->pStreamDataInserterInfo->tbName);
+      ST_TASK_ILOG("putStreamDataBlock, stream inserter table info not found, groupId:%" PRId64
+                   ", tbName:%s. so reset dbVgInfo",
+                   pInput->pStreamDataInserterInfo->groupId, pInput->pStreamDataInserterInfo->tbName);
       code = TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND;
       QUERY_CHECK_CODE(code, lino, _return);
     }
 
     if (pInserter->submitRes.code) {
       code = pInserter->submitRes.code;
-      stError("submitRes err:%s, code:%0x", tstrerror(pInserter->submitRes.code), pInserter->submitRes.code);
+      ST_TASK_ELOG("submitRes err:%s, code:%0x", tstrerror(pInserter->submitRes.code), pInserter->submitRes.code);
       QUERY_CHECK_CODE(code, lino, _return);
     }
 
@@ -2392,11 +2399,12 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
 
   _return:
     taosArrayClear(pInserter->pDataBlocks);
-    if(code == TSDB_CODE_STREAM_NO_DATA) {
-      stDebug("putStreamDataBlock, no valid data to insert, skip this block");
+    if (code == TSDB_CODE_STREAM_NO_DATA) {
+      ST_TASK_DLOG("putStreamDataBlock, no valid data to insert, skip this block, groupID:%" PRId64,
+                   pInput->pStreamDataInserterInfo->groupId);
       code = TSDB_CODE_SUCCESS;
     } else if (code) {
-      stError("submitRes err:%s, code:%0x lino:%d", tstrerror(code), code, lino);
+      ST_TASK_ELOG("submitRes err:%s, code:%0x lino:%d", tstrerror(code), code, lino);
       return code;
     }
     return code;

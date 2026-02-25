@@ -52,15 +52,15 @@ The following configuration parameters only take effect for Native connections.
 
 ### Writing Related
 
-|Parameter Name|Supported Version|Dynamic Modification|Description|
-|----------------------|----------|--------------------|-------------|
-| smlChildTableName               |                   |Supported, effective immediately  | Key for custom child table name in schemaless, no default value |
-| smlAutoChildTableNameDelimiter  |                   |Supported, effective immediately  | Delimiter between schemaless tags, concatenated as the child table name, no default value |
-| smlTagName                      |                   |Supported, effective immediately  | Default tag name when schemaless tag is empty, default value "_tag_null" |
-| smlTsDefaultName                |                   |Supported, effective immediately  | Configuration for setting the time column name in schemaless auto table creation, default value "_ts" |
-| smlDot2Underline                |                   |Supported, effective immediately  | Converts dots in supertable names to underscores in schemaless |
-| maxInsertBatchRows              |                   |Supported, effective immediately  | Internal parameter, maximum number of rows per batch insert |
-| maxSQLLength                    | v3.3.6.34         |Supported, effective immediately  | Maximum length of a single SQL statement; default value: 1,048,576; minimum value: 1,048,576; maximum value: 67,108,864 |
+|Parameter Name|Supported Version|Dynamic Modification| Description                                                                                                             |
+|----------------------|----------|--------------------|-------------------------------------------------------------------------------------------------------------------------|
+| smlChildTableName               |                   |Supported, effective immediately  | Key for custom child table name in schemaless, no default value                                                         |
+| smlAutoChildTableNameDelimiter  |                   |Supported, effective immediately  | Delimiter between schemaless tags, concatenated as the child table name, no default value                               |
+| smlTagName                      |                   |Supported, effective immediately  | Default tag name when schemaless tag is empty, default value "_tag_null"                                                |
+| smlTsDefaultName                |                   |Supported, effective immediately  | Configuration for setting the time column name in schemaless auto table creation, default value "_ts"                   |
+| smlDot2Underline                |                   |Supported, effective immediately  | Converts dots in supertable names to underscores in schemaless                                                          |
+| maxInsertBatchRows              |                   |Supported, effective immediately  | Internal parameter, maximum number of rows per batch insert                                                             |
+| maxSQLLength                    | v3.3.6.34         |Supported, effective immediately  | Maximum length of a single SQL statement; default value: 4,194,304; minimum value: 1,048,576; maximum value: 67,108,864 |
 
 ### Region Related
 
@@ -136,7 +136,9 @@ The following configuration parameters only take effect for WebSocket connection
 | connRetries | `≥ v3.3.6.28` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | Maximum number of retries upon connection failure, default value: 5 |
 | retryBackoffMs | `≥ v3.3.6.28` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | Initial wait time in milliseconds after connection failure. This value increases exponentially with consecutive failures until reaching the maximum wait time, default value: 200 |
 | retryBackoffMaxMs | `≥ v3.3.6.28` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | Maximum wait time in milliseconds when connection fails, default value: 2000 |
-| wsTlsMode | `≥ v3.3.6.32` and `< v3.3.7.0` | Not supported | WebSocket TLS encryption mode. 0: TLS disabled by default; client auto-upgrades if server requires TLS (default); 1: TLS enabled |
+| wsTlsMode | `≥ v3.3.6.32` and `< v3.3.7.0`, or `≥ v3.3.8.12` | Not supported | TLS encryption modes:<br/> - 0: TLS encryption disabled. If the server enables TLS, the client will automatically upgrade the connection.<br/> - 1: TLS encryption enabled, but the server certificate is not verified.<br/> - 2: TLS encryption enabled, the server certificate is verified, but the hostname is not verified.<br/> - 3: TLS encryption enabled, both the server certificate and hostname are verified (the server certificate must include SAN; CN will be ignored).<br/> Default value: 0<br/> Note: Versions `v3.3.6.*` only support modes 0 and 1. |
+| wsTlsVersion | `≥ v3.3.8.12` | Not supported | List of TLS protocol versions, separated by commas. Optional values: TLSv1.2, TLSv1.3, default value: TLSv1.3 |
+| wsTlsCa | `≥ v3.3.8.12` | Not supported | The client uses the path to the CA certificate file or the certificate content in PEM format to verify the server certificate. This certificate should be the CA certificate that issued the server certificate. |
 
 ## API
 

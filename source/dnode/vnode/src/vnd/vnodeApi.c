@@ -70,6 +70,7 @@ void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdCreateFirstLastTsIter = tsdbCreateFirstLastTsIter;
   pReader->tsdNextFirstLastTsBlock = tsdbNextFirstLastTsBlock;
   pReader->tsdDestroyFirstLastTsIter = tsdbDestroyFirstLastTsIter;
+  pReader->tsdReaderStepDone = (int32_t (*)(void*, int64_t))tsdbReaderStepDone;
 }
 
 void initMetadataAPI(SStoreMeta* pMeta) {
@@ -147,9 +148,7 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqReaderSetSubmitMsg = tqReaderSetSubmitMsg;  // todo remove it
   pTq->tqGetResultBlock = tqGetResultBlock;
 
-  //  pTq->tqReaderNextBlockFilterOut = tqNextDataBlockFilterOut;
   pTq->tqGetResultBlockTime = tqGetResultBlockTime;
-
 #endif
 }
 

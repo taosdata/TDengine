@@ -27,7 +27,7 @@ class TestViewNestedJoin:
         tdSql.prepare("test", drop=True)
 
         tdSql.execute(
-            f"CREATE TABLE `resource_info` ( job_id_ts TIMESTAMP , role VARCHAR(20) primary key, start_time TIMESTAMP, ip VARCHAR(15), cpu FLOAT, memory FLOAT, io_write FLOAT, io_read FLOAT, net_write FLOAT, net_read FLOAT) TAGS ( end_time TIMESTAMP);"
+            f"CREATE TABLE `resource_info` ( job_id_ts TIMESTAMP , `role` VARCHAR(20) primary key, start_time TIMESTAMP, ip VARCHAR(15), cpu FLOAT, memory FLOAT, io_write FLOAT, io_read FLOAT, net_write FLOAT, net_read FLOAT) TAGS ( end_time TIMESTAMP);"
         )
         tdSql.execute(
             f"CREATE STABLE `test_results` (   `job_id_ts` TIMESTAMP ,   `end_time` VARCHAR(40)  PRIMARY KEY,  `job_id` BIGINT,  `time_cost` FLOAT,  `write_speed` FLOAT,   `qps` FLOAT,  `min_delay` FLOAT,   `p90_delay` FLOAT,   `p95_delay` FLOAT,   `p99_delay` FLOAT,  `max_delay` FLOAT,  `avg_delay` FLOAT,  `hostname` VARCHAR(15),  `tdengine_commit_id` VARCHAR(50),  `tdinternal_commit_id` VARCHAR(50),   `load_type` VARCHAR(50),  `cpu` FLOAT,  `memory` FLOAT,  `io_write` FLOAT,   `io_read` FLOAT)  TAGS ( `branch` VARCHAR(50),  `scenario` VARCHAR(50),  `test_case` VARCHAR(1000),  `env_id` INT,  `type` VARCHAR(50));"

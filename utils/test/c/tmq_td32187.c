@@ -149,11 +149,13 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
         uint32_t i = taosRand()%21;
         callFunc(i, tmq, topics);
         callFunc(i, tmq, topics);
+        printf("cnt:%d\n", cnt);
         cnt++;
       }
       while(cnt < 300){
         uint32_t i = taosRand()%21;
         callFunc(i, tmq, topics);
+        printf("cnt:%d\n", cnt);
         cnt++;
       }
       taos_free_result(tmqmessage);

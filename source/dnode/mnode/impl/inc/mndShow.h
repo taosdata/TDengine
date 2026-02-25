@@ -23,14 +23,25 @@
 extern "C" {
 #endif
 
+#define SHOW_PRIVILEGES_STEP_SIZE 2048
+
 #define COL_DATA_SET_VAL_GOTO(pData, isNull, pObj, pIter, LABEL)                           \
   do {                                                                                     \
     if (pColInfo && (code = colDataSetVal(pColInfo, numOfRows, (pData), (isNull))) != 0) { \
-      if (pObj) sdbRelease(pSdb, (pObj));                                                  \
-      if (pIter) sdbCancelFetch(pSdb, (pIter));                                            \
       lino = __LINE__;                                                                     \
+      if (pObj) sdbRelease(pSdb, (pObj));                                                  \
       goto LABEL;                                                                          \
     }                                                                                      \
+  } while (0)
+
+#define COL_DATA_SET_EMPTY_VARCHAR(pBuf, nums)                                       \
+  do {                                                                               \
+    for (int32_t idx = 0; idx < (nums); ++idx) {                                     \
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {                   \
+        STR_WITH_MAXSIZE_TO_VARSTR((pBuf), "", 2);                                   \
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit); \
+      }                                                                              \
+    }                                                                                \
   } while (0)
 
 #define RETRIEVE_CHECK_GOTO(CMD, pObj, LINO, LABEL) \
@@ -45,6 +56,49 @@ extern "C" {
       goto LABEL;                                   \
     }                                               \
   } while (0)
+
+#define MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(user, token, privType, objType, owner, LABEL)                  \
+  do {                                                                                                  \
+    code = mndAcquireUser(pMnode, (user), &pUser);                                                      \
+    if (pUser == NULL) goto LABEL;                                                                      \
+    int32_t objLevel = privObjGetLevel(objType);                                                        \
+    (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);                                  \
+    showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, token, privType, objType, (owner), objFName, \
+                                            objLevel == 0 ? NULL : "*"));                               \
+  } while (0)
+
+// N.B. don't add do {}while(0) for MND_SHOW_CHECK_DB_PRIVILEGE since it contains continue statement
+#define MND_SHOW_CHECK_DB_PRIVILEGE(pDb, dbFName, pSdbObj, token, operType, LABEL)       \
+  if (!showAll) {                                                                        \
+    if (pDb) {                                                                           \
+      if (dbUid != pDb->uid) {                                                           \
+        if (0 != mndCheckDbPrivilege(pMnode, pUser->name, (token), (operType), pDb)) {   \
+          sdbRelease(pSdb, (pSdbObj));                                                   \
+          goto LABEL;                                                                    \
+        }                                                                                \
+        showAll = true;                                                                  \
+      }                                                                                  \
+    } else if (dbUid != (pSdbObj)->dbUid) {                                              \
+      pIterDb = mndAcquireDb(pMnode, (dbFName));                                         \
+      if (pIterDb == NULL) {                                                             \
+        sdbRelease(pSdb, (pSdbObj));                                                     \
+        continue;                                                                        \
+      }                                                                                  \
+      dbUid = (pSdbObj)->dbUid;                                                          \
+      if (0 != mndCheckDbPrivilege(pMnode, pUser->name, (token), (operType), pIterDb)) { \
+        showIter = false;                                                                \
+        mndReleaseDb(pMnode, pIterDb);                                                   \
+        sdbRelease(pSdb, (pSdbObj));                                                     \
+        continue;                                                                        \
+      } else {                                                                           \
+        mndReleaseDb(pMnode, pIterDb);                                                   \
+        showIter = true;                                                                 \
+      }                                                                                  \
+    } else if (!showIter) {                                                              \
+      sdbRelease(pSdb, (pSdbObj));                                                       \
+      continue;                                                                          \
+    }                                                                                    \
+  }
 
 int32_t mndInitShow(SMnode *pMnode);
 void    mndCleanupShow(SMnode *pMnode);

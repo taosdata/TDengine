@@ -26,7 +26,6 @@ extern "C" {
 #define SYNC_SNAPSHOT_SEQ_INVALID      -2
 #define SYNC_SNAPSHOT_SEQ_PREP         -1
 #define SYNC_SNAPSHOT_SEQ_BEGIN        0
-#define SYNC_SNAPSHOT_SEQ_END          0x7FFFFFFF
 
 #define SYNC_SNAPSHOT_RETRY_MS 5000
 

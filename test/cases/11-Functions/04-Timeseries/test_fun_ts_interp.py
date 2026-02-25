@@ -6112,8 +6112,9 @@ class TestInterp:
     ## interp_results: _irowts_origin, _irowts, ..., _isfilled
     ## select_all_results must be sorted by ts in ascending order
     def check_result_for_near(self, interp_results, select_all_results, sql, sql_select_all):
-        #tdLog.debug(f"check_result_for_near for sql: {sql}, sql_select_all{sql_select_all}")
+        #tdLog.info(f"check_result_for_near for sql: {sql}, sql_select_all:{sql_select_all}")
         for row in interp_results:
+            #tdLog.info(f"row: {row}")
             if row[0].tzinfo is None or row[0].tzinfo.utcoffset(row[0]) is None:
                 irowts_origin = row[0].replace(tzinfo=get_localzone())
                 irowts = row[1].replace(tzinfo=get_localzone())
@@ -6240,6 +6241,11 @@ class TestInterp:
             range_where_start = random.randint(start, end)
             range_where_end = random.randint(range_where_start, end)
             range_point = random.randint(start, end)
+            # 检查range_point与range_where_start或range_where_end的间隔是否小于等于1小时(3600000毫秒)
+            one_hour_ms = 3600000
+            if ((range_point < range_where_start and abs(range_point - range_where_start) > one_hour_ms) or 
+                (range_point > range_where_end and abs(range_point - range_where_end) > one_hour_ms)):
+                continue
             sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.t0 where ts between {range_where_start} and {range_where_end} range({range_point}, 1h) fill(near, 1, 2)"
             tdSql.query(f'select to_char(cast({range_where_start} as timestamp), \'YYYY-MM-DD HH24:MI:SS.MS\'), to_char(cast({range_where_end} as timestamp), \'YYYY-MM-DD HH24:MI:SS.MS\')', queryTimes=1)
             where_start_str = tdSql.queryResult[0][0]
@@ -6294,21 +6300,21 @@ class TestInterp:
 
         ### cannot specify near/prev/next values when using range
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', '2020-02-01 00:01:00') every(1s) fill(near, 1, 1)"
-        tdSql.error(sql, -2147473915) ## cannot specify values
+        tdSql.error(sql, -2147473747) ## cannot specify values
 
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00') every(1s) fill(near, 1, 1)"
-        tdSql.error(sql, -2147473915) ## cannot specify values
+        tdSql.error(sql, -2147473747) ## cannot specify values
 
         ### when range around interval is set, only prev/next/near is supported
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(NULL, 1, 1)"
         tdSql.error(sql, -2147473920)
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(NULL)"
-        tdSql.error(sql, -2147473861) ## TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE
+        tdSql.error(sql, -2147473746) ## TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE
 
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(linear, 1, 1)"
         tdSql.error(sql, -2147473920)
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(linear)"
-        tdSql.error(sql, -2147473861) ## TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE
+        tdSql.error(sql, -2147473746) ## TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE
 
         ### range interval cannot be 0
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 0h) fill(near, 1, 1)"
@@ -6383,12 +6389,12 @@ class TestInterp:
     def check_interval_fill_extension(self):
         ## not allowed
         sql = f"select count(*) from test.meters interval(1s) fill(near)"
-        tdSql.error(sql, -2147473920) ## syntax error
+        tdSql.error(sql, -2147473748) ## TSDB_CODE_PAR_NOT_ALLOWED_FILL_MODE
 
         sql = f"select count(*) from test.meters interval(1s) fill(prev, 1)"
-        tdSql.error(sql, -2147473920) ## syntax error
+        tdSql.error(sql, -2147473747) ## TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES
         sql = f"select count(*) from test.meters interval(1s) fill(next, 1)"
-        tdSql.error(sql, -2147473920) ## syntax error
+        tdSql.error(sql, -2147473747) ## TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES
 
         sql = f"select _irowts_origin, count(*) from test.meters where ts between '2018-09-17 08:59:59' and '2018-09-17 09:00:06' interval(1s) fill(next)"
         tdSql.error(sql, -2147473918) ## invalid column name _irowts_origin

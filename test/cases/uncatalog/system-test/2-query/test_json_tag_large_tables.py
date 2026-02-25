@@ -705,4 +705,4 @@ class TestJsonTagLargeTables:
         #tdSql.checkData(0, 0, '-2.111000000')
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+

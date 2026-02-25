@@ -187,7 +187,7 @@ int32_t extractOperatorInTree(SOperatorInfo* pOperator, int32_t type, const char
 
   if (pOperator == NULL) {
     qError("invalid operator, failed to find tableScanOperator %s", id);
-    return TSDB_CODE_PAR_INTERNAL_ERROR;
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
   STraverParam p = {.pParam = &type, .pRet = NULL};
@@ -638,8 +638,8 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     code = createTimeSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC == type) {
     code = createForecastOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_IMPUTATION_FUNC == type) {
-    code = createImputationOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC == type) {
+    code = createGenericAnalysisOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT == type) {
     code = createEventwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE == type) {
@@ -699,12 +699,12 @@ void destroyOperator(SOperatorInfo* pOperator) {
     pOperator->numOfDownstream = 0;
   }
 
+  cleanupExprSupp(&pOperator->exprSupp);
   if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
     pOperator->fpSet.closeFn(pOperator->info);
     pOperator->info = NULL;
   }
 
-  cleanupExprSupp(&pOperator->exprSupp);
   taosMemoryFreeClear(pOperator);
 }
 
@@ -769,7 +769,17 @@ int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc) {
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE: {
       SExchangeOperatorParam* pDExc = pDst->value;
       SExchangeOperatorParam* pSExc = pSrc->value;
+      if (pSExc->basic.paramType != DYN_TYPE_EXCHANGE_PARAM) {
+        qError("%s, invalid exchange operator param type %d for "
+          "source operator", __func__, pSExc->basic.paramType);
+        return TSDB_CODE_INVALID_PARA;
+      }
       if (!pDExc->multiParams) {
+        if (pDExc->basic.paramType != DYN_TYPE_EXCHANGE_PARAM) {
+          qError("%s, invalid exchange operator param type %d for "
+            "destination operator", __func__, pDExc->basic.paramType);
+          return TSDB_CODE_INVALID_PARA;
+        }
         if (pSExc->basic.vgId != pDExc->basic.vgId) {
           SExchangeOperatorBatchParam* pBatch = taosMemoryMalloc(sizeof(SExchangeOperatorBatchParam));
           if (NULL == pBatch) {
@@ -966,7 +976,7 @@ int32_t optrDefaultNotifyFn(struct SOperatorInfo* pOperator, SOperatorParam* pPa
   return code;
 }
 
-int16_t getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx) {
+int64_t getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx) {
   if (pOperator->transparent) {
     return getOperatorResultBlockId(pOperator->pDownstream[idx], 0);
   }
@@ -1017,5 +1027,40 @@ _error:
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     pTaskInfo->code = code;
   }
+  return code;
+}
+
+int32_t copyColumnsValue(SNodeList* pNodeList, int64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc, int32_t totalRows) {
+  bool    isNull = (NULL == pSrc || pSrc->info.rows <= 0);
+  size_t  numOfCols = LIST_LENGTH(pNodeList);
+  int64_t numOfRows = isNull ? 0 : pSrc->info.rows;
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    STargetNode* pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
+    if (nodeType(pNode->pExpr) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode->pExpr)->dataBlockId == targetBlkId) {
+      SColumnInfoData* pDstCol = taosArrayGet(pDst->pDataBlock, pNode->slotId);
+      QUERY_CHECK_NULL(pDstCol, code, lino, _return, terrno)
+
+      if (isNull) {
+        colDataSetNNULL(pDstCol, 0, totalRows);
+      } else {
+        SColumnInfoData* pSrcCol = taosArrayGet(pSrc->pDataBlock, ((SColumnNode*)pNode->pExpr)->slotId);
+        QUERY_CHECK_NULL(pSrcCol, code, lino, _return, terrno)
+
+        code = colDataAssign(pDstCol, pSrcCol, pSrc->info.rows, &pDst->info);
+
+        QUERY_CHECK_CODE(code, lino, _return);
+        if (pSrc->info.rows < totalRows) {
+          colDataSetNNULL(pDstCol, pSrc->info.rows, totalRows - pSrc->info.rows);
+        }
+      }
+    }
+  }
+
+  return code;
+_return:
+  qError("failed to copy columns value, line:%d code:%s", lino, tstrerror(code));
   return code;
 }

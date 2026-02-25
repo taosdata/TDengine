@@ -391,8 +391,7 @@ struct STDB {
   TTB *pFreeDb;
 #endif
   int64_t txnId;
-  int32_t encryptAlgorithm;
-  char    encryptKey[ENCRYPT_KEY_LEN + 1];
+  SEncryptData *encryptData;
 };
 
 struct SPager {

@@ -34,7 +34,7 @@ class TestMlevelBasic:
 
     # run
     def test_mlevel_basic(self):
-        """Multi level storage
+        """Multi level basic
 
         1. Insert data
         2. Flush database
@@ -68,5 +68,5 @@ class TestMlevelBasic:
         # check insert correct again
         self.checkInsertCorrect()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

@@ -14,6 +14,7 @@
  */
 
 #include "bse.h"
+#include "tencrypt.h"
 #include "tsdb.h"
 #include "vnd.h"
 
@@ -60,13 +61,6 @@ struct SVSnapReader {
   STqSnapReader *pTqSnapReader;
   int8_t         tqOffsetDone;
   STqSnapReader *pTqOffsetReader;
-  int8_t         tqCheckInfoDone;
-  STqSnapReader *pTqCheckInfoReader;
-  // stream
-  int8_t              streamTaskDone;
-  SStreamTaskReader  *pStreamTaskReader;
-  int8_t              streamStateDone;
-  SStreamStateReader *pStreamStateReader;
   // rsma
   int8_t              rsmaDone;
   TFileSetRangeArray *pRsmaRanges[TSDB_RETENTION_L2];
@@ -248,10 +242,6 @@ void vnodeSnapReaderClose(SVSnapReader *pReader) {
     tqSnapReaderClose(&pReader->pTqOffsetReader);
   }
 
-  if (pReader->pTqCheckInfoReader) {
-    tqSnapReaderClose(&pReader->pTqCheckInfoReader);
-  }
-
 #endif
 
   if (pReader->pBseReader) {
@@ -392,22 +382,6 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       tqSnapReaderClose(&pReader->pTqSnapReader);
     }
   }
-  if (!pReader->tqCheckInfoDone) {
-    if (pReader->pTqCheckInfoReader == NULL) {
-      code = tqSnapReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->ever, SNAP_DATA_TQ_CHECKINFO,
-                              &pReader->pTqCheckInfoReader);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
-
-    code = tqSnapRead(pReader->pTqCheckInfoReader, ppData);
-    TSDB_CHECK_CODE(code, lino, _exit);
-    if (*ppData) {
-      goto _exit;
-    } else {
-      pReader->tqCheckInfoDone = 1;
-      tqSnapReaderClose(&pReader->pTqCheckInfoReader);
-    }
-  }
   if (!pReader->tqOffsetDone) {
     if (pReader->pTqOffsetReader == NULL) {
       code = tqSnapReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->ever, SNAP_DATA_TQ_OFFSET,
@@ -502,7 +476,6 @@ struct SVSnapWriter {
   // tq
   STqSnapWriter *pTqSnapHandleWriter;
   STqSnapWriter *pTqSnapOffsetWriter;
-  STqSnapWriter *pTqSnapCheckInfoWriter;
   // rsma
   TFileSetRangeArray *pRsmaRanges[TSDB_RETENTION_L2];
   SRSmaSnapWriter    *pRsmaSnapWriter;
@@ -709,11 +682,6 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     if (code) goto _exit;
   }
 
-  if (pWriter->pTqSnapCheckInfoWriter) {
-    code = tqSnapWriterClose(&pWriter->pTqSnapCheckInfoWriter, rollback);
-    if (code) goto _exit;
-  }
-
   if (pWriter->pTqSnapOffsetWriter) {
     code = tqSnapWriterClose(&pWriter->pTqSnapOffsetWriter, rollback);
     if (code) goto _exit;
@@ -755,6 +723,10 @@ static int32_t vnodeSnapWriteInfo(SVSnapWriter *pWriter, uint8_t *pData, uint32_
   int32_t       lino;
   SVnode       *pVnode = pWriter->pVnode;
   SSnapDataHdr *pHdr = (SSnapDataHdr *)pData;
+
+  if (taosWaitCfgKeyLoaded() != 0) {
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
+  }
 
   // decode info
   code = vnodeDecodeInfo(pHdr->data, &pWriter->info);
@@ -845,16 +817,6 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       }
 
       code = tqSnapHandleWrite(pWriter->pTqSnapHandleWriter, pData, nData);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    } break;
-    case SNAP_DATA_TQ_CHECKINFO: {
-      // tq checkinfo
-      if (pWriter->pTqSnapCheckInfoWriter == NULL) {
-        code = tqSnapWriterOpen(pVnode->pTq, pWriter->sver, pWriter->ever, &pWriter->pTqSnapCheckInfoWriter);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
-
-      code = tqSnapCheckInfoWrite(pWriter->pTqSnapCheckInfoWriter, pData, nData);
       TSDB_CHECK_CODE(code, lino, _exit);
     } break;
     case SNAP_DATA_TQ_OFFSET: {

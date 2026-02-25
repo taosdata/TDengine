@@ -51,7 +51,7 @@ class TestVtableAuthSelect:
                       "int_col_1 int from test_vtable_auth_org_table_1.int_col, "
                       "int_col_2 int from test_vtable_auth_org_table_2.int_col);")
 
-        priv_list = ["write", "read", "none", "all"]
+        priv_list = ["insert", "select", "none"] # PRIV_TODO: add all
 
         testconn = taos.connect(user='test_vtable_user_select', password='test12@#*')
         cursor = testconn.cursor()
@@ -64,8 +64,8 @@ class TestVtableAuthSelect:
                 continue # meaningless to test db has no privilege
             for priv_vtb in priv_list:
                 tdSql.execute("use test_vtable_auth_select;")
-
-                tdSql.execute(f"grant {priv_db} on test_vtable_auth_select to test_vtable_user_select;")
+                tdSql.execute(f"grant use on database test_vtable_auth_select to test_vtable_user_select;")
+                tdSql.execute(f"grant {priv_db} on test_vtable_auth_select.* to test_vtable_user_select;")
                 if (priv_vtb != "none"):
                     tdSql.execute(f"grant {priv_vtb} on test_vtable_auth_select.test_vtable_auth_vtb_0 to test_vtable_user_select;")
 
@@ -73,7 +73,7 @@ class TestVtableAuthSelect:
 
                 tdLog.info(f"priv_db: {priv_db}, priv_vtb: {priv_vtb}")
                 testSql.execute("use test_vtable_auth_select;")
-                if (priv_db == "read" or priv_db == "all"):
+                if (priv_db == "select"): # PRIV_TODO: add all
                     testSql.query("select * from test_vtable_auth_vtb_0;")
                     testSql.checkRows(0)
                     testSql.query("select int_col_1 from test_vtable_auth_vtb_0;")
@@ -81,7 +81,7 @@ class TestVtableAuthSelect:
                     testSql.query("select int_col_2 from test_vtable_auth_vtb_0;")
                     testSql.checkRows(0)
                 else:
-                    if (priv_vtb == "read" or priv_vtb == "all"):
+                    if (priv_vtb == "select"): # PRIV_TODO: add all
                         testSql.query("select * from test_vtable_auth_vtb_0;")
                         testSql.checkRows(0)
                         testSql.query("select int_col_1 from test_vtable_auth_vtb_0;")
@@ -93,7 +93,7 @@ class TestVtableAuthSelect:
                         testSql.error("select int_col_1 from test_vtable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
                         testSql.error("select int_col_2 from test_vtable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
 
-                tdSql.execute(f"revoke {priv_db} on test_vtable_auth_select from test_vtable_user_select;")
+                tdSql.execute(f"revoke {priv_db} on test_vtable_auth_select.* from test_vtable_user_select;")
                 if (priv_vtb != "none"):
                     tdSql.execute(f"revoke {priv_vtb} on test_vtable_auth_select.test_vtable_auth_vtb_0 from test_vtable_user_select;")
                 i+=1
@@ -126,7 +126,7 @@ class TestVtableAuthSelect:
         tdSql.execute("create stable test_vtable_auth_stb_1(ts timestamp, int_col_1 int, int_col_2 int) TAGS (int_tag int) virtual 1;")
         tdSql.execute(f"create vtable test_vctable_auth_vtb_0(test_vtable_auth_org_table_1.int_col, test_vtable_auth_org_table_2.int_col) USING test_vtable_auth_stb_1 TAGS (1);")
 
-        priv_list = ["write", "read", "none", "all"]
+        priv_list = ["insert", "select", "none"] # PRIV_TODO: add all
 
         testconn = taos.connect(user='test_vct_user_select', password='test12@#*')
         cursor = testconn.cursor()
@@ -139,8 +139,8 @@ class TestVtableAuthSelect:
                 continue # meaningless to test db has no privilege
             for priv_vtb in priv_list:
                 tdSql.execute("use test_vctable_auth_select;")
-
-                tdSql.execute(f"grant {priv_db} on test_vctable_auth_select to test_vct_user_select;")
+                tdSql.execute(f"grant use on database test_vctable_auth_select to test_vct_user_select;")
+                tdSql.execute(f"grant {priv_db} on test_vctable_auth_select.* to test_vct_user_select;")
                 if (priv_vtb != "none"):
                     tdSql.execute(f"grant {priv_vtb} on test_vctable_auth_select.test_vtable_auth_stb_1 with int_tag = 1 to test_vct_user_select;")
 
@@ -148,7 +148,7 @@ class TestVtableAuthSelect:
 
                 tdLog.info(f"priv_db: {priv_db}, priv_vtb: {priv_vtb}")
                 testSql.execute("use test_vctable_auth_select;")
-                if (priv_db == "read" or priv_db == "all"):
+                if (priv_db == "select"): # PRIV_TODO: add all
                     testSql.query("select * from test_vctable_auth_vtb_0;")
                     testSql.checkRows(0)
                     testSql.query("select int_col_1 from test_vctable_auth_vtb_0;")
@@ -156,7 +156,7 @@ class TestVtableAuthSelect:
                     testSql.query("select int_col_2 from test_vctable_auth_vtb_0;")
                     testSql.checkRows(0)
                 else:
-                    if (priv_vtb == "read" or priv_vtb == "all"):
+                    if (priv_vtb == "select"): # PRIV_TODO: add all
                         testSql.query("select * from test_vctable_auth_vtb_0;")
                         testSql.checkRows(0)
                         testSql.query("select int_col_1 from test_vctable_auth_vtb_0;")
@@ -168,7 +168,7 @@ class TestVtableAuthSelect:
                         testSql.error("select int_col_1 from test_vctable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
                         testSql.error("select int_col_2 from test_vctable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
 
-                tdSql.execute(f"revoke {priv_db} on test_vctable_auth_select from test_vct_user_select;")
+                tdSql.execute(f"revoke {priv_db} on test_vctable_auth_select.* from test_vct_user_select;")
                 if (priv_vtb != "none"):
                     tdSql.execute(f"revoke {priv_vtb} on test_vctable_auth_select.test_vtable_auth_stb_1 with int_tag = 1 from test_vct_user_select;")
                 i+=1

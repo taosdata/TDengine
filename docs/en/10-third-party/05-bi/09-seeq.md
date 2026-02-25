@@ -250,7 +250,7 @@ Log in to the Seeq service page and create a new Seeq Workbench. By selecting da
 
 Log in to the Seeq service page and create a new Seeq Data Lab, where you can use Python programming or other machine learning tools for more complex data mining functions.
 
-```Python
+```python
 from seeq import spy
 spy.options.compatibility = 189
 import pandas as pd

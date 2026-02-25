@@ -2923,11 +2923,12 @@ TEST(apiTest, catalogChkAuth_test) {
   SUserAuthRes  authRes = {0};
   TAOS_STRCPY(authInfo.user, ctgTestUsername);
   toName(1, ctgTestDbname, ctgTestSTablename, &authInfo.tbName);
-  authInfo.type = AUTH_TYPE_READ;
-  bool exists = false;
-  code = catalogChkAuthFromCache(pCtg, &authInfo, &authRes, &exists);
+  authInfo.privType = PRIV_TBL_SELECT;
+  authInfo.objType = PRIV_OBJ_TBL;
+  SUserAuthRsp rsp = {0};
+  code = catalogChkAuthFromCache(pCtg, &authInfo, &authRes, &rsp);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(exists, false);
+  ASSERT_EQ(rsp.exists, 0);
 
   code = catalogChkAuth(pCtg, mockPointer, &authInfo, &authRes);
   ASSERT_EQ(code, 0);
@@ -2943,10 +2944,10 @@ TEST(apiTest, catalogChkAuth_test) {
     }
   }
 
-  code = catalogChkAuthFromCache(pCtg, &authInfo, &authRes, &exists);
+  code = catalogChkAuthFromCache(pCtg, &authInfo, &authRes, &rsp);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(authRes.pass[AUTH_RES_BASIC], true);
-  ASSERT_EQ(exists, true);
+  ASSERT_EQ(rsp.exists, 1);
 
   catalogDestroy();
 }

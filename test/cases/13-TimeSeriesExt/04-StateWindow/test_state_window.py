@@ -197,11 +197,11 @@ class TestStateWindow:
         for tableIndex in range(10):
             tdSql.execute(f"CREATE TABLE ts6079.t{tableIndex} USING ts6079.meters TAGS ({tableIndex}, 'tb{tableIndex}')")
             for num in range(10):
-                tdSql.execute(f"INSERT INTO ts6079.t{tableIndex} VALUES({ts + num}, {num * 1.0}, {215 + num}, 0.0)")
+                tdSql.execute(f"INSERT INTO ts6079.t{tableIndex} VALUES({ts + tableIndex * 10 + num}, {num * 1.0}, {215 + num}, 0.0)")
 
         tdSql.query("select _wstart ,first(ts),last(ts),count(*),to_char(ts, 'yyyymmdd') as ts from ts6079.meters partition by to_char(ts, 'yyyymmdd') as ts state_window(cast(current as varchar(2)));")
-        tdSql.checkRows(10)
-        tdSql.checkData(0, 3, 10)
+        tdSql.checkRows(100)
+        tdSql.checkData(0, 3, 1)
 
     def test_state_window(self):
         """summary: xxx
@@ -218,11 +218,12 @@ class TestStateWindow:
             - xxx:xxx
 
         History:
-            - xxx
-            - xxx
+            - 2025-11-28: Tony Zhang modified ts6079 case
+                because state window does not support duplicate timestamp
 
         """
 
+        self.orderbyOtherTS()
         self.ts6079()
         self.check_crash_for_session_window()
         self.check_crash_for_state_window1()
@@ -230,9 +231,10 @@ class TestStateWindow:
         self.check_crash_for_state_window3()
         self.check_crash_for_state_window4()
         self.check_crash_for_state_window5()
+        self.test_state_window_start_with_null()
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+
     
     def test_state_window_start_with_null(self):
         """summary: test state window start with null
@@ -254,6 +256,7 @@ class TestStateWindow:
 
         """
         
+        tdLog.info("test state window start with null start")
         tdSql.execute("drop database if exists testdb")
         tdSql.execute("create database if not exists testdb keep 3650", show=True)
         tdSql.execute("use testdb")
@@ -330,5 +333,270 @@ class TestStateWindow:
         tdSql.checkData(3, 8, "2025-09-01 10:00:13.000")
         tdSql.checkData(3, 9, "2025-09-01 10:00:13.000")
         tdSql.checkData(3, 10, "b")
+        
+        sql = "select _wstart, _wduration, _wend, s from ntb state_window(s, 2)"
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "2025-09-01 10:00:00.000")
+        tdSql.checkData(0, 1, 4000)
+        tdSql.checkData(0, 2, "2025-09-01 10:00:04.000")
+        tdSql.checkData(0, 3, "a")
+        tdSql.checkData(1, 0, "2025-09-01 10:00:04.001")
+        tdSql.checkData(1, 1, 3999)
+        tdSql.checkData(1, 2, "2025-09-01 10:00:08.000")
+        tdSql.checkData(1, 3, "b")
+        tdSql.checkData(2, 0, "2025-09-01 10:00:08.001")
+        tdSql.checkData(2, 1, 1999)
+        tdSql.checkData(2, 2, "2025-09-01 10:00:10.000")
+        tdSql.checkData(2, 3, "a")
+        tdSql.checkData(3, 0, "2025-09-01 10:00:10.001")
+        tdSql.checkData(3, 1, 2999)
+        tdSql.checkData(3, 2, "2025-09-01 10:00:13.000")
+        tdSql.checkData(3, 3, "b")
+        
+        sql = "select _wstart, ss from (select _wstart as ts1, _wduration, _wend, s as ss from ntb state_window(s, 2) ) state_window(ss)"
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(4)
+
+        sql = "select ss from (select _wstart as ts1, _wduration, _wend, s as ss from ntb state_window(s, 2) ) state_window(ss)"
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(4)
+                
+        sql = "select 1 from ntb state_window(s, 2)"
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(4)
+        
+        sql = "select _wstart, _wduration, _wend, v from ntb state_window(s, 2)"
+        tdSql.error(sql, show=True)
+    
+    def test_state_window_group(self):
+        """summary: test state window on multiple groups
+
+        description: calc state window on multiple groups
+
+        Since: v3.4.0.0
+
+        Labels: state window
+
+        Catalog:
+            - Function:aggregation
+
+        History:
+            - 2026-01-12: Tony Zhang created
+        """
+        tdSql.execute("create database test_group", show=True)
+        tdSql.execute("use test_group", show=True)
+        tdSql.execute("create table stb (ts timestamp, vb bool, vi int) tags (tg int)", show=True)
+        tdSql.execute("create table ctb1 using stb tags(1);")
+        tdSql.execute("create table ctb2 using stb tags(2);")
+        tdSql.execute("create table ctb3 using stb tags(3);")
+
+        tdSql.execute("insert into ctb1 values('2026-01-12 12:00:00', NULL, 1);")
+        tdSql.execute("insert into ctb1 values('2026-01-12 12:00:01', NULL, 1);")
+        tdSql.execute("insert into ctb1 values('2026-01-12 12:00:02', NULL, 1);")
+        tdSql.execute("insert into ctb1 values('2026-01-12 12:00:03', NULL, 1);")
+        tdSql.execute("insert into ctb2 values('2026-01-12 12:00:04', false, 1);")
+        tdSql.execute("insert into ctb2 values('2026-01-12 12:00:05', true, 1);")
+        tdSql.execute("insert into ctb2 values('2026-01-12 12:00:06', true, 1);")
+        tdSql.execute("insert into ctb2 values('2026-01-12 12:00:07', false, 1);")
+        tdSql.execute("insert into ctb3 values('2026-01-12 12:00:08', NULL, 1);")
+        tdSql.execute("insert into ctb3 values('2026-01-12 12:00:09', NULL, 1);")
+        tdSql.execute("insert into ctb3 values('2026-01-12 12:00:10', NULL, 1);")
+        tdSql.execute("insert into ctb3 values('2026-01-12 12:00:11', NULL, 1);")
+        tdSql.execute("insert into ctb3 values('2026-01-12 12:00:12', NULL, 1);")
+
+        tdSql.query("select _wstart, _wend, _wduration, count(*) from stb partition by tbname state_window(vb, 1);")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "2026-01-12 12:00:04.000")
+        tdSql.checkData(0, 1, "2026-01-12 12:00:04.999")
+        tdSql.checkData(0, 2, 999)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(1, 0, "2026-01-12 12:00:05.000")
+        tdSql.checkData(1, 1, "2026-01-12 12:00:06.999")
+        tdSql.checkData(1, 2, 1999)
+        tdSql.checkData(1, 3, 2)
+        tdSql.checkData(2, 0, "2026-01-12 12:00:07.000")
+        tdSql.checkData(2, 1, "2026-01-12 12:00:07.000")
+        tdSql.checkData(2, 2, 0)
+        tdSql.checkData(2, 3, 1)
+        
+    def orderbyOtherTS(self):
+        ts = 1741757485230
+        tdSql.execute("drop database if exists otherts")
+        tdSql.execute("create database otherts vgroups 2 replica 1")
+        tdSql.execute("use otherts")
+        tdSql.execute("CREATE STABLE otherts.`meters` (`ts` TIMESTAMP, `ts2` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` VARCHAR(24))")
+        for tableIndex in range(10):
+            tdSql.execute(f"CREATE TABLE otherts.t{tableIndex} USING otherts.meters TAGS ({tableIndex}, 'tb{tableIndex}')")
+            for num in range(500):
+                tdSql.execute(f"INSERT INTO otherts.t{tableIndex} VALUES({ts + num * 1000}, {ts + (num % 13) * 1000}, {num * 1.0}, {215 + num/15}, 0.0)")
+        
+        tdSql.query("select last(a) as d from (select _wstart as a, last(ts2) as b, avg(current) as c from meters interval(7s) order by b desc) order by d desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        
+        tdSql.query("select last(a) as d from (select _wstart as a, last(ts2) as b, avg(current) as c from meters interval(7s) order by b) order by d desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        
+        tdSql.query("select last(a) as d from (select last(ts2) as b, _wstart as a, avg(current) as c from meters interval(7s) order by b desc) order by d desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        
+        tdSql.query("select last(a) as d from (select last(ts2) as b, _wstart as a, avg(current) as c from meters interval(7s) order by b) order by d desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+               
+        tdSql.query("select last(a) as d, b from (select _wstart as a, last(ts2) as b, avg(current) as c from meters interval(7s) order by b desc) order by d desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, "2025-03-12 13:31:30.230")
+        
+        tdSql.query("select last(a) as d, b from (select _wstart as a, last(ts2) as b, avg(current) as c from meters interval(7s) order by b) order by d desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, "2025-03-12 13:31:30.230")
+        
+        tdSql.query("select last(a) as d, b from (select last(ts2) as b, _wstart as a, avg(current) as c from meters interval(7s) order by b desc) order by d desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, "2025-03-12 13:31:30.230")
+               
+        tdSql.query("select last(a) as d, b from (select last(ts2) as b, _wstart as a, avg(current) as c from meters interval(7s) order by b) order by d desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, "2025-03-12 13:31:30.230")   
+               
+        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by b desc) state_window(vol)")
+        
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a desc) state_window(vol)")
+        tdSql.checkRows(34)
+        tdSql.checkData(33, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(33, 1, 248)
+        
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a) state_window(vol)")
+        tdSql.checkRows(34)
+        tdSql.checkData(33, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(33, 1, 248)
+        
+        tdSql.query("select last(a) as d, b from (select ts as b,  max(voltage), _wstart as a from meters interval(7s) order by b desc) order by d desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, "2025-03-12 13:39:43.230")
+        
+        tdSql.query("select last(a) as d, b from (select ts as b,  max(voltage), _wstart as a from meters interval(7s) order by b) order by d desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, "2025-03-12 13:39:43.230")
+        
+        tdSql.query("select last(a) as d, b from (select _wstart as a, ts as b,  max(voltage) from meters interval(7s) order by b desc) order by d desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, "2025-03-12 13:39:43.230")
+        
+        tdSql.query("select last(a) as d, b from (select _wstart as a, ts as b,  max(voltage) from meters interval(7s) order by b) order by d desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, "2025-03-12 13:39:43.230")
+        
+        # dumplicate timestamp in super table
+        tdSql.error("select last(a) as d from (select _wstart as a, last(ts2) as b, avg(current) as c from meters state_window(voltage) order by b desc) order by d desc")
+        
+        tdSql.query("select last(a) as d from (select _wstart as a, last(ts2) as b, avg(current) as c from t1 state_window(voltage) order by b desc) order by d desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:33.230")
+        tdSql.query("select last(a) as d from (select _wstart as a, last(ts2) as b, avg(current) as c from t1 state_window(voltage)) order by d desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:33.230")
+
+        # state_window
+        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from t1 state_window(voltage) order by b) state_window(vol)")      
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from t1 state_window(voltage) order by a) state_window(vol)")
+        tdSql.checkRows(34)
+        tdSql.checkData(33, 0, "2025-03-12 13:39:33.230")
+        tdSql.checkData(33, 1, 248)
+
+        # session_window
+        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by b desc) session(a, 10s)") 
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s)) session(a, 10s)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, 248)        
+        
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a asc) session(a, 10s)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, 248)
+        
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a desc) session(a, 10s)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, 248)
+        
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s)) session(a, 6s)")
+        tdSql.checkRows(73)
+        tdSql.checkData(72, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(72, 1, 248)        
+        
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a asc) session(a, 6s)")
+        tdSql.checkRows(73)
+        tdSql.checkData(72, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(72, 1, 248)  
+        
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a desc) session(a, 6s)")
+        tdSql.checkRows(73)
+        tdSql.checkData(72, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(72, 1, 248)  
+        
+        # Only support SESSION on primary timestamp column
+        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by b desc) session(b, 10s)") 
+        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s)) session(b, 10s)")
+        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a asc) session(b, 10s)")    
+        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a desc) session(b, 10s)")
+
+        # event_window
+        tdSql.query("select last(a) as d, b, _c0 from (select ts as b,  max(voltage) vol, _wstart as a from meters interval(7s) order by b desc) event_window start with vol > 240 end with vol < 239 order by d desc;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, "2025-03-12 13:39:43.230") 
+        tdSql.checkData(0, 2, "2025-03-12 13:39:43.230") 
+        tdSql.query("select last(a) as d, count(*) from (select ts as b,  max(voltage) vol, _wstart as a from meters interval(7s) order by b desc) event_window start with vol > 240 end with vol < 239 order by d desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, 23)
+        
+        tdSql.query("select last(a) as d, _c0 from (select ts as b,  max(voltage) vol, _wstart as a from meters interval(7s) order by a desc) event_window start with vol > 240 end with vol < 239;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")  
+        tdSql.checkData(0, 1, "2025-03-12 13:39:43.230")  
+        tdSql.query("select last(a) as d, count(*) from (select ts as b,  max(voltage) vol, _wstart as a from meters interval(7s) order by a desc) event_window start with vol > 240 end with vol < 239 order by d desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, 23)
+    
+        # count_window    
+        tdSql.query("select last(a) as d, b, _c0 from (select ts as b,  max(voltage) vol, _wstart as a from meters interval(7s) order by b desc) count_window(5) order by d desc;")
+        tdSql.checkRows(15)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, "2025-03-12 13:39:43.230") 
+        tdSql.checkData(0, 2, "2025-03-12 13:39:43.230") 
+        tdSql.query("select last(a) as d, count(*) from (select ts as b,  max(voltage) vol, _wstart as a from meters interval(7s) order by b asc) count_window(5) order by d desc")
+        tdSql.checkRows(15)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, 3) 
+        tdSql.checkData(14, 1, 5) 
+        
+        tdSql.query("select last(a) as d, b, _c0 from (select ts as b,  max(voltage) vol, _wstart as a from meters interval(7s) order by a desc) count_window(5) order by d desc;")
+        tdSql.checkRows(15)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, "2025-03-12 13:39:43.230") 
+        tdSql.checkData(0, 2, "2025-03-12 13:39:43.230") 
+        tdSql.query("select last(a) as d, count(*) from (select ts as b,  max(voltage) vol, _wstart as a from meters interval(7s) order by a asc) count_window(5) order by d desc")
+        tdSql.checkRows(15)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, 3) 
+        tdSql.checkData(14, 1, 5) 
+    
+        tdSql.execute("drop database if exists otherts")
 
 event = threading.Event()

@@ -8,8 +8,7 @@ if (HAVE_SYS_EPOLL_H)
 endif()
 
 aux_source_directory(mqtt/src MQTT_SRC)
-aux_source_directory(ttq/src TTQ_SRC)
-add_executable(taosmqtt ${MQTT_SRC} ${TTQ_SRC})
+add_executable(taosmqtt ${MQTT_SRC})
 
 DEP_ext_cjson(taosmqtt)
 DEP_ext_libuv(taosmqtt)
@@ -29,6 +28,8 @@ target_include_directories(
     "${TD_SOURCE_DIR}/include/libs/transport"
     "${TD_SOURCE_DIR}/include/client"
     "${TD_SOURCE_DIR}/include/dnode/bnode"
+    "${TD_SOURCE_DIR}/contrib/libmqtt/inc"
+    "${TD_SOURCE_DIR}/contrib/libmqtt/ttq/inc"
     PRIVATE "${TD_SOURCE_DIR}/include/libs/tmqtt"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mqtt/inc"
@@ -37,7 +38,7 @@ target_include_directories(
 
 target_link_libraries(
     taosmqtt
-    PRIVATE util common ${TAOS_NATIVE_LIB_STATIC}
+    PRIVATE util common ${TAOS_NATIVE_LIB_STATIC} mqtt
 )
 
 # topic tool
@@ -49,4 +50,3 @@ endif()
 if(${BUILD_TEST})
     #add_subdirectory(test)
 endif()
-

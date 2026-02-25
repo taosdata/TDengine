@@ -588,6 +588,29 @@ bool taosIsSpecialChar(char c) {
   }
 }
 
+// check if the string is a complex string, a complex string contains
+// at least 3 types of characters: upper, lower, digit, special
+bool taosIsComplexString(const char* str) {
+  int hasUpper = 0, hasLower = 0, hasDigit = 0, hasSpecial = 0;
+
+  for (char c = *str; c != 0; c = *(++str)) {
+    if (taosIsBigChar(c)) {
+      hasUpper = 1;
+    } else if (taosIsSmallChar(c)) {
+      hasLower = 1;
+    } else if (taosIsNumberChar(c)) {
+      hasDigit = 1;
+    } else if (taosIsSpecialChar(c)) {
+      hasSpecial = 1;
+    } else {
+      return false;
+    }
+  }
+
+  return (hasUpper + hasLower + hasDigit + hasSpecial) >= 3;
+}
+
+
 void tTrimMountPrefix(char *fullName) {
   if (fullName == NULL) {
     return;

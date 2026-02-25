@@ -179,7 +179,10 @@ static void tmqStop(int signum, void* info, void* ctx) {
   taosFprintfFile(g_fp, "%s tmqStop() receive stop signal[%d]\n", getCurrentTimeString(tmpString), signum);
 }
 
-static void tmqSetSignalHandle() { taosSetSignal(SIGINT, tmqStop); }
+static void tmqSetSignalHandle() { 
+  taosSetSignal(SIGINT, tmqStop); 
+  taosSetSignal(SIGTERM, tmqStop); 
+}
 
 void initLogFile() {
   char filename[256];
@@ -360,6 +363,7 @@ int queryDB(TAOS* taos, char* command) {
     code = taos_errno(pRes);
     if (code != 0) {
       taosSsleep(1);
+      taosFprintfFile(g_fp, "queryDB continue, command:%s, code:%d\n", command, code);
       taos_free_result(pRes);
       pRes = NULL;
       continue;
@@ -585,7 +589,8 @@ static int32_t data_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
   int32_t     vgroupId = tmq_get_vgroup_id(msg);
   const char* dbName = tmq_get_db_name(msg);
 
-  taosFprintfFile(g_fp, "consumerId: %d, msg index:%d\n", pInfo->consumerId, msgIndex);
+  char timestring[128] = {0};
+  taosFprintfFile(g_fp, "%s consumerId: %d, msg index:%d\n", getCurrentTimeString(timestring), pInfo->consumerId, msgIndex);
   int32_t index = 0;
   for (index = 0; index < pInfo->numOfVgroups; index++) {
     if (vgroupId == pInfo->rowsOfPerVgroups[index][0]) {
@@ -643,8 +648,8 @@ static int32_t meta_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
   int32_t     vgroupId = tmq_get_vgroup_id(msg);
   const char* dbName = tmq_get_db_name(msg);
 
-  taosFprintfFile(g_fp, "consumerId: %d, msg index:%d\n", pInfo->consumerId, msgIndex);
-  taosFprintfFile(g_fp, "dbName: %s, topic: %s, vgroupId: %d\n", dbName != NULL ? dbName : "invalid table",
+  taosFprintfFile(g_fp, "%s consumerId: %d, msg index:%d\n", getCurrentTimeString(buf), pInfo->consumerId, msgIndex);
+  taosFprintfFile(g_fp, "%s dbName: %s, topic: %s, vgroupId: %d\n", getCurrentTimeString(buf),dbName != NULL ? dbName : "invalid table",
                   tmq_get_topic_name(msg), vgroupId);
 
   {

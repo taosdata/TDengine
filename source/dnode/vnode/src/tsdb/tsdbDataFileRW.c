@@ -48,11 +48,11 @@ static int32_t tsdbDataFileReadHeadFooter(SDataFileReader *reader) {
 
   int32_t ftype = TSDB_FTYPE_HEAD;
   if (reader->fd[ftype]) {
-    int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-    char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+    SEncryptData *pEncryptData = &(reader->config->tsdb->pVnode->config.tsdbCfg.encryptData);
+
 #if 1
     TAOS_CHECK_GOTO(tsdbReadFile(reader->fd[ftype], reader->config->files[ftype].file.size - sizeof(SHeadFooter),
-                                 (uint8_t *)reader->headFooter, sizeof(SHeadFooter), 0, encryptAlgorithm, encryptKey),
+                                 (uint8_t *)reader->headFooter, sizeof(SHeadFooter), 0, pEncryptData),
                     &lino, _exit);
 #else
     int64_t size = reader->config->files[ftype].file.size;
@@ -90,10 +90,10 @@ static int32_t tsdbDataFileReadTombFooter(SDataFileReader *reader) {
 
   int32_t ftype = TSDB_FTYPE_TOMB;
   if (reader->fd[ftype]) {
-    int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-    char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+    SEncryptData *pEncryptData = &(reader->config->tsdb->pVnode->config.tsdbCfg.encryptData);
+
     TAOS_CHECK_GOTO(tsdbReadFile(reader->fd[ftype], reader->config->files[ftype].file.size - sizeof(STombFooter),
-                                 (uint8_t *)reader->tombFooter, sizeof(STombFooter), 0, encryptAlgorithm, encryptKey),
+                                 (uint8_t *)reader->tombFooter, sizeof(STombFooter), 0, pEncryptData),
                     &lino, _exit);
   }
   reader->ctx->tombFooterLoaded = true;
@@ -186,11 +186,10 @@ int32_t tsdbDataFileReadBrinBlk(SDataFileReader *reader, const TBrinBlkArray **b
         TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
 
-      int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-      char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+      SEncryptData *pEncryptData = &(reader->config->tsdb->pVnode->config.tsdbCfg.encryptData);
 
       TAOS_CHECK_GOTO(tsdbReadFile(reader->fd[TSDB_FTYPE_HEAD], reader->headFooter->brinBlkPtr->offset, data,
-                                   reader->headFooter->brinBlkPtr->size, 0, encryptAlgorithm, encryptKey),
+                                   reader->headFooter->brinBlkPtr->size, 0, pEncryptData),
                       &lino, _exit);
 
       int32_t size = reader->headFooter->brinBlkPtr->size / sizeof(SBrinBlk);
@@ -219,12 +218,12 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
   SBuffer *buffer = reader->buffers + 0;
   SBuffer *assist = reader->buffers + 1;
 
-  int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  SEncryptData *pEncryptData = &(reader->config->tsdb->pVnode->config.tsdbCfg.encryptData);
+
   // load data
   tBufferClear(buffer);
   TAOS_CHECK_GOTO(tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_HEAD], brinBlk->dp->offset, brinBlk->dp->size, buffer, 0,
-                                       encryptAlgorithm, encryptKey),
+                                       pEncryptData),
                   &lino, _exit);
 
   // decode brin block
@@ -307,12 +306,12 @@ int32_t tsdbDataFileReadBlockData(SDataFileReader *reader, const SBrinRecord *re
   SBuffer *buffer = reader->buffers + 0;
   SBuffer *assist = reader->buffers + 1;
 
-  int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  SEncryptData *pEncryptData = &(reader->config->tsdb->pVnode->config.tsdbCfg.encryptData);
+
   // load data
   tBufferClear(buffer);
   TAOS_CHECK_GOTO(tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA], record->blockOffset, record->blockSize, buffer, 0,
-                                       encryptAlgorithm, encryptKey),
+                                       pEncryptData),
                   &lino, _exit);
 
   // decompress
@@ -345,12 +344,12 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
   SBuffer     *buffer1 = reader->buffers + 1;
   SBuffer     *assist = reader->buffers + 2;
 
-  int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  SEncryptData *pEncryptData = &(reader->config->tsdb->pVnode->config.tsdbCfg.encryptData);
+
   // load key part
   tBufferClear(buffer0);
   TAOS_CHECK_GOTO(tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA], record->blockOffset, record->blockKeySize, buffer0,
-                                       0, encryptAlgorithm, encryptKey),
+                                       0, pEncryptData),
                   &lino, _exit);
 
   // SDiskDataHdr
@@ -392,7 +391,7 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
   // load SBlockCol part
   tBufferClear(buffer0);
   TAOS_CHECK_GOTO(tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA], record->blockOffset + record->blockKeySize,
-                                       hdr.szBlkCol, buffer0, 0, encryptAlgorithm, encryptKey),
+                                       hdr.szBlkCol, buffer0, 0, pEncryptData),
                   &lino, _exit);
 
   // calc szHint
@@ -498,14 +497,14 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
       };
       TAOS_CHECK_GOTO(tBlockDataDecompressColData(&hdr, &none, &br, bData, assist), &lino, _exit);
     } else if (cid == blockCol.cid) {
-      int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-      char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+      SEncryptData *pEncryptData = &(reader->config->tsdb->pVnode->config.tsdbCfg.encryptData);
+
       // load from file
       tBufferClear(buffer1);
       TAOS_CHECK_GOTO(tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_DATA],
                                            record->blockOffset + record->blockKeySize + hdr.szBlkCol + blockCol.offset,
                                            blockCol.szBitmap + blockCol.szOffset + blockCol.szValue, buffer1,
-                                           firstRead ? szHint : 0, encryptAlgorithm, encryptKey),
+                                           firstRead ? szHint : 0, pEncryptData),
                       &lino, _exit);
 
       firstRead = false;
@@ -533,11 +532,11 @@ int32_t tsdbDataFileReadBlockSma(SDataFileReader *reader, const SBrinRecord *rec
   TARRAY2_CLEAR(columnDataAggArray, NULL);
   if (record->smaSize > 0) {
     tBufferClear(buffer);
-    int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-    char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
-    TAOS_CHECK_GOTO(tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_SMA], record->smaOffset, record->smaSize, buffer, 0,
-                                         encryptAlgorithm, encryptKey),
-                    &lino, _exit);
+    SEncryptData *pEncryptData = &(reader->config->tsdb->pVnode->config.tsdbCfg.encryptData);
+
+    TAOS_CHECK_GOTO(
+        tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_SMA], record->smaOffset, record->smaSize, buffer, 0, pEncryptData),
+        &lino, _exit);
 
     // decode sma data
     SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer);
@@ -576,10 +575,10 @@ int32_t tsdbDataFileReadTombBlk(SDataFileReader *reader, const TTombBlkArray **t
         TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
 
-      int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-      char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+      SEncryptData *pEncryptData = &(reader->config->tsdb->pVnode->config.tsdbCfg.encryptData);
+
       TAOS_CHECK_GOTO(tsdbReadFile(reader->fd[TSDB_FTYPE_TOMB], reader->tombFooter->tombBlkPtr->offset, data,
-                                   reader->tombFooter->tombBlkPtr->size, 0, encryptAlgorithm, encryptKey),
+                                   reader->tombFooter->tombBlkPtr->size, 0, pEncryptData),
                       &lino, _exit);
 
       int32_t size = reader->tombFooter->tombBlkPtr->size / sizeof(STombBlk);
@@ -609,10 +608,10 @@ int32_t tsdbDataFileReadTombBlock(SDataFileReader *reader, const STombBlk *tombB
   SBuffer *assist = reader->buffers + 1;
 
   tBufferClear(buffer0);
-  int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  SEncryptData *pEncryptData = &(reader->config->tsdb->pVnode->config.tsdbCfg.encryptData);
+
   TAOS_CHECK_GOTO(tsdbReadFileToBuffer(reader->fd[TSDB_FTYPE_TOMB], tombBlk->dp->offset, tombBlk->dp->size, buffer0, 0,
-                                       encryptAlgorithm, encryptKey),
+                                       pEncryptData),
                   &lino, _exit);
 
   int32_t       size = 0;
@@ -849,7 +848,7 @@ void tsdbWriterUpdVerRange(SVersionRange *range, int64_t minVer, int64_t maxVer)
 
 int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, uint32_t cmprAlg, int64_t *fileSize,
                                TBrinBlkArray *brinBlkArray, SBuffer *buffers, SVersionRange *range,
-                               int32_t encryptAlgorithm, char *encryptKey) {
+                               SEncryptData *encryptData) {
   if (brinBlock->numOfRecords == 0) {
     return 0;
   }
@@ -903,7 +902,7 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, uint32_t cmpr
 
     tBufferClear(buffer0);
     TAOS_CHECK_RETURN(tCompressDataToBuffer(brinBlock->buffers[i].data, &info, buffer0, assist));
-    TAOS_CHECK_RETURN(tsdbWriteFile(fd, *fileSize, buffer0->data, buffer0->size, encryptAlgorithm, encryptKey));
+    TAOS_CHECK_RETURN(tsdbWriteFile(fd, *fileSize, buffer0->data, buffer0->size, encryptData));
     brinBlk.size[i] = info.compressedSize;
     brinBlk.dp->size += info.compressedSize;
     *fileSize += info.compressedSize;
@@ -917,7 +916,7 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, uint32_t cmpr
 
     tBufferClear(buffer0);
     TAOS_CHECK_RETURN(tCompressDataToBuffer(brinBlock->buffers[i].data, &info, buffer0, assist));
-    TAOS_CHECK_RETURN(tsdbWriteFile(fd, *fileSize, buffer0->data, buffer0->size, encryptAlgorithm, encryptKey));
+    TAOS_CHECK_RETURN(tsdbWriteFile(fd, *fileSize, buffer0->data, buffer0->size, encryptData));
     brinBlk.size[i] = info.compressedSize;
     brinBlk.dp->size += info.compressedSize;
     *fileSize += info.compressedSize;
@@ -941,10 +940,10 @@ int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, uint32_t cmpr
     }
 
     // write to file
-    TAOS_CHECK_RETURN(tsdbWriteFile(fd, *fileSize, buffer0->data, buffer0->size, encryptAlgorithm, encryptKey));
+    TAOS_CHECK_RETURN(tsdbWriteFile(fd, *fileSize, buffer0->data, buffer0->size, encryptData));
     *fileSize += buffer0->size;
     brinBlk.dp->size += buffer0->size;
-    TAOS_CHECK_RETURN(tsdbWriteFile(fd, *fileSize, buffer1->data, buffer1->size, encryptAlgorithm, encryptKey));
+    TAOS_CHECK_RETURN(tsdbWriteFile(fd, *fileSize, buffer1->data, buffer1->size, encryptData));
     *fileSize += buffer1->size;
     brinBlk.dp->size += buffer1->size;
   }
@@ -965,12 +964,11 @@ static int32_t tsdbDataFileWriteBrinBlock(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  SEncryptData *pEncryptData = &(writer->config->tsdb->pVnode->config.tsdbCfg.encryptData);
 
   TAOS_CHECK_GOTO(tsdbFileWriteBrinBlock(writer->fd[TSDB_FTYPE_HEAD], writer->brinBlock, writer->config->cmprAlg,
                                          &writer->files[TSDB_FTYPE_HEAD].size, writer->brinBlkArray, writer->buffers,
-                                         &writer->ctx->range, encryptAlgorithm, encryptKey),
+                                         &writer->ctx->range, pEncryptData),
                   &lino, _exit);
 
 _exit:
@@ -1067,11 +1065,11 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
   record->blockKeySize = buffers[0].size + buffers[1].size;
   record->blockSize = record->blockKeySize + buffers[2].size + buffers[3].size;
 
-  int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  SEncryptData *pEncryptData = &(writer->config->tsdb->pVnode->config.tsdbCfg.encryptData);
+
   for (int i = 0; i < 4; i++) {
     TAOS_CHECK_GOTO(tsdbWriteFile(writer->fd[TSDB_FTYPE_DATA], writer->files[TSDB_FTYPE_DATA].size, buffers[i].data,
-                                  buffers[i].size, encryptAlgorithm, encryptKey),
+                                  buffers[i].size, pEncryptData),
                     &lino, _exit);
     writer->files[TSDB_FTYPE_DATA].size += buffers[i].size;
   }
@@ -1090,9 +1088,9 @@ static int32_t tsdbDataFileDoWriteBlockData(SDataFileWriter *writer, SBlockData 
   record->smaSize = buffers[0].size;
 
   if (record->smaSize > 0) {
-    TAOS_CHECK_GOTO(tsdbWriteFile(writer->fd[TSDB_FTYPE_SMA], record->smaOffset, buffers[0].data, record->smaSize,
-                                  encryptAlgorithm, encryptKey),
-                    &lino, _exit);
+    TAOS_CHECK_GOTO(
+        tsdbWriteFile(writer->fd[TSDB_FTYPE_SMA], record->smaOffset, buffers[0].data, record->smaSize, pEncryptData),
+        &lino, _exit);
     writer->files[TSDB_FTYPE_SMA].size += record->smaSize;
   }
 
@@ -1356,17 +1354,15 @@ _exit:
   return code;
 }
 
-int32_t tsdbFileWriteHeadFooter(STsdbFD *fd, int64_t *fileSize, const SHeadFooter *footer, int32_t encryptAlgorithm,
-                                char *encryptKey) {
-  TAOS_CHECK_RETURN(
-      tsdbWriteFile(fd, *fileSize, (const uint8_t *)footer, sizeof(*footer), encryptAlgorithm, encryptKey));
+int32_t tsdbFileWriteHeadFooter(STsdbFD *fd, int64_t *fileSize, const SHeadFooter *footer, SEncryptData *encryptData) {
+  TAOS_CHECK_RETURN(tsdbWriteFile(fd, *fileSize, (const uint8_t *)footer, sizeof(*footer), encryptData));
   *fileSize += sizeof(*footer);
   return 0;
 }
 
 int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAlg, int64_t *fileSize,
                                TTombBlkArray *tombBlkArray, SBuffer *buffers, SVersionRange *range,
-                               int32_t encryptAlgorithm, char *encryptKey) {
+                               SEncryptData *encryptData) {
   int32_t code;
 
   if (TOMB_BLOCK_SIZE(tombBlock) == 0) {
@@ -1418,7 +1414,7 @@ int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAl
         .originalSize = tombBlock->buffers[i].size,
     };
     TAOS_CHECK_RETURN(tCompressDataToBuffer(tombBlock->buffers[i].data, &cinfo, buffer0, assist));
-    TAOS_CHECK_RETURN(tsdbWriteFile(fd, *fileSize, buffer0->data, buffer0->size, encryptAlgorithm, encryptKey));
+    TAOS_CHECK_RETURN(tsdbWriteFile(fd, *fileSize, buffer0->data, buffer0->size, encryptData));
 
     tombBlk.size[i] = cinfo.compressedSize;
     tombBlk.dp->size += tombBlk.size[i];
@@ -1435,11 +1431,10 @@ static int32_t tsdbDataFileWriteHeadFooter(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  SEncryptData *pEncryptData = &(writer->config->tsdb->pVnode->config.tsdbCfg.encryptData);
 
   TAOS_CHECK_GOTO(tsdbFileWriteHeadFooter(writer->fd[TSDB_FTYPE_HEAD], &writer->files[TSDB_FTYPE_HEAD].size,
-                                          writer->headFooter, encryptAlgorithm, encryptKey),
+                                          writer->headFooter, pEncryptData),
                   &lino, _exit);
 
 _exit:
@@ -1456,12 +1451,11 @@ static int32_t tsdbDataFileDoWriteTombBlock(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  SEncryptData *pEncryptData = &(writer->config->tsdb->pVnode->config.tsdbCfg.encryptData);
 
   TAOS_CHECK_GOTO(tsdbFileWriteTombBlock(writer->fd[TSDB_FTYPE_TOMB], writer->tombBlock, writer->config->cmprAlg,
                                          &writer->files[TSDB_FTYPE_TOMB].size, writer->tombBlkArray, writer->buffers,
-                                         &writer->ctx->tombRange, encryptAlgorithm, encryptKey),
+                                         &writer->ctx->tombRange, pEncryptData),
                   &lino, _exit);
 
 _exit:
@@ -1473,13 +1467,13 @@ _exit:
 }
 
 int32_t tsdbFileWriteTombBlk(STsdbFD *fd, const TTombBlkArray *tombBlkArray, SFDataPtr *ptr, int64_t *fileSize,
-                             int32_t encryptAlgorithm, char *encryptKey) {
+                             SEncryptData *encryptData) {
   ptr->size = TARRAY2_DATA_LEN(tombBlkArray);
   if (ptr->size > 0) {
     ptr->offset = *fileSize;
 
-    TAOS_CHECK_RETURN(tsdbWriteFile(fd, *fileSize, (const uint8_t *)TARRAY2_DATA(tombBlkArray), ptr->size,
-                                    encryptAlgorithm, encryptKey));
+    TAOS_CHECK_RETURN(
+        tsdbWriteFile(fd, *fileSize, (const uint8_t *)TARRAY2_DATA(tombBlkArray), ptr->size, encryptData));
 
     *fileSize += ptr->size;
   }
@@ -1494,12 +1488,11 @@ static int32_t tsdbDataFileDoWriteTombBlk(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  SEncryptData *pEncryptData = &(writer->config->tsdb->pVnode->config.tsdbCfg.encryptData);
 
   TAOS_CHECK_GOTO(
       tsdbFileWriteTombBlk(writer->fd[TSDB_FTYPE_TOMB], writer->tombBlkArray, writer->tombFooter->tombBlkPtr,
-                           &writer->files[TSDB_FTYPE_TOMB].size, encryptAlgorithm, encryptKey),
+                           &writer->files[TSDB_FTYPE_TOMB].size, pEncryptData),
       &lino, _exit);
 
 _exit:
@@ -1510,10 +1503,8 @@ _exit:
   return code;
 }
 
-int32_t tsdbFileWriteTombFooter(STsdbFD *fd, const STombFooter *footer, int64_t *fileSize, int32_t encryptAlgorithm,
-                                char *encryptKey) {
-  TAOS_CHECK_RETURN(
-      tsdbWriteFile(fd, *fileSize, (const uint8_t *)footer, sizeof(*footer), encryptAlgorithm, encryptKey));
+int32_t tsdbFileWriteTombFooter(STsdbFD *fd, const STombFooter *footer, int64_t *fileSize, SEncryptData *encryptData) {
+  TAOS_CHECK_RETURN(tsdbWriteFile(fd, *fileSize, (const uint8_t *)footer, sizeof(*footer), encryptData));
   *fileSize += sizeof(*footer);
   return 0;
 }
@@ -1522,11 +1513,10 @@ static int32_t tsdbDataFileWriteTombFooter(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  SEncryptData *pEncryptData = &(writer->config->tsdb->pVnode->config.tsdbCfg.encryptData);
 
   TAOS_CHECK_GOTO(tsdbFileWriteTombFooter(writer->fd[TSDB_FTYPE_TOMB], writer->tombFooter,
-                                          &writer->files[TSDB_FTYPE_TOMB].size, encryptAlgorithm, encryptKey),
+                                          &writer->files[TSDB_FTYPE_TOMB].size, pEncryptData),
                   &lino, _exit);
 
 _exit:
@@ -1605,15 +1595,14 @@ _exit:
 }
 
 int32_t tsdbFileWriteBrinBlk(STsdbFD *fd, TBrinBlkArray *brinBlkArray, SFDataPtr *ptr, int64_t *fileSize,
-                             int32_t encryptAlgorithm, char *encryptKey) {
+                             SEncryptData *encryptData) {
   if (TARRAY2_SIZE(brinBlkArray) <= 0) {
     return TSDB_CODE_INVALID_PARA;
   }
   ptr->offset = *fileSize;
   ptr->size = TARRAY2_DATA_LEN(brinBlkArray);
 
-  TAOS_CHECK_RETURN(
-      tsdbWriteFile(fd, ptr->offset, (uint8_t *)TARRAY2_DATA(brinBlkArray), ptr->size, encryptAlgorithm, encryptKey));
+  TAOS_CHECK_RETURN(tsdbWriteFile(fd, ptr->offset, (uint8_t *)TARRAY2_DATA(brinBlkArray), ptr->size, encryptData));
 
   *fileSize += ptr->size;
   return 0;
@@ -1623,12 +1612,11 @@ static int32_t tsdbDataFileWriteBrinBlk(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  SEncryptData *pEncryptData = &(writer->config->tsdb->pVnode->config.tsdbCfg.encryptData);
 
   TAOS_CHECK_GOTO(
       tsdbFileWriteBrinBlk(writer->fd[TSDB_FTYPE_HEAD], writer->brinBlkArray, writer->headFooter->brinBlkPtr,
-                           &writer->files[TSDB_FTYPE_HEAD].size, encryptAlgorithm, encryptKey),
+                           &writer->files[TSDB_FTYPE_HEAD].size, pEncryptData),
       &lino, _exit);
 
 _exit:
@@ -1761,11 +1749,10 @@ static int32_t tsdbDataFileWriterCloseCommit(SDataFileWriter *writer, TFileOpArr
     tsdbTFileUpdVerRange(&op.nf, writer->ctx->tombRange);
     TAOS_CHECK_GOTO(TARRAY2_APPEND(opArr, op), &lino, _exit);
   }
-  int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  SEncryptData *pEncryptData = &(writer->config->tsdb->pVnode->config.tsdbCfg.encryptData);
   for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
     if (writer->fd[i]) {
-      TAOS_CHECK_GOTO(tsdbFsyncFile(writer->fd[i], encryptAlgorithm, encryptKey), &lino, _exit);
+      TAOS_CHECK_GOTO(tsdbFsyncFile(writer->fd[i], pEncryptData), &lino, _exit);
       tsdbCloseFile(&writer->fd[i]);
     }
   }
@@ -1801,11 +1788,9 @@ static int32_t tsdbDataFileWriterOpenDataFD(SDataFileWriter *writer) {
     if (writer->files[ftype].size == 0) {
       uint8_t hdr[TSDB_FHDR_SIZE] = {0};
 
-      int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-      char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+      SEncryptData *pEncryptData = &(writer->config->tsdb->pVnode->config.tsdbCfg.encryptData);
 
-      TAOS_CHECK_GOTO(tsdbWriteFile(writer->fd[ftype], 0, hdr, TSDB_FHDR_SIZE, encryptAlgorithm, encryptKey), &lino,
-                      _exit);
+      TAOS_CHECK_GOTO(tsdbWriteFile(writer->fd[ftype], 0, hdr, TSDB_FHDR_SIZE, pEncryptData), &lino, _exit);
 
       writer->files[ftype].size += TSDB_FHDR_SIZE;
     }
@@ -1963,10 +1948,9 @@ static int32_t tsdbDataFileWriterOpenTombFD(SDataFileWriter *writer) {
   TAOS_CHECK_GOTO(tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd[ftype], lcn), &lino, _exit);
 
   uint8_t hdr[TSDB_FHDR_SIZE] = {0};
-  int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  SEncryptData *pEncryptData = &(writer->config->tsdb->pVnode->config.tsdbCfg.encryptData);
 
-  TAOS_CHECK_GOTO(tsdbWriteFile(writer->fd[ftype], 0, hdr, TSDB_FHDR_SIZE, encryptAlgorithm, encryptKey), &lino, _exit);
+  TAOS_CHECK_GOTO(tsdbWriteFile(writer->fd[ftype], 0, hdr, TSDB_FHDR_SIZE, pEncryptData), &lino, _exit);
   writer->files[ftype].size += TSDB_FHDR_SIZE;
 
   if (writer->ctx->reader) {

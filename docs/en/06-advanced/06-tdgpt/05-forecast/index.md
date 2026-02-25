@@ -28,7 +28,7 @@ taos> select * from foo;
 
 ### Syntax
 
-```SQL
+```sql
 FORECAST(column_expr, option_expr)
 
 option_expr: {"
@@ -68,7 +68,7 @@ algo=expr1
 
 ### Example
 
-```SQL
+```sql
 --- ARIMA forecast, return 10 rows of results (default), perform white noise data check, with 95% confidence interval 
 SELECT  _flow, _fhigh, _frowts, FORECAST(i32, "algo=arima")
 FROM foo;

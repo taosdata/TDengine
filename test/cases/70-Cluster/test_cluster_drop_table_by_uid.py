@@ -286,7 +286,8 @@ class TestClusterDropTableByUid:
         try:
             # create new user and grant create database priviledge
             tdSql.execute("create user test pass 'ab45*&TC';")
-            tdSql.execute("alter user test createdb 1;")
+            # tdSql.execute("alter user test createdb 1;")
+            tdSql.execute("grant create database to test;")
             conn = taos.connect(user="test", password="ab45*&TC")
             cursor = conn.cursor()
             # create database and tables with new user
@@ -295,6 +296,7 @@ class TestClusterDropTableByUid:
             cursor.execute(f"create database {db_name};")
             cursor.execute(f"use {db_name};")
             time.sleep(3)
+            # db owner can create tables
             cursor.execute("create stable `st4\u00bf\u200bfnn1` (ts timestamp, c1 int) tags (t1 int);")
             cursor.execute("create table `ct4_1\u00cf\u00ff` using `st4\u00bf\u200bfnn1` tags(1);")
             cursor.execute("create table `t4\u00ef\u00fa` (ts timestamp, c1 int, c2 float);")
@@ -360,5 +362,5 @@ class TestClusterDropTableByUid:
         self.run_abnormal_system_tables()
         self.run_abnormal_drop_table_with_non_root_user()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

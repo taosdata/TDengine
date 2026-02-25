@@ -16,13 +16,16 @@
 #include "builtins.h"
 #include "builtinsimpl.h"
 #include "cJSON.h"
+#include "crypt.h"
 #include "functionMgt.h"
 #include "functionMgtInt.h"
 #include "geomFunc.h"
 #include "querynodes.h"
 #include "scalar.h"
+#include "taes.h"
 #include "tanalytics.h"
 #include "taoserror.h"
+#include "tbase64.h"
 #include "tglobal.h"
 #include "ttypes.h"
 
@@ -455,6 +458,12 @@ static bool paramSupportColumnNode(uint64_t typeFlag) {
          FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_NOT_VALUE_NODE);
 }
 
+static bool paramSupportRemoteValueNode(uint64_t typeFlag) {
+  return FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_REMOTE_VALUE_NODE) ||
+         FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_EXPR_NODE) ||
+         FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_NOT_VALUE_NODE);
+}
+
 static bool paramSupportNodeType(SNode* pNode, uint64_t typeFlag) {
   switch (pNode->type) {
     case QUERY_NODE_VALUE:
@@ -469,6 +478,8 @@ static bool paramSupportNodeType(SNode* pNode, uint64_t typeFlag) {
       return paramSupportCaseWhenNode(typeFlag);
     case QUERY_NODE_COLUMN:
       return paramSupportColumnNode(typeFlag);
+    case QUERY_NODE_REMOTE_VALUE:
+      return paramSupportRemoteValueNode(typeFlag);
     default:
       return false;
   }
@@ -1024,7 +1035,17 @@ static int32_t translateBase64(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
 
   SDataType* pRestType1 = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
-  int32_t    outputLength = base64BufSize(pRestType1->bytes);
+  int32_t    outputLength = tbase64_encode_len(pRestType1->bytes) + VARSTR_HEADER_SIZE;
+
+  pFunc->node.resType = (SDataType){.bytes = outputLength, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateBase64From(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+
+  SDataType* pRestType1 = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
+  int32_t    outputLength = tbase64_decode_len(pRestType1->bytes) + VARSTR_HEADER_SIZE;
 
   pFunc->node.resType = (SDataType){.bytes = outputLength, .type = TSDB_DATA_TYPE_VARCHAR};
   return TSDB_CODE_SUCCESS;
@@ -1191,7 +1212,7 @@ static int32_t translateTimePseudoColumn(SFunctionNode* pFunc, char* pErrBuf, in
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateMaskPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+static int32_t translateMarkPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes,
@@ -1200,9 +1221,49 @@ static int32_t translateMaskPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, in
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkCorrParamHelper(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+
+  if (numOfParams >= 2) {
+    uint8_t optionType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, numOfParams - 1))->type;
+    if (TSDB_DATA_TYPE_VARCHAR != optionType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, "correlation function option should be varchar");
+    }
+
+    SNode* pOption = nodesListGetNode(pFunc->pParameterList, numOfParams - 1);
+    if (QUERY_NODE_VALUE != nodeType(pOption)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, "correlation function option should be value");
+    }
+
+    SValueNode* pValue = (SValueNode*)pOption;
+    if (taosAnalyGetOptStr(pValue->literal, "algo", NULL, 0) != 0) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, "correlation function option should not include algo field");
+    }
+
+    pValue->notReserved = true;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateDtwPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // pseudo column do not need to check parameters
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes,
+                                    .type = TSDB_DATA_TYPE_DOUBLE,
+                                    .precision = pFunc->node.resType.precision};
+
+  return checkCorrParamHelper(pFunc, pErrBuf, len);
+}
+
+static int32_t translateDtwPathPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // pseudo column do not need to check parameters
+  pFunc->node.resType =
+      (SDataType){.bytes = 64, .type = TSDB_DATA_TYPE_VARCHAR, .precision = pFunc->node.resType.precision};
+  return checkCorrParamHelper(pFunc, pErrBuf, len);
+}
+
 static int32_t translateIsFilledPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // pseudo column do not need to check parameters
-
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes, .type = TSDB_DATA_TYPE_BOOL};
   return TSDB_CODE_SUCCESS;
 }
@@ -1484,6 +1545,8 @@ static EFuncReturnRows diffEstReturnRows(SFunctionNode* pFunc) {
                                                                                 : FUNC_RETURN_ROWS_N_MINUS_1;
 }
 
+static EFuncReturnRows fillforwardEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
+
 static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, int32_t minParaNum,
                                    int32_t maxParaNum, bool hasSep) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
@@ -1618,6 +1681,104 @@ static int32_t translateReplace(SFunctionNode* pFunc, char* pErrBuf, int32_t len
   }
   resLen = TMAX(orgLen, orgLen + orgLen / fromLen * (toLen - fromLen));
   pFunc->node.resType = (SDataType){.bytes = resLen, .type = orgType};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateMaskFull(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+
+  uint8_t orgType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  uint8_t maskType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->type;
+  int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
+  int32_t maskLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 1))->bytes;
+
+  if (orgType == TSDB_DATA_TYPE_NCHAR && maskType != orgType) {
+    maskLen = maskLen * TSDB_NCHAR_SIZE;
+  }
+
+  int32_t resLen = TMAX(orgLen, maskLen);
+
+  resLen += VARSTR_HEADER_SIZE;
+  pFunc->node.resType = (SDataType){.bytes = resLen, .type = orgType};
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateMaskAsInputStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+
+  uint8_t orgType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
+
+  orgLen += VARSTR_HEADER_SIZE;
+  pFunc->node.resType = (SDataType){.bytes = orgLen, .type = orgType};
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateOutAes(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+
+  uint8_t orgType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
+
+  orgLen = taes_encrypt_len(orgLen) + VARSTR_HEADER_SIZE;
+
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numOfParams > 2) {
+    int32_t ivlen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 2))->bytes;
+    if (ivlen < 16) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = orgLen, .type = orgType};
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateOutAesDe(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+
+  uint8_t orgType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
+
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numOfParams > 2) {
+    int32_t ivlen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 2))->bytes;
+    if (ivlen < 16) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+  }
+
+  orgLen += VARSTR_HEADER_SIZE;
+  pFunc->node.resType = (SDataType){.bytes = orgLen, .type = orgType};
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateOutSm4(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+
+  uint8_t orgType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
+
+  orgLen = tsm4_encrypt_len(orgLen) + VARSTR_HEADER_SIZE;
+
+  pFunc->node.resType = (SDataType){.bytes = orgLen, .type = orgType};
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateOutSm4De(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+
+  uint8_t orgType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+  int32_t orgLen = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->bytes;
+
+  orgLen += VARSTR_HEADER_SIZE;
+  pFunc->node.resType = (SDataType){.bytes = orgLen, .type = orgType};
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1847,6 +2008,12 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   switch (pFunc->funcType) {
     case FUNCTION_TYPE_MD5:
       bytes = MD5_OUTPUT_LEN + VARSTR_HEADER_SIZE;
+      break;
+    case FUNCTION_TYPE_SHA1:
+      bytes = SHA1_OUTPUT_LEN + VARSTR_HEADER_SIZE;
+      break;
+    case FUNCTION_TYPE_SHA2:
+      bytes = SHA2_OUTPUT_LEN + VARSTR_HEADER_SIZE;
       break;
     case FUNCTION_TYPE_USER:
     case FUNCTION_TYPE_CURRENT_USER:
@@ -2124,7 +2291,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "min",
     .type = FUNCTION_TYPE_MIN,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -2151,7 +2318,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "max",
     .type = FUNCTION_TYPE_MAX,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -2509,7 +2676,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "top",
     .type = FUNCTION_TYPE_TOP,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC |
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC |
                        FUNC_MGT_FORBID_FILL_FUNC | FUNC_MGT_IGNORE_NULL_FUNC,
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 2,
@@ -2544,7 +2711,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "bottom",
     .type = FUNCTION_TYPE_BOTTOM,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC |
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC |
                       FUNC_MGT_FORBID_FILL_FUNC | FUNC_MGT_IGNORE_NULL_FUNC,
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 2,
@@ -3390,7 +3557,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "statecount",
     .type = FUNCTION_TYPE_STATE_COUNT,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC |
                       FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .parameters = {.minParamNum = 3,
                    .maxParamNum = 3,
@@ -3429,7 +3596,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "stateduration",
     .type = FUNCTION_TYPE_STATE_DURATION,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC |
                       FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .parameters = {.minParamNum = 3,
                    .maxParamNum = 4,
@@ -3499,7 +3666,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "mavg",
     .type = FUNCTION_TYPE_MAVG,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC |
                       FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 2,
@@ -3530,7 +3697,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "sample",
     .type = FUNCTION_TYPE_SAMPLE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC |
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC |
                       FUNC_MGT_FORBID_FILL_FUNC,
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 2,
@@ -3561,7 +3728,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "tail",
     .type = FUNCTION_TYPE_TAIL,
-    .classification = FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .classification = FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC |
+                      FUNC_MGT_FORBID_FILL_FUNC,
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 3,
                    .paramInfoPattern = 1,
@@ -3621,7 +3789,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "mode",
     .type = FUNCTION_TYPE_MODE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -5187,7 +5355,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .inputParaInfo[0][0] = {.isLastParam = true,
                                            .startParam = 1,
                                            .endParam = 1,
-                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
@@ -5906,7 +6074,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_irowts_origin",
     .type = FUNCTION_TYPE_IROWTS_ORIGIN,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_INTERP_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_INTERP_PC_FUNC,
     .parameters = {.minParamNum = 0,
                    .maxParamNum = 0,
                    .paramInfoPattern = 0,
@@ -6336,11 +6504,11 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-    .name = "_impmask",
+    .name = "_impmark",
     .type = FUNCTION_TYPE_IMPUTATION_MARK,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_ANALYTICS_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
-    .translateFunc = translateMaskPseudoColumn,
-    .getEnvFunc   = getMaskPseudoFuncEnv,
+    .translateFunc = translateMarkPseudoColumn,
+    .getEnvFunc   = getMarkPseudoFuncEnv,
     .initFunc     = NULL,
     .sprocessFunc = NULL,
     .finalizeFunc = NULL
@@ -6634,9 +6802,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = gconcatFunctionSetup,
     .processFunc  = gconcatFunction,
     .finalizeFunc = gconcatFinalize,
-#ifdef BUILD_NO_CALL
-    .invertFunc   = gconcatInvertFunction,
-#endif
     /*
     .combineFunc  = gconcatCombine, // stream
     .pStateFunc = "group_concat",   // tsma
@@ -6650,14 +6815,433 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .createMergeParaFuc = gconcatCreateMergeParam
   },
   {
-    .name = "_anomalymask",
+    .name = "_anomalymark",
     .type = FUNCTION_TYPE_ANOMALY_MARK,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_ANALYTICS_PC_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
-    .translateFunc = translateMaskPseudoColumn,
-    .getEnvFunc   = getMaskPseudoFuncEnv,
+    .translateFunc = translateMarkPseudoColumn,
+    .getEnvFunc   = getMarkPseudoFuncEnv,
     .initFunc     = NULL,
-    .sprocessFunc = anomalyCheckMaskFunction,
+    .sprocessFunc = anomalyCheckMarkFunction,
     .finalizeFunc = NULL
+  },
+  {
+    .name = "dtw",
+    .type = FUNCTION_TYPE_DTW,
+    .classification = FUNC_MGT_TIMELINE_FUNC | 
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 3,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = -1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
+    .translateFunc = translateDtwPseudoColumn,
+    .getEnvFunc   = getMarkPseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+      {
+    .name = "dtw_path",
+    .type = FUNCTION_TYPE_DTW_PATH,
+    .classification = FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | 
+                      FUNC_MGT_PRIMARY_KEY_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 3,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = -1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
+    .translateFunc = translateDtwPathPseudoColumn,
+    .getEnvFunc   = getMarkPseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+    {
+    .name = "tlcc",
+    .type = FUNCTION_TYPE_TLCC,
+    .classification = FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | 
+                      FUNC_MGT_PRIMARY_KEY_FUNC,
+    .translateFunc = translateDtwPathPseudoColumn,
+    .getEnvFunc   = getMarkPseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    // this function is deprecated and not documented,
+    .name = "generate_totp_secret",
+    .type = FUNCTION_TYPE_GENERATE_TOTP_SECRET,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
+    .translateFunc = translateOutFirstIn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = generateTotpSecretFunction,
+    .finalizeFunc = NULL,
+  },
+  {
+    // this function generates TOTP code based on the TOTP secret,
+    // it is not documented and only used for testing purpose to verify the correctness of TOTP code generation.
+    .name = "generate_totp_code",
+    .type = FUNCTION_TYPE_GENERATE_TOTP_CODE,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
+    .translateFunc = translateOutFirstIn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = generateTotpCodeFunction,
+    .finalizeFunc = NULL,
+  },
+  {
+    .name = "from_base64",
+    .type = FUNCTION_TYPE_FROM_BASE64,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
+    .translateFunc = translateBase64From,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .sprocessFunc = base64FunctionFrom,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "sha",
+    .type = FUNCTION_TYPE_SHA1,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
+    .translateFunc = translateOutVarchar,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .sprocessFunc = shaFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "sha1",
+    .type = FUNCTION_TYPE_SHA1,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
+    .translateFunc = translateOutVarchar,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .sprocessFunc = shaFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "sha2",
+    .type = FUNCTION_TYPE_SHA2,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 2,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = true,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
+    .translateFunc = translateOutVarchar,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .sprocessFunc = sha2Function,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "mask_full",
+    .type = FUNCTION_TYPE_MASK_FULL,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 2,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
+    .translateFunc = translateMaskFull,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = maskFullFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "mask_partial",
+    .type = FUNCTION_TYPE_MASK_PARTIAL,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .parameters = {.minParamNum = 4,
+                   .maxParamNum = 4,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = false,
+                                           .startParam = 2,
+                                           .endParam = 3,
+                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][2] = {.isLastParam = true,
+                                           .startParam = 4,
+                                           .endParam = 4,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
+    .translateFunc = translateMaskAsInputStr,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = maskPartialFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "mask_none",
+    .type = FUNCTION_TYPE_MASK_NONE,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
+    .translateFunc = translateMaskAsInputStr,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = maskNoneFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "aes_encrypt",
+    .type = FUNCTION_TYPE_AES_ENCRYPT,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 3,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = false,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][2] = {.isLastParam = true,
+                                           .startParam = 3,
+                                           .endParam = 3,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
+    .translateFunc = translateOutAes,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .sprocessFunc = aesFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "aes_decrypt",
+    .type = FUNCTION_TYPE_AES_DECRYPT,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 3,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = false,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][2] = {.isLastParam = true,
+                                           .startParam = 3,
+                                           .endParam = 3,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
+    .translateFunc = translateOutAesDe,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .sprocessFunc = aesDeFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "sm4_encrypt",
+    .type = FUNCTION_TYPE_SM4_ENCRYPT,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 2,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = true,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
+    .translateFunc = translateOutSm4,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .sprocessFunc = sm4Function,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "sm4_decrypt",
+    .type = FUNCTION_TYPE_SM4_DECRYPT,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 2,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = true,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
+    .translateFunc = translateOutSm4De,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .sprocessFunc = sm4DeFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "fill_forward",
+    .type = FUNCTION_TYPE_FILL_FORWARD,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_STRING_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE | FUNC_PARAM_SUPPORT_FLOAT_TYPE | FUNC_PARAM_SUPPORT_DOUBLE_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
+    .translateFunc = translateSelectValue,
+    .getEnvFunc   = getFillforwardFuncEnv,
+    .initFunc     = fillforwardFunctionSetup,
+    .processFunc  = fillforwardFunction,
+    .sprocessFunc = fillforwardScalarFunction,
+    .finalizeFunc = functionFinalize,
+    .estimateReturnRowsFunc = fillforwardEstReturnRows,
+    .processFuncByRow  = fillforwardFunctionByRow,
   },
 };
 // clang-format on

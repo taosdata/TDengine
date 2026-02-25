@@ -12,7 +12,6 @@
 	"query_mode": "taosc",
 	"super_table_query": {
 		"stblname": "meters",
-		"query_interval": 1,
 		"threads": 3,
 		"sqls": [
 			{

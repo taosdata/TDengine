@@ -145,4 +145,4 @@ class TestNot:
         self.notConditionTest()
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+

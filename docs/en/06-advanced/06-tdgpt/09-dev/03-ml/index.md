@@ -157,7 +157,7 @@ The model has been preloaded into TDgpt and can be seen in the output of the `SH
 - Set the `algo` parameter in your queries to `sample_ad_model`  to instruct TDgpt to use the new algorithm.
 - Also set the `model` parameter to `sample-ad-autoencoder` to load your pretrained model.
 
-```SQL
+```sql
 --- Detect anomalies in the `foo` table using the `sample_ad_model` algorithm and `sample-ad-autoencoder` model.
 SELECT _wstart, count(*) 
 FROM foo anomaly_window(val, 'algo=sample_ad_model,model=sample-ad-autoencoder');

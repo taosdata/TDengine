@@ -452,6 +452,7 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
 }
 
 void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal, bool keepClosed) {
+  vDebug("vgId:%d, start to close vnode", pVnode->vgId);
   char path[TSDB_FILENAME_LEN] = {0};
   bool atExit = true;
 

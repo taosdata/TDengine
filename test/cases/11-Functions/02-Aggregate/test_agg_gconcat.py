@@ -36,6 +36,7 @@ class TestFuncGconcat:
         tdSql.prepare(db, drop=True)
         tdSql.execute(f"use {db}")
         tdSql.execute(f"create table {tb} (ts timestamp, tbcol varchar(10))")
+        tdSql.execute(f"CREATE STABLE s_ptr_data (ts TIMESTAMP, test_value DOUBLE, test_flag INT, hi_limit DOUBLE, lo_limit DOUBLE) TAGS (factory VARCHAR(32), fileid VARCHAR(64), testnum INT, testtxt VARCHAR(256), headnum INT, sitenum INT, productid VARCHAR(64), lotid VARCHAR(64), sublotid VARCHAR(64), jobname VARCHAR(128), flowid VARCHAR(32), datatype VARCHAR(10), nodename VARCHAR(32))")
 
         x = 0
         while x < rowNum:
@@ -49,3 +50,6 @@ class TestFuncGconcat:
         tdLog.info(f"===> {tdSql.getData(0,0)}")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, '0?1?2?3?4?5?6?7?8?9')
+
+        tdSql.query(f"SELECT _wstart as ws, AVG(test_value) as avg_test_value, GROUP_CONCAT(CAST(test_value AS VARCHAR) , ',') FROM s_ptr_data PARTITION BY lotId, subLotId, headNum, siteNum, jobName, testTxt, testNum count_window(100) ;")
+        tdSql.checkRows(0)

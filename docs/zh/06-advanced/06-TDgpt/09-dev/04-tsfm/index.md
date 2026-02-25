@@ -12,16 +12,19 @@ TDgpt 在 3.3.6.4 版本原生支持六种类型的时序基础模型：涛思�
 
 <table>
 <tr><th rowspan="2">模型</th> <th rowspan="2">文件</th> <th colspan="3">模型说明</th><th colspan="4">功能说明</th></tr>
-<tr><th>名称</th><th>参数 (亿)</th><th>大小 (MiB)</th><th>单变量预测</th><th>协变量预测</th><th>多变量预测</th><th>异常检测</th></tr>
-<tr><th rowspan="2">timemoe</th><th rowspan="2">timemoe-server.py</th><th>Maple728/TimeMoE-50M</th><th>0.50</th><th align="right">227</th><th rowspan="2">✔</th><th rowspan="2">✘</th><th rowspan="2">✘</th><th rowspan="2">✘</th></tr>
+<tr><th>名称</th><th>参数 (亿)</th><th>大小 (MiB)</th><th>单变量预测</th><th>协变量预测</th><th>多变量预测</th><th>异常检测</th><th>补值</th></tr>
+<tr><th rowspan="2">timemoe</th><th rowspan="2">timemoe-server.py</th><th>Maple728/TimeMoE-50M</th><th>0.50</th><th align="right">227</th><th rowspan="2">✔</th><th rowspan="2">✘</th><th rowspan="2">✘</th><th rowspan="2">✘</th><th rowspan="2">✘</th></tr>
 <tr><th>Maple728/TimeMoE-200M</th><th>4.53</th><th align="right">906</th></tr>
-<tr><th rowspan="2">moirai</th><th rowspan="2">moirai-server.py</th><th>Salesforce/moirai-moe-1.0-R-small</th><th>1.17</th><th align="right">469</th><th rowspan="2">✔</th><th rowspan="2">✔</th><th rowspan="2">✘</th><th rowspan="2">✘</th></tr>
+<tr><th rowspan="2">moirai</th><th rowspan="2">moirai-server.py</th><th>Salesforce/moirai-moe-1.0-R-small</th><th>1.17</th><th align="right">469</th><th rowspan="2">✔</th><th rowspan="2">✔</th><th rowspan="2">✘</th><th rowspan="2">✘</th><th rowspan="2">✘</th></tr>
 <tr><th>Salesforce/moirai-moe-1.0-R-base</th><th>9.35</th><th align="right">3,740</th></tr>
-<tr><th rowspan="4">chronos</th><th rowspan="4">chronos-server.py</th><th>amazon/chronos-bolt-tiny</th><th>0.09</th><th align="right">35</th><th rowspan="4">✔</th><th rowspan="4">✘</th><th rowspan="4">✘</th><th rowspan="4">✘</th></tr>
+<tr><th rowspan="4">chronos</th><th rowspan="4">chronos-server.py</th><th>amazon/chronos-bolt-tiny</th><th>0.09</th><th align="right">35</th><th rowspan="4">✔</th><th rowspan="4">✘</th><th rowspan="4">✘</th><th rowspan="4">✘</th><th rowspan="4">✘</th></tr>
 <tr><th>amazon/chronos-bolt-mini</th><th>0.21</th><th align="right">85</th></tr>
 <tr><th>amazon/chronos-bolt-small</th><th>0.48</th><th align="right">191</th></tr>
 <tr><th>amazon/chronos-bolt-base</th><th>2.05</th><th align="right">821</th></tr>
-<tr><th>timesfm</th><th>timesfm-server.py</th><th>google/timesfm-2.0-500m-pytorch</th><th>4.99</th><th align="right">2,000</th><th>✔</th><th>✘</th><th>✘</th><th>✘</th></tr>
+<tr><th>timesfm</th><th>timesfm-server.py</th><th>google/timesfm-2.0-500m-pytorch</th><th>4.99</th><th align="right">2,000</th><th>✔</th><th>✘</th><th>✘</th><th>✘</th><th>✘</th></tr>
+<tr><th rowspan="3">moment</th><th rowspan="3">moment-server.py</th><th>AutonLab/MOMENT-1-small</th><th>0.38</th><th align="right">152</th><th rowspan="3">✘</th><th rowspan="3">✘</th><th rowspan="3">✘</th><th rowspan="4">✘</th><th rowspan="3">✔</th></tr>
+<tr><th>AutonLab/MOMENT-1-base</th><th>1.13</th><th align="right">454</th></tr>
+<tr><th>AutonLab/MOMENT-1-large</th><th>3.46</th><th align="right">1,039</th></tr>
 </table>
 
 本章将以支持 time-moe 模型为例，说明如何将一个独立部署的 MaaS 服务整合到 TDgpt 中，并通过 SQL 语句调用其时序数据分析能力。
@@ -32,7 +35,7 @@ TDgpt 在 3.3.6.4 版本原生支持六种类型的时序基础模型：涛思�
 
 为了使用时间序列基础模型，需要在本地部署环境支持其运行。首先需要准备一个虚拟的 Python 环境，使用 `pip` 安装必要的依赖包：
 
-```shell
+```bash
 pip install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
 pip install flask==3.0.3
 pip install transformers==4.40.0
@@ -41,7 +44,7 @@ pip install accelerate
 
 > 脚本中安装了 CPU 驱动版本的 PyTorch，如果您服务是部署在具有 GPU 的服务器上，可以在虚拟环境中安装支持 GPU 加速的 PyTorch。例如：
 
-```shell
+```bash
 pip install torch==2.3.1 -f https://download.pytorch.org/whl/torch_stable.html
 ```
 
@@ -73,7 +76,7 @@ def time_moe():
 
 # 启动 Python 脚本
 
-```shell
+```bash
 nohup python timemoe-server.py > service_output.out 2>&1 &
 ```
 
@@ -83,7 +86,7 @@ nohup python timemoe-server.py > service_output.out 2>&1 &
 
 如果加载失败，请尝试执行如下命令切换为国内镜像下载模型。
 
-```shell
+```bash
 export HF_ENDPOINT=https://hf-mirror.com
 ```
 
@@ -100,7 +103,7 @@ Running on http://127.0.0.1:6037
 
 使用 Shell 命令可以验证服务是否正常
 
-```shell
+```bash
 curl 127.0.0.1:6037/ds_predict
 ```
 
@@ -180,7 +183,7 @@ chronos, timesfm, chronos 时序基础服务，适配文件已经默认提供，
 
 为避免依赖库冲突，建议准备干净的 python 虚拟环境，在虚拟环境中安装依赖库。
 
-```shell
+```bash
 pip install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
 pip install uni2ts
 pip install flask
@@ -201,7 +204,7 @@ pretrained_model = MoiraiMoEModule.from_pretrained(
 
 执行命令启动服务，首次启动会自动下载模型文件，如果下载速度太慢，可使用国内镜像（设置置方式见上）。
 
-```shell
+```bash
 nohup python moirai-server.py > service_output.out 2>&1 &
 ```
 
@@ -211,7 +214,7 @@ nohup python moirai-server.py > service_output.out 2>&1 &
 
 在干净的 python 虚拟环境中安装依赖库。
 
-```shell
+```bash
 pip install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
 pip install chronos-forecasting
 pip install flask
@@ -247,7 +250,7 @@ model = BaseChronosPipeline.from_pretrained(
 
 在 shell 中执行命令，启动服务。
 
-```shell
+```bash
 nohup python chronos-server.py > service_output.out 2>&1 &
 ```
 
@@ -255,7 +258,7 @@ nohup python chronos-server.py > service_output.out 2>&1 &
 
 在干净的 python 虚拟环境中安装依赖库。
 
-```shell
+```bash
 pip install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
 pip install timesfm
 pip install jax
@@ -264,7 +267,7 @@ pip install flask==3.0.3
 
 调整 timesfm-server.py 文件中设置服务地址（如果需要）。然后执行下述命令启动服务。
 
-```shell
+```bash
 nohup python timesfm-server.py > service_output.out 2>&1 &
 ```
 
@@ -272,7 +275,7 @@ nohup python timesfm-server.py > service_output.out 2>&1 &
 
 在干净的 python 虚拟环境中安装依赖库。
 
-```shell
+```bash
 pip install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
 pip install transformers==4.33.3
 pip install numpy==1.25.2
@@ -285,9 +288,51 @@ pip install momentfm
 
 调整 moment-server.py 文件中设置服务地址（如果需要）。然后执行下述命令启动服务。
 
-```shell
+```bash
 nohup python moment-server.py > service_output.out 2>&1 &
 ```
+
+## 时序模型服务启动和停止脚本
+
+为了方便用户启动和停止时序基础模型服务，TDgpt 在 3.4.0.0 及之后的版本提供了统一的启动脚本 `start-model.sh` 和停止脚本 `stop-model.sh`，用于一键启动或停止指定或全部时序基础模型服务。
+
+### 启动脚本
+
+`start-model.sh` 脚本用于启动指定或全部的时序基础模型服务。该脚本会根据用户指定的模型名称，加载对应的`Python`虚拟环境，并启动相应的模型服务脚本。
+
+使用`root` 安装完成后，您可以在 `<tdgpt根目录>/bin/` 目录下找到该脚本，我们会同步创建软链接为 `/usr/bin/start-model`，方便全局使用。
+
+默认日志输出到 `/var/log/taos/taosanode/` 目录下的 `taosanode_service_<model_name>.log` 文件中。
+
+**用法说明**：
+
+```bash
+用法：/usr/bin/start-model [-c 配置文件] [模型名|all] [其他参数...]
+
+支持的模型名：tdtsfm, timesfm, timemoe, moirai, chronos, moment
+```
+
+**选项说明**：
+
+```bash
+  -c 配置文件    指定配置文件（默认：/etc/taos/taosanode.ini）
+  -h, --help     显示本帮助信息
+```
+
+**使用示例说明**：
+
+1. 在后台启动全部的模型服务：`/usr/bin/start-model all`
+2. 单独启动某个模型服务，例如：`/usr/bin/start-model timesfm`
+3. 支持通过 `-c` 参数指定自定义配置文件，未指定时默认使用`/etc/taos/taosanode.ini` 作为配置文件，例如：`/usr/bin/start-model -c /path/to/custom_taosanode.ini`
+
+### 停止脚本
+
+`stop-model.sh`用于一键停止指定或全部时序基础模型服务。脚本会自动查找并终止对应模型的`Python`进程，使用方式与启动脚本一致，便于批量运维。
+
+**使用示例说明**：
+
+1. 停止 timesfm 服务，`/usr/bin/stop-model timesfm`
+2. 一键停止全部模型服务`/usr/bin/stop-model all`
 
 ## 动态下载时序模型
 
@@ -295,8 +340,17 @@ nohup python moment-server.py > service_output.out 2>&1 &
 
 此外，如果您手动在本地下载了模型文件，可以通过指定本地模型文件路径的方式，运行已经下载完成的模型。
 
-```shell
+```bash
 # 运行在本地目录 /var/lib/taos/taosanode/model/chronos 的 chronos-bolt-tiny 模型文件，如果指定目录不存在，则自动下载模型文件到  /var/lib/taos/taosanode/model/chronos 目录下。第三个参数是下载模型文件的时候时候打开镜像，推荐国内用户打开该选项
 python chronos-server.py /var/lib/taos/taosanode/model/chronos/ amazon/chronos-bolt-tiny True
 
 ```
+
+## 时序基础模型 transformers 版本要求
+
+| 模型名称        | transformers 版本 |
+|-------------|----------------------|
+| time-moe、moirai、tdtsfm      | 4.40 |
+| chronos    | 4.55                                 |
+| moment   | 4.33                            |
+| timesfm        | N/A                               |

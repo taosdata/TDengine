@@ -413,15 +413,21 @@ static const char* cacheModelStr(int8_t cacheModel) {
   return TSDB_CACHE_MODEL_NONE_STR;
 }
 
-static const char* encryptAlgorithmStr(int8_t encryptAlgorithm) {
-  switch (encryptAlgorithm) {
-    case TSDB_ENCRYPT_ALGO_NONE:
-      return TSDB_ENCRYPT_ALGO_NONE_STR;
-    case TSDB_ENCRYPT_ALGO_SM4:
-      return TSDB_ENCRYPT_ALGO_SM4_STR;
-    default:
-      break;
+static const char* encryptAlgorithmStr(int8_t encryptAlgorithm, char* algorithmsId) {
+  if (algorithmsId[0] != '\0') {
+    return algorithmsId;
+  } else if (encryptAlgorithm != 0) {
+    switch (encryptAlgorithm) {
+      case TSDB_ENCRYPT_ALGO_NONE:
+        return TSDB_ENCRYPT_ALGO_NONE_STR;
+      case TSDB_ENCRYPT_ALGO_SM4:
+        return TSDB_ENCRYPT_ALGO_SM4_STR;
+      default:
+        break;
+    }
+    return TSDB_CACHE_MODEL_NONE_STR;
   }
+
   return TSDB_CACHE_MODEL_NONE_STR;
 }
 
@@ -499,22 +505,22 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
                      "CREATE DATABASE `%s`", dbName);
   } else {
-    len +=
-        tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
-                  "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' COMP %d DURATION %s "
-                  "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d STT_TRIGGER %d KEEP %s,%s,%s PAGES %d PAGESIZE %d "
-                  "PRECISION '%s' REPLICA %d "
-                  "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d TABLE_PREFIX %d TABLE_SUFFIX %d TSDB_PAGESIZE %d "
-                  "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64
-                  " KEEP_TIME_OFFSET %d ENCRYPT_ALGORITHM '%s' SS_CHUNKPAGES %d SS_KEEPLOCAL %dm SS_COMPACT %d "
-                  "COMPACT_INTERVAL %s COMPACT_TIME_RANGE %s,%s COMPACT_TIME_OFFSET %"PRIi8 "h",
-                  dbName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression, durationStr,
-                  pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows, pCfg->sstTrigger, keep0Str, keep1Str, keep2Str,
-                  pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->walLevel, pCfg->numOfVgroups,
-                  1 == pCfg->numOfStables, hashPrefix, pCfg->hashSuffix, pCfg->tsdbPageSize, pCfg->walRetentionPeriod,
-                  pCfg->walRetentionSize, pCfg->keepTimeOffset, encryptAlgorithmStr(pCfg->encryptAlgorithm),
-                  pCfg->ssChunkSize, pCfg->ssKeepLocal, pCfg->ssCompact, compactIntervalStr, compactStartTimeStr,
-                  compactEndTimeStr, pCfg->compactTimeOffset);
+    len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
+                     "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' COMP %d DURATION %s "
+                     "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d STT_TRIGGER %d KEEP %s,%s,%s PAGES %d PAGESIZE %d "
+                     "PRECISION '%s' REPLICA %d "
+                     "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d TABLE_PREFIX %d TABLE_SUFFIX %d TSDB_PAGESIZE %d "
+                     "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64
+                     " KEEP_TIME_OFFSET %d ENCRYPT_ALGORITHM '%s' SS_CHUNKPAGES %d SS_KEEPLOCAL %dm SS_COMPACT %d "
+                     "COMPACT_INTERVAL %s COMPACT_TIME_RANGE %s,%s COMPACT_TIME_OFFSET %" PRIi8 "h IS_AUDIT %d",
+                     dbName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression,
+                     durationStr, pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows, pCfg->sstTrigger, keep0Str,
+                     keep1Str, keep2Str, pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->walLevel,
+                     pCfg->numOfVgroups, 1 == pCfg->numOfStables, hashPrefix, pCfg->hashSuffix, pCfg->tsdbPageSize,
+                     pCfg->walRetentionPeriod, pCfg->walRetentionSize, pCfg->keepTimeOffset,
+                     encryptAlgorithmStr(pCfg->encryptAlgr, pCfg->algorithmsId), pCfg->ssChunkSize, pCfg->ssKeepLocal,
+                     pCfg->ssCompact, compactIntervalStr, compactStartTimeStr, compactEndTimeStr,
+                     pCfg->compactTimeOffset, pCfg->isAudit);
 
     if (pRetentions) {
       len += tsnprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
@@ -646,6 +652,7 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
 
 static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
   char expandName[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
+  bool firstRef = true;
   for (int32_t i = 1; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
     SColRef* pRef = pCfg->pColRefs + i;
@@ -663,8 +670,11 @@ static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
     }
 
     *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                      "%s`%s` %s", ((i > 1) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type);
-
+                      "%s`%s` %s", (!firstRef ? ", " : " ("), expandIdentifier(pSchema->name, expandName), type);
+    firstRef = false;
+  }
+  if (!firstRef) {
+    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len), ")");
   }
 }
 
@@ -933,10 +943,10 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
         snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
   } else if (TSDB_VIRTUAL_CHILD_TABLE == pCfg->tableType) {
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
-                     "CREATE VTABLE `%s` (", expandIdentifier(tbName, buf1));
+                     "CREATE VTABLE `%s`", expandIdentifier(tbName, buf1));
     appendColRefFields(buf2, &len, pCfg);
     len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
-                    ") USING `%s` (", expandIdentifier(pCfg->stbName, buf1));
+                    " USING `%s` (", expandIdentifier(pCfg->stbName, buf1));
     appendTagNameFields(buf2, &len, pCfg);
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
                      ") TAGS (");

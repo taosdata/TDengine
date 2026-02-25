@@ -755,4 +755,4 @@ class TestFunMavg:
             traceback.print_exc()
             raise e
 
-        tdLog.success("%s successfully executed" % __file__)
+

@@ -3,6 +3,9 @@ title: Client Libraries
 slug: /tdengine-reference/client-libraries
 ---
 
+import DocCardList from '@theme/DocCardList';
+import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
+
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import InstallOnLinux from "../../assets/resources/_linux_install.mdx";
@@ -100,9 +103,4 @@ After completing the above installation and configuration, and confirming that t
   </TabItem>
 </Tabs>
 
-```mdx-code-block
-import DocCardList from '@theme/DocCardList';
-import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
-
 <DocCardList items={useCurrentSidebarCategory().items}/>
-```

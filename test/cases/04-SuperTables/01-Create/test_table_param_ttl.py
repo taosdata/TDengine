@@ -112,4 +112,4 @@ class TestTableParamTtl:
         self.ttl_check_ntb()
         self.ttl_check_ctb()
         self.ttl_check_insert()
-        tdLog.success(f"{__file__} successfully executed")
+

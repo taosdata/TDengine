@@ -57,7 +57,7 @@
 #define NEED_CALC_COUNT            UINT64_MAX
 #define HUMAN_TIME_LEN             60
 #define DUMP_DIR_LEN               (MAX_DIR_LEN - (TSDB_DB_NAME_LEN + 10))
-#define TSDB_USET_PASSWORD_LONGLEN 256  // come from tdef.h
+#define TSDB_USER_PASSWORD_LONGLEN 256  // come from tdef.h
 #define ITEM_SPACE                 50
 #define NTABLE_FOLDER              "data0-0"
 
@@ -203,6 +203,7 @@ typedef struct {
 
 typedef struct {
     char name[TSDB_TABLE_NAME_LEN+1];
+    bool isVirtual;
     int columns;
     int tags;
     ColDes cols[];
@@ -408,7 +409,7 @@ typedef struct arguments {
     // connection option
     char    *host;
     char    *user;
-    char     password[TSDB_USET_PASSWORD_LONGLEN];
+    char     password[TSDB_USER_PASSWORD_LONGLEN];
     uint16_t port;
     // strlen(taosdump.) +1 is 10
     char     outpath[DUMP_DIR_LEN];

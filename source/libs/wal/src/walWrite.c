@@ -574,7 +574,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   char   *newBody = NULL;
   char   *newBodyEncrypted = NULL;
 
-  if (pWal->cfg.encryptAlgorithm == DND_CA_SM4) {
+  if (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
     cyptedBodyLen = ENCRYPTED_LEN(cyptedBodyLen);
 
     newBody = taosMemoryMalloc(cyptedBodyLen);
@@ -593,16 +593,17 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
       TAOS_CHECK_GOTO(terrno, &lino, _exit);
     }
 
-    SCryptOpts opts;
+    SCryptOpts opts = {0};
     opts.len = cyptedBodyLen;
     opts.source = newBody;
     opts.result = newBodyEncrypted;
     opts.unitLen = 16;
-    tstrncpy((char *)opts.key, pWal->cfg.encryptKey, ENCRYPT_KEY_LEN + 1);
+    opts.pOsslAlgrName = pWal->cfg.encryptData.encryptAlgrName;
+    tstrncpy((char *)opts.key, pWal->cfg.encryptData.encryptKey, ENCRYPT_KEY_LEN + 1);
 
     int32_t count = CBC_Encrypt(&opts);
-
-    // wDebug("vgId:%d, file:%" PRId64 ".log, index:%" PRId64 ", CBC_Encrypt cryptedBodyLen:%d, plainBodyLen:%d, %s",
+    if (count != opts.len) TAOS_CHECK_GOTO(terrno, &lino, _exit);
+    // wDebug("vgId:%d, file:%" PRId64 ".log, index:%" PRId64 ", CBC Encrypt cryptedBodyLen:%d, plainBodyLen:%d, %s",
     //       pWal->cfg.vgId, walGetLastFileFirstVer(pWal), index, count, plainBodyLen, __FUNCTION__);
 
     buf = newBodyEncrypted;
@@ -613,7 +614,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     wGError(trace, "vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId,
             walGetLastFileFirstVer(pWal), strerror(ERRNO));
 
-    if (pWal->cfg.encryptAlgorithm == DND_CA_SM4) {
+    if (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
       taosMemoryFreeClear(newBody);
       taosMemoryFreeClear(newBodyEncrypted);
     }
@@ -623,7 +624,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
-  if (pWal->cfg.encryptAlgorithm == DND_CA_SM4) {
+  if (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
     taosMemoryFreeClear(newBody);
     taosMemoryFreeClear(newBodyEncrypted);
   }

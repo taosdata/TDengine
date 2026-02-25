@@ -57,7 +57,10 @@ const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                    .ssChunkSize = TSDB_DEFAULT_SS_CHUNK_SIZE,
                                    .ssKeepLocal = TSDB_DEFAULT_SS_KEEP_LOCAL,
                                    .ssCompact = TSDB_DEFAULT_SS_COMPACT,
-                                   .tsdbPageSize = TSDB_DEFAULT_PAGE_SIZE};
+                                   .tsdbPageSize = TSDB_DEFAULT_PAGE_SIZE,
+                                   .isAudit = 0,
+                                   .allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP,
+                                  };
 
 int vnodeCheckCfg(const SVnodeCfg *pCfg) {
   // TODO
@@ -117,6 +120,8 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "ssKeepLocal", pCfg->ssKeepLocal));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "ssCompact", pCfg->ssCompact));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "tsdbPageSize", pCfg->tsdbPageSize));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "isAudit", pCfg->isAudit));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "allowDrop", pCfg->allowDrop));
   if (pCfg->tsdbCfg.retentions[0].keep > 0) {
     int32_t nRetention = 1;
     if (pCfg->tsdbCfg.retentions[1].freq > 0) {
@@ -140,7 +145,8 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
       TAOS_CHECK_RETURN(tjsonAddItemToArray(pNodeRetentions, pNodeRetention));
     }
   }
-  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "tsdb.encryptAlgorithm", pCfg->tsdbCfg.encryptAlgorithm));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "tsdb.encryptAlgorithm", pCfg->tsdbCfg.encryptAlgr));
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, "tsdb.encryptAlgrName", pCfg->tsdbCfg.encryptData.encryptAlgrName));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "wal.vgId", pCfg->walCfg.vgId));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "wal.fsyncPeriod", pCfg->walCfg.fsyncPeriod));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "wal.retentionPeriod", pCfg->walCfg.retentionPeriod));
@@ -149,8 +155,10 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "wal.segSize", pCfg->walCfg.segSize));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "wal.level", pCfg->walCfg.level));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "wal.clearFiles", pCfg->walCfg.clearFiles));
-  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "wal.encryptAlgorithm", pCfg->walCfg.encryptAlgorithm));
-  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "tdbEncryptAlgorithm", pCfg->tdbEncryptAlgorithm));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "wal.encryptAlgorithm", pCfg->walCfg.encryptAlgr));
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, "wal.encryptAlgrName", pCfg->walCfg.encryptData.encryptAlgrName));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "tdbEncryptAlgorithm", pCfg->tdbEncryptAlgr));
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, "tdbEncryptAlgrName", pCfg->tdbEncryptData.encryptAlgrName));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "sstTrigger", pCfg->sttTrigger));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "hashBegin", pCfg->hashBegin));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "hashEnd", pCfg->hashEnd));
@@ -262,14 +270,19 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     tjsonGetNumberValue(pNodeRetention, "keepUnit", (pCfg->tsdbCfg.retentions)[i].keepUnit, code);
     if (code) return code;
   }
-  tjsonGetNumberValue(pJson, "tsdb.encryptAlgorithm", pCfg->tsdbCfg.encryptAlgorithm, code);
+  tjsonGetNumberValue(pJson, "tsdb.encryptAlgorithm", pCfg->tsdbCfg.encryptAlgr, code);
   if (code) return code;
+  code = tjsonGetStringValue(pJson, "tsdb.encryptAlgrName", pCfg->tsdbCfg.encryptData.encryptAlgrName);
+  if (code) return code;
+  if (pCfg->tsdbCfg.encryptAlgr == DND_CA_SM4 && pCfg->tsdbCfg.encryptData.encryptAlgrName[0] == '\0') {
+    tstrncpy(pCfg->tsdbCfg.encryptData.encryptAlgrName, TSDB_ENCRYPT_ALGR_SM4_NAME, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  }
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
-  if (pCfg->tsdbCfg.encryptAlgorithm == DND_CA_SM4) {
-    if (tsEncryptKey[0] == 0) {
+  if (pCfg->tsdbCfg.encryptAlgr == DND_CA_SM4 || pCfg->tsdbCfg.encryptData.encryptAlgrName[0] != '\0') {
+    if (tsDataKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
-      tstrncpy(pCfg->tsdbCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+      tstrncpy(pCfg->tsdbCfg.encryptData.encryptKey, tsDataKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif
@@ -289,25 +302,35 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code) return code;
   tjsonGetNumberValue(pJson, "wal.clearFiles", pCfg->walCfg.clearFiles, code);
   if (code) return code;
-  tjsonGetNumberValue(pJson, "wal.encryptAlgorithm", pCfg->walCfg.encryptAlgorithm, code);
+  tjsonGetNumberValue(pJson, "wal.encryptAlgorithm", pCfg->walCfg.encryptAlgr, code);
   if (code) return code;
+  code = tjsonGetStringValue(pJson, "wal.encryptAlgrName", pCfg->walCfg.encryptData.encryptAlgrName);
+  if (code) return code;
+  if (pCfg->walCfg.encryptAlgr == DND_CA_SM4 && pCfg->walCfg.encryptData.encryptAlgrName[0] == '\0') {
+    tstrncpy(pCfg->walCfg.encryptData.encryptAlgrName, TSDB_ENCRYPT_ALGR_SM4_NAME, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  }
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
-  if (pCfg->walCfg.encryptAlgorithm == DND_CA_SM4) {
-    if (tsEncryptKey[0] == 0) {
+  if (pCfg->walCfg.encryptAlgr == DND_CA_SM4 || pCfg->walCfg.encryptData.encryptAlgrName[0] != '\0') {
+    if (tsDataKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
-      tstrncpy(pCfg->walCfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+      tstrncpy(pCfg->walCfg.encryptData.encryptKey, tsDataKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif
-  tjsonGetNumberValue(pJson, "tdbEncryptAlgorithm", pCfg->tdbEncryptAlgorithm, code);
+  tjsonGetNumberValue(pJson, "tdbEncryptAlgorithm", pCfg->tdbEncryptAlgr, code);
   if (code) return code;
+  code = tjsonGetStringValue(pJson, "tdbEncryptAlgrName", pCfg->tdbEncryptData.encryptAlgrName);
+  if (code) return code;
+  if (pCfg->tdbEncryptAlgr == DND_CA_SM4 && pCfg->tdbEncryptData.encryptAlgrName[0] == '\0') {
+    tstrncpy(pCfg->tdbEncryptData.encryptAlgrName, TSDB_ENCRYPT_ALGR_SM4_NAME, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  }
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
-  if (pCfg->tdbEncryptAlgorithm == DND_CA_SM4) {
-    if (tsEncryptKey[0] == 0) {
+  if (pCfg->tdbEncryptData.encryptAlgrName[0] != '\0') {
+    if (tsDataKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
-      tstrncpy(pCfg->tdbEncryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+      tstrncpy(pCfg->tdbEncryptData.encryptKey, tsDataKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif
@@ -378,6 +401,19 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "tsdbPageSize", pCfg->tsdbPageSize, code);
   if (code < 0 || pCfg->tsdbPageSize < TSDB_MIN_PAGESIZE_PER_VNODE * 1024) {
     pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE * 1024;
+  }
+  tjsonGetNumberValue(pJson, "isAudit", pCfg->isAudit, code);
+  if (pCfg->isAudit < TSDB_MIN_DB_IS_AUDIT || pCfg->isAudit > TSDB_MAX_DB_IS_AUDIT) {
+    pCfg->isAudit = 0;
+  }
+  if (tjsonGetObjectItem(pJson, "allowDrop") == NULL) {
+    pCfg->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
+  } else {
+    tjsonGetNumberValue(pJson, "allowDrop", pCfg->allowDrop, code);
+  }
+
+  if (pCfg->allowDrop < TSDB_MIN_DB_ALLOW_DROP || pCfg->allowDrop > TSDB_MAX_DB_ALLOW_DROP) {
+    pCfg->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
 
   if (tjsonGetObjectItem(pJson, "ssChunkSize") != NULL) {

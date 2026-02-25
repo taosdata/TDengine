@@ -1,0 +1,1428 @@
+
+taos> use db1;
+Database changed.
+
+taos> select 1 IN (select ts from tba) from tba order by 1;
+ 1 in (select ts from tba) |
+============================
+ false                     |
+ false                     |
+ false                     |
+
+taos> select 1 IN (select f1 from tba) from tba order by 1;
+ 1 in (select f1 from tba) |
+============================
+ false                     |
+ false                     |
+ false                     |
+
+taos> select 1 IN (select f2 from tba) from tba order by 1;
+ 1 in (select f2 from tba) |
+============================
+ true                      |
+ true                      |
+ true                      |
+
+taos> select 1 IN (select f3 from tba) from tba order by 1;
+ 1 in (select f3 from tba) |
+============================
+ true                      |
+ true                      |
+ true                      |
+
+taos> select 1 IN (select f4 from tba) from tba order by 1;
+ 1 in (select f4 from tba) |
+============================
+ true                      |
+ true                      |
+ true                      |
+
+taos> select 1 IN (select f5 from tba) from tba order by 1;
+ 1 in (select f5 from tba) |
+============================
+ true                      |
+ true                      |
+ true                      |
+
+taos> select 1 IN (select f6 from tba) from tba order by 1;
+ 1 in (select f6 from tba) |
+============================
+ false                     |
+ false                     |
+ false                     |
+
+taos> select 1 IN (select f7 from tba) from tba order by 1;
+ 1 in (select f7 from tba) |
+============================
+ true                      |
+ true                      |
+ true                      |
+
+taos> select 1.0 IN (select ts from tba) from tba order by 1;
+ 1.0 in (select ts from tba) |
+==============================
+ false                       |
+ false                       |
+ false                       |
+
+taos> select 1.0 IN (select f1 from tba) from tba order by 1;
+ 1.0 in (select f1 from tba) |
+==============================
+ false                       |
+ false                       |
+ false                       |
+
+taos> select 1.0 IN (select f2 from tba) from tba order by 1;
+ 1.0 in (select f2 from tba) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+
+taos> select 1.0 IN (select f3 from tba) from tba order by 1;
+ 1.0 in (select f3 from tba) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+
+taos> select 1.0 IN (select f4 from tba) from tba order by 1;
+ 1.0 in (select f4 from tba) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+
+taos> select 1.0 IN (select f5 from tba) from tba order by 1;
+ 1.0 in (select f5 from tba) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+
+taos> select 1.0 IN (select f6 from tba) from tba order by 1;
+ 1.0 in (select f6 from tba) |
+==============================
+ false                       |
+ false                       |
+ false                       |
+
+taos> select 1.0 IN (select f7 from tba) from tba order by 1;
+ 1.0 in (select f7 from tba) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+
+taos> select 'a' IN (select ts from tba) from tba order by 1;
+
+DB error: Invalid timestamp format [0x80000127] 
+taos> select 'a' IN (select f1 from tba) from tba order by 1;
+ 'a' in (select f1 from tba) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+
+taos> select 'a' IN (select f2 from tba) from tba order by 1;
+ 'a' in (select f2 from tba) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+
+taos> select 'a' IN (select f3 from tba) from tba order by 1;
+ 'a' in (select f3 from tba) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+
+taos> select 'a' IN (select f4 from tba) from tba order by 1;
+ 'a' in (select f4 from tba) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+
+taos> select 'a' IN (select f5 from tba) from tba order by 1;
+ 'a' in (select f5 from tba) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+
+taos> select 'a' IN (select f6 from tba) from tba order by 1;
+ 'a' in (select f6 from tba) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+
+taos> select 'a' IN (select f7 from tba) from tba order by 1;
+ 'a' in (select f7 from tba) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+
+taos> select '0' IN (select ts from tba) from tba order by 1;
+
+DB error: Invalid timestamp format [0x80000127] 
+taos> select '0' IN (select f1 from tba) from tba order by 1;
+ '0' in (select f1 from tba) |
+==============================
+ false                       |
+ false                       |
+ false                       |
+
+taos> select '0' IN (select f2 from tba) from tba order by 1;
+ '0' in (select f2 from tba) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+
+taos> select '0' IN (select f3 from tba) from tba order by 1;
+ '0' in (select f3 from tba) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+
+taos> select '0' IN (select f4 from tba) from tba order by 1;
+ '0' in (select f4 from tba) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+
+taos> select '0' IN (select f5 from tba) from tba order by 1;
+ '0' in (select f5 from tba) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+
+taos> select '0' IN (select f6 from tba) from tba order by 1;
+ '0' in (select f6 from tba) |
+==============================
+ false                       |
+ false                       |
+ false                       |
+
+taos> select '0' IN (select f7 from tba) from tba order by 1;
+ '0' in (select f7 from tba) |
+==============================
+ true                        |
+ true                        |
+ true                        |
+
+taos> select false IN (select ts from tba) from tba order by 1;
+ false in (select ts from tba) |
+================================
+ false                         |
+ false                         |
+ false                         |
+
+taos> select false IN (select f1 from tba) from tba order by 1;
+ false in (select f1 from tba) |
+================================
+ true                          |
+ true                          |
+ true                          |
+
+taos> select false IN (select f2 from tba) from tba order by 1;
+ false in (select f2 from tba) |
+================================
+ true                          |
+ true                          |
+ true                          |
+
+taos> select false IN (select f3 from tba) from tba order by 1;
+ false in (select f3 from tba) |
+================================
+ true                          |
+ true                          |
+ true                          |
+
+taos> select false IN (select f4 from tba) from tba order by 1;
+ false in (select f4 from tba) |
+================================
+ true                          |
+ true                          |
+ true                          |
+
+taos> select false IN (select f5 from tba) from tba order by 1;
+ false in (select f5 from tba) |
+================================
+ true                          |
+ true                          |
+ true                          |
+
+taos> select false IN (select f6 from tba) from tba order by 1;
+ false in (select f6 from tba) |
+================================
+ true                          |
+ true                          |
+ true                          |
+
+taos> select false IN (select f7 from tba) from tba order by 1;
+ false in (select f7 from tba) |
+================================
+ true                          |
+ true                          |
+ true                          |
+
+taos> select f1 IN (select ts from tba) from tba order by 1;
+
+DB error: Cannot convert to specific type [0x80003250] 
+taos> select f1 IN (select f1 from tba) from tba order by 1;
+ f1 in (select f1 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f1 IN (select f2 from tba) from tba order by 1;
+ f1 in (select f2 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f1 IN (select f3 from tba) from tba order by 1;
+ f1 in (select f3 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f1 IN (select f4 from tba) from tba order by 1;
+ f1 in (select f4 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f1 IN (select f5 from tba) from tba order by 1;
+ f1 in (select f5 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f1 IN (select f6 from tba) from tba order by 1;
+ f1 in (select f6 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f1 IN (select f7 from tba) from tba order by 1;
+ f1 in (select f7 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f2 IN (select ts from tba) from tba order by 1;
+ f2 in (select ts from tba) |
+=============================
+ false                      |
+ false                      |
+ false                      |
+
+taos> select f2 IN (select f1 from tba) from tba order by 1;
+ f2 in (select f1 from tba) |
+=============================
+ false                      |
+ false                      |
+ true                       |
+
+taos> select f2 IN (select f2 from tba) from tba order by 1;
+ f2 in (select f2 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f2 IN (select f3 from tba) from tba order by 1;
+ f2 in (select f3 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f2 IN (select f4 from tba) from tba order by 1;
+ f2 in (select f4 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f2 IN (select f5 from tba) from tba order by 1;
+ f2 in (select f5 from tba) |
+=============================
+ false                      |
+ true                       |
+ true                       |
+
+taos> select f2 IN (select f6 from tba) from tba order by 1;
+ f2 in (select f6 from tba) |
+=============================
+ false                      |
+ false                      |
+ true                       |
+
+taos> select f2 IN (select f7 from tba) from tba order by 1;
+ f2 in (select f7 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f3 IN (select ts from tba) from tba order by 1;
+ f3 in (select ts from tba) |
+=============================
+ false                      |
+ false                      |
+ false                      |
+
+taos> select f3 IN (select f1 from tba) from tba order by 1;
+ f3 in (select f1 from tba) |
+=============================
+ false                      |
+ false                      |
+ true                       |
+
+taos> select f3 IN (select f2 from tba) from tba order by 1;
+ f3 in (select f2 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f3 IN (select f3 from tba) from tba order by 1;
+ f3 in (select f3 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f3 IN (select f4 from tba) from tba order by 1;
+ f3 in (select f4 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f3 IN (select f5 from tba) from tba order by 1;
+ f3 in (select f5 from tba) |
+=============================
+ false                      |
+ true                       |
+ true                       |
+
+taos> select f3 IN (select f6 from tba) from tba order by 1;
+ f3 in (select f6 from tba) |
+=============================
+ false                      |
+ false                      |
+ true                       |
+
+taos> select f3 IN (select f7 from tba) from tba order by 1;
+ f3 in (select f7 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f4 IN (select ts from tba) from tba order by 1;
+ f4 in (select ts from tba) |
+=============================
+ false                      |
+ false                      |
+ false                      |
+
+taos> select f4 IN (select f1 from tba) from tba order by 1;
+ f4 in (select f1 from tba) |
+=============================
+ false                      |
+ false                      |
+ true                       |
+
+taos> select f4 IN (select f2 from tba) from tba order by 1;
+ f4 in (select f2 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f4 IN (select f3 from tba) from tba order by 1;
+ f4 in (select f3 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f4 IN (select f4 from tba) from tba order by 1;
+ f4 in (select f4 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f4 IN (select f5 from tba) from tba order by 1;
+ f4 in (select f5 from tba) |
+=============================
+ false                      |
+ true                       |
+ true                       |
+
+taos> select f4 IN (select f6 from tba) from tba order by 1;
+ f4 in (select f6 from tba) |
+=============================
+ false                      |
+ false                      |
+ true                       |
+
+taos> select f4 IN (select f7 from tba) from tba order by 1;
+ f4 in (select f7 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f5 IN (select ts from tba) from tba order by 1;
+ f5 in (select ts from tba) |
+=============================
+ false                      |
+ false                      |
+ false                      |
+
+taos> select f5 IN (select f1 from tba) from tba order by 1;
+ f5 in (select f1 from tba) |
+=============================
+ false                      |
+ true                       |
+ true                       |
+
+taos> select f5 IN (select f2 from tba) from tba order by 1;
+ f5 in (select f2 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f5 IN (select f3 from tba) from tba order by 1;
+ f5 in (select f3 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f5 IN (select f4 from tba) from tba order by 1;
+ f5 in (select f4 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f5 IN (select f5 from tba) from tba order by 1;
+ f5 in (select f5 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f5 IN (select f6 from tba) from tba order by 1;
+ f5 in (select f6 from tba) |
+=============================
+ false                      |
+ true                       |
+ true                       |
+
+taos> select f5 IN (select f7 from tba) from tba order by 1;
+ f5 in (select f7 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f6 IN (select ts from tba) from tba order by 1;
+
+DB error: Cannot convert to specific type [0x80003250] 
+taos> select f6 IN (select f1 from tba) from tba order by 1;
+ f6 in (select f1 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f6 IN (select f2 from tba) from tba order by 1;
+ f6 in (select f2 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f6 IN (select f3 from tba) from tba order by 1;
+ f6 in (select f3 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f6 IN (select f4 from tba) from tba order by 1;
+ f6 in (select f4 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f6 IN (select f5 from tba) from tba order by 1;
+ f6 in (select f5 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f6 IN (select f6 from tba) from tba order by 1;
+ f6 in (select f6 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f6 IN (select f7 from tba) from tba order by 1;
+ f6 in (select f7 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f7 IN (select ts from tba) from tba order by 1;
+ f7 in (select ts from tba) |
+=============================
+ false                      |
+ false                      |
+ false                      |
+
+taos> select f7 IN (select f1 from tba) from tba order by 1;
+ f7 in (select f1 from tba) |
+=============================
+ false                      |
+ false                      |
+ true                       |
+
+taos> select f7 IN (select f2 from tba) from tba order by 1;
+ f7 in (select f2 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f7 IN (select f3 from tba) from tba order by 1;
+ f7 in (select f3 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f7 IN (select f4 from tba) from tba order by 1;
+ f7 in (select f4 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select f7 IN (select f5 from tba) from tba order by 1;
+ f7 in (select f5 from tba) |
+=============================
+ false                      |
+ true                       |
+ true                       |
+
+taos> select f7 IN (select f6 from tba) from tba order by 1;
+ f7 in (select f6 from tba) |
+=============================
+ false                      |
+ false                      |
+ true                       |
+
+taos> select f7 IN (select f7 from tba) from tba order by 1;
+ f7 in (select f7 from tba) |
+=============================
+ true                       |
+ true                       |
+ true                       |
+
+taos> select NULL IN (select ts from tba) from tba order by 1;
+ null in (select ts from tba) |
+===============================
+ NULL                         |
+ NULL                         |
+ NULL                         |
+
+taos> select NULL IN (select f1 from tba) from tba order by 1;
+ null in (select f1 from tba) |
+===============================
+ NULL                         |
+ NULL                         |
+ NULL                         |
+
+taos> select NULL IN (select f2 from tba) from tba order by 1;
+ null in (select f2 from tba) |
+===============================
+ NULL                         |
+ NULL                         |
+ NULL                         |
+
+taos> select NULL IN (select f3 from tba) from tba order by 1;
+ null in (select f3 from tba) |
+===============================
+ NULL                         |
+ NULL                         |
+ NULL                         |
+
+taos> select NULL IN (select f4 from tba) from tba order by 1;
+ null in (select f4 from tba) |
+===============================
+ NULL                         |
+ NULL                         |
+ NULL                         |
+
+taos> select NULL IN (select f5 from tba) from tba order by 1;
+ null in (select f5 from tba) |
+===============================
+ NULL                         |
+ NULL                         |
+ NULL                         |
+
+taos> select NULL IN (select f6 from tba) from tba order by 1;
+ null in (select f6 from tba) |
+===============================
+ NULL                         |
+ NULL                         |
+ NULL                         |
+
+taos> select NULL IN (select f7 from tba) from tba order by 1;
+ null in (select f7 from tba) |
+===============================
+ NULL                         |
+ NULL                         |
+ NULL                         |
+
+taos> select 1 NOT IN (select ts from tba) from tba order by 1;
+ 1 not in (select ts from tba) |
+================================
+ true                          |
+ true                          |
+ true                          |
+
+taos> select 1 NOT IN (select f1 from tba) from tba order by 1;
+ 1 not in (select f1 from tba) |
+================================
+ true                          |
+ true                          |
+ true                          |
+
+taos> select 1 NOT IN (select f2 from tba) from tba order by 1;
+ 1 not in (select f2 from tba) |
+================================
+ false                         |
+ false                         |
+ false                         |
+
+taos> select 1 NOT IN (select f3 from tba) from tba order by 1;
+ 1 not in (select f3 from tba) |
+================================
+ false                         |
+ false                         |
+ false                         |
+
+taos> select 1 NOT IN (select f4 from tba) from tba order by 1;
+ 1 not in (select f4 from tba) |
+================================
+ false                         |
+ false                         |
+ false                         |
+
+taos> select 1 NOT IN (select f5 from tba) from tba order by 1;
+ 1 not in (select f5 from tba) |
+================================
+ false                         |
+ false                         |
+ false                         |
+
+taos> select 1 NOT IN (select f6 from tba) from tba order by 1;
+ 1 not in (select f6 from tba) |
+================================
+ true                          |
+ true                          |
+ true                          |
+
+taos> select 1 NOT IN (select f7 from tba) from tba order by 1;
+ 1 not in (select f7 from tba) |
+================================
+ false                         |
+ false                         |
+ false                         |
+
+taos> select 1.0 NOT IN (select ts from tba) from tba order by 1;
+ 1.0 not in (select ts from tba) |
+==================================
+ true                            |
+ true                            |
+ true                            |
+
+taos> select 1.0 NOT IN (select f1 from tba) from tba order by 1;
+ 1.0 not in (select f1 from tba) |
+==================================
+ true                            |
+ true                            |
+ true                            |
+
+taos> select 1.0 NOT IN (select f2 from tba) from tba order by 1;
+ 1.0 not in (select f2 from tba) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select 1.0 NOT IN (select f3 from tba) from tba order by 1;
+ 1.0 not in (select f3 from tba) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select 1.0 NOT IN (select f4 from tba) from tba order by 1;
+ 1.0 not in (select f4 from tba) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select 1.0 NOT IN (select f5 from tba) from tba order by 1;
+ 1.0 not in (select f5 from tba) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select 1.0 NOT IN (select f6 from tba) from tba order by 1;
+ 1.0 not in (select f6 from tba) |
+==================================
+ true                            |
+ true                            |
+ true                            |
+
+taos> select 1.0 NOT IN (select f7 from tba) from tba order by 1;
+ 1.0 not in (select f7 from tba) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select 'a' NOT IN (select ts from tba) from tba order by 1;
+
+DB error: Invalid timestamp format [0x80000127] 
+taos> select 'a' NOT IN (select f1 from tba) from tba order by 1;
+ 'a' not in (select f1 from tba) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select 'a' NOT IN (select f2 from tba) from tba order by 1;
+ 'a' not in (select f2 from tba) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select 'a' NOT IN (select f3 from tba) from tba order by 1;
+ 'a' not in (select f3 from tba) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select 'a' NOT IN (select f4 from tba) from tba order by 1;
+ 'a' not in (select f4 from tba) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select 'a' NOT IN (select f5 from tba) from tba order by 1;
+ 'a' not in (select f5 from tba) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select 'a' NOT IN (select f6 from tba) from tba order by 1;
+ 'a' not in (select f6 from tba) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select 'a' NOT IN (select f7 from tba) from tba order by 1;
+ 'a' not in (select f7 from tba) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select '0' NOT IN (select ts from tba) from tba order by 1;
+
+DB error: Invalid timestamp format [0x80000127] 
+taos> select '0' NOT IN (select f1 from tba) from tba order by 1;
+ '0' not in (select f1 from tba) |
+==================================
+ true                            |
+ true                            |
+ true                            |
+
+taos> select '0' NOT IN (select f2 from tba) from tba order by 1;
+ '0' not in (select f2 from tba) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select '0' NOT IN (select f3 from tba) from tba order by 1;
+ '0' not in (select f3 from tba) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select '0' NOT IN (select f4 from tba) from tba order by 1;
+ '0' not in (select f4 from tba) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select '0' NOT IN (select f5 from tba) from tba order by 1;
+ '0' not in (select f5 from tba) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select '0' NOT IN (select f6 from tba) from tba order by 1;
+ '0' not in (select f6 from tba) |
+==================================
+ true                            |
+ true                            |
+ true                            |
+
+taos> select '0' NOT IN (select f7 from tba) from tba order by 1;
+ '0' not in (select f7 from tba) |
+==================================
+ false                           |
+ false                           |
+ false                           |
+
+taos> select false NOT IN (select ts from tba) from tba order by 1;
+ false not in (select ts from tba) |
+====================================
+ true                              |
+ true                              |
+ true                              |
+
+taos> select false NOT IN (select f1 from tba) from tba order by 1;
+ false not in (select f1 from tba) |
+====================================
+ false                             |
+ false                             |
+ false                             |
+
+taos> select false NOT IN (select f2 from tba) from tba order by 1;
+ false not in (select f2 from tba) |
+====================================
+ false                             |
+ false                             |
+ false                             |
+
+taos> select false NOT IN (select f3 from tba) from tba order by 1;
+ false not in (select f3 from tba) |
+====================================
+ false                             |
+ false                             |
+ false                             |
+
+taos> select false NOT IN (select f4 from tba) from tba order by 1;
+ false not in (select f4 from tba) |
+====================================
+ false                             |
+ false                             |
+ false                             |
+
+taos> select false NOT IN (select f5 from tba) from tba order by 1;
+ false not in (select f5 from tba) |
+====================================
+ false                             |
+ false                             |
+ false                             |
+
+taos> select false NOT IN (select f6 from tba) from tba order by 1;
+ false not in (select f6 from tba) |
+====================================
+ false                             |
+ false                             |
+ false                             |
+
+taos> select false NOT IN (select f7 from tba) from tba order by 1;
+ false not in (select f7 from tba) |
+====================================
+ false                             |
+ false                             |
+ false                             |
+
+taos> select f1 NOT IN (select ts from tba) from tba order by 1;
+
+DB error: Cannot convert to specific type [0x80003250] 
+taos> select f1 NOT IN (select f1 from tba) from tba order by 1;
+ f1 not in (select f1 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f1 NOT IN (select f2 from tba) from tba order by 1;
+ f1 not in (select f2 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f1 NOT IN (select f3 from tba) from tba order by 1;
+ f1 not in (select f3 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f1 NOT IN (select f4 from tba) from tba order by 1;
+ f1 not in (select f4 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f1 NOT IN (select f5 from tba) from tba order by 1;
+ f1 not in (select f5 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f1 NOT IN (select f6 from tba) from tba order by 1;
+ f1 not in (select f6 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f1 NOT IN (select f7 from tba) from tba order by 1;
+ f1 not in (select f7 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f2 NOT IN (select ts from tba) from tba order by 1;
+ f2 not in (select ts from tba) |
+=================================
+ true                           |
+ true                           |
+ true                           |
+
+taos> select f2 NOT IN (select f1 from tba) from tba order by 1;
+ f2 not in (select f1 from tba) |
+=================================
+ false                          |
+ true                           |
+ true                           |
+
+taos> select f2 NOT IN (select f2 from tba) from tba order by 1;
+ f2 not in (select f2 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f2 NOT IN (select f3 from tba) from tba order by 1;
+ f2 not in (select f3 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f2 NOT IN (select f4 from tba) from tba order by 1;
+ f2 not in (select f4 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f2 NOT IN (select f5 from tba) from tba order by 1;
+ f2 not in (select f5 from tba) |
+=================================
+ false                          |
+ false                          |
+ true                           |
+
+taos> select f2 NOT IN (select f6 from tba) from tba order by 1;
+ f2 not in (select f6 from tba) |
+=================================
+ false                          |
+ true                           |
+ true                           |
+
+taos> select f2 NOT IN (select f7 from tba) from tba order by 1;
+ f2 not in (select f7 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f3 NOT IN (select ts from tba) from tba order by 1;
+ f3 not in (select ts from tba) |
+=================================
+ true                           |
+ true                           |
+ true                           |
+
+taos> select f3 NOT IN (select f1 from tba) from tba order by 1;
+ f3 not in (select f1 from tba) |
+=================================
+ false                          |
+ true                           |
+ true                           |
+
+taos> select f3 NOT IN (select f2 from tba) from tba order by 1;
+ f3 not in (select f2 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f3 NOT IN (select f3 from tba) from tba order by 1;
+ f3 not in (select f3 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f3 NOT IN (select f4 from tba) from tba order by 1;
+ f3 not in (select f4 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f3 NOT IN (select f5 from tba) from tba order by 1;
+ f3 not in (select f5 from tba) |
+=================================
+ false                          |
+ false                          |
+ true                           |
+
+taos> select f3 NOT IN (select f6 from tba) from tba order by 1;
+ f3 not in (select f6 from tba) |
+=================================
+ false                          |
+ true                           |
+ true                           |
+
+taos> select f3 NOT IN (select f7 from tba) from tba order by 1;
+ f3 not in (select f7 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f4 NOT IN (select ts from tba) from tba order by 1;
+ f4 not in (select ts from tba) |
+=================================
+ true                           |
+ true                           |
+ true                           |
+
+taos> select f4 NOT IN (select f1 from tba) from tba order by 1;
+ f4 not in (select f1 from tba) |
+=================================
+ false                          |
+ true                           |
+ true                           |
+
+taos> select f4 NOT IN (select f2 from tba) from tba order by 1;
+ f4 not in (select f2 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f4 NOT IN (select f3 from tba) from tba order by 1;
+ f4 not in (select f3 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f4 NOT IN (select f4 from tba) from tba order by 1;
+ f4 not in (select f4 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f4 NOT IN (select f5 from tba) from tba order by 1;
+ f4 not in (select f5 from tba) |
+=================================
+ false                          |
+ false                          |
+ true                           |
+
+taos> select f4 NOT IN (select f6 from tba) from tba order by 1;
+ f4 not in (select f6 from tba) |
+=================================
+ false                          |
+ true                           |
+ true                           |
+
+taos> select f4 NOT IN (select f7 from tba) from tba order by 1;
+ f4 not in (select f7 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f5 NOT IN (select ts from tba) from tba order by 1;
+ f5 not in (select ts from tba) |
+=================================
+ true                           |
+ true                           |
+ true                           |
+
+taos> select f5 NOT IN (select f1 from tba) from tba order by 1;
+ f5 not in (select f1 from tba) |
+=================================
+ false                          |
+ false                          |
+ true                           |
+
+taos> select f5 NOT IN (select f2 from tba) from tba order by 1;
+ f5 not in (select f2 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f5 NOT IN (select f3 from tba) from tba order by 1;
+ f5 not in (select f3 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f5 NOT IN (select f4 from tba) from tba order by 1;
+ f5 not in (select f4 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f5 NOT IN (select f5 from tba) from tba order by 1;
+ f5 not in (select f5 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f5 NOT IN (select f6 from tba) from tba order by 1;
+ f5 not in (select f6 from tba) |
+=================================
+ false                          |
+ false                          |
+ true                           |
+
+taos> select f5 NOT IN (select f7 from tba) from tba order by 1;
+ f5 not in (select f7 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f6 NOT IN (select ts from tba) from tba order by 1;
+
+DB error: Cannot convert to specific type [0x80003250] 
+taos> select f6 NOT IN (select f1 from tba) from tba order by 1;
+ f6 not in (select f1 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f6 NOT IN (select f2 from tba) from tba order by 1;
+ f6 not in (select f2 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f6 NOT IN (select f3 from tba) from tba order by 1;
+ f6 not in (select f3 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f6 NOT IN (select f4 from tba) from tba order by 1;
+ f6 not in (select f4 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f6 NOT IN (select f5 from tba) from tba order by 1;
+ f6 not in (select f5 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f6 NOT IN (select f6 from tba) from tba order by 1;
+ f6 not in (select f6 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f6 NOT IN (select f7 from tba) from tba order by 1;
+ f6 not in (select f7 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f7 NOT IN (select ts from tba) from tba order by 1;
+ f7 not in (select ts from tba) |
+=================================
+ true                           |
+ true                           |
+ true                           |
+
+taos> select f7 NOT IN (select f1 from tba) from tba order by 1;
+ f7 not in (select f1 from tba) |
+=================================
+ false                          |
+ true                           |
+ true                           |
+
+taos> select f7 NOT IN (select f2 from tba) from tba order by 1;
+ f7 not in (select f2 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f7 NOT IN (select f3 from tba) from tba order by 1;
+ f7 not in (select f3 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f7 NOT IN (select f4 from tba) from tba order by 1;
+ f7 not in (select f4 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select f7 NOT IN (select f5 from tba) from tba order by 1;
+ f7 not in (select f5 from tba) |
+=================================
+ false                          |
+ false                          |
+ true                           |
+
+taos> select f7 NOT IN (select f6 from tba) from tba order by 1;
+ f7 not in (select f6 from tba) |
+=================================
+ false                          |
+ true                           |
+ true                           |
+
+taos> select f7 NOT IN (select f7 from tba) from tba order by 1;
+ f7 not in (select f7 from tba) |
+=================================
+ false                          |
+ false                          |
+ false                          |
+
+taos> select NULL NOT IN (select ts from tba) from tba order by 1;
+ null not in (select ts from tba) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select NULL NOT IN (select f1 from tba) from tba order by 1;
+ null not in (select f1 from tba) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select NULL NOT IN (select f2 from tba) from tba order by 1;
+ null not in (select f2 from tba) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select NULL NOT IN (select f3 from tba) from tba order by 1;
+ null not in (select f3 from tba) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select NULL NOT IN (select f4 from tba) from tba order by 1;
+ null not in (select f4 from tba) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select NULL NOT IN (select f5 from tba) from tba order by 1;
+ null not in (select f5 from tba) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select NULL NOT IN (select f6 from tba) from tba order by 1;
+ null not in (select f6 from tba) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+
+taos> select NULL NOT IN (select f7 from tba) from tba order by 1;
+ null not in (select f7 from tba) |
+===================================
+ NULL                             |
+ NULL                             |
+ NULL                             |
+

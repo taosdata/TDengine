@@ -1376,6 +1376,354 @@ taos> select to_base64("你好 世界");
  5L2g5aW9IOS4lueVjA==        |
 ```
 
+#### FROM_BASE64
+
+```sql
+FROM_BASE64(expr)
+```
+
+**功能说明**: 解码 base64 编码的字符串。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `expr`: VARCHAR
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 若 expr 为 NULL，返回 NULL。
+
+**举例**:
+
+```sql
+taos> select from_base64("SGVsbG8sIHdvcmxkIQ==");
+ from_base64("SGVsbG8sIHdvcmxkIQ==") |
+======================================
+ Hello, world!                       |
+Query OK, 1 row(s) in set (0.000786s)
+```
+
+### 哈希函数
+
+#### MD5
+
+```sql
+MD5(expr)
+```
+
+**功能说明**: 计算字符串的 MD5 128 位校验和。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `expr`: VARCHAR.
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 若 expr 为 NULL，返回 NULL。
+
+**举例**:
+
+```sql
+taos> select md5('mytext')\G;
+*************************** 1.row ***************************
+md5('mytext'): 947ef8c8db156a568d5974d71f7638f4
+Query OK, 1 row(s) in set (0.000522s)
+
+taos> insert into db.tb values(now, md5('mytext'));
+Insert OK, 1 row(s) affected (0.005111s)
+```
+
+#### SHA1 / SHA
+
+```sql
+SHA1(expr)
+```
+
+**功能说明**: 计算 SHA1 160 位校验和，具体可参考 RFC 3174。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `expr`: VARCHAR
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 若 expr 为 NULL，返回 NULL。
+- SHA 与 SHA1 是同义词。
+
+**举例**:
+
+```sql
+taos> select sha('mytext')\G;
+*************************** 1.row ***************************
+sha('mytext'): 65d922aad93c7e165ed888a2ab85befe9841fd39
+Query OK, 1 row(s) in set (0.000658s)
+```
+
+#### SHA2
+
+```sql
+SHA2(expr, hash_length)
+```
+
+**功能说明**: 计算 SHA2 系列的哈希函数（SHA-224, SHA-256, SHA-384, and SHA-512）。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `expr`: VARCHAR
+- `hash_length`: 224, 256, 384, 512
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 若 expr 为 NULL，返回 NULL。
+
+**举例**:
+
+```sql
+taos> select sha2('mytext', 224)\G;
+*************************** 1.row ***************************
+sha2('mytext', 224): 576e8f2cf59ebc59dd7659c48916f162ae0cf35937563999d5a7800e
+Query OK, 1 row(s) in set (0.000569s)
+```
+
+### 脱敏函数
+
+#### MASK_FULL
+
+```sql
+MASK_FULL(str, replace_value)
+```
+
+**功能说明**: 将目标数据进行全脱敏处理。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**举例**:
+
+```sql
+taos> SELECT MASK_FULL('mytext', 'CONFIDENTIAL');
+ mask_full('mytext', 'CONFIDENTIAL') |
+======================================
+ CONFIDENTIAL                        |
+Query OK, 1 row(s) in set (0.002790s)
+```
+
+#### MASK_PARTIAL
+
+```sql
+MASK_PARTIAL(str, prefix_length, suffix_length, mask_char)
+```
+
+**功能说明**: 将目标数据进行部分脱敏处理。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+- `prefix_length`: 从字符串开头要屏蔽的字符数。
+- `suffix_length`: 从字符串末尾要屏蔽的字符数。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**举例**:
+
+```sql
+taos> SELECT MASK_partial('mytext', 1, 2, '*');
+ mask_partial('mytext', 1, 2, '*') |
+====================================
+ *yte**                            |
+Query OK, 1 row(s) in set (0.002787s)
+```
+
+#### MASK_NONE
+
+```sql
+MASK_NONE(str)
+```
+
+**功能说明**: 将目标数据进行空脱敏处理。
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 若 expr 为 NULL，返回 NULL。
+
+**举例**:
+
+```sql
+taos> SELECT MASK_NONE('mytext');
+ mask_none('mytext') |
+======================
+ mytext              |
+Query OK, 1 row(s) in set (0.001474s)
+```
+
+### 加密函数
+
+#### SM4_ENCRYPT
+
+```sql
+SM4_ENCRYPT(str, key_str)
+```
+
+**功能说明**: 使用 SM4 算法对数据进行加密
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+- `key_str`: 字符串密钥
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 支持在 INSERT 和 SELECT 语句中使用
+- 仅企业版支持
+
+**举例**:
+
+```sql
+taos> SELECT sm4_decrypt(sm4_encrypt('mytext', 'mykeystring'), 'mykeystring');
+ sm4_decrypt(sm4_encrypt('mytext', 'mykeystring'), 'mykeystring') |
+===================================================================
+ mytext                                                           |
+Query OK, 1 row(s) in set (0.003432s)
+```
+
+#### SM4_DECRYPT
+
+```sql
+SM4_DECRYPT(str, key_str)
+```
+
+**功能说明**: 使用 SM4 算法对数据进行解密
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+- `key_str`: 字符串密钥
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 支持在 INSERT 和 SELECT 语句中使用
+- 仅企业版支持
+
+**举例**:
+见 `sm4_encrypt`。
+
+#### AES_ENCRYPT
+
+```sql
+AES_ENCRYPT(str, key_str[, init_vector])
+```
+
+**功能说明**: 使用 AES-128-CBC 或 AES-128-ECB 模式对数据进行加密
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+- `key_str`: 字符串密钥
+- `init_vector`: 初始化向量
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 支持在 INSERT 和 SELECT 语句中使用
+
+**举例**:
+
+```sql
+taos> SELECT aes_decrypt(aes_encrypt('mytext', 'mykeystring'), 'mykeystring');
+ aes_decrypt(aes_encrypt('mytext', 'mykeystring'), 'mykeystring') |
+===================================================================
+ mytext                                                           |
+Query OK, 1 row(s) in set (0.000514s)
+```
+
+#### AES_DECRYPT
+
+```sql
+AES_DECRYPT(str, key_str[, init_vector])
+```
+
+**功能说明**: 使用 AES-128-CBC 或 AES-128-ECB 模式对数据进行解密
+
+**返回结果类型**: VARCHAR
+
+**适用数据类型**:
+
+- `str`: VARCHAR.
+- `key_str`: 字符串密钥
+- `init_vector`: 初始化向量
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**:
+
+- 支持在 INSERT 和 SELECT 语句中使用
+
+**举例**:
+见 `aes_encrypt`。
+
 ### 类型转换函数
 
 转换函数将值从一种数据类型转换为另一种数据类型。
@@ -1633,7 +1981,7 @@ DAYOFWEEK(expr)
 - 返回值 1 代表周日，2 代表周一 ... 7 代表周六
 - 若 `expr` 为 NULL，返回 NULL。
 - 输入时间戳的精度由所查询表的精度确定，若未指定表，则精度为毫秒。
-  
+
 **举例**：
 
 ```sql
@@ -1917,7 +2265,7 @@ taos> select weekofyear('2000-01-01');
 
 ## 选择函数
 
-### ​基础选择
+### 基础选择
 
 选择函数根据语义在查询结果集中选择一行或多行结果返回。用户可以同时指定输出 ts 列或其他列（包括 tbname 和标签列），这样就可以方便地知道被选出的值是源于哪个数据行的。
 
@@ -2713,6 +3061,37 @@ IRATE(expr)
 
 **适用于**：表和超级表。
 
+#### FILL_FORWARD
+
+```sql
+FILL_FORWARD(expr)
+```
+
+**功能说明**：遇到空值时使用上一个非空值，如果之前的数据均为空值，则保持空值不变。
+
+**返回结果类型**：与输入类型一致。
+
+**适用数据类型**：数值类型，字符串类型。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 支持 +、-、*、/ 运算，如 fill_forward(col1) + fill_forward(col2);
+
+**举例**：
+
+```sql
+taos> select _rowts,f1,f2,fill_forward(f1),fill_forward(f2),fill_forward(f1)*fill_forward(f2) from db.tb;
+         _rowts          |     f1      |       f2       |   fill_forward(f1)   |   fill_forward(f2)     | fill_forward(f1)*fill_forward(f2) |
+============================================================================================================================================
+ 2025-12-02 01:01:01.000 |           1 |       2.000000 |                    1 |               2.000000 |                          2.000000 |
+ 2025-12-02 01:01:02.000 |        NULL |       4.000000 |                    1 |               4.000000 |                          4.000000 |
+ 2025-12-02 01:01:03.000 |           5 |           NULL |                    5 |               4.000000 |                         20.000000 |
+ 2025-12-02 01:01:04.000 |           7 |       8.000000 |                    7 |               8.000000 |                         56.000000 |
+Query OK, 4 row(s) in set (56.155269s)
+```
+
 #### MAVG
 
 ```sql
@@ -2814,7 +3193,7 @@ ignore_null_values: {
 }
 ```
 
-**功能说明**：返回指定时间截面指定列的记录值或插值。ignore_null_values 参数的值可以是 0 或 1，为 1 时表示忽略 NULL 值，缺省值为 0。
+**功能说明**：返回指定时间截面指定列的记录值或插值。ignore_null_values 参数的值可以是 0 或 1，为 1 时表示忽略 NULL 值，缺省值为 0。当 ignore_null_values 为 1 时，插值时将会忽略其他 NULL 值采样数据。
 
 **返回数据类型**：同字段类型。
 
@@ -2824,10 +3203,10 @@ ignore_null_values: {
 
 **使用说明**：
 
-- INTERP 用于在指定时间断面获取指定列的记录值，使用时有专用语法 (interp_clause)，语法介绍 [参考链接](../select/#interp) 。
-- 当指定时间断面不存在符合条件的行数据时，INTERP 函数会根据 [FILL](../distinguished/#fill-子句) 参数的设定进行插值。
+- INTERP 用于在指定时间断面获取指定列的记录值，使用时有专用语法 (interp_clause)，语法介绍 [参考链接](./20-select.md#interp) 。
+- 当指定时间断面不存在符合条件的行数据时，INTERP 函数会根据 [FILL](./20-select.md#fill-子句) 参数的设定进行插值。
 - INTERP 作用于超级表时，会将该超级表下的所有子表数据按照主键列排序后进行插值计算，也可以搭配 PARTITION BY tbname 使用，将结果强制规约到单个时间线。
-- INTERP 在 FILL PREV/NEXT/NEAR时, 行为与窗口查询有所区别，当截面存在数据时，不会进行 FILL, 即便当前值为 NULL.
+- INTERP 在 FILL PREV/NEXT/NEAR时, 行为与窗口查询有所区别：在寻找相邻有效数据时会受到 ignore_null_values 参数影响，若参数设置忽略 NULL 数据，则不使用相邻的 NULL 数据进行插值，而是向周围探索直到找到非 NULL 值。
 - INTERP 可以与伪列 `_irowts` 一起使用，返回插值点所对应的时间戳 (v3.0.2.0 以后支持)。
 - INTERP 可以与伪列 `_isfilled` 一起使用，显示返回结果是否为原始记录或插值算法产生的数据 (v3.0.3.0 以后支持)。
 - 只有在使用 FILL PREV/NEXT/NEAR 模式时才可以使用伪列 `_irowts_origin`, 用于返回 `interp` 函数所使用的原始数据的时间戳列。若范围内无值，则返回 NULL。`_irowts_origin` 在 v3.3.4.9 以后支持。

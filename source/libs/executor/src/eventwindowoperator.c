@@ -41,6 +41,7 @@ static int32_t resetEventWindowOperState(SOperatorInfo* pOper) {
   pEvent->groupId = 0;
   pEvent->pPreDataBlock = NULL;
   pEvent->inWindow = false;
+  pEvent->winSup.lastTs = INT64_MIN;
 
   colDataDestroy(&pEvent->twAggSup.timeWindowData);
   int32_t code = initExecTimeWindowInfo(&pEvent->twAggSup.timeWindowData, &pTaskInfo->window);
@@ -123,9 +124,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
   pInfo->binfo.inputTsOrder = physiNode->inputTsOrder;
   pInfo->binfo.outputTsOrder = physiNode->outputTsOrder;
-
-  pInfo->twAggSup = (STimeWindowAggSupp){.waterMark = pEventWindowNode->window.watermark,
-                                         .calTrigger = pEventWindowNode->window.triggerType};
+  pInfo->winSup.lastTs = INT64_MIN;
 
   code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
   QUERY_CHECK_CODE(code, lino, _error);
@@ -133,7 +132,9 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   pInfo->tsSlotId = tsSlotId;
   pInfo->pPreDataBlock = NULL;
   pInfo->pOperator = pOperator;
-  pInfo->trueForLimit = pEventWindowNode->trueForLimit;
+  pInfo->trueForInfo.trueForType = pEventWindowNode->trueForType;
+  pInfo->trueForInfo.count = pEventWindowNode->trueForCount;
+  pInfo->trueForInfo.duration = pEventWindowNode->trueForDuration;
 
   setOperatorInfo(pOperator, "EventWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
@@ -178,8 +179,13 @@ void destroyEWindowOperatorInfo(void* param) {
     return;
   }
 
+  // First cleanup function contexts that may reference result buffers/state.
+  // This must happen before freeing any buffers that those cleanups might touch.
+  cleanupResultInfoInEventWindow(pInfo->pOperator, pInfo);
+
   if (pInfo->pRow != NULL) {
     taosMemoryFree(pInfo->pRow);
+    pInfo->pRow = NULL;
   }
 
   if (pInfo->pStartCondInfo != NULL) {
@@ -194,8 +200,6 @@ void destroyEWindowOperatorInfo(void* param) {
 
   cleanupBasicInfo(&pInfo->binfo);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
-
-  cleanupResultInfoInEventWindow(pInfo->pOperator, pInfo);
   pInfo->pOperator = NULL;
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSup);
@@ -230,7 +234,7 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     }
 
     pRes->info.scanFlag = pBlock->info.scanFlag;
-    code = setInputDataBlock(pSup, pBlock, order, MAIN_SCAN, true);
+    code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
 
     code = blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
@@ -300,6 +304,7 @@ static int32_t doEventWindowAggImpl(SEventWindowOperatorInfo* pInfo, SExprSupp* 
   }
 
   updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pRowSup->win, 0);
+  pInfo->pRow->nOrigRows += numOfRows;
   code = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData, startIndex, numOfRows,
                                          pBlock->info.rows, numOfOutput);
   return code;
@@ -318,7 +323,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
   TSKEY*           tsList = (TSKEY*)pColInfoData->pData;
   SWindowRowsSup*  pRowSup = &pInfo->winSup;
   int32_t          rowIndex = 0;
-  int64_t          minWindowSize = getMinWindowSize(pOperator);
+  STrueForInfo*    pTrueForInfo = getTrueForInfo(pOperator);
 
   pRowSup->numOfRows = 0;
   if (pInfo->groupId == 0) {
@@ -327,6 +332,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
     // this is a new group, reset the info
     pInfo->inWindow = false;
     pInfo->groupId = gid;
+    pInfo->winSup.lastTs = INT64_MIN;
     pInfo->pPreDataBlock = pBlock;
     goto _return;
   }
@@ -349,6 +355,22 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
   code = filterExecute(pInfo->pEndCondInfo, pBlock, &pe, NULL, param2.numOfCols, &status2);
   QUERY_CHECK_CODE(code, lino, _return);
 
+  for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+    if (pBlock->info.scanFlag != PRE_SCAN) {
+      if (pInfo->winSup.lastTs == INT64_MIN) {
+        pInfo->winSup.lastTs = tsList[i];
+      } else {
+        if (tsList[i] == pInfo->winSup.lastTs) {
+          qError("duplicate timestamp found in event window operator, groupId: %" PRId64 ", timestamp: %" PRId64,
+                 gid, tsList[i]);
+          code = TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP;
+          QUERY_CHECK_CODE(code, lino, _return);
+        } else {
+          pInfo->winSup.lastTs = tsList[i];
+        }
+      }
+    }
+  }
   int32_t startIndex = pInfo->inWindow ? 0 : -1;
   while (rowIndex < pBlock->info.rows) {
     if (pInfo->inWindow) {  // let's find the first end value
@@ -363,9 +385,9 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
         QUERY_CHECK_CODE(code, lino, _return);
         doUpdateNumOfRows(pSup->pCtx, pInfo->pRow, pSup->numOfExprs, pSup->rowEntryInfoOffset);
 
-        if (pRowSup->win.ekey - pRowSup->win.skey < minWindowSize) {
-          qDebug("skip small window, groupId: %" PRId64 ", windowSize: %" PRId64 ", minWindowSize: %" PRId64,
-                 pInfo->groupId, pRowSup->win.ekey - pRowSup->win.skey, minWindowSize);
+        if (!isTrueForSatisfied(pTrueForInfo, pRowSup->win.skey, pRowSup->win.ekey, pInfo->pRow->nOrigRows)) {
+          qDebug("skip small window, groupId: %" PRId64 ", skey: %" PRId64 ", ekey: %" PRId64 ", nrows: %u",
+                 pInfo->groupId, pRowSup->win.skey, pRowSup->win.ekey, pInfo->pRow->nOrigRows);
         } else {
           // check buffer size
           if (pRes->info.rows + pInfo->pRow->numOfRows >= pRes->info.capacity) {
@@ -381,6 +403,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
           pRes->info.rows += pInfo->pRow->numOfRows;
         }
         pInfo->pRow->numOfRows = 0;
+        pInfo->pRow->nOrigRows = 0;
 
         pInfo->inWindow = false;
         rowIndex += 1;

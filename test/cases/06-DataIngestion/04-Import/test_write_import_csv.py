@@ -90,4 +90,3 @@ class TestInsertFromCsv:
         self.do_ntb_import_csv()
         self.do_stb_import_csv()
 
-        tdLog.success(f"{__file__} successfully executed")

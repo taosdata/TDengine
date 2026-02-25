@@ -199,6 +199,7 @@ void cfgCleanup(SConfig *pCfg) {
   taosArrayDestroy(pCfg->localArray);
   taosArrayDestroy(pCfg->globalArray);
   (void)taosThreadMutexDestroy(&pCfg->lock);
+
   taosMemoryFree(pCfg);
 }
 
@@ -468,6 +469,31 @@ static int32_t cfgUpdateDebugFlagItem(SConfig *pCfg, const char *name, bool rese
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+bool cfgTimezoneSet(SConfig *pCfg, bool lock) {
+  if (lock) {
+    (void)taosThreadMutexLock(&pCfg->lock);
+  }
+
+  SConfigItem *pItem = cfgGetItem(pCfg, "timezone");
+  if (pItem == NULL) {
+    (void)taosThreadMutexUnlock(&pCfg->lock);
+    return false;
+  }
+
+  if (pItem->str != NULL && strlen(pItem->str) > 0) {
+    if (lock) {
+      (void)taosThreadMutexUnlock(&pCfg->lock);
+    }
+    return true;
+  }
+
+  if (lock) {
+    (void)taosThreadMutexUnlock(&pCfg->lock);
+  }
+
+  return false;
+}
+
 int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock) {
   // GRANT_CFG_SET;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -592,6 +618,33 @@ SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName) {
   }
 
   return NULL;
+}
+
+/**
+ * @brief cfgGetPrivType
+ *
+ * @param opType 0: alter, 1: show
+ * @return int32_t
+ */
+int32_t cfgGetPrivType(SConfig *pCfg, const char *pName, int8_t opType) {
+  SConfigItem *pItem = cfgGetItem(pCfg, pName);
+  if (pItem == NULL) {
+    return PRIV_TYPE_UNKNOWN;
+  }
+  switch (pItem->privType) {
+    case CFG_PRIV_SYSTEM:
+      return opType == 0 ? PRIV_VAR_SYSTEM_ALTER : PRIV_VAR_SYSTEM_SHOW;
+    case CFG_PRIV_SECURITY:
+      return opType == 0 ? PRIV_VAR_SECURITY_ALTER : PRIV_VAR_SECURITY_SHOW;
+    case CFG_PRIV_AUDIT:
+      return opType == 0 ? PRIV_VAR_AUDIT_ALTER : PRIV_VAR_AUDIT_SHOW;
+    case CFG_PRIV_DEBUG:
+      return opType == 0 ? PRIV_VAR_DEBUG_ALTER : PRIV_VAR_DEBUG_SHOW;
+    default:
+      break;
+  }
+
+  return opType == 0 ? PRIV_VAR_SYSTEM_ALTER : PRIV_VAR_SYSTEM_SHOW;  // default system priv
 }
 
 void cfgLock(SConfig *pCfg) {
@@ -745,15 +798,21 @@ static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, int8_t scope, int8_t dynScope, int8_t category) {
-  SConfigItem item = {
-      .dtype = CFG_DTYPE_BOOL, .bval = defaultVal, .scope = scope, .dynScope = dynScope, .category = category};
+int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, int8_t scope, int8_t dynScope, int8_t category,
+                   int8_t privType) {
+  SConfigItem item = {.dtype = CFG_DTYPE_BOOL,
+                      .bval = defaultVal,
+                      .scope = scope,
+                      .dynScope = dynScope,
+                      .category = category,
+                      .privType = privType};
   return cfgAddItem(pCfg, &item, name);
 }
 
 int32_t cfgAddInt32Ex(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope,
-                      int8_t dynScope, int8_t category) {
+                      int8_t dynScope, int8_t category, int8_t privType) {
   SConfigItem item = {.dtype = CFG_DTYPE_INT32,
+                      .privType = privType,
                       .i32 = defaultVal,
                       .imin = minval,
                       .imax = maxval,
@@ -764,12 +823,13 @@ int32_t cfgAddInt32Ex(SConfig *pCfg, const char *name, int32_t defaultVal, int64
 }
 
 int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope,
-                    int8_t dynScope, int8_t category) {
+                    int8_t dynScope, int8_t category, int8_t privType) {
   if (defaultVal < minval || defaultVal > maxval) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
   SConfigItem item = {.dtype = CFG_DTYPE_INT32,
+                      .privType = privType,
                       .i32 = defaultVal,
                       .imin = minval,
                       .imax = maxval,
@@ -780,12 +840,13 @@ int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t
 }
 
 int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval, int8_t scope,
-                    int8_t dynScope, int8_t category) {
+                    int8_t dynScope, int8_t category, int8_t privType) {
   if (defaultVal < minval || defaultVal > maxval) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
   SConfigItem item = {.dtype = CFG_DTYPE_INT64,
+                      .privType = privType,
                       .i64 = defaultVal,
                       .imin = minval,
                       .imax = maxval,
@@ -796,12 +857,13 @@ int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t
 }
 
 int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float minval, float maxval, int8_t scope,
-                    int8_t dynScope, int8_t category) {
+                    int8_t dynScope, int8_t category, int8_t privType) {
   if (defaultVal < minval || defaultVal > maxval) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
   SConfigItem item = {.dtype = CFG_DTYPE_FLOAT,
+                      .privType = privType,
                       .fval = defaultVal,
                       .fmin = minval,
                       .fmax = maxval,
@@ -812,8 +874,9 @@ int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float min
 }
 
 int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,
-                     int8_t category) {
-  SConfigItem item = {.dtype = CFG_DTYPE_STRING, .scope = scope, .dynScope = dynScope, .category = category};
+                     int8_t category, int8_t privType) {
+  SConfigItem item = {
+      .dtype = CFG_DTYPE_STRING, .scope = scope, .dynScope = dynScope, .category = category, .privType = privType};
   item.str = taosStrdup(defaultVal);
   if (item.str == NULL) return terrno;
 
@@ -821,8 +884,9 @@ int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, in
 }
 
 int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,
-                  int8_t category) {
-  SConfigItem item = {.dtype = CFG_DTYPE_DIR, .scope = scope, .dynScope = dynScope, .category = category};
+                  int8_t category, int8_t privType) {
+  SConfigItem item = {
+      .dtype = CFG_DTYPE_DIR, .scope = scope, .dynScope = dynScope, .category = category, .privType = privType};
   TAOS_CHECK_RETURN(cfgCheckAndSetDir(&item, defaultVal));
   return cfgAddItem(pCfg, &item, name);
 }
@@ -1101,6 +1165,24 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
   }
 }
 
+static int32_t setSpecialEnvCfg(SConfig *pConfig, bool *set, char *string) {
+  int32_t code = 0;
+  if (string[0] == 'T' && string[1] == 'Z' && string[2] == '=') {
+    char  name[] = "timezone";
+    char *value = string + 3;
+
+    if (cfgTimezoneSet(pConfig, true)) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    code = cfgSetItem(pConfig, name, value, CFG_STYPE_ENV_VAR, true);
+    *set = code == TSDB_CODE_SUCCESS ? true : false;
+    return code;
+  }
+
+  return code;
+}
+
 int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
   char    line[1024], *name, *value, *value2, *value3, *value4;
   int32_t olen, vlen, vlen2, vlen3, vlen4;
@@ -1115,6 +1197,15 @@ int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
 
     tstrncpy(line, *pEnv, sizeof(line));
     pEnv++;
+
+    bool set = false;
+    if((code = setSpecialEnvCfg(pConfig, &set, line)) != TSDB_CODE_SUCCESS) {
+      break;
+    }
+    if(set) {
+      continue;
+    }
+
     if (taosEnvToCfg(line, line, 1024) < 0) {
       uTrace("failed to convert env to cfg:%s", line);
     }

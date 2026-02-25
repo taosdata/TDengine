@@ -24,6 +24,7 @@
 #include "tsdbReadUtil.h"
 #include "tsdbUtil2.h"
 #include "tsimplehash.h"
+#include "vnode.h"
 #include "tutil.h"
 
 #define ASCENDING_TRAVERSE(o)       (o == TSDB_ORDER_ASC)
@@ -80,7 +81,7 @@ static int32_t mergeRowsInSttBlocks(SSttBlockReader* pSttBlockReader, STableBloc
 static int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, int32_t order, SReadCostSummary* pCost);
 static void getTsdbByRetentions(SVnode* pVnode, SQueryTableDataCond* pCond, SRetention* retentions, const char* idstr,
                                 int8_t* pLevel, STsdb** pTsdb);
-static SVersionRange getQueryVerRange(SVnode* pVnode, SQueryTableDataCond* pCond, int8_t level);
+static SVersionRange getQueryVerRange(SVnode* pVnode, SQueryTableDataCond* pCond);
 static int32_t       doBuildDataBlock(STsdbReader* pReader);
 static int32_t       getCurrentKeyInBuf(STableBlockScanInfo* pScanInfo, STsdbReader* pReader, TSDBKEY* key);
 static bool          hasDataInFileBlock(const SBlockData* pBlockData, const SFileBlockDumpInfo* pDumpInfo);
@@ -591,10 +592,12 @@ static int32_t tsdbAcquireReader(STsdbReader* pReader) {
 
   TSDB_CHECK_CONDITION((pReader != NULL) && (pReader->idStr != NULL), code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  tsdbTrace("tsdb/read: %s, pre-take read mutex: %p, code: %d", pReader->idStr, &pReader->readerMutex, code);
+  tsdbTrace("tsdb/read: %s, pre-take read mutex: %p",
+            pReader->idStr, &pReader->readerMutex);
   code = taosThreadMutexLock(&pReader->readerMutex);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("tsdb/read:%p, failed to lock reader mutex, code:%s", pReader->idStr, tstrerror(code));
+    tsdbError("tsdb/read: %s, failed to lock reader mutex, code:%d - %s",
+              pReader->idStr, code, tstrerror(code));
   } else {
     tsdbTrace("tsdb/read: %s, post-take read mutex: %p, code: %d", pReader->idStr, &pReader->readerMutex, code);
   }
@@ -725,7 +728,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
 
   pReader->info.suid = pCond->suid;
   pReader->info.order = pCond->order;
-  pReader->info.verRange = getQueryVerRange(pVnode, pCond, level);
+  pReader->info.verRange = getQueryVerRange(pVnode, pCond);
   code = updateQueryTimeWindow(pReader->pTsdb, &pCond->twindows, &pReader->info.window);
   TSDB_CHECK_CODE(code, lino, _end);
 
@@ -4123,7 +4126,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
   code = getTableBlockScanInfo(pReader->status.pTableMap, pBlockInfo->uid, &pScanInfo, pReader->idStr);
   TSDB_CHECK_CODE(code, lino, _end);
 
-  if (pScanInfo->sttKeyInfo.status == STT_FILE_READER_UNINIT) {
+  if ((pScanInfo->sttKeyInfo.status == STT_FILE_READER_UNINIT) || (pSttBlockReader->uid != pScanInfo->uid)) {
     initSttBlockReader(pSttBlockReader, pScanInfo, pReader);
     code = pReader->code;
     TSDB_CHECK_CODE(code, lino, _end);
@@ -4150,6 +4153,13 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
   } else {
     if (notOverlapWithFiles(pBlockInfo, pScanInfo, asc)) {
       int64_t keyInStt = pScanInfo->sttKeyInfo.nextProcKey.ts;
+
+      // make sure the pSttBlock match the current data block
+      // actually the pSttBlockReader may not fit current data block, but 
+      // it's OK since we only need the clean datablock or clean stt block.
+      initSttBlockReader(pSttBlockReader, pScanInfo, pReader);
+      code = pReader->code;
+      TSDB_CHECK_CODE(code, lino, _end);
 
       if ((!hasDataInSttBlock(pScanInfo)) || (asc && pBlockInfo->lastKey < keyInStt) ||
           (!asc && pBlockInfo->firstKey > keyInStt)) {
@@ -4623,7 +4633,7 @@ static void getTsdbByRetentions(SVnode* pVnode, SQueryTableDataCond* pCond, SRet
   *pTsdb = VND_TSDB(pVnode);
 }
 
-SVersionRange getQueryVerRange(SVnode* pVnode, SQueryTableDataCond* pCond, int8_t level) {
+SVersionRange getQueryVerRange(SVnode* pVnode, SQueryTableDataCond* pCond) {
   int64_t startVer = (pCond->startVersion == -1) ? 0 : pCond->startVersion;
 
   int64_t endVer = 0;
@@ -5747,9 +5757,17 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
       pCond->order = TSDB_ORDER_ASC;
     }
 
-    // here we only need one more row, so the capacity is set to be ONE.
-    code = tsdbReaderCreate(pVnode, pCond, (void**)&((STsdbReader*)pReader)->innerReader[0], 1, pResBlock, idstr);
+    /*
+      Inner readers needs to fetch data until found a valid row,
+      so we set a proper capacity instead of 1 for them, to avoid
+      the overhead of reallocating buffers and copying data.
+    */
+    int32_t capacity = 1024;
+    code = tsdbReaderCreate(pVnode, pCond,
+                            (void**)&((STsdbReader*)pReader)->innerReader[0],
+                            capacity, pResBlock, idstr);
     TSDB_CHECK_CODE(code, lino, _end);
+    pReader->step = EXTERNAL_ROWS_PREV;
 
     if (order == TSDB_ORDER_ASC) {
       pCond->twindows = pCond->extTwindows[1];
@@ -5758,7 +5776,10 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
     }
     pCond->order = order;
 
-    code = tsdbReaderCreate(pVnode, pCond, (void**)&((STsdbReader*)pReader)->innerReader[1], 1, pResBlock, idstr);
+    code = tsdbReaderCreate(pVnode, pCond,
+                            (void**)&((STsdbReader*)pReader)->innerReader[1],
+                            capacity, pResBlock, idstr);
+    pCond->twindows = window;
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
@@ -5995,7 +6016,6 @@ int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
   void* p = pReader->pReadSnap;
   if ((p == atomic_val_compare_exchange_ptr((void**)&pReader->pReadSnap, p, NULL)) && (p != NULL)) {
     tsdbUntakeReadSnap2(pReader, p, false);
-    pReader->pReadSnap = NULL;
   }
 
   if (pReader->bFilesetDelimited) {
@@ -6044,6 +6064,11 @@ static int32_t tsdbSetQueryReseek(void* pQHandle) {
   }
 }
 
+/*
+  Resume the suspended reader. If the reader is TIMEWINDOW_RANGE_EXTERNAL type,
+  we need to resume its inner readers as well. We can choose correct reader to
+  open according to the step value.
+*/
 int32_t tsdbReaderResume2(STsdbReader* pReader) {
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
@@ -6072,16 +6097,14 @@ int32_t tsdbReaderResume2(STsdbReader* pReader) {
       STsdbReader* pPrevReader = pReader->innerReader[0];
       STsdbReader* pNextReader = pReader->innerReader[1];
 
-      // we need only one row
-      pPrevReader->resBlockInfo.capacity = 1;
       code = setSharedPtr(pPrevReader, pReader);
       TSDB_CHECK_CODE(code, lino, _end);
 
-      pNextReader->resBlockInfo.capacity = 1;
       code = setSharedPtr(pNextReader, pReader);
       TSDB_CHECK_CODE(code, lino, _end);
 
-      if (pReader->step == 0 || pReader->step == EXTERNAL_ROWS_PREV) {
+      if (pReader->step == EXTERNAL_ROWS_INIT ||
+          pReader->step == EXTERNAL_ROWS_PREV) {
         code = doOpenReaderImpl(pPrevReader);
         TSDB_CHECK_CODE(code, lino, _end);
       } else if (pReader->step == EXTERNAL_ROWS_MAIN) {
@@ -6286,7 +6309,9 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
   code = pReader->code;
   TSDB_CHECK_CODE(code, lino, _end);
 
-  if (isEmptyQueryTimeWindow(&pReader->info.window) || pReader->step == EXTERNAL_ROWS_NEXT) {
+  if ((pReader->type != TIMEWINDOW_RANGE_EXTERNAL &&
+       isEmptyQueryTimeWindow(&pReader->info.window)) ||
+      pReader->step == EXTERNAL_ROWS_DONE) {
     goto _end;
   }
 
@@ -6313,11 +6338,16 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pReader->innerReader[0] != NULL && pReader->step == 0) {
-    code = doTsdbNextDataBlock2(pReader->innerReader[0], hasNext);
-    TSDB_CHECK_CODE(code, lino, _end);
+  if (pReader->innerReader[0] != NULL &&
+      pReader->step == EXTERNAL_ROWS_PREV &&
+      !pReader->currentStepDone) {
+    if (isEmptyQueryTimeWindow(&pReader->innerReader[0]->info.window)) {
+      *hasNext = false;
+    } else {
+      code = doTsdbNextDataBlock2(pReader->innerReader[0], hasNext);
+      TSDB_CHECK_CODE(code, lino, _end);
+    }
 
-    pReader->step = EXTERNAL_ROWS_PREV;
     if (*hasNext) {
       pStatus = &pReader->innerReader[0]->status;
       if (pStatus->composedDataBlock) {
@@ -6326,28 +6356,44 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
         acquired = false;
         TSDB_CHECK_CODE(code, lino, _end);
       }
-
       return code;
     }
   }
 
-  if (pReader->step == EXTERNAL_ROWS_PREV) {
-    // prepare for the main scan
-    if (tSimpleHashGetSize(pReader->status.pTableMap) > 0) {
-      code = doOpenReaderImpl(pReader);
-    }
-
-    int32_t step = 1;
-    resetAllDataBlockScanInfo(pReader->status.pTableMap, pReader->innerReader[0]->info.window.ekey, step);
-    TSDB_CHECK_CODE(code, lino, _end);
-
+  if (pReader->step == EXTERNAL_ROWS_PREV &&
+      (pReader->currentStepDone || !*hasNext)) {
+    /*
+      PREV scan is done or has no more data or doesn't exist,
+      move to the MAIN scan and prepare for it
+    */
     pReader->step = EXTERNAL_ROWS_MAIN;
+    pReader->currentStepDone = false;
+
+    if (!isEmptyQueryTimeWindow(&pReader->info.window)) {
+      if (tSimpleHashGetSize(pReader->status.pTableMap) > 0) {
+        code = doOpenReaderImpl(pReader);
+      }
+      TSDB_CHECK_CODE(code, lino, _end);
+
+      if (pReader->innerReader[0] != NULL) {
+        int32_t step = 1;
+        resetAllDataBlockScanInfo(pReader->status.pTableMap,
+                                  pReader->innerReader[0]->info.window.ekey,
+                                  step);
+        TSDB_CHECK_CODE(code, lino, _end);
+      }
+    }
   }
 
-  code = doTsdbNextDataBlock2(pReader, hasNext);
-  TSDB_CHECK_CODE(code, lino, _end);
-
+  if (!isEmptyQueryTimeWindow(&pReader->info.window)) {
+    code = doTsdbNextDataBlock2(pReader, hasNext);
+    TSDB_CHECK_CODE(code, lino, _end);
+  } else {
+    *hasNext = false;
+  }
+  
   if (*hasNext) {
+    pStatus = &pReader->status;
     if (pStatus->composedDataBlock) {
       tsdbTrace("tsdb/read: %p, unlock read mutex", pReader);
       code = tsdbReleaseReader(pReader);
@@ -6357,20 +6403,37 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
     return code;
   }
 
-  if (pReader->step == EXTERNAL_ROWS_MAIN && pReader->innerReader[1] != NULL) {
-    // prepare for the next row scan
-    if (tSimpleHashGetSize(pReader->status.pTableMap) > 0) {
-      code = doOpenReaderImpl(pReader->innerReader[1]);
+  if (pReader->step == EXTERNAL_ROWS_MAIN && !*hasNext &&
+      pReader->innerReader[1] != NULL) {
+    /*
+      MAIN has no more data, prepare for the NEXT scan
+    */
+    pReader->step = EXTERNAL_ROWS_NEXT;
+    pReader->currentStepDone = false;
+
+    if (!isEmptyQueryTimeWindow(&pReader->innerReader[1]->info.window)) {
+      if (tSimpleHashGetSize(pReader->innerReader[1]->status.pTableMap) > 0) {
+        code = doOpenReaderImpl(pReader->innerReader[1]);
+      }
+      TSDB_CHECK_CODE(code, lino, _end);
+
+      int32_t step = 1;
+      resetAllDataBlockScanInfo(pReader->innerReader[1]->status.pTableMap,
+                                pReader->info.window.ekey, step);
+      TSDB_CHECK_CODE(code, lino, _end);
+    }
+  }
+
+  if (pReader->innerReader[1] != NULL &&
+      pReader->step == EXTERNAL_ROWS_NEXT &&
+      !pReader->currentStepDone) {
+    if (isEmptyQueryTimeWindow(&pReader->innerReader[1]->info.window)) {
+      *hasNext = false;
+    } else {
+      code = doTsdbNextDataBlock2(pReader->innerReader[1], hasNext);
+      TSDB_CHECK_CODE(code, lino, _end);
     }
 
-    int32_t step = -1;
-    resetAllDataBlockScanInfo(pReader->innerReader[1]->status.pTableMap, pReader->info.window.ekey, step);
-    TSDB_CHECK_CODE(code, lino, _end);
-
-    code = doTsdbNextDataBlock2(pReader->innerReader[1], hasNext);
-    TSDB_CHECK_CODE(code, lino, _end);
-
-    pReader->step = EXTERNAL_ROWS_NEXT;
     if (*hasNext) {
       pStatus = &pReader->innerReader[1]->status;
       if (pStatus->composedDataBlock) {
@@ -6379,8 +6442,10 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
         acquired = false;
         TSDB_CHECK_CODE(code, lino, _end);
       }
-
       return code;
+    } else {
+      pReader->currentStepDone = true;
+      pReader->step = EXTERNAL_ROWS_DONE;
     }
   }
 
@@ -6659,6 +6724,8 @@ int32_t tsdbReaderReset2(void* p, SQueryTableDataCond* pCond) {
   TSDB_CHECK_CODE(code, lino, _end);
   acquired = true;
 
+  pReader->step = EXTERNAL_ROWS_INIT;
+  pReader->currentStepDone = false;
   if (pReader->flag == READER_STATUS_SUSPEND) {
     code = tsdbReaderResume2(pReader);
     TSDB_CHECK_CODE(code, lino, _end);
@@ -7166,12 +7233,21 @@ void tsdbReaderSetNotifyCb(STsdbReader* pReader, TsdReaderNotifyCbFn notifyFn, v
   pReader->notifyParam = param;
 }
 
-static int32_t initQueryTableCond(SQueryTableDataCond* pCond, uint64_t suid, const STimeWindow* pWindow,
+static int32_t initQueryTableCond(SMeta* meta, SQueryTableDataCond* pCond, uint64_t suid, const STimeWindow* pWindow,
                                   const SVersionRange* pRange, int32_t order, const char* id) {
-  pCond->numOfCols = 1;
+
+
+  bool            hasPrimaryKey = false;
+  SSchemaWrapper* schema = metaGetTableSchema(meta, suid, -1, 1, NULL, 0);
+  if (schema && schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY) {
+    hasPrimaryKey = true;
+  }
+
+  pCond->numOfCols = hasPrimaryKey ? 2 : 1;
 
   pCond->colList = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnInfo));
   if (pCond->colList == NULL) {
+    tDeleteSchemaWrapper(schema);
     tsdbError("failed to prepare col list for query cond, code:%s, %s", tstrerror(terrno), id);
     return terrno;
   }                                  
@@ -7179,6 +7255,16 @@ static int32_t initQueryTableCond(SQueryTableDataCond* pCond, uint64_t suid, con
   pCond->colList[0].colId = 1;
   pCond->colList[0].type = TSDB_DATA_TYPE_TIMESTAMP;
   pCond->colList[0].bytes = sizeof(int64_t);
+
+  if (hasPrimaryKey) {
+    SSchema* s = schema->pSchema + 1;
+    pCond->colList[1].colId = s->colId;
+    pCond->colList[1].type = s->type;
+    pCond->colList[1].bytes = s->bytes;
+    pCond->colList[1].pk = 1;
+  }
+
+  tDeleteSchemaWrapper(schema);
 
   pCond->pSlotList = taosMemoryMalloc(sizeof(int32_t) * pCond->numOfCols);
   if (pCond->pSlotList == NULL) {
@@ -7188,6 +7274,9 @@ static int32_t initQueryTableCond(SQueryTableDataCond* pCond, uint64_t suid, con
   }
 
   pCond->pSlotList[0] = 0;
+  if (hasPrimaryKey) {
+    pCond->pSlotList[1] = 1;
+  }
   pCond->twindows = *pWindow;
 
   pCond->startVersion = pRange->minVer;
@@ -7225,7 +7314,7 @@ int32_t tsdbCreateFirstLastTsIter(void* pVnode, STimeWindow* pWindow, SVersionRa
   TSDB_CHECK_NULL(pVerRange, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pTableList, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  code = initQueryTableCond(&cond, suid, pWindow, pVerRange, order, idstr);
+  code = initQueryTableCond(((SVnode*)pVnode)->pMeta, &cond, suid, pWindow, pVerRange, order, idstr);
   TSDB_CHECK_CODE(code, lino, _end);
 
   pTsIter = taosMemoryCalloc(1, sizeof(STableFirstLastTsIter));
@@ -7342,4 +7431,57 @@ void tsdbDestroyFirstLastTsIter(void* pIter) {
   tsdbReaderClose2(pTsIter->pReader);
 
   taosMemoryFree(pIter);
+}
+
+/**
+  @brief Mark the current step done, so next step will be triggered.
+  @param pReader the reader to mark the step done
+  @param notifyTs the timestamp to notify, used to determine whether  
+         to mark the current step as done
+*/
+int32_t tsdbReaderStepDone(STsdbReader* pReader, int64_t notifyTs) {
+  if (pReader == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t lino = 0;
+  int32_t code = tsdbAcquireReader(pReader);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  if (pReader->step == EXTERNAL_ROWS_PREV && NULL != pReader->innerReader[0]) {
+    /*
+      If current step is PREV and the notify timestamp is
+      less than or equal to the end timestamp of the PREV window,
+      mark the current step as done.
+    */
+    if (notifyTs <= pReader->innerReader[0]->info.window.ekey) {
+      pReader->currentStepDone = true;
+      tsdbDebug("%s, %s, step: PREV, notifyTs: %" PRIu64
+                ", window.ekey: %" PRIu64, pReader->idStr, __func__, notifyTs,
+                (int64_t)pReader->innerReader[0]->info.window.ekey);
+    }
+  }
+
+  if (pReader->step == EXTERNAL_ROWS_NEXT && NULL != pReader->innerReader[1]) {
+    /*
+      If current step is NEXT and the notify timestamp is
+      greater than or equal to the start timestamp of the NEXT window,
+      mark the current step as done.
+    */
+    if (notifyTs >= pReader->innerReader[1]->info.window.skey) {
+      pReader->currentStepDone = true;
+      tsdbDebug("%s, %s, step: NEXT, notifyTs: %" PRIu64
+                ", window.skey: %" PRIu64, pReader->idStr, __func__, notifyTs,
+                (int64_t)pReader->innerReader[1]->info.window.skey);
+    }
+  }
+
+  code = tsdbReleaseReader(pReader);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (TSDB_CODE_SUCCESS != code) {
+    tsdbError("%s failed at %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }

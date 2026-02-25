@@ -98,6 +98,7 @@ class WalKeepEnv : public ::testing::Test {
     pCfg->retentionPeriod = 0;
     pCfg->retentionSize = 0;
     pCfg->level = TAOS_WAL_FSYNC;
+    taosSetSkipKeyCheckMode();
     pWal = walOpen(pathName, pCfg);
     taosMemoryFree(pCfg);
     ASSERT(pWal != NULL);
@@ -128,7 +129,7 @@ class WalRetentionEnv : public ::testing::Test {
   }
 
   void SetUp() override {
-    SWalCfg cfg;
+    SWalCfg cfg = {0};
     cfg.rollPeriod = -1;
     cfg.segSize = -1;
     cfg.committed = -1;
@@ -166,7 +167,7 @@ class WalSkipLevel : public ::testing::Test {
   }
 
   void SetUp() override {
-    SWalCfg cfg;
+    SWalCfg cfg = {0};
     cfg.rollPeriod = -1;
     cfg.segSize = -1;
     cfg.committed = -1;
@@ -204,7 +205,7 @@ class WalEncrypted : public ::testing::Test {
   }
 
   void SetUp() override {
-    SWalCfg cfg;
+    SWalCfg cfg = {0};
     cfg.rollPeriod = -1;
     cfg.segSize = -1;
     cfg.committed = -1;
@@ -213,7 +214,7 @@ class WalEncrypted : public ::testing::Test {
     cfg.rollPeriod = 0;
     cfg.vgId = 0;
     cfg.level = TAOS_WAL_FSYNC;
-    cfg.encryptAlgorithm = 1;
+    cfg.encryptAlgr = 1;
     pWal = walOpen(pathName, &cfg);
     ASSERT(pWal != NULL);
   }

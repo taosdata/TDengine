@@ -1,11 +1,13 @@
 module github.com/taosdata/taoskeeper
 
-go 1.23.0
+go 1.24.12
 
 require (
 	github.com/BurntSushi/toml v0.4.1
+	github.com/agiledragon/gomonkey/v2 v2.13.0
+	github.com/gin-contrib/cors v1.6.0
 	github.com/gin-gonic/gin v1.9.1
-	github.com/kardianos/service v1.2.1
+	github.com/kardianos/service v1.2.4
 	github.com/panjf2000/ants/v2 v2.4.6
 	github.com/prometheus/client_golang v1.22.0
 	github.com/shirou/gopsutil/v3 v3.22.4
@@ -14,7 +16,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.12.0
 	github.com/stretchr/testify v1.10.0
-	github.com/taosdata/driver-go/v3 v3.7.1
+	github.com/taosdata/driver-go/v3 v3.7.8-0.20251226061849-bfa42e87e9da
 	github.com/taosdata/file-rotatelogs/v2 v2.5.3
 	github.com/taosdata/go-utils v0.0.0-20211022070036-018cc5f2432a
 )
@@ -28,7 +30,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
-	github.com/gin-contrib/cors v1.6.0 // indirect
 	github.com/gin-contrib/gzip v0.0.3 // indirect
 	github.com/gin-contrib/pprof v1.3.0 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
@@ -71,7 +72,7 @@ require (
 	golang.org/x/arch v0.7.0 // indirect
 	golang.org/x/crypto v0.36.0 // indirect
 	golang.org/x/net v0.38.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect

@@ -99,7 +99,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 
 - tdengine：描述 TDengine 数据库的相关配置参数，它包括以下属性：
   - dsn（字符串）：表示要连接的 TDengine 数据库的 DSN 地址，默认值为：taos+ws://root:taosdata@localhost:6041/tsbench。
-  - drop_if_exists（布尔）：表示数据库已存在时是否删除该数据库，默认为 true。
+  - drop_if_exists（布尔）：表示数据库已存在时是否删除该数据库，默认为 false。
   - props（字符串）：表示数据库支持的创建数据库的属性信息。
     例如，`precision ms vgroups 20 replica 3 keep 3650` 分别设置了虚拟组数量、副本数及数据保留期限。
     - precision：指定数据库的时间精度，可选值为："ms"、"us"、"ns"。
@@ -287,6 +287,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 
 - schema：默认使用全局的 schema 配置信息，当需要差异化时可在此行动下单独定义。
 - format（字符串）：描述数据写入时使用的格式，可选值为：sql、stmt，默认使用 stmt。
+- auto_create_table（布尔）：表示是否使用 TDengine 自动建表功能在写入数据时动态创建表，默认值为 false。
 - concurrency（整数）：并发写入数据的线程数量，默认值为 8。
 - failure_handling：表示失败处理策略：
   - max_retries（整数）：最大重试次数，默认值为 0。

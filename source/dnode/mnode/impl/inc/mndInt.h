@@ -144,6 +144,9 @@ typedef struct SMnode {
   MndMsgFpExt    msgFpExt[TDMT_MAX];
   SMsgCb         msgCb;
   int64_t        ipWhiteVer;
+  int64_t        timeWhiteVer;
+  int32_t        version;
+  int32_t        encrypted;
 } SMnode;
 
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);

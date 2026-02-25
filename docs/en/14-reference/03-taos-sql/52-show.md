@@ -178,10 +178,10 @@ Displays information about all supertables in the current database. You can use 
 ## SHOW STREAMS
 
 ```sql
-SHOW STREAMS;
+SHOW [db_name.]STREAMS;
 ```
 
-Displays information about all stream computations in the current system.
+Displays information about all stream computations in the current database.
 
 ## SHOW SUBSCRIPTIONS
 
