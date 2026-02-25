@@ -6,7 +6,7 @@ services:
     container_name: tdengine-coverage-cron
     restart: unless-stopped
     volumes:
-      - ./tdengine_coveage_alarm.py:/home/tdengine_coveage_alarm.py:ro
+      - ./tdengine_coverage_alarm.py:/home/tdengine_coverage_alarm.py:ro
       - ./cron_logs:/var/log/cron
     environment:
       - TZ=Asia/Shanghai

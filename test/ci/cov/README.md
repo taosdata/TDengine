@@ -46,7 +46,7 @@ Log files are stored in the host's `./cron_logs` directory for easy viewing and 
 docker-compose exec tdengine-coverage-cron bash
 
 # Run the script manually
-python3 /home/tdengine_coveage_alarm.py -test
+python3 /home/tdengine_coverage_alarm.py -test
 ```
 
 ## Troubleshooting

@@ -41,12 +41,12 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:
-  python3 tdengine_coveage_alarm.py                    # 正常模式
-  python3 tdengine_coveage_alarm.py --test-mode        # 测试模式
-  python3 tdengine_coveage_alarm.py --preview          # 预览模式
-  python3 tdengine_coveage_alarm.py --data-clean       # 启用数据清洗
-  python3 tdengine_coveage_alarm.py -p -clean -test    # 组合使用
-  python3 tdengine_coveage_alarm.py -url https://coveralls.io/jobs/172828865  # 外部使用
+  python3 tdengine_coverage_alarm.py                    # 正常模式
+  python3 tdengine_coverage_alarm.py --test-mode        # 测试模式
+  python3 tdengine_coverage_alarm.py --preview          # 预览模式
+  python3 tdengine_coverage_alarm.py --data-clean       # 启用数据清洗
+  python3 tdengine_coverage_alarm.py -p -clean -test    # 组合使用
+  python3 tdengine_coverage_alarm.py -url https://coveralls.io/jobs/172828865  # 外部使用
         """
     )
     
