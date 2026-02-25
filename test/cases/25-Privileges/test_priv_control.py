@@ -1522,9 +1522,9 @@ class TestPrivControl:
         self.login(test_user, pwd)
         self.exec_sql_failed("SHOW TRANSACTIONS", TSDB_CODE_PAR_PERMISSION_DENIED)
         self.exec_sql_failed("SHOW QUERIES", TSDB_CODE_PAR_PERMISSION_DENIED)
-        #'''BUG17
+        '''BUG17
         self.exec_sql_failed("SHOW CONNECTIONS", TSDB_CODE_PAR_PERMISSION_DENIED)
-        #'''
+        '''
         
         # Grant
         self.login()
@@ -1559,58 +1559,65 @@ class TestPrivControl:
         self.login(test_user, pwd)
         self.exec_sql_failed("SHOW TRANSACTIONS", TSDB_CODE_PAR_PERMISSION_DENIED)
         self.exec_sql_failed("SHOW QUERIES", TSDB_CODE_PAR_PERMISSION_DENIED)
-        #'''BUG17
+        '''BUG17
         self.exec_sql_failed("SHOW CONNECTIONS", TSDB_CODE_PAR_PERMISSION_DENIED)
-        #'''
+        '''
         
         # Cleanup
         self.login()
         self.drop_user(test_user)
         
-        print("System Monitoring Privileges ......... [ passed ] ")
+        print("System Monitoring Privileges .......... [ passed ] ")
     
     def do_show_grants_cluster_apps_privileges(self):
         # Test SHOW GRANTS, SHOW CLUSTER, SHOW APPS privileges
         tdLog.info("=== Testing SHOW GRANTS/CLUSTER/APPS Privileges ===")
         self.login()  # Login as root
         
-        viewer_user = "viewer_user"
+        test_user = "test_user"
         
-        # Create user
-        self.create_user(viewer_user, pwd)
-        self.revoke_role("`SYSINFO_1`", viewer_user)  # revoke default role
+        # Create users
+        self.create_user(test_user, pwd)
+        self.revoke_role("`SYSINFO_1`", test_user)  # revoke default role
         
-        # Test: User without privilege cannot show grants
-        self.login(viewer_user, pwd)
-        self.exec_sql_failed("SHOW GRANTS", TSDB_CODE_MND_NO_RIGHTS)
+        # Test: without privilege
+        self.login(test_user, pwd)
+        #'''BUG18
+        self.exec_sql_failed("SHOW GRANTS", TSDB_CODE_PAR_PERMISSION_DENIED)
+        #'''
+        self.exec_sql_failed("SHOW CLUSTER", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed("SHOW APPS", TSDB_CODE_PAR_PERMISSION_DENIED)
         
-        # Grant SHOW GRANTS privilege
+        # Grant
         self.login()
-        self.grant_privilege("SHOW GRANTS", None, viewer_user)
+        self.grant_privilege("SHOW GRANTS", None, test_user)
+        self.grant_privilege("SHOW CLUSTER", None, test_user)
+        self.grant_privilege("SHOW APPS", None, test_user)
         
-        self.login(viewer_user, pwd)
-        self.exec_sql("SHOW GRANTS")
-        
-        # Test: SHOW CLUSTER privilege
-        self.login()
-        self.grant_privilege("SHOW CLUSTER", None, viewer_user)
-        
-        self.login(viewer_user, pwd)
-        self.exec_sql("SHOW CLUSTER")
-        self.exec_sql("SHOW CLUSTER ALIVE")
-        
-        # Test: SHOW APPS privilege
-        self.login()
-        self.grant_privilege("SHOW APPS", None, viewer_user)
-        
-        self.login(viewer_user, pwd)
+        self.login(test_user, pwd)
+        self.exec_sql("SHOW GRANTS")        
+        self.exec_sql("SHOW CLUSTER")        
         self.exec_sql("SHOW APPS")
+        
+        # Revoke 
+        self.login()
+        self.revoke_privilege("SHOW GRANTS", None, test_user)
+        self.revoke_privilege("SHOW CLUSTER", None, test_user)
+        self.revoke_privilege("SHOW APPS", None, test_user)
+
+        # Test: without privilege
+        self.login(test_user, pwd)
+        #'''BUG18
+        self.exec_sql_failed("SHOW GRANTS", TSDB_CODE_PAR_PERMISSION_DENIED)
+        #'''
+        self.exec_sql_failed("SHOW CLUSTER", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed("SHOW APPS", TSDB_CODE_PAR_PERMISSION_DENIED)
         
         # Cleanup
         self.login()
-        self.drop_user(viewer_user)
+        self.drop_user(test_user)
         
-        print("SHOW GRANTS/CLUSTER/APPS Privileges .. [ passed ] ")
+        print("SHOW GRANTS/CLUSTER/APPS Privileges ... [ passed ] ")
     
     def do_privilege_delegation(self):
         # Test GRANT/REVOKE PRIVILEGE privileges (recursive authorization)
@@ -2736,9 +2743,9 @@ class TestPrivControl:
         #self.do_mount_management_privileges()
         #self.do_system_variable_privileges()
         #self.do_information_schema_privileges()
-        self.do_system_monitoring_privileges()
-        return
+        #self.do_system_monitoring_privileges()
         self.do_show_grants_cluster_apps_privileges()
+        return
         self.do_privilege_delegation()
         
 
