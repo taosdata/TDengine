@@ -6,11 +6,14 @@
 # Build and start the container
 docker-compose up -d
 
-# View logs
-docker-compose logs -f
+# View container status
+docker-compose ps
 
 # View cron job logs
 docker-compose exec tdengine-coverage-cron cat /var/log/cron/cron.log
+
+# Follow cron job logs in real-time
+docker-compose exec tdengine-coverage-cron tail -f /var/log/cron/cron.log
 
 # Stop the container
 docker-compose down
