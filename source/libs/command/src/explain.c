@@ -2698,9 +2698,10 @@ static int32_t qExplainAppendPlanRows(SExplainCtx *pCtx) {
   int32_t tlen = 0;
   char   *tbuf = pCtx->tbuf;
 
-  EXPLAIN_SUM_ROW_NEW(EXPLAIN_RATIO_TIME_FORMAT, pCtx->ratio);
-  EXPLAIN_SUM_ROW_END();
-  QRY_ERR_RET(qExplainResAppendRow(pCtx, tbuf, tlen, 0));
+  // NOTE: remove comment after RATIO is implemented
+  // EXPLAIN_SUM_ROW_NEW(EXPLAIN_RATIO_TIME_FORMAT, pCtx->ratio);
+  // EXPLAIN_SUM_ROW_END();
+  // QRY_ERR_RET(qExplainResAppendRow(pCtx, tbuf, tlen, 0));
 
   EXPLAIN_SUM_ROW_NEW(EXPLAIN_PLANNING_TIME_FORMAT, (double)(pCtx->jobStartTs - pCtx->reqStartTs) / 1000.0);
   EXPLAIN_SUM_ROW_END();
