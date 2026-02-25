@@ -457,11 +457,11 @@ static int32_t compareExecInfo(const void* p1, const void* p2) {
   return p11->execElapsed <= p22->execElapsed ? -1 : 1;
 }
 
-static int32_t qExplainExecAnalyze(SExplainResNode *pResNode, SExplainCtx *ctx,
-                                 int32_t level, int32_t* len) {
+static int32_t qExplainExecAnalyze(const SExplainResNode *pResNode,
+                                   SExplainCtx *ctx, int32_t level) {
   bool    isVerboseLine = true;
-  char    *tbuf = ctx->tbuf;
-  int32_t tlen = *len;
+  char   *tbuf = ctx->tbuf;
+  int32_t tlen = 0;
   EXPLAIN_ROW_NEW(level + 1, EXPLAIN_EXEC_FORMAT);
 
   int32_t nodeNum = (int32_t)taosArrayGetSize(pResNode->pExecInfo);
@@ -469,7 +469,7 @@ static int32_t qExplainExecAnalyze(SExplainResNode *pResNode, SExplainCtx *ctx,
   SExplainExecInfo maxExecInfo = {0};
 
   for (int32_t i = 0; i < nodeNum; ++i) {
-    SExplainExecInfo *pExecInfo = taosArrayGet(pResNode->pExecInfo, i);
+    const SExplainExecInfo *pExecInfo = taosArrayGet(pResNode->pExecInfo, i);
     execInfo.execElapsed += pExecInfo->execElapsed;
     execInfo.execCreate += pExecInfo->execCreate;
     execInfo.execStart += pExecInfo->execStart;
@@ -494,10 +494,12 @@ static int32_t qExplainExecAnalyze(SExplainResNode *pResNode, SExplainCtx *ctx,
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
     EXPLAIN_ROW_APPEND(EXPLAIN_TIMES_FORMAT, execInfo.execTimes);
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-    EXPLAIN_ROW_APPEND(EXPLAIN_INPUT_WAIT_ELAPSED_FORMAT, execInfo.inputWaitElapsed / 1000.0);
+    EXPLAIN_ROW_APPEND(EXPLAIN_INPUT_WAIT_ELAPSED_FORMAT,
+                       (double)execInfo.inputWaitElapsed / 1000.0);
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-    EXPLAIN_ROW_APPEND(EXPLAIN_OUTPUT_WAIT_ELAPSED_FORMAT, execInfo.outputWaitElapsed / 1000.0);
-  } else {
+    EXPLAIN_ROW_APPEND(EXPLAIN_OUTPUT_WAIT_ELAPSED_FORMAT,
+                       (double)execInfo.outputWaitElapsed / 1000.0);
+  } else if (nodeNum > 1) {
     EXPLAIN_ROW_APPEND(EXPLAIN_COMPUTE_FORMAT_EXT,
                        (double)execInfo.execElapsed / 1000.0 / nodeNum,
                        maxExecInfo.execElapsed / 1000.0);
@@ -522,7 +524,6 @@ static int32_t qExplainExecAnalyze(SExplainResNode *pResNode, SExplainCtx *ctx,
   EXPLAIN_ROW_END();
   QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level+1));
 
-  *len = tlen;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -530,11 +531,11 @@ static int32_t qExplainExecAnalyze(SExplainResNode *pResNode, SExplainCtx *ctx,
   @brief Analyze the IO of the scan nodes and append the result to the
   explain results.
 */
-static int32_t qExplainIOAnalyze(SExplainResNode *pResNode, SExplainCtx *ctx,
-                                 int32_t level, int32_t* len) {
+static int32_t qExplainIOAnalyze(const SExplainResNode *pResNode,
+                                 SExplainCtx *ctx, int32_t level) {
   bool    isVerboseLine = false;
   char    *tbuf = ctx->tbuf;
-  int32_t tlen = *len;
+  int32_t tlen = 0;
 
   taosArraySort(pResNode->pExecInfo, compareExecInfo);
   int32_t nodeNum = (int32_t)taosArrayGetSize(pResNode->pExecInfo);
@@ -671,7 +672,6 @@ static int32_t qExplainIOAnalyze(SExplainResNode *pResNode, SExplainCtx *ctx,
   EXPLAIN_ROW_END();
   QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level+2));
 
-  *len = tlen;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -881,13 +881,13 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
 
         /* table scan Exec analyze information */
         if (pResNode->pExecInfo) {
-          QRY_ERR_RET(qExplainExecAnalyze(pResNode, ctx, level, &tlen));
+          QRY_ERR_RET(qExplainExecAnalyze(pResNode, ctx, level));
         }
       }
 
       if (EXPLAIN_MODE_ANALYZE == ctx->mode && pResNode->pExecInfo) {
         /* table scan I/O analyze information */
-        QRY_ERR_RET(qExplainIOAnalyze(pResNode, ctx, level, &tlen));
+        QRY_ERR_RET(qExplainIOAnalyze(pResNode, ctx, level));
       }
       break;
     }
