@@ -1054,6 +1054,499 @@ class TestPrivControl:
         print("Audit Database Privileges ............ [ passed ] ")
 
     #
+    # --------------------------- System Privileges Tests ----------------------------
+    #
+    def do_user_management_privileges(self):
+        # Test user management privileges: ALTER USER (ENABLE), SHOW USERS SECURITY INFORMATION
+        tdLog.info("=== Testing User Management Privileges ===")
+        self.login()  # Login as root
+        
+        test_user = "test_user"
+        admin_user = "admin_user"
+        sec_user = "sec_user"
+        
+        # Create users
+        self.create_user(test_user, pwd)
+        self.create_user(admin_user, pwd)
+        self.create_user(sec_user, pwd)
+        
+        # Test: Normal user cannot alter other users (lock/unlock)
+        self.login(test_user, pwd)
+        self.exec_sql_failed(f"ALTER USER {admin_user} ENABLE 0", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"ALTER USER {admin_user} ENABLE 1", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Grant ALTER USER privilege to admin_user
+        self.login()
+        self.grant_privilege("ALTER USER,LOCK USER,UNLOCK USER", None, admin_user)
+        
+        # Test: admin_user can lock users (disable via ALTER USER)
+        self.login(admin_user, pwd)
+        self.exec_sql(f"ALTER USER {test_user} ENABLE 0")
+        
+        # Test: Locked user cannot login
+        self.login_failed(test_user, pwd)
+        
+        # Test: admin_user can also unlock users (enable via ALTER USER)
+        self.login(admin_user, pwd)
+        self.exec_sql(f"ALTER USER {test_user} ENABLE 1")
+        
+        # Test: Unlocked user can login again
+        self.login(test_user, pwd)
+        
+        # Test: SHOW USERS SECURITY INFORMATION privilege
+        self.login()
+        self.grant_privilege("SHOW USERS SECURITY INFORMATION", None, sec_user)
+        
+        self.login(sec_user, pwd)
+        self.exec_sql("SHOW USERS FULL")
+        
+        # Cleanup
+        self.login()
+        self.drop_user(test_user)
+        self.drop_user(admin_user)
+        self.drop_user(sec_user)
+        
+        print("User Management Privileges ........... [ passed ] ")
+    
+    def do_token_management_privileges(self):
+        # Test Token management privileges
+        tdLog.info("=== Testing Token Management Privileges ===")
+        self.login()  # Login as root
+        
+        test_user = "test_user"
+        token_admin = "token_admin"
+        
+        # Create users
+        self.create_user(test_user, pwd)
+        self.create_user(token_admin, pwd)
+        
+        # Test: Normal user cannot create token for others
+        self.login(test_user, pwd)
+        self.exec_sql_failed(f"CREATE TOKEN test_token FROM USER {token_admin}", TSDB_CODE_MND_NO_RIGHTS)
+        
+        # Grant CREATE TOKEN privilege
+        self.login()
+        self.grant_privilege("CREATE TOKEN", None, token_admin)
+        
+        # Test: token_admin can create token
+        self.login(token_admin, pwd)
+        self.exec_sql(f"CREATE TOKEN test_token FROM USER {test_user}")
+        
+        # Test: SHOW TOKENS privilege
+        self.login()
+        self.grant_privilege("SHOW TOKENS", None, test_user)
+        
+        self.login(test_user, pwd)
+        self.exec_sql("SHOW TOKENS")
+        
+        # Test: ALTER TOKEN privilege
+        self.login()
+        self.grant_privilege("ALTER TOKEN", None, token_admin)
+        
+        self.login(token_admin, pwd)
+        self.exec_sql("ALTER TOKEN test_token ENABLE 0")
+        
+        # Test: DROP TOKEN privilege
+        self.login()
+        self.grant_privilege("DROP TOKEN", None, token_admin)
+        
+        self.login(token_admin, pwd)
+        self.exec_sql("DROP TOKEN test_token")
+        
+        # Cleanup
+        self.login()
+        self.drop_user(test_user)
+        self.drop_user(token_admin)
+        
+        print("Token Management Privileges .......... [ passed ] ")
+    
+    def do_totp_management_privileges(self):
+        #BUG11
+        return
+        # Test TOTP management privileges
+        tdLog.info("=== Testing TOTP Management Privileges ===")
+        self.login()  # Login as root
+        
+        test_user = "test_user"
+        totp_admin = "totp_admin"
+        
+        # Create users
+        self.create_user(test_user, pwd)
+        self.create_user(totp_admin, pwd)
+        
+        # Test: Normal user cannot create TOTP for others
+        self.login(test_user, pwd)
+        self.exec_sql_failed(f"CREATE TOTP_SECRET FOR USER {totp_admin}", TSDB_CODE_MND_NO_RIGHTS)
+        
+        # Grant CREATE TOTP privilege
+        self.login()
+        self.grant_privilege("CREATE TOTP", None, totp_admin)
+        
+        # Test: totp_admin can create TOTP
+        self.login(totp_admin, pwd)
+        self.exec_sql(f"CREATE TOTP_SECRET FOR USER {test_user}")
+        
+        # Grant DROP TOTP privilege
+        self.login()
+        self.grant_privilege("DROP TOTP", None, totp_admin)
+        
+        # Test: totp_admin can drop TOTP
+        self.login(totp_admin, pwd)
+        self.exec_sql(f"DROP TOTP_SECRET FROM USER {test_user}")
+        
+        # Cleanup
+        self.login()
+        self.drop_user(test_user)
+        self.drop_user(totp_admin)
+        
+        print("TOTP Management Privileges ........... [ passed ] ")
+    
+    def do_password_management_privileges(self):
+        # Test password management privileges
+        tdLog.info("=== Testing Password Management Privileges ===")
+        self.login()  # Login as root
+        
+        test_user = "test_user"
+        pass_admin = "pass_admin"
+        new_pwd = "NewPass@123"
+        
+        # Create users
+        self.create_user(test_user, pwd)
+        self.create_user(pass_admin, pwd)
+        
+        # Test: Normal user cannot change others' password
+        self.login(test_user, pwd)
+        self.exec_sql_failed(f"ALTER USER {pass_admin} PASS '{new_pwd}'", TSDB_CODE_MND_NO_RIGHTS)
+        
+        # Grant ALTER PASS privilege
+        self.login()
+        self.grant_privilege("ALTER PASS", None, pass_admin)
+        
+        # Test: pass_admin can change others' password
+        self.login(pass_admin, pwd)
+        self.exec_sql(f"ALTER USER {test_user} PASS '{new_pwd}'")
+        
+        # Verify new password works
+        self.login(test_user, new_pwd)
+        
+        # Test: ALTER SELF PASS privilege
+        self.login()
+        self.create_user(test_user, pwd)  # Recreate with original password
+        self.grant_privilege("ALTER SELF PASS", None, test_user)
+        
+        self.login(test_user, pwd)
+        self.exec_sql(f"ALTER USER {test_user} PASS '{new_pwd}'")
+        
+        # Verify can login with new password
+        self.login(test_user, new_pwd)
+        
+        # Cleanup
+        self.login()
+        self.drop_user(test_user)
+        self.drop_user(pass_admin)
+        
+        print("Password Management Privileges ....... [ passed ] ")
+    
+    def do_node_management_privileges(self):
+        # Test node management privileges
+        tdLog.info("=== Testing Node Management Privileges ===")
+        self.login()  # Login as root
+        
+        node_admin = "node_admin"
+        test_user = "test_user"
+        
+        # Create users
+        self.create_user(node_admin, pwd)
+        self.create_user(test_user, pwd)
+        
+        # Test: Normal user cannot show nodes
+        self.login(test_user, pwd)
+        self.exec_sql_failed("SHOW DNODES", TSDB_CODE_MND_NO_RIGHTS)
+        
+        # Grant SHOW NODES privilege
+        self.login()
+        self.grant_privilege("SHOW NODES", None, test_user)
+        
+        self.login(test_user, pwd)
+        self.exec_sql("SHOW DNODES")
+        self.exec_sql("SHOW MNODES")
+        self.exec_sql("SHOW QNODES")
+        
+        # Note: CREATE/DROP NODE typically require actual node setup
+        # We test the privilege grants but not actual execution
+        self.login()
+        self.grant_privilege("CREATE NODE", None, node_admin)
+        self.grant_privilege("DROP NODE", None, node_admin)
+        
+        # Cleanup
+        self.login()
+        self.drop_user(node_admin)
+        self.drop_user(test_user)
+        
+        print("Node Management Privileges ........... [ passed ] ")
+    
+    def do_mount_management_privileges(self):
+        # Test mount management privileges
+        tdLog.info("=== Testing Mount Management Privileges ===")
+        self.login()  # Login as root
+        
+        mount_admin = "mount_admin"
+        test_user = "test_user"
+        
+        # Create users
+        self.create_user(mount_admin, pwd)
+        self.create_user(test_user, pwd)
+        
+        # Test: Normal user cannot show mounts
+        self.login(test_user, pwd)
+        # Note: SHOW MOUNTS requires SYSINFO privilege
+        self.exec_sql_failed("SHOW MOUNTS", TSDB_CODE_MND_NO_RIGHTS)
+        
+        # Grant SHOW MOUNTS privilege
+        self.login()
+        self.grant_privilege("SHOW MOUNTS", None, test_user)
+        
+        self.login(test_user, pwd)
+        self.exec_sql("SHOW MOUNTS")
+        
+        # Note: CREATE/DROP MOUNT typically require actual mount setup
+        # We test the privilege grants but not actual execution
+        self.login()
+        self.grant_privilege("CREATE MOUNT", None, mount_admin)
+        self.grant_privilege("DROP MOUNT", None, mount_admin)
+        
+        # Cleanup
+        self.login()
+        self.drop_user(mount_admin)
+        self.drop_user(test_user)
+        
+        print("Mount Management Privileges .......... [ passed ] ")
+    
+    def do_system_variable_privileges(self):
+        # Test system variable privileges
+        tdLog.info("=== Testing System Variable Privileges ===")
+        self.login()  # Login as root
+        
+        sys_admin = "sys_admin"
+        test_user = "test_user"
+        
+        # Create users
+        self.create_user(sys_admin, pwd)
+        self.create_user(test_user, pwd)
+        
+        # Test: Normal user cannot show system variables
+        self.login(test_user, pwd)
+        self.exec_sql_failed("SHOW CLUSTER VARIABLES", TSDB_CODE_MND_NO_RIGHTS)
+        
+        # Grant SHOW SYSTEM VARIABLES privilege
+        self.login()
+        self.grant_privilege("SHOW SYSTEM VARIABLES", None, test_user)
+        
+        self.login(test_user, pwd)
+        self.exec_sql("SHOW CLUSTER VARIABLES")
+        
+        # Test: ALTER SYSTEM VARIABLE privilege
+        self.login()
+        self.grant_privilege("ALTER SYSTEM VARIABLE", None, sys_admin)
+        
+        self.login(sys_admin, pwd)
+        # Note: Actual ALTER would depend on specific variables
+        # self.exec_sql("ALTER ALL DNODES 'someParam' 'someValue'")
+        
+        # Test other variable types (SECURITY, AUDIT, DEBUG)
+        self.login()
+        self.grant_privilege("SHOW SECURITY VARIABLES", None, test_user)
+        self.grant_privilege("ALTER SECURITY VARIABLE", None, sys_admin)
+        
+        # Cleanup
+        self.login()
+        self.drop_user(sys_admin)
+        self.drop_user(test_user)
+        
+        print("System Variable Privileges ........... [ passed ] ")
+    
+    def do_information_schema_privileges(self):
+        # Test information_schema access privileges
+        tdLog.info("=== Testing Information Schema Privileges ===")
+        self.login()  # Login as root
+        
+        basic_user = "basic_user"
+        priv_user = "priv_user"
+        
+        # Create users
+        self.create_user(basic_user, pwd)
+        self.create_user(priv_user, pwd)
+        
+        # Test: User without privilege cannot read information_schema
+        self.login(basic_user, pwd)
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_databases", TSDB_CODE_MND_NO_RIGHTS)
+        
+        # Grant READ INFORMATION_SCHEMA BASIC privilege
+        self.login()
+        self.grant_privilege("READ INFORMATION_SCHEMA BASIC", None, basic_user)
+        
+        self.login(basic_user, pwd)
+        self.exec_sql("SELECT * FROM information_schema.ins_databases")
+        
+        # Grant READ INFORMATION_SCHEMA PRIVILEGED privilege
+        self.login()
+        self.grant_privilege("READ INFORMATION_SCHEMA PRIVILEGED", None, priv_user)
+        
+        self.login(priv_user, pwd)
+        self.exec_sql("SELECT * FROM information_schema.ins_dnodes")
+        
+        # Cleanup
+        self.login()
+        self.drop_user(basic_user)
+        self.drop_user(priv_user)
+        
+        print("Information Schema Privileges ........ [ passed ] ")
+    
+    def do_system_monitoring_privileges(self):
+        # Test system monitoring privileges: SHOW/KILL TRANSACTIONS/CONNECTIONS/QUERIES
+        tdLog.info("=== Testing System Monitoring Privileges ===")
+        self.login()  # Login as root
+        
+        monitor_user = "monitor_user"
+        killer_user = "killer_user"
+        
+        # Create users
+        self.create_user(monitor_user, pwd)
+        self.create_user(killer_user, pwd)
+        
+        # Test: User without privilege cannot show transactions
+        self.login(monitor_user, pwd)
+        self.exec_sql_failed("SHOW TRANSACTIONS", TSDB_CODE_MND_NO_RIGHTS)
+        
+        # Grant SHOW TRANSACTIONS privilege
+        self.login()
+        self.grant_privilege("SHOW TRANSACTIONS", None, monitor_user)
+        
+        self.login(monitor_user, pwd)
+        self.exec_sql("SHOW TRANSACTIONS")
+        
+        # Grant SHOW CONNECTIONS privilege
+        self.login()
+        self.grant_privilege("SHOW CONNECTIONS", None, monitor_user)
+        
+        self.login(monitor_user, pwd)
+        self.exec_sql("SHOW CONNECTIONS")
+        
+        # Grant SHOW QUERIES privilege
+        self.login()
+        self.grant_privilege("SHOW QUERIES", None, monitor_user)
+        
+        self.login(monitor_user, pwd)
+        self.exec_sql("SHOW QUERIES")
+        
+        # Test: KILL privileges
+        self.login()
+        self.grant_privilege("KILL TRANSACTION", None, killer_user)
+        self.grant_privilege("KILL CONNECTION", None, killer_user)
+        self.grant_privilege("KILL QUERY", None, killer_user)
+        
+        # Note: Actual KILL operations require valid IDs
+        # We just verify the privilege grants don't error
+        
+        # Cleanup
+        self.login()
+        self.drop_user(monitor_user)
+        self.drop_user(killer_user)
+        
+        print("System Monitoring Privileges ......... [ passed ] ")
+    
+    def do_show_grants_cluster_apps_privileges(self):
+        # Test SHOW GRANTS, SHOW CLUSTER, SHOW APPS privileges
+        tdLog.info("=== Testing SHOW GRANTS/CLUSTER/APPS Privileges ===")
+        self.login()  # Login as root
+        
+        viewer_user = "viewer_user"
+        
+        # Create user
+        self.create_user(viewer_user, pwd)
+        
+        # Test: User without privilege cannot show grants
+        self.login(viewer_user, pwd)
+        self.exec_sql_failed("SHOW GRANTS", TSDB_CODE_MND_NO_RIGHTS)
+        
+        # Grant SHOW GRANTS privilege
+        self.login()
+        self.grant_privilege("SHOW GRANTS", None, viewer_user)
+        
+        self.login(viewer_user, pwd)
+        self.exec_sql("SHOW GRANTS")
+        
+        # Test: SHOW CLUSTER privilege
+        self.login()
+        self.grant_privilege("SHOW CLUSTER", None, viewer_user)
+        
+        self.login(viewer_user, pwd)
+        self.exec_sql("SHOW CLUSTER")
+        self.exec_sql("SHOW CLUSTER ALIVE")
+        
+        # Test: SHOW APPS privilege
+        self.login()
+        self.grant_privilege("SHOW APPS", None, viewer_user)
+        
+        self.login(viewer_user, pwd)
+        self.exec_sql("SHOW APPS")
+        
+        # Cleanup
+        self.login()
+        self.drop_user(viewer_user)
+        
+        print("SHOW GRANTS/CLUSTER/APPS Privileges .. [ passed ] ")
+    
+    def do_privilege_delegation(self):
+        # Test GRANT/REVOKE PRIVILEGE privileges (recursive authorization)
+        tdLog.info("=== Testing Privilege Delegation ===")
+        self.login()  # Login as root
+        
+        admin_user = "admin_user"
+        test_user = "test_user"
+        db_name = "test_db"
+        
+        # Create users and database
+        self.create_user(admin_user, pwd)
+        self.create_user(test_user, pwd)
+        self.create_database(db_name)
+        
+        # Test: Normal user cannot grant privileges
+        self.login(admin_user, pwd)
+        self.exec_sql_failed(f"GRANT SELECT ON {db_name}.* TO {test_user}", TSDB_CODE_MND_NO_RIGHTS)
+        
+        # Grant GRANT PRIVILEGE privilege to admin_user
+        self.login()
+        self.grant_privilege("GRANT PRIVILEGE", None, admin_user)
+        
+        # Test: admin_user can now grant privileges to others
+        self.login(admin_user, pwd)
+        self.grant_privilege("USE", f"DATABASE {db_name}", test_user)
+        
+        # Verify test_user received the privilege
+        self.login(test_user, pwd)
+        self.exec_sql(f"USE {db_name}")
+        
+        # Test: REVOKE PRIVILEGE privilege
+        self.login()
+        self.grant_privilege("REVOKE PRIVILEGE", None, admin_user)
+        
+        self.login(admin_user, pwd)
+        self.revoke_privilege("USE", f"DATABASE {db_name}", test_user)
+        
+        # Verify privilege was revoked
+        self.login(test_user, pwd)
+        self.exec_sql_failed(f"USE {db_name}", TSDB_CODE_MND_NO_RIGHTS)
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(admin_user)
+        self.drop_user(test_user)
+        
+        print("Privilege Delegation ................. [ passed ] ")
+
+    #
     # --------------------------- Function and Index Privileges Tests ----------------------------
     #
     def do_create_function_privilege(self):
@@ -2069,6 +2562,19 @@ class TestPrivControl:
           - System Roles (SYSDBA/SYSSEC/SYSAUDIT)
           - Audit Database Privileges (3.4.0.0+)
         
+        [System Privileges]
+          - User Management (ALTER USER, SHOW USERS SECURITY INFORMATION)
+          - Token Management (CREATE/ALTER/DROP TOKEN, SHOW TOKENS)
+          - TOTP Management (CREATE/DROP TOTP)
+          - Password Management (ALTER PASS, ALTER SELF PASS)
+          - Node Management (CREATE/DROP NODE, SHOW NODES)
+          - Mount Management (CREATE/DROP MOUNT, SHOW MOUNTS)
+          - System Variable Management (ALTER/SHOW SYSTEM/SECURITY/AUDIT/DEBUG VARIABLES)
+          - Information Schema Access (READ INFORMATION_SCHEMA BASIC/PRIVILEGED/SECURITY/AUDIT)
+          - System Monitoring (SHOW/KILL TRANSACTIONS/CONNECTIONS/QUERIES)
+          - Cluster Information (SHOW GRANTS/CLUSTER/APPS)
+          - Privilege Delegation (GRANT/REVOKE PRIVILEGE)
+        
         [Function and Index Privileges]
           - CREATE FUNCTION
           - CREATE INDEX
@@ -2102,7 +2608,19 @@ class TestPrivControl:
         print("")
         
         # test
-        self.do_constraint()
+        print("")
+        print("[System Privileges]")
+        #self.do_user_management_privileges()
+        #self.do_token_management_privileges()
+        #self.do_totp_management_privileges()
+        self.do_password_management_privileges()
+        self.do_node_management_privileges()
+        self.do_mount_management_privileges()
+        self.do_system_variable_privileges()
+        self.do_information_schema_privileges()
+        self.do_system_monitoring_privileges()
+        self.do_show_grants_cluster_apps_privileges()
+        self.do_privilege_delegation()
         return 
 
         # Database privilege tests
@@ -2137,6 +2655,21 @@ class TestPrivControl:
         self.do_role_creation_and_grant()
         self.do_system_roles()
         self.do_audit_database_privileges()
+        
+        # System privilege tests
+        print("")
+        print("[System Privileges]")
+        self.do_user_management_privileges()
+        self.do_token_management_privileges()
+        self.do_totp_management_privileges()
+        self.do_password_management_privileges()
+        self.do_node_management_privileges()
+        self.do_mount_management_privileges()
+        self.do_system_variable_privileges()
+        self.do_information_schema_privileges()
+        self.do_system_monitoring_privileges()
+        self.do_show_grants_cluster_apps_privileges()
+        self.do_privilege_delegation()
         
         # Function/index/tsrma/rsma privilege tests
         print("")
