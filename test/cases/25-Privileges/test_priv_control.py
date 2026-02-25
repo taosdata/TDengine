@@ -1224,6 +1224,7 @@ class TestPrivControl:
         
         # Test: pass_admin can change others' password
         self.login(pass_admin, pwd)
+        #BUG12
         self.exec_sql(f"ALTER USER {test_user} PASS '{new_pwd}'")
         
         # Verify new password works
