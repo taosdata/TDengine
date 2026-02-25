@@ -15,6 +15,7 @@
 #include "cus_name.h"  // include/util/
 #include "dump.h"
 #include "dumpUtil.h"
+#include "tdef.h"
 
 static char    **g_tsDumpInDebugFiles     = NULL;
 static char      g_dumpInCharset[64] = {0};
@@ -309,51 +310,67 @@ static char *typeToStr(int type) {
 }
 
 int typeStrToType(const char *type_str) {
-    if ((0 == strcasecmp(type_str, "bool"))
-            || (0 == strcasecmp(type_str, "boolean"))) {
-        return TSDB_DATA_TYPE_BOOL;
-    } else if (0 == strcasecmp(type_str, "tinyint")) {
-        return TSDB_DATA_TYPE_TINYINT;
-    } else if (0 == strcasecmp(type_str, "smallint")) {
-        return TSDB_DATA_TYPE_SMALLINT;
-    } else if (0 == strcasecmp(type_str, "int")) {
-        return TSDB_DATA_TYPE_INT;
-    } else if ((0 == strcasecmp(type_str, "bigint"))
-            || (0 == strcasecmp(type_str, "long"))) {
-        return TSDB_DATA_TYPE_BIGINT;
-    } else if (0 == strcasecmp(type_str, "float")) {
-        return TSDB_DATA_TYPE_FLOAT;
-    } else if (0 == strcasecmp(type_str, "double")) {
-        return TSDB_DATA_TYPE_DOUBLE;
-    } else if ((0 == strcasecmp(type_str, "binary"))
-            || (0 == strcasecmp(type_str, "varchar"))
-            || (0 == strcasecmp(type_str, "string"))) {
-        return TSDB_DATA_TYPE_BINARY;
-    } else if (0 == strcasecmp(type_str, "timestamp")) {
-        return TSDB_DATA_TYPE_TIMESTAMP;
-    } else if ((0 == strcasecmp(type_str, "nchar"))
-            || (0 == strcasecmp(type_str, "bytes"))) {
-        return TSDB_DATA_TYPE_NCHAR;
-    } else if (0 == strcasecmp(type_str, "tinyint unsigned")) {
-        return TSDB_DATA_TYPE_UTINYINT;
-    } else if (0 == strcasecmp(type_str, "smallint unsigned")) {
-        return TSDB_DATA_TYPE_USMALLINT;
-    } else if (0 == strcasecmp(type_str, "int unsigned")) {
-        return TSDB_DATA_TYPE_UINT;
-    } else if (0 == strcasecmp(type_str, "bigint unsigned")) {
-        return TSDB_DATA_TYPE_UBIGINT;
-    } else if (0 == strcasecmp(type_str, "JSON")) {
-        return TSDB_DATA_TYPE_JSON;
-    } else if (0 == strcasecmp(type_str, "varbinary")) {
-        return TSDB_DATA_TYPE_VARBINARY;
-    } else if (0 == strcasecmp(type_str, "geometry")) {
-        return TSDB_DATA_TYPE_GEOMETRY;
-    } else if (0 == strcasecmp(type_str, "decimal")) {
-        return TSDB_DATA_TYPE_DECIMAL;
-    } else {
-        errorPrint("%s() LN%d Unknown type: %s\n",
-                __func__, __LINE__, type_str);
+    if (NULL == type_str) {
+        return TSDB_DATA_TYPE_NULL;
     }
+
+    const char *paren = strchr(type_str, '(');
+    int type_len = paren ? (paren - type_str) : strlen(type_str);
+
+    #define CHECK_TYPE(name, type_const) \
+        do { \
+            if (strlen(name) == type_len && strncasecmp(type_str, name, type_len) == 0) { \
+                return type_const; \
+            } \
+        } while(0)
+
+    CHECK_TYPE("bool", TSDB_DATA_TYPE_BOOL);
+    CHECK_TYPE("boolean", TSDB_DATA_TYPE_BOOL);
+    CHECK_TYPE("tinyint", TSDB_DATA_TYPE_TINYINT);
+    CHECK_TYPE("smallint", TSDB_DATA_TYPE_SMALLINT);
+    CHECK_TYPE("int", TSDB_DATA_TYPE_INT);
+    CHECK_TYPE("bigint", TSDB_DATA_TYPE_BIGINT);
+    CHECK_TYPE("long", TSDB_DATA_TYPE_BIGINT);
+    CHECK_TYPE("float", TSDB_DATA_TYPE_FLOAT);
+    CHECK_TYPE("double", TSDB_DATA_TYPE_DOUBLE);
+    CHECK_TYPE("binary", TSDB_DATA_TYPE_BINARY);
+    CHECK_TYPE("varchar", TSDB_DATA_TYPE_BINARY);
+    CHECK_TYPE("string", TSDB_DATA_TYPE_BINARY);
+    CHECK_TYPE("timestamp", TSDB_DATA_TYPE_TIMESTAMP);
+    CHECK_TYPE("nchar", TSDB_DATA_TYPE_NCHAR);
+    CHECK_TYPE("bytes", TSDB_DATA_TYPE_NCHAR);
+    CHECK_TYPE("tinyint unsigned", TSDB_DATA_TYPE_UTINYINT);
+    CHECK_TYPE("smallint unsigned", TSDB_DATA_TYPE_USMALLINT);
+    CHECK_TYPE("int unsigned", TSDB_DATA_TYPE_UINT);
+    CHECK_TYPE("bigint unsigned", TSDB_DATA_TYPE_UBIGINT);
+    CHECK_TYPE("JSON", TSDB_DATA_TYPE_JSON);
+    CHECK_TYPE("varbinary", TSDB_DATA_TYPE_VARBINARY);
+    CHECK_TYPE("geometry", TSDB_DATA_TYPE_GEOMETRY);
+
+    if (strlen("decimal") == type_len && strncasecmp(type_str, "decimal", type_len) == 0) {
+        if (paren != NULL) {
+            const char *comma = strchr(paren, ',');
+            if (comma != NULL) {
+                int precision_len = comma - paren - 1;
+                char precision_str[16] = {0};
+                strncpy(precision_str, paren + 1, precision_len);
+
+                int precision = atoi(precision_str);
+                if (precision > TSDB_DECIMAL64_MAX_PRECISION) {
+                    return TSDB_DATA_TYPE_DECIMAL;
+                } else {
+                    return TSDB_DATA_TYPE_DECIMAL64;
+                }
+            }
+        }
+        return TSDB_DATA_TYPE_DECIMAL64;
+    }
+
+
+    #undef CHECK_TYPE
+
+    errorPrint("%s() LN%d Unknown type: %s\n",
+            __func__, __LINE__, type_str);
 
     return TSDB_DATA_TYPE_NULL;
 }
@@ -5826,12 +5843,10 @@ static int64_t dumpInAvroDataImpl(
                         }
                         break;
                     case TSDB_DATA_TYPE_BINARY:
-                        if (field->type == TSDB_DATA_TYPE_BINARY
-                            || field->type == TSDB_DATA_TYPE_DECIMAL
-                            || field->type == TSDB_DATA_TYPE_DECIMAL64
-                        ) {
+                    case TSDB_DATA_TYPE_DECIMAL:
+                    case TSDB_DATA_TYPE_DECIMAL64:
+                        if (field->type == TSDB_DATA_TYPE_BINARY) {
                             dumpInAvroDataBinary(field, &field_value, bind, &is_null);
-;
                         } else {
                             warnPrint("field[%d] type is not binary/decimal! field->type=%d\n", i, field->type);
                             bind->is_null = &is_null;
