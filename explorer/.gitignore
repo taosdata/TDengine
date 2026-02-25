@@ -38,3 +38,8 @@ vite.config.ts.*
 taos-connector-node/typescript-rest/package-lock.json
 taos-connector-node/WebSocket/pnpm-lock.yaml
 taos-connector-node/WebSocket/package-lock.json
+
+# Playwright
+playwright-report/
+test-results/
+tests/.auth/
