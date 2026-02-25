@@ -3855,10 +3855,11 @@ _err:
 
 
 
-SNode* createAlterTagValueNode(SAstCreateContext* pCtx, const SToken* pTagName, SNode* pVal) {
-  CHECK_PARSER_STATUS(pCtx);
+SNode* createAlterTagValueNode(SAstCreateContext* pCxt, SToken* pTagName, SNode* pVal) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkColumnName(pCxt, pTagName));
   SUpdateTagValueNode* pNode = NULL;
-  pCtx->errCode = nodesMakeNode(QUERY_NODE_UPDATE_TAG_VALUE, (SNode**)&pNode);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_UPDATE_TAG_VALUE, (SNode**)&pNode);
   CHECK_MAKE_NODE(pNode);
   COPY_STRING_FORM_ID_TOKEN(pNode->tagName, pTagName);
   pNode->pVal = (SValueNode*)pVal;
@@ -3873,12 +3874,13 @@ _err:
 // NOTE: this function only supports REGEXP_REPLACE for now, it should be extended
 // for full expression support in the future, and the prototype needs to be changed
 // accordingly.
-SNode* createAlterTagValueNodeWithExpression(SAstCreateContext* pCxt, const SToken* column, const SToken* pattern, const SToken* replacement) {
+SNode* createAlterTagValueNodeWithExpression(SAstCreateContext* pCxt, SToken* pTagName, const SToken* pattern, const SToken* replacement) {
   CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkColumnName(pCxt, pTagName));
   SUpdateTagValueNode* pNode = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_UPDATE_TAG_VALUE, (SNode**)&pNode);
   CHECK_MAKE_NODE(pNode);
-  COPY_STRING_FORM_ID_TOKEN(pNode->tagName, column);
+  COPY_STRING_FORM_ID_TOKEN(pNode->tagName, pTagName);
 
   pNode->regexp = taosStrndup(pattern->z, pattern->n);
   if (pNode->regexp == NULL) {

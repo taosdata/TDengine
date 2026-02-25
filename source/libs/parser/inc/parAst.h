@@ -252,8 +252,8 @@ SNode*     createNullIfNode(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr
 SNode*     createNvlNode(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr2);
 SNode*     createNvl2Node(SAstCreateContext* pCxt, SNode* pExpr1, SNode* pExpr2, SNode* pExpr3);
 SNode*     createCoalesceNode(SAstCreateContext* pCxt, SNodeList* pParamList);
-SNode*     createAlterTagValueNode(SAstCreateContext* pCtx, const SToken* token, SNode* pVal);
-SNode*     createAlterTagValueNodeWithExpression(SAstCreateContext* pCxt, const SToken* column, const SToken* pattern, const SToken* replacement);
+SNode*     createAlterTagValueNode(SAstCreateContext* pCxt, SToken* pTagName, SNode* pVal);
+SNode*     createAlterTagValueNodeWithExpression(SAstCreateContext* pCxt, SToken* pTagName, const SToken* pattern, const SToken* replacement);
 SNode*     createCountWindowArgs(SAstCreateContext* pCtx, const SToken* countToken, const SToken* slidingToken, SNodeList* colList);
 
 SNode* addWhereClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pWhere);
