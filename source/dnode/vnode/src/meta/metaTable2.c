@@ -1551,7 +1551,7 @@ static int32_t metaUpdateTableMultiTagValueImpl(SMeta *pMeta, int64_t version, c
     TAOS_RETURN(code);
   }
 
-  if (pChild->type != TSDB_CHILD_TABLE) {
+  if (pChild->type != TSDB_CHILD_TABLE && pChild->type != TSDB_VIRTUAL_CHILD_TABLE) {
     metaError("vgId:%d, %s failed at %s:%d since table %s is not a child table, version:%" PRId64,
               TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tbName, version);
     metaFetchEntryFree(&pChild);
