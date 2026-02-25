@@ -30,8 +30,8 @@ public class WebsocketSubscribeDemo {
         }, 3_000);
         try {
             // prepare
-            Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
-            String jdbcUrl = "jdbc:TAOS-RS://127.0.0.1:6041/?user=root&password=taosdata&batchfetch=true";
+            Class.forName("com.taosdata.jdbc.ws.WebSocketDriver");
+            String jdbcUrl = "jdbc:TAOS-WS://127.0.0.1:6041/?user=root&password=taosdata";
             try (Connection connection = DriverManager.getConnection(jdbcUrl);
                     Statement statement = connection.createStatement()) {
                 statement.executeUpdate("drop topic if exists " + TOPIC);
