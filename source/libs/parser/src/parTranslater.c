@@ -23880,8 +23880,16 @@ static int32_t buildUpdateTagValReqImpl2(STranslateContext* pCxt, const char* ta
   }
 _err:
   if (code != 0) {
+    for (int32_t i = 0; i < taosArrayGetSize(pReq->pTagArray); ++i) {
+      STagVal* p = (STagVal*)taosArrayGet(pReq->pTagArray, i);
+      if (IS_VAR_DATA_TYPE(p->type)) {
+        taosMemoryFreeClear(p->pData);
+      }
+    }
     taosArrayDestroy(pReq->pTagArray);
+    pReq->pTagArray = NULL;
     taosMemoryFree(pReq->tagName);
+    pReq->tagName = NULL;
   }
   return code;
 }
