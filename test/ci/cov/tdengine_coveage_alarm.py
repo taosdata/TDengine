@@ -8,9 +8,9 @@ import glob
 import argparse
 
 # 替换为你的实际凭证和表格信息
-author = "guoxy"
+author = "Platform Coverage Test"
 
-coverage_url = "https://coveralls.io/github/taosdata/TDengine?branch=cover/3.0"
+coverage_url = "https://coveralls.io/github/taosdata/TDengine?branch=3.0"
 
 feishu_head = "Testing coverage report for taosd/taosc"
 
@@ -366,7 +366,7 @@ def compare_cells(data1, data2, webhook_urls):
  
     # 检查是否产生新的历史最高覆盖率
     if current_coverage_value > highest_coverage_value:
-        print(f"🎉 新的覆盖率记录！当前覆盖率 {current_coverage_value:.3f}% 超过历史最高覆盖率 {highest_coverage_value:.3f}%")
+        print(f"当前覆盖率 {current_coverage_value:.3f}% 超过历史最高覆盖率 {highest_coverage_value:.3f}%")
         update_highest_coverage(current_coverage_value)
         # 🔧 更新后，highest_coverage_value 应该等于当前值
         highest_coverage_value = current_coverage_value
@@ -386,24 +386,24 @@ def compare_cells(data1, data2, webhook_urls):
     # 🔧 修复：所有返回都使用正确的 highest_coverage_value（历史最高值）
     if data1_1 < 0.56:
         message = " Taosd && taosc 代码覆盖率低于56%，请密切关注！" 
-        notifier = "xyguo@taosdata.com"
+        notifier = "slguan@taosdata.com"
         return message, notifier, highest_coverage_value, webhook_urls['alert']
     elif (data1_1 - data2_1) > 0 and (current_coverage_value > highest_coverage):
         # 注意：这里比较的是更新前的历史最高值
-        message = f" Taosd && taosc 代码覆盖率由{data2}上升到{data1}，产生新的覆盖率记录，当前覆盖率为 {current_coverage_value:.3f}% 超过历史最高覆盖率 {highest_coverage:.3f}%，继续加油!失败的case:{fail_case_message}" 
+        message = f" Taosd && taosc 代码覆盖率由{data2}上升到{data1}，当前覆盖率为 {current_coverage_value:.3f}% 为历史最高覆盖率，继续加油! 失败的 Case:{fail_case_message}" 
         notifier = "slguan@taosdata.com"
         return message, notifier, highest_coverage_value, webhook_urls['alert']
     elif (data1_1 - data2_1) > 0 and (current_coverage_value <= highest_coverage):
-        message = f" Taosd && taosc 代码覆盖率由{data2}上升到{data1}，当前覆盖率为 {current_coverage_value:.3f}% 离历史最高覆盖率 {highest_coverage_value:.3f}% 还差 {round(highest_coverage_value - current_coverage_value, 3)}%，继续加油!失败的case:{fail_case_message}" 
+        message = f" Taosd && taosc 代码覆盖率由{data2}上升到{data1}，当前覆盖率为 {current_coverage_value:.3f}% 离历史最高覆盖率 {highest_coverage_value:.3f}% 还差 {round(highest_coverage_value - current_coverage_value, 3)}%，继续加油! 失败的 Case:{fail_case_message}" 
         notifier = "slguan@taosdata.com"
         return message, notifier, highest_coverage_value, webhook_urls['alert']
     elif (data1_1 - data2_1) < -0.003:
-        message = f" Taosd && taosc 代码覆盖率由{data2}下降到{data1}，当前覆盖率为 {current_coverage_value:.3f}% 离历史最高覆盖率 {highest_coverage_value:.3f}% 还差 {round(highest_coverage_value - current_coverage_value, 3)}%，请关注!失败的case:{fail_case_message}" 
+        message = f" Taosd && taosc 代码覆盖率由{data2}下降到{data1}，当前覆盖率为 {current_coverage_value:.3f}% 离历史最高覆盖率 {highest_coverage_value:.3f}% 还差 {round(highest_coverage_value - current_coverage_value, 3)}%，请关注! 失败的 Case:{fail_case_message}" 
         notifier = "slguan@taosdata.com"
         return message, notifier, highest_coverage_value, webhook_urls['alert']
     else:
         message = f" Taosd && taosc 本次代码覆盖率基本不变（<0.3%），当前覆盖率为 {current_coverage_value:.3f}% 离历史最高覆盖率 {highest_coverage_value:.3f}% 还差 {round(highest_coverage_value - current_coverage_value, 3)}%，请继续保持!" 
-        notifier = "xyguo@taosdata.com"
+        notifier = "slguan@taosdata.com"
         return message, notifier, highest_coverage_value, webhook_urls['notify']
     
 def compare_cells_alarm(data1, data2, current_data, webhook_urls):
@@ -481,6 +481,7 @@ def send_to_feishu(send_to_feishu_url, message, notifier, coverage_result_url,co
 
     response = requests.post(send_to_feishu_url, headers=headers, data=json.dumps(data))
     if response.status_code == 200:
+        print(f"{response.status_code}")
         print("消息发送成功")
     else:
         print(
