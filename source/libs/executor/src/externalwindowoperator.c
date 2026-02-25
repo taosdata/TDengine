@@ -366,6 +366,71 @@ _exit:
   return code;
 }
 
+static int32_t extWinRebuildWinIdxAfterFilter(SExecTaskInfo* pTaskInfo, SArray* pIdx, SColumnInfoData* pFilterRes,
+                                              int32_t rowsBeforeFilter) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  int32_t  idxSize = taosArrayGetSize(pIdx);
+  int8_t*  pIndicator = pFilterRes ? (int8_t*)pFilterRes->pData : NULL;
+  int64_t* pOldIdx = NULL;
+
+  if (idxSize <= 0 || pIndicator == NULL || rowsBeforeFilter <= 0) {
+    return code;
+  }
+
+  pOldIdx = taosMemoryCalloc(idxSize, sizeof(int64_t));
+  TSDB_CHECK_NULL(pOldIdx, code, lino, _exit, terrno);
+
+  for (int32_t i = 0; i < idxSize; ++i) {
+    int64_t* pItem = taosArrayGet(pIdx, i);
+    TSDB_CHECK_NULL(pItem, code, lino, _exit, terrno);
+    pOldIdx[i] = *pItem;
+  }
+
+  taosArrayClear(pIdx);
+
+  int32_t outStartIdx = 0;
+  for (int32_t i = 0; i < idxSize; ++i) {
+    int32_t* pCurr = (int32_t*)&pOldIdx[i];
+    int32_t  winIdx = pCurr[0];
+    int32_t  startRow = pCurr[1];
+    int32_t  endRow = rowsBeforeFilter;
+    if (i + 1 < idxSize) {
+      int32_t* pNext = (int32_t*)&pOldIdx[i + 1];
+      endRow = pNext[1];
+    }
+
+    QUERY_CHECK_CONDITION(startRow >= 0 && startRow <= rowsBeforeFilter, code, lino, _exit,
+                          TSDB_CODE_STREAM_INTERNAL_ERROR);
+    QUERY_CHECK_CONDITION(endRow >= startRow && endRow <= rowsBeforeFilter, code, lino, _exit,
+                          TSDB_CODE_STREAM_INTERNAL_ERROR);
+
+    int32_t keepRows = 0;
+    for (int32_t row = startRow; row < endRow; ++row) {
+      if (pIndicator[row]) {
+        ++keepRows;
+      }
+    }
+
+    if (keepRows > 0) {
+      int64_t idx = 0;
+      int32_t* pNew = (int32_t*)&idx;
+      pNew[0] = winIdx;
+      pNew[1] = outStartIdx;
+      TSDB_CHECK_NULL(taosArrayPush(pIdx, &idx), code, lino, _exit, terrno);
+      outStartIdx += keepRows;
+    }
+  }
+
+_exit:
+
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s %s failed at line %d since %s", pTaskInfo->id.str, __func__, lino, tstrerror(code));
+  }
+  taosMemoryFree(pOldIdx);
+  return code;
+}
+
 
 static int32_t mergeAlignExtWinSetOutputBuf(SOperatorInfo* pOperator, SResultRowInfo* pResultRowInfo, const STimeWindow* pWin, SResultRow** pResult,
                                        SExprSupp* pExprSup, SAggSupporter* pAggSup) {
@@ -1820,6 +1885,7 @@ static int32_t extWinAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   int32_t*                 rowEntryOffset = pOperator->exprSupp.rowEntryInfoOffset;
   SqlFunctionCtx*          pCtx = pOperator->exprSupp.pCtx;
   int32_t                  numOfWin = pExtW->outWinIdx;
+  SColumnInfoData*         pFilterRes = NULL;
 
   pBlock->info.version = pTaskInfo->version;
   blockDataCleanup(pBlock);
@@ -1861,6 +1927,18 @@ static int32_t extWinAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     }
   }
 
+  int64_t rowsBeforeFilter = pBlock->info.rows;
+  if (rowsBeforeFilter > 0 && pOperator->exprSupp.pFilterInfo != NULL) {
+    TAOS_CHECK_EXIT(doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL, &pFilterRes));
+
+    if (pBlock->info.rows == 0) {
+      taosArrayClear(pExtW->pWinRowIdx);
+    } else if (pBlock->info.rows < rowsBeforeFilter) {
+      QUERY_CHECK_CONDITION(rowsBeforeFilter <= INT32_MAX, code, lino, _exit, TSDB_CODE_STREAM_INTERNAL_ERROR);
+      TAOS_CHECK_EXIT(extWinRebuildWinIdxAfterFilter(pTaskInfo, pExtW->pWinRowIdx, pFilterRes, (int32_t)rowsBeforeFilter));
+    }
+  }
+
   qDebug("%s result generated, rows:%" PRId64 ", groupId:%" PRIu64, GET_TASKID(pTaskInfo), pBlock->info.rows,
          pBlock->info.id.groupId);
          
@@ -1873,10 +1951,13 @@ static int32_t extWinAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     (*ppRes)->info.window.ekey = pExtW->orgTableTimeRange.ekey;
   }
   if (pOperator->pTaskInfo->pStreamRuntimeInfo) {
-    pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamBlkWinIdx = pExtW->pWinRowIdx;
+    pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamBlkWinIdx = *ppRes ? pExtW->pWinRowIdx : NULL;
   }
 
 _exit:
+
+  colDataDestroy(pFilterRes);
+  taosMemoryFree(pFilterRes);
 
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -2197,7 +2278,7 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (pExtW->binfo.pRes->info.rows > 0) break;
 #else
     TAOS_CHECK_EXIT(extWinAggOutputRes(pOperator, ppRes));
-    if (NULL == *ppRes) {
+    if (NULL == *ppRes && pExtW->outputWinId >= pExtW->pWins->size) {
       setOperatorCompleted(pOperator);
       if (pTaskInfo->pStreamRuntimeInfo) {
         extWinFreeResultRow(pExtW);
@@ -2312,6 +2393,10 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     code = initAggSup(&pOperator->exprSupp, &pExtW->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str, 0, 0);
     QUERY_CHECK_CODE(code, lino, _error);
 
+    code = filterInitFromNode((SNode*)pNode->pConditions, &pOperator->exprSupp.pFilterInfo, 0,
+                              pTaskInfo->pStreamRuntimeInfo);
+    QUERY_CHECK_CODE(code, lino, _error);
+
     nodesWalkExprs(pPhynode->window.pFuncs, extWinHasCountLikeFunc, &pExtW->hasCountFunc);
     if (pExtW->hasCountFunc) {
       code = extWinCreateEmptyInputBlock(pOperator, &pExtW->pEmptyInputBlock);
@@ -2414,5 +2499,3 @@ _error:
   qError("error happens at %s %d, code:%s", __func__, lino, tstrerror(code));
   return code;
 }
-
-

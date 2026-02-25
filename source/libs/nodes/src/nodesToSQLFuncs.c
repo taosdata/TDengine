@@ -240,6 +240,37 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
       *len += tsnprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
       return TSDB_CODE_SUCCESS;
     }
+    case QUERY_NODE_CASE_WHEN: {
+      SCaseWhenNode* pCaseWhen = (SCaseWhenNode*)pNode;
+      SNode*         node = NULL;
+      bool           first = true;
+
+      *len += tsnprintf(buf + *len, bufSize - *len, "CASE");
+      if (pCaseWhen->pCase != NULL) {
+        NODES_ERR_RET(nodesNodeToSQLFormat(pCaseWhen->pCase, buf, bufSize, len, true));
+      }
+
+      FOREACH(node, pCaseWhen->pWhenThenList) {
+        SWhenThenNode* pWhenThen = (SWhenThenNode*)node;
+        if (!first) {
+          *len += tsnprintf(buf + *len, bufSize - *len, " ");
+        }
+        *len += tsnprintf(buf + *len, bufSize - *len, " WHEN ");
+        NODES_ERR_RET(nodesNodeToSQLFormat(pWhenThen->pWhen, buf, bufSize, len, true));
+        *len += tsnprintf(buf + *len, bufSize - *len, " THEN ");
+        NODES_ERR_RET(nodesNodeToSQLFormat(pWhenThen->pThen, buf, bufSize, len, true));
+        first = false;
+      }
+
+      if (pCaseWhen->pElse) {
+        *len += tsnprintf(buf + *len, bufSize - *len, " ELSE ");
+        NODES_ERR_RET(nodesNodeToSQLFormat(pCaseWhen->pElse, buf, bufSize, len, true));
+      }
+
+      *len += tsnprintf(buf + *len, bufSize - *len, " END");
+
+      return TSDB_CODE_SUCCESS;
+    }
     default:
       break;
   }
