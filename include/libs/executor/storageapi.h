@@ -207,7 +207,7 @@ typedef struct TsdReader {
   void         (*tsdReaderGetDatablock)();
   void         (*tsdReaderSetDatablock)();
   int64_t      (*tsdReaderGetNumOfInMemRows)();
-  void         (*tsdReaderNotifyClosing)();
+  void         (*tsdReaderNotifyClosing)(void* pReader);
 
   void         (*tsdSetFilesetDelimited)(void* pReader);
   void         (*tsdSetSetNotifyCb)(void* pReader, TsdReaderNotifyCbFn notifyFn, void* param);

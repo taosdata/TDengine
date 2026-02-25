@@ -1464,27 +1464,26 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
 }
 
 static int32_t groupCacheGetNext(struct SOperatorInfo* pOperator, SOperatorParam* pParam, SSDataBlock** pRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  recordOpExecBegin(pOperator);
+
   *pRes = NULL;
 
   SSDataBlock* pBlock = NULL;
-  int64_t      st = 0;
-  int32_t      code = 0;
-
-  if (pOperator->cost.openCost == 0) {
-    st = taosGetTimestampUs();
-  }
 
   code = getBlkFromGroupCache(pOperator, &pBlock, pParam);
-  if (TSDB_CODE_SUCCESS != code) {
-    pOperator->pTaskInfo->code = code;
-    T_LONG_JMP(pOperator->pTaskInfo->env, pOperator->pTaskInfo->code);
-  }
-
-  if (pOperator->cost.openCost == 0) {
-    pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-  }
+  QUERY_CHECK_CODE(code, lino, _end);
 
   *pRes = pBlock;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pOperator->pTaskInfo->code = code;
+    T_LONG_JMP(pOperator->pTaskInfo->env, code);
+  }
+  recordOpExecEnd(pOperator, *pRes != NULL && (*pRes)->info.rows > 0);
   return code;
 }
 
@@ -1600,6 +1599,7 @@ int32_t createGroupCacheOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfD
     code = terrno;
     goto _error;
   }
+  recordOpCreateTime(pOperator, pTaskInfo);
 
   pOperator->transparent = true;
   pOperator->pPhyNode = pPhyciNode;

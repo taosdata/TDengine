@@ -517,7 +517,7 @@ static int32_t hashGroupbyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
   SGroupbyOperatorInfo* pInfo = pOperator->info;
   SGroupResInfo*        pGroupResInfo = &pInfo->groupResInfo;
   int32_t               order = pInfo->binfo.inputTsOrder;
-  int64_t               st = taosGetTimestampUs();
+  recordOpExecBegin(pOperator);
 
   QRY_PARAM_CHECK(ppRes);
   if (pOperator->status == OP_EXEC_DONE) {
@@ -526,6 +526,7 @@ static int32_t hashGroupbyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
 
   if (pOperator->status == OP_RES_TO_RETURN) {
     (*ppRes) = buildGroupResultDataBlockByHash(pOperator);
+    recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
     return code;
   }
 
@@ -567,8 +568,6 @@ static int32_t hashGroupbyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
   pGroupResInfo->iter = 0;
   pGroupResInfo->dataPos = NULL;
 
-  pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -578,6 +577,7 @@ _end:
     (*ppRes) = buildGroupResultDataBlockByHash(pOperator);
   }
 
+  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
   return code;
 }
 
@@ -620,6 +620,7 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
     code = terrno;
     goto _error;
   }
+  recordOpCreateTime(pOperator, pTaskInfo);
 
   pOperator->pPhyNode = (SNode*)pAggNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
@@ -1117,14 +1118,12 @@ static int32_t hashPartitionNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
   SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
   SPartitionOperatorInfo* pInfo = pOperator->info;
   SSDataBlock*            pRes = pInfo->binfo.pRes;
+  recordOpExecBegin(pOperator);
 
   if (pOperator->status == OP_RES_TO_RETURN) {
     (*ppRes) = buildPartitionResult(pOperator);
     return code;
   }
-
-  int64_t        st = taosGetTimestampUs();
-  SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
@@ -1165,8 +1164,6 @@ static int32_t hashPartitionNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
   pInfo->groupIndex = -1;
   taosHashClear(pInfo->pGroupSet);
 
-  pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-
   pOperator->status = OP_RES_TO_RETURN;
   code = blockDataEnsureCapacity(pRes, 4096);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -1179,6 +1176,7 @@ _end:
   }
 
   (*ppRes) = buildPartitionResult(pOperator);
+  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
   return code;
 }
 
@@ -1268,6 +1266,7 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
     pTaskInfo->code = code = terrno;
     goto _error;
   }
+  recordOpCreateTime(pOperator, pTaskInfo);
 
   pOperator->pPhyNode = pPartNode;
   int32_t    numOfCols = 0;

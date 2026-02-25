@@ -16,7 +16,6 @@
 #ifndef _TD_UTIL_UTIL_H_
 #define _TD_UTIL_UTIL_H_
 
-#include "tcrc32c.h"
 #include "tdef.h"
 #include "thash.h"
 #include "tmd5.h"
@@ -453,7 +452,8 @@ bool taosIsSpecialChar(char c);
 bool taosIsComplexString(const char* str);
 
 #define QUERY_ENABLE_EXPLAIN(pTaskInfo) (pTaskInfo->enableExplain)
-#define QUERY_GET_ANALYZE_TIMESTAMP(pTaskInfo) (QUERY_ENABLE_EXPLAIN(pTaskInfo) ? taosGetTimestampUs() : 0)
+#define QUERY_GET_ANALYZE_TIMESTAMP(pTaskInfo) \
+        (QUERY_ENABLE_EXPLAIN(pTaskInfo) ? taosGetTimestampUs() : TSKEY_INITIAL_VAL)
 
 #ifdef __cplusplus
 }

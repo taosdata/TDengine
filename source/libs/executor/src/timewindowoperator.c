@@ -1344,6 +1344,7 @@ static int32_t doStateWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
   SStateWindowOperatorInfo* pInfo = pOperator->info;
   SOptrBasicInfo*           pBInfo = &pInfo->binfo;
+  recordOpExecBegin(pOperator);
 
   code = pOperator->fpSet._openFn(pOperator);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -1376,6 +1377,7 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) = (pBInfo->pRes->info.rows == 0) ? NULL : pBInfo->pRes;
+  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
   return code;
 }
 
@@ -1385,6 +1387,7 @@ static int32_t doBuildIntervalResultNext(SOperatorInfo* pOperator, SSDataBlock**
   SIntervalAggOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
   size_t                    rows = 0;
+  recordOpExecBegin(pOperator);
 
   if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
     (*ppRes) = NULL;
@@ -1430,6 +1433,7 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) = (rows == 0) ? NULL : pBlock;
+  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
   return code;
 }
 
@@ -1645,6 +1649,7 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
     lino = __LINE__;
     goto _error;
   }
+  recordOpCreateTime(pOperator, pTaskInfo);
 
   pOperator->pPhyNode = pPhyNode;
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pPhyNode->window.node.pOutputDataBlockDesc);
@@ -1856,6 +1861,7 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
   SSessionAggOperatorInfo* pInfo = pOperator->info;
   SOptrBasicInfo*          pBInfo = &pInfo->binfo;
   SExprSupp*               pSup = &pOperator->exprSupp;
+  recordOpExecBegin(pOperator);
 
   if (pOperator->status == OP_RES_TO_RETURN) {
     while (1) {
@@ -1875,10 +1881,10 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
     }
     pOperator->resultInfo.totalRows += pBInfo->pRes->info.rows;
     (*ppRes) = (pBInfo->pRes->info.rows == 0) ? NULL : pBInfo->pRes;
+    recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
     return code;
   }
 
-  int64_t st = taosGetTimestampUs();
   int32_t order = pInfo->binfo.inputTsOrder;
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
@@ -1907,8 +1913,6 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
 
     doSessionWindowAggImpl(pOperator, pInfo, pBlock);
   }
-
-  pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
 
   // restore the value
   pOperator->status = OP_RES_TO_RETURN;
@@ -1943,6 +1947,7 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) = (pBInfo->pRes->info.rows == 0) ? NULL : pBInfo->pRes;
+  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
   return code;
 }
 
@@ -1989,6 +1994,7 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhy
     code = terrno;
     goto _error;
   }
+  recordOpCreateTime(pOperator, pTaskInfo);
 
   pOperator->pPhyNode = pStateNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
@@ -2144,6 +2150,7 @@ int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPh
     code = terrno;
     goto _error;
   }
+  recordOpCreateTime(pOperator, pTaskInfo);
 
   pOperator->pPhyNode = pSessionNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
@@ -2415,6 +2422,8 @@ _end:
 }
 
 static int32_t mergeAlignedIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  recordOpExecBegin(pOperator);
+
   SExecTaskInfo*                        pTaskInfo = pOperator->pTaskInfo;
   int32_t                               code = TSDB_CODE_SUCCESS;
   SMergeAlignedIntervalAggOperatorInfo* pMiaInfo = pOperator->info;
@@ -2446,6 +2455,7 @@ static int32_t mergeAlignedIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock
   size_t rows = pRes->info.rows;
   pOperator->resultInfo.totalRows += rows;
   (*ppRes) = (rows == 0) ? NULL : pRes;
+  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
   return code;
 }
 
@@ -2477,6 +2487,7 @@ int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
     code = terrno;
     goto _error;
   }
+  recordOpCreateTime(pOperator, pTaskInfo);
 
   pOperator->pPhyNode = pNode;
   miaInfo->intervalAggOperatorInfo = taosMemoryCalloc(1, sizeof(SIntervalAggOperatorInfo));
@@ -2736,6 +2747,7 @@ static int32_t doMergeIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  recordOpExecBegin(pOperator);
 
   SMergeIntervalAggOperatorInfo* miaInfo = pOperator->info;
   SIntervalAggOperatorInfo*      iaInfo = &miaInfo->intervalAggOperatorInfo;
@@ -2814,6 +2826,7 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) = (rows == 0) ? NULL : pRes;
+  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
   return code;
 }
 
@@ -2842,6 +2855,7 @@ int32_t createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeInterva
     code = terrno;
     goto _error;
   }
+  recordOpCreateTime(pOperator, pTaskInfo);
 
   pOperator->pPhyNode = pIntervalPhyNode;
   SInterval interval = {.interval = pIntervalPhyNode->interval,
