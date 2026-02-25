@@ -79,9 +79,6 @@ int32_t walNextValidMsg(SWalReader *pReader) {
   wDebug("vgId:%d, wal start to fetch, index:%" PRId64 ", last index:%" PRId64 " commit index:%" PRId64
          ", applied index:%" PRId64,
          pReader->pWal->cfg.vgId, fetchVer, lastVer, committedVer, appliedVer);
-  if (fetchVer > appliedVer) {
-    TAOS_RETURN(TSDB_CODE_WAL_LOG_NOT_EXIST);
-  }
 
   while (fetchVer <= appliedVer) {
     TAOS_CHECK_RETURN(walFetchHead(pReader, fetchVer));
@@ -99,7 +96,7 @@ int32_t walNextValidMsg(SWalReader *pReader) {
     }
   }
 
-  TAOS_RETURN(TSDB_CODE_FAILED);
+  TAOS_RETURN(TSDB_CODE_WAL_LOG_NOT_EXIST);
 }
 
 int64_t walReaderGetCurrentVer(const SWalReader *pReader) { return pReader->curVersion; }
