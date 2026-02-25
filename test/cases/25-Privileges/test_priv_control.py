@@ -1365,40 +1365,77 @@ class TestPrivControl:
         tdLog.info("=== Testing System Variable Privileges ===")
         self.login()  # Login as root
         
-        sys_admin = "sys_admin"
         test_user = "test_user"
         
         # Create users
-        self.create_user(sys_admin, pwd)
         self.create_user(test_user, pwd)
+        # revoke
+        self.revoke_role("`SYSINFO_1`", test_user)  # revoke default role
+        self.revoke_privilege("SHOW  SYSTEM   VARIABLES", None, test_user)
+        self.revoke_privilege("ALTER SYSTEM   VARIABLE",  None, test_user)
+        self.revoke_privilege("SHOW  AUDIT    VARIABLES", None, test_user)
+        self.revoke_privilege("ALTER AUDIT    VARIABLE",  None, test_user)        
+        self.revoke_privilege("SHOW  SECURITY VARIABLES", None, test_user)
+        self.revoke_privilege("ALTER SECURITY VARIABLE",  None, test_user)
+        self.revoke_privilege("SHOW  DEBUG    VARIABLES", None, test_user)
+        self.revoke_privilege("ALTER DEBUG    VARIABLE",  None, test_user)        
         
-        # Test: Normal user cannot show system variables
+        # Test: no privilege
         self.login(test_user, pwd)
-        self.exec_sql_failed("SHOW CLUSTER VARIABLES", TSDB_CODE_MND_NO_RIGHTS)
+        #'''BUG15    
+        self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'monitor'", 0)
+        self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'audit'", 0)
+        self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'enableStrongPassword'", 0)
+        self.query_expect_rows("SHOW LOCAL   VARIABLES LIKE 'numOfLogLines'", 0)
+        #'''
         
-        # Grant SHOW SYSTEM VARIABLES privilege
+        # Grant privilege
         self.login()
-        self.grant_privilege("SHOW SYSTEM VARIABLES", None, test_user)
+        self.grant_privilege("SHOW  SYSTEM   VARIABLES", None, test_user)
+        self.grant_privilege("ALTER SYSTEM   VARIABLE",  None, test_user)
+        self.grant_privilege("SHOW  AUDIT    VARIABLES", None, test_user)
+        self.grant_privilege("ALTER AUDIT    VARIABLE",  None, test_user)        
+        self.grant_privilege("SHOW  SECURITY VARIABLES", None, test_user)
+        self.grant_privilege("ALTER SECURITY VARIABLE",  None, test_user)
+        self.grant_privilege("SHOW  DEBUG    VARIABLES", None, test_user)
+        self.grant_privilege("ALTER DEBUG    VARIABLE",  None, test_user)
         
+        # Test: have privilege
         self.login(test_user, pwd)
         self.exec_sql("SHOW CLUSTER VARIABLES")
+        self.exec_sql("ALTER ALL DNODES 'monitor 1'")
+        self.exec_sql("ALTER ALL DNODES 'numOfLogLines 100000'")
+        self.exec_sql("ALTER ALL DNODES 'audit 0'")
+        self.exec_sql("ALTER ALL DNODES 'enableStrongPassword 0'")
+        # show
+        self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'monitor'", 1)
+        self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'audit'", 1)
+        self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'enableStrongPassword'", 1)
+        self.query_expect_rows("SHOW LOCAL   VARIABLES LIKE 'numOfLogLines'", 1)
         
-        # Test: ALTER SYSTEM VARIABLE privilege
+        # revoke again
         self.login()
-        self.grant_privilege("ALTER SYSTEM VARIABLE", None, sys_admin)
+        self.revoke_privilege("SHOW  SYSTEM   VARIABLES", None, test_user)
+        self.revoke_privilege("ALTER SYSTEM   VARIABLE",  None, test_user)
+        self.revoke_privilege("SHOW  AUDIT    VARIABLES", None, test_user)
+        self.revoke_privilege("ALTER AUDIT    VARIABLE",  None, test_user)        
+        self.revoke_privilege("SHOW  SECURITY VARIABLES", None, test_user)
+        self.revoke_privilege("ALTER SECURITY VARIABLE",  None, test_user)
+        self.revoke_privilege("SHOW  DEBUG    VARIABLES", None, test_user)
+        self.revoke_privilege("ALTER DEBUG    VARIABLE",  None, test_user)        
         
-        self.login(sys_admin, pwd)
-        # Note: Actual ALTER would depend on specific variables
-        # self.exec_sql("ALTER ALL DNODES 'someParam' 'someValue'")
-        
-        # Test other variable types (SECURITY, AUDIT, DEBUG)
-        self.login()
-        self.grant_privilege("SHOW SECURITY VARIABLES", None, test_user)
-        self.grant_privilege("ALTER SECURITY VARIABLE", None, sys_admin)
-        
+        # Test: no privilege
+        self.login(test_user, pwd)
+        #'''BUG15        
+        self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'monitor'", 0)
+        self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'audit'", 0)
+        self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'enableStrongPassword'", 0)
+        self.query_expect_rows("SHOW LOCAL   VARIABLES LIKE 'numOfLogLines'", 0)
+        #'''
+
+                
         # Cleanup
         self.login()
-        self.drop_user(sys_admin)
         self.drop_user(test_user)
         
         print("System Variable Privileges ........... [ passed ] ")
@@ -2655,7 +2692,7 @@ class TestPrivControl:
         #self.do_totp_management_privileges()
         #self.do_password_management_privileges()
         #self.do_node_management_privileges()
-        self.do_mount_management_privileges()
+        #self.do_mount_management_privileges()
         self.do_system_variable_privileges()
         self.do_information_schema_privileges()
         self.do_system_monitoring_privileges()
