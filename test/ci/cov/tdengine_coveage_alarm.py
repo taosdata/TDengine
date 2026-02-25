@@ -481,7 +481,6 @@ def send_to_feishu(send_to_feishu_url, message, notifier, coverage_result_url,co
 
     response = requests.post(send_to_feishu_url, headers=headers, data=json.dumps(data))
     if response.status_code == 200:
-        print(f"{response.status_code}")
         print("消息发送成功")
     else:
         print(
