@@ -56,6 +56,8 @@ extern "C" {
 #define EXPLAIN_ORDER_FORMAT "Order: %s"
 #define EXPLAIN_FILTER_FORMAT "Filter: "
 #define EXPLAIN_PRIMARY_FILTER_FORMAT "Primary Filter: "
+#define EXPLAIN_FILTER_CONDITIONS_FORMAT "conditions="
+#define EXPLAIN_FILTER_EFFICIENCY_FORMAT "efficiency=%.1f%%"
 #define EXPLAIN_TAG_INDEX_FORMAT "Tag Index Filter: "
 #define EXPLAIN_MERGEBLOCKS_FORMAT "Merge ResBlocks: %s"
 #define EXPLAIN_FILL_VALUE_FORMAT "Fill Values: "

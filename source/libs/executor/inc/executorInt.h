@@ -61,7 +61,7 @@ typedef enum EExtWinMode {
 
 /**
  * If the number of generated results is greater than this value,
- * query query will be halt and return results to client immediate.
+ * query will be halt and return results to client immediate.
  */
 typedef struct SResultInfo {  // TODO refactor
   int64_t totalRows;          // total generated result size in rows
