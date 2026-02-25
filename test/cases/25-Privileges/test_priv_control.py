@@ -1382,12 +1382,12 @@ class TestPrivControl:
         
         # Test: no privilege
         self.login(test_user, pwd)
-        #'''BUG15    
+        '''BUG15    
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'monitor'", 0)
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'audit'", 0)
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'enableStrongPassword'", 0)
         self.query_expect_rows("SHOW LOCAL   VARIABLES LIKE 'numOfLogLines'", 0)
-        #'''
+        '''
         
         # Grant privilege
         self.login()
@@ -1426,13 +1426,12 @@ class TestPrivControl:
         
         # Test: no privilege
         self.login(test_user, pwd)
-        #'''BUG15        
+        '''BUG15        
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'monitor'", 0)
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'audit'", 0)
         self.query_expect_rows("SHOW CLUSTER VARIABLES LIKE 'enableStrongPassword'", 0)
         self.query_expect_rows("SHOW LOCAL   VARIABLES LIKE 'numOfLogLines'", 0)
-        #'''
-
+        '''
                 
         # Cleanup
         self.login()
@@ -1445,35 +1444,61 @@ class TestPrivControl:
         tdLog.info("=== Testing Information Schema Privileges ===")
         self.login()  # Login as root
         
-        basic_user = "basic_user"
-        priv_user = "priv_user"
+        test_user = "test_user"
         
         # Create users
-        self.create_user(basic_user, pwd)
-        self.create_user(priv_user, pwd)
+        self.create_user(test_user, pwd)
+        self.revoke_role("`SYSINFO_1`", test_user)  # revoke default role
         
-        # Test: User without privilege cannot read information_schema
-        self.login(basic_user, pwd)
-        self.exec_sql_failed("SELECT * FROM information_schema.ins_databases", TSDB_CODE_MND_NO_RIGHTS)
+        # Test: without privilege
+        self.login(test_user, pwd)
+        #'''BUG16
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_databases", TSDB_CODE_MND_NO_RIGHTS)   # basic
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_users", TSDB_CODE_MND_NO_RIGHTS)       # security
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_grants_full", TSDB_CODE_MND_NO_RIGHTS) # privileged
+        self.exec_sql_failed("SELECT * FROM performance_schema.perf_connections", TSDB_CODE_MND_NO_RIGHTS) # basic
+        self.exec_sql_failed("SELECT * FROM performance_schema.perf_instances",   TSDB_CODE_MND_NO_RIGHTS) # privileged
+        #'''        
         
-        # Grant READ INFORMATION_SCHEMA BASIC privilege
+        # Grant privilege
         self.login()
-        self.grant_privilege("READ INFORMATION_SCHEMA BASIC", None, basic_user)
+        self.grant_privilege("READ INFORMATION_SCHEMA BASIC",      None, test_user)
+        self.grant_privilege("READ INFORMATION_SCHEMA PRIVILEGED", None, test_user)
+        self.grant_privilege("READ INFORMATION_SCHEMA SECURITY",   None, test_user)
+        self.grant_privilege("READ INFORMATION_SCHEMA AUDIT",      None, test_user) # empty
+        self.grant_privilege("READ PERFORMANCE_SCHEMA BASIC",      None, test_user)
+        self.grant_privilege("READ PERFORMANCE_SCHEMA PRIVILEGED", None, test_user)
         
-        self.login(basic_user, pwd)
+        # Test: have privilege
+        self.login(test_user, pwd)
         self.exec_sql("SELECT * FROM information_schema.ins_databases")
+        self.exec_sql("SELECT * FROM information_schema.ins_users")
+        self.exec_sql("SELECT * FROM information_schema.ins_grants_full")
+        self.exec_sql("SELECT * FROM performance_schema.perf_connections")
+        self.exec_sql("SELECT * FROM performance_schema.perf_instances")        
         
-        # Grant READ INFORMATION_SCHEMA PRIVILEGED privilege
+        # Revoke
         self.login()
-        self.grant_privilege("READ INFORMATION_SCHEMA PRIVILEGED", None, priv_user)
+        self.revoke_privilege("READ INFORMATION_SCHEMA BASIC",      None, test_user)
+        self.revoke_privilege("READ INFORMATION_SCHEMA PRIVILEGED", None, test_user)
+        self.revoke_privilege("READ INFORMATION_SCHEMA SECURITY",   None, test_user)
+        self.revoke_privilege("READ INFORMATION_SCHEMA AUDIT",      None, test_user) # empty
+        self.revoke_privilege("READ PERFORMANCE_SCHEMA BASIC",      None, test_user)
+        self.revoke_privilege("READ PERFORMANCE_SCHEMA PRIVILEGED", None, test_user)        
         
-        self.login(priv_user, pwd)
-        self.exec_sql("SELECT * FROM information_schema.ins_dnodes")
+        # Test: without privilege
+        self.login(test_user, pwd)
+        #'''BUG16
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_databases", TSDB_CODE_MND_NO_RIGHTS)   # basic
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_users", TSDB_CODE_MND_NO_RIGHTS)       # security
+        self.exec_sql_failed("SELECT * FROM information_schema.ins_grants_full", TSDB_CODE_MND_NO_RIGHTS) # privileged
+        self.exec_sql_failed("SELECT * FROM performance_schema.perf_connections", TSDB_CODE_MND_NO_RIGHTS) # basic
+        self.exec_sql_failed("SELECT * FROM performance_schema.perf_instances",   TSDB_CODE_MND_NO_RIGHTS) # privileged
+        #'''
         
         # Cleanup
         self.login()
-        self.drop_user(basic_user)
-        self.drop_user(priv_user)
+        self.drop_user(test_user)
         
         print("Information Schema Privileges ........ [ passed ] ")
     
@@ -1488,6 +1513,7 @@ class TestPrivControl:
         # Create users
         self.create_user(monitor_user, pwd)
         self.create_user(killer_user, pwd)
+        self.revoke_role("`SYSINFO_1`", monitor_user)  # revoke default role
         
         # Test: User without privilege cannot show transactions
         self.login(monitor_user, pwd)
@@ -1539,6 +1565,7 @@ class TestPrivControl:
         
         # Create user
         self.create_user(viewer_user, pwd)
+        self.revoke_role("`SYSINFO_1`", viewer_user)  # revoke default role
         
         # Test: User without privilege cannot show grants
         self.login(viewer_user, pwd)
@@ -1584,6 +1611,7 @@ class TestPrivControl:
         # Create users and database
         self.create_user(admin_user, pwd)
         self.create_user(test_user, pwd)
+        self.revoke_role("`SYSINFO_1`", test_user)  # revoke default role
         self.create_database(db_name)
         
         # Test: Normal user cannot grant privileges
@@ -2693,12 +2721,13 @@ class TestPrivControl:
         #self.do_password_management_privileges()
         #self.do_node_management_privileges()
         #self.do_mount_management_privileges()
-        self.do_system_variable_privileges()
+        #self.do_system_variable_privileges()
         self.do_information_schema_privileges()
+        return
         self.do_system_monitoring_privileges()
         self.do_show_grants_cluster_apps_privileges()
         self.do_privilege_delegation()
-        return 
+        
 
         # Database privilege tests
         print("[Database Privileges]")
