@@ -2079,7 +2079,9 @@ static int32_t msmBuildRunnerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStreamO
     TAOS_CHECK_EXIT(code);
   }
 
-  TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pPlan));
+  if (!pPlan) {
+    TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pPlan));
+  }
   code = msmBuildRunnerTasksImpl(pCtx, pPlan, pInfo, pStream, pPlan, &pSubEP);
   pPlan = NULL;
 
