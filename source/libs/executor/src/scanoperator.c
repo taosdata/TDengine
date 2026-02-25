@@ -341,8 +341,8 @@ static bool skipSetTagColumnData(SOperatorInfo* pOperator) {
          ((STableScanInfo*)pOperator->info)->ignoreTag;
 }
 
-static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableScanInfo, SSDataBlock* pBlock,
-                             uint32_t* status) {
+static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableScanInfo,
+                             SSDataBlock* pBlock, uint32_t* status) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
@@ -376,7 +376,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64, GET_TASKID(pTaskInfo),
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
     pCost->filterOutBlocks += 1;
-    pCost->totalRows += pBlock->info.rows;
+    pCost->totalRows -= pBlock->info.rows;
     pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
     return TSDB_CODE_SUCCESS;
   } else if (*status == FUNC_DATA_REQUIRED_NOT_LOAD) {
@@ -400,7 +400,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
-    if (success) {  // failed to load the block sma data, data block statistics does not exist, load data block instead
+    if (success) {
       qDebug("%s data block SMA loaded, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64, GET_TASKID(pTaskInfo),
              pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
       if (!skipSetTagColumnData(pOperator)) {
@@ -409,6 +409,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
       return code;
     } else {
+      // failed to load the block sma data,
+      // data block statistics does not exist, load data block instead
       qDebug("%s failed to load SMA, since not all columns have SMA", GET_TASKID(pTaskInfo));
       *status = FUNC_DATA_REQUIRED_DATA_LOAD;
     }
@@ -1049,8 +1051,9 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
     }
 
     pOperator->resultInfo.totalRows = pTableScanInfo->base.readRecorder.totalRows;
-    pOperator->cost.totalCost = (taosGetTimestampUs() - st) / 1000.0;
-    pBlock->info.scanFlag = pTableScanInfo->base.scanFlag;
+    pOperator->cost.inputRows = pTableScanInfo->base.readRecorder.checkRows;
+    pOperator->cost.totalCost = (double)(taosGetTimestampUs() - st) / 1000.0;
+    pBlock->info.scanFlag = (uint8_t)pTableScanInfo->base.scanFlag;
 
     (*ppRes) = pBlock;
     return code;

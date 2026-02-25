@@ -22,8 +22,8 @@ extern "C" {
 
 #include "executorInt.h"
 typedef struct SOperatorCostInfo {
-  double openCost;
-  double totalCost;
+  double openCost;  // to delete
+  double totalCost; // to delete
   TSKEY  execCreate;
   TSKEY  execStart;
   TSKEY  execFirstRow;
@@ -32,6 +32,7 @@ typedef struct SOperatorCostInfo {
   TSKEY  execElapsed;
   TSKEY  inputWaitElapsed;
   TSKEY  outputWaitElapsed;
+  uint64_t inputRows;
 } SOperatorCostInfo;
 
 struct SOperatorInfo;

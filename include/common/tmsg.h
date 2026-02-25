@@ -3461,6 +3461,7 @@ typedef struct {
 typedef struct SExplainExecInfo {
   double   startupCost;
   double   totalCost;
+  /* the number of rows returned */
   uint64_t numOfRows;
   uint32_t verboseLen;
   void*    verboseInfo;
@@ -3484,6 +3485,8 @@ typedef struct SExplainExecInfo {
   TSKEY    inputWaitElapsed;
   /* the time elapsed for waiting call from upstream */
   TSKEY    outputWaitElapsed;
+  /* the number of rows input */
+  uint64_t inputRows;
 
   int32_t  vgId;
 } SExplainExecInfo;
@@ -3515,7 +3518,7 @@ typedef struct STableScanAnalyzeInfo {
   int64_t composedBlocks;
   double  composedElapsed;
   
-  uint64_t totalRows;
+  uint64_t totalRows;  // total output rows
   uint64_t checkRows;
 
   uint64_t skipBlocks;

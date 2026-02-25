@@ -760,6 +760,7 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
   pExplainInfo->execElapsed = operatorInfo->cost.execElapsed;
   pExplainInfo->inputWaitElapsed = operatorInfo->cost.inputWaitElapsed;
   pExplainInfo->outputWaitElapsed = operatorInfo->cost.outputWaitElapsed;
+  pExplainInfo->inputRows = operatorInfo->cost.inputRows;
 
   if (operatorInfo->fpSet.getExplainFn) {
     int32_t code =
