@@ -263,7 +263,7 @@ typedef struct SStoreTqReader {
                                                  //  int32_t (*tqReaderRetrieveTaosXBlock)();       // todo remove it
 
   int32_t (*tqReaderSetSubmitMsg)();  // todo remove it
-  int32_t (*tqUpdateTableTagCache)(struct STqReader *, SExprInfo *, int32_t,  int64_t,  col_id_t);
+  void (*tqUpdateTableTagCache)(struct STqReader *, SExprInfo *, int32_t,  int64_t,  col_id_t);
 
 } SStoreTqReader;
 

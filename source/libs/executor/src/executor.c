@@ -630,7 +630,7 @@ static void qUpdateTableTagCache(SStreamScanInfo* pScanInfo, const SArray* table
   STqReader*   tqReader = pScanInfo->tqReader;
   for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
     int64_t* uid = (int64_t*)taosArrayGet(tableIdList, i);
-    (void)api->tqReaderFn.tqUpdateTableTagCache(pScanInfo->tqReader, pScanInfo->pPseudoExpr, pScanInfo->numOfPseudoExpr, *uid, cid);
+    api->tqReaderFn.tqUpdateTableTagCache(pScanInfo->tqReader, pScanInfo->pPseudoExpr, pScanInfo->numOfPseudoExpr, *uid, cid);
   }
 }
 
@@ -669,7 +669,7 @@ void qUpdateTableTagCacheForTmq(qTaskInfo_t tinfo, const SArray* tableIdList, SA
 
   SStreamScanInfo* pScanInfo = pInfo->info;
   for (int32_t i = 0; i < taosArrayGetSize(cids); ++i) {
-    int32_t* cid = (int32_t*)taosArrayGet(cids, i);
+    col_id_t* cid = (col_id_t*)taosArrayGet(cids, i);
     qUpdateTableTagCache(pScanInfo, tableIdList, *cid, &pTaskInfo->storageAPI);
   }
 }

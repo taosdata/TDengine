@@ -432,13 +432,13 @@ static int32_t getTableTagCache(STqReader* pReader, SExprInfo* pExprInfo, int32_
   return code;
 }
 
-int32_t tqUpdateTableTagCache(STqReader* pReader, SExprInfo* pExprInfo, int32_t numOfExpr, int64_t uid, col_id_t colId) {
+void tqUpdateTableTagCache(STqReader* pReader, SExprInfo* pExprInfo, int32_t numOfExpr, int64_t uid, col_id_t colId) {
   int32_t code = 0;
   int32_t lino = 0;
 
   void* data = taosHashGet(pReader->pTableTagCacheForTmq, &uid, LONG_BYTES);
   if (data == NULL) {
-    return TSDB_CODE_SUCCESS;
+    return;
   }
 
   SStorageAPI api = {0}; 
@@ -450,8 +450,6 @@ int32_t tqUpdateTableTagCache(STqReader* pReader, SExprInfo* pExprInfo, int32_t 
   if (code != TSDB_CODE_SUCCESS) {
     tqError("%s failed at %d, failed to update tag cache code:%s, uid:%"PRId64, __FUNCTION__, lino, tstrerror(code), uid);
   }
-  
-  return code;
 }
 
 static int32_t tqRetrievePseudoCols(STqReader* pReader, SSDataBlock* pBlock, int32_t numOfRows, int64_t uid, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr) {

@@ -3251,6 +3251,7 @@ int32_t createTmqScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTa
   pInfo->pTagCond = pTagCond;
   pInfo->pGroupTags = pTableScanNode->pGroupTags;
 
+  pInfo->primaryTsIndex = -1;
   getTsSlotId(pScanPhyNode->pScanCols, &pInfo->primaryTsIndex);
   pInfo->pCol2SlotId = taosHashInit(LIST_LENGTH(pScanPhyNode->pScanCols), taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_ENTRY_LOCK);
   QUERY_CHECK_NULL(pInfo->pCol2SlotId, code, lino, _error, terrno);

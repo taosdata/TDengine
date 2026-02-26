@@ -1781,7 +1781,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
     return NULL;
   }
   if (tmqInitRes != 0) {
-    SET_ERROR_MSG_TMQ("tmqInitRes is not NULL")
+    SET_ERROR_MSG_TMQ("tmqInitRes init error")
     return NULL;
   }
 

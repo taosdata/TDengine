@@ -1192,7 +1192,7 @@ int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, int3
   SArray* tagCache = NULL;
   char* data = NULL;
 
-  if (lock != NULL)taosWLockLatch(lock);
+  if (lock != NULL) taosWLockLatch(lock);
   STREAM_CHECK_CONDITION_GOTO(numOfExpr == 0, code);
   stDebug("%s start,uid:%"PRIu64, __func__, uid);
   void* uidData = taosHashGet(metaCache, &uid, LONG_BYTES);
