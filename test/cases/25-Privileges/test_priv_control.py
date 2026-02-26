@@ -578,6 +578,250 @@ class TestPrivControl:
         
         print("SHOW DATABASES ....................... [ passed ] ")
 
+    def do_show_create_database_privilege(self):
+        # Test SHOW CREATE DATABASE privilege
+        tdLog.info("=== Testing SHOW CREATE DATABASE Privilege ===")
+        self.login()  # Login as root
+        
+        db_name = "test_db"
+        user = "test_user"
+        self.create_database(db_name)
+        self.create_user(user, pwd)
+        self.revoke_role("`SYSINFO_1`", user)  #revoke default role
+        
+        # Test: user cannot show create database without privilege
+        #'''BUG19
+        self.login(user, pwd)
+        self.exec_sql_failed(f"SHOW CREATE DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        #'''
+        
+        # Grant SHOW CREATE DATABASE privilege
+        self.login()
+        self.grant_privilege("SHOW CREATE", f"DATABASE {db_name}", user)
+        
+        # Test: user can show create database with privilege
+        self.login(user, pwd)
+        self.query_expect_rows(f"SHOW CREATE DATABASE {db_name}", 1)
+
+        # revoke privilege and verify failure
+        self.login()
+        self.revoke_privilege("SHOW CREATE", f"DATABASE {db_name}", user)
+        self.login(user, pwd)
+        #'''BUG19
+        self.exec_sql_failed(f"SHOW CREATE DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        #'''
+
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(user)
+        
+        print("SHOW CREATE DATABASE ................ [ passed ] ")
+
+    def do_flush_database_privilege(self):
+        # Test FLUSH DATABASE privilege
+        tdLog.info("=== Testing FLUSH DATABASE Privilege ===")
+        self.login()  # Login as root
+        
+        db_name = "test_db"
+        user = "test_user"
+        self.create_database(db_name)
+        self.create_user(user, pwd)
+        self.revoke_role("`SYSINFO_1`", user)  #revoke default role
+        
+        # Grant basic privileges
+        #self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        
+        # Test: user cannot flush database without privilege
+        self.login(user, pwd)
+        self.exec_sql_failed(f"FLUSH DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Grant FLUSH DATABASE privilege
+        self.login()
+        self.grant_privilege("FLUSH", f"DATABASE {db_name}", user)
+        
+        # Test: user can flush database with privilege
+        self.login(user, pwd)
+        self.exec_sql(f"FLUSH DATABASE {db_name}")
+        
+        # revoke privilege and verify failure
+        self.login()
+        self.revoke_privilege("FLUSH", f"DATABASE {db_name}", user)
+        self.login(user, pwd)
+        self.exec_sql_failed(f"FLUSH DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)        
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(user)
+        
+        print("FLUSH DATABASE ...................... [ passed ] ")
+
+    def do_compact_database_privilege(self):
+        # Test COMPACT DATABASE privilege
+        tdLog.info("=== Testing COMPACT DATABASE Privilege ===")
+        self.login()  # Login as root
+        
+        db_name = "test_db"
+        user = "test_user"
+        self.create_database(db_name)
+        self.create_user(user, pwd)
+        self.revoke_role("`SYSINFO_1`", user)  #revoke default role
+        
+        # Grant basic privileges
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        
+        # Test: user cannot compact database without privilege
+        self.login(user, pwd)
+        self.exec_sql_failed(f"COMPACT DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Grant COMPACT DATABASE privilege
+        self.login()
+        self.grant_privilege("COMPACT", f"DATABASE {db_name}", user)
+        
+        # Test: user can compact database with privilege
+        self.login(user, pwd)
+        self.exec_sql(f"COMPACT DATABASE {db_name}")
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(user)
+        
+        print("COMPACT DATABASE .................... [ passed ] ")
+
+    def do_trim_database_privilege(self):
+        # Test TRIM DATABASE privilege
+        tdLog.info("=== Testing TRIM DATABASE Privilege ===")
+        self.login()  # Login as root
+        
+        db_name = "test_db"
+        user = "test_user"
+        self.create_database(db_name, "KEEP 365d")
+        self.create_user(user, pwd)
+        self.revoke_role("`SYSINFO_1`", user)  #revoke default role
+
+        # Grant basic privileges
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        
+        # Test: user cannot trim database without privilege
+        self.login(user, pwd)
+        self.exec_sql_failed(f"TRIM DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Grant TRIM DATABASE privilege
+        self.login()
+        self.grant_privilege("TRIM", f"DATABASE {db_name}", user)
+        
+        # Test: user can trim database with privilege
+        self.login(user, pwd)
+        self.exec_sql(f"TRIM DATABASE {db_name}")
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(user)
+        
+        print("TRIM DATABASE ....................... [ passed ] ")
+
+    def do_rollup_database_privilege(self):
+        # Test ROLLUP DATABASE privilege
+        tdLog.info("=== Testing ROLLUP DATABASE Privilege ===")
+        self.login()  # Login as root
+        
+        db_name = "test_db"
+        user = "test_user"
+        self.create_database(db_name)
+        self.create_user(user, pwd)
+        self.revoke_role("`SYSINFO_1`", user)  #revoke default role
+        
+        # Grant basic privileges
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        
+        # Test: user cannot rollup database without privilege
+        self.login(user, pwd)
+        self.exec_sql_failed(f"ROLLUP DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Grant ROLLUP DATABASE privilege
+        self.login()
+        self.grant_privilege("ROLLUP", f"DATABASE {db_name}", user)
+        
+        # Test: user can rollup database with privilege
+        self.login(user, pwd)
+        self.exec_sql(f"ROLLUP DATABASE {db_name}")
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(user)
+        
+        print("ROLLUP DATABASE ..................... [ passed ] ")
+
+    def do_scan_database_privilege(self):
+        # Test SCAN DATABASE privilege
+        tdLog.info("=== Testing SCAN DATABASE Privilege ===")
+        self.login()  # Login as root
+        
+        db_name = "test_db"
+        user = "test_user"
+        self.create_database(db_name)
+        self.create_user(user, pwd)
+        self.revoke_role("`SYSINFO_1`", user)  #revoke default role
+
+        # Grant basic privileges
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        
+        # Test: user cannot scan database without privilege
+        self.login(user, pwd)
+        self.exec_sql_failed(f"SCAN DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Grant SCAN DATABASE privilege
+        self.login()
+        self.grant_privilege("SCAN", f"DATABASE {db_name}", user)
+        
+        # Test: user can scan database with privilege
+        self.login(user, pwd)
+        self.exec_sql(f"SCAN DATABASE {db_name}")
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(user)
+        
+        print("SCAN DATABASE ....................... [ passed ] ")
+
+    def do_ssmigrate_database_privilege(self):
+        # Test SSMIGRATE DATABASE privilege
+        tdLog.info("=== Testing SSMIGRATE DATABASE Privilege ===")
+        self.login()  # Login as root
+        
+        db_name = "test_db"
+        user = "test_user"
+        self.create_database(db_name)
+        self.create_user(user, pwd)
+        self.revoke_role("`SYSINFO_1`", user)  #revoke default role
+
+        # Grant basic privileges
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        
+        # Test: user cannot ssmigrate database without privilege
+        self.login(user, pwd)
+        self.exec_sql_failed(f"SSMIGRATE DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Grant SSMIGRATE DATABASE privilege
+        self.login()
+        self.grant_privilege("SSMIGRATE", f"DATABASE {db_name}", user)
+        
+        # Test: user can ssmigrate database with privilege
+        self.login(user, pwd)
+        self.exec_sql(f"SSMIGRATE DATABASE {db_name}")
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(user)
+        
+        print("SSMIGRATE DATABASE .................. [ passed ] ")
+
     #
     # --------------------------- Table Privileges Tests ----------------------------
     #
@@ -772,6 +1016,137 @@ class TestPrivControl:
         self.drop_user(user)
         
         print("DELETE ............................... [ passed ] ")
+        
+    def do_select_column_privilege_comprehensive(self):
+        # Comprehensive test for column-level SELECT privilege
+        tdLog.info("=== Testing Comprehensive Column-Level SELECT Privilege ===")
+        self.login()  # Login as root
+        
+        db_name = "test_db"
+        user = "test_user"
+        self.create_database(db_name)
+        self.create_stable(db_name, "st1", columns="ts TIMESTAMP, c1 INT, c2 FLOAT, c3 DOUBLE, c4 BOOL, c5 VARCHAR(10)", tags="t1 INT")
+        self.create_child_table(db_name, "ct1", "st1", tag_values="1")
+        self.exec_sql(f"INSERT INTO {db_name}.ct1 VALUES (NOW, 1, 2.0, 3.0, true, 'test')")
+        self.create_user(user, pwd)
+        
+        # Grant USE DATABASE
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        
+        # Test 1: Grant SELECT on specific columns
+        self.grant_privilege("SELECT(c1,c3,c5)", f"{db_name}.st1", user)
+        
+        self.login(user, pwd)
+        # Should succeed
+        self.exec_sql(f"SELECT c1, c3, c5 FROM {db_name}.st1")
+        # Should fail
+        self.exec_sql_failed(f"SELECT c2 FROM {db_name}.st1")
+        self.exec_sql_failed(f"SELECT c4 FROM {db_name}.st1")
+        self.exec_sql_failed(f"SELECT * FROM {db_name}.st1")
+        
+        # Test 2: Add more columns to existing privilege
+        self.login()
+        self.revoke_privilege("SELECT", f"{db_name}.st1", user)
+        self.grant_privilege("SELECT(c1,c2,c3,c4,c5)", f"{db_name}.st1", user)
+        
+        self.login(user, pwd)
+        self.exec_sql(f"SELECT c1, c2, c3, c4, c5 FROM {db_name}.st1")
+        self.exec_sql_failed(f"SELECT * FROM {db_name}.st1")  # Still cannot use *
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(user)
+        
+        print("Comprehensive Column SELECT ........... [ passed ] ")
+
+    def do_insert_column_privilege_comprehensive(self):
+        # Comprehensive test for column-level INSERT privilege
+        tdLog.info("=== Testing Comprehensive Column-Level INSERT Privilege ===")
+        self.login()  # Login as root
+        
+        db_name = "test_db"
+        user = "test_user"
+        self.create_database(db_name)
+        self.create_stable(db_name, "st1", columns="ts TIMESTAMP, c1 INT, c2 FLOAT, c3 DOUBLE, c4 BOOL, c5 VARCHAR(10)", tags="t1 INT")
+        self.create_child_table(db_name, "ct1", "st1", tag_values="1")
+        self.create_user(user, pwd)
+        
+        # Grant USE and CREATE TABLE privileges
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        self.grant_privilege("CREATE TABLE", f"DATABASE {db_name}", user)
+        
+        # Test 1: Grant INSERT on specific columns
+        self.grant_privilege("INSERT(ts,c1,c3)", f"{db_name}.st1", user)
+        
+        self.login(user, pwd)
+        # Should succeed
+        self.exec_sql(f"INSERT INTO {db_name}.ct1 (ts, c1, c3) VALUES (NOW, 100, 300.0)")
+        # Should fail - missing required column
+        self.exec_sql_failed(f"INSERT INTO {db_name}.ct1 (ts, c1, c2) VALUES (NOW, 101, 201.0)")
+        # Should fail - using *
+        self.exec_sql_failed(f"INSERT INTO {db_name}.ct1 VALUES (NOW, 102, 202.0, 302.0, false, 'fail')")
+        
+        # Test 2: Verify data was inserted with authorized columns only
+        self.login()
+        self.grant_privilege("SELECT", f"{db_name}.st1", user)
+        
+        self.login(user, pwd)
+        self.query_expect_rows(f"SELECT c1, c3 FROM {db_name}.st1 WHERE c1=100", 1)
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(user)
+        
+        print("Comprehensive Column INSERT ........... [ passed ] ")
+
+    def do_show_create_table_privilege(self):
+        # Test SHOW CREATE TABLE privilege
+        tdLog.info("=== Testing SHOW CREATE TABLE Privilege ===")
+        self.login()  # Login as root
+        
+        db_name = "test_db"
+        user = "test_user"
+        self.create_database(db_name)
+        self.create_stable(db_name, "st1", columns="ts TIMESTAMP, c1 INT, c2 FLOAT", tags="t1 INT, t2 VARCHAR(20)")
+        self.create_table(db_name, "t1", columns="ts TIMESTAMP, val INT")
+        self.create_user(user, pwd)
+        
+        # Grant basic privileges
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        self.grant_privilege("SELECT", f"{db_name}.st1", user)
+        self.grant_privilege("SELECT", f"{db_name}.t1", user)
+        
+        # Test: user cannot show create table without privilege
+        self.login(user, pwd)
+        self.exec_sql_failed(f"SHOW CREATE TABLE {db_name}.st1", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"SHOW CREATE TABLE {db_name}.t1", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Grant SHOW CREATE TABLE privilege on specific tables
+        self.login()
+        self.grant_privilege("SHOW CREATE", f"TABLE {db_name}.st1", user)
+        self.grant_privilege("SHOW CREATE", f"TABLE {db_name}.t1", user)
+        
+        # Test: user can show create table with privilege
+        self.login(user, pwd)
+        self.exec_sql(f"SHOW CREATE TABLE {db_name}.st1")
+        self.exec_sql(f"SHOW CREATE TABLE {db_name}.t1")
+        
+        # Test: revoke privilege
+        self.login()
+        self.revoke_privilege("SHOW CREATE", f"TABLE {db_name}.st1", user)
+        
+        self.login(user, pwd)
+        self.exec_sql_failed(f"SHOW CREATE TABLE {db_name}.st1", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql(f"SHOW CREATE TABLE {db_name}.t1")  # This should still work
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(user)
+        
+        print("SHOW CREATE TABLE .................... [ passed ] ")        
 
     #
     # --------------------------- Column and Row Privileges Tests ----------------------------
@@ -2097,6 +2472,77 @@ class TestPrivControl:
         self.drop_user(user)
         
         print("View Privileges ...................... [ passed ] ")
+        
+    def do_view_nested_privilege(self):
+        # Test nested view privileges (effective user concept)
+        tdLog.info("=== Testing Nested View Privileges ===")
+        self.login()  # Login as root
+        
+        db_name = "test_db"
+        base_user = "base_user"
+        view_user = "view_user"
+        nested_user = "nested_user"
+        
+        self.create_database(db_name)
+        self.create_table(db_name, "base_table", "ts TIMESTAMP, val INT, tag VARCHAR(20)")
+        self.exec_sql(f"INSERT INTO {db_name}.base_table VALUES (NOW, 100, 'A'), (NOW, 200, 'B')")
+        
+        # Create users
+        self.create_user(base_user, pwd)
+        self.create_user(view_user, pwd)
+        self.create_user(nested_user, pwd)
+        
+        # Grant base_user privileges to create view and access base table
+        self.grant_privilege("USE", f"DATABASE {db_name}", base_user)
+        self.grant_privilege("CREATE VIEW", f"DATABASE {db_name}", base_user)
+        self.grant_privilege("SELECT", f"{db_name}.base_table", base_user)
+        
+        # Create first-level view as base_user
+        self.login(base_user, pwd)
+        self.exec_sql(f"CREATE VIEW {db_name}.v1 AS SELECT ts, val FROM {db_name}.base_table WHERE tag='A'")
+        
+        # Grant view_user privileges to create nested view and access v1
+        self.login()
+        self.grant_privilege("USE", f"DATABASE {db_name}", view_user)
+        self.grant_privilege("CREATE VIEW", f"DATABASE {db_name}", view_user)
+        self.grant_privilege("SELECT", f"VIEW {db_name}.v1", view_user)
+        
+        # Create nested view as view_user
+        self.login(view_user, pwd)
+        self.exec_sql(f"CREATE VIEW {db_name}.v2 AS SELECT ts, val*2 as double_val FROM {db_name}.v1")
+        
+        # Test 1: nested_user with SELECT on v2 but not on v1 or base_table
+        self.login()
+        self.grant_privilege("USE", f"DATABASE {db_name}", nested_user)
+        self.grant_privilege("SELECT", f"VIEW {db_name}.v2", nested_user)
+        
+        self.login(nested_user, pwd)
+        # Should succeed - nested view inherits effective user's privileges
+        self.query_expect_rows(f"SELECT * FROM {db_name}.v2", 1)
+        
+        # Test 2: nested_user without SELECT on v2
+        self.login()
+        self.revoke_privilege("SELECT", f"VIEW {db_name}.v2", nested_user)
+        
+        self.login(nested_user, pwd)
+        self.exec_sql_failed(f"SELECT * FROM {db_name}.v2", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Test 3: Grant SELECT on v1 directly to nested_user
+        self.login()
+        self.grant_privilege("SELECT", f"VIEW {db_name}.v1", nested_user)
+        
+        self.login(nested_user, pwd)
+        self.query_expect_rows(f"SELECT * FROM {db_name}.v1", 1)
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(base_user)
+        self.drop_user(view_user)
+        self.drop_user(nested_user)
+        
+        print("Nested View Privileges ............... [ passed ] ")
+        
     
     def do_topic_privileges(self):
         # Test topic privileges
@@ -2737,9 +3183,24 @@ class TestPrivControl:
         print("")
         
         # test
-        #self.create_snode()
-        #self.create_qnode()
-        #print("")
+        self.create_snode()
+        self.create_qnode()
+        print("")
+        self.do_show_create_database_privilege()      # 新增
+        self.do_flush_database_privilege()           # 新增
+        self.do_compact_database_privilege()         # 新增
+        self.do_trim_database_privilege()            # 新增
+        self.do_rollup_database_privilege()          # 新增
+        self.do_scan_database_privilege()            # 新增
+        self.do_ssmigrate_database_privilege()       # 新增        
+
+        self.do_select_column_privilege_comprehensive()  # 新增
+        self.do_insert_column_privilege_comprehensive()  # 新增
+        self.do_show_create_table_privilege()            # 新增        
+
+        
+        self.do_view_nested_privilege()               # 新增
+        return 
         #print("[System Privileges]")
         #self.do_user_management_privileges()
         #self.do_token_management_privileges()
@@ -2762,6 +3223,13 @@ class TestPrivControl:
         self.do_drop_database_privilege()
         self.do_use_database_privilege()
         self.do_show_databases_privilege()
+        self.do_show_create_database_privilege()      # 新增
+        self.do_flush_database_privilege()           # 新增
+        self.do_compact_database_privilege()         # 新增
+        self.do_trim_database_privilege()            # 新增
+        self.do_rollup_database_privilege()          # 新增
+        self.do_scan_database_privilege()            # 新增
+        self.do_ssmigrate_database_privilege()       # 新增        
         
         # Table privilege tests
         print("")
@@ -2772,6 +3240,9 @@ class TestPrivControl:
         self.do_select_privilege()
         self.do_insert_privilege()
         self.do_delete_privilege()
+        self.do_select_column_privilege_comprehensive()  # 新增
+        self.do_insert_column_privilege_comprehensive()  # 新增
+        self.do_show_create_table_privilege()            # 新增        
         
         # Column and row privilege tests
         print("")
@@ -2814,6 +3285,7 @@ class TestPrivControl:
         print("")
         print("[View, Topic and Stream Privileges]")
         self.do_view_privileges()
+        self.do_view_nested_privilege()               # 新增
         self.do_topic_privileges() 
         self.do_stream_privileges()
 
