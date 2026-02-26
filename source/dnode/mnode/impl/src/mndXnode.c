@@ -127,6 +127,7 @@ SXnodeTaskObj *mndAcquireXnodeTask(SMnode *pMnode, int32_t tid);
 SJson         *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const char *buf, int64_t bufLen);
 static int32_t mndSetDropXnodeJobInfoToTrans(STrans *pTrans, SXnodeJobObj *pObj, bool force);
 void           mndReleaseXnodeJob(SMnode *pMnode, SXnodeJobObj *pObj);
+static int32_t mndValidateXnodePermissions(SMnode *pMnode, SRpcMsg *pReq, EOperType oper);
 
 int32_t mndInitXnode(SMnode *pMnode) {
   SSdbTable table = {
@@ -710,15 +711,13 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
   SMCreateXnodeReq createReq = {0};
   char            *pToken = NULL;
 
-  if ((code = grantCheck(TSDB_GRANT_XNODE)) != TSDB_CODE_SUCCESS) {
-    mError("failed to create xnode, code:%s", tstrerror(code));
+  code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_CREATE_XNODE);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for create xnode, code:%s", tstrerror(code));
     goto _OVER;
   }
-
   TAOS_CHECK_GOTO(tDeserializeSMCreateXnodeReq(pReq->pCont, pReq->contLen, &createReq), &lino, _OVER);
-
   mDebug("xnode:%s, start to create", createReq.url);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_CREATE_XNODE), &lino, _OVER);
 
   pObj = mndAcquireXnodeByURL(pMnode, createReq.url);
   if (pObj != NULL) {
@@ -867,8 +866,12 @@ static int32_t mndProcessUpdateXnodeReq(SRpcMsg *pReq) {
   SXnodeObj       *pObj = NULL;
   SMUpdateXnodeReq updateReq = {0};
 
+  code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_UPDATE_XNODE);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for update xnode, code:%s", tstrerror(code));
+    goto _OVER;
+  }
   TAOS_CHECK_GOTO(tDeserializeSMUpdateXnodeReq(pReq->pCont, pReq->contLen, &updateReq), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_UPDATE_XNODE), NULL, _OVER);
 
   if (updateReq.token.ptr != NULL || (updateReq.user.ptr != NULL && updateReq.pass.ptr != NULL)) {
     code = mndUpdateXnodeUserPassToken(pMnode, pReq, &updateReq);
@@ -974,10 +977,13 @@ static int32_t mndProcessDropXnodeReq(SRpcMsg *pReq) {
   SMDropXnodeReq dropReq = {0};
   SJson         *pJson = NULL;
 
+  code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_DROP_XNODE);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for drop xnode, code:%s", tstrerror(code));
+    goto _OVER;
+  }
   TAOS_CHECK_GOTO(tDeserializeSMDropXnodeReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
-
   mDebug("xnode:%d, start to drop", dropReq.xnodeId);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_DROP_XNODE), NULL, _OVER);
 
   if (dropReq.xnodeId <= 0 && (dropReq.url == NULL || strlen(dropReq.url) <= 0)) {
     code = TSDB_CODE_MND_XNODE_INVALID_MSG;
@@ -1032,10 +1038,13 @@ static int32_t mndProcessDrainXnodeReq(SRpcMsg *pReq) {
   SJson          *postContent = NULL;
   char           *pContStr = NULL;
 
+  code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_DRAIN_XNODE);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for drain xnode, code:%s", tstrerror(code));
+    goto _OVER;
+  }
   TAOS_CHECK_GOTO(tDeserializeSMDrainXnodeReq(pReq->pCont, pReq->contLen, &drainReq), NULL, _OVER);
-
   mDebug("xnode:%d, start to drain", drainReq.xnodeId);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_DRAIN_XNODE), NULL, _OVER);
 
   if (drainReq.xnodeId <= 0) {
     code = TSDB_CODE_MND_XNODE_INVALID_MSG;
@@ -1216,8 +1225,8 @@ SSdbRaw *mndXnodeTaskActionEncode(SXnodeTaskObj *pObj) {
     return NULL;
   }
 
-  int32_t totalStrLen =
-      pObj->nameLen + pObj->sourceDsnLen + pObj->sinkDsnLen + pObj->parserLen + pObj->reasonLen + pObj->statusLen;
+  int32_t totalStrLen = pObj->nameLen + pObj->sourceDsnLen + pObj->sinkDsnLen + pObj->parserLen + pObj->reasonLen +
+                        pObj->statusLen + pObj->createdByLen + pObj->labelsLen;
   int32_t rawDataLen = sizeof(SXnodeTaskObj) + TSDB_XNODE_RESERVE_SIZE + totalStrLen;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_XNODE_TASK, TSDB_XNODE_VER_NUMBER, rawDataLen);
@@ -1544,17 +1553,6 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-// Helper function to validate grant and permissions
-static int32_t mndValidateXnodeTaskPermissions(SMnode *pMnode, SRpcMsg *pReq) {
-  int32_t code = grantCheck(TSDB_GRANT_XNODE);
-  if (code != TSDB_CODE_SUCCESS) {
-    mError("failed to create xnode, code:%s", tstrerror(code));
-    return code;
-  }
-
-  return mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_CREATE_XNODE);
-}
-
 // Helper function to parse and validate the request
 static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq *pCreateReq) {
   int32_t code = 0;
@@ -1599,6 +1597,17 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
   if (pCreateReq->xnodeId > 0) {
     TAOS_CHECK_GOTO(tjsonAddDoubleToObject(postContent, "xnode_id", (double)pCreateReq->xnodeId), NULL, _OVER);
   }
+
+  if (pCreateReq->options.via > 0) {
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(postContent, "via", (double)pCreateReq->options.via), NULL, _OVER);
+  }
+
+  const char *labels = getXTaskOptionByName(&pCreateReq->options, "labels");
+  if (labels != NULL) {
+    TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "labels", labels), NULL, _OVER);
+  }
+
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "created_by", pReq->info.conn.user), NULL, _OVER);
 
   pContStr = tjsonToUnformattedString(postContent);
   if (pContStr == NULL) {
@@ -1653,8 +1662,9 @@ static int32_t mndProcessCreateXnodeTaskReq(SRpcMsg *pReq) {
   SMCreateXnodeTaskReq createReq = {0};
 
   // Step 1: Validate permissions
-  code = mndValidateXnodeTaskPermissions(pMnode, pReq);
+  code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_CREATE_XNODE_TASK);
   if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for create xnode task, code:%s", tstrerror(code));
     goto _OVER;
   }
 
@@ -1765,10 +1775,13 @@ static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
   SMStartXnodeTaskReq startReq = {0};
   SXnodeTaskObj      *pObjClone = NULL;
 
+  code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_START_XNODE_TASK);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for start xnode task, code:%s", tstrerror(code));
+    goto _OVER;
+  }
   TAOS_CHECK_GOTO(tDeserializeSMStartXnodeTaskReq(pReq->pCont, pReq->contLen, &startReq), NULL, _OVER);
-
   mDebug("xnode start xnode task with tid:%d", startReq.tid);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_START_XNODE_TASK), NULL, _OVER);
 
   if (startReq.tid <= 0 && (startReq.name.len <= 0 || startReq.name.ptr == NULL)) {
     code = TSDB_CODE_MND_XNODE_INVALID_MSG;
@@ -1808,10 +1821,14 @@ static int32_t mndProcessStopXnodeTaskReq(SRpcMsg *pReq) {
   SMStopXnodeTaskReq stopReq = {0};
   SJson             *pJson = NULL;
 
+  code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_STOP_XNODE_TASK);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for stop xnode task, code:%s", tstrerror(code));
+    goto _OVER;
+  }
   TAOS_CHECK_GOTO(tDeserializeSMStopXnodeTaskReq(pReq->pCont, pReq->contLen, &stopReq), NULL, _OVER);
-
   mDebug("Stop xnode task with tid:%d", stopReq.tid);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_STOP_XNODE_TASK), NULL, _OVER);
+
   if (stopReq.tid <= 0 && (stopReq.name.len <= 0 || stopReq.name.ptr == NULL)) {
     code = TSDB_CODE_MND_XNODE_INVALID_MSG;
     goto _OVER;
@@ -1983,8 +2000,9 @@ static int32_t mndProcessUpdateXnodeTaskReq(SRpcMsg *pReq) {
   SXnodeTaskObj       *pObj = NULL;
   SMUpdateXnodeTaskReq updateReq = {0};
 
-  if ((code = grantCheck(TSDB_GRANT_TD_GPT)) != TSDB_CODE_SUCCESS) {
-    mError("failed to create xnode, code:%s", tstrerror(code));
+  code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_UPDATE_XNODE_TASK);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for update xnode task, code:%s", tstrerror(code));
     goto _OVER;
   }
 
@@ -2103,10 +2121,13 @@ static int32_t mndProcessDropXnodeTaskReq(SRpcMsg *pReq) {
   SMDropXnodeTaskReq dropReq = {0};
   SJson             *pJson = NULL;
 
+  code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_DROP_XNODE_TASK);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for drop xnode task, code:%s", tstrerror(code));
+    goto _OVER;
+  }
   TAOS_CHECK_GOTO(tDeserializeSMDropXnodeTaskReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
-
   mDebug("DropXnodeTask with tid:%d, start to drop", dropReq.id);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_DROP_XNODE_TASK), NULL, _OVER);
 
   if (dropReq.id <= 0 && (dropReq.name.len <= 0 || dropReq.name.ptr == NULL)) {
     code = TSDB_CODE_MND_XNODE_INVALID_MSG;
@@ -2383,7 +2404,8 @@ SSdbRaw *mndXnodeJobActionEncode(SXnodeJobObj *pObj) {
 
   mDebug("xnode tid:%d, jid:%d, start to encode to raw, row:%p", pObj->taskId, pObj->id, pObj);
 
-  int32_t rawDataLen = sizeof(SXnodeJobObj) + TSDB_XNODE_RESERVE_SIZE + pObj->configLen + pObj->reasonLen;
+  int32_t rawDataLen =
+      sizeof(SXnodeJobObj) + TSDB_XNODE_RESERVE_SIZE + pObj->configLen + pObj->reasonLen + pObj->statusLen;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_XNODE_JOB, TSDB_XNODE_VER_NUMBER, rawDataLen);
   if (pRaw == NULL) goto _OVER;
@@ -2930,15 +2952,13 @@ static int32_t mndProcessCreateXnodeJobReq(SRpcMsg *pReq) {
   int32_t             code = -1;
   SMCreateXnodeJobReq createReq = {0};
 
-  if ((code = grantCheck(TSDB_GRANT_XNODE)) != TSDB_CODE_SUCCESS) {
-    mError("failed to create xnode, code:%s", tstrerror(code));
+  code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_CREATE_XNODE_JOB);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for create xnode job, code:%s", tstrerror(code));
     goto _OVER;
   }
-
   TAOS_CHECK_GOTO(tDeserializeSMCreateXnodeJobReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
-
   mDebug("xnode create job on xnode:%d", createReq.xnodeId);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_CREATE_XNODE_JOB), NULL, _OVER);
 
   code = mndCreateXnodeJob(pMnode, pReq, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -2958,11 +2978,11 @@ static int32_t mndProcessUpdateXnodeJobReq(SRpcMsg *pReq) {
   SXnodeJobObj       *pObj = NULL;
   SMUpdateXnodeJobReq updateReq = {0};
 
-  if ((code = grantCheck(TSDB_GRANT_TD_GPT)) != TSDB_CODE_SUCCESS) {
-    mError("failed to create xnode, code:%s", tstrerror(code));
+  code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_UPDATE_XNODE_JOB);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for update xnode job, code:%s", tstrerror(code));
     goto _OVER;
   }
-
   TAOS_CHECK_GOTO(tDeserializeSMUpdateXnodeJobReq(pReq->pCont, pReq->contLen, &updateReq), NULL, _OVER);
 
   pObj = mndAcquireXnodeJob(pMnode, updateReq.jid);
@@ -2993,10 +3013,13 @@ static int32_t mndProcessRebalanceXnodeJobReq(SRpcMsg *pReq) {
   SMRebalanceXnodeJobReq rebalanceReq = {0};
   SJson                 *pJson = NULL;
 
+  code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_REBALANCE_XNODE_JOB);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for rebalance xnode job, code:%s", tstrerror(code));
+    goto _OVER;
+  }
   TAOS_CHECK_GOTO(tDeserializeSMRebalanceXnodeJobReq(pReq->pCont, pReq->contLen, &rebalanceReq), NULL, _OVER);
-
   mDebug("RebalanceXnodeJob with jid:%d, xnode_id:%d, start to rebalance", rebalanceReq.jid, rebalanceReq.xnodeId);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_REBALANCE_XNODE_JOB), NULL, _OVER);
 
   if (rebalanceReq.jid <= 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -3530,7 +3553,6 @@ _OVER:
 }
 
 static int32_t mndProcessRebalanceXnodeJobsWhereReq(SRpcMsg *pReq) {
-  mDebug("xnode reblance xnode jobs where req, content len:%d", pReq->contLen);
   int32_t                      code = 0;
   SMnode                      *pMnode = pReq->info.node;
   SMRebalanceXnodeJobsWhereReq rebalanceReq = {0};
@@ -3538,8 +3560,12 @@ static int32_t mndProcessRebalanceXnodeJobsWhereReq(SRpcMsg *pReq) {
   SArray                      *pArray = NULL;
   SArray                      *pResult = NULL;
 
+  code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_REBALANCE_XNODE_JOB);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for rebalance xnode jobs where, code:%s", tstrerror(code));
+    goto _OVER;
+  }
   TAOS_CHECK_GOTO(tDeserializeSMRebalanceXnodeJobsWhereReq(pReq->pCont, pReq->contLen, &rebalanceReq), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_REBALANCE_XNODE_JOB), NULL, _OVER);
 
   TAOS_CHECK_GOTO(mndAcquireXnodeJobsAll(pMnode, &pArray), NULL, _OVER);
   if (NULL != rebalanceReq.ast.ptr) {
@@ -3623,10 +3649,13 @@ static int32_t mndProcessDropXnodeJobReq(SRpcMsg *pReq) {
   int32_t           code = -1;
   SMDropXnodeJobReq dropReq = {0};
 
+  code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_DROP_XNODE_JOB);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for drop xnode jobs, code:%s", tstrerror(code));
+    goto _OVER;
+  }
   TAOS_CHECK_GOTO(tDeserializeSMDropXnodeJobReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
-
   mDebug("Xnode drop job with jid:%d", dropReq.jid);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_DROP_XNODE_JOB), NULL, _OVER);
 
   if (dropReq.jid <= 0 && dropReq.ast.ptr == NULL) {
     code = TSDB_CODE_MND_XNODE_INVALID_MSG;
@@ -4242,7 +4271,7 @@ void mndReleaseXnodeAgent(SMnode *pMnode, SXnodeAgentObj *pObj) {
 static int32_t mndValidateXnodePermissions(SMnode *pMnode, SRpcMsg *pReq, EOperType oper) {
   int32_t code = grantCheck(TSDB_GRANT_XNODE);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("failed to create xnode, code:%s", tstrerror(code));
+    mError("failed to validate xnode permissions, code:%s, oper:%d", tstrerror(code), oper);
     return code;
   }
 
@@ -4726,6 +4755,7 @@ static int32_t mndProcessCreateXnodeAgentReq(SRpcMsg *pReq) {
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_CREATE_XNODE_AGENT);
   if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for create xnode agent, code:%s", tstrerror(code));
     goto _OVER;
   }
 
@@ -4813,8 +4843,9 @@ static int32_t mndProcessUpdateXnodeAgentReq(SRpcMsg *pReq) {
   SXnodeAgentObj       *pObj = NULL;
   SMUpdateXnodeAgentReq updateReq = {0};
 
-  if ((code = grantCheck(TSDB_GRANT_XNODE)) != TSDB_CODE_SUCCESS) {
-    mError("failed grant update xnode agent, code:%s", tstrerror(code));
+  code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_UPDATE_XNODE_AGENT);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for update xnode agent, code:%s", tstrerror(code));
     goto _OVER;
   }
 
@@ -4914,10 +4945,13 @@ static int32_t mndProcessDropXnodeAgentReq(SRpcMsg *pReq) {
   SXnodeAgentObj     *pObj = NULL;
   SMDropXnodeAgentReq dropReq = {0};
 
+  code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_DROP_XNODE_AGENT);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for drop xnode agent, code:%s", tstrerror(code));
+    goto _OVER;
+  }
   TAOS_CHECK_GOTO(tDeserializeSMDropXnodeAgentReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
   mDebug("xnode drop agent with id:%d, start to drop", dropReq.id);
-
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_DROP_XNODE_AGENT), NULL, _OVER);
 
   if (dropReq.id <= 0 && (dropReq.name.len <= 0 || dropReq.name.ptr == NULL)) {
     code = TSDB_CODE_MND_XNODE_INVALID_MSG;

@@ -50,6 +50,7 @@ def draw_imputation_final_result(data, mask):
 
     plt.legend(fontsize=14)
     plt.savefig("imputation_res.png")
+    plt.close()
 
 def do_set_imputation_params(params, json_obj):
     """ add params into parameters """

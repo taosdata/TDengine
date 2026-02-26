@@ -7823,7 +7823,7 @@ static int32_t tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* 
   // check for head windows
   if (pScanRange->skey != TSKEY_MIN) {
     startOfSkeyFirstWin = taosTimeTruncate(pScanRange->skey, pInterval);
-    endOfSkeyFirstWin = taosTimeGetIntervalEnd(startOfSkeyFirstWin, pInterval);
+    endOfSkeyFirstWin = taosTimeGetIntervalEnd(startOfSkeyFirstWin, pInterval) + 1;
     isSkeyAlignedWithTsma = taosTimeTruncate(pScanRange->skey, &tsmaInterval) == pScanRange->skey;
   } else {
     endOfSkeyFirstWin = TSKEY_MIN;
@@ -7832,7 +7832,7 @@ static int32_t tsmaOptSplitWindows(STSMAOptCtx* pTsmaOptCtx, const STimeWindow* 
   // check for tail windows
   if (pScanRange->ekey != TSKEY_MAX) {
     startOfEkeyFirstWin = taosTimeTruncate(pScanRange->ekey, pInterval);
-    endOfEkeyFirstWin = taosTimeGetIntervalEnd(startOfEkeyFirstWin, pInterval);
+    endOfEkeyFirstWin = taosTimeGetIntervalEnd(startOfEkeyFirstWin, pInterval) + 1;
     isEkeyAlignedWithTsma = taosTimeTruncate(pScanRange->ekey + 1, &tsmaInterval) == (pScanRange->ekey + 1);
     if (startOfEkeyFirstWin > startOfSkeyFirstWin) {
       needTailWindow = true;
@@ -9506,6 +9506,7 @@ static int32_t vstableAggOptimizeWithoutPartition(SOptimizeContext* pCxt, SLogic
   if (batchProcessChild) {
     PLAN_ERR_JRET(nodesCloneNode((SNode*)pNewAgg, (SNode**)&pVirtualChildAgg));
     nodesDestroyList(pVirtualChildAgg->node.pChildren);
+    pVirtualChildAgg->node.pChildren = NULL;
   } else {
     PLAN_ERR_JRET(createPartAggNode(pNewAgg, (SLogicNode**)&pVirtualChildAgg));
   }
@@ -9599,6 +9600,7 @@ static int32_t vstableAggOptimizeWithPartition(SOptimizeContext* pCxt, SLogicSub
     pVirtualAgg->node.dynamicOp = true;
     pVirtualAgg->hasGroupKeyOptimized = true;
     nodesDestroyList(pVirtualAgg->node.pChildren);
+    pVirtualAgg->node.pChildren = NULL;
   } else {
     PLAN_ERR_JRET(createPartAggNode(pNewAgg, (SLogicNode**)&pVirtualAgg));
     pVirtualAgg->node.dynamicOp = true;
