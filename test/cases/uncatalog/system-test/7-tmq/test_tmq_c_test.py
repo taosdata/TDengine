@@ -59,5 +59,5 @@ class TestCase:
 
         self.checkData()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

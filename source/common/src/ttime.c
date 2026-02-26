@@ -22,7 +22,7 @@
 #define _BSD_SOURCE
 #define _DEFAULT_SOURCE
 #include "ttime.h"
-
+#include "tcommon.h"
 #include "tlog.h"
 
 static int32_t parseFraction(char* str, char** end, int32_t timePrec, int64_t* pFraction);
@@ -492,6 +492,124 @@ int32_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+// 连续 N 个月的最少天数（N = 0..12）
+// index 0 表示 0 个月
+static const int32_t MIN_DAYS_IN_N_MONTHS[13] = {
+    0,    // 0
+    28,   // 1
+    59,   // 2
+    89,   // 3
+    120,  // 4
+    150,  // 5
+    181,  // 6
+    212,  // 7
+    242,  // 8
+    273,  // 9
+    303,  // 10
+    334,  // 11
+    365   // 12
+};
+
+/**
+ * Convert a calendar-based duration (year or month) into the minimal possible
+ * continuous time length with the specified time precision.
+ *
+ * This function is used to compare calendar intervals (such as INTERVAL and
+ * SLIDING windows) against timestamp-based durations. Since calendar units
+ * (months / years) do not have a fixed length in days, the conversion follows
+ * a **minimum-duration strategy** to avoid overestimating the time range.
+ *
+ * Conversion rules:
+ * - Month ('n' / 'N'):
+ *   Interpreted as a count of consecutive calendar months. The result is the
+ *   **minimum possible number of days** among all valid continuous-month
+ *   windows, based on the real Gregorian calendar month lengths
+ *   (28 / 30 / 31 days). A precomputed constant table is used.
+ *
+ * - Year ('y' / 'Y'):
+ *   Interpreted as a count of consecutive calendar years. Each year is treated
+ *   as 365 days. Leap years are intentionally ignored; the ±1 day deviation is
+ *   acceptable for window comparison purposes.
+ *
+ * General notes:
+ * - The start month/year is not specified.
+ * - Cross-year month sequences are allowed.
+ * - The returned value represents the **minimum continuous duration** and is
+ *   therefore safe for interval and sliding-window comparisons.
+ *
+ * @param time        Number of calendar units (months or years).
+ * @param fromUnit    Calendar unit:
+ *                    'n' or 'N' for month,
+ *                    'y' or 'Y' for year.
+ * @param toPrecision Target time precision:
+ *                    TSDB_TIME_PRECISION_MILLI,
+ *                    TSDB_TIME_PRECISION_MICRO,
+ *                    TSDB_TIME_PRECISION_NANO.
+ * @param pRes        Output parameter. On success, stores the converted duration
+ *                    expressed in the specified precision.
+ *
+ * @return TSDB_CODE_SUCCESS on success,
+ *         TSDB_CODE_INVALID_PARA if parameters are invalid.
+ */
+
+int32_t convertCalendarTimeFromUnitToPrecision(
+    int64_t time,
+    char fromUnit,
+    int32_t toPrecision,
+    int64_t* pRes
+) {
+    if (pRes == NULL) {
+        return TSDB_CODE_INVALID_PARA;
+    }
+
+    if (toPrecision != TSDB_TIME_PRECISION_MILLI &&
+        toPrecision != TSDB_TIME_PRECISION_MICRO &&
+        toPrecision != TSDB_TIME_PRECISION_NANO) {
+        return TSDB_CODE_INVALID_PARA;
+    }
+
+    static const int64_t factors[] = {
+        NANOSECOND_PER_MSEC,  // milli
+        NANOSECOND_PER_USEC,  // micro
+        1                     // nano
+    };
+
+    int64_t totalDays = 0;
+
+    switch (fromUnit) {
+        case 'n':   // month
+        case 'N': {
+            if (time < 0) {
+                return TSDB_CODE_INVALID_PARA;
+            }
+
+            int64_t years = time / 12;
+            int32_t rem   = (int32_t)(time % 12);
+
+            totalDays = years * 365 + MIN_DAYS_IN_N_MONTHS[rem];
+            break;
+        }
+
+        case 'y':   // year
+        case 'Y': {
+            if (time < 0) {
+                return TSDB_CODE_INVALID_PARA;
+            }
+
+            // 连续 time 年的最少天数（忽略闰年）
+            totalDays = time * 365;
+            break;
+        }
+
+        default:
+            return TSDB_CODE_INVALID_PARA;
+    }
+
+    *pRes = totalDays * (NANOSECOND_PER_DAY / factors[toPrecision]);
+
+    return TSDB_CODE_SUCCESS;
+}
+
 int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal, timezone_t tz, void* charsetCxt) {
   int32_t charLen = varDataLen(inputData);
   char*   newColData;
@@ -660,9 +778,15 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
     uError("failed to convert time to gm time, code:%d", ERRNO);
     return t;
   }
-  int32_t    mon = tm.tm_year * 12 + tm.tm_mon + (int32_t)numOfMonth;
-  tm.tm_year = mon / 12;
-  tm.tm_mon = mon % 12;
+  int64_t mon = (int64_t)tm.tm_year * 12 + tm.tm_mon + numOfMonth;
+  int64_t y = mon / 12;
+  int64_t m = mon % 12;
+  if (m < 0) {
+    m += 12;
+    y -= 1;
+  }
+  tm.tm_year = (int)y;
+  tm.tm_mon = (int)m;
   int daysOfMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
   if (taosIsLeapYear(1900 + tm.tm_year)) {
     daysOfMonth[1] = 29;
@@ -746,6 +870,19 @@ int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interva
     if (order == TSDB_ORDER_DESC && ret * interval < (smon - emon)) ret += 1;
   }
   return ret + 1;
+}
+
+TSKEY getNextTimeWindowStart(const SInterval* pInterval, TSKEY start, int32_t order) {
+  int32_t factor = GET_FORWARD_DIRECTION_FACTOR(order);
+  return taosTimeAdd(start, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision,
+                     pInterval->timezone);
+}
+
+// used together with taosTimeTruncate. when offset is great than zero, slide-start/slide-end is the anchor point
+int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval) {
+  return taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision,
+                     pInterval->timezone) -
+         1;
 }
 
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
@@ -864,23 +1001,18 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
   if (pInterval->offset > 0) {
     // try to move current window to the left-hande-side, due to the offset effect.
-    int64_t newe = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
-    int64_t slidingStart = start;
-    while (newe >= ts) {
-      start = slidingStart;
-      slidingStart = taosTimeAdd(slidingStart, -pInterval->sliding, pInterval->slidingUnit, precision, pInterval->timezone);
-      int64_t news = taosTimeAdd(slidingStart, pInterval->offset, pInterval->offsetUnit, precision, pInterval->timezone);
-      newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
-    }
     start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision, pInterval->timezone);
+    int64_t end = taosTimeGetIntervalEnd(start, pInterval);
+    int64_t nextStart = start;
+
+    while (end >= ts) {
+      start = nextStart;
+      nextStart = getNextTimeWindowStart(pInterval, start, TSDB_ORDER_DESC);
+      end = taosTimeGetIntervalEnd(nextStart, pInterval);
+    }
   }
 
   return start;
-}
-
-// used together with taosTimeTruncate. when offset is great than zero, slide-start/slide-end is the anchor point
-int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval) {
-  return taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision, pInterval->timezone) - 1;
 }
 
 void calcIntervalAutoOffset(SInterval* interval) {

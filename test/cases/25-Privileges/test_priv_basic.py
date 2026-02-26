@@ -84,7 +84,7 @@ class TestPrivBasic:
         self.delete_user("test")
         # drop db
         tdSql.execute("drop database db;")
-        tdLog.info("test_common_user_privileges successfully executed")
+
 
     def run_test_common_user_with_createdb_privileges(self):
         self.prepare_data1()

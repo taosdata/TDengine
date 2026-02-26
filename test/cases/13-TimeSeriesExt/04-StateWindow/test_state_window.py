@@ -232,7 +232,7 @@ class TestStateWindow:
         self.check_crash_for_state_window5()
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+
     
     def test_state_window_start_with_null(self):
         """summary: test state window start with null

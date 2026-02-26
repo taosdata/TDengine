@@ -375,6 +375,6 @@ class TestTaosdumpCommandline:
         tdLog.info("5. check conn mode  ..................................... [Passed]")
 
 
-        tdLog.success("%s successfully executed" % __file__)
+
 
 

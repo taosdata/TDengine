@@ -74,7 +74,7 @@ int32_t virtualScanloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
 
   return code;
 _return:
-  qError("failed to load data block from downstream, %s code:%s", __func__, tstrerror(code));
+  qError("failed to load data block from downstream, %s code:%s, line:%d", __func__, tstrerror(code), line);
   return code;
 }
 

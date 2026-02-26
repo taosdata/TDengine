@@ -110,5 +110,5 @@ class TestQueryPseudoColumn:
         tdSql.execute('drop database pseudo_col')
         
         tdSql.error("select _irowts, if2 from (select interp(f) as if2 from st range('2023-10-10 14:10:00', '2023-10-10 14:10:10') every(1s) fill(value, 8))")
-        tdLog.success("%s successfully executed" % __file__)
+
 

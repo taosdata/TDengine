@@ -86,7 +86,7 @@ class TestSmatest:
 
     # stop
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+
 
     #
     # --------------- case  -------------------

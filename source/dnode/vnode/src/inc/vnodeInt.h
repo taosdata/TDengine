@@ -270,7 +270,9 @@ int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg);
 // injection error
 void streamMetaFreeTQDuringScanWalError(STQ* pTq);
 
-int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
+int32_t tqAddTbUidList(STQ* pTq, SArray* tbUidList);
+int32_t tqDeleteTbUidList(STQ* pTq, SArray* tbUidList);
+int32_t tqUpdateTbUidList(STQ* pTq, SArray* tbUidList, SArray* cidList);
 int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId);
 // tq-mq
 int32_t tqProcessAddCheckInfoReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);

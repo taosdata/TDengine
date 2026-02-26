@@ -141,6 +141,6 @@ class TestTd12478:
 
         
 
-        tdLog.success("%s successfully executed" % __file__)
+
 
 

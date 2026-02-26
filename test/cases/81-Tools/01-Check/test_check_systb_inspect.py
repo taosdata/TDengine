@@ -248,5 +248,5 @@ class TestTaosinspect:
         # Prepare test data
         self.run_system_table_schema_verification()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

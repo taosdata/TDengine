@@ -99,7 +99,7 @@ class TestDdlInSysdb:
         tdDnodes.starttaosd(1)
         self.ddl_in_sysdb()
 
-        tdLog.success("%s successfully executed" % __file__)
+
         
     #
     # --------------- test_ins_stables.py ---------------
@@ -1086,7 +1086,7 @@ class TestDdlInSysdb:
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
         
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
-        tdSql.checkRows(64)
+        tdSql.checkRows(65)
 
     def ins_dnodes_check(self):
         tdSql.execute('drop database if exists db2')

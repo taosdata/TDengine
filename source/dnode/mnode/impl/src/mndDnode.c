@@ -1508,7 +1508,7 @@ static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pReq) {
     tFreeSMCfgDnodeReq(&cfgReq);
     return mndProcessCreateEncryptKeyReqImpl(pReq, cfgReq.dnodeId, &dcfgReq);
   } else {
-    code = TSDB_CODE_PAR_INTERNAL_ERROR;
+    code = TSDB_CODE_MND_INTERNAL_ERROR;
     tFreeSMCfgDnodeReq(&cfgReq);
     TAOS_RETURN(code);
   }

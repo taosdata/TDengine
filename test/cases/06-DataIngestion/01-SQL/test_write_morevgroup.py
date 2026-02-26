@@ -363,7 +363,7 @@ class TestInsertwithmorevgroup:
 
         
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+
 
         # create database and tables。
         self.check_case1()
@@ -373,7 +373,7 @@ class TestInsertwithmorevgroup:
         self.check_case3()
         tdLog.debug(" LIMIT test_case3 ............ [OK]")
         
-        tdLog.success("%s successfully executed" % __file__)
+
 
 
 

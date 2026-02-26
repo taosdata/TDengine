@@ -156,7 +156,7 @@ class TestSnapshot:
         self.checkFloatDouble()
 
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
         
 

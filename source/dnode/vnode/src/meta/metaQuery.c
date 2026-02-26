@@ -204,7 +204,7 @@ int metaGetTableTypeSuidByName(void *pVnode, char *tbName, ETableType *tbType, u
 
   code = metaGetTableEntryByName(&mr, tbName);
   if (code == 0) *tbType = mr.me.type;
-  if (TSDB_CHILD_TABLE == mr.me.type) {
+  if (TSDB_CHILD_TABLE == mr.me.type || TSDB_VIRTUAL_CHILD_TABLE == mr.me.type) {
     *suid = mr.me.ctbEntry.suid;
   } else if (TSDB_SUPER_TABLE == mr.me.type) {
     *suid = mr.me.uid;
@@ -232,9 +232,9 @@ int metaGetTableTtlByUid(void *meta, uint64_t uid, int64_t *ttlDays) {
   if (code < 0) {
     goto _exit;
   }
-  if (mr.me.type == TSDB_CHILD_TABLE) {
+  if (mr.me.type == TSDB_CHILD_TABLE || mr.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
     *ttlDays = mr.me.ctbEntry.ttlDays;
-  } else if (mr.me.type == TSDB_NORMAL_TABLE) {
+  } else if (mr.me.type == TSDB_NORMAL_TABLE || mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
     *ttlDays = mr.me.ntbEntry.ttlDays;
   } else {
     goto _exit;
@@ -432,7 +432,7 @@ _query:
       tDecoderClear(&dc);
       goto _exit;
     }
-  } else if (me.type == TSDB_CHILD_TABLE) {
+  } else if (me.type == TSDB_CHILD_TABLE || me.type == TSDB_VIRTUAL_CHILD_TABLE) {
     uid = me.ctbEntry.suid;
     tDecoderClear(&dc);
     goto _query;
@@ -510,9 +510,9 @@ int64_t metaGetTableCreateTime(SMeta *pMeta, tb_uid_t uid, int lock) {
     tDecoderClear(&dc);
     goto _exit;
   }
-  if (me.type == TSDB_CHILD_TABLE) {
+  if (me.type == TSDB_CHILD_TABLE || me.type == TSDB_VIRTUAL_CHILD_TABLE) {
     createTime = me.ctbEntry.btime;
-  } else if (me.type == TSDB_NORMAL_TABLE) {
+  } else if (me.type == TSDB_NORMAL_TABLE || me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
     createTime = me.ntbEntry.btime;
   }
   tDecoderClear(&dc);
@@ -1566,6 +1566,7 @@ int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
   int32_t sz = uidList ? taosArrayGetSize(uidList) : 0;
   for (int i = 0; i < sz; i++) {
     STUidTagInfo *p = taosArrayGet(uidList, i);
+    if (p->pTagVal != NULL) continue;
 
     if (i % LIMIT == 0) {
       if (isLock) metaULock(pMeta);

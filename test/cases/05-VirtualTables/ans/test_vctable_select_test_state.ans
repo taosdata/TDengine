@@ -519,3 +519,23 @@ taos> select _wstart, _wend, first(bool_col), first(u_tinyint_col), first(u_smal
  2020-10-01 00:00:00.648 | 2020-10-01 00:00:00.648 | true            |                   36 |                 40209 | NULL             | true           |                  36 |                40209 | NULL            |                     1 |
  2020-10-01 00:00:00.651 | 2020-10-01 00:00:00.651 | false           | NULL                 |                 24193 | NULL             | false          | NULL                |                24193 | NULL            |                     0 |
 
+taos> select count(*) from test_vtable_select.vtb_virtual_ctb_full partition by tbname STATE_WINDOW(CASE WHEN tbname = 'vtb_virtual_ctb_full' THEN 1 ELSE 0 END);
+       count(*)        |
+========================
+                 23333 |
+
+taos> select count(*) from test_vtable_select.vtb_virtual_ctb_full partition by tbname STATE_WINDOW(tbname);
+       count(*)        |
+========================
+                 23333 |
+
+taos> select count(*) from test_vtable_select.vtb_virtual_ctb_full STATE_WINDOW(CASE WHEN tbname = 'vtb_virtual_ctb_full' THEN 1 ELSE 0 END);
+       count(*)        |
+========================
+                 23333 |
+
+taos> select count(*) from test_vtable_select.vtb_virtual_ctb_full STATE_WINDOW(tbname);
+       count(*)        |
+========================
+                 23333 |
+

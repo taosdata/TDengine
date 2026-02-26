@@ -249,6 +249,6 @@ class TestCheckErrorCode:
         tdLog.info(f"check en docs ...")
         self.check_consistency(enCodes, codes)
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 
