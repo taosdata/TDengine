@@ -1813,7 +1813,7 @@ static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmS
         msttDebug("runner task deploy built, subplan level:%d, taskIdx:%d, groupId:%d, subplanId:%d",
             i, pTask->taskIdx, plan->id.groupId, plan->id.subplanId);
 
-	if (subQ) {
+        if (subQ) {
           SStmTaskSrcAddr addr = {0};
           SDownstreamSourceNode* pSource = NULL;
 
