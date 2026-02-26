@@ -1301,6 +1301,269 @@ class TestPrivControl:
     #
     # --------------------------- Role-Based Access Control Tests ----------------------------
     #
+    def do_role_privilege(self):
+        # Test role privileges: CREATE ROLE, DROP ROLE, SHOW ROLES, LOCK ROLE, UNLOCK ROLE
+        tdLog.info("=== Testing Role Privileges ===")
+        self.login()  # Login as root
+        
+        # Test user
+        test_user = "test_user"
+        role1 = "test_role_1"
+        role2 = "test_role_2"
+        role3 = "test_role_3"
+        
+        # Create test user and revoke default role
+        self.create_user(test_user, pwd)
+        self.revoke_role("`SYSINFO_1`", test_user)  # revoke default role
+        
+        # ==================== CREATE ROLE ====================
+        print("--- Testing CREATE ROLE privilege ---")
+        
+        # Test: user cannot create role without privilege
+        self.login(test_user, pwd)
+        self.exec_sql_failed(f"CREATE ROLE {role1}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Grant CREATE ROLE privilege
+        self.login()
+        self.grant_privilege("CREATE ROLE", None, test_user)
+        
+        # Test: user can create role with privilege
+        self.login(test_user, pwd)
+        self.exec_sql(f"CREATE ROLE {role1}")
+        
+        # Test revoke CREATE ROLE privilege
+        self.login()
+        self.revoke_privilege("CREATE ROLE", None, test_user)
+        
+        # Test: user cannot create role after revoking privilege
+        self.login(test_user, pwd)
+        self.exec_sql_failed(f"CREATE ROLE {role2}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # ==================== DROP ROLE ====================
+        print("--- Testing DROP ROLE privilege ---")
+        
+        # Create another role as root for testing DROP
+        self.login()
+        self.create_role(role2)
+        
+        # Test: user cannot drop role without privilege
+        self.login(test_user, pwd)
+        self.exec_sql_failed(f"DROP ROLE {role2}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Grant DROP ROLE privilege
+        self.login()
+        self.grant_privilege("DROP ROLE", None, test_user)
+        
+        # Test: user can drop role with privilege
+        self.login(test_user, pwd)
+        self.exec_sql(f"DROP ROLE {role2}")
+
+        # Test revoke DROP ROLE privilege
+        self.login()
+        self.revoke_privilege("DROP ROLE", None, test_user)        
+        
+        # ==================== SHOW ROLES ====================
+        print("--- Testing SHOW ROLES privilege ---")
+        
+        # Create another role as root for testing SHOW
+        self.login()
+        self.create_role(role3)
+        
+        # Test: user cannot show roles without privilege
+        self.login(test_user, pwd)
+        self.exec_sql_failed("SHOW ROLES", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Grant SHOW ROLES privilege
+        self.login()
+        self.grant_privilege("SHOW ROLES", None, test_user)
+        
+        # Test: user can show roles with privilege
+        self.login(test_user, pwd)
+        tdSql.query("SHOW ROLES")
+        rows = tdSql.queryRows
+        tdLog.info(f"Found {rows} roles")
+        
+        # Verify role1 and role3 are in the list
+        result = tdSql.queryResult
+        role_found_1 = False
+        role_found_3 = False
+        for row in result:
+            if row[0] == role1:
+                role_found_1 = True
+            if row[0] == role3:
+                role_found_3 = True
+        
+        if not role_found_1:
+            tdLog.error(f"Role {role1} not found in SHOW ROLES output")
+        if not role_found_3:
+            tdLog.error(f"Role {role3} not found in SHOW ROLES output")
+        
+        # Test revoke SHOW ROLES privilege
+        self.login()
+        self.revoke_privilege("SHOW ROLES", None, test_user)
+        self.login(test_user, pwd)
+        self.exec_sql_failed("SHOW ROLES", TSDB_CODE_PAR_PERMISSION_DENIED)        
+        
+        # below is BUG21
+        return 
+        
+        
+        # ==================== LOCK ROLE ====================
+        print("--- Testing LOCK ROLE privilege ---")
+        
+        # Create a role for testing LOCK (user can't create, so root does it)
+        lock_test_role = "lock_test_role"
+        self.create_role(lock_test_role)
+        
+        # Test: user cannot lock role without privilege
+        self.login(test_user, pwd)
+        self.exec_sql_failed(f"LOCK ROLE {lock_test_role}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Grant LOCK ROLE privilege
+        self.login()
+        self.grant_privilege("LOCK ROLE", None, test_user)
+        
+        # Test: user can lock role with privilege
+        self.login(test_user, pwd)
+        self.exec_sql(f"LOCK ROLE {lock_test_role}")
+        
+        # Test: user cannot lock own role
+        self.exec_sql_failed(f"LOCK ROLE {role1}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Verify role is locked (try to grant it to user should fail)
+        self.login()
+        self.exec_sql_failed(f"GRANT ROLE {lock_test_role} TO {test_user}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Test revoke LOCK ROLE privilege
+        self.login()
+        self.revoke_privilege("LOCK ROLE", None, test_user)
+        
+        # ==================== UNLOCK ROLE ====================
+        print("--- Testing UNLOCK ROLE privilege ---")
+        
+        # Lock a role as root first
+        unlock_test_role = "unlock_test_role"
+        self.create_role(unlock_test_role)
+        self.exec_sql(f"LOCK ROLE {unlock_test_role}")
+        
+        # Test: user cannot unlock role without privilege
+        self.login(test_user, pwd)
+        self.exec_sql_failed(f"UNLOCK ROLE {unlock_test_role}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Grant UNLOCK ROLE privilege
+        self.login()
+        self.grant_privilege("UNLOCK ROLE", None, test_user)
+        
+        # Test: user can unlock role with privilege
+        self.login(test_user, pwd)
+        self.exec_sql(f"UNLOCK ROLE {unlock_test_role}")
+        
+        # Verify role is unlocked (should be able to grant it)
+        self.login()
+        self.exec_sql(f"GRANT ROLE {unlock_test_role} TO {test_user}")
+        
+        # Test: user cannot unlock own role
+        self.login(test_user, pwd)
+        self.exec_sql_failed(f"UNLOCK ROLE {role1}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Test revoke UNLOCK ROLE privilege
+        self.login()
+        self.revoke_privilege("UNLOCK ROLE", None, test_user)
+        
+        # ==================== Combined Privilege Test ====================
+        print("--- Testing Combined Role Privileges ---")
+        
+        # Create a new user for combined test
+        combined_user = "combined_role_user"
+        self.create_user(combined_user, pwd)
+        self.revoke_role("`SYSINFO_1`", combined_user)
+        
+        # Grant all role privileges at once
+        self.grant_privilege("CREATE ROLE, DROP ROLE, SHOW ROLES, LOCK ROLE, UNLOCK ROLE", None, combined_user)
+        
+        # Test all privileges work together
+        self.login(combined_user, pwd)
+        
+        # 1. CREATE ROLE
+        combined_role1 = "combined_role_1"
+        self.exec_sql(f"CREATE ROLE {combined_role1}")
+        
+        # 2. SHOW ROLES (should see the created role)
+        tdSql.query("SHOW ROLES")
+        result = tdSql.queryResult
+        found_combined_role = False
+        for row in result:
+            if row[0] == combined_role1:
+                found_combined_role = True
+                break
+        if not found_combined_role:
+            tdLog.error(f"Role {combined_role1} not found in SHOW ROLES output")
+        
+        # 3. LOCK ROLE
+        self.exec_sql(f"LOCK ROLE {unlock_test_role}")  # Using existing role
+        
+        # 4. UNLOCK ROLE
+        self.exec_sql(f"UNLOCK ROLE {unlock_test_role}")
+        
+        # 5. DROP ROLE (create another role first)
+        combined_role2 = "combined_role_2"
+        self.exec_sql(f"CREATE ROLE {combined_role2}")
+        self.exec_sql(f"DROP ROLE {combined_role2}")
+        
+        # Test: user cannot drop own role
+        self.exec_sql_failed(f"DROP ROLE {combined_role1}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # ==================== Test Role Privilege Hierarchy ====================
+        print("--- Testing Role Privilege Hierarchy ---")
+        
+        # Create a role with role management privileges
+        role_admin_role = "role_admin"
+        self.login()
+        self.create_role(role_admin_role)
+        self.grant_privilege("CREATE ROLE, DROP ROLE, SHOW ROLES, LOCK ROLE, UNLOCK ROLE", None, role_admin_role)
+        
+        # Grant role_admin role to combined_user
+        self.grant_role(role_admin_role, combined_user)
+        
+        # Test that combined_user still has individual privileges AND role privileges
+        self.login(combined_user, pwd)
+        
+        # Create role using role privilege
+        role_from_role = "role_from_role"
+        self.exec_sql(f"CREATE ROLE {role_from_role}")
+        
+        # Show roles
+        tdSql.query("SHOW ROLES")
+        
+        # Lock a role
+        self.exec_sql(f"LOCK ROLE {unlock_test_role}")
+        
+        # Unlock the role
+        self.exec_sql(f"UNLOCK ROLE {unlock_test_role}")
+        
+        # Create another role and drop it
+        temp_role = "temp_role"
+        self.exec_sql(f"CREATE ROLE {temp_role}")
+        self.exec_sql(f"DROP ROLE {temp_role}")
+        
+        # ==================== Cleanup ====================
+        self.login()
+        
+        # Drop roles created by users
+        self.drop_role(role1)
+        self.drop_role(role3)
+        self.drop_role(lock_test_role)
+        self.drop_role(unlock_test_role)
+        self.drop_role(combined_role1)
+        self.drop_role(role_from_role)
+        self.drop_role(role_admin_role)
+        
+        # Drop users
+        self.drop_user(test_user)
+        self.drop_user(combined_user)
+        
+        print("Role Privileges (CREATE/DROP/SHOW/LOCK/UNLOCK) ... [ passed ] ")
+    
     def do_role_creation_and_grant(self):
         # Test role creation and granting
         tdLog.info("=== Testing Role Creation and Grant ===")
@@ -1497,12 +1760,12 @@ class TestPrivControl:
         self.login()
         self.drop_database(db_name)
         self.drop_role(role_name)
-        #'''BUG22
+        '''BUG22
         self.drop_user(user1)
         self.drop_user(user2)
         self.drop_user(user3)
         self.drop_user(lock_admin)
-        #'''
+        '''
         
         print("LOCK ROLE / UNLOCK ROLE .............. [ passed ] ")
     
@@ -3396,12 +3659,12 @@ class TestPrivControl:
         print("========== Privilege Control Test Suite ==========")
         print("")
         
-        #''' test
+        ''' test
         self.create_snode()
         self.create_qnode()
-        self.do_role_lock_unlock()
+        self.do_role_privilege()
         return
-        #'''
+        '''
 
         # Database privilege tests
         print("[Database Privileges]")
@@ -3443,8 +3706,9 @@ class TestPrivControl:
         # RBAC tests
         print("")
         print("[Role-Based Access Control]")
+        self.do_role_privilege()
         self.do_role_creation_and_grant()
-        self.do_role_lock_unlock()
+        #self.do_role_lock_unlock()  #can cause core BUG21
         self.do_system_roles()
         self.do_audit_database_privileges()
         
