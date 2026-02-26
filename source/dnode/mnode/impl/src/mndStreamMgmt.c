@@ -2004,8 +2004,7 @@ _exit:
 static int32_t msmUpdateCalcReaderTasks(SStreamObj* pStream, SNodeList* pSubEP) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  int64_t streamId = pStream->pCreate->streamId;
-  void* pIter = NULL;
+  void*     pIter = NULL;
   SSubplan* pSubplan = NULL;
 
   while ((pIter = taosHashIterate(mStreamMgmt.toDeployVgMap, pIter))) {
