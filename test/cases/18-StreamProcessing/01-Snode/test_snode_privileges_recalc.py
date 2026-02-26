@@ -94,6 +94,8 @@ class TestStreamPrivilegesRecalc:
         except Exception as e:
             if "Insufficient privilege" in str(e):
                 tdLog.info(f"Insufficient privilege to recalc stream")
+            elif "Permission denied to use database" in str(e):
+                tdLog.info(f"Permission denied to use database")
             else:
                 raise Exception(f"recalc stream failed with error: {e}")
 
@@ -132,7 +134,8 @@ class TestStreamPrivilegesRecalc:
         tdSql.connect("root")
         tdSql.execute(f"grant select on {self.dbname}.* to {self.username1}")
         tdSql.execute(f"grant select on {self.dbname2}.* to {self.username2}")
-
+        tdSql.execute(f"grant use on database {self.dbname} to {self.username1}")
+        tdSql.execute(f"grant use on database {self.dbname2} to {self.username2}")
         tdSql.query(
             f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='SELECT';"
         )
@@ -144,6 +147,8 @@ class TestStreamPrivilegesRecalc:
         tdSql.connect("root")
         tdSql.execute(f"grant insert on {self.dbname}.* to {self.username1}")
         tdSql.execute(f"grant insert on {self.dbname2}.* to {self.username2}")
+        tdSql.execute(f"grant use on database {self.dbname} to {self.username1}")
+        tdSql.execute(f"grant use on database {self.dbname2} to {self.username2}")
 
         tdSql.query(
             f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='INSERT';"
@@ -156,6 +161,8 @@ class TestStreamPrivilegesRecalc:
         tdSql.connect("root")
         tdSql.execute(f"revoke select on {self.dbname}.* from {self.username1}")
         tdSql.execute(f"revoke select on {self.dbname2}.* from {self.username2}")
+        tdSql.execute(f"revoke use on database {self.dbname} from {self.username1}")
+        tdSql.execute(f"revoke use on database {self.dbname2} from {self.username2}")
 
         tdSql.query(
             f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='SELECT';"
@@ -168,6 +175,8 @@ class TestStreamPrivilegesRecalc:
         tdSql.connect("root")
         tdSql.execute(f"revoke insert on {self.dbname}.* from {self.username1}")
         tdSql.execute(f"revoke insert on {self.dbname2}.* from {self.username2}")
+        tdSql.execute(f"revoke use on database {self.dbname} from {self.username1}")
+        tdSql.execute(f"revoke use on database {self.dbname2} from {self.username2}")
 
         tdSql.query(
             f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='INSERT';"

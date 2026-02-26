@@ -432,6 +432,19 @@ class TDSql:
                 time.sleep(1)
                 continue
 
+    def execute_ignore_error(self, sql, show=False):
+        """
+        Executes a SQL statement, ignore all errors, no retry.
+        """
+        self.sql = sql
+        if show:
+            tdLog.info(sql)
+        try:
+            self.affectedRows = self.cursor.execute(sql)
+            return self.affectedRows
+        except Exception as e:
+            return None
+    
     def execute(self, sql, queryTimes=10, show=False):
         """
         Executes a SQL statement.
@@ -3091,6 +3104,10 @@ class TDSql:
                 return idx
         filename, lineno = _fast_caller(1)
         tdLog.exit(f"{filename}({lineno}) failed: field name {fieldName} not exist")   
+    
+    def checkHaveSameResult(self, sql1, sql2, data):
+        self.checkDataMemLoop(sql1, data)
+        self.checkDataMemLoop(sql2, data)
 
 # global
 tdSql = TDSql()
