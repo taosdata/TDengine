@@ -4,24 +4,29 @@ import time
 import socket
 import os
 
+TSDB_CODE_NO_SUCH_FILE                        = 0x02
 #define TSDB_CODE_OPS_NOT_SUPPORT               TAOS_DEF_ERROR_CODE(0, 0x0100)
-TSDB_CODE_OPS_NOT_SUPPORT = 0x0100
+TSDB_CODE_OPS_NOT_SUPPORT                     = 0x0100
+#define TSDB_CODE_MND_NO_RIGHTS                       TAOS_DEF_ERROR_CODE(0, 0x0303)
+TSDB_CODE_MND_NO_RIGHTS                       = 0x0303
+#define TSDB_CODE_MND_TRANS_NOT_EXIST           TAOS_DEF_ERROR_CODE(0, 0x03D1)
+TSDB_CODE_MND_TRANS_NOT_EXIST                 = 0x03D1
+#define TSDB_CODE_MND_INVALID_CONN_ID           TAOS_DEF_ERROR_CODE(0, 0x030E)
+TSDB_CODE_MND_INVALID_CONN_ID                 = 0x030E
+#define TSDB_CODE_MND_ROLE_NOT_EXIST            TAOS_DEF_ERROR_CODE(0, 0x04F1)
+TSDB_CODE_MND_ROLE_NOT_EXIST                  = 0x04F1
+#define TSDB_CODE_MND_ROLE_CONFLICTS            TAOS_DEF_ERROR_CODE(0, 0x04F6)
+TSDB_CODE_MND_ROLE_CONFLICTS                  = 0x04F6
 #define TSDB_CODE_PAR_PERMISSION_DENIED               TAOS_DEF_ERROR_CODE(0, 0x2644)
-TSDB_CODE_PAR_PERMISSION_DENIED = 0x2644
+TSDB_CODE_PAR_PERMISSION_DENIED               = 0x2644
+#define TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED        TAOS_DEF_ERROR_CODE(0, 0x26E3)
+TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED        = 0x26E3
 #define TSDB_CODE_PAR_TB_CREATE_PERMISSION_DENIED     TAOS_DEF_ERROR_CODE(0, 0x26E4)
-TSDB_CODE_PAR_TB_CREATE_PERMISSION_DENIED = 0x26E4
+TSDB_CODE_PAR_TB_CREATE_PERMISSION_DENIED     = 0x26E4
 #define TSDB_CODE_PAR_STREAM_CREATE_PERMISSION_DENIED TAOS_DEF_ERROR_CODE(0, 0x26E7)
 TSDB_CODE_PAR_STREAM_CREATE_PERMISSION_DENIED = 0x26E7
-#define TSDB_CODE_MND_NO_RIGHTS                       TAOS_DEF_ERROR_CODE(0, 0x0303)
-TSDB_CODE_MND_NO_RIGHTS = 0x0303
-#define TSDB_CODE_MND_ROLE_CONFLICTS            TAOS_DEF_ERROR_CODE(0, 0x04F6)
-TSDB_CODE_MND_ROLE_CONFLICTS = 0x04F6
-#define TSDB_CODE_MND_TRANS_NOT_EXIST           TAOS_DEF_ERROR_CODE(0, 0x03D1)
-TSDB_CODE_MND_TRANS_NOT_EXIST = 0x03D1
-#define TSDB_CODE_MND_INVALID_CONN_ID           TAOS_DEF_ERROR_CODE(0, 0x030E)
-TSDB_CODE_MND_INVALID_CONN_ID = 0x030E
 
-TSDB_CODE_NO_SUCH_FILE = 0x02
+
 
 pwd = "abcd@1234"
 
@@ -1338,6 +1343,166 @@ class TestPrivControl:
         self.drop_user(user)
         
         print("Role Creation and Grant .............. [ passed ] ")
+
+    def do_role_lock_unlock(self):
+        # Test LOCK ROLE and UNLOCK ROLE privileges
+        tdLog.info("=== Testing LOCK ROLE / UNLOCK ROLE Privileges ===")
+        self.login()  # Login as root
+        
+        # Create test resources
+        role_name = "test_lock_role"
+        user1 = "test_user1"
+        user2 = "test_user2"
+        user3 = "test_user3"
+        db_name = "test_db"
+        
+        # Create role and users
+        self.create_role(role_name)
+        self.create_user(user1, pwd)
+        self.create_user(user2, pwd)
+        self.create_user(user3, pwd)
+        self.create_database(db_name)
+        self.revoke_role("`SYSINFO_1`", user1)  #revoke default role
+        self.revoke_role("`SYSINFO_1`", user2)  #revoke default role
+        self.revoke_role("`SYSINFO_1`", user3)  #revoke default role
+        
+        # Grant privileges to the role
+        self.grant_privilege("USE", f"DATABASE {db_name}", role_name)
+        self.grant_privilege("CREATE TABLE", f"DATABASE {db_name}", role_name)
+        self.grant_privilege("INSERT", f"{db_name}.*", role_name)
+        self.grant_privilege("SELECT", f"{db_name}.*", role_name)
+        self.grant_privilege("DROP",   f"{db_name}.*", role_name)
+        
+        # Grant role to user1
+        self.grant_role(role_name, user1)
+        
+        # Test 1: Verify user1 can use role privileges initially
+        self.login(user1, pwd)
+        self.exec_sql(f"USE {db_name}")
+        self.exec_sql(f"CREATE TABLE  {db_name}.t1 (ts TIMESTAMP, c1 INT)")
+        self.exec_sql(f"INSERT INTO   {db_name}.t1 (ts, c1) VALUES (NOW(), 1)")
+        self.exec_sql(f"SELECT * FROM {db_name}.t1")
+        self.exec_sql(f"DROP TABLE    {db_name}.t1")
+        
+        # Test 2: Lock the role
+        self.login()
+        self.exec_sql(f"LOCK ROLE {role_name}")
+        
+        # Test 3: After locking, user1 should not be able to use role privileges
+        self.login(user1, pwd)
+        self.exec_sql_failed(f"USE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"CREATE TABLE {db_name}.t1 (ts TIMESTAMP, c1 INT)", TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED)
+        
+        # Test 4: Locked role be granted to new user
+        self.login()
+        self.exec_sql(f"GRANT ROLE {role_name} TO {user2}")
+
+        # new user can not got privileges from locked role
+        self.login(user2, pwd)
+        self.exec_sql_failed(f"USE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"CREATE TABLE {db_name}.t2 (ts TIMESTAMP, c1 INT)", TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED)
+        
+        # Test 5: Unlock the role
+        self.login()
+        self.exec_sql(f"UNLOCK ROLE {role_name}")
+        self.grant_role(role_name, user2)  # Grant role to user2 after unlocking
+        
+        # Test 6: After unlocking, user1 can use role privileges again
+        self.login(user1, pwd)
+        self.exec_sql(f"USE {db_name}")
+        self.exec_sql(f"CREATE TABLE  {db_name}.t1 (ts TIMESTAMP, c1 INT)")
+        self.exec_sql(f"INSERT INTO   {db_name}.t1 (ts, c1) VALUES (NOW(), 1)")
+        self.query_expect_rows(f"SELECT * FROM {db_name}.t1", 1)
+
+        # user2 have role privileges after unlocking
+        self.login(user2, pwd)
+        self.exec_sql(f"USE {db_name}")
+        self.exec_sql(f"CREATE TABLE  {db_name}.t2 (ts TIMESTAMP, c1 INT)")
+        self.exec_sql(f"INSERT INTO   {db_name}.t2 (ts, c1) VALUES (NOW(), 1)")
+        self.query_expect_rows(f"SELECT * FROM {db_name}.t2", 1)
+
+        # Test 7: After unlocking, role can be granted to new users
+        self.login()
+        self.grant_role(role_name, user3)
+        
+        # Test 8: New user with unlocked role can use privileges
+        self.login(user3, pwd)
+        self.query_expect_rows(f"SELECT * FROM {db_name}.t1", 1)
+        self.query_expect_rows(f"SELECT * FROM {db_name}.t2", 1)
+        
+        # Test 9: Test SHOW ROLES shows lock status
+        self.login()
+        tdSql.query("SHOW ROLES")
+        result = tdSql.queryResult
+        role_found = False
+        for row in result:
+            if row[0] == role_name:
+                role_found = True
+                if row[1] != 1:
+                    raise Exception(f"Expected role {role_name} to be UNLOCKED, but got {row[1]}")
+                break
+        if not role_found:
+            raise Exception(f"Role {role_name} not found in SHOW ROLES output")
+        
+        # Test 10: Lock a non-existent role should fail
+        self.exec_sql_failed("LOCK ROLE non_existent_role", TSDB_CODE_MND_ROLE_NOT_EXIST)
+        
+        # Test 11: Unlock a non-existent role should fail
+        self.exec_sql_failed("UNLOCK ROLE non_existent_role", TSDB_CODE_MND_ROLE_NOT_EXIST)
+        
+        # Test 12: Lock already locked role
+        self.exec_sql(f"LOCK ROLE {role_name}")
+        self.exec_sql(f"LOCK ROLE {role_name}")  # Should succeed or fail gracefully
+        
+        # Test 13: Unlock already unlocked role
+        self.exec_sql(f"UNLOCK ROLE {role_name}")
+        self.exec_sql(f"UNLOCK ROLE {role_name}")  # Should succeed or fail gracefully
+        
+        # Test 14: System roles (like SYSDBA) cannot be locked
+        self.exec_sql_failed("LOCK ROLE `SYSDBA`", TSDB_CODE_OPS_NOT_SUPPORT)
+        self.exec_sql_failed("LOCK ROLE `SYSSEC`", TSDB_CODE_OPS_NOT_SUPPORT)
+        self.exec_sql_failed("LOCK ROLE `SYSAUDIT`", TSDB_CODE_OPS_NOT_SUPPORT)
+        
+        # Test 15: Regular user cannot lock/unlock roles
+        self.login(user1, pwd)
+        self.exec_sql_failed(f"LOCK ROLE {role_name}", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql(f"UNLOCK ROLE {role_name}")
+        
+        self.login()
+        self.exec_sql(f"LOCK ROLE {role_name}")
+        self.login(user1, pwd)
+        self.exec_sql_failed(f"UNLOCK ROLE {role_name}", TSDB_CODE_MND_NO_RIGHTS)
+        
+        # Test 16: User with LOCK ROLE privilege can lock/unlock roles
+        self.login()
+        self.exec_sql(f"UNLOCK ROLE {role_name}")
+        lock_admin = "lock_admin"
+        self.create_user(lock_admin, pwd)
+        
+        #'''BUG21
+        self.grant_privilege("LOCK ROLE,UNLOCK ROLE", None, lock_admin)
+        self.login(lock_admin, pwd)
+        self.exec_sql(f"LOCK ROLE {role_name}")
+        # Verify role is locked
+        self.login(user1, pwd)
+        self.exec_sql_failed(f"CREATE TABLE {db_name}.t4 (ts TIMESTAMP, c1 INT)", TSDB_CODE_PAR_PERMISSION_DENIED)
+        # Unlock as lock_admin
+        self.login(lock_admin, pwd)
+        self.exec_sql(f"UNLOCK ROLE {role_name}")
+        self.login(user1, pwd)
+        self.exec_sql(f"CREATE TABLE {db_name}.t4 (ts TIMESTAMP, c1 INT)")
+        #'''
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_role(role_name)
+        self.drop_user(user1)
+        self.drop_user(user2)
+        self.drop_user(user3)
+        self.drop_user(lock_admin)
+        
+        print("LOCK ROLE / UNLOCK ROLE .............. [ passed ] ")
     
     def do_system_roles(self):
         # Test system roles: SYSDBA, SYSSEC, SYSAUDIT
@@ -3213,22 +3378,28 @@ class TestPrivControl:
           - Concurrent Privilege Operations
         
         Since: v3.4.0.0
+
         Labels: common,ci,privilege
+
         Jira: TS-7232
+
         History:
             - 2026-02-02 Alex Duan created
             - 2026-02-02 Enhanced with comprehensive test cases
             - 2026-02-02 Added 3.4.0.0+ view/topic/stream privilege tests
+
         """
         
         print("\n")
         print("========== Privilege Control Test Suite ==========")
         print("")
         
-        # test
-        #self.create_snode()
-        #self.create_qnode()
-        #return
+        #''' test
+        self.create_snode()
+        self.create_qnode()
+        self.do_role_lock_unlock()
+        return
+        #'''
 
         # Database privilege tests
         print("[Database Privileges]")
@@ -3271,6 +3442,7 @@ class TestPrivControl:
         print("")
         print("[Role-Based Access Control]")
         self.do_role_creation_and_grant()
+        self.do_role_lock_unlock()
         self.do_system_roles()
         self.do_audit_database_privileges()
         
