@@ -1204,7 +1204,22 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
 
     if (tableList) {
       taosArrayDestroy(pTableListInfo->pTableList);
+      taosHashClear(pTableListInfo->map);  // Clear map when replacing pTableList
       pTableListInfo->pTableList = tableList;
+      
+      // Rebuild the map from the new pTableList to keep them consistent
+      for (int32_t i = 0; i < taosArrayGetSize(pTableListInfo->pTableList); ++i) {
+        STableKeyInfo* pInfo = taosArrayGet(pTableListInfo->pTableList, i);
+        if (pInfo != NULL) {
+          int32_t slot = i;
+          if (taosHashPut(pTableListInfo->map, &pInfo->uid, sizeof(uint64_t), &slot, sizeof(int32_t)) != TSDB_CODE_SUCCESS) {
+            qError("failed to rebuild map from cached table list");
+            code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+            QUERY_CHECK_CODE(code, lino, end);
+          }
+        }
+      }
+      
       qDebug("retrieve tb group list from cache, numOfTables:%d",
              (int32_t)taosArrayGetSize(pTableListInfo->pTableList));
       goto end;
@@ -2325,19 +2340,18 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
 
 end:
   if (code == 0) {
-     STableKeyInfo info = {.uid = 0, .groupId = 0};
     for (int32_t i = 0; i < taosArrayGetSize(pUidList); ++i) {
       int64_t* uid = (int64_t*)taosArrayGet(pUidList, i);
-      QUERY_CHECK_NULL(uid, code, lino, end, terrno);
+      QUERY_CHECK_NULL(uid, code, lino, end_free, terrno);
 
-      info.uid = *uid;
-        //qInfo("doSetQualifiedUid row:%d added to pTableList", i);
-      void* p = taosArrayPush(pListInfo->pTableList, &info);
-      QUERY_CHECK_NULL(p, code, lino, end, terrno);
+      code = tableListAddTableInfo(pListInfo, (uint64_t)*uid, 0);
+      QUERY_CHECK_CODE(code, lino, end_free);
     }
   } else {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
+
+end_free:
   taosArrayDestroy(pUidList);
   taosArrayDestroy(pTagColIds);
   taosMemFreeClear(pTagCondKey);
@@ -3553,7 +3567,7 @@ int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pTableList->map == NULL) {
-    pTableList->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    pTableList->map = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
     QUERY_CHECK_NULL(pTableList->map, code, lino, _end, terrno);
   }
 
@@ -3571,8 +3585,8 @@ int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t
   code = taosHashPut(pTableList->map, &uid, sizeof(uid), &slot, sizeof(slot));
   if (code != TSDB_CODE_SUCCESS) {
     // we have checked the existence of uid in hash map above
-    QUERY_CHECK_CONDITION((code != TSDB_CODE_DUP_KEY), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     taosArrayPopTailBatch(pTableList->pTableList, 1);  // let's pop the last element in the array list
+    QUERY_CHECK_CONDITION((code != TSDB_CODE_DUP_KEY), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
   }
 
 _end:

@@ -1900,11 +1900,10 @@ static int32_t doFilterTableByTagCond(void* pVnode, STableListInfo* pListInfo, S
     if (tmp == NULL) {
       return terrno;
     }
-    STableKeyInfo info = {.uid = *(uint64_t*)tmp, .groupId = 0};
-
-    void* p = taosArrayPush(((STableListInfo*)pListInfo)->pTableList, &info);
-    if (p == NULL) {
-      return terrno;
+    uint64_t uid = *(uint64_t*)tmp;
+    code = tableListAddTableInfo(pListInfo, uid, 0);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
   }
   return code;

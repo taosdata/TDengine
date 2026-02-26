@@ -1165,8 +1165,7 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
   if (pParam->tableSeq) {
     pListInfo->oneTableForEachGroup = true;
     if (taosArrayGetSize(pListInfo->pTableList) > 0) {
-      taosHashClear(pListInfo->map);
-      taosArrayClear(pListInfo->pTableList);
+      tableListClear(pListInfo);
       pOperator->status = OP_EXEC_DONE;
     }
   } else {
@@ -1180,8 +1179,6 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
     pInfo->base.cond.twindows.ekey = pParam->window.ekey;
   }
 
-  STableKeyInfo info = {.groupId = 0};
-  int32_t       tableIdx = 0;
   for (int32_t i = 0; i < num; ++i) {
     uint64_t* pUid = taosArrayGet(pParam->pUidList, i);
     if (!pUid) {
@@ -1189,21 +1186,12 @@ static int32_t createTableListInfoFromParam(SOperatorInfo* pOperator) {
       return terrno;
     }
 
-    if (taosHashPut(pListInfo->map, pUid, sizeof(uint64_t), &tableIdx, sizeof(int32_t))) {
-      if (TSDB_CODE_DUP_KEY == terrno) {
-        continue;
-      }
-      return terrno;
+    code = tableListAddTableInfo(pListInfo, *pUid, 0);
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_DUP_KEY) {
+      return code;
     }
 
-    info.uid = *pUid;
-    void* p = taosArrayPush(pListInfo->pTableList, &info);
-    if (p == NULL) {
-      return terrno;
-    }
-
-    tableIdx++;
-    qDebug("add dynamic table scan uid:%" PRIu64 ", %s", info.uid, GET_TASKID(pTaskInfo));
+    qDebug("add dynamic table scan uid:%" PRIu64 ", %s", *pUid, GET_TASKID(pTaskInfo));
   }
 
   return code;
@@ -1557,16 +1545,12 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   }
 
   pListInfo->oneTableForEachGroup = true;
-  taosHashClear(pListInfo->map);
-  taosArrayClear(pListInfo->pTableList);
+  tableListClear(pListInfo);
 
-  uint64_t      pUid = orgTable.me.uid;
-  STableKeyInfo info = {.groupId = 0, .uid = pUid};
-  int32_t       tableIdx = 0;
-  code = taosHashPut(pListInfo->map, &pUid, sizeof(uint64_t), &tableIdx, sizeof(int32_t));
+  uint64_t pUid = orgTable.me.uid;
+  code = tableListAddTableInfo(pListInfo, pUid, 0);
   QUERY_CHECK_CODE(code, lino, _return);
-  QUERY_CHECK_NULL(taosArrayPush(pListInfo->pTableList, &info), code, lino, _return, terrno);
-  qDebug("add dynamic table scan uid:%" PRIu64 ", %s", info.uid, GET_TASKID(pTaskInfo));
+  qDebug("add dynamic table scan uid:%" PRIu64 ", %s", pUid, GET_TASKID(pTaskInfo));
 
   pColArray = taosArrayInit(schema->nCols, sizeof(SColIdPair));
   QUERY_CHECK_NULL(pColArray, code, lino, _return, terrno);
@@ -3743,26 +3727,13 @@ static int32_t createTagScanTableListInfoFromParam(SOperatorInfo* pOperator) {
   //        pTaskInfo->id.vgId, num, pParam->tableSeq, (int64_t)taosArrayGetSize(pListInfo->pTableList),
   //        pOperator->status);
 
-  STableKeyInfo info = {.groupId = 0};
-
-  int32_t tableIdx = 0;
-  taosHashClear(pListInfo->map);
-  taosArrayClear(pListInfo->pTableList);
-
-  if (taosHashPut(pListInfo->map, &pUid, sizeof(uint64_t), &tableIdx, sizeof(int32_t))) {
-    if (TSDB_CODE_DUP_KEY == terrno) {
-    } else {
-      return terrno;
-    }
+  tableListClear(pListInfo);
+  code = tableListAddTableInfo(pListInfo, pUid, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
-  info.uid = pUid;
-  void* p = taosArrayPush(pListInfo->pTableList, &info);
-  if (p == NULL) {
-    return terrno;
-  }
-
-  qDebug("add dynamic table scan uid:%" PRIu64 ", %s", info.uid, GET_TASKID(pTaskInfo));
+  qDebug("add dynamic table scan uid:%" PRIu64 ", %s", pUid, GET_TASKID(pTaskInfo));
 
   return code;
 }
