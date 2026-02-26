@@ -2104,55 +2104,6 @@ _exit:
 
   return code;
 }
-/*
-static int32_t msmBuildRunnerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStreamObj* pStream) {
-  if (NULL == pStream->pCreate->calcPlan) {
-    return TSDB_CODE_SUCCESS;
-  }
-  
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  int64_t streamId = pStream->pCreate->streamId;
-  SQueryPlan* pPlan = NULL;
-  SQueryPlan* pSubQPlan = NULL;
-  SNodeList*     pSubEP = NULL;
-
-  TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pPlan));
-  pSubQPlan = (SQueryPlan*)pPlan->pChildren->pHead->pNode;
-
-  for (int32_t i = 0; i < pInfo->runnerDeploys; ++i) {
-    pInfo->runners[i] = taosArrayInit(pPlan->numOfSubplans + pSubQPlan->numOfSubplans, sizeof(SStmTaskStatus));
-    TSDB_CHECK_NULL(pInfo->runners[i], code, lino, _exit, terrno);
-  }
-
-  code = msmBuildRunnerTasksImpl(pCtx, pSubQPlan, pInfo, pStream, pPlan, &pSubEP);
-  pPlan = NULL;
-  TAOS_CHECK_EXIT(code);
-  TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pPlan));
-  code = msmBuildRunnerTasksImpl(pCtx, pPlan, pInfo, pStream, pPlan, &pSubEP);
-  pPlan = NULL;
-  
-  TAOS_CHECK_EXIT(code);
-
-  taosHashClear(mStreamMgmt.toUpdateScanMap);
-  mStreamMgmt.toUpdateScanNum = 0;
-
-  TAOS_CHECK_EXIT(msmUpdateCalcReaderTasks(pStream, pSubEP));
-
-_exit:
-
-  nodesDestroyNode((SNode *)pPlan);
-  if (pSubEP) {
-    nodesDestroyList(pSubEP);
-  }
-
-  if (code) {
-    mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
-  }
-
-  return code;
-}
-*/
 
 static int32_t msmBuildStreamTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStreamObj* pStream) {
   int32_t code = TSDB_CODE_SUCCESS;
