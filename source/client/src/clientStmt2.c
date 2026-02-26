@@ -697,6 +697,12 @@ static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
   taosArrayDestroyEx(pStmt->sql.siInfo.pTableCols, stmtFreeTbCols);
   pStmt->sql.siInfo.pTableCols = NULL;
 
+  // Free field cache for columnar binding
+  if (pStmt->sql.cachedFields != NULL) {
+    taos_stmt2_free_fields((TAOS_STMT2*)pStmt, pStmt->sql.cachedFields);
+    pStmt->sql.cachedFields = NULL;
+  }
+
   (void)memset(&pStmt->sql, 0, sizeof(pStmt->sql));
   pStmt->sql.siInfo.tableColsReady = true;
 
@@ -1345,6 +1351,43 @@ int stmtPrepare2(TAOS_STMT2* stmt, const char* sql, unsigned long length) {
   } else {
     return stmtBuildErrorMsgWithCode(pStmt, "stmt only support 'SELECT' or 'INSERT'", TSDB_CODE_PAR_SYNTAX_ERROR);
   }
+
+  // Populate field cache for columnar binding (optimized for hot path)
+  // This avoids expensive get_fields call during each bind operation
+  if (stmt2IsInsert(pStmt) || stmt2IsSelect(pStmt)) {
+    int32_t savedStatus = pStmt->sql.status;
+    int32_t savedErrCode = pStmt->errCode;
+
+    int fieldCode = stmtGetStbColFields2((TAOS_STMT2*)pStmt, &pStmt->sql.cachedFieldNum, &pStmt->sql.cachedFields);
+    if (fieldCode == TSDB_CODE_SUCCESS) {
+      // Cache scenario information
+      pStmt->sql.cachedIsInsert = stmt2IsInsert((TAOS_STMT2*)pStmt);
+      pStmt->sql.cachedHasTbnameColumn = false;
+      pStmt->sql.cachedTbnameColIdx = -1;
+
+      if (pStmt->sql.cachedIsInsert) {
+        for (int i = 0; i < pStmt->sql.cachedFieldNum; i++) {
+          if (pStmt->sql.cachedFields[i].field_type == TAOS_FIELD_TBNAME) {
+            pStmt->sql.cachedHasTbnameColumn = true;
+            pStmt->sql.cachedTbnameColIdx = i;
+            break;
+          }
+        }
+      }
+
+      STMT2_DLOG("Cached field info in prepare: fieldNum=%d, tags=%d, cols=%d, isInsert=%d, hasTbname=%d, tbnameColIdx=%d",
+                 pStmt->sql.cachedFieldNum, pStmt->sql.placeholderOfTags, pStmt->sql.placeholderOfCols,
+                 pStmt->sql.cachedIsInsert, pStmt->sql.cachedHasTbnameColumn, pStmt->sql.cachedTbnameColIdx);
+    } else {
+      STMT2_ELOG_E("Failed to get field info during prepare, will retry during bind");
+      pStmt->sql.cachedFieldNum = 0;
+      pStmt->sql.cachedFields = NULL;
+    }
+
+    pStmt->sql.status = savedStatus;
+    pStmt->errCode = savedErrCode;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2654,7 +2697,15 @@ int32_t stmtAsyncBindThreadFunc(void* args) {
   ThreadArgs* targs = (ThreadArgs*)args;
   STscStmt2*  pStmt = (STscStmt2*)targs->stmt;
 
-  int code = taos_stmt2_bind_param(targs->stmt, targs->bindv, targs->col_idx);
+  int code;
+  if (targs->is_columnar) {
+    // Columnar binding
+    code = taos_stmt2_bind_param_column(targs->stmt, targs->column_bindv);
+  } else {
+    // Row binding
+    code = taos_stmt2_bind_param(targs->stmt, targs->bindv, targs->col_idx);
+  }
+
   targs->fp(targs->param, NULL, code);
   (void)taosThreadMutexLock(&(pStmt->asyncBindParam.mutex));
   (void)atomic_sub_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
