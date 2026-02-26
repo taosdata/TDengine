@@ -334,7 +334,7 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
     pCtx->transporterId = -1;
   }
   taosArrayDestroy(pCtx->subResNodes);
-  if (IS_STREAM_MODE((SExecTaskInfo*)pCtx->pTaskInfo)) {
+  if (pCtx->pTaskInfo && IS_STREAM_MODE((SExecTaskInfo*)pCtx->pTaskInfo)) {
     taosArrayDestroyP(pCtx->subEndPoints, (FDelete)nodesDestroyNode);
   }
 }
