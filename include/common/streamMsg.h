@@ -293,8 +293,10 @@ typedef struct {
   int64_t  flags;
   int64_t  tsmaId;
   int64_t  placeHolderBitmap;
-  int16_t  calcTsSlotId; // only used when using %%trows
-  int16_t  triTsSlotId; // only used when using %%trows
+  int16_t  calcTsSlotId;  // only used when using %%trows
+  int16_t  triTsSlotId;
+  int16_t  calcPkSlotId;  // only used when using %%trows
+  int16_t  triPkSlotId;
 
   // only for (virtual) child table and normal table
   int32_t triggerTblVgId;
@@ -587,7 +589,9 @@ typedef struct {
   int64_t eventTypes;
   int64_t placeHolderBitmap;
   int16_t calcTsSlotId;  // only used when using %%trows
-  int16_t triTsSlotId;  // only used when using %%trows
+  int16_t triTsSlotId;
+  int16_t calcPkSlotId;  // only used when using %%trows
+  int16_t triPkSlotId;
   void*   triggerPrevFilter;
   void*   triggerScanPlan;    // only used for virtual tables
   void*   calcCacheScanPlan;  // only used for virtual tables
@@ -859,7 +863,7 @@ typedef struct SSTriggerWalNewRsp {
   void*                deleteBlock;
   void*                dropBlock;
   int64_t              ver;
-  int64_t              verTime;
+  int64_t              verTime;  // us
   int32_t              totalRows;
   bool                 isCalc;
 } SSTriggerWalNewRsp;
