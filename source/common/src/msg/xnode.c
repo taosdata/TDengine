@@ -164,6 +164,7 @@ int32_t tSerializeSMCreateXnodeReq(void *buf, int32_t bufLen, SMCreateXnodeReq *
     TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->pass, pReq->passLen));
   }
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->passIsMd5));
+  TAOS_CHECK_EXIT(xEncodeCowStr(&encoder, &pReq->token));
 
   tEndEncode(&encoder);
 
@@ -200,6 +201,7 @@ int32_t tDeserializeSMCreateXnodeReq(void *buf, int32_t bufLen, SMCreateXnodeReq
     TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->pass, NULL));
   }
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->passIsMd5));
+  TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->token, true));
 
   tEndDecode(&decoder);
 
@@ -212,6 +214,7 @@ void tFreeSMCreateXnodeReq(SMCreateXnodeReq *pReq) {
   taosMemoryFreeClear(pReq->url);
   taosMemoryFreeClear(pReq->user);
   taosMemoryFreeClear(pReq->pass);
+  xFreeCowStr(&pReq->token);
   FREESQL();
 }
 void xFreeTaskSource(xTaskSource *source) {
@@ -751,17 +754,69 @@ _exit:
 void tFreeSMDrainXnodeReq(SMDrainXnodeReq *pReq) { FREESQL(); }
 
 int32_t tSerializeSMUpdateXnodeReq(void *buf, int32_t bufLen, SMUpdateXnodeReq *pReq) {
-  return tSerializeSMDropXnodeReq(buf, bufLen, pReq);
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  int32_t  tlen = 0;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->id));
+  TAOS_CHECK_EXIT(xEncodeCowStr(&encoder, &pReq->token));
+  TAOS_CHECK_EXIT(xEncodeCowStr(&encoder, &pReq->user));
+  TAOS_CHECK_EXIT(xEncodeCowStr(&encoder, &pReq->pass));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->urlLen));
+  if (pReq->urlLen > 0) {
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->url, pReq->urlLen));
+  }
+  ENCODESQL();
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
 }
 
 int32_t tDeserializeSMUpdateXnodeReq(void *buf, int32_t bufLen, SMUpdateXnodeReq *pReq) {
-  return tDeserializeSMDropXnodeReq(buf, bufLen, pReq);
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino = 0;
+
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->id));
+  TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->token, true));
+  TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->user, true));
+  TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->pass, true));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->urlLen));
+  if (pReq->urlLen > 0) {
+    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->url, NULL));
+  }
+  DECODESQL();
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
 }
 
-void tFreeSMUpdateXnodeReq(SMUpdateXnodeReq *pReq) { tFreeSMDropXnodeReq(pReq); }
+void tFreeSMUpdateXnodeReq(SMUpdateXnodeReq *pReq) {
+  FREESQL();
+  if (pReq->urlLen > 0 && pReq->url != NULL) {
+    taosMemoryFree(pReq->url);
+  }
+  xFreeCowStr(&pReq->token);
+  xFreeCowStr(&pReq->user);
+  xFreeCowStr(&pReq->pass);
+}
 
 int32_t tSerializeSMCreateXnodeJobReq(void *buf, int32_t bufLen, SMCreateXnodeJobReq *pReq) {
-  // printf("serializeCreateXnodeTaskJob: %d\n", pReq->tid);
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino = 0;

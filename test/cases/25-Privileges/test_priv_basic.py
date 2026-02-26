@@ -97,10 +97,7 @@ class TestPrivBasic:
         testSql = TDSql()
         testSql.init(cursor)
         # grant create db privilege
-        # tdSql.execute("alter user test createdb 1;")
-        tdSql.execute("grant create database to test;")
-        tdSql.execute("grant select,insert,alter on db1.* to test;")
-        tdSql.execute("grant create view on db1.* to test;")
+        tdSql.execute("alter user test createdb 1;") # equivalent to: tdSql.execute("grant create database to test;")
         # check user 'test' create db、super table、child table、reguler table、view privileges
         testSql.execute("create database db1;")
         testSql.execute("use db1;")
@@ -145,7 +142,7 @@ class TestPrivBasic:
         test1Sql = TDSql()
         test1Sql.init(cursor1)
         # check user 'test' doesn't privilege to grant create db privilege to another user
-        testSql.error("alter user test1 createdb 1;", expectErrInfo="Insufficient privilege for operation", fullMatched=False)
+        testSql.error("alter user test1 createdb 1;", expectErrInfo="Permission denied to set user basic info", fullMatched=False)
         testSql.error("grant select on db1.stb1 to test1;", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
 
         # grant read、write privilege to user 'test' and check user 'test' privileges
@@ -445,6 +442,8 @@ class TestPrivBasic:
             else:
                 tdSql.execute(f'grant {privilege} on {self.dbname}.{privilege_obj} to {username}')
                 tdLog.debug("sql:" + f'grant {privilege} on {self.dbname}.{privilege_obj} to {username}')
+            tdSql.execute(f'grant use on database {self.dbname} to {username}')
+            tdLog.debug("sql:" + f'grant use on database {self.dbname} to {username}')
         except Exception as ex:
             tdLog.exit(ex)
 
@@ -458,6 +457,8 @@ class TestPrivBasic:
             else:
                 tdSql.execute(f'revoke {privilege} on {self.dbname}.{privilege_obj} from {username}')
                 tdLog.debug("sql:" + f'revoke {privilege} on {self.dbname}.{privilege_obj} from {username}')
+            tdSql.execute(f'revoke use on database {self.dbname} from {username}')
+            tdLog.debug("sql:" + f'revoke use on database {self.dbname} from {username}')
         except Exception as ex:
             tdLog.exit(ex)
 
@@ -472,7 +473,10 @@ class TestPrivBasic:
         self.grant_privilege1(self.username, "select", "*")
         # create the taos connection with -utest -ptest
         testconn = taos.connect(user=self.username, password=self.password)
-        testconn.execute("use %s;" % self.dbname)
+        cursor = testconn.cursor()
+        testSql = TDSql()
+        testSql.init(cursor)
+        testSql.execute("use %s;" % self.dbname)
         # show the user privileges
         res = testconn.query("select * from information_schema.ins_user_privileges;")
         tdLog.debug("Current information_schema.ins_user_privileges values: {}".format(res.fetch_all()))
@@ -483,7 +487,7 @@ class TestPrivBasic:
         # query result
         tdLog.debug("sql res:" + str(res.fetch_all()))
         # remove the privilege
-        self.remove_privilege(self.username, "read", "*")
+        self.remove_privilege(self.username, "select", "*")
         # clear env
         testconn.close()
         tdSql.execute(f"drop database {self.dbname}")
@@ -967,5 +971,5 @@ class TestPrivBasic:
         """
         self.do_common_user_privileges()
         self.do_grant_multi_tables()
-        # self.do_revoke_privilege() // PRIV_TODO: rbac refact
+        self.do_revoke_privilege()
         self.do_user_privilege_all()

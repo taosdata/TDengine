@@ -360,7 +360,7 @@ priv_type: {
     -- User permissions
   | CREATE USER | DROP USER | ALTER USER
   | SET USER BASIC INFORMATION | SET USER SECURITY INFORMATION | SET USER AUDIT INFORMATION
-  | UNLOCK USER | LOCK USER | SHOW USERS
+  | UNLOCK USER | LOCK USER | SHOW USERS | SHOW USERS SECURITY INFORMATION
 
     -- Token permissions
   | CREATE TOKEN | DROP TOKEN | ALTER TOKEN | SHOW TOKENS
@@ -437,51 +437,55 @@ column_list: {
 }
 
 priv_type: {
-
-    #### Database permissions
-
-    ALTER [DATABASE] | DROP [DATABASE] | USE [DATABASE] | FLUSH [DATABASE] 
-    | COMPACT [DATABASE] | TRIM [DATABASE] | ROLLUP [DATABASE] | SCAN [DATABASE]
-    | SSMIGRATE DATABASE | SHOW [DATABASES] 
-    | CREATE TABLE | CREATE VIEW | CREATE TOPIC | CREATE STREAM
-
-    #### Table permissions
-
-    DROP [TABLE] | ALTER [TABLE] | SHOW CREATE [TABLE] | SHOW [TABLES]
-    | SELECT [TABLE] | INSERT [TABLE] | DELETE [TABLE]
-    | CREATE INDEX | CREATE TSMA | CREATE RSMA
-    
-    #### Column permissions
-
-    SELECT (column_list) | INSERT (column_list) 
-
-    #### View permissions
-
-    DROP [VIEW] | ALTER [VIEW] | SHOW [VIEWS] | SELECT VIEW
-
-    #### Index permissions
-
-    DROP [INDEX] | SHOW [INDEXES] | SHOW CREATE [INDEX]
-
-    #### Window pre-aggregation permissions
-
-    DROP [TSMA] | SHOW [TSMAS] | SHOW CREATE [TSMA]
-
-    #### Downsampling storage permissions
-
-    DROP [RSMA] | ALTER [RSMA] | SHOW [RSMAS] | SHOW CREATE [RSMA]
-
-    #### Topic permissions
-
-    DROP [TOPIC] | SHOW [TOPICS] | SHOW CREATE [TOPIC] | SUBSCRIBE [TOPIC]
-    | SHOW CONSUMERS | SHOW SUBSCRIPTIONS
-
-    #### Stream computing permissions
-
-    DROP [STREAM] | SHOW [STREAMS] | SHOW CREATE [STREAM]
-    | START [STREAM] | STOP [STREAM] | RECALCULATE [STREAM]
+    ALTER | DROP
+  | SELECT [(column_list)] | INSERT [(column_list)] | DELETE
+  | CREATE TABLE | CREATE VIEW | CREATE INDEX | CREATE TSMA | CREATE RSMA | CREATE TOPIC | CREATE STREAM
+  | USE | SHOW | SHOW CREATE
+  | FLUSH | COMPACT | TRIM | ROLLUP | SCAN | SSMIGRATE
+  | SUBSCRIBE | SHOW CONSUMERS | SHOW SUBSCRIPTIONS
+  | START | STOP | RECALCULATE
 }
 ```
+
+#### Object Type and Permission Type Mapping
+
+Different object types support different permission types. The specific mapping is as follows:
+
+| Permission Type | database | table | view | index | tsma | rsma | topic | stream |
+|---------|:--------:|:-----:|:----:|:-----:|:----:|:----:|:-----:|:------:|
+| ALTER | ✓ | ✓ | ✓ | | | ✓ | | |
+| DROP | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SELECT [(column_list)] | | ✓ | ✓ | | | | | |
+| INSERT [(column_list)] | | ✓ | | | | | | |
+| DELETE | | ✓ | | | | | | |
+| CREATE TABLE | ✓ | | | | | | | |
+| CREATE VIEW | ✓ | | | | | | | |
+| CREATE INDEX | | ✓ | | | | | | |
+| CREATE TSMA | | ✓ | | | | | | |
+| CREATE RSMA | | ✓ | | | | | | |
+| CREATE TOPIC | ✓ | | | | | | | |
+| CREATE STREAM | ✓ | | | | | | | |
+| USE | ✓ | | | | | | | |
+| SHOW | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SHOW CREATE | ✓ | ✓ | ✓ | | | ✓ | | |
+| FLUSH | ✓ | | | | | | | |
+| COMPACT | ✓ | | | | | | | |
+| TRIM | ✓ | | | | | | | |
+| ROLLUP | ✓ | | | | | | | |
+| SCAN | ✓ | | | | | | | |
+| SSMIGRATE | ✓ | | | | | | | |
+| SUBSCRIBE | | | | | | | ✓ | |
+| SHOW CONSUMERS | | | | | | | ✓ | |
+| SHOW SUBSCRIPTIONS | | | | | | | ✓ | |
+| START | | | | | | | | ✓ |
+| STOP | | | | | | | | ✓ |
+| RECALCULATE | | | | | | | | ✓ |
+
+**Notes:**
+
+- When using `GRANT` for authorization, you need to specify the object type through `ON [priv_obj]`, and the system will automatically verify whether the permission is applicable to the specified object type.
+- `[(column_list)]` indicates an optional list of column names for implementing column-level permission control. For `view` object, only `SELECT` is supported, and column-list is not supported.
+- Only one rule can be set for the same type of operation per table for column permissions.
 
 #### Database Permissions
 
@@ -522,7 +526,7 @@ GRANT CREATE TABLE, CREATE VIEW ON DATABASE power TO creator;
 -- User can modify database configuration
 GRANT ALTER ON DATABASE power TO dba_user;
 
--- User can view object list in database
+-- User can view database `power` by `show databases` command
 GRANT SHOW ON DATABASE power TO viewer;
 
 -- User has full management permissions on database
@@ -598,9 +602,9 @@ REVOKE ALL ON table_name FROM user_name;
 
 - Conditions apply to supertables or regular tables
 - Cannot specify conditions for subtables
-- Only one condition rule per table
+- Only one rule can be set for the same type of operation per table
 - Multiple conditions can use `AND/OR` combination
-- Can be combined with tag subtable conditions
+- Can be combined with tag conditions
 - Can be combined with column permissions
 
 **Example - Row Permission by Data Source:**
@@ -738,13 +742,13 @@ GRANT SUBSCRIBE ON power.device_events TO consumer1;
 -- User consumer2 can subscribe to all topics in all databases
 GRANT SUBSCRIBE ON *.* TO consumer2;
 
--- User can view topic information
+-- User can view all topics of database `power`
 GRANT SHOW ON TOPIC power.* TO viewer;
 
 -- User can view topic definition and consumer information
 GRANT SHOW CREATE, SHOW CONSUMERS ON TOPIC power.device_events TO inspector;
 
--- User has full management permissions on topic (database admin only)
+-- User has full management permissions on topic
 GRANT ALL ON TOPIC power.device_events TO admin_user;
 
 -- Revoke all topic permissions from inspector

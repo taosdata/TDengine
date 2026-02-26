@@ -1,0 +1,46 @@
+name: taosKeeper Audit
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  pull_request:
+    paths:
+      - "tools/keeper/**"
+      - ".github/workflows/taoskeeper*.yml"
+  push:
+    branches:
+      - "main"
+      - "3.0"
+      - "3.3.6"
+      - "3.3.8"
+    paths:
+      - "tools/keeper/**"
+      - ".github/workflows/taoskeeper*.yml"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "stable"
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Vulnerability Check
+        working-directory: tools/keeper
+        run: govulncheck ./...
+
+      - name: Install go-licenses
+        run: go install github.com/google/go-licenses/v2@latest
+
+      - name: License Check
+        working-directory: tools/keeper
+        run: |
+          go-licenses check ./... \
+            --allowed_licenses="MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC,MPL-2.0,Zlib" \
+            --ignore github.com/taosdata/taoskeeper \
+            --ignore github.com/taosdata/go-utils

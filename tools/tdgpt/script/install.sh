@@ -13,13 +13,15 @@ echo -e "${script_dir}"
 
 custom_dir_set=0
 all_venv=0
+offline_mode=0
 
 show_help() {
-  echo "Usage: $(basename $0) -d [install dir] -a"
+  echo "Usage: $(basename $0) -d [install dir] -a -o"
   echo
   echo "Help:"
   echo "  -d [install dir]   Specify installation directory"
   echo "  -a                 Install all model virtual environments"
+  echo "  -o                 Offline mode: skip reinstalling existing virtual environments"
   echo
   echo "Environment variables for pip mirror (optional):"
   echo "  PIP_INDEX_URL  Set pip index mirror, e.g. https://pypi.tuna.tsinghua.edu.cn/simple"
@@ -28,7 +30,7 @@ show_help() {
   echo "  PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple bash $0"
 }
 
-while getopts "hd:a" arg; do
+while getopts "hd:ao" arg; do
   case $arg in
     d)
       customDir="$OPTARG"
@@ -37,12 +39,15 @@ while getopts "hd:a" arg; do
     a)
       all_venv=1
       ;;
+    o)
+      offline_mode=1
+      ;;
     h)
       show_help
       exit 0
       ;;
     ?)
-      echo "Usage: $0 [-d install_dir] [-a]"
+      echo "Usage: $0 [-d install_dir] [-a] [-o]"
       exit 1
       ;;
   esac
@@ -371,8 +376,9 @@ function install_anode_venv() {
 }
 
 function install_extra_venvs() {
+  # timesfm venv
   echo -e "${GREEN}Creating timesfm venv at ${timesfm_venv_dir}${NC}"
-  if [ -d "${timesfm_venv_dir}" ]; then
+  if [ -d "${timesfm_venv_dir}" ] && [ ${offline_mode} -ne 1 ]; then
     echo "Removing existing timesfm venv..."
     rm -rf "${timesfm_venv_dir}"
   fi
@@ -383,8 +389,9 @@ function install_extra_venvs() {
       -f https://download.pytorch.org/whl/torch_stable.html "${pip_extra_args[@]}"
   deactivate
 
+  # moirai venv
   echo -e "${GREEN}Creating moirai venv at ${moirai_venv_dir}${NC}"
-  if [ -d "${moirai_venv_dir}" ]; then
+  if [ -d "${moirai_venv_dir}" ] && [ ${offline_mode} -ne 1 ]; then
     echo "Removing existing moirai venv..."
     rm -rf "${moirai_venv_dir}"
   fi
@@ -395,27 +402,29 @@ function install_extra_venvs() {
    -f https://download.pytorch.org/whl/torch_stable.html "${pip_extra_args[@]}"
   deactivate
 
+  # chronos venv
   echo -e "${GREEN}Creating chronos venv at ${chronos_venv_dir}${NC}"
-  if [ -d "${chronos_venv_dir}" ]; then
+  if [ -d "${chronos_venv_dir}" ] && [ ${offline_mode} -ne 1 ]; then
     echo "Removing existing chronos venv..."
     rm -rf "${chronos_venv_dir}"
   fi
   "python3.${python_minor_ver}" -m venv "${chronos_venv_dir}"
   echo "Activating chronos venv and installing dependencies..."
   source "${chronos_venv_dir}/bin/activate"
-  "${chronos_venv_dir}/bin/pip3" install --upgrade torch==2.3.1+cpu chronos-forecasting flask \
+  "${chronos_venv_dir}/bin/pip3" install torch==2.3.1+cpu chronos-forecasting flask \
     -f https://download.pytorch.org/whl/torch_stable.html  "${pip_extra_args[@]}"
   deactivate
 
+  # momentfm venv
   echo -e "${GREEN}Creating momentfm venv at ${momentfm_venv_dir}${NC}"
-  if [ -d "${momentfm_venv_dir}" ]; then
+  if [ -d "${momentfm_venv_dir}" ] && [ ${offline_mode} -ne 1 ]; then
     echo "Removing existing momentfm venv..."
     rm -rf "${momentfm_venv_dir}"
   fi
   "python3.${python_minor_ver}" -m venv "${momentfm_venv_dir}"
   echo "Activating momentfm venv and installing dependencies..."
   source "${momentfm_venv_dir}/bin/activate"
-  "${momentfm_venv_dir}/bin/pip3" install --upgrade torch==2.3.1+cpu transformers==4.33.3 numpy==1.25.2 \
+  "${momentfm_venv_dir}/bin/pip3" install torch==2.3.1+cpu transformers==4.33.3 numpy==1.25.2 \
     matplotlib pandas==1.5 scikit-learn flask==3.0.3 momentfm \
     -f https://download.pytorch.org/whl/torch_stable.html "${pip_extra_args[@]}"
   deactivate

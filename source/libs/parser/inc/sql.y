@@ -616,6 +616,7 @@ priv_type(A) ::= ALTER priv_id(B) priv_id(C).                                   
 priv_type(A) ::= READ priv_id(B) priv_id(C).                                      { A = privArgsSet(pCxt, 1, &B, &C); }
 priv_type(A) ::= SHOW priv_id(B) priv_id(C).                                      { A = privArgsSet(pCxt, 2, &B, &C); }
 priv_type(A) ::= SET USER priv_id(B) priv_id(C).                                  { A = privArgsSet(pCxt, 3, &B, &C); }
+priv_type(A) ::= SHOW USERS priv_id(B) priv_id(C).                                { A = privArgsSet(pCxt, 4, &B, &C); }
 
 %type priv_id                                                                     { SToken }
 %destructor priv_id                                                               { }
@@ -710,6 +711,7 @@ xnode_task_options(A) ::= xnode_task_options(B) AND TRIGGER NK_EQ NK_STRING(D). 
 
 with_task_options_opt(A) ::= .                                                    { A = NULL; }
 with_task_options_opt(A) ::= WITH xnode_task_options(B).                          { A = B; }
+with_task_options_opt(A) ::= SET xnode_task_options(B).                           { A = B; }
 
 xnode_task_from_opt(A) ::= .                                                      { A = NULL; }
 xnode_task_from_opt(A) ::= FROM xnode_task_source(B).                             { A = B; }
@@ -719,6 +721,10 @@ xnode_task_to_opt(A) ::= TO xnode_task_sink(B).                                 
 
 cmd ::= CREATE XNODE NK_STRING(A).                                                { pCxt->pRootNode = createCreateXnodeStmt(pCxt, &A); }
 cmd ::= CREATE XNODE NK_STRING(A) USER user_name(B) PASS NK_STRING(C).            { pCxt->pRootNode = createCreateXnodeWithUserPassStmt(pCxt, &A, &B, &C); }
+cmd ::= CREATE XNODE NK_STRING(A) TOKEN NK_STRING(B).                             { pCxt->pRootNode = createCreateXnodeWithTokenStmt(pCxt, &A, &B); }
+// alter
+cmd ::= ALTER XNODE SET TOKEN NK_STRING(B).                                       { pCxt->pRootNode = createAlterXnodeStmt(pCxt, &B, NULL, NULL); }
+cmd ::= ALTER XNODE SET USER user_name(B) PASS NK_STRING(C).                      { pCxt->pRootNode = createAlterXnodeStmt(pCxt, NULL, &B, &C); }
 cmd ::= DROP XNODE xnode_endpoint(A) force_opt(B).                                { pCxt->pRootNode = createDropXnodeStmt(pCxt, &A, B); }
 cmd ::= DROP XNODE FORCE xnode_endpoint(A).                                       { pCxt->pRootNode = createDropXnodeStmt(pCxt, &A, true); }
 
@@ -762,7 +768,6 @@ cmd ::= ALTER XNODE xnode_resource_type(A) NK_STRING(B) xnode_task_from_opt(C) x
 cmd ::= DROP XNODE xnode_resource_type(A) NK_STRING(B).                           { pCxt->pRootNode = dropXnodeResource(pCxt, A, &B); }
 cmd ::= DROP XNODE xnode_resource_type(A) NK_INTEGER(B).                          { pCxt->pRootNode = dropXnodeResource(pCxt, A, &B); }
 cmd ::= DROP XNODE xnode_resource_type(A) WHERE search_condition(B).              { pCxt->pRootNode = dropXnodeResourceWhere(pCxt, A, B); }
-//cmd ::= DROP XNODE xnode_resource_type(A) ON NK_INTEGER(B) where_clause_opt(C).   { pCxt->pRootNode = dropXnodeResourceOn(pCxt, A, &B, C); }
 
 /* show xnodes; or show xnodes where ...*/
 cmd ::= SHOW XNODES where_clause_opt(B).                                          { pCxt->pRootNode = createShowXnodeStmtWithCond(pCxt, QUERY_NODE_SHOW_XNODES_STMT, B); }
@@ -2496,7 +2501,7 @@ jlimit_clause_opt(A) ::= JLIMIT unsigned_integer(B).                            
 query_specification(A) ::=
   SELECT hint_list(M) set_quantifier_opt(B) tag_mode_opt(N) select_list(C) from_clause_opt(D)
   where_clause_opt(E) partition_by_clause_opt(F) range_opt(J) every_opt(K)
-  interp_fill_opt(L) twindow_clause_opt(G) group_by_clause_opt(H) having_clause_opt(I).  {
+  fill_opt(L) twindow_clause_opt(G) group_by_clause_opt(H) having_clause_opt(I).  {
                                                                                     A = createSelectStmt(pCxt, B, C, D, M);
                                                                                     A = setSelectStmtTagMode(pCxt, A, N);
                                                                                     A = addWhereClause(pCxt, A, E);
@@ -2595,23 +2600,19 @@ interval_sliding_duration_literal(A) ::= NK_STRING(B).                          
 interval_sliding_duration_literal(A) ::= NK_INTEGER(B).                           { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
 interval_sliding_duration_literal(A) ::= NK_QUESTION(B).                         { A = createRawExprNode(pCxt, &B, createDurationPlaceholderValueNode(pCxt, &B)); }
 
-interp_fill_opt(A) ::= .                                                          { A = NULL; }
-interp_fill_opt(A) ::= fill_value(B).                                             { A = B; }
-interp_fill_opt(A) ::=
-  FILL NK_LP fill_position_mode_extension(B) NK_COMMA expression_list(C) NK_RP.   { A = createFillNode(pCxt, B, createNodeListNode(pCxt, C)); }
-interp_fill_opt(A) ::= FILL NK_LP interp_fill_mode(B) NK_RP.                      { A = createFillNode(pCxt, B, NULL); }
 
 fill_opt(A) ::= .                                                                 { A = NULL; }
-fill_opt(A) ::= FILL NK_LP fill_mode(B) NK_RP.                                    { A = createFillNode(pCxt, B, NULL); }
 fill_opt(A) ::= fill_value(B).                                                    { A = B; }
+fill_opt(A) ::= FILL NK_LP fill_mode(B) NK_RP.                                    { A = createFillNode(pCxt, B, NULL); }
+fill_opt(A) ::=
+  FILL NK_LP fill_position_mode(B) NK_RP surround_opt(C).                         { A = createFillNodeWithSurroundNode(pCxt, B, C); }
+fill_opt(A) ::= 
+  FILL NK_LP fill_position_mode(B) NK_COMMA expression_list(C) NK_RP.             { A = createFillNode(pCxt, B, createNodeListNode(pCxt, C)); }
 
+fill_value(A) ::= FILL NK_LP VALUE NK_RP.                                         { A = createFillNode(pCxt, FILL_MODE_VALUE, NULL); }
 fill_value(A) ::= FILL NK_LP VALUE NK_COMMA expression_list(B) NK_RP.             { A = createFillNode(pCxt, FILL_MODE_VALUE, createNodeListNode(pCxt, B)); }
+fill_value(A) ::= FILL NK_LP VALUE_F NK_RP.                                       { A = createFillNode(pCxt, FILL_MODE_VALUE_F, NULL); }
 fill_value(A) ::= FILL NK_LP VALUE_F NK_COMMA expression_list(B) NK_RP.           { A = createFillNode(pCxt, FILL_MODE_VALUE_F, createNodeListNode(pCxt, B)); }
-
-count_window_args(A) ::= NK_INTEGER(B).                                           { A = createCountWindowArgs(pCxt, &B, NULL, NULL); }
-count_window_args(A) ::= NK_INTEGER(B) NK_COMMA NK_INTEGER(C).                    { A = createCountWindowArgs(pCxt, &B, &C, NULL); }
-count_window_args(A) ::= NK_INTEGER(B) NK_COMMA column_name_list(D).              { A = createCountWindowArgs(pCxt, &B, NULL, D); }
-count_window_args(A) ::= NK_INTEGER(B) NK_COMMA NK_INTEGER(C) NK_COMMA column_name_list(D). { A = createCountWindowArgs(pCxt, &B, &C, D); }
 
 %type fill_mode                                                                   { EFillMode }
 %destructor fill_mode                                                             { }
@@ -2619,22 +2620,24 @@ fill_mode(A) ::= NONE.                                                          
 fill_mode(A) ::= NULL.                                                            { A = FILL_MODE_NULL; }
 fill_mode(A) ::= NULL_F.                                                          { A = FILL_MODE_NULL_F; }
 fill_mode(A) ::= LINEAR.                                                          { A = FILL_MODE_LINEAR; }
-fill_mode(A) ::= fill_position_mode(B).                                           { A = B; }
 
 %type fill_position_mode                                                          { EFillMode }
 %destructor fill_position_mode                                                    { }
 fill_position_mode(A) ::= PREV.                                                   { A = FILL_MODE_PREV; }
 fill_position_mode(A) ::= NEXT.                                                   { A = FILL_MODE_NEXT; }
+fill_position_mode(A) ::= NEAR.                                                   { A = FILL_MODE_NEAR; }
 
-%type fill_position_mode_extension                                                { EFillMode }
-%destructor fill_position_mode_extension                                          { }
-fill_position_mode_extension(A) ::= fill_position_mode(B).                        { A = B; }
-fill_position_mode_extension(A) ::= NEAR.                                         { A = FILL_MODE_NEAR; }
+%type surround_opt                                                                { SNode* }
+%destructor surround_opt                                                          { nodesDestroyNode($$); }
+surround_opt(A) ::= .                                                             { A = NULL; }
+surround_opt(A) ::= SURROUND NK_LP duration_literal(B) NK_RP.                     { A = createSurroundNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
+surround_opt(A) ::=
+  SURROUND NK_LP duration_literal(B) NK_COMMA expression_list(C) NK_RP.           { A = createSurroundNode(pCxt, releaseRawExprNode(pCxt, B), createNodeListNode(pCxt, C)); }
 
-%type interp_fill_mode                                                            { EFillMode }
-%destructor interp_fill_mode                                                      { }
-interp_fill_mode(A) ::= fill_mode(B).                                             { A = B; }
-interp_fill_mode(A) ::= NEAR.                                                     { A = FILL_MODE_NEAR; }
+count_window_args(A) ::= NK_INTEGER(B).                                           { A = createCountWindowArgs(pCxt, &B, NULL, NULL); }
+count_window_args(A) ::= NK_INTEGER(B) NK_COMMA NK_INTEGER(C).                    { A = createCountWindowArgs(pCxt, &B, &C, NULL); }
+count_window_args(A) ::= NK_INTEGER(B) NK_COMMA column_name_list(D).              { A = createCountWindowArgs(pCxt, &B, NULL, D); }
+count_window_args(A) ::= NK_INTEGER(B) NK_COMMA NK_INTEGER(C) NK_COMMA column_name_list(D). { A = createCountWindowArgs(pCxt, &B, &C, D); }
 
 %type group_by_clause_opt                                                         { SNodeList* }
 %destructor group_by_clause_opt                                                   { nodesDestroyList($$); }
@@ -2733,6 +2736,7 @@ null_ordering_opt(A) ::= .                                                      
 null_ordering_opt(A) ::= NULLS FIRST.                                             { A = NULL_ORDER_FIRST; }
 null_ordering_opt(A) ::= NULLS LAST.                                              { A = NULL_ORDER_LAST; }
 
+%fallback NK_ID FROM_BASE64 TO_BASE64 MD5 SHA SHA1 SHA2 AES_ENCRYPT AES_DECRYPT SM4_ENCRYPT SM4_DECRYPT.
 %fallback ABORT AFTER ATTACH BEFORE BEGIN BITAND BITNOT BITOR BLOCKS CHANGE COMMA CONCAT CONFLICT COPY DEFERRED DELIMITERS DETACH DIVIDE DOT EACH END FAIL
   FILE FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE RESTRICT ROW SEMI STAR STATEMENT
   STRICT STRING TIMES VALUES VARIABLE VIEW WAL.

@@ -92,6 +92,17 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
     case FUNCTION_TYPE_IS_WINDOW_FILLED:
       pCol->colType = COLUMN_TYPE_IS_WINDOW_FILLED;
       break;
+    case FUNCTION_TYPE_TPREV_TS:
+    case FUNCTION_TYPE_TCURRENT_TS:
+    case FUNCTION_TYPE_TNEXT_TS:
+    case FUNCTION_TYPE_TWSTART:
+    case FUNCTION_TYPE_TWEND:
+    case FUNCTION_TYPE_TPREV_LOCALTIME:
+    case FUNCTION_TYPE_TNEXT_LOCALTIME:
+    case FUNCTION_TYPE_TLOCALTIME:
+      pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+      pCol->isPrimTs = true;
+      break;
     default:
       break;
   }
@@ -852,15 +863,30 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   return code;
 }
 
-static int32_t findRefTableNode(SNodeList *refTableList, const char *dbName, const char *tableName, SNode **pRefTable) {
-  SNode *pRef = NULL;
-  FOREACH(pRef, refTableList) {
-    if (0 == strcasecmp(((SRealTableNode*)pRef)->table.tableName, tableName) &&
-        0 == strcasecmp(((SRealTableNode*)pRef)->table.dbName, dbName)) {
-      PLAN_RET(nodesCloneNode(pRef, pRefTable));
-    }
+static void buildRefTableKey(char* buf, size_t bufSize, const char* dbName, const char* tableName) {
+  size_t dbLen = strnlen(dbName, TSDB_DB_NAME_LEN);
+  size_t tbLen = strnlen(tableName, TSDB_TABLE_NAME_LEN);
+  if (dbLen + 1 + tbLen >= bufSize) {
+    buf[0] = '\0';
+    return;
   }
-  return TSDB_CODE_NOT_FOUND;
+  if (snprintf(buf, bufSize, "%.*s.%.*s", (int)dbLen, dbName, (int)tbLen, tableName) >= (int)bufSize) {
+    buf[0] = '\0';
+  }
+}
+
+static int32_t findRefTableNode(SHashObj* pRefTableMap, const char* dbName, const char* tableName,
+                                SNode** pRefTable) {
+  char tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
+  buildRefTableKey(tableNameKey, sizeof(tableNameKey), dbName, tableName);
+  if (tableNameKey[0] == '\0') {
+    return TSDB_CODE_NOT_FOUND;
+  }
+  SNode** ppRefTable = (SNode**)taosHashGet(pRefTableMap, tableNameKey, strlen(tableNameKey));
+  if (NULL == ppRefTable) {
+    return TSDB_CODE_NOT_FOUND;
+  }
+  return nodesCloneNode(*ppRefTable, pRefTable);
 }
 
 static int32_t findRefColId(SNode *pRefTable, const char *colName, col_id_t *colId, int32_t *colIdx) {
@@ -940,7 +966,8 @@ static int32_t checkColRefType(const SSchema* vtbSchema, const SSchema* refSchem
 }
 
 static int32_t addSubScanNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SVirtualTableNode* pVirtualTable,
-                              int32_t colRefIndex, int32_t schemaIndex, SHashObj *refTablesMap) {
+                              int32_t colRefIndex, int32_t schemaIndex, SHashObj* refTablesMap,
+                              SHashObj* refTableNodeMap) {
   int32_t     code = TSDB_CODE_SUCCESS;
   col_id_t    colId = 0;
   int32_t     colIdx = 0;
@@ -949,7 +976,7 @@ static int32_t addSubScanNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SVi
   SLogicNode *pRefScan = NULL;
   bool        put = false;
 
-  PLAN_ERR_JRET(findRefTableNode(pVirtualTable->refTables, pColRef->refDbName, pColRef->refTableName, &pRefTable));
+  PLAN_ERR_JRET(findRefTableNode(refTableNodeMap, pColRef->refDbName, pColRef->refTableName, &pRefTable));
   PLAN_ERR_JRET(findRefColId(pRefTable, pColRef->refColName, &colId, &colIdx));
 
   char tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
@@ -1231,11 +1258,29 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   SNode*    pNode = NULL;
   bool      scanAllCols = true;
   SHashObj* pRefTablesMap = NULL;
+  SHashObj* pRefTableNodeMap = NULL;
   SNode*    pTagScan = NULL;
 
   pRefTablesMap = taosHashInit(LIST_LENGTH(pVtableScan->pScanCols), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (NULL == pRefTablesMap) {
     PLAN_ERR_JRET(terrno);
+  }
+  pRefTableNodeMap =
+      taosHashInit(LIST_LENGTH(pVirtualTable->refTables), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
+                   HASH_ENTRY_LOCK);
+  if (NULL == pRefTableNodeMap) {
+    PLAN_ERR_JRET(terrno);
+  }
+
+  SNode* pRefNode = NULL;
+  FOREACH(pRefNode, pVirtualTable->refTables) {
+    SRealTableNode* pRefTable = (SRealTableNode*)pRefNode;
+    char            tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
+    buildRefTableKey(tableNameKey, sizeof(tableNameKey), pRefTable->table.dbName, pRefTable->table.tableName);
+    if (tableNameKey[0] == '\0') {
+      PLAN_ERR_JRET(TSDB_CODE_INVALID_PARA);
+    }
+    PLAN_ERR_JRET(taosHashPut(pRefTableNodeMap, tableNameKey, strlen(tableNameKey), &pRefNode, POINTER_BYTES));
   }
 
   if (pCxt->pPlanCxt->streamCalcQuery && pSelect->pTimeRange != NULL) {
@@ -1254,7 +1299,8 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
         continue;
       }
       scanAllCols &= false;
-      PLAN_ERR_JRET(addSubScanNode(pCxt, pSelect, pVirtualTable, colRefIndex, schemaIndex, pRefTablesMap));
+      PLAN_ERR_JRET(addSubScanNode(pCxt, pSelect, pVirtualTable, colRefIndex, schemaIndex, pRefTablesMap,
+                                   pRefTableNodeMap));
     } else if (pCol->isPrimTs || pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
       // do nothing
     } else {
@@ -1275,7 +1321,7 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
       } else {
         col_id_t colRefIndex = (col_id_t)findColRefIndex(pVirtualTable->pMeta->colRef, pVirtualTable, pVirtualTable->pMeta->schema[i].colId);
         if (colRefIndex != -1 && pVirtualTable->pMeta->colRef[colRefIndex].hasRef) {
-          PLAN_ERR_JRET(addSubScanNode(pCxt, pSelect, pVirtualTable, colRefIndex, i, pRefTablesMap));
+          PLAN_ERR_JRET(addSubScanNode(pCxt, pSelect, pVirtualTable, colRefIndex, i, pRefTablesMap, pRefTableNodeMap));
         }
       }
     }
@@ -1299,11 +1345,13 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
 
   *pLogicNode = (SLogicNode*)pVtableScan;
   taosHashCleanup(pRefTablesMap);
+  taosHashCleanup(pRefTableNodeMap);
   return code;
 _return:
   planError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
   taosHashSetFreeFp(pRefTablesMap, destroyScanLogicNode);
   taosHashCleanup(pRefTablesMap);
+  taosHashCleanup(pRefTableNodeMap);
   return code;
 }
 
@@ -1654,6 +1702,11 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
     pInterpFunc->pTimeSeries = NULL;
     PLAN_ERR_JRET(nodesCloneNode(pFill->pWStartTs, &pInterpFunc->pTimeSeries));
     PLAN_ERR_JRET(nodesCloneNode(pFill->pValues, &pInterpFunc->pFillValues));
+    if (NULL != pFill->pSurroundingTime &&
+        nodeType(pFill->pSurroundingTime) == QUERY_NODE_VALUE) {
+      SValueNode* pSurroundingTime = (SValueNode*)pFill->pSurroundingTime;
+      pInterpFunc->surroundingTime = pSurroundingTime->datum.i;
+    }
   }
 
   if (NULL != pSelect->pEvery) {
@@ -1668,10 +1721,10 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
       planError("%s failed at line %d since range interval is invalid", __func__, __LINE__);
       PLAN_ERR_JRET(TSDB_CODE_PLAN_INTERNAL_ERROR);
     } else {
-      pInterpFunc->rangeInterval = ((SValueNode*)pRangeInterval)->datum.i;
-      pInterpFunc->rangeIntervalUnit = ((SValueNode*)pRangeInterval)->unit;
+      pInterpFunc->surroundingTime = ((SValueNode*)pRangeInterval)->datum.i;
     }
   }
+
 
   // set the output
   PLAN_ERR_JRET(createColumnByRewriteExprs(pInterpFunc->pFuncs, &pInterpFunc->node.pTargets));
@@ -2538,6 +2591,10 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   code = nodesCloneNode(pFillNode->pValues, &pFill->pValues);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCloneNode(pFillNode->pWStartTs, &pFill->pWStartTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCloneNode(pFillNode->pSurroundingTime,
+                          &pFill->pSurroundingTime);
   }
 
   if (TSDB_CODE_SUCCESS == code && 0 == LIST_LENGTH(pFill->node.pTargets)) {

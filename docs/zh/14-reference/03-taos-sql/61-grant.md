@@ -358,7 +358,7 @@ priv_type: {
     -- 用户权限
   | CREATE USER | DROP USER | ALTER USER
   | SET USER BASIC INFORMATION | SET USER SECURITY INFORMATION | SET USER AUDIT INFORMATION
-  | UNLOCK USER | LOCK USER | SHOW USERS
+  | UNLOCK USER | LOCK USER | SHOW USERS | SHOW USERS SECURITY INFORMATION
 
     -- 令牌权限
   | CREATE TOKEN | DROP TOKEN | ALTER TOKEN | SHOW TOKENS
@@ -435,51 +435,55 @@ column_list: {
 }
 
 priv_type: {
-
-    #### 库权限(database)
-
-    ALTER [DATABASE] | DROP [DATABASE] | USE [DATABASE] | FLUSH [DATABASE] 
-    | COMPACT [DATABASE] | TRIM [DATABASE] | ROLLUP [DATABASE] | SCAN [DATABASE]
-    | SSMIGRATE DATABASE | SHOW [DATABASES] 
-    | CREATE TABLE | CREATE VIEW | CREATE TOPIC | CREATE STREAM
-
-    #### 表权限(table)
-
-    DROP [TABLE] | ALTER [TABLE] | SHOW CREATE [TABLE] | SHOW [TABLES]
-    | SELECT [TABLE] | INSERT [TABLE] | DELETE [TABLE]
-    | CREATE INDEX | CREATE TSMA | CREATE RSMA
-    
-    #### 列权限(table)
-
-    SELECT (column_list) | INSERT (column_list) 
-
-    #### 视图权限(view)
-
-    DROP [VIEW] | ALTER [VIEW] | SHOW [VIEWS] | SELECT VIEW
-
-    #### 索引权限(index)
-
-    DROP [INDEX] | SHOW [INDEXES] | SHOW CREATE [INDEX]
-
-    #### 窗口预聚集权限(tsma)
-
-    DROP [TSMA] | SHOW [TSMAS] | SHOW CREATE [TSMA]
-
-    #### 降采样存储权限(rsma)
-
-    DROP [RSMA] | ALTER [RSMA] | SHOW [RSMAS] | SHOW CREATE [RSMA]
-
-    #### 主题权限(topic)
-
-    DROP [TOPIC] | SHOW [TOPICS] | SHOW CREATE [TOPIC] | SUBSCRIBE [TOPIC]
-    | SHOW CONSUMERS | SHOW SUBSCRIPTIONS
-
-    #### 流计算权限(stream)
-
-    DROP [STREAM] | SHOW [STREAMS] | SHOW CREATE [STREAM]
-    | START [STREAM] | STOP [STREAM] | RECALCULATE [STREAM]
+    ALTER | DROP
+  | SELECT [(column_list)] | INSERT [(column_list)] | DELETE
+  | CREATE TABLE | CREATE VIEW | CREATE INDEX | CREATE TSMA | CREATE RSMA | CREATE TOPIC | CREATE STREAM
+  | USE | SHOW | SHOW CREATE
+  | FLUSH | COMPACT | TRIM | ROLLUP | SCAN | SSMIGRATE
+  | SUBSCRIBE | SHOW CONSUMERS | SHOW SUBSCRIPTIONS
+  | START | STOP | RECALCULATE
 }
 ```
+
+#### 对象类型与权限类型对应关系
+
+不同的对象类型支持的权限类型不同，具体对应关系如下：
+
+| 权限类型 | database | table | view | index | tsma | rsma | topic | stream |
+|---------|:--------:|:-----:|:----:|:-----:|:----:|:----:|:-----:|:------:|
+| ALTER | ✓ | ✓ | ✓ | | | ✓ | | |
+| DROP | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SELECT [(column_list)] | | ✓ | ✓ | | | | | |
+| INSERT [(column_list)] | | ✓ | | | | | | |
+| DELETE | | ✓ | | | | | | |
+| CREATE TABLE | ✓ | | | | | | | |
+| CREATE VIEW | ✓ | | | | | | | |
+| CREATE INDEX | | ✓ | | | | | | |
+| CREATE TSMA | | ✓ | | | | | | |
+| CREATE RSMA | | ✓ | | | | | | |
+| CREATE TOPIC | ✓ | | | | | | | |
+| CREATE STREAM | ✓ | | | | | | | |
+| USE | ✓ | | | | | | | |
+| SHOW | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SHOW CREATE | ✓ | ✓ | ✓ | | | ✓ | | |
+| FLUSH | ✓ | | | | | | | |
+| COMPACT | ✓ | | | | | | | |
+| TRIM | ✓ | | | | | | | |
+| ROLLUP | ✓ | | | | | | | |
+| SCAN | ✓ | | | | | | | |
+| SSMIGRATE | ✓ | | | | | | | |
+| SUBSCRIBE | | | | | | | ✓ | |
+| SHOW CONSUMERS | | | | | | | ✓ | |
+| SHOW SUBSCRIPTIONS | | | | | | | ✓ | |
+| START | | | | | | | | ✓ |
+| STOP | | | | | | | | ✓ |
+| RECALCULATE | | | | | | | | ✓ |
+
+**说明：**
+
+- 使用 `GRANT` 授权时，需要通过 `ON [priv_obj]` 指定对象类型，系统会自动校验该权限是否适用于指定的对象类型。
+- `[(column_list)]` 表示可选的列名列表，用于实现列级权限控制。`view` 只支持 `SELECT`，不支持指定列名列表。
+- 同一表相同类型的列权限操作只能设置一条规则。
 
 #### 数据库权限
 
@@ -520,7 +524,7 @@ GRANT CREATE TABLE, CREATE VIEW ON DATABASE power TO creator;
 -- 用户可以修改数据库配置
 GRANT ALTER ON DATABASE power TO dba_user;
 
--- 用户可以查看数据库中的对象列表
+-- 用户可以通过 show databases 命令查看数据库对象 power
 GRANT SHOW ON DATABASE power TO viewer;
 
 -- 用户对数据库有完整管理权限
@@ -588,7 +592,7 @@ GRANT ALTER ON power.* TO dba_user;
 
 ```sql
 GRANT SELECT ON table_name WITH condition TO user_name;
-REVOKE SELECT ON table_name FROM user_name; // revoke 时无论是否指定 condition，均会发回对应表的 select 权限。
+REVOKE SELECT ON table_name FROM user_name; // revoke 时无论是否指定 condition，均会撤销对应表的 select 权限。
 REVOKE ALL ON table_name FROM user_name;
 ```
 
@@ -631,7 +635,7 @@ REVOKE ALL ON table_name FROM user_name;
 
 - 只适用于 `SELECT` 和 `INSERT` 操作
 - 只能指定超级表或普通表，不能指定子表
-- 同一表同一操作只能设置一条规则
+- 同一表相同类型的操作只能设置一条规则
 - 可配合行权限一起使用
 
 **示例 - 按列分权限：**
@@ -736,13 +740,13 @@ GRANT SUBSCRIBE ON power.device_events TO consumer1;
 -- 用户 consumer2 可以订阅所有数据库中的所有主题
 GRANT SUBSCRIBE ON *.* TO consumer2;
 
--- 用户可以查看主题信息
+-- 用户可以查看 power 库的所有主题信息
 GRANT SHOW ON TOPIC power.* TO viewer;
 
 -- 用户可以查看主题定义和消费者信息
 GRANT SHOW CREATE, SHOW CONSUMERS ON TOPIC power.device_events TO inspector;
 
--- 用户对主题有完整管理权限（仅数据库管理员）
+-- 用户对主题有完整管理权限
 GRANT ALL ON TOPIC power.device_events TO admin_user;
 
 -- 撤回 inspector 拥有的所有主题权限
