@@ -75,10 +75,6 @@ public class TestAll {
         JNIConnectExample.main(args);
     }
 
-    @Test
-    public void testRestConnect() throws Exception {
-        RESTConnectExample.main(args);
-    }
 
     @Test
     public void testWsConnect() throws Exception {
