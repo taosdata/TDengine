@@ -1758,8 +1758,6 @@ static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmS
     }
 
     taskIdx = 0;
-    // SQueryPlan* calcSubQPlan = ((SQueryPlan*)pDag->pChildren->pHead->pNode);
-    // SNodeList*  subQSubplans = calcSubQPlan->pSubplans;
 
     for (int32_t i = lowestLevelIdx; i >= 0; --i) {
       plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, i);
