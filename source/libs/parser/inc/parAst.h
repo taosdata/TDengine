@@ -93,6 +93,7 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_COMPACT_TIME_OFFSET,
   DB_OPTION_IS_AUDIT,
   DB_OPTION_ALLOW_DROP,
+  DB_OPTION_SECURE_DELETE,
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
@@ -104,7 +105,8 @@ typedef enum ETableOptionType {
   TABLE_OPTION_SMA,
   TABLE_OPTION_DELETE_MARK,
   TABLE_OPTION_KEEP,
-  TABLE_OPTION_VIRTUAL
+  TABLE_OPTION_VIRTUAL,
+  TABLE_OPTION_SECURE_DELETE,
 } ETableOptionType;
 
 typedef enum EColumnOptionType {
@@ -500,6 +502,7 @@ SNode* createGrantStmt(SAstCreateContext* pCxt, void* resources, SPrivLevelArgs*
 SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resources, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
                         SNode* pCond, int8_t optrType);
 SNode* createDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere);
+SNode* createSecureDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere);
 SNode* createInsertStmt(SAstCreateContext* pCxt, SNode* pTable, SNodeList* pCols, SNode* pQuery);
 SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pView, const SToken* pAs, SNode* pQuery);
 SNode* createDropViewStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pView);

@@ -38,7 +38,7 @@
 #define STB_VER_SUPPORT_VIRTUAL 3
 #define STB_VER_SUPPORT_OWNER   4
 #define STB_VER_NUMBER          STB_VER_SUPPORT_OWNER
-#define STB_RESERVE_SIZE        56
+#define STB_RESERVE_SIZE        55
 
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionDelete(SSdb *pSdb, SStbObj *pStb);
@@ -205,6 +205,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   // since 3.4.0.0 - STB_VER_SUPPORT_OWNER
   SDB_SET_BINARY(pRaw, dataPos, pStb->createUser, TSDB_USER_LEN, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pStb->ownerId, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pStb->secureDelete, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -356,6 +357,12 @@ SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   } else {
     SDB_GET_BINARY(pRaw, dataPos, pStb->createUser, TSDB_USER_LEN, _OVER)
     SDB_GET_INT64(pRaw, dataPos, &pStb->ownerId, _OVER)
+  }
+
+  if (dataPos + sizeof(int8_t) <= pRaw->dataLen) {
+    SDB_GET_INT8(pRaw, dataPos, &pStb->secureDelete, _OVER)
+  } else {
+    pStb->secureDelete = 0;
   }
 
   SDB_GET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
@@ -563,6 +570,7 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
   req.alterOriDataLen = alterOriDataLen;
   req.source = pStb->source;
   req.virtualStb = pStb->virtualStb;
+  req.secureDelete = pStb->secureDelete;
   // todo
   req.schemaRow.nCols = pStb->numOfColumns;
   req.schemaRow.version = pStb->colVer;
@@ -918,6 +926,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->source = pCreate->source;
   pDst->keep = pCreate->keep;
   pDst->virtualStb = pCreate->virtualStb;
+  pDst->secureDelete = pCreate->secureDelete;
   pCreate->pFuncs = NULL;
 
   if (pDst->commentLen > 0) {
@@ -1603,7 +1612,7 @@ int32_t mndAllocStbSchemas(const SStbObj *pOld, SStbObj *pNew) {
 }
 
 static int32_t mndUpdateTableOptions(const SStbObj *pOld, SStbObj *pNew, char *pComment, int32_t commentLen,
-                                     int32_t ttl, int64_t keep) {
+                                     int32_t ttl, int64_t keep, int8_t secureDelete) {
   int32_t code = 0;
   if (commentLen > 0) {
     pNew->commentLen = commentLen;
@@ -1624,6 +1633,10 @@ static int32_t mndUpdateTableOptions(const SStbObj *pOld, SStbObj *pNew, char *p
 
   if (keep > 0) {
     pNew->keep = keep;
+  }
+
+  if (secureDelete >= 0) {
+    pNew->secureDelete = secureDelete;
   }
 
   if ((code = mndAllocStbSchemas(pOld, pNew)) != 0) {
@@ -2249,6 +2262,7 @@ static int32_t mndBuildStbSchemaImp(SMnode *pMnode, SDbObj *pDb, SStbObj *pStb, 
   pRsp->virtualStb = pStb->virtualStb;
   pRsp->ownerId = pStb->ownerId;
   pRsp->isAudit = pDb->cfg.isAudit ? 1 : 0;
+  pRsp->secureDelete = pStb->secureDelete ? pStb->secureDelete : pDb->cfg.secureDelete;
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
     SSchema *pSchema = &pRsp->pSchemas[i];
@@ -2721,7 +2735,8 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
       break;
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       needRsp = false;
-      code = mndUpdateTableOptions(pOld, &stbObj, pAlter->comment, pAlter->commentLen, pAlter->ttl, pAlter->keep);
+      code = mndUpdateTableOptions(pOld, &stbObj, pAlter->comment, pAlter->commentLen, pAlter->ttl, pAlter->keep,
+                                   pAlter->secureDelete);
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
       code = mndUpdateSuperTableColumnCompress(pMnode, pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tglobal.h"
 #include "tsdb.h"
 #include "util/tsimplehash.h"
 
@@ -151,7 +152,33 @@ _err:
   return code;
 }
 
-int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey) {
+static void tsdbSecureEraseMemTableData(STbData *pTbData, TSKEY sKey, TSKEY eKey) {
+  SMemSkipListNode *pNode = SL_NODE_FORWARD(pTbData->sl.pHead, 0);
+  while (pNode != pTbData->sl.pTail) {
+    TSDBROW *pRow = &pNode->row;
+    TSKEY    rowTs = TSDBROW_TS(pRow);
+    if (rowTs >= sKey && rowTs <= eKey) {
+      if (pRow->type == TSDBROW_ROW_FMT) {
+        SRow *pSRow = pRow->pTSRow;
+        if (pSRow) {
+          int32_t len = pSRow->len > (int32_t)sizeof(SRow) ? pSRow->len - (int32_t)sizeof(SRow) : 0;
+          if (tsSecureEraseMode == 1) {
+            taosSeedRand((uint32_t)(uintptr_t)pSRow);
+            for (int32_t i = 0; i < len; i++) {
+              pSRow->data[i] = (uint8_t)(taosRand() & 0xFF);
+            }
+          } else {
+            (void)memset(pSRow->data, 0, len);
+          }
+        }
+      }
+    }
+    pNode = SL_NODE_FORWARD(pNode, 0);
+  }
+}
+
+int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey,
+                            int8_t secureDelete) {
   int32_t    code = 0;
   SMemTable *pMemTable = pTsdb->mem;
   STbData   *pTbData = NULL;
@@ -172,6 +199,14 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   code = tsdbGetOrCreateTbData(pMemTable, suid, uid, &pTbData);
   if (code) {
     goto _err;
+  }
+
+  // physically overwrite in-memory data when secure delete is requested
+  int8_t doSecureErase = secureDelete || pTsdb->pVnode->config.secureDelete;
+  if (doSecureErase) {
+    taosWLockLatch(&pTbData->lock);
+    tsdbSecureEraseMemTableData(pTbData, sKey, eKey);
+    taosWUnLockLatch(&pTbData->lock);
   }
 
   // do delete
@@ -204,8 +239,8 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   }
 
   tsdbTrace("vgId:%d, delete data from table suid:%" PRId64 " uid:%" PRId64 " skey:%" PRId64 " eKey:%" PRId64
-            " at version %" PRId64,
-            TD_VID(pTsdb->pVnode), suid, uid, sKey, eKey, version);
+            " at version %" PRId64 " secureDelete:%d",
+            TD_VID(pTsdb->pVnode), suid, uid, sKey, eKey, version, (int)doSecureErase);
   return code;
 
 _err:

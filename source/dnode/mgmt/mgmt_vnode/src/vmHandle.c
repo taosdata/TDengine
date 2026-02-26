@@ -289,6 +289,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
 
   pCfg->isAudit = pCreate->isAudit;
   pCfg->allowDrop = pCreate->allowDrop;
+  pCfg->secureDelete = pCreate->secureDelete;
 
   pCfg->standby = 0;
   pCfg->syncCfg.replicaNum = 0;
@@ -759,6 +760,7 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
           .walLevel = pVgCfg->config.walCfg.level,
           .isAudit = pVgCfg->config.isAudit,
           .allowDrop = pVgCfg->config.allowDrop,
+          .secureDelete = pVgCfg->config.secureDelete,
           //.encryptAlgorithm = pVgCfg->config.walCfg.encryptAlgorithm,
           .committed = pVgCfg->state.committed,
           .commitID = pVgCfg->state.commitID,
@@ -835,6 +837,7 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
                  .config.ssCompact = pVgInfo->ssCompact,
                  .config.isAudit = pVgInfo->isAudit,
                  .config.allowDrop = pVgInfo->allowDrop,
+                 .config.secureDelete = pVgInfo->secureDelete,
                  .config.walCfg.fsyncPeriod = pVgInfo->walFsyncPeriod,
                  .config.walCfg.retentionPeriod = pVgInfo->walRetentionPeriod,
                  .config.walCfg.rollPeriod = pVgInfo->walRollPeriod,

@@ -743,6 +743,7 @@ typedef struct SDeleteStmt {
   STimeWindow timeRange;
   uint8_t     precision;
   bool        deleteZeroRows;
+  int8_t      secureDelete;  // force physical overwrite (from SECURE_DELETE keyword)
 } SDeleteStmt;
 
 typedef struct SInsertStmt {

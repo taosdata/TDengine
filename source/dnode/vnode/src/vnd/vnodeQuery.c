@@ -339,6 +339,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   cfgRsp.tableType = mer1.me.type;
   cfgRsp.isAudit = pVnode->config.isAudit ? 1 : 0;
+  cfgRsp.secureDelete = pVnode->config.secureDelete;
 
   if (mer1.me.type == TSDB_SUPER_TABLE) {
     code = TSDB_CODE_VND_HASH_MISMATCH;

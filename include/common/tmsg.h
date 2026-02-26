@@ -882,6 +882,7 @@ typedef struct {
   int8_t      virtualStb;
   int32_t     numOfColRefs;
   SColRef*    pColRefs;
+  int8_t      secureDelete;
 } STableMetaRsp;
 
 typedef struct {
@@ -1282,6 +1283,7 @@ typedef struct {
   char*    sql;
   int64_t  keep;
   int8_t   virtualStb;
+  int8_t   secureDelete;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -1322,6 +1324,7 @@ typedef struct {
   char*   sql;
   int64_t keep;
   SArray* pTypeMods;
+  int8_t  secureDelete;
 } SMAlterStbReq;
 
 int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);
@@ -2051,6 +2054,7 @@ typedef struct {
     };
   };
   SColRef* pColRefs;
+  int8_t   secureDelete;
 } STableCfg;
 
 typedef STableCfg STableCfgRsp;
@@ -2146,6 +2150,7 @@ typedef struct {
   char    encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
   int8_t  isAudit;
   int8_t  allowDrop;
+  int8_t  secureDelete;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -2185,6 +2190,7 @@ typedef struct {
   char    encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
   int8_t  isAudit;
   int8_t  allowDrop;
+  int8_t  secureDelete;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -2431,6 +2437,7 @@ typedef struct {
   int16_t sstTrigger;
   int8_t  withArbitrator;
   int8_t  isAudit;
+  int8_t  secureDelete;
 } SDbCfgRsp;
 
 typedef SDbCfgRsp SDbCfgInfo;
@@ -3026,6 +3033,7 @@ typedef struct {
       uint8_t padding : 6;
     };
   };
+  int8_t secureDelete;
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -3178,6 +3186,7 @@ typedef struct {
   int32_t ssKeepLocal;
   int8_t  ssCompact;
   int8_t  allowDrop;
+  int8_t  secureDelete;
 } SAlterVnodeConfigReq;
 
 int32_t tSerializeSAlterVnodeConfigReq(void* buf, int32_t bufLen, SAlterVnodeConfigReq* pReq);
@@ -4777,6 +4786,7 @@ typedef struct SVCreateStbReq {
   int64_t         ownerId;
   SExtSchema*     pExtSchemas;
   int8_t          virtualStb;
+  int8_t          secureDelete;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);
@@ -6103,6 +6113,7 @@ typedef struct SDeleteRes {
   char     tsColName[TSDB_COL_NAME_LEN];
   int64_t  ctimeMs;  // fill by vnode
   int8_t   source;
+  int8_t   secureDelete;  // force physical overwrite
 } SDeleteRes;
 
 int32_t tEncodeDeleteRes(SEncoder* pCoder, const SDeleteRes* pRes);
@@ -6514,6 +6525,7 @@ typedef struct {
       uint8_t reserved : 6;
     };
   };
+  int8_t secureDelete;
   // walInfo
   int32_t walFsyncPeriod;      // millisecond
   int32_t walRetentionPeriod;  // secs
