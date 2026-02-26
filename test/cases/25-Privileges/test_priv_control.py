@@ -760,9 +760,9 @@ class TestPrivControl:
         
         # Test: user can rollup database with privilege
         self.login(user, pwd)
-        #'''BUG20
+        '''BUG20
         self.exec_sql(f"ROLLUP DATABASE {db_name}")
-        #'''
+        '''
         
         # Revoke
         self.login()
@@ -805,6 +805,14 @@ class TestPrivControl:
         self.login(user, pwd)
         self.exec_sql(f"SCAN DATABASE {db_name}")
         
+        # Revoke
+        self.login()
+        self.revoke_privilege("SCAN", f"DATABASE {db_name}", user)          
+        
+        # Test: user cannot scan database without privilege
+        self.login(user, pwd)
+        self.exec_sql_failed(f"SCAN DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
         # Cleanup
         self.login()
         self.drop_database(db_name)
@@ -837,6 +845,16 @@ class TestPrivControl:
         # Test: user can ssmigrate database with privilege
         self.login(user, pwd)
         self.exec_sql(f"SSMIGRATE DATABASE {db_name}")
+        
+        # Revoke
+        self.login()
+        self.revoke_privilege("SSMIGRATE", f"DATABASE {db_name}", user)          
+        
+        # Test: user cannot ssmigrate database without privilege
+        self.login(user, pwd)
+        #'''BUG21
+        self.exec_sql_failed(f"SSMIGRATE DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        #'''
         
         # Cleanup
         self.login()
@@ -3224,18 +3242,7 @@ class TestPrivControl:
         
         self.do_view_nested_privilege()               # 新增
         return 
-        #print("[System Privileges]")
-        #self.do_user_management_privileges()
-        #self.do_token_management_privileges()
-        #self.do_totp_management_privileges()
-        #self.do_password_management_privileges()
-        #self.do_node_management_privileges()
-        #self.do_mount_management_privileges()
-        #self.do_system_variable_privileges()
-        #self.do_information_schema_privileges()
-        #self.do_system_monitoring_privileges()
-        #self.do_show_grants_cluster_apps_privileges()
-        #self.do_privilege_delegation()
+
 
         # Database privilege tests
         print("[Database Privileges]")
