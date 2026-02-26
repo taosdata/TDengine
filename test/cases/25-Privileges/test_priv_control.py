@@ -1479,7 +1479,7 @@ class TestPrivControl:
         lock_admin = "lock_admin"
         self.create_user(lock_admin, pwd)
         
-        #'''BUG21
+        '''BUG21
         self.grant_privilege("LOCK ROLE,UNLOCK ROLE", None, lock_admin)
         self.login(lock_admin, pwd)
         self.exec_sql(f"LOCK ROLE {role_name}")
@@ -1491,16 +1491,18 @@ class TestPrivControl:
         self.exec_sql(f"UNLOCK ROLE {role_name}")
         self.login(user1, pwd)
         self.exec_sql(f"CREATE TABLE {db_name}.t4 (ts TIMESTAMP, c1 INT)")
-        #'''
+        '''
         
         # Cleanup
         self.login()
         self.drop_database(db_name)
         self.drop_role(role_name)
+        #'''BUG22
         self.drop_user(user1)
         self.drop_user(user2)
         self.drop_user(user3)
         self.drop_user(lock_admin)
+        #'''
         
         print("LOCK ROLE / UNLOCK ROLE .............. [ passed ] ")
     
