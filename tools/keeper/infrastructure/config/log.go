@@ -47,13 +47,13 @@ func initLog() {
 	_ = viper.BindEnv("log.level", "TAOS_KEEPER_LOG_LEVEL")
 	pflag.String("log.level", "info", `log level (trace debug info warning error). Env "TAOS_KEEPER_LOG_LEVEL"`)
 
-	viper.SetDefault("log.rotationCount", 5)
+	viper.SetDefault("log.rotationCount", 3)
 	_ = viper.BindEnv("log.rotationCount", "TAOS_KEEPER_LOG_ROTATION_COUNT")
-	pflag.Uint("log.rotationCount", 5, `log rotation count. Env "TAOS_KEEPER_LOG_ROTATION_COUNT"`)
+	pflag.Uint("log.rotationCount", 3, `log rotation count. Env "TAOS_KEEPER_LOG_ROTATION_COUNT"`)
 
-	viper.SetDefault("log.keepDays", 30)
+	viper.SetDefault("log.keepDays", 3)
 	_ = viper.BindEnv("log.keepDays", "TAOS_KEEPER_LOG_KEEP_DAYS")
-	pflag.Uint("log.keepDays", 30, `log retention days, must be a positive integer. Env "TAOS_KEEPER_LOG_KEEP_DAYS"`)
+	pflag.Uint("log.keepDays", 3, `log retention days, must be a positive integer. Env "TAOS_KEEPER_LOG_KEEP_DAYS"`)
 
 	viper.SetDefault("log.rotationTime", time.Hour*24)
 	_ = viper.BindEnv("log.rotationTime", "TAOS_KEEPER_LOG_ROTATION_TIME")
