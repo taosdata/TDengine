@@ -1404,10 +1404,14 @@ class TestPrivControl:
         self.login(test_user, pwd)
         self.exec_sql_failed("SHOW ROLES", TSDB_CODE_PAR_PERMISSION_DENIED)        
         
-        # below is BUG21
+        #BUG21
+        self.login()
+        self.drop_role(role1)
+        self.drop_role(role3)        
+        # Drop users
+        self.drop_user(test_user)
         return 
-        
-        
+
         # ==================== LOCK ROLE ====================
         print("--- Testing LOCK ROLE privilege ---")
         
