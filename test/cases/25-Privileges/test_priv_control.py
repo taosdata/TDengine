@@ -4,6 +4,8 @@ import time
 import socket
 import os
 
+#define TSDB_CODE_OPS_NOT_SUPPORT               TAOS_DEF_ERROR_CODE(0, 0x0100)
+TSDB_CODE_OPS_NOT_SUPPORT = 0x0100
 #define TSDB_CODE_PAR_PERMISSION_DENIED               TAOS_DEF_ERROR_CODE(0, 0x2644)
 TSDB_CODE_PAR_PERMISSION_DENIED = 0x2644
 #define TSDB_CODE_PAR_TB_CREATE_PERMISSION_DENIED     TAOS_DEF_ERROR_CODE(0, 0x26E4)
@@ -844,7 +846,7 @@ class TestPrivControl:
         
         # Test: user can ssmigrate database with privilege
         self.login(user, pwd)
-        self.exec_sql(f"SSMIGRATE DATABASE {db_name}")
+        self.exec_sql_failed(f"SSMIGRATE DATABASE {db_name}", TSDB_CODE_OPS_NOT_SUPPORT)  # SSMIGRATE is not supported, just check permission
         
         # Revoke
         self.login()
@@ -852,9 +854,8 @@ class TestPrivControl:
         
         # Test: user cannot ssmigrate database without privilege
         self.login(user, pwd)
-        #'''BUG21
         self.exec_sql_failed(f"SSMIGRATE DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
-        #'''
+
         
         # Cleanup
         self.login()
@@ -1153,6 +1154,7 @@ class TestPrivControl:
         self.create_stable(db_name, "st1", columns="ts TIMESTAMP, c1 INT, c2 FLOAT", tags="t1 INT, t2 VARCHAR(20)")
         self.create_table(db_name, "t1", columns="ts TIMESTAMP, val INT")
         self.create_user(user, pwd)
+        self.revoke_role("`SYSINFO_1`", user)  #revoke default role
         
         # Grant basic privileges
         self.grant_privilege("USE", f"DATABASE {db_name}", user)
@@ -2525,8 +2527,8 @@ class TestPrivControl:
         nested_user = "nested_user"
         
         self.create_database(db_name)
-        self.create_table(db_name, "base_table", "ts TIMESTAMP, val INT, tag VARCHAR(20)")
-        self.exec_sql(f"INSERT INTO {db_name}.base_table VALUES (NOW, 100, 'A'), (NOW, 200, 'B')")
+        self.create_table(db_name, "base_table", "ts TIMESTAMP, val INT, lab VARCHAR(20)")
+        self.exec_sql(f"INSERT INTO {db_name}.base_table VALUES (NOW, 100, 'A'), (NOW+1s, 200, 'B')")
         
         # Create users
         self.create_user(base_user, pwd)
@@ -2540,7 +2542,7 @@ class TestPrivControl:
         
         # Create first-level view as base_user
         self.login(base_user, pwd)
-        self.exec_sql(f"CREATE VIEW {db_name}.v1 AS SELECT ts, val FROM {db_name}.base_table WHERE tag='A'")
+        self.exec_sql(f"CREATE VIEW {db_name}.v1 AS SELECT ts, val FROM {db_name}.base_table WHERE lab='A'")
         
         # Grant view_user privileges to create nested view and access v1
         self.login()
@@ -3224,25 +3226,9 @@ class TestPrivControl:
         print("")
         
         # test
-        self.create_snode()
-        self.create_qnode()
-        print("")
-        #self.do_show_create_database_privilege()      # 新增
-        #self.do_flush_database_privilege()           # 新增
-        self.do_compact_database_privilege()         # 新增
-        self.do_trim_database_privilege()            # 新增
-        self.do_rollup_database_privilege()          # 新增
-        self.do_scan_database_privilege()            # 新增
-        self.do_ssmigrate_database_privilege()       # 新增        
-
-        self.do_select_column_privilege_comprehensive()  # 新增
-        self.do_insert_column_privilege_comprehensive()  # 新增
-        self.do_show_create_table_privilege()            # 新增        
-
-        
-        self.do_view_nested_privilege()               # 新增
-        return 
-
+        #self.create_snode()
+        #self.create_qnode()
+        #return
 
         # Database privilege tests
         print("[Database Privileges]")
@@ -3253,13 +3239,13 @@ class TestPrivControl:
         self.do_drop_database_privilege()
         self.do_use_database_privilege()
         self.do_show_databases_privilege()
-        self.do_show_create_database_privilege()      # 新增
-        self.do_flush_database_privilege()           # 新增
-        self.do_compact_database_privilege()         # 新增
-        self.do_trim_database_privilege()            # 新增
-        self.do_rollup_database_privilege()          # 新增
-        self.do_scan_database_privilege()            # 新增
-        self.do_ssmigrate_database_privilege()       # 新增        
+        self.do_show_create_database_privilege()      
+        self.do_flush_database_privilege()           
+        self.do_compact_database_privilege()         
+        self.do_trim_database_privilege()            
+        self.do_rollup_database_privilege()          
+        self.do_scan_database_privilege()            
+        self.do_ssmigrate_database_privilege()               
         
         # Table privilege tests
         print("")
@@ -3270,9 +3256,9 @@ class TestPrivControl:
         self.do_select_privilege()
         self.do_insert_privilege()
         self.do_delete_privilege()
-        self.do_select_column_privilege_comprehensive()  # 新增
-        self.do_insert_column_privilege_comprehensive()  # 新增
-        self.do_show_create_table_privilege()            # 新增        
+        self.do_select_column_privilege_comprehensive()  
+        self.do_insert_column_privilege_comprehensive()  
+        self.do_show_create_table_privilege()                    
         
         # Column and row privilege tests
         print("")
@@ -3315,7 +3301,7 @@ class TestPrivControl:
         print("")
         print("[View, Topic and Stream Privileges]")
         self.do_view_privileges()
-        self.do_view_nested_privilege()               # 新增
+        self.do_view_nested_privilege()               
         self.do_topic_privileges() 
         self.do_stream_privileges()
 
