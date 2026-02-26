@@ -1358,6 +1358,37 @@ int32_t processCreateTotpSecretRsp(void* param, SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
+int32_t processCreateXnodeTaskRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+    if (code == TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR) {
+      if (pMsg->pData != NULL && pMsg->len > 0) {
+        if (pMsg->len <= pRequest->msgBufLen) {
+          tstrncpy(pRequest->msgBuf, (char*)pMsg->pData, pRequest->msgBufLen);
+        } else {
+          taosMemoryFreeClear(pRequest->msgBuf);
+          pRequest->msgBuf = pMsg->pData;
+          pMsg->pData = NULL;
+          pRequest->msgBufLen = pMsg->len;
+        }
+      }
+    }
+  }
+
+  if (pMsg->pData) {
+    taosMemoryFree(pMsg->pData);
+  }
+  taosMemoryFree(pMsg->pEpSet);
+
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+  } else if (tsem_post(&pRequest->body.rspSem) != 0) {
+    tscError("failed to post semaphore");
+  }
+  return code;
+}
+
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
   switch (msgType) {
@@ -1385,6 +1416,8 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
       return processCreateTokenRsp;
     case TDMT_MND_CREATE_TOTP_SECRET:
       return processCreateTotpSecretRsp;
+    case TDMT_MND_CREATE_XNODE_TASK:
+      return processCreateXnodeTaskRsp;
 
     default:
       return genericRspCallback;
