@@ -2002,6 +2002,7 @@ _exit:
 static int32_t msmUpdateCalcReaderTasks(SStreamObj* pStream, SNodeList* pSubEP) {
   int32_t   code = TSDB_CODE_SUCCESS;
   int32_t   lino = 0;
+  int64_t   streamId = pStream->pCreate->streamId;
   void*     pIter = NULL;
   SSubplan* pSubplan = NULL;
 
@@ -2017,7 +2018,7 @@ static int32_t msmUpdateCalcReaderTasks(SStreamObj* pStream, SNodeList* pSubEP) 
 
     for (int32_t i = 0; i < taskNum; ++i) {
       SStmTaskToDeployExt* pExt = taosArrayGet(pVg->taskList, i);
-      if (pExt->deploy.task.streamId != pStream->pCreate->streamId || STREAM_READER_TASK != pExt->deploy.task.type) {
+      if (pExt->deploy.task.streamId != streamId || STREAM_READER_TASK != pExt->deploy.task.type) {
         continue;
       }
 
