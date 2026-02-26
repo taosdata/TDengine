@@ -2000,8 +2000,8 @@ _exit:
 
 
 static int32_t msmUpdateCalcReaderTasks(SStreamObj* pStream, SNodeList* pSubEP) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
+  int32_t   code = TSDB_CODE_SUCCESS;
+  int32_t   lino = 0;
   void*     pIter = NULL;
   SSubplan* pSubplan = NULL;
 
@@ -2028,9 +2028,6 @@ static int32_t msmUpdateCalcReaderTasks(SStreamObj* pStream, SNodeList* pSubEP) 
         TAOS_CHECK_EXIT(nodesNodeToString((SNode*)pSubplan, false, (char**)&pCalcReaderDeploy->calcScanPlan, NULL));
         nodesDestroyNode((SNode *)pSubplan);
       }
-      // string to node
-      // for each subplan, adjoin subEP
-      // node to the string of calcScanPlan
     }
 
     taosRUnLockLatch(&pVg->lock);
