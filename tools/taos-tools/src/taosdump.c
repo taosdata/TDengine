@@ -3768,12 +3768,22 @@ static int64_t writeResultToAvro(
     return success;
 }
 
-static void freeBindArray(char *bindArray, int elements) {
-    TAOS_MULTI_BIND *bind;
+static int taos_stmt2_bind_one(TAOS_STMT2 *stmt, const char *tbname, TAOS_STMT2_BIND *bindArray) {
+    TAOS_STMT2_BINDV bindv = {0};
+    char *tbnames[1] = {(char *)tbname};
+    TAOS_STMT2_BIND *cols[1] = {bindArray};
 
+    bindv.count = 1;
+    bindv.tbnames = tbnames;
+    bindv.tags = NULL;
+    bindv.bind_cols = cols;
+
+    return taos_stmt2_bind_param(stmt, &bindv, -1);
+}
+
+static void freeBindArray(TAOS_STMT2_BIND *bindArray, int elements) {
     for (int j = 0; j < elements; j++) {
-        bind = (TAOS_MULTI_BIND *)((char *)bindArray
-                + (sizeof(TAOS_MULTI_BIND) * j));
+        TAOS_STMT2_BIND *bind = bindArray + j;
         if ((TSDB_DATA_TYPE_BINARY != bind->buffer_type)
                 && (TSDB_DATA_TYPE_VARBINARY != bind->buffer_type)
                 && (TSDB_DATA_TYPE_GEOMETRY  != bind->buffer_type)
@@ -4874,7 +4884,7 @@ static int64_t dumpInAvroNtbImpl(
 
 static void dumpInAvroDataUnsignedBigInt(FieldStruct *field,
                               avro_value_t *value,
-                              TAOS_MULTI_BIND *bind,
+                              TAOS_STMT2_BIND *bind,
                               char *is_null) {
     if (field->nullable) {
         avro_value_t ubigint_branch;
@@ -4903,7 +4913,6 @@ static void dumpInAvroDataUnsignedBigInt(FieldStruct *field,
                     *array_u64 += n64tmp;
                 }
                 debugPrint2("%"PRIu64" | ", *array_u64);
-                bind->buffer_length = sizeof(uint64_t);
                 bind->buffer = array_u64;
             } else {
                 errorPrint("%s() LN%d mix type %s with int array",
@@ -4930,7 +4939,6 @@ static void dumpInAvroDataUnsignedBigInt(FieldStruct *field,
                 *array_u64 += n64tmp;
             }
             debugPrint2("%"PRIu64" | ", *array_u64);
-            bind->buffer_length = sizeof(uint64_t);
             bind->buffer = array_u64;
         } else {
             errorPrint("%s() LN%d mix type %s with int array",
@@ -4941,7 +4949,7 @@ static void dumpInAvroDataUnsignedBigInt(FieldStruct *field,
 
 static void dumpInAvroDataUnsignedSmallInt(FieldStruct *field,
                               avro_value_t *value,
-                              TAOS_MULTI_BIND *bind,
+                              TAOS_STMT2_BIND *bind,
                               char *is_null) {
     if (field->nullable) {
         avro_value_t usmint_branch;
@@ -4970,7 +4978,6 @@ static void dumpInAvroDataUnsignedSmallInt(FieldStruct *field,
                     *array_u16 += (int16_t)n32tmp;
                 }
                 debugPrint2("%u | ", (uint32_t)*array_u16);
-                bind->buffer_length = sizeof(uint16_t);
                 bind->buffer = array_u16;
             } else {
                 errorPrint("%s() LN%d mix type %s with int array",
@@ -4996,7 +5003,6 @@ static void dumpInAvroDataUnsignedSmallInt(FieldStruct *field,
                 *array_u16 += (int16_t)n32tmp;
             }
             debugPrint2("%u | ", (uint32_t)*array_u16);
-            bind->buffer_length = sizeof(uint16_t);
             bind->buffer = array_u16;
         } else {
             errorPrint("%s() LN%d mix type %s with int array",
@@ -5008,7 +5014,7 @@ static void dumpInAvroDataUnsignedSmallInt(FieldStruct *field,
 
 static void dumpInAvroDataUnsignedTinyInt(FieldStruct *field,
                               avro_value_t *value,
-                              TAOS_MULTI_BIND *bind,
+                              TAOS_STMT2_BIND *bind,
                               char *is_null) {
     if (field->nullable) {
         avro_value_t utinyint_branch;
@@ -5037,7 +5043,6 @@ static void dumpInAvroDataUnsignedTinyInt(FieldStruct *field,
                     *array_u8 += (int8_t)n32tmp;
                 }
                 debugPrint2("%u | ", (uint32_t)*array_u8);
-                bind->buffer_length = sizeof(uint8_t);
                 bind->buffer = array_u8;
             } else {
                 errorPrint("%s() LN%d mix type %s with int array",
@@ -5065,7 +5070,6 @@ static void dumpInAvroDataUnsignedTinyInt(FieldStruct *field,
                 *array_u8 += (int8_t)n32tmp;
             }
             debugPrint2("%u | ", (uint32_t)*array_u8);
-            bind->buffer_length = sizeof(uint8_t);
             bind->buffer = array_u8;
         } else {
             errorPrint("%s() LN%d mix type %s with int array",
@@ -5076,7 +5080,7 @@ static void dumpInAvroDataUnsignedTinyInt(FieldStruct *field,
 
 static void dumpInAvroDataUnsignedInt(FieldStruct *field,
                               avro_value_t *value,
-                              TAOS_MULTI_BIND *bind,
+                              TAOS_STMT2_BIND *bind,
                               char *is_null) {
     if (field->nullable) {
         avro_value_t uint_branch;
@@ -5109,7 +5113,6 @@ static void dumpInAvroDataUnsignedInt(FieldStruct *field,
                                (uint32_t)*array_u32);
                 }
                 debugPrint2("%u | ", (uint32_t)*array_u32);
-                bind->buffer_length = sizeof(uint32_t);
                 bind->buffer = array_u32;
             } else {
                 errorPrint("%s() LN%d mix type %s with int array",
@@ -5139,7 +5142,6 @@ static void dumpInAvroDataUnsignedInt(FieldStruct *field,
                     __func__, __LINE__, (int)item, n32tmp, (uint32_t)*array_u32);
             }
             debugPrint2("%u | ", (uint32_t)*array_u32);
-            bind->buffer_length = sizeof(uint32_t);
             bind->buffer = array_u32;
         } else {
             errorPrint("%s() LN%d mix type %s with int array",
@@ -5150,7 +5152,7 @@ static void dumpInAvroDataUnsignedInt(FieldStruct *field,
 
 static void dumpInAvroDataBool(FieldStruct *field,
                               avro_value_t *value,
-                              TAOS_MULTI_BIND *bind,
+                              TAOS_STMT2_BIND *bind,
                               char *is_null) {
     avro_value_t bool_branch;
     avro_value_get_current_branch(value, &bool_branch);
@@ -5164,14 +5166,13 @@ static void dumpInAvroDataBool(FieldStruct *field,
         verbosePrint("%s() LN%d, *bl=%d\n",
             __func__, __LINE__, *bl);
         debugPrint2("%s | ", (*bl)?"true":"false");
-            bind->buffer_length = sizeof(int8_t);
             bind->buffer = (int8_t*)bl;
     }
 }
 
 static void dumpInAvroDataNChar(FieldStruct *field,
                               avro_value_t *value,
-                              TAOS_MULTI_BIND *bind,
+                              TAOS_STMT2_BIND *bind,
                               char *is_null) {
     size_t bytessize = 0;
     void *bytesbuf = NULL;
@@ -5186,14 +5187,14 @@ static void dumpInAvroDataNChar(FieldStruct *field,
         bind->is_null = is_null;
     } else {
         debugPrint2("%s | ", (char*)bytesbuf);
-        bind->buffer_length = bytessize;
+        if (bind->length) *bind->length = (int32_t)bytessize;
     }
     bind->buffer = bytesbuf;
 }
 
 static void dumpInAvroDataBytes(FieldStruct *field,
                               avro_value_t *value,
-                              TAOS_MULTI_BIND *bind,
+                              TAOS_STMT2_BIND *bind,
                               char *is_null) {
     size_t bytessize = 0;
     void *bytesbuf = NULL;
@@ -5207,14 +5208,14 @@ static void dumpInAvroDataBytes(FieldStruct *field,
         bind->is_null = is_null;
     } else {
         debugPrint2("bytes len =%ld | ", bytessize);
-        bind->buffer_length = bytessize;
+        if (bind->length) *bind->length = (int32_t)bytessize;
     }
     bind->buffer = bytesbuf;
 }
 
 static void dumpInAvroDataBinary(FieldStruct *field,
                               avro_value_t *value,
-                              TAOS_MULTI_BIND *bind,
+                              TAOS_STMT2_BIND *bind,
                               char *is_null) {
     avro_value_t branch;
     avro_value_get_current_branch(value, &branch);
@@ -5228,14 +5229,14 @@ static void dumpInAvroDataBinary(FieldStruct *field,
         bind->is_null = is_null;
     } else {
         debugPrint2("%s | ", (char *)buf);
-        bind->buffer_length = strlen(buf);
+        if (bind->length) *bind->length = (int32_t)size;
     }
     bind->buffer = buf;
 }
 
 static void dumpInAvroDataDouble(FieldStruct *field,
                               avro_value_t *value,
-                              TAOS_MULTI_BIND *bind,
+                              TAOS_STMT2_BIND *bind,
                               char *is_null) {
     if (field->nullable) {
         avro_value_t dbl_branch;
@@ -5249,7 +5250,6 @@ static void dumpInAvroDataDouble(FieldStruct *field,
             avro_value_get_double(&dbl_branch, dbl);
             debugPrint2("%f | ", *dbl);
             bind->buffer = dbl;
-            bind->buffer_length = sizeof(double);
         }
     } else {
         double *dbl = malloc(sizeof(double));
@@ -5262,13 +5262,12 @@ static void dumpInAvroDataDouble(FieldStruct *field,
             debugPrint2("%f | ", *dbl);
         }
         bind->buffer = dbl;
-        bind->buffer_length = sizeof(double);
     }
 }
 
 static void dumpInAvroDataFloat(FieldStruct *field,
                               avro_value_t *value,
-                              TAOS_MULTI_BIND *bind,
+                              TAOS_STMT2_BIND *bind,
                               char *is_null) {
     if (field->nullable) {
         avro_value_t float_branch;
@@ -5282,7 +5281,6 @@ static void dumpInAvroDataFloat(FieldStruct *field,
             avro_value_get_float(&float_branch, f);
             debugPrint2("%f | ", *f);
             bind->buffer = f;
-            bind->buffer_length = sizeof(float);
         }
     } else {
         float *f = malloc(sizeof(float));
@@ -5295,13 +5293,12 @@ static void dumpInAvroDataFloat(FieldStruct *field,
             debugPrint2("%f | ", *f);
         }
         bind->buffer = f;
-        bind->buffer_length = sizeof(float);
     }
 }
 
 static void dumpInAvroDataTimeStamp(FieldStruct *field,
                               avro_value_t *value,
-                              TAOS_MULTI_BIND *bind,
+                              TAOS_STMT2_BIND *bind,
                               char *is_null) {
     if (field->nullable) {
         avro_value_t ts_branch;
@@ -5314,7 +5311,6 @@ static void dumpInAvroDataTimeStamp(FieldStruct *field,
             TOOLS_ASSERT(n64);
             avro_value_get_long(&ts_branch, n64);
             debugPrint2("%"PRId64" | ", *n64);
-            bind->buffer_length = sizeof(int64_t);
             bind->buffer = n64;
         }
     } else {
@@ -5322,14 +5318,13 @@ static void dumpInAvroDataTimeStamp(FieldStruct *field,
         TOOLS_ASSERT(n64);
         avro_value_get_long(value, n64);
         debugPrint2("%"PRId64" | ", *n64);
-        bind->buffer_length = sizeof(int64_t);
         bind->buffer = n64;
     }
 }
 
 static void dumpInAvroDataBigInt(FieldStruct *field,
                               avro_value_t *value,
-                              TAOS_MULTI_BIND *bind,
+                              TAOS_STMT2_BIND *bind,
                               char *is_null) {
     if (field->nullable) {
         avro_value_t bigint_branch;
@@ -5345,7 +5340,6 @@ static void dumpInAvroDataBigInt(FieldStruct *field,
                                   __func__, __LINE__, *n64,
                                   (int64_t)TSDB_DATA_BIGINT_NULL);
             debugPrint2("%"PRId64" | ", *n64);
-            bind->buffer_length = sizeof(int64_t);
             bind->buffer = n64;
         }
     } else {
@@ -5361,7 +5355,6 @@ static void dumpInAvroDataBigInt(FieldStruct *field,
             free(n64);
         } else {
             debugPrint2("%"PRId64" | ", *n64);
-            bind->buffer_length = sizeof(int64_t);
             bind->buffer = n64;
         }
     }
@@ -5369,7 +5362,7 @@ static void dumpInAvroDataBigInt(FieldStruct *field,
 
 static void dumpInAvroDataSmallInt(FieldStruct *field,
                               avro_value_t *value,
-                              TAOS_MULTI_BIND *bind,
+                              TAOS_STMT2_BIND *bind,
                               char *is_null) {
     if (field->nullable) {
         avro_value_t smallint_branch;
@@ -5384,7 +5377,6 @@ static void dumpInAvroDataSmallInt(FieldStruct *field,
             avro_value_get_int(&smallint_branch, n16);
 
             debugPrint2("%d | ", *n16);
-            bind->buffer_length = sizeof(int16_t);
             bind->buffer = n16;
         }
     } else {
@@ -5402,7 +5394,6 @@ static void dumpInAvroDataSmallInt(FieldStruct *field,
             free(n16);
         } else {
             debugPrint2("%d | ", *n16);
-            bind->buffer_length = sizeof(int16_t);
             bind->buffer = (int32_t*)n16;
         }
     }
@@ -5410,7 +5401,7 @@ static void dumpInAvroDataSmallInt(FieldStruct *field,
 
 static void dumpInAvroDataTinyInt(FieldStruct *field,
                               avro_value_t *value,
-                              TAOS_MULTI_BIND *bind,
+                              TAOS_STMT2_BIND *bind,
                               char *is_null) {
     if (field->nullable) {
         avro_value_t tinyint_branch;
@@ -5425,7 +5416,6 @@ static void dumpInAvroDataTinyInt(FieldStruct *field,
             avro_value_get_int(&tinyint_branch, n8);
 
             debugPrint2("%d | ", *n8);
-            bind->buffer_length = sizeof(int8_t);
             bind->buffer = n8;
         }
     } else {
@@ -5444,7 +5434,6 @@ static void dumpInAvroDataTinyInt(FieldStruct *field,
             free(n8);
         } else {
             debugPrint2("%d | ", *n8);
-            bind->buffer_length = sizeof(int8_t);
             bind->buffer = (int8_t *)n8;
         }
     }
@@ -5452,7 +5441,7 @@ static void dumpInAvroDataTinyInt(FieldStruct *field,
 
 static void dumpInAvroDataInt(FieldStruct *field,
                               avro_value_t *value,
-                              TAOS_MULTI_BIND *bind,
+                              TAOS_STMT2_BIND *bind,
                               char *is_null) {
     if (field->nullable) {
         avro_value_t int_branch;
@@ -5472,7 +5461,6 @@ static void dumpInAvroDataInt(FieldStruct *field,
                 free(n32);
             } else {
                 debugPrint2("%d | ", *n32);
-                bind->buffer_length = sizeof(int32_t);
                 bind->buffer = n32;
             }
         }
@@ -5487,13 +5475,12 @@ static void dumpInAvroDataInt(FieldStruct *field,
             free(n32);
         } else {
             debugPrint2("%d | ", *n32);
-            bind->buffer_length = sizeof(int32_t);
             bind->buffer = n32;
         }
     }
 }
 
-static void countFailureAndFree(char *bindArray,
+static void countFailureAndFree(TAOS_STMT2_BIND *bindArray,
         int32_t onlyCol, int64_t *failed, char *tbName) {
     freeBindArray(bindArray, onlyCol);
     (*failed)++;
@@ -5501,7 +5488,7 @@ static void countFailureAndFree(char *bindArray,
 }
 
 // stmt prepare
-static int32_t stmtPrepare(TAOS_STMT *stmt, char *tbName, StbChange *stbChange, RecordSchema *recordSchema, int32_t nBindCols) {
+static int32_t stmtPrepare(TAOS_STMT2 *stmt, char *tbName, StbChange *stbChange, RecordSchema *recordSchema, int32_t nBindCols) {
     // part cols
     char *partCols = "";
     if (stbChange && stbChange->strCols) {
@@ -5524,9 +5511,9 @@ static int32_t stmtPrepare(TAOS_STMT *stmt, char *tbName, StbChange *stbChange, 
     debugPrint("%s() LN%d, stmt buffer: %s\n",  __func__, __LINE__, stmtBuffer);
 
     // prepare
-    int ret = taos_stmt_prepare(stmt, stmtBuffer, 0);
+    int ret = taos_stmt2_prepare(stmt, stmtBuffer, 0);
     if (ret) {
-        errorPrint("Failed to execute taos_stmt_prepare(). reason: %s\n", taos_stmt_errstr(stmt));
+        errorPrint("Failed to execute taos_stmt_prepare(). reason: %s\n", taos_stmt2_error(stmt));
     }
 
     free(stmtBuffer);
@@ -5535,12 +5522,13 @@ static int32_t stmtPrepare(TAOS_STMT *stmt, char *tbName, StbChange *stbChange, 
 
 #define FREE_DATAIMPL()                       \
     {                                         \
+        tfree(lenArray);                      \
         tfree(bindArray);                     \
         tfree(tbName);                        \
         if (mallocDes) {                      \
             freeTbDes(mallocDes, true);       \
         }                                     \
-        taos_stmt_close(stmt);                \
+        (void)taos_stmt2_close(stmt);         \
         avro_value_decref(&value);            \
         avro_value_iface_decref(value_class); \
     }
@@ -5559,8 +5547,11 @@ static int64_t dumpInAvroDataImpl(
 
     // init stmt
     int32_t    code = 0;
-    TAOS_STMT *stmt = NULL;
-    stmt = taos_stmt_init(*taos_v);
+    TAOS_STMT2 *stmt = NULL;
+    TAOS_STMT2_OPTION option = {0};
+    option.singleStbInsert = true;
+    option.singleTableBindOnce = true;
+    stmt = taos_stmt2_init(*taos_v, &option);
     if (NULL == stmt) {
         errorPrint("%s() LN%d, stmt init failed! taos: %p, code: 0x%08x, "
                 "reason: %s\n",
@@ -5588,11 +5579,22 @@ static int64_t dumpInAvroDataImpl(
         nBindCols = stbChange->tableDes->columns;
     }
 
-    char *bindArray = calloc(1, sizeof(TAOS_MULTI_BIND) * nBindCols);
+    TAOS_STMT2_BIND *bindArray = calloc(1, sizeof(TAOS_STMT2_BIND) * nBindCols);
     if (NULL == bindArray) {
         errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
-        taos_stmt_close(stmt);
+        (void)taos_stmt2_close(stmt);
         return -1;
+    }
+
+    int32_t *lenArray = calloc(nBindCols, sizeof(int32_t));
+    if (NULL == lenArray) {
+        errorPrint("%s() LN%d, memory allocation failed!\n", __func__, __LINE__);
+        tfree(bindArray);
+        (void)taos_stmt2_close(stmt);
+        return -1;
+    }
+    for (int i = 0; i < nBindCols; ++i) {
+        bindArray[i].length = &lenArray[i];
     }
 
     avro_value_iface_t *value_class = avro_generic_class_from_schema(schema);
@@ -5710,7 +5712,7 @@ static int64_t dumpInAvroDataImpl(
         printDotOrX(count, &printDot);
         count++;
 
-        TAOS_MULTI_BIND *bind;
+        TAOS_STMT2_BIND *bind;
 
         char is_null = 1;
         int64_t ts_debug = -1;
@@ -5719,7 +5721,7 @@ static int64_t dumpInAvroDataImpl(
         // cols loop
         for (int i = 0; i < recordSchema->num_fields - colAdj; i++) {
 
-            bind = (TAOS_MULTI_BIND *)((char *)bindArray + (sizeof(TAOS_MULTI_BIND) * n));
+            bind = bindArray + n;
             avro_value_t field_value;
 
             FieldStruct *field = (FieldStruct *)(recordSchema->fields + sizeof(FieldStruct)*(i + colAdj));
@@ -5758,9 +5760,7 @@ static int64_t dumpInAvroDataImpl(
                         ts_debug = *ts;
                         debugPrint2("%"PRId64" | ", *ts);
                         bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-                        bind->buffer_length = sizeof(int64_t);
                         bind->buffer = ts;
-                        bind->length = (int32_t*)&bind->buffer_length;
                     }
                 } else {
                     int64_t *ts = malloc(sizeof(int64_t));
@@ -5771,7 +5771,6 @@ static int64_t dumpInAvroDataImpl(
                     ts_debug = *ts;
                     debugPrint2("%"PRId64" | ", *ts);
                     bind->buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-                    bind->buffer_length = sizeof(int64_t);
                     bind->buffer = ts;
                 }
             } else if (0 == avro_value_get_by_name(
@@ -5929,7 +5928,6 @@ static int64_t dumpInAvroDataImpl(
                         break;
                 }
                 bind->buffer_type = tableDes->cols[n].type;
-                bind->length = (int32_t *)&bind->buffer_length;
             }
             bind->num = 1;
 
@@ -5940,53 +5938,47 @@ static int64_t dumpInAvroDataImpl(
         assert (n == nBindCols);
 
         // bind batch
-        if (0 != (code = taos_stmt_bind_param_batch(stmt,
-                (TAOS_MULTI_BIND *)bindArray))) {
-            errorPrint("%s() LN%d stmt_bind_param_batch() failed! "
-                        "reason: %s %s\n",
-                        __func__, __LINE__, taos_stmt_errstr(stmt), tbName);
-            countFailureAndFree(bindArray, nBindCols, &failed, tbName);
-            continue;
-        }
-
-        // add batch
-        if (0 != (code = taos_stmt_add_batch(stmt))) {
-            errorPrint("%s() LN%d stmt_bind_param() failed! reason: %s\n",
-                    __func__, __LINE__, taos_stmt_errstr(stmt));
+        code = taos_stmt2_bind_one(stmt, tbName, bindArray);
+        if (code != 0) {
+            errorPrint("%s() LN%d taos_stmt2_bind_one() failed! code: 0x%08x, reason: %s\n",
+                    __func__, __LINE__, code, taos_stmt2_error(stmt));
             countFailureAndFree(bindArray, nBindCols, &failed, tbName);
             continue;
         }
 
         // batch execute
         if ( 0 == (count % g_args.data_batch) ) {
-            if( 0 != (code = taos_stmt_execute(stmt)) ){
+            code = taos_stmt2_exec(stmt, NULL);
+            if (0 != code){
                 if (code == TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE) {
                     countTSOutOfRange++;
                 } else {
                     errorPrint("%s() LN%d taos_stmt_execute() failed! "
                         "code: 0x%08x, reason: %s, timestamp: %"PRId64"\n",
                         __func__, __LINE__,
-                        code, taos_stmt_errstr(stmt), ts_debug);
+                        code, taos_stmt2_error(stmt), ts_debug);
                 }
                 countFailureAndFree(bindArray, nBindCols, &failed, tbName);
                 continue;
             } else {
                 success += g_args.data_batch;
-                debugPrint("ok call taos_stmt_execute count=%"PRId64" success=%"PRId64" failed=%"PRId64"\n",
+                debugPrint("ok call taos_stmt2_execute count=%"PRId64" success=%"PRId64" failed=%"PRId64"\n",
                             count, success, failed);
             }
         }
+
         freeBindArray(bindArray, nBindCols);
     }
 
     // last batch execute
     if (0 != (count % g_args.data_batch)) {
-        if (0 != (code = taos_stmt_execute(stmt))) {
-            errorPrint("error last execute taos_stmt_execute. errstr=%s tbName=%s\n", taos_stmt_errstr(stmt), tbName);
+        code = taos_stmt2_exec(stmt, NULL);
+        if (0 != code) {
+            errorPrint("error last execute taos_stmt2_execute. errstr=%s tbName=%s\n", taos_stmt2_error(stmt), tbName);
             failed++;
         } else {
             success += count % g_args.data_batch;
-            debugPrint("ok call last ws_stmt_execute count=%"PRId64" success=%"PRId64" failed=%"PRId64"\n",
+            debugPrint("ok call last taos_stmt2_execute count=%"PRId64" success=%"PRId64" failed=%"PRId64"\n",
                         count, success, failed);
         }
     }
