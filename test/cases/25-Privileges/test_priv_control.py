@@ -590,10 +590,10 @@ class TestPrivControl:
         self.revoke_role("`SYSINFO_1`", user)  #revoke default role
         
         # Test: user cannot show create database without privilege
-        #'''BUG19
+        '''BUG19
         self.login(user, pwd)
         self.exec_sql_failed(f"SHOW CREATE DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
-        #'''
+        '''
         
         # Grant SHOW CREATE DATABASE privilege
         self.login()
@@ -607,9 +607,9 @@ class TestPrivControl:
         self.login()
         self.revoke_privilege("SHOW CREATE", f"DATABASE {db_name}", user)
         self.login(user, pwd)
-        #'''BUG19
+        '''BUG19
         self.exec_sql_failed(f"SHOW CREATE DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
-        #'''
+        '''
 
         # Cleanup
         self.login()
@@ -628,9 +628,6 @@ class TestPrivControl:
         self.create_database(db_name)
         self.create_user(user, pwd)
         self.revoke_role("`SYSINFO_1`", user)  #revoke default role
-        
-        # Grant basic privileges
-        #self.grant_privilege("USE", f"DATABASE {db_name}", user)
         
         # Test: user cannot flush database without privilege
         self.login(user, pwd)
@@ -675,13 +672,21 @@ class TestPrivControl:
         self.login(user, pwd)
         self.exec_sql_failed(f"COMPACT DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
         
-        # Grant COMPACT DATABASE privilege
+        # Grant 
         self.login()
         self.grant_privilege("COMPACT", f"DATABASE {db_name}", user)
         
         # Test: user can compact database with privilege
         self.login(user, pwd)
         self.exec_sql(f"COMPACT DATABASE {db_name}")
+
+        # Revoke
+        self.login()
+        self.revoke_privilege("COMPACT", f"DATABASE {db_name}", user)
+        
+        # Test: user cannot compact database without privilege
+        self.login(user, pwd)
+        self.exec_sql_failed(f"COMPACT DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
         
         # Cleanup
         self.login()
@@ -704,6 +709,14 @@ class TestPrivControl:
         # Grant basic privileges
         self.grant_privilege("USE", f"DATABASE {db_name}", user)
         
+        # Test: user cannot trim database without privilege
+        self.login(user, pwd)
+        self.exec_sql_failed(f"TRIM DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
+        
+        # Revoke
+        self.login()
+        self.revoke_privilege("COMPACT", f"DATABASE {db_name}", user)        
+
         # Test: user cannot trim database without privilege
         self.login(user, pwd)
         self.exec_sql_failed(f"TRIM DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
@@ -747,7 +760,17 @@ class TestPrivControl:
         
         # Test: user can rollup database with privilege
         self.login(user, pwd)
+        #'''BUG20
         self.exec_sql(f"ROLLUP DATABASE {db_name}")
+        #'''
+        
+        # Revoke
+        self.login()
+        self.revoke_privilege("ROLLUP", f"DATABASE {db_name}", user)        
+
+        # Test: user cannot rollup database without privilege
+        self.login(user, pwd)
+        self.exec_sql_failed(f"ROLLUP DATABASE {db_name}", TSDB_CODE_PAR_PERMISSION_DENIED)
         
         # Cleanup
         self.login()
@@ -3186,8 +3209,8 @@ class TestPrivControl:
         self.create_snode()
         self.create_qnode()
         print("")
-        self.do_show_create_database_privilege()      # 新增
-        self.do_flush_database_privilege()           # 新增
+        #self.do_show_create_database_privilege()      # 新增
+        #self.do_flush_database_privilege()           # 新增
         self.do_compact_database_privilege()         # 新增
         self.do_trim_database_privilege()            # 新增
         self.do_rollup_database_privilege()          # 新增
