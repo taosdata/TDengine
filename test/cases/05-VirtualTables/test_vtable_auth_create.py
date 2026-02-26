@@ -88,7 +88,7 @@ class TestVtableAuthCreate:
                         testSql.error(f"create vtable test_vtable_auth_vtb_{i}("
                                       "ts timestamp, "
                                       "int_col_1 int from test_vtable_auth_org_table_1.int_col, "
-                                      "int_col_2 int from test_vtable_auth_org_table_2.int_col);", expectErrInfo="Permission denied to select table")
+                                      "int_col_2 int from test_vtable_auth_org_table_2.int_col);", expectErrInfo="Permission denied to select from table or view")
                     else:
                         testSql.execute(f"create vtable test_vtable_auth_vtb_{i}("
                                         "ts timestamp, "
@@ -177,7 +177,7 @@ class TestVtableAuthCreate:
                                           "test_vtable_auth_org_table_1.int_col, "
                                           "test_vtable_auth_org_table_2.int_col) "
                                           "USING test_vtable_auth_stb_1 "
-                                          "TAGS (1);", expectErrInfo="Permission denied to select table")
+                                          "TAGS (1);", expectErrInfo="Permission denied to select from table or view")
                         else:
                             testSql.execute(f"create vtable test_vctable_auth_vtb_{i}("
                                             "test_vtable_auth_org_table_1.int_col, "

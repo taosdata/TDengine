@@ -99,7 +99,7 @@ The above example creates a database named db with 10 vgroups, where each vnode 
 USE db_name;
 ```
 
-Use/switch database (not valid in REST connection mode).
+Use/switch database.
 
 ## Delete Database
 

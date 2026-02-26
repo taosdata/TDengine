@@ -466,7 +466,15 @@ static int32_t authShowCreateView(SAuthCxt* pCxt, SShowCreateViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
-  return TSDB_CODE_SUCCESS;
+  int32_t code = authObjPrivileges(pCxt, ((SShowCreateViewStmt*)pStmt)->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkViewAuth(pCxt, ((SShowCreateViewStmt*)pStmt)->dbName, ((SShowCreateViewStmt*)pStmt)->viewName,
+                         PRIV_CM_SHOW_CREATE, PRIV_OBJ_VIEW, NULL);
+  } else {
+    return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  }
+  if (code == 0) pStmt->hasPrivilege = true;
+  return 0;  // return 0 and check owner later in translateShowCreateView
 #endif
 }
 
@@ -707,11 +715,16 @@ static int32_t authCreateView(SAuthCxt* pCxt, SCreateViewStmt* pStmt) {
   int32_t code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_VIEW_CREATE, PRIV_OBJ_DB, NULL, NULL);
+    if (code != TSDB_CODE_SUCCESS && pStmt->orReplace) {
+      code = checkAuth(pCxt, pStmt->dbName, pStmt->viewName, PRIV_CM_ALTER, PRIV_OBJ_VIEW, NULL, NULL);
+    }
   } else {
     code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = authQuery(pCxt, pStmt->pQuery);
+    if ((code = authQuery(pCxt, pStmt->pQuery))) {
+      if (code == TSDB_CODE_PAR_PERMISSION_DENIED) code = TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED;
+    }
   }
   return code;
 #endif
@@ -725,7 +738,7 @@ static int32_t authDropView(SAuthCxt* pCxt, SDropViewStmt* pStmt) {
   if (TSDB_CODE_SUCCESS == code) {
     code = checkViewAuth(pCxt, pStmt->dbName, pStmt->viewName, PRIV_CM_DROP, PRIV_OBJ_VIEW, NULL);
   } else {
-    code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+    return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
   if (code == 0) {
     pStmt->hasPrivilege = true;
@@ -846,15 +859,19 @@ static int32_t authDropRsma(SAuthCxt* pCxt, SDropRsmaStmt* pStmt) {
 }
 
 static int32_t authShowCreateRsma(SAuthCxt* pCxt, SShowCreateRsmaStmt* pStmt) {
+#ifndef TD_ENTERPRISE
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#else
   int32_t code = authObjPrivileges(pCxt, ((SShowCreateRsmaStmt*)pStmt)->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
   if (TSDB_CODE_SUCCESS == code) {
     code = authObjPrivileges(pCxt, ((SShowCreateRsmaStmt*)pStmt)->dbName, ((SShowCreateRsmaStmt*)pStmt)->rsmaName,
                              PRIV_CM_SHOW_CREATE, PRIV_OBJ_RSMA);
   } else {
-    code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+    return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
   if (code == 0) pStmt->hasPrivilege = true;
   return 0;  // return 0 and check owner later in translateShowCreateRsma since rsma ctgCatalog not available yet
+#endif
 }
 
 static int32_t authCreateDatabase(SAuthCxt* pCxt, SCreateDatabaseStmt* pStmt) {

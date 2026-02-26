@@ -43,7 +43,7 @@ sleep 10
 
 # Run ctest and capture output and return code
 ctest_output="unit-test.log"
-ctest -E "cunit_test|pcre*|example*|clientTest|connectOptionsTest|stmtTest|stmt2Test|tssTest|tmqTest|catalogTest|taoscTest|parserTest" -j8 2>&1 | tee "$ctest_output"
+ctest -E "cunit_test|pcre*|example*|clientTest|connectOptionsTest|stmtTest|stmt2Test|tssTest|tmqTest|catalogTest|taoscTest" -j8 2>&1 | tee "$ctest_output"
 ctest_ret=${PIPESTATUS[0]}
 
 

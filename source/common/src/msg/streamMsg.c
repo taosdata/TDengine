@@ -1082,6 +1082,8 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->placeHolderBitmap));
   TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->calcTsSlotId));
   TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->triTsSlotId));
+  TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->calcPkSlotId));
+  TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pMsg->triPkSlotId));
   int32_t triggerPrevFilterLen = (pMsg->triggerPrevFilter == NULL) ? 0 : ((int32_t)strlen(pMsg->triggerPrevFilter) + 1);
   TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMsg->triggerPrevFilter, triggerPrevFilterLen));
   int32_t triggerScanPlanLen = (pMsg->triggerScanPlan == NULL) ? 0 : ((int32_t)strlen(pMsg->triggerScanPlan) + 1);
@@ -1651,6 +1653,8 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->placeHolderBitmap));
   TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->calcTsSlotId));
   TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->triTsSlotId));
+  TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->calcPkSlotId));
+  TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pMsg->triPkSlotId));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->triggerPrevFilter, NULL));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->triggerScanPlan, NULL));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pMsg->calcCacheScanPlan, NULL));
@@ -2416,6 +2420,8 @@ _exit:
 int32_t tDeserializeSCMCreateStreamReqImplOld(SDecoder *pDecoder, SCMCreateStreamReq *pReq, int32_t leftBytes) {
   int32_t code = 0;
   int32_t lino;
+  pReq->calcPkSlotId = -1;
+  pReq->triPkSlotId = -1;
 
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->streamId));
 
@@ -2990,6 +2996,14 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
       pDst->trigger.event.trueForType = pSrc->trigger.event.trueForType;
       pDst->trigger.event.trueForCount = pSrc->trigger.event.trueForCount;
       pDst->trigger.event.trueForDuration = pSrc->trigger.event.trueForDuration;
+      break;
+    case WINDOW_TYPE_COUNT:
+      pDst->trigger.count.countVal = pSrc->trigger.count.countVal;
+      pDst->trigger.count.sliding = pSrc->trigger.count.sliding;
+      if (pSrc->trigger.count.condCols) {
+        pDst->trigger.count.condCols = COPY_STR(pSrc->trigger.count.condCols);
+        TSDB_CHECK_NULL(pDst->trigger.count.condCols, code, lino, _exit, terrno);
+      }
       break;
     default:
       pDst->trigger = pSrc->trigger;
