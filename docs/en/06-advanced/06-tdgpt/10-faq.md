@@ -51,7 +51,7 @@ This indicates that the analysis results contain an error. Check the anode opera
 
 The default log level for TDgpt is INFO. To adjust the log level, you need to modify the log-level configuration item in the TDgpt configuration file located at `/etc/taos/taosanode.ini`.
 
-```python
+```ini
 # default log level
 log-level = INFO
 ```
