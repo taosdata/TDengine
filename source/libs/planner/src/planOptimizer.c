@@ -9622,10 +9622,10 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "EliminateVirtualScan",       .optimizeFunc = eliminateVirtualScanOptimize},
   {.pName = "PushDownAgg",                .optimizeFunc = pdaOptimize},
   {.pName = "VtableWindow",               .optimizeFunc = vtableWindowOptimize},
-  {.pName = "VStableWindow",              .optimizeFunc = vstableWindowOptimize},
+  // {.pName = "VStableWindow",              .optimizeFunc = vstableWindowOptimize},
   {.pName = "VStableWindowSort",          .optimizeFunc = vstableWindowSortOptimize},
   {.pName = "VtableTagScan",              .optimizeFunc = vtableTagScanOptimize},
-  {.pName = "VStableAgg",                 .optimizeFunc = vstableAggOptimize},
+  // {.pName = "VStableAgg",                 .optimizeFunc = vstableAggOptimize},
 };
 // clang-format on
 
