@@ -50,7 +50,7 @@ pip install accelerate
 
 You can use the virtual Python environment installed by TDgpt or a separate environment.
 
-## Configure TSFM Sevice Path & Port
+## Configure TSFM Service Path & Port
 
 The `lib/taosanalytics/time-moe.py` (rename to `/lib/taosanalytics/tsfmservice/timemoe-service.py` since 3.3.6.4) file in the TDgpt root directory deploys and serves the Time-MoE model. Modify this file to set an appropriate URL.
 
