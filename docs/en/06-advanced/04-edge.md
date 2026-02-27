@@ -5,8 +5,8 @@ slug: /advanced-features/edge-cloud-synchronization
 
 TDengine TSDB supports multiple methods for automated synchronization between edge and cloud nodes.
 
-- Data can be pushed by the edge node the cloud node or pulled by the cloud node from the edge node.
-- Edge–cloud synchronization can be implemented through TDengine TSDB data subscription or through  queries.
+- Data can be pushed by the edge node to the cloud node or pulled by the cloud node from the edge node.
+- Edge–cloud synchronization can be implemented through TDengine TSDB data subscription or through queries.
 
 Before enabling edge–cloud synchronization, determine which method is appropriate for your environment.
 
@@ -39,7 +39,7 @@ The edge node pushes data from the specified database to the specified cloud nod
    taosx run -f 'taos://<edge-user>:<edge-password>@<edge-ip>:<edge-port>/<edge-db>' -t 'taos://<cloud-user>:<cloud-password>@<cloud-ip>:<cloud-port>/<cloud-db>' -v
    ```
 
-   For example, the following command synchronizes data from database `sync_test` on an edge node deployed at 192.0.2.1:6030 to database `edge_data`on a cloud node deployed at 198.51.100.1:6030, using the default username and password.
+   For example, the following command synchronizes data from database `sync_test` on an edge node deployed at 192.0.2.1:6030 to database `edge_data` on a cloud node deployed at 198.51.100.1:6030, using the default username and password.
 
    ```sql
    taosx run -f 'taos://root:taosdata@192.0.2.1:6030/sync_test' -t 'taos://root:taosdata@198.51.100.1:6030/edge_data' -v
@@ -79,13 +79,13 @@ For more information about TDengine Data Subscription tasks, see [TDengine Data 
 1. From the **Type** drop-down menu, select **TDengine Query**.
 1. From the **Target** drop-down menu, select the database to which you want to synchronize edge data. If you do not have an appropriate database, click **Create Database**.
 1. Under **Connection Configuration**, enter the following:
-   - Protocol: Select WS.
-   - Host: Enter the IP address or hostname of the taosAdapter instance for the edge node.
-   - Port: Enter the port number for the taosAdapter instance for the edge node.
-   - Database: Enter the database on the edge node that you want to synchronize.
-1. Under Authentication, enter the following:
-   - Username: Enter a username on the edge node that has access to the database that you want to synchronize.
-   - Password: Enter the password for the specified user on the edge node.
+   - **Protocol:** Select **WS**.
+   - **Host:** Enter the IP address or hostname of the taosAdapter instance for the edge node.
+   - **Port:** Enter the port number for the taosAdapter instance for the edge node.
+   - **Database:** Enter the database on the edge node that you want to synchronize.
+1. Under **Authentication**, enter the following:
+   - **Username:** Enter a username on the edge node that has access to the database that you want to synchronize.
+   - **Password:** Enter the password for the specified user on the edge node.
 1. Click **Check Connection** to verify that the cloud node can access the edge node.
 1. Configure other options as needed. You can retain the default values if desired.
 1. Click **Submit**.
