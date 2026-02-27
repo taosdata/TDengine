@@ -4096,7 +4096,7 @@ static int32_t physiAnomalyWindowNodeToMsg(const void* pObj, STlvEncoder* pEncod
 
   int32_t code = tlvEncodeObj(pEncoder, PHY_ANOMALY_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_ANOMALY_CODE_KEY, nodeToMsg, pNode->pAnomalyKey);
+    code = tlvEncodeObj(pEncoder, PHY_ANOMALY_CODE_KEY, nodeListToMsg, pNode->pAnomalyKeys);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeCStr(pEncoder, PHY_ANOMALY_CODE_WINDOW_OPTION, pNode->anomalyOpt);
@@ -4116,7 +4116,7 @@ static int32_t msgToPhysiAnomalyWindowNode(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeObjFromTlv(pTlv, msgToPhysiWindowNode, &pNode->window);
         break;
       case PHY_ANOMALY_CODE_KEY:
-        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pAnomalyKey);
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pAnomalyKeys);
         break;
       case PHY_ANOMALY_CODE_WINDOW_OPTION:
         code = tlvDecodeCStr(pTlv, pNode->anomalyOpt, sizeof(pNode->anomalyOpt));

@@ -542,7 +542,7 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
   int32_t rows = 0;
   tjsonGetInt32ValueFromDouble(pJson, "rows", rows, code);
   if (rows < 0 && code == 0) {
-    code = parseErrorMsgFromAnalyticServer(pJson, pId);
+    code = parseErrorMsgFromAnalyticServer(pJson, "imputation/correlation", pId);
     tjsonDelete(pJson);
     return code;
   }

@@ -2576,9 +2576,12 @@ twindow_clause_opt(A) ::= EVENT_WINDOW START WITH search_condition(B)
   END WITH search_condition(C) true_for_opt(D).                                   { A = createEventWindowNode(pCxt, B, C, D); }
 twindow_clause_opt(A) ::= COUNT_WINDOW NK_LP count_window_args(B) NK_RP.          { A = createCountWindowNodeFromArgs(pCxt, B); }
 twindow_clause_opt(A) ::=
-  ANOMALY_WINDOW NK_LP expr_or_subquery(B) NK_RP.                                 { A = createAnomalyWindowNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
-twindow_clause_opt(A) ::=
-  ANOMALY_WINDOW NK_LP expr_or_subquery(B) NK_COMMA NK_STRING(C) NK_RP.           { A = createAnomalyWindowNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
+  ANOMALY_WINDOW NK_LP anomaly_col_list(B) NK_RP.                                 { A = createAnomalyWindowNode(pCxt, B); }
+
+%type anomaly_col_list                                                            { SNodeList* }
+%destructor anomaly_col_list                                                      { nodesDestroyList($$); }
+anomaly_col_list(A) ::= expr_or_subquery(B).                                      { A = createNodeList(pCxt, releaseRawExprNode(pCxt, B)); }
+anomaly_col_list(A) ::= anomaly_col_list(B) NK_COMMA expr_or_subquery(C).         { A = addNodeToList(pCxt, B, releaseRawExprNode(pCxt, C)); }
 
 extend_literal(A) ::= NK_INTEGER(B).                                              { A = createValueNode(pCxt, TSDB_DATA_TYPE_INT, &B); }
 

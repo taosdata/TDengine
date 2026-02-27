@@ -2102,7 +2102,7 @@ static int32_t createWindowLogicNodeByAnomaly(SLogicPlanContext* pCxt, SAnomalyW
   pWindow->node.resultDataOrder = pWindow->node.requireDataOrder;
 
   pWindow->pAnomalyExpr = NULL;
-  code = nodesCloneNode(pAnomaly->pExpr, &pWindow->pAnomalyExpr);
+  code = nodesCloneList(pAnomaly->pExpr, &pWindow->pAnomalyExpr);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pWindow);
     return code;
@@ -2118,7 +2118,7 @@ static int32_t createWindowLogicNodeByAnomaly(SLogicPlanContext* pCxt, SAnomalyW
   }
 
   // rewrite the expression in subsequent clauses
-  code = rewriteExprForSelect(pWindow->pAnomalyExpr, pSelect, SQL_CLAUSE_WINDOW);
+  code = rewriteExprsForSelect(pWindow->pAnomalyExpr, pSelect, SQL_CLAUSE_WINDOW, NULL);
   if (TSDB_CODE_SUCCESS == code) {
     code = createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
   } else {

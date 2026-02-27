@@ -14,6 +14,7 @@
  */
 
 #include "cmdnodes.h"
+#include "nodes.h"
 #include "nodesUtil.h"
 #include "plannodes.h"
 #include "query.h"
@@ -3800,7 +3801,7 @@ static int32_t physiAnomalyWindowNodeToJson(const void* pObj, SJson* pJson) {
 
   int32_t code = physiWindowNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkAnomalyWindowPhysiPlanAnomalyKey, nodeToJson, pNode->pAnomalyKey);
+    code = nodeListToJson(pJson, jkAnomalyWindowPhysiPlanAnomalyKey, pNode->pAnomalyKeys);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkAnomalyWindowPhysiPlanAnomalyOption, pNode->anomalyOpt);
@@ -3813,7 +3814,7 @@ static int32_t jsonToPhysiAnomalyWindowNode(const SJson* pJson, void* pObj) {
 
   int32_t code = jsonToPhysiWindowNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkAnomalyWindowPhysiPlanAnomalyKey, &pNode->pAnomalyKey);
+    code = jsonToNodeList(pJson, jkAnomalyWindowPhysiPlanAnomalyKey, &pNode->pAnomalyKeys);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue(pJson, jkAnomalyWindowPhysiPlanAnomalyOption, pNode->anomalyOpt);
