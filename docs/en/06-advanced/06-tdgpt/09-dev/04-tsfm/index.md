@@ -65,7 +65,7 @@ Change `ds_predict` to the URL that you want to use in your environment.
 ```python
     app.run(
             host='0.0.0.0',
-            port=5001,
+            port=6037,
             threaded=True,  
             debug=False     
         )
@@ -73,7 +73,9 @@ Change `ds_predict` to the URL that you want to use in your environment.
 
 In this section, you can update the port if desired. After you have set your URL and port number, restart the service.
 
-## Run the Python Script
+## Run the Python Script  (Available before 3.3.8.x)
+
+> ⚠️ NOTE：The following method is only available before 3.3.8.x, if you're using later version, please refer to [Dynamic Model Download](#Dynamic Model Download)
 
 ```shell
 nohup python time-moe.py > service_output.out 2>&1 &
@@ -85,7 +87,7 @@ Check the `service-output.out` file to confirm that the model has been loaded:
 
 ```shell
 Running on all addresses (0.0.0.0)
-Running on http://127.0.0.1:5001
+Running on http://127.0.0.1:6037
 ```
 
 ## Verify the Service
@@ -93,7 +95,7 @@ Running on http://127.0.0.1:5001
 Verify that the service is running normally:
 
 ```shell
-curl 127.0.0.1:5001/ds_predict
+curl 127.0.0.1:6037/ds_predict
 ```
 
 The following indicates that Time-MoE has been deployed:
@@ -108,7 +110,7 @@ The following indicates that Time-MoE has been deployed:
 
 ## Load the Model into TDgpt
 
-You can modify the [timemoe.py] file and use it in TDgpt. In this example, Time-MoE is adapted to provide forecasting.
+You can modify the  [timemoe.py](https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/algo/fc/timemoe.py) file and use it in TDgpt. In this example, Time-MoE is adapted to provide forecasting.
 
 ```python
 class _TimeMOEService(AbstractForecastService):
@@ -122,55 +124,19 @@ class _TimeMOEService(AbstractForecastService):
     def __init__(self):
         super().__init__()
 
-        self.table_name = None
-
-        # find service address in taosanode.ini or use default if not found
-        service_host = conf.get_tsfm_service("timemoe-fc")
-        if  service_host is not None:
-            self.service_host = service_host
-        else:
-            self.service_host = 'http://127.0.0.1:5001/timemoe'
-
-        self.headers = {'Content-Type': 'application/json'}
-
+        # Use the default address if the service URL is not specified in the taosanode.ini configuration file.
+        if  self.service_host is None:
+            self.service_host = 'http://127.0.0.1:6037/timemoe'
 
     def execute(self):
-        """analytics methods"""
-        if self.list is None or len(self.list) < self.period:
-            raise ValueError("number of input data is less than the periods")
+        # Verify support for past covariate analysis; raise an exception if unsupported. (Note: time-moe lacks this support and will trigger the exception.)
+        if len(self.past_dynamic_real):
+            raise ValueError("covariate forecast is not supported yet")
 
-        if self.rows <= 0:
-            raise ValueError("fc rows is not specified yet")
-
-        # let's request the gpt service
-        data = {"input": self.list, 'next_len': self.rows}
-        try:
-            # request tsfm service
-            response = requests.post(self.service_host, data=json.dumps(data), headers=self.headers)
-        except Exception as e:
-            app_logger.log_inst.error(f"failed to connect the service: {self.service_host} ", str(e))
-            raise e
-
-         # check returned value
-        if response.status_code == 404:
-            app_logger.log_inst.error(f"failed to connect the service: {self.service_host} ")
-            raise ValueError("invalid host url")
-        elif response.status_code != 200:
-            app_logger.log_inst.error(f"failed to request the service: {self.service_host}, reason: {response.text}")
-            raise ValueError(f"failed to request the service, {response.text}")
-
-        pred_y = response.json()['output']
-
-        res =  {
-            "res": [pred_y]
-        }
-
-        # package forecasting results according to specifications
-        insert_ts_list(res["res"], self.start_ts, self.time_step, self.rows)
-        return res
+        super().execute()
 ```
 
-Add your code to `/usr/local/taos/taosanode/lib/taosanalytics/algo/fc/` where the `timemoe.py` file is located.
+Add your code to `/usr/local/taos/taosanode/lib/taosanalytics/algo/fc/`. Actually, you can find a `timemoe.py` file that we have already prepared already.
 
 TDgpt has built-in support for Time-MoE. You can run `SHOW ANODES FULL` and see that forecasting based on Time-MoE is listed as `timemoe-fc`.
 
@@ -180,7 +146,7 @@ Modify the `[tsfm-service]` section of `/etc/taos/taosanode.ini`:
 
 ```ini
 [tsfm-service]
-timemoe-fc = http://127.0.0.1:5001/ds_predict
+timemoe-fc = http://127.0.0.1:6037/ds_predict
 ```
 
 Add the path for your deployment. The key is the name of the model defined in your Python code, and the value is the URL of Time-MoE on your local machine.
@@ -194,9 +160,203 @@ SELECT FORECAST(i32, 'algo=timemoe-fc')
 FROM foo;
 ```
 
-## Add Other TSFMs
+## Deploying Other Time-Series Foundation Models
 
-You can add more open-source or proprietary TSFMs to TDgpt by following the process described in this document. Ensure that the class and service names have been configured appropriately and that the service URL is reachable.
+The logic for registering models in TDgpt after deploying them locally is similar across all types. You only need to modify the Class Name and the Model Service Name (Key) and set the correct service address. Adaptation files for **Chronos**, **TimesFM**, and **Moirai** are provided by default; users of version 3.3.6.4 and later only need to start the corresponding services locally.
+
+The deployment and startup methods are as follows:
+
+### Starting the Moirai Service
+
+To avoid dependency conflicts, it is recommended to prepare a clean Python virtual environment and install the libraries there.
+
+```bash
+pip install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+pip install uni2ts
+pip install flask
+
+```
+
+Configure the service address in the `moirai-server.py` file (see above for the method) and set the model to be loaded (if necessary).
+
+```python
+_model_list = [
+    'Salesforce/moirai-moe-1.0-R-small',  # small model with 117M parameters
+    'Salesforce/moirai-moe-1.0-R-base',   # base model with 205M parameters
+]
+
+pretrained_model = MoiraiMoEModule.from_pretrained(
+    _model_list[0]   # Loads the 'small' model by default; change to 1 to load 'base'
+).to(device)
+
+```
+
+Execute the command to start the service. The model files will be downloaded automatically during the first startup. If the download speed is too slow, you can use a domestic mirror (see above for setup).
+
+```bash
+nohup python moirai-server.py > service_output.out 2>&1 &
+
+```
+
+Follow the same steps as above to check the service status.
+
+### Starting the Chronos Service
+
+Install dependencies in a clean Python virtual environment:
+
+```bash
+pip install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+pip install chronos-forecasting
+pip install flask
+
+```
+
+Set the service address and model in `chronos-server.py`. You can also use the default values.
+
+```python
+def main():
+    app.run(
+        host='0.0.0.0',
+        port=6038,
+        threaded=True,
+        debug=False
+    )
+
+```
+
+```python
+_model_list = [
+    'amazon/chronos-bolt-tiny',  # 9M parameters,   based on t5-efficient-tiny
+    'amazon/chronos-bolt-mini',  # 21M parameters,  based on t5-efficient-mini
+    'amazon/chronos-bolt-small', # 48M parameters,  based on t5-efficient-small
+    'amazon/chronos-bolt-base',  # 205M parameters, based on t5-efficient-base
+]
+
+model = BaseChronosPipeline.from_pretrained(
+    _model_list[0],   # Loads the 'tiny' model by default; modify the index to change the model
+    device_map=device,
+    torch_dtype=torch.bfloat16,
+)
+
+```
+
+Execute the following in the shell to start the service:
+
+```bash
+nohup python chronos-server.py > service_output.out 2>&1 &
+
+```
+
+### Starting the TimesFM Service
+
+Install dependencies in a clean Python virtual environment:
+
+```bash
+pip install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+pip install timesfm
+pip install jax
+pip install flask==3.0.3
+
+```
+
+Adjust the service address in `timesfm-server.py` if necessary, then execute the command below:
+
+```bash
+nohup python timesfm-server.py > service_output.out 2>&1 &
+
+```
+
+### Starting the Moment Service
+
+Install dependencies in a clean Python virtual environment:
+
+```bash
+pip install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+pip install transformers==4.33.3
+pip install numpy==1.25.2
+pip install matplotlib
+pip install pandas==1.5
+pip install scikit-learn
+pip install flask==3.0.3
+pip install momentfm
+
+```
+
+Adjust the service address in `moment-server.py` if necessary, then execute the command below:
+
+```bash
+nohup python moment-server.py > service_output.out 2>&1 &
+
+```
+
+---
+
+## Service Management Scripts (Start and Stop)
+
+To simplify management, TDgpt (v3.4.0.0+) provides unified scripts: `start-model.sh` and `stop-model.sh`. These allow you to start or stop specific or all foundation model services with a single command.
+
+### Start Script
+
+The `start-model.sh` script loads the corresponding Python virtual environment and initiates the model service script based on the specified model name.
+
+After a `root` installation, the script is located in `<tdgpt_root>/bin/`. A symbolic link is automatically created at `/usr/bin/start-model` for global access.
+
+Logs are output to `/var/log/taos/taosanode/taosanode_service_<model_name>.log` by default.
+
+**Usage**:
+
+```bash
+Usage: /usr/bin/start-model [-c config_file] [model_name|all] [other_params...]
+
+Supported models: tdtsfm, timesfm, timemoe, moirai, chronos, moment
+
+```
+
+**Options**:
+
+* `-c config_file`: Specifies the configuration file (Default: `/etc/taos/taosanode.ini`).
+* `-h, --help`: Displays help information.
+
+**Examples**:
+
+1. Start all services in the background: `/usr/bin/start-model all`
+2. Start a specific service (e.g., TimesFM): `/usr/bin/start-model timesfm`
+3. Specify a custom config file: `/usr/bin/start-model -c /path/to/custom_taosanode.ini`
+
+### Stop Script
+
+`stop-model.sh` is used to terminate specified or all model services. It automatically identifies and kills the relevant Python processes.
+
+**Examples**:
+
+1. Stop the TimesFM service: `/usr/bin/stop-model timesfm`
+2. Stop all model services: `/usr/bin/stop-model all`
+
+---
+
+## Dynamic Model Download
+
+In versions 3.3.8.x and later, you can specify different model scales during startup. If no parameters are provided, the driver file (`[xxx]-server.py`) will automatically load the model with the smallest parameter scale.
+
+Additionally, if you have manually downloaded model files, you can run them by specifying the local path.
+
+```bash
+# Run the chronos-bolt-tiny model located at /var/lib/taos/taosanode/model/chronos. 
+# If the directory doesn't exist, it will download automatically to that path.
+# The third parameter (True) enables the mirror site for faster downloads (recommended for users in China).
+python chronos-server.py /var/lib/taos/taosanode/model/chronos/ amazon/chronos-bolt-tiny True
+
+```
+
+## Transformers Version Requirements
+
+| Model Name | Transformers Version |
+| --- | --- |
+| time-moe, moirai, tdtsfm | 4.40 |
+| chronos | 4.55 |
+| moment | 4.33 |
+| timesfm | N/A |
+
 
 ### References
 
