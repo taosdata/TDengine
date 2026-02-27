@@ -218,8 +218,8 @@ impl RollingFileAppender {
     ) -> RollingFileAppenderBuilder<'a> {
         RollingFileAppenderBuilder {
             log_dir: log_dir.as_ref().to_path_buf(),
-            rotation_count: 30,
-            log_keep_days: TimeDelta::days(30),
+            rotation_count: 3,
+            log_keep_days: TimeDelta::days(3),
             rotation_size: "1GB",
             compress: false,
             reserved_disk_size: "2GB",

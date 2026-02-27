@@ -270,8 +270,8 @@ impl Default for LogOpts {
             path: Some(PathBuf::from(get_env_log_dir())),
             level: Some(LevelFilter::Info),
             compress: Some(CompressType::B(false)),
-            rotation_count: Some(30),
-            keep_days: Some(30),
+            rotation_count: Some(3),
+            keep_days: Some(3),
             rotation_size: Some("1GB".to_string()),
             reserved_disk_size: Some("1GB".to_string()),
         }
