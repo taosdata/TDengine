@@ -148,7 +148,8 @@ class TestQuantifiedSubQuery4:
         "select f1 from {tableName} where f1 > {quantifiedSql} or f1 < {quantifiedSql} order by 1",
         "select f1 from {tableName} where f1 between {quantifiedSql} and {quantifiedSql} + 1 order by 1",
         "select f1 from {tableName} where {quantifiedSql} > 0 and f1 > {quantifiedSql} order by 1",
-        "select f1 from {tableName} where tg1 = {quantifiedSql} order by 1",
+        "select f1 from {tableName} where tg1 > all (select 1 from {tableName}) order by 1",
+        "select f1 from {tableName} where exists (select f1 from db2.tbx) order by 1",
         "select f1 from {tableName} where tbname = cast({quantifiedSql} as varchar) order by 1",
         "select f1 from {tableName} where ts >= {quantifiedSql} and ts <= {quantifiedSql} order by 1",
         "select f1 from {tableName} where _c0 between {quantifiedSql} and {quantifiedSql} order by 1",
@@ -234,6 +235,7 @@ class TestQuantifiedSubQuery4:
 
         # view
         "select f1 from {tableName} where f1 = (select * from v1 where {quantifiedSql}) order by 1",
+        "select f1 from {tableName} where f1 = any (select * from v1) order by 1",
         "select f1 from v2 where {quantifiedSql} order by 1",
         "select f1 from v3 where {quantifiedSql} order by 1",
         "select f1 from v4 where {quantifiedSql} order by 1",
@@ -249,8 +251,8 @@ class TestQuantifiedSubQuery4:
         "select f1 from tb1 a where f1 = some (select f1 from tb2 where f1 = a.f1 limit 1)",
         "select f1 from tb1 a where f1 = all (select f1 from tb2 where f1 = tb1.f1 limit 1)",
         "select f1 from (select * from tb1) a where f1 = all (select f1 from tb2 where f1 = a.f1 limit 1)",
-        "select f1 from (select * from (select * from tb1 where f1 = all (select f1 from b) a) b",
-        "select f1 from (select * from (select * from tb1 where f1 = all (select f1 from a) a) b",
+        "select f1 from (select * from (select * from tb1 where f1 = all (select f1 from b)) a) b",
+        "select f1 from (select * from (select * from tb1 where f1 = all (select f1 from a)) a) b",
         "select a.f1 from (select * from tb1) a join (select * from tb2 where f1 = all (select f1 from a)) b on a.ts = b.ts and a.f1 = b.f1",
         "select a.f1 from (select * from tb1) a join (select * from tb2 where f1 = all (select f1 from b)) b on a.ts = b.ts and a.f1 = b.f1",
         "select (select avg(f1) from tb2 where f1 < all (select f1 from a)) from tb1 a",
@@ -267,7 +269,7 @@ class TestQuantifiedSubQuery4:
         "1 < all (select 0 from {tableName})",
         "1 > all (select 0 from {tableName})",
         "NULL = any (select 2 from {tableName})",
-        "exists (select f1 from db2.tba)",
+        "exists (select f1 from db2.tbx)",
     ]
 
     def setup_class(cls):
@@ -333,8 +335,8 @@ class TestQuantifiedSubQuery4:
         tdSql.execute(f"create database db2")
         tdSql.execute(f"use db2")
         sqls = [
-            "CREATE TABLE tba (ts TIMESTAMP, f1 int)",
-            "INSERT INTO tba VALUES ('2025-12-11 00:00:00.000', 0)",
+            "CREATE TABLE tbx (ts TIMESTAMP, f1 int)",
+            "INSERT INTO tbx VALUES ('2025-12-11 00:00:00.000', 0)",
         ]
         tdSql.executes(sqls)
         tdSql.execute(f"use db1")
@@ -380,6 +382,7 @@ class TestQuantifiedSubQuery4:
             for self.subIdx in range(len(self.quantifiedSqls)):
                 self.querySql = self.specSqls[self.mainIdx].replace("{tableName}", "st1")
                 self.querySql = self.querySql.replace("{quantifiedSql}", self.quantifiedSqls[self.subIdx])
+                self.querySql = self.querySql.replace("{tableName}", "st1")
                 # ensure exactly one trailing semicolon
                 self.querySql = self.querySql.rstrip().rstrip(';') + ';'
                 #tdLog.info(f"generated sql: {self.querySql}")
