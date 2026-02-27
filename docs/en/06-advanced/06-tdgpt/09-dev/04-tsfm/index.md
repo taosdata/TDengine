@@ -13,8 +13,8 @@ The server scripts for all six TSFM services are located in the `<TDgpt_root_dir
 
 TDgpt distinguishes between models that are configured by default and those that require manual configuration:
 
-*   **Default Models**: `TDtsfm` and `Time-MoE` are configured by default in `taosanode.ini`. You only need to start their respective server scripts to use them.
-*   **Additional Models**: `Chronos`, `Moirai`, `TimesFM`, and `Moment` require you to start their server scripts and add their service URLs to `taosanode.ini` before use.
+* **Default Models**: `TDtsfm` and `Time-MoE` are configured by default in `taosanode.ini`. You only need to start their respective server scripts to use them.
+* **Additional Models**: `Chronos`, `Moirai`, `TimesFM`, and `Moment` require you to start their server scripts and add their service URLs to `taosanode.ini` before use.
 
 TDgpt has been adapted to interface with specific features of these models. If a certain function is unavailable, it may be due to a limitation of the model itself or because TDgpt has not yet been adapted to support that specific feature for that model.
 
