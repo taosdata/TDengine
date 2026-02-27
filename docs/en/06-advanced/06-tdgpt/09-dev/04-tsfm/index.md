@@ -32,7 +32,7 @@ TDgpt has been adapted to interface with specific features of these models. If a
 <tr><th>amazon/chronos-bolt-small</th><th>0.48</th><th align="right">191</th></tr>
 <tr><th>amazon/chronos-bolt-base</th><th>2.05</th><th align="right">821</th></tr>
 <tr><th>timesfm</th><th>timesfm-server.py</th><th>google/timesfm-2.0-500m-pytorch</th><th>4.99</th><th align="right">2,000</th><th>✔</th><th>✘</th><th>✘</th><th>✘</th><th>✘</th></tr>
-<tr><th rowspan="3">moment</th><th rowspan="3">moment-server.py</th><th>AutonLab/MOMENT-1-small</th><th>0.38</th><th align="right">152</th><th rowspan="3">✘</th><th rowspan="3">✘</th><th rowspan="3">✘</th><th rowspan="4">✘</th><th rowspan="3">✔</th></tr>
+<tr><th rowspan="3">moment</th><th rowspan="3">moment-server.py</th><th>AutonLab/MOMENT-1-small</th><th>0.38</th><th align="right">152</th><th rowspan="3">✘</th><th rowspan="3">✘</th><th rowspan="3">✘</th><th rowspan="3">✘</th><th rowspan="3">✔</th></tr>
 <tr><th>AutonLab/MOMENT-1-base</th><th>1.13</th><th align="right">454</th></tr>
 <tr><th>AutonLab/MOMENT-1-large</th><th>3.46</th><th align="right">1,039</th></tr>
 </table>
