@@ -16,6 +16,7 @@
 #include <string.h>
 #include "cJSON.h"
 #include "clientInt.h"
+#include "osMemPool.h"
 #include "parser.h"
 #include "taosdef.h"
 #include "tarray.h"
@@ -155,7 +156,6 @@ static int32_t buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* s
 
   ADD_TO_JSON_STRING(json, "type", "create");
   ADD_TO_JSON_STRING(json, "tableType", (t == TSDB_SUPER_TABLE ? "super" : "normal"));
-  ADD_TO_JSON_STRING(json, "type", "create");
   ADD_TO_JSON_BOOL(json, "isVirtual", isVirtual);
   ADD_TO_JSON_STRING(json, "tableName", name);
 
@@ -168,7 +168,11 @@ static int32_t buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* s
     SSchema* s = schemaRow->pSchema + i;
     ADD_TO_JSON_STRING(column, "name", s->name);
     ADD_TO_JSON_NUMBER(column, "type", s->type);
-    int32_t length = getLength(s->type, s->bytes, pExtSchemas[i].typeMod);
+    int32_t typeMod = 0;
+    if (pExtSchemas != NULL) {
+      typeMod = pExtSchemas[i].typeMod;
+    }
+    int32_t length = getLength(s->type, s->bytes, typeMod);
     if (length > 0) {
       ADD_TO_JSON_NUMBER(column, "length", length);
     }
@@ -476,9 +480,9 @@ static int32_t buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
     RAW_NULL_CHECK(pTagVal);
     char* ptname = taosArrayGet(tagName, 0);
     RAW_NULL_CHECK(ptname);
-    ADD_TO_JSON_STRING(json, "name", ptname);
-    ADD_TO_JSON_NUMBER(json, "type", TSDB_DATA_TYPE_JSON);
-    ADD_TO_JSON_STRING(json, "value", pJson);
+    ADD_TO_JSON_STRING(tag, "name", ptname);
+    ADD_TO_JSON_NUMBER(tag, "type", TSDB_DATA_TYPE_JSON);
+    ADD_TO_JSON_STRING(tag, "value", pJson);
     goto end;
   }
 
@@ -490,7 +494,7 @@ static int32_t buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
     char* ptname = taosArrayGet(tagName, i);
     RAW_NULL_CHECK(ptname);
     ADD_TO_JSON_STRING(tag, "name", ptname);
-    ADD_TO_JSON_NUMBER(json, "type", pTagVal->type);
+    ADD_TO_JSON_NUMBER(tag, "type", pTagVal->type);
 
     if (IS_VAR_DATA_TYPE(pTagVal->type)) {
       if (IS_STR_DATA_BLOB(pTagVal->type)) {
@@ -511,6 +515,7 @@ static int32_t buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
       }
 
       ADD_TO_JSON_STRING(tag, "value", buf)
+      taosMemoryFreeClear(buf);
     } else {
       double val = 0;
       GET_TYPED_DATA(val, double, pTagVal->type, &pTagVal->i64, 0);  // currently tag type can't be decimal, so pass 0 as typeMod
@@ -718,7 +723,7 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES: {
       ADD_TO_JSON_STRING(json, "colName", vAlterTbReq.colName);
       ADD_TO_JSON_NUMBER(json, "colType", vAlterTbReq.colModType);
-      int32_t length = getLength(vAlterTbReq.type, vAlterTbReq.bytes, vAlterTbReq.typeMod);
+      int32_t length = getLength(vAlterTbReq.colModType, vAlterTbReq.colModBytes, vAlterTbReq.typeMod);
       if (length > 0) {
         ADD_TO_JSON_NUMBER(json, "length", length);
       }
@@ -811,6 +816,7 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
             goto end;
           }
           ADD_TO_JSON_STRING(member, "colValue", buf1)
+          taosMemoryFreeClear(buf1);
         }
         ADD_TO_JSON_BOOL(member, "colValueNull", isNull)
       }
