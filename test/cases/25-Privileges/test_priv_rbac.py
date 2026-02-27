@@ -103,6 +103,12 @@ class TestCase:
         time.sleep(5)  # wait for privileges to take effect
         tdSql.error("drop table if exists d1.not_exist_table", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
         tdSql.error("drop table d1.not_exist_table", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("grant create database to u3")
+        tdSql.connect("u3", self.test_pass)
+        tdSql.execute("create database d2")
+        tdSql.execute("drop table if exists d2.not_exist_table")
+        tdSql.error("drop table d2.not_exist_table", expectErrInfo="Table does not exist", fullMatched=False)
 
     #
     # ------------------- main ----------------

@@ -2614,6 +2614,11 @@ _next:
             // don't support tag condition
             code = ctgChkSetTbAuthRsp(pCtg, req, res);
             if ((pReq->privType == PRIV_CM_DROP) && !pRes->pass[AUTH_RES_BASIC]) {
+              if (pReq->dbOwner) {
+                pRes->pass[AUTH_RES_BASIC] = true;
+                res->metaNotExists = false;  // rewrite metaNotExists since drop tb privilege exists
+                return TSDB_CODE_SUCCESS;
+              }
               CTG_ERR_RET(ctgChkSetCommonAuthRsp(pCtg, req, res));
               if (pRes->pass[AUTH_RES_BASIC]) {
                 res->metaNotExists = false;  // rewrite metaNotExists since drop tb privilege exists
