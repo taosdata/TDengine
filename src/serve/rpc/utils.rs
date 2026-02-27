@@ -26,7 +26,13 @@ pub fn build_rpc_ok_batch(
 }
 
 pub fn build_rpc_failed_batch(action: &str, e: FlightError, req_id: u64) -> FlightResult {
-    ha_core::batch::build_failed_batch(action, e.to_string(), req_id).map_err(internal_err)
+    let message = match e {
+        FlightError::Tonic(status) => {
+            format!("status: {:?}, message: {}", status.code(), status.message())
+        }
+        e => e.to_string(),
+    };
+    ha_core::batch::build_failed_batch(action, message, req_id).map_err(internal_err)
 }
 
 pub fn internal_err(e: anyhow::Error) -> FlightError {
