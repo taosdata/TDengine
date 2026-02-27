@@ -2612,7 +2612,15 @@ _next:
         case PRIV_CM_SHOW_CREATE: {
           if (pReq->objType == PRIV_OBJ_TBL) {
             // don't support tag condition
-            CTG_ERR_RET(ctgChkSetTbAuthRsp(pCtg, req, res));
+            code = ctgChkSetTbAuthRsp(pCtg, req, res);
+            if ((pReq->privType == PRIV_CM_DROP) && !pRes->pass[AUTH_RES_BASIC]) {
+              CTG_ERR_RET(ctgChkSetCommonAuthRsp(pCtg, req, res));
+              if (pRes->pass[AUTH_RES_BASIC]) {
+                res->metaNotExists = false;  // rewrite metaNotExists since drop tb privilege exists
+                return TSDB_CODE_SUCCESS;
+              }
+            }
+            CTG_ERR_RET(code);
           } else {
             if (pReq->dbOwner) {
               pRes->pass[AUTH_RES_BASIC] = true;
