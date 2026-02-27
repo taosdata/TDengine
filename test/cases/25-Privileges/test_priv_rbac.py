@@ -92,7 +92,7 @@ class TestCase:
         tdSql.error("drop table if exists d1.not_exist_table", expectErrInfo="Permission denied to use database", fullMatched=False)
         tdSql.error("drop table d1.not_exist_table", expectErrInfo="Permission denied to use database", fullMatched=False)
         tdSql.connect("root", "taosdata")
-        tdSql.execute("grant use database on database d1 to u3")
+        tdSql.execute("grant use on database d1 to u3")
         tdSql.execute("grant drop on table d1.* to u3")
         tdSql.connect("u3", self.test_pass)
         tdSql.execute("drop table if exists d1.not_exist_table")
