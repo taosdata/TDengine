@@ -19,6 +19,8 @@ TSDB_CODE_MND_ROLE_NOT_EXIST                  = 0x04F1
 TSDB_CODE_MND_ROLE_CONFLICTS                  = 0x04F6
 #define TSDB_CODE_PAR_PERMISSION_DENIED               TAOS_DEF_ERROR_CODE(0, 0x2644)
 TSDB_CODE_PAR_PERMISSION_DENIED               = 0x2644
+#define TSDB_CODE_PAR_COL_PERMISSION_DENIED           TAOS_DEF_ERROR_CODE(0, 0x26E1)
+TSDB_CODE_PAR_COL_PERMISSION_DENIED           = 0x26E1
 #define TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED        TAOS_DEF_ERROR_CODE(0, 0x26E3)
 TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED        = 0x26E3
 #define TSDB_CODE_PAR_TB_CREATE_PERMISSION_DENIED     TAOS_DEF_ERROR_CODE(0, 0x26E4)
@@ -1297,6 +1299,301 @@ class TestPrivControl:
         self.drop_user(user)
         
         print("Column Mask .......................... [ passed ] ")
+
+    def do_row_privilege_complex_conditions(self):
+        # Test complex condition combinations (AND/OR)
+        tdLog.info("=== Testing Row Privilege with Complex Conditions ===")
+        self.login()  # Login as root
+        
+        db_name = "test_db"
+        user = "test_user"
+        self.create_database(db_name)
+        self.create_stable(db_name, "st1", columns="ts TIMESTAMP, val INT, status INT", tags="location VARCHAR(20), sensor_type VARCHAR(20)")
+        self.create_child_table(db_name, "ct1", "st1", tag_values="'room1', 'temperature'")
+        self.create_child_table(db_name, "ct2", "st1", tag_values="'room2', 'humidity'")
+        self.create_child_table(db_name, "ct3", "st1", tag_values="'room1', 'humidity'")
+        self.create_child_table(db_name, "ct4", "st1", tag_values="'room2', 'temperature'")
+        
+        # Insert test data
+        self.exec_sql(f"INSERT INTO {db_name}.ct1 VALUES (NOW, 25, 1)")
+        self.exec_sql(f"INSERT INTO {db_name}.ct2 VALUES (NOW, 60, 0)")
+        self.exec_sql(f"INSERT INTO {db_name}.ct3 VALUES (NOW, 55, 1)")
+        self.exec_sql(f"INSERT INTO {db_name}.ct4 VALUES (NOW, 30, 0)")
+        
+        self.create_user(user, pwd)
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        
+        # Test 1: AND condition (location='room1' AND sensor_type='temperature')
+        self.grant_privilege("SELECT", f"TABLE {db_name}.st1", user, with_condition="location='room1' AND sensor_type='temperature'")
+        self.login(user, pwd)
+        self.query_expect_rows(f"SELECT * FROM {db_name}.st1", 1)  # Only ct1
+        
+        # Test 2: OR condition (location='room1' OR sensor_type='temperature')
+        self.login()
+        self.revoke_privilege("SELECT", f"TABLE {db_name}.st1", user)
+        self.grant_privilege("SELECT", f"TABLE {db_name}.st1", user, with_condition="location='room1' OR sensor_type='temperature'")
+        self.login(user, pwd)
+        self.query_expect_rows(f"SELECT * FROM {db_name}.st1", 3)  # ct1, ct3, ct4
+        
+        # Test 3: Complex combination (location='room1' AND (sensor_type='temperature' OR status=1))
+        self.login()
+        self.revoke_privilege("SELECT", f"TABLE {db_name}.st1", user)
+        self.grant_privilege("SELECT", f"TABLE {db_name}.st1", user, with_condition="location='room1' AND (sensor_type='temperature' OR status=1)")
+        self.login(user, pwd)
+        self.query_expect_rows(f"SELECT * FROM {db_name}.st1", 2)  # ct1 and ct3
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(user)
+        
+        print("Row Privilege Complex Conditions ........ [ passed ] ")
+
+    def do_row_privilege_time_range(self):
+        # Test time range conditions
+        tdLog.info("=== Testing Row Privilege with Time Range ===")
+        self.login()  # Login as root
+        
+        db_name = "test_db"
+        user = "test_user"
+        self.create_database(db_name)
+        self.create_stable(db_name, "st1", columns="ts TIMESTAMP, val INT")
+        self.create_child_table(db_name, "ct1", "st1")
+        
+        # Insert data with specific timestamps
+        self.exec_sql(f"INSERT INTO {db_name}.ct1 VALUES ('2024-01-01 00:00:00', 100)")
+        self.exec_sql(f"INSERT INTO {db_name}.ct1 VALUES ('2024-01-15 12:00:00', 200)")
+        self.exec_sql(f"INSERT INTO {db_name}.ct1 VALUES ('2024-02-01 00:00:00', 300)")
+        
+        self.create_user(user, pwd)
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        
+        # Test 1: Specific date range
+        self.grant_privilege("SELECT", f"TABLE {db_name}.st1", user, with_condition="ts >= '2024-01-01' AND ts < '2024-02-01'")
+        self.login(user, pwd)
+        self.query_expect_rows(f"SELECT * FROM {db_name}.st1", 2)  # First two records
+        
+        # Test 2: Time range with specific time
+        self.login()
+        self.revoke_privilege("SELECT", f"TABLE {db_name}.st1", user)
+        self.grant_privilege("SELECT", f"TABLE {db_name}.st1", user, with_condition="ts >= '2024-01-15 00:00:00'")
+        self.login(user, pwd)
+        self.query_expect_rows(f"SELECT * FROM {db_name}.st1", 2)  # Last two records
+        
+        # Test 3: Exact timestamp
+        self.login()
+        self.revoke_privilege("SELECT", f"TABLE {db_name}.st1", user)
+        self.grant_privilege("SELECT", f"TABLE {db_name}.st1", user, with_condition="ts = '2024-01-15 12:00:00'")
+        self.login(user, pwd)
+        self.query_expect_rows(f"SELECT * FROM {db_name}.st1", 1)  # Only the exact timestamp
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(user)
+        
+        print("Row Privilege Time Range ............... [ passed ] ")
+
+    def do_row_privilege_mixed_conditions(self):
+        # Test mixed tag and data conditions
+        tdLog.info("=== Testing Row Privilege with Mixed Conditions ===")
+        self.login()  # Login as root
+        
+        db_name = "test_db"
+        user = "test_user"
+        self.create_database(db_name)
+        self.create_stable(db_name, "st1", columns="ts TIMESTAMP, temperature FLOAT, humidity FLOAT", tags="location VARCHAR(20), device_id INT")
+        self.create_child_table(db_name, "ct1", "st1", tag_values="'room1', 101")
+        self.create_child_table(db_name, "ct2", "st1", tag_values="'room1', 102")
+        self.create_child_table(db_name, "ct3", "st1", tag_values="'room2', 201")
+        
+        # Insert test data
+        self.exec_sql(f"INSERT INTO {db_name}.ct1 VALUES (NOW, 25.5, 60.0)")
+        self.exec_sql(f"INSERT INTO {db_name}.ct2 VALUES (NOW, 30.0, 55.0)")
+        self.exec_sql(f"INSERT INTO {db_name}.ct3 VALUES (NOW, 22.0, 65.0)")
+        
+        self.create_user(user, pwd)
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        
+        # Test 1: Tag condition + data condition
+        self.grant_privilege("SELECT", f"TABLE {db_name}.st1", user, with_condition="location='room1' AND temperature > 26.0")
+        self.login(user, pwd)
+        self.query_expect_rows(f"SELECT * FROM {db_name}.st1", 1)  # Only ct2
+        
+        # Test 2: Multiple conditions with OR
+        self.login()
+        self.revoke_privilege("SELECT", f"TABLE {db_name}.st1", user)
+        self.grant_privilege("SELECT", f"TABLE {db_name}.st1", user, with_condition="(location='room1' AND device_id=101) OR humidity < 58.0")
+        self.login(user, pwd)
+        self.query_expect_rows(f"SELECT * FROM {db_name}.st1", 2)  # ct1 and ct2
+        
+        # Test 3: Complex mixed conditions
+        self.login()
+        self.revoke_privilege("SELECT", f"TABLE {db_name}.st1", user)
+        self.grant_privilege("SELECT", f"TABLE {db_name}.st1", user, with_condition="(location='room1' AND temperature BETWEEN 25.0 AND 28.0) OR (location='room2' AND humidity > 60.0)")
+        self.login(user, pwd)
+        self.query_expect_rows(f"SELECT * FROM {db_name}.st1", 2)  # ct1 and ct3
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(user)
+        
+        print("Row Privilege Mixed Conditions ......... [ passed ] ")
+
+    def do_column_row_combined_privilege(self):
+        # Test combined column and row privileges
+        tdLog.info("=== Testing Combined Column and Row Privileges ===")
+        self.login()  # Login as root
+        
+        db_name = "test_db"
+        user = "test_user"
+        self.create_database(db_name)
+        self.create_stable(db_name, "st1", columns="ts TIMESTAMP, temperature FLOAT, humidity FLOAT, status INT, voltage FLOAT", tags="location VARCHAR(20)")
+        self.create_child_table(db_name, "ct1", "st1", tag_values="'room1'")
+        self.create_child_table(db_name, "ct2", "st1", tag_values="'room2'")
+        
+        # Insert test data
+        self.exec_sql(f"INSERT INTO {db_name}.ct1 VALUES (NOW, 25.5, 60.0, 1, 220.0)")
+        self.exec_sql(f"INSERT INTO {db_name}.ct2 VALUES (NOW, 30.0, 55.0, 0, 230.0)")
+        
+        self.create_user(user, pwd)
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        
+        # Test 1: Column SELECT with row condition
+        self.grant_privilege("SELECT(temperature,humidity)", f"TABLE {db_name}.st1", user, with_condition="location='room1'")
+        self.login(user, pwd)
+        #'''BUG23
+        self.query_expect_rows(f"SELECT temperature, humidity FROM {db_name}.st1", 1)  # Only ct1
+        #'''
+        self.exec_sql_failed(f"SELECT status FROM {db_name}.st1", TSDB_CODE_PAR_COL_PERMISSION_DENIED)  # Column not authorized
+        self.exec_sql_failed(f"SELECT temperature FROM {db_name}.ct2", TSDB_CODE_PAR_COL_PERMISSION_DENIED)  # Row not authorized
+        
+        # Test 2: Column INSERT with row condition
+        self.login()
+        self.revoke_privilege("SELECT", f"TABLE {db_name}.st1", user)
+        self.grant_privilege("INSERT(ts,temperature,status)", f"TABLE {db_name}.st1", user, with_condition="location='room1'")
+        self.login(user, pwd)
+        self.exec_sql(f"INSERT INTO {db_name}.ct1 (ts, temperature, status) VALUES (NOW+1s, 26.0, 1)")
+        self.exec_sql_failed(f"INSERT INTO {db_name}.ct2 (ts, temperature, status) VALUES (NOW+2s, 27.0, 0)")  # Row not authorized
+        self.exec_sql_failed(f"INSERT INTO {db_name}.ct1 (ts, temperature, humidity) VALUES (NOW+3s, 28.0, 62.0)")  # Column not authorized
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(user)
+        
+        print("Column-Row Combined Privilege .......... [ passed ] ")
+
+    def do_column_privilege_update_priority(self):
+        # Test column privilege update priority
+        tdLog.info("=== Testing Column Privilege Update Priority ===")
+        self.login()  # Login as root
+        
+        db_name = "test_db"
+        user = "test_user"
+        self.create_database(db_name)
+        self.create_stable(db_name, "st1", columns="ts TIMESTAMP, c1 INT, c2 INT, c3 INT, c4 INT")
+        self.create_child_table(db_name, "ct1", "st1")
+        self.exec_sql(f"INSERT INTO {db_name}.ct1 VALUES (NOW, 1, 2, 3, 4)")
+        
+        self.create_user(user, pwd)
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        
+        # Test 1: Grant column privilege, then update with different columns
+        self.grant_privilege("SELECT(c1,c2)", f"{db_name}.st1", user)
+        self.login(user, pwd)
+        self.exec_sql(f"SELECT c1, c2 FROM {db_name}.st1")
+        self.exec_sql_failed(f"SELECT c3 FROM {db_name}.st1")
+        
+        # Update privilege with different columns (should replace previous)
+        self.login()
+        self.grant_privilege("SELECT(c3,c4)", f"{db_name}.st1", user)
+        self.login(user, pwd)
+        self.exec_sql_failed(f"SELECT c1 FROM {db_name}.st1")  # Previous columns should be revoked
+        self.exec_sql(f"SELECT c3, c4 FROM {db_name}.st1")  # New columns should work
+        
+        # Test 2: Grant same privilege multiple times (should not error)
+        self.login()
+        self.grant_privilege("SELECT(c3,c4)", f"{db_name}.st1", user)  # Same privilege again
+        
+        # Test 3: Revoke and regrant with different columns
+        self.revoke_privilege("SELECT", f"{db_name}.st1", user)
+        self.grant_privilege("SELECT(c1,c2,c3)", f"{db_name}.st1", user)
+        self.login(user, pwd)
+        self.exec_sql(f"SELECT c1, c2, c3 FROM {db_name}.st1")
+        self.exec_sql_failed(f"SELECT c4 FROM {db_name}.st1")
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(user)
+        
+        print("Column Privilege Update Priority ....... [ passed ] ")
+
+    def do_privilege_update_time_priority(self):
+        # Test privilege priority based on update time
+        tdLog.info("=== Testing Privilege Update Time Priority ===")
+        self.login()  # Login as root
+        
+        db_name = "test_db"
+        user = "test_user"
+        role = "test_role"
+        self.create_database(db_name)
+        self.create_stable(db_name, "st1", columns="ts TIMESTAMP, c1 INT, c2 INT, c3 INT")
+        self.create_child_table(db_name, "ct1", "st1")
+        self.exec_sql(f"INSERT INTO {db_name}.ct1 VALUES (NOW, 1, 2, 3)")
+        
+        self.create_user(user, pwd)
+        self.create_role(role)
+        self.grant_role(role, user)
+        self.grant_privilege("USE", f"DATABASE {db_name}", user)
+        self.grant_privilege("USE", f"DATABASE {db_name}", role)
+        
+        # Test 1: Role privilege granted first, then user privilege (user should win)
+        self.grant_privilege("SELECT(c1)", f"{db_name}.st1", role)  # Role: c1 only
+        # Wait a moment to ensure different update time
+        time.sleep(0.1)
+        self.grant_privilege("SELECT(c2)", f"{db_name}.st1", user)  # User: c2 only
+        
+        self.login(user, pwd)
+        # According to priority: user privilege (c2) should win over role privilege (c1)
+        self.exec_sql(f"SELECT c2 FROM {db_name}.st1")
+        self.exec_sql_failed(f"SELECT c1 FROM {db_name}.st1")  # Role privilege should not apply
+        
+        # Test 2: User privilege granted first, then role privilege (role should win if later)
+        self.login()
+        self.revoke_privilege("SELECT", f"{db_name}.st1", user)
+        self.revoke_privilege("SELECT", f"{db_name}.st1", role)
+        self.grant_privilege("SELECT(c1)", f"{db_name}.st1", user)  # User: c1 first
+        time.sleep(0.1)
+        self.grant_privilege("SELECT(c2)", f"{db_name}.st1", role)  # Role: c2 later
+        
+        self.login(user, pwd)
+        # Role privilege (c2) should win because it's later
+        self.exec_sql(f"SELECT c2 FROM {db_name}.st1")
+        self.exec_sql_failed(f"SELECT c1 FROM {db_name}.st1")  # User privilege should not apply
+        
+        # Test 3: Same update time, user privilege should win
+        self.login()
+        self.revoke_privilege("SELECT", f"{db_name}.st1", user)
+        self.revoke_privilege("SELECT", f"{db_name}.st1", role)
+        # Grant both at nearly same time
+        self.grant_privilege("SELECT(c1)", f"{db_name}.st1", user)
+        self.grant_privilege("SELECT(c2)", f"{db_name}.st1", role)
+        
+        self.login(user, pwd)
+        # User privilege should win when update times are same
+        self.exec_sql(f"SELECT c1 FROM {db_name}.st1")
+        self.exec_sql_failed(f"SELECT c2 FROM {db_name}.st1")  # Role privilege should not apply
+        
+        # Cleanup
+        self.login()
+        self.drop_database(db_name)
+        self.drop_user(user)
+        self.drop_role(role)
+        
+        print("Privilege Update Time Priority ........ [ passed ] ")
 
     #
     # --------------------------- Role-Based Access Control Tests ----------------------------
@@ -3787,6 +4084,12 @@ class TestPrivControl:
           - Column-Level Privilege
           - Row-Level with Tag Condition
           - Column Mask
+          - Row-Level Complex Conditions (AND/OR combinations)
+          - Row-Level Time Range Conditions
+          - Row-Level Mixed Tag and Data Conditions
+          - Combined Column and Row Privileges
+          - Column Privilege Update Priority
+          - Privilege Update Time Priority (User vs Role)
         
         [Role-Based Access Control]
           - Role Creation and Grant
@@ -3852,11 +4155,17 @@ class TestPrivControl:
         #''' test
         self.create_snode()
         self.create_qnode()
-        print("[Three-Power Separation Tests]")
-        self.do_root_initial_permissions()
-        self.do_role_separation_best_practice()
-        self.do_daily_operations_without_root()
-        self.do_constraint()
+        print("")
+        print("[Column and Row Privileges]")
+        self.do_row_privilege_with_tag_condition()
+        self.do_row_privilege_complex_conditions()
+        self.do_row_privilege_time_range()
+        self.do_row_privilege_mixed_conditions()
+        self.do_column_privilege()
+        self.do_column_mask_privilege()
+        self.do_column_row_combined_privilege()
+        self.do_column_privilege_update_priority()
+        self.do_privilege_update_time_priority()
         return
         #'''
 
@@ -3893,9 +4202,15 @@ class TestPrivControl:
         # Column and row privilege tests
         print("")
         print("[Column and Row Privileges]")
-        self.do_column_privilege()
         self.do_row_privilege_with_tag_condition()
+        self.do_row_privilege_complex_conditions()
+        self.do_row_privilege_time_range()
+        self.do_row_privilege_mixed_conditions()
+        self.do_column_privilege()
         self.do_column_mask_privilege()
+        self.do_column_row_combined_privilege()
+        self.do_column_privilege_update_priority()
+        self.do_privilege_update_time_priority()
         
         # RBAC tests
         print("")
