@@ -720,7 +720,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
           SColRef *p = &req.colRef.pColRef[i];
           if (p->hasRef) {
             SSchema *schema = &pSuper->stbEntry.schemaRow.pSchema[i];
-            strncpy(p->colName, schema->name, TSDB_COL_NAME_LEN);
+            tstrncpy(p->colName, schema->name, TSDB_COL_NAME_LEN);
           }
         }
       }

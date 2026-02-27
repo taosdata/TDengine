@@ -121,6 +121,7 @@ int main(int argc, char* argv[]) {
   tmq_list_t* topic_list = build_topic_list();
   basic_consume_loop(tmq, topic_list);
   tmq_list_destroy(topic_list);
+  return 0;
 }
 
 // snapshot = true, stable topic / db topic, check get_raw/tmq_get_json
