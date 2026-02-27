@@ -2522,7 +2522,13 @@ static int32_t createGenericAnalysisPhysiNode(SPhysiPlanContext* pCxt, SNodeList
   return code;
 }
 
-static bool projectCanMergeDataBlock(SProjectLogicNode* pProject) {
+static bool projectCanMergeDataBlock(SProjectLogicNode* pProject, bool topLevelSubplan) {
+  // Split/scale-out may reset logic-parent pointers at subplan boundaries.
+  // Allow merge only when Project is the root output of the top-level subplan.
+  if (!topLevelSubplan || pProject->node.pParent != NULL) {
+    return false;
+  }
+
   if (GROUP_ACTION_KEEP == pProject->node.groupAction) {
     return false;
   }
@@ -2554,14 +2560,15 @@ bool projectCouldMergeUnsortDataBlock(SProjectLogicNode* pProject) {
 }
 
 static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
-                                      SProjectLogicNode* pProjectLogicNode, SPhysiNode** pPhyNode) {
+                                      SProjectLogicNode* pProjectLogicNode, SSubplan* pSubplan,
+                                      SPhysiNode** pPhyNode) {
   SProjectPhysiNode* pProject =
       (SProjectPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pProjectLogicNode, QUERY_NODE_PHYSICAL_PLAN_PROJECT);
   if (NULL == pProject) {
     return terrno;
   }
 
-  pProject->mergeDataBlock = projectCanMergeDataBlock(pProjectLogicNode);
+  pProject->mergeDataBlock = projectCanMergeDataBlock(pProjectLogicNode, (0 == pSubplan->level));
   pProject->ignoreGroupId = pProjectLogicNode->ignoreGroupId;
   pProject->inputIgnoreGroup = pProjectLogicNode->inputIgnoreGroup;
 
@@ -3269,7 +3276,7 @@ static int32_t doCreatePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return createAggPhysiNode(pCxt, pChildren, (SAggLogicNode*)pLogicNode, pPhyNode, pSubplan);
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
-      return createProjectPhysiNode(pCxt, pChildren, (SProjectLogicNode*)pLogicNode, pPhyNode);
+      return createProjectPhysiNode(pCxt, pChildren, (SProjectLogicNode*)pLogicNode, pSubplan, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
       return createExchangePhysiNode(pCxt, (SExchangeLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
