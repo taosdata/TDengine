@@ -5,19 +5,17 @@ sidebar_label: Deploy a Time-Series Foundation Model
 
 A number of research institutions and enterprises have released open-source time-series foundation models (TSFMs), greatly simplifying time-series data analysis. Beyond traditional data analysis algorithms, machine learning, and deep learning models, TSFMs offer a new and powerful option for advanced time-series analytics.
 
-TDgpt (since version 3.3.6.4) provides native support for six types of Time-Series Foundation Models (TSFMs): TDtsfm v1.0, Time-MoE, Chronos, Moirai, TimesFM, and Moment.
+TDgpt (since version 3.3.6.4) provides native support for six types of Time-Series Foundation Models (TSFMs): TDtsfm v1.0, Time-MoE, Chronos, Moirai, TimesFM, and Moment. All these models are deployed as local services that TDgpt connects to.
 
-Deployment Details
+### Deployment Details
 
-    Built-in Models: The official installation package includes TDtsfm and Time-MoE by default.
-    External Models: To use any of the other four models, you must deploy them as local services.
+The server scripts for all six TSFM services are located in the `<TDgpt_root_directory>/lib/taosanalytics/tsfmservice/` directory.
 
-Configuration Files
+TDgpt distinguishes between models that are configured by default and those that require manual configuration:
 
-The deployment files for these additional TSFM services are located at:
-`<TDgpt_root_directory>/lib/taosanalytics/tsfmservice/`
+*   **Default Models**: `TDtsfm` and `Time-MoE` are configured by default in `taosanode.ini`. You only need to start their respective server scripts to use them.
+*   **Additional Models**: `Chronos`, `Moirai`, `TimesFM`, and `Moment` require you to start their server scripts and add their service URLs to `taosanode.ini` before use.
 
-This directory contains five specific files, each used to initiate the local deployment for its corresponding foundation model.
 TDgpt has been adapted to interface with specific features of these models. If a certain function is unavailable, it may be due to a limitation of the model itself or because TDgpt has not yet been adapted to support that specific feature for that model.
 
 <table>
