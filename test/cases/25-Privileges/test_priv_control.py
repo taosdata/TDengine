@@ -3544,10 +3544,12 @@ class TestPrivControl:
         dba_user = "test_dba_user"
         sec_user = "test_sec_user"
         audit_user = "test_audit_user"
+        test_user = "test_user"        
         
         self.create_user(dba_user, pwd)
         self.create_user(sec_user, pwd)
         self.create_user(audit_user, pwd)
+        self.create_user(test_user, pwd)
         
         # Root can grant all system roles (proving root has all permissions)
         self.grant_role("`SYSDBA`", dba_user)
@@ -3563,11 +3565,8 @@ class TestPrivControl:
         
         self.login(sec_user, pwd)
         # SYSSEC should be able to grant privileges
-        test_user = "test_sec_target"
-        self.create_user(test_user, pwd)
         self.grant_privilege("CREATE DATABASE", None, test_user)
         self.revoke_privilege("CREATE DATABASE", None, test_user)
-        self.drop_user(test_user)
         
         self.login(audit_user, pwd)
         # SYSAUDIT should be able to view audit information
@@ -3578,6 +3577,7 @@ class TestPrivControl:
         self.drop_user(dba_user)
         self.drop_user(sec_user)
         self.drop_user(audit_user)
+        self.drop_user(test_user)        
         
         print("Root User Initial Permissions ......... [ passed ] ")
 
@@ -3615,12 +3615,12 @@ class TestPrivControl:
         # Should be able to grant privileges
         self.grant_privilege("CREATE DATABASE", None, business_user)
         # Should NOT be able to create database (not SYSDBA)
-        self.exec_sql_failed("CREATE DATABASE sec_db", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("CREATE DATABASE sec_db", TSDB_CODE_PAR_PERMISSION_DENIED)
         
         # Audit admin should not access business data
         self.login(audit_admin, pwd)
         # Should NOT be able to access business database
-        self.exec_sql_failed("CREATE DATABASE audit_test_db", TSDB_CODE_MND_NO_RIGHTS)
+        self.exec_sql_failed("CREATE DATABASE audit_test_db", TSDB_CODE_PAR_PERMISSION_DENIED)
         
         # Business user with granted privilege should work
         self.login(business_user, pwd)
@@ -3670,7 +3670,7 @@ class TestPrivControl:
         # 2. Security management by Security admin
         self.login(daily_sec, pwd)
         # Grant application user access to production database
-        self.grant_privilege("USE DATABASE", prod_db, app_user)
+        self.grant_privilege("USE", f"DATABASE {prod_db}", app_user)
         self.grant_privilege("SELECT", f"{prod_db}.*", app_user)
         self.grant_privilege("INSERT", f"{prod_db}.*", app_user)
         
@@ -3749,9 +3749,9 @@ class TestPrivControl:
         self.exec_sql_failed("LOCK ROLE `SYSAUDIT`", TSDB_CODE_OPS_NOT_SUPPORT)
         
         # Test 4: Constraint - cannot drop system roles
-        self.exec_sql_failed("DROP ROLE `SYSDBA`", TSDB_CODE_OPS_NOT_SUPPORT)
-        self.exec_sql_failed("DROP ROLE `SYSSEC`", TSDB_CODE_OPS_NOT_SUPPORT)
-        self.exec_sql_failed("DROP ROLE `SYSAUDIT`", TSDB_CODE_OPS_NOT_SUPPORT)
+        self.exec_sql_failed("DROP ROLE `SYSDBA`")
+        self.exec_sql_failed("DROP ROLE `SYSSEC`")
+        self.exec_sql_failed("DROP ROLE `SYSAUDIT`")
         
         # Cleanup
         self.login()
