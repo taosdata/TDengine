@@ -5,7 +5,7 @@ from taosanalytics.algo.tsfm import TsfmBaseService
 
 
 class _TimeMOEService(TsfmBaseService):
-    name = 'timemoe-fc'
+    name = 'timemoe_fc'
     desc = ("Time-MoE: Billion-Scale Time Series Foundation Models with Mixture of Experts; "
             "Ref. to https://github.com/Time-MoE/Time-MoE")
 

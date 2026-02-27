@@ -120,6 +120,7 @@ def get_data_index(schema):
 
     return -1
 
+
 def get_past_dynamic_data(data, schema):
     past_dynamic = []
 
@@ -129,6 +130,7 @@ def get_past_dynamic_data(data, schema):
 
     return None if len(past_dynamic) == 0 else past_dynamic
 
+
 def get_dynamic_data(data, schema):
     dynamic = []
 
@@ -137,6 +139,7 @@ def get_dynamic_data(data, schema):
             dynamic.append(data[index])
 
     return None if len(dynamic) == 0 else dynamic
+
 
 def get_second_data_list(data, schema):
     second_list = []
@@ -212,6 +215,7 @@ def do_check_before_exec(request, check_rows=True):
     options = req_json["option"] if "option" in req_json else None
 
     return req_json, payload, options, data_index, ts_index
+
 
 def parse_time_delta_string(time_str:str):
     match = re.match(r'^(\d*)([smhdw]|ns|ms|us)$', time_str.lower())
