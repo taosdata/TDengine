@@ -17,12 +17,12 @@
 
 #include <time.h>
 
+#include "tthash.h"
 #include "ttqAlias.h"
 #include "ttqMemory.h"
 #include "ttqPacket.h"
 #include "ttqProperty.h"
 #include "ttqTime.h"
-#include "tthash.h"
 #include "ttqUtil.h"
 
 struct tmqtt *ttqCxtInit(ttq_sock_t sock) {
@@ -35,7 +35,7 @@ struct tmqtt *ttqCxtInit(ttq_sock_t sock) {
 #ifdef WITH_EPOLL
   context->ident = id_client;
 #endif
-  tmqtt__set_state(context, ttq_cs_new);
+  UNUSED(tmqtt__set_state(context, ttq_cs_new));
   context->sock = sock;
   context->last_msg_in = db.now_s;
   context->next_msg_out = db.now_s + 60;
@@ -127,12 +127,12 @@ void ttqCxtCleanup(struct tmqtt *context, bool force_free) {
   ttq_free(context->password);
   context->password = NULL;
 
-  net__socket_close(context);
+  UNUSED(net__socket_close(context));
   if (force_free) {
-    ttqSubCleanSession(context);
+    UNUSED(ttqSubCleanSession(context));
   }
 
-  ttqDbMessageDelete(context, force_free);
+  UNUSED(ttqDbMessageDelete(context, force_free));
 
   ttq_free(context->address);
   context->address = NULL;
@@ -179,7 +179,7 @@ void ttqCxtDisconnect(struct tmqtt *context) {
   // plugin__handle_disconnect(context, -1);
 
   // ttqCxtSendWill(context);
-  net__socket_close(context);
+  UNUSED(net__socket_close(context));
   {
     if (context->session_expiry_interval == 0) {
       /* Client session is due to be expired now */
@@ -188,17 +188,17 @@ void ttqCxtDisconnect(struct tmqtt *context) {
         ttqCxtAddToDisused(context);
       }
     } else {
-      ttqSessionExpiryAdd(context);
+      UNUSED(ttqSessionExpiryAdd(context));
     }
   }
-  ttqKeepaliveRemove(context);
-  tmqtt__set_state(context, ttq_cs_disconnected);
+  UNUSED(ttqKeepaliveRemove(context));
+  UNUSED(tmqtt__set_state(context, ttq_cs_disconnected));
 }
 
 void ttqCxtAddToDisused(struct tmqtt *context) {
   if (context->state == ttq_cs_disused) return;
 
-  tmqtt__set_state(context, ttq_cs_disused);
+  UNUSED(tmqtt__set_state(context, ttq_cs_disused));
 
   if (context->id) {
     ttqCxtRemoveFromById(context);

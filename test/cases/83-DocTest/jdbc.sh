@@ -3,7 +3,7 @@ set -e
 
 pgrep taosd || taosd >> /dev/null 2>&1 &
 pgrep taosadapter || taosadapter >> /dev/null 2>&1 &
-cd ../../docs/examples/java
+cd ../../docs/examples/JDBC/JDBCDemo
 
 mvn clean test > jdbc-out.log 2>&1
 tail -n 20 jdbc-out.log
