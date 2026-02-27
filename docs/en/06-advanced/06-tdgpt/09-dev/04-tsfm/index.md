@@ -357,7 +357,6 @@ python chronos-server.py /var/lib/taos/taosanode/model/chronos/ amazon/chronos-b
 | moment | 4.33 |
 | timesfm | N/A |
 
-
 ### References
 
 1. Time-MoE: Billion-Scale Time Series Foundation Models with Mixture of Experts  
