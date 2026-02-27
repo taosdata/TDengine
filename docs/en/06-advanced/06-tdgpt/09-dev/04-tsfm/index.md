@@ -5,7 +5,37 @@ sidebar_label: Deploy a Time-Series Foundation Model
 
 A number of research institutions and enterprises have released open-source time-series foundation models (TSFMs), greatly simplifying time-series data analysis. Beyond traditional data analysis algorithms, machine learning, and deep learning models, TSFMs offer a new and powerful option for advanced time-series analytics.
 
-TDgpt includes two TSFMs, TDtsfm and Time-MoE, but you can add more open-source or proprietary TSFMs to TDgpt as needed.
+TDgpt (since version 3.3.6.4) provides native support for six types of Time-Series Foundation Models (TSFMs): TDtsfm v1.0, Time-MoE, Chronos, Moirai, TimesFM, and Moment.
+
+Deployment Details
+
+    Built-in Models: The official installation package includes TDtsfm and Time-MoE by default.
+    External Models: To use any of the other four models, you must deploy them as local services.
+
+Configuration Files
+
+The deployment files for these additional TSFM services are located at:
+`<TDgpt_root_directory>/lib/taosanalytics/tsfmservice/`
+
+This directory contains five specific files, each used to initiate the local deployment for its corresponding foundation model.
+TDgpt has been adapted to interface with specific features of these models. If a certain function is unavailable, it may be due to a limitation of the model itself or because TDgpt has not yet been adapted to support that specific feature for that model.
+
+<table>
+<tr><th rowspan="2">Models</th> <th rowspan="2">Files</th> <th colspan="3">Note</th><th colspan="5">Functions Description</th></tr>
+<tr><th>Name</th><th>Parameters (100M)</th><th>Model Size(MiB)</th><th>Forecast</th><th>Covariate Forecast</th><th>Multivariate Forecast</th><th>Anomaly Detection</th><th>Imputation</th></tr>
+<tr><th rowspan="2">timemoe</th><th rowspan="2">timemoe-server.py</th><th>Maple728/TimeMoE-50M</th><th>0.50</th><th align="right">227</th><th rowspan="2">✔</th><th rowspan="2">✘</th><th rowspan="2">✘</th><th rowspan="2">✘</th><th rowspan="2">✘</th></tr>
+<tr><th>Maple728/TimeMoE-200M</th><th>4.53</th><th align="right">906</th></tr>
+<tr><th rowspan="2">moirai</th><th rowspan="2">moirai-server.py</th><th>Salesforce/moirai-moe-1.0-R-small</th><th>1.17</th><th align="right">469</th><th rowspan="2">✔</th><th rowspan="2">✔</th><th rowspan="2">✘</th><th rowspan="2">✘</th><th rowspan="2">✘</th></tr>
+<tr><th>Salesforce/moirai-moe-1.0-R-base</th><th>9.35</th><th align="right">3,740</th></tr>
+<tr><th rowspan="4">chronos</th><th rowspan="4">chronos-server.py</th><th>amazon/chronos-bolt-tiny</th><th>0.09</th><th align="right">35</th><th rowspan="4">✔</th><th rowspan="4">✘</th><th rowspan="4">✘</th><th rowspan="4">✘</th><th rowspan="4">✘</th></tr>
+<tr><th>amazon/chronos-bolt-mini</th><th>0.21</th><th align="right">85</th></tr>
+<tr><th>amazon/chronos-bolt-small</th><th>0.48</th><th align="right">191</th></tr>
+<tr><th>amazon/chronos-bolt-base</th><th>2.05</th><th align="right">821</th></tr>
+<tr><th>timesfm</th><th>timesfm-server.py</th><th>google/timesfm-2.0-500m-pytorch</th><th>4.99</th><th align="right">2,000</th><th>✔</th><th>✘</th><th>✘</th><th>✘</th><th>✘</th></tr>
+<tr><th rowspan="3">moment</th><th rowspan="3">moment-server.py</th><th>AutonLab/MOMENT-1-small</th><th>0.38</th><th align="right">152</th><th rowspan="3">✘</th><th rowspan="3">✘</th><th rowspan="3">✘</th><th rowspan="4">✘</th><th rowspan="3">✔</th></tr>
+<tr><th>AutonLab/MOMENT-1-base</th><th>1.13</th><th align="right">454</th></tr>
+<tr><th>AutonLab/MOMENT-1-large</th><th>3.46</th><th align="right">1,039</th></tr>
+</table>
 
 This document describes how to integrate an independent TSFM service into TDengine, using [Time-MoE](https://github.com/Time-MoE/Time-MoE) as an example, and how to use the model in SQL statements for time-series forecasting.
 
