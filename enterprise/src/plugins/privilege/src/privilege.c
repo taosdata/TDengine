@@ -942,6 +942,7 @@ int32_t mndSetUserRolePrivileges(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRs
     }
     if (pRole->enable == 0) {
       mndReleaseRole(pMnode, pRole);
+      pRole = NULL;
       continue;
     }
     TAOS_CHECK_EXIT(mndMergeRolePrivilges(pMnode, pUser, pRole, pRsp));
