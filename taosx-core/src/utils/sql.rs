@@ -248,11 +248,15 @@ pub async fn get_minimum_timestamp(
                             .map(|(keep1, _)| (precision, keep1.to_string()))
                             .unwrap_or((precision, keep))
                     })
-                    .and_then(|(precision, keep)| {
-                        utils::parse_duration(&keep).ok().map(|d| (precision, d))
+                    .map(|(precision, keep)| {
+                        utils::parse_duration(&keep)
+                            .ok()
+                            .map(|d| (precision, Some(chrono::Utc::now() - d)))
+                            .unwrap_or_else(|| (precision, None)) // Compatible for cloud tsdb 3.4.0.0+
                     })
-                    .map(|(_precision, d)| (_precision, Some(chrono::Utc::now() - d)))
-                    .ok_or_else(|| taos::Error::from_string("Empty precision/keep result"));
+                    .ok_or_else(|| {
+                        taos::Error::from_string("Empty precision/keep result in target database")
+                    });
             }
             Err(err) => {
                 if max_retries == 0 {
@@ -296,15 +300,23 @@ async fn test_min_timestamp_with_taos() {
     let dsn = "taos://";
     let pool = taos::TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
     let taos = pool.get().await.unwrap();
+    let _ = taos.exec_many(["drop user tu_min_timestamp"]).await;
     taos.exec_many([
         "drop database if exists test_min_timestamp",
         "create database if not exists test_min_timestamp keep 365d",
+        "create user tu_min_timestamp pass 'Tbase125!' sysinfo 0",
+        "grant all on test_min_timestamp.* to tu_min_timestamp",
         "use test_min_timestamp",
         "create table if not exists test (ts timestamp, v int)",
         "insert into test values (now(), 1)",
     ])
     .await
     .unwrap();
+    let _ = taos
+        .exec_many([
+            "grant all on database test_min_timestamp to tu_min_timestamp", // 3.4 need separate grant sql
+        ])
+        .await;
     let mut taos = Some(taos);
 
     let min = chrono::Utc::now();
@@ -313,8 +325,21 @@ async fn test_min_timestamp_with_taos() {
         .unwrap();
     assert_eq!(precision, Precision::Millisecond);
     assert!(t <= Some(min));
-    taos.unwrap()
-        .exec_many(["drop database if exists test_min_timestamp"])
+
+    let tu_dsn = "taos://tu_min_timestamp:Tbase125!@localhost:6030/test_min_timestamp";
+    let tu_pool = taos::TaosBuilder::from_dsn(tu_dsn).unwrap().pool().unwrap();
+    let mut tu_taos = tu_pool.get().await.ok();
+    let (p2, t2) = get_minimum_timestamp(&tu_pool, &mut tu_taos, 0, &CancellationToken::new())
+        .await
+        .unwrap();
+    assert_eq!(p2, Precision::Millisecond);
+    assert!(t2.is_none());
+    let _ = taos
+        .unwrap()
+        .exec_many([
+            "drop database if exists test_min_timestamp",
+            "drop user tu_min_timestamp",
+        ])
         .await
         .unwrap();
 }
