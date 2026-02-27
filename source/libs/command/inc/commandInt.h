@@ -23,7 +23,6 @@ extern "C" {
 // clang-format off
 #include "nodes.h"
 #include "plannodes.h"
-#include "ttime.h"
 
 #define EXPLAIN_MAX_GROUP_NUM 100
 
@@ -226,6 +225,7 @@ typedef struct SExplainCtx {
   int64_t      reqStartTs;
   int64_t      jobStartTs;
   int64_t      jobDoneTs;
+  int64_t      execZeroTs;
   char        *tbuf;
   SArray      *rows;
   int32_t      groupNum;
@@ -287,6 +287,7 @@ do {                                                                \
 
 #define EXPLAIN_ROW_APPEND_LIMIT(_pLimit) EXPLAIN_ROW_APPEND_LIMIT_IMPL(_pLimit, false)
 #define EXPLAIN_ROW_APPEND_SLIMIT(_pLimit) EXPLAIN_ROW_APPEND_LIMIT_IMPL(_pLimit, true)
+#define EXPLAIN_CONVERT_TS_US_TO_MS(_ts) ((double)(_ts) / 1000.0)
 
 #ifdef __cplusplus
 }
