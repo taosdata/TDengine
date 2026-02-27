@@ -4,7 +4,6 @@ from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 class TestExternal:
 
     def test_External(self):
-        tdLog.debug(f"start to execute {__file__}")
         """External basic
 
         1. Test the basic usage of External window
@@ -24,6 +23,7 @@ class TestExternal:
 
         """
 
+        tdLog.debug(f"start to execute {__file__}")
         vgroups = 4
         self.dbName = "d0"
 
