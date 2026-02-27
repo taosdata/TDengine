@@ -1620,6 +1620,25 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
     code = terrno;
     goto _OVER;
   }
+  SJson *errorJson = tjsonGetObjectItem(pJson, "__inner_error");
+  if (errorJson != NULL) {
+    code = TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR;
+    char* pValueString = ((cJSON*)errorJson)->valuestring;
+    if (NULL == pValueString) {
+      mError("should not failed to get __inner_error message, task name:%s", pCreateReq->name.ptr);
+      goto _OVER;
+    }
+    //handle response
+    int32_t contLen = strlen(pValueString) + strlen(tstrerror(code)) + 32;
+    void *pRsp = rpcMallocCont(contLen);
+    if (pRsp == NULL) {
+      TAOS_CHECK_GOTO(terrno, NULL, _OVER);
+    }
+    pReq->info.rspLen = contLen;
+    pReq->info.rsp = pRsp;
+    snprintf(pReq->info.rsp, contLen, "%s, since: %s", tstrerror(code), pValueString);
+    goto _OVER;
+  }
 
   // todo: only4test
   // (void)mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, 60000, pContStr, strlen(pContStr));
@@ -1658,7 +1677,7 @@ static int32_t mndHandleCreateXnodeTaskResult(int32_t createCode) {
 static int32_t mndProcessCreateXnodeTaskReq(SRpcMsg *pReq) {
   mDebug("xnode create task request received, contLen:%d\n", pReq->contLen);
   SMnode              *pMnode = pReq->info.node;
-  int32_t              code = -1;
+  int32_t              code = 0;
   SMCreateXnodeTaskReq createReq = {0};
 
   // Step 1: Validate permissions
@@ -3909,7 +3928,7 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_POST, 1), &lino, _OVER);
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, bufLen), &lino, _OVER);
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_POSTFIELDS, buf), &lino, _OVER);
-  TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L), &lino, _OVER);
+  TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L), &lino, _OVER);
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L), &lino, _OVER);
 
   mDebug("xnode curl post request will sent, url:%s len:%d content:%s", url, bufLen, buf);
@@ -4001,7 +4020,7 @@ SJson *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const
   if (!taosCheckExistFile(socketPath)) {
     uError("xnode failed to send request, socket path:%s not exist", socketPath);
     terrno = TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
-    goto _OVER;
+    goto _EXIT;
   }
   if (type == HTTP_TYPE_GET) {
     if ((terrno = taosCurlGetRequest(url, &curlRsp, timeout, socketPath)) != 0) {
@@ -4018,21 +4037,32 @@ SJson *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const
   } else {
     uError("xnode invalid http type:%d", type);
     terrno = TSDB_CODE_MND_XNODE_INVALID_MSG;
-    goto _OVER;
-  }
-
-  if (curlRsp.data == NULL || curlRsp.dataLen == 0) {
-    pJson = tjsonCreateObject();
-    goto _OVER;
-  }
-
-  pJson = tjsonParse(curlRsp.data);
-  if (pJson == NULL) {
-    terrno = TSDB_CODE_INVALID_JSON_FORMAT;
-    goto _OVER;
+    goto _EXIT;
   }
 
 _OVER:
+  if (terrno == TSDB_CODE_SUCCESS) {
+    if (curlRsp.data == NULL || curlRsp.dataLen == 0) {
+      pJson = tjsonCreateObject();
+      goto _EXIT;
+    }
+    pJson = tjsonParse(curlRsp.data);
+    if (pJson == NULL) {
+      terrno = TSDB_CODE_INVALID_JSON_FORMAT;
+      goto _EXIT;
+    }
+  } else if (terrno == TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR) {
+    pJson = tjsonCreateObject();
+    char *buf = taosMemCalloc(1, curlRsp.dataLen + 1);
+    (void)memcpy(buf, curlRsp.data, curlRsp.dataLen);
+    if (tjsonAddStringToObject(pJson, "__inner_error", buf) != TSDB_CODE_SUCCESS) {
+      taosMemoryFreeClear(buf);
+      goto _EXIT;
+    }
+    taosMemoryFreeClear(buf);
+  }
+
+_EXIT:
   if (curlRsp.data != NULL) taosMemoryFreeClear(curlRsp.data);
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("xnode failed to send request, url: %s, since:%s", url, tstrerror(terrno));

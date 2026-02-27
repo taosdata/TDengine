@@ -14,7 +14,7 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 The installation command is as follows:
 
 ```bash
-# Native connection and REST connection
+# Native connection
 pip3 install taospy
 
 # WebSocket connection, optional installation
@@ -25,22 +25,20 @@ The connector code is open sourced and hosted on Github [Taos Connector Python](
 
 ## Connection Methods
 
-`taospy` provides three connection methods, and we recommend using WebSocket connection.
+`taospy` provides two connection methods, and we recommend using WebSocket connection.
 
 - **Native Connection**, Python connector loads TDengine client driver (libtaos.so/taos.dll), directly connects to TDengine instance, with high performance and fast speed.
  Functionally, it supports functions such as data writing, querying, data subscription, schemaless interface, and parameter binding interface.
-- **REST Connection**, The Python connector connects to the TDengine instance through the HTTP interface provided by the taosAdapter, with minimal dependencies and no need to install the TDengine client driver.
- Functionality does not support features such as schemaless and data subscription.
 - **WebSocket Connection**, The Python connector connects to the TDengine instance through the WebSocket interface provided by the taosAdapter, which combines the advantages of the first two types of connections, namely high performance and low dependency.
  In terms of functionality, there are slight differences between the WebSocket connection implementation feature set and native connections.
 
 For a detailed introduction of the connection method, please refer to: [Connection Method](../../../developer-guide/connecting-to-tdengine/)
 
-In addition to encapsulating Native and REST interfaces, `taospy` also provides compliance with [the Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/) The programming interface.
+In addition to encapsulating Native interface, `taospy` also provides compliance with [the Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/) The programming interface.
 This makes it easy to integrate `taospy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
 
 The method of establishing a connection directly with the server using the native interface provided by the client driver is referred to as "Native Connection" in the following text;
-The method of establishing a connection with the server using the REST interface or WebSocket interface provided by the taosAdapter is referred to as a "REST Connection" or "WebSocket connection" in the following text.
+The method of establishing a connection with the server using the WebSocket interface provided by the taosAdapter is referred to as a "WebSocket connection" in the following text.
 
 :::note
 
@@ -58,7 +56,7 @@ Supports Python 3.0 and above.
 ## Supported Platforms
 
 -The platforms supported by native connections are consistent with those supported by the TDengine client driver.
--WebSocket/REST connections support all platforms that can run Python.
+-WebSocket connections support all platforms that can run Python.
 
 ## Version History
 
@@ -622,51 +620,3 @@ TaosResult object can be iterated over to retrieve queried data.
 - `def close(self)`
   - **Interface Description**: Closes the tmq connection.
   - **Exception**: Throws `TmqError` exception on failure.
-
-### REST Connection
-
-- `def connect(**kwargs) -> TaosRestConnection`
-  - **Interface Description**: Establish a connection to taosAdapter.
-  - **Parameter Description**:
-    - `kwargs`: Provided as a Python dictionary, can be used to set
-      - `user`: Username for the database
-      - `password`: Password for the database.
-      - `host`: Host address
-      - `port`: Port number
-      - `database`: Database name
-  - **Return Value**: Connection object.
-  - **Exception**: Throws `ConnectError` exception if operation fails.
-- `def execute(self, sql: str, req_id: Optional[int] = None) -> Optional[int]`
-  - **Interface Description**: Execute an SQL statement.
-  - **Parameter Description**:
-    - `sql`: SQL statement to be executed.
-    - `reqId`: Used for issue tracking.
-  - **Return Value**: Number of rows affected.
-  - **Exception**: Throws `ConnectError` or `HTTPError` exception if operation fails.
-- `def query(self, sql: str, req_id: Optional[int] = None) -> Result`
-  - **Interface Description**: Query data.
-  - **Parameter Description**:
-    - `sql`: SQL statement to be executed.
-    - `reqId`: Used for issue tracking.
-  - **Return Value**: `Result` dataset object.
-  - **Exception**: Throws `ConnectError` or `HTTPError` exception if operation fails.
-- `RestClient(self, url: str, token: str = None, database: str = None, user: str = "root", password: str = "taosdata", timeout: int = None, convert_timestamp: bool = True, timezone: Union[str, datetime.tzinfo] = None)`
-  - **Interface Description**: Establish a taosAdapter connection client.
-  - **Parameter Description**:
-    - `url`: URL of the taosAdapter REST service.
-    - `user`: Username for the database.
-    - `password`: Password for the database.
-    - `database`: Database name.
-    - `timezone`: Time zone.
-    - `timeout`: HTTP request timeout in seconds.
-    - `convert_timestamp`: Whether to convert timestamps from STR type to datetime type.
-    - `timezone`: Time zone.
-  - **Return Value**: Connection object.
-  - **Exception**: Throws `ConnectError` exception if operation fails.
-- `def sql(self, q: str, req_id: Optional[int] = None) -> dict`
-  - **Interface Description**: Execute an SQL statement.
-  - **Parameter Description**:
-    - `sql`: SQL statement to be executed.
-    - `reqId`: Used for issue tracking.
-  - **Return Value**: Returns a list of dictionaries.
-  - **Exception**: Throws `ConnectError` or `HTTPError` exception if operation fails.

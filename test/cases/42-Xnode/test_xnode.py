@@ -328,6 +328,9 @@ class TestXnode:
         self.no_syntax_fail_execute(f"DROP DATABASE zgc_{rid}")
         self.no_syntax_fail_execute(f"DROP DATABASE test_{rid}")
 
+        long_col = "a"*1024
+        self.must_fail_execute(f"CREATE XNODE TASK 't_{rid}' FROM 'taos://root:taosdata@localhost:6030/test_{rid}?test={long_col}' TO 'taos://root:taosdata@localhost:6030/zgc_{rid}' WITH STATUS 'created' VIA 1 labels 'labels';")
+
     def test_agent_lifecycle(self):
         """test no syntax fail query
 
