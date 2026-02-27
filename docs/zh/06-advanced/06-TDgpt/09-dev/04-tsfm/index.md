@@ -8,10 +8,10 @@ sidebar_label: "部署时序基础模型"
 
 TDgpt 在 3.3.6.4 版本原生支持六种类型的时序基础模型：涛思时序基础模型 (TDtsfm v1.0) , time-moe，chronos, moirai, timesfm, moment。
 在官方的安装包中，内置了 TDtsfm 和 time-moe 两个时序模型，如果使用其他的模型，需要您在本地部署服务。部署其他时序基础模型服务的文件，位于
-`< tdgpt 根目录>/lib/taosanalytics/tsfmservice/` 下，该目录下包含四个文件，分别用于本地部署启动对应的时序基础模型。TDgpt 适配了以下的时序模型的功能，对于不支持的功能，可能模型本身无法支持也可能是 TDgpt 没有适配该时序基础模型的功能。
+`< tdgpt 根目录>/lib/taosanalytics/tsfmservice/` 下，该目录下包含五个文件，分别用于本地部署启动对应的时序基础模型。TDgpt 适配了以下的时序模型的功能，对于不支持的功能，可能模型本身无法支持也可能是 TDgpt 没有适配该时序基础模型的功能。
 
 <table>
-<tr><th rowspan="2">模型</th> <th rowspan="2">文件</th> <th colspan="3">模型说明</th><th colspan="4">功能说明</th></tr>
+<tr><th rowspan="2">模型</th> <th rowspan="2">文件</th> <th colspan="3">模型说明</th><th colspan="5">功能说明</th></tr>
 <tr><th>名称</th><th>参数 (亿)</th><th>大小 (MiB)</th><th>单变量预测</th><th>协变量预测</th><th>多变量预测</th><th>异常检测</th><th>补值</th></tr>
 <tr><th rowspan="2">timemoe</th><th rowspan="2">timemoe-server.py</th><th>Maple728/TimeMoE-50M</th><th>0.50</th><th align="right">227</th><th rowspan="2">✔</th><th rowspan="2">✘</th><th rowspan="2">✘</th><th rowspan="2">✘</th><th rowspan="2">✘</th></tr>
 <tr><th>Maple728/TimeMoE-200M</th><th>4.53</th><th align="right">906</th></tr>

@@ -61,11 +61,11 @@ http-timeout = 1200
 
 ### 5. 如何调整 TDgpt 日志级别以及获得其详细的错误信息
 
-TDgpt 默认日志级别是 debug。调整其日志级别需要更改 TDgpt 配置文件 `/etc/taos/taosanode.ini` 中的 `log-level` 配置项。
+TDgpt 默认日志级别是 DEBUG。调整其日志级别需要更改 TDgpt 配置文件 `/etc/taos/taosanode.ini` 中的 `log-level` 配置项。
 
 ```ini
 # default log level
-log-level = INFO
+log-level = DEBUG
 ```
 
 该配置项可选配置包括：DEBUG，INFO，CRITICAL，ERROR，WARN。
