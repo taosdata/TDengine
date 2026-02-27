@@ -69,7 +69,7 @@ pub async fn start_monitor(
         }
 
         if cancel
-            .run_until_cancelled(tokio::time::sleep(Duration::from_secs(5)))
+            .run_until_cancelled(tokio::time::sleep(Duration::from_secs(60)))
             .await
             .is_none()
         {

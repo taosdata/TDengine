@@ -26,7 +26,7 @@ pub async fn start_updater(
         .await
         .context("create db connection error")?;
     while cancel
-        .run_until_cancelled(tokio::time::sleep(Duration::from_secs(5)))
+        .run_until_cancelled(tokio::time::sleep(Duration::from_secs(60)))
         .await
         .is_some()
     {
