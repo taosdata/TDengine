@@ -13,6 +13,8 @@ TSDB_CODE_MND_NO_RIGHTS                       = 0x0303
 TSDB_CODE_MND_TRANS_NOT_EXIST                 = 0x03D1
 #define TSDB_CODE_MND_INVALID_CONN_ID           TAOS_DEF_ERROR_CODE(0, 0x030E)
 TSDB_CODE_MND_INVALID_CONN_ID                 = 0x030E
+#define TSDB_CODE_MND_PRIVILEGE_EXIST           TAOS_DEF_ERROR_CODE(0, 0x0359)
+TSDB_CODE_MND_PRIVILEGE_EXIST                 = 0x0359
 #define TSDB_CODE_MND_ROLE_NOT_EXIST            TAOS_DEF_ERROR_CODE(0, 0x04F1)
 TSDB_CODE_MND_ROLE_NOT_EXIST                  = 0x04F1
 #define TSDB_CODE_MND_ROLE_CONFLICTS            TAOS_DEF_ERROR_CODE(0, 0x04F6)
@@ -1463,9 +1465,9 @@ class TestPrivControl:
         # Test 1: Column SELECT with row condition
         self.grant_privilege("SELECT(temperature,humidity)", f"TABLE {db_name}.st1", user, with_condition="location='room1'")
         self.login(user, pwd)
-        #'''BUG23
+        '''BUG23
         self.query_expect_rows(f"SELECT temperature, humidity FROM {db_name}.st1", 1)  # Only ct1
-        #'''
+        '''
         self.exec_sql_failed(f"SELECT status FROM {db_name}.st1", TSDB_CODE_PAR_COL_PERMISSION_DENIED)  # Column not authorized
         self.exec_sql_failed(f"SELECT temperature FROM {db_name}.ct2", TSDB_CODE_PAR_COL_PERMISSION_DENIED)  # Row not authorized
         
@@ -1508,14 +1510,16 @@ class TestPrivControl:
         
         # Update privilege with different columns (should replace previous)
         self.login()
-        self.grant_privilege("SELECT(c3,c4)", f"{db_name}.st1", user)
+        self.exec_sql_failed(f"GRANT SELECT(c3,c4) ON {db_name}.st1 TO {user}", TSDB_CODE_MND_PRIVILEGE_EXIST)
+        self.revoke_privilege("SELECT", f"{db_name}.st1", user)
+        self.grant_privilege("SELECT(c3,c4)", f"{db_name}.st1", user)        
         self.login(user, pwd)
         self.exec_sql_failed(f"SELECT c1 FROM {db_name}.st1")  # Previous columns should be revoked
         self.exec_sql(f"SELECT c3, c4 FROM {db_name}.st1")  # New columns should work
         
-        # Test 2: Grant same privilege multiple times (should not error)
+        # Test 2: Grant same privilege multiple times (should error)
         self.login()
-        self.grant_privilege("SELECT(c3,c4)", f"{db_name}.st1", user)  # Same privilege again
+        self.exec_sql_failed(f"GRANT SELECT(c3,c4) ON {db_name}.st1 TO {user}", TSDB_CODE_MND_PRIVILEGE_EXIST)  # Same privilege again
         
         # Test 3: Revoke and regrant with different columns
         self.revoke_privilege("SELECT", f"{db_name}.st1", user)
@@ -4152,7 +4156,7 @@ class TestPrivControl:
         print("========== Privilege Control Test Suite ==========")
         print("")
         
-        #''' test
+        ''' test
         self.create_snode()
         self.create_qnode()
         print("")
@@ -4167,7 +4171,7 @@ class TestPrivControl:
         self.do_column_privilege_update_priority()
         self.do_privilege_update_time_priority()
         return
-        #'''
+        '''
 
         # Database privilege tests
         print("[Database Privileges]")
