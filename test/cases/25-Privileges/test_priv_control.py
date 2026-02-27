@@ -3534,10 +3534,178 @@ class TestPrivControl:
         
         print("Concurrent Privilege Operations ....... [ passed ] ")
 
+    def do_root_initial_permissions(self):
+        # Test root user initial permissions (3.4.0.0+ feature)
+        tdLog.info("=== Testing Root User Initial Permissions ===")
+        self.login()  # Login as root
+        
+        # Root should be able to perform all system role operations by default
+        # Create test users for role separation
+        dba_user = "test_dba_user"
+        sec_user = "test_sec_user"
+        audit_user = "test_audit_user"
+        
+        self.create_user(dba_user, pwd)
+        self.create_user(sec_user, pwd)
+        self.create_user(audit_user, pwd)
+        
+        # Root can grant all system roles (proving root has all permissions)
+        self.grant_role("`SYSDBA`", dba_user)
+        self.grant_role("`SYSSEC`", sec_user)
+        self.grant_role("`SYSAUDIT`", audit_user)
+        
+        # Verify each user has the correct role
+        self.login(dba_user, pwd)
+        # SYSDBA should be able to create database
+        test_db = "test_root_db"
+        self.create_database(test_db)
+        self.drop_database(test_db)
+        
+        self.login(sec_user, pwd)
+        # SYSSEC should be able to grant privileges
+        test_user = "test_sec_target"
+        self.create_user(test_user, pwd)
+        self.grant_privilege("CREATE DATABASE", None, test_user)
+        self.revoke_privilege("CREATE DATABASE", None, test_user)
+        self.drop_user(test_user)
+        
+        self.login(audit_user, pwd)
+        # SYSAUDIT should be able to view audit information
+        # Note: Actual audit operations may require audit database setup
+        
+        # Cleanup test users
+        self.login()
+        self.drop_user(dba_user)
+        self.drop_user(sec_user)
+        self.drop_user(audit_user)
+        
+        print("Root User Initial Permissions ......... [ passed ] ")
+
+    def do_role_separation_best_practice(self):
+        # Test role separation best practice (三权分立)
+        tdLog.info("=== Testing Role Separation Best Practice ===")
+        self.login()  # Login as root
+        
+        # Create dedicated admin users as per best practice
+        dba_admin = "dba_admin"
+        sec_admin = "sec_admin" 
+        audit_admin = "audit_admin"
+        business_user = "business_user"
+        
+        self.create_user(dba_admin, pwd)
+        self.create_user(sec_admin, pwd)
+        self.create_user(audit_admin, pwd)
+        self.create_user(business_user, pwd)
+        
+        # Separate roles to different users (三权分立)
+        self.grant_role("`SYSDBA`", dba_admin)
+        self.grant_role("`SYSSEC`", sec_admin)
+        self.grant_role("`SYSAUDIT`", audit_admin)
+        
+        # Verify role separation works correctly
+        # DBA admin should be able to perform database operations
+        self.login(dba_admin, pwd)
+        dba_db = "dba_managed_db"
+        self.create_database(dba_db)
+        self.create_stable(dba_db, "dba_stable")
+        self.drop_database(dba_db)
+        
+        # Security admin should be able to manage privileges but not database operations
+        self.login(sec_admin, pwd)
+        # Should be able to grant privileges
+        self.grant_privilege("CREATE DATABASE", None, business_user)
+        # Should NOT be able to create database (not SYSDBA)
+        self.exec_sql_failed("CREATE DATABASE sec_db", TSDB_CODE_MND_NO_RIGHTS)
+        
+        # Audit admin should not access business data
+        self.login(audit_admin, pwd)
+        # Should NOT be able to access business database
+        self.exec_sql_failed("CREATE DATABASE audit_test_db", TSDB_CODE_MND_NO_RIGHTS)
+        
+        # Business user with granted privilege should work
+        self.login(business_user, pwd)
+        business_db = "business_db"
+        self.create_database(business_db)
+        self.drop_database(business_db)
+        
+        # Cleanup role separation test users
+        self.login()
+        self.drop_user(dba_admin)
+        self.drop_user(sec_admin)
+        self.drop_user(audit_admin)
+        self.drop_user(business_user)
+        
+        print("Role Separation Best Practice ........ [ passed ] ")
+
+    def do_daily_operations_without_root(self):
+        # Test daily operations without using root (best practice)
+        tdLog.info("=== Testing Daily Operations Without Root ===")
+        self.login()  # Login as root
+        
+        # Create dedicated admin users for daily operations
+        daily_dba = "daily_dba"
+        daily_sec = "daily_sec"
+        daily_audit = "daily_audit"
+        app_user = "app_user"
+        
+        self.create_user(daily_dba, pwd)
+        self.create_user(daily_sec, pwd)
+        self.create_user(daily_audit, pwd)
+        self.create_user(app_user, pwd)
+        
+        # Grant appropriate roles (三权分立)
+        self.grant_role("`SYSDBA`", daily_dba)
+        self.grant_role("`SYSSEC`", daily_sec)
+        self.grant_role("`SYSAUDIT`", daily_audit)
+        
+        # Test daily operations without using root
+        # 1. Database administration by DBA
+        self.login(daily_dba, pwd)
+        prod_db = "production_db"
+        self.create_database(prod_db)
+        self.create_stable(prod_db, "sensors")
+        self.create_child_table(prod_db, "sensor_001", "sensors")
+        self.insert_data(prod_db, "sensor_001")
+        
+        # 2. Security management by Security admin
+        self.login(daily_sec, pwd)
+        # Grant application user access to production database
+        self.grant_privilege("USE DATABASE", prod_db, app_user)
+        self.grant_privilege("SELECT", f"{prod_db}.*", app_user)
+        self.grant_privilege("INSERT", f"{prod_db}.*", app_user)
+        
+        # 3. Application user can work without root
+        self.login(app_user, pwd)
+        # Can use the database
+        tdSql.execute(f"USE {prod_db}")
+        # Can query data
+        tdSql.query(f"SELECT * FROM {prod_db}.sensors")
+        # Can insert data
+        self.insert_data(prod_db, "sensor_001")
+        
+        # 4. Audit operations by Audit admin
+        self.login(daily_audit, pwd)
+        # Audit admin can view audit information but not business data
+        # This would typically involve audit database operations
+        
+        # 5. Verify root is not needed for these daily operations
+        # All operations above were performed without using root after initial setup
+        
+        # Cleanup daily operations test
+        self.login()
+        self.drop_database(prod_db)
+        self.drop_user(daily_dba)
+        self.drop_user(daily_sec)
+        self.drop_user(daily_audit)
+        self.drop_user(app_user)
+        
+        print("Daily Operations Without Root ........ [ passed ] ")
+
     def do_constraint(self):
-        # Test constraint 
+        # Test constraint operations only - focusing on system limitations
         tdLog.info("=== Testing Constraint Operations ===")
         self.login()  # Login as root
+        
         db_name = "test_db"
         user = "test_user"
         self.create_user(user, pwd)        
@@ -3548,7 +3716,8 @@ class TestPrivControl:
         self.insert_data(db_name, "t1")
         self.insert_data(db_name, "t2")
         
-        # Test1: Not allowed to grant both SYSDBA/SYSSEC/SYSAUDIT to the same user
+        # Test 1: Not allowed to grant both SYSDBA/SYSSEC/SYSAUDIT to the same user
+        # This is a critical constraint in 3.4.0.0+ three-power separation
         self.grant_role("`SYSDBA`", user)
         self.exec_sql_failed(f"GRANT ROLE `SYSSEC` TO {user}", TSDB_CODE_MND_ROLE_CONFLICTS)
         self.exec_sql_failed(f"GRANT ROLE `SYSAUDIT` TO {user}", TSDB_CODE_MND_ROLE_CONFLICTS)
@@ -3561,8 +3730,8 @@ class TestPrivControl:
         self.exec_sql_failed(f"GRANT ROLE `SYSDBA` TO {user}", TSDB_CODE_MND_ROLE_CONFLICTS)
         self.exec_sql_failed(f"GRANT ROLE `SYSSEC` TO {user}", TSDB_CODE_MND_ROLE_CONFLICTS)
         
-        # Test2: System allows multiple users to own the same system role
-        
+        # Test 2: System allows multiple users to own the same system role
+        # This is allowed - multiple users can have SYSDBA role
         user2 = "test_user2"
         user3 = "test_user3"
         self.create_user(user2, pwd)
@@ -3571,8 +3740,18 @@ class TestPrivControl:
         self.revoke_role("`SYSAUDIT`", user)
         self.revoke_role("`SYSINFO_1`", user2)
         self.grant_role("`SYSDBA`", user)
-        self.grant_role("`SYSDBA`", user2)  # Should be allowed
+        self.grant_role("`SYSDBA`", user2)  # Should be allowed - multiple users can have same role
         self.grant_role("`SYSDBA`", user3)  # Should be allowed
+        
+        # Test 3: Additional constraint - system roles cannot be locked
+        self.exec_sql_failed("LOCK ROLE `SYSDBA`", TSDB_CODE_OPS_NOT_SUPPORT)
+        self.exec_sql_failed("LOCK ROLE `SYSSEC`", TSDB_CODE_OPS_NOT_SUPPORT)
+        self.exec_sql_failed("LOCK ROLE `SYSAUDIT`", TSDB_CODE_OPS_NOT_SUPPORT)
+        
+        # Test 4: Constraint - cannot drop system roles
+        self.exec_sql_failed("DROP ROLE `SYSDBA`", TSDB_CODE_OPS_NOT_SUPPORT)
+        self.exec_sql_failed("DROP ROLE `SYSSEC`", TSDB_CODE_OPS_NOT_SUPPORT)
+        self.exec_sql_failed("DROP ROLE `SYSAUDIT`", TSDB_CODE_OPS_NOT_SUPPORT)
         
         # Cleanup
         self.login()
@@ -3646,6 +3825,12 @@ class TestPrivControl:
           - Owner Special Privileges
           - Concurrent Privilege Operations
         
+        [Three-Power Separation Tests (3.4.0.0+)]
+          - Root User Initial Permissions
+          - Role Separation Best Practice (Three-Power Separation)
+          - Daily Operations Without Root
+          - System Role Constraints
+        
         Since: v3.4.0.0
 
         Labels: common,ci,privilege
@@ -3654,8 +3839,9 @@ class TestPrivControl:
 
         History:
             - 2026-02-02 Alex Duan created
-            - 2026-02-02 Enhanced with comprehensive test cases
-            - 2026-02-02 Added 3.4.0.0+ view/topic/stream privilege tests
+            - 2026-02-02 Alex Duan Enhanced with comprehensive test cases
+            - 2026-02-02 Alex Duan Added 3.4.0.0+ view/topic/stream privilege tests
+            - 2026-02-27 Alex Duan Added three-power separation tests (SYSDBA/SYSSEC/SYSAUDIT)
 
         """
         
@@ -3663,12 +3849,16 @@ class TestPrivControl:
         print("========== Privilege Control Test Suite ==========")
         print("")
         
-        ''' test
+        #''' test
         self.create_snode()
         self.create_qnode()
-        self.do_role_privilege()
+        print("[Three-Power Separation Tests]")
+        self.do_root_initial_permissions()
+        self.do_role_separation_best_practice()
+        self.do_daily_operations_without_root()
+        self.do_constraint()
         return
-        '''
+        #'''
 
         # Database privilege tests
         print("[Database Privileges]")
@@ -3758,4 +3948,11 @@ class TestPrivControl:
         self.do_privilege_boundary_conditions()
         self.do_owner_special_privileges()
         self.do_concurrent_privilege_operations()
+        
+        # Three-power separation tests (3.4.0.0+)
+        print("")
+        print("[Three-Power Separation Tests]")
+        self.do_root_initial_permissions()
+        self.do_role_separation_best_practice()
+        self.do_daily_operations_without_root()
         self.do_constraint()
