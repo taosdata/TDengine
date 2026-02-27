@@ -2193,9 +2193,6 @@ void tFreeSStmTaskDeploy(void* param) {
 }
 
 
-#define STREAM_FLAG_TRIGGER_READER  (1 << 0)
-#define STREAM_IS_TRIGGER_READER(_flags) ((_flags) & STREAM_FLAG_TRIGGER_READER)
-
 void tFreeSStmStreamDeploy(void* param) {
   if (NULL == param) {
     return;
@@ -2205,7 +2202,7 @@ void tFreeSStmStreamDeploy(void* param) {
   int32_t readerNum = taosArrayGetSize(pDeploy->readerTasks);
   for (int32_t i = 0; i < readerNum; ++i) {
     SStmTaskDeploy* pReader = taosArrayGet(pDeploy->readerTasks, i);
-    if (!STREAM_IS_TRIGGER_READER(pReader->task.flags)) {
+    if (!pReader->msg.reader.triggerReader) {
       taosMemoryFreeClear(pReader->msg.reader.msg.calc.calcScanPlan);
     }
   }
