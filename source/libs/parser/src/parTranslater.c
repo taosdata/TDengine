@@ -10985,8 +10985,9 @@ static int32_t checkDbCacheModelOption(STranslateContext* pCxt, SDatabaseOptions
 }
 
 static int32_t checkDbEncryptAlgorithmOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
-  if (pOptions->encryptAlgorithm < 0)
+  if (pOptions->encryptAlgorithm < 0) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION, "Invalid option encrypt_algorithm");
+  }
 
   return TSDB_CODE_SUCCESS;
 }
