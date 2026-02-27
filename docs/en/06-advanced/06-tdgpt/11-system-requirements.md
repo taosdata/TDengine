@@ -13,10 +13,10 @@ Typical use cases: forecasting, anomaly detection, conversational analytics, aut
 
 ### Minimum Specifications
 
--  CPU: 8 cores
--  Memory: 16 GB
--  Storage: 200 GB SSD
--  GPU: Optional
+- CPU: 8 cores
+- Memory: 16 GB
+- Storage: 200 GB SSD
+- GPU: Optional
 
 :::note
 
@@ -26,10 +26,10 @@ TDgpt can operate without a GPU. However, adding a GPU will improve latency and 
 
 ### Recommended Specifications
 
--  CPU: 16 cores
--  Memory: 32 GB
--  Storage: 500 GB SSD
--  GPU: NVIDIA GPU with 24 GB VRAM
+- CPU: 16 cores
+- Memory: 32 GB
+- Storage: 500 GB SSD
+- GPU: NVIDIA GPU with 24 GB VRAM
 
 ## Training or Fine-Tuning
 
@@ -37,17 +37,17 @@ Typical use cases: model fine-tuning, retraining, or local validation of model u
 
 ### Minimum Specifications
 
--  CPU: 16 cores
--  Memory: 32 GB
--  Storage: 500 GB SSD
--  GPU: NVIDIA GPU with 24 GB VRAM
+- CPU: 16 cores
+- Memory: 32 GB
+- Storage: 500 GB SSD
+- GPU: NVIDIA GPU with 24 GB VRAM
 
 ### Recommended Specifications
 
--  CPU: 32 cores
--  Memory: 64 GB
--  Storage: 1 TB
--  GPU: At least one NVIDIA GPU with 24 GB VRAM
+- CPU: 32 cores
+- Memory: 64 GB
+- Storage: 1 TB
+- GPU: At least one NVIDIA GPU with 24 GB VRAM
 
 ## Network Requirements
 

@@ -36,10 +36,10 @@ option_expr: {
 }
 ```
 
-1. `column1_name` and `column2_name`: Two time series columns participating in DTW calculation. 
+1. `column1_name` and `column2_name`: Two time series columns participating in DTW calculation.
 2. `option_expr`: String specifying DTW parameters in comma-separated K=V format. Do not use quotation marks, escape characters, or non-ASCII characters.
-3. `radius=2` indicates a neighborhood radius of 2, limiting the DTW path to adjacent values within the distance matrix. 
-4. White noise detection is not supported, and algorithm selection is not required. 
+3. `radius=2` indicates a neighborhood radius of 2, limiting the DTW path to adjacent values within the distance matrix.
+4. White noise detection is not supported, and algorithm selection is not required.
 5. Maximum supported input is 10,240 rows. Exceeding this limit triggers `Analysis failed since too many input rows` (0x80000446).
 
 ### Parameters
@@ -48,7 +48,7 @@ option_expr: {
 | --------- | ------------------------------------------------------------ | ------- |
 | radius    | Neighborhood radius limiting the DTW search space. Smaller radius improves speed but may reduce accuracy; larger radius increases accuracy at higher cost. | 1       |
 
-1. Supports numeric column input 
+1. Supports numeric column input
 2. Returns a double-precision floating-point value
 
 ### Example
@@ -107,7 +107,7 @@ lag_end=expr,
 }
 ```
 
-1. `column1_name` and `column2_name`: Two time series columns used for analysis. 
+1. `column1_name` and `column2_name`: Two time series columns used for analysis.
 2. `option_expr`: String parameters in comma-separated key=value format. Do not use quotation marks or non-ASCII characters.
 3. White noise detection is not supported, and algorithm selection is not required.
 4. Maximum supported input is 10,240 rows; exceeding this triggers `Analysis failed since too many input rows` (0x80000446).
@@ -119,7 +119,7 @@ lag_end=expr,
 | lag_start | Starting lag value | -1      |
 | lag_end   | Ending lag value   | 1       |
 
-1. Supports numeric columns only 
+1. Supports numeric columns only
 2. Returns correlation values across different lag offsets
 
 ### Example
