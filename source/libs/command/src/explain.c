@@ -22,6 +22,7 @@
 #include "systable.h"
 #include "functionMgt.h"
 #include "tmsg.h"
+#include "ttime.h"
 
 char *gJoinTypeStr[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
            /* NONE                OUTER                  SEMI                  ANTI                   ASOF                   WINDOW */
@@ -310,10 +311,10 @@ static int32_t qExplainBufAppendExecInfo(SArray *pExecInfo, char *tbuf,
                        execInfo.execLastRow, execInfo.numOfRows);
   } else if (nodeNum > 1) {
     EXPLAIN_ROW_APPEND(EXPLAIN_EXECINFO_FORMAT_EXT,
-                       (double)execInfo.execFirstRow / 1000.0 / nodeNum,
-                       (double)maxExecInfo.execFirstRow / 1000.0,
-                       (double)execInfo.execLastRow / 1000.0 / nodeNum,
-                       (double)maxExecInfo.execLastRow / 1000.0,
+                       EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execFirstRow) / nodeNum,
+                       EXPLAIN_CONVERT_TS_US_TO_MS(maxExecInfo.execFirstRow),
+                       EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execLastRow) / nodeNum,
+                       EXPLAIN_CONVERT_TS_US_TO_MS(maxExecInfo.execLastRow),
                        execInfo.numOfRows / nodeNum,
                        maxExecInfo.numOfRows);
   }
@@ -467,6 +468,8 @@ static int32_t qExplainExecAnalyze(const SExplainResNode *pResNode,
   int32_t nodeNum = (int32_t)taosArrayGetSize(pResNode->pExecInfo);
   SExplainExecInfo execInfo = {0};
   SExplainExecInfo maxExecInfo = {0};
+  maxExecInfo.execCreate = INT64_MIN;
+  maxExecInfo.execStart = INT64_MIN;
 
   for (int32_t i = 0; i < nodeNum; ++i) {
     const SExplainExecInfo *pExecInfo = taosArrayGet(pResNode->pExecInfo, i);
@@ -486,40 +489,42 @@ static int32_t qExplainExecAnalyze(const SExplainResNode *pResNode,
   }
 
   if (nodeNum == 1) {
-    EXPLAIN_ROW_APPEND(EXPLAIN_COMPUTE_FORMAT, execInfo.execElapsed / 1000.0);
+    EXPLAIN_ROW_APPEND(EXPLAIN_COMPUTE_FORMAT, EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execElapsed));
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-    EXPLAIN_ROW_APPEND(EXPLAIN_CREATE_FORMAT, execInfo.execCreate);
+    EXPLAIN_ROW_APPEND(EXPLAIN_CREATE_FORMAT, EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execCreate));
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-    EXPLAIN_ROW_APPEND(EXPLAIN_START_FORMAT, execInfo.execStart );
+    EXPLAIN_ROW_APPEND(EXPLAIN_START_FORMAT, EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execStart));
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
     EXPLAIN_ROW_APPEND(EXPLAIN_TIMES_FORMAT, execInfo.execTimes);
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
     EXPLAIN_ROW_APPEND(EXPLAIN_INPUT_WAIT_ELAPSED_FORMAT,
-                       (double)execInfo.inputWaitElapsed / 1000.0);
+                       EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.inputWaitElapsed));
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
     EXPLAIN_ROW_APPEND(EXPLAIN_OUTPUT_WAIT_ELAPSED_FORMAT,
-                       (double)execInfo.outputWaitElapsed / 1000.0);
+                       EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.outputWaitElapsed));
   } else if (nodeNum > 1) {
     EXPLAIN_ROW_APPEND(EXPLAIN_COMPUTE_FORMAT_EXT,
-                       (double)execInfo.execElapsed / 1000.0 / nodeNum,
-                       maxExecInfo.execElapsed / 1000.0);
+                       EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execElapsed) / nodeNum,
+                       EXPLAIN_CONVERT_TS_US_TO_MS(maxExecInfo.execElapsed));
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
     EXPLAIN_ROW_APPEND(EXPLAIN_CREATE_FORMAT_EXT,
-                       (double)execInfo.execCreate / nodeNum, maxExecInfo.execCreate);
+                       EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execCreate) / nodeNum,
+                       EXPLAIN_CONVERT_TS_US_TO_MS(maxExecInfo.execCreate));
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
     EXPLAIN_ROW_APPEND(EXPLAIN_START_FORMAT_EXT,
-                       (double)execInfo.execStart / nodeNum, maxExecInfo.execStart);
+                       EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execStart) / nodeNum,
+                       EXPLAIN_CONVERT_TS_US_TO_MS(maxExecInfo.execStart));
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
     EXPLAIN_ROW_APPEND(EXPLAIN_TIMES_FORMAT_EXT,
                        (double)execInfo.execTimes / nodeNum, maxExecInfo.execTimes);
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
     EXPLAIN_ROW_APPEND(EXPLAIN_INPUT_WAIT_ELAPSED_FORMAT_EXT,
-                       (double)execInfo.inputWaitElapsed / 1000.0 / nodeNum,
-                       maxExecInfo.inputWaitElapsed / 1000.0);
+                       EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.inputWaitElapsed) / nodeNum,
+                       EXPLAIN_CONVERT_TS_US_TO_MS(maxExecInfo.inputWaitElapsed));
     EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
     EXPLAIN_ROW_APPEND(EXPLAIN_OUTPUT_WAIT_ELAPSED_FORMAT_EXT,
-                       (double)execInfo.outputWaitElapsed / 1000.0 / nodeNum,
-                       maxExecInfo.outputWaitElapsed / 1000.0);
+                       EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.outputWaitElapsed) / nodeNum,
+                       EXPLAIN_CONVERT_TS_US_TO_MS(maxExecInfo.outputWaitElapsed));
   }
   EXPLAIN_ROW_END();
   QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level+1));
@@ -2703,11 +2708,13 @@ static int32_t qExplainAppendPlanRows(SExplainCtx *pCtx) {
   // EXPLAIN_SUM_ROW_END();
   // QRY_ERR_RET(qExplainResAppendRow(pCtx, tbuf, tlen, 0));
 
-  EXPLAIN_SUM_ROW_NEW(EXPLAIN_PLANNING_TIME_FORMAT, (double)(pCtx->jobStartTs - pCtx->reqStartTs) / 1000.0);
+  EXPLAIN_SUM_ROW_NEW(EXPLAIN_PLANNING_TIME_FORMAT,
+    EXPLAIN_CONVERT_TS_US_TO_MS(pCtx->jobStartTs - pCtx->reqStartTs));
   EXPLAIN_SUM_ROW_END();
   QRY_ERR_RET(qExplainResAppendRow(pCtx, tbuf, tlen, 0));
 
-  EXPLAIN_SUM_ROW_NEW(EXPLAIN_EXEC_TIME_FORMAT, (double)(pCtx->jobDoneTs - pCtx->jobStartTs) / 1000.0);
+  EXPLAIN_SUM_ROW_NEW(EXPLAIN_EXEC_TIME_FORMAT,
+    EXPLAIN_CONVERT_TS_US_TO_MS(pCtx->jobDoneTs - pCtx->jobStartTs));
   EXPLAIN_SUM_ROW_END();
   QRY_ERR_RET(qExplainResAppendRow(pCtx, tbuf, tlen, 0));
 
