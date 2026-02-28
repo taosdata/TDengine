@@ -1,19 +1,17 @@
-import { mkdirSync, existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, type FullConfig } from 'playwright/test';
 import { login } from './_utils/auth';
 
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
-const AUTH_DIR = path.join(THIS_DIR, '.auth');
+const PROJECT_ROOT = path.resolve(THIS_DIR, '..');
+
+const AUTH_DIR = path.join(PROJECT_ROOT, '.playwright', '.auth');
 const AUTH_FILE = path.join(AUTH_DIR, 'root.json');
 
 export default async function globalSetup(config: FullConfig) {
-  // Allow skipping regeneration for local debugging.
-  if (existsSync(AUTH_FILE) && process.env.PLAYWRIGHT_SKIP_GLOBAL_SETUP === 'true') {
-    return;
-  }
-
+  // Always regenerate to avoid stale sessions.
   mkdirSync(AUTH_DIR, { recursive: true });
 
   const baseURL = config.projects[0]?.use?.baseURL as string | undefined;
@@ -39,5 +37,3 @@ export default async function globalSetup(config: FullConfig) {
   await context.storageState({ path: AUTH_FILE });
   await browser.close();
 }
-
-export const storageStatePath = 'tests/.auth/root.json';

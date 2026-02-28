@@ -12,6 +12,7 @@ import {
 import { routes } from './_utils/routes';
 
 test.describe('DataIn - TMQ task E2E (integrated env)', () => {
+  // test.describe.configure({ mode: 'serial' });
   test('create TMQ task and start it', async ({ page }) => {
     const ts = Date.now();
 

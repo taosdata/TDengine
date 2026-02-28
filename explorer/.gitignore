@@ -43,3 +43,4 @@ taos-connector-node/WebSocket/package-lock.json
 playwright-report/
 test-results/
 tests/.auth/
+.playwright

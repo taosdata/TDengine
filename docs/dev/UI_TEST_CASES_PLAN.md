@@ -133,16 +133,18 @@
 
 ### B1. Permission / Login / Session
 
-- [ ] B1.1（P0）未登录访问保护路由应跳转 `/login`
-  - Owner:
-  - Status: TODO
+- [x] B1.1（P0）未登录访问保护路由应跳转 `/login`
+  - Owner: @huolinhe
+  - Status: DONE
   - DoD: 新增 Playwright 用例：清空 storageState 后访问 `/explorer`、`/dataIn/Task`、`/management/user`，断言跳转 `/login`。
+  - 覆盖：`explorer/tests/permission.spec.ts`
   - 相关：`explorer/src/permission.ts`、参考：`explorer/tests/login.spec.ts`
 
-- [ ] B1.2（P1）session 失效/401 行为（如环境可控）
-  - Owner:
-  - Status: TODO
+- [x] B1.2（P1）session 失效/401 行为（如环境可控）
+  - Owner: @huolinhe
+  - Status: DONE
   - DoD: 通过清 cookies 或模拟后端 401，使页面回到 `/login`（若不可稳定模拟，降级为手工用例）。
+  - 覆盖：`explorer/tests/permission.spec.ts`
 
 ### B2. Sider / 路由重定向
 

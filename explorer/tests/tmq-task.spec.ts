@@ -3,8 +3,10 @@ import { runSqlBatch } from './_utils/explorerSql';
 import { cleanupTmqResourcesBestEffort } from './_utils/cleanup';
 import { openAddSourceFromList, selectElOptionByText } from './_utils/datain';
 import { routes } from './_utils/routes';
+import { ensureLogin } from './_utils/auth';
 
 test.describe('DataIn - TMQ connectivity check', () => {
+  // test.describe.configure({ mode: 'serial' });
   test('check connection succeeds for TMQ', async ({ page }) => {
     const ts = Date.now();
 
@@ -23,7 +25,7 @@ test.describe('DataIn - TMQ connectivity check', () => {
         `CREATE TOPIC IF NOT EXISTS ${topic} AS DATABASE ${srcDb};`
       ]);
 
-      await page.goto(routes.dataInTask, { waitUntil: 'networkidle' });
+      await ensureLogin(page, routes.dataInTask);
       await openAddSourceFromList(page);
 
       await page.locator('#name').fill(taskName);

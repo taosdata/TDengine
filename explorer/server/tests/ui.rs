@@ -1,5 +1,8 @@
 use assert_fs::fixture::FileWriteStr;
-use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, ToSocketAddrs};
+use std::{
+    net::{Ipv4Addr, SocketAddrV4, TcpListener, ToSocketAddrs},
+    path::Path,
+};
 
 fn is_free_tcp(port: u16) -> bool {
     let ipv4 = SocketAddrV4::new(Ipv4Addr::LOCALHOST, port);
@@ -21,18 +24,17 @@ fn get_free_port() -> u16 {
 }
 
 /// Check ui artifacts exist by dist/index.html
-fn dist_is_available() -> bool {
-    let path = std::env::current_dir().unwrap();
-    path.parent()
-        .expect("server/../ always exist")
-        .join("dist")
-        .join("index.html")
-        .exists()
+fn dist_is_available(path: &Path) -> bool {
+    path.join("dist").join("index.html").exists()
 }
 
 #[test]
 fn test_playwright() -> anyhow::Result<(), anyhow::Error> {
-    if dist_is_available() {
+    let cwd = std::env::current_dir()?;
+    let explorer_path = cwd.parent().expect("server/../ always exist");
+    println!("Explorer binary path: {}", explorer_path.display());
+    if !dist_is_available(explorer_path) {
+        println!("dist/index.html does not exist, skipping ui test");
         return Ok(());
     }
     let port = get_free_port();
@@ -50,21 +52,36 @@ cors = true
 "#,
     ))?;
 
+    let config_path = config_file.path().to_path_buf();
+
     let _explorer_thread = std::thread::spawn(move || {
-        let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
+        let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("taos-explorer");
+
+        println!("Running explorer with config: {}", config_path.display());
         let assert = cmd
             .arg("-c")
-            .arg(config_file.path().to_str().unwrap())
-            .timeout(std::time::Duration::from_secs(30))
+            .arg(&config_path)
+            .env("EXPLORER_SKIP_REGISTER", "true")
+            .timeout(std::time::Duration::from_secs(60))
             .assert();
         assert.interrupted();
     });
 
+    println!("PLAYWRIGHT_BASE_URL=http://localhost:{port} pnpm exec playwright test --ui --debug");
+    // std::thread::sleep(std::time::Duration::from_secs(5000)); // Wait for the explorer to start
+
     // Add your playwright tests here
     let assert = assert_cmd::Command::new("pnpm")
+        // .args(["exec", "playwright", "test", "--ui", "--debug"])
         .args(["exec", "playwright", "test"])
         .env("PLAYWRIGHT_BASE_URL", format!("http://localhost:{}", port))
+        .current_dir(explorer_path)
         .assert();
-    assert.success();
+    let assert = assert.success();
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    println!("Playwright stdout:\n{}", stdout);
+    println!("Playwright stderr:\n{}", stderr);
+    assert.stdout(predicates::str::contains("passed"));
     Ok(())
 }

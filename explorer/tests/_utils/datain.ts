@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from 'playwright/test';
 import { routes } from './routes';
+import { ensureLogin } from './auth';
 
 async function clickConfirmIfAny(page: Page) {
   const confirm = page.locator('.el-message-box__btns .el-button--primary');
@@ -8,7 +9,7 @@ async function clickConfirmIfAny(page: Page) {
   }
 }
 export async function gotoDataInTask(page: Page) {
-  await page.goto(routes.dataInTask, { waitUntil: 'networkidle' });
+  await ensureLogin(page, routes.dataInTask);
   await expect(page.locator('.tasks-table')).toBeVisible({ timeout: 15000 });
 }
 
@@ -17,7 +18,7 @@ export async function openAddSourceFromList(page: Page) {
   if (await addBtn.count()) {
     await addBtn.first().click();
   } else {
-    await page.goto(routes.dataInAdd, { waitUntil: 'networkidle' });
+    await ensureLogin(page, routes.dataInAdd);
   }
   await expect(page.locator('#name')).toBeVisible({ timeout: 15000 });
 }
