@@ -14,11 +14,11 @@ from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 import os
 from vtable_util import VtableQueryUtil
 
-class TestVTableQuerySameDBStbAgg:
+class TestVTableQueryCrossDBStbAggSma:
 
     def setup_class(cls):
         vtbUtil = VtableQueryUtil()
-        vtbUtil.prepare_cross_db_vtables(mode = 2)
+        vtbUtil.prepare_cross_db_vtables(mode = 2, sma = True)
 
     def run_normal_query(self, testCase):
         # read sql from .sql file and execute
@@ -31,26 +31,20 @@ class TestVTableQuerySameDBStbAgg:
     def test_select_virtual_super_table(self):
         """Query: virtual stable from different db
 
-        1. test vstable select super table agg
-        2. test vstable select super table agg with tag condition
-        3. test vstable select super table agg with time condition
-        4. test vstable select super table agg with partition expression
+        1. test vstable select super table agg with sma
 
         Catalog:
             - VirtualTable
 
-        Since: v3.3.8.0
+        Since: v3.4.0.0
 
         Labels: virtual
 
         Jira: None
 
         History:
-            - 2025-12-19 Jing Sima created
+            - 2026-2-28 Jing Sima created
 
         """
-        self.run_normal_query("test_vstable_select_test_agg")
-        self.run_normal_query("test_vstable_select_test_agg_tag_cond")
-        self.run_normal_query("test_vstable_select_test_agg_time_cond")
-        self.run_normal_query("test_vstable_select_test_agg_partition_expr")
+        self.run_normal_query("test_vstable_select_test_agg_sma")
 
