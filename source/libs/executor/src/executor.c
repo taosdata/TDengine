@@ -1957,7 +1957,8 @@ int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }                                              
-  code = buildGroupIdMapForAllTables(pList, &pHandle, &pScanNode, pGroupTags, false, NULL, storageAPI, groupIdMap);
+  code = buildGroupIdMapForAllTables(pList, &pHandle, &pScanNode, pGroupTags, false, NULL, storageAPI, groupIdMap,
+                                     false);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
