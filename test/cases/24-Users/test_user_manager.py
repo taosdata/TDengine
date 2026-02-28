@@ -21,8 +21,6 @@ def get_tomorrow_weekday_short():
     return time.strftime("%a", t).upper()
 
 class TestUserSecurity:
-    updatecfgDict = {'enableAdvancedSecurity': '1'}
-
     @classmethod
     def setup_class(cls):
         cls.tdCom = TDCom()
@@ -1174,6 +1172,7 @@ class TestUserSecurity:
             - 2026-01-09 Alex Duan finished
 
         """
+        tdSql.execute("alter all dnodes 'enableAdvancedSecurity' '1'")
         self.prepare_data()
         self.do_create_user()
         self.do_show_user()
