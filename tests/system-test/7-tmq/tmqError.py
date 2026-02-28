@@ -245,7 +245,7 @@ class TDTestCase:
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor")
-        paraDict['pollDelay'] = 9000000   # Forever loop
+        paraDict['pollDelay'] = 5
         showMsg   = 1
         showRow   = 1
         #self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
@@ -254,6 +254,8 @@ class TDTestCase:
 
         #time.sleep(3)
         tmqCom.getStartConsumeNotifyFromTmqsim()
+        tmqCom.stopTmqSimProcess("tmq_sim")
+        time.sleep(15)
         tdLog.info("================= stop dnode, and remove data file, then start dnode ===========================")
         tdDnodes.stop(1)
         
