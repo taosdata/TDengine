@@ -1963,7 +1963,7 @@ _return:
   SCL_RET(code);
 }
 
-int32_t vectorCompareWithHashParam(SSclComapreCtx* pCtx) {
+int32_t vectorCompareWithHashParam(SSclCompareCtx* pCtx) {
   int32_t code = TSDB_CODE_SUCCESS, i = pCtx->startIndex;
   SHashParam* pHParam = &pCtx->pRight->hashParam;
   bool isNegativeOp = pCtx->pOut->hashParam.isNegativeOp;
@@ -2072,7 +2072,7 @@ int32_t vectorCompareWithHashParam(SSclComapreCtx* pCtx) {
   return code;
 }
 
-int32_t vectorCompareBetweenMathTypes(SSclComapreCtx* pCtx) {
+int32_t vectorCompareBetweenMathTypes(SSclCompareCtx* pCtx) {
   bool   *pRes = (bool *)pCtx->pOut->columnData->pData;
   bool    chkTrue = pCtx->pRight->remoteParam.hasRemoteParam && !pCtx->isAny;
   bool    chkFalse = pCtx->pRight->remoteParam.hasRemoteParam && pCtx->isAny;
@@ -2127,7 +2127,7 @@ int32_t vectorCompareBetweenMathTypes(SSclComapreCtx* pCtx) {
   return code;
 }
 
-int32_t vectorCompareIncludeVarTypes(SSclComapreCtx* pCtx) {
+int32_t vectorCompareIncludeVarTypes(SSclCompareCtx* pCtx) {
   bool    chkTrue = pCtx->pRight->remoteParam.hasRemoteParam && !pCtx->isAny;
   bool    chkFalse = pCtx->pRight->remoteParam.hasRemoteParam && pCtx->isAny;
   bool    hasNull = pCtx->pRight->remoteParam.hasRemoteParam && pCtx->pRight->remoteParam.hasNull;
@@ -2192,7 +2192,7 @@ int32_t vectorCompareIncludeVarTypes(SSclComapreCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t vectorCompareWithRemoteParam(SSclComapreCtx* pCtx) {
+int32_t vectorCompareWithRemoteParam(SSclCompareCtx* pCtx) {
   SRemoteParam* pRemote = &pCtx->pRight->remoteParam;
   int32_t code = TSDB_CODE_SUCCESS, i = pCtx->startIndex;
 
@@ -2224,7 +2224,7 @@ int32_t vectorCompareWithRemoteParam(SSclComapreCtx* pCtx) {
   return vectorCompareIncludeVarTypes(pCtx);
 }
 
-int32_t doVectorCompare(SSclComapreCtx* pCtx) {
+int32_t doVectorCompare(SSclCompareCtx* pCtx) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (pCtx->pRight->hashParam.hasHashParam) {
@@ -2247,7 +2247,7 @@ int32_t vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
                           int32_t numOfRows, int32_t optr) {
   SScalarParam  pLeftOut = {0};
   SScalarParam  pRightOut = {0};
-  SSclComapreCtx ctx = {0};
+  SSclCompareCtx ctx = {0};
   int32_t       code = TSDB_CODE_SUCCESS;
 
   ctx.pOut = pOut;

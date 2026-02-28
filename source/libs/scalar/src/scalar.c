@@ -218,10 +218,6 @@ int32_t scalarGenerateSetFromCol(void **data, SColumnInfoData *pCol, uint32_t ty
       buf = colDataGetNumData(pRes, i);
     }
 
-    if (TSDB_DATA_TYPE_BIGINT == type) {
-      sclDebug("%s put %" PRId64 " into hash", __func__, *(int64_t*)buf);
-    }
-
     SCL_ERR_JRET(taosHashPut(pObj, buf, (size_t)len, NULL, 0));
   }
 

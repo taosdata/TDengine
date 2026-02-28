@@ -3392,7 +3392,6 @@ QUERY_PLAN:
 
 taos> select f1 from st1 where f1 = (select * from v1 where 1 < all (select 0 from st1)) order by 1;
 
-DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 from st1 where f1 = (select * from v1 where 1 > all (select 0 from st1)) order by 1;
      f1      |
 ==============
@@ -3400,7 +3399,6 @@ taos> select f1 from st1 where f1 = (select * from v1 where 1 > all (select 0 fr
 
 taos> select f1 from st1 where f1 = (select * from v1 where NULL = any (select 2 from st1)) order by 1;
 
-DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 from st1 where f1 = (select * from v1 where exists (select f1 from db2.tbx)) order by 1;
      f1      |
 ==============

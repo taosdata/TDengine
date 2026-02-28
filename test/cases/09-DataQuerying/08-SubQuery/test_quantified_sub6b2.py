@@ -92,6 +92,7 @@ class TestQuantifiedSubQuery6b2:
         
         1. Prepare data.
         2. Explain analyze execute various nested queries with different kind of quantified sub queries.
+        
         Since: v3.4.1.0
 
         Labels: common,ci
