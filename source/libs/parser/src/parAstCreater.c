@@ -153,6 +153,9 @@ static bool isValidPassword(SAstCreateContext* pCxt, const char* password, bool 
   if (imported) {
     return strlen(password) == TSDB_PASSWORD_LEN;
   }
+  // leave actual password validation to server side as client/server may have different
+  // 'enableStrongPassword' and 'enableAdvancedSecurity' settings, and client-side
+  // validation may cause confusions.
   return true;
 }
 
