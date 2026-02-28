@@ -1838,9 +1838,9 @@ static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmS
           if (code) {
             TAOS_CHECK_EXIT(code);
           }
-	} else {
-	  TAOS_CHECK_EXIT(nodesCloneList(*subEP, &plan->pSubQ));
-	}
+        } else {
+          TAOS_CHECK_EXIT(nodesCloneList(*subEP, &plan->pSubQ));
+        }
       }
 
       mstsDebug("deploy %d level %d initialized, taskNum:%d", deployId, i, taskNum);
@@ -1860,6 +1860,7 @@ static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmS
     
     TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pRoot));
     if (subQ) {
+      // TODO: search list with subq id
       pDag = (SQueryPlan*)pRoot->pChildren->pHead->pNode;
     } else {
       pDag = pRoot;
@@ -1884,7 +1885,6 @@ _exit:
   }
 
   taosArrayDestroy(deployTaskList);
-  //nodesDestroyNode((SNode *)pDag);
   nodesDestroyNode((SNode *)pRoot);
 
   return code;
@@ -2022,7 +2022,7 @@ static int32_t msmUpdateCalcReaderTasks(SStreamObj* pStream, SNodeList* pSubEP) 
         continue;
       }
 
-      if (!STREAM_IS_TRIGGER_READER(pExt->deploy.task.flags)) {
+      if (!pExt->deploy.msg.reader.triggerReader) {
         SStreamReaderDeployFromCalc* pCalcReaderDeploy = &pExt->deploy.msg.reader.msg.calc;
         TAOS_CHECK_EXIT(nodesStringToNode(pCalcReaderDeploy->calcScanPlan, (SNode**)&pSubplan));
         TAOS_CHECK_EXIT(nodesCloneList(pSubEP, &pSubplan->pSubQ));
