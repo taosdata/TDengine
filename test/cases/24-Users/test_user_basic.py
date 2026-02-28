@@ -8,6 +8,7 @@ import time
 import random
 
 class TestUserBasic:
+    updatecfgDict = {'enableAdvancedSecurity': '1'}
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")

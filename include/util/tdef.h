@@ -356,10 +356,10 @@ typedef enum ELogicConditionType {
 #define TSDB_TOTP_SECRET_LEN                    32
 #define TSDB_USER_TOTPSEED_MIN_LEN              8    // minimum length for TOTP seed, excluding the terminator '\0'
 #define TSDB_USER_TOTPSEED_MAX_LEN              255  // maximum length for TOTP seed, excluding the terminator '\0'
-#define TSDB_USER_SESSION_PER_USER_DEFAULT      -1
-#define TSDB_USER_CONNECT_TIME_DEFAULT          -1  // 480 minutes
-#define TSDB_USER_CONNECT_IDLE_TIME_DEFAULT     -1  // 30 minutes
-#define TSDB_USER_CALL_PER_SESSION_DEFAULT      -1
+#define TSDB_USER_SESSION_PER_USER_DEFAULT      32 
+#define TSDB_USER_CONNECT_TIME_DEFAULT          (480 * 60)  // 480 minutes
+#define TSDB_USER_CONNECT_IDLE_TIME_DEFAULT     (30 * 60)   // 30 minutes
+#define TSDB_USER_CALL_PER_SESSION_DEFAULT      128
 #define TSDB_USER_VNODE_PER_CALL_DEFAULT        -1
 #define TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT 3
 #define TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT    (1440 * 60)        // 1440 minutes

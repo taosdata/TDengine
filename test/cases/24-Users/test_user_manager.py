@@ -21,6 +21,8 @@ def get_tomorrow_weekday_short():
     return time.strftime("%a", t).upper()
 
 class TestUserSecurity:
+    updatecfgDict = {'enableAdvancedSecurity': '1'}
+
     @classmethod
     def setup_class(cls):
         cls.tdCom = TDCom()
@@ -227,10 +229,10 @@ class TestUserSecurity:
         # init
         password = "abcd@1234"
 
-        # default check (UNLIMITED sessions)
+        # default check (32 sessions)
         user = "user_session1"        
         self.create_user(user, password=password)
-        self.create_session(user, password, 200)
+        self.create_session(user, password, 32)
 
         # min check (1 session)
         user = "user_session2"
@@ -253,10 +255,10 @@ class TestUserSecurity:
 
     # option CONNECT_TIME
     def options_connect_time(self):
-        # defalut check (-1, unlimited)
+        # defalut check (480 minutes)
         user = "user_connect_time1"
         self.create_user(user)
-        self.check_user_option(user, "CONNECT_TIME", -1)
+        self.check_user_option(user, "CONNECT_TIME", 480 * 60)
 
         # min check (1 minute)
         user = "user_connect_time2"
@@ -284,10 +286,10 @@ class TestUserSecurity:
 
     # option CONNECT_IDLE_TIME
     def options_connect_idle_time(self):
-        # defalut check (-1, unlimited)
+        # defalut check (30 minutes)
         user = "user_connect_idle_time1"
         self.create_user(user)
-        self.check_user_option(user, "CONNECT_IDLE_TIMEOUT", -1)
+        self.check_user_option(user, "CONNECT_IDLE_TIMEOUT", 30 * 60)
 
         # min check (1 minute)
         user = "user_connect_idle_time2"
@@ -309,10 +311,10 @@ class TestUserSecurity:
     def options_call_per_session(self):
         password = "abcd@1234"
         self.login()        
-        # defalut check (-1, unlimited)
+        # defalut check (128)
         user = "user_call_per_session1"
         self.create_user(user, password=password)
-        self.check_user_option(user, "CALL_PER_SESSION", -1)
+        self.check_user_option(user, "CALL_PER_SESSION", 128)
         self.create_concurrent_threads(user, password, "show databases", 10)
 
         # min check (1 minute)

@@ -149,27 +149,11 @@ static bool checkUserName(SAstCreateContext* pCxt, SToken* pUserName) {
 
 
 
-static bool isValidSimplePassword(const char* password) {
-  for (char c = *password; c != 0; c = *(++password)) {
-    if (c == ' ' || c == '\'' || c == '\"' || c == '`' || c == '\\') {
-      return false;
-    }
-  }
-  return true;
-}
-
-
-
 static bool isValidPassword(SAstCreateContext* pCxt, const char* password, bool imported) {
   if (imported) {
     return strlen(password) == TSDB_PASSWORD_LEN;
   }
-
-  if (tsEnableStrongPassword) {
-    return taosIsComplexString(password);
-  }
-
-  return isValidSimplePassword(password);
+  return true;
 }
 
 
@@ -4383,18 +4367,35 @@ SUserOptions* createDefaultUserOptions(SAstCreateContext* pCxt) {
   pOptions->createdb = 0;
   pOptions->isImport = 0;
   pOptions->changepass = 2;
-  pOptions->sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
-  pOptions->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
-  pOptions->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
-  pOptions->callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
-  pOptions->vnodePerCall = TSDB_USER_VNODE_PER_CALL_DEFAULT;
-  pOptions->failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
-  pOptions->passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
-  pOptions->passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
-  pOptions->passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
-  pOptions->passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
-  pOptions->passwordGraceTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
-  pOptions->inactiveAccountTime = TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
+
+  if (tsEnableAdvancedSecurity) {
+    pOptions->sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
+    pOptions->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
+    pOptions->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
+    pOptions->callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
+    pOptions->vnodePerCall = TSDB_USER_VNODE_PER_CALL_DEFAULT;
+    pOptions->failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
+    pOptions->passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
+    pOptions->passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
+    pOptions->passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
+    pOptions->passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
+    pOptions->passwordGraceTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
+    pOptions->inactiveAccountTime = TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
+  } else {
+    pOptions->sessionPerUser = -1;
+    pOptions->connectTime = -1;
+    pOptions->connectIdleTime = -1;
+    pOptions->callPerSession = -1;
+    pOptions->vnodePerCall = -1;
+    pOptions->failedLoginAttempts = -1;
+    pOptions->passwordLifeTime = -1;
+    pOptions->passwordReuseTime = 0;
+    pOptions->passwordReuseMax = 0;
+    pOptions->passwordLockTime = 1;
+    pOptions->passwordGraceTime = -1;
+    pOptions->inactiveAccountTime = -1;
+  }
+
   pOptions->allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
 
   return pOptions;
