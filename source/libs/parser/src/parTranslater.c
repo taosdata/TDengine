@@ -5092,16 +5092,6 @@ static int32_t setVSuperTableRefScanVgroupList(STranslateContext* pCxt, SName* p
 
   SArray* pVStbRefs = NULL;
   code = getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs);
-
-  // Handle the case where VStbRefDbs data is not available (e.g., stmt scenario)
-  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code || TSDB_CODE_PAR_INTERNAL_ERROR == code) {
-    // VStbRefDbs not available in cache (stmt scenario without async metadata fetch)
-    // Use empty vgroup list - the executor will resolve vgroups at runtime
-    taosMemoryFreeClear(pRefScanTable->pVgroupList);
-    PAR_ERR_JRET(toVgroupsInfo(vgroupList, &pRefScanTable->pVgroupList));
-    code = TSDB_CODE_SUCCESS;
-    goto _return;
-  }
   PAR_ERR_JRET(code);
 
   dbNameHash = tSimpleHashInit(taosArrayGetSize(pVStbRefs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));

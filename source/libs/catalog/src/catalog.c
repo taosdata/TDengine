@@ -1509,8 +1509,23 @@ int32_t catalogGetCachedTableVgMeta(SCatalog* pCtg, const SName* pTableName,    
   CTG_API_LEAVE(ctgGetCachedTbVgMeta(pCtg, pTableName, pVgroup, pTableMeta));
 }
 
+// Synchronous wrapper for catalogAsyncGetAllMeta
+typedef struct {
+  SMetaData* pRsp;
+  int32_t    code;
+  tsem_t     sem;
+} SCatalogSyncCbParam;
 
-#if 0
+static void catalogSyncGetAllMetaCb(SMetaData* pResultMeta, void* param, int32_t code) {
+  SCatalogSyncCbParam* pCbParam = (SCatalogSyncCbParam*)param;
+  if (TSDB_CODE_SUCCESS == code && pResultMeta) {
+    *pCbParam->pRsp = *pResultMeta;
+    TAOS_MEMSET(pResultMeta, 0, sizeof(SMetaData));  // Clear to avoid double free
+  }
+  pCbParam->code = code;
+  tsem_post(&pCbParam->sem);
+}
+
 int32_t catalogGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SCatalogReq* pReq, SMetaData* pRsp) {
   CTG_API_ENTER();
 
@@ -1518,62 +1533,20 @@ int32_t catalogGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SCatalo
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  int32_t code = 0;
-  pRsp->pTableMeta = NULL;
-
-  if (pReq->pTableMeta) {
-    int32_t tbNum = (int32_t)taosArrayGetSize(pReq->pTableMeta);
-    if (tbNum <= 0) {
-      ctgError("empty table name list, tbNum:%d", tbNum);
-      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
-    }
-
-    pRsp->pTableMeta = taosArrayInit(tbNum, POINTER_BYTES);
-    if (NULL == pRsp->pTableMeta) {
-      ctgError("taosArrayInit %d failed", tbNum);
-      CTG_ERR_JRET(terrno);
-    }
-
-    for (int32_t i = 0; i < tbNum; ++i) {
-      SName*        name = taosArrayGet(pReq->pTableMeta, i);
-      STableMeta*   pTableMeta = NULL;
-      SCtgTbMetaCtx ctx = {0};
-      ctx.pName = name;
-      ctx.flag = CTG_FLAG_UNKNOWN_STB;
-
-      CTG_ERR_JRET(ctgGetTbMeta(pCtg, pConn, &ctx, &pTableMeta));
-
-      if (NULL == taosArrayPush(pRsp->pTableMeta, &pTableMeta)) {
-        ctgError("taosArrayPush failed, idx:%d", i);
-        taosMemoryFreeClear(pTableMeta);
-        CTG_ERR_JRET(terrno);
-      }
-    }
+  SCatalogSyncCbParam cbParam = {.pRsp = pRsp, .code = TSDB_CODE_SUCCESS};
+  if (tsem_init(&cbParam.sem, 0, 0) != 0) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
-  if (pReq->qNodeRequired) {
-    pRsp->pQnodeList = taosArrayInit(10, sizeof(SQueryNodeLoad));
-    CTG_ERR_JRET(ctgGetQnodeListFromMnode(pCtg, pConn, pRsp->pQnodeList, NULL));
+  int32_t code = catalogAsyncGetAllMeta(pCtg, pConn, pReq, catalogSyncGetAllMetaCb, &cbParam, NULL);
+  if (TSDB_CODE_SUCCESS == code) {
+    tsem_wait(&cbParam.sem);
+    code = cbParam.code;
   }
 
-  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
-
-_return:
-
-  if (pRsp->pTableMeta) {
-    int32_t aSize = taosArrayGetSize(pRsp->pTableMeta);
-    for (int32_t i = 0; i < aSize; ++i) {
-      STableMeta* pMeta = taosArrayGetP(pRsp->pTableMeta, i);
-      taosMemoryFreeClear(pMeta);
-    }
-
-    taosArrayDestroy(pRsp->pTableMeta);
-    pRsp->pTableMeta = NULL;
-  }
-
+  tsem_destroy(&cbParam.sem);
   CTG_API_LEAVE(code);
 }
-#endif
 
 int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SCatalogReq* pReq, catalogCallback fp,
                                void* param, int64_t* jobId) {

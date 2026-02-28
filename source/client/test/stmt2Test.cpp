@@ -1951,11 +1951,7 @@ TEST(stmt2Case, query) {
   }
 
   {
-    AsyncArgs* aa = (AsyncArgs*)taosMemoryMalloc(sizeof(AsyncArgs));
-    aa->async_affected_rows = 0;
-    ASSERT_EQ(tsem_init(&aa->sem, 0, 0), TSDB_CODE_SUCCESS);
-
-    TAOS_STMT2_OPTION option = {0, true, true, stmtAsyncQueryCb, (void*)aa};
+    TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
 
     TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
     ASSERT_NE(stmt, nullptr);
@@ -1983,10 +1979,6 @@ TEST(stmt2Case, query) {
 
     taos_stmt2_exec(stmt, NULL);
     checkError(stmt, code, __FILE__, __LINE__);
-
-    tsem_wait(&aa->sem);
-    tsem_destroy(&aa->sem);
-    taosMemoryFree(aa);
 
     TAOS_RES* pRes = taos_stmt2_result(stmt);
     ASSERT_NE(pRes, nullptr);
@@ -5042,7 +5034,8 @@ TEST(stmt2Case, query_vtable_core) {
   do_query(taos, "create table tb1(ts timestamp, bool_v bool)");
   do_query(taos, "create table tb2(ts timestamp, bool_v bool)");
 
-  do_query(taos, "create stable ts_kv_data(ts timestamp, bool_v bool) tags(dataname binary(20)) virtual 1");
+  do_query(taos,
+           "create stable ts_kv_data(ts timestamp, bool_v bool,float_v float) tags(dataname binary(20)) virtual 1");
   do_query(taos, "create vtable tbv1 (bool_v from tb1.bool_v) using ts_kv_data tags('abc')");
   do_query(taos, "create vtable tbv2 (bool_v from tb2.bool_v) using ts_kv_data tags('def')");
 
@@ -5051,32 +5044,66 @@ TEST(stmt2Case, query_vtable_core) {
   do_query(taos, "insert into tb2 values(1591060629000, true)");
   do_query(taos, "insert into tb2 values(1591060630000, false)");
 
-  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
-  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
-  ASSERT_NE(stmt, nullptr);
+  TAOS_RES* res1 = taos_query(
+      taos,
+      "select last(ts,bool_v,float_v) from stmt2_testdb_32.ts_kv_data where dataname in ('abc','def') partition "
+      "by tbname");
+  ASSERT_NE(res1, nullptr);
+  TAOS_ROW row1 = taos_fetch_row(res1);
+  ASSERT_NE(row1, nullptr);
+  ASSERT_EQ(*(int64_t*)row1[0], 1591060630000);
+  row1 = taos_fetch_row(res1);
+  ASSERT_NE(row1, nullptr);
+  ASSERT_EQ(*(int64_t*)row1[0], 1591060630000);
+  row1 = taos_fetch_row(res1);
+  ASSERT_EQ(row1, nullptr);
+  taos_free_result(res1);
 
-  int code =
-      taos_stmt2_prepare(stmt, "select last(bool_v) from ts_kv_data tbv1 where dataname in (?) partition by tbname", 0);
-  checkError(stmt, code, __FILE__, __LINE__);
-  int32_t         dataname_len = 3;
-  char*           dataname = "abc";
-  TAOS_STMT2_BIND params[1] = {
-      {TSDB_DATA_TYPE_BINARY, dataname, &dataname_len, NULL, 1},
-  };
-  TAOS_STMT2_BIND* paramv = &params[0];
-  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv};
-  code = taos_stmt2_bind_param(stmt, &bindv, -1);
-  checkError(stmt, code, __FILE__, __LINE__);
-  code = taos_stmt2_exec(stmt, NULL);
-  checkError(stmt, code, __FILE__, __LINE__);
+  AsyncArgs args = {0, 0};
+  ASSERT_EQ(tsem_init(&args.sem, 0, 0), TSDB_CODE_SUCCESS);
+  TAOS_STMT2_OPTION option[2] = {{0, true, true, stmtAsyncQueryCb, &args}, {0, true, true, NULL, NULL}};
 
-  TAOS_RES* res = taos_stmt2_result(stmt);
-  ASSERT_NE(res, nullptr);
-  TAOS_ROW row = taos_fetch_row(res);
-  ASSERT_NE(row, nullptr);
-  ASSERT_EQ(*(bool*)row[0], false);
+  int32_t dataname_len = 3;
+  char*   dataname = "abc";
+  char*   dataname2 = "def";
 
-  taos_stmt2_close(stmt);
+  for (int i = 1; i < 2; i++) {
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option[i]);
+    ASSERT_NE(stmt, nullptr);
+
+    int code = taos_stmt2_prepare(
+        stmt,
+        "select last(ts,bool_v,float_v) from stmt2_testdb_32.ts_kv_data where dataname in (?,?) partition by tbname",
+        0);
+    checkError(stmt, code, __FILE__, __LINE__);
+    TAOS_STMT2_BIND params[2] = {
+        {TSDB_DATA_TYPE_BINARY, dataname, &dataname_len, NULL, 1},
+        {TSDB_DATA_TYPE_BINARY, dataname2, &dataname_len, NULL, 1},
+    };
+    TAOS_STMT2_BIND* paramv = &params[0];
+    TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
+    code = taos_stmt2_exec(stmt, NULL);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    if (i == 0) {
+      tsem_wait(&args.sem);
+    }
+
+    TAOS_RES* res2 = taos_stmt2_result(stmt);
+    ASSERT_NE(res2, nullptr);
+    TAOS_ROW row2 = taos_fetch_row(res2);
+    ASSERT_NE(row2, nullptr);
+    ASSERT_EQ(*(int64_t*)row2[0], 1591060630000);
+    row2 = taos_fetch_row(res2);
+    ASSERT_NE(row2, nullptr);
+    ASSERT_EQ(*(int64_t*)row2[0], 1591060630000);
+    row2 = taos_fetch_row(res2);
+    ASSERT_EQ(row2, nullptr);
+  }
+
+  tsem_destroy(&args.sem);
 }
 
 #pragma GCC diagnostic pop
