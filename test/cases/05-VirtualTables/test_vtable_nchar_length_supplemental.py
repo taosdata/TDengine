@@ -157,7 +157,249 @@ class TestVtableNcharLengthSupplemental:
             "USING vstb TAGS ('west')"
         )
 
+        # ========== THREE KEY SCENARIOS FOR ACTUAL LENGTH NO TRUNCATION ==========
+        # Source table: BINARY(32), NCHAR(32)
+        # Scenario 1: vtable col > src col (BINARY(64) > BINARY(32))
+        # Scenario 2: vtable col = src col (BINARY(32) = BINARY(32))
+        # Scenario 3: vtable col < src col (BINARY(8) < BINARY(32)) - KEY: MUST NOT TRUNCATE
+
+        # Source table for three-scenario tests
+        tdSql.execute(
+            "CREATE TABLE src_scenario ("
+            "ts TIMESTAMP, bin_col BINARY(32), nch_col NCHAR(32))"
+        )
+        # Insert data with known lengths
+        tdSql.execute(
+            "INSERT INTO src_scenario VALUES "
+            "('2024-01-01 00:00:00', 'This is exactly 23 bytes!', '这是一段测试中文')"
+        )
+        tdSql.execute(
+            "INSERT INTO src_scenario VALUES "
+            "('2024-01-01 00:00:01', 'short', '短')"
+        )
+        tdSql.execute(
+            "INSERT INTO src_scenario VALUES "
+            "('2024-01-01 00:00:02', 'x', '中')"
+        )
+
+        # Virtual table GT: BINARY(64) > BINARY(32), NCHAR(64) > NCHAR(32)
+        tdSql.execute(
+            f"CREATE VTABLE {cls.DB_NAME}.vtb_scenario_gt ("
+            "ts TIMESTAMP, "
+            "bin_col BINARY(64) FROM src_scenario.bin_col, "
+            "nch_col NCHAR(64) FROM src_scenario.nch_col)"
+        )
+
+        # Virtual table EQ: BINARY(32) = BINARY(32), NCHAR(32) = NCHAR(32)
+        tdSql.execute(
+            f"CREATE VTABLE {cls.DB_NAME}.vtb_scenario_eq ("
+            "ts TIMESTAMP, "
+            "bin_col BINARY(32) FROM src_scenario.bin_col, "
+            "nch_col NCHAR(32) FROM src_scenario.nch_col)"
+        )
+
+        # Virtual table LT: BINARY(8) < BINARY(32), NCHAR(8) < NCHAR(32)
+        # KEY SCENARIO: Despite smaller definition, MUST NOT truncate source data
+        tdSql.execute(
+            f"CREATE VTABLE {cls.DB_NAME}.vtb_scenario_lt ("
+            "ts TIMESTAMP, "
+            "bin_col BINARY(8) FROM src_scenario.bin_col, "
+            "nch_col NCHAR(8) FROM src_scenario.nch_col)"
+        )
+
+
         tdLog.info("=== Setup complete ===")
+
+    # ===================== THREE KEY SCENARIOS =====================
+    # These tests verify the core feature: virtual tables return source data's
+    # actual length regardless of virtual table column definition length.
+    # NO TRUNCATION should occur even when vtable col < src col.
+
+    def test_scenario_gt_vtable_larger_than_source(self):
+        """Scenario 1: vtable col > src col (GT - Greater Than)
+
+        Verify that when virtual table column is LARGER than source column,
+        the full source data is returned without any padding or truncation.
+        Setup: vtable BINARY(64) > src BINARY(32), vtable NCHAR(64) > src NCHAR(32)
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, scenario, gt, no_truncation
+
+        Jira: None
+
+        History:
+            - 2026-2-28 Created
+        """
+        tdLog.info("=== Test: Scenario GT - vtable col > src col ===")
+        db = self.DB_NAME
+
+        # Query virtual table with larger column definition
+        tdSql.query(f"SELECT bin_col, LENGTH(bin_col), nch_col, CHAR_LENGTH(nch_col) "
+                    f"FROM {db}.vtb_scenario_gt ORDER BY ts;")
+        tdSql.checkRows(3)
+
+        # Row 1: 'This is exactly 23 bytes!' = 23 bytes
+        tdSql.checkData(0, 0, 'This is exactly 23 bytes!')
+        tdSql.checkData(0, 1, 23)
+        tdSql.checkData(0, 2, '这是一段测试中文')
+        tdSql.checkData(0, 3, 8)  # 8 Chinese characters
+
+        # Row 2: 'short' = 5 bytes
+        tdSql.checkData(1, 0, 'short')
+        tdSql.checkData(1, 1, 5)
+        tdSql.checkData(1, 2, '短')
+        tdSql.checkData(1, 3, 1)
+
+        # Row 3: 'x' = 1 byte
+        tdSql.checkData(2, 0, 'x')
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(2, 2, '中')
+        tdSql.checkData(2, 3, 1)
+
+    def test_scenario_eq_vtable_equal_source(self):
+        """Scenario 2: vtable col = src col (EQ - Equal)
+
+        Verify that when virtual table column is EQUAL to source column,
+        the full source data is returned without any truncation.
+        Setup: vtable BINARY(32) = src BINARY(32), vtable NCHAR(32) = src NCHAR(32)
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, scenario, eq, no_truncation
+
+        Jira: None
+
+        History:
+            - 2026-2-28 Created
+        """
+        tdLog.info("=== Test: Scenario EQ - vtable col = src col ===")
+        db = self.DB_NAME
+
+        # Query virtual table with equal column definition
+        tdSql.query(f"SELECT bin_col, LENGTH(bin_col), nch_col, CHAR_LENGTH(nch_col) "
+                    f"FROM {db}.vtb_scenario_eq ORDER BY ts;")
+        tdSql.checkRows(3)
+
+        # Row 1: 'This is exactly 23 bytes!' = 23 bytes
+        tdSql.checkData(0, 0, 'This is exactly 23 bytes!')
+        tdSql.checkData(0, 1, 23)
+        tdSql.checkData(0, 2, '这是一段测试中文')
+        tdSql.checkData(0, 3, 8)
+
+        # Row 2: 'short' = 5 bytes
+        tdSql.checkData(1, 0, 'short')
+        tdSql.checkData(1, 1, 5)
+        tdSql.checkData(1, 2, '短')
+        tdSql.checkData(1, 3, 1)
+
+        # Row 3: 'x' = 1 byte
+        tdSql.checkData(2, 0, 'x')
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(2, 2, '中')
+        tdSql.checkData(2, 3, 1)
+
+    def test_scenario_lt_vtable_smaller_than_source(self):
+        """Scenario 3: vtable col < src col (LT - Less Than) - KEY SCENARIO
+
+        This is the KEY test for the no-truncation feature.
+        Verify that when virtual table column is SMALLER than source column,
+        the full source data is STILL returned WITHOUT TRUNCATION.
+        Setup: vtable BINARY(8) < src BINARY(32), vtable NCHAR(8) < src NCHAR(32)
+
+        Expected: Data longer than BINARY(8) must still be returned in full.
+        The 'This is exactly 23 bytes!' string (23 bytes) must NOT be truncated
+        to 8 bytes even though vtable defines BINARY(8).
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, scenario, lt, no_truncation, key
+
+        Jira: None
+
+        History:
+            - 2026-2-28 Created
+        """
+        tdLog.info("=== Test: Scenario LT - vtable col < src col (KEY: NO TRUNCATION) ===")
+        db = self.DB_NAME
+
+        # Query virtual table with SMALLER column definition
+        # This is the critical test - data must NOT be truncated
+        tdSql.query(f"SELECT bin_col, LENGTH(bin_col), nch_col, CHAR_LENGTH(nch_col) "
+                    f"FROM {db}.vtb_scenario_lt ORDER BY ts;")
+        tdSql.checkRows(3)
+
+        # Row 1: 'This is exactly 23 bytes!' = 23 bytes
+        # KEY ASSERTION: Despite vtable BINARY(8), full 23-byte string is returned
+        tdSql.checkData(0, 0, 'This is exactly 23 bytes!')
+        tdSql.checkData(0, 1, 23)  # NOT 8 - must be 23
+        tdSql.checkData(0, 2, '这是一段测试中文')
+        tdSql.checkData(0, 3, 8)  # NOT 8 limit - full 8 chars returned
+
+        # Row 2: 'short' = 5 bytes (fits in BINARY(8))
+        tdSql.checkData(1, 0, 'short')
+        tdSql.checkData(1, 1, 5)
+        tdSql.checkData(1, 2, '短')
+        tdSql.checkData(1, 3, 1)
+
+        # Row 3: 'x' = 1 byte (fits in BINARY(8))
+        tdSql.checkData(2, 0, 'x')
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(2, 2, '中')
+        tdSql.checkData(2, 3, 1)
+
+    def test_scenario_all_return_identical_data(self):
+        """Consistency: All three scenarios return identical data
+
+        Verify that GT, EQ, and LT scenarios all return EXACTLY the same data.
+        This confirms the no-truncation feature works correctly across all cases.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, scenario, consistency, key
+
+        Jira: None
+
+        History:
+            - 2026-2-28 Created
+        """
+        tdLog.info("=== Test: All scenarios return identical data ===")
+        db = self.DB_NAME
+
+        # Get data from all three virtual tables
+        tdSql.query(f"SELECT bin_col, nch_col FROM {db}.vtb_scenario_gt ORDER BY ts;")
+        gt_data = [(tdSql.getData(i, 0), tdSql.getData(i, 1)) for i in range(3)]
+
+        tdSql.query(f"SELECT bin_col, nch_col FROM {db}.vtb_scenario_eq ORDER BY ts;")
+        eq_data = [(tdSql.getData(i, 0), tdSql.getData(i, 1)) for i in range(3)]
+
+        tdSql.query(f"SELECT bin_col, nch_col FROM {db}.vtb_scenario_lt ORDER BY ts;")
+        lt_data = [(tdSql.getData(i, 0), tdSql.getData(i, 1)) for i in range(3)]
+
+        # All three must be identical
+        assert gt_data == eq_data == lt_data, \
+            f"Data mismatch! GT={gt_data}, EQ={eq_data}, LT={lt_data}"
+
+        # Also compare with source table
+        tdSql.query(f"SELECT bin_col, nch_col FROM {db}.src_scenario ORDER BY ts;")
+        src_data = [(tdSql.getData(i, 0), tdSql.getData(i, 1)) for i in range(3)]
+
+        assert gt_data == src_data, \
+            f"GT vtable differs from source! GT={gt_data}, SRC={src_data}"
+
+        tdLog.info("=== Verified: All scenarios return identical data to source ===")
 
     # ===================== EDGE CASE TESTS =====================
 
