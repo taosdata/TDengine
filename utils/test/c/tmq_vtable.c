@@ -23,6 +23,9 @@
 #include "tmsg.h"
 #include "types.h"
 
+bool  snapshot = false;
+char* topic = NULL;
+
 static TAOS* use_db() {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   if (pConn == NULL) {
@@ -117,17 +120,16 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
 }
 
 int main(int argc, char* argv[]) {
+  if (argc < 3) {
+    printf("Usage: %s <topic> <snapshot>\n", argv[0]);
+    return 0;
+  }
+  topic = argv[1];
+  snapshot = strcmp(argv[2], "true") == 0;
+  
   tmq_t*      tmq = build_consumer();
   tmq_list_t* topic_list = build_topic_list();
   basic_consume_loop(tmq, topic_list);
   tmq_list_destroy(topic_list);
   return 0;
 }
-
-// snapshot = true, stable topic / db topic, check get_raw/tmq_get_json
-// snapshot = false, stable topic / db topic, check get_raw/write_raw
-// ref is from another db table col, virtual_normal_table, virtual_child_table
-// ref is all, or ref is partial
-// create vtable, create normal v table.
-// add col for normal v table
-// alter ref for child vtable

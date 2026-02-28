@@ -2167,8 +2167,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   int32_t clientEpoch = atomic_load_32(&tmq->epoch);
 
   if (msgEpoch != clientEpoch) {
-    tqErrorC("consumer:0x%" PRIx64
-                 " msg discard from vgId:%d since epoch not equal, rsp epoch %d, current epoch %d, reqId:0x%" PRIx64,
+    tqWarnC("consumer:0x%" PRIx64" msg discard from vgId:%d since epoch not equal, rsp epoch %d, current epoch %d, reqId:0x%" PRIx64,
              tmq->consumerId, vgId, msgEpoch, clientEpoch, requestId);
     code = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
     goto END;
@@ -2496,7 +2495,7 @@ static int32_t processMqRspError(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
   if (pRspWrapper->code == TSDB_CODE_TMQ_CONSUMER_MISMATCH) {
     code = syncAskEp(tmq);
     if (code != 0) {
-      tqErrorC("consumer:0x%" PRIx64 " failed to ask ep when consumer mismatch, code:%s", tmq->consumerId, tstrerror(code));
+      tqWarnC("consumer:0x%" PRIx64 " failed to ask ep when consumer mismatch, code:%s", tmq->consumerId, tstrerror(code));
     }
   } else if (pRspWrapper->code == TSDB_CODE_TMQ_NO_TABLE_QUALIFIED){
     code = 0;

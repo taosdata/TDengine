@@ -156,7 +156,9 @@ static int32_t buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* s
 
   ADD_TO_JSON_STRING(json, "type", "create");
   ADD_TO_JSON_STRING(json, "tableType", (t == TSDB_SUPER_TABLE ? "super" : "normal"));
-  ADD_TO_JSON_BOOL(json, "isVirtual", isVirtual);
+  if (isVirtual){
+    ADD_TO_JSON_BOOL(json, "isVirtual", isVirtual);
+  }
   ADD_TO_JSON_STRING(json, "tableName", name);
 
   cJSON* columns = cJSON_AddArrayToObject(json, "columns");
