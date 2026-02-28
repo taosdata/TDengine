@@ -233,7 +233,7 @@ class TestTagIndexBasic:
     # ------------------- 2 ----------------
     #
     def prepareData(self):
-        self.dbname = 'db'
+        self.dbname = 'db_ts4403'
         self.stbname = 'st'
         # db
         tdSql.execute("create database {};".format(self.dbname))
@@ -249,7 +249,7 @@ class TestTagIndexBasic:
         tdSql.execute("create index t3_st on {} (t3);".format(self.stbname))
 
     def do_ts4403(self):
-        #self.prepareData()
+        self.prepareData()
         # check index number
         tdSql.query("show indexes from {};".format(self.stbname))
         assert(3 == len(tdSql.queryResult))
@@ -379,7 +379,7 @@ class TestTagIndexBasic:
         self.query_tagidx(stable)
         self.longname_idx(stable)
         
-        #self.do_ts4403()
+        self.do_ts4403()
         self.do_tag_column_comparison()
 
 
