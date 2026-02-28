@@ -342,7 +342,7 @@ struct SScalarParam {
   SArray          *pFilterArr; // for types that can't filter with hash
 };
 
-typedef struct SSclComapreCtx {
+typedef struct SSclCompareCtx {
   SScalarParam *pLeft;
   SScalarParam *pLeftVar;
   SScalarParam *pRight;
@@ -353,7 +353,7 @@ typedef struct SSclComapreCtx {
   int32_t       optr;
   int32_t      *qualifiedNum;
   bool          isAny;
-} SSclComapreCtx;
+} SSclCompareCtx;
 
 static inline void setTzCharset(SScalarParam *param, timezone_t tz, void *charsetCxt) {
   if (param == NULL) return;
