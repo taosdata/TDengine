@@ -2027,6 +2027,7 @@ static int32_t msmUpdateCalcReaderTasks(SStreamObj* pStream, SNodeList* pSubEP) 
         TAOS_CHECK_EXIT(nodesStringToNode(pCalcReaderDeploy->calcScanPlan, (SNode**)&pSubplan));
         TAOS_CHECK_EXIT(nodesCloneList(pSubEP, &pSubplan->pSubQ));
         TAOS_CHECK_EXIT(nodesNodeToString((SNode*)pSubplan, false, (char**)&pCalcReaderDeploy->calcScanPlan, NULL));
+	pCalcReaderDeploy->freeScanPlan = true;
         nodesDestroyNode((SNode *)pSubplan);
       }
     }
