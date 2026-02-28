@@ -1,6 +1,6 @@
 ---
-title: "PROPHET"
-sidebar_label: "PROPHET"
+title: "Prophet"
+sidebar_label: "Prophet"
 ---
 
 本节说明 PROPHET 算法模型的使用方法。

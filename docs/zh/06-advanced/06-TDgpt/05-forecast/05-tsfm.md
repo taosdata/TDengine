@@ -4,7 +4,7 @@ sidebar_label: "时序基础模型"
 ---
 
 TDgpt 安装包内置涛思数据时序基础模型和 Time-MoE [^1]两个时序基础模型。
-从 3.3.6.4 版本开始，TDgpt 拓展了针对 moirai [^2], chronos[^3], timesfm [^4]三个基础时序模型的支持，需要注意的是如果要使用这三个模型，需要您在本地部署
+从 3.3.6.4 版本开始，TDgpt 拓展了针对 moirai [^2], chronos[^3], timesfm [^4], moment [^5] 四个基础时序模型的支持，需要注意的是如果要使用这三个模型，需要您在本地部署
 相应的时序基础模型服务。上述三个模型的部署方式，请参考[部署时序基础模型](../09-dev/04-tsfm/index.md) 的内容。
 
 ## 功能概述
@@ -18,6 +18,7 @@ TDgpt 安装包内置涛思数据时序基础模型和 Time-MoE [^1]两个时序
 | 3   | moirai   | SalesForce 开源的时序基础模型 |
 | 4   | chronos  | Amazon 开源的时序基础模型     |
 | 5   | timesfm  | Google 开源的时序基础模型     |
+| 6   | moment   | CMU 开源的时序基础模型     |
 
 TDgpt 集成时序基础模型的预测能力，无需设置模型相关参数，使用 SQL 语句即可轻松调用时序基础模型的进行预测。
 
@@ -39,3 +40,4 @@ SELECT _frowts, FORECAST(i32, "algo=timemoe-fc,rows=10") from foo
 [^2]: Moirai-MoE: Empowering Time Series Foundation Models with Sparse Mixture of Experts. [[paper](https://arxiv.org/abs/2410.10469)] [[GitHub Repo](https://github.com/SalesforceAIResearch/uni2ts)]
 [^3]: Chronos: Learning the Language of Time Series. [[paper](https://arxiv.org/abs/2403.07815)] [[GitHub Repo](https://github.com/amazon-science/chronos-forecasting)]
 [^4]: A decoder-only foundation model for time-series forecasting. [[paper](https://arxiv.org/abs/2310.10688)] [[GitHub Repo](https://github.com/google-research/timesfm/)]
+[^5]: MOMENT: A Family of Open Time-series Foundation Models. [[paper](https://arxiv.org/abs/2402.03885)] [[GitHub Repo](https://github.com/moment-timeseries-foundation-model/moment)]
