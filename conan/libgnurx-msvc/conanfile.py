@@ -1,5 +1,6 @@
 from conan import ConanFile
-from conan.tools.files import copy, get
+from conan.tools.files import copy
+from conan.tools.scm import Git
 import os
 
 
@@ -18,12 +19,12 @@ class LibGnuRxMsvcConan(ConanFile):
             raise Exception("libgnurx-msvc recipe is intended for Windows only")
 
     def source(self):
-        # Pin to the same commit used by cmake/external.cmake (ext_msvcregex)
-        get(
-            self,
-            "https://gitee.com/l0km/libgnurx-msvc/repository/archive/1a6514dd59bac8173ad4a55f63727d36269043cd.zip",
-            strip_root=True,
-        )
+        # Gitee archive downloads can return an HTML/captcha page instead of a real .zip,
+        # which breaks automated CI builds. Clone and checkout an immutable commit instead.
+        commit = "1a6514dd59bac8173ad4a55f63727d36269043cd"
+        git = Git(self)
+        git.clone(url="https://gitee.com/l0km/libgnurx-msvc.git", target=".")
+        git.checkout(commit=commit)
 
     def build(self):
         # Build via NMakefile as external.cmake does.
