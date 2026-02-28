@@ -743,6 +743,31 @@ static int32_t getDBVgInfoImpl(STranslateContext* pCxt, const SName* pName, SArr
   return code;
 }
 
+static int32_t getDBVgInfoForce(STranslateContext* pCxt, const SName* pName, SArray** pVgInfo) {
+  SParseContext* pParCxt = pCxt->pParseCxt;
+  char           fullDbName[TSDB_DB_FNAME_LEN];
+  (void)tNameGetFullDbName(pName, fullDbName);
+  int32_t code = collectUseDatabaseImpl(fullDbName, pCxt->pDbs);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pParCxt->async) {
+      code = getDbVgInfoFromCache(pCxt->pMetaCache, fullDbName, pVgInfo);
+      if (TSDB_CODE_SUCCESS == code) {
+        return code;
+      }
+    }
+    SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                             .requestId = pParCxt->requestId,
+                             .requestObjRefId = pParCxt->requestRid,
+                             .mgmtEps = pParCxt->mgmtEpSet};
+    code = catalogGetDBVgList(pParCxt->pCatalog, &conn, fullDbName, pVgInfo);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    parserError("QID:0x%" PRIx64 ", failed to get DB vgroup info, code:%s, dbFName:%s", pCxt->pParseCxt->requestId,
+                tstrerror(code), fullDbName);
+  }
+  return code;
+}
+
 static int32_t getDBVgInfo(STranslateContext* pCxt, const char* pDbName, SArray** pVgInfo) {
   SName   name;
   int32_t code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pDbName, strlen(pDbName));
@@ -4524,8 +4549,7 @@ static int32_t getVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   return code;
 }
 
-// #ifdef TD_ENTERPRISE
-#if 1
+#ifdef TD_ENTERPRISE
 // Add a single table's uid to the specified pReadUids hash
 static int32_t convertTbNameToUids(STranslateContext* pCxt, SName* pName, int32_t maxTbSize, SSHashObj** ppReadUids) {
   SParseContext* pParseCxt = pCxt->pParseCxt;
@@ -4636,7 +4660,7 @@ static int32_t buildPrivilegedDbVgroupInfo(STranslateContext* pCxt, int32_t maxV
       }
 
       // Get vgroup list for this db
-      code = getDBVgInfoImpl(pCxt, &name, &dbPrivInfo.pDbVgs);
+      code = getDBVgInfoForce(pCxt, &name, &dbPrivInfo.pDbVgs);
       if (TSDB_CODE_SUCCESS != code) {
         continue;
       }
@@ -4715,7 +4739,7 @@ static int32_t buildPrivilegedDbVgroupInfo(STranslateContext* pCxt, int32_t maxV
       name.tname[0] = '\0';
 
       // Get vgroup list for this db
-      code = getDBVgInfoImpl(pCxt, &name, &dbPrivInfo.pDbVgs);
+      code = getDBVgInfoForce(pCxt, &name, &dbPrivInfo.pDbVgs);
       if (TSDB_CODE_SUCCESS != code) {
         continue;
       }

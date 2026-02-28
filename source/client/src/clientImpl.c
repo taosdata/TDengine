@@ -587,6 +587,7 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                       .pUser = pRequest->pTscObj->user,
                       .timezone = pRequest->pTscObj->optionInfo.timezone,
+                      .showPrivInfo.showAllTbls = true,
                       .sysInfo = pRequest->pTscObj->sysInfo};
 
   return qCreateQueryPlan(&cxt, pPlan, pNodeList);
@@ -1442,7 +1443,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .pMsg = pRequest->msgBuf,
                         .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                         .pUser = pRequest->pTscObj->user,
-                        .pShowPrivInfo = &pWrapper->pParseCtx->showPrivInfo,
+                        .showPrivInfo = pWrapper->pParseCtx->showPrivInfo,
                         .sysInfo = pRequest->pTscObj->sysInfo,
                         .timezone = pRequest->pTscObj->optionInfo.timezone,
                         .allocatorId = pRequest->isStmtBind ? 0 : pRequest->allocatorRefId};

@@ -933,7 +933,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
 
 static void fillQueryInsTablePrivInfo(SPhysiPlanContext* pCxt, SSystemTableScanPhysiNode* pScan, int32_t vgId) {
 #ifdef TD_ENTERPRISE
-  SShowPrivInfo* pInfo = pCxt->pPlanCxt->pShowPrivInfo;
+  SShowPrivInfo* pInfo = &pCxt->pPlanCxt->showPrivInfo;
   if (pScan->showAllTbls || pInfo == NULL || !pInfo->queryInsTbls) {
     return;
   }
@@ -962,9 +962,7 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   pScan->showRewrite = pScanLogicNode->showRewrite;
   pScan->accountId = pCxt->pPlanCxt->acctId;
   pScan->sysInfo = pCxt->pPlanCxt->sysInfo;
-  if (pCxt->pPlanCxt->pShowPrivInfo) {
-    pScan->showAllTbls = pCxt->pPlanCxt->pShowPrivInfo->showAllTbls;
-  }
+  pScan->showAllTbls = pCxt->pPlanCxt->showPrivInfo.showAllTbls;
 
   if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TABLES) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TAGS) ||

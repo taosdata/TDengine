@@ -55,7 +55,7 @@ typedef struct SPlanContext {
   char        pIsWindowFilledName[TSDB_COL_NAME_LEN];
   bool        virtualStableQuery;
   // for table privilege filtering (AUTH_TYPE_SHOW)
-  SShowPrivInfo* pShowPrivInfo;
+  SShowPrivInfo showPrivInfo;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.
