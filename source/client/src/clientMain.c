@@ -256,12 +256,6 @@ void taos_cleanup(void) {
 
   hbMgrCleanUp();
 
-  // Stop/join task workers first so request destroy callbacks won't race with
-  // allocator/ref-pool teardown during process exit.
-  if (TSDB_CODE_SUCCESS != cleanupTaskQueue()) {
-    tscWarn("failed to cleanup task queue");
-  }
-
   catalogDestroy();
   schedulerDestroy();
 
@@ -273,6 +267,16 @@ void taos_cleanup(void) {
 #endif
   tmqMgmtClose();
 
+  // Stop RPC producers first to prevent enqueueing new callbacks to task queue
+  // during shutdown, then stop/join task workers.
+  cleanupAppInfo();
+  rpcCleanup();
+  tscDebug("rpc cleanup");
+
+  if (TSDB_CODE_SUCCESS != cleanupTaskQueue()) {
+    tscWarn("failed to cleanup task queue");
+  }
+
   int32_t id = clientReqRefPool;
   clientReqRefPool = -1;
   taosCloseRef(id);
@@ -282,9 +286,6 @@ void taos_cleanup(void) {
   taosCloseRef(id);
 
   nodesDestroyAllocatorSet();
-  cleanupAppInfo();
-  rpcCleanup();
-  tscDebug("rpc cleanup");
 
   sessMgtDestroy();
 
