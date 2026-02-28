@@ -5239,6 +5239,7 @@ static void dumpInAvroDataBinary(FieldStruct *field,
         bind->is_null = is_null;
     } else {
         debugPrint2("%s | ", (char *)buf);
+        if (buf[size - 1] == '\0') size -= 1;
         if (bind->length) *bind->length = (int32_t)size;
     }
     bind->buffer = buf;
@@ -5983,9 +5984,10 @@ static int64_t dumpInAvroDataImpl(
 
     // last batch execute
     if (0 != (count % g_args.data_batch)) {
-        code = taos_stmt2_exec(stmt, NULL);
+        int affected_rows = 0;
+        code = taos_stmt2_exec(stmt, &affected_rows);
         if (0 != code) {
-            errorPrint("error last execute taos_stmt2_execute. errstr=%s tbName=%s\n", taos_stmt2_error(stmt), tbName);
+            errorPrint("error last execute taos_stmt2_execute. code=0x%08x, errstr=%s tbName=%s\n", code, taos_stmt2_error(stmt), tbName);
             failed++;
         } else {
             success += count % g_args.data_batch;
