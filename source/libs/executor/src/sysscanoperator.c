@@ -90,7 +90,6 @@ typedef struct SSysTableScanInfo {
   SStorageAPI*           pAPI;
   // Table-level read privilege filtering
   bool       showAllTbls;  // true if user has full access (read+write on db)
-  SSHashObj* pReadDbs;     // key is dbFName, db-level privilege
   SSHashObj* pReadUids;    // key is table uid, for fast comparison
 
   // file set iterate
@@ -1968,8 +1967,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
   char n[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
   // Check db-level privilege once before the loop since all tables in a vnode belong to the same db
-  bool hasDbPrivilege = pInfo->showAllTbls ||
-                        (pInfo->pReadDbs && tSimpleHashGet(pInfo->pReadDbs, db, strlen(db) + 1));
+  bool hasDbPrivilege = pInfo->showAllTbls;
 
   // Two-level suid privilege cache (only used when !hasDbPrivilege && pReadUids != NULL)
   SSuidPrivCache suidSlots[SUID_CACHE_SLOTS] = {0};
@@ -2030,7 +2028,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       // Table-level read privilege filtering for child tables
       if (!hasDbPrivilege) {
         if (suid != lastSuid) {
-          bool    suidAllowed = false;
+          bool     suidAllowed = false;
           uint64_t slot = ((uint64_t)suid & (SUID_CACHE_SLOTS - 1));
           if (suidSlots[slot].suid == suid) {
             suidAllowed = suidSlots[slot].allowed;
@@ -3194,7 +3192,6 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   pInfo->sysInfo = pScanPhyNode->sysInfo;
   pInfo->showRewrite = pScanPhyNode->showRewrite;
   pInfo->showAllTbls = pScanPhyNode->showAllTbls;
-  pInfo->pReadDbs = pScanPhyNode->pReadDbs;
   pInfo->pReadUids = pScanPhyNode->pReadUids;
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);

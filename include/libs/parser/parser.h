@@ -136,11 +136,7 @@ typedef struct SParseContext {
   timezone_t       timezone;
   void            *charsetCxt;
   bool             streamRunHistory;
-  // for AUTH_TYPE_SHOW (SHOW tables / SELECT * FROM ins_tables)
-  bool       showAllTbls;  // user has db-level privilege (single-db query)
-  SSHashObj* pReadDbs;     // key is dbFName, db-level read/write privilege
-  SSHashObj* pReadTbs;     // key is tbFName, table-level read/write privilege (legacy)
-  SSHashObj* pReadUids;    // key is int64_t (suid or uid), optimized privilege check
+  SShowPrivInfo    showPrivInfo;  // privilege info for table filtering in SHOW tables / SELECT * FROM ins_tables
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);

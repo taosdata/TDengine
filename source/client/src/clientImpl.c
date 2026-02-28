@@ -1442,9 +1442,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .pMsg = pRequest->msgBuf,
                         .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                         .pUser = pRequest->pTscObj->user,
-                        .showAllTbls = pWrapper->pParseCtx->showAllTbls,
-                        .pReadDbs = pWrapper->pParseCtx->pReadDbs,
-                        .pReadUids = pWrapper->pParseCtx->pReadUids,
+                        .pShowPrivInfo = &pWrapper->pParseCtx->showPrivInfo,
                         .sysInfo = pRequest->pTscObj->sysInfo,
                         .timezone = pRequest->pTscObj->optionInfo.timezone,
                         .allocatorId = pRequest->isStmtBind ? 0 : pRequest->allocatorRefId};

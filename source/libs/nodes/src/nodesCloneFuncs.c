@@ -866,25 +866,6 @@ static int32_t physiSysTableScanCopy(const SSystemTableScanPhysiNode* pSrc, SSys
   COPY_SCALAR_FIELD(accountId);
   COPY_SCALAR_FIELD(sysInfo);
   COPY_SCALAR_FIELD(showAllTbls);
-  if (pSrc->pReadDbs) {
-    int32_t numKeys = tSimpleHashGetSize(pSrc->pReadDbs);
-    if (numKeys > 0) {
-      pDst->pReadDbs = tSimpleHashInit(numKeys, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
-      if (NULL == pDst->pReadDbs) {
-        return terrno;
-      }
-      void*   pIter = NULL;
-      int32_t iter = 0;
-      while ((pIter = tSimpleHashIterate(pSrc->pReadDbs, pIter, &iter)) != NULL) {
-        size_t  klen = 0;
-        char*   key = tSimpleHashGetKey(pIter, &klen);
-        int32_t code = tSimpleHashPut(pDst->pReadDbs, key, klen, NULL, 0);
-        if (TSDB_CODE_SUCCESS != code) {
-          return code;
-        }
-      }
-    }
-  }
   if (pSrc->pReadUids) {
     int32_t numKeys = tSimpleHashGetSize(pSrc->pReadUids);
     if (numKeys > 0) {

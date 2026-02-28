@@ -67,7 +67,7 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
   SParseContext* pParseCxt = pCxt->pParseCxt;
   if (pParseCxt->isSuperUser) {
     if (AUTH_TYPE_SHOW == type) {
-      pParseCxt->showAllTbls = true;
+      pParseCxt->showPrivInfo.showAllTbls = true;
     }
     return TSDB_CODE_SUCCESS;
   }
@@ -97,9 +97,9 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
   }
   // Save AUTH_TYPE_SHOW results to pParseCxt for passing to executor
   if (TSDB_CODE_SUCCESS == code && AUTH_TYPE_SHOW == type) {
-    pParseCxt->showAllTbls = authRes.showAllTbls;
-    TSWAP(pParseCxt->pReadDbs, authRes.pReadDbs);
-    TSWAP(pParseCxt->pReadTbs, authRes.pReadTbs);
+    pParseCxt->showPrivInfo.showAllTbls = authRes.showAllTbls;
+    TSWAP(pParseCxt->showPrivInfo.pReadDbs, authRes.pReadDbs);
+    TSWAP(pParseCxt->showPrivInfo.pReadTbs, authRes.pReadTbs);
   }
   return TSDB_CODE_SUCCESS == code ? (authRes.pass[auth_res_type] ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED)
                                    : code;
