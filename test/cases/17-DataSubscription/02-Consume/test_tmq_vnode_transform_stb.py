@@ -126,7 +126,7 @@ class TestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  60,
+                    'pollDelay':  6000,   # wait vnode transform finished
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -193,8 +193,8 @@ class TestCase:
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
 
-        if expectrowcnt / 2 > resultList[0]:
-            tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectrowcnt / 2, resultList[0]))
+        if expectrowcnt > resultList[0]:
+            tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectrowcnt, resultList[0]))
             tdLog.exit("%d tmq consume rows error!"%consumerId)
 
         # tmqCom.checkFileContent(consumerId, queryString)
