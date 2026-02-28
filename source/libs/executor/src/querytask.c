@@ -337,14 +337,18 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
     }
     pCtx->transporterId = -1;
   }
-  
-  if (pCtx->subEndPoints && taosArrayGetSize(pCtx->subEndPoints) > 0) {
-    int32_t code = tsem_destroy(&pCtx->ready);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-    }  
-    taosArrayDestroy(pCtx->subResNodes);
-    taosArrayDestroyP(pCtx->subEndPoints, NULL);  
+
+  if (pCtx->subEndPoints != NULL) {
+    size_t size = taosArrayGetSize(pCtx->subEndPoints);
+    if (size > 0) {
+      int32_t code = tsem_destroy(&pCtx->ready);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      }
+      taosArrayDestroy(pCtx->subResNodes);
+    }
+    taosArrayDestroyP(pCtx->subEndPoints, NULL);
+    pCtx->subEndPoints = NULL;
   }
 }
 
