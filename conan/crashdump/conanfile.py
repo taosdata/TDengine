@@ -14,7 +14,57 @@ install(TARGETS dumper RUNTIME DESTINATION bin)
 
 add_library(crashdump STATIC crasher/crasher.c)
 install(TARGETS crashdump ARCHIVE DESTINATION lib)
-install(FILES crasher/crasher.h DESTINATION include)
+"""
+
+# Upstream repo is an archived demo project and doesn't ship a reusable header.
+# TDengine only needs `exceptionHandler` (declared in source/os/src/osSysinfo.c) and
+# the helper dumper.exe. Provide a patched crasher.c without a `main()`.
+_CRASHER_C = r"""
+#include <Windows.h>
+
+#include <stdio.h>
+#include <string.h>
+#include <wchar.h>
+
+LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception)
+{
+  wchar_t currentProcessPath[MAX_PATH + 1];
+  wchar_t dumperProcessPath[MAX_PATH + 1];
+
+  DWORD written = GetModuleFileNameW(NULL, currentProcessPath, sizeof(currentProcessPath) / sizeof(currentProcessPath[0]));
+  for (DWORD i = written - 1; i >= 0; i--)
+  {
+    if (currentProcessPath[i] == L'\\')
+    {
+      memcpy_s(dumperProcessPath, sizeof(dumperProcessPath), currentProcessPath, i * sizeof(i));
+      wchar_t dumperProcessName[] = L"\\dumper.exe";
+      memcpy_s(dumperProcessPath + i, sizeof(dumperProcessPath) - i * sizeof(i), dumperProcessName, sizeof(dumperProcessName));
+      break;
+    }
+  }
+
+  wchar_t applicationName[MAX_PATH + 3];
+  wchar_t commandLine[32768];
+  swprintf_s(applicationName, sizeof(applicationName) / sizeof(applicationName[0]), L"\"%ls\"", dumperProcessPath);
+  swprintf_s(commandLine, sizeof(commandLine) / sizeof(commandLine[0]), L"\"%ls\" %lu %lu %p", dumperProcessPath, GetCurrentProcessId(), GetCurrentThreadId(), exception);
+
+  STARTUPINFOW startupInfo = { 0 };
+  startupInfo.cb = sizeof(STARTUPINFOW);
+  PROCESS_INFORMATION dumperProcessInfo;
+  if (CreateProcessW(dumperProcessPath, commandLine, NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS, NULL, NULL, &startupInfo, &dumperProcessInfo) == 0)
+  {
+    return FALSE;
+  }
+
+  // Wait to be terminated by dumper. This may look like it's resilient to the dumper crashing, but it isn't.
+  // The dumper will have suspended this thread, so if it crashes without resuming it this process will stay stuck forever.
+  WaitForSingleObject(dumperProcessInfo.hProcess, INFINITE);
+
+  CloseHandle(dumperProcessInfo.hProcess);
+  CloseHandle(dumperProcessInfo.hThread);
+
+  return TRUE;
+}
 """
 
 
@@ -48,6 +98,10 @@ class CrashdumpConan(ConanFile):
 
     def build(self):
         save(self, os.path.join(self.source_folder, "CMakeLists.txt"), _CRASHDUMP_CMAKELISTS)
+
+        # Patch upstream demo source into a reusable library object for TDengine.
+        save(self, os.path.join(self.source_folder, "crasher", "crasher.c"), _CRASHER_C)
+
         cmake = CMake(self)
         cmake.configure()
         cmake.build()
