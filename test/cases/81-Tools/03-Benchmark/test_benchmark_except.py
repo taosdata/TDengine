@@ -50,46 +50,26 @@ class TestBenchmarkExcept:
         tdLog.exit("Timeout waiting for taosBenchmark process to start.")
         return []
 
-    def _insert_thread(self, cmd):
-        """Run taosBenchmark with given command, store output in _rlist."""
-        tdLog.info(f"_insert_thread start, cmd: {cmd}")
-        self._rlist = self.benchmark(cmd, checkRun=False)
-
     #
     # ------------------- test_insert_cancel ----------------
     #
-    def _stop_benchmark_thread(self, isForceExit):
-        """Wait for taosBenchmark to start, then send SIGINT."""
-        tdLog.info(f"_stop_benchmark_thread start, force={isForceExit}")
+    def stopThread(self, isForceExit):
+        tdLog.info(f"stopThread start, force={isForceExit}")
         pids = self.wait_for_benchmark()
         if not pids:
-            return
+            tdLog.exit("No process named taosBenchmark was found.")
 
-        # Give benchmark a moment to enter active insert phase
-        time.sleep(2)
+        # Wait for benchmark to enter active insert phase
+        time.sleep(3)
 
         os.kill(pids[0], signal.SIGINT)
         if isForceExit:
-            time.sleep(0.5)
-            try:
-                os.kill(pids[0], signal.SIGINT)
-            except ProcessLookupError:
-                pass
+            # Send second SIGINT immediately (no delay!) to trigger forced exit
+            os.kill(pids[0], signal.SIGINT)
 
-    def _run_cancel_test(self, isForceExit):
-        """Run a single insert-cancel scenario and verify output."""
-        self._rlist = None
-        cmd = "-d db -t 10 -n 10000 -T 4 -I stmt -y"
+        # Wait for benchmark to finish and write output
+        time.sleep(10)
 
-        t1 = threading.Thread(target=self._insert_thread, args=(cmd,))
-        t2 = threading.Thread(target=self._stop_benchmark_thread, args=(isForceExit,))
-        t1.start()
-        t2.start()
-
-        t1.join()
-        t2.join()
-
-        # Verify output after both threads complete (no race condition)
         if self._rlist:
             tdLog.info(self._rlist)
             if isForceExit:
@@ -97,51 +77,76 @@ class TestBenchmarkExcept:
             else:
                 self.checkListString(self._rlist, "Receive SIGINT or other signal, quit benchmark")
         else:
-            tdLog.exit("The benchmark process output is empty!")
+            tdLog.exit("The benchmark process has not stopped!")
+
+    def dbInsertThread(self, cmd):
+        tdLog.info(f"dbInsertThread start, cmd: {cmd}")
+        self._rlist = self.benchmark(cmd, checkRun=False)
 
     # run
     def do_insert_cancel(self):
         tdLog.info(f"start to execute {__file__} - insert cancel")
-        self._run_cancel_test(isForceExit=False)
-        self._run_cancel_test(isForceExit=True)
+
+        # Use enough tables so benchmark is still running when SIGINT arrives
+        cmd = "-d db -t 10000 -n 10000 -T 8 -I stmt -y"
+
+        # Test 1: graceful cancel (single SIGINT)
+        self._rlist = None
+        t1 = threading.Thread(target=self.dbInsertThread, args=(cmd,))
+        t2 = threading.Thread(target=self.stopThread, args=(False,))
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        # Test 2: forced exit (double SIGINT)
+        self._rlist = None
+        t1 = threading.Thread(target=self.dbInsertThread, args=(cmd,))
+        t2 = threading.Thread(target=self.stopThread, args=(True,))
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
         tdLog.info("do insert canceled .................... [passed]")
 
     #
     # ------------------- test_insert_error_exit ----------------
     #
-    def _dnode_stop_thread(self):
-        """Wait for taosBenchmark to start, then stop dnode 2."""
-        tdLog.info("_dnode_stop_thread start")
+    def dnodeNodeStopThread(self):
+        tdLog.info("dnodeNodeStopThread start")
         pids = self.wait_for_benchmark()
         if not pids:
-            return
-        # Wait long enough for benchmark to enter active insert phase,
-        # but not so long that it finishes before dnode is stopped
-        time.sleep(5)
-        tdLog.info("stopping dnode 2 ...")
-        sc.dnodeStop(2)
+            tdLog.exit("No process named taosBenchmark was found.")
+
+        # Wait for benchmark to enter active insert phase
+        time.sleep(3)
+        tdLog.info("stopping dnode 1 ...")
+        sc.dnodeStop(1)
+
+        # Wait for benchmark to detect error and exit
+        time.sleep(10)
+
+        if self._rlist:
+            tdLog.info(self._rlist)
+            self.checkListString(self._rlist, "failed to execute insert statement. reason: Vnode stopped")
+        else:
+            tdLog.exit("The benchmark process has not stopped!")
 
     # run
     def do_insert_error_exit(self):
         self._rlist = None
         tdLog.info(f"start to execute {__file__} - insert error exit")
 
-        # Use enough data (-t 100 -n 10000) so benchmark is still inserting when dnode stops
-        cmd = "-d db -t 100 -n 10000 -T 4 -I stmt -y"
-        t1 = threading.Thread(target=self._insert_thread, args=(cmd,))
-        t2 = threading.Thread(target=self._dnode_stop_thread)
+        # Use enough tables so benchmark is still running when dnode stops
+        cmd = "-d db -t 10000 -n 10000 -T 4 -I stmt -y"
+        t1 = threading.Thread(target=self.dbInsertThread, args=(cmd,))
+        t2 = threading.Thread(target=self.dnodeNodeStopThread)
         t1.start()
         t2.start()
-
         t1.join()
         t2.join()
 
-        # Verify output after both threads complete (no race condition)
-        if self._rlist:
-            tdLog.info(self._rlist)
-            self.checkListString(self._rlist, "failed to execute insert statement. reason: Vnode stopped")
-        else:
-            tdLog.exit("The benchmark process output is empty!")
         tdLog.info("do insert error exit .................. [passed]")
 
 
