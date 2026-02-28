@@ -23,6 +23,7 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 | Node.js 连接器 版本 |          主要变化         |   TDengine TSDB 版本    |
 | ------------------| ----------------------| ----------------|
+|        3.2.3       | 1. 支持令牌身份认证 <br/> 2. 支持上报连接器版本信息 | - |
 |        3.2.2       | 修复 Windows 系统上的时区处理问题 | - |
 |        3.2.1       | 修复 SQL 查询结果排序问题 | - |
 |        3.2.0       | 优化 stmt 参数绑定，提升写入效率 | - |
@@ -150,7 +151,8 @@ WSConfig 中的配置如下：
 - setPwd(pws:string) 设置数据库密码。
 - setDb(db: string) 设置数据库名称。
 - setTimeOut(ms : number) 设置连接超时，单位毫秒。
-- setToken(token: string) 设置 taosAdapter 认证 token。
+- setToken(token: string) 设置云服务认证 token。
+- setBearerToken(token: string) 设置 TDengine TSDB 认证 token，认证优先级高于用户名密码。
 
 ### 连接功能
 
