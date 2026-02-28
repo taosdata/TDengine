@@ -115,7 +115,10 @@ class TestBenchmarkExcept:
         pids = self.wait_for_benchmark()
         if not pids:
             return
-        time.sleep(2)
+        # Wait long enough for benchmark to enter active insert phase,
+        # but not so long that it finishes before dnode is stopped
+        time.sleep(5)
+        tdLog.info("stopping dnode 2 ...")
         sc.dnodeStop(2)
 
     # run
@@ -123,7 +126,8 @@ class TestBenchmarkExcept:
         self._rlist = None
         tdLog.info(f"start to execute {__file__} - insert error exit")
 
-        cmd = "-d db -t 10 -n 10000 -T 4 -I stmt -y"
+        # Use enough data (-t 100 -n 10000) so benchmark is still inserting when dnode stops
+        cmd = "-d db -t 100 -n 10000 -T 4 -I stmt -y"
         t1 = threading.Thread(target=self._insert_thread, args=(cmd,))
         t2 = threading.Thread(target=self._dnode_stop_thread)
         t1.start()
