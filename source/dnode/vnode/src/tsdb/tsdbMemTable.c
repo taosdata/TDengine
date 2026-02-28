@@ -201,12 +201,23 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
     goto _err;
   }
 
-  // physically overwrite in-memory data when secure delete is requested
-  int8_t doSecureErase = secureDelete || pTsdb->pVnode->config.secureDelete;
+  // secureDelete is already merged (statement-level | stb-level | db-level) by the planner
+  int8_t doSecureErase = secureDelete;
   if (doSecureErase) {
+    // Phase 1: overwrite in-memory (memtable) rows
     taosWLockLatch(&pTbData->lock);
     tsdbSecureEraseMemTableData(pTbData, sKey, eKey);
     taosWUnLockLatch(&pTbData->lock);
+
+    // Phase 2: overwrite on-disk (data file + STT file) blocks.
+    // Errors are logged but not fatal: delete markers guarantee correctness
+    // even if the physical overwrite fails.
+    int32_t eraseCode = tsdbSecureEraseFileRange(pTsdb, suid, uid, sKey, eKey);
+    if (eraseCode != 0) {
+      tsdbWarn("vgId:%d, secure erase file range failed for suid:%" PRId64 " uid:%" PRId64
+               " skey:%" PRId64 " eKey:%" PRId64 " since %s",
+               TD_VID(pTsdb->pVnode), suid, uid, sKey, eKey, tstrerror(eraseCode));
+    }
   }
 
   // do delete
