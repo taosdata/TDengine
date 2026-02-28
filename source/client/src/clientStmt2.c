@@ -2265,7 +2265,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     if (TSDB_CODE_SUCCESS == code) {
       code = createParseContext(pRequest, &pWrapper->pParseCtx, pWrapper);
     }
-    pWrapper->pParseCtx->showAllTbls = true;  // set to true for stmt query
+    pWrapper->pParseCtx->showPrivInfo.showAllTbls = true;  // set to true for stmt query
     pRequest->syncQuery = false;
     pRequest->body.queryFp = asyncQueryCb;
     ((SSyncQueryParam*)(pRequest)->body.interParam)->userParam = pStmt;
