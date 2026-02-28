@@ -9,7 +9,6 @@ cmake_minimum_required(VERSION 3.16)
 project(wcwidth C)
 add_library(wcwidth STATIC wcwidth.c)
 install(TARGETS wcwidth ARCHIVE DESTINATION lib)
-install(FILES wcwidth.h DESTINATION include)
 """
 
 
@@ -50,6 +49,10 @@ class WcwidthCjkConan(ConanFile):
     def package(self):
         cmake = CMake(self)
         cmake.install()
+
+        # Keep an include/ folder for consistency with build system expectations,
+        # even though TDengine doesn't include any headers from this package.
+        os.makedirs(os.path.join(self.package_folder, "include"), exist_ok=True)
 
     def package_info(self):
         self.cpp_info.libs = ["wcwidth"]
