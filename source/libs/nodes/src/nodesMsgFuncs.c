@@ -2653,6 +2653,7 @@ static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncode
 
 static int32_t msgToPhysiSysTableScanNode(STlvDecoder* pDecoder, void* pObj) {
   SSystemTableScanPhysiNode* pNode = (SSystemTableScanPhysiNode*)pObj;
+  pNode->fromMsg = true;
 
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;

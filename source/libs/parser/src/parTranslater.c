@@ -4835,7 +4835,7 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   if (TSDB_CODE_SUCCESS == code && isSelectStmt(pCxt->pCurrStmt) &&
       0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES)) {
     pShowPrivInfo->queryInsTbls = true;
-    pShowPrivInfo->singerDbQuery = hasUserDbCond;
+    pShowPrivInfo->singleDbQuery = hasUserDbCond;
     if (pParseCxt->isSuperUser || pParseCxt->isStmtBind) {
       pShowPrivInfo->showAllTbls = true;
     }

@@ -937,7 +937,7 @@ static void fillQueryInsTablePrivInfo(SPhysiPlanContext* pCxt, SSystemTableScanP
   if (pScan->showAllTbls || pInfo == NULL || !pInfo->queryInsTbls) {
     return;
   }
-  if (pInfo->singerDbQuery) {
+  if (pInfo->singleDbQuery) {
     pScan->pReadUids = pInfo->pReadUids;
   } else {
     void* pVgInfo = tSimpleHashGet(pInfo->pVgDbShowHash, &vgId, sizeof(vgId));

@@ -638,7 +638,7 @@ typedef struct SShowPrivTbInfo {
 typedef struct SShowPrivInfo {
   // collect privilege info from user auth res, and used for table privilege filtering (AUTH_TYPE_SHOW)
   bool       queryInsTbls;
-  bool       singerDbQuery;
+  bool       singleDbQuery;
   bool       showAllTbls;  // user has db-level privilege (single-db query)
   SSHashObj* pReadDbs;     // key is dbFName, db-level read/write privilege
   SSHashObj* pReadTbs;     // key is tbFName, table-level read/write privilege
