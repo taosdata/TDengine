@@ -1,0 +1,12 @@
+services:
+  tdengine-coverage-cron:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tdengine-coverage-cron
+    restart: unless-stopped
+    volumes:
+      - ./tdengine_coverage_alarm.py:/home/tdengine_coverage_alarm.py:ro
+      - ./cron_logs:/var/log/cron
+    environment:
+      - TZ=Asia/Shanghai

@@ -21,6 +21,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 _max_input_length = 2880
 pretrained_model = None
 
+
 @app.route('/ds_predict', methods=['POST'])
 def do_predict():
     try:
@@ -35,7 +36,7 @@ def do_predict():
         input_data = input_data[-_max_input_length:]
 
         prediction_length = data.get('next_len', 10)
-        interval = data.get('conf_interval', 0.95)   # confidence interval
+        interval = data.get('conf_interval', 0.95)  # confidence interval
 
         past_dynamic_real = data.get('past_dynamic_real', [])
         dynamic_real = data.get('dynamic_real', [])
@@ -45,12 +46,13 @@ def do_predict():
             past_dynamic_real[i] = past_dynamic_real[i][-_max_input_length:]
 
         for i in range(len(dynamic_real)):
-            dynamic_real[i] = dynamic_real[i][-_max_input_length-prediction_length:]
+            dynamic_real[i] = dynamic_real[i][-_max_input_length - prediction_length:]
 
         if len(past_dynamic_real) + len(dynamic_real) == 0:  # single-variate forecasting processing
             resp = handle_singlevariate_forecast(input_data, prediction_length, interval)
-        elif len(dynamic_real) > 0: # co-variate forecasting processing
-            resp = handle_future_covariate_forecast(input_data, prediction_length, interval, past_dynamic_real, dynamic_real)
+        elif len(dynamic_real) > 0:  # co-variate forecasting processing
+            resp = handle_future_covariate_forecast(input_data, prediction_length, interval, past_dynamic_real,
+                                                    dynamic_real)
         else:
             resp = handle_covariate_forecast(input_data, prediction_length, interval, past_dynamic_real)
 
@@ -62,6 +64,7 @@ def do_predict():
             'error': f'Prediction failed: {str(e)}'
         }), 500
 
+
 def handle_singlevariate_forecast(input_data, prediction_length, interval):
     """uni-variate forecasting processing"""
     # Time series values. Shape: (batch, time, variate)
@@ -71,7 +74,7 @@ def handle_singlevariate_forecast(input_data, prediction_length, interval):
 
     # 1s if the value is observed, 0s otherwise. Shape: (batch, time, variate)
     past_observed_target = torch.ones_like(past_target, dtype=torch.bool)
-    
+
     # 1s if the value is padding, 0s otherwise. Shape: (batch, time)
     past_is_pad = torch.zeros_like(past_target, dtype=torch.bool).squeeze(-1)
 
@@ -95,14 +98,15 @@ def handle_singlevariate_forecast(input_data, prediction_length, interval):
     res = forecast[0].cpu()
 
     pred_y = np.round(np.median(res, axis=0), decimals=4)
-    
+
     return {
         'status': 'success',
         'output': pred_y.tolist(),
-        'lower': res.quantile(0.5 - interval/2, dim=0).tolist(),
-        'upper': res.quantile(0.5 + interval/2, dim=0).tolist(),
-        'conf_interval':interval
+        'lower': res.quantile(0.5 - interval / 2, dim=0).tolist(),
+        'upper': res.quantile(0.5 + interval / 2, dim=0).tolist(),
+        'conf_interval': interval
     }
+
 
 def handle_covariate_forecast(input_data, prediction_length, interval, past_dynamic_real):
     df = pd.DataFrame({
@@ -202,7 +206,8 @@ def handle_future_covariate_forecast(input_data, prediction_length, interval, pa
     test_data = test_template.generate_instances(
         prediction_length=prediction_length,  # number of time steps for each prediction
         windows=prediction_length // prediction_length,  # number of windows in rolling window evaluation
-        distance=prediction_length,  # number of time steps between each window - distance=PDT for non-overlapping windows
+        distance=prediction_length,
+        # number of time steps between each window - distance=PDT for non-overlapping windows
     )
 
     predictor = model.create_predictor(batch_size=16)
@@ -221,7 +226,7 @@ def handle_future_covariate_forecast(input_data, prediction_length, interval, pa
     }
 
 
-def download_model(model_name, root_dir, enable_ep = False):
+def download_model(model_name, root_dir, enable_ep=False):
     # model_list = ['Salesforce/moirai-1.0-R-small']
     ep = 'https://hf-mirror.com' if enable_ep else None
     model_list = [model_name]
@@ -238,7 +243,7 @@ def download_model(model_name, root_dir, enable_ep = False):
         snapshot_download(
             repo_id=item,
             local_dir=dst_folder,  # storage directory
-            local_dir_use_symlinks=False,   # disable the link
+            local_dir_use_symlinks=False,  # disable the link
             resume_download=True,
             endpoint=ep
         )
@@ -247,12 +252,18 @@ def download_model(model_name, root_dir, enable_ep = False):
 def usage():
     name = os.path.basename(__file__)
     s = [
-    "Usage:",
-    f"Python {name}                    #use implicit download of small model",
-    f"Python {name} model_index        #specify the model that would load when starting",
-    f"Python {name} model_path model_name enable_ep  #specify the model name, local directory, and the proxy"
+        "Usage:",
+        f"Python {name}                    #use implicit download of small model",
+        f"Python {name} model_index        #specify the model that would load when starting",
+        f"Python {name} model_path model_name enable_ep  #specify the model name, local directory, and the proxy",
+        "",
+        "Available models as follows:",
+        'Salesforce/moirai-moe-1.0-R-small',  # small model with 117M parameters
+        'Salesforce/moirai-moe-1.0-R-base',  # base model with 205M parameters
     ]
+
     return '\n'.join(s)
+
 
 def main():
     """
@@ -267,6 +278,10 @@ def main():
     ]
 
     num_of_arg = len(sys.argv)
+
+    if num_of_arg == 2 and sys.argv[1] == '--help':
+        print(usage())
+        sys.exit(0)
 
     if num_of_arg == 1:
         # use the implicit download capability
