@@ -1991,6 +1991,32 @@ static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt,
   return DEAL_RES_CONTINUE;
 }
 
+static EDealRes translateSubQColumnWithoutPrefix(STranslateContext* pCxt,
+                                             SColumnNode** pCol,
+                                             bool* pFound) {
+  int32_t currLevel = pCxt->currLevel--;
+  while (pCxt->currLevel >= 0) {
+    EDealRes res = translateColumnWithoutPrefix(pCxt, pCol, pFound);
+    if (DEAL_RES_ERROR == res) {
+      pCxt->currLevel = currLevel;
+      return res;
+    }
+    
+    if (false == *pFound) {
+      pCxt->currLevel--;
+      continue;
+    }
+
+    pCxt->isCorrelatedSubQ = true;
+    break;
+  }
+
+  pCxt->currLevel = currLevel;
+
+  return DEAL_RES_CONTINUE;
+}
+
+
 static int32_t getFuncInfo(STranslateContext* pCxt, SFunctionNode* pFunc);
 
 /**
@@ -2315,7 +2341,7 @@ static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnN
 
 static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
   if (NULL == pCxt->pCurrStmt ||
-      (isSelectStmt(pCxt->pCurrStmt) && NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
+      (isSelectStmt(pCxt->pCurrStmt) && NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable) && !pCxt->isExprSubQ) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
   }
 
@@ -2379,6 +2405,10 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
     res = translateColumnUseAlias(pCxt, pCol, &found);
   }
 
+  if (!found && res != DEAL_RES_ERROR && pCxt->isExprSubQ) {
+    res = translateSubQColumnWithoutPrefix(pCxt, pCol, &found);
+  }
+  
   if (!found && res != DEAL_RES_ERROR) {
     if (isInternalPrimaryKey(*pCol)) {
       if (isSelectStmt(pCxt->pCurrStmt) &&

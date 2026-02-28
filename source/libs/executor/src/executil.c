@@ -4209,7 +4209,7 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
     return;
   }
 
-  if (1 != pRsp->numOfCols) {
+  if (1 != pRsp->numOfCols && pRsp->numOfRows > 0) {
     qError("%s invalid scl value fetch rsp received, subQIdx:%d, cols:%" PRId64, ctx->idStr, pParam->subQIdx, pRsp->numOfCols);
     ctx->code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_COLS;
 
