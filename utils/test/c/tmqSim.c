@@ -851,8 +851,13 @@ void loop_consume(SThreadInfo* pInfo) {
       }
     } else {
       memset(tmpString, 0, tListLen(tmpString));
-      taosFprintfFile(g_fp, "%s no poll more msg when time over, break consume\n", getCurrentTimeString(tmpString));
-      break;
+      code = taos_errno(NULL);
+      if (code == 0) {
+        taosFprintfFile(g_fp, "%s no poll more msg when time over, break consume\n", getCurrentTimeString(tmpString));
+        break;
+      } else {
+        taosFprintfFile(g_fp, "%s poll err:\n", getCurrentTimeString(tmpString), taos_errstr(NULL));
+      }
     }
   }
 
