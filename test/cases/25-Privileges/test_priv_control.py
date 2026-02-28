@@ -3794,6 +3794,56 @@ class TestPrivControl:
         self.drop_user(user)
         
         print("Owner Special Privileges ............. [ passed ] ")
+        
+    def queryIncludes(self, sql, expected_user, expected_priv_types):
+        # Helper function to check if query result includes expected privileges
+        tdSql.query(sql)
+        found_privs = set()
+        for row in tdSql.queryResult:
+            user, priv_type = row[0], row[1]
+            if user == expected_user:
+                found_privs.add(priv_type)
+        for priv in expected_priv_types:
+            if priv not in found_privs:
+                raise Exception(f"Expected privilege '{priv}' not found for user '{expected_user}'")
+
+    def do_show_privilege(self):
+        # Test permission query and display commands
+        tdLog.info("=== Testing Permission Query and Display ===")
+        self.login()  # Login as root
+        
+        # Create test users and roles
+        test_user = "test_user"
+        test_role = "test_role"
+        test_db = "test_db"
+        self.create_database(test_db)
+        self.create_user(test_user, pwd)
+        self.create_role(test_role)
+        
+        priv_types = ["CREATE DATABASE", "SELECT", "INSERT", "DROP"]
+        priv_targes = [None, f"{test_db}.*", f"{test_db}.*", f"DATABASE {test_db}"]
+        users = [test_user, test_role]
+        
+        # Grant
+        for priv_t, priv_target in zip(priv_types, priv_targes):
+            for user in users:
+                self.grant_privilege(priv_t, priv_target, user)
+
+        # User
+        sql = "SHOW USER PRIVILEGES"
+        self.queryIncludes(sql, test_user, priv_types)
+        
+        # Role
+        sql = "SHOW ROLE PRIVILEGES"
+        self.queryIncludes(sql, test_role, priv_types)
+        
+        # Cleanup
+        self.login()
+        self.drop_database(test_db)
+        self.drop_role(test_role)
+        self.drop_user(test_user)
+        
+        print("Show Privileges ....................... [ passed ] ")
 
     def do_concurrent_privilege_operations(self):
         # Test concurrent privilege grant/revoke operations
@@ -4130,6 +4180,9 @@ class TestPrivControl:
           - Invalid Privilege Operations
           - Privilege Boundary Conditions
           - Owner Special Privileges
+          - Database Owner Privileges (implicit permissions)
+          - Object Owner Privileges (tables, views, topics, streams)
+          - Permission Query and Display (SHOW USER/ROLE PRIVILEGES, information_schema)
           - Concurrent Privilege Operations
         
         [Three-Power Separation Tests (3.4.0.0+)]
@@ -4149,6 +4202,7 @@ class TestPrivControl:
             - 2026-02-02 Alex Duan Enhanced with comprehensive test cases
             - 2026-02-02 Alex Duan Added 3.4.0.0+ view/topic/stream privilege tests
             - 2026-02-27 Alex Duan Added three-power separation tests (SYSDBA/SYSSEC/SYSAUDIT)
+            - 2026-02-27 Alex Duan Added database/object owner privilege tests and permission query tests
 
         """
         
@@ -4159,17 +4213,7 @@ class TestPrivControl:
         ''' test
         self.create_snode()
         self.create_qnode()
-        print("")
-        print("[Column and Row Privileges]")
-        self.do_row_privilege_with_tag_condition()
-        self.do_row_privilege_complex_conditions()
-        self.do_row_privilege_time_range()
-        self.do_row_privilege_mixed_conditions()
-        self.do_column_privilege()
-        self.do_column_mask_privilege()
-        self.do_column_row_combined_privilege()
-        self.do_column_privilege_update_priority()
-        self.do_privilege_update_time_priority()
+        self.do_show_privilege()
         return
         '''
 
@@ -4259,6 +4303,7 @@ class TestPrivControl:
         # Exception and reverse test cases
         print("")
         print("[Exception and Reverse Test Cases]")
+        self.do_show_privilege()
         self.do_privilege_inheritance()
         self.do_privilege_conflict_resolution()
         self.do_wildcard_privilege()
