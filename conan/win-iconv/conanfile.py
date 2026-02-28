@@ -45,8 +45,8 @@ class WinIconvConan(ConanFile):
         cmake = CMake(self)
         try:
             cmake.install()
-        except Exception:
-            pass
+        except Exception as exc:
+            self.output.warn(f"CMake install step failed, continuing packaging: {exc}")
 
         copy(self, "iconv.h", src=self.source_folder, dst=os.path.join(self.package_folder, "include"), keep_path=False)
         copy(self, "*.lib", src=self.build_folder, dst=os.path.join(self.package_folder, "lib"), keep_path=False)

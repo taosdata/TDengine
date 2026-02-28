@@ -120,8 +120,7 @@ class TDengineConan(ConanFile):
         if self.options.with_s3 and self.settings.os != "Windows":
             self.requires("libxml2/2.15.0")
             self.requires("libs3/4.1")
-            if self.options.with_azure:
-                self.requires("td-azure-sdk/12.13.0-beta.1")
+            self.requires("td-azure-sdk/12.13.0-beta.1")
 
         # COS (optional)
         if self.options.with_cos and self.settings.os != "Windows":

@@ -86,9 +86,9 @@ if(${BUILD_WITH_S3})
     find_package(libs3 REQUIRED)
 endif()
 
-# Azure SDK (optional, used by source/libs/azure when shared storage is enabled)
+# Azure SDK (required when shared storage is enabled)
 if(${BUILD_SHARED_STORAGE})
-    find_package(td-azure-sdk QUIET)
+    find_package(td-azure-sdk REQUIRED)
 endif()
 
 # COS (optional)

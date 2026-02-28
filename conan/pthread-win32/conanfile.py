@@ -47,8 +47,9 @@ class PthreadWin32Conan(ConanFile):
         cmake = CMake(self)
         try:
             cmake.install()
-        except Exception:
-            pass
+        except Exception as exc:
+            # Some pthread-win32 builds do not provide install rules; fall back to manual copying.
+            self.output.warn(f"CMake install() failed, falling back to manual packaging: {exc}")
 
         copy(self, "pthread.h", src=os.path.join(self.source_folder, "include"), dst=os.path.join(self.package_folder, "include"), keep_path=False)
         copy(self, "*.lib", src=self.build_folder, dst=os.path.join(self.package_folder, "lib"), keep_path=False)

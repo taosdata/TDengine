@@ -45,7 +45,7 @@ class LibdwarfConan(ConanFile):
         tc = CMakeToolchain(self)
         tc.cache_variables["CMAKE_INSTALL_LIBDIR"] = "lib"
         tc.cache_variables["BUILD_SHARED_LIBS"] = bool(self.options.shared)
-        tc.cache_variables["CMAKE_POSITION_INDEPENDENT_CODE"] = True
+        tc.cache_variables["CMAKE_POSITION_INDEPENDENT_CODE"] = self.options.get_safe("fPIC", True)
         tc.cache_variables["DO_TESTING"] = False
         tc.cache_variables["DWARF_WITH_LIBELF"] = bool(self.options.with_libelf)
         tc.generate()
