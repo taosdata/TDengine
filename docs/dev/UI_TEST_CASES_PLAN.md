@@ -148,16 +148,18 @@
 
 ### B2. Sider / 路由重定向
 
-- [ ] B2.1（P0）`/dataIn` 重定向到 `/dataIn/Task`
-  - Owner:
-  - Status: TODO
+- [x] B2.1（P0）`/dataIn` 重定向到 `/dataIn/Task`
+  - Owner: @huolinhe
+  - Status: DONE
   - DoD: 新增用例：访问 `/dataIn`，断言 URL 以 `/dataIn/Task` 结尾。
+  - 覆盖：`explorer/tests/sider-routing.spec.ts`
   - 相关：`explorer/src/router/index.ts`
 
-- [ ] B2.2（P1）Management 菜单可见性（root）自动化断言
-  - Owner:
-  - Status: TODO
+- [x] B2.2（P1）Management 菜单可见性（root）自动化断言
+  - Owner: @huolinhe
+  - Status: DONE
   - DoD: root 登录后，在 sider 中能定位到 Management 菜单项；点击进入 `/management/user`。
+  - 覆盖：`explorer/tests/sider-routing.spec.ts`
   - 相关：`explorer/src/layout/components/Sider/index.vue`
 
 ### B3. Explorer / SQL
