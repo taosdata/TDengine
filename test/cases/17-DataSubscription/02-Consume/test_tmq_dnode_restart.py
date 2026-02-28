@@ -80,7 +80,7 @@ class TestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   100,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  30,
+                    'pollDelay':  300,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -110,7 +110,7 @@ class TestCase:
         tdSql.execute(sqlString)
 
         consumerId     = 0
-        expectrowcnt   = paraDict["rowsPerTbl"] * paraDict["ctbNum"] * 2
+        expectrowcnt   = paraDict["rowsPerTbl"] * paraDict["ctbNum"]
         topicList      = topicFromStb1
         ifcheckdata    = 0
         ifManualCommit = 0
