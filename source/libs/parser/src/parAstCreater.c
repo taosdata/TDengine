@@ -4371,34 +4371,18 @@ SUserOptions* createDefaultUserOptions(SAstCreateContext* pCxt) {
   pOptions->isImport = 0;
   pOptions->changepass = 2;
 
-  if (tsEnableAdvancedSecurity) {
-    pOptions->sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
-    pOptions->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
-    pOptions->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
-    pOptions->callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
-    pOptions->vnodePerCall = TSDB_USER_VNODE_PER_CALL_DEFAULT;
-    pOptions->failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
-    pOptions->passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
-    pOptions->passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
-    pOptions->passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
-    pOptions->passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
-    pOptions->passwordGraceTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
-    pOptions->inactiveAccountTime = TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
-  } else {
-    pOptions->sessionPerUser = -1;
-    pOptions->connectTime = -1;
-    pOptions->connectIdleTime = -1;
-    pOptions->callPerSession = -1;
-    pOptions->vnodePerCall = -1;
-    pOptions->failedLoginAttempts = -1;
-    pOptions->passwordLifeTime = -1;
-    pOptions->passwordReuseTime = 0;
-    pOptions->passwordReuseMax = 0;
-    pOptions->passwordLockTime = 1;
-    pOptions->passwordGraceTime = -1;
-    pOptions->inactiveAccountTime = -1;
-  }
-
+  pOptions->sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
+  pOptions->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
+  pOptions->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
+  pOptions->callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
+  pOptions->vnodePerCall = TSDB_USER_VNODE_PER_CALL_DEFAULT;
+  pOptions->failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
+  pOptions->passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
+  pOptions->passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
+  pOptions->passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
+  pOptions->passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
+  pOptions->passwordGraceTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
+  pOptions->inactiveAccountTime = TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
   pOptions->allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
 
   return pOptions;
@@ -4817,6 +4801,21 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOpt
 
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_USER_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
+
+  pStmt->hasSessionPerUser = opts->hasSessionPerUser;
+  pStmt->hasConnectTime = opts->hasConnectTime;
+  pStmt->hasConnectIdleTime = opts->hasConnectIdleTime;
+  pStmt->hasCallPerSession = opts->hasCallPerSession;
+  pStmt->hasVnodePerCall = opts->hasVnodePerCall;
+  pStmt->hasFailedLoginAttempts = opts->hasFailedLoginAttempts;
+  pStmt->hasPasswordLifeTime = opts->hasPasswordLifeTime;
+  pStmt->hasPasswordReuseTime = opts->hasPasswordReuseTime;
+  pStmt->hasPasswordReuseMax = opts->hasPasswordReuseMax;
+  pStmt->hasPasswordLockTime = opts->hasPasswordLockTime;
+  pStmt->hasPasswordGraceTime = opts->hasPasswordGraceTime;
+  pStmt->hasInactiveAccountTime = opts->hasInactiveAccountTime;
+  pStmt->hasAllowTokenNum = opts->hasAllowTokenNum;
+
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
   tstrncpy(pStmt->password, opts->password, sizeof(pStmt->password));
   tstrncpy(pStmt->totpseed, opts->totpseed, sizeof(pStmt->totpseed));

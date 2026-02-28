@@ -3430,6 +3430,20 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_TOO_MANY_USERS, &lino, _OVER);
   }
 
+  if (!createReq.hasSessionPerUser) createReq.sessionPerUser = (tsEnableAdvancedSecurity ? TSDB_USER_SESSION_PER_USER_DEFAULT : -1);
+  if (!createReq.hasConnectTime) createReq.connectTime = (tsEnableAdvancedSecurity ? TSDB_USER_CONNECT_TIME_DEFAULT : -1);
+  if (!createReq.hasConnectIdleTime) createReq.connectIdleTime = (tsEnableAdvancedSecurity ? TSDB_USER_CONNECT_IDLE_TIME_DEFAULT : -1);
+  if (!createReq.hasCallPerSession) createReq.callPerSession = (tsEnableAdvancedSecurity ? TSDB_USER_CALL_PER_SESSION_DEFAULT : -1);
+  if (!createReq.hasVnodePerCall) createReq.vnodePerCall = (tsEnableAdvancedSecurity ? TSDB_USER_VNODE_PER_CALL_DEFAULT : -1);
+  if (!createReq.hasFailedLoginAttempts) createReq.failedLoginAttempts = (tsEnableAdvancedSecurity ? TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT : -1);
+  if (!createReq.hasPasswordLifeTime) createReq.passwordLifeTime = (tsEnableAdvancedSecurity ? TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT : -1);
+  if (!createReq.hasPasswordReuseTime) createReq.passwordReuseTime = (tsEnableAdvancedSecurity ? TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT : 0);
+  if (!createReq.hasPasswordReuseMax) createReq.passwordReuseMax = (tsEnableAdvancedSecurity ? TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT : 0);
+  if (!createReq.hasPasswordLockTime) createReq.passwordLockTime = (tsEnableAdvancedSecurity ? TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT : 1);
+  if (!createReq.hasPasswordGraceTime) createReq.passwordGraceTime = (tsEnableAdvancedSecurity ? TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT : -1);
+  if (!createReq.hasInactiveAccountTime) createReq.inactiveAccountTime = (tsEnableAdvancedSecurity ? TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT : -1);
+  if (!createReq.hasAllowTokenNum) createReq.allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
+
   code = mndCreateUser(pMnode, pOperUser->acct, &createReq, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
