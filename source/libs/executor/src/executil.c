@@ -3926,7 +3926,7 @@ int32_t createStreamMultiGrpTableListInfo(SScanPhysiNode* pScanNode, SNodeList* 
   int32_t numOfTables = taosArrayGetSize(pTableListInfo->pTableList);
 
   int64_t st1 = taosGetTimestampUs();
-  qDebug("%s build multi tgrp table list completed, elapsed time:%.2f ms %s", idStr, (st1 - st) / 1000.0);
+  qDebug("%s build multi tgrp table list completed, elapsed time:%.2f ms", idStr, (st1 - st) / 1000.0);
 
   if (numOfTables == 0) {
     qDebug("%s no table qualified for stream multi tgrp", idStr);

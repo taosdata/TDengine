@@ -143,7 +143,8 @@ void            tableListDestroy(STableListInfo* pTableListInfo);
 void            tableListClear(STableListInfo* pTableListInfo);
 int32_t         tableListGetOutputGroups(const STableListInfo* pTableList);
 bool            oneTableForEachGroup(const STableListInfo* pTableList);
-uint64_t        tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid);
+int32_t         tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid, uint64_t* gid,
+                                         uint64_t* baseGid);
 int32_t         tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid);
 int32_t         sortTableGroup(STableListInfo* pTableListInfo);
 int32_t         tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalIndex, STableKeyInfo** pKeyInfo,
@@ -156,7 +157,7 @@ void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psu
 int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, void* pVnode,
                                  SIdxFltStatus status, SStorageAPI* pAPI, bool addUid, bool* listAdded, void* pStreamInfo);
 int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode,
-  SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI, SHashObj* groupIdMap);
+  SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI, SHashObj* groupIdMap, bool gIdFromBaseId);
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
 void   closeResultRow(SResultRow* pResultRow);
