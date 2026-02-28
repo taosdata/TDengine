@@ -164,16 +164,17 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
 
   return code;
 }
-
+#if 0 // converted to static inline function in parInsertUtil.h
 int16_t insFindCol(SToken* pColname, int16_t start, int16_t end, SSchema* pSchema) {
   while (start < end) {
-    if (strlen(pSchema[start].name) == pColname->n && strncmp(pColname->z, pSchema[start].name, pColname->n) == 0) {
+    if (strncmp(pColname->z, pSchema[start].name, pColname->n) == 0) {
       return start;
     }
     ++start;
   }
   return -1;
 }
+#endif
 
 int32_t insBuildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* pTag, int64_t suid, const char* sname,
                             SArray* tagName, uint8_t tagNum, int32_t ttl) {
@@ -724,29 +725,30 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
   rowP = (SArray**)tSimpleHashGet(pTableNameHash, tbname, strlen(tbname));
 
   if (rowP != NULL && *rowP != NULL) {
-    for (int32_t j = 0; j < taosArrayGetSize(*rowP); ++j) {
+    int32_t aRowPSize = taosArrayGetSize(pTbCtx->pData->aRowP);
+    for (int32_t j = 0; j < aRowPSize; ++j) {
       SRow* pRow = (SRow*)taosArrayGetP(pTbCtx->pData->aRowP, j);
       if (pRow) {
         if (NULL == taosArrayPush(*rowP, &pRow)) {
           return terrno;
         }
       }
-
-      if (pTbCtx->hasBlob == 0) {
-        code = tRowSort(*rowP);
-        TAOS_CHECK_RETURN(code);
-
-        code = tRowMerge(*rowP, pTbCtx->pSchema, 0);
-        TAOS_CHECK_RETURN(code);
-      } else {
-        code = tRowSortWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet);
-        TAOS_CHECK_RETURN(code);
-
-        code = tRowMergeWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet, 0);
-        TAOS_CHECK_RETURN(code);
-      }
     }
 
+    if (pTbCtx->hasBlob == 0) {
+      code = tRowSort(*rowP);
+      TAOS_CHECK_RETURN(code);
+
+      code = tRowMerge(*rowP, pTbCtx->pSchema, 0);
+      TAOS_CHECK_RETURN(code);
+    } else {
+      code = tRowSortWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet);
+      TAOS_CHECK_RETURN(code);
+
+      code = tRowMergeWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet, 0);
+      TAOS_CHECK_RETURN(code);
+    }
+  
     parserDebug("merge same uid data: %" PRId64 ", vgId:%d", pTbCtx->pData->uid, pVgCxt->vgId);
 
     taosArrayDestroy(pTbCtx->pData->aRowP);

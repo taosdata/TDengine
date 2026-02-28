@@ -399,4 +399,4 @@ class TestStmtError:
             else:
                 tdLog.exit("expect error(%s) not occured" % str(error))
         
-        tdLog.success("%s successfully executed" % __file__)
+

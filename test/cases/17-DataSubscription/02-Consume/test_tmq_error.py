@@ -314,6 +314,8 @@ class TestCase:
             - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_tmqError.py
 
         """
+        tdSql.execute("alter dnode 1 'debugflag 135'")
+
         tdSql.prepare()
 
         buildPath = tdCom.getBuildPath()
@@ -326,7 +328,7 @@ class TestCase:
 
         self.tmqCase1(cfgPath, buildPath)
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 event = threading.Event()
 

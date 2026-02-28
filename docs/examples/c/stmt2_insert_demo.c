@@ -19,11 +19,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
 #include "taos.h"
 
 #define NUM_OF_SUB_TABLES 10
 #define NUM_OF_ROWS       10
+#define TABLE_NAME_BUF_SZ 20
+#define LOCATION_BUF_SZ   20
+
+static void freeBindData(char ***table_name, TAOS_STMT2_BIND ***tags, TAOS_STMT2_BIND ***params);
 
 /**
  * @brief Executes an SQL query and checks for errors.
@@ -64,87 +67,174 @@ void checkErrorCode(TAOS_STMT2 *stmt2, int code, const char *msg) {
  * @param table_name Pointer to store allocated table names.
  * @param tags Pointer to store allocated tag bindings.
  * @param params Pointer to store allocated parameter bindings.
+ * @return 0 on success, -1 on allocation failure (caller should exit).
  */
-void prepareBindData(char ***table_name, TAOS_STMT2_BIND ***tags, TAOS_STMT2_BIND ***params) {
+static int prepareBindData(char ***table_name, TAOS_STMT2_BIND ***tags, TAOS_STMT2_BIND ***params) {
   *table_name = (char **)malloc(NUM_OF_SUB_TABLES * sizeof(char *));
+  if (*table_name == NULL) {
+    (void)fprintf(stderr, "malloc table_name array failed\n");
+    return -1;
+  }
   *tags = (TAOS_STMT2_BIND **)malloc(NUM_OF_SUB_TABLES * sizeof(TAOS_STMT2_BIND *));
+  if (*tags == NULL) {
+    (void)fprintf(stderr, "malloc tags array failed\n");
+    free(*table_name);
+    *table_name = NULL;
+    return -1;
+  }
   *params = (TAOS_STMT2_BIND **)malloc(NUM_OF_SUB_TABLES * sizeof(TAOS_STMT2_BIND *));
+  if (*params == NULL) {
+    (void)fprintf(stderr, "malloc params array failed\n");
+    free(*tags);
+    free(*table_name);
+    *tags = NULL;
+    *table_name = NULL;
+    return -1;
+  }
 
   for (int i = 0; i < NUM_OF_SUB_TABLES; i++) {
-    // Allocate and assign table name
-    (*table_name)[i] = (char *)malloc(20 * sizeof(char));
-    sprintf((*table_name)[i], "d_bind_%d", i);
+    (*table_name)[i] = NULL;
+    (*tags)[i] = NULL;
+    (*params)[i] = NULL;
+  }
 
-    // Allocate memory for tags data
+  for (int i = 0; i < NUM_OF_SUB_TABLES; i++) {
+    (*table_name)[i] = (char *)malloc((size_t)TABLE_NAME_BUF_SZ * sizeof(char));
+    if ((*table_name)[i] == NULL) {
+      (void)fprintf(stderr, "malloc table_name[%d] failed\n", i);
+      freeBindData(table_name, tags, params);
+      return -1;
+    }
+    (void)snprintf((*table_name)[i], (size_t)TABLE_NAME_BUF_SZ, "d_bind_%d", i);
+
     int *gid = (int *)malloc(sizeof(int));
-    int *gid_len = (int *)malloc(sizeof(int));
+    if (gid == NULL) {
+      (void)fprintf(stderr, "malloc gid failed (i=%d)\n", i);
+      freeBindData(table_name, tags, params);
+      return -1;
+    }
     *gid = i;
-    *gid_len = sizeof(int);
 
-    char *location = (char *)malloc(20 * sizeof(char));
-    int  *location_len = (int *)malloc(sizeof(int));
-    *location_len = sprintf(location, "location_%d", i);
+    char *location = (char *)malloc((size_t)LOCATION_BUF_SZ * sizeof(char));
+    if (location == NULL) {
+      (void)fprintf(stderr, "malloc location failed (i=%d)\n", i);
+      free(gid);
+      freeBindData(table_name, tags, params);
+      return -1;
+    }
+    int *location_len = (int *)malloc(sizeof(int));
+    if (location_len == NULL) {
+      (void)fprintf(stderr, "malloc location_len failed (i=%d)\n", i);
+      free(location);
+      free(gid);
+      freeBindData(table_name, tags, params);
+      return -1;
+    }
+    *location_len = snprintf(location, (size_t)LOCATION_BUF_SZ, "location_%d", i);
 
     (*tags)[i] = (TAOS_STMT2_BIND *)malloc(2 * sizeof(TAOS_STMT2_BIND));
-    (*tags)[i][0] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_INT, gid, gid_len, NULL, 1};
+    if ((*tags)[i] == NULL) {
+      (void)fprintf(stderr, "malloc tags[%d] failed\n", i);
+      free(location_len);
+      free(location);
+      free(gid);
+      freeBindData(table_name, tags, params);
+      return -1;
+    }
+    (*tags)[i][0] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_INT, gid, NULL, NULL, 1};
     (*tags)[i][1] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_BINARY, location, location_len, NULL, 1};
 
-    // Allocate memory for columns data
     (*params)[i] = (TAOS_STMT2_BIND *)malloc(4 * sizeof(TAOS_STMT2_BIND));
+    if ((*params)[i] == NULL) {
+      (void)fprintf(stderr, "malloc params[%d] failed\n", i);
+      freeBindData(table_name, tags, params);
+      return -1;
+    }
 
     int64_t *ts = (int64_t *)malloc(NUM_OF_ROWS * sizeof(int64_t));
     float   *current = (float *)malloc(NUM_OF_ROWS * sizeof(float));
     int     *voltage = (int *)malloc(NUM_OF_ROWS * sizeof(int));
     float   *phase = (float *)malloc(NUM_OF_ROWS * sizeof(float));
-    int32_t *ts_len = (int32_t *)malloc(NUM_OF_ROWS * sizeof(int32_t));
-    int32_t *current_len = (int32_t *)malloc(NUM_OF_ROWS * sizeof(int32_t));
-    int32_t *voltage_len = (int32_t *)malloc(NUM_OF_ROWS * sizeof(int32_t));
-    int32_t *phase_len = (int32_t *)malloc(NUM_OF_ROWS * sizeof(int32_t));
+    if (ts == NULL || current == NULL || voltage == NULL || phase == NULL) {
+      (void)fprintf(stderr, "malloc column buffers failed (i=%d)\n", i);
+      free(phase);
+      free(voltage);
+      free(current);
+      free(ts);
+      free((*params)[i]);
+      (*params)[i] = NULL;
+      freeBindData(table_name, tags, params);
+      return -1;
+    }
 
-    (*params)[i][0] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_TIMESTAMP, ts, ts_len, NULL, NUM_OF_ROWS};
-    (*params)[i][1] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_FLOAT, current, current_len, NULL, NUM_OF_ROWS};
-    (*params)[i][2] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_INT, voltage, voltage_len, NULL, NUM_OF_ROWS};
-    (*params)[i][3] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_FLOAT, phase, phase_len, NULL, NUM_OF_ROWS};
+    (*params)[i][0] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_TIMESTAMP, ts, NULL, NULL, NUM_OF_ROWS};
+    (*params)[i][1] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_FLOAT, current, NULL, NULL, NUM_OF_ROWS};
+    (*params)[i][2] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_INT, voltage, NULL, NULL, NUM_OF_ROWS};
+    (*params)[i][3] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_FLOAT, phase, NULL, NULL, NUM_OF_ROWS};
 
     for (int j = 0; j < NUM_OF_ROWS; j++) {
-      ts[j] = 1609459200000LL + i * NUM_OF_ROWS * 1000LL + j * 1000LL;
-      current[j] = 10.0f + j * 0.5f;
+      ts[j] = 1609459200000LL + (int64_t)i * NUM_OF_ROWS * 1000LL + (int64_t)j * 1000LL;
+      current[j] = 10.0f + (float)j * 0.5f;
       voltage[j] = 100 + j * 10;
-      phase[j] = 0.1f + j * 0.05f;
-
-      ts_len[j] = sizeof(int64_t);
-      current_len[j] = sizeof(float);
-      voltage_len[j] = sizeof(int);
-      phase_len[j] = sizeof(float);
+      phase[j] = 0.1f + (float)j * 0.05f;
     }
   }
+  return 0;
 }
 
 /**
  * @brief Frees allocated memory for binding data.
+ * Safe to call with partially allocated state (NULL pointers are no-op).
  *
  * @param table_name Pointer to allocated table names.
  * @param tags Pointer to allocated tag bindings.
  * @param params Pointer to allocated parameter bindings.
  */
-void freeBindData(char ***table_name, TAOS_STMT2_BIND ***tags, TAOS_STMT2_BIND ***params) {
+static void freeBindData(char ***table_name, TAOS_STMT2_BIND ***tags, TAOS_STMT2_BIND ***params) {
+  if (table_name == NULL || *table_name == NULL) return;
+  if (tags == NULL || *tags == NULL) {
+    free(*table_name);
+    *table_name = NULL;
+    return;
+  }
+  if (params == NULL || *params == NULL) {
+    for (int i = 0; i < NUM_OF_SUB_TABLES; i++) {
+      free((*table_name)[i]);
+      if ((*tags)[i] != NULL) {
+        free((*tags)[i][0].buffer);
+        free((*tags)[i][1].buffer);
+        free((*tags)[i][1].length);
+        free((*tags)[i]);
+      }
+    }
+    free(*table_name);
+    free(*tags);
+    *table_name = NULL;
+    *tags = NULL;
+    return;
+  }
   for (int i = 0; i < NUM_OF_SUB_TABLES; i++) {
     free((*table_name)[i]);
-    for (int j = 0; j < 2; j++) {
-      free((*tags)[i][j].buffer);
-      free((*tags)[i][j].length);
+    if ((*tags)[i] != NULL) {
+      free((*tags)[i][0].buffer);
+      free((*tags)[i][1].buffer);
+      free((*tags)[i][1].length);
+      free((*tags)[i]);
     }
-    free((*tags)[i]);
-
-    for (int j = 0; j < 4; j++) {
-      free((*params)[i][j].buffer);
-      free((*params)[i][j].length);
+    if ((*params)[i] != NULL) {
+      for (int j = 0; j < 4; j++) {
+        free((*params)[i][j].buffer);
+        free((*params)[i][j].length);
+      }
+      free((*params)[i]);
     }
-    free((*params)[i]);
   }
   free(*table_name);
   free(*tags);
   free(*params);
+  *table_name = NULL;
+  *tags = NULL;
+  *params = NULL;
 }
 
 /**
@@ -153,7 +243,7 @@ void freeBindData(char ***table_name, TAOS_STMT2_BIND ***tags, TAOS_STMT2_BIND *
  * @param taos Pointer to TAOS connection.
  */
 void insertData(TAOS *taos) {
-  TAOS_STMT2_OPTION option = {0, false, false, NULL, NULL};
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
   TAOS_STMT2       *stmt2 = taos_stmt2_init(taos, &option);
   if (!stmt2) {
     printf("Failed to initialize TAOS statement.\n");
@@ -163,10 +253,13 @@ void insertData(TAOS *taos) {
   checkErrorCode(stmt2, taos_stmt2_prepare(stmt2, "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)", 0),
                  "Statement preparation failed");
 
-  char            **table_name;
-  TAOS_STMT2_BIND **tags, **params;
-  prepareBindData(&table_name, &tags, &params);
-  // stmt2 bind batch
+  char            **table_name = NULL;
+  TAOS_STMT2_BIND **tags = NULL, **params = NULL;
+  if (prepareBindData(&table_name, &tags, &params) != 0) {
+    printf("Failed to prepare bind data (out of memory).\n");
+    (void)taos_stmt2_close(stmt2);
+    exit(EXIT_FAILURE);
+  }
   TAOS_STMT2_BINDV bindv = {NUM_OF_SUB_TABLES, table_name, tags, params};
   checkErrorCode(stmt2, taos_stmt2_bind_param(stmt2, &bindv, -1), "Parameter binding failed");
   // stmt2 exec batch
@@ -178,26 +271,25 @@ void insertData(TAOS *taos) {
   (void)taos_stmt2_close(stmt2);
 }
 
-int main() {
+int main(void) {
   const char *host = "localhost";
   const char *user = "root";
   const char *password = "taosdata";
   uint16_t    port = 6030;
   TAOS       *taos = taos_connect(host, user, password, NULL, port);
   if (taos == NULL) {
-    printf("Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
-           taos_errstr(NULL));
+    (void)fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
+                  taos_errstr(NULL));
     taos_cleanup();
     exit(EXIT_FAILURE);
   }
-  // create database and table
   executeSQL(taos, "CREATE DATABASE IF NOT EXISTS power");
   executeSQL(taos, "USE power");
-  executeSQL(
-      taos,
-      "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
-      "(groupId INT, location BINARY(24))");
+  executeSQL(taos,
+             "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) "
+             "TAGS (groupId INT, location BINARY(24))");
   insertData(taos);
   taos_close(taos);
   taos_cleanup();
+  return 0;
 }

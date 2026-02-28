@@ -378,11 +378,6 @@ class TestComTaosdConfigRefresh:
                     "category": "global"
                 },
                 {
-                    "name": "tmqRowSize",
-                    "value": 8192,
-                    "category": "global"
-                },
-                {
                     "name": "transPullupInterval",
                     "value": 4,
                     "category": "global"
@@ -624,7 +619,7 @@ class TestComTaosdConfigRefresh:
             else:
                 raise Exception(f"unknown key: {key}")
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 
     def test_com_taosc_config(self):

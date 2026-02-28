@@ -236,19 +236,25 @@ function setup_env() {
   fi
 
   # 2. User mode detection
-  if [[ "$(id -u)" -eq 0 ]]; then
-    user_mode=0
-    default_dir="/usr/local/${PREFIX}"
-    mode_desc="root (system-wide)"
-  else
+  if [[ "$(id -u)" -ne 0 ]]; then
+    if ! systemctl --user show-environment &>/dev/null; then
+      echo -e "${RED}Current user is not root and no systemd user session (user bus) is available.${NC}"
+      echo -e "A systemd user session is required so the installer can manage per-user systemd services."
+      echo -e "Please use ssh to log in as this user and then run the installer, for example:"
+      echo -e "${BOLD}ssh <username>@<host>${NC}"
+      exit 1
+    fi
     user_mode=1
     default_dir="$HOME/${PREFIX}"
     user="$(whoami)"
     mode_desc="user ($user)"
+  else
+    user_mode=0
+    default_dir="/usr/local/${PREFIX}"
+    mode_desc="root (system-wide)"
   fi
-  
-  # 3. check existing taosd installation
 
+  # 3. check existing taosd installation
   taosd_bin=$(command -v taosd 2>/dev/null || true)
   if [ -n "${taosd_bin}" ]; then
       # mac will skip this check
@@ -480,18 +486,16 @@ function install_bin() {
   else
     cp -r "${script_dir}/bin/"* "${install_main_dir}/bin"
     if [ "${pkgMode}" != "lite" ]; then
+      cp "${script_dir}/start-all.sh" "${install_main_dir}/bin"
       sed -i.bak \
-        -e "s|/usr/local/${PREFIX}|${install_main_dir}|g" \
         -e "s|/etc/${PREFIX}|${configDir}|g" \
-        ${script_dir}/start-all.sh
-      rm -f ${script_dir}/start-all.sh.bak
-      cp ${script_dir}/start-all.sh ${install_main_dir}/bin
-      cp ${script_dir}/stop-all.sh ${install_main_dir}/bin
+        "${install_main_dir}/bin/start-all.sh"
+      rm -f "${install_main_dir}/bin/start-all.sh.bak"
+      cp "${script_dir}/stop-all.sh" "${install_main_dir}/bin"
     fi
   fi
-
   if [[ "${verMode}" == "cluster" && "${verType}" != "client" ]]; then
-    if [ -d ${script_dir}/${xname}/bin ]; then
+    if [ -d "${script_dir}/${xname}/bin" ]; then
       cp -r ${script_dir}/${xname}/bin/* ${install_main_dir}/bin
     fi
   fi
@@ -1336,8 +1340,11 @@ function finished_install_info(){
       entries+=("To start ${clientName}Explorer:|${sysctl_cmd} start ${clientName}-explorer")
       entries+=("To start all the components:|start-all.sh")
       entries+=("|")
-      
-      entries+=("To access ${productName} CLI:|${clientName} -h $serverFqdn")
+      if [[ ${user_mode} -eq 1 ]]; then
+        entries+=("To access ${productName} CLI:|${clientName} -h $serverFqdn -c ${configDir}")
+      else
+        entries+=("To access ${productName} CLI:|${clientName} -h $serverFqdn")
+      fi
       entries+=("To access ${productName} GUI:|http://$serverFqdn:6060")
       entries+=("|")
 

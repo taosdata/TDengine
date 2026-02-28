@@ -46,7 +46,7 @@ declare -a NEED_CLEAN=(
     "false"
     "false"
     "false"
-    "false"
+    "true"
     "false"
     "true"
 )

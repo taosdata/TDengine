@@ -168,6 +168,9 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     goto end;
   }
 
+  if (terrno == TSDB_CODE_TMQ_FETCH_TIMEOUT && dataRsp.blockNum == 0) {
+    dataRsp.timeout = true;
+  }
   //   till now, all data has been transferred to consumer, new data needs to push client once arrived.
   if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST && dataRsp.blockNum == 0) {
     // lock
@@ -396,7 +399,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           goto END;
         }
         totalMetaRows++;
-        if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= tmqRowSize) || (taosGetTimestampMs() - st > pRequest->timeout)) {
+        if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= pRequest->minPollRows) || (taosGetTimestampMs() - st > pRequest->timeout)) {
           SEND_BATCH_META_RSP
         }
         continue;
@@ -437,7 +440,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           goto END;
         }
         totalMetaRows++;
-        if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= tmqRowSize) ||
+        if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= pRequest->minPollRows) ||
             (taosGetTimestampMs() - st > pRequest->timeout) ||
             (!pRequest->enableBatchMeta && !pRequest->useSnapshot)) {
           SEND_BATCH_META_RSP

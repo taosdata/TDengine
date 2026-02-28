@@ -21,6 +21,7 @@
 #include "mndSubscribe.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 #include "mndVgroup.h"
 #include "tcompare.h"
 #include "tname.h"
@@ -675,10 +676,10 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   if (pMsg == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  SMnode *pMnode = pMsg->info.node;
-  char   *msgStr = pMsg->pCont;
-  int32_t code = 0;
-  int32_t lino = 0;
+  SMnode         *pMnode = pMsg->info.node;
+  char           *msgStr = pMsg->pCont;
+  int32_t         code = 0;
+  int32_t         lino = 0;
   SMqConsumerObj *pConsumerNew = NULL;
   STrans         *pTrans = NULL;
 
@@ -1100,9 +1101,11 @@ END:
   return code;
 }
 
-static int32_t retrieveOneConsumer(SMqConsumerObj *pConsumer, int32_t* numOfRows, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
-  int32_t         code = 0;
-  int32_t         lino = 0;
+static int32_t retrieveOneConsumer(SRpcMsg *pReq, SMqConsumerObj *pConsumer, SUserObj *pOperUser, bool showAll,
+                                   int32_t *numOfRows, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SMnode *pMnode = pReq->info.node;
   PRINT_LOG_START
   taosRLockLatch(&pConsumer->lock);
   mDebug("showing consumer:0x%" PRIx64, pConsumer->consumerId);
@@ -1110,7 +1113,6 @@ static int32_t retrieveOneConsumer(SMqConsumerObj *pConsumer, int32_t* numOfRows
     mInfo("showing consumer:0x%" PRIx64 " no assigned topic, skip", pConsumer->consumerId);
     goto END;
   }
-
 
   int32_t topicSz = taosArrayGetSize(pConsumer->assignedTopics);
   bool    hasTopic = true;
@@ -1124,7 +1126,28 @@ static int32_t retrieveOneConsumer(SMqConsumerObj *pConsumer, int32_t* numOfRows
   }
 
   for (int32_t i = 0; i < topicSz; i++) {
-    MND_TMQ_RETURN_CHECK(buildResult(pConsumer, pShow, pBlock, *numOfRows, taosArrayGetP(pConsumer->assignedTopics, i), hasTopic));
+    char *pTopicFName = taosArrayGetP(pConsumer->assignedTopics, i);
+    if (!showAll && (strncmp(pOperUser->name, pConsumer->user, TSDB_USER_LEN) != 0)) {
+      bool         showConsumer = false;
+      SMqTopicObj *pTopic = NULL;
+      (void)mndAcquireTopic(pMnode, pTopicFName, &pTopic);
+      if (pTopic) {
+        SName name = {0};  // 1.topic1
+        if (0 == tNameFromString(&name, pTopic->name, T_NAME_ACCT | T_NAME_DB)) {
+          if (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CONSUMER_SHOW, PRIV_OBJ_TOPIC, pTopic->ownerId,
+                                            pTopic->db, name.dbname)) {
+            showConsumer = true;
+          }
+        }
+        mndReleaseTopic(pMnode, pTopic);
+      }
+      if (!showConsumer) {
+        continue;
+      }
+    }
+    // char  topic[TSDB_TOPIC_FNAME_LEN] = {0};
+    // mndTopicGetShowName(showTopic, topic);
+    MND_TMQ_RETURN_CHECK(buildResult(pConsumer, pShow, pBlock, *numOfRows, pTopicFName, hasTopic));
     (*numOfRows)++;
   }
 
@@ -1142,16 +1165,23 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
   SSdb           *pSdb = pMnode->pSdb;
   int32_t         numOfRows = 0;
   SMqConsumerObj *pConsumer = NULL;
+  SUserObj       *pOperUser = NULL;
   int32_t         code = 0;
   int32_t         lino = 0;
+  bool            showAll = false;
+  char            objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
   PRINT_LOG_START
 
+  MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
+  (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
+  showAll = (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), PRIV_CONSUMER_SHOW,
+                                          PRIV_OBJ_TOPIC, 0, objFName, "*"));
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_CONSUMER, pShow->pIter, (void **)&pConsumer);
     if (pShow->pIter == NULL) {
       break;
     }
-    MND_TMQ_RETURN_CHECK(retrieveOneConsumer(pConsumer, &numOfRows, pShow, pBlock, rowsCapacity));
+    MND_TMQ_RETURN_CHECK(retrieveOneConsumer(pReq, pConsumer, pOperUser, showAll,  &numOfRows, pShow, pBlock, rowsCapacity));
     
     pBlock->info.rows = numOfRows;
     sdbRelease(pSdb, pConsumer);

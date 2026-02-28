@@ -27,18 +27,20 @@ void    mndCleanupPrivilege(SMnode *pMnode);
 
 int32_t mndCheckConnectPrivilege(SMnode *pMnode, SUserObj *pUser, const char* token, const SLoginInfo *pLoginInfo);
 int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType);
-int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType, SDbObj *pDb);
-int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, const char* token, EOperType operType, const char *dbname);
+int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, const char *token, EOperType operType, SDbObj *pDb);
+int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, const char *token, EOperType operType,
+                                  const char *dbname, bool skipExists);
 int32_t mndCheckStbPrivilege(SMnode *pMnode, SUserObj *pUser, const char* token, EOperType operType, SStbObj *pStb);
 int32_t mndCheckViewPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType, const char *pViewFName);
 int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType, SMqTopicObj *pTopic);
 int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, const char* token, EShowType showType, const char *dbname);
 int32_t mndCheckAlterUserPrivilege(SMnode* pMnode, const char *opUser, const char* opToken, SUserObj *pUser, SAlterUserReq *pAlter);
-int32_t mndCheckTotpSecretPrivilege(SMnode* pMnode, const char *opUser, const char* opToken, SUserObj *pUser);
-int32_t mndCheckTokenPrivilege(SMnode* pMnode, const char* opUser, const char* opToken, const char* user, const char* token);
+int32_t mndCheckTotpSecretPrivilege(SMnode* pMnode, const char *opUser, const char* opToken, SUserObj *pUser, EPrivType privType);
+int32_t mndCheckTokenPrivilege(SMnode *pMnode, const char *opUser, const char *opToken, const char *user,
+                               const char *token, EPrivType privType);
 
-int32_t mndCheckSysObjPrivilege(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,
-                                int64_t ownerId, const char *objFName, const char *tbName);
+int32_t mndCheckSysObjPrivilege(SMnode *pMnode, SUserObj *pUser, const char *token, EPrivType privType,
+                                EPrivObjType objType, int64_t ownerId, const char *objFName, const char *tbName);
 int32_t mndCheckObjPrivilegeRec(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,
                                 int64_t ownerId, int32_t acctId, const char *objName, const char *tbName);
 int32_t mndCheckObjPrivilegeRecF(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,

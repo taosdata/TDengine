@@ -33,6 +33,7 @@ TDengine TSDB 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一
 
 | taos-jdbcdriver 版本 | 主要变化                                                                                                                                                                                                                                                                               | TDengine TSDB 版本 |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 3.8.1                | Decimal 和 Blob 类型支持参数绑定写入                                                                                                                                                                                                                               | -                  |
 | 3.8.0                | 1. 负载均衡采用最小连接数算法 <br/> 2. 支持故障节点恢复后的连接数重平衡 <br/> 3. 支持上报连接器类型和版本 <br/> 4. 支持令牌认证方式 <br/> 5. 解决了参数绑定带子表名时纳秒精度问题 <br/> 6. 日志脱敏优化                                                                                                                                                                                                                                      | -                  |
 | 3.7.8                | 解决了 getTables 方法中需要使用转义符的问题。                                                                                                                                                                                                                                          | -                  |
 | 3.7.7                | 1. 解决了 windows 平台加载配置文件问题<br/> 2. 解决了 WebSocket 连接 Statement 超时设置互相影响问题。                                                                                                                                                                                  | -                  |
@@ -80,7 +81,7 @@ TDengine TSDB 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一
 在报错后，通过 SQLException 可以获取到错误的信息和错误码：
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/JdbcBasicDemo.java:jdbc_exception}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/JdbcBasicDemo.java:jdbc_exception}}
 ```
 
 错误码信息请参考 [错误码](../../../reference/error-code)  
@@ -108,13 +109,13 @@ TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Java 
 | JSON                   | java.lang.String     | 仅在 tag 中支持                                                                      |
 | VARBINARY              | byte[]               |                                                                                |
 | GEOMETRY               | byte[]               |                                                                                |
-| BLOB                   | byte[]               | 仅在列中支持                                                                   |
-| DECIMAL                | java.math.BigDecimal | 仅在 WebSocket 连接方式支持                                                    |
+| BLOB                   | byte[]               | 仅在 WebSocket 连接的列中支持                                        |
+| DECIMAL                | java.math.BigDecimal | 仅在 WebSocket 连接的列中支持                                          |
 
 **注意**：由于历史原因，TDengine 中的 BINARY 底层不是真正的二进制数据，已不建议使用，请用 VARBINARY 类型代替。  
 GEOMETRY 类型是 little endian 字节序的二进制数据，符合 WKB 规范。详细信息请参考 [数据类型](../../taos-sql/datatype)  
 WKB 规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)  
-对于 java 连接器，可以使用 jts 库来方便的创建 GEOMETRY 类型对象，序列化后写入 TDengine TSDB，这里有一个样例[Geometry 示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/GeometryDemo.java)  
+对于 java 连接器，可以使用 jts 库来方便的创建 GEOMETRY 类型对象，序列化后写入 TDengine TSDB，这里有一个样例[Geometry 示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/GeometryDemo.java)  
 
 ## 示例程序汇总
 
@@ -127,7 +128,10 @@ WKB 规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/
 - springbootdemo：Springboot 中使用 taos-jdbcdriver。
 - consumer-demo：Consumer 消费 TDengine TSDB 数据示例，可通过参数控制消费速度。
 
-请参考：[JDBC example](https://github.com/taosdata/TDengine/tree/main/docs/examples/JDBC)
+请参考：
+
+- [JDBC JDK17 example](https://github.com/taosdata/TDengine/tree/main/docs/examples/JDBC)
+- [JDBC JDK8 example](https://github.com/taosdata/TDengine/tree/ver-3.4.0.0/docs/examples/JDBC)
 
 ## 常见问题
 
@@ -160,6 +164,18 @@ WKB 规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/
 **原因**：taos-jdbcdriver 3.0.1 版本需要在 JDK 11+ 环境使用。
 
 **解决方法**：更换 taos-jdbcdriver 3.0.2+ 版本。
+
+6. 如何从 REST 连接迁移到 WebSocket 连接？
+
+**背景**：从 taos-jdbcdriver 3.4.0 版本开始，推荐使用 WebSocket 连接替代 REST 连接。
+
+**迁移步骤**：  
+  a. 将驱动类从 `com.taosdata.jdbc.rs.RestfulDriver` 修改为 `com.taosdata.jdbc.ws.WebSocketDriver`。  
+  b. 将 JDBC URL 从 `jdbc:TAOS-RS://` 修改为 `jdbc:TAOS-WS://`。  
+  c. 移除 `batchfetch=true` 参数，该参数已经不需要。  
+  d. 测试验证功能正常。  
+
+**迁移优势**：WebSocket 连接延迟更低、性能更好、支持自动重连和更丰富的功能。
 
 其它问题请参考 [FAQ](../../../train-faq/faq)
 

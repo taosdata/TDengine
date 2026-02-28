@@ -75,5 +75,5 @@ class TestCreateCtbUsingCsvFile:
         # check create ctb using csv file
         self.check_create_ctb_using_csv_file()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

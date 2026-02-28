@@ -11,7 +11,7 @@ extern "C" {
 #define __attribute__(attrib)
 #endif
 
-int ttq_log(struct tmqtt *ttq, unsigned int level, const char *fmt, ...) __attribute__((format(printf, 3, 4)));
+void ttq_log(struct tmqtt *ttq, unsigned int level, const char *fmt, ...) __attribute__((format(printf, 3, 4)));
 
 #ifdef __cplusplus
 }
