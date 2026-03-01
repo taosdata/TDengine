@@ -10,6 +10,7 @@ from testng_taosx.file import File
 from testng_taosx.task import Task
 from testng_taosx.util import TaosAdapter
 from testng_taosx.util import Util
+from packaging import version
 
 csv_test_logger = logging.getLogger(__name__)
 task_type = TaskType.CSV
@@ -38,6 +39,11 @@ def env_data():
 @allure.link("https://jira.taosdata.com:18080/browse/TS-5208")
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32457")
 def test_sanity_csv(env_data):
+    env_data = env_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：测试 taosX  的文件导入功能
 
@@ -97,6 +103,11 @@ def test_sanity_csv(env_data):
 @pytest.mark.negative
 @allure.link("https://jira.taosdata.com:18080/browse/TD-30828")
 def test_subtables_conflict(env_data):
+    env_data = env_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：导入 CSV 文件时，由于子表 d1 在其它超级表已存在，导致部分数据写入失败，活动日志中报错
 
@@ -156,6 +167,11 @@ def test_subtables_conflict(env_data):
 
 @pytest.mark.performance
 def test_case_performance_scenario1(env_data):
+    env_data = env_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     csv_test_logger.info("start csv performance test...")
     env_data = env_data
     case_data = Util.get_case_data_from_yaml("csv/test_csv_performance.yaml", task_type)
@@ -187,6 +203,11 @@ def test_case_performance_scenario1(env_data):
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32573")
 def test_sanity_csv_td32573_01(env_data):
+    env_data = env_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证上传单个文件且“保留已完成的文件”可以正确工作
 
@@ -260,6 +281,11 @@ def test_sanity_csv_td32573_01(env_data):
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32573")
 def test_sanity_csv_td32573_02(env_data):
+    env_data = env_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证上传多个文件且“不保留已完成的文件”可以正确工作
 
@@ -345,6 +371,11 @@ def test_sanity_csv_td32573_02(env_data):
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32573")
 def test_sanity_csv_td32573_03(env_data):
+    env_data = env_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证上传多个文件且“保留已完成的文件”可以正确工作
     用例步骤：
@@ -427,6 +458,11 @@ def test_sanity_csv_td32573_03(env_data):
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32576")
 def test_sanity_csv_td32576_01(env_data):
+    env_data = env_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证“不监听新文件”，文件名排序“降序”的目录配置可以工作
     用例步骤：
@@ -524,6 +560,11 @@ def test_sanity_csv_td32576_01(env_data):
 @pytest.mark.skip
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32576")
 def test_sanity_csv_td32576_02(env_data):
+    env_data = env_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证“监听新文件”，文件名排序“升序”的目录配置可以工作
     用例步骤：
@@ -635,6 +676,11 @@ def test_sanity_csv_td32576_02(env_data):
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32576")
 def test_sanity_csv_td32576_03(env_data):
+    env_data = env_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证“匹配模式”可以对文件进行过滤筛选
     用例步骤：
@@ -731,6 +777,11 @@ def test_sanity_csv_td32576_03(env_data):
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32578")
 def test_sanity_csv_td32578_01(env_data):
+    env_data = env_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证上传多个文件的本次运行指标（csv_files, csv_files_completed, csv_files_completed_rows）计数正确
     用例步骤：
@@ -798,6 +849,11 @@ def test_sanity_csv_td32578_01(env_data):
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32578")
 def test_sanity_csv_td32578_02(env_data):
+    env_data = env_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证配置目录的本次运行指标（csv_files, csv_files_completed, csv_files_completed_rows）计数正确
     用例步骤：
@@ -874,6 +930,11 @@ def test_sanity_csv_td32578_02(env_data):
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32578")
 def test_sanity_csv_td32578_03(env_data):
+    env_data = env_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证上传多个文件的累计指标（total_csv_files, total_csv_files_completed, total_csv_files_completed_rows）计数正确
     用例步骤：
@@ -946,6 +1007,11 @@ def test_sanity_csv_td32578_03(env_data):
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32578")
 def test_sanity_csv_td32578_04(env_data):
+    env_data = env_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证配置目录的累计指标（total_csv_files, total_csv_files_completed, total_csv_files_completed_rows）计数正确
     用例步骤：
@@ -1027,6 +1093,11 @@ def test_sanity_csv_td32578_04(env_data):
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32577")
 def test_sanity_csv_td32577_01(env_data):
+    env_data = env_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证上传文件的任务，断点功能可以正确工作
     用例步骤：
@@ -1099,6 +1170,11 @@ def test_sanity_csv_td32577_01(env_data):
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-32578")
 def test_sanity_csv_td32577_02(env_data):
+    env_data = env_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证启用动态监听配置目录的任务，断点功能可以正确工作
     用例步骤：

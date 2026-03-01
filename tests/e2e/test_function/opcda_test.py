@@ -14,6 +14,7 @@ from testng_taosx.file import File
 from testng_taosx.task import Task
 from testng_taosx.util import TaosAdapter
 from testng_taosx.util import Util
+from packaging import version
 
 opcda_test_logger = logging.getLogger(__name__)
 task_type = TaskType.OPCDA
@@ -54,6 +55,11 @@ def input_data():
 @pytest.mark.sanity
 @pytest.mark.xfail(reason="OPC-DA server unstable")
 def test_sanity_1(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     1.使用只包含必填列的 CSV 配置文件上传，配置文件，其他全使用默认参数
     验证点：
@@ -77,6 +83,11 @@ def test_sanity_1(input_data):
 @pytest.mark.sanity
 @pytest.mark.xfail(reason="OPC-DA server unstable")
 def test_sanity_2(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     2.使用包含所有列的 CSV 配置文件（tag 使用 2 列），包含不存在的点位
     连接超时设置为最大 60s，请求超时设置为最大 60s，采集间隔使用默认值 1s，
@@ -111,6 +122,11 @@ def test_sanity_2(input_data):
 @pytest.mark.sanity
 @pytest.mark.xfail(reason="OPC-DA server unstable")
 def test_sanity_3(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     3.使用包含所有列的 CSV 配置文件
     received_ts_col 在左，ts_col 在右
@@ -148,6 +164,11 @@ def test_sanity_3(input_data):
 @pytest.mark.sanity
 @pytest.mark.xfail(reason="OPC-DA server unstable")
 def test_sanity_4(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     4.使用下载点位获取的 CSV 文件直接上传创建任务
     rts 在左，ts 在右
@@ -185,6 +206,11 @@ def test_sanity_4(input_data):
 @pytest.mark.sanity
 @pytest.mark.xfail(reason="OPC-DA server unstable")
 def test_sanity_5(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     5.使用选择数据点位填写过滤条件创建任务，主键列为 original_ts t_{TagName}
     验证点：
@@ -225,6 +251,11 @@ def test_sanity_5(input_data):
 @pytest.mark.sanity
 @pytest.mark.xfail(reason="OPC-DA server unstable")
 def test_sanity_6(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     6.使用选择数据点位不填写过滤条件创建任务，主键列为 received_ts，表名称为 meters_t_{TagName}
     验证点：
@@ -299,6 +330,11 @@ def opcda_sanity_save(
 @pytest.mark.sanity
 @pytest.mark.xfail(reason="OPC-DA server unstable")
 def test_check_connectivity(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     7.OPC DA 连通性测试
     """
@@ -322,6 +358,11 @@ from dateutil import parser
 @pytest.mark.sanity
 @pytest.mark.xfail(reason="OPC-DA server unstable")
 def test_task_add_points_8(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：测试使用 CSV 配置的 OPC DA 任务运行过程中添加点位
     用例使用：
@@ -513,6 +554,11 @@ def test_task_add_points_8(input_data):
 @pytest.mark.sanity
 @pytest.mark.skip
 def test_opcda_sanity_complicated_save(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     opcda_test_logger.info("start test_sanity_complicated_save...")
     env_data = input_data
     files_to_upload = {"csv_config_file": "opcda/opc_da_point_config_complicated.csv"}
@@ -613,6 +659,11 @@ def test_opcda_sanity_complicated_save(input_data):
 
 @pytest.mark.skip
 def test_start_process():
+    env_data = Util.get_env_data()
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     p = multiprocessing.Process(target=run_remote_command)
     p.start()
     sleep(10)
@@ -632,6 +683,11 @@ def run_remote_command():
 @pytest.mark.skip
 def test_opcda_select_all_points(input_data):
     env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
+    env_data = input_data
     opcda_test_logger.info("start test_opcda_select_all_points...")
     case_data = opcda_sanity_save(input_data, "opcda/test_opcda_select_all_points.yaml")
     # 表字段应符合
@@ -646,6 +702,11 @@ def test_opcda_select_all_points(input_data):
 
 @pytest.mark.skip
 def test_opcda_performance(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     创建 OPC DA 任务的性能测试任务，使用的点位配置为每个包含 4000 的 CSV 配置文件
     config/opcda/performance/ 每个文件都会对应创建一个任务
@@ -672,6 +733,11 @@ def test_opcda_performance(input_data):
 
 @pytest.mark.skip
 def test_opcda_performance_scenario1(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     env_data = input_data
     file_path = "opcda/performance/opc_da_point_config_d0-0-4000.csv"
     case_data = Util.get_case_data_from_yaml(

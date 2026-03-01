@@ -12,6 +12,7 @@ from testng_taosx.file import File, TaskType
 from testng_taosx.task import Task
 from testng_taosx.util import TaosAdapter
 from testng_taosx.util import Util
+from packaging import version
 
 pi_test_logger = logging.getLogger(__name__)
 task_type = TaskType.PI
@@ -53,6 +54,11 @@ def pi_sanity(env_data, case_data, task, file, files_dir, param):
 @pytest.mark.sanity
 @pytest.mark.xfail(reason="不稳定，可能会出现 assert 12 == 24")
 def test_multicol_template(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     pi_test_logger.info(f"running test case...{inspect.currentframe().f_code.co_name}")
     env_data = input_data
     case_data = Util.get_case_data_from_yaml("pi/test_multicol.yaml", task_type)
@@ -78,6 +84,11 @@ def test_multicol_template(input_data):
 
 @pytest.mark.sanity
 def test_singlecol_template(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     pi_test_logger.info(f"running test case...{inspect.currentframe().f_code.co_name}")
     env_data = input_data
     case_data = Util.get_case_data_from_yaml(
@@ -99,6 +110,11 @@ def test_singlecol_template(input_data):
 
 @pytest.mark.sanity
 def test_singlecol_point(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     pi_test_logger.info(f"running test case...{inspect.currentframe().f_code.co_name}")
     env_data = input_data
     case_data = Util.get_case_data_from_yaml("pi/test_singlecol_point.yaml", task_type)

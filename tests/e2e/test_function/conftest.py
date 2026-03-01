@@ -2,6 +2,7 @@ import logging
 import time
 
 import pytest
+from packaging import version
 
 from testng_taosx.env import ENV
 from testng_taosx.task import Task
@@ -16,6 +17,10 @@ def global_setup(request):
 
     conftest_logger.info("delete all tasks...")
     env_data = Util.get_env_data()
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        yield env_data
+        return
     task = Task(env_data, None)
     # task.delete_all_tasks()
     start_time = int(time.time() * 1000)

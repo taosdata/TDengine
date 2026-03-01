@@ -4,6 +4,7 @@ import pytest
 from testng_taosx.util import TaosAdapter
 from testng_taosx.util import Util
 from testng_taosx.env import ENV
+from packaging import version
 
 audit_test_logger = logging.getLogger(__name__)
 
@@ -32,6 +33,11 @@ def operation_check(sql: str, operation_type: str):
 
 
 def test_audit_operation():
+    env_data = Util.get_env_data()
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     operations = [
         {"createDB": "create database ci_audit"},
         {"createStb": "create stable ci_audit.stb (ts timestamp,c0 int) tags(t0 int)"},

@@ -8,6 +8,7 @@ import pytest
 from testng_taosx.constant import TaskType
 from testng_taosx.task import Task
 from testng_taosx.util import Util
+from packaging import version
 
 license_test_logger = logging.getLogger(__name__)
 task_type = TaskType.INFLUXDB
@@ -18,10 +19,12 @@ def input_data():
     license_test_logger.info("before license test...")
     env_data = Util.get_env_data()
     # activate the license that only 1 connector num for influxdb
-    Util.activate_data_in(env_data["taosd_host"], ["InfluxDB,un,1,un"])
+    if version.parse(env_data["db_version"][:5]) < version.parse("3.4"):
+        Util.activate_data_in(env_data["taosd_host"], ["InfluxDB,un,1,un"])
 
     yield env_data
-
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
     license_test_logger.info("after license test...")
     # activate the license that unlimited connector num for influxdb
     Util.activate_data_in(env_data["taosd_host"], ["InfluxDB,un,un,un"])
@@ -29,6 +32,11 @@ def input_data():
 
 @allure.link("https://jira.taosdata.com:18080/browse/TD-31628")
 def test_connector_num(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：当授权的数据源连接数为 1 时，仅能对一个数据源（ip 和 port 均相同）创建任务
     用例步骤：

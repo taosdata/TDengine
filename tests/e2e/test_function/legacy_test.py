@@ -10,6 +10,7 @@ from testng_taosx.task import Task
 from testng_taosx.util import TaosAdapter
 from testng_taosx.util import Util
 from testng_taosx.env import *
+from packaging import version
 
 legacy_test_logger = logging.getLogger(__name__)
 task_type = TaskType.TDENGINE2X
@@ -41,6 +42,11 @@ def retry_to_expected_status(task, taskid, expected_status, wait_time, retry_cou
 
 @pytest.mark.sanity
 def test_sanity_basic(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证从2.6版本的TDengine迁移数据到3.0版本的TDengine基础功能
     用例步骤：
@@ -81,6 +87,11 @@ def test_sanity_basic(input_data):
     reason="用例需要重构"
 )
 def test_sanity_realtime(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证将实时写入2.6TDengine的数据迁移到3.0TDengine
     用例步骤：
@@ -158,6 +169,11 @@ def test_sanity_realtime(input_data):
     reason="不稳定，单个执行多次可能都没有问题，但是全量执行的时候多次出现 assert 结果失败，assert rows_count == num_between_time_range assert 432005 == 432000"
 )
 def test_sanity_time_range(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证从2.6版本的TDengine迁移指定历史时间区间的数据到3.0版本的TDengine基础功能
     用例步骤：
@@ -199,6 +215,11 @@ def test_sanity_time_range(input_data):
 
 @pytest.mark.sanity
 def test_sanity_schema_only(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证从2.6版本的TDengine迁移数据到3.0版本的TDengine，只同步schema信息
     用例步骤：
@@ -263,6 +284,11 @@ def test_sanity_schema_only(input_data):
 
 @pytest.mark.sanity
 def test_sanity_wide_schema(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证从2.6版本的TDengine迁移4000列大宽表数据到3.0版本的TDengine基础功能
     用例步骤：
@@ -307,6 +333,11 @@ def test_sanity_wide_schema(input_data):
 
 @pytest.mark.sanity
 def test_new_table_realtime(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证从2.6版本的TDengine新增的schema信息和时序数据同步到3.0版本的TDengine基础功能
     用例步骤：
@@ -396,6 +427,11 @@ def test_new_table_realtime(input_data):
 @pytest.mark.sanity
 def test_connectivity_test(input_data):
     env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
+    env_data = input_data
     case_data = Util.get_case_data_from_yaml(
         "legacy/test_legacy_tdengine.yaml", task_type
     )
@@ -409,6 +445,11 @@ def test_connectivity_test(input_data):
 
 @pytest.mark.performance
 def test_case_performance_scenario1(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     legacy_test_logger.info(f"running TD2 to TD3 performance case scenario1...")
     env_data = input_data
     case_data = Util.read_yaml("legacy/test_legacy_performance.yaml")

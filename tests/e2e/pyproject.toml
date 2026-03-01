@@ -16,6 +16,7 @@ python-dateutil = "^2.9.0.post0"
 taos-ws-py = "^0.3.3"
 cryptography = ">=44.0.1"
 testng-taosx = { git = "https://github.com/taosdata/TestNG_taosX.git", branch = "framework-only" }
+packaging = "^23.0"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.7.0"

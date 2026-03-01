@@ -12,6 +12,7 @@ from testng_taosx.task import Task
 from testng_taosx.util import TaosAdapter
 from testng_taosx.util import Util
 from testng_taosx.env import *
+from packaging import version
 
 mqtt_test_logger = logging.getLogger(__name__)
 task_type = TaskType.MQTT
@@ -97,6 +98,11 @@ def mqtt_sanity_test(env_data, case_data, mqttconfigfile):
 @pytest.mark.sanity
 @pytest.mark.parametrize("with_agent", [True, False])
 def test_case_base_transformer(with_agent, input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述: mqtt 用例, 基本用例
     用例步骤：
@@ -135,6 +141,11 @@ def test_case_base_transformer(with_agent, input_data):
 
 @pytest.mark.sanity
 def test_case_topics(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述: mqtt 用例, 基本用例
     用例步骤：
@@ -162,6 +173,11 @@ def test_case_topics(input_data):
 
 @pytest.mark.sanity
 def test_case_auth(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述: mqtt 用例
     用例步骤：
@@ -190,6 +206,11 @@ def test_case_auth(input_data):
 
 @pytest.mark.sanity
 def test_case_ssl_no_auth(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述: mqtt 用例
     用例步骤：
@@ -216,6 +237,11 @@ def test_case_ssl_no_auth(input_data):
 
 @pytest.mark.negative
 def test_invalid_dsn(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     mqtt_test_logger.info("start test...avaliablity case: invalid dsn")
     env_data, case_data_orig = input_data
     case_data = copy.deepcopy(case_data_orig)
@@ -237,6 +263,11 @@ def test_invalid_dsn(input_data):
 
 @pytest.mark.negative
 def test_invalid_userpw(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     mqtt_test_logger.info("start test...availablity case: invalid username or passwd")
     env_data, case_data_orig = input_data
     case_data = copy.deepcopy(case_data_orig)
@@ -264,6 +295,11 @@ def test_invalid_userpw(input_data):
 
 @pytest.mark.negative
 def test_invalid_topic(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     mqtt_test_logger.info("start test...availablity case: invalid topic or Qos config")
     env_data, case_data_orig = input_data
     case_data = copy.deepcopy(case_data_orig)
@@ -300,6 +336,11 @@ def test_invalid_topic(input_data):
 
 @pytest.mark.negative
 def test_invalid_ssl(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     mqtt_test_logger.info("start test...sanity case: invalid ssl")
     env_data, case_data_orig = input_data
     case_data = copy.deepcopy(case_data_orig)
@@ -324,6 +365,11 @@ def test_invalid_ssl(input_data):
 
 @pytest.mark.sanity
 def test_connectivity_check(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述: mqtt 用例, 连通性校验
     用例步骤：
@@ -348,6 +394,11 @@ def test_connectivity_check(input_data):
 
 @pytest.mark.performance
 def test_case_performance_scenario1(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     mqtt_test_logger.info("start mqtt performance test...")
     env_data, case_data_orig = input_data
     case_data = Util.get_case_data_from_yaml(

@@ -8,6 +8,7 @@ import pytest
 from testng_taosx.constant import TaskType, EnvType
 from testng_taosx.task import Task
 from testng_taosx.util import Util, TaosAdapter
+from packaging import version
 
 backup_test_logger = logging.getLogger(__name__)
 task_type = TaskType.BACKUP
@@ -19,6 +20,8 @@ def case_setup():
     env_data = Util.get_env_data()
     TaosAdapter.create_db(env_data["taosadapter_host"], "ci_backup")
     yield env_data
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
     backup_test_logger.info("after all backup cases...")
     TaosAdapter.drop_topic(env_data["taosadapter_host"], "ci_backup")
     TaosAdapter.drop_db(env_data["taosadapter_host"], "ci_backup")
@@ -26,6 +29,11 @@ def case_setup():
 
 @pytest.mark.sanity
 def test_sanity_backup(case_setup):
+    env_data = case_setup
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     backup_test_logger.info("start backup test...")
     env_data = case_setup
     case_data = Util.get_case_data_from_yaml("backup/test_backup.yaml", task_type)

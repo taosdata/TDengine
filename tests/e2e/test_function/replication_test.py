@@ -12,6 +12,7 @@ from testng_taosx.file import TaskType
 from testng_taosx.task import Task
 from testng_taosx.util import TaosAdapter
 from testng_taosx.util import Util
+from packaging import version
 
 replication_test_logger = logging.getLogger(__name__)
 task_type = TaskType.REPLICATION
@@ -66,6 +67,10 @@ def run_command_local_or_remote(ip, command):
 
 @pytest.mark.sanity
 def test_sanity_replication(input_data):
+    # Skip test if TDengine version >= 3.4
+    if version.parse(input_data[0]["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     env_data, case_data = input_data
     task = Task(env_data, case_data)
     command = f"taosBenchmark -t {case_data['source']['subtable_number']}    \
@@ -105,6 +110,10 @@ def test_sanity_replication(input_data):
     reason="负向用例的判断逻辑是任务状态，但是任务状态不一定是失败，可能是中断，也可能是运行中，且这个任务状态的切换无法固定由时间决定"
 )
 def test_replicate_with_wrong_precision(input_data):
+    # Skip test if TDengine version >= 3.4
+    if version.parse(input_data[0]["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     env_data, case_data = input_data
     task = Task(env_data, case_data)
     payload = Util.get_task_payload(case_data, env_data, env_type=EnvType.LOCAL)
@@ -131,6 +140,11 @@ def test_replicate_with_wrong_precision(input_data):
 @pytest.mark.negative
 @allure.link("https://jira.taosdata.com:18080/browse/TD-31731")
 def test_wrong_dsn(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：针对创建数据同步任务时，目标 DSN 的异常场景进行测试
     用例步骤：
@@ -182,6 +196,10 @@ def test_wrong_dsn(input_data):
 # 创建任务后追加写入数据
 @pytest.mark.sanity
 def test_replication_add_data(input_data):
+    # Skip test if TDengine version >= 3.4
+    if version.parse(input_data[0]["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     env_data, case_data = input_data
     task = Task(env_data, case_data)
     payload = Util.get_task_payload(case_data, env_data, env_type=EnvType.LOCAL)
@@ -230,6 +248,10 @@ def test_replication_add_data(input_data):
 # 同步完成后，删除部分源库数据
 @pytest.mark.sanity
 def test_replication_delete_data(input_data):
+    # Skip test if TDengine version >= 3.4
+    if version.parse(input_data[0]["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     env_data, case_data = input_data
     task = Task(env_data, case_data)
     payload = Util.get_task_payload(case_data, env_data, env_type=EnvType.LOCAL)

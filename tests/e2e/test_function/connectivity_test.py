@@ -9,6 +9,7 @@ from testng_taosx.constant import *
 from testng_taosx.env import ENV
 from testng_taosx.requests_wrapper import http
 from testng_taosx.util import Util
+from packaging import version
 
 connectivity_test_logger = logging.getLogger(__name__)
 
@@ -70,47 +71,92 @@ def check_connectivity_by_type(get_datasource_dsn, task_type: TaskType):
 
 @pytest.mark.sanity
 def test_TMQ_connectivity(get_datasource_dsn):
+    dsns, env_data = get_datasource_dsn
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     check_connectivity_by_type(get_datasource_dsn, TaskType.TMQ)
 
 
 @pytest.mark.sanity
 def test_td2x_connectivity(get_datasource_dsn):
+    dsns, env_data = get_datasource_dsn
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     check_connectivity_by_type(get_datasource_dsn, TaskType.TDENGINE2X)
 
 
 @pytest.mark.sanity
 def test_pi_connectivity(get_datasource_dsn):
+    dsns, env_data = get_datasource_dsn
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     check_connectivity_by_type(get_datasource_dsn, TaskType.PI)
 
 
 @pytest.mark.sanity
 @pytest.mark.skip(reason="连通性测试需要转移到各个数据源专用的文件中")
 def test_opcua_connectivity(get_datasource_dsn):
+    dsns, env_data = get_datasource_dsn
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     check_connectivity_by_type(get_datasource_dsn, TaskType.OPCUA)
 
 
 @pytest.mark.sanity
 @pytest.mark.skip(reason="连通性测试需要转移到各个数据源专用的文件中")
 def test_opcda_connectivity(get_datasource_dsn):
+    dsns, env_data = get_datasource_dsn
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     check_connectivity_by_type(get_datasource_dsn, TaskType.OPCDA)
 
 
 @pytest.mark.sanity
 def test_influxdb_connectivity(get_datasource_dsn):
+    dsns, env_data = get_datasource_dsn
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     check_connectivity_by_type(get_datasource_dsn, TaskType.INFLUXDB)
 
 
 @pytest.mark.sanity
 def test_opentsdb_connectivity(get_datasource_dsn):
+    dsns, env_data = get_datasource_dsn
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     check_connectivity_by_type(get_datasource_dsn, TaskType.OPENTSDB)
 
 
 @pytest.mark.sanity
 @pytest.mark.skip(reason="连通性测试需要转移到各个数据源专用的文件中")
 def test_mqtt_connectivity(get_datasource_dsn):
+    dsns, env_data = get_datasource_dsn
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     check_connectivity_by_type(get_datasource_dsn, TaskType.MQTT)
 
 
 @pytest.mark.sanity
 def test_kafka_connectivity(get_datasource_dsn):
+    dsns, env_data = get_datasource_dsn
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     check_connectivity_by_type(get_datasource_dsn, TaskType.KAFKA)

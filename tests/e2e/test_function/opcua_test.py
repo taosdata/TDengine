@@ -18,6 +18,7 @@ import copy
 import logging
 import os
 import allure
+from packaging import version
 import json
 from pathlib import Path
 from time import sleep, time
@@ -49,6 +50,11 @@ def input_data():
 
 @pytest.mark.sanity
 def test_sanity_1(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     1.安全模式 None，认证方式选用匿名，只上传 CSV 配置文件，CSV 文件只包含必填列（明确指定超级表，子表），其他全使用默认参数
     验证点：1.数据写入正常 2.表 Schema 符合预期
@@ -73,6 +79,11 @@ def test_sanity_1(input_data):
 
 @pytest.mark.sanity
 def test_sanity_2(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     2.安全模式 Sign，安全策略使用 Basic256，需要上传安全通信证书即安全通信私钥，连接超时设置为最小值，认证方式选用“用户名”，
     上传的 CSV 配置文件包含全部列（超级表及子表使用占位符，transform 列为空，ts 在 received_ts 左侧，不包含 quality 列），包含 1 列 tag，
@@ -119,6 +130,11 @@ def test_sanity_2(input_data):
 
 @pytest.mark.sanity
 def test_sanity_3(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     3.安全模式 SignAndEncrypt，安全策略使用 Basic256Sha256，上传安全通信证书和安全通信私钥，连接超时设置为最大值，
     认证方式选用“证书访问”，上传的 CSV 配置文件包含全部列（超级表及子表使用占位符，填写 transform 规则，received_ts 在 ts 左侧，包含），
@@ -166,6 +182,11 @@ def test_sanity_3(input_data):
 
 @pytest.mark.sanity
 def test_sanity_4(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     4.安全模式 SignAndEncrypt，安全策略使用 Aes128_Sha256_RsaOaep，上传安全通信证书和安全通信私钥，
     下载数据点位，下载时不选择过滤条件，同时上传直接使用该文件。
@@ -220,6 +241,11 @@ def test_sanity_4(input_data):
 
 @pytest.mark.sanity
 def test_sanity_5(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     5.安全模式为 None，下载数据点位，过滤条件同时设置三个条件。
     """
@@ -254,6 +280,11 @@ def test_sanity_5(input_data):
 
 @pytest.mark.sanity
 def test_sanity_6(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     6.选择数据点位，不填写过滤条件，其他使用默认值。
     不使用 agent。
@@ -285,6 +316,11 @@ def test_sanity_6(input_data):
 
 @pytest.mark.sanity
 def test_sanity_7(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     7.选择数据点位，不填写过滤条件，其他使用默认值。不使用 agent。
     主键使用 received_ts，表名称使用修改的 meter_{ns}_{id}_t
@@ -323,6 +359,11 @@ def test_sanity_7(input_data):
 
 @pytest.mark.sanity
 def test_download_opcua_template_8(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     8.下载 OPC CSV 模板（英文和中文）
     """
@@ -338,6 +379,11 @@ def test_download_opcua_template_8(input_data):
 
 @pytest.mark.sanity
 def test_check_connectivity_9(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     9.OPC UA 连通性测试
     测试用例包含两个：
@@ -391,13 +437,17 @@ def test_check_connectivity_9(input_data):
 
 @pytest.mark.sanity
 def test_wide_table_10():
+    env_data = Util.get_env_data()
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     10.OPC UA 数据写入宽表（多数据列）
         注意：写入宽表的前提是提前创建好超级表和子表
         校验：
             1.数据写入正常
     """
-    env_data = Util.get_env_data()
     case_data = Util.get_case_data_from_yaml(
         "opcua/test_opcua_csv_config_base.yaml", task_type
     )
@@ -436,6 +486,11 @@ def test_wide_table_10():
 # @pytest.xfail(reason="反复测试过程中发现任务的状态有些不稳定，可以先随 CI 跑一段时间，见：https://jira.taosdata.com:18080/browse/TD-32106")
 @pytest.mark.sanity
 def test_tasks_batch_operations_11(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     11.批量操作任务测试
     批量操作操作包括启动、停止、删除任务
@@ -508,6 +563,11 @@ from dateutil import parser
 @pytest.mark.sanity
 @pytest.mark.parametrize("with_agent", [True, False])
 def test_task_add_points_12(with_agent, input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     12.使用 CSV 配置的任务运行过程中添加数据点位
         1.创建一个使用 CSV 配置的 OPC 任务，CSV 配置包含全部列（使用下载得到的 CSV 文件格式），这里直接复用 opcua_sanity_12.csv，其它参数使用默认参数
@@ -714,6 +774,11 @@ def test_task_add_points_12(with_agent, input_data):
 )
 def test_change_points(input_data, files):
     env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
+    env_data = input_data
     case_data = Util.get_case_data_from_yaml("opcua/test_opcua_csv.yaml", task_type)
 
     uploaded_files = files
@@ -741,6 +806,11 @@ def test_change_points(input_data, files):
 @pytest.mark.parametrize("files", [(1, 1), (2, 2)])
 def test_aaa(input_data, files):
     env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
+    env_data = input_data
     uploaded_files = files
     print(uploaded_files[0], uploaded_files[1])
     TaosAdapter.drop_stable(env_data["taosadapter_host"], "test", "meters")
@@ -750,6 +820,11 @@ def test_aaa(input_data, files):
 
 
 def test_load_10k(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     env_data = input_data
     case_data = Util.get_case_data_from_yaml("opcua/test_opcua_csv.yaml", task_type)
 
@@ -768,6 +843,11 @@ def test_load_10k(input_data):
 
 
 def test_multiple_tasks(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     env_data = input_data
     TaosAdapter.create_db(env_data["taosadapter_host"], "opcua2")
     case_data = Util.get_case_data_from_yaml("opcua/test_opcua_csv.yaml", task_type)
@@ -799,6 +879,11 @@ def test_multiple_tasks(input_data):
 @pytest.mark.xfail
 def test_invalid_source(input_data):
     env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
+    env_data = input_data
     case_data = Util.get_case_data_from_yaml("opcua/test_opcua_csv.yaml", task_type)
 
     case_data["from"]["fromhost"] = "opcua://192.168.2.100:8080/OPCUA/SimulationServer"
@@ -822,6 +907,11 @@ def test_invalid_source(input_data):
 
 @pytest.mark.skip
 def test_opcua_performance(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     创建 OPC UA 任务的性能测试任务，使用的点位配置为每个包含 10000 的 CSV 配置文件
     config/opcua/performance/ 每个文件都会对应创建一个任务
@@ -859,6 +949,11 @@ def test_opcua_performance(input_data):
 
 @pytest.mark.performance
 def test_opcua_performance_s1(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     创建 OPC UA 任务的性能测试任务，使用的点位配置为每个包含 10000 的 CSV 配置文件
     """
@@ -897,6 +992,11 @@ import itertools
 # @pytest.mark.performance
 @pytest.mark.skip
 def test_opcua_performance_multi(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     OPC UA 性能测试
     创建的测试用例是所有涉及性能的变量的一个组合

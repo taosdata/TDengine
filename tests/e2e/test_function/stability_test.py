@@ -9,6 +9,7 @@ from testng_taosx.file import File, TaskType
 from testng_taosx.task import Task
 from testng_taosx.util import TaosAdapter
 from testng_taosx.util import Util
+from packaging import version
 
 stability_test_logger = logging.getLogger(__name__)
 
@@ -26,6 +27,11 @@ def input_data():
 
 
 def test_stability(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     env_data = input_data
     # 构建legacy任务配置并创建任务
     case_data = Util.read_yaml("legacy/test_legacy_tdengine.yaml")
@@ -92,6 +98,11 @@ def test_stability(input_data):
 def test_stability_replication(
     input_data, sub_table_num, records_per_sub_table, deleted_sub_table_num
 ):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     stability test for TDengine 3
     :param input_data:
@@ -153,6 +164,11 @@ def test_stability_replication(
 
 
 def test_monitor(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     env_data = input_data
     tasks = Task(env_data, None)
     # 获取task id列表

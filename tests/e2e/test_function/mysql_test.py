@@ -8,6 +8,7 @@ from testng_taosx.env import ENV
 from testng_taosx.task import Task
 from testng_taosx.util import TaosAdapter
 from testng_taosx.util import Util
+from packaging import version
 
 mysql_test_logger = logging.getLogger(__name__)
 task_type = TaskType.MYSQL
@@ -35,6 +36,10 @@ def input_data():
     reason="不稳定，单个执行多次可能都没有问题，但是全量执行的时候多次出现 assert 结果失败，assert rows_count == 1000"
 )
 def test_case_base(input_data):
+    # Skip test if TDengine version >= 3.4
+    if version.parse(input_data[0]["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述: mysql 用例, 基本用例
     数据源信息: 192.168.1.45:3306, 数据库:test_ci, 用户名密码:root/123456

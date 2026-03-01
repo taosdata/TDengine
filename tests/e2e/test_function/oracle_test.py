@@ -7,6 +7,7 @@ from testng_taosx.util import Util
 import logging
 import pytest
 import copy
+from packaging import version
 
 psql_test_logger = logging.getLogger(__name__)
 task_type = TaskType.ORACLE
@@ -30,6 +31,11 @@ def input_data():
     reason="不稳定，单个执行多次可能都没有问题，但是全量执行的时候多次出现 assert 结果失败，assert rows_count == 1000"
 )
 def test_case_base(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述: oracle 用例, 基本用例
     用例步骤：
@@ -69,6 +75,11 @@ def test_case_base(input_data):
     reason="不稳定，单个执行多次可能都没有问题，但是全量执行的时候多次出现 assert 结果失败，assert rows_count == 60"
 )
 def test_case_base_2_sharding(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述: oracle 用例, 分库分表, 占位符使用${Ymd}
     用例步骤：

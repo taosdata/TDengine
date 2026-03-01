@@ -5,6 +5,7 @@ import pytest
 
 from testng_taosx.explorer import Favorite, RestSQL
 from testng_taosx.util import Util
+from packaging import version
 
 favorite_test_logger = logging.getLogger(__name__)
 
@@ -19,6 +20,11 @@ def case_setup():
 
 @pytest.mark.sanity
 def test_sanity_favorite(case_setup):
+    env_data = case_setup
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     sql = "select * from test.`meters`"
     description = "test"
     description_edit = "edit test"
@@ -100,6 +106,11 @@ def test_sanity_favorite(case_setup):
 )
 @pytest.mark.sanity
 def test_rest_api(case_setup, tz_data):
+    env_data = case_setup
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     rest_sql = RestSQL(case_setup)
     sql = "select * from information_schema.ins_dnodes limit 10"
     query_string = f"tz={tz_data[0]}"

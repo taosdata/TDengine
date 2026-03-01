@@ -10,6 +10,7 @@ from testng_taosx.util import TaosAdapter
 from testng_taosx.util import Util
 from testng_taosx.kafkaPub import Producer
 from testng_taosx.file import File
+from packaging import version
 
 kafka_test_logger = logging.getLogger(__name__)
 task_type = TaskType.KAFKA
@@ -33,6 +34,11 @@ def input_data():
 
 @pytest.mark.sanity
 def test_case_base_transformer_json(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述: kafka 基本用例, 输入数据为json格式
     用例步骤：
@@ -102,6 +108,11 @@ def test_case_base_transformer_json(input_data):
 
 @pytest.mark.sanity
 def test_case_base_transformer_json_split(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述: kafka 基本用例, 输入数据为json格式
     用例步骤：
@@ -167,6 +178,11 @@ def test_case_base_transformer_json_split(input_data):
 
 @pytest.mark.sanity
 def test_case_base_transformer_regex(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述: kafka 基本用例, 输入数据为文本格式
     用例步骤：
@@ -220,6 +236,11 @@ def test_case_base_transformer_regex(input_data):
 
 @pytest.mark.sanity
 def test_case_base_ssl(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述: kafka 用例, 测试SSL证书
     用例步骤：
@@ -268,6 +289,11 @@ def test_case_base_ssl(input_data):
 @pytest.mark.sanity
 @pytest.mark.xfail(reason="ubuntu编译出的taosx使用gssapi认证不通过")
 def test_case_base_sasl_gssapi(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述: kafka 用例, 测试 GSSAPI
     用例步骤：
@@ -314,6 +340,11 @@ def test_case_base_sasl_gssapi(input_data):
 @pytest.mark.sanity
 @pytest.mark.parametrize("with_agent", [True, False])
 def test_case_base_sasl_plain(with_agent, input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述: kafka 用例, 测试SASL PLAIN认证机制
     用例步骤：
@@ -383,6 +414,11 @@ def test_case_base_sasl_plain(with_agent, input_data):
 
 @pytest.mark.sanity
 def test_case_base_sasl_scram_sha_256(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述: kafka 用例, 测试SASL SCRAM-SHA-256认证机制
     用例步骤：
@@ -426,6 +462,11 @@ def test_case_base_sasl_scram_sha_256(input_data):
 
 @pytest.mark.performance
 def test_case_performance_scenario1(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     kafka_test_logger.info("start test...sanity case: performance, scenarion1")
     env_data, case_data_orig = input_data
     case_data = copy.deepcopy(case_data_orig)
@@ -458,6 +499,11 @@ def test_case_performance_scenario1(input_data):
 
 @pytest.mark.performance
 def test_case_performance_scenario2(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     kafka_test_logger.info("start test...sanity case: performance, scenarion2")
     env_data, case_data_orig = input_data
     case_data = copy.deepcopy(case_data_orig)

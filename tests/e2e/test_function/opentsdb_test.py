@@ -9,6 +9,7 @@ from testng_taosx.env import ENV, Env
 from testng_taosx.file import File
 from testng_taosx.task import Task
 from testng_taosx.util import Util, DataSetRequest, TaosAdapter
+from packaging import version
 
 opentsdb_test_logger = logging.getLogger(__name__)
 task_type = TaskType.OPENTSDB
@@ -54,6 +55,11 @@ def opentsdb_sanity_save(
 # 使用的参数只包含必填参数
 @pytest.mark.sanity
 def test_opentsdb_sanity_simple_save(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     opentsdb_test_logger.info("start test_sanity_simple_save...")
     case_data = Util.get_case_data_from_yaml(
         "opentsdb/test_opentsdb_simple_save.yaml", task_type
@@ -82,6 +88,11 @@ def opentsdb_get_metrics(input_data):
 
 @pytest.mark.sanity
 def test_opentsdb_sanity_simple_save_with_specific_metrics(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     opentsdb_test_logger.info(
         "start test_opentsdb_sanity_simple_save_with_specific_metrics..."
     )
@@ -97,6 +108,11 @@ def test_opentsdb_sanity_simple_save_with_specific_metrics(input_data):
 # 使用的参数包含所有参数
 @pytest.mark.sanity
 def test_opentsdb_complicated_save_with_max_value(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     opentsdb_test_logger.info("start test_opentsdb_complicated_save_with_max_value...")
     env_data = input_data
     # 1.任务正常创建
@@ -114,6 +130,11 @@ def test_opentsdb_complicated_save_with_max_value(input_data):
 
 @pytest.mark.sanity
 def test_opentsdb_complicated_save_with_min_value(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     opentsdb_test_logger.info("start test_sanity_complicated_save...")
     env_data = input_data
     # 1.任务正常创建
@@ -131,6 +152,11 @@ def test_opentsdb_complicated_save_with_min_value(input_data):
 
 @pytest.mark.performance
 def test_case_performance_scenario1(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     opentsdb_test_logger.info("start opentsdb performance test...")
     env_data = input_data
     case_data = Util.get_case_data_from_yaml(

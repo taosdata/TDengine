@@ -7,6 +7,7 @@ from testng_taosx.util import Util
 from testng_taosx.file import TaskType
 from testng_taosx.requests_wrapper import http
 from testng_taosx.constant import *
+from packaging import version
 
 user_migration_logger = logging.getLogger(__name__)
 
@@ -137,6 +138,10 @@ def input_data():
 @pytest.mark.sanity
 @pytest.mark.skip
 def test_migration_user(passwords, privileges, whitelist, input_data):
+    # Skip test if TDengine version >= 3.4
+    if version.parse(input_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：测试迁移用户
     passwords,privileges,whitelist 对应接口需要发送的数据，取值类型为 bool

@@ -7,6 +7,7 @@ from testng_taosx.task import Task
 from testng_taosx.util import TaosAdapter
 from testng_taosx.util import Util
 from testng_taosx.constant import TaskType
+from packaging import version
 
 influxdb_test_logger = logging.getLogger(__name__)
 task_type = TaskType.INFLUXDB
@@ -26,6 +27,11 @@ def input_data():
 @pytest.mark.sanity
 def test_sanity_basic(input_data):
     env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
+    env_data = input_data
     case_data = Util.get_case_data_from_yaml("influxdb/test_influxdb.yaml", task_type)
 
     taosadapter_addr = env_data["taosadapter_host"]
@@ -44,6 +50,11 @@ def test_sanity_basic(input_data):
     reason="不稳定，单个执行可能存在偶尔失败的情况，还未找到原因，暂时标记为xfail"
 )
 def test_sanity_1_8(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     测试用例 2：测试 1.8 influxdb 数据迁移到 taosd
     版本设置为 1.8
@@ -66,6 +77,11 @@ def test_sanity_1_8(input_data):
 
 @pytest.mark.performance
 def test_case_performance_scenario1(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     env_data = input_data
     case_data = Util.get_case_data_from_yaml("influxdb/test_influxdb.yaml", task_type)
     case_data["from"]["bucket"] = "1k_subtable_10w_12column_20240115"

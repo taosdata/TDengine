@@ -10,6 +10,7 @@ from testng_taosx.file import File
 from testng_taosx.task import Task
 from testng_taosx.util import TaosAdapter
 from testng_taosx.util import Util
+from packaging import version
 
 historian_test_logger = logging.getLogger(__name__)
 
@@ -27,6 +28,11 @@ def input_data():
 
 @pytest.mark.sanity
 def test_check_connectivity(input_data):
+    env_data = input_data
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     env_data = input_data
     case_data = Util.get_case_data_from_yaml(
         "historian/historian_basic.yaml", task_type

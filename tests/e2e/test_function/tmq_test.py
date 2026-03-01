@@ -16,6 +16,7 @@ from testng_taosx.util import TaosAdapter
 from testng_taosx.util import Util
 from testng_taosx.env import ENV
 from testng_taosx.requests_wrapper import http
+from packaging import version
 
 tmq_test_logger = logging.getLogger(__name__)
 task_type = TaskType.TMQ
@@ -73,6 +74,10 @@ def input_data():
 @pytest.mark.sanity
 @pytest.mark.skipif(Util.lt_version_3_3(), reason="只支持 3.3 版本及以上")
 def test_sanity(input_data):
+    # Skip test if TDengine version >= 3.4
+    if version.parse(input_data[0]["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     env_data, case_data = input_data
     case_data["from"]["group.id"] = Util.get_long_name(10)
     source_db_name = f"{Util.get_long_name(10)}"
@@ -137,6 +142,11 @@ def test_sanity(input_data):
 @pytest.mark.sanity
 @pytest.mark.skipif(Util.lt_version_3_3(), reason="只支持 3.3 版本及以上")
 def test_update(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """用例描述：
     tmq同步任务对已有数据更新的实时同步
     """
@@ -205,6 +215,10 @@ def test_update(input_data):
 
 @pytest.mark.skip
 def test_check_connectivity(input_data):
+    # Skip test if TDengine version >= 3.4
+    if version.parse(input_data[0]["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     env_data, case_data = input_data
     TaosAdapter.run_sql(
         ENV.taosd_source_host, f"drop topic {case_data['source']['name']}"
@@ -217,6 +231,10 @@ def test_check_connectivity(input_data):
 
 @pytest.mark.skip
 def test_wrong_dsn(input_data):
+    # Skip test if TDengine version >= 3.4
+    if version.parse(input_data[0]["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     env_data, case_data = input_data
     case_data["from"]["fromhost"] = "tmq+ws:///db1"
     task = Task(env_data, case_data)
@@ -230,6 +248,11 @@ def test_wrong_dsn(input_data):
 @pytest.mark.sanity
 @pytest.mark.skipif(Util.lt_version_3_3(), reason="只支持 3.3 版本及以上")
 def test_drop_table_while_replication(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例描述：
     tmq 同步过程中，如果删除了目标库的某些子表，taosx在订阅到该表新数据时，会再次自动创建子表并写入新增的数据
@@ -301,6 +324,11 @@ def test_drop_table_while_replication(input_data):
 @pytest.mark.sanity
 @pytest.mark.skipif(Util.lt_version_3_3(), reason="只支持 3.3 版本及以上")
 def test_multi_topic_sub_db(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例描述：
         同步2个topic,每个topic订阅一个db,同步至相同db中。
@@ -380,6 +408,11 @@ def test_multi_topic_sub_db(input_data):
 
 @allure.link("https://jira.taosdata.com:18080/browse/TS-5466")
 def test_add_col(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例描述：
         订阅数据源中存在schema变更，且普通列字段逐渐增加至64个以上，taosx同步历史数据时，任务可以正确完成，且数据完整。
@@ -440,6 +473,11 @@ def test_add_col(input_data):
 
 @allure.link("https://jira.taosdata.com:18080/browse/TS-5466")
 def test_add_tag(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例描述：
         订阅数据源中存在schema变更，且普通列字段逐渐增加至64个以上，taosx同步历史数据时，任务可以正确完成，且数据完整。
@@ -499,6 +537,11 @@ def test_add_tag(input_data):
 
 
 def test_multi_topic_sub_stb(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例描述：
         同步多个topic,每个topic订阅一个stb,同步至相同db中。
@@ -506,6 +549,11 @@ def test_multi_topic_sub_stb(input_data):
 
 
 def test_topic_as_select(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例描述：
         同步topic，topic为一个select语句且不带with meta
@@ -513,6 +561,11 @@ def test_topic_as_select(input_data):
 
 @pytest.mark.performance
 def test_case_performance_scenario1(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     tmq_test_logger.info(f"running TD3 to TD3 performance case scenario1...")
     env_data, case_data = input_data
     case_data = Util.read_yaml("tmq/test_tmq_performance.yaml")
@@ -573,6 +626,11 @@ def test_case_performance_scenario1(input_data):
 
 
 def test_case_performance_scenario2():
+    env_data = Util.get_env_data()
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """数据同步性能测试
     用例描述：
         1. 在源IP上用taosBenchmark写入数据，100万子表，meters表，每个子表1000行数据，写入模式stmt+interlace=1
@@ -580,11 +638,14 @@ def test_case_performance_scenario2():
     
     """
 
-    env_data = Util.get_env_data()
-
 @pytest.mark.sanity
 @allure.link("https://jira.taosdata.com:18080/browse/TD-29505")
 def test_sanity_tmq_td29505_01(input_data):
+    env_data = input_data[0]
+    # Skip test if TDengine version >= 3.4
+    if version.parse(env_data["db_version"][:5]) >= version.parse("3.4"):
+        return
+
     """
     用例概述：验证“tmq 数据任务的 vgroup 消费进度可以正确展示（与 taosc 中查询结果一致）”
     用例步骤：
