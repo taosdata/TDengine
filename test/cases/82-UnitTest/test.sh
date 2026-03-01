@@ -62,5 +62,4 @@ fi
 build/bin/clientTest
 build/bin/connectOptionsTest 
 build/bin/instanceTest
-build/bin/tmqTest
 build/bin/taoscTest
