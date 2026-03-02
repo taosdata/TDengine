@@ -356,6 +356,9 @@ int typeStrToType(const char *type_str) {
             if (comma != NULL) {
                 int precision_len = comma - paren - 1;
                 char precision_str[16] = {0};
+                if (precision_len > sizeof(precision_str) - 1) {
+                    precision_len = sizeof(precision_str) - 1;
+                }
                 strncpy(precision_str, paren + 1, precision_len);
 
                 int precision = atoi(precision_str);
@@ -5239,7 +5242,7 @@ static void dumpInAvroDataBinary(FieldStruct *field,
         bind->is_null = is_null;
     } else {
         debugPrint2("%s | ", (char *)buf);
-        if (buf[size - 1] == '\0') size -= 1;
+        if (size > 0 && buf[size - 1] == '\0') size -= 1;
         if (bind->length) *bind->length = (int32_t)size;
     }
     bind->buffer = buf;
@@ -5524,7 +5527,7 @@ static int32_t stmtPrepare(TAOS_STMT2 *stmt, char *tbName, StbChange *stbChange,
     // prepare
     int ret = taos_stmt2_prepare(stmt, stmtBuffer, 0);
     if (ret) {
-        errorPrint("Failed to execute taos_stmt_prepare(). reason: %s\n", taos_stmt2_error(stmt));
+        errorPrint("Failed to execute taos_stmt2_prepare(). reason: %s\n", taos_stmt2_error(stmt));
     }
 
     free(stmtBuffer);

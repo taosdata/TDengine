@@ -248,7 +248,7 @@ class TestTaosdumpDataTypes:
         tdSql.execute("create table db.st(ts timestamp, c1 BLOB) tags(ntag INT)")
         tdSql.execute("create table db.t1 using db.st tags(1)")
         tdSql.execute("insert into db.t1 values(1640000000000, 'abc')")
-        tdSql.execute("insert into db.t1 values(1640000000001, '\x61620063')")
+        tdSql.execute("insert into db.t1 values(1640000000001, '\\x61620063')")
         tdSql.execute("create table db.t2 using db.st tags(NULL)")
         tdSql.execute("insert into db.t2 values(1640000000000, NULL)")
 
@@ -291,10 +291,10 @@ class TestTaosdumpDataTypes:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, b"abc")
 
-        # row with embedded 0-byte; compare via hex
+        # row with embedded 0-byte
         tdSql.query("select c1 from db.st where ntag = 1 order by ts limit 1 offset 1")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, b"\x61620063")
+        tdSql.checkData(0, 0, b"\x61\x62\x00\x63")
 
         # null row
         tdSql.query("select * from db.st where ntag is null")
