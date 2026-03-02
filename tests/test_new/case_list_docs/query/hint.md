@@ -1,2 +1,0 @@
-::: query.hint.test_hint
-
