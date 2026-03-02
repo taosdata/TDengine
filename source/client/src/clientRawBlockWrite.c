@@ -289,7 +289,7 @@ static int32_t buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON
       }
       int32_t length = getLength(field->type, field->bytes, typeMode);
       if (length > 0) {
-        ADD_TO_JSON_NUMBER(json, "length", length);
+        ADD_TO_JSON_NUMBER(json, "colLength", length);
       }
 
       break;
@@ -305,7 +305,7 @@ static int32_t buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON
       }
       int32_t length = getLength(field->type, field->bytes, typeMode);
       if (length > 0) {
-        ADD_TO_JSON_NUMBER(json, "length", length);
+        ADD_TO_JSON_NUMBER(json, "colLength", length);
       }
 
       RAW_RETURN_CHECK(setCompressOption(json, field->compress));
@@ -333,7 +333,7 @@ static int32_t buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON
       ADD_TO_JSON_NUMBER(json, "colType", field->type);
       int32_t length = getLength(field->type, field->bytes, 0);
       if (length > 0) {
-        ADD_TO_JSON_NUMBER(json, "length", length);
+        ADD_TO_JSON_NUMBER(json, "colLength", length);
       }
 
       break;
@@ -674,11 +674,19 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   json = cJSON_CreateObject();
   RAW_NULL_CHECK(json);
   ADD_TO_JSON_STRING(json, "type", "alter");
-  // const char* tableType = (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ||
-  //                                               vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL
-  //                                           ? "child"
-  //                                           : "normal");
-  ADD_TO_JSON_STRING(json, "tableType", "");
+
+  char* tableType = NULL;
+  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ||
+      vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL){
+    tableType = "child";
+  } else if (vAlterTbReq.action == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
+             vAlterTbReq.action == TSDB_ALTER_TABLE_REMOVE_COLUMN_REF) {
+    tableType = "";
+  } else {
+    tableType = "normal";
+  }
+
+  ADD_TO_JSON_STRING(json, "tableType", tableType);
   ADD_TO_JSON_STRING(json, "tableName", vAlterTbReq.tbName);
   ADD_TO_JSON_NUMBER(json, "alterType", vAlterTbReq.action);
 
@@ -691,7 +699,7 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
 
       int32_t length = getLength(vAlterTbReq.type, vAlterTbReq.bytes, vAlterTbReq.typeMod);
       if (length > 0) {
-        ADD_TO_JSON_NUMBER(json, "length", length);
+        ADD_TO_JSON_NUMBER(json, "colLength", length);
       }
 
       if (vAlterTbReq.action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) {
@@ -707,7 +715,7 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
 
       int32_t length = getLength(vAlterTbReq.type, vAlterTbReq.bytes, vAlterTbReq.typeMod);
       if (length > 0) {
-        ADD_TO_JSON_NUMBER(json, "length", length);
+        ADD_TO_JSON_NUMBER(json, "colLength", length);
       }
       RAW_RETURN_CHECK(setCompressOption(json, vAlterTbReq.compress));
       break;
@@ -721,7 +729,7 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
       ADD_TO_JSON_NUMBER(json, "colType", vAlterTbReq.colModType);
       int32_t length = getLength(vAlterTbReq.colModType, vAlterTbReq.colModBytes, vAlterTbReq.typeMod);
       if (length > 0) {
-        ADD_TO_JSON_NUMBER(json, "length", length);
+        ADD_TO_JSON_NUMBER(json, "colLength", length);
       }
       break;
     }
