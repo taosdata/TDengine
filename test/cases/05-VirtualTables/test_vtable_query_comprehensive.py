@@ -175,6 +175,12 @@ class TestVtableQueryComprehensive:
     def test_agg_count(self):
         """Aggregate: COUNT(*), COUNT(col) on vtable with col len < ref len
 
+        Description:
+            Test COUNT(*) and COUNT(column) aggregate functions on virtual table.
+        
+        Validates that COUNT correctly counts all rows and non-NULL values
+        when the virtual table column length is smaller than the source.
+
         Catalog:
             - VirtualTable
 
@@ -203,6 +209,12 @@ class TestVtableQueryComprehensive:
 
     def test_agg_sum_avg(self):
         """Aggregate: SUM, AVG on int/float columns of vtable
+
+        Description:
+            Test SUM and AVG aggregate functions on virtual table.
+        
+        Validates that SUM and AVG correctly compute values on int and float
+        columns of virtual tables with smaller column lengths.
 
         Catalog:
             - VirtualTable
@@ -235,6 +247,12 @@ class TestVtableQueryComprehensive:
     def test_agg_min_max(self):
         """Aggregate: MIN, MAX on int and binary columns of vtable
 
+        Description:
+            Test MIN and MAX aggregate functions on virtual table.
+        
+        Validates that MIN and MAX correctly find minimum and maximum values
+        on both numeric and string columns of virtual tables.
+
         Catalog:
             - VirtualTable
 
@@ -264,6 +282,12 @@ class TestVtableQueryComprehensive:
     def test_agg_spread_stddev(self):
         """Aggregate: SPREAD, STDDEV on vtable
 
+        Description:
+            Test SPREAD and STDDEV aggregate functions on virtual table.
+        
+        Validates that SPREAD (max-min) and STDDEV (standard deviation)
+        work correctly on virtual table columns.
+
         Catalog:
             - VirtualTable
 
@@ -290,6 +314,12 @@ class TestVtableQueryComprehensive:
     def test_agg_hyperloglog(self):
         """Aggregate: HYPERLOGLOG on binary column of vtable
 
+        Description:
+            Test HYPERLOGLOG approximate distinct count on virtual table.
+        
+        Validates that HYPERLOGLOG returns an approximate count of distinct
+        values for binary columns in virtual tables.
+
         Catalog:
             - VirtualTable
 
@@ -312,6 +342,12 @@ class TestVtableQueryComprehensive:
 
     def test_agg_multi_func(self):
         """Aggregate: multiple aggregate functions in single SELECT on vtable
+
+        Description:
+            Test multiple aggregate functions in a single SELECT.
+        
+        Validates that combining COUNT, SUM, AVG, MIN, MAX, and SPREAD in
+        one query returns correct results on virtual tables.
 
         Catalog:
             - VirtualTable
@@ -340,6 +376,12 @@ class TestVtableQueryComprehensive:
 
     def test_sel_first_last(self):
         """Selection: FIRST, LAST on vtable with col len < ref len
+
+        Description:
+            Test FIRST and LAST selection functions on virtual table.
+        
+        Validates that FIRST returns the first value and LAST returns the
+        last value by timestamp for virtual table columns.
 
         Catalog:
             - VirtualTable
@@ -370,6 +412,12 @@ class TestVtableQueryComprehensive:
     def test_sel_top_bottom(self):
         """Selection: TOP, BOTTOM on int column of vtable
 
+        Description:
+            Test TOP and BOTTOM selection functions on virtual table.
+        
+        Validates that TOP(k) returns the k largest values and BOTTOM(k)
+        returns the k smallest values from virtual table columns.
+
         Catalog:
             - VirtualTable
 
@@ -399,6 +447,12 @@ class TestVtableQueryComprehensive:
     def test_sel_last_row(self):
         """Selection: LAST_ROW on vtable
 
+        Description:
+            Test LAST_ROW selection function on virtual table.
+        
+        Validates that LAST_ROW returns the last row's value for virtual
+        table columns with smaller lengths than source.
+
         Catalog:
             - VirtualTable
 
@@ -421,6 +475,12 @@ class TestVtableQueryComprehensive:
 
     def test_sel_sample(self):
         """Selection: SAMPLE on binary column of vtable
+
+        Description:
+            Test SAMPLE selection function on virtual table.
+        
+        Validates that SAMPLE(k) returns k randomly sampled values from
+        virtual table binary columns.
 
         Catalog:
             - VirtualTable
@@ -446,6 +506,12 @@ class TestVtableQueryComprehensive:
 
     def test_str_lower_upper(self):
         """String: LOWER, UPPER on vtable binary col with col len < ref len
+
+        Description:
+            Test LOWER and UPPER string functions on virtual table.
+        
+        Validates that LOWER converts to lowercase and UPPER converts to
+        uppercase for binary columns in virtual tables.
 
         Catalog:
             - VirtualTable
@@ -473,6 +539,12 @@ class TestVtableQueryComprehensive:
 
     def test_str_concat_concat_ws(self):
         """String: CONCAT, CONCAT_WS on vtable
+
+        Description:
+            Test CONCAT and CONCAT_WS string functions on virtual table.
+        
+        Validates that string concatenation functions work correctly on
+        virtual table columns with smaller lengths than source.
 
         Catalog:
             - VirtualTable
@@ -503,6 +575,12 @@ class TestVtableQueryComprehensive:
     def test_str_substr(self):
         """String: SUBSTR on vtable nchar col with col len < ref len
 
+        Description:
+            Test SUBSTR string function on virtual table.
+        
+        Validates that SUBSTR extracts substrings correctly from nchar
+        columns in virtual tables.
+
         Catalog:
             - VirtualTable
 
@@ -525,6 +603,12 @@ class TestVtableQueryComprehensive:
 
     def test_str_ltrim_rtrim(self):
         """String: LTRIM, RTRIM on vtable
+
+        Description:
+            Test LTRIM and RTRIM string functions on virtual table.
+        
+        Validates that LTRIM removes leading whitespace and RTRIM removes
+        trailing whitespace from virtual table binary columns.
 
         Catalog:
             - VirtualTable
@@ -552,6 +636,12 @@ class TestVtableQueryComprehensive:
 
     def test_str_length_char_length(self):
         """String: LENGTH, CHAR_LENGTH on vtable
+
+        Description:
+            Test LENGTH and CHAR_LENGTH string functions on virtual table.
+        
+        Validates that LENGTH and CHAR_LENGTH return correct string lengths
+        for binary and nchar columns in virtual tables.
 
         Catalog:
             - VirtualTable
@@ -581,6 +671,12 @@ class TestVtableQueryComprehensive:
     def test_str_replace(self):
         """String: REPLACE on vtable binary col
 
+        Description:
+            Test REPLACE string function on virtual table.
+        
+        Validates that REPLACE correctly substitutes substrings in binary
+        columns of virtual tables.
+
         Catalog:
             - VirtualTable
 
@@ -603,6 +699,12 @@ class TestVtableQueryComprehensive:
 
     def test_str_ascii_position(self):
         """String: ASCII, POSITION on vtable binary col
+
+        Description:
+            Test ASCII and POSITION string functions on virtual table.
+        
+        Validates that ASCII returns character codes and POSITION finds
+        substring positions in virtual table binary columns.
 
         Catalog:
             - VirtualTable
@@ -638,6 +740,12 @@ class TestVtableQueryComprehensive:
 
     def test_math_abs_ceil_floor_round(self):
         """Math: ABS, CEIL, FLOOR, ROUND on vtable float col
+
+        Description:
+            Test ABS, CEIL, FLOOR, ROUND math functions on virtual table.
+        
+        Validates that math functions work correctly on float columns in
+        virtual tables.
 
         Catalog:
             - VirtualTable
@@ -675,6 +783,12 @@ class TestVtableQueryComprehensive:
     def test_cast(self):
         """Conversion: CAST int to binary, int to nchar on vtable
 
+        Description:
+            Test CAST conversion function on virtual table.
+        
+        Validates that CAST correctly converts int columns to binary and
+        nchar types in virtual tables.
+
         Catalog:
             - VirtualTable
 
@@ -702,6 +816,12 @@ class TestVtableQueryComprehensive:
 
     def test_arithmetic(self):
         """Math: arithmetic expressions on vtable int/float cols
+
+        Description:
+            Test arithmetic expressions on virtual table.
+        
+        Validates that arithmetic operations (+, -, *, /) work correctly
+        on int and float columns of virtual tables.
 
         Catalog:
             - VirtualTable
@@ -731,6 +851,12 @@ class TestVtableQueryComprehensive:
     def test_where_eq_neq(self):
         """Filter: = and <> on binary col of vtable with col len < ref len
 
+        Description:
+            Test equality and inequality filters on virtual table.
+        
+        Validates that = and <> operators work correctly on binary columns
+        in virtual tables with smaller lengths than source.
+
         Catalog:
             - VirtualTable
 
@@ -756,6 +882,12 @@ class TestVtableQueryComprehensive:
     def test_where_like(self):
         """Filter: LIKE on binary col of vtable
 
+        Description:
+            Test LIKE pattern matching filter on virtual table.
+        
+        Validates that LIKE with wildcards works correctly on binary columns
+        in virtual tables.
+
         Catalog:
             - VirtualTable
 
@@ -779,6 +911,12 @@ class TestVtableQueryComprehensive:
     def test_where_in(self):
         """Filter: IN on binary col of vtable
 
+        Description:
+            Test IN list filter on virtual table.
+        
+        Validates that IN operator correctly matches values in a list for
+        binary columns in virtual tables.
+
         Catalog:
             - VirtualTable
 
@@ -800,6 +938,12 @@ class TestVtableQueryComprehensive:
 
     def test_where_between(self):
         """Filter: BETWEEN on int col of vtable
+
+        Description:
+            Test BETWEEN range filter on virtual table.
+        
+        Validates that BETWEEN operator correctly filters numeric values
+        in virtual tables.
 
         Catalog:
             - VirtualTable
@@ -826,6 +970,12 @@ class TestVtableQueryComprehensive:
     def test_where_is_null(self):
         """Filter: IS NULL / IS NOT NULL on vtable
 
+        Description:
+            Test IS NULL and IS NOT NULL filters on virtual table.
+        
+        Validates that NULL checks work correctly on virtual table columns
+        with smaller lengths than source.
+
         Catalog:
             - VirtualTable
 
@@ -850,6 +1000,12 @@ class TestVtableQueryComprehensive:
 
     def test_where_combined(self):
         """Filter: combined WHERE conditions on vtable
+
+        Description:
+            Test combined AND/OR filter conditions on virtual table.
+        
+        Validates that multiple filter conditions combined with AND work
+        correctly on virtual tables.
 
         Catalog:
             - VirtualTable
@@ -876,6 +1032,12 @@ class TestVtableQueryComprehensive:
 
     def test_order_limit_offset(self):
         """Query: ORDER BY, LIMIT, OFFSET on vtable
+
+        Description:
+            Test ORDER BY, LIMIT, and OFFSET on virtual table.
+        
+        Validates that result ordering and pagination work correctly on
+        virtual tables with smaller column lengths.
 
         Catalog:
             - VirtualTable
@@ -919,6 +1081,12 @@ class TestVtableQueryComprehensive:
     def test_distinct(self):
         """Query: DISTINCT on vtable binary col
 
+        Description:
+            Test DISTINCT keyword on virtual table.
+        
+        Validates that DISTINCT correctly deduplicates values from virtual
+        table binary columns.
+
         Catalog:
             - VirtualTable
 
@@ -940,6 +1108,12 @@ class TestVtableQueryComprehensive:
 
     def test_case_when(self):
         """Query: CASE WHEN on vtable
+
+        Description:
+            Test CASE WHEN conditional expression on virtual table.
+        
+        Validates that CASE WHEN expressions evaluate correctly on virtual
+        table columns.
 
         Catalog:
             - VirtualTable
@@ -972,6 +1146,12 @@ class TestVtableQueryComprehensive:
     def test_subquery_scalar(self):
         """Subquery: scalar subquery with vtable
 
+        Description:
+            Test scalar subquery on virtual table.
+        
+        Validates that scalar subqueries (returning a single value) work
+        correctly with virtual tables.
+
         Catalog:
             - VirtualTable
 
@@ -995,6 +1175,12 @@ class TestVtableQueryComprehensive:
     def test_subquery_table(self):
         """Subquery: table subquery (FROM subquery) with vtable
 
+        Description:
+            Test table subquery (FROM subquery) on virtual table.
+        
+        Validates that subqueries in FROM clause work correctly with
+        virtual tables.
+
         Catalog:
             - VirtualTable
 
@@ -1017,6 +1203,12 @@ class TestVtableQueryComprehensive:
 
     def test_subquery_nested(self):
         """Subquery: nested subquery (3 levels) with vtable
+
+        Description:
+            Test nested subqueries (3 levels) on virtual table.
+        
+        Validates that deeply nested subqueries work correctly with
+        virtual tables.
 
         Catalog:
             - VirtualTable
@@ -1046,6 +1238,12 @@ class TestVtableQueryComprehensive:
     def test_subquery_with_string_func(self):
         """Subquery: string functions inside subquery on vtable
 
+        Description:
+            Test string functions inside subquery on virtual table.
+        
+        Validates that string functions like LOWER work correctly inside
+        subqueries on virtual tables.
+
         Catalog:
             - VirtualTable
 
@@ -1073,6 +1271,12 @@ class TestVtableQueryComprehensive:
 
     def test_subquery_agg_filter(self):
         """Subquery: aggregate in subquery, filter in outer on vtable
+
+        Description:
+            Test aggregate in subquery with filter in outer query.
+        
+        Validates that using aggregate functions in subqueries with filters
+        in outer queries works on virtual tables.
 
         Catalog:
             - VirtualTable
@@ -1104,6 +1308,12 @@ class TestVtableQueryComprehensive:
     def test_subquery_with_window(self):
         """Subquery: window function result used in outer query
 
+        Description:
+            Test window function in subquery on virtual table.
+        
+        Validates that INTERVAL window results can be used in outer queries
+        on virtual tables.
+
         Catalog:
             - VirtualTable
 
@@ -1130,6 +1340,12 @@ class TestVtableQueryComprehensive:
     def test_subquery_with_join(self):
         """Subquery: JOIN inside subquery
 
+        Description:
+            Test JOIN inside subquery on virtual table.
+        
+        Validates that JOIN operations inside subqueries work correctly
+        with virtual tables.
+
         Catalog:
             - VirtualTable
 
@@ -1154,6 +1370,12 @@ class TestVtableQueryComprehensive:
 
     def test_subquery_with_union(self):
         """Subquery: UNION ALL inside subquery
+
+        Description:
+            Test UNION ALL inside subquery on virtual table.
+        
+        Validates that UNION ALL operations inside subqueries work correctly
+        with virtual tables.
 
         Catalog:
             - VirtualTable
@@ -1182,6 +1404,12 @@ class TestVtableQueryComprehensive:
 
     def test_join_vtable_with_regular(self):
         """JOIN: vtable JOIN regular table on timestamp
+
+        Description:
+            Test JOIN between virtual table and regular table.
+        
+        Validates that joining a virtual table with a regular table on
+        timestamp works correctly.
 
         Catalog:
             - VirtualTable
@@ -1214,6 +1442,12 @@ class TestVtableQueryComprehensive:
     def test_join_vtable_with_vtable(self):
         """JOIN: two vtables joined on timestamp (expect error - not supported)
 
+        Description:
+            Test JOIN between two virtual tables (negative case).
+        
+        Validates that joining two virtual tables returns an error as this
+        is not currently supported.
+
         Catalog:
             - VirtualTable
 
@@ -1239,6 +1473,12 @@ class TestVtableQueryComprehensive:
     def test_union_all(self):
         """UNION ALL: combine results from vtable queries
 
+        Description:
+            Test UNION ALL combining vtable query results.
+        
+        Validates that UNION ALL correctly combines results from multiple
+        virtual table queries without deduplication.
+
         Catalog:
             - VirtualTable
 
@@ -1261,6 +1501,12 @@ class TestVtableQueryComprehensive:
 
     def test_union_dedup(self):
         """UNION: deduplicate results from vtable queries
+
+        Description:
+            Test UNION deduplicating vtable query results.
+        
+        Validates that UNION correctly combines and deduplicates results
+        from multiple virtual table queries.
 
         Catalog:
             - VirtualTable
@@ -1287,6 +1533,12 @@ class TestVtableQueryComprehensive:
 
     def test_group_by_with_agg(self):
         """GROUP BY: aggregate with GROUP BY on vtable
+
+        Description:
+            Test GROUP BY with aggregate on virtual table.
+        
+        Validates that GROUP BY clause with aggregate functions works
+        correctly on virtual tables.
 
         Catalog:
             - VirtualTable
@@ -1318,6 +1570,12 @@ class TestVtableQueryComprehensive:
     def test_partition_by(self):
         """PARTITION BY: on virtual super table
 
+        Description:
+            Test PARTITION BY on virtual super table.
+        
+        Validates that PARTITION BY clause works correctly on virtual
+        super tables for data partitioning.
+
         Catalog:
             - VirtualTable
 
@@ -1346,6 +1604,12 @@ class TestVtableQueryComprehensive:
     def test_interval_window(self):
         """Window: INTERVAL on vtable
 
+        Description:
+            Test INTERVAL window function on virtual table.
+        
+        Validates that time-based windowing with INTERVAL works correctly
+        on virtual tables.
+
         Catalog:
             - VirtualTable
 
@@ -1373,6 +1637,12 @@ class TestVtableQueryComprehensive:
     def test_interval_fill(self):
         """Window: INTERVAL with FILL on vtable (requires time range)
 
+        Description:
+            Test INTERVAL with FILL on virtual table.
+        
+        Validates that INTERVAL window with FILL clause for missing values
+        works correctly on virtual tables.
+
         Catalog:
             - VirtualTable
 
@@ -1397,6 +1667,12 @@ class TestVtableQueryComprehensive:
 
     def test_session_window(self):
         """Window: SESSION on vtable
+
+        Description:
+            Test SESSION window function on virtual table.
+        
+        Validates that session-based windowing works correctly on virtual
+        tables.
 
         Catalog:
             - VirtualTable
@@ -1428,6 +1704,12 @@ class TestVtableQueryComprehensive:
     def test_vstb_select_all(self):
         """Query: SELECT * from virtual super table
 
+        Description:
+            Test SELECT * on virtual super table.
+        
+        Validates that SELECT * returns all rows correctly from virtual
+        super tables.
+
         Catalog:
             - VirtualTable
 
@@ -1447,6 +1729,12 @@ class TestVtableQueryComprehensive:
 
     def test_vstb_agg(self):
         """Query: aggregate on virtual super table
+
+        Description:
+            Test aggregate functions on virtual super table.
+        
+        Validates that aggregate functions like COUNT, FIRST, LAST work
+        correctly on virtual super tables.
 
         Catalog:
             - VirtualTable
@@ -1474,6 +1762,12 @@ class TestVtableQueryComprehensive:
     def test_vstb_interval(self):
         """Query: INTERVAL on virtual super table
 
+        Description:
+            Test INTERVAL window on virtual super table.
+        
+        Validates that INTERVAL window function works correctly on virtual
+        super tables.
+
         Catalog:
             - VirtualTable
 
@@ -1496,6 +1790,11 @@ class TestVtableQueryComprehensive:
 
     def test_vstb_subquery(self):
         """Query: subquery on virtual super table
+
+        Description:
+            Test subquery on virtual super table.
+        
+        Validates that subqueries work correctly on virtual super tables.
 
         Catalog:
             - VirtualTable
@@ -1526,6 +1825,12 @@ class TestVtableQueryComprehensive:
     def test_vct_select_all(self):
         """Query: SELECT * from individual virtual child tables
 
+        Description:
+            Test SELECT * on virtual child tables.
+        
+        Validates that SELECT * returns correct data from individual
+        virtual child tables.
+
         Catalog:
             - VirtualTable
 
@@ -1553,6 +1858,12 @@ class TestVtableQueryComprehensive:
 
     def test_vct_agg(self):
         """Query: aggregate on individual virtual child tables
+
+        Description:
+            Test aggregate functions on virtual child tables.
+        
+        Validates that COUNT and SUM work correctly on individual virtual
+        child tables.
 
         Catalog:
             - VirtualTable
@@ -1585,6 +1896,12 @@ class TestVtableQueryComprehensive:
     def test_vct_string_func(self):
         """Query: string functions on virtual child table
 
+        Description:
+            Test string functions on virtual child tables.
+        
+        Validates that LOWER and LENGTH work correctly on individual
+        virtual child tables.
+
         Catalog:
             - VirtualTable
 
@@ -1613,8 +1930,13 @@ class TestVtableQueryComprehensive:
 
     # ========================= EDGE CASES ===================================
 
-    def test_select_star(self):
-        """Query: SELECT * on vtable with col len < ref len
+def test_select_star(self):
+        """Verify SELECT * returns all columns correctly from vtable
+
+        Description:
+            Test that SELECT * on a virtual table with column lengths smaller
+            than the referenced source columns returns all data correctly.
+            Validates that the TMAX(vtb_bytes, ref_bytes) fix works end-to-end.
 
         Catalog:
             - VirtualTable
@@ -1637,8 +1959,13 @@ class TestVtableQueryComprehensive:
             tdSql.checkData(i, 2, self.NCH[i])
             tdSql.checkData(i, 3, self.IVAL[i])
 
-    def test_consistency_with_source(self):
-        """Query: compare results from vtable and source table
+def test_consistency_with_source(self):
+        """Verify data returned from vtable matches source table exactly
+
+        Description:
+            Test that querying binary and nchar columns from the virtual table
+            returns identical data to querying the source table directly.
+            This validates the virtual table correctly references source data.
 
         Catalog:
             - VirtualTable
@@ -1668,8 +1995,13 @@ class TestVtableQueryComprehensive:
         assert vtb_data == src_data, \
             f"vtb_lt data differs from src_ntb:\nvtb={vtb_data}\nsrc={src_data}"
 
-    def test_count_consistency(self):
-        """Query: COUNT consistency between vtable and source
+def test_count_consistency(self):
+        """Verify COUNT(*) returns same results from vtable and source table
+
+        Description:
+            Test that COUNT(*) aggregate function returns consistent results
+            when querying the virtual table versus the source table directly.
+            This validates that the virtual table correctly references all rows.
 
         Catalog:
             - VirtualTable
