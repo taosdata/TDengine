@@ -252,6 +252,7 @@ function install_bin() {
     ${csudo}rm -f ${bin_link_dir}/taos-explorer || :
     ${csudo}rm -f ${bin_link_dir}/taosdemo || :
     ${csudo}rm -f ${bin_link_dir}/taosdump || :
+    ${csudo}rm -f ${bin_link_dir}/taosBackup || :
     ${csudo}rm -f ${bin_link_dir}/rmtaos   || :
     ${csudo}rm -f ${bin_link_dir}/set_core || :
     ${csudo}rm -f ${bin_link_dir}/*explorer || :
@@ -292,6 +293,9 @@ function install_bin() {
     fi
     if [ -x ${bin_dir}/taosdump ]; then
       ${csudo}ln -s ${bin_dir}/taosdump ${bin_link_dir}/taosdump             2>>${install_log_path} || return 1
+    fi
+    if [ -x ${bin_dir}/taosBackup ]; then
+      ${csudo}ln -s ${bin_dir}/taosBackup ${bin_link_dir}/taosBackup         2>>${install_log_path} || return 1
     fi
     if [ -x ${bin_dir}/set_core.sh ]; then
       ${csudo}ln -s ${bin_dir}/set_core.sh ${bin_link_dir}/set_core          2>>${install_log_path} || return 1
