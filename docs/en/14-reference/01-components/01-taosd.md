@@ -294,9 +294,15 @@ The effective value of charset is UTF-8.
 | numOfVnodeStreamReaderThreads|                 | Not supported                      | Vnode stream reader thread count, range 2-INT32_MAX, default value is half of CPU cores (not less than 2) |
 | numOfStreamTriggerThreads  |                   | Supported, effective after restart | Stream trigger thread count, range 4-INT32_MAX, default value is CPU cores (not less than 4) |
 | numOfStreamRunnerThreads   |                   | Supported, effective after restart | Stream executor thread count, range 4-INT32_MAX, default value is CPU cores (not less than 4) |
-| enableStrongPassword       | After 3.3.6.0     | Supported, effective after restart | The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
 |enableIpv6                  | 3.3.7.0           |not Supported                       | force nodes to communicate directly via IPv6 only, default value is 0, notes: 1. `firstep`, `sencodep`, and `FQDN` must all resolve to IPv6 addresses. 2. Mixed IPv4/IPv6 deployment is not supported                                                                          |
 |statusInterval              | 3.3.0.0           | Supported, effective immediately   | Controls the interval time for dnode to send status reports to mnode                                                                                                                                                                                                           |
+
+### Security Related
+
+| Parameter Name          | Supported Version | Dynamic Modification               | Description                                                  |
+| ----------------------- | ----------------- | ---------------------------------- | ------------------------------------------------------------ |
+| enableStrongPassword    | After 3.3.6.0     | Supported, effective after restart | The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
+| enableAdvancedSecurity  | After 3.4.0.10    | Supported, effective immediately   | Whether advanced security features are enabled by default, used to control whether security policies such as password expiration and password rotation are enabled by default for newly created users (but the default behavior can be changed by explicitly specifying relevant parameters when creating a user); 0: disable, 1: enable,; default value 1 |
 
 ### Stream Computing Parameters
 
