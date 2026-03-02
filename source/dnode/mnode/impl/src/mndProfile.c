@@ -92,6 +92,52 @@ static int32_t   mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void      mndCancelGetNextApp(SMnode *pMnode, void *pIter);
 static int32_t   mndProcessSvrVerReq(SRpcMsg *pReq);
 
+static const char* queryStatusNames[] = {"UNKNOWN", "QUEUED", "RUNNING", "FETCHING"};
+
+static int8_t inferQueryStatus(SQueryDesc *pQuery) {
+  // Case 1: No sub-tasks dispatched yet
+  if (pQuery->subPlanNum == 0) {
+    return QUERY_STATUS_QUEUED;
+  }
+  
+  // Case 2: No sub-task description available
+  if (pQuery->subDesc == NULL) {
+    return QUERY_STATUS_UNKNOWN;
+  }
+  
+  int32_t total = taosArrayGetSize(pQuery->subDesc);
+  if (total == 0) {
+    return QUERY_STATUS_UNKNOWN;
+  }
+  
+  // Case 3: Infer from sub-task status
+  int32_t running = 0, fetching = 0;
+  
+  for (int32_t i = 0; i < total; i++) {
+    SQuerySubDesc *pDesc = taosArrayGet(pQuery->subDesc, i);
+    
+    if (taosStrCaseStr(pDesc->status, "executing") != NULL || 
+        taosStrCaseStr(pDesc->status, "running") != NULL) {
+      running++;
+    }
+    
+    if (taosStrCaseStr(pDesc->status, "fetching") != NULL || 
+        taosStrCaseStr(pDesc->status, "ready") != NULL) {
+      fetching++;
+    }
+  }
+  
+  if (running > 0) {
+    return QUERY_STATUS_RUNNING;
+  }
+  
+  if (fetching == total) {
+    return QUERY_STATUS_FETCHING;
+  }
+  
+  return QUERY_STATUS_UNKNOWN;
+}
+
 int32_t mndInitProfile(SMnode *pMnode) {
   int32_t       code = 0;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
@@ -1322,6 +1368,48 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)userIp, false);
     if (code != 0) {
       mError("failed to set user ip since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
+
+    // Column 17: status
+    int8_t queryStatus = inferQueryStatus(pQuery);
+    char statusStr[16 + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(statusStr, queryStatusNames[queryStatus]);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char*)statusStr, false);
+    if (code != 0) {
+      mError("failed to set status since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
+
+    // Column 18: elapsed_ms
+    int64_t currentTs = taosGetTimestampMs();
+    int64_t elapsedMs = currentTs - pQuery->stime;
+    if (elapsedMs < 0) elapsedMs = 0;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char*)&elapsedMs, false);
+    if (code != 0) {
+      mError("failed to set elapsed_ms since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
+
+    // Column 19: estimated_total_ms (Phase 1: always NULL)
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, curRowIndex, NULL, true);
+    if (code != 0) {
+      mError("failed to set estimated_total_ms since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
+
+    // Column 20: progress_pct (Phase 1: always NULL)
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, curRowIndex, NULL, true);
+    if (code != 0) {
+      mError("failed to set progress_pct since %s", tstrerror(code));
       taosRUnLockLatch(&pConn->queryLock);
       return code;
     }

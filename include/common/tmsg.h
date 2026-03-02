@@ -5034,6 +5034,14 @@ typedef struct {
   char    status[TSDB_JOB_STATUS_LEN];
 } SQuerySubDesc;
 
+typedef enum {
+  QUERY_STATUS_UNKNOWN  = 0,
+  QUERY_STATUS_QUEUED   = 1,
+  QUERY_STATUS_RUNNING  = 2,
+  QUERY_STATUS_FETCHING = 3,
+} EQueryStatus;
+
+
 typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
   uint64_t queryId;
@@ -5045,6 +5053,9 @@ typedef struct {
   char     fqdn[TSDB_FQDN_LEN];
   int32_t  subPlanNum;
   SArray*  subDesc;  // SArray<SQuerySubDesc>
+  // New fields for SHOW QUERIES enhancement
+  int8_t   status;        // EQueryStatus
+  int8_t   reserved[3];   // alignment padding
 } SQueryDesc;
 
 typedef struct {
