@@ -2001,14 +2001,16 @@ int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamR
 int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t rowStartIdx, int32_t rowEndIdx,
                                        const SStreamRuntimeFuncInfo* pExtraParams) {
   int32_t      code = 0;
-  SNode*       pNode = 0;
+  SNode*       pNode = NULL;
   SNodeList*   pList = NULL;
   SExprInfo*   pExprInfo = NULL;
   int32_t      numOfExprs = 1;
-  int32_t*     offset = 0;
+  int32_t*     offset = NULL;
   STargetNode* pTargetNode = NULL;
   code = nodesMakeNode(QUERY_NODE_TARGET, (SNode**)&pTargetNode);
-  if (code == 0) code = nodesCloneNode(pExpr, &pNode);
+  if (code == 0) {
+    code = nodesCloneNode(pExpr, &pNode);
+  }
 
   if (code == 0) {
     pTargetNode->dataBlockId = 0;

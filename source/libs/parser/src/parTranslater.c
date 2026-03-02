@@ -13347,6 +13347,21 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                    "Cannot create user with inherit roles: %s", pStmt->userName);
   }
+
+  createReq.hasSessionPerUser = pStmt->hasSessionPerUser;
+  createReq.hasConnectTime = pStmt->hasConnectTime;
+  createReq.hasConnectIdleTime = pStmt->hasConnectIdleTime;
+  createReq.hasCallPerSession = pStmt->hasCallPerSession;
+  createReq.hasVnodePerCall = pStmt->hasVnodePerCall;
+  createReq.hasFailedLoginAttempts = pStmt->hasFailedLoginAttempts;
+  createReq.hasPasswordLifeTime = pStmt->hasPasswordLifeTime;
+  createReq.hasPasswordReuseTime = pStmt->hasPasswordReuseTime;
+  createReq.hasPasswordReuseMax = pStmt->hasPasswordReuseMax;
+  createReq.hasPasswordLockTime = pStmt->hasPasswordLockTime;
+  createReq.hasPasswordGraceTime = pStmt->hasPasswordGraceTime;
+  createReq.hasInactiveAccountTime = pStmt->hasInactiveAccountTime;
+  createReq.hasAllowTokenNum = pStmt->hasAllowTokenNum;
+
   tstrncpy(createReq.user, pStmt->userName, TSDB_USER_LEN);
   createReq.createType = 0;
   createReq.superUser = 0;
