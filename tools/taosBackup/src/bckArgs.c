@@ -1,0 +1,492 @@
+/*
+ * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the MIT license as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ */
+    
+#include "bckArgs.h"
+#include "bck.h"
+#include <stddef.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+//
+// ---------------- global args state ----------------
+//
+
+#define MAX_DBS 64
+
+static enum ActionType g_action    = ACTION_BACKUP;
+static char  g_outPath[MAX_PATH_LEN]   = "./output";
+static char  g_host[256]           = "localhost";
+static int   g_port                = 6030;
+static char  g_user[128]           = "root";
+static char  g_password[128]       = "taosdata";
+static int   g_dataThread          = 8;
+static int   g_tagThread           = 2;
+static int   g_retryCount          = 3;
+static int   g_retrySleepMs        = 1000;
+static char *g_dbs[MAX_DBS + 1]    = { NULL };
+static int   g_dbCount             = 0;
+static char  g_startTime[64]       = "";
+static char  g_endTime[64]         = "";
+static char  g_timeFilter[256]     = "";
+static int   g_schemaOnly          = 0;
+static int   g_debug               = 0;
+StorageFormat g_storageFormat = BINARY_TAOS; // default
+StmtVersion   g_stmtVersion  = STMT_VERSION_2; // default: STMT2
+
+// rename map: oldName -> newName
+#define MAX_RENAME 64
+static char *g_renameOld[MAX_RENAME];
+static char *g_renameNew[MAX_RENAME];
+static int   g_renameCount = 0;
+static char  g_renameRaw[1024] = "";
+
+//
+// ---------------- usage ----------------
+//
+
+static void printVersion() {
+    printf("taosBackup version: v1.0\n");
+}
+
+static void printUsage(const char *prog) {
+    printf("Usage: %s [OPTION...] -o outpath\n", prog);
+    printf("  or:  %s [OPTION...] -i inpath\n", prog);
+    printf("  or:  %s [OPTION...] --databases db1,db2,...\n", prog);
+    printf("\nOptions:\n");
+    printf("  -h, --host=HOST            Server host. Default is localhost.\n");
+    printf("  -p, --password=PASSWORD    User password. Default is taosdata.\n");
+    printf("  -P, --port=PORT            Server port. Default is 6030.\n");
+    printf("  -u, --user=USER            User name. Default is root.\n");
+    printf("  -i, --inpath=INPATH        Input file path for restore.\n");
+    printf("  -o, --outpath=OUTPATH      Output file path for backup.\n");
+    printf("  -D, --databases=DATABASES  Databases to backup/restore. Use comma\n");
+    printf("                             to separate names. Default is all.\n");
+    printf("  -F, --format=FORMAT        Data file format: binary (default) or parquet\n");
+    printf("  -v, --stmt-version=VER     Restore STMT API version: 2 (default, faster)\n");
+    printf("                             or 1 (legacy). Restore only.\n");
+    printf("  -s, --schemaonly           Only backup table schemas, no data.\n");
+    printf("  -S, --start-time=START_TIME\n");
+    printf("                             Start time to dump. Either epoch or\n");
+    printf("                             ISO8601 format is acceptable. Example:\n");
+    printf("                             1500000000000 or\n");
+    printf("                             2017-10-01T00:00:00.000+0800\n");
+    printf("  -E, --end-time=END_TIME    End time to dump. Either epoch or\n");
+    printf("                             ISO8601 format is acceptable. Example:\n");
+    printf("                             1500000000000 or\n");
+    printf("                             2017-10-01T00:00:00.000+0800\n");
+    printf("  -T, --thread-num=THREAD_NUM\n");
+    printf("                             Number of threads for data backup/restore.\n");
+    printf("                             Default is 8.\n");
+    printf("  -m, --tag-thread-num=THREAD_NUM\n");
+    printf("                             Number of threads for tag backup.\n");
+    printf("                             Default is 2.\n");
+    printf("  -k, --retry-count=VALUE    Number of retry attempts. Default is 3.\n");
+    printf("  -z, --retry-sleep-ms=VALUE Sleep between retries in ms. Default is\n");
+    printf("                             1000.\n");
+    printf("  -W, --rename=RENAME-LIST   Rename database during restore.\n");
+    printf("                             RENAME-LIST example:\n");
+    printf("                             \"db1=newdb1|db2=newdb2|...\"\n");
+    printf("  -g, --debug                Enable debug mode.\n");
+    printf("      --help                 Give this help list.\n");
+    printf("  -V, --version              Print program version.\n");
+}
+
+//
+// ---------------- long option helpers ----------------
+//
+
+// Check if argv[i] matches a long option and extract value.
+// Supports: --option=value  or  --option value (next argv)
+// Returns the value string, or NULL if no match.
+// Advances *pi past the consumed args.
+static const char* matchLong(int argc, char *argv[], int *pi, const char *name, int needsValue) {
+    int i = *pi;
+    size_t nlen = strlen(name);
+
+    if (strncmp(argv[i], name, nlen) != 0) return NULL;
+
+    if (argv[i][nlen] == '=') {
+        // --option=value
+        return &argv[i][nlen + 1];
+    }
+
+    if (argv[i][nlen] == '\0') {
+        if (!needsValue) return "";  // flag-only
+        if (i + 1 < argc) {
+            *pi = i + 1;
+            return argv[i + 1];
+        }
+        return NULL;  // missing value
+    }
+
+    return NULL;  // no match
+}
+
+//
+// ---------------- parse databases ----------------
+//
+
+static void parseDatabases(const char *dbStr) {
+    // free previous
+    for (int i = 0; i < g_dbCount; i++) {
+        taosMemoryFree(g_dbs[i]);
+        g_dbs[i] = NULL;
+    }
+    g_dbCount = 0;
+
+    // parse comma-separated list
+    char *copy = taosStrdup(dbStr);
+    char *token = strtok(copy, ",");
+    while (token != NULL && g_dbCount < MAX_DBS) {
+        // trim spaces
+        while (*token == ' ') token++;
+        char *end = token + strlen(token) - 1;
+        while (end > token && *end == ' ') *end-- = '\0';
+
+        if (strlen(token) > 0) {
+            g_dbs[g_dbCount] = taosStrdup(token);
+            g_dbCount++;
+        }
+        token = strtok(NULL, ",");
+    }
+    g_dbs[g_dbCount] = NULL;
+    taosMemoryFree(copy);
+}
+
+//
+// ---------------- interface ----------------
+//
+
+int argsInit(int argc, char *argv[]) {
+    int hasOutput = 0;
+    int hasInput  = 0;
+    const char *val = NULL;
+
+    for (int i = 1; i < argc; i++) {
+        // ---- outpath ----
+        if ((strcmp(argv[i], "-o") == 0 && i + 1 < argc && (val = argv[++i])) ||
+            (val = matchLong(argc, argv, &i, "--outpath", 1))) {
+            snprintf(g_outPath, sizeof(g_outPath), "%s", val);
+            g_action = ACTION_BACKUP;
+            hasOutput = 1;
+        }
+        // ---- inpath ----
+        else if ((strcmp(argv[i], "-i") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--inpath", 1))) {
+            snprintf(g_outPath, sizeof(g_outPath), "%s", val);
+            g_action = ACTION_RESTORE;
+            hasInput = 1;
+        }
+        // ---- databases ----
+        else if ((strcmp(argv[i], "-D") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--databases", 1))) {
+            parseDatabases(val);
+        }
+        // ---- format ----
+        else if ((strcmp(argv[i], "-F") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--format", 1))) {
+            if (strcasecmp(val, "binary") == 0) {
+                g_storageFormat = BINARY_TAOS;
+            } else if (strcasecmp(val, "parquet") == 0) {
+                g_storageFormat = BINARY_PARQUET;
+            } else {
+                printf("error: unknown format: %s\n", val);
+                printUsage(argv[0]);
+                return -1;
+            }
+        }
+        // ---- stmt-version ----
+        else if ((strcmp(argv[i], "-v") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--stmt-version", 1))) {
+            if (strcmp(val, "1") == 0 || strcasecmp(val, "stmt1") == 0) {
+                g_stmtVersion = STMT_VERSION_1;
+            } else if (strcmp(val, "2") == 0 || strcasecmp(val, "stmt2") == 0) {
+                g_stmtVersion = STMT_VERSION_2;
+            } else {
+                printf("error: unknown stmt-version: %s (use 1 or 2)\n", val);
+                printUsage(argv[0]);
+                return -1;
+            }
+        }
+        // ---- thread-num ----
+        else if ((strcmp(argv[i], "-T") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--thread-num", 1))) {
+            g_dataThread = atoi(val);
+            if (g_dataThread < 1) g_dataThread = 1;
+        }
+        // ---- tag-thread-num ----
+        else if ((strcmp(argv[i], "-m") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--tag-thread-num", 1))) {
+            g_tagThread = atoi(val);
+            if (g_tagThread < 1) g_tagThread = 1;
+        }
+        // ---- host ----
+        else if ((strcmp(argv[i], "-h") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--host", 1))) {
+            snprintf(g_host, sizeof(g_host), "%s", val);
+        }
+        // ---- port ----
+        else if ((strcmp(argv[i], "-P") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--port", 1))) {
+            g_port = atoi(val);
+        }
+        // ---- user ----
+        else if ((strcmp(argv[i], "-u") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--user", 1))) {
+            snprintf(g_user, sizeof(g_user), "%s", val);
+        }
+        // ---- password ----
+        else if ((strcmp(argv[i], "-p") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--password", 1))) {
+            snprintf(g_password, sizeof(g_password), "%s", val);
+        }
+        // ---- start-time ----
+        else if ((strcmp(argv[i], "-S") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--start-time", 1))) {
+            snprintf(g_startTime, sizeof(g_startTime), "%s", val);
+        }
+        // ---- end-time ----
+        else if ((strcmp(argv[i], "-E") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--end-time", 1))) {
+            snprintf(g_endTime, sizeof(g_endTime), "%s", val);
+        }
+        // ---- schemaonly ----
+        else if (strcmp(argv[i], "-s") == 0 || matchLong(argc, argv, &i, "--schemaonly", 0)) {
+            g_schemaOnly = 1;
+        }
+        // ---- debug ----
+        else if (strcmp(argv[i], "-g") == 0 || matchLong(argc, argv, &i, "--debug", 0)) {
+            g_debug = 1;
+        }
+        // ---- retry-count ----
+        else if ((strcmp(argv[i], "-k") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--retry-count", 1))) {
+            g_retryCount = atoi(val);
+            if (g_retryCount < 0) g_retryCount = 0;
+        }
+        // ---- retry-sleep-ms ----
+        else if ((strcmp(argv[i], "-z") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--retry-sleep-ms", 1))) {
+            g_retrySleepMs = atoi(val);
+            if (g_retrySleepMs < 0) g_retrySleepMs = 0;
+        }
+        // ---- rename ----
+        else if ((strcmp(argv[i], "-W") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--rename", 1))) {
+            snprintf(g_renameRaw, sizeof(g_renameRaw), "%s", val);
+            // parse "db1=newDB1|db2=newDB2"
+            char *copy = taosStrdup(val);
+            char *pair = strtok(copy, "|");
+            while (pair != NULL && g_renameCount < MAX_RENAME) {
+                char *eq = strchr(pair, '=');
+                if (eq) {
+                    *eq = '\0';
+                    // trim spaces
+                    char *oldN = pair;
+                    while (*oldN == ' ') oldN++;
+                    char *newN = eq + 1;
+                    while (*newN == ' ') newN++;
+                    char *e1 = oldN + strlen(oldN) - 1;
+                    while (e1 > oldN && *e1 == ' ') *e1-- = '\0';
+                    char *e2 = newN + strlen(newN) - 1;
+                    while (e2 > newN && *e2 == ' ') *e2-- = '\0';
+                    if (strlen(oldN) > 0 && strlen(newN) > 0) {
+                        g_renameOld[g_renameCount] = taosStrdup(oldN);
+                        g_renameNew[g_renameCount] = taosStrdup(newN);
+                        g_renameCount++;
+                    }
+                }
+                pair = strtok(NULL, "|");
+            }
+            taosMemoryFree(copy);
+        }
+        // ---- version ----
+        else if (strcmp(argv[i], "-V") == 0 || matchLong(argc, argv, &i, "--version", 0)) {
+            printVersion();
+            exit(0);
+        }
+        // ---- help ----
+        else if (matchLong(argc, argv, &i, "--help", 0)) {
+            printUsage(argv[0]);
+            exit(0);
+        }
+        else {
+            printf("unknown option: %s\n", argv[i]);
+            printUsage(argv[0]);
+            return -1;
+        }
+    }
+
+    // validate
+    if (!hasOutput && !hasInput) {
+        printf("error: must specify -o (backup) or -i (restore)\n");
+        printUsage(argv[0]);
+        return -1;
+    }
+
+    // print summary
+    printf("Action: %s\n", g_action == ACTION_BACKUP ? "backup" : "restore");
+    printf("Host: %s, Port: %d, User: %s\n", g_host, g_port, g_user);
+    printf("OutPath: %s\n", g_outPath);
+    if (g_dbCount == 0) {
+        printf("Databases: all\n");
+    } else {
+        printf("Databases(%d):", g_dbCount);
+        for (int i = 0; i < g_dbCount; i++) {
+            printf(" %s", g_dbs[i]);
+        }
+        printf("\n");
+    }
+    printf("DataThreads: %d, TagThreads: %d\n", g_dataThread, g_tagThread);
+    printf("Format: %s\n", g_storageFormat == BINARY_TAOS ? "binary" : "parquet");
+    if (g_action == ACTION_RESTORE)
+        printf("StmtVersion: %s\n", g_stmtVersion == STMT_VERSION_2 ? "2 (STMT2)" : "1 (STMT1)");
+    if (g_schemaOnly)   printf("SchemaOnly: yes\n");
+    if (g_debug)        printf("Debug: yes\n");
+    if (g_startTime[0]) printf("StartTime: %s\n", g_startTime);
+    if (g_endTime[0])   printf("EndTime: %s\n", g_endTime);
+    if (g_renameCount > 0) {
+        printf("Rename(%d):", g_renameCount);
+        for (int i = 0; i < g_renameCount; i++) {
+            printf(" %s->%s", g_renameOld[i], g_renameNew[i]);
+        }
+        printf("\n");
+    }
+
+    // build time filter
+    if (g_startTime[0] || g_endTime[0]) {
+        // helper: if all digits, use as-is (epoch); otherwise wrap in quotes (ISO8601)
+        char sBuf[80] = "", eBuf[80] = "";
+        if (g_startTime[0]) {
+            int isEpoch = 1;
+            for (const char *p = g_startTime; *p; p++) { if (*p < '0' || *p > '9') { isEpoch = 0; break; } }
+            if (isEpoch) snprintf(sBuf, sizeof(sBuf), "%s", g_startTime);
+            else         snprintf(sBuf, sizeof(sBuf), "'%s'", g_startTime);
+        }
+        if (g_endTime[0]) {
+            int isEpoch = 1;
+            for (const char *p = g_endTime; *p; p++) { if (*p < '0' || *p > '9') { isEpoch = 0; break; } }
+            if (isEpoch) snprintf(eBuf, sizeof(eBuf), "%s", g_endTime);
+            else         snprintf(eBuf, sizeof(eBuf), "'%s'", g_endTime);
+        }
+
+        if (g_startTime[0] && g_endTime[0]) {
+            snprintf(g_timeFilter, sizeof(g_timeFilter), "WHERE ts >= %s AND ts <= %s", sBuf, eBuf);
+        } else if (g_startTime[0]) {
+            snprintf(g_timeFilter, sizeof(g_timeFilter), "WHERE ts >= %s", sBuf);
+        } else {
+            snprintf(g_timeFilter, sizeof(g_timeFilter), "WHERE ts <= %s", eBuf);
+        }
+    }
+
+    return 0;
+}
+
+void argsDestroy() {
+    for (int i = 0; i < g_dbCount; i++) {
+        taosMemoryFree(g_dbs[i]);
+        g_dbs[i] = NULL;
+    }
+    g_dbCount = 0;
+    for (int i = 0; i < g_renameCount; i++) {
+        taosMemoryFree(g_renameOld[i]);
+        taosMemoryFree(g_renameNew[i]);
+        g_renameOld[i] = NULL;
+        g_renameNew[i] = NULL;
+    }
+    g_renameCount = 0;
+}
+
+
+//
+// -------------------- get args ----------------
+//
+
+enum ActionType argAction() {
+    return g_action;
+}
+
+int argRetryCount() {
+    return g_retryCount;
+}
+
+// ms
+int argRetrySleepMs() {
+    return g_retrySleepMs;
+}
+
+char** argBackDB() {
+    return g_dbs;
+}
+
+char* argOutPath() {
+    return g_outPath;
+}
+
+StorageFormat argStorageFormat() {
+    return g_storageFormat;
+}
+
+int argTagThread() {
+    return g_tagThread;
+}
+
+int argDataThread() {
+    return g_dataThread;
+}
+
+char* argTimeFilter() {
+    if (g_timeFilter[0] == '\0') return NULL;
+    return g_timeFilter;
+}
+
+int argSchemaOnly() {
+    return g_schemaOnly;
+}
+
+int argDebug() {
+    return g_debug;
+}
+
+char* argHost() {
+    return g_host;
+}
+
+int argPort() {
+    return g_port;
+}
+
+char* argUser() {
+    return g_user;
+}
+
+char* argPassword() {
+    return g_password;
+}
+
+const char* argRenameDb(const char *oldName) {
+    for (int i = 0; i < g_renameCount; i++) {
+        if (strcmp(g_renameOld[i], oldName) == 0) {
+            return g_renameNew[i];
+        }
+    }
+    return oldName;
+}
+
+const char* argRenameList() {
+    if (g_renameRaw[0] == '\0') return NULL;
+    return g_renameRaw;
+}
+
+StmtVersion argStmtVersion() {
+    return g_stmtVersion;
+}

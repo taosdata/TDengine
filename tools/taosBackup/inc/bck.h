@@ -1,0 +1,74 @@
+/*
+ * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the MIT license as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ */
+
+#ifndef INC_BCK_H_
+#define INC_BCK_H_
+// sys
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <string.h>
+#include <errno.h>
+#include <signal.h>
+
+// global interrupt flag (set by SIGINT/SIGTERM handler)
+extern volatile sig_atomic_t g_interrupted;
+
+// global statistics counters
+typedef struct {
+    volatile int64_t  dbTotal;          // total databases to process
+    volatile int64_t  dbSuccess;        // databases completed successfully
+    volatile int64_t  dbFailed;         // databases failed
+    volatile int64_t  stbTotal;         // super tables processed
+    volatile int64_t  ntbTotal;         // normal tables processed
+    volatile int64_t  dataFilesTotal;   // data files processed (backup written / restore written)
+    volatile int64_t  dataFilesSkipped; // data files skipped (resume/checkpoint)
+    volatile int64_t  dataFilesFailed;  // data files failed
+    volatile int64_t  childTablesTotal; // child tables with data exported
+    volatile int64_t  totalRows;        // total rows backed up / restored
+} BckStats;
+
+extern BckStats g_stats;
+// taos
+#include <taos.h>
+#include <tdef.h>
+#include <taoserror.h>
+// bck
+#include "bckTypes.h"
+#include "bckUtil.h"
+#include "bckArgs.h"
+#include "bckLog.h"
+#include "bckError.h"
+#include "bckFile.h"
+#include "bckDb.h"
+#include "bckPool.h"
+
+// ---------------- define ----------------
+#define MAX_PATH_LEN 512
+#define FOLDER_MAXFILE 100000
+
+
+
+// ---------------- struct ----------------
+
+// db
+typedef struct {
+    const char *dbName;
+} DBInfo;
+
+// stb
+typedef struct {
+    DBInfo     *dbInfo;
+    const char *stbName;
+    const char *selectTags;
+} StbInfo;
+
+#endif  // INC_BCK_H_

@@ -1,0 +1,397 @@
+/*
+ * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the MIT license as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ */
+    
+#include "colCompress.h"
+#include "blockReader.h"
+// engine
+#include "tcompression.h"
+#include "tcol.h"
+#include "tdataformat.h"
+
+// TODO: Implement getDefaultCompressLevel
+static int8_t getDefaultCompressLevel(int8_t type) {
+    return 0; // Default compression level
+}
+
+void fillFieldsInfo(FieldInfo* fieldInfos, TAOS_FIELD* fields, int numFields) {
+    for (int i = 0; i < numFields; i++) {
+        memcpy(fieldInfos[i].name, fields[i].name, sizeof(fieldInfos[i].name));
+        fieldInfos[i].type = fields[i].type;
+        fieldInfos[i].bytes = fields[i].bytes;
+        // default from engine
+        fieldInfos[i].encode = getDefaultEncode(fields[i].type);
+        fieldInfos[i].compress = getDefaultCompress(fields[i].type);
+        fieldInfos[i].level = getDefaultCompressLevel(fields[i].type);
+    }
+}
+
+uint32_t calcCompressBlockSize(BlockReader* reader) {
+    uint32_t size = sizeof(CompressBlock);
+    // ori header size
+    size += sizeof(oriBlockHeader);
+
+    // columns lens size
+    size += sizeof(int32_t) * reader->oriHeader->numOfCols;
+
+    // cmprAlgs size
+    size += sizeof(int32_t) * reader->oriHeader->numOfCols;
+    
+    // data size
+    size += reader->oriHeader->actualLen;
+
+    // add 150% size for safety
+    size = size * 1.5;
+
+    return size;
+}
+
+int32_t compressColData(FieldInfo *fieldInfo, int32_t blockRows,
+                        void* input, int32_t inputLen,
+                        void* output, int32_t *outputLen,
+                        uint32_t cmprAlg,
+                        SBuffer *assist) {
+    int32_t code = TSDB_CODE_SUCCESS;
+    int32_t remain = *outputLen;
+    int32_t opos = 0;
+    int32_t ipos = 0;
+
+    if (!IS_VAR_DATA_TYPE(fieldInfo->type)) {
+        // fixed length type: inputLen = bitmapLen + dataLen
+        // reserve 4 bytes for bitmap compressed size prefix
+        int32_t prefixPos = opos;
+        opos += sizeof(int32_t);
+        remain -= sizeof(int32_t);
+
+        // compress bitmap first
+        int32_t bitmapLen = (blockRows + 7) / 8;
+        SCompressInfo cinfo = {
+            .dataType = TSDB_DATA_TYPE_TINYINT,
+            .cmprAlg  = cmprAlg,
+            .originalSize = bitmapLen,
+        };
+
+        code = tCompressData(input, &cinfo, (char *)output + opos, remain, assist);
+        if (code != TSDB_CODE_SUCCESS) {
+            logError("compress bitmap failed, code: %d", code);
+            return code;
+        }
+
+        // write bitmap compressed size at prefix position
+        *(int32_t *)((char *)output + prefixPos) = cinfo.compressedSize;
+
+        // move past bitmap
+        ipos += bitmapLen;
+        opos += cinfo.compressedSize;
+        remain -= cinfo.compressedSize;
+    } else {
+        // variable type: store original data length prefix for decompression
+        *(int32_t *)((char *)output + opos) = inputLen;
+        opos += sizeof(int32_t);
+        remain -= sizeof(int32_t);
+    }
+
+    // compress actual column data
+    int32_t colDataLen = inputLen - ipos;
+    SCompressInfo cinfo = {
+        .dataType = fieldInfo->type,
+        .cmprAlg  = cmprAlg,
+        .originalSize = colDataLen,
+    };
+
+    code = tCompressData((char *)input + ipos, &cinfo, (char *)output + opos, remain, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("compress col data failed, code: %d", code);
+        return code;
+    }
+
+    *outputLen = opos + cinfo.compressedSize;
+    return TSDB_CODE_SUCCESS;
+}
+
+//
+// compress block
+//
+CompressBlock* compressBlock(void*      block,
+                             int        blockRows, 
+                             FieldInfo* fieldInfos, 
+                             int        numFields, 
+                             SBuffer*   assist,
+                             int*       code) {
+    // read block
+    BlockReader reader;
+    int32_t retCode = initBlockReader(&reader, block);
+    if (retCode != TSDB_CODE_SUCCESS) {
+        *code = retCode;
+        return NULL;
+    }
+    
+    // malloc compress block
+    uint32_t mallocLen = calcCompressBlockSize(&reader);
+    CompressBlock* compressBlock = (CompressBlock*)taosMemoryCalloc(1, mallocLen);
+    if (compressBlock == NULL) {
+        logError("malloc compress block failed");
+        *code = TSDB_CODE_BCK_MALLOC_FAILED;
+        return NULL;
+    }
+
+    //
+    // header
+    //
+    compressBlock->version = COMPRESS_BLOCK_VERSION;
+    compressBlock->flag = 0; // no use
+
+    // fill original block header
+    compressBlock->oriHeader = *(reader.oriHeader);
+
+    //
+    // body (lens + cmprAlgs + data)
+    //
+    int32_t *colsLen  = (int32_t *)compressBlock->data;
+    int32_t *cmprAlgs = (int32_t *)(compressBlock->data + sizeof(int32_t) * numFields);
+    char* colsDataStart = compressBlock->data + sizeof(int32_t) * numFields * 2;
+    char* curDataPos = colsDataStart;
+
+    // loop columns
+    for (int i = 0; i < numFields; i++) {
+        // get column data
+        void* colData = NULL;
+        int32_t colDataLen = 0;
+        retCode = getColumnData(&reader, fieldInfos[i].type, &colData, &colDataLen);
+        if (retCode != TSDB_CODE_SUCCESS) {
+            logError("get column data failed: %d", retCode);
+            freeCompressData(compressBlock);
+            *code = retCode;
+            return NULL;
+        }
+
+        // compress column data
+        int32_t remainLen = mallocLen - (curDataPos - (char *)compressBlock);
+        int32_t compressedLen = remainLen;
+        uint32_t cmprAlg = 0;
+        SET_COMPRESS(fieldInfos[i].encode, fieldInfos[i].compress, fieldInfos[i].level, cmprAlg);
+        *code = compressColData(&fieldInfos[i],             // algo
+                                blockRows,                  // rows
+                                colData, colDataLen,        // input
+                                curDataPos, &compressedLen, // output
+                                cmprAlg,
+                                assist);
+        if (*code != TSDB_CODE_SUCCESS) {
+            logError("compress column data failed. code: %d", *code);
+            freeCompressData(compressBlock);
+            *code = TSDB_CODE_BCK_COMPRESS_FAILED;
+            return NULL;
+        }
+
+        // set len/algo
+        colsLen[i]  = compressedLen;
+        cmprAlgs[i] = cmprAlg;
+
+        // debug
+        logDebug("%d column %s: type=%d original len: %d, compressed len: %d, cmprAlg: 0x%08X",
+                 i, fieldInfos[i].name, fieldInfos[i].type, colDataLen, compressedLen, cmprAlg);
+
+        // move current data pos
+        curDataPos += compressedLen;
+    }
+
+    // set data length (lens + cmprAlgs + data)
+    compressBlock->dataLen = curDataPos - compressBlock->data;
+
+    //
+    // check need compress or not
+    //
+    if(compressBlock->dataLen > reader.oriHeader->actualLen) {
+        logWarn("compress block size large origin data , so not compress, original size: %d, compress size: %d",
+                 reader.oriHeader->actualLen, compressBlock->dataLen);
+        // not compress, use original block
+        compressBlock->flag = BLOCK_FLAG_NOT_COMPRESS;
+        memcpy(compressBlock->data, block, reader.oriHeader->actualLen);
+        compressBlock->dataLen = reader.oriHeader->actualLen;
+    }
+
+    *code = TSDB_CODE_SUCCESS;
+    return compressBlock;
+}
+
+//
+// decompress single column data (mirror of compressColData)
+//
+static int32_t decompressColData(FieldInfo *fieldInfo, int32_t blockRows,
+                                 void* input, int32_t inputLen,
+                                 void* output, int32_t *outputLen,
+                                 uint32_t cmprAlg,
+                                 SBuffer *assist) {
+    int32_t code = TSDB_CODE_SUCCESS;
+    int32_t ipos = 0;
+    int32_t opos = 0;
+    int32_t remain = *outputLen;
+    int32_t dataOriginalSize = 0;
+
+    if (!IS_VAR_DATA_TYPE(fieldInfo->type)) {
+        // fixed length type: decompress bitmap first
+        // read bitmap compressed size from prefix
+        int32_t bitmapCompressedSize = *(int32_t *)((char *)input + ipos);
+        ipos += sizeof(int32_t);
+
+        int32_t bitmapLen = (blockRows + 7) / 8;
+        SCompressInfo cinfo = {
+            .dataType = TSDB_DATA_TYPE_TINYINT,
+            .cmprAlg  = cmprAlg,
+            .originalSize = bitmapLen,
+            .compressedSize = bitmapCompressedSize,
+        };
+
+        code = tDecompressData((char *)input + ipos, &cinfo, (char *)output + opos, remain, assist);
+        if (code != TSDB_CODE_SUCCESS) {
+            logError("decompress bitmap failed, code: %d", code);
+            return code;
+        }
+
+        ipos += bitmapCompressedSize;
+        opos += bitmapLen;
+        remain -= bitmapLen;
+
+        // data original size = rows * field bytes
+        dataOriginalSize = blockRows * fieldInfo->bytes;
+    } else {
+        // variable type: read original data length from prefix
+        dataOriginalSize = *(int32_t *)((char *)input + ipos);
+        ipos += sizeof(int32_t);
+    }
+
+    // decompress actual column data
+    int32_t dataCompressedSize = inputLen - ipos;
+    SCompressInfo cinfo = {
+        .dataType = fieldInfo->type,
+        .cmprAlg  = cmprAlg,
+        .originalSize = dataOriginalSize,
+        .compressedSize = dataCompressedSize,
+    };
+
+    code = tDecompressData((char *)input + ipos, &cinfo, (char *)output + opos, remain, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("decompress col data failed, code: %d", code);
+        return code;
+    }
+
+    *outputLen = opos + dataOriginalSize;
+    return TSDB_CODE_SUCCESS;
+}
+
+//
+// decompress block
+//
+int decompressBlock(CompressBlock* compressBlk,
+                    FieldInfo*     fieldInfos,
+                    int            numFields,
+                    void**         uncompressBlock,
+                    int32_t*       uncompressLen,
+                    SBuffer*       assist) {
+    // read compress block header
+    oriBlockHeader* oriHeader = &compressBlk->oriHeader;
+    int32_t numOfCols = oriHeader->numOfCols;
+    int32_t blockRows = oriHeader->rows;
+
+    // total original block size = actualLen (includes header)
+    *uncompressLen = oriHeader->actualLen;
+    *uncompressBlock = taosMemoryCalloc(1, *uncompressLen);
+    if (*uncompressBlock == NULL) {
+        logError("malloc uncompress block failed");
+        return TSDB_CODE_BCK_MALLOC_FAILED;
+    }
+
+    //
+    // handle not compressed - data is the original raw block as-is
+    //
+    if (compressBlk->flag & BLOCK_FLAG_NOT_COMPRESS) {
+        memcpy(*uncompressBlock, compressBlk->data, compressBlk->dataLen);
+        return TSDB_CODE_SUCCESS;
+    }
+
+    //
+    // reconstruct the full original block:
+    //   oriBlockHeader + schema + col-lengths + col-data
+    //
+    char* outPos = (char *)(*uncompressBlock);
+
+    // 1. copy original block header
+    memcpy(outPos, oriHeader, sizeof(oriBlockHeader));
+    outPos += sizeof(oriBlockHeader);
+
+    // 2. reconstruct schema (type(1B) + bytes(4B) per column)
+    for (int i = 0; i < numOfCols; i++) {
+        *(int8_t *)outPos = fieldInfos[i].type;
+        outPos += sizeof(int8_t);
+        *(int32_t *)outPos = fieldInfos[i].bytes;
+        outPos += sizeof(int32_t);
+    }
+
+    // 3. leave space for col-lengths (will fill after decompression)
+    int32_t *colLengths = (int32_t *)outPos;
+    outPos += sizeof(int32_t) * numOfCols;
+
+    //
+    // 4. read compressed data arrays from CompressBlock
+    //
+    int32_t *colsLen  = (int32_t *)compressBlk->data;
+    int32_t *cmprAlgs = (int32_t *)(compressBlk->data + sizeof(int32_t) * numOfCols);
+    char* compDataStart = compressBlk->data + sizeof(int32_t) * numOfCols * 2;
+    char* curCompPos = compDataStart;
+
+    //
+    // 5. decompress each column and fill col-lengths
+    //
+    for (int i = 0; i < numOfCols; i++) {
+        int32_t remainOut = *uncompressLen - (int32_t)(outPos - (char *)(*uncompressBlock));
+        int32_t outputLen = remainOut;
+
+        int32_t code = decompressColData(&fieldInfos[i],
+                                         blockRows,
+                                         curCompPos, colsLen[i],
+                                         outPos, &outputLen,
+                                         cmprAlgs[i],
+                                         assist);
+        if (code != TSDB_CODE_SUCCESS) {
+            logError("decompress column %d (%s) failed: %d", i, fieldInfos[i].name, code);
+            taosMemFree(*uncompressBlock);
+            *uncompressBlock = NULL;
+            *uncompressLen = 0;
+            return code;
+        }
+
+        // fill col-length: rawLen = totalLen - bitmap/offsets overhead
+        if (IS_VAR_DATA_TYPE(fieldInfos[i].type)) {
+            int32_t offsetsLen = blockRows * sizeof(int32_t);
+            colLengths[i] = outputLen - offsetsLen;
+        } else {
+            int32_t bitmapLen = (blockRows + 7) / 8;
+            colLengths[i] = outputLen - bitmapLen;
+        }
+
+        logDebug("%d column %s: type=%d compressed len: %d, decompressed len: %d, rawLen: %d",
+                 i, fieldInfos[i].name, fieldInfos[i].type, colsLen[i], outputLen, colLengths[i]);
+
+        // move positions
+        curCompPos += colsLen[i];
+        outPos += outputLen;
+    }
+
+    return TSDB_CODE_SUCCESS;
+}
+
+// free compress data
+void freeCompressData(CompressBlock* compressBlock) {
+    if (compressBlock == NULL) {
+        return;
+    }
+
+    taosMemFree(compressBlock);
+}

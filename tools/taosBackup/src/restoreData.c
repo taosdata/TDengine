@@ -1,0 +1,1629 @@
+/*
+ * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the MIT license as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ */
+    
+#include "restoreData.h"
+#include "storageTaos.h"
+#include "storageParquet.h"
+#include "parquetBlock.h"
+#include "colCompress.h"
+#include "blockReader.h"
+#include "bckPool.h"
+#include "bckDb.h"
+#include "bckSchemaChange.h"
+#include "ttypes.h"
+#include "osString.h"
+
+//
+// -------------------------------------- RESTORE CHECKPOINT -----------------------------------------
+//
+
+static pthread_mutex_t g_ckptMutex = PTHREAD_MUTEX_INITIALIZER;
+static char  g_ckptPath[MAX_PATH_LEN] = "";
+static char **g_ckptDone = NULL;   // loaded completed file paths
+static int   g_ckptCount = 0;
+
+static void loadRestoreCheckpoint(const char *dbName) {
+    snprintf(g_ckptPath, sizeof(g_ckptPath), "%s/%s/restore_checkpoint.txt", argOutPath(), dbName);
+
+    // free previous
+    if (g_ckptDone) {
+        for (int i = 0; i < g_ckptCount; i++) taosMemoryFree(g_ckptDone[i]);
+        taosMemoryFree(g_ckptDone);
+        g_ckptDone = NULL;
+        g_ckptCount = 0;
+    }
+
+    // read entire checkpoint file
+    TdFilePtr fp = taosOpenFile(g_ckptPath, TD_FILE_READ);
+    if (!fp) return;
+
+    int64_t fileSize = 0;
+    if (taosFStatFile(fp, &fileSize, NULL) != 0 || fileSize <= 0) {
+        taosCloseFile(&fp);
+        return;
+    }
+
+    char *buf = (char *)taosMemoryMalloc(fileSize + 1);
+    if (!buf) {
+        taosCloseFile(&fp);
+        return;
+    }
+
+    int64_t readLen = taosReadFile(fp, buf, fileSize);
+    taosCloseFile(&fp);
+    if (readLen <= 0) {
+        taosMemoryFree(buf);
+        return;
+    }
+    buf[readLen] = '\0';
+
+    // parse lines
+    int capacity = 256;
+    g_ckptDone = (char **)taosMemoryCalloc(capacity, sizeof(char *));
+    char *line = buf;
+    while (*line) {
+        char *eol = strchr(line, '\n');
+        int len;
+        if (eol) {
+            len = (int)(eol - line);
+            if (len > 0 && line[len-1] == '\r') len--;
+        } else {
+            len = strlen(line);
+        }
+        if (len > 0) {
+            if (g_ckptCount >= capacity) {
+                capacity *= 2;
+                g_ckptDone = (char **)taosMemoryRealloc(g_ckptDone, capacity * sizeof(char *));
+            }
+            g_ckptDone[g_ckptCount++] = tstrndup(line, len);
+        }
+        if (!eol) break;
+        line = eol + 1;
+    }
+    taosMemoryFree(buf);
+    logInfo("loaded restore checkpoint: %d files already done", g_ckptCount);
+}
+
+static bool isRestoreDone(const char *filePath) {
+    for (int i = 0; i < g_ckptCount; i++) {
+        if (strcmp(g_ckptDone[i], filePath) == 0) return true;
+    }
+    return false;
+}
+
+static void saveRestoreCheckpoint(const char *filePath) {
+    pthread_mutex_lock(&g_ckptMutex);
+    TdFilePtr fp = taosOpenFile(g_ckptPath, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_APPEND);
+    if (fp) {
+        char line[MAX_PATH_LEN + 2];
+        int len = snprintf(line, sizeof(line), "%s\n", filePath);
+        taosWriteFile(fp, line, len);
+        taosCloseFile(&fp);
+    }
+    pthread_mutex_unlock(&g_ckptMutex);
+}
+
+static void freeRestoreCheckpoint() {
+    if (g_ckptDone) {
+        for (int i = 0; i < g_ckptCount; i++) taosMemoryFree(g_ckptDone[i]);
+        taosMemoryFree(g_ckptDone);
+        g_ckptDone = NULL;
+        g_ckptCount = 0;
+    }
+}
+
+//
+// -------------------------------------- STMT UTIL -----------------------------------------
+//
+
+//
+// ----------------------------- STMT2 RESTORE CONTEXT ---------------------------------
+//
+// Uses TAOS_STMT2 (TDengine v3.3+ native API) which is significantly faster
+// than STMT1 for batch inserts:
+//   - singleStbInsert=true  : all child tables share the same super table
+//   - singleTableBindOnce=true : all rows for a child table are bound at once
+//   - No add_batch() step   : bind_param() + exec() is the whole flow
+//   - table name supplied in TAOS_STMT2_BINDV.tbnames[] — no set_tbname() needed
+//
+// Per-thread workflow:
+//   init once  → prepare once (INSERT INTO ? VALUES(?,?,?...))
+//   per file:  read all blocks → accumulate into colBinds[] buffers
+//              → taos_stmt2_bind_param + taos_stmt2_exec
+//              → reset accRows for next file
+//   cleanup   → taos_stmt2_close
+
+typedef struct {
+    TAOS_STMT2  *stmt2;
+    TAOS        *conn;
+    const char  *dbName;
+    char         tbName[TSDB_TABLE_NAME_LEN];
+    int          numFields;
+    FieldInfo   *fieldInfos;    // points into the TaosFile header (valid while file is open)
+    int64_t      totalRows;     // rows successfully inserted this file (stats)
+    int64_t      accRows;       // rows accumulated in colBinds[] so far
+
+    // Per-column accumulation buffers, allocated once and reused across files.
+    // Fixed-type  col i: buffer = flat [rowBufCap * typeBytes]; length = NULL
+    // Variable-type col i: buffer = stride [rowBufCap * fieldInfo.bytes];
+    //                       length = int32_t[rowBufCap] (actual per-row length)
+    //                       is_null = char[rowBufCap] (1 = NULL)
+    TAOS_STMT2_BIND *colBinds;
+    int              colBindsCap;  // how many columns the colBinds array was allocated for
+    int64_t          rowBufCap;    // row capacity of each column buffer
+
+    StbChange   *stbChange;
+    bool         prepared;         // stmt2 has been prepared (once per thread lifetime)
+} Stmt2RestoreCtx;
+
+
+//
+// ----------------------------- STMT1 (legacy) RESTORE CONTEXT -----------------------
+//
+// Classic TAOS_STMT path.  Kept for compatibility / benchmarking via -I 1.
+//
+#define STMT_BATCH_THRESHOLD 50000  // rows to accumulate before executing
+
+typedef struct {
+    TAOS_STMT  *stmt;
+    TAOS       *conn;
+    const char *dbName;
+    char        tbName[TSDB_TABLE_NAME_LEN];
+    int         numFields;
+    FieldInfo  *fieldInfos;
+    int64_t     totalRows;
+    int64_t     batchRows;
+    bool        prepared;
+    TAOS_MULTI_BIND *bindArray;
+    int              bindArrayCap;
+    StbChange  *stbChange;
+} StmtRestoreCtx;
+
+
+//
+// Prepare STMT for the first file in a thread:
+//   INSERT INTO ? VALUES(?,?,?...)
+// The `?` placeholder for the table name is a TDengine extension that enables
+// efficient child-table switching via taos_stmt_set_tbname() without a
+// full re-prepare round-trip.
+//
+static int stmtPrepareInsert(StmtRestoreCtx *ctx) {
+    char *stmtBuf = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN);
+    if (stmtBuf == NULL) {
+        logError("malloc stmt buffer failed");
+        return TSDB_CODE_BCK_MALLOC_FAILED;
+    }
+
+    // Determine number of bind columns (may be fewer with schema change)
+    const char *partCols = "";
+    int bindColCount = ctx->numFields;
+    if (ctx->stbChange && ctx->stbChange->schemaChanged && ctx->stbChange->partColsStr) {
+        partCols = ctx->stbChange->partColsStr;
+        bindColCount = ctx->stbChange->matchColCount;
+        logInfo("partial column write for %s.%s: %s (bind %d of %d cols)",
+                ctx->dbName, ctx->tbName, partCols, bindColCount, ctx->numFields);
+    }
+
+    // Always use ? for the table name so that taos_stmt_set_tbname() can
+    // switch child tables without a new prepare round-trip.
+    char *p = stmtBuf;
+    p += snprintf(p, TSDB_MAX_SQL_LEN, "INSERT INTO ? %s VALUES(?", partCols);
+    for (int i = 1; i < bindColCount; i++) {
+        p += sprintf(p, ",?");
+    }
+    p += sprintf(p, ")");
+
+    logDebug("stmt prepare: %s", stmtBuf);
+
+    int ret = taos_stmt_prepare(ctx->stmt, stmtBuf, 0);
+    if (ret != 0) {
+        logError("taos_stmt_prepare failed: %s, sql: %s", taos_stmt_errstr(ctx->stmt), stmtBuf);
+        taosMemoryFree(stmtBuf);
+        return TSDB_CODE_BCK_STMT_FAILED;
+    }
+    taosMemoryFree(stmtBuf);
+
+    // Immediately bind the first child table name
+    char fqn[TSDB_DB_NAME_LEN + 1 + TSDB_TABLE_NAME_LEN + 4];
+    snprintf(fqn, sizeof(fqn), "`%s`.`%s`", ctx->dbName, ctx->tbName);
+    ret = taos_stmt_set_tbname(ctx->stmt, fqn);
+    if (ret != 0) {
+        logError("taos_stmt_set_tbname (initial) failed (%s): %s", fqn, taos_stmt_errstr(ctx->stmt));
+        return TSDB_CODE_BCK_STMT_FAILED;
+    }
+
+    ctx->prepared = true;
+    return TSDB_CODE_SUCCESS;
+}
+
+//
+// Switch an already-prepared STMT to a different child table.
+// Uses taos_stmt_set_tbname() which avoids a full re-prepare round-trip.
+// The STMT must already have been prepared for a table with the same
+// column count (i.e. same super table).
+//
+static int stmtSwitchTable(StmtRestoreCtx *ctx, const char *tbName) {
+    /* fully qualified name required by set_tbname */
+    char fqn[TSDB_DB_NAME_LEN + 1 + TSDB_TABLE_NAME_LEN + 2 + 2];
+    snprintf(fqn, sizeof(fqn), "`%s`.`%s`", ctx->dbName, tbName);
+    int ret = taos_stmt_set_tbname(ctx->stmt, fqn);
+    if (ret != 0) {
+        logError("taos_stmt_set_tbname failed (%s): %s", fqn, taos_stmt_errstr(ctx->stmt));
+        return TSDB_CODE_BCK_STMT_FAILED;
+    }
+    strncpy(ctx->tbName, tbName, TSDB_TABLE_NAME_LEN - 1); /* update for error messages */
+    ctx->tbName[TSDB_TABLE_NAME_LEN - 1] = '\0';
+    ctx->batchRows = 0;
+    return TSDB_CODE_SUCCESS;
+}
+
+
+//
+// Reset STMT after an error.
+// Closes the broken stmt, allocates a fresh one, and marks context as
+// not-prepared so the next file will call stmtPrepareInsert() again.
+// Returns true on success, false if taos_stmt_init also fails.
+//
+static bool stmtResetOnError(StmtRestoreCtx *ctx) {
+    if (ctx->stmt) {
+        taos_stmt_close(ctx->stmt);
+        ctx->stmt = NULL;
+    }
+    ctx->prepared  = false;
+    ctx->batchRows = 0;
+    TAOS_STMT *newStmt = taos_stmt_init(ctx->conn);
+    if (newStmt == NULL) {
+        logError("stmtResetOnError: taos_stmt_init failed — connection may be broken");
+        return false;
+    }
+    ctx->stmt = newStmt;
+    return true;
+}
+
+//
+// Free bind array buffers
+//
+static void freeBindArray(TAOS_MULTI_BIND *bindArray, int numFields) {
+    for (int i = 0; i < numFields; i++) {
+        TAOS_MULTI_BIND *bind = &bindArray[i];
+        if (bind->buffer) {
+            taosMemoryFree(bind->buffer);
+            bind->buffer = NULL;
+        }
+        if (bind->length) {
+            taosMemoryFree(bind->length);
+            bind->length = NULL;
+        }
+        if (bind->is_null) {
+            taosMemoryFree(bind->is_null);
+            bind->is_null = NULL;
+        }
+    }
+}
+
+
+//
+// Build TAOS_MULTI_BIND array for batch rows from a decompressed raw block
+// Uses column-batch binding (all rows for each column at once) for efficiency
+//
+static int bindBlockData(StmtRestoreCtx *ctx, 
+                         void *blockData, 
+                         int32_t blockRows,
+                         FieldInfo *fieldInfos,
+                         int numFields,
+                         TAOS_MULTI_BIND *bindArray) {
+    // Parse block
+    BlockReader reader;
+    int32_t code = initBlockReader(&reader, blockData);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("init block reader failed: %d", code);
+        return code;
+    }
+
+    // Process each column, skipping columns not in partial write set
+    for (int c = 0; c < numFields; c++) {
+        // Determine bind index (with schema change, some backup cols are skipped)
+        int bindIdx = getPartialWriteBindIdx(ctx->stbChange, c);
+        if (bindIdx < 0) {
+            // This column is not in the server schema, skip but still advance reader
+            void *skipData = NULL;
+            int32_t skipLen = 0;
+            code = getColumnData(&reader, fieldInfos[c].type, &skipData, &skipLen);
+            if (code != TSDB_CODE_SUCCESS) {
+                logError("skip column data failed: col=%d", c);
+                return code;
+            }
+            continue;
+        }
+        void *colData = NULL;
+        int32_t colDataLen = 0;
+        code = getColumnData(&reader, fieldInfos[c].type, &colData, &colDataLen);
+        if (code != TSDB_CODE_SUCCESS) {
+            logError("get column data failed: col=%d", c);
+            return code;
+        }
+
+        TAOS_MULTI_BIND *bind = &bindArray[bindIdx];
+        memset(bind, 0, sizeof(TAOS_MULTI_BIND));
+        bind->buffer_type = fieldInfos[c].type;
+        bind->num = blockRows;
+
+        if (IS_VAR_DATA_TYPE(fieldInfos[c].type)) {
+            // Variable type layout: offsets[blockRows] (int32_t each) + raw data
+            int32_t *offsets = (int32_t *)colData;
+            char *varDataBase = (char *)colData + blockRows * sizeof(int32_t);
+            bool isNchar = (fieldInfos[c].type == TSDB_DATA_TYPE_NCHAR);
+            
+            // Allocate buffers for variable data
+            // We need: buffer (concatenated data), length array, is_null array
+            int32_t *lengths = (int32_t *)taosMemoryCalloc(blockRows, sizeof(int32_t));
+            char    *isNull  = (char *)taosMemoryCalloc(blockRows, sizeof(char));
+            if (!lengths || !isNull) {
+                taosMemoryFree(lengths);
+                taosMemoryFree(isNull);
+                return TSDB_CODE_BCK_MALLOC_FAILED;
+            }
+
+            // For NCHAR: raw block stores UCS-4 (4 bytes/char), STMT expects UTF-8.
+            // We need a temp buffer to convert each row, then measure actual UTF-8 lengths.
+            // For other var types (BINARY/VARCHAR): data is already UTF-8, just copy.
+
+            // First pass: calculate lengths and nulls
+            // For NCHAR, we'll also convert to UTF-8 into a temp area.
+            // Allocate a temp conversion buffer (generous: same size as UCS-4 data)
+            char *convBuf = NULL;
+            int32_t *utf8Lens = NULL;  // actual UTF-8 byte lengths per row
+            if (isNchar) {
+                // max UTF-8 bytes = ucs4 bytes (worst case: each UCS-4 char -> 4 UTF-8 bytes, but ucs4 is already 4 bytes)
+                int32_t maxConvBuf = fieldInfos[c].bytes * blockRows; // generous
+                convBuf = (char *)taosMemoryCalloc(1, maxConvBuf > 0 ? maxConvBuf : 1);
+                utf8Lens = (int32_t *)taosMemoryCalloc(blockRows, sizeof(int32_t));
+                if (!convBuf || !utf8Lens) {
+                    taosMemoryFree(lengths);
+                    taosMemoryFree(isNull);
+                    taosMemoryFree(convBuf);
+                    taosMemoryFree(utf8Lens);
+                    return TSDB_CODE_BCK_MALLOC_FAILED;
+                }
+            }
+
+            int32_t convOffset = 0;
+            for (int row = 0; row < blockRows; row++) {
+                if (offsets[row] < 0) {
+                    isNull[row] = 1;
+                    lengths[row] = 0;
+                } else {
+                    isNull[row] = 0;
+                    // TDengine var data: 2-byte length prefix + data
+                    uint16_t varLen = *(uint16_t *)(varDataBase + offsets[row]);
+                    if (isNchar && varLen > 0) {
+                        // Convert UCS-4 -> UTF-8
+                        char *ucs4Data = varDataBase + offsets[row] + sizeof(uint16_t);
+                        char *utf8Out = convBuf + convOffset;
+                        int32_t utf8Len = taosUcs4ToMbs((TdUcs4 *)ucs4Data, varLen, utf8Out, NULL);
+                        if (utf8Len < 0) {
+                            logError("UCS-4 to UTF-8 conversion failed: col=%d row=%d", c, row);
+                            utf8Len = 0;
+                        }
+                        utf8Lens[row] = utf8Len;
+                        lengths[row] = utf8Len;
+                        convOffset += utf8Len;
+                    } else {
+                        lengths[row] = varLen;
+                    }
+                }
+            }
+
+            // Allocate buffer and copy data contiguously
+            // For TAOS_MULTI_BIND with variable types, each row's data must be at
+            // buffer + row * buffer_length, so we use max length as buffer_length
+            int32_t maxLen = 0;
+            for (int row = 0; row < blockRows; row++) {
+                if (lengths[row] > maxLen) maxLen = lengths[row];
+            }
+            if (maxLen == 0) maxLen = 1; // minimum 1 byte
+
+            char *buffer = (char *)taosMemoryCalloc(blockRows, maxLen);
+            if (!buffer) {
+                taosMemoryFree(lengths);
+                taosMemoryFree(isNull);
+                taosMemoryFree(convBuf);
+                taosMemoryFree(utf8Lens);
+                return TSDB_CODE_BCK_MALLOC_FAILED;
+            }
+
+            if (isNchar) {
+                // Copy converted UTF-8 data from convBuf
+                int32_t srcOff = 0;
+                for (int row = 0; row < blockRows; row++) {
+                    if (!isNull[row] && utf8Lens[row] > 0) {
+                        memcpy(buffer + row * maxLen, convBuf + srcOff, utf8Lens[row]);
+                        srcOff += utf8Lens[row];
+                    }
+                }
+                taosMemoryFree(convBuf);
+                taosMemoryFree(utf8Lens);
+            } else {
+                for (int row = 0; row < blockRows; row++) {
+                    if (!isNull[row] && lengths[row] > 0) {
+                        char *src = varDataBase + offsets[row] + sizeof(uint16_t);
+                        memcpy(buffer + row * maxLen, src, lengths[row]);
+                    }
+                }
+            }
+
+            bind->buffer = buffer;
+            bind->buffer_length = maxLen;
+            bind->length = lengths;
+            bind->is_null = isNull;
+
+        } else {
+            // Fixed type layout: bitmap[(blockRows+7)/8] + data[blockRows * bytes]
+            int32_t bitmapLen = (blockRows + 7) / 8;
+            char *bitmap = (char *)colData;
+            char *fixData = (char *)colData + bitmapLen;
+            int32_t typeBytes = fieldInfos[c].bytes;
+
+            // Allocate buffer
+            char *buffer = (char *)taosMemoryMalloc(blockRows * typeBytes);
+            char *isNull = (char *)taosMemoryCalloc(blockRows, sizeof(char));
+            if (!buffer || !isNull) {
+                taosMemoryFree(buffer);
+                taosMemoryFree(isNull);
+                return TSDB_CODE_BCK_MALLOC_FAILED;
+            }
+
+            // Copy data and check null bitmap
+            memcpy(buffer, fixData, blockRows * typeBytes);
+            for (int row = 0; row < blockRows; row++) {
+                int byteIdx = row / 8;
+                int bitIdx  = row % 8;
+                if (bitmap[byteIdx] & (1 << bitIdx)) {
+                    isNull[row] = 1;
+                } else {
+                    isNull[row] = 0;
+                }
+            }
+
+            bind->buffer = buffer;
+            bind->buffer_length = typeBytes;
+            bind->length = NULL;  // fixed-length types don't need length array
+            bind->is_null = isNull;
+        }
+    }
+
+    return TSDB_CODE_SUCCESS;
+}
+
+
+//
+// Callback: process each decompressed data block with STMT batch insert
+//
+static int dataBlockCallback(void *userData, 
+                             FieldInfo *fieldInfos, 
+                             int numFields,
+                             void *blockData, 
+                             int32_t blockLen, 
+                             int32_t blockRows) {
+    StmtRestoreCtx *ctx = (StmtRestoreCtx *)userData;
+    int code = TSDB_CODE_SUCCESS;
+
+    if (g_interrupted) {
+        return TSDB_CODE_BCK_USER_CANCEL;
+    }
+
+    if (blockRows == 0) {
+        return TSDB_CODE_SUCCESS;
+    }
+
+    // Prepare STMT if not yet done
+    if (!ctx->prepared) {
+        code = stmtPrepareInsert(ctx);
+        if (code != TSDB_CODE_SUCCESS) {
+            return code;
+        }
+    }
+
+    // Determine actual bind column count (may differ from numFields with schema change)
+    int bindColCount = numFields;
+    if (ctx->stbChange && ctx->stbChange->schemaChanged) {
+        bindColCount = ctx->stbChange->matchColCount;
+    }
+
+    // Ensure pre-allocated bind array is large enough
+    if (ctx->bindArray == NULL || ctx->bindArrayCap < bindColCount) {
+        if (ctx->bindArray) {
+            freeBindArray(ctx->bindArray, ctx->bindArrayCap);
+            taosMemoryFree(ctx->bindArray);
+        }
+        ctx->bindArray = (TAOS_MULTI_BIND *)taosMemoryCalloc(bindColCount, sizeof(TAOS_MULTI_BIND));
+        ctx->bindArrayCap = bindColCount;
+        if (ctx->bindArray == NULL) {
+            return TSDB_CODE_BCK_MALLOC_FAILED;
+        }
+    } else {
+        // free previous column buffers but reuse the array
+        freeBindArray(ctx->bindArray, ctx->bindArrayCap);
+        memset(ctx->bindArray, 0, bindColCount * sizeof(TAOS_MULTI_BIND));
+    }
+
+    // Build bind array from block data (column-batch mode)
+    code = bindBlockData(ctx, blockData, blockRows, fieldInfos, numFields, ctx->bindArray);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("bind block data failed: %d", code);
+        return code;
+    }
+
+    // Bind parameters
+    code = taos_stmt_bind_param_batch(ctx->stmt, ctx->bindArray);
+    if (code != 0) {
+        logError("taos_stmt_bind_param_batch failed: %s, table: %s", 
+                 taos_stmt_errstr(ctx->stmt), ctx->tbName);
+        return TSDB_CODE_BCK_STMT_FAILED;
+    }
+
+    // Add batch
+    code = taos_stmt_add_batch(ctx->stmt);
+    if (code != 0) {
+        logError("taos_stmt_add_batch failed: %s", taos_stmt_errstr(ctx->stmt));
+        return TSDB_CODE_BCK_STMT_FAILED;
+    }
+
+    ctx->totalRows += blockRows;
+    ctx->batchRows += blockRows;
+
+    // Execute when accumulated enough rows or this is the last opportunity
+    if (ctx->batchRows >= STMT_BATCH_THRESHOLD) {
+        code = taos_stmt_execute(ctx->stmt);
+        if (code != 0) {
+            logError("taos_stmt_execute failed: %s, table: %s.%s, batchRows: %" PRId64, 
+                     taos_stmt_errstr(ctx->stmt), ctx->dbName, ctx->tbName, ctx->batchRows);
+            return TSDB_CODE_BCK_STMT_FAILED;
+        }
+        ctx->batchRows = 0;
+    }
+
+    return TSDB_CODE_SUCCESS;
+}
+
+
+// =====================================================================
+//  STMT2 (TAOS_STMT2) implementation
+// =====================================================================
+
+//
+// Free all per-column buffers inside ctx->colBinds.
+// The colBinds array itself is freed separately.
+//
+static void stmt2FreeColBuffers(Stmt2RestoreCtx *ctx) {
+    if (!ctx->colBinds) return;
+    for (int i = 0; i < ctx->colBindsCap; i++) {
+        TAOS_STMT2_BIND *b = &ctx->colBinds[i];
+        taosMemoryFree(b->buffer);  b->buffer  = NULL;
+        taosMemoryFree(b->length);  b->length  = NULL;
+        taosMemoryFree(b->is_null); b->is_null = NULL;
+    }
+}
+
+//
+// Allocate (or reuse) per-column accumulation buffers able to hold
+// at least `numRows` rows for `numCols` columns described by `fieldInfos`.
+// Reuses existing buffers if capacity is sufficient.
+//
+static int stmt2AllocColBuffers(Stmt2RestoreCtx *ctx, int64_t numRows,
+                                int numCols, FieldInfo *fieldInfos) {
+    bool needAlloc = (ctx->colBinds == NULL ||
+                      ctx->colBindsCap < numCols ||
+                      ctx->rowBufCap  < numRows);
+    if (!needAlloc) {
+        ctx->accRows   = 0;
+        ctx->numFields = numCols;
+        ctx->fieldInfos = fieldInfos;
+        return TSDB_CODE_SUCCESS;
+    }
+
+    /* free old buffers */
+    if (ctx->colBinds) {
+        stmt2FreeColBuffers(ctx);
+        taosMemoryFree(ctx->colBinds);
+        ctx->colBinds = NULL;
+    }
+
+    int64_t cap = numRows + 64;  /* small headroom to avoid realloc on micro differences */
+    ctx->colBinds = (TAOS_STMT2_BIND *)taosMemoryCalloc(numCols, sizeof(TAOS_STMT2_BIND));
+    if (!ctx->colBinds) return TSDB_CODE_BCK_MALLOC_FAILED;
+
+    for (int i = 0; i < numCols; i++) {
+        FieldInfo       *fi   = &fieldInfos[i];
+        TAOS_STMT2_BIND *bind = &ctx->colBinds[i];
+        bind->buffer_type = fi->type;
+        if (IS_VAR_DATA_TYPE(fi->type)) {
+            int32_t stride = fi->bytes;       /* declared max length */
+            bind->buffer   = taosMemoryCalloc(cap, stride);
+            bind->length   = (int32_t *)taosMemoryCalloc(cap, sizeof(int32_t));
+            /* stride is always fi->bytes; recovered in accBlock from fieldInfos */
+        } else {
+            int32_t typeBytes = tDataTypes[fi->type].bytes;
+            bind->buffer   = taosMemoryCalloc(cap, typeBytes);
+            bind->length   = NULL;
+        }
+        bind->is_null = (char *)taosMemoryCalloc(cap, 1);
+        if (!bind->buffer || !bind->is_null ||
+            (IS_VAR_DATA_TYPE(fi->type) && !bind->length)) {
+            stmt2FreeColBuffers(ctx);
+            taosMemoryFree(ctx->colBinds); ctx->colBinds = NULL;
+            return TSDB_CODE_BCK_MALLOC_FAILED;
+        }
+    }
+    ctx->colBindsCap = numCols;
+    ctx->rowBufCap   = cap;
+    ctx->numFields   = numCols;
+    ctx->fieldInfos  = fieldInfos;
+    ctx->accRows     = 0;
+    return TSDB_CODE_SUCCESS;
+}
+
+//
+// Prepare STMT2 once per thread:
+//   INSERT INTO ? VALUES(?,?,?...)
+// With singleStbInsert + singleTableBindOnce enabled for maximum server-side
+// throughput (no per-call schema re-negotiation).
+//
+static int stmt2PrepareOnce(Stmt2RestoreCtx *ctx, int numCols, FieldInfo *fieldInfos) {
+    /* build SQL */
+    const char *partCols  = "";
+    int         bindCount = numCols;
+    if (ctx->stbChange && ctx->stbChange->schemaChanged && ctx->stbChange->partColsStr) {
+        partCols   = ctx->stbChange->partColsStr;
+        bindCount  = ctx->stbChange->matchColCount;
+        logInfo("stmt2 partial column write: %s (bind %d of %d cols)", partCols, bindCount, numCols);
+    }
+
+    char *sql = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN);
+    if (!sql) return TSDB_CODE_BCK_MALLOC_FAILED;
+    char *p = sql;
+    p += snprintf(p, TSDB_MAX_SQL_LEN, "INSERT INTO ? %s VALUES(?", partCols);
+    for (int i = 1; i < bindCount; i++) p += sprintf(p, ",?");
+    sprintf(p, ")");
+    logDebug("stmt2 prepare: %s", sql);
+
+    /* Select the database so STMT2 can resolve plain table names */
+    if (taos_select_db(ctx->conn, ctx->dbName) != 0) {
+        logError("taos_select_db failed for %s", ctx->dbName);
+        taosMemoryFree(sql);
+        return TSDB_CODE_BCK_STMT_FAILED;
+    }
+
+    /* init STMT2 — no singleStbInsert since we insert directly into child tables */
+    ctx->stmt2 = taos_stmt2_init(ctx->conn, NULL);
+    if (!ctx->stmt2) {
+        logError("taos_stmt2_init failed for %s", ctx->dbName);
+        taosMemoryFree(sql);
+        return TSDB_CODE_BCK_STMT_FAILED;
+    }
+
+    int ret = taos_stmt2_prepare(ctx->stmt2, sql, 0);
+    taosMemoryFree(sql);
+    if (ret != 0) {
+        logError("taos_stmt2_prepare failed: %s", taos_stmt2_error(ctx->stmt2));
+        taos_stmt2_close(ctx->stmt2); ctx->stmt2 = NULL;
+        return TSDB_CODE_BCK_STMT_FAILED;
+    }
+
+    ctx->prepared = true;
+    (void)fieldInfos;   /* used only for bind buffer alloc, not here */
+    return TSDB_CODE_SUCCESS;
+}
+
+//
+// Close and re-initialise STMT2 after a failure.
+// Sets prepared=false so the next file triggers stmt2PrepareOnce().
+//
+static bool stmt2ResetOnError(Stmt2RestoreCtx *ctx) {
+    if (ctx->stmt2) { taos_stmt2_close(ctx->stmt2); ctx->stmt2 = NULL; }
+    ctx->prepared  = false;
+    ctx->accRows   = 0;
+    return true;   /* caller will retry prepare on next file */
+}
+
+//
+// Accumulate one raw block into the per-column stride buffers.
+// Called per data block by dataBlockCallbackV2.
+//
+static int stmt2AccBlock(Stmt2RestoreCtx *ctx, void *blockData, int32_t blockRows,
+                         FieldInfo *fieldInfos, int numFields) {
+    BlockReader reader;
+    int code = initBlockReader(&reader, blockData);
+    if (code != TSDB_CODE_SUCCESS) return code;
+
+    int bindColCount = ctx->numFields; /* may differ from numFields if schema change */
+    int bindIdx = 0;
+    for (int c = 0; c < numFields; c++) {
+        /* check schema-change skip via bindIdxMap */
+        int bi = getPartialWriteBindIdx(
+            (ctx->stbChange && ctx->stbChange->schemaChanged) ? ctx->stbChange : NULL,
+            c);
+        if (bi < 0) {
+            void *sd = NULL; int32_t sl = 0;
+            getColumnData(&reader, fieldInfos[c].type, &sd, &sl);
+            continue;
+        }
+        if (bindIdx >= bindColCount) break;
+
+        void *colData = NULL; int32_t colDataLen = 0;
+        code = getColumnData(&reader, fieldInfos[c].type, &colData, &colDataLen);
+        if (code != TSDB_CODE_SUCCESS) return code;
+
+        TAOS_STMT2_BIND *bind = &ctx->colBinds[bindIdx];
+        int64_t base = ctx->accRows;
+
+        if (IS_VAR_DATA_TYPE(fieldInfos[c].type)) {
+            int32_t *offsets    = (int32_t *)colData;
+            char    *varDataBase = (char *)colData + blockRows * sizeof(int32_t);
+            bool     isNchar    = (fieldInfos[c].type == TSDB_DATA_TYPE_NCHAR);
+            int32_t  stride     = fieldInfos[c].bytes;  /* declared max, used as buf stride */
+            for (int row = 0; row < blockRows; row++) {
+                int64_t dst = (base + row) * stride;
+                if (offsets[row] < 0) {
+                    bind->is_null[base + row] = 1;
+                    if (bind->length) bind->length[base + row] = 0;
+                } else {
+                    bind->is_null[base + row] = 0;
+                    uint16_t varLen = *(uint16_t *)(varDataBase + offsets[row]);
+                    char    *src    = varDataBase + offsets[row] + sizeof(uint16_t);
+                    if (isNchar && varLen > 0) {
+                        int32_t utf8Len = taosUcs4ToMbs(
+                            (TdUcs4 *)src, varLen,
+                            (char *)bind->buffer + dst, NULL);
+                        if (bind->length) bind->length[base + row] = utf8Len > 0 ? utf8Len : 0;
+                    } else {
+                        int32_t cp = (varLen < stride) ? varLen : stride;
+                        memcpy((char *)bind->buffer + dst, src, cp);
+                        if (bind->length) bind->length[base + row] = cp;
+                    }
+                }
+            }
+        } else {
+            int32_t typeBytes = tDataTypes[fieldInfos[c].type].bytes;
+            int32_t bitmapLen = (blockRows + 7) / 8;
+            char   *bitmap    = (char *)colData;
+            char   *fixData   = (char *)colData + bitmapLen;
+            memcpy((char *)bind->buffer + base * typeBytes, fixData, (size_t)blockRows * typeBytes);
+            for (int row = 0; row < blockRows; row++) {
+                bind->is_null[base + row] =
+                    (bitmap[row / 8] & (1 << (row % 8))) ? 1 : 0;
+            }
+        }
+        bindIdx++;
+    }
+    ctx->accRows += blockRows;
+    return TSDB_CODE_SUCCESS;
+}
+
+typedef struct { Stmt2RestoreCtx *ctx; FieldInfo *fis; int nf; } S2CallbackData;
+
+static int dataBlockCallbackV2(void *userData, FieldInfo *fieldInfos,
+                               int numFields, void *blockData,
+                               int32_t blockLen, int32_t blockRows) {
+    S2CallbackData *d = (S2CallbackData *)userData;
+    (void)blockLen;
+    if (g_interrupted) return TSDB_CODE_BCK_USER_CANCEL;
+    if (blockRows == 0) return TSDB_CODE_SUCCESS;
+    return stmt2AccBlock(d->ctx, blockData, blockRows, d->fis, d->nf);
+}
+
+//
+// Execute the accumulated rows for the current file using STMT2.
+//
+static int stmt2ExecFile(Stmt2RestoreCtx *ctx) {
+    if (ctx->accRows == 0) return TSDB_CODE_SUCCESS;
+
+    /* set row count on each column */
+    for (int i = 0; i < ctx->numFields; i++)
+        ctx->colBinds[i].num = (int)ctx->accRows;
+
+    /* plain child table name — db already selected on the connection */
+    char *tbnames[1] = { ctx->tbName };
+
+    TAOS_STMT2_BINDV bindv;
+    memset(&bindv, 0, sizeof(bindv));
+    bindv.count     = 1;
+    bindv.tbnames   = tbnames;
+    bindv.tags      = NULL;             /* child table already created */
+    bindv.bind_cols = &ctx->colBinds;   /* [0] = column array for 1st table */
+
+    int code = taos_stmt2_bind_param(ctx->stmt2, &bindv, -1);
+    if (code != 0) {
+        logError("taos_stmt2_bind_param failed (%s.%s): %s",
+                 ctx->dbName, ctx->tbName, taos_stmt2_error(ctx->stmt2));
+        return TSDB_CODE_BCK_STMT_FAILED;
+    }
+
+    int affectedRows = 0;
+    code = taos_stmt2_exec(ctx->stmt2, &affectedRows);
+    if (code != 0) {
+        logError("taos_stmt2_exec failed (%s.%s): %s",
+                 ctx->dbName, ctx->tbName, taos_stmt2_error(ctx->stmt2));
+        return TSDB_CODE_BCK_STMT_FAILED;
+    }
+
+    ctx->totalRows += affectedRows;
+    ctx->accRows    = 0;
+    return TSDB_CODE_SUCCESS;
+}
+
+//
+// Restore one .dat file using TAOS_STMT2.
+// The STMT2 is prepared once per thread, then exec'd once per file
+// (all rows accumulated first, then one bind+exec).
+//
+static int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
+    /* extract table name */
+    const char *base = strrchr(filePath, '/');
+    if (base) base++; else base = filePath;
+    char tbName[TSDB_TABLE_NAME_LEN] = {0};
+    const char *dot = strrchr(base, '.');
+    if (dot && (dot - base) < (int)sizeof(tbName))
+        memcpy(tbName, base, dot - base);
+    else
+        snprintf(tbName, sizeof(tbName), "%s", base);
+
+    int code = TSDB_CODE_SUCCESS;
+    TaosFile *f = openTaosFileForRead(filePath, &code);
+    if (!f) { logError("open failed(%d): %s", code, filePath); return code; }
+    if (f->header.numRows == 0) { closeTaosFileRead(f); return TSDB_CODE_SUCCESS; }
+
+    strncpy(ctx->tbName, tbName, TSDB_TABLE_NAME_LEN - 1);
+    int       numCols   = f->header.numFields;
+    FieldInfo *fis       = (FieldInfo *)f->header.schema;
+    int64_t   numRows   = f->header.numRows;
+
+    /* handle schema change: bind only matching columns */
+    if (ctx->stbChange && ctx->stbChange->schemaChanged)
+        numCols = ctx->stbChange->matchColCount;
+
+    /* prepare SQL once per thread */
+    if (!ctx->prepared) {
+        code = stmt2PrepareOnce(ctx, numCols, fis);
+        if (code != TSDB_CODE_SUCCESS) { closeTaosFileRead(f); return code; }
+    }
+
+    /* allocate / reuse column buffers for this file's rows */
+    code = stmt2AllocColBuffers(ctx, numRows, numCols, fis);
+    if (code != TSDB_CODE_SUCCESS) { closeTaosFileRead(f); return code; }
+
+    /* stream blocks into accumulation buffers */
+    S2CallbackData cbd = { ctx, fis, f->header.numFields };
+    code = readTaosFileBlocks(f, dataBlockCallbackV2, &cbd);
+    closeTaosFileRead(f);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("read blocks failed(%d): %s", code, filePath);
+        return code;
+    }
+
+    /* execute one insert for all accumulated rows */
+    code = stmt2ExecFile(ctx);
+    if (code == TSDB_CODE_SUCCESS)
+        logDebug("stmt2 restore done: %s.%s rows: %" PRId64, ctx->dbName, tbName, ctx->totalRows);
+    else
+        logError("stmt2 exec failed: %s.%s", ctx->dbName, tbName);
+    return code;
+}
+
+
+//
+// Restore a single .par (Parquet) file using STMT
+//
+// The schema is read from the file's embedded metadata; no external schema
+// info is required.  Schema-change partial-column mapping is NOT applied
+// for Parquet files (the column set is taken verbatim from the file).
+//
+static int restoreOneParquetFile(TAOS *conn, const char *dbName,
+                                  const char *filePath,
+                                  StbChange *stbChange) {
+    (void)stbChange;  /* reserved for future schema-change support */
+    int code = TSDB_CODE_SUCCESS;
+
+    // Extract table name:  .../{tbName}.par
+    const char *baseName = strrchr(filePath, '/');
+    if (baseName) baseName++; else baseName = filePath;
+
+    char tbName[TSDB_TABLE_NAME_LEN] = {0};
+    const char *dot = strrchr(baseName, '.');
+    if (dot && (dot - baseName) < TSDB_TABLE_NAME_LEN) {
+        memcpy(tbName, baseName, dot - baseName);
+        tbName[dot - baseName] = '\0';
+    } else {
+        snprintf(tbName, sizeof(tbName), "%s", baseName);
+    }
+
+    logDebug("restore parquet file: %s -> table: %s.%s", filePath, dbName, tbName);
+
+    // Open reader to discover schema (stored in file metadata)
+    ParquetReader *pr = parquetReaderOpen(filePath, &code);
+    if (pr == NULL) {
+        logError("open parquet file failed(%d): %s", code, filePath);
+        return code;
+    }
+
+    TAOS_FIELD *fields    = NULL;
+    int         numFields = parquetReaderGetFields(pr, &fields);
+    (void)fields;  /* we only need the count; actual field data stays in the reader */
+    if (numFields <= 0) {
+        logError("parquet file has no fields: %s", filePath);
+        parquetReaderClose(pr);
+        return TSDB_CODE_BCK_NO_FIELDS;
+    }
+
+    // Build and prepare INSERT stmt
+    TAOS_STMT *stmt = taos_stmt_init(conn);
+    if (stmt == NULL) {
+        logError("taos_stmt_init failed for %s.%s", dbName, tbName);
+        parquetReaderClose(pr);
+        return TSDB_CODE_BCK_STMT_FAILED;
+    }
+
+    char *stmtBuf = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN);
+    if (stmtBuf == NULL) {
+        taos_stmt_close(stmt);
+        parquetReaderClose(pr);
+        return TSDB_CODE_BCK_MALLOC_FAILED;
+    }
+    char *p = stmtBuf;
+    p += snprintf(p, TSDB_MAX_SQL_LEN,
+                  "INSERT INTO `%s`.`%s` VALUES(?",
+                  argRenameDb(dbName), tbName);
+    for (int i = 1; i < numFields; i++)
+        p += sprintf(p, ",?");
+    sprintf(p, ")");
+
+    logDebug("parquet stmt prepare: %s", stmtBuf);
+    int ret = taos_stmt_prepare(stmt, stmtBuf, 0);
+    taosMemoryFree(stmtBuf);
+    if (ret != 0) {
+        logError("taos_stmt_prepare failed: %s", taos_stmt_errstr(stmt));
+        taos_stmt_close(stmt);
+        parquetReaderClose(pr);
+        return TSDB_CODE_BCK_STMT_FAILED;
+    }
+
+    // Stream all row-groups through the STMT via fileParquetToStmt
+    // (closes the internal reader; the schema was already confirmed above)
+    parquetReaderClose(pr);
+
+    int64_t rows = 0;
+    code = fileParquetToStmt(stmt, filePath, &rows);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("restore parquet failed(%d): %s -> %s.%s",
+                 code, filePath, dbName, tbName);
+    } else {
+        logDebug("restore parquet done: %s.%s rows: %" PRId64, dbName, tbName, rows);
+    }
+
+    taos_stmt_close(stmt);
+    return code;
+}
+
+
+//
+// Restore a single data .dat file using a pre-prepared (reusable) per-thread STMT.
+// On the first call ctx->prepared == false and stmtPrepareInsert() is used.
+// On subsequent calls taos_stmt_set_tbname() switches the target table without
+// a full re-prepare round-trip.
+//
+static int restoreOneDataFile(StmtRestoreCtx *ctx,
+                               const char     *filePath) {
+    int code = TSDB_CODE_SUCCESS;
+
+    // Extract table name from file path: .../{tbName}.dat
+    const char *baseName = strrchr(filePath, '/');
+    if (baseName) baseName++; else baseName = filePath;
+
+    char tbName[TSDB_TABLE_NAME_LEN] = {0};
+    const char *dot = strrchr(baseName, '.');
+    if (dot && (dot - baseName) < TSDB_TABLE_NAME_LEN) {
+        memcpy(tbName, baseName, dot - baseName);
+        tbName[dot - baseName] = '\0';
+    } else {
+        snprintf(tbName, sizeof(tbName), "%s", baseName);
+    }
+
+    logDebug("restore data file: %s -> table: %s.%s", filePath, ctx->dbName, tbName);
+
+    // Open .dat file
+    TaosFile *taosFile = openTaosFileForRead(filePath, &code);
+    if (taosFile == NULL) {
+        logError("open data file failed(%d): %s", code, filePath);
+        return code;
+    }
+
+    if (taosFile->header.numRows == 0) {
+        logDebug("data file has no rows: %s", filePath);
+        closeTaosFileRead(taosFile);
+        return TSDB_CODE_SUCCESS;
+    }
+
+    ctx->numFields  = taosFile->header.numFields;
+    ctx->fieldInfos = (FieldInfo *)taosFile->header.schema;
+    ctx->totalRows  = 0;
+    ctx->batchRows  = 0;
+
+    if (!ctx->prepared) {
+        // First file: full prepare with concrete table name
+        strncpy(ctx->tbName, tbName, TSDB_TABLE_NAME_LEN - 1);
+        ctx->tbName[TSDB_TABLE_NAME_LEN - 1] = '\0';
+        code = stmtPrepareInsert(ctx);
+        if (code != TSDB_CODE_SUCCESS) {
+            closeTaosFileRead(taosFile);
+            return code;
+        }
+    } else {
+        // Subsequent files: switch target table without re-preparing
+        code = stmtSwitchTable(ctx, tbName);
+        if (code != TSDB_CODE_SUCCESS) {
+            closeTaosFileRead(taosFile);
+            return code;
+        }
+    }
+
+    // Read blocks and write via STMT
+    code = readTaosFileBlocks(taosFile, dataBlockCallback, ctx);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("restore data blocks failed(%d): %s -> %s.%s",
+                 code, filePath, ctx->dbName, tbName);
+    } else {
+        // flush remaining accumulated rows
+        if (ctx->batchRows > 0) {
+            int execCode = taos_stmt_execute(ctx->stmt);
+            if (execCode != 0) {
+                logError("taos_stmt_execute final flush failed: %s, table: %s.%s",
+                         taos_stmt_errstr(ctx->stmt), ctx->dbName, tbName);
+                if (code == TSDB_CODE_SUCCESS) code = TSDB_CODE_BCK_STMT_FAILED;
+            }
+            ctx->batchRows = 0;
+        }
+        logDebug("restore data file done: %s.%s rows: %" PRId64,
+                 ctx->dbName, tbName, ctx->totalRows);
+    }
+
+    closeTaosFileRead(taosFile);
+    return code;
+}
+
+
+//
+// -------------------------------------- THREAD -----------------------------------------
+//
+
+//
+// Restore data thread function: processes assigned data files.
+//
+// Optimization: a single TAOS_STMT is prepared once per thread.
+// For each subsequent file in the same thread we call
+// taos_stmt_set_tbname() instead of taos_stmt_prepare(), eliminating
+// ~2 network round-trips per file.
+//
+// Checkpoint writes are buffered per-thread and flushed once at the
+// end, removing the per-file mutex+open+write+close sequence.
+//
+static void* restoreDataThread(void *arg) {
+    RestoreDataThread *thread = (RestoreDataThread *)arg;
+    thread->code = TSDB_CODE_SUCCESS;
+
+    logInfo("restore data thread %d start, files: %d", thread->index, thread->fileCnt);
+
+    const char *dbName = thread->dbInfo->dbName;
+    StmtVersion  stmtVer = argStmtVersion();
+    logInfo("restore thread %d using STMT%d", thread->index, (int)stmtVer);
+
+    /* ---- STMT2 path ---- */
+    Stmt2RestoreCtx s2Ctx;
+    memset(&s2Ctx, 0, sizeof(s2Ctx));
+    s2Ctx.conn      = thread->conn;
+    s2Ctx.dbName    = argRenameDb(dbName);
+    s2Ctx.stbChange = thread->stbChange;
+
+    /* ---- STMT1 (legacy) path ---- */
+    StmtRestoreCtx bCtx;
+    memset(&bCtx, 0, sizeof(bCtx));
+    if (stmtVer == STMT_VERSION_1) {
+        TAOS_STMT *s1 = taos_stmt_init(thread->conn);
+        if (!s1) {
+            logError("restore thread %d: taos_stmt_init failed", thread->index);
+            thread->code = TSDB_CODE_BCK_STMT_FAILED;
+            return NULL;
+        }
+        bCtx.stmt      = s1;
+        bCtx.conn      = thread->conn;
+        bCtx.dbName    = argRenameDb(dbName);
+        bCtx.stbChange = thread->stbChange;
+    }
+
+    /* ----- per-thread checkpoint buffer (flushed at end) ----- */
+    /* over-allocate: at most fileCnt paths */
+    char **ckptBuf   = (char **)taosMemoryCalloc(thread->fileCnt, sizeof(char *));
+    int    ckptCount = 0;
+
+    for (int i = 0; i < thread->fileCnt; i++) {
+        if (g_interrupted) {
+            if (thread->code == TSDB_CODE_SUCCESS) thread->code = TSDB_CODE_BCK_USER_CANCEL;
+            break;
+        }
+
+        const char *filePath = thread->files[i];
+
+        // skip if already restored (resume support)
+        if (isRestoreDone(filePath)) {
+            logInfo("restore thread %d: skip already restored: %s", thread->index, filePath);
+            atomic_add_fetch_64(&g_stats.dataFilesSkipped, 1);
+            atomic_add_fetch_64(&g_stats.dataFilesTotal, 1);
+            continue;
+        }
+
+        logInfo("restore data thread %d: file %d/%d: %s",
+                thread->index, i + 1, thread->fileCnt, filePath);
+
+        // Dispatch on file extension: .dat → binary-taos, .par → parquet
+        int   code    = TSDB_CODE_SUCCESS;
+        int   pathLen = strlen(filePath);
+        bool  isPar   = (pathLen > 4 &&
+                         strcmp(filePath + pathLen - 4, ".par") == 0);
+        if (isPar) {
+            code = restoreOneParquetFile(thread->conn, dbName, filePath,
+                                         thread->stbChange);
+        } else if (stmtVer == STMT_VERSION_2) {
+            code = restoreOneDataFileV2(&s2Ctx, filePath);
+        } else {
+            code = restoreOneDataFile(&bCtx, filePath);
+        }
+
+        atomic_add_fetch_64(&g_stats.dataFilesTotal, 1);
+        if (code != TSDB_CODE_SUCCESS) {
+            logError("restore data file failed(%d): %s", code, filePath);
+            atomic_add_fetch_64(&g_stats.dataFilesFailed, 1);
+            if (thread->code == TSDB_CODE_SUCCESS) {
+                thread->code = code;  // capture first error
+            }
+            // After a binary STMT failure the stmt may be in an error state.
+            // Reset it so subsequent files can still be attempted.
+            if (!isPar) {
+                if (stmtVer == STMT_VERSION_2) {
+                    stmt2ResetOnError(&s2Ctx);
+                } else {
+                    if (!stmtResetOnError(&bCtx)) {
+                        logError("restore thread %d: cannot recover STMT1, aborting", thread->index);
+                        break;
+                    }
+                }
+            }
+            // continue with next file (best effort)
+        } else {
+            // buffer checkpoint entry (flushed at end)
+            if (ckptBuf) ckptBuf[ckptCount++] = (char *)filePath;
+        }
+    }
+
+    /* ----- flush buffered checkpoints in one batch ----- */
+    if (ckptBuf && ckptCount > 0) {
+        pthread_mutex_lock(&g_ckptMutex);
+        TdFilePtr fp = taosOpenFile(g_ckptPath,
+                                    TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_APPEND);
+        if (fp) {
+            char line[MAX_PATH_LEN + 2];
+            for (int k = 0; k < ckptCount; k++) {
+                int len = snprintf(line, sizeof(line), "%s\n", ckptBuf[k]);
+                taosWriteFile(fp, line, len);
+            }
+            taosCloseFile(&fp);
+        }
+        pthread_mutex_unlock(&g_ckptMutex);
+    }
+    taosMemoryFree(ckptBuf);
+
+    /* ----- cleanup ----- */
+    /* STMT2 */
+    if (s2Ctx.colBinds) {
+        stmt2FreeColBuffers(&s2Ctx);
+        taosMemoryFree(s2Ctx.colBinds);
+    }
+    if (s2Ctx.stmt2) { taos_stmt2_close(s2Ctx.stmt2); s2Ctx.stmt2 = NULL; }
+
+    /* STMT1 */
+    if (bCtx.bindArray) {
+        freeBindArray(bCtx.bindArray, bCtx.bindArrayCap);
+        taosMemoryFree(bCtx.bindArray);
+    }
+    if (bCtx.stmt) {
+        taos_stmt_close(bCtx.stmt);
+        bCtx.stmt = NULL;
+    }
+
+    logInfo("restore data thread %d done", thread->index);
+    return NULL;
+}
+
+
+//
+// -------------------------------------- FILE SCAN -----------------------------------------
+//
+
+//
+// Find all data .dat files for a given STB under {outPath}/{dbName}/{stbName}_dataN/
+//
+static char** findDataFiles(const char *dbName, const char *stbName, int *totalCount) {
+    *totalCount = 0;
+    char *outPath = argOutPath();
+    char dbDir[MAX_PATH_LEN];
+    snprintf(dbDir, sizeof(dbDir), "%s/%s", outPath, dbName);
+
+    // scan for directories matching {stbName}_dataN
+    TdDirPtr dir = taosOpenDir(dbDir);
+    if (dir == NULL) {
+        logError("open db dir failed: %s", dbDir);
+        return NULL;
+    }
+
+    char prefix[TSDB_TABLE_NAME_LEN + 16];
+    snprintf(prefix, sizeof(prefix), "%s_data", stbName);
+    int prefixLen = strlen(prefix);
+
+    int capacity = 64;
+    char **files = (char **)taosMemoryCalloc(capacity + 1, sizeof(char *));
+    if (!files) {
+        taosCloseDir(&dir);
+        return NULL;
+    }
+
+    TdDirEntryPtr entry;
+    while ((entry = taosReadDir(dir)) != NULL) {
+        char *entryName = taosGetDirEntryName(entry);
+        if (entryName[0] == '.') continue;
+
+        // match data directories: {stbName}_dataN
+        if (strncmp(entryName, prefix, prefixLen) != 0) continue;
+
+        // check if it's a directory
+        char subDir[MAX_PATH_LEN];
+        snprintf(subDir, sizeof(subDir), "%s/%s", dbDir, entryName);
+        
+        if (!taosDirExist(subDir)) continue;
+
+        // scan .dat files in this sub-directory
+        TdDirPtr subDirPtr = taosOpenDir(subDir);
+        if (subDirPtr == NULL) continue;
+
+        TdDirEntryPtr subEntry;
+        while ((subEntry = taosReadDir(subDirPtr)) != NULL) {
+            char *subEntryName = taosGetDirEntryName(subEntry);
+            if (subEntryName[0] == '.') continue;
+            
+            int nameLen = strlen(subEntryName);
+            /* accept both .dat (binary-taos) and .par (parquet) files */
+            bool isDat = (nameLen > 4 && strcmp(subEntryName + nameLen - 4, ".dat") == 0);
+            bool isPar = (nameLen > 4 && strcmp(subEntryName + nameLen - 4, ".par") == 0);
+            if (!isDat && !isPar) continue;
+
+            if (*totalCount >= capacity) {
+                capacity *= 2;
+                char **tmp = (char **)taosMemoryRealloc(files, (capacity + 1) * sizeof(char *));
+                if (!tmp) {
+                    freeArrayPtr(files);
+                    taosCloseDir(&subDirPtr);
+                    taosCloseDir(&dir);
+                    return NULL;
+                }
+                files = tmp;
+            }
+
+            char fullPath[MAX_PATH_LEN];
+            snprintf(fullPath, sizeof(fullPath), "%s/%s", subDir, subEntryName);
+            files[*totalCount] = taosStrdup(fullPath);
+            (*totalCount)++;
+        }
+
+        taosCloseDir(&subDirPtr);
+    }
+    files[*totalCount] = NULL;
+
+    taosCloseDir(&dir);
+    return files;
+}
+
+
+//
+// Restore data for one super table (parallel threads)
+//
+static int restoreStbData(DBInfo *dbInfo, const char *stbName, StbChangeMap *changeMap) {
+    int code = TSDB_CODE_SUCCESS;
+    const char *dbName = dbInfo->dbName;
+
+    // Find all data files for this STB
+    int fileCnt = 0;
+    char **dataFiles = findDataFiles(dbName, stbName, &fileCnt);
+    if (dataFiles == NULL || fileCnt == 0) {
+        logInfo("no data files found for %s.%s", dbName, stbName);
+        if (dataFiles) freeArrayPtr(dataFiles);
+        return TSDB_CODE_SUCCESS;
+    }
+
+    logInfo("found %d data files for %s.%s", fileCnt, dbName, stbName);
+
+    // Determine thread count
+    int threadCnt = argDataThread();
+    if (fileCnt < threadCnt) {
+        threadCnt = fileCnt;
+    }
+
+    // Allocate threads
+    RestoreDataThread *threads = (RestoreDataThread *)taosMemoryCalloc(threadCnt, sizeof(RestoreDataThread));
+    if (threads == NULL) {
+        freeArrayPtr(dataFiles);
+        return TSDB_CODE_BCK_MALLOC_FAILED;
+    }
+
+    // Distribute files across threads (round-robin)
+    // First, allocate file arrays for each thread
+    int *fileCounts = (int *)taosMemoryCalloc(threadCnt, sizeof(int));
+    char ***threadFiles = (char ***)taosMemoryCalloc(threadCnt, sizeof(char **));
+    if (!fileCounts || !threadFiles) {
+        taosMemoryFree(fileCounts);
+        taosMemoryFree(threadFiles);
+        taosMemoryFree(threads);
+        freeArrayPtr(dataFiles);
+        return TSDB_CODE_BCK_MALLOC_FAILED;
+    }
+
+    // Count files per thread
+    for (int i = 0; i < fileCnt; i++) {
+        fileCounts[i % threadCnt]++;
+    }
+
+    // Allocate per-thread file arrays
+    for (int t = 0; t < threadCnt; t++) {
+        threadFiles[t] = (char **)taosMemoryCalloc(fileCounts[t] + 1, sizeof(char *));
+        if (!threadFiles[t]) {
+            for (int j = 0; j < t; j++) taosMemoryFree(threadFiles[j]);
+            taosMemoryFree(threadFiles);
+            taosMemoryFree(fileCounts);
+            taosMemoryFree(threads);
+            freeArrayPtr(dataFiles);
+            return TSDB_CODE_BCK_MALLOC_FAILED;
+        }
+        fileCounts[t] = 0; // reset for filling
+    }
+
+    // Distribute files
+    for (int i = 0; i < fileCnt; i++) {
+        int t = i % threadCnt;
+        threadFiles[t][fileCounts[t]] = dataFiles[i];
+        fileCounts[t]++;
+    }
+
+    // Detect schema change for this super table (skip for normal tables "_ntb")
+    StbChange *stbChange = NULL;
+    if (changeMap && strcmp(stbName, "_ntb") != 0) {
+        // Get a connection to query server schema
+        TAOS *schemaConn = getConnection();
+        if (schemaConn) {
+            int scCode = addStbChanged(changeMap, schemaConn, dbName, stbName);
+            if (scCode != 0) {
+                logWarn("schema change detection failed for %s.%s, proceeding without partial write", dbName, stbName);
+            }
+            stbChange = findStbChange(changeMap, stbName);
+            releaseConnection(schemaConn);
+        }
+    }
+
+    // Setup and create threads
+    StbInfo stbInfo;
+    memset(&stbInfo, 0, sizeof(StbInfo));
+    stbInfo.dbInfo = dbInfo;
+    stbInfo.stbName = stbName;
+
+    for (int i = 0; i < threadCnt; i++) {
+        threads[i].dbInfo    = dbInfo;
+        threads[i].stbInfo   = &stbInfo;
+        threads[i].index     = i + 1;
+        threads[i].stbChange = stbChange;  // shared across threads (read-only)
+        threads[i].conn    = getConnection();
+        if (!threads[i].conn) {
+            for (int j = 0; j < i; j++) {
+                releaseConnection(threads[j].conn);
+            }
+            for (int t = 0; t < threadCnt; t++) taosMemoryFree(threadFiles[t]);
+            taosMemoryFree(threadFiles);
+            taosMemoryFree(fileCounts);
+            taosMemoryFree(threads);
+            freeArrayPtr(dataFiles);
+            return g_interrupted ? TSDB_CODE_BCK_USER_CANCEL : TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+        }
+        threads[i].files   = threadFiles[i];
+        threads[i].fileCnt = fileCounts[i];
+
+        if (pthread_create(&threads[i].pid, NULL, restoreDataThread, (void *)&threads[i]) != 0) {
+            logError("create restore data thread failed(%s) for stb: %s.%s", 
+                     strerror(errno), dbName, stbName);
+            for (int j = 0; j <= i; j++) {
+                releaseConnection(threads[j].conn);
+            }
+            // cleanup
+            for (int t = 0; t < threadCnt; t++) taosMemoryFree(threadFiles[t]);
+            taosMemoryFree(threadFiles);
+            taosMemoryFree(fileCounts);
+            taosMemoryFree(threads);
+            freeArrayPtr(dataFiles);
+            return TSDB_CODE_BCK_CREATE_THREAD_FAILED;
+        }
+    }
+
+    // Wait threads and collect first error
+    for (int i = 0; i < threadCnt; i++) {
+        pthread_join(threads[i].pid, NULL);
+        releaseConnection(threads[i].conn);
+        if (code == TSDB_CODE_SUCCESS && threads[i].code != TSDB_CODE_SUCCESS) {
+            code = threads[i].code;
+        }
+    }
+
+    // Cleanup
+    for (int t = 0; t < threadCnt; t++) {
+        taosMemoryFree(threadFiles[t]);
+    }
+    taosMemoryFree(threadFiles);
+    taosMemoryFree(fileCounts);
+    taosMemoryFree(threads);
+
+    // Free the dataFiles array but NOT the strings (they were passed to threads)
+    // Actually the strings are still owned by dataFiles, so free normally
+    freeArrayPtr(dataFiles);
+
+    return code;
+}
+
+
+//
+// -------------------------------------- MAIN -----------------------------------------
+//
+
+//
+// Get STB names from backup directory (same as restoreMeta)
+//
+static char** getBackupStbNamesForData(const char *dbName, int *code) {
+    *code = TSDB_CODE_SUCCESS;
+
+    char *outPath = argOutPath();
+    char dbDir[MAX_PATH_LEN];
+    snprintf(dbDir, sizeof(dbDir), "%s/%s", outPath, dbName);
+
+    TdDirPtr dir = taosOpenDir(dbDir);
+    if (dir == NULL) {
+        logError("open backup db dir failed: %s", dbDir);
+        *code = TSDB_CODE_BCK_OPEN_DIR_FAILED;
+        return NULL;
+    }
+
+    int capacity = 16;
+    int count = 0;
+    char **names = (char **)taosMemoryCalloc(capacity + 1, sizeof(char *));
+    if (!names) {
+        taosCloseDir(&dir);
+        *code = TSDB_CODE_BCK_MALLOC_FAILED;
+        return NULL;
+    }
+
+    // Look for {stbName}.csv files (schema files identify STBs)
+    TdDirEntryPtr entry;
+    while ((entry = taosReadDir(dir)) != NULL) {
+        char *entryName = taosGetDirEntryName(entry);
+        if (entryName[0] == '.') continue;
+        
+        int nameLen = strlen(entryName);
+        if (nameLen > 4 && strcmp(entryName + nameLen - 4, ".csv") == 0) {
+            if (count >= capacity) {
+                capacity *= 2;
+                char **tmp = (char **)taosMemoryRealloc(names, (capacity + 1) * sizeof(char *));
+                if (!tmp) {
+                    freeArrayPtr(names);
+                    taosCloseDir(&dir);
+                    *code = TSDB_CODE_BCK_MALLOC_FAILED;
+                    return NULL;
+                }
+                names = tmp;
+            }
+            char stbName[TSDB_TABLE_NAME_LEN] = {0};
+            int stbNameLen = nameLen - 4;
+            if (stbNameLen >= TSDB_TABLE_NAME_LEN) stbNameLen = TSDB_TABLE_NAME_LEN - 1;
+            memcpy(stbName, entryName, stbNameLen);
+            stbName[stbNameLen] = '\0';
+            names[count++] = taosStrdup(stbName);
+        }
+    }
+    names[count] = NULL;
+
+    taosCloseDir(&dir);
+    return names;
+}
+
+
+//
+// restore database data
+//
+int restoreDatabaseData(const char *dbName) {
+    int code = TSDB_CODE_SUCCESS;
+
+    // load checkpoint for resume support
+    loadRestoreCheckpoint(dbName);
+
+    // Initialize schema change map for this database
+    StbChangeMap changeMap;
+    stbChangeMapInit(&changeMap);
+
+    //
+    // super tables data
+    //
+    int stbCode = TSDB_CODE_SUCCESS;
+    char **stbNames = getBackupStbNamesForData(dbName, &stbCode);
+    if (stbNames == NULL) {
+        if (stbCode != TSDB_CODE_SUCCESS) {
+            stbChangeMapDestroy(&changeMap);
+            freeRestoreCheckpoint();
+            return stbCode;
+        }
+        stbChangeMapDestroy(&changeMap);
+        freeRestoreCheckpoint();
+        return TSDB_CODE_SUCCESS;
+    }
+
+    DBInfo dbInfo;
+    dbInfo.dbName = dbName;
+
+    for (int i = 0; stbNames[i] != NULL; i++) {
+        if (g_interrupted) {
+            code = TSDB_CODE_BCK_USER_CANCEL;
+            break;
+        }
+
+        logInfo("restore data for super table: %s.%s", dbName, stbNames[i]);
+
+        code = restoreStbData(&dbInfo, stbNames[i], &changeMap);
+        if (code != TSDB_CODE_SUCCESS) {
+            logError("restore stb data failed(0x%08X): %s.%s", code, dbName, stbNames[i]);
+            freeArrayPtr(stbNames);
+            stbChangeMapDestroy(&changeMap);
+            freeRestoreCheckpoint();
+            return code;
+        }
+    }
+
+    freeArrayPtr(stbNames);
+
+    if (code != TSDB_CODE_SUCCESS) {
+        stbChangeMapDestroy(&changeMap);
+        freeRestoreCheckpoint();
+        return code;
+    }
+
+    //
+    // normal tables data (no schema change detection for normal tables)
+    //
+    logInfo("restore normal table data for db: %s", dbName);
+    code = restoreStbData(&dbInfo, "_ntb", NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("restore normal table data failed(%d): %s", code, dbName);
+        stbChangeMapDestroy(&changeMap);
+        freeRestoreCheckpoint();
+        return code;
+    }
+    
+    stbChangeMapDestroy(&changeMap);
+    freeRestoreCheckpoint();
+    return code;
+}

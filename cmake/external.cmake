@@ -1668,3 +1668,50 @@ if(${BUILD_LIBSASL})      # {
     add_dependencies(build_externals ext_sasl2)     # this is for github workflow in cache-miss step.
 endif(${BUILD_LIBSASL})   # }
 endif()
+
+# arrow + parquet (Apache Arrow C++ with bundled third-party dependencies)
+# Produces: libparquet.a  libarrow.a  libarrow_bundled_dependencies.a
+INIT_EXT(ext_arrow
+    INC_DIR  include
+    LIB      lib/libparquet.a lib/libarrow.a lib/libarrow_bundled_dependencies.a
+)
+get_from_local_repo_if_exists("https://github.com/apache/arrow.git")
+ExternalProject_Add(ext_arrow
+    GIT_REPOSITORY ${_git_url}
+    GIT_TAG        apache-arrow-19.0.1
+    GIT_SHALLOW    TRUE
+    PREFIX         "${_base}"
+    SOURCE_SUBDIR  cpp
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
+    CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
+    CMAKE_ARGS -DARROW_BUILD_STATIC:BOOL=ON
+    CMAKE_ARGS -DARROW_BUILD_SHARED:BOOL=OFF
+    CMAKE_ARGS -DARROW_PARQUET:BOOL=ON
+    CMAKE_ARGS -DARROW_IPC:BOOL=ON
+    CMAKE_ARGS -DARROW_COMPUTE:BOOL=OFF
+    CMAKE_ARGS -DARROW_DATASET:BOOL=OFF
+    CMAKE_ARGS -DARROW_FLIGHT:BOOL=OFF
+    CMAKE_ARGS -DARROW_FILESYSTEM:BOOL=OFF
+    CMAKE_ARGS -DARROW_S3:BOOL=OFF
+    CMAKE_ARGS -DARROW_WITH_SNAPPY:BOOL=ON
+    CMAKE_ARGS -DARROW_WITH_ZLIB:BOOL=ON
+    CMAKE_ARGS -DARROW_WITH_ZSTD:BOOL=ON
+    CMAKE_ARGS -DARROW_WITH_LZ4:BOOL=ON
+    CMAKE_ARGS -DARROW_WITH_BZ2:BOOL=OFF
+    CMAKE_ARGS -DARROW_BUILD_TESTS:BOOL=OFF
+    CMAKE_ARGS -DARROW_BUILD_BENCHMARKS:BOOL=OFF
+    CMAKE_ARGS -DARROW_DEPENDENCY_SOURCE:STRING=BUNDLED
+    CMAKE_ARGS -DARROW_VERBOSE_THIRDPARTY_BUILD:BOOL=OFF
+    CMAKE_ARGS -DARROW_JEMALLOC:BOOL=OFF
+    CMAKE_ARGS -DARROW_BUILD_UTILITIES:BOOL=OFF
+    CMAKE_ARGS -DARROW_USE_GLOG:BOOL=OFF
+    BUILD_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_arrow)     # this is for github workflow in cache-miss step.
