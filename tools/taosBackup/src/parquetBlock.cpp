@@ -25,9 +25,19 @@
  *    parquetReaderOpen → parquetReaderReadAll → parquetReaderClose
  */
 
-/* ── Arrow / Parquet C++ headers ──────────────────────────────────── */
-#include <arrow/api.h>
-#include <arrow/io/file.h>
+/* ── Arrow / Parquet C++ headers (minimal – avoids pulling compute/IPC) ── */
+#include <arrow/array.h>                    /* Array, ArrayVector, all concrete array types */
+#include <arrow/array/builder_primitive.h>  /* BooleanBuilder, Int8/16/32/64Builder, UInt*, Float*, Double*, TimestampBuilder */
+#include <arrow/array/builder_binary.h>     /* LargeBinaryBuilder */
+#include <arrow/chunked_array.h>            /* ChunkedArray */
+#include <arrow/memory_pool.h>             /* default_memory_pool */
+#include <arrow/record_batch.h>            /* RecordBatch */
+#include <arrow/result.h>                  /* Result<T> */
+#include <arrow/status.h>                  /* Status */
+#include <arrow/table.h>                   /* Table */
+#include <arrow/type.h>                    /* DataType, FieldVector, field(), schema(), Schema, SchemaBuilder */
+#include <arrow/util/key_value_metadata.h> /* KeyValueMetadata (full definition) */
+#include <arrow/io/file.h>                 /* FileOutputStream, ReadableFile */
 #include <parquet/arrow/writer.h>
 #include <parquet/arrow/reader.h>
 #include <parquet/properties.h>

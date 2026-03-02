@@ -118,6 +118,13 @@ ADD_EXECUTABLE(
 # Enable C++ for the mixed C/C++ target
 SET_TARGET_PROPERTIES(taosBackup PROPERTIES LINKER_LANGUAGE CXX)
 
+# Put each function/data in its own section so --gc-sections can dead-strip
+# unused code that is dragged in from Arrow/Parquet static libraries.
+# Note: -flto only helps in Release builds (-O2/-O3); at -O0 (debug) it bloats.
+if(NOT APPLE)
+    target_compile_options(taosBackup PRIVATE -ffunction-sections -fdata-sections)
+endif()
+
 # Prevent ZSTD symbol interposition: libtaos.so exports TSZ's ZSTD symbols
 # (ZSTD_compressBlock_doubleFast etc.) which collide with ext_arrow's statically
 # bundled ZSTD.  With a PIE binary, PLT lookup can resolve internal ZSTD calls
@@ -126,6 +133,7 @@ SET_TARGET_PROPERTIES(taosBackup PROPERTIES LINKER_LANGUAGE CXX)
 # are never preemptable by the shared library's copy.
 if(NOT APPLE)
     target_link_options(taosBackup PRIVATE
+        -Wl,--gc-sections
         -Wl,-Bsymbolic-functions
         -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/zstd_local.map
     )
