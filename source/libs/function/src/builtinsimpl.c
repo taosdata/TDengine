@@ -29,6 +29,7 @@
 #include "tglobal.h"
 #include "thistogram.h"
 #include "tpercentile.h"
+#include "ttime.h"
 #include "ttypes.h"
 
 bool ignoreNegative(int8_t ignoreOption) { return (ignoreOption & 0x1) == 0x1; }
@@ -3778,6 +3779,422 @@ _exit:
     pRows = NULL;
   }
   return code;
+}
+
+bool getLagFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(int64_t);
+  return true;
+}
+
+int32_t lagFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
+  if (pResInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResInfo)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t lagFunction(SqlFunctionCtx* UNUSED_PARAM(pCtx)) { return TSDB_CODE_SUCCESS; }
+
+typedef struct {
+  bool        isDataNull;
+  char*       pData;
+  SSDataBlock* block;
+  int32_t     rowIndex;
+} SLagLeadRowValue;
+
+static void cleanupLagLeadRowValueArray(SArray* pValues) {
+  if (pValues == NULL) {
+    return;
+  }
+
+  int32_t size = taosArrayGetSize(pValues);
+  for (int32_t i = 0; i < size; ++i) {
+    SLagLeadRowValue* pValue = (SLagLeadRowValue*)taosArrayGet(pValues, i);
+    if (pValue != NULL && pValue->pData != NULL) {
+      taosMemoryFree(pValue->pData);
+      pValue->pData = NULL;
+    }
+  }
+
+  taosArrayDestroy(pValues);
+}
+
+static void cleanupLagLeadValueArrays(SArray* pValueArrays) {
+  if (pValueArrays == NULL) {
+    return;
+  }
+
+  int32_t size = taosArrayGetSize(pValueArrays);
+  for (int32_t i = 0; i < size; ++i) {
+    SArray** ppValues = (SArray**)taosArrayGet(pValueArrays, i);
+    if (ppValues != NULL && *ppValues != NULL) {
+      cleanupLagLeadRowValueArray(*ppValues);
+    }
+  }
+
+  taosArrayDestroy(pValueArrays);
+}
+
+static int32_t copyLagLeadRowValue(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, SLagLeadRowValue* pValue) {
+  pValue->isDataNull = pRow->isDataNull;
+  pValue->pData = NULL;
+  pValue->block = pRow->block;
+  pValue->rowIndex = pRow->rowIndex;
+
+  if (pRow->isDataNull) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SColumnInfoData* pInputCol = pCtx->input.pData[0];
+  int32_t          dataLen = IS_VAR_DATA_TYPE(pInputCol->info.type) ? varDataTLen(pRow->pData) : pInputCol->info.bytes;
+  pValue->pData = taosMemoryMalloc(dataLen);
+  if (pValue->pData == NULL) {
+    return terrno;
+  }
+
+  (void)memcpy(pValue->pData, pRow->pData, dataLen);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setLagLeadDefaultValue(SqlFunctionCtx* pCtx, int32_t pos) {
+  if (pCtx->numOfParams < 3) {
+    colDataSetNULL((SColumnInfoData*)pCtx->pOutput, pos);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SVariant* pDefault = &pCtx->param[2].param;
+
+  if (IS_NULL_TYPE(pDefault->nType)) {
+    colDataSetNULL((SColumnInfoData*)pCtx->pOutput, pos);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+  uint8_t          type = pOutput->info.type;
+  STypeMod         inputTypeMod = pCtx->param[2].pCol == NULL ? 0 : typeGetTypeModFromCol(pCtx->param[2].pCol);
+  int32_t          retCode = TSDB_CODE_SUCCESS;
+
+  switch (type) {
+    case TSDB_DATA_TYPE_BOOL: {
+      bool v = false;
+      GET_TYPED_DATA(v, bool, pDefault->nType, &pDefault->i, inputTypeMod);
+      retCode = colDataSetVal(pOutput, pos, (const char*)&v, false);
+      break;
+    }
+    case TSDB_DATA_TYPE_TINYINT: {
+      int8_t v = 0;
+      GET_TYPED_DATA(v, int8_t, pDefault->nType, &pDefault->i, inputTypeMod);
+      retCode = colDataSetVal(pOutput, pos, (const char*)&v, false);
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      uint8_t v = 0;
+      GET_TYPED_DATA(v, uint8_t, pDefault->nType, &pDefault->i, inputTypeMod);
+      retCode = colDataSetVal(pOutput, pos, (const char*)&v, false);
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int16_t v = 0;
+      GET_TYPED_DATA(v, int16_t, pDefault->nType, &pDefault->i, inputTypeMod);
+      retCode = colDataSetVal(pOutput, pos, (const char*)&v, false);
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      uint16_t v = 0;
+      GET_TYPED_DATA(v, uint16_t, pDefault->nType, &pDefault->i, inputTypeMod);
+      retCode = colDataSetVal(pOutput, pos, (const char*)&v, false);
+      break;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      int32_t v = 0;
+      GET_TYPED_DATA(v, int32_t, pDefault->nType, &pDefault->i, inputTypeMod);
+      retCode = colDataSetVal(pOutput, pos, (const char*)&v, false);
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT: {
+      uint32_t v = 0;
+      GET_TYPED_DATA(v, uint32_t, pDefault->nType, &pDefault->i, inputTypeMod);
+      retCode = colDataSetVal(pOutput, pos, (const char*)&v, false);
+      break;
+    }
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP: {
+      if (type == TSDB_DATA_TYPE_TIMESTAMP && IS_STR_DATA_TYPE(pDefault->nType)) {
+        int64_t tsVal = 0;
+        int32_t cvtCode = convertStringToTimestamp(pDefault->nType, pDefault->pz, pOutput->info.precision, &tsVal,
+                     NULL, NULL);
+        if (cvtCode != TSDB_CODE_SUCCESS) {
+          retCode = cvtCode;
+          break;
+        }
+        retCode = colDataSetVal(pOutput, pos, (const char*)&tsVal, false);
+        break;
+      }
+
+      int64_t v = 0;
+      GET_TYPED_DATA(v, int64_t, pDefault->nType, &pDefault->i, inputTypeMod);
+      retCode = colDataSetVal(pOutput, pos, (const char*)&v, false);
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      uint64_t v = 0;
+      GET_TYPED_DATA(v, uint64_t, pDefault->nType, &pDefault->i, inputTypeMod);
+      retCode = colDataSetVal(pOutput, pos, (const char*)&v, false);
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      float v = 0;
+      GET_TYPED_DATA(v, float, pDefault->nType, &pDefault->i, inputTypeMod);
+      retCode = colDataSetVal(pOutput, pos, (const char*)&v, false);
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double v = 0;
+      GET_TYPED_DATA(v, double, pDefault->nType, &pDefault->i, inputTypeMod);
+      retCode = colDataSetVal(pOutput, pos, (const char*)&v, false);
+      break;
+    }
+    case TSDB_DATA_TYPE_DECIMAL64: {
+      int64_t v = 0;
+      GET_TYPED_DATA(v, int64_t, pDefault->nType, &pDefault->i, inputTypeMod);
+      retCode = colDataSetVal(pOutput, pos, (const char*)&v, false);
+      break;
+    }
+    case TSDB_DATA_TYPE_DECIMAL:
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_GEOMETRY:
+    case TSDB_DATA_TYPE_BLOB:
+      if (pDefault->pz == NULL) {
+        colDataSetNULL(pOutput, pos);
+        retCode = TSDB_CODE_SUCCESS;
+        break;
+      }
+      retCode = colDataSetVal(pOutput, pos, pDefault->pz, false);
+      break;
+    default:
+      colDataSetNULL(pOutput, pos);
+      retCode = TSDB_CODE_SUCCESS;
+      break;
+  }
+
+  return retCode;
+}
+
+static int32_t lagLeadFunctionByRowImpl(SArray* pCtxArray, bool isLead) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t colNum = pCtxArray->size;
+  if (colNum == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t numOfElems = 0;
+  SArray* pRows = taosArrayInit_s(sizeof(SFuncInputRow), colNum);
+  if (NULL == pRows) {
+    return terrno;
+  }
+
+  SArray* pValueArrays = taosArrayInit(colNum, sizeof(SArray*));
+  if (NULL == pValueArrays) {
+    code = terrno;
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < colNum; ++i) {
+    SArray* pValues = taosArrayInit(32, sizeof(SLagLeadRowValue));
+    if (NULL == pValues) {
+      code = terrno;
+      goto _exit;
+    }
+
+    if (NULL == taosArrayPush(pValueArrays, &pValues)) {
+      cleanupLagLeadRowValueArray(pValues);
+      code = terrno;
+      goto _exit;
+    }
+  }
+
+  for (int32_t i = 0; i < colNum; ++i) {
+    SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+    if (NULL == pCtx) {
+      code = terrno;
+      goto _exit;
+    }
+    funcInputUpdate(pCtx);
+  }
+
+  SqlFunctionCtx* pCtx0 = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, 0);
+  SFuncInputRow*  pRow0 = (SFuncInputRow*)taosArrayGet(pRows, 0);
+  if (NULL == pCtx0 || NULL == pRow0) {
+    code = terrno;
+    goto _exit;
+  }
+
+  int32_t startOffset = pCtx0->offset;
+  bool    result = false;
+  while (1) {
+    code = funcInputGetNextRow(pCtx0, pRow0, &result);
+    if (TSDB_CODE_SUCCESS != code) {
+      goto _exit;
+    }
+    if (!result) {
+      break;
+    }
+
+    {
+      SArray*          pValues0 = *(SArray**)taosArrayGet(pValueArrays, 0);
+      SLagLeadRowValue rowValue = {0};
+      code = copyLagLeadRowValue(pCtx0, pRow0, &rowValue);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _exit;
+      }
+
+      if (NULL == taosArrayPush(pValues0, &rowValue)) {
+        if (rowValue.pData != NULL) {
+          taosMemoryFree(rowValue.pData);
+        }
+        code = terrno;
+        goto _exit;
+      }
+    }
+
+    for (int32_t i = 1; i < colNum; ++i) {
+      SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+      SFuncInputRow*  pRow = (SFuncInputRow*)taosArrayGet(pRows, i);
+      if (NULL == pCtx || NULL == pRow) {
+        code = terrno;
+        goto _exit;
+      }
+
+      code = funcInputGetNextRow(pCtx, pRow, &result);
+      if (TSDB_CODE_SUCCESS != code) {
+        goto _exit;
+      }
+      if (!result) {
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        goto _exit;
+      }
+
+      SArray*          pValues = *(SArray**)taosArrayGet(pValueArrays, i);
+      SLagLeadRowValue rowValue = {0};
+      code = copyLagLeadRowValue(pCtx, pRow, &rowValue);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _exit;
+      }
+
+      if (NULL == taosArrayPush(pValues, &rowValue)) {
+        if (rowValue.pData != NULL) {
+          taosMemoryFree(rowValue.pData);
+        }
+        code = terrno;
+        goto _exit;
+      }
+    }
+
+    ++numOfElems;
+  }
+
+  for (int32_t rowIdx = 0; rowIdx < numOfElems; ++rowIdx) {
+    int32_t pos = startOffset + rowIdx;
+    for (int32_t i = 0; i < colNum; ++i) {
+      SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+      SArray*         pValues = *(SArray**)taosArrayGet(pValueArrays, i);
+      if (NULL == pCtx || NULL == pValues) {
+        code = terrno;
+        goto _exit;
+      }
+
+      SLagLeadRowValue* pCurRowValue = (SLagLeadRowValue*)taosArrayGet(pValues, rowIdx);
+      if (NULL == pCurRowValue) {
+        code = terrno;
+        goto _exit;
+      }
+
+      int64_t offset = pCtx->param[1].param.i;
+      int64_t targetIdx = isLead ? (int64_t)rowIdx + offset : (int64_t)rowIdx - offset;
+
+      if (targetIdx < 0 || targetIdx >= numOfElems) {
+        code = setLagLeadDefaultValue(pCtx, pos);
+      } else {
+        SLagLeadRowValue* pTargetRowValue = (SLagLeadRowValue*)taosArrayGet(pValues, targetIdx);
+        if (NULL == pTargetRowValue) {
+          code = terrno;
+          goto _exit;
+        }
+
+        if (pTargetRowValue->isDataNull) {
+          colDataSetNULL((SColumnInfoData*)pCtx->pOutput, pos);
+          code = TSDB_CODE_SUCCESS;
+        } else {
+          code = colDataSetVal((SColumnInfoData*)pCtx->pOutput, pos, pTargetRowValue->pData, false);
+        }
+      }
+
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _exit;
+      }
+
+      if (pCtx->subsidiaries.num > 0) {
+        code = appendSelectivityCols(pCtx, pCurRowValue->block, pCurRowValue->rowIndex, pos);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _exit;
+        }
+      }
+    }
+  }
+
+_exit:
+  for (int32_t i = 0; i < colNum; ++i) {
+    SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+    if (!pCtx) {
+      break;
+    }
+
+    if (!code) {
+      SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+      pResInfo->numOfRes = numOfElems;
+    }
+  }
+
+  if (pRows) {
+    taosArrayDestroy(pRows);
+    pRows = NULL;
+  }
+
+  cleanupLagLeadValueArrays(pValueArrays);
+
+  return code;
+}
+
+int32_t lagFunctionByRow(SArray* pCtxArray) {
+  return lagLeadFunctionByRowImpl(pCtxArray, false);
+}
+
+bool getLeadFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(int64_t);
+  return true;
+}
+
+int32_t leadFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
+  if (pResInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResInfo)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t leadFunction(SqlFunctionCtx* UNUSED_PARAM(pCtx)) { return TSDB_CODE_SUCCESS; }
+
+int32_t leadFunctionByRow(SArray* pCtxArray) {
+  return lagLeadFunctionByRowImpl(pCtxArray, true);
 }
 
 bool getFillforwardFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {

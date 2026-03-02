@@ -1156,6 +1156,8 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
   pResult->info.dataLoad = 1;
 
   SArray* processByRowFunctionCtx = NULL;
+  SArray* pProcessedFuncIds = NULL;
+  SArray* pGroupedCtxArray = NULL;
   if (pSrcBlock == NULL) {
     for (int32_t k = 0; k < numOfOutput; ++k) {
       int32_t outputSlotId = pExpr[k].base.resSchema.slotId;
@@ -1224,11 +1226,56 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
   }
 
   if (processByRowFunctionCtx && taosArrayGetSize(processByRowFunctionCtx) > 0) {
-    SqlFunctionCtx** pfCtx = taosArrayGet(processByRowFunctionCtx, 0);
-    TSDB_CHECK_NULL(pfCtx, code, lino, _exit, terrno);
+    int32_t processByRowSize = taosArrayGetSize(processByRowFunctionCtx);
+    pProcessedFuncIds = taosArrayInit(4, sizeof(int32_t));
+    TSDB_CHECK_NULL(pProcessedFuncIds, code, lino, _exit, terrno);
 
-    TAOS_CHECK_EXIT((*pfCtx)->fpSet.processFuncByRow(processByRowFunctionCtx));
-    numOfRows = (*pfCtx)->resultInfo->numOfRes;
+    for (int32_t i = 0; i < processByRowSize; ++i) {
+      SqlFunctionCtx** ppCurrCtx = taosArrayGet(processByRowFunctionCtx, i);
+      TSDB_CHECK_NULL(ppCurrCtx, code, lino, _exit, terrno);
+      TSDB_CHECK_NULL(*ppCurrCtx, code, lino, _exit, terrno);
+
+      bool    processed = false;
+      int32_t processedNum = taosArrayGetSize(pProcessedFuncIds);
+      for (int32_t j = 0; j < processedNum; ++j) {
+        int32_t* pFuncId = taosArrayGet(pProcessedFuncIds, j);
+        TSDB_CHECK_NULL(pFuncId, code, lino, _exit, terrno);
+        if (*pFuncId == (*ppCurrCtx)->functionId) {
+          processed = true;
+          break;
+        }
+      }
+
+      if (processed) {
+        continue;
+      }
+
+      pGroupedCtxArray = taosArrayInit(2, sizeof(SqlFunctionCtx*));
+      TSDB_CHECK_NULL(pGroupedCtxArray, code, lino, _exit, terrno);
+
+      for (int32_t j = i; j < processByRowSize; ++j) {
+        SqlFunctionCtx** ppTmpCtx = taosArrayGet(processByRowFunctionCtx, j);
+        TSDB_CHECK_NULL(ppTmpCtx, code, lino, _exit, terrno);
+        TSDB_CHECK_NULL(*ppTmpCtx, code, lino, _exit, terrno);
+
+        if ((*ppTmpCtx)->functionId == (*ppCurrCtx)->functionId) {
+          void* px = taosArrayPush(pGroupedCtxArray, ppTmpCtx);
+          TSDB_CHECK_NULL(px, code, lino, _exit, terrno);
+        }
+      }
+
+      TAOS_CHECK_EXIT((*ppCurrCtx)->fpSet.processFuncByRow(pGroupedCtxArray));
+      taosArrayDestroy(pGroupedCtxArray);
+      pGroupedCtxArray = NULL;
+
+      void* px = taosArrayPush(pProcessedFuncIds, &(*ppCurrCtx)->functionId);
+      TSDB_CHECK_NULL(px, code, lino, _exit, terrno);
+
+      numOfRows = (*ppCurrCtx)->resultInfo->numOfRes;
+    }
+
+    taosArrayDestroy(pProcessedFuncIds);
+    pProcessedFuncIds = NULL;
   }
 
   if (!createNewColModel) {
@@ -1236,6 +1283,12 @@ int32_t projectApplyFunctionsWithSelect(SExprInfo* pExpr, SSDataBlock* pResult, 
   }
 
 _exit:
+  if (pGroupedCtxArray) {
+    taosArrayDestroy(pGroupedCtxArray);
+  }
+  if (pProcessedFuncIds) {
+    taosArrayDestroy(pProcessedFuncIds);
+  }
   if (processByRowFunctionCtx) {
     taosArrayDestroy(processByRowFunctionCtx);
   }
