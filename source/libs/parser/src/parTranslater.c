@@ -5932,6 +5932,8 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
   if (taosHashGetSize(pTableNameHash) == 1 && pRTNode != NULL) {
     if (pMeta->numOfColRefs > 0 && pMeta->colRef != NULL && pMeta->tableInfo.numOfColumns > 0 &&
         pRTNode->pMeta != NULL && pRTNode->pMeta->tableInfo.numOfColumns > 0) {
+      // if there is only one reference table, we can set ts column's reference to it, which will be used when virtual
+      // table scan node is eliminated.
       const SSchema* pTsSchema = &pMeta->schema[0];
       const SSchema* pRefTsSchema = &pRTNode->pMeta->schema[0];
       PAR_ERR_JRET(setColRef(&pMeta->colRef[0], pTsSchema->colId, (char*)pRefTsSchema->name, pRTNode->table.tableName,
