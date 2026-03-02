@@ -589,8 +589,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     int32_t     lcn = flocal->f->lcn;
     STimeWindow win = {0};
     tsdbFidKeyRange(pLocalFset->fid, rtner->tsdb->keepCfg.days, rtner->tsdb->keepCfg.precision, &win.skey, &win.ekey);
-    ETsdbOpType type = VND_IS_RSMA((rtner->tsdb->pVnode)) ? TSDB_OPTR_ROLLUP : TSDB_OPTR_SSMIGRATE;
-    *pCode = tsdbAsyncCompact(rtner->tsdb, &win, type);
+    *pCode = tsdbAsyncCompact(rtner->tsdb, &win, TSDB_OPTR_SSMIGRATE);
     tsdbInfo("vgId:%d, fid:%d, migration cancelled, fileset need compact, lcn: %d", vid, pLocalFset->fid, lcn);
     if (*pCode) {
       setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
