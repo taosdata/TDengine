@@ -267,16 +267,6 @@ void taos_cleanup(void) {
 #endif
   tmqMgmtClose();
 
-  // Stop RPC producers first to prevent enqueueing new callbacks to task queue
-  // during shutdown, then stop/join task workers.
-  cleanupAppInfo();
-  rpcCleanup();
-  tscDebug("rpc cleanup");
-
-  if (TSDB_CODE_SUCCESS != cleanupTaskQueue()) {
-    tscWarn("failed to cleanup task queue");
-  }
-
   int32_t id = clientReqRefPool;
   clientReqRefPool = -1;
   taosCloseRef(id);
@@ -284,6 +274,14 @@ void taos_cleanup(void) {
   id = clientConnRefPool;
   clientConnRefPool = -1;
   taosCloseRef(id);
+
+  cleanupAppInfo();
+  rpcCleanup();
+  tscDebug("rpc cleanup");
+
+  if (TSDB_CODE_SUCCESS != cleanupTaskQueue()) {
+    tscWarn("failed to cleanup task queue");
+  }
 
   nodesDestroyAllocatorSet();
 
