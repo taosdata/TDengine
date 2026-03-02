@@ -1100,7 +1100,7 @@ _end:
   return code;
 }
 
-static int32_t doGetValueFromBseBySeq(void* arg, uint8_t* pKey, int32_t keyLen, uint8_t** pValue, int32_t* len) {
+int32_t doGetValueFromBseBySeq(void* arg, uint8_t* pKey, int32_t keyLen, uint8_t** pValue, int32_t* len) {
   int32_t  code = 0;
   int32_t  lino = 0;
   uint64_t seq = 0;
@@ -1130,6 +1130,7 @@ _end:
   }
   return code;
 }
+
 static int32_t doReallocBuf(SBlockLoadSuppInfo* pSup, int32_t colIndex, SColumnInfo* pInfo, int32_t len) {
   int32_t code = 0;
   int32_t bytes = pInfo->bytes;

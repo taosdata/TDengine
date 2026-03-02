@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "functionMgt.h"
 #include "functionResInfo.h"
 #include "taoserror.h"
 #include "tarray.h"
@@ -65,7 +64,7 @@ int32_t tCompareLastColWithDstSlotId(const void* a, const void* b) {
 }
 
 static int32_t saveMultiRows(SArray* pRow, SSDataBlock* pResBlock, 
-  const int32_t* dstSlotIds, const char* idStr) {
+  const int32_t* dstSlotIds, SCacheRowsReader* pr) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t* nextRowIndex = NULL;
@@ -147,13 +146,26 @@ static int32_t saveMultiRows(SArray* pRow, SSDataBlock* pResBlock,
           if (COL_VAL_IS_NULL(pColVal)) {
             colDataSetNULL(pDstCol, rowIndex);
           } else {
-            char* tmp = taosMemCalloc(1, VARSTR_HEADER_SIZE + pColVal->value.nData);
-            TSDB_CHECK_NULL(tmp, code, lino, _end, terrno);
-            varDataSetLen(tmp, pColVal->value.nData);
-            TAOS_UNUSED(memcpy(varDataVal(tmp), pColVal->value.pData, pColVal->value.nData));
-            code = colDataSetVal(pDstCol, rowIndex, (const char*)tmp, false);
-            TSDB_CHECK_CODE(code, lino, _end);
-            taosMemFreeClear(tmp);
+            if (IS_STR_DATA_BLOB(pColVal->value.type)) {
+              int32_t dataLen = 0;
+              uint8_t* pValue = NULL;
+              code = doGetValueFromBseBySeq(pr->pVnode->pBse, pColVal->value.pData,
+                                            pColVal->value.nData, &pValue, &dataLen);
+              if (code != TSDB_CODE_SUCCESS || dataLen <= 0) {
+                tsdbError("%s failed at line %d, to get blob value from bse since: %s",
+                          __func__, lino, tstrerror(code));
+                colDataSetNULL(pDstCol, rowIndex);
+                pDstCol->hasNull = true;
+              } else {
+                code = varColSetVarData(pDstCol, rowIndex, (const char*)pValue, dataLen, false);
+                taosMemFreeClear(pValue);
+                TSDB_CHECK_CODE(code, lino, _end);
+              }
+            } else {
+              code = varColSetVarData(pDstCol, rowIndex, (const char*)pColVal->value.pData,
+                                      pColVal->value.nData, false);
+              TSDB_CHECK_CODE(code, lino, _end);
+            }
           }
         } else {
           code = colDataSetVal(pDstCol, rowIndex,
@@ -179,7 +191,7 @@ static int32_t saveMultiRows(SArray* pRow, SSDataBlock* pResBlock,
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("%s failed at line %d since %s, %s", __func__, lino, tstrerror(code), idStr);
+    tsdbError("%s failed at line %d since %s, %s", __func__, lino, tstrerror(code), pr->idstr);
   }
 
   if (nextRowIndex != NULL) {
@@ -581,7 +593,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     }
 
     if (hasRes) {
-      code = saveMultiRows(pLastCols, pResBlock, dstSlotIds, pr->idstr);
+      code = saveMultiRows(pLastCols, pResBlock, dstSlotIds, pr);
       TSDB_CHECK_CODE(code, lino, _end);
     }
 
@@ -604,7 +616,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         continue;
       }
 
-      code = saveMultiRows(pRow, pResBlock, dstSlotIds, pr->idstr);
+      code = saveMultiRows(pRow, pResBlock, dstSlotIds, pr);
       TSDB_CHECK_CODE(code, lino, _end);
 
       taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);
