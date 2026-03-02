@@ -3596,7 +3596,7 @@ static int32_t translateIndefiniteRowsFunc(STranslateContext* pCxt, SFunctionNod
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "Multiple indefinite rows functions with different return rows");
   }
-  if (pSelect->lastProcessByRowFuncId != -1 && pSelect->lastProcessByRowFuncId != pFunc->funcId) {
+  if (pSelect->lastProcessByRowFuncId != -1 && !canCoexistIndefiniteRowsFunc(pSelect->lastProcessByRowFuncId, pFunc->funcId)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_DIFFERENT_BY_ROW_FUNC);
   }
   if (NULL != pSelect->pWindow || NULL != pSelect->pGroupByList) {

@@ -758,6 +758,7 @@ void destroyOperator(SOperatorInfo* pOperator) {
   }
 
   cleanupExprSupp(&pOperator->exprSupp);
+
   if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
     pOperator->fpSet.closeFn(pOperator->info);
     pOperator->info = NULL;

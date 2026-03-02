@@ -3014,7 +3014,8 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
       pCtx->isNotNullFunc = fmIsNotNullOutputFunc(pCtx->functionId);
 
       bool isUdaf = fmIsUserDefinedFunc(pCtx->functionId);
-      if (fmIsAggFunc(pCtx->functionId) || fmIsIndefiniteRowsFunc(pCtx->functionId)) {
+      if (fmIsAggFunc(pCtx->functionId) || fmIsIndefiniteRowsFunc(pCtx->functionId) ||
+          fmIsProcessByRowFunc(pCtx->functionId)) {
         if (!isUdaf) {
           code = fmGetFuncExecFuncs(pCtx->functionId, &pCtx->fpSet);
           QUERY_CHECK_CODE(code, lino, _end);

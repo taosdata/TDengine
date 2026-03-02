@@ -104,6 +104,21 @@ EFuncReturnRows fmGetFuncReturnRows(SFunctionNode* pFunc) {
                                                                                      : FUNC_RETURN_ROWS_NORMAL;
 }
 
+bool canCoexistIndefiniteRowsFunc(int32_t funcId1, int32_t funcId2) {
+  if (fmIsUserDefinedFunc(funcId1) || funcId1 < 0 || funcId1 >= funcMgtBuiltinsNum ||
+      fmIsUserDefinedFunc(funcId2) || funcId2 < 0 || funcId2 >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  if (funcId1 == funcId2) {
+    return true;
+  }
+  if ((funcMgtBuiltins[funcId1].type == FUNCTION_TYPE_LAG || funcMgtBuiltins[funcId1].type == FUNCTION_TYPE_LEAD) &&
+      (funcMgtBuiltins[funcId2].type == FUNCTION_TYPE_LAG || funcMgtBuiltins[funcId2].type == FUNCTION_TYPE_LEAD)) {
+    return true;
+  }
+  return false;
+}
+
 bool fmIsBuiltinFunc(const char* pFunc) {
   return NULL != taosHashGet(gFunMgtService.pFuncNameHashTable, pFunc, strlen(pFunc));
 }
@@ -117,7 +132,7 @@ EFunctionType fmGetFuncType(const char* pFunc) {
 }
 
 EFunctionType fmGetFuncTypeFromId(int32_t funcId) {
-  if (funcId < funcMgtBuiltinsNum) {
+  if (funcId >= 0 && funcId < funcMgtBuiltinsNum) {
     return funcMgtBuiltins[funcId].type;
   }
   return FUNCTION_TYPE_UDF;
@@ -1026,6 +1041,4 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
   
   return code;
 }
-
-
 
