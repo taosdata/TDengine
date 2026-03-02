@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <strings.h>
 #include "executorInt.h"
 #include "filter.h"
 #include "functionMgt.h"
