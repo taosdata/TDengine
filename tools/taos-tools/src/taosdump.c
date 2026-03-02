@@ -3779,13 +3779,12 @@ static int64_t writeResultToAvro(
     return success;
 }
 
-static int taos_stmt2_bind_one(TAOS_STMT2 *stmt, const char *tbname, TAOS_STMT2_BIND *bindArray) {
+static int taos_stmt2_bind_one(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *bindArray) {
     TAOS_STMT2_BINDV bindv = {0};
-    char *tbnames[1] = {(char *)tbname};
     TAOS_STMT2_BIND *cols[1] = {bindArray};
 
     bindv.count = 1;
-    bindv.tbnames = tbnames;
+    bindv.tbnames = NULL;
     bindv.tags = NULL;
     bindv.bind_cols = cols;
 
@@ -5953,7 +5952,7 @@ static int64_t dumpInAvroDataImpl(
         assert (n == nBindCols);
 
         // bind batch
-        code = taos_stmt2_bind_one(stmt, tbName, bindArray);
+        code = taos_stmt2_bind_one(stmt, bindArray);
         if (code != 0) {
             errorPrint("%s() LN%d taos_stmt2_bind_one() failed! code: 0x%08x, reason: %s\n",
                     __func__, __LINE__, code, taos_stmt2_error(stmt));
