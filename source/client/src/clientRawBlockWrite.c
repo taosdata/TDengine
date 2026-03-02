@@ -103,25 +103,6 @@ static tb_uid_t processSuid(tb_uid_t suid, char* db) {
   }
   return suid + MurmurHash3_32(db, strlen(db));
 }
-static int32_t buildRefInfo(cJSON* column, SColRefWrapper* colRef, int32_t index){
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  SColRef* pColRef = NULL;
-  if (index < colRef->nCols) {
-    pColRef = colRef->pColRef + index;
-  }
-  if (pColRef == NULL) {
-    return 0;
-  }
-  ADD_TO_JSON_BOOL(column, "hasRef", pColRef->hasRef);
-  ADD_TO_JSON_STRING(column, "refDbName", pColRef->refDbName);
-  ADD_TO_JSON_STRING(column, "refTableName", pColRef->refTableName);
-  ADD_TO_JSON_STRING(column, "refColName", pColRef->refColName);
-  ADD_TO_JSON_STRING(column, "colName", pColRef->colName);
-
-end:
-  return code;
-}
 
 static int32_t getLength(int8_t type, int32_t bytes, int32_t typeMod) {
   int32_t length = 0;
@@ -179,10 +160,15 @@ static int32_t buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* s
       ADD_TO_JSON_NUMBER(column, "length", length);
     }
 
-    if (isVirtual && colRef != NULL){
-      cJSON* ref = cJSON_AddObjectToObject(column, "ref");
-      RAW_NULL_CHECK(ref);
-      RAW_RETURN_CHECK(buildRefInfo(ref, colRef, i));
+    if (isVirtual && colRef != NULL && i < colRef->nCols){
+      SColRef* pColRef = colRef->pColRef + i;
+      if (pColRef->hasRef) {
+        cJSON* ref = cJSON_AddObjectToObject(column, "ref");
+        RAW_NULL_CHECK(ref);
+        ADD_TO_JSON_STRING(ref, "refDbName", pColRef->refDbName);
+        ADD_TO_JSON_STRING(ref, "refTableName", pColRef->refTableName);
+        ADD_TO_JSON_STRING(ref, "refColName", pColRef->refColName);
+      }
     }
     ADD_TO_JSON_BOOL(column, "isPrimarykey", (s->flags & COL_IS_KEY));
     if (pColCmprRow == NULL) {
@@ -456,9 +442,17 @@ static int32_t buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
     RAW_NULL_CHECK(refs);
 
     for (int i = 0; i < pCreateReq->colRef.nCols; i++) {
+      SColRef* pColRef = pCreateReq->colRef.pColRef + i;
+  
+      if (!pColRef->hasRef) {
+        continue;
+      }
       cJSON* ref = tmqAddObjectToArray(refs);
       RAW_NULL_CHECK(ref);
-      RAW_RETURN_CHECK(buildRefInfo(ref, &pCreateReq->colRef, i));
+      ADD_TO_JSON_STRING(ref, "colName", pColRef->colName);
+      ADD_TO_JSON_STRING(ref, "refDbName", pColRef->refDbName);
+      ADD_TO_JSON_STRING(ref, "refTableName", pColRef->refTableName);
+      ADD_TO_JSON_STRING(ref, "refColName", pColRef->refColName);
     }
   }
 
@@ -680,11 +674,11 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   json = cJSON_CreateObject();
   RAW_NULL_CHECK(json);
   ADD_TO_JSON_STRING(json, "type", "alter");
-  const char* tableType = (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ||
-                                                vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL
-                                            ? "child"
-                                            : "normal");
-  ADD_TO_JSON_STRING(json, "tableType", tableType);
+  // const char* tableType = (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ||
+  //                                               vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL
+  //                                           ? "child"
+  //                                           : "normal");
+  ADD_TO_JSON_STRING(json, "tableType", "");
   ADD_TO_JSON_STRING(json, "tableName", vAlterTbReq.tbName);
   ADD_TO_JSON_NUMBER(json, "alterType", vAlterTbReq.action);
 
@@ -831,9 +825,14 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
       break;
     }
     case TSDB_ALTER_TABLE_ALTER_COLUMN_REF: {
+      ADD_TO_JSON_STRING(json, "colName", vAlterTbReq.colName);
       ADD_TO_JSON_STRING(json, "refDbName", vAlterTbReq.refDbName);
       ADD_TO_JSON_STRING(json, "refTbName", vAlterTbReq.refTbName);
       ADD_TO_JSON_STRING(json, "refColName", vAlterTbReq.refColName);
+      break;
+    }
+    case TSDB_ALTER_TABLE_REMOVE_COLUMN_REF:{
+      ADD_TO_JSON_STRING(json, "colName", vAlterTbReq.colName);
       break;
     }
     default:
@@ -1221,8 +1220,8 @@ static int32_t checkColRef(STableMeta* pTableMeta, char* colName, uint8_t precis
 
   if (pRefCol->type != pSchema->type || pRefCol->bytes != pSchema->bytes) {
     code = TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE;
-    uError("virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match",
-            pSchema->name, colName);
+    uError("virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match, %d %d %d %d",
+            pSchema->name, colName, pSchema->type, pSchema->bytes, pRefCol->type, pRefCol->bytes);
     goto end;
   }
 
@@ -1241,6 +1240,30 @@ static int32_t checkColRefForCreate(SCatalog* pCatalog, SRequestConnInfo* conn, 
 }
 
 static int32_t checkColRefForAdd(SCatalog* pCatalog, SRequestConnInfo* conn, int32_t acctId, char* dbName, char* tbName, char* colName, 
+  char* dbNameSrc, char* tbNameSrc, char* colNameSrc, int8_t type, int32_t bytes) {
+  int32_t code = 0;
+  STableMeta* pTableMeta = getTableMeta(pCatalog, conn, dbName, tbName, acctId);
+  if (pTableMeta == NULL) {
+    code = terrno;
+    goto end;
+  }
+  STableMeta* pTableMetaSrc = getTableMeta(pCatalog, conn, dbNameSrc, tbNameSrc, acctId);
+  if (pTableMetaSrc == NULL) {
+    code = terrno;
+    goto end;
+  }
+
+  SSchema pSchema = {.type = type, .bytes = bytes};
+  tstrncpy(pSchema.name, colNameSrc, TSDB_COL_NAME_LEN);
+  code = checkColRef(pTableMeta, colName, pTableMetaSrc->tableInfo.precision, &pSchema);
+
+end:
+  taosMemoryFreeClear(pTableMeta);
+  taosMemoryFreeClear(pTableMetaSrc);
+  return code;
+}
+
+static int32_t checkColRefForAlter(SCatalog* pCatalog, SRequestConnInfo* conn, int32_t acctId, char* dbName, char* tbName, char* colName, 
   char* dbNameSrc, char* tbNameSrc, char* colNameSrc) {
   int32_t code = 0;
   STableMeta* pTableMeta = getTableMeta(pCatalog, conn, dbName, tbName, acctId);
@@ -1343,7 +1366,13 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
       RAW_RETURN_CHECK(code);
       pCreateReq->ctb.suid = pTableMeta->uid;
 
-      for (int32_t i = 0; i < pCreateReq->colRef.nCols && i < pTableMeta->tableInfo.numOfColumns; i++) {
+      bool changeDB = strlen(tmqWriteRefDB) > 0;
+      for (int32_t i = 0; changeDB && i < pCreateReq->colRef.nCols; i++) {
+        SColRef* pColRef = pCreateReq->colRef.pColRef + i;
+        tstrncpy(pColRef->refDbName, tmqWriteRefDB, TSDB_DB_NAME_LEN);
+      }
+
+      for (int32_t i = 0; tmqWriteCheckRef && i < pCreateReq->colRef.nCols && i < pTableMeta->tableInfo.numOfColumns; i++) {
         SColRef* pColRef = pCreateReq->colRef.pColRef + i;
         if (!pColRef || !pColRef->hasRef) continue;
         SSchema* pSchema = pTableMeta->schema + i;
@@ -1675,9 +1704,16 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
   int tlen = 0;
   req.source = TD_REQ_FROM_TAOX;
 
-  if (req.action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF || req.action == TSDB_ALTER_TABLE_ALTER_COLUMN_REF) {
-    RAW_RETURN_CHECK(checkColRefForAdd(pCatalog, &conn, pTscObj->acctId, req.refDbName, req.refTbName, req.refColName, 
+  if (strlen(tmqWriteRefDB) > 0) {
+    req.refDbName = tmqWriteRefDB;
+  }
+
+  if (req.action == TSDB_ALTER_TABLE_ALTER_COLUMN_REF) {
+    RAW_RETURN_CHECK(checkColRefForAlter(pCatalog, &conn, pTscObj->acctId, req.refDbName, req.refTbName, req.refColName, 
       pRequest->pDb, req.tbName, req.colName));
+  }else if (req.action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) {
+    RAW_RETURN_CHECK(checkColRefForAdd(pCatalog, &conn, pTscObj->acctId, req.refDbName, req.refTbName, req.refColName, 
+      pRequest->pDb, req.tbName, req.colName, req.type, req.bytes));
   }
 
   tEncodeSize(tEncodeSVAlterTbReq, &req, tlen, code);

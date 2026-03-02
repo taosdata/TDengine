@@ -295,6 +295,9 @@ char    tsCheckpointBackupDir[PATH_MAX] = "/var/lib/taos/backup/checkpoint/";
 
 // tmq
 int32_t tmqMaxTopicNum = 20;
+char    tmqWriteRefDB[TSDB_DB_NAME_LEN] = {0};
+bool    tmqWriteCheckRef = false;
+
 // query
 int32_t tsQueryPolicy = 1;
 bool    tsQueryTbNotExistAsEmpty = false;
@@ -803,6 +806,11 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "sessionControl", tsSessionControl, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT_LAZY,
                                CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
 
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "tmqWriteRefDB", tmqWriteRefDB, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL,
+                                 CFG_PRIV_SYSTEM));
+
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "tmqWriteCheckRef", tmqWriteCheckRef, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
+                               CFG_CATEGORY_LOCAL, CFG_PRIV_DEBUG));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1530,6 +1538,13 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "querySmaOptimize");
   tsQuerySmaOptimize = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tmqWriteRefDB");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_DB_NAME_LEN));
+  tstrncpy(tmqWriteRefDB, pItem->str, TSDB_DB_NAME_LEN);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tmqWriteCheckRef");
+  tmqWriteCheckRef = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "queryPlannerTrace");
   tsQueryPlannerTrace = pItem->bval;
