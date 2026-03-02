@@ -590,7 +590,7 @@ static int32_t filterTableForTmqQuery(STmqQueryScanInfo* pScanInfo, const SArray
   return 0;
 }
 
-static void qUpdateTableTagCache(SStreamScanInfo* pScanInfo, const SArray* tableIdList, col_id_t cid, SStorageAPI* api) {
+static void qUpdateTableTagCache(STmqQueryScanInfo* pScanInfo, const SArray* tableIdList, col_id_t cid, SStorageAPI* api) {
   STqReader*   tqReader = pScanInfo->tqReader;
   for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
     int64_t* uid = (int64_t*)taosArrayGet(tableIdList, i);
@@ -612,7 +612,7 @@ int32_t qAddTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList)
     return code;
   }
 
-  SStreamScanInfo* pScanInfo = pInfo->info;
+  STmqQueryScanInfo* pScanInfo = pInfo->info;
   qUpdateTableTagCache(pScanInfo, tableIdList, 0, &pTaskInfo->storageAPI);
 
   return filterTableForTmqQuery(pScanInfo, tableIdList, id, &pTaskInfo->storageAPI, &pTaskInfo->lock);
@@ -631,7 +631,7 @@ void qUpdateTableTagCacheForTmq(qTaskInfo_t tinfo, const SArray* tableIdList, SA
     return;
   }
 
-  SStreamScanInfo* pScanInfo = pInfo->info;
+  STmqQueryScanInfo* pScanInfo = pInfo->info;
   for (int32_t i = 0; i < taosArrayGetSize(cids); ++i) {
     col_id_t* cid = (col_id_t*)taosArrayGet(cids, i);
     qUpdateTableTagCache(pScanInfo, tableIdList, *cid, &pTaskInfo->storageAPI);
@@ -650,7 +650,7 @@ int32_t qUpdateTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdLi
     return code;
   }
 
-  SStreamScanInfo* pScanInfo = pInfo->info;
+  STmqQueryScanInfo* pScanInfo = pInfo->info;
 
   qDebug("%s %d remove child tables from the stream scanner, %s", __func__, (int32_t)taosArrayGetSize(tableIdList), id);
   taosWLockLatch(&pTaskInfo->lock);
@@ -1331,10 +1331,10 @@ void qStreamSetOpen(qTaskInfo_t tinfo) {
 
 void qStreamSetParams(qTaskInfo_t tinfo, int8_t sourceExcluded, int32_t minPollRows, int64_t timeout, int8_t enableReplay) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  pTaskInfo->streamInfo.sourceExcluded = sourceExcluded;
-  pTaskInfo->streamInfo.minPollRows = minPollRows;
-  pTaskInfo->streamInfo.timeout = timeout;
-  pTaskInfo->streamInfo.enableReplay = enableReplay;
+  pTaskInfo->tmqInfo.sourceExcluded = sourceExcluded;
+  pTaskInfo->tmqInfo.minPollRows = minPollRows;
+  pTaskInfo->tmqInfo.timeout = timeout;
+  pTaskInfo->tmqInfo.enableReplay = enableReplay;
 }
 
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType) {

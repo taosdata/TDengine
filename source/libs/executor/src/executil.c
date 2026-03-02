@@ -1851,7 +1851,7 @@ SNode* getTagCondNodeForQueryTmq(void* tinfo) {
     return NULL;
   }
 
-  SStreamScanInfo* pScanInfo = pInfo->info;
+  STmqQueryScanInfo* pScanInfo = pInfo->info;
   return pScanInfo->pTagCond;
 }
 
