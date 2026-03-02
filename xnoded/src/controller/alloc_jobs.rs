@@ -94,3 +94,51 @@ pub fn alloc_jobs(
 
     Ok(res)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use ha_core::types::SplitJobResult;
+
+    #[test]
+    fn alloc_jobs_returns_error_for_invalid_from_type() {
+        let task = SplitJobResult {
+            from: serde_json::json!(123),
+            to: "taos://localhost:6030".into(),
+            parser: None,
+        };
+        let xnodes = XNodes::new();
+
+        let res = alloc_jobs(task, &xnodes, None);
+        assert!(matches!(res, Err(Error::FromDsnInvalidType)));
+    }
+
+    #[test]
+    fn alloc_jobs_returns_error_for_invalid_dsn_string() {
+        let task = SplitJobResult {
+            from: serde_json::Value::String("not-a-dsn".into()),
+            to: "taos://localhost:6030".into(),
+            parser: None,
+        };
+        let xnodes = XNodes::new();
+
+        let res = alloc_jobs(task, &xnodes, None);
+        assert!(matches!(res, Err(Error::InvalidDsn { .. })));
+    }
+
+    #[test]
+    fn alloc_jobs_unknown_driver_uses_fallback_and_reports_no_xnode() {
+        let task = SplitJobResult {
+            from: serde_json::json!({
+                "type": "custom",
+            }),
+            to: "other://engine".into(),
+            parser: None,
+        };
+        let xnodes = XNodes::new();
+
+        let res = alloc_jobs(task, &xnodes, None);
+        assert!(matches!(res, Err(Error::NoXnodeAvailable)));
+    }
+}

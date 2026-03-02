@@ -7,10 +7,9 @@ use ha_core::{
 use parking_lot::RwLock;
 use tracing::instrument;
 
-use crate::{
-    controller::{tasks::Tasks, xnodes::XNodes},
-    utils::taos_conn::TaosConn,
-};
+use taosx_utils::taos_conn::TaosConn;
+
+use crate::controller::{tasks::Tasks, xnodes::XNodes};
 
 static AGENT_STATUS: LazyLock<RwLock<HashMap<i64, AgentStatus>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
@@ -87,7 +86,7 @@ pub async fn update_task_status(
     let all_xnodes = xnodes.all();
     for xnode_id in all_xnodes {
         let Some(client) = xnodes.get_client(xnode_id) else {
-            tracing::warn!("xnode offline or not found");
+            tracing::warn!(xnode_id, "xnode offline or not found");
             continue;
         };
         let x_states = match client.list_task_job_states().await {
@@ -263,4 +262,70 @@ pub async fn update_task_status(
     }
 
     task_status
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use ha_core::activity::TaskStatus;
+
+    fn clear_caches() {
+        AGENT_STATUS.write().clear();
+        CACHE_TASK_STATUS.write().clear();
+        CACHE_JOB_STATUS.write().clear();
+    }
+
+    #[test]
+    fn agent_status_cache_basic_behaviour() {
+        clear_caches();
+
+        let agent_id = 42;
+        set_cached_agent_state(agent_id, AgentStatus::Connected);
+        assert!(AGENT_STATUS.read().contains_key(&agent_id));
+
+        remove_cached_agent_state(agent_id);
+        assert!(!AGENT_STATUS.read().contains_key(&agent_id));
+    }
+
+    #[test]
+    fn task_and_job_status_cache_isolated_and_cleared() {
+        clear_caches();
+
+        let task_id = 1_i64;
+        let other_task_id = 2_i64;
+        let job_id_a = 10_i64;
+        let job_id_b = 11_i64;
+
+        assert!(get_task_status(task_id).is_none());
+        assert!(get_job_status(task_id, job_id_a).is_none());
+
+        set_task_status(task_id, TaskStatus::Running);
+        set_job_status(task_id, job_id_a, TaskStatus::Running);
+        set_job_status(task_id, job_id_b, TaskStatus::Stopped);
+
+        set_task_status(other_task_id, TaskStatus::Stopped);
+        set_job_status(other_task_id, job_id_a, TaskStatus::Stopped);
+
+        assert_eq!(get_task_status(task_id), Some(TaskStatus::Running));
+        assert_eq!(get_job_status(task_id, job_id_a), Some(TaskStatus::Running));
+        assert_eq!(get_job_status(task_id, job_id_b), Some(TaskStatus::Stopped));
+        assert_eq!(get_task_status(other_task_id), Some(TaskStatus::Stopped));
+        assert_eq!(
+            get_job_status(other_task_id, job_id_a),
+            Some(TaskStatus::Stopped)
+        );
+
+        del_task_status(task_id);
+
+        assert!(get_task_status(task_id).is_none());
+        assert!(get_job_status(task_id, job_id_a).is_none());
+        assert!(get_job_status(task_id, job_id_b).is_none());
+
+        assert_eq!(get_task_status(other_task_id), Some(TaskStatus::Stopped));
+        assert_eq!(
+            get_job_status(other_task_id, job_id_a),
+            Some(TaskStatus::Stopped)
+        );
+    }
 }

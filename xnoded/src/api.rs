@@ -338,3 +338,52 @@ macro_rules! call {
 }
 
 pub(crate) use call;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn api_error_into_response_uses_controller_status() {
+        let source = controller::Error::NoAvailableXnode;
+        let err = Error::Controller { source };
+
+        let resp = err.into_response();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn data_into_response_success_and_failure_status() {
+        let ok = Data(serde_json::json!({ "key": 1 }));
+        let resp = ok.into_response();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        struct Failing;
+
+        impl serde::Serialize for Failing {
+            fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                Err(serde::ser::Error::custom("serialize failed"))
+            }
+        }
+
+        let failing = Data(Failing);
+        let resp = failing.into_response();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[tokio::test]
+    async fn build_tcp_listener_binds_address() {
+        let listener = build_tcp_listener("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        match addr {
+            ServeAddr::Tcp(a) => {
+                assert!(a.port() != 0);
+            }
+            #[cfg(unix)]
+            ServeAddr::UnixSocket(_) => panic!("expected tcp listener"),
+        }
+    }
+}

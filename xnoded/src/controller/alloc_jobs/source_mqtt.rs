@@ -76,3 +76,31 @@ pub fn alloc_jobs(
         Ok(AllocatedJobs::Jobs(jobs))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use ha_core::types::SplitJobResult;
+
+    #[test]
+    fn alloc_jobs_errors_when_topics_missing_or_empty() {
+        let xnodes = XNodes::new();
+
+        let task_no_topics = SplitJobResult {
+            from: serde_json::json!({"type": "mqtt"}),
+            to: "taos://localhost:6030".into(),
+            parser: None,
+        };
+        let res = alloc_jobs(task_no_topics, &xnodes, None);
+        assert!(matches!(res, Err(Error::SplitTopicsNotFound)));
+
+        let task_empty_topics = SplitJobResult {
+            from: serde_json::json!({"type": "mqtt", "topics": []}),
+            to: "taos://localhost:6030".into(),
+            parser: None,
+        };
+        let res = alloc_jobs(task_empty_topics, &xnodes, None);
+        assert!(matches!(res, Err(Error::TopicEmpty)));
+    }
+}

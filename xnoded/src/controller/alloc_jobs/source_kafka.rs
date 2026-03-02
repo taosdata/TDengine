@@ -180,4 +180,81 @@ mod tests {
             ]
         )
     }
+
+    #[test]
+    fn alloc_propagates_via_to_all_jobs() {
+        let task = SplitJobResult {
+            from: serde_json::json!({
+                "type": "kafka"
+            }),
+            to: "taos://localhost:6030".into(),
+            parser: None,
+        };
+        let topics = vec![TopicConcurrency {
+            name: "a".into(),
+            concurrency: 3,
+        }];
+        let xnode_concurrency = vec![(0, 1), (1, 2)];
+        let jobs = alloc(task, topics, xnode_concurrency, update_dsn, Some(7)).unwrap();
+        assert!(!jobs.is_empty());
+        for (_, job) in jobs {
+            assert_eq!(job.via, Some(7));
+        }
+    }
+
+    #[test]
+    fn alloc_single_node_assigns_all_jobs_to_same_xnode() {
+        let task = SplitJobResult {
+            from: serde_json::json!({
+                "type": "kafka"
+            }),
+            to: "taos://localhost:6030".into(),
+            parser: None,
+        };
+        let topics = vec![
+            TopicConcurrency {
+                name: "a".into(),
+                concurrency: 1,
+            },
+            TopicConcurrency {
+                name: "b".into(),
+                concurrency: 2,
+            },
+        ];
+        let xnode_concurrency = vec![(5, 3)];
+        let jobs = alloc(task, topics, xnode_concurrency, update_dsn, None).unwrap();
+        assert!(!jobs.is_empty());
+        for (xid, _) in jobs {
+            assert_eq!(xid, 5);
+        }
+    }
+
+    #[test]
+    fn update_dsn_sets_topic_and_concurrency() {
+        let dsn = Dsn::from_str("kafka://").unwrap();
+        let updated = update_dsn(dsn, "my_topic", 4);
+        assert!(updated.contains("topics=my_topic"));
+        assert!(updated.contains("read_concurrency=4"));
+    }
+
+    #[test]
+    fn alloc_jobs_errors_when_topics_missing_or_empty() {
+        let xnodes = XNodes::new();
+
+        let task_no_topics = SplitJobResult {
+            from: serde_json::json!({"type": "kafka"}),
+            to: "taos://localhost:6030".into(),
+            parser: None,
+        };
+        let res = super::alloc_jobs(task_no_topics, &xnodes, None);
+        assert!(matches!(res, Err(Error::SplitTopicsNotFound)));
+
+        let task_empty_topics = SplitJobResult {
+            from: serde_json::json!({"type": "kafka", "topics": []}),
+            to: "taos://localhost:6030".into(),
+            parser: None,
+        };
+        let res = super::alloc_jobs(task_empty_topics, &xnodes, None);
+        assert!(matches!(res, Err(Error::TopicEmpty)));
+    }
 }

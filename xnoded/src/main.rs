@@ -3,7 +3,6 @@ mod controller;
 mod entrypoint;
 mod log;
 mod tasks;
-mod utils;
 
 use std::path::PathBuf;
 
@@ -111,7 +110,7 @@ fn main() -> anyhow::Result<()> {
     log::init(&args).context("init logger error")?;
     print_args(&args);
 
-    let _guard = utils::defer::defer(|| tracing::info!("main exited"));
+    let _guard = taosx_utils::defer::defer(|| tracing::info!("main exited"));
 
     if let Err(e) = entrypoint::run(args) {
         tracing::error!("failed to run entrypoint: {e:#}");

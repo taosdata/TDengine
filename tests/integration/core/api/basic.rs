@@ -2,19 +2,21 @@ use crate::common::helpers::terminate_process;
 use crate::common::TestServiceConfig;
 use crate::core::api::*;
 
-#[test]
-fn test_taosx_api() {
+#[tokio::test]
+async fn test_taosx_api() {
     let config = TestServiceConfig::new();
     let (_tempfile, mut cmd) = config.serve();
     let mut child = cmd.spawn().unwrap();
 
-    std::thread::sleep(std::time::Duration::from_secs(5));
+    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
-    let client = ApiClient::new(&config.api_base_url());
+    let client = ApiClient::builder(&config.api_base_url())
+        .build()
+        .expect("build api client");
 
     // Test 1: Health Check
     println!("\n=== Test 1: Health Check ===");
-    match client.health() {
+    match client.health().await {
         Ok(health) => println!("✓ Health check passed: {}", health),
         Err(e) => println!("✗ Health check failed: {}", e),
     }
@@ -25,7 +27,7 @@ fn test_taosx_api() {
 
     // Test 3: Swagger endpoint
     println!("\n=== Test 3: Swagger Endpoint ===");
-    match client.swagger() {
+    match client.swagger().await {
         Ok(swagger) => {
             if !swagger.is_empty() {
                 println!("✓ Swagger endpoint accessible ({}B)", swagger.len());
@@ -36,7 +38,7 @@ fn test_taosx_api() {
 
     // Test 4: List tasks (should be empty initially)
     println!("\n=== Test 4: List Tasks (Empty) ===");
-    match client.list_tasks() {
+    match client.list_tasks().await {
         Ok(tasks) => println!("✓ Listed {} tasks", tasks.len()),
         Err(e) => println!("✗ Failed to list tasks: {}", e),
     }
@@ -49,9 +51,10 @@ fn test_taosx_api() {
         to: "target_db".to_string(),
         parser: None,
         via: None,
+        labels: None,
     };
     println!("Attempting to create task: {}", invalid_task.name);
-    match client.create_task(&invalid_task) {
+    match client.create_task(&invalid_task).await {
         Ok(_) => println!("✗ Task should have failed due to invalid source"),
         Err(e) => {
             let error_msg = e.to_string();
@@ -71,27 +74,29 @@ fn test_taosx_api() {
         to: "taos:///test2".to_string(),
         parser: None,
         via: None,
+        labels: None,
     };
     println!("Attempting to create task: {}", valid_task.name);
-    match client.create_task(&valid_task) {
+    match client.create_task(&valid_task).await {
         Ok(task) => {
             println!("✓ Successfully created task with ID: {}", task.id);
 
             // Test 7: Get specific task
             println!("\n=== Test 7: Get Task by ID ===");
-            match client.get_task(task.id) {
-                Ok(fetched_task) => {
+            match client.get_task(task.id).await {
+                Ok(Some(fetched_task)) => {
                     println!(
                         "✓ Retrieved task: {} (from: {}, to: {})",
                         fetched_task.name, fetched_task.from, fetched_task.to
                     );
                 }
+                Ok(None) => println!("✗ Task not found"),
                 Err(e) => println!("✗ Failed to get task: {}", e),
             }
 
             // Test 8: List tasks (should now contain at least one)
             println!("\n=== Test 8: List Tasks (With Data) ===");
-            match client.list_tasks() {
+            match client.list_tasks().await {
                 Ok(tasks) => {
                     println!("✓ Listed {} task(s)", tasks.len());
                     for t in &tasks {
@@ -113,7 +118,7 @@ fn test_taosx_api() {
                 parser: None,
                 via: None,
             };
-            match client.update_task(task.id, &update) {
+            match client.update_task(task.id, &update).await {
                 Ok(updated_task) => {
                     println!("✓ Successfully updated task to: {}", updated_task.name);
                 }
@@ -122,28 +127,28 @@ fn test_taosx_api() {
 
             // Test 10: Start task
             println!("\n=== Test 10: Start Task ===");
-            match client.start_task(task.id) {
+            match client.start_task(task.id).await {
                 Ok(_) => println!("✓ Task started successfully"),
                 Err(e) => println!("⚠ Failed to start task: {}", e),
             }
 
             // Test 13: Stop task
             println!("\n=== Test 13: Stop Task ===");
-            match client.stop_task(task.id) {
+            match client.stop_task(task.id).await {
                 Ok(_) => println!("✓ Task stopped successfully"),
                 Err(e) => println!("⚠ Failed to stop task: {}", e),
             }
 
             // Test 14: Delete task
             println!("\n=== Test 14: Delete Task ===");
-            match client.delete_task(task.id) {
+            match client.delete_task(task.id).await {
                 Ok(_) => println!("✓ Task deleted successfully"),
                 Err(e) => println!("✗ Failed to delete task: {}", e),
             }
 
             // Test 15: Verify task is deleted
             println!("\n=== Test 15: Verify Task Deleted ===");
-            match client.get_task(task.id) {
+            match client.get_task(task.id).await {
                 Ok(_) => println!("✗ Task should have been deleted"),
                 Err(e) => {
                     let error_msg = e.to_string();
@@ -162,6 +167,8 @@ fn test_taosx_api() {
     }
 
     println!("\n=== Test Suite Complete ===");
-    terminate_process(child.id());
-    let _ = child.wait();
+    if let Some(pid) = child.id() {
+        terminate_process(pid);
+    }
+    let _ = child.wait().await;
 }

@@ -74,16 +74,15 @@ pub async fn get_task(
     args: web::Data<Args>,
     task_id: Path<i64>,
     req: HttpRequest,
-) -> JsonResult<GetTaskResult> {
+) -> JsonStatusResult<Option<GetTaskResult>> {
     let task_id = task_id.into_inner();
     let dsn = get_dsn(&args, &req).await?;
     let sql = format!("SHOW XNODE TASKS WHERE ID = {task_id}");
     let data = query_one::<TaskRecord>(&dsn, &sql).await?;
-    Ok(Json(
-        data.map(|v| v.try_into())
-            .transpose()?
-            .with_context(|| format!("task {task_id} not found"))?,
-    ))
+    match data {
+        Some(data) => Ok((Json(Some(data.try_into()?)), StatusCode::OK)),
+        None => Ok((Json(None), StatusCode::NOT_FOUND)),
+    }
 }
 
 #[instrument(skip_all)]

@@ -38,7 +38,7 @@ ha-core.workspace = true
 ha-rpc-client.workspace = true
 taoslog.workspace = true
 futures-ext.workspace = true
-taosx-utils.workspace = true
+taosx-utils = { workspace = true, features = ["backoff", "taos_conn", "signal"] }
 
 [build-dependencies]
 shadow-rs.workspace = true

@@ -21,24 +21,34 @@ test-oracle = []
 test-postgres = []
 test-mongodb = []
 test-mssql = []
-test-mqtt = []
+test-mqtt = ["fake-data", "rumqttc-next", "dotenv"]
 test-opcua = []
 test-opcda = []
 test-pi = []
 test-historian = []
 
 # Test groups (by type)
-test-relational-db = ["test-mysql", "test-oracle", "test-postgres", "test-mssql"]
+test-relational-db = [
+    "test-mysql",
+    "test-oracle",
+    "test-postgres",
+    "test-mssql",
+]
 test-nosql-db = ["test-mongodb"]
 test-message-queue = ["test-kafka", "test-mqtt"]
-test-industrial-protocol = ["test-opcua", "test-opcda", "test-pi", "test-historian"]
+test-industrial-protocol = [
+    "test-opcua",
+    "test-opcda",
+    "test-pi",
+    "test-historian",
+]
 
 # All datasources
 test-all-datasources = [
     "test-relational-db",
     "test-nosql-db",
     "test-message-queue",
-    "test-industrial-protocol"
+    "test-industrial-protocol",
 ]
 
 [dependencies]
@@ -47,21 +57,31 @@ tokio = { workspace = true, features = ["full", "test-util"] }
 tokio-util = { workspace = true }
 
 # taosX dependencies
-taosx-core = { path = "../../taosx-core" }
-taosx-task = { path = "../../crates/task", optional = true }
+taosx-core.workspace = true
+taosx-task = { workspace = true, optional = true }
+ha-core.workspace = true
 taos = { workspace = true }
 
 # Utilities
 uuid = { version = "1.0", features = ["v4"] }
 anyhow = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter", "chrono"] }
+tracing-appender = "0.2"
 chrono = { workspace = true }
 fastrand = "2"
 url = "2"
 serde_json = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 reqwest = { workspace = true, features = ["json", "blocking", "multipart"] }
+base64 = { workspace = true }
 tempfile = { workspace = true }
 assert_cmd = { workspace = true }
 nix = { version = "0.30", features = ["signal"] }
+taosx-test-macros.workspace = true
+taosx-utils = { workspace = true, features = ["backoff", "taos_conn"] }
+
+# MQTT tests (test-mqtt): publish fake JSON to broker
+fake-data = { path = "../../crates/fake_data", optional = true }
+rumqttc-next = { version = "0.27", optional = true }
+dotenv = { version = "0.15", optional = true }

@@ -398,7 +398,7 @@ fn test_td_33256_with_taos() -> anyhow::Result<()> {
         .args(["-h", host.as_str(), "-s"])
         .arg(format!(
             "CREATE USER `{USER}` PASS '{PASS}';\
-                GRANT ALL ON `{SOURCE}` TO `{USER}`;\
+                GRANT ALL ON database `{SOURCE}` TO `{USER}`;\
                 CREATE DATABASE `{SINK}`;"
         ))
         .assert()

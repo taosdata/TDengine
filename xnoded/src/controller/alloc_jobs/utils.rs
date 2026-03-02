@@ -110,3 +110,77 @@ pub fn divide_timestamp_by_memory(
 
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::str::FromStr;
+
+    use taos::Dsn;
+
+    #[test]
+    fn dsn_parse_timestamp_parses_valid_rfc3339() {
+        let dsn = Dsn::from_str("taos://localhost:6030?ts=2025-01-01T00:00:00Z").unwrap();
+        let ts = dsn_parse_timestamp(&dsn, "ts").unwrap().unwrap();
+        assert_eq!(ts.to_rfc3339(), "2025-01-01T00:00:00+00:00");
+    }
+
+    #[test]
+    fn dsn_parse_timestamp_returns_none_when_key_absent() {
+        let dsn = Dsn::from_str("taos://localhost:6030").unwrap();
+        let ts = dsn_parse_timestamp(&dsn, "ts").unwrap();
+        assert!(ts.is_none());
+    }
+
+    #[test]
+    fn dsn_parse_timestamp_returns_error_for_invalid_value() {
+        let dsn = Dsn::from_str("taos://localhost:6030?ts=invalid").unwrap();
+        let err = dsn_parse_timestamp(&dsn, "ts").unwrap_err();
+        assert!(
+            matches!(err, crate::controller::alloc_jobs::Error::InvalidTimestamp { ts, .. } if ts == "invalid")
+        );
+    }
+
+    #[test]
+    fn divide_timestamp_empty_nodes_returns_empty_vec() {
+        let start = DateTime::from_timestamp(0, 0).unwrap();
+        let res = divide_timestamp_by_memory(start, Some(start), Vec::new());
+        assert!(res.is_empty());
+    }
+
+    #[test]
+    fn divide_timestamp_single_node_keeps_full_range() {
+        let start = DateTime::from_timestamp(0, 0).unwrap();
+        let end = DateTime::from_timestamp(100, 0).unwrap();
+        let res = divide_timestamp_by_memory(start, Some(end), vec![(1, 1024)]);
+        assert_eq!(res.len(), 1);
+        let r = &res[0];
+        assert_eq!(r.xnode_id, 1);
+        assert_eq!(r.time_range.start, start);
+        assert_eq!(r.time_range.end, Some(end));
+    }
+
+    #[test]
+    fn divide_timestamp_multiple_nodes_proportional() {
+        let start = DateTime::from_timestamp(0, 0).unwrap();
+        let end = DateTime::from_timestamp(100, 0).unwrap();
+        let res = divide_timestamp_by_memory(start, Some(end), vec![(1, 1), (2, 3)]);
+        assert_eq!(res.len(), 2);
+        assert_eq!(res[0].time_range.start, start);
+        assert_eq!(res[1].time_range.end, Some(end));
+        let dur1 = res[0].time_range.end.unwrap() - res[0].time_range.start;
+        let dur2 = res[1].time_range.end.unwrap() - res[1].time_range.start;
+        assert!(dur2 > dur1);
+    }
+
+    #[test]
+    fn divide_timestamp_without_end_adds_open_range_for_max_memory_node() {
+        let start = DateTime::from_timestamp(0, 0).unwrap();
+        let res = divide_timestamp_by_memory(start, None, vec![(1, 1), (2, 2)]);
+        assert_eq!(res.len(), 3);
+        let last = &res[2];
+        assert_eq!(last.xnode_id, 2);
+        assert!(last.time_range.end.is_none());
+    }
+}

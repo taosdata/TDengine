@@ -57,6 +57,7 @@ jsonwebtoken.workspace = true
 taosx-core.workspace = true
 ha-core.workspace = true
 ha-rpc-client.workspace = true
+fake-data.workspace = true
 
 
 [build-dependencies]

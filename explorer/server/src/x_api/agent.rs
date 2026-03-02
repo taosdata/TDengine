@@ -4,12 +4,13 @@ use actix_web::{
 };
 use anyhow::Context;
 use ha_core::{activity::AgentStatus, consts::AGENT_ACTIVITIES_STABLE};
+use http::StatusCode;
 
 use crate::{
     Args,
     sql::{exec, query, query_one},
     x_api::{
-        JsonResult, get_dsn,
+        JsonResult, JsonStatusResult, get_dsn,
         types::{ActivityLog, AgentRecord, JobRecord, TaskRecord},
         x_addrs,
     },
@@ -24,6 +25,27 @@ pub async fn get_agents(args: web::Data<Args>, req: HttpRequest) -> JsonResult<V
         }
     }
     Ok(Json(agents))
+}
+
+pub async fn get_agent(
+    args: web::Data<Args>,
+    req: HttpRequest,
+    agent_id: Path<i64>,
+) -> JsonStatusResult<Option<AgentRecord>> {
+    let agent_id = agent_id.into_inner();
+    let dsn = get_dsn(&args, &req).await?;
+    let sql = format!("SHOW XNODE AGENTS WHERE ID = {agent_id}");
+    let agent = query_one::<AgentRecord>(&dsn, &sql).await?;
+    let agent = agent.map(|mut v| {
+        if v.status.is_none() {
+            v.status = Some(AgentStatus::Idle)
+        }
+        v
+    });
+    match agent {
+        Some(agent) => Ok((Json(Some(agent)), StatusCode::OK)),
+        None => Ok((Json(None), StatusCode::NOT_FOUND)),
+    }
 }
 
 #[derive(Debug, serde::Deserialize)]

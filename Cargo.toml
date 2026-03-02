@@ -12,6 +12,8 @@ members = [
   "explorer/server",
   "tests/integration",
   "tests/tools",
+  "crates/fake_data",
+  "crates/test-macros",
   "crates/spawners/x-replication",
   "crates/persist-queue",
   "crates/archive",
@@ -242,6 +244,8 @@ ha-core.path = "./crates/ha-core"
 ha-rpc-client.path = "./crates/ha-rpc-client"
 taosx-utils.path = "./crates/utils"
 source-parquet.path = "./crates/source-parquet"
+taosx-test-macros.path = "./crates/test-macros"
+fake-data.path = "./crates/fake_data"
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"

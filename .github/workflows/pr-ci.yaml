@@ -97,6 +97,16 @@ jobs:
         run: cargo make explorer-ui-prod
 
       - name: Unit Test
+        env:
+          INTEGRATION_TEST_MQTT_HOST: 192.168.1.45
+          INTEGRATION_TEST_MQTT_PORT: 1883
+          INTEGRATION_TEST_MQTT_AUTH_PORT: 1884
+          INTEGRATION_TEST_MQTT_TLS_PORT: 8884
+          INTEGRATION_TEST_MQTT_USERNAME: taosx
+          INTEGRATION_TEST_MQTT_PASSWORD: taosx
+          INTEGRATION_TEST_TAOSX_API_BASE_URL: http://192.168.0.201:6060/api/x/
+          INTEGRATION_TEST_MQTT_TASK_TO_DSN: taos+ws://192.168.0.201:6041/integration_test
+          INTEGRATION_TEST_AGENT_NAME: integration_test_agent
         run: |
           cargo make test
 

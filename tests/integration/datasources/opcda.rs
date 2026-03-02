@@ -1,6 +1,6 @@
-/// OPC-DA data source integration tests
-///
-/// Phase 2 implementation: Migrate OPC-DA-specific tests here
+//! OPC-DA data source integration tests
+//!
+//! Phase 2 implementation: Migrate OPC-DA-specific tests here
 
 #[cfg(test)]
 mod tests {

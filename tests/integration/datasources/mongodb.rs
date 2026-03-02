@@ -1,6 +1,6 @@
-/// MongoDB data source integration tests
-///
-/// Phase 2 implementation: Migrate MongoDB-specific tests here
+//! MongoDB data source integration tests
+//!
+//! Phase 2 implementation: Migrate MongoDB-specific tests here
 
 #[cfg(test)]
 mod tests {

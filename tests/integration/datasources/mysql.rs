@@ -1,6 +1,6 @@
-/// MySQL data source integration tests
-///
-/// Phase 2 implementation: Migrate MySQL-specific tests here
+//! MySQL data source integration tests
+//!
+//! Phase 2 implementation: Migrate MySQL-specific tests here
 
 #[cfg(test)]
 mod tests {

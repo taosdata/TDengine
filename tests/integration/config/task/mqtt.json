@@ -1,0 +1,51 @@
+{
+    "parse": {
+        "payload": {
+            "json": ""
+        }
+    },
+    "model": {
+        "name": "d{id}",
+        "using": "mqtt_meters",
+        "tags": [
+            "id"
+        ],
+        "columns": [
+            "ts",
+            "current",
+            "voltage",
+            "phase",
+            "desc"
+        ]
+    },
+    "mutate": [
+        {
+            "map": {
+                "ts": {
+                    "cast": "ts",
+                    "as": "TIMESTAMP(ms)"
+                },
+                "current": {
+                    "expr": "int(parse_float(current))",
+                    "as": "INT"
+                },
+                "voltage": {
+                    "cast": "voltage",
+                    "as": "INT"
+                },
+                "phase": {
+                    "cast": "phase",
+                    "as": "DOUBLE"
+                },
+                "desc": {
+                    "cast": "desc",
+                    "as": "BINARY(64)"
+                },
+                "id": {
+                    "cast": "id",
+                    "as": "INT"
+                }
+            }
+        }
+    ]
+}

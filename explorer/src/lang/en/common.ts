@@ -180,6 +180,7 @@ export default {
     tag: 'Tag'
   },
   statuses: {
+    idle: 'Idle',
     created: 'Created',
     queued: 'Queued',
     started: 'Started',

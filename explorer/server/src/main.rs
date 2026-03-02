@@ -487,6 +487,7 @@ async fn main() -> anyhow::Result<()> {
             // agents
             .route("/api/x/agents", web::get().to(get_agents))
             .route("/api/x/agents", web::post().to(add_agent))
+            .route("/api/x/agents/{agent_id}", web::get().to(get_agent))
             .route("/api/x/agents/{agent_id}", web::delete().to(del_agent))
             .route("/api/x/agents/{agent_id}", web::patch().to(edit_agent))
             .route(

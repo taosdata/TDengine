@@ -8,12 +8,11 @@ use tokio_util::sync::CancellationToken;
 use tonic::transport::Endpoint;
 use tracing::instrument;
 
-use crate::{
-    controller::{
-        BuildTaosConnSnafu, Result, agents::Agents, sql_types, start_job, start_task, tasks::Tasks,
-        xnodes::XNodes,
-    },
-    utils::taos_conn::TaosConn,
+use taosx_utils::taos_conn::TaosConn;
+
+use crate::controller::{
+    BuildTaosConnSnafu, Result, agents::Agents, sql_types, start_job, start_task, tasks::Tasks,
+    xnodes::XNodes,
 };
 
 #[instrument(skip_all, fields(xnode_id=id))]
@@ -29,7 +28,7 @@ pub async fn reconnect_loop(
     reconnect_rx: flume::Receiver<oneshot::Sender<bool>>,
     cancel: CancellationToken,
 ) -> Result<()> {
-    let _cleanup = crate::utils::defer::defer(|| {
+    let _cleanup = taosx_utils::defer::defer(|| {
         xnodes.set_offline(id);
         tracing::info!(xnode_id = id, "reconnect loop exited");
     });

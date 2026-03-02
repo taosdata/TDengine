@@ -8,7 +8,7 @@ use taos::{
 };
 use tracing::instrument;
 
-use crate::utils;
+use crate::backoff::RetryBackoff;
 
 #[derive(Debug, snafu::Snafu)]
 pub enum Error {
@@ -114,8 +114,7 @@ impl TaosConn {
         tracing::debug!(sql, "executing SQL");
         let mut try_count = 0;
         let mut last_err = None;
-        let mut backoff =
-            utils::backoff::RetryBackoff::new(Duration::from_millis(200), Duration::from_secs(5));
+        let mut backoff = RetryBackoff::new(Duration::from_millis(200), Duration::from_secs(5));
         loop {
             if try_count > self.max_tries
                 && let Some(e) = last_err

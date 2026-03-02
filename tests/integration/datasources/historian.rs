@@ -1,6 +1,6 @@
-/// Historian data source integration tests
-///
-/// Phase 2 implementation: Migrate Historian-specific tests here
+//! Historian data source integration tests
+//!
+//! Phase 2 implementation: Migrate Historian-specific tests here
 
 #[cfg(test)]
 mod tests {

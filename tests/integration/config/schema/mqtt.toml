@@ -1,0 +1,27 @@
+type = "object"
+
+[properties.ts]
+type = "timestamp"
+start_time = 2026-02-25T00:00:00
+interval = "1ms"
+
+[properties.current]
+type = "float"
+range = { min = 0.0, max = 100.0 }
+
+[properties.voltage]
+type = "number"
+range = { min = 0, max = 1000 }
+
+[properties.phase]
+type = "float"
+range = { min = 0.0, max = 1.0 }
+
+[properties.desc]
+type = "string"
+random = { length = { range = { min = 3, max = 16 } } }
+
+[properties.id]
+type = "number"
+range = { min = 1, max = 3 }
+

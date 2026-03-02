@@ -1,3 +1,5 @@
+//! 按 Arrow RecordBatch 格式生成假数据，基于 JSON schema 类型扩展 `rand_array`。
+
 use std::{
     collections::HashMap,
     path::Path,
@@ -14,14 +16,14 @@ use arrow_schema::{DataType, Field, Schema, TimeUnit};
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use snafu::ResultExt;
 
-use crate::fake_json;
+use crate::json;
 
 #[derive(Debug, snafu::Snafu)]
 pub enum Error {
     ReadFile { source: std::io::Error },
     ParseToml { source: toml::de::Error },
     BuildBatch { source: arrow::error::ArrowError },
-    Json { source: fake_json::Error },
+    Json { source: json::Error },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -35,20 +37,20 @@ pub struct ObjectSchema {
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum DataFakeSchema {
     /// from json to utf8
-    Json(fake_json::ObjectSchema),
-    Utf8(fake_json::StringSchema),
-    Boolean(fake_json::BoolSchema),
-    Int8(fake_json::NumberSchema<i8>),
-    Int16(fake_json::NumberSchema<i16>),
-    Int32(fake_json::NumberSchema<i32>),
-    Int64(fake_json::NumberSchema<i64>),
-    UInt8(fake_json::NumberSchema<u8>),
-    UInt16(fake_json::NumberSchema<u16>),
-    UInt32(fake_json::NumberSchema<u32>),
-    UInt64(fake_json::NumberSchema<u64>),
-    Float32(fake_json::NumberSchema<f32>),
-    Float64(fake_json::NumberSchema<f64>),
-    Timestamp(fake_json::TimestampSchema),
+    Json(json::ObjectSchema),
+    Utf8(json::StringSchema),
+    Boolean(json::BoolSchema),
+    Int8(json::NumberSchema<i8>),
+    Int16(json::NumberSchema<i16>),
+    Int32(json::NumberSchema<i32>),
+    Int64(json::NumberSchema<i64>),
+    UInt8(json::NumberSchema<u8>),
+    UInt16(json::NumberSchema<u16>),
+    UInt32(json::NumberSchema<u32>),
+    UInt64(json::NumberSchema<u64>),
+    Float32(json::NumberSchema<f32>),
+    Float64(json::NumberSchema<f64>),
+    Timestamp(json::TimestampSchema),
 }
 
 impl DataFakeSchema {
@@ -86,7 +88,7 @@ impl DataFaker {
         Self::from_string(batch_size, &buf)
     }
 
-    fn from_string(batch_size: usize, buf: &str) -> Result<Self> {
+    pub fn from_string(batch_size: usize, buf: &str) -> Result<Self> {
         Ok(Self {
             batch_size,
             schema: OnceLock::new(),
@@ -127,23 +129,23 @@ impl DataFaker {
                                 Field::new(name, DataType::Float64, false)
                             }
                             DataFakeSchema::Timestamp(schema) => match schema.interval {
-                                fake_json::TimestampInterval::Integer(_) => unimplemented!(),
-                                fake_json::TimestampInterval::Second(_) => Field::new(
+                                json::TimestampInterval::Integer(_) => unimplemented!(),
+                                json::TimestampInterval::Second(_) => Field::new(
                                     name,
                                     DataType::Timestamp(TimeUnit::Second, None),
                                     false,
                                 ),
-                                fake_json::TimestampInterval::Millisecond(_) => Field::new(
+                                json::TimestampInterval::Millisecond(_) => Field::new(
                                     name,
                                     DataType::Timestamp(TimeUnit::Millisecond, None),
                                     false,
                                 ),
-                                fake_json::TimestampInterval::Microsecond(_) => Field::new(
+                                json::TimestampInterval::Microsecond(_) => Field::new(
                                     name,
                                     DataType::Timestamp(TimeUnit::Microsecond, None),
                                     false,
                                 ),
-                                fake_json::TimestampInterval::Nanosecond(_) => Field::new(
+                                json::TimestampInterval::Nanosecond(_) => Field::new(
                                     name,
                                     DataType::Timestamp(TimeUnit::Nanosecond, None),
                                     false,
@@ -169,7 +171,7 @@ impl DataFaker {
     }
 }
 
-impl fake_json::ObjectSchema {
+impl json::ObjectSchema {
     pub fn rand_array(&self, batch_size: usize) -> Result<StringArray> {
         Ok(StringArray::from_iter_values(
             (0..batch_size)
@@ -180,7 +182,7 @@ impl fake_json::ObjectSchema {
     }
 }
 
-impl fake_json::StringSchema {
+impl json::StringSchema {
     pub fn rand_array(&self, batch_size: usize) -> Result<StringArray> {
         Ok(StringArray::from_iter_values(
             (0..batch_size)
@@ -191,7 +193,7 @@ impl fake_json::StringSchema {
     }
 }
 
-impl fake_json::BoolSchema {
+impl json::BoolSchema {
     pub fn rand_array(&self, batch_size: usize) -> Result<BooleanArray> {
         Ok((0..batch_size)
             .into_par_iter()
@@ -203,7 +205,7 @@ impl fake_json::BoolSchema {
 
 macro_rules! impl_rand_number_array {
     ($array_t: ty, $data_t: ty) => {
-        impl fake_json::NumberSchema<$data_t> {
+        impl json::NumberSchema<$data_t> {
             pub fn rand_array(&self, batch_size: usize) -> Result<$array_t> {
                 Ok(<$array_t>::from_iter_values(
                     (0..batch_size)
@@ -227,19 +229,17 @@ impl_rand_number_array!(UInt64Array, u64);
 impl_rand_number_array!(Float32Array, f32);
 impl_rand_number_array!(Float64Array, f64);
 
-impl fake_json::TimestampSchema {
+impl json::TimestampSchema {
     pub fn rand_array(&self, batch_size: usize) -> Result<ArrayRef> {
         Ok(match self.interval {
-            fake_json::TimestampInterval::Integer(_) => unimplemented!(),
-            fake_json::TimestampInterval::Second(_) => {
-                Arc::new(TimestampSecondArray::from_iter_values(
-                    (0..batch_size)
-                        .into_par_iter()
-                        .map(|_| self.next_value().context(JsonSnafu))
-                        .collect::<Result<Vec<_>>>()?,
-                ))
-            }
-            fake_json::TimestampInterval::Millisecond(_) => {
+            json::TimestampInterval::Integer(_) => unimplemented!(),
+            json::TimestampInterval::Second(_) => Arc::new(TimestampSecondArray::from_iter_values(
+                (0..batch_size)
+                    .into_par_iter()
+                    .map(|_| self.next_value().context(JsonSnafu))
+                    .collect::<Result<Vec<_>>>()?,
+            )),
+            json::TimestampInterval::Millisecond(_) => {
                 Arc::new(TimestampMillisecondArray::from_iter_values(
                     (0..batch_size)
                         .into_par_iter()
@@ -247,7 +247,7 @@ impl fake_json::TimestampSchema {
                         .collect::<Result<Vec<_>>>()?,
                 ))
             }
-            fake_json::TimestampInterval::Microsecond(_) => {
+            json::TimestampInterval::Microsecond(_) => {
                 Arc::new(TimestampMicrosecondArray::from_iter_values(
                     (0..batch_size)
                         .into_par_iter()
@@ -255,7 +255,7 @@ impl fake_json::TimestampSchema {
                         .collect::<Result<Vec<_>>>()?,
                 ))
             }
-            fake_json::TimestampInterval::Nanosecond(_) => {
+            json::TimestampInterval::Nanosecond(_) => {
                 Arc::new(TimestampNanosecondArray::from_iter_values(
                     (0..batch_size)
                         .into_par_iter()
@@ -269,11 +269,16 @@ impl fake_json::TimestampSchema {
 
 #[cfg(test)]
 mod tests {
+    use arrow::array::Array;
 
     use super::*;
 
+    fn parse_faker(batch_size: usize, toml_str: &str) -> Result<DataFaker> {
+        DataFaker::from_string(batch_size, toml_str)
+    }
+
     #[test]
-    fn test_parse() -> anyhow::Result<()> {
+    fn from_string_parses_full_schema() -> anyhow::Result<()> {
         let s = r#"
 [topic]
 type = "utf8"
@@ -302,9 +307,126 @@ fixed = "integer"
 type = "utf8"
 random = { length = { fixed = 3 }, charset = "abcd" }
         "#;
-
-        assert!(DataFaker::from_string(100, s).is_ok());
-
+        let faker = parse_faker(100, s).map_err(|e| anyhow::anyhow!("{:?}", e))?;
+        assert_eq!(faker.columns.len(), 6);
         Ok(())
+    }
+
+    #[test]
+    fn get_schema_returns_correct_field_types() {
+        let s = r#"
+[id]
+type = "int64"
+fixed = 1
+[name]
+type = "utf8"
+fixed = "x"
+[ok]
+type = "boolean"
+fixed = true
+        "#;
+        let faker = parse_faker(10, s).expect("parse");
+        let schema = faker.get_schema();
+        let names: Vec<_> = schema.fields().iter().map(|f| f.name().as_str()).collect();
+        let types: Vec<_> = schema.fields().iter().map(|f| f.data_type()).collect();
+        assert!(names.contains(&"id"));
+        assert!(names.contains(&"name"));
+        assert!(names.contains(&"ok"));
+        assert!(types.contains(&&DataType::Int64));
+        assert!(types.contains(&&DataType::Utf8));
+        assert!(types.contains(&&DataType::Boolean));
+    }
+
+    #[test]
+    fn rand_record_batch_produces_correct_length() {
+        let s = r#"
+[a]
+type = "int32"
+fixed = 42
+[b]
+type = "utf8"
+fixed = "hello"
+        "#;
+        let batch_size = 50;
+        let faker = parse_faker(batch_size, s).expect("parse");
+        let batch = faker.rand_record_batch().expect("rand_record_batch");
+        assert_eq!(batch.num_rows(), batch_size);
+        assert_eq!(batch.num_columns(), 2);
+    }
+
+    #[test]
+    fn rand_record_batch_fixed_values_are_stable() {
+        let s = r#"
+[v]
+type = "int64"
+fixed = 999
+        "#;
+        let faker = parse_faker(20, s).expect("parse");
+        let batch = faker.rand_record_batch().expect("rand_record_batch");
+        let col = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<Int64Array>()
+            .expect("Int64Array");
+        for i in 0..col.len() {
+            assert_eq!(col.value(i), 999);
+        }
+    }
+
+    #[test]
+    fn utf8_fixed_column_content() {
+        let s = r#"
+[msg]
+type = "utf8"
+fixed = "same_every_time"
+        "#;
+        let faker = parse_faker(5, s).expect("parse");
+        let batch = faker.rand_record_batch().expect("rand_record_batch");
+        let col = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("StringArray");
+        for i in 0..col.len() {
+            assert_eq!(col.value(i), "same_every_time");
+        }
+    }
+
+    #[test]
+    fn boolean_fixed_column() {
+        let s = r#"
+[flag]
+type = "boolean"
+fixed = false
+        "#;
+        let faker = parse_faker(10, s).expect("parse");
+        let batch = faker.rand_record_batch().expect("rand_record_batch");
+        let col = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<BooleanArray>()
+            .expect("BooleanArray");
+        for i in 0..col.len() {
+            assert!(!col.value(i));
+        }
+    }
+
+    #[test]
+    fn timestamp_millisecond_column() {
+        let s = r#"
+[ts]
+type = "timestamp"
+start_time = 2025-01-01T00:00:00
+interval = "1ms"
+        "#;
+        let faker = parse_faker(3, s).expect("parse");
+        let batch = faker.rand_record_batch().expect("rand_record_batch");
+        assert_eq!(batch.num_rows(), 3);
+        let col = batch.column(0);
+        assert!(
+            col.as_any()
+                .downcast_ref::<TimestampMillisecondArray>()
+                .is_some()
+        );
     }
 }

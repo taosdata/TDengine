@@ -71,14 +71,14 @@ interval = {}
         &self.data_dir
     }
 
-    pub fn serve(&self) -> (tempfile::NamedTempFile, std::process::Command) {
+    pub fn serve(&self) -> (tempfile::NamedTempFile, tokio::process::Command) {
         let mut cmd = std::env::var(LLVM_COV_TARGET_DIR)
             .with_context(|| format!("No {} environment variable set", LLVM_COV_TARGET_DIR))
             .and_then(|path| {
                 let path = Path::new(&path);
                 let taosx = path.join("taosx");
                 if taosx.exists() {
-                    Ok(std::process::Command::new(taosx))
+                    Ok(tokio::process::Command::new(taosx))
                 } else {
                     Err(anyhow::anyhow!(
                         "No taosx binary found in {}",
@@ -88,9 +88,8 @@ interval = {}
             })
             .unwrap_or_else(|_err| {
                 println!("fallback to path taosx");
-                std::process::Command::new("taosx")
+                tokio::process::Command::new("taosx")
             });
-        println!("use taosx: {}", cmd.get_program().to_string_lossy());
         let toml = self.to_toml();
         let tempfile = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(tempfile.path(), toml).unwrap();

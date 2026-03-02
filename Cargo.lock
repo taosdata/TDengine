@@ -527,7 +527,7 @@ dependencies = [
  "anyhow",
  "arrow",
  "bytes",
- "flume",
+ "flume 0.11.1",
  "futures",
  "parquet",
  "regex",
@@ -1099,6 +1099,26 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.114",
+]
+
+[[package]]
+name = "async-tungstenite"
+version = "0.32.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8acc405d38be14342132609f06f02acaf825ddccfe76c4824a69281e0458ebd4"
+dependencies = [
+ "atomic-waker",
+ "futures-core",
+ "futures-io",
+ "futures-task",
+ "futures-util",
+ "log",
+ "pin-project-lite",
+ "rustls-native-certs 0.8.3",
+ "rustls-pki-types",
+ "tokio",
+ "tokio-rustls 0.26.4",
+ "tungstenite 0.28.0",
 ]
 
 [[package]]
@@ -3588,6 +3608,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "fake-data"
+version = "2.0.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow-schema",
+ "chrono",
+ "rand 0.8.5",
+ "rayon",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "snafu",
+ "toml 0.9.11+spec-1.1.0",
+]
+
+[[package]]
 name = "fallible-iterator"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3719,6 +3756,17 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "nanorand",
+ "spin 0.9.8",
+]
+
+[[package]]
+name = "flume"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e139bc46ca777eb5efaf62df0ab8cc5fd400866427e56c68b22e414e53bd3be"
+dependencies = [
+ "futures-core",
+ "futures-sink",
  "spin 0.9.8",
 ]
 
@@ -4225,7 +4273,7 @@ dependencies = [
  "anyhow",
  "arrow",
  "arrow-flight",
- "flume",
+ "flume 0.11.1",
  "futures",
  "ha-core",
  "jsonwebtoken",
@@ -5093,7 +5141,7 @@ dependencies = [
  "bindgen",
  "chrono",
  "dlopen2 0.8.2",
- "flume",
+ "flume 0.11.1",
  "parking_lot 0.12.5",
  "tracing",
 ]
@@ -5161,7 +5209,7 @@ dependencies = [
  "csv",
  "deadpool",
  "faststr",
- "flume",
+ "flume 0.11.1",
  "fundu",
  "futures",
  "futures-util",
@@ -5390,7 +5438,7 @@ dependencies = [
  "async-backtrace",
  "async-compression",
  "chrono",
- "flume",
+ "flume 0.11.1",
  "itertools 0.14.0",
  "semver",
  "serde",
@@ -6837,7 +6885,7 @@ dependencies = [
  "bytes",
  "clap",
  "crc32fast",
- "flume",
+ "flume 0.11.1",
  "futures",
  "notify",
  "parking_lot 0.12.5",
@@ -8201,7 +8249,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "faststr",
- "flume",
+ "flume 0.11.1",
  "futures",
  "thiserror 2.0.18",
  "tokio",
@@ -8236,12 +8284,34 @@ checksum = "0feff8d882bff0b2fddaf99355a10336d43dd3ed44204f85ece28cf9626ab519"
 dependencies = [
  "bytes",
  "fixedbitset",
- "flume",
+ "flume 0.11.1",
  "futures-util",
  "log",
  "rustls-native-certs 0.8.3",
  "rustls-pemfile 2.2.0",
  "rustls-webpki 0.102.8",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-rustls 0.26.4",
+ "tokio-stream",
+ "tokio-util",
+]
+
+[[package]]
+name = "rumqttc-next"
+version = "0.27.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87945338e1c5c0416c917191bdefd790a390e6c44c79b85becdd4b304dfa5a4f"
+dependencies = [
+ "async-tungstenite",
+ "bytes",
+ "fixedbitset",
+ "flume 0.12.0",
+ "futures-util",
+ "log",
+ "rustls-native-certs 0.8.3",
+ "rustls-pki-types",
+ "rustls-webpki 0.103.9",
  "thiserror 2.0.18",
  "tokio",
  "tokio-rustls 0.26.4",
@@ -9149,7 +9219,7 @@ version = "2.0.0"
 dependencies = [
  "anyhow",
  "faststr",
- "flume",
+ "flume 0.11.1",
  "parking_lot 0.12.5",
  "rumqttc",
  "serde",
@@ -9306,7 +9376,7 @@ dependencies = [
  "csv-async",
  "faststr",
  "flate2",
- "flume",
+ "flume 0.11.1",
  "futures-util",
  "glob",
  "notify",
@@ -9332,7 +9402,7 @@ dependencies = [
  "arrow",
  "arrow-schema",
  "chrono",
- "flume",
+ "flume 0.11.1",
  "futures-util",
  "itertools 0.14.0",
  "linked-hash-map",
@@ -9377,7 +9447,7 @@ dependencies = [
  "arrow-schema",
  "chrono",
  "faststr",
- "flume",
+ "flume 0.11.1",
  "futures-ext",
  "futures-util",
  "ha-core",
@@ -9409,7 +9479,7 @@ dependencies = [
  "chrono",
  "csv-async",
  "faststr",
- "flume",
+ "flume 0.11.1",
  "futures-util",
  "kinghistorian-sys",
  "serde",
@@ -9431,7 +9501,7 @@ dependencies = [
  "arrow",
  "arrow-schema",
  "chrono",
- "flume",
+ "flume 0.11.1",
  "itertools 0.14.0",
  "linked-hash-map",
  "mongodb",
@@ -9455,7 +9525,7 @@ dependencies = [
  "chrono",
  "csv",
  "faststr",
- "flume",
+ "flume 0.11.1",
  "futures",
  "ha-core",
  "itertools 0.14.0",
@@ -9490,7 +9560,7 @@ dependencies = [
  "chrono",
  "deadpool",
  "deadpool-tiberius",
- "flume",
+ "flume 0.11.1",
  "futures",
  "itertools 0.14.0",
  "linked-hash-map",
@@ -9513,7 +9583,7 @@ dependencies = [
  "arrow-schema",
  "bigdecimal 0.4.10",
  "chrono",
- "flume",
+ "flume 0.11.1",
  "futures",
  "itertools 0.14.0",
  "linked-hash-map",
@@ -9584,7 +9654,7 @@ dependencies = [
  "arrow",
  "arrow-schema",
  "chrono",
- "flume",
+ "flume 0.11.1",
  "itertools 0.14.0",
  "linked-hash-map",
  "oracle",
@@ -9620,7 +9690,7 @@ dependencies = [
  "anyhow",
  "arrow",
  "chrono",
- "flume",
+ "flume 0.11.1",
  "futures",
  "parquet",
  "serde_json",
@@ -9663,7 +9733,7 @@ dependencies = [
  "bigdecimal 0.4.10",
  "bit-vec",
  "chrono",
- "flume",
+ "flume 0.11.1",
  "futures",
  "itertools 0.14.0",
  "linked-hash-map",
@@ -9693,7 +9763,7 @@ dependencies = [
  "cipher",
  "ecb",
  "faststr",
- "flume",
+ "flume 0.11.1",
  "futures",
  "futures-ext",
  "futures-util",
@@ -9731,7 +9801,7 @@ dependencies = [
  "arrow-schema",
  "chrono",
  "faststr",
- "flume",
+ "flume 0.11.1",
  "futures",
  "futures-ext",
  "parking_lot 0.12.5",
@@ -9961,7 +10031,7 @@ checksum = "c2d12fe70b2c1b4401038055f90f151b78208de1f9f89a7dbfd41587a10c3eea"
 dependencies = [
  "atoi",
  "chrono",
- "flume",
+ "flume 0.11.1",
  "futures-channel",
  "futures-core",
  "futures-executor",
@@ -10239,7 +10309,7 @@ dependencies = [
  "deadpool",
  "dotenv",
  "faststr",
- "flume",
+ "flume 0.11.1",
  "futures",
  "futures-ext",
  "futures-util",
@@ -10322,7 +10392,7 @@ dependencies = [
  "crossbeam",
  "derive_more 1.0.0",
  "dlopen2 0.7.0",
- "flume",
+ "flume 0.11.1",
  "fun_time",
  "itertools 0.13.0",
  "lazy_static",
@@ -10390,7 +10460,7 @@ dependencies = [
  "chrono",
  "dashmap 6.1.0",
  "deadpool",
- "flume",
+ "flume 0.11.1",
  "serde",
  "serde_json",
  "taos",
@@ -10417,7 +10487,7 @@ dependencies = [
  "crossbeam",
  "dashmap 6.1.0",
  "faststr",
- "flume",
+ "flume 0.11.1",
  "futures",
  "futures-util",
  "itertools 0.13.0",
@@ -10447,7 +10517,7 @@ dependencies = [
  "criterion",
  "crossbeam",
  "flate2",
- "flume",
+ "flume 0.11.1",
  "http 0.2.12",
  "log",
  "nu-ansi-term",
@@ -10495,7 +10565,7 @@ dependencies = [
  "deadpool",
  "dotenv",
  "fastrand 2.3.0",
- "flume",
+ "flume 0.11.1",
  "fundu",
  "futures",
  "futures-ext",
@@ -10594,7 +10664,7 @@ dependencies = [
  "const_format",
  "dashmap 5.5.3",
  "dotenv",
- "flume",
+ "flume 0.11.1",
  "futures",
  "ha-core",
  "hyper 1.8.1",
@@ -10667,7 +10737,7 @@ dependencies = [
  "encoding_rs",
  "faststr",
  "flate2",
- "flume",
+ "flume 0.11.1",
  "fundu",
  "futures",
  "futures-ext",
@@ -10744,19 +10814,27 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
+ "base64 0.22.1",
  "chrono",
+ "dotenv",
+ "fake-data",
  "fastrand 2.3.0",
+ "ha-core",
  "nix",
  "reqwest 0.12.28",
+ "rumqttc-next",
  "serde",
  "serde_json",
  "taos",
  "taosx-core",
  "taosx-task",
+ "taosx-test-macros",
+ "taosx-utils",
  "tempfile",
  "tokio",
  "tokio-util",
  "tracing",
+ "tracing-appender",
  "tracing-subscriber",
  "url",
  "uuid",
@@ -10772,7 +10850,7 @@ dependencies = [
  "bigdecimal 0.4.10",
  "chrono",
  "faststr",
- "flume",
+ "flume 0.11.1",
  "futures",
  "ha-core",
  "metrics",
@@ -10793,7 +10871,7 @@ name = "taosx-metrics"
 version = "2.0.0"
 dependencies = [
  "bincode",
- "flume",
+ "flume 0.11.1",
  "metrics",
  "metrics-util",
  "quanta",
@@ -10806,7 +10884,7 @@ version = "2.0.0"
 dependencies = [
  "anyhow",
  "chrono",
- "flume",
+ "flume 0.11.1",
  "ha-core",
  "legacy-to-taos",
  "local-to-taos",
@@ -10844,6 +10922,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "taosx-test-macros"
+version = "2.0.0"
+dependencies = [
+ "chrono",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.114",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "taosx-tools"
 version = "2.0.0"
 dependencies = [
@@ -10859,9 +10950,10 @@ dependencies = [
  "csv",
  "duckdb",
  "encoding_rs",
+ "fake-data",
  "faststr",
  "flate2",
- "flume",
+ "flume 0.11.1",
  "fundu",
  "futures",
  "ha-core",
@@ -10903,8 +10995,13 @@ name = "taosx-utils"
 version = "2.0.0"
 dependencies = [
  "anyhow",
+ "futures-ext",
+ "parking_lot 0.12.5",
+ "serde",
  "serde_json",
+ "snafu",
  "taos",
+ "tokio",
  "tracing",
 ]
 
@@ -11215,7 +11312,7 @@ dependencies = [
  "chrono",
  "deadpool",
  "faststr",
- "flume",
+ "flume 0.11.1",
  "ha-core",
  "humantime",
  "legacy-to-taos",
@@ -11412,7 +11509,7 @@ dependencies = [
  "tokio",
  "tokio-native-tls",
  "tokio-rustls 0.26.4",
- "tungstenite",
+ "tungstenite 0.23.0",
 ]
 
 [[package]]
@@ -11692,6 +11789,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-appender"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "786d480bce6247ab75f005b14ae1624ad978d3029d9113f0a22fa1ac773faeaf"
+dependencies = [
+ "crossbeam-channel",
+ "thiserror 2.0.18",
+ "time",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "tracing-attributes"
 version = "0.1.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11747,6 +11856,7 @@ version = "0.3.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f30143827ddab0d256fd843b7a66d164e9f271cfa0dde49142c5ca0ca291f1e"
 dependencies = [
+ "chrono",
  "matchers",
  "nu-ansi-term",
  "once_cell",
@@ -11785,6 +11895,25 @@ dependencies = [
  "rustls-pki-types",
  "sha1",
  "thiserror 1.0.69",
+ "utf-8",
+]
+
+[[package]]
+name = "tungstenite"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8628dcc84e5a09eb3d8423d6cb682965dea9133204e8fb3efee74c2a0c259442"
+dependencies = [
+ "bytes",
+ "data-encoding",
+ "http 1.4.0",
+ "httparse",
+ "log",
+ "rand 0.9.2",
+ "rustls 0.23.36",
+ "rustls-pki-types",
+ "sha1",
+ "thiserror 2.0.18",
  "utf-8",
 ]
 
@@ -12785,7 +12914,7 @@ version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "flume",
+ "flume 0.11.1",
  "taosx-core",
  "tmq-to-td",
 ]
@@ -12820,7 +12949,7 @@ dependencies = [
  "clap",
  "const_format",
  "dotenv",
- "flume",
+ "flume 0.11.1",
  "futures",
  "futures-ext",
  "ha-core",

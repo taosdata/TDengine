@@ -53,6 +53,7 @@ impl BackoffDuration {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Duration {
         let next = self.current;
         self.current = self.max.min(self.current * 2);

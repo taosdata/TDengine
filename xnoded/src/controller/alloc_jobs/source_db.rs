@@ -75,3 +75,54 @@ pub fn alloc_jobs(
     }
     Ok(AllocatedJobs::Jobs(jobs))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use ha_core::types::SplitJobResult;
+
+    #[test]
+    fn alloc_jobs_returns_error_when_start_timestamp_missing() {
+        let task = SplitJobResult {
+            from: serde_json::Value::String("taos://localhost:6030".into()),
+            to: "taos://localhost:6030".into(),
+            parser: None,
+        };
+        let xnodes = XNodes::new();
+
+        let res = alloc_jobs(task, &xnodes, None);
+        assert!(matches!(res, Err(Error::StartTimestampNotFound)));
+    }
+
+    #[test]
+    fn alloc_jobs_returns_error_for_invalid_start_timestamp() {
+        let task = SplitJobResult {
+            from: serde_json::Value::String("taos://localhost:6030?start=invalid-timestamp".into()),
+            to: "taos://localhost:6030".into(),
+            parser: None,
+        };
+        let xnodes = XNodes::new();
+
+        let res = alloc_jobs(task, &xnodes, None);
+        assert!(
+            matches!(res, Err(Error::InvalidTimestamp { ts, .. }) if ts == "invalid-timestamp")
+        );
+    }
+
+    #[test]
+    fn alloc_jobs_returns_error_when_from_is_not_string() {
+        let task = SplitJobResult {
+            from: serde_json::json!({
+                "type": "taos",
+                "start": "2025-01-01T00:00:00Z",
+            }),
+            to: "taos://localhost:6030".into(),
+            parser: None,
+        };
+        let xnodes = XNodes::new();
+
+        let res = alloc_jobs(task, &xnodes, None);
+        assert!(matches!(res, Err(Error::FromDsnNotString)));
+    }
+}

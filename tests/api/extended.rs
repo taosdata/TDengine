@@ -5,15 +5,17 @@ use taosx_integration_tests::core::api::*;
 
 use std::time::Duration;
 
-#[test]
-fn test_taosx_api_extended() {
+#[tokio::test]
+async fn test_taosx_api_extended() {
     let config = TestServiceConfig::new();
     let (_tempfile, mut cmd) = config.serve();
     let mut child = cmd.spawn().unwrap();
 
-    std::thread::sleep(Duration::from_secs(5));
+    tokio::time::sleep(Duration::from_secs(5)).await;
 
-    let client = ApiClient::new(&config.api_base_url());
+    let client = ApiClient::builder(&config.api_base_url())
+        .build()
+        .expect("build api client");
 
     println!("\n========================================");
     println!("   EXTENDED API TEST SUITE");
@@ -21,7 +23,7 @@ fn test_taosx_api_extended() {
 
     // Test 1: Profile Endpoint
     println!("\n=== Test 1: Profile Endpoint ===");
-    match client.profile() {
+    match client.profile().await {
         Ok(profile) => {
             println!("✓ Profile retrieved successfully");
             println!("  - Version: {}", profile.version);
@@ -32,7 +34,7 @@ fn test_taosx_api_extended() {
 
     // Test 2: Metrics Endpoint
     println!("\n=== Test 2: Metrics Endpoint ===");
-    match client.metrics() {
+    match client.metrics().await {
         Ok(metrics) => {
             println!("✓ Metrics retrieved ({} bytes)", metrics.len());
             if metrics.contains("taosx_") {
@@ -44,7 +46,7 @@ fn test_taosx_api_extended() {
 
     // Test 3: Metrics Description (English)
     println!("\n=== Test 3: Metrics Description (English) ===");
-    match client.metrics_description("en") {
+    match client.metrics_description("en").await {
         Ok(desc) => {
             println!("✓ Metrics description retrieved (English)");
             if let Some(obj) = desc.as_object() {
@@ -56,7 +58,7 @@ fn test_taosx_api_extended() {
 
     // Test 4: Metrics Description (Chinese)
     println!("\n=== Test 4: Metrics Description (Chinese) ===");
-    match client.metrics_description("zh") {
+    match client.metrics_description("zh").await {
         Ok(desc) => {
             println!("✓ Metrics description retrieved (Chinese)");
             if let Some(obj) = desc.as_object() {
@@ -68,14 +70,14 @@ fn test_taosx_api_extended() {
 
     // Test 5: Task Count
     println!("\n=== Test 5: Task Count ===");
-    match client.get_task_count() {
+    match client.get_task_count().await {
         Ok(count) => println!("✓ Task count retrieved: {}", count),
         Err(e) => println!("✗ Failed to get task count: {}", e),
     }
 
     // Test 6: Get non-existent task (should fail)
     println!("\n=== Test 6: Get Non-existent Task ===");
-    match client.get_task(99999) {
+    match client.get_task(99999).await {
         Ok(_) => println!("✗ Should not have found task 99999"),
         Err(e) => {
             let error_msg = e.to_string();
@@ -89,7 +91,7 @@ fn test_taosx_api_extended() {
 
     // Test 7: Delete non-existent task (should fail)
     println!("\n=== Test 7: Delete Non-existent Task ===");
-    match client.delete_task(99999) {
+    match client.delete_task(99999).await {
         Ok(_) => println!("✗ Should not have deleted non-existent task"),
         Err(e) => {
             let error_msg = e.to_string();
@@ -103,12 +105,14 @@ fn test_taosx_api_extended() {
 
     // Test 8: Agent Management - Create Agent
     println!("\n=== Test 8: Create Agent ===");
-    let agent_result = client.create_agent("agent1", "dsn", "test_cluster_1", "root");
+    let agent_result = client
+        .create_agent("agent1", "dsn", "test_cluster_1", "root")
+        .await;
     let agent_id = match agent_result {
         Ok(agent) => {
             println!("✓ Agent created successfully");
             println!("  - Agent ID: {}", agent.id);
-            println!("  - Cluster ID: {}", agent.cluster_id);
+            println!("  - Agent Name: {}", agent.name);
             println!("  - Token length: {}", agent.token.len());
             Some(agent.id)
         }
@@ -120,11 +124,11 @@ fn test_taosx_api_extended() {
 
     // Test 9: List Agents
     println!("\n=== Test 9: List Agents ===");
-    match client.list_agents(None) {
+    match client.list_agents(None).await {
         Ok(agents) => {
             println!("✓ Listed {} agent(s)", agents.len());
             for agent in &agents {
-                println!("  - Agent ID {}: cluster={}", agent.id, agent.cluster_id);
+                println!("  - Agent ID {}: name={}", agent.id, agent.name);
             }
         }
         Err(e) => println!("✗ Failed to list agents: {}", e),
@@ -132,10 +136,10 @@ fn test_taosx_api_extended() {
 
     // Test 10: List Agents with filter
     if agent_id.is_some() {
-        println!("\n=== Test 10: List Agents with Cluster Filter ===");
-        match client.list_agents(Some("test_cluster_1")) {
+        println!("\n=== Test 10: List Agents with Name Filter ===");
+        match client.list_agents(Some("test_cluster_1")).await {
             Ok(agents) => {
-                println!("✓ Listed {} agent(s) for test_cluster_1", agents.len());
+                println!("✓ Listed {} agent(s) for name test_cluster_1", agents.len());
             }
             Err(e) => println!("✗ Failed to list filtered agents: {}", e),
         }
@@ -144,22 +148,19 @@ fn test_taosx_api_extended() {
     // Test 11: Get specific agent
     if let Some(aid) = agent_id {
         println!("\n=== Test 11: Get Agent by ID ===");
-        match client.get_agent(aid) {
+        match client.get_agent(aid).await {
             Ok(agent) => {
-                println!(
-                    "✓ Retrieved agent: ID={}, cluster={}",
-                    agent.id, agent.cluster_id
-                );
+                println!("✓ Retrieved agent: ID={}, name={}", agent.id, agent.name);
             }
             Err(e) => println!("✗ Failed to get agent: {}", e),
         }
 
         // Test 12: Update Agent
         println!("\n=== Test 12: Update Agent ===");
-        match client.update_agent(aid, "test_cluster_2") {
+        match client.update_agent(aid, "test_cluster_2").await {
             Ok(updated_agent) => {
                 println!("✓ Agent updated successfully");
-                println!("  - New Cluster ID: {}", updated_agent.cluster_id);
+                println!("  - New Name: {}", updated_agent.name);
                 println!("  - New Token length: {}", updated_agent.token.len());
             }
             Err(e) => println!("⚠ Failed to update agent: {}", e),
@@ -167,14 +168,14 @@ fn test_taosx_api_extended() {
 
         // Test 13: Delete Agent
         println!("\n=== Test 13: Delete Agent ===");
-        match client.delete_agent(aid) {
+        match client.delete_agent(aid).await {
             Ok(_) => println!("✓ Agent deleted successfully"),
             Err(e) => println!("✗ Failed to delete agent: {}", e),
         }
 
         // Test 14: Verify agent is deleted
         println!("\n=== Test 14: Verify Agent Deleted ===");
-        match client.get_agent(aid) {
+        match client.get_agent(aid).await {
             Ok(_) => println!("✗ Agent should have been deleted"),
             Err(e) => {
                 let error_msg = e.to_string();
@@ -195,7 +196,7 @@ fn test_taosx_api_extended() {
         ("invalid://xyz", "Invalid DSN"),
     ];
     for (dsn, desc) in test_dsns {
-        match client.data_source_is_valid(dsn) {
+        match client.data_source_is_valid(dsn).await {
             Ok(valid) => {
                 if valid {
                     println!("✓ {} is valid: {}", desc, dsn);
@@ -217,8 +218,9 @@ fn test_taosx_api_extended() {
             to: format!("taos:///batch_test_target_{}?assert", i),
             parser: None,
             via: None,
+            labels: None,
         };
-        match client.create_task(&task) {
+        match client.create_task(&task).await {
             Ok(created) => {
                 println!("✓ Created task {} with ID: {}", created.name, created.id);
                 created_task_ids.push(created.id);
@@ -230,7 +232,7 @@ fn test_taosx_api_extended() {
     // Test 17: Batch Start Tasks
     if !created_task_ids.is_empty() {
         println!("\n=== Test 17: Batch Start Tasks ===");
-        match client.batch_start_tasks(created_task_ids.clone()) {
+        match client.batch_start_tasks(created_task_ids.clone()).await {
             Ok(_) => println!(
                 "✓ Batch start initiated for {} tasks",
                 created_task_ids.len()
@@ -239,11 +241,11 @@ fn test_taosx_api_extended() {
         }
 
         // Give tasks a moment to start
-        std::thread::sleep(Duration::from_millis(500));
+        tokio::time::sleep(Duration::from_millis(500)).await;
 
         // Test 18: Batch Stop Tasks
         println!("\n=== Test 18: Batch Stop Tasks ===");
-        match client.batch_stop_tasks(created_task_ids.clone()) {
+        match client.batch_stop_tasks(created_task_ids.clone()).await {
             Ok(_) => println!(
                 "✓ Batch stop initiated for {} tasks",
                 created_task_ids.len()
@@ -253,7 +255,7 @@ fn test_taosx_api_extended() {
 
         // Test 19: Batch Delete Tasks
         println!("\n=== Test 19: Batch Delete Tasks ===");
-        match client.batch_delete_tasks(created_task_ids.clone()) {
+        match client.batch_delete_tasks(created_task_ids.clone()).await {
             Ok(_) => println!(
                 "✓ Batch delete succeeded for {} tasks",
                 created_task_ids.len()
@@ -265,7 +267,7 @@ fn test_taosx_api_extended() {
         println!("\n=== Test 20: Verify Batch Deleted Tasks ===");
         let mut all_deleted = true;
         for tid in &created_task_ids {
-            match client.get_task(*tid) {
+            match client.get_task(*tid).await {
                 Ok(_) => {
                     println!("✗ Task {} should have been deleted", tid);
                     all_deleted = false;
@@ -289,7 +291,7 @@ fn test_taosx_api_extended() {
         parser: None,
         via: None,
     };
-    match client.update_task(99999, &update) {
+    match client.update_task(99999, &update).await {
         Ok(_) => println!("✗ Should not have updated non-existent task"),
         Err(e) => {
             let error_msg = e.to_string();
@@ -303,7 +305,7 @@ fn test_taosx_api_extended() {
 
     // Test 22: Start non-existent task (should fail)
     println!("\n=== Test 22: Start Non-existent Task ===");
-    match client.start_task(99999) {
+    match client.start_task(99999).await {
         Ok(_) => println!("✗ Should not have started non-existent task"),
         Err(e) => {
             let error_msg = e.to_string();
@@ -317,7 +319,7 @@ fn test_taosx_api_extended() {
 
     // Test 23: Stop non-existent task (should fail)
     println!("\n=== Test 23: Stop Non-existent Task ===");
-    match client.stop_task(99999) {
+    match client.stop_task(99999).await {
         Ok(_) => println!("✗ Should not have stopped non-existent task"),
         Err(e) => {
             let error_msg = e.to_string();
@@ -337,12 +339,13 @@ fn test_taosx_api_extended() {
         to: "taos:///test2".to_string(),
         parser: None,
         via: None,
+        labels: None,
     };
-    match client.create_task(&empty_name_task) {
+    match client.create_task(&empty_name_task).await {
         Ok(task) => {
             println!("⚠ Task with empty name created: ID={}", task.id);
             // Clean up
-            let _ = client.delete_task(task.id);
+            let _ = client.delete_task(task.id).await;
         }
         Err(e) => println!("✓ Task with empty name rejected: {}", e),
     }
@@ -356,12 +359,13 @@ fn test_taosx_api_extended() {
         to: "taos:///test2".to_string(),
         parser: None,
         via: None,
+        labels: None,
     };
-    match client.create_task(&long_name_task) {
+    match client.create_task(&long_name_task).await {
         Ok(task) => {
             println!("⚠ Task with very long name created: ID={}", task.id);
             // Clean up
-            let _ = client.delete_task(task.id);
+            let _ = client.delete_task(task.id).await;
         }
         Err(e) => println!("✓ Task with very long name rejected: {}", e),
     }
@@ -374,15 +378,16 @@ fn test_taosx_api_extended() {
         to: "taos:///test2".to_string(),
         parser: None,
         via: None,
+        labels: None,
     };
-    match client.create_task(&special_chars_task) {
+    match client.create_task(&special_chars_task).await {
         Ok(task) => {
             println!(
                 "✓ Task with special characters created: ID={}, name={}",
                 task.id, task.name
             );
             // Clean up
-            let _ = client.delete_task(task.id);
+            let _ = client.delete_task(task.id).await;
         }
         Err(e) => println!("⚠ Task with special characters rejected: {}", e),
     }
@@ -391,7 +396,7 @@ fn test_taosx_api_extended() {
     println!("\n=== Test 27: Multiple Rapid Task List Requests ===");
     let mut success_count = 0;
     for _ in 0..5 {
-        if client.list_tasks().is_ok() {
+        if client.list_tasks().await.is_ok() {
             success_count += 1;
         }
     }
@@ -399,21 +404,21 @@ fn test_taosx_api_extended() {
 
     // Test 28: API reachability after operations
     println!("\n=== Test 28: API Reachability After Operations ===");
-    match client.health() {
+    match client.health().await {
         Ok(health) => println!("✓ API still reachable: {}", health),
         Err(e) => panic!("✗ API not reachable: {}", e),
     }
 
     // Test 29: Final task count
     println!("\n=== Test 29: Final Task Count ===");
-    match client.get_task_count() {
+    match client.get_task_count().await {
         Ok(count) => println!("✓ Final task count: {}", count),
         Err(e) => println!("✗ Failed to get final task count: {}", e),
     }
 
-    // Test 30: Final task list
+    // Test 30: Final Task List
     println!("\n=== Test 30: Final Task List ===");
-    match client.list_tasks() {
+    match client.list_tasks().await {
         Ok(tasks) => {
             println!("✓ Final task list retrieved: {} task(s)", tasks.len());
             for task in &tasks {
@@ -429,6 +434,8 @@ fn test_taosx_api_extended() {
     println!("\n========================================");
     println!("   EXTENDED TEST SUITE COMPLETE");
     println!("========================================\n");
-    terminate_process(child.id());
-    let _ = child.wait();
+    if let Some(pid) = child.id() {
+        terminate_process(pid);
+    }
+    let _ = child.wait().await;
 }

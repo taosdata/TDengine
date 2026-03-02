@@ -1,6 +1,6 @@
-/// PostgreSQL data source integration tests
-///
-/// Phase 2 implementation: Migrate PostgreSQL-specific tests here
+//! PostgreSQL data source integration tests
+//!
+//! Phase 2 implementation: Migrate PostgreSQL-specific tests here
 
 #[cfg(test)]
 mod tests {

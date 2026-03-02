@@ -485,7 +485,8 @@ mod tests {
             }],
             "privileges": [{
                 "user_name": "user1",
-                "privilege": "read",
+                "priv_type": "read",
+                "priv_scope": "database",
                 "db_name": "db1",
                 "table_name": "",
                 "condition": "",
@@ -594,7 +595,8 @@ mod tests {
             }],
             "privileges": [{
                 "user_name": "u1",
-                "privilege": "read",
+                "priv_type": "read",
+                "priv_scope": "database",
                 "db_name": "db",
                 "table_name": "",
                 "condition": "",
@@ -625,7 +627,8 @@ mod tests {
             }],
             "privileges": [{
                 "user_name": "u1",
-                "privilege": "read",
+                "priv_type": "read",
+                "priv_scope": "database",
                 "db_name": "db",
                 "table_name": "",
                 "condition": "",
@@ -656,7 +659,8 @@ mod tests {
             }],
             "privileges": [{
                 "user_name": "u1",
-                "privilege": "read",
+                "priv_type": "read",
+                "priv_scope": "database",
                 "db_name": "db",
                 "table_name": "",
                 "condition": "",

@@ -1,11 +1,11 @@
-/// Kafka data source integration tests
-///
-/// Tests Kafka source connector functionality including:
-/// - Connection validation
-/// - Topic listing
-/// - Message consumption
-/// - Data transformation
-/// - Error handling
+//! Kafka data source integration tests
+//!
+//! Tests Kafka source connector functionality including:
+//! - Connection validation
+//! - Topic listing
+//! - Message consumption
+//! - Data transformation
+//! - Error handling
 
 #[cfg(test)]
 mod tests {
@@ -14,14 +14,14 @@ mod tests {
     /// Kafka test environment configuration
     struct KafkaTestEnv {
         broker: String,
-        topic: String,
+        _topic: String,
     }
 
     impl Default for KafkaTestEnv {
         fn default() -> Self {
             Self {
                 broker: std::env::var("KAFKA_BROKER").unwrap_or("localhost:9092".to_string()),
-                topic: format!("test_topic_{}", uuid::Uuid::new_v4()),
+                _topic: format!("test_topic_{}", uuid::Uuid::new_v4()),
             }
         }
     }

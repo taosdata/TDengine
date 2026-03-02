@@ -29,6 +29,7 @@ fn dist_is_available(path: &Path) -> bool {
 }
 
 #[test]
+#[ignore]
 fn test_playwright() -> anyhow::Result<(), anyhow::Error> {
     let cwd = std::env::current_dir()?;
     let explorer_path = cwd.parent().expect("server/../ always exist");

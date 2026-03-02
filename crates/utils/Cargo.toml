@@ -7,8 +7,19 @@ rust-version.workspace = true
 [dependencies]
 anyhow.workspace = true
 taos.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
+tokio = { workspace = true, optional = true, features = ["time", "signal", "rt-multi-thread"] }
+futures-ext = { workspace = true, optional = true }
+parking_lot = { workspace = true, optional = true }
+snafu = { workspace = true, optional = true }
+
+[features]
+default = []
+backoff = ["dep:tokio"]
+signal = ["dep:tokio", "dep:futures-ext"]
+taos_conn = ["backoff", "dep:parking_lot", "dep:snafu"]
 
 [lints]
 workspace = true

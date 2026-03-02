@@ -452,188 +452,223 @@ mod tests {
 
     use super::*;
 
+    fn parse_schema(toml_str: &str) -> DataFakeSchema {
+        toml::from_str(toml_str).expect("invalid toml schema")
+    }
+
     #[test]
-    fn parse_datafaker_test() -> anyhow::Result<()> {
-        {
-            let schema = toml::from_str::<DataFakeSchema>(
-                r#"
-                type = "string"
-                random = { length = { range = { max = 999 } } , charset = "abcdefg" }
+    fn parse_string_schema_random_with_charset() {
+        let schema = parse_schema(
+            r#"
+            type = "string"
+            random = { length = { range = { max = 999 } }, charset = "abcdefg" }
             "#,
-            );
-            assert!(schema.is_ok());
-            let schema = schema.unwrap();
-            let schema = schema.string();
-            assert!(schema.is_some());
-            assert_eq!(
-                schema.unwrap(),
-                &StringSchema::Random {
-                    charset: Some("abcdefg".to_string()),
-                    length: NumberSchema::Range(NumberRangeSchema {
-                        min: None,
-                        max: Some(999)
-                    })
-                }
-            )
-        }
-        {
-            let schema = toml::from_str::<DataFakeSchema>(
-                r#"
-                type = "number"
-                fixed = 5
-            "#,
-            );
-            assert!(schema.is_ok());
-            let schema = schema.unwrap();
-            let schema = schema.number();
-            assert!(schema.is_some());
-            assert_eq!(schema.unwrap(), &NumberSchema::Fixed(5))
-        }
-        {
-            let schema = toml::from_str::<DataFakeSchema>(
-                r#"
-                type = "float"
-                range = { min = 999 }
-            "#,
-            );
-            assert!(schema.is_ok());
-            let schema = schema.unwrap();
-            let schema = schema.float();
-            assert!(schema.is_some());
-            assert_eq!(
-                schema.unwrap(),
-                &NumberSchema::Range(NumberRangeSchema {
-                    min: Some(999.0),
-                    max: None
+        );
+        let string_schema = schema.string().expect("expected string schema");
+        assert_eq!(
+            string_schema,
+            &StringSchema::Random {
+                charset: Some("abcdefg".to_string()),
+                length: NumberSchema::Range(NumberRangeSchema {
+                    min: None,
+                    max: Some(999)
                 })
-            )
-        }
-        {
-            let schema = toml::from_str::<DataFakeSchema>(
-                r#"
-                type = "bool"
-                fixed = false
-            "#,
-            );
-            assert!(schema.is_ok());
-            let schema = schema.unwrap();
-            let schema = schema.bool();
-            assert!(schema.is_some());
-            assert_eq!(schema.unwrap(), &BoolSchema { fixed: Some(false) })
-        }
-        {
-            let schema = toml::from_str::<DataFakeSchema>(
-                r#"
-                type = "object"
-                [properties.a]
-                type = "bool"
-                fixed = false
-            "#,
-            );
-            assert!(schema.is_ok());
-            let schema = schema.unwrap();
-            let schema = schema.object();
-            assert!(schema.is_some());
+            }
+        );
+    }
 
-            assert_eq!(
-                schema.unwrap(),
-                &ObjectSchema {
-                    properties: HashMap::from_iter([(
-                        "a".to_string(),
-                        DataFakeSchema::Bool(BoolSchema { fixed: Some(false) })
-                    )])
-                }
-            )
-        }
-        {
-            let schema = toml::from_str::<DataFakeSchema>(
-                r#"
-                type = "array"
-                length = { range = { max = 999 } }
-                [elements]
-                type = "bool"
-                fixed = false
+    #[test]
+    fn parse_number_schema_fixed() {
+        let schema = parse_schema(
+            r#"
+            type = "number"
+            fixed = 5
             "#,
-            );
-            assert!(schema.is_ok());
-            let schema = schema.unwrap();
-            let schema = schema.array();
-            assert!(schema.is_some());
-            assert_eq!(
-                schema.unwrap(),
-                &ArraySchema {
-                    elements: Box::new(DataFakeSchema::Bool(BoolSchema { fixed: Some(false) })),
-                    length: NumberSchema::Range(NumberRangeSchema {
-                        min: None,
-                        max: Some(999)
-                    })
-                }
-            )
-        }
-        {
-            let schema = toml::from_str::<DataFakeSchema>(
-                r#"
-                type = "option"
-                [value]
-                type = "bool"
-                fixed = false
-            "#,
-            );
-            assert!(schema.is_ok());
-            let schema = schema.unwrap();
-            let schema = schema.option();
-            assert!(schema.is_some());
-            assert_eq!(
-                schema.unwrap(),
-                &OptionSchema {
-                    value: Box::new(DataFakeSchema::Bool(BoolSchema { fixed: Some(false) }))
-                }
-            )
-        }
-        {
-            let schema = toml::from_str::<DataFakeSchema>(
-                r#"
-                type = "timestamp"
-                start_time = 123
-                interval = "1ns"
-            "#,
-            );
-            assert!(schema.is_ok());
-            let schema = schema.unwrap();
-            let schema = schema.timestamp();
-            assert!(schema.is_some());
-            assert_eq!(
-                schema.unwrap(),
-                &TimestampSchema {
-                    start_time: Some(TimestampValue::Integer(123)),
-                    interval: TimestampInterval::Nanosecond(1),
-                    ts: OnceLock::new()
-                }
-            )
-        }
-        {
-            let schema = toml::from_str::<DataFakeSchema>(
-                r#"
-                type = "timestamp"
-                start_time = 2024-11-02T17:35:34
-                interval = "3ns"
-                tick = 100
-            "#,
-            )?;
-            let schema = schema.timestamp();
-            assert!(schema.is_some());
-            assert_eq!(
-                schema.unwrap(),
-                &TimestampSchema {
-                    start_time: Some(TimestampValue::DateTime(
-                        toml::value::Datetime::from_str("2024-11-02T17:35:34").unwrap()
-                    )),
-                    interval: TimestampInterval::Nanosecond(3),
-                    ts: OnceLock::new()
-                }
-            )
-        }
+        );
+        let number_schema = schema.number().expect("expected number schema");
+        assert_eq!(number_schema, &NumberSchema::Fixed(5));
+    }
 
+    #[test]
+    fn parse_float_schema_range() {
+        let schema = parse_schema(
+            r#"
+            type = "float"
+            range = { min = 999 }
+            "#,
+        );
+        let float_schema = schema.float().expect("expected float schema");
+        assert_eq!(
+            float_schema,
+            &NumberSchema::Range(NumberRangeSchema {
+                min: Some(999.0),
+                max: None
+            })
+        );
+    }
+
+    #[test]
+    fn parse_bool_schema_fixed() {
+        let schema = parse_schema(
+            r#"
+            type = "bool"
+            fixed = false
+            "#,
+        );
+        let bool_schema = schema.bool().expect("expected bool schema");
+        assert_eq!(bool_schema, &BoolSchema { fixed: Some(false) });
+    }
+
+    #[test]
+    fn parse_object_schema_nested_bool() {
+        let schema = parse_schema(
+            r#"
+            type = "object"
+            [properties.a]
+            type = "bool"
+            fixed = false
+            "#,
+        );
+        let object_schema = schema.object().expect("expected object schema");
+        assert_eq!(
+            object_schema,
+            &ObjectSchema {
+                properties: HashMap::from_iter([(
+                    "a".to_string(),
+                    DataFakeSchema::Bool(BoolSchema { fixed: Some(false) })
+                )])
+            }
+        );
+    }
+
+    #[test]
+    fn parse_array_schema_with_bool_elements() {
+        let schema = parse_schema(
+            r#"
+            type = "array"
+            length = { range = { max = 999 } }
+            [elements]
+            type = "bool"
+            fixed = false
+            "#,
+        );
+        let array_schema = schema.array().expect("expected array schema");
+        assert_eq!(
+            array_schema,
+            &ArraySchema {
+                elements: Box::new(DataFakeSchema::Bool(BoolSchema { fixed: Some(false) })),
+                length: NumberSchema::Range(NumberRangeSchema {
+                    min: None,
+                    max: Some(999)
+                })
+            }
+        );
+    }
+
+    #[test]
+    fn parse_option_schema_with_bool_value() {
+        let schema = parse_schema(
+            r#"
+            type = "option"
+            [value]
+            type = "bool"
+            fixed = false
+            "#,
+        );
+        let option_schema = schema.option().expect("expected option schema");
+        assert_eq!(
+            option_schema,
+            &OptionSchema {
+                value: Box::new(DataFakeSchema::Bool(BoolSchema { fixed: Some(false) }))
+            }
+        );
+    }
+
+    #[test]
+    fn parse_timestamp_schema_integer_start() {
+        let schema = parse_schema(
+            r#"
+            type = "timestamp"
+            start_time = 123
+            interval = "1ns"
+            "#,
+        );
+        let ts_schema = schema.timestamp().expect("expected timestamp schema");
+        assert_eq!(
+            ts_schema,
+            &TimestampSchema {
+                start_time: Some(TimestampValue::Integer(123)),
+                interval: TimestampInterval::Nanosecond(1),
+                ts: OnceLock::new()
+            }
+        );
+    }
+
+    #[test]
+    fn parse_timestamp_schema_datetime_start() -> anyhow::Result<()> {
+        let schema = parse_schema(
+            r#"
+            type = "timestamp"
+            start_time = 2024-11-02T17:35:34
+            interval = "3ns"
+            "#,
+        );
+        let ts_schema = schema.timestamp().expect("expected timestamp schema");
+        assert_eq!(
+            ts_schema,
+            &TimestampSchema {
+                start_time: Some(TimestampValue::DateTime(toml::value::Datetime::from_str(
+                    "2024-11-02T17:35:34"
+                )?)),
+                interval: TimestampInterval::Nanosecond(3),
+                ts: OnceLock::new()
+            }
+        );
         Ok(())
+    }
+
+    #[test]
+    fn rand_json_value_produces_valid_values() {
+        let schema = parse_schema(
+            r#"
+            type = "object"
+            [properties.id]
+            type = "number"
+            fixed = 42
+            [properties.name]
+            type = "string"
+            fixed = "test"
+            [properties.enabled]
+            type = "bool"
+            fixed = true
+            "#,
+        );
+        for _ in 0..10 {
+            let value = schema
+                .rand_json_value()
+                .expect("rand_json_value should succeed");
+            assert!(value.is_object());
+            let obj = value.as_object().unwrap();
+            assert_eq!(obj.get("id").and_then(|v| v.as_i64()), Some(42));
+            assert_eq!(obj.get("name").and_then(|v| v.as_str()), Some("test"));
+            assert_eq!(obj.get("enabled").and_then(|v| v.as_bool()), Some(true));
+        }
+    }
+
+    #[test]
+    fn timestamp_next_value_increments_by_interval() {
+        // start_time 为整数时 interval 也须为整数（同单位递进），TOML 中 interval 用字符串
+        let schema = parse_schema(
+            r#"
+            type = "timestamp"
+            start_time = 1000
+            interval = "10"
+            "#,
+        );
+        let ts_schema = schema.timestamp().unwrap();
+        let v1 = ts_schema.next_value().unwrap();
+        let v2 = ts_schema.next_value().unwrap();
+        assert_eq!(v1, 1000);
+        assert_eq!(v2, 1010);
     }
 }

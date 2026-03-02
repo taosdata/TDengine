@@ -17,28 +17,24 @@ use ha_core::{
 use parking_lot::{Mutex, RwLock};
 use snafu::ResultExt;
 use taos::Dsn;
+use taosx_utils::backoff::{BackoffDuration, RetryBackoff};
 use taosx_utils::sql::sql_value_escaped_fmt;
+use taosx_utils::taos_conn::{self, TaosConn};
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
-use crate::{
-    controller::{
-        BuildBatchIterSnafu, BuildTaosConnSnafu, CreateAgentActivityTableSnafu,
-        CreateLogDatabaseSnafu, CreateMetricsTableSnafu, CreateTaskActivityTableSnafu, Result,
-        agents::Agents,
-        start_task_job,
-        tasks::Tasks,
-        updaters::{
-            del_task_status, get_job_status, get_task_status, set_job_status, set_task_status,
-            update_agent_status,
-        },
-        xnodes::XNodes,
+use crate::controller::{
+    BuildBatchIterSnafu, BuildTaosConnSnafu, CreateAgentActivityTableSnafu, CreateLogDatabaseSnafu,
+    CreateMetricsTableSnafu, CreateTaskActivityTableSnafu, Result,
+    agents::Agents,
+    start_task_job,
+    tasks::Tasks,
+    updaters::{
+        del_task_status, get_job_status, get_task_status, set_job_status, set_task_status,
+        update_agent_status,
     },
-    utils::{
-        backoff::{BackoffDuration, RetryBackoff},
-        taos_conn::{self, TaosConn},
-    },
+    xnodes::XNodes,
 };
 
 type TaskFailedBackoff = HashMap<(i64, i64), Mutex<BackoffDuration>>;
@@ -128,7 +124,7 @@ pub async fn event_loop(
     rebalance_tx: flume::Sender<i32>,
     cancel: CancellationToken,
 ) -> Result<()> {
-    let _cleanup = crate::utils::defer::defer(|| {
+    let _cleanup = taosx_utils::defer::defer(|| {
         xnodes.set_offline(id);
         tracing::info!(xnode_id = id, "event loop exited");
     });

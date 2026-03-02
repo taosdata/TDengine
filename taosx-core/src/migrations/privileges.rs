@@ -7,7 +7,8 @@ use taos::{AsyncFetchable, AsyncQueryable, TryStreamExt};
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Privilege {
     pub user_name: String,
-    pub privilege: String,
+    pub priv_type: String,
+    pub priv_scope: String,
     pub db_name: String,
     #[serde_as(as = "NoneAsEmptyString")]
     #[serde(default)]
@@ -23,26 +24,37 @@ pub struct Privilege {
 impl Privilege {
     pub fn target(&self) -> String {
         if let Some(table_name) = &self.table_name {
-            format!("{} on `{}`.`{}`", self.privilege, self.db_name, table_name)
+            format!("{} on `{}`.`{}`", self.priv_type, self.db_name, table_name)
         } else {
-            format!("{} on `{}`", self.privilege, self.db_name)
+            format!("{} on `{}`", self.priv_type, self.db_name)
         }
     }
     pub fn to_sql(&self) -> String {
-        let mut sql = format!("GRANT {} ON `{}`", self.privilege, self.db_name);
+        let mut sql = format!(
+            "GRANT {} ON {} `{}`",
+            self.priv_type, self.priv_scope, self.db_name
+        );
 
         if let Some(table_name) = &self.table_name {
-            sql.push_str(&format!(".`{}`", table_name));
+            let table_name = if table_name == "*" {
+                "*".to_string()
+            } else {
+                format!("`{}`", table_name)
+            };
+            sql.push_str(&format!(".{}", table_name));
         }
 
         if let Some(condition) = &self.condition {
-            let target = format!(
-                "`{}`.`{}`.",
-                self.db_name,
-                self.table_name
-                    .as_deref()
-                    .expect("table_name should not be empty with condition")
-            );
+            let table_name = self
+                .table_name
+                .as_deref()
+                .expect("table_name should not be empty with condition");
+            let table_name = if table_name == "*" {
+                "*".to_string()
+            } else {
+                format!("`{}`", table_name)
+            };
+            let target = format!("`{}`.{}.", self.db_name, table_name);
             let condition = condition.replace(&target, "");
             sql.push_str(&format!(" WITH {}", condition));
         }
@@ -53,20 +65,31 @@ impl Privilege {
 
     #[cfg(test)]
     pub fn to_sql_revoke(&self) -> String {
-        let mut sql = format!("REVOKE {} ON `{}`", self.privilege, self.db_name);
+        let mut sql = format!(
+            "REVOKE {} ON {} `{}`",
+            self.priv_type, self.priv_scope, self.db_name
+        );
 
         if let Some(table_name) = &self.table_name {
-            sql.push_str(&format!(".`{}`", table_name));
+            if table_name != "*" {
+                sql.push_str(&format!(".`{}`", table_name));
+            } else {
+                sql.push_str(".*");
+            }
         }
 
         if let Some(condition) = &self.condition {
-            let target = format!(
-                "`{}`.`{}`.",
-                self.db_name,
-                self.table_name
-                    .as_deref()
-                    .expect("table_name should not be empty with condition")
-            );
+            let table_name = self
+                .table_name
+                .as_deref()
+                .expect("table_name should not be empty with condition");
+            let table_name = if table_name == "*" {
+                "*".to_string()
+            } else {
+                format!("`{}`", table_name)
+            };
+
+            let target = format!("`{}`.{}.", self.db_name, table_name);
             let condition = condition.replace(&target, "");
             sql.push_str(&format!(" WITH {}", condition));
         }
@@ -95,7 +118,8 @@ mod tests {
     fn test_to_sql_database_privilege() {
         let privilege = Privilege {
             user_name: "testuser".to_string(),
-            privilege: "read".to_string(),
+            priv_type: "read".to_string(),
+            priv_scope: "database".to_string(),
             db_name: "testdb".to_string(),
             table_name: None,
             condition: None,
@@ -103,14 +127,15 @@ mod tests {
         };
 
         let sql = privilege.to_sql();
-        assert_eq!(sql, "GRANT read ON `testdb` TO `testuser`");
+        assert_eq!(sql, "GRANT read ON database `testdb` TO `testuser`");
     }
 
     #[test]
     fn test_to_sql_table_privilege() {
         let privilege = Privilege {
             user_name: "testuser".to_string(),
-            privilege: "write".to_string(),
+            priv_type: "write".to_string(),
+            priv_scope: "table".to_string(),
             db_name: "testdb".to_string(),
             table_name: Some("testtable".to_string()),
             condition: None,
@@ -118,14 +143,18 @@ mod tests {
         };
 
         let sql = privilege.to_sql();
-        assert_eq!(sql, "GRANT write ON `testdb`.`testtable` TO `testuser`");
+        assert_eq!(
+            sql,
+            "GRANT write ON table `testdb`.`testtable` TO `testuser`"
+        );
     }
 
     #[test]
     fn test_to_sql_with_condition() {
         let privilege = Privilege {
             user_name: "testuser".to_string(),
-            privilege: "read".to_string(),
+            priv_type: "read".to_string(),
+            priv_scope: "table".to_string(),
             db_name: "mydb".to_string(),
             table_name: Some("mytable".to_string()),
             condition: Some("`mydb`.`mytable`.col1 = 'value'".to_string()),
@@ -135,7 +164,7 @@ mod tests {
         let sql = privilege.to_sql();
         assert_eq!(
             sql,
-            "GRANT read ON `mydb`.`mytable` WITH col1 = 'value' TO `testuser`"
+            "GRANT read ON table `mydb`.`mytable` WITH col1 = 'value' TO `testuser`"
         );
     }
 
@@ -143,7 +172,8 @@ mod tests {
     fn test_to_sql_revoke_database() {
         let privilege = Privilege {
             user_name: "user1".to_string(),
-            privilege: "all".to_string(),
+            priv_type: "all".to_string(),
+            priv_scope: "database".to_string(),
             db_name: "db1".to_string(),
             table_name: None,
             condition: None,
@@ -151,14 +181,15 @@ mod tests {
         };
 
         let sql = privilege.to_sql_revoke();
-        assert_eq!(sql, "REVOKE all ON `db1` FROM `user1`");
+        assert_eq!(sql, "REVOKE all ON database `db1` FROM `user1`");
     }
 
     #[test]
     fn test_to_sql_revoke_table() {
         let privilege = Privilege {
             user_name: "user2".to_string(),
-            privilege: "read".to_string(),
+            priv_type: "read".to_string(),
+            priv_scope: "table".to_string(),
             db_name: "db2".to_string(),
             table_name: Some("table2".to_string()),
             condition: None,
@@ -166,14 +197,15 @@ mod tests {
         };
 
         let sql = privilege.to_sql_revoke();
-        assert_eq!(sql, "REVOKE read ON `db2`.`table2` FROM `user2`");
+        assert_eq!(sql, "REVOKE read ON table `db2`.`table2` FROM `user2`");
     }
 
     #[test]
     fn test_to_sql_revoke_with_condition() {
         let privilege = Privilege {
             user_name: "user3".to_string(),
-            privilege: "read".to_string(),
+            priv_type: "read".to_string(),
+            priv_scope: "table".to_string(),
             db_name: "db3".to_string(),
             table_name: Some("table3".to_string()),
             condition: Some("`db3`.`table3`.tag1 = 1".to_string()),
@@ -183,7 +215,7 @@ mod tests {
         let sql = privilege.to_sql_revoke();
         assert_eq!(
             sql,
-            "REVOKE read ON `db3`.`table3` WITH tag1 = 1 FROM `user3`"
+            "REVOKE read ON table `db3`.`table3` WITH tag1 = 1 FROM `user3`"
         );
     }
 
@@ -191,7 +223,8 @@ mod tests {
     fn test_target_database() {
         let privilege = Privilege {
             user_name: "testuser".to_string(),
-            privilege: "read".to_string(),
+            priv_type: "read".to_string(),
+            priv_scope: "database".to_string(),
             db_name: "testdb".to_string(),
             table_name: None,
             condition: None,
@@ -205,7 +238,8 @@ mod tests {
     fn test_target_table() {
         let privilege = Privilege {
             user_name: "testuser".to_string(),
-            privilege: "write".to_string(),
+            priv_type: "write".to_string(),
+            priv_scope: "table".to_string(),
             db_name: "mydb".to_string(),
             table_name: Some("mytable".to_string()),
             condition: None,
@@ -220,7 +254,8 @@ mod tests {
     fn test_to_sql_with_condition_but_no_table_name_panics() {
         let privilege = Privilege {
             user_name: "u".to_string(),
-            privilege: "read".to_string(),
+            priv_type: "read".to_string(),
+            priv_scope: "table".to_string(),
             db_name: "db".to_string(),
             table_name: None,
             condition: Some("`db`.`tb`.col = 1".to_string()),
@@ -234,7 +269,8 @@ mod tests {
     fn test_to_sql_revoke_with_condition_but_no_table_name_panics() {
         let privilege = Privilege {
             user_name: "u".to_string(),
-            privilege: "read".to_string(),
+            priv_type: "read".to_string(),
+            priv_scope: "table".to_string(),
             db_name: "db".to_string(),
             table_name: None,
             condition: Some("`db`.`tb`.col = 1".to_string()),
@@ -315,12 +351,12 @@ mod tests {
                 "CREATE TABLE IF NOT EXISTS `_xTest2`.`nT1` (ts timestamp, v1 int)",
                 "CREATE TOPIC IF NOT EXISTS `_xTopicT1` as SELECT * FROM `_xTest`.`test`",
                 "CREATE TOPIC IF NOT EXISTS `_xTopicT2` as database `_xTest2`",
-                "CREATE USER `_xTest` PASS 'taosdata'",
-                "GRANT all ON `_xTest` TO `_xTest`",
-                "GRANT read ON `_xTest2`.* TO `_xTest`",
-                "GRANT read ON `_xTest2`.meters WITH (t1 = 1) TO `_xTest`",
-                "GRANT subscribe ON `_xTopicT1` TO `_xTest`",
-                "GRANT subscribe ON `_xTopicT2` TO `_xTest`",
+                "CREATE USER `_xTest` PASS 'pYTWYTquxMBMJLEM+5Q4rXgn'",
+                "GRANT all ON database `_xTest` TO `_xTest`",
+                "GRANT select ON `_xTest2`.* TO `_xTest`",
+                "GRANT select ON `_xTest2`.meters WITH (t1 = 1) TO `_xTest`",
+                "GRANT subscribe ON topic `_xTest`.`_xTopicT1` TO `_xTest`",
+                "GRANT subscribe ON topic `_xTest2`.`_xTopicT2` TO `_xTest`",
             ])
             .await
         {

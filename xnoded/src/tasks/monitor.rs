@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
-use crate::utils::taos_conn::TaosConn;
+use taosx_utils::taos_conn::TaosConn;
 
 #[derive(Debug, serde::Deserialize)]
 struct MNodeStatus {

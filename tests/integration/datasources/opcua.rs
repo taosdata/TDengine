@@ -1,6 +1,6 @@
-/// OPC-UA data source integration tests
-///
-/// Phase 2 implementation: Migrate OPC-UA-specific tests here
+//! OPC-UA data source integration tests
+//!
+//! Phase 2 implementation: Migrate OPC-UA-specific tests here
 
 #[cfg(test)]
 mod tests {

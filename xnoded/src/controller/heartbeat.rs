@@ -6,10 +6,9 @@ use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
-use crate::{
-    controller::{Result, XNodes},
-    utils::{self, backoff::RetryBackoff},
-};
+use taosx_utils::backoff::RetryBackoff;
+
+use crate::controller::{Result, XNodes};
 
 #[instrument(skip_all, fields(xnode_id=id))]
 pub async fn heartbeat_loop(
@@ -20,7 +19,7 @@ pub async fn heartbeat_loop(
     rebalance_tx: flume::Sender<i32>,
     cancel: CancellationToken,
 ) -> Result<()> {
-    let _cleanup = utils::defer::defer(|| {
+    let _cleanup = taosx_utils::defer::defer(|| {
         xnodes.set_offline(id);
         tracing::info!(xnode_id = id, "heartbeat loop exited");
     });

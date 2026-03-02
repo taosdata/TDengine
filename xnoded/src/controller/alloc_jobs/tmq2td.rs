@@ -66,3 +66,54 @@ fn update_dsn(mut from: Dsn, topic: &str, concurrency: usize) -> String {
     from.set("read_concurrency", concurrency.to_string());
     from.to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use ha_core::types::SplitJobResult;
+
+    #[test]
+    fn topic_vgroups_converts_to_topic_concurrency() {
+        let vgroups = TopicVgroups {
+            name: "topic1".into(),
+            vgroups: 3,
+        };
+        let tc: TopicConcurrency = vgroups.into();
+        assert_eq!(tc.name, "topic1");
+        assert_eq!(tc.concurrency, 3);
+    }
+
+    #[test]
+    fn update_dsn_sets_subject_and_concurrency() {
+        let dsn = Dsn::from_str("tmq://").unwrap();
+        let updated = update_dsn(dsn, "subj", 5);
+        let parsed = Dsn::from_str(&updated).unwrap();
+        assert_eq!(parsed.subject.as_deref(), Some("subj"));
+        assert_eq!(
+            parsed.get("read_concurrency"),
+            Some("5".to_string()).as_ref()
+        );
+    }
+
+    #[test]
+    fn alloc_jobs_errors_when_topics_missing_or_empty() {
+        let xnodes = XNodes::new();
+
+        let task_no_topics = SplitJobResult {
+            from: serde_json::json!({"type": "tmq"}),
+            to: "taos://localhost:6030".into(),
+            parser: None,
+        };
+        let res = alloc_jobs(task_no_topics, &xnodes, None);
+        assert!(matches!(res, Err(Error::SplitTopicsNotFound)));
+
+        let task_empty_topics = SplitJobResult {
+            from: serde_json::json!({"type": "tmq", "topics": []}),
+            to: "taos://localhost:6030".into(),
+            parser: None,
+        };
+        let res = alloc_jobs(task_empty_topics, &xnodes, None);
+        assert!(matches!(res, Err(Error::TopicEmpty)));
+    }
+}

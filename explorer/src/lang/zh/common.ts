@@ -164,6 +164,7 @@ export default {
     tag: '标签'
   },
   statuses: {
+    idle: '未使用',
     created: '已创建',
     queued: '排队中',
     running: '运行中',

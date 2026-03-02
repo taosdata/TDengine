@@ -17,6 +17,7 @@ use axum::http::{self, StatusCode};
 use snafu::{OptionExt, ResultExt};
 use taos::Dsn;
 use taosx_utils::sql::sql_value_escaped_fmt;
+use taosx_utils::taos_conn::{self, TaosConn};
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::{Channel, Endpoint};
@@ -44,7 +45,6 @@ use crate::{
         updaters::{remove_cached_agent_state, update_agent_status, update_task_status},
         xnodes::{XNodeStatus, XNodes},
     },
-    utils::taos_conn::{self, TaosConn},
 };
 
 #[derive(Debug, snafu::Snafu)]
@@ -581,7 +581,7 @@ impl Controller {
         };
 
         self.xnodes.set_drain(id);
-        let _guard = crate::utils::defer::defer(|| {
+        let _guard = taosx_utils::defer::defer(|| {
             self.xnodes.unset_drain(id);
         });
         client
@@ -1226,5 +1226,22 @@ async fn wait_xnode_complete(xnodes: XNodes, id: i32) {
                 tracing::error!("xnode task panic: {:#}", anyhow::Error::new(e));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn error_status_code_mapping() {
+        let err = Error::XnodeAlreadyExists { id: 1 };
+        assert_eq!(err.status_code(), StatusCode::BAD_REQUEST);
+
+        let err = Error::NoAvailableXnode;
+        assert_eq!(err.status_code(), StatusCode::NOT_FOUND);
+
+        let err = Error::AgentNotFound { id: 1 };
+        assert_eq!(err.status_code(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 }

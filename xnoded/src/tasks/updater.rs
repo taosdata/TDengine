@@ -4,13 +4,12 @@ use anyhow::Context;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
-use crate::{
-    controller::{
-        tasks::Tasks,
-        updaters::{update_agent_status, update_task_status},
-        xnodes::XNodes,
-    },
-    utils::taos_conn::TaosConn,
+use taosx_utils::taos_conn::TaosConn;
+
+use crate::controller::{
+    tasks::Tasks,
+    updaters::{update_agent_status, update_task_status},
+    xnodes::XNodes,
 };
 
 #[instrument(skip_all)]
