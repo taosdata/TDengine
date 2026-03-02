@@ -84,7 +84,7 @@ class TestCase:
                 tdLog.debug("vnode is %d"%(vnodeId))
                 break
         splitSql = "split vgroup %d" %(vnodeId)
-        tdLog.debug("splitSql:%s"%(splitSql))
+        tdLog.info("splitSql:%s"%(splitSql))
         tdSql.query(splitSql)
 
     def checkSplitVgroups(self):

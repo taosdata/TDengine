@@ -57,8 +57,8 @@ done
 PREFIX="taos"
 PRODUCTPREFIX="taosanode"
 serverName="${PRODUCTPREFIX}d"
-configFile="taosanode.ini"
-productName="TDengine Anode"
+configFile="taosanode.config.py"
+productName="TDengine TSDB TDgpt"
 emailName="taosdata.com"
 tarName="package.tar.gz"
 global_conf_dir="/etc/${PREFIX}"
@@ -603,11 +603,6 @@ check_python3_env() {
       echo -e "\033[31mWarning: Python3.10/3.11/3.12 allowed, only found python${python3_version}.\033[0m"
       exit 1
     fi
-  fi
-
-  if [[ $python_minor_ver -eq 12 ]]; then
-    echo "Python 3.12: Update Pandas from 1.5.3 to 2.2.0 in Requirements_ess.txt"
-    sed -i '1s/pandas==1.5.3/pandas==2.2.0/' ${script_dir}/requirements_ess.txt
   fi
 
 #  echo -e "Python3 minor version is:${python_minor_ver}"

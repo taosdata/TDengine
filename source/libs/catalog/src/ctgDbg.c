@@ -510,9 +510,8 @@ void ctgdShowDBCache(SCatalog *pCtg, SHashObj *dbHash) {
              i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted ? "deleted" : "", metaNum, viewNum, stbNum, vgVersion, stateTs, 
              hashMethod, hashPrefix, hashSuffix, vgNum);
 
+    CTG_LOCK(CTG_READ, &dbCache->vgCache.vgLock);
     if (dbCache->vgCache.vgInfo) {
-      CTG_LOCK(CTG_READ, &dbCache->vgCache.vgLock);
-
       int32_t i = 0;
       void *pVgIter = taosHashIterate(dbCache->vgCache.vgInfo->vgHash, NULL);
       while (pVgIter) {
@@ -528,10 +527,9 @@ void ctgdShowDBCache(SCatalog *pCtg, SHashObj *dbHash) {
         
         pVgIter = taosHashIterate(dbCache->vgCache.vgInfo->vgHash, pVgIter);      
       }
-
-      CTG_UNLOCK(CTG_READ, &dbCache->vgCache.vgLock);
     }
-
+    CTG_UNLOCK(CTG_READ, &dbCache->vgCache.vgLock);
+    
     if (dbCache->cfgCache.cfgInfo) {
       SDbCfgInfo *pCfg = dbCache->cfgCache.cfgInfo;
       ctgDebug("[%d] db [%.*s][0x%" PRIx64

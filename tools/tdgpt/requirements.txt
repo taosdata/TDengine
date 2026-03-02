@@ -1,7 +1,6 @@
 -r requirements_ess.txt
 
 absl-py==2.1.0
-blinker==1.8.2
 click==8.1.7
 contourpy==1.3.0
 cycler==0.12.1
