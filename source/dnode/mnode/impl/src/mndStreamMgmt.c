@@ -1701,7 +1701,7 @@ _exit:
   return code;
 }
 
-static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* pInfo, SStreamObj* pStream, SQueryPlan* pRoot, SNodeList** subEP) {
+static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, int32_t dagIdx, /*SQueryPlan* pDag,*/ SStmStatus* pInfo, SStreamObj* pStream, SQueryPlan* pRoot, SNodeList** subEP) {
   int32_t code = 0;
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
@@ -1711,9 +1711,17 @@ static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmS
   SStmTaskStatus* pState = NULL;
   int32_t taskIdx = 0;
   SNodeListNode *plans = NULL;
+  SQueryPlan    *pDag = NULL;
   int32_t        taskNum = 0;
   int32_t        totalTaskNum = 0;
-  bool           subQ = (pRoot != pDag);
+  bool           subQ = false;
+
+  if (dagIdx >= 0) {
+    subQ = true;
+    pDag = (SQueryPlan *)nodesListGetNode(pRoot->pChildren, dagIdx);
+  } else {
+    pDag = pRoot;
+  }
 
   if (pDag->numOfSubplans <= 0) {
     mstsError("invalid subplan num:%d", pDag->numOfSubplans);
@@ -1860,8 +1868,7 @@ static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmS
     
     TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pRoot));
     if (subQ) {
-      // TODO: search list with subq id
-      pDag = (SQueryPlan*)pRoot->pChildren->pHead->pNode;
+      pDag = (SQueryPlan *)nodesListGetNode(pRoot->pChildren, dagIdx);
     } else {
       pDag = pRoot;
     }
@@ -2069,18 +2076,16 @@ static int32_t msmBuildRunnerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStreamO
     TSDB_CHECK_NULL(pInfo->runners[i], code, lino, _exit, terrno);
   }
 
-  FOREACH(pNode, pPlan->pChildren) {
-    SQueryPlan *calcSubQPlan = (SQueryPlan *)pNode;
+  for (int32_t i = 0; i < LIST_LENGTH(pPlan->pChildren); ++i) {
+    code = msmBuildRunnerTasksImpl(pCtx, i, pInfo, pStream, pPlan, &pSubEP);
 
-    code = msmBuildRunnerTasksImpl(pCtx, calcSubQPlan, pInfo, pStream, pPlan, &pSubEP);
     pPlan = NULL;
     TAOS_CHECK_EXIT(code);
-  }
 
-  if (!pPlan) {
     TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pPlan));
   }
-  code = msmBuildRunnerTasksImpl(pCtx, pPlan, pInfo, pStream, pPlan, &pSubEP);
+
+  code = msmBuildRunnerTasksImpl(pCtx, -1, pInfo, pStream, pPlan, &pSubEP);
   pPlan = NULL;
 
   TAOS_CHECK_EXIT(code);
