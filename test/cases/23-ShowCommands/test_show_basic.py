@@ -932,5 +932,87 @@ class TestShowBasic:
             elapsed = row[elapsedIdx]
             if elapsed is not None:
                 assert elapsed >= 0, f"Negative elapsed_ms: {elapsed}"
+    
+    def test_show_queries_progress_tracking(self):
+        """Verify progress tracking functionality
         
+        Since: v3.3.0.0
+        
+        Labels: common,ci
+        
+        Jira: None
+        
+        History:
+            - 2026-03-02 Yihao Added for Phase 2 SHOW QUERIES enhancement
+        """
+        # Create a large table for testing
+        tdSql.execute("CREATE DATABASE IF NOT EXISTS test_progress")
+        tdSql.execute("USE test_progress")
+        tdSql.execute("CREATE STABLE IF NOT EXISTS st1 (ts TIMESTAMP, c1 INT) TAGS (t1 INT)")
+        
+        # Create child tables
+        for i in range(5):
+            tdSql.execute(f"CREATE TABLE IF NOT EXISTS t{i} USING st1 TAGS ({i})")
+            # Insert some data
+            for j in range(100):
+                tdSql.execute(f"INSERT INTO t{i} VALUES (now + {j}ms, {j})")
+        
+        # Run a query in the background
+        import threading
+        import time
+        
+        query_started = threading.Event()
+        query_finished = threading.Event()
+        
+        def run_long_query():
+            try:
+                query_started.set()
+                tdSql.query("SELECT COUNT(*) FROM st1 WHERE c1 > 50 GROUP BY t1")
+                query_finished.set()
+            except Exception as e:
+                tdLog.error(f"Query failed: {e}")
+                query_finished.set()
+        
+        thread = threading.Thread(target=run_long_query)
+        thread.start()
+        
+        # Wait for query to start
+        query_started.wait(timeout=5)
+        time.sleep(0.1)  # Give it a moment to actually start
+        
+        # Check progress
+        tdSql.query("SHOW QUERIES")
+        colNames = tdSql.getColNameList("SHOW QUERIES")
+        
+        if "progress_pct" in colNames:
+            progressIdx = colNames.index("progress_pct")
+            elapsedIdx = colNames.index("elapsed_ms")
+            estimatedIdx = colNames.index("estimated_total_ms")
+            
+            for row in tdSql.queryResult:
+                progress = row[progressIdx]
+                elapsed = row[elapsedIdx]
+                estimated = row[estimatedIdx]
+                
+                # progress_pct should be 0-100 or NULL
+                if progress is not None:
+                    assert 0 <= progress <= 100, f"Invalid progress: {progress}"
+                
+                # elapsed_ms should be >= 0
+                if elapsed is not None:
+                    assert elapsed >= 0, f"Negative elapsed_ms: {elapsed}"
+                
+                # estimated_total_ms should be NULL or >= elapsed
+                if estimated is not None and elapsed is not None:
+                    assert estimated >= elapsed, f"estimated_total_ms < elapsed_ms: {estimated} < {elapsed}"
+        
+        # Wait for query to finish
+        query_finished.wait(timeout=10)
+        thread.join(timeout=10)
+        
+        # Cleanup
+        tdSql.execute("DROP DATABASE IF EXISTS test_progress")
+        
+        tdLog.info("Progress tracking test passed")
+
         tdLog.info("elapsed_ms values verified as non-negative")

@@ -78,6 +78,21 @@ int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq* pReq);
 
 int32_t schedulerGetTasksStatus(int64_t job, SArray* pSub);
 
+/**
+ * Get query task progress
+ * @param jobId   Job ID
+ * @param pTotal      Output: total number of tasks
+ * @param pCompleted  Output: number of completed tasks
+ * @param pRunning    Output: number of running tasks
+ * @param pFailed     Output: number of failed tasks
+ * @return 0 on success, non-zero on failure
+ */
+int32_t schedulerGetTaskProgress(int64_t jobId,
+                                  int32_t *pTotal,
+                                  int32_t *pCompleted,
+                                  int32_t *pRunning,
+                                  int32_t *pFailed);
+
 void schedulerStopQueryHb(void* pTrans);
 
 int32_t schedulerUpdatePolicy(int32_t policy);

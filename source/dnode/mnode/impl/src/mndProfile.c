@@ -1396,18 +1396,41 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
       return code;
     }
 
-    // Column 19: estimated_total_ms (Phase 1: always NULL)
+    // Column 19: estimated_total_ms (Phase 2: calculate based on progress)
+    int64_t estimatedTotalMs = -1;  // -1 means unknown
+    
+    if (pQuery->completedTasks > 0 && elapsedMs > 0) {
+      // Industry standard formula: ETR = RemainingWork / (CompletedWork / ElapsedTime)
+      // estimatedTotalMs = elapsedMs * totalTasks / completedTasks
+      estimatedTotalMs = (elapsedMs * pQuery->totalTasks) / pQuery->completedTasks;
+      
+      // Prevent abnormal values
+      if (estimatedTotalMs < elapsedMs) {
+        estimatedTotalMs = -1;
+      }
+    }
+    
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, curRowIndex, NULL, true);
+    if (estimatedTotalMs < 0) {
+      code = colDataSetVal(pColInfo, curRowIndex, NULL, true);
+    } else {
+      code = colDataSetVal(pColInfo, curRowIndex, (const char*)&estimatedTotalMs, false);
+    }
     if (code != 0) {
       mError("failed to set estimated_total_ms since %s", tstrerror(code));
       taosRUnLockLatch(&pConn->queryLock);
       return code;
     }
 
-    // Column 20: progress_pct (Phase 1: always NULL)
+    // Column 20: progress_pct (Phase 2: use actual progress)
+    int32_t progressPct = pQuery->progressPct;  // -1 means unknown
+    
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, curRowIndex, NULL, true);
+    if (progressPct < 0) {
+      code = colDataSetVal(pColInfo, curRowIndex, NULL, true);
+    } else {
+      code = colDataSetVal(pColInfo, curRowIndex, (const char*)&progressPct, false);
+    }
     if (code != 0) {
       mError("failed to set progress_pct since %s", tstrerror(code));
       taosRUnLockLatch(&pConn->queryLock);

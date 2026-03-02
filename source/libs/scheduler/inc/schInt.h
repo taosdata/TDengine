@@ -327,6 +327,13 @@ typedef struct SSchJob {
   SQueryProfileSummary summary;
   int8_t               source;
   void                *pWorkerCb;
+  
+  // === Phase 2: Query progress tracking ===
+  int32_t              totalTasks;
+  int32_t              completedTasks;
+  int32_t              runningTasks;
+  int32_t              failedTasks;
+  int32_t              progressPct;
 } SSchJob;
 
 typedef struct SSchTaskCtx {

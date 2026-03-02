@@ -5032,6 +5032,12 @@ typedef struct {
 typedef struct {
   int64_t tid;
   char    status[TSDB_JOB_STATUS_LEN];
+  
+  // === Phase 2: Task progress fields ===
+  int8_t  taskStatus;    // EJobTaskType enum value
+  int8_t  reserved[7];   // alignment padding
+  int32_t processedRows; // rows processed (optional)
+  int32_t totalRows;     // total rows (optional, -1 if unknown)
 } SQuerySubDesc;
 
 typedef enum {
@@ -5053,9 +5059,18 @@ typedef struct {
   char     fqdn[TSDB_FQDN_LEN];
   int32_t  subPlanNum;
   SArray*  subDesc;  // SArray<SQuerySubDesc>
-  // New fields for SHOW QUERIES enhancement
+  // === Phase 1: Query status ===
   int8_t   status;        // EQueryStatus
-  int8_t   reserved[3];   // alignment padding
+  int8_t   reserved1[3];  // alignment padding
+  
+  // === Phase 2: Query progress ===
+  int32_t  totalTasks;        // total number of subtasks
+  int32_t  completedTasks;    // completed subtasks (success + failed)
+  int32_t  runningTasks;      // currently running subtasks
+  int32_t  failedTasks;       // failed subtasks
+  int32_t  progressPct;       // progress percentage (0-100), -1 if unknown
+  int64_t  estimatedTotalMs;  // estimated total time (ms), -1 if unknown
+  int8_t   reserved2[4];     // alignment padding
 } SQueryDesc;
 
 typedef struct {

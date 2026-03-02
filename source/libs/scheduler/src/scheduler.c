@@ -101,6 +101,9 @@ int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
 
   SCH_ERR_JRET(schHandleOpBeginEvent(jobId, &pJob, SCH_OP_GET_STATUS, NULL));
 
+  // === Phase 2: Calculate task progress ===
+  int32_t totalTasks = 0, completedTasks = 0, runningTasks = 0, failedTasks = 0;
+
   for (int32_t i = pJob->levelNum - 1; i >= 0; --i) {
     SSchLevel *pLevel = taosArrayGet(pJob->levels, i);
     if (NULL == pLevel) {
@@ -117,7 +120,32 @@ int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
 
       SQuerySubDesc subDesc = {0};
       subDesc.tid = pTask->taskId;
+      subDesc.taskStatus = pTask->status;  // Use enum value
       TAOS_STRCPY(subDesc.status, jobTaskStatusStr(pTask->status));
+      
+      // Initialize optional fields
+      subDesc.processedRows = -1;  // -1 means unknown
+      subDesc.totalRows = -1;
+
+      // === Count task status ===
+      totalTasks++;
+      switch (pTask->status) {
+        case JOB_TASK_STATUS_SUCC:
+        case JOB_TASK_STATUS_FETCH:
+          completedTasks++;
+          break;
+        case JOB_TASK_STATUS_FAIL:
+        case JOB_TASK_STATUS_DROP:
+          failedTasks++;
+          completedTasks++;  // Failed tasks also count as completed
+          break;
+        case JOB_TASK_STATUS_EXEC:
+        case JOB_TASK_STATUS_PART_SUCC:
+          runningTasks++;
+          break;
+        default:
+          break;
+      }
 
       if (NULL == taosArrayPush(pSub, &subDesc)) {
         qError("taosArrayPush task %d failed, error:0x%x", m, terrno);
@@ -125,6 +153,42 @@ int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
       }
     }
   }
+
+  // === Calculate progress percentage ===
+  // Industry standard (Trino): progress = completedDrivers / totalDrivers * 100
+  int32_t progressPct = -1;
+  if (totalTasks > 0) {
+    progressPct = (completedTasks * 100) / totalTasks;
+    if (progressPct > 100) progressPct = 100;
+  }
+
+  // === Store to job level (for later use) ===
+  pJob->totalTasks = totalTasks;
+  pJob->completedTasks = completedTasks;
+  pJob->runningTasks = runningTasks;
+  pJob->failedTasks = failedTasks;
+  pJob->progressPct = progressPct;
+
+_return:
+
+  SCH_RET(schHandleOpEndEvent(pJob, SCH_OP_GET_STATUS, NULL, code));
+}
+
+int32_t schedulerGetTaskProgress(int64_t jobId,
+                                  int32_t *pTotal,
+                                  int32_t *pCompleted,
+                                  int32_t *pRunning,
+                                  int32_t *pFailed) {
+  int32_t  code = 0;
+  SSchJob *pJob = NULL;
+
+  SCH_ERR_JRET(schHandleOpBeginEvent(jobId, &pJob, SCH_OP_GET_STATUS, NULL));
+
+  // Return the progress information stored in the job
+  if (pTotal) *pTotal = pJob->totalTasks;
+  if (pCompleted) *pCompleted = pJob->completedTasks;
+  if (pRunning) *pRunning = pJob->runningTasks;
+  if (pFailed) *pFailed = pJob->failedTasks;
 
 _return:
 

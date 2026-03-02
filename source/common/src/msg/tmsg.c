@@ -299,7 +299,19 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
           SQuerySubDesc *sDesc = taosArrayGet(desc->subDesc, m);
           TAOS_CHECK_RETURN(tEncodeI64(pEncoder, sDesc->tid));
           TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, sDesc->status));
+          // Note: SQuerySubDesc new fields (taskStatus, processedRows, totalRows)
+          // are NOT serialized here for backward compatibility.
+          // The mnode gets task-level details from its own internal state.
         }
+
+        // Phase 1 & 2: Query-level fields (backward compatible)
+        TAOS_CHECK_RETURN(tEncodeI8(pEncoder, desc->status));
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, desc->totalTasks));
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, desc->completedTasks));
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, desc->runningTasks));
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, desc->failedTasks));
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, desc->progressPct));
+        TAOS_CHECK_RETURN(tEncodeI64(pEncoder, desc->estimatedTotalMs));
       }
     } else {
       TAOS_CHECK_RETURN(tEncodeI32(pEncoder, queryNum));
@@ -416,15 +428,55 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
 
               code = (tDecodeCStrTo(pDecoder, sDesc.status));
               TAOS_CHECK_GOTO(code, &line, _error);
+
+              // Phase 2: Task progress fields (backward compatible)
+              // Default values in case old client doesn't send these
+              sDesc.taskStatus = 0;
+              sDesc.processedRows = -1;
+              sDesc.totalRows = -1;
+              if (!tDecodeIsEnd(pDecoder)) {
+                code = tDecodeI8(pDecoder, (int8_t*)&sDesc.taskStatus);
+                TAOS_CHECK_GOTO(code, &line, _error);
+                code = tDecodeI32(pDecoder, &sDesc.processedRows);
+                TAOS_CHECK_GOTO(code, &line, _error);
+                code = tDecodeI32(pDecoder, &sDesc.totalRows);
+                TAOS_CHECK_GOTO(code, &line, _error);
+              }
+
               if (!taosArrayPush(desc.subDesc, &sDesc)) {
                 code = terrno;
                 TAOS_CHECK_GOTO(code, &line, _error);
               }
-            }
           }
 
           if (!(desc.subPlanNum == taosArrayGetSize(desc.subDesc))) {
             code = TSDB_CODE_INVALID_MSG;
+            TAOS_CHECK_GOTO(code, &line, _error);
+          }
+
+          // Phase 1 & 2: Query-level fields (backward compatible)
+          // Default values in case old client doesn't send these
+          desc.status = QUERY_STATUS_UNKNOWN;
+          desc.totalTasks = -1;
+          desc.completedTasks = -1;
+          desc.runningTasks = -1;
+          desc.failedTasks = -1;
+          desc.progressPct = -1;
+          desc.estimatedTotalMs = -1;
+          if (!tDecodeIsEnd(pDecoder)) {
+            code = tDecodeI8(pDecoder, (int8_t*)&desc.status);
+            TAOS_CHECK_GOTO(code, &line, _error);
+            code = tDecodeI32(pDecoder, &desc.totalTasks);
+            TAOS_CHECK_GOTO(code, &line, _error);
+            code = tDecodeI32(pDecoder, &desc.completedTasks);
+            TAOS_CHECK_GOTO(code, &line, _error);
+            code = tDecodeI32(pDecoder, &desc.runningTasks);
+            TAOS_CHECK_GOTO(code, &line, _error);
+            code = tDecodeI32(pDecoder, &desc.failedTasks);
+            TAOS_CHECK_GOTO(code, &line, _error);
+            code = tDecodeI32(pDecoder, &desc.progressPct);
+            TAOS_CHECK_GOTO(code, &line, _error);
+            code = tDecodeI64(pDecoder, &desc.estimatedTotalMs);
             TAOS_CHECK_GOTO(code, &line, _error);
           }
 

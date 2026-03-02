@@ -814,8 +814,40 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
         code = TSDB_CODE_SUCCESS;
       }
       desc.subPlanNum = taosArrayGetSize(desc.subDesc);
+      
+      // === Phase 2: Get task progress ===
+      int32_t totalTasks = 0, completedTasks = 0, runningTasks = 0, failedTasks = 0;
+      code = schedulerGetTaskProgress(pRequest->body.queryJob, &totalTasks, &completedTasks, &runningTasks, &failedTasks);
+      if (TSDB_CODE_SUCCESS == code) {
+        desc.totalTasks = totalTasks;
+        desc.completedTasks = completedTasks;
+        desc.runningTasks = runningTasks;
+        desc.failedTasks = failedTasks;
+        
+        // Calculate progress percentage
+        if (totalTasks > 0) {
+          desc.progressPct = (completedTasks * 100) / totalTasks;
+          if (desc.progressPct > 100) desc.progressPct = 100;
+        } else {
+          desc.progressPct = -1;  // unknown
+        }
+      } else {
+        // Initialize with default values if failed to get progress
+        desc.totalTasks = -1;
+        desc.completedTasks = -1;
+        desc.runningTasks = -1;
+        desc.failedTasks = -1;
+        desc.progressPct = -1;
+      }
+      desc.estimatedTotalMs = -1;  // Will be calculated in mndProfile.c
     } else {
       desc.subDesc = NULL;
+      desc.totalTasks = -1;
+      desc.completedTasks = -1;
+      desc.runningTasks = -1;
+      desc.failedTasks = -1;
+      desc.progressPct = -1;
+      desc.estimatedTotalMs = -1;
     }
 
     (void)releaseRequest(*rid);
