@@ -16,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
+	"github.com/taosdata/taoskeeper/testutil"
 	"github.com/taosdata/taoskeeper/util"
 )
 
@@ -25,7 +26,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestIPv6(t *testing.T) {
-	conn, err := NewConnector("root", "taosdata", "[::1]", 6041, false)
+	conn, err := NewConnector(testutil.TestUsername(), testutil.TestPassword(), "[::1]", 6041, false)
 	assert.NoError(t, err)
 
 	defer conn.Close()
@@ -36,7 +37,7 @@ func TestIPv6(t *testing.T) {
 	_, err = conn.Exec(context.Background(), "create database test_ipv6", 1002)
 	assert.NoError(t, err)
 
-	conn, err = NewConnectorWithDb("root", "taosdata", "[::1]", 6041, "test_ipv6", false)
+	conn, err = NewConnectorWithDb(testutil.TestUsername(), testutil.TestPassword(), "[::1]", 6041, "test_ipv6", false)
 	assert.NoError(t, err)
 
 	defer conn.Close()
@@ -296,7 +297,7 @@ func TestNewConnectorWithDbAndToken(t *testing.T) {
 		t.Skip("only for TDengine Enterprise")
 	}
 
-	conn, err := NewConnector("root", "taosdata", "localhost", 6041, false)
+	conn, err := NewConnector(testutil.TestUsername(), testutil.TestPassword(), "localhost", 6041, false)
 	assert.NoError(t, err)
 	defer conn.Close()
 
@@ -323,7 +324,7 @@ func TestNewConnectorWithDbAndToken(t *testing.T) {
 	assert.NoError(t, err)
 	defer conn1.Close()
 
-	conn2, err := NewConnectorWithDbAndToken("root", "taosdata", token, "localhost", 6041, "test_1766988529", false)
+	conn2, err := NewConnectorWithDbAndToken(testutil.TestUsername(), testutil.TestPassword(), token, "localhost", 6041, "test_1766988529", false)
 	assert.NoError(t, err)
 	defer conn2.Close()
 
@@ -341,7 +342,7 @@ func TestNewConnectorWithDbAndTokenWithSpecialChars(t *testing.T) {
 		t.Skip("only for TDengine Enterprise")
 	}
 
-	conn, err := NewConnector("root", "taosdata", "localhost", 6041, false)
+	conn, err := NewConnector(testutil.TestUsername(), testutil.TestPassword(), "localhost", 6041, false)
 	assert.NoError(t, err)
 	defer conn.Close()
 
@@ -379,7 +380,7 @@ func TestNewConnectorWithDbAndTokenWithSpecialChars(t *testing.T) {
 }
 
 func TestNewConnectorWithSpecialChars(t *testing.T) {
-	conn, err := NewConnector("root", "taosdata", "localhost", 6041, false)
+	conn, err := NewConnector(testutil.TestUsername(), testutil.TestPassword(), "localhost", 6041, false)
 	assert.NoError(t, err)
 	defer conn.Close()
 

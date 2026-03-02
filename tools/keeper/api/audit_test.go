@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taoskeeper/db"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
+	"github.com/taosdata/taoskeeper/testutil"
 	"github.com/taosdata/taoskeeper/util"
 )
 
@@ -180,8 +181,8 @@ func TestAudit(t *testing.T) {
 func TestNewAudit(t *testing.T) {
 	cfg := config.Config{
 		TDengine: config.TDengineRestful{
-			Username: "root",
-			Password: "taosdata",
+			Username: testutil.TestUsername(),
+			Password: testutil.TestPassword(),
 			Host:     "localhost",
 			Port:     6041,
 			Usessl:   false,

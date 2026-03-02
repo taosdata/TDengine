@@ -47,7 +47,7 @@ void mndDropCachedTokensByUser(const char* user) {
 
 
 
-static int32_t mndProcessCreateTokenReq(SRpcMsg *pReq) {
+int32_t mndProcessCreateTokenReq(SRpcMsg *pReq) {
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 

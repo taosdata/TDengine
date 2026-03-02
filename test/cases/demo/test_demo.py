@@ -37,4 +37,4 @@ class TestDemo:
         tdSql.query("select * from test.meters")
         tdSql.checkRows(101)
 
-        tdLog.info(f"{__file__} successfully executed")
+

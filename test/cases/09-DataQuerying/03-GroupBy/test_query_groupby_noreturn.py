@@ -1594,4 +1594,4 @@ class TestAggGroupNotReturnValue:
         print("total time %ds" % (endTime - startTime))
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+

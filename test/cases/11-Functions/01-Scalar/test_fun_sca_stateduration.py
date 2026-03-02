@@ -445,4 +445,4 @@ class TestFunctionStateduration:
         self.check_unit_time()
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+

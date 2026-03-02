@@ -289,4 +289,4 @@ class TestDeleteStable:
         self.delete_data_stb()
         self.precision_now_check()
         
-        tdLog.success(f"{__file__} successfully executed")
+

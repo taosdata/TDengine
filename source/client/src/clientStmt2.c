@@ -667,6 +667,7 @@ static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
   if (pStmt->sql.fixValueTags) {
     pStmt->sql.fixValueTags = false;
     tdDestroySVCreateTbReq(pStmt->sql.fixValueTbReq);
+    taosMemoryFreeClear(pStmt->sql.fixValueTbReq);
     pStmt->sql.fixValueTbReq = NULL;
   }
 
@@ -1540,12 +1541,20 @@ int stmtCheckTags2(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_SETTAGS));
 
-  if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
-      STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
-    pStmt->bInfo.needParse = false;
+  if (pStmt->sql.fixValueTags) {
+    STMT2_TLOG_E("tags are fixed, use one createTbReq");
+    STMT_ERR_RET(cloneSVreateTbReq(pStmt->sql.fixValueTbReq, pCreateTbReq));
+    if ((*pCreateTbReq)->name) {
+      taosMemoryFree((*pCreateTbReq)->name);
+    }
+    (*pCreateTbReq)->name = taosStrdup(pStmt->bInfo.tbName);
+    int32_t vgId = -1;
+    STMT_ERR_RET(stmtTryAddTableVgroupInfo(pStmt, &vgId));
+    (*pCreateTbReq)->uid = vgId;
+    return TSDB_CODE_SUCCESS;
   }
-  STMT_ERR_RET(stmtCreateRequest(pStmt));
 
+  STMT_ERR_RET(stmtCreateRequest(pStmt));
   if (pStmt->bInfo.needParse) {
     STMT_ERR_RET(stmtParseSql(pStmt));
     if (!pStmt->sql.autoCreateTbl) {
@@ -1575,18 +1584,6 @@ int stmtCheckTags2(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (pStmt->sql.fixValueTags) {
-    STMT2_TLOG_E("tags are fixed, use one createTbReq");
-    STMT_ERR_RET(cloneSVreateTbReq(pStmt->sql.fixValueTbReq, pCreateTbReq));
-    if ((*pCreateTbReq)->name) {
-      taosMemoryFree((*pCreateTbReq)->name);
-    }
-    (*pCreateTbReq)->name = taosStrdup(pStmt->bInfo.tbName);
-    int32_t vgId = -1;
-    STMT_ERR_RET(stmtTryAddTableVgroupInfo(pStmt, &vgId));
-    (*pCreateTbReq)->uid = vgId;
-    return TSDB_CODE_SUCCESS;
-  }
 
   if ((*pDataBlock)->pData->pCreateTbReq) {
     STMT2_TLOG_E("tags are fixed, set createTbReq first time");
@@ -1594,6 +1591,11 @@ int stmtCheckTags2(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
     STMT_ERR_RET(cloneSVreateTbReq((*pDataBlock)->pData->pCreateTbReq, &pStmt->sql.fixValueTbReq));
     STMT_ERR_RET(cloneSVreateTbReq(pStmt->sql.fixValueTbReq, pCreateTbReq));
     (*pCreateTbReq)->uid = (*pDataBlock)->pMeta->vgId;
+
+    // destroy the createTbReq in the data block
+    tdDestroySVCreateTbReq((*pDataBlock)->pData->pCreateTbReq);
+    taosMemoryFreeClear((*pDataBlock)->pData->pCreateTbReq);
+    (*pDataBlock)->pData->pCreateTbReq = NULL;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2277,6 +2279,7 @@ static int32_t createParseContext(const SRequestObj* pRequest, SParseContext** p
                            .pEffectiveUser = pRequest->effectiveUser,
                            .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
                            .enableSysInfo = pTscObj->sysInfo,
+                           .privInfo = pWrapper->pParseCtx ? pWrapper->pParseCtx->privInfo : 0,
                            .async = true,
                            .svrVer = pTscObj->sVer,
                            .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
@@ -2471,6 +2474,14 @@ int stmtClose2(TAOS_STMT2* stmt) {
     }
   }
 
+  /* On macOS dispatch_semaphore_dispose requires value >= orig (1). After tsem_wait above value is 0; post once before
+   * destroy. */
+  if (pStmt->options.asyncExecFn) {
+    if (tsem_post(&pStmt->asyncExecSem) != 0) {
+      STMT2_ELOG_E("fail to post asyncExecSem");
+    }
+  }
+
   STMT2_DLOG("stbInterlaceMode:%d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
              ", parseSqlNum=>%" PRId64 ", pStmt->stat.bindDataNum=>%" PRId64
              ", settbnameAPI:%u, bindAPI:%u, addbatchAPI:%u, execAPI:%u"
@@ -2498,7 +2509,7 @@ int stmtClose2(TAOS_STMT2* stmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-const char* stmtErrstr2(TAOS_STMT2* stmt) {
+const char* stmt2Errstr(TAOS_STMT2* stmt) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
   if (stmt == NULL || NULL == pStmt->exec.pRequest) {

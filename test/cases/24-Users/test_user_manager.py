@@ -929,7 +929,7 @@ class TestUserSecurity:
             tdSql.checkData(1,  0, "user_allow3") 
             tdSql.checkData(0,  2, 1)               # enable
             tdSql.checkData(0,  6, 0)               # totp
-            tdSql.checkData(0,  9, "SYSINFO_1\x00") # roles
+            tdSql.checkData(0,  9, "SYSINFO_1")     # roles
 
         # show users
         tdSql.query("show users")

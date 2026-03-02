@@ -1300,6 +1300,49 @@ int compareColIdSlotIdPair(const void* elem1, const void* elem2) {
   return node1->orgColId < node2->orgColId ? -1 : 1;
 }
 
+static int compareColMatchItemByColId(const void* elem1, const void* elem2) {
+  const SColMatchItem* node1 = (const SColMatchItem*)elem1;
+  const SColMatchItem* node2 = (const SColMatchItem*)elem2;
+
+  if (node1->colId == node2->colId) {
+    return 0;
+  }
+
+  return node1->colId < node2->colId ? -1 : 1;
+}
+
+static SColMatchItem* findMatchItemByColId(SArray* pList, col_id_t colId) {
+  if (pList == NULL) {
+    return NULL;
+  }
+
+  int32_t left = 0;
+  int32_t right = taosArrayGetSize(pList) - 1;
+  while (left <= right) {
+    int32_t mid = left + (right - left) / 2;
+    SColMatchItem* pItem = taosArrayGet(pList, mid);
+    if (pItem->colId == colId) {
+      // return the first matched item in sorted order
+      while (mid > 0) {
+        SColMatchItem* pPrev = taosArrayGet(pList, mid - 1);
+        if (pPrev->colId != colId) {
+          break;
+        }
+        mid--;
+      }
+      return taosArrayGet(pList, mid);
+    }
+
+    if (pItem->colId < colId) {
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+
+  return NULL;
+}
+
 static bool isNewScanParam(STableScanOperatorParam* pParam) {
   return pParam->isNewParam;
 }
@@ -1576,6 +1619,7 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   int32_t                  num = 0;
   STableKeyInfo*           pList = NULL;
   SOrgTbInfo*              pOrgTbInfo;
+  SArray*                  pMatchList = NULL;
 
   cleanupQueryTableDataCond(&pInfo->base.cond);
 
@@ -1621,6 +1665,12 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   QUERY_CHECK_NULL(pColArray, code, lino, _return, terrno);
   pBlockColArray = taosArrayInit(schema->nCols, sizeof(SColIdSlotIdPair));
   QUERY_CHECK_NULL(pBlockColArray, code, lino, _return, terrno);
+  if (pInfo->pBlockColMap) {
+    taosArrayDestroy(pInfo->pBlockColMap);
+    pInfo->pBlockColMap = NULL;
+  }
+  pInfo->pBlockColMap = taosArrayInit(schema->nCols, sizeof(SColIdSlotIdPair));
+  QUERY_CHECK_NULL(pBlockColArray, code, lino, _return, terrno);
 
   // virtual table's origin table scan do not has ts column.
   SColIdPair tsPair = {.vtbColId = PRIMARYKEY_TIMESTAMP_COL_ID,
@@ -1643,32 +1693,38 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
     }
   }
 
+  if (pInfo->base.matchInfo.pList) {
+    if (!pInfo->base.matchInfo.colIdOrdered) {
+      pMatchList = taosArrayDup(pInfo->base.matchInfo.pList, NULL);
+      QUERY_CHECK_NULL(pMatchList, code, lino, _return, terrno);
+      taosArraySort(pMatchList, compareColMatchItemByColId);
+    } else {
+      pMatchList = pInfo->base.matchInfo.pList;
+    }
+  }
+
+  // skip ts pair
   for (int32_t i = 0; i < taosArrayGetSize(pColArray); i++) {
     SColIdPair* pPair = (SColIdPair*)taosArrayGet(pColArray, i);
-    for (int32_t j = 0; j < taosArrayGetSize(pInfo->base.matchInfo.pList); j++) {
-      SColMatchItem* pItem = taosArrayGet(pInfo->base.matchInfo.pList, j);
-      if (pItem->colId == pPair->vtbColId) {
-        if (pItem->dataType.type != pPair->type.type || pItem->dataType.bytes != pPair->type.bytes) {
-          qError("column type not match for vtable colId:%d, org colId:%d, org table name:%s", pPair->vtbColId,
-                 pPair->orgColId, orgTable.me.name);
-          code = TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH;
-          goto _return;
-        }
-        SColIdSlotIdPair colIdSlotIdPair = {.orgColId = pPair->orgColId, .vtbSlotId = pItem->dstSlotId};
-        QUERY_CHECK_NULL(taosArrayPush(pBlockColArray, &colIdSlotIdPair), code, lino, _return, terrno);
-        break;
+    SColMatchItem* pItem = findMatchItemByColId(pMatchList, pPair->vtbColId);
+    if (pItem) {
+      if (pItem->dataType.type != pPair->type.type || pItem->dataType.bytes != pPair->type.bytes) {
+        qError("column type not match for vtable colId:%d, org colId:%d, org table name:%s", pPair->vtbColId,
+               pPair->orgColId, orgTable.me.name);
+        code = TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH;
+        goto _return;
+      }
+      SColIdSlotIdPair colIdSlotIdPair = {.orgColId = pPair->orgColId, .vtbSlotId = pItem->dstSlotId};
+      QUERY_CHECK_NULL(taosArrayPush(pBlockColArray, &colIdSlotIdPair), code, lino, _return, terrno);
+      if (i > 0) {
+        QUERY_CHECK_NULL(taosArrayPush(pInfo->pBlockColMap, &colIdSlotIdPair), code, lino, _return, terrno);
       }
     }
   }
 
   taosArraySort(pColArray, compareColIdPair);
   taosArraySort(pBlockColArray, compareColIdSlotIdPair);
-  if (pInfo->pBlockColMap) {
-    taosArrayDestroy(pInfo->pBlockColMap);
-    pInfo->pBlockColMap = NULL;
-  }
-  pInfo->pBlockColMap = taosArrayDup(pBlockColArray, NULL);
-  QUERY_CHECK_NULL(pInfo->pBlockColMap, code, lino, _return, terrno)
+  taosArraySort(pInfo->pBlockColMap, compareColIdSlotIdPair);
 
   taosArrayRemoveDuplicate(pColArray, compareColIdPair, NULL);
   taosArrayRemoveDuplicate(pBlockColArray, compareColIdSlotIdPair, NULL);
@@ -1747,6 +1803,9 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
 _return:
   if (code) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  if (!pInfo->base.matchInfo.colIdOrdered) {
+    taosArrayDestroy(pMatchList);
   }
   taosArrayDestroy(pColArray);
   taosArrayDestroy(pBlockColArray);
@@ -1914,6 +1973,43 @@ _end:
   return code;
 }
 
+static int32_t blockSetVstbSlotId(const SSDataBlock* pSrcBlock,SArray* pColMap) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  bool         found = false;
+
+  QUERY_CHECK_NULL(pSrcBlock, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pColMap, code, lino, _return, TSDB_CODE_INVALID_PARA);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pSrcBlock->pDataBlock); i++) {
+    SColumnInfoData* pSrcCol = taosArrayGet(pSrcBlock->pDataBlock, i);
+    QUERY_CHECK_NULL(pSrcCol, code, lino, _return, terrno);
+    for (int32_t j = 0; j < taosArrayGetSize(pColMap); j++) {
+      SColIdSlotIdPair* pColPair = taosArrayGet(pColMap, j);
+      QUERY_CHECK_NULL(pColPair, code, lino, _return, terrno);
+      if (pSrcCol->info.colId == pColPair->orgColId) {
+        pSrcCol->info.slotId = (int16_t)pColPair->vtbSlotId;
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      if (pSrcCol->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        pSrcCol->info.slotId = -1;
+      } else {
+        qError("cannot find vstb slotId for org colId:%d (pColMap size:%d)", pSrcCol->info.colId,
+               (int32_t)taosArrayGetSize(pColMap));
+        code = TSDB_CODE_QRY_VSTB_SLOTID_NOT_FOUND;
+      }
+    }
+  }
+
+  return code;
+_return:
+  uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
 static int32_t doVstbSingleDynamicTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
@@ -1950,12 +2046,15 @@ static int32_t doVstbSingleDynamicTableScanNext(SOperatorInfo* pOperator, SSData
     pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, NULL);
     pInfo->lastTimeWindow.skey = result->info.window.skey;
     pInfo->lastTimeWindow.ekey = result->info.window.ekey;
-    code = createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, pInfo->pBlockColMap, &res);
-    QUERY_CHECK_CODE(code, lino, _end);
 
-    pInfo->pResBlock = res;
-    blockDataDestroy(result);
-    (*ppRes) = res;
+    code = blockSetVstbSlotId(result, pInfo->pBlockColMap);
+    QUERY_CHECK_CODE(code, lino, _end);
+    //code = createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, pInfo->pBlockColMap, &res);
+    //QUERY_CHECK_CODE(code, lino, _end);
+
+    //pInfo->pResBlock = res;
+    //blockDataDestroy(result);
+    (*ppRes) = result;
   } else {
     STableKeyInfo *keyInfo = taosArrayGet(pInfo->base.pTableListInfo->pTableList, 0);
     QUERY_CHECK_NULL(keyInfo, code, lino, _end, terrno)
@@ -2717,7 +2816,7 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       int64_t elapsed = taosGetTimestampMs() - st;
       if (elapsed > pTaskInfo->tmqInfo.timeout || elapsed < 0) {
         if (pInfo->pRes->info.rows == 0) {
-          code = TSDB_CODE_TMQ_FETCH_TIMEOUT ;
+          terrno = TSDB_CODE_TMQ_FETCH_TIMEOUT ;
         }
         (*ppRes) = pInfo->pRes;
         return code;
@@ -2731,8 +2830,12 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     int64_t validVer = pTaskInfo->tmqInfo.snapshotVer + 1;
     qDebug("queue scan tsdb over, switch to wal ver %" PRId64, validVer);
     code = pAPI->tqReaderFn.tqReaderSeek(pInfo->tqReader, validVer, pTaskInfo->id.str);
-    if (code == TSDB_CODE_WAL_LOG_NOT_EXIST && pInfo->pRes->info.rows > 0) {
-      (*ppRes) = pInfo->pRes;
+    if (code == TSDB_CODE_WAL_LOG_NOT_EXIST) {
+      if (pInfo->pRes->info.rows == 0) {
+        (*ppRes) = NULL;
+      } else {
+        (*ppRes) = pInfo->pRes;
+      }
       return 0;
     }
     QUERY_CHECK_CODE(code, lino, _end);
@@ -2747,7 +2850,8 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
                                                               pInfo->numOfPseudoExpr,
                                                               pTaskInfo->tmqInfo.sourceExcluded,
                                                               pTaskInfo->tmqInfo.minPollRows,
-                                                              pTaskInfo->tmqInfo.timeout);
+                                                              pTaskInfo->tmqInfo.timeout,
+                                                              pTaskInfo->tmqInfo.enableReplay);
     if (code != 0 && code != TSDB_CODE_TMQ_FETCH_TIMEOUT && code != TSDB_CODE_WAL_LOG_NOT_EXIST) {
       goto _end;
     }                                                              
@@ -2772,14 +2876,14 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (code != 0) {
       if (pInfo->pRes->info.rows == 0) {
         (*ppRes) = NULL;
-        return code;
       } else {
         (*ppRes) = pInfo->pRes;
-        return 0;
       }
+      return 0;
     }
 
-    if (pInfo->pRes->info.rows >= pTaskInfo->tmqInfo.minPollRows) {
+    if (pInfo->pRes->info.rows >= pTaskInfo->tmqInfo.minPollRows || 
+        (pInfo->pRes->info.rows > 0 && pTaskInfo->tmqInfo.enableReplay)) {
       (*ppRes) = pInfo->pRes;
       return 0;
     }
@@ -3121,6 +3225,7 @@ int32_t createTmqScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTa
   pInfo->pTagCond = pTagCond;
   pInfo->pGroupTags = pTableScanNode->pGroupTags;
 
+  pInfo->primaryTsIndex = -1;
   getTsSlotId(pScanPhyNode->pScanCols, &pInfo->primaryTsIndex);
   pInfo->pCol2SlotId = taosHashInit(LIST_LENGTH(pScanPhyNode->pScanCols), taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_ENTRY_LOCK);
   QUERY_CHECK_NULL(pInfo->pCol2SlotId, code, lino, _error, terrno);

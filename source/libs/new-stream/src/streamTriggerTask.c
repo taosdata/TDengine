@@ -1326,6 +1326,14 @@ int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealti
       }
       if (pCalcRange->ekey != INT64_MAX) {
         STimeWindow win = stTriggerTaskGetTimeWindow(pTask, pCalcRange->ekey);
+        while (pTask->interval.interval > pTask->interval.sliding) {
+          STimeWindow nextWin = win;
+          stTriggerTaskNextTimeWindow(pTask, &nextWin);
+          if (nextWin.skey > pCalcRange->ekey) {
+            break;
+          }
+          win = nextWin;
+        }
         pReq->scanRange.ekey = TMIN(pReq->scanRange.ekey, win.ekey);
       }
     } else if (!isUserRecalc && pTask->fillHistoryStartTime > 0 && pCalcRange->skey != INT64_MIN) {
@@ -1336,6 +1344,9 @@ int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealti
   }
 
   if ((pReq->scanRange.skey > pReq->scanRange.ekey) || (pReq->calcRange.skey > pReq->calcRange.ekey)) {
+    if (pReq->isHistory) {
+      atomic_store_8(&pTask->historyFinished, 1);
+    }
     goto _end;
   }
 
@@ -1920,6 +1931,8 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
 
   pTask->histTrigTsIndex = 0;
   pTask->histCalcTsIndex = 0;
+  pTask->histTrigPkIndex = -1;
+  pTask->histCalcPkIndex = -1;
 
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
     if (pTask->histStateSlotId != -1) {
@@ -2124,7 +2137,9 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
       pTask->stateExtend = pState->extend;
       code = nodesStringToNode(pState->zeroth, &pTask->pStateZeroth);
       QUERY_CHECK_CODE(code, lino, _end);
-      pTask->stateTrueFor = pState->trueForDuration;
+      pTask->stateTrueForInfo.trueForType = pState->trueForType;
+      pTask->stateTrueForInfo.count = pState->trueForCount;
+      pTask->stateTrueForInfo.duration = pState->trueForDuration;
       code = nodesStringToNode(pState->expr, &pTask->pStateExpr);
       QUERY_CHECK_CODE(code, lino, _end);
       if (pTask->pStateExpr != NULL && nodeType(pTask->pStateExpr) != QUERY_NODE_COLUMN) {
@@ -2139,7 +2154,9 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
       QUERY_CHECK_CODE(code, lino, _end);
       code = nodesStringToNode(pEvent->endCond, &pTask->pEndCond);
       QUERY_CHECK_CODE(code, lino, _end);
-      pTask->eventTrueFor = pEvent->trueForDuration;
+      pTask->eventTrueForInfo.trueForType = pEvent->trueForType;
+      pTask->eventTrueForInfo.count = pEvent->trueForCount;
+      pTask->eventTrueForInfo.duration = pEvent->trueForDuration;
       code = nodesCollectColumnsFromNode(pTask->pStartCond, NULL, COLLECT_COL_TYPE_ALL, &pTask->pStartCondCols);
       QUERY_CHECK_CODE(code, lino, _end);
       if (nodeType(pTask->pStartCond) == QUERY_NODE_NODE_LIST) {
@@ -2184,6 +2201,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
 
   pTask->trigTsIndex = pMsg->triTsSlotId;
   pTask->calcTsIndex = pMsg->calcTsSlotId;
+  pTask->trigPkIndex = pMsg->triPkSlotId;
+  pTask->calcPkIndex = pMsg->calcPkSlotId;
   pTask->maxDelayNs = pMsg->maxDelay * NANOSECOND_PER_MSEC;
   pTask->fillHistoryStartTime = pMsg->fillHistoryStartTime;
   pTask->watermark = pMsg->watermark;
@@ -2235,6 +2254,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
     pTask->histTrigTsIndex = pTask->trigTsIndex;
   }
   pTask->histCalcTsIndex = pTask->calcTsIndex;
+  pTask->histTrigPkIndex = pTask->trigPkIndex;
+  pTask->histCalcPkIndex = pTask->calcPkIndex;
   if (pTask->triggerFilter != NULL) {
     code = nodesCloneNode(pTask->triggerFilter, &pTask->histTriggerFilter);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -2876,8 +2897,8 @@ int32_t stTriggerTaskGetStatus(SStreamTask *pTask, SSTriggerRuntimeStatus *pStat
 
 int32_t stTriggerTaskGetDelay(SStreamTask *pStreamTask, int64_t *pDelay, bool *pFillHisFinished) {
   SStreamTriggerTask *pTask = (SStreamTriggerTask *)pStreamTask;
-  int64_t             now = taosGetTimestampNs();
-  *pDelay = now - atomic_load_64(&pTask->latestVersionTime);
+  int64_t             now = taosGetTimestampUs();
+  *pDelay = (now - atomic_load_64(&pTask->latestVersionTime)) / (NANOSECOND_PER_MSEC / NANOSECOND_PER_USEC);
   *pFillHisFinished = atomic_load_8(&pTask->historyFinished);
   return TSDB_CODE_SUCCESS;
 }
@@ -5084,11 +5105,14 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
       if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
-        QUERY_CHECK_CONDITION(pRsp->contLen == sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
+        QUERY_CHECK_CONDITION(pRsp->contLen >= sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
         blockDataEmpty(pContext->pMetaBlock);
         blockDataEmpty(pContext->pDeleteBlock);
         blockDataEmpty(pContext->pTableBlock);
         pContext->pMetaBlock->info.version = *(int64_t *)pRsp->pCont;
+        if (pRsp->contLen > sizeof(int64_t)) {
+          pProgress->verTime = *(((int64_t *)pRsp->pCont) + 1);
+        }
       } else {
         QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
         SSTriggerWalNewRsp rsp = {.metaBlock = pContext->pMetaBlock,
@@ -5234,12 +5258,15 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       bool firstDataBlock = (blockDataGetNumOfCols(pProgress->pTrigBlock) == 0);
 
       if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
-        QUERY_CHECK_CONDITION(pRsp->contLen == sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
+        QUERY_CHECK_CONDITION(pRsp->contLen >= sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
         if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
           blockDataEmpty(pContext->pMetaBlock);
           blockDataEmpty(pContext->pDeleteBlock);
           blockDataEmpty(pContext->pTableBlock);
           pContext->pMetaBlock->info.version = *(int64_t *)pRsp->pCont;
+          if (pRsp->contLen > sizeof(int64_t)) {
+            pProgress->verTime = *(((int64_t *)pRsp->pCont) + 1);
+          }
         }
         taosArrayClear(pContext->pTempSlices);
       } else {
@@ -8034,7 +8061,8 @@ static int32_t stRealtimeGroupNextDataBlock(SSTriggerRealtimeGroup *pGroup, SSDa
         SObjList *pMetas = tSimpleHashGet(pGroup->pWalMetas, &vgId, sizeof(int32_t));
         QUERY_CHECK_NULL(pMetas, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
         STimeWindow range = {.skey = pGroup->oldThreshold + 1, .ekey = pGroup->newThreshold};
-        code = stNewTimestampSorterSetData(pContext->pSorter, tbUid, pTask->trigTsIndex, &range, pMetas, pSlice);
+        code = stNewTimestampSorterSetData(pContext->pSorter, tbUid, pTask->trigTsIndex, pTask->trigPkIndex, &range,
+                                           pMetas, pSlice);
         QUERY_CHECK_CODE(code, lino, _end);
       }
       code = stNewTimestampSorterNextDataBlock(pContext->pSorter, ppDataBlock, pStartIdx, pEndIdx);
@@ -8057,8 +8085,8 @@ static int32_t stRealtimeGroupNextDataBlock(SSTriggerRealtimeGroup *pGroup, SSDa
           break;
         }
         STimeWindow range = {.skey = pGroup->oldThreshold + 1, .ekey = pGroup->newThreshold};
-        code = stNewVtableMergerSetData(pContext->pMerger, vtbUid, pTask->trigTsIndex, &range, &pGroup->tableUids,
-                                        pInfo->pTrigColRefs, pGroup->pWalMetas, pContext->pSlices);
+        code = stNewVtableMergerSetData(pContext->pMerger, vtbUid, pTask->trigTsIndex, pTask->trigPkIndex, &range,
+                                        &pGroup->tableUids, pInfo->pTrigColRefs, pGroup->pWalMetas, pContext->pSlices);
         QUERY_CHECK_CODE(code, lino, _end);
       }
       code = stNewVtableMergerNextDataBlock(pContext->pMerger, ppDataBlock, pStartIdx, pEndIdx);
@@ -8092,7 +8120,8 @@ static int32_t stRealtimeGroupNextDataBlock(SSTriggerRealtimeGroup *pGroup, SSDa
         if (TARRAY_DATA(pContext->pCalcReq->params) != pContext->pCurParam) {
           range.skey = TMAX(range.skey, (pContext->pCurParam - 1)->wend + 1);
         }
-        code = stNewTimestampSorterSetData(pContext->pCalcSorter, tbUid, pTask->calcTsIndex, &range, pMetas, pSlice);
+        code = stNewTimestampSorterSetData(pContext->pCalcSorter, tbUid, pTask->calcTsIndex, pTask->calcPkIndex, &range,
+                                           pMetas, pSlice);
         QUERY_CHECK_CODE(code, lino, _end);
       }
       code = stNewTimestampSorterNextDataBlock(pContext->pCalcSorter, ppDataBlock, pStartIdx, pEndIdx);
@@ -8119,7 +8148,7 @@ static int32_t stRealtimeGroupNextDataBlock(SSTriggerRealtimeGroup *pGroup, SSDa
         if (TARRAY_DATA(pContext->pCalcReq->params) != pContext->pCurParam) {
           range.skey = TMAX(range.skey, (pContext->pCurParam - 1)->wend + 1);
         }
-        code = stNewVtableMergerSetData(pContext->pCalcMerger, vtbUid, pTask->calcTsIndex, &range,
+        code = stNewVtableMergerSetData(pContext->pCalcMerger, vtbUid, pTask->calcTsIndex, pTask->calcPkIndex, &range,
                                         &pContext->pCalcTableUids, pInfo->pCalcColRefs, pGroup->pWalMetas,
                                         pContext->pSlices);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -8821,17 +8850,18 @@ static int32_t stRealtimeGroupMergeWindows(SSTriggerRealtimeGroup *pGroup) {
       code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
   // add pending open window for TRUE FOR condition
-  int64_t trueFor = 0;
+  STrueForInfo *pTrueForInfo = NULL;
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
-    trueFor = pTask->stateTrueFor;
+    pTrueForInfo = &pTask->stateTrueForInfo;
   } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-    trueFor = pTask->eventTrueFor;
+    pTrueForInfo = &pTask->eventTrueForInfo;
   }
-  if ((trueFor > 0) && (pGroup->windows.neles > 0)) {
+  if (pTrueForInfo && (pTrueForInfo->duration > 0 || pTrueForInfo->count > 0) && (pGroup->windows.neles > 0)) {
     pWin = taosArrayGetLast(pContext->pWindows);
     QUERY_CHECK_NULL(pWin, code, lino, _end, terrno);
     if ((pWin->range.ekey & TRIGGER_GROUP_UNCLOSED_WINDOW_MASK) &&
-        (pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK)) - pWin->range.skey < trueFor) {
+        !isTrueForSatisfied(pTrueForInfo, pWin->range.skey, pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK),
+                            pWin->wrownum)) {
       pGroup->pendingWinOpen = true;
       pGroup->pPendWinOpenNotify = pWin->pWinOpenNotify;
       pWin->pWinOpenNotify = NULL;
@@ -8938,19 +8968,20 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
   }
   int64_t numClosed = numWin - numUnclosed;
 
-  int64_t initPendingSize = pGroup->pPendingCalcParams.neles + pGroup->pPendingParWinCalcParams.neles;
-  int64_t trueFor = 0;
+  int64_t       initPendingSize = pGroup->pPendingCalcParams.neles + pGroup->pPendingParWinCalcParams.neles;
+  STrueForInfo *pTrueForInfo = NULL;
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
-    trueFor = pTask->stateTrueFor;
+    pTrueForInfo = &pTask->stateTrueForInfo;
   } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-    trueFor = pTask->eventTrueFor;
+    pTrueForInfo = &pTask->eventTrueForInfo;
   }
   // trigger all window open/close events
   for (int32_t i = 0; i < TARRAY_SIZE(pContext->pWindows); i++) {
     SSTriggerNotifyWindow *pWin = TARRAY_GET_ELEM(pContext->pWindows, i);
     // check TRUE FOR condition
-    bool meetTrueFor =
-        (trueFor == 0) || ((pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK)) - pWin->range.skey >= trueFor);
+    bool meetTrueFor = (pTrueForInfo == NULL) || (pTrueForInfo->duration == 0 && pTrueForInfo->count == 0) ||
+                       isTrueForSatisfied(pTrueForInfo, pWin->range.skey,
+                                          pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK), pWin->wrownum);
     bool ignore = (i < nInitWins) || !meetTrueFor;
     if ((calcOpen || notifyOpen) && !ignore && !pContext->recovering) {
       SSTriggerCalcParam    param = {.triggerTime = now,
@@ -8996,8 +9027,9 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
   for (int32_t i = 0; i < TARRAY_SIZE(pContext->pParentWindows); i++) {
     SSTriggerNotifyWindow *pWin = TARRAY_GET_ELEM(pContext->pParentWindows, i);
     // check TRUE FOR condition
-    bool meetTrueFor =
-        (trueFor == 0) || ((pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK)) - pWin->range.skey >= trueFor);
+    bool meetTrueFor = (pTrueForInfo == NULL) || (pTrueForInfo->duration == 0 && pTrueForInfo->count == 0) ||
+                       isTrueForSatisfied(pTrueForInfo, pWin->range.skey,
+                                          pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK), pWin->wrownum);
     bool ignore = (pWin->range.skey <= pGroup->prevParentWinStart) || !meetTrueFor;
     if ((calcOpen || notifyOpen) && !ignore && !pContext->recovering) {
       SSTriggerCalcParam    param = {.triggerTime = now,
@@ -9045,8 +9077,9 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
   if (pTask->triggerType == STREAM_TRIGGER_EVENT && pGroup->numSubWindows > 0) {
     SSTriggerNotifyWindow *pWin = &pGroup->parentWindow;
     // check TRUE FOR condition
-    bool meetTrueFor =
-        (trueFor == 0) || ((pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK)) - pWin->range.skey >= trueFor);
+    bool meetTrueFor = (pTrueForInfo == NULL) || (pTrueForInfo->duration == 0 && pTrueForInfo->count == 0) ||
+                       isTrueForSatisfied(pTrueForInfo, pWin->range.skey,
+                                          pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK), pWin->wrownum);
     bool ignore = (pWin->range.skey <= pGroup->prevParentWinStart) || !meetTrueFor;
     if ((calcOpen || notifyOpen) && !ignore && !pContext->recovering) {
       SSTriggerCalcParam    param = {.triggerTime = now,
@@ -9117,9 +9150,13 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
       nextExecTime = TMIN(nextExecTime, t);
     }
   }
-  if (initPendingSize == 0 && (pGroup->pPendingCalcParams.neles > 0 || pGroup->pPendingParWinCalcParams.neles > 0)) {
-    int64_t t = pTask->lowLatencyCalc ? now : (now + tsStreamBatchRequestWaitMs * NANOSECOND_PER_MSEC);
-    nextExecTime = TMIN(nextExecTime, t);
+  if (pGroup->pPendingCalcParams.neles > 0 || pGroup->pPendingParWinCalcParams.neles > 0) {
+    if (initPendingSize == 0) {
+      int64_t t = pTask->lowLatencyCalc ? now : (now + tsStreamBatchRequestWaitMs * NANOSECOND_PER_MSEC);
+      nextExecTime = TMIN(nextExecTime, t);
+    } else {
+      nextExecTime = TMIN(nextExecTime, pGroup->nextExecTime);
+    }
   }
 
   if (nextExecTime != INT64_MAX && nextExecTime > pGroup->nextExecTime) {
@@ -9612,38 +9649,58 @@ static int32_t stHistoryGroupAddCalcParam(SSTriggerHistoryGroup *pGroup, SSTrigg
   int32_t                  lino = 0;
   SSTriggerHistoryContext *pContext = pGroup->pContext;
   SStreamTriggerTask      *pTask = pContext->pTask;
-  bool                     initSize = pGroup->pPendingCalcParams.neles + pGroup->pPendingParWinCalcParams.neles;
+  int32_t                  initSize = pGroup->pPendingCalcParams.neles + pGroup->pPendingParWinCalcParams.neles;
+  bool overlap = (pParam->wstart <= pContext->calcRange.ekey) && (pParam->wend >= pContext->calcRange.skey);
+  bool hasBefore = (pParam->wstart < pContext->calcRange.skey);
+  bool hasAfter = (pParam->wend > pContext->calcRange.ekey);
 
-  if (pParam->wstart > pGroup->finishTs) {
-    tDestroySSTriggerCalcParam(pParam);
-    goto _end;
+  switch (pTask->triggerType) {
+    case STREAM_TRIGGER_SLIDING:
+    case STREAM_TRIGGER_COUNT: {
+      if (!overlap) {
+        goto _end;
+      }
+      break;
+    }
+    case STREAM_TRIGGER_EVENT: {
+      if (!overlap && !(hasAfter && pParam->wstart <= pGroup->finishTs)) {
+        goto _end;
+      }
+      break;
+    }
+    case STREAM_TRIGGER_SESSION:
+    case STREAM_TRIGGER_STATE: {
+      if (!overlap && !hasBefore && !(hasAfter && pParam->wstart <= pGroup->finishTs)) {
+        goto _end;
+      }
+      if (hasBefore) {
+        taosObjListClearEx(&pGroup->pPendingCalcParams, tDestroySSTriggerCalcParam);
+      }
+      break;
+    }
+    default: {
+      ST_TASK_ELOG("invalid stream trigger type %d at %s:%d", pTask->triggerType, __func__, __LINE__);
+      code = TSDB_CODE_INVALID_PARA;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
   }
-  if (!isParent) {
-    if (pParam->wstart < pContext->calcRange.skey) {
-      // skip param before the calc range
-      taosObjListClearEx(&pGroup->pPendingParWinCalcParams, tDestroySSTriggerCalcParam);
-      taosObjListClearEx(&pGroup->pPendingCalcParams, tDestroySSTriggerCalcParam);
-    }
-    code = taosObjListAppend(&pGroup->pPendingCalcParams, pParam);
-    if (code != TSDB_CODE_SUCCESS) {
-      tDestroySSTriggerCalcParam(pParam);
-      goto _end;
-    }
-    if (pParam->wend > pContext->calcRange.ekey) {
-      pGroup->finishTs = pParam->wstart;
-    }
-  } else {
-    code = taosObjListAppend(&pGroup->pPendingParWinCalcParams, pParam);
-    if (code != TSDB_CODE_SUCCESS) {
-      tDestroySSTriggerCalcParam(pParam);
-      goto _end;
-    }
+
+  if (hasAfter) {
+    pGroup->finishTs = pParam->wstart;
   }
+  SObjList *pParamList = isParent ? &pGroup->pPendingParWinCalcParams : &pGroup->pPendingCalcParams;
+  code = taosObjListAppend(pParamList, pParam);
+  QUERY_CHECK_CODE(code, lino, _end);
+  pParam = NULL;
+
   if (initSize == 0) {
     heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
   }
 
 _end:
+  if (pParam != NULL) {
+    tDestroySSTriggerCalcParam(pParam);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -9729,16 +9786,16 @@ static int32_t stHistoryGroupOpenWindow(SSTriggerHistoryGroup *pGroup, int64_t t
   code = TRINGBUF_APPEND(&pGroup->winBuf, newWindow);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  int64_t trueFor = 0;
+  STrueForInfo *pTrueForInfo = NULL;
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
-    trueFor = pTask->stateTrueFor;
+    pTrueForInfo = &pTask->stateTrueForInfo;
   } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-    trueFor = pTask->eventTrueFor;
+    pTrueForInfo = &pTask->eventTrueForInfo;
   }
 
   if (saveWindow) {
     // only save window when close window
-  } else if (trueFor > 0) {
+  } else if (pTrueForInfo && (pTrueForInfo->duration > 0 || pTrueForInfo->count > 0)) {
     pGroup->pendingWinOpen = true;
     pGroup->pendingWinParam = param;
     param.extraNotifyContent = NULL;
@@ -9856,16 +9913,14 @@ static int32_t stHistoryGroupCloseWindow(SSTriggerHistoryGroup *pGroup, char **p
     pHead->wrownum = pCurWindow->wrownum - bias;
   }
 
-  bool    ignore = false;
-  int64_t trueFor = 0;
+  STrueForInfo *pTrueForInfo = NULL;
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {
-    trueFor = pTask->stateTrueFor;
+    pTrueForInfo = &pTask->stateTrueForInfo;
   } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-    trueFor = pTask->eventTrueFor;
+    pTrueForInfo = &pTask->eventTrueForInfo;
   }
-  if (trueFor > 0) {
-    ignore = pCurWindow->range.ekey - pCurWindow->range.skey < trueFor;
-  }
+  bool ignore = (pTrueForInfo != NULL) && (pTrueForInfo->duration > 0 || pTrueForInfo->count > 0) &&
+                !isTrueForSatisfied(pTrueForInfo, pCurWindow->range.skey, pCurWindow->range.ekey, pCurWindow->wrownum);
 
   if (pGroup->pendingWinOpen) {
     bool calcOpen = (pTask->calcEventType & STRIGGER_EVENT_WINDOW_OPEN);
@@ -10206,7 +10261,8 @@ static int32_t stHistoryGroupGetDataBlock(SSTriggerHistoryGroup *pGroup, bool sa
           QUERY_CHECK_CODE(code, lino, _end);
         }
         code = stTimestampSorterSetSortInfo(pContext->pSorter, &range, pContext->pCurTableMeta->tbUid,
-                                            isCalcData ? pTask->histCalcTsIndex : pTask->histTrigTsIndex);
+                                            isCalcData ? pTask->histCalcTsIndex : pTask->histTrigTsIndex,
+                                            isCalcData ? pTask->histCalcPkIndex : pTask->histTrigPkIndex);
         QUERY_CHECK_CODE(code, lino, _end);
         code = stTimestampSorterSetMetaDatas(pContext->pSorter, pContext->pCurTableMeta);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -10438,7 +10494,7 @@ static int32_t stHistoryGroupDoSessionCheck(SSTriggerHistoryGroup *pGroup) {
         QUERY_CHECK_CODE(code, lino, _end);
         STimeWindow range = pContext->stepRange;
         code = stTimestampSorterSetSortInfo(pContext->pSorter, &range, pContext->pCurTableMeta->tbUid,
-                                            pTask->histTrigTsIndex);
+                                            pTask->histTrigTsIndex, pTask->histTrigPkIndex);
         QUERY_CHECK_CODE(code, lino, _end);
         code = stTimestampSorterSetMetaDatas(pContext->pSorter, pContext->pCurTableMeta);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -10537,7 +10593,7 @@ static int32_t stHistoryGroupDoCountCheck(SSTriggerHistoryGroup *pGroup) {
         }
         STimeWindow range = pContext->stepRange;
         code = stTimestampSorterSetSortInfo(pContext->pSorter, &range, pContext->pCurTableMeta->tbUid,
-                                            pTask->histTrigTsIndex);
+                                            pTask->histTrigTsIndex, pTask->histTrigPkIndex);
         QUERY_CHECK_CODE(code, lino, _end);
         code = stTimestampSorterSetMetaDatas(pContext->pSorter, pContext->pCurTableMeta);
         QUERY_CHECK_CODE(code, lino, _end);

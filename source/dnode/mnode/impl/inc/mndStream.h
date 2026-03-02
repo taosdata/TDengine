@@ -79,8 +79,12 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 
 #define MST_EVENT_HANDLED_CHECK_SET(_ev) (0 == atomic_val_compare_exchange_8((int8_t*)&mStreamMgmt.lastTs[(_ev)].handled, 0, 1))
 #define MST_NORMAL_STATUS_NEED_HANDLE() (mstEventPassIsolation(1, STM_EVENT_NORMAL_BEGIN) && mstEventHandledChkSet(STM_EVENT_NORMAL_BEGIN))
+/* Drop/Stop: 5 periods (~50s) isolation */
 #define MST_USER_OP_NEED_HANDLE(_op) (mstEventPassIsolation(5, (_op)) && mstEventHandledChkSet(_op))
-#define MST_CREATE_START_STM_NEED_HANDLE() (MST_USER_OP_NEED_HANDLE(STM_EVENT_CREATE_STREAM) || MST_USER_OP_NEED_HANDLE(STM_EVENT_START_STREAM))
+/* Create/Start: 1 period (~10s) isolation, no need to wait 50s */
+#define MST_CREATE_START_OP_NEED_HANDLE(_op) (mstEventPassIsolation(1, (_op)) && mstEventHandledChkSet(_op))
+#define MST_CREATE_START_STM_NEED_HANDLE() \
+  (MST_CREATE_START_OP_NEED_HANDLE(STM_EVENT_CREATE_STREAM) || MST_CREATE_START_OP_NEED_HANDLE(STM_EVENT_START_STREAM))
 #define MST_DROP_STOP_STM_NEED_HANDLE() (MST_USER_OP_NEED_HANDLE(STM_EVENT_DROP_STREAM) || MST_USER_OP_NEED_HANDLE(STM_EVENT_STOP_STREAM))
 #define MST_OP_TIMEOUT_NEED_HANDLE(_op) (mstEventPassIsolation(100, (_op)) && mstEventHandledChkSet(_op))
 #define MST_STREAM_ERROR_NEED_HANDLE() (mstEventPassIsolation(1, STM_EVENT_STM_TERR) && mstEventHandledChkSet(STM_EVENT_STM_TERR))

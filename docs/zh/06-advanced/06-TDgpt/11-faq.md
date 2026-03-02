@@ -29,7 +29,7 @@ TDgpt - TDengine© Time Series Data Analytics Platform (ver x.x.x)
 curl: (7) Failed to connect to 127.0.0.1 port 6035: Connection refused
 ```
 
-如果 anode 服务启动/运行不正常，请检查 uWSGI 的运行日志 `/var/log/taos/taosanode/taosanode.log`，检查其中的错误信息，根据错误信息解决响应的问题。
+如果 anode 服务启动/运行不正常，请检查 Gunicorn 的运行日志 `/var/log/taos/taosanode/error.log`，检查其中的错误信息，根据错误信息解决响应的问题。
 
 > 请勿使用 systemctl status taosanode 检查 taosanode 是否正常
 
@@ -73,7 +73,7 @@ log-level = INFO
 对于某些无法直接使用错误码返回的错误信息，请检查日志文件获得准确的错误信息。日志文件位于 `/var/log/taos/taosanode/` 目录。
 
 - `taosanode.app.log` 是 TDgpt 产生的日志
-- `taosanode.log` 是 uWSGI 产生的 web 服务日志
+- `access.log` 和 `error.log` 是 Gunicorn 产生的 web 服务日志
 
 ### 6. TDgpt 会返回哪些错误码
 

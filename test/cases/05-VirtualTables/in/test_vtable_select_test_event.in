@@ -12,3 +12,9 @@ select _wstart, _wend, first(*), last(*), count(*) from test_vtable_select.vtb_v
 select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_ntb_full event_window start with u_tinyint_col > 50 end with u_smallint_col > 10000 and u_int_col > 1000000 limit 100;
 select _wstart, _wend, first(u_tinyint_col), first(u_smallint_col), last(u_tinyint_col), last(u_smallint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_ntb_full event_window start with u_tinyint_col > 50 end with u_smallint_col > 10000 and u_int_col > 1000000 limit 100 ;
 select _wstart, _wend, first(u_tinyint_col), first(u_smallint_col), first(u_int_col), last(u_tinyint_col), last(u_smallint_col), last(u_int_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_ntb_full event_window start with u_tinyint_col > 50 end with u_smallint_col > 10000 and u_int_col > 1000000 limit 100 ;
+
+select count(*) from test_vtable_select.vtb_virtual_ntb_full partition by tbname EVENT_WINDOW START WITH tbname = 'vtb_virtual_ntb_full' END WITH tbname = 'vtb_virtual_ntb_full';
+select count(*) from test_vtable_select.vtb_virtual_ntb_full EVENT_WINDOW START WITH tbname = 'vtb_virtual_ntb_full' END WITH tbname = 'vtb_virtual_ntb_full';
+
+select count(*) from test_vtable_select.vtb_virtual_ntb_full partition by tbname EVENT_WINDOW START WITH tbname != 'vtb_virtual_ntb_full' END WITH tbname != 'vtb_virtual_ntb_full';
+select count(*) from test_vtable_select.vtb_virtual_ntb_full EVENT_WINDOW START WITH tbname != 'vtb_virtual_ntb_full' END WITH tbname != 'vtb_virtual_ntb_full';

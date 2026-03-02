@@ -48,6 +48,7 @@ class TestCase:
         tdSql.execute("grant create table on database d0 to u1")
         tdSql.execute("grant use database on database d0 to u1")
         tdSql.execute("grant use on database d0 to u1")
+        tdSql.execute("grant select(c0,c1),insert(ts,c0),delete on table d0.stb0 with t1=0 and ts=0 to u1")
 
     def do_basic_role_privileges(self):
         """Test basic role privileges(grant/revoke/show role privileges)"""
@@ -60,15 +61,20 @@ class TestCase:
         tdSql.execute("show role privileges")
         tdSql.execute("revoke select on table d0.stb0 from r1")
         tdSql.execute("show role privileges")
+        tdSql.error("grant insert(c0,c1),delete on table d0.stb0 to r1", expectErrInfo="Lack of primary key column", fullMatched=False)
+        tdSql.execute("grant select(c0,c1),insert(ts,c0),delete on table d0.stb0 with t1=0 to r1")
+        tdSql.error("grant select(c0,c1),insert(ts,c0),delete on table d0.stb0 with t1=0 and ts=0 to r1", expectErrInfo="Already have this privilege", fullMatched=False)
+        tdSql.execute("revoke all on table d0.stb0 from r1")
+        tdSql.execute("grant select(c0,c1),insert(ts,c0),delete on table d0.stb0 with t1=0 and ts=0 to r1")
 
     def do_check_role_privileges(self):
         """Test role privileges"""
         
         tdSql.execute(f"create user ur1 pass '{self.test_pass}'")
         tdSql.execute(f"grant role `SYSDBA` to ur1")
-        tdSql.error("grant role `SYSSEC` to ur1", expectErrInfo=f"Operation not supported", fullMatched=False)
-        tdSql.error("grant role `SYSAUDIT` to ur1", expectErrInfo=f"Operation not supported", fullMatched=False)
-        tdSql.error("grant role `SYSAUDIT_LOG` to ur1", expectErrInfo=f"Operation not supported", fullMatched=False)
+        tdSql.error("grant role `SYSSEC` to ur1", expectErrInfo=f"Conflicts with existing role", fullMatched=False)
+        tdSql.error("grant role `SYSAUDIT` to ur1", expectErrInfo=f"Conflicts with existing role", fullMatched=False)
+        tdSql.error("grant role `SYSAUDIT_LOG` to ur1", expectErrInfo=f"Conflicts with existing role", fullMatched=False)
         tdSql.execute(f"grant role `SYSINFO_0` to ur1")
         tdSql.execute(f"grant role `SYSINFO_1` to ur1")
         tdSql.execute(f"show users")

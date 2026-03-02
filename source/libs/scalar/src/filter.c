@@ -1894,7 +1894,7 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
       for (uint32_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
         SFilterField *field = &info->fields[FLD_TYPE_COLUMN].fields[i];
         SColumnNode  *refNode = (SColumnNode *)field->desc;
-        qDebug("COL%d => [%d][%d]", i, refNode->dataBlockId, refNode->slotId);
+        qDebug("COL%d => [%" PRId64 "][%d]", i, refNode->dataBlockId, refNode->slotId);
       }
 
       qDebug("VALUE Field Num:%u", info->fields[FLD_TYPE_VALUE].num);
@@ -1925,7 +1925,7 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
         SColumnNode  *refNode = (SColumnNode *)left->desc;
         if (unit->compare.optr <= OP_TYPE_JSON_CONTAINS) {
-          len += tsnprintf(str, sizeof(str), "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
+          len += tsnprintf(str, sizeof(str), "UNIT[%d] => [%" PRId64 "][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
                            operatorTypeStr(unit->compare.optr));
         }
 
@@ -1956,7 +1956,7 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
           (void)strncat(str, " && ", sizeof(str) - len - 1);
           len += 4;
           if (unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS) {
-            len += tsnprintf(str + len, sizeof(str) - len, "[%d][%d]  %s  [", refNode->dataBlockId, refNode->slotId,
+            len += tsnprintf(str + len, sizeof(str) - len, "[%" PRId64 "][%d]  %s  [", refNode->dataBlockId, refNode->slotId,
                              operatorTypeStr(unit->compare.optr2));
           }
 
@@ -4765,6 +4765,21 @@ static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
   return TSDB_CODE_SUCCESS;
 }
 
+/**
+   * Extract a time-range window from a filter AST node.
+   *
+   * This tries to derive a timestamp range from the condition tree (typically a WHERE clause).
+   * If a single, strict range can be determined, it is written to `win` and `*isStrict` stays true.
+   * If multiple ranges or non-deterministic conditions are found, `*isStrict` is set to false and
+   * `win` may be set to a full/unknown window.
+   *
+   * @param pNode         Filter expression AST root (e.g., WHERE condition).
+   * @param win           Output time window (skey/ekey).
+   * @param isStrict      Output flag: true if `win` exactly matches the single time range
+   *                      in `pNode`, false if only a conservative/unknown range is available.
+   *
+   * @return TSDB_CODE_SUCCESS on success, otherwise an error code.
+ */
 int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict, bool* hasRemoteNode) {
   SFilterInfo *info = NULL;
   int32_t      code = 0;

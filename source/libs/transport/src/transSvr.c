@@ -1872,22 +1872,35 @@ static int32_t addHandleToAcceptloop(void* arg) {
       tError("failed to bind addr since %s", uv_err_name(code));
       return TSDB_CODE_THIRDPARTY_ERROR;
     }
-
     if ((code = uv_tcp_bind(&srv->server, (const struct sockaddr*)&bind_addr, 0)) != 0) {
       tError("failed to bind since %s", uv_err_name(code));
       return TSDB_CODE_THIRDPARTY_ERROR;
     }
-
     // set IPV6_V6ONLY to 0 to allow both IPv4 and IPv6 connections
-    uv_os_fd_t fd;
-    if ((code = uv_fileno((const uv_handle_t*)&srv->server, &fd)) == 0) {
-      int opt = 0;
-      if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt)) < 0) {
+    #if !defined(WINDOWS)
+      uv_os_fd_t fd;
+      if ((code = uv_fileno((const uv_handle_t*)&srv->server, &fd)) == 0) {
+        int opt = 0;
+        if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt)) < 0) {
         tWarn("failed to set IPV6_V6ONLY=0: %s, continue with default setting", strerror(errno));
-      } else {
+        } else {
         tInfo("successfully set IPV6_V6ONLY=0 (dual-stack enabled)");
+        }
       }
-    }
+    #else
+      /* Windows: optional, only if you really need to change IPV6_V6ONLY.
+         uv_os_fd_t is a SOCKET on Windows; use BOOL (or char) and WSA error helpers.
+         Ensure Winsock is started (WSAStartup) elsewhere if required. */
+      uv_os_fd_t s;
+      if ((code = uv_fileno((const uv_handle_t*)&srv->server, &s)) == 0) {
+        BOOL opt = FALSE;
+        if (setsockopt((SOCKET)s, IPPROTO_IPV6, IPV6_V6ONLY, (const char*)&opt, sizeof(opt)) == SOCKET_ERROR) {
+        tWarn("failed to set IPV6_V6ONLY=0 on Windows: %d, continue with default setting", WSAGetLastError());
+        } else {
+        tInfo("successfully set IPV6_V6ONLY=0 on Windows (dual-stack enabled)");
+        }
+      }
+    #endif
   } else {
     struct sockaddr_in bind_addr;
     if ((code = uv_ip4_addr("0.0.0.0", srv->port, &bind_addr)) != 0) {

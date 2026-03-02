@@ -99,7 +99,7 @@ class TestDdlInSysdb:
         tdDnodes.starttaosd(1)
         self.ddl_in_sysdb()
 
-        tdLog.success("%s successfully executed" % __file__)
+
         
     #
     # --------------- test_ins_stables.py ---------------

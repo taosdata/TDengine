@@ -71,6 +71,6 @@ class TestComCmdLine:
         if not os.path.exists("sdb.json"):
             tdLog.exit("taosd -s failed!")
 
-        tdLog.success("%s successfully executed" % __file__)
+
 
 
