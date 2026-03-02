@@ -2865,6 +2865,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_state_filter_agg.TestStreamSubqueryStateFilterAgg.test_stream_subquery_state_filter_agg" class="md-nav__link">
+        Subquery: state window aggregate filter 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.07-SubQuery.test_subquery_usage_restrict.TestStreamSubqueryLimit.test_stream_subquery_limit" class="md-nav__link">
         Subquery: usage restrictions 
       </a>
@@ -4003,6 +4014,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.07-SubQuery.test_subquery_state_filter_agg.TestStreamSubqueryStateFilterAgg.test_stream_subquery_state_filter_agg" class="md-nav__link">
+        Subquery: state window aggregate filter 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.07-SubQuery.test_subquery_usage_restrict.TestStreamSubqueryLimit.test_stream_subquery_limit" class="md-nav__link">
         Subquery: usage restrictions 
       </a>
@@ -4473,6 +4495,38 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_subquery_state.py" target="_blank">
                       cases/18-StreamProcessing/07-SubQuery/test_subquery_state.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.07-SubQuery.test_subquery_state_filter_agg.TestStreamSubqueryStateFilterAgg.test_stream_subquery_state_filter_agg" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.07-SubQuery.test_subquery_state_filter_agg.TestStreamSubqueryStateFilterAgg.test_stream_subquery_state_filter_agg" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Subquery: state window aggregate filter</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Reproduce bug: outer WHERE on aggregated column in stream subquery</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">does not take effect. Also covers the empty output block case:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">first finalized window is filtered out, and later window should</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">still be output.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/07-SubQuery/test_subquery_state_filter_agg.py" target="_blank">
+                      cases/18-StreamProcessing/07-SubQuery/test_subquery_state_filter_agg.py
                     </a>
                   </div>
         </div>
