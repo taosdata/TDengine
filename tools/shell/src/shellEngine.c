@@ -743,8 +743,16 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
 // show whole result for this query return true, like limit or describe
 bool shellIsShowWhole(const char *sql) {
   // limit
-  if (taosStrCaseStr(sql, " limit ") != NULL) {
-    return true;
+  char * p = taosStrCaseStr(sql, " limit ");
+  if (p != NULL) {
+    // except subquery, like "select * from (select * from t limit 10) limit 3", only the last limit is valid
+    char * p1 = taosStrCaseStr(p + 7, ")");
+    if (p1 == NULL) {
+      return true;
+    }
+    if (taosStrCaseStr(p1 + 1, " limit ")) {
+      return true;
+    }
   }
   // describe
   if (taosStrCaseStr(sql, "describe ") != NULL) {
