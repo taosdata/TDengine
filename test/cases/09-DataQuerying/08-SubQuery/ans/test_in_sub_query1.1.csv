@@ -4137,7 +4137,6 @@ taos> select f1 IN (select max(f1) from tba partition by f1), f1 IN (select max(
 
 taos> select f1 IN (select a.ts from tba a join tba b on a.ts = b.ts), f1 IN (select a.ts from tba a join tba b on a.ts = b.ts) from tba where f1 IN (select a.ts from tba a join tba b on a.ts = b.ts) order by 1;
 
-DB error: Cannot convert to specific type [0x80003250] 
 taos> select f1 IN (select sum(f1) from tba interval(1d)), f1 IN (select sum(f1) from tba interval(1d)) from tba where f1 IN (select sum(f1) from tba interval(1d)) order by 1;
 
 DB error: Invalid parameter data type : sum [0x80002802] 
@@ -4768,8 +4767,12 @@ DB error: More than 1 column returned in subquery as expr [0x800026A4]
 taos> select f1 NOT IN (select max(f1) from tba partition by f1), f1 NOT IN (select max(f1) from tba partition by f1) from tba where f1 NOT IN (select max(f1) from tba partition by f1) order by 1;
 
 taos> select f1 NOT IN (select a.ts from tba a join tba b on a.ts = b.ts), f1 NOT IN (select a.ts from tba a join tba b on a.ts = b.ts) from tba where f1 NOT IN (select a.ts from tba a join tba b on a.ts = b.ts) order by 1;
+ f1 not in (select a.ts from tba a join tba b on a.ts = b.ts) | f1 not in (select a.ts from tba a join tba b on a.ts = b.ts) |
+==============================================================================================================================
+ true                                                         | true                                                         |
+ true                                                         | true                                                         |
+ true                                                         | true                                                         |
 
-DB error: Cannot convert to specific type [0x80003250] 
 taos> select f1 NOT IN (select sum(f1) from tba interval(1d)), f1 NOT IN (select sum(f1) from tba interval(1d)) from tba where f1 NOT IN (select sum(f1) from tba interval(1d)) order by 1;
 
 DB error: Invalid parameter data type : sum [0x80002802] 
