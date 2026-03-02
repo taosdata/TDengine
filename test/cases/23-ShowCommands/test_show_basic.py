@@ -858,3 +858,79 @@ class TestShowBasic:
         self.do_army_show()
         self.do_sim()
         self.do_show_tag_index()
+
+    def test_show_queries_new_columns(self):
+        """Verify SHOW QUERIES has new columns
+        
+        Test new columns: status, elapsed_ms, estimated_total_ms, progress_pct
+        
+        Since: v3.3.0.0
+        
+        Labels: common,ci
+        
+        Jira: None
+        
+        History:
+            - 2026-03-02 Yihao Added for SHOW QUERIES enhancement
+        """
+        # Execute SHOW QUERIES
+        tdSql.query("SHOW QUERIES")
+        
+        # Get column names
+        colNames = tdSql.getColNameList("SHOW QUERIES")
+        
+        # Verify new columns exist
+        assert "status" in colNames, "status column missing"
+        assert "elapsed_ms" in colNames, "elapsed_ms column missing"
+        assert "estimated_total_ms" in colNames, "estimated_total_ms column missing"
+        assert "progress_pct" in colNames, "progress_pct column missing"
+        
+        tdLog.info("SHOW QUERIES new columns verified successfully")
+
+    def test_show_queries_status_values(self):
+        """Verify status column has valid values
+        
+        Since: v3.3.0.0
+        
+        Labels: common,ci
+        
+        Jira: None
+        
+        History:
+            - 2026-03-02 Yihao Added for SHOW QUERIES enhancement
+        """
+        tdSql.query("SHOW QUERIES")
+        
+        validStatus = {"UNKNOWN", "QUEUED", "RUNNING", "FETCHING"}
+        colNames = tdSql.getColNameList("SHOW QUERIES")
+        statusIdx = colNames.index("status")
+        
+        for row in tdSql.queryResult:
+            status = row[statusIdx]
+            assert status in validStatus, f"Invalid status value: {status}"
+        
+        tdLog.info(f"Verified {len(tdSql.queryResult)} query status values")
+
+    def test_show_queries_elapsed_ms_non_negative(self):
+        """Verify elapsed_ms is non-negative
+        
+        Since: v3.3.0.0
+        
+        Labels: common,ci
+        
+        Jira: None
+        
+        History:
+            - 2026-03-02 Yihao Added for SHOW QUERIES enhancement
+        """
+        tdSql.query("SHOW QUERIES")
+        
+        colNames = tdSql.getColNameList("SHOW QUERIES")
+        elapsedIdx = colNames.index("elapsed_ms")
+        
+        for row in tdSql.queryResult:
+            elapsed = row[elapsedIdx]
+            if elapsed is not None:
+                assert elapsed >= 0, f"Negative elapsed_ms: {elapsed}"
+        
+        tdLog.info("elapsed_ms values verified as non-negative")
