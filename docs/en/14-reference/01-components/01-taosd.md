@@ -302,7 +302,7 @@ The effective value of charset is UTF-8.
 | Parameter Name          | Supported Version | Dynamic Modification               | Description                                                  |
 | ----------------------- | ----------------- | ---------------------------------- | ------------------------------------------------------------ |
 | enableStrongPassword    | After 3.3.6.0     | Supported, effective after restart | The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
-| enableAdvancedSecurity  | After 3.4.0.10    | Supported, effective immediately   | Whether advanced security features are enabled by default, used to control whether security policies such as password expiration and password rotation are enabled by default for newly created users (but the default behavior can be changed by explicitly specifying relevant parameters when creating a user); 0: disable, 1: enable,; default value 1 |
+| enableAdvancedSecurity  | After 3.4.0.10    | Supported, effective immediately   | Whether advanced security features are enabled by default, used to control whether security policies such as password expiration and password rotation are enabled by default for newly created users (but the default behavior can be changed by explicitly specifying relevant parameters when creating a user); 0: disable, 1: enable; default value 1 |
 
 ### Stream Computing Parameters
 

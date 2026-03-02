@@ -44,16 +44,16 @@ The default values of options such as `FAILED_LOGIN_ATTEMPTS` are related to the
 
 ```sql
 -- enable advanced security by default
-alter all dnodes 'EnableAdvancedSecurity' '0'
--- disable advanced security by default
 alter all dnodes 'EnableAdvancedSecurity' '1'
+-- disable advanced security by default
+alter all dnodes 'EnableAdvancedSecurity' '0'
 ```
 
 - `SYSINFO` indicates whether the user can view system information. `1` means they can view, `0` means they have no permission to view. System information includes service configuration, dnode, vnode, storage, etc. The default value is `1`.
 - `CREATEDB` indicates whether the user can create databases. `1` means they can create databases, `0` means they have no permission to create databases. The default value is `0`. // Supported starting from TDengine Enterprise version 3.3.2.0
 - `ENABLE` indicates whether the user is enabled, `1` means enabled, `0` means disabled. A disabled user cannot connect to the database. The default value is `1`.
 - `CHANGEPASS` indicate whether the use can or must change password, `2` means can change password, `1` means must change password, `0` means cannot change password. The default value is `2`. Support in Enterprise Edition v3.4.0.0 and above.
-- `SESSION_PER_USER` The maximum allowed simulaneous connections of the user. The default value is `32` when `enableAdvancedSecurity` is `1` and `UNLIMITED` otherwise, with a minimal of `1`, set to `UNLIMITED` disables the restriction. Support in Enterprise Edition v3.4.0.0 and above.
+- `SESSION_PER_USER` The maximum allowed simultaneous connections of the user. The default value is `32` when `enableAdvancedSecurity` is `1` and `UNLIMITED` otherwise, with a minimal of `1`, set to `UNLIMITED` disables the restriction. Support in Enterprise Edition v3.4.0.0 and above.
 - `CONNECT_TIME` The maximum allowed duration for a single session in minutes. The default value is `480` when `enableAdvancedSecurity` is `1` and `UNLIMITED` otherwise, with a minimum of `1`, set to `UNLIMITED` disables the restriction. Support in Enterprise Edition v3.4.0.0 and above.
 - `CONNECT_IDLE_TIME` The maximum allowed idle duration for a single session in minutes. The default value is `30` when `enableAdvancedSecurity` is `1` and `UNLIMITED` otherwise, with a minimum of `1`, set to `UNLIMITED` disables the restriction. Support in Enterprise Edition v3.4.0.0 and above.
 - `CALL_PER_SESSION` The maximum allowed number of sub-calls per session. The default value is `128` when `enableAdvancedSecurity` is `1` and `UNLIMITED` otherwise, with a minimum of `1`, set to `UNLIMITED` disables the restriction. Support in Enterprise Edition v3.4.0.0 and above.
