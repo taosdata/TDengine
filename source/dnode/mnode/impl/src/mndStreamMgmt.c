@@ -1701,7 +1701,7 @@ _exit:
   return code;
 }
 
-static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, int32_t dagIdx, /*SQueryPlan* pDag,*/ SStmStatus* pInfo, SStreamObj* pStream, SQueryPlan* pRoot, SNodeList** subEP) {
+static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, int32_t dagIdx, SStmStatus* pInfo, SStreamObj* pStream, SQueryPlan* pRoot, SNodeList** subEP) {
   int32_t code = 0;
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
@@ -1892,7 +1892,6 @@ _exit:
   }
 
   taosArrayDestroy(deployTaskList);
-  nodesDestroyNode((SNode *)pRoot);
 
   return code;
 }
@@ -2078,16 +2077,10 @@ static int32_t msmBuildRunnerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStreamO
 
   for (int32_t i = 0; i < LIST_LENGTH(pPlan->pChildren); ++i) {
     code = msmBuildRunnerTasksImpl(pCtx, i, pInfo, pStream, pPlan, &pSubEP);
-
-    pPlan = NULL;
     TAOS_CHECK_EXIT(code);
-
-    TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pPlan));
   }
 
   code = msmBuildRunnerTasksImpl(pCtx, -1, pInfo, pStream, pPlan, &pSubEP);
-  pPlan = NULL;
-
   TAOS_CHECK_EXIT(code);
 
   taosHashClear(mStreamMgmt.toUpdateScanMap);
