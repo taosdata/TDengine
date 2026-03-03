@@ -1351,6 +1351,16 @@ int32_t tRepairNeedRunWalForceRepair(const SRepairCtx *pCtx, bool *pNeedRun) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t tRepairNeedRunTsdbForceRepair(const SRepairCtx *pCtx, bool *pNeedRun) {
+  if (pCtx == NULL || !pCtx->enabled || pNeedRun == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *pNeedRun = pCtx->nodeType == REPAIR_NODE_TYPE_VNODE && pCtx->fileType == REPAIR_FILE_TYPE_TSDB &&
+              pCtx->mode == REPAIR_MODE_FORCE;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tRepairBuildVnodeTargetPath(const char *dataDir, int32_t vnodeId, ERepairFileType fileType, char *targetPath,
                                     int32_t targetPathSize) {
   const char *subDir = tRepairGetVnodeFileSubDir(fileType);

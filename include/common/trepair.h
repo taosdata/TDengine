@@ -113,6 +113,7 @@ int32_t tRepairValidateCliArgs(const SRepairCliArgs *pCliArgs);
 int32_t tRepairInitCtx(const SRepairCliArgs *pCliArgs, int64_t startTimeMs, SRepairCtx *pCtx);
 int32_t tRepairShouldRepairVnode(const SRepairCtx *pCtx, int32_t vnodeId, bool *pShouldRepair);
 int32_t tRepairNeedRunWalForceRepair(const SRepairCtx *pCtx, bool *pNeedRun);
+int32_t tRepairNeedRunTsdbForceRepair(const SRepairCtx *pCtx, bool *pNeedRun);
 int32_t tRepairBuildVnodeTargetPath(const char *dataDir, int32_t vnodeId, ERepairFileType fileType,
                                     char *targetPath, int32_t targetPathSize);
 int32_t tRepairScanTsdbFiles(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId,

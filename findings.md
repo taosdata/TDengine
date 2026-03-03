@@ -209,3 +209,21 @@
   - 重建流程在开始时会重置输出目录，确保重复执行结果可预测且不会混入历史残留文件。
   - 若扫描后没有任何可恢复块，函数返回 `TSDB_CODE_INVALID_PARA`，避免生成“看似成功但不可用”的空重建结果。
   - 当前实现将“包含已识别 TSDB 文件的目录”视为块边界，适合作为 MVP；后续可在 `T4.4/T4.5` 基于真实 TSDB 样本迭代更细粒度块语义。
+- `T4.4`（TSDB 修复结果验证）已完成：
+  - 新增 `tRepairNeedRunTsdbForceRepair()`，把 `force+tsdb` 调度判定从 `dmMain` 解耦到 `trepair`，并补齐单测 `NeedRunTsdbForceRepair`。
+  - `dmMain.c` 新增 `dmRunForceTsdbRepair()`，在 `dmRunRepairWorkflow()` 中接入：
+    - 每 vnode 执行 `tRepairAnalyzeTsdbBlocks()` 产出块级报告；
+    - 执行 `tRepairRebuildTsdbBlocks()` 到临时目录（`<target>.rebuild`）；
+    - 删除原 `tsdb` 并 `rename` 切换为重建结果；
+    - 切换失败时执行 `tRepairRollbackVnodeTarget()` 回滚，保证 fail-fast 与“不破坏已有目录”语义。
+  - 运行态日志与状态文件已覆盖 `tsdb` 步骤（`repair.log` + `repair.state.json(step=tsdb)`），与 `wal` 流程保持一致。
+- `T4.5`（TSDB 场景系统测试脚本补齐）已完成：
+  - 新增脚本 `tests/ci/repair_tsdb_force.sh`，自动构造 `vnode2/tsdb` 的“可恢复块 + 损坏块”混合样本。
+  - 脚本执行 `taosd -r --node-type vnode --file-type tsdb --mode force`，并校验：
+    - 输出包含 `step=tsdb` 的进度行与 `status=success` 摘要行；
+    - 修复后目标目录仅保留可恢复块，损坏块被剔除；
+    - 备份目录保留原始损坏块，`repair.log/repair.state.json` 均存在。
+  - 在当前无完整 dnode 运行环境下，`taosd` 退出码为 `47` 仍可接受（修复流程已完成并产出成功摘要），脚本据此做流程级验收而非进程码等值断言。
+- `T5.1`（META 元数据解析器稳定化）已进入勘察：
+  - `-r` 仍通过全局变量 `generateNewMeta` 触发 `metaOpen.c::metaGenerateNewMeta()`，与新 repair workflow 并行存在。
+  - 当前 `force+meta` 尚未像 `force+wal/tsdb` 一样在 `dmRunRepairWorkflow()` 中有显式调度函数；下一步建议先补调度判定与 Red 用例，再评估对 `metaGenerateNewMeta` 的复用边界。

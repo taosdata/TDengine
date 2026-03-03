@@ -26,8 +26,8 @@
 
 ## 3. 当前状态（2026-03-03）
 - 当前阶段：`P0` 已完成（需求/代码勘察与任务拆解）。
-- 当前执行阶段：`P4` 进行中（`force + tsdb`）。
-- 当前可执行入口：`T4.4`。
+- 当前执行阶段：`P5` 进行中（`force + meta`）。
+- 当前可执行入口：`T5.1`。
 - 当前阻塞：无。
 
 ## 4. 阶段里程碑
@@ -37,8 +37,8 @@
 | P1 | CLI 与参数校验 | 新命令参数可解析/校验/报错 | `taosd -r --help` 显示新参数，校验单测通过 | completed |
 | P2 | 修复编排框架 | vnode 级任务调度、预检、备份、日志、状态文件 | 可执行空跑并输出进度/摘要 | completed |
 | P3 | `force + wal` | 基于现有 WAL 修复能力交付 MVP | WAL 损坏样例可修复并产出日志 | completed |
-| P4 | `force + tsdb` | 交付 TSDB 块级修复编排 | TSDB 损坏样例修复后可启动/查询 | in_progress |
-| P5 | `force + meta` | 交付 META 修复 + 反向推导链路 | 元数据损坏样例可恢复可用子集 | pending |
+| P4 | `force + tsdb` | 交付 TSDB 块级修复编排 | TSDB 损坏样例修复后可启动/查询 | completed |
+| P5 | `force + meta` | 交付 META 修复 + 反向推导链路 | 元数据损坏样例可恢复可用子集 | in_progress |
 | P6 | `replica` 模式 | 触发副本全量同步恢复 | 多副本损坏节点可自动拉起恢复 | pending |
 | P7 | `copy` 模式 | 从指定副本节点拷贝文件恢复 | 大文件场景可快速恢复并校验权限 | pending |
 | P8 | 验证与发布准备 | 系统测试矩阵、文档、回归、发布清单 | 用例通过，文档可交付 | pending |
@@ -66,9 +66,9 @@
 | T4.1 | P4 | TSDB 文件枚举与完整性扫描器封装 | 60m | T2.6 | `.data/.head/.sma/.stt` 扫描结果 | completed |
 | T4.2 | P4 | TSDB 可恢复块提取与损坏块定位输出 | 60m | T4.1 | 结构化损坏报告 | completed |
 | T4.3 | P4 | TSDB 文件重建流程（先 MVP：保留有效块） | 60m | T4.2 | 可重建输出目录 | completed |
-| T4.4 | P4 | TSDB 修复结果验证（启动 + 查询可用） | 45m | T4.3 | 可用性验收 | in_progress |
-| T4.5 | P4 | TSDB 场景系统测试脚本补齐 | 60m | T4.4 | 自动化脚本 | pending |
-| T5.1 | P5 | META 元数据解析器稳定化（结构/标签/索引） | 60m | T2.6 | 可读取元数据快照 | pending |
+| T4.4 | P4 | TSDB 修复结果验证（启动 + 查询可用） | 45m | T4.3 | 可用性验收 | completed |
+| T4.5 | P4 | TSDB 场景系统测试脚本补齐 | 60m | T4.4 | 自动化脚本 | completed |
+| T5.1 | P5 | META 元数据解析器稳定化（结构/标签/索引） | 60m | T2.6 | 可读取元数据快照 | in_progress |
 | T5.2 | P5 | WAL/TSDB 反向推导元数据规则实现（第一批规则） | 60m | T5.1 | 推导器 MVP | pending |
 | T5.3 | P5 | 缺失元数据标记与“不可推导”日志输出 | 45m | T5.2 | 风险透明 | pending |
 | T5.4 | P5 | 重建 META 并切换生效（含备份目录） | 60m | T5.3 | META 修复闭环 | pending |

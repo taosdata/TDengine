@@ -769,6 +769,203 @@ static int32_t dmRunForceWalRepair(int32_t totalVnodes, int64_t repairProgressIn
   return TSDB_CODE_SUCCESS;
 }
 
+static void dmHandleTsdbRepairRollback(int32_t vnodeId, int32_t doneVnodes, int32_t totalVnodes) {
+  int32_t rollbackCode = tRepairRollbackVnodeTarget(&global.repairCtx, tsDataDir, vnodeId);
+  if (rollbackCode != TSDB_CODE_SUCCESS) {
+    dError("failed to rollback tsdb repair for vnode:%d since %s", vnodeId, tstrerror(rollbackCode));
+    (void)tRepairAppendSessionLog(global.repairLogPath, "tsdb repair rollback failed");
+  } else {
+    char rollbackLog[128] = {0};
+    int32_t rollbackLogLen = tsnprintf(rollbackLog, sizeof(rollbackLog), "rolled back tsdb for vnode:%d", vnodeId);
+    if (rollbackLogLen <= 0 || rollbackLogLen >= (int32_t)sizeof(rollbackLog)) {
+      tstrncpy(rollbackLog, "rolled back tsdb repair", sizeof(rollbackLog));
+    }
+    (void)tRepairAppendSessionLog(global.repairLogPath, rollbackLog);
+  }
+
+  (void)tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "tsdb", "failed", doneVnodes, totalVnodes);
+}
+
+static int32_t dmRunForceTsdbRepair(int32_t totalVnodes, int64_t repairProgressIntervalMs, int64_t *pLastProgressReportMs,
+                                    bool *pNeedReport, char *progressLine, int32_t progressLineSize) {
+  if (pLastProgressReportMs == NULL || pNeedReport == NULL || progressLine == NULL || progressLineSize <= 0) {
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  int32_t code = 0;
+  bool    needRunTsdbForceRepair = false;
+  code = tRepairNeedRunTsdbForceRepair(&global.repairCtx, &needRunTsdbForceRepair);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to determine tsdb force repair schedule since %s", tstrerror(code));
+    printf("failed repair tsdb scheduling: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  if (!needRunTsdbForceRepair) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t tsdbDoneVnodes = 0;
+  for (int32_t i = 0; i < global.repairCtx.vnodeIdNum; ++i) {
+    int32_t vnodeId = global.repairCtx.vnodeIds[i];
+    char    tsdbPath[PATH_MAX] = {0};
+    char    tsdbBackupDir[PATH_MAX] = {0};
+    char    rebuildDir[PATH_MAX] = {0};
+
+    code = tRepairBuildVnodeTargetPath(tsDataDir, vnodeId, REPAIR_FILE_TYPE_TSDB, tsdbPath, sizeof(tsdbPath));
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to build tsdb path for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair tsdb scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    code = tRepairBackupVnodeTarget(&global.repairCtx, tsDataDir, vnodeId, tsdbBackupDir, sizeof(tsdbBackupDir));
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to backup tsdb target for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair tsdb scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    char backupLog[PATH_MAX] = {0};
+    int32_t backupLogLen =
+        tsnprintf(backupLog, sizeof(backupLog), "prepared tsdb backup for vnode:%d path:%s", vnodeId, tsdbBackupDir);
+    if (backupLogLen <= 0 || backupLogLen >= (int32_t)sizeof(backupLog)) {
+      tstrncpy(backupLog, "prepared tsdb backup", sizeof(backupLog));
+    }
+    code = tRepairAppendSessionLog(global.repairLogPath, backupLog);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to append tsdb backup log for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair tsdb scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "tsdb", "running", tsdbDoneVnodes,
+                                    totalVnodes);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to write tsdb repair state for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair tsdb scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    SRepairTsdbBlockReport analyzeReport = {0};
+    code = tRepairAnalyzeTsdbBlocks(&global.repairCtx, tsDataDir, vnodeId, &analyzeReport);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to analyze tsdb blocks for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair tsdb scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    char analyzeLog[192] = {0};
+    int32_t analyzeLogLen = tsnprintf(analyzeLog, sizeof(analyzeLog),
+                                      "tsdb analyze detail: vnode=%d totalBlocks=%d recoverableBlocks=%d "
+                                      "corruptedBlocks=%d unknownFiles=%d",
+                                      vnodeId, analyzeReport.totalBlocks, analyzeReport.recoverableBlocks,
+                                      analyzeReport.corruptedBlocks, analyzeReport.unknownFiles);
+    if (analyzeLogLen <= 0 || analyzeLogLen >= (int32_t)sizeof(analyzeLog)) {
+      tstrncpy(analyzeLog, "tsdb analyze detail unavailable", sizeof(analyzeLog));
+    }
+    code = tRepairAppendSessionLog(global.repairLogPath, analyzeLog);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to append tsdb analyze log for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair tsdb scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    int32_t rebuildDirLen = tsnprintf(rebuildDir, sizeof(rebuildDir), "%s.rebuild", tsdbPath);
+    if (rebuildDirLen <= 0 || rebuildDirLen >= (int32_t)sizeof(rebuildDir)) {
+      dError("failed to build tsdb rebuild path for vnode:%d", vnodeId);
+      printf("failed repair tsdb scheduling: %s\n", tstrerror(TSDB_CODE_INVALID_PARA));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    SRepairTsdbBlockReport rebuildReport = {0};
+    code = tRepairRebuildTsdbBlocks(&global.repairCtx, tsDataDir, vnodeId, rebuildDir, &rebuildReport);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to rebuild tsdb blocks for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair tsdb scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    if (taosDirExist(tsdbPath)) {
+      taosRemoveDir(tsdbPath);
+    }
+
+    if (taosRenameFile(rebuildDir, tsdbPath) != 0) {
+      int32_t renameCode = terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+      dError("failed to switch tsdb rebuild output for vnode:%d since %s", vnodeId, tstrerror(renameCode));
+      dmHandleTsdbRepairRollback(vnodeId, tsdbDoneVnodes, totalVnodes);
+      printf("failed repair tsdb scheduling: %s\n", tstrerror(renameCode));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    char tsdbDetailLog[192] = {0};
+    int32_t tsdbDetailLen = tsnprintf(tsdbDetailLog, sizeof(tsdbDetailLog),
+                                      "tsdb rebuild detail: vnode=%d recoverableBlocks=%d corruptedBlocks=%d "
+                                      "reportedCorrupted=%d",
+                                      vnodeId, rebuildReport.recoverableBlocks, rebuildReport.corruptedBlocks,
+                                      rebuildReport.reportedCorruptedBlocks);
+    if (tsdbDetailLen <= 0 || tsdbDetailLen >= (int32_t)sizeof(tsdbDetailLog)) {
+      tstrncpy(tsdbDetailLog, "tsdb rebuild detail unavailable", sizeof(tsdbDetailLog));
+    }
+    code = tRepairAppendSessionLog(global.repairLogPath, tsdbDetailLog);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to append tsdb rebuild detail log for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair tsdb scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    ++tsdbDoneVnodes;
+
+    code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "tsdb", "running", tsdbDoneVnodes,
+                                    totalVnodes);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to update tsdb repair state for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair tsdb scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    char tsdbLog[128] = {0};
+    int32_t tsdbLogLen = tsnprintf(tsdbLog, sizeof(tsdbLog), "finished force tsdb repair for vnode:%d", vnodeId);
+    if (tsdbLogLen <= 0 || tsdbLogLen >= (int32_t)sizeof(tsdbLog)) {
+      tstrncpy(tsdbLog, "finished force tsdb repair", sizeof(tsdbLog));
+    }
+    code = tRepairAppendSessionLog(global.repairLogPath, tsdbLog);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to append tsdb repair log for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair tsdb scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    code = tRepairNeedReportProgress(taosGetTimestampMs(), repairProgressIntervalMs, pLastProgressReportMs, pNeedReport);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to update tsdb repair progress interval for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair tsdb scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    if (*pNeedReport || tsdbDoneVnodes == totalVnodes) {
+      code = tRepairBuildProgressLine(&global.repairCtx, "tsdb", tsdbDoneVnodes, totalVnodes, progressLine,
+                                      progressLineSize);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to build tsdb repair progress line for vnode:%d since %s", vnodeId, tstrerror(code));
+        printf("failed repair tsdb scheduling: %s\n", tstrerror(code));
+        return TSDB_CODE_INVALID_CFG;
+      }
+
+      dInfo("%s", progressLine);
+      printf("%s\n", progressLine);
+      code = tRepairAppendSessionLog(global.repairLogPath, progressLine);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to append tsdb repair progress log for vnode:%d since %s", vnodeId, tstrerror(code));
+        printf("failed repair tsdb scheduling: %s\n", tstrerror(code));
+        return TSDB_CODE_INVALID_CFG;
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t dmRunRepairWorkflow(void) {
   const int64_t kRepairProgressIntervalMs = 3000;
   int64_t       lastProgressReportMs = 0;
@@ -944,6 +1141,12 @@ static int32_t dmRunRepairWorkflow(void) {
 
   code = dmRunForceWalRepair(totalVnodes, kRepairProgressIntervalMs, &lastProgressReportMs, &needReport, progressLine,
                              sizeof(progressLine));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  code = dmRunForceTsdbRepair(totalVnodes, kRepairProgressIntervalMs, &lastProgressReportMs, &needReport, progressLine,
+                              sizeof(progressLine));
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }

@@ -2,8 +2,8 @@
 
 ## 当前检查点
 - 日期：`2026-03-03`
-- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成，`P4` 进行中（`T4.3` 完成）。
-- 下一任务：`T4.4`（TSDB 修复结果验证：启动 + 查询可用）。
+- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成，`P4` 已完成，`P5` 进行中（`T5.1` 进行中）。
+- 下一任务：`T5.1`（META 元数据解析器稳定化：结构/标签/索引）。
 - 恢复入口：先读 `task_plan.md`，再读 `findings.md`，最后读本文件。
 
 ## 会话日志
@@ -133,6 +133,19 @@
 | 2026-03-03 15:44 | T4.3 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
 | 2026-03-03 15:46 | T4.3 收尾 | 已将 `task_plan.md` 中 `T4.3` 更新为 `completed`，下一入口切换为 `T4.4` |
 | 2026-03-03 15:46 | T4.4 Red 阶段开始 | 已将 `task_plan.md` 中 `T4.4` 置为 `in_progress`，准备先定义“重建后启动/查询可用”最小验收用例并验证失败 |
+| 2026-03-03 15:47 | T4.4 Red 验证 | `cmake --build debug -j8 --target commonTest` 失败，报错 `tRepairNeedRunTsdbForceRepair` 未声明，符合先测后码预期 |
+| 2026-03-03 15:50 | T4.4 Green 实现 | `trepair.h/.c` 新增 `tRepairNeedRunTsdbForceRepair()`；`dmMain.c` 新增 `dmRunForceTsdbRepair()` 并接入 `dmRunRepairWorkflow()`（`force+tsdb` 分支），实现 `analyze -> rebuild -> 目录切换` 与失败回滚 |
+| 2026-03-03 15:51 | T4.4 定向验证 | `ASAN_OPTIONS=detect_leaks=0 ./debug/build/bin/commonTest --gtest_filter=RepairOptionParseTest.NeedRunWalForceRepair:RepairOptionParseTest.NeedRunTsdbForceRepair` 通过（2/2） |
+| 2026-03-03 15:52 | T4.4 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
+| 2026-03-03 15:53 | T4.4 运行验证 | `ASAN_OPTIONS=detect_leaks=0 taosd -o /tmp/taoslog -r --node-type vnode --file-type tsdb --vnode-id 2 --mode force --backup-path /tmp/td-repair-nonexistent-backup` 退出码 `25`，输出 `failed repair precheck: Invalid parameters`，保持 precheck fail-fast |
+| 2026-03-03 15:54 | T4.4 收尾 | 已将 `task_plan.md` 中 `T4.4` 更新为 `completed`，下一入口切换为 `T4.5`（`in_progress`） |
+| 2026-03-03 15:55 | T4.5 Red 阶段开始 | 已将 `task_plan.md` 中 `T4.5` 置为 `in_progress`，准备补 TSDB 场景系统测试脚本并先验证失败 |
+| 2026-03-03 15:55 | T4.5 Red 验证 | `bash tests/ci/repair_tsdb_force.sh` 失败（脚本不存在，退出码 `127`），符合先测后码预期 |
+| 2026-03-03 15:57 | T4.5 Green 实现 | 新增 `tests/ci/repair_tsdb_force.sh`：构造 `recoverable + corrupted` TSDB 样本，执行 `taosd -r --file-type tsdb --mode force` 并校验 `repair progress/summary`、目标目录重建结果、备份目录与状态文件 |
+| 2026-03-03 15:58 | T4.5 定向验证 | `bash tests/ci/repair_tsdb_force.sh` 通过，输出 `tsdb force repair script passed (taosd exit code: 47)` |
+| 2026-03-03 15:58 | T4.5 收尾 | 已将 `task_plan.md` 中 `T4.5` 更新为 `completed`，`P4` 标记为 `completed`，下一入口切换为 `T5.1`（`in_progress`） |
+| 2026-03-03 15:59 | T5.1 阶段开始 | 已切换到 `force+meta`，准备先勘察 `meta` 解析与现有测试入口，定义首个 Red 用例 |
+| 2026-03-03 16:00 | T5.1 上下文勘察 | 已定位 `metaOpen.c:metaGenerateNewMeta()` 与 `dmMain.c` 的 `generateNewMeta` 触发点，确认下一步应先补 `force+meta` 调度判定测试，再决定是否直接复用/包装 `metaGenerateNewMeta` |
 
 ## 已落盘文档
 - `task_plan.md`

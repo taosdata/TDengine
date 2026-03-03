@@ -2102,6 +2102,40 @@ TEST(RepairOptionParseTest, NeedRunWalForceRepair) {
   ASSERT_FALSE(needRun);
 }
 
+TEST(RepairOptionParseTest, NeedRunTsdbForceRepair) {
+  bool needRun = false;
+
+  SRepairCliArgs tsdbForceCli = {0};
+  ASSERT_EQ(tRepairParseCliOption(&tsdbForceCli, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&tsdbForceCli, "file-type", "tsdb"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&tsdbForceCli, "vnode-id", "2,3"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&tsdbForceCli, "mode", "force"), TSDB_CODE_SUCCESS);
+  SRepairCtx tsdbForceCtx = {0};
+  ASSERT_EQ(tRepairInitCtx(&tsdbForceCli, 1735689601506LL, &tsdbForceCtx), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairNeedRunTsdbForceRepair(&tsdbForceCtx, &needRun), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(needRun);
+
+  SRepairCliArgs tsdbReplicaCli = {0};
+  ASSERT_EQ(tRepairParseCliOption(&tsdbReplicaCli, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&tsdbReplicaCli, "file-type", "tsdb"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&tsdbReplicaCli, "vnode-id", "2,3"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&tsdbReplicaCli, "mode", "replica"), TSDB_CODE_SUCCESS);
+  SRepairCtx tsdbReplicaCtx = {0};
+  ASSERT_EQ(tRepairInitCtx(&tsdbReplicaCli, 1735689601507LL, &tsdbReplicaCtx), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairNeedRunTsdbForceRepair(&tsdbReplicaCtx, &needRun), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(needRun);
+
+  SRepairCliArgs walForceCli = {0};
+  ASSERT_EQ(tRepairParseCliOption(&walForceCli, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&walForceCli, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&walForceCli, "vnode-id", "2,3"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&walForceCli, "mode", "force"), TSDB_CODE_SUCCESS);
+  SRepairCtx walForceCtx = {0};
+  ASSERT_EQ(tRepairInitCtx(&walForceCli, 1735689601508LL, &walForceCtx), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairNeedRunTsdbForceRepair(&walForceCtx, &needRun), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(needRun);
+}
+
 TEST(RepairOptionParseTest, BuildVnodeTargetPath) {
   char targetPath[PATH_MAX] = {0};
 
