@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/kardianos/service"
 	"github.com/taosdata/go-utils/web"
@@ -22,6 +23,9 @@ import (
 
 var logger = log.GetLogger("PRG")
 
+// Global memoryStore reference for cleanup on shutdown
+var memoryStore *process.MemoryStore
+
 func Init() *http.Server {
 	conf := config.InitConfig()
 	log.ConfigLog()
@@ -33,7 +37,7 @@ func Init() *http.Server {
 		return nil
 	}
 
-	router := CreateRouter(false, &conf.Cors, false)
+	router := CreateRouter(false, &conf.Cors, true)
 	router.Use(log.GinLog())
 	router.Use(log.GinRecoverLog())
 
@@ -41,12 +45,23 @@ func Init() *http.Server {
 	reporter.Init(router)
 	monitor.StartMonitor(conf.Metrics.Cluster, conf, reporter)
 
+	// v2: Create memory store and parser (must be before route registration)
+	// Use configurable TTL from config file (convert seconds to duration)
+	memoryStore = process.NewMemoryStore(time.Duration(conf.Prometheus.CacheTTL) * time.Second)
+	metricParser := api.NewMetricParser(memoryStore, conf.Prometheus.IncludeTables)
+	router.Use(api.MetricCacheMiddleware(metricParser))
+	if len(conf.Prometheus.IncludeTables) > 0 {
+		logger.Infof("Memory cache mode (v2) enabled, additional tables: %v", conf.Prometheus.IncludeTables)
+	} else {
+		logger.Info("Memory cache mode (v2) enabled")
+	}
+
 	go func() {
 		// wait for monitor to all metric received
 		time.Sleep(time.Second * 35)
 
 		processor := process.NewProcessor(conf)
-		node := api.NewNodeExporter(processor)
+		node := api.NewNodeExporter(processor, memoryStore, reporter)
 		node.Init(router)
 
 		if version.IsEnterprise == "true" {
@@ -147,6 +162,12 @@ func (p *program) Stop(s service.Service) error {
 		logger.Println("WebServer Shutdown error:", err)
 	}
 
+	// Stop memoryStore cleanup goroutine
+	if memoryStore != nil {
+		logger.Println("Stopping memory store cleanup goroutine")
+		memoryStore.Close()
+	}
+
 	logger.Println("Server exiting")
 	ctxLog, cancelLog := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelLog()
@@ -159,5 +180,8 @@ func CreateRouter(debug bool, corsConf *web.CorsConfig, enableGzip bool) *gin.En
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(cors.New(corsConf.GetConfig()))
+	if enableGzip {
+		router.Use(gzip.Gzip(gzip.DefaultCompression))
+	}
 	return router
 }
