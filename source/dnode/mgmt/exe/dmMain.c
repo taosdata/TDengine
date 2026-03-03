@@ -23,6 +23,7 @@
 #include "tconfig.h"
 #include "tconv.h"
 #include "tglobal.h"
+#include "trepair.h"
 #include "tss.h"
 #include "version.h"
 
@@ -46,6 +47,13 @@
 #define DM_EMAIL         "<support@taosdata.com>"
 #define DM_MEM_DBG       "Enable memory debug"
 #define DM_SET_ENCRYPTKEY  "Set encrypt key. such as: -y 1234567890abcdef, the length should be less or equal to 16."
+#define DM_REPAIR        "Enable repair mode. Works with --node-type/--file-type/--mode and other repair options."
+#define DM_REPAIR_NODE_TYPE "Repair target node type. Options: vnode, mnode, dnode, snode."
+#define DM_REPAIR_FILE_TYPE "Repair target file type. Examples: vnode->wal|meta|tsdb; mnode->wal|data; dnode->config; snode->checkpoint."
+#define DM_REPAIR_VNODE_ID  "Target vnode id list, separated by comma (required when --node-type=vnode)."
+#define DM_REPAIR_BACKUP_PATH "Backup path for corrupted files before repair."
+#define DM_REPAIR_MODE       "Repair mode. Options: force, replica, copy."
+#define DM_REPAIR_REPLICA_NODE "Replica node endpoint for copy mode. Format: <ip>:<dataDir>, required when --mode=copy."
 
 // clang-format on
 static struct {
@@ -67,6 +75,7 @@ static struct {
   bool         printAuth;
   bool         printVersion;
   bool         printHelp;
+  SRepairCliArgs repairCliArgs;
   char         envFile[PATH_MAX];
   char         apolloUrl[PATH_MAX];
   const char **envCmd;
@@ -186,6 +195,15 @@ static void dmSetSignalHandle() {
 
 extern bool generateNewMeta;
 
+static bool dmHasRepairCliOption(const SRepairCliArgs *pCliArgs) {
+  if (pCliArgs == NULL) {
+    return false;
+  }
+
+  return pCliArgs->hasNodeType || pCliArgs->hasFileType || pCliArgs->hasVnodeIdList || pCliArgs->hasBackupPath ||
+         pCliArgs->hasMode || pCliArgs->hasReplicaNode;
+}
+
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   global.startTime = taosGetTimestampMs();
 
@@ -239,6 +257,120 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-r") == 0) {
       generateNewMeta = true;
+    } else if (strcmp(argv[i], "--node-type") == 0 || strncmp(argv[i], "--node-type=", 12) == 0) {
+      if ((i < argc - 1) || ((i == argc - 1) && strncmp(argv[i], "--node-type=", 12) == 0)) {
+        int32_t     klen = strlen(argv[i]);
+        int32_t     vlen = klen < 12 ? strlen(argv[++i]) : klen - 12;
+        const char *val = argv[i];
+        if (klen >= 12) val += 12;
+        if (vlen <= 0) {
+          printf("invalid value of '--node-type'\n");
+          return TSDB_CODE_INVALID_CFG;
+        }
+        int32_t code = tRepairParseCliOption(&global.repairCliArgs, "node-type", val);
+        if (code != TSDB_CODE_SUCCESS) {
+          printf("invalid value of '--node-type': %s\n", val);
+          return TSDB_CODE_INVALID_CFG;
+        }
+      } else {
+        printf("'--node-type' requires a parameter\n");
+        return TSDB_CODE_INVALID_CFG;
+      }
+    } else if (strcmp(argv[i], "--file-type") == 0 || strncmp(argv[i], "--file-type=", 12) == 0) {
+      if ((i < argc - 1) || ((i == argc - 1) && strncmp(argv[i], "--file-type=", 12) == 0)) {
+        int32_t     klen = strlen(argv[i]);
+        int32_t     vlen = klen < 12 ? strlen(argv[++i]) : klen - 12;
+        const char *val = argv[i];
+        if (klen >= 12) val += 12;
+        if (vlen <= 0) {
+          printf("invalid value of '--file-type'\n");
+          return TSDB_CODE_INVALID_CFG;
+        }
+        int32_t code = tRepairParseCliOption(&global.repairCliArgs, "file-type", val);
+        if (code != TSDB_CODE_SUCCESS) {
+          printf("invalid value of '--file-type': %s\n", val);
+          return TSDB_CODE_INVALID_CFG;
+        }
+      } else {
+        printf("'--file-type' requires a parameter\n");
+        return TSDB_CODE_INVALID_CFG;
+      }
+    } else if (strcmp(argv[i], "--vnode-id") == 0 || strncmp(argv[i], "--vnode-id=", 11) == 0) {
+      if ((i < argc - 1) || ((i == argc - 1) && strncmp(argv[i], "--vnode-id=", 11) == 0)) {
+        int32_t     klen = strlen(argv[i]);
+        int32_t     vlen = klen < 11 ? strlen(argv[++i]) : klen - 11;
+        const char *val = argv[i];
+        if (klen >= 11) val += 11;
+        if (vlen <= 0) {
+          printf("invalid value of '--vnode-id'\n");
+          return TSDB_CODE_INVALID_CFG;
+        }
+        int32_t code = tRepairParseCliOption(&global.repairCliArgs, "vnode-id", val);
+        if (code != TSDB_CODE_SUCCESS) {
+          printf("invalid value of '--vnode-id': %s\n", val);
+          return TSDB_CODE_INVALID_CFG;
+        }
+      } else {
+        printf("'--vnode-id' requires a parameter\n");
+        return TSDB_CODE_INVALID_CFG;
+      }
+    } else if (strcmp(argv[i], "--backup-path") == 0 || strncmp(argv[i], "--backup-path=", 14) == 0) {
+      if ((i < argc - 1) || ((i == argc - 1) && strncmp(argv[i], "--backup-path=", 14) == 0)) {
+        int32_t     klen = strlen(argv[i]);
+        int32_t     vlen = klen < 14 ? strlen(argv[++i]) : klen - 14;
+        const char *val = argv[i];
+        if (klen >= 14) val += 14;
+        if (vlen <= 0) {
+          printf("invalid value of '--backup-path'\n");
+          return TSDB_CODE_INVALID_CFG;
+        }
+        int32_t code = tRepairParseCliOption(&global.repairCliArgs, "backup-path", val);
+        if (code != TSDB_CODE_SUCCESS) {
+          printf("invalid value of '--backup-path': %s\n", val);
+          return TSDB_CODE_INVALID_CFG;
+        }
+      } else {
+        printf("'--backup-path' requires a parameter\n");
+        return TSDB_CODE_INVALID_CFG;
+      }
+    } else if (strcmp(argv[i], "--mode") == 0 || strncmp(argv[i], "--mode=", 7) == 0) {
+      if ((i < argc - 1) || ((i == argc - 1) && strncmp(argv[i], "--mode=", 7) == 0)) {
+        int32_t     klen = strlen(argv[i]);
+        int32_t     vlen = klen < 7 ? strlen(argv[++i]) : klen - 7;
+        const char *val = argv[i];
+        if (klen >= 7) val += 7;
+        if (vlen <= 0) {
+          printf("invalid value of '--mode'\n");
+          return TSDB_CODE_INVALID_CFG;
+        }
+        int32_t code = tRepairParseCliOption(&global.repairCliArgs, "mode", val);
+        if (code != TSDB_CODE_SUCCESS) {
+          printf("invalid value of '--mode': %s\n", val);
+          return TSDB_CODE_INVALID_CFG;
+        }
+      } else {
+        printf("'--mode' requires a parameter\n");
+        return TSDB_CODE_INVALID_CFG;
+      }
+    } else if (strcmp(argv[i], "--replica-node") == 0 || strncmp(argv[i], "--replica-node=", 15) == 0) {
+      if ((i < argc - 1) || ((i == argc - 1) && strncmp(argv[i], "--replica-node=", 15) == 0)) {
+        int32_t     klen = strlen(argv[i]);
+        int32_t     vlen = klen < 15 ? strlen(argv[++i]) : klen - 15;
+        const char *val = argv[i];
+        if (klen >= 15) val += 15;
+        if (vlen <= 0) {
+          printf("invalid value of '--replica-node'\n");
+          return TSDB_CODE_INVALID_CFG;
+        }
+        int32_t code = tRepairParseCliOption(&global.repairCliArgs, "replica-node", val);
+        if (code != TSDB_CODE_SUCCESS) {
+          printf("invalid value of '--replica-node': %s\n", val);
+          return TSDB_CODE_INVALID_CFG;
+        }
+      } else {
+        printf("'--replica-node' requires a parameter\n");
+        return TSDB_CODE_INVALID_CFG;
+      }
     } else if (strcmp(argv[i], "-E") == 0) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
@@ -322,6 +454,19 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
     }
   }
 
+  if (dmHasRepairCliOption(&global.repairCliArgs)) {
+    if (!generateNewMeta) {
+      printf("repair options require '-r'\n");
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    int32_t code = tRepairValidateCliArgs(&global.repairCliArgs);
+    if (code != TSDB_CODE_SUCCESS) {
+      printf("invalid repair option combination\n");
+      return TSDB_CODE_INVALID_CFG;
+    }
+  }
+
   return 0;
 }
 
@@ -368,6 +513,13 @@ static void dmPrintHelp() {
   printf("%s%s%s%s\n", indent, "-y,", indent, DM_SET_ENCRYPTKEY);
   printf("%s%s%s%s\n", indent, "-dm,", indent, DM_MEM_DBG);
   printf("%s%s%s%s\n", indent, "-V,", indent, DM_VERSION);
+  printf("%s%s%s%s\n", indent, "-r,", indent, DM_REPAIR);
+  printf("%s%s%s%s\n", indent, "--node-type=NODE_TYPE,", indent, DM_REPAIR_NODE_TYPE);
+  printf("%s%s%s%s\n", indent, "--file-type=FILE_TYPE,", indent, DM_REPAIR_FILE_TYPE);
+  printf("%s%s%s%s\n", indent, "--vnode-id=VNODE_IDS,", indent, DM_REPAIR_VNODE_ID);
+  printf("%s%s%s%s\n", indent, "--backup-path=PATH,", indent, DM_REPAIR_BACKUP_PATH);
+  printf("%s%s%s%s\n", indent, "--mode=MODE,", indent, DM_REPAIR_MODE);
+  printf("%s%s%s%s\n", indent, "--replica-node=NODE,", indent, DM_REPAIR_REPLICA_NODE);
 
   printf("\n\nReport bugs to %s.\n", DM_EMAIL);
 }
