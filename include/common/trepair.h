@@ -94,6 +94,14 @@ int32_t tRepairValidateCliArgs(const SRepairCliArgs *pCliArgs);
 int32_t tRepairInitCtx(const SRepairCliArgs *pCliArgs, int64_t startTimeMs, SRepairCtx *pCtx);
 int32_t tRepairShouldRepairVnode(const SRepairCtx *pCtx, int32_t vnodeId, bool *pShouldRepair);
 int32_t tRepairPrecheck(const SRepairCtx *pCtx, const char *dataDir, int64_t minDiskAvailBytes);
+int32_t tRepairPrepareBackupDir(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId, char *backupDir,
+                                int32_t backupDirSize);
+int32_t tRepairPrepareSessionFiles(const SRepairCtx *pCtx, const char *dataDir, char *sessionDir,
+                                   int32_t sessionDirSize, char *logPath, int32_t logPathSize, char *statePath,
+                                   int32_t statePathSize);
+int32_t tRepairAppendSessionLog(const char *logPath, const char *message);
+int32_t tRepairWriteSessionState(const SRepairCtx *pCtx, const char *statePath, const char *step, const char *status,
+                                 int32_t doneVnodes, int32_t totalVnodes);
 
 #ifdef __cplusplus
 }

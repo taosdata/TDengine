@@ -125,3 +125,16 @@
 - 运行验证注意事项：
   - 在当前 ASan 构建里，命令行使用 `-o /tmp` 会触发 `osDir.c:taosMulModeMkDir` 的已有栈越界问题；
   - 使用 `-o /tmp/taoslog` 可绕开该环境问题并完成本任务的预检路径验证。
+- `T2.4` 备份管理器新增目录约定并已接入主流程：
+  - 新增 `tRepairPrepareBackupDir()`，对每个目标 vnode 预创建目录；
+  - 路径规则：
+    - 显式 `--backup-path`：`<backup-path>/<sessionId>/vnode<id>/<fileType>`；
+    - 未配置时默认：`<dataDir>/backup/<sessionId>/vnode<id>/<fileType>`；
+  - `dmMain.c` 在 precheck 后、`dmInit()` 前对全部目标 vnode 执行目录创建，任一失败直接中止。
+- `T2.5` 修复会话追踪文件已落地：
+  - 新增 `tRepairPrepareSessionFiles()`、`tRepairAppendSessionLog()`、`tRepairWriteSessionState()`；
+  - 会话目录固定为 `<backupBase>/<sessionId>/`，其中写入：
+    - `repair.log`（带毫秒时间戳的 append 日志）；
+    - `repair.state.json`（包含 `sessionId/startTimeMs/nodeType/fileType/mode/step/status/doneVnodes/totalVnodes/updatedAtMs` 等字段）。
+  - `repair.state.json` 使用 `*.tmp` 临时文件 + `rename` 的原子落盘方式，降低中断时状态文件损坏风险。
+  - `dmMain.c` 已接入 session 文件初始化、precheck/备份步骤日志写入与 preflight 完成态更新；初始化失败会 fail-fast 返回。

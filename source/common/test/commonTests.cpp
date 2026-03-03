@@ -19,6 +19,7 @@
 #include "tvariant.h"
 #include "tanalytics.h"
 #include "tglobal.h"
+#include "tjson.h"
 #include "trepair.h"
 
 namespace {
@@ -43,6 +44,32 @@ class RepairTempDirGuard {
  private:
   std::string path_;
 };
+
+std::string readRepairFileContent(const char *path) {
+  if (path == nullptr || path[0] == '\0') {
+    return "";
+  }
+
+  int64_t fileSize = 0;
+  if (taosStatFile(path, &fileSize, nullptr, nullptr) != 0 || fileSize < 0) {
+    return "";
+  }
+
+  TdFilePtr pFile = taosOpenFile(path, TD_FILE_READ);
+  if (pFile == nullptr) {
+    return "";
+  }
+
+  std::string content((size_t)fileSize, '\0');
+  int64_t     nread = taosReadFile(pFile, &content[0], fileSize);
+  (void)taosCloseFile(&pFile);
+  if (nread < 0) {
+    return "";
+  }
+
+  content.resize((size_t)nread);
+  return content;
+}
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -1467,6 +1494,212 @@ TEST(RepairOptionParseTest, PrecheckSuccess) {
   SRepairCtx ctx = {0};
   ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601004LL, &ctx), TSDB_CODE_SUCCESS);
   ASSERT_EQ(tRepairPrecheck(&ctx, dataDirPath.c_str(), 0), TSDB_CODE_SUCCESS);
+}
+
+TEST(RepairOptionParseTest, PrepareBackupDirWithConfiguredPath) {
+  const std::string backupRoot = buildRepairTempPath("backup-root-configured");
+  RepairTempDirGuard backupRootGuard(backupRoot);
+  ASSERT_EQ(taosMulMkDir(backupRoot.c_str()), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "backup-path", backupRoot.c_str()), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601101LL, &ctx), TSDB_CODE_SUCCESS);
+
+  char backupDir[PATH_MAX] = {0};
+  ASSERT_EQ(tRepairPrepareBackupDir(&ctx, "/tmp/unused-data-dir", 2, backupDir, sizeof(backupDir)),
+            TSDB_CODE_SUCCESS);
+
+  std::string expected =
+      backupRoot + std::string(TD_DIRSEP) + "repair-1735689601101" + TD_DIRSEP + "vnode2" + TD_DIRSEP + "wal";
+  ASSERT_STREQ(backupDir, expected.c_str());
+  ASSERT_TRUE(taosDirExist(backupDir));
+}
+
+TEST(RepairOptionParseTest, PrepareBackupDirWithDefaultPath) {
+  const std::string dataDir = buildRepairTempPath("backup-default-data");
+  RepairTempDirGuard dataDirGuard(dataDir);
+  ASSERT_EQ(taosMulMkDir(dataDir.c_str()), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "meta"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "3"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601102LL, &ctx), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(ctx.hasBackupPath);
+
+  char backupDir[PATH_MAX] = {0};
+  ASSERT_EQ(tRepairPrepareBackupDir(&ctx, dataDir.c_str(), 3, backupDir, sizeof(backupDir)), TSDB_CODE_SUCCESS);
+
+  std::string expected =
+      dataDir + std::string(TD_DIRSEP) + "backup" + TD_DIRSEP + "repair-1735689601102" + TD_DIRSEP + "vnode3" +
+      TD_DIRSEP + "meta";
+  ASSERT_STREQ(backupDir, expected.c_str());
+  ASSERT_TRUE(taosDirExist(backupDir));
+}
+
+TEST(RepairOptionParseTest, PrepareBackupDirInvalidArgs) {
+  SRepairCtx ctx = {0};
+  char       backupDir[PATH_MAX] = {0};
+  ASSERT_EQ(tRepairPrepareBackupDir(NULL, "/tmp", 2, backupDir, sizeof(backupDir)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairPrepareBackupDir(&ctx, "/tmp", 2, backupDir, sizeof(backupDir)), TSDB_CODE_INVALID_PARA);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601103LL, &ctx), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(tRepairPrepareBackupDir(&ctx, NULL, 2, backupDir, sizeof(backupDir)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairPrepareBackupDir(&ctx, "", 2, backupDir, sizeof(backupDir)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairPrepareBackupDir(&ctx, "/tmp", -1, backupDir, sizeof(backupDir)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairPrepareBackupDir(&ctx, "/tmp", 2, NULL, sizeof(backupDir)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairPrepareBackupDir(&ctx, "/tmp", 2, backupDir, 0), TSDB_CODE_INVALID_PARA);
+}
+
+TEST(RepairOptionParseTest, PrepareSessionFilesWithConfiguredPath) {
+  const std::string backupRoot = buildRepairTempPath("session-files-configured-root");
+  RepairTempDirGuard backupRootGuard(backupRoot);
+  ASSERT_EQ(taosMulMkDir(backupRoot.c_str()), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "backup-path", backupRoot.c_str()), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601201LL, &ctx), TSDB_CODE_SUCCESS);
+
+  char sessionDir[PATH_MAX] = {0};
+  char logPath[PATH_MAX] = {0};
+  char statePath[PATH_MAX] = {0};
+  ASSERT_EQ(
+      tRepairPrepareSessionFiles(&ctx, "/tmp/unused-data-dir", sessionDir, sizeof(sessionDir), logPath,
+                                 sizeof(logPath), statePath, sizeof(statePath)),
+      TSDB_CODE_SUCCESS);
+
+  std::string expectedSessionDir = backupRoot + std::string(TD_DIRSEP) + "repair-1735689601201";
+  std::string expectedLogPath = expectedSessionDir + TD_DIRSEP + "repair.log";
+  std::string expectedStatePath = expectedSessionDir + TD_DIRSEP + "repair.state.json";
+  ASSERT_STREQ(sessionDir, expectedSessionDir.c_str());
+  ASSERT_STREQ(logPath, expectedLogPath.c_str());
+  ASSERT_STREQ(statePath, expectedStatePath.c_str());
+
+  ASSERT_TRUE(taosDirExist(sessionDir));
+  ASSERT_TRUE(taosCheckExistFile(logPath));
+  ASSERT_TRUE(taosCheckExistFile(statePath));
+
+  std::string stateContent = readRepairFileContent(statePath);
+  ASSERT_FALSE(stateContent.empty());
+  SJson *pJson = tjsonParse(stateContent.c_str());
+  ASSERT_NE(pJson, nullptr);
+
+  char sessionId[REPAIR_SESSION_ID_LEN] = {0};
+  ASSERT_EQ(tjsonGetStringValue2(pJson, "sessionId", sessionId, sizeof(sessionId)), TSDB_CODE_SUCCESS);
+  ASSERT_STREQ(sessionId, "repair-1735689601201");
+
+  int64_t startTimeMs = 0;
+  ASSERT_EQ(tjsonGetBigIntValue(pJson, "startTimeMs", &startTimeMs), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(startTimeMs, 1735689601201LL);
+
+  char status[64] = {0};
+  ASSERT_EQ(tjsonGetStringValue2(pJson, "status", status, sizeof(status)), TSDB_CODE_SUCCESS);
+  ASSERT_STREQ(status, "initialized");
+
+  int32_t totalVnodes = 0;
+  ASSERT_EQ(tjsonGetIntValue(pJson, "totalVnodes", &totalVnodes), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(totalVnodes, 1);
+  tjsonDelete(pJson);
+}
+
+TEST(RepairOptionParseTest, AppendSessionLogAndWriteSessionState) {
+  const std::string dataDir = buildRepairTempPath("session-files-default-data");
+  RepairTempDirGuard dataDirGuard(dataDir);
+  ASSERT_EQ(taosMulMkDir(dataDir.c_str()), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "meta"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2,3"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601202LL, &ctx), TSDB_CODE_SUCCESS);
+
+  char sessionDir[PATH_MAX] = {0};
+  char logPath[PATH_MAX] = {0};
+  char statePath[PATH_MAX] = {0};
+  ASSERT_EQ(tRepairPrepareSessionFiles(&ctx, dataDir.c_str(), sessionDir, sizeof(sessionDir), logPath,
+                                       sizeof(logPath), statePath, sizeof(statePath)),
+            TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(tRepairAppendSessionLog(logPath, "precheck passed"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairAppendSessionLog(logPath, "backup directories prepared"), TSDB_CODE_SUCCESS);
+  std::string logContent = readRepairFileContent(logPath);
+  ASSERT_NE(logContent.find("precheck passed"), std::string::npos);
+  ASSERT_NE(logContent.find("backup directories prepared"), std::string::npos);
+
+  ASSERT_EQ(tRepairWriteSessionState(&ctx, statePath, "precheck", "running", 1, 2), TSDB_CODE_SUCCESS);
+  std::string stateContent = readRepairFileContent(statePath);
+  ASSERT_FALSE(stateContent.empty());
+
+  SJson *pJson = tjsonParse(stateContent.c_str());
+  ASSERT_NE(pJson, nullptr);
+
+  char step[64] = {0};
+  ASSERT_EQ(tjsonGetStringValue2(pJson, "step", step, sizeof(step)), TSDB_CODE_SUCCESS);
+  ASSERT_STREQ(step, "precheck");
+
+  char status[64] = {0};
+  ASSERT_EQ(tjsonGetStringValue2(pJson, "status", status, sizeof(status)), TSDB_CODE_SUCCESS);
+  ASSERT_STREQ(status, "running");
+
+  int32_t doneVnodes = 0;
+  int32_t totalVnodes = 0;
+  ASSERT_EQ(tjsonGetIntValue(pJson, "doneVnodes", &doneVnodes), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tjsonGetIntValue(pJson, "totalVnodes", &totalVnodes), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(doneVnodes, 1);
+  ASSERT_EQ(totalVnodes, 2);
+  tjsonDelete(pJson);
+}
+
+TEST(RepairOptionParseTest, SessionFilesInvalidArgs) {
+  SRepairCtx ctx = {0};
+  char       sessionDir[PATH_MAX] = {0};
+  char       logPath[PATH_MAX] = {0};
+  char       statePath[PATH_MAX] = {0};
+
+  ASSERT_EQ(tRepairPrepareSessionFiles(NULL, "/tmp", sessionDir, sizeof(sessionDir), logPath, sizeof(logPath),
+                                       statePath, sizeof(statePath)),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairPrepareSessionFiles(&ctx, "/tmp", sessionDir, sizeof(sessionDir), logPath, sizeof(logPath),
+                                       statePath, sizeof(statePath)),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairPrepareSessionFiles(&ctx, NULL, sessionDir, sizeof(sessionDir), logPath, sizeof(logPath),
+                                       statePath, sizeof(statePath)),
+            TSDB_CODE_INVALID_PARA);
+
+  ASSERT_EQ(tRepairAppendSessionLog(NULL, "msg"), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairAppendSessionLog("", "msg"), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairAppendSessionLog("/tmp/x.log", NULL), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairAppendSessionLog("/tmp/x.log", ""), TSDB_CODE_INVALID_PARA);
+
+  ASSERT_EQ(tRepairWriteSessionState(NULL, "/tmp/x.state", "step", "status", 1, 1), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairWriteSessionState(&ctx, "/tmp/x.state", "step", "status", 1, 1), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairWriteSessionState(&ctx, NULL, "step", "status", 1, 1), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairWriteSessionState(&ctx, "/tmp/x.state", NULL, "status", 1, 1), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairWriteSessionState(&ctx, "/tmp/x.state", "step", NULL, 1, 1), TSDB_CODE_INVALID_PARA);
 }
 
 #pragma GCC diagnostic pop

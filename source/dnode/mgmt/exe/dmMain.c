@@ -77,6 +77,9 @@ static struct {
   bool         printHelp;
   SRepairCliArgs repairCliArgs;
   SRepairCtx   repairCtx;
+  char         repairSessionDir[PATH_MAX];
+  char         repairLogPath[PATH_MAX];
+  char         repairStatePath[PATH_MAX];
   char         envFile[PATH_MAX];
   char         apolloUrl[PATH_MAX];
   const char **envCmd;
@@ -798,6 +801,80 @@ int mainWindows(int argc, char **argv) {
     if (code != TSDB_CODE_SUCCESS) {
       dError("failed to run repair precheck since %s", tstrerror(code));
       printf("failed repair precheck: %s\n", tstrerror(code));
+      taosCleanupCfg();
+      taosCloseLog();
+      taosCleanupArgs();
+      taosConvDestroy();
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    code = tRepairPrepareSessionFiles(&global.repairCtx, tsDataDir, global.repairSessionDir,
+                                      sizeof(global.repairSessionDir), global.repairLogPath,
+                                      sizeof(global.repairLogPath), global.repairStatePath,
+                                      sizeof(global.repairStatePath));
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to prepare repair session files since %s", tstrerror(code));
+      printf("failed repair session preparation: %s\n", tstrerror(code));
+      taosCleanupCfg();
+      taosCloseLog();
+      taosCleanupArgs();
+      taosConvDestroy();
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    code = tRepairAppendSessionLog(global.repairLogPath, "repair precheck passed");
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to append repair precheck log since %s", tstrerror(code));
+      printf("failed repair session preparation: %s\n", tstrerror(code));
+      taosCleanupCfg();
+      taosCloseLog();
+      taosCleanupArgs();
+      taosConvDestroy();
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    if (global.repairCtx.nodeType == REPAIR_NODE_TYPE_VNODE) {
+      for (int32_t i = 0; i < global.repairCtx.vnodeIdNum; ++i) {
+        char backupDir[PATH_MAX] = {0};
+        code = tRepairPrepareBackupDir(&global.repairCtx, tsDataDir, global.repairCtx.vnodeIds[i], backupDir,
+                                       sizeof(backupDir));
+        if (code != TSDB_CODE_SUCCESS) {
+          dError("failed to prepare repair backup dir for vnode:%d since %s", global.repairCtx.vnodeIds[i],
+                 tstrerror(code));
+          printf("failed repair backup preparation: %s\n", tstrerror(code));
+          taosCleanupCfg();
+          taosCloseLog();
+          taosCleanupArgs();
+          taosConvDestroy();
+          return TSDB_CODE_INVALID_CFG;
+        }
+
+        char logMessage[128] = {0};
+        int32_t logLen =
+            tsnprintf(logMessage, sizeof(logMessage), "prepared backup dir for vnode:%d", global.repairCtx.vnodeIds[i]);
+        if (logLen <= 0 || logLen >= (int32_t)sizeof(logMessage)) {
+          tstrncpy(logMessage, "prepared backup dir", sizeof(logMessage));
+        }
+
+        code = tRepairAppendSessionLog(global.repairLogPath, logMessage);
+        if (code != TSDB_CODE_SUCCESS) {
+          dError("failed to append repair backup log for vnode:%d since %s", global.repairCtx.vnodeIds[i],
+                 tstrerror(code));
+          printf("failed repair backup preparation: %s\n", tstrerror(code));
+          taosCleanupCfg();
+          taosCloseLog();
+          taosCleanupArgs();
+          taosConvDestroy();
+          return TSDB_CODE_INVALID_CFG;
+        }
+      }
+    }
+
+    int32_t totalVnodes = global.repairCtx.nodeType == REPAIR_NODE_TYPE_VNODE ? global.repairCtx.vnodeIdNum : 0;
+    code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "preflight", "ready", 0, totalVnodes);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to write repair session state since %s", tstrerror(code));
+      printf("failed repair session preparation: %s\n", tstrerror(code));
       taosCleanupCfg();
       taosCloseLog();
       taosCleanupArgs();

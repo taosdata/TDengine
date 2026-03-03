@@ -27,7 +27,7 @@
 ## 3. 当前状态（2026-03-03）
 - 当前阶段：`P0` 已完成（需求/代码勘察与任务拆解）。
 - 当前执行阶段：`P2` 进行中（修复编排框架）。
-- 当前可执行入口：`T2.4`。
+- 当前可执行入口：`T2.6`。
 - 当前阻塞：无。
 
 ## 4. 阶段里程碑
@@ -55,8 +55,8 @@
 | T2.1 | P2 | 设计修复运行时上下文（repair session） | 45m | T1.4 | `SRepairCtx` + 初始化逻辑 | completed |
 | T2.2 | P2 | vnode 过滤器：从 vnode list 里选出目标 `vnode-id` | 45m | T2.1 | 精准作用范围 | completed |
 | T2.3 | P2 | 预检：参数、路径、磁盘空间、目标文件存在性 | 60m | T2.2 | 失败即中止并记录原因 | completed |
-| T2.4 | P2 | 备份管理器（按 vnode+时间戳目录） | 60m | T2.3 | `backup/` 目录结构稳定 | pending |
-| T2.5 | P2 | 修复日志与状态文件（`repair.log` + `repair.state.json`） | 60m | T2.4 | 会话可追踪 | pending |
+| T2.4 | P2 | 备份管理器（按 vnode+时间戳目录） | 60m | T2.3 | `backup/` 目录结构稳定 | completed |
+| T2.5 | P2 | 修复日志与状态文件（`repair.log` + `repair.state.json`） | 60m | T2.4 | 会话可追踪 | completed |
 | T2.6 | P2 | 进度输出（每 N 秒）与最终摘要输出 | 45m | T2.5 | 控制台进度 + 结果摘要 | pending |
 | T2.7 | P2 | 会话恢复能力：读取 `repair.state.json` 续跑未完成步骤 | 60m | T2.5 | 中断后可继续 | pending |
 | T3.1 | P3 | `force+wal` 调度器：接入 `walCheckAndRepair*` 流程 | 45m | T2.6 | 每 vnode WAL 修复入口 | pending |

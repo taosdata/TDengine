@@ -2,8 +2,8 @@
 
 ## 当前检查点
 - 日期：`2026-03-03`
-- 当前完成：`P1` 已完成，`P2` 已完成 `T2.1/T2.2/T2.3`。
-- 下一任务：`T2.4`（备份管理器：按 vnode+时间戳目录）。
+- 当前完成：`P1` 已完成，`P2` 已完成 `T2.1/T2.2/T2.3/T2.4/T2.5`。
+- 下一任务：`T2.6`（进度输出与最终摘要输出）。
 - 恢复入口：先读 `task_plan.md`，再读 `findings.md`，最后读本文件。
 
 ## 会话日志
@@ -59,6 +59,20 @@
 | 2026-03-03 21:35 | T2.3 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过 |
 | 2026-03-03 21:43 | T2.3 编译验证 | `cmake --build debug -j8 --target taosd` 通过 |
 | 2026-03-03 21:44 | T2.3 运行验证 | `taosd -o /tmp/taoslog -r ... --backup-path /tmp/td-repair-nonexistent-backup` 退出码 `25`，输出 `failed repair precheck: Invalid parameters`（预检失败路径生效） |
+| 2026-03-03 21:35 | T2.4 Red 阶段开始 | 已将 `task_plan.md` 中 `T2.4` 置为 `in_progress`，准备先新增备份目录命名与创建测试并验证失败 |
+| 2026-03-03 21:37 | T2.4 Red 验证 | `cmake --build debug --target commonTest` 失败，报错 `tRepairPrepareBackupDir was not declared in this scope`，符合预期 |
+| 2026-03-03 21:39 | T2.4 Green 实现 | 在 `trepair.h/.c` 新增 `tRepairPrepareBackupDir()`，输出并创建 `backup/<session>/vnode<id>/<fileType>`；`dmMain.c` 接入启动时按目标 vnode 预创建备份目录 |
+| 2026-03-03 21:40 | T2.4 单测验证 | `commonTest --gtest_filter=RepairOptionParseTest.PrepareBackupDir*` 通过（3/3） |
+| 2026-03-03 21:40 | T2.4 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过 |
+| 2026-03-03 21:41 | T2.4 编译验证 | `cmake --build debug -j8 --target taosd` 通过 |
+| 2026-03-03 21:41 | T2.4 运行验证 | `taosd -o /tmp/taoslog -r ... --backup-path /tmp/td-repair-backup-test` 退出码 `25`，仍可在预检阶段 fail-fast（流程未回归） |
+| 2026-03-03 12:47 | T2.5 Red 阶段开始 | 已将 `task_plan.md` 中 `T2.5` 置为 `in_progress`，准备先新增 `repair.log`/`repair.state.json` 的单测并验证失败 |
+| 2026-03-03 12:49 | T2.5 Red 验证 | `cmake --build debug --target commonTest` 失败，报错 `tRepairPrepareSessionFiles/tRepairAppendSessionLog/tRepairWriteSessionState was not declared in this scope`，符合预期 |
+| 2026-03-03 12:51 | T2.5 Green 实现 | `trepair.h/.c` 新增会话文件准备、日志追加、状态文件写入（JSON 原子落盘）；`dmMain.c` 接入 precheck 后的 session 初始化与状态更新 |
+| 2026-03-03 12:52 | T2.5 单测验证 | `ASAN_OPTIONS=detect_leaks=0 ./debug/build/bin/commonTest --gtest_filter=RepairOptionParseTest.*Session*` 通过（3/3） |
+| 2026-03-03 12:52 | T2.5 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过 |
+| 2026-03-03 12:53 | T2.5 编译验证 | `cmake --build debug -j8 --target taosd` 通过 |
+| 2026-03-03 12:53 | T2.5 运行验证 | `taosd -o /tmp/taoslog -r ...` 退出码 `25`，仍在 precheck 阶段 fail-fast（未引入启动流程回归） |
 
 ## 已落盘文档
 - `task_plan.md`
