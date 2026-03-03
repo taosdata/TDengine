@@ -256,12 +256,6 @@ void taos_cleanup(void) {
 
   hbMgrCleanUp();
 
-  catalogDestroy();
-  schedulerDestroy();
-
-  fmFuncMgtDestroy();
-  qCleanupKeywordsTable();
-
 #if !defined(WINDOWS) && !defined(TD_ASTRA)
   tzCleanup();
 #endif
@@ -275,14 +269,23 @@ void taos_cleanup(void) {
   clientConnRefPool = -1;
   taosCloseRef(id);
 
-  nodesDestroyAllocatorSet();
   cleanupAppInfo();
-  rpcCleanup();
-  tscDebug("rpc cleanup");
-
+  // cleanupAppInfo closes app transporters first to stop producer-side rpc
+  // traffic, then stop async workers before tearing down parser/catalog.
   if (TSDB_CODE_SUCCESS != cleanupTaskQueue()) {
     tscWarn("failed to cleanup task queue");
   }
+
+  rpcCleanup();
+  tscDebug("rpc cleanup");
+
+  catalogDestroy();
+  schedulerDestroy();
+
+  fmFuncMgtDestroy();
+  qCleanupKeywordsTable();
+
+  nodesDestroyAllocatorSet();
 
   sessMgtDestroy();
 
