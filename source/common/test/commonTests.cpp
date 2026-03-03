@@ -1287,4 +1287,68 @@ TEST(RepairOptionParseTest, ValidateCliArgsVnodeIdRule) {
   }
 }
 
+TEST(RepairOptionParseTest, InitRepairCtxSuccess) {
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "meta"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2,3"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "backup-path", "/tmp/backup"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+
+  const int64_t startTs = 1735689600123LL;
+  SRepairCtx    ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, startTs, &ctx), TSDB_CODE_SUCCESS);
+
+  ASSERT_TRUE(ctx.enabled);
+  ASSERT_EQ(ctx.startTimeMs, startTs);
+  ASSERT_STREQ(ctx.sessionId, "repair-1735689600123");
+  ASSERT_EQ(ctx.nodeType, REPAIR_NODE_TYPE_VNODE);
+  ASSERT_EQ(ctx.fileType, REPAIR_FILE_TYPE_META);
+  ASSERT_EQ(ctx.mode, REPAIR_MODE_FORCE);
+  ASSERT_TRUE(ctx.hasVnodeIdList);
+  ASSERT_STREQ(ctx.vnodeIdList, "2,3");
+  ASSERT_EQ(ctx.vnodeIdNum, 2);
+  ASSERT_EQ(ctx.vnodeIds[0], 2);
+  ASSERT_EQ(ctx.vnodeIds[1], 3);
+  ASSERT_TRUE(ctx.hasBackupPath);
+  ASSERT_STREQ(ctx.backupPath, "/tmp/backup");
+  ASSERT_FALSE(ctx.hasReplicaNode);
+
+  bool shouldRepair = false;
+  ASSERT_EQ(tRepairShouldRepairVnode(&ctx, 2, &shouldRepair), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(shouldRepair);
+  ASSERT_EQ(tRepairShouldRepairVnode(&ctx, 9, &shouldRepair), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(shouldRepair);
+}
+
+TEST(RepairOptionParseTest, InitRepairCtxInvalidArgs) {
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(NULL, 1735689600123LL, &ctx), TSDB_CODE_INVALID_PARA);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689600123LL, NULL), TSDB_CODE_INVALID_PARA);
+
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2,a"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689600123LL, &ctx), TSDB_CODE_INVALID_PARA);
+
+  memset(&cliArgs, 0, sizeof(cliArgs));
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689600123LL, &ctx), TSDB_CODE_INVALID_PARA);
+
+  memset(&cliArgs, 0, sizeof(cliArgs));
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "copy"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "replica-node", "127.0.0.1:/var/lib/taos"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689600999LL, &ctx), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(ctx.hasBackupPath);
+  ASSERT_STREQ(ctx.backupPath, "");
+}
+
 #pragma GCC diagnostic pop

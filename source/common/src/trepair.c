@@ -16,6 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "trepair.h"
 
+#include <ctype.h>
+#include <errno.h>
+#include <inttypes.h>
+
 #include "tutil.h"
 
 typedef struct {
@@ -89,6 +93,63 @@ static bool tRepairIsFileTypeCompatible(ERepairNodeType nodeType, ERepairFileTyp
     default:
       return false;
   }
+}
+
+static char *tRepairTrimSpace(char *str) {
+  while (*str != '\0' && isspace((unsigned char)*str)) {
+    ++str;
+  }
+
+  char *end = str + strlen(str);
+  while (end > str && isspace((unsigned char)*(end - 1))) {
+    --end;
+  }
+  *end = '\0';
+
+  return str;
+}
+
+static int32_t tRepairAppendVnodeId(SRepairCtx *pCtx, int32_t vnodeId) {
+  if (pCtx->vnodeIdNum >= REPAIR_MAX_VNODE_IDS) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  for (int32_t i = 0; i < pCtx->vnodeIdNum; ++i) {
+    if (pCtx->vnodeIds[i] == vnodeId) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+  }
+
+  pCtx->vnodeIds[pCtx->vnodeIdNum++] = vnodeId;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tRepairParseVnodeIdList(char *vnodeIdList, SRepairCtx *pCtx) {
+  if (vnodeIdList == NULL || pCtx == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char *savePtr = NULL;
+  for (char *token = strtok_r(vnodeIdList, ",", &savePtr); token != NULL; token = strtok_r(NULL, ",", &savePtr)) {
+    char *trimmed = tRepairTrimSpace(token);
+    if (*trimmed == '\0') {
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    errno = 0;
+    char   *endPtr = NULL;
+    int32_t parsed = taosStr2Int32(trimmed, &endPtr, 10);
+    if (errno != 0 || endPtr == NULL || endPtr == trimmed || *endPtr != '\0' || parsed < 0) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    int32_t code = tRepairAppendVnodeId(pCtx, parsed);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  return pCtx->vnodeIdNum > 0 ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_PARA;
 }
 
 int32_t tRepairParseNodeType(const char *pNodeType, ERepairNodeType *pParsedNodeType) {
@@ -227,5 +288,74 @@ int32_t tRepairValidateCliArgs(const SRepairCliArgs *pCliArgs) {
     return TSDB_CODE_INVALID_PARA;
   }
 
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tRepairInitCtx(const SRepairCliArgs *pCliArgs, int64_t startTimeMs, SRepairCtx *pCtx) {
+  if (pCliArgs == NULL || pCtx == NULL || startTimeMs <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t code = tRepairValidateCliArgs(pCliArgs);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  memset(pCtx, 0, sizeof(*pCtx));
+  pCtx->enabled = true;
+  pCtx->startTimeMs = startTimeMs;
+  pCtx->nodeType = pCliArgs->nodeType;
+  pCtx->fileType = pCliArgs->fileType;
+  pCtx->mode = pCliArgs->mode;
+
+  pCtx->hasVnodeIdList = pCliArgs->hasVnodeIdList;
+  if (pCliArgs->hasVnodeIdList) {
+    tstrncpy(pCtx->vnodeIdList, pCliArgs->vnodeIdList, sizeof(pCtx->vnodeIdList));
+    char vnodeIdBuf[PATH_MAX] = {0};
+    tstrncpy(vnodeIdBuf, pCtx->vnodeIdList, sizeof(vnodeIdBuf));
+    code = tRepairParseVnodeIdList(vnodeIdBuf, pCtx);
+    if (code != TSDB_CODE_SUCCESS) {
+      memset(pCtx, 0, sizeof(*pCtx));
+      return code;
+    }
+  }
+
+  pCtx->hasBackupPath = pCliArgs->hasBackupPath;
+  if (pCliArgs->hasBackupPath) {
+    tstrncpy(pCtx->backupPath, pCliArgs->backupPath, sizeof(pCtx->backupPath));
+  }
+
+  pCtx->hasReplicaNode = pCliArgs->hasReplicaNode;
+  if (pCliArgs->hasReplicaNode) {
+    tstrncpy(pCtx->replicaNode, pCliArgs->replicaNode, sizeof(pCtx->replicaNode));
+  }
+
+  int32_t len = tsnprintf(pCtx->sessionId, sizeof(pCtx->sessionId), "repair-%" PRId64, startTimeMs);
+  if (len <= 0 || len >= (int32_t)sizeof(pCtx->sessionId)) {
+    memset(pCtx, 0, sizeof(*pCtx));
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tRepairShouldRepairVnode(const SRepairCtx *pCtx, int32_t vnodeId, bool *pShouldRepair) {
+  if (pCtx == NULL || pShouldRepair == NULL || vnodeId < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (!pCtx->hasVnodeIdList || pCtx->vnodeIdNum <= 0) {
+    *pShouldRepair = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < pCtx->vnodeIdNum; ++i) {
+    if (pCtx->vnodeIds[i] == vnodeId) {
+      *pShouldRepair = true;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  *pShouldRepair = false;
   return TSDB_CODE_SUCCESS;
 }

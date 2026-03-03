@@ -66,11 +66,33 @@ typedef struct {
   char            replicaNode[PATH_MAX];
 } SRepairCliArgs;
 
+#define REPAIR_SESSION_ID_LEN 64
+#define REPAIR_MAX_VNODE_IDS  128
+
+typedef struct {
+  bool            enabled;
+  int64_t         startTimeMs;
+  char            sessionId[REPAIR_SESSION_ID_LEN];
+  ERepairNodeType nodeType;
+  ERepairFileType fileType;
+  ERepairMode     mode;
+  bool            hasVnodeIdList;
+  char            vnodeIdList[PATH_MAX];
+  int32_t         vnodeIdNum;
+  int32_t         vnodeIds[REPAIR_MAX_VNODE_IDS];
+  bool            hasBackupPath;
+  char            backupPath[PATH_MAX];
+  bool            hasReplicaNode;
+  char            replicaNode[PATH_MAX];
+} SRepairCtx;
+
 int32_t tRepairParseNodeType(const char *pNodeType, ERepairNodeType *pParsedNodeType);
 int32_t tRepairParseFileType(const char *pFileType, ERepairFileType *pParsedFileType);
 int32_t tRepairParseMode(const char *pMode, ERepairMode *pParsedMode);
 int32_t tRepairParseCliOption(SRepairCliArgs *pCliArgs, const char *pOptionName, const char *pOptionValue);
 int32_t tRepairValidateCliArgs(const SRepairCliArgs *pCliArgs);
+int32_t tRepairInitCtx(const SRepairCliArgs *pCliArgs, int64_t startTimeMs, SRepairCtx *pCtx);
+int32_t tRepairShouldRepairVnode(const SRepairCtx *pCtx, int32_t vnodeId, bool *pShouldRepair);
 
 #ifdef __cplusplus
 }

@@ -2,8 +2,8 @@
 
 ## 当前检查点
 - 日期：`2026-03-03`
-- 当前完成：`P1`（CLI 与参数校验）已完成。
-- 下一任务：`T2.1`（设计修复运行时上下文 `SRepairCtx`）。
+- 当前完成：`P1` 已完成，`P2` 已完成 `T2.1/T2.2`。
+- 下一任务：`T2.3`（预检：参数、路径、磁盘空间、目标文件存在性）。
 - 恢复入口：先读 `task_plan.md`，再读 `findings.md`，最后读本文件。
 
 ## 会话日志
@@ -45,6 +45,13 @@
 | 2026-03-03 20:10 | 术语统一修正 | 根据用户澄清将项目术语从 `TDB` 统一为 `META`；代码中保留 `tdb -> META` 兼容解析映射，并同步更新计划/设计/实施文档 |
 | 2026-03-03 20:13 | 术语修正回归 | `commonTest` 构建与 `RepairOptionParseTest.*`（10/10）通过，`ctest -R commonTest` 通过 |
 | 2026-03-03 20:14 | 术语修正运行验证 | `taosd -r --file-type meta ... --help` 退出码 `0`；兼容 `--file-type tdb ... --help` 退出码 `0`；`taosd --help` 文案仅展示 `meta` |
+| 2026-03-03 20:30 | T2.1 Red 阶段 | 在 `commonTests.cpp` 新增 `InitRepairCtxSuccess/InvalidArgs`，构建失败（缺少 `SRepairCtx/tRepairInitCtx`）符合预期 |
+| 2026-03-03 20:36 | T2.1 Green 实现 | 扩展 `trepair.h/.c` 新增 `SRepairCtx` 与 `tRepairInitCtx()`；`dmMain.c` 在 repair 参数校验后初始化运行时上下文 |
+| 2026-03-03 20:40 | T2.1 验证通过 | `commonTest --gtest_filter=RepairOptionParseTest.InitRepairCtx*` 通过；`ctest -R commonTest` 通过；`cmake --build debug --target taosd` 通过 |
+| 2026-03-03 20:46 | T2.2 Red 阶段 | 扩展 `InitRepairCtx` 测试覆盖 vnode 过滤（解析 `vnode-id` 到数组 + 匹配判断），构建失败（缺少 `vnodeIdNum/vnodeIds/tRepairShouldRepairVnode`）符合预期 |
+| 2026-03-03 20:52 | T2.2 Green 实现 | `SRepairCtx` 新增 `vnodeIds` 缓存；`tRepairInitCtx()` 增加 `vnode-id` 解析；新增 `tRepairShouldRepairVnode()` 进行目标 vnode 过滤 |
+| 2026-03-03 20:57 | T2.2 缺陷修复 | 修复 `strtok_r` 改写原始 `vnodeIdList` 的问题，改为临时缓冲区解析，保留原始字符串 |
+| 2026-03-03 20:59 | T2.2 验证通过 | `commonTest --gtest_filter=RepairOptionParseTest.InitRepairCtx*` 通过；`ctest -R commonTest` 通过；`taosd -r ... --vnode-id 2,a --mode force` 退出码 `25` 并提示 `failed to initialize repair context` |
 
 ## 已落盘文档
 - `task_plan.md`

@@ -104,3 +104,14 @@
 - `T1.6` 已由 `RepairOptionParseTest` 覆盖：
   - 包含枚举解析、CLI 参数解析、参数组合校验三层测试；
   - 当前共 10 条用例，`commonTest` 回归通过。
+- `T2.1` 已落地 repair 运行时上下文：
+  - 新增 `SRepairCtx`（会话标识、启动时间、运行参数快照）；
+  - 新增 `tRepairInitCtx()`，在 `dmMain.c` 参数校验后立即初始化上下文；
+  - `sessionId` 采用 `repair-<startTimeMs>` 规则，便于后续日志/状态文件命名。
+- `T2.2` 已落地 vnode 过滤基础能力：
+  - 在 `SRepairCtx` 内把 `vnode-id` 字符串解析为 `int32_t` 数组缓存（去重、非法值拒绝）；
+  - 新增 `tRepairShouldRepairVnode()` 作为后续 vnode 遍历过滤入口；
+  - 非法 `--vnode-id`（如 `2,a`）现在会在上下文初始化阶段失败并中止执行。
+- TDengine 代码约束补充：
+  - `strtol/strtoll` 在仓库中被禁止（宏重定义为 forbid）；
+  - 数值解析必须使用 `taosStr2Int32/taosStr2Int64` 等封装函数，避免触发编译错误。

@@ -76,6 +76,7 @@ static struct {
   bool         printVersion;
   bool         printHelp;
   SRepairCliArgs repairCliArgs;
+  SRepairCtx   repairCtx;
   char         envFile[PATH_MAX];
   char         apolloUrl[PATH_MAX];
   const char **envCmd;
@@ -463,6 +464,12 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
     int32_t code = tRepairValidateCliArgs(&global.repairCliArgs);
     if (code != TSDB_CODE_SUCCESS) {
       printf("invalid repair option combination\n");
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    code = tRepairInitCtx(&global.repairCliArgs, global.startTime, &global.repairCtx);
+    if (code != TSDB_CODE_SUCCESS) {
+      printf("failed to initialize repair context\n");
       return TSDB_CODE_INVALID_CFG;
     }
   }
