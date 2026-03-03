@@ -23,6 +23,9 @@
 
 #define HASTYPE(_type, _t) (((_type) & (_t)) == (_t))
 
+// empty blob string, used to rebuild blob column with empty value
+static const char kEmptyBlobStr[1] = {0};
+
 static int32_t setFirstLastResColToNull(SColumnInfoData* pCol, int32_t row) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
@@ -159,7 +162,9 @@ static int32_t saveMultiRows(SArray* pRow, SSDataBlock* pResBlock,
                 taosMemFreeClear(pValue);
                 code = TSDB_CODE_SUCCESS;
               } else {
-                code = varColSetVarData(pDstCol, rowIndex, (const char*)pValue, dataLen, false);
+                const char* pBlobSrc = (pValue == NULL && dataLen == 0) ?
+                                         kEmptyBlobStr : (const char*)pValue;
+                code = varColSetVarData(pDstCol, rowIndex, pBlobSrc, dataLen, false);
                 taosMemFreeClear(pValue);
                 TSDB_CHECK_CODE(code, lino, _end);
               }
@@ -574,7 +579,9 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
             if (!IS_VAR_DATA_TYPE(pColVal->colVal.value.type) && pColVal->colVal.value.type != TSDB_DATA_TYPE_DECIMAL) {
               p->colVal = pColVal->colVal;
             } else {
-              if (COL_VAL_IS_VALUE(&pColVal->colVal)) {
+              if (COL_VAL_IS_VALUE(&pColVal->colVal) &&
+                  pColVal->colVal.value.nData > 0 &&
+                  pColVal->colVal.value.pData != NULL) {
                 int32_t copyBytes = IS_STR_DATA_BLOB(pColVal->colVal.value.type) ?
                                     BSE_SEQUECE_SIZE : pColVal->colVal.value.nData;
                 TAOS_UNUSED(memcpy(p->colVal.value.pData, pColVal->colVal.value.pData, copyBytes));

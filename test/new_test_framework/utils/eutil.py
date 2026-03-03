@@ -23,6 +23,8 @@ import psutil
 import glob
 from .srvCtl import *
 from .eos    import *
+from .log import tdLog
+from .sql import tdSql
 
 # cpu frequent as random
 def cpuRand(max):
@@ -133,7 +135,7 @@ def check_db_cachemodel(dbname, cachemodel, retry=10):
         retry: Max retry count, default 10.
 
     Returns:
-        bool: True if matched, False otherwise.
+        bool: True if matched, exit otherwise.
     """
     sql = (
         f"select `cachemodel` from information_schema.ins_databases "
@@ -162,7 +164,7 @@ def check_explain_last_row_scan(sql, retry=10):
 
     Returns:
         bool: True if plan contains "Last row scan" and does not contain
-              "table scan"; False after retry attempts otherwise.
+              "table scan"; exit after retry attempts otherwise.
     """
     explain_sql = (
         f"explain {sql.rstrip(';')}"

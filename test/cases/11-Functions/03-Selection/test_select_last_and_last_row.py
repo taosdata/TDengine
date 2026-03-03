@@ -1002,3 +1002,9 @@ class TestFuncLast:
         tdSql.query('select LAST_ROW(q_blob), LAST(q_blob) from table_lastrow_2_2.stable_1')
         tdSql.checkData(0, 0, b'blob.world')
         tdSql.checkData(0, 1, b'blob.world')
+
+        # test empty blob data
+        tdSql.execute("insert into table_lastrow_2_2.regular_table_1 (ts, q_blob) values(now, '')")
+        tdSql.query('select LAST_ROW(q_blob), LAST(q_blob) from table_lastrow_2_2.regular_table_1')
+        tdSql.checkData(0, 0, b"")
+        tdSql.checkData(0, 1, b"")

@@ -1101,10 +1101,10 @@ _end:
 }
 
 int32_t doGetValueFromBseBySeq(void* arg, uint8_t* pKey, int32_t keyLen, uint8_t** pValue, int32_t* len) {
-  int32_t  code = 0;
+  int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
   uint64_t seq = 0;
-  if (arg == NULL || pKey == NULL || pValue == NULL || len == NULL) {
+  if (arg == NULL || pValue == NULL || len == NULL || (keyLen > 0 && pKey == NULL)) {
     tsdbError("%s failed at line %d, failed to get value from bse by seq since %s",
               __func__, __LINE__, tstrerror(TSDB_CODE_INVALID_PARA));
     return TSDB_CODE_INVALID_PARA;
