@@ -706,7 +706,7 @@ join tb2 b on a.ts = b.ts and a.f2 not in (select col2 from tb3 where ts > '2026
 
 ### ALL Subquery
 
-When using the ALL operator in combination with a subquery, ALL must be combined with comparison operators (=, >, <, >=, <=, <>) to determine whether the expression meets all the results returned by the subquery. The subquery within it can only output single-column data and can support any query statement (including nested queries) that meets the output requirements.
+When using the ALL operator in combination with a subquery, ALL must be combined with comparison operators (`=`, `>`, `<`, `>=`, `<=`, `<>`) to determine whether the expression meets all the results returned by the subquery. The subquery within it can only output single-column data and can support any query statement (including nested queries) that meets the output requirements.
 
 ```sql
 -- Greater than all results of the subquery
@@ -722,7 +722,7 @@ group by f1 having max(f2) <= ALL (select col3 from tb3 interval(1s));
 
 ### ANY Subquery
 
-The combination of the ANY operator and subqueries requires ANY to be used in conjunction with comparison operators (=, >, <, >=, <=, <>) to determine whether an expression meets any of the results returned by the subquery, thereby achieving multi-value condition matching. The subquery within it can only output single-column data and supports any query statement (including nested queries) that meets the output requirements.
+The combination of the ANY operator and subqueries requires ANY to be used in conjunction with comparison operators (`=`, `>`, `<`, `>=`, `<=`, `<>`) to determine whether an expression meets any of the results returned by the subquery, thereby achieving multi-value condition matching. The subquery within it can only output single-column data and supports any query statement (including nested queries) that meets the output requirements.
 
 ```sql
 -- Less than any result of a subquery
@@ -739,7 +739,7 @@ select case when f2 >= ANY (select f3 from tb8) then 'high' else 'low' end from 
 
 ### SOME Subquery
 
-The combination of the SOME operator and subqueries, where SOME is fully equivalent to ANY, must be used in conjunction with comparison operators (=, >, <, >=, <=, <>) to determine whether an expression meets any of the results returned by the subquery. The subquery within it can only output single-column data and can support any query statement (including nested queries) that meets the output requirements.
+The combination of the SOME operator and subqueries, where SOME is fully equivalent to ANY, must be used in conjunction with comparison operators (`=`, `>`, `<`, `>=`, `<=`, `<>`) to determine whether an expression meets any of the results returned by the subquery. The subquery within it can only output single-column data and can support any query statement (including nested queries) that meets the output requirements.
 
 ```sql
 -- Used in HAVING clause
