@@ -138,3 +138,12 @@
     - `repair.state.json`（包含 `sessionId/startTimeMs/nodeType/fileType/mode/step/status/doneVnodes/totalVnodes/updatedAtMs` 等字段）。
   - `repair.state.json` 使用 `*.tmp` 临时文件 + `rename` 的原子落盘方式，降低中断时状态文件损坏风险。
   - `dmMain.c` 已接入 session 文件初始化、precheck/备份步骤日志写入与 preflight 完成态更新；初始化失败会 fail-fast 返回。
+- `T2.6` 进度输出与摘要已落地：
+  - 新增 `tRepairNeedReportProgress()`：按时间间隔节流进度上报（支持首次上报与时钟回拨场景）。
+  - 新增 `tRepairBuildProgressLine()`：统一构造进度输出（`session/step/vnode done/total/progress%`）。
+  - 新增 `tRepairBuildSummaryLine()`：统一构造最终摘要（`status/successVnodes/failedVnodes/elapsedMs`）。
+  - `dmMain.c` 已接入：
+    - precheck 通过后立即输出并落盘首条进度；
+    - 备份循环中按间隔或收尾条件输出进度；
+    - 完成 preflight 后输出最终摘要并落盘；
+    - 同步更新 `repair.state.json` 的 `precheck -> backup -> preflight(ready)` 步骤状态。

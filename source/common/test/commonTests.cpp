@@ -1702,4 +1702,57 @@ TEST(RepairOptionParseTest, SessionFilesInvalidArgs) {
   ASSERT_EQ(tRepairWriteSessionState(&ctx, "/tmp/x.state", "step", NULL, 1, 1), TSDB_CODE_INVALID_PARA);
 }
 
+TEST(RepairOptionParseTest, BuildProgressLineAndSummaryLine) {
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2,3"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601301LL, &ctx), TSDB_CODE_SUCCESS);
+
+  char progressLine[256] = {0};
+  ASSERT_EQ(tRepairBuildProgressLine(&ctx, "backup", 1, 2, progressLine, sizeof(progressLine)), TSDB_CODE_SUCCESS);
+  ASSERT_STREQ(progressLine, "repair progress: session=repair-1735689601301 step=backup vnode=1/2 progress=50%");
+
+  char summaryLine[256] = {0};
+  ASSERT_EQ(tRepairBuildSummaryLine(&ctx, 2, 0, 4567, summaryLine, sizeof(summaryLine)), TSDB_CODE_SUCCESS);
+  ASSERT_STREQ(summaryLine,
+               "repair summary: session=repair-1735689601301 status=success successVnodes=2 failedVnodes=0 "
+               "elapsedMs=4567");
+}
+
+TEST(RepairOptionParseTest, NeedReportProgress) {
+  int64_t lastReportMs = 0;
+  bool    needReport = false;
+
+  ASSERT_EQ(tRepairNeedReportProgress(1000, 3000, &lastReportMs, &needReport), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(needReport);
+  ASSERT_EQ(lastReportMs, 1000);
+
+  ASSERT_EQ(tRepairNeedReportProgress(2000, 3000, &lastReportMs, &needReport), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(needReport);
+  ASSERT_EQ(lastReportMs, 1000);
+
+  ASSERT_EQ(tRepairNeedReportProgress(4001, 3000, &lastReportMs, &needReport), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(needReport);
+  ASSERT_EQ(lastReportMs, 4001);
+}
+
+TEST(RepairOptionParseTest, ProgressReporterInvalidArgs) {
+  SRepairCtx ctx = {0};
+  char       line[32] = {0};
+  int64_t    lastReportMs = 0;
+  bool       needReport = false;
+  ASSERT_EQ(tRepairBuildProgressLine(NULL, "step", 0, 1, line, sizeof(line)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBuildSummaryLine(NULL, 1, 0, 1, line, sizeof(line)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairNeedReportProgress(1, 1000, NULL, &needReport), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairNeedReportProgress(1, 1000, &lastReportMs, NULL), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairNeedReportProgress(-1, 1000, &lastReportMs, &needReport), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairNeedReportProgress(1, 0, &lastReportMs, &needReport), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBuildProgressLine(&ctx, "step", 0, 1, line, sizeof(line)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBuildSummaryLine(&ctx, 1, 0, 1, line, sizeof(line)), TSDB_CODE_INVALID_PARA);
+}
+
 #pragma GCC diagnostic pop

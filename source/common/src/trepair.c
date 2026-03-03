@@ -840,3 +840,66 @@ int32_t tRepairWriteSessionState(const SRepairCtx *pCtx, const char *statePath, 
 
   return tRepairWriteSessionStateInternal(pCtx, statePath, step, status, doneVnodes, totalVnodes);
 }
+
+int32_t tRepairNeedReportProgress(int64_t nowMs, int64_t intervalMs, int64_t *pLastReportMs, bool *pNeedReport) {
+  if (nowMs < 0 || intervalMs <= 0 || pLastReportMs == NULL || pNeedReport == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (*pLastReportMs <= 0 || nowMs < *pLastReportMs || (nowMs - *pLastReportMs) >= intervalMs) {
+    *pNeedReport = true;
+    *pLastReportMs = nowMs;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *pNeedReport = false;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tRepairBuildProgressLine(const SRepairCtx *pCtx, const char *step, int32_t doneVnodes, int32_t totalVnodes,
+                                 char *line, int32_t lineSize) {
+  if (pCtx == NULL || !pCtx->enabled || step == NULL || step[0] == '\0' || line == NULL || lineSize <= 0 ||
+      doneVnodes < 0 || totalVnodes < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (totalVnodes > 0 && doneVnodes > totalVnodes) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (totalVnodes == 0 && doneVnodes != 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t progress = totalVnodes > 0 ? (doneVnodes * 100) / totalVnodes : 100;
+  int32_t len = tsnprintf(line, lineSize, "repair progress: session=%s step=%s vnode=%d/%d progress=%d%%",
+                          pCtx->sessionId, step, doneVnodes, totalVnodes, progress);
+  if (len <= 0 || len >= lineSize) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tRepairBuildSummaryLine(const SRepairCtx *pCtx, int32_t successVnodes, int32_t failedVnodes, int64_t elapsedMs,
+                                char *line, int32_t lineSize) {
+  if (pCtx == NULL || !pCtx->enabled || successVnodes < 0 || failedVnodes < 0 || elapsedMs < 0 || line == NULL ||
+      lineSize <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  const char *status = "success";
+  if (failedVnodes > 0 && successVnodes > 0) {
+    status = "partial";
+  } else if (failedVnodes > 0) {
+    status = "failed";
+  }
+
+  int32_t len =
+      tsnprintf(line, lineSize, "repair summary: session=%s status=%s successVnodes=%d failedVnodes=%d elapsedMs=%" PRId64,
+                pCtx->sessionId, status, successVnodes, failedVnodes, elapsedMs);
+  if (len <= 0 || len >= lineSize) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}

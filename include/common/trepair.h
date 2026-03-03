@@ -102,6 +102,11 @@ int32_t tRepairPrepareSessionFiles(const SRepairCtx *pCtx, const char *dataDir, 
 int32_t tRepairAppendSessionLog(const char *logPath, const char *message);
 int32_t tRepairWriteSessionState(const SRepairCtx *pCtx, const char *statePath, const char *step, const char *status,
                                  int32_t doneVnodes, int32_t totalVnodes);
+int32_t tRepairNeedReportProgress(int64_t nowMs, int64_t intervalMs, int64_t *pLastReportMs, bool *pNeedReport);
+int32_t tRepairBuildProgressLine(const SRepairCtx *pCtx, const char *step, int32_t doneVnodes, int32_t totalVnodes,
+                                 char *line, int32_t lineSize);
+int32_t tRepairBuildSummaryLine(const SRepairCtx *pCtx, int32_t successVnodes, int32_t failedVnodes, int64_t elapsedMs,
+                                char *line, int32_t lineSize);
 
 #ifdef __cplusplus
 }

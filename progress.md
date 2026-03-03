@@ -2,8 +2,8 @@
 
 ## 当前检查点
 - 日期：`2026-03-03`
-- 当前完成：`P1` 已完成，`P2` 已完成 `T2.1/T2.2/T2.3/T2.4/T2.5`。
-- 下一任务：`T2.6`（进度输出与最终摘要输出）。
+- 当前完成：`P1` 已完成，`P2` 已完成 `T2.1/T2.2/T2.3/T2.4/T2.5/T2.6`。
+- 下一任务：`T2.7`（会话恢复能力：读取 `repair.state.json` 续跑未完成步骤）。
 - 恢复入口：先读 `task_plan.md`，再读 `findings.md`，最后读本文件。
 
 ## 会话日志
@@ -73,6 +73,14 @@
 | 2026-03-03 12:52 | T2.5 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过 |
 | 2026-03-03 12:53 | T2.5 编译验证 | `cmake --build debug -j8 --target taosd` 通过 |
 | 2026-03-03 12:53 | T2.5 运行验证 | `taosd -o /tmp/taoslog -r ...` 退出码 `25`，仍在 precheck 阶段 fail-fast（未引入启动流程回归） |
+| 2026-03-03 13:05 | 汇报规范持久化 | 新增仓库根 `AGENTS.md`，并在 `task_plan.md` 恢复机制追加“每次汇报必须包含进度条”规则 |
+| 2026-03-03 13:07 | T2.6 Red 阶段开始 | 已将 `task_plan.md` 中 `T2.6` 置为 `in_progress`，准备先补进度行/摘要行构造与节流函数单测并验证失败 |
+| 2026-03-03 13:09 | T2.6 Red 验证 | `cmake --build debug --target commonTest` 失败，报错 `tRepairBuildProgressLine/tRepairBuildSummaryLine/tRepairNeedReportProgress was not declared in this scope`，符合预期 |
+| 2026-03-03 13:12 | T2.6 Green 实现 | `trepair.h/.c` 新增进度节流判定、进度行/摘要行构造 API；`dmMain.c` 接入 precheck/backup 阶段进度输出与最终摘要写入 |
+| 2026-03-03 13:13 | T2.6 单测验证 | `ASAN_OPTIONS=detect_leaks=0 ./debug/build/bin/commonTest --gtest_filter=RepairOptionParseTest.*Progress*` 通过（3/3） |
+| 2026-03-03 13:13 | T2.6 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过 |
+| 2026-03-03 13:14 | T2.6 编译验证 | `cmake --build debug -j8 --target taosd` 通过 |
+| 2026-03-03 13:14 | T2.6 运行验证 | `taosd -o /tmp/taoslog -r ...` 退出码 `25`，仍在 precheck 阶段 fail-fast（启动流程未回归） |
 
 ## 已落盘文档
 - `task_plan.md`
