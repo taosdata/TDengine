@@ -1098,7 +1098,7 @@ column_tag_expr_value(A) ::= column_name(B) NK_EQ REGEXP_REPLACE NK_LP NK_ID NK_
 column_tag_expr_value_list(A) ::= column_tag_expr_value(B).                                { A = createNodeList(pCxt, B); }
 column_tag_expr_value_list(A) ::= column_tag_expr_value_list(B) NK_COMMA column_tag_expr_value(C). { A = addNodeToList(pCxt, B, C); }
 
-alter_table_clause(A) ::= OF full_table_name(B) SET TAG column_tag_expr_value_list(C) where_clause_opt(D). {
+alter_table_clause(A) ::= USING full_table_name(B) SET TAG column_tag_expr_value_list(C) where_clause_opt(D). {
     A = createAlterChildTableUpdateTagValStmt(pCxt, B, C, D);
   }
 

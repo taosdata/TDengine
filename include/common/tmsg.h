@@ -5002,8 +5002,10 @@ typedef struct SVAlterTbReq {
   int64_t  ctimeMs;    // fill by vnode
   int8_t   source;     // TD_REQ_FROM_TAOX-taosX or TD_REQ_FROM_APP-taosClient
   uint32_t compress;   // TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS
-  SArray*  pMultiTag;  // TSDB_ALTER_TABLE_ADD_MULTI_TAGS
+  SArray*  pMultiTag;  // TSDB_ALTER_TABLE_ADD_MULTI_TAGS and TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL
   SArray*  tables;     // Array of SUpdateTableTagVal, for TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL
+  int32_t  whereLen;   // [whereLen] & [where] are for TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL,
+  uint8_t* where;      // [where] is the encode where condition.
   // for Add column
   STypeMod typeMod;
   // TSDB_ALTER_TABLE_ALTER_COLUMN_REF
