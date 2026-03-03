@@ -183,3 +183,29 @@
     - 每个 vnode 执行 `walOpen()` 前先调用 `tRepairBackupVnodeTarget()`；
     - `walOpen()` 失败时立即触发 `tRepairRollbackVnodeTarget()` 并记录回滚日志；
     - 仍保持 fail-fast：任一 vnode 失败即退出流程。
+- `T3.3`（WAL 修复明细记录）已完成：
+  - `SWalCkHead` 通过 `SWalCont` 间接包含柔性数组成员（`body[]`），因此 `SWal` 中 `writeHead` 必须保持尾字段；否则会触发 `flexible array member not at end of struct` 编译错误。
+  - 新增 `SWalRepairStats` 与 `walGetRepairStats()`，用于导出一次 `walOpen()` 生命周期内的修复明细统计。
+  - `walCheckAndRepairMeta()` 在进入损坏段修复分支时累计 `corruptedSegments`。
+  - `walCheckAndRepairIdxFile()` 在重建索引成功后累计 `rebuiltIdxEntries` 并记录重建条数日志。
+  - `dmRunForceWalRepair()` 在每个 vnode 执行 `walOpen()` 后调用 `walGetRepairStats()`，把 `corruptedSegments/rebuiltIdxEntries` 写入 `repair.log` 明细行，提升可审计性。
+- `T3.4`（`wal_test` 扩展：损坏样例自动化验证）已完成：
+  - 新增 `walRepairStatsTrackIdxOnlyCorruption` 用例，覆盖“log 正常但 idx 截断损坏”场景，验证自动修复后的统计结果。
+  - 新增样例暴露统计口径缺口：此前仅 idx 损坏时 `rebuiltIdxEntries` 会增长，但 `corruptedSegments` 不会增长。
+  - 修复方式：在 `walCheckAndRepairIdxFile()` 进入 idx 修复路径时同步累计 `corruptedSegments`，使“损坏区段”语义覆盖 log/idx 两类损坏。
+  - 回归结果：`wal_test` 全量通过，`taosd` 构建通过，`force+wal` 阶段测试覆盖提升到“log 损坏 + idx 损坏 + idx-only 损坏”三类样例。
+- `T4.1`（TSDB 文件枚举与完整性扫描器封装）已完成：
+  - TSDB 目录结构存在多层子目录（例如 `tsdb/f100/...`），扫描器必须递归遍历，不能只看 `tsdb` 根目录。
+  - 通过扩展名后缀归类可稳定覆盖当前需求：`.head/.data/.sma/.stt` 归入对应计数，其余文件计入 `unknownFiles`，便于后续定位杂项文件。
+  - 新增 `SRepairTsdbScanResult` 与 `tRepairScanTsdbFiles()` 后，可在 `tRepairPrecheck()` 的 `fileType=tsdb` 分支直接复用扫描结果做 fail-fast。
+  - 当前完整性基线定义为“至少包含一份 `.head` 与 `.data`”；缺失任一关键文件即返回 `TSDB_CODE_INVALID_PARA`，与新单测期望一致。
+- `T4.2`（TSDB 可恢复块提取与损坏块定位输出）已完成：
+  - 块级定位采用“目录聚合”策略：对包含 TSDB 识别文件的每个子目录产出一条块记录，避免早期阶段引入复杂的文件名语义解析。
+  - 新增 `SRepairTsdbBlockReport` 与 `tRepairAnalyzeTsdbBlocks()`，输出 `totalBlocks/recoverableBlocks/corruptedBlocks/unknownFiles` 以及损坏块路径列表，满足结构化报告诉求。
+  - 当前“可恢复块”判定规则为 `head>0 && data>0`；仅有 `sma/stt` 或仅有 `head/data` 的块会被归类为 `corrupted`。
+  - 损坏块路径列表采用上限保护（`REPAIR_TSDB_MAX_REPORTED_BLOCKS`），在大规模损坏场景下保留汇总计数准确性并避免报告结构无限增长。
+- `T4.3`（TSDB 文件重建流程 MVP：保留有效块）已完成：
+  - 新增 `tRepairRebuildTsdbBlocks()`，基于目录级块判定把“可恢复块”（`head+data`）复制到重建输出目录，损坏块仅记录不复制。
+  - 重建流程在开始时会重置输出目录，确保重复执行结果可预测且不会混入历史残留文件。
+  - 若扫描后没有任何可恢复块，函数返回 `TSDB_CODE_INVALID_PARA`，避免生成“看似成功但不可用”的空重建结果。
+  - 当前实现将“包含已识别 TSDB 文件的目录”视为块边界，适合作为 MVP；后续可在 `T4.4/T4.5` 基于真实 TSDB 样本迭代更细粒度块语义。

@@ -359,6 +359,377 @@ static int32_t tRepairBuildPathWithEntry(const char *basePath, const char *entry
   return TSDB_CODE_SUCCESS;
 }
 
+static bool tRepairStringEndsWithIgnoreCase(const char *str, const char *suffix) {
+  if (str == NULL || suffix == NULL) {
+    return false;
+  }
+
+  size_t strLen = strlen(str);
+  size_t suffixLen = strlen(suffix);
+  if (suffixLen <= 0 || suffixLen > strLen) {
+    return false;
+  }
+
+  return taosStrcasecmp(str + strLen - suffixLen, suffix) == 0;
+}
+
+typedef enum {
+  REPAIR_TSDB_FILE_KIND_UNKNOWN = 0,
+  REPAIR_TSDB_FILE_KIND_HEAD,
+  REPAIR_TSDB_FILE_KIND_DATA,
+  REPAIR_TSDB_FILE_KIND_SMA,
+  REPAIR_TSDB_FILE_KIND_STT,
+} ERepairTsdbFileKind;
+
+static ERepairTsdbFileKind tRepairClassifyTsdbFile(const char *fileName) {
+  if (fileName == NULL || fileName[0] == '\0') {
+    return REPAIR_TSDB_FILE_KIND_UNKNOWN;
+  }
+
+  if (tRepairStringEndsWithIgnoreCase(fileName, ".head")) {
+    return REPAIR_TSDB_FILE_KIND_HEAD;
+  }
+  if (tRepairStringEndsWithIgnoreCase(fileName, ".data")) {
+    return REPAIR_TSDB_FILE_KIND_DATA;
+  }
+  if (tRepairStringEndsWithIgnoreCase(fileName, ".sma")) {
+    return REPAIR_TSDB_FILE_KIND_SMA;
+  }
+  if (tRepairStringEndsWithIgnoreCase(fileName, ".stt")) {
+    return REPAIR_TSDB_FILE_KIND_STT;
+  }
+
+  return REPAIR_TSDB_FILE_KIND_UNKNOWN;
+}
+
+static void tRepairCountTsdbFileBySuffix(const char *fileName, SRepairTsdbScanResult *pResult) {
+  if (fileName == NULL || fileName[0] == '\0' || pResult == NULL) {
+    return;
+  }
+
+  switch (tRepairClassifyTsdbFile(fileName)) {
+    case REPAIR_TSDB_FILE_KIND_HEAD:
+      ++pResult->headFiles;
+      return;
+    case REPAIR_TSDB_FILE_KIND_DATA:
+      ++pResult->dataFiles;
+      return;
+    case REPAIR_TSDB_FILE_KIND_SMA:
+      ++pResult->smaFiles;
+      return;
+    case REPAIR_TSDB_FILE_KIND_STT:
+      ++pResult->sttFiles;
+      return;
+    case REPAIR_TSDB_FILE_KIND_UNKNOWN:
+    default:
+      ++pResult->unknownFiles;
+      return;
+  }
+}
+
+static int32_t tRepairScanTsdbDirRecursive(const char *dirPath, SRepairTsdbScanResult *pResult) {
+  if (dirPath == NULL || dirPath[0] == '\0' || pResult == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (!taosDirExist(dirPath) || !taosIsDir(dirPath)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  TdDirPtr pDir = taosOpenDir(dirPath);
+  if (pDir == NULL) {
+    return terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t       code = TSDB_CODE_SUCCESS;
+  TdDirEntryPtr pDirEntry = NULL;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char *entryName = taosGetDirEntryName(pDirEntry);
+    if (entryName == NULL || strcmp(entryName, ".") == 0 || strcmp(entryName, "..") == 0) {
+      continue;
+    }
+
+    if (taosDirEntryIsDir(pDirEntry)) {
+      char entryPath[PATH_MAX] = {0};
+      code = tRepairBuildPathWithEntry(dirPath, entryName, entryPath, sizeof(entryPath));
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+
+      code = tRepairScanTsdbDirRecursive(entryPath, pResult);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+      continue;
+    }
+
+    tRepairCountTsdbFileBySuffix(entryName, pResult);
+  }
+
+  if (taosCloseDir(&pDir) != 0 && code == TSDB_CODE_SUCCESS) {
+    code = terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+
+  return code;
+}
+
+static void tRepairRecordCorruptedBlockPath(const char *dirPath, SRepairTsdbBlockReport *pReport) {
+  if (dirPath == NULL || dirPath[0] == '\0' || pReport == NULL ||
+      pReport->reportedCorruptedBlocks >= REPAIR_TSDB_MAX_REPORTED_BLOCKS) {
+    return;
+  }
+
+  tstrncpy(pReport->corruptedBlockPaths[pReport->reportedCorruptedBlocks], dirPath,
+           sizeof(pReport->corruptedBlockPaths[pReport->reportedCorruptedBlocks]));
+  ++pReport->reportedCorruptedBlocks;
+}
+
+static int32_t tRepairAnalyzeTsdbDirRecursive(const char *dirPath, SRepairTsdbBlockReport *pReport) {
+  if (dirPath == NULL || dirPath[0] == '\0' || pReport == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (!taosDirExist(dirPath) || !taosIsDir(dirPath)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  TdDirPtr pDir = taosOpenDir(dirPath);
+  if (pDir == NULL) {
+    return terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t       code = TSDB_CODE_SUCCESS;
+  int32_t       localHeadFiles = 0;
+  int32_t       localDataFiles = 0;
+  int32_t       localKnownFiles = 0;
+  int32_t       localUnknownFiles = 0;
+  TdDirEntryPtr pDirEntry = NULL;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char *entryName = taosGetDirEntryName(pDirEntry);
+    if (entryName == NULL || strcmp(entryName, ".") == 0 || strcmp(entryName, "..") == 0) {
+      continue;
+    }
+
+    if (taosDirEntryIsDir(pDirEntry)) {
+      char entryPath[PATH_MAX] = {0};
+      code = tRepairBuildPathWithEntry(dirPath, entryName, entryPath, sizeof(entryPath));
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+
+      code = tRepairAnalyzeTsdbDirRecursive(entryPath, pReport);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+      continue;
+    }
+
+    switch (tRepairClassifyTsdbFile(entryName)) {
+      case REPAIR_TSDB_FILE_KIND_HEAD:
+        ++localHeadFiles;
+        ++localKnownFiles;
+        break;
+      case REPAIR_TSDB_FILE_KIND_DATA:
+        ++localDataFiles;
+        ++localKnownFiles;
+        break;
+      case REPAIR_TSDB_FILE_KIND_SMA:
+      case REPAIR_TSDB_FILE_KIND_STT:
+        ++localKnownFiles;
+        break;
+      case REPAIR_TSDB_FILE_KIND_UNKNOWN:
+      default:
+        ++localUnknownFiles;
+        break;
+    }
+  }
+
+  if (taosCloseDir(&pDir) != 0 && code == TSDB_CODE_SUCCESS) {
+    code = terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  pReport->unknownFiles += localUnknownFiles;
+  if (localKnownFiles <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  ++pReport->totalBlocks;
+  if (localHeadFiles > 0 && localDataFiles > 0) {
+    ++pReport->recoverableBlocks;
+  } else {
+    ++pReport->corruptedBlocks;
+    tRepairRecordCorruptedBlockPath(dirPath, pReport);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tRepairCopyDirRecursive(const char *srcDir, const char *dstDir);
+static int32_t tRepairResetDir(const char *dirPath);
+
+static int32_t tRepairBuildPathWithOptionalRelative(const char *basePath, const char *relativePath, char *outPath,
+                                                    int32_t outPathSize) {
+  if (basePath == NULL || basePath[0] == '\0' || outPath == NULL || outPathSize <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (relativePath == NULL || relativePath[0] == '\0') {
+    return tRepairParseStringOption(basePath, outPath, outPathSize);
+  }
+
+  int32_t len = tsnprintf(outPath, outPathSize, "%s%s%s", basePath, TD_DIRSEP, relativePath);
+  if (len <= 0 || len >= outPathSize) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tRepairCollectTsdbDirLocalStats(const char *dirPath, int32_t *pHeadFiles, int32_t *pDataFiles,
+                                               int32_t *pKnownFiles, int32_t *pUnknownFiles) {
+  if (dirPath == NULL || dirPath[0] == '\0' || pHeadFiles == NULL || pDataFiles == NULL || pKnownFiles == NULL ||
+      pUnknownFiles == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *pHeadFiles = 0;
+  *pDataFiles = 0;
+  *pKnownFiles = 0;
+  *pUnknownFiles = 0;
+
+  TdDirPtr pDir = taosOpenDir(dirPath);
+  if (pDir == NULL) {
+    return terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t       code = TSDB_CODE_SUCCESS;
+  TdDirEntryPtr pDirEntry = NULL;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char *entryName = taosGetDirEntryName(pDirEntry);
+    if (entryName == NULL || strcmp(entryName, ".") == 0 || strcmp(entryName, "..") == 0 ||
+        taosDirEntryIsDir(pDirEntry)) {
+      continue;
+    }
+
+    switch (tRepairClassifyTsdbFile(entryName)) {
+      case REPAIR_TSDB_FILE_KIND_HEAD:
+        ++(*pHeadFiles);
+        ++(*pKnownFiles);
+        break;
+      case REPAIR_TSDB_FILE_KIND_DATA:
+        ++(*pDataFiles);
+        ++(*pKnownFiles);
+        break;
+      case REPAIR_TSDB_FILE_KIND_SMA:
+      case REPAIR_TSDB_FILE_KIND_STT:
+        ++(*pKnownFiles);
+        break;
+      case REPAIR_TSDB_FILE_KIND_UNKNOWN:
+      default:
+        ++(*pUnknownFiles);
+        break;
+    }
+  }
+
+  if (taosCloseDir(&pDir) != 0 && code == TSDB_CODE_SUCCESS) {
+    code = terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+  return code;
+}
+
+static int32_t tRepairRebuildTsdbDirRecursive(const char *srcDir, const char *dstBaseDir, const char *relativePath,
+                                              SRepairTsdbBlockReport *pReport) {
+  if (srcDir == NULL || srcDir[0] == '\0' || dstBaseDir == NULL || dstBaseDir[0] == '\0' || pReport == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (!taosDirExist(srcDir) || !taosIsDir(srcDir)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t localHeadFiles = 0;
+  int32_t localDataFiles = 0;
+  int32_t localKnownFiles = 0;
+  int32_t localUnknownFiles = 0;
+  int32_t code = tRepairCollectTsdbDirLocalStats(srcDir, &localHeadFiles, &localDataFiles, &localKnownFiles,
+                                                 &localUnknownFiles);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  pReport->unknownFiles += localUnknownFiles;
+  if (localKnownFiles > 0) {
+    ++pReport->totalBlocks;
+    if (localHeadFiles > 0 && localDataFiles > 0) {
+      ++pReport->recoverableBlocks;
+
+      char dstDir[PATH_MAX] = {0};
+      code = tRepairBuildPathWithOptionalRelative(dstBaseDir, relativePath, dstDir, sizeof(dstDir));
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
+      code = tRepairResetDir(dstDir);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      return tRepairCopyDirRecursive(srcDir, dstDir);
+    }
+
+    ++pReport->corruptedBlocks;
+    tRepairRecordCorruptedBlockPath(srcDir, pReport);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  TdDirPtr pDir = taosOpenDir(srcDir);
+  if (pDir == NULL) {
+    return terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+
+  TdDirEntryPtr pDirEntry = NULL;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    if (!taosDirEntryIsDir(pDirEntry)) {
+      continue;
+    }
+
+    char *entryName = taosGetDirEntryName(pDirEntry);
+    if (entryName == NULL || strcmp(entryName, ".") == 0 || strcmp(entryName, "..") == 0) {
+      continue;
+    }
+
+    char childSrcDir[PATH_MAX] = {0};
+    code = tRepairBuildPathWithEntry(srcDir, entryName, childSrcDir, sizeof(childSrcDir));
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
+
+    char childRelativePath[PATH_MAX] = {0};
+    if (relativePath == NULL || relativePath[0] == '\0') {
+      code = tRepairParseStringOption(entryName, childRelativePath, sizeof(childRelativePath));
+    } else {
+      int32_t len = tsnprintf(childRelativePath, sizeof(childRelativePath), "%s%s%s", relativePath, TD_DIRSEP,
+                              entryName);
+      code = (len > 0 && len < (int32_t)sizeof(childRelativePath)) ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_PARA;
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
+
+    code = tRepairRebuildTsdbDirRecursive(childSrcDir, dstBaseDir, childRelativePath, pReport);
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
+  }
+
+  if (taosCloseDir(&pDir) != 0 && code == TSDB_CODE_SUCCESS) {
+    code = terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+  return code;
+}
+
 static int32_t tRepairCopyDirRecursive(const char *srcDir, const char *dstDir) {
   if (srcDir == NULL || srcDir[0] == '\0' || dstDir == NULL || dstDir[0] == '\0') {
     return TSDB_CODE_INVALID_PARA;
@@ -990,6 +1361,123 @@ int32_t tRepairBuildVnodeTargetPath(const char *dataDir, int32_t vnodeId, ERepai
   return tRepairBuildVnodePath(dataDir, vnodeId, subDir, targetPath, targetPathSize);
 }
 
+int32_t tRepairScanTsdbFiles(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId, SRepairTsdbScanResult *pResult) {
+  if (pCtx == NULL || !pCtx->enabled || dataDir == NULL || dataDir[0] == '\0' || vnodeId < 0 || pResult == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  memset(pResult, 0, sizeof(*pResult));
+
+  if (pCtx->nodeType != REPAIR_NODE_TYPE_VNODE || pCtx->fileType != REPAIR_FILE_TYPE_TSDB) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  bool    shouldRepair = false;
+  int32_t code = tRepairShouldRepairVnode(pCtx, vnodeId, &shouldRepair);
+  if (code != TSDB_CODE_SUCCESS || !shouldRepair) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char targetPath[PATH_MAX] = {0};
+  code = tRepairBuildVnodeTargetPath(dataDir, vnodeId, REPAIR_FILE_TYPE_TSDB, targetPath, sizeof(targetPath));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  code = tRepairScanTsdbDirRecursive(targetPath, pResult);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (pResult->headFiles <= 0 || pResult->dataFiles <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tRepairAnalyzeTsdbBlocks(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId,
+                                 SRepairTsdbBlockReport *pReport) {
+  if (pCtx == NULL || !pCtx->enabled || dataDir == NULL || dataDir[0] == '\0' || vnodeId < 0 || pReport == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  memset(pReport, 0, sizeof(*pReport));
+
+  if (pCtx->nodeType != REPAIR_NODE_TYPE_VNODE || pCtx->fileType != REPAIR_FILE_TYPE_TSDB) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  bool    shouldRepair = false;
+  int32_t code = tRepairShouldRepairVnode(pCtx, vnodeId, &shouldRepair);
+  if (code != TSDB_CODE_SUCCESS || !shouldRepair) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char targetPath[PATH_MAX] = {0};
+  code = tRepairBuildVnodeTargetPath(dataDir, vnodeId, REPAIR_FILE_TYPE_TSDB, targetPath, sizeof(targetPath));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (!taosDirExist(targetPath) || !taosIsDir(targetPath)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  code = tRepairAnalyzeTsdbDirRecursive(targetPath, pReport);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (pReport->totalBlocks <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tRepairRebuildTsdbBlocks(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId, const char *outputDir,
+                                 SRepairTsdbBlockReport *pReport) {
+  if (pCtx == NULL || !pCtx->enabled || dataDir == NULL || dataDir[0] == '\0' || vnodeId < 0 || outputDir == NULL ||
+      outputDir[0] == '\0' || pReport == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  memset(pReport, 0, sizeof(*pReport));
+
+  if (pCtx->nodeType != REPAIR_NODE_TYPE_VNODE || pCtx->fileType != REPAIR_FILE_TYPE_TSDB) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  bool    shouldRepair = false;
+  int32_t code = tRepairShouldRepairVnode(pCtx, vnodeId, &shouldRepair);
+  if (code != TSDB_CODE_SUCCESS || !shouldRepair) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char targetPath[PATH_MAX] = {0};
+  code = tRepairBuildVnodeTargetPath(dataDir, vnodeId, REPAIR_FILE_TYPE_TSDB, targetPath, sizeof(targetPath));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (!taosDirExist(targetPath) || !taosIsDir(targetPath)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  code = tRepairResetDir(outputDir);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  code = tRepairRebuildTsdbDirRecursive(targetPath, outputDir, "", pReport);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (pReport->recoverableBlocks <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tRepairPrecheck(const SRepairCtx *pCtx, const char *dataDir, int64_t minDiskAvailBytes) {
   if (pCtx == NULL || !pCtx->enabled || dataDir == NULL || dataDir[0] == '\0' || minDiskAvailBytes < 0) {
     return TSDB_CODE_INVALID_PARA;
@@ -1044,6 +1532,14 @@ int32_t tRepairPrecheck(const SRepairCtx *pCtx, const char *dataDir, int64_t min
     }
     if (!taosCheckExistFile(targetPath)) {
       return TSDB_CODE_INVALID_PARA;
+    }
+
+    if (pCtx->fileType == REPAIR_FILE_TYPE_TSDB) {
+      SRepairTsdbScanResult scanResult = {0};
+      code = tRepairScanTsdbFiles(pCtx, dataDir, pCtx->vnodeIds[i], &scanResult);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
   }
 

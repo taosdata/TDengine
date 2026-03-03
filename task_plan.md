@@ -26,8 +26,8 @@
 
 ## 3. 当前状态（2026-03-03）
 - 当前阶段：`P0` 已完成（需求/代码勘察与任务拆解）。
-- 当前执行阶段：`P3` 进行中（`force + wal`）。
-- 当前可执行入口：`T3.3`。
+- 当前执行阶段：`P4` 进行中（`force + tsdb`）。
+- 当前可执行入口：`T4.4`。
 - 当前阻塞：无。
 
 ## 4. 阶段里程碑
@@ -36,8 +36,8 @@
 | P0 | 需求与代码基线 | 识别现有能力与缺口，确定方案 | 设计文档 + 任务拆解落盘 | completed |
 | P1 | CLI 与参数校验 | 新命令参数可解析/校验/报错 | `taosd -r --help` 显示新参数，校验单测通过 | completed |
 | P2 | 修复编排框架 | vnode 级任务调度、预检、备份、日志、状态文件 | 可执行空跑并输出进度/摘要 | completed |
-| P3 | `force + wal` | 基于现有 WAL 修复能力交付 MVP | WAL 损坏样例可修复并产出日志 | in_progress |
-| P4 | `force + tsdb` | 交付 TSDB 块级修复编排 | TSDB 损坏样例修复后可启动/查询 | pending |
+| P3 | `force + wal` | 基于现有 WAL 修复能力交付 MVP | WAL 损坏样例可修复并产出日志 | completed |
+| P4 | `force + tsdb` | 交付 TSDB 块级修复编排 | TSDB 损坏样例修复后可启动/查询 | in_progress |
 | P5 | `force + meta` | 交付 META 修复 + 反向推导链路 | 元数据损坏样例可恢复可用子集 | pending |
 | P6 | `replica` 模式 | 触发副本全量同步恢复 | 多副本损坏节点可自动拉起恢复 | pending |
 | P7 | `copy` 模式 | 从指定副本节点拷贝文件恢复 | 大文件场景可快速恢复并校验权限 | pending |
@@ -61,12 +61,12 @@
 | T2.7 | P2 | 会话恢复能力：读取 `repair.state.json` 续跑未完成步骤 | 60m | T2.5 | 中断后可继续 | completed |
 | T3.1 | P3 | `force+wal` 调度器：接入 `walCheckAndRepair*` 流程 | 45m | T2.6 | 每 vnode WAL 修复入口 | completed |
 | T3.2 | P3 | WAL 修复前备份与失败回滚保护 | 45m | T3.1 | 安全防护 | completed |
-| T3.3 | P3 | WAL 修复明细记录（损坏区段、重建 idx 条目数） | 60m | T3.1 | 可审计日志 | pending |
-| T3.4 | P3 | `wal_test` 扩展：损坏样例自动化验证 | 60m | T3.1 | 回归测试 | pending |
-| T4.1 | P4 | TSDB 文件枚举与完整性扫描器封装 | 60m | T2.6 | `.data/.head/.sma/.stt` 扫描结果 | pending |
-| T4.2 | P4 | TSDB 可恢复块提取与损坏块定位输出 | 60m | T4.1 | 结构化损坏报告 | pending |
-| T4.3 | P4 | TSDB 文件重建流程（先 MVP：保留有效块） | 60m | T4.2 | 可重建输出目录 | pending |
-| T4.4 | P4 | TSDB 修复结果验证（启动 + 查询可用） | 45m | T4.3 | 可用性验收 | pending |
+| T3.3 | P3 | WAL 修复明细记录（损坏区段、重建 idx 条目数） | 60m | T3.1 | 可审计日志 | completed |
+| T3.4 | P3 | `wal_test` 扩展：损坏样例自动化验证 | 60m | T3.1 | 回归测试 | completed |
+| T4.1 | P4 | TSDB 文件枚举与完整性扫描器封装 | 60m | T2.6 | `.data/.head/.sma/.stt` 扫描结果 | completed |
+| T4.2 | P4 | TSDB 可恢复块提取与损坏块定位输出 | 60m | T4.1 | 结构化损坏报告 | completed |
+| T4.3 | P4 | TSDB 文件重建流程（先 MVP：保留有效块） | 60m | T4.2 | 可重建输出目录 | completed |
+| T4.4 | P4 | TSDB 修复结果验证（启动 + 查询可用） | 45m | T4.3 | 可用性验收 | in_progress |
 | T4.5 | P4 | TSDB 场景系统测试脚本补齐 | 60m | T4.4 | 自动化脚本 | pending |
 | T5.1 | P5 | META 元数据解析器稳定化（结构/标签/索引） | 60m | T2.6 | 可读取元数据快照 | pending |
 | T5.2 | P5 | WAL/TSDB 反向推导元数据规则实现（第一批规则） | 60m | T5.1 | 推导器 MVP | pending |
@@ -110,3 +110,4 @@
 | 2026-03-03 | T1.1 测试验证 | 并行执行 build 与 test 导致测试先于新二进制完成，出现伪失败 | 1 | 改为顺序执行：先 build 再 test | resolved |
 | 2026-03-03 | T1.1 测试验证 | `LeakSanitizer` 在当前 ptrace 环境下运行失败 | 1 | `ctest` 时增加 `ASAN_OPTIONS=detect_leaks=0` | resolved |
 | 2026-03-03 | T2.3 运行验证 | 使用 `-o /tmp` 启动时触发 `osDir.c:taosMulModeMkDir` ASan 越界（历史问题） | 1 | 改为 `-o /tmp/taoslog` 继续验证预检路径 | resolved |
+| 2026-03-03 | T3.4 Red 构建 | `ext_pcre2` update 阶段触发外网访问失败（构建环境网络受限） | 1 | 复用本地已安装依赖并补全本地 stamp，继续执行业务测试 | resolved |

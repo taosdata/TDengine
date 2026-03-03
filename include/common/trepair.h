@@ -86,6 +86,25 @@ typedef struct {
   char            replicaNode[PATH_MAX];
 } SRepairCtx;
 
+typedef struct {
+  int32_t headFiles;
+  int32_t dataFiles;
+  int32_t smaFiles;
+  int32_t sttFiles;
+  int32_t unknownFiles;
+} SRepairTsdbScanResult;
+
+#define REPAIR_TSDB_MAX_REPORTED_BLOCKS 64
+
+typedef struct {
+  int32_t totalBlocks;
+  int32_t recoverableBlocks;
+  int32_t corruptedBlocks;
+  int32_t unknownFiles;
+  int32_t reportedCorruptedBlocks;
+  char    corruptedBlockPaths[REPAIR_TSDB_MAX_REPORTED_BLOCKS][PATH_MAX];
+} SRepairTsdbBlockReport;
+
 int32_t tRepairParseNodeType(const char *pNodeType, ERepairNodeType *pParsedNodeType);
 int32_t tRepairParseFileType(const char *pFileType, ERepairFileType *pParsedFileType);
 int32_t tRepairParseMode(const char *pMode, ERepairMode *pParsedMode);
@@ -96,6 +115,12 @@ int32_t tRepairShouldRepairVnode(const SRepairCtx *pCtx, int32_t vnodeId, bool *
 int32_t tRepairNeedRunWalForceRepair(const SRepairCtx *pCtx, bool *pNeedRun);
 int32_t tRepairBuildVnodeTargetPath(const char *dataDir, int32_t vnodeId, ERepairFileType fileType,
                                     char *targetPath, int32_t targetPathSize);
+int32_t tRepairScanTsdbFiles(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId,
+                             SRepairTsdbScanResult *pResult);
+int32_t tRepairAnalyzeTsdbBlocks(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId,
+                                 SRepairTsdbBlockReport *pReport);
+int32_t tRepairRebuildTsdbBlocks(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId, const char *outputDir,
+                                 SRepairTsdbBlockReport *pReport);
 int32_t tRepairPrecheck(const SRepairCtx *pCtx, const char *dataDir, int64_t minDiskAvailBytes);
 int32_t tRepairPrepareBackupDir(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId, char *backupDir,
                                 int32_t backupDirSize);

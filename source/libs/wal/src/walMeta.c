@@ -600,6 +600,7 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
           pWal->cfg.vgId, fnameStr, fileSize, pFileInfo->fileSize, pFileInfo->lastVer, pFileInfo->firstVer,
           tsWalForceRepair);
     updateMeta = true;
+    pWal->repairStats.corruptedSegments += 1;
 
     TAOS_CHECK_EXIT(walTrimIdxFile(pWal, fileIdx));
 
@@ -694,6 +695,8 @@ static int32_t walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
   if (fileSize == (pFileInfo->lastVer - pFileInfo->firstVer + 1) * sizeof(SWalIdxEntry)) {
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
+
+  pWal->repairStats.corruptedSegments += 1;
 
   // start to repair
   int64_t      offset = fileSize - fileSize % sizeof(SWalIdxEntry);
@@ -800,6 +803,7 @@ static int32_t walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
   }
 
   if (count > 0) {
+    pWal->repairStats.rebuiltIdxEntries += count;
     wInfo("vgId:%d, rebuilt %" PRId64 " wal idx entries until last index:%" PRId64, pWal->cfg.vgId, count,
           pFileInfo->lastVer);
   }

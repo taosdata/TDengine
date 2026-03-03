@@ -690,7 +690,32 @@ static int32_t dmRunForceWalRepair(int32_t totalVnodes, int64_t repairProgressIn
       printf("failed repair wal scheduling: %s\n", tstrerror(walCode));
       return TSDB_CODE_INVALID_CFG;
     }
+
+    SWalRepairStats repairStats = {0};
+    code = walGetRepairStats(pWal, &repairStats);
+    if (code != TSDB_CODE_SUCCESS) {
+      walClose(pWal);
+      dError("failed to query wal repair stats for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair wal scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
     walClose(pWal);
+
+    char walDetailLog[192] = {0};
+    int32_t walDetailLen =
+        tsnprintf(walDetailLog, sizeof(walDetailLog),
+                  "wal repair detail: vnode=%d corruptedSegments=%d rebuiltIdxEntries=%" PRId64, vnodeId,
+                  repairStats.corruptedSegments, repairStats.rebuiltIdxEntries);
+    if (walDetailLen <= 0 || walDetailLen >= (int32_t)sizeof(walDetailLog)) {
+      tstrncpy(walDetailLog, "wal repair detail unavailable", sizeof(walDetailLog));
+    }
+    code = tRepairAppendSessionLog(global.repairLogPath, walDetailLog);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to append wal repair detail log for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair wal scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
 
     ++walDoneVnodes;
 

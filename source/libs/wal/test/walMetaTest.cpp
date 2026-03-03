@@ -575,6 +575,81 @@ TEST_F(WalKeepEnv, walCheckAndRepairIdxFile) {
   ASSERT_EQ(code, 0);
 }
 
+TEST_F(WalKeepEnv, walGetRepairStatsInvalidArgs) {
+  SWalRepairStats stats = {0};
+  ASSERT_EQ(walGetRepairStats(NULL, &stats), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(walGetRepairStats(pWal, NULL), TSDB_CODE_INVALID_PARA);
+}
+
+TEST_F(WalKeepEnv, walRepairStatsTrackCorruptedSegmentAndIdxRebuild) {
+  walResetEnv();
+  int code;
+  do {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, 0);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, 0, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  } while (0);
+
+  SWalFileInfo* pFileInfo = walGetCurFileInfo(pWal);
+  for (int i = 1; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    pWal->writeHead.head.version = i;
+    pWal->writeHead.head.bodyLen = len;
+    pWal->writeHead.head.msgType = 0;
+    pWal->writeHead.head.ingestTs = taosGetTimestampUs();
+    pWal->writeHead.head.syncMeta = syncMeta;
+    pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
+    pWal->writeHead.cksumBody = walCalcBodyCksum(newStr, len);
+    taosWriteFile(pWal->pLogFile, &pWal->writeHead, sizeof(SWalCkHead));
+    taosWriteFile(pWal->pLogFile, newStr, len);
+  }
+
+  pWal->vers.lastVer = 99;
+  pFileInfo->lastVer = 99;
+
+  code = walCheckAndRepairMeta(pWal);
+  ASSERT_EQ(code, 0);
+  code = walCheckAndRepairIdx(pWal);
+  ASSERT_EQ(code, 0);
+
+  SWalRepairStats stats = {0};
+  ASSERT_EQ(walGetRepairStats(pWal, &stats), TSDB_CODE_SUCCESS);
+  ASSERT_GE(stats.corruptedSegments, 1);
+  ASSERT_EQ(stats.rebuiltIdxEntries, 99);
+}
+
+TEST_F(WalKeepEnv, walRepairStatsTrackIdxOnlyCorruption) {
+  walResetEnv();
+  int code;
+
+  for (int i = 0; i < 100; ++i) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  SWalRepairStats stats = {0};
+  ASSERT_EQ(walGetRepairStats(pWal, &stats), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stats.corruptedSegments, 0);
+  ASSERT_EQ(stats.rebuiltIdxEntries, 0);
+
+  int64_t truncatedEntries = 20;
+  ASSERT_EQ(taosFtruncateFile(pWal->pIdxFile, truncatedEntries * (int64_t)sizeof(SWalIdxEntry)), 0);
+
+  code = walCheckAndRepairIdx(pWal);
+  ASSERT_EQ(code, 0);
+
+  ASSERT_EQ(walGetRepairStats(pWal, &stats), TSDB_CODE_SUCCESS);
+  ASSERT_GE(stats.corruptedSegments, 1);
+  ASSERT_EQ(stats.rebuiltIdxEntries, 80);
+}
+
 TEST_F(WalKeepEnv, walRestoreFromSnapshot1) {
   walResetEnv();
   int code;

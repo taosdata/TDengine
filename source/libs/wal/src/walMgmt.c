@@ -36,6 +36,15 @@ static void     walFreeObj(void *pWal);
 
 int64_t walGetSeq() { return (int64_t)atomic_load_32((volatile int32_t *)&tsWal.seq); }
 
+int32_t walGetRepairStats(SWal *pWal, SWalRepairStats *pStats) {
+  if (pWal == NULL || pStats == NULL) {
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  (void)memcpy(pStats, &pWal->repairStats, sizeof(*pStats));
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
 int32_t walInit(stopDnodeFn stopDnode) {
   int8_t old;
   while (1) {
@@ -199,6 +208,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   (void)memset(&pWal->writeHead, 0, sizeof(SWalCkHead));
   pWal->writeHead.head.protoVer = WAL_PROTO_VER;
   pWal->writeHead.magic = WAL_MAGIC;
+  (void)memset(&pWal->repairStats, 0, sizeof(pWal->repairStats));
 
   // load meta
   code = walLoadMeta(pWal);

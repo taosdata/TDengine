@@ -2,8 +2,8 @@
 
 ## 当前检查点
 - 日期：`2026-03-03`
-- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成 `T3.2`（其余任务待执行）。
-- 下一任务：`T3.3`（WAL 修复明细记录：损坏区段、重建 idx 条目数）。
+- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成，`P4` 进行中（`T4.3` 完成）。
+- 下一任务：`T4.4`（TSDB 修复结果验证：启动 + 查询可用）。
 - 恢复入口：先读 `task_plan.md`，再读 `findings.md`，最后读本文件。
 
 ## 会话日志
@@ -101,6 +101,38 @@
 | 2026-03-03 14:33 | T3.2 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
 | 2026-03-03 14:34 | T3.2 运行验证 | `taosd -o /tmp/taoslog -r --node-type vnode --file-type wal --vnode-id 2 --mode force --backup-path /tmp/td-repair-nonexistent-backup` 输出 `failed repair precheck: Invalid parameters`，退出码 `25`，保持 precheck fail-fast |
 | 2026-03-03 14:34 | T3.2 收尾 | 已将 `task_plan.md` 中 `T3.2` 更新为 `completed`，下一入口切换为 `T3.3` |
+| 2026-03-03 14:47 | T3.3 Red 阶段开始 | 已将 `task_plan.md` 中 `T3.3` 置为 `in_progress`，准备新增 WAL 修复明细统计/输出单测并先验证失败 |
+| 2026-03-03 14:50 | T3.3 Red 验证 | `cmake --build debug -j8 --target walTest` 失败，报错 `flexible array member 'SWalCont::body' not at end of 'struct SWal'`，符合“先失败再修复”预期 |
+| 2026-03-03 14:53 | T3.3 Green 实现 | 修复 `SWal` 结构体字段顺序（保持 `writeHead` 为末尾字段）；完成 `walGetRepairStats` + WAL 修复统计累计与 `dmMain.c` 的 `repair.log` 明细输出接入 |
+| 2026-03-03 14:55 | T3.3 定向验证 | `cmake --build debug -j8 --target walTest` 通过；`./debug/build/bin/walTest --gtest_filter=WalKeepEnv.walGetRepairStatsInvalidArgs:WalKeepEnv.walRepairStatsTrackCorruptedSegmentAndIdxRebuild` 通过（2/2） |
+| 2026-03-03 14:56 | T3.3 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R wal_test --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
+| 2026-03-03 14:56 | T3.3 收尾 | 已将 `task_plan.md` 中 `T3.3` 更新为 `completed`，下一入口切换为 `T3.4` |
+| 2026-03-03 14:58 | T3.4 Red 阶段开始 | 已将 `task_plan.md` 中 `T3.4` 置为 `in_progress`，准备补充“仅 idx 损坏”自动化样例并先验证失败 |
+| 2026-03-03 15:00 | T3.4 Red 验证 | 新增 `walRepairStatsTrackIdxOnlyCorruption` 用例失败：`stats.corruptedSegments` 实际为 `0`，未记录“仅 idx 损坏”区段 |
+| 2026-03-03 15:00 | T3.4 构建环境处理 | 首次 Red 构建遇到 `ext_pcre2` update 外网失败；通过本地依赖与 stamp 方式消除非业务阻塞后继续测试 |
+| 2026-03-03 15:02 | T3.4 Green 实现 | 在 `walCheckAndRepairIdxFile()` 进入 idx 修复路径时累计 `repairStats.corruptedSegments`，统一“损坏区段”统计口径 |
+| 2026-03-03 15:03 | T3.4 定向验证 | `walTest` 定向用例通过：`walRepairStatsTrackIdxOnlyCorruption`、`walRepairStatsTrackCorruptedSegmentAndIdxRebuild`（2/2） |
+| 2026-03-03 15:04 | T3.4 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R wal_test --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
+| 2026-03-03 15:04 | T3.4 收尾 | 已将 `task_plan.md` 中 `T3.4` 更新为 `completed`，下一入口切换为 `T4.1` |
+| 2026-03-03 15:05 | T4.1 Red 阶段开始 | 已将 `task_plan.md` 中 `T4.1` 置为 `in_progress`，准备先补 TSDB 扫描器失败用例并验证失败 |
+| 2026-03-03 15:06 | T4.1 Red 验证 | `cmake --build debug -j8 --target commonTest` 失败，报错 `SRepairTsdbScanResult/tRepairScanTsdbFiles` 未声明，符合先测后码预期 |
+| 2026-03-03 15:09 | T4.1 Green 实现 | `trepair.h/.c` 新增 `SRepairTsdbScanResult` 与 `tRepairScanTsdbFiles()`；实现递归扫描 `.head/.data/.sma/.stt` 统计，并在 `tRepairPrecheck()` 的 `fileType=tsdb` 分支接入完整性校验 |
+| 2026-03-03 15:10 | T4.1 定向验证 | `ASAN_OPTIONS=detect_leaks=0 ./debug/build/bin/commonTest --gtest_filter=RepairOptionParseTest.ScanTsdbFiles*` 通过（3/3） |
+| 2026-03-03 15:11 | T4.1 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
+| 2026-03-03 15:20 | T4.1 收尾 | 已将 `task_plan.md` 中 `T4.1` 更新为 `completed`，下一入口切换为 `T4.2` |
+| 2026-03-03 15:20 | T4.2 Red 阶段开始 | 已将 `task_plan.md` 中 `T4.2` 置为 `in_progress`，准备先补“可恢复块提取/损坏块定位”失败用例并验证失败 |
+| 2026-03-03 15:22 | T4.2 Red 验证 | `cmake --build debug -j8 --target commonTest` 失败，报错 `SRepairTsdbBlockReport/tRepairAnalyzeTsdbBlocks` 未声明，符合先测后码预期 |
+| 2026-03-03 15:27 | T4.2 Green 实现 | `trepair.h/.c` 新增 `SRepairTsdbBlockReport` 与 `tRepairAnalyzeTsdbBlocks()`；按 TSDB 子目录聚合块级统计（`total/recoverable/corrupted/unknown`）并输出损坏块路径列表 |
+| 2026-03-03 15:28 | T4.2 定向验证 | `ASAN_OPTIONS=detect_leaks=0 ./debug/build/bin/commonTest --gtest_filter=RepairOptionParseTest.AnalyzeTsdbBlocksReport*` 通过（3/3） |
+| 2026-03-03 15:29 | T4.2 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
+| 2026-03-03 15:33 | T4.2 收尾 | 已将 `task_plan.md` 中 `T4.2` 更新为 `completed`，下一入口切换为 `T4.3` |
+| 2026-03-03 15:33 | T4.3 Red 阶段开始 | 已将 `task_plan.md` 中 `T4.3` 置为 `in_progress`，准备先补“保留有效块重建输出目录”失败用例并验证失败 |
+| 2026-03-03 15:35 | T4.3 Red 验证 | `cmake --build debug -j8 --target commonTest` 失败，报错 `tRepairRebuildTsdbBlocks` 未声明，符合先测后码预期 |
+| 2026-03-03 15:41 | T4.3 Green 实现 | `trepair.h/.c` 新增 `tRepairRebuildTsdbBlocks()`：按目录级块判定保留 `head+data` 可恢复块并重建输出目录；同步输出 `SRepairTsdbBlockReport` 汇总与损坏路径 |
+| 2026-03-03 15:43 | T4.3 定向验证 | `ASAN_OPTIONS=detect_leaks=0 ./debug/build/bin/commonTest --gtest_filter=RepairOptionParseTest.ScanTsdbFiles*:RepairOptionParseTest.AnalyzeTsdbBlocksReport*:RepairOptionParseTest.RebuildTsdbBlocks*` 通过（9/9） |
+| 2026-03-03 15:44 | T4.3 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
+| 2026-03-03 15:46 | T4.3 收尾 | 已将 `task_plan.md` 中 `T4.3` 更新为 `completed`，下一入口切换为 `T4.4` |
+| 2026-03-03 15:46 | T4.4 Red 阶段开始 | 已将 `task_plan.md` 中 `T4.4` 置为 `in_progress`，准备先定义“重建后启动/查询可用”最小验收用例并验证失败 |
 
 ## 已落盘文档
 - `task_plan.md`

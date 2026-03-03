@@ -69,6 +69,11 @@ typedef struct {
   int64_t logRetention;
 } SWalVer;
 
+typedef struct {
+  int32_t corruptedSegments;
+  int64_t rebuiltIdxEntries;
+} SWalRepairStats;
+
 #pragma pack(push, 1)
 // used by sync module
 typedef struct {
@@ -125,6 +130,9 @@ typedef struct SWal {
   char path[WAL_PATH_LEN];
 
   stopDnodeFn stopDnode;
+
+  // repair statistics (valid for current wal open lifecycle)
+  SWalRepairStats repairStats;
 
   // reusable write head
   SWalCkHead writeHead;
@@ -210,6 +218,7 @@ int64_t walGetVerRetention(SWal *pWal, int64_t bytes);
 int64_t walGetCommittedVer(SWal *);
 int64_t walGetAppliedVer(SWal *);
 int32_t walSetKeepVersion(SWal *pWal, int64_t ver);
+int32_t walGetRepairStats(SWal *pWal, SWalRepairStats *pStats);
 
 #ifdef __cplusplus
 }

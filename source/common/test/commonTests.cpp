@@ -1496,6 +1496,248 @@ TEST(RepairOptionParseTest, PrecheckSuccess) {
   ASSERT_EQ(tRepairPrecheck(&ctx, dataDirPath.c_str(), 0), TSDB_CODE_SUCCESS);
 }
 
+TEST(RepairOptionParseTest, ScanTsdbFilesAndPrecheckSuccess) {
+  const std::string dataDirPath = buildRepairTempPath("scan-tsdb-success-data");
+  RepairTempDirGuard dataDirGuard(dataDirPath);
+  const std::string sep(TD_DIRSEP);
+  const std::string tsdbDir = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "tsdb" + sep + "f100";
+  ASSERT_EQ(taosMulMkDir(tsdbDir.c_str()), 0);
+
+  auto createEmptyFile = [](const std::string &path) {
+    TdFilePtr pFile = taosOpenFile(path.c_str(), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    ASSERT_NE(pFile, nullptr);
+    ASSERT_EQ(taosCloseFile(&pFile), 0);
+  };
+
+  createEmptyFile(tsdbDir + sep + "v2f100ver1.head");
+  createEmptyFile(tsdbDir + sep + "v2f100ver1.0.data");
+  createEmptyFile(tsdbDir + sep + "v2f100ver1.sma");
+  createEmptyFile(tsdbDir + sep + "v2f100ver1.m1.stt");
+  createEmptyFile(tsdbDir + sep + "README.txt");
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "tsdb"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601005LL, &ctx), TSDB_CODE_SUCCESS);
+
+  SRepairTsdbScanResult scanResult = {0};
+  ASSERT_EQ(tRepairScanTsdbFiles(&ctx, dataDirPath.c_str(), 2, &scanResult), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scanResult.headFiles, 1);
+  ASSERT_EQ(scanResult.dataFiles, 1);
+  ASSERT_EQ(scanResult.smaFiles, 1);
+  ASSERT_EQ(scanResult.sttFiles, 1);
+  ASSERT_EQ(scanResult.unknownFiles, 1);
+
+  ASSERT_EQ(tRepairPrecheck(&ctx, dataDirPath.c_str(), 0), TSDB_CODE_SUCCESS);
+}
+
+TEST(RepairOptionParseTest, ScanTsdbFilesMissingCriticalFiles) {
+  const std::string dataDirPath = buildRepairTempPath("scan-tsdb-missing-critical");
+  RepairTempDirGuard dataDirGuard(dataDirPath);
+  const std::string sep(TD_DIRSEP);
+  const std::string tsdbDir = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "tsdb" + sep + "f101";
+  ASSERT_EQ(taosMulMkDir(tsdbDir.c_str()), 0);
+
+  TdFilePtr pFile = taosOpenFile((tsdbDir + sep + "v2f101ver2.sma").c_str(), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  ASSERT_NE(pFile, nullptr);
+  ASSERT_EQ(taosCloseFile(&pFile), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "tsdb"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601006LL, &ctx), TSDB_CODE_SUCCESS);
+
+  SRepairTsdbScanResult scanResult = {0};
+  ASSERT_EQ(tRepairScanTsdbFiles(&ctx, dataDirPath.c_str(), 2, &scanResult), TSDB_CODE_INVALID_PARA);
+  ASSERT_NE(tRepairPrecheck(&ctx, dataDirPath.c_str(), 0), TSDB_CODE_SUCCESS);
+}
+
+TEST(RepairOptionParseTest, ScanTsdbFilesInvalidArgs) {
+  SRepairTsdbScanResult scanResult = {0};
+  SRepairCtx            ctx = {0};
+  ASSERT_EQ(tRepairScanTsdbFiles(NULL, "/tmp", 2, &scanResult), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairScanTsdbFiles(&ctx, "/tmp", 2, &scanResult), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairScanTsdbFiles(&ctx, "/tmp", 2, NULL), TSDB_CODE_INVALID_PARA);
+}
+
+TEST(RepairOptionParseTest, AnalyzeTsdbBlocksReportMixedCorruption) {
+  const std::string dataDirPath = buildRepairTempPath("analyze-tsdb-blocks-mixed");
+  RepairTempDirGuard dataDirGuard(dataDirPath);
+  const std::string sep(TD_DIRSEP);
+  const std::string blockDir100 = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "tsdb" + sep + "f100";
+  const std::string blockDir101 = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "tsdb" + sep + "f101";
+  const std::string blockDir102 = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "tsdb" + sep + "f102";
+  ASSERT_EQ(taosMulMkDir(blockDir100.c_str()), 0);
+  ASSERT_EQ(taosMulMkDir(blockDir101.c_str()), 0);
+  ASSERT_EQ(taosMulMkDir(blockDir102.c_str()), 0);
+
+  auto createEmptyFile = [](const std::string &path) {
+    TdFilePtr pFile = taosOpenFile(path.c_str(), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    ASSERT_NE(pFile, nullptr);
+    ASSERT_EQ(taosCloseFile(&pFile), 0);
+  };
+
+  createEmptyFile(blockDir100 + sep + "v2f100ver1.head");
+  createEmptyFile(blockDir100 + sep + "v2f100ver1.0.data");
+  createEmptyFile(blockDir100 + sep + "v2f100ver1.sma");
+  createEmptyFile(blockDir101 + sep + "v2f101ver1.0.data");
+  createEmptyFile(blockDir102 + sep + "v2f102ver1.head");
+  createEmptyFile(blockDir102 + sep + "notes.txt");
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "tsdb"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601007LL, &ctx), TSDB_CODE_SUCCESS);
+
+  SRepairTsdbBlockReport report = {0};
+  ASSERT_EQ(tRepairAnalyzeTsdbBlocks(&ctx, dataDirPath.c_str(), 2, &report), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(report.totalBlocks, 3);
+  ASSERT_EQ(report.recoverableBlocks, 1);
+  ASSERT_EQ(report.corruptedBlocks, 2);
+  ASSERT_EQ(report.unknownFiles, 1);
+  ASSERT_EQ(report.reportedCorruptedBlocks, 2);
+
+  bool hasF101 = false;
+  bool hasF102 = false;
+  for (int32_t i = 0; i < report.reportedCorruptedBlocks; ++i) {
+    if (strstr(report.corruptedBlockPaths[i], "f101") != nullptr) {
+      hasF101 = true;
+    }
+    if (strstr(report.corruptedBlockPaths[i], "f102") != nullptr) {
+      hasF102 = true;
+    }
+  }
+  ASSERT_TRUE(hasF101);
+  ASSERT_TRUE(hasF102);
+}
+
+TEST(RepairOptionParseTest, AnalyzeTsdbBlocksReportNoRecognizedBlocks) {
+  const std::string dataDirPath = buildRepairTempPath("analyze-tsdb-blocks-empty");
+  RepairTempDirGuard dataDirGuard(dataDirPath);
+  const std::string sep(TD_DIRSEP);
+  const std::string blockDir = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "tsdb" + sep + "f200";
+  ASSERT_EQ(taosMulMkDir(blockDir.c_str()), 0);
+
+  TdFilePtr pFile = taosOpenFile((blockDir + sep + "README.md").c_str(), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  ASSERT_NE(pFile, nullptr);
+  ASSERT_EQ(taosCloseFile(&pFile), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "tsdb"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601008LL, &ctx), TSDB_CODE_SUCCESS);
+
+  SRepairTsdbBlockReport report = {0};
+  ASSERT_EQ(tRepairAnalyzeTsdbBlocks(&ctx, dataDirPath.c_str(), 2, &report), TSDB_CODE_INVALID_PARA);
+}
+
+TEST(RepairOptionParseTest, AnalyzeTsdbBlocksReportInvalidArgs) {
+  SRepairTsdbBlockReport report = {0};
+  SRepairCtx            ctx = {0};
+  ASSERT_EQ(tRepairAnalyzeTsdbBlocks(NULL, "/tmp", 2, &report), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairAnalyzeTsdbBlocks(&ctx, "/tmp", 2, &report), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairAnalyzeTsdbBlocks(&ctx, "/tmp", 2, NULL), TSDB_CODE_INVALID_PARA);
+}
+
+TEST(RepairOptionParseTest, RebuildTsdbBlocksKeepsRecoverableDirs) {
+  const std::string dataDirPath = buildRepairTempPath("rebuild-tsdb-data");
+  RepairTempDirGuard dataDirGuard(dataDirPath);
+  const std::string outputDirPath = buildRepairTempPath("rebuild-tsdb-output");
+  RepairTempDirGuard outputDirGuard(outputDirPath);
+  const std::string sep(TD_DIRSEP);
+  const std::string blockDir100 = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "tsdb" + sep + "f100";
+  const std::string blockDir101 = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "tsdb" + sep + "f101";
+  const std::string blockDir102 = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "tsdb" + sep + "f102";
+  ASSERT_EQ(taosMulMkDir(blockDir100.c_str()), 0);
+  ASSERT_EQ(taosMulMkDir(blockDir101.c_str()), 0);
+  ASSERT_EQ(taosMulMkDir(blockDir102.c_str()), 0);
+
+  auto createEmptyFile = [](const std::string &path) {
+    TdFilePtr pFile = taosOpenFile(path.c_str(), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    ASSERT_NE(pFile, nullptr);
+    ASSERT_EQ(taosCloseFile(&pFile), 0);
+  };
+
+  createEmptyFile(blockDir100 + sep + "v2f100ver1.head");
+  createEmptyFile(blockDir100 + sep + "v2f100ver1.0.data");
+  createEmptyFile(blockDir101 + sep + "v2f101ver1.0.data");
+  createEmptyFile(blockDir102 + sep + "v2f102ver1.head");
+  createEmptyFile(blockDir102 + sep + "v2f102ver1.0.data");
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "tsdb"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601009LL, &ctx), TSDB_CODE_SUCCESS);
+
+  SRepairTsdbBlockReport report = {0};
+  ASSERT_EQ(tRepairRebuildTsdbBlocks(&ctx, dataDirPath.c_str(), 2, outputDirPath.c_str(), &report), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(report.totalBlocks, 3);
+  ASSERT_EQ(report.recoverableBlocks, 2);
+  ASSERT_EQ(report.corruptedBlocks, 1);
+
+  ASSERT_TRUE(taosDirExist((outputDirPath + sep + "f100").c_str()));
+  ASSERT_FALSE(taosDirExist((outputDirPath + sep + "f101").c_str()));
+  ASSERT_TRUE(taosDirExist((outputDirPath + sep + "f102").c_str()));
+  ASSERT_TRUE(taosCheckExistFile((outputDirPath + sep + "f100" + sep + "v2f100ver1.head").c_str()));
+  ASSERT_TRUE(taosCheckExistFile((outputDirPath + sep + "f102" + sep + "v2f102ver1.0.data").c_str()));
+}
+
+TEST(RepairOptionParseTest, RebuildTsdbBlocksNoRecoverableBlocks) {
+  const std::string dataDirPath = buildRepairTempPath("rebuild-tsdb-empty-data");
+  RepairTempDirGuard dataDirGuard(dataDirPath);
+  const std::string outputDirPath = buildRepairTempPath("rebuild-tsdb-empty-output");
+  RepairTempDirGuard outputDirGuard(outputDirPath);
+  const std::string sep(TD_DIRSEP);
+  const std::string blockDir = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "tsdb" + sep + "f300";
+  ASSERT_EQ(taosMulMkDir(blockDir.c_str()), 0);
+
+  TdFilePtr pFile =
+      taosOpenFile((blockDir + sep + "v2f300ver1.0.data").c_str(), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  ASSERT_NE(pFile, nullptr);
+  ASSERT_EQ(taosCloseFile(&pFile), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "tsdb"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601010LL, &ctx), TSDB_CODE_SUCCESS);
+
+  SRepairTsdbBlockReport report = {0};
+  ASSERT_EQ(tRepairRebuildTsdbBlocks(&ctx, dataDirPath.c_str(), 2, outputDirPath.c_str(), &report),
+            TSDB_CODE_INVALID_PARA);
+}
+
+TEST(RepairOptionParseTest, RebuildTsdbBlocksInvalidArgs) {
+  SRepairTsdbBlockReport report = {0};
+  SRepairCtx            ctx = {0};
+  ASSERT_EQ(tRepairRebuildTsdbBlocks(NULL, "/tmp", 2, "/tmp/out", &report), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairRebuildTsdbBlocks(&ctx, "/tmp", 2, "/tmp/out", &report), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairRebuildTsdbBlocks(&ctx, "/tmp", 2, "/tmp/out", NULL), TSDB_CODE_INVALID_PARA);
+}
+
 TEST(RepairOptionParseTest, PrepareBackupDirWithConfiguredPath) {
   const std::string backupRoot = buildRepairTempPath("backup-root-configured");
   RepairTempDirGuard backupRootGuard(backupRoot);
