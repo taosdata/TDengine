@@ -642,6 +642,9 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
         SqlFunctionCtx* pCtx = &pSup->pCtx[k];
 
         SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+        if (pResInfo->initialized && pCtx->fpSet.cleanup != NULL) {
+          pCtx->fpSet.cleanup(pCtx);
+        }
         pResInfo->initialized = false;
         pCtx->pOutput = NULL;
       }
