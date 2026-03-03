@@ -146,10 +146,10 @@ select _frowts, forecast(val, past_co_val, future_co_val, "algo=moirai,rows=4, d
 
 - [ARIMA](./02-arima.md)
 - [HoltWinters](./03-holtwinters.md)
-- [Time Series Foundation Model](./04-tsfm.md)
+- [Prophet](./04-prophet.md)
+- [Time Series Foundation Model](./05-tsfm.md)
 - CES (Complex Exponential Smoothing)
 - Theta
-- Prophet
 - XGBoost
 - LightGBM
 - Multiple Seasonal-Trend decomposition using LOESS (MSTL)
