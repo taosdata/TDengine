@@ -27,7 +27,7 @@
 ## 3. 当前状态（2026-03-03）
 - 当前阶段：`P0` 已完成（需求/代码勘察与任务拆解）。
 - 当前执行阶段：`P2` 进行中（修复编排框架）。
-- 当前可执行入口：`T2.3`。
+- 当前可执行入口：`T2.4`。
 - 当前阻塞：无。
 
 ## 4. 阶段里程碑
@@ -54,7 +54,7 @@
 | T1.6 | P1 | 新增参数解析单测（建议放 `source/common/test/commonTests.cpp`） | 60m | T1.4 | parser/validator 单测 | completed |
 | T2.1 | P2 | 设计修复运行时上下文（repair session） | 45m | T1.4 | `SRepairCtx` + 初始化逻辑 | completed |
 | T2.2 | P2 | vnode 过滤器：从 vnode list 里选出目标 `vnode-id` | 45m | T2.1 | 精准作用范围 | completed |
-| T2.3 | P2 | 预检：参数、路径、磁盘空间、目标文件存在性 | 60m | T2.2 | 失败即中止并记录原因 | pending |
+| T2.3 | P2 | 预检：参数、路径、磁盘空间、目标文件存在性 | 60m | T2.2 | 失败即中止并记录原因 | completed |
 | T2.4 | P2 | 备份管理器（按 vnode+时间戳目录） | 60m | T2.3 | `backup/` 目录结构稳定 | pending |
 | T2.5 | P2 | 修复日志与状态文件（`repair.log` + `repair.state.json`） | 60m | T2.4 | 会话可追踪 | pending |
 | T2.6 | P2 | 进度输出（每 N 秒）与最终摘要输出 | 45m | T2.5 | 控制台进度 + 结果摘要 | pending |
@@ -106,3 +106,4 @@
 | 2026-03-03 | 文档读取 | 需求文件名与路径不完全匹配（有空格） | 1 | 先枚举目录后精确读取 | resolved |
 | 2026-03-03 | T1.1 测试验证 | 并行执行 build 与 test 导致测试先于新二进制完成，出现伪失败 | 1 | 改为顺序执行：先 build 再 test | resolved |
 | 2026-03-03 | T1.1 测试验证 | `LeakSanitizer` 在当前 ptrace 环境下运行失败 | 1 | `ctest` 时增加 `ASAN_OPTIONS=detect_leaks=0` | resolved |
+| 2026-03-03 | T2.3 运行验证 | 使用 `-o /tmp` 启动时触发 `osDir.c:taosMulModeMkDir` ASan 越界（历史问题） | 1 | 改为 `-o /tmp/taoslog` 继续验证预检路径 | resolved |

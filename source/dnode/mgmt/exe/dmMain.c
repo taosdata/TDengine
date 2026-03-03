@@ -792,6 +792,20 @@ int mainWindows(int argc, char **argv) {
     return 0;
   }
 
+  if (global.repairCtx.enabled) {
+    int64_t minDiskAvailBytes = tsDataSpace.reserved > 0 ? tsDataSpace.reserved : 0;
+    code = tRepairPrecheck(&global.repairCtx, tsDataDir, minDiskAvailBytes);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to run repair precheck since %s", tstrerror(code));
+      printf("failed repair precheck: %s\n", tstrerror(code));
+      taosCleanupCfg();
+      taosCloseLog();
+      taosCleanupArgs();
+      taosConvDestroy();
+      return TSDB_CODE_INVALID_CFG;
+    }
+  }
+
   osSetProcPath(argc, (char **)argv);
   taosCleanupArgs();
 

@@ -93,6 +93,7 @@ int32_t tRepairParseCliOption(SRepairCliArgs *pCliArgs, const char *pOptionName,
 int32_t tRepairValidateCliArgs(const SRepairCliArgs *pCliArgs);
 int32_t tRepairInitCtx(const SRepairCliArgs *pCliArgs, int64_t startTimeMs, SRepairCtx *pCtx);
 int32_t tRepairShouldRepairVnode(const SRepairCtx *pCtx, int32_t vnodeId, bool *pShouldRepair);
+int32_t tRepairPrecheck(const SRepairCtx *pCtx, const char *dataDir, int64_t minDiskAvailBytes);
 
 #ifdef __cplusplus
 }

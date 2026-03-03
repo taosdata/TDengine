@@ -2,8 +2,8 @@
 
 ## 当前检查点
 - 日期：`2026-03-03`
-- 当前完成：`P1` 已完成，`P2` 已完成 `T2.1/T2.2`。
-- 下一任务：`T2.3`（预检：参数、路径、磁盘空间、目标文件存在性）。
+- 当前完成：`P1` 已完成，`P2` 已完成 `T2.1/T2.2/T2.3`。
+- 下一任务：`T2.4`（备份管理器：按 vnode+时间戳目录）。
 - 恢复入口：先读 `task_plan.md`，再读 `findings.md`，最后读本文件。
 
 ## 会话日志
@@ -52,6 +52,13 @@
 | 2026-03-03 20:52 | T2.2 Green 实现 | `SRepairCtx` 新增 `vnodeIds` 缓存；`tRepairInitCtx()` 增加 `vnode-id` 解析；新增 `tRepairShouldRepairVnode()` 进行目标 vnode 过滤 |
 | 2026-03-03 20:57 | T2.2 缺陷修复 | 修复 `strtok_r` 改写原始 `vnodeIdList` 的问题，改为临时缓冲区解析，保留原始字符串 |
 | 2026-03-03 20:59 | T2.2 验证通过 | `commonTest --gtest_filter=RepairOptionParseTest.InitRepairCtx*` 通过；`ctest -R commonTest` 通过；`taosd -r ... --vnode-id 2,a --mode force` 退出码 `25` 并提示 `failed to initialize repair context` |
+| 2026-03-03 21:24 | T2.3 Red 阶段开始 | 已将 `task_plan.md` 中 `T2.3` 置为 `in_progress`，准备先新增预检单测（路径/磁盘/目标文件）并验证失败 |
+| 2026-03-03 21:26 | T2.3 Red 验证 | `cmake --build debug --target commonTest` 失败，报错 `tRepairPrecheck was not declared in this scope`，符合“先测后码”预期 |
+| 2026-03-03 21:33 | T2.3 Green 实现 | 在 `trepair.h/.c` 新增 `tRepairPrecheck()`，覆盖数据目录、备份目录、磁盘可用空间、`vnode/<id>/<wal|tsdb|meta>` 目标路径检查；`dmMain.c` 接入启动前预检 |
+| 2026-03-03 21:35 | T2.3 单测验证 | `commonTest --gtest_filter=RepairOptionParseTest.Precheck*` 通过（5/5） |
+| 2026-03-03 21:35 | T2.3 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过 |
+| 2026-03-03 21:43 | T2.3 编译验证 | `cmake --build debug -j8 --target taosd` 通过 |
+| 2026-03-03 21:44 | T2.3 运行验证 | `taosd -o /tmp/taoslog -r ... --backup-path /tmp/td-repair-nonexistent-backup` 退出码 `25`，输出 `failed repair precheck: Invalid parameters`（预检失败路径生效） |
 
 ## 已落盘文档
 - `task_plan.md`

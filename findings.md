@@ -115,3 +115,13 @@
 - TDengine 代码约束补充：
   - `strtol/strtoll` 在仓库中被禁止（宏重定义为 forbid）；
   - 数值解析必须使用 `taosStr2Int32/taosStr2Int64` 等封装函数，避免触发编译错误。
+- `T2.3` 预检能力已落地在 `source/common`：
+  - 新增 `tRepairPrecheck()`，检查项包括：`dataDir` 存在、`backup-path`（若配置）存在、磁盘可用空间阈值、`vnode/<id>/<wal|tsdb|meta>` 目标路径存在性；
+  - 磁盘空间检查复用 `taosGetDiskSize()`，当可用空间低于阈值时返回 `TSDB_CODE_NO_ENOUGH_DISKSPACE`；
+  - 预检函数目前对 `nodeType=vnode` 做目标路径校验，其他 node type 暂放行（为后续阶段保留扩展空间）。
+- `dmMain.c` 已在配置加载完成后、`dmInit()` 前接入预检：
+  - 最小可用空间阈值使用 `tsDataSpace.reserved`（若为 0 则不做空间下限）；
+  - 失败时立即退出并输出 `failed repair precheck: <reason>`，保持 fail-fast。
+- 运行验证注意事项：
+  - 在当前 ASan 构建里，命令行使用 `-o /tmp` 会触发 `osDir.c:taosMulModeMkDir` 的已有栈越界问题；
+  - 使用 `-o /tmp/taoslog` 可绕开该环境问题并完成本任务的预检路径验证。

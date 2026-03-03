@@ -22,7 +22,27 @@
 #include "trepair.h"
 
 namespace {
-//
+std::string buildRepairTempPath(const char *tag) {
+  static int32_t seq = 0;
+  return std::string("/tmp/td-repair-") + std::to_string((long long)taosGetTimestampUs()) + "-" +
+         std::to_string(seq++) + "-" + tag;
+}
+
+class RepairTempDirGuard {
+ public:
+  explicit RepairTempDirGuard(const std::string &path) : path_(path) {}
+
+  ~RepairTempDirGuard() {
+    if (!path_.empty() && taosDirExist(path_.c_str())) {
+      taosRemoveDir(path_.c_str());
+    }
+  }
+
+  const std::string &path() const { return path_; }
+
+ private:
+  std::string path_;
+};
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -1349,6 +1369,104 @@ TEST(RepairOptionParseTest, InitRepairCtxInvalidArgs) {
   ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689600999LL, &ctx), TSDB_CODE_SUCCESS);
   ASSERT_FALSE(ctx.hasBackupPath);
   ASSERT_STREQ(ctx.backupPath, "");
+}
+
+TEST(RepairOptionParseTest, PrecheckDataDirNotExist) {
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601000LL, &ctx), TSDB_CODE_SUCCESS);
+
+  std::string dataDir = buildRepairTempPath("missing-data");
+  ASSERT_FALSE(taosDirExist(dataDir.c_str()));
+  ASSERT_NE(tRepairPrecheck(&ctx, dataDir.c_str(), 0), TSDB_CODE_SUCCESS);
+}
+
+TEST(RepairOptionParseTest, PrecheckBackupPathNotExist) {
+  const std::string dataDirPath = buildRepairTempPath("missing-backup-data");
+  RepairTempDirGuard dataDirGuard(dataDirPath);
+  const std::string sep(TD_DIRSEP);
+  const std::string walDir = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "wal";
+  ASSERT_EQ(taosMulMkDir(walDir.c_str()), 0);
+
+  std::string backupDir = buildRepairTempPath("missing-backup-dir");
+  ASSERT_FALSE(taosDirExist(backupDir.c_str()));
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "backup-path", backupDir.c_str()), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601001LL, &ctx), TSDB_CODE_SUCCESS);
+  ASSERT_NE(tRepairPrecheck(&ctx, dataDirPath.c_str(), 0), TSDB_CODE_SUCCESS);
+}
+
+TEST(RepairOptionParseTest, PrecheckDiskSpaceNotEnough) {
+  const std::string dataDirPath = buildRepairTempPath("disk-space-data");
+  RepairTempDirGuard dataDirGuard(dataDirPath);
+  const std::string sep(TD_DIRSEP);
+  const std::string walDir = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "wal";
+  ASSERT_EQ(taosMulMkDir(walDir.c_str()), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601002LL, &ctx), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairPrecheck(&ctx, dataDirPath.c_str(), INT64_MAX), TSDB_CODE_NO_ENOUGH_DISKSPACE);
+}
+
+TEST(RepairOptionParseTest, PrecheckTargetPathMissing) {
+  const std::string dataDirPath = buildRepairTempPath("missing-target-data");
+  RepairTempDirGuard dataDirGuard(dataDirPath);
+  const std::string sep(TD_DIRSEP);
+  const std::string vnodeDir = dataDirPath + sep + "vnode" + sep + "vnode2";
+  ASSERT_EQ(taosMulMkDir(vnodeDir.c_str()), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601003LL, &ctx), TSDB_CODE_SUCCESS);
+  ASSERT_NE(tRepairPrecheck(&ctx, dataDirPath.c_str(), 0), TSDB_CODE_SUCCESS);
+}
+
+TEST(RepairOptionParseTest, PrecheckSuccess) {
+  const std::string dataDirPath = buildRepairTempPath("precheck-success-data");
+  RepairTempDirGuard dataDirGuard(dataDirPath);
+  const std::string backupDirPath = buildRepairTempPath("precheck-success-backup");
+  RepairTempDirGuard backupDirGuard(backupDirPath);
+  const std::string sep(TD_DIRSEP);
+
+  const std::string walDir2 = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "wal";
+  const std::string walDir3 = dataDirPath + sep + "vnode" + sep + "vnode3" + sep + "wal";
+  ASSERT_EQ(taosMulMkDir(walDir2.c_str()), 0);
+  ASSERT_EQ(taosMulMkDir(walDir3.c_str()), 0);
+  ASSERT_EQ(taosMulMkDir(backupDirPath.c_str()), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2,3"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "backup-path", backupDirPath.c_str()), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601004LL, &ctx), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairPrecheck(&ctx, dataDirPath.c_str(), 0), TSDB_CODE_SUCCESS);
 }
 
 #pragma GCC diagnostic pop
