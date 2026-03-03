@@ -47,7 +47,7 @@ This document describes how to activate a TDengine TSDB-Enterprise license.
    - The desired term of the license
 
    Your account representative or reseller will send you an activation code that you use to activate your TDengine TSDB-Enterprise deployment.
-   
+
 ### Activate Your Deployment
 
 <Tabs>
