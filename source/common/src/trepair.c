@@ -345,6 +345,120 @@ static int32_t tRepairBuildSessionFilePath(const char *sessionDir, const char *f
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t tRepairBuildPathWithEntry(const char *basePath, const char *entryName, char *outPath, int32_t outPathSize) {
+  if (basePath == NULL || basePath[0] == '\0' || entryName == NULL || entryName[0] == '\0' || outPath == NULL ||
+      outPathSize <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t len = tsnprintf(outPath, outPathSize, "%s%s%s", basePath, TD_DIRSEP, entryName);
+  if (len <= 0 || len >= outPathSize) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tRepairCopyDirRecursive(const char *srcDir, const char *dstDir) {
+  if (srcDir == NULL || srcDir[0] == '\0' || dstDir == NULL || dstDir[0] == '\0') {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (!taosDirExist(srcDir) || !taosIsDir(srcDir)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (taosMulMkDir(dstDir) != 0) {
+    return terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+
+  TdDirPtr pDir = taosOpenDir(srcDir);
+  if (pDir == NULL) {
+    return terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t     code = TSDB_CODE_SUCCESS;
+  TdDirEntryPtr pDirEntry = NULL;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char *entryName = taosGetDirEntryName(pDirEntry);
+    if (entryName == NULL || strcmp(entryName, ".") == 0 || strcmp(entryName, "..") == 0) {
+      continue;
+    }
+
+    char srcPath[PATH_MAX] = {0};
+    char dstPath[PATH_MAX] = {0};
+    code = tRepairBuildPathWithEntry(srcDir, entryName, srcPath, sizeof(srcPath));
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
+    code = tRepairBuildPathWithEntry(dstDir, entryName, dstPath, sizeof(dstPath));
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
+
+    if (taosDirEntryIsDir(pDirEntry)) {
+      code = tRepairCopyDirRecursive(srcPath, dstPath);
+    } else {
+      int64_t copied = taosCopyFile(srcPath, dstPath);
+      if (copied < 0) {
+        code = terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+      }
+    }
+
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
+  }
+
+  if (taosCloseDir(&pDir) != 0 && code == TSDB_CODE_SUCCESS) {
+    code = terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+
+  return code;
+}
+
+static int32_t tRepairResetDir(const char *dirPath) {
+  if (dirPath == NULL || dirPath[0] == '\0') {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (taosDirExist(dirPath)) {
+    taosRemoveDir(dirPath);
+  }
+
+  if (taosMulMkDir(dirPath) != 0) {
+    return terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tRepairBuildVnodeTargetAndBackupPath(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId,
+                                                    char *targetPath, int32_t targetPathSize, char *backupDir,
+                                                    int32_t backupDirSize) {
+  if (pCtx == NULL || !pCtx->enabled || dataDir == NULL || dataDir[0] == '\0' || vnodeId < 0 || targetPath == NULL ||
+      targetPathSize <= 0 || backupDir == NULL || backupDirSize <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pCtx->nodeType != REPAIR_NODE_TYPE_VNODE) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  bool    shouldRepair = false;
+  int32_t code = tRepairShouldRepairVnode(pCtx, vnodeId, &shouldRepair);
+  if (code != TSDB_CODE_SUCCESS || !shouldRepair) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  code = tRepairBuildVnodeTargetPath(dataDir, vnodeId, pCtx->fileType, targetPath, targetPathSize);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  return tRepairBuildBackupDir(pCtx, dataDir, vnodeId, backupDir, backupDirSize);
+}
+
 static int32_t tRepairReadTextFile(const char *filePath, char **ppContent, int64_t *pContentLen) {
   if (filePath == NULL || filePath[0] == '\0' || ppContent == NULL || pContentLen == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -949,6 +1063,61 @@ int32_t tRepairPrepareBackupDir(const SRepairCtx *pCtx, const char *dataDir, int
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t tRepairBackupVnodeTarget(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId, char *backupDir,
+                                 int32_t backupDirSize) {
+  if (backupDir != NULL && backupDirSize > 0) {
+    backupDir[0] = '\0';
+  }
+
+  if (pCtx == NULL || !pCtx->enabled || dataDir == NULL || dataDir[0] == '\0' || vnodeId < 0 || backupDir == NULL ||
+      backupDirSize <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char targetPath[PATH_MAX] = {0};
+  int32_t code = tRepairBuildVnodeTargetAndBackupPath(pCtx, dataDir, vnodeId, targetPath, sizeof(targetPath), backupDir,
+                                                       backupDirSize);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (!taosDirExist(targetPath) || !taosIsDir(targetPath)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  code = tRepairResetDir(backupDir);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  return tRepairCopyDirRecursive(targetPath, backupDir);
+}
+
+int32_t tRepairRollbackVnodeTarget(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId) {
+  if (pCtx == NULL || !pCtx->enabled || dataDir == NULL || dataDir[0] == '\0' || vnodeId < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char targetPath[PATH_MAX] = {0};
+  char backupDir[PATH_MAX] = {0};
+  int32_t code = tRepairBuildVnodeTargetAndBackupPath(pCtx, dataDir, vnodeId, targetPath, sizeof(targetPath), backupDir,
+                                                       sizeof(backupDir));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (!taosDirExist(backupDir) || !taosIsDir(backupDir)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  code = tRepairResetDir(targetPath);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  return tRepairCopyDirRecursive(backupDir, targetPath);
 }
 
 int32_t tRepairPrepareSessionFiles(const SRepairCtx *pCtx, const char *dataDir, char *sessionDir, int32_t sessionDirSize,

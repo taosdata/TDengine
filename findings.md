@@ -171,3 +171,15 @@
 - 本阶段会话恢复策略保持“步骤级最小实现”：
   - 继续沿用 `T2.7` 的 `doneVnodes` 语义用于 precheck/backup 续跑；
   - `wal` 步骤暂不做细粒度续跑索引恢复（后续可在 `T3.2/T3.3` 扩展）。
+- `T3.2`（WAL 修复前备份与失败回滚保护）已完成：
+  - `trepair.h/.c` 新增：
+    - `tRepairBackupVnodeTarget()`：按 `vnode/<id>/<fileType>` 递归备份到 `<backup>/<session>/vnode<id>/<fileType>`；
+    - `tRepairRollbackVnodeTarget()`：从备份目录递归恢复目标目录。
+  - 备份/回滚内部实现要点：
+    - 新增目录递归复制 helper（基于 `taosOpenDir/taosReadDir/taosCopyFile`）；
+    - 复制前会重建空目录，避免 `taosCopyFile` 的 `TD_FILE_EXCL` 导致覆盖失败；
+    - 对源/目标目录存在性与类型做显式校验（必须是目录）。
+  - `dmMain.c` 的 `dmRunForceWalRepair()` 已接入保护语义：
+    - 每个 vnode 执行 `walOpen()` 前先调用 `tRepairBackupVnodeTarget()`；
+    - `walOpen()` 失败时立即触发 `tRepairRollbackVnodeTarget()` 并记录回滚日志；
+    - 仍保持 fail-fast：任一 vnode 失败即退出流程。

@@ -626,9 +626,30 @@ static int32_t dmRunForceWalRepair(int32_t totalVnodes, int64_t repairProgressIn
   for (int32_t i = 0; i < global.repairCtx.vnodeIdNum; ++i) {
     int32_t vnodeId = global.repairCtx.vnodeIds[i];
     char    walPath[PATH_MAX] = {0};
+    char    walBackupDir[PATH_MAX] = {0};
     code = tRepairBuildVnodeTargetPath(tsDataDir, vnodeId, REPAIR_FILE_TYPE_WAL, walPath, sizeof(walPath));
     if (code != TSDB_CODE_SUCCESS) {
       dError("failed to build wal path for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair wal scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    code = tRepairBackupVnodeTarget(&global.repairCtx, tsDataDir, vnodeId, walBackupDir, sizeof(walBackupDir));
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to backup wal target for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair wal scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    char backupLog[PATH_MAX] = {0};
+    int32_t backupLogLen =
+        tsnprintf(backupLog, sizeof(backupLog), "prepared wal backup for vnode:%d path:%s", vnodeId, walBackupDir);
+    if (backupLogLen <= 0 || backupLogLen >= (int32_t)sizeof(backupLog)) {
+      tstrncpy(backupLog, "prepared wal backup", sizeof(backupLog));
+    }
+    code = tRepairAppendSessionLog(global.repairLogPath, backupLog);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to append wal backup log for vnode:%d since %s", vnodeId, tstrerror(code));
       printf("failed repair wal scheduling: %s\n", tstrerror(code));
       return TSDB_CODE_INVALID_CFG;
     }
@@ -652,6 +673,18 @@ static int32_t dmRunForceWalRepair(int32_t totalVnodes, int64_t repairProgressIn
     if (pWal == NULL) {
       int32_t walCode = terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
       dError("failed to repair wal for vnode:%d path:%s since %s", vnodeId, walPath, tstrerror(walCode));
+      int32_t rollbackCode = tRepairRollbackVnodeTarget(&global.repairCtx, tsDataDir, vnodeId);
+      if (rollbackCode != TSDB_CODE_SUCCESS) {
+        dError("failed to rollback wal repair for vnode:%d since %s", vnodeId, tstrerror(rollbackCode));
+        (void)tRepairAppendSessionLog(global.repairLogPath, "wal repair rollback failed");
+      } else {
+        char rollbackLog[128] = {0};
+        int32_t rollbackLogLen = tsnprintf(rollbackLog, sizeof(rollbackLog), "rolled back wal for vnode:%d", vnodeId);
+        if (rollbackLogLen <= 0 || rollbackLogLen >= (int32_t)sizeof(rollbackLog)) {
+          tstrncpy(rollbackLog, "rolled back wal repair", sizeof(rollbackLog));
+        }
+        (void)tRepairAppendSessionLog(global.repairLogPath, rollbackLog);
+      }
       (void)tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "wal", "failed", walDoneVnodes,
                                      totalVnodes);
       printf("failed repair wal scheduling: %s\n", tstrerror(walCode));

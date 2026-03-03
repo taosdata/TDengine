@@ -1885,6 +1885,85 @@ TEST(RepairOptionParseTest, BuildVnodeTargetPath) {
             TSDB_CODE_INVALID_PARA);
 }
 
+TEST(RepairOptionParseTest, BackupAndRollbackVnodeTarget) {
+  const std::string dataDir = buildRepairTempPath("backup-rollback-data");
+  const std::string backupRoot = buildRepairTempPath("backup-rollback-root");
+  RepairTempDirGuard dataDirGuard(dataDir);
+  RepairTempDirGuard backupRootGuard(backupRoot);
+  ASSERT_EQ(taosMulMkDir(dataDir.c_str()), 0);
+  ASSERT_EQ(taosMulMkDir(backupRoot.c_str()), 0);
+
+  const std::string sep(TD_DIRSEP);
+  const std::string walDir = dataDir + sep + "vnode" + sep + "vnode2" + sep + "wal";
+  const std::string walMetaDir = walDir + sep + "meta";
+  ASSERT_EQ(taosMulMkDir(walMetaDir.c_str()), 0);
+
+  auto writeRepairTestFile = [](const std::string &path, const std::string &content) {
+    TdFilePtr pFile = taosOpenFile(path.c_str(), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    ASSERT_NE(pFile, nullptr);
+    ASSERT_EQ(taosWriteFile(pFile, content.c_str(), (int64_t)content.size()), (int64_t)content.size());
+    ASSERT_EQ(taosCloseFile(&pFile), 0);
+  };
+
+  const std::string walFile = walDir + sep + "000001.log";
+  const std::string walMetaFile = walMetaDir + sep + "checkpoint";
+  writeRepairTestFile(walFile, "origin-wal");
+  writeRepairTestFile(walMetaFile, "origin-meta");
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "backup-path", backupRoot.c_str()), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601504LL, &ctx), TSDB_CODE_SUCCESS);
+
+  char backupDir[PATH_MAX] = {0};
+  ASSERT_EQ(tRepairBackupVnodeTarget(&ctx, dataDir.c_str(), 2, backupDir, sizeof(backupDir)), TSDB_CODE_SUCCESS);
+
+  const std::string expectedBackupDir =
+      backupRoot + sep + "repair-1735689601504" + sep + "vnode2" + sep + "wal";
+  ASSERT_STREQ(backupDir, expectedBackupDir.c_str());
+  ASSERT_TRUE(taosDirExist(backupDir));
+
+  const std::string backupWalFile = expectedBackupDir + sep + "000001.log";
+  const std::string backupWalMetaFile = expectedBackupDir + sep + "meta" + sep + "checkpoint";
+  ASSERT_STREQ(readRepairFileContent(backupWalFile.c_str()).c_str(), "origin-wal");
+  ASSERT_STREQ(readRepairFileContent(backupWalMetaFile.c_str()).c_str(), "origin-meta");
+
+  writeRepairTestFile(walFile, "mutated-wal");
+  ASSERT_EQ(taosRemoveFile(walMetaFile.c_str()), 0);
+
+  ASSERT_EQ(tRepairRollbackVnodeTarget(&ctx, dataDir.c_str(), 2), TSDB_CODE_SUCCESS);
+  ASSERT_STREQ(readRepairFileContent(walFile.c_str()).c_str(), "origin-wal");
+  ASSERT_STREQ(readRepairFileContent(walMetaFile.c_str()).c_str(), "origin-meta");
+}
+
+TEST(RepairOptionParseTest, BackupAndRollbackVnodeTargetInvalidArgs) {
+  SRepairCtx ctx = {0};
+  char       backupDir[PATH_MAX] = {0};
+  ASSERT_EQ(tRepairBackupVnodeTarget(NULL, "/tmp", 2, backupDir, sizeof(backupDir)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBackupVnodeTarget(&ctx, "/tmp", 2, backupDir, sizeof(backupDir)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairRollbackVnodeTarget(NULL, "/tmp", 2), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairRollbackVnodeTarget(&ctx, "/tmp", 2), TSDB_CODE_INVALID_PARA);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601505LL, &ctx), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(tRepairBackupVnodeTarget(&ctx, NULL, 2, backupDir, sizeof(backupDir)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBackupVnodeTarget(&ctx, "/tmp", -1, backupDir, sizeof(backupDir)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBackupVnodeTarget(&ctx, "/tmp", 2, NULL, sizeof(backupDir)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBackupVnodeTarget(&ctx, "/tmp", 2, backupDir, 0), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairRollbackVnodeTarget(&ctx, NULL, 2), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairRollbackVnodeTarget(&ctx, "/tmp", -1), TSDB_CODE_INVALID_PARA);
+}
+
 TEST(RepairOptionParseTest, BuildProgressLineAndSummaryLine) {
   SRepairCliArgs cliArgs = {0};
   ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);

@@ -2,8 +2,8 @@
 
 ## 当前检查点
 - 日期：`2026-03-03`
-- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成 `T3.1`（其余任务待执行）。
-- 下一任务：`T3.2`（WAL 修复前备份与失败回滚保护）。
+- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成 `T3.2`（其余任务待执行）。
+- 下一任务：`T3.3`（WAL 修复明细记录：损坏区段、重建 idx 条目数）。
 - 恢复入口：先读 `task_plan.md`，再读 `findings.md`，最后读本文件。
 
 ## 会话日志
@@ -94,6 +94,13 @@
 | 2026-03-03 22:02 | T3.1 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
 | 2026-03-03 22:02 | T3.1 运行验证 | `taosd -o /tmp/taoslog -r --node-type vnode --file-type wal --vnode-id 2 --mode force --backup-path /tmp/td-repair-nonexistent-backup` 退出码 `25`，仍按 precheck fail-fast（未引入回归） |
 | 2026-03-03 22:03 | T3.1 收尾 | 已将 `task_plan.md` 中 `T3.1` 更新为 `completed`，下一入口切换为 `T3.2` |
+| 2026-03-03 14:28 | T3.2 Red 阶段开始 | 已将 `task_plan.md` 中 `T3.2` 置为 `in_progress`，准备新增 WAL 备份与失败回滚保护单测并先验证失败 |
+| 2026-03-03 14:30 | T3.2 Red 验证 | `cmake --build debug -j8 --target commonTest` 失败，报错 `tRepairBackupVnodeTarget/tRepairRollbackVnodeTarget was not declared`，符合先测后码预期 |
+| 2026-03-03 14:32 | T3.2 Green 实现 | `trepair.h/.c` 新增 `tRepairBackupVnodeTarget()` 与 `tRepairRollbackVnodeTarget()`（目录递归备份/回滚）；`dmMain.c` 在 `force+wal` 循环接入“先备份、失败回滚”与日志记录 |
+| 2026-03-03 14:33 | T3.2 单测验证 | `ASAN_OPTIONS=detect_leaks=0 ./debug/build/bin/commonTest --gtest_filter=RepairOptionParseTest.BackupAndRollbackVnodeTarget:RepairOptionParseTest.BackupAndRollbackVnodeTargetInvalidArgs` 通过（2/2） |
+| 2026-03-03 14:33 | T3.2 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
+| 2026-03-03 14:34 | T3.2 运行验证 | `taosd -o /tmp/taoslog -r --node-type vnode --file-type wal --vnode-id 2 --mode force --backup-path /tmp/td-repair-nonexistent-backup` 输出 `failed repair precheck: Invalid parameters`，退出码 `25`，保持 precheck fail-fast |
+| 2026-03-03 14:34 | T3.2 收尾 | 已将 `task_plan.md` 中 `T3.2` 更新为 `completed`，下一入口切换为 `T3.3` |
 
 ## 已落盘文档
 - `task_plan.md`

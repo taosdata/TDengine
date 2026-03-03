@@ -99,6 +99,9 @@ int32_t tRepairBuildVnodeTargetPath(const char *dataDir, int32_t vnodeId, ERepai
 int32_t tRepairPrecheck(const SRepairCtx *pCtx, const char *dataDir, int64_t minDiskAvailBytes);
 int32_t tRepairPrepareBackupDir(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId, char *backupDir,
                                 int32_t backupDirSize);
+int32_t tRepairBackupVnodeTarget(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId, char *backupDir,
+                                 int32_t backupDirSize);
+int32_t tRepairRollbackVnodeTarget(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId);
 int32_t tRepairPrepareSessionFiles(const SRepairCtx *pCtx, const char *dataDir, char *sessionDir,
                                    int32_t sessionDirSize, char *logPath, int32_t logPathSize, char *statePath,
                                    int32_t statePathSize);
