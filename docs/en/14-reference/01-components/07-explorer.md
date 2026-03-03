@@ -129,6 +129,13 @@ cors = true
 #port = 6043
 # Monitor interval in seconds, minimum is 1, maximum is 10
 #interval = 10
+# security configuration
+[security]
+# Enable CAPTCHA for every login.
+# Default is false.
+# You can also set it via environment variable: EXPLORER_SECURITY_LOGIN_CAPTCHA=true
+#
+# login_captcha = false
 ```
 
 Description:
@@ -155,6 +162,7 @@ Description:
 - `monitor.fqdn`: The address of taosKeeper service.
 - `monitor.port`: The port of taosKeeper service, default is `6043`.
 - `monitor.interval`: The time interval for reporting metrics, default is `10` seconds.
+- `security.login_captcha`: Whether to enable CAPTCHA on the login flow. Default is disabled. When enabled, a CAPTCHA is required on every login. You can also enable it via `EXPLORER_SECURITY_LOGIN_CAPTCHA=true`.
 
 ## Start and Stop
 
@@ -235,6 +243,8 @@ sc.exe stop taos-explorer # Windows
 Once installed, open your browser and by default access `http://ip:6060` to visit the taos-explorer service. If you have not registered yet, first enter the registration screen. Enter your mobile number to get a verification code, and after entering the correct verification code, you can register successfully.
 
 When logging in, please use the database username and password. For first-time use, the default username is `root` and the password is `taosdata`. After a successful login, you will enter the `Data Browser` page, where you can use management functions such as viewing databases, creating databases, and creating supertables/subtables.
+
+Optional: admins can enable login CAPTCHA via `security.login_captcha = true`. When enabled, a CAPTCHA is required on every login.
 
 Other feature pages, such as `Data Writing - Data Source` and others, are exclusive to the TSDB-Enterprise. You can click to view and have a simple experience, but they cannot be actually used.
 

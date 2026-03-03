@@ -135,7 +135,8 @@ typedef struct SParseContext {
   SArray*          pSubMetaList;
   setQueryFn       setQueryFp;
   timezone_t       timezone;
-  void            *charsetCxt;
+  void*            charsetCxt;
+  SShowPrivInfo    showPrivInfo;  // privilege info for table filtering in SHOW tables / SELECT * FROM ins_tables
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);

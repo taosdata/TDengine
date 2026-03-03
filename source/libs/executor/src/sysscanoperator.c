@@ -34,6 +34,7 @@
 #include "tcompare.h"
 #include "thash.h"
 #include "trpc.h"
+#include "tsimplehash.h"
 #include "ttypes.h"
 
 typedef int (*__optSysFilter)(void* a, void* b, int16_t dtype);
@@ -51,6 +52,17 @@ typedef struct SSysTableIndex {
   SArray* uids;
   int32_t lastIdx;
 } SSysTableIndex;
+
+// Two-level cache for suid privilege lookup:
+// Level 1: single last-used suid (covers consecutive child tables of same super table)
+// Level 2: 16-slot direct-mapped array (covers interleaved access of multiple super tables)
+// Only on cache miss does the actual hash lookup into pReadUids occur.
+typedef struct SSuidPrivCache {
+  uint64_t suid;
+  bool     allowed;
+} SSuidPrivCache;
+
+#define SUID_CACHE_SLOTS      16
 
 typedef struct SSysTableScanInfo {
   SRetrieveMetaTableRsp* pRsp;
@@ -78,6 +90,9 @@ typedef struct SSysTableScanInfo {
   STableListInfo*        pTableListInfo;
   SReadHandle*           pHandle;
   SStorageAPI*           pAPI;
+  // Table-level read privilege filtering
+  bool       showAllTbls;  // true if user has full access (read+write on db)
+  SSHashObj* pReadUids;    // key is table uid, for fast comparison
 
   // file set iterate
   struct SFileSetReader* pFileSetReader;
@@ -2273,6 +2288,14 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
   char n[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
+  // Check db-level privilege once before the loop since all tables in a vnode belong to the same db
+  bool hasDbPrivilege = pInfo->showAllTbls;
+
+  // Two-level suid privilege cache (only used when !hasDbPrivilege && pReadUids != NULL)
+  SSuidPrivCache suidSlots[SUID_CACHE_SLOTS] = {0};
+  uint64_t       lastSuid = 0;
+  bool           lastSuidAllowed = false;
+
   int32_t ret = 0;
   while ((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_SUPER_TABLE)) == 0) {
     STR_TO_VARSTR(n, pInfo->pCur->mr.me.name);
@@ -2324,6 +2347,27 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
         continue;
       }
 
+      // Table-level read privilege filtering for child tables
+      if (!hasDbPrivilege) {
+        if (suid != lastSuid) {
+          bool     suidAllowed = false;
+          uint64_t slot = ((uint64_t)suid & (SUID_CACHE_SLOTS - 1));
+          if (suidSlots[slot].suid == suid) {
+            suidAllowed = suidSlots[slot].allowed;
+          } else {
+            suidAllowed = (pInfo->pReadUids && tSimpleHashGet(pInfo->pReadUids, &suid, sizeof(int64_t)));
+            suidSlots[slot].suid = suid;
+            suidSlots[slot].allowed = suidAllowed;
+          }
+          lastSuid = suid;
+          lastSuidAllowed = suidAllowed;
+        }
+        if (!lastSuidAllowed) {
+          pAPI->metaReaderFn.clearReader(&mr);
+          continue;
+        }
+      }
+
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -2369,6 +2413,12 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(n, "CHILD_TABLE");
     } else if (tableType == TSDB_NORMAL_TABLE) {
+      if (!hasDbPrivilege) {
+        if (!pInfo->pReadUids || !tSimpleHashGet(pInfo->pReadUids, &pInfo->pCur->mr.me.uid, sizeof(int64_t))) {
+          continue;
+        }
+      }
+
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -2417,6 +2467,12 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(n, "NORMAL_TABLE");
     } else if (tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
+      if (!hasDbPrivilege) {
+        if (!pInfo->pReadUids || !tSimpleHashGet(pInfo->pReadUids, &pInfo->pCur->mr.me.uid, sizeof(int64_t))) {
+          continue;
+        }
+      }
+
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -2477,6 +2533,14 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       if (isTsmaResSTb(mr.me.name)) {
         pAPI->metaReaderFn.clearReader(&mr);
         continue;
+      }
+
+      if (!hasDbPrivilege) {
+        if (!pInfo->pReadUids ||
+            !tSimpleHashGet(pInfo->pReadUids, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t))) {
+          pAPI->metaReaderFn.clearReader(&mr);
+          continue;
+        }
       }
 
       // number of columns
@@ -3521,6 +3585,8 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   QUERY_CHECK_NULL(pInfo->pUser, code, lino, _error, terrno);
   pInfo->sysInfo = pScanPhyNode->sysInfo;
   pInfo->showRewrite = pScanPhyNode->showRewrite;
+  pInfo->showAllTbls = pScanPhyNode->showAllTbls;
+  pInfo->pReadUids = pScanPhyNode->pReadUids;
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
 

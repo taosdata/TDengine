@@ -903,6 +903,25 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pTableScan, pPhyNode);;
 }
 
+static void fillQueryInsTablePrivInfo(SPhysiPlanContext* pCxt, SSystemTableScanPhysiNode* pScan, int32_t vgId) {
+#ifdef TD_ENTERPRISE
+  SShowPrivInfo* pInfo = &pCxt->pPlanCxt->showPrivInfo;
+  if (pScan->showAllTbls || pInfo == NULL || !pInfo->queryInsTbls) {
+    return;
+  }
+  if (pInfo->singleDbQuery) {
+    pScan->pReadUids = pInfo->pReadUids;
+  } else {
+    void* pVgInfo = tSimpleHashGet(pInfo->pVgDbShowHash, &vgId, sizeof(vgId));
+    if (pVgInfo) {
+      SShowPrivTbInfo* pDbVgInfo = *(SShowPrivTbInfo**)pVgInfo;
+      pScan->showAllTbls = pDbVgInfo->showAllTbls;
+      pScan->pReadUids = pDbVgInfo->pReadUids;
+    }
+  }
+#endif
+}
+
 static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan,
                                               SScanLogicNode* pScanLogicNode, SPhysiNode** pPhyNode) {
   SSystemTableScanPhysiNode* pScan = (SSystemTableScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode,
@@ -915,6 +934,8 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   pScan->showRewrite = pScanLogicNode->showRewrite;
   pScan->accountId = pCxt->pPlanCxt->acctId;
   pScan->sysInfo = pCxt->pPlanCxt->sysInfo;
+  pScan->showAllTbls = pCxt->pPlanCxt->showPrivInfo.showAllTbls;
+
   if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TABLES) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TAGS) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_COLS) ||
@@ -923,6 +944,7 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_VC_COLS)) {
     if (pScanLogicNode->pVgroupList) {
       vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
+      fillQueryInsTablePrivInfo(pCxt, pScan, pSubplan->execNode.nodeId);
     }
   } else {
     pSubplan->execNode.nodeId = MNODE_HANDLE;

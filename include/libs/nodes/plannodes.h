@@ -513,9 +513,13 @@ typedef SLastRowScanPhysiNode STableCountScanPhysiNode;
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;
   SEpSet         mgmtEpSet;
-  bool           showRewrite;
   int32_t        accountId;
+  bool           showRewrite;
   bool           sysInfo;
+  // for table privilege filtering (AUTH_TYPE_SHOW)
+  bool       fromMsg;      // true if created from MsgToNode
+  bool       showAllTbls;  // user has db-level privilege, can see all tables
+  SSHashObj* pReadUids;    // key is int64_t (suid or uid), optimized privilege check
 } SSystemTableScanPhysiNode;
 
 typedef struct STableScanPhysiNode {

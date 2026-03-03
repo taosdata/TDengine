@@ -61,8 +61,10 @@ typedef struct SPlanContext {
   bool        streamVtableCalc;
   SNode*      streamTriggerScanSubplan;
   SArray*     pStreamCalcVgArray;
-  ENodeType  streamTriggerWinType;
+  ENodeType   streamTriggerWinType;
   SNodeList*  streamTriggerScanList;
+  // for table privilege filtering (AUTH_TYPE_SHOW)
+  SShowPrivInfo showPrivInfo;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

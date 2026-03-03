@@ -25,6 +25,7 @@
 #include "thash.h"
 #include "tmsg.h"
 #include "tref.h"
+#include "tsimplehash.h"
 
 typedef struct SNodeMemChunk {
   int32_t               availableSize;
@@ -2123,10 +2124,17 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(((SQueryLogicPlan*)pNode)->pTopSubplans);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
-    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN: {
+      SSystemTableScanPhysiNode* pSysScan = (SSystemTableScanPhysiNode*)pNode;
+      destroyScanPhysiNode((SScanPhysiNode*)pNode);
+      if (pSysScan->fromMsg) {
+        tSimpleHashCleanup(pSysScan->pReadUids);
+      }
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN: {
       SVirtualScanPhysiNode* pPhyNode = (SVirtualScanPhysiNode*)pNode;
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
