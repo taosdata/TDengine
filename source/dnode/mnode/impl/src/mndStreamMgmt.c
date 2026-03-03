@@ -1701,7 +1701,7 @@ _exit:
   return code;
 }
 
-static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, int32_t dagIdx, SStmStatus* pInfo, SStreamObj* pStream, SQueryPlan* pRoot, SNodeList** subEP) {
+static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, int32_t dagIdx, SStmStatus* pInfo, SStreamObj* pStream, SQueryPlan** pRoot, SNodeList** subEP) {
   int32_t code = 0;
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
@@ -1718,9 +1718,9 @@ static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, int32_t dagIdx, SStmSta
 
   if (dagIdx >= 0) {
     subQ = true;
-    pDag = (SQueryPlan *)nodesListGetNode(pRoot->pChildren, dagIdx);
+    pDag = (SQueryPlan *)nodesListGetNode((*pRoot)->pChildren, dagIdx);
   } else {
-    pDag = pRoot;
+    pDag = *pRoot;
   }
 
   if (pDag->numOfSubplans <= 0) {
@@ -1863,14 +1863,14 @@ static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, int32_t dagIdx, SStmSta
 
     TAOS_CHECK_EXIT(msmTDAddRunnersToSnodeMap(deployTaskList, pStream));
 
-    nodesDestroyNode((SNode *)pRoot);
-    pRoot = NULL;
+    nodesDestroyNode((SNode *)(*pRoot));
+    *pRoot = NULL;
     
-    TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pRoot));
+    TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)pRoot));
     if (subQ) {
-      pDag = (SQueryPlan *)nodesListGetNode(pRoot->pChildren, dagIdx);
+      pDag = (SQueryPlan *)nodesListGetNode((*pRoot)->pChildren, dagIdx);
     } else {
-      pDag = pRoot;
+      pDag = *pRoot;
     }
 
     mstsDebug("total %d runner tasks added for deploy %d", totalTaskNum, deployId);
@@ -2076,11 +2076,11 @@ static int32_t msmBuildRunnerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStreamO
   }
 
   for (int32_t i = 0; i < LIST_LENGTH(pPlan->pChildren); ++i) {
-    code = msmBuildRunnerTasksImpl(pCtx, i, pInfo, pStream, pPlan, &pSubEP);
+    code = msmBuildRunnerTasksImpl(pCtx, i, pInfo, pStream, &pPlan, &pSubEP);
     TAOS_CHECK_EXIT(code);
   }
 
-  code = msmBuildRunnerTasksImpl(pCtx, -1, pInfo, pStream, pPlan, &pSubEP);
+  code = msmBuildRunnerTasksImpl(pCtx, -1, pInfo, pStream, &pPlan, &pSubEP);
   TAOS_CHECK_EXIT(code);
 
   taosHashClear(mStreamMgmt.toUpdateScanMap);
