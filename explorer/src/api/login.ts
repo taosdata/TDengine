@@ -15,7 +15,7 @@ export function getUrls() {
     }
   });
 }
-export function firstLoginWith(username: string, password: string, sql: string) {
+export function firstLoginWith(username: string, password: string, sql: string, captcha?: string) {
   const xor = new TimeBasedXor(60);
   const encrypted_password = xor.encrypt(password);
   return request({
@@ -26,7 +26,19 @@ export function firstLoginWith(username: string, password: string, sql: string) 
     data: {
       username,
       encrypted_password,
-      sql
+      sql,
+      ...(captcha ? { captcha } : {})
+    }
+  });
+}
+
+export function getLoginOptions() {
+  return request({
+    baseURL: apiPath,
+    url: `/login-options`,
+    method: 'get',
+    headers: {
+      noAuth: true
     }
   });
 }

@@ -51,6 +51,7 @@
                 ref="usernameRef"
                 v-model="dynamicValidateForm.username"
                 :placeholder="$t('login.usernamePlaceholder')"
+                @blur="handleUsernameBlur"
               ></el-input>
             </el-form-item>
           </div>
@@ -79,6 +80,37 @@
       </div>
     </section>
 
+    <el-dialog
+      v-model="captchaVisible"
+      :title="$t('register.imageVerificationCode')"
+      width="400px"
+      center
+      :close-on-click-modal="false"
+    >
+      <el-form ref="captchaFormRef" :model="captchaForm" :rules="captchaRules" @submit.prevent>
+        <el-form-item label="">
+          <el-input
+            ref="captchaRef"
+            v-model="captchaForm.captchaCode"
+            class="captcha-input"
+            autocomplete="off"
+            @keyup.enter="confirmCaptcha(captchaFormRef)"
+          >
+            <template #append>
+              <div class="captcha-img-box">
+                <img height="40px" :src="captchaImageUrl" @click="openCaptchaDialog" />
+              </div>
+            </template>
+          </el-input>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer" style="text-align: right">
+          <el-button type="primary" size="default" @click="confirmCaptcha(captchaFormRef)">{{ $t('confirm') }}</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
     <div v-if="!$IS_OEM" class="copyright">
       <span>{{ $t('login.copyright') }}</span>
     </div>
@@ -90,7 +122,7 @@ import { getLocalLang } from '@/utils/index';
 import { sendSQLReq } from '@/api/explorer';
 import { FormInstance } from 'element-plus';
 import dataJson from './data.json';
-import { getUrls, reportTaosdInfo, firstLoginWith } from '@/api/login';
+import { getUrls, reportTaosdInfo, firstLoginWith, getLoginOptions, fetchCaptcha } from '@/api/login';
 import { getOAuthStatus, oauthAuthorize, oauthBindTsdb, oauthMe } from '@/api/oauth';
 import { encrypt } from '@/utils/index';
 import useLicense from '@/hooks/useLicense';
@@ -116,11 +148,14 @@ const validatePass = (_rule: any, value: string, callback: (arg0?: Error | undef
     callback();
   }
 };
+
 const taosxStatus = ref<boolean>(false);
 const loading = ref<boolean>(false);
 const oauthEnabled = ref<boolean>(false);
 const oauthProviderDisplayName = ref<{ en: string; zh: string }>({ en: 'OAuth', zh: 'OAuth' });
 const oauthBind = ref<boolean>(false);
+
+const loginCaptchaEnabled = ref<boolean>(false);
 // Transient holder for a token (if IdP returns one in the URL). DO NOT persist this
 // value to localStorage — server-side httpOnly session cookies are the source of truth.
 const oauthTokenFromUrl = ref<string | undefined>(undefined);
@@ -129,7 +164,26 @@ const errorMessage = ref('');
 const dynamicValidateForm = reactive({
   cluster: '',
   password: '',
-  username: ''
+  username: '',
+  captcha: ''
+});
+
+const captchaVisible = ref<boolean>(false);
+const captchaImageUrl = ref<string>('');
+const captchaTs = ref<number>();
+const captchaRef = ref<HTMLElement | null>();
+const captchaFormRef = ref<FormInstance>();
+const captchaForm = reactive({
+  captchaCode: ''
+});
+const captchaRules = reactive({
+  captchaCode: [
+    {
+      required: true,
+      message: t('login.captchaTips'),
+      trigger: 'blur'
+    }
+  ]
 });
 const trimmedUsername = computed(() => {
   return dynamicValidateForm.username.trim();
@@ -183,6 +237,16 @@ async function init() {
 init();
 onMounted(async () => {
   usernameRef.value?.focus();
+
+  // Check whether login CAPTCHA is enabled
+  try {
+    const opt: any = await getLoginOptions();
+    if (opt && opt.code === 0 && opt.data && opt.data.captchaEnabled === true) {
+      loginCaptchaEnabled.value = true;
+    }
+  } catch (e) {
+    // ignore and default to disabled
+  }
 
   // Check OAuth status
   try {
@@ -249,10 +313,67 @@ function getOAuthTokenFromURL() {
   }
   return token;
 }
+async function openCaptchaDialog() {
+  if (!loginCaptchaEnabled.value) return;
+
+  const username = trimmedUsername.value;
+  if (!username) {
+    $error(t('login.usernameTips'));
+    return;
+  }
+
+  captchaForm.captchaCode = '';
+  captchaVisible.value = true;
+
+  captchaTs.value = new Date().getTime();
+  const result = await fetchCaptcha(username, captchaTs.value);
+  if (result) {
+    // Release old object URL to avoid leaking memory
+    if (captchaImageUrl.value && captchaImageUrl.value.startsWith('blob:')) {
+      URL.revokeObjectURL(captchaImageUrl.value);
+    }
+    captchaImageUrl.value = URL.createObjectURL(result);
+  }
+
+  nextTick(() => {
+    captchaRef.value?.focus();
+  });
+}
+
+async function confirmCaptcha(formEl: FormInstance | undefined) {
+  if (!formEl) return;
+  formEl.validate(async valid => {
+    if (!valid) return;
+
+    dynamicValidateForm.captcha = captchaForm.captchaCode;
+    captchaVisible.value = false;
+
+    loading.value = true;
+    encryptedPwd.value = encrypt(trimmedPassword.value);
+
+    setTimeout(() => {
+      login();
+    }, 1000);
+  });
+}
+
+function handleUsernameBlur() {
+  if (!loginCaptchaEnabled.value) return;
+  dynamicValidateForm.captcha = '';
+  if (captchaVisible.value) {
+    captchaVisible.value = false;
+  }
+}
+
 function submitForm(formEl: FormInstance | undefined) {
   if (!formEl) return;
-  formEl.validate(valid => {
+  formEl.validate(async valid => {
     if (valid) {
+      if (loginCaptchaEnabled.value) {
+        await openCaptchaDialog();
+        return;
+      }
+
       loading.value = true;
       encryptedPwd.value = encrypt(trimmedPassword.value);
       setTimeout(() => {
@@ -302,8 +423,8 @@ async function oauthBindSubmit() {
     if (res && res.code === 0) {
       ElMessage.success('OAuth account binding successful');
       const sql = 'select server_version()';
-      const bearerToken = urlToken ? `Bearer ${urlToken}` : null;
-      const res = await firstLoginWith(bearerToken, sql);
+      const captcha = loginCaptchaEnabled.value ? (dynamicValidateForm.captcha || '').trim() : undefined;
+      const res: any = await firstLoginWith(trimmedUsername.value, trimmedPassword.value, sql, captcha);
 
       if (res && res.code == 0 && !res.desc) {
         const server_version = res.data[0][0];
@@ -352,7 +473,8 @@ async function basicAuthLogin() {
   // Use session-based authentication instead of cookie-based token
   try {
     const sql = 'select server_version()';
-    const res = await firstLoginWith(trimmedUsername.value, trimmedPassword.value, sql);
+    const captcha = loginCaptchaEnabled.value ? (dynamicValidateForm.captcha || '').trim() : undefined;
+    const res: any = await firstLoginWith(trimmedUsername.value, trimmedPassword.value, sql, captcha);
 
     if (res && res.code == 0 && !res.desc) {
       // Store token in memory for the initial request only
@@ -394,6 +516,13 @@ async function basicAuthLogin() {
       }
     } else {
       loading.value = false;
+      if (res && (res.desc === 'captchaRequired' || res.desc === 'captchaInputError')) {
+        $error(t(`login.${res.desc}`));
+        dynamicValidateForm.captcha = '';
+        captchaForm.captchaCode = '';
+        await openCaptchaDialog();
+        return;
+      }
       if (res && res.code == 11) {
         $error(t('login.servTaosdTip'));
       } else {

@@ -499,6 +499,7 @@ async fn main() -> anyhow::Result<()> {
             // ====== x apis end =====
             .route("/grafana/{grafana_path:.*}", web::to(grafana_api))
             .route("/api/-/login", web::to(login))
+            .route("/api/-/login-options", web::get().to(login_options))
             .route("/api/-/oauth/me", web::get().to(oauth::handlers::oauth_me))
             .route("/api/-/me", web::get().to(oauth::handlers::oauth_me))
             .route(
@@ -892,12 +893,19 @@ struct TaosdInfoBody {
 
 #[instrument(skip_all)]
 async fn generate_captcha_image(params: web::Query<VerificationReqBody>) -> impl Responder {
-    let captcha_key = format!("captcha-{}", params.phone_email.as_ref().unwrap());
+    let phone_email = params.phone_email.as_deref().unwrap_or("").trim();
+    if phone_email.is_empty() {
+        return HttpResponse::BadRequest().json(RestErrResponse::new("phone_email is required"));
+    }
+
+    let captcha_key = format!("captcha-{phone_email}");
     let img = verification::generate_captcha(captcha_key);
 
-    HttpResponse::Ok()
-        .content_type("image/png")
-        .body(img.unwrap())
+    match img {
+        Some(img) => HttpResponse::Ok().content_type("image/png").body(img),
+        None => HttpResponse::InternalServerError()
+            .json(RestErrResponse::new("Failed to generate captcha")),
+    }
 }
 
 // phone_email=18600000000&captcha=1234
@@ -1249,6 +1257,21 @@ async fn modify_password(
 struct LoginBody {
     username: String,
     encrypted_password: String,
+    #[serde(default)]
+    captcha: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LoginOptions {
+    captcha_enabled: bool,
+}
+
+#[instrument(skip_all)]
+async fn login_options(args: web::Data<Args>) -> impl Responder {
+    HttpResponse::Ok().json(R::success(LoginOptions {
+        captcha_enabled: args.security.login_captcha_enabled(),
+    }))
 }
 
 #[instrument(skip_all)]
@@ -1261,13 +1284,31 @@ async fn login(
 ) -> impl Responder {
     let xor_decoder = TimeBasedXor::new(args.security.xor_allowed_duration_secs());
     let body = body.into_inner();
+
+    let username = body.username.trim().to_string();
+
+    if args.security.login_captcha_enabled() {
+        let captcha = body.captcha.as_deref().unwrap_or("").trim();
+        if captcha.is_empty() {
+            return HttpResponse::Unauthorized().json(RestErrResponse::new("captchaRequired"));
+        }
+
+        // Reuse the same captcha key format as the registration flow (/api/-/captcha).
+        // That endpoint uses: key = format!("captcha-{}", phone_email)
+        let captcha_key = format!("captcha-{username}");
+        let captcha_check_result = verification::check_security_code(&captcha_key, captcha);
+        if captcha_check_result != "pass" {
+            return HttpResponse::Unauthorized().json(RestErrResponse::new("captchaInputError"));
+        }
+    }
+
     let password = if let Ok(password) = xor_decoder.decrypt(&body.encrypted_password) {
         password
     } else {
-        tracing::warn!("Invalid login: {}", body.username);
+        tracing::warn!("Invalid login: {}", username);
         return HttpResponse::Unauthorized().json(RestErrResponse::new("Invalid password"));
     };
-    let auth = TsdbCredential::basic(body.username, password);
+    let auth = TsdbCredential::basic(username, password);
 
     let tz = query.get("tz");
     let sql = "select server_version()";
