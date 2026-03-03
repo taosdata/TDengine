@@ -1104,16 +1104,16 @@ int32_t doGetValueFromBseBySeq(void* arg, uint8_t* pKey, int32_t keyLen, uint8_t
   int32_t  code = 0;
   int32_t  lino = 0;
   uint64_t seq = 0;
-  if (arg == NULL) {
+  if (arg == NULL || pKey == NULL || pValue == NULL || len == NULL) {
     tsdbError("failed to get value from bse by seq since %s", tstrerror(TSDB_CODE_INVALID_PARA));
     return TSDB_CODE_INVALID_PARA;
   }
 
-  if (keyLen <= 0) {
-    *len = 0; 
-    return code;
+  if (keyLen < (int32_t)sizeof(uint64_t)) {
+    tsdbError("failed to get value from bse by seq since %s", tstrerror(TSDB_CODE_INVALID_PARA));
+    return TSDB_CODE_INVALID_PARA;
   } else {
-    int32_t unusedRet = tGetU64(pKey, &seq);
+    (void)tGetU64(pKey, &seq);
   }
  
   if (seq == 0) {
