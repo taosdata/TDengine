@@ -139,12 +139,24 @@ static void* backDataThread(void *arg) {
     logInfo("data thread %d started for %s.%s (offset=%d, limit=%d)", 
             thread->index, thread->dbInfo->dbName, thread->stbInfo->stbName, thread->offset, thread->limit);
 
-    char sql[512] = {0};
-    snprintf(sql, sizeof(sql), "select DISTINCT tbname from `%s`.`%s` ORDER BY tbname LIMIT %d OFFSET %d;",
-             thread->dbInfo->dbName,
-             thread->stbInfo->stbName,
-             thread->limit,
-             thread->offset);
+    char sql[8192] = {0};
+    if (argSpecTables()) {
+        // filter to only the requested tables
+        char inClause[7800] = "";
+        argBuildInClause("tbname", inClause, sizeof(inClause));
+        snprintf(sql, sizeof(sql), "select DISTINCT tbname from `%s`.`%s` WHERE %s ORDER BY tbname LIMIT %d OFFSET %d;",
+                 thread->dbInfo->dbName,
+                 thread->stbInfo->stbName,
+                 inClause,
+                 thread->limit,
+                 thread->offset);
+    } else {
+        snprintf(sql, sizeof(sql), "select DISTINCT tbname from `%s`.`%s` ORDER BY tbname LIMIT %d OFFSET %d;",
+                 thread->dbInfo->dbName,
+                 thread->stbInfo->stbName,
+                 thread->limit,
+                 thread->offset);
+    }
     
     // query child table names
     TAOS* conn = getConnection();
@@ -234,8 +246,14 @@ DataThread * splitTaskData(StbInfo *stbInfo, int *code, int *outCount) {
     const char* stbName = stbInfo->stbName;
 
     // query table count
-    char sql[512] = {0};
-    snprintf(sql, sizeof(sql), "select count(*) from information_schema.ins_tables where db_name='%s' and stable_name='%s';", dbName, stbName);
+    char sql[8192] = {0};
+    char specFilter[4096] = "";
+    if (argSpecTables()) {
+        char inClause[3800] = "";
+        argBuildInClause("table_name", inClause, sizeof(inClause));
+        snprintf(specFilter, sizeof(specFilter), " AND %s", inClause);
+    }
+    snprintf(sql, sizeof(sql), "select count(*) from information_schema.ins_tables where db_name='%s' and stable_name='%s'%s;", dbName, stbName, specFilter);
     int32_t tableCnt = 0;
     *code = queryValueInt(sql, 0, &tableCnt);
     if (*code != TSDB_CODE_SUCCESS) {

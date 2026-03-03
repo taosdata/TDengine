@@ -82,13 +82,21 @@ static void* backTagThread(void *arg) {
         thread->code = TSDB_CODE_BCK_MALLOC_FAILED;
         return NULL;
     }
+    // build WHERE clause for specific tables if requested
+    char whereClause[4096] = "";
+    if (argSpecTables()) {
+        char inClause[3800] = "";
+        argBuildInClause("tbname", inClause, sizeof(inClause));
+        snprintf(whereClause, sizeof(whereClause), "WHERE %s ", inClause);
+    }
     snprintf(sql, TSDB_MAX_SQL_LEN, 
              "SELECT DISTINCT tbname,%s FROM `%s`.`%s` "
-             "ORDER BY tbname "
+             "%sORDER BY tbname "
              "LIMIT %d OFFSET %d;",
              thread->stbInfo->selectTags,
              thread->dbInfo->dbName,
              thread->stbInfo->stbName,
+             whereClause,
              thread->limit,
              thread->offset);
     logDebug("backing up tags for thread %d: %s", thread->index, sql);         
@@ -124,8 +132,14 @@ TagThread * splitTaskTag(DBInfo *dbInfo, StbInfo *stbInfo, int *code, int *outCo
     const char* dbName = dbInfo->dbName;
     const char* stbName = stbInfo->stbName;
 
-    char sql[512] = {0};
-    snprintf(sql, sizeof(sql), "select count(*) from information_schema.ins_tables where db_name='%s' and stable_name='%s';", dbName, stbName);
+    char sql[8192] = {0};
+    char specFilter[4096] = "";
+    if (argSpecTables()) {
+        char inClause[3800] = "";
+        argBuildInClause("table_name", inClause, sizeof(inClause));
+        snprintf(specFilter, sizeof(specFilter), " AND %s", inClause);
+    }
+    snprintf(sql, sizeof(sql), "select count(*) from information_schema.ins_tables where db_name='%s' and stable_name='%s'%s;", dbName, stbName, specFilter);
     int tableCnt = 0;
     
     // query table count

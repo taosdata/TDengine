@@ -99,4 +99,16 @@ const char* argRenameDb(const char *oldName);
 // rename raw string (for display), NULL if not set
 const char* argRenameList();
 
+// positional args: taosBackup [OPTIONS] dbname [tbname ...]
+// argSpecDb() returns the positional database name, or NULL if not given
+const char*  argSpecDb();
+// argSpecTables() returns NULL-terminated array of table names, or NULL if none
+char**       argSpecTables();
+// count of tables in argSpecTables
+int          argSpecTablesCount();
+// build SQL IN clause: e.g. "tbname IN ('d1','d2')" into buf
+// colName: column name to use (e.g. "tbname" or "table_name")
+// returns chars written, 0 if no spec tables
+int          argBuildInClause(const char *colName, char *buf, int bufLen);
+
 #endif  // INC_BACKARGS_H_

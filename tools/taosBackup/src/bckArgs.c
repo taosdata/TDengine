@@ -49,16 +49,23 @@ static char *g_renameNew[MAX_RENAME];
 static int   g_renameCount = 0;
 static char  g_renameRaw[1024] = "";
 
+// positional args: dbname [tbname ...]
+#define MAX_SPEC_TABLES 1000
+static char  g_specDb[TSDB_DB_NAME_LEN] = "";
+static char *g_specTables[MAX_SPEC_TABLES + 1] = {NULL};
+static int   g_specTableCount = 0;
+
 //
 // ---------------- usage ----------------
 //
 
 static void printVersion() {
-    printf("taosBackup version: v1.0\n");
+    printf("taosBackup version: v1.1\n");
 }
 
 static void printUsage(const char *prog) {
-    printf("Usage: %s [OPTION...] -o outpath\n", prog);
+    printf("Usage: %s [OPTION...] dbname [tbname ...] -o outpath\n", prog);
+    printf("  or:  %s [OPTION...] -o outpath\n", prog);
     printf("  or:  %s [OPTION...] -i inpath\n", prog);
     printf("  or:  %s [OPTION...] --databases db1,db2,...\n", prog);
     printf("\nOptions:\n");
@@ -319,6 +326,22 @@ int argsInit(int argc, char *argv[]) {
             printUsage(argv[0]);
             exit(0);
         }
+        // ---- positional args: dbname [tbname ...] ----
+        else if (argv[i][0] != '-') {
+            if (g_specDb[0] == '\0') {
+                // first positional arg = database name
+                snprintf(g_specDb, sizeof(g_specDb), "%s", argv[i]);
+            } else if (g_specTableCount < MAX_SPEC_TABLES) {
+                // subsequent positional args = table names
+                g_specTables[g_specTableCount] = taosStrdup(argv[i]);
+                if (g_specTables[g_specTableCount] == NULL) {
+                    printf("error: out of memory\n");
+                    return -1;
+                }
+                g_specTableCount++;
+                g_specTables[g_specTableCount] = NULL;
+            }
+        }
         else {
             printf("unknown option: %s\n", argv[i]);
             printUsage(argv[0]);
@@ -333,6 +356,17 @@ int argsInit(int argc, char *argv[]) {
         return -1;
     }
 
+    // if positional dbname specified, override -D databases list
+    if (g_specDb[0] != '\0') {
+        for (int i = 0; i < g_dbCount; i++) {
+            taosMemoryFree(g_dbs[i]);
+            g_dbs[i] = NULL;
+        }
+        g_dbCount = 1;
+        g_dbs[0] = taosStrdup(g_specDb);
+        g_dbs[1] = NULL;
+    }
+
     // print summary
     printf("Action: %s\n", g_action == ACTION_BACKUP ? "backup" : "restore");
     printf("Host: %s, Port: %d, User: %s\n", g_host, g_port, g_user);
@@ -345,6 +379,19 @@ int argsInit(int argc, char *argv[]) {
             printf(" %s", g_dbs[i]);
         }
         printf("\n");
+    }
+    // show positional spec info
+    if (g_specDb[0] != '\0') {
+        if (g_specTableCount > 0) {
+            printf("SpecDatabase: %s\n", g_specDb);
+            printf("SpecTables(%d):", g_specTableCount);
+            for (int i = 0; i < g_specTableCount; i++) {
+                printf(" %s", g_specTables[i]);
+            }
+            printf("\n");
+        } else {
+            printf("SpecDatabase: %s (all tables)\n", g_specDb);
+        }
     }
     printf("DataThreads: %d, TagThreads: %d\n", g_dataThread, g_tagThread);
     printf("Format: %s\n", g_storageFormat == BINARY_TAOS ? "binary" : "parquet");
@@ -404,6 +451,12 @@ void argsDestroy() {
         g_renameNew[i] = NULL;
     }
     g_renameCount = 0;
+    for (int i = 0; i < g_specTableCount; i++) {
+        taosMemoryFree(g_specTables[i]);
+        g_specTables[i] = NULL;
+    }
+    g_specTableCount = 0;
+    g_specDb[0] = '\0';
 }
 
 
@@ -489,4 +542,35 @@ const char* argRenameList() {
 
 StmtVersion argStmtVersion() {
     return g_stmtVersion;
+}
+
+// positional spec: dbname [tbname ...]
+const char* argSpecDb() {
+    return g_specDb[0] ? g_specDb : NULL;
+}
+
+char** argSpecTables() {
+    return g_specTableCount > 0 ? g_specTables : NULL;
+}
+
+int argSpecTablesCount() {
+    return g_specTableCount;
+}
+
+//
+// Build SQL IN clause fragment for spec tables.
+// e.g. argBuildInClause("table_name", buf, len) -> "table_name IN ('d1','d2')"
+// Returns number of chars written, or 0 if no spec tables.
+//
+int argBuildInClause(const char *colName, char *buf, int bufLen) {
+    char **specTables = argSpecTables();
+    if (!specTables || !specTables[0]) return 0;
+
+    int off = snprintf(buf, bufLen, "%s IN (", colName);
+    for (int i = 0; specTables[i] != NULL; i++) {
+        if (i > 0) off += snprintf(buf + off, bufLen - off, ",");
+        off += snprintf(buf + off, bufLen - off, "'%s'", specTables[i]);
+    }
+    off += snprintf(buf + off, bufLen - off, ")");
+    return off;
 }

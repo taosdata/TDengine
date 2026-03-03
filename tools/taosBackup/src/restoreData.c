@@ -124,6 +124,12 @@ static void freeRestoreCheckpoint() {
 // -------------------------------------- STMT UTIL -----------------------------------------
 //
 
+// Maximum rows per STMT2 bind_param call.
+// taos_stmt2_bind_param enforces bind->num <= INT16_MAX (32767); we use a
+// comfortable margin below that limit so normal TDengine block sizes (≤4096
+// rows) always fit in one accumulation round.
+#define STMT2_MAX_ROWS_PER_BATCH  16384
+
 //
 // ----------------------------- STMT2 RESTORE CONTEXT ---------------------------------
 //
@@ -620,9 +626,12 @@ static void stmt2FreeColBuffers(Stmt2RestoreCtx *ctx) {
 //
 static int stmt2AllocColBuffers(Stmt2RestoreCtx *ctx, int64_t numRows,
                                 int numCols, FieldInfo *fieldInfos) {
+    /* clamp requested row count so we never exceed the STMT2 API limit */
+    int64_t targetCap = (numRows < STMT2_MAX_ROWS_PER_BATCH) ? numRows : STMT2_MAX_ROWS_PER_BATCH;
+
     bool needAlloc = (ctx->colBinds == NULL ||
                       ctx->colBindsCap < numCols ||
-                      ctx->rowBufCap  < numRows);
+                      ctx->rowBufCap  < targetCap);
     if (!needAlloc) {
         ctx->accRows   = 0;
         ctx->numFields = numCols;
@@ -637,7 +646,7 @@ static int stmt2AllocColBuffers(Stmt2RestoreCtx *ctx, int64_t numRows,
         ctx->colBinds = NULL;
     }
 
-    int64_t cap = numRows + 64;  /* small headroom to avoid realloc on micro differences */
+    int64_t cap = targetCap;  /* already clamped to STMT2_MAX_ROWS_PER_BATCH */
     ctx->colBinds = (TAOS_STMT2_BIND *)taosMemoryCalloc(numCols, sizeof(TAOS_STMT2_BIND));
     if (!ctx->colBinds) return TSDB_CODE_BCK_MALLOC_FAILED;
 
@@ -734,12 +743,24 @@ static bool stmt2ResetOnError(Stmt2RestoreCtx *ctx) {
     return true;   /* caller will retry prepare on next file */
 }
 
+/* forward declaration: stmt2AccBlock calls stmt2FlushBatch (defined below) */
+static int stmt2FlushBatch(Stmt2RestoreCtx *ctx);
+
 //
 // Accumulate one raw block into the per-column stride buffers.
 // Called per data block by dataBlockCallbackV2.
 //
 static int stmt2AccBlock(Stmt2RestoreCtx *ctx, void *blockData, int32_t blockRows,
                          FieldInfo *fieldInfos, int numFields) {
+    /* Flush the current batch if this block would overflow the row buffer.
+     * After flushing, accRows resets to 0 so the buffer is safe to reuse.
+     * A single TDengine block is always ≤ MAXROWS (4096) rows which is well
+     * below STMT2_MAX_ROWS_PER_BATCH (16384), so one flush is always enough. */
+    if (ctx->accRows + blockRows > ctx->rowBufCap) {
+        int flushCode = stmt2FlushBatch(ctx);
+        if (flushCode != TSDB_CODE_SUCCESS) return flushCode;
+    }
+
     BlockReader reader;
     int code = initBlockReader(&reader, blockData);
     if (code != TSDB_CODE_SUCCESS) return code;
@@ -821,9 +842,10 @@ static int dataBlockCallbackV2(void *userData, FieldInfo *fieldInfos,
 }
 
 //
-// Execute the accumulated rows for the current file using STMT2.
+// Bind the currently accumulated rows and execute, then reset accRows to 0.
+// Called both mid-accumulation (overflow guard) and at end-of-file.
 //
-static int stmt2ExecFile(Stmt2RestoreCtx *ctx) {
+static int stmt2FlushBatch(Stmt2RestoreCtx *ctx) {
     if (ctx->accRows == 0) return TSDB_CODE_SUCCESS;
 
     /* set row count on each column */
@@ -858,6 +880,14 @@ static int stmt2ExecFile(Stmt2RestoreCtx *ctx) {
     ctx->totalRows += affectedRows;
     ctx->accRows    = 0;
     return TSDB_CODE_SUCCESS;
+}
+
+//
+// Execute the accumulated rows for the current file using STMT2.
+// Delegates to stmt2FlushBatch which also handles mid-file overflow flushes.
+//
+static int stmt2ExecFile(Stmt2RestoreCtx *ctx) {
+    return stmt2FlushBatch(ctx);
 }
 
 //
@@ -1227,6 +1257,10 @@ static void* restoreDataThread(void *arg) {
         pthread_mutex_unlock(&g_ckptMutex);
     }
     taosMemoryFree(ckptBuf);
+
+    /* accumulate per-thread row counts into global stats */
+    atomic_add_fetch_64(&g_stats.totalRows, s2Ctx.totalRows);
+    atomic_add_fetch_64(&g_stats.totalRows, bCtx.totalRows);
 
     /* ----- cleanup ----- */
     /* STMT2 */
