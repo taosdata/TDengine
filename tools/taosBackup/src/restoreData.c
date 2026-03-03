@@ -29,9 +29,11 @@ static pthread_mutex_t g_ckptMutex = PTHREAD_MUTEX_INITIALIZER;
 static char  g_ckptPath[MAX_PATH_LEN] = "";
 static char **g_ckptDone = NULL;   // loaded completed file paths
 static int   g_ckptCount = 0;
+static bool  g_ckptEnabled = true;  // false when output dir is read-only
 
 static void loadRestoreCheckpoint(const char *dbName) {
     snprintf(g_ckptPath, sizeof(g_ckptPath), "%s/%s/restore_checkpoint.txt", argOutPath(), dbName);
+    g_ckptEnabled = true;
 
     // free previous
     if (g_ckptDone) {
@@ -39,6 +41,21 @@ static void loadRestoreCheckpoint(const char *dbName) {
         taosMemoryFree(g_ckptDone);
         g_ckptDone = NULL;
         g_ckptCount = 0;
+    }
+
+    // Probe write access first. If the output directory is read-only we cannot
+    // save progress — disable checkpoint entirely and treat as a fresh start.
+    {
+        TdFilePtr wfp = taosOpenFile(g_ckptPath, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_APPEND);
+        if (wfp) {
+            taosCloseFile(&wfp);
+            // file was created/opened successfully; it may now be empty (0 bytes) which
+            // is fine — the read below will just find no entries.
+        } else {
+            logInfo("restore checkpoint disabled: cannot write to %s (read-only directory), restoring without checkpoint", g_ckptPath);
+            g_ckptEnabled = false;
+            return;  // skip loading — no checkpoint entries, start fresh
+        }
     }
 
     // read entire checkpoint file
@@ -100,6 +117,7 @@ static bool isRestoreDone(const char *filePath) {
 }
 
 static void saveRestoreCheckpoint(const char *filePath) {
+    if (!g_ckptEnabled) return;
     pthread_mutex_lock(&g_ckptMutex);
     TdFilePtr fp = taosOpenFile(g_ckptPath, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_APPEND);
     if (fp) {
@@ -117,6 +135,15 @@ static void freeRestoreCheckpoint() {
         taosMemoryFree(g_ckptDone);
         g_ckptDone = NULL;
         g_ckptCount = 0;
+    }
+}
+
+// Delete the checkpoint file after a fully successful restore so that the
+// next restore run always starts fresh instead of skipping everything.
+static void deleteRestoreCheckpoint() {
+    if (g_ckptEnabled && g_ckptPath[0] != '\0') {
+        remove(g_ckptPath);
+        logInfo("deleted restore checkpoint: %s", g_ckptPath);
     }
 }
 
@@ -1242,7 +1269,7 @@ static void* restoreDataThread(void *arg) {
     }
 
     /* ----- flush buffered checkpoints in one batch ----- */
-    if (ckptBuf && ckptCount > 0) {
+    if (g_ckptEnabled && ckptBuf && ckptCount > 0) {
         pthread_mutex_lock(&g_ckptMutex);
         TdFilePtr fp = taosOpenFile(g_ckptPath,
                                     TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_APPEND);
@@ -1611,6 +1638,8 @@ int restoreDatabaseData(const char *dbName) {
             freeRestoreCheckpoint();
             return stbCode;
         }
+        // No STBs found — nothing to restore; clean up checkpoint.
+        deleteRestoreCheckpoint();
         stbChangeMapDestroy(&changeMap);
         freeRestoreCheckpoint();
         return TSDB_CODE_SUCCESS;
@@ -1656,7 +1685,10 @@ int restoreDatabaseData(const char *dbName) {
         freeRestoreCheckpoint();
         return code;
     }
-    
+
+    // All data restored successfully.  Delete the checkpoint file so that
+    // the next restore run always starts fresh instead of skipping everything.
+    deleteRestoreCheckpoint();
     stbChangeMapDestroy(&changeMap);
     freeRestoreCheckpoint();
     return code;

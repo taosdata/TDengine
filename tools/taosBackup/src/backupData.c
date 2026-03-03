@@ -17,6 +17,19 @@
 
 volatile int64_t g_backDataFiles = 0;
 
+// When true the current backup session is resuming an interrupted previous run;
+// existing .dat files are skipped (resume mode).  When false this is a fresh
+// run and every table is backed up regardless of whether a .dat file already
+// exists from a previous completed run.
+static bool g_backResumeMode = false;
+
+// Build the path of the per-database "backup complete" sentinel file.
+// The file is created when a database backup finishes successfully and
+// deleted at the start of the next run so the next run knows to start fresh.
+static void backCompleteFlagPath(const char *dbName, char *buf, int bufsz) {
+    snprintf(buf, bufsz, "%s/%s/backup_complete.flag", argOutPath(), dbName);
+}
+
 //
 // -------------------------------------- UTIL -----------------------------------------
 //
@@ -82,8 +95,10 @@ int backChildTableData(DataThread* thread, const char *childTableName) {
     // global file count
     atomic_add_fetch_64(&g_backDataFiles, 1);
 
-    // skip if already completed (resume support)
-    if (taosCheckExistFile(pathFile)) {
+    // Skip if already backed up, but only in resume mode (interruped previous
+    // run).  In a fresh run (after a successful previous run) we always
+    // overwrite so the backup reflects the current database state.
+    if (g_backResumeMode && taosCheckExistFile(pathFile)) {
         logDebug("skip already backed up: %s", childTableName);
         atomic_add_fetch_64(&g_stats.dataFilesSkipped, 1);
         atomic_add_fetch_64(&g_stats.dataFilesTotal, 1);
@@ -384,8 +399,8 @@ static int backNormalOneTable(DataThread* thread, const char *tableName) {
 
     atomic_add_fetch_64(&g_backDataFiles, 1);
 
-    // skip if already completed (resume support)
-    if (taosCheckExistFile(pathFile)) {
+    // Skip only when resuming an interrupted run (see g_backResumeMode).
+    if (g_backResumeMode && taosCheckExistFile(pathFile)) {
         logDebug("skip already backed up normal table: %s.%s", dbName, tableName);
         atomic_add_fetch_64(&g_stats.dataFilesSkipped, 1);
         atomic_add_fetch_64(&g_stats.dataFilesTotal, 1);
@@ -578,6 +593,22 @@ int backDatabaseData(DBInfo *dbInfo) {
     int code = TSDB_CODE_FAILED;
     const char *dbName = dbInfo->dbName;
 
+    // Determine whether this is a fresh run or a resume of an interrupted run.
+    //   - backup_complete.flag exists  → previous run finished successfully;
+    //     delete the flag and run fresh (overwrite existing .dat files).
+    //   - flag absent                  → previous run was interrupted;
+    //     keep existing .dat files and resume from where we left off.
+    char completeFlagPath[MAX_PATH_LEN];
+    backCompleteFlagPath(dbName, completeFlagPath, sizeof(completeFlagPath));
+    if (taosCheckExistFile(completeFlagPath)) {
+        remove(completeFlagPath);
+        g_backResumeMode = false;
+        logInfo("backup db %s: previous run completed, starting fresh", dbName);
+    } else {
+        g_backResumeMode = true;
+        logInfo("backup db %s: no complete flag found, resume mode (skipping existing files)", dbName);
+    }
+
     //
     // super tables
     // 
@@ -607,6 +638,18 @@ int backDatabaseData(DBInfo *dbInfo) {
     code = backNormalTableData(dbInfo);
     if (code != TSDB_CODE_SUCCESS) {
         return code;
+    }
+
+    // Backup succeeded — write the complete flag so the next run knows to start
+    // fresh (overwrite) rather than skip existing files.
+    if (code == TSDB_CODE_SUCCESS) {
+        TdFilePtr fp = taosOpenFile(completeFlagPath, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+        if (fp) {
+            taosCloseFile(&fp);
+            logInfo("backup db %s: complete flag written (%s)", dbName, completeFlagPath);
+        } else {
+            logWarn("backup db %s: failed to write complete flag", dbName);
+        }
     }
 
     return code;
