@@ -667,6 +667,129 @@ SELECT col1, (SELECT sum(col1) FROM tb1) FROM tb2;
 SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
 ```
 
+## 子查询表达式
+
+从 3.4.1.0 版本开始，TDengine TSDB 开始支持下列子查询表达式，其中的子查询仅限非相关子查询，目前只支持在查询语句中使用，流计算、订阅、DDL（数据定义语言）、DML（数据操纵语言）语句中暂不支持。
+
+### IN 子查询
+
+ IN 运算符与子查询组合使用，子查询结果作为 IN 运算符的匹配列表，实现灵活的多值查询逻辑，满足复杂数据筛选场景需求。其中的子查询只能输出单列数据，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- WHERE 子句基础用法
+select col1 from tb2 where col1 in (select col1 from tb1 where f2 > 10);
+
+-- JOIN 关联条件中使用
+select a.ts from tb1 a 
+join tb2 b on a.ts = b.ts and a.f1 in (select col1 from tb1 union select col1 from tb2);
+
+-- CASE 表达式中使用
+select case when f1 in (select f2 from tb1) then 0 else 1 end from tb1;
+```
+
+### NOT IN 子查询
+
+NOT IN 运算符与子查询的组合使用，判断表达式的值是否与子查询返回的所有结果都不相等，实现反向多值筛选逻辑，满足复杂数据过滤场景需求。其中的子查询只能输出单列数据，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- WHERE 子句基础用法
+select col1 from tb2 where col1 not in (select col1 from tb1 where f2 < 100);
+
+-- HAVING 子句中使用
+select avg(f1) from tb1 
+group by f1 having f1 not in (select f1 from tb2 interval(10s));
+
+-- JOIN 关联条件中使用
+select a.ts, b.val from tb1 a
+join tb2 b on a.ts = b.ts and a.f2 not in (select col2 from tb3 where ts > '2026-01-01');
+```
+
+### ALL 子查询
+
+ALL 运算符与子查询的组合使用，ALL 需与比较运算符（=、>、<、>=、<=、<>）结合，判断表达式是否满足子查询返回的所有结果。其中的子查询只能输出单列数据，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- 大于子查询所有结果
+select col1, col2 from tb1 where col1 > ALL (select f1 from tb2 where f2 > 10);
+
+-- 不等于子查询所有结果
+select col1 from tb1 where col1 <> ALL (select avg(f1) from tb2 group by f2);
+
+-- HAVING 子句中使用
+select sum(f1) from tb1 
+group by f1 having max(f2) <= ALL (select col3 from tb3 interval(1s));
+```
+
+### ANY 子查询
+
+ANY 运算符与子查询的组合使用，ANY 需与比较运算符（=、>、<、>=、<=、<>）结合，判断表达式是否满足子查询返回的任意一个结果，实现多值条件匹配。其中的子查询只能输出单列数据，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- 小于子查询任意一个结果
+select a.ts, b.val from tb1 a 
+join tb2 b on a.ts = b.ts and a.f1 < ANY (select col1 from tb3 union select col1 from tb4);
+
+-- INSERT INTO SELECT 中使用
+insert into tb6 (ts, val) 
+select ts, f1 from tb1 where f1 = ANY (select col1 from tb7 where ts > '2026-01-01 00:00:00');
+
+-- CASE 表达式中使用
+select case when f2 >= ANY (select f3 from tb8) then 'high' else 'low' end from tb1;
+```
+
+### SOME 子查询
+
+SOME 运算符与子查询的组合使用，SOME 与 ANY 功能完全等价，需与比较运算符（=、>、<、>=、<=、<>）结合，判断表达式是否满足子查询返回的任意一个结果。其中的子查询只能输出单列数据，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- HAVING 子句中使用
+select avg(f1) from tb1 
+group by f1 having sum(f2) >= SOME (select f3 from tb2 interval(1s));
+
+-- SELECT 列表中使用
+select col1, f2 > SOME (select f1 from tb3) as flag from tb1;
+
+-- WHERE 子句基础用法
+select col1 from tb1 where f3 = SOME (select col2 from tb4 where f4 < 50);
+```
+
+### EXISTS 子查询
+
+EXISTS 运算符与子查询的组合使用，EXISTS 仅判断子查询是否返回至少一行数据，不关注返回数据具体内容。其中的子查询无列数限制，可支持任意满足逻辑要求的查询语句（含嵌套查询）。
+
+```sql
+-- CASE 表达式中使用
+select case when exists (select 1 from tb2 where tb2.col1 = tb1.col1) 
+           then 'exist' else 'not exist' end as status from tb1;
+
+-- UNION 中组合使用
+select col1 from tb1 where exists (select 1 from tb4) 
+union 
+select col2 from tb2 where exists (select 1 from tb5 where f2 > 0);
+
+-- WHERE 子句基础用法
+select col1 from tb1 where exists (select * from tb3 where f3 = tb1.f1);
+```
+
+### NOT EXISTS 子查询
+
+NOT EXISTS 运算符与子查询的组合使用，NOT EXISTS 与 EXISTS 逻辑相反，判断子查询是否无数据返回。其中的子查询无列数限制，可支持任意满足逻辑要求的查询语句（含嵌套查询）。
+
+```sql
+-- SELECT 列表中使用
+select col1, not exists (select f1 from tb3 where f1 = tb1.col1) as flag from tb1;
+
+-- WHERE 子句中使用
+select col1 from tb1 
+where not exists (select 1 from tb2 where f2 between 10 and 20);
+
+-- JOIN 关联条件中使用
+select a.ts from tb1 a
+left join tb2 b on a.ts = b.ts 
+where not exists (select 1 from tb3 where tb3.col1 = a.col1);
+```
+
+
 ## UNION 子句
 
 ```txt title=语法
