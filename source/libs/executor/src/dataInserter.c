@@ -103,7 +103,7 @@ typedef struct SDataInserterHandle {
   const char*         dbFName;
   SHashObj*           dbVgInfoMap;
   SUseDbRsp*          pRsp;
-  int32_t             rows;;
+  int32_t             rows;
   SHashObj*           pReqTableMap;
 } SDataInserterHandle;
 
@@ -2627,9 +2627,10 @@ static int32_t SendInsertReq(SDataInserterHandle* pInserter, int64_t streamId, S
       } else {
         // Successfully added to the request
       }
-      stDebug("[data inserter]push table info to array, vnodeid:%d streamId:0x%" PRIx64 "%" PRId64
+            stDebug("[data inserter]push table info to array, vnodeid:%d streamId:0x%" PRIx64 " %zu"
               "th: tbName:%s, hasCreateReq:%d",
-              tmp->pTbInfo->vgInfo.vgId, streamId, pVNodeReqs[tmp->pTbInfo->vgInfo.vgId].req->aSubmitTbData->size - 1,
+              tmp->pTbInfo->vgInfo.vgId, streamId,
+              (size_t)(pVNodeReqs[tmp->pTbInfo->vgInfo.vgId].req->aSubmitTbData->size - 1),
               tmp->pTbInfo->tbname, tmp->pTbData.pCreateTbReq != NULL);
 
     } else {
