@@ -54,6 +54,8 @@ static struct {
   bool         dumpConfig;
   bool         dumpSdb;
   bool         deleteTrans;
+  int32_t      deleteTransIds[64];
+  int32_t      deleteTransIdCnt;
   bool         modifySdb;
   char         sdbJsonFile[PATH_MAX];
   bool         generateGrant;
@@ -218,6 +220,12 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       global.dumpSdb = true;
     } else if (strcmp(argv[i], "-dTxn") == 0) {
       global.deleteTrans = true;
+      while (i + 1 < argc && argv[i + 1][0] >= '0' && argv[i + 1][0] <= '9') {
+        if (global.deleteTransIdCnt < (int32_t)(sizeof(global.deleteTransIds) / sizeof(global.deleteTransIds[0]))) {
+          global.deleteTransIds[global.deleteTransIdCnt++] = atoi(argv[i + 1]);
+        }
+        i++;
+      }
     } else if (strcmp(argv[i], "-mSdb") == 0) {
       global.modifySdb = true;
       if (i < argc - 1) {
@@ -544,7 +552,7 @@ int mainWindows(int argc, char **argv) {
       return code;
     }
 
-    TAOS_CHECK_RETURN(mndDeleteTrans());
+    TAOS_CHECK_RETURN(mndDeleteTrans(global.deleteTransIds, global.deleteTransIdCnt));
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();

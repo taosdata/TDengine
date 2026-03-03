@@ -181,6 +181,19 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
         transId, pMgmt->transId, pMeta->code, pMeta->index, pMeta->term, pMeta->lastConfigIndex, syncStr(pMeta->state),
         pRaw, pMgmt->transSec, pMgmt->transSeq);
 
+  if (pMnode->pSkipTransIds != NULL) {
+    int32_t skipSize = taosArrayGetSize(pMnode->pSkipTransIds);
+    for (int32_t k = 0; k < skipSize; k++) {
+      int32_t skipId = *(int32_t *)taosArrayGet(pMnode->pSkipTransIds, k);
+      if (skipId == transId) {
+        mInfo("trans:%d, skip during WAL replay as requested by skip_trans.cfg", transId);
+        sdbSetApplyInfo(pMnode->pSdb, pMeta->index, pMeta->term, pMeta->lastConfigIndex);
+        code = sdbWriteFile(pMnode->pSdb, tsMndSdbWriteDelta);
+        goto _OUT;
+      }
+    }
+  }
+
   code = mndTransValidate(pMnode, pRaw);
   if (code != 0) {
     mError("trans:%d, failed to validate requested trans since %s", transId, terrstr());
@@ -302,6 +315,15 @@ static int32_t mndSyncGetSnapshotInfo(const SSyncFSM *pFsm, SSnapshot *pSnapshot
 
 void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   SMnode *pMnode = pFsm->data;
+
+  if (pMnode->pSkipTransIds != NULL) {
+    char skipFile[PATH_MAX * 2] = {0};
+    (void)snprintf(skipFile, sizeof(skipFile), "%s%sskip_trans.cfg", pMnode->path, TD_DIRSEP);
+    (void)taosRemoveFile(skipFile);
+    mInfo("vgId:1, skip_trans.cfg removed after WAL replay");
+    taosArrayDestroy(pMnode->pSkipTransIds);
+    pMnode->pSkipTransIds = NULL;
+  }
 
   if (!pMnode->deploy) {
     if (!pMnode->restored) {

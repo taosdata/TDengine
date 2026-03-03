@@ -816,17 +816,57 @@ static SMnode *mndPrepareMnode() {
   return pMnode;
 }
 
-int32_t mndDeleteTrans() {
-  mInfo("start to dump sdb info to sdb.json");
+int32_t mndDeleteTrans(int32_t *transIds, int32_t transIdCnt) {
+  int32_t code = 0;
+
+  if (transIdCnt <= 0) {
+    mInfo("start to delete all transactions from sdb snapshot");
+  } else {
+    for (int32_t i = 0; i < transIdCnt; i++) {
+      mInfo("start to delete trans:%d from sdb snapshot", transIds[i]);
+    }
+  }
 
   SMnode *pMnode = mndPrepareMnode();
   if (pMnode == NULL) return terrno;
 
-  TAOS_CHECK_RETURN(sdbWriteFileForDump(pMnode->pSdb, 0));
+  if (transIdCnt <= 0) {
+    code = sdbWriteFileForDump(pMnode->pSdb, SDB_TRANS, NULL, 0);
+    if (code != 0) {
+      mError("failed to delete all transactions since %s", tstrerror(code));
+      return code;
+    }
+    mInfo("all transactions deleted from sdb snapshot");
+  } else {
+    code = sdbWriteFileForDump(pMnode->pSdb, -1, transIds, transIdCnt);
+    if (code != 0) {
+      mError("failed to delete specified transactions since %s", tstrerror(code));
+      return code;
+    }
+    for (int32_t i = 0; i < transIdCnt; i++) {
+      mInfo("trans:%d deleted from sdb snapshot", transIds[i]);
+    }
 
-  mInfo("dump sdb info success");
+    char skipFile[PATH_MAX * 2] = {0};
+    (void)snprintf(skipFile, sizeof(skipFile), "%s%sskip_trans.cfg", pMnode->path, TD_DIRSEP);
+    TdFilePtr pFile = taosOpenFile(skipFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    if (pFile != NULL) {
+      for (int32_t i = 0; i < transIdCnt; i++) {
+        char    buf[32] = {0};
+        int32_t len = snprintf(buf, sizeof(buf), "%d\n", transIds[i]);
+        if (taosWriteFile(pFile, buf, len) != len) {
+          mError("failed to write skip_trans.cfg for trans:%d", transIds[i]);
+        }
+      }
+      (void)taosFsyncFile(pFile);
+      (void)taosCloseFile(&pFile);
+      mInfo("skip_trans.cfg written for %d trans, WAL replay will skip them", transIdCnt);
+    } else {
+      mError("failed to open skip_trans.cfg for write, specified trans may be replayed from WAL");
+    }
+  }
 
-  return 0;
+  return code;
 }
 
 static SJson *mndLoadSdbJson(char *path) {
@@ -961,7 +1001,7 @@ int32_t mndModifySdb(char *path) {
   TAOS_CHECK_RETURN(mndGenerateVgroup(pMnode, pJson));
 
   mInfo("write back to sdb file");
-  TAOS_CHECK_RETURN(sdbWriteFileForDump(pMnode->pSdb, -1));
+  TAOS_CHECK_RETURN(sdbWriteFileForDump(pMnode->pSdb, -1, NULL, 0));
 
   return 0;
 _OVER:

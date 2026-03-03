@@ -451,7 +451,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
   return code;
 }
 
-static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
+static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type, int32_t *skipTransIds, int32_t skipTransIdCnt) {
   int32_t code = 0;
 
   char tmpfile[PATH_MAX] = {0};
@@ -509,6 +509,22 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
 
       SSdbRaw *pRaw = (*encodeFp)(pRow->pObj);
       if (pRaw != NULL) {
+        if (skipTransIdCnt > 0 && i == SDB_TRANS) {
+          int32_t rowTransId = sdbGetIdFromRaw(pSdb, pRaw);
+          bool    shouldSkip = false;
+          for (int32_t si = 0; si < skipTransIdCnt; si++) {
+            if (skipTransIds[si] == rowTransId) {
+              shouldSkip = true;
+              break;
+            }
+          }
+          if (shouldSkip) {
+            mInfo("vgId:1, skip trans:%d when writing sdb snapshot", rowTransId);
+            sdbFreeRaw(pRaw);
+            ppRow = taosHashIterate(hash, ppRow);
+            continue;
+          }
+        }
         pRaw->status = pRow->status;
 
         if (taosWriteFile(pFile, pRaw, sizeof(SSdbRaw)) != sizeof(SSdbRaw)) {
@@ -624,7 +640,7 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
     }
   }
   if (code == 0) {
-    code = sdbWriteFileImp(pSdb, -1);
+    code = sdbWriteFileImp(pSdb, -1, NULL, 0);
   }
   if (code == 0) {
     if (pSdb->pWal != NULL) {
@@ -643,12 +659,8 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
   return code;
 }
 
-int32_t sdbWriteFileForDump(SSdb *pSdb, int32_t skip_type) {
-  int32_t code = 0;
-
-  code = sdbWriteFileImp(pSdb, skip_type);
-
-  return code;
+int32_t sdbWriteFileForDump(SSdb *pSdb, int32_t skip_type, int32_t *skipTransIds, int32_t skipTransIdCnt) {
+  return sdbWriteFileImp(pSdb, skip_type, skipTransIds, skipTransIdCnt);
 }
 
 int32_t sdbDeploy(SSdb *pSdb) {

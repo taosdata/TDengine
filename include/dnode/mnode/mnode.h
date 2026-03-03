@@ -121,7 +121,7 @@ void mndGenerateMachineCode();
 
 int32_t mndDumpSdb();
 
-int32_t mndDeleteTrans();
+int32_t mndDeleteTrans(int32_t *transIds, int32_t transIdCnt);
 
 int32_t mndModifySdb(char *path);
 

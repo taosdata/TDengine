@@ -130,6 +130,7 @@ typedef struct SMnode {
   SyncIndex      applied;
   SSdb          *pSdb;
   SArray        *pSteps;
+  SArray        *pSkipTransIds;
   SQHandle      *pQuery;
   SHashObj      *infosMeta;
   SHashObj      *perfsMeta;

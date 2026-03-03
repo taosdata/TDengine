@@ -330,6 +330,75 @@ void i64SetDefault(SI64Obj *pObj, int32_t index) {
   snprintf(pObj->vstr, sizeof(pObj->vstr), "v%d", index * 1000);
 }
 
+// Encode/decode helpers for SDB_TRANS type (INT32 key), reuses SI32Obj struct
+SSdbRaw *transEncode(SI32Obj *pObj) {
+  int32_t  dataPos = 0;
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_TRANS, 1, sizeof(SI32Obj));
+
+  sdbSetRawInt32(pRaw, dataPos, pObj->key);
+  dataPos += sizeof(pObj->key);
+  sdbSetRawInt8(pRaw, dataPos, pObj->v8);
+  dataPos += sizeof(pObj->v8);
+  sdbSetRawInt16(pRaw, dataPos, pObj->v16);
+  dataPos += sizeof(pObj->v16);
+  sdbSetRawInt32(pRaw, dataPos, pObj->v32);
+  dataPos += sizeof(pObj->v32);
+  sdbSetRawInt64(pRaw, dataPos, pObj->v64);
+  dataPos += sizeof(pObj->v64);
+  sdbSetRawBinary(pRaw, dataPos, pObj->vstr, sizeof(pObj->vstr));
+  dataPos += sizeof(pObj->vstr);
+  sdbSetRawDataLen(pRaw, dataPos);
+
+  return pRaw;
+}
+
+SSdbRow *transDecode(SSdbRaw *pRaw) {
+  int8_t sver = 0;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) return NULL;
+  if (sver != 1) return NULL;
+
+  SSdbRow *pRow = sdbAllocRow(sizeof(SI32Obj));
+  if (pRow == NULL) return NULL;
+
+  SI32Obj *pObj = (SI32Obj *)sdbGetRowObj(pRow);
+  if (pObj == NULL) return NULL;
+
+  int32_t dataPos = 0;
+  sdbGetRawInt32(pRaw, dataPos, &pObj->key);
+  dataPos += sizeof(pObj->key);
+  sdbGetRawInt8(pRaw, dataPos, &pObj->v8);
+  dataPos += sizeof(pObj->v8);
+  sdbGetRawInt16(pRaw, dataPos, &pObj->v16);
+  dataPos += sizeof(pObj->v16);
+  sdbGetRawInt32(pRaw, dataPos, &pObj->v32);
+  dataPos += sizeof(pObj->v32);
+  sdbGetRawInt64(pRaw, dataPos, &pObj->v64);
+  dataPos += sizeof(pObj->v64);
+  sdbGetRawBinary(pRaw, dataPos, pObj->vstr, sizeof(pObj->vstr));
+  dataPos += sizeof(pObj->vstr);
+
+  return pRow;
+}
+
+int32_t transInsert(SSdb *pSdb, SI32Obj *pObj) {
+  SMnode *pMnode = (SMnode *)pSdb->pMnode;
+  pMnode->insertTimes++;
+  return 0;
+}
+
+int32_t transDelete(SSdb *pSdb, SI32Obj *pObj, bool callFunc) {
+  if (callFunc) {
+    SMnode *pMnode = (SMnode *)pSdb->pMnode;
+    pMnode->deleteTimes++;
+  }
+  return 0;
+}
+
+int32_t transUpdate(SSdb *pSdb, SI32Obj *pOld, SI32Obj *pNew) {
+  pOld->v8 = pNew->v8;
+  return 0;
+}
+
 int32_t strDefault(SMnode *pMnode) {
   SStrObj  strObj;
   SSdbRaw *pRaw = NULL;
@@ -1008,4 +1077,236 @@ TEST_F(MndTestSdb, 01_Read_Str) {
   sdbCleanup(pSdb);
   ASSERT_EQ(mnode.insertTimes, 9);
   ASSERT_EQ(mnode.deleteTimes, 9);
+}
+
+// Verify that sdbWriteFileForDump(skip_type=X) excludes the entire table X from the snapshot.
+// After reload, table X should have zero rows while other tables remain intact.
+TEST_F(MndTestSdb, 02_WriteFileDump_SkipType) {
+  const char *path = TD_TMP_DIR_PATH "mnode_test_sdb_dump1";
+  SMnode      mnode = {0};
+  SSdbOpt     opt = {0};
+  SSdb       *pSdb = NULL;
+  SSdbRaw    *pRaw = NULL;
+
+  opt.pMnode = &mnode;
+  opt.path = path;
+  taosRemoveDir(path);
+
+  SSdbTable userTable;
+  memset(&userTable, 0, sizeof(SSdbTable));
+  userTable.sdbType = SDB_USER;
+  userTable.keyType = SDB_KEY_BINARY;
+  userTable.encodeFp = (SdbEncodeFp)strEncode;
+  userTable.decodeFp = (SdbDecodeFp)strDecode;
+  userTable.insertFp = (SdbInsertFp)strInsert;
+  userTable.updateFp = (SdbUpdateFp)strUpdate;
+  userTable.deleteFp = (SdbDeleteFp)strDelete;
+
+  SSdbTable vgTable;
+  memset(&vgTable, 0, sizeof(SSdbTable));
+  vgTable.sdbType = SDB_VGROUP;
+  vgTable.keyType = SDB_KEY_INT32;
+  vgTable.encodeFp = (SdbEncodeFp)i32Encode;
+  vgTable.decodeFp = (SdbDecodeFp)i32Decode;
+  vgTable.insertFp = (SdbInsertFp)i32Insert;
+  vgTable.updateFp = (SdbUpdateFp)i32Update;
+  vgTable.deleteFp = (SdbDeleteFp)i32Delete;
+
+  pSdb = sdbInit(&opt);
+  mnode.pSdb = pSdb;
+  ASSERT_NE(pSdb, nullptr);
+  ASSERT_EQ(sdbSetTable(pSdb, userTable), 0);
+  ASSERT_EQ(sdbSetTable(pSdb, vgTable), 0);
+
+  // Write 2 user rows
+  SStrObj strObj;
+  strSetDefault(&strObj, 1);
+  pRaw = strEncode(&strObj);
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  ASSERT_EQ(sdbWriteWithoutFree(pSdb, pRaw), 0);
+  sdbFreeRaw(pRaw);
+
+  strSetDefault(&strObj, 2);
+  pRaw = strEncode(&strObj);
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  ASSERT_EQ(sdbWriteWithoutFree(pSdb, pRaw), 0);
+  sdbFreeRaw(pRaw);
+
+  // Write 2 vgroup rows
+  SI32Obj i32Obj;
+  int32_t k1 = 10, k2 = 20;
+  i32SetDefault(&i32Obj, k1);
+  pRaw = i32Encode(&i32Obj);
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  ASSERT_EQ(sdbWriteWithoutFree(pSdb, pRaw), 0);
+  sdbFreeRaw(pRaw);
+
+  i32SetDefault(&i32Obj, k2);
+  pRaw = i32Encode(&i32Obj);
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  ASSERT_EQ(sdbWriteWithoutFree(pSdb, pRaw), 0);
+  sdbFreeRaw(pRaw);
+
+  ASSERT_EQ(sdbGetSize(pSdb, SDB_USER), 2);
+  ASSERT_EQ(sdbGetSize(pSdb, SDB_VGROUP), 2);
+
+  // Dump sdb skipping the entire SDB_VGROUP table
+  sdbSetApplyInfo(pSdb, 1, 0, 0);
+  ASSERT_EQ(sdbWriteFileForDump(pSdb, SDB_VGROUP, NULL, 0), 0);
+  sdbCleanup(pSdb);
+
+  // Reload and verify: SDB_USER present (2 rows), SDB_VGROUP absent (0 rows)
+  memset(&mnode, 0, sizeof(mnode));
+  pSdb = sdbInit(&opt);
+  mnode.pSdb = pSdb;
+  ASSERT_NE(pSdb, nullptr);
+  ASSERT_EQ(sdbSetTable(pSdb, userTable), 0);
+  ASSERT_EQ(sdbSetTable(pSdb, vgTable), 0);
+  ASSERT_EQ(sdbReadFile(pSdb), 0);
+
+  ASSERT_EQ(sdbGetSize(pSdb, SDB_USER), 2);
+  ASSERT_EQ(sdbGetSize(pSdb, SDB_VGROUP), 0);
+
+  SStrObj *pStr = (SStrObj *)sdbAcquire(pSdb, SDB_USER, "k1000");
+  ASSERT_NE(pStr, nullptr);
+  sdbRelease(pSdb, pStr);
+
+  pStr = (SStrObj *)sdbAcquire(pSdb, SDB_USER, "k2000");
+  ASSERT_NE(pStr, nullptr);
+  sdbRelease(pSdb, pStr);
+
+  SI32Obj *pI32 = (SI32Obj *)sdbAcquire(pSdb, SDB_VGROUP, &k1);
+  ASSERT_EQ(pI32, nullptr);
+
+  pI32 = (SI32Obj *)sdbAcquire(pSdb, SDB_VGROUP, &k2);
+  ASSERT_EQ(pI32, nullptr);
+
+  sdbCleanup(pSdb);
+  ASSERT_EQ(mnode.insertTimes, 2);
+}
+
+// Verify that sdbWriteFileForDump(skipTransIds=[1,3,5]) filters those specific SDB_TRANS rows
+// while keeping other trans rows (2, 4) and all other table rows intact.
+TEST_F(MndTestSdb, 02_WriteFileDump_SkipTransIds) {
+  const char *path = TD_TMP_DIR_PATH "mnode_test_sdb_dump2";
+  SMnode      mnode = {0};
+  SSdbOpt     opt = {0};
+  SSdb       *pSdb = NULL;
+  SSdbRaw    *pRaw = NULL;
+
+  opt.pMnode = &mnode;
+  opt.path = path;
+  taosRemoveDir(path);
+
+  SSdbTable transTable;
+  memset(&transTable, 0, sizeof(SSdbTable));
+  transTable.sdbType = SDB_TRANS;
+  transTable.keyType = SDB_KEY_INT32;
+  transTable.encodeFp = (SdbEncodeFp)transEncode;
+  transTable.decodeFp = (SdbDecodeFp)transDecode;
+  transTable.insertFp = (SdbInsertFp)transInsert;
+  transTable.updateFp = (SdbUpdateFp)transUpdate;
+  transTable.deleteFp = (SdbDeleteFp)transDelete;
+
+  SSdbTable userTable;
+  memset(&userTable, 0, sizeof(SSdbTable));
+  userTable.sdbType = SDB_USER;
+  userTable.keyType = SDB_KEY_BINARY;
+  userTable.encodeFp = (SdbEncodeFp)strEncode;
+  userTable.decodeFp = (SdbDecodeFp)strDecode;
+  userTable.insertFp = (SdbInsertFp)strInsert;
+  userTable.updateFp = (SdbUpdateFp)strUpdate;
+  userTable.deleteFp = (SdbDeleteFp)strDelete;
+
+  pSdb = sdbInit(&opt);
+  mnode.pSdb = pSdb;
+  ASSERT_NE(pSdb, nullptr);
+  ASSERT_EQ(sdbSetTable(pSdb, transTable), 0);
+  ASSERT_EQ(sdbSetTable(pSdb, userTable), 0);
+
+  // Write 5 trans rows with IDs 1-5
+  SI32Obj i32Obj;
+  for (int32_t id = 1; id <= 5; id++) {
+    i32SetDefault(&i32Obj, id);
+    pRaw = transEncode(&i32Obj);
+    sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    ASSERT_EQ(sdbWriteWithoutFree(pSdb, pRaw), 0);
+    sdbFreeRaw(pRaw);
+  }
+
+  // Write 2 user rows
+  SStrObj strObj;
+  strSetDefault(&strObj, 1);
+  pRaw = strEncode(&strObj);
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  ASSERT_EQ(sdbWriteWithoutFree(pSdb, pRaw), 0);
+  sdbFreeRaw(pRaw);
+
+  strSetDefault(&strObj, 2);
+  pRaw = strEncode(&strObj);
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  ASSERT_EQ(sdbWriteWithoutFree(pSdb, pRaw), 0);
+  sdbFreeRaw(pRaw);
+
+  ASSERT_EQ(sdbGetSize(pSdb, SDB_TRANS), 5);
+  ASSERT_EQ(sdbGetSize(pSdb, SDB_USER), 2);
+
+  // Dump skipping trans IDs 1, 3, 5 — trans 2 and 4 should survive
+  int32_t skipIds[] = {1, 3, 5};
+  sdbSetApplyInfo(pSdb, 1, 0, 0);
+  ASSERT_EQ(sdbWriteFileForDump(pSdb, -1, skipIds, 3), 0);
+  sdbCleanup(pSdb);
+
+  // Reload and verify
+  memset(&mnode, 0, sizeof(mnode));
+  pSdb = sdbInit(&opt);
+  mnode.pSdb = pSdb;
+  ASSERT_NE(pSdb, nullptr);
+  ASSERT_EQ(sdbSetTable(pSdb, transTable), 0);
+  ASSERT_EQ(sdbSetTable(pSdb, userTable), 0);
+  ASSERT_EQ(sdbReadFile(pSdb), 0);
+
+  // Only trans 2 and 4 should remain
+  ASSERT_EQ(sdbGetSize(pSdb, SDB_TRANS), 2);
+
+  int32_t  id1 = 1, id2 = 2, id3 = 3, id4 = 4, id5 = 5;
+  SI32Obj *pTrans;
+
+  pTrans = (SI32Obj *)sdbAcquire(pSdb, SDB_TRANS, &id1);
+  ASSERT_EQ(pTrans, nullptr);  // skipped
+
+  pTrans = (SI32Obj *)sdbAcquire(pSdb, SDB_TRANS, &id2);
+  ASSERT_NE(pTrans, nullptr);  // kept
+  ASSERT_EQ(pTrans->key, 2);
+  ASSERT_EQ(pTrans->v8, 2);
+  sdbRelease(pSdb, pTrans);
+
+  pTrans = (SI32Obj *)sdbAcquire(pSdb, SDB_TRANS, &id3);
+  ASSERT_EQ(pTrans, nullptr);  // skipped
+
+  pTrans = (SI32Obj *)sdbAcquire(pSdb, SDB_TRANS, &id4);
+  ASSERT_NE(pTrans, nullptr);  // kept
+  ASSERT_EQ(pTrans->key, 4);
+  ASSERT_EQ(pTrans->v8, 4);
+  sdbRelease(pSdb, pTrans);
+
+  pTrans = (SI32Obj *)sdbAcquire(pSdb, SDB_TRANS, &id5);
+  ASSERT_EQ(pTrans, nullptr);  // skipped
+
+  // All user rows must remain untouched
+  ASSERT_EQ(sdbGetSize(pSdb, SDB_USER), 2);
+
+  SStrObj *pStr = (SStrObj *)sdbAcquire(pSdb, SDB_USER, "k1000");
+  ASSERT_NE(pStr, nullptr);
+  ASSERT_EQ(pStr->v8, 1);
+  sdbRelease(pSdb, pStr);
+
+  pStr = (SStrObj *)sdbAcquire(pSdb, SDB_USER, "k2000");
+  ASSERT_NE(pStr, nullptr);
+  ASSERT_EQ(pStr->v8, 2);
+  sdbRelease(pSdb, pStr);
+
+  sdbCleanup(pSdb);
+  // 5 trans + 2 user inserted during write phase, then 2 trans + 2 user on reload
+  ASSERT_EQ(mnode.insertTimes, 4);
 }

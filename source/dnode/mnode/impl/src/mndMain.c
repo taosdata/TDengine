@@ -662,11 +662,62 @@ static int32_t mndInitSdb(SMnode *pMnode) {
   TAOS_RETURN(code);
 }
 
+static void mndLoadSkipTransFile(SMnode *pMnode) {
+  char path[PATH_MAX * 2] = {0};
+  (void)snprintf(path, sizeof(path), "%s%sskip_trans.cfg", pMnode->path, TD_DIRSEP);
+
+  TdFilePtr pFile = taosOpenFile(path, TD_FILE_READ);
+  if (pFile == NULL) return;
+
+  int64_t size = 0;
+  if (taosFStatFile(pFile, &size, NULL) != 0 || size <= 0) {
+    (void)taosCloseFile(&pFile);
+    return;
+  }
+
+  char *buf = taosMemoryMalloc(size + 1);
+  if (buf == NULL) {
+    (void)taosCloseFile(&pFile);
+    return;
+  }
+
+  if (taosReadFile(pFile, buf, size) != size) {
+    taosMemoryFree(buf);
+    (void)taosCloseFile(&pFile);
+    return;
+  }
+  buf[size] = '\0';
+  (void)taosCloseFile(&pFile);
+
+  pMnode->pSkipTransIds = taosArrayInit(4, sizeof(int32_t));
+  if (pMnode->pSkipTransIds == NULL) {
+    taosMemoryFree(buf);
+    return;
+  }
+
+  char *line = buf;
+  while (line != NULL && *line != '\0') {
+    char *end = strchr(line, '\n');
+    if (end != NULL) *end = '\0';
+    int32_t transId = (int32_t)atoi(line);
+    if (transId > 0) {
+      (void)taosArrayPush(pMnode->pSkipTransIds, &transId);
+      mInfo("vgId:1, will skip trans:%d during WAL replay", transId);
+    }
+    line = (end != NULL) ? end + 1 : NULL;
+  }
+
+  taosMemoryFree(buf);
+}
+
 static int32_t mndOpenSdb(SMnode *pMnode) {
   int32_t code = 0;
   if (!pMnode->deploy) {
     code = sdbReadFile(pMnode->pSdb);
+    if (code != 0) return code;
   }
+
+  mndLoadSkipTransFile(pMnode);
 
   mInfo("vgId:1, mnode sdb is opened, with applied index:%" PRId64, pMnode->pSdb->commitIndex);
 
