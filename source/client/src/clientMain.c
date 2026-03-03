@@ -270,14 +270,14 @@ void taos_cleanup(void) {
   taosCloseRef(id);
 
   cleanupAppInfo();
-  rpcCleanup();
-  tscDebug("rpc cleanup");
-
-  // Stop async workers after producer-side rpc cleanup, and before tearing
-  // down catalog/scheduler/parser related resources.
+  // cleanupAppInfo closes app transporters first to stop producer-side rpc
+  // traffic, then stop async workers before tearing down parser/catalog.
   if (TSDB_CODE_SUCCESS != cleanupTaskQueue()) {
     tscWarn("failed to cleanup task queue");
   }
+
+  rpcCleanup();
+  tscDebug("rpc cleanup");
 
   catalogDestroy();
   schedulerDestroy();
