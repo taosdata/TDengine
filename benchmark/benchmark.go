@@ -224,10 +224,10 @@ func readJtbRow(rs *sql.Rows) {
 
 func batchInsertSql(begin int64, table string, numOfRows int) string {
 	var buffer bytes.Buffer
-	buffer.WriteString(fmt.Sprintf("insert into %s values ", table))
+	fmt.Fprintf(&buffer, "insert into %s values ", table)
 
 	for i := 0; i < numOfRows; i++ {
-		buffer.WriteString(fmt.Sprintf("(%d, %t, %d, %d, %d, %d, %d, %d, %d, %d, %.4f, %f, '%s', '%s')",
+		fmt.Fprintf(&buffer, "(%d, %t, %d, %d, %d, %d, %d, %d, %d, %d, %.4f, %f, '%s', '%s')",
 			begin+int64(i),
 			rand.Intn(2) == 1,      // bl
 			rand.Intn(256)-128,     // i8 [-128, 127]
@@ -242,7 +242,7 @@ func batchInsertSql(begin int64, table string, numOfRows int) string {
 			rand.Float64(),         // d64
 			randStr(20),            // bnr
 			randStr(20),            // nchr
-		))
+		)
 	}
 	buffer.WriteString(";")
 	return buffer.String()

@@ -1102,6 +1102,7 @@ func TestSubscribeReconnect(t *testing.T) {
 	startChan := make(chan struct{})
 	go func() {
 		time.Sleep(time.Second * 3)
+		cmd = newTaosadapter(port)
 		err = startTaosadapter(cmd, port)
 		if err != nil {
 			t.Error(err)
@@ -1133,6 +1134,7 @@ func TestSubscribeReconnect(t *testing.T) {
 			startChan <- struct{}{}
 		}()
 		time.Sleep(time.Second * 3)
+		cmd = newTaosadapter(port)
 		err = startTaosadapter(cmd, port)
 		if err != nil {
 			t.Errorf("start taosadapter failed: %v", err)

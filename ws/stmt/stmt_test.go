@@ -1165,6 +1165,7 @@ func TestSTMTReconnect(t *testing.T) {
 	startChan := make(chan struct{})
 	go func() {
 		time.Sleep(time.Second * 3)
+		cmd = newTaosadapter(port)
 		err = startTaosadapter(cmd, port)
 		startChan <- struct{}{}
 		if err != nil {
@@ -1180,6 +1181,7 @@ func TestSTMTReconnect(t *testing.T) {
 	stmt, err = connector.Init()
 	assert.NoError(t, err)
 	stopTaosadapter(cmd, port)
+	cmd = newTaosadapter(port)
 	err = startTaosadapter(cmd, port)
 	assert.NoError(t, err)
 	err = doRequest("create database if not exists test_ws_stmt_reconnect")

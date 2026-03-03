@@ -230,6 +230,7 @@ func TestSchemalessReconnect(t *testing.T) {
 	startChan := make(chan struct{})
 	go func() {
 		time.Sleep(time.Second * 10)
+		cmd = newTaosadapter(port)
 		err = startTaosadapter(cmd, port)
 		startChan <- struct{}{}
 		if err != nil {
