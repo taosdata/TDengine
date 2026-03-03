@@ -1,4 +1,5 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, tdStream
+import time
 from datetime import datetime, timedelta
 
 
@@ -172,6 +173,150 @@ class TestFunSelectLagLead:
         tdSql.error("select _rowts, lag(ts, 1, true) from ct1")
         tdSql.error("select _rowts, lead(ts, 1, 1.25) from ct1")
 
+    def _case_subquery_lag_lead_inside(self):
+        tdSql.query(
+            "select ts, lv, nv from "
+            "(select ts, lag(v, 1, -1) as lv, lead(v, 1, -1) as nv from ct1 order by ts) t order by ts"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, -1)
+        tdSql.checkData(0, 2, 12)
+        tdSql.checkData(1, 1, 11)
+        tdSql.checkData(1, 2, 13)
+        tdSql.checkData(2, 1, 12)
+        tdSql.checkData(2, 2, -1)
+
+    def _case_subquery_lag_lead_outside(self):
+        tdSql.query(
+            "select ts, lag(v, 1, -1), lead(v, 1, -1) "
+            "from (select ts, v from ct1) t order by ts"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, -1)
+        tdSql.checkData(0, 2, 12)
+        tdSql.checkData(1, 1, 11)
+        tdSql.checkData(1, 2, 13)
+        tdSql.checkData(2, 1, 12)
+        tdSql.checkData(2, 2, -1)
+
+    def _case_window_query_lag_lead(self):
+        tdSql.error("select _wstart, lag(v, 1, -1) from ct1 interval(1s)")
+        tdSql.error("select _wstart, lead(v, 1, -1) from ct1 interval(1s)")
+
+    def _case_stream_query_lag_lead(self):
+        tdSql.query("show snodes")
+        if tdSql.getRows() == 0:
+            tdStream.createSnode(1)
+
+        tdSql.execute("create database if not exists s_laglead vgroups 1")
+        tdSql.execute("use s_laglead")
+        tdSql.execute("drop stream if exists s_laglead")
+        tdSql.execute("drop table if exists out_laglead")
+        tdSql.execute("drop table if exists src")
+
+        tdSql.execute("create table src(ts timestamp, v int, g int)")
+
+        tdSql.execute(
+            "create stream s_laglead state_window(g) from src into out_laglead "
+            "as select ts as rts, v as rv, lag(v, 1, -1) as lv, lead(v, 1, -1) as nv from %%trows"
+        )
+        tdStream.checkStreamStatus("s_laglead")
+
+        tdSql.execute(
+            "insert into src values"
+            "('2025-03-01 00:00:01', 10, 1)"
+            "('2025-03-01 00:00:02', 11, 1)"
+            "('2025-03-01 00:00:03', 12, 1)"
+            "('2025-03-01 00:00:04', 14, 2)"
+        )
+
+        time.sleep(2)
+        tdSql.checkResultsByFunc(
+            sql="select rts, rv, lv, nv from out_laglead order by rts",
+            func=lambda: tdSql.getRows() == 3
+            and tdSql.compareData(0, 1, 10)
+            and tdSql.compareData(0, 2, -1)
+            and tdSql.compareData(0, 3, 11)
+            and tdSql.compareData(1, 1, 11)
+            and tdSql.compareData(1, 2, 10)
+            and tdSql.compareData(1, 3, 12)
+            and tdSql.compareData(2, 1, 12)
+            and tdSql.compareData(2, 2, 11)
+            and tdSql.compareData(2, 3, -1),
+        )
+
+        tdSql.execute("use db_fun_select_lag_lead")
+
+    def _case_partition_by_tag_multi_subtables_timeline(self):
+        tdSql.execute("create table ct_tg10_a using st tags(10)")
+        tdSql.execute("create table ct_tg10_b using st tags(10)")
+        tdSql.execute("create table ct_tg20_a using st tags(20)")
+        tdSql.execute("create table ct_tg20_b using st tags(20)")
+
+        tdSql.execute(
+            "insert into ct_tg10_a values"
+            "('2025-02-01 00:00:01', 101, 10101, 'g10a-1')"
+            "('2025-02-01 00:00:03', 103, 10103, 'g10a-3')"
+        )
+        tdSql.execute(
+            "insert into ct_tg10_b values"
+            "('2025-02-01 00:00:02', 102, 10102, 'g10b-2')"
+            "('2025-02-01 00:00:04', 104, 10104, 'g10b-4')"
+        )
+
+        tdSql.execute(
+            "insert into ct_tg20_a values"
+            "('2025-02-01 00:00:01', 201, 20201, 'g20a-1')"
+            "('2025-02-01 00:00:03', 203, 20203, 'g20a-3')"
+        )
+        tdSql.execute(
+            "insert into ct_tg20_b values"
+            "('2025-02-01 00:00:02', 202, 20202, 'g20b-2')"
+            "('2025-02-01 00:00:04', 204, 20204, 'g20b-4')"
+        )
+
+        tdSql.query(
+            "select tg, _rowts, v, lag(v, 1, -1), lead(v, 1, -1) "
+            "from st where tg in (10, 20) partition by tg order by tg, ts"
+        )
+        tdSql.checkRows(8)
+
+        # tg=10 timeline: 101,102,103,104
+        tdSql.checkData(0, 0, 10)
+        tdSql.checkData(0, 2, 101)
+        tdSql.checkData(0, 3, -1)
+        tdSql.checkData(0, 4, 102)
+        tdSql.checkData(1, 0, 10)
+        tdSql.checkData(1, 2, 102)
+        tdSql.checkData(1, 3, 101)
+        tdSql.checkData(1, 4, 103)
+        tdSql.checkData(2, 0, 10)
+        tdSql.checkData(2, 2, 103)
+        tdSql.checkData(2, 3, 102)
+        tdSql.checkData(2, 4, 104)
+        tdSql.checkData(3, 0, 10)
+        tdSql.checkData(3, 2, 104)
+        tdSql.checkData(3, 3, 103)
+        tdSql.checkData(3, 4, -1)
+
+        # tg=20 timeline: 201,202,203,204
+        tdSql.checkData(4, 0, 20)
+        tdSql.checkData(4, 2, 201)
+        tdSql.checkData(4, 3, -1)
+        tdSql.checkData(4, 4, 202)
+        tdSql.checkData(5, 0, 20)
+        tdSql.checkData(5, 2, 202)
+        tdSql.checkData(5, 3, 201)
+        tdSql.checkData(5, 4, 203)
+        tdSql.checkData(6, 0, 20)
+        tdSql.checkData(6, 2, 203)
+        tdSql.checkData(6, 3, 202)
+        tdSql.checkData(6, 4, 204)
+        tdSql.checkData(7, 0, 20)
+        tdSql.checkData(7, 2, 204)
+        tdSql.checkData(7, 3, 203)
+        tdSql.checkData(7, 4, -1)
+
     def _case_large_rows_cross_block_lag_lead(self):
         tdSql.execute("create table ct_big using st tags(3)")
 
@@ -247,6 +392,9 @@ class TestFunSelectLagLead:
         3. Validate partition by tbname path can execute and return expected row count.
         4. Validate multiple lag/lead combinations (same column and different columns) return correct results.
         5. Validate lag/lead correctness on large result sets spanning multiple data blocks.
+        6. Validate lag/lead behavior with subqueries and window-query constraints.
+        7. Validate lag/lead behavior with partition by non-tbname on multi-subtable timelines.
+        8. Validate stream-query usage of lag/lead keeps current behavior unchanged.
 
         Since: v3.4.0.0
 
@@ -268,4 +416,9 @@ class TestFunSelectLagLead:
         self._case_default_type_error()
         self._case_timestamp_default_compatible()
         self._case_timestamp_default_type_error()
+        self._case_subquery_lag_lead_inside()
+        self._case_subquery_lag_lead_outside()
+        self._case_window_query_lag_lead()
+        self._case_stream_query_lag_lead()
+        self._case_partition_by_tag_multi_subtables_timeline()
         self._case_large_rows_cross_block_lag_lead()
