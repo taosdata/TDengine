@@ -605,6 +605,8 @@ int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* re
   tstrncpy(colRef->refColName, refColName, TSDB_COL_NAME_LEN);
   if (colName) {
     tstrncpy(colRef->colName, colName, TSDB_COL_NAME_LEN);
+  } else {
+    colRef->colName[0] = '\0';
   }
   return TSDB_CODE_SUCCESS;
 }

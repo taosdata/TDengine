@@ -858,8 +858,12 @@ void loop_consume(SThreadInfo* pInfo) {
       if (code == 0) {
         taosFprintfFile(g_fp, "%s no poll more msg when time over, break consume\n", getCurrentTimeString(tmpString));
         break;
+      } else if (code == TSDB_CODE_VND_INVALID_VGROUP_ID ||
+                 code == TSDB_CODE_SYN_NOT_LEADER) {
+        taosFprintfFile(g_fp, "%s poll err:%s, continue\n", getCurrentTimeString(tmpString), taos_errstr(NULL));
       } else {
-        taosFprintfFile(g_fp, "%s poll err:\n", getCurrentTimeString(tmpString), taos_errstr(NULL));
+        taosFprintfFile(g_fp, "%s poll err:%s, break\n", getCurrentTimeString(tmpString), taos_errstr(NULL));
+        break;
       }
     }
   }
