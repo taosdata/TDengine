@@ -789,7 +789,6 @@ left join tb2 b on a.ts = b.ts
 where not exists (select 1 from tb3 where tb3.col1 = a.col1);
 ```
 
-
 ## UNION 子句
 
 ```txt title=语法

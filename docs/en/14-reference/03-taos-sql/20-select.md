@@ -667,7 +667,6 @@ SELECT col1, (SELECT sum(col1) FROM tb1) FROM tb2;
 SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
 ```
 
-
 ## Subquery expression
 
 Starting from version 3.4.1.0, TDengine TSDB began to support the following subquery expressions, where the subqueries are limited to non-correlated subqueries, currently only supported for use in query statements, and not yet supported in statements such as stream computing, subscriptions, DDL (Data Definition Language), and DML (Data Manipulation Language).
@@ -789,7 +788,6 @@ select a.ts from tb1 a
 left join tb2 b on a.ts = b.ts 
 where not exists (select 1 from tb3 where tb3.col1 = a.col1);
 ```
-
 
 ## UNION Clause
 
