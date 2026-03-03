@@ -166,7 +166,7 @@ class TestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   100,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  30,
+                    'pollDelay':  300,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -175,9 +175,6 @@ class TestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        # ARM64：time cost is so long for stopping taosd, so add the pollDdelay to 120s
-        if platform.system() == "Linux" and platform.machine() == "aarch64":
-            paraDict['pollDelay'] = 300
 
         tmqCom.initConsumerTable()
         # tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
