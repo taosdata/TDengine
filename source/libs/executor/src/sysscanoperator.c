@@ -2127,17 +2127,23 @@ typedef struct SVtbRefTableCacheEntry {
   SVtbRefSchemaCache* pSchemaCache;  // Schema cache (NULL if errCode != SUCCESS)
 } SVtbRefTableCacheEntry;
 
-static SHashObj* vtbRefBuildColNameIndex(SSchema* pSchemas, int32_t numOfCols, int32_t numOfTags) {
-  int32_t   totalCols = numOfCols + numOfTags;
+static int32_t vtbRefBuildColNameIndex(SSchema* pSchemas, int32_t numOfCols, int32_t numOfTags, SHashObj** ppIndex) {
+  int32_t code = 0;
+  int32_t totalCols = numOfCols + numOfTags;
   SHashObj* pIndex = taosHashInit(totalCols > 0 ? totalCols : 8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
                                   true, HASH_NO_LOCK);
   if (pIndex == NULL) {
-    return NULL;
+    return terrno;
   }
   for (int32_t i = 0; i < totalCols; ++i) {
-    taosHashPut(pIndex, pSchemas[i].name, strlen(pSchemas[i].name), &i, sizeof(int32_t));
+    code = taosHashPut(pIndex, pSchemas[i].name, strlen(pSchemas[i].name), &i, sizeof(int32_t));
+    if (code != TSDB_CODE_SUCCESS) {
+      taosHashCleanup(pIndex);
+      return code;
+    }   
   }
-  return pIndex;
+  *ppIndex = pIndex;
+  return TSDB_CODE_SUCCESS;
 }
 
 static SVtbRefSchemaCache* vtbRefCreateSchemaCache(ETableType type, SMetaReader* pReader) {
@@ -2146,22 +2152,23 @@ static SVtbRefSchemaCache* vtbRefCreateSchemaCache(ETableType type, SMetaReader*
     return NULL;
   }
 
+  int32_t code = TSDB_CODE_SUCCESS;
   if (type == TSDB_NORMAL_TABLE) {
     pCache->schemaRow = pReader->me.ntbEntry.schemaRow;
     pCache->hasTagSchema = false;
-    pCache->pColNameIndex = vtbRefBuildColNameIndex(pCache->schemaRow.pSchema, pCache->schemaRow.nCols, 0);
+    code = vtbRefBuildColNameIndex(pCache->schemaRow.pSchema, pCache->schemaRow.nCols, 0, &pCache->pColNameIndex);
   } else if (type == TSDB_CHILD_TABLE || type == TSDB_SUPER_TABLE) {
     pCache->schemaRow = pReader->me.stbEntry.schemaRow;
     pCache->schemaTag = pReader->me.stbEntry.schemaTag;
     pCache->hasTagSchema = true;
-    pCache->pColNameIndex =
-        vtbRefBuildColNameIndex(pCache->schemaRow.pSchema, pCache->schemaRow.nCols, pCache->schemaTag.nCols);
+    code = vtbRefBuildColNameIndex(pCache->schemaRow.pSchema, pCache->schemaRow.nCols, pCache->schemaTag.nCols,
+                                   &pCache->pColNameIndex);
   } else {
     taosMemoryFree(pCache);
     return NULL;
   }
 
-  if (pCache->pColNameIndex == NULL) {
+  if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pCache);
     return NULL;
   }
@@ -2197,14 +2204,18 @@ static bool vtbRefCheckColumnInCache(const SVtbRefSchemaCache* pCache, const cha
   return taosHashGet(pCache->pColNameIndex, colName, strlen(colName)) != NULL;
 }
 
-static SVtbRefSchemaCache* vtbRefCreateSchemaCacheFromMetaRsp(STableMetaRsp* pMetaRsp) {
+static int32_t vtbRefCreateSchemaCacheFromMetaRsp(STableMetaRsp* pMetaRsp, SVtbRefSchemaCache** ppCache) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
   if (pMetaRsp == NULL || pMetaRsp->pSchemas == NULL) {
-    return NULL;
+    code = TSDB_CODE_INVALID_PARA;
+    return code;
   }
 
   SVtbRefSchemaCache* pCache = taosMemoryCalloc(1, sizeof(SVtbRefSchemaCache));
   if (pCache == NULL) {
-    return NULL;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   int32_t numOfCols = pMetaRsp->numOfColumns;
@@ -2214,7 +2225,8 @@ static SVtbRefSchemaCache* vtbRefCreateSchemaCacheFromMetaRsp(STableMetaRsp* pMe
   SSchema* pAllSchemas = taosMemoryMalloc(totalCols * sizeof(SSchema));
   if (pAllSchemas == NULL) {
     taosMemoryFree(pCache);
-    return NULL;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
   memcpy(pAllSchemas, pMetaRsp->pSchemas, totalCols * sizeof(SSchema));
 
@@ -2224,15 +2236,16 @@ static SVtbRefSchemaCache* vtbRefCreateSchemaCacheFromMetaRsp(STableMetaRsp* pMe
   pCache->schemaTag.pSchema = (numOfTags > 0) ? pAllSchemas + numOfCols : NULL;
   pCache->hasTagSchema = (numOfTags > 0);
   pCache->ownsSchema = true;
-  pCache->pColNameIndex = vtbRefBuildColNameIndex(pAllSchemas, numOfCols, numOfTags);
+  code = vtbRefBuildColNameIndex(pAllSchemas, numOfCols, numOfTags, &pCache->pColNameIndex);
 
-  if (pCache->pColNameIndex == NULL) {
+  if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pAllSchemas);
     taosMemoryFree(pCache);
-    return NULL;
+    return code;
   }
 
-  return pCache;
+  *ppCache = pCache;
+  return TSDB_CODE_SUCCESS;
 }
 
 static void vtbRefBuildRemoteCacheKey(char* buf, int32_t size, const char* dbName, const char* tableName) {
@@ -2346,7 +2359,7 @@ static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId
 
 _return:
   taosMemoryFreeClear(ctx.pRsp);
-  tsem_destroy(&ctx.ready);
+  TAOS_UNUSED(tsem_destroy(&ctx.ready));
   taosMemoryFree(buf);
   if (output.dbVgroup) {
     freeVgInfo(output.dbVgroup);
@@ -2492,7 +2505,7 @@ static int32_t vtbRefFetchTableSchema(void* clientRpc, SEpSet* pVnodeEpSet, int3
 
 _return:
   taosMemoryFreeClear(ctx.pRsp);
-  tsem_destroy(&ctx.ready);
+  TAOS_UNUSED(tsem_destroy(&ctx.ready));
   taosMemoryFree(buf);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s, db:%s, tb:%s", __func__, lino, tstrerror(code), dbName, tbName);
@@ -2717,8 +2730,8 @@ static int32_t vtbRefValidateRemote(void* clientRpc, SEpSet* pMnodeEpSet, int32_
   if (pTableCache != NULL) {
     SVtbRefTableCacheEntry* pNewEntry = taosMemoryCalloc(1, sizeof(SVtbRefTableCacheEntry));
     if (pNewEntry != NULL) {
-      pNewEntry->pSchemaCache = vtbRefCreateSchemaCacheFromMetaRsp(&metaRsp);
-      if (pNewEntry->pSchemaCache != NULL) {
+      int32_t cacheCode = vtbRefCreateSchemaCacheFromMetaRsp(&metaRsp, &pNewEntry->pSchemaCache);
+      if (cacheCode == TSDB_CODE_SUCCESS) {
         pNewEntry->errCode = TSDB_CODE_SUCCESS;
         int32_t putCode = vtbRefPutRemoteCacheEntry(pTableCache, refDbName, refTableName, pNewEntry);
         if (putCode == TSDB_CODE_SUCCESS) {
