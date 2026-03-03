@@ -12,10 +12,10 @@ sidebar_label: "调用时序基础模型"
 | 序号  | 参数       | 说明                   |
 |-----|----------|----------------------|
 | 1   | tdtsfm_1 | 涛思时序数据基础模型 v1.0      |
-| 2   | time-moe | MoE 时序基础模型           |
-| 3   | moirai   | SalesForce 开源的时序基础模型 |
-| 4   | chronos  | Amazon 开源的时序基础模型     |
-| 5   | timesfm  | Google 开源的时序基础模型     |
+| 2   | time-moe[^1] | MoE 时序基础模型           |
+| 3   | moirai[^2]   | SalesForce 开源的时序基础模型 |
+| 4   | chronos[^3]  | Amazon 开源的时序基础模型     |
+| 5   | timesfm[^4]  | Google 开源的时序基础模型     |
 
 TDgpt 集成时序基础模型的预测能力，无需设置模型运行参数，即可直接调用时序基础模型进行预测。
 
