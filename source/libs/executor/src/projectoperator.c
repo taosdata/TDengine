@@ -46,6 +46,21 @@ static int32_t      doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** p
 static int32_t      doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId, int32_t* numOfRows, bool createNewColModel, const void* pExtraParams);
 
+static bool hasLagLeadFunc(const SExprSupp* pSup) {
+  if (pSup == NULL || pSup->pCtx == NULL) {
+    return false;
+  }
+
+  for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
+    EFunctionType type = fmGetFuncTypeFromId(pSup->pCtx[i].functionId);
+    if (type == FUNCTION_TYPE_LAG || type == FUNCTION_TYPE_LEAD) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 static void destroyProjectOperatorInfo(void* param) {
   if (NULL == param) {
     return;
@@ -618,6 +633,7 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
   }
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
+  bool           noSplitOutput = hasLagLeadFunc(pSup);
 
   while (1) {
     // here we need to handle the existsed group results
@@ -634,7 +650,7 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
       pIndefInfo->pNextGroupRes = NULL;
     }
 
-    if (pInfo->pRes->info.rows < pOperator->resultInfo.threshold) {
+    if (noSplitOutput || pInfo->pRes->info.rows < pOperator->resultInfo.threshold) {
       while (1) {
         // The downstream exec may change the value of the newgroup, so use a local variable instead.
         SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
@@ -655,7 +671,7 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
         }
 
         doHandleDataBlock(pOperator, pBlock, downstream, pTaskInfo);
-        if (pInfo->pRes->info.rows >= pOperator->resultInfo.threshold) {
+        if (!noSplitOutput && pInfo->pRes->info.rows >= pOperator->resultInfo.threshold) {
           break;
         }
       }
