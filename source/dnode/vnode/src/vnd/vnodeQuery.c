@@ -50,7 +50,7 @@ int32_t fillTableColCmpr(SMetaReader *reader, SSchemaExt *pExt, int32_t numOfCol
   return 0;
 }
 
-void vnodePrintTableMeta(STableMetaRsp *pMeta) {
+void vnodeDebugTableMeta(STableMetaRsp *pMeta) {
   if (!(qDebugFlag & DEBUG_DEBUG)) {
     return;
   }
@@ -265,8 +265,12 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       if (metaRsp.pTagRefs) {
         code = fillTableTagRef(&mer1, metaRsp.pTagRefs, mer1.me.colRef.nTagRefs);
         if (code < 0) {
+          taosMemoryFreeClear(metaRsp.pTagRefs);
           goto _exit;
         }
+      } else {
+        code = terrno;
+        goto _exit;
       }
       metaRsp.numOfTagRefs = mer1.me.colRef.nTagRefs;
     } else {
@@ -280,7 +284,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     metaRsp.numOfTagRefs = 0;
   }
 
-  vnodePrintTableMeta(&metaRsp);
+  vnodeDebugTableMeta(&metaRsp);
 
   // encode and send response
   rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
