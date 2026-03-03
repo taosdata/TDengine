@@ -204,6 +204,7 @@ SWords shellCommands[] = {
     {"show transactions;", 0, 0, NULL},
     {"show tsmas;", 0, 0, NULL},
     {"show users;", 0, 0, NULL},
+    {"show user privileges;", 0, 0, NULL},
     {"show variables;", 0, 0, NULL},
     {"show local variables;", 0, 0, NULL},
     {"show vnodes;", 0, 0, NULL},
@@ -615,6 +616,7 @@ void showHelp() {
     show topics;\n\
     show transactions;\n\
     show users;\n\
+    show user privileges;\n\
     show variables;\n\
     show local variables;\n\
     show vnodes;\n\

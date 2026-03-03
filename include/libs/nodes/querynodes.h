@@ -629,6 +629,28 @@ typedef struct SExplainStmt {
   SNode*           pQuery;
 } SExplainStmt;
 
+typedef struct SShowPrivTbInfo {
+  bool       showAllTbls;
+  SSHashObj* pReadUids;  // key is int64_t (suid or uid)
+  SArray*    pDbVgs;
+} SShowPrivTbInfo;
+
+typedef struct SShowPrivInfo {
+  // collect privilege info from user auth res, and used for table privilege filtering (AUTH_TYPE_SHOW)
+  bool       queryInsTbls;
+  bool       singleDbQuery;
+  bool       showAllTbls;  // user has db-level privilege (single-db query)
+  SSHashObj* pReadDbs;     // key is dbFName, db-level read/write privilege
+  SSHashObj* pReadTbs;     // key is tbFName, table-level read/write privilege
+
+  // refactor to use SShowPrivTbInfo for each db/vgroup
+  SSHashObj* pDbShowPrivTb;  // key is dbFName, value is SShowPrivTbInfo
+  union {
+    SSHashObj* pReadUids;      // single-db query: store the table uids
+    SSHashObj* pVgDbShowHash;  // all-db query:   key is vgId, value is SShowPrivTbInfo* in pDbShowPrivTb
+  };
+} SShowPrivInfo;
+
 typedef struct SCmdMsgInfo {
   int16_t msgType;
   SEpSet  epSet;

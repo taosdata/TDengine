@@ -136,6 +136,7 @@ typedef struct SParseContext {
   timezone_t       timezone;
   void            *charsetCxt;
   bool             streamRunHistory;
+  SShowPrivInfo    showPrivInfo;  // privilege info for table filtering in SHOW tables / SELECT * FROM ins_tables
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);

@@ -743,6 +743,31 @@ static int32_t getDBVgInfoImpl(STranslateContext* pCxt, const SName* pName, SArr
   return code;
 }
 
+static int32_t getDBVgInfoForce(STranslateContext* pCxt, const SName* pName, SArray** pVgInfo) {
+  SParseContext* pParCxt = pCxt->pParseCxt;
+  char           fullDbName[TSDB_DB_FNAME_LEN];
+  (void)tNameGetFullDbName(pName, fullDbName);
+  int32_t code = collectUseDatabaseImpl(fullDbName, pCxt->pDbs);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pParCxt->async) {
+      code = getDbVgInfoFromCache(pCxt->pMetaCache, fullDbName, pVgInfo);
+      if (TSDB_CODE_SUCCESS == code) {
+        return code;
+      }
+    }
+    SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                             .requestId = pParCxt->requestId,
+                             .requestObjRefId = pParCxt->requestRid,
+                             .mgmtEps = pParCxt->mgmtEpSet};
+    code = catalogGetDBVgList(pParCxt->pCatalog, &conn, fullDbName, pVgInfo);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    parserError("QID:0x%" PRIx64 ", failed to get DB vgroup info, code:%s, dbFName:%s", pCxt->pParseCxt->requestId,
+                tstrerror(code), fullDbName);
+  }
+  return code;
+}
+
 static int32_t getDBVgInfo(STranslateContext* pCxt, const char* pDbName, SArray** pVgInfo) {
   SName   name;
   int32_t code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pDbName, strlen(pDbName));
@@ -4524,6 +4549,275 @@ static int32_t getVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   return code;
 }
 
+#ifdef TD_ENTERPRISE
+// Add a single table's uid to the specified pReadUids hash
+static int32_t convertTbNameToUids(STranslateContext* pCxt, SName* pName, int32_t maxTbSize, SSHashObj** ppReadUids) {
+  SParseContext* pParseCxt = pCxt->pParseCxt;
+
+  // Try to get cached table meta first, then fallback to network call
+  STableMeta* pMeta = NULL;
+  int32_t     code = catalogGetCachedTableMeta(pParseCxt->pCatalog, pName, &pMeta);
+  if (TSDB_CODE_SUCCESS != code || NULL == pMeta) {
+    // Try network call
+    SRequestConnInfo conn = {.pTrans = pParseCxt->pTransporter,
+                             .requestId = pParseCxt->requestId,
+                             .requestObjRefId = pParseCxt->requestRid,
+                             .mgmtEps = pParseCxt->mgmtEpSet};
+    code = catalogGetTableMeta(pParseCxt->pCatalog, &conn, pName, &pMeta);
+  }
+
+  if (pMeta != NULL) {
+    if (NULL == *ppReadUids) {
+      *ppReadUids = tSimpleHashInit(maxTbSize, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+      if (NULL == *ppReadUids) {
+        taosMemoryFree(pMeta);
+        return terrno;
+      }
+    }
+    code = tSimpleHashPut(*ppReadUids, &pMeta->uid, sizeof(pMeta->uid), NULL, 0);
+    taosMemoryFree(pMeta);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;  // return success since the table may not exist
+}
+
+static int32_t getPrivilegedTbUids(STranslateContext* pCxt, SSHashObj* pReadTbs, SSHashObj** ppReadUids) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t maxTbSize = 0;
+  if (NULL == pReadTbs || (maxTbSize = tSimpleHashGetSize(pReadTbs)) == 0) {
+    return code;
+  }
+
+  void*   pIter = NULL;
+  int32_t iter = 0;
+  while ((pIter = tSimpleHashIterate(pReadTbs, pIter, &iter)) != NULL) {
+    char* tbFName = tSimpleHashGetKey(pIter, NULL);
+    SName name = {0};
+    if (tNameFromString(&name, tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE) != 0) {
+      continue;
+    }
+
+    code = convertTbNameToUids(pCxt, &name, maxTbSize, ppReadUids);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+
+  return code;
+}
+
+static void tFreeDbShowPrivTbInfo(void* param) {
+  SShowPrivTbInfo* pInfo = (SShowPrivTbInfo*)param;
+  if (pInfo) {
+    taosArrayDestroy(pInfo->pDbVgs);
+    tSimpleHashCleanup(pInfo->pReadUids);
+  }
+}
+
+static int32_t buildPrivilegedDbVgroupInfo(STranslateContext* pCxt, int32_t maxVgSize) {
+  SParseContext* pParseCxt = pCxt->pParseCxt;
+  SShowPrivInfo* pShowPrivInfo = &pParseCxt->showPrivInfo;
+
+  size_t maxDbSize = tSimpleHashGetSize(pShowPrivInfo->pReadDbs) + tSimpleHashGetSize(pShowPrivInfo->pReadTbs);
+  // Initialize pDbShowPrivTb if not already initialized
+  if (NULL == pShowPrivInfo->pDbShowPrivTb) {
+    pShowPrivInfo->pDbShowPrivTb = tSimpleHashInit(maxDbSize, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    if (NULL == pShowPrivInfo->pDbShowPrivTb) {
+      return terrno;
+    }
+    tSimpleHashSetFreeFp(pShowPrivInfo->pDbShowPrivTb, tFreeDbShowPrivTbInfo);
+  }
+
+  // Initialize pVgDbShowHash if not already initialized
+  if (NULL == pShowPrivInfo->pVgDbShowHash) {
+    pShowPrivInfo->pVgDbShowHash = tSimpleHashInit(maxVgSize, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+    if (NULL == pShowPrivInfo->pVgDbShowHash) {
+      return terrno;
+    }
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // Phase 1: Process pReadDbs - databases with db-level read privilege (showAllTbls = true)
+  if (pShowPrivInfo->pReadDbs != NULL) {
+    void*   pIter = NULL;
+    int32_t iter = 0;
+    while ((pIter = tSimpleHashIterate(pShowPrivInfo->pReadDbs, pIter, &iter)) != NULL) {
+      char* dbFName = tSimpleHashGetKey(pIter, NULL);
+
+      // Create SShowPrivTbInfo with showAllTbls = true (db-level privilege)
+      SShowPrivTbInfo dbPrivInfo = {0};
+      dbPrivInfo.showAllTbls = true;
+      dbPrivInfo.pReadUids = NULL;
+      dbPrivInfo.pDbVgs = NULL;
+
+      // Parse dbFName to SName (format: acctId.dbName)
+      SName name = {0};
+      if (tNameFromString(&name, dbFName, T_NAME_ACCT | T_NAME_DB) != 0) {
+        continue;
+      }
+
+      // Get vgroup list for this db
+      code = getDBVgInfoForce(pCxt, &name, &dbPrivInfo.pDbVgs);
+      if (TSDB_CODE_SUCCESS != code) {
+        continue;
+      }
+
+      // Insert into pDbShowPrivTb
+      code = tSimpleHashPut(pShowPrivInfo->pDbShowPrivTb, dbFName, strlen(dbFName) + 1, &dbPrivInfo,
+                            sizeof(SShowPrivTbInfo));
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+
+      // Build pVgDbShowHash: map vgId -> SShowPrivTbInfo*
+      SShowPrivTbInfo* pDbPrivInfo = tSimpleHashGet(pShowPrivInfo->pDbShowPrivTb, dbFName, strlen(dbFName) + 1);
+      if (pDbPrivInfo != NULL && pDbPrivInfo->pDbVgs != NULL) {
+        for (int32_t i = 0; i < taosArrayGetSize(pDbPrivInfo->pDbVgs); ++i) {
+          SVgroupInfo* pVgInfo = taosArrayGet(pDbPrivInfo->pDbVgs, i);
+          code = tSimpleHashPut(pShowPrivInfo->pVgDbShowHash, &pVgInfo->vgId, sizeof(pVgInfo->vgId), &pDbPrivInfo,
+                                sizeof(SShowPrivTbInfo*));
+          if (TSDB_CODE_SUCCESS != code) {
+            break;
+          }
+        }
+      }
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+    }
+  }
+
+  // Phase 2: Process pReadTbs - tables with table-level read privilege
+  // Extract database names and create entries with showAllTbls = false
+  if (TSDB_CODE_SUCCESS == code && pShowPrivInfo->pReadTbs != NULL) {
+    void*   pIter = NULL;
+    int32_t iter = 0;
+    int32_t maxTbSize = tSimpleHashGetSize(pShowPrivInfo->pReadTbs);
+    while ((pIter = tSimpleHashIterate(pShowPrivInfo->pReadTbs, pIter, &iter)) != NULL) {
+      char* tbFName = tSimpleHashGetKey(pIter, NULL);
+
+      // Parse tbFName to get db name (format: acctId.dbName.tbName)
+      SName name = {0};
+      if (tNameFromString(&name, tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE) != 0) {
+        continue;
+      }
+
+      // Get full db name
+      char dbFName[TSDB_DB_FNAME_LEN] = {0};
+      (void)tNameGetFullDbName(&name, dbFName);
+
+      // Skip if already processed with db-level privilege (showAllTbls = true)
+      SShowPrivTbInfo* pExistDbPrivInfo = tSimpleHashGet(pShowPrivInfo->pDbShowPrivTb, dbFName, strlen(dbFName) + 1);
+      if (pExistDbPrivInfo != NULL) {
+        if (pExistDbPrivInfo->showAllTbls) {
+          continue;  // Has stronger db-level privilege, skip
+        }
+        // Existing entry with table-level privilege, add uid to its pReadUids
+        code = convertTbNameToUids(pCxt, &name, maxTbSize, &pExistDbPrivInfo->pReadUids);
+        if (TSDB_CODE_SUCCESS != code) {
+          break;
+        }
+        continue;
+      }
+
+      // Create SShowPrivTbInfo with showAllTbls = false (table-level privilege)
+      SShowPrivTbInfo dbPrivInfo = {0};
+      dbPrivInfo.showAllTbls = false;
+      dbPrivInfo.pReadUids = NULL;
+      dbPrivInfo.pDbVgs = NULL;
+
+      // Add uid for this table
+      code = convertTbNameToUids(pCxt, &name, maxTbSize, &dbPrivInfo.pReadUids);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+
+      // Clear table name to get db-only SName
+      name.tname[0] = '\0';
+
+      // Get vgroup list for this db
+      code = getDBVgInfoForce(pCxt, &name, &dbPrivInfo.pDbVgs);
+      if (TSDB_CODE_SUCCESS != code) {
+        continue;
+      }
+
+      // Insert into pDbShowPrivTb
+      code = tSimpleHashPut(pShowPrivInfo->pDbShowPrivTb, dbFName, strlen(dbFName) + 1, &dbPrivInfo,
+                            sizeof(SShowPrivTbInfo));
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+
+      // Build pVgDbShowHash: map vgId -> SShowPrivTbInfo*
+      SShowPrivTbInfo* pDbPrivInfo = tSimpleHashGet(pShowPrivInfo->pDbShowPrivTb, dbFName, strlen(dbFName) + 1);
+      if (pDbPrivInfo != NULL && pDbPrivInfo->pDbVgs != NULL) {
+        for (int32_t i = 0; i < TARRAY_SIZE(pDbPrivInfo->pDbVgs); ++i) {
+          SVgroupInfo* pVgInfo = TARRAY_GET_ELEM(pDbPrivInfo->pDbVgs, i);
+          code = tSimpleHashPut(pShowPrivInfo->pVgDbShowHash, &pVgInfo->vgId, sizeof(pVgInfo->vgId), &pDbPrivInfo,
+                                sizeof(SShowPrivTbInfo*));
+          if (TSDB_CODE_SUCCESS != code) {
+            break;
+          }
+        }
+      }
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+    }
+  }
+
+  return code;
+}
+
+// Get all vgroups from pDbShowPrivTb as an array
+static int32_t getPrivilegedDbVgroupList(STranslateContext* pCxt, int32_t maxVgSize, SArray** pVgroupList) {
+  SParseContext* pParseCxt = pCxt->pParseCxt;
+  SShowPrivInfo* pShowPrivInfo = &pParseCxt->showPrivInfo;
+
+  *pVgroupList = taosArrayInit(maxVgSize, sizeof(SVgroupInfo));
+  if (NULL == *pVgroupList) {
+    return terrno;
+  }
+
+  int32_t code = buildPrivilegedDbVgroupInfo(pCxt, maxVgSize);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosArrayDestroy(*pVgroupList);
+    *pVgroupList = NULL;
+    return code;
+  }
+
+  // Collect all vgroups from pDbShowPrivTb
+  if (pShowPrivInfo->pDbShowPrivTb != NULL) {
+    void*   pIter = NULL;
+    int32_t iter = 0;
+    while ((pIter = tSimpleHashIterate(pShowPrivInfo->pDbShowPrivTb, pIter, &iter)) != NULL) {
+      SShowPrivTbInfo* pDbPrivInfo = (SShowPrivTbInfo*)pIter;
+      if (pDbPrivInfo->pDbVgs != NULL) {
+        for (int32_t i = 0; i < TARRAY_SIZE(pDbPrivInfo->pDbVgs); ++i) {
+          if (NULL == taosArrayPush(*pVgroupList, TARRAY_GET_ELEM(pDbPrivInfo->pDbVgs, i))) {
+            code = terrno;
+            break;
+          }
+        }
+      }
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    taosArrayDestroy(*pVgroupList);
+    *pVgroupList = NULL;
+  }
+
+  return code;
+}
+#endif
+
 static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
   bool    hasUserDbCond = false;
   SArray* pVgs = NULL;
@@ -4533,6 +4827,32 @@ static int32_t setVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
       isSelectStmt(pCxt->pCurrStmt) && 0 == taosArrayGetSize(pVgs)) {
     ((SSelectStmt*)pCxt->pCurrStmt)->isEmptyResult = true;
   }
+
+  SParseContext* pParseCxt = pCxt->pParseCxt;
+  SShowPrivInfo* pShowPrivInfo = &pParseCxt->showPrivInfo;
+
+#ifdef TD_ENTERPRISE  // support 6745760688
+  if (TSDB_CODE_SUCCESS == code && isSelectStmt(pCxt->pCurrStmt) &&
+      0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES)) {
+    pShowPrivInfo->queryInsTbls = true;
+    pShowPrivInfo->singleDbQuery = hasUserDbCond;
+    if (pParseCxt->isSuperUser || pParseCxt->isStmtBind) {
+      pShowPrivInfo->showAllTbls = true;
+    }
+    if (!pShowPrivInfo->showAllTbls) {
+      if (hasUserDbCond) {
+        code = getPrivilegedTbUids(pCxt, pShowPrivInfo->pReadTbs, &pShowPrivInfo->pReadUids);
+      } else {
+        SArray* pPrivilegedVgs = NULL;
+        code = getPrivilegedDbVgroupList(pCxt, taosArrayGetSize(pVgs), &pPrivilegedVgs);
+        if (TSDB_CODE_SUCCESS == code) {
+          TSWAP(pVgs, pPrivilegedVgs);
+        }
+        taosArrayDestroy(pPrivilegedVgs);
+      }
+    }
+  }
+#endif
 
   if (TSDB_CODE_SUCCESS == code &&
       ((0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_TABLES) && !hasUserDbCond) ||

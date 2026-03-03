@@ -421,6 +421,10 @@ void qDestroyParseContext(SParseContext* pCxt) {
   taosArrayDestroyEx(pCxt->pSubMetaList, tfreeSParseQueryRes);
   taosArrayDestroy(pCxt->pTableMetaPos);
   taosArrayDestroy(pCxt->pTableVgroupPos);
+  tSimpleHashCleanup(pCxt->showPrivInfo.pReadDbs);
+  tSimpleHashCleanup(pCxt->showPrivInfo.pReadTbs);
+  tSimpleHashCleanup(pCxt->showPrivInfo.pDbShowPrivTb);
+  tSimpleHashCleanup(pCxt->showPrivInfo.pReadUids);
   taosMemoryFree(pCxt);
 }
 
