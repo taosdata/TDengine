@@ -10,7 +10,7 @@ import shutil
 class TestCase:
     path_parts = os.getcwd().split(os.sep)
     try:
-        tdinternal_index = path_parts.index("TDinternal.2")
+        tdinternal_index = path_parts.index("TDinternal")
     except ValueError:
         raise ValueError("The specified directory 'TDinternal' was not found in the path.")
     TDinternal = os.sep.join(path_parts[:tdinternal_index + 1])
