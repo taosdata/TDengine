@@ -793,7 +793,7 @@ class TestCase:
     def s10_check_localSS_content(self, path, min_size_mb=16):
         total_size = sum(os.path.getsize(os.path.join(dp, f)) for dp, dn, fn in os.walk(path) for f in fn)
         min_size = min_size_mb * 1024 * 1024
-        if total_size <= min_size:
+        if total_size < min_size:
             raise Exception(f"directory {path} size {total_size} bytes is not greater than {min_size_mb}MB ({min_size} bytes)")
         tdLog.info(f"directory {path} size: {total_size} bytes ({total_size / (1024 * 1024):.2f} MB)")
 
@@ -851,7 +851,7 @@ class TestCase:
         tdSql.execute("show ssmigrates")
         tdSql.checkRows(1)
         self.s5_0_wait_task_done(sql="show ssmigrates", task="ssmigrate")
-        self.s10_check_localSS_content(self.localSSPath, min_size_mb=8)
+        self.s10_check_localSS_content(self.localSSPath, min_size_mb=0)
         tdSql.query("select count(*) from stb0")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 500)

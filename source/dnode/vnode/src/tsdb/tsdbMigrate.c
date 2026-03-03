@@ -606,11 +606,18 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     tsdbTFileLastChunkName(rtner->tsdb, flocal->f, path);
   }
 
-  int64_t mtime = 0;
-  *pCode = taosStatFile(path, NULL, &mtime, NULL);
+  int64_t size = 0, mtime = 0;
+  *pCode = taosStatFile(path, &size, &mtime, NULL);
   if (*pCode != TSDB_CODE_SUCCESS) {
     tsdbError("vgId:%d, fid:%d, migration cancelled, failed to stat file %s since %s", vid, pLocalFset->fid, path, tstrerror(*pCode));
     setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
+    return false;
+  }
+
+  // file may become smaller after a compaction, especially after a RSMA compaction
+  if (flocal->f->lcn < 1 && size <= (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize) {
+    tsdbInfo("vgId:%d, fid:%d, migration skipped, data file is too small, size: %" PRId64 " bytes", vid, flocal->f->fid, size);
+    setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SKIPPED);
     return false;
   }
 
