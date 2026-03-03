@@ -596,6 +596,331 @@ static void taosCleanupArgs() {
   if (global.envCmd != NULL) taosMemoryFreeClear(global.envCmd);
 }
 
+static int32_t dmRunForceWalRepair(int32_t totalVnodes, int64_t repairProgressIntervalMs, int64_t *pLastProgressReportMs,
+                                   bool *pNeedReport, char *progressLine, int32_t progressLineSize) {
+  if (pLastProgressReportMs == NULL || pNeedReport == NULL || progressLine == NULL || progressLineSize <= 0) {
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  int32_t code = 0;
+  bool    needRunWalForceRepair = false;
+  code = tRepairNeedRunWalForceRepair(&global.repairCtx, &needRunWalForceRepair);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to determine wal force repair schedule since %s", tstrerror(code));
+    printf("failed repair session preparation: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  if (!needRunWalForceRepair) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  code = walInit(dmStopDaemon);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to initialize wal module for repair since %s", tstrerror(code));
+    printf("failed repair wal scheduling: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  int32_t walDoneVnodes = 0;
+  for (int32_t i = 0; i < global.repairCtx.vnodeIdNum; ++i) {
+    int32_t vnodeId = global.repairCtx.vnodeIds[i];
+    char    walPath[PATH_MAX] = {0};
+    code = tRepairBuildVnodeTargetPath(tsDataDir, vnodeId, REPAIR_FILE_TYPE_WAL, walPath, sizeof(walPath));
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to build wal path for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair wal scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "wal", "running", walDoneVnodes,
+                                    totalVnodes);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to write wal repair state for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair wal scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    SWalCfg walCfg = {0};
+    walCfg.vgId = vnodeId;
+    walCfg.fsyncPeriod = 0;
+    walCfg.retentionPeriod = -1;
+    walCfg.retentionSize = -1;
+    walCfg.level = TAOS_WAL_WRITE;
+
+    SWal *pWal = walOpen(walPath, &walCfg);
+    if (pWal == NULL) {
+      int32_t walCode = terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+      dError("failed to repair wal for vnode:%d path:%s since %s", vnodeId, walPath, tstrerror(walCode));
+      (void)tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "wal", "failed", walDoneVnodes,
+                                     totalVnodes);
+      printf("failed repair wal scheduling: %s\n", tstrerror(walCode));
+      return TSDB_CODE_INVALID_CFG;
+    }
+    walClose(pWal);
+
+    ++walDoneVnodes;
+
+    code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "wal", "running", walDoneVnodes,
+                                    totalVnodes);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to update wal repair state for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair wal scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    char walLog[128] = {0};
+    int32_t walLogLen = tsnprintf(walLog, sizeof(walLog), "finished force wal repair for vnode:%d", vnodeId);
+    if (walLogLen <= 0 || walLogLen >= (int32_t)sizeof(walLog)) {
+      tstrncpy(walLog, "finished force wal repair", sizeof(walLog));
+    }
+    code = tRepairAppendSessionLog(global.repairLogPath, walLog);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to append wal repair log for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair wal scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    code = tRepairNeedReportProgress(taosGetTimestampMs(), repairProgressIntervalMs, pLastProgressReportMs, pNeedReport);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to update wal repair progress interval for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair wal scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    if (*pNeedReport || walDoneVnodes == totalVnodes) {
+      code = tRepairBuildProgressLine(&global.repairCtx, "wal", walDoneVnodes, totalVnodes, progressLine,
+                                      progressLineSize);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to build wal repair progress line for vnode:%d since %s", vnodeId, tstrerror(code));
+        printf("failed repair wal scheduling: %s\n", tstrerror(code));
+        return TSDB_CODE_INVALID_CFG;
+      }
+
+      dInfo("%s", progressLine);
+      printf("%s\n", progressLine);
+      code = tRepairAppendSessionLog(global.repairLogPath, progressLine);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to append wal repair progress log for vnode:%d since %s", vnodeId, tstrerror(code));
+        printf("failed repair wal scheduling: %s\n", tstrerror(code));
+        return TSDB_CODE_INVALID_CFG;
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t dmRunRepairWorkflow(void) {
+  const int64_t kRepairProgressIntervalMs = 3000;
+  int64_t       lastProgressReportMs = 0;
+  int32_t       totalVnodes = global.repairCtx.nodeType == REPAIR_NODE_TYPE_VNODE ? global.repairCtx.vnodeIdNum : 0;
+  int32_t       doneVnodes = 0;
+  bool          resumed = false;
+  bool          needReport = false;
+  int64_t       minDiskAvailBytes = tsDataSpace.reserved > 0 ? tsDataSpace.reserved : 0;
+  char          progressLine[PATH_MAX] = {0};
+  int32_t       code = tRepairPrecheck(&global.repairCtx, tsDataDir, minDiskAvailBytes);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to run repair precheck since %s", tstrerror(code));
+    printf("failed repair precheck: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  code = tRepairTryResumeSession(&global.repairCtx, tsDataDir, global.repairSessionDir, sizeof(global.repairSessionDir),
+                                 global.repairLogPath, sizeof(global.repairLogPath), global.repairStatePath,
+                                 sizeof(global.repairStatePath), &doneVnodes, &totalVnodes, &resumed);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to load repair resume session since %s", tstrerror(code));
+    printf("failed repair session preparation: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  if (global.repairCtx.nodeType == REPAIR_NODE_TYPE_VNODE &&
+      (totalVnodes != global.repairCtx.vnodeIdNum || doneVnodes < 0 || doneVnodes > totalVnodes)) {
+    dError("invalid repair resume state, doneVnodes:%d totalVnodes:%d vnodeIdNum:%d", doneVnodes, totalVnodes,
+           global.repairCtx.vnodeIdNum);
+    printf("failed repair session preparation: invalid resume state\n");
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  if (!resumed) {
+    code = tRepairPrepareSessionFiles(&global.repairCtx, tsDataDir, global.repairSessionDir, sizeof(global.repairSessionDir),
+                                      global.repairLogPath, sizeof(global.repairLogPath), global.repairStatePath,
+                                      sizeof(global.repairStatePath));
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to prepare repair session files since %s", tstrerror(code));
+      printf("failed repair session preparation: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+  } else {
+    char resumeMessage[128] = {0};
+    int32_t resumeLen = tsnprintf(resumeMessage, sizeof(resumeMessage), "repair session resumed: session=%s vnode=%d/%d",
+                                  global.repairCtx.sessionId, doneVnodes, totalVnodes);
+    if (resumeLen <= 0 || resumeLen >= (int32_t)sizeof(resumeMessage)) {
+      tstrncpy(resumeMessage, "repair session resumed", sizeof(resumeMessage));
+    }
+
+    dInfo("%s", resumeMessage);
+    printf("%s\n", resumeMessage);
+    code = tRepairAppendSessionLog(global.repairLogPath, resumeMessage);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to append repair resume log since %s", tstrerror(code));
+      printf("failed repair session preparation: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+  }
+
+  code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "precheck", "running", doneVnodes,
+                                  totalVnodes);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to write repair precheck state since %s", tstrerror(code));
+    printf("failed repair session preparation: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  code = tRepairAppendSessionLog(global.repairLogPath, "repair precheck passed");
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to append repair precheck log since %s", tstrerror(code));
+    printf("failed repair session preparation: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  code = tRepairBuildProgressLine(&global.repairCtx, "precheck", doneVnodes, totalVnodes, progressLine,
+                                  sizeof(progressLine));
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to build repair progress line since %s", tstrerror(code));
+    printf("failed repair session preparation: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+  dInfo("%s", progressLine);
+  printf("%s\n", progressLine);
+
+  code = tRepairAppendSessionLog(global.repairLogPath, progressLine);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to append repair progress log since %s", tstrerror(code));
+    printf("failed repair session preparation: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  code = tRepairNeedReportProgress(taosGetTimestampMs(), kRepairProgressIntervalMs, &lastProgressReportMs, &needReport);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to initialize repair progress interval since %s", tstrerror(code));
+    printf("failed repair session preparation: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  if (global.repairCtx.nodeType == REPAIR_NODE_TYPE_VNODE) {
+    int32_t startVnodeIndex = doneVnodes;
+    if (startVnodeIndex < 0 || startVnodeIndex > global.repairCtx.vnodeIdNum) {
+      dError("invalid repair resume vnode index:%d vnodeIdNum:%d", startVnodeIndex, global.repairCtx.vnodeIdNum);
+      printf("failed repair backup preparation: invalid resume state\n");
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    for (int32_t i = startVnodeIndex; i < global.repairCtx.vnodeIdNum; ++i) {
+      char backupDir[PATH_MAX] = {0};
+      code = tRepairPrepareBackupDir(&global.repairCtx, tsDataDir, global.repairCtx.vnodeIds[i], backupDir,
+                                     sizeof(backupDir));
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to prepare repair backup dir for vnode:%d since %s", global.repairCtx.vnodeIds[i],
+               tstrerror(code));
+        printf("failed repair backup preparation: %s\n", tstrerror(code));
+        return TSDB_CODE_INVALID_CFG;
+      }
+
+      ++doneVnodes;
+      code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "backup", "running", doneVnodes,
+                                      totalVnodes);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to write repair backup state for vnode:%d since %s", global.repairCtx.vnodeIds[i],
+               tstrerror(code));
+        printf("failed repair backup preparation: %s\n", tstrerror(code));
+        return TSDB_CODE_INVALID_CFG;
+      }
+
+      char logMessage[128] = {0};
+      int32_t logLen =
+          tsnprintf(logMessage, sizeof(logMessage), "prepared backup dir for vnode:%d", global.repairCtx.vnodeIds[i]);
+      if (logLen <= 0 || logLen >= (int32_t)sizeof(logMessage)) {
+        tstrncpy(logMessage, "prepared backup dir", sizeof(logMessage));
+      }
+
+      code = tRepairAppendSessionLog(global.repairLogPath, logMessage);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to append repair backup log for vnode:%d since %s", global.repairCtx.vnodeIds[i], tstrerror(code));
+        printf("failed repair backup preparation: %s\n", tstrerror(code));
+        return TSDB_CODE_INVALID_CFG;
+      }
+
+      code = tRepairNeedReportProgress(taosGetTimestampMs(), kRepairProgressIntervalMs, &lastProgressReportMs, &needReport);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to update repair progress interval for vnode:%d since %s", global.repairCtx.vnodeIds[i],
+               tstrerror(code));
+        printf("failed repair backup preparation: %s\n", tstrerror(code));
+        return TSDB_CODE_INVALID_CFG;
+      }
+
+      if (needReport || doneVnodes == totalVnodes) {
+        code = tRepairBuildProgressLine(&global.repairCtx, "backup", doneVnodes, totalVnodes, progressLine,
+                                        sizeof(progressLine));
+        if (code != TSDB_CODE_SUCCESS) {
+          dError("failed to build repair backup progress line for vnode:%d since %s", global.repairCtx.vnodeIds[i],
+                 tstrerror(code));
+          printf("failed repair backup preparation: %s\n", tstrerror(code));
+          return TSDB_CODE_INVALID_CFG;
+        }
+
+        dInfo("%s", progressLine);
+        printf("%s\n", progressLine);
+        code = tRepairAppendSessionLog(global.repairLogPath, progressLine);
+        if (code != TSDB_CODE_SUCCESS) {
+          dError("failed to append repair backup progress log for vnode:%d since %s", global.repairCtx.vnodeIds[i],
+                 tstrerror(code));
+          printf("failed repair backup preparation: %s\n", tstrerror(code));
+          return TSDB_CODE_INVALID_CFG;
+        }
+      }
+    }
+  }
+
+  code = dmRunForceWalRepair(totalVnodes, kRepairProgressIntervalMs, &lastProgressReportMs, &needReport, progressLine,
+                             sizeof(progressLine));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "preflight", "ready", doneVnodes,
+                                  totalVnodes);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to write repair session state since %s", tstrerror(code));
+    printf("failed repair session preparation: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  int32_t failedVnodes = totalVnodes >= doneVnodes ? (totalVnodes - doneVnodes) : 0;
+  int64_t elapsedMs = taosGetTimestampMs() - global.repairCtx.startTimeMs;
+  char    summaryLine[PATH_MAX] = {0};
+  code =
+      tRepairBuildSummaryLine(&global.repairCtx, doneVnodes, failedVnodes, elapsedMs, summaryLine, sizeof(summaryLine));
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to build repair summary line since %s", tstrerror(code));
+    printf("failed repair session preparation: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  dInfo("%s", summaryLine);
+  printf("%s\n", summaryLine);
+  code = tRepairAppendSessionLog(global.repairLogPath, summaryLine);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to append repair summary log since %s", tstrerror(code));
+    printf("failed repair session preparation: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 #ifdef TAOSD_INTEGRATED
 int dmStartDaemon(int argc, char const *argv[]) {
 #else
@@ -797,432 +1122,13 @@ int mainWindows(int argc, char **argv) {
   }
 
   if (global.repairCtx.enabled) {
-    const int64_t kRepairProgressIntervalMs = 3000;
-    int64_t       lastProgressReportMs = 0;
-    int32_t       totalVnodes = global.repairCtx.nodeType == REPAIR_NODE_TYPE_VNODE ? global.repairCtx.vnodeIdNum : 0;
-    int32_t       doneVnodes = 0;
-    bool          resumed = false;
-    int64_t minDiskAvailBytes = tsDataSpace.reserved > 0 ? tsDataSpace.reserved : 0;
-    code = tRepairPrecheck(&global.repairCtx, tsDataDir, minDiskAvailBytes);
+    code = dmRunRepairWorkflow();
     if (code != TSDB_CODE_SUCCESS) {
-      dError("failed to run repair precheck since %s", tstrerror(code));
-      printf("failed repair precheck: %s\n", tstrerror(code));
       taosCleanupCfg();
       taosCloseLog();
       taosCleanupArgs();
       taosConvDestroy();
-      return TSDB_CODE_INVALID_CFG;
-    }
-
-    code = tRepairTryResumeSession(&global.repairCtx, tsDataDir, global.repairSessionDir, sizeof(global.repairSessionDir),
-                                   global.repairLogPath, sizeof(global.repairLogPath), global.repairStatePath,
-                                   sizeof(global.repairStatePath), &doneVnodes, &totalVnodes, &resumed);
-    if (code != TSDB_CODE_SUCCESS) {
-      dError("failed to load repair resume session since %s", tstrerror(code));
-      printf("failed repair session preparation: %s\n", tstrerror(code));
-      taosCleanupCfg();
-      taosCloseLog();
-      taosCleanupArgs();
-      taosConvDestroy();
-      return TSDB_CODE_INVALID_CFG;
-    }
-
-    if (global.repairCtx.nodeType == REPAIR_NODE_TYPE_VNODE &&
-        (totalVnodes != global.repairCtx.vnodeIdNum || doneVnodes < 0 || doneVnodes > totalVnodes)) {
-      dError("invalid repair resume state, doneVnodes:%d totalVnodes:%d vnodeIdNum:%d", doneVnodes, totalVnodes,
-             global.repairCtx.vnodeIdNum);
-      printf("failed repair session preparation: invalid resume state\n");
-      taosCleanupCfg();
-      taosCloseLog();
-      taosCleanupArgs();
-      taosConvDestroy();
-      return TSDB_CODE_INVALID_CFG;
-    }
-
-    if (!resumed) {
-      code = tRepairPrepareSessionFiles(&global.repairCtx, tsDataDir, global.repairSessionDir,
-                                        sizeof(global.repairSessionDir), global.repairLogPath,
-                                        sizeof(global.repairLogPath), global.repairStatePath,
-                                        sizeof(global.repairStatePath));
-      if (code != TSDB_CODE_SUCCESS) {
-        dError("failed to prepare repair session files since %s", tstrerror(code));
-        printf("failed repair session preparation: %s\n", tstrerror(code));
-        taosCleanupCfg();
-        taosCloseLog();
-        taosCleanupArgs();
-        taosConvDestroy();
-        return TSDB_CODE_INVALID_CFG;
-      }
-    } else {
-      char resumeMessage[128] = {0};
-      int32_t resumeLen = tsnprintf(resumeMessage, sizeof(resumeMessage),
-                                    "repair session resumed: session=%s vnode=%d/%d", global.repairCtx.sessionId,
-                                    doneVnodes, totalVnodes);
-      if (resumeLen <= 0 || resumeLen >= (int32_t)sizeof(resumeMessage)) {
-        tstrncpy(resumeMessage, "repair session resumed", sizeof(resumeMessage));
-      }
-
-      dInfo("%s", resumeMessage);
-      printf("%s\n", resumeMessage);
-      code = tRepairAppendSessionLog(global.repairLogPath, resumeMessage);
-      if (code != TSDB_CODE_SUCCESS) {
-        dError("failed to append repair resume log since %s", tstrerror(code));
-        printf("failed repair session preparation: %s\n", tstrerror(code));
-        taosCleanupCfg();
-        taosCloseLog();
-        taosCleanupArgs();
-        taosConvDestroy();
-        return TSDB_CODE_INVALID_CFG;
-      }
-    }
-
-    code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "precheck", "running", doneVnodes,
-                                    totalVnodes);
-    if (code != TSDB_CODE_SUCCESS) {
-      dError("failed to write repair precheck state since %s", tstrerror(code));
-      printf("failed repair session preparation: %s\n", tstrerror(code));
-      taosCleanupCfg();
-      taosCloseLog();
-      taosCleanupArgs();
-      taosConvDestroy();
-      return TSDB_CODE_INVALID_CFG;
-    }
-
-    code = tRepairAppendSessionLog(global.repairLogPath, "repair precheck passed");
-    if (code != TSDB_CODE_SUCCESS) {
-      dError("failed to append repair precheck log since %s", tstrerror(code));
-      printf("failed repair session preparation: %s\n", tstrerror(code));
-      taosCleanupCfg();
-      taosCloseLog();
-      taosCleanupArgs();
-      taosConvDestroy();
-      return TSDB_CODE_INVALID_CFG;
-    }
-
-    char progressLine[PATH_MAX] = {0};
-    code = tRepairBuildProgressLine(&global.repairCtx, "precheck", doneVnodes, totalVnodes, progressLine,
-                                    sizeof(progressLine));
-    if (code != TSDB_CODE_SUCCESS) {
-      dError("failed to build repair progress line since %s", tstrerror(code));
-      printf("failed repair session preparation: %s\n", tstrerror(code));
-      taosCleanupCfg();
-      taosCloseLog();
-      taosCleanupArgs();
-      taosConvDestroy();
-      return TSDB_CODE_INVALID_CFG;
-    }
-    dInfo("%s", progressLine);
-    printf("%s\n", progressLine);
-
-    code = tRepairAppendSessionLog(global.repairLogPath, progressLine);
-    if (code != TSDB_CODE_SUCCESS) {
-      dError("failed to append repair progress log since %s", tstrerror(code));
-      printf("failed repair session preparation: %s\n", tstrerror(code));
-      taosCleanupCfg();
-      taosCloseLog();
-      taosCleanupArgs();
-      taosConvDestroy();
-      return TSDB_CODE_INVALID_CFG;
-    }
-
-    bool needReport = false;
-    code = tRepairNeedReportProgress(taosGetTimestampMs(), kRepairProgressIntervalMs, &lastProgressReportMs, &needReport);
-    if (code != TSDB_CODE_SUCCESS) {
-      dError("failed to initialize repair progress interval since %s", tstrerror(code));
-      printf("failed repair session preparation: %s\n", tstrerror(code));
-      taosCleanupCfg();
-      taosCloseLog();
-      taosCleanupArgs();
-      taosConvDestroy();
-      return TSDB_CODE_INVALID_CFG;
-    }
-
-    if (global.repairCtx.nodeType == REPAIR_NODE_TYPE_VNODE) {
-      int32_t startVnodeIndex = doneVnodes;
-      if (startVnodeIndex < 0 || startVnodeIndex > global.repairCtx.vnodeIdNum) {
-        dError("invalid repair resume vnode index:%d vnodeIdNum:%d", startVnodeIndex, global.repairCtx.vnodeIdNum);
-        printf("failed repair backup preparation: invalid resume state\n");
-        taosCleanupCfg();
-        taosCloseLog();
-        taosCleanupArgs();
-        taosConvDestroy();
-        return TSDB_CODE_INVALID_CFG;
-      }
-
-      for (int32_t i = startVnodeIndex; i < global.repairCtx.vnodeIdNum; ++i) {
-        char backupDir[PATH_MAX] = {0};
-        code = tRepairPrepareBackupDir(&global.repairCtx, tsDataDir, global.repairCtx.vnodeIds[i], backupDir,
-                                       sizeof(backupDir));
-        if (code != TSDB_CODE_SUCCESS) {
-          dError("failed to prepare repair backup dir for vnode:%d since %s", global.repairCtx.vnodeIds[i],
-                 tstrerror(code));
-          printf("failed repair backup preparation: %s\n", tstrerror(code));
-          taosCleanupCfg();
-          taosCloseLog();
-          taosCleanupArgs();
-          taosConvDestroy();
-          return TSDB_CODE_INVALID_CFG;
-        }
-
-        ++doneVnodes;
-        code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "backup", "running", doneVnodes,
-                                        totalVnodes);
-        if (code != TSDB_CODE_SUCCESS) {
-          dError("failed to write repair backup state for vnode:%d since %s", global.repairCtx.vnodeIds[i],
-                 tstrerror(code));
-          printf("failed repair backup preparation: %s\n", tstrerror(code));
-          taosCleanupCfg();
-          taosCloseLog();
-          taosCleanupArgs();
-          taosConvDestroy();
-          return TSDB_CODE_INVALID_CFG;
-        }
-
-        char logMessage[128] = {0};
-        int32_t logLen =
-            tsnprintf(logMessage, sizeof(logMessage), "prepared backup dir for vnode:%d", global.repairCtx.vnodeIds[i]);
-        if (logLen <= 0 || logLen >= (int32_t)sizeof(logMessage)) {
-          tstrncpy(logMessage, "prepared backup dir", sizeof(logMessage));
-        }
-
-        code = tRepairAppendSessionLog(global.repairLogPath, logMessage);
-        if (code != TSDB_CODE_SUCCESS) {
-          dError("failed to append repair backup log for vnode:%d since %s", global.repairCtx.vnodeIds[i],
-                 tstrerror(code));
-          printf("failed repair backup preparation: %s\n", tstrerror(code));
-          taosCleanupCfg();
-          taosCloseLog();
-          taosCleanupArgs();
-          taosConvDestroy();
-          return TSDB_CODE_INVALID_CFG;
-        }
-
-        code = tRepairNeedReportProgress(taosGetTimestampMs(), kRepairProgressIntervalMs, &lastProgressReportMs,
-                                         &needReport);
-        if (code != TSDB_CODE_SUCCESS) {
-          dError("failed to update repair progress interval for vnode:%d since %s", global.repairCtx.vnodeIds[i],
-                 tstrerror(code));
-          printf("failed repair backup preparation: %s\n", tstrerror(code));
-          taosCleanupCfg();
-          taosCloseLog();
-          taosCleanupArgs();
-          taosConvDestroy();
-          return TSDB_CODE_INVALID_CFG;
-        }
-
-        if (needReport || doneVnodes == totalVnodes) {
-          code = tRepairBuildProgressLine(&global.repairCtx, "backup", doneVnodes, totalVnodes, progressLine,
-                                          sizeof(progressLine));
-          if (code != TSDB_CODE_SUCCESS) {
-            dError("failed to build repair backup progress line for vnode:%d since %s", global.repairCtx.vnodeIds[i],
-                   tstrerror(code));
-            printf("failed repair backup preparation: %s\n", tstrerror(code));
-            taosCleanupCfg();
-            taosCloseLog();
-            taosCleanupArgs();
-            taosConvDestroy();
-            return TSDB_CODE_INVALID_CFG;
-          }
-
-          dInfo("%s", progressLine);
-          printf("%s\n", progressLine);
-          code = tRepairAppendSessionLog(global.repairLogPath, progressLine);
-          if (code != TSDB_CODE_SUCCESS) {
-            dError("failed to append repair backup progress log for vnode:%d since %s", global.repairCtx.vnodeIds[i],
-                   tstrerror(code));
-            printf("failed repair backup preparation: %s\n", tstrerror(code));
-            taosCleanupCfg();
-            taosCloseLog();
-            taosCleanupArgs();
-            taosConvDestroy();
-            return TSDB_CODE_INVALID_CFG;
-          }
-        }
-      }
-    }
-
-    bool needRunWalForceRepair = false;
-    code = tRepairNeedRunWalForceRepair(&global.repairCtx, &needRunWalForceRepair);
-    if (code != TSDB_CODE_SUCCESS) {
-      dError("failed to determine wal force repair schedule since %s", tstrerror(code));
-      printf("failed repair session preparation: %s\n", tstrerror(code));
-      taosCleanupCfg();
-      taosCloseLog();
-      taosCleanupArgs();
-      taosConvDestroy();
-      return TSDB_CODE_INVALID_CFG;
-    }
-
-    if (needRunWalForceRepair) {
-      code = walInit(dmStopDaemon);
-      if (code != TSDB_CODE_SUCCESS) {
-        dError("failed to initialize wal module for repair since %s", tstrerror(code));
-        printf("failed repair wal scheduling: %s\n", tstrerror(code));
-        taosCleanupCfg();
-        taosCloseLog();
-        taosCleanupArgs();
-        taosConvDestroy();
-        return TSDB_CODE_INVALID_CFG;
-      }
-
-      int32_t walDoneVnodes = 0;
-      for (int32_t i = 0; i < global.repairCtx.vnodeIdNum; ++i) {
-        int32_t vnodeId = global.repairCtx.vnodeIds[i];
-        char    walPath[PATH_MAX] = {0};
-        code = tRepairBuildVnodeTargetPath(tsDataDir, vnodeId, REPAIR_FILE_TYPE_WAL, walPath, sizeof(walPath));
-        if (code != TSDB_CODE_SUCCESS) {
-          dError("failed to build wal path for vnode:%d since %s", vnodeId, tstrerror(code));
-          printf("failed repair wal scheduling: %s\n", tstrerror(code));
-          taosCleanupCfg();
-          taosCloseLog();
-          taosCleanupArgs();
-          taosConvDestroy();
-          return TSDB_CODE_INVALID_CFG;
-        }
-
-        code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "wal", "running", walDoneVnodes,
-                                        totalVnodes);
-        if (code != TSDB_CODE_SUCCESS) {
-          dError("failed to write wal repair state for vnode:%d since %s", vnodeId, tstrerror(code));
-          printf("failed repair wal scheduling: %s\n", tstrerror(code));
-          taosCleanupCfg();
-          taosCloseLog();
-          taosCleanupArgs();
-          taosConvDestroy();
-          return TSDB_CODE_INVALID_CFG;
-        }
-
-        SWalCfg walCfg = {0};
-        walCfg.vgId = vnodeId;
-        walCfg.fsyncPeriod = 0;
-        walCfg.retentionPeriod = -1;
-        walCfg.retentionSize = -1;
-        walCfg.level = TAOS_WAL_WRITE;
-
-        SWal *pWal = walOpen(walPath, &walCfg);
-        if (pWal == NULL) {
-          int32_t walCode = terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
-          dError("failed to repair wal for vnode:%d path:%s since %s", vnodeId, walPath, tstrerror(walCode));
-          (void)tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "wal", "failed", walDoneVnodes,
-                                         totalVnodes);
-          printf("failed repair wal scheduling: %s\n", tstrerror(walCode));
-          taosCleanupCfg();
-          taosCloseLog();
-          taosCleanupArgs();
-          taosConvDestroy();
-          return TSDB_CODE_INVALID_CFG;
-        }
-        walClose(pWal);
-
-        ++walDoneVnodes;
-
-        code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "wal", "running", walDoneVnodes,
-                                        totalVnodes);
-        if (code != TSDB_CODE_SUCCESS) {
-          dError("failed to update wal repair state for vnode:%d since %s", vnodeId, tstrerror(code));
-          printf("failed repair wal scheduling: %s\n", tstrerror(code));
-          taosCleanupCfg();
-          taosCloseLog();
-          taosCleanupArgs();
-          taosConvDestroy();
-          return TSDB_CODE_INVALID_CFG;
-        }
-
-        char walLog[128] = {0};
-        int32_t walLogLen = tsnprintf(walLog, sizeof(walLog), "finished force wal repair for vnode:%d", vnodeId);
-        if (walLogLen <= 0 || walLogLen >= (int32_t)sizeof(walLog)) {
-          tstrncpy(walLog, "finished force wal repair", sizeof(walLog));
-        }
-        code = tRepairAppendSessionLog(global.repairLogPath, walLog);
-        if (code != TSDB_CODE_SUCCESS) {
-          dError("failed to append wal repair log for vnode:%d since %s", vnodeId, tstrerror(code));
-          printf("failed repair wal scheduling: %s\n", tstrerror(code));
-          taosCleanupCfg();
-          taosCloseLog();
-          taosCleanupArgs();
-          taosConvDestroy();
-          return TSDB_CODE_INVALID_CFG;
-        }
-
-        code = tRepairNeedReportProgress(taosGetTimestampMs(), kRepairProgressIntervalMs, &lastProgressReportMs,
-                                         &needReport);
-        if (code != TSDB_CODE_SUCCESS) {
-          dError("failed to update wal repair progress interval for vnode:%d since %s", vnodeId, tstrerror(code));
-          printf("failed repair wal scheduling: %s\n", tstrerror(code));
-          taosCleanupCfg();
-          taosCloseLog();
-          taosCleanupArgs();
-          taosConvDestroy();
-          return TSDB_CODE_INVALID_CFG;
-        }
-
-        if (needReport || walDoneVnodes == totalVnodes) {
-          code = tRepairBuildProgressLine(&global.repairCtx, "wal", walDoneVnodes, totalVnodes, progressLine,
-                                          sizeof(progressLine));
-          if (code != TSDB_CODE_SUCCESS) {
-            dError("failed to build wal repair progress line for vnode:%d since %s", vnodeId, tstrerror(code));
-            printf("failed repair wal scheduling: %s\n", tstrerror(code));
-            taosCleanupCfg();
-            taosCloseLog();
-            taosCleanupArgs();
-            taosConvDestroy();
-            return TSDB_CODE_INVALID_CFG;
-          }
-
-          dInfo("%s", progressLine);
-          printf("%s\n", progressLine);
-          code = tRepairAppendSessionLog(global.repairLogPath, progressLine);
-          if (code != TSDB_CODE_SUCCESS) {
-            dError("failed to append wal repair progress log for vnode:%d since %s", vnodeId, tstrerror(code));
-            printf("failed repair wal scheduling: %s\n", tstrerror(code));
-            taosCleanupCfg();
-            taosCloseLog();
-            taosCleanupArgs();
-            taosConvDestroy();
-            return TSDB_CODE_INVALID_CFG;
-          }
-        }
-      }
-    }
-
-    code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "preflight", "ready", doneVnodes,
-                                    totalVnodes);
-    if (code != TSDB_CODE_SUCCESS) {
-      dError("failed to write repair session state since %s", tstrerror(code));
-      printf("failed repair session preparation: %s\n", tstrerror(code));
-      taosCleanupCfg();
-      taosCloseLog();
-      taosCleanupArgs();
-      taosConvDestroy();
-      return TSDB_CODE_INVALID_CFG;
-    }
-
-    int32_t failedVnodes = totalVnodes >= doneVnodes ? (totalVnodes - doneVnodes) : 0;
-    int64_t elapsedMs = taosGetTimestampMs() - global.repairCtx.startTimeMs;
-    char    summaryLine[PATH_MAX] = {0};
-    code = tRepairBuildSummaryLine(&global.repairCtx, doneVnodes, failedVnodes, elapsedMs, summaryLine,
-                                   sizeof(summaryLine));
-    if (code != TSDB_CODE_SUCCESS) {
-      dError("failed to build repair summary line since %s", tstrerror(code));
-      printf("failed repair session preparation: %s\n", tstrerror(code));
-      taosCleanupCfg();
-      taosCloseLog();
-      taosCleanupArgs();
-      taosConvDestroy();
-      return TSDB_CODE_INVALID_CFG;
-    }
-
-    dInfo("%s", summaryLine);
-    printf("%s\n", summaryLine);
-    code = tRepairAppendSessionLog(global.repairLogPath, summaryLine);
-    if (code != TSDB_CODE_SUCCESS) {
-      dError("failed to append repair summary log since %s", tstrerror(code));
-      printf("failed repair session preparation: %s\n", tstrerror(code));
-      taosCleanupCfg();
-      taosCloseLog();
-      taosCleanupArgs();
-      taosConvDestroy();
-      return TSDB_CODE_INVALID_CFG;
+      return code;
     }
   }
 
