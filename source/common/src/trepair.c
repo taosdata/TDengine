@@ -51,6 +51,22 @@ static const SRepairOptionPair kModeMap[] = {
     {"copy", REPAIR_MODE_COPY},
 };
 
+#define REPAIR_SESSION_DIR_PREFIX  "repair-"
+#define REPAIR_SESSION_LOG_NAME    "repair.log"
+#define REPAIR_SESSION_STATE_NAME  "repair.state.json"
+#define REPAIR_MAX_STATE_FILE_SIZE (1024 * 1024)
+
+typedef struct {
+  bool    found;
+  int64_t startTimeMs;
+  int32_t doneVnodes;
+  int32_t totalVnodes;
+  char    sessionId[REPAIR_SESSION_ID_LEN];
+  char    sessionDir[PATH_MAX];
+  char    logPath[PATH_MAX];
+  char    statePath[PATH_MAX];
+} SRepairResumeCandidate;
+
 static int32_t tRepairParseOption(const char *input, const SRepairOptionPair *pMap, int32_t mapSize, int32_t *pValue) {
   if (input == NULL || pMap == NULL || pValue == NULL || mapSize <= 0) {
     return TSDB_CODE_INVALID_PARA;
@@ -327,6 +343,201 @@ static int32_t tRepairBuildSessionFilePath(const char *sessionDir, const char *f
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tRepairReadTextFile(const char *filePath, char **ppContent, int64_t *pContentLen) {
+  if (filePath == NULL || filePath[0] == '\0' || ppContent == NULL || pContentLen == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *ppContent = NULL;
+  *pContentLen = 0;
+
+  int64_t fileSize = 0;
+  if (taosStatFile(filePath, &fileSize, NULL, NULL) != 0 || fileSize <= 0 || fileSize > REPAIR_MAX_STATE_FILE_SIZE) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  TdFilePtr pFile = taosOpenFile(filePath, TD_FILE_READ);
+  if (pFile == NULL) {
+    return terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+
+  char *pContent = taosMemoryMalloc(fileSize + 1);
+  if (pContent == NULL) {
+    (void)taosCloseFile(&pFile);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t nread = taosReadFile(pFile, pContent, fileSize);
+  if (nread != fileSize) {
+    code = terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+
+  if (taosCloseFile(&pFile) != 0 && code == TSDB_CODE_SUCCESS) {
+    code = terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pContent);
+    return code;
+  }
+
+  pContent[fileSize] = '\0';
+  *ppContent = pContent;
+  *pContentLen = fileSize;
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool tRepairMatchOptionalStateField(const SJson *pJson, const char *fieldName, bool hasExpected,
+                                           const char *expectedValue) {
+  if (pJson == NULL || fieldName == NULL || fieldName[0] == '\0') {
+    return false;
+  }
+
+  bool hasField = tjsonGetObjectItem(pJson, fieldName) != NULL;
+  if (!hasExpected) {
+    return !hasField;
+  }
+  if (!hasField || expectedValue == NULL) {
+    return false;
+  }
+
+  char    value[PATH_MAX] = {0};
+  int32_t code = tjsonGetStringValue2(pJson, fieldName, value, sizeof(value));
+  return code == TSDB_CODE_SUCCESS && strcmp(value, expectedValue) == 0;
+}
+
+static bool tRepairMatchStateVnodeList(const SRepairCtx *pCtx, const SJson *pJson, int32_t stateTotalVnodes) {
+  if (pCtx == NULL || pJson == NULL) {
+    return false;
+  }
+
+  if (pCtx->nodeType != REPAIR_NODE_TYPE_VNODE) {
+    return stateTotalVnodes == 0;
+  }
+
+  if (!pCtx->hasVnodeIdList || pCtx->vnodeIdNum <= 0 || pCtx->vnodeIdNum != stateTotalVnodes) {
+    return false;
+  }
+
+  char stateVnodeIdList[PATH_MAX] = {0};
+  if (tjsonGetStringValue2(pJson, "vnodeIdList", stateVnodeIdList, sizeof(stateVnodeIdList)) != TSDB_CODE_SUCCESS) {
+    return false;
+  }
+
+  SRepairCtx stateCtx = {0};
+  stateCtx.enabled = true;
+  char vnodeIdBuf[PATH_MAX] = {0};
+  tstrncpy(vnodeIdBuf, stateVnodeIdList, sizeof(vnodeIdBuf));
+  if (tRepairParseVnodeIdList(vnodeIdBuf, &stateCtx) != TSDB_CODE_SUCCESS || stateCtx.vnodeIdNum != pCtx->vnodeIdNum) {
+    return false;
+  }
+
+  for (int32_t i = 0; i < pCtx->vnodeIdNum; ++i) {
+    if (pCtx->vnodeIds[i] != stateCtx.vnodeIds[i]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static bool tRepairStatusCanResume(const char *status) {
+  if (status == NULL || status[0] == '\0') {
+    return false;
+  }
+
+  return taosStrcasecmp(status, "initialized") == 0 || taosStrcasecmp(status, "running") == 0;
+}
+
+static bool tRepairBuildResumeCandidate(const SRepairCtx *pCtx, const char *sessionDirName, const char *sessionDir,
+                                        const char *statePath, SRepairResumeCandidate *pCandidate) {
+  if (pCtx == NULL || sessionDirName == NULL || sessionDirName[0] == '\0' || sessionDir == NULL ||
+      sessionDir[0] == '\0' || statePath == NULL || statePath[0] == '\0' || pCandidate == NULL) {
+    return false;
+  }
+
+  char   *stateContent = NULL;
+  int64_t stateContentLen = 0;
+  if (tRepairReadTextFile(statePath, &stateContent, &stateContentLen) != TSDB_CODE_SUCCESS || stateContentLen <= 0) {
+    return false;
+  }
+
+  bool   matched = false;
+  SJson *pJson = tjsonParse(stateContent);
+  taosMemoryFree(stateContent);
+  if (pJson == NULL) {
+    return false;
+  }
+
+  do {
+    char sessionId[REPAIR_SESSION_ID_LEN] = {0};
+    char status[32] = {0};
+    int64_t startTimeMs = 0;
+    int32_t nodeTypeCode = 0;
+    int32_t fileTypeCode = 0;
+    int32_t modeCode = 0;
+    int32_t doneVnodes = 0;
+    int32_t totalVnodes = 0;
+
+    if (tjsonGetStringValue2(pJson, "sessionId", sessionId, sizeof(sessionId)) != TSDB_CODE_SUCCESS ||
+        tjsonGetBigIntValue(pJson, "startTimeMs", &startTimeMs) != TSDB_CODE_SUCCESS ||
+        tjsonGetIntValue(pJson, "nodeTypeCode", &nodeTypeCode) != TSDB_CODE_SUCCESS ||
+        tjsonGetIntValue(pJson, "fileTypeCode", &fileTypeCode) != TSDB_CODE_SUCCESS ||
+        tjsonGetIntValue(pJson, "modeCode", &modeCode) != TSDB_CODE_SUCCESS ||
+        tjsonGetStringValue2(pJson, "status", status, sizeof(status)) != TSDB_CODE_SUCCESS ||
+        tjsonGetIntValue(pJson, "doneVnodes", &doneVnodes) != TSDB_CODE_SUCCESS ||
+        tjsonGetIntValue(pJson, "totalVnodes", &totalVnodes) != TSDB_CODE_SUCCESS) {
+      break;
+    }
+
+    if (startTimeMs <= 0 || doneVnodes < 0 || totalVnodes < 0 || doneVnodes > totalVnodes) {
+      break;
+    }
+    if (strcmp(sessionId, sessionDirName) != 0) {
+      break;
+    }
+    if (!tRepairStatusCanResume(status)) {
+      break;
+    }
+    if (nodeTypeCode != (int32_t)pCtx->nodeType || fileTypeCode != (int32_t)pCtx->fileType ||
+        modeCode != (int32_t)pCtx->mode) {
+      break;
+    }
+    if (!tRepairMatchStateVnodeList(pCtx, pJson, totalVnodes)) {
+      break;
+    }
+    if (!tRepairMatchOptionalStateField(pJson, "backupPath", pCtx->hasBackupPath, pCtx->backupPath)) {
+      break;
+    }
+    if (!tRepairMatchOptionalStateField(pJson, "replicaNode", pCtx->hasReplicaNode, pCtx->replicaNode)) {
+      break;
+    }
+
+    memset(pCandidate, 0, sizeof(*pCandidate));
+    pCandidate->found = true;
+    pCandidate->startTimeMs = startTimeMs;
+    pCandidate->doneVnodes = doneVnodes;
+    pCandidate->totalVnodes = totalVnodes;
+    if (tRepairParseStringOption(sessionId, pCandidate->sessionId, sizeof(pCandidate->sessionId)) !=
+            TSDB_CODE_SUCCESS ||
+        tRepairParseStringOption(sessionDir, pCandidate->sessionDir, sizeof(pCandidate->sessionDir)) !=
+            TSDB_CODE_SUCCESS ||
+        tRepairBuildSessionFilePath(sessionDir, REPAIR_SESSION_LOG_NAME, pCandidate->logPath, sizeof(pCandidate->logPath)) !=
+            TSDB_CODE_SUCCESS ||
+        tRepairBuildSessionFilePath(sessionDir, REPAIR_SESSION_STATE_NAME, pCandidate->statePath,
+                                    sizeof(pCandidate->statePath)) != TSDB_CODE_SUCCESS) {
+      memset(pCandidate, 0, sizeof(*pCandidate));
+      break;
+    }
+
+    matched = true;
+  } while (0);
+
+  tjsonDelete(pJson);
+  return matched;
 }
 
 static int32_t tRepairWriteFileAtomically(const char *filePath, const char *content, int64_t contentLen) {
@@ -751,11 +962,11 @@ int32_t tRepairPrepareSessionFiles(const SRepairCtx *pCtx, const char *dataDir, 
     return terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
   }
 
-  code = tRepairBuildSessionFilePath(sessionDir, "repair.log", logPath, logPathSize);
+  code = tRepairBuildSessionFilePath(sessionDir, REPAIR_SESSION_LOG_NAME, logPath, logPathSize);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-  code = tRepairBuildSessionFilePath(sessionDir, "repair.state.json", statePath, statePathSize);
+  code = tRepairBuildSessionFilePath(sessionDir, REPAIR_SESSION_STATE_NAME, statePath, statePathSize);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -839,6 +1050,107 @@ int32_t tRepairWriteSessionState(const SRepairCtx *pCtx, const char *statePath, 
   }
 
   return tRepairWriteSessionStateInternal(pCtx, statePath, step, status, doneVnodes, totalVnodes);
+}
+
+int32_t tRepairTryResumeSession(SRepairCtx *pCtx, const char *dataDir, char *sessionDir, int32_t sessionDirSize,
+                                char *logPath, int32_t logPathSize, char *statePath, int32_t statePathSize,
+                                int32_t *pDoneVnodes, int32_t *pTotalVnodes, bool *pResumed) {
+  if (sessionDir != NULL && sessionDirSize > 0) {
+    sessionDir[0] = '\0';
+  }
+  if (logPath != NULL && logPathSize > 0) {
+    logPath[0] = '\0';
+  }
+  if (statePath != NULL && statePathSize > 0) {
+    statePath[0] = '\0';
+  }
+
+  if (pCtx == NULL || !pCtx->enabled || dataDir == NULL || dataDir[0] == '\0' || sessionDir == NULL ||
+      sessionDirSize <= 0 || logPath == NULL || logPathSize <= 0 || statePath == NULL || statePathSize <= 0 ||
+      pDoneVnodes == NULL || pTotalVnodes == NULL || pResumed == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *pDoneVnodes = 0;
+  *pTotalVnodes = pCtx->nodeType == REPAIR_NODE_TYPE_VNODE ? pCtx->vnodeIdNum : 0;
+  *pResumed = false;
+
+  char backupBaseDir[PATH_MAX] = {0};
+  int32_t code = tRepairBuildBackupBaseDir(pCtx, dataDir, backupBaseDir, sizeof(backupBaseDir));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (!taosDirExist(backupBaseDir)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  TdDirPtr pDir = taosOpenDir(backupBaseDir);
+  if (pDir == NULL) {
+    return terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+
+  SRepairResumeCandidate bestCandidate = {0};
+  TdDirEntryPtr          pDirEntry = NULL;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    if (!taosDirEntryIsDir(pDirEntry)) {
+      continue;
+    }
+
+    char *entryName = taosGetDirEntryName(pDirEntry);
+    if (entryName == NULL || strcmp(entryName, ".") == 0 || strcmp(entryName, "..") == 0) {
+      continue;
+    }
+    if (strncmp(entryName, REPAIR_SESSION_DIR_PREFIX, strlen(REPAIR_SESSION_DIR_PREFIX)) != 0) {
+      continue;
+    }
+
+    char sessionPath[PATH_MAX] = {0};
+    int32_t pathLen = tsnprintf(sessionPath, sizeof(sessionPath), "%s%s%s", backupBaseDir, TD_DIRSEP, entryName);
+    if (pathLen <= 0 || pathLen >= (int32_t)sizeof(sessionPath)) {
+      continue;
+    }
+
+    char stateFilePath[PATH_MAX] = {0};
+    if (tRepairBuildSessionFilePath(sessionPath, REPAIR_SESSION_STATE_NAME, stateFilePath, sizeof(stateFilePath)) !=
+        TSDB_CODE_SUCCESS) {
+      continue;
+    }
+    if (!taosCheckExistFile(stateFilePath)) {
+      continue;
+    }
+
+    SRepairResumeCandidate candidate = {0};
+    if (!tRepairBuildResumeCandidate(pCtx, entryName, sessionPath, stateFilePath, &candidate)) {
+      continue;
+    }
+
+    if (!bestCandidate.found || candidate.startTimeMs > bestCandidate.startTimeMs) {
+      bestCandidate = candidate;
+    }
+  }
+
+  if (taosCloseDir(&pDir) != 0) {
+    return terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+
+  if (!bestCandidate.found) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (tRepairParseStringOption(bestCandidate.sessionId, pCtx->sessionId, sizeof(pCtx->sessionId)) !=
+      TSDB_CODE_SUCCESS) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  pCtx->startTimeMs = bestCandidate.startTimeMs;
+
+  tstrncpy(sessionDir, bestCandidate.sessionDir, sessionDirSize);
+  tstrncpy(logPath, bestCandidate.logPath, logPathSize);
+  tstrncpy(statePath, bestCandidate.statePath, statePathSize);
+  *pDoneVnodes = bestCandidate.doneVnodes;
+  *pTotalVnodes = bestCandidate.totalVnodes;
+  *pResumed = true;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tRepairNeedReportProgress(int64_t nowMs, int64_t intervalMs, int64_t *pLastReportMs, bool *pNeedReport) {

@@ -800,6 +800,7 @@ int mainWindows(int argc, char **argv) {
     int64_t       lastProgressReportMs = 0;
     int32_t       totalVnodes = global.repairCtx.nodeType == REPAIR_NODE_TYPE_VNODE ? global.repairCtx.vnodeIdNum : 0;
     int32_t       doneVnodes = 0;
+    bool          resumed = false;
     int64_t minDiskAvailBytes = tsDataSpace.reserved > 0 ? tsDataSpace.reserved : 0;
     code = tRepairPrecheck(&global.repairCtx, tsDataDir, minDiskAvailBytes);
     if (code != TSDB_CODE_SUCCESS) {
@@ -812,18 +813,66 @@ int mainWindows(int argc, char **argv) {
       return TSDB_CODE_INVALID_CFG;
     }
 
-    code = tRepairPrepareSessionFiles(&global.repairCtx, tsDataDir, global.repairSessionDir,
-                                      sizeof(global.repairSessionDir), global.repairLogPath,
-                                      sizeof(global.repairLogPath), global.repairStatePath,
-                                      sizeof(global.repairStatePath));
+    code = tRepairTryResumeSession(&global.repairCtx, tsDataDir, global.repairSessionDir, sizeof(global.repairSessionDir),
+                                   global.repairLogPath, sizeof(global.repairLogPath), global.repairStatePath,
+                                   sizeof(global.repairStatePath), &doneVnodes, &totalVnodes, &resumed);
     if (code != TSDB_CODE_SUCCESS) {
-      dError("failed to prepare repair session files since %s", tstrerror(code));
+      dError("failed to load repair resume session since %s", tstrerror(code));
       printf("failed repair session preparation: %s\n", tstrerror(code));
       taosCleanupCfg();
       taosCloseLog();
       taosCleanupArgs();
       taosConvDestroy();
       return TSDB_CODE_INVALID_CFG;
+    }
+
+    if (global.repairCtx.nodeType == REPAIR_NODE_TYPE_VNODE &&
+        (totalVnodes != global.repairCtx.vnodeIdNum || doneVnodes < 0 || doneVnodes > totalVnodes)) {
+      dError("invalid repair resume state, doneVnodes:%d totalVnodes:%d vnodeIdNum:%d", doneVnodes, totalVnodes,
+             global.repairCtx.vnodeIdNum);
+      printf("failed repair session preparation: invalid resume state\n");
+      taosCleanupCfg();
+      taosCloseLog();
+      taosCleanupArgs();
+      taosConvDestroy();
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    if (!resumed) {
+      code = tRepairPrepareSessionFiles(&global.repairCtx, tsDataDir, global.repairSessionDir,
+                                        sizeof(global.repairSessionDir), global.repairLogPath,
+                                        sizeof(global.repairLogPath), global.repairStatePath,
+                                        sizeof(global.repairStatePath));
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to prepare repair session files since %s", tstrerror(code));
+        printf("failed repair session preparation: %s\n", tstrerror(code));
+        taosCleanupCfg();
+        taosCloseLog();
+        taosCleanupArgs();
+        taosConvDestroy();
+        return TSDB_CODE_INVALID_CFG;
+      }
+    } else {
+      char resumeMessage[128] = {0};
+      int32_t resumeLen = tsnprintf(resumeMessage, sizeof(resumeMessage),
+                                    "repair session resumed: session=%s vnode=%d/%d", global.repairCtx.sessionId,
+                                    doneVnodes, totalVnodes);
+      if (resumeLen <= 0 || resumeLen >= (int32_t)sizeof(resumeMessage)) {
+        tstrncpy(resumeMessage, "repair session resumed", sizeof(resumeMessage));
+      }
+
+      dInfo("%s", resumeMessage);
+      printf("%s\n", resumeMessage);
+      code = tRepairAppendSessionLog(global.repairLogPath, resumeMessage);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to append repair resume log since %s", tstrerror(code));
+        printf("failed repair session preparation: %s\n", tstrerror(code));
+        taosCleanupCfg();
+        taosCloseLog();
+        taosCleanupArgs();
+        taosConvDestroy();
+        return TSDB_CODE_INVALID_CFG;
+      }
     }
 
     code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "precheck", "running", doneVnodes,
@@ -888,7 +937,18 @@ int mainWindows(int argc, char **argv) {
     }
 
     if (global.repairCtx.nodeType == REPAIR_NODE_TYPE_VNODE) {
-      for (int32_t i = 0; i < global.repairCtx.vnodeIdNum; ++i) {
+      int32_t startVnodeIndex = doneVnodes;
+      if (startVnodeIndex < 0 || startVnodeIndex > global.repairCtx.vnodeIdNum) {
+        dError("invalid repair resume vnode index:%d vnodeIdNum:%d", startVnodeIndex, global.repairCtx.vnodeIdNum);
+        printf("failed repair backup preparation: invalid resume state\n");
+        taosCleanupCfg();
+        taosCloseLog();
+        taosCleanupArgs();
+        taosConvDestroy();
+        return TSDB_CODE_INVALID_CFG;
+      }
+
+      for (int32_t i = startVnodeIndex; i < global.repairCtx.vnodeIdNum; ++i) {
         char backupDir[PATH_MAX] = {0};
         code = tRepairPrepareBackupDir(&global.repairCtx, tsDataDir, global.repairCtx.vnodeIds[i], backupDir,
                                        sizeof(backupDir));

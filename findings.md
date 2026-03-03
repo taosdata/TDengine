@@ -147,3 +147,16 @@
     - 备份循环中按间隔或收尾条件输出进度；
     - 完成 preflight 后输出最终摘要并落盘；
     - 同步更新 `repair.state.json` 的 `precheck -> backup -> preflight(ready)` 步骤状态。
+- `T2.7` 会话恢复能力已落地：
+  - 新增 `tRepairTryResumeSession()`：
+    - 扫描备份根目录（`--backup-path` 或 `<dataDir>/backup`）下的 `repair-*` 会话目录；
+    - 读取并校验 `repair.state.json` 的上下文字段（`nodeType/fileType/mode/vnodeIdList/backupPath/replicaNode`）；
+    - 仅接受 `status=initialized|running` 的未完成会话；
+    - 选择 `startTimeMs` 最新的候选会话作为续跑目标，并回填 `sessionId/startTimeMs/doneVnodes/totalVnodes`。
+  - `dmMain.c` 已接入恢复逻辑：
+    - precheck 后先尝试恢复旧会话；
+    - 命中恢复时复用原 `repair.log`/`repair.state.json`；
+    - 备份循环从 `doneVnodes` 对应下标继续，跳过已完成 vnode。
+- JSON 解析注意事项（本次新增）：
+  - `tjsonGetStringValue2()` 在字段缺失时返回 `TSDB_CODE_SUCCESS`（仅输出空字符串），不能用返回码判断字段存在性；
+  - 需要配合 `tjsonGetObjectItem()` 显式判断字段是否存在，避免把“缺字段”误判为“空字符串字段”。
