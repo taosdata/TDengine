@@ -81,7 +81,7 @@ SHOW GRANTS\G;
 1. Enter your activation code and click **Confirm**.
 
    :::important
-   Ensure that the activation code is not enclused in single quotes.
+   Ensure that the activation code is not enclosed in single quotes.
    :::
 
 Your TDengine TSDB-Enterprise deployment is now licensed. You can view the details of your license, including expiration date, on the **License** tab.
