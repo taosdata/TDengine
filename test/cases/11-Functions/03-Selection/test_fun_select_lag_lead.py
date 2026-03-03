@@ -1,4 +1,5 @@
 from new_test_framework.utils import tdLog, tdSql
+from datetime import datetime, timedelta
 
 
 class TestFunSelectLagLead:
@@ -171,6 +172,73 @@ class TestFunSelectLagLead:
         tdSql.error("select _rowts, lag(ts, 1, true) from ct1")
         tdSql.error("select _rowts, lead(ts, 1, 1.25) from ct1")
 
+    def _case_large_rows_cross_block_lag_lead(self):
+        tdSql.execute("create table ct_big using st tags(3)")
+
+        start = datetime(2025, 1, 2, 0, 0, 0)
+        total_rows = 10000
+        batch_size = 500
+
+        for batch_start in range(0, total_rows, batch_size):
+            values = []
+            batch_end = min(batch_start + batch_size, total_rows)
+            for i in range(batch_start, batch_end):
+                ts = (start + timedelta(seconds=i)).strftime("%Y-%m-%d %H:%M:%S")
+                v = i + 1
+                vb = 10000000000 + v
+                vs = f"s{v}"
+                values.append(f"('{ts}', {v}, {vb}, '{vs}')")
+
+            tdSql.execute("insert into ct_big values " + "".join(values))
+
+        tdSql.query("select _rowts, lag(v, 1, -1), lead(v, 1, -1) from ct_big order by ts")
+        tdSql.checkRows(total_rows)
+
+        checkpoints = [0, 1, 2, 4094, 4095, 4096, 4097, 4098, 8191, 8192, 8193, 9998, 9999]
+        for row_idx in checkpoints:
+            curr = row_idx + 1
+            expected_lag = curr - 1 if row_idx > 0 else -1
+            expected_lead = curr + 1 if row_idx < total_rows - 1 else -1
+            tdSql.checkData(row_idx, 1, expected_lag)
+            tdSql.checkData(row_idx, 2, expected_lead)
+
+        tdSql.query("select _rowts, lag(v, 4096, -1), lead(v, 4096, -1) from ct_big order by ts")
+        tdSql.checkRows(total_rows)
+        tdSql.checkData(4094, 1, -1)
+        tdSql.checkData(4094, 2, 8191)
+        tdSql.checkData(4095, 1, -1)
+        tdSql.checkData(4095, 2, 8192)
+        tdSql.checkData(4096, 1, 1)
+        tdSql.checkData(4096, 2, 8193)
+        tdSql.checkData(4097, 1, 2)
+        tdSql.checkData(4097, 2, 8194)
+        tdSql.checkData(5903, 1, 1808)
+        tdSql.checkData(5903, 2, 10000)
+        tdSql.checkData(5904, 1, 1809)
+        tdSql.checkData(5904, 2, -1)
+
+        tdSql.query("select _rowts, lag(v, 4097, -1), lead(v, 4097, -1) from ct_big order by ts")
+        tdSql.checkRows(total_rows)
+        tdSql.checkData(4095, 1, -1)
+        tdSql.checkData(4095, 2, 8193)
+        tdSql.checkData(4096, 1, -1)
+        tdSql.checkData(4096, 2, 8194)
+        tdSql.checkData(4097, 1, 1)
+        tdSql.checkData(4097, 2, 8195)
+        tdSql.checkData(5902, 1, 1806)
+        tdSql.checkData(5902, 2, 10000)
+        tdSql.checkData(5903, 1, 1807)
+        tdSql.checkData(5903, 2, -1)
+
+        tdSql.query("select _rowts, lag(vb, 1), lead(vs, 1, 'E') from ct_big order by ts")
+        tdSql.checkRows(total_rows)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, "s2")
+        tdSql.checkData(4096, 1, 10000004096)
+        tdSql.checkData(4096, 2, "s4098")
+        tdSql.checkData(9999, 1, 10000009999)
+        tdSql.checkData(9999, 2, "E")
+
     def test_func_select_lag_lead(self):
         """ Fun: lag()/lead()
 
@@ -178,6 +246,7 @@ class TestFunSelectLagLead:
         2. Validate optional default-parameter form is accepted.
         3. Validate partition by tbname path can execute and return expected row count.
         4. Validate multiple lag/lead combinations (same column and different columns) return correct results.
+        5. Validate lag/lead correctness on large result sets spanning multiple data blocks.
 
         Since: v3.4.0.0
 
@@ -199,3 +268,4 @@ class TestFunSelectLagLead:
         self._case_default_type_error()
         self._case_timestamp_default_compatible()
         self._case_timestamp_default_type_error()
+        self._case_large_rows_cross_block_lag_lead()
