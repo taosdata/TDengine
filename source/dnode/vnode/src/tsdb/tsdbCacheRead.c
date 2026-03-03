@@ -151,11 +151,13 @@ static int32_t saveMultiRows(SArray* pRow, SSDataBlock* pResBlock,
               uint8_t* pValue = NULL;
               code = doGetValueFromBseBySeq(pr->pVnode->pBse, pColVal->value.pData,
                                             pColVal->value.nData, &pValue, &dataLen);
-              if (code != TSDB_CODE_SUCCESS || dataLen <= 0) {
+              if (code != TSDB_CODE_SUCCESS) {
                 tsdbError("%s failed at line %d, to get blob value from bse since: %s",
-                          __func__, lino, tstrerror(code));
+                          __func__, __LINE__, tstrerror(code));
                 colDataSetNULL(pDstCol, rowIndex);
                 pDstCol->hasNull = true;
+                taosMemFreeClear(pValue);
+                code = TSDB_CODE_SUCCESS;
               } else {
                 code = varColSetVarData(pDstCol, rowIndex, (const char*)pValue, dataLen, false);
                 taosMemFreeClear(pValue);
@@ -484,7 +486,9 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       }
 
       if (IS_VAR_DATA_TYPE(pCol->type) || pCol->type == TSDB_DATA_TYPE_DECIMAL) {
-        p.colVal.value.pData = taosMemoryCalloc(pCol->bytes, sizeof(char));
+        int32_t allocBytes = IS_STR_DATA_BLOB(pCol->type) ?
+                             BSE_SEQUECE_SIZE : pCol->bytes;
+        p.colVal.value.pData = taosMemoryCalloc(allocBytes, sizeof(char));
         TSDB_CHECK_NULL(p.colVal.value.pData, code, lino, _end, terrno);
       }
 
@@ -571,7 +575,9 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
               p->colVal = pColVal->colVal;
             } else {
               if (COL_VAL_IS_VALUE(&pColVal->colVal)) {
-                memcpy(p->colVal.value.pData, pColVal->colVal.value.pData, pColVal->colVal.value.nData);
+                int32_t copyBytes = IS_STR_DATA_BLOB(pColVal->colVal.value.type) ?
+                                    BSE_SEQUECE_SIZE : pColVal->colVal.value.nData;
+                TAOS_UNUSED(memcpy(p->colVal.value.pData, pColVal->colVal.value.pData, copyBytes));
               }
 
               p->colVal.value.nData = pColVal->colVal.value.nData;
