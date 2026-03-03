@@ -1,13 +1,17 @@
-from sqlite3 import ProgrammingError
-import time
-import socket
-import os
-import threading
-import math
-import subprocess
-from datetime import datetime
+###################################################################
+#           Copyright (c) 2016 by TAOS Technologies, Inc.
+#                     All rights reserved.
+#
+#  This file is proprietary and confidential to TAOS Technologies.
+#  No part of this file may be reproduced, stored, transmitted,
+#  disclosed or used in any form or by any means other than as
+#  expressly provided by the written permission from Jianhui Tao
+#
+###################################################################
 
-from new_test_framework.utils import tdLog, tdSql, tdCom
+# -*- coding: utf-8 -*-
+
+from new_test_framework.utils import tdLog, tdSql, eutil
 
 COMPARE_DATA = 0
 COMPARE_LEN = 1
@@ -989,10 +993,12 @@ class TestFuncLast:
 
         """
         # defect 6832148756
-        tdSql.execute(f"alter database table_lastrow_2_2 cachemodel 'both'")
-        tdSql.query('''select LAST_ROW(q_blob), LAST(q_blob) from table_lastrow_2_2.regular_table_1''')
+        tdSql.execute("alter database table_lastrow_2_2 cachemodel 'both'")
+        eutil.check_db_cachemodel("table_lastrow_2_2", "both")
+        eutil.check_explain_last_row_scan('select LAST_ROW(q_blob), LAST(q_blob) from table_lastrow_2_2.regular_table_1')
+        tdSql.query('select LAST_ROW(q_blob), LAST(q_blob) from table_lastrow_2_2.regular_table_1')
         tdSql.checkData(0, 0, b'blob.hello')
         tdSql.checkData(0, 1, b'blob.hello')
-        tdSql.query('''select LAST_ROW(q_blob), LAST(q_blob) from table_lastrow_2_2.stable_1''')
+        tdSql.query('select LAST_ROW(q_blob), LAST(q_blob) from table_lastrow_2_2.stable_1')
         tdSql.checkData(0, 0, b'blob.world')
         tdSql.checkData(0, 1, b'blob.world')
