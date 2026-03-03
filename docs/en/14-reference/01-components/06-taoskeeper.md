@@ -37,11 +37,11 @@ Usage of taoskeeper:
   -H, --host string                                  http host. Env "TAOS_KEEPER_HOST"
       --instanceId int                               instance ID. Env "TAOS_KEEPER_INSTANCE_ID" (default 64)
       --log.compress                                 whether to compress old log. Env "TAOS_KEEPER_LOG_COMPRESS"
-      --log.keepDays uint                            log retention days, must be a positive integer. Env "TAOS_KEEPER_LOG_KEEP_DAYS" (default 30)
+      --log.keepDays uint                            log retention days, must be a positive integer. Env "TAOS_KEEPER_LOG_KEEP_DAYS" (default 3)
       --log.level string                             log level (trace debug info warning error). Env "TAOS_KEEPER_LOG_LEVEL" (default "info")
       --log.path string                              log path. Env "TAOS_KEEPER_LOG_PATH" (default "/var/log/taos")
       --log.reservedDiskSize string                  reserved disk size for log dir (KB MB GB), must be a positive integer. Env "TAOS_KEEPER_LOG_RESERVED_DISK_SIZE" (default "1GB")
-      --log.rotationCount uint                       log rotation count. Env "TAOS_KEEPER_LOG_ROTATION_COUNT" (default 5)
+      --log.rotationCount uint                       log rotation count. Env "TAOS_KEEPER_LOG_ROTATION_COUNT" (default 3)
       --log.rotationSize string                      log rotation size(KB MB GB), must be a positive integer. Env "TAOS_KEEPER_LOG_ROTATION_SIZE" (default "1GB")
       --log.rotationTime duration                    deprecated: log rotation time always 24 hours. Env "TAOS_KEEPER_LOG_ROTATION_TIME" (default 24h0m0s)
       --logLevel string                              log level (trace debug info warning error). Env "TAOS_KEEPER_LOG_LEVEL" (default "info")
@@ -119,9 +119,9 @@ incgroup = false
 # path = "/var/log/taos"
 level = "info"
 # Number of log file rotations before deletion.
-rotationCount = 30
+rotationCount = 3
 # The number of days to retain log files.
-keepDays = 30
+keepDays = 3
 # The maximum size of a log file before rotation.
 rotationSize = "1GB"
 # If set to true, log files will be compressed.

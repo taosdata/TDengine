@@ -77,7 +77,12 @@ void getXnodedPipeName(char *pipeName, int32_t size) {
 #ifdef _WIN32
   snprintf(pipeName, size, "%s.%x", XNODED_MGMT_LISTEN_PIPE_NAME_PREFIX, MurmurHash3_32(tsDataDir, strlen(tsDataDir)));
 #else
-  snprintf(pipeName, size, "%s/%s", tsDataDir, XNODED_MGMT_LISTEN_PIPE_NAME_PREFIX);
+  int32_t len = strlen(tsDataDir);
+  if (len > 0 && tsDataDir[len - 1] != '/') {
+    snprintf(pipeName, size, "%s/%s", tsDataDir, XNODED_MGMT_LISTEN_PIPE_NAME_PREFIX);
+  } else {
+    snprintf(pipeName, size, "%s%s", tsDataDir, XNODED_MGMT_LISTEN_PIPE_NAME_PREFIX);
+  }
 #endif
   xndDebug("xnode get unix socket pipe path:%s", pipeName);
 }

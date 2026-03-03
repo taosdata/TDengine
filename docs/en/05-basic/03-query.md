@@ -236,7 +236,7 @@ Query OK, 12 row(s) in set (0.021265s)
 
 Each query execution is a time window, and the time window slides forward as time progresses. When defining a continuous query, it is necessary to specify the size of the time window (time window) and the forward increment time (forward sliding times). As shown in the figure below, [t0s, t0e], [t1s, t1e], [t2s, t2e] are the time window ranges for three consecutive queries, and the time range of the window's forward sliding is indicated by sliding time. Query filtering, aggregation, and other operations are performed independently for each time window.
 
-![Sliding window logic](../assets/data-querying-02-time-window.webp)
+![Sliding window logic](../assets/data-querying-02-time-window.png)
 
 :::note
 

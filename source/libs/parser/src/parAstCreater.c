@@ -150,27 +150,14 @@ static bool checkUserName(SAstCreateContext* pCxt, SToken* pUserName) {
 
 
 
-static bool isValidSimplePassword(const char* password) {
-  for (char c = *password; c != 0; c = *(++password)) {
-    if (c == ' ' || c == '\'' || c == '\"' || c == '`' || c == '\\') {
-      return false;
-    }
-  }
-  return true;
-}
-
-
-
 static bool isValidPassword(SAstCreateContext* pCxt, const char* password, bool imported) {
   if (imported) {
     return strlen(password) == TSDB_PASSWORD_LEN;
   }
-
-  if (tsEnableStrongPassword) {
-    return taosIsComplexString(password);
-  }
-
-  return isValidSimplePassword(password);
+  // leave actual password validation to server side as client/server may have different
+  // 'enableStrongPassword' and 'enableAdvancedSecurity' settings, and client-side
+  // validation may cause confusions.
+  return true;
 }
 
 
@@ -690,6 +677,14 @@ SPrivSetArgs privArgsSet(SAstCreateContext* pCxt, int32_t type, SToken* t1, STok
     } else if ((t1->n == 8) && taosStrncasecmp(t1->z, TSDB_WORD_SECURITY, 8) == 0) {
       if (t2 && t2->n == 11 && taosStrncasecmp(t2->z, TSDB_WORD_INFORMATION, 11) == 0) {
         return PRIV_SET_TYPE(PRIV_USER_SET_SECURITY);
+      }
+    }
+  } else if (type == 4) { // show users
+    if (t1->n == 8) {
+      if (taosStrncasecmp(t1->z, TSDB_WORD_SECURITY, 8) == 0) {
+        if (t2 && t2->n == 11 && taosStrncasecmp(t2->z, TSDB_WORD_INFORMATION, 11) == 0) {
+          return PRIV_SET_TYPE(PRIV_USER_SHOW_SECURITY);
+        }
       }
     }
   }
@@ -4376,6 +4371,7 @@ SUserOptions* createDefaultUserOptions(SAstCreateContext* pCxt) {
   pOptions->createdb = 0;
   pOptions->isImport = 0;
   pOptions->changepass = 2;
+
   pOptions->sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
   pOptions->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
   pOptions->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
@@ -4757,7 +4753,7 @@ static bool isValidUserOptions(SAstCreateContext* pCxt, const SUserOptions* opts
     return false;
   }
 
-  if (opts->hasPasswordLifeTime && (opts->passwordLifeTime < -1 || opts->passwordLifeTime == 0)) {
+  if (opts->hasPasswordLifeTime && opts->passwordLifeTime != -1 && opts->passwordLifeTime < TSDB_USER_PASSWORD_LIFE_TIME_MIN) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "PASSWORD_LIFE_TIME");
     return false;
   }
@@ -4806,6 +4802,21 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOpt
 
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_USER_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
+
+  pStmt->hasSessionPerUser = opts->hasSessionPerUser;
+  pStmt->hasConnectTime = opts->hasConnectTime;
+  pStmt->hasConnectIdleTime = opts->hasConnectIdleTime;
+  pStmt->hasCallPerSession = opts->hasCallPerSession;
+  pStmt->hasVnodePerCall = opts->hasVnodePerCall;
+  pStmt->hasFailedLoginAttempts = opts->hasFailedLoginAttempts;
+  pStmt->hasPasswordLifeTime = opts->hasPasswordLifeTime;
+  pStmt->hasPasswordReuseTime = opts->hasPasswordReuseTime;
+  pStmt->hasPasswordReuseMax = opts->hasPasswordReuseMax;
+  pStmt->hasPasswordLockTime = opts->hasPasswordLockTime;
+  pStmt->hasPasswordGraceTime = opts->hasPasswordGraceTime;
+  pStmt->hasInactiveAccountTime = opts->hasInactiveAccountTime;
+  pStmt->hasAllowTokenNum = opts->hasAllowTokenNum;
+
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
   tstrncpy(pStmt->password, opts->password, sizeof(pStmt->password));
   tstrncpy(pStmt->totpseed, opts->totpseed, sizeof(pStmt->totpseed));
@@ -5768,6 +5779,12 @@ SNode* createXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
   CHECK_MAKE_NODE(pStmt);
   SCreateXnodeTaskStmt* pTaskStmt = (SCreateXnodeTaskStmt*)pStmt;
   if (pResourceName->type == TK_NK_STRING) {
+    if (pResourceName->n > TSDB_XNODE_TASK_NAME_LEN + 2) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                  "Xnode task name should be less than %d characters", TSDB_XNODE_TASK_NAME_LEN);
+      goto _err;
+    }
     COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
   } else if (pResourceName->type == TK_NK_ID) {
     COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
@@ -5816,6 +5833,12 @@ SNode* createXnodeAgentWithOptionsDirectly(SAstCreateContext* pCxt, const SToken
   }
 
   if (pResourceName->type == TK_NK_STRING && pResourceName->n > 2) {
+    if (pResourceName->n > TSDB_XNODE_AGENT_NAME_LEN + 2) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                  "Xnode agent name should be less than %d characters", TSDB_XNODE_AGENT_NAME_LEN);
+      goto _err;
+    }
     COPY_STRING_FORM_STR_TOKEN(pAgentStmt->name, pResourceName);
   } else {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -5837,11 +5860,18 @@ SNode* createXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType re
 
   switch (resourceType) {
     case XNODE_TASK: {
-      return createXnodeTaskWithOptionsDirectly(pCxt, pResourceName, pSource, pSink, pOptions);
+      SNode* rs = createXnodeTaskWithOptionsDirectly(pCxt, pResourceName, pSource, pSink, pOptions);
+      if (rs == NULL) {
+        goto _err;
+      }
+      return rs;
     }
     case XNODE_AGENT: {
-      return createXnodeAgentWithOptionsDirectly(pCxt, pResourceName, pOptions);
-      break;
+      SNode* rs = createXnodeAgentWithOptionsDirectly(pCxt, pResourceName, pOptions);
+      if (rs == NULL) {
+        goto _err;
+      }
+      return rs;
     }
     default:
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -5849,6 +5879,9 @@ SNode* createXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType re
       goto _err;
   }
 _err:
+  nodesDestroyNode(pSource);
+  nodesDestroyNode(pSink);
+  nodesDestroyNode(pOptions);
   return NULL;
 }
 
@@ -6276,7 +6309,7 @@ SNode* dropXnodeResourceWhere(SAstCreateContext* pCxt, EXnodeResourceType resour
     case XNODE_AGENT:
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                               "Xnode only drop xnode job where ... support");
-      break;
+      goto _err;
     case XNODE_JOB:
       pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_JOB_STMT, (SNode**)&pStmt);
       CHECK_MAKE_NODE(pStmt);
@@ -6287,6 +6320,7 @@ SNode* dropXnodeResourceWhere(SAstCreateContext* pCxt, EXnodeResourceType resour
   }
   return (SNode*)pStmt;
 _err:
+  nodesDestroyNode(pWhere);
   return NULL;
 }
 
@@ -6345,8 +6379,18 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
     }
   } else if (strcmp(key, "parser") == 0 || strcmp(key, "transform") == 0) {
     if (pVal->type == TK_NK_STRING) {
-      (void)trimString(pVal->z, pVal->n, pOptions->parser, sizeof(pOptions->parser));
+      if (pVal->n > TSDB_XNODE_TASK_PARSER_LEN + 2) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_TASK_PARSER_TOO_LONG,
+                                                "Option parser must be string with length <= %d",
+                                                TSDB_XNODE_TASK_PARSER_LEN);
+        goto _err;
+      }
+      if (pOptions->parser) {
+        taosMemFreeClear(pOptions->parser);
+      }
       pOptions->parserLen = pVal->n == 2 ? 1 : pVal->n - 2;
+      pOptions->parser = taosMemoryCalloc(1, pOptions->parserLen + 1);
+      (void)trimString(pVal->z, pVal->n, pOptions->parser, pOptions->parserLen + 1);
     } else {
       pCxt->errCode =
           generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Option parser must be string");
@@ -6414,8 +6458,10 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
       goto _err;
     }
   }
-_err:
   return pTaskOptions;
+_err:
+  nodesDestroyNode(pTaskOptions);
+  return NULL;
 }
 
 SNode* createXnodeTaskJobWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pTidToken,

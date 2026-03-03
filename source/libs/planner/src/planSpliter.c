@@ -62,6 +62,7 @@ static int32_t cloneVgroups(SVgroupsInfo **pDst, SVgroupsInfo* pSrc) {
 }
 
 static int32_t stbSplCreateMergeKeys(SNodeList* pSortKeys, SNodeList* pTargets, SNodeList** pOutput);
+static int32_t stbSplCreateMergeKeysByExpr(SNode* pExpr, EOrder order, SNodeList** pMergeKeys);
 
 static void splSetSubplanVgroups(SLogicSubplan* pSubplan, SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
@@ -565,7 +566,8 @@ _return:
   return code;
 }
 
-static int32_t stbSplCreatePartWindowNode(SSplitContext* pCxt, SWindowLogicNode* pMergeWindow, SLogicNode** pPartWindow) {
+static int32_t stbSplCreatePartWindowNode(SSplitContext* pCxt, SWindowLogicNode* pMergeWindow,
+                                          SLogicNode** pPartWindow, SNodeList** pMergeKeys) {
   int32_t    code = TSDB_CODE_SUCCESS;
   SNodeList* pFunc = pMergeWindow->pFuncs;
   pMergeWindow->pFuncs = NULL;
@@ -585,17 +587,54 @@ static int32_t stbSplCreatePartWindowNode(SSplitContext* pCxt, SWindowLogicNode*
   pPartWin->node.pChildren = pChildren;
   splSetParent((SLogicNode*)pPartWin);
 
-  int32_t index = 0;
+  int32_t index = -1;
+  int32_t indexExt = -1;
+  const SColumnNode* pMergeTspk = (const SColumnNode*)pMergeWindow->pTspk;
   PLAN_ERR_JRET(stbSplRewriteFuns(pFunc, &pPartWin->pFuncs, NULL, &pMergeWindow->pFuncs));
   if (pCxt->pPlanCxt->streamCalcQuery) {
-    PLAN_ERR_JRET(stbSplAppendPlaceHolder(pPartWin->pFuncs, &index, ((SColumnNode*)pMergeWindow->pTspk)->node.resType.precision, pCxt->pPlanCxt->streamTriggerWinType));
-  } else {
-    PLAN_ERR_JRET(stbSplAppendWStart(pPartWin->pFuncs, &index, ((SColumnNode*)pMergeWindow->pTspk)->node.resType.precision));
+    /**
+      For stream calc query, we need the _twstart or _tprev_ts placeholder
+      in the part window to merge part results together.
+    */
+    PLAN_ERR_JRET(stbSplAppendPlaceHolder(pPartWin->pFuncs, &indexExt,
+                                          pMergeTspk->node.resType.precision,
+                                          pCxt->pPlanCxt->streamTriggerWinType));
   }
-  PLAN_ERR_JRET( createColumnByRewriteExprs(pPartWin->pFuncs, &pPartWin->node.pTargets));
+  if (!pCxt->pPlanCxt->withExtWindow) {
+    /**
+      If the query is not an external window query, we need the _wstart
+      placeholder for the merged INTERVAL window to do aggregation.
+    */
+    PLAN_ERR_JRET(stbSplAppendWStart(pPartWin->pFuncs, &index,
+                                     pMergeTspk->node.resType.precision));
+  }
+  if (index < 0 && indexExt < 0) {
+    planError("%s failed since no pkts placeholder set", __FUNCTION__);
+    code = TSDB_CODE_INTERNAL_ERROR;
+    PLAN_ERR_JRET(code);
+  }
+
+  PLAN_ERR_JRET(createColumnByRewriteExprs(pPartWin->pFuncs, &pPartWin->node.pTargets));
   nodesDestroyNode(pMergeWindow->pTspk);
   pMergeWindow->pTspk = NULL;
-  PLAN_ERR_JRET(nodesCloneNode(nodesListGetNode(pPartWin->node.pTargets, index), &pMergeWindow->pTspk));
+  if (NULL != pMergeKeys) {
+    /**
+      Both _twstart and _wstart placeholders should be used as merge keys
+      for INTERVAL window.
+    */
+    if (indexExt >= 0) {
+      PLAN_ERR_JRET(stbSplCreateMergeKeysByExpr(nodesListGetNode(pPartWin->node.pTargets, indexExt),
+                                                pMergeWindow->node.outputTsOrder, pMergeKeys));
+    }
+    if (index >= 0) {
+      PLAN_ERR_JRET(stbSplCreateMergeKeysByExpr(nodesListGetNode(pPartWin->node.pTargets, index),
+                                                pMergeWindow->node.outputTsOrder, pMergeKeys));
+    }
+  }
+
+  int32_t indexPkts = index >= 0 ? index: indexExt;
+  PLAN_ERR_JRET(nodesCloneNode(nodesListGetNode(pPartWin->node.pTargets, indexPkts),
+                               &pMergeWindow->pTspk));
 
   nodesDestroyList(pFunc);
   *pPartWindow = (SLogicNode*)pPartWin;
@@ -746,16 +785,13 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
     }
   }
   SLogicNode* pPartWindow = NULL;
-  int32_t     code = stbSplCreatePartWindowNode(pCxt, (SWindowLogicNode*)pInfo->pSplitNode, &pPartWindow);
+  SNodeList*  pMergeKeys = NULL;
+  int32_t     code = stbSplCreatePartWindowNode(pCxt, (SWindowLogicNode*)pInfo->pSplitNode,
+                                                &pPartWindow, &pMergeKeys);
   if (TSDB_CODE_SUCCESS == code) {
     ((SWindowLogicNode*)pPartWindow)->windowAlgo = ((SWindowLogicNode*)pInfo->pSplitNode)->winType == WINDOW_TYPE_INTERVAL ? INTERVAL_ALGO_HASH : EXTERNAL_ALGO_HASH;
     ((SWindowLogicNode*)pInfo->pSplitNode)->windowAlgo = ((SWindowLogicNode*)pInfo->pSplitNode)->winType == WINDOW_TYPE_INTERVAL ? INTERVAL_ALGO_MERGE : EXTERNAL_ALGO_MERGE;
-    SNodeList* pMergeKeys = NULL;
-    code = stbSplCreateMergeKeysByPrimaryKey(((SWindowLogicNode*)pInfo->pSplitNode)->pTspk,
-                                             ((SWindowLogicNode*)pInfo->pSplitNode)->node.outputTsOrder, &pMergeKeys);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = stbSplCreateMergeNode(pCxt, NULL, pInfo->pSplitNode, pMergeKeys, pPartWindow, true, true);
-    }
+    code = stbSplCreateMergeNode(pCxt, NULL, pInfo->pSplitNode, pMergeKeys, pPartWindow, true, true);
     if (TSDB_CODE_SUCCESS != code) {
       nodesDestroyList(pMergeKeys);
     }
@@ -777,7 +813,7 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
         pSubplan->id.queryId = pCxt->queryId;
         //pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
         splSetSubplanVgroups(pSubplan, pSubplan->pNode);
-        code = stbSplCreatePartWindowNode(pCxt, (SWindowLogicNode*)pSubplan->pNode, &pPartWindow);
+        code = stbSplCreatePartWindowNode(pCxt, (SWindowLogicNode*)pSubplan->pNode, &pPartWindow, NULL);
         if (TSDB_CODE_SUCCESS == code) {
           nodesDestroyNode((SNode*)pSubplan->pNode);
           pSubplan->pNode = pPartWindow;

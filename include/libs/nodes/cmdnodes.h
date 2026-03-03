@@ -486,6 +486,21 @@ typedef struct SUserOptions {
 
 typedef struct SCreateUserStmt {
   ENodeType type;
+
+  bool hasSessionPerUser;
+  bool hasConnectTime;
+  bool hasConnectIdleTime;
+  bool hasCallPerSession;
+  bool hasVnodePerCall;
+  bool hasFailedLoginAttempts;
+  bool hasPasswordLifeTime;
+  bool hasPasswordReuseTime;
+  bool hasPasswordReuseMax;
+  bool hasPasswordLockTime;
+  bool hasPasswordGraceTime;
+  bool hasInactiveAccountTime;
+  bool hasAllowTokenNum;
+
   char      userName[TSDB_USER_LEN];
   char      password[TSDB_USER_PASSWORD_LONGLEN];
   char      totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
@@ -692,7 +707,7 @@ typedef struct {
   int32_t healthLen;
   char    health[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
   int32_t parserLen;
-  char    parser[TSDB_XNODE_TASK_PARSER_LEN + 3];
+  char*   parser;
   int32_t optionsNum;
   char*   options[TSDB_XNODE_TASK_OPTIONS_MAX_NUM];  // options in the form of "key=value", e.g., "group.id=task1",
                                                      // "via=1", "parser=taosx"

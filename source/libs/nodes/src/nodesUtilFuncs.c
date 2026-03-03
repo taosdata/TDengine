@@ -2572,7 +2572,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_XNODE_TASK_OPTIONS: {
       // xFreeTaskOptions(&((SXnodeTaskOptions*)pNode)->opts);
       SXnodeTaskOptions* pOptions = (SXnodeTaskOptions*)pNode;
-      // printf("Destroying Xnode task options with %d options\n", pOptions->optionsNum);
+      taosMemFreeClear(pOptions->parser);
       for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
         taosMemFreeClear(pOptions->options[i]);
       }
@@ -2592,6 +2592,16 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->source);
       nodesDestroyNode((SNode*)pStmt->sink);
       nodesDestroyNode((SNode*)pStmt->options);
+      break;
+    }
+    case QUERY_NODE_START_XNODE_TASK_STMT: {
+      SStartXnodeTaskStmt* pStmt = (SStartXnodeTaskStmt*)pNode;
+      xFreeCowStr(&pStmt->name);
+      break;
+    }
+    case QUERY_NODE_STOP_XNODE_TASK_STMT: {
+      SStopXnodeTaskStmt* pStmt = (SStopXnodeTaskStmt*)pNode;
+      xFreeCowStr(&pStmt->name);
       break;
     }
     case QUERY_NODE_DROP_XNODE_TASK_STMT: {

@@ -6,7 +6,6 @@ toc_max_heading_level: 4
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import ConnJava from "./_connect_java.mdx";
 import ConnGo from "./_connect_go.mdx";
 import ConnRust from "./_connect_rust.mdx";
 import ConnNode from "./_connect_node.mdx";
@@ -69,7 +68,7 @@ import ConnectorType from "../../14-reference/05-connector/_connector_type.mdx";
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.8.0</version>
+  <version>3.8.1</version>
 </dependency>
 ```
 
@@ -424,7 +423,7 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
 <Tabs defaultValue="java" groupId="lang">
   <TabItem label="Java" value="java">
     ```java
-    {{#include docs/examples/java/src/main/java/com/taos/example/WSConnectExample.java:main}}
+    {{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WSConnectExample.java:main}}
     ```
   </TabItem>
   <TabItem label="Python" value="python">
@@ -468,7 +467,7 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/JNIConnectExample.java:main}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/JNIConnectExample.java:main}}
 ```
 </TabItem>
 <TabItem label="Python" value="python">
@@ -516,7 +515,7 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
 使用示例如下：
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/HikariDemo.java:connection_pool}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/HikariDemo.java:connection_pool}}
 ```
 
 > 通过 HikariDataSource.getConnection() 获取连接后，使用完成后需要调用 close() 方法，实际上它并不会关闭连接，只是放回连接池中。
@@ -527,7 +526,7 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
 使用示例如下：
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/DruidDemo.java:connection_pool}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/DruidDemo.java:connection_pool}}
 ```
 
 > 更多 druid 使用问题请查看[官方说明](https://github.com/alibaba/druid)。

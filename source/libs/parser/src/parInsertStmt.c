@@ -564,7 +564,8 @@ int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bi
   }
 
   if (bind->buffer_type != pColSchema->type) {
-    return buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
+    return buildInvalidOperationMsgExt(&pBuf, "column type:%d mis-match with buffer type:%d", pColSchema->type,
+                                       bind->buffer_type);
   }
 
   if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
@@ -906,7 +907,8 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
 
     if ((!(rowNum == 1 && bindData.is_null && *bindData.is_null)) &&
         bindData.buffer_type != pColSchema->type) {  // for rowNum ==1 , connector may not set buffer_type
-      code = buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
+      code = buildInvalidOperationMsgExt(&pBuf, "bind[%d] column type:%d mis-match with buffer type:%d", bindIdx,
+                                         pColSchema->type, bindData.buffer_type);
       goto _return;
     }
 
@@ -1085,7 +1087,8 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, 
 
     if ((!(rowNum == 1 && bindData.is_null && *bindData.is_null)) &&
         bindData.buffer_type != pColSchema->type) {  // for rowNum ==1 , connector may not set buffer_type
-      code = buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
+      code = buildInvalidOperationMsgExt(&pBuf, "bind[%d] column type:%d mis-match with buffer type:%d", bindIdx,
+                                         pColSchema->type, bindData.buffer_type);
       goto _return;
     }
 
@@ -1172,7 +1175,8 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
   }
 
   if (bind->buffer_type != pColSchema->type) {
-    return buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
+    return buildInvalidOperationMsgExt(&pBuf, "column type:%d mis-match with buffer type:%d", pColSchema->type,
+                                       bind->buffer_type);
   }
 
   if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
@@ -1271,7 +1275,8 @@ int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, SSHashObj* parsedCols, T
 
     if ((!(rowNum == 1 && bind[c].is_null && *bind[c].is_null)) &&
         bind[c].buffer_type != pColSchema->type) {  // for rowNum ==1 , connector may not set buffer_type
-      code = buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
+      code = buildInvalidOperationMsgExt(&pBuf, "bind[%d] column type:%d mis-match with buffer type:%d", c,
+                                         pColSchema->type, bind[c].buffer_type);
       goto _return;
     }
 

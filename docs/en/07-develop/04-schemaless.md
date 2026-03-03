@@ -203,7 +203,7 @@ Below, using smart meters as an example, we introduce code samples for writing d
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/SchemalessWsTest.java:schemaless}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/SchemalessWsTest.java:schemaless}}
 ```
 
 Execute schemaless writing with reqId, where the last parameter reqId can be used for request link tracing.
@@ -259,7 +259,7 @@ Not supported
 <Tabs defaultValue="java" groupId="lang">
     <TabItem label="Java" value="java">
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/SchemalessJniTest.java:schemaless}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/SchemalessJniTest.java:schemaless}}
 ```
 
 Execute schemaless writing with reqId, where the last parameter reqId can be used for request link tracing.
