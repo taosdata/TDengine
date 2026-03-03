@@ -717,7 +717,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   int32_t sz = metaSize + schemaExtSize + pColRefSize + pTagRefSize;
   STableMeta *pTableMeta = taosMemoryCalloc(1, sz);
   if (NULL == pTableMeta) {
-    qError("calloc size[%d] failed since", sz, tstrerror(terrno));
+    qError("calloc size[%d] failed since %s", sz, tstrerror(terrno));
     return terrno;
   }
   SSchemaExt *pSchemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
