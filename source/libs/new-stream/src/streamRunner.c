@@ -821,11 +821,11 @@ static void printOutputProjBlock(SStreamRunnerTask* pTask, const SSDataBlock* pB
 
 static int32_t stRunnerHandleExtWinResBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
                                                     SSDataBlock* pBlock, SSDataBlock** ppForceOutBlock,
-                                                    int32_t pNextOutIdx, bool finished) {
+                                                    int32_t nextOutIdx, bool finished) {
   int32_t code = 0;
   int     lino = 0;
-  int32_t startWinIdx = pNextOutIdx;
-  int32_t endWinIdx = pNextOutIdx;
+  int32_t startWinIdx = nextOutIdx;
+  int32_t endWinIdx = nextOutIdx;
   if (*ppForceOutBlock) blockDataCleanup(*ppForceOutBlock);
 
   if ((pTask->notification.pNotifyAddrUrls != NULL && pTask->notification.pNotifyAddrUrls->size > 0) ||
@@ -838,9 +838,9 @@ static int32_t stRunnerHandleExtWinResBlock(SStreamRunnerTask* pTask, SStreamRun
         // won't overflow, total rows should smaller than 4096
         endWinIdx++;
       }
-      if (startWinIdx < *pNextOutIdx) {
+      if (startWinIdx < nextOutIdx) {
         TAOS_CHECK_GOTO(stRunnerMergeOutputBlock(pTask, pExec, *ppForceOutBlock, false), &lino, _exit);
-        endWinIdx = *pNextOutIdx;
+        endWinIdx = nextOutIdx;
         TAOS_CHECK_GOTO(streamDoNotification(pTask, pExec, startWinIdx, endWinIdx, pExec->tbname), &lino, _exit);
       }
       return TSDB_CODE_SUCCESS;

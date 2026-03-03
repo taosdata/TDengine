@@ -2507,7 +2507,7 @@ static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode
     return TSDB_CODE_SUCCESS;
   }
 
-  if (pCxt->pPlanCxt->streamCalcQuery) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -8828,7 +8828,7 @@ _return:
 }
 
 static int32_t vtableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  if (pCxt->pPlanCxt->streamCalcQuery) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
     // stream calc query does not support scan path optimization
     return TSDB_CODE_SUCCESS;
   }
@@ -9055,7 +9055,7 @@ static int32_t appendNewChild(SLogicNode* pParent, SLogicNode* pChild) {
 //              \
 //               \> ExternalWindow -> DynQueryCtrl(scan other cols) -> VirtualScan -> TableScan
 static int32_t vstableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  if (pCxt->pPlanCxt->streamCalcQuery) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
     // stream calc query does not support
     return TSDB_CODE_SUCCESS;
   }
@@ -9646,7 +9646,7 @@ _return:
 }
 
 static int32_t vstableAggOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  if (pCxt->pPlanCxt->streamCalcQuery) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
     // stream calc query does not support scan path optimization
     return TSDB_CODE_SUCCESS;
   }

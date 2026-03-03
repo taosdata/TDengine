@@ -77,7 +77,7 @@ static void initSubQueryPlanContext(SPlanContext* pDst, SPlanContext* pSrc, SNod
   memcpy(pDst, pSrc, sizeof(*pSrc));
 
   pDst->groupId++;
-  pDst->withExtWindow = false;
+  pDst->streamCxt.hasExtWindow = false;
   pDst->hasScan = false;
   
   pDst->pAstRoot = pRoot;

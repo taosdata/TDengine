@@ -1130,7 +1130,7 @@ static int32_t resetExternalWindowExprSupp(SExternalWindowOperator* pExtW, SExec
   QUERY_CHECK_CODE(code, lino, _error);
   code = initExprSupp(&pExtW->scalarSupp, pExprInfo, num, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
-  pExtW->lastGrpId = UINT64_MAX;
+  pExtW->lastGrpIdx = INT32_MAX;
   extWinResetResultRows(&pExtW->resultRows);
   return code;
 _error:
