@@ -1921,11 +1921,28 @@ static int32_t stmtRestoreQueryFields(STscStmt2* pStmt) {
  * @param pMetaData Output: Fetched metadata (caller responsible for cleanup)
  * @return TSDB_CODE_SUCCESS on success, error code otherwise
  */
-static int32_t stmtFetchMetadataForQuery(STscStmt2* pStmt, SParseContext* pCxt, SMetaData* pMetaData) {
-  int32_t code = TSDB_CODE_SUCCESS;
+// Callback parameter structure for synchronous catalog metadata fetch
+typedef struct {
+  SMetaData* pRsp;
+  int32_t    code;
+  tsem_t     sem;
+} SCatalogSyncCbParam;
 
-  // Collect metadata requirements and fetch metadata synchronously
-  // This is equivalent to phaseAsyncQuery in normal query flow
+// Callback function for catalogAsyncGetAllMeta to make it synchronous
+static void stmtCatalogSyncGetAllMetaCb(SMetaData* pResultMeta, void* param, int32_t code) {
+  SCatalogSyncCbParam* pCbParam = (SCatalogSyncCbParam*)param;
+  if (TSDB_CODE_SUCCESS == code && pResultMeta) {
+    *pCbParam->pRsp = *pResultMeta;
+    TAOS_MEMSET(pResultMeta, 0, sizeof(SMetaData));  // Clear to avoid double free
+  }
+  pCbParam->code = code;
+  if (tsem_post(&pCbParam->sem) != 0) {
+    tscError("failed to post semaphore");
+  }
+}
+
+static int32_t stmtFetchMetadataForQuery(STscStmt2* pStmt, SParseContext* pCxt, SMetaData* pMetaData) {
+  int32_t          code = 0;
   SParseMetaCache  metaCache = {0};
   SCatalogReq      catalogReq = {0};
   SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
@@ -1933,22 +1950,41 @@ static int32_t stmtFetchMetadataForQuery(STscStmt2* pStmt, SParseContext* pCxt, 
                            .requestObjRefId = pCxt->requestRid,
                            .mgmtEps = pCxt->mgmtEpSet};
 
+  TAOS_MEMSET(pMetaData, 0, sizeof(SMetaData));
+
   code = collectMetaKey(pCxt, pStmt->sql.pQuery, &metaCache);
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCatalogReq(&metaCache, &catalogReq);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = catalogGetAllMeta(pCxt->pCatalog, &conn, &catalogReq, pMetaData);
+    SCatalogSyncCbParam cbParam = {.pRsp = pMetaData, .code = TSDB_CODE_SUCCESS};
+    if (tsem_init(&cbParam.sem, 0, 0) != 0) {
+      code = TSDB_CODE_CTG_INTERNAL_ERROR;
+    } else {
+      code = catalogAsyncGetAllMeta(pCxt->pCatalog, &conn, &catalogReq, stmtCatalogSyncGetAllMetaCb, &cbParam, NULL);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tsem_wait(&cbParam.sem);
+        if (code != TSDB_CODE_SUCCESS) {
+          catalogFreeMetaData(pMetaData);
+          TAOS_MEMSET(pMetaData, 0, sizeof(SMetaData));
+        } else {
+          code = cbParam.code;
+        }
+      }
+
+      if (tsem_destroy(&cbParam.sem) != 0) {
+        tscError("failed to destroy semaphore");
+        code = TSDB_CODE_CTG_INTERNAL_ERROR;
+        catalogFreeMetaData(pMetaData);
+        TAOS_MEMSET(pMetaData, 0, sizeof(SMetaData));
+      }
+    }
   }
 
-  // Clean up metaCache and catalogReq (metaData will be used in qStmtParseQuerySql)
   destoryParseMetaCache(&metaCache, false);
   destoryCatalogReq(&catalogReq);
 
   if (TSDB_CODE_SUCCESS != code) {
-    // Clean up metaData on failure - catalogGetAllMeta may have partially populated
-    // fields (pDbVgroup, pTableMeta, pUser, etc.) before failing, so we need to
-    // call catalogFreeMetaData to ensure complete cleanup
     catalogFreeMetaData(pMetaData);
   }
 
