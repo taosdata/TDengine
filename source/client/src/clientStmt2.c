@@ -1946,13 +1946,10 @@ static int32_t stmtFetchMetadataForQuery(STscStmt2* pStmt, SParseContext* pCxt, 
   destoryCatalogReq(&catalogReq);
 
   if (TSDB_CODE_SUCCESS != code) {
-    // Clean up metaData on failure - free all arrays
-    if (pMetaData->pVStbRefDbs) {
-      taosArrayDestroy(pMetaData->pVStbRefDbs);
-      pMetaData->pVStbRefDbs = NULL;
-    }
-    // Note: Other fields in metaData are managed by catalog module if ctgFree is true
-    // For now, we only need to clean up pVStbRefDbs which we explicitly need
+    // Clean up metaData on failure - catalogGetAllMeta may have partially populated
+    // fields (pDbVgroup, pTableMeta, pUser, etc.) before failing, so we need to
+    // call catalogFreeMetaData to ensure complete cleanup
+    catalogFreeMetaData(pMetaData);
   }
 
   return code;

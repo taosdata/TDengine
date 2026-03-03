@@ -1533,6 +1533,9 @@ int32_t catalogGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SCatalo
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
+  // Initialize pRsp to zero to ensure all pointer fields are NULL on error paths
+  TAOS_MEMSET(pRsp, 0, sizeof(SMetaData));
+
   SCatalogSyncCbParam cbParam = {.pRsp = pRsp, .code = TSDB_CODE_SUCCESS};
   if (tsem_init(&cbParam.sem, 0, 0) != 0) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INTERNAL_ERROR);
