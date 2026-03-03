@@ -1826,6 +1826,65 @@ TEST(RepairOptionParseTest, TryResumeSessionInvalidArgs) {
             TSDB_CODE_INVALID_PARA);
 }
 
+TEST(RepairOptionParseTest, NeedRunWalForceRepair) {
+  bool needRun = false;
+
+  SRepairCliArgs walForceCli = {0};
+  ASSERT_EQ(tRepairParseCliOption(&walForceCli, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&walForceCli, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&walForceCli, "vnode-id", "2,3"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&walForceCli, "mode", "force"), TSDB_CODE_SUCCESS);
+  SRepairCtx walForceCtx = {0};
+  ASSERT_EQ(tRepairInitCtx(&walForceCli, 1735689601501LL, &walForceCtx), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairNeedRunWalForceRepair(&walForceCtx, &needRun), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(needRun);
+
+  SRepairCliArgs walReplicaCli = {0};
+  ASSERT_EQ(tRepairParseCliOption(&walReplicaCli, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&walReplicaCli, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&walReplicaCli, "vnode-id", "2,3"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&walReplicaCli, "mode", "replica"), TSDB_CODE_SUCCESS);
+  SRepairCtx walReplicaCtx = {0};
+  ASSERT_EQ(tRepairInitCtx(&walReplicaCli, 1735689601502LL, &walReplicaCtx), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairNeedRunWalForceRepair(&walReplicaCtx, &needRun), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(needRun);
+
+  SRepairCliArgs tsdbForceCli = {0};
+  ASSERT_EQ(tRepairParseCliOption(&tsdbForceCli, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&tsdbForceCli, "file-type", "tsdb"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&tsdbForceCli, "vnode-id", "2,3"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&tsdbForceCli, "mode", "force"), TSDB_CODE_SUCCESS);
+  SRepairCtx tsdbForceCtx = {0};
+  ASSERT_EQ(tRepairInitCtx(&tsdbForceCli, 1735689601503LL, &tsdbForceCtx), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairNeedRunWalForceRepair(&tsdbForceCtx, &needRun), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(needRun);
+}
+
+TEST(RepairOptionParseTest, BuildVnodeTargetPath) {
+  char targetPath[PATH_MAX] = {0};
+
+  ASSERT_EQ(tRepairBuildVnodeTargetPath("/tmp/repair-data", 11, REPAIR_FILE_TYPE_WAL, targetPath, sizeof(targetPath)),
+            TSDB_CODE_SUCCESS);
+  std::string expectedWal =
+      std::string("/tmp/repair-data") + TD_DIRSEP + "vnode" + TD_DIRSEP + "vnode11" + TD_DIRSEP + "wal";
+  ASSERT_STREQ(targetPath, expectedWal.c_str());
+
+  ASSERT_EQ(tRepairBuildVnodeTargetPath("/tmp/repair-data", 11, REPAIR_FILE_TYPE_META, targetPath, sizeof(targetPath)),
+            TSDB_CODE_SUCCESS);
+  std::string expectedMeta =
+      std::string("/tmp/repair-data") + TD_DIRSEP + "vnode" + TD_DIRSEP + "vnode11" + TD_DIRSEP + "meta";
+  ASSERT_STREQ(targetPath, expectedMeta.c_str());
+
+  ASSERT_EQ(tRepairBuildVnodeTargetPath(NULL, 11, REPAIR_FILE_TYPE_WAL, targetPath, sizeof(targetPath)),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBuildVnodeTargetPath("/tmp/repair-data", -1, REPAIR_FILE_TYPE_WAL, targetPath, sizeof(targetPath)),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBuildVnodeTargetPath("/tmp/repair-data", 11, REPAIR_FILE_TYPE_DATA, targetPath, sizeof(targetPath)),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBuildVnodeTargetPath("/tmp/repair-data", 11, REPAIR_FILE_TYPE_WAL, NULL, sizeof(targetPath)),
+            TSDB_CODE_INVALID_PARA);
+}
+
 TEST(RepairOptionParseTest, BuildProgressLineAndSummaryLine) {
   SRepairCliArgs cliArgs = {0};
   ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);

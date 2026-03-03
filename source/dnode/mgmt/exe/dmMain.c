@@ -26,6 +26,7 @@
 #include "trepair.h"
 #include "tss.h"
 #include "version.h"
+#include "wal.h"
 
 #ifdef TD_JEMALLOC_ENABLED
 #define ALLOW_FORBID_FUNC
@@ -1030,6 +1031,150 @@ int mainWindows(int argc, char **argv) {
             dError("failed to append repair backup progress log for vnode:%d since %s", global.repairCtx.vnodeIds[i],
                    tstrerror(code));
             printf("failed repair backup preparation: %s\n", tstrerror(code));
+            taosCleanupCfg();
+            taosCloseLog();
+            taosCleanupArgs();
+            taosConvDestroy();
+            return TSDB_CODE_INVALID_CFG;
+          }
+        }
+      }
+    }
+
+    bool needRunWalForceRepair = false;
+    code = tRepairNeedRunWalForceRepair(&global.repairCtx, &needRunWalForceRepair);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to determine wal force repair schedule since %s", tstrerror(code));
+      printf("failed repair session preparation: %s\n", tstrerror(code));
+      taosCleanupCfg();
+      taosCloseLog();
+      taosCleanupArgs();
+      taosConvDestroy();
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    if (needRunWalForceRepair) {
+      code = walInit(dmStopDaemon);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to initialize wal module for repair since %s", tstrerror(code));
+        printf("failed repair wal scheduling: %s\n", tstrerror(code));
+        taosCleanupCfg();
+        taosCloseLog();
+        taosCleanupArgs();
+        taosConvDestroy();
+        return TSDB_CODE_INVALID_CFG;
+      }
+
+      int32_t walDoneVnodes = 0;
+      for (int32_t i = 0; i < global.repairCtx.vnodeIdNum; ++i) {
+        int32_t vnodeId = global.repairCtx.vnodeIds[i];
+        char    walPath[PATH_MAX] = {0};
+        code = tRepairBuildVnodeTargetPath(tsDataDir, vnodeId, REPAIR_FILE_TYPE_WAL, walPath, sizeof(walPath));
+        if (code != TSDB_CODE_SUCCESS) {
+          dError("failed to build wal path for vnode:%d since %s", vnodeId, tstrerror(code));
+          printf("failed repair wal scheduling: %s\n", tstrerror(code));
+          taosCleanupCfg();
+          taosCloseLog();
+          taosCleanupArgs();
+          taosConvDestroy();
+          return TSDB_CODE_INVALID_CFG;
+        }
+
+        code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "wal", "running", walDoneVnodes,
+                                        totalVnodes);
+        if (code != TSDB_CODE_SUCCESS) {
+          dError("failed to write wal repair state for vnode:%d since %s", vnodeId, tstrerror(code));
+          printf("failed repair wal scheduling: %s\n", tstrerror(code));
+          taosCleanupCfg();
+          taosCloseLog();
+          taosCleanupArgs();
+          taosConvDestroy();
+          return TSDB_CODE_INVALID_CFG;
+        }
+
+        SWalCfg walCfg = {0};
+        walCfg.vgId = vnodeId;
+        walCfg.fsyncPeriod = 0;
+        walCfg.retentionPeriod = -1;
+        walCfg.retentionSize = -1;
+        walCfg.level = TAOS_WAL_WRITE;
+
+        SWal *pWal = walOpen(walPath, &walCfg);
+        if (pWal == NULL) {
+          int32_t walCode = terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+          dError("failed to repair wal for vnode:%d path:%s since %s", vnodeId, walPath, tstrerror(walCode));
+          (void)tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "wal", "failed", walDoneVnodes,
+                                         totalVnodes);
+          printf("failed repair wal scheduling: %s\n", tstrerror(walCode));
+          taosCleanupCfg();
+          taosCloseLog();
+          taosCleanupArgs();
+          taosConvDestroy();
+          return TSDB_CODE_INVALID_CFG;
+        }
+        walClose(pWal);
+
+        ++walDoneVnodes;
+
+        code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "wal", "running", walDoneVnodes,
+                                        totalVnodes);
+        if (code != TSDB_CODE_SUCCESS) {
+          dError("failed to update wal repair state for vnode:%d since %s", vnodeId, tstrerror(code));
+          printf("failed repair wal scheduling: %s\n", tstrerror(code));
+          taosCleanupCfg();
+          taosCloseLog();
+          taosCleanupArgs();
+          taosConvDestroy();
+          return TSDB_CODE_INVALID_CFG;
+        }
+
+        char walLog[128] = {0};
+        int32_t walLogLen = tsnprintf(walLog, sizeof(walLog), "finished force wal repair for vnode:%d", vnodeId);
+        if (walLogLen <= 0 || walLogLen >= (int32_t)sizeof(walLog)) {
+          tstrncpy(walLog, "finished force wal repair", sizeof(walLog));
+        }
+        code = tRepairAppendSessionLog(global.repairLogPath, walLog);
+        if (code != TSDB_CODE_SUCCESS) {
+          dError("failed to append wal repair log for vnode:%d since %s", vnodeId, tstrerror(code));
+          printf("failed repair wal scheduling: %s\n", tstrerror(code));
+          taosCleanupCfg();
+          taosCloseLog();
+          taosCleanupArgs();
+          taosConvDestroy();
+          return TSDB_CODE_INVALID_CFG;
+        }
+
+        code = tRepairNeedReportProgress(taosGetTimestampMs(), kRepairProgressIntervalMs, &lastProgressReportMs,
+                                         &needReport);
+        if (code != TSDB_CODE_SUCCESS) {
+          dError("failed to update wal repair progress interval for vnode:%d since %s", vnodeId, tstrerror(code));
+          printf("failed repair wal scheduling: %s\n", tstrerror(code));
+          taosCleanupCfg();
+          taosCloseLog();
+          taosCleanupArgs();
+          taosConvDestroy();
+          return TSDB_CODE_INVALID_CFG;
+        }
+
+        if (needReport || walDoneVnodes == totalVnodes) {
+          code = tRepairBuildProgressLine(&global.repairCtx, "wal", walDoneVnodes, totalVnodes, progressLine,
+                                          sizeof(progressLine));
+          if (code != TSDB_CODE_SUCCESS) {
+            dError("failed to build wal repair progress line for vnode:%d since %s", vnodeId, tstrerror(code));
+            printf("failed repair wal scheduling: %s\n", tstrerror(code));
+            taosCleanupCfg();
+            taosCloseLog();
+            taosCleanupArgs();
+            taosConvDestroy();
+            return TSDB_CODE_INVALID_CFG;
+          }
+
+          dInfo("%s", progressLine);
+          printf("%s\n", progressLine);
+          code = tRepairAppendSessionLog(global.repairLogPath, progressLine);
+          if (code != TSDB_CODE_SUCCESS) {
+            dError("failed to append wal repair progress log for vnode:%d since %s", vnodeId, tstrerror(code));
+            printf("failed repair wal scheduling: %s\n", tstrerror(code));
             taosCleanupCfg();
             taosCloseLog();
             taosCleanupArgs();

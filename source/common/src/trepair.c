@@ -856,6 +856,26 @@ int32_t tRepairShouldRepairVnode(const SRepairCtx *pCtx, int32_t vnodeId, bool *
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t tRepairNeedRunWalForceRepair(const SRepairCtx *pCtx, bool *pNeedRun) {
+  if (pCtx == NULL || !pCtx->enabled || pNeedRun == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *pNeedRun = pCtx->nodeType == REPAIR_NODE_TYPE_VNODE && pCtx->fileType == REPAIR_FILE_TYPE_WAL &&
+              pCtx->mode == REPAIR_MODE_FORCE;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tRepairBuildVnodeTargetPath(const char *dataDir, int32_t vnodeId, ERepairFileType fileType, char *targetPath,
+                                    int32_t targetPathSize) {
+  const char *subDir = tRepairGetVnodeFileSubDir(fileType);
+  if (subDir == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return tRepairBuildVnodePath(dataDir, vnodeId, subDir, targetPath, targetPathSize);
+}
+
 int32_t tRepairPrecheck(const SRepairCtx *pCtx, const char *dataDir, int64_t minDiskAvailBytes) {
   if (pCtx == NULL || !pCtx->enabled || dataDir == NULL || dataDir[0] == '\0' || minDiskAvailBytes < 0) {
     return TSDB_CODE_INVALID_PARA;
@@ -893,11 +913,6 @@ int32_t tRepairPrecheck(const SRepairCtx *pCtx, const char *dataDir, int64_t min
     return TSDB_CODE_INVALID_PARA;
   }
 
-  const char *subDir = tRepairGetVnodeFileSubDir(pCtx->fileType);
-  if (subDir == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
   for (int32_t i = 0; i < pCtx->vnodeIdNum; ++i) {
     char vnodeDir[PATH_MAX] = {0};
     code = tRepairBuildVnodePath(dataDir, pCtx->vnodeIds[i], NULL, vnodeDir, sizeof(vnodeDir));
@@ -909,7 +924,7 @@ int32_t tRepairPrecheck(const SRepairCtx *pCtx, const char *dataDir, int64_t min
     }
 
     char targetPath[PATH_MAX] = {0};
-    code = tRepairBuildVnodePath(dataDir, pCtx->vnodeIds[i], subDir, targetPath, sizeof(targetPath));
+    code = tRepairBuildVnodeTargetPath(dataDir, pCtx->vnodeIds[i], pCtx->fileType, targetPath, sizeof(targetPath));
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }

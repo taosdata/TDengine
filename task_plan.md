@@ -26,8 +26,8 @@
 
 ## 3. 当前状态（2026-03-03）
 - 当前阶段：`P0` 已完成（需求/代码勘察与任务拆解）。
-- 当前执行阶段：`P2` 已完成（修复编排框架）。
-- 当前可执行入口：`T3.1`。
+- 当前执行阶段：`P3` 进行中（`force + wal`）。
+- 当前可执行入口：`T3.2`。
 - 当前阻塞：无。
 
 ## 4. 阶段里程碑
@@ -36,7 +36,7 @@
 | P0 | 需求与代码基线 | 识别现有能力与缺口，确定方案 | 设计文档 + 任务拆解落盘 | completed |
 | P1 | CLI 与参数校验 | 新命令参数可解析/校验/报错 | `taosd -r --help` 显示新参数，校验单测通过 | completed |
 | P2 | 修复编排框架 | vnode 级任务调度、预检、备份、日志、状态文件 | 可执行空跑并输出进度/摘要 | completed |
-| P3 | `force + wal` | 基于现有 WAL 修复能力交付 MVP | WAL 损坏样例可修复并产出日志 | pending |
+| P3 | `force + wal` | 基于现有 WAL 修复能力交付 MVP | WAL 损坏样例可修复并产出日志 | in_progress |
 | P4 | `force + tsdb` | 交付 TSDB 块级修复编排 | TSDB 损坏样例修复后可启动/查询 | pending |
 | P5 | `force + meta` | 交付 META 修复 + 反向推导链路 | 元数据损坏样例可恢复可用子集 | pending |
 | P6 | `replica` 模式 | 触发副本全量同步恢复 | 多副本损坏节点可自动拉起恢复 | pending |
@@ -59,7 +59,7 @@
 | T2.5 | P2 | 修复日志与状态文件（`repair.log` + `repair.state.json`） | 60m | T2.4 | 会话可追踪 | completed |
 | T2.6 | P2 | 进度输出（每 N 秒）与最终摘要输出 | 45m | T2.5 | 控制台进度 + 结果摘要 | completed |
 | T2.7 | P2 | 会话恢复能力：读取 `repair.state.json` 续跑未完成步骤 | 60m | T2.5 | 中断后可继续 | completed |
-| T3.1 | P3 | `force+wal` 调度器：接入 `walCheckAndRepair*` 流程 | 45m | T2.6 | 每 vnode WAL 修复入口 | pending |
+| T3.1 | P3 | `force+wal` 调度器：接入 `walCheckAndRepair*` 流程 | 45m | T2.6 | 每 vnode WAL 修复入口 | completed |
 | T3.2 | P3 | WAL 修复前备份与失败回滚保护 | 45m | T3.1 | 安全防护 | pending |
 | T3.3 | P3 | WAL 修复明细记录（损坏区段、重建 idx 条目数） | 60m | T3.1 | 可审计日志 | pending |
 | T3.4 | P3 | `wal_test` 扩展：损坏样例自动化验证 | 60m | T3.1 | 回归测试 | pending |

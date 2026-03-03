@@ -160,3 +160,14 @@
 - JSON 解析注意事项（本次新增）：
   - `tjsonGetStringValue2()` 在字段缺失时返回 `TSDB_CODE_SUCCESS`（仅输出空字符串），不能用返回码判断字段存在性；
   - 需要配合 `tjsonGetObjectItem()` 显式判断字段是否存在，避免把“缺字段”误判为“空字符串字段”。
+- `T3.1`（`force+wal` 调度器）已完成最小闭环：
+  - `trepair.h/.c` 新增 `tRepairNeedRunWalForceRepair()`（判定 `nodeType=vnode && fileType=wal && mode=force`）；
+  - `trepair.h/.c` 新增 `tRepairBuildVnodeTargetPath()`，统一构造 `vnode/<id>/<wal|tsdb|meta>` 路径；
+  - `tRepairPrecheck()` 改为复用 `tRepairBuildVnodeTargetPath()` 做目标文件存在性检查，减少路径构造重复逻辑。
+- `dmMain.c` 新增 `force+wal` 调度入口（位于 backup 阶段之后）：
+  - 仅在 `tRepairNeedRunWalForceRepair()==true` 时触发；
+  - 先调用 `walInit(dmStopDaemon)`，再按目标 vnode 循环执行 `walOpen(walPath, &cfg)` + `walClose()`；
+  - 复用现有 fail-fast：任一 vnode 打开失败即记录 `repair.state.json(step=wal,status=failed)` 并中止。
+- 本阶段会话恢复策略保持“步骤级最小实现”：
+  - 继续沿用 `T2.7` 的 `doneVnodes` 语义用于 precheck/backup 续跑；
+  - `wal` 步骤暂不做细粒度续跑索引恢复（后续可在 `T3.2/T3.3` 扩展）。
