@@ -13,6 +13,17 @@ pub struct SecurityConfig {
     #[serde(skip_serializing)]
     encryption_key: Option<String>,
 
+    /// Enable CAPTCHA for every Explorer login.
+    ///
+    /// Default: false.
+    ///
+    /// Config file (explorer.toml):
+    ///
+    ///   [security]
+    ///   login_captcha = true
+    #[clap(long, env = "EXPLORER_SECURITY_LOGIN_CAPTCHA", default_value = "false")]
+    login_captcha: bool,
+
     /// Allowed duration in seconds for decrypting time-based XOR encrypted passwords during login.
     ///
     /// Range: 10..=600, default: 300.
@@ -29,6 +40,7 @@ impl Default for SecurityConfig {
     fn default() -> Self {
         Self {
             encryption_key: None,
+            login_captcha: false,
             xor_allowed_duration_secs: XOR_ALLOWED_DURATION_SECS_DEFAULT,
         }
     }
@@ -55,6 +67,10 @@ impl SecurityConfig {
                 "security.xor_allowed_duration_secs must be in {XOR_ALLOWED_DURATION_SECS_MIN}..={XOR_ALLOWED_DURATION_SECS_MAX} seconds, got {v}"
             ))
         }
+    }
+
+    pub fn login_captcha_enabled(&self) -> bool {
+        self.login_captcha
     }
 
     pub fn xor_allowed_duration_secs(&self) -> u64 {
