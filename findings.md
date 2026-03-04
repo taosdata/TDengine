@@ -448,3 +448,51 @@
     - 定向 copy 用例通过（6/6）：`NeedRunCopyRepair*`、`BuildCopySshScpCommands*`、`SshScpCopyReplicaVnodeTargetFixesOwnerAndPermission`、`SshScpCopyReplicaVnodeTargetDetectsConsistencyMismatch`；
     - `ctest -R commonTest` 通过，`cmake --build debug --target taosd` 通过；
     - smoke：mock `scp` 在部分复制后返回非 0，`taosd` 退出码 `25`，`repair.log` 命中 `copy rollback detail`，本地旧文件成功回滚保留。
+- `T8.1`（损坏数据生成器自动脚本化）已完成：
+  - Red 事实：
+    - 以 `bash tests/ci/repair_fixture_generator.sh` 作为先验入口执行，脚本不存在（退出码 `127`），满足“先失败再实现”。
+  - Green 实现：
+    - 新增脚本 `tests/ci/repair_fixture_generator.sh`，统一生成可复现损坏样本并输出 `manifest.txt`；
+    - CLI 参数：
+      - `--output-dir`（必填）
+      - `--type wal|tsdb|meta|all`（默认 `all`）
+      - `--vnode-id`（默认 `2`）
+      - `--clean`
+    - 产出场景：
+      - `wal-force-corrupted`：包含截断日志与损坏 idx 样本；
+      - `tsdb-force-mixed`：包含可恢复块与损坏块混合样本；
+      - `meta-force-partial` 与 `meta-force-complete`：覆盖部分/完全缺失元数据并保留 WAL 证据。
+  - 验证结果：
+    - `--type all` 场景下，WAL/META/TSDB 样本关键文件与 manifest 条目校验通过；
+    - `--type wal --vnode-id 9` 场景下，确认仅输出 wal 样本且目录隔离正确。
+- `T8.2`（三模式系统测试矩阵与验收脚本）已完成：
+  - Red 事实：
+    - 以 `bash tests/ci/repair_mode_matrix.sh` 作为入口执行，脚本不存在（退出码 `127`），满足先失败验证。
+  - Green 实现：
+    - 新增 `tests/ci/repair_mode_matrix.sh`，统一编排三模式验收：
+      - `force`：复用 `repair_tsdb_force.sh` 与 `repair_meta_force.sh`；
+      - `replica`：构造最小 wal 证据样本，校验 `step=replica` 进度/成功摘要与 `replica dispatch/restore detail` 日志；
+      - `copy`：注入 mock `ssh/scp`，校验 `step=copy`、文件覆盖结果、`copy replica detail` 与 `consistency=verified` 日志。
+  - 验证结果：
+    - 运行 `bash tests/ci/repair_mode_matrix.sh` 一次通过；
+    - 输出依次确认 `force(tsdb)`、`force(meta)`、`replica`、`copy` 均通过，最终输出 `repair mode matrix script passed`。
+- `T8.3`（文档更新：中英 + 运维示例）已完成：
+  - 文档更新范围：
+    - `docs/zh/08-operation/05-maintenance.md`
+    - `docs/en/08-operation/04-maintenance.md`
+  - 新增内容：
+    - 新增 “`taosd -r` 文件级修复”章节；
+    - 统一给出 `force`、`replica`、`copy` 三种模式命令示例；
+    - 增补运维验收项（`repair progress`、`repair summary`、`repair.log`、`repair.state.json`）；
+    - 明确 `copy` 模式 endpoint 格式与 ssh/scp 依赖、备份与回滚建议。
+  - 验证结果：
+    - 中英两份文档均可检索到新增章节与关键字段，结构完整且与当前实现一致。
+- `T8.4`（发布前回归与风险清单签出）已完成：
+  - 发布前回归（gate）：
+    - `bash tests/ci/repair_mode_matrix.sh` 通过；
+    - `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；
+    - `cmake --build debug --target taosd` 通过。
+  - 风险清单签出：
+    - 新增 `docs/plans/2026-03-04-data-repair-release-checklist.md`；
+    - 记录了 gate 命令、执行结果、残余风险与缓解建议；
+    - 签出结论为 `PASS`，可进入后续合入/发布流程。

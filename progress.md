@@ -2,8 +2,8 @@
 
 ## 当前检查点
 - 日期：`2026-03-04`
-- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成，`P4` 已完成，`P5` 已完成，`P6` 已完成，`P7` 已完成（`T7.1`~`T7.5` 全部完成）。
-- 下一任务：`T8.1`（损坏数据生成器自动脚本化）。
+- 当前完成：`P1`~`P8` 已全部完成（`T1.1`~`T8.4` 全部完成）。
+- 下一任务：`无`（等待新需求）。
 - 恢复入口：先读 `task_plan.md`，再读 `findings.md`，最后读本文件。
 
 ## 会话日志
@@ -229,6 +229,24 @@
 | 2026-03-04 02:39 | T7.5 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug --target taosd` 通过 |
 | 2026-03-04 02:41 | T7.5 Smoke 验证（copy 失败回滚） | 使用 mock `scp`（复制后返回非 0）运行 `taosd -r --mode copy`：进程退出码 `25`，`repair.log` 命中 `copy rollback detail`，本地 `vnode2/wal/stale.log` 内容成功回滚保留 |
 | 2026-03-04 02:42 | T7.5 收尾 | 已将 `task_plan.md` 中 `T7.5` 更新为 `completed`，`P7` 标记为 `completed`，下一入口切换为 `T8.1`（`pending`） |
+| 2026-03-04 02:48 | T8.1 阶段开始 | 已将 `task_plan.md` 中 `T8.1` 置为 `in_progress`，准备先对“损坏数据生成器脚本”执行 Red 验证（脚本缺失失败） |
+| 2026-03-04 02:49 | T8.1 Red 验证 | 执行 `bash tests/ci/repair_fixture_generator.sh` 失败（脚本不存在，退出码 `127`），符合先测后码预期 |
+| 2026-03-04 02:53 | T8.1 Green 实现 | 新增 `tests/ci/repair_fixture_generator.sh`，支持 `--output-dir/--type/--vnode-id/--clean`，自动生成 `wal-force-corrupted`、`tsdb-force-mixed`、`meta-force-partial/meta-force-complete` 样本与 `manifest.txt` |
+| 2026-03-04 02:54 | T8.1 定向验证 | 运行 `repair_fixture_generator.sh --type all` 后校验 WAL/META/TSDB 关键样本文件与 manifest 条目全部存在；运行 `--type wal --vnode-id 9` 验证单类型输出隔离通过 |
+| 2026-03-04 02:55 | T8.1 收尾 | 已将 `task_plan.md` 中 `T8.1` 更新为 `completed`，`P8` 标记为 `in_progress`，下一入口切换为 `T8.2`（`in_progress`） |
+| 2026-03-04 02:55 | T8.2 阶段开始 | 已将 `task_plan.md` 中 `T8.2` 置为 `in_progress`，准备先补“三模式系统测试矩阵脚本”Red 验证 |
+| 2026-03-04 02:57 | T8.2 Red 验证 | 执行 `bash tests/ci/repair_mode_matrix.sh` 失败（脚本不存在，退出码 `127`），符合先测后码预期 |
+| 2026-03-04 03:02 | T8.2 Green 实现 | 新增 `tests/ci/repair_mode_matrix.sh`，串联 `force(tsdb/meta)`、`replica`、`copy` 三模式验收：检查进度/摘要输出、会话日志关键字与 copy 一致性标识 |
+| 2026-03-04 03:03 | T8.2 定向验证 | 执行 `bash tests/ci/repair_mode_matrix.sh` 通过：`tsdb/meta` force 脚本、replica 场景、copy 场景全部通过并输出 `repair mode matrix script passed` |
+| 2026-03-04 03:03 | T8.2 收尾 | 已将 `task_plan.md` 中 `T8.2` 更新为 `completed`，下一入口切换为 `T8.3`（`in_progress`） |
+| 2026-03-04 03:03 | T8.3 阶段开始 | 已将 `task_plan.md` 中 `T8.3` 置为 `in_progress`，准备更新中英文文档与运维示例 |
+| 2026-03-04 03:08 | T8.3 文档实现 | 更新 `docs/zh/08-operation/05-maintenance.md` 与 `docs/en/08-operation/04-maintenance.md`，新增 `taosd -r` 文件级修复章节，覆盖 `force/replica/copy` 示例、日志验收与注意事项 |
+| 2026-03-04 03:09 | T8.3 定向验证 | 通过 `rg` 校验中英文章节与关键命令（`taosd -r`、`repair progress`、`repair.state.json`）均已入文，章节结构与示例渲染正常 |
+| 2026-03-04 03:10 | T8.3 收尾 | 已将 `task_plan.md` 中 `T8.3` 更新为 `completed`，下一入口切换为 `T8.4`（`in_progress`） |
+| 2026-03-04 03:10 | T8.4 阶段开始 | 已将 `task_plan.md` 中 `T8.4` 置为 `in_progress`，准备执行发布前回归并输出风险清单签出 |
+| 2026-03-04 03:14 | T8.4 发布前回归 | `bash tests/ci/repair_mode_matrix.sh` 通过（force tsdb/meta + replica + copy 全部通过）；`ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug --target taosd` 通过 |
+| 2026-03-04 03:16 | T8.4 风险清单签出 | 新增 `docs/plans/2026-03-04-data-repair-release-checklist.md`，记录发布 gate 结果、执行命令、残余风险与缓解建议 |
+| 2026-03-04 03:16 | T8.4 收尾 | 已将 `task_plan.md` 中 `T8.4` 更新为 `completed`，`P8` 标记为 `completed`，当前任务集全部完成 |
 
 ## 已落盘文档
 - `task_plan.md`
