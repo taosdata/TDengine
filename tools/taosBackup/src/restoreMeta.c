@@ -18,6 +18,7 @@
 #include "parquetBlock.h"
 #include "bckArgs.h"
 #include "ttypes.h"
+#include "osString.h"
 
 //
 // -------------------------------------- UTIL -----------------------------------------
@@ -497,8 +498,30 @@ static int tagBlockCallback(void *userData,
                     uint16_t tagLen = *(uint16_t *)(tagVarData + tagOffset);
                     char *tagVal = tagVarData + tagOffset + sizeof(uint16_t);
                     
-                    if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY ||
-                        type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_JSON) {
+                    if (type == TSDB_DATA_TYPE_NCHAR) {
+                        // NCHAR is stored as UCS-4 (UTF-32 LE); must convert to UTF-8 before
+                        // embedding in SQL, otherwise null bytes in UCS-4 encoding truncate
+                        // the C string and produce a malformed CREATE TABLE statement.
+                        char *utf8Buf = (char *)taosMemoryMalloc(tagLen + 4);
+                        if (utf8Buf != NULL) {
+                            int32_t utf8Len = taosUcs4ToMbs((TdUcs4 *)tagVal, (int32_t)tagLen, utf8Buf, NULL);
+                            if (utf8Len < 0) utf8Len = 0;
+                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
+                            for (int32_t k = 0; k < utf8Len && pos < TSDB_MAX_SQL_LEN - 4; k++) {
+                                if (utf8Buf[k] == '\'') {
+                                    sql[pos++] = '\\';
+                                    sql[pos++] = '\'';
+                                } else {
+                                    sql[pos++] = utf8Buf[k];
+                                }
+                            }
+                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
+                            taosMemoryFree(utf8Buf);
+                        } else {
+                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "NULL");
+                        }
+                    } else if (type == TSDB_DATA_TYPE_BINARY ||
+                               type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_JSON) {
                         // escape single quotes
                         pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
                         for (uint16_t k = 0; k < tagLen && pos < TSDB_MAX_SQL_LEN - 4; k++) {

@@ -108,14 +108,14 @@ static int parStmtCallback(void          *userData,
     if (ret != 0) {
         logError("fileParquetToStmt: bind_param_batch failed: %s table=%s",
                  taos_stmt_errstr(ctx->stmt), ctx->tbName);
-        return TSDB_CODE_BCK_STMT_FAILED;
+        return ret;
     }
 
     ret = taos_stmt_add_batch(ctx->stmt);
     if (ret != 0) {
         logError("fileParquetToStmt: add_batch failed: %s table=%s",
                  taos_stmt_errstr(ctx->stmt), ctx->tbName);
-        return TSDB_CODE_BCK_STMT_FAILED;
+        return ret;
     }
 
     ctx->totalRows += numRows;
@@ -126,7 +126,7 @@ static int parStmtCallback(void          *userData,
         if (ret != 0) {
             logError("fileParquetToStmt: execute failed: %s table=%s batchRows=%" PRId64,
                      taos_stmt_errstr(ctx->stmt), ctx->tbName, ctx->batchRows);
-            return TSDB_CODE_BCK_STMT_FAILED;
+            return ret;
         }
         ctx->batchRows = 0;
     }
@@ -173,7 +173,7 @@ int fileParquetToStmt(TAOS_STMT  *stmt,
         if (ret != 0) {
             logError("fileParquetToStmt: final execute failed: %s file=%s",
                      taos_stmt_errstr(stmt), fileName);
-            code = TSDB_CODE_BCK_STMT_FAILED;
+            code = ret;
         }
     }
 

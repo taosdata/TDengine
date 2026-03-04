@@ -82,10 +82,16 @@ char ** getDBNormalTableNames(const char *dbName, int *code) {
         return NULL;
     }
 
-    char sql[512];
+    char sql[1024];
+    char specFilter[512] = "";
+    if (argSpecTables()) {
+        char inClause[400] = "";
+        argBuildInClause("table_name", inClause, sizeof(inClause));
+        snprintf(specFilter, sizeof(specFilter), " AND %s", inClause);
+    }
     snprintf(sql, sizeof(sql), 
              "SELECT table_name FROM information_schema.ins_tables "
-             "WHERE db_name='%s' AND stable_name IS NULL ORDER BY table_name", dbName);
+             "WHERE db_name='%s' AND stable_name IS NULL%s ORDER BY table_name", dbName, specFilter);
     TAOS_RES *res = taos_query(conn, sql);
     if (!res || taos_errno(res)) {
         *code = taos_errno(res);
@@ -131,10 +137,16 @@ char ** getDBNormalTableNames(const char *dbName, int *code) {
 }
 
 int getDBNormalTableCount(const char *dbName, int32_t *outCount) {
-    char sql[512];
+    char specFilter[512] = "";
+    if (argSpecTables()) {
+        char inClause[400] = "";
+        argBuildInClause("table_name", inClause, sizeof(inClause));
+        snprintf(specFilter, sizeof(specFilter), " AND %s", inClause);
+    }
+    char sql[1024];
     snprintf(sql, sizeof(sql), 
              "SELECT count(*) FROM information_schema.ins_tables "
-             "WHERE db_name='%s' AND stable_name IS NULL", dbName);
+             "WHERE db_name='%s' AND stable_name IS NULL%s", dbName, specFilter);
     return queryValueInt(sql, 0, outCount);
 }
 

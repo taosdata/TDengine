@@ -12,6 +12,7 @@
 #include "bck.h"
 #include "backup.h"
 #include "restore.h"
+#include "bckArgs.h"
 
 // global interrupt flag
 volatile sig_atomic_t g_interrupted = 0;
@@ -34,7 +35,15 @@ static void printStartSummary(enum ActionType action, int poolSize) {
     printf("===========================================================================\n");
     printf("  taosBackup - %s\n", action == ACTION_BACKUP ? "BACKUP" : "RESTORE");
     printf("===========================================================================\n");
+    {
+        bool wsMode = (argDriver() == CONN_MODE_WEBSOCKET) ||
+                      (argDriver() == CONN_MODE_INVALID && argIsDsn());
+        printf("  Connect Mode : %s\n", wsMode ? "WebSocket" : "Native");
+    }
     printf("  Server       : %s:%d\n", argHost(), argPort());
+    if (argIsDsn()) {
+        printf("  DSN          : %s\n", argDsn());
+    }
     printf("  User         : %s\n", argUser());
     printf("  Output Path  : %s\n", argOutPath());
     {
@@ -142,6 +151,21 @@ int main(int argc, char *argv[]) {
     if (argsInit(argc, argv) != 0) {
         printf("init args failed\n");
         return -1;
+    }
+    // Determine and apply connection driver before any connection is opened.
+    // Priority: explicit -Z > auto-from-DSN > default (native).
+    {
+        int8_t drv = argDriver();
+        bool useWs = (drv == CONN_MODE_WEBSOCKET) ||
+                     (drv == CONN_MODE_INVALID && argIsDsn());
+        const char *drvName = useWs ? "websocket" : "native";
+        int rc = taos_options(TSDB_OPTION_DRIVER, drvName);
+        if (rc != 0) {
+            fprintf(stderr, "failed to set driver '%s': %s\n", drvName, taos_errstr(NULL));
+            argsDestroy();
+            return -1;
+        }
+        printf("Connect mode: %s\n", useWs ? "WebSocket" : "Native");
     }
     // conn pool
     // conn pool: data threads each need 2 conns (one pre-assigned, one for queries),

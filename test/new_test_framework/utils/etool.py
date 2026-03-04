@@ -26,6 +26,7 @@ from .sql import tdSql
 
 TAOS = "taos"
 TAOSDUMP = "taosdump"
+TAOSBACKUP = "taosBackup"
 TAOSBENCHMARK = "taosBenchmark"
 TAOSADAPTER = "taosadapter"
 
@@ -50,6 +51,18 @@ def taosDumpFile():
         str: The full path to the `taosdump` binary file, with `.exe` appended if on Windows.
     """
     bmFile = binFile(TAOSDUMP)
+    if isWin():
+        bmFile += ".exe"
+    return bmFile
+
+# taosBackup
+def taosBackupFile():
+    """Get the path to the `taosBackup` binary file.
+
+    Returns:
+        str: The full path to the `taosBackup` binary file, with `.exe` appended if on Windows.
+    """
+    bmFile = binFile(TAOSBACKUP)
     if isWin():
         bmFile += ".exe"
     return bmFile
@@ -192,6 +205,9 @@ def taos(command, show = True, checkRun = False):
 
 def taosdump(command, show = True, checkRun = True, retFail = True):
     return runBinFile(TAOSDUMP, command, show, checkRun, retFail)
+
+def taosbackup(command, show = True, checkRun = True, retFail = True):
+    return runBinFile(TAOSBACKUP, command, show, checkRun, retFail)
 
 def benchmark(command, show = True, checkRun = True, retFail = True):
     return runBinFile(TAOSBENCHMARK, command, show, checkRun, retFail)        

@@ -155,8 +155,8 @@ static void* backDataThread(void *arg) {
             thread->index, thread->dbInfo->dbName, thread->stbInfo->stbName, thread->offset, thread->limit);
 
     char sql[8192] = {0};
-    if (argSpecTables()) {
-        // filter to only the requested tables
+    if (argSpecTables() && !argStbNameInSpecTables(thread->stbInfo->stbName)) {
+        // filter to only the requested child tables
         char inClause[7800] = "";
         argBuildInClause("tbname", inClause, sizeof(inClause));
         snprintf(sql, sizeof(sql), "select DISTINCT tbname from `%s`.`%s` WHERE %s ORDER BY tbname LIMIT %d OFFSET %d;",
@@ -263,7 +263,8 @@ DataThread * splitTaskData(StbInfo *stbInfo, int *code, int *outCount) {
     // query table count
     char sql[8192] = {0};
     char specFilter[4096] = "";
-    if (argSpecTables()) {
+    if (argSpecTables() && !argStbNameInSpecTables(stbName)) {
+        // user specified individual CTBs, not the whole STB
         char inClause[3800] = "";
         argBuildInClause("table_name", inClause, sizeof(inClause));
         snprintf(specFilter, sizeof(specFilter), " AND %s", inClause);
@@ -450,12 +451,18 @@ static void* backNtbDataThread(void *arg) {
             thread->index, dbName, thread->offset, thread->limit);
 
     // query normal table names for this thread's range
-    char sql[512] = {0};
+    char sql[1024] = {0};
+    char specFilter[512] = "";
+    if (argSpecTables()) {
+        char inClause[400] = "";
+        argBuildInClause("table_name", inClause, sizeof(inClause));
+        snprintf(specFilter, sizeof(specFilter), " AND %s", inClause);
+    }
     snprintf(sql, sizeof(sql), 
              "SELECT table_name FROM information_schema.ins_tables "
-             "WHERE db_name='%s' AND stable_name IS NULL "
+             "WHERE db_name='%s' AND stable_name IS NULL%s "
              "ORDER BY table_name LIMIT %d OFFSET %d;",
-             dbName, thread->limit, thread->offset);
+             dbName, specFilter, thread->limit, thread->offset);
 
     TAOS *conn = getConnection();
     if (!conn) {
@@ -617,6 +624,31 @@ int backDatabaseData(DBInfo *dbInfo) {
         return code;
     }
     for (int i = 0; stbNames != NULL && stbNames[i] != NULL; i++) {
+        // If specific tables are requested, only include stbs that either
+        // (a) are directly named in specTables, or
+        // (b) have child tables matching specTables.
+        if (argSpecTables()) {
+            bool include = false;
+            char **specTbs = argSpecTables();
+            // (a) direct stb name match
+            for (int j = 0; !include && specTbs[j] != NULL; j++) {
+                if (strcmp(stbNames[i], specTbs[j]) == 0) include = true;
+            }
+            // (b) matching child table
+            if (!include) {
+                char inClause[3800] = "";
+                argBuildInClause("table_name", inClause, sizeof(inClause));
+                char countSql[TSDB_MAX_SQL_LEN];
+                snprintf(countSql, sizeof(countSql),
+                         "SELECT count(*) FROM information_schema.ins_tables "
+                         "WHERE db_name='%s' AND stable_name='%s' AND %s;",
+                         dbName, stbNames[i], inClause);
+                int32_t matchCount = 0;
+                queryValueInt(countSql, 0, &matchCount);
+                include = (matchCount > 0);
+            }
+            if (!include) continue;  /* skip this super table */
+        }
         logInfo("backup super table: %s.%s\n", dbName, stbNames[i]);
         StbInfo stbInfo;
         memset(&stbInfo, 0, sizeof(StbInfo));

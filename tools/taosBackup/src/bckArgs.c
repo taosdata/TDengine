@@ -55,6 +55,13 @@ static char  g_specDb[TSDB_DB_NAME_LEN] = "";
 static char *g_specTables[MAX_SPEC_TABLES + 1] = {NULL};
 static int   g_specTableCount = 0;
 
+// DSN / cloud connection
+static char  g_dsn[2048]    = "";
+static bool  g_dsnMode      = false;
+
+// driver / connect mode (set via -Z / --driver); CONN_MODE_INVALID = auto
+static int8_t g_driver = CONN_MODE_INVALID;
+
 //
 // ---------------- usage ----------------
 //
@@ -102,6 +109,13 @@ static void printUsage(const char *prog) {
     printf("  -W, --rename=RENAME-LIST   Rename database during restore.\n");
     printf("                             RENAME-LIST example:\n");
     printf("                             \"db1=newdb1|db2=newdb2|...\"\n");
+    printf("  -X, --dsn=DSN              DSN to connect the cloud service.\n");
+    printf("                             e.g. https://host?token=<TOKEN>\n");
+    printf("                             Env var TDENGINE_CLOUD_DSN is also\n");
+    printf("                             supported (option overrides env var).\n");
+    printf("  -Z, --driver=DRIVER        Connect driver. Value can be \"Native\"\n");
+    printf("                             or \"WebSocket\". Default is Native.\n");
+    printf("                             When DSN is set, defaults to WebSocket.\n");
     printf("  -g, --debug                Enable debug mode.\n");
     printf("      --help                 Give this help list.\n");
     printf("  -V, --version              Print program version.\n");
@@ -136,6 +150,67 @@ static const char* matchLong(int argc, char *argv[], int *pi, const char *name, 
     }
 
     return NULL;  // no match
+}
+
+//
+// ---------------- DSN parsing ----------------
+//
+// Parse a TDengine cloud/websocket DSN:
+//   https://host[:port]?key=value   (default port 443)
+//   http://host[:port]?key=value    (default port 6041)
+// Sets g_host, g_port, g_user, g_password from DSN components.
+//
+static void applyDsn(const char *dsn) {
+    if (!dsn || dsn[0] == '\0') return;
+    snprintf(g_dsn, sizeof(g_dsn), "%s", dsn);
+    g_dsnMode = true;
+
+    // default port by scheme
+    int defaultPort = 443;
+    if (strncasecmp(dsn, "http://", 7) == 0) defaultPort = 6041;
+
+    // find "://"
+    const char *after = strstr(dsn, "://");
+    if (!after) {
+        fprintf(stderr, "warning: DSN missing '://', using raw value as host\n");
+        snprintf(g_host, sizeof(g_host), "%s", dsn);
+        g_port = defaultPort;
+        return;
+    }
+    after += 3;
+
+    // work on mutable copy
+    char tmp[2048];
+    snprintf(tmp, sizeof(tmp), "%s", after);
+
+    // split at '?' to get query string
+    char *query = strchr(tmp, '?');
+    char *userKey = NULL;
+    char *userPwd = NULL;
+    if (query) {
+        *query = '\0';
+        userKey = query + 1;
+        // split "key=value"
+        char *eq = strchr(userKey, '=');
+        if (eq) {
+            *eq    = '\0';
+            userPwd = eq + 1;
+        }
+    }
+
+    // split host at ':' for explicit port
+    char *colon = strchr(tmp, ':');
+    if (colon) {
+        *colon = '\0';
+        int portVal = atoi(colon + 1);
+        if (portVal > 0) g_port = portVal;
+    } else {
+        g_port = defaultPort;
+    }
+
+    snprintf(g_host, sizeof(g_host), "%s", tmp);
+    if (userKey && userKey[0]) snprintf(g_user,     sizeof(g_user),     "%s", userKey);
+    if (userPwd && userPwd[0]) snprintf(g_password, sizeof(g_password), "%s", userPwd);
 }
 
 //
@@ -177,6 +252,14 @@ int argsInit(int argc, char *argv[]) {
     int hasOutput = 0;
     int hasInput  = 0;
     const char *val = NULL;
+
+    // apply TDENGINE_CLOUD_DSN env var first; command-line -X overrides it
+    {
+        const char *envDsn = getenv("TDENGINE_CLOUD_DSN");
+        if (envDsn && envDsn[0]) {
+            applyDsn(envDsn);
+        }
+    }
 
     for (int i = 1; i < argc; i++) {
         // ---- outpath ----
@@ -316,6 +399,24 @@ int argsInit(int argc, char *argv[]) {
             }
             taosMemoryFree(copy);
         }
+        // ---- dsn ----
+        else if ((strcmp(argv[i], "-X") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--dsn", 1))) {
+            applyDsn(val);
+        }
+        // ---- driver ----
+        else if ((strcmp(argv[i], "-Z") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--driver", 1))) {
+            // reuse exact same logic as getConnMode() in pub.c / taosdump
+            if (strcasecmp(val, "native") == 0 || strcmp(val, "0") == 0) {
+                g_driver = CONN_MODE_NATIVE;
+            } else if (strcasecmp(val, "websocket") == 0 || strcmp(val, "1") == 0) {
+                g_driver = CONN_MODE_WEBSOCKET;
+            } else {
+                fprintf(stderr, "invalid input %s for option -Z, only support: Native or WebSocket\n", val);
+                exit(-1);
+            }
+        }
         // ---- version ----
         else if (strcmp(argv[i], "-V") == 0 || matchLong(argc, argv, &i, "--version", 0)) {
             printVersion();
@@ -369,7 +470,18 @@ int argsInit(int argc, char *argv[]) {
 
     // print summary
     printf("Action: %s\n", g_action == ACTION_BACKUP ? "backup" : "restore");
-    printf("Host: %s, Port: %d, User: %s\n", g_host, g_port, g_user);
+    {
+        const char *drvStr = (g_driver == CONN_MODE_WEBSOCKET) ? "WebSocket" :
+                             (g_driver == CONN_MODE_NATIVE)    ? "Native"    :
+                             (g_dsnMode ? "WebSocket (auto from DSN)" : "Native (default)");
+        printf("Driver: %s\n", drvStr);
+    }
+    if (g_dsnMode) {
+        printf("DSN: %s\n", g_dsn);
+        printf("Host: %s, Port: %d, User: %s (from DSN)\n", g_host, g_port, g_user);
+    } else {
+        printf("Host: %s, Port: %d, User: %s\n", g_host, g_port, g_user);
+    }
     printf("OutPath: %s\n", g_outPath);
     if (g_dbCount == 0) {
         printf("Databases: all\n");
@@ -544,6 +656,19 @@ StmtVersion argStmtVersion() {
     return g_stmtVersion;
 }
 
+// DSN / cloud connection
+const char* argDsn() {
+    return g_dsn;
+}
+
+bool argIsDsn() {
+    return g_dsnMode;
+}
+
+int8_t argDriver() {
+    return g_driver;
+}
+
 // positional spec: dbname [tbname ...]
 const char* argSpecDb() {
     return g_specDb[0] ? g_specDb : NULL;
@@ -555,6 +680,18 @@ char** argSpecTables() {
 
 int argSpecTablesCount() {
     return g_specTableCount;
+}
+
+// Returns true if stbName itself is in the spec-tables list.
+// Used to detect "user requested whole STB" vs "user requested specific CTBs".
+bool argStbNameInSpecTables(const char *stbName) {
+    if (!stbName) return false;
+    char **specTbs = argSpecTables();
+    if (!specTbs) return false;
+    for (int i = 0; specTbs[i] != NULL; i++) {
+        if (strcmp(stbName, specTbs[i]) == 0) return true;
+    }
+    return false;
 }
 
 //

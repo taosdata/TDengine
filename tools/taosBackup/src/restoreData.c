@@ -186,12 +186,15 @@ typedef struct {
 
     // Per-column accumulation buffers, allocated once and reused across files.
     // Fixed-type  col i: buffer = flat [rowBufCap * typeBytes]; length = NULL
-    // Variable-type col i: buffer = stride [rowBufCap * fieldInfo.bytes];
+    // Variable-type col i: buffer = PACKED layout (rows are written back-to-back);
     //                       length = int32_t[rowBufCap] (actual per-row length)
     //                       is_null = char[rowBufCap] (1 = NULL)
+    // STMT2 reads variable-type data in packed layout: current_buf advances by
+    // length[j] for each row j (see clientStmt2.c).
     TAOS_STMT2_BIND *colBinds;
     int              colBindsCap;  // how many columns the colBinds array was allocated for
     int64_t          rowBufCap;    // row capacity of each column buffer
+    int32_t         *varWriteOffsets; // packed write position per var-type column (size = colBindsCap)
 
     StbChange   *stbChange;
     bool         prepared;         // stmt2 has been prepared (once per thread lifetime)
@@ -260,7 +263,7 @@ static int stmtPrepareInsert(StmtRestoreCtx *ctx) {
     if (ret != 0) {
         logError("taos_stmt_prepare failed: %s, sql: %s", taos_stmt_errstr(ctx->stmt), stmtBuf);
         taosMemoryFree(stmtBuf);
-        return TSDB_CODE_BCK_STMT_FAILED;
+        return ret;
     }
     taosMemoryFree(stmtBuf);
 
@@ -270,7 +273,7 @@ static int stmtPrepareInsert(StmtRestoreCtx *ctx) {
     ret = taos_stmt_set_tbname(ctx->stmt, fqn);
     if (ret != 0) {
         logError("taos_stmt_set_tbname (initial) failed (%s): %s", fqn, taos_stmt_errstr(ctx->stmt));
-        return TSDB_CODE_BCK_STMT_FAILED;
+        return ret;
     }
 
     ctx->prepared = true;
@@ -290,7 +293,7 @@ static int stmtSwitchTable(StmtRestoreCtx *ctx, const char *tbName) {
     int ret = taos_stmt_set_tbname(ctx->stmt, fqn);
     if (ret != 0) {
         logError("taos_stmt_set_tbname failed (%s): %s", fqn, taos_stmt_errstr(ctx->stmt));
-        return TSDB_CODE_BCK_STMT_FAILED;
+        return ret;
     }
     strncpy(ctx->tbName, tbName, TSDB_TABLE_NAME_LEN - 1); /* update for error messages */
     ctx->tbName[TSDB_TABLE_NAME_LEN - 1] = '\0';
@@ -514,11 +517,11 @@ static int bindBlockData(StmtRestoreCtx *ctx,
                 return TSDB_CODE_BCK_MALLOC_FAILED;
             }
 
-            // Copy data and check null bitmap
+            // Copy data and check null bitmap (TDengine: bit7=row0, MSB-first)
             memcpy(buffer, fixData, blockRows * typeBytes);
             for (int row = 0; row < blockRows; row++) {
-                int byteIdx = row / 8;
-                int bitIdx  = row % 8;
+                int byteIdx = row >> 3;
+                int bitIdx  = 7 - (row & 7);
                 if (bitmap[byteIdx] & (1 << bitIdx)) {
                     isNull[row] = 1;
                 } else {
@@ -600,14 +603,14 @@ static int dataBlockCallback(void *userData,
     if (code != 0) {
         logError("taos_stmt_bind_param_batch failed: %s, table: %s", 
                  taos_stmt_errstr(ctx->stmt), ctx->tbName);
-        return TSDB_CODE_BCK_STMT_FAILED;
+        return code;
     }
 
     // Add batch
     code = taos_stmt_add_batch(ctx->stmt);
     if (code != 0) {
         logError("taos_stmt_add_batch failed: %s", taos_stmt_errstr(ctx->stmt));
-        return TSDB_CODE_BCK_STMT_FAILED;
+        return code;
     }
 
     ctx->totalRows += blockRows;
@@ -619,7 +622,7 @@ static int dataBlockCallback(void *userData,
         if (code != 0) {
             logError("taos_stmt_execute failed: %s, table: %s.%s, batchRows: %" PRId64, 
                      taos_stmt_errstr(ctx->stmt), ctx->dbName, ctx->tbName, ctx->batchRows);
-            return TSDB_CODE_BCK_STMT_FAILED;
+            return code;
         }
         ctx->batchRows = 0;
     }
@@ -644,6 +647,7 @@ static void stmt2FreeColBuffers(Stmt2RestoreCtx *ctx) {
         taosMemoryFree(b->length);  b->length  = NULL;
         taosMemoryFree(b->is_null); b->is_null = NULL;
     }
+    taosMemoryFree(ctx->varWriteOffsets); ctx->varWriteOffsets = NULL;
 }
 
 //
@@ -663,6 +667,9 @@ static int stmt2AllocColBuffers(Stmt2RestoreCtx *ctx, int64_t numRows,
         ctx->accRows   = 0;
         ctx->numFields = numCols;
         ctx->fieldInfos = fieldInfos;
+        /* reset packed write offsets for all variable-type columns */
+        if (ctx->varWriteOffsets)
+            memset(ctx->varWriteOffsets, 0, ctx->colBindsCap * sizeof(int32_t));
         return TSDB_CODE_SUCCESS;
     }
 
@@ -676,6 +683,12 @@ static int stmt2AllocColBuffers(Stmt2RestoreCtx *ctx, int64_t numRows,
     int64_t cap = targetCap;  /* already clamped to STMT2_MAX_ROWS_PER_BATCH */
     ctx->colBinds = (TAOS_STMT2_BIND *)taosMemoryCalloc(numCols, sizeof(TAOS_STMT2_BIND));
     if (!ctx->colBinds) return TSDB_CODE_BCK_MALLOC_FAILED;
+
+    ctx->varWriteOffsets = (int32_t *)taosMemoryCalloc(numCols, sizeof(int32_t));
+    if (!ctx->varWriteOffsets) {
+        taosMemoryFree(ctx->colBinds); ctx->colBinds = NULL;
+        return TSDB_CODE_BCK_MALLOC_FAILED;
+    }
 
     for (int i = 0; i < numCols; i++) {
         FieldInfo       *fi   = &fieldInfos[i];
@@ -751,7 +764,7 @@ static int stmt2PrepareOnce(Stmt2RestoreCtx *ctx, int numCols, FieldInfo *fieldI
     if (ret != 0) {
         logError("taos_stmt2_prepare failed: %s", taos_stmt2_error(ctx->stmt2));
         taos_stmt2_close(ctx->stmt2); ctx->stmt2 = NULL;
-        return TSDB_CODE_BCK_STMT_FAILED;
+        return ret;
     }
 
     ctx->prepared = true;
@@ -817,9 +830,7 @@ static int stmt2AccBlock(Stmt2RestoreCtx *ctx, void *blockData, int32_t blockRow
             int32_t *offsets    = (int32_t *)colData;
             char    *varDataBase = (char *)colData + blockRows * sizeof(int32_t);
             bool     isNchar    = (fieldInfos[c].type == TSDB_DATA_TYPE_NCHAR);
-            int32_t  stride     = fieldInfos[c].bytes;  /* declared max, used as buf stride */
             for (int row = 0; row < blockRows; row++) {
-                int64_t dst = (base + row) * stride;
                 if (offsets[row] < 0) {
                     bind->is_null[base + row] = 1;
                     if (bind->length) bind->length[base + row] = 0;
@@ -827,15 +838,21 @@ static int stmt2AccBlock(Stmt2RestoreCtx *ctx, void *blockData, int32_t blockRow
                     bind->is_null[base + row] = 0;
                     uint16_t varLen = *(uint16_t *)(varDataBase + offsets[row]);
                     char    *src    = varDataBase + offsets[row] + sizeof(uint16_t);
+                    // Write packed: each row's data immediately follows the previous
+                    int32_t writeOff = ctx->varWriteOffsets[bindIdx];
                     if (isNchar && varLen > 0) {
                         int32_t utf8Len = taosUcs4ToMbs(
                             (TdUcs4 *)src, varLen,
-                            (char *)bind->buffer + dst, NULL);
-                        if (bind->length) bind->length[base + row] = utf8Len > 0 ? utf8Len : 0;
+                            (char *)bind->buffer + writeOff, NULL);
+                        int32_t actualLen = utf8Len > 0 ? utf8Len : 0;
+                        if (bind->length) bind->length[base + row] = actualLen;
+                        ctx->varWriteOffsets[bindIdx] += actualLen;
                     } else {
+                        int32_t stride = fieldInfos[c].bytes;
                         int32_t cp = (varLen < stride) ? varLen : stride;
-                        memcpy((char *)bind->buffer + dst, src, cp);
+                        memcpy((char *)bind->buffer + writeOff, src, cp);
                         if (bind->length) bind->length[base + row] = cp;
+                        ctx->varWriteOffsets[bindIdx] += cp;
                     }
                 }
             }
@@ -846,8 +863,9 @@ static int stmt2AccBlock(Stmt2RestoreCtx *ctx, void *blockData, int32_t blockRow
             char   *fixData   = (char *)colData + bitmapLen;
             memcpy((char *)bind->buffer + base * typeBytes, fixData, (size_t)blockRows * typeBytes);
             for (int row = 0; row < blockRows; row++) {
+                // TDengine bitmap: bit7=row0 (MSB-first within each byte)
                 bind->is_null[base + row] =
-                    (bitmap[row / 8] & (1 << (row % 8))) ? 1 : 0;
+                    (bitmap[row >> 3] & (1u << (7 - (row & 7)))) ? 1 : 0;
             }
         }
         bindIdx++;
@@ -893,7 +911,7 @@ static int stmt2FlushBatch(Stmt2RestoreCtx *ctx) {
     if (code != 0) {
         logError("taos_stmt2_bind_param failed (%s.%s): %s",
                  ctx->dbName, ctx->tbName, taos_stmt2_error(ctx->stmt2));
-        return TSDB_CODE_BCK_STMT_FAILED;
+        return code;
     }
 
     int affectedRows = 0;
@@ -901,11 +919,14 @@ static int stmt2FlushBatch(Stmt2RestoreCtx *ctx) {
     if (code != 0) {
         logError("taos_stmt2_exec failed (%s.%s): %s",
                  ctx->dbName, ctx->tbName, taos_stmt2_error(ctx->stmt2));
-        return TSDB_CODE_BCK_STMT_FAILED;
+        return code;
     }
 
     ctx->totalRows += affectedRows;
     ctx->accRows    = 0;
+    /* reset packed write offsets for variable-type columns */
+    if (ctx->varWriteOffsets)
+        memset(ctx->varWriteOffsets, 0, ctx->colBindsCap * sizeof(int32_t));
     return TSDB_CODE_SUCCESS;
 }
 
@@ -1049,7 +1070,7 @@ static int restoreOneParquetFile(TAOS *conn, const char *dbName,
         logError("taos_stmt_prepare failed: %s", taos_stmt_errstr(stmt));
         taos_stmt_close(stmt);
         parquetReaderClose(pr);
-        return TSDB_CODE_BCK_STMT_FAILED;
+        return ret;
     }
 
     // Stream all row-groups through the STMT via fileParquetToStmt

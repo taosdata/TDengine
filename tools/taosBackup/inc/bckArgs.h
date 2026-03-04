@@ -12,6 +12,8 @@
 #ifndef INC_BACKARGS_H_
 #define INC_BACKARGS_H_
 
+#include <stdbool.h>
+#include <stdint.h>
 #include "bckTypes.h"
 
 //
@@ -59,6 +61,18 @@ typedef enum {
     STMT_VERSION_1 = 1,   // legacy TAOS_STMT API
 } StmtVersion;
 StmtVersion argStmtVersion();
+
+// DSN / cloud connection
+const char*  argDsn();    // raw DSN string, "" if not set
+bool         argIsDsn();  // true when DSN/WebSocket-cloud mode is active
+
+// Driver / connect mode (set via -Z / --driver)
+// Uses the same constants as pub.h / taosdump for consistency.
+#define CONN_MODE_INVALID   -1  // not set (auto: native unless DSN active)
+#define CONN_MODE_NATIVE     0  // forced native
+#define CONN_MODE_WEBSOCKET  1  // forced WebSocket
+#define CONN_MODE_DEFAULT    CONN_MODE_NATIVE
+int8_t argDriver();  // returns one of CONN_MODE_* constants
 
 // time start-end
 char* argTimeFilter();
@@ -110,5 +124,8 @@ int          argSpecTablesCount();
 // colName: column name to use (e.g. "tbname" or "table_name")
 // returns chars written, 0 if no spec tables
 int          argBuildInClause(const char *colName, char *buf, int bufLen);
+// returns true if stbName itself is present in the spec-tables list
+// (meaning the user requested the whole super table, not individual CTBs)
+bool         argStbNameInSpecTables(const char *stbName);
 
 #endif  // INC_BACKARGS_H_

@@ -12,6 +12,7 @@
 #include "backupMeta.h"
 #include "bckPool.h"
 #include "bckDb.h"
+#include "bckArgs.h"
 
 
 //
@@ -83,8 +84,10 @@ static void* backTagThread(void *arg) {
         return NULL;
     }
     // build WHERE clause for specific tables if requested
+    // If the STB name itself is in specTables the user wants the whole STB,
+    // so do NOT filter by child table name.
     char whereClause[4096] = "";
-    if (argSpecTables()) {
+    if (argSpecTables() && !argStbNameInSpecTables(thread->stbInfo->stbName)) {
         char inClause[3800] = "";
         argBuildInClause("tbname", inClause, sizeof(inClause));
         snprintf(whereClause, sizeof(whereClause), "WHERE %s ", inClause);
@@ -134,7 +137,8 @@ TagThread * splitTaskTag(DBInfo *dbInfo, StbInfo *stbInfo, int *code, int *outCo
 
     char sql[8192] = {0};
     char specFilter[4096] = "";
-    if (argSpecTables()) {
+    if (argSpecTables() && !argStbNameInSpecTables(stbName)) {
+        // user specified individual CTBs, not the whole STB
         char inClause[3800] = "";
         argBuildInClause("table_name", inClause, sizeof(inClause));
         snprintf(specFilter, sizeof(specFilter), " AND %s", inClause);
@@ -346,6 +350,31 @@ int backDatabaseMeta(DBInfo *dbInfo) {
         if (g_interrupted) {
             code = TSDB_CODE_BCK_USER_CANCEL;
             break;
+        }
+        // If specific tables are requested, only include stbs that either
+        // (a) are directly named in specTables, or
+        // (b) have child tables that match specTables.
+        if (argSpecTables()) {
+            bool include = false;
+            char **specTbs = argSpecTables();
+            // (a) direct match: stb name in specTables
+            for (int j = 0; !include && specTbs[j] != NULL; j++) {
+                if (strcmp(stbNames[i], specTbs[j]) == 0) include = true;
+            }
+            // (b) child table match: any spec table is a child of this stb
+            if (!include) {
+                char inClause[3800] = "";
+                argBuildInClause("table_name", inClause, sizeof(inClause));
+                char countSql[TSDB_MAX_SQL_LEN];
+                snprintf(countSql, sizeof(countSql),
+                         "SELECT count(*) FROM information_schema.ins_tables "
+                         "WHERE db_name='%s' AND stable_name='%s' AND %s;",
+                         dbName, stbNames[i], inClause);
+                int32_t matchCount = 0;
+                queryValueInt(countSql, 0, &matchCount);
+                include = (matchCount > 0);
+            }
+            if (!include) continue;  /* skip this super table */
         }
         logInfo("backup super table meta: %s.%s\n", dbName, stbNames[i]);
         atomic_add_fetch_64(&g_stats.stbTotal, 1);
