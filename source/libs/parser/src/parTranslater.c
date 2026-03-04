@@ -3322,11 +3322,18 @@ static int32_t createTbnameFunction(SFunctionNode** ppFunc) {
   return code;
 }
 
+static bool externalWindowColumnFunc(SFunctionNode* pFunc) {
+  return pFunc->funcType == FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN;
+}
+
 static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc) {
   int32_t        code = TSDB_CODE_SUCCESS;
   SNode*         extraValue = NULL;
   SFunctionNode* pFuncNode = (SFunctionNode*)(*pFunc);
 
+  if (externalWindowColumnFunc(pFuncNode)) {
+    return DEAL_RES_CONTINUE;
+  }
   if (!inStreamCalcClause(pCxt) && !inStreamOutTableClause(pCxt)) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
                                          "stream placeholder should only appear in create stream's query part"));
@@ -3429,6 +3436,9 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
       pFuncNode->node.resType = pExpr->resType;
       break;
     }
+    case FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN: {
+      break;
+    }
     default:
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
                                            "unsupported placeholder function %s", pFuncNode->functionName));
@@ -3443,6 +3453,57 @@ _return:
   nodesDestroyNode(extraValue);
   return DEAL_RES_ERROR;
 }
+
+static EDealRes translateExternalWindowPlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SNode*         extraValue = NULL;
+  SFunctionNode* pFuncNode = (SFunctionNode*)(*pFunc);
+
+  if (pCxt->currClause != SQL_CLAUSE_SELECT && pCxt->currClause != SQL_CLAUSE_WHERE && pCxt->currClause != SQL_CLAUSE_ORDER_BY) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INTERNAL_ERROR,
+                                         "external window placeholder should only appear in select, where and order by clause"));
+  }
+
+  switch (pFuncNode->funcType) {
+    case FUNCTION_TYPE_WSTART: {
+      pFuncNode->funcType = FUNCTION_TYPE_TWSTART;
+      pFuncNode->funcId = fmGetTwstartFuncId();
+      tstrncpy(pFuncNode->functionName, "_twstart", sizeof(pFuncNode->functionName));
+      BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_WSTART);
+      PAR_ERR_JRET(nodesMakeValueNodeFromTimestamp(0, &extraValue));
+      break;
+    }
+    case FUNCTION_TYPE_WEND: {
+      pFuncNode->funcType = FUNCTION_TYPE_TWEND;
+      pFuncNode->funcId = fmGetTwendFuncId();
+      tstrncpy(pFuncNode->functionName, "_twend", sizeof(pFuncNode->functionName));
+      BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_WEND);
+      PAR_ERR_JRET(nodesMakeValueNodeFromTimestamp(0, &extraValue));
+      break;
+    }
+    case FUNCTION_TYPE_WDURATION: {
+      pFuncNode->funcType = FUNCTION_TYPE_TWDURATION;
+      pFuncNode->funcId = fmGetTwdurationFuncId();
+      tstrncpy(pFuncNode->functionName, "_twduration", sizeof(pFuncNode->functionName));
+      BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_WDURATION);
+      PAR_ERR_JRET(nodesMakeValueNodeFromInt64(0, &extraValue));
+      break;
+    }
+    default:
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INTERNAL_ERROR,
+                                           "unsupported placeholder function %s in external window", pFuncNode->functionName));
+  }
+
+  ((SValueNode*)extraValue)->notReserved = true;
+  PAR_ERR_JRET(nodesListMakePushFront(&pFuncNode->pParameterList, extraValue));
+  return DEAL_RES_CONTINUE;
+_return:
+  pCxt->errCode = code;
+  parserError("external window translateExternalWindowPlaceHolderFunc failed with code %d", code);
+  nodesDestroyNode(extraValue);
+  return DEAL_RES_ERROR;
+}
+
 static int32_t translateForbidFillFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
   if (!fmIsForbidFillFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
@@ -4010,6 +4071,16 @@ static int32_t translateFunctionImpl(STranslateContext* pCxt, SFunctionNode** pF
   return translateNormalFunction(pCxt, (SNode**)pFunc);
 }
 
+static bool currentStmtWithExternalWindow(STranslateContext* pCxt) {
+  if (NULL != pCxt->pCurrStmt && QUERY_NODE_SELECT_STMT == nodeType(pCxt->pCurrStmt)) {
+    SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+    if (NULL != pSelect->pWindow && QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
   SNode* pParam = NULL;
   if (strcmp((*pFunc)->functionName, "tbname") == 0 && (*pFunc)->pParameterList != NULL) {
@@ -4048,6 +4119,10 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
 
   if (fmIsPlaceHolderFunc((*pFunc)->funcId)) {
     return translatePlaceHolderFunc(pCxt, (SNode**)pFunc);
+  }
+
+  if(currentStmtWithExternalWindow(pCxt) && fmIsPlaceHolderFuncForExternalWin((*pFunc)->funcId)) {
+    return translateExternalWindowPlaceHolderFunc(pCxt, (SNode**)pFunc);
   }
 
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
@@ -4727,7 +4802,8 @@ static int32_t checkExprForGroupBy(STranslateContext* pCxt, SNode** pNode) {
 }
 
 static int32_t checkExprListForGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect, SNodeList* pList) {
-  if (NULL == getGroupByList(pCxt) && NULL == pSelect->pWindow &&
+  if (NULL == getGroupByList(pCxt) &&
+      (NULL == pSelect->pWindow || nodeType(pSelect->pWindow) == QUERY_NODE_EXTERNAL_WINDOW) &&
       (!isWindowJoinStmt(pSelect) || (!pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc))) {
     return TSDB_CODE_SUCCESS;
   }
@@ -7419,9 +7495,111 @@ static int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt*
 }
 #endif
 
+typedef struct STranslateExtCtx {
+  SExternalWindowNode* pExternalWin;
+  int32_t              code;
+} STranslateExtCtx;
+
+static int32_t getColIndexFromSubquery(SColumnNode* pCol, SNode* pSubquery, int32_t* pIndex, SNode** pExpr) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  // todo xs
+  *pIndex = 1;
+  return 0;
+}
+
+static int32_t translateExternalWindowColumnFunc(SNode** pNode, SExternalWindowNode* pExternalWin, int32_t colIndex,
+                                                 SNode* pSrcExpr) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  SFunctionNode* pFunc = NULL;
+  SExprNode*     pExpr = (SExprNode*)pSrcExpr;
+  SValueNode*    pColIndexVal = NULL;
+
+  code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  pFunc->funcType = FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN;
+  pFunc->funcId = fmGetExternalWindowColumnFuncId();
+  tstrncpy(pFunc->functionName, "_external_window_column", TSDB_COL_NAME_LEN);
+  // todo xs
+  // pFunc->node.resType = pExpr->resType;
+  pFunc->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  pFunc->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+
+  // todo xs pColIndexVal 应该从 pExpr 获取，表示结果的类型和长度
+  code = nodesMakeValueNodeFromInt64(colIndex, (SNode**)&pColIndexVal);
+  QUERY_CHECK_CODE(code, lino, _exit);
+
+  pColIndexVal->notReserved = true;
+  pColIndexVal->placeholderNo = colIndex;
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pColIndexVal);
+  QUERY_CHECK_CODE(code, lino, _exit);
+
+  nodesDestroyNode(*pNode);
+  *pNode = (SNode*)pFunc;
+
+  return code;
+_exit:
+
+  parserError("translateExternalWindowColumnFunc failed, lino: %d, code: %d, reason: %s", lino, code, tstrerror(code));
+  if (pColIndexVal) {
+    nodesDestroyNode((SNode*)pColIndexVal);
+  }
+  if (pFunc) {
+    nodesDestroyNode((SNode*)pFunc);
+  }
+
+  return code;
+}
+
+static EDealRes replaceExternalWindowPlace(SNode** pNode, void* pContext) {
+  int32_t           code = TSDB_CODE_SUCCESS;
+  STranslateExtCtx* pCxt = (STranslateExtCtx*)pContext;
+
+  if (nodeType(*pNode) == QUERY_NODE_COLUMN) {
+    SColumnNode* pCol = (SColumnNode*)(*pNode);
+
+    if ('\0' != pCol->tableAlias[0] &&
+        (0 == strncmp(pCol->tableAlias, pCxt->pExternalWin->aliasName, TSDB_COL_NAME_LEN))) {
+      int32_t colIndex = -1;
+      SNode* pExpr = NULL;
+      code = getColIndexFromSubquery(pCol, pCxt->pExternalWin->pSubquery, &colIndex, &pExpr);
+      if (TSDB_CODE_SUCCESS != code) {
+        pCxt->code = code;
+        return DEAL_RES_ERROR;
+      }
+      code = translateExternalWindowColumnFunc(pNode, pCxt->pExternalWin, colIndex, pExpr);
+      if (TSDB_CODE_SUCCESS != code) {
+        pCxt->code = code;
+        return DEAL_RES_ERROR;
+      }
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t translateExternalWindowSelectList(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  SExternalWindowNode* pExternalWin = (SExternalWindowNode*)pSelect->pWindow;
+  STranslateExtCtx   extCxt = {.pExternalWin = pExternalWin, .code = TSDB_CODE_SUCCESS};
+  EDealRes res = translateExprSubquery(pCxt, &pExternalWin->pSubquery);
+  if (DEAL_RES_ERROR == res) {
+    return pCxt->errCode;
+  }
+  nodesRewriteExprsPostOrder(pSelect->pProjectionList, replaceExternalWindowPlace, &extCxt);
+  return pCxt->errCode = extCxt.code;
+}
+
 static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  int32_t code = TSDB_CODE_SUCCESS;
   pCxt->currClause = SQL_CLAUSE_SELECT;
-  int32_t code = prepareColumnExpansion(pCxt, SQL_CLAUSE_SELECT, pSelect);
+
+  if (pSelect->pWindow && nodeType(pSelect->pWindow) == QUERY_NODE_EXTERNAL_WINDOW) {
+    code = translateExternalWindowSelectList(pCxt, pSelect);
+  }
+  if(TSDB_CODE_SUCCESS == code) {
+    code = prepareColumnExpansion(pCxt, SQL_CLAUSE_SELECT, pSelect);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateExprList(pCxt, pSelect->pProjectionList);
   }
@@ -8621,6 +8799,10 @@ static int32_t translatePeriodWindow(STranslateContext* pCxt, SSelectStmt* pSele
   return code;
 }
 
+static int32_t translateExternalWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   switch (nodeType(pSelect->pWindow)) {
     case QUERY_NODE_STATE_WINDOW:
@@ -8637,6 +8819,8 @@ static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSe
       return translateAnomalyWindow(pCxt, pSelect);
     case QUERY_NODE_PERIOD_WINDOW:
       return translatePeriodWindow(pCxt, pSelect);
+    case QUERY_NODE_EXTERNAL_WINDOW:
+      return translateExternalWindow(pCxt, pSelect);
     default:
       break;
   }
@@ -10844,8 +11028,9 @@ static int32_t checkDbCacheModelOption(STranslateContext* pCxt, SDatabaseOptions
 }
 
 static int32_t checkDbEncryptAlgorithmOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
-  if (pOptions->encryptAlgorithm < 0)
+  if (pOptions->encryptAlgorithm < 0) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION, "Invalid option encrypt_algorithm");
+  }
 
   return TSDB_CODE_SUCCESS;
 }

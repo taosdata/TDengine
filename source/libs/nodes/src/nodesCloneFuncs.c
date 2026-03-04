@@ -759,6 +759,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(extendOption);
   COPY_SCALAR_FIELD(orgTableUid);
   COPY_SCALAR_FIELD(orgTableVgId);
+  CLONE_NODE_FIELD(pSubquery);
   return TSDB_CODE_SUCCESS;
 }
 

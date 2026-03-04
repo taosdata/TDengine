@@ -2564,6 +2564,37 @@ _err:
   return NULL;
 }
 
+SNode* createExternalWindowClause(SAstCreateContext* pCxt, SNode* pSubquery, SToken* pAlias, SNode* pFill) {
+  SExternalWindowNode* pExtWin = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, (SNode**)&pExtWin);
+  CHECK_MAKE_NODE(pExtWin);
+
+  // Attach subquery and optional fill node
+  pExtWin->pSubquery = pSubquery;
+  pExtWin->pFill = pFill;
+
+  // Set alias if provided; enforce length constraint (report error if too long)
+  pExtWin->aliasName[0] = '\0';
+  if (pAlias && pAlias->type != TK_NK_NIL) {
+    trimEscape(pCxt, pAlias, false);
+    if (pAlias->n >= TSDB_COL_NAME_LEN || pAlias->n == 0) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pAlias->z);
+      goto _err;
+    }
+    int32_t len = pAlias->n;
+    strncpy(pExtWin->aliasName, pAlias->z, len);
+    pExtWin->aliasName[len] = '\0';
+  }
+
+  return (SNode*)pExtWin;
+_err:
+  nodesDestroyNode((SNode*)pExtWin);
+  nodesDestroyNode(pSubquery);
+  nodesDestroyNode(pFill);
+  return NULL;
+}
+
 SNode* addJLimitClause(SAstCreateContext* pCxt, SNode* pJoin, SNode* pJLimit) {
   CHECK_PARSER_STATUS(pCxt);
   if (NULL == pJLimit) {
