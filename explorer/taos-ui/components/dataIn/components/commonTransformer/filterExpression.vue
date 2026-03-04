@@ -248,6 +248,7 @@ function submitFilter() {
 
   .btns {
     display: flex;
+    gap: 0;
 
     .el-button {
       display: flex;
@@ -255,12 +256,11 @@ function submitFilter() {
       justify-content: center;
       width: 32px;
       height: 32px;
-      padding: 12px 20px;
+      padding: 2px;
       border-radius: 6px;
-
-      &:first-child {
-        margin-left: 20px;
-      }
+      border: none;
+      box-shadow: none;
+      margin: 0;
     }
   }
 }

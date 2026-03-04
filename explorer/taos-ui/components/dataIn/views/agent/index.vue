@@ -115,11 +115,15 @@
     <el-dialog
       v-model="showAgent"
       class="tda-dialog"
-      :title="dialogTitle"
       :destroy-on-close="true"
       :close-on-click-modal="false"
       @close="closeDialog"
     >
+      <template #header="{ titleClass }">
+        <div class="agent-dialog-header">
+          <h4 :class="titleClass">{{ dialogTitle }}</h4>
+        </div>
+      </template>
       <AddAgent
         :key="componentKey"
         :agent="currentRow"
@@ -253,7 +257,7 @@ const del = (data: Agent) => {
 const add = () => {
   showAgent.value = true;
   currentRow.value = {} as Agent;
-  dialogTitle.value = 'Create New Agent';
+  dialogTitle.value = t('dataIn.taosxAgent.createnewagent');
   isEditDialog.value = false;
   componentKey.value++;
 };
@@ -263,7 +267,7 @@ const refresh = () => {
 };
 
 const edit = (data: Agent) => {
-  dialogTitle.value = 'Edit Agent';
+  dialogTitle.value = t('dataIn.taosxAgent.editatagent');
   showAgent.value = true;
   currentRow.value = data;
   componentKey.value++;
@@ -334,5 +338,18 @@ function handleTaskActivities(activity: ActivitieProps) {
     word-break: break-word;
     word-wrap: break-word;
   }
+}
+
+.agent-dialog-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px 0;
+}
+
+.agent-dialog-header h4 {
+  margin: 0;
 }
 </style>

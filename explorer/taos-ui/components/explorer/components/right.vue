@@ -12,23 +12,40 @@
           </template>
           <el-button
             :disabled="!sqlStr || sqlExecuting"
+            link
             type="primary"
-            icon="caretRight"
+            size="default"
+            icon="CaretRight"
+            class="sql-action-button"
             :loading="sqlExecuting"
-            size="small"
             @click="executeSql"
           >
             <span>{{ t('common.run') }}</span>
           </el-button>
         </el-tooltip>
-        <el-button :disabled="!sqlStr || sqlExecuting" type="warning" icon="SetUp" size="small" @click="formatSql">
+        <el-button
+          :disabled="!sqlStr || sqlExecuting"
+          link
+          type="primary"
+          size="default"
+          icon="SetUp"
+          class="sql-action-button"
+          @click="formatSql"
+        >
           <span>{{ t('common.format') }}</span>
         </el-button>
         <el-tooltip
           effect="light"
           :content="t('explorer.' + (favorited ? 'deleteCurrentSavedSql' : 'saveCurrentSqlAsFavorite'))"
         >
-          <el-button :disabled="!sqlStr || sqlExecuting || favorited" type="success" size="small" @click="toggleFavorite">
+          <el-button
+            :disabled="!sqlStr || sqlExecuting || favorited"
+            link
+            type="primary"
+            size="default"
+            class="sql-action-button"
+            @click="toggleFavorite"
+          >
             <template v-if="!favorited">
               <el-icon :size="14">
                 <Star></Star>
@@ -345,8 +362,15 @@ $bar-light-color: #dcdfe6;
 .sql-btn {
   position: absolute;
   top: 8px;
-  right: 20px;
+  right: 10px;
   z-index: 20;
+
+  :deep(.sql-action-button.el-button.is-link) {
+    padding: 0 5px;
+    margin-left: 0px;
+    border-color: transparent;
+    background-color: transparent;
+  }
 }
 
 .sql-wrapper {

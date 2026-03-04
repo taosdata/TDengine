@@ -50,22 +50,20 @@
         </template>
       </Tree>
     </div>
+    <CreateDatabaseDialog
+      v-model="dialogVisible"
+      :db-list="dbList"
+      :create-api="explorerProps.database.createApi"
+      @close="closeCreateDbDialog"
+      @update="handleDatabaseUpdate"
+    />
   </section>
 </template>
 
 <script lang="ts" setup>
 import Tree from '../../tree/index';
 import { getExplorerProps } from '../model/useExplorer';
-import {
-  useTreeHeight,
-  applyStbAdvancedEvent,
-  currentDetailComponentConfig,
-  partActiveTab,
-  dbList,
-  backSqlPart,
-  viewTableDataLimit,
-  panelActiveTab
-} from './utils';
+import { useTreeHeight, applyStbAdvancedEvent, dbList, viewTableDataLimit, panelActiveTab } from './utils';
 import Node from '../../tree/src/model/node';
 import type { LoadedCallback } from '../../tree/src/tree.type';
 import { t } from 'locales';
@@ -78,10 +76,11 @@ import {
   getDbList
 } from '../../api';
 import { getSqlProvider } from '../model/useExplorer';
-import { instance } from 'config';
+import CreateDatabaseDialog from '../../dataIn/components/addDbDialog.vue';
 
 const explorerProps = getExplorerProps();
 const dbsTreeRef = ref<HTMLElement | null>(null);
+const dialogVisible = ref(false);
 const showButtons = ref(true);
 let _dbsResizeObserver: ResizeObserver | null = null;
 
@@ -128,23 +127,16 @@ function refersh() {
   treeKey.value++;
 }
 function addDatabase() {
-  currentDetailComponentConfig.name = t('common.add');
-  currentDetailComponentConfig.component = 'DatabaseCreate';
-  currentDetailComponentConfig.props = {
-    formData: undefined,
-    isEdit: false,
-    isHa: instance.ha,
-    updateApi: explorerProps.database.createApi,
-    version: instance.version,
-    dbList: dbList.value
-  };
-  currentDetailComponentConfig.listeners = {
-    success: () => {
-      refersh();
-      backSqlPart();
-    }
-  };
-  partActiveTab.value = 'detail';
+  dialogVisible.value = true;
+}
+
+function closeCreateDbDialog() {
+  dialogVisible.value = false;
+}
+
+function handleDatabaseUpdate() {
+  dialogVisible.value = false;
+  refersh();
 }
 async function loadNode(node: Node, resolve: LoadedCallback) {
   const data = node.data;

@@ -9,22 +9,13 @@
     >
     </el-input>
     <template v-else>
-      <span>taosx</span>
-      <el-input v-model="localData[config.field]" style="flex: 1" class="mr20 ml15" :placeholder="config.placeholder">
+      <el-input v-model="localData[config.field]" style="flex: 1" :placeholder="config.placeholder">
       </el-input>
-
-      <el-tooltip placement="top" effect="light" :open-delay="0">
-        <template #content>
-          <span v-dompurify-html="t('dataIn.taskIdTip', [config.label])"></span>
-        </template>
-        <el-switch v-model="localData[switchField]" type="primary"></el-switch>
-      </el-tooltip>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { t } from 'locales';
 import { currentPageType, taskId, sourceForm, currentTaskStatus } from '../model/util';
 
 const props = withDefaults(
@@ -49,9 +40,16 @@ const isEdit = computed(() => {
 const isCopy = computed(() => {
   return currentPageType.value == 'copy';
 });
-const switchField = computed(() => {
-  return `${props.config.field.startsWith('group') ? props.config.field + '_id' : props.config.field}_with_task_id`;
-});
+
+/** Generate random 8-char alphanumeric string for MQTT client_id suffix */
+function randomIdSuffix(): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < 8; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
 
 const emit = defineEmits(['update:data']);
 watch(localData, newData => {
@@ -60,12 +58,21 @@ watch(localData, newData => {
 
 onMounted(() => {
   if (isEdit.value) {
-    // 兼容历史任务的 group 回显任务 id
+    // Compatible with legacy task: show task id for group
     localData['group'] = props.data['group'] || taskId.value;
   }
   if (isCopy.value) {
-    // 复制时置空group/client_id
-    localData[props.config.field] = '';
+    if (props.config.field === 'client_id') {
+      // Auto-generate new client_id when copying MQTT task
+      localData[props.config.field] = `taosx_client_${randomIdSuffix()}`;
+    } else {
+      // Clear group when copying Kafka task
+      localData[props.config.field] = '';
+    }
+  }
+  // Auto-generate MQTT client_id on create: taosx_client_ + 8 random chars
+  if (!isEdit.value && !isCopy.value && props.config.field === 'client_id' && !localData[props.config.field]) {
+    localData[props.config.field] = `taosx_client_${randomIdSuffix()}`;
   }
 });
 </script>

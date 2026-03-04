@@ -48,7 +48,6 @@
                 ></CsvTransformer>
                 <template v-else-if="item.type == 'tabs'">
                   <el-tabs
-                    class="form-tabs"
                     :model-value="item.valueField ? localData[item.field][item.valueField] : '0'"
                     @tab-click="
                       ({ paneName }) => (item.valueField ? (localData[item.field][item.valueField] = paneName) : '0')

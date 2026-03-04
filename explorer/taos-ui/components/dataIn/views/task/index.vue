@@ -127,7 +127,7 @@
         </el-table-column>
         <el-table-column
           v-if="dataInProps.isIdmp ? props.columnPropMap?.localname : true"
-          :label="t('dataIn.name2')"
+          :label="t('dataIn.listName')"
           sortable
           prop="localname"
           min-width="300"
@@ -143,7 +143,7 @@
         </el-table-column>
         <el-table-column
           v-if="dataInProps.isIdmp ? props.columnPropMap?.localtype : true"
-          :label="t('dataIn.type')"
+          :label="t('dataIn.listType')"
           prop="localtype"
           min-width="100"
           sortable
@@ -158,7 +158,7 @@
         </el-table-column>
         <el-table-column
           v-if="dataInProps.isIdmp ? props.columnPropMap?.target : true"
-          :label="t('dataIn.target')"
+          :label="t('dataIn.listTarget')"
           prop="target"
           sortable
           min-width="120"

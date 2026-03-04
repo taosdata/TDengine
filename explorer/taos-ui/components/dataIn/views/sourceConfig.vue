@@ -1,6 +1,11 @@
 <template>
   <div class="source-ui">
     <div :class="['left-ui']">
+      <div class="data-in-config-title">
+        <span class="breadcrumb-link" @click="handleClickDataIn">{{ t('dataIn.dataInTaskTitle') }}</span>
+        <span class="breadcrumb-separator"> &gt; </span>
+        <span class="breadcrumb-current">{{ pageTitleSuffix }}</span>
+      </div>
       <el-form
         ref="formRef"
         :model="sourceForm"
@@ -251,6 +256,22 @@ const isAddable = computed(() => currentPageType.value === 'add');
 const isEditable = computed(() => currentPageType.value === 'edit');
 const isCopyable = computed(() => currentPageType.value === 'copy');
 
+const pageTitleSuffix = computed(() => {
+  if (isView.value) {
+    return t('dataIn.viewDataInTaskTitle');
+  }
+  if (currentPageType.value === 'edit') {
+    return t('dataIn.editDataInTaskTitle');
+  }
+  return t('dataIn.createDataInTaskTitle');
+});
+
+const initialSourceForm = ref<Recordable | null>(null);
+
+function setInitialSnapshot() {
+  initialSourceForm.value = cloneDeep(sourceForm);
+}
+
 const rules = computed(() => {
   return {
     name: [
@@ -340,6 +361,7 @@ onMounted(async () => {
     dataInProps.isIndustry ? (sourceForm.type = 'csv') : (sourceForm.type = 'tmq');
     getDataSource();
   }
+  setInitialSnapshot();
 });
 
 const isView = ref(route?.query?.readonly === 'true');
@@ -641,6 +663,27 @@ function goBack() {
   goTaskPage();
 }
 
+const hasUnsavedChanges = computed(() => {
+  if (!initialSourceForm.value) return false;
+  return !isEqual(sourceForm, initialSourceForm.value);
+});
+
+function handleClickDataIn() {
+  if (!hasUnsavedChanges.value) {
+    goTaskPage();
+    return;
+  }
+  ElMessageBox.confirm(t('dataIn.discardEditConfirm'), {
+    confirmButtonText: t('common.confirm'),
+    cancelButtonText: t('common.cancel'),
+    type: 'warning'
+  })
+    .then(() => {
+      goTaskPage();
+    })
+    .catch(() => {});
+}
+
 function enterEditMode() {
   isView.value = false;
 }
@@ -842,19 +885,46 @@ $color-description: rgb(137 130 130);
     .doc-part {
       padding: 2rem;
       margin: 10px 1rem;
-      background: rgb(251 251 251);
-      border-radius: 0.8rem;
-      box-shadow: rgb(0 0 0 / 10%) 0 0 15px;
+      // background: rgb(251 251 251);
+      border: 1px solid #ececef;
+      border-radius: 6px;
+      // box-shadow: rgb(0 0 0 / 10%) 0 0 15px;
     }
 
     &:deep(.markdown-body) {
-      background: rgb(251 251 251);
+      // background: rgb(251 251 251);
 
       & ul,
       ol {
         padding-left: 0;
       }
     }
+  }
+
+  .data-in-config-title {
+    display: flex;
+    align-items: center;
+    height: 44px;
+    padding: 12px 16px;
+    margin: 10px 0 16px;
+    font-size: 16px;
+    color: #333;
+    background-color: #ecf8ff;
+    border-left: 5px solid #50bfff;
+    border-radius: 4px;
+
+    .breadcrumb-link {
+      cursor: pointer;
+
+      &:hover {
+        color: #409eff;
+      }
+    }
+
+    .breadcrumb-separator {
+      margin: 0 4px;
+      color: #606266;
+    } 
   }
 
   .preview-btn,

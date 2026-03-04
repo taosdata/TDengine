@@ -53,9 +53,17 @@ export async function getPaginationData(
     dataSql = dataSql.slice(0, -1);
   }
   let data = await executeSqlFn!(`${dataSql} limit ${startIndex},${pageSize};`, true);
+  // 为每个元素添加 leaf 属性，typeName 为 table 时为 true
+  if (Array.isArray(data)) {
+    data = data.map((item: Recordable) => ({
+      ...item,
+      leaf: item?.type === 'CHILD_TABLE'
+    }));
+  }
   if (typeof handleDataFn === 'function') {
     data = handleDataFn(data);
   }
+  console.log('data', data);
   return [data, count];
 }
 
