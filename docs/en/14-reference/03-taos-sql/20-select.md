@@ -759,7 +759,7 @@ The combination of the EXISTS operator and subqueries: EXISTS only determines wh
 
 ```sql
 -- Used in CASE expression
-select case when exists (select 1 from tb2 where tb2.col1 = tb1.col1) 
+select case when exists (select 1 from tb2 where tb2.col1 = 1) 
            then 'exist' else 'not exist' end as status from tb1;
 
 -- Used in combination with UNION
@@ -768,7 +768,7 @@ union
 select col2 from tb2 where exists (select 1 from tb5 where f2 > 0);
 
 -- Basic usage in WHERE clause
-select col1 from tb1 where exists (select * from tb3 where f3 = tb1.f1);
+select col1 from tb1 where exists (select * from tb3 where f3 = 1);
 ```
 
 ### NOT EXISTS Subquery
@@ -777,7 +777,7 @@ The combination of the NOT EXISTS operator and subqueries, where NOT EXISTS is l
 
 ```sql
 -- Used in the SELECT list
-select col1, not exists (select f1 from tb3 where f1 = tb1.col1) as flag from tb1;
+select col1, not exists (select f1 from tb3 where f1 = 1) as flag from tb1;
 
 -- Used in the WHERE clause
 select col1 from tb1 
@@ -786,7 +786,7 @@ where not exists (select 1 from tb2 where f2 between 10 and 20);
 -- Used in the JOIN condition
 select a.ts from tb1 a
 left join tb2 b on a.ts = b.ts 
-where not exists (select 1 from tb3 where tb3.col1 = a.col1);
+where not exists (select 1 from tb3 where tb3.col1 = 1);
 ```
 
 ## UNION Clause
