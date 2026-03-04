@@ -136,6 +136,10 @@ int32_t tRepairNeedRunWalForceRepair(const SRepairCtx *pCtx, bool *pNeedRun);
 int32_t tRepairNeedRunTsdbForceRepair(const SRepairCtx *pCtx, bool *pNeedRun);
 int32_t tRepairNeedRunMetaForceRepair(const SRepairCtx *pCtx, bool *pNeedRun);
 int32_t tRepairNeedRunReplicaRepair(const SRepairCtx *pCtx, bool *pNeedRun);
+int32_t tRepairNeedRunCopyRepair(const SRepairCtx *pCtx, bool *pNeedRun);
+int32_t tRepairBuildCopySshProbeCmd(const char *replicaHost, const char *remoteTargetPath, char *cmd, int32_t cmdSize);
+int32_t tRepairBuildCopyScpCmd(const char *replicaHost, const char *remoteTargetPath, const char *localTargetPath,
+                               char *cmd, int32_t cmdSize);
 int32_t tRepairDegradeReplicaVnode(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId, char *markerPath,
                                    int32_t markerPathSize);
 int32_t tRepairRollbackReplicaVnode(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId);
@@ -164,6 +168,9 @@ int32_t tRepairRollbackVnodeTarget(const SRepairCtx *pCtx, const char *dataDir, 
 int32_t tRepairMockCopyReplicaVnodeTarget(const SRepairCtx *pCtx, const char *replicaDataDir, const char *localDataDir,
                                           int32_t vnodeId, char *srcPath, int32_t srcPathSize, char *dstPath,
                                           int32_t dstPathSize);
+int32_t tRepairSshScpCopyReplicaVnodeTarget(const SRepairCtx *pCtx, const char *replicaHost,
+                                            const char *replicaDataDir, const char *localDataDir, int32_t vnodeId,
+                                            char *srcPath, int32_t srcPathSize, char *dstPath, int32_t dstPathSize);
 int32_t tRepairPrepareSessionFiles(const SRepairCtx *pCtx, const char *dataDir, char *sessionDir,
                                    int32_t sessionDirSize, char *logPath, int32_t logPathSize, char *statePath,
                                    int32_t statePathSize);

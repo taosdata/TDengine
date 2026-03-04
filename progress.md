@@ -2,8 +2,8 @@
 
 ## 当前检查点
 - 日期：`2026-03-04`
-- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成，`P4` 已完成，`P5` 已完成，`P6` 已完成，`P7` 进行中（`T7.1`、`T7.2` 已完成）。
-- 下一任务：`T7.3`（SSH/SCP 实现并接入 copy 模式）。
+- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成，`P4` 已完成，`P5` 已完成，`P6` 已完成，`P7` 进行中（`T7.1`、`T7.2`、`T7.3` 已完成）。
+- 下一任务：`T7.4`（覆盖写入后的权限/owner 修复逻辑）。
 - 恢复入口：先读 `task_plan.md`，再读 `findings.md`，最后读本文件。
 
 ## 会话日志
@@ -208,6 +208,13 @@
 | 2026-03-04 01:11 | T7.2 定向验证 | `commonTest` 定向用例通过（`ParseReplicaNodeEndpoint + MockCopyReplicaVnodeTarget*` 共 3 条） |
 | 2026-03-04 01:12 | T7.2 构建与回归 | `cmake --build debug --target taosd` 两次触发 `ext_pcre2` 外网更新失败，升权重重试后通过；`ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过 |
 | 2026-03-04 01:12 | T7.2 收尾 | 已将 `task_plan.md` 中 `T7.2` 更新为 `completed`，下一入口切换为 `T7.3`（`pending`） |
+| 2026-03-04 01:24 | T7.3 阶段开始 | 已将 `task_plan.md` 中 `T7.3` 置为 `in_progress`，准备先补 copy 模式调度与 SSH/SCP 命令构造的 Red 用例 |
+| 2026-03-04 01:25 | T7.3 Red 验证 | 新增 `NeedRunCopyRepair*` 与 `BuildCopySshScpCommands*` 测试后编译失败，报错 `tRepairNeedRunCopyRepair/tRepairBuildCopySshProbeCmd/tRepairBuildCopyScpCmd` 未声明，符合先测后码预期 |
+| 2026-03-04 01:28 | T7.3 Green 实现 | `trepair.h/.c` 新增 copy 调度判定、SSH/SCP 命令构造与执行能力：`tRepairNeedRunCopyRepair()`、`tRepairBuildCopySshProbeCmd()`、`tRepairBuildCopyScpCmd()`、`tRepairSshScpCopyReplicaVnodeTarget()`；`dmMain.c` 新增 `dmRunCopyRepair()` 并接入 `dmRunRepairWorkflow()` |
+| 2026-03-04 01:29 | T7.3 定向验证 | `commonTest` 定向用例通过：`NeedRunCopyRepair`、`NeedRunCopyRepairInvalidArgs`、`BuildCopySshScpCommands`、`BuildCopySshScpCommandsInvalidArgs`（4/4） |
+| 2026-03-04 01:31 | T7.3 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug --target taosd` 通过 |
+| 2026-03-04 01:31 | T7.3 Smoke 验证（copy SSH/SCP） | 使用 `TAOS_REPAIR_SSH_BIN/TAOS_REPAIR_SCP_BIN` 注入本地 mock 命令完成端到端验证：`taosd` 退出码 `47`，本地 `wal/meta` 文件被远端内容覆盖、陈旧文件被清理，`repair.log` 命中 `copy dispatch detail` 与 `copy replica detail` |
+| 2026-03-04 01:31 | T7.3 收尾 | 已将 `task_plan.md` 中 `T7.3` 更新为 `completed`，下一入口切换为 `T7.4`（`pending`） |
 
 ## 已落盘文档
 - `task_plan.md`

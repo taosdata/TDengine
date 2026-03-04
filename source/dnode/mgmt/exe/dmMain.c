@@ -781,6 +781,128 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t dmRunCopyRepair(int32_t totalVnodes, int64_t repairProgressIntervalMs, int64_t *pLastProgressReportMs,
+                               bool *pNeedReport, char *progressLine, int32_t progressLineSize) {
+  if (pLastProgressReportMs == NULL || pNeedReport == NULL || progressLine == NULL || progressLineSize <= 0) {
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  int32_t code = 0;
+  bool    needRunCopyRepair = false;
+  code = tRepairNeedRunCopyRepair(&global.repairCtx, &needRunCopyRepair);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to determine copy repair schedule since %s", tstrerror(code));
+    printf("failed repair copy scheduling: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  if (!needRunCopyRepair) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char replicaHost[PATH_MAX] = {0};
+  char replicaDataDir[PATH_MAX] = {0};
+  code = tRepairParseReplicaNodeEndpoint(global.repairCtx.replicaNode, replicaHost, sizeof(replicaHost), replicaDataDir,
+                                         sizeof(replicaDataDir));
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to parse copy replica endpoint:%s since %s", global.repairCtx.replicaNode, tstrerror(code));
+    printf("failed repair copy scheduling: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  char dispatchLog[PATH_MAX] = {0};
+  int32_t dispatchLogLen = tsnprintf(dispatchLog, sizeof(dispatchLog),
+                                     "copy dispatch detail: vnodeTargets=%d replicaHost=%s replicaDataDir=%s",
+                                     global.repairCtx.vnodeIdNum, replicaHost, replicaDataDir);
+  if (dispatchLogLen <= 0 || dispatchLogLen >= (int32_t)sizeof(dispatchLog)) {
+    tstrncpy(dispatchLog, "copy dispatch detail unavailable", sizeof(dispatchLog));
+  }
+  code = tRepairAppendSessionLog(global.repairLogPath, dispatchLog);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to append copy dispatch log since %s", tstrerror(code));
+    printf("failed repair copy scheduling: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  int32_t copyDoneVnodes = 0;
+  for (int32_t i = 0; i < global.repairCtx.vnodeIdNum; ++i) {
+    int32_t vnodeId = global.repairCtx.vnodeIds[i];
+
+    code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "copy", "running", copyDoneVnodes,
+                                    totalVnodes);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to write copy repair state for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair copy scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    char srcPath[PATH_MAX] = {0};
+    char dstPath[PATH_MAX] = {0};
+    code = tRepairSshScpCopyReplicaVnodeTarget(&global.repairCtx, replicaHost, replicaDataDir, tsDataDir, vnodeId,
+                                               srcPath, sizeof(srcPath), dstPath, sizeof(dstPath));
+    if (code != TSDB_CODE_SUCCESS) {
+      (void)tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "copy", "failed", copyDoneVnodes,
+                                     totalVnodes);
+      dError("failed to copy vnode:%d from replica:%s path:%s since %s", vnodeId, replicaHost, replicaDataDir,
+             tstrerror(code));
+      printf("failed repair copy scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    ++copyDoneVnodes;
+
+    char detailLog[PATH_MAX * 2] = {0};
+    int32_t detailLogLen = tsnprintf(detailLog, sizeof(detailLog),
+                                     "copy replica detail: vnode=%d src=%s dst=%s transport=ssh-scp", vnodeId, srcPath,
+                                     dstPath);
+    if (detailLogLen <= 0 || detailLogLen >= (int32_t)sizeof(detailLog)) {
+      tstrncpy(detailLog, "copy replica detail unavailable", sizeof(detailLog));
+    }
+    code = tRepairAppendSessionLog(global.repairLogPath, detailLog);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to append copy replica detail log for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair copy scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "copy", "running", copyDoneVnodes,
+                                    totalVnodes);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to update copy repair state for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair copy scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    code = tRepairNeedReportProgress(taosGetTimestampMs(), repairProgressIntervalMs, pLastProgressReportMs, pNeedReport);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to update copy repair progress interval for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair copy scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    if (*pNeedReport || copyDoneVnodes == totalVnodes) {
+      code = tRepairBuildProgressLine(&global.repairCtx, "copy", copyDoneVnodes, totalVnodes, progressLine,
+                                      progressLineSize);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to build copy repair progress line for vnode:%d since %s", vnodeId, tstrerror(code));
+        printf("failed repair copy scheduling: %s\n", tstrerror(code));
+        return TSDB_CODE_INVALID_CFG;
+      }
+
+      dInfo("%s", progressLine);
+      printf("%s\n", progressLine);
+      code = tRepairAppendSessionLog(global.repairLogPath, progressLine);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to append copy repair progress log for vnode:%d since %s", vnodeId, tstrerror(code));
+        printf("failed repair copy scheduling: %s\n", tstrerror(code));
+        return TSDB_CODE_INVALID_CFG;
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t dmRunForceWalRepair(int32_t totalVnodes, int64_t repairProgressIntervalMs, int64_t *pLastProgressReportMs,
                                    bool *pNeedReport, char *progressLine, int32_t progressLineSize) {
   if (pLastProgressReportMs == NULL || pNeedReport == NULL || progressLine == NULL || progressLineSize <= 0) {
@@ -1643,6 +1765,12 @@ static int32_t dmRunRepairWorkflow(void) {
 
   code = dmRunReplicaRepair(totalVnodes, kRepairProgressIntervalMs, &lastProgressReportMs, &needReport, progressLine,
                             sizeof(progressLine));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  code = dmRunCopyRepair(totalVnodes, kRepairProgressIntervalMs, &lastProgressReportMs, &needReport, progressLine,
+                         sizeof(progressLine));
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }

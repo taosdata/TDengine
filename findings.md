@@ -396,3 +396,22 @@
     - 定向 gtest 通过：`ParseReplicaNodeEndpoint`、`MockCopyReplicaVnodeTarget`、`MockCopyReplicaVnodeTargetInvalidArgs`；
     - `ctest -R commonTest` 通过；
     - `cmake --build debug --target taosd` 通过（中途受 `ext_pcre2` 外网拉取波动影响，升权重重试后成功）。
+- `T7.3`（SSH/SCP 实现并接入 copy 模式）已完成：
+  - 新增 copy 调度与执行接口：
+    - `tRepairNeedRunCopyRepair()`：判定 `nodeType=vnode && mode=copy`；
+    - `tRepairBuildCopySshProbeCmd()`：构造远端目录探测命令（默认 `ssh`，支持环境变量 `TAOS_REPAIR_SSH_BIN` 覆盖）；
+    - `tRepairBuildCopyScpCmd()`：构造递归拷贝命令（默认 `scp`，支持环境变量 `TAOS_REPAIR_SCP_BIN` 覆盖）；
+    - `tRepairSshScpCopyReplicaVnodeTarget()`：按 vnode/fileType 计算远端与本地目标目录，执行 `ssh test -d` + `scp -r` 完成 copy。
+  - 命令执行策略：
+    - 新增内部 helper `tRepairRunShellCommand()`，统一执行 shell 命令并通过 `__TD_REPAIR_COPY_EXIT__=` 标记解析真实退出码；
+    - 命令返回非 0 时统一转为失败，避免“只读输出不看退出码”的假阳性。
+  - `dmMain.c` 接入：
+    - 新增 `dmRunCopyRepair()` 并接入 `dmRunRepairWorkflow()`；
+    - 运行过程落盘 `repair.state.json(step=copy)`；
+    - `repair.log` 新增 `copy dispatch detail` 与 `copy replica detail` 明细；
+    - 控制台输出 `step=copy` 进度行，保持与 wal/tsdb/meta/replica 流程一致。
+  - TDD 与验证结果：
+    - Red：新增 `NeedRunCopyRepair*` 与 `BuildCopySshScpCommands*` 测试后编译失败（缺接口声明）；
+    - Green：补齐头文件声明与实现后，定向用例通过（4/4）；
+    - 回归：`ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug --target taosd` 通过；
+    - Smoke：通过环境变量注入本地 mock `ssh/scp` 完成端到端验证，`taosd` 退出码 `47`，本地 `wal/meta` 被远端内容覆盖、陈旧文件被清理，`repair.log` 命中 copy 相关明细日志。

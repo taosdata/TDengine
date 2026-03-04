@@ -2514,6 +2514,74 @@ TEST(RepairOptionParseTest, NeedRunReplicaRepairInvalidArgs) {
   ASSERT_EQ(tRepairNeedRunReplicaRepair(&ctx, NULL), TSDB_CODE_INVALID_PARA);
 }
 
+TEST(RepairOptionParseTest, NeedRunCopyRepair) {
+  bool needRun = false;
+
+  SRepairCliArgs copyCli = {0};
+  ASSERT_EQ(tRepairParseCliOption(&copyCli, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&copyCli, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&copyCli, "vnode-id", "2,3"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&copyCli, "mode", "copy"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&copyCli, "replica-node", "tdnode1:/var/lib/taos"), TSDB_CODE_SUCCESS);
+  SRepairCtx copyCtx = {0};
+  ASSERT_EQ(tRepairInitCtx(&copyCli, 1735689601518LL, &copyCtx), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairNeedRunCopyRepair(&copyCtx, &needRun), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(needRun);
+
+  SRepairCliArgs replicaCli = {0};
+  ASSERT_EQ(tRepairParseCliOption(&replicaCli, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&replicaCli, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&replicaCli, "vnode-id", "2,3"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&replicaCli, "mode", "replica"), TSDB_CODE_SUCCESS);
+  SRepairCtx replicaCtx = {0};
+  ASSERT_EQ(tRepairInitCtx(&replicaCli, 1735689601519LL, &replicaCtx), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairNeedRunCopyRepair(&replicaCtx, &needRun), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(needRun);
+}
+
+TEST(RepairOptionParseTest, NeedRunCopyRepairInvalidArgs) {
+  bool       needRun = true;
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairNeedRunCopyRepair(NULL, &needRun), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairNeedRunCopyRepair(&ctx, &needRun), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairNeedRunCopyRepair(&ctx, NULL), TSDB_CODE_INVALID_PARA);
+}
+
+TEST(RepairOptionParseTest, BuildCopySshScpCommands) {
+  char sshCmd[PATH_MAX * 2] = {0};
+  char scpCmd[PATH_MAX * 2] = {0};
+  const char *remoteTarget = "/var/lib/taos/vnode/vnode2/wal";
+  const char *localTarget = "/tmp/td-repair-local/vnode/vnode2/wal";
+
+  ASSERT_EQ(tRepairBuildCopySshProbeCmd("tdnode1", remoteTarget, sshCmd, sizeof(sshCmd)), TSDB_CODE_SUCCESS);
+  ASSERT_NE(std::string(sshCmd).find("ssh"), std::string::npos);
+  ASSERT_NE(std::string(sshCmd).find("tdnode1"), std::string::npos);
+  ASSERT_NE(std::string(sshCmd).find("test -d"), std::string::npos);
+  ASSERT_NE(std::string(sshCmd).find(remoteTarget), std::string::npos);
+
+  ASSERT_EQ(tRepairBuildCopyScpCmd("tdnode1", remoteTarget, localTarget, scpCmd, sizeof(scpCmd)), TSDB_CODE_SUCCESS);
+  ASSERT_NE(std::string(scpCmd).find("scp"), std::string::npos);
+  ASSERT_NE(std::string(scpCmd).find("tdnode1:"), std::string::npos);
+  ASSERT_NE(std::string(scpCmd).find(remoteTarget), std::string::npos);
+  ASSERT_NE(std::string(scpCmd).find(localTarget), std::string::npos);
+}
+
+TEST(RepairOptionParseTest, BuildCopySshScpCommandsInvalidArgs) {
+  char cmd[64] = {0};
+  ASSERT_EQ(tRepairBuildCopySshProbeCmd(NULL, "/var/lib/taos/vnode/vnode2/wal", cmd, sizeof(cmd)),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBuildCopySshProbeCmd("tdnode1", NULL, cmd, sizeof(cmd)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBuildCopySshProbeCmd("tdnode1", "/var/lib/taos/vnode/vnode2/wal", NULL, sizeof(cmd)),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBuildCopyScpCmd(NULL, "/var/lib/taos/vnode/vnode2/wal", "/tmp/local", cmd, sizeof(cmd)),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBuildCopyScpCmd("tdnode1", NULL, "/tmp/local", cmd, sizeof(cmd)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBuildCopyScpCmd("tdnode1", "/var/lib/taos/vnode/vnode2/wal", NULL, cmd, sizeof(cmd)),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBuildCopyScpCmd("tdnode1", "/var/lib/taos/vnode/vnode2/wal", "/tmp/local", NULL, sizeof(cmd)),
+            TSDB_CODE_INVALID_PARA);
+}
+
 TEST(RepairOptionParseTest, DegradeReplicaVnodeWritesMarker) {
   const std::string dataDirPath = buildRepairTempPath("replica-degrade-marker");
   RepairTempDirGuard dataDirGuard(dataDirPath);
