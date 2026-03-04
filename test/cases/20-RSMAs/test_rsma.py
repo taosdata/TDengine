@@ -815,7 +815,7 @@ class TestCase:
         os.makedirs(self.localSSPath, exist_ok=True)
         time.sleep(3) # wait for upload delay take effect
         tdSql.execute("ssmigrate database d0")
-        tdSql.execute("show ssmigrates")
+        tdSql.query("show ssmigrates")
         tdSql.checkRows(1)
         self.s5_0_wait_task_done(sql="show ssmigrates", task="ssmigrate")
         self.s10_check_localSS_content(self.localSSPath, min_size_mb=16)
@@ -848,16 +848,43 @@ class TestCase:
         tdSql.execute("create rsma rsma_ssmigrate on d0.stb0 function(min(c0)) interval(2s)")
         time.sleep(3) # wait for upload delay take effect
         tdSql.execute("ssmigrate database d0")
-        tdSql.execute("show ssmigrates")
+        tdSql.query("show ssmigrates")
         tdSql.checkRows(1)
         self.s5_0_wait_task_done(sql="show ssmigrates", task="ssmigrate")
-        self.s10_check_localSS_content(self.localSSPath, min_size_mb=0)
+        self.s10_check_localSS_content(self.localSSPath, min_size_mb=0) # not upload to localSS since compacted data size is too small
         tdSql.query("select count(*) from stb0")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 500)
+        tdSql.checkData(0, 0, 500) # the data insert interval is 1s, and rsma downsampling interval is 2s
         tdSql.query("select * from d0.ctb0 limit 1")
         tdSql.checkRows(1)
         tdSql.query("select * from d0.stb0 limit 1")
+        tdSql.checkRows(1)
+        tdLog.info("insert more data to trigger ssmigrate upload to localSS")
+        self.parallel_insert(db_name="d0", table_name="ctb0", ts_start=1601520400000, n_rows=1000, binary_len=40960, num_threads=20)
+        tdSql.execute("flush database d0")
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1500)
+        time.sleep(3) # wait for upload delay take effect
+        tdLog.info("execute ssmigrate again after more data inserted")
+        tdSql.execute("ssmigrate database d0")
+        tdSql.query("show ssmigrates")
+        tdSql.checkRows(1)
+        self.s5_0_wait_task_done(sql="show ssmigrates", task="ssmigrate")
+        self.s10_check_localSS_content(self.localSSPath, min_size_mb=16) # uploaded to localSS since more data inserted
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1500) # 2nd ssmigrate database d0 doesn't trigger the rollup compact since the lcn is 0. In the real world, if ss is configured to migrate data from the highest storage level and the data at highest level has no out-of-order issues, this problem is less likely to occur.
+        tdSql.query("select count(*) from d0.ctb0")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1500)
+        tdSql.query("select * from d0.ctb0 limit 1")
+        tdSql.checkRows(1)
+        tdSql.query("select * from d0.stb0 limit 1")
+        tdSql.checkRows(1)
+        tdSql.query("show d0.tables")
+        tdSql.checkRows(1)
+        tdSql.query("show d0.stables")
         tdSql.checkRows(1)
 
     def test_rsma(self):
@@ -878,6 +905,7 @@ class TestCase:
         13. Retention task monitor.
         14. Rollup automatically when execute: trim database.
         15. Rollup manually when execute: rollup database.
+        16. SSMigrate with/without rsma and verify the result.
 
         Catalog:
             - Rollup SMA:Create/Drop/Show/Query/Trim/Rollup
@@ -891,17 +919,18 @@ class TestCase:
         History:
             - 2025-09-25: Initial version from Kaili Xu(TS-6113).
             - 2025-11-04: Check negative ts from Kaili Xu(TD-38485).
+            - 2026-03-04: Add ssmigrate test with/without rsma from Kaili Xu(6841578238).
         """
         self.s1_create_db_table()
-        # self.s2_create_rsma()
-        # self.s3_show_rsma()
-        # self.s4_drop_rsma()
-        # self.s5_trim_db()
-        # self.s6_rollup_db()
-        # self.s7_rollup_vgroups()
-        # self.s8_decimal_composite_key_add_drop_column()
-        # self.s9_negative_ts()
-        # self.s10_ssmigrate_without_rsma()
+        self.s2_create_rsma()
+        self.s3_show_rsma()
+        self.s4_drop_rsma()
+        self.s5_trim_db()
+        self.s6_rollup_db()
+        self.s7_rollup_vgroups()
+        self.s8_decimal_composite_key_add_drop_column()
+        self.s9_negative_ts()
+        self.s10_ssmigrate_without_rsma()
         self.s11_ssmigrate_with_rsma()
 
 
