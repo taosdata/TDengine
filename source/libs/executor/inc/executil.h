@@ -155,18 +155,6 @@ typedef struct SInsertTableInfo {
   char*                    tbname;
 } SInsertTableInfo;
 
-typedef struct SUserTablePrivInfo {
-  union {
-    uint8_t flags;
-    struct {
-      uint8_t showAllTbls : 1;
-      uint8_t reserved : 7;
-    };
-  };
-  SSHashObj* pDbSet;     // k: dbFName, v: NULL // db owner + "db.* with use db + show tables privileges"
-  SSHashObj* pTableSet;  // k: tb_uid_t, v: NULL // table owner + "uid with use db + show table privilege"
-} SUserTablePrivInfo;
-
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
                                 SExecTaskInfo* pTaskInfo, SHashObj* groupIdMap);
@@ -194,7 +182,6 @@ size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
 void   closeResultRow(SResultRow* pResultRow);
 void   resetResultRow(SResultRow* pResultRow, size_t entrySize);
-void   tablePrivInfoDestroy(SUserTablePrivInfo** pInfo);
 
 struct SResultRowEntryInfo* getResultEntryInfo(const SResultRow* pRow, int32_t index, const int32_t* offset);
 
