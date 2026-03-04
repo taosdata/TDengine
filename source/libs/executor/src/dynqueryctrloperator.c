@@ -3318,6 +3318,20 @@ int32_t vtbWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     code = extWinOp->fpSet.getNextExtFn(extWinOp, pExtWinParam, &pExtWinBlock);
     QUERY_CHECK_CODE(code, lino, _return);
     setOperatorCompleted(extWinOp);
+    // Free the parameter after operator completes, as it's been saved to the operator
+    if (extWinOp->pOperatorGetParam) {
+      freeOperatorParam(extWinOp->pOperatorGetParam, OP_GET_PARAM);
+      extWinOp->pOperatorGetParam = NULL;
+    }
+    // Also free downstream params if any
+    if (extWinOp->pDownstreamGetParams) {
+      for (int32_t i = 0; i < extWinOp->numOfDownstream; i++) {
+        if (extWinOp->pDownstreamGetParams[i]) {
+          freeOperatorParam(extWinOp->pDownstreamGetParams[i], OP_GET_PARAM);
+          extWinOp->pDownstreamGetParams[i] = NULL;
+        }
+      }
+    }
 
     blockDataCleanup(pRes);
     code = blockDataEnsureCapacity(pRes, numOfWins);
@@ -3350,6 +3364,20 @@ int32_t vtbWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     SSDataBlock* pMergedBlock = NULL;
     code = mergeOp->fpSet.getNextExtFn(mergeOp, pMergeParam, &pMergedBlock);
     QUERY_CHECK_CODE(code, lino, _return);
+    // Free the parameter after operator completes, as it's been saved to the operator
+    if (mergeOp->pOperatorGetParam) {
+      freeOperatorParam(mergeOp->pOperatorGetParam, OP_GET_PARAM);
+      mergeOp->pOperatorGetParam = NULL;
+    }
+    // Also free downstream params if any
+    if (mergeOp->pDownstreamGetParams) {
+      for (int32_t i = 0; i < mergeOp->numOfDownstream; i++) {
+        if (mergeOp->pDownstreamGetParams[i]) {
+          freeOperatorParam(mergeOp->pDownstreamGetParams[i], OP_GET_PARAM);
+          mergeOp->pDownstreamGetParams[i] = NULL;
+        }
+      }
+    }
 
     blockDataCleanup(pRes);
     code = blockDataEnsureCapacity(pRes, numOfWins);

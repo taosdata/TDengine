@@ -9316,7 +9316,9 @@ static int32_t rebuildTableScanTargets(SScanLogicNode* pTableScan, SScanLogicNod
   int32_t code = TSDB_CODE_SUCCESS;
 
   nodesDestroyList(pTableScan->pScanPseudoCols);
+  pTableScan->pScanPseudoCols = NULL;
   nodesDestroyList(pTableScan->node.pTargets);
+  pTableScan->node.pTargets = NULL;
 
   PLAN_ERR_JRET(nodesCloneList(pTagScan->pScanPseudoCols, &pTableScan->pScanPseudoCols));
   PLAN_ERR_JRET(createColumnByRewriteExprs(pTableScan->pScanCols, &pTableScan->node.pTargets));
@@ -9349,6 +9351,7 @@ static int32_t rebuildVstbScanTargets(SDynQueryCtrlLogicNode* pDynVstbScan, SAgg
 
   PLAN_ERR_JRET(nodesCloneList(pDynVstbScan->node.pTargets, &pDynVstbScan->vtbScan.pScanCols));
   nodesDestroyList(pDynVstbScan->node.pTargets);
+  pDynVstbScan->node.pTargets = NULL;
   PLAN_ERR_JRET(nodesCloneList(pAgg->node.pTargets, &pDynVstbScan->node.pTargets));
 
   return code;
