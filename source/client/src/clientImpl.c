@@ -960,20 +960,21 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self};
   SSchedulerReq    req = {
-         .syncReq = true,
-         .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
-         .pConn = &conn,
-         .pNodeList = pNodeList,
-         .pDag = pDag,
-         .sql = pRequest->sqlstr,
-         .startTs = pRequest->metric.start,
-         .execFp = NULL,
-         .cbParam = NULL,
-         .chkKillFp = chkRequestKilled,
-         .chkKillParam = (void*)pRequest->self,
-         .pExecRes = &res,
-         .source = pRequest->source,
-         .pWorkerCb = getTaskPoolWorkerCb(),
+         .syncReq       = true,
+         .localReq      = (tsQueryPolicy == QUERY_POLICY_CLIENT),
+         .pConn         = &conn,
+         .pNodeList     = pNodeList,
+         .pDag          = pDag,
+         .sql           = pRequest->sqlstr,
+         .startTs       = pRequest->metric.start,
+         .execFp        = NULL,
+         .cbParam       = NULL,
+         .chkKillFp     = chkRequestKilled,
+         .chkKillParam  = (void*)pRequest->self,
+         .pExecRes      = &res,
+         .source        = pRequest->source,
+         .secureDelete  = pRequest->secureDelete,
+         .pWorkerCb     = getTaskPoolWorkerCb(),
   };
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob);
@@ -1350,6 +1351,9 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
 
   if (pQuery->pRoot) {
     pRequest->stmtType = pQuery->pRoot->type;
+    if (nodeType(pQuery->pRoot) == QUERY_NODE_DELETE_STMT) {
+      pRequest->secureDelete = ((SDeleteStmt*)pQuery->pRoot)->secureDelete;
+    }
   }
 
   if (pQuery->pRoot && !pRequest->inRetry) {
@@ -1499,21 +1503,22 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                                .requestId = pRequest->requestId,
                                .requestObjRefId = pRequest->self};
       SSchedulerReq    req = {
-             .syncReq = false,
-             .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
-             .pConn = &conn,
-             .pNodeList = pNodeList,
-             .pDag = pDag,
+             .syncReq       = false,
+             .localReq      = (tsQueryPolicy == QUERY_POLICY_CLIENT),
+             .pConn         = &conn,
+             .pNodeList     = pNodeList,
+             .pDag          = pDag,
              .allocatorRefId = pRequest->allocatorRefId,
-             .sql = pRequest->sqlstr,
-             .startTs = pRequest->metric.start,
-             .execFp = schedulerExecCb,
-             .cbParam = pWrapper,
-             .chkKillFp = chkRequestKilled,
-             .chkKillParam = (void*)pRequest->self,
-             .pExecRes = NULL,
-             .source = pRequest->source,
-             .pWorkerCb = getTaskPoolWorkerCb(),
+             .sql           = pRequest->sqlstr,
+             .startTs       = pRequest->metric.start,
+             .execFp        = schedulerExecCb,
+             .cbParam       = pWrapper,
+             .chkKillFp     = chkRequestKilled,
+             .chkKillParam  = (void*)pRequest->self,
+             .pExecRes      = NULL,
+             .source        = pRequest->source,
+             .secureDelete  = pRequest->secureDelete,
+             .pWorkerCb     = getTaskPoolWorkerCb(),
       };
 
       if (TSDB_CODE_SUCCESS == code) {

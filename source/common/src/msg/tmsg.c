@@ -14286,6 +14286,7 @@ int32_t tSerializeSVDeleteReq(void *buf, int32_t bufLen, SVDeleteReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->msg, pReq->phyLen));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->source));
   TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->clientId));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->secureDelete));
   tEndEncode(&encoder);
 
 _exit:
@@ -14338,6 +14339,11 @@ int32_t tDeserializeSVDeleteReq(void *buf, int32_t bufLen, SVDeleteReq *pReq) {
     TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->clientId));
   } else {
     pReq->clientId = 0;
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->secureDelete));
+  } else {
+    pReq->secureDelete = 0;
   }
   tEndDecode(&decoder);
 

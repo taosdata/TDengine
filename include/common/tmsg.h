@@ -6091,6 +6091,7 @@ typedef struct {
   char*    sql;
   char*    msg;
   int8_t   source;
+  int8_t   secureDelete;
 } SVDeleteReq;
 
 int32_t tSerializeSVDeleteReq(void* buf, int32_t bufLen, SVDeleteReq* pReq);

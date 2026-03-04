@@ -201,7 +201,7 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
     goto _err;
   }
 
-  // secureDelete is already merged (statement-level | stb-level | db-level) by the planner
+  // secureDelete is merged by planner and vnode runtime config.
   int8_t doSecureErase = secureDelete;
   if (doSecureErase) {
     // Phase 1: overwrite in-memory (memtable) rows

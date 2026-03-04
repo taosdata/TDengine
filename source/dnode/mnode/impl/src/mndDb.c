@@ -416,6 +416,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->compactStartTime = pNew->compactStartTime;
   pOld->tsmaVersion = pNew->tsmaVersion;
   pOld->cfg.isAudit = pNew->cfg.isAudit;
+  pOld->cfg.secureDelete = pNew->cfg.secureDelete;
   pOld->cfg.flags = pNew->cfg.flags;
   pOld->ownerId = pNew->ownerId;
   taosWUnLockLatch(&pOld->lock);
@@ -1474,6 +1475,7 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
 
   if (pAlter->secureDelete > -1 && pAlter->secureDelete != pDb->cfg.secureDelete) {
     pDb->cfg.secureDelete = pAlter->secureDelete;
+    pDb->vgVersion++;
     code = 0;
   }
 

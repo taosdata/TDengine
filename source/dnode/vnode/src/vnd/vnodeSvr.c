@@ -3025,7 +3025,9 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, in
   if (pRes->affectedRows > 0) {
     for (int32_t iUid = 0; iUid < taosArrayGetSize(pRes->uidList); iUid++) {
       uint64_t uid = *(uint64_t *)taosArrayGet(pRes->uidList, iUid);
-      code = tsdbDeleteTableData(pVnode->pTsdb, ver, pRes->suid, uid, pRes->skey, pRes->ekey, pRes->secureDelete);
+      // Merge runtime vnode(db-level) secureDelete to avoid stale client meta after ALTER DATABASE.
+      int8_t secureDelete = pRes->secureDelete | pVnode->config.secureDelete;
+      code = tsdbDeleteTableData(pVnode->pTsdb, ver, pRes->suid, uid, pRes->skey, pRes->ekey, secureDelete);
       if (code) goto _err;
       code = metaUpdateChangeTimeWithLock(pVnode->pMeta, uid, pRes->ctimeMs);
       if (code) goto _err;
