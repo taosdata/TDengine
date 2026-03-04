@@ -1662,6 +1662,192 @@ TEST(RepairOptionParseTest, ScanMetaFilesInvalidArgs) {
   ASSERT_EQ(tRepairScanMetaFiles(&ctx, "/tmp", 2, NULL), TSDB_CODE_INVALID_PARA);
 }
 
+TEST(RepairOptionParseTest, BuildMetaMissingFileMark) {
+  SRepairMetaScanResult scanResult = {0};
+  scanResult.missingRequiredFiles = 2;
+  tstrncpy(scanResult.missingRequiredFileNames[0], "uid.idx", REPAIR_META_FILE_NAME_LEN);
+  tstrncpy(scanResult.missingRequiredFileNames[1], "name.idx", REPAIR_META_FILE_NAME_LEN);
+
+  char missingMark[128] = {0};
+  ASSERT_EQ(tRepairBuildMetaMissingFileMark(&scanResult, missingMark, sizeof(missingMark)), TSDB_CODE_SUCCESS);
+  ASSERT_STREQ(missingMark, "uid.idx,name.idx");
+}
+
+TEST(RepairOptionParseTest, BuildMetaMissingFileMarkNoneOrInvalidArgs) {
+  SRepairMetaScanResult scanResult = {0};
+  char                  missingMark[64] = {0};
+
+  ASSERT_EQ(tRepairBuildMetaMissingFileMark(&scanResult, missingMark, sizeof(missingMark)), TSDB_CODE_SUCCESS);
+  ASSERT_STREQ(missingMark, "none");
+
+  ASSERT_EQ(tRepairBuildMetaMissingFileMark(NULL, missingMark, sizeof(missingMark)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBuildMetaMissingFileMark(&scanResult, NULL, sizeof(missingMark)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBuildMetaMissingFileMark(&scanResult, missingMark, 0), TSDB_CODE_INVALID_PARA);
+}
+
+TEST(RepairOptionParseTest, InferMetaFromWalTsdbByWalEvidence) {
+  const std::string dataDirPath = buildRepairTempPath("infer-meta-wal-evidence");
+  RepairTempDirGuard dataDirGuard(dataDirPath);
+  const std::string sep(TD_DIRSEP);
+  const std::string metaDir = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "meta";
+  const std::string walDir = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "wal";
+  ASSERT_EQ(taosMulMkDir(metaDir.c_str()), 0);
+  ASSERT_EQ(taosMulMkDir(walDir.c_str()), 0);
+
+  TdFilePtr pWalFile = taosOpenFile((walDir + sep + "000001.log").c_str(), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  ASSERT_NE(pWalFile, nullptr);
+  ASSERT_EQ(taosCloseFile(&pWalFile), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "meta"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601013LL, &ctx), TSDB_CODE_SUCCESS);
+
+  SRepairMetaInferenceReport report = {0};
+  ASSERT_EQ(tRepairInferMetaFromWalTsdb(&ctx, dataDirPath.c_str(), 2, &report), TSDB_CODE_SUCCESS);
+  ASSERT_GT(report.walEvidenceFiles, 0);
+  ASSERT_EQ(report.tsdbRecoverableBlocks, 0);
+  ASSERT_TRUE(report.recoverable);
+  ASSERT_EQ(report.inferredRules, 1);
+}
+
+TEST(RepairOptionParseTest, InferMetaFromWalTsdbByTsdbEvidence) {
+  const std::string dataDirPath = buildRepairTempPath("infer-meta-tsdb-evidence");
+  RepairTempDirGuard dataDirGuard(dataDirPath);
+  const std::string sep(TD_DIRSEP);
+  const std::string metaDir = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "meta";
+  const std::string tsdbDir = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "tsdb" + sep + "f100";
+  ASSERT_EQ(taosMulMkDir(metaDir.c_str()), 0);
+  ASSERT_EQ(taosMulMkDir(tsdbDir.c_str()), 0);
+
+  TdFilePtr pHeadFile =
+      taosOpenFile((tsdbDir + sep + "v2f100ver1.head").c_str(), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  ASSERT_NE(pHeadFile, nullptr);
+  ASSERT_EQ(taosCloseFile(&pHeadFile), 0);
+  TdFilePtr pDataFile =
+      taosOpenFile((tsdbDir + sep + "v2f100ver1.0.data").c_str(), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  ASSERT_NE(pDataFile, nullptr);
+  ASSERT_EQ(taosCloseFile(&pDataFile), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "meta"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601014LL, &ctx), TSDB_CODE_SUCCESS);
+
+  SRepairMetaInferenceReport report = {0};
+  ASSERT_EQ(tRepairInferMetaFromWalTsdb(&ctx, dataDirPath.c_str(), 2, &report), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(report.walEvidenceFiles, 0);
+  ASSERT_GT(report.tsdbRecoverableBlocks, 0);
+  ASSERT_TRUE(report.recoverable);
+  ASSERT_EQ(report.inferredRules, 1);
+}
+
+TEST(RepairOptionParseTest, InferMetaFromWalTsdbNoEvidence) {
+  const std::string dataDirPath = buildRepairTempPath("infer-meta-no-evidence");
+  RepairTempDirGuard dataDirGuard(dataDirPath);
+  const std::string sep(TD_DIRSEP);
+  const std::string metaDir = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "meta";
+  ASSERT_EQ(taosMulMkDir(metaDir.c_str()), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "meta"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601015LL, &ctx), TSDB_CODE_SUCCESS);
+
+  SRepairMetaInferenceReport report = {0};
+  ASSERT_EQ(tRepairInferMetaFromWalTsdb(&ctx, dataDirPath.c_str(), 2, &report), TSDB_CODE_INVALID_PARA);
+  ASSERT_FALSE(report.recoverable);
+  ASSERT_EQ(report.inferredRules, 0);
+}
+
+TEST(RepairOptionParseTest, PrecheckMetaFallbackToInferenceSuccess) {
+  const std::string dataDirPath = buildRepairTempPath("precheck-meta-fallback");
+  RepairTempDirGuard dataDirGuard(dataDirPath);
+  const std::string sep(TD_DIRSEP);
+  const std::string metaDir = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "meta";
+  const std::string walDir = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "wal";
+  ASSERT_EQ(taosMulMkDir(metaDir.c_str()), 0);
+  ASSERT_EQ(taosMulMkDir(walDir.c_str()), 0);
+
+  TdFilePtr pMetaFile = taosOpenFile((metaDir + sep + "table.db").c_str(), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  ASSERT_NE(pMetaFile, nullptr);
+  ASSERT_EQ(taosCloseFile(&pMetaFile), 0);
+  TdFilePtr pWalFile = taosOpenFile((walDir + sep + "000001.log").c_str(), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  ASSERT_NE(pWalFile, nullptr);
+  ASSERT_EQ(taosCloseFile(&pWalFile), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "meta"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601016LL, &ctx), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairPrecheck(&ctx, dataDirPath.c_str(), 0), TSDB_CODE_SUCCESS);
+}
+
+TEST(RepairOptionParseTest, RebuildMetaFilesCreateMissingRequired) {
+  const std::string dataDirPath = buildRepairTempPath("rebuild-meta-files");
+  RepairTempDirGuard dataDirGuard(dataDirPath);
+  const std::string sep(TD_DIRSEP);
+  const std::string metaDir = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "meta";
+  const std::string outDir = dataDirPath + sep + "vnode" + sep + "vnode2" + sep + "meta.rebuild";
+  ASSERT_EQ(taosMulMkDir(metaDir.c_str()), 0);
+
+  auto createEmptyFile = [](const std::string &path) {
+    TdFilePtr pFile = taosOpenFile(path.c_str(), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    ASSERT_NE(pFile, nullptr);
+    ASSERT_EQ(taosCloseFile(&pFile), 0);
+  };
+
+  createEmptyFile(metaDir + sep + "table.db");
+  createEmptyFile(metaDir + sep + "tag.idx");
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "meta"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601017LL, &ctx), TSDB_CODE_SUCCESS);
+
+  SRepairMetaScanResult rebuildResult = {0};
+  ASSERT_EQ(tRepairRebuildMetaFiles(&ctx, dataDirPath.c_str(), 2, outDir.c_str(), &rebuildResult), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(rebuildResult.requiredFiles, 4);
+  ASSERT_EQ(rebuildResult.presentRequiredFiles, 4);
+  ASSERT_EQ(rebuildResult.missingRequiredFiles, 0);
+  ASSERT_EQ(rebuildResult.optionalIndexFiles, 1);
+
+  ASSERT_TRUE(taosCheckExistFile((outDir + sep + "table.db").c_str()));
+  ASSERT_TRUE(taosCheckExistFile((outDir + sep + "schema.db").c_str()));
+  ASSERT_TRUE(taosCheckExistFile((outDir + sep + "uid.idx").c_str()));
+  ASSERT_TRUE(taosCheckExistFile((outDir + sep + "name.idx").c_str()));
+}
+
+TEST(RepairOptionParseTest, RebuildMetaFilesInvalidArgs) {
+  SRepairCtx            ctx = {0};
+  SRepairMetaScanResult result = {0};
+
+  ASSERT_EQ(tRepairRebuildMetaFiles(NULL, "/tmp", 2, "/tmp/meta.rebuild", &result), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairRebuildMetaFiles(&ctx, "/tmp", 2, "/tmp/meta.rebuild", &result), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairRebuildMetaFiles(&ctx, "/tmp", 2, NULL, &result), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairRebuildMetaFiles(&ctx, "/tmp", 2, "/tmp/meta.rebuild", NULL), TSDB_CODE_INVALID_PARA);
+}
+
 TEST(RepairOptionParseTest, AnalyzeTsdbBlocksReportMixedCorruption) {
   const std::string dataDirPath = buildRepairTempPath("analyze-tsdb-blocks-mixed");
   RepairTempDirGuard dataDirGuard(dataDirPath);
@@ -2262,6 +2448,38 @@ TEST(RepairOptionParseTest, NeedRunMetaForceRepair) {
   ASSERT_EQ(tRepairInitCtx(&tsdbForceCli, 1735689601511LL, &tsdbForceCtx), TSDB_CODE_SUCCESS);
   ASSERT_EQ(tRepairNeedRunMetaForceRepair(&tsdbForceCtx, &needRun), TSDB_CODE_SUCCESS);
   ASSERT_FALSE(needRun);
+}
+
+TEST(RepairOptionParseTest, NeedRunReplicaRepair) {
+  bool needRun = false;
+
+  SRepairCliArgs replicaCli = {0};
+  ASSERT_EQ(tRepairParseCliOption(&replicaCli, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&replicaCli, "file-type", "meta"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&replicaCli, "vnode-id", "2,3"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&replicaCli, "mode", "replica"), TSDB_CODE_SUCCESS);
+  SRepairCtx replicaCtx = {0};
+  ASSERT_EQ(tRepairInitCtx(&replicaCli, 1735689601512LL, &replicaCtx), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairNeedRunReplicaRepair(&replicaCtx, &needRun), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(needRun);
+
+  SRepairCliArgs forceCli = {0};
+  ASSERT_EQ(tRepairParseCliOption(&forceCli, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&forceCli, "file-type", "meta"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&forceCli, "vnode-id", "2,3"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&forceCli, "mode", "force"), TSDB_CODE_SUCCESS);
+  SRepairCtx forceCtx = {0};
+  ASSERT_EQ(tRepairInitCtx(&forceCli, 1735689601513LL, &forceCtx), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairNeedRunReplicaRepair(&forceCtx, &needRun), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(needRun);
+}
+
+TEST(RepairOptionParseTest, NeedRunReplicaRepairInvalidArgs) {
+  bool       needRun = true;
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairNeedRunReplicaRepair(NULL, &needRun), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairNeedRunReplicaRepair(&ctx, &needRun), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairNeedRunReplicaRepair(&ctx, NULL), TSDB_CODE_INVALID_PARA);
 }
 
 TEST(RepairOptionParseTest, BuildVnodeTargetPath) {

@@ -236,3 +236,83 @@
     - 记录 `meta scan detail`（required/present/optional/missing）到 `repair.log`；
     - 更新 `repair.state.json(step=meta)` 与 `step=meta` 进度输出。
   - 运行验证结果：`taosd -r --file-type meta --mode force` 在最小样本下输出 `step=meta` 与成功摘要，且备份目录正确落盘元数据文件。
+- `T5.2`（WAL/TSDB 反向推导元数据规则：第一批）已完成：
+  - 新增 `SRepairMetaInferenceReport` 与 `tRepairInferMetaFromWalTsdb()`，第一批推导规则为：
+    - `wal` 证据：`vnode/<id>/wal` 下存在文件；
+    - `tsdb` 证据：`tRepairAnalyzeTsdbBlocks()` 的 `recoverableBlocks > 0`。
+  - 推导判定策略：
+    - 任一证据命中即 `recoverable=true` 并返回成功；
+    - 两类证据均未命中则返回 `TSDB_CODE_INVALID_PARA`（保持不可恢复语义）。
+  - `tRepairPrecheck()` 的 `fileType=meta` 分支已改为“先扫描、后推导”：
+    - `tRepairScanMetaFiles()` 失败时回退 `tRepairInferMetaFromWalTsdb()`；
+    - 仅当扫描与推导都失败时才返回失败，避免缺文件场景 precheck 直接 fail-fast。
+  - `dmRunForceMetaRepair()` 已接入运行时兜底：
+    - 扫描成功时写 `meta scan detail`；
+    - 扫描失败但推导成功时写 `meta infer detail` 并继续流程。
+  - 验证结果：
+    - 定向单测通过（`ScanMetaFiles*`/`NeedRunMetaForceRepair`/`InferMetaFromWalTsdb*`/`PrecheckMetaFallbackToInferenceSuccess` 共 8 条）；
+    - `ctest -R commonTest` 与 `cmake --build debug --target taosd` 通过；
+    - smoke 样本验证通过：`meta` 完整场景和“缺文件+wal 证据”场景均命中 `step=meta` 与成功摘要，且后者 `repair.log` 出现 `meta infer detail`。
+- `T5.3`（缺失元数据标记与“不可推导”日志输出）已完成：
+  - 新增 `tRepairBuildMetaMissingFileMark()`：
+    - 输入 `SRepairMetaScanResult`，输出逗号分隔的缺失文件标记（例如 `schema.db,uid.idx,name.idx`）；
+    - 无缺失时输出 `none`，用于统一日志口径。
+  - `dmMain.c` 在 `force+meta` 路径新增日志增强：
+    - 扫描失败时先写 `meta missing marker`；
+    - 推导成功写 `meta infer detail`（包含 missing + wal/tsdb 证据）；
+    - 推导失败写 `meta unrecoverable detail`（包含 missing + 证据统计）。
+  - 为避免再次放大单个函数，`dmRunForceMetaRepair()` 新增并复用 helper：
+    - `dmAppendMetaMissingMarkerLog()`；
+    - `dmAppendMetaInferenceDetailLog()`；
+    - `dmReportMetaPrecheckInferenceDetail()`（precheck 失败时输出不可推导明细）。
+  - 验证结果：
+    - 新增单测 `BuildMetaMissingFileMark` / `BuildMetaMissingFileMarkNoneOrInvalidArgs` 通过；
+    - 定向用例（10 条）与 `ctest -R commonTest` 通过；
+    - `taosd` 构建通过；
+    - smoke 三场景通过：完整、可推导、不可推导（不可推导场景输出 `meta unrecoverable detail` 且 precheck 按预期失败）。
+- `T5.4`（重建 META 并切换生效，含备份目录）已完成：
+  - `trepair.h/.c` 新增 `tRepairRebuildMetaFiles()`：
+    - 重建流程为 `reset outputDir -> copy 原 meta 目录 -> 补齐缺失必需文件`；
+    - 必需文件始终对齐到 `table.db/schema.db/uid.idx/name.idx`；
+    - 返回 `SRepairMetaScanResult`，用于上层记录重建明细。
+  - `dmMain.c` 的 `force+meta` 已接入重建闭环：
+    - 在 `scan/infer` 通过后执行 `rebuild`；
+    - 使用 `meta.rebuild -> rename` 完成目录切换；
+    - 切换失败时调用 `tRepairRollbackVnodeTarget()` 回滚并写 `meta repair rollback` 日志。
+  - 本轮继续控制函数体量：
+    - 新增并复用 `dmAppendMetaRebuildDetailLog()`、`dmHandleMetaRepairRollback()`、`dmRebuildAndActivateMeta()`；
+    - `dmRunForceMetaRepair()` 保持“编排 + 错误分支”职责，不再直接堆叠文件操作细节。
+  - 运行期日志新增：
+    - `meta rebuild detail`（required/present/optional/missing）；
+    - 与既有 `meta missing marker`、`meta infer detail`、`meta unrecoverable detail` 组合，形成完整诊断链路。
+  - 验证结果：
+    - Red 证据：`commonTest` 构建报错 `tRepairRebuildMetaFiles` 未声明；
+    - Green 后定向测试通过（含 `RebuildMetaFiles*` 在内共 11 条）；
+    - `ctest -R commonTest` 与 `cmake --build debug --target taosd` 通过；
+    - smoke 两场景通过：完整与“缺文件+wal 证据”均命中 `step=meta` + 成功摘要（退出码 `47`），`repair.log` 命中 `meta rebuild detail`，且目标 META 目录补齐必需文件。
+- `T5.5`（META 修复测试：部分损坏/完全损坏双场景）已完成：
+  - 新增系统级脚本 `tests/ci/repair_meta_force.sh`，对 `taosd -r --file-type meta --mode force` 做可复现验收。
+  - 脚本覆盖两类损坏样本（均带 WAL 证据）：
+    - `meta-partial`：保留 `table.db/tag.idx`，缺失其余必需文件；
+    - `meta-complete`：META 目录为空（完全损坏）。
+  - 验收断言：
+    - 控制台输出必须包含 `step=meta` 的 100% 进度与 `status=success` 摘要；
+    - `repair.log` 必须包含 `meta missing marker`、`meta infer detail`、`meta rebuild detail`；
+    - 修复后目标目录必须补齐 `table.db/schema.db/uid.idx/name.idx`，且部分损坏场景保留 `tag.idx`。
+  - 运行结果：脚本一次通过，双场景均返回流程级成功（`taosd` 退出码 `47`），满足“部分损坏/完全损坏双场景”可复现测试目标。
+- `T6.1`（`mode=replica` 指令接入与分支调度）已完成：
+  - `trepair.h/.c` 新增 `tRepairNeedRunReplicaRepair()`，统一 replica 分支调度判定：
+    - 规则：`nodeType=vnode && mode=replica` 时返回 `needRun=true`；
+    - 其余模式返回 `false`，并保持与 `NeedRun*ForceRepair` 接口风格一致。
+  - `dmMain.c` 新增 `dmRunReplicaRepair()` 并接入 `dmRunRepairWorkflow()`：
+    - 在 backup 阶段后、force 分支前执行 replica 调度；
+    - 写入 `repair.state.json(step=replica,status=running)`；
+    - 输出并落盘 `replica dispatch detail` 与 `step=replica` 进度行（当前为 stub，不含 T6.2 的降级动作）。
+  - 当前行为边界：
+    - `mode=replica` 已显式进入独立分支，不再依赖“force 分支全部跳过”的隐式空跑；
+    - 真实坏副本降级/版本任期策略仍留待 `T6.2` 实现。
+  - 验证结果：
+    - Red 证据：`commonTest` 构建报错 `tRepairNeedRunReplicaRepair` 未声明；
+    - Green 后定向单测通过（5/5，含 `NeedRunReplicaRepair` 与 invalid-args）；
+    - `ctest -R commonTest` 与 `cmake --build debug --target taosd` 通过；
+    - `mode=replica` smoke 样本通过：输出命中 `step=replica` + 成功摘要，`repair.log` 命中 `replica dispatch detail`，退出码 `47`。

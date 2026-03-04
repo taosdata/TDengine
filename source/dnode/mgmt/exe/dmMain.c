@@ -596,6 +596,80 @@ static void taosCleanupArgs() {
   if (global.envCmd != NULL) taosMemoryFreeClear(global.envCmd);
 }
 
+static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressIntervalMs, int64_t *pLastProgressReportMs,
+                                  bool *pNeedReport, char *progressLine, int32_t progressLineSize) {
+  if (pLastProgressReportMs == NULL || pNeedReport == NULL || progressLine == NULL || progressLineSize <= 0) {
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  int32_t code = 0;
+  bool    needRunReplicaRepair = false;
+  code = tRepairNeedRunReplicaRepair(&global.repairCtx, &needRunReplicaRepair);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to determine replica repair schedule since %s", tstrerror(code));
+    printf("failed repair replica scheduling: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  if (!needRunReplicaRepair) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t replicaDoneVnodes = totalVnodes > 0 ? totalVnodes : 0;
+  code =
+      tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "replica", "running", replicaDoneVnodes,
+                               totalVnodes);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to write replica repair state since %s", tstrerror(code));
+    printf("failed repair replica scheduling: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  char dispatchLog[PATH_MAX] = {0};
+  int32_t dispatchLogLen = tsnprintf(dispatchLog, sizeof(dispatchLog), "replica dispatch detail: vnodeTargets=%d "
+                                                                      "replicaNode=%s (stub mode)",
+                                     global.repairCtx.vnodeIdNum,
+                                     global.repairCtx.hasReplicaNode ? global.repairCtx.replicaNode : "auto");
+  if (dispatchLogLen <= 0 || dispatchLogLen >= (int32_t)sizeof(dispatchLog)) {
+    tstrncpy(dispatchLog, "replica dispatch detail unavailable", sizeof(dispatchLog));
+  }
+  code = tRepairAppendSessionLog(global.repairLogPath, dispatchLog);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to append replica dispatch log since %s", tstrerror(code));
+    printf("failed repair replica scheduling: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  code = tRepairNeedReportProgress(taosGetTimestampMs(), repairProgressIntervalMs, pLastProgressReportMs, pNeedReport);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to update replica repair progress interval since %s", tstrerror(code));
+    printf("failed repair replica scheduling: %s\n", tstrerror(code));
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  if (*pNeedReport || replicaDoneVnodes == totalVnodes) {
+    code =
+        tRepairBuildProgressLine(&global.repairCtx, "replica", replicaDoneVnodes, totalVnodes, progressLine,
+                                 progressLineSize);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to build replica repair progress line since %s", tstrerror(code));
+      printf("failed repair replica scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    dInfo("%s", progressLine);
+    printf("%s\n", progressLine);
+    code = tRepairAppendSessionLog(global.repairLogPath, progressLine);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to append replica repair progress log since %s", tstrerror(code));
+      printf("failed repair replica scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t dmRunForceWalRepair(int32_t totalVnodes, int64_t repairProgressIntervalMs, int64_t *pLastProgressReportMs,
                                    bool *pNeedReport, char *progressLine, int32_t progressLineSize) {
   if (pLastProgressReportMs == NULL || pNeedReport == NULL || progressLine == NULL || progressLineSize <= 0) {
@@ -966,6 +1040,124 @@ static int32_t dmRunForceTsdbRepair(int32_t totalVnodes, int64_t repairProgressI
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t dmAppendMetaMissingMarkerLog(int32_t vnodeId, const SRepairMetaScanResult *pScanResult) {
+  if (pScanResult == NULL) {
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  char    missingMark[REPAIR_META_MAX_MISSING_FILES * REPAIR_META_FILE_NAME_LEN] = {0};
+  int32_t code = tRepairBuildMetaMissingFileMark(pScanResult, missingMark, sizeof(missingMark));
+  if (code != TSDB_CODE_SUCCESS) {
+    tstrncpy(missingMark, "unknown", sizeof(missingMark));
+  }
+
+  char markerLog[640] = {0};
+  int32_t markerLogLen =
+      tsnprintf(markerLog, sizeof(markerLog), "meta missing marker: vnode=%d missing=%s", vnodeId, missingMark);
+  if (markerLogLen <= 0 || markerLogLen >= (int32_t)sizeof(markerLog)) {
+    tstrncpy(markerLog, "meta missing marker unavailable", sizeof(markerLog));
+  }
+
+  return tRepairAppendSessionLog(global.repairLogPath, markerLog);
+}
+
+static int32_t dmAppendMetaInferenceDetailLog(int32_t vnodeId, const SRepairMetaScanResult *pScanResult,
+                                              const SRepairMetaInferenceReport *pInferReport, bool recoverable) {
+  if (pScanResult == NULL || pInferReport == NULL) {
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  char    missingMark[REPAIR_META_MAX_MISSING_FILES * REPAIR_META_FILE_NAME_LEN] = {0};
+  int32_t code = tRepairBuildMetaMissingFileMark(pScanResult, missingMark, sizeof(missingMark));
+  if (code != TSDB_CODE_SUCCESS) {
+    tstrncpy(missingMark, "unknown", sizeof(missingMark));
+  }
+
+  const char *prefix = recoverable ? "meta infer detail" : "meta unrecoverable detail";
+  char        inferLog[768] = {0};
+  int32_t inferLogLen = tsnprintf(inferLog, sizeof(inferLog),
+                                  "%s: vnode=%d missing=%s walEvidence=%d tsdbRecoverable=%d rules=%d", prefix, vnodeId,
+                                  missingMark, pInferReport->walEvidenceFiles, pInferReport->tsdbRecoverableBlocks,
+                                  pInferReport->inferredRules);
+  if (inferLogLen <= 0 || inferLogLen >= (int32_t)sizeof(inferLog)) {
+    tstrncpy(inferLog, "meta inference detail unavailable", sizeof(inferLog));
+  }
+
+  return tRepairAppendSessionLog(global.repairLogPath, inferLog);
+}
+
+static int32_t dmAppendMetaRebuildDetailLog(int32_t vnodeId, const SRepairMetaScanResult *pRebuildResult) {
+  if (pRebuildResult == NULL) {
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  char rebuildLog[192] = {0};
+  int32_t rebuildLogLen =
+      tsnprintf(rebuildLog, sizeof(rebuildLog),
+                "meta rebuild detail: vnode=%d required=%d presentRequired=%d optional=%d missingRequired=%d", vnodeId,
+                pRebuildResult->requiredFiles, pRebuildResult->presentRequiredFiles, pRebuildResult->optionalIndexFiles,
+                pRebuildResult->missingRequiredFiles);
+  if (rebuildLogLen <= 0 || rebuildLogLen >= (int32_t)sizeof(rebuildLog)) {
+    tstrncpy(rebuildLog, "meta rebuild detail unavailable", sizeof(rebuildLog));
+  }
+
+  return tRepairAppendSessionLog(global.repairLogPath, rebuildLog);
+}
+
+static void dmHandleMetaRepairRollback(int32_t vnodeId, int32_t doneVnodes, int32_t totalVnodes) {
+  int32_t rollbackCode = tRepairRollbackVnodeTarget(&global.repairCtx, tsDataDir, vnodeId);
+  if (rollbackCode != TSDB_CODE_SUCCESS) {
+    dError("failed to rollback meta repair for vnode:%d since %s", vnodeId, tstrerror(rollbackCode));
+    (void)tRepairAppendSessionLog(global.repairLogPath, "meta repair rollback failed");
+  } else {
+    char rollbackLog[128] = {0};
+    int32_t rollbackLogLen = tsnprintf(rollbackLog, sizeof(rollbackLog), "rolled back meta for vnode:%d", vnodeId);
+    if (rollbackLogLen <= 0 || rollbackLogLen >= (int32_t)sizeof(rollbackLog)) {
+      tstrncpy(rollbackLog, "rolled back meta repair", sizeof(rollbackLog));
+    }
+    (void)tRepairAppendSessionLog(global.repairLogPath, rollbackLog);
+  }
+
+  (void)tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "meta", "failed", doneVnodes, totalVnodes);
+}
+
+static int32_t dmRebuildAndActivateMeta(int32_t vnodeId, int32_t doneVnodes, int32_t totalVnodes,
+                                        SRepairMetaScanResult *pRebuildResult) {
+  if (pRebuildResult == NULL) {
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  char    metaPath[PATH_MAX] = {0};
+  int32_t code = tRepairBuildVnodeTargetPath(tsDataDir, vnodeId, REPAIR_FILE_TYPE_META, metaPath, sizeof(metaPath));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  char rebuildDir[PATH_MAX] = {0};
+  int32_t rebuildDirLen = tsnprintf(rebuildDir, sizeof(rebuildDir), "%s.rebuild", metaPath);
+  if (rebuildDirLen <= 0 || rebuildDirLen >= (int32_t)sizeof(rebuildDir)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  code = tRepairRebuildMetaFiles(&global.repairCtx, tsDataDir, vnodeId, rebuildDir, pRebuildResult);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (taosDirExist(metaPath)) {
+    taosRemoveDir(metaPath);
+  }
+
+  if (taosRenameFile(rebuildDir, metaPath) != 0) {
+    int32_t renameCode = terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+    dError("failed to switch meta rebuild output for vnode:%d since %s", vnodeId, tstrerror(renameCode));
+    dmHandleMetaRepairRollback(vnodeId, doneVnodes, totalVnodes);
+    return renameCode;
+  }
+
+  return dmAppendMetaRebuildDetailLog(vnodeId, pRebuildResult);
+}
+
 static int32_t dmRunForceMetaRepair(int32_t totalVnodes, int64_t repairProgressIntervalMs, int64_t *pLastProgressReportMs,
                                     bool *pNeedReport, char *progressLine, int32_t progressLineSize) {
   if (pLastProgressReportMs == NULL || pNeedReport == NULL || progressLine == NULL || progressLineSize <= 0) {
@@ -1018,28 +1210,58 @@ static int32_t dmRunForceMetaRepair(int32_t totalVnodes, int64_t repairProgressI
       return TSDB_CODE_INVALID_CFG;
     }
 
-    SRepairMetaScanResult scanResult = {0};
+    SRepairMetaScanResult      scanResult = {0};
+    SRepairMetaInferenceReport inferReport = {0};
     code = tRepairScanMetaFiles(&global.repairCtx, tsDataDir, vnodeId, &scanResult);
+    if (code == TSDB_CODE_SUCCESS) {
+      char metaDetailLog[192] = {0};
+      int32_t metaDetailLen =
+          tsnprintf(metaDetailLog, sizeof(metaDetailLog),
+                    "meta scan detail: vnode=%d required=%d presentRequired=%d optional=%d missingRequired=%d", vnodeId,
+                    scanResult.requiredFiles, scanResult.presentRequiredFiles, scanResult.optionalIndexFiles,
+                    scanResult.missingRequiredFiles);
+      if (metaDetailLen <= 0 || metaDetailLen >= (int32_t)sizeof(metaDetailLog)) {
+        tstrncpy(metaDetailLog, "meta scan detail unavailable", sizeof(metaDetailLog));
+      }
+      code = tRepairAppendSessionLog(global.repairLogPath, metaDetailLog);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to append meta scan detail log for vnode:%d since %s", vnodeId, tstrerror(code));
+        printf("failed repair meta scheduling: %s\n", tstrerror(code));
+        return TSDB_CODE_INVALID_CFG;
+      }
+    } else {
+      int32_t scanCode = code;
+      code = dmAppendMetaMissingMarkerLog(vnodeId, &scanResult);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to append meta missing marker log for vnode:%d since %s", vnodeId, tstrerror(code));
+        printf("failed repair meta scheduling: %s\n", tstrerror(code));
+        return TSDB_CODE_INVALID_CFG;
+      }
+
+      int32_t inferCode = tRepairInferMetaFromWalTsdb(&global.repairCtx, tsDataDir, vnodeId, &inferReport);
+      code = dmAppendMetaInferenceDetailLog(vnodeId, &scanResult, &inferReport, inferCode == TSDB_CODE_SUCCESS);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to append meta inference detail log for vnode:%d since %s", vnodeId, tstrerror(code));
+        printf("failed repair meta scheduling: %s\n", tstrerror(code));
+        return TSDB_CODE_INVALID_CFG;
+      }
+
+      if (inferCode != TSDB_CODE_SUCCESS) {
+        (void)tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "meta", "failed", metaDoneVnodes,
+                                       totalVnodes);
+        dError("failed to infer meta for vnode:%d, scanCode:%s inferCode:%s", vnodeId, tstrerror(scanCode),
+               tstrerror(inferCode));
+        printf("failed repair meta scheduling: %s\n", tstrerror(scanCode));
+        return TSDB_CODE_INVALID_CFG;
+      }
+    }
+
+    SRepairMetaScanResult rebuildResult = {0};
+    code = dmRebuildAndActivateMeta(vnodeId, metaDoneVnodes, totalVnodes, &rebuildResult);
     if (code != TSDB_CODE_SUCCESS) {
       (void)tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "meta", "failed", metaDoneVnodes,
                                      totalVnodes);
-      dError("failed to scan meta files for vnode:%d since %s", vnodeId, tstrerror(code));
-      printf("failed repair meta scheduling: %s\n", tstrerror(code));
-      return TSDB_CODE_INVALID_CFG;
-    }
-
-    char metaDetailLog[192] = {0};
-    int32_t metaDetailLen =
-        tsnprintf(metaDetailLog, sizeof(metaDetailLog),
-                  "meta scan detail: vnode=%d required=%d presentRequired=%d optional=%d missingRequired=%d", vnodeId,
-                  scanResult.requiredFiles, scanResult.presentRequiredFiles, scanResult.optionalIndexFiles,
-                  scanResult.missingRequiredFiles);
-    if (metaDetailLen <= 0 || metaDetailLen >= (int32_t)sizeof(metaDetailLog)) {
-      tstrncpy(metaDetailLog, "meta scan detail unavailable", sizeof(metaDetailLog));
-    }
-    code = tRepairAppendSessionLog(global.repairLogPath, metaDetailLog);
-    if (code != TSDB_CODE_SUCCESS) {
-      dError("failed to append meta scan detail log for vnode:%d since %s", vnodeId, tstrerror(code));
+      dError("failed to rebuild meta for vnode:%d since %s", vnodeId, tstrerror(code));
       printf("failed repair meta scheduling: %s\n", tstrerror(code));
       return TSDB_CODE_INVALID_CFG;
     }
@@ -1055,9 +1277,9 @@ static int32_t dmRunForceMetaRepair(int32_t totalVnodes, int64_t repairProgressI
     }
 
     char metaLog[128] = {0};
-    int32_t metaLogLen = tsnprintf(metaLog, sizeof(metaLog), "finished force meta scan for vnode:%d", vnodeId);
+    int32_t metaLogLen = tsnprintf(metaLog, sizeof(metaLog), "finished force meta repair for vnode:%d", vnodeId);
     if (metaLogLen <= 0 || metaLogLen >= (int32_t)sizeof(metaLog)) {
-      tstrncpy(metaLog, "finished force meta scan", sizeof(metaLog));
+      tstrncpy(metaLog, "finished force meta repair", sizeof(metaLog));
     }
     code = tRepairAppendSessionLog(global.repairLogPath, metaLog);
     if (code != TSDB_CODE_SUCCESS) {
@@ -1096,6 +1318,44 @@ static int32_t dmRunForceMetaRepair(int32_t totalVnodes, int64_t repairProgressI
   return TSDB_CODE_SUCCESS;
 }
 
+static void dmReportMetaPrecheckInferenceDetail(void) {
+  bool    needRunMetaForceRepair = false;
+  int32_t code = tRepairNeedRunMetaForceRepair(&global.repairCtx, &needRunMetaForceRepair);
+  if (code != TSDB_CODE_SUCCESS || !needRunMetaForceRepair) {
+    return;
+  }
+
+  for (int32_t i = 0; i < global.repairCtx.vnodeIdNum; ++i) {
+    int32_t                vnodeId = global.repairCtx.vnodeIds[i];
+    SRepairMetaScanResult  scanResult = {0};
+    SRepairMetaInferenceReport inferReport = {0};
+
+    int32_t scanCode = tRepairScanMetaFiles(&global.repairCtx, tsDataDir, vnodeId, &scanResult);
+    if (scanCode == TSDB_CODE_SUCCESS) {
+      continue;
+    }
+
+    int32_t inferCode = tRepairInferMetaFromWalTsdb(&global.repairCtx, tsDataDir, vnodeId, &inferReport);
+    char    missingMark[REPAIR_META_MAX_MISSING_FILES * REPAIR_META_FILE_NAME_LEN] = {0};
+    code = tRepairBuildMetaMissingFileMark(&scanResult, missingMark, sizeof(missingMark));
+    if (code != TSDB_CODE_SUCCESS) {
+      tstrncpy(missingMark, "unknown", sizeof(missingMark));
+    }
+
+    const char *prefix = inferCode == TSDB_CODE_SUCCESS ? "meta infer detail" : "meta unrecoverable detail";
+    char        line[768] = {0};
+    int32_t lineLen = tsnprintf(line, sizeof(line),
+                                "%s: vnode=%d missing=%s walEvidence=%d tsdbRecoverable=%d rules=%d", prefix, vnodeId,
+                                missingMark, inferReport.walEvidenceFiles, inferReport.tsdbRecoverableBlocks,
+                                inferReport.inferredRules);
+    if (lineLen <= 0 || lineLen >= (int32_t)sizeof(line)) {
+      tstrncpy(line, "meta precheck detail unavailable", sizeof(line));
+    }
+    dInfo("%s", line);
+    printf("%s\n", line);
+  }
+}
+
 static int32_t dmRunRepairWorkflow(void) {
   const int64_t kRepairProgressIntervalMs = 3000;
   int64_t       lastProgressReportMs = 0;
@@ -1107,6 +1367,7 @@ static int32_t dmRunRepairWorkflow(void) {
   char          progressLine[PATH_MAX] = {0};
   int32_t       code = tRepairPrecheck(&global.repairCtx, tsDataDir, minDiskAvailBytes);
   if (code != TSDB_CODE_SUCCESS) {
+    dmReportMetaPrecheckInferenceDetail();
     dError("failed to run repair precheck since %s", tstrerror(code));
     printf("failed repair precheck: %s\n", tstrerror(code));
     return TSDB_CODE_INVALID_CFG;
@@ -1267,6 +1528,12 @@ static int32_t dmRunRepairWorkflow(void) {
         }
       }
     }
+  }
+
+  code = dmRunReplicaRepair(totalVnodes, kRepairProgressIntervalMs, &lastProgressReportMs, &needReport, progressLine,
+                            sizeof(progressLine));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   code = dmRunForceWalRepair(totalVnodes, kRepairProgressIntervalMs, &lastProgressReportMs, &needReport, progressLine,

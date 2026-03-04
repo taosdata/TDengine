@@ -1,9 +1,9 @@
 # 数据修复工具开发进度日志
 
 ## 当前检查点
-- 日期：`2026-03-03`
-- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成，`P4` 已完成，`P5` 进行中（`T5.1` 完成，`T5.2` 进行中）。
-- 下一任务：`T5.2`（WAL/TSDB 反向推导元数据规则实现：第一批规则）。
+- 日期：`2026-03-04`
+- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成，`P4` 已完成，`P5` 已完成，`P6` 进行中（`T6.1` 完成，`T6.2` 进行中）。
+- 下一任务：`T6.2`（本地坏副本降级动作：不可用标记 + 版本/任期策略）。
 - 恢复入口：先读 `task_plan.md`，再读 `findings.md`，最后读本文件。
 
 ## 会话日志
@@ -153,6 +153,36 @@
 | 2026-03-03 23:44 | T5.1 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
 | 2026-03-03 23:46 | T5.1 运行验证 | 使用临时数据目录执行 `taosd -r --file-type meta --mode force`，输出 `step=meta` 进度与成功摘要，且备份目录包含 `table.db/schema.db/uid.idx/name.idx` 等元数据文件 |
 | 2026-03-03 23:46 | T5.1 收尾 | 已将 `task_plan.md` 中 `T5.1` 更新为 `completed`，下一入口切换为 `T5.2`（`in_progress`） |
+| 2026-03-04 00:05 | T5.2 Red 阶段开始 | 已在 `commonTests.cpp` 新增 `InferMetaFromWalTsdb*` 与 `PrecheckMetaFallbackToInferenceSuccess` 用例，先验证接口缺失导致的编译失败 |
+| 2026-03-04 00:07 | T5.2 Green 实现 | `trepair.h/.c` 新增 `SRepairMetaInferenceReport` 与 `tRepairInferMetaFromWalTsdb()`；`tRepairPrecheck()` 在 `meta` 缺失场景回退推导；`dmMain.c` 的 `dmRunForceMetaRepair()` 增加推导兜底并写入 `meta infer detail` |
+| 2026-03-04 00:12 | T5.2 定向验证 | `cmake --build debug -j8 --target commonTest` 通过；`ASAN_OPTIONS=detect_leaks=0 ./debug/build/bin/commonTest --gtest_filter='RepairOptionParseTest.ScanMetaFiles*:RepairOptionParseTest.NeedRunMetaForceRepair:RepairOptionParseTest.InferMetaFromWalTsdb*:RepairOptionParseTest.PrecheckMetaFallbackToInferenceSuccess'` 通过（8/8） |
+| 2026-03-04 00:13 | T5.2 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
+| 2026-03-04 00:15 | T5.2 Smoke 验证（meta 完整） | 最小样本验证通过：`step=meta` 进度与成功摘要命中，`repair.log` 包含 `meta scan detail`；`taosd` 退出码 `47`（流程级成功） |
+| 2026-03-04 00:16 | T5.2 Smoke 验证（meta 缺文件+证据） | 最小样本验证通过：未出现 precheck fail-fast，`step=meta` 与成功摘要命中，`repair.log` 包含 `meta infer detail`；`taosd` 退出码 `47` |
+| 2026-03-04 00:17 | T5.2 收尾 | 已将 `task_plan.md` 中 `T5.2` 更新为 `completed`，下一入口切换为 `T5.3`（`in_progress`） |
+| 2026-03-04 00:22 | T5.3 Red 阶段开始 | 新增 `BuildMetaMissingFileMark*` 测试，先通过编译失败验证缺失接口 |
+| 2026-03-04 00:24 | T5.3 Red 验证 | `cmake --build debug -j8 --target commonTest` 失败，报错 `tRepairBuildMetaMissingFileMark` 未声明，符合先测后码预期 |
+| 2026-03-04 00:30 | T5.3 Green 实现 | `trepair.h/.c` 新增 `tRepairBuildMetaMissingFileMark()`；`dmMain.c` 新增 `meta missing marker` 与 `meta unrecoverable detail` 日志路径，并把新增逻辑拆分为独立 helper 函数，避免继续膨胀主流程函数 |
+| 2026-03-04 00:32 | T5.3 定向验证 | `ASAN_OPTIONS=detect_leaks=0 ./debug/build/bin/commonTest --gtest_filter='RepairOptionParseTest.BuildMetaMissingFileMark*:RepairOptionParseTest.ScanMetaFiles*:RepairOptionParseTest.NeedRunMetaForceRepair:RepairOptionParseTest.InferMetaFromWalTsdb*:RepairOptionParseTest.PrecheckMetaFallbackToInferenceSuccess'` 通过（10/10） |
+| 2026-03-04 00:33 | T5.3 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
+| 2026-03-04 00:37 | T5.3 Smoke 验证（完整/可推导/不可推导） | 三场景通过：`meta` 完整（成功摘要）、`meta` 缺文件+wal 证据（`repair.log` 命中 `meta missing marker` + `meta infer detail`）、`meta` 缺文件无证据（输出 `meta unrecoverable detail` 并 precheck 失败，退出码 `25`） |
+| 2026-03-04 00:38 | T5.3 收尾 | 已将 `task_plan.md` 中 `T5.3` 更新为 `completed`，下一入口切换为 `T5.4`（`in_progress`） |
+| 2026-03-04 01:02 | T5.4 Red 验证 | `cmake --build debug -j8 --target commonTest` 失败，报错 `tRepairRebuildMetaFiles` 未声明，符合先测后码预期 |
+| 2026-03-04 01:10 | T5.4 Green 实现 | `trepair.h/.c` 新增 `tRepairRebuildMetaFiles()`（拷贝现有 META 并补齐必需文件）；`dmMain.c` 接入 `force+meta` 的 `rebuild -> rename` 切换、失败回滚与 `meta rebuild detail` 日志，并通过 helper 继续控制主流程函数体量 |
+| 2026-03-04 01:18 | T5.4 定向验证 | `ASAN_OPTIONS=detect_leaks=0 ./debug/build/bin/commonTest --gtest_filter='RepairOptionParseTest.RebuildMetaFiles*:RepairOptionParseTest.ScanMetaFiles*:RepairOptionParseTest.InferMetaFromWalTsdb*:RepairOptionParseTest.BuildMetaMissingFileMark*:RepairOptionParseTest.PrecheckMetaFallbackToInferenceSuccess'` 通过（11/11） |
+| 2026-03-04 01:19 | T5.4 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
+| 2026-03-04 01:23 | T5.4 Smoke 验证（完整/可推导） | 两场景通过：完整场景与缺文件+wal 证据场景均命中 `step=meta` + 成功摘要（退出码 `47`），`repair.log` 命中 `meta rebuild detail`；可推导场景额外命中 `meta missing marker` + `meta infer detail` |
+| 2026-03-04 01:24 | T5.4 收尾 | 已将 `task_plan.md` 中 `T5.4` 更新为 `completed`，下一入口切换为 `T5.5`（`in_progress`） |
+| 2026-03-04 01:28 | T5.5 Red 验证 | `bash tests/ci/repair_meta_force.sh` 失败（脚本不存在，退出码 `127`），符合先测后码预期 |
+| 2026-03-04 01:33 | T5.5 Green 实现 | 新增 `tests/ci/repair_meta_force.sh`，覆盖“部分损坏 + 完全损坏（均带 wal 证据）”双场景，校验 `step=meta` 进度/成功摘要、`meta missing marker`/`meta infer detail`/`meta rebuild detail` 日志以及必需文件补齐 |
+| 2026-03-04 01:34 | T5.5 定向验证 | `bash tests/ci/repair_meta_force.sh` 通过：`meta-partial` 与 `meta-complete` 场景均成功（`taosd` 退出码 `47`） |
+| 2026-03-04 01:35 | T5.5 收尾 | 已将 `task_plan.md` 中 `T5.5` 更新为 `completed`，`P5` 标记为 `completed`，下一入口切换为 `T6.1`（`in_progress`） |
+| 2026-03-04 01:39 | T6.1 Red 验证 | 在 `commonTests.cpp` 新增 `NeedRunReplicaRepair*` 后执行 `cmake --build debug -j8 --target commonTest` 失败，报错 `tRepairNeedRunReplicaRepair` 未声明，符合先测后码预期 |
+| 2026-03-04 01:45 | T6.1 Green 实现 | `trepair.h/.c` 新增 `tRepairNeedRunReplicaRepair()`；`dmMain.c` 新增 `dmRunReplicaRepair()` 并接入 `dmRunRepairWorkflow()`，实现 `mode=replica` 的显式分支调度、状态落盘与 `replica dispatch detail` 日志（stub） |
+| 2026-03-04 01:47 | T6.1 定向验证 | `ASAN_OPTIONS=detect_leaks=0 ./debug/build/bin/commonTest --gtest_filter='RepairOptionParseTest.NeedRunWalForceRepair:RepairOptionParseTest.NeedRunTsdbForceRepair:RepairOptionParseTest.NeedRunMetaForceRepair:RepairOptionParseTest.NeedRunReplicaRepair*'` 通过（5/5） |
+| 2026-03-04 01:48 | T6.1 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
+| 2026-03-04 01:49 | T6.1 Smoke 验证（replica 分支） | `mode=replica` 最小样本验证通过：输出命中 `step=replica` 100% 进度与成功摘要，`repair.log` 命中 `replica dispatch detail`；`taosd` 退出码 `47` |
+| 2026-03-04 01:50 | T6.1 收尾 | 已将 `task_plan.md` 中 `T6.1` 更新为 `completed`，下一入口切换为 `T6.2`（`in_progress`） |
 
 ## 已落盘文档
 - `task_plan.md`
