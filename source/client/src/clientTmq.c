@@ -292,6 +292,8 @@ typedef struct {
   STqOffsetVal seekOffset;
   int64_t      numOfRows;
   int32_t      vgStatus;
+  int64_t      walVerBegin;
+  int64_t      walVerEnd;
 } SVgroupSaveInfo;
 
 static   TdThreadOnce   tmqInit = PTHREAD_ONCE_INIT;  // initialize only once
@@ -1304,6 +1306,8 @@ static void initClientTopicFromRsp(SMqClientTopic* pTopic, SMqSubTopicEp* pTopic
       tOffsetCopy(&clientVg.offsetInfo.endOffset, &pInfo->currentOffset);
       tOffsetCopy(&clientVg.offsetInfo.committedOffset, &pInfo->commitOffset);
       tOffsetCopy(&clientVg.offsetInfo.beginOffset, &pInfo->seekOffset);
+      clientVg.offsetInfo.walVerBegin = pInfo->walVerBegin;
+      clientVg.offsetInfo.walVerEnd = pInfo->walVerEnd;
     } else {
       clientVg.offsetInfo.endOffset = offsetNew;
       clientVg.offsetInfo.committedOffset = offsetNew;
@@ -1350,7 +1354,10 @@ static void buildNewTopicList(tmq_t* tmq, SArray* newTopics, const SMqAskEpRsp* 
             .seekOffset = pVgCur->offsetInfo.beginOffset,
             .commitOffset = pVgCur->offsetInfo.committedOffset,
             .numOfRows = pVgCur->numOfRows,
-            .vgStatus = pVgCur->vgStatus};
+            .vgStatus = pVgCur->vgStatus,
+            .walVerBegin = pVgCur->offsetInfo.walVerBegin,
+            .walVerEnd = pVgCur->offsetInfo.walVerEnd
+        };
         if (taosHashPut(pVgOffsetHashMap, vgKey, strlen(vgKey), &info, sizeof(SVgroupSaveInfo)) != 0) {
           tqErrorC("consumer:0x%" PRIx64 ", failed to put vg:%d into hashmap", tmq->consumerId, pVgCur->vgId);
         }
@@ -2454,10 +2461,11 @@ static int32_t processMqRspError(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
 
   tqErrorC("consumer:0x%" PRIx64 " msg from vgId:%d discarded, since %s", tmq->consumerId, pollRspWrapper->vgId,
     tstrerror(pRspWrapper->code));
-  if (pRspWrapper->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {  // for vnode transform
-    code = askEp(tmq, NULL, false, true);
-    if (code != 0) {
-      tqErrorC("consumer:0x%" PRIx64 " failed to ask ep when vnode transform, code:%s", tmq->consumerId, tstrerror(code));
+  if (pRspWrapper->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||   // for vnode transform
+      pRspWrapper->code == TSDB_CODE_SYN_NOT_LEADER) {          // for vnode split
+    int32_t ret = askEp(tmq, NULL, false, true);
+    if (ret != 0) {
+      tqErrorC("consumer:0x%" PRIx64 " failed to ask ep wher vnode transform, ret:%s", tmq->consumerId, tstrerror(ret));
     }
   } else if (pRspWrapper->code == TSDB_CODE_TMQ_CONSUMER_MISMATCH) {
     code = syncAskEp(tmq);
