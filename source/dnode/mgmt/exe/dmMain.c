@@ -828,6 +828,27 @@ static int32_t dmRunCopyRepair(int32_t totalVnodes, int64_t repairProgressInterv
   for (int32_t i = 0; i < global.repairCtx.vnodeIdNum; ++i) {
     int32_t vnodeId = global.repairCtx.vnodeIds[i];
 
+    char copyBackupDir[PATH_MAX] = {0};
+    code = tRepairBackupVnodeTarget(&global.repairCtx, tsDataDir, vnodeId, copyBackupDir, sizeof(copyBackupDir));
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to backup copy target for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair copy scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    char backupLog[PATH_MAX] = {0};
+    int32_t backupLogLen =
+        tsnprintf(backupLog, sizeof(backupLog), "prepared copy backup for vnode:%d path:%s", vnodeId, copyBackupDir);
+    if (backupLogLen <= 0 || backupLogLen >= (int32_t)sizeof(backupLog)) {
+      tstrncpy(backupLog, "prepared copy backup", sizeof(backupLog));
+    }
+    code = tRepairAppendSessionLog(global.repairLogPath, backupLog);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to append copy backup log for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair copy scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
     code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "copy", "running", copyDoneVnodes,
                                     totalVnodes);
     if (code != TSDB_CODE_SUCCESS) {
@@ -845,6 +866,21 @@ static int32_t dmRunCopyRepair(int32_t totalVnodes, int64_t repairProgressInterv
                                      totalVnodes);
       dError("failed to copy vnode:%d from replica:%s path:%s since %s", vnodeId, replicaHost, replicaDataDir,
              tstrerror(code));
+
+      int32_t rollbackCode = tRepairRollbackVnodeTarget(&global.repairCtx, tsDataDir, vnodeId);
+      if (rollbackCode != TSDB_CODE_SUCCESS) {
+        dError("failed to rollback copy repair for vnode:%d since %s", vnodeId, tstrerror(rollbackCode));
+        (void)tRepairAppendSessionLog(global.repairLogPath, "copy rollback detail: rollback failed");
+      } else {
+        char rollbackLog[128] = {0};
+        int32_t rollbackLogLen =
+            tsnprintf(rollbackLog, sizeof(rollbackLog), "copy rollback detail: rolled back vnode:%d", vnodeId);
+        if (rollbackLogLen <= 0 || rollbackLogLen >= (int32_t)sizeof(rollbackLog)) {
+          tstrncpy(rollbackLog, "copy rollback detail: rolled back vnode", sizeof(rollbackLog));
+        }
+        (void)tRepairAppendSessionLog(global.repairLogPath, rollbackLog);
+      }
+
       printf("failed repair copy scheduling: %s\n", tstrerror(code));
       return TSDB_CODE_INVALID_CFG;
     }
@@ -853,8 +889,8 @@ static int32_t dmRunCopyRepair(int32_t totalVnodes, int64_t repairProgressInterv
 
     char detailLog[PATH_MAX * 2] = {0};
     int32_t detailLogLen = tsnprintf(detailLog, sizeof(detailLog),
-                                     "copy replica detail: vnode=%d src=%s dst=%s transport=ssh-scp", vnodeId, srcPath,
-                                     dstPath);
+                                     "copy replica detail: vnode=%d src=%s dst=%s transport=ssh-scp consistency=verified",
+                                     vnodeId, srcPath, dstPath);
     if (detailLogLen <= 0 || detailLogLen >= (int32_t)sizeof(detailLog)) {
       tstrncpy(detailLog, "copy replica detail unavailable", sizeof(detailLog));
     }

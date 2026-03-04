@@ -1680,6 +1680,163 @@ int32_t tRepairBuildCopyScpCmd(const char *replicaHost, const char *remoteTarget
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t tRepairBuildCopySshStatCmd(const char *replicaHost, const char *remoteTargetPath, char *cmd,
+                                          int32_t cmdSize) {
+  if (replicaHost == NULL || replicaHost[0] == '\0' || remoteTargetPath == NULL || remoteTargetPath[0] == '\0' ||
+      cmd == NULL || cmdSize <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  const char *sshBin = tRepairResolveCopyBin(REPAIR_COPY_SSH_BIN_ENV, REPAIR_COPY_DEFAULT_SSH);
+  if (sshBin == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t len = tsnprintf(cmd, cmdSize, "%s -o BatchMode=yes -o StrictHostKeyChecking=no %s \"stat -c '%%u %%g %%a' '%s'\"",
+                          sshBin, replicaHost, remoteTargetPath);
+  if (len <= 0 || len >= cmdSize) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tRepairParseCopyOwnershipMeta(const char *metaLine, int32_t *uid, int32_t *gid, int32_t *mode) {
+  if (metaLine == NULL || metaLine[0] == '\0' || uid == NULL || gid == NULL || mode == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char metaBuf[128] = {0};
+  tstrncpy(metaBuf, metaLine, sizeof(metaBuf));
+
+  char *savePtr = NULL;
+  char *uidToken = strtok_r(metaBuf, " \t", &savePtr);
+  char *gidToken = strtok_r(NULL, " \t", &savePtr);
+  char *modeToken = strtok_r(NULL, " \t", &savePtr);
+  char *extraToken = strtok_r(NULL, " \t", &savePtr);
+  if (uidToken == NULL || gidToken == NULL || modeToken == NULL || extraToken != NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  errno = 0;
+  char   *end = NULL;
+  int32_t parsedUid = taosStr2Int32(uidToken, &end, 10);
+  if (errno != 0 || end == NULL || *end != '\0' || parsedUid < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  errno = 0;
+  end = NULL;
+  int32_t parsedGid = taosStr2Int32(gidToken, &end, 10);
+  if (errno != 0 || end == NULL || *end != '\0' || parsedGid < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  errno = 0;
+  end = NULL;
+  int32_t parsedMode = taosStr2Int32(modeToken, &end, 10);
+  if (errno != 0 || end == NULL || *end != '\0' || parsedMode < 0 || parsedMode > 7777) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *uid = parsedUid;
+  *gid = parsedGid;
+  *mode = parsedMode;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tRepairBuildCopyFixOwnerPermCmd(int32_t uid, int32_t gid, int32_t mode, const char *localTargetPath,
+                                               char *cmd, int32_t cmdSize) {
+  if (uid < 0 || gid < 0 || mode < 0 || mode > 7777 || localTargetPath == NULL || localTargetPath[0] == '\0' ||
+      cmd == NULL || cmdSize <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t len = tsnprintf(cmd, cmdSize, "chown -R %d:%d '%s' && chmod %d '%s'", uid, gid, localTargetPath, mode,
+                          localTargetPath);
+  if (len <= 0 || len >= cmdSize) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tRepairBuildCopySshDigestCmd(const char *replicaHost, const char *remoteTargetPath, char *cmd,
+                                            int32_t cmdSize) {
+  if (replicaHost == NULL || replicaHost[0] == '\0' || remoteTargetPath == NULL || remoteTargetPath[0] == '\0' ||
+      cmd == NULL || cmdSize <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  const char *sshBin = tRepairResolveCopyBin(REPAIR_COPY_SSH_BIN_ENV, REPAIR_COPY_DEFAULT_SSH);
+  if (sshBin == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t len =
+      tsnprintf(cmd, cmdSize,
+                "%s -o BatchMode=yes -o StrictHostKeyChecking=no %s "
+                "\"find '%s' -type f -printf '%%P %%s\\\\n' | LC_ALL=C sort | md5sum | cut -d ' ' -f1\"",
+                sshBin, replicaHost, remoteTargetPath);
+  if (len <= 0 || len >= cmdSize) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tRepairBuildCopyLocalDigestCmd(const char *localTargetPath, char *cmd, int32_t cmdSize) {
+  if (localTargetPath == NULL || localTargetPath[0] == '\0' || cmd == NULL || cmdSize <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t len = tsnprintf(
+      cmd, cmdSize, "find '%s' -type f -printf '%%P %%s\\n' | LC_ALL=C sort | md5sum | cut -d ' ' -f1", localTargetPath);
+  if (len <= 0 || len >= cmdSize) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tRepairVerifyCopyConsistency(const char *replicaHost, const char *remoteTargetPath,
+                                            const char *localTargetPath) {
+  if (replicaHost == NULL || replicaHost[0] == '\0' || remoteTargetPath == NULL || remoteTargetPath[0] == '\0' ||
+      localTargetPath == NULL || localTargetPath[0] == '\0') {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char remoteDigestCmd[PATH_MAX * 8] = {0};
+  int32_t code = tRepairBuildCopySshDigestCmd(replicaHost, remoteTargetPath, remoteDigestCmd, sizeof(remoteDigestCmd));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  char localDigestCmd[PATH_MAX * 8] = {0};
+  code = tRepairBuildCopyLocalDigestCmd(localTargetPath, localDigestCmd, sizeof(localDigestCmd));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  char remoteDigest[128] = {0};
+  code = tRepairRunShellCommand(remoteDigestCmd, remoteDigest, sizeof(remoteDigest));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  char localDigest[128] = {0};
+  code = tRepairRunShellCommand(localDigestCmd, localDigest, sizeof(localDigest));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (remoteDigest[0] == '\0' || localDigest[0] == '\0') {
+    return TSDB_CODE_FAILED;
+  }
+
+  return strcmp(remoteDigest, localDigest) == 0 ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
+}
+
 int32_t tRepairDegradeReplicaVnode(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId, char *markerPath,
                                    int32_t markerPathSize) {
   if (pCtx == NULL || !pCtx->enabled || dataDir == NULL || dataDir[0] == '\0' || vnodeId < 0 || markerPath == NULL ||
@@ -2450,6 +2607,26 @@ int32_t tRepairSshScpCopyReplicaVnodeTarget(const SRepairCtx *pCtx, const char *
     return code;
   }
 
+  char sshStatCmd[PATH_MAX * 6] = {0};
+  code = tRepairBuildCopySshStatCmd(replicaHost, replicaTargetPath, sshStatCmd, sizeof(sshStatCmd));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  char remoteOwnershipMeta[128] = {0};
+  code = tRepairRunShellCommand(sshStatCmd, remoteOwnershipMeta, sizeof(remoteOwnershipMeta));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  int32_t remoteUid = 0;
+  int32_t remoteGid = 0;
+  int32_t remoteMode = 0;
+  code = tRepairParseCopyOwnershipMeta(remoteOwnershipMeta, &remoteUid, &remoteGid, &remoteMode);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
   code = tRepairResetDir(localTargetPath);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -2462,6 +2639,23 @@ int32_t tRepairSshScpCopyReplicaVnodeTarget(const SRepairCtx *pCtx, const char *
   }
 
   code = tRepairRunShellCommand(scpCmd, lastOutput, sizeof(lastOutput));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  char fixOwnerPermCmd[PATH_MAX * 6] = {0};
+  code = tRepairBuildCopyFixOwnerPermCmd(remoteUid, remoteGid, remoteMode, localTargetPath, fixOwnerPermCmd,
+                                         sizeof(fixOwnerPermCmd));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  code = tRepairRunShellCommand(fixOwnerPermCmd, lastOutput, sizeof(lastOutput));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  code = tRepairVerifyCopyConsistency(replicaHost, replicaTargetPath, localTargetPath);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }

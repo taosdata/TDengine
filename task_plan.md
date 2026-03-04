@@ -26,8 +26,8 @@
 
 ## 3. 当前状态（2026-03-04）
 - 当前阶段：`P0` 已完成（需求/代码勘察与任务拆解）。
-- 当前执行阶段：`P7` 进行中（`copy` 模式）。
-- 当前可执行入口：`T7.4`。
+- 当前执行阶段：`P8` 准备中（验证与发布准备）。
+- 当前可执行入口：`T8.1`。
 - 当前阻塞：无。
 
 ## 4. 阶段里程碑
@@ -40,7 +40,7 @@
 | P4 | `force + tsdb` | 交付 TSDB 块级修复编排 | TSDB 损坏样例修复后可启动/查询 | completed |
 | P5 | `force + meta` | 交付 META 修复 + 反向推导链路 | 元数据损坏样例可恢复可用子集 | completed |
 | P6 | `replica` 模式 | 触发副本全量同步恢复 | 多副本损坏节点可自动拉起恢复 | completed |
-| P7 | `copy` 模式 | 从指定副本节点拷贝文件恢复 | 大文件场景可快速恢复并校验权限 | in_progress |
+| P7 | `copy` 模式 | 从指定副本节点拷贝文件恢复 | 大文件场景可快速恢复并校验权限 | completed |
 | P8 | 验证与发布准备 | 系统测试矩阵、文档、回归、发布清单 | 用例通过，文档可交付 | pending |
 
 ## 5. 1 小时任务拆解（执行队列）
@@ -80,8 +80,8 @@
 | T7.1 | P7 | `--replica-node` 解析与目标合法性校验 | 45m | T1.4 | copy 模式参数完备 | completed |
 | T7.2 | P7 | 远端拷贝抽象层（先本地 mock） | 60m | T7.1 | 可测试接口 | completed |
 | T7.3 | P7 | SSH/SCP 实现并接入 copy 模式 | 60m | T7.2 | 远端拷贝可执行 | completed |
-| T7.4 | P7 | 覆盖写入后的权限/owner 修复逻辑 | 45m | T7.3 | 权限一致性 | pending |
-| T7.5 | P7 | copy 模式一致性校验与异常中断处理 | 60m | T7.4 | 可控失败行为 | pending |
+| T7.4 | P7 | 覆盖写入后的权限/owner 修复逻辑 | 45m | T7.3 | 权限一致性 | completed |
+| T7.5 | P7 | copy 模式一致性校验与异常中断处理 | 60m | T7.4 | 可控失败行为 | completed |
 | T8.1 | P8 | 损坏数据生成器（WAL/META/TSDB）自动脚本化 | 60m | T3.4,T4.5,T5.5 | 可复现实验数据 | pending |
 | T8.2 | P8 | 三模式系统测试矩阵与验收脚本 | 60m | T8.1 | 验收流水线 | pending |
 | T8.3 | P8 | 文档更新（中英）与运维手册示例 | 60m | T8.2 | 可发布文档 | pending |
@@ -114,3 +114,4 @@
 | 2026-03-04 | T6.4 回归验证 | `cmake --build debug --target commonTest taosd` 触发 `ext_pcre2` 外网更新失败 | 1 | 继续沿用“跳过外网更新，直接运行已编译二进制测试”的策略 | resolved |
 | 2026-03-04 | T7.1 回归验证 | `cmake --build debug --target taosd` 触发 `ext_pcre2` 外网更新失败 | 1 | 使用已批准前缀 `cmake --build` 升权重试后构建通过 | resolved |
 | 2026-03-04 | T7.2 回归验证 | `cmake --build debug --target taosd` 多次触发 `ext_pcre2` 外网更新失败 | 2 | 使用已批准前缀 `cmake --build` 升权重试后构建通过 | resolved |
+| 2026-03-04 | T7.5 Red/回归验证 | `cmake --build debug --target commonTest/taosd` 多次触发 `ext_pcre2` 外网更新失败 | 2 | 使用已批准前缀 `cmake --build` 升权重试后通过 | resolved |

@@ -2,8 +2,8 @@
 
 ## 当前检查点
 - 日期：`2026-03-04`
-- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成，`P4` 已完成，`P5` 已完成，`P6` 已完成，`P7` 进行中（`T7.1`、`T7.2`、`T7.3` 已完成）。
-- 下一任务：`T7.4`（覆盖写入后的权限/owner 修复逻辑）。
+- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成，`P4` 已完成，`P5` 已完成，`P6` 已完成，`P7` 已完成（`T7.1`~`T7.5` 全部完成）。
+- 下一任务：`T8.1`（损坏数据生成器自动脚本化）。
 - 恢复入口：先读 `task_plan.md`，再读 `findings.md`，最后读本文件。
 
 ## 会话日志
@@ -215,6 +215,20 @@
 | 2026-03-04 01:31 | T7.3 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug --target taosd` 通过 |
 | 2026-03-04 01:31 | T7.3 Smoke 验证（copy SSH/SCP） | 使用 `TAOS_REPAIR_SSH_BIN/TAOS_REPAIR_SCP_BIN` 注入本地 mock 命令完成端到端验证：`taosd` 退出码 `47`，本地 `wal/meta` 文件被远端内容覆盖、陈旧文件被清理，`repair.log` 命中 `copy dispatch detail` 与 `copy replica detail` |
 | 2026-03-04 01:31 | T7.3 收尾 | 已将 `task_plan.md` 中 `T7.3` 更新为 `completed`，下一入口切换为 `T7.4`（`pending`） |
+| 2026-03-04 01:33 | T7.4 阶段开始 | 已将 `task_plan.md` 中 `T7.4` 置为 `in_progress`，准备先补“copy 后 owner/权限修复”Red 用例 |
+| 2026-03-04 02:04 | T7.4 Red 验证 | `ASAN_OPTIONS=detect_leaks=0 ./debug/build/bin/commonTest --gtest_filter='RepairOptionParseTest.SshScpCopyReplicaVnodeTargetFixesOwnerAndPermission'` 失败：`localMeta=0 0 755` 与 `remoteMeta=0 0 700` 不一致，符合先测后码预期 |
+| 2026-03-04 02:09 | T7.4 Green 实现 | `trepair.c` 在 `tRepairSshScpCopyReplicaVnodeTarget()` 接入 owner/权限修复：新增远端 `ssh stat` 命令构造、`uid/gid/mode` 解析与本地 `chown -R + chmod` 命令构造，在 `scp` 成功后执行修复 |
+| 2026-03-04 02:10 | T7.4 定向验证 | `ASAN_OPTIONS=detect_leaks=0 ./debug/build/bin/commonTest --gtest_filter='RepairOptionParseTest.SshScpCopyReplicaVnodeTargetFixesOwnerAndPermission'` 通过（1/1） |
+| 2026-03-04 02:12 | T7.4 回归验证 | copy 相关定向测试通过（`NeedRunCopyRepair* + BuildCopySshScpCommands* + SshScpCopyReplicaVnodeTargetFixesOwnerAndPermission` 共 5/5）；`ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug --target taosd` 通过 |
+| 2026-03-04 02:13 | T7.4 收尾 | 已将 `task_plan.md` 中 `T7.4` 更新为 `completed`，下一入口切换为 `T7.5`（`in_progress`） |
+| 2026-03-04 02:13 | T7.5 阶段开始 | 已将 `task_plan.md` 中 `T7.5` 置为 `in_progress`，准备先补 copy 一致性校验与异常中断处理的 Red 用例 |
+| 2026-03-04 02:20 | T7.5 Red 验证 | 新增 `SshScpCopyReplicaVnodeTargetDetectsConsistencyMismatch` 后定向运行失败：`tRepairSshScpCopyReplicaVnodeTarget()` 返回 success，未识别“scp 成功但少拷文件”的不一致场景，符合先测后码预期 |
+| 2026-03-04 02:30 | T7.5 Green 实现 | `trepair.c` 新增 copy 后一致性校验（远端/本地 `find+sort+md5sum` 摘要比对）并接入 `tRepairSshScpCopyReplicaVnodeTarget()`；`dmMain.c` 的 `dmRunCopyRepair()` 新增每 vnode 备份、copy 失败回滚与 `copy rollback detail` 日志 |
+| 2026-03-04 02:33 | T7.5 兼容修复 | 修复一致性命令的 shell 展开问题：将摘要提取从 `awk '{print $1}'` 调整为 `cut -d ' ' -f1`，避免远端命令中的 `$1` 被本地 shell 提前展开导致误判 |
+| 2026-03-04 02:38 | T7.5 定向验证 | copy 定向测试通过（`NeedRunCopyRepair* + BuildCopySshScpCommands* + SshScpCopyReplicaVnodeTargetFixesOwnerAndPermission + SshScpCopyReplicaVnodeTargetDetectsConsistencyMismatch` 共 6/6） |
+| 2026-03-04 02:39 | T7.5 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug --target taosd` 通过 |
+| 2026-03-04 02:41 | T7.5 Smoke 验证（copy 失败回滚） | 使用 mock `scp`（复制后返回非 0）运行 `taosd -r --mode copy`：进程退出码 `25`，`repair.log` 命中 `copy rollback detail`，本地 `vnode2/wal/stale.log` 内容成功回滚保留 |
+| 2026-03-04 02:42 | T7.5 收尾 | 已将 `task_plan.md` 中 `T7.5` 更新为 `completed`，`P7` 标记为 `completed`，下一入口切换为 `T8.1`（`pending`） |
 
 ## 已落盘文档
 - `task_plan.md`

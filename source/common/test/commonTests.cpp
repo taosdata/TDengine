@@ -70,6 +70,65 @@ std::string readRepairFileContent(const char *path) {
   content.resize((size_t)nread);
   return content;
 }
+
+std::string runRepairCommandGetLastLine(const std::string &cmd) {
+  if (cmd.empty()) {
+    return "";
+  }
+
+  TdCmdPtr pCmd = taosOpenCmd(cmd.c_str());
+  if (pCmd == nullptr) {
+    return "";
+  }
+
+  char        line[1024] = {0};
+  std::string lastLine;
+  while (true) {
+    int64_t nread = taosGetsCmd(pCmd, sizeof(line), line);
+    if (nread <= 0) {
+      break;
+    }
+
+    std::string cur(line);
+    while (!cur.empty() && (cur.back() == '\n' || cur.back() == '\r')) {
+      cur.pop_back();
+    }
+    if (!cur.empty()) {
+      lastLine = cur;
+    }
+  }
+
+  taosCloseCmd(&pCmd);
+  return lastLine;
+}
+
+class RepairEnvVarGuard {
+ public:
+  explicit RepairEnvVarGuard(const char *key) : key_(key == nullptr ? "" : key) {
+    const char *val = key_.empty() ? nullptr : getenv(key_.c_str());
+    if (val != nullptr) {
+      hasOld_ = true;
+      oldVal_ = val;
+    }
+  }
+
+  ~RepairEnvVarGuard() {
+    if (key_.empty()) {
+      return;
+    }
+
+    if (hasOld_) {
+      (void)setenv(key_.c_str(), oldVal_.c_str(), 1);
+    } else {
+      (void)unsetenv(key_.c_str());
+    }
+  }
+
+ private:
+  std::string key_;
+  bool        hasOld_ = false;
+  std::string oldVal_;
+};
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -2790,6 +2849,139 @@ TEST(RepairOptionParseTest, MockCopyReplicaVnodeTargetInvalidArgs) {
             TSDB_CODE_INVALID_PARA);
   ASSERT_EQ(tRepairMockCopyReplicaVnodeTarget(&ctx, "/tmp/remote", "/tmp/local", 2, NULL, 0, NULL, 0),
             TSDB_CODE_INVALID_PARA);
+}
+
+TEST(RepairOptionParseTest, SshScpCopyReplicaVnodeTargetFixesOwnerAndPermission) {
+  const std::string localDataDir = buildRepairTempPath("copy-ssh-local-data");
+  const std::string remoteDataDir = buildRepairTempPath("copy-ssh-remote-data");
+  const std::string binDir = buildRepairTempPath("copy-ssh-mock-bin");
+  RepairTempDirGuard localDataGuard(localDataDir);
+  RepairTempDirGuard remoteDataGuard(remoteDataDir);
+  RepairTempDirGuard binDirGuard(binDir);
+  ASSERT_EQ(taosMulMkDir(localDataDir.c_str()), 0);
+  ASSERT_EQ(taosMulMkDir(remoteDataDir.c_str()), 0);
+  ASSERT_EQ(taosMulMkDir(binDir.c_str()), 0);
+
+  const std::string sep(TD_DIRSEP);
+  const std::string remoteWalDir = remoteDataDir + sep + "vnode" + sep + "vnode2" + sep + "wal";
+  const std::string localWalDir = localDataDir + sep + "vnode" + sep + "vnode2" + sep + "wal";
+  ASSERT_EQ(taosMulMkDir(remoteWalDir.c_str()), 0);
+  ASSERT_EQ(taosMulMkDir(localWalDir.c_str()), 0);
+
+  auto writeRepairFile = [](const std::string &path, const std::string &content) {
+    TdFilePtr pFile = taosOpenFile(path.c_str(), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    ASSERT_NE(pFile, nullptr);
+    ASSERT_EQ(taosWriteFile(pFile, content.c_str(), (int64_t)content.size()), (int64_t)content.size());
+    ASSERT_EQ(taosCloseFile(&pFile), 0);
+  };
+  writeRepairFile(remoteWalDir + sep + "000001.log", "remote-wal");
+
+  ASSERT_EQ(runRepairCommandGetLastLine("chmod 700 '" + remoteWalDir + "' && echo ok"), "ok");
+
+  const std::string sshMockPath = binDir + sep + "ssh-mock";
+  const std::string scpMockPath = binDir + sep + "scp-mock";
+  writeRepairFile(sshMockPath,
+                  "#!/usr/bin/env bash\n"
+                  "set -euo pipefail\n"
+                  "cmd=\"${@: -1}\"\n"
+                  "bash -c \"$cmd\"\n");
+  writeRepairFile(scpMockPath,
+                  "#!/usr/bin/env bash\n"
+                  "set -euo pipefail\n"
+                  "src=\"${@: -2:1}\"\n"
+                  "dst=\"${@: -1}\"\n"
+                  "remote=\"${src#*:}\"\n"
+                  "mkdir -p \"$dst\"\n"
+                  "cp -r \"$remote/.\" \"$dst\"\n"
+                  "chmod -R 755 \"$dst\"\n");
+  ASSERT_EQ(runRepairCommandGetLastLine("chmod +x '" + sshMockPath + "' '" + scpMockPath + "' && echo ok"), "ok");
+
+  RepairEnvVarGuard sshGuard("TAOS_REPAIR_SSH_BIN");
+  RepairEnvVarGuard scpGuard("TAOS_REPAIR_SCP_BIN");
+  ASSERT_EQ(setenv("TAOS_REPAIR_SSH_BIN", sshMockPath.c_str(), 1), 0);
+  ASSERT_EQ(setenv("TAOS_REPAIR_SCP_BIN", scpMockPath.c_str(), 1), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "copy"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "replica-node", "tdnode1:/var/lib/taos"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601518LL, &ctx), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(tRepairSshScpCopyReplicaVnodeTarget(&ctx, "tdnode1", remoteDataDir.c_str(), localDataDir.c_str(), 2, NULL, 0,
+                                                NULL, 0),
+            TSDB_CODE_SUCCESS);
+
+  std::string remoteMeta = runRepairCommandGetLastLine("stat -c '%u %g %a' '" + remoteWalDir + "'");
+  std::string localMeta = runRepairCommandGetLastLine("stat -c '%u %g %a' '" + localWalDir + "'");
+  ASSERT_FALSE(remoteMeta.empty());
+  ASSERT_EQ(localMeta, remoteMeta);
+}
+
+TEST(RepairOptionParseTest, SshScpCopyReplicaVnodeTargetDetectsConsistencyMismatch) {
+  const std::string localDataDir = buildRepairTempPath("copy-ssh-local-data-mismatch");
+  const std::string remoteDataDir = buildRepairTempPath("copy-ssh-remote-data-mismatch");
+  const std::string binDir = buildRepairTempPath("copy-ssh-mock-bin-mismatch");
+  RepairTempDirGuard localDataGuard(localDataDir);
+  RepairTempDirGuard remoteDataGuard(remoteDataDir);
+  RepairTempDirGuard binDirGuard(binDir);
+  ASSERT_EQ(taosMulMkDir(localDataDir.c_str()), 0);
+  ASSERT_EQ(taosMulMkDir(remoteDataDir.c_str()), 0);
+  ASSERT_EQ(taosMulMkDir(binDir.c_str()), 0);
+
+  const std::string sep(TD_DIRSEP);
+  const std::string remoteWalDir = remoteDataDir + sep + "vnode" + sep + "vnode2" + sep + "wal";
+  const std::string localWalDir = localDataDir + sep + "vnode" + sep + "vnode2" + sep + "wal";
+  ASSERT_EQ(taosMulMkDir(remoteWalDir.c_str()), 0);
+  ASSERT_EQ(taosMulMkDir(localWalDir.c_str()), 0);
+
+  auto writeRepairFile = [](const std::string &path, const std::string &content) {
+    TdFilePtr pFile = taosOpenFile(path.c_str(), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    ASSERT_NE(pFile, nullptr);
+    ASSERT_EQ(taosWriteFile(pFile, content.c_str(), (int64_t)content.size()), (int64_t)content.size());
+    ASSERT_EQ(taosCloseFile(&pFile), 0);
+  };
+  writeRepairFile(remoteWalDir + sep + "000001.log", "remote-wal-1");
+  writeRepairFile(remoteWalDir + sep + "000002.log", "remote-wal-2");
+
+  const std::string sshMockPath = binDir + sep + "ssh-mock";
+  const std::string scpMockPath = binDir + sep + "scp-mock";
+  writeRepairFile(sshMockPath,
+                  "#!/usr/bin/env bash\n"
+                  "set -euo pipefail\n"
+                  "cmd=\"${@: -1}\"\n"
+                  "bash -c \"$cmd\"\n");
+  writeRepairFile(scpMockPath,
+                  "#!/usr/bin/env bash\n"
+                  "set -euo pipefail\n"
+                  "src=\"${@: -2:1}\"\n"
+                  "dst=\"${@: -1}\"\n"
+                  "remote=\"${src#*:}\"\n"
+                  "mkdir -p \"$dst\"\n"
+                  "cp \"$remote/000001.log\" \"$dst/\"\n");
+  ASSERT_EQ(runRepairCommandGetLastLine("chmod +x '" + sshMockPath + "' '" + scpMockPath + "' && echo ok"), "ok");
+
+  RepairEnvVarGuard sshGuard("TAOS_REPAIR_SSH_BIN");
+  RepairEnvVarGuard scpGuard("TAOS_REPAIR_SCP_BIN");
+  ASSERT_EQ(setenv("TAOS_REPAIR_SSH_BIN", sshMockPath.c_str(), 1), 0);
+  ASSERT_EQ(setenv("TAOS_REPAIR_SCP_BIN", scpMockPath.c_str(), 1), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "copy"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "replica-node", "tdnode1:/var/lib/taos"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601519LL, &ctx), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(tRepairSshScpCopyReplicaVnodeTarget(&ctx, "tdnode1", remoteDataDir.c_str(), localDataDir.c_str(), 2, NULL, 0,
+                                                NULL, 0),
+            TSDB_CODE_FAILED);
 }
 
 TEST(RepairOptionParseTest, BuildVnodeTargetPath) {

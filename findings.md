@@ -415,3 +415,36 @@
     - Green：补齐头文件声明与实现后，定向用例通过（4/4）；
     - 回归：`ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug --target taosd` 通过；
     - Smoke：通过环境变量注入本地 mock `ssh/scp` 完成端到端验证，`taosd` 退出码 `47`，本地 `wal/meta` 被远端内容覆盖、陈旧文件被清理，`repair.log` 命中 copy 相关明细日志。
+- `T7.4`（覆盖写入后的权限/owner 修复逻辑）已完成：
+  - 失败事实（Red）：
+    - 新增用例 `SshScpCopyReplicaVnodeTargetFixesOwnerAndPermission` 先失败，复现 `scp` 覆盖后目录权限漂移问题；
+    - 失败现象：remote 目录权限为 `700`，local 在 mock `scp` 后变为 `755`，一致性断言失败。
+  - Green 实现（仅改 `trepair.c`，避免扩大 `dmMain.c`）：
+    - 新增内部 helper `tRepairBuildCopySshStatCmd()`：构造 `ssh stat -c '%u %g %a'` 命令获取远端 vnode 目标目录的 `uid/gid/mode`；
+    - 新增内部 helper `tRepairParseCopyOwnershipMeta()`：解析并校验 `uid gid mode` 三元组；
+    - 新增内部 helper `tRepairBuildCopyFixOwnerPermCmd()`：构造本地 `chown -R` + `chmod` 修复命令；
+    - `tRepairSshScpCopyReplicaVnodeTarget()` 在 `scp` 成功后执行 owner/权限修复，任一步失败即返回错误码以保持 fail-fast。
+  - 验证结果：
+    - 定向 Red->Green：`RepairOptionParseTest.SshScpCopyReplicaVnodeTargetFixesOwnerAndPermission` 由失败转通过；
+    - copy 相关定向回归：`NeedRunCopyRepair* + BuildCopySshScpCommands* + SshScpCopyReplicaVnodeTargetFixesOwnerAndPermission`（5/5）通过；
+    - 全量 `commonTest` 回归通过，`taosd` 构建通过。
+- `T7.5`（copy 模式一致性校验与异常中断处理）已完成：
+  - 失败事实（Red）：
+    - 新增用例 `SshScpCopyReplicaVnodeTargetDetectsConsistencyMismatch`，构造“`scp` 成功返回但少拷文件”场景；
+    - 初始实现错误返回 success，未检测到 copy 后目录不一致，符合先测后码预期。
+  - Green 实现（分层落地）：
+    - `trepair.c` 新增一致性校验链路：
+      - `tRepairBuildCopySshDigestCmd()` / `tRepairBuildCopyLocalDigestCmd()`：构造远端/本地目录摘要命令（基于 `find + sort + md5sum`）；
+      - `tRepairVerifyCopyConsistency()`：比较远端与本地摘要，不一致返回 `TSDB_CODE_FAILED`；
+      - 在 `tRepairSshScpCopyReplicaVnodeTarget()` 的 `scp + owner/perm 修复` 后执行一致性校验。
+    - `dmMain.c` 新增 copy 异常中断处理：
+      - `dmRunCopyRepair()` 对每个 vnode 在 copy 前执行 `tRepairBackupVnodeTarget()`；
+      - copy 失败（含一致性校验失败）时调用 `tRepairRollbackVnodeTarget()` 回滚，并写入 `copy rollback detail` 日志；
+      - copy 成功日志增加 `consistency=verified` 标识。
+  - 兼容性修复：
+    - 远端摘要命令最初使用 `awk '{print $1}'`，在 ssh 双层引号下存在 `$1` 被本地 shell 提前展开风险；
+    - 调整为 `cut -d ' ' -f1` 后消除展开副作用，修复误判。
+  - 验证结果：
+    - 定向 copy 用例通过（6/6）：`NeedRunCopyRepair*`、`BuildCopySshScpCommands*`、`SshScpCopyReplicaVnodeTargetFixesOwnerAndPermission`、`SshScpCopyReplicaVnodeTargetDetectsConsistencyMismatch`；
+    - `ctest -R commonTest` 通过，`cmake --build debug --target taosd` 通过；
+    - smoke：mock `scp` 在部分复制后返回非 0，`taosd` 退出码 `25`，`repair.log` 命中 `copy rollback detail`，本地旧文件成功回滚保留。
