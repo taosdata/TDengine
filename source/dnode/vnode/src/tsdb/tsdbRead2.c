@@ -1126,7 +1126,7 @@ int32_t doGetValueFromBseBySeq(void* arg, uint8_t* pKey, int32_t keyLen, uint8_t
   TSDB_CHECK_CODE(code, lino, _end);
 
 _end:
-  if (code != 0) {
+  if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
