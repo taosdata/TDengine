@@ -56,28 +56,28 @@ class TestVtableQueryComprehensive:
         "2024-01-01 00:00:09.000",
     ]
     BIN = [
-        "Shanghai - Los Angeles",     # 22 chars
-        "short",                       # 5 chars
-        "Palo Alto - Mountain View",   # 25 chars
+        "Shanghai",     # 8 chars (was: "Shanghai - Los Angeles" 22 chars)
+        "short",        # 5 chars
+        "PaloAlto",     # 8 chars (was: "Palo Alto - Mountain View" 25 chars)
         None,
-        "San Francisco - Cupertino",   # 25 chars
-        "Beijing - Shenzhen City",     # 23 chars
-        "a",                           # 1 char
+        "SanFran",      # 7 chars (was: "San Francisco - Cupertino" 25 chars)
+        "Beijing",      # 7 chars (was: "Beijing - Shenzhen City" 23 chars)
+        "a",            # 1 char
         None,
-        "Hangzhou - West Lake Area",   # 25 chars
-        "SV",                          # 2 chars
+        "Hangzho",      # 7 chars (was: "Hangzhou - West Lake Area" 25 chars)
+        "SV",           # 2 chars
     ]
     NCH = [
-        "圣克拉拉 - Santa Clara",
-        "短",
-        "库比蒂诺 - Cupertino City",
+        "圣克拉拉",      # 4 chars (was: "圣克拉拉 - Santa Clara")
+        "短",            # 1 char
+        "库比蒂诺",      # 4 chars (was: "库比蒂诺 - Cupertino City")
         None,
-        "旧金山 - San Francisco",
-        "北京市海淀区中关村大街",
-        "a",
+        "旧金山",        # 3 chars (was: "旧金山 - San Francisco")
+        "北京市海",      # 4 chars (was: "北京市海淀区中关村大街")
+        "a",             # 1 char
         None,
-        "杭州西湖风景区龙井路",
-        "深",
+        "杭州西湖",      # 4 chars (was: "杭州西湖风景区龙井路")
+        "深",            # 1 char
     ]
     IVAL = [10, 20, 30, None, 50, 60, 70, None, 90, 100]
     FVAL = [1.1, 2.2, 3.3, None, 5.5, 6.6, 7.7, None, 9.9, 10.0]
@@ -692,11 +692,10 @@ class TestVtableQueryComprehensive:
         db = self.DB
         tdLog.info("=== str: replace ===")
         tdSql.query(
-            f"SELECT REPLACE(bin_col, ' - ', '/') FROM {db}.vtb_lt ORDER BY ts;")
+            f"SELECT REPLACE(bin_col, 'a', 'A') FROM {db}.vtb_lt ORDER BY ts;")
         tdSql.checkRows(10)
         for i, val in enumerate(self.BIN):
-            tdSql.checkData(i, 0, val.replace(' - ', '/') if val else None)
-
+            tdSql.checkData(i, 0, val.replace('a', 'A') if val else None)
     def test_str_ascii_position(self):
         """String: ASCII, POSITION on vtable binary col
 
@@ -732,7 +731,7 @@ class TestVtableQueryComprehensive:
             f"SELECT POSITION('short' IN bin_col) FROM {db}.vtb_lt "
             f"ORDER BY ts LIMIT 3;")
         tdSql.checkRows(3)
-        tdSql.checkData(0, 0, 0)  # not found in 'Shanghai - Los Angeles'
+        tdSql.checkData(0, 0, 0)  # not found in 'Shanghai'
         tdSql.checkData(1, 0, 1)  # found at position 1 in 'short'
         tdSql.checkData(2, 0, 0)  # not found
 
@@ -906,7 +905,7 @@ class TestVtableQueryComprehensive:
             f"SELECT bin_col FROM {db}.vtb_lt "
             f"WHERE bin_col LIKE 'San%' ORDER BY ts;")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 'San Francisco - Cupertino')
+        tdSql.checkData(0, 0, 'SanFran')
 
     def test_where_in(self):
         """Filter: IN on binary col of vtable
