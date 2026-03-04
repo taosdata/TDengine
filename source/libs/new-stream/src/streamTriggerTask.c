@@ -20,6 +20,7 @@
 #include "plannodes.h"
 #include "scalar.h"
 #include "streamInt.h"
+#include "streamReader.h"
 #include "taos.h"
 #include "taoserror.h"
 #include "tarray.h"
@@ -5178,6 +5179,19 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, iCol++);
         QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
         pTsData = (int64_t *)pTsCol->pData;
+      } else if (pDataBlock->pDataBlock != NULL && pTask->nodelayCreateSubtable) {
+        int32_t          iCol = 0;
+        SColumnInfoData *pGidCol = taosArrayGet(pDataBlock->pDataBlock, iCol++);
+        if (pGidCol != NULL && pGidCol->pData != NULL) {
+          pGidData = (int64_t *)pGidCol->pData;
+        }
+        SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, iCol++);
+        if (pTsCol != NULL && pTsCol->pData != NULL) {
+          pTsData = (int64_t *)pTsCol->pData;
+        }
+      }
+
+      if (nrows > 0 && pGidData != NULL && pTsData != NULL) {
         if (pTask->isVirtualTable) {
           for (int32_t i = 0; i < nrows; i++) {
             int64_t                 obtUid = pGidData[i];
@@ -5211,31 +5225,36 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         }
       }
 
-      if (nrows > 0) {
-        pContext->pPendingCreateTableGids = taosArrayInit(0, sizeof(int64_t));
-        QUERY_CHECK_NULL(pContext->pPendingCreateTableGids, code, lino, _end, terrno);
-        pContext->pPendingCreateTableProgress = pProgress;
-        if (pTask->isVirtualTable) {
-          for (int32_t i = 0; i < nrows; i++) {
-            int64_t                 obtUid = pGidData[i];
-            SSTriggerOrigTableInfo *pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &obtUid, sizeof(int64_t));
-            if (pOrigTableInfo == NULL) continue;
-            for (int32_t j = 0; j < TARRAY_SIZE(pOrigTableInfo->pVtbUids); j++) {
-              int64_t                 vtbUid = *(int64_t *)TARRAY_GET_ELEM(pOrigTableInfo->pVtbUids, j);
-              SSTriggerVirtTableInfo *pVirtTableInfo = tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(int64_t));
-              if (pVirtTableInfo == NULL) continue;
-              (void)taosArrayPush(pContext->pPendingCreateTableGids, &pVirtTableInfo->tbGid);
+      if (pTask->nodelayCreateSubtable) {
+        if (nrows > 0 && pGidData != NULL) {
+          pContext->pPendingCreateTableGids = taosArrayInit(0, sizeof(int64_t));
+          QUERY_CHECK_NULL(pContext->pPendingCreateTableGids, code, lino, _end, terrno);
+          pContext->pPendingCreateTableProgress = pProgress;
+          if (pTask->isVirtualTable) {
+            for (int32_t i = 0; i < nrows; i++) {
+              int64_t                 obtUid = pGidData[i];
+              SSTriggerOrigTableInfo *pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &obtUid, sizeof(int64_t));
+              if (pOrigTableInfo == NULL) continue;
+              for (int32_t j = 0; j < TARRAY_SIZE(pOrigTableInfo->pVtbUids); j++) {
+                int64_t                 vtbUid = *(int64_t *)TARRAY_GET_ELEM(pOrigTableInfo->pVtbUids, j);
+                SSTriggerVirtTableInfo *pVirtTableInfo =
+                    tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(int64_t));
+                if (pVirtTableInfo == NULL) continue;
+                (void)taosArrayPush(pContext->pPendingCreateTableGids, &pVirtTableInfo->tbGid);
+              }
+            }
+          } else {
+            for (int32_t i = 0; i < nrows; i++) {
+              (void)taosArrayPush(pContext->pPendingCreateTableGids, &pGidData[i]);
             }
           }
-        } else {
-          for (int32_t i = 0; i < nrows; i++) {
-            (void)taosArrayPush(pContext->pPendingCreateTableGids, &pGidData[i]);
+          if (taosArrayGetSize(pContext->pPendingCreateTableGids) > 0) {
+            int64_t firstGid = *(int64_t *)taosArrayGet(pContext->pPendingCreateTableGids, 0);
+            code = stRealtimeContextSendPullReqForGid(pContext, pProgress, firstGid);
+            QUERY_CHECK_CODE(code, lino, _end);
+            goto _end;
           }
         }
-        int64_t firstGid = *(int64_t *)taosArrayGet(pContext->pPendingCreateTableGids, 0);
-        code = stRealtimeContextSendPullReqForGid(pContext, pProgress, firstGid);
-        QUERY_CHECK_CODE(code, lino, _end);
-        goto _end;
       }
 
       if (--pContext->curReaderIdx > 0) {
