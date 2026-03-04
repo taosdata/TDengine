@@ -37,6 +37,8 @@
 #include "thash.h"
 #include "trpc.h"
 #include "ttypes.h"
+// RPC timeout for virtual table reference validation (5 seconds)
+#define VTB_REF_RPC_TIMEOUT_MS 5000
 
 typedef int (*__optSysFilter)(void* a, void* b, int16_t dtype);
 typedef int32_t (*__sys_filte)(void* pMeta, SNode* cond, SArray* result);
@@ -2153,22 +2155,54 @@ static SVtbRefSchemaCache* vtbRefCreateSchemaCache(ETableType type, SMetaReader*
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t numOfCols = 0;
+  int32_t numOfTags = 0;
+  SSchema* pSrcSchemas = NULL;
+  SSchema* pSrcTagSchemas = NULL;
+
   if (type == TSDB_NORMAL_TABLE) {
-    pCache->schemaRow = pReader->me.ntbEntry.schemaRow;
+    numOfCols = pReader->me.ntbEntry.schemaRow.nCols;
+    pSrcSchemas = pReader->me.ntbEntry.schemaRow.pSchema;
     pCache->hasTagSchema = false;
-    code = vtbRefBuildColNameIndex(pCache->schemaRow.pSchema, pCache->schemaRow.nCols, 0, &pCache->pColNameIndex);
   } else if (type == TSDB_CHILD_TABLE || type == TSDB_SUPER_TABLE) {
-    pCache->schemaRow = pReader->me.stbEntry.schemaRow;
-    pCache->schemaTag = pReader->me.stbEntry.schemaTag;
+    numOfCols = pReader->me.stbEntry.schemaRow.nCols;
+    numOfTags = pReader->me.stbEntry.schemaTag.nCols;
+    pSrcSchemas = pReader->me.stbEntry.schemaRow.pSchema;
+    pSrcTagSchemas = pReader->me.stbEntry.schemaTag.pSchema;
     pCache->hasTagSchema = true;
-    code = vtbRefBuildColNameIndex(pCache->schemaRow.pSchema, pCache->schemaRow.nCols, pCache->schemaTag.nCols,
-                                   &pCache->pColNameIndex);
   } else {
     taosMemoryFree(pCache);
     return NULL;
   }
 
+  // Allocate and copy schemas (deep copy to own the memory)
+  int32_t totalCols = numOfCols + numOfTags;
+  SSchema* pAllSchemas = taosMemoryMalloc(totalCols * sizeof(SSchema));
+  if (pAllSchemas == NULL) {
+    taosMemoryFree(pCache);
+    return NULL;
+  }
+
+  // Copy column schemas
+  if (pSrcSchemas != NULL && numOfCols > 0) {
+    memcpy(pAllSchemas, pSrcSchemas, numOfCols * sizeof(SSchema));
+  }
+
+  // Copy tag schemas
+  if (pSrcTagSchemas != NULL && numOfTags > 0) {
+    memcpy(pAllSchemas + numOfCols, pSrcTagSchemas, numOfTags * sizeof(SSchema));
+  }
+
+  pCache->schemaRow.nCols = numOfCols;
+  pCache->schemaRow.pSchema = pAllSchemas;
+  pCache->schemaTag.nCols = numOfTags;
+  pCache->schemaTag.pSchema = (numOfTags > 0) ? pAllSchemas + numOfCols : NULL;
+  pCache->ownsSchema = true;
+
+  code = vtbRefBuildColNameIndex(pAllSchemas, numOfCols, numOfTags, &pCache->pColNameIndex);
+
   if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pAllSchemas);
     taosMemoryFree(pCache);
     return NULL;
   }
@@ -2182,7 +2216,9 @@ static void vtbRefFreeSchemaCache(SVtbRefSchemaCache* pCache) {
   }
   if (pCache->ownsSchema) {
     taosMemoryFree(pCache->schemaRow.pSchema);
-    taosMemoryFree(pCache->schemaTag.pSchema);
+    // schemaTag.pSchema points into the same memory block as schemaRow.pSchema
+    // Only free once to avoid double-free
+    pCache->schemaTag.pSchema = NULL;
   }
   taosHashCleanup(pCache->pColNameIndex);
   taosMemoryFree(pCache);
@@ -2331,7 +2367,7 @@ static int32_t vtbRefGetDbVgInfo(void* clientRpc, SEpSet* pEpSet, int32_t acctId
   }
   buf = NULL;  // ownership transferred to pMsgSendInfo
 
-  code = tsem_wait(&ctx.ready);
+  code = tsem_timewait(&ctx.ready, VTB_REF_RPC_TIMEOUT_MS);
   QUERY_CHECK_CODE(code, lino, _return);
 
   if (ctx.rspCode != TSDB_CODE_SUCCESS) {
@@ -2491,7 +2527,7 @@ static int32_t vtbRefFetchTableSchema(void* clientRpc, SEpSet* pVnodeEpSet, int3
   }
   buf = NULL;  // ownership transferred to pMsgSendInfo, will be freed by destroySendMsgInfo
 
-  code = tsem_wait(&ctx.ready);
+  code = tsem_timewait(&ctx.ready, VTB_REF_RPC_TIMEOUT_MS);
   QUERY_CHECK_CODE(code, lino, _return);
 
   if (ctx.rspCode != TSDB_CODE_SUCCESS) {
@@ -2890,17 +2926,26 @@ static int32_t sysTableFillOneVirtualTableRefImpl(const SSysTableScanInfo* pInfo
   if (pResult == NULL) {
     QUERY_CHECK_CODE(code = terrno, lino, _end);
   }
-
-  code = validateSrcTableColRef(pInfo, pTaskInfo, schemaRow, pColRef, pResult);
-  QUERY_CHECK_CODE(code, lino, _end);
+  // Only validate if pColRef is valid, otherwise just fill with error codes
+  if (pColRef != NULL) {
+    code = validateSrcTableColRef(pInfo, pTaskInfo, schemaRow, pColRef, pResult);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else {
+    // Fill pResult with success codes for all columns (columns without refs)
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      int32_t errCode = TSDB_CODE_SUCCESS;
+      if (NULL == taosArrayPush(pResult, &errCode)) {
+        code = terrno;
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+    }
+  }
 
   for (int32_t i = 1; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = NULL;
 
-    if (pColRef == NULL || i >= pColRef->nCols || !pColRef->pColRef[i].hasRef) {
-      code = TSDB_CODE_INVALID_PARA;
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
+    // Check if this column has a valid reference
+    bool    hasValidRef = (pColRef != NULL && i < pColRef->nCols && pColRef->pColRef[i].hasRef);
 
     // virtual db name
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 0);
@@ -2930,8 +2975,12 @@ static int32_t sysTableFillOneVirtualTableRefImpl(const SSysTableScanInfo* pInfo
     QUERY_CHECK_CODE(code, lino, _end);
 
     // src db name
-    char db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(db, pColRef->pColRef[i].refDbName);
+    char    db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    if (hasValidRef) {
+      STR_TO_VARSTR(db, pColRef->pColRef[i].refDbName);
+    } else {
+      STR_TO_VARSTR(db, "");
+    }
 
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -2940,7 +2989,11 @@ static int32_t sysTableFillOneVirtualTableRefImpl(const SSysTableScanInfo* pInfo
 
     // src table name
     char srcTableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(srcTableName, pColRef->pColRef[i].refTableName);
+    if (hasValidRef) {
+      STR_TO_VARSTR(srcTableName, pColRef->pColRef[i].refTableName);
+    } else {
+      STR_TO_VARSTR(srcTableName, "");
+    }
 
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 5);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -2949,7 +3002,11 @@ static int32_t sysTableFillOneVirtualTableRefImpl(const SSysTableScanInfo* pInfo
 
     // src col name
     char srcColName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(srcColName, pColRef->pColRef[i].refColName);
+    if (hasValidRef) {
+      STR_TO_VARSTR(srcColName, pColRef->pColRef[i].refColName);
+    } else {
+      STR_TO_VARSTR(srcColName, "");
+    }
 
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 6);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -4780,7 +4837,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
       T_LONG_JMP(pTaskInfo->env, code);
     }
 
-    code = tsem_wait(&pInfo->ready);
+    code = tsem_timewait(&pInfo->ready, VTB_REF_RPC_TIMEOUT_MS);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;

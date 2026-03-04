@@ -21456,13 +21456,7 @@ static int32_t validateShowValidateMeta(STranslateContext* pCxt, SShowValidateVi
     code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
     goto _exit;
   }
-  if ((TSDB_SUPER_TABLE != pTableMeta->tableType && TSDB_CHILD_TABLE != pTableMeta->tableType) &&
-      (pTableMeta->virtualStb != 1 && pTableMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE)) {
-    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_PC,
-                                "The _TAGS pseudo column can only be used for child table and super table queries");
-    goto _exit;
-  }
-
+  // Note: SHOW VTABLE VALIDATE should accept any virtual table type (normal, child, or super)
   int8_t tableType = pTableMeta->tableType;
   bool   isVtb =
       (tableType == TSDB_VIRTUAL_CHILD_TABLE || tableType == TSDB_VIRTUAL_NORMAL_TABLE || pTableMeta->virtualStb == 1);

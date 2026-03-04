@@ -1930,7 +1930,7 @@ class TestVtableQueryComprehensive:
 
     # ========================= EDGE CASES ===================================
 
-def test_select_star(self):
+    def test_select_star(self):
         """Verify SELECT * returns all columns correctly from vtable
 
         Description:
@@ -1959,7 +1959,7 @@ def test_select_star(self):
             tdSql.checkData(i, 2, self.NCH[i])
             tdSql.checkData(i, 3, self.IVAL[i])
 
-def test_consistency_with_source(self):
+    def test_consistency_with_source(self):
         """Verify data returned from vtable matches source table exactly
 
         Description:
@@ -1995,7 +1995,7 @@ def test_consistency_with_source(self):
         assert vtb_data == src_data, \
             f"vtb_lt data differs from src_ntb:\nvtb={vtb_data}\nsrc={src_data}"
 
-def test_count_consistency(self):
+    def test_count_consistency(self):
         """Verify COUNT(*) returns same results from vtable and source table
 
         Description:
