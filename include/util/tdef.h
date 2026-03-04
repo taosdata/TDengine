@@ -525,7 +525,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_SS_CHUNK_SIZE     (1024 * 1024)
 #define TSDB_DEFAULT_SS_CHUNK_SIZE (128 * 1024)
 #else
-#define TSDB_MIN_SS_CHUNK_SIZE     (4 * 1024) // for CI test
+#define TSDB_MIN_SS_CHUNK_SIZE     (4 * 1024)
 #define TSDB_MAX_SS_CHUNK_SIZE     (1024 * 1024)
 #define TSDB_DEFAULT_SS_CHUNK_SIZE (4 * 1024)
 #endif
