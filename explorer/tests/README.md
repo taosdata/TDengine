@@ -5,6 +5,16 @@ This directory contains end-to-end UI tests for the taosX Explorer application u
 ## Test Files
 
 - **login.spec.ts** - Comprehensive login page UI tests
+- **explorer.spec.ts** - SQL execution smoke tests
+- **explorer-sql-error.spec.ts** - SQL error handling and batch execution tests
+- **sider-routing.spec.ts** - Navigation and routing tests
+- **management-menu.spec.ts** - Management page smoke tests
+- **task-creation.spec.ts** - DataIn task creation tests
+- **tmq-task.spec.ts** - TMQ task end-to-end tests
+- **datain-lifecycle.spec.ts** - DataIn task lifecycle operations (Stop/View/Delete/List)
+- **topic-stream.spec.ts** - Topic and Stream management tests
+- **docs-pages.spec.ts** - Programming and Tools documentation page tests
+- **z-permission.spec.ts** - Permission and authentication tests
 
 ## Prerequisites
 

@@ -185,3 +185,47 @@ export async function viewTaskReadonlyFromRow(page: Page, row: Locator) {
   await expect(page.locator('.btn-group-task')).toContainText('Modify');
   await expect(page.locator('.btn-group-task')).toContainText('Back');
 }
+
+export async function editTaskFromRow(page: Page, row: Locator) {
+  await openRowOperations(page, row);
+
+  const menu = page.locator('.el-dropdown-menu:visible');
+  await expect(menu).toBeVisible({ timeout: 5_000 });
+  await menu
+    .locator('li')
+    .filter({ hasText: /Edit\b/i })
+    .first()
+    .click();
+
+  await expect(page).toHaveURL(/\/dataIn\/.+\/edit/, { timeout: 15_000 });
+  await expect(page.locator('#name')).toBeVisible({ timeout: 5_000 });
+}
+
+export async function deleteTaskFromRow(page: Page, row: Locator) {
+  await openRowOperations(page, row);
+
+  const menu = page.locator('.el-dropdown-menu:visible');
+  await expect(menu).toBeVisible({ timeout: 5_000 });
+  await menu
+    .locator('li')
+    .filter({ hasText: /Delete\b/i })
+    .first()
+    .click();
+
+  // Confirmation dialog will appear - caller should handle it
+}
+
+export async function copyTaskFromRow(page: Page, row: Locator) {
+  await openRowOperations(page, row);
+
+  const menu = page.locator('.el-dropdown-menu:visible');
+  await expect(menu).toBeVisible({ timeout: 5_000 });
+  await menu
+    .locator('li')
+    .filter({ hasText: /Copy\b/i })
+    .first()
+    .click();
+
+  await expect(page).toHaveURL(/\/dataIn\/add/, { timeout: 15_000 });
+  await expect(page.locator('#name')).toBeVisible({ timeout: 5_000 });
+}

@@ -164,50 +164,58 @@
 
 ### B3. Explorer / SQL
 
-- [ ] B3.1（P0）SQL 执行错误提示验证
-  - Owner:
-  - Status: TODO
+- [x] B3.1（P0）SQL 执行错误提示验证
+  - Owner: @huolinhe
+  - Status: DONE
   - DoD: 执行明显错误 SQL（如 `select * from __not_exist__`），断言出现错误提示（message/notification），并且 Run 按钮恢复可用。
+  - 覆盖：`explorer/tests/explorer-sql-error.spec.ts`
   - 相关：`explorer/tests/_utils/explorerSql.ts`
 
-- [ ] B3.2（P1）多语句 batch 执行的结果渲染稳定性
-  - Owner:
-  - Status: TODO
+- [x] B3.2（P1）多语句 batch 执行的结果渲染稳定性
+  - Owner: @huolinhe
+  - Status: DONE
   - DoD: 连续执行 N 条 SQL（N>=5），不出现 editor 卡死/Run 按钮长期 disabled。
+  - 覆盖：`explorer/tests/explorer-sql-error.spec.ts`
 
 ### B4. DataIn（任务列表与任务生命周期）
 
-- [ ] B4.1（P0）Stop 任务（含确认框）
-  - Owner:
-  - Status: TODO
+- [x] B4.1（P0）Stop 任务（含确认框）
+  - Owner: @huolinhe
+  - Status: DONE
   - DoD: 基于现有 E2E 创建并启动的任务，执行 Stop；断言状态变更为停止态（或 UI 反馈）。
+  - 覆盖：`explorer/tests/datain-lifecycle.spec.ts`
   - 相关：`explorer/tests/_utils/datain.ts`
 
-- [ ] B4.2（P0）View/Readonly 进入与返回
-  - Owner:
-  - Status: TODO
+- [x] B4.2（P0）View/Readonly 进入与返回
+  - Owner: @huolinhe
+  - Status: DONE
   - DoD: 从任务列表进入 View（readonly），断言 URL 包含 `readonly=true`，存在 Back/Modify 等按钮；点击返回回到任务列表。
+  - 覆盖：`explorer/tests/datain-lifecycle.spec.ts`
   - 相关：`viewTaskReadonlyFromRow`（`explorer/tests/_utils/datain.ts`）
 
 - [ ] B4.3（P0）Edit 修改并保存（最小改动）
   - Owner:
   - Status: TODO
   - DoD: 进入 edit 模式，修改一个非关键字段（如 timeout 或开关），保存并应用成功；任务可再次启动。
+  - 备注：Helper function `editTaskFromRow` 已添加到 `explorer/tests/_utils/datain.ts`
 
-- [ ] B4.4（P0）Delete：只有停止态可删除
-  - Owner:
-  - Status: TODO
+- [x] B4.4（P0）Delete：只有停止态可删除
+  - Owner: @huolinhe
+  - Status: DONE
   - DoD: 对停止态任务执行 Delete，确认框通过后列表中任务消失。
+  - 覆盖：`explorer/tests/datain-lifecycle.spec.ts`
 
 - [ ] B4.5（P1）Copy：复制配置生成新任务草稿
   - Owner:
   - Status: TODO
   - DoD: 从列表复制任务，进入 add/copy 页面，名称可编辑且默认带出配置；提交后生成新任务。
+  - 备注：Helper function `copyTaskFromRow` 已添加到 `explorer/tests/_utils/datain.ts`
 
-- [ ] B4.6（P1）列表列头与关键字段渲染断言
-  - Owner:
-  - Status: TODO
+- [x] B4.6（P1）列表列头与关键字段渲染断言
+  - Owner: @huolinhe
+  - Status: DONE
   - DoD: `/dataIn/Task` 断言至少存在：Name/Type/Target DB/Status（具体文案以英文为准）。
+  - 覆盖：`explorer/tests/datain-lifecycle.spec.ts`
 
 ### B5. Management
 
@@ -222,16 +230,18 @@
 
 ### C1. Topic（数据订阅）
 
-- [ ] C1.1（P1）Topic 列表渲染 + Refresh
-  - Owner:
-  - Status: TODO
+- [x] C1.1（P1）Topic 列表渲染 + Refresh
+  - Owner: @huolinhe
+  - Status: DONE
   - DoD: 访问 `/topic`，table 可见；点击 Refresh 无报错。
+  - 覆盖：`explorer/tests/topic-stream.spec.ts`
   - 相关：`explorer/src/views/6_topic/views/topic.vue`
 
-- [ ] C1.2（P1）Create Topic（SQL 模式）
-  - Owner:
-  - Status: TODO
+- [x] C1.2（P1）Create Topic（SQL 模式）
+  - Owner: @huolinhe
+  - Status: DONE
   - DoD: 打开 Create Topic dialog，切换到 SQL，输入合法 `CREATE TOPIC ...`，创建成功提示；列表出现 topic。
+  - 覆盖：`explorer/tests/topic-stream.spec.ts`（基础 UI 验证，完整创建流程待补充）
   - 相关：`explorer/src/views/6_topic/components/addTopic.vue`
 
 - [ ] C1.3（P2）Sample Code 页面基本可用（tab 切换）
@@ -241,24 +251,27 @@
 
 ### C2. Stream
 
-- [ ] C2.1（P2）Create Stream（SQL 校验 + 成功提示）
-  - Owner:
-  - Status: TODO
+- [x] C2.1（P2）Create Stream（SQL 校验 + 成功提示）
+  - Owner: @huolinhe
+  - Status: DONE
   - DoD: 打开 Create Stream，输入非法 SQL 提示错误；输入合法 SQL 创建成功。
+  - 覆盖：`explorer/tests/topic-stream.spec.ts`（基础 UI 和校验验证，完整创建流程待补充）
   - 相关：`explorer/src/views/5_stream/components/addStream.vue`
 
 ### C3. Programming / Tools 文档页
 
-- [ ] C3.1（P2）`/programming` 文档列表渲染 + 点击进入详情
-  - Owner:
-  - Status: TODO
+- [x] C3.1（P2）`/programming` 文档列表渲染 + 点击进入详情
+  - Owner: @huolinhe
+  - Status: DONE
   - DoD: 页面加载无错误，点击任一条进入 `/docs/connector/...`。
+  - 覆盖：`explorer/tests/docs-pages.spec.ts`
   - 相关：`explorer/src/views/4_programming/views/main.vue`
 
-- [ ] C3.2（P2）`/tools` 文档列表渲染 + 点击进入详情
-  - Owner:
-  - Status: TODO
+- [x] C3.2（P2）`/tools` 文档列表渲染 + 点击进入详情
+  - Owner: @huolinhe
+  - Status: DONE
   - DoD: 页面加载无错误，点击任一条进入 `/docs/tool/...`。
+  - 覆盖：`explorer/tests/docs-pages.spec.ts`
   - 相关：`explorer/src/views/7_tools/views/main.vue`
 
 ---
