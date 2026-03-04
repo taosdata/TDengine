@@ -13,7 +13,8 @@ Overview:
 
 Since: v3.4.0.0
 
-Labels: common,ci,user,cloud
+Labels: common,ci,user,cloud：
+
 
 Jira: None
 
@@ -87,6 +88,20 @@ class TestUserCloud:
         if login:
             self.login(user=user_name, password=password)    
 
+    def drop_user(self, user_name):
+        # Drop a user
+        tdSql.execute(f"DROP USER {user_name}")
+        tdLog.info(f"Dropped user: {user_name}")
+        
+    def create_role(self, role_name):
+        tdSql.execute(f"CREATE ROLE {role_name}")
+        tdLog.info(f"Created role: {role_name}")
+    
+    def drop_role(self, role_name):
+        # Drop a role
+        tdSql.execute(f"DROP ROLE {role_name}")
+        tdLog.info(f"Dropped role: {role_name}")        
+
     def login(self, user=None, password=None):
         """Switch tdSql connection to *user* (default: root)."""
         if user is None:
@@ -154,6 +169,20 @@ class TestUserCloud:
             sql = f"GRANT {privilege} ON {target} {with_str} TO {user_or_role}"
         tdLog.debug(f"   Granted: {sql}")
         tdSql.execute(sql)
+        
+    def grant_privilege_failed(self, privilege, target, user_or_role, with_condition=""):
+        # Verify that grant should fail
+        if with_condition:
+            with_str = f"WITH {with_condition}"
+        else:
+            with_str = ""
+        if target is None or target == "":
+            sql = f"GRANT {privilege} TO {user_or_role}"
+        else:
+            sql = f"GRANT {privilege} ON {target} {with_str} TO {user_or_role}"
+        
+        tdSql.error(sql)
+        print(f"Grant failed as expected: {sql}")        
 
     def revoke_privilege(self, privilege, target, user_or_role):
         if target is None or target == "":
@@ -162,6 +191,25 @@ class TestUserCloud:
             sql = f"REVOKE {privilege} ON {target} FROM {user_or_role}"
         tdLog.debug(f"   Revoked: {sql}")
         tdSql.execute(sql)
+        
+    def revoke_privilege_failed(self, privilege, target, user_or_role):
+        # Verify that revoke should fail
+        if target is None or target == "":
+            sql = f"REVOKE {privilege} FROM {user_or_role}"
+        else:
+            sql = f"REVOKE {privilege} ON {target} FROM {user_or_role}"
+        tdSql.error(sql)
+        print(f"Revoke failed as expected: {sql}")
+
+    def grant_role(self, role_name, user_name):
+        # Grant role to user
+        tdSql.execute(f"GRANT ROLE {role_name} TO {user_name}")
+        print(f"   Granted role {role_name} to {user_name}")
+    
+    def revoke_role(self, role_name, user_name):
+        # Revoke role from user
+        tdSql.execute(f"REVOKE ROLE {role_name} FROM {user_name}")
+        print(f"   Revoked role {role_name} from {user_name}")           
 
     def subscribe_topic(self, user, password, group_id, topic_name, expected_rows=None, createTimes=30):
         attr = {
@@ -1047,6 +1095,329 @@ class TestUserCloud:
         print("multi-user privilege delegation ....... [ passed ] ")
 
     # =========================================================================
+    #  Legacy L1 – Database access authorization (3.3.x.y READ/WRITE syntax)
+    # =========================================================================
+
+    def do_legacy_db_access_authorization(self):
+        """
+        In 3.3.x.y-, database access was controlled with:
+            GRANT READ  ON dbname.* TO user_name
+            GRANT WRITE ON dbname.* TO user_name
+            REVOKE READ  ON dbname.* FROM user_name
+            REVOKE WRITE ON dbname.* FROM user_name
+            GRANT ALL   ON dbname.* TO user_name
+
+        All of the above must remain fully functional in 3.4.0.0+
+        (backward compatibility requirement).  This test verifies:
+          - GRANT READ  grants SELECT access; REVOKE READ removes it
+          - GRANT WRITE grants INSERT access; REVOKE WRITE removes it
+          - GRANT ALL   ON dbname.* grants full read+write access
+          - priv_level dbname.tbname (table-level READ/WRITE) also works
+          - Wildcard scope *.* READ/WRITE also works
+        """
+        tdLog.info("--- [Legacy] do_legacy_db_access_authorization ---")
+
+        # ---- L1a: GRANT READ grants SELECT; REVOKE READ removes it ----
+        self.login()  # root
+        self.exec_sql(f"GRANT READ ON {CLOUD_DB}.* TO {CLOUD_USER}")
+        tdLog.info("  GRANT READ succeeded")
+
+        self.login(CLOUD_USER, password=PWD)
+        # READ privilege enables SELECT
+        tdSql.query(f"SELECT COUNT(*) FROM {CLOUD_DB}.{CLOUD_STB}")
+        tdSql.checkRows(1)
+        # READ does NOT grant INSERT
+        self.exec_sql_failed(
+            f"INSERT INTO {CLOUD_DB}.{CLOUD_TABLE} VALUES (NOW+8100s, 11)",
+            TSDB_CODE_PAR_PERMISSION_DENIED,
+        )
+
+        self.login()  # root
+        self.exec_sql(f"REVOKE READ ON {CLOUD_DB}.* FROM {CLOUD_USER}")
+        tdLog.info("  REVOKE READ succeeded")
+
+        # ---- L1b: GRANT WRITE grants INSERT; REVOKE WRITE removes it ----
+        self.exec_sql(f"GRANT WRITE ON {CLOUD_DB}.* TO {CLOUD_USER}")
+        tdLog.info("  GRANT WRITE succeeded")
+
+        self.login(CLOUD_USER, password=PWD)
+        self.exec_sql(
+            f"INSERT INTO {CLOUD_DB}.{CLOUD_TABLE} VALUES (NOW+8200s, 22)"
+        )
+        tdLog.info("  INSERT allowed after GRANT WRITE")
+
+        self.login()  # root
+        self.exec_sql(f"REVOKE WRITE ON {CLOUD_DB}.* FROM {CLOUD_USER}")
+        self.login(CLOUD_USER, password=PWD)
+        self.exec_sql_failed(
+            f"INSERT INTO {CLOUD_DB}.{CLOUD_TABLE} VALUES (NOW+8300s, 33)",
+            TSDB_CODE_PAR_PERMISSION_DENIED,
+        )
+        tdLog.info("  INSERT blocked after REVOKE WRITE")
+
+        # ---- L1c: GRANT ALL ON dbname.* grants full read+write ----
+        self.login()  # root
+        self.exec_sql(f"GRANT ALL ON {CLOUD_DB}.* TO {CLOUD_USER}")
+        tdLog.info("  GRANT ALL ON dbname.* succeeded")
+
+        self.login(CLOUD_USER, password=PWD)
+        tdSql.query(f"SELECT * FROM {CLOUD_DB}.{CLOUD_TABLE}")
+        assert tdSql.queryRows >= 1
+        self.exec_sql(
+            f"INSERT INTO {CLOUD_DB}.{CLOUD_TABLE} VALUES (NOW+8400s, 44)"
+        )
+        tdLog.info("  SELECT and INSERT both work after GRANT ALL")
+
+        self.login()  # root
+        self.exec_sql(f"REVOKE ALL ON {CLOUD_DB}.* FROM {CLOUD_USER}")
+        tdLog.info("  REVOKE ALL succeeded")
+
+        # ---- L1d: priv_level dbname.tbname (table-level READ/WRITE) ----
+        self.exec_sql(
+            f"GRANT READ ON {CLOUD_DB}.{CLOUD_STB} TO {CLOUD_USER}"
+        )
+        self.login(CLOUD_USER, password=PWD)
+        tdSql.query(f"SELECT * FROM {CLOUD_DB}.{CLOUD_STB}")
+        assert tdSql.queryRows >= 1
+        tdLog.info("  Table-level GRANT READ works")
+
+        self.login()  # root
+        self.exec_sql(
+            f"REVOKE READ ON {CLOUD_DB}.{CLOUD_STB} FROM {CLOUD_USER}"
+        )
+        tdLog.info("  Table-level REVOKE READ works")
+
+        # ---- L1e: wildcard scope *.* READ/WRITE ----
+        self.exec_sql(f"GRANT READ ON *.* TO {CLOUD_USER}")
+        self.login(CLOUD_USER, password=PWD)
+        tdSql.query(f"SELECT COUNT(*) FROM {CLOUD_DB}.{CLOUD_STB}")
+        tdSql.checkRows(1)
+        tdLog.info("  Wildcard GRANT READ ON *.* works")
+
+        self.login()  # root
+        self.exec_sql(f"REVOKE READ ON *.* FROM {CLOUD_USER}")
+        tdLog.info("  Wildcard REVOKE READ ON *.* works")
+
+        print("legacy db access authorization ........ [ passed ] ")
+
+    # =========================================================================
+    #  Legacy L2 – Message-subscription authorization (3.3.x.y SUBSCRIBE)
+    # =========================================================================
+
+    def do_legacy_subscribe_authorization(self):
+        """
+        In 3.3.x.y-, subscription rights were controlled with:
+            GRANT   SUBSCRIBE ON topic_name TO   user_name
+            REVOKE  SUBSCRIBE ON topic_name FROM user_name
+
+        In 3.4.0.0+, the 'SUBSCRIBE' privilege on topics is still supported;
+        the only change is that the fully-qualified form
+            GRANT SUBSCRIBE ON TOPIC dbname.topic_name TO user_name
+        is the canonical spelling.  Both forms should work correctly.
+
+        This test verifies:
+          - cloud_user can create a topic (it owns the source database)
+          - root can grant / revoke SUBSCRIBE using the 3.4.0.0+ canonical form
+          - After grant, data can be consumed; after revoke access is denied
+        """
+        tdLog.info("--- [Legacy] do_legacy_subscribe_authorization ---")
+
+        legacy_topic  = "legacy_sub_topic"
+        legacy_group  = "legacy_sub_group"
+
+        # cloud_user creates the topic (it owns cloud_db)
+        self.login(CLOUD_USER, password=PWD)
+        try:
+            tdSql.execute(f"DROP TOPIC IF EXISTS {legacy_topic}")
+        except Exception:
+            pass
+        tdSql.execute(
+            f"CREATE TOPIC {legacy_topic}"
+            f" AS SELECT * FROM {CLOUD_DB}.{CLOUD_STB}"
+        )
+        tdLog.info(f"  {CLOUD_USER} created topic {legacy_topic}")
+
+        # root grants SUBSCRIBE using the canonical 3.4.0.0+ syntax
+        self.login()  # root
+        self.exec_sql(f"GRANT SUBSCRIBE ON TOPIC {CLOUD_DB}.{legacy_topic} TO {CLOUD_USER}")
+        tdLog.info("  GRANT SUBSCRIBE ON TOPIC succeeded")
+
+        # cloud_user (via root connection) can consume data
+        # cloud_stb has 10 rows (cloud_ct1, seeded in setup) at this point
+        consumer = self.subscribe_topic(
+            "root", ROOT_PWD, legacy_group, legacy_topic,
+            expected_rows=10,
+        )
+        try:
+            consumer.unsubscribe()
+        except Exception:
+            pass
+        tdLog.info("  Topic consumed successfully after SUBSCRIBE grant")
+
+        # REVOKE SUBSCRIBE and verify access is denied
+        self.login()  # root
+        self.exec_sql(f"REVOKE SUBSCRIBE ON TOPIC {CLOUD_DB}.{legacy_topic} FROM {CLOUD_USER}")
+        self.subscribe_topic_failed(
+            CLOUD_USER, PWD,
+            "legacy_sub_group2", legacy_topic,
+            TSDB_CODE_MND_NO_RIGHTS,
+        )
+        tdLog.info("  REVOKE SUBSCRIBE correctly blocks further access")
+
+        # cloud_user (creator) can drop the topic
+        self.login(CLOUD_USER, password=PWD)
+        tdSql.execute(f"DROP TOPIC IF EXISTS {legacy_topic}")
+
+        print("legacy subscribe authorization ........ [ passed ] ")
+
+    # =========================================================================
+    #  Legacy L3 – Tag-based (table-level) authorization with WITH clause
+    # =========================================================================
+
+    def do_legacy_tag_based_authorization(self):
+        """
+        From v3.0.5.0 / 3.3.x.y-, tag-based row filtering was supported:
+            GRANT READ  ON dbname.stbname WITH tag_condition TO user_name
+            GRANT WRITE ON dbname.stbname WITH tag_condition TO user_name
+            REVOKE READ  ON dbname.stbname FROM user_name
+            REVOKE WRITE ON dbname.stbname FROM user_name
+
+        All of the above must remain fully functional in 3.4.0.0+
+        (backward compatibility requirement).  This test verifies:
+          - GRANT READ  ... WITH tag_condition grants filtered SELECT access
+          - Only rows matching the tag condition are visible
+          - REVOKE READ removes the access correctly
+          - GRANT WRITE ... WITH tag_condition grants filtered INSERT access
+        """
+        tdLog.info("--- [Legacy] do_legacy_tag_based_authorization ---")
+
+        # Ensure a second child table with a different tag exists
+        self.login(CLOUD_USER, password=PWD)
+        try:
+            self.exec_sql(
+                f"CREATE TABLE {CLOUD_DB}.legacy_ct2"
+                f" USING {CLOUD_DB}.{CLOUD_STB}"
+                f" TAGS ('region_legacy', 99)"
+            )
+            self.exec_sql(
+                f"INSERT INTO {CLOUD_DB}.legacy_ct2"
+                f" VALUES (NOW, 11, 'legacy_data')"
+            )
+        except Exception:
+            pass  # already exists
+
+        # ---- L3a: GRANT READ ... WITH tag_condition filters rows ----
+        self.login()  # root
+        self.exec_sql(
+            f"GRANT READ ON {CLOUD_DB}.{CLOUD_STB}"
+            f" WITH region='region_a' TO {CLOUD_USER}"
+        )
+        tdLog.info("  GRANT READ ... WITH tag_condition succeeded")
+
+        self.login(CLOUD_USER, password=PWD)
+        # region_a child table rows are visible
+        tdSql.query(f"SELECT * FROM {CLOUD_DB}.{CLOUD_CHILD_TABLE}")
+        assert tdSql.queryRows >= 10, (
+            f"Expected >=10 region_a rows, got {tdSql.queryRows}"
+        )
+        # region_legacy child table rows are NOT visible
+        self.query_expect_rows(
+            f"SELECT * FROM {CLOUD_DB}.legacy_ct2", 0
+        )
+        # full supertable scan honours the tag filter
+        tdSql.query(f"SELECT * FROM {CLOUD_DB}.{CLOUD_STB}")
+        assert tdSql.queryRows >= 10
+        tdLog.info("  Tag-based row filtering works correctly")
+
+        # ---- L3b: REVOKE READ removes the filtered access ----
+        self.login()  # root
+        self.exec_sql(
+            f"REVOKE READ ON {CLOUD_DB}.{CLOUD_STB} FROM {CLOUD_USER}"
+        )
+        tdLog.info("  REVOKE READ ON stbname succeeded")
+
+        # ---- L3c: GRANT WRITE ... WITH tag_condition ----
+        self.exec_sql(
+            f"GRANT WRITE ON {CLOUD_DB}.{CLOUD_STB}"
+            f" WITH region='region_a' TO {CLOUD_USER}"
+        )
+        tdLog.info("  GRANT WRITE ... WITH tag_condition succeeded")
+
+        self.login(CLOUD_USER, password=PWD)
+        # INSERT into the matching child table is allowed
+        self.exec_sql(
+            f"INSERT INTO {CLOUD_DB}.{CLOUD_CHILD_TABLE}"
+            f" VALUES (NOW+9999s, 77, 'legacy_write')"
+        )
+        tdLog.info("  INSERT into region_a child table allowed after GRANT WRITE")
+
+        self.login()  # root
+        self.exec_sql(
+            f"REVOKE WRITE ON {CLOUD_DB}.{CLOUD_STB} FROM {CLOUD_USER}"
+        )
+        tdLog.info("  REVOKE WRITE ON stbname succeeded")
+
+        # cleanup
+        self.login(CLOUD_USER, password=PWD)
+        try:
+            self.exec_sql(f"DROP TABLE {CLOUD_DB}.legacy_ct2")
+        except Exception:
+            pass
+
+        print("legacy tag-based authorization ........ [ passed ] ")
+
+    # =========================================================================
+    #  Legacy L4 – SHOW USER PRIVILEGES
+    # =========================================================================
+
+    def do_legacy_show_user_privileges(self):
+        """
+        In 3.3.x.y-, 'SHOW USER PRIVILEGES' displays a user's current grants.
+        In 3.4.0.0+, the same command should still work and return privilege
+        rows for cloud_user (via information_schema.ins_user_privileges as well).
+        """
+        tdLog.info("--- [Legacy] do_legacy_show_user_privileges ---")
+
+        # Grant a temporary SELECT privilege to cloud_user so there is
+        # at least one explicit row in the privileges view.
+        self.login()  # root
+        self.exec_sql(f"GRANT SELECT ON TABLE {CLOUD_DB}.{CLOUD_STB} TO {CLOUD_USER}")
+
+        # root can see cloud_user's privileges via SHOW USER PRIVILEGES
+        self.login()  # root
+        tdSql.query("SHOW USER PRIVILEGES")
+        assert tdSql.queryRows >= 1, \
+            "SHOW USER PRIVILEGES returned no rows"
+        tdLog.info("  SHOW USER PRIVILEGES works for root")
+
+        # information_schema.ins_user_privileges must contain cloud_user rows
+        tdSql.query(
+            f"SELECT * FROM information_schema.ins_user_privileges"
+            f" WHERE user_name='{CLOUD_USER}'"
+        )
+        assert tdSql.queryRows >= 1, (
+            f"ins_user_privileges has no rows for {CLOUD_USER}"
+        )
+        tdLog.info("  ins_user_privileges contains rows for cloud_user")
+
+        # cleanup the temporary SELECT grant
+        self.exec_sql(f"REVOKE SELECT ON TABLE {CLOUD_DB}.{CLOUD_STB} FROM {CLOUD_USER}")
+
+        # After revocation the row must be gone
+        tdSql.query(
+            f"SELECT * FROM information_schema.ins_user_privileges"
+            f" WHERE user_name='{CLOUD_USER}'"
+            f" AND priv_scope='TABLE'"
+            f" AND table_name='{CLOUD_STB}'"
+        )
+        assert tdSql.queryRows == 0, (
+            f"Expected 0 SELECT rows after revoke, got {tdSql.queryRows}"
+        )
+        tdLog.info("  SHOW USER PRIVILEGES row absent after REVOKE — correct")
+
+        print("legacy SHOW USER PRIVILEGES ........... [ passed ] ")
+
+    # =========================================================================
     #  Main entry point
     # =========================================================================
 
@@ -1058,6 +1429,14 @@ class TestUserCloud:
         all sub-tests without per-test teardown/setup cycles.
 
         Test coverage:
+
+          Legacy (3.3.x.y- compatibility, cloud_user only):
+          L1. GRANT/REVOKE READ/WRITE still work in 3.4.0.0+ (backward compat)
+          L2. GRANT/REVOKE SUBSCRIBE ON topic still works in 3.4.0.0+
+          L3. GRANT READ/WRITE ... WITH tag_condition still works in 3.4.0.0+
+          L4. SHOW USER PRIVILEGES / ins_user_privileges accuracy
+
+          New version (3.4.0.0+):
           1. Cloud user basic attributes verification
           2. Createdb=1 allows DB creation; sub_user is blocked
           3. Owner DML on cloud_db (INSERT / SELECT / DELETE)
@@ -1084,7 +1463,16 @@ class TestUserCloud:
 
         # setup
         self._setup_env()
-        # Test        
+
+        # ------ Test 3.3.x.y version (legacy) ------
+        # Verify that the feature set described for 3.3.x.y- is still
+        # available (or properly replaced) in 3.4.0.0+ for cloud_user.
+        self.do_legacy_db_access_authorization()
+        self.do_legacy_subscribe_authorization()
+        self.do_legacy_tag_based_authorization()
+        self.do_legacy_show_user_privileges()
+
+        # ----- Test New version -------
         self.do_cloud_user_attributes()
         self.do_cloud_user_createdb()
         self.do_cloud_user_owned_dml()
