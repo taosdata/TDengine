@@ -2300,6 +2300,8 @@ int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pSrcBlock, const SSDat
   pDstBlock->info.rows = pSrcBlock->info.rows;
   pDstBlock->info.capacity = pSrcBlock->info.rows;
   pDstBlock->info.window = pSrcBlock->info.window;
+  pDstBlock->info.dataLoad = pSrcBlock->info.dataLoad;
+  pDstBlock->info.scanFlag = pSrcBlock->info.scanFlag;
 
   *pResBlock = pDstBlock;
   return code;

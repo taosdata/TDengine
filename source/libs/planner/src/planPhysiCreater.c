@@ -3267,6 +3267,7 @@ static int32_t createExchangePhysiNodeByMerge(SMergePhysiNode* pMerge, int32_t i
   pExchange->srcEndGroupId = pMerge->srcGroupId + idx;
   pExchange->grpSingleChannel = grpSingleChannel;
   pExchange->singleSrc = true;
+  pExchange->node.dynamicOp = pMerge->node.dynamicOp;
   pExchange->node.pParent = (SPhysiNode*)pMerge;
   pExchange->node.pOutputDataBlockDesc = NULL;
   code = nodesCloneNode((SNode*)pMerge->node.pOutputDataBlockDesc, (SNode**)&pExchange->node.pOutputDataBlockDesc);

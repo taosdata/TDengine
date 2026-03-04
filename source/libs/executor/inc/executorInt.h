@@ -176,6 +176,7 @@ typedef enum EExchangeSourceType {
   EX_SRC_TYPE_VTB_WIN_SCAN,
   EX_SRC_TYPE_VSTB_TS_SCAN,
   EX_SRC_TYPE_VSTB_INTERVAL_SCAN,
+  EX_SRC_TYPE_VSTB_PART_INTERVAL_SCAN,
 } EExchangeSourceType;
 
 typedef enum {

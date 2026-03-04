@@ -703,6 +703,10 @@ static int32_t stbSplCreateMergeNode(SSplitContext* pCxt, SLogicSubplan* pSubpla
   pMerge->srcGroupId = pCxt->groupId;
   pMerge->srcEndGroupId = pCxt->groupId;
   pMerge->node.precision = pPartChild->precision;
+  pMerge->node.dynamicOp = pSplitNode->dynamicOp;
+  if (!pMerge->node.dynamicOp && NULL != pSplitNode->pParent) {
+    pMerge->node.dynamicOp = pSplitNode->pParent->dynamicOp;
+  }
   pMerge->pMergeKeys = pMergeKeys;
   pMerge->groupSort = groupSort;
   pMerge->numOfSubplans = 1;
@@ -2319,6 +2323,47 @@ _return:
   return code;
 }
 
+typedef struct SVstbIntervalSplitInfo {
+  SLogicNode*    pWindow;
+  SLogicSubplan* pSubplan;
+} SVstbIntervalSplitInfo;
+
+static bool vstbIntervalFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode,
+                                      SVstbIntervalSplitInfo* pInfo) {
+  (void)pCxt;
+  if (QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode) || LIST_LENGTH(pNode->pChildren) != 1 ||
+      WINDOW_TYPE_INTERVAL != ((SWindowLogicNode*)pNode)->winType || NULL == pNode->pParent ||
+      QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL != nodeType(pNode->pParent) ||
+      DYN_QTYPE_VTB_INTERVAL != ((SDynQueryCtrlLogicNode*)pNode->pParent)->qType ||
+      !((SDynQueryCtrlLogicNode*)pNode->pParent)->vtbScan.batchProcessChild ||
+      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0))) {
+    return false;
+  }
+
+  pInfo->pWindow = pNode;
+  pInfo->pSubplan = pSubplan;
+  return true;
+}
+
+static int32_t vstbIntervalSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
+  SVstbIntervalSplitInfo info = {0};
+  if (!splMatch(pCxt, pSubplan, 0, (FSplFindSplitNode)vstbIntervalFindSplitNode, &info)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SStableSplitInfo splitInfo = {
+    .pSplitNode = info.pWindow,
+    .pSubplan = info.pSubplan,
+  };
+
+  int32_t code = stbSplSplitIntervalForBatch(pCxt, &splitInfo);
+  if (TSDB_CODE_SUCCESS == code) {
+    info.pWindow->splitDone = true;
+    pCxt->split = true;
+  }
+  return code;
+}
+
 typedef struct SStreamScanSplitInfo {
   SLogicNode             *pSplitNode;
   SLogicSubplan          *pSubplan;
@@ -2378,6 +2423,7 @@ static const SSplitRule splitRuleSet[] = {
   {.pName = "MergeTableScanSplit",    .splitFunc = mergeTableScanSplit},
   {.pName = "MergeAggColsSplit",      .splitFunc = mergeAggColsSplit},
   {.pName = "DynVirtualScanSplit",    .splitFunc = dynVirtualScanSplit},
+  {.pName = "VStbIntervalSplit",      .splitFunc = vstbIntervalSplit},
   {.pName = "MergeExtWinSplit",       .splitFunc = mergeExtWinSplit},
   {.pName = "VStbAggSplit",           .splitFunc = vstbAggSplit},
 };

@@ -1339,6 +1339,11 @@ static SColMatchItem* findMatchItemByColId(SArray* pList, col_id_t colId) {
   return NULL;
 }
 
+static int32_t findMatchSlotIdByColId(SArray* pList, col_id_t colId) {
+  SColMatchItem* pItem = findMatchItemByColId(pList, colId);
+  return pItem ? pItem->dstSlotId : -1;
+}
+
 static bool isNewScanParam(STableScanOperatorParam* pParam) {
   return pParam->isNewParam;
 }
@@ -1359,6 +1364,7 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
   STableKeyInfo*           pList = NULL;
   SOrgTbInfo*              pOrgTbInfo;
   bool                     isNewTable;
+  SArray*                  pMatchList = NULL;
 
   cleanupQueryTableDataCond(&pInfo->base.cond);
 
@@ -1439,6 +1445,16 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
     pBlockColArray = taosArrayInit(schema->nCols, sizeof(SColIdSlotIdPair));
     QUERY_CHECK_NULL(pBlockColArray, code, lino, _return, terrno);
 
+    if (pInfo->base.matchInfo.pList) {
+      if (!pInfo->base.matchInfo.colIdOrdered) {
+        pMatchList = taosArrayDup(pInfo->base.matchInfo.pList, NULL);
+        QUERY_CHECK_NULL(pMatchList, code, lino, _return, terrno);
+        taosArraySort(pMatchList, compareColMatchItemByColId);
+      } else {
+        pMatchList = pInfo->base.matchInfo.pList;
+      }
+    }
+
     // virtual table's origin table scan do not has ts column.
     SColIdPair tsPair = {.vtbColId = PRIMARYKEY_TIMESTAMP_COL_ID, .orgColId = PRIMARYKEY_TIMESTAMP_COL_ID};
     QUERY_CHECK_NULL(taosArrayPush(pColArray, &tsPair), code, lino, _return, terrno);
@@ -1458,16 +1474,30 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
 
     for (int32_t i = 0; i < taosArrayGetSize(pColArray); i++) {
       SColIdPair* pPair = (SColIdPair*)taosArrayGet(pColArray, i);
-      for (int32_t j = 0; j < taosArrayGetSize(pInfo->base.matchInfo.pList); j++) {
-        SColMatchItem* pItem = taosArrayGet(pInfo->base.matchInfo.pList, j);
-        if (pItem->colId == pPair->vtbColId) {
-          SColIdSlotIdPair colIdSlotIdPair = {.orgColId = pPair->orgColId, .vtbSlotId = pItem->dstSlotId};
-          QUERY_CHECK_NULL(taosArrayPush(pBlockColArray, &colIdSlotIdPair), code, lino, _return, terrno);
-          qDebug("dynamic vtable scan block col map orgColId:%d, vtbSlotId:%d, %s", colIdSlotIdPair.orgColId,
-                 colIdSlotIdPair.vtbSlotId, GET_TASKID(pTaskInfo));
-          break;
-        }
+      int32_t dstSlotId = findMatchSlotIdByColId(pMatchList, pPair->vtbColId);
+      if (dstSlotId >= 0) {
+        SColIdSlotIdPair colIdSlotIdPair = {.orgColId = pPair->orgColId, .vtbSlotId = dstSlotId};
+        QUERY_CHECK_NULL(taosArrayPush(pBlockColArray, &colIdSlotIdPair), code, lino, _return, terrno);
+        qDebug("dynamic vtable scan block col map orgColId:%d, vtbSlotId:%d, %s", colIdSlotIdPair.orgColId,
+               colIdSlotIdPair.vtbSlotId, GET_TASKID(pTaskInfo));
       }
+    }
+
+    int32_t matchTsSlot = findMatchSlotIdByColId(pMatchList, PRIMARYKEY_TIMESTAMP_COL_ID);
+    int32_t mapTsSlot = -1;
+    for (int32_t i = 0; i < taosArrayGetSize(pBlockColArray); ++i) {
+      SColIdSlotIdPair* pPair = taosArrayGet(pBlockColArray, i);
+      QUERY_CHECK_NULL(pPair, code, lino, _return, terrno);
+      if (pPair->orgColId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        mapTsSlot = pPair->vtbSlotId;
+        break;
+      }
+    }
+    if (matchTsSlot < 0 || mapTsSlot < 0) {
+      qInfo("%s vstb batch scan ts map missing, table:%s matchTsSlot:%d mapTsSlot:%d matchCols:%d colMap:%d blockMap:%d",
+            GET_TASKID(pTaskInfo), pOrgTbInfo->tbName, matchTsSlot, mapTsSlot,
+            pMatchList ? (int32_t)taosArrayGetSize(pMatchList) : 0, (int32_t)taosArrayGetSize(pOrgTbInfo->colMap),
+            (int32_t)taosArrayGetSize(pBlockColArray));
     }
 
     taosArraySort(pColArray, compareColIdPair);
@@ -1593,6 +1623,9 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
 _return:
   if (code) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  if (pMatchList != pInfo->base.matchInfo.pList) {
+    taosArrayDestroy(pMatchList);
   }
   pAPI->metaReaderFn.clearReader(&superTable);
   pAPI->metaReaderFn.clearReader(&orgTable);
@@ -1980,6 +2013,7 @@ static int32_t blockSetVstbSlotId(const SSDataBlock* pSrcBlock,SArray* pColMap) 
   for (int32_t i = 0; i < taosArrayGetSize(pSrcBlock->pDataBlock); i++) {
     SColumnInfoData* pSrcCol = taosArrayGet(pSrcBlock->pDataBlock, i);
     QUERY_CHECK_NULL(pSrcCol, code, lino, _return, terrno);
+    found = false;
     for (int32_t j = 0; j < taosArrayGetSize(pColMap); j++) {
       SColIdSlotIdPair* pColPair = taosArrayGet(pColMap, j);
       QUERY_CHECK_NULL(pColPair, code, lino, _return, terrno);

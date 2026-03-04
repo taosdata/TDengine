@@ -419,7 +419,7 @@ _return:
 
 static int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, int32_t vgId, int64_t tbUid, bool needCache, SOperatorParam* pChild) {
   int32_t code = TSDB_CODE_SUCCESS;
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
   if (NULL == *ppRes) {
     code = terrno;
     freeOperatorParam(pChild, OP_GET_PARAM);
@@ -470,7 +470,7 @@ static int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes, int32_t down
 
 static int32_t buildGroupCacheNotifyOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, int32_t vgId, int64_t tbUid) {
   int32_t code = TSDB_CODE_SUCCESS;
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
   if (NULL == *ppRes) {
     return terrno;
   }
@@ -578,7 +578,7 @@ static int32_t buildExchangeOperatorParamImpl(SOperatorParam** ppRes, int32_t do
   SOperatorParam*              pParam = NULL;
   SExchangeOperatorParam*      pExc = NULL;
 
-  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  pParam = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(pParam, code, lino, _return, terrno)
 
   pParam->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
@@ -684,7 +684,7 @@ static int32_t buildBatchExchangeOperatorParam(SOperatorParam** ppRes, int32_t d
   SExchangeOperatorBatchParam*  pExc = NULL;
   SExchangeOperatorBasicParam   basic = {0};
 
-  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  pParam = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(pParam, code, line, _return, terrno);
 
   pParam->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
@@ -744,7 +744,7 @@ static int32_t buildBatchExchangeOperatorParamForVirtual(SOperatorParam** ppRes,
   SExchangeOperatorBatchParam*  pExc = NULL;
   SExchangeOperatorBasicParam   basic = {0};
 
-  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  pParam = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(pParam, code, lino, _return, terrno)
 
   pParam->value = taosMemoryMalloc(sizeof(SExchangeOperatorParam));
@@ -793,7 +793,7 @@ _return:
 
 static int32_t buildMergeJoinOperatorParam(SOperatorParam** ppRes, bool initParam, SOperatorParam** ppChild0, SOperatorParam** ppChild1) {
   int32_t code = TSDB_CODE_SUCCESS;
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
   if (NULL == *ppRes) {
     code = terrno;
     return code;
@@ -839,7 +839,7 @@ static int32_t buildMergeJoinOperatorParam(SOperatorParam** ppRes, bool initPara
 
 static int32_t buildMergeJoinNotifyOperatorParam(SOperatorParam** ppRes, SOperatorParam* pChild0, SOperatorParam* pChild1) {
   int32_t code = TSDB_CODE_SUCCESS;
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
   if (NULL == *ppRes) {
     code = terrno;
     freeOperatorParam(pChild0, OP_NOTIFY_PARAM);
@@ -994,7 +994,7 @@ static int32_t buildVtbScanOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOper
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SVTableScanOperatorParam* pVScan = NULL;
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
 
   (*ppRes)->pChildren = taosArrayInit(1, POINTER_BYTES);
@@ -1186,7 +1186,7 @@ static int32_t buildExternalWindowOperatorParam(SDynQueryCtrlOperatorInfo* pInfo
   int32_t                       lino = 0;
   SExternalWindowOperatorParam* pExtWinOp = NULL;
 
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
 
   pExtWinOp = taosMemoryMalloc(sizeof(SExternalWindowOperatorParam));
@@ -1223,6 +1223,12 @@ _return:
   }
   if (*ppRes) {
     if ((*ppRes)->pChildren) {
+      for (int32_t i = 0; i < taosArrayGetSize((*ppRes)->pChildren); ++i) {
+        SOperatorParam* pChildParam = taosArrayGetP((*ppRes)->pChildren, i);
+        if (pChildParam) {
+          freeOperatorParam(pChildParam, OP_GET_PARAM);
+        }
+      }
       taosArrayDestroy((*ppRes)->pChildren);
     }
     taosMemoryFree(*ppRes);
@@ -1237,7 +1243,7 @@ static int32_t buildMergeOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperat
   int32_t                   lino = 0;
   SMergeOperatorParam*      pMergeOp = NULL;
 
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
 
   (*ppRes)->pChildren = taosArrayInit(numOfDownstream, POINTER_BYTES);
@@ -1269,16 +1275,9 @@ _return:
   if (*ppRes) {
     if ((*ppRes)->pChildren) {
       for (int32_t i = 0; i < taosArrayGetSize((*ppRes)->pChildren); i++) {
-        SOperatorParam* pChildParam = (SOperatorParam*)taosArrayGet((*ppRes)->pChildren, i);
+        SOperatorParam* pChildParam = taosArrayGetP((*ppRes)->pChildren, i);
         if (pChildParam) {
-          SExternalWindowOperatorParam* pExtWinOp = (SExternalWindowOperatorParam*)pChildParam->value;
-          if (pExtWinOp) {
-            if (pExtWinOp->ExtWins) {
-              taosArrayDestroy(pExtWinOp->ExtWins);
-            }
-            taosMemoryFree(pExtWinOp);
-          }
-          taosMemoryFree(pChildParam);
+          freeOperatorParam(pChildParam, OP_GET_PARAM);
         }
       }
       taosArrayDestroy((*ppRes)->pChildren);
@@ -1296,7 +1295,7 @@ static int32_t buildMergeOperatorParamForTsScan(SDynQueryCtrlOperatorInfo* pInfo
   SOperatorParam*           pExchangeParam = NULL;
   SVtbScanDynCtrlInfo*      pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
 
-  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  pParam = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(pParam, code, lino, _return, terrno)
 
   pParam->opType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
@@ -1340,7 +1339,7 @@ static int32_t buildAggOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperator
   SVtbScanDynCtrlInfo*      pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
   bool                      freeExchange = false;
 
-  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  pParam = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(pParam, code, lino, _return, terrno)
 
   pParam->pChildren = taosArrayInit(1, POINTER_BYTES);
@@ -1397,7 +1396,7 @@ static int32_t buildAggOperatorParamWithGroupId(SDynQueryCtrlOperatorInfo* pInfo
 
   otbVgIdToOtbInfoArrayMap = *(SHashObj**)pIter;
 
-  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  pParam = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(pParam, code, lino, _return, terrno)
 
   pParam->pChildren = taosArrayInit(1, POINTER_BYTES);
@@ -3517,7 +3516,7 @@ static int32_t buildExternalWindowOperatorParamEx(SDynQueryCtrlOperatorInfo* pIn
   int32_t                       lino = 0;
   SExternalWindowOperatorParam* pExtWinOp = NULL;
 
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
 
   pExtWinOp = taosMemoryMalloc(sizeof(SExternalWindowOperatorParam));
@@ -3558,13 +3557,9 @@ _return:
   if (*ppRes) {
     if ((*ppRes)->pChildren) {
       for (int32_t i = 0; i < taosArrayGetSize((*ppRes)->pChildren); i++) {
-        SOperatorParam* pChildParam = (SOperatorParam*)taosArrayGet((*ppRes)->pChildren, i);
+        SOperatorParam* pChildParam = taosArrayGetP((*ppRes)->pChildren, i);
         if (pChildParam) {
-          SDynQueryCtrlOperatorParam* pDynParam = (SDynQueryCtrlOperatorParam*)pChildParam->value;
-          if (pDynParam) {
-            taosMemoryFree(pDynParam);
-          }
-          taosMemoryFree(pChildParam);
+          freeOperatorParam(pChildParam, OP_GET_PARAM);
         }
       }
       taosArrayDestroy((*ppRes)->pChildren);
@@ -3965,14 +3960,14 @@ _return:
   return code;
 }
 
-static int32_t buildIntervalOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes) {
+static int32_t buildHashIntervalOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SOperatorParam*           pParam = NULL;
   SOperatorParam*           pExchangeParam = NULL;
   SVtbScanDynCtrlInfo*      pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
 
-  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  pParam = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(pParam, code, lino, _return, terrno)
 
   pParam->opType = QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL;
@@ -4007,6 +4002,104 @@ _return:
   return code;
 }
 
+static int32_t buildSplitIntervalMergeOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorInfo* pMergeOp,
+                                                    SOperatorParam** ppRes) {
+  int32_t              code = TSDB_CODE_SUCCESS;
+  int32_t              lino = 0;
+  SVtbScanDynCtrlInfo* pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+
+  *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
+
+  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
+  (*ppRes)->downstreamIdx = 0;
+  (*ppRes)->reUse = false;
+  (*ppRes)->value = taosMemoryCalloc(1, sizeof(SMergeOperatorParam));
+  QUERY_CHECK_NULL((*ppRes)->value, code, lino, _return, terrno)
+
+  (*ppRes)->pChildren = taosArrayInit(pMergeOp->numOfDownstream, POINTER_BYTES);
+  QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
+
+  for (int32_t i = 0; i < pMergeOp->numOfDownstream; ++i) {
+    SOperatorParam* pExchangeParam = NULL;
+    code = buildBatchExchangeOperatorParamForVirtual(
+        &pExchangeParam, i, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap,
+        (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_PART_INTERVAL_SCAN,
+        QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+    QUERY_CHECK_CODE(code, lino, _return);
+    QUERY_CHECK_NULL(taosArrayPush((*ppRes)->pChildren, &pExchangeParam), code, lino, _return, terrno)
+  }
+
+  return code;
+
+_return:
+  freeOperatorParam(*ppRes, OP_GET_PARAM);
+  *ppRes = NULL;
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+static int32_t buildSplitIntervalOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorInfo* pIntervalOp,
+                                               SOperatorParam** ppRes) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
+  SOperatorInfo*  pMergeOp = NULL;
+  SOperatorParam* pMergeParam = NULL;
+
+  QUERY_CHECK_NULL(pIntervalOp->pDownstream, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  pMergeOp = pIntervalOp->pDownstream[0];
+  QUERY_CHECK_NULL(pMergeOp, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  if (QUERY_NODE_PHYSICAL_PLAN_MERGE != pMergeOp->operatorType) {
+    qError("%s invalid downstream operator type %d for split interval", __func__, pMergeOp->operatorType);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
+
+  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL;
+  (*ppRes)->downstreamIdx = 0;
+  (*ppRes)->reUse = false;
+  (*ppRes)->value = taosMemoryCalloc(1, sizeof(SAggOperatorParam));
+  QUERY_CHECK_NULL((*ppRes)->value, code, lino, _return, terrno)
+
+  (*ppRes)->pChildren = taosArrayInit(1, POINTER_BYTES);
+  QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
+
+  code = buildSplitIntervalMergeOperatorParam(pInfo, pMergeOp, &pMergeParam);
+  QUERY_CHECK_CODE(code, lino, _return);
+  QUERY_CHECK_NULL(taosArrayPush((*ppRes)->pChildren, &pMergeParam), code, lino, _return, terrno)
+  pMergeParam = NULL;
+
+  return code;
+
+_return:
+  if (pMergeParam) {
+    freeOperatorParam(pMergeParam, OP_GET_PARAM);
+  }
+  freeOperatorParam(*ppRes, OP_GET_PARAM);
+  *ppRes = NULL;
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+static int32_t buildIntervalOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorInfo* pIntervalOp,
+                                          SOperatorParam** ppRes) {
+  if (NULL == pIntervalOp) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  switch (pIntervalOp->operatorType) {
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
+      return buildHashIntervalOperatorParam(pInfo, ppRes);
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
+      return buildSplitIntervalOperatorParam(pInfo, pIntervalOp, ppRes);
+    default:
+      qError("%s unsupported interval operator type %d", __func__, pIntervalOp->operatorType);
+      return TSDB_CODE_INVALID_PARA;
+  }
+}
+
 int32_t vtbIntervalNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
   int32_t                    code = TSDB_CODE_SUCCESS;
   int32_t                    line = 0;
@@ -4025,7 +4118,9 @@ int32_t vtbIntervalNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
   QUERY_CHECK_CODE(code, line, _return);
 
   if (pVtbScan->genNewParam) {
-    code = buildIntervalOperatorParam(pInfo, &pIntervalParam);
+    qDebug("%s vtb interval split start, intervalOp:%s type:%d", GET_TASKID(pOperator->pTaskInfo), pInterval->name,
+           pInterval->operatorType);
+    code = buildIntervalOperatorParam(pInfo, pInterval, &pIntervalParam);
     QUERY_CHECK_CODE(code, line, _return);
 
     code = pInterval->fpSet.getNextExtFn(pInterval, pIntervalParam, &pResult);
@@ -4038,8 +4133,11 @@ int32_t vtbIntervalNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
   }
 
   if (pResult) {
+    qDebug("%s vtb interval got result rows:%" PRId64 " status:%d", GET_TASKID(pOperator->pTaskInfo),
+           pResult->info.rows, pInterval->status);
     *pRes = pResult;
   } else {
+    qDebug("%s vtb interval got empty result, interval status:%d", GET_TASKID(pOperator->pTaskInfo), pInterval->status);
     *pRes = NULL;
     setOperatorCompleted(pOperator);
   }

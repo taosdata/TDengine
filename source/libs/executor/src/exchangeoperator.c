@@ -864,7 +864,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
 }
 
 int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq) {
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
   if (NULL == *ppRes) {
     return terrno;
   }
@@ -907,7 +907,7 @@ int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, 
   int32_t                  lino = 0;
   STableScanOperatorParam* pScan = NULL;
 
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno);
 
   pScan = taosMemoryMalloc(sizeof(STableScanOperatorParam));
@@ -1012,7 +1012,7 @@ int32_t buildTableScanOperatorParamBatchInfo(SOperatorParam** ppRes, uint64_t gr
   int32_t                  lino = 0;
   STableScanOperatorParam* pScan = NULL;
 
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno);
 
   pScan = taosMemoryMalloc(sizeof(STableScanOperatorParam));
@@ -1103,8 +1103,14 @@ int32_t buildAggOperatorParam(SOperatorParam** ppRes, uint64_t groupid, SArray* 
   int32_t                  lino = 0;
   SOperatorParam*          pParam = NULL;
 
-  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  pParam = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(pParam, code, lino, _return, terrno);
+
+  pParam->opType = QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL;
+  pParam->downstreamIdx = 0;
+  pParam->value = NULL;
+  pParam->pChildren = NULL;
+  pParam->reUse = false;
 
   pParam->pChildren = taosArrayInit(1, POINTER_BYTES);
   QUERY_CHECK_NULL(pParam->pChildren, code, lino, _return, terrno);
@@ -1130,12 +1136,44 @@ _return:
   return code;
 }
 
+static int32_t buildIntervalOperatorParam(SOperatorParam** ppRes, uint64_t groupid, SArray* pUidList, SArray* pBatchMap,
+                                          SArray* pTagList, bool tableSeq, STimeWindow* window, bool isNewParam) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
+  SOperatorParam* pParam = NULL;
+
+  pParam = taosMemoryCalloc(1, sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(pParam, code, lino, _return, terrno);
+
+  pParam->opType = QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL;
+  pParam->downstreamIdx = 0;
+  pParam->value = NULL;
+  pParam->reUse = false;
+  pParam->pChildren = taosArrayInit(1, POINTER_BYTES);
+  QUERY_CHECK_NULL(pParam->pChildren, code, lino, _return, terrno);
+
+  SOperatorParam* pTableScanParam = NULL;
+  code = buildTableScanOperatorParamBatchInfo(&pTableScanParam, groupid, pUidList, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
+                                              pBatchMap, pTagList, tableSeq, window, isNewParam);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  QUERY_CHECK_NULL(taosArrayPush(pParam->pChildren, &pTableScanParam), code, lino, _return, terrno);
+
+  *ppRes = pParam;
+  return code;
+
+_return:
+  freeOperatorParam(pParam, OP_GET_PARAM);
+  qError("%s failed at %d, failed to build interval scan operator msg:%s", __FUNCTION__, lino, tstrerror(code));
+  return code;
+}
+
 int32_t buildTagScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
   STagScanOperatorParam*   pScan = NULL;
 
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno);
 
   pScan = taosMemoryMalloc(sizeof(STagScanOperatorParam));
@@ -1313,6 +1351,16 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
               &req.pOpParam, pDataInfo->groupid, pDataInfo->pSrcUidList, srcOpType,
               pDataInfo->batchOrgTbInfo, pDataInfo->tagList, pDataInfo->tableSeq, &pDataInfo->window,
               pDataInfo->isNewParam);
+          clearVtbScanDataInfo(pDataInfo);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        break;
+      }
+      case EX_SRC_TYPE_VSTB_PART_INTERVAL_SCAN: {
+        if (pDataInfo->batchOrgTbInfo) {
+          code = buildIntervalOperatorParam(&req.pOpParam, pDataInfo->groupid, pDataInfo->pSrcUidList,
+                                            pDataInfo->batchOrgTbInfo, pDataInfo->tagList, pDataInfo->tableSeq,
+                                            &pDataInfo->window, pDataInfo->isNewParam);
           clearVtbScanDataInfo(pDataInfo);
           QUERY_CHECK_CODE(code, lino, _end);
         }
@@ -1934,11 +1982,11 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator,
       }
       pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pBasicParam->vgId, sizeof(pBasicParam->vgId));
       QUERY_CHECK_NULL(pIdx, code, lino, _return, TSDB_CODE_INVALID_PARA);
-    } else if (pBasicParam->type == EX_SRC_TYPE_VSTB_TS_SCAN) {
-      // For VSTB_TS_SCAN, each exchange operator only has one source, if the source is not found in hash, it means this
-      // source is added in other exchange operator, this source will be processed in other exchange operator, so just skip it here.
-      qDebug("addSingleExchangeSource found no existing source for vgId: %d, but it's VSTB_TS_SCAN, skip it",
-             pBasicParam->vgId);
+    } else if (pBasicParam->type == EX_SRC_TYPE_VSTB_TS_SCAN || pBasicParam->type == EX_SRC_TYPE_VSTB_PART_INTERVAL_SCAN) {
+      // Multi-exchange virtual table paths build each exchange param from the full vg map.
+      // If this exchange does not own the current vg source, skip it and let the matching exchange consume it.
+      qDebug("addSingleExchangeSource found no existing source for vgId: %d, sourceType:%d, skip it",
+             pBasicParam->vgId, pBasicParam->type);
       return TSDB_CODE_SUCCESS;
     } else {
       qError("No exchange source for vgId: %d", pBasicParam->vgId);
@@ -1952,6 +2000,7 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator,
     case EX_SRC_TYPE_VSTB_TS_SCAN:
     case EX_SRC_TYPE_VSTB_WIN_SCAN:
     case EX_SRC_TYPE_VSTB_INTERVAL_SCAN:
+    case EX_SRC_TYPE_VSTB_PART_INTERVAL_SCAN:
     case EX_SRC_TYPE_VSTB_AGG_SCAN: {
       if (pIdx->inUseIdx < 0) {
         SSourceDataInfo dataInfo = {0};
