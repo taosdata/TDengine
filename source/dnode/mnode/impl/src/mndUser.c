@@ -33,6 +33,8 @@
 #include "mndToken.h"
 #include "tbase64.h"
 #include "totp.h"
+#include "mndDnode.h"
+#include "mndVgroup.h"
 
 // clang-format on
 
@@ -3411,6 +3413,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
     duration = duration / 1000;
+
     auditRecord(pReq, pMnode->clusterId, operation, "", createReq.user, detail, strlen(detail), duration, 0);
   }
 

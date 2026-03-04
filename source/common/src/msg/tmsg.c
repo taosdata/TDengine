@@ -2105,6 +2105,14 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->syncTotalIndex));
   }
 
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->auditEpSet.numOfEps));
+  for (int32_t i = 0; i < pReq->auditEpSet.numOfEps; ++i) {
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->auditEpSet.eps[i].fqdn));
+    TAOS_CHECK_EXIT(tEncodeI16(&encoder, pReq->auditEpSet.eps[i].port));
+    // do not need to encode InUse here, because inUse is not accurate at every time
+  }
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->auditVgId));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -2279,6 +2287,20 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
       TAOS_CHECK_EXIT(tDecodeI32(&decoder, &vload->snapSeq));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &vload->syncTotalIndex));
     }
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &(pReq->auditEpSet.numOfEps)));
+    int32_t numEps = pReq->auditEpSet.numOfEps;
+    if (numEps < 0 || numEps > TSDB_MAX_REPLICA) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+    for (int32_t i = 0; i < pReq->auditEpSet.numOfEps; ++i) {
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->auditEpSet.eps[i].fqdn));
+      TAOS_CHECK_EXIT(tDecodeI16(&decoder, &(pReq->auditEpSet.eps[i].port)));
+    }
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &(pReq->auditVgId)));
   }
 
   tEndDecode(&decoder);
@@ -2546,6 +2568,14 @@ int32_t tSerializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->timeWhiteVer));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->auditDB));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->auditToken));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->auditEpSet.numOfEps));
+  for (int32_t i = 0; i < pRsp->auditEpSet.numOfEps; ++i) {
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->auditEpSet.eps[i].fqdn));
+    TAOS_CHECK_EXIT(tEncodeI16(&encoder, pRsp->auditEpSet.eps[i].port));
+    // do not need to encode InUse here, because inUse is not accurate at every time
+  }
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->auditVgId));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -2608,6 +2638,20 @@ int32_t tDeserializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->auditDB));
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->auditToken));
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &(pRsp->auditEpSet.numOfEps)));
+    int32_t numEps = pRsp->auditEpSet.numOfEps;
+    if (numEps < 0 || numEps > TSDB_MAX_REPLICA) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+    for (int32_t i = 0; i < pRsp->auditEpSet.numOfEps; ++i) {
+      TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->auditEpSet.eps[i].fqdn));
+      TAOS_CHECK_EXIT(tDecodeI16(&decoder, &(pRsp->auditEpSet.eps[i].port)));
+    }
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &(pRsp->auditVgId)));
   }
 
   tEndDecode(&decoder);
@@ -12193,6 +12237,55 @@ void tFreeSVArbCheckSyncRsp(SVArbCheckSyncRsp *pRsp) {
   taosMemoryFreeClear(pRsp->arbToken);
   taosMemoryFreeClear(pRsp->member0Token);
   taosMemoryFreeClear(pRsp->member1Token);
+}
+
+int32_t tSerializeSVAuditRecordReq(void *buf, int32_t bufLen, SVAuditRecordReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  int32_t  tlen = 0;
+
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->data));
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVAuditRecordReq(void *buf, int32_t bufLen, SVAuditRecordReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino = 0;
+
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+
+  TAOS_CHECK_EXIT(tDecodeCStrAlloc(&decoder, &(pReq->data)));
+
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSVAuditRecordReq(SVAuditRecordReq *pReq) {
+  if (NULL == pReq) {
+    return;
+  }
+  taosMemoryFreeClear(pReq->data);
 }
 
 int32_t tSerializeSVArbSetAssignedLeaderReq(void *buf, int32_t bufLen, SVArbSetAssignedLeaderReq *pReq) {
