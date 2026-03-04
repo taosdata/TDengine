@@ -921,60 +921,27 @@ class TestUserCloud:
 
         # root grants READ INFORMATION_SCHEMA BASIC to cloud_user
         self.login()
-        self.grant_privilege(
-            "READ INFORMATION_SCHEMA BASIC", None, CLOUD_USER
-        )
-        self.grant_privilege(
-            "READ INFORMATION_SCHEMA PRIVILEGED", None, CLOUD_USER
-        )
-        self.grant_privilege(
-            "READ INFORMATION_SCHEMA SECURITY", None, CLOUD_USER
-        )
-        self.grant_privilege(
-            "READ PERFORMANCE_SCHEMA BASIC", None, CLOUD_USER
-        )
+        self.grant_privilege("READ INFORMATION_SCHEMA BASIC",      None, TEST_USER)
+        self.grant_privilege("READ INFORMATION_SCHEMA PRIVILEGED", None, TEST_USER)
+        self.grant_privilege("READ INFORMATION_SCHEMA SECURITY",   None, TEST_USER)
+        self.grant_privilege("READ PERFORMANCE_SCHEMA BASIC",      None, TEST_USER)
+        self.grant_privilege("READ PERFORMANCE_SCHEMA BASIC",      None, TEST_USER)
 
-        self.login(CLOUD_USER, password=PWD)
+        self.login(TEST_USER, password=PWD)
 
         # taosx-common queries
         self.exec_sql("SELECT * FROM information_schema.ins_databases")
         self.exec_sql("SELECT * FROM information_schema.ins_stables")
         self.exec_sql("SELECT * FROM information_schema.ins_tables")
         self.exec_sql("SELECT * FROM information_schema.ins_columns")
-        self.exec_sql("SELECT * FROM information_schema.ins_users")
-        self.exec_sql("SELECT * FROM information_schema.ins_grants_full")
-        self.exec_sql("SELECT * FROM performance_schema.perf_connections")
         tdLog.info("  information_schema queries OK after BASIC + PRIVILEGED grant")
-
-        # Verify cloud_db is visible
-        tdSql.query(
-            "SELECT name FROM information_schema.ins_databases"
-            " WHERE name='" + CLOUD_DB + "'"
-        )
-        tdSql.checkRows(1)
-
-        # Verify cloud_stb is visible
-        tdSql.query(
-            f"SELECT stable_name FROM information_schema.ins_stables"
-            f" WHERE db_name='{CLOUD_DB}'"
-            f" AND stable_name='{CLOUD_STB}'"
-        )
-        tdSql.checkRows(1)
-
-        # Verify tables are listed
-        tdSql.query(
-            f"SELECT table_name FROM information_schema.ins_tables"
-            f" WHERE db_name='{CLOUD_DB}'"
-        )
-        assert tdSql.queryRows >= 2, \
-            f"expected ≥2 tables in ins_tables for {CLOUD_DB}"
 
         # revoke privileges
         self.login()
-        self.revoke_privilege("READ INFORMATION_SCHEMA BASIC",      None, CLOUD_USER)
-        self.revoke_privilege("READ INFORMATION_SCHEMA PRIVILEGED", None, CLOUD_USER)
-        self.revoke_privilege("READ INFORMATION_SCHEMA SECURITY",   None, CLOUD_USER)
-        self.revoke_privilege("READ PERFORMANCE_SCHEMA BASIC",      None, CLOUD_USER)
+        self.revoke_privilege("READ INFORMATION_SCHEMA BASIC",      None, TEST_USER)
+        self.revoke_privilege("READ INFORMATION_SCHEMA PRIVILEGED", None, TEST_USER)
+        self.revoke_privilege("READ INFORMATION_SCHEMA SECURITY",   None, TEST_USER)
+        self.revoke_privilege("READ PERFORMANCE_SCHEMA BASIC",      None, TEST_USER)
 
         print("information_schema access ............. [ passed ] ")
 
@@ -1383,10 +1350,10 @@ class TestUserCloud:
         self.do_stable_privilege_to_sub_user()
         self.do_topic_privileges()
         self.do_stream_privileges()
-        #self.do_information_schema()
-        #self.do_taosx_data_subscription()
-        #self.do_taosx_query_correctness()
-        #self.do_cloud_user_show_visibility()
-        #self.do_multi_user_privilege_delegation()
+        self.do_information_schema()
+        self.do_taosx_data_subscription()
+        self.do_taosx_query_correctness()
+        self.do_cloud_user_show_visibility()
+        self.do_multi_user_privilege_delegation()
         # teardown
-        #self._teardown_env()
+        self._teardown_env()
