@@ -834,9 +834,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             }
             g_args.thread_num = atoi((const char *)arg);
             break;
-        case 'R':
-            warnPrint("%s\n", "'-R' is not supported, ignore this options.");
-            break;
         case 'C':
         case 'X':
             if (arg) {
