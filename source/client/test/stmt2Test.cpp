@@ -5101,6 +5101,8 @@ TEST(stmt2Case, query_vtable_core) {
     ASSERT_EQ(*(int64_t*)row2[0], 1591060630000);
     row2 = taos_fetch_row(res2);
     ASSERT_EQ(row2, nullptr);
+
+    taos_stmt2_close(stmt);
   }
 
   tsem_destroy(&args.sem);
