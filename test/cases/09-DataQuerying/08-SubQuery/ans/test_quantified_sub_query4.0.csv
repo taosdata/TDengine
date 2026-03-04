@@ -1930,7 +1930,7 @@ QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
 QUERY_PLAN:          Output: Ignore Group Id: true
 *************************** 6.row ***************************
-QUERY_PLAN:          Merge ResBlocks: True
+QUERY_PLAN:          Merge ResBlocks: False
 *************************** 7.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 8.row ***************************
@@ -1958,7 +1958,7 @@ QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 19.row ***************************
 QUERY_PLAN:                   Output: Ignore Group Id: true
 *************************** 20.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Merge ResBlocks: False
 *************************** 21.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 22.row ***************************
@@ -1978,7 +1978,7 @@ QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
 QUERY_PLAN:          Output: Ignore Group Id: true
 *************************** 6.row ***************************
-QUERY_PLAN:          Merge ResBlocks: True
+QUERY_PLAN:          Merge ResBlocks: False
 *************************** 7.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 8.row ***************************
@@ -2006,7 +2006,7 @@ QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 19.row ***************************
 QUERY_PLAN:                   Output: Ignore Group Id: true
 *************************** 20.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Merge ResBlocks: False
 *************************** 21.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 22.row ***************************
@@ -2026,7 +2026,7 @@ QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
 QUERY_PLAN:          Output: Ignore Group Id: true
 *************************** 6.row ***************************
-QUERY_PLAN:          Merge ResBlocks: True
+QUERY_PLAN:          Merge ResBlocks: False
 *************************** 7.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 8.row ***************************
@@ -2048,7 +2048,7 @@ QUERY_PLAN:                Output: columns=1 width=8
 *************************** 16.row ***************************
 QUERY_PLAN:                Output: Ignore Group Id: true
 *************************** 17.row ***************************
-QUERY_PLAN:                Merge ResBlocks: True
+QUERY_PLAN:                Merge ResBlocks: False
 *************************** 18.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 19.row ***************************
@@ -2068,7 +2068,7 @@ QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
 QUERY_PLAN:          Output: Ignore Group Id: true
 *************************** 6.row ***************************
-QUERY_PLAN:          Merge ResBlocks: True
+QUERY_PLAN:          Merge ResBlocks: False
 *************************** 7.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 8.row ***************************
@@ -2218,7 +2218,7 @@ QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
 QUERY_PLAN:          Output: Ignore Group Id: true
 *************************** 6.row ***************************
-QUERY_PLAN:          Merge ResBlocks: True
+QUERY_PLAN:          Merge ResBlocks: False
 *************************** 7.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 8.row ***************************
@@ -2250,7 +2250,7 @@ QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 21.row ***************************
 QUERY_PLAN:                   Output: Ignore Group Id: true
 *************************** 22.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Merge ResBlocks: False
 *************************** 23.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 24.row ***************************
@@ -2280,7 +2280,7 @@ QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
 QUERY_PLAN:          Output: Ignore Group Id: true
 *************************** 6.row ***************************
-QUERY_PLAN:          Merge ResBlocks: True
+QUERY_PLAN:          Merge ResBlocks: False
 *************************** 7.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 8.row ***************************
@@ -2312,7 +2312,7 @@ QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 21.row ***************************
 QUERY_PLAN:                   Output: Ignore Group Id: true
 *************************** 22.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Merge ResBlocks: False
 *************************** 23.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 24.row ***************************
@@ -2342,7 +2342,7 @@ QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
 QUERY_PLAN:          Output: Ignore Group Id: true
 *************************** 6.row ***************************
-QUERY_PLAN:          Merge ResBlocks: True
+QUERY_PLAN:          Merge ResBlocks: False
 *************************** 7.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 ( rows=0 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 8.row ***************************
@@ -2368,7 +2368,7 @@ QUERY_PLAN:                Output: columns=1 width=8
 *************************** 18.row ***************************
 QUERY_PLAN:                Output: Ignore Group Id: true
 *************************** 19.row ***************************
-QUERY_PLAN:                Merge ResBlocks: True
+QUERY_PLAN:                Merge ResBlocks: False
 *************************** 20.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 21.row ***************************
@@ -2398,7 +2398,7 @@ QUERY_PLAN:          Output: columns=1 width=4
 *************************** 5.row ***************************
 QUERY_PLAN:          Output: Ignore Group Id: true
 *************************** 6.row ***************************
-QUERY_PLAN:          Merge ResBlocks: True
+QUERY_PLAN:          Merge ResBlocks: False
 *************************** 7.row ***************************
 QUERY_PLAN:       -> Table Scan on st1 ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 8.row ***************************
@@ -2594,7 +2594,7 @@ QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 25.row ***************************
 QUERY_PLAN:                   Output: Ignore Group Id: true
 *************************** 26.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Merge ResBlocks: False
 *************************** 27.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 28.row ***************************
@@ -2620,7 +2620,7 @@ QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 38.row ***************************
 QUERY_PLAN:                   Output: Ignore Group Id: true
 *************************** 39.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Merge ResBlocks: False
 *************************** 40.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 41.row ***************************
@@ -2680,7 +2680,7 @@ QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 25.row ***************************
 QUERY_PLAN:                   Output: Ignore Group Id: true
 *************************** 26.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Merge ResBlocks: False
 *************************** 27.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 28.row ***************************
@@ -2706,7 +2706,7 @@ QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 38.row ***************************
 QUERY_PLAN:                   Output: Ignore Group Id: true
 *************************** 39.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Merge ResBlocks: False
 *************************** 40.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 41.row ***************************
@@ -2760,7 +2760,7 @@ QUERY_PLAN:                Output: columns=1 width=8
 *************************** 22.row ***************************
 QUERY_PLAN:                Output: Ignore Group Id: true
 *************************** 23.row ***************************
-QUERY_PLAN:                Merge ResBlocks: True
+QUERY_PLAN:                Merge ResBlocks: False
 *************************** 24.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 25.row ***************************
@@ -2780,7 +2780,7 @@ QUERY_PLAN:                Output: columns=1 width=8
 *************************** 32.row ***************************
 QUERY_PLAN:                Output: Ignore Group Id: true
 *************************** 33.row ***************************
-QUERY_PLAN:                Merge ResBlocks: True
+QUERY_PLAN:                Merge ResBlocks: False
 *************************** 34.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 35.row ***************************
@@ -3078,7 +3078,7 @@ QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 27.row ***************************
 QUERY_PLAN:                   Output: Ignore Group Id: true
 *************************** 28.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Merge ResBlocks: False
 *************************** 29.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 30.row ***************************
@@ -3108,7 +3108,7 @@ QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 42.row ***************************
 QUERY_PLAN:                   Output: Ignore Group Id: true
 *************************** 43.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Merge ResBlocks: False
 *************************** 44.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 45.row ***************************
@@ -3182,7 +3182,7 @@ QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 27.row ***************************
 QUERY_PLAN:                   Output: Ignore Group Id: true
 *************************** 28.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Merge ResBlocks: False
 *************************** 29.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 30.row ***************************
@@ -3212,7 +3212,7 @@ QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 42.row ***************************
 QUERY_PLAN:                   Output: Ignore Group Id: true
 *************************** 43.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Merge ResBlocks: False
 *************************** 44.row ***************************
 QUERY_PLAN:                -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 45.row ***************************
@@ -3280,7 +3280,7 @@ QUERY_PLAN:                Output: columns=1 width=8
 *************************** 24.row ***************************
 QUERY_PLAN:                Output: Ignore Group Id: true
 *************************** 25.row ***************************
-QUERY_PLAN:                Merge ResBlocks: True
+QUERY_PLAN:                Merge ResBlocks: False
 *************************** 26.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 27.row ***************************
@@ -3304,7 +3304,7 @@ QUERY_PLAN:                Output: columns=1 width=8
 *************************** 36.row ***************************
 QUERY_PLAN:                Output: Ignore Group Id: true
 *************************** 37.row ***************************
-QUERY_PLAN:                Merge ResBlocks: True
+QUERY_PLAN:                Merge ResBlocks: False
 *************************** 38.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 39.row ***************************
