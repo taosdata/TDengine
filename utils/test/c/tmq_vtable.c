@@ -118,7 +118,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     }
   }
 
-  printf("\n\n meta result:%s\n%s\n\n\n\n", json_get, json_result);
+  printf("meta result:%s\n%s\n\n", json_get, json_result);
   ASSERT(strcmp(json_get, json_result) == 0);
   code = tmq_consumer_close(tmq);
   if (code)

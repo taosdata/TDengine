@@ -388,7 +388,7 @@ int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle) {
     handle->execHandle.execTb.qmsg = tmp;
   }
 
-  handle->snapshotVer = walGetCommittedVer(pTq->pVnode->pWal);
+  handle->snapshotVer = walGetSnapshotVer(pTq->pVnode->pWal);
 
   int32_t code = tqMetaInitHandle(pTq, handle);
   if (code != 0) {
