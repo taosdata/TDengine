@@ -191,7 +191,9 @@ int32_t varColSetVarData(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, co
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t dataLen = VARSTR_HEADER_SIZE + varDataLen;
+  int32_t headerSize = IS_STR_DATA_BLOB(pColumnInfoData->info.type) ?
+                         BLOBSTR_HEADER_SIZE : VARSTR_HEADER_SIZE;
+  int32_t dataLen = headerSize + varDataLen;
   if (pColumnInfoData->varmeta.offset[rowIndex] > 0) {
     pColumnInfoData->varmeta.length = pColumnInfoData->varmeta.offset[rowIndex];
   }
