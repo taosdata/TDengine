@@ -1471,6 +1471,52 @@ int32_t tRepairNeedRunReplicaRepair(const SRepairCtx *pCtx, bool *pNeedRun) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t tRepairDegradeReplicaVnode(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId, char *markerPath,
+                                   int32_t markerPathSize) {
+  if (pCtx == NULL || !pCtx->enabled || dataDir == NULL || dataDir[0] == '\0' || vnodeId < 0 || markerPath == NULL ||
+      markerPathSize <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pCtx->nodeType != REPAIR_NODE_TYPE_VNODE || pCtx->mode != REPAIR_MODE_REPLICA) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  bool    shouldRepair = false;
+  int32_t code = tRepairShouldRepairVnode(pCtx, vnodeId, &shouldRepair);
+  if (code != TSDB_CODE_SUCCESS || !shouldRepair) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char vnodeDir[PATH_MAX] = {0};
+  code = tRepairBuildVnodePath(dataDir, vnodeId, NULL, vnodeDir, sizeof(vnodeDir));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (!taosDirExist(vnodeDir) || !taosIsDir(vnodeDir)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t markerPathLen =
+      tsnprintf(markerPath, markerPathSize, "%s%s%s", vnodeDir, TD_DIRSEP, "replica.degrade.marker.json");
+  if (markerPathLen <= 0 || markerPathLen >= markerPathSize) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char markerContent[1024] = {0};
+  int32_t markerContentLen = tsnprintf(
+      markerContent, sizeof(markerContent),
+      "{\"action\":\"degrade-local-replica\",\"availability\":\"offline\",\"syncPolicy\":\"full-sync\","
+      "\"versionPolicy\":\"reset-local-version\",\"termPolicy\":\"bump-local-term\",\"sessionId\":\"%s\","
+      "\"vnodeId\":%d,\"updatedAtMs\":%" PRId64 "}",
+      pCtx->sessionId, vnodeId, taosGetTimestampMs());
+  if (markerContentLen <= 0 || markerContentLen >= (int32_t)sizeof(markerContent)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return tRepairWriteFileAtomically(markerPath, markerContent, markerContentLen);
+}
+
 int32_t tRepairBuildVnodeTargetPath(const char *dataDir, int32_t vnodeId, ERepairFileType fileType, char *targetPath,
                                     int32_t targetPathSize) {
   const char *subDir = tRepairGetVnodeFileSubDir(fileType);

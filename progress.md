@@ -2,8 +2,8 @@
 
 ## 当前检查点
 - 日期：`2026-03-04`
-- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成，`P4` 已完成，`P5` 已完成，`P6` 进行中（`T6.1` 完成，`T6.2` 进行中）。
-- 下一任务：`T6.2`（本地坏副本降级动作：不可用标记 + 版本/任期策略）。
+- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成，`P4` 已完成，`P5` 已完成，`P6` 进行中（`T6.1`、`T6.2` 已完成，`T6.3` 进行中）。
+- 下一任务：`T6.3`（与现有 restore/vgroup 逻辑联动验证）。
 - 恢复入口：先读 `task_plan.md`，再读 `findings.md`，最后读本文件。
 
 ## 会话日志
@@ -183,6 +183,12 @@
 | 2026-03-04 01:48 | T6.1 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
 | 2026-03-04 01:49 | T6.1 Smoke 验证（replica 分支） | `mode=replica` 最小样本验证通过：输出命中 `step=replica` 100% 进度与成功摘要，`repair.log` 命中 `replica dispatch detail`；`taosd` 退出码 `47` |
 | 2026-03-04 01:50 | T6.1 收尾 | 已将 `task_plan.md` 中 `T6.1` 更新为 `completed`，下一入口切换为 `T6.2`（`in_progress`） |
+| 2026-03-04 01:51 | T6.2 Red 验证 | `cmake --build debug -j8 --target commonTest` 失败，报错 `tRepairDegradeReplicaVnode was not declared in this scope`，符合先测后码预期 |
+| 2026-03-04 01:54 | T6.2 Green 实现 | `trepair.h/.c` 新增 `tRepairDegradeReplicaVnode()`（本地坏副本降级 marker 原子落盘，含 `availability/syncPolicy/versionPolicy/termPolicy`）；`dmMain.c` 升级 `dmRunReplicaRepair()` 为逐 vnode 执行降级并写 `replica degrade detail` |
+| 2026-03-04 01:55 | T6.2 定向验证 | `ASAN_OPTIONS=detect_leaks=0 ./debug/build/bin/commonTest --gtest_filter='RepairOptionParseTest.NeedRunReplicaRepair*:RepairOptionParseTest.DegradeReplicaVnode*'` 通过（4/4） |
+| 2026-03-04 01:57 | T6.2 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
+| 2026-03-04 01:59 | T6.2 Smoke 验证（replica 降级） | 最小样本验证通过：`TAOS_DATA_DIR=/tmp/td-repair-replica-smoke-data` 场景下输出命中 `step=replica` + 成功摘要，`repair.log` 命中 `replica dispatch detail` 与 `replica degrade detail`，且落盘 `vnode/vnode2/replica.degrade.marker.json`（`taosd` 退出码 `47`） |
+| 2026-03-04 01:59 | T6.2 收尾 | 已将 `task_plan.md` 中 `T6.2` 更新为 `completed`，下一入口切换为 `T6.3`（`in_progress`） |
 
 ## 已落盘文档
 - `task_plan.md`

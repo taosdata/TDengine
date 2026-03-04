@@ -316,3 +316,17 @@
     - Green 后定向单测通过（5/5，含 `NeedRunReplicaRepair` 与 invalid-args）；
     - `ctest -R commonTest` 与 `cmake --build debug --target taosd` 通过；
     - `mode=replica` smoke 样本通过：输出命中 `step=replica` + 成功摘要，`repair.log` 命中 `replica dispatch detail`，退出码 `47`。
+- `T6.2`（本地坏副本降级动作）已完成：
+  - `trepair.h/.c` 新增 `tRepairDegradeReplicaVnode()`：
+    - 仅允许 `nodeType=vnode && mode=replica`，并要求 `vnode-id` 命中 `tRepairShouldRepairVnode()`；
+    - 在 `vnode/<id>/` 下原子写入 `replica.degrade.marker.json`；
+    - marker 包含策略字段：`action=degrade-local-replica`、`availability=offline`、`syncPolicy=full-sync`、`versionPolicy=reset-local-version`、`termPolicy=bump-local-term`，并记录 `sessionId/vnodeId/updatedAtMs`。
+  - `dmMain.c` 的 `dmRunReplicaRepair()` 已从 stub 升级为逐 vnode 执行：
+    - 每个 vnode 调用 `tRepairDegradeReplicaVnode()` 触发降级落盘；
+    - 每个 vnode 写 `replica degrade detail`（含 marker 路径与策略字段）；
+    - 保持 `repair.state.json(step=replica,status=running)` 与 `step=replica` 进度输出一致性。
+  - 验证结果：
+    - Red 证据：`commonTest` 构建报错 `tRepairDegradeReplicaVnode was not declared in this scope`；
+    - Green 后定向单测通过（`NeedRunReplicaRepair* + DegradeReplicaVnode*` 共 4 条）；
+    - `ctest -R commonTest` 与 `cmake --build debug --target taosd` 通过；
+    - `mode=replica` smoke 样本通过：`repair.log` 命中 `replica dispatch detail` 与 `replica degrade detail`，且 marker 文件存在，`taosd` 退出码 `47`。

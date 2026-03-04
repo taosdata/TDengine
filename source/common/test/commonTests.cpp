@@ -2482,6 +2482,46 @@ TEST(RepairOptionParseTest, NeedRunReplicaRepairInvalidArgs) {
   ASSERT_EQ(tRepairNeedRunReplicaRepair(&ctx, NULL), TSDB_CODE_INVALID_PARA);
 }
 
+TEST(RepairOptionParseTest, DegradeReplicaVnodeWritesMarker) {
+  const std::string dataDirPath = buildRepairTempPath("replica-degrade-marker");
+  RepairTempDirGuard dataDirGuard(dataDirPath);
+  const std::string sep(TD_DIRSEP);
+  const std::string vnodeDir = dataDirPath + sep + "vnode" + sep + "vnode2";
+  ASSERT_EQ(taosMulMkDir(vnodeDir.c_str()), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "replica"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601514LL, &ctx), TSDB_CODE_SUCCESS);
+
+  char markerPath[PATH_MAX] = {0};
+  ASSERT_EQ(tRepairDegradeReplicaVnode(&ctx, dataDirPath.c_str(), 2, markerPath, sizeof(markerPath)), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(taosCheckExistFile(markerPath));
+
+  std::string markerContent = readRepairFileContent(markerPath);
+  ASSERT_FALSE(markerContent.empty());
+  ASSERT_NE(markerContent.find("\"action\":\"degrade-local-replica\""), std::string::npos);
+  ASSERT_NE(markerContent.find("\"availability\":\"offline\""), std::string::npos);
+  ASSERT_NE(markerContent.find("\"syncPolicy\":\"full-sync\""), std::string::npos);
+  ASSERT_NE(markerContent.find("\"versionPolicy\":\"reset-local-version\""), std::string::npos);
+  ASSERT_NE(markerContent.find("\"termPolicy\":\"bump-local-term\""), std::string::npos);
+  ASSERT_NE(markerContent.find("\"vnodeId\":2"), std::string::npos);
+}
+
+TEST(RepairOptionParseTest, DegradeReplicaVnodeInvalidArgs) {
+  SRepairCtx ctx = {0};
+  char       markerPath[PATH_MAX] = {0};
+
+  ASSERT_EQ(tRepairDegradeReplicaVnode(NULL, "/tmp", 2, markerPath, sizeof(markerPath)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairDegradeReplicaVnode(&ctx, "/tmp", 2, markerPath, sizeof(markerPath)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairDegradeReplicaVnode(&ctx, "/tmp", 2, NULL, sizeof(markerPath)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairDegradeReplicaVnode(&ctx, "/tmp", 2, markerPath, 0), TSDB_CODE_INVALID_PARA);
+}
+
 TEST(RepairOptionParseTest, BuildVnodeTargetPath) {
   char targetPath[PATH_MAX] = {0};
 

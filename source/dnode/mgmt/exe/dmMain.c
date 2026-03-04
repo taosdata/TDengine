@@ -615,19 +615,9 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t replicaDoneVnodes = totalVnodes > 0 ? totalVnodes : 0;
-  code =
-      tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "replica", "running", replicaDoneVnodes,
-                               totalVnodes);
-  if (code != TSDB_CODE_SUCCESS) {
-    dError("failed to write replica repair state since %s", tstrerror(code));
-    printf("failed repair replica scheduling: %s\n", tstrerror(code));
-    return TSDB_CODE_INVALID_CFG;
-  }
-
   char dispatchLog[PATH_MAX] = {0};
   int32_t dispatchLogLen = tsnprintf(dispatchLog, sizeof(dispatchLog), "replica dispatch detail: vnodeTargets=%d "
-                                                                      "replicaNode=%s (stub mode)",
+                                                                      "replicaNode=%s",
                                      global.repairCtx.vnodeIdNum,
                                      global.repairCtx.hasReplicaNode ? global.repairCtx.replicaNode : "auto");
   if (dispatchLogLen <= 0 || dispatchLogLen >= (int32_t)sizeof(dispatchLog)) {
@@ -640,30 +630,80 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
     return TSDB_CODE_INVALID_CFG;
   }
 
-  code = tRepairNeedReportProgress(taosGetTimestampMs(), repairProgressIntervalMs, pLastProgressReportMs, pNeedReport);
-  if (code != TSDB_CODE_SUCCESS) {
-    dError("failed to update replica repair progress interval since %s", tstrerror(code));
-    printf("failed repair replica scheduling: %s\n", tstrerror(code));
-    return TSDB_CODE_INVALID_CFG;
-  }
+  int32_t replicaDoneVnodes = 0;
+  for (int32_t i = 0; i < global.repairCtx.vnodeIdNum; ++i) {
+    int32_t vnodeId = global.repairCtx.vnodeIds[i];
+    char    markerPath[PATH_MAX] = {0};
 
-  if (*pNeedReport || replicaDoneVnodes == totalVnodes) {
     code =
-        tRepairBuildProgressLine(&global.repairCtx, "replica", replicaDoneVnodes, totalVnodes, progressLine,
-                                 progressLineSize);
+        tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "replica", "running", replicaDoneVnodes,
+                                 totalVnodes);
     if (code != TSDB_CODE_SUCCESS) {
-      dError("failed to build replica repair progress line since %s", tstrerror(code));
+      dError("failed to write replica repair state for vnode:%d since %s", vnodeId, tstrerror(code));
       printf("failed repair replica scheduling: %s\n", tstrerror(code));
       return TSDB_CODE_INVALID_CFG;
     }
 
-    dInfo("%s", progressLine);
-    printf("%s\n", progressLine);
-    code = tRepairAppendSessionLog(global.repairLogPath, progressLine);
+    code = tRepairDegradeReplicaVnode(&global.repairCtx, tsDataDir, vnodeId, markerPath, sizeof(markerPath));
     if (code != TSDB_CODE_SUCCESS) {
-      dError("failed to append replica repair progress log since %s", tstrerror(code));
+      dError("failed to degrade local replica vnode:%d since %s", vnodeId, tstrerror(code));
       printf("failed repair replica scheduling: %s\n", tstrerror(code));
       return TSDB_CODE_INVALID_CFG;
+    }
+
+    ++replicaDoneVnodes;
+
+    char detailLog[PATH_MAX * 2] = {0};
+    int32_t detailLogLen = tsnprintf(detailLog, sizeof(detailLog),
+                                     "replica degrade detail: vnode:%d marker:%s action=degrade-local-replica "
+                                     "availability=offline syncPolicy=full-sync "
+                                     "versionPolicy=reset-local-version termPolicy=bump-local-term",
+                                     vnodeId, markerPath);
+    if (detailLogLen <= 0 || detailLogLen >= (int32_t)sizeof(detailLog)) {
+      tstrncpy(detailLog, "replica degrade detail unavailable", sizeof(detailLog));
+    }
+
+    code = tRepairAppendSessionLog(global.repairLogPath, detailLog);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to append replica degrade log for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair replica scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    code =
+        tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "replica", "running", replicaDoneVnodes,
+                                 totalVnodes);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to update replica repair state for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair replica scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    code = tRepairNeedReportProgress(taosGetTimestampMs(), repairProgressIntervalMs, pLastProgressReportMs, pNeedReport);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to update replica repair progress interval for vnode:%d since %s", vnodeId, tstrerror(code));
+      printf("failed repair replica scheduling: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
+
+    if (*pNeedReport || replicaDoneVnodes == totalVnodes) {
+      code =
+          tRepairBuildProgressLine(&global.repairCtx, "replica", replicaDoneVnodes, totalVnodes, progressLine,
+                                   progressLineSize);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to build replica repair progress line for vnode:%d since %s", vnodeId, tstrerror(code));
+        printf("failed repair replica scheduling: %s\n", tstrerror(code));
+        return TSDB_CODE_INVALID_CFG;
+      }
+
+      dInfo("%s", progressLine);
+      printf("%s\n", progressLine);
+      code = tRepairAppendSessionLog(global.repairLogPath, progressLine);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to append replica repair progress log for vnode:%d since %s", vnodeId, tstrerror(code));
+        printf("failed repair replica scheduling: %s\n", tstrerror(code));
+        return TSDB_CODE_INVALID_CFG;
+      }
     }
   }
 
