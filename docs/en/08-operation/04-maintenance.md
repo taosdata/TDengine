@@ -98,6 +98,61 @@ restore qnode on dnode <dnode_id>; # Restore qnode on dnode
 - This feature is based on the recovery of existing replication capabilities, not disaster recovery or backup recovery. Therefore, for the mnode and vnode to be recovered, the prerequisite for using this command is that the other two replicas of the mnode or vnode can still function normally.
 - This command cannot repair individual files in the data directory that are damaged or lost. For example, if individual files or data in an mnode or vnode are damaged, it is not possible to recover a specific file or block of data individually. In this case, you can choose to completely clear the data of that mnode/vnode and then perform recovery.
 
+## File-Level Repair (`taosd -r`)
+
+For file-level corruption under a vnode directory (`wal/tsdb/meta`), you can use `taosd -r` for offline repair. This workflow complements `restore dnode`, which is focused on node-level recovery.
+
+### Supported Scope
+
+- `--node-type`: currently `vnode`
+- `--file-type`: `wal`, `tsdb`, `meta`
+- `--mode`: `force`, `replica`, `copy`
+
+### Common Command Examples
+
+```bash
+# 1) force: run local file repair for the target vnode (example: WAL)
+taosd -r \
+  --node-type vnode \
+  --file-type wal \
+  --vnode-id 2 \
+  --mode force \
+  --backup-path /var/lib/taos/repair-backup
+
+# 2) replica: degrade the local bad replica and trigger replication recovery
+taosd -r \
+  --node-type vnode \
+  --file-type wal \
+  --vnode-id 2 \
+  --mode replica \
+  --backup-path /var/lib/taos/repair-backup
+
+# 3) copy: recover by copying files from a specified replica node (requires ssh/scp)
+taosd -r \
+  --node-type vnode \
+  --file-type wal \
+  --vnode-id 2 \
+  --mode copy \
+  --replica-node 192.168.1.24:/var/lib/taos \
+  --backup-path /var/lib/taos/repair-backup
+```
+
+### Operations Validation and Troubleshooting
+
+- During execution, the process prints `repair progress` and a final `repair summary`.
+- Each run writes session artifacts under the backup path:
+  - `repair.log`: human-readable detail log
+  - `repair.state.json`: machine-readable checkpoint state (used for resume)
+- Recommended checks:
+  - Ensure `repair.log` includes expected step details, such as `copy replica detail` or `replica restore detail`.
+  - Verify `step/status/doneVnodes/totalVnodes` in `repair.state.json`.
+
+### Notes
+
+- `copy` mode requires `--replica-node=<host>:<absolute-path>` and reachable `ssh/scp`.
+- The repair flow creates backup first and rolls back on failures. It is recommended to always set `--backup-path`.
+- For full node/logical-node failures, prefer the `restore dnode` workflow above.
+
 ## Splitting Virtual Groups
 
 When a vgroup is overloaded with CPU or Disk resource usage due to too many subtables, after adding a dnode, you can split the vgroup into two virtual groups using the `split vgroup` command. After the split, the newly created two vgroups will undertake the read and write services originally provided by one vgroup. This command was first released in version 3.0.6.0, and it is recommended to use the latest version whenever possible.

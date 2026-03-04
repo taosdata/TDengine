@@ -100,6 +100,61 @@ restore qnode on dnode <dnode_id>；# 恢复dnode上的qnode
 - 该功能是基于已有的复制功能的恢复，不是灾难恢复或者备份恢复，所以对于要恢复的 mnode 和 vnode 来说，使用该命令的前提是还存在该 mnode 或 vnode 的其它两个副本仍然能够正常工作。
 - 该命令不能修复数据目录中的个别文件的损坏或者丢失。例如，如果某个 mnode 或者 vnode 中的个别文件或数据损坏，无法单独恢复损坏的某个文件或者某块数据。此时，可以选择将该 mnode/vnode 的数据全部清空再进行恢复。
 
+## 文件级修复（`taosd -r`）
+
+对于 vnode 目录下 `wal/tsdb/meta` 的文件级损坏，可以使用 `taosd -r` 执行离线修复。该能力用于“文件级问题”的快速处置，与 `restore dnode` 的“节点级恢复”互补。
+
+### 支持范围
+
+- `--node-type`：当前支持 `vnode`
+- `--file-type`：`wal`、`tsdb`、`meta`
+- `--mode`：`force`、`replica`、`copy`
+
+### 常用命令示例
+
+```bash
+# 1) force：在本机对目标 vnode 执行文件修复（示例：WAL）
+taosd -r \
+  --node-type vnode \
+  --file-type wal \
+  --vnode-id 2 \
+  --mode force \
+  --backup-path /var/lib/taos/repair-backup
+
+# 2) replica：把本地坏副本降级并触发副本同步恢复
+taosd -r \
+  --node-type vnode \
+  --file-type wal \
+  --vnode-id 2 \
+  --mode replica \
+  --backup-path /var/lib/taos/repair-backup
+
+# 3) copy：从指定副本节点拷贝目录恢复（需可用 ssh/scp）
+taosd -r \
+  --node-type vnode \
+  --file-type wal \
+  --vnode-id 2 \
+  --mode copy \
+  --replica-node 192.168.1.24:/var/lib/taos \
+  --backup-path /var/lib/taos/repair-backup
+```
+
+### 运维排查与验收
+
+- 执行过程中会输出进度与最终摘要：`repair progress`、`repair summary`
+- 每次修复会在备份目录写入会话产物：
+  - `repair.log`：可读日志明细
+  - `repair.state.json`：状态检查点（用于中断续跑）
+- 建议优先检查：
+  - `repair.log` 是否包含目标步骤明细（如 `copy replica detail`、`replica restore detail`）
+  - `repair.state.json` 中 `step/status/doneVnodes/totalVnodes` 是否符合预期
+
+### 注意事项
+
+- `copy` 模式必须提供 `--replica-node=<host>:<absolute-path>`，且目标节点可通过 `ssh/scp` 访问。
+- 修复会先做备份并在失败时回滚，建议始终显式配置 `--backup-path`。
+- 若是整节点、整逻辑节点级故障，优先使用上文 `restore dnode` 能力。
+
 ## 分裂虚拟组
 
 当一个 vgroup 因为子表数过多而导致 CPU 或 Disk 资源使用量负载过高时，增加 dnode 节点后，可通过 `split vgroup` 命令把该 vgroup 分裂为两个虚拟组。分裂完成后，新产生的两个 vgroup 承担原来由一个 vgroup 提供的读写服务。该命令在 3.0.6.0 版本第一次发布，建议尽可能使用最新版本。
