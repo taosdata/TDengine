@@ -19,7 +19,7 @@ while getopts "d:c:o:eh" opt; do
             cmd=$OPTARG
             ;;
         o)
-            TIMEOUT_CMD="timeout $OPTARG"
+            TIMEOUT_CMD="timeout  --kill-after=30 $OPTARG"
             ;;
         e)
             ent=1
