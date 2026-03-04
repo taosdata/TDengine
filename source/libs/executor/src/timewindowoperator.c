@@ -2339,7 +2339,7 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
   while (1) {
     SSDataBlock* pBlock = NULL;
     if (pMiaInfo->prefetchedBlock == NULL) {
-      pBlock = getNextBlockFromDownstream(pOperator, 0);
+      pBlock = getNextBlockFromDownstreamRemainDetach(pOperator, 0);
     } else {
       pBlock = pMiaInfo->prefetchedBlock;
       pMiaInfo->prefetchedBlock = NULL;
