@@ -1516,7 +1516,7 @@ static int32_t askEp(tmq_t* pTmq, void* param, bool sync, bool updateEpSet) {
   int32_t lino = 0;
   SMqAskEpReq req = {0};
   req.consumerId = pTmq->consumerId;
-  req.epoch = updateEpSet ? -1 : pTmq->epoch;
+  req.epoch = updateEpSet ? -1 : atomic_load_32(&pTmq->epoch);
   tstrncpy(req.cgroup, pTmq->groupId, TSDB_CGROUP_LEN);
   SMqAskEpCbParam* pParam = NULL;
   void*            pReq = NULL;
@@ -2484,9 +2484,9 @@ static int32_t processMqRspError(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
     tstrerror(pRspWrapper->code));
   if (pRspWrapper->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||   // for vnode transform
       pRspWrapper->code == TSDB_CODE_SYN_NOT_LEADER) {          // for vnode split
-    code = askEp(tmq, NULL, false, true);
-    if (code != 0) {
-      tqErrorC("consumer:0x%" PRIx64 " failed to ask ep wher vnode transform, code:%s", tmq->consumerId, tstrerror(code));
+    int32_t ret = askEp(tmq, NULL, false, true);
+    if (ret != 0) {
+      tqErrorC("consumer:0x%" PRIx64 " failed to ask ep wher vnode transform, ret:%s", tmq->consumerId, tstrerror(ret));
     }
   } else if (pRspWrapper->code == TSDB_CODE_TMQ_CONSUMER_MISMATCH) {
     code = syncAskEp(tmq);
