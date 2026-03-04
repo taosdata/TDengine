@@ -135,4 +135,31 @@ mod tests {
         let decrypted = xor.decrypt(&encrypted).unwrap();
         assert_eq!(decrypted.as_bytes(), data);
     }
+
+    #[test]
+    fn test_time_based_xor_sql() {
+        let xor = TimeBasedXor::new(60); // 60 seconds validity
+        let sql = "SELECT * FROM test.meters LIMIT 10";
+        let encrypted = xor.encrypt(sql).unwrap();
+        let decrypted = xor.decrypt(&encrypted).unwrap();
+        assert_eq!(decrypted, sql);
+    }
+
+    #[test]
+    fn test_time_based_xor_unicode() {
+        let xor = TimeBasedXor::new(60);
+        let sql = "SELECT * FROM 测试.电表 WHERE 名称='传感器'";
+        let encrypted = xor.encrypt(sql).unwrap();
+        let decrypted = xor.decrypt(&encrypted).unwrap();
+        assert_eq!(decrypted, sql);
+    }
+
+    #[test]
+    fn test_time_based_xor_long_sql() {
+        let xor = TimeBasedXor::new(60);
+        let sql = "SELECT * FROM test.meters WHERE ts > NOW() - 1d ".repeat(100);
+        let encrypted = xor.encrypt(&sql).unwrap();
+        let decrypted = xor.decrypt(&encrypted).unwrap();
+        assert_eq!(decrypted, sql);
+    }
 }

@@ -1388,7 +1388,59 @@ async fn rest_proxy(
         return HttpResponse::Unauthorized().json(RestErrResponse::new(auth.err().unwrap()));
     }
     let auth = auth.unwrap();
-    let sql = get_body_from_payload(payload).await.unwrap();
+
+    // Check if XOR encryption is enabled via X-Enable-Xor header
+    let enable_xor = req
+        .headers()
+        .get("X-Enable-Xor")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+
+    let body = get_body_from_payload(payload).await.unwrap();
+
+    // Decrypt SQL if XOR is enabled
+    let sql = if enable_xor {
+        // Use TimeBasedXor with 300 seconds (5 minutes) validity
+        let xor = TimeBasedXor::new(300);
+        match xor.decrypt(&body) {
+            Ok(decrypted) => {
+                if decrypted.is_empty() {
+                    return HttpResponse::BadRequest().json(RestErrResponse {
+                        code: Code::new(0x2703),
+                        desc: "Decrypted SQL is empty".to_string(),
+                    });
+                }
+                tracing::debug!("XOR decryption successful");
+                decrypted
+            }
+            Err(e) => {
+                let (code, desc) = match e {
+                    utils::xor::XorError::Base64(_) => {
+                        (0x2701, "Invalid Base64 encoding in request body")
+                    }
+                    utils::xor::XorError::Utf8(_) => {
+                        (0x2702, "Decrypted content is not valid UTF-8")
+                    }
+                    utils::xor::XorError::InvalidData => {
+                        (0x2701, "Invalid XOR encrypted data format")
+                    }
+                    utils::xor::XorError::InvalidTimestamp => {
+                        (0x2701, "Invalid timestamp in XOR encrypted data")
+                    }
+                    utils::xor::XorError::Expired => (0x2701, "XOR encrypted data has expired"),
+                };
+                tracing::warn!("XOR decryption failed: {}", e);
+                return HttpResponse::BadRequest().json(RestErrResponse {
+                    code: Code::new(code),
+                    desc: desc.to_string(),
+                });
+            }
+        }
+    } else {
+        body
+    };
+
     let tz = query.get("tz");
     match args.query(&auth, &sql, tz).await {
         Ok(ok) => {

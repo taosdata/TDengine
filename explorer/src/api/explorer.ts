@@ -3,16 +3,33 @@ import JSONbig from 'json-bigint';
 import { compHeadAndData, getLocalTimezone } from '@/utils';
 import { stringify } from 'qs';
 import pathDetector from '@/utils/pathDetector';
+import { TimeBasedXor } from '@/utils/timeBasedXor';
 
 const apiPath = pathDetector.getApiBasePath();
+
 export function sendSQLReq(sqlStr: string, composeData = false, alert = true) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'text/plain'
+  };
+
+  let requestData = sqlStr;
+
+  // 默认启用 XOR 加密
+  try {
+    const xor = new TimeBasedXor(300); // 5 分钟有效期
+    requestData = xor.encrypt(sqlStr);
+    headers['X-Enable-Xor'] = 'true';
+    console.log('[XOR] SQL encrypted for transmission');
+  } catch (error) {
+    console.error('[XOR] Encryption failed, fallback to plain text:', error);
+    // 加密失败时回退到明文传输
+  }
+
   return request({
     baseURL: apiPath,
     url: `/rest/sql?tz=${getLocalTimezone()}`,
     method: 'post',
-    headers: {
-      'Content-Type': 'text/plain'
-    },
+    headers,
     transformResponse: [
       function (data, _headers) {
         // console.log('SQL response headers:', headers.toJSON());
@@ -24,7 +41,7 @@ export function sendSQLReq(sqlStr: string, composeData = false, alert = true) {
         }
       }
     ],
-    data: sqlStr
+    data: requestData
   })
     .then(cData => {
       if (cData.code == 0) return composeData ? compHeadAndData(cData.column_meta, cData.data) : cData;
