@@ -469,7 +469,8 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->ttl = pNew->ttl;
   pOld->keep = pNew->keep;
   pOld->ownerId = pNew->ownerId;
-  
+  pOld->secureDelete = pNew->secureDelete;
+
   if (pNew->numOfColumns > 0) {
     pOld->numOfColumns = pNew->numOfColumns;
     memcpy(pOld->pColumns, pNew->pColumns, pOld->numOfColumns * sizeof(SSchema));
@@ -1572,6 +1573,7 @@ static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
   if (pAlter->commentLen >= 0) return 0;
   if (pAlter->ttl != 0) return 0;
   if (pAlter->keep != -1) return 0;
+  if (pAlter->secureDelete >= 0) return 0;
 
   if (pAlter->numOfFields < 1 || pAlter->numOfFields != (int32_t)taosArrayGetSize(pAlter->pFields)) {
     code = TSDB_CODE_MND_INVALID_STB_OPTION;
@@ -2262,7 +2264,7 @@ static int32_t mndBuildStbSchemaImp(SMnode *pMnode, SDbObj *pDb, SStbObj *pStb, 
   pRsp->virtualStb = pStb->virtualStb;
   pRsp->ownerId = pStb->ownerId;
   pRsp->isAudit = pDb->cfg.isAudit ? 1 : 0;
-  pRsp->secureDelete = pStb->secureDelete ? pStb->secureDelete : pDb->cfg.secureDelete;
+  pRsp->secureDelete = pStb->secureDelete;
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
     SSchema *pSchema = &pRsp->pSchemas[i];
@@ -2368,6 +2370,7 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
   }
   pRsp->virtualStb = pStb->virtualStb;
   pRsp->pColRefs = NULL;
+  pRsp->secureDelete = pStb->secureDelete;
 
   taosRUnLockLatch(&pStb->lock);
   TAOS_RETURN(code);
