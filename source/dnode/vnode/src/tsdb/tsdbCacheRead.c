@@ -154,20 +154,18 @@ static int32_t saveMultiRows(SArray* pRow, SSDataBlock* pResBlock,
               uint8_t* pValue = NULL;
               code = doGetValueFromBseBySeq(pr->pVnode->pBse, pColVal->value.pData,
                                             pColVal->value.nData, &pValue, &dataLen);
-              if (code != TSDB_CODE_SUCCESS) {
-                tsdbError("%s failed at line %d, failed to get blob value from bse since: %s, %s",
-                          __func__, __LINE__, tstrerror(code), pr->idstr);
-              } else if ((pValue == NULL && dataLen != 0) ||
-                         (pValue != NULL && dataLen == 0)) {
-                code = TSDB_CODE_INTERNAL_ERROR;
-                tsdbError("%s failed at line %d, got invalid blob value from bse"
-                          "pValue: %p, dataLen: %d, %s",
-                          __func__, __LINE__, pValue, dataLen, pr->idstr);
-              } else {
-                /* got valid blob value */
-                const char* pBlobSrc = (pValue == NULL && dataLen == 0) ?
-                                         kEmptyBlobStr : (const char*)pValue;
-                code = varColSetVarData(pDstCol, rowIndex, pBlobSrc, dataLen, false);
+              if (code == TSDB_CODE_SUCCESS) {
+                if ((pValue == NULL && dataLen > 0) ||
+                    (pValue != NULL && dataLen == 0)) {
+                  /* invalid output from bse */
+                  code = TSDB_CODE_INTERNAL_ERROR;
+                } else if (dataLen == 0) {
+                  /* empty blob */
+                  code = varColSetVarData(pDstCol, rowIndex, kEmptyBlobStr, 0, false);
+                } else {
+                  /* normal blob */
+                  code = varColSetVarData(pDstCol, rowIndex, (const char*)pValue, dataLen, false);
+                }
               }
               taosMemFreeClear(pValue);
               TSDB_CHECK_CODE(code, lino, _end);
