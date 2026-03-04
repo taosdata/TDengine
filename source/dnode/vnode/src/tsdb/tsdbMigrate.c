@@ -589,8 +589,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     int32_t     lcn = flocal->f->lcn;
     STimeWindow win = {0};
     tsdbFidKeyRange(pLocalFset->fid, rtner->tsdb->keepCfg.days, rtner->tsdb->keepCfg.precision, &win.skey, &win.ekey);
-    ETsdbOpType type = VND_IS_RSMA((rtner->tsdb->pVnode)) ? TSDB_OPTR_ROLLUP : TSDB_OPTR_SSMIGRATE;
-    *pCode = tsdbAsyncCompact(rtner->tsdb, &win, type);
+    *pCode = tsdbAsyncCompact(rtner->tsdb, &win, TSDB_OPTR_SSMIGRATE);
     tsdbInfo("vgId:%d, fid:%d, migration cancelled, fileset need compact, lcn: %d", vid, pLocalFset->fid, lcn);
     if (*pCode) {
       setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
@@ -607,11 +606,18 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     tsdbTFileLastChunkName(rtner->tsdb, flocal->f, path);
   }
 
-  int64_t mtime = 0;
-  *pCode = taosStatFile(path, NULL, &mtime, NULL);
+  int64_t size = 0, mtime = 0;
+  *pCode = taosStatFile(path, &size, &mtime, NULL);
   if (*pCode != TSDB_CODE_SUCCESS) {
     tsdbError("vgId:%d, fid:%d, migration cancelled, failed to stat file %s since %s", vid, pLocalFset->fid, path, tstrerror(*pCode));
     setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_FAILED);
+    return false;
+  }
+
+  // file may become smaller after a compaction, especially after a RSMA compaction
+  if (flocal->f->lcn < 1 && size <= (int64_t)pCfg->tsdbPageSize * pCfg->ssChunkSize) {
+    tsdbInfo("vgId:%d, fid:%d, migration skipped, data file is too small, size: %" PRId64 " bytes", vid, flocal->f->fid, size);
+    setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SKIPPED);
     return false;
   }
 
@@ -682,7 +688,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
   
   if (fremote->f->maxVer == flocal->f->maxVer) {
     tsdbTFileSetClear(&pRemoteFset);
-    tsdbError("vgId:%d, fid:%d, migration skipped, no new data", vid, pLocalFset->fid);
+    tsdbInfo("vgId:%d, fid:%d, migration skipped, no new data", vid, pLocalFset->fid);
     setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SKIPPED);
     return false; // no new data
   }
