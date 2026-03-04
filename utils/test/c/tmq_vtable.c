@@ -29,6 +29,7 @@ char* topic = NULL;
 
 char* json_result = NULL;
 char json_get[8192] = {0};
+bool writeData = true;
 
 static TAOS* use_db() {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -58,6 +59,10 @@ static void msg_process(TAOS_RES* msg) {
     tmq_free_json_meta(result);
   }
 
+  if (!writeData) {
+    return;
+  }
+  
   tmq_raw_data raw = {0};
   tmq_get_raw(msg, &raw);
   printf("write raw data type: %d\n", raw.raw_type);
@@ -128,8 +133,8 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
 }
 
 int main(int argc, char* argv[]) {
-  if (argc < 5) {
-    printf("Usage: %s <topic> <snapshot> <json_result> <ref_db>\n", argv[0]);
+  if (argc < 6) {
+    printf("Usage: %s <topic> <snapshot> <json_result> <ref_db> <write_data>\n", argv[0]);
     return 0;
   }
   
@@ -137,6 +142,7 @@ int main(int argc, char* argv[]) {
   snapshot = argv[2];
   json_result = argv[3];
   strcpy(tmqWriteRefDB, argv[4]);
+  writeData = strcmp(argv[5], "true") == 0;
 
   tmq_t*      tmq = build_consumer();
   tmq_list_t* topic_list = build_topic_list();
