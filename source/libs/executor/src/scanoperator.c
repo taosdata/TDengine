@@ -3138,6 +3138,10 @@ void destroyTmqScanOperatorInfo(void* param) {
     destroyOperator(pTmqScan->pTableScanOp);
   }
 
+  if (pTmqScan->tqReader != NULL && pTmqScan->readerFn.tqReaderClose != NULL) {
+    pTmqScan->readerFn.tqReaderClose(pTmqScan->tqReader);
+  }
+
   if (pTmqScan->pTableListInfo) {
     tableListDestroy(pTmqScan->pTableListInfo);
     pTmqScan->pTableListInfo = NULL;
@@ -3305,6 +3309,7 @@ int32_t createTmqScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTa
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
 
   pInfo->pTmqScanOp = pOperator;
+  pInfo->readerFn = pTaskInfo->storageAPI.tqReaderFn;
 
   setOperatorInfo(pOperator, STREAM_SCAN_OP_NAME, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);

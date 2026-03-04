@@ -487,7 +487,7 @@ typedef struct STmqQueryScanInfo {
   SNodeList* pGroupTags;
   SNode*     pTagCond;
   SNode*     pTagIndexCond;
-
+  SStoreTqReader    readerFn;
 } STmqQueryScanInfo;
 
 typedef struct {
