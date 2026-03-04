@@ -224,6 +224,15 @@
     - 修复后目标目录仅保留可恢复块，损坏块被剔除；
     - 备份目录保留原始损坏块，`repair.log/repair.state.json` 均存在。
   - 在当前无完整 dnode 运行环境下，`taosd` 退出码为 `47` 仍可接受（修复流程已完成并产出成功摘要），脚本据此做流程级验收而非进程码等值断言。
-- `T5.1`（META 元数据解析器稳定化）已进入勘察：
-  - `-r` 仍通过全局变量 `generateNewMeta` 触发 `metaOpen.c::metaGenerateNewMeta()`，与新 repair workflow 并行存在。
-  - 当前 `force+meta` 尚未像 `force+wal/tsdb` 一样在 `dmRunRepairWorkflow()` 中有显式调度函数；下一步建议先补调度判定与 Red 用例，再评估对 `metaGenerateNewMeta` 的复用边界。
+- `T5.1`（META 元数据解析器稳定化）已完成：
+  - 新增 `SRepairMetaScanResult` 与 `tRepairScanMetaFiles()`，对 `meta` 目录做“结构/标签/索引”最小稳定性检查：
+    - 必需文件：`table.db`、`schema.db`、`uid.idx`、`name.idx`；
+    - 可选索引：`ctb.idx/suid.idx/tag.idx/sma.idx/ctime.idx/ncol.idx/stream.task.db`（仅统计，不作为失败条件）；
+    - 缺失必需文件会返回 `TSDB_CODE_INVALID_PARA`，并在结果中记录缺失文件名。
+  - 新增 `tRepairNeedRunMetaForceRepair()`，补齐 `force+meta` 调度判定，与 `wal/tsdb` 调度接口保持一致。
+  - `tRepairPrecheck()` 已接入 `fileType=meta` 分支，确保 repair workflow 前置阶段即可 fail-fast 拦截元数据结构不完整场景。
+  - `dmMain.c` 新增 `dmRunForceMetaRepair()` 并接入 `dmRunRepairWorkflow()`：
+    - 每 vnode 执行 `meta` 目录备份；
+    - 记录 `meta scan detail`（required/present/optional/missing）到 `repair.log`；
+    - 更新 `repair.state.json(step=meta)` 与 `step=meta` 进度输出。
+  - 运行验证结果：`taosd -r --file-type meta --mode force` 在最小样本下输出 `step=meta` 与成功摘要，且备份目录正确落盘元数据文件。

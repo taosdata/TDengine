@@ -2,8 +2,8 @@
 
 ## 当前检查点
 - 日期：`2026-03-03`
-- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成，`P4` 已完成，`P5` 进行中（`T5.1` 进行中）。
-- 下一任务：`T5.1`（META 元数据解析器稳定化：结构/标签/索引）。
+- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成，`P4` 已完成，`P5` 进行中（`T5.1` 完成，`T5.2` 进行中）。
+- 下一任务：`T5.2`（WAL/TSDB 反向推导元数据规则实现：第一批规则）。
 - 恢复入口：先读 `task_plan.md`，再读 `findings.md`，最后读本文件。
 
 ## 会话日志
@@ -146,6 +146,13 @@
 | 2026-03-03 15:58 | T4.5 收尾 | 已将 `task_plan.md` 中 `T4.5` 更新为 `completed`，`P4` 标记为 `completed`，下一入口切换为 `T5.1`（`in_progress`） |
 | 2026-03-03 15:59 | T5.1 阶段开始 | 已切换到 `force+meta`，准备先勘察 `meta` 解析与现有测试入口，定义首个 Red 用例 |
 | 2026-03-03 16:00 | T5.1 上下文勘察 | 已定位 `metaOpen.c:metaGenerateNewMeta()` 与 `dmMain.c` 的 `generateNewMeta` 触发点，确认下一步应先补 `force+meta` 调度判定测试，再决定是否直接复用/包装 `metaGenerateNewMeta` |
+| 2026-03-03 23:37 | T5.1 Red 阶段开始 | 已在 `commonTests.cpp` 新增 `ScanMetaFiles*` 与 `NeedRunMetaForceRepair` 测试，准备先验证接口缺失导致的编译失败 |
+| 2026-03-03 23:38 | T5.1 Red 验证 | `cmake --build debug -j8 --target commonTest` 失败，报错 `tRepairScanMetaFiles/tRepairNeedRunMetaForceRepair` 未声明，符合先测后码预期 |
+| 2026-03-03 23:42 | T5.1 Green 实现 | `trepair.h/.c` 新增 `SRepairMetaScanResult`、`tRepairScanMetaFiles()`、`tRepairNeedRunMetaForceRepair()`，并在 `tRepairPrecheck()` 接入 `fileType=meta` 校验；`dmMain.c` 新增 `dmRunForceMetaRepair()` 并接入 repair 工作流 |
+| 2026-03-03 23:43 | T5.1 定向验证 | `ASAN_OPTIONS=detect_leaks=0 ./debug/build/bin/commonTest --gtest_filter=RepairOptionParseTest.ScanMetaFiles*:RepairOptionParseTest.NeedRunMetaForceRepair` 通过（4/4） |
+| 2026-03-03 23:44 | T5.1 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
+| 2026-03-03 23:46 | T5.1 运行验证 | 使用临时数据目录执行 `taosd -r --file-type meta --mode force`，输出 `step=meta` 进度与成功摘要，且备份目录包含 `table.db/schema.db/uid.idx/name.idx` 等元数据文件 |
+| 2026-03-03 23:46 | T5.1 收尾 | 已将 `task_plan.md` 中 `T5.1` 更新为 `completed`，下一入口切换为 `T5.2`（`in_progress`） |
 
 ## 已落盘文档
 - `task_plan.md`

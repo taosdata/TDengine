@@ -51,6 +51,23 @@ static const SRepairOptionPair kModeMap[] = {
     {"copy", REPAIR_MODE_COPY},
 };
 
+static const char *kMetaRequiredFiles[] = {
+    "table.db",
+    "schema.db",
+    "uid.idx",
+    "name.idx",
+};
+
+static const char *kMetaOptionalIndexFiles[] = {
+    "ctb.idx",
+    "suid.idx",
+    "tag.idx",
+    "sma.idx",
+    "ctime.idx",
+    "ncol.idx",
+    "stream.task.db",
+};
+
 #define REPAIR_SESSION_DIR_PREFIX  "repair-"
 #define REPAIR_SESSION_LOG_NAME    "repair.log"
 #define REPAIR_SESSION_STATE_NAME  "repair.state.json"
@@ -482,6 +499,17 @@ static void tRepairRecordCorruptedBlockPath(const char *dirPath, SRepairTsdbBloc
   tstrncpy(pReport->corruptedBlockPaths[pReport->reportedCorruptedBlocks], dirPath,
            sizeof(pReport->corruptedBlockPaths[pReport->reportedCorruptedBlocks]));
   ++pReport->reportedCorruptedBlocks;
+}
+
+static void tRepairRecordMissingMetaFile(SRepairMetaScanResult *pResult, const char *fileName) {
+  if (pResult == NULL || fileName == NULL || fileName[0] == '\0') {
+    return;
+  }
+
+  if (pResult->missingRequiredFiles < REPAIR_META_MAX_MISSING_FILES) {
+    tstrncpy(pResult->missingRequiredFileNames[pResult->missingRequiredFiles], fileName, REPAIR_META_FILE_NAME_LEN);
+  }
+  ++pResult->missingRequiredFiles;
 }
 
 static int32_t tRepairAnalyzeTsdbDirRecursive(const char *dirPath, SRepairTsdbBlockReport *pReport) {
@@ -1361,6 +1389,16 @@ int32_t tRepairNeedRunTsdbForceRepair(const SRepairCtx *pCtx, bool *pNeedRun) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t tRepairNeedRunMetaForceRepair(const SRepairCtx *pCtx, bool *pNeedRun) {
+  if (pCtx == NULL || !pCtx->enabled || pNeedRun == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *pNeedRun = pCtx->nodeType == REPAIR_NODE_TYPE_VNODE && pCtx->fileType == REPAIR_FILE_TYPE_META &&
+              pCtx->mode == REPAIR_MODE_FORCE;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tRepairBuildVnodeTargetPath(const char *dataDir, int32_t vnodeId, ERepairFileType fileType, char *targetPath,
                                     int32_t targetPathSize) {
   const char *subDir = tRepairGetVnodeFileSubDir(fileType);
@@ -1400,6 +1438,66 @@ int32_t tRepairScanTsdbFiles(const SRepairCtx *pCtx, const char *dataDir, int32_
   }
 
   if (pResult->headFiles <= 0 || pResult->dataFiles <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tRepairScanMetaFiles(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId, SRepairMetaScanResult *pResult) {
+  if (pCtx == NULL || !pCtx->enabled || dataDir == NULL || dataDir[0] == '\0' || vnodeId < 0 || pResult == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  memset(pResult, 0, sizeof(*pResult));
+  pResult->requiredFiles = (int32_t)tListLen(kMetaRequiredFiles);
+
+  if (pCtx->nodeType != REPAIR_NODE_TYPE_VNODE || pCtx->fileType != REPAIR_FILE_TYPE_META) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  bool    shouldRepair = false;
+  int32_t code = tRepairShouldRepairVnode(pCtx, vnodeId, &shouldRepair);
+  if (code != TSDB_CODE_SUCCESS || !shouldRepair) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char targetPath[PATH_MAX] = {0};
+  code = tRepairBuildVnodeTargetPath(dataDir, vnodeId, REPAIR_FILE_TYPE_META, targetPath, sizeof(targetPath));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (!taosDirExist(targetPath) || !taosIsDir(targetPath)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  for (int32_t i = 0; i < (int32_t)tListLen(kMetaRequiredFiles); ++i) {
+    char filePath[PATH_MAX] = {0};
+    code = tRepairBuildPathWithEntry(targetPath, kMetaRequiredFiles[i], filePath, sizeof(filePath));
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    if (taosCheckExistFile(filePath)) {
+      ++pResult->presentRequiredFiles;
+    } else {
+      tRepairRecordMissingMetaFile(pResult, kMetaRequiredFiles[i]);
+    }
+  }
+
+  for (int32_t i = 0; i < (int32_t)tListLen(kMetaOptionalIndexFiles); ++i) {
+    char filePath[PATH_MAX] = {0};
+    code = tRepairBuildPathWithEntry(targetPath, kMetaOptionalIndexFiles[i], filePath, sizeof(filePath));
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    if (taosCheckExistFile(filePath)) {
+      ++pResult->optionalIndexFiles;
+    }
+  }
+
+  if (pResult->presentRequiredFiles < pResult->requiredFiles) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -1547,6 +1645,12 @@ int32_t tRepairPrecheck(const SRepairCtx *pCtx, const char *dataDir, int64_t min
     if (pCtx->fileType == REPAIR_FILE_TYPE_TSDB) {
       SRepairTsdbScanResult scanResult = {0};
       code = tRepairScanTsdbFiles(pCtx, dataDir, pCtx->vnodeIds[i], &scanResult);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    } else if (pCtx->fileType == REPAIR_FILE_TYPE_META) {
+      SRepairMetaScanResult scanResult = {0};
+      code = tRepairScanMetaFiles(pCtx, dataDir, pCtx->vnodeIds[i], &scanResult);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }

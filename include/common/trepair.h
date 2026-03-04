@@ -94,6 +94,17 @@ typedef struct {
   int32_t unknownFiles;
 } SRepairTsdbScanResult;
 
+#define REPAIR_META_MAX_MISSING_FILES 16
+#define REPAIR_META_FILE_NAME_LEN     64
+
+typedef struct {
+  int32_t requiredFiles;
+  int32_t presentRequiredFiles;
+  int32_t optionalIndexFiles;
+  int32_t missingRequiredFiles;
+  char    missingRequiredFileNames[REPAIR_META_MAX_MISSING_FILES][REPAIR_META_FILE_NAME_LEN];
+} SRepairMetaScanResult;
+
 #define REPAIR_TSDB_MAX_REPORTED_BLOCKS 64
 
 typedef struct {
@@ -114,10 +125,12 @@ int32_t tRepairInitCtx(const SRepairCliArgs *pCliArgs, int64_t startTimeMs, SRep
 int32_t tRepairShouldRepairVnode(const SRepairCtx *pCtx, int32_t vnodeId, bool *pShouldRepair);
 int32_t tRepairNeedRunWalForceRepair(const SRepairCtx *pCtx, bool *pNeedRun);
 int32_t tRepairNeedRunTsdbForceRepair(const SRepairCtx *pCtx, bool *pNeedRun);
+int32_t tRepairNeedRunMetaForceRepair(const SRepairCtx *pCtx, bool *pNeedRun);
 int32_t tRepairBuildVnodeTargetPath(const char *dataDir, int32_t vnodeId, ERepairFileType fileType,
                                     char *targetPath, int32_t targetPathSize);
 int32_t tRepairScanTsdbFiles(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId,
                              SRepairTsdbScanResult *pResult);
+int32_t tRepairScanMetaFiles(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId, SRepairMetaScanResult *pResult);
 int32_t tRepairAnalyzeTsdbBlocks(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId,
                                  SRepairTsdbBlockReport *pReport);
 int32_t tRepairRebuildTsdbBlocks(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId, const char *outputDir,
