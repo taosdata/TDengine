@@ -1529,18 +1529,18 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
 
 int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
   if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
-    return 0;
+    return NULL;
   }
 
   int32_t numOfFields = taos_num_fields(res);
   if (columnIndex < 0 || columnIndex >= numOfFields || numOfFields == 0) {
-    return 0;
+    return NULL;
   }
 
   SReqResultInfo *pResInfo = tscGetCurResInfo(res);
   TAOS_FIELD     *pField = &pResInfo->userFields[columnIndex];
   if (!IS_VAR_DATA_TYPE(pField->type)) {
-    return 0;
+    return NULL;
   }
 
   return pResInfo->pCol[columnIndex].offset;
