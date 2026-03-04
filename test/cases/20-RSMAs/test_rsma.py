@@ -772,9 +772,10 @@ class TestCase:
             conn = taos.connect()
             cursor = conn.cursor()
             cursor.execute(f"use {db_name}")
+            binary_data_cache = [''.join(random.choices(string.ascii_letters + string.digits, k=binary_len)) for _ in range(20)]
             for i in range(start_idx, end_idx):
                 ts = ts_start + i * 1000  # 间隔 1s (1000ms)
-                binary_data = ''.join(random.choices(string.ascii_letters + string.digits, k=binary_len))
+                binary_data = random.choice(binary_data_cache)
                 cursor.execute(f"insert into {table_name} values({ts}, {i}, '{binary_data}')")
             cursor.close()
             conn.close()
