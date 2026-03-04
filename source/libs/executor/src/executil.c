@@ -37,6 +37,7 @@
 #include "trpc.h"
 #include "filter.h"
 #include "operator.h"
+#include "tref.h"
 
 typedef struct tagFilterAssist {
   SHashObj* colHash;
@@ -4489,25 +4490,22 @@ void handleRemoteZeroRowsRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRe
 
 
 int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
-  SScalarFetchParam* pParam = (SScalarFetchParam*)param;
-  STaskSubJobCtx* ctx = pParam->pSubJobCtx;
-  char idStr[64];
   taosMemoryFreeClear(pMsg->pEpSet);
 
-  if (NULL == ctx) {
-    qWarn("scl fetch ctx not exists since it may have been released");
-    goto _exit;
+  SScalarFetchParam* pParam = (SScalarFetchParam*)param;
+  STaskSubJobCtx* ctx = taosAcquireRef(fetchObjRefPool, pParam->subJobRefId);
+  if (ctx == NULL) {
+    qWarn("failed to acquire subJobCtx, since it may have been released, refId:%" PRIu64, pParam->subJobRefId);
+    taosMemoryFree(pMsg->pData);
+    return TSDB_CODE_SUCCESS;
   }
 
+  char idStr[64];
   if (qDebugFlag & DEBUG_DEBUG) {
     tstrncpy(idStr, ctx->idStr, sizeof(idStr));
   }
   
   qDebug("%s subQIdx %d got rsp, blockIdx:%" PRId64 ", code:%d, rsp:%p", ctx->idStr, pParam->subQIdx, ctx->blockIdx, code, pMsg->pData);
-
-  taosWLockLatch(&ctx->lock);
-  ctx->param = NULL;
-  taosWUnLockLatch(&ctx->lock);
 
   if (ctx->transporterId > 0) {
     int32_t ret = asyncFreeConnById(ctx->rpcHandle, ctx->transporterId);
@@ -4578,12 +4576,17 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
 
   qDebug("%s subQIdx %d sem_post subQ ready", ctx->idStr, pParam->subQIdx);
   
-  code = tsem_post(&pParam->pSubJobCtx->ready);
+  code = tsem_post(&ctx->ready);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to invoke post when scl fetch rsp is ready, code:%s", tstrerror(code));
   }
 
 _exit:
+
+  code = taosReleaseRef(fetchObjRefPool, pParam->subJobRefId);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  }
 
   taosMemoryFree(pMsg->pData);
 
@@ -4643,25 +4646,18 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
     return terrno;
   }
 
-  taosWLockLatch(&ctx->lock);
-  
   if (ctx->code) {
     qError("task has been killed, error:%s", tstrerror(ctx->code));
     taosMemoryFree(param);
     taosMemoryFreeClear(msg);
     taosMemoryFreeClear(pMsgSendInfo);
     code = ctx->code;
-    taosWUnLockLatch(&ctx->lock);
     goto _end;
-  } else {
-    ctx->param = param;
   }
   
-  taosWUnLockLatch(&ctx->lock);
-
   param->subQIdx = subQIdx;
   param->pRes = pRes;
-  param->pSubJobCtx = ctx;
+  param->subJobRefId = ctx->subJobRefId;
 
   pMsgSendInfo->param = param;
   pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
@@ -4700,10 +4696,6 @@ int32_t fetchRemoteNodeImpl(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes) {
   }
       
 _end:
-
-  taosWLockLatch(&ctx->lock);
-  ctx->param = NULL;
-  taosWUnLockLatch(&ctx->lock);
 
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s %s failed at line %d since %s", ctx->idStr, __func__, lino, tstrerror(code));

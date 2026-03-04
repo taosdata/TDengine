@@ -109,7 +109,7 @@ struct SExecTaskInfo {
   bool                  paramSet;
   SQueryAutoQWorkerPoolCB* pWorkerCb;
   SStreamRuntimeInfo*      pStreamRuntimeInfo;
-  STaskSubJobCtx           subJobCtx;
+  STaskSubJobCtx*          pSubJobCtx;
 };
 
 void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst, int32_t len);
@@ -122,6 +122,7 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
                            int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray** subEndPoints);
 int32_t qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo);
 int32_t getTableListInfo(const SExecTaskInfo* pTaskInfo, SArray** pList);
+void destroySubJobCtx(STaskSubJobCtx* pCtx);
 
 #ifdef __cplusplus
 }
