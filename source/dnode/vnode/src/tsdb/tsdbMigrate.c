@@ -688,7 +688,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
   
   if (fremote->f->maxVer == flocal->f->maxVer) {
     tsdbTFileSetClear(&pRemoteFset);
-    tsdbError("vgId:%d, fid:%d, migration skipped, no new data", vid, pLocalFset->fid);
+    tsdbInfo("vgId:%d, fid:%d, migration skipped, no new data", vid, pLocalFset->fid);
     setMigrationState(rtner->tsdb, SSMIGRATE_FILESET_STATE_SKIPPED);
     return false; // no new data
   }
