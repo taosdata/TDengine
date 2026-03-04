@@ -126,6 +126,8 @@ typedef struct {
 int32_t tRepairParseNodeType(const char *pNodeType, ERepairNodeType *pParsedNodeType);
 int32_t tRepairParseFileType(const char *pFileType, ERepairFileType *pParsedFileType);
 int32_t tRepairParseMode(const char *pMode, ERepairMode *pParsedMode);
+int32_t tRepairParseReplicaNodeEndpoint(const char *endpoint, char *host, int32_t hostSize, char *remoteDataDir,
+                                        int32_t remoteDataDirSize);
 int32_t tRepairParseCliOption(SRepairCliArgs *pCliArgs, const char *pOptionName, const char *pOptionValue);
 int32_t tRepairValidateCliArgs(const SRepairCliArgs *pCliArgs);
 int32_t tRepairInitCtx(const SRepairCliArgs *pCliArgs, int64_t startTimeMs, SRepairCtx *pCtx);
@@ -136,6 +138,9 @@ int32_t tRepairNeedRunMetaForceRepair(const SRepairCtx *pCtx, bool *pNeedRun);
 int32_t tRepairNeedRunReplicaRepair(const SRepairCtx *pCtx, bool *pNeedRun);
 int32_t tRepairDegradeReplicaVnode(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId, char *markerPath,
                                    int32_t markerPathSize);
+int32_t tRepairRollbackReplicaVnode(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId);
+int32_t tRepairWriteReplicaRestoreHint(const SRepairCtx *pCtx, const char *dataDir, char *hintPath,
+                                       int32_t hintPathSize);
 int32_t tRepairBuildVnodeTargetPath(const char *dataDir, int32_t vnodeId, ERepairFileType fileType,
                                     char *targetPath, int32_t targetPathSize);
 int32_t tRepairScanTsdbFiles(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId,
@@ -156,6 +161,9 @@ int32_t tRepairPrepareBackupDir(const SRepairCtx *pCtx, const char *dataDir, int
 int32_t tRepairBackupVnodeTarget(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId, char *backupDir,
                                  int32_t backupDirSize);
 int32_t tRepairRollbackVnodeTarget(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId);
+int32_t tRepairMockCopyReplicaVnodeTarget(const SRepairCtx *pCtx, const char *replicaDataDir, const char *localDataDir,
+                                          int32_t vnodeId, char *srcPath, int32_t srcPathSize, char *dstPath,
+                                          int32_t dstPathSize);
 int32_t tRepairPrepareSessionFiles(const SRepairCtx *pCtx, const char *dataDir, char *sessionDir,
                                    int32_t sessionDirSize, char *logPath, int32_t logPathSize, char *statePath,
                                    int32_t statePathSize);

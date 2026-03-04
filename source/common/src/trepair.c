@@ -113,6 +113,33 @@ static int32_t tRepairParseStringOption(const char *input, char *output, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+static bool tRepairValidateReplicaNodeEndpoint(const char *endpoint) {
+  if (endpoint == NULL || endpoint[0] == '\0') {
+    return false;
+  }
+
+  for (const char *p = endpoint; *p != '\0'; ++p) {
+    if (isspace((uint8_t)(*p))) {
+      return false;
+    }
+  }
+
+  const char *sep = strchr(endpoint, ':');
+  if (sep == NULL || sep == endpoint || sep[1] == '\0') {
+    return false;
+  }
+
+  if (strchr(sep + 1, ':') != NULL) {
+    return false;
+  }
+
+  if (sep[1] != '/') {
+    return false;
+  }
+
+  return true;
+}
+
 static bool tRepairIsFileTypeCompatible(ERepairNodeType nodeType, ERepairFileType fileType) {
   switch (nodeType) {
     case REPAIR_NODE_TYPE_VNODE:
@@ -1331,6 +1358,37 @@ int32_t tRepairParseCliOption(SRepairCliArgs *pCliArgs, const char *pOptionName,
   return TSDB_CODE_INVALID_PARA;
 }
 
+int32_t tRepairParseReplicaNodeEndpoint(const char *endpoint, char *host, int32_t hostSize, char *remoteDataDir,
+                                        int32_t remoteDataDirSize) {
+  if (endpoint == NULL || host == NULL || hostSize <= 0 || remoteDataDir == NULL || remoteDataDirSize <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (!tRepairValidateReplicaNodeEndpoint(endpoint)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  const char *sep = strchr(endpoint, ':');
+  if (sep == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t hostLen = (int32_t)(sep - endpoint);
+  if (hostLen <= 0 || hostLen >= hostSize) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t pathLen = strlen(sep + 1);
+  if (pathLen <= 0 || pathLen >= remoteDataDirSize) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  memcpy(host, endpoint, hostLen);
+  host[hostLen] = '\0';
+  tstrncpy(remoteDataDir, sep + 1, remoteDataDirSize);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tRepairValidateCliArgs(const SRepairCliArgs *pCliArgs) {
   if (pCliArgs == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -1354,6 +1412,9 @@ int32_t tRepairValidateCliArgs(const SRepairCliArgs *pCliArgs) {
 
   if (pCliArgs->mode == REPAIR_MODE_COPY) {
     if (!pCliArgs->hasReplicaNode) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    if (!tRepairValidateReplicaNodeEndpoint(pCliArgs->replicaNode)) {
       return TSDB_CODE_INVALID_PARA;
     }
   } else if (pCliArgs->hasReplicaNode) {
@@ -1515,6 +1576,111 @@ int32_t tRepairDegradeReplicaVnode(const SRepairCtx *pCtx, const char *dataDir, 
   }
 
   return tRepairWriteFileAtomically(markerPath, markerContent, markerContentLen);
+}
+
+int32_t tRepairRollbackReplicaVnode(const SRepairCtx *pCtx, const char *dataDir, int32_t vnodeId) {
+  if (pCtx == NULL || !pCtx->enabled || dataDir == NULL || dataDir[0] == '\0' || vnodeId < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pCtx->nodeType != REPAIR_NODE_TYPE_VNODE || pCtx->mode != REPAIR_MODE_REPLICA) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  bool    shouldRepair = false;
+  int32_t code = tRepairShouldRepairVnode(pCtx, vnodeId, &shouldRepair);
+  if (code != TSDB_CODE_SUCCESS || !shouldRepair) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char vnodeDir[PATH_MAX] = {0};
+  code = tRepairBuildVnodePath(dataDir, vnodeId, NULL, vnodeDir, sizeof(vnodeDir));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (!taosDirExist(vnodeDir) || !taosIsDir(vnodeDir)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char markerPath[PATH_MAX] = {0};
+  int32_t markerPathLen =
+      tsnprintf(markerPath, sizeof(markerPath), "%s%s%s", vnodeDir, TD_DIRSEP, "replica.degrade.marker.json");
+  if (markerPathLen <= 0 || markerPathLen >= (int32_t)sizeof(markerPath)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (!taosCheckExistFile(markerPath)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (taosRemoveFile(markerPath) != 0) {
+    return terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tRepairWriteReplicaRestoreHint(const SRepairCtx *pCtx, const char *dataDir, char *hintPath,
+                                       int32_t hintPathSize) {
+  if (pCtx == NULL || !pCtx->enabled || dataDir == NULL || dataDir[0] == '\0' || hintPath == NULL ||
+      hintPathSize <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pCtx->nodeType != REPAIR_NODE_TYPE_VNODE || pCtx->mode != REPAIR_MODE_REPLICA) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pCtx->vnodeIdNum <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char sessionDir[PATH_MAX] = {0};
+  int32_t code = tRepairBuildSessionDir(pCtx, dataDir, sessionDir, sizeof(sessionDir));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (taosMulMkDir(sessionDir) != 0 && !taosDirExist(sessionDir)) {
+    return terrno != 0 ? terrno : TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t hintPathLen = tsnprintf(hintPath, hintPathSize, "%s%s%s", sessionDir, TD_DIRSEP, "replica.restore.hint.json");
+  if (hintPathLen <= 0 || hintPathLen >= hintPathSize) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char vnodeIds[PATH_MAX] = {0};
+  if (pCtx->hasVnodeIdList && pCtx->vnodeIdList[0] != '\0') {
+    tstrncpy(vnodeIds, pCtx->vnodeIdList, sizeof(vnodeIds));
+  } else {
+    int32_t offset = 0;
+    for (int32_t i = 0; i < pCtx->vnodeIdNum; ++i) {
+      int32_t left = (int32_t)sizeof(vnodeIds) - offset;
+      if (left <= 0) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      int32_t append = tsnprintf(vnodeIds + offset, left, i == 0 ? "%d" : ",%d", pCtx->vnodeIds[i]);
+      if (append <= 0 || append >= left) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      offset += append;
+    }
+  }
+
+  char hintContent[2048] = {0};
+  int32_t hintContentLen = tsnprintf(
+      hintContent, sizeof(hintContent),
+      "{\"mnodeMsgType\":\"TDMT_MND_RESTORE_DNODE\",\"restoreType\":\"RESTORE_TYPE__VNODE\","
+      "\"vgroupAction\":\"mndBuildRestoreAlterVgroupAction\","
+      "\"restoreSqlHint\":\"RESTORE VNODE ON DNODE <dnode-id>\",\"sessionId\":\"%s\",\"vnodeIds\":\"%s\","
+      "\"updatedAtMs\":%" PRId64 "}",
+      pCtx->sessionId, vnodeIds, taosGetTimestampMs());
+  if (hintContentLen <= 0 || hintContentLen >= (int32_t)sizeof(hintContent)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return tRepairWriteFileAtomically(hintPath, hintContent, hintContentLen);
 }
 
 int32_t tRepairBuildVnodeTargetPath(const char *dataDir, int32_t vnodeId, ERepairFileType fileType, char *targetPath,
@@ -2017,6 +2183,70 @@ int32_t tRepairRollbackVnodeTarget(const SRepairCtx *pCtx, const char *dataDir, 
   }
 
   return tRepairCopyDirRecursive(backupDir, targetPath);
+}
+
+int32_t tRepairMockCopyReplicaVnodeTarget(const SRepairCtx *pCtx, const char *replicaDataDir, const char *localDataDir,
+                                          int32_t vnodeId, char *srcPath, int32_t srcPathSize, char *dstPath,
+                                          int32_t dstPathSize) {
+  if (srcPath != NULL && srcPathSize > 0) {
+    srcPath[0] = '\0';
+  }
+  if (dstPath != NULL && dstPathSize > 0) {
+    dstPath[0] = '\0';
+  }
+
+  if (pCtx == NULL || !pCtx->enabled || replicaDataDir == NULL || replicaDataDir[0] == '\0' || localDataDir == NULL ||
+      localDataDir[0] == '\0' || vnodeId < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pCtx->nodeType != REPAIR_NODE_TYPE_VNODE || pCtx->mode != REPAIR_MODE_COPY) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if ((srcPath != NULL && srcPathSize <= 0) || (srcPath == NULL && srcPathSize > 0) || (dstPath != NULL && dstPathSize <= 0) ||
+      (dstPath == NULL && dstPathSize > 0)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  bool    shouldRepair = false;
+  int32_t code = tRepairShouldRepairVnode(pCtx, vnodeId, &shouldRepair);
+  if (code != TSDB_CODE_SUCCESS || !shouldRepair) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char replicaTargetPath[PATH_MAX] = {0};
+  char localTargetPath[PATH_MAX] = {0};
+  code = tRepairBuildVnodeTargetPath(replicaDataDir, vnodeId, pCtx->fileType, replicaTargetPath, sizeof(replicaTargetPath));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  code = tRepairBuildVnodeTargetPath(localDataDir, vnodeId, pCtx->fileType, localTargetPath, sizeof(localTargetPath));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (!taosDirExist(replicaTargetPath) || !taosIsDir(replicaTargetPath)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  code = tRepairResetDir(localTargetPath);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  code = tRepairCopyDirRecursive(replicaTargetPath, localTargetPath);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (srcPath != NULL) {
+    tstrncpy(srcPath, replicaTargetPath, srcPathSize);
+  }
+  if (dstPath != NULL) {
+    tstrncpy(dstPath, localTargetPath, dstPathSize);
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tRepairPrepareSessionFiles(const SRepairCtx *pCtx, const char *dataDir, char *sessionDir, int32_t sessionDirSize,

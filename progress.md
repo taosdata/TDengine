@@ -2,8 +2,8 @@
 
 ## 当前检查点
 - 日期：`2026-03-04`
-- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成，`P4` 已完成，`P5` 已完成，`P6` 进行中（`T6.1`、`T6.2` 已完成，`T6.3` 进行中）。
-- 下一任务：`T6.3`（与现有 restore/vgroup 逻辑联动验证）。
+- 当前完成：`P1` 已完成，`P2` 已完成，`P3` 已完成，`P4` 已完成，`P5` 已完成，`P6` 已完成，`P7` 进行中（`T7.1`、`T7.2` 已完成）。
+- 下一任务：`T7.3`（SSH/SCP 实现并接入 copy 模式）。
 - 恢复入口：先读 `task_plan.md`，再读 `findings.md`，最后读本文件。
 
 ## 会话日志
@@ -189,6 +189,25 @@
 | 2026-03-04 01:57 | T6.2 回归验证 | `ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过；`cmake --build debug -j8 --target taosd` 通过 |
 | 2026-03-04 01:59 | T6.2 Smoke 验证（replica 降级） | 最小样本验证通过：`TAOS_DATA_DIR=/tmp/td-repair-replica-smoke-data` 场景下输出命中 `step=replica` + 成功摘要，`repair.log` 命中 `replica dispatch detail` 与 `replica degrade detail`，且落盘 `vnode/vnode2/replica.degrade.marker.json`（`taosd` 退出码 `47`） |
 | 2026-03-04 01:59 | T6.2 收尾 | 已将 `task_plan.md` 中 `T6.2` 更新为 `completed`，下一入口切换为 `T6.3`（`in_progress`） |
+| 2026-03-04 01:00 | T6.4 Smoke 验证（失败回滚） | 构造 `vnode3/replica.degrade.marker.json` 为目录触发第 2 个 vnode 降级失败；验证 `taosd` 退出码 `25`、`repair.log` 命中 `replica rollback detail`、`vnode2` 的 marker 已被回滚删除、hint 未生成 |
+| 2026-03-04 01:01 | T6.4 回归验证 | `commonTest` 定向用例（`NeedRunReplicaRepair* + DegradeReplicaVnode* + WriteReplicaRestoreHint* + RollbackReplicaVnode*`）通过（8/8）；`ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过 |
+| 2026-03-04 01:01 | T6.4 构建阻塞处理 | `cmake --build debug --target commonTest taosd` 再次触发 `ext_pcre2` 外网更新失败（`Couldn't connect to server`）；切换为直接运行已编译二进制完成验证 |
+| 2026-03-04 01:02 | T6.3 Smoke 验证（restore/vgroup 联动） | 最小样本验证通过：`taosd` 退出码 `47`，`repair.log` 命中 `replica dispatch/degrade/restore detail`，marker 与 `replica.restore.hint.json` 均存在，`restoreDnodeImpl=community-stub` |
+| 2026-03-04 01:03 | T6.4 注入验证（hint 后失败） | 进行 20 轮“hint 生成后再注入失败”尝试未稳定命中，记录为可观测性风险，不阻塞当前功能交付 |
+| 2026-03-04 01:03 | T6.3/T6.4 收尾 | 已将 `task_plan.md` 中 `T6.3`、`T6.4` 更新为 `completed`，`P6` 标记为 `completed`，下一入口切换为 `T7.1`（`pending`） |
+| 2026-03-04 01:04 | T7.1 阶段开始 | 已将 `task_plan.md` 中 `T7.1` 置为 `in_progress`，准备先补 `--replica-node` 合法性校验 Red 用例（格式与目标路径约束） |
+| 2026-03-04 01:05 | T7.1 Red 验证 | 新增 `ValidateCliArgsReplicaNodeEndpointFormat` 用例后运行定向 gtest，按预期失败：非法 endpoint 被错误判定为合法（`tRepairValidateCliArgs` 返回 success） |
+| 2026-03-04 01:06 | T7.1 Green 实现 | `trepair.c` 新增 `tRepairValidateReplicaNodeEndpoint()`，在 `mode=copy` 分支强制校验 `<host>:<absolute-path>`、单冒号、无空白 |
+| 2026-03-04 01:06 | T7.1 单测回归 | `cmake --build debug --target commonTest` 通过；`commonTest --gtest_filter='RepairOptionParseTest.ValidateCliArgsReplicaNodeRule:RepairOptionParseTest.ValidateCliArgsReplicaNodeEndpointFormat'` 通过（2/2） |
+| 2026-03-04 01:08 | T7.1 构建与全回归 | `cmake --build debug --target taosd` 首次因 `ext_pcre2` 外网更新失败，升权重试后通过；`ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过 |
+| 2026-03-04 01:09 | T7.1 运行验证（copy 参数合法性） | `mode=copy` + 非法 `replica-node=192.168.1.24:var/lib/taos` 退出码 `25`（参数组合拒绝）；合法 `replica-node=192.168.1.24:/var/lib/taos` 退出码 `47` 并进入修复流程摘要 |
+| 2026-03-04 01:09 | T7.1 收尾 | 已将 `task_plan.md` 中 `T7.1` 更新为 `completed`，下一入口切换为 `T7.2`（`pending`） |
+| 2026-03-04 01:10 | T7.2 阶段开始 | 已将 `task_plan.md` 中 `T7.2` 置为 `in_progress`，准备先补“replica endpoint 解析 + 本地 mock 拷贝接口”Red 用例 |
+| 2026-03-04 01:10 | T7.2 Red 验证 | 新增 `ParseReplicaNodeEndpoint/MockCopyReplicaVnodeTarget*` 测试后编译失败，报错 `tRepairParseReplicaNodeEndpoint/tRepairMockCopyReplicaVnodeTarget` 未声明，符合先测后码预期 |
+| 2026-03-04 01:11 | T7.2 Green 实现 | `trepair.h/.c` 新增 endpoint 解析与本地 mock 拷贝接口：`tRepairParseReplicaNodeEndpoint()`、`tRepairMockCopyReplicaVnodeTarget()` |
+| 2026-03-04 01:11 | T7.2 定向验证 | `commonTest` 定向用例通过（`ParseReplicaNodeEndpoint + MockCopyReplicaVnodeTarget*` 共 3 条） |
+| 2026-03-04 01:12 | T7.2 构建与回归 | `cmake --build debug --target taosd` 两次触发 `ext_pcre2` 外网更新失败，升权重重试后通过；`ASAN_OPTIONS=detect_leaks=0 ctest --test-dir debug -R commonTest --output-on-failure` 通过 |
+| 2026-03-04 01:12 | T7.2 收尾 | 已将 `task_plan.md` 中 `T7.2` 更新为 `completed`，下一入口切换为 `T7.3`（`pending`） |
 
 ## 已落盘文档
 - `task_plan.md`

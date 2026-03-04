@@ -1316,6 +1316,38 @@ TEST(RepairOptionParseTest, ValidateCliArgsReplicaNodeRule) {
   }
 }
 
+TEST(RepairOptionParseTest, ValidateCliArgsReplicaNodeEndpointFormat) {
+  {
+    SRepairCliArgs cliArgs = {0};
+    ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "copy"), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tRepairParseCliOption(&cliArgs, "replica-node", "tdnode1:/var/lib/taos"), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tRepairValidateCliArgs(&cliArgs), TSDB_CODE_SUCCESS);
+  }
+
+  const char *invalidEndpoints[] = {
+      "192.168.1.24",
+      ":/var/lib/taos",
+      "192.168.1.24:",
+      "192.168.1.24:var/lib/taos",
+      "192.168.1.24:/var/lib/taos data",
+      "192.168.1.24:/var/lib/taos:bak",
+      " tdnode1:/var/lib/taos",
+  };
+
+  for (const char *endpoint : invalidEndpoints) {
+    SRepairCliArgs cliArgs = {0};
+    ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "copy"), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tRepairParseCliOption(&cliArgs, "replica-node", endpoint), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tRepairValidateCliArgs(&cliArgs), TSDB_CODE_INVALID_PARA);
+  }
+}
+
 TEST(RepairOptionParseTest, ValidateCliArgsVnodeIdRule) {
   {
     SRepairCliArgs cliArgs = {0};
@@ -2520,6 +2552,176 @@ TEST(RepairOptionParseTest, DegradeReplicaVnodeInvalidArgs) {
   ASSERT_EQ(tRepairDegradeReplicaVnode(&ctx, "/tmp", 2, markerPath, sizeof(markerPath)), TSDB_CODE_INVALID_PARA);
   ASSERT_EQ(tRepairDegradeReplicaVnode(&ctx, "/tmp", 2, NULL, sizeof(markerPath)), TSDB_CODE_INVALID_PARA);
   ASSERT_EQ(tRepairDegradeReplicaVnode(&ctx, "/tmp", 2, markerPath, 0), TSDB_CODE_INVALID_PARA);
+}
+
+TEST(RepairOptionParseTest, WriteReplicaRestoreHint) {
+  const std::string dataDirPath = buildRepairTempPath("replica-restore-hint-data");
+  const std::string backupDirPath = buildRepairTempPath("replica-restore-hint-backup");
+  RepairTempDirGuard dataDirGuard(dataDirPath);
+  RepairTempDirGuard backupDirGuard(backupDirPath);
+  ASSERT_EQ(taosMulMkDir(dataDirPath.c_str()), 0);
+  ASSERT_EQ(taosMulMkDir(backupDirPath.c_str()), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2,3"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "replica"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "backup-path", backupDirPath.c_str()), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601515LL, &ctx), TSDB_CODE_SUCCESS);
+
+  char hintPath[PATH_MAX] = {0};
+  ASSERT_EQ(tRepairWriteReplicaRestoreHint(&ctx, dataDirPath.c_str(), hintPath, sizeof(hintPath)), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(taosCheckExistFile(hintPath));
+
+  std::string hintContent = readRepairFileContent(hintPath);
+  ASSERT_FALSE(hintContent.empty());
+  ASSERT_NE(hintContent.find("\"mnodeMsgType\":\"TDMT_MND_RESTORE_DNODE\""), std::string::npos);
+  ASSERT_NE(hintContent.find("\"restoreType\":\"RESTORE_TYPE__VNODE\""), std::string::npos);
+  ASSERT_NE(hintContent.find("\"vgroupAction\":\"mndBuildRestoreAlterVgroupAction\""), std::string::npos);
+  ASSERT_NE(hintContent.find("\"restoreSqlHint\":\"RESTORE VNODE ON DNODE"), std::string::npos);
+  ASSERT_NE(hintContent.find("\"vnodeIds\":\"2,3\""), std::string::npos);
+}
+
+TEST(RepairOptionParseTest, WriteReplicaRestoreHintInvalidArgs) {
+  SRepairCtx ctx = {0};
+  char       hintPath[PATH_MAX] = {0};
+
+  ASSERT_EQ(tRepairWriteReplicaRestoreHint(NULL, "/tmp", hintPath, sizeof(hintPath)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairWriteReplicaRestoreHint(&ctx, "/tmp", hintPath, sizeof(hintPath)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairWriteReplicaRestoreHint(&ctx, "/tmp", NULL, sizeof(hintPath)), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairWriteReplicaRestoreHint(&ctx, "/tmp", hintPath, 0), TSDB_CODE_INVALID_PARA);
+}
+
+TEST(RepairOptionParseTest, RollbackReplicaVnodeRemovesMarker) {
+  const std::string dataDirPath = buildRepairTempPath("replica-rollback-marker");
+  RepairTempDirGuard dataDirGuard(dataDirPath);
+  const std::string sep(TD_DIRSEP);
+  const std::string vnodeDir = dataDirPath + sep + "vnode" + sep + "vnode2";
+  ASSERT_EQ(taosMulMkDir(vnodeDir.c_str()), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "replica"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601516LL, &ctx), TSDB_CODE_SUCCESS);
+
+  char markerPath[PATH_MAX] = {0};
+  ASSERT_EQ(tRepairDegradeReplicaVnode(&ctx, dataDirPath.c_str(), 2, markerPath, sizeof(markerPath)), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(taosCheckExistFile(markerPath));
+
+  ASSERT_EQ(tRepairRollbackReplicaVnode(&ctx, dataDirPath.c_str(), 2), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(taosCheckExistFile(markerPath));
+}
+
+TEST(RepairOptionParseTest, RollbackReplicaVnodeInvalidArgs) {
+  SRepairCtx ctx = {0};
+
+  ASSERT_EQ(tRepairRollbackReplicaVnode(NULL, "/tmp", 2), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairRollbackReplicaVnode(&ctx, "/tmp", 2), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairRollbackReplicaVnode(&ctx, NULL, 2), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairRollbackReplicaVnode(&ctx, "/tmp", -1), TSDB_CODE_INVALID_PARA);
+}
+
+TEST(RepairOptionParseTest, ParseReplicaNodeEndpoint) {
+  char host[128] = {0};
+  char remoteDataDir[PATH_MAX] = {0};
+
+  ASSERT_EQ(tRepairParseReplicaNodeEndpoint("tdnode1:/var/lib/taos", host, sizeof(host), remoteDataDir,
+                                            sizeof(remoteDataDir)),
+            TSDB_CODE_SUCCESS);
+  ASSERT_STREQ(host, "tdnode1");
+  ASSERT_STREQ(remoteDataDir, "/var/lib/taos");
+
+  ASSERT_EQ(tRepairParseReplicaNodeEndpoint(NULL, host, sizeof(host), remoteDataDir, sizeof(remoteDataDir)),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairParseReplicaNodeEndpoint("tdnode1:/var/lib/taos", NULL, sizeof(host), remoteDataDir,
+                                            sizeof(remoteDataDir)),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairParseReplicaNodeEndpoint("tdnode1:/var/lib/taos", host, 0, remoteDataDir, sizeof(remoteDataDir)),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairParseReplicaNodeEndpoint("tdnode1:/var/lib/taos", host, sizeof(host), NULL, sizeof(remoteDataDir)),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairParseReplicaNodeEndpoint("tdnode1:/var/lib/taos", host, sizeof(host), remoteDataDir, 0),
+            TSDB_CODE_INVALID_PARA);
+
+  const char *invalidEndpoints[] = {
+      "tdnode1",
+      ":/var/lib/taos",
+      "tdnode1:",
+      "tdnode1:var/lib/taos",
+      "tdnode1:/var/lib/taos:bak",
+      "td node1:/var/lib/taos",
+  };
+  for (const char *endpoint : invalidEndpoints) {
+    ASSERT_EQ(
+        tRepairParseReplicaNodeEndpoint(endpoint, host, sizeof(host), remoteDataDir, sizeof(remoteDataDir)),
+        TSDB_CODE_INVALID_PARA);
+  }
+}
+
+TEST(RepairOptionParseTest, MockCopyReplicaVnodeTarget) {
+  const std::string localDataDir = buildRepairTempPath("copy-local-data");
+  const std::string remoteDataDir = buildRepairTempPath("copy-remote-data");
+  RepairTempDirGuard localDataGuard(localDataDir);
+  RepairTempDirGuard remoteDataGuard(remoteDataDir);
+  ASSERT_EQ(taosMulMkDir(localDataDir.c_str()), 0);
+  ASSERT_EQ(taosMulMkDir(remoteDataDir.c_str()), 0);
+
+  const std::string sep(TD_DIRSEP);
+  const std::string remoteWalDir = remoteDataDir + sep + "vnode" + sep + "vnode2" + sep + "wal";
+  const std::string remoteWalMetaDir = remoteWalDir + sep + "meta";
+  ASSERT_EQ(taosMulMkDir(remoteWalMetaDir.c_str()), 0);
+  const std::string localWalDir = localDataDir + sep + "vnode" + sep + "vnode2" + sep + "wal";
+  ASSERT_EQ(taosMulMkDir(localWalDir.c_str()), 0);
+
+  auto writeRepairFile = [](const std::string &path, const std::string &content) {
+    TdFilePtr pFile = taosOpenFile(path.c_str(), TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    ASSERT_NE(pFile, nullptr);
+    ASSERT_EQ(taosWriteFile(pFile, content.c_str(), (int64_t)content.size()), (int64_t)content.size());
+    ASSERT_EQ(taosCloseFile(&pFile), 0);
+  };
+
+  const std::string remoteWalFile = remoteWalDir + sep + "000001.log";
+  const std::string remoteWalMetaFile = remoteWalMetaDir + sep + "checkpoint";
+  const std::string localStaleFile = localWalDir + sep + "stale.log";
+  writeRepairFile(remoteWalFile, "remote-wal");
+  writeRepairFile(remoteWalMetaFile, "remote-meta");
+  writeRepairFile(localStaleFile, "stale");
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "copy"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "replica-node", "tdnode1:/var/lib/taos"), TSDB_CODE_SUCCESS);
+
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689601517LL, &ctx), TSDB_CODE_SUCCESS);
+
+  char srcPath[PATH_MAX] = {0};
+  char dstPath[PATH_MAX] = {0};
+  ASSERT_EQ(tRepairMockCopyReplicaVnodeTarget(&ctx, remoteDataDir.c_str(), localDataDir.c_str(), 2, srcPath,
+                                              sizeof(srcPath), dstPath, sizeof(dstPath)),
+            TSDB_CODE_SUCCESS);
+  ASSERT_STREQ(srcPath, remoteWalDir.c_str());
+  ASSERT_STREQ(dstPath, localWalDir.c_str());
+  ASSERT_FALSE(taosCheckExistFile(localStaleFile.c_str()));
+  ASSERT_EQ(readRepairFileContent((localWalDir + sep + "000001.log").c_str()), "remote-wal");
+  ASSERT_EQ(readRepairFileContent((localWalDir + sep + "meta" + sep + "checkpoint").c_str()), "remote-meta");
+}
+
+TEST(RepairOptionParseTest, MockCopyReplicaVnodeTargetInvalidArgs) {
+  SRepairCtx ctx = {0};
+  ASSERT_EQ(tRepairMockCopyReplicaVnodeTarget(NULL, "/tmp/remote", "/tmp/local", 2, NULL, 0, NULL, 0),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairMockCopyReplicaVnodeTarget(&ctx, "/tmp/remote", "/tmp/local", 2, NULL, 0, NULL, 0),
+            TSDB_CODE_INVALID_PARA);
 }
 
 TEST(RepairOptionParseTest, BuildVnodeTargetPath) {

@@ -596,6 +596,36 @@ static void taosCleanupArgs() {
   if (global.envCmd != NULL) taosMemoryFreeClear(global.envCmd);
 }
 
+static void dmRollbackReplicaArtifacts(int32_t degradedVnodes, const char *restoreHintPath) {
+  if (restoreHintPath != NULL && restoreHintPath[0] != '\0' && taosCheckExistFile(restoreHintPath)) {
+    if (taosRemoveFile(restoreHintPath) != 0) {
+      dError("failed to remove replica restore hint:%s since %s", restoreHintPath,
+             terrno != 0 ? tstrerror(terrno) : "unknown reason");
+      (void)tRepairAppendSessionLog(global.repairLogPath, "replica rollback detail: failed to remove restore hint");
+    } else {
+      (void)tRepairAppendSessionLog(global.repairLogPath, "replica rollback detail: removed restore hint");
+    }
+  }
+
+  for (int32_t i = degradedVnodes - 1; i >= 0 && i < global.repairCtx.vnodeIdNum; --i) {
+    int32_t vnodeId = global.repairCtx.vnodeIds[i];
+    int32_t code = tRepairRollbackReplicaVnode(&global.repairCtx, tsDataDir, vnodeId);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to rollback replica marker for vnode:%d since %s", vnodeId, tstrerror(code));
+      (void)tRepairAppendSessionLog(global.repairLogPath, "replica rollback detail: failed to rollback vnode marker");
+      continue;
+    }
+
+    char rollbackLog[128] = {0};
+    int32_t rollbackLogLen =
+        tsnprintf(rollbackLog, sizeof(rollbackLog), "replica rollback detail: rolled back vnode:%d", vnodeId);
+    if (rollbackLogLen <= 0 || rollbackLogLen >= (int32_t)sizeof(rollbackLog)) {
+      tstrncpy(rollbackLog, "replica rollback detail: rolled back vnode", sizeof(rollbackLog));
+    }
+    (void)tRepairAppendSessionLog(global.repairLogPath, rollbackLog);
+  }
+}
+
 static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressIntervalMs, int64_t *pLastProgressReportMs,
                                   bool *pNeedReport, char *progressLine, int32_t progressLineSize) {
   if (pLastProgressReportMs == NULL || pNeedReport == NULL || progressLine == NULL || progressLineSize <= 0) {
@@ -630,6 +660,7 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
     return TSDB_CODE_INVALID_CFG;
   }
 
+  char    restoreHintPath[PATH_MAX] = {0};
   int32_t replicaDoneVnodes = 0;
   for (int32_t i = 0; i < global.repairCtx.vnodeIdNum; ++i) {
     int32_t vnodeId = global.repairCtx.vnodeIds[i];
@@ -641,6 +672,7 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
     if (code != TSDB_CODE_SUCCESS) {
       dError("failed to write replica repair state for vnode:%d since %s", vnodeId, tstrerror(code));
       printf("failed repair replica scheduling: %s\n", tstrerror(code));
+      dmRollbackReplicaArtifacts(replicaDoneVnodes, restoreHintPath);
       return TSDB_CODE_INVALID_CFG;
     }
 
@@ -648,6 +680,7 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
     if (code != TSDB_CODE_SUCCESS) {
       dError("failed to degrade local replica vnode:%d since %s", vnodeId, tstrerror(code));
       printf("failed repair replica scheduling: %s\n", tstrerror(code));
+      dmRollbackReplicaArtifacts(replicaDoneVnodes, restoreHintPath);
       return TSDB_CODE_INVALID_CFG;
     }
 
@@ -667,6 +700,7 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
     if (code != TSDB_CODE_SUCCESS) {
       dError("failed to append replica degrade log for vnode:%d since %s", vnodeId, tstrerror(code));
       printf("failed repair replica scheduling: %s\n", tstrerror(code));
+      dmRollbackReplicaArtifacts(replicaDoneVnodes, restoreHintPath);
       return TSDB_CODE_INVALID_CFG;
     }
 
@@ -676,6 +710,7 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
     if (code != TSDB_CODE_SUCCESS) {
       dError("failed to update replica repair state for vnode:%d since %s", vnodeId, tstrerror(code));
       printf("failed repair replica scheduling: %s\n", tstrerror(code));
+      dmRollbackReplicaArtifacts(replicaDoneVnodes, restoreHintPath);
       return TSDB_CODE_INVALID_CFG;
     }
 
@@ -683,6 +718,7 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
     if (code != TSDB_CODE_SUCCESS) {
       dError("failed to update replica repair progress interval for vnode:%d since %s", vnodeId, tstrerror(code));
       printf("failed repair replica scheduling: %s\n", tstrerror(code));
+      dmRollbackReplicaArtifacts(replicaDoneVnodes, restoreHintPath);
       return TSDB_CODE_INVALID_CFG;
     }
 
@@ -693,6 +729,7 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
       if (code != TSDB_CODE_SUCCESS) {
         dError("failed to build replica repair progress line for vnode:%d since %s", vnodeId, tstrerror(code));
         printf("failed repair replica scheduling: %s\n", tstrerror(code));
+        dmRollbackReplicaArtifacts(replicaDoneVnodes, restoreHintPath);
         return TSDB_CODE_INVALID_CFG;
       }
 
@@ -702,9 +739,43 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
       if (code != TSDB_CODE_SUCCESS) {
         dError("failed to append replica repair progress log for vnode:%d since %s", vnodeId, tstrerror(code));
         printf("failed repair replica scheduling: %s\n", tstrerror(code));
+        dmRollbackReplicaArtifacts(replicaDoneVnodes, restoreHintPath);
         return TSDB_CODE_INVALID_CFG;
       }
     }
+  }
+
+  code = tRepairWriteReplicaRestoreHint(&global.repairCtx, tsDataDir, restoreHintPath, sizeof(restoreHintPath));
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to write replica restore hint since %s", tstrerror(code));
+    printf("failed repair replica scheduling: %s\n", tstrerror(code));
+    dmRollbackReplicaArtifacts(replicaDoneVnodes, restoreHintPath);
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  const char *restoreImpl = "enterprise";
+#ifndef TD_ENTERPRISE
+  restoreImpl = "community-stub";
+#endif
+
+  char restoreLog[PATH_MAX * 2] = {0};
+  int32_t restoreLogLen = tsnprintf(restoreLog, sizeof(restoreLog),
+                                    "replica restore detail: hint:%s "
+                                    "mnodeMsgType=TDMT_MND_RESTORE_DNODE "
+                                    "restoreType=RESTORE_TYPE__VNODE "
+                                    "vgroupAction=mndBuildRestoreAlterVgroupAction "
+                                    "restoreDnodeImpl=%s",
+                                    restoreHintPath, restoreImpl);
+  if (restoreLogLen <= 0 || restoreLogLen >= (int32_t)sizeof(restoreLog)) {
+    tstrncpy(restoreLog, "replica restore detail unavailable", sizeof(restoreLog));
+  }
+
+  code = tRepairAppendSessionLog(global.repairLogPath, restoreLog);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("failed to append replica restore log since %s", tstrerror(code));
+    printf("failed repair replica scheduling: %s\n", tstrerror(code));
+    dmRollbackReplicaArtifacts(replicaDoneVnodes, restoreHintPath);
+    return TSDB_CODE_INVALID_CFG;
   }
 
   return TSDB_CODE_SUCCESS;

@@ -26,8 +26,8 @@
 
 ## 3. 当前状态（2026-03-04）
 - 当前阶段：`P0` 已完成（需求/代码勘察与任务拆解）。
-- 当前执行阶段：`P6` 进行中（`replica` 模式）。
-- 当前可执行入口：`T6.3`。
+- 当前执行阶段：`P7` 进行中（`copy` 模式）。
+- 当前可执行入口：`T7.3`。
 - 当前阻塞：无。
 
 ## 4. 阶段里程碑
@@ -39,8 +39,8 @@
 | P3 | `force + wal` | 基于现有 WAL 修复能力交付 MVP | WAL 损坏样例可修复并产出日志 | completed |
 | P4 | `force + tsdb` | 交付 TSDB 块级修复编排 | TSDB 损坏样例修复后可启动/查询 | completed |
 | P5 | `force + meta` | 交付 META 修复 + 反向推导链路 | 元数据损坏样例可恢复可用子集 | completed |
-| P6 | `replica` 模式 | 触发副本全量同步恢复 | 多副本损坏节点可自动拉起恢复 | in_progress |
-| P7 | `copy` 模式 | 从指定副本节点拷贝文件恢复 | 大文件场景可快速恢复并校验权限 | pending |
+| P6 | `replica` 模式 | 触发副本全量同步恢复 | 多副本损坏节点可自动拉起恢复 | completed |
+| P7 | `copy` 模式 | 从指定副本节点拷贝文件恢复 | 大文件场景可快速恢复并校验权限 | in_progress |
 | P8 | 验证与发布准备 | 系统测试矩阵、文档、回归、发布清单 | 用例通过，文档可交付 | pending |
 
 ## 5. 1 小时任务拆解（执行队列）
@@ -75,10 +75,10 @@
 | T5.5 | P5 | META 修复测试：部分损坏/完全损坏双场景 | 60m | T5.4 | 可复现测试 | completed |
 | T6.1 | P6 | `mode=replica` 指令接入与分支调度 | 30m | T2.6 | replica 模式可选通 | completed |
 | T6.2 | P6 | 本地坏副本降级动作（不可用标记 + 版本/任期策略） | 60m | T6.1 | 触发全量同步 | completed |
-| T6.3 | P6 | 与现有 restore/vgroup 逻辑联动验证 | 60m | T6.2 | 多副本恢复成功 | in_progress |
-| T6.4 | P6 | replica 模式失败保护与回滚语义 | 45m | T6.3 | 不产生二次破坏 | pending |
-| T7.1 | P7 | `--replica-node` 解析与目标合法性校验 | 45m | T1.4 | copy 模式参数完备 | pending |
-| T7.2 | P7 | 远端拷贝抽象层（先本地 mock） | 60m | T7.1 | 可测试接口 | pending |
+| T6.3 | P6 | 与现有 restore/vgroup 逻辑联动验证 | 60m | T6.2 | 多副本恢复成功 | completed |
+| T6.4 | P6 | replica 模式失败保护与回滚语义 | 45m | T6.3 | 不产生二次破坏 | completed |
+| T7.1 | P7 | `--replica-node` 解析与目标合法性校验 | 45m | T1.4 | copy 模式参数完备 | completed |
+| T7.2 | P7 | 远端拷贝抽象层（先本地 mock） | 60m | T7.1 | 可测试接口 | completed |
 | T7.3 | P7 | SSH/SCP 实现并接入 copy 模式 | 60m | T7.2 | 远端拷贝可执行 | pending |
 | T7.4 | P7 | 覆盖写入后的权限/owner 修复逻辑 | 45m | T7.3 | 权限一致性 | pending |
 | T7.5 | P7 | copy 模式一致性校验与异常中断处理 | 60m | T7.4 | 可控失败行为 | pending |
@@ -111,3 +111,6 @@
 | 2026-03-03 | T1.1 测试验证 | `LeakSanitizer` 在当前 ptrace 环境下运行失败 | 1 | `ctest` 时增加 `ASAN_OPTIONS=detect_leaks=0` | resolved |
 | 2026-03-03 | T2.3 运行验证 | 使用 `-o /tmp` 启动时触发 `osDir.c:taosMulModeMkDir` ASan 越界（历史问题） | 1 | 改为 `-o /tmp/taoslog` 继续验证预检路径 | resolved |
 | 2026-03-03 | T3.4 Red 构建 | `ext_pcre2` update 阶段触发外网访问失败（构建环境网络受限） | 1 | 复用本地已安装依赖并补全本地 stamp，继续执行业务测试 | resolved |
+| 2026-03-04 | T6.4 回归验证 | `cmake --build debug --target commonTest taosd` 触发 `ext_pcre2` 外网更新失败 | 1 | 继续沿用“跳过外网更新，直接运行已编译二进制测试”的策略 | resolved |
+| 2026-03-04 | T7.1 回归验证 | `cmake --build debug --target taosd` 触发 `ext_pcre2` 外网更新失败 | 1 | 使用已批准前缀 `cmake --build` 升权重试后构建通过 | resolved |
+| 2026-03-04 | T7.2 回归验证 | `cmake --build debug --target taosd` 多次触发 `ext_pcre2` 外网更新失败 | 2 | 使用已批准前缀 `cmake --build` 升权重试后构建通过 | resolved |

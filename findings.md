@@ -330,3 +330,69 @@
     - Green 后定向单测通过（`NeedRunReplicaRepair* + DegradeReplicaVnode*` 共 4 条）；
     - `ctest -R commonTest` 与 `cmake --build debug --target taosd` 通过；
     - `mode=replica` smoke 样本通过：`repair.log` 命中 `replica dispatch detail` 与 `replica degrade detail`，且 marker 文件存在，`taosd` 退出码 `47`。
+- `T6.3`（与现有 restore/vgroup 逻辑联动验证）已完成：
+  - `replica` 路径新增 restore hint 产物：
+    - `tRepairWriteReplicaRestoreHint()` 在会话目录原子写入 `replica.restore.hint.json`；
+    - hint 字段包含 `mnodeMsgType=TDMT_MND_RESTORE_DNODE`、`restoreType=RESTORE_TYPE__VNODE`、
+      `vgroupAction=mndBuildRestoreAlterVgroupAction`、`restoreSqlHint=RESTORE VNODE ON DNODE <dnode-id>`、
+      `sessionId/vnodeIds/updatedAtMs`。
+  - `dmRunReplicaRepair()` 在降级循环完成后写 `replica restore detail` 日志：
+    - 明确记录 hint 路径与 restore/vgroup 语义字段；
+    - 社区版场景记录 `restoreDnodeImpl=community-stub`，与现有 `#ifndef TD_ENTERPRISE` 分支一致。
+  - 验证结果：
+    - 定向单测通过（`NeedRunReplicaRepair* + DegradeReplicaVnode* + WriteReplicaRestoreHint* + RollbackReplicaVnode*` 共 8 条）；
+    - `ctest -R commonTest` 通过；
+    - smoke 样本通过：`taosd` 退出码 `47`，`repair.log` 命中 `replica dispatch/degrade/restore detail`，且 marker 与 hint 文件均存在。
+- `T6.4`（replica 模式失败保护与回滚语义）已完成：
+  - 失败路径统一回滚 helper：
+    - `dmRollbackReplicaArtifacts()` 负责失败时删除 hint（若存在）并逆序回滚已降级 vnode marker；
+    - `tRepairRollbackReplicaVnode()` 负责单 vnode marker 删除，输入校验与 `replica` 上下文一致。
+  - `dmRunReplicaRepair()` 已在各关键失败分支接入统一回滚：
+    - `session state` 写失败；
+    - `degrade` 失败；
+    - 进度/日志追加失败；
+    - restore hint 写失败；
+    - restore detail 日志写失败。
+  - 验证结果：
+    - 失败 smoke（确定性注入）通过：构造第 2 个 vnode 降级失败后，`taosd` 退出码 `25`，`repair.log` 命中 `replica rollback detail`，第 1 个 vnode marker 已删除；
+    - 在该失败路径下，hint 未生成（符合“失败前未进入 restore hint 阶段”的预期）。
+  - 已知边界：
+    - 尝试 20 轮“hint 生成后再注入失败”未稳定命中，当前对“hint 已生成后删除”以代码路径和现有回滚逻辑为主，后续可考虑引入可控故障注入点提升可测性。
+- `T7.1`（`--replica-node` 解析与目标合法性校验）已完成：
+  - 现状缺口：
+    - 之前 `tRepairValidateCliArgs()` 对 `mode=copy` 仅校验“是否提供 `replica-node`”，未校验 endpoint 格式；
+    - 导致形如 `192.168.1.24:var/lib/taos`（相对路径）也会被当作合法参数。
+  - TDD 过程：
+    - Red：新增 `ValidateCliArgsReplicaNodeEndpointFormat`，覆盖合法 endpoint 与 7 类非法 endpoint（缺冒号、空 host、空 path、相对路径、空白字符、多冒号等），先验证失败；
+    - Green：新增 `tRepairValidateReplicaNodeEndpoint()` 并接入 `mode=copy` 校验分支；
+    - Refactor：保持最小变更，不改 CLI 解析层，仅增强 validator。
+  - 当前校验规则（copy 模式）：
+    - 必须是 `<host>:<absolute-path>`；
+    - host/path 均不能为空；
+    - 仅允许一个分隔冒号；
+    - path 必须以 `/` 开头；
+    - endpoint 中不允许空白字符。
+  - 验证结果：
+    - 定向单测通过：`ValidateCliArgsReplicaNodeRule + ValidateCliArgsReplicaNodeEndpointFormat`（2/2）；
+    - `ctest -R commonTest` 通过；
+    - 运行态验证通过：
+      - 非法 endpoint `192.168.1.24:var/lib/taos` 退出码 `25`；
+      - 合法 endpoint `192.168.1.24:/var/lib/taos` 通过参数校验并继续流程（退出码 `47`）。
+- `T7.2`（远端拷贝抽象层，先本地 mock）已完成：
+  - 新增对外可测试接口：
+    - `tRepairParseReplicaNodeEndpoint()`：从 `<host>:<absolute-path>` 解析出 `host` 与 `remoteDataDir`；
+    - `tRepairMockCopyReplicaVnodeTarget()`：基于本地目录模拟“远端副本目录拷贝”。
+  - `tRepairMockCopyReplicaVnodeTarget()` 语义：
+    - 仅允许 `nodeType=vnode` 且 `mode=copy`；
+    - 目标 vnode 必须命中 `tRepairShouldRepairVnode()`；
+    - 源目录按 `replicaDataDir + vnodeId + fileType` 计算；
+    - 目标目录按 `localDataDir + vnodeId + fileType` 计算；
+    - 复制前重置目标目录，再递归复制，返回 `srcPath/dstPath` 便于上层日志与调试。
+  - TDD 结果：
+    - Red：新增测试先报未声明接口，编译失败符合预期；
+    - Green：补齐头文件声明与实现后，定向测试通过（3/3）。
+  - 验证结果：
+    - `cmake --build debug --target commonTest` 通过；
+    - 定向 gtest 通过：`ParseReplicaNodeEndpoint`、`MockCopyReplicaVnodeTarget`、`MockCopyReplicaVnodeTargetInvalidArgs`；
+    - `ctest -R commonTest` 通过；
+    - `cmake --build debug --target taosd` 通过（中途受 `ext_pcre2` 外网拉取波动影响，升权重重试后成功）。
