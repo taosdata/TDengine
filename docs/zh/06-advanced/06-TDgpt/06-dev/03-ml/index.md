@@ -131,8 +131,8 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         if os.path.exists(module_info_path):
             info = joblib.load(module_info_path)
         else:
-            app_logger.log_inst.error("failed to load autoencoder model file: %s", module_file_path)
-            raise FileNotFoundError("%s not found", module_info_path)
+            app_logger.log_inst.error("failed to load autoencoder model info file: %s", module_info_path)
+            raise FileNotFoundError(f"{module_info_path} not found")
 
         # 初始化模型推理的辅助信息到对象中
         if info is not None:
