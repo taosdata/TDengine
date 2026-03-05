@@ -1010,7 +1010,7 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation, bool *enqueued
 
   CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
   if (enqueued) {
-    *enqueued = true;  // the ownership of operation is transferred to queue, caller should not free it
+    *enqueued = true;  // the ownership of operation is transferred to queue
   }
 
   ctgDebug("%sync action [%s] added into queue", syncOp ? "S": "As", opName);
