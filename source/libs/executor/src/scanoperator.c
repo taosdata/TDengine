@@ -292,6 +292,10 @@ static int32_t doSetTagColumnData(STableScanBase* pTableScanInfo, SSDataBlock* p
   if (pSup->numOfExprs > 0) {
     code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pBlock, rows,
                                   pTaskInfo, &pTableScanInfo->metaCache);
+                                  // ignore the table not exists error, since this table may have been dropped during the scan procedure.
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      code = 0;
+    }
   }
 
   return code;

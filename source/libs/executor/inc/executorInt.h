@@ -829,8 +829,7 @@ bool    checkNullRow(SExprSupp* pExprSup, SSDataBlock* pSrcBlock, int32_t index,
 STrueForInfo* getTrueForInfo(struct SOperatorInfo* pOperator);
 
 void    destroyTmqScanOperatorInfo(void* param);
-int32_t checkUpdateData(STmqQueryScanInfo* pInfo, bool invertible, SSDataBlock* pBlock, bool out);
-void resetBasicOperatorState(SOptrBasicInfo* pBasicInfo);
+void    resetBasicOperatorState(SOptrBasicInfo* pBasicInfo);
 
 int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size);
 
