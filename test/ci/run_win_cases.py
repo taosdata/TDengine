@@ -55,12 +55,25 @@ def clean_taos_process(keywords=None):
     :param keywords: List[str]，用于匹配进程命令行的关键字列表。如果为 None，则默认匹配 'taos'。
     """
     if keywords is None:
-        keywords = ['taos']  # 默认关键字为 'taos'
+        keywords = ["taos", "taosd", "taosadapter", "taoskeeper", "taos-explorer", "taosx"]
+
+    current_pid = os.getpid()
 
     for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
         try:
-            # 检查进程命令行是否包含指定关键字
-            if proc.info['cmdline'] and any(keyword in ' '.join(proc.info['cmdline']) for keyword in keywords):
+            if proc.info["pid"] == current_pid:
+                continue
+
+            cmdline_parts = proc.info.get("cmdline") or []
+            cmdline = " ".join(cmdline_parts).lower()
+            proc_name = (proc.info.get("name") or "").lower()
+
+            # 跳过 Jenkins agent，避免断开 remoting channel 导致当前用例被系统回收
+            if "agent.jar" in cmdline or "jenkins" in cmdline:
+                continue
+
+            # 清理 taos 相关进程，同时避免误杀 Jenkins/agent
+            if any(keyword in proc_name for keyword in keywords) or proc_name.startswith("taos"):
                 logger.debug(f"Found matching process: {proc.info}")
                 proc.terminate()  # 优雅终止进程
                 try:
