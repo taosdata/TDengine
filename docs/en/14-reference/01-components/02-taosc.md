@@ -20,7 +20,7 @@ The following configuration parameters only take effect for Native connections.
 |shellActivityTimer    |                  |Not supported                     |The duration in seconds for the client to send heartbeats to mnode, range 1-120, default value 3|
 |numOfRpcSessions      |                  |Supported, effective immediately  |Maximum number of connections supported by RPC, range 100-100000, default value 30000|
 |numOfRpcThreads       |                  |Not supported                     |Number of threads for RPC to send and receive data, range 1-1024, default value is half of the CPU cores (limited to [2, 100] on Linux and [2, 4] on Windows)|
-|numOfTaskQueueThreads |                  |Not supported                     |Number of threads for the client to handle RPC messages, range 4-16, default value is half of the CPU cores|
+|numOfTaskQueueThreads |                  |Not supported                     |Number of threads for the client to handle RPC messages, range 4-1024, default value is twice the CPU cores|
 |timeToGetAvailableConn| Cancelled after 3.3.4.*   |Not supported                     |The longest waiting time to get an available connection, range 10-50000000, in milliseconds, default value 500000|
 |useAdapter            |          |Supported, effective immediately  |Internal parameter, whether to use taosadapter, affects CSV file import|
 |shareConnLimit        |Added in 3.3.4.0|Not supported                     |Internal parameter, the number of queries a link can share, range 1-512, default value 10 (Linux/macOS) or 1 (Windows)|
