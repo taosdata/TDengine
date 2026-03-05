@@ -146,7 +146,7 @@ _exit:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 
