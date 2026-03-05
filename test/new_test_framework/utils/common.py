@@ -3021,7 +3021,7 @@ class TDCom:
                     f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' > {self.query_result_file}.raw "
                 )
                 time.sleep(1)
-                with (  
+                with (
                     open(f"{self.query_result_file}.raw", "r", encoding="utf-8") as fin,  
                     open(self.query_result_file, "w", encoding="utf-8") as fout,  
                 ):
