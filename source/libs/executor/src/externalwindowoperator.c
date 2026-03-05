@@ -434,9 +434,13 @@ static void extWinApplyTimeRangeToExchangeParam(SOperatorParam* pParam, const ST
 }
 
 static int32_t extWinApplyNonStreamTimeRangeToOperatorTree(SOperatorInfo* pOperator, const STimeWindow* pTimeRange,
-                                                           int32_t* pScanAppliedNum) {
-  if (pOperator == NULL || pTimeRange == NULL || pScanAppliedNum == NULL) {
+                                                           int32_t* pScanAppliedNum, SExecTaskInfo* pRootTaskInfo) {
+  if (pOperator == NULL || pTimeRange == NULL || pScanAppliedNum == NULL || pRootTaskInfo == NULL) {
     return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pOperator->pTaskInfo != pRootTaskInfo) {
+    return TSDB_CODE_SUCCESS;
   }
 
   if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
@@ -463,7 +467,7 @@ static int32_t extWinApplyNonStreamTimeRangeToOperatorTree(SOperatorInfo* pOpera
       extWinApplyTimeRangeToExchangeParam(pOperator->pDownstreamGetParams[i], pTimeRange);
     }
 
-    int32_t code = extWinApplyNonStreamTimeRangeToOperatorTree(pChild, pTimeRange, pScanAppliedNum);
+    int32_t code = extWinApplyNonStreamTimeRangeToOperatorTree(pChild, pTimeRange, pScanAppliedNum, pRootTaskInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -492,7 +496,8 @@ static int32_t extWinApplyNonStreamTimeRangeToDownstream(SOperatorInfo* pOperato
       continue;
     }
 
-    int32_t code = extWinApplyNonStreamTimeRangeToOperatorTree(pDownstream, pTimeRange, &scanAppliedNum);
+    int32_t code = extWinApplyNonStreamTimeRangeToOperatorTree(pDownstream, pTimeRange, &scanAppliedNum,
+                                                                pOperator->pTaskInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
