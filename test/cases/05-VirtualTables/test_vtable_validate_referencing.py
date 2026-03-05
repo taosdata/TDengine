@@ -1342,3 +1342,324 @@ class TestVtableValidateReferencing:
         tdSql.query(f"select ts, v_nchar from vntb_complex_types;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 'nchar_test')
+
+    def test_show_validate_basic_syntax(self):
+        """Validate: SHOW VTABLE VALIDATE FOR basic syntax
+
+        Test the basic syntax of SHOW VTABLE VALIDATE FOR with simple table name.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, validate, show
+
+        Jira: None
+
+        History:
+            - 2026-3-5 Created
+
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR basic syntax ===")
+        tdSql.execute(f"use {DB_NAME};")
+
+        # Test SHOW VTABLE VALIDATE FOR with simple table name
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR vntb_same_db;")
+        tdSql.checkRows(3)  # vntb_same_db has 3 referenced columns
+        
+        # Verify column names in result
+        # Result should have columns like: virtual_db_name, virtual_table_name, virtual_col_name, etc.
+        for i in range(3):
+            # All references should be valid
+            err_code_col_idx = 8  # err_code is typically the last column
+            tdSql.checkData(i, err_code_col_idx, TSDB_CODE_SUCCESS)
+
+    def test_show_validate_with_database_prefix(self):
+        """Validate: SHOW VTABLE VALIDATE FOR with database prefix
+
+        Test SHOW VTABLE VALIDATE FOR with full qualified table name (dbname.tablename).
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, validate, show
+
+        Jira: None
+
+        History:
+            - 2026-3-5 Created
+
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR with db prefix ===")
+        tdSql.execute(f"use {DB_NAME};")
+
+        # Test with full qualified name
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR {DB_NAME}.vntb_same_db;")
+        tdSql.checkRows(3)
+        
+        # Verify virtual_db_name matches
+        for i in range(3):
+            tdSql.checkData(i, 0, DB_NAME)  # virtual_db_name
+            tdSql.checkData(i, 1, 'vntb_same_db')  # virtual_table_name
+
+    def test_show_validate_cross_database_table(self):
+        """Validate: SHOW VTABLE VALIDATE FOR cross-database virtual table
+
+        Test SHOW VTABLE VALIDATE FOR on a virtual table that references
+        cross-database tables.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, validate, show, cross-db
+
+        Jira: None
+
+        History:
+            - 2026-3-5 Created
+
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR cross-db vtable ===")
+        tdSql.execute(f"use {DB_NAME};")
+
+        # Test cross-database virtual table
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR vntb_cross_db;")
+        tdSql.checkRows(2)  # vntb_cross_db has 2 referenced columns
+        
+        # Verify src_db_name includes cross_db
+        for i in range(2):
+            tdSql.checkData(i, 3, CROSS_DB_NAME)  # src_db_name
+            tdSql.checkData(i, 8, TSDB_CODE_SUCCESS)  # err_code
+
+    def test_show_validate_virtual_child_table(self):
+        """Validate: SHOW VTABLE VALIDATE FOR virtual child table
+
+        Test SHOW VTABLE VALIDATE FOR on a virtual child table.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, validate, show
+
+        Jira: None
+
+        History:
+            - 2026-3-5 Created
+
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR virtual child table ===")
+        tdSql.execute(f"use {DB_NAME};")
+
+        # Test virtual child table
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR vctb_same_db;")
+        tdSql.checkRows(2)  # vctb_same_db has 2 referenced columns
+        
+        # Verify all references are valid
+        for i in range(2):
+            tdSql.checkData(i, 8, TSDB_CODE_SUCCESS)  # err_code
+
+    def test_show_validate_nonexistent_table(self):
+        """Validate: SHOW VTABLE VALIDATE FOR nonexistent table
+
+        Test SHOW VTABLE VALIDATE FOR on a table that doesn't exist.
+        Should return empty result or error.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, validate, show, negative
+
+        Jira: None
+
+        History:
+            - 2026-3-5 Created
+
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR nonexistent table ===")
+        tdSql.execute(f"use {DB_NAME};")
+
+        # Test with nonexistent virtual table
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR nonexistent_vtable;")
+        tdSql.checkRows(0)  # Should return 0 rows
+
+    def test_show_validate_normal_table(self):
+        """Validate: SHOW VTABLE VALIDATE FOR normal table (not virtual)
+
+        Test SHOW VTABLE VALIDATE FOR on a normal table that is not a virtual table.
+        Should return empty result.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, validate, show, negative
+
+        Jira: None
+
+        History:
+            - 2026-3-5 Created
+
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR normal table ===")
+        tdSql.execute(f"use {DB_NAME};")
+
+        # Test with normal table (not virtual)
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR src_ntb;")
+        tdSql.checkRows(0)  # Should return 0 rows (not a virtual table)
+
+    def test_show_validate_result_columns(self):
+        """Validate: SHOW VTABLE VALIDATE FOR result columns
+
+        Verify that SHOW VTABLE VALIDATE FOR returns the expected columns
+        with correct names and order.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, validate, show
+
+        Jira: None
+
+        History:
+            - 2026-3-5 Created
+
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR result columns ===")
+        tdSql.execute(f"use {DB_NAME};")
+
+        # Execute SHOW command
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR vntb_same_db;")
+        tdSql.checkRows(3)
+        
+        # Verify column values (checking a few key columns)
+        # Expected columns: virtual_db_name, virtual_table_name, virtual_col_name,
+        #                   src_db_name, src_table_name, src_column_name, err_code, err_msg
+        
+        # Check first row
+        tdSql.checkData(0, 0, DB_NAME)  # virtual_db_name
+        tdSql.checkData(0, 1, 'vntb_same_db')  # virtual_table_name
+        # virtual_col_name can be v_int, v_float, or v_bin
+        # src_table_name should be 'src_ntb'
+        tdSql.checkData(0, 4, 'src_ntb')  # src_table_name
+        tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)  # err_code
+
+    def test_show_validate_invalid_references(self):
+        """Validate: SHOW VTABLE VALIDATE FOR with invalid references
+
+        Test SHOW VTABLE VALIDATE FOR on a virtual table where some
+        references are invalid (dropped source table/column).
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, validate, show
+
+        Jira: None
+
+        History:
+            - 2026-3-5 Created
+
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR invalid references ===")
+        tdSql.execute(f"use {DB_NAME};")
+
+        # Create a test virtual table
+        tdSql.execute(f"CREATE TABLE `src_show_test` (ts timestamp, c1 int);")
+        tdSql.execute(f"INSERT INTO src_show_test VALUES (now, 1);")
+        tdSql.execute(f"CREATE VTABLE `vntb_show_test` ("
+                      "ts timestamp, "
+                      "v_c1 int from src_show_test.c1);")
+
+        # Verify it's valid initially
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR vntb_show_test;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
+
+        # Drop source table
+        tdSql.execute(f"DROP TABLE src_show_test;")
+
+        # Verify it shows error now
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR vntb_show_test;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 8, TSDB_CODE_PAR_TABLE_NOT_EXIST)
+
+        # Verify err_msg is populated
+        err_msg = tdSql.queryResult[0][9]  # err_msg column
+        assert err_msg is not None and len(str(err_msg).strip()) > 0, \
+            "err_msg should be non-empty when err_code != 0"
+
+    def test_show_validate_case_sensitivity(self):
+        """Validate: SHOW VTABLE VALIDATE FOR case sensitivity
+
+        Test if table names in SHOW VTABLE VALIDATE FOR are case-sensitive.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, validate, show
+
+        Jira: None
+
+        History:
+            - 2026-3-5 Created
+
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR case sensitivity ===")
+        tdSql.execute(f"use {DB_NAME};")
+
+        # Test with different case
+        # Note: TDengine table names are case-sensitive, so this should fail
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR VNTB_SAME_DB;")
+        tdSql.checkRows(0)  # Should return 0 rows (case mismatch)
+
+        # Test with correct case
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR vntb_same_db;")
+        tdSql.checkRows(3)  # Should work
+
+    def test_show_validate_without_using_database(self):
+        """Validate: SHOW VTABLE VALIDATE FOR without USE database
+
+        Test SHOW VTABLE VALIDATE FOR when no database is selected.
+        Should require database context or full qualified name.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, validate, show
+
+        Jira: None
+
+        History:
+            - 2026-3-5 Created
+
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR without USE ===")
+        
+        # Use a different database (not the one with virtual tables)
+        tdSql.execute(f"use {CROSS_DB_NAME};")
+
+        # Try without database prefix - should fail or return 0 rows
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR vntb_same_db;")
+        tdSql.checkRows(0)  # Should return 0 rows (table not in current db)
+
+        # Try with full qualified name - should work
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR {DB_NAME}.vntb_same_db;")
+        tdSql.checkRows(3)  # Should work with qualified name
