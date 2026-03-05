@@ -988,6 +988,7 @@ typedef struct SSTriggerCalcParam {
   int32_t notifyType;           // See also: ESTriggerEventType
   char*   extraNotifyContent;   // NULL if not available
   char*   resultNotifyContent;  // does not serialize
+  SArray* pExternalWindowData;
 } SSTriggerCalcParam;
 
 typedef struct SSTriggerGroupCalcInfo {

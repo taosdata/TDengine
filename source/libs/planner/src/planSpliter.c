@@ -604,7 +604,13 @@ static int32_t stbSplCreatePartWindowNode(SSplitContext* pCxt, SWindowLogicNode*
                                           pMergeTspk->node.resType.precision,
                                           pCxt->pPlanCxt->streamCxt.triggerWinType));
   }
-  if (!pCxt->pPlanCxt->streamCxt.hasExtWindow) {
+  if (pMergeWindow->winType == WINDOW_TYPE_EXTERNAL) {
+    /**
+      For external window query, we need the _wstart placeholder for the merged INTERVAL window to do aggregation. 
+      It's always equal zero.
+    */
+    index = 0;
+  } else if (!pCxt->pPlanCxt->streamCxt.hasExtWindow) {
     /**
       If the query is not an external window query, we need the _wstart
       placeholder for the merged INTERVAL window to do aggregation.

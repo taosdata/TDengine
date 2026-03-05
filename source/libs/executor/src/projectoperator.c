@@ -1014,7 +1014,8 @@ int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprI
   TSDB_CHECK_NULL(pResColData, code, lino, _exit, terrno);
 
   if (fmIsPlaceHolderFunc(pfCtx->functionId) && pExtraParams && pfCtx->pExpr->base.pParamList && 1 == pfCtx->pExpr->base.pParamList->length) {
-    TAOS_CHECK_EXIT(scalarAssignPlaceHolderRes(pResColData, pResult->info.rows, pSrcBlock->info.rows, pfCtx->functionId, pExtraParams));
+    SNode* pParamNode = nodesListGetNode(pfCtx->pExpr->base.pParamList, 0);
+    TAOS_CHECK_EXIT(scalarAssignPlaceHolderRes(pResColData, pResult->info.rows, pSrcBlock->info.rows, pfCtx->functionId, pExtraParams, pParamNode));
     *numOfRows = pSrcBlock->info.rows;
 
     return code;
