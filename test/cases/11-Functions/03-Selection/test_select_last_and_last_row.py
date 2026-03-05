@@ -1028,3 +1028,39 @@ class TestFuncLast:
         tdSql.checkData(3, 0, "         -> Table Scan on tt (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)")
         tdSql.checkData(4, 0, "   -> Aggregate (functions=1 width=8 input_order=desc )")
         tdSql.checkData(6, 0, "         -> Last Row Scan on tt (columns=2 width=16 )")
+
+    def test_last_blob_data_from_cache(self):
+        """Last blob data from cache
+        
+        1. Query last/last row with blob data from cache and verify the results
+
+        Since: v3.3.8.9
+
+        Labels: common,ci
+
+        History:
+            - 2026-03-03 Tony Zhang created
+
+        """
+        # defect 6832148756
+        tdSql.execute("alter database table_lastrow_2_2 cachemodel 'both'")
+        eutil.check_db_cachemodel("table_lastrow_2_2", "both")
+        eutil.check_explain_last_row_scan('select LAST_ROW(q_blob), LAST(q_blob) from table_lastrow_2_2.regular_table_1')
+        tdSql.query('select LAST_ROW(q_blob), LAST(q_blob) from table_lastrow_2_2.regular_table_1')
+        tdSql.checkData(0, 0, b'blob.hello')
+        tdSql.checkData(0, 1, b'blob.hello')
+        tdSql.query('select LAST_ROW(q_blob), LAST(q_blob) from table_lastrow_2_2.stable_1')
+        tdSql.checkData(0, 0, b'blob.world')
+        tdSql.checkData(0, 1, b'blob.world')
+
+        # test empty blob data
+        tdSql.execute("insert into table_lastrow_2_2.regular_table_1 (ts, q_blob) values(now, '')")
+        tdSql.query('select LAST_ROW(q_blob), LAST(q_blob) from table_lastrow_2_2.regular_table_1')
+        tdSql.checkData(0, 0, b"")
+        tdSql.checkData(0, 1, b"")
+
+        # test null blob data
+        tdSql.execute("insert into table_lastrow_2_2.regular_table_1 (ts, q_blob) values(now, null)")
+        tdSql.query('select LAST_ROW(q_blob), LAST(q_blob) from table_lastrow_2_2.regular_table_1')
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, b"")
