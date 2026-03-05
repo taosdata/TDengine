@@ -52,7 +52,7 @@ func countDescsWithTimeout(ch <-chan *prometheus.Desc, timeout time.Duration) in
 
 
 func TestMemoryStoreCollector_Collect(t *testing.T) {
-	store := NewMemoryStore(5 * time.Minute)
+	store, _ := NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 
 	// Add test data
@@ -64,7 +64,7 @@ func TestMemoryStoreCollector_Collect(t *testing.T) {
 		"uptime":     100.0,
 		"cpu_engine": 5.5,
 	}
-	store.Set("taosd_dnodes_info", tags1, metrics1)
+	store.SetWithTimestamp("taosd_dnodes_info", tags1, metrics1, time.Now())
 
 	tags2 := map[string]string{
 		"cluster_id": "123",
@@ -73,7 +73,7 @@ func TestMemoryStoreCollector_Collect(t *testing.T) {
 		"dbs_total":     10.0,
 		"master_uptime": 200.0,
 	}
-	store.Set("taosd_cluster_info", tags2, metrics2)
+	store.SetWithTimestamp("taosd_cluster_info", tags2, metrics2, time.Now())
 
 	// Create collector
 	collector := NewMemoryStoreCollector(store, 30*time.Second)
@@ -90,13 +90,13 @@ func TestMemoryStoreCollector_Collect(t *testing.T) {
 }
 
 func TestMemoryStoreCollector_CollectWithMaxAge(t *testing.T) {
-	store := NewMemoryStore(5 * time.Minute)
+	store, _ := NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 
 	// Add old data
 	tags1 := map[string]string{"id": "old"}
 	metrics1 := map[string]float64{"value": 1.0}
-	store.Set("test_table", tags1, metrics1)
+	store.SetWithTimestamp("test_table", tags1, metrics1, time.Now())
 
 	// Wait for some time
 	time.Sleep(10 * time.Millisecond)
@@ -104,7 +104,7 @@ func TestMemoryStoreCollector_CollectWithMaxAge(t *testing.T) {
 	// Add new data
 	tags2 := map[string]string{"id": "new"}
 	metrics2 := map[string]float64{"value": 2.0}
-	store.Set("test_table", tags2, metrics2)
+	store.SetWithTimestamp("test_table", tags2, metrics2, time.Now())
 
 	// Create collector with very short maxAge
 	collector := NewMemoryStoreCollector(store, 5*time.Millisecond)
@@ -120,7 +120,7 @@ func TestMemoryStoreCollector_CollectWithMaxAge(t *testing.T) {
 }
 
 func TestMemoryStoreCollector_Describe(t *testing.T) {
-	store := NewMemoryStore(5 * time.Minute)
+	store, _ := NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	collector := NewMemoryStoreCollector(store, 30*time.Second)
 
@@ -133,7 +133,7 @@ func TestMemoryStoreCollector_Describe(t *testing.T) {
 }
 
 func TestMemoryStoreCollector_EmptyStore(t *testing.T) {
-	store := NewMemoryStore(5 * time.Minute)
+	store, _ := NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	collector := NewMemoryStoreCollector(store, 30*time.Second)
 
@@ -146,7 +146,7 @@ func TestMemoryStoreCollector_EmptyStore(t *testing.T) {
 }
 
 func TestMemoryStoreCollector_Integration(t *testing.T) {
-	store := NewMemoryStore(5 * time.Minute)
+	store, _ := NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 
 	// Directly add test data (simulating parser behavior)
@@ -157,7 +157,7 @@ func TestMemoryStoreCollector_Integration(t *testing.T) {
 		"dbs_total":     5.0,
 		"master_uptime": 100.0,
 	}
-	store.Set("taosd_cluster_info", tags, metrics)
+	store.SetWithTimestamp("taosd_cluster_info", tags, metrics, time.Now())
 
 	// Use collector to collect
 	collector := NewMemoryStoreCollector(store, 30*time.Second)

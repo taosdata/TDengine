@@ -8,7 +8,7 @@ import (
 // Prometheus configuration for v2 memory cache mode
 type Prometheus struct {
 	IncludeTables []string `toml:"includeTables"` // v2 additional tables to cache (restore from default exclusion list)
-	CacheTTL      int      `toml:"cacheTTL"`      // v2 memory cache TTL in seconds (default: 300)
+	CacheTTL      int      `toml:"cacheTTL"`      // v2 memory cache TTL in seconds (default: 300, minimum: 60)
 }
 
 func initPrometheus() {
@@ -20,5 +20,5 @@ func initPrometheus() {
 	// v2 memory cache TTL (in seconds)
 	viper.SetDefault("prometheus.cacheTTL", 300)
 	_ = viper.BindEnv("prometheus.cacheTTL", "TAOS_KEEPER_CACHE_TTL")
-	pflag.Int("prometheus.cacheTTL", 300, `memory cache TTL in v2 mode (in seconds, default: 300). Env "TAOS_KEEPER_CACHE_TTL"`)
+	pflag.Int("prometheus.cacheTTL", 300, `memory cache TTL in v2 mode (in seconds, default: 300, minimum: 60). Env "TAOS_KEEPER_CACHE_TTL"`)
 }

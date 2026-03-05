@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gin-contrib/cors"
-	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	"github.com/kardianos/service"
 	"github.com/taosdata/go-utils/web"
@@ -37,7 +36,7 @@ func Init() *http.Server {
 		return nil
 	}
 
-	router := CreateRouter(false, &conf.Cors, true)
+	router := CreateRouter(false, &conf.Cors)
 	router.Use(log.GinLog())
 	router.Use(log.GinRecoverLog())
 
@@ -47,7 +46,12 @@ func Init() *http.Server {
 
 	// v2: Create memory store and parser (must be before route registration)
 	// Use configurable TTL from config file (convert seconds to duration)
-	memoryStore = process.NewMemoryStore(time.Duration(conf.Prometheus.CacheTTL) * time.Second)
+	var err error
+	memoryStore, err = process.NewMemoryStore(time.Duration(conf.Prometheus.CacheTTL) * time.Second)
+	if err != nil {
+		logger.Errorf("Failed to create memory store: %v", err)
+		panic(err)
+	}
 	metricParser := api.NewMetricParser(memoryStore, conf.Prometheus.IncludeTables)
 	router.Use(api.MetricCacheMiddleware(metricParser))
 	if len(conf.Prometheus.IncludeTables) > 0 {
@@ -176,12 +180,9 @@ func (p *program) Stop(s service.Service) error {
 	return nil
 }
 
-func CreateRouter(debug bool, corsConf *web.CorsConfig, enableGzip bool) *gin.Engine {
+func CreateRouter(debug bool, corsConf *web.CorsConfig) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(cors.New(corsConf.GetConfig()))
-	if enableGzip {
-		router.Use(gzip.Gzip(gzip.DefaultCompression))
-	}
 	return router
 }

@@ -63,7 +63,8 @@ func TestMain(m *testing.M) {
 	CreatTables(conf.TDengine.Username, conf.TDengine.Password, conf.TDengine.Host, conf.TDengine.Port, conf.TDengine.Usessl, conf.Metrics.Database.Name, createList)
 
 	processor := process.NewProcessor(conf)
-	memoryStore := process.NewMemoryStore(5 * time.Minute)
+	memoryStore, _ := process.NewMemoryStore(5 * time.Minute)
+	defer memoryStore.Close()
 	node := NewNodeExporter(processor, memoryStore, reporter)
 	node.Init(router)
 	m.Run()

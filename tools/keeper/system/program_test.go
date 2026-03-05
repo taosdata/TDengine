@@ -1,7 +1,6 @@
 package system
 
 import (
-	"compress/gzip"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -9,18 +8,13 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"io"
 	"math/big"
 	"net/http"
-	"net/http/httptest"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/kardianos/service"
-	"github.com/taosdata/go-utils/web"
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taoskeeper/db"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
@@ -30,6 +24,11 @@ import (
 func TestInit(t *testing.T) {
 	server := Init()
 	assert.NotNil(t, server)
+	defer func() {
+		if memoryStore != nil {
+			memoryStore.Close()
+		}
+	}()
 
 	conn, err := db.NewConnectorWithDb(config.Conf.TDengine.Username, config.Conf.TDengine.Password, config.Conf.TDengine.Host, config.Conf.TDengine.Port, config.Conf.Metrics.Database.Name, config.Conf.TDengine.Usessl)
 	assert.NoError(t, err)
@@ -201,65 +200,3 @@ func generateTestCert(certFile, keyFile string) error {
 	return nil
 }
 
-func TestCreateRouter_GzipEnabled(t *testing.T) {
-	router := CreateRouter(false, &web.CorsConfig{}, true)
-
-	// Add a test endpoint that returns repetitive text (highly compressible)
-	testData := strings.Repeat("Hello, World! ", 100)
-	router.GET("/test", func(c *gin.Context) {
-		c.String(http.StatusOK, testData)
-	})
-
-	// Test 1: Request with Accept-Encoding: gzip should return compressed response
-	req := httptest.NewRequest("GET", "/test", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "gzip", w.Header().Get("Content-Encoding"))
-
-	compressedSize := w.Body.Len()
-
-	// Verify the response can be decompressed
-	gr, err := gzip.NewReader(w.Body)
-	assert.NoError(t, err)
-	defer gr.Close()
-	decompressed, err := io.ReadAll(gr)
-	assert.NoError(t, err)
-	assert.Contains(t, string(decompressed), "Hello, World!")
-
-	// Test 2: Request without Accept-Encoding should NOT return compressed response
-	req2 := httptest.NewRequest("GET", "/test", nil)
-	w2 := httptest.NewRecorder()
-	router.ServeHTTP(w2, req2)
-
-	assert.Equal(t, http.StatusOK, w2.Code)
-	assert.Empty(t, w2.Header().Get("Content-Encoding"))
-	assert.Contains(t, w2.Body.String(), "Hello, World!")
-
-	uncompressedSize := w2.Body.Len()
-
-	// Test 3: Compressed response must be smaller than uncompressed
-	assert.Less(t, compressedSize, uncompressedSize, "Compressed response should be smaller than uncompressed")
-}
-
-func TestCreateRouter_GzipDisabled(t *testing.T) {
-	// Test with gzip disabled
-	router := CreateRouter(false, &web.CorsConfig{}, false)
-
-	// Add a test endpoint
-	router.GET("/test", func(c *gin.Context) {
-		c.String(http.StatusOK, strings.Repeat("Hello, World! ", 100))
-	})
-
-	// Request with Accept-Encoding: gzip should still NOT be compressed
-	req := httptest.NewRequest("GET", "/test", nil)
-	req.Header.Set("Accept-Encoding", "gzip")
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Empty(t, w.Header().Get("Content-Encoding"))
-	assert.Contains(t, w.Body.String(), "Hello, World!")
-}

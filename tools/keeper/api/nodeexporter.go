@@ -67,8 +67,9 @@ func (z *NodeExporter) serveMetricsV2(c *gin.Context) {
 	perfCollector := NewPerformanceCollector(z.reporter)
 	reg.MustRegister(perfCollector)
 
-	allData := z.memoryStore.GetAll()
-	if len(allData) == 0 {
+	// Log if memory cache is empty (for debugging)
+	stats := z.memoryStore.GetStats()
+	if totalMetrics, ok := stats["total_metrics"].(int); ok && totalMetrics == 0 {
 		perfLogger.Trace("Memory cache is empty, ensure data is sent to /general-metric or /adapter_report")
 	}
 

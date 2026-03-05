@@ -60,7 +60,7 @@ func TestMetricCacheMiddleware_ShouldCachePath(t *testing.T) {
 func TestMetricCacheMiddleware_InterceptAndCache(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{})
 
@@ -94,7 +94,7 @@ func TestMetricCacheMiddleware_InterceptAndCache(t *testing.T) {
 	assert.Equal(t, 200, w.Code)
 
 	// Synchronous parsing, immediately available
-	allData := store.GetAll()
+	allData := store.GetAllFiltered(time.Unix(0, 0))
 	assert.Equal(t, 1, len(allData))
 	assert.Equal(t, "taosd_cluster_info", allData[0].TableName)
 }
@@ -102,7 +102,7 @@ func TestMetricCacheMiddleware_InterceptAndCache(t *testing.T) {
 func TestMetricCacheMiddleware_SkipNonPostRequests(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{})
 
@@ -119,14 +119,14 @@ func TestMetricCacheMiddleware_SkipNonPostRequests(t *testing.T) {
 	assert.Equal(t, 200, w.Code)
 
 	// GET requests should not cache data
-	allData := store.GetAll()
+	allData := store.GetAllFiltered(time.Unix(0, 0))
 	assert.Equal(t, 0, len(allData))
 }
 
 func TestMetricCacheMiddleware_SkipNonMatchingPaths(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{})
 
@@ -146,14 +146,14 @@ func TestMetricCacheMiddleware_SkipNonMatchingPaths(t *testing.T) {
 	assert.Equal(t, 200, w.Code)
 
 	// Non-matching paths should not cache
-	allData := store.GetAll()
+	allData := store.GetAllFiltered(time.Unix(0, 0))
 	assert.Equal(t, 0, len(allData))
 }
 
 func TestMetricCacheMiddleware_PreserveRequestBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{})
 

@@ -1,6 +1,7 @@
 package process
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -21,10 +22,16 @@ type MemoryStore struct {
 	store map[string]*MetricData // key: tableName:serializedTags
 	ttl   time.Duration           // Time-to-live for cached data
 	done  chan struct{}           // Channel to signal cleanupLoop to stop
+	closeOnce sync.Once           // Ensure Close is idempotent
 }
 
 // NewMemoryStore creates an in-memory store with specified TTL
-func NewMemoryStore(ttl time.Duration) *MemoryStore {
+// TTL must be at least 1 minute (will return error if less)
+func NewMemoryStore(ttl time.Duration) (*MemoryStore, error) {
+	if ttl < time.Minute {
+		return nil, fmt.Errorf("MemoryStore TTL must be at least 1 minute, got %v", ttl)
+	}
+
 	store := &MemoryStore{
 		store: make(map[string]*MetricData),
 		ttl:   ttl,
@@ -32,82 +39,22 @@ func NewMemoryStore(ttl time.Duration) *MemoryStore {
 	}
 	// Start cleanup goroutine
 	go store.cleanupLoop()
-	return store
+	return store, nil
 }
 
-// Set stores or updates metrics
-func (m *MemoryStore) Set(tableName string, tags map[string]string, metrics map[string]float64) {
-	key := m.buildKey(tableName, tags)
-	m.mu.Lock()
-	defer m.mu.Unlock()
 
-	if existing, ok := m.store[key]; ok {
-		// Update existing metric values
-		for k, v := range metrics {
-			existing.Metrics[k] = v
-		}
-		existing.Timestamp = time.Now()
-	} else {
-		// Create new metric
-		// Copy tags and metrics to avoid external modification
-		tagsCopy := make(map[string]string, len(tags))
-		for k, v := range tags {
-			tagsCopy[k] = v
-		}
-		metricsCopy := make(map[string]float64, len(metrics))
-		for k, v := range metrics {
-			metricsCopy[k] = v
-		}
-
-		m.store[key] = &MetricData{
-			TableName: tableName,
-			Tags:      tagsCopy,
-			Metrics:   metricsCopy,
-			Timestamp: time.Now(),
-		}
-	}
-}
-
-// GetAll retrieves all metrics (returns a deep copy to prevent data races)
-func (m *MemoryStore) GetAll() []*MetricData {
+// GetAllFiltered retrieves filtered metrics (used by v2)
+// Returns deep copies to prevent data races
+// Uses read lock for better concurrency - no side effects
+func (m *MemoryStore) GetAllFiltered(minTimestamp time.Time) []*MetricData {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	result := make([]*MetricData, 0, len(m.store))
 	for _, data := range m.store {
-		// Deep copy to prevent data races
-		dataCopy := &MetricData{
-			TableName: data.TableName,
-			Timestamp: data.Timestamp,
-			Tags:      make(map[string]string, len(data.Tags)),
-			Metrics:   make(map[string]float64, len(data.Metrics)),
-		}
-		for k, v := range data.Tags {
-			dataCopy.Tags[k] = v
-		}
-		for k, v := range data.Metrics {
-			dataCopy.Metrics[k] = v
-		}
-		result = append(result, dataCopy)
-	}
-	return result
-}
-
-// GetAllFiltered retrieves filtered metrics (used by v2)
-// Also performs lazy cleanup: removes data that exceeds TTL
-// Returns deep copies to prevent data races
-func (m *MemoryStore) GetAllFiltered(minTimestamp time.Time) []*MetricData {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	now := time.Now()
-	result := make([]*MetricData, 0, len(m.store))
-	expiredKeys := make([]string, 0)
-
-	for key, data := range m.store {
-		// Check if data is within maxAge
+		// Only return data within the specified time range
 		if data.Timestamp.After(minTimestamp) {
-			// Within maxAge: return this data (deep copy)
+			// Deep copy to prevent data races
 			dataCopy := &MetricData{
 				TableName: data.TableName,
 				Timestamp: data.Timestamp,
@@ -121,21 +68,8 @@ func (m *MemoryStore) GetAllFiltered(minTimestamp time.Time) []*MetricData {
 				dataCopy.Metrics[k] = v
 			}
 			result = append(result, dataCopy)
-		} else {
-			// Exceeds maxAge: check if it exceeds TTL
-			if now.Sub(data.Timestamp) > m.ttl {
-				// Exceeds TTL: mark for deletion
-				expiredKeys = append(expiredKeys, key)
-			}
-			// Else: within TTL but outside maxAge, just skip (don't return)
 		}
 	}
-
-	// Delete expired data
-	for _, key := range expiredKeys {
-		delete(m.store, key)
-	}
-
 	return result
 }
 
@@ -217,13 +151,16 @@ func (m *MemoryStore) GetStats() map[string]interface{} {
 	}
 }
 
-// SetWithTimestamp sets data with specified timestamp (mainly for testing)
+// SetWithTimestamp sets data with specified timestamp
+// Use the timestamp from the request to ensure accurate metric timing
+// If the key already exists, the entire metric map will be replaced (not merged)
+// This ensures data consistency and accurate timestamp semantics
 func (m *MemoryStore) SetWithTimestamp(tableName string, tags map[string]string, metrics map[string]float64, timestamp time.Time) {
 	key := m.buildKey(tableName, tags)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Copy tags and metrics
+	// Copy tags and metrics to avoid external modification
 	tagsCopy := make(map[string]string, len(tags))
 	for k, v := range tags {
 		tagsCopy[k] = v
@@ -233,6 +170,8 @@ func (m *MemoryStore) SetWithTimestamp(tableName string, tags map[string]string,
 		metricsCopy[k] = v
 	}
 
+	// Always replace the entire MetricData object
+	// This ensures timestamp accurately reflects when these metrics were collected
 	m.store[key] = &MetricData{
 		TableName: tableName,
 		Tags:      tagsCopy,
@@ -243,6 +182,9 @@ func (m *MemoryStore) SetWithTimestamp(tableName string, tags map[string]string,
 
 // Close stops the cleanup goroutine to prevent goroutine leaks
 // Should be called when the store is no longer needed
+// Idempotent: safe to call multiple times
 func (m *MemoryStore) Close() {
-	close(m.done)
+	m.closeOnce.Do(func() {
+		close(m.done)
+	})
 }

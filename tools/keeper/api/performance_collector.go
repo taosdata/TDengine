@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -88,7 +89,7 @@ func (p *PerformanceCollector) collectVerySlowQueries(ctx context.Context, conn 
 		SELECT COUNT(*) as slow_count
 		FROM performance_schema.perf_queries
 		WHERE exec_usec > %d
-	`, verySlowQueryThreshold.Nanoseconds())
+	`, verySlowQueryThreshold.Microseconds())
 
 	data, err := conn.Query(ctx, query, 0)
 	if err != nil {
@@ -137,6 +138,10 @@ func toInt64(v interface{}) int64 {
 	case uint32:
 		return int64(val)
 	case uint64:
+		if val > uint64(math.MaxInt64) {
+			log.GetLogger("PERF_COLLECTOR").Warnf("uint64 value %d exceeds int64 max, using MaxInt64", val)
+			return math.MaxInt64
+		}
 		return int64(val)
 	case float32:
 		return int64(val)

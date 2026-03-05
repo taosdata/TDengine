@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/taosdata/taoskeeper/infrastructure/log"
@@ -101,6 +102,14 @@ func (p *MetricParser) parseGeneralMetric(c *gin.Context, body []byte) error {
 
 	cachedCount := 0
 	for _, stableArrayInfo := range request {
+		// Parse timestamp from string (milliseconds since epoch)
+		tsMillis, err := strconv.ParseInt(stableArrayInfo.Ts, 10, 64)
+		if err != nil {
+			parserLogger.Warnf("Failed to parse timestamp %s: %v", stableArrayInfo.Ts, err)
+			continue
+		}
+		timestamp := time.UnixMilli(tsMillis)
+
 		for _, table := range stableArrayInfo.Tables {
 			tableName := strings.ToLower(table.Name)
 
@@ -119,7 +128,7 @@ func (p *MetricParser) parseGeneralMetric(c *gin.Context, body []byte) error {
 					metrics[metric.Name] = metric.Value
 				}
 
-				p.memoryStore.Set(tableName, tags, metrics)
+				p.memoryStore.SetWithTimestamp(tableName, tags, metrics, timestamp)
 				cachedCount++
 				parserLogger.Tracef("Cached metric: table=%s, tags=%d, metrics=%d",
 					tableName, len(tags), len(metrics))
@@ -147,6 +156,14 @@ func (p *MetricParser) parseClusterBasic(c *gin.Context, body []byte) error {
 		return err
 	}
 
+	// Parse timestamp from string (milliseconds since epoch)
+	tsMillis, err := strconv.ParseInt(request.Ts, 10, 64)
+	if err != nil {
+		parserLogger.Warnf("Failed to parse timestamp %s: %v", request.Ts, err)
+		return err
+	}
+	timestamp := time.UnixMilli(tsMillis)
+
 	tags := map[string]string{
 		"cluster_id":      request.ClusterId,
 		"first_ep":        request.FirstEp,
@@ -156,7 +173,7 @@ func (p *MetricParser) parseClusterBasic(c *gin.Context, body []byte) error {
 		"first_ep_dnode_id": float64(request.FirstEpDnodeId),
 	}
 
-	p.memoryStore.Set("taosd_cluster_basic", tags, metrics)
+	p.memoryStore.SetWithTimestamp("taosd_cluster_basic", tags, metrics, timestamp)
 	parserLogger.Tracef("Cached cluster basic info: cluster_id=%s, version=%s", request.ClusterId, request.ClusterVersion)
 	return nil
 }
@@ -180,9 +197,12 @@ func (p *MetricParser) parseAdapterReport(c *gin.Context, body []byte) error {
 		return err
 	}
 
+	// Parse timestamp (seconds since epoch)
+	timestamp := time.Unix(request.Ts, 0)
+
 	// 1. Cache adapter_requests (rest and ws)
-	p.cacheAdapterRequests(request.Endpoint, 0, &request.Metrics)
-	p.cacheAdapterRequests(request.Endpoint, 1, &request.Metrics)
+	p.cacheAdapterRequests(request.Endpoint, 0, &request.Metrics, timestamp)
+	p.cacheAdapterRequests(request.Endpoint, 1, &request.Metrics, timestamp)
 
 	// 2. Cache extra_metrics tables with automatic field support
 	if len(request.ExtraMetrics) > 0 {
@@ -204,7 +224,7 @@ func (p *MetricParser) parseAdapterReport(c *gin.Context, body []byte) error {
 						metrics[metric.Name] = metric.Value
 					}
 
-					p.memoryStore.Set(tableName, tags, metrics)
+					p.memoryStore.SetWithTimestamp(tableName, tags, metrics, timestamp)
 					parserLogger.Tracef("Cached adapter metric: table=%s", tableName)
 				}
 			}
@@ -216,7 +236,7 @@ func (p *MetricParser) parseAdapterReport(c *gin.Context, body []byte) error {
 }
 
 // cacheAdapterRequests caches adapter_requests with automatic field mapping
-func (p *MetricParser) cacheAdapterRequests(endpoint string, reqType int, metrics *AdapterMetrics) {
+func (p *MetricParser) cacheAdapterRequests(endpoint string, reqType int, metrics *AdapterMetrics, timestamp time.Time) {
 	tags := map[string]string{
 		"endpoint": endpoint,
 		"req_type": strconv.Itoa(reqType),
@@ -241,6 +261,6 @@ func (p *MetricParser) cacheAdapterRequests(endpoint string, reqType int, metric
 		}
 	}
 
-	p.memoryStore.Set("adapter_requests", tags, metricMap)
+	p.memoryStore.SetWithTimestamp("adapter_requests", tags, metricMap, timestamp)
 }
 

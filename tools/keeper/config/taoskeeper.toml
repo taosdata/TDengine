@@ -44,7 +44,7 @@ includeTables = []
 
 # TTL for cached metrics in memory (in seconds)
 # Data older than this will be automatically cleaned up
-# Default: 300 (5 minutes)
+# Default: 300 (5 minutes), Minimum: 60 (1 minute)
 cacheTTL = 300
 
 [environment]

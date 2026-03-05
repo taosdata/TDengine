@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -18,7 +19,7 @@ func TestMetricsV2_EndToEnd(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// 1. Create router and middleware
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{}) // Use default config (write_metrics not cached)
 
@@ -42,9 +43,10 @@ func TestMetricsV2_EndToEnd(t *testing.T) {
 		handler.ServeHTTP(c.Writer, c.Request)
 	})
 
-	// 4. Send data to /general-metric
+	// 4. Send data to /general-metric (using current timestamp)
+	currentTs := time.Now().UnixMilli()
 	requestBody := `[{
-		"ts": "1703226836761",
+		"ts": "` + strconv.FormatInt(currentTs, 10) + `",
 		"protocol": 2,
 		"tables": [{
 			"name": "taosd_cluster_info",
@@ -86,7 +88,7 @@ func TestMetricsV2_EndToEnd(t *testing.T) {
 func TestMetricsV2_WithWriteMetricsDisabled(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{}) // No additional tables configured
 
@@ -139,7 +141,7 @@ func TestMetricsV2_WithWriteMetricsDisabled(t *testing.T) {
 func TestMetricsV2_WithWriteMetricsEnabled(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{"taosd_write_metrics"}) // Configure additional tables
 
@@ -159,9 +161,10 @@ func TestMetricsV2_WithWriteMetricsEnabled(t *testing.T) {
 		handler.ServeHTTP(c.Writer, c.Request)
 	})
 
-	// Send write_metrics data
+	// Send write_metrics data (using current timestamp)
+	currentTs := time.Now().UnixMilli()
 	requestBody := `[{
-		"ts": "1703226836761",
+		"ts": "` + strconv.FormatInt(currentTs, 10) + `",
 		"protocol": 2,
 		"tables": [{
 			"name": "taosd_write_metrics",
@@ -194,7 +197,7 @@ func TestMetricsV2_WithWriteMetricsEnabled(t *testing.T) {
 func TestMetricsV2_ExcludedTables(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{}) // Default config
 
@@ -270,7 +273,7 @@ func TestMetricsV2_ExcludedTables(t *testing.T) {
 	assert.Equal(t, 200, w3.Code)
 
 	// Verify slow SQL details are not cached in memory
-	allData := store.GetAll()
+	allData := store.GetAllFiltered(time.Unix(0, 0))
 	assert.Equal(t, 0, len(allData))
 }
 
@@ -278,7 +281,7 @@ func TestMetricsV2_ExcludedTables(t *testing.T) {
 func TestMetricsV2_ExpiredData(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 
 	// 1. Store data from 30 seconds ago (simulate data reporting stopped)

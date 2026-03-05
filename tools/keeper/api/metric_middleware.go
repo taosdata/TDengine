@@ -9,6 +9,8 @@ import (
 	"github.com/taosdata/taoskeeper/infrastructure/log"
 )
 
+const maxRequestBodySize = 1 << 20 // 1MB - maximum request body size for metric endpoints
+
 var middlewareLogger = log.GetLogger("METRIC_MIDDLEWARE")
 
 // MetricCacheMiddleware AOP middleware (synchronous version)
@@ -27,11 +29,17 @@ func MetricCacheMiddleware(parser *MetricParser) gin.HandlerFunc {
 			return
 		}
 
-		// Read request body
-		body, err := io.ReadAll(c.Request.Body)
+		// Limit request body size to prevent DoS attacks
+		limitedReader := io.LimitReader(c.Request.Body, maxRequestBodySize)
+		body, err := io.ReadAll(limitedReader)
 		if err != nil {
 			c.Next()
 			return
+		}
+
+		// Check if body was truncated (exceeded max size)
+		if len(body) == maxRequestBodySize {
+			middlewareLogger.Warn("Request body exceeded 1MB limit, may have been truncated")
 		}
 		c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
 
@@ -45,15 +53,15 @@ func MetricCacheMiddleware(parser *MetricParser) gin.HandlerFunc {
 }
 
 // shouldCachePath matches paths
-var cachePathMap = map[string]bool{
-	"/general-metric":        true,
-	"/taosd-cluster-basic":   true,
-	"/slow-sql-detail-batch": true,
-	"/adapter_report":        true,
+var cachePaths = []string{
+	"/general-metric",
+	"/taosd-cluster-basic",
+	"/slow-sql-detail-batch",
+	"/adapter_report",
 }
 
 func shouldCachePath(path string) bool {
-	for prefix := range cachePathMap {
+	for _, prefix := range cachePaths {
 		if strings.HasPrefix(path, prefix) {
 			return true
 		}
