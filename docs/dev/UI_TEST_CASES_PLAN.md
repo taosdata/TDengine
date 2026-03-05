@@ -366,20 +366,20 @@
 
 #### D2.2 MQTT — id: `mqtt`
 
-- [ ] D2.2.1（P1）表单渲染与必填校验（broker/topic/clientId/qos）
-  - Owner:
-  - Status: TODO
+- [x] D2.2.1（P1）表单渲染与必填校验（broker/topic/clientId/qos）
+  - Owner: @yanyuxing
+  - Status: Done
   - DoD: 关键字段渲染；必填校验可触发。
 
-- [ ] D2.2.2（P1）连通性检查（如支持）
-  - Owner:
-  - Status: TODO
+- [x] D2.2.2（P1）连通性检查（如支持）
+  - Owner: @yanyuxing
+  - Status: Done
   - DoD: reachable / unreachable 两条路径可稳定断言。
 
-- [ ] D2.2.3（P2）最小可运行任务（publish -> 写入 TDengine）
-  - Owner:
-  - Status: TODO
-  - DoD: publish 一条样例 payload 后，目标库可查询到落库数据。
+- [x] D2.2.3（P2）最小可运行任务（publish -> 写入 TDengine）
+  - Owner: @yanyuxing
+  - Status: Done
+  - DoD: 提交任务后，返回任务列表，当前任务状态显示运行中
 
 #### D2.3 SparkplugB（基于 MQTT 的 IIoT 规范）— id: `sparkplugb`
 
