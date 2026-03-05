@@ -356,14 +356,15 @@ typedef enum ELogicConditionType {
 #define TSDB_TOTP_SECRET_LEN                    32
 #define TSDB_USER_TOTPSEED_MIN_LEN              8    // minimum length for TOTP seed, excluding the terminator '\0'
 #define TSDB_USER_TOTPSEED_MAX_LEN              255  // maximum length for TOTP seed, excluding the terminator '\0'
-#define TSDB_USER_SESSION_PER_USER_DEFAULT      -1
-#define TSDB_USER_CONNECT_TIME_DEFAULT          -1  // 480 minutes
-#define TSDB_USER_CONNECT_IDLE_TIME_DEFAULT     -1  // 30 minutes
-#define TSDB_USER_CALL_PER_SESSION_DEFAULT      -1
+#define TSDB_USER_SESSION_PER_USER_DEFAULT      32 
+#define TSDB_USER_CONNECT_TIME_DEFAULT          (480 * 60)  // 480 minutes
+#define TSDB_USER_CONNECT_IDLE_TIME_DEFAULT     (30 * 60)   // 30 minutes
+#define TSDB_USER_CALL_PER_SESSION_DEFAULT      128
 #define TSDB_USER_VNODE_PER_CALL_DEFAULT        -1
 #define TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT 3
 #define TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT    (1440 * 60)        // 1440 minutes
 #define TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT    (90 * 1440 * 60)   // 90 days
+#define TSDB_USER_PASSWORD_LIFE_TIME_MIN        (1 * 1440 * 60)    // 1 day
 #define TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT   (7 * 1440 * 60)    // 7 days
 #define TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT   (30 * 1440 * 60)   // 30 days
 #define TSDB_USER_PASSWORD_REUSE_TIME_MAX       (365 * 1440 * 60)  // 365 days
@@ -584,9 +585,15 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_HASH_SUFFIX        (TSDB_TABLE_NAME_LEN - 2)
 #define TSDB_DEFAULT_HASH_SUFFIX    0
 
+#if !defined(TD_ENTERPRISE) || defined(ASSERT_NOT_CORE) || defined(GRANTS_CFG)
 #define TSDB_MIN_SS_CHUNK_SIZE     (128 * 1024)
 #define TSDB_MAX_SS_CHUNK_SIZE     (1024 * 1024)
 #define TSDB_DEFAULT_SS_CHUNK_SIZE (128 * 1024)
+#else
+#define TSDB_MIN_SS_CHUNK_SIZE     (4 * 1024)
+#define TSDB_MAX_SS_CHUNK_SIZE     (1024 * 1024)
+#define TSDB_DEFAULT_SS_CHUNK_SIZE (4 * 1024)
+#endif
 #define TSDB_MIN_SS_KEEP_LOCAL     (1 * 1440)  // unit minute
 #define TSDB_MAX_SS_KEEP_LOCAL     (365000 * 1440)
 #define TSDB_DEFAULT_SS_KEEP_LOCAL (365 * 1440)

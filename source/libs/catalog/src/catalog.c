@@ -1509,7 +1509,6 @@ int32_t catalogGetCachedTableVgMeta(SCatalog* pCtg, const SName* pTableName,    
   CTG_API_LEAVE(ctgGetCachedTbVgMeta(pCtg, pTableName, pVgroup, pTableMeta));
 }
 
-
 #if 0
 int32_t catalogGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SCatalogReq* pReq, SMetaData* pRsp) {
   CTG_API_ENTER();
