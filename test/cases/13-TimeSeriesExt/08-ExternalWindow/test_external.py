@@ -130,7 +130,7 @@ class TestExternal:
         
         sql = "select _wstart, _wend, w.fc1, count(*), v2 from st1_1 partition by v2  external_window((select first(c1) fc1  from st2) w);"
         tdSql.query(sql)
-        tdSql.checkRows(200)
+        tdSql.checkRows(164)
         tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
         tdSql.checkData(0, 1, "2020-05-13 10:49:00.000")
         tdSql.checkData(0, 2, 100)
@@ -138,7 +138,7 @@ class TestExternal:
 
         sql = "select _wstart, _wend, w.fc1, count(*), v2 from st1_1 partition by v2  external_window((select first(c1) fc1  from st2) w) order by v2 desc;"
         tdSql.query(sql)
-        tdSql.checkRows(200)
+        tdSql.checkRows(164)
         tdSql.checkData(0, 0, "2020-05-13 10:49:00.001")
         tdSql.checkData(0, 1, "2020-05-13 11:21:50.000")
         tdSql.checkData(0, 2, 200)

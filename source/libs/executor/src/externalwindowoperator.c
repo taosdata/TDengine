@@ -407,6 +407,103 @@ void destroyExternalWindowOperatorInfo(void* param) {
 static int32_t extWinOpen(SOperatorInfo* pOperator);
 static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 
+static void extWinApplyTimeRangeToTableScan(SOperatorInfo* pScanOp, const STimeWindow* pTimeRange) {
+  if (pScanOp == NULL || pScanOp->info == NULL || pTimeRange == NULL) {
+    return;
+  }
+
+  STableScanInfo* pScanInfo = (STableScanInfo*)pScanOp->info;
+  pScanInfo->base.cond.twindows = *pTimeRange;
+  pScanInfo->base.orgCond.twindows = *pTimeRange;
+}
+
+static void extWinApplyTimeRangeToExchangeParam(SOperatorParam* pParam, const STimeWindow* pTimeRange) {
+  if (pParam == NULL || pParam->value == NULL || pTimeRange == NULL) {
+    return;
+  }
+
+  SExchangeOperatorParam* pExcParam = (SExchangeOperatorParam*)pParam->value;
+  if (pExcParam->multiParams) {
+    return;
+  }
+
+  if (pExcParam->basic.paramType == 0) {
+    pExcParam->basic.paramType = DYN_TYPE_EXCHANGE_PARAM;
+  }
+  pExcParam->basic.window = *pTimeRange;
+}
+
+static int32_t extWinApplyNonStreamTimeRangeToOperatorTree(SOperatorInfo* pOperator, const STimeWindow* pTimeRange,
+                                                           int32_t* pScanAppliedNum) {
+  if (pOperator == NULL || pTimeRange == NULL || pScanAppliedNum == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    extWinApplyTimeRangeToTableScan(pOperator, pTimeRange);
+    ++(*pScanAppliedNum);
+  }
+
+  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
+    extWinApplyTimeRangeToExchangeParam(pOperator->pOperatorGetParam, pTimeRange);
+  }
+
+  if (pOperator->numOfDownstream <= 0 || pOperator->pDownstream == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+    SOperatorInfo* pChild = pOperator->pDownstream[i];
+    if (pChild == NULL) {
+      continue;
+    }
+
+    if (pOperator->pDownstreamGetParams != NULL &&
+        pChild->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
+      extWinApplyTimeRangeToExchangeParam(pOperator->pDownstreamGetParams[i], pTimeRange);
+    }
+
+    int32_t code = extWinApplyNonStreamTimeRangeToOperatorTree(pChild, pTimeRange, pScanAppliedNum);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extWinApplyNonStreamTimeRangeToDownstream(SOperatorInfo* pOperator, const STimeWindow* pTimeRange) {
+  if (pOperator == NULL || pTimeRange == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pTimeRange->skey == INT64_MAX || pTimeRange->ekey == INT64_MIN || pTimeRange->skey > pTimeRange->ekey) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pOperator->numOfDownstream <= 0 || pOperator->pDownstream == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t scanAppliedNum = 0;
+  for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+    SOperatorInfo* pDownstream = pOperator->pDownstream[i];
+    if (pDownstream == NULL) {
+      continue;
+    }
+
+    int32_t code = extWinApplyNonStreamTimeRangeToOperatorTree(pDownstream, pTimeRange, &scanAppliedNum);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  qInfo("%s apply non-stream extWin timerange:[%" PRId64 ", %" PRId64 "] to downstream tree, tableScanCnt:%d",
+        GET_TASKID(pOperator->pTaskInfo), pTimeRange->skey, pTimeRange->ekey, scanAppliedNum);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static bool extWinNeedHandlePartitionDownstream(SOperatorInfo* pOperator) {
   return pOperator->numOfDownstream > 0 && pOperator->pDownstream[0] != NULL &&
          pOperator->pDownstream[0]->operatorType == QUERY_NODE_PHYSICAL_PLAN_PARTITION;
@@ -3242,7 +3339,7 @@ _exit:
 }
 
 static SSDataBlock* mockSSDataBlock();
-static int32_t extWinInitNonStreamWindowDataFromBlock(SExecTaskInfo* pTaskInfo);
+static int32_t extWinInitNonStreamWindowDataFromBlock(SExecTaskInfo* pTaskInfo, STimeWindow* pTimeRange);
 static int32_t extWinValidateNonStreamBlock(SSDataBlock* pBlock, SColumnInfoData** ppStartCol,
                                             SColumnInfoData** ppEndCol, int32_t* pNumRows, int32_t* pNumCols);
 static int32_t extWinCheckMonotonicWstart(bool hasPrevStart, int64_t prevStart, int64_t currStart, int32_t row);
@@ -3258,6 +3355,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   int32_t                  code = 0;
   int32_t                  lino = 0;
   bool                     isInStream = true;
+  STimeWindow              nonStreamExtWinRange = {.skey = INT64_MAX, .ekey = INT64_MIN};
   SExternalWindowOperator* pExtW = taosMemoryCalloc(1, sizeof(SExternalWindowOperator));
   SOperatorInfo*           pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   pOperator->pPhyNode = pNode;
@@ -3296,7 +3394,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
 
   if (pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM) {
     isInStream = false;
-    code = extWinInitNonStreamWindowDataFromBlock(pTaskInfo);
+    code = extWinInitNonStreamWindowDataFromBlock(pTaskInfo, &nonStreamExtWinRange);
     if (code != TSDB_CODE_SUCCESS) {
       lino = __LINE__;
       goto _error;
@@ -3451,6 +3549,11 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     goto _error;
   }
 
+  if (!isInStream) {
+    code = extWinApplyNonStreamTimeRangeToDownstream(pOperator, &nonStreamExtWinRange);
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
+
   *pOptrOut = pOperator;
 
   qDebug("%s extWin operator created, mode:%s, multiTableMnode:%d, inputHasOrder:%d, hasTimeRangeExpr:%d, timeRangeNeedCalc:%d "
@@ -3588,10 +3691,11 @@ static int32_t extWinBuildTriggerParamForRow(SSDataBlock* pBlock, SColumnInfoDat
 _exit:
   return code;
 }
-static int32_t extWinInitNonStreamWindowDataFromBlock(SExecTaskInfo* pTaskInfo) {
+static int32_t extWinInitNonStreamWindowDataFromBlock(SExecTaskInfo* pTaskInfo, STimeWindow* pTimeRange) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SSDataBlock* pBlock = NULL;
+  STimeWindow extWinTimeRange = {.skey = INT64_MAX, .ekey = INT64_MIN};
   
   // Initialize minimal stream runtime info for non-stream external-window queries.
   // Keep this path independent from planner subquery pointer wiring so placeholders
@@ -3645,6 +3749,9 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExecTaskInfo* pTaskInfo) 
 
     prevStart = param.wstart;
     hasPrevStart = true;
+
+    extWinTimeRange.skey = TMIN(extWinTimeRange.skey, param.wstart);
+    extWinTimeRange.ekey = TMAX(extWinTimeRange.ekey, param.wend);
     
     void* pRet = taosArrayPush(pRt->pStreamPesudoFuncVals, &param);
     if (pRet == NULL) {
@@ -3653,10 +3760,15 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExecTaskInfo* pTaskInfo) 
     }
   }
 
-  qInfo("%s non-stream extWin mock initialized from block, winNum:%d, firstWin:[%" PRId64 ", %" PRId64 "]",
+  if (pTimeRange != NULL) {
+    *pTimeRange = extWinTimeRange;
+  }
+
+  qInfo("%s non-stream extWin mock initialized from block, winNum:%d, firstWin:[%" PRId64 ", %" PRId64 "], wholeRange:[%" PRId64 ", %" PRId64 "]",
         GET_TASKID(pTaskInfo), (int32_t)taosArrayGetSize(pRt->pStreamPesudoFuncVals),
         ((SSTriggerCalcParam*)taosArrayGet(pRt->pStreamPesudoFuncVals, 0))->wstart,
-        ((SSTriggerCalcParam*)taosArrayGet(pRt->pStreamPesudoFuncVals, 0))->wend);
+        ((SSTriggerCalcParam*)taosArrayGet(pRt->pStreamPesudoFuncVals, 0))->wend,
+        extWinTimeRange.skey, extWinTimeRange.ekey);
 
 _exit:
   if (pBlock) {
