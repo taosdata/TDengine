@@ -1008,3 +1008,9 @@ class TestFuncLast:
         tdSql.query('select LAST_ROW(q_blob), LAST(q_blob) from table_lastrow_2_2.regular_table_1')
         tdSql.checkData(0, 0, b"")
         tdSql.checkData(0, 1, b"")
+
+        # test null blob data
+        tdSql.execute("insert into table_lastrow_2_2.regular_table_1 (ts, q_blob) values(now, null)")
+        tdSql.query('select LAST_ROW(q_blob), LAST(q_blob) from table_lastrow_2_2.regular_table_1')
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, b"")
