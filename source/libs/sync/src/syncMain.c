@@ -1776,7 +1776,7 @@ int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode) {
   bool stop = taosTmrStop(pSyncNode->pPingTimer);
   if (!stop) {
     sWarn("vgId:%d, failed to stop ping timer, maybe it's already stopped, stop:%d", pSyncNode->vgId, stop);
-  } else{
+  } else {
     sDebug("vgId:%d, stop ping timer, stop:%d", pSyncNode->vgId, stop);
   }
   pSyncNode->pPingTimer = NULL;
