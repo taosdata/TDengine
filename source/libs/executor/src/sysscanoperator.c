@@ -2300,6 +2300,7 @@ static int32_t vtbRefPutRemoteCacheEntry(SHashObj* pTableCache, const char* dbNa
   char key[TSDB_DB_FNAME_LEN + TSDB_TABLE_NAME_LEN + 2];
   vtbRefBuildRemoteCacheKey(key, sizeof(key), dbName, tableName);
   int32_t code = taosHashPut(pTableCache, key, strlen(key), pEntry, sizeof(SVtbRefTableCacheEntry));
+
   return (code == TSDB_CODE_DUP_KEY) ? TSDB_CODE_SUCCESS : code;
 }
 
