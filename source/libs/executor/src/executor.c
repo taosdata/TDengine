@@ -1905,12 +1905,13 @@ int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
                                         SNodeList* pGroupTags, SNode* pTagCond, SNode* pTagIndexCond,
                                         SStorageAPI* storageAPI, SHashObj* groupIdMap, uint64_t suid, SArray** tableList) {
   int32_t code = TSDB_CODE_SUCCESS;
+  SArray* uidListCopy = NULL;
   STableListInfo* pList = tableListCreate();
   if (pList == NULL) {
     code = terrno;
     goto end;
   }
-  SArray* uidListCopy = taosArrayDup(uidList, NULL);
+  uidListCopy = taosArrayDup(uidList, NULL);
   if (uidListCopy == NULL) {
     code = terrno;
     goto end;
@@ -1992,14 +1993,16 @@ int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamR
 int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t rowStartIdx, int32_t rowEndIdx,
                                        const SStreamRuntimeFuncInfo* pExtraParams) {
   int32_t      code = 0;
-  SNode*       pNode = 0;
+  SNode*       pNode = NULL;
   SNodeList*   pList = NULL;
   SExprInfo*   pExprInfo = NULL;
   int32_t      numOfExprs = 1;
-  int32_t*     offset = 0;
+  int32_t*     offset = NULL;
   STargetNode* pTargetNode = NULL;
   code = nodesMakeNode(QUERY_NODE_TARGET, (SNode**)&pTargetNode);
-  if (code == 0) code = nodesCloneNode(pExpr, &pNode);
+  if (code == 0) {
+    code = nodesCloneNode(pExpr, &pNode);
+  }
 
   if (code == 0) {
     pTargetNode->dataBlockId = 0;
