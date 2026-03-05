@@ -39,6 +39,7 @@ static char  g_endTime[64]         = "";
 static char  g_timeFilter[256]     = "";
 static int   g_schemaOnly          = 0;
 static int   g_debug               = 0;
+static int   g_checkpoint          = 0;  // -C: resume from last checkpoint
 StorageFormat g_storageFormat = BINARY_TAOS; // default
 StmtVersion   g_stmtVersion  = STMT_VERSION_2; // default: STMT2
 
@@ -116,6 +117,9 @@ static void printUsage(const char *prog) {
     printf("  -Z, --driver=DRIVER        Connect driver. Value can be \"Native\"\n");
     printf("                             or \"WebSocket\". Default is Native.\n");
     printf("                             When DSN is set, defaults to WebSocket.\n");
+    printf("  -C, --checkpoint           Resume backup/restore from the last checkpoint\n");
+    printf("                             (checkpoint files are always written; use -C\n");
+    printf("                             to skip already-completed items on next run).\n");
     printf("  -g, --debug                Enable debug mode.\n");
     printf("      --help                 Give this help list.\n");
     printf("  -V, --version              Print program version.\n");
@@ -357,6 +361,10 @@ int argsInit(int argc, char *argv[]) {
         else if (strcmp(argv[i], "-g") == 0 || matchLong(argc, argv, &i, "--debug", 0)) {
             g_debug = 1;
         }
+        // ---- checkpoint ----
+        else if (strcmp(argv[i], "-C") == 0 || matchLong(argc, argv, &i, "--checkpoint", 0)) {
+            g_checkpoint = 1;
+        }
         // ---- retry-count ----
         else if ((strcmp(argv[i], "-k") == 0 && i + 1 < argc && (val = argv[++i])) ||
                  (val = matchLong(argc, argv, &i, "--retry-count", 1))) {
@@ -510,6 +518,7 @@ int argsInit(int argc, char *argv[]) {
     if (g_action == ACTION_RESTORE)
         printf("StmtVersion: %s\n", g_stmtVersion == STMT_VERSION_2 ? "2 (STMT2)" : "1 (STMT1)");
     if (g_schemaOnly)   printf("SchemaOnly: yes\n");
+    if (g_checkpoint)   printf("Checkpoint: yes (resume mode)\n");
     if (g_debug)        printf("Debug: yes\n");
     if (g_startTime[0]) printf("StartTime: %s\n", g_startTime);
     if (g_endTime[0])   printf("EndTime: %s\n", g_endTime);
@@ -616,6 +625,10 @@ char* argTimeFilter() {
 
 int argSchemaOnly() {
     return g_schemaOnly;
+}
+
+int argCheckpoint() {
+    return g_checkpoint;
 }
 
 int argDebug() {

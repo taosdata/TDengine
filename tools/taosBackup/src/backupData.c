@@ -612,8 +612,14 @@ int backDatabaseData(DBInfo *dbInfo) {
         g_backResumeMode = false;
         logInfo("backup db %s: previous run completed, starting fresh", dbName);
     } else {
-        g_backResumeMode = true;
-        logInfo("backup db %s: no complete flag found, resume mode (skipping existing files)", dbName);
+        // Always record checkpoint data (existing .dat files act as checkpoints),
+        // but only skip already-done files when the user explicitly requests resume
+        // via -C / --checkpoint.
+        g_backResumeMode = argCheckpoint() ? true : false;
+        if (g_backResumeMode)
+            logInfo("backup db %s: checkpoint mode, resuming from previous run", dbName);
+        else
+            logInfo("backup db %s: no complete flag, starting fresh (use -C to resume)", dbName);
     }
 
     //

@@ -1351,11 +1351,7 @@ static void* restoreDataThread(void *arg) {
         bCtx.stbChange = thread->stbChange;
     }
 
-    /* ----- per-thread checkpoint buffer (flushed at end) ----- */
-    /* over-allocate: at most fileCnt paths */
-    char **ckptBuf   = (char **)taosMemoryCalloc(thread->fileCnt, sizeof(char *));
-    int    ckptCount = 0;
-
+    /* ----- per-file restore loop ----- */
     for (int i = 0; i < thread->fileCnt; i++) {
         if (g_interrupted) {
             if (thread->code == TSDB_CODE_SUCCESS) thread->code = TSDB_CODE_BCK_USER_CANCEL;
@@ -1364,8 +1360,8 @@ static void* restoreDataThread(void *arg) {
 
         const char *filePath = thread->files[i];
 
-        // skip if already restored (resume support)
-        if (isRestoreDone(filePath)) {
+        // skip if already restored (resume support; only active with -C / --checkpoint)
+        if (argCheckpoint() && isRestoreDone(filePath)) {
             logInfo("restore thread %d: skip already restored: %s", thread->index, filePath);
             atomic_add_fetch_64(&g_stats.dataFilesSkipped, 1);
             atomic_add_fetch_64(&g_stats.dataFilesTotal, 1);
@@ -1410,27 +1406,10 @@ static void* restoreDataThread(void *arg) {
             }
             // continue with next file (best effort)
         } else {
-            // buffer checkpoint entry (flushed at end)
-            if (ckptBuf) ckptBuf[ckptCount++] = (char *)filePath;
+            // Write checkpoint immediately so a mid-run kill still saves progress.
+            saveRestoreCheckpoint(filePath);
         }
     }
-
-    /* ----- flush buffered checkpoints in one batch ----- */
-    if (g_ckptEnabled && ckptBuf && ckptCount > 0) {
-        pthread_mutex_lock(&g_ckptMutex);
-        TdFilePtr fp = taosOpenFile(g_ckptPath,
-                                    TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_APPEND);
-        if (fp) {
-            char line[MAX_PATH_LEN + 2];
-            for (int k = 0; k < ckptCount; k++) {
-                int len = snprintf(line, sizeof(line), "%s\n", ckptBuf[k]);
-                taosWriteFile(fp, line, len);
-            }
-            taosCloseFile(&fp);
-        }
-        pthread_mutex_unlock(&g_ckptMutex);
-    }
-    taosMemoryFree(ckptBuf);
 
     /* accumulate per-thread row counts into global stats */
     atomic_add_fetch_64(&g_stats.totalRows, s2Ctx.totalRows);

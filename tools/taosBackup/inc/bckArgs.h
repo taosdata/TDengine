@@ -80,6 +80,11 @@ char* argTimeFilter();
 // schema only
 int argSchemaOnly();
 
+// checkpoint / resume mode (enabled with -C / --checkpoint)
+// When disabled: checkpoint files are still written but skipping is NOT done.
+// When enabled:  already-processed items are skipped on this run.
+int argCheckpoint();
+
 // debug
 int argDebug();
 
