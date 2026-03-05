@@ -814,7 +814,7 @@ class TestCase:
         if os.path.exists(self.localSSPath):
             shutil.rmtree(self.localSSPath)
         os.makedirs(self.localSSPath, exist_ok=True)
-        time.sleep(6) # wait for upload delay take effect
+        time.sleep(10) # wait for upload delay take effect
         tdSql.execute("ssmigrate database d0")
         tdSql.query("show ssmigrates")
         tdSql.checkRows(1)
@@ -847,7 +847,7 @@ class TestCase:
         os.makedirs(self.localSSPath, exist_ok=True)
         tdSql.execute("alter database d0 keep 30d,36500d")
         tdSql.execute("create rsma rsma_ssmigrate on d0.stb0 function(min(c0)) interval(2s)")
-        time.sleep(6) # wait for upload delay take effect
+        time.sleep(10) # wait for upload delay take effect
         tdSql.execute("ssmigrate database d0")
         tdSql.query("show ssmigrates")
         tdSql.checkRows(1)
@@ -866,7 +866,7 @@ class TestCase:
         tdSql.query("select count(*) from stb0")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1500)
-        time.sleep(6) # wait for upload delay take effect
+        time.sleep(10) # wait for upload delay take effect
         tdLog.info("execute ssmigrate again after more data inserted")
         tdSql.execute("ssmigrate database d0")
         tdSql.query("show ssmigrates")
