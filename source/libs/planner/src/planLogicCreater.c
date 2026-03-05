@@ -30,6 +30,7 @@ typedef struct SLogicPlanContext {
   SPlanContext* pPlanCxt;
   SLogicNode*   pCurrRoot;
   SSHashObj*    pChildTables;
+  bool          containsOuterJoin;
 } SLogicPlanContext;
 
 typedef int32_t (*FCreateLogicNode)(SLogicPlanContext*, void*, SLogicNode**);
@@ -2373,6 +2374,7 @@ _return:
 static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList ||
       !pCxt->pPlanCxt->streamCalcQuery ||
+      pCxt->containsOuterJoin ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE ||
       nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE ||
       NULL != pSelect->pSlimit || NULL != pSelect->pLimit || pSelect->hasInterpFunc ||
@@ -2896,6 +2898,9 @@ static int32_t createSelectFromLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
 
 static int32_t createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   int32_t code = TSDB_CODE_SUCCESS;
+  bool    oldContainsOuterJoin = pCxt->containsOuterJoin;
+  pCxt->containsOuterJoin = pCxt->containsOuterJoin || pSelect->joinContains;
+
   if (NULL == pSelect->pFromTable) {
     code = createSelectWithoutFromLogicNode(pCxt, pSelect, pLogicNode);
   } else {
@@ -2905,6 +2910,8 @@ static int32_t createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
     (*pLogicNode)->stmtRoot = true;
     TSWAP((*pLogicNode)->pHint, pSelect->pHint);
   }
+
+  pCxt->containsOuterJoin = oldContainsOuterJoin;
   return code;
 }
 

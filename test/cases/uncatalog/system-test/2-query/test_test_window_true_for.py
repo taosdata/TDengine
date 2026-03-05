@@ -461,7 +461,7 @@ class TestTestWindowTrueFor:
         Jira: TS-5470
 
         History:
-            - 2025-02-21 Kuang Jinqing Created
+            - 2025-02-21 Jinqing Kuang Created
         """
         self.create_objects()
         self.insert_data()
