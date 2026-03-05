@@ -7,6 +7,7 @@ import logging
 import psutil
 import sys
 import zipfile
+import signal
 from datetime import datetime
 
 logging.basicConfig(level=logging.INFO,
@@ -14,6 +15,23 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 failed_cases = 0  # 全局变量，记录失败用例数量
+exit_flag = False  # 全局退出标志
+current_process = None  # 当前运行的子进程
+
+def signal_handler(signum, frame):
+    """处理 Ctrl+C 信号"""
+    global exit_flag, current_process
+    logger.info("接收到中断信号，正在退出...")
+    exit_flag = True
+    # 终止当前子进程
+    if current_process is not None:
+        try:
+            current_process.terminate()
+        except:
+            pass
+
+# 注册信号处理
+signal.signal(signal.SIGINT, signal_handler)
 
 def get_git_commit_id():
     try:
@@ -172,13 +190,19 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
             case_start = time.time()
 
             try:
+                # 检查退出标志
+                if exit_flag:
+                    logger.info("检测到退出标志，终止测试")
+                    break
+                    
                 # 清理环境，kill残留进程，删除sim目录
                 clean_taos_process()
                 if os.path.exists(work_dir):
                     safe_rmtree(work_dir)
-                # 执行pytest命令，设置超时为300秒（5分钟）
+                # 执行pytest命令，设置超时为3000秒
+                global current_process
                 with open(log_file, 'w') as log:
-                    process = subprocess.Popen(
+                    current_process = subprocess.Popen(
                         pytest_cmd,
                         shell=True,
                         stdout=log,
@@ -187,11 +211,32 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
                     )
 
                     try:
-                        return_code = process.wait(timeout=3000)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                        return_code = -1
-                        logger.info(f"Case {pytest_cmd} running timeout, killed process.")
+                        # 轮询等待，以便响应 Ctrl+C
+                        return_code = None
+                        waited = 0
+                        while waited < 3000:
+                            ret = current_process.poll()
+                            if ret is not None:
+                                return_code = ret
+                                break
+                            if exit_flag:
+                                logger.info("测试被中断")
+                                current_process.kill()
+                                current_process.wait()
+                                sys.exit(130)
+                            time.sleep(0.5)
+                            waited += 0.5
+                        else:
+                            # 超时
+                            current_process.kill()
+                            return_code = -1
+                            logger.info(f"Case {pytest_cmd} running timeout, killed process.")
+                        current_process = None
+                    except KeyboardInterrupt:
+                        exit_flag = True
+                        if current_process:
+                            current_process.kill()
+                        sys.exit(130)
 
                 case_end = time.time()
                 execution_time = case_end - case_start
