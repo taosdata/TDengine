@@ -199,6 +199,7 @@ class TestUserPrivilegeSysinfo:
             tdSql.error(f"select * from information_schema.ins_vgroups")
             tdSql.query(f"select * from information_schema.ins_configs")
             tdSql.error(f"select * from information_schema.ins_dnode_variables")
+            tdSql.error(f"select `precision`, `keep` from information_schema.ins_databases", expectErrInfo="Permission denied for column: keep", fullMatched=False)
 
             tdLog.info(f"=============== check performance_schema of sysinfo 0")
             tdSql.execute(f"use performance_schema;")
