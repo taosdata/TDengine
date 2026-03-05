@@ -4492,6 +4492,10 @@ static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCata
     taosArrayDestroy(pStmt->pPrivCols);
     pStmt->pPrivCols = NULL;
   }
+  if(pStmt->pTagCond) {
+    nodesDestroyNode(pStmt->pTagCond);
+    pStmt->pTagCond = NULL;
+  }
 
   int32_t code = checkAuthFromMetaData(pCxt, pMetaData, pStmt);
 
