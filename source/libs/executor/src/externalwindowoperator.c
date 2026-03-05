@@ -1821,9 +1821,11 @@ static int32_t extWinGetResultRow(SExecTaskInfo* pTaskInfo, SExternalWindowOpera
     pRows->resRowsIdx++;
 
     if (pRows->resRowsIdx >= pRows->resRowsSize) {
+      int32_t oldSize = pRows->resRowsSize;
       pRows->resRowsSize += EXT_WIN_RES_ROWS_ALLOC_SIZE;
       pRows->pResultRows = taosMemoryRealloc(pRows->pResultRows, pRows->resRowsSize * POINTER_BYTES);
-      TSDB_CHECK_NULL(pRows->pResultRows, code, lino, _exit, terrno);    
+      TSDB_CHECK_NULL(pRows->pResultRows, code, lino, _exit, terrno);
+      memset(pRows->pResultRows + oldSize, 0, (pRows->resRowsSize - oldSize) * POINTER_BYTES);
     }
   }
 

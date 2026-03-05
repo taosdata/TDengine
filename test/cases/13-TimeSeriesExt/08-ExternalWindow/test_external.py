@@ -121,12 +121,12 @@ class TestExternal:
         tdSql.checkData(0, 1, "2020-05-13 10:49:00.000")
         tdSql.checkData(0, 2, 100)
         tdSql.checkData(0, 3, 50)
-        # tdSql.checkData(0, 4, "dev_01")
+        tdSql.checkData(0, 4, "dev_01")
         tdSql.checkData(1, 0, "2020-05-13 10:49:00.001")
         tdSql.checkData(1, 1, "2020-05-13 11:21:50.000")
         tdSql.checkData(1, 2, 200)
         tdSql.checkData(1, 3, 32)
-        # tdSql.checkData(1, 4, "dev_01")
+        tdSql.checkData(1, 4, "dev_01")
         
         sql = "select _wstart, _wend, w.fc1, count(*), v2 from st1_1 partition by v2  external_window((select first(c1) fc1  from st2) w);"
         tdSql.query(sql)
@@ -135,7 +135,15 @@ class TestExternal:
         tdSql.checkData(0, 1, "2020-05-13 10:49:00.000")
         tdSql.checkData(0, 2, 100)
         tdSql.checkData(0, 3, 1)
-        # tdSql.checkData(0, 4, 100000 + 1000 + 1)
+
+        sql = "select _wstart, _wend, w.fc1, count(*), v2 from st1_1 partition by v2  external_window((select first(c1) fc1  from st2) w) order by v2 desc;"
+        tdSql.query(sql)
+        tdSql.checkRows(200)
+        tdSql.checkData(0, 0, "2020-05-13 10:49:00.001")
+        tdSql.checkData(0, 1, "2020-05-13 11:21:50.000")
+        tdSql.checkData(0, 2, 200)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 101082)
 
     
     def prepareData(self):
