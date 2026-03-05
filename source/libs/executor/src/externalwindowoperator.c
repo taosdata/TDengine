@@ -445,6 +445,8 @@ static void extWinResetPartitionGroupCalcState(SOperatorInfo* pOperator) {
 
   pExtW->outWinIdx = 0;
   pExtW->resWinIdx = 0;
+  pExtW->resultRows.resRowsIdx = 0;
+  pExtW->resultRows.resRowIdx = 0;
   if (pOperator->pTaskInfo->pStreamRuntimeInfo) {
     pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx = 0;
   }
@@ -1839,6 +1841,17 @@ _exit:
   return code;
 }
 
+static FORCE_INLINE SResultRow* extWinGetResultRowByIdx(SExternalWindowOperator* pExtW, int32_t resWinIdx,
+                                                         int32_t resultRowSize) {
+  SExtWinResultRows* pRows = &pExtW->resultRows;
+  int32_t            resRowsIdx = resWinIdx / pRows->resRowSize;
+  if (resRowsIdx >= pRows->resRowsSize || pRows->pResultRows[resRowsIdx] == NULL) {
+    return NULL;
+  }
+
+  return (SResultRow*)((char*)pRows->pResultRows[resRowsIdx] + (resWinIdx % pRows->resRowSize) * resultRowSize);
+}
+
 int32_t extWinInitResRows(SExternalWindowOperator* pExtW, SExecTaskInfo* pTaskInfo) {
   int32_t code = 0, lino = 0;
   SExtWinResultRows* pRows = &pExtW->resultRows;
@@ -1865,7 +1878,8 @@ static int32_t extWinAggSetWinOutputBuf(SOperatorInfo* pOperator, SExtWinTimeWin
   SExternalWindowOperator* pExtW = (SExternalWindowOperator*)pOperator->info;
 
   if (win->resWinIdx >= 0) {
-    TAOS_CHECK_EXIT(extWinGetResultRow(pTaskInfo, pExtW, win->resWinIdx, pAggSup->resultRowSize, &pResultRow));
+    pResultRow = extWinGetResultRowByIdx(pExtW, win->resWinIdx, pAggSup->resultRowSize);
+    TSDB_CHECK_NULL(pResultRow, code, lino, _exit, TSDB_CODE_INVALID_PARA);
   } else {
     win->resWinIdx = pExtW->resWinIdx++;
     
@@ -3054,9 +3068,9 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     pOperator->pOperatorGetParam = NULL;
   }
 
-  // if (pExtW->partitionByDownstream) {
-  //   return extWinOpenForPartitionDownstream(pOperator);
-  // }
+  if (pExtW->partitionByDownstream) {
+    return extWinOpenForPartitionDownstream(pOperator);
+  }
 
   while (1) {
     SSDataBlock* pBlock = getNextBlockFromDownstreamRemain(pOperator, 0);
