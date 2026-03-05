@@ -3123,6 +3123,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#25-Privileges.test_priv_control.TestPrivControl.test_priv_control" class="md-nav__link">
+        Privilege control 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#25-Privileges.test_priv_basic.TestPrivBasic.test_priv_basic" class="md-nav__link">
         Privileges basic 
       </a>
@@ -3869,6 +3880,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#25-Privileges.test_priv_control.TestPrivControl.test_priv_control" class="md-nav__link">
+        Privilege control 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#25-Privileges.test_priv_basic.TestPrivBasic.test_priv_basic" class="md-nav__link">
         Privileges basic 
       </a>
@@ -3988,6 +4010,105 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/25-Privileges/test_priv_bugs.py" target="_blank">
                       cases/25-Privileges/test_priv_bugs.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="25-Privileges.test_priv_control.TestPrivControl.test_priv_control" class="doc doc-heading">
+
+<a href="#25-Privileges.test_priv_control.TestPrivControl.test_priv_control" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Privilege control </strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">[Database Privileges]</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - CREATE DATABASE</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - ALTER DATABASE</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - DROP DATABASE</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - USE DATABASE</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - SHOW DATABASES</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">[Table Privileges]</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - CREATE TABLE</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - DROP TABLE</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - ALTER TABLE</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - SELECT</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - INSERT</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - DELETE</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">[Column and Row Privileges]</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Column-Level Privilege</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Row-Level with Tag Condition</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Column Mask</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Row-Level Complex Conditions (AND/OR combinations)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Row-Level Time Range Conditions</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Row-Level Mixed Tag and Data Conditions</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Combined Column and Row Privileges</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Column Privilege Update Priority</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Privilege Update Time Priority (User vs Role)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">[Role-Based Access Control]</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Role Creation and Grant</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - System Roles (SYSDBA/SYSSEC/SYSAUDIT)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Audit Database Privileges (3.4.0.0+)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">[System Privileges]</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - User Management (ALTER USER, SHOW USERS SECURITY INFORMATION)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Token Management (CREATE/ALTER/DROP TOKEN, SHOW TOKENS)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - TOTP Management (CREATE/DROP TOTP)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Password Management (ALTER PASS, ALTER SELF PASS)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Node Management (CREATE/DROP NODE, SHOW NODES)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Mount Management (CREATE/DROP MOUNT, SHOW MOUNTS)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - System Variable Management (ALTER/SHOW SYSTEM/SECURITY/AUDIT/DEBUG VARIABLES)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Information Schema Access (READ INFORMATION_SCHEMA BASIC/PRIVILEGED/SECURITY/AUDIT)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - System Monitoring (SHOW/KILL TRANSACTIONS/CONNECTIONS/QUERIES)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Cluster Information (SHOW GRANTS/CLUSTER/APPS)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Privilege Delegation (GRANT/REVOKE PRIVILEGE)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">[Function and Index Privileges]</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - CREATE FUNCTION</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - CREATE INDEX</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">[View, Topic and Stream Privileges (3.4.0.0+)]</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - View Privileges (SELECT VIEW, ALTER VIEW, DROP VIEW)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Topic Privileges (SUBSCRIBE, DROP TOPIC)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Stream Privileges (SHOW, START, STOP, DROP STREAM)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">[Exception and Reverse Test Cases]</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Privilege Inheritance</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Privilege Conflict Resolution</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Wildcard Privilege (*.* and db.*)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Privilege Revoke Cascading</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Invalid Privilege Operations</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Privilege Boundary Conditions</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Owner Special Privileges</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Database Owner Privileges (implicit permissions)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Object Owner Privileges (tables, views, topics, streams)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Permission Query and Display (SHOW USER/ROLE PRIVILEGES, information_schema)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Concurrent Privilege Operations</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">[Three-Power Separation Tests (3.4.0.0+)]</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Root User Initial Permissions</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Role Separation Best Practice (Three-Power Separation)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - Daily Operations Without Root</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - System Role Constraints</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/25-Privileges/test_priv_control.py" target="_blank">
+                      cases/25-Privileges/test_priv_control.py
                     </a>
                   </div>
         </div>
