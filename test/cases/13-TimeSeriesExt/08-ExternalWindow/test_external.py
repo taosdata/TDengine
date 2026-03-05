@@ -45,7 +45,7 @@ class TestExternal:
 
         tdLog.debug(f"start to execute {__file__}")
         vgroups = 4
-        self.dbName = "test"
+        self.dbName = "external_window_test_single_block"
 
         tdLog.info(f"====> create database {self.dbName} vgroups {vgroups}")
         tdSql.execute(f"drop database if exists {self.dbName}")

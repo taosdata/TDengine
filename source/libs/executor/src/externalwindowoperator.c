@@ -3343,8 +3343,7 @@ _exit:
   return code;
 }
 
-static SSDataBlock* mockSSDataBlock();
-static int32_t extWinInitNonStreamWindowDataFromBlock(SExecTaskInfo* pTaskInfo, STimeWindow* pTimeRange);
+static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, STimeWindow* pTimeRange);
 static int32_t extWinValidateNonStreamBlock(SSDataBlock* pBlock, SColumnInfoData** ppStartCol,
                                             SColumnInfoData** ppEndCol, int32_t* pNumRows, int32_t* pNumCols);
 static int32_t extWinCheckMonotonicWstart(bool hasPrevStart, int64_t prevStart, int64_t currStart, int32_t row);
@@ -3399,7 +3398,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
 
   if (pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM) {
     isInStream = false;
-    code = extWinInitNonStreamWindowDataFromBlock(pTaskInfo, &nonStreamExtWinRange);
+    code = extWinInitNonStreamWindowDataFromBlock(pPhynode, pTaskInfo, &nonStreamExtWinRange);
     if (code != TSDB_CODE_SUCCESS) {
       lino = __LINE__;
       goto _error;
@@ -3696,10 +3695,17 @@ static int32_t extWinBuildTriggerParamForRow(SSDataBlock* pBlock, SColumnInfoDat
 _exit:
   return code;
 }
-static int32_t extWinInitNonStreamWindowDataFromBlock(SExecTaskInfo* pTaskInfo, STimeWindow* pTimeRange) {
+
+#define BUILD_TEST
+#if defined(BUILD_TEST)
+static SArray* extWinGetSSDataBlocksInTest(SExternalWindowPhysiNode* pPhynode);
+#endif
+
+static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, STimeWindow* pTimeRange) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SSDataBlock* pBlock = NULL;
+  SArray* pBlocks = NULL;
   STimeWindow extWinTimeRange = {.skey = INT64_MAX, .ekey = INT64_MIN};
   
   // Initialize minimal stream runtime info for non-stream external-window queries.
@@ -3723,13 +3729,19 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExecTaskInfo* pTaskInfo, 
   pRt->triggerType = STREAM_TRIGGER_SESSION;
   pRt->precision = 0;
   pRt->curIdx = 0;
-  
-  // Build a mock block that provides external window values.
-  pBlock = mockSSDataBlock();
-  TSDB_CHECK_NULL(pBlock, code, lino, _exit, terrno);
 
-  TAOS_CHECK_EXIT(extWinValidateNonStreamBlock(pBlock, &pStartCol, &pEndCol, &numRows, &numCols));
-  
+#if defined(BUILD_TEST)
+  // Test-only path:
+  // 1) route by subquery source db name and build mock external-window blocks;
+  // 2) non-test db names are treated as unsupported since production interface is not implemented yet.
+  pBlocks = extWinGetSSDataBlocksInTest(pPhynode);
+  TSDB_CHECK_NULL(pBlocks, code, lino, _exit, terrno);
+#else
+  // todo xs get the block with external window values from subquery, for now just return error since this code
+  // path is only for non-stream query which is not supported yet.
+  return TSDB_CODE_VERSION_NOT_COMPATIBLE;
+#endif
+
   // Initialize/reset pseudo function values.
   if (pRt->pStreamPesudoFuncVals == NULL) {
     pRt->pStreamPesudoFuncVals = taosArrayInit(4, sizeof(SSTriggerCalcParam));
@@ -3738,30 +3750,47 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExecTaskInfo* pTaskInfo, 
     taosArrayClear(pRt->pStreamPesudoFuncVals);
   }
   
-  // Build one trigger parameter for each row.
-  bool hasPrevStart = false;
-  int64_t prevStart = 0;
-  for (int32_t row = 0; row < numRows; ++row) {
-    SSTriggerCalcParam param = {0};
+  // Build trigger parameters from all test blocks.
+  bool     hasPrevStart = false;
+  int64_t  prevStart = 0;
+  uint64_t prevGroupId = UINT64_MAX;
+  int32_t  blockNum = taosArrayGetSize(pBlocks);
 
-    TAOS_CHECK_EXIT(extWinBuildTriggerParamForRow(pBlock, pStartCol, pEndCol, numCols, row, &param));
+  for (int32_t blockIdx = 0; blockIdx < blockNum; ++blockIdx) {
+    SSDataBlock** ppOne = taosArrayGet(pBlocks, blockIdx);
+    TSDB_CHECK_NULL(ppOne, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+    pBlock = *ppOne;
+    TSDB_CHECK_NULL(pBlock, code, lino, _exit, TSDB_CODE_INVALID_PARA);
 
-    code = extWinCheckMonotonicWstart(hasPrevStart, prevStart, param.wstart, row);
-    if (code != TSDB_CODE_SUCCESS) {
-      taosArrayDestroy(param.pExternalWindowData);
-      TAOS_CHECK_EXIT(code);
+    TAOS_CHECK_EXIT(extWinValidateNonStreamBlock(pBlock, &pStartCol, &pEndCol, &numRows, &numCols));
+
+    if (prevGroupId != pBlock->info.id.groupId) {
+      hasPrevStart = false;
+      prevGroupId = pBlock->info.id.groupId;
     }
 
-    prevStart = param.wstart;
-    hasPrevStart = true;
+    for (int32_t row = 0; row < numRows; ++row) {
+      SSTriggerCalcParam param = {0};
 
-    extWinTimeRange.skey = TMIN(extWinTimeRange.skey, param.wstart);
-    extWinTimeRange.ekey = TMAX(extWinTimeRange.ekey, param.wend);
-    
-    void* pRet = taosArrayPush(pRt->pStreamPesudoFuncVals, &param);
-    if (pRet == NULL) {
-      taosArrayDestroy(param.pExternalWindowData);
-      TAOS_CHECK_EXIT(terrno);
+      TAOS_CHECK_EXIT(extWinBuildTriggerParamForRow(pBlock, pStartCol, pEndCol, numCols, row, &param));
+
+      code = extWinCheckMonotonicWstart(hasPrevStart, prevStart, param.wstart, row);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(param.pExternalWindowData);
+        TAOS_CHECK_EXIT(code);
+      }
+
+      prevStart = param.wstart;
+      hasPrevStart = true;
+
+      extWinTimeRange.skey = TMIN(extWinTimeRange.skey, param.wstart);
+      extWinTimeRange.ekey = TMAX(extWinTimeRange.ekey, param.wend);
+
+      void* pRet = taosArrayPush(pRt->pStreamPesudoFuncVals, &param);
+      if (pRet == NULL) {
+        taosArrayDestroy(param.pExternalWindowData);
+        TAOS_CHECK_EXIT(terrno);
+      }
     }
   }
 
@@ -3769,24 +3798,32 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExecTaskInfo* pTaskInfo, 
     *pTimeRange = extWinTimeRange;
   }
 
-  qInfo("%s non-stream extWin mock initialized from block, winNum:%d, firstWin:[%" PRId64 ", %" PRId64 "], wholeRange:[%" PRId64 ", %" PRId64 "]",
-        GET_TASKID(pTaskInfo), (int32_t)taosArrayGetSize(pRt->pStreamPesudoFuncVals),
-        ((SSTriggerCalcParam*)taosArrayGet(pRt->pStreamPesudoFuncVals, 0))->wstart,
-        ((SSTriggerCalcParam*)taosArrayGet(pRt->pStreamPesudoFuncVals, 0))->wend,
-        extWinTimeRange.skey, extWinTimeRange.ekey);
+  if (taosArrayGetSize(pRt->pStreamPesudoFuncVals) > 0) {
+    qInfo("%s non-stream extWin mock initialized from block, winNum:%d, firstWin:[%" PRId64 ", %" PRId64 "], wholeRange:[%" PRId64 ", %" PRId64 "]",
+          GET_TASKID(pTaskInfo), (int32_t)taosArrayGetSize(pRt->pStreamPesudoFuncVals),
+          ((SSTriggerCalcParam*)taosArrayGet(pRt->pStreamPesudoFuncVals, 0))->wstart,
+          ((SSTriggerCalcParam*)taosArrayGet(pRt->pStreamPesudoFuncVals, 0))->wend,
+          extWinTimeRange.skey, extWinTimeRange.ekey);
+  }
 
 _exit:
-  if (pBlock) {
-    blockDataDestroy(pBlock);
+  if (pBlocks) {
+    for (int32_t blockIdx = 0; blockIdx < taosArrayGetSize(pBlocks); ++blockIdx) {
+      SSDataBlock** ppOne = taosArrayGet(pBlocks, blockIdx);
+      if (ppOne && *ppOne) {
+        blockDataDestroy(*ppOne);
+      }
+    }
+    taosArrayDestroy(pBlocks);
   }
   return code;
 }
 
-#if 1
+#if defined(BUILD_TEST)
 // mockSSDataBlock is a helper function to create a sample SSDataBlock for testing purposes.
 static SSDataBlock* mockSSDataBlock() {
   SSDataBlock* pBlock = NULL;
-  int32_t code = createDataBlock(&pBlock);
+  int32_t      code = createDataBlock(&pBlock);
   if (code != TSDB_CODE_SUCCESS || pBlock == NULL) {
     return NULL;
   }
@@ -3893,8 +3930,171 @@ static SSDataBlock* mockSSDataBlock() {
   }
   pBlock->info.rows++;
 
+  pBlock->info.id.groupId = 0;
+  pBlock->info.id.baseGId = pBlock->info.id.groupId;
+
   return pBlock;
 }
-# endif
 
+static int32_t extWinMockSSDataBlocksWithGroups(SArray** ppBlocks) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SArray*      pBlocks = NULL;
+  SSDataBlock* pBlock1 = NULL;
+  SSDataBlock* pBlock2 = NULL;
 
+  TSDB_CHECK_NULL(ppBlocks, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+
+  pBlocks = taosArrayInit(2, POINTER_BYTES);
+  TSDB_CHECK_NULL(pBlocks, code, lino, _exit, terrno);
+
+  pBlock1 = mockSSDataBlock();
+  TSDB_CHECK_NULL(pBlock1, code, lino, _exit, terrno);
+  pBlock1->info.id.groupId = 1001;
+  pBlock1->info.id.baseGId = pBlock1->info.id.groupId;
+
+  pBlock2 = mockSSDataBlock();
+  TSDB_CHECK_NULL(pBlock2, code, lino, _exit, terrno);
+  pBlock2->info.id.groupId = 1002;
+  pBlock2->info.id.baseGId = pBlock2->info.id.groupId;
+
+  SColumnInfoData* pG2Start = taosArrayGet(pBlock2->pDataBlock, 0);
+  SColumnInfoData* pG2End = taosArrayGet(pBlock2->pDataBlock, 1);
+  SColumnInfoData* pG2Int = taosArrayGet(pBlock2->pDataBlock, 2);
+  SColumnInfoData* pG2BigInt = taosArrayGet(pBlock2->pDataBlock, 3);
+  TSDB_CHECK_NULL(pG2Start, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_NULL(pG2End, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_NULL(pG2Int, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_NULL(pG2BigInt, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+
+  for (int32_t row = 0; row < pBlock2->info.rows; ++row) {
+    int64_t startTs = *(int64_t*)colDataGetData(pG2Start, row);
+    int64_t endTs = *(int64_t*)colDataGetData(pG2End, row);
+    int32_t intVal = *(int32_t*)colDataGetData(pG2Int, row);
+    int64_t bigIntVal = *(int64_t*)colDataGetData(pG2BigInt, row);
+
+    startTs += 3600000;
+    endTs += 3600000;
+    intVal += 100;
+    bigIntVal += 1000000;
+
+    TAOS_CHECK_EXIT(colDataSetVal(pG2Start, row, (const char*)&startTs, false));
+    TAOS_CHECK_EXIT(colDataSetVal(pG2End, row, (const char*)&endTs, false));
+    TAOS_CHECK_EXIT(colDataSetVal(pG2Int, row, (const char*)&intVal, false));
+    TAOS_CHECK_EXIT(colDataSetVal(pG2BigInt, row, (const char*)&bigIntVal, false));
+  }
+
+  TSDB_CHECK_NULL(taosArrayPush(pBlocks, &pBlock1), code, lino, _exit, terrno);
+  TSDB_CHECK_NULL(taosArrayPush(pBlocks, &pBlock2), code, lino, _exit, terrno);
+
+  *ppBlocks = pBlocks;
+  return code;
+
+_exit:
+  if (pBlock1) {
+    blockDataDestroy(pBlock1);
+  }
+  if (pBlock2) {
+    blockDataDestroy(pBlock2);
+  }
+  if (pBlocks) {
+    taosArrayDestroy(pBlocks);
+  }
+  return code;
+}
+
+typedef enum {
+  EXT_WIN_TEST_MOCK_UNSUPPORTED = 0,
+  EXT_WIN_TEST_MOCK_SINGLE_BLOCK,
+  EXT_WIN_TEST_MOCK_GROUP_BLOCKS,
+} EExtWinTestMockMode;
+
+typedef struct {
+  EExtWinTestMockMode mode;
+} SExtWinTestMockCtx;
+
+static bool extWinDetectTestMockModeFromPhysiNode(SPhysiNode* pNode, SExtWinTestMockCtx* pCtx) {
+  if (pNode == NULL || pCtx == NULL) {
+    return false;
+  }
+
+  if (nodeType(pNode) == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    STableScanPhysiNode* pScan = (STableScanPhysiNode*)pNode;
+    const char*          pDbName = tNameGetDbNameP(&pScan->scan.tableName);
+    if (pDbName == NULL) {
+      pCtx->mode = EXT_WIN_TEST_MOCK_UNSUPPORTED;
+      return true;
+    }
+
+    if (0 == strcasecmp(pDbName, "external_window_test_single_block")) {
+      pCtx->mode = EXT_WIN_TEST_MOCK_SINGLE_BLOCK;
+    } else if (0 == strcasecmp(pDbName, "external_window_test_group_blocks")) {
+      pCtx->mode = EXT_WIN_TEST_MOCK_GROUP_BLOCKS;
+    } else {
+      pCtx->mode = EXT_WIN_TEST_MOCK_UNSUPPORTED;
+    }
+
+    return true;
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (extWinDetectTestMockModeFromPhysiNode((SPhysiNode*)pChild, pCtx)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static SArray* extWinGetSSDataBlocksInTest(SExternalWindowPhysiNode* pPhynode) {
+  if (pPhynode == NULL || pPhynode->pSubquery == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+
+  SExtWinTestMockCtx ctx = {.mode = EXT_WIN_TEST_MOCK_UNSUPPORTED};
+  SNode*             pChild = NULL;
+  FOREACH(pChild, pPhynode->window.node.pChildren) {
+    if (extWinDetectTestMockModeFromPhysiNode((SPhysiNode*)pChild, &ctx)) {
+      break;
+    }
+  }
+
+  if (ctx.mode == EXT_WIN_TEST_MOCK_SINGLE_BLOCK) {
+    SArray*      pBlocks = taosArrayInit(1, POINTER_BYTES);
+    SSDataBlock* pBlock = NULL;
+    if (pBlocks == NULL) {
+      return NULL;
+    }
+
+    pBlock = mockSSDataBlock();
+    if (pBlock == NULL) {
+      taosArrayDestroy(pBlocks);
+      return NULL;
+    }
+
+    if (taosArrayPush(pBlocks, &pBlock) == NULL) {
+      blockDataDestroy(pBlock);
+      taosArrayDestroy(pBlocks);
+      return NULL;
+    }
+
+    return pBlocks;
+  }
+
+  if (ctx.mode == EXT_WIN_TEST_MOCK_GROUP_BLOCKS) {
+    SArray* pBlocks = NULL;
+    int32_t code = extWinMockSSDataBlocksWithGroups(&pBlocks);
+    if (code != TSDB_CODE_SUCCESS) {
+      terrno = code;
+      return NULL;
+    }
+    return pBlocks;
+  }
+
+  terrno = TSDB_CODE_VERSION_NOT_COMPATIBLE;
+  qError("%s extWin test mock unsupported subquery db, only supports test/test_group now", __func__);
+  return NULL;
+}
+#endif
