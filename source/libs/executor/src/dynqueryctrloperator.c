@@ -3472,23 +3472,26 @@ int32_t vtbWindowOpen(SOperatorInfo* pOperator) {
   }
 
   // handle first window's start key and last window's end key
-  SArray* firstBatch = (SArray*)taosArrayGetP(pDynInfo->vtbWindow.pWins, 0);
-  SArray* lastBatch = (SArray*)taosArrayGetP(pDynInfo->vtbWindow.pWins, taosArrayGetSize(pDynInfo->vtbWindow.pWins) - 1);
+  int32_t winBatchNum = taosArrayGetSize(pDynInfo->vtbWindow.pWins);
+  if (winBatchNum > 0) {
+    SArray* firstBatch = (SArray*)taosArrayGetP(pDynInfo->vtbWindow.pWins, 0);
+    SArray* lastBatch = (SArray*)taosArrayGetP(pDynInfo->vtbWindow.pWins, winBatchNum - 1);
 
-  QUERY_CHECK_NULL(firstBatch, code, lino, _return, terrno)
-  QUERY_CHECK_NULL(lastBatch, code, lino, _return, terrno)
+    QUERY_CHECK_NULL(firstBatch, code, lino, _return, terrno)
+    QUERY_CHECK_NULL(lastBatch, code, lino, _return, terrno)
 
-  SExtWinTimeWindow* firstWin = (SExtWinTimeWindow*)taosArrayGet(firstBatch, 0);
-  SExtWinTimeWindow* lastWin = (SExtWinTimeWindow*)taosArrayGetLast(lastBatch);
+    SExtWinTimeWindow* firstWin = (SExtWinTimeWindow*)taosArrayGet(firstBatch, 0);
+    SExtWinTimeWindow* lastWin = (SExtWinTimeWindow*)taosArrayGetLast(lastBatch);
 
-  QUERY_CHECK_NULL(firstWin, code, lino, _return, terrno)
-  QUERY_CHECK_NULL(lastWin, code, lino, _return, terrno)
+    QUERY_CHECK_NULL(firstWin, code, lino, _return, terrno)
+    QUERY_CHECK_NULL(lastWin, code, lino, _return, terrno)
 
-  if (pInfo->extendOption == STATE_WIN_EXTEND_OPTION_BACKWARD) {
-    lastWin->tw.ekey = INT64_MAX;
-  }
-  if (pInfo->extendOption == STATE_WIN_EXTEND_OPTION_FORWARD) {
-    firstWin->tw.skey = INT64_MIN;
+    if (pInfo->extendOption == STATE_WIN_EXTEND_OPTION_BACKWARD) {
+      lastWin->tw.ekey = INT64_MAX;
+    }
+    if (pInfo->extendOption == STATE_WIN_EXTEND_OPTION_FORWARD) {
+      firstWin->tw.skey = INT64_MIN;
+    }
   }
 
   if (pInfo->isVstb) {
@@ -3616,18 +3619,18 @@ int32_t vtbWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       QUERY_CHECK_CODE(code, lino, _return);
 
       if (pInfo->curWinBatchIdx == 0) {
-        // first batch, get _wstart from pMergedBlock
+        // first batch, bound _wstart by upstream window range
         SExtWinTimeWindow* firstWin = (SExtWinTimeWindow*)taosArrayGet(taosArrayGetP(pInfo->pWins, 0), 0);
         QUERY_CHECK_NULL(firstWin, code, lino, _return, terrno)
 
-        firstWin->tw.skey = pExtWinBlock->info.window.skey;
+        firstWin->tw.skey = TMAX(firstWin->tw.skey, pExtWinBlock->info.window.skey);
       }
       if (pInfo->curWinBatchIdx == taosArrayGetSize(pInfo->pWins) - 1) {
-        // last batch, get _wend from pMergedBlock
+        // last batch, bound _wend by upstream window range
         SExtWinTimeWindow* lastWin = (SExtWinTimeWindow*)taosArrayGetLast(taosArrayGetP(pInfo->pWins, taosArrayGetSize(pInfo->pWins) - 1));
         QUERY_CHECK_NULL(lastWin, code, lino, _return, terrno)
 
-        lastWin->tw.ekey = pExtWinBlock->info.window.ekey + 1;
+        lastWin->tw.ekey = TMIN(lastWin->tw.ekey, pExtWinBlock->info.window.ekey + 1);
       }
     }
   } else {
@@ -3648,18 +3651,18 @@ int32_t vtbWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       QUERY_CHECK_CODE(code, lino, _return);
 
       if (pInfo->curWinBatchIdx == 0) {
-        // first batch, get _wstart from pMergedBlock
+        // first batch, bound _wstart by upstream window range
         SExtWinTimeWindow* firstWin = (SExtWinTimeWindow*)taosArrayGet(taosArrayGetP(pInfo->pWins, 0), 0);
         QUERY_CHECK_NULL(firstWin, code, lino, _return, terrno)
 
-        firstWin->tw.skey = pMergedBlock->info.window.skey;
+        firstWin->tw.skey = TMAX(firstWin->tw.skey, pMergedBlock->info.window.skey);
       }
       if (pInfo->curWinBatchIdx == taosArrayGetSize(pInfo->pWins) - 1) {
-        // last batch, get _wend from pMergedBlock
+        // last batch, bound _wend by upstream window range
         SExtWinTimeWindow* lastWin = (SExtWinTimeWindow*)taosArrayGetLast(taosArrayGetP(pInfo->pWins, taosArrayGetSize(pInfo->pWins) - 1));
         QUERY_CHECK_NULL(lastWin, code, lino, _return, terrno)
 
-        lastWin->tw.ekey = pMergedBlock->info.window.ekey + 1;
+        lastWin->tw.ekey = TMIN(lastWin->tw.ekey, pMergedBlock->info.window.ekey + 1);
       }
     }
   }
