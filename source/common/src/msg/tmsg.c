@@ -3270,7 +3270,7 @@ bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm) {
   }
 
   bool hasWhite = false, inWhite = false;
-  // convert tm to week seconds based on localtime
+  // convert tm to week seconds based on sys_localtime
   // week starts from Sunday (tm_wday = 0)
   time_t t = (time_t)tm;
   struct tm ltm;
