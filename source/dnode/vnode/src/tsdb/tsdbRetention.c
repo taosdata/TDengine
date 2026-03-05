@@ -381,7 +381,7 @@ int32_t tsdbRetention(void *arg) {
   if (pTsdb->bgTaskDisabled) {
     tsdbInfo("vgId:%d, background task is disabled, skip retention", TD_VID(pTsdb->pVnode));
     (void)taosThreadMutexUnlock(&pTsdb->mutex);
-    return 0;
+    goto _exit;
   }
 
   // set flag and copy
