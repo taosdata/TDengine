@@ -27,7 +27,7 @@
                 },
                 "current": {
                     "expr": "int(parse_float(current))",
-                    "as": "INT"
+                    "as": "DOUBLE"
                 },
                 "voltage": {
                     "cast": "voltage",

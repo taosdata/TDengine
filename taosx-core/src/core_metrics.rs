@@ -26,7 +26,7 @@ use metrics::atomics::AtomicU64;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
-use tokio::sync::watch;
+use tokio::sync::{broadcast, watch};
 use tokio_util::sync::CancellationToken;
 
 /// MetricsType is an enum to store all supported metrics data structure.
@@ -306,14 +306,17 @@ pub enum MetricsEvent {
 
 #[derive(Debug)]
 pub struct MetricsState {
-    watch_tx: watch::Sender<Option<MetricsEvent>>,
+    /// Broadcast channel for Insert/Delete events — ensures no events are lost
+    /// even when multiple tasks are created concurrently.
+    broadcast_tx: broadcast::Sender<MetricsEvent>,
     task_watchers: RwLock<HashMap<(i64, i64), watch::Sender<MetricsEvent>>>,
 }
 
 impl MetricsState {
     pub fn new() -> Self {
+        let (broadcast_tx, _) = broadcast::channel(256);
         Self {
-            watch_tx: watch::Sender::new(None),
+            broadcast_tx,
             task_watchers: RwLock::new(HashMap::new()),
         }
     }
@@ -321,8 +324,12 @@ impl MetricsState {
     pub fn insert(&self, task_id: i64, job_id: i64, metrics: Arc<CoreMetrics>) {
         let sender = watch::Sender::new(MetricsEvent::Update(task_id, job_id, metrics.clone()));
         let event = MetricsEvent::Insert(task_id, job_id, metrics);
-        self.watch_tx.send(Some(event)).ok();
+        // Register the per-task watcher BEFORE broadcasting, so that subscribers
+        // can call subscribe_task_metrics_watcher() immediately upon receiving
+        // the Insert event.
         self.task_watchers.write().insert((task_id, job_id), sender);
+        // broadcast::send only fails when there are no receivers, which is fine.
+        self.broadcast_tx.send(event).ok();
     }
 
     pub fn update(&self, task_id: i64, job_id: i64) {
@@ -337,8 +344,8 @@ impl MetricsState {
     }
 
     pub fn remove(&self, task_id: i64, job_id: i64) {
-        self.watch_tx
-            .send(Some(MetricsEvent::Delete(task_id, job_id)))
+        self.broadcast_tx
+            .send(MetricsEvent::Delete(task_id, job_id))
             .ok();
         self.task_watchers.write().remove(&(task_id, job_id));
     }
@@ -372,8 +379,8 @@ pub fn subscribe_all_task_metrics_watcher() -> Vec<watch::Receiver<MetricsEvent>
     res
 }
 
-pub fn subscribe_metrics_watcher() -> watch::Receiver<Option<MetricsEvent>> {
-    GLOBAL_METRICS_NOTIFIER.watch_tx.subscribe()
+pub fn subscribe_metrics_watcher() -> broadcast::Receiver<MetricsEvent> {
+    GLOBAL_METRICS_NOTIFIER.broadcast_tx.subscribe()
 }
 
 type GlobalMetrics = RwLock<HashMap<(i64, i64), Arc<CoreMetrics>>>;

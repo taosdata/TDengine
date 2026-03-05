@@ -190,11 +190,19 @@ impl AgentWorker {
                                     for task in agent_tasks.get_by_agent_id(&agent_id) {
                                         let (task_id, job_id) = task.task_job_id;
                                         *task.agent_state.write().await = AgentState::Connected;
-                                        task.sender
+                                        if task.sender
                                             .send_async(Activity::agent_resumed(
                                                 task_id, job_id, agent_id,
                                             ))
-                                            .await;
+                                            .await
+                                            .is_err()
+                                        {
+                                            tracing::warn!(
+                                                task.id = task_id,
+                                                job.id = job_id,
+                                                "Error sending agent_resumed activity, receiver dropped"
+                                            );
+                                        }
                                         agent_action_sender
                                             .send((agent_id, AgentAction::Run(task_id, job_id)))
                                             .ok();
@@ -215,39 +223,59 @@ impl AgentWorker {
                                     for task in agent_tasks.get_by_agent_id(&agent_id) {
                                         *task.agent_state.write().await = AgentState::Disconnected;
                                         let (task_id, job_id) = task.task_job_id;
-                                        task.sender
+                                        if task.sender
                                             .send_async(Activity::agent_waiting(
                                                 task_id,
                                                 job_id,
                                                 agent_id,
                                                 format!("Agent {agent_id} is disconnected"),
                                             ))
-                                            .await;
+                                            .await
+                                            .is_err()
+                                        {
+                                            tracing::warn!(
+                                                task.id = task_id,
+                                                job.id = job_id,
+                                                "Error sending agent_waiting activity, receiver dropped"
+                                            );
+                                        }
                                     }
                                 }
                                 AgentNotify::TaskActivity(aid, activity) => {
+                                    let (agent_id, task_id, job_id) =
+                                        (aid, activity.task_id, activity.job_id);
                                     tracing::info!(
-                                        agent.id = aid,
-                                        task.id = activity.task_id,
-                                        job.id = activity.job_id,
+                                        agent.id = agent_id,
+                                        task.id = task_id,
+                                        job.id = job_id,
                                         "Task activity: {:?}",
                                         activity
                                     );
                                     let agent_tasks = agent_tasks_sender.read().await;
-                                    if let Some(task) = agent_tasks
-                                        .get_by_task_job_id(&(activity.task_id, activity.job_id))
+                                    if let Some(task) =
+                                        agent_tasks.get_by_task_job_id(&(task_id, job_id))
                                     {
-                                        if let Err(err) = task.sender.send_async(activity).await {
-                                            tracing::warn!("Error sending task activity {:?}", err);
+                                        if task.sender.send_async(activity).await.is_err() {
+                                            tracing::warn!(
+                                                agent.id = agent_id,
+                                                task.id = task_id,
+                                                job.id = job_id,
+                                                "Error sending task activity, receiver dropped"
+                                            );
                                         }
                                     } else {
-                                        tracing::warn!(
-                                            agent.id = aid,
-                                            task.id = activity.task_id,
-                                            job.id = %activity.job_id,
+                                        // This is expected: the activity arrived after the task was
+                                        // already cleaned up from agent_tasks (e.g. a late-arriving
+                                        // "stop task via agent" broadcast after JobNotification::Done
+                                        // already called remove_task). The activity has already been
+                                        // forwarded directly to the scheduler notify channel, so
+                                        // nothing is lost.
+                                        tracing::debug!(
+                                            agent.id = agent_id,
+                                            task.id = task_id,
+                                            job.id = job_id,
                                             task.activity = activity.activity,
-                                            "Task worker not found: {}",
-                                            activity.task_id
+                                            "Task activity arrived after task worker was cleaned up (expected after task completion)",
                                         );
                                     }
                                 }

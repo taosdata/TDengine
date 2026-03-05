@@ -54,7 +54,7 @@ pub fn alloc<I, F>(
 ) -> Result<Vec<(i32, HaTask)>>
 where
     I: IntoIterator<Item = TopicConcurrency>,
-    F: Fn(Dsn, &str, usize) -> String,
+    F: Fn(Dsn, &str, usize, usize) -> String,
 {
     let mut topics = topics.into_iter();
     let from = json_to_dsn(&task.from).context(JsonToDsnSnafu)?;
@@ -69,7 +69,7 @@ where
                 break;
             }
             if concurrency >= tp.concurrency {
-                let from = job_dsn(from.clone(), &tp.name, tp.concurrency);
+                let from = job_dsn(from.clone(), &tp.name, tp.concurrency, jobs.len());
                 let job = HaTask {
                     from,
                     to: task.to.clone(),
@@ -81,7 +81,7 @@ where
                 concurrency -= tp.concurrency;
                 current_tp = topics.next();
             } else {
-                let from = job_dsn(from.clone(), &tp.name, concurrency);
+                let from = job_dsn(from.clone(), &tp.name, concurrency, jobs.len());
                 let job = HaTask {
                     from,
                     to: task.to.clone(),
@@ -99,7 +99,7 @@ where
     Ok(jobs)
 }
 
-pub fn update_dsn(mut from: Dsn, topic: &str, concurrency: usize) -> String {
+pub fn update_dsn(mut from: Dsn, topic: &str, concurrency: usize, _job_index: usize) -> String {
     from.set("topics", topic.to_string());
     from.set("read_concurrency", concurrency.to_string());
     from.to_string()
@@ -232,7 +232,7 @@ mod tests {
     #[test]
     fn update_dsn_sets_topic_and_concurrency() {
         let dsn = Dsn::from_str("kafka://").unwrap();
-        let updated = update_dsn(dsn, "my_topic", 4);
+        let updated = update_dsn(dsn, "my_topic", 4, 0);
         assert!(updated.contains("topics=my_topic"));
         assert!(updated.contains("read_concurrency=4"));
     }

@@ -1,6 +1,7 @@
-//！ MQTT data source integration tests
+//! MQTT data source integration tests
 
 use rumqttc::v5::mqttbytes::QoS;
+use tokio_util::sync::CancellationToken;
 
 use crate::datasources::env_var;
 
@@ -12,7 +13,6 @@ pub struct MqttPubBuilder {
     port: Option<u16>,
     qos: Option<QoS>,
     username_password: Option<(String, String)>,
-    count: Option<usize>,
 }
 
 #[cfg(all(test, feature = "test-mqtt"))]
@@ -29,7 +29,6 @@ impl MqttPubBuilder {
             port: None,
             qos: None,
             username_password: None,
-            count: None,
         }
     }
 
@@ -52,12 +51,8 @@ impl MqttPubBuilder {
         self
     }
 
-    pub fn count(mut self, count: usize) -> Self {
-        self.count = Some(count);
-        self
-    }
-
-    pub async fn publish(self) -> anyhow::Result<()> {
+    /// Publishes fake JSON messages until `cancel` is cancelled, then shuts down gracefully.
+    pub async fn publish(self, cancel: CancellationToken) -> anyhow::Result<()> {
         use std::time::Duration;
 
         use anyhow::Context;
@@ -75,7 +70,6 @@ impl MqttPubBuilder {
         };
 
         let qos = self.qos.unwrap_or(QoS::AtLeastOnce);
-        let count = self.count.unwrap_or(10);
 
         let (username, password) = if let Some((u, p)) = self.username_password {
             (Some(u), Some(p))
@@ -105,8 +99,10 @@ impl MqttPubBuilder {
 
         let (client, mut event_loop) = AsyncClient::new(opts, 10);
 
-        let Event::Incoming(Incoming::ConnAck(ack)) =
-            event_loop.poll().await.context("mqtt ConnAck error")?
+        let Some(conn_result) = cancel.run_until_cancelled(event_loop.poll()).await else {
+            return Ok(());
+        };
+        let Event::Incoming(Incoming::ConnAck(ack)) = conn_result.context("mqtt ConnAck error")?
         else {
             anyhow::bail!("expected ConnAck packet");
         };
@@ -115,9 +111,13 @@ impl MqttPubBuilder {
         }
         tracing::info!("mqtt connected successfully");
 
+        let cancel_for_event_loop = cancel.clone();
         let event_loop_task = tokio::spawn(async move {
-            loop {
-                match event_loop.poll().await {
+            while let Some(poll_result) = cancel_for_event_loop
+                .run_until_cancelled(event_loop.poll())
+                .await
+            {
+                match poll_result {
                     Ok(Event::Incoming(Incoming::PubAck(ack))) => {
                         if !matches!(ack.reason, PubAckReason::Success) {
                             tracing::warn!("mqtt PubAck: {:?}", ack.reason);
@@ -128,9 +128,7 @@ impl MqttPubBuilder {
                             tracing::warn!("mqtt PubRec: {:?}", ack.reason);
                         }
                     }
-                    Ok(Event::Outgoing(Outgoing::Publish(_))) => {
-                        tracing::info!("mqtt published one message");
-                    }
+                    Ok(Event::Outgoing(Outgoing::Publish(_))) => {}
                     Ok(_) => {}
                     Err(ConnectionError::RequestsDone) => {
                         tracing::info!("mqtt requests done");
@@ -138,28 +136,45 @@ impl MqttPubBuilder {
                     }
                     Err(e) => {
                         tracing::error!("mqtt event_loop poll error: {}", e);
-                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        if cancel_for_event_loop
+                            .run_until_cancelled(tokio::time::sleep(Duration::from_millis(100)))
+                            .await
+                            .is_none()
+                        {
+                            break;
+                        }
                     }
                 }
             }
         });
 
-        for _ in 0..count {
+        let mut published_count: u32 = 0;
+        loop {
             let payload_value = schema.rand_json_value().context("generate fake json")?;
             let payload = serde_json::to_vec(&payload_value).context("serialize json")?;
-            client
-                .publish(self.topic.as_str(), qos, false, payload)
-                .await
-                .context("mqtt publish")?;
+            let publish_fut = client.publish(self.topic.as_str(), qos, false, payload);
+            let Some(pub_result) = cancel.run_until_cancelled(publish_fut).await else {
+                break;
+            };
+            pub_result.context("mqtt publish")?;
+            published_count += 1;
+            if published_count.is_multiple_of(10)
+                && cancel
+                    .run_until_cancelled(tokio::time::sleep(Duration::from_millis(100)))
+                    .await
+                    .is_none()
+            {
+                break;
+            }
         }
 
-        tracing::info!("mqtt published {} messages", count);
+        tracing::info!("mqtt publish loop ended (cancelled)");
 
         drop(client);
         tracing::info!("mqtt client dropped");
-        event_loop_task
-            .await
-            .context("join mqtt event loop task failed")?;
+        if let Some(join_result) = cancel.run_until_cancelled(event_loop_task).await {
+            join_result.context("join mqtt event loop task failed")?;
+        }
         tracing::info!("mqtt event loop task finished");
 
         Ok(())
@@ -183,6 +198,7 @@ mod tests {
 
     use anyhow::Context;
     use rumqttc::v5::mqttbytes::QoS;
+    use tokio_util::sync::CancellationToken;
 
     use ha_core::activity::TaskStatus;
 
@@ -218,9 +234,9 @@ mod tests {
     /// Flow:
     /// 1. Build an MQTT task configuration with one topic and create the task via HTTP API.
     /// 2. Wait until the task status becomes running.
-    /// 3. Publish fake JSON messages to the configured topic through the MQTT broker.
-    /// 4. Wait until the task reports written rows, then stop and delete the task.
-    /// 5. Drop the `mqtt_meters` stable in TDengine to clean up test data.
+    /// 3. Run publish and wait_until_written_rows concurrently; when wait returns, cancel the token to stop publish.
+    /// 4. Stop and delete the task.
+    /// 5. Drop the task-specific MQTT stable in TDengine to clean up test data.
     ///
     /// Expected result:
     ///
@@ -239,7 +255,7 @@ mod tests {
 
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let task_cfg_path = manifest_dir.join("config/task/mqtt.json");
-        let parser_json: serde_json::Value = serde_json::from_str(
+        let mut parser_json: serde_json::Value = serde_json::from_str(
             &fs::read_to_string(&task_cfg_path)
                 .with_context(|| format!("read mqtt task config {:?}", task_cfg_path))?,
         )
@@ -247,9 +263,17 @@ mod tests {
 
         let name_suffix: String = (0..8).map(|_| fastrand::alphanumeric()).collect();
         let task_name = format!("{test_name}_{name_suffix}");
+        let stable_name = format!("{task_name}_meters");
+        parser_json["model"]["using"] = serde_json::Value::String(stable_name.clone());
+        let sub_table_pattern = format!(
+            "{stable}_{task}_{{id}}",
+            stable = stable_name,
+            task = task_name
+        );
+        parser_json["model"]["name"] = serde_json::Value::String(sub_table_pattern);
 
-        let topic = format!("integration_test_{task_name}");
-        let client_id = format!("integration_test_{task_name}");
+        let topic = format!("integration_test_topic/{task_name}");
+        let client_id = format!("integration_test_client_{task_name}");
 
         let from = format!(
             "mqtt://{mqtt_host}:{mqtt_port}?version=5&topics={topic}::1&client_id={client_id}"
@@ -280,19 +304,21 @@ mod tests {
 
         let schema_path = manifest_dir.join("config/schema/mqtt.toml");
 
-        super::mqtt_pub(schema_path, &mqtt_host, &topic)
-            .port(mqtt_port)
-            .count(10)
-            .publish()
-            .await
-            .context("publish fake mqtt json messages")?;
-        tracing::info!("mqtt publish finished");
-
+        let cancel = CancellationToken::new();
+        let cancel_for_pub = cancel.clone();
+        let builder = super::mqtt_pub(schema_path, &mqtt_host, &topic).port(mqtt_port);
+        let pub_handle = tokio::spawn(async move { builder.publish(cancel_for_pub).await });
         client
             .wait_until_written_rows(task_id, 1)
             .await
             .context("wait for task written_rows")?;
         tracing::info!("mqtt task written_rows reached");
+        cancel.cancel();
+        pub_handle
+            .await
+            .context("join mqtt publish task")?
+            .context("publish fake mqtt json messages")?;
+        tracing::info!("mqtt publish finished");
 
         client
             .stop_task(task_id)
@@ -322,7 +348,7 @@ mod tests {
             anyhow::bail!("task {} should have been deleted but still exists", task_id);
         }
 
-        cleanup_table(&to_dsn, "mqtt_meters")
+        cleanup_table(&to_dsn, &stable_name)
             .await
             .context("cleanup mqtt_meters after test_mqtt_task_with_fake_data")?;
 
@@ -334,9 +360,9 @@ mod tests {
     /// Flow:
     /// 1. Build an MQTT task that subscribes to two concrete topics under the same prefix.
     /// 2. Create the task via HTTP API and wait until it is running.
-    /// 3. Publish fake JSON messages to the first topic and then to the second topic.
-    /// 4. Wait until the task reports written rows, then stop and delete the task.
-    /// 5. Drop the `mqtt_meters` stable in TDengine to clean up test data.
+    /// 3. Run two publishers (one per topic) and wait_until_written_rows concurrently; when wait returns, cancel to stop both publishers.
+    /// 4. Stop and delete the task.
+    /// 5. Drop the task-specific MQTT stable in TDengine to clean up test data.
     ///
     /// Expected result:
     ///
@@ -356,7 +382,7 @@ mod tests {
 
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let task_cfg_path = manifest_dir.join("config/task/mqtt.json");
-        let parser_json: serde_json::Value = serde_json::from_str(
+        let mut parser_json: serde_json::Value = serde_json::from_str(
             &fs::read_to_string(&task_cfg_path)
                 .with_context(|| format!("read mqtt task config {:?}", task_cfg_path))?,
         )
@@ -364,12 +390,20 @@ mod tests {
 
         let name_suffix: String = (0..8).map(|_| fastrand::alphanumeric()).collect();
         let task_name = format!("{test_name}_multi_{name_suffix}");
+        let stable_name = format!("{task_name}_meters");
+        parser_json["model"]["using"] = serde_json::Value::String(stable_name.clone());
+        let sub_table_pattern = format!(
+            "{stable}_{task}_{{id}}",
+            stable = stable_name,
+            task = task_name
+        );
+        parser_json["model"]["name"] = serde_json::Value::String(sub_table_pattern);
 
         let topic_prefix = format!("integration_multi/{task_name}");
         let topic_a = format!("{topic_prefix}/a");
         let topic_b = format!("{topic_prefix}/b");
 
-        let client_id = format!("integration_test_multi_{task_name}");
+        let client_id = format!("integration_test_client_{task_name}");
         let topics_param = format!("{topic_a}::1,{topic_b}::1");
 
         let from = format!(
@@ -401,28 +435,30 @@ mod tests {
 
         let schema_path = manifest_dir.join("config/schema/mqtt.toml");
 
-        super::mqtt_pub(schema_path.clone(), &mqtt_host, &topic_a)
+        let cancel = CancellationToken::new();
+        let cancel_a = cancel.clone();
+        let cancel_b = cancel.clone();
+        let builder_a = super::mqtt_pub(schema_path.clone(), &mqtt_host, &topic_a).port(mqtt_port);
+        let builder_b = super::mqtt_pub(schema_path, &mqtt_host, &topic_b)
             .port(mqtt_port)
-            .count(10)
-            .publish()
-            .await
-            .context("publish fake mqtt json messages to first topic")?;
-        tracing::info!("mqtt publish to first topic finished");
-
-        super::mqtt_pub(schema_path, &mqtt_host, &topic_b)
-            .port(mqtt_port)
-            .qos(QoS::AtLeastOnce)
-            .count(10)
-            .publish()
-            .await
-            .context("publish fake mqtt json messages to second topic")?;
-        tracing::info!("mqtt publish to second topic finished");
-
+            .qos(QoS::AtLeastOnce);
+        let pub_handle_a = tokio::spawn(async move { builder_a.publish(cancel_a).await });
+        let pub_handle_b = tokio::spawn(async move { builder_b.publish(cancel_b).await });
         client
             .wait_until_written_rows(task_id, 1)
             .await
             .context("wait for multi-topic mqtt task written_rows")?;
         tracing::info!("multi-topic mqtt task written_rows reached");
+        cancel.cancel();
+        pub_handle_a
+            .await
+            .context("join mqtt publish task for topic_a")?
+            .context("publish fake mqtt json messages to first topic")?;
+        pub_handle_b
+            .await
+            .context("join mqtt publish task for topic_b")?
+            .context("publish fake mqtt json messages to second topic")?;
+        tracing::info!("mqtt publish to both topics finished");
 
         client
             .stop_task(task_id)
@@ -453,7 +489,7 @@ mod tests {
             );
         }
 
-        cleanup_table(&to_dsn, "mqtt_meters")
+        cleanup_table(&to_dsn, &stable_name)
             .await
             .context("cleanup mqtt_meters after test_mqtt_task_with_multiple_topics")?;
 
@@ -485,10 +521,12 @@ mod tests {
         let client = build_api_client_from_env()?;
 
         let name_suffix: String = (0..8).map(|_| fastrand::alphanumeric()).collect();
-        let client_id = format!("integration_test_validate_{name_suffix}");
+        let task_name = format!("{test_name}_{name_suffix}");
+        let topic = format!("integration_test_topic/{task_name}");
+        let client_id = format!("integration_test_client_{task_name}");
 
         let from = format!(
-            "mqtt://{mqtt_host}:{mqtt_port}?version=5&topics=integration_validate/{client_id}::1&client_id={client_id}"
+            "mqtt://{mqtt_host}:{mqtt_port}?version=5&topics={topic}::1&client_id={client_id}"
         );
 
         let via = crate::datasources::resolve_agent_via(&client, with_agent).await?;
@@ -541,10 +579,12 @@ mod tests {
         let client = build_api_client_from_env()?;
 
         let name_suffix: String = (0..8).map(|_| fastrand::alphanumeric()).collect();
-        let client_id = format!("integration_test_validate_auth_{name_suffix}");
+        let task_name = format!("{test_name}_{name_suffix}");
+        let topic = format!("integration_test_topic/{task_name}");
+        let client_id = format!("integration_test_client_{task_name}");
 
         let from = format!(
-            "mqtt://{mqtt_username}:{mqtt_password}@{mqtt_host}:{mqtt_auth_port}?version=5&topics=integration_validate_auth/{client_id}::1&client_id={client_id}"
+            "mqtt://{mqtt_username}:{mqtt_password}@{mqtt_host}:{mqtt_auth_port}?version=5&topics={topic}::1&client_id={client_id}"
         );
 
         let via = crate::datasources::resolve_agent_via(&client, with_agent).await?;
@@ -624,11 +664,13 @@ mod tests {
         tracing::info!("[validate tls] key_server_path: {}", key_server_path);
 
         let name_suffix: String = (0..8).map(|_| fastrand::alphanumeric()).collect();
-        let client_id = format!("integration_test_validate_tls_{name_suffix}");
+        let task_name = format!("{test_name}_{name_suffix}");
+        let topic = format!("integration_test_topic/{task_name}");
+        let client_id = format!("integration_test_client_{task_name}");
 
         // DSN uses TLS certs uploaded to server; ca/cert/cert_key use @path syntax and MQTT username/password are embedded in the authority
         let from = format!(
-            "mqtt://{mqtt_username}:{mqtt_password}@{mqtt_host}:{mqtt_tls_port}?version=5&topics=integration_validate_tls/{client_id}::1&client_id={client_id}&ca=@{ca}&cert=@{cert}&cert_key=@{key}",
+            "mqtt://{mqtt_username}:{mqtt_password}@{mqtt_host}:{mqtt_tls_port}?version=5&topics={topic}::1&client_id={client_id}&ca=@{ca}&cert=@{cert}&cert_key=@{key}",
             ca = ca_server_path,
             cert = cert_server_path,
             key = key_server_path,
@@ -662,9 +704,9 @@ mod tests {
     /// Flow:
     /// 1. Construct an MQTT DSN that includes username, password, and auth port.
     /// 2. Create an MQTT task via HTTP API and wait until it is running.
-    /// 3. Publish fake JSON messages to the configured topic using the same credentials.
-    /// 4. Wait until written rows increase, then stop and delete the task.
-    /// 5. Drop the `mqtt_meters` stable in TDengine to remove test data.
+    /// 3. Run publish and wait_until_written_rows concurrently; when wait returns, cancel the token to stop publish.
+    /// 4. Stop and delete the task.
+    /// 5. Drop the task-specific MQTT stable in TDengine to remove test data.
     ///
     /// Expected result:
     ///
@@ -687,17 +729,25 @@ mod tests {
 
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let task_cfg_path = manifest_dir.join("config/task/mqtt.json");
-        let parser_json: serde_json::Value = serde_json::from_str(
+        let mut parser_json: serde_json::Value = serde_json::from_str(
             &fs::read_to_string(&task_cfg_path)
                 .with_context(|| format!("read mqtt task config {:?}", task_cfg_path))?,
         )
         .context("parse mqtt task parser json")?;
 
         let name_suffix: String = (0..8).map(|_| fastrand::alphanumeric()).collect();
-        let task_name = format!("{test_name}_auth_{name_suffix}");
+        let task_name = format!("{test_name}_{name_suffix}");
+        let stable_name = format!("{task_name}_meters");
+        parser_json["model"]["using"] = serde_json::Value::String(stable_name.clone());
+        let sub_table_pattern = format!(
+            "{stable}_{task}_{{id}}",
+            stable = stable_name,
+            task = task_name
+        );
+        parser_json["model"]["name"] = serde_json::Value::String(sub_table_pattern);
 
-        let topic = format!("integration_auth/{task_name}");
-        let client_id = format!("integration_test_auth_{task_name}");
+        let topic = format!("integration_test_topic/{task_name}");
+        let client_id = format!("integration_test_client_{task_name}");
 
         // DSN uses MQTT username and password for authenticated connection
         let from = format!(
@@ -729,20 +779,23 @@ mod tests {
 
         let schema_path = manifest_dir.join("config/schema/mqtt.toml");
 
-        super::mqtt_pub(schema_path, &mqtt_host, &topic)
+        let cancel = CancellationToken::new();
+        let cancel_for_pub = cancel.clone();
+        let builder = super::mqtt_pub(schema_path, &mqtt_host, &topic)
             .port(mqtt_auth_port)
-            .username_password(mqtt_username, mqtt_password)
-            .count(10)
-            .publish()
-            .await
-            .context("publish auth mqtt json messages")?;
-        tracing::info!("auth mqtt publish finished");
-
+            .username_password(mqtt_username, mqtt_password);
+        let pub_handle = tokio::spawn(async move { builder.publish(cancel_for_pub).await });
         client
             .wait_until_written_rows(task_id, 1)
             .await
             .context("wait for auth mqtt task written_rows")?;
         tracing::info!("auth mqtt task written_rows reached");
+        cancel.cancel();
+        pub_handle
+            .await
+            .context("join auth mqtt publish task")?
+            .context("publish auth mqtt json messages")?;
+        tracing::info!("auth mqtt publish finished");
 
         client
             .stop_task(task_id)
@@ -773,7 +826,7 @@ mod tests {
             );
         }
 
-        cleanup_table(&to_dsn, "mqtt_meters")
+        cleanup_table(&to_dsn, &stable_name)
             .await
             .context("cleanup mqtt_meters after test_mqtt_task_with_auth")?;
 
@@ -786,8 +839,8 @@ mod tests {
     /// 1. Upload CA, client certificate, and client key files via the upload API.
     /// 2. Build an MQTT DSN that references the uploaded certificate paths using `@path` syntax.
     /// 3. Create a TLS-enabled MQTT task via HTTP API and wait until it is running.
-    /// 4. Publish fake JSON messages to the configured topic via the MQTT broker.
-    /// 5. Wait until written rows are reported, then stop and delete the task and drop `mqtt_meters`.
+    /// 4. Run publish and wait_until_written_rows concurrently; when wait returns, cancel the token to stop publish.
+    /// 5. Stop and delete the task and drop the task-specific MQTT stable.
     ///
     /// Expected result:
     ///
@@ -832,17 +885,25 @@ mod tests {
         tracing::info!("key_server_path: {}", key_server_path);
 
         let task_cfg_path = manifest_dir.join("config/task/mqtt.json");
-        let parser_json: serde_json::Value = serde_json::from_str(
+        let mut parser_json: serde_json::Value = serde_json::from_str(
             &fs::read_to_string(&task_cfg_path)
                 .with_context(|| format!("read mqtt task config {:?}", task_cfg_path))?,
         )
         .context("parse mqtt task parser json")?;
 
         let name_suffix: String = (0..8).map(|_| fastrand::alphanumeric()).collect();
-        let task_name = format!("{test_name}_tls_{name_suffix}");
+        let task_name = format!("{test_name}_{name_suffix}");
+        let stable_name = format!("{task_name}_meters");
+        parser_json["model"]["using"] = serde_json::Value::String(stable_name.clone());
+        let sub_table_pattern = format!(
+            "{stable}_{task}_{{id}}",
+            stable = stable_name,
+            task = task_name
+        );
+        parser_json["model"]["name"] = serde_json::Value::String(sub_table_pattern);
 
-        let topic = format!("integration_tls/{task_name}");
-        let client_id = format!("integration_test_tls_{task_name}");
+        let topic = format!("integration_test_topic/{task_name}");
+        let client_id = format!("integration_test_client_{task_name}");
 
         // DSN uses TLS certs uploaded to server; ca/cert/cert_key use @path syntax and MQTT username/password are embedded in the authority
         let from = format!(
@@ -877,24 +938,26 @@ mod tests {
 
         let schema_path = manifest_dir.join("config/schema/mqtt.toml");
 
-        // mqtt_pub uses dedicated TLS broker port for secure messages
         let mqtt_auth_port = env_var("MQTT_AUTH_PORT")?
             .parse::<u16>()
             .context("invalid INTEGRATION_TEST_MQTT_AUTH_PORT")?;
-        super::mqtt_pub(schema_path, &mqtt_host, &topic)
+        let cancel = CancellationToken::new();
+        let cancel_for_pub = cancel.clone();
+        let builder = super::mqtt_pub(schema_path, &mqtt_host, &topic)
             .port(mqtt_auth_port)
-            .username_password(mqtt_username, mqtt_password)
-            .count(10)
-            .publish()
-            .await
-            .context("publish tls mqtt json messages")?;
-        tracing::info!("tls mqtt publish finished");
-
+            .username_password(mqtt_username, mqtt_password);
+        let pub_handle = tokio::spawn(builder.publish(cancel_for_pub));
         client
             .wait_until_written_rows(task_id, 1)
             .await
             .context("wait for tls mqtt task written_rows")?;
         tracing::info!("tls mqtt task written_rows reached");
+        cancel.cancel();
+        pub_handle
+            .await
+            .context("join tls mqtt publish task")?
+            .context("publish tls mqtt json messages")?;
+        tracing::info!("tls mqtt publish finished");
 
         client
             .stop_task(task_id)
@@ -925,7 +988,7 @@ mod tests {
             );
         }
 
-        cleanup_table(&to_dsn, "mqtt_meters")
+        cleanup_table(&to_dsn, &stable_name)
             .await
             .context("cleanup mqtt_meters after test_mqtt_task_with_tls_cert")?;
 

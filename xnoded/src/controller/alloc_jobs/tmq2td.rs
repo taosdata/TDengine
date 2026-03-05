@@ -61,7 +61,7 @@ pub fn alloc_jobs(
     }
 }
 
-fn update_dsn(mut from: Dsn, topic: &str, concurrency: usize) -> String {
+fn update_dsn(mut from: Dsn, topic: &str, concurrency: usize, _job_index: usize) -> String {
     from.subject = Some(topic.to_string());
     from.set("read_concurrency", concurrency.to_string());
     from.to_string()
@@ -87,7 +87,7 @@ mod tests {
     #[test]
     fn update_dsn_sets_subject_and_concurrency() {
         let dsn = Dsn::from_str("tmq://").unwrap();
-        let updated = update_dsn(dsn, "subj", 5);
+        let updated = update_dsn(dsn, "subj", 5, 0);
         let parsed = Dsn::from_str(&updated).unwrap();
         assert_eq!(parsed.subject.as_deref(), Some("subj"));
         assert_eq!(

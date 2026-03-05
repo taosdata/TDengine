@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::controller::alloc_jobs::source_kafka::{TopicConcurrency, alloc, update_dsn};
+use crate::controller::alloc_jobs::source_kafka::{TopicConcurrency, alloc};
 
 use super::*;
 
@@ -75,6 +75,17 @@ pub fn alloc_jobs(
     } else {
         Ok(AllocatedJobs::Jobs(jobs))
     }
+}
+
+pub fn update_dsn(mut from: Dsn, topic: &str, concurrency: usize, job_index: usize) -> String {
+    from.set("topics", topic.to_string());
+    from.set("read_concurrency", concurrency.to_string());
+    if job_index > 0
+        && let Some(client_id) = from.get("client_id")
+    {
+        from.set("client_id", format!("{client_id}_{job_index}"));
+    }
+    from.to_string()
 }
 
 #[cfg(test)]

@@ -82,26 +82,32 @@ pub fn spawn_task(
             tokio::select! {
                 biased;
                 _ = futs.next(), if !futs.is_empty() => {},
-                res = new_metrics_receiver.changed() => {
-                    if res.is_err() {
-                        break
-                    }
-                    let event = {
-                        new_metrics_receiver.borrow_and_update().clone()
+                res = new_metrics_receiver.recv() => {
+                    let event = match res {
+                        Ok(event) => event,
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                            tracing::warn!("metrics broadcast receiver lagged, missed {n} events");
+                            continue;
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                            break;
+                        }
                     };
                     match event {
-                        Some(MetricsEvent::Insert(task_id, job_id, core_metrics)) => {
+                        MetricsEvent::Insert(task_id, job_id, core_metrics) => {
                             if cancel.run_until_cancelled(metrics_tx.send_async(core_metrics.clone())).await.is_none_or(|v| v.is_err()) {
                                 break
                             }
                             let Some(receiver) = subscribe_task_metrics_watcher(task_id, job_id) else {
-                                break
+                                // Task watcher not yet registered; this can happen in a tight race.
+                                // The task will still send metrics via its own watcher once registered.
+                                continue
                             };
                             let metrics_tx = metrics_tx.clone();
                             let cancel = cancel.child_token();
                             futs.push(recv_metrics_task(metrics_tx, receiver, cancel));
                         },
-                        Some(MetricsEvent::Delete(_, _)) | Some(MetricsEvent::Update(_, _, _)) | None => {},
+                        MetricsEvent::Delete(_, _) | MetricsEvent::Update(_, _, _) => {},
                     }
                 },
                 res = metrics_rx.recv_async() => {

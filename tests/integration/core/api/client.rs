@@ -163,7 +163,7 @@ impl ApiClient {
     /// 默认退避：初始 500ms，最大 10s，最多 20 次。
     const TASK_POLL_INIT: Duration = Duration::from_secs(1);
     const TASK_POLL_MAX: Duration = Duration::from_secs(5);
-    const TASK_POLL_MAX_ATTEMPTS: usize = 20;
+    const TASK_POLL_MAX_ATTEMPTS: usize = 10;
 
     /// 轮询直到任务状态为 `Running`，使用指数退避；超时或达到最大次数时返回错误。
     pub async fn wait_until_running(&self, task_id: u32) -> Result<Task> {
@@ -240,16 +240,14 @@ impl ApiClient {
         expected_rows: u64,
     ) -> Result<serde_json::Value> {
         let mut backoff = RetryBackoff::new(Self::TASK_POLL_INIT, Self::TASK_POLL_MAX);
-        let mut attempt = 0usize;
         loop {
-            attempt += 1;
             let last_written = self
                 .get_task_metrics_written_rows(task_id)
                 .await
                 .context("get task metrics via api")?;
             match last_written {
                 None => {
-                    if attempt >= Self::TASK_POLL_MAX_ATTEMPTS {
+                    if backoff.retries() >= Self::TASK_POLL_MAX_ATTEMPTS {
                         anyhow::bail!(
                             "task {} written_rows did not reach {} after {} attempts (no written_rows in metrics)",
                             task_id,
@@ -267,14 +265,14 @@ impl ApiClient {
                             task_id,
                             written,
                             expected_rows,
-                            attempt
+                            backoff.retries()
                         );
                         return self
                             .get_task_metrics(task_id)
                             .await
                             .context("get task metrics via api");
                     }
-                    if attempt >= Self::TASK_POLL_MAX_ATTEMPTS {
+                    if backoff.retries() > Self::TASK_POLL_MAX_ATTEMPTS {
                         anyhow::bail!(
                             "task {} written_rows did not reach {} after {} attempts (last written_rows: {})",
                             task_id,

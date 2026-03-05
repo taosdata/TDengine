@@ -101,7 +101,7 @@ async fn ipc_stream_writer(
             notify.notify_waiters();
         }
     });
-    notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+    notify_sender.send(crate::serve::scheduler::agent::AgentNotify::AgentActivity(
         agent_id,
         Activity::ipc_started(agent_id),
     ))?;
@@ -495,7 +495,7 @@ async fn spawn_stream_writer(
                 }
             }
             notify_sender
-                .send(AgentNotify::TaskActivity(
+                .send(AgentNotify::AgentActivity(
                     agent_id,
                     Activity::ipc_finished(task_id, job_id),
                 ))

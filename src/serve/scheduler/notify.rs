@@ -74,11 +74,19 @@ pub async fn notify_by_job_id(
                     let (task_id, job_id) = task_job_id;
                     if to_remove {
                         tracing::info!("Removing task {:?}", job_id);
-                        if let Some(task) = tasks.remove_by_schedule_id(&sched_id)
-                            && task.task.task.via.is_some()
-                        {
+                        // Remove agent task (sender) first, before removing the TaskJob
+                        // (which holds the receiver). This ensures the
+                        // agent_activities_listener sees the sender drop and exits
+                        // cleanly, avoiding a race where the receiver is dropped while
+                        // the sender still exists in the agent_tasks map.
+                        let is_agent_task = tasks
+                            .get_by_schedule_id(&sched_id)
+                            .map(|t| t.task.task.via.is_some())
+                            .unwrap_or(false);
+                        if is_agent_task {
                             global.agent_worker.remove_task(task_id, job_id).await;
                         }
+                        tasks.remove_by_schedule_id(&sched_id);
                     }
                 }
                 .in_current_span(),
