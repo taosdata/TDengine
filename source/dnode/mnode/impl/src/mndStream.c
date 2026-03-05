@@ -1011,11 +1011,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   if ((code = grantCheck(TSDB_GRANT_STREAMS)) < 0) {
     goto _OVER;
   }
-  
-#ifdef WINDOWS
-  code = TSDB_CODE_MND_INVALID_PLATFORM;
-  goto _OVER;
-#endif
 
   pCreate = taosMemoryCalloc(1, sizeof(SCMCreateStreamReq));
   TSDB_CHECK_NULL(pCreate, code, lino, _OVER, terrno);

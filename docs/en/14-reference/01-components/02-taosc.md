@@ -19,11 +19,11 @@ The following configuration parameters only take effect for Native connections.
 |compressMsgSize       |                  |Supported, effective immediately  |Whether to compress RPC messages; -1: no messages are compressed; 0: all messages are compressed; N (N>0): only messages larger than N bytes are compressed; default value -1|
 |shellActivityTimer    |                  |Not supported                     |The duration in seconds for the client to send heartbeats to mnode, range 1-120, default value 3|
 |numOfRpcSessions      |                  |Supported, effective immediately  |Maximum number of connections supported by RPC, range 100-100000, default value 30000|
-|numOfRpcThreads       |                  |Not supported                     |Number of threads for RPC to send and receive data, range 1-50, default value is half of the CPU cores|
-|numOfTaskQueueThreads |                  |Not supported                     |Number of threads for the client to handle RPC messages, range 4-16, default value is half of the CPU cores|
+|numOfRpcThreads       |                  |Not supported                     |Number of threads for RPC to send and receive data, range 1-1024, default value is half of the CPU cores (limited to [2, 100] on Linux and [2, 4] on Windows)|
+|numOfTaskQueueThreads |                  |Not supported                     |Number of threads for the client to handle RPC messages, range 4-1024, default value is twice the CPU cores|
 |timeToGetAvailableConn| Cancelled after 3.3.4.*   |Not supported                     |The longest waiting time to get an available connection, range 10-50000000, in milliseconds, default value 500000|
 |useAdapter            |          |Supported, effective immediately  |Internal parameter, whether to use taosadapter, affects CSV file import|
-|shareConnLimit        |Added in 3.3.4.0|Not supported                     |Internal parameter, the number of queries a link can share, range 1-256, default value 10|
+|shareConnLimit        |Added in 3.3.4.0|Not supported                     |Internal parameter, the number of queries a link can share, range 1-512, default value 10 (Linux/macOS) or 1 (Windows)|
 |readTimeout           |Added in 3.3.4.0|Not supported                     |Internal parameter, minimum timeout, range 64-604800, in seconds, default value 900|
 | maxRetryWaitTime     | v3.3.4.0                        | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 20000 |
 
@@ -59,8 +59,8 @@ The following configuration parameters only take effect for Native connections.
 | smlTagName                      |                   |Supported, effective immediately  | Default tag name when schemaless tag is empty, default value "_tag_null"                                                |
 | smlTsDefaultName                |                   |Supported, effective immediately  | Configuration for setting the time column name in schemaless auto table creation, default value "_ts"                   |
 | smlDot2Underline                |                   |Supported, effective immediately  | Converts dots in supertable names to underscores in schemaless                                                          |
-| maxInsertBatchRows              |                   |Supported, effective immediately  | Internal parameter, maximum number of rows per batch insert                                                             |
-| maxSQLLength                    |v3.3.6.34, v3.3.8.8|Supported, effective immediately  | Maximum length of a single SQL statement; default value: 1,048,576; minimum value: 1,048,576; maximum value: 67,108,864 |
+| maxInsertBatchRows              |                   |Supported, effective immediately  | Internal parameter, maximum number of rows per batch insert, range 1-INT32_MAX, default value 32767 (Linux/macOS) or 1000 (Windows)|
+| maxSQLLength                    |v3.3.6.34, v3.3.8.8|Supported, effective immediately  | Maximum length of a single SQL statement; range 1048576-67108864, default value: 1,048,576 |
 
 ### Region Related
 

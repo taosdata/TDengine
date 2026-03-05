@@ -291,8 +291,12 @@ class TestCase:
         if not (totalConsumeRows == expectrowcnt):
             tdLog.exit("tmq consume rows error!")
 
-        tdCom.killProcessor("tmq_sim")
         tdSql.query("drop topic %s"%topicFromStb1)
+        if (platform.system().lower() == 'windows'):
+            os.system("TASKKILL /F /IM tmq_sim.exe")
+        else:
+            os.system('unset LD_PRELOAD; pkill tmq_sim')
+
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_error(self):
@@ -314,8 +318,6 @@ class TestCase:
             - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_tmqError.py
 
         """
-        tdSql.execute("alter dnode 1 'debugflag 135'")
-
         tdSql.prepare()
 
         buildPath = tdCom.getBuildPath()

@@ -4,6 +4,10 @@ from new_test_framework.utils import tdLog, tdSql, tdDnodes
 from new_test_framework.utils.sqlset import TDSetSql
 from decimal import Decimal
 import os
+import random
+import string
+import taos
+import threading
 import time
 import shutil
 
@@ -20,6 +24,7 @@ class TestCase:
     hostPrimary = os.path.join(hostPath, "taos01")
     mountPath = os.path.join(dnode1Path, "mnt")
     mountPrimary = os.path.join(mountPath, "taos01")
+    localSSPath = os.path.join(TDinternal, "sim", "localSS") # shared storage path for local test
     clientCfgDict = {'debugFlag': 135}
     updatecfgDict = {
         "debugFlag"        : 135,
@@ -30,7 +35,10 @@ class TestCase:
                                 f"%s%staos10 1 0" % (hostPath, os.sep),
                                 f"%s%staos11 1 0" % (hostPath, os.sep),
                                 f"%s%staos12 1 0" % (hostPath, os.sep)],
-        'clientCfg'        : clientCfgDict
+        'clientCfg'        : clientCfgDict,
+        'ssAccessString'   : f"fs:baseDir={localSSPath}",
+        'ssEnabled'        : 1,
+        'ssUploadDelaySec' : 2
     }
 
     def setup_cls(cls):
@@ -247,15 +255,17 @@ class TestCase:
         tdSql.checkData(2, 7, 5)
         tdSql.checkData(2, 8, 5)
 
-    def s5_0_wait_trim_done(self):
+    def s5_0_wait_task_done(self, sql = "show retentions", expectRows = 0, task = "trim/rollup", nRetry = 300):
         i = 0
         while True:
-            tdSql.query("show retentions")
-            if tdSql.getRows() == 0:
+            tdSql.query(sql)
+            if tdSql.getRows() == expectRows:
                 break
             time.sleep(1)
             i += 1
-            tdLog.info(f"wait for trim/rollup done, {i} second(s) elapsed")
+            if(i > nRetry):
+                raise TimeoutError(f"wait for {task} done timeout after {nRetry} seconds")
+            tdLog.info(f"wait for {task} done, {i} second(s) elapsed")
 
     def s5_0_trim_db(self, tsdbOpType = 'trim'):
         self.s0_reset_test_env()
@@ -273,7 +283,7 @@ class TestCase:
         tdSql.query(f"show retention {tdSql.queryResult[0][0]}")
         tdSql.error("trim database d0", expectErrInfo=f"Trim or rollup already exist", fullMatched=False)
         tdSql.error("rollup database d0", expectErrInfo=f"Trim or rollup already exist", fullMatched=False)
-        self.s5_0_wait_trim_done()
+        self.s5_0_wait_task_done()
         self.s5_0_check_rollup_result()
 
     def s5_trim_db(self):
@@ -289,7 +299,7 @@ class TestCase:
         tdSql.execute("trim database d0")
         tdSql.query("show retentions")
         tdSql.checkRows(1)
-        self.s5_0_wait_trim_done()
+        self.s5_0_wait_task_done()
         # trim has no effect since no fset retention happen 
         tdSql.query("select * from d0.stb0")
         tdSql.checkRows(7)
@@ -299,7 +309,7 @@ class TestCase:
         tdSql.execute("trim database d0")
         tdSql.query("show retentions")
         tdSql.checkRows(1)
-        self.s5_0_wait_trim_done()
+        self.s5_0_wait_task_done()
         tdSql.query("select * from d0.stb0")
         tdSql.checkRows(2)
         tdSql.query("select * from d0.stb1")
@@ -350,7 +360,7 @@ class TestCase:
         tdSql.execute("rollup database d0")
         tdSql.query("show retentions")
         tdSql.checkRows(1)
-        self.s5_0_wait_trim_done()
+        self.s5_0_wait_task_done()
         # rollup has effect since new commit happen after last rollup
         tdSql.query("select * from d0.stb0")
         tdSql.checkRows(6)
@@ -371,7 +381,7 @@ class TestCase:
         tdSql.execute("rollup database d0")
         tdSql.query("show retentions")
         tdSql.checkRows(1)
-        self.s5_0_wait_trim_done()
+        self.s5_0_wait_task_done()
         tdSql.query("select * from d0.stb0")
         tdSql.checkRows(2)
         tdSql.query("select * from d0.stb1")
@@ -426,7 +436,7 @@ class TestCase:
         tdSql.execute(f"rollup d0.vgroups in (%d,%d) start with '2025-12-30 10:00:00.000'" % (tdSql.queryResult[0][0], tdSql.queryResult[1][0]))
         tdSql.query("show retentions")
         tdSql.checkRows(1)
-        self.s5_0_wait_trim_done()
+        self.s5_0_wait_task_done()
         # rollup has no effect since the start time is later than any data
         tdSql.query("select * from d0.stb0")
         tdSql.checkRows(7)
@@ -435,7 +445,7 @@ class TestCase:
         tdSql.execute(f"rollup vgroups in (%d,%d) start with '2024-10-01 08:00:00.000'" % (tdSql.queryResult[0][0], tdSql.queryResult[1][0]))
         tdSql.query("show retentions")
         tdSql.checkRows(1)
-        self.s5_0_wait_trim_done()
+        self.s5_0_wait_task_done()
         # rollup has effect since new commit happen after last rollup
         tdSql.query("select * from d0.stb0")
         tdSql.checkRows(6)
@@ -458,7 +468,7 @@ class TestCase:
         tdSql.execute(f"rollup vgroups in (%d,%d)" % (tdSql.queryResult[0][0], tdSql.queryResult[1][0]))
         tdSql.query("show retentions")
         tdSql.checkRows(1)
-        self.s5_0_wait_trim_done()
+        self.s5_0_wait_task_done()
         tdSql.query("select * from d0.stb0")
         tdSql.checkRows(2)
         tdSql.query("select * from d0.stb1")
@@ -554,7 +564,7 @@ class TestCase:
         # rollup rsma and check the result
         tdSql.execute("alter database d0 keep 30d,36500d")
         tdSql.execute("rollup database d0")
-        self.s5_0_wait_trim_done()
+        self.s5_0_wait_task_done()
         tdSql.query("select * from d0.stb0")
         tdSql.checkRows(6)
         tdSql.query("select * from d0.stb1")
@@ -616,7 +626,7 @@ class TestCase:
         # rollup again to 2nd level
         tdSql.execute("alter database d0 keep 30d,60d,36500d")
         tdSql.execute("rollup database d0")
-        self.s5_0_wait_trim_done()
+        self.s5_0_wait_task_done()
         tdSql.query("select * from d0.stb0")
         tdSql.checkRows(2)
         tdSql.query("select * from d0.stb1")
@@ -649,7 +659,7 @@ class TestCase:
         tdSql.execute("flush database d0")
         time.sleep(3) # ensure commit is done
         tdSql.execute("rollup database d0")
-        self.s5_0_wait_trim_done()
+        self.s5_0_wait_task_done()
         tdSql.query("select * from d0.stb0")
         tdSql.checkRows(2)
         tdSql.query("select ts,c0,c1,c2,ST_AsText(c3),c4,c5 from d0.ctb0")
@@ -667,7 +677,7 @@ class TestCase:
         tdSql.execute("flush database d0")
         time.sleep(3) # ensure commit is done
         tdSql.execute("rollup database d0")
-        self.s5_0_wait_trim_done()
+        self.s5_0_wait_task_done()
         tdSql.query("select * from d0.stb0")
         tdSql.checkRows(2)
         tdSql.query("select ts,c0,c1,c2,c4,c5 from d0.ctb0")
@@ -693,7 +703,7 @@ class TestCase:
         tdSql.execute("flush database d0")
         time.sleep(3) # ensure commit is done
         tdSql.execute("rollup database d0")
-        self.s5_0_wait_trim_done()
+        self.s5_0_wait_task_done()
         tdSql.query("select * from d0.stb1")
         tdSql.checkRows(1)
         tdSql.query("select * from d0.ctb11")
@@ -735,7 +745,7 @@ class TestCase:
         # rollup rsma and check the result
         tdSql.execute("alter database d0 keep 30d,73000d")
         tdSql.execute("rollup database d0")
-        self.s5_0_wait_trim_done()
+        self.s5_0_wait_task_done()
         tdSql.query("select * from d0.stb0")
         tdSql.checkRows(6)
         tdSql.query("select ts,c0,c1,c2,ST_AsText(c3),c4 from d0.ctb0")
@@ -757,6 +767,127 @@ class TestCase:
                 tdSql.checkData(row, 5, c4)
             row_offset += len(expected_data)
 
+    def parallel_insert(self, db_name, table_name, ts_start, n_rows, binary_len, num_threads=10):        
+        def insert_rows(start_idx, end_idx):
+            conn = taos.connect()
+            cursor = conn.cursor()
+            cursor.execute(f"use {db_name}")
+            binary_data_cache = [''.join(random.choices(string.ascii_letters + string.digits, k=binary_len)) for _ in range(20)]
+            for i in range(start_idx, end_idx):
+                ts = ts_start + i * 1000  # interval 1s (1000ms)
+                binary_data = random.choice(binary_data_cache)
+                cursor.execute(f"insert into {table_name} values({ts}, {i}, '{binary_data}')")
+            cursor.close()
+            conn.close()
+        
+        rows_per_thread = n_rows // num_threads
+        threads = []
+        for t_idx in range(num_threads):
+            start_idx = t_idx * rows_per_thread
+            end_idx = start_idx + rows_per_thread if t_idx < num_threads - 1 else n_rows
+            t = threading.Thread(target=insert_rows, args=(start_idx, end_idx))
+            threads.append(t)
+            t.start()
+        for t in threads:
+            t.join()
+
+    def s10_check_localSS_content(self, path, min_size_mb=16):
+        total_size = sum(os.path.getsize(os.path.join(dp, f)) for dp, dn, fn in os.walk(path) for f in fn)
+        min_size = min_size_mb * 1024 * 1024
+        if total_size < min_size:
+            raise Exception(f"directory {path} size {total_size} bytes is less than the required minimum of {min_size_mb}MB ({min_size} bytes)")
+        tdLog.info(f"directory {path} size: {total_size} bytes ({total_size / (1024 * 1024):.2f} MB)")
+
+    def s10_ssmigrate_without_rsma(self):
+        tdLog.info("check ssmigrate without rsma")
+        tdSql.execute("alter all dnodes 'querySsMigrateIntervalSec 1'")
+        tdSql.execute("drop database if exists d0")
+        tdSql.execute("create database if not exists d0 replica 1 keep 73000d stt_trigger 1")
+        tdSql.execute("use d0")
+        tdSql.execute("create stable if not exists stb0 (ts timestamp, c0 int, c2 binary(40960)) tags(t0 int)")
+        tdSql.execute("create table if not exists ctb0 using stb0 tags(0)")
+        self.parallel_insert(db_name="d0", table_name="ctb0", ts_start=1601510400000, n_rows=1000, binary_len=40960, num_threads=20)
+        tdSql.execute("flush database d0")
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1000)
+        if os.path.exists(self.localSSPath):
+            shutil.rmtree(self.localSSPath)
+        os.makedirs(self.localSSPath, exist_ok=True)
+        time.sleep(10) # wait for upload delay take effect
+        tdSql.execute("ssmigrate database d0")
+        tdSql.query("show ssmigrates")
+        tdSql.checkRows(1)
+        self.s5_0_wait_task_done(sql="show ssmigrates", task="ssmigrate")
+        self.s10_check_localSS_content(self.localSSPath, min_size_mb=16)
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1000)
+        tdSql.query("select * from d0.ctb0 limit 1")
+        tdSql.checkRows(1)
+        tdSql.query("select * from d0.stb0 limit 1")
+        tdSql.checkRows(1)
+
+    def s11_ssmigrate_with_rsma(self):
+        tdLog.info("check ssmigrate rsma")
+        tdSql.execute("alter all dnodes 'querySsMigrateIntervalSec 1'")
+        tdSql.execute("alter all dnodes 'queryTrimIntervalSec 1'")
+        tdSql.execute("drop database if exists d0")
+        tdSql.execute("create database if not exists d0 replica 1 keep 73000d stt_trigger 1")
+        tdSql.execute("use d0")
+        tdSql.execute("create stable if not exists stb0 (ts timestamp, c0 int, c2 binary(40960)) tags(t0 int)")
+        tdSql.execute("create table if not exists ctb0 using stb0 tags(0)")
+        self.parallel_insert(db_name="d0", table_name="ctb0", ts_start=1601510400000, n_rows=1000, binary_len=40960, num_threads=20)
+        tdSql.execute("flush database d0")
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1000)
+        if os.path.exists(self.localSSPath):
+            shutil.rmtree(self.localSSPath)
+        os.makedirs(self.localSSPath, exist_ok=True)
+        tdSql.execute("alter database d0 keep 30d,36500d")
+        tdSql.execute("create rsma rsma_ssmigrate on d0.stb0 function(min(c0)) interval(2s)")
+        time.sleep(10) # wait for upload delay take effect
+        tdSql.execute("ssmigrate database d0")
+        tdSql.query("show ssmigrates")
+        tdSql.checkRows(1)
+        self.s5_0_wait_task_done(sql="show ssmigrates", task="ssmigrate")
+        self.s10_check_localSS_content(self.localSSPath, min_size_mb=0) # not upload to localSS since compacted data size is too small
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 500) # the data insert interval is 1s, and rsma downsampling interval is 2s
+        tdSql.query("select * from d0.ctb0 limit 1")
+        tdSql.checkRows(1)
+        tdSql.query("select * from d0.stb0 limit 1")
+        tdSql.checkRows(1)
+        tdLog.info("insert more data to trigger ssmigrate upload to localSS")
+        self.parallel_insert(db_name="d0", table_name="ctb0", ts_start=1601520400000, n_rows=1000, binary_len=40960, num_threads=20)
+        tdSql.execute("flush database d0")
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1500)
+        time.sleep(10) # wait for upload delay take effect
+        tdLog.info("execute ssmigrate again after more data inserted")
+        tdSql.execute("ssmigrate database d0")
+        tdSql.query("show ssmigrates")
+        tdSql.checkRows(1)
+        self.s5_0_wait_task_done(sql="show ssmigrates", task="ssmigrate")
+        self.s10_check_localSS_content(self.localSSPath, min_size_mb=16) # uploaded to localSS since more data inserted
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1500) # 2nd ssmigrate database d0 doesn't trigger the rollup compact since the lcn is 0. In the real world, if ss is configured to migrate data from the highest storage level and the data at highest level has no out-of-order issues, this problem is less likely to occur.
+        tdSql.query("select count(*) from d0.ctb0")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1500)
+        tdSql.query("select * from d0.ctb0 limit 1")
+        tdSql.checkRows(1)
+        tdSql.query("select * from d0.stb0 limit 1")
+        tdSql.checkRows(1)
+        tdSql.query("show d0.tables")
+        tdSql.checkRows(1)
+        tdSql.query("show d0.stables")
+        tdSql.checkRows(1)
+
     def test_rsma(self):
         """RSMAs basic
         
@@ -775,6 +906,7 @@ class TestCase:
         13. Retention task monitor.
         14. Rollup automatically when execute: trim database.
         15. Rollup manually when execute: rollup database.
+        16. SSMigrate with/without rsma and verify the result.
 
         Catalog:
             - Rollup SMA:Create/Drop/Show/Query/Trim/Rollup
@@ -788,6 +920,7 @@ class TestCase:
         History:
             - 2025-09-25: Initial version from Kaili Xu(TS-6113).
             - 2025-11-04: Check negative ts from Kaili Xu(TD-38485).
+            - 2026-03-04: Add ssmigrate test with/without rsma from Kaili Xu(6841578238).
         """
         self.s1_create_db_table()
         self.s2_create_rsma()
@@ -798,5 +931,7 @@ class TestCase:
         self.s7_rollup_vgroups()
         self.s8_decimal_composite_key_add_drop_column()
         self.s9_negative_ts()
+        self.s10_ssmigrate_without_rsma()
+        self.s11_ssmigrate_with_rsma()
 
 

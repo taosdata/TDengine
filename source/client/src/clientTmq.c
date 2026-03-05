@@ -297,6 +297,8 @@ typedef struct {
   STqOffsetVal seekOffset;
   int64_t      numOfRows;
   int32_t      vgStatus;
+  int64_t      walVerBegin;
+  int64_t      walVerEnd;
 } SVgroupSaveInfo;
 
 static   TdThreadOnce   tmqInit = PTHREAD_ONCE_INIT;  // initialize only once
@@ -1335,6 +1337,8 @@ static void initClientTopicFromRsp(SMqClientTopic* pTopic, SMqSubTopicEp* pTopic
       tOffsetCopy(&clientVg.offsetInfo.endOffset, &pInfo->currentOffset);
       tOffsetCopy(&clientVg.offsetInfo.committedOffset, &pInfo->commitOffset);
       tOffsetCopy(&clientVg.offsetInfo.beginOffset, &pInfo->seekOffset);
+      clientVg.offsetInfo.walVerBegin = pInfo->walVerBegin;
+      clientVg.offsetInfo.walVerEnd = pInfo->walVerEnd;
     } else {
       clientVg.offsetInfo.endOffset = offsetNew;
       clientVg.offsetInfo.committedOffset = offsetNew;
@@ -1381,7 +1385,10 @@ static void buildNewTopicList(tmq_t* tmq, SArray* newTopics, const SMqAskEpRsp* 
             .seekOffset = pVgCur->offsetInfo.beginOffset,
             .commitOffset = pVgCur->offsetInfo.committedOffset,
             .numOfRows = pVgCur->numOfRows,
-            .vgStatus = pVgCur->vgStatus};
+            .vgStatus = pVgCur->vgStatus,
+            .walVerBegin = pVgCur->offsetInfo.walVerBegin,
+            .walVerEnd = pVgCur->offsetInfo.walVerEnd
+        };
         if (taosHashPut(pVgOffsetHashMap, vgKey, strlen(vgKey), &info, sizeof(SVgroupSaveInfo)) != 0) {
           tqErrorC("consumer:0x%" PRIx64 ", failed to put vg:%d into hashmap", tmq->consumerId, pVgCur->vgId);
         }

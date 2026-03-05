@@ -1585,6 +1585,21 @@ bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm);
 
 typedef struct {
   int8_t createType;
+
+  int8_t hasSessionPerUser;
+  int8_t hasConnectTime;
+  int8_t hasConnectIdleTime;
+  int8_t hasCallPerSession;
+  int8_t hasVnodePerCall;
+  int8_t hasFailedLoginAttempts;
+  int8_t hasPasswordLifeTime;
+  int8_t hasPasswordReuseTime;
+  int8_t hasPasswordReuseMax;
+  int8_t hasPasswordLockTime;
+  int8_t hasPasswordGraceTime;
+  int8_t hasInactiveAccountTime;
+  int8_t hasAllowTokenNum;
+
   int8_t superUser;  // denote if it is a super user or not
   int8_t ignoreExists;
 

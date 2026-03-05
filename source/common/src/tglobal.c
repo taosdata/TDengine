@@ -61,10 +61,10 @@ EEncryptScope tsiEncryptScope = 0;
 char          tsEncryptKey[17] = {0};
 int8_t        tsEnableStrongPassword = 1;
 
-#ifdef TD_ALLOW_DEFAULT_PASSWORD
-int8_t        tsAllowDefaultPassword = 1;
+#ifdef TD_ENABLE_ADVANCED_SECURITY
+int8_t        tsEnableAdvancedSecurity = 1;
 #else
-int8_t        tsAllowDefaultPassword = 0;
+int8_t        tsEnableAdvancedSecurity = 0;
 #endif
 
 char          tsEncryptPassAlgorithm[16] = {0};
@@ -449,6 +449,7 @@ int32_t tsSsBlockSize = -1;        // number of tsdb pages (4096). note: some re
 int32_t tsSsBlockCacheSize = 16;   // number of blocks
 int32_t tsSsPageCacheSize = 4096;  // number of pages
 int32_t tsSsUploadDelaySec = 60;
+int32_t tsQuerySsMigrateIntervalSec = 10;  // interval of query ssmigrate in all vgroups
 
 bool tsExperimental = true;
 
@@ -951,7 +952,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptScope", tsEncryptScope, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "encryptExtDir", tsEncryptExtDir, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableStrongPassword", tsEnableStrongPassword, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "allowDefaultPassword", tsAllowDefaultPassword, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableAdvancedSecurity", tsEnableAdvancedSecurity, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptPassAlgorithm", tsEncryptPassAlgorithm, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
@@ -1064,6 +1065,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ttlFlushThreshold", tsTtlFlushThreshold, -1, 1000000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "trimVDbIntervalSec", tsTrimVDbIntervalSec, 1, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryTrimIntervalSec", tsQueryTrimIntervalSec, 1, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "querySsMigrateIntervalSec", tsQuerySsMigrateIntervalSec, 1, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "uptimeInterval", tsUptimeInterval, 1, 100000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryRsmaTolerance", tsQueryRsmaTolerance, 0, 900000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "timeseriesThreshold", tsTimeSeriesThreshold, 0, 2000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
@@ -1721,8 +1723,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableStrongPassword");
   tsEnableStrongPassword = pItem->i32;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "allowDefaultPassword");
-  tsAllowDefaultPassword = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableAdvancedSecurity");
+  tsEnableAdvancedSecurity = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "encryptPassAlgorithm");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, 16));
@@ -1951,6 +1953,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "queryTrimIntervalSec");
   tsQueryTrimIntervalSec = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "querySsMigrateIntervalSec");
+  tsQuerySsMigrateIntervalSec = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "uptimeInterval");
   tsUptimeInterval = pItem->i32;
@@ -2974,6 +2979,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"transPullupInterval", &tsTransPullupInterval},
                                          {"compactPullupInterval", &tsCompactPullupInterval},
                                          {"queryTrimIntervalSec", &tsQueryTrimIntervalSec},
+                                         {"querySsMigrateIntervalSec", &tsQuerySsMigrateIntervalSec},
                                          {"trimVDbIntervalSec", &tsTrimVDbIntervalSec},
                                          {"ttlBatchDropNum", &tsTtlBatchDropNum},
                                          {"ttlFlushThreshold", &tsTtlFlushThreshold},
@@ -3000,6 +3006,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"arbSetAssignedTimeoutMs", &tsArbSetAssignedTimeoutMs},
                                          {"queryNoFetchTimeoutSec", &tsQueryNoFetchTimeoutSec},
                                          {"enableStrongPassword", &tsEnableStrongPassword},
+                                         {"enableAdvancedSecurity", &tsEnableAdvancedSecurity},
                                          {"enableMetrics", &tsEnableMetrics},
                                          {"metricsInterval", &tsMetricsInterval},
                                          {"metricsLevel", &tsMetricsLevel},
