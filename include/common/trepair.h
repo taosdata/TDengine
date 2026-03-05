@@ -123,6 +123,17 @@ typedef struct {
   char    corruptedBlockPaths[REPAIR_TSDB_MAX_REPORTED_BLOCKS][PATH_MAX];
 } SRepairTsdbBlockReport;
 
+typedef struct {
+  bool    skipBackupPreparation;
+  bool    resumeAtModeStep;
+  int32_t backupStartVnodeIndex;
+  int32_t replicaStartVnodeIndex;
+  int32_t copyStartVnodeIndex;
+  int32_t walStartVnodeIndex;
+  int32_t tsdbStartVnodeIndex;
+  int32_t metaStartVnodeIndex;
+} SRepairResumePlan;
+
 int32_t tRepairParseNodeType(const char *pNodeType, ERepairNodeType *pParsedNodeType);
 int32_t tRepairParseFileType(const char *pFileType, ERepairFileType *pParsedFileType);
 int32_t tRepairParseMode(const char *pMode, ERepairMode *pParsedMode);
@@ -179,7 +190,10 @@ int32_t tRepairWriteSessionState(const SRepairCtx *pCtx, const char *statePath, 
                                  int32_t doneVnodes, int32_t totalVnodes);
 int32_t tRepairTryResumeSession(SRepairCtx *pCtx, const char *dataDir, char *sessionDir, int32_t sessionDirSize,
                                 char *logPath, int32_t logPathSize, char *statePath, int32_t statePathSize,
-                                int32_t *pDoneVnodes, int32_t *pTotalVnodes, bool *pResumed);
+                                int32_t *pDoneVnodes, int32_t *pTotalVnodes, bool *pResumed, char *resumeStep,
+                                int32_t resumeStepSize);
+int32_t tRepairResolveResumePlan(ERepairNodeType nodeType, const char *resumeStep, int32_t doneVnodes,
+                                 int32_t vnodeIdNum, SRepairResumePlan *pPlan);
 int32_t tRepairNeedReportProgress(int64_t nowMs, int64_t intervalMs, int64_t *pLastReportMs, bool *pNeedReport);
 int32_t tRepairBuildProgressLine(const SRepairCtx *pCtx, const char *step, int32_t doneVnodes, int32_t totalVnodes,
                                  char *line, int32_t lineSize);

@@ -596,7 +596,7 @@ static void taosCleanupArgs() {
   if (global.envCmd != NULL) taosMemoryFreeClear(global.envCmd);
 }
 
-static void dmRollbackReplicaArtifacts(int32_t degradedVnodes, const char *restoreHintPath) {
+static void dmRollbackReplicaArtifacts(int32_t startVnodeIndex, int32_t degradedVnodes, const char *restoreHintPath) {
   if (restoreHintPath != NULL && restoreHintPath[0] != '\0' && taosCheckExistFile(restoreHintPath)) {
     if (taosRemoveFile(restoreHintPath) != 0) {
       dError("failed to remove replica restore hint:%s since %s", restoreHintPath,
@@ -607,7 +607,9 @@ static void dmRollbackReplicaArtifacts(int32_t degradedVnodes, const char *resto
     }
   }
 
-  for (int32_t i = degradedVnodes - 1; i >= 0 && i < global.repairCtx.vnodeIdNum; --i) {
+  int32_t firstVnodeIndex = startVnodeIndex;
+  int32_t lastVnodeIndex = startVnodeIndex + degradedVnodes - 1;
+  for (int32_t i = lastVnodeIndex; i >= firstVnodeIndex && i < global.repairCtx.vnodeIdNum; --i) {
     int32_t vnodeId = global.repairCtx.vnodeIds[i];
     int32_t code = tRepairRollbackReplicaVnode(&global.repairCtx, tsDataDir, vnodeId);
     if (code != TSDB_CODE_SUCCESS) {
@@ -626,8 +628,9 @@ static void dmRollbackReplicaArtifacts(int32_t degradedVnodes, const char *resto
   }
 }
 
-static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressIntervalMs, int64_t *pLastProgressReportMs,
-                                  bool *pNeedReport, char *progressLine, int32_t progressLineSize) {
+static int32_t dmRunReplicaRepair(int32_t totalVnodes, int32_t startVnodeIndex, int64_t repairProgressIntervalMs,
+                                  int64_t *pLastProgressReportMs, bool *pNeedReport, char *progressLine,
+                                  int32_t progressLineSize) {
   if (pLastProgressReportMs == NULL || pNeedReport == NULL || progressLine == NULL || progressLineSize <= 0) {
     return TSDB_CODE_INVALID_CFG;
   }
@@ -643,6 +646,9 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
 
   if (!needRunReplicaRepair) {
     return TSDB_CODE_SUCCESS;
+  }
+  if (startVnodeIndex < 0 || startVnodeIndex > global.repairCtx.vnodeIdNum) {
+    return TSDB_CODE_INVALID_CFG;
   }
 
   char dispatchLog[PATH_MAX] = {0};
@@ -661,8 +667,9 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
   }
 
   char    restoreHintPath[PATH_MAX] = {0};
-  int32_t replicaDoneVnodes = 0;
-  for (int32_t i = 0; i < global.repairCtx.vnodeIdNum; ++i) {
+  int32_t replicaDoneVnodes = startVnodeIndex;
+  int32_t degradedVnodes = 0;
+  for (int32_t i = startVnodeIndex; i < global.repairCtx.vnodeIdNum; ++i) {
     int32_t vnodeId = global.repairCtx.vnodeIds[i];
     char    markerPath[PATH_MAX] = {0};
 
@@ -672,7 +679,7 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
     if (code != TSDB_CODE_SUCCESS) {
       dError("failed to write replica repair state for vnode:%d since %s", vnodeId, tstrerror(code));
       printf("failed repair replica scheduling: %s\n", tstrerror(code));
-      dmRollbackReplicaArtifacts(replicaDoneVnodes, restoreHintPath);
+      dmRollbackReplicaArtifacts(startVnodeIndex, degradedVnodes, restoreHintPath);
       return TSDB_CODE_INVALID_CFG;
     }
 
@@ -680,11 +687,12 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
     if (code != TSDB_CODE_SUCCESS) {
       dError("failed to degrade local replica vnode:%d since %s", vnodeId, tstrerror(code));
       printf("failed repair replica scheduling: %s\n", tstrerror(code));
-      dmRollbackReplicaArtifacts(replicaDoneVnodes, restoreHintPath);
+      dmRollbackReplicaArtifacts(startVnodeIndex, degradedVnodes, restoreHintPath);
       return TSDB_CODE_INVALID_CFG;
     }
 
     ++replicaDoneVnodes;
+    ++degradedVnodes;
 
     char detailLog[PATH_MAX * 2] = {0};
     int32_t detailLogLen = tsnprintf(detailLog, sizeof(detailLog),
@@ -700,7 +708,7 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
     if (code != TSDB_CODE_SUCCESS) {
       dError("failed to append replica degrade log for vnode:%d since %s", vnodeId, tstrerror(code));
       printf("failed repair replica scheduling: %s\n", tstrerror(code));
-      dmRollbackReplicaArtifacts(replicaDoneVnodes, restoreHintPath);
+      dmRollbackReplicaArtifacts(startVnodeIndex, degradedVnodes, restoreHintPath);
       return TSDB_CODE_INVALID_CFG;
     }
 
@@ -710,7 +718,7 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
     if (code != TSDB_CODE_SUCCESS) {
       dError("failed to update replica repair state for vnode:%d since %s", vnodeId, tstrerror(code));
       printf("failed repair replica scheduling: %s\n", tstrerror(code));
-      dmRollbackReplicaArtifacts(replicaDoneVnodes, restoreHintPath);
+      dmRollbackReplicaArtifacts(startVnodeIndex, degradedVnodes, restoreHintPath);
       return TSDB_CODE_INVALID_CFG;
     }
 
@@ -718,7 +726,7 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
     if (code != TSDB_CODE_SUCCESS) {
       dError("failed to update replica repair progress interval for vnode:%d since %s", vnodeId, tstrerror(code));
       printf("failed repair replica scheduling: %s\n", tstrerror(code));
-      dmRollbackReplicaArtifacts(replicaDoneVnodes, restoreHintPath);
+      dmRollbackReplicaArtifacts(startVnodeIndex, degradedVnodes, restoreHintPath);
       return TSDB_CODE_INVALID_CFG;
     }
 
@@ -729,7 +737,7 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
       if (code != TSDB_CODE_SUCCESS) {
         dError("failed to build replica repair progress line for vnode:%d since %s", vnodeId, tstrerror(code));
         printf("failed repair replica scheduling: %s\n", tstrerror(code));
-        dmRollbackReplicaArtifacts(replicaDoneVnodes, restoreHintPath);
+        dmRollbackReplicaArtifacts(startVnodeIndex, degradedVnodes, restoreHintPath);
         return TSDB_CODE_INVALID_CFG;
       }
 
@@ -739,7 +747,7 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
       if (code != TSDB_CODE_SUCCESS) {
         dError("failed to append replica repair progress log for vnode:%d since %s", vnodeId, tstrerror(code));
         printf("failed repair replica scheduling: %s\n", tstrerror(code));
-        dmRollbackReplicaArtifacts(replicaDoneVnodes, restoreHintPath);
+        dmRollbackReplicaArtifacts(startVnodeIndex, degradedVnodes, restoreHintPath);
         return TSDB_CODE_INVALID_CFG;
       }
     }
@@ -749,7 +757,7 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
   if (code != TSDB_CODE_SUCCESS) {
     dError("failed to write replica restore hint since %s", tstrerror(code));
     printf("failed repair replica scheduling: %s\n", tstrerror(code));
-    dmRollbackReplicaArtifacts(replicaDoneVnodes, restoreHintPath);
+    dmRollbackReplicaArtifacts(startVnodeIndex, degradedVnodes, restoreHintPath);
     return TSDB_CODE_INVALID_CFG;
   }
 
@@ -774,15 +782,16 @@ static int32_t dmRunReplicaRepair(int32_t totalVnodes, int64_t repairProgressInt
   if (code != TSDB_CODE_SUCCESS) {
     dError("failed to append replica restore log since %s", tstrerror(code));
     printf("failed repair replica scheduling: %s\n", tstrerror(code));
-    dmRollbackReplicaArtifacts(replicaDoneVnodes, restoreHintPath);
+    dmRollbackReplicaArtifacts(startVnodeIndex, degradedVnodes, restoreHintPath);
     return TSDB_CODE_INVALID_CFG;
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t dmRunCopyRepair(int32_t totalVnodes, int64_t repairProgressIntervalMs, int64_t *pLastProgressReportMs,
-                               bool *pNeedReport, char *progressLine, int32_t progressLineSize) {
+static int32_t dmRunCopyRepair(int32_t totalVnodes, int32_t startVnodeIndex, int64_t repairProgressIntervalMs,
+                               int64_t *pLastProgressReportMs, bool *pNeedReport, char *progressLine,
+                               int32_t progressLineSize) {
   if (pLastProgressReportMs == NULL || pNeedReport == NULL || progressLine == NULL || progressLineSize <= 0) {
     return TSDB_CODE_INVALID_CFG;
   }
@@ -798,6 +807,9 @@ static int32_t dmRunCopyRepair(int32_t totalVnodes, int64_t repairProgressInterv
 
   if (!needRunCopyRepair) {
     return TSDB_CODE_SUCCESS;
+  }
+  if (startVnodeIndex < 0 || startVnodeIndex > global.repairCtx.vnodeIdNum) {
+    return TSDB_CODE_INVALID_CFG;
   }
 
   char replicaHost[PATH_MAX] = {0};
@@ -824,8 +836,8 @@ static int32_t dmRunCopyRepair(int32_t totalVnodes, int64_t repairProgressInterv
     return TSDB_CODE_INVALID_CFG;
   }
 
-  int32_t copyDoneVnodes = 0;
-  for (int32_t i = 0; i < global.repairCtx.vnodeIdNum; ++i) {
+  int32_t copyDoneVnodes = startVnodeIndex;
+  for (int32_t i = startVnodeIndex; i < global.repairCtx.vnodeIdNum; ++i) {
     int32_t vnodeId = global.repairCtx.vnodeIds[i];
 
     char copyBackupDir[PATH_MAX] = {0};
@@ -939,8 +951,9 @@ static int32_t dmRunCopyRepair(int32_t totalVnodes, int64_t repairProgressInterv
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t dmRunForceWalRepair(int32_t totalVnodes, int64_t repairProgressIntervalMs, int64_t *pLastProgressReportMs,
-                                   bool *pNeedReport, char *progressLine, int32_t progressLineSize) {
+static int32_t dmRunForceWalRepair(int32_t totalVnodes, int32_t startVnodeIndex, int64_t repairProgressIntervalMs,
+                                   int64_t *pLastProgressReportMs, bool *pNeedReport, char *progressLine,
+                                   int32_t progressLineSize) {
   if (pLastProgressReportMs == NULL || pNeedReport == NULL || progressLine == NULL || progressLineSize <= 0) {
     return TSDB_CODE_INVALID_CFG;
   }
@@ -957,6 +970,9 @@ static int32_t dmRunForceWalRepair(int32_t totalVnodes, int64_t repairProgressIn
   if (!needRunWalForceRepair) {
     return TSDB_CODE_SUCCESS;
   }
+  if (startVnodeIndex < 0 || startVnodeIndex > global.repairCtx.vnodeIdNum) {
+    return TSDB_CODE_INVALID_CFG;
+  }
 
   code = walInit(dmStopDaemon);
   if (code != TSDB_CODE_SUCCESS) {
@@ -965,8 +981,8 @@ static int32_t dmRunForceWalRepair(int32_t totalVnodes, int64_t repairProgressIn
     return TSDB_CODE_INVALID_CFG;
   }
 
-  int32_t walDoneVnodes = 0;
-  for (int32_t i = 0; i < global.repairCtx.vnodeIdNum; ++i) {
+  int32_t walDoneVnodes = startVnodeIndex;
+  for (int32_t i = startVnodeIndex; i < global.repairCtx.vnodeIdNum; ++i) {
     int32_t vnodeId = global.repairCtx.vnodeIds[i];
     char    walPath[PATH_MAX] = {0};
     char    walBackupDir[PATH_MAX] = {0};
@@ -1129,8 +1145,9 @@ static void dmHandleTsdbRepairRollback(int32_t vnodeId, int32_t doneVnodes, int3
   (void)tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "tsdb", "failed", doneVnodes, totalVnodes);
 }
 
-static int32_t dmRunForceTsdbRepair(int32_t totalVnodes, int64_t repairProgressIntervalMs, int64_t *pLastProgressReportMs,
-                                    bool *pNeedReport, char *progressLine, int32_t progressLineSize) {
+static int32_t dmRunForceTsdbRepair(int32_t totalVnodes, int32_t startVnodeIndex, int64_t repairProgressIntervalMs,
+                                    int64_t *pLastProgressReportMs, bool *pNeedReport, char *progressLine,
+                                    int32_t progressLineSize) {
   if (pLastProgressReportMs == NULL || pNeedReport == NULL || progressLine == NULL || progressLineSize <= 0) {
     return TSDB_CODE_INVALID_CFG;
   }
@@ -1147,9 +1164,12 @@ static int32_t dmRunForceTsdbRepair(int32_t totalVnodes, int64_t repairProgressI
   if (!needRunTsdbForceRepair) {
     return TSDB_CODE_SUCCESS;
   }
+  if (startVnodeIndex < 0 || startVnodeIndex > global.repairCtx.vnodeIdNum) {
+    return TSDB_CODE_INVALID_CFG;
+  }
 
-  int32_t tsdbDoneVnodes = 0;
-  for (int32_t i = 0; i < global.repairCtx.vnodeIdNum; ++i) {
+  int32_t tsdbDoneVnodes = startVnodeIndex;
+  for (int32_t i = startVnodeIndex; i < global.repairCtx.vnodeIdNum; ++i) {
     int32_t vnodeId = global.repairCtx.vnodeIds[i];
     char    tsdbPath[PATH_MAX] = {0};
     char    tsdbBackupDir[PATH_MAX] = {0};
@@ -1427,8 +1447,9 @@ static int32_t dmRebuildAndActivateMeta(int32_t vnodeId, int32_t doneVnodes, int
   return dmAppendMetaRebuildDetailLog(vnodeId, pRebuildResult);
 }
 
-static int32_t dmRunForceMetaRepair(int32_t totalVnodes, int64_t repairProgressIntervalMs, int64_t *pLastProgressReportMs,
-                                    bool *pNeedReport, char *progressLine, int32_t progressLineSize) {
+static int32_t dmRunForceMetaRepair(int32_t totalVnodes, int32_t startVnodeIndex, int64_t repairProgressIntervalMs,
+                                    int64_t *pLastProgressReportMs, bool *pNeedReport, char *progressLine,
+                                    int32_t progressLineSize) {
   if (pLastProgressReportMs == NULL || pNeedReport == NULL || progressLine == NULL || progressLineSize <= 0) {
     return TSDB_CODE_INVALID_CFG;
   }
@@ -1445,9 +1466,12 @@ static int32_t dmRunForceMetaRepair(int32_t totalVnodes, int64_t repairProgressI
   if (!needRunMetaForceRepair) {
     return TSDB_CODE_SUCCESS;
   }
+  if (startVnodeIndex < 0 || startVnodeIndex > global.repairCtx.vnodeIdNum) {
+    return TSDB_CODE_INVALID_CFG;
+  }
 
-  int32_t metaDoneVnodes = 0;
-  for (int32_t i = 0; i < global.repairCtx.vnodeIdNum; ++i) {
+  int32_t metaDoneVnodes = startVnodeIndex;
+  for (int32_t i = startVnodeIndex; i < global.repairCtx.vnodeIdNum; ++i) {
     int32_t vnodeId = global.repairCtx.vnodeIds[i];
     char    metaBackupDir[PATH_MAX] = {0};
 
@@ -1630,10 +1654,12 @@ static int32_t dmRunRepairWorkflow(void) {
   int64_t       lastProgressReportMs = 0;
   int32_t       totalVnodes = global.repairCtx.nodeType == REPAIR_NODE_TYPE_VNODE ? global.repairCtx.vnodeIdNum : 0;
   int32_t       doneVnodes = 0;
+  SRepairResumePlan resumePlan = {0};
   bool          resumed = false;
   bool          needReport = false;
   int64_t       minDiskAvailBytes = tsDataSpace.reserved > 0 ? tsDataSpace.reserved : 0;
   char          progressLine[PATH_MAX] = {0};
+  char          resumeStep[32] = {0};
   int32_t       code = tRepairPrecheck(&global.repairCtx, tsDataDir, minDiskAvailBytes);
   if (code != TSDB_CODE_SUCCESS) {
     dmReportMetaPrecheckInferenceDetail();
@@ -1644,7 +1670,8 @@ static int32_t dmRunRepairWorkflow(void) {
 
   code = tRepairTryResumeSession(&global.repairCtx, tsDataDir, global.repairSessionDir, sizeof(global.repairSessionDir),
                                  global.repairLogPath, sizeof(global.repairLogPath), global.repairStatePath,
-                                 sizeof(global.repairStatePath), &doneVnodes, &totalVnodes, &resumed);
+                                 sizeof(global.repairStatePath), &doneVnodes, &totalVnodes, &resumed, resumeStep,
+                                 sizeof(resumeStep));
   if (code != TSDB_CODE_SUCCESS) {
     dError("failed to load repair resume session since %s", tstrerror(code));
     printf("failed repair session preparation: %s\n", tstrerror(code));
@@ -1659,6 +1686,16 @@ static int32_t dmRunRepairWorkflow(void) {
     return TSDB_CODE_INVALID_CFG;
   }
 
+  const char *planStep = resumed ? resumeStep : "init";
+  code = tRepairResolveResumePlan(global.repairCtx.nodeType, planStep, doneVnodes, global.repairCtx.vnodeIdNum,
+                                  &resumePlan);
+  if (code != TSDB_CODE_SUCCESS) {
+    dError("invalid repair resume plan, step:%s doneVnodes:%d vnodeIdNum:%d", planStep, doneVnodes,
+           global.repairCtx.vnodeIdNum);
+    printf("failed repair session preparation: invalid resume step\n");
+    return TSDB_CODE_INVALID_CFG;
+  }
+
   if (!resumed) {
     code = tRepairPrepareSessionFiles(&global.repairCtx, tsDataDir, global.repairSessionDir, sizeof(global.repairSessionDir),
                                       global.repairLogPath, sizeof(global.repairLogPath), global.repairStatePath,
@@ -1669,9 +1706,11 @@ static int32_t dmRunRepairWorkflow(void) {
       return TSDB_CODE_INVALID_CFG;
     }
   } else {
-    char resumeMessage[128] = {0};
-    int32_t resumeLen = tsnprintf(resumeMessage, sizeof(resumeMessage), "repair session resumed: session=%s vnode=%d/%d",
-                                  global.repairCtx.sessionId, doneVnodes, totalVnodes);
+    char       resumeMessage[160] = {0};
+    const char *resumeStepName = resumeStep[0] != '\0' ? resumeStep : "unknown";
+    int32_t    resumeLen =
+        tsnprintf(resumeMessage, sizeof(resumeMessage), "repair session resumed: session=%s step=%s vnode=%d/%d",
+                  global.repairCtx.sessionId, resumeStepName, doneVnodes, totalVnodes);
     if (resumeLen <= 0 || resumeLen >= (int32_t)sizeof(resumeMessage)) {
       tstrncpy(resumeMessage, "repair session resumed", sizeof(resumeMessage));
     }
@@ -1686,12 +1725,14 @@ static int32_t dmRunRepairWorkflow(void) {
     }
   }
 
-  code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "precheck", "running", doneVnodes,
-                                  totalVnodes);
-  if (code != TSDB_CODE_SUCCESS) {
-    dError("failed to write repair precheck state since %s", tstrerror(code));
-    printf("failed repair session preparation: %s\n", tstrerror(code));
-    return TSDB_CODE_INVALID_CFG;
+  if (!resumePlan.resumeAtModeStep) {
+    code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "precheck", "running", doneVnodes,
+                                    totalVnodes);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to write repair precheck state since %s", tstrerror(code));
+      printf("failed repair session preparation: %s\n", tstrerror(code));
+      return TSDB_CODE_INVALID_CFG;
+    }
   }
 
   code = tRepairAppendSessionLog(global.repairLogPath, "repair precheck passed");
@@ -1725,8 +1766,8 @@ static int32_t dmRunRepairWorkflow(void) {
     return TSDB_CODE_INVALID_CFG;
   }
 
-  if (global.repairCtx.nodeType == REPAIR_NODE_TYPE_VNODE) {
-    int32_t startVnodeIndex = doneVnodes;
+  if (global.repairCtx.nodeType == REPAIR_NODE_TYPE_VNODE && !resumePlan.skipBackupPreparation) {
+    int32_t startVnodeIndex = resumePlan.backupStartVnodeIndex;
     if (startVnodeIndex < 0 || startVnodeIndex > global.repairCtx.vnodeIdNum) {
       dError("invalid repair resume vnode index:%d vnodeIdNum:%d", startVnodeIndex, global.repairCtx.vnodeIdNum);
       printf("failed repair backup preparation: invalid resume state\n");
@@ -1799,36 +1840,38 @@ static int32_t dmRunRepairWorkflow(void) {
     }
   }
 
-  code = dmRunReplicaRepair(totalVnodes, kRepairProgressIntervalMs, &lastProgressReportMs, &needReport, progressLine,
-                            sizeof(progressLine));
+  code = dmRunReplicaRepair(totalVnodes, resumePlan.replicaStartVnodeIndex, kRepairProgressIntervalMs,
+                            &lastProgressReportMs, &needReport, progressLine, sizeof(progressLine));
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  code = dmRunCopyRepair(totalVnodes, kRepairProgressIntervalMs, &lastProgressReportMs, &needReport, progressLine,
-                         sizeof(progressLine));
+  code = dmRunCopyRepair(totalVnodes, resumePlan.copyStartVnodeIndex, kRepairProgressIntervalMs, &lastProgressReportMs,
+                         &needReport, progressLine, sizeof(progressLine));
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  code = dmRunForceWalRepair(totalVnodes, kRepairProgressIntervalMs, &lastProgressReportMs, &needReport, progressLine,
-                             sizeof(progressLine));
+  code = dmRunForceWalRepair(totalVnodes, resumePlan.walStartVnodeIndex, kRepairProgressIntervalMs,
+                             &lastProgressReportMs, &needReport, progressLine, sizeof(progressLine));
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  code = dmRunForceTsdbRepair(totalVnodes, kRepairProgressIntervalMs, &lastProgressReportMs, &needReport, progressLine,
-                              sizeof(progressLine));
+  code = dmRunForceTsdbRepair(totalVnodes, resumePlan.tsdbStartVnodeIndex, kRepairProgressIntervalMs,
+                              &lastProgressReportMs, &needReport, progressLine, sizeof(progressLine));
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  code = dmRunForceMetaRepair(totalVnodes, kRepairProgressIntervalMs, &lastProgressReportMs, &needReport, progressLine,
-                              sizeof(progressLine));
+  code = dmRunForceMetaRepair(totalVnodes, resumePlan.metaStartVnodeIndex, kRepairProgressIntervalMs,
+                              &lastProgressReportMs,
+                              &needReport, progressLine, sizeof(progressLine));
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
+  doneVnodes = totalVnodes;
   code = tRepairWriteSessionState(&global.repairCtx, global.repairStatePath, "preflight", "ready", doneVnodes,
                                   totalVnodes);
   if (code != TSDB_CODE_SUCCESS) {

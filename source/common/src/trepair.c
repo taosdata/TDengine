@@ -78,12 +78,14 @@ static const char *kMetaOptionalIndexFiles[] = {
 #define REPAIR_COPY_DEFAULT_SSH    "ssh"
 #define REPAIR_COPY_DEFAULT_SCP    "scp"
 #define REPAIR_COPY_CMD_EXIT_MARKER "__TD_REPAIR_COPY_EXIT__="
+#define REPAIR_RESUME_STEP_LEN      32
 
 typedef struct {
   bool    found;
   int64_t startTimeMs;
   int32_t doneVnodes;
   int32_t totalVnodes;
+  char    step[REPAIR_RESUME_STEP_LEN];
   char    sessionId[REPAIR_SESSION_ID_LEN];
   char    sessionDir[PATH_MAX];
   char    logPath[PATH_MAX];
@@ -119,6 +121,67 @@ static int32_t tRepairParseStringOption(const char *input, char *output, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+static bool tRepairValidateShellHostTokenN(const char *token, int32_t tokenLen) {
+  if (token == NULL || tokenLen <= 0) {
+    return false;
+  }
+
+  if (token[0] == '-') {
+    return false;
+  }
+
+  for (int32_t i = 0; i < tokenLen; ++i) {
+    char c = token[i];
+    if (isalnum((uint8_t)c) || c == '.' || c == '-' || c == '_' || c == '@') {
+      continue;
+    }
+    return false;
+  }
+
+  return true;
+}
+
+static bool tRepairValidateShellPathTokenN(const char *token, int32_t tokenLen) {
+  if (token == NULL || tokenLen <= 0) {
+    return false;
+  }
+
+  for (int32_t i = 0; i < tokenLen; ++i) {
+    char c = token[i];
+    if (isspace((uint8_t)c) || iscntrl((uint8_t)c)) {
+      return false;
+    }
+
+    switch (c) {
+      case '\'':
+      case '"':
+      case '`':
+      case '$':
+      case ';':
+      case '|':
+      case '&':
+      case '<':
+      case '>':
+      case '(':
+      case ')':
+      case '\\':
+        return false;
+      default:
+        break;
+    }
+  }
+
+  return true;
+}
+
+static bool tRepairValidateShellHostToken(const char *token) {
+  return token != NULL ? tRepairValidateShellHostTokenN(token, strlen(token)) : false;
+}
+
+static bool tRepairValidateShellPathToken(const char *token) {
+  return token != NULL ? tRepairValidateShellPathTokenN(token, strlen(token)) : false;
+}
+
 static bool tRepairValidateReplicaNodeEndpoint(const char *endpoint) {
   if (endpoint == NULL || endpoint[0] == '\0') {
     return false;
@@ -140,6 +203,12 @@ static bool tRepairValidateReplicaNodeEndpoint(const char *endpoint) {
   }
 
   if (sep[1] != '/') {
+    return false;
+  }
+
+  int32_t hostLen = (int32_t)(sep - endpoint);
+  int32_t pathLen = strlen(sep + 1);
+  if (!tRepairValidateShellHostTokenN(endpoint, hostLen) || !tRepairValidateShellPathTokenN(sep + 1, pathLen)) {
     return false;
   }
 
@@ -1174,6 +1243,7 @@ static bool tRepairBuildResumeCandidate(const SRepairCtx *pCtx, const char *sess
 
   do {
     char sessionId[REPAIR_SESSION_ID_LEN] = {0};
+    char step[REPAIR_RESUME_STEP_LEN] = {0};
     char status[32] = {0};
     int64_t startTimeMs = 0;
     int32_t nodeTypeCode = 0;
@@ -1187,13 +1257,14 @@ static bool tRepairBuildResumeCandidate(const SRepairCtx *pCtx, const char *sess
         tjsonGetIntValue(pJson, "nodeTypeCode", &nodeTypeCode) != TSDB_CODE_SUCCESS ||
         tjsonGetIntValue(pJson, "fileTypeCode", &fileTypeCode) != TSDB_CODE_SUCCESS ||
         tjsonGetIntValue(pJson, "modeCode", &modeCode) != TSDB_CODE_SUCCESS ||
+        tjsonGetStringValue2(pJson, "step", step, sizeof(step)) != TSDB_CODE_SUCCESS ||
         tjsonGetStringValue2(pJson, "status", status, sizeof(status)) != TSDB_CODE_SUCCESS ||
         tjsonGetIntValue(pJson, "doneVnodes", &doneVnodes) != TSDB_CODE_SUCCESS ||
         tjsonGetIntValue(pJson, "totalVnodes", &totalVnodes) != TSDB_CODE_SUCCESS) {
       break;
     }
 
-    if (startTimeMs <= 0 || doneVnodes < 0 || totalVnodes < 0 || doneVnodes > totalVnodes) {
+    if (startTimeMs <= 0 || step[0] == '\0' || doneVnodes < 0 || totalVnodes < 0 || doneVnodes > totalVnodes) {
       break;
     }
     if (strcmp(sessionId, sessionDirName) != 0) {
@@ -1221,7 +1292,8 @@ static bool tRepairBuildResumeCandidate(const SRepairCtx *pCtx, const char *sess
     pCandidate->startTimeMs = startTimeMs;
     pCandidate->doneVnodes = doneVnodes;
     pCandidate->totalVnodes = totalVnodes;
-    if (tRepairParseStringOption(sessionId, pCandidate->sessionId, sizeof(pCandidate->sessionId)) !=
+    if (tRepairParseStringOption(step, pCandidate->step, sizeof(pCandidate->step)) != TSDB_CODE_SUCCESS ||
+        tRepairParseStringOption(sessionId, pCandidate->sessionId, sizeof(pCandidate->sessionId)) !=
             TSDB_CODE_SUCCESS ||
         tRepairParseStringOption(sessionDir, pCandidate->sessionDir, sizeof(pCandidate->sessionDir)) !=
             TSDB_CODE_SUCCESS ||
@@ -1643,6 +1715,9 @@ int32_t tRepairBuildCopySshProbeCmd(const char *replicaHost, const char *remoteT
       cmd == NULL || cmdSize <= 0) {
     return TSDB_CODE_INVALID_PARA;
   }
+  if (!tRepairValidateShellHostToken(replicaHost) || !tRepairValidateShellPathToken(remoteTargetPath)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   const char *sshBin = tRepairResolveCopyBin(REPAIR_COPY_SSH_BIN_ENV, REPAIR_COPY_DEFAULT_SSH);
   if (sshBin == NULL) {
@@ -1662,6 +1737,10 @@ int32_t tRepairBuildCopyScpCmd(const char *replicaHost, const char *remoteTarget
                                char *cmd, int32_t cmdSize) {
   if (replicaHost == NULL || replicaHost[0] == '\0' || remoteTargetPath == NULL || remoteTargetPath[0] == '\0' ||
       localTargetPath == NULL || localTargetPath[0] == '\0' || cmd == NULL || cmdSize <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (!tRepairValidateShellHostToken(replicaHost) || !tRepairValidateShellPathToken(remoteTargetPath) ||
+      !tRepairValidateShellPathToken(localTargetPath)) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -1684,6 +1763,9 @@ static int32_t tRepairBuildCopySshStatCmd(const char *replicaHost, const char *r
                                           int32_t cmdSize) {
   if (replicaHost == NULL || replicaHost[0] == '\0' || remoteTargetPath == NULL || remoteTargetPath[0] == '\0' ||
       cmd == NULL || cmdSize <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (!tRepairValidateShellHostToken(replicaHost) || !tRepairValidateShellPathToken(remoteTargetPath)) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -1751,6 +1833,9 @@ static int32_t tRepairBuildCopyFixOwnerPermCmd(int32_t uid, int32_t gid, int32_t
       cmd == NULL || cmdSize <= 0) {
     return TSDB_CODE_INVALID_PARA;
   }
+  if (!tRepairValidateShellPathToken(localTargetPath)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   int32_t len = tsnprintf(cmd, cmdSize, "chown -R %d:%d '%s' && chmod %d '%s'", uid, gid, localTargetPath, mode,
                           localTargetPath);
@@ -1765,6 +1850,9 @@ static int32_t tRepairBuildCopySshDigestCmd(const char *replicaHost, const char 
                                             int32_t cmdSize) {
   if (replicaHost == NULL || replicaHost[0] == '\0' || remoteTargetPath == NULL || remoteTargetPath[0] == '\0' ||
       cmd == NULL || cmdSize <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (!tRepairValidateShellHostToken(replicaHost) || !tRepairValidateShellPathToken(remoteTargetPath)) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -1787,6 +1875,9 @@ static int32_t tRepairBuildCopySshDigestCmd(const char *replicaHost, const char 
 
 static int32_t tRepairBuildCopyLocalDigestCmd(const char *localTargetPath, char *cmd, int32_t cmdSize) {
   if (localTargetPath == NULL || localTargetPath[0] == '\0' || cmd == NULL || cmdSize <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (!tRepairValidateShellPathToken(localTargetPath)) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -2788,7 +2879,8 @@ int32_t tRepairWriteSessionState(const SRepairCtx *pCtx, const char *statePath, 
 
 int32_t tRepairTryResumeSession(SRepairCtx *pCtx, const char *dataDir, char *sessionDir, int32_t sessionDirSize,
                                 char *logPath, int32_t logPathSize, char *statePath, int32_t statePathSize,
-                                int32_t *pDoneVnodes, int32_t *pTotalVnodes, bool *pResumed) {
+                                int32_t *pDoneVnodes, int32_t *pTotalVnodes, bool *pResumed, char *resumeStep,
+                                int32_t resumeStepSize) {
   if (sessionDir != NULL && sessionDirSize > 0) {
     sessionDir[0] = '\0';
   }
@@ -2798,10 +2890,14 @@ int32_t tRepairTryResumeSession(SRepairCtx *pCtx, const char *dataDir, char *ses
   if (statePath != NULL && statePathSize > 0) {
     statePath[0] = '\0';
   }
+  if (resumeStep != NULL && resumeStepSize > 0) {
+    resumeStep[0] = '\0';
+  }
 
   if (pCtx == NULL || !pCtx->enabled || dataDir == NULL || dataDir[0] == '\0' || sessionDir == NULL ||
       sessionDirSize <= 0 || logPath == NULL || logPathSize <= 0 || statePath == NULL || statePathSize <= 0 ||
-      pDoneVnodes == NULL || pTotalVnodes == NULL || pResumed == NULL) {
+      pDoneVnodes == NULL || pTotalVnodes == NULL || pResumed == NULL ||
+      (resumeStep != NULL && resumeStepSize <= 0) || (resumeStep == NULL && resumeStepSize > 0)) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -2881,10 +2977,56 @@ int32_t tRepairTryResumeSession(SRepairCtx *pCtx, const char *dataDir, char *ses
   tstrncpy(sessionDir, bestCandidate.sessionDir, sessionDirSize);
   tstrncpy(logPath, bestCandidate.logPath, logPathSize);
   tstrncpy(statePath, bestCandidate.statePath, statePathSize);
+  if (resumeStep != NULL) {
+    tstrncpy(resumeStep, bestCandidate.step, resumeStepSize);
+  }
   *pDoneVnodes = bestCandidate.doneVnodes;
   *pTotalVnodes = bestCandidate.totalVnodes;
   *pResumed = true;
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t tRepairResolveResumePlan(ERepairNodeType nodeType, const char *resumeStep, int32_t doneVnodes,
+                                 int32_t vnodeIdNum, SRepairResumePlan *pPlan) {
+  if (resumeStep == NULL || pPlan == NULL || vnodeIdNum < 0 || doneVnodes < 0 || doneVnodes > vnodeIdNum) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  memset(pPlan, 0, sizeof(*pPlan));
+  if (nodeType != REPAIR_NODE_TYPE_VNODE) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (resumeStep[0] == '\0' || taosStrcasecmp(resumeStep, "init") == 0 || taosStrcasecmp(resumeStep, "precheck") == 0 ||
+      taosStrcasecmp(resumeStep, "backup") == 0) {
+    pPlan->backupStartVnodeIndex = doneVnodes;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pPlan->skipBackupPreparation = true;
+  pPlan->resumeAtModeStep = true;
+  if (taosStrcasecmp(resumeStep, "replica") == 0) {
+    pPlan->replicaStartVnodeIndex = doneVnodes;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (taosStrcasecmp(resumeStep, "copy") == 0) {
+    pPlan->copyStartVnodeIndex = doneVnodes;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (taosStrcasecmp(resumeStep, "wal") == 0) {
+    pPlan->walStartVnodeIndex = doneVnodes;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (taosStrcasecmp(resumeStep, "tsdb") == 0) {
+    pPlan->tsdbStartVnodeIndex = doneVnodes;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (taosStrcasecmp(resumeStep, "meta") == 0) {
+    pPlan->metaStartVnodeIndex = doneVnodes;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return TSDB_CODE_INVALID_PARA;
 }
 
 int32_t tRepairNeedReportProgress(int64_t nowMs, int64_t intervalMs, int64_t *pLastReportMs, bool *pNeedReport) {

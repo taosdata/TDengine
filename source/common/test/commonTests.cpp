@@ -2355,16 +2355,18 @@ TEST(RepairOptionParseTest, TryResumeSessionFindsUnfinishedState) {
   char    sessionDir[PATH_MAX] = {0};
   char    logPath[PATH_MAX] = {0};
   char    statePath[PATH_MAX] = {0};
+  char    resumeStep[32] = {0};
   int32_t doneVnodes = -1;
   int32_t totalVnodes = -1;
   bool    resumed = false;
   ASSERT_EQ(tRepairTryResumeSession(&resumeCtx, "/tmp/unused-data-dir", sessionDir, sizeof(sessionDir), logPath,
                                     sizeof(logPath), statePath, sizeof(statePath), &doneVnodes, &totalVnodes,
-                                    &resumed),
+                                    &resumed, resumeStep, sizeof(resumeStep)),
             TSDB_CODE_SUCCESS);
   ASSERT_TRUE(resumed);
   ASSERT_EQ(doneVnodes, 1);
   ASSERT_EQ(totalVnodes, 2);
+  ASSERT_STREQ(resumeStep, "backup");
   ASSERT_STREQ(resumeCtx.sessionId, "repair-1735689601402");
   ASSERT_EQ(resumeCtx.startTimeMs, 1735689601402LL);
   ASSERT_STREQ(sessionDir, runningSessionDir);
@@ -2407,16 +2409,18 @@ TEST(RepairOptionParseTest, TryResumeSessionSkipMismatchedState) {
   char    sessionDir[PATH_MAX] = {0};
   char    logPath[PATH_MAX] = {0};
   char    statePath[PATH_MAX] = {0};
+  char    resumeStep[32] = {0};
   int32_t doneVnodes = -1;
   int32_t totalVnodes = -1;
   bool    resumed = true;
   ASSERT_EQ(tRepairTryResumeSession(&resumeCtx, "/tmp/unused-data-dir", sessionDir, sizeof(sessionDir), logPath,
                                     sizeof(logPath), statePath, sizeof(statePath), &doneVnodes, &totalVnodes,
-                                    &resumed),
+                                    &resumed, resumeStep, sizeof(resumeStep)),
             TSDB_CODE_SUCCESS);
   ASSERT_FALSE(resumed);
   ASSERT_EQ(doneVnodes, 0);
   ASSERT_EQ(totalVnodes, 2);
+  ASSERT_EQ(resumeStep[0], '\0');
   ASSERT_STREQ(resumeCtx.sessionId, "repair-1735689602999");
   ASSERT_EQ(resumeCtx.startTimeMs, 1735689602999LL);
   ASSERT_EQ(sessionDir[0], '\0');
@@ -2427,16 +2431,156 @@ TEST(RepairOptionParseTest, TryResumeSessionSkipMismatchedState) {
 TEST(RepairOptionParseTest, TryResumeSessionInvalidArgs) {
   SRepairCtx ctx = {0};
   char       path[PATH_MAX] = {0};
+  char       step[32] = {0};
   int32_t    doneVnodes = 0;
   int32_t    totalVnodes = 0;
   bool       resumed = false;
 
   ASSERT_EQ(tRepairTryResumeSession(NULL, "/tmp", path, sizeof(path), path, sizeof(path), path, sizeof(path),
-                                    &doneVnodes, &totalVnodes, &resumed),
+                                    &doneVnodes, &totalVnodes, &resumed, step, sizeof(step)),
             TSDB_CODE_INVALID_PARA);
   ASSERT_EQ(tRepairTryResumeSession(&ctx, "/tmp", path, sizeof(path), path, sizeof(path), path, sizeof(path),
-                                    &doneVnodes, &totalVnodes, &resumed),
+                                    &doneVnodes, &totalVnodes, &resumed, step, sizeof(step)),
             TSDB_CODE_INVALID_PARA);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689603000LL, &ctx), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(tRepairTryResumeSession(&ctx, "/tmp", path, sizeof(path), path, sizeof(path), path, sizeof(path),
+                                    &doneVnodes, &totalVnodes, &resumed, NULL, sizeof(step)),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairTryResumeSession(&ctx, "/tmp", path, sizeof(path), path, sizeof(path), path, sizeof(path),
+                                    &doneVnodes, &totalVnodes, &resumed, step, 0),
+            TSDB_CODE_INVALID_PARA);
+}
+
+TEST(RepairOptionParseTest, ResolveResumePlanModeStepFromResumeState) {
+  const std::string backupRoot = buildRepairTempPath("resume-mode-step-root");
+  RepairTempDirGuard backupRootGuard(backupRoot);
+  ASSERT_EQ(taosMulMkDir(backupRoot.c_str()), 0);
+
+  SRepairCliArgs cliArgs = {0};
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "node-type", "vnode"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "file-type", "wal"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "vnode-id", "2,3"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "mode", "force"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairParseCliOption(&cliArgs, "backup-path", backupRoot.c_str()), TSDB_CODE_SUCCESS);
+
+  SRepairCtx runningCtx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689603401LL, &runningCtx), TSDB_CODE_SUCCESS);
+  char runningSessionDir[PATH_MAX] = {0};
+  char runningLogPath[PATH_MAX] = {0};
+  char runningStatePath[PATH_MAX] = {0};
+  ASSERT_EQ(
+      tRepairPrepareSessionFiles(&runningCtx, "/tmp/unused-data-dir", runningSessionDir, sizeof(runningSessionDir),
+                                 runningLogPath, sizeof(runningLogPath), runningStatePath, sizeof(runningStatePath)),
+      TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tRepairWriteSessionState(&runningCtx, runningStatePath, "wal", "running", 1, 2), TSDB_CODE_SUCCESS);
+
+  SRepairCtx resumeCtx = {0};
+  ASSERT_EQ(tRepairInitCtx(&cliArgs, 1735689603999LL, &resumeCtx), TSDB_CODE_SUCCESS);
+
+  char    sessionDir[PATH_MAX] = {0};
+  char    logPath[PATH_MAX] = {0};
+  char    statePath[PATH_MAX] = {0};
+  char    resumeStep[32] = {0};
+  int32_t doneVnodes = -1;
+  int32_t totalVnodes = -1;
+  bool    resumed = false;
+  ASSERT_EQ(tRepairTryResumeSession(&resumeCtx, "/tmp/unused-data-dir", sessionDir, sizeof(sessionDir), logPath,
+                                    sizeof(logPath), statePath, sizeof(statePath), &doneVnodes, &totalVnodes,
+                                    &resumed, resumeStep, sizeof(resumeStep)),
+            TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(resumed);
+  ASSERT_EQ(doneVnodes, 1);
+  ASSERT_EQ(totalVnodes, 2);
+  ASSERT_STREQ(resumeStep, "wal");
+
+  SRepairResumePlan plan = {0};
+  ASSERT_EQ(tRepairResolveResumePlan(resumeCtx.nodeType, resumeStep, doneVnodes, resumeCtx.vnodeIdNum, &plan),
+            TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(plan.skipBackupPreparation);
+  ASSERT_TRUE(plan.resumeAtModeStep);
+  ASSERT_EQ(plan.backupStartVnodeIndex, 0);
+  ASSERT_EQ(plan.replicaStartVnodeIndex, 0);
+  ASSERT_EQ(plan.copyStartVnodeIndex, 0);
+  ASSERT_EQ(plan.walStartVnodeIndex, 1);
+  ASSERT_EQ(plan.tsdbStartVnodeIndex, 0);
+  ASSERT_EQ(plan.metaStartVnodeIndex, 0);
+}
+
+TEST(RepairOptionParseTest, ResolveResumePlanForBackupLikeSteps) {
+  const char *steps[] = {
+      "",
+      "init",
+      "precheck",
+      "backup",
+  };
+  for (const char *step : steps) {
+    SRepairResumePlan plan = {0};
+    ASSERT_EQ(tRepairResolveResumePlan(REPAIR_NODE_TYPE_VNODE, step, 2, 3, &plan), TSDB_CODE_SUCCESS);
+    ASSERT_FALSE(plan.skipBackupPreparation);
+    ASSERT_FALSE(plan.resumeAtModeStep);
+    ASSERT_EQ(plan.backupStartVnodeIndex, 2);
+    ASSERT_EQ(plan.replicaStartVnodeIndex, 0);
+    ASSERT_EQ(plan.copyStartVnodeIndex, 0);
+    ASSERT_EQ(plan.walStartVnodeIndex, 0);
+    ASSERT_EQ(plan.tsdbStartVnodeIndex, 0);
+    ASSERT_EQ(plan.metaStartVnodeIndex, 0);
+  }
+}
+
+TEST(RepairOptionParseTest, ResolveResumePlanForModeSteps) {
+  struct {
+    const char *step;
+    int32_t     replicaStart;
+    int32_t     copyStart;
+    int32_t     walStart;
+    int32_t     tsdbStart;
+    int32_t     metaStart;
+  } cases[] = {
+      {"replica", 1, 0, 0, 0, 0},
+      {"copy", 0, 1, 0, 0, 0},
+      {"wal", 0, 0, 1, 0, 0},
+      {"tsdb", 0, 0, 0, 1, 0},
+      {"meta", 0, 0, 0, 0, 1},
+  };
+
+  for (const auto &it : cases) {
+    SRepairResumePlan plan = {0};
+    ASSERT_EQ(tRepairResolveResumePlan(REPAIR_NODE_TYPE_VNODE, it.step, 1, 3, &plan), TSDB_CODE_SUCCESS);
+    ASSERT_TRUE(plan.skipBackupPreparation);
+    ASSERT_TRUE(plan.resumeAtModeStep);
+    ASSERT_EQ(plan.backupStartVnodeIndex, 0);
+    ASSERT_EQ(plan.replicaStartVnodeIndex, it.replicaStart);
+    ASSERT_EQ(plan.copyStartVnodeIndex, it.copyStart);
+    ASSERT_EQ(plan.walStartVnodeIndex, it.walStart);
+    ASSERT_EQ(plan.tsdbStartVnodeIndex, it.tsdbStart);
+    ASSERT_EQ(plan.metaStartVnodeIndex, it.metaStart);
+  }
+}
+
+TEST(RepairOptionParseTest, ResolveResumePlanInvalidArgs) {
+  SRepairResumePlan plan = {0};
+  ASSERT_EQ(tRepairResolveResumePlan(REPAIR_NODE_TYPE_VNODE, NULL, 0, 1, &plan), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairResolveResumePlan(REPAIR_NODE_TYPE_VNODE, "backup", -1, 1, &plan), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairResolveResumePlan(REPAIR_NODE_TYPE_VNODE, "backup", 2, 1, &plan), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairResolveResumePlan(REPAIR_NODE_TYPE_VNODE, "unknown-step", 0, 1, &plan), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairResolveResumePlan(REPAIR_NODE_TYPE_VNODE, "backup", 0, 1, NULL), TSDB_CODE_INVALID_PARA);
+
+  ASSERT_EQ(tRepairResolveResumePlan(REPAIR_NODE_TYPE_MNODE, "replica", 0, 0, &plan), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(plan.skipBackupPreparation);
+  ASSERT_FALSE(plan.resumeAtModeStep);
+  ASSERT_EQ(plan.backupStartVnodeIndex, 0);
+  ASSERT_EQ(plan.replicaStartVnodeIndex, 0);
+  ASSERT_EQ(plan.copyStartVnodeIndex, 0);
+  ASSERT_EQ(plan.walStartVnodeIndex, 0);
+  ASSERT_EQ(plan.tsdbStartVnodeIndex, 0);
+  ASSERT_EQ(plan.metaStartVnodeIndex, 0);
 }
 
 TEST(RepairOptionParseTest, NeedRunWalForceRepair) {
@@ -2639,6 +2783,14 @@ TEST(RepairOptionParseTest, BuildCopySshScpCommandsInvalidArgs) {
             TSDB_CODE_INVALID_PARA);
   ASSERT_EQ(tRepairBuildCopyScpCmd("tdnode1", "/var/lib/taos/vnode/vnode2/wal", "/tmp/local", NULL, sizeof(cmd)),
             TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBuildCopySshProbeCmd("tdnode1;rm", "/var/lib/taos/vnode/vnode2/wal", cmd, sizeof(cmd)),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBuildCopySshProbeCmd("tdnode1", "/var/lib/taos/vnode/vnode2/wal;rm", cmd, sizeof(cmd)),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBuildCopyScpCmd("tdnode1|cat", "/var/lib/taos/vnode/vnode2/wal", "/tmp/local", cmd, sizeof(cmd)),
+            TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairBuildCopyScpCmd("tdnode1", "/var/lib/taos/vnode/vnode2/wal", "/tmp/local$(id)", cmd, sizeof(cmd)),
+            TSDB_CODE_INVALID_PARA);
 }
 
 TEST(RepairOptionParseTest, DegradeReplicaVnodeWritesMarker) {
@@ -2784,6 +2936,12 @@ TEST(RepairOptionParseTest, ParseReplicaNodeEndpoint) {
       "tdnode1:var/lib/taos",
       "tdnode1:/var/lib/taos:bak",
       "td node1:/var/lib/taos",
+      "tdnode1;rm:/var/lib/taos",
+      "tdnode1:/var/lib/taos;rm",
+      "tdnode1:/var/lib/taos|cat",
+      "tdnode1:/var/lib/taos&&id",
+      "tdnode1:/var/lib/taos$(id)",
+      "tdnode1:/var/lib/taos'bad'",
   };
   for (const char *endpoint : invalidEndpoints) {
     ASSERT_EQ(
