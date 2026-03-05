@@ -47,7 +47,8 @@
 
 #define DB_VER_INITIAL                   1
 #define DB_VER_SUPPORT_ADVANCED_SECURITY 2
-#define DB_VER_NUMBER                    DB_VER_SUPPORT_ADVANCED_SECURITY
+#define DB_VER_SUPPORT_MAC               3
+#define DB_VER_NUMBER                    DB_VER_SUPPORT_MAC
 
 #define DB_RESERVE_SIZE 13
 
@@ -315,6 +316,10 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
     pDb->cfg.allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
 
+  if (sver < DB_VER_SUPPORT_MAC) {
+    pDb->cfg.securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
+  }
+
   terrno = 0;
 
 _OVER:
@@ -568,6 +573,7 @@ int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
     return code;
   if (pCfg->isAudit < 0 || pCfg->isAudit > 1) return code;
   if (pCfg->allowDrop < TSDB_MIN_DB_ALLOW_DROP || pCfg->allowDrop > TSDB_MAX_DB_ALLOW_DROP) return code;
+  if (pCfg->securityLevel < TSDB_MIN_SECURITY_LEVEL || pCfg->securityLevel > TSDB_MAX_SECURITY_LEVEL) return code;
 
   code = 0;
   TAOS_RETURN(code);
@@ -651,6 +657,7 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
     return code;
   if (pNewCfg->isAudit < 0 || pNewCfg->isAudit > 1) return code;
   if (pNewCfg->allowDrop < TSDB_MIN_DB_ALLOW_DROP || pNewCfg->allowDrop > TSDB_MAX_DB_ALLOW_DROP) return code;
+  if (pNewCfg->securityLevel < TSDB_MIN_SECURITY_LEVEL || pNewCfg->securityLevel > TSDB_MAX_SECURITY_LEVEL) return code;
 
   code = 0;
   TAOS_RETURN(code);
@@ -880,8 +887,8 @@ static int32_t mndSetAuditOwnedDbs(SMnode *pMnode, SUserObj *pOperUser, SDbObj *
   SArray   *auditOwnedDbs = NULL;
   SUserObj *pUser = NULL;
   SUserObj  newUserObj = {0};
-  int32_t   sysAuditLen = strlen(TSDB_ROLE_SYSAUDIT) + 1;
-  int32_t   sysAuditLogLen = strlen(TSDB_ROLE_SYSAUDIT_LOG) + 1;
+  int32_t   sysAuditLen = sizeof(TSDB_ROLE_SYSAUDIT);
+  int32_t   sysAuditLogLen = sizeof(TSDB_ROLE_SYSAUDIT_LOG);
 
   void *pIter = NULL;
   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
@@ -1035,10 +1042,9 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       mError("db:%s, failed to create, walLevel not match for audit db, %d", pCreate->db, dbObj.cfg.walLevel);
       TAOS_RETURN(code);
     }
-    dbObj.cfg.allowDrop = TSDB_MIN_DB_ALLOW_DROP;
-  } else {
-    dbObj.cfg.allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
+  dbObj.cfg.allowDrop = (uint8_t)pCreate->allowDrop;
+  dbObj.cfg.securityLevel = (uint8_t)pCreate->securityLevel;
 
   mndSetDefaultDbCfg(&dbObj.cfg);
 
@@ -1085,8 +1091,8 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   // Considering the efficiency of use db privileges in some scenarios like insert operation, owned DBs is stored.
   bool addOwned = false;
   if (dbObj.cfg.isAudit == 1) {
-    if (taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, strlen(TSDB_ROLE_SYSAUDIT) + 1) ||
-        taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, strlen(TSDB_ROLE_SYSAUDIT_LOG) + 1)) {
+    if (taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sizeof(TSDB_ROLE_SYSAUDIT)) ||
+        taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, sizeof(TSDB_ROLE_SYSAUDIT_LOG))) {
       addOwned = true;
     }
     TAOS_CHECK_GOTO(mndSetAuditOwnedDbs(pMnode, pUser, &dbObj, &auditOwnedDbs), NULL, _OVER);
@@ -1464,6 +1470,11 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
 
   if(pAlter->allowDrop > -1 && pAlter->allowDrop != pDb->cfg.allowDrop) {
     pDb->cfg.allowDrop = pAlter->allowDrop;
+    code = 0;
+  }
+
+  if (pAlter->securityLevel > -1 && ((uint8_t)pAlter->securityLevel != pDb->cfg.securityLevel)) {
+    pDb->cfg.securityLevel = (uint8_t)pAlter->securityLevel;
     code = 0;
   }
 
@@ -3316,6 +3327,11 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
       uint8_t allowDrop = pDb->cfg.allowDrop;
       TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&allowDrop, false), &lino, _OVER);
+    }
+
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
+      uint8_t securityLevel = pDb->cfg.securityLevel;
+      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&securityLevel, false), &lino, _OVER);
     }
   }
 _OVER:

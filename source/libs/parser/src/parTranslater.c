@@ -527,6 +527,13 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  {
+    .showType = QUERY_NODE_SHOW_SECURITY_POLICIES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_SECURITY_POLICIES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -10687,6 +10694,8 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->compactEndTime = pStmt->pOptions->compactEndTime;
   pReq->compactTimeOffset = pStmt->pOptions->compactTimeOffset;
   pReq->isAudit = pStmt->pOptions->isAudit;
+  pReq->allowDrop = pStmt->pOptions->allowDrop;
+  pReq->securityLevel = pStmt->pOptions->securityLevel;
 
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
@@ -11286,7 +11295,14 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbEnumOption(pCxt, "isAudit", pOptions->isAudit, TSDB_MIN_DB_IS_AUDIT, TSDB_MAX_DB_IS_AUDIT);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    if (pOptions->allowDrop == INT8_MIN) {  // means not specified by user, set default value based on isAudit
+      pOptions->allowDrop = pOptions->isAudit ? 0 : 1;
+    }
     code = checkDbEnumOption(pCxt, "allowDrop", pOptions->allowDrop, TSDB_MIN_DB_ALLOW_DROP, TSDB_MAX_DB_ALLOW_DROP);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbRangeOption(pCxt, "securityLevel", pOptions->securityLevel, TSDB_MIN_SECURITY_LEVEL,
+                              TSDB_MAX_SECURITY_LEVEL);
   }
   /*
   if (TSDB_CODE_SUCCESS == code) {
@@ -11730,6 +11746,7 @@ static int32_t buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStm
   tstrncpy(pReq->encryptAlgrName, pStmt->pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGR_NAME_LEN);
   pReq->isAudit = pStmt->pOptions->isAudit;
   pReq->allowDrop = pStmt->pOptions->allowDrop;
+  pReq->securityLevel = pStmt->pOptions->securityLevel;
   return code;
 }
 
@@ -12555,6 +12572,14 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
   if (pCxt->pParseCxt->biMode != 0 && TSDB_CODE_SUCCESS == code) {
     code = biCheckCreateTableTbnameCol(pCxt, pStmt->pTags, pStmt->pCols);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pStmt->pOptions->securityLevel < TSDB_MIN_SECURITY_LEVEL ||
+        pStmt->pOptions->securityLevel > TSDB_MAX_SECURITY_LEVEL) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
+                                     "Invalid option security_level: %d, only %d to %d allowed",
+                                     pStmt->pOptions->securityLevel, TSDB_MIN_SECURITY_LEVEL, TSDB_MAX_SECURITY_LEVEL);
+    }
+  }
   return code;
 }
 
@@ -12966,6 +12991,7 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   pReq->colVer = 1;
   pReq->tagVer = 1;
   pReq->source = TD_REQ_FROM_APP;
+  pReq->securityLevel = pStmt->pOptions->securityLevel;
   // columnDefNodeToField(pStmt->pCols, &pReq->pColumns, true);
   // columnDefNodeToField(pStmt->pTags, &pReq->pTags, true);
   code = columnDefNodeToField(pStmt->pCols, &pReq->pColumns, true, pStmt->pOptions->virtualStb);
@@ -13499,7 +13525,8 @@ static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, void* pStmt, 
 
   if (ops->hasTotpseed || ops->hasSysinfo || ops->hasFailedLoginAttempts || ops->hasPasswordLifeTime ||
       ops->hasPasswordReuseTime || ops->hasPasswordReuseMax || ops->hasPasswordLockTime || ops->hasPasswordGraceTime ||
-      ops->hasInactiveAccountTime || ops->hasAllowTokenNum) {
+      ops->hasInactiveAccountTime || ops->hasAllowTokenNum || ops->pIpRanges || ops->pDropIpRanges ||
+      ops->pTimeRanges || ops->pDropTimeRanges || ops->pSecurityLevels) {
     if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_USER_SET_SECURITY)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
                                      "Permission denied to set user security info");
@@ -13510,6 +13537,44 @@ _exit:
   return code;
 }
 #endif
+
+static int32_t translateCheckUserSecurityLevel(STranslateContext* pCxt, SNodeList* pSecurityLevels, int8_t* pMinLevel,
+                                               int8_t* pMaxLevel) {
+  if (pSecurityLevels) {
+    int32_t nSecurityLevels = LIST_LENGTH(pSecurityLevels);
+    if (nSecurityLevels != 2) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_OPTION,
+                                     "Invalid number of security levels, expected 2 but got %d", nSecurityLevels);
+    }
+    SNode*  pNode = NULL;
+    int32_t idx = 0;
+    FOREACH(pNode, pSecurityLevels) {
+      SValueNode* pVal = (SValueNode*)pNode;
+      if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_OPTION, "Invalid security level value: %s",
+                                       pVal->literal);
+      }
+      int64_t securityLevel = getBigintFromValueNode(pVal);
+      if (securityLevel < TSDB_MIN_SECURITY_LEVEL || securityLevel > TSDB_MAX_SECURITY_LEVEL) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_OPTION,
+                                       "Security level value out of range, expected between %d and %d but got %" PRIi64,
+                                       TSDB_MIN_SECURITY_LEVEL, TSDB_MAX_SECURITY_LEVEL, securityLevel);
+      }
+      if (idx == 0) {
+        *pMinLevel = (int8_t)securityLevel;
+        ++idx;
+      } else {
+        *pMaxLevel = (int8_t)securityLevel;
+        if (*pMaxLevel < *pMinLevel) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_INVALID_OPTION,
+                                         "Min security level cannot be larger than max security level: %d,%d",
+                                         *pMinLevel, *pMaxLevel);
+        }
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pStmt) {
   int32_t        code = 0;
@@ -13526,6 +13591,15 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   if (isPrivInheritName(pStmt->userName)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                    "Cannot create user with inherit roles: %s", pStmt->userName);
+  }
+  if (pStmt->pSecurityLevels) {
+    if ((code = translateCheckUserSecurityLevel(pCxt, pStmt->pSecurityLevels, &createReq.minSecLevel,
+                                                &createReq.maxSecLevel))) {
+      return code;
+    }
+  } else {
+    createReq.minSecLevel = TSDB_DEFAULT_USER_MIN_SECURITY_LEVEL;
+    createReq.maxSecLevel = TSDB_DEFAULT_USER_MAX_SECURITY_LEVEL;
   }
   tstrncpy(createReq.user, pStmt->userName, TSDB_USER_LEN);
   createReq.createType = 0;
@@ -13706,6 +13780,15 @@ if (alterReq.numIpRanges > 0) {
     FOREACH(pNode, opts->pDropTimeRanges) {
       SDateTimeRangeNode* node = (SDateTimeRangeNode*)(pNode);
       alterReq.pDropTimeRanges[i++] = node->range;
+    }
+  }
+
+  if (opts->pSecurityLevels) {
+    alterReq.hasSecurityLevel = 1;
+    if ((code = translateCheckUserSecurityLevel(pCxt, opts->pSecurityLevels, &alterReq.minSecLevel,
+                                                &alterReq.maxSecLevel))) {
+      tFreeSAlterUserReq(&alterReq);
+      return code;
     }
   }
 
@@ -24723,6 +24806,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
+    case QUERY_NODE_SHOW_SECURITY_POLICIES_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
     case QUERY_NODE_SHOW_APPS_STMT:

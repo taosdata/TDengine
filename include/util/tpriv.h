@@ -25,6 +25,24 @@
 extern "C" {
 #endif
 
+/* * Separation of Duties (SoD) Mandatory Activation Phases
+ */
+
+/* Phase 0: Stable. Fully satisfied, no transition is in progress. */
+#define TSDB_SOD_PHASE_STABLE 0
+
+/* Phase 1: Initial: Bootstrapped by CLI 'taosd --sod=mandatory', but SoD requirements are not yet met.
+ * Awaiting initial role assignment.
+ * Operations restricted to whitelist: CREATE/DROP/ALTER USER, GRANT/REVOKE ROLE, SHOW USERS, SHOW SECURITY_POLICIES.
+ */
+#define TSDB_SOD_PHASE_INITIAL 1
+
+/* Phase 2: Enforcing. Triggered by SQL command 'ALTER CLUSTER ... MANDATORY'.
+ * Awaiting transition completion.
+ * Destructive operations are blocked: DISABLE USER, DROP USER, REVOKE ROLE.
+ */
+#define TSDB_SOD_PHASE_ENFORCE 2
+
 #define T_ROLE_SYSDBA       0x01
 #define T_ROLE_SYSSEC       0x02
 #define T_ROLE_SYSAUDIT     0x04
@@ -52,7 +70,7 @@ extern "C" {
 #define TSDB_WORD_VARIABLES  "variables"
 #define TSDB_WORD_INFORMATION "information"
 
-#define PRIV_INFO_TABLE_VERSION 3
+#define PRIV_INFO_TABLE_VERSION 4
 typedef enum {
   PRIV_TYPE_UNKNOWN = -1,
   // ==================== Common Privilege ====================
@@ -215,6 +233,7 @@ typedef enum {
   PRIV_GRANTS_SHOW,                  // SHOW GRANTS
   PRIV_CLUSTER_SHOW,                 // SHOW CLUSTER
   PRIV_APPS_SHOW,                    // SHOW APPS
+  PRIV_SECURITY_POLICIES_SHOW,       // SHOW SECURITY POLICIES
 
   // extended privileges can be defined here (255 bits reserved in total)
   // ==================== Maximum Privilege Bit ====================

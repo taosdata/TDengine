@@ -60,6 +60,7 @@ const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                    .tsdbPageSize = TSDB_DEFAULT_PAGE_SIZE,
                                    .isAudit = 0,
                                    .allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP,
+                                   .securityLevel = TSDB_DEFAULT_SECURITY_LEVEL,
                                   };
 
 int vnodeCheckCfg(const SVnodeCfg *pCfg) {
@@ -122,6 +123,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "tsdbPageSize", pCfg->tsdbPageSize));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "isAudit", pCfg->isAudit));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "allowDrop", pCfg->allowDrop));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "securityLevel", pCfg->securityLevel));
   if (pCfg->tsdbCfg.retentions[0].keep > 0) {
     int32_t nRetention = 1;
     if (pCfg->tsdbCfg.retentions[1].freq > 0) {
@@ -414,6 +416,15 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
 
   if (pCfg->allowDrop < TSDB_MIN_DB_ALLOW_DROP || pCfg->allowDrop > TSDB_MAX_DB_ALLOW_DROP) {
     pCfg->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
+  }
+
+  if (tjsonGetObjectItem(pJson, "securityLevel") == NULL) {
+    pCfg->securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
+  } else {
+    tjsonGetNumberValue(pJson, "securityLevel", pCfg->securityLevel, code);
+  }
+  if (pCfg->securityLevel < TSDB_MIN_SECURITY_LEVEL || pCfg->securityLevel > TSDB_MAX_SECURITY_LEVEL) {
+    pCfg->securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
   }
 
   if (tjsonGetObjectItem(pJson, "ssChunkSize") != NULL) {

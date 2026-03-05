@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndTrans.h"
+#include "mndCluster.h"
 #include "mndDb.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
@@ -657,6 +658,10 @@ static TransCbFp mndTransGetCbFp(ETrnFunc ftype) {
       return mndRebCntInc;
     case TRANS_STOP_FUNC_MQ_REB:
       return mndRebCntDec;
+    case TRANS_STOP_FUNC_SOD:
+      return mndSodTransStop;
+    case TRANS_STOP_FUNC_SOD_ROLE_CHECK:
+      return mndSodGrantRoleStop;
     default:
       return NULL;
   }

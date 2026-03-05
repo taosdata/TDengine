@@ -960,6 +960,7 @@ void mndClose(SMnode *pMnode) {
 }
 
 int32_t mndStart(SMnode *pMnode) {
+  int32_t code = 0;
   mndSyncStart(pMnode);
   if (pMnode->deploy) {
     if (sdbDeploy(pMnode->pSdb) != 0) {
@@ -973,6 +974,23 @@ int32_t mndStart(SMnode *pMnode) {
       mError("failed to upgrade sdb while start mnode");
       return -1;
     }
+#ifdef TD_ENTERPRISE
+    if (tsSodEnforceMode) {
+      if ((code = mndProcessEnforceSod(pMnode)) != 0) {
+        if (code == TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA || code == TSDB_CODE_MND_ROLE_NO_VALID_SYSSEC ||
+            code == TSDB_CODE_MND_ROLE_NO_VALID_SYSAUDIT) {
+          mInfo("enter SoD pending mode. Enforce SoD by command line failed since %s", tstrerror(code));
+        } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
+          mInfo("enter SoD pending mode. Enforce SoD is in progress");
+        } else {
+          mError("failed to enforce SoD by command line since %s", tstrerror(code));
+          TAOS_RETURN(code);
+        }
+      } else {
+        mndSetSoDPhase(pMnode, TSDB_SOD_PHASE_STABLE);
+      }
+    }
+#endif
   }
   pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
   grantReset(pMnode, TSDB_GRANT_ALL, 0);
@@ -1435,3 +1453,21 @@ void mndSetStop(SMnode *pMnode) {
 }
 
 bool mndGetStop(SMnode *pMnode) { return pMnode->stopped; }
+
+void mndSetSoDPhase(SMnode *pMnode, int8_t phase) {
+  (void)taosThreadRwlockWrlock(&pMnode->lock);
+  pMnode->sodPhase = phase;
+  (void)taosThreadRwlockUnlock(&pMnode->lock);
+}
+
+int8_t mndGetSoDPhase(SMnode *pMnode) {
+  int8_t result = TSDB_SOD_PHASE_STABLE;
+  (void)taosThreadRwlockRdlock(&pMnode->lock);
+  result = pMnode->sodPhase;
+  (void)taosThreadRwlockUnlock(&pMnode->lock);
+  if (result < TSDB_SOD_PHASE_STABLE || result > TSDB_SOD_PHASE_ENFORCE) {
+    mWarn("invalid SoD phase:%d, reset to stable", result);
+    result = TSDB_SOD_PHASE_STABLE;
+  }
+  return result;
+}

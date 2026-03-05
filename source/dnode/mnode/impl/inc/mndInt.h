@@ -125,6 +125,7 @@ typedef struct SMnode {
   bool           stopped;
   bool           restored;
   bool           deploy;
+  int8_t         sodPhase;
   char          *path;
   int64_t        checkTime;
   SyncIndex      applied;
@@ -152,11 +153,14 @@ typedef struct SMnode {
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 void    mndSetMsgHandleExt(SMnode *pMnode, tmsg_t msgType, MndMsgFpExt fp);
 int64_t mndGenerateUid(const char *name, int32_t len);
+void    mndSetSoDPhase(SMnode *pMnode, int8_t status);
+int8_t  mndGetSoDPhase(SMnode *pMnode);
 
 void mndSetRestored(SMnode *pMnode, bool restored);
 bool mndGetRestored(SMnode *pMnode);
 void mndSetStop(SMnode *pMnode);
 bool mndGetStop(SMnode *pMnode);
+
 
 SArray *mndGetAllDnodeFqdns(SMnode *pMnode);
 

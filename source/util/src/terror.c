@@ -126,6 +126,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DECIMAL_PARSE_ERROR,          "Decimal value parse e
 
 TAOS_DEFINE_ERROR(TSDB_CODE_EDITION_NOT_COMPATIBLE,       "Edition not compatible")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_SIGNATURE,            "Invalid signature")
+TAOS_DEFINE_ERROR(TSDB_CODE_MAC_INSUFFICIENT_LEVEL,       "Insufficient user security level for the operation")
+TAOS_DEFINE_ERROR(TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB,       "Object level below database security level")
+TAOS_DEFINE_ERROR(TSDB_CODE_MAC_OBJ_LEVEL_BELOW_USER_MIN, "Object level below user's minimum write level")
+TAOS_DEFINE_ERROR(TSDB_CODE_MAC_OBJ_LEVEL_ABOVE_USER_MAX, "Object level above user's maximum read level")
+TAOS_DEFINE_ERROR(TSDB_CODE_MAC_INVALID_LEVEL,            "Security level out of valid range [0-4]")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
@@ -260,6 +265,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_WRONG_TOTP_CODE,          "Wrong TOTP code")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USER_IP_RANGE,   "Too many ranges in IP white list")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USER_TIME_RANGE, "Too many ranges in date time white list")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOTP_SECRET_NOT_EXIST,    "TOTP secret does not exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SEC_LEVEL_DENIED,         "User security level denied for this object")
 
 //mnode-stable-part1
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STB_ALREADY_EXIST,        "STable already exists")
@@ -488,10 +494,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NOT_AVAILABLE,       "Role not available")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_INVALID_FORMAT,      "Invalid role format")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_SUBROLE_EXCEEDED,    "Subrole count exceeded")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_CONFLICTS,           "Conflicts with existing role")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA,     "No enabled user with SYSDBA role exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA,     "No enabled user with SYSDBA role found to satisfy SoD policy")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_ROLES,           "Too many roles")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_PRIV_OBJS,       "Too many privilege objects")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_PRIVS,           "Too many privileges for single user/role")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NO_VALID_SYSSEC,     "No enabled user with SYSSEC role found to satisfy SoD policy")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NO_VALID_SYSAUDIT,   "No enabled user with SYSAUDIT role found to satisfy SoD policy")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_SOD_RESTRICTED,           "Operation not allowed in current SoD status")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")

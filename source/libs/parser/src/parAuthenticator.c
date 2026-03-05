@@ -900,6 +900,7 @@ static int32_t authUseDatabase(SAuthCxt* pCxt, SUseDatabaseStmt* pStmt) {
 }
 
 static int32_t authGrant(SAuthCxt* pCxt, SGrantStmt* pStmt) {
+  bool sodInitial = pCxt->pParseCxt->sodInitial;
   if (pStmt->optrType == TSDB_ALTER_ROLE_ROLE) {
     if (IS_SYS_PREFIX(pStmt->roleName)) {
       if (strcmp(pStmt->roleName, TSDB_ROLE_SYSDBA) == 0) {
@@ -911,12 +912,17 @@ static int32_t authGrant(SAuthCxt* pCxt, SGrantStmt* pStmt) {
       if (strcmp(pStmt->roleName, TSDB_ROLE_SYSAUDIT) == 0) {
         return authSysPrivileges(pCxt, (void*)pStmt, PRIV_GRANT_SYSAUDIT);
       }
+    } else if (sodInitial) {
+      return TSDB_CODE_MND_SOD_RESTRICTED;
     }
+  } else if (sodInitial) {
+    return TSDB_CODE_MND_SOD_RESTRICTED;
   }
   return authSysPrivileges(pCxt, (void*)pStmt, PRIV_GRANT_PRIVILEGE);
 }
 
 static int32_t authRevoke(SAuthCxt* pCxt, SRevokeStmt* pStmt) {
+  bool sodInitial = pCxt->pParseCxt->sodInitial;
   if (pStmt->optrType == TSDB_ALTER_ROLE_ROLE) {
     if (IS_SYS_PREFIX(pStmt->roleName)) {
       if (strcmp(pStmt->roleName, TSDB_ROLE_SYSDBA) == 0) {
@@ -928,7 +934,11 @@ static int32_t authRevoke(SAuthCxt* pCxt, SRevokeStmt* pStmt) {
       if (strcmp(pStmt->roleName, TSDB_ROLE_SYSAUDIT) == 0) {
         return authSysPrivileges(pCxt, (void*)pStmt, PRIV_REVOKE_SYSAUDIT);
       }
+    } else if (sodInitial) {
+      return TSDB_CODE_MND_SOD_RESTRICTED;
     }
+  } else if (sodInitial) {
+    return TSDB_CODE_MND_SOD_RESTRICTED;
   }
   return authSysPrivileges(pCxt, (void*)pStmt, PRIV_REVOKE_PRIVILEGE);
 }
@@ -1130,6 +1140,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authSysPrivileges(pCxt, pStmt, PRIV_APPS_SHOW);
     case QUERY_NODE_SHOW_CLUSTER_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_CLUSTER_SHOW);
+    case QUERY_NODE_SHOW_SECURITY_POLICIES_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_SECURITY_POLICIES_SHOW); 
       // check in mnode
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_VNODES_STMT:
@@ -1147,5 +1159,16 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
 
 int32_t authenticate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
   SAuthCxt cxt = {.pParseCxt = pParseCxt, .pMetaCache = pMetaCache, .errCode = TSDB_CODE_SUCCESS};
+#ifdef TD_ENTERPRISE
+  if (pParseCxt->sodInitial) {
+    int32_t nodeType = nodeType(pQuery->pRoot);
+    if (nodeType != QUERY_NODE_GRANT_STMT && nodeType != QUERY_NODE_REVOKE_STMT &&
+        nodeType != QUERY_NODE_CREATE_USER_STMT && nodeType != QUERY_NODE_DROP_USER_STMT &&
+        nodeType != QUERY_NODE_ALTER_USER_STMT && nodeType != QUERY_NODE_SHOW_USERS_STMT &&
+        nodeType != QUERY_NODE_SHOW_SECURITY_POLICIES_STMT) {
+      return TSDB_CODE_MND_SOD_RESTRICTED;
+    }
+  }
+#endif
   return authQuery(&cxt, pQuery->pRoot);
 }

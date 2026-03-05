@@ -2354,6 +2354,7 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
   }
   pRsp->virtualStb = pStb->virtualStb;
   pRsp->pColRefs = NULL;
+  pRsp->securityLevel = pStb->securityLevel;
 
   taosRUnLockLatch(&pStb->lock);
   TAOS_RETURN(code);
@@ -3496,6 +3497,13 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
       char        owner[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
       STR_WITH_MAXSIZE_TO_VARSTR(owner, ownerName ? ownerName : "[unknown]", sizeof(owner));
       RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)owner, false), pStb, &lino, _ERROR);
+    }
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (pColInfo) {
+      uint8_t securityLevel = pStb->securityLevel;
+      RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)(&securityLevel), false), pStb, &lino,
+                          _ERROR);
     }
 
     numOfRows++;

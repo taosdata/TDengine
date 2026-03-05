@@ -93,6 +93,7 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_COMPACT_TIME_OFFSET,
   DB_OPTION_IS_AUDIT,
   DB_OPTION_ALLOW_DROP,
+  DB_OPTION_SECURITY_LEVEL,
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
@@ -104,7 +105,8 @@ typedef enum ETableOptionType {
   TABLE_OPTION_SMA,
   TABLE_OPTION_DELETE_MARK,
   TABLE_OPTION_KEEP,
-  TABLE_OPTION_VIRTUAL
+  TABLE_OPTION_VIRTUAL,
+  TABLE_OPTION_SECURITY_LEVEL,
 } ETableOptionType;
 
 typedef enum EColumnOptionType {

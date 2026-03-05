@@ -2700,6 +2700,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->compactTimeOffset = TSDB_DEFAULT_COMPACT_TIME_OFFSET;
   pOptions->encryptAlgorithmStr[0] = 0;
   pOptions->isAudit = 0;
+  pOptions->allowDrop = INT8_MIN;  // means not set
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2751,6 +2752,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->encryptAlgorithmStr[0] = 0;
   pOptions->isAudit = -1;
   pOptions->allowDrop = -1;
+  pOptions->securityLevel = -1;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2925,6 +2927,13 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       break;
     case DB_OPTION_ALLOW_DROP:
       pDbOptions->allowDrop = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      if(pDbOptions->allowDrop != 0 && pDbOptions->allowDrop != 1) {
+        snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Invalid value for allow_drop, should be 0 or 1");
+        pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+      }
+      break;
+    case DB_OPTION_SECURITY_LEVEL:
+      pDbOptions->securityLevel = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     default:
       break;
@@ -3216,6 +3225,15 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
         pCxt->errCode = TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
       } else {
         ((STableOptions*)pOptions)->virtualStb = virtualStb;
+      }
+      break;
+    }
+    case TABLE_OPTION_SECURITY_LEVEL: {
+      int64_t securityLevel = taosStr2Int64(((SToken*)pVal)->z, NULL, 10);
+      if (securityLevel < TSDB_MIN_SECURITY_LEVEL || securityLevel > TSDB_MAX_SECURITY_LEVEL) {
+        pCxt->errCode = TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+      } else {
+        ((STableOptions*)pOptions)->securityLevel = securityLevel;
       }
       break;
     }
@@ -4682,6 +4700,15 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
     b->pDropTimeRanges = NULL;
   }
 
+  if (b->pSecurityLevels != NULL) {
+    if (a->pSecurityLevels == NULL) {
+      a->pSecurityLevels = b->pSecurityLevels;
+      b->pSecurityLevels = NULL;
+    } else {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "SECURITY_LEVELS");
+    }
+  }
+
   nodesDestroyNode((SNode*)b);
   return a;
 }
@@ -4907,6 +4934,8 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOpt
     SDateTimeRangeNode* node = (SDateTimeRangeNode*)(pNode);
     pStmt->pTimeRanges[i++] = node->range;
   }
+  pStmt->userOps = *opts;  // only for privilege checking
+  TSWAP(pStmt->pSecurityLevels, opts->pSecurityLevels);
 
   nodesDestroyNode((SNode*)opts);
   return (SNode*)pStmt;

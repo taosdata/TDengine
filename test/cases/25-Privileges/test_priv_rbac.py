@@ -104,7 +104,7 @@ class TestCase:
 
         Labels: basic,ci
 
-        Jira: None
+        Jira: TS-7232
 
         History:
             - 2025-12-23 Kaili Xu Initial creation(TS-7232)

@@ -267,12 +267,25 @@ typedef struct {
   int32_t       userDataLen;
 } STrans;
 
+#define SOD_MODE_ENABLED   0
+#define SOD_MODE_MANDATORY 1
 typedef struct {
   int64_t id;
   char    name[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
   int64_t updateTime;
   int32_t upTime;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t sodMode : 1;  // Separation of Duties' mode. 0: enabled (root as fallback), 1: mandatory (root locked
+                            // forever, strict separation)
+      uint8_t reserve : 7;
+    };
+  };
+  char    sodActivator[TSDB_USER_LEN];
+  int64_t sodActivateTime;
+  int64_t macActivateTime;
 } SClusterObj;
 
 typedef struct {
@@ -606,7 +619,9 @@ typedef struct {
     uint8_t flag;
     struct {
       uint8_t createdb : 1;
-      uint8_t reserve : 7;
+      uint8_t minSecLevel : 3;  // TD: 6671585124
+      uint8_t maxSecLevel : 3;  // TD: 6671585124
+      uint8_t reserve : 1;
     };
   };
 
@@ -666,8 +681,9 @@ typedef struct {
     uint8_t flag;
     struct {
       uint8_t enable : 1;
-      uint8_t sys : 1;  // system role
-      uint8_t reserve : 6;
+      uint8_t sys : 1;            // system role
+      uint8_t securityLevel : 3;  // TD: 6671585124
+      uint8_t reserve : 3;
     };
   };
 
@@ -719,7 +735,8 @@ typedef struct {
     struct {
       uint8_t isMount : 1;    // TS-5868
       uint8_t allowDrop : 1;  // TS-7232
-      uint8_t padding : 6;
+      uint8_t securityLevel : 3; // TD: 6671585124
+      uint8_t padding : 3;
     };
   };
   int16_t hashPrefix;
@@ -948,6 +965,13 @@ typedef struct {
   int64_t     keep;
   SExtSchema* pExtSchemas;
   int8_t      virtualStb;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t securityLevel : 3;  // TD: 6671585124
+      uint8_t padding : 5;
+    };
+  };
 } SStbObj;
 
 typedef struct {

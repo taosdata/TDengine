@@ -183,6 +183,7 @@ extern int64_t tsMndLogRetention;
 extern bool    tsMndSkipGrant;
 extern bool    tsEnableWhiteList;
 extern bool    tsForceKillTrans;
+extern int8_t  tsSodEnforceMode;  // 0: not enforce, 1: enforce mandatory SoD
 
 // dnode
 extern int64_t tsDndStart;

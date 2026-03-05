@@ -221,6 +221,19 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         pTscObj->sysInfo = pRsp->sysInfo;
       }
 
+      if (pTscObj->minSecLevel != pRsp->minSecLevel) {
+        pTscObj->minSecLevel = pRsp->minSecLevel;
+      }
+      if (pTscObj->maxSecLevel != pRsp->maxSecLevel) {
+        pTscObj->maxSecLevel = pRsp->maxSecLevel;
+      }
+      if (pTscObj->enable != (uint8_t)pRsp->enable) {
+        pTscObj->enable = (uint8_t)pRsp->enable;
+      }
+      if (pTscObj->sodInitial != pRsp->sodInitial) {
+        pTscObj->sodInitial = pRsp->sodInitial;
+      }
+
       // update password version
       if (pTscObj->passInfo.fp) {
         SPassInfo *passInfo = &pTscObj->passInfo;

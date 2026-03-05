@@ -836,6 +836,7 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
   ENCODESQL();
 
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->virtualStb));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->securityLevel));
 
   tEndEncode(&encoder);
 
@@ -955,6 +956,12 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->virtualStb));
   } else {
     pReq->virtualStb = 0;
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->securityLevel));
+  } else {
+    pReq->securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
   }
 
   tEndDecode(&decoder);
@@ -3452,6 +3459,8 @@ int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq
   for (int32_t i = 0; i < pReq->numTimeRanges; ++i) {
     TAOS_CHECK_EXIT(tEncodeSDateTimeRange(&encoder, &pReq->pTimeRanges[i]));
   }
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->minSecLevel));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->maxSecLevel));
 
   tEndEncode(&encoder);
 
@@ -3532,6 +3541,11 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
     for (int32_t i = 0; i < pReq->numTimeRanges; ++i) {
       TAOS_CHECK_EXIT(tDecodeSDateTimeRange(&decoder, &pReq->pTimeRanges[i]));
     }
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->minSecLevel));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->maxSecLevel));
   }
 
   tEndDecode(&decoder);
@@ -4158,8 +4172,13 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tabName));
   }
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->tagCond, pReq->tagCondLen));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, 0)); // obsolete
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, 0));  // obsolete
   ENCODESQL();
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasSecurityLevel));
+  if (pReq->hasSecurityLevel) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->minSecLevel));
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->maxSecLevel));
+  }
 
   tEndEncode(&encoder);
 
@@ -4330,6 +4349,13 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
   int64_t obsolete;
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &obsolete));
   DECODESQL();
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasSecurityLevel));
+    if (pReq->hasSecurityLevel) {
+      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->minSecLevel));
+      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->maxSecLevel));
+    }
+  }
 
   tEndDecode(&decoder);
 
@@ -7007,6 +7033,8 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->compactTimeOffset));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->encryptAlgrName));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isAudit));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->allowDrop));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->securityLevel));
 
   tEndEncode(&encoder);
 
@@ -7121,6 +7149,14 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
     pReq->isAudit = 0;
   }
 
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->allowDrop));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->securityLevel));
+  } else {
+    pReq->allowDrop = pReq->isAudit ? 0 : 1;
+    pReq->securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
+  }
+
   tEndDecode(&decoder);
 
 _exit:
@@ -7180,6 +7216,7 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->encryptAlgrName));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isAudit));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->allowDrop));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->securityLevel));
   tEndEncode(&encoder);
 
 _exit:
@@ -7273,6 +7310,12 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->allowDrop));
   } else {
     pReq->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
+  }
+
+  if(!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->securityLevel));
+  } else {
+    pReq->securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
   }
 
   tEndDecode(&decoder);
@@ -9253,6 +9296,7 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
   } else {
     pRsp->isMount = 0;
     pRsp->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
+    pRsp->securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
   }
   if (!tDecodeIsEnd(decoder)) {
     TAOS_CHECK_RETURN(tDecodeCStrTo(decoder, pRsp->algorithmsId));
@@ -10487,6 +10531,7 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->user));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->tokenName));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->userId));
+  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pRsp->flags));
   tEndEncode(&encoder);
 
 _exit:
@@ -10561,6 +10606,12 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
     pRsp->user[0] = 0;
     pRsp->tokenName[0] = 0;
     pRsp->userId = 0;
+  }
+
+  if(!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pRsp->flags));
+  } else {
+    pRsp->flags = 0;
   }
   
   tEndDecode(&decoder);
@@ -10872,6 +10923,7 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   } else {
     pReq->isAudit = 0;
     pReq->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
+    pReq->securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
   }
 
   tEndDecode(&decoder);
@@ -11241,6 +11293,7 @@ int32_t tSerializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeCon
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssKeepLocal));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ssCompact));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->allowDrop));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->securityLevel));
 
   tEndEncode(&encoder);
 
@@ -11311,7 +11364,11 @@ int32_t tDeserializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeC
   } else {
     pReq->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
-
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->securityLevel) < 0);
+  } else {
+    pReq->securityLevel = TSDB_DEFAULT_SECURITY_LEVEL;
+  }
   tEndDecode(&decoder);
 
 _exit:
