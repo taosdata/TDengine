@@ -3317,15 +3317,21 @@ static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pN
   }
   SNode** pNodeFound = taosHashGet(pCxt->pColHash, name, len);
   if (pNodeFound == NULL) {
-    pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, &pNode, POINTER_BYTES);
+    SNode* pNew = NULL;
+    pCxt->errCode = nodesCloneNode(pNode, &pNew);
     if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-      SNode* pNew = NULL;
-      pCxt->errCode = nodesCloneNode(pNode, &pNew);
-      if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-        pCxt->errCode = nodesListStrictAppend(pCxt->pCols, pNew);
-      }
+      // Store cloned node pointer in hash so we can update its flags later
+      pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, &pNew, POINTER_BYTES);
+    }
+    if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+      pCxt->errCode = nodesListStrictAppend(pCxt->pCols, pNew);
     }
     return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+  } else if (0 == pCol->appendByPrivCond) {
+    SColumnNode* pExistCol = (SColumnNode*)(*pNodeFound);
+    if (pExistCol->appendByPrivCond == 1) {
+      pExistCol->appendByPrivCond = 0;
+    }
   }
   return DEAL_RES_CONTINUE;
 }
