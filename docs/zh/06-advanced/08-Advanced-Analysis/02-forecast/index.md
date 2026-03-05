@@ -144,10 +144,10 @@ select _frowts, forecast(val, past_co_val, future_co_val, "algo=moirai,rows=4, d
 
 ## 内置预测算法
 
-- [ARIMA](./02-arima.md)
-- [HoltWinters](./03-holtwinters.md)
-- [Prophet](./04-prophet.md)
-- [Time Series Foundation Model](./05-tsfm.md)
+- [ARIMA](./arima)
+- [HoltWinters](./holtwinters)
+- [Prophet](./prophet)
+- [Time Series Foundation Model](./tsfm)
 - CES (Complex Exponential Smoothing)
 - Theta
 - XGBoost
