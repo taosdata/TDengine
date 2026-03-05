@@ -25,7 +25,7 @@ class TestTS_7622:
         Jira: TS-7622, TS-7644, TD-38639
 
         History:
-            - 2025-11-26 Created by Kane Kuang
+            - 2025-11-26 Created by Jinqing Kuang
 
         """
 

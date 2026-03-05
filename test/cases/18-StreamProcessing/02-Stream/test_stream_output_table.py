@@ -23,7 +23,7 @@ class TestStreamOutputTable:
         Jira: TS-7721
 
         History:
-            - 2025-12-01 Created by Kane Kuang
+            - 2025-12-01 Created by Jinqing Kuang
 
         """
 
