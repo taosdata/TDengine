@@ -220,6 +220,8 @@ This document compares the configuration parameters of taosd (server-side) and t
 | smlTsDefaultName | taosc | Configuration for setting the time column name in schemaless auto table creation |
 | smlDot2Underline | taosc | Converts dots in supertable names to underscores in schemaless |
 | maxInsertBatchRows | taosc | Maximum number of rows per batch insert |
+| tmqWriteRefDB | taosd | When writing meta messages via the tmq_write_raw interface, the database name in the virtual table ref information will be replaced with this parameter value. If empty, no replacement is performed |
+| tmqWriteCheckRef | taosd | Whether to validate the virtual table ref information when writing to another cluster via the tmq_write_raw interface |
 | **SHELL Related** | | |
 | enableScience | taosc | Whether to enable scientific notation for displaying floating numbers |
 | **WebSocket Related** | | |
