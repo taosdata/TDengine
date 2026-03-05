@@ -32,6 +32,7 @@ while getopts "m:t:b:l:o:w:eh" opt; do
         ;;
     o)
         timeout_param="-o $OPTARG"
+        timeout_val=$OPTARG
         ;;
     w)
         web_server=$OPTARG
@@ -355,9 +356,9 @@ function run_thread() {
             real_start_time=$(date +%s)
             # echo "cmd:${cmd}"
             if ! is_local_host "${hosts[index]}"; then
-                timeout 1200 $cmd >>"$case_log_file" 2>&1
+                timeout ${timeout_val:-1260} $cmd >>"$case_log_file" 2>&1
             else
-                timeout 1200 bash -c "$cmd" >>"$case_log_file" 2>&1
+                timeout ${timeout_val:-1260} bash -c "$cmd" >>"$case_log_file" 2>&1
             fi
             ret=$?
             local real_end_time
