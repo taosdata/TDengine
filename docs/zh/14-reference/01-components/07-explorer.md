@@ -120,6 +120,7 @@ cors = true
 # The number of days log files are retained
 #
 # keepDays = 30
+
 # Configuration for monitoring with taosKeeper service
 
 [monitor]
@@ -129,6 +130,14 @@ cors = true
 #port = 6043
 # Monitor interval in seconds, minimum is 1, maximum is 10
 #interval = 10
+
+# security configuration
+[security]
+# Enable CAPTCHA for every login.
+# Default is false.
+# You can also set it via environment variable: EXPLORER_SECURITY_LOGIN_CAPTCHA=true
+#
+# login_captcha = false
 ```
 
 说明：
@@ -155,6 +164,7 @@ cors = true
 - `monitor.fqdn`：上报指标的 taosKeeper 服务地址。
 - `monitor.port`：上报指标的 taosKeeper 服务端口，类型为整数。默认为：`6043`。
 - `monitor.interval`：上报指标的时间间隔，类型为整数，单位为秒（s）。默认为：`10`。
+- `security.login_captcha`：是否为登录流程启用图形验证码（CAPTCHA），默认关闭。启用后每次登录都需要输入验证码。也可通过环境变量 `EXPLORER_SECURITY_LOGIN_CAPTCHA=true` 启用。
 
 ## 启动停止
 
@@ -235,6 +245,8 @@ sc.exe stop taos-explorer # Windows
 安装好，打开浏览器，默认访问 `http://ip:6060` 来访问 taos-explorer 服务。如果还没有注册过，则首先进入注册界面。输入手机号获取验证码，输入正确的验证码后，即可注册成功。
 
 登录时，请使用数据库用户名和密码登录。首次使用，默认的用户名为 `root`，密码为 `taosdata`。登录成功后即可进入`数据浏览器`页面，您可以使用查看数据库、创建数据库、创建超级表/子表等管理功能。
+
+可选：管理员可在配置文件中开启登录 CAPTCHA（`security.login_captcha = true`），开启后每次登录都需要输入图形验证码。
 
 其他功能页面，如 `数据写入-数据源` 等页面，为企业版特有功能，您可以点击查看和简单体验，并不能实际使用。
 
