@@ -461,9 +461,16 @@ function run_thread() {
 
             if is_local_host "${hosts[index]}"; then
                 mkdir "$build_dir" >/dev/null
-                cmd="cp -rf ${remote_build_dir}/* ${build_dir}/"
-                echo "$cmd"
-                bash -c "$cmd" >/dev/null 2>&1 || true
+                # 只有 82-UnitTest/test.sh 用例才保存包含 est 的文件
+                if [[ "$case_info" == *"UnitTest/test.sh"* ]]; then
+                    cmd="cp -rf ${remote_build_dir}/* ${build_dir}/"
+                    echo "$cmd"
+                    bash -c "$cmd" >/dev/null 2>&1 || true
+                else
+                    # 其他用例排除 *est* 文件
+                    cd "${remote_build_dir}" && find . -type f -not -name "*est*" -exec cp --parents {} "${build_dir}/" \; >/dev/null 2>&1 || true
+                    cd - >/dev/null 2>&1 || true
+                fi
                 if [ -d "${remote_unit_test_log_dir}" ] && [ "$(ls -A "${remote_unit_test_log_dir}" 2>/dev/null)" ]; then
                     cmd="cp -rf ${remote_unit_test_log_dir}/* ${build_dir}/"
                     echo "$cmd"
