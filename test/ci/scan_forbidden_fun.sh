@@ -30,6 +30,8 @@ BLACKLIST_FILES=(
 BLACKLIST_DIRS=(
     "third_party"
     "vendor"
+    "test"
+    "source/libs/*/test/*"
 )
 
 # 构造 grep 的 --exclude 和 --exclude-dir 参数
