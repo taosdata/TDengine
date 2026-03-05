@@ -240,7 +240,7 @@ int32_t mndInitXnode(SMnode *pMnode) {
 /** tools section **/
 
 int32_t xnodeCheckPasswordFmt(const char *pwd) {
-  if (strcmp(pwd, "taosdata") == 0) {
+  if (tsEnableAdvancedSecurity == 0 && strcmp(pwd, "taosdata") == 0) {
     return 0;
   }
 
