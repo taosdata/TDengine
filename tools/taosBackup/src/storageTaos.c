@@ -72,7 +72,7 @@ int writeTaosFile(TaosFile* taosFile, void *data, int len) {
     return TSDB_CODE_SUCCESS;
 }
 
-TaosFile* createTaosFile(const char *fileName, TAOS_FIELD* fields, int numFields, int *code) {
+TaosFile* createTaosFile(const char *fileName, TAOS_FIELD_E* fields, int numFields, int *code) {
     TaosFile* taosFile = (TaosFile*)taosMemoryMalloc(sizeof(TaosFile) + sizeof(FieldInfo) * numFields);
     memset(taosFile, 0, sizeof(TaosFile));
     if (taosFile == NULL) {
@@ -250,7 +250,7 @@ int resultToFileTaos(TAOS_RES *res, const char *fileName, int64_t *outRows) {
         logError("fields num is zero. errstr: %s", taos_errstr(res));
         return TSDB_CODE_BCK_NO_FIELDS;
     }
-    TAOS_FIELD* fields = taos_fetch_fields(res);
+    TAOS_FIELD_E* fields = taos_fetch_fields_e(res);
     if (fields == NULL) {
         logError("fetch fields failed! errstr: %s", taos_errstr(res));
         return TSDB_CODE_BCK_FETCH_FIELDS_FAILED;

@@ -396,6 +396,89 @@ static char* appendValueFromBlock(char *buf, int bufRemain,
 }
 
 //
+// Minimal WKB (little-endian, no SRID) → WKT converter for POINT/LINESTRING/POLYGON.
+// Returns number of characters written (like snprintf), or -1 on error.
+//
+static int bckWkbToWkt(const unsigned char *wkb, int wkbLen, char *out, int outLen) {
+    if (!wkb || wkbLen < 5 || !out || outLen < 16) return -1;
+    if (wkb[0] != 0x01) return -1;   // only little-endian supported
+
+    uint32_t geomType;
+    memcpy(&geomType, wkb + 1, 4);
+
+    const unsigned char *p = wkb + 5;
+    int rem = wkbLen - 5;
+    int pos = 0;
+
+    switch (geomType) {
+        case 1: { /* POINT */
+            if (rem < 16) return -1;
+            double x, y;
+            memcpy(&x, p,     8);
+            memcpy(&y, p + 8, 8);
+            pos += snprintf(out + pos, outLen - pos, "POINT(%.*g %.*g)",
+                            17, x, 17, y);
+            break;
+        }
+        case 2: { /* LINESTRING */
+            if (rem < 4) return -1;
+            uint32_t n;
+            memcpy(&n, p, 4);
+            p += 4; rem -= 4;
+            if (rem < (int)(n * 16)) return -1;
+            pos += snprintf(out + pos, outLen - pos, "LINESTRING(");
+            for (uint32_t i = 0; i < n; i++) {
+                double x, y;
+                memcpy(&x, p,     8);
+                memcpy(&y, p + 8, 8);
+                p   += 16;
+                rem -= 16;
+                if (i > 0 && pos < outLen - 2) out[pos++] = ',';
+                pos += snprintf(out + pos, outLen - pos, "%.*g %.*g",
+                                17, x, 17, y);
+            }
+            if (pos < outLen - 1) out[pos++] = ')';
+            break;
+        }
+        case 3: { /* POLYGON */
+            if (rem < 4) return -1;
+            uint32_t numRings;
+            memcpy(&numRings, p, 4);
+            p += 4; rem -= 4;
+            pos += snprintf(out + pos, outLen - pos, "POLYGON(");
+            for (uint32_t r = 0; r < numRings; r++) {
+                if (rem < 4) return -1;
+                uint32_t n;
+                memcpy(&n, p, 4);
+                p += 4; rem -= 4;
+                if (rem < (int)(n * 16)) return -1;
+                if (r > 0 && pos < outLen - 2) out[pos++] = ',';
+                if (pos < outLen - 1) out[pos++] = '(';
+                for (uint32_t i = 0; i < n; i++) {
+                    double x, y;
+                    memcpy(&x, p,     8);
+                    memcpy(&y, p + 8, 8);
+                    p   += 16;
+                    rem -= 16;
+                    if (i > 0 && pos < outLen - 2) out[pos++] = ',';
+                    pos += snprintf(out + pos, outLen - pos, "%.*g %.*g",
+                                    17, x, 17, y);
+                }
+                if (pos < outLen - 1) out[pos++] = ')';
+            }
+            if (pos < outLen - 1) out[pos++] = ')';
+            if (pos < outLen)     out[pos]   = '\0';
+            break;
+        }
+        default:
+            return -1;  /* unsupported geometry type */
+    }
+
+    if (pos < outLen) out[pos] = '\0';
+    return pos;
+}
+
+//
 // Callback for processing each decompressed tag block
 // Builds "CREATE TABLE IF NOT EXISTS `db`.`childTb` USING `db`.`stb` TAGS(...)" SQL
 //
@@ -533,11 +616,30 @@ static int tagBlockCallback(void *userData,
                             }
                         }
                         pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
+                    } else if (type == TSDB_DATA_TYPE_GEOMETRY) {
+                        // Geometry is stored as WKB binary; SQL CREATE TABLE TAGS needs WKT
+                        char wkt[4096];
+                        int wktLen = bckWkbToWkt((const unsigned char *)tagVal, (int)tagLen, wkt, (int)sizeof(wkt));
+                        if (wktLen > 0) {
+                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'%s'", wkt);
+                        } else {
+                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "NULL");
+                        }
                     } else {
-                        // VARBINARY/GEOMETRY - hex encode
+                        // VARBINARY - embed raw bytes with SQL single-quote escaping.
+                        // Backslash and single-quote are the only characters that
+                        // must be escaped; other bytes (including high-bit bytes)
+                        // are passed through verbatim.
                         pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
                         for (uint16_t k = 0; k < tagLen && pos < TSDB_MAX_SQL_LEN - 4; k++) {
-                            pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "%02X", (unsigned char)tagVal[k]);
+                            unsigned char b = (unsigned char)tagVal[k];
+                            if (b == '\'') {
+                                sql[pos++] = '\\'; sql[pos++] = '\'';
+                            } else if (b == '\\') {
+                                sql[pos++] = '\\'; sql[pos++] = '\\';
+                            } else {
+                                sql[pos++] = (char)b;
+                            }
                         }
                         pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
                     }

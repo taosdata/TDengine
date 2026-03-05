@@ -481,6 +481,7 @@ class TestTaosBackupBasic:
         tdSql.checkData(0, 0, numberOfRecords)
 
         # Wide binary column test (TS-1225)
+        tdSql.execute("drop database if exists test")
         tdSql.execute("create database test")
         tdSql.execute("use test")
         tdSql.execute(
@@ -673,6 +674,114 @@ class TestTaosBackupBasic:
 
         tdLog.info("do_taosbackup_stmt_version .................. [passed]")
 
+    #
+
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("create database db keep 3649")
+        tdSql.execute("use db")
+
+        # Super table: VARBINARY, GEOMETRY, DECIMAL, BLOB columns; VARBINARY tag
+        tdSql.execute(
+            "create table st("
+            "  ts timestamp,"
+            "  c1 varbinary(32),"
+            "  c2 geometry(128),"
+            "  c3 decimal(10,3),"
+            "  c4 blob"
+            ") tags(t1 int, t2 varbinary(16))"
+        )
+        tdSql.execute("create table ct1 using st tags(1, '\\x4142')")
+        # row with real data
+        tdSql.execute(
+            "insert into ct1 values("
+            "  1640000000000,"
+            "  '\\x48454C4C4F',"
+            "  'POINT (1.000000 2.000000)',"
+            "  123.456,"
+            "  '\\x424c4f42'"
+            ")"
+        )
+        # row with NULLs
+        tdSql.execute(
+            "insert into ct1 values(1640000000001, NULL, NULL, NULL, NULL)"
+        )
+
+        # Normal table: same columns
+        tdSql.execute(
+            "create table nt1("
+            "  ts timestamp,"
+            "  c1 varbinary(32),"
+            "  c2 geometry(128),"
+            "  c3 decimal(10,3),"
+            "  c4 blob"
+            ")"
+        )
+        tdSql.execute(
+            "insert into nt1 values("
+            "  1640000000000,"
+            "  '\\x48454C4C4F',"
+            "  'POINT (1.000000 2.000000)',"
+            "  123.456,"
+            "  '\\x424c4f42'"
+            ")"
+        )
+        tdSql.execute(
+            "insert into nt1 values(1640000000001, NULL, NULL, NULL, NULL)"
+        )
+
+        binPath = etool.taosBackupFile()
+        if binPath == "":
+            tdLog.exit("taosBackup not found!")
+
+        self.makeDir(tmpdir)
+        self.exec("%s -D db -o %s -T 1" % (binPath, tmpdir))
+
+        tdSql.execute("drop database db")
+        self.exec("%s -i %s -T 1" % (binPath, tmpdir))
+
+        assert self.dbFound("db"), "database 'db' not found after restore"
+        tdSql.execute("use db")
+
+        # Verify STB row count
+        tdSql.query("select count(*) from db.ct1")
+        tdSql.checkData(0, 0, 2)
+
+        # Verify NTB row count
+        tdSql.query("select count(*) from db.nt1")
+        tdSql.checkData(0, 0, 2)
+
+        # Verify STB data row (real values)
+        tdSql.query("select c1, c2, c3, c4 from db.ct1 where ts=1640000000000")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None if tdSql.queryResult[0][0] is None else tdSql.queryResult[0][0])  # not NULL
+        assert tdSql.queryResult[0][0] is not None, "ct1.c1 (varbinary) should not be NULL after restore"
+        assert tdSql.queryResult[0][1] is not None, "ct1.c2 (geometry) should not be NULL after restore"
+        # DECIMAL value check
+        c3_val = float(str(tdSql.queryResult[0][2]))
+        assert abs(c3_val - 123.456) < 0.001, f"ct1.c3 (decimal) expected ~123.456, got {c3_val}"
+        assert tdSql.queryResult[0][3] is not None, "ct1.c4 (blob) should not be NULL after restore"
+
+        # Verify STB NULL row
+        tdSql.query("select c1, c2, c3, c4 from db.ct1 where ts=1640000000001")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(0, 3, None)
+
+        # Verify NTB data row
+        tdSql.query("select c1, c2, c3, c4 from db.nt1 where ts=1640000000000")
+        tdSql.checkRows(1)
+        assert tdSql.queryResult[0][0] is not None, "nt1.c1 (varbinary) should not be NULL after restore"
+        assert tdSql.queryResult[0][1] is not None, "nt1.c2 (geometry) should not be NULL after restore"
+        c3_nt = float(str(tdSql.queryResult[0][2]))
+        assert abs(c3_nt - 123.456) < 0.001, f"nt1.c3 (decimal) expected ~123.456, got {c3_nt}"
+        assert tdSql.queryResult[0][3] is not None, "nt1.c4 (blob) should not be NULL after restore"
+
+        # Verify NTB NULL row
+        tdSql.query("select c1, c2, c3, c4 from db.nt1 where ts=1640000000001")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
     #
     # ------------------- main test method ----------------
     #

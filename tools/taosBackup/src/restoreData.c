@@ -18,6 +18,7 @@
 #include "bckPool.h"
 #include "bckDb.h"
 #include "bckSchemaChange.h"
+#include "decimal.h"
 #include "ttypes.h"
 #include "osString.h"
 
@@ -160,18 +161,18 @@ static void deleteRestoreCheckpoint() {
 //
 // ----------------------------- STMT2 RESTORE CONTEXT ---------------------------------
 //
-// Uses TAOS_STMT2 (TDengine v3.3+ native API) which is significantly faster
-// than STMT1 for batch inserts:
-//   - singleStbInsert=true  : all child tables share the same super table
-//   - singleTableBindOnce=true : all rows for a child table are bound at once
+// Uses TAOS_STMT2 (TDengine v3.3+ native API) for fast batch inserts:
 //   - No add_batch() step   : bind_param() + exec() is the whole flow
-//   - table name supplied in TAOS_STMT2_BINDV.tbnames[] — no set_tbname() needed
+//   - per-file prepare      : INSERT INTO `db`.`tblname` VALUES(?,?,?...)
+//                             The table name is embedded in the SQL so that the
+//                             WebSocket driver (libtaosws.so, Rust) can resolve
+//                             the schema at prepare time.  Native mode is also
+//                             correct since stmtPrepare2() just stores the SQL.
 //
 // Per-thread workflow:
-//   init once  → prepare once (INSERT INTO ? VALUES(?,?,?...))
-//   per file:  read all blocks → accumulate into colBinds[] buffers
-//              → taos_stmt2_bind_param + taos_stmt2_exec
-//              → reset accRows for next file
+//   per file:  close prev stmt2 (if any) → init new stmt2 → prepare with tbname
+//              read all blocks → accumulate into colBinds[] buffers
+//              → taos_stmt2_bind_param (tbnames=NULL) + taos_stmt2_exec
 //   cleanup   → taos_stmt2_close
 
 typedef struct {
@@ -195,6 +196,7 @@ typedef struct {
     int              colBindsCap;  // how many columns the colBinds array was allocated for
     int64_t          rowBufCap;    // row capacity of each column buffer
     int32_t         *varWriteOffsets; // packed write position per var-type column (size = colBindsCap)
+    int32_t         *varBufCapacity;  // allocated byte capacity per var/decimal buffer (for dynamic growth)
 
     StbChange   *stbChange;
     bool         prepared;         // stmt2 has been prepared (once per thread lifetime)
@@ -501,6 +503,44 @@ static int bindBlockData(StmtRestoreCtx *ctx,
             bind->length = lengths;
             bind->is_null = isNull;
 
+        } else if (IS_DECIMAL_TYPE(fieldInfos[c].type)) {
+            /* DECIMAL: raw block has bitmap + fixed bytes (8 or 16) per row.
+             * STMT1 for DECIMAL also expects string representation. */
+            int32_t actualBytes = fieldGetRawBytes(&fieldInfos[c]);
+            uint8_t precision   = fieldGetPrecision(&fieldInfos[c]);
+            uint8_t scale       = fieldGetScale(&fieldInfos[c]);
+            int32_t bitmapLen   = (blockRows + 7) / 8;
+            char   *bitmap      = (char *)colData;
+            char   *fixData     = (char *)colData + bitmapLen;
+
+            int32_t strBufPerRow = (int32_t)precision + 10;  // max decimal string length
+            char   *buffer  = (char *)taosMemoryCalloc(blockRows, strBufPerRow);
+            int32_t *lengths = (int32_t *)taosMemoryCalloc(blockRows, sizeof(int32_t));
+            char    *isNull  = (char *)taosMemoryCalloc(blockRows, sizeof(char));
+            if (!buffer || !lengths || !isNull) {
+                taosMemoryFree(buffer);
+                taosMemoryFree(lengths);
+                taosMemoryFree(isNull);
+                return TSDB_CODE_BCK_MALLOC_FAILED;
+            }
+
+            for (int row = 0; row < blockRows; row++) {
+                if (bitmap[row >> 3] & (1u << (7 - (row & 7)))) {
+                    isNull[row] = 1;
+                    lengths[row] = 0;
+                } else {
+                    isNull[row] = 0;
+                    void *rawDec = fixData + row * actualBytes;
+                    char *dest   = buffer + row * strBufPerRow;
+                    decimalToStr(rawDec, fieldInfos[c].type, precision, scale, dest, strBufPerRow);
+                    lengths[row] = (int32_t)strlen(dest);
+                }
+            }
+
+            bind->buffer = buffer;
+            bind->buffer_length = strBufPerRow;
+            bind->length = lengths;
+            bind->is_null = isNull;
         } else {
             // Fixed type layout: bitmap[(blockRows+7)/8] + data[blockRows * bytes]
             int32_t bitmapLen = (blockRows + 7) / 8;
@@ -648,6 +688,7 @@ static void stmt2FreeColBuffers(Stmt2RestoreCtx *ctx) {
         taosMemoryFree(b->is_null); b->is_null = NULL;
     }
     taosMemoryFree(ctx->varWriteOffsets); ctx->varWriteOffsets = NULL;
+    taosMemoryFree(ctx->varBufCapacity);  ctx->varBufCapacity  = NULL;
 }
 
 //
@@ -670,6 +711,11 @@ static int stmt2AllocColBuffers(Stmt2RestoreCtx *ctx, int64_t numRows,
         /* reset packed write offsets for all variable-type columns */
         if (ctx->varWriteOffsets)
             memset(ctx->varWriteOffsets, 0, ctx->colBindsCap * sizeof(int32_t));
+        /* also reset per-column length arrays for var/decimal columns */
+        for (int i = 0; i < numCols; i++) {
+            TAOS_STMT2_BIND *bind = &ctx->colBinds[i];
+            if (bind->length) memset(bind->length, 0, ctx->rowBufCap * sizeof(int32_t));
+        }
         return TSDB_CODE_SUCCESS;
     }
 
@@ -689,24 +735,45 @@ static int stmt2AllocColBuffers(Stmt2RestoreCtx *ctx, int64_t numRows,
         taosMemoryFree(ctx->colBinds); ctx->colBinds = NULL;
         return TSDB_CODE_BCK_MALLOC_FAILED;
     }
+    ctx->varBufCapacity = (int32_t *)taosMemoryCalloc(numCols, sizeof(int32_t));
+    if (!ctx->varBufCapacity) {
+        taosMemoryFree(ctx->varWriteOffsets); ctx->varWriteOffsets = NULL;
+        taosMemoryFree(ctx->colBinds); ctx->colBinds = NULL;
+        return TSDB_CODE_BCK_MALLOC_FAILED;
+    }
 
     for (int i = 0; i < numCols; i++) {
         FieldInfo       *fi   = &fieldInfos[i];
         TAOS_STMT2_BIND *bind = &ctx->colBinds[i];
         bind->buffer_type = fi->type;
         if (IS_VAR_DATA_TYPE(fi->type)) {
-            int32_t stride = fi->bytes;       /* declared max length */
-            bind->buffer   = taosMemoryCalloc(cap, stride);
+            /* Cap initial allocation to avoid huge allocs for BLOB/MEDIUMBLOB.
+             * Use dynamic realloc in stmt2AccBlock if data exceeds initial cap. */
+            int64_t stride = (int64_t)fi->bytes;
+            int64_t initialBufSize = cap * stride;
+            if (initialBufSize > (int64_t)32 * 1024 * 1024) initialBufSize = (int64_t)32 * 1024 * 1024;
+            if (initialBufSize < 4096) initialBufSize = 4096;
+            bind->buffer   = taosMemoryCalloc(1, (size_t)initialBufSize);
             bind->length   = (int32_t *)taosMemoryCalloc(cap, sizeof(int32_t));
-            /* stride is always fi->bytes; recovered in accBlock from fieldInfos */
+            ctx->varBufCapacity[i] = (int32_t)initialBufSize;
+        } else if (IS_DECIMAL_TYPE(fi->type)) {
+            /* DECIMAL is bound to STMT2 as a packed decimal string (same packed
+             * layout as var-data).  precision/scale decoded from encoded fi->bytes. */
+            uint8_t precision = fieldGetPrecision(fi);
+            int32_t maxStrLen = (precision > 0 ? (int32_t)precision : 38) + 10;
+            int32_t totalBufSize = (int32_t)cap * maxStrLen;
+            bind->buffer   = taosMemoryCalloc(1, totalBufSize);
+            bind->length   = (int32_t *)taosMemoryCalloc(cap, sizeof(int32_t));
+            ctx->varBufCapacity[i] = totalBufSize;
         } else {
             int32_t typeBytes = tDataTypes[fi->type].bytes;
             bind->buffer   = taosMemoryCalloc(cap, typeBytes);
             bind->length   = NULL;
+            ctx->varBufCapacity[i] = 0;
         }
         bind->is_null = (char *)taosMemoryCalloc(cap, 1);
         if (!bind->buffer || !bind->is_null ||
-            (IS_VAR_DATA_TYPE(fi->type) && !bind->length)) {
+            ((IS_VAR_DATA_TYPE(fi->type) || IS_DECIMAL_TYPE(fi->type)) && !bind->length)) {
             stmt2FreeColBuffers(ctx);
             taosMemoryFree(ctx->colBinds); ctx->colBinds = NULL;
             return TSDB_CODE_BCK_MALLOC_FAILED;
@@ -727,7 +794,9 @@ static int stmt2AllocColBuffers(Stmt2RestoreCtx *ctx, int64_t numRows,
 // throughput (no per-call schema re-negotiation).
 //
 static int stmt2PrepareOnce(Stmt2RestoreCtx *ctx, int numCols, FieldInfo *fieldInfos) {
-    /* build SQL */
+    /* build SQL — use fully qualified table name so WebSocket mode can resolve
+     * the schema without needing a prior taos_select_db or a ? placeholder.
+     * Native mode also handles this correctly (local metadata lookup). */
     const char *partCols  = "";
     int         bindCount = numCols;
     if (ctx->stbChange && ctx->stbChange->schemaChanged && ctx->stbChange->partColsStr) {
@@ -739,19 +808,19 @@ static int stmt2PrepareOnce(Stmt2RestoreCtx *ctx, int numCols, FieldInfo *fieldI
     char *sql = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN);
     if (!sql) return TSDB_CODE_BCK_MALLOC_FAILED;
     char *p = sql;
-    p += snprintf(p, TSDB_MAX_SQL_LEN, "INSERT INTO ? %s VALUES(?", partCols);
+    /* Use db.tablename directly — avoids WebSocket STMT2 prepare failure
+     * ("Table does not exist") that occurs with INSERT INTO ? over WebSocket
+     * because the Rust WebSocket library validates the table at prepare time. */
+    p += snprintf(p, TSDB_MAX_SQL_LEN, "INSERT INTO `%s`.`%s` %s VALUES(?",
+                  ctx->dbName, ctx->tbName, partCols);
     for (int i = 1; i < bindCount; i++) p += sprintf(p, ",?");
     sprintf(p, ")");
     logDebug("stmt2 prepare: %s", sql);
 
-    /* Select the database so STMT2 can resolve plain table names */
-    if (taos_select_db(ctx->conn, ctx->dbName) != 0) {
-        logError("taos_select_db failed for %s", ctx->dbName);
-        taosMemoryFree(sql);
-        return TSDB_CODE_BCK_STMT_FAILED;
-    }
+    /* Close any existing STMT2 handle (re-prepare per file) */
+    if (ctx->stmt2) { taos_stmt2_close(ctx->stmt2); ctx->stmt2 = NULL; }
 
-    /* init STMT2 — no singleStbInsert since we insert directly into child tables */
+    /* init STMT2 */
     ctx->stmt2 = taos_stmt2_init(ctx->conn, NULL);
     if (!ctx->stmt2) {
         logError("taos_stmt2_init failed for %s", ctx->dbName);
@@ -841,6 +910,17 @@ static int stmt2AccBlock(Stmt2RestoreCtx *ctx, void *blockData, int32_t blockRow
                     // Write packed: each row's data immediately follows the previous
                     int32_t writeOff = ctx->varWriteOffsets[bindIdx];
                     if (isNchar && varLen > 0) {
+                        /* UTF-8 can be at most equal in bytes to UCS-4 size */
+                        int32_t maxUtf8 = varLen;
+                        /* ensure buffer has room */
+                        if (writeOff + maxUtf8 > ctx->varBufCapacity[bindIdx]) {
+                            int32_t newCap = (writeOff + maxUtf8) * 2;
+                            if (newCap < ctx->varBufCapacity[bindIdx] * 2) newCap = ctx->varBufCapacity[bindIdx] * 2;
+                            void *newBuf = taosMemoryRealloc(bind->buffer, newCap);
+                            if (!newBuf) return TSDB_CODE_BCK_MALLOC_FAILED;
+                            bind->buffer = newBuf;
+                            ctx->varBufCapacity[bindIdx] = newCap;
+                        }
                         int32_t utf8Len = taosUcs4ToMbs(
                             (TdUcs4 *)src, varLen,
                             (char *)bind->buffer + writeOff, NULL);
@@ -849,11 +929,54 @@ static int stmt2AccBlock(Stmt2RestoreCtx *ctx, void *blockData, int32_t blockRow
                         ctx->varWriteOffsets[bindIdx] += actualLen;
                     } else {
                         int32_t stride = fieldInfos[c].bytes;
-                        int32_t cp = (varLen < stride) ? varLen : stride;
+                        int32_t cp = (varLen < (uint16_t)stride) ? varLen : (uint16_t)stride;
+                        /* ensure buffer has room (handles BLOB/MEDIUMBLOB large data) */
+                        if (writeOff + cp > ctx->varBufCapacity[bindIdx]) {
+                            int32_t newCap = (writeOff + cp) * 2;
+                            if (newCap < ctx->varBufCapacity[bindIdx] * 2) newCap = ctx->varBufCapacity[bindIdx] * 2;
+                            void *newBuf = taosMemoryRealloc(bind->buffer, newCap);
+                            if (!newBuf) return TSDB_CODE_BCK_MALLOC_FAILED;
+                            bind->buffer = newBuf;
+                            ctx->varBufCapacity[bindIdx] = newCap;
+                        }
                         memcpy((char *)bind->buffer + writeOff, src, cp);
                         if (bind->length) bind->length[base + row] = cp;
                         ctx->varWriteOffsets[bindIdx] += cp;
                     }
+                }
+            }
+        } else if (IS_DECIMAL_TYPE(fieldInfos[c].type)) {
+            /* DECIMAL: raw block has bitmap + fixed bytes (8 or 16) per row.
+             * STMT2 for DECIMAL expects packed decimal string representation. */
+            int32_t actualBytes = fieldGetRawBytes(&fieldInfos[c]);
+            uint8_t precision   = fieldGetPrecision(&fieldInfos[c]);
+            uint8_t scale       = fieldGetScale(&fieldInfos[c]);
+            int32_t bitmapLen   = (blockRows + 7) / 8;
+            char   *bitmap      = (char *)colData;
+            char   *fixData     = (char *)colData + bitmapLen;
+            for (int row = 0; row < blockRows; row++) {
+                bind->is_null[base + row] =
+                    (bitmap[row >> 3] & (1u << (7 - (row & 7)))) ? 1 : 0;
+                if (!bind->is_null[base + row]) {
+                    void   *rawDec   = fixData + row * actualBytes;
+                    char    str[64]  = "";
+                    decimalToStr(rawDec, fieldInfos[c].type, precision, scale, str, sizeof(str));
+                    int32_t slen     = (int32_t)strlen(str);
+                    int32_t writeOff = ctx->varWriteOffsets[bindIdx];
+                    /* ensure buffer has room */
+                    if (writeOff + slen > ctx->varBufCapacity[bindIdx]) {
+                        int32_t newCap = (writeOff + slen) * 2;
+                        if (newCap < ctx->varBufCapacity[bindIdx] * 2) newCap = ctx->varBufCapacity[bindIdx] * 2;
+                        void *newBuf = taosMemoryRealloc(bind->buffer, newCap);
+                        if (!newBuf) return TSDB_CODE_BCK_MALLOC_FAILED;
+                        bind->buffer = newBuf;
+                        ctx->varBufCapacity[bindIdx] = newCap;
+                    }
+                    memcpy((char *)bind->buffer + writeOff, str, slen);
+                    bind->length[base + row] = slen;
+                    ctx->varWriteOffsets[bindIdx] += slen;
+                } else {
+                    bind->length[base + row] = 0;
                 }
             }
         } else {
@@ -897,13 +1020,12 @@ static int stmt2FlushBatch(Stmt2RestoreCtx *ctx) {
     for (int i = 0; i < ctx->numFields; i++)
         ctx->colBinds[i].num = (int)ctx->accRows;
 
-    /* plain child table name — db already selected on the connection */
-    char *tbnames[1] = { ctx->tbName };
-
+    /* Table name is embedded in the prepare SQL (INSERT INTO db.tbl VALUES(?))
+     * so tbnames must be NULL — passing it would override the SQL table name. */
     TAOS_STMT2_BINDV bindv;
     memset(&bindv, 0, sizeof(bindv));
     bindv.count     = 1;
-    bindv.tbnames   = tbnames;
+    bindv.tbnames   = NULL;             /* name already in prepared SQL */
     bindv.tags      = NULL;             /* child table already created */
     bindv.bind_cols = &ctx->colBinds;   /* [0] = column array for 1st table */
 
@@ -968,11 +1090,15 @@ static int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
     if (ctx->stbChange && ctx->stbChange->schemaChanged)
         numCols = ctx->stbChange->matchColCount;
 
-    /* prepare SQL once per thread */
-    if (!ctx->prepared) {
-        code = stmt2PrepareOnce(ctx, numCols, fis);
-        if (code != TSDB_CODE_SUCCESS) { closeTaosFileRead(f); return code; }
-    }
+    /* Re-prepare STMT2 for each file with the actual table name embedded
+     * in the SQL.  This is required for WebSocket mode (libtaosws.so) where
+     * taos_stmt2_prepare with "INSERT INTO ?" fails because the Rust client
+     * validates the table at prepare time.  For native mode the cost is
+     * negligible (stmtPrepare2 just stores the SQL string locally). */
+    if (ctx->stmt2) { taos_stmt2_close(ctx->stmt2); ctx->stmt2 = NULL; }
+    ctx->prepared = false;
+    code = stmt2PrepareOnce(ctx, numCols, fis);
+    if (code != TSDB_CODE_SUCCESS) { closeTaosFileRead(f); return code; }
 
     /* allocate / reuse column buffers for this file's rows */
     code = stmt2AllocColBuffers(ctx, numRows, numCols, fis);

@@ -21,7 +21,7 @@
 //
 #define TAOSFILE_MAGIC   "TAOS"
 #define TAOSBODY_MAGIC   "BLOC"
-#define TAOSFILE_VERSION 1
+#define TAOSFILE_VERSION 2
 
 // compressBlock->flag
 #define BLOCK_FLAG_NOT_COMPRESS 0x00000001
@@ -67,7 +67,24 @@ int decompressBlock(CompressBlock* compressBlock,
 // free
 void freeCompressData(CompressBlock* compressBlock);
 
-// fill fields info
-void fillFieldsInfo(FieldInfo* fieldInfos, TAOS_FIELD* fields, int numFields);
+// fill fields info from TAOS_FIELD_E (captures precision/scale for DECIMAL types)
+// For DECIMAL/DECIMAL64, FieldInfo.bytes is packed: (actualBytes<<24)|(precision<<8)|scale
+// For all other types, FieldInfo.bytes is the raw declared byte width.
+void fillFieldsInfo(FieldInfo* fieldInfos, TAOS_FIELD_E* fields, int numFields);
+
+// Helpers to decode DECIMAL packed bytes (no dependency on IS_DECIMAL_TYPE / tDataTypes).
+// For DECIMAL/DECIMAL64, FieldInfo.bytes is packed: (actualBytes<<24)|(precision<<8)|scale
+//   → top byte (bits 24-31) is the raw byte width (8 or 16), non-zero iff new format.
+// For all other types (and legacy DECIMAL files), top byte is 0 and fi->bytes is raw width.
+static inline int32_t fieldGetRawBytes(const FieldInfo* fi) {
+    int32_t hi = (fi->bytes >> 24) & 0xFF;
+    return hi != 0 ? hi : fi->bytes;
+}
+static inline uint8_t fieldGetPrecision(const FieldInfo* fi) {
+    return ((fi->bytes >> 24) & 0xFF) != 0 ? (uint8_t)((fi->bytes >> 8) & 0xFF) : 0;
+}
+static inline uint8_t fieldGetScale(const FieldInfo* fi) {
+    return ((fi->bytes >> 24) & 0xFF) != 0 ? (uint8_t)(fi->bytes & 0xFF) : 0;
+}
 
 #endif  // INC_COLCOMPRESS_H

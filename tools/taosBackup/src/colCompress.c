@@ -21,11 +21,18 @@ static int8_t getDefaultCompressLevel(int8_t type) {
     return 0; // Default compression level
 }
 
-void fillFieldsInfo(FieldInfo* fieldInfos, TAOS_FIELD* fields, int numFields) {
+void fillFieldsInfo(FieldInfo* fieldInfos, TAOS_FIELD_E* fields, int numFields) {
     for (int i = 0; i < numFields; i++) {
         memcpy(fieldInfos[i].name, fields[i].name, sizeof(fieldInfos[i].name));
         fieldInfos[i].type = fields[i].type;
-        fieldInfos[i].bytes = fields[i].bytes;
+        if (IS_DECIMAL_TYPE(fields[i].type)) {
+            // Pack precision/scale into bytes: (actualBytes<<24)|(precision<<8)|scale
+            // This lets the restore path recover precision/scale without extra fields.
+            int32_t actualBytes = tDataTypes[fields[i].type].bytes;
+            fieldInfos[i].bytes = (actualBytes << 24) | (fields[i].precision << 8) | fields[i].scale;
+        } else {
+            fieldInfos[i].bytes = fields[i].bytes;
+        }
         // default from engine
         fieldInfos[i].encode = getDefaultEncode(fields[i].type);
         fieldInfos[i].compress = getDefaultCompress(fields[i].type);
@@ -259,8 +266,8 @@ static int32_t decompressColData(FieldInfo *fieldInfo, int32_t blockRows,
         opos += bitmapLen;
         remain -= bitmapLen;
 
-        // data original size = rows * field bytes
-        dataOriginalSize = blockRows * fieldInfo->bytes;
+        // data original size = rows * field raw bytes
+        dataOriginalSize = blockRows * fieldGetRawBytes(fieldInfo);
     } else {
         // variable type: read original data length from prefix
         dataOriginalSize = *(int32_t *)((char *)input + ipos);
