@@ -19,7 +19,10 @@
 #include "os.h"
 #include "taos.h"
 
-#ifndef WINDOWS
+#if defined(WINDOWS)
+#define CURL_STATICLIB
+#endif
+
 #include "curl/curl.h"
 
 typedef struct SCurl {
@@ -32,8 +35,6 @@ void    tcurlClose(void* pConn);
 int32_t tcurlGetConnection(const char* url, SCURL** pConn);
 int32_t tcurlSend(SCURL* curl, const void* buffer, size_t buflen, size_t* sent, curl_off_t fragsize,
                    unsigned int flags);
-
-#endif
 
 void closeThreadNotificationConn();
 
