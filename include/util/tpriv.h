@@ -38,7 +38,11 @@ extern "C" {
 #define TSDB_ROLE_SYSAUDIT_LOG "SYSAUDIT_LOG"
 #define TSDB_ROLE_SYSINFO_0    "SYSINFO_0"
 #define TSDB_ROLE_SYSINFO_1    "SYSINFO_1"
-#define TSDB_ROLE_DEFAULT      TSDB_ROLE_SYSINFO_1
+#ifdef GRANTS_CFG  // cloud edition
+#define TSDB_ROLE_DEFAULT TSDB_ROLE_SYSINFO_0
+#else
+#define TSDB_ROLE_DEFAULT TSDB_ROLE_SYSINFO_1
+#endif
 
 #define TSDB_WORD_AUDIT      "audit"
 #define TSDB_WORD_BASIC      "basic"
