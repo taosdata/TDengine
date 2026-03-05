@@ -134,7 +134,7 @@ def safe_rmtree(path, retries=5, delay=1):
 
 def process_pytest_file(input_file, log_path="C:\\CI_logs",
                         exclusion_file=os.path.join(os.path.dirname(__file__), "win_ignore_cases")):
-    global failed_cases  # 声明使用全局变量
+    global failed_cases, exit_flag  # 声明使用全局变量
     # 初始化统计变量
     total_cases = 0
     success_cases = 0
