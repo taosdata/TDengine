@@ -1247,6 +1247,28 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
           EXPLAIN_ROW_END();
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
+
+        if (pResNode->pExecInfo) {
+          const SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
+          if (execInfo && execInfo->verboseInfo) {
+            const SExchangeExplainInfo *pExchInfo = (SExchangeExplainInfo *)execInfo->verboseInfo;
+            EXPLAIN_ROW_NEW(level + 1, EXPLAIN_NETWORK_FORMAT);
+            EXPLAIN_ROW_APPEND(EXPLAIN_EXCHANGE_MODE_FORMAT,
+                           pExchInfo->mode == 0 ? "concurrent" : "sequential");
+            EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+            EXPLAIN_ROW_APPEND(EXPLAIN_FETCH_TIMES_FORMAT,
+                              pExchInfo->avgFetchTimes, pExchInfo->maxFetchTimes);
+            EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+            EXPLAIN_ROW_APPEND(EXPLAIN_FETCH_ROWS_FORMAT,
+                              pExchInfo->avgFetchRows, pExchInfo->maxFetchRows);
+            EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+            EXPLAIN_ROW_APPEND(EXPLAIN_FETCH_COST_FORMAT,
+                              EXPLAIN_CONVERT_TS_US_TO_MS(pExchInfo->avgFetchCost),
+                              EXPLAIN_CONVERT_TS_US_TO_MS(pExchInfo->maxFetchCost));
+            EXPLAIN_ROW_END();
+            QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+          }
+        }
       }
 
       for (int32_t i = pExchNode->srcStartGroupId; i <= pExchNode->srcEndGroupId; ++i) {
