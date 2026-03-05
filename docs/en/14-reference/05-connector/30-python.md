@@ -60,7 +60,7 @@ Supports Python 3.0 and above.
 
 ## Version History
 
-Python Connector historical versions (it is recommended to use the latest version of 'taopsy'):
+Python Connector historical versions (it is recommended to use the latest version of 'taospy'):
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
