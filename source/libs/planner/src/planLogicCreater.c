@@ -1853,6 +1853,7 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
   pWindow->node.outputTsOrder = ORDER_ASC;
 
   int32_t code = TSDB_CODE_SUCCESS;
+  SNodeList* pOutputPartitionKeys = NULL;
   // no agg func
   if (pSelect->pWindow && nodeType(pSelect->pWindow) != QUERY_NODE_EXTERNAL_WINDOW) {
     // just copy targets from child node, since the window node will process the functions
@@ -1886,6 +1887,23 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
       pWindow->pFuncs = NULL;
       PLAN_ERR_RET(nodesCollectFuncs(pSelect, SQL_CLAUSE_EXT_WINDOW, NULL, fmIsStreamWindowClauseFunc, &pWindow->pFuncs));
       PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_EXT_WINDOW, NULL));
+
+      if (NULL != pSelect->pPartitionByList) {
+        SNodeList* pPartKeys = NULL;
+        PLAN_ERR_RET(nodesCloneList(pSelect->pPartitionByList, &pPartKeys));
+        code = rewriteExprsForSelect(pPartKeys, pSelect, SQL_CLAUSE_EXT_WINDOW, &pOutputPartitionKeys);
+        nodesDestroyList(pPartKeys);
+        PLAN_ERR_RET(code);
+
+        if (NULL != pOutputPartitionKeys) {
+          SNode* pPartKey = NULL;
+          FOREACH(pPartKey, pOutputPartitionKeys) {
+            SNode* pNew = NULL;
+            PLAN_ERR_RET(nodesCloneNode(pPartKey, &pNew));
+            PLAN_ERR_RET(nodesListMakeStrictAppend(&pWindow->pFuncs, pNew));
+          }
+        }
+      }
       
       SNodeList* pProjTargets = NULL;
       PLAN_ERR_RET(nodesCloneList(pSelect->pProjectionList, &pProjTargets));
@@ -1898,6 +1916,7 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
   }
 
   pWindow->inputHasOrder = (pWindow->isSingleTable || pWindow->node.requireDataOrder == DATA_ORDER_LEVEL_GLOBAL);
+  nodesDestroyList(pOutputPartitionKeys);
 
   *pLogicNode = (SLogicNode*)pWindow;
 
