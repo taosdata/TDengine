@@ -6,6 +6,7 @@ from decimal import Decimal
 import os
 import random
 import string
+import taos
 import threading
 import time
 import shutil
@@ -36,7 +37,7 @@ class TestCase:
                                 f"%s%staos12 1 0" % (hostPath, os.sep)],
         'clientCfg'        : clientCfgDict,
         'ssAccessString'   : f"fs:baseDir={localSSPath}",
-        'ssEnabled'       : 1,
+        'ssEnabled'        : 1,
         'ssUploadDelaySec' : 2
     }
 
@@ -768,7 +769,6 @@ class TestCase:
 
     def parallel_insert(self, db_name, table_name, ts_start, n_rows, binary_len, num_threads=10):        
         def insert_rows(start_idx, end_idx):
-            import taos
             conn = taos.connect()
             cursor = conn.cursor()
             cursor.execute(f"use {db_name}")
@@ -795,7 +795,7 @@ class TestCase:
         total_size = sum(os.path.getsize(os.path.join(dp, f)) for dp, dn, fn in os.walk(path) for f in fn)
         min_size = min_size_mb * 1024 * 1024
         if total_size < min_size:
-            raise Exception(f"directory {path} size {total_size} bytes is not greater than {min_size_mb}MB ({min_size} bytes)")
+            raise Exception(f"directory {path} size {total_size} bytes is smaller than {min_size_mb}MB ({min_size} bytes)")
         tdLog.info(f"directory {path} size: {total_size} bytes ({total_size / (1024 * 1024):.2f} MB)")
 
     def s10_ssmigrate_without_rsma(self):
