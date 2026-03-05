@@ -10,6 +10,8 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
+from collections import Counter
+
 from new_test_framework.utils import tdLog, tdSql
 from vtable_util import VtableQueryUtil
 
@@ -34,6 +36,14 @@ class TestVTableQueryBoundary:
                 if col is not None and keyword in str(col):
                     return True
         return False
+
+    def _fetch_rows(self, sql: str):
+        tdSql.query(sql)
+        return [tuple(tdSql.getData(i, j) for j in range(tdSql.queryCols)) for i in range(tdSql.queryRows)]
+
+    @staticmethod
+    def _to_int_or_none(value):
+        return None if value is None else int(value)
 
     def test_event_window_no_window_not_out_of_range(self):
         """Event window empty result should not crash.
@@ -111,9 +121,84 @@ class TestVTableQueryBoundary:
         tdSql.checkData(baseline_rows - 1, 0, baseline_last_wstart)
         tdSql.checkData(baseline_rows - 1, 1, baseline_last_wend)
 
+    def test_event_window_true_for_definition(self):
+        """Event window TRUE_FOR should follow duration/count definition.
+
+        Build baseline event-window results without TRUE_FOR, then apply
+        duration/count predicates in test code and compare with SQL results of
+        each TRUE_FOR expression.
+
+        Since: v3.3.8.0
+
+        Catalog: query/window
+
+        Labels: virtual_table,event_window,true_for,boundary_case
+
+        History:
+            - 2026-03-05 Codex Added semantic cross-check for TRUE_FOR
+
+        """
+        keyword = "Dynamic Query Control for Virtual Table Window"
+        base_sql = (
+            "select _wstart, _wend, _wduration, count(*) "
+            "from test_vtable_select.vtb_virtual_stb "
+            "event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200 "
+        )
+        base_rows = self._fetch_rows(base_sql)
+        normalized_base = [
+            (
+                str(row[0]),
+                str(row[1]),
+                self._to_int_or_none(row[2]),
+                self._to_int_or_none(row[3]),
+            )
+            for row in base_rows
+        ]
+        tdSql.checkEqual(len(normalized_base) > 0, True)
+
+        case_defs = [
+            ("2a", lambda d, c: d >= 2),
+            ("10a", lambda d, c: d >= 10),
+            ("30a", lambda d, c: d >= 30),
+            ("COUNT 2", lambda d, c: c >= 2),
+            ("COUNT 4", lambda d, c: c >= 4),
+            ("COUNT 12", lambda d, c: c >= 12),
+            ("2a AND COUNT 2", lambda d, c: d >= 2 and c >= 2),
+            ("10a AND COUNT 4", lambda d, c: d >= 10 and c >= 4),
+            ("30a AND COUNT 12", lambda d, c: d >= 30 and c >= 12),
+            ("2a OR COUNT 2", lambda d, c: d >= 2 or c >= 2),
+            ("10a OR COUNT 4", lambda d, c: d >= 10 or c >= 4),
+            ("30a OR COUNT 12", lambda d, c: d >= 30 or c >= 12),
+        ]
+
+        for expr, predicate in case_defs:
+            sql = (
+                "select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) "
+                "from test_vtable_select.vtb_virtual_stb "
+                "event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200 "
+                f"TRUE_FOR({expr}) "
+            )
+            if not self._plan_contains(sql, keyword):
+                tdLog.exit(f"TRUE_FOR({expr}) did not hit dynamic window optimization path")
+
+            actual_rows = [
+                (
+                    str(r[0]),
+                    str(r[1]),
+                )
+                for r in self._fetch_rows(sql)
+            ]
+            expected_rows = [
+                (wstart, wend)
+                for (wstart, wend, duration, cnt) in normalized_base
+                if predicate(0 if duration is None else duration, 0 if cnt is None else cnt)
+            ]
+            tdSql.checkEqual(Counter(actual_rows), Counter(expected_rows))
+
     def run(self):
         self.test_event_window_no_window_not_out_of_range()
         self.test_event_window_last_wend_not_plus_one()
+        self.test_event_window_true_for_definition()
 
     def stop(self):
         tdLog.success("%s successfully executed" % __file__)
