@@ -313,10 +313,9 @@ int32_t mndCheckAlterUserPrivilege(SMnode *pMnode, const char *opUser, const cha
   }
 #else
   if (pUser->superUser) {
-    if (pAlter->hasEnable || pAlter->hasSysinfo || pAlter->hasCreatedb || pAlter->hasFailedLoginAttempts ||
-        pAlter->hasPasswordLifeTime || pAlter->hasPasswordReuseTime || pAlter->hasPasswordReuseMax ||
-        pAlter->hasPasswordLockTime || pAlter->hasPasswordGraceTime || pAlter->hasInactiveAccountTime ||
-        pAlter->hasAllowTokenNum || pAlter->numTimeRanges > 0 || pAlter->numDropTimeRanges > 0) {
+    if (pAlter->hasEnable || pAlter->hasSysinfo || pAlter->hasCreatedb ||
+        pAlter->hasFailedLoginAttempts || pAlter->hasPasswordLockTime || pAlter->hasPasswordGraceTime ||
+        pAlter->hasInactiveAccountTime || pAlter->numTimeRanges > 0 || pAlter->numDropTimeRanges > 0) {
       TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
     }
   }
@@ -942,6 +941,7 @@ int32_t mndSetUserRolePrivileges(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRs
     }
     if (pRole->enable == 0) {
       mndReleaseRole(pMnode, pRole);
+      pRole = NULL;
       continue;
     }
     TAOS_CHECK_EXIT(mndMergeRolePrivilges(pMnode, pUser, pRole, pRsp));

@@ -3421,11 +3421,15 @@ static int32_t mndRetrieveMachines(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+    qBuf[0] = 0;
 
     SDnodeObj *pDnode = NULL;
     int32_t    index = 0;
     while ((pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode))) {
-      if (pDnode->machineId[0] == 0) continue;
+      if (pDnode->machineId[0] == 0) {
+        sdbRelease(pSdb, pDnode);
+        continue;
+      }
       if (index == 0) {
         (void)snprintf(qBuf, TSDB_MACHINE_ID_LEN + 1, "%s", pDnode->machineId);
         qBuf += TSDB_MACHINE_ID_LEN;
