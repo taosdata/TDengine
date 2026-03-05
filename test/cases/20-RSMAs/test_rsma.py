@@ -36,7 +36,7 @@ class TestCase:
                                 f"%s%staos12 1 0" % (hostPath, os.sep)],
         'clientCfg'        : clientCfgDict,
         'ssAccessString'   : f"fs:baseDir={localSSPath}",
-        'ssEnabled'       : 1,
+        'ssEnabled'        : 1,
         'ssUploadDelaySec' : 2
     }
 
@@ -774,7 +774,7 @@ class TestCase:
             cursor.execute(f"use {db_name}")
             binary_data_cache = [''.join(random.choices(string.ascii_letters + string.digits, k=binary_len)) for _ in range(20)]
             for i in range(start_idx, end_idx):
-                ts = ts_start + i * 1000  # 间隔 1s (1000ms)
+                ts = ts_start + i * 1000  # interval 1s (1000ms)
                 binary_data = random.choice(binary_data_cache)
                 cursor.execute(f"insert into {table_name} values({ts}, {i}, '{binary_data}')")
             cursor.close()
