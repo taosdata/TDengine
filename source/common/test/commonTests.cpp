@@ -1307,6 +1307,87 @@ TEST(RepairOptionParseTest, ParseCliOptionInvalid) {
   ASSERT_EQ(tRepairParseCliOption(&cliArgs, "replica-node", tooLongVnodeId.c_str()), TSDB_CODE_INVALID_PARA);
 }
 
+TEST(RepairOptionParseTest, ExtractLongOptionValue) {
+  {
+    const char *argv[] = {"taosd", "--node-type", "vnode"};
+    int32_t     index = 1;
+    const char *value = NULL;
+    bool        matched = false;
+
+    ASSERT_EQ(tRepairExtractLongOptionValue(3, argv, &index, "--node-type", &value, &matched), TSDB_CODE_SUCCESS);
+    ASSERT_TRUE(matched);
+    ASSERT_EQ(index, 2);
+    ASSERT_STREQ(value, "vnode");
+  }
+
+  {
+    const char *argv[] = {"taosd", "--node-type=vnode"};
+    int32_t     index = 1;
+    const char *value = NULL;
+    bool        matched = false;
+
+    ASSERT_EQ(tRepairExtractLongOptionValue(2, argv, &index, "--node-type", &value, &matched), TSDB_CODE_SUCCESS);
+    ASSERT_TRUE(matched);
+    ASSERT_EQ(index, 1);
+    ASSERT_STREQ(value, "vnode");
+  }
+
+  {
+    const char *argv[] = {"taosd", "--file-type=wal"};
+    int32_t     index = 1;
+    const char *value = NULL;
+    bool        matched = true;
+
+    ASSERT_EQ(tRepairExtractLongOptionValue(2, argv, &index, "--node-type", &value, &matched), TSDB_CODE_SUCCESS);
+    ASSERT_FALSE(matched);
+    ASSERT_EQ(index, 1);
+    ASSERT_EQ(value, nullptr);
+  }
+
+  {
+    const char *argv[] = {"taosd", "--node-type"};
+    int32_t     index = 1;
+    const char *value = NULL;
+    bool        matched = false;
+
+    ASSERT_EQ(tRepairExtractLongOptionValue(2, argv, &index, "--node-type", &value, &matched), TSDB_CODE_INVALID_PARA);
+    ASSERT_TRUE(matched);
+    ASSERT_EQ(index, 1);
+    ASSERT_EQ(value, nullptr);
+  }
+
+  {
+    const char *argv[] = {"taosd", "--node-type="};
+    int32_t     index = 1;
+    const char *value = NULL;
+    bool        matched = false;
+
+    ASSERT_EQ(tRepairExtractLongOptionValue(2, argv, &index, "--node-type", &value, &matched), TSDB_CODE_INVALID_PARA);
+    ASSERT_TRUE(matched);
+    ASSERT_EQ(index, 1);
+    ASSERT_EQ(value, nullptr);
+  }
+}
+
+TEST(RepairOptionParseTest, ExtractLongOptionValueInvalidArgs) {
+  const char *argv[] = {"taosd", "--node-type=vnode"};
+  int32_t     index = 1;
+  const char *value = NULL;
+  bool        matched = false;
+
+  ASSERT_EQ(tRepairExtractLongOptionValue(0, argv, &index, "--node-type", &value, &matched), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairExtractLongOptionValue(2, NULL, &index, "--node-type", &value, &matched), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairExtractLongOptionValue(2, argv, NULL, "--node-type", &value, &matched), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairExtractLongOptionValue(2, argv, &index, NULL, &value, &matched), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairExtractLongOptionValue(2, argv, &index, "--node-type", NULL, &matched), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(tRepairExtractLongOptionValue(2, argv, &index, "--node-type", &value, NULL), TSDB_CODE_INVALID_PARA);
+
+  index = -1;
+  ASSERT_EQ(tRepairExtractLongOptionValue(2, argv, &index, "--node-type", &value, &matched), TSDB_CODE_INVALID_PARA);
+  index = 2;
+  ASSERT_EQ(tRepairExtractLongOptionValue(2, argv, &index, "--node-type", &value, &matched), TSDB_CODE_INVALID_PARA);
+}
+
 TEST(RepairOptionParseTest, ValidateCliArgsSuccess) {
   SRepairCliArgs cliArgs = {0};
 

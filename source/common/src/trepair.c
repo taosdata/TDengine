@@ -1465,6 +1465,54 @@ int32_t tRepairParseMode(const char *pMode, ERepairMode *pParsedMode) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t tRepairExtractLongOptionValue(int32_t argc, char const *argv[], int32_t *pIndex, const char *optionName,
+                                      const char **pOptionValue, bool *pMatched) {
+  if (argc <= 0 || argv == NULL || pIndex == NULL || optionName == NULL || pOptionValue == NULL || pMatched == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (*pIndex < 0 || *pIndex >= argc) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  const char *arg = argv[*pIndex];
+  if (arg == NULL || optionName[0] == '\0') {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *pMatched = false;
+  *pOptionValue = NULL;
+
+  int32_t optionNameLen = strlen(optionName);
+  if (strcmp(arg, optionName) == 0) {
+    *pMatched = true;
+    if (*pIndex >= argc - 1) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    const char *nextValue = argv[*pIndex + 1];
+    if (nextValue == NULL || nextValue[0] == '\0') {
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    *pOptionValue = nextValue;
+    ++(*pIndex);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (strncmp(arg, optionName, optionNameLen) == 0 && arg[optionNameLen] == '=') {
+    *pMatched = true;
+    const char *inlineValue = arg + optionNameLen + 1;
+    if (inlineValue[0] == '\0') {
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    *pOptionValue = inlineValue;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tRepairParseCliOption(SRepairCliArgs *pCliArgs, const char *pOptionName, const char *pOptionValue) {
   if (pCliArgs == NULL || pOptionName == NULL || pOptionValue == NULL) {
     return TSDB_CODE_INVALID_PARA;

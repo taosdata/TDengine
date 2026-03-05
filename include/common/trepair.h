@@ -137,6 +137,8 @@ typedef struct {
 int32_t tRepairParseNodeType(const char *pNodeType, ERepairNodeType *pParsedNodeType);
 int32_t tRepairParseFileType(const char *pFileType, ERepairFileType *pParsedFileType);
 int32_t tRepairParseMode(const char *pMode, ERepairMode *pParsedMode);
+int32_t tRepairExtractLongOptionValue(int32_t argc, char const *argv[], int32_t *pIndex, const char *optionName,
+                                      const char **pOptionValue, bool *pMatched);
 int32_t tRepairParseReplicaNodeEndpoint(const char *endpoint, char *host, int32_t hostSize, char *remoteDataDir,
                                         int32_t remoteDataDirSize);
 int32_t tRepairParseCliOption(SRepairCliArgs *pCliArgs, const char *pOptionName, const char *pOptionValue);

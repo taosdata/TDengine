@@ -55,6 +55,12 @@
 #define DM_REPAIR_BACKUP_PATH "Backup path for corrupted files before repair."
 #define DM_REPAIR_MODE       "Repair mode. Options: force, replica, copy."
 #define DM_REPAIR_REPLICA_NODE "Replica node endpoint for copy mode. Format: <ip>:<dataDir>, required when --mode=copy."
+#define DM_REPAIR_NODE_TYPE_OPT "--node-type"
+#define DM_REPAIR_FILE_TYPE_OPT "--file-type"
+#define DM_REPAIR_VNODE_ID_OPT "--vnode-id"
+#define DM_REPAIR_BACKUP_PATH_OPT "--backup-path"
+#define DM_REPAIR_MODE_OPT "--mode"
+#define DM_REPAIR_REPLICA_NODE_OPT "--replica-node"
 
 // clang-format on
 static struct {
@@ -209,6 +215,51 @@ static bool dmHasRepairCliOption(const SRepairCliArgs *pCliArgs) {
          pCliArgs->hasMode || pCliArgs->hasReplicaNode;
 }
 
+static bool dmMatchLongOption(const char *arg, const char *optionName) {
+  if (arg == NULL || optionName == NULL || optionName[0] == '\0') {
+    return false;
+  }
+
+  int32_t optionLen = strlen(optionName);
+  if (strcmp(arg, optionName) == 0) {
+    return true;
+  }
+
+  return strncmp(arg, optionName, optionLen) == 0 && arg[optionLen] == '=';
+}
+
+static int32_t dmParseRepairCliLongOption(int32_t argc, char const *argv[], int32_t *pIndex, const char *cliOptionName,
+                                          const char *repairOptionName) {
+  if (argc <= 0 || argv == NULL || pIndex == NULL || cliOptionName == NULL || repairOptionName == NULL) {
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  const char *optionValue = NULL;
+  bool        matched = false;
+  int32_t     code = tRepairExtractLongOptionValue(argc, argv, pIndex, cliOptionName, &optionValue, &matched);
+  if (!matched) {
+    return TSDB_CODE_NOT_FOUND;
+  }
+  if (code != TSDB_CODE_SUCCESS || optionValue == NULL) {
+    const char *arg = argv[*pIndex];
+    bool        missingValue = arg != NULL && strcmp(arg, cliOptionName) == 0 && *pIndex >= argc - 1;
+    if (missingValue) {
+      printf("'%s' requires a parameter\n", cliOptionName);
+    } else {
+      printf("invalid value of '%s'\n", cliOptionName);
+    }
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  code = tRepairParseCliOption(&global.repairCliArgs, repairOptionName, optionValue);
+  if (code != TSDB_CODE_SUCCESS) {
+    printf("invalid value of '%s': %s\n", cliOptionName, optionValue);
+    return TSDB_CODE_INVALID_CFG;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   global.startTime = taosGetTimestampMs();
 
@@ -262,119 +313,35 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-r") == 0) {
       generateNewMeta = true;
-    } else if (strcmp(argv[i], "--node-type") == 0 || strncmp(argv[i], "--node-type=", 12) == 0) {
-      if ((i < argc - 1) || ((i == argc - 1) && strncmp(argv[i], "--node-type=", 12) == 0)) {
-        int32_t     klen = strlen(argv[i]);
-        int32_t     vlen = klen < 12 ? strlen(argv[++i]) : klen - 12;
-        const char *val = argv[i];
-        if (klen >= 12) val += 12;
-        if (vlen <= 0) {
-          printf("invalid value of '--node-type'\n");
-          return TSDB_CODE_INVALID_CFG;
-        }
-        int32_t code = tRepairParseCliOption(&global.repairCliArgs, "node-type", val);
-        if (code != TSDB_CODE_SUCCESS) {
-          printf("invalid value of '--node-type': %s\n", val);
-          return TSDB_CODE_INVALID_CFG;
-        }
-      } else {
-        printf("'--node-type' requires a parameter\n");
-        return TSDB_CODE_INVALID_CFG;
+    } else if (dmMatchLongOption(argv[i], DM_REPAIR_NODE_TYPE_OPT)) {
+      int32_t code = dmParseRepairCliLongOption(argc, argv, &i, DM_REPAIR_NODE_TYPE_OPT, "node-type");
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
-    } else if (strcmp(argv[i], "--file-type") == 0 || strncmp(argv[i], "--file-type=", 12) == 0) {
-      if ((i < argc - 1) || ((i == argc - 1) && strncmp(argv[i], "--file-type=", 12) == 0)) {
-        int32_t     klen = strlen(argv[i]);
-        int32_t     vlen = klen < 12 ? strlen(argv[++i]) : klen - 12;
-        const char *val = argv[i];
-        if (klen >= 12) val += 12;
-        if (vlen <= 0) {
-          printf("invalid value of '--file-type'\n");
-          return TSDB_CODE_INVALID_CFG;
-        }
-        int32_t code = tRepairParseCliOption(&global.repairCliArgs, "file-type", val);
-        if (code != TSDB_CODE_SUCCESS) {
-          printf("invalid value of '--file-type': %s\n", val);
-          return TSDB_CODE_INVALID_CFG;
-        }
-      } else {
-        printf("'--file-type' requires a parameter\n");
-        return TSDB_CODE_INVALID_CFG;
+    } else if (dmMatchLongOption(argv[i], DM_REPAIR_FILE_TYPE_OPT)) {
+      int32_t code = dmParseRepairCliLongOption(argc, argv, &i, DM_REPAIR_FILE_TYPE_OPT, "file-type");
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
-    } else if (strcmp(argv[i], "--vnode-id") == 0 || strncmp(argv[i], "--vnode-id=", 11) == 0) {
-      if ((i < argc - 1) || ((i == argc - 1) && strncmp(argv[i], "--vnode-id=", 11) == 0)) {
-        int32_t     klen = strlen(argv[i]);
-        int32_t     vlen = klen < 11 ? strlen(argv[++i]) : klen - 11;
-        const char *val = argv[i];
-        if (klen >= 11) val += 11;
-        if (vlen <= 0) {
-          printf("invalid value of '--vnode-id'\n");
-          return TSDB_CODE_INVALID_CFG;
-        }
-        int32_t code = tRepairParseCliOption(&global.repairCliArgs, "vnode-id", val);
-        if (code != TSDB_CODE_SUCCESS) {
-          printf("invalid value of '--vnode-id': %s\n", val);
-          return TSDB_CODE_INVALID_CFG;
-        }
-      } else {
-        printf("'--vnode-id' requires a parameter\n");
-        return TSDB_CODE_INVALID_CFG;
+    } else if (dmMatchLongOption(argv[i], DM_REPAIR_VNODE_ID_OPT)) {
+      int32_t code = dmParseRepairCliLongOption(argc, argv, &i, DM_REPAIR_VNODE_ID_OPT, "vnode-id");
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
-    } else if (strcmp(argv[i], "--backup-path") == 0 || strncmp(argv[i], "--backup-path=", 14) == 0) {
-      if ((i < argc - 1) || ((i == argc - 1) && strncmp(argv[i], "--backup-path=", 14) == 0)) {
-        int32_t     klen = strlen(argv[i]);
-        int32_t     vlen = klen < 14 ? strlen(argv[++i]) : klen - 14;
-        const char *val = argv[i];
-        if (klen >= 14) val += 14;
-        if (vlen <= 0) {
-          printf("invalid value of '--backup-path'\n");
-          return TSDB_CODE_INVALID_CFG;
-        }
-        int32_t code = tRepairParseCliOption(&global.repairCliArgs, "backup-path", val);
-        if (code != TSDB_CODE_SUCCESS) {
-          printf("invalid value of '--backup-path': %s\n", val);
-          return TSDB_CODE_INVALID_CFG;
-        }
-      } else {
-        printf("'--backup-path' requires a parameter\n");
-        return TSDB_CODE_INVALID_CFG;
+    } else if (dmMatchLongOption(argv[i], DM_REPAIR_BACKUP_PATH_OPT)) {
+      int32_t code = dmParseRepairCliLongOption(argc, argv, &i, DM_REPAIR_BACKUP_PATH_OPT, "backup-path");
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
-    } else if (strcmp(argv[i], "--mode") == 0 || strncmp(argv[i], "--mode=", 7) == 0) {
-      if ((i < argc - 1) || ((i == argc - 1) && strncmp(argv[i], "--mode=", 7) == 0)) {
-        int32_t     klen = strlen(argv[i]);
-        int32_t     vlen = klen < 7 ? strlen(argv[++i]) : klen - 7;
-        const char *val = argv[i];
-        if (klen >= 7) val += 7;
-        if (vlen <= 0) {
-          printf("invalid value of '--mode'\n");
-          return TSDB_CODE_INVALID_CFG;
-        }
-        int32_t code = tRepairParseCliOption(&global.repairCliArgs, "mode", val);
-        if (code != TSDB_CODE_SUCCESS) {
-          printf("invalid value of '--mode': %s\n", val);
-          return TSDB_CODE_INVALID_CFG;
-        }
-      } else {
-        printf("'--mode' requires a parameter\n");
-        return TSDB_CODE_INVALID_CFG;
+    } else if (dmMatchLongOption(argv[i], DM_REPAIR_MODE_OPT)) {
+      int32_t code = dmParseRepairCliLongOption(argc, argv, &i, DM_REPAIR_MODE_OPT, "mode");
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
-    } else if (strcmp(argv[i], "--replica-node") == 0 || strncmp(argv[i], "--replica-node=", 15) == 0) {
-      if ((i < argc - 1) || ((i == argc - 1) && strncmp(argv[i], "--replica-node=", 15) == 0)) {
-        int32_t     klen = strlen(argv[i]);
-        int32_t     vlen = klen < 15 ? strlen(argv[++i]) : klen - 15;
-        const char *val = argv[i];
-        if (klen >= 15) val += 15;
-        if (vlen <= 0) {
-          printf("invalid value of '--replica-node'\n");
-          return TSDB_CODE_INVALID_CFG;
-        }
-        int32_t code = tRepairParseCliOption(&global.repairCliArgs, "replica-node", val);
-        if (code != TSDB_CODE_SUCCESS) {
-          printf("invalid value of '--replica-node': %s\n", val);
-          return TSDB_CODE_INVALID_CFG;
-        }
-      } else {
-        printf("'--replica-node' requires a parameter\n");
-        return TSDB_CODE_INVALID_CFG;
+    } else if (dmMatchLongOption(argv[i], DM_REPAIR_REPLICA_NODE_OPT)) {
+      int32_t code = dmParseRepairCliLongOption(argc, argv, &i, DM_REPAIR_REPLICA_NODE_OPT, "replica-node");
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
     } else if (strcmp(argv[i], "-E") == 0) {
       if (i < argc - 1) {
