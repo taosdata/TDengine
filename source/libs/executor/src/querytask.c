@@ -141,6 +141,7 @@ _exit:
 
   if (code) {
     destroySubJobCtx(pTaskInfo->pSubJobCtx);
+    pTaskInfo->pSubJobCtx = NULL;
     
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -364,6 +365,8 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
     taosArrayDestroyP(pCtx->subEndPoints, NULL);
     pCtx->subEndPoints = NULL;
   }
+  
+  taosMemoryFreeClear(pCtx);  
 }
 
 void doDestroyTask(SExecTaskInfo* pTaskInfo) {

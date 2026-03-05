@@ -929,11 +929,13 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
 
   while (pPool->backupWorkers) {
     (void)taosThreadMutexLock(&pPool->poolLock);
-    if (listNEles(pPool->backupWorkers) == 0) {
+    if (listNEles(pPool->backupWorkers) <= 0) {
       (void)taosThreadMutexUnlock(&pPool->poolLock);
       break;
     }
-    uDebug("backupworker head:%p, prev:%p, next:%p", TD_DLIST_HEAD(pPool->backupWorkers), TD_DLIST_NODE_PREV(TD_DLIST_HEAD(pPool->backupWorkers)), TD_DLIST_NODE_NEXT(TD_DLIST_HEAD(pPool->backupWorkers)));
+    uDebug("backupworker head:%p, prev:%p, next:%p", TD_DLIST_HEAD(pPool->backupWorkers), 
+        TD_DLIST_HEAD(pPool->backupWorkers) ? TD_DLIST_NODE_PREV(TD_DLIST_HEAD(pPool->backupWorkers)) : NULL, 
+        TD_DLIST_HEAD(pPool->backupWorkers) ? TD_DLIST_NODE_NEXT(TD_DLIST_HEAD(pPool->backupWorkers)) : NULL);
     SListNode *pNode = tdListPopHead(pPool->backupWorkers);
     worker = pNode ? (SQueryAutoQWorker *)pNode->data : NULL;
     (void)taosThreadMutexUnlock(&pPool->poolLock);
