@@ -247,6 +247,7 @@ static void destroyDynQueryCtrlOperator(void* param) {
     case DYN_QTYPE_VTB_INTERVAL:
     case DYN_QTYPE_VTB_AGG:
     case DYN_QTYPE_VTB_SCAN:
+    case DYN_QTYPE_VTB_TS_SCAN:
       destroyVtbScanDynCtrlInfo(&pDyn->vtbScan);
       break;
     default:
