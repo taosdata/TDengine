@@ -12,6 +12,7 @@
             v-model="ruleForm.col_name"
             :placeholder="t('dataIn.transformer.col_select')"
             :disabled="ruleForm.col_name != '' && itemData.columnname != ''"
+            class="col-select"
             @change="selectCol"
           >
             <el-option
@@ -654,39 +655,56 @@ defineExpose({
   .extract-item {
     display: flex;
     flex-wrap: nowrap;
+    min-width: 0;
+  }
 
-    .el-form {
-      display: flex;
+  .extract-item .el-form {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    column-gap: 5px;
+
+    & div:last-of-type {
       flex: 1;
-      column-gap: 15px;
-
-      & div:last-of-type {
-        flex: 1;
-      }
+      min-width: 0;
     }
+  }
 
-    .el-input:first-child {
-      margin-left: 0;
-    }
+  .extract-item :deep(.el-form-item) {
+    margin-bottom: 0;
+    margin-right: 0;
+  }
 
-    .btns {
+  .extract-item :deep(.el-form-item:last-child) {
+    min-width: 0;
+  }
+
+  .extract-item .col-select {
+    width: 120px;
+    min-width: 120px;
+  }
+
+  .extract-item .el-input:first-child {
+    margin-left: 0;
+  }
+
+  .extract-item .btns {
+    flex-shrink: 0;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0;
+
+    .el-button {
       display: flex;
-      flex-wrap: nowrap;
-
-      .el-button {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 32px;
-        height: 32px;
-        padding: 12px 20px;
-        border-radius: 6px;
-
-        /* border: 1px solid #4259ce; */
-        &:first-child {
-          margin-left: 20px;
-        }
-      }
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      padding: 2px;
+      border-radius: 6px;
+      border: none;
+      box-shadow: none;
+      margin: 0;
     }
   }
 }

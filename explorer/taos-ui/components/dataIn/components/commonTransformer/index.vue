@@ -4,7 +4,7 @@
       <div v-if="supportTransform.supportSQL" class="block-title">
         <span>{{ t('dataIn.transformer.msgbody') }}</span>
       </div>
-      <el-row class="mt10">
+      <el-row>
         <el-col :span="sourceForm.type == 'csv' ? 24 : 17">
           <el-form ref="msgFormRef" :model="msgForm" @submit.prevent>
             <el-form-item prop="msgbody">
@@ -138,6 +138,7 @@
           <el-form-item prop="type">
             <el-select
               v-model="parseruleForm.type"
+              class="parse-type-select"
               size="default"
               :placeholder="t('dataIn.transformer.filter_type')"
               @change="handleTypeChange"
@@ -154,20 +155,20 @@
             >
             </el-input>
             <div v-else-if="parseruleForm.type == 'json'" class="json-wrap">
-              <span>depth </span>
+              <span class="field-label">depth</span>
               <el-input-number
                 v-model="parseruleForm.depth"
-                style="width: 100px; margin-right: 5px"
+                class="depth-input"
                 size="default"
                 :controls="false"
                 :min="0"
               >
               </el-input-number>
-              <span>keep</span>
-              <el-switch v-model="parseruleForm.keep" style="width: 100px; margin-left: 5px" size="default">
-              </el-switch>
+              <span class="field-label">keep</span>
+              <el-switch v-model="parseruleForm.keep" class="keep-switch" size="default"></el-switch>
               <CusSelect
                 v-model="parseruleForm.expression"
+                class="json-expression"
                 :all-properties="allProperties"
                 :depth="parseruleForm.depth"
                 :keep="parseruleForm.keep"
@@ -402,7 +403,7 @@
         </div>
         <div v-if="tableData.length > 0" :key="refreshKey" class="table-detail">
           <el-table ref="mappingTable" :data="pageTableData" border style="width: 100%">
-            <el-table-column prop="Name" show-overflow-tooltip label="Name" width="180px">
+            <el-table-column prop="Name" show-overflow-tooltip label="Name" width="120px">
               <template #default="scope">
                 <div style="display: flex; align-items: end">
                   <el-icon v-if="scope.row.Expression.toString()" style="margin-right: 2px; color: rgb(56 155 255)">
@@ -425,7 +426,7 @@
                 </div>
               </template>
             </el-table-column>
-            <el-table-column prop="Type" show-overflow-tooltip label="Type" width="150px"></el-table-column>
+            <el-table-column prop="Type" show-overflow-tooltip label="Type" width="130px"></el-table-column>
             <el-table-column prop="Expression" label="Expression">
               <template #header>
                 <el-tooltip placement="top" effect="light" :open-delay="0">
@@ -2375,27 +2376,38 @@ $color-description: rgb(137 130 130);
 
 .json-wrap {
   display: inline-flex;
-  align-items: start;
+  align-items: center;
   width: 100%;
+  column-gap: 4px;
 
-  > span {
-    padding: 0 5px;
+  .field-label {
+    padding: 0 6px;
     line-height: 30px;
     color: #909399;
     background-color: #f5f7fa;
     border: 1px solid #dcdfe6;
-    border-right: 0;
     border-radius: 4px;
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
+    white-space: nowrap;
+  }
+
+  .depth-input {
+    width: 60px;
+  }
+
+  .keep-switch {
+    margin-left: 0;
+  }
+
+  .json-expression {
+    flex: 1;
+    min-width: 0;
   }
 }
 
 .block-title {
-  margin-top: 15px;
-  margin-bottom: 10px !important;
-  font-size: 16px;
-  font-weight: 600;
+  margin-top: 5px;
+  margin-bottom: 5px !important;
+  font-size: 15px;
   color: #4259ce;
 
   &.sub {
@@ -2523,9 +2535,28 @@ $color-description: rgb(137 130 130);
     }
   }
 
+  :deep(.el-button) {
+    border: none;
+    box-shadow: none;
+  }
+
+  /* Remove extra horizontal padding for Name / Type header cells */
+  :deep(.el-table__header-wrapper .cell),
+  :deep(.el-table__header-wrapper .cell) {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  /* Remove extra horizontal padding for Name / Type body cells */
+  :deep(.el-table__row .cell),
+  :deep(.el-table__row .cell) {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
   :deep(.cell.el-tooltip) {
     // height: 40px;
-    padding-right: 20px;
+    padding-right: 10px;
   }
 
   :deep(.el-form-item) {
@@ -2582,12 +2613,17 @@ $color-description: rgb(137 130 130);
     align-items: flex-start;
 
     .el-form-item {
-      margin-right: 15px;
+      margin-right: 4px;
       margin-bottom: 0;
 
       &:nth-child(2) {
         flex: 1;
       }
+    }
+
+    .parse-type-select {
+      width: 120px;
+      min-width: 120px;
     }
   }
 
@@ -2598,8 +2634,11 @@ $color-description: rgb(137 130 130);
     width: auto;
     width: 32px;
     height: 32px;
-    padding: 12px 20px;
+    padding: 2px;
     border-radius: 6px;
+    border: none;
+    box-shadow: none;
+    margin: 0;
   }
 }
 
@@ -2636,7 +2675,7 @@ $color-description: rgb(137 130 130);
 }
 
 .msg-sec {
-  margin-bottom: 25px;
+  margin-bottom: 10px;
 
   :deep(.el-input-number--default) {
     width: 86px;

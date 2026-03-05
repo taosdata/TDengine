@@ -49,7 +49,7 @@
                 <el-dropdown-menu>
                   <el-dropdown-item v-if="isHasPermission('db:read', 'read')" command="view" class="tree-menu">
                     <el-tooltip effect="light" placement="right" :content="getTooltip(data, 'view')">
-                      <div class="flex-start tree-menu-item" @click.stop="view">
+                      <div class="flex-start tree-menu-item" @click.stop="openInfoDialog">
                         <View class="operate-icon"></View>
                         <div class="tree-menu-label">{{ t('common.view') }}</div>
                       </div>
@@ -187,6 +187,20 @@
       </section>
     </div>
   </el-tooltip>
+
+  <el-dialog
+    v-model="infoDialogVisible"
+    class="tree-info-dialog"
+    :title="infoDialogTitle"
+    width="960px"
+  >
+    <template #header="{ titleClass }">
+      <div class="tree-info-dialog-header">
+        <h4 :class="titleClass">{{ infoDialogTitle }}</h4>
+      </div>
+    </template>
+    <Info v-if="infoDialogVisible" :key="infoDialogKey" />
+  </el-dialog>
 </template>
 
 <script lang="ts" setup>
@@ -211,6 +225,7 @@ import { cloneDeep } from 'lodash-es';
 import { deleteStableReq, deleteTableReq, getStableStructReq, NORMAL_TABLE, VIRTUAL_NORMAL_TABLE } from '../../api';
 import { instance } from 'config';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import Info from './info.vue';
 
 const props = defineProps<{
   node: Node;
@@ -244,6 +259,11 @@ const requestIng = ref(false);
 const type = computed(() => props.data.typeName);
 const isVirtual = computed(() => props.data.isvirtual === true);
 const key = computed(() => props.data[treeNodeKey]);
+
+const infoDialogVisible = ref(false);
+const infoDialogKey = ref(0);
+const infoDialogTypeName = ref<'database' | 'stable' | 'table'>('database');
+const infoDialogTitle = computed(() => t(`explorer.${infoDialogTypeName.value}Info`));
 // let dataSourceUsedDbList: Recordable[] = [];
 const emits = defineEmits([
   'nameFilter',
@@ -467,11 +487,59 @@ async function setInfoComp() {
   await handleVar();
   currentData.type = ({ database: 'db', stable: 'stb', table: 'tb' } as Recordable)[type.value];
 }
-async function view() {
-  await setInfoComp();
-  currentDetailComponentConfig.component = 'Info';
-  currentDetailComponentConfig.name = t(`explorer.${type.value}Info`);
-  partActiveTab.value = 'detail';
+
+async function openInfoDialog() {
+  await prepareInfoDialogData();
+  infoDialogKey.value++;
+  infoDialogVisible.value = true;
+}
+
+async function prepareInfoDialogData() {
+  switch (type.value) {
+    case 'database': {
+      infoDialogTypeName.value = 'database';
+      const dbName = props.data?.name;
+      let dbData = cloneDeep(props.data ?? {});
+      if (!isCloud || props.data?.privileges?.some((item: Recordable) => item.name == 'db:read')) {
+        const struct = await database.getStructApi(dbName).catch(() => null);
+        if (struct) {
+          dbData = { ...dbData, ...struct, name: dbName };
+        }
+      }
+      currentData.db = dbData;
+      currentData.stb = {};
+      currentData.tb = {};
+      currentData.type = 'db';
+      return;
+    }
+    case 'stable': {
+      infoDialogTypeName.value = 'stable';
+      currentData.db = cloneDeep(props.node?.parent?.data ?? {});
+      currentData.stb = cloneDeep(props.data ?? {});
+      currentData.tb = {};
+      currentData.type = 'stb';
+      return;
+    }
+    case 'table': {
+      infoDialogTypeName.value = 'table';
+      let stbNode = props.node?.parent;
+      while (stbNode && stbNode.data.typeName != 'stable') {
+        stbNode = stbNode.parent;
+      }
+      currentData.db = cloneDeep(stbNode?.parent?.data ?? {});
+      currentData.stb = cloneDeep(stbNode?.data ?? {});
+      currentData.tb = cloneDeep(props.data ?? {});
+      currentData.type = 'tb';
+      return;
+    }
+    default: {
+      infoDialogTypeName.value = 'database';
+      currentData.db = {};
+      currentData.stb = {};
+      currentData.tb = {};
+      currentData.type = 'db';
+    }
+  }
 }
 async function manage() {
   await setInfoComp();
@@ -596,11 +664,7 @@ async function del() {
       partActiveTab.value = 'sql';
     });
 }
-// function getDataSourceDbList() {
-//   database.getDataSourceUsedList().then(data => {
-//     dataSourceUsedDbList = data;
-//   });
-// }
+
 async function isDatasourceUsedDB() {
   if (type.value !== 'database') return false;
   const databaseInUsing: Recordable[] = await database.getDataSourceUsedList();
@@ -617,7 +681,25 @@ async function isDatasourceUsedDB() {
 }
 </script>
 
+<style lang="scss">
+.el-overlay-dialog .el-dialog__header {
+  padding-bottom: 0 !important;
+}
+</style>
 <style scoped lang="scss">
+.tree-info-dialog-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0px 0px 0px 20px;
+}
+
+.tree-info-dialog-header h4 {
+  margin: 0;
+}
+
 :deep(.tree-label-popper) {
   background: #409eff !important;
 }

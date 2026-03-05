@@ -92,7 +92,7 @@ export default {
     replication: 'Replication',
     pageTitle: 'Data Subscription',
     createTopic: 'Add New Topic',
-    addsource: 'Add Source',
+    addsource: 'Create New Task',
     consumer: 'Consumer',
     topicName: 'Topic Name',
     topic: 'Topic',

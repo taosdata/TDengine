@@ -2,23 +2,25 @@
   <div class="json-wrap">
     <el-form ref="jsonFormRef" :model="parseruleForm" :rules="rules" size="default">
       <div class="form-row">
-        <span>depth </span>
-        <el-input-number
-          v-model="parseruleForm.depth"
-          style="width: 50px; margin-right: 5px"
-          size="default"
-          :controls="false"
-          :min="0"
-        >
-        </el-input-number>
-        <span>keep</span>
-        <el-switch v-model="parseruleForm.keep" size="default">` </el-switch>
+        <div class="field-group">
+          <span class="field-label">depth</span>
+          <el-input-number
+            v-model="parseruleForm.depth"
+            class="depth-input"
+            size="default"
+            :controls="false"
+            :min="0"
+          />
+        </div>
+        <div class="field-group">
+          <span class="field-label">keep</span>
+          <el-switch v-model="parseruleForm.keep" size="default" />
+        </div>
         <el-input
           v-model="parseruleForm.expression"
-          style="flex: 1; min-width: 0"
+          class="expression-input"
           :placeholder="t('dataIn.transformer.jsonPlaceholder')"
-        >
-        </el-input>
+        />
       </div>
     </el-form>
   </div>
@@ -119,21 +121,38 @@ defineExpose({
 <style lang="scss" scoped>
 .json-wrap {
   width: 100%;
+  min-width: 0;
 }
 
 .form-row {
   display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
 
-  > span {
-    padding: 0 5px;
+.field-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  .field-label {
+    padding: 0 6px;
     line-height: 30px;
     color: #909399;
     background-color: #f5f7fa;
     border: 1px solid #dcdfe6;
-    border-right: 0;
     border-radius: 4px;
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
+    white-space: nowrap;
   }
+}
+
+.depth-input {
+  width: 60px;
+}
+
+.expression-input {
+  flex: 1;
+  min-width: 0;
 }
 </style>

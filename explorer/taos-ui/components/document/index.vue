@@ -1,5 +1,10 @@
 <template>
   <div class="view">
+    <section v-if="isPartyCategory" class="data-collector-title">
+      <span class="breadcrumb-link" @click="goBackToParty">{{ t('dataIn.datacollection') }}</span>
+      <span class="breadcrumb-separator"> &gt; </span>
+      <span class="breadcrumb-current">{{ currentConfig.name }}</span>
+    </section>
     <section class="view-header">
       <section class="left">
         <Icon class="image-contains" :name="iconName" />
@@ -28,6 +33,7 @@ import * as docsConfigMap from './index';
 import { debounce } from 'lodash-es';
 import 'github-markdown-css/github-markdown-light.css';
 import { i18n } from 'locales';
+import { t } from 'locales';
 
 const props = defineProps<{
   lang: string;
@@ -56,6 +62,12 @@ const domList = computed<HTMLElement[]>(
   () => steps.value.map(item => document.getElementById(item.dom)).filter(item => item) as HTMLElement[]
 );
 const iconName = computed(() => currentConfig.value.icon || currentConfig.value.name);
+
+const isPartyCategory = computed(() => props.category === 'party');
+
+function goBackToParty() {
+  window.history.back();
+}
 
 watch(
   () => (i18n.global.locale as WritableComputedRef<string>).value,
@@ -145,6 +157,36 @@ function scrollTo(dom: HTMLElement) {
   display: flex;
   padding: 10px 0;
   background-color: #fff;
+}
+
+.data-collector-title {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  font-size: 16px;
+  color: #333;
+  background-color: #ecf8ff;
+  border-left: 5px solid #50bfff;
+  border-radius: 4px;
+
+  .breadcrumb-link {
+    cursor: pointer;
+
+    &:hover {
+      color: #409eff;
+    }
+  }
+
+  .breadcrumb-separator {
+    margin: 0 4px;
+    color: #606266;
+  }
+
+  .breadcrumb-current {
+    font-weight: 500;
+  }
 }
 
 #view-content {
