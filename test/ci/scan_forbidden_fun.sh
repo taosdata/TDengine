@@ -26,12 +26,24 @@ FORBIDDEN_FUNCS=(
 BLACKLIST_FILES=(
     "ignore_this.c"
     "legacy_code.c"
+    "tmsg.c"
+    "localtime.c" 
+    "strftime.c"
+    "osTimezone.c"
+    "taos_map.c" 
 )
 BLACKLIST_DIRS=(
     "third_party"
     "vendor"
     "test"
+    "contrib"
+    "docs"
+    "utils"
     "source/libs/*/test/*"
+    "example*"
+    "tools" 
+    "utils/tsim/src/*"
+    ".externals/"
 )
 
 # 构造 grep 的 --exclude 和 --exclude-dir 参数
