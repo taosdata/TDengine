@@ -17,7 +17,7 @@ const parseBackup = (data: any) => {
   targetData.status = data.status;
   targetData.last_modified_at = data.last_modified_at;
   targetData.reason = data.reason;
-  
+
   targetData.stable = data.from_expand.params?.stable || '';
   targetData.upcoming = data.trigger.upcoming;
   targetData.running = data.status !== 'stopped';
@@ -80,8 +80,7 @@ export const useBackupStore = defineStore('backup', () => {
   const getBackupPlanList = async () => {
     try {
       backupPlanLoading.value = true;
-      const id = localStorage.getItem('local_clusterID') || '';
-      const res = await getBackupList(id, 'backup');
+      const res = await getBackupList('backup');
       backupPlanList.value = res.map(item => parseBackup(item));
       // console.log('topicList', JSON.stringify(topicList));
       backupPlanLoading.value = false;
@@ -93,9 +92,8 @@ export const useBackupStore = defineStore('backup', () => {
   const getRestoreList = async () => {
     try {
       backupPlanLoading.value = true;
-      const id = localStorage.getItem('local_clusterID') || '';
-      const res = await getBackupList(id, 'restore');
-      restoreList.value = res.map(data => parseRestore(data));
+      const res = await getBackupList('restore');
+      restoreList.value = res.map((data: any) => parseRestore(data));
       backupPlanLoading.value = false;
     } catch (error) {
       return Promise.reject(error);

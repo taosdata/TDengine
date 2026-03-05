@@ -4,10 +4,10 @@ import pathDetector from '@/utils/pathDetector';
 
 const language = getLocalLang();
 //获取backup列表
-export function getBackupList(id: string | number, type: string) {
+export function getBackupList(type: string) {
   return request({
     baseURL: pathDetector.getXApiBasePath(),
-    url: `/tasks?lang=${language}&detail=true&labels=type::${type},cluster-id::${id}`,
+    url: `/tasks?lang=${language}&detail=true&labels=type::${type}`,
     method: 'get'
   });
 }
@@ -19,19 +19,6 @@ export function getBackupHistory(id) {
     method: 'get'
   });
 }
-
-//添加backup
-// export function addBackupData(clusterID: string, data: Recordable) {
-//   return request({
-//     baseURL: pathDetector.getXApiBasePath(),
-//     headers: {
-//       'Content-Type': 'application/json'
-//     },
-//     url: `/tasks?lang=${language}&labels=type::backup,cluster-id::${clusterID}`,
-//     method: 'post',
-//     data
-//   });
-// }
 
 //编辑backup
 export function editBackup(id: string | number, data: Recordable) {
@@ -69,7 +56,7 @@ export function restoreBackups(restoreData: any) {
     url: `/tasks`,
     method: 'post',
     data: {
-      labels: ['type::restore', `cluster-id::${localStorage.getItem('local_clusterID')}`],
+      labels: ['type::restore'],
       trigger: { schedule: 'oneshot', resume: 'never' },
       from,
       to
@@ -78,13 +65,13 @@ export function restoreBackups(restoreData: any) {
 }
 
 //恢复backup
-export function restoreBackupData(clusterID: string, data: Recordable) {
+export function restoreBackupData(data: Recordable) {
   return request({
     baseURL: pathDetector.getXApiBasePath(),
     headers: {
       'Content-Type': 'application/json'
     },
-    url: `/tasks?lang=${language}&labels=type::restore,cluster-id::${clusterID}`,
+    url: `/tasks?lang=${language}&labels=type::restore`,
     method: 'post',
     data
   });

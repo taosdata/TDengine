@@ -1,6 +1,5 @@
 import { request } from '@/utils/request.ts';
 import pathDetector from '@/utils/pathDetector';
-import store from '@/store';
 
 export function getAgentsData() {
   return request({

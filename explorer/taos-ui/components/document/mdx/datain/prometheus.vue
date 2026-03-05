@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div> 
     <p>{{ t('dataIn.prometheus.totaldesc1') }}</p>
     <p>{{ t('dataIn.prometheus.totaldesc2') }}</p>
     <h2 id="prerequisites">{{ t('dataIn.prometheus.step1') }}</h2>

@@ -150,7 +150,7 @@ async function importTasks() {
     delete task.db;
   });
   tasksToImport.tasks = tasks;
-  tasksToImport.labels = [`cluster-id::${instance.tdClusterId}`, 'type::datain', `user::${instance?.user}`];
+  tasksToImport.labels = ['type::datain', `user::${instance?.user}`];
   requestIng.value = true;
   try {
     const res = await dataInProps.task.api.importTask(tasksToImport);

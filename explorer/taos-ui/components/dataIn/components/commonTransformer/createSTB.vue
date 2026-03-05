@@ -5,7 +5,7 @@
       :model="state.stable_form"
       :rules="state.rules"
       label-position="left"
-      label-width="150px"
+      label-width="192px"
       @submit.prevent
     >
       <el-form-item prop="name" class="name_input">
@@ -57,10 +57,10 @@
           ></el-input-number>
           <el-input
             v-model="column.field"
+            :class="['column-name-input', { 'column-name-input--wide': index !== 1 }]"
             size="default"
             :maxlength="64"
             :placeholder="t('stb.columnName')"
-            style="min-width: 60px"
           >
           </el-input>
           <el-tag
@@ -113,7 +113,7 @@
               default-first-option
               default-value="lz4"
               placeholder="COMPRESS"
-              class="column-width-110"
+              class="column-width-110 column-fill"
               clearable
             >
               <el-option
@@ -135,7 +135,7 @@
               size="default"
               default-first-option
               placeholder="LEVEL"
-              class="column-width-110"
+              class="column-width-110 column-fill"
               clearable
             >
               <el-option v-for="item in levelList" :key="item.value" v-bind="item"></el-option>
@@ -156,7 +156,7 @@
           size="default"
           type="primary"
           plain
-          style="width: 100%; margin-top: 18px"
+          style="width: 100%; margin-top: 0px"
           @click="addColumn"
         ></el-button>
       </el-collapse-item>
@@ -176,19 +176,25 @@
             class="column-width-110"
             @change="newVal => tagLengthChange(newVal, index)"
           ></el-input-number>
-          <el-input v-model="column.field" size="default" :maxlength="64" :placeholder="t('stb.tagName')">
-            <template #append>
-              <el-button icon="Minus" @click="minusTags(index)"></el-button>
-              <!-- <el-button icon="Plus" @click="addTags"></el-button> -->
-            </template>
+          <el-input
+            v-model="column.field"
+            size="default"
+            :maxlength="64"
+            :placeholder="t('stb.tagName')"
+            class="column-fill"
+          >
           </el-input>
+          <span class="action-btn">
+            <el-button icon="Minus" size="default" @click="minusTags(index)"></el-button>
+            <!-- <el-button icon="Plus" size="default" @click="addTags"></el-button> -->
+          </span>
         </div>
         <el-button
           icon="Plus"
           size="default"
           type="primary"
           plain
-          style="width: 100%; margin-top: 18px"
+          style="width: 100%; margin-top: 0px"
           @click="addTags"
         ></el-button>
       </el-collapse-item>
@@ -581,19 +587,43 @@ async function createTemplateStable() {
 </script>
 <style lang="scss" scoped>
 .create-stb {
+  :deep(.el-form-item.name_input) {
+    margin-bottom: 0;
+    margin-left: 4px;
+  }
+
   .column-prepend-btn {
     flex-shrink: 0;
     width: 150px;
   }
 
+  .column-name-input {
+    flex: 0 0 auto;
+    width: 250px;
+    min-width: 80px;
+  }
+
+  .column-name-input--wide {
+    width: 406px;
+  }
+
   .column-width-110 {
     flex-shrink: 0;
-    width: 90px;
-    min-width: 50px;
+    width: 152px;
+    min-width: 120px;
   }
 
   .input-row {
-    margin-top: 18px;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    margin: 0 0 10px 0;
+    gap: 4px;
+  }
+
+  .column-fill {
+    flex: 1;
+    min-width: 70px;
   }
 
   :deep(.el-collapse) {
@@ -609,8 +639,16 @@ async function createTemplateStable() {
     border-bottom: none !important;
   }
 
+  :deep(.el-collapse-item__title) {
+    font-size: 18px;
+    font-weight: 400;
+    color: #4e6a94;
+  }
+
   :deep(.el-collapse-item__wrap) {
     border-bottom: none !important;
+    padding-left: 0;
+    padding-right: 0;
   }
 
   :deep(.el-input-number__decrease) {
@@ -666,22 +704,28 @@ async function createTemplateStable() {
 
   .action-btn {
     display: flex;
-    margin-left: 10px;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
 
-    .el-button + .el-button {
+    :deep(.el-button) {
+      border: 1px solid #dcdfe6;
+    }
+
+    :deep(.el-button + .el-button) {
       margin-left: 0;
-      border-left-style: none;
     }
   }
 
   :deep(.el-tag) {
-    border-left: none;
+    border-left: 1px solid #dcdfe6;
   }
 
   .buttons {
     display: flex;
     align-items: center;
     justify-content: center;
+    margin-top: 10px;
 
     :deep(.el-button) {
       width: 60px;

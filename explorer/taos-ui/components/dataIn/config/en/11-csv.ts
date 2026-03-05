@@ -115,7 +115,7 @@ export default {
       ]
     },
     {
-      label: '',
+      label: 'Payload Transformation',
       field: 'csvData',
       type: 'csvData',
       children: []

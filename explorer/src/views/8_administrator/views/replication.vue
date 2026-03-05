@@ -218,8 +218,7 @@ const fromUrl = () => {
 
 async function getReplication() {
   try {
-    const id = localStorage.getItem('local_clusterID');
-    const res = await getReplicationList(id);
+    const res = await getReplicationList();
     topicList.value = res.map((item: { [x: string]: any; to_expand: { subject: string } }) => {
       item['fromdb'] = get(item, 'from_expand.subject');
       item['hostport'] = get(item, 'to');
@@ -272,14 +271,13 @@ function refresh() {
 async function addReplication() {
   try {
     requesting.value = true;
-    const id = localStorage.getItem('local_clusterID');
     console.log('output:', fromUrl());
     const params = {
-      labels: ['type::replication', `cluster-id::${localStorage.getItem('local_clusterID')}`],
+      labels: ['type::replication'],
       to: `${ruleForm.target}`,
       from: `${fromUrl()}/${ruleForm.source}?timeout=never`
     };
-    const res = await addReplicationData(id, params);
+    const res = await addReplicationData(params);
     console.log(res);
     requesting.value = false;
     if (has(res, 'code') && has(res, 'message') && res.code != 0) {
@@ -290,7 +288,7 @@ async function addReplication() {
     requesting.value = false;
     getReplication();
     dialog.value = false;
-  } catch (err) {
+  } catch (err: any) {
     requesting.value = false;
     console.error(err);
     $error(err?.message);
