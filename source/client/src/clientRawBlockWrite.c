@@ -1716,10 +1716,10 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
     req.refDbName = tmqWriteRefDB;
   }
 
-  if (req.action == TSDB_ALTER_TABLE_ALTER_COLUMN_REF) {
+  if (req.action == TSDB_ALTER_TABLE_ALTER_COLUMN_REF && tmqWriteCheckRef) {
     RAW_RETURN_CHECK(checkColRefForAlter(pCatalog, &conn, pTscObj->acctId, req.refDbName, req.refTbName, req.refColName, 
       pRequest->pDb, req.tbName, req.colName));
-  }else if (req.action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) {
+  }else if (req.action == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF && tmqWriteCheckRef) {
     RAW_RETURN_CHECK(checkColRefForAdd(pCatalog, &conn, pTscObj->acctId, req.refDbName, req.refTbName, req.refColName, 
       pRequest->pDb, req.tbName, req.colName, req.type, req.bytes));
   }

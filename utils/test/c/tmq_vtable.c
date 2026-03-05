@@ -62,7 +62,7 @@ static void msg_process(TAOS_RES* msg) {
   if (!writeData) {
     return;
   }
-  
+
   tmq_raw_data raw = {0};
   tmq_get_raw(msg, &raw);
   printf("write raw data type: %d\n", raw.raw_type);
@@ -134,14 +134,14 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
 
 int main(int argc, char* argv[]) {
   if (argc < 6) {
-    printf("Usage: %s <topic> <snapshot> <json_result> <ref_db> <write_data>\n", argv[0]);
+    printf("Usage: %s <topic> <snapshot> <json_result> <conf> <write_data>\n", argv[0]);
     return 0;
   }
-  
+
   topic = argv[1];
   snapshot = argv[2];
   json_result = argv[3];
-  strcpy(tmqWriteRefDB, argv[4]);
+  taos_options(TSDB_OPTION_CONFIGDIR, argv[4]);
   writeData = strcmp(argv[5], "true") == 0;
 
   tmq_t*      tmq = build_consumer();
