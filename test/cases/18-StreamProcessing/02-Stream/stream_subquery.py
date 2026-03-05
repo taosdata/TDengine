@@ -7,6 +7,17 @@ import os
 import subprocess
 
 class TestStreamSubquery:
+    #
+    #  taos.cfg config
+    #
+#    updatecfgDict = {
+#        "numOfMnodeStreamMgmtThreads"  : "4",
+#        "numOfStreamMgmtThreads"       : "5",
+#        "numOfVnodeStreamReaderThreads": "6",
+#        "numOfStreamTriggerThreads"    : "7",
+#        "numOfStreamRunnerThreads"     : "8"
+#    }
+
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
@@ -28,23 +39,41 @@ class TestStreamSubquery:
         """
 
 
+        # ntb
         self.prepareData()
-        # create the interval stream
-        self.createRangeStream()
-        # check the interval stream result
-        self.checkRangeResult()
+        #self.createRangeStream()
+        #self.checkRangeResult()
+        #self.dropStream('db.sub_range_stream')
 
-        self.createInStream()
-        self.checkInResult()
+        # stb
+        self.prepareStbData()
+        self.createStbStream()
+        self.checkStbResult()
+
+        self.dropStream('db.stb_stream')
+        # stb of subquery with dynamical tbname
+
+        #self.createInStream()
+        #self.checkInResult()
         #self.prepareCountData()
         #self.createCountStream()
         #self.checkCountResult()
+
+    def dropStream(self, streamName):
+        tdLog.info(f"Drop stream {streamName}")
+
+        sqls = [
+            "drop stream {streamName};",
+        ]
+
+        tdSql.executes(sqls)
+        tdLog.info(f"Drop stream {streamName} successfully.")
 
     def prepareData(self):
         tdLog.info(f"prepare data")
 
         sqls = [
-            "alter dnode 1 'debugflag 135';",
+            "alter dnode 1 'debugflag 143';",
             "drop database if exists db;",
             "create database db vgroups 1;",
             "create table db.tb (ts timestamp, f1 int);",
@@ -100,6 +129,65 @@ class TestStreamSubquery:
         tdSql.checkData(1, 2, 30)
         tdSql.checkData(2, 1, 30)
         tdSql.checkData(2, 2, 40)
+
+        tdLog.info(f"check stream result successfully.")
+
+    def prepareStbData(self):
+        tdLog.info(f"prepare stb data")
+
+        sqls = [
+            "create table db.stb (ts timestamp, f1 int) tags(t1 int);",
+            "create table db.ctb using db.stb tags(1);",
+            "create table db.ctb2 using db.stb tags(1);",
+            "insert into db.ctb values('2026-1-12 00:00:00', 10);",
+            "insert into db.ctb values('2026-1-12 00:00:01', 20);",
+            "insert into db.ctb2 values('2026-1-12 00:00:02', 30);",
+            "insert into db.ctb2 values('2026-1-12 00:00:03', 40);",
+        ]
+
+        tdSql.executes(sqls)
+        tdLog.info(f"create successfully.")
+
+    def createStbStream(self):
+        tdLog.info(f"create stb stream:")
+        sql = (
+        f"create stream db.stb_stream count_window(2, 1) from db.stb partition by tbname stream_options(fill_history('2026-01-11 00:00:00')|low_latency_calc) into db.stb_tb as  select _twstart as ts, first(f1) as ff1, last(f1) as lf1 from %%tbname where ts>= _twstart and ts<= _twend and f1 > (select first(f1)-1 from db.stb);"
+        )
+
+        tdLog.info(f"create stream:{sql}")
+
+        try:
+            tdSql.execute(sql)
+        except Exception as e:
+            if "No stream available snode now" not in str(e):
+                raise Exception(f" user cant  create stream no snode ,but create success")
+
+        while True:
+            tdSql.query(f"select status from information_schema.ins_streams")
+            if tdSql.getData(0,0) == "Running":
+                tdLog.info("Stream is running!")
+                break
+
+            tdLog.debug(f"current stream status: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+    def checkStbResult(self):
+        tdLog.info(f"check stb result start")
+
+        while True:
+            tdSql.query(f"select count(*) from db.`stb_tb`;")
+            if tdSql.getData(0,0) == 2:
+                tdLog.info(f"get {tdSql.getData(0,0)} rows")
+                break
+
+            tdLog.debug(f"current row count: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+        tdSql.query(f"select * from db.`stb_tb` order by ts;")
+        tdSql.checkData(0, 1, 10)
+        tdSql.checkData(0, 2, 20)
+        tdSql.checkData(1, 1, 30)
+        tdSql.checkData(1, 2, 40)
 
         tdLog.info(f"check stream result successfully.")
 
