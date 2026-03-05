@@ -1386,17 +1386,16 @@ int32_t ctgUpdateUserEnqueue(SCatalog *pCtg, SGetUserAuthRsp *pAuth, bool syncOp
 
   op->data = msg;
 
-  CTG_ERR_JRET(ctgEnqueue(pCtg, op, &enqueued));
-
+  code = ctgEnqueue(pCtg, op, &enqueued);
   // Clear source pointers to transfer ownership after successful enqueue
-  pAuth->objPrivs = NULL;
-  pAuth->selectTbs = NULL;
-  pAuth->insertTbs = NULL;
-  pAuth->deleteTbs = NULL;
-  pAuth->tokens = NULL;
-  pAuth->ownedDbs = NULL;
-
-  return TSDB_CODE_SUCCESS;
+  if (enqueued) {
+    pAuth->objPrivs = NULL;
+    pAuth->selectTbs = NULL;
+    pAuth->insertTbs = NULL;
+    pAuth->deleteTbs = NULL;
+    pAuth->tokens = NULL;
+    pAuth->ownedDbs = NULL;
+  }
 
 _return:
   if (!enqueued) {
