@@ -56,7 +56,7 @@ class TestExternal:
         dbName = "external_window_test_single_block"
         self.prepareData(dbName)
         tdSql.execute(f"use {dbName}")
-        tdLog.info(f"=============== basic query of external window with agg")
+        tdLog.info(f"=============== start basic query of external window with agg on single block")
         
         sql = "select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select first(c1) fc1  from st2) w);"
         tdSql.query(sql)
@@ -179,12 +179,14 @@ class TestExternal:
         tdSql.checkData(81, 5, 100)
         tdSql.checkData(82, 5, 100)
         tdSql.checkData(163, 5, 100)
+        
+        tdLog.info(f"=============== end basic query of external window with agg on group blocks")
     
     def mock_test_external_window_group_blocks(self):
         dbName = "external_window_test_group_blocks"
         self.prepareData(dbName)
         tdSql.execute(f"use {dbName}")
-        tdLog.info(f"=============== basic query of external window with agg on group blocks")
+        tdLog.info(f"=============== start basic query of external window with agg on group blocks")
         
         sql = "select _wstart, _wend, w.fc1, count(*), dev from st1_1 partition by dev  external_window((select first(c1) fc1  from st2) w);"
         tdSql.query(sql)
@@ -212,6 +214,8 @@ class TestExternal:
         #     tdSql.checkData(i, 1, "2020-05-13 11:21:50.000")
         #     tdSql.checkData(i, 2, 100)
         #     tdSql.checkData(i, 3, 100)
+        
+        tdLog.info(f"=============== end basic query of external window with agg on group blocks")
     
     def prepareData(self, dbName):
         vgroups = 4
