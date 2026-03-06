@@ -1599,7 +1599,7 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     vAlterTbRsp.pMeta = &vMetaRsp;
   }
 
-  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL || vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
+  if (tqClientDebugFlag == 129 && (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL || vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL)) {
     alterTagForTmq(pVnode, &vAlterTbReq);
   }
 
