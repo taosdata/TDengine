@@ -197,8 +197,8 @@ func (p *MetricParser) parseAdapterReport(c *gin.Context, body []byte) error {
 		return err
 	}
 
-	// Parse timestamp (milliseconds since epoch)
-	timestamp := time.UnixMilli(request.Ts)
+	// Parse timestamp (seconds since epoch)
+	timestamp := time.Unix(request.Ts, 0)
 
 	// 1. Cache adapter_requests (rest and ws)
 	p.cacheAdapterRequests(request.Endpoint, 0, &request.Metrics, timestamp)

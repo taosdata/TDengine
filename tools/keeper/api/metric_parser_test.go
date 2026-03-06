@@ -14,7 +14,7 @@ import (
 func TestMetricParser_ParseGeneralMetric(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{})
 
@@ -85,7 +85,7 @@ func TestMetricParser_ParseGeneralMetric(t *testing.T) {
 func TestMetricParser_ParseClusterBasic(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{})
 
@@ -118,7 +118,7 @@ func TestMetricParser_ParseClusterBasic(t *testing.T) {
 func TestMetricParser_ParseAdapterReport(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{})
 
@@ -188,7 +188,7 @@ func TestMetricParser_ParseAdapterReport(t *testing.T) {
 func TestMetricParser_SkipSlowSqlDetail(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{})
 
@@ -223,7 +223,7 @@ func TestMetricParser_SkipSlowSqlDetail(t *testing.T) {
 func TestMetricParser_FilterUnsupportedTables(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{})
 
@@ -275,7 +275,7 @@ func TestMetricParser_FilterUnsupportedTables(t *testing.T) {
 func TestMetricParser_InvalidJSON(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{})
 
@@ -289,7 +289,7 @@ func TestMetricParser_InvalidJSON(t *testing.T) {
 func TestMetricParser_WriteMetricsConfigDisabled(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{}) // No additional tables configured, write_metrics is ignored
 
@@ -319,7 +319,7 @@ func TestMetricParser_WriteMetricsConfigDisabled(t *testing.T) {
 func TestMetricParser_WriteMetricsConfigEnabled(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{"taosd_write_metrics"}) // Configure additional tables
 
@@ -351,7 +351,7 @@ func TestMetricParser_WriteMetricsConfigEnabled(t *testing.T) {
 func TestMetricParser_MultipleIncludeTables(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	// Configure multiple additional tables
 	parser := NewMetricParser(store, []string{"taosd_write_metrics", "adapter_c_interface"})

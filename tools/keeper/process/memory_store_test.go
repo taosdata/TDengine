@@ -9,7 +9,7 @@ import (
 )
 
 func TestMemoryStore_SetAndGet(t *testing.T) {
-	store := NewMemoryStore(5 * time.Minute)
+	store, _ := NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 
 	// Test storage and retrieval
@@ -39,7 +39,7 @@ func TestMemoryStore_SetAndGet(t *testing.T) {
 }
 
 func TestMemoryStore_UpdateExisting(t *testing.T) {
-	store := NewMemoryStore(5 * time.Minute)
+	store, _ := NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 
 	tags := map[string]string{"cluster_id": "123"}
@@ -74,7 +74,7 @@ func TestMemoryStore_UpdateExisting(t *testing.T) {
 }
 
 func TestMemoryStore_GetAllFiltered(t *testing.T) {
-	store := NewMemoryStore(5 * time.Minute)
+	store, _ := NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 
 	tags1 := map[string]string{"id": "1"}
@@ -99,7 +99,7 @@ func TestMemoryStore_GetAllFiltered(t *testing.T) {
 }
 
 func TestMemoryStore_BuildKey(t *testing.T) {
-	store := NewMemoryStore(5 * time.Minute)
+	store, _ := NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 
 	tags1 := map[string]string{"a": "1", "b": "2"}
@@ -113,7 +113,7 @@ func TestMemoryStore_BuildKey(t *testing.T) {
 }
 
 func TestMemoryStore_GetStats(t *testing.T) {
-	store := NewMemoryStore(5 * time.Minute)
+	store, _ := NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 
 	// Add first metric
@@ -144,7 +144,7 @@ func TestMemoryStore_GetStats(t *testing.T) {
 }
 
 func TestMemoryStore_ConcurrentAccess(t *testing.T) {
-	store := NewMemoryStore(5 * time.Minute)
+	store, _ := NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 
 	// Concurrent writes
@@ -170,7 +170,7 @@ func TestMemoryStore_ConcurrentAccess(t *testing.T) {
 
 func TestMemoryStore_TTLExpiration(t *testing.T) {
 	// Create store with minimum TTL (1 minute)
-	store := NewMemoryStore(1 * time.Minute)
+	store, _ := NewMemoryStore(1 * time.Minute)
 	defer store.Close()
 
 	// Add test data with old timestamp (older than TTL)
@@ -193,7 +193,7 @@ func TestMemoryStore_TTLExpiration(t *testing.T) {
 
 func TestMemoryStore_TTLWithMultipleEntries(t *testing.T) {
 	// Create store with minimum TTL (1 minute)
-	store := NewMemoryStore(1 * time.Minute)
+	store, _ := NewMemoryStore(1 * time.Minute)
 	defer store.Close()
 
 	// Add first batch of data with old timestamp

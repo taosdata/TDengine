@@ -52,7 +52,7 @@ func countDescsWithTimeout(ch <-chan *prometheus.Desc, timeout time.Duration) in
 
 
 func TestMemoryStoreCollector_Collect(t *testing.T) {
-	store := NewMemoryStore(5 * time.Minute)
+	store, _ := NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 
 	// Add test data
@@ -90,7 +90,7 @@ func TestMemoryStoreCollector_Collect(t *testing.T) {
 }
 
 func TestMemoryStoreCollector_CollectWithMaxAge(t *testing.T) {
-	store := NewMemoryStore(5 * time.Minute)
+	store, _ := NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 
 	// Add old data
@@ -120,7 +120,7 @@ func TestMemoryStoreCollector_CollectWithMaxAge(t *testing.T) {
 }
 
 func TestMemoryStoreCollector_Describe(t *testing.T) {
-	store := NewMemoryStore(5 * time.Minute)
+	store, _ := NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	collector := NewMemoryStoreCollector(store, 30*time.Second)
 
@@ -133,7 +133,7 @@ func TestMemoryStoreCollector_Describe(t *testing.T) {
 }
 
 func TestMemoryStoreCollector_EmptyStore(t *testing.T) {
-	store := NewMemoryStore(5 * time.Minute)
+	store, _ := NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	collector := NewMemoryStoreCollector(store, 30*time.Second)
 
@@ -146,7 +146,7 @@ func TestMemoryStoreCollector_EmptyStore(t *testing.T) {
 }
 
 func TestMemoryStoreCollector_Integration(t *testing.T) {
-	store := NewMemoryStore(5 * time.Minute)
+	store, _ := NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 
 	// Directly add test data (simulating parser behavior)

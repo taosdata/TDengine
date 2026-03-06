@@ -19,7 +19,7 @@ func TestMetricsV2_EndToEnd(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// 1. Create router and middleware
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{}) // Use default config (write_metrics not cached)
 
@@ -88,7 +88,7 @@ func TestMetricsV2_EndToEnd(t *testing.T) {
 func TestMetricsV2_WithWriteMetricsDisabled(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{}) // No additional tables configured
 
@@ -141,7 +141,7 @@ func TestMetricsV2_WithWriteMetricsDisabled(t *testing.T) {
 func TestMetricsV2_WithWriteMetricsEnabled(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{"taosd_write_metrics"}) // Configure additional tables
 
@@ -197,7 +197,7 @@ func TestMetricsV2_WithWriteMetricsEnabled(t *testing.T) {
 func TestMetricsV2_ExcludedTables(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{}) // Default config
 
@@ -281,7 +281,7 @@ func TestMetricsV2_ExcludedTables(t *testing.T) {
 func TestMetricsV2_ExpiredData(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 
 	// 1. Store data from 30 seconds ago (simulate data reporting stopped)

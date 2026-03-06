@@ -1,6 +1,7 @@
 package process
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -25,10 +26,10 @@ type MemoryStore struct {
 }
 
 // NewMemoryStore creates an in-memory store with specified TTL
-// TTL must be at least 1 minute (will panic if less)
-func NewMemoryStore(ttl time.Duration) *MemoryStore {
+// TTL must be at least 1 minute (will return error if less)
+func NewMemoryStore(ttl time.Duration) (*MemoryStore, error) {
 	if ttl < time.Minute {
-		panic("MemoryStore TTL must be at least 1 minute")
+		return nil, fmt.Errorf("MemoryStore TTL must be at least 1 minute, got %v", ttl)
 	}
 
 	store := &MemoryStore{
@@ -38,7 +39,7 @@ func NewMemoryStore(ttl time.Duration) *MemoryStore {
 	}
 	// Start cleanup goroutine
 	go store.cleanupLoop()
-	return store
+	return store, nil
 }
 
 

@@ -60,7 +60,7 @@ func TestMetricCacheMiddleware_ShouldCachePath(t *testing.T) {
 func TestMetricCacheMiddleware_InterceptAndCache(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{})
 
@@ -102,7 +102,7 @@ func TestMetricCacheMiddleware_InterceptAndCache(t *testing.T) {
 func TestMetricCacheMiddleware_SkipNonPostRequests(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{})
 
@@ -126,7 +126,7 @@ func TestMetricCacheMiddleware_SkipNonPostRequests(t *testing.T) {
 func TestMetricCacheMiddleware_SkipNonMatchingPaths(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{})
 
@@ -153,7 +153,7 @@ func TestMetricCacheMiddleware_SkipNonMatchingPaths(t *testing.T) {
 func TestMetricCacheMiddleware_PreserveRequestBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	store := process.NewMemoryStore(5 * time.Minute)
+	store, _ := process.NewMemoryStore(5 * time.Minute)
 	defer store.Close()
 	parser := NewMetricParser(store, []string{})
 

@@ -46,7 +46,12 @@ func Init() *http.Server {
 
 	// v2: Create memory store and parser (must be before route registration)
 	// Use configurable TTL from config file (convert seconds to duration)
-	memoryStore = process.NewMemoryStore(time.Duration(conf.Prometheus.CacheTTL) * time.Second)
+	var err error
+	memoryStore, err = process.NewMemoryStore(time.Duration(conf.Prometheus.CacheTTL) * time.Second)
+	if err != nil {
+		logger.Errorf("Failed to create memory store: %v", err)
+		panic(err)
+	}
 	metricParser := api.NewMetricParser(memoryStore, conf.Prometheus.IncludeTables)
 	router.Use(api.MetricCacheMiddleware(metricParser))
 	if len(conf.Prometheus.IncludeTables) > 0 {

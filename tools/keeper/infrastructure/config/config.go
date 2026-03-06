@@ -154,6 +154,12 @@ ReadConfig:
 
 	conf.Host = util.HandleIp(conf.Host)
 
+	// Validate prometheus.cacheTTL (minimum: 60 seconds)
+	if conf.Prometheus.CacheTTL > 0 && conf.Prometheus.CacheTTL < 60 {
+		fmt.Printf("Warning: prometheus.cacheTTL is %d seconds, which is less than minimum (60s). Using 60s instead.\n", conf.Prometheus.CacheTTL)
+		conf.Prometheus.CacheTTL = 60
+	}
+
 	Conf = &conf
 	return &conf
 }
