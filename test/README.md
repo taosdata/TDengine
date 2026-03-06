@@ -45,6 +45,13 @@ cd test
 pip3 install -r requirements.txt
 ```
 
+- Install screen
+
+```bash
+ubuntu: apt-get install screen
+centos: yum install screen
+```
+
 - Building (Optional)
 
 Tests can be run against TDengine either by installation or by build. When building TDengine, please make sure the building options `-DBUILD_TOOLS=true -DBUILD_TEST=true -DBUILD_CONTRIB=true` has been used:
