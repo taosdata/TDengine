@@ -282,7 +282,10 @@ static int32_t tsdbSecureEraseDataFile(STsdb *pTsdb, const STFileSet *fset,
       if (record.suid != suid || record.uid != uid) continue;
       /* time range check using key.ts (SBrinRecord.firstKey/lastKey are STsdbRowKey) */
       if (record.lastKey.key.ts < sKey || record.firstKey.key.ts > eKey) continue;
-      taosArrayPush(pRecords, &record);
+      if (NULL == taosArrayPush(pRecords, &record)) {
+        code = terrno;
+        goto _exit;
+      }
     }
     tBrinBlockDestroy(&brinBlock);
   }
@@ -374,7 +377,10 @@ static int32_t tsdbSecureEraseOneSttFile(STsdb *pTsdb, const STFile *pFile,
     if (pBlk->suid != suid) continue;
     if (pBlk->minUid > uid || pBlk->maxUid < uid) continue;
     if (pBlk->maxKey < sKey || pBlk->minKey > eKey) continue;
-    taosArrayPush(pBlks, pBlk);
+    if (NULL == taosArrayPush(pBlks, pBlk)) {
+      code = terrno;
+      goto _exit;
+    }
   }
 
   tsdbSttFileReaderClose(&pReader);
