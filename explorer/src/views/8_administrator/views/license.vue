@@ -44,7 +44,13 @@
     <template v-if="!isLessThan3_2_3_0">
       <title-bar :name="$t('topic.advancedDatabaseFeatures')" />
       <el-table style="margin-bottom: 30px" :data="advancedTableData" size="small">
-        <el-table-column :label="$t('topic.advancedFeatures')" prop="display_name"></el-table-column>
+        <el-table-column :label="$t('topic.advancedFeatures')">
+          <template #default="scope">
+            <span>{{
+              scope.row.grant_name === 'timeseries' ? 'Time Series (Historian Tags)' : scope.row.display_name
+            }}</span>
+          </template>
+        </el-table-column>
         <el-table-column :label="$t('topic.used')" prop="limits">
           <template #default="scope">
             <span>{{ usedNumber(scope.row.limits) }}</span>
@@ -180,10 +186,7 @@ const isGreaterThan3_3_0_1 = ref(false);
 const style = computed(() => {
   return {
     'font-size': '14px',
-    color: '#4d6992',
-    'min-width': $INDUSTRY && getLocalLang() == 'en' ? '156px' : '110px',
-    display: 'inline-block',
-    'text-align': 'right'
+    color: '#4d6992'
   };
 });
 const confirmStatus = computed(() => {
@@ -217,23 +220,25 @@ async function getData() {
   try {
     // let cols = [];
     // 获取机器码
-    await sendSQLReq(`show cluster machines;`).then(res => {
-      const array = res.data.map(data => {
-        return Object.fromEntries(
-          res.column_meta.map((item, index) => {
-            return [item[0], data[index]];
-          })
-        );
+    await sendSQLReq(`show cluster machines;`)
+      .then(res => {
+        const array = res.data.map(data => {
+          return Object.fromEntries(
+            res.column_meta.map((item, index) => {
+              return [item[0], data[index]];
+            })
+          );
+        });
+        // 获取第一个机器码
+        if (array.length > 0) {
+          machineCode.value = array[0].machine || '';
+          clusterId.value = array[0].id || clusterId.value;
+        }
+      })
+      .catch(() => {
+        // 如果命令不支持，忽略错误
+        machineCode.value = '';
       });
-      // 获取第一个机器码
-      if (array.length > 0) {
-        machineCode.value = array[0].machine || '';
-        clusterId.value = array[0].id || clusterId.value;
-      }
-    }).catch(() => {
-      // 如果命令不支持，忽略错误
-      machineCode.value = '';
-    });
     // 不管是任何版本都show grants
     await sendSQLReq(`show grants;`).then(res => {
       const array = res.data.map(data => {
@@ -412,6 +417,15 @@ handlecActiveCodeShow();
 :deep(.el-descriptions .el-descriptions-item__cell) {
   padding: 12px 5px;
   border-bottom: 1px solid #dfe6ec;
+}
+
+:deep(.el-descriptions__label) {
+  width: 100px !important;
+  min-width: 80px !important;
+  max-width: 100px !important;
+  display: inline-block !important;
+  text-align: left !important;
+  margin-right: 10px !important;
 }
 
 :deep(.el-form-item--default .el-form-item__label) {

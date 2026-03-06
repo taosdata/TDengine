@@ -47,8 +47,8 @@ export default {
     vnodes: 'VNodes',
     dnodes: 'DNodes',
     connectors: 'Data In Tasks',
-    basicDatabaseFeatures: 'Basic Database Features',
-    advancedDatabaseFeatures: 'Advanced Database Features',
+    basicDatabaseFeatures: 'Basic Information',
+    advancedDatabaseFeatures: 'Limits/Optional Features',
     //admin-user
     title: 'Topic',
     name: 'Name',
