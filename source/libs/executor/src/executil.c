@@ -4395,7 +4395,6 @@ void handleRemoteValueListRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SR
     }
   }
 
-  qDebug("subq fetched rows:%d", pRsp->numOfRows);
   if (IS_STREAM_MODE(pTaskInfo) && 0 == pRsp->numOfRows) {
     if (!pRemote->hasValue) {
       ctx->code = scalarBuildRemoteListHash(pRemote, NULL, 0);
@@ -4545,8 +4544,6 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
     req.reset = reset;
 
     needStreamPesudoFuncVals = true;
-
-    qDebug("subq req taskId:%d, execId:%d, srcTaskId: %d, srcExecId: %d, taskInfo: %p", req.taskId, req.execId, req.srcTaskId, pSource->execId, pTaskInfo);
   }
 
   int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req, needStreamPesudoFuncVals);
