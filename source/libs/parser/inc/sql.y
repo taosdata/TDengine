@@ -471,8 +471,8 @@ priv_type(A) ::= STOP.                                                          
 priv_type(A) ::= KILL.                                                            { A = PRIV_SET_TYPE(PRIV_CM_KILL); }
 priv_type(A) ::= RECALCULATE.                                                     { A = PRIV_SET_TYPE(PRIV_CM_RECALC); }
 priv_type(A) ::= SUBSCRIBE.                                                       { A = PRIV_SET_TYPE(PRIV_CM_SUBSCRIBE); }
-priv_type(A) ::= READ.                                                            { A = PRIV_SET_TYPE(PRIV_TYPE_UNKNOWN); }
-priv_type(A) ::= WRITE.                                                           { A = PRIV_SET_TYPE(PRIV_TYPE_UNKNOWN); }
+priv_type(A) ::= READ.                                                            { A = PRIV_SET_TYPE(PRIV_LEGACY_READ); }
+priv_type(A) ::= WRITE.                                                           { A = PRIV_SET_TYPE(PRIV_LEGACY_WRITE); }
 
 priv_type(A) ::= CREATE DATABASE.                                                 { A = PRIV_SET_TYPE(PRIV_DB_CREATE); }
 priv_type(A) ::= USE DATABASE.                                                    { A = PRIV_SET_TYPE(PRIV_DB_USE); }

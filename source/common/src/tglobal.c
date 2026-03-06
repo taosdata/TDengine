@@ -771,6 +771,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
                                 CFG_DYN_CLIENT_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "experimental", tsExperimental, CFG_SCOPE_BOTH, CFG_DYN_BOTH_LAZY,
                                CFG_CATEGORY_GLOBAL, CFG_PRIV_DEBUG));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableAdvancedSecurity", tsEnableAdvancedSecurity, CFG_SCOPE_BOTH, CFG_DYN_BOTH,
+                               CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "multiResultFunctionStarReturnTags", tsMultiResultFunctionStarReturnTags,
                                CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "countAlwaysReturnValue", tsCountAlwaysReturnValue, 0, 1, CFG_SCOPE_BOTH,
@@ -945,7 +947,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptScope", tsEncryptScope, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "encryptExtDir", tsEncryptExtDir, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableStrongPassword", tsEnableStrongPassword, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableAdvancedSecurity", tsEnableAdvancedSecurity, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptPassAlgorithm", tsEncryptPassAlgorithm, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
@@ -1593,6 +1594,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "experimental");
   tsExperimental = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableAdvancedSecurity");
+  tsEnableAdvancedSecurity = pItem->bval;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "multiResultFunctionStarReturnTags");
   tsMultiResultFunctionStarReturnTags = pItem->bval;
 
@@ -1710,9 +1714,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableStrongPassword");
   tsEnableStrongPassword = pItem->i32;
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableAdvancedSecurity");
-  tsEnableAdvancedSecurity = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "encryptPassAlgorithm");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, 16));
@@ -3243,6 +3244,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"compressMsgSize", &tsCompressMsgSize},
                                          {"countAlwaysReturnValue", &tsCountAlwaysReturnValue},
                                          {"crashReporting", &tsEnableCrashReport},
+                                         {"enableAdvancedSecurity", &tsEnableAdvancedSecurity},
                                          {"enableQueryHb", &tsEnableQueryHb},
                                          {"keepColumnName", &tsKeepColumnName},
                                          {"logKeepDays", &tsLogKeepDays},

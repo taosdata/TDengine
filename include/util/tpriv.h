@@ -70,6 +70,8 @@ typedef enum {
   PRIV_CM_RECALC = 7,       // RECALC PRIVILEGE
   PRIV_CM_KILL = 8,         // KILL PRIVILEGE
   PRIV_CM_SUBSCRIBE = 9,    // SUBSCRIBE PRIVILEGE
+  PRIV_LEGACY_READ = 10,    // Legacy READ PRIVILEGE (converted to specific privileges)
+  PRIV_LEGACY_WRITE = 11,   // Legacy WRITE PRIVILEGE (converted to specific privileges)
   PRIV_CM_MAX = 29,         // MAX COMMON PRIVILEGE
   // ==================== DB Privileges(5~49) ====================
   PRIV_DB_CREATE = 30,  // CREATE DATABASE
@@ -137,16 +139,16 @@ typedef enum {
   PRIV_ROLE_UNLOCK,        // UNLOCK ROLE
 
   // user management
-  PRIV_USER_CREATE = 130,  // CREATE USER
-  PRIV_USER_DROP,          // DROP USER
-  PRIV_USER_SET_SECURITY,  // SET USER SECURITY INFO
-  PRIV_USER_SET_AUDIT,     // SET USER AUDIT INFO
-  PRIV_USER_SET_BASIC,     // SET USER BASIC INFO
-  PRIV_USER_UNLOCK,        // UNLOCK USER
-  PRIV_USER_LOCK,          // LOCK USER
-  PRIV_USER_SHOW,          // SHOW USERS
-  PRIV_USER_ALTER,         // ALTER USER
-  PRIV_USER_SHOW_SECURITY, // SHOW USERS SECURITY INFO
+  PRIV_USER_CREATE = 130,   // CREATE USER
+  PRIV_USER_DROP,           // DROP USER
+  PRIV_USER_SET_SECURITY,   // SET USER SECURITY INFO
+  PRIV_USER_SET_AUDIT,      // SET USER AUDIT INFO
+  PRIV_USER_SET_BASIC,      // SET USER BASIC INFO
+  PRIV_USER_UNLOCK,         // UNLOCK USER
+  PRIV_USER_LOCK,           // LOCK USER
+  PRIV_USER_SHOW,           // SHOW USERS
+  PRIV_USER_ALTER,          // ALTER USER
+  PRIV_USER_SHOW_SECURITY,  // SHOW USERS SECURITY INFO
 
   // audit management
   PRIV_AUDIT_DB_DROP = 140,  // DROP AUDIT DATABASE
@@ -210,15 +212,15 @@ typedef enum {
   PRIV_QUERY_KILL,        // KILL QUERY
 
   // system info
-  PRIV_INFO_SCHEMA_READ_BASIC = 240, // READ INFORMATION_SCHEMA BASIC
-  PRIV_INFO_SCHEMA_READ_SEC,         // READ INFORMATION_SCHEMA SECURITY
-  PRIV_INFO_SCHEMA_READ_AUDIT,       // READ INFORMATION_SCHEMA AUDIT
-  PRIV_INFO_SCHEMA_READ_PRIVILEGED,  // READ INFORMATION_SCHEMA PRIVILEGED
-  PRIV_PERF_SCHEMA_READ_BASIC,       // READ PERFORMANCE_SCHEMA BASIC
-  PRIV_PERF_SCHEMA_READ_PRIVILEGED,  // READ PERFORMANCE_SCHEMA PRIVILEGED
-  PRIV_GRANTS_SHOW,                  // SHOW GRANTS
-  PRIV_CLUSTER_SHOW,                 // SHOW CLUSTER
-  PRIV_APPS_SHOW,                    // SHOW APPS
+  PRIV_INFO_SCHEMA_READ_BASIC = 240,  // READ INFORMATION_SCHEMA BASIC
+  PRIV_INFO_SCHEMA_READ_SEC,          // READ INFORMATION_SCHEMA SECURITY
+  PRIV_INFO_SCHEMA_READ_AUDIT,        // READ INFORMATION_SCHEMA AUDIT
+  PRIV_INFO_SCHEMA_READ_PRIVILEGED,   // READ INFORMATION_SCHEMA PRIVILEGED
+  PRIV_PERF_SCHEMA_READ_BASIC,        // READ PERFORMANCE_SCHEMA BASIC
+  PRIV_PERF_SCHEMA_READ_PRIVILEGED,   // READ PERFORMANCE_SCHEMA PRIVILEGED
+  PRIV_GRANTS_SHOW,                   // SHOW GRANTS
+  PRIV_CLUSTER_SHOW,                  // SHOW CLUSTER
+  PRIV_APPS_SHOW,                     // SHOW APPS
 
   // extended privileges can be defined here (255 bits reserved in total)
   // ==================== Maximum Privilege Bit ====================
@@ -418,6 +420,7 @@ static FORCE_INLINE int32_t privTblPrivCnt(SHashObj* privTbls) {
 int32_t privCheckConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType,
                            uint8_t* pObjLevel, EPrivType* conflict0, EPrivType* conflict1);
 int32_t privExpandAll(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel);
+int32_t privExpandLegacyRw(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel);
 int32_t privUpgradeRwDb(SHashObj* objPrivs, const char* dbFName, const char* tbName, uint8_t rwAttr);
 void    privIterInit(SPrivIter* pIter, SPrivSet* privSet);
 bool    privIterNext(SPrivIter* iter, SPrivInfo** ppPrivInfo);

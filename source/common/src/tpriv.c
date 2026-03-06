@@ -287,6 +287,42 @@ int32_t privExpandAll(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLeve
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t privExpandLegacyRw(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel) {
+  (void)taosThreadOnce(&privInit, initPrivLookup);
+
+  if (!privSet) return TSDB_CODE_APP_ERROR;
+
+  bool hasLegacyRead = PRIV_HAS(privSet, PRIV_LEGACY_READ);
+  bool hasLegacyWrite = PRIV_HAS(privSet, PRIV_LEGACY_WRITE);
+
+  if (!hasLegacyRead && !hasLegacyWrite) return TSDB_CODE_SUCCESS;
+
+  // Remove the legacy types
+  privRemoveType(privSet, PRIV_LEGACY_READ);
+  privRemoveType(privSet, PRIV_LEGACY_WRITE);
+
+  SPrivInfoIter iter = {0};
+  privInfoIterInit(&iter);
+
+  SPrivInfo* pPrivInfo = NULL;
+  while (privInfoIterNext(&iter, &pPrivInfo)) {
+    if (pPrivInfo->objType != pObjType) continue;
+    if (pPrivInfo->objLevel != pObjLevel) continue;
+    if (pPrivInfo->category != PRIV_CATEGORY_OBJECT) continue;
+
+    // Check rwAttr and add corresponding privileges
+    // rwAttr: 1 = read, 2 = write, 3 = read/write
+    if (hasLegacyRead && (pPrivInfo->rwAttr & PRIV_RW_ATTR_READ)) {
+      privAddType(privSet, pPrivInfo->privType);
+    }
+    if (hasLegacyWrite && (pPrivInfo->rwAttr & PRIV_RW_ATTR_WRITE)) {
+      privAddType(privSet, pPrivInfo->privType);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t privUpgradeRwDb(SHashObj* objPrivs, const char* dbFName, const char* tbName, uint8_t rwAttr) {
   (void)taosThreadOnce(&privInit, initPrivLookup);
 
