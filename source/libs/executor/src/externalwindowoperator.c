@@ -3808,7 +3808,15 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
 #else
   // todo xs get the block with external window values from subquery, for now just return error since this code
   // path is only for non-stream query which is not supported yet.
-  return TSDB_CODE_VERSION_NOT_COMPATIBLE;
+  if (NULL == pPhynode->pSubquery || nodeType(pPhynode->pSubquery) != QUERY_NODE_REMOTE_TABLE) {
+    qError("invalid subquery in external window, pSubquery:%p, type:%d", pPhynode->pSubquery, pPhynode->pSubquery ? nodeType(pPhynode->pSubquery) : -1);
+    TAOS_CHECK_EXIT(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  }
+  
+  SRemoteTableNode* pRemote = (SRemoteTableNode*)pPhynode->pSubquery;
+  TAOS_CHECK_EXIT(qFetchRemoteNode(gTaskScalarExtra.pSubJobCtx, pRemote->subQIdx, pRemote));
+
+  pBlocks = pRemote->pResBlks;
 #endif
 
   // Initialize/reset pseudo function values.

@@ -4681,7 +4681,7 @@ static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode** pNode) {
   if (TSDB_CODE_SUCCESS == pCxt->errCode && E_SUB_QUERY_SCALAR == pCxt->expSubQueryType) {
     pCxt->errCode = replaceExprSubQuery(pCxt, pNode, *pNode, 0);
   }
-  if (TSDB_CODE_SUCCESS == pCxt->errCode && E_SUB_QUERY_SCALAR == pCxt->expSubQueryType) {
+  if (TSDB_CODE_SUCCESS == pCxt->errCode && E_SUB_QUERY_TABLE == pCxt->expSubQueryType) {
     pCxt->errCode = replaceExprSubQuery(pCxt, pNode, *pNode, 0);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode && E_SUB_QUERY_COLUMN == pCxt->expSubQueryType) {
@@ -8105,6 +8105,7 @@ static int32_t translateExternalWindowSelectList(STranslateContext* pCxt, SSelec
   if (DEAL_RES_ERROR == res) {
     return pCxt->errCode;
   }
+  //TODO pSubquery=> SRemoteTableNode*
   nodesRewriteExprsPostOrder(pSelect->pProjectionList, replaceExternalWindowPlace, &extCxt);
   return pCxt->errCode = extCxt.code;
 }

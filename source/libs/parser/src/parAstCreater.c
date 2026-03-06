@@ -2609,6 +2609,12 @@ SNode* createExternalWindowClause(SAstCreateContext* pCxt, SNode* pSubquery, STo
   pCxt->errCode = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, (SNode**)&pExtWin);
   CHECK_MAKE_NODE(pExtWin);
 
+  if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
+    ((SSelectStmt*)pSubquery)->subQType= E_SUB_QUERY_TABLE;
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pSubquery)) {
+    ((SSetOperator*)pSubquery)->subQType= E_SUB_QUERY_TABLE;
+  }
+    
   // Attach subquery and optional fill node
   pExtWin->pSubquery = pSubquery;
   pExtWin->pFill = pFill;
