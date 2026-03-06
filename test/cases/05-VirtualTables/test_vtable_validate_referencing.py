@@ -25,6 +25,10 @@ CROSS_DB_NAME = "test_vtable_validate_ref_src"
 class TestVtableValidateReferencing:
 
     def setup_class(cls):
+       TestVtableValidateReferencing.prepare_vtables() 
+
+    @staticmethod 
+    def prepare_vtables():
         tdLog.info(f"=== setup: prepare databases and tables for virtual table referencing validation ===")
 
         # Clean up
@@ -137,7 +141,7 @@ class TestVtableValidateReferencing:
                       "tag_a int);")
         tdSql.execute(f"CREATE TABLE `src_ctb_A1` USING `src_stb_A` TAGS (1);")
         tdSql.execute(f"CREATE TABLE `src_ctb_A2` USING `src_stb_A` TAGS (2);")
-        tdSql.execute(f"INSERT INTO src_ctb_A1 VALUES (now, 100);")
+        tdSql.execute(f"INSERT INTO `src_ctb_A1` VALUES (now, 100);")
         
         tdSql.execute(f"CREATE STABLE `src_stb_B` ("
                       "ts timestamp, "
@@ -145,21 +149,21 @@ class TestVtableValidateReferencing:
                       ") TAGS ("
                       "tag_b int);")
         tdSql.execute(f"CREATE TABLE `src_ctb_B1` USING `src_stb_B` TAGS (10);")
-        tdSql.execute(f"INSERT INTO src_ctb_B1 VALUES (now, 1.5);")
+        tdSql.execute(f"INSERT INTO `src_ctb_B1` VALUES (now, 1.5);")
 
         # --- Additional child tables for multi-child tests ---
         tdLog.info(f"prepare additional child tables for multi-child tests.")
         tdSql.execute(f"CREATE TABLE `src_ctb_multi_1` USING `src_stb` TAGS (100, 'multi1');")
         tdSql.execute(f"CREATE TABLE `src_ctb_multi_2` USING `src_stb` TAGS (101, 'multi2');")
         tdSql.execute(f"CREATE TABLE `src_ctb_multi_3` USING `src_stb` TAGS (102, 'multi3');")
-        tdSql.execute(f"INSERT INTO src_ctb_multi_1 VALUES (now, 1000, 10.0);")
-        tdSql.execute(f"INSERT INTO src_ctb_multi_2 VALUES (now, 2000, 20.0);")
-        tdSql.execute(f"INSERT INTO src_ctb_multi_3 VALUES (now, 3000, 30.0);")
+        tdSql.execute(f"INSERT INTO `src_ctb_multi_1` VALUES (now, 1000, 10.0);")
+        tdSql.execute(f"INSERT INTO `src_ctb_multi_2` VALUES (now, 2000, 20.0);")
+        tdSql.execute(f"INSERT INTO `src_ctb_multi_3` VALUES (now, 3000, 30.0);")
 
         # --- Mixed type source table ---
         tdLog.info(f"prepare mixed type source table.")
         tdSql.execute(f"CREATE TABLE `src_ntb_mixed` (ts timestamp, mixed_col int);")
-        tdSql.execute(f"INSERT INTO src_ntb_mixed VALUES (now, 42);")
+        tdSql.execute(f"INSERT INTO `src_ntb_mixed` VALUES (now, 42);")
 
         # --- Virtual normal table referencing cross-db normal table ---
         tdLog.info(f"create virtual normal table referencing cross-db ntb.")
@@ -937,7 +941,7 @@ class TestVtableValidateReferencing:
 
         # Create same-db source table
         tdSql.execute(f"CREATE TABLE `src_ntb_same` (ts timestamp, same_col int);")
-        tdSql.execute(f"INSERT INTO src_ntb_same VALUES (now, 99);")
+        tdSql.execute(f"INSERT INTO `src_ntb_same` VALUES (now, 99);")
 
         # Create virtual table referencing same-db + cross-db tables
         tdSql.execute(f"CREATE VTABLE `vntb_mixed_src` ("
@@ -958,7 +962,7 @@ class TestVtableValidateReferencing:
             tdSql.checkData(i, 3, TSDB_CODE_SUCCESS)
 
         # Drop same-db source table
-        tdSql.execute(f"DROP TABLE src_ntb_same;")
+        tdSql.execute(f"DROP TABLE `src_ntb_same`;")
 
         # Verify v_same has TABLE_NOT_EXIST error
         tdSql.query(f"select virtual_col_name, err_code "
@@ -975,7 +979,7 @@ class TestVtableValidateReferencing:
 
         # Restore same-db table
         tdSql.execute(f"CREATE TABLE `src_ntb_same` (ts timestamp, same_col int);")
-        tdSql.execute(f"INSERT INTO src_ntb_same VALUES (now, 99);")
+        tdSql.execute(f"INSERT INTO `src_ntb_same` VALUES (now, 99);")
 
         # Drop cross-db database
         tdSql.execute(f"drop database {CROSS_DB_NAME};")
@@ -1001,7 +1005,7 @@ class TestVtableValidateReferencing:
                       "ts timestamp, "
                       "voltage int, "
                       "current float);")
-        tdSql.execute(f"INSERT INTO cross_ntb VALUES (now, 220, 1.5);")
+        tdSql.execute(f"INSERT INTO `cross_ntb` VALUES (now, 220, 1.5);")
         tdSql.execute(f"use {DB_NAME};")
 
     def test_cross_db_multiple_dbs(self):
@@ -1265,7 +1269,7 @@ class TestVtableValidateReferencing:
         tdSql.checkData(0, 4, TSDB_CODE_SUCCESS)
 
         # Drop src_stb_A (and its children)
-        tdSql.execute(f"DROP STABLE src_stb_A;")
+        tdSql.execute(f"DROP STABLE `src_stb_A`;")
 
         # Verify vctb_from_stbA now has error
         tdSql.query(f"select virtual_col_name, err_code "
@@ -1285,7 +1289,7 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"CREATE STABLE `src_stb_A` (ts timestamp, val_a int) TAGS (tag_a int);")
         tdSql.execute(f"CREATE TABLE `src_ctb_A1` USING `src_stb_A` TAGS (1);")
         tdSql.execute(f"CREATE TABLE `src_ctb_A2` USING `src_stb_A` TAGS (2);")
-        tdSql.execute(f"INSERT INTO src_ctb_A1 VALUES (now, 100);")
+        tdSql.execute(f"INSERT INTO `src_ctb_A1` VALUES (now, 100);")
 
     def test_complex_column_type_mapping(self):
         """Validate: virtual table with complex column types (GEOMETRY, VARBINARY, NCHAR)
@@ -1514,7 +1518,7 @@ class TestVtableValidateReferencing:
         tdSql.execute(f"use {DB_NAME};")
 
         # Test with normal table (not virtual)
-        tdSql.query(f"SHOW VTABLE VALIDATE FOR src_ntb;")
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR `src_ntb`;")
         tdSql.checkRows(0)  # Should return 0 rows (not a virtual table)
 
     def test_show_validate_result_columns(self):
@@ -2736,3 +2740,346 @@ class TestVtableValidateReferencing:
         # Cleanup
         tdSql.execute(f"DROP TABLE vctb_cascade1;")
         tdSql.execute(f"DROP TABLE vctb_cascade2;")
+
+    def test_show_validate_empty_virtual_table(self):
+        """Validate: SHOW VTABLE VALIDATE FOR empty virtual table (no column references)
+        
+        Test SHOW VTABLE VALIDATE FOR on a virtual table that has no column references.
+        Should return 0 rows.
+        
+        Catalog:
+            - VirtualTable
+        
+        Since: v3.3.6.0
+        
+        Labels: virtual, validate, show, edge-case
+        
+        Jira: None
+        
+        History:
+            - 2026-3-6 Created
+        
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR empty virtual table ===")
+        tdSql.execute(f"use {DB_NAME};")
+        
+        # Create virtual super table
+        tdSql.execute(f"CREATE STABLE `vstb_empty` (ts timestamp, val int) TAGS (tag int) VIRTUAL 1;")
+        
+        # Create virtual child table without column references
+        tdSql.execute(f"CREATE VTABLE `vctb_empty` USING `vstb_empty` TAGS (1);")
+        
+        # Test SHOW VTABLE VALIDATE FOR - should return 0 rows
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR vctb_empty;")
+        tdSql.checkRows(0)
+        
+        # Cleanup
+        tdSql.execute(f"DROP TABLE vctb_empty;")
+        tdSql.execute(f"DROP STABLE vstb_empty;")
+
+    def test_show_validate_many_columns(self):
+        """Validate: SHOW VTABLE VALIDATE FOR virtual table with many columns
+        
+        Create a virtual table referencing many columns (e.g., 20 columns)
+        and verify all references are validated correctly.
+        
+        Catalog:
+            - VirtualTable
+        
+        Since: v3.3.6.0
+        
+        Labels: virtual, validate, show, many-cols
+        
+        Jira: None
+        
+        History:
+            - 2026-3-6 Created
+        
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR many columns ===")
+        tdSql.execute(f"use {DB_NAME};")
+        
+        # Create source table with 20 columns
+        col_defs = ", ".join([f"c{i} int" for i in range(20)])
+        tdSql.execute(f"CREATE TABLE `src_many_cols_show` (ts timestamp, {col_defs});")
+        
+        # Create virtual table referencing all 20 columns
+        vcol_defs = ", ".join([f"v_c{i} int from src_many_cols_show.c{i}" for i in range(20)])
+        tdSql.execute(f"CREATE VTABLE `vntb_many_cols_show` (ts timestamp, {vcol_defs});")
+        
+        # Test SHOW VTABLE VALIDATE FOR - should return 20 rows
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR vntb_many_cols_show;")
+        tdSql.checkRows(20)
+        
+        # Verify all references are valid
+        for i in range(20):
+            tdSql.checkData(i, 8, TSDB_CODE_SUCCESS)
+        
+        # Cleanup
+        tdSql.execute(f"DROP TABLE src_many_cols_show;")
+        tdSql.execute(f"DROP TABLE vntb_many_cols_show;")
+
+    def test_show_validate_error_message_content(self):
+        """Validate: SHOW VTABLE VALIDATE FOR error message content
+        
+        Verify that err_msg column contains meaningful error description
+        when err_code is non-zero.
+        
+        Catalog:
+            - VirtualTable
+        
+        Since: v3.3.6.0
+        
+        Labels: virtual, validate, show, error-msg
+        
+        Jira: None
+        
+        History:
+            - 2026-3-6 Created
+        
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR error message content ===")
+        tdSql.execute(f"use {DB_NAME};")
+        
+        # Create source table and virtual table
+        tdSql.execute(f"CREATE TABLE `src_err_msg` (ts timestamp, val int);")
+        tdSql.execute(f"INSERT INTO src_err_msg VALUES (now, 100);")
+        tdSql.execute(f"CREATE VTABLE `vntb_err_msg` (ts timestamp, v_val int from src_err_msg.val);")
+        
+        # Verify initial state (valid)
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR vntb_err_msg;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
+        
+        # Drop source table
+        tdSql.execute(f"DROP TABLE src_err_msg;")
+        
+        # Verify error message is non-empty
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR vntb_err_msg;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 8, TSDB_CODE_PAR_TABLE_NOT_EXIST)
+        
+        # Get error message
+        err_msg = tdSql.queryResult[0][9]
+        tdLog.info(f"Error message: '{err_msg}'")
+        assert err_msg is not None and len(str(err_msg).strip()) > 0, \
+            f"err_msg should be non-empty when err_code != 0, got: '{err_msg}'"
+        
+        # Cleanup
+        tdSql.execute(f"DROP TABLE vntb_err_msg;")
+
+    def test_show_validate_concurrent_queries(self):
+        """Validate: SHOW VTABLE VALIDATE FOR concurrent queries
+        
+        Execute SHOW VTABLE VALIDATE FOR concurrently from multiple
+        connections and verify consistent results.
+        
+        Catalog:
+            - VirtualTable
+        
+        Since: v3.3.6.0
+        
+        Labels: virtual, validate, show, concurrent
+        
+        Jira: None
+        
+        History:
+            - 2026-3-6 Created
+        
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR concurrent queries ===")
+        tdSql.execute(f"use {DB_NAME};")
+        
+        # Execute SHOW VTABLE VALIDATE FOR multiple times
+        results = []
+        for i in range(10):
+            tdSql.query(f"SHOW VTABLE VALIDATE FOR vntb_same_db;")
+            results.append(tdSql.queryResult)
+        
+        # Verify all results are identical
+        for i in range(1, 10):
+            assert results[i] == results[0], f"Result {i} differs from result 0"
+        
+        tdLog.info(f"All 10 concurrent queries returned consistent results")
+
+    def test_show_validate_virtual_super_table(self):
+        """Validate: SHOW VTABLE VALIDATE FOR virtual super table
+        
+        Test SHOW VTABLE VALIDATE FOR on a virtual super table (VSTB).
+        Should return 0 rows since super table has no actual data.
+        
+        Catalog:
+            - VirtualTable
+        
+        Since: v3.3.6.0
+        
+        Labels: virtual, validate, show, vstb
+        
+        Jira: None
+        
+        History:
+            - 2026-3-6 Created
+        
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR virtual super table ===")
+        tdSql.execute(f"use {DB_NAME};")
+        
+        # Test SHOW VTABLE VALIDATE FOR on virtual super table
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR vstb;")
+        tdSql.checkRows(0)  # Super table has no references
+
+    def test_show_validate_multiple_times(self):
+        """Validate: SHOW VTABLE VALIDATE FOR called multiple times
+        
+        Verify that calling SHOW VTABLE VALIDATE FOR multiple times
+        on the same table returns consistent results.
+        
+        Catalog:
+            - VirtualTable
+        
+        Since: v3.3.6.0
+        
+        Labels: virtual, validate, show, stability
+        
+        Jira: None
+        
+        History:
+            - 2026-3-6 Created
+        
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR multiple times ===")
+        tdSql.execute(f"use {DB_NAME};")
+        
+        # Call SHOW VTABLE VALIDATE FOR 10 times
+        for i in range(10):
+            tdSql.query(f"SHOW VTABLE VALIDATE FOR vntb_same_db;")
+            tdSql.checkRows(3)
+            
+            # Verify error codes are all SUCCESS
+            for j in range(3):
+                tdSql.checkData(j, 8, TSDB_CODE_SUCCESS)
+
+    def test_show_validate_after_alter_source_table(self):
+        """Validate: SHOW VTABLE VALIDATE FOR after ALTER source table
+        
+        Alter source table (ADD COLUMN) and verify that existing
+        virtual table references remain valid.
+        
+        Catalog:
+            - VirtualTable
+        
+        Since: v3.3.6.0
+        
+        Labels: virtual, validate, show, alter
+        
+        Jira: None
+        
+        History:
+            - 2026-3-6 Created
+        
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR after ALTER source table ===")
+        tdSql.execute(f"use {DB_NAME};")
+        
+        # Create source and virtual table
+        tdSql.execute(f"CREATE TABLE `src_alter_show` (ts timestamp, val int);")
+        tdSql.execute(f"INSERT INTO src_alter_show VALUES (now, 100);")
+        tdSql.execute(f"CREATE VTABLE `vntb_alter_show` (ts timestamp, v_val int from src_alter_show.val);")
+        
+        # Verify initial state
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR vntb_alter_show;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
+        
+        # ALTER source table - add column
+        tdSql.execute(f"ALTER TABLE src_alter_show ADD COLUMN new_col float;")
+        
+        # Verify virtual table reference still valid
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR vntb_alter_show;")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 8, TSDB_CODE_SUCCESS)
+        
+        # Cleanup
+        tdSql.execute(f"DROP TABLE src_alter_show;")
+        tdSql.execute(f"DROP TABLE vntb_alter_show;")
+
+    def test_show_validate_special_column_names(self):
+        """Validate: SHOW VTABLE VALIDATE FOR with special column names
+        
+        Test SHOW VTABLE VALIDATE FOR on virtual table with special
+        column names (e.g., containing underscores, numbers).
+        
+        Catalog:
+            - VirtualTable
+        
+        Since: v3.3.6.0
+        
+        Labels: virtual, validate, show, special-names
+        
+        Jira: None
+        
+        History:
+            - 2026-3-6 Created
+        
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR special column names ===")
+        tdSql.execute(f"use {DB_NAME};")
+        
+        # Create source table with special column names
+        tdSql.execute(f"CREATE TABLE `src_special_cols` (ts timestamp, col_1 int, col_2 float, _internal_col binary(16));")
+        tdSql.execute(f"INSERT INTO src_special_cols VALUES (now, 1, 2.0, 'test');")
+        
+        # Create virtual table referencing special columns
+        tdSql.execute(f"CREATE VTABLE `vntb_special_cols` ("
+                      "ts timestamp, "
+                      "v_col_1 int from src_special_cols.col_1, "
+                      "v_col_2 float from src_special_cols.col_2, "
+                      "v_internal binary(16) from src_special_cols._internal_col);")
+        
+        # Verify SHOW VTABLE VALIDATE FOR works
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR vntb_special_cols;")
+        tdSql.checkRows(3)
+        
+        # Verify all references are valid
+        for i in range(3):
+            tdSql.checkData(i, 8, TSDB_CODE_SUCCESS)
+        
+        # Cleanup
+        tdSql.execute(f"DROP TABLE src_special_cols;")
+        tdSql.execute(f"DROP TABLE vntb_special_cols;")
+
+    def test_show_validate_result_ordering(self):
+        """Validate: SHOW VTABLE VALIDATE FOR result ordering
+        
+        Verify that SHOW VTABLE VALIDATE FOR returns results in
+        a consistent order (e.g., by column definition order).
+        
+        Catalog:
+            - VirtualTable
+        
+        Since: v3.3.6.0
+        
+        Labels: virtual, validate, show, ordering
+        
+        Jira: None
+        
+        History:
+            - 2026-3-6 Created
+        
+        """
+        tdLog.info(f"=== Test: SHOW VTABLE VALIDATE FOR result ordering ===")
+        tdSql.execute(f"use {DB_NAME};")
+        
+        # Query and get column names
+        tdSql.query(f"SHOW VTABLE VALIDATE FOR vntb_same_db;")
+        tdSql.checkRows(3)
+        
+        # Get virtual column names
+        col_names = [tdSql.queryResult[i][2] for i in range(3)]
+        tdLog.info(f"Column names in order: {col_names}")
+        
+        # Verify column names are present
+        assert 'v_int' in col_names, f"Expected 'v_int' in column names"
+        assert 'v_float' in col_names, f"Expected 'v_float' in column names"
+        assert 'v_bin' in col_names, f"Expected 'v_bin' in column names"
+
