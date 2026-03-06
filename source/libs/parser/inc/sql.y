@@ -539,6 +539,8 @@ priv_type(A) ::= ALTER PASS.                                                    
 
 priv_type(A) ::= CREATE ROLE.                                                     { A = PRIV_SET_TYPE(PRIV_ROLE_CREATE); }
 priv_type(A) ::= DROP ROLE.                                                       { A = PRIV_SET_TYPE(PRIV_ROLE_DROP); }
+priv_type(A) ::= UNLOCK ROLE.                                                     { A = PRIV_SET_TYPE(PRIV_ROLE_UNLOCK); }
+priv_type(A) ::= LOCK ROLE.                                                       { A = PRIV_SET_TYPE(PRIV_ROLE_LOCK); }
 priv_type(A) ::= SHOW ROLES.                                                      { A = PRIV_SET_TYPE(PRIV_ROLE_SHOW); }
 
 priv_type(A) ::= CREATE USER.                                                     { A = PRIV_SET_TYPE(PRIV_USER_CREATE); }
