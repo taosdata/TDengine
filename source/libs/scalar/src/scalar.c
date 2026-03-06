@@ -2499,7 +2499,8 @@ EDealRes sclCalcWalker(SNode *pNode, void *pContext) {
   if (QUERY_NODE_VALUE == nodeType(pNode) || QUERY_NODE_NODE_LIST == nodeType(pNode) ||
       QUERY_NODE_COLUMN == nodeType(pNode) || QUERY_NODE_LEFT_VALUE == nodeType(pNode) ||
       QUERY_NODE_WHEN_THEN == nodeType(pNode) || QUERY_NODE_REMOTE_VALUE_LIST == nodeType(pNode) ||
-      QUERY_NODE_REMOTE_ROW == nodeType(pNode) || QUERY_NODE_REMOTE_ZERO_ROWS == nodeType(pNode)) {
+      QUERY_NODE_REMOTE_ROW == nodeType(pNode) || QUERY_NODE_REMOTE_ZERO_ROWS == nodeType(pNode) ||
+      QUERY_NODE_REMOTE_TABLE == nodeType(pNode)) {
     return DEAL_RES_CONTINUE;
   }
 

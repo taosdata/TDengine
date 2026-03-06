@@ -4322,31 +4322,36 @@ int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* pId) {
   return code;
 }
 
-int32_t createExprSubQResBlock(SSDataBlock** ppBlock, SDataType* pResType) {
+
+int32_t createExprSubQResBlock(SSDataBlock** ppBlock, SDataType* pResType, int32_t cols) {
   int32_t code = 0;
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (pBlock == NULL) {
     return terrno;
   }
 
-  pBlock->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
+  pBlock->pDataBlock = taosArrayInit(cols, sizeof(SColumnInfoData));
   if (pBlock->pDataBlock == NULL) {
     code = terrno;
     taosMemoryFree(pBlock);
     return code;
   }
 
-  SColumnInfoData idata =
-      createColumnInfoData(pResType->type, pResType->bytes, 0);
-  idata.info.scale = pResType->scale;
-  idata.info.precision = pResType->precision;
-
-  code = blockDataAppendColInfo(pBlock, &idata);
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-    blockDataDestroy(pBlock);
-    *ppBlock = NULL;
-    return code;
+  for (int32_t i = 0; i < cols; ++i) {
+    SColumnInfoData idata = {0};
+    if (pResType) {
+      idata = createColumnInfoData(pResType->type, pResType->bytes, 0);
+      idata.info.scale = pResType->scale;
+      idata.info.precision = pResType->precision;
+    }
+    
+    code = blockDataAppendColInfo(pBlock, &idata);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      blockDataDestroy(pBlock);
+      *ppBlock = NULL;
+      return code;
+    }
   }
 
   *ppBlock = pBlock;
@@ -4457,7 +4462,7 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
     return;
   }
   
-  ctx->code = createExprSubQResBlock(&pResBlock, &((SRemoteValueNode*)pParam->pRes)->val.node.resType);
+  ctx->code = createExprSubQResBlock(&pResBlock, &((SRemoteValueNode*)pParam->pRes)->val.node.resType, 1);
   if (TSDB_CODE_SUCCESS == ctx->code) {
     ctx->code = blockDataEnsureCapacity(pResBlock, 1);
   }
@@ -4476,7 +4481,7 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
 }
 
 
-int32_t updateValueListFromResBlock(STaskSubJobCtx* ctx, SRemoteValueListNode* pRes, SSDataBlock* pBlock) {
+int32_t setValueListFromResBlock(STaskSubJobCtx* ctx, SRemoteValueListNode* pRes, SSDataBlock* pBlock) {
   int32_t code = 0, lino = 0;
   int32_t colNum = taosArrayGetSize(pBlock->pDataBlock);
   if (NULL == pBlock->pDataBlock || 1 != colNum) {
@@ -4514,7 +4519,7 @@ void handleRemoteValueListRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SR
       return;
     }
 
-    ctx->code = createExprSubQResBlock(&pResBlock, &((SExprNode*)pParam->pRes)->resType);
+    ctx->code = createExprSubQResBlock(&pResBlock, &((SExprNode*)pParam->pRes)->resType, 1);
     if (TSDB_CODE_SUCCESS == ctx->code) {
       ctx->code = blockDataEnsureCapacity(pResBlock, pRsp->numOfRows);
     }
@@ -4522,7 +4527,7 @@ void handleRemoteValueListRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SR
       ctx->code = extractSingleRspBlock(pRsp, pResBlock);
     }
     if (TSDB_CODE_SUCCESS == ctx->code) {
-      ctx->code = updateValueListFromResBlock(ctx, pRemote, pResBlock);
+      ctx->code = setValueListFromResBlock(ctx, pRemote, pResBlock);
     }
     if (TSDB_CODE_SUCCESS == ctx->code && pRsp->completed) {
       pRemote->flag &= (~VALUELIST_FLAG_VAL_UNSET);
@@ -4604,7 +4609,7 @@ void handleRemoteRowRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetriev
     return;
   }
   
-  ctx->code = createExprSubQResBlock(&pResBlock, &pRemote->val.node.resType);
+  ctx->code = createExprSubQResBlock(&pResBlock, &pRemote->val.node.resType, 1);
   if (TSDB_CODE_SUCCESS == ctx->code) {
     SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BOOL, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes, 0);
     ctx->code = blockDataAppendColInfo(pResBlock, &idata);
@@ -4657,6 +4662,67 @@ void handleRemoteZeroRowsRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRe
   } else {
     *fetchDone = false;
   }
+
+  if (!(*fetchDone)) {
+    int32_t code = sendFetchRemoteNodeReq(ctx, pParam->subQIdx, pParam->pRes);
+    if (TSDB_CODE_SUCCESS != code) {
+      ctx->code = code;
+      *fetchDone = true;
+    }
+  }
+}
+
+
+
+int32_t setTableFromResBlock(STaskSubJobCtx* ctx, SRemoteTableNode* pRes, SSDataBlock** ppBlock) {
+  int32_t code = 0, lino = 0;
+  
+  if (NULL == pRes->pResBlks) {
+    pRes->pResBlks = taosArrayInit(10, POINTER_BYTES);
+    TSDB_CHECK_NULL(pRes->pResBlks, code, lino, _exit, terrno);
+  }
+
+  TSDB_CHECK_NULL(taosArrayPush(pRes->pResBlks, ppBlock), code, lino, _exit, terrno);
+
+_exit:
+
+  if (code) {
+    blockDataDestroy(*ppBlock);    
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  *ppBlock = NULL;
+  
+  return code;
+}
+
+
+void handleRemoteTableRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetrieveTableRsp* pRsp, bool* fetchDone) {
+  SSDataBlock* pResBlock = NULL;
+  SRemoteTableNode* pRemote = (SRemoteTableNode*)pParam->pRes;
+
+  qDebug("%s scl fetch remoteTable rsp received, subQIdx:%d, rows:%" PRId64 ", cols:%" PRId64, ctx->idStr, pParam->subQIdx, pRsp->numOfRows, pRsp->numOfCols);
+
+  if (pRsp->numOfRows > 0) {
+    ctx->code = createExprSubQResBlock(&pResBlock, NULL, pRemote->resCols);
+    if (TSDB_CODE_SUCCESS == ctx->code) {
+      ctx->code = extractSingleRspBlock(pRsp, pResBlock);
+    }
+    if (TSDB_CODE_SUCCESS == ctx->code) {
+      ctx->code = setTableFromResBlock(ctx, pRemote, &pResBlock);
+    }
+    if (TSDB_CODE_SUCCESS == ctx->code && pRsp->completed) {
+      pRemote->flag &= (~REMOTE_TABLE_FLAG_VAL_UNSET);
+      taosArraySet(ctx->subResNodes, pParam->subQIdx, &pParam->pRes);
+    }
+
+    blockDataDestroy(pResBlock);  
+  } else if (0 == pRsp->numOfRows && pRsp->completed) {
+    pRemote->flag &= (~REMOTE_TABLE_FLAG_VAL_UNSET);
+    taosArraySet(ctx->subResNodes, pParam->subQIdx, &pParam->pRes);
+  }
+
+  *fetchDone = (TSDB_CODE_SUCCESS != ctx->code || pRsp->completed) ? true : false;
 
   if (!(*fetchDone)) {
     int32_t code = sendFetchRemoteNodeReq(ctx, pParam->subQIdx, pParam->pRes);
@@ -4733,6 +4799,15 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
         bool fetchDone = false;
         handleRemoteZeroRowsRes(pParam, ctx, pRsp, &fetchDone);
         qDebug("%s subQIdx %d handle remote zeroRows finished, fetchDone:%d", idStr, pParam->subQIdx, fetchDone);
+        if (!fetchDone) {
+          goto _exit;
+        }
+        break;
+      }
+      case QUERY_NODE_REMOTE_TABLE: {
+        bool fetchDone = false;
+        handleRemoteTableRes(pParam, ctx, pRsp, &fetchDone);
+        qDebug("%s subQIdx %d handle remote table finished, fetchDone:%d", idStr, pParam->subQIdx, fetchDone);
         if (!fetchDone) {
           goto _exit;
         }
@@ -4902,6 +4977,13 @@ int32_t remoteNodeCopy(SNode* pSrc, SNode* pDst) {
       pRemote->valSet = true;
       pRemote->hasValue = ((SRemoteRowNode*)pSrc)->hasValue;
       pRemote->hasNull = ((SRemoteRowNode*)pSrc)->hasNull;
+      break;
+    }
+    case QUERY_NODE_REMOTE_TABLE: {
+      SRemoteTableNode* pDstNode = (SRemoteTableNode*)pDst;
+      SRemoteTableNode* pSrcNode = (SRemoteTableNode*)pSrc;
+      pDstNode->pResBlks = pSrcNode->pResBlks;
+      pDstNode->flag = 0;      
       break;
     }
     default:

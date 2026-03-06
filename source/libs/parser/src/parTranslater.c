@@ -2893,6 +2893,19 @@ static int32_t replaceExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode
       }
       break;
     }
+    case E_SUB_QUERY_TABLE: {
+      *pNode = NULL;
+      code = nodesMakeNode(QUERY_NODE_REMOTE_TABLE, pNode);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+
+      SRemoteTableNode* pRemote = (SRemoteTableNode*)*pNode;
+      pRemote->flag |= VALUELIST_FLAG_VAL_UNSET;
+      pRemote->subQIdx = pCxt->pSubQueries->length - 1;
+      getExprSubQueryResCols(pSubQuery, &pRemote->resCols);
+      break;
+    }
     case E_SUB_QUERY_ROWNUM: {
       *pNode = NULL;
       code = nodesMakeNode(QUERY_NODE_REMOTE_ZERO_ROWS, pNode);
@@ -3294,7 +3307,7 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
     return DEAL_RES_ERROR;
   }
 
-  if (E_SUB_QUERY_NOT_SET != pCxt->expSubQueryType && E_SUB_QUERY_SCALAR != pCxt->expSubQueryType) {
+  if (E_SUB_QUERY_NOT_SET != pCxt->expSubQueryType && E_SUB_QUERY_SCALAR != pCxt->expSubQueryType && E_SUB_QUERY_TABLE != pCxt->expSubQueryType) {
     code = rewriteExprSubQuery(pCxt, pOp);
   }
 
@@ -4664,6 +4677,9 @@ static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode** pNode) {
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     pCxt->errCode = translateExprSubqueryImpl(pCxt, *pNode);
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode && E_SUB_QUERY_SCALAR == pCxt->expSubQueryType) {
+    pCxt->errCode = replaceExprSubQuery(pCxt, pNode, *pNode, 0);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode && E_SUB_QUERY_SCALAR == pCxt->expSubQueryType) {
     pCxt->errCode = replaceExprSubQuery(pCxt, pNode, *pNode, 0);

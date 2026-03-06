@@ -205,6 +205,12 @@ static bool remoteZeroRowsNodeEqual(const SRemoteZeroRowsNode* a, const SRemoteZ
   return remoteValueNodeEqual((const SRemoteValueNode*)a, (const SRemoteValueNode*)b);
 }
 
+static bool remoteTableNodeEqual(const SRemoteTableNode* a, const SRemoteTableNode* b) {
+  COMPARE_SCALAR_FIELD(resCols);
+  COMPARE_SCALAR_FIELD(subQIdx);
+  return true;
+}
+
 static bool nodeListNodeEqual(const SNodeListNode* a, const SNodeListNode* b) {
   if (LIST_LENGTH(a->pNodeList) != LIST_LENGTH(b->pNodeList)) {
     return false;
@@ -262,6 +268,8 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
       return remoteRowNodeEqual((const SRemoteRowNode*)a, (const SRemoteRowNode*)b);
     case QUERY_NODE_REMOTE_ZERO_ROWS:
       return remoteZeroRowsNodeEqual((const SRemoteZeroRowsNode*)a, (const SRemoteZeroRowsNode*)b);
+    case QUERY_NODE_REMOTE_TABLE:
+      return remoteTableNodeEqual((const SRemoteTableNode*)a, (const SRemoteTableNode*)b);
     default:
       break;
   }

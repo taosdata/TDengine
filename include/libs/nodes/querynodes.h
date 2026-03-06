@@ -190,6 +190,18 @@ typedef struct SRemoteRowNode {
 
 typedef SRemoteValueNode SRemoteZeroRowsNode;
 
+
+#define REMOTE_TABLE_FLAG_VAL_UNSET      (1 << 0)
+#define REMOTE_TABLE_FLAG_RES_ALLOCED    (1 << 1)
+
+typedef struct SRemoteTableNode {
+  ENodeType  type;
+  int32_t    flag;
+  int32_t    resCols;
+  SArray*    pResBlks;
+  int32_t    subQIdx;
+} SRemoteTableNode;
+
 typedef struct SLeftValueNode {
   ENodeType type;
 } SLeftValueNode;

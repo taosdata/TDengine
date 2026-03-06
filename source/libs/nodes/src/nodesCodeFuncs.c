@@ -130,6 +130,8 @@ const char* nodesNodeName(ENodeType type) {
       return "RemoteRow";
     case QUERY_NODE_REMOTE_ZERO_ROWS:
       return "RemoteZeroRows";
+    case QUERY_NODE_REMOTE_TABLE:
+      return "RemoteTable";
     case QUERY_NODE_TRUE_FOR:
       return "TrueFor";
     case QUERY_NODE_SET_OPERATOR:
@@ -5746,6 +5748,39 @@ static int32_t jsonToRemoteZeroRows(const SJson* pJson, void* pObj) {
   return jsonToRemoteValue(pJson, pObj);
 }
 
+static const char* jkRemoteTableFlag = "flag";
+static const char* jkRemoteTableResCols = "resCols";
+static const char* jkRemoteTableSubQIdx = "subQIdx";
+
+static int32_t remoteTableToJson(const void* pObj, SJson* pJson) {
+  const SRemoteTableNode* pNode = (const SRemoteTableNode*)pObj;
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkRemoteTableFlag, pNode->flag);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkRemoteTableResCols, pNode->resCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkRemoteTableSubQIdx, pNode->subQIdx);
+  }
+
+  return code;
+}
+
+static int32_t jsonToRemoteTable(const SJson* pJson, void* pObj) {
+  SRemoteTableNode* pNode = (SRemoteTableNode*)pObj;
+
+  int32_t code = tjsonGetIntValue(pJson, jkRemoteTableFlag, &pNode->flag);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkRemoteTableResCols, &pNode->resCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkRemoteTableSubQIdx, &pNode->subQIdx);
+  }
+
+  return code;
+}
+
+
 static const char* jkOperatorType = "OpType";
 static const char* jkOperatorFlag = "OpFlag";
 static const char* jkOperatorLeft = "Left";
@@ -10325,6 +10360,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return remoteRowToJson(pObj, pJson);
     case QUERY_NODE_REMOTE_ZERO_ROWS:
       return remoteZeroRowsToJson(pObj, pJson);
+    case QUERY_NODE_REMOTE_TABLE:
+      return remoteTableToJson(pObj, pJson);
     case QUERY_NODE_TRUE_FOR:
       return trueForNodeToJson(pObj, pJson);
     case QUERY_NODE_SET_OPERATOR:
@@ -10817,6 +10854,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToRemoteRow(pJson, pObj);
     case QUERY_NODE_REMOTE_ZERO_ROWS:
       return jsonToRemoteZeroRows(pJson, pObj);
+    case QUERY_NODE_REMOTE_TABLE:
+      return jsonToRemoteTable(pJson, pObj);
     case QUERY_NODE_TRUE_FOR:
       return jsonToTrueForNode(pJson, pObj);
     case QUERY_NODE_SET_OPERATOR:

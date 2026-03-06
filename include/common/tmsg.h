@@ -364,6 +364,7 @@ typedef enum ENodeType {
   QUERY_NODE_SURROUND,
   QUERY_NODE_REMOTE_ROW,
   QUERY_NODE_REMOTE_ZERO_ROWS,
+  QUERY_NODE_REMOTE_TABLE,
   
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
