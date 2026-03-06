@@ -1441,7 +1441,9 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
   SAsyncItem* item = handle->data;
   SWorkThrd*  pThrd = item->pThrd;
   SSvrConn*   conn = NULL;
+
   queue       wq;
+  QUEUE_INIT(&wq); 
 
   // batch process to avoid to lock/unlock frequently
   if (taosThreadMutexLock(&item->mtx) != 0) {

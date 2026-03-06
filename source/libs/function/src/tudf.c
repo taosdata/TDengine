@@ -1926,7 +1926,8 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
 void udfcAsyncTaskCb(uv_async_t *async) {
   SUdfcProxy *udfc = async->data;
   QUEUE       wq;
-
+  QUEUE_INIT(&wq); 
+ 
   uv_mutex_lock(&udfc->taskQueueMutex);
   QUEUE_MOVE(&udfc->taskQueue, &wq);
   uv_mutex_unlock(&udfc->taskQueueMutex);
@@ -1946,7 +1947,9 @@ void udfcAsyncTaskCb(uv_async_t *async) {
 }
 
 void cleanUpUvTasks(SUdfcProxy *udfc) {
-  fnDebug("clean up uv tasks") QUEUE wq;
+  fnDebug("clean up uv tasks");
+  QUEUE wq;
+  QUEUE_INIT(&wq); 
 
   uv_mutex_lock(&udfc->taskQueueMutex);
   QUEUE_MOVE(&udfc->taskQueue, &wq);
