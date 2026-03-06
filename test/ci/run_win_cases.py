@@ -73,7 +73,7 @@ def clean_taos_process(keywords=None):
     :param keywords: List[str]，用于匹配进程命令行的关键字列表。如果为 None，则默认匹配 'taos'。
     """
     if keywords is None:
-        keywords = ["taos", "taosd", "taosadapter", "taoskeeper", "taos-explorer", "taosx"]
+        keywords = ["taos", "taosd", "taosadapter", "taoskeeper", "taos-explorer", "taosx", "tmq_sim", "taosdump", "taosBenchmark" ]
 
     current_pid = os.getpid()
 
@@ -115,13 +115,17 @@ def zip_dir(dir_path, zip_path):
                 rel_path = os.path.relpath(abs_path, dir_path)
                 zipf.write(abs_path, rel_path)
 
-def safe_rmtree(path, retries=5, delay=1):
+def safe_rmtree(path, retries=10, delay=2):
     """
     安全删除目录，支持重试机制。
     :param path: 要删除的目录路径。
     :param retries: 重试次数。
     :param delay: 每次重试之间的延迟时间（秒）。
     """
+    import sys
+    # Windows 上进程终止后句柄可能未立即释放，先等待一下
+    if sys.platform == "win32":
+        time.sleep(1)
     for i in range(retries):
         try:
             if os.path.exists(path):
@@ -155,25 +159,43 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
         shutil.rmtree(log_dir)
     os.makedirs(log_dir, exist_ok=True)
 
+    # 定义清理函数（失败时抛出异常，终止测试）
+    def cleanup_environment(phase=""):
+        """清理进程和目录，失败则抛出异常终止测试"""
+        logger.info(f"Cleaning up environment ({phase})...")
+        
+        # 1. 结束残留进程
+        clean_taos_process()
+        
+        # 2. 等待句柄释放
+        time.sleep(1)
+        
+        # 3. 删除 sim 目录，失败则终止
+        if os.path.exists(work_dir):
+            try:
+                shutil.rmtree(work_dir)
+                logger.info(f"Removed {work_dir}")
+            except Exception as e:
+                logger.error(f"CRITICAL: Failed to remove {work_dir}: {e}")
+                raise RuntimeError(f"Cleanup failed: cannot remove work_dir") from e
+
     with open(input_file, 'r', encoding="utf-8", errors="ignore") as f:
         for line in f:
             line = line.strip()
-            # 跳过空行和注释行
             if not line or line.startswith('#'):
                 continue
 
-            # 解析pytest命令
+            # 解析 pytest 命令
             if "ci/pytest.sh " in line:
                 pytest_cmd = line.split("ci/pytest.sh ")[1]
             else:
                 pytest_cmd = line.split(",,n,.,")[1]
 
-            # 确保是pytest命令
             if not pytest_cmd.startswith("pytest"):
                 logger.warning(f"异常pytest命令: {pytest_cmd}")
                 continue
 
-            case_base_name = pytest_cmd.split(" ")[1]  # 获取用例无参数名称用于与排除用例列表比对
+            case_base_name = pytest_cmd.split(" ")[1]
             if case_base_name and len(exclusion_list) > 0 and case_base_name in exclusion_list:
                 skipped_cases += 1
                 logger.info(f"Case {case_base_name} not support runnning on Windows. Skip test.")
@@ -182,92 +204,130 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
                     rf.write(result_str)
                 continue
 
-            case_name = pytest_cmd.split("/")[-1].replace(" ", "_")  # 获取用例名称
+            case_name = pytest_cmd.split("/")[-1].replace(" ", "_")
             total_cases += 1
             log_file = os.path.join(log_dir, f"{case_name}.log")
 
             logger.info(f"Running case {pytest_cmd}")
             case_start = time.time()
+            return_code = None
 
+            # ========== 用例前清理（失败则终止） ==========
             try:
-                # 检查退出标志
+                cleanup_environment("pre-case")
+            except RuntimeError as e:
+                logger.error(f"Pre-case cleanup failed, stopping test suite: {e}")
+                result_str = f"ERROR\t{pytest_cmd}\t\t\t0.00s\tPre-case cleanup failed: {e}\n"
+                with open(result_file, "a", encoding="utf-8") as rf:
+                    rf.write(result_str)
+                break  # 清理失败，终止整个测试
+
+            # ========== 执行用例 ==========
+            try:
                 if exit_flag:
                     logger.info("检测到退出标志，终止测试")
                     break
-                    
-                # 清理环境，kill残留进程，删除sim目录
-                clean_taos_process()
-                if os.path.exists(work_dir):
-                    safe_rmtree(work_dir)
-                # 执行pytest命令，设置超时为3000秒
+
                 global current_process
-                with open(log_file, 'w') as log:
+                pytest_cmd_clean = f"{pytest_cmd} --clean -u"
+                
+                with open(log_file, 'w', buffering=1) as log:
                     current_process = subprocess.Popen(
-                        pytest_cmd,
+                        pytest_cmd_clean,
                         shell=True,
                         stdout=log,
                         stderr=subprocess.STDOUT,
                         text=True
                     )
 
-                    try:
-                        # 轮询等待，以便响应 Ctrl+C
-                        return_code = None
-                        waited = 0
-                        while waited < 3000:
-                            ret = current_process.poll()
-                            if ret is not None:
-                                return_code = ret
-                                break
-                            if exit_flag:
-                                logger.info("测试被中断")
-                                current_process.kill()
-                                current_process.wait()
-                                sys.exit(130)
-                            time.sleep(0.5)
-                            waited += 0.5
-                        else:
-                            # 超时
+                    # 轮询等待
+                    waited = 0
+                    while waited < 1800:
+                        ret = current_process.poll()
+                        if ret is not None:
+                            return_code = ret
+                            break
+                        if exit_flag:
+                            logger.info("测试被中断")
                             current_process.kill()
-                            return_code = -1
-                            logger.info(f"Case {pytest_cmd} running timeout, killed process.")
-                        current_process = None
-                    except KeyboardInterrupt:
-                        exit_flag = True
-                        if current_process:
-                            current_process.kill()
-                        sys.exit(130)
+                            current_process.wait()
+                            sys.exit(130)
+                        time.sleep(0.5)
+                        waited += 0.5
+                    else:
+                        # 超时
+                        current_process.kill()
+                        return_code = -1
+                        logger.info(f"Case {pytest_cmd} running timeout, killed process.")
+                    current_process = None
 
-                case_end = time.time()
-                execution_time = case_end - case_start
+                # 确保日志刷盘
+                if os.path.exists(log_file):
+                    with open(log_file, 'a') as f:
+                        f.flush()
+                        try:
+                            os.fsync(f.fileno())
+                        except:
+                            pass
 
-                if return_code == 0:
-                    success_cases += 1
-                    os.remove(log_file)
-                    logger.info(f"Case {pytest_cmd}: Success. Time cost: {execution_time:.2f}s")
-                    result_str = f"SUCCESS\t{pytest_cmd}\t\t\t{execution_time:.2f}s\n"
-                else:
-                    failed_cases += 1
-                    failed_case_list.append(pytest_cmd)
-                    logger.info(f"Case {pytest_cmd} Failed. Time cost: {execution_time:.2f}s")
-                    result_str = f"FAILED\t{pytest_cmd}\t\t\t{execution_time:.2f}s\n"
-
+            except KeyboardInterrupt:
+                exit_flag = True
+                if current_process:
+                    current_process.kill()
+                sys.exit(130)
             except Exception as e:
-                case_end = time.time()
-                execution_time = case_end - case_start
+                return_code = -2  # 执行异常
+                logger.error(f"Case execution error: {e}")
+
+            # ========== 用例后清理（失败则终止） ==========
+            try:
+                cleanup_environment("post-case")
+            except RuntimeError as e:
+                logger.error(f"Post-case cleanup failed, stopping test suite: {e}")
+                # 记录当前用例结果（如果执行过）
+                if return_code is not None:
+                    if return_code == 0:
+                        result_str = f"SUCCESS\t{pytest_cmd}\t\t\t{time.time() - case_start:.2f}s\n"
+                    else:
+                        result_str = f"FAILED\t{pytest_cmd}\t\t\t{time.time() - case_start:.2f}s\n"
+                else:
+                    result_str = f"ERROR\t{pytest_cmd}\t\t\t{time.time() - case_start:.2f}s\tExecution error\n"
+                with open(result_file, "a", encoding="utf-8") as rf:
+                    rf.write(result_str)
+                break  # 清理失败，终止整个测试
+
+            # ========== 记录用例结果 ==========
+            case_end = time.time()
+            execution_time = case_end - case_start
+
+            if return_code == 0:
+                success_cases += 1
+                os.remove(log_file)
+                logger.info(f"Case {pytest_cmd}: Success. Time cost: {execution_time:.2f}s")
+                result_str = f"SUCCESS\t{pytest_cmd}\t\t\t{execution_time:.2f}s\n"
+            elif return_code == -1:
                 failed_cases += 1
                 failed_case_list.append(pytest_cmd)
-                logger.info(f"Case {total_cases} Exception: {str(e)}. Time cost: {execution_time:.2f}s")
-                result_str = f"ERROR\t{pytest_cmd}\t\t\t{execution_time:.2f}s\t{str(e)}\n"
-            # 每条用例执行完都写入结果文件
+                logger.info(f"Case {pytest_cmd} Failed (timeout). Time cost: {execution_time:.2f}s")
+                result_str = f"FAILED\t{pytest_cmd}\t\t\t{execution_time:.2f}s\ttimeout\n"
+            elif return_code == -2:
+                failed_cases += 1
+                failed_case_list.append(pytest_cmd)
+                logger.info(f"Case {pytest_cmd} Exception. Time cost: {execution_time:.2f}s")
+                result_str = f"ERROR\t{pytest_cmd}\t\t\t{execution_time:.2f}s\texecution error\n"
+            else:
+                failed_cases += 1
+                failed_case_list.append(pytest_cmd)
+                logger.info(f"Case {pytest_cmd} Failed. Time cost: {execution_time:.2f}s")
+                result_str = f"FAILED\t{pytest_cmd}\t\t\t{execution_time:.2f}s\n"
+
             with open(result_file, "a", encoding="utf-8") as rf:
                 rf.write(result_str)
 
-    # 计算总执行时间
+    # ========== 收尾 ==========
     end_time = time.time()
     total_execution_time = end_time - start_time
 
-    # 输出统计信息
     logger.info("All cases run finished:")
     logger.info(f"Total cost time: {total_execution_time:.2f}s")
     logger.info(f"Total cases: {total_cases}")
@@ -280,8 +340,12 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
             logger.info(cmd)
 
     with open(result_file, "a", encoding="utf-8") as rf:
-        rf.write(
-            f"\nAll cases run finished:\nTotal cost time: {total_execution_time:.2f}s\nTotal cases: {total_cases}\nSuccess cases: {success_cases}\nFailed cases: {failed_cases}\nWindows skip cases: {skipped_cases}\n")
+        rf.write(f"\nAll cases run finished:\n")
+        rf.write(f"Total cost time: {total_execution_time:.2f}s\n")
+        rf.write(f"Total cases: {total_cases}\n")
+        rf.write(f"Success cases: {success_cases}\n")
+        rf.write(f"Failed cases: {failed_cases}\n")
+        rf.write(f"Windows skip cases: {skipped_cases}\n")
         if failed_cases > 0:
             rf.write("\nFailed cases list:\n")
             for cmd in failed_case_list:
@@ -292,10 +356,6 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
     zip_dir(log_dir, f"{log_prefix}.zip")
     shutil.move(f"{log_prefix}.zip", os.path.join(log_path, f"{log_prefix}.zip"))
     shutil.move(result_file, os.path.join(log_path, result_file))
-
-    # 如果没有失败用例，删除日志目录
-    # if failed_cases == 0 and os.path.exists(log_dir):
-    #    shutil.rmtree(log_dir)
 
 
 if __name__ == "__main__":
