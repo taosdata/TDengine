@@ -222,7 +222,6 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   calcReq.runnerTaskId = req.taskId;
   calcReq.brandNew = req.reset;
   calcReq.execId = req.execId;
-  stDebug("snode stream fetch taskId: %d, execId:%d streamId: %ll", req.taskId, req.execId, req.queryId);
   if (req.pStRtFuncInfo) {
     calcReq.sessionId = req.pStRtFuncInfo->sessionId;
     calcReq.triggerType = req.pStRtFuncInfo->triggerType;
