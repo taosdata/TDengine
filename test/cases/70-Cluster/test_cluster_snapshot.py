@@ -101,9 +101,25 @@ class TestSnapshot:
         # so need wait a while
         time.sleep(10)
 
-        vgids = self.getVGroup(self.db)
-        selid = random.choice(vgids)
-        self.balanceVGroupLeaderOn(selid)
+        count = 0
+        while count < 3:
+            vgids = self.getVGroup(self.db)
+            selid = random.choice(vgids)
+            sql = f"balance vgroup leader on {selid}"
+            tdLog.info(sql)
+            tdSql.execute(sql, show=True)
+            if self.waitTransactionZero() is False:
+                sql = "show transactions;"
+                rows = tdSql.query(sql)
+                if rows > 0:
+                    tranId = tdSql.getData(0, 0)
+                    tdLog.info('kill transaction %d'%tranId)
+                    tdSql.execute('kill transaction %d'%tranId, queryTimes=1 )
+            count = count + 1
+        
+        if count >= 3:
+            tdLog.exit(f"balance vgroup leader failed after retry 3 times")
+            return False
 
         # check count always return value
         sql = f"select count(*) from {self.db}.ta"
