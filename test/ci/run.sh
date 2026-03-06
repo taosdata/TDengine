@@ -31,8 +31,13 @@ while getopts "m:t:b:l:o:w:eh" opt; do
         ent=1
         ;;
     o)
-        timeout_param="-o $OPTARG"
         timeout_val=$OPTARG
+        # Validate timeout_val is a positive integer to prevent command injection
+        if [[ -z "$timeout_val" ]] || [[ "$timeout_val" =~ [^0-9] ]]; then
+            echo "Invalid timeout value: $timeout_val (must be a positive integer)" >&2
+            exit 1
+        fi
+        timeout_param="-o $timeout_val"
         ;;
     w)
         web_server=$OPTARG
@@ -77,6 +82,12 @@ if [ -z "$log_dir" ]; then
 else
     log_dir="$log_dir/${test_log_dir}"
 fi
+
+# SSH ControlMaster settings for connection reuse (improves performance and stability)
+SSH_CONTROL_DIR="/tmp/ssh_controlmasters_$$"
+mkdir -p "$SSH_CONTROL_DIR"
+chmod 700 "$SSH_CONTROL_DIR"
+SSH_CONTROL_OPTIONS="-o ControlMaster=auto -o ControlPath=$SSH_CONTROL_DIR/%h_%p_%r -o ControlPersist=1200"
 
 hosts=()
 usernames=()
@@ -144,19 +155,60 @@ function is_local_host() {
 
 function get_remote_ssh_command() {
     local index=$1
+    local use_control_master=${2:-false}
+    local ssh_options="-o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3"
+    # Add ControlMaster options for connection reuse (only for key-based auth)
+    if [ -z "${passwords[index]}" ] && [ "$use_control_master" = "true" ]; then
+        ssh_options="${ssh_options} ${SSH_CONTROL_OPTIONS}"
+    fi
+    local ssh_target="${usernames[index]}@${hosts[index]}"
     if [ -z "${passwords[index]}" ]; then
-        echo "ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${usernames[index]}@${hosts[index]}"
+        echo "ssh ${ssh_options} ${ssh_target}"
     else
-        echo "sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${usernames[index]}@${hosts[index]}"
+        echo "sshpass -p \"${passwords[index]}\" ssh ${ssh_options} ${ssh_target}"
+    fi
+}
+
+# Initialize SSH ControlMaster connections for all key-based auth hosts
+function init_ssh_control_masters() {
+    local index=0
+    while [ $index -lt ${#hosts[*]} ]; do
+        if ! is_local_host "${hosts[index]}" && [ -z "${passwords[index]}" ]; then
+            local ssh_cmd="ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3"
+            ssh_cmd="${ssh_cmd} ${SSH_CONTROL_OPTIONS}"
+            ssh_cmd="${ssh_cmd} -fN ${usernames[index]}@${hosts[index]}"
+            echo "Establishing SSH ControlMaster for ${hosts[index]}..."
+            $ssh_cmd 2>/dev/null || echo "Warning: Failed to establish ControlMaster for ${hosts[index]}"
+        fi
+        index=$((index + 1))
+    done
+}
+
+# Close all SSH ControlMaster connections
+function close_ssh_control_masters() {
+    if [ -d "$SSH_CONTROL_DIR" ]; then
+        for socket in "$SSH_CONTROL_DIR"/*; do
+            if [ -S "$socket" ]; then
+                ssh -S "$socket" -O exit 2>/dev/null || true
+            fi
+        done
+        rm -rf "$SSH_CONTROL_DIR"
     fi
 }
 
 function get_remote_scp_command() {
     local index=$1
+    local use_control_master=${2:-false}
+    local scp_options="-o StrictHostKeyChecking=no -r"
+    # Add ControlMaster options for connection reuse (only for key-based auth)
+    if [ -z "${passwords[index]}" ] && [ "$use_control_master" = "true" ]; then
+        scp_options="${scp_options} ${SSH_CONTROL_OPTIONS}"
+    fi
+    local scp_target="${usernames[index]}@${hosts[index]}"
     if [ -z "${passwords[index]}" ]; then
-        echo "scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+        echo "scp ${scp_options} ${scp_target}"
     else
-        echo "sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+        echo "sshpass -p \"${passwords[index]}\" scp ${scp_options} ${scp_target}"
     fi
 }
 
@@ -203,7 +255,7 @@ function transfer_debug_dirs() {
     while [ $index -lt ${#hosts[*]} ]; do
         if ! is_local_host "${hosts[index]}"; then
             # remove remote debug dir if exists
-            remote_cmd=$(get_remote_ssh_command "$index")
+            remote_cmd=$(get_remote_ssh_command "$index" true)
             bash -c "${remote_cmd} rm -rf '${workdirs[index]}/debugSan'"
             bash -c "${remote_cmd} rm -rf '${workdirs[index]}/debugNoSan'"
             # transfer debug.tar.gz to remote
@@ -228,7 +280,7 @@ function clean_tmp() {
     else
         local ssh_script=""
         ssh_script=$(get_remote_ssh_command "$index")
-        cmd="${ssh_script} rm -rf ${workdirs[index]}/tmp"
+        cmd="${ssh_script} rm -rf '${workdirs[index]}/tmp'"
     fi
     $cmd
 }
@@ -238,7 +290,7 @@ function run_thread() {
     local thread_no=$2
     local runcase_script=""
     if ! is_local_host "${hosts[index]}"; then
-        runcase_script=$(get_remote_ssh_command "$index")
+        runcase_script=$(get_remote_ssh_command "$index" true)
     fi
     local count=0
     local script="${workdirs[index]}/TDengine/test/ci/run_container.sh"
@@ -356,9 +408,9 @@ function run_thread() {
             real_start_time=$(date +%s)
             # echo "cmd:${cmd}"
             if ! is_local_host "${hosts[index]}"; then
-                timeout ${timeout_val:-1260} $cmd >>"$case_log_file" 2>&1
+                timeout -- "${timeout_val:-1260}" bash -c "$cmd" >>"$case_log_file" 2>&1
             else
-                timeout ${timeout_val:-1260} bash -c "$cmd" >>"$case_log_file" 2>&1
+                timeout -- "${timeout_val:-1260}" bash -c "$cmd" >>"$case_log_file" 2>&1
             fi
             ret=$?
             local real_end_time
@@ -413,7 +465,7 @@ function run_thread() {
         local scpcmd=""
         local allure_report_results="${workdirs[index]}/tmp/thread_volume/$thread_no/allure-results"
         if ! is_local_host "${hosts[index]}"; then
-            scpcmd=$(get_remote_scp_command "$index")
+            scpcmd=$(get_remote_scp_command "$index" true)
             cmd="$scpcmd:${allure_report_results}/* $log_dir/allure-results/"
             bash -c "$cmd" >/dev/null 2>&1 || true
         else
@@ -431,10 +483,12 @@ function run_thread() {
                 flock -x "$lock_file" -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  log file: ${case_log_file}\" >>${failed_case_file}"
             fi
             local remote_coredump_dir="${workdirs[index]}/tmp/thread_volume/$thread_no/coredump"
-            if [ "$(ls -A ${remote_coredump_dir} 2>/dev/null)" ]; then
+            if [ "$(ls -A "${remote_coredump_dir}" 2>/dev/null)" ]; then
                 mkdir -p "${log_dir}"/"${case_file}".coredump
                 if ! is_local_host "${hosts[index]}"; then
-                    cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+                    local coredump_scp_cmd
+                    coredump_scp_cmd=$(get_remote_scp_command "$index" true)
+                    cmd="${coredump_scp_cmd}:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
                 else
                     cmd="cp -rf ${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
                 fi
@@ -479,20 +533,22 @@ function run_thread() {
             fi
             local remote_sim_dir="${workdirs[index]}/tmp/thread_volume/$thread_no"
             if ! is_local_host "${hosts[index]}"; then
-                cmd="$runcase_script \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
+                cmd="$runcase_script \"cd '$remote_sim_dir'; tar -czf sim.tar.gz sim\""
             else
-                cmd="cd $remote_sim_dir; tar -czf sim.tar.gz sim"
+                cmd="cd '$remote_sim_dir'; tar -czf sim.tar.gz sim"
             fi
             echo "tar sim.tar.gz cmd: $cmd"
             bash -c "$cmd" >/dev/null 2>&1 || true
             local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
             local remote_case_sql_file="${workdirs[index]}/tmp/thread_volume/$thread_no/${case_sql_file}"
             if ! is_local_host "${hosts[index]}"; then
-                cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
+                local sim_scp_cmd
+                sim_scp_cmd=$(get_remote_scp_command "$index" true)
+                cmd="${sim_scp_cmd}:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
                 echo "scp sim.tar.gz cmd: $cmd"
                 bash -c "$cmd" >/dev/null 2>&1 || true
                 if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
-                    cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
+                    cmd="${sim_scp_cmd}:${remote_case_sql_file} $log_dir/${case_file}.sql"
                     bash -c "$cmd" >/dev/null 2>&1 || true
                 fi
             else
@@ -554,6 +610,10 @@ done
 
 # prepare cases
 prepare_cases $j
+
+# Initialize SSH ControlMaster connections (for key-based auth hosts)
+echo "Initializing SSH ControlMaster connections..."
+init_ssh_control_masters
 
 # transfer debug dirs
 echo "Transfer debug dirs...($(date))"
@@ -660,6 +720,10 @@ if [ -f "$report_dir/index.html" ]; then
 else
     echo "Error: Failed to generate Allure report."
 fi
+
+# Close SSH ControlMaster connections
+echo "Closing SSH ControlMaster connections..."
+close_ssh_control_masters
 
 echo "${log_dir}" >&2
 date
