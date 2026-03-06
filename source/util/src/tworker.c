@@ -683,7 +683,7 @@ static void *tQueryAutoQWorkerThreadFp(SQueryAutoQWorker *worker) {
       break;
     }
 
-    if (pool->stopNoWaitQueue) {
+    if (pool->stopNoWaitQueue && pool->exit) {
       uInfo("worker:%s:%d exit, thread:%08" PRId64, pool->name, worker->id, worker->pid);
       break;
     }
