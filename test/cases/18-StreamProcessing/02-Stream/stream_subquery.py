@@ -41,20 +41,25 @@ class TestStreamSubquery:
 
         # ntb
         self.prepareData()
-        #self.createRangeStream()
-        #self.checkRangeResult()
-        #self.dropStream('db.sub_range_stream')
+        self.createRangeStream()
+        self.checkRangeResult()
+        self.dropStream('db.sub_range_stream')
 
         # stb
         self.prepareStbData()
         self.createStbStream()
         self.checkStbResult()
-
         self.dropStream('db.stb_stream')
-        # stb of subquery with dynamical tbname
+        self.dropOutTable('db.stb_tb')
 
-        #self.createInStream()
-        #self.checkInResult()
+        # stb of subquery with dynamical tbname
+        self.createStbStreamDyntbname()
+        self.checkStbResult()
+        self.dropStream('db.stb_stream_dyntbname')
+        self.dropOutTable('db.stb_tb')
+
+        self.createInStream()
+        self.checkInResult()
         #self.prepareCountData()
         #self.createCountStream()
         #self.checkCountResult()
@@ -63,11 +68,21 @@ class TestStreamSubquery:
         tdLog.info(f"Drop stream {streamName}")
 
         sqls = [
-            "drop stream {streamName};",
+            f"drop stream {streamName};",
         ]
 
         tdSql.executes(sqls)
         tdLog.info(f"Drop stream {streamName} successfully.")
+
+    def dropOutTable(self, tbName):
+        tdLog.info(f"Drop table if exists {tbName}")
+
+        sqls = [
+            f"Drop table if exists {tbName};",
+        ]
+
+        tdSql.executes(sqls)
+        tdLog.info(f"Drop table {tbName} successfully.")
 
     def prepareData(self):
         tdLog.info(f"prepare data")
@@ -149,9 +164,32 @@ class TestStreamSubquery:
         tdLog.info(f"create successfully.")
 
     def createStbStream(self):
-        tdLog.info(f"create stb stream:")
+        tdLog.info(f"create stb stream.")
         sql = (
         f"create stream db.stb_stream count_window(2, 1) from db.stb partition by tbname stream_options(fill_history('2026-01-11 00:00:00')|low_latency_calc) into db.stb_tb as  select _twstart as ts, first(f1) as ff1, last(f1) as lf1 from %%tbname where ts>= _twstart and ts<= _twend and f1 > (select first(f1)-1 from db.stb);"
+        )
+
+        tdLog.info(f"create stream:{sql}")
+
+        try:
+            tdSql.execute(sql)
+        except Exception as e:
+            if "No stream available snode now" not in str(e):
+                raise Exception(f" user cant  create stream no snode ,but create success")
+
+        while True:
+            tdSql.query(f"select status from information_schema.ins_streams")
+            if tdSql.getData(0,0) == "Running":
+                tdLog.info("Stream is running!")
+                break
+
+            tdLog.debug(f"current stream status: {tdSql.getData(0,0)}")
+            time.sleep(1)
+
+    def createStbStreamDyntbname(self):
+        tdLog.info(f"create stb stream dyntbname")
+        sql = (
+        f"create stream db.stb_stream_dyntbname count_window(2, 1) from db.stb partition by tbname stream_options(fill_history('2026-01-11 00:00:00')|low_latency_calc) into db.stb_tb as  select _twstart as ts, first(f1) as ff1, last(f1) as lf1 from %%tbname where ts>= _twstart and ts<= _twend and f1 > (select first(f1)-1 from %%tbname);"
         )
 
         tdLog.info(f"create stream:{sql}")
