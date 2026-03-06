@@ -620,7 +620,7 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator, pTaskInfo);
+  recordOpCreateTime(pOperator);
 
   pOperator->pPhyNode = (SNode*)pAggNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
@@ -1266,7 +1266,7 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
     pTaskInfo->code = code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator, pTaskInfo);
+  recordOpCreateTime(pOperator);
 
   pOperator->pPhyNode = pPartNode;
   int32_t    numOfCols = 0;

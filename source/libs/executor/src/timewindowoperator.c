@@ -974,7 +974,6 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
   SExprSupp*                pSup = &pOperator->exprSupp;
 
   int32_t scanFlag = MAIN_SCAN;
-  int64_t st = taosGetTimestampUs();
 
   pInfo->cleanGroupResInfo = false;
   while (1) {
@@ -1003,8 +1002,6 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
   pInfo->cleanGroupResInfo = true;
 
   OPTR_SET_OPENED(pOperator);
-
-  pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1241,7 +1238,6 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
 
   SExprSupp* pSup = &pOperator->exprSupp;
   int32_t    order = pInfo->binfo.inputTsOrder;
-  int64_t    st = taosGetTimestampUs();
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   pInfo->cleanGroupResInfo = false;
@@ -1317,7 +1313,6 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
     numPartialCalcRows = 0;
   }
 
-  pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   code = initGroupedResultInfo(
     &pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, TSDB_ORDER_ASC);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -1649,7 +1644,7 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
     lino = __LINE__;
     goto _error;
   }
-  recordOpCreateTime(pOperator, pTaskInfo);
+  recordOpCreateTime(pOperator);
 
   pOperator->pPhyNode = pPhyNode;
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pPhyNode->window.node.pOutputDataBlockDesc);
@@ -1994,7 +1989,7 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhy
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator, pTaskInfo);
+  recordOpCreateTime(pOperator);
 
   pOperator->pPhyNode = pStateNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
@@ -2150,7 +2145,7 @@ int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPh
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator, pTaskInfo);
+  recordOpCreateTime(pOperator);
 
   pOperator->pPhyNode = pSessionNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
@@ -2487,7 +2482,7 @@ int32_t createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator, pTaskInfo);
+  recordOpCreateTime(pOperator);
 
   pOperator->pPhyNode = pNode;
   miaInfo->intervalAggOperatorInfo = taosMemoryCalloc(1, sizeof(SIntervalAggOperatorInfo));
@@ -2855,7 +2850,7 @@ int32_t createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeInterva
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator, pTaskInfo);
+  recordOpCreateTime(pOperator);
 
   pOperator->pPhyNode = pIntervalPhyNode;
   SInterval interval = {.interval = pIntervalPhyNode->interval,

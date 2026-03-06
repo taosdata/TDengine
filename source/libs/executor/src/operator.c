@@ -73,7 +73,6 @@ int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t 
 
 void setOperatorCompleted(SOperatorInfo* pOperator) {
   pOperator->status = OP_EXEC_DONE;
-  pOperator->cost.totalCost = (taosGetTimestampUs() - pOperator->pTaskInfo->cost.start) / 1000.0;
   setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
 }
 
@@ -735,8 +734,6 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
   }
 
   pExplainInfo->numOfRows = operatorInfo->resultInfo.totalRows;
-  pExplainInfo->startupCost = operatorInfo->cost.openCost;
-  pExplainInfo->totalCost = operatorInfo->cost.totalCost;
   pExplainInfo->verboseLen = 0;
   pExplainInfo->verboseInfo = NULL;
   pExplainInfo->vgId = operatorInfo->pTaskInfo->id.vgId;
@@ -747,8 +744,13 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
     to compute the real elapsed time since the operator is created.
   */
   pExplainInfo->execStart = operatorInfo->cost.execStart - operatorInfo->cost.execCreate;
-  pExplainInfo->execFirstRow = operatorInfo->cost.execFirstRow - operatorInfo->cost.execCreate;
-  pExplainInfo->execLastRow = operatorInfo->cost.execLastRow - operatorInfo->cost.execCreate;
+  if (operatorInfo->resultInfo.totalRows > 0) {
+    /*
+      When there is no data returned, keep execFirstRow and execLastRow as 0.
+    */
+    pExplainInfo->execFirstRow = operatorInfo->cost.execFirstRow - operatorInfo->cost.execCreate;
+    pExplainInfo->execLastRow = operatorInfo->cost.execLastRow - operatorInfo->cost.execCreate;
+  }
 
   pExplainInfo->execTimes = operatorInfo->cost.execTimes;
   pExplainInfo->execElapsed = operatorInfo->cost.execElapsed;
@@ -1155,12 +1157,9 @@ _return:
 
 /**
   @brief Record the create time of the operator.
-  Only record the metrics in explain analyze mode.
 */
-void recordOpCreateTime(SOperatorInfo* pOperator, SExecTaskInfo* pTaskInfo) {
-  if (QUERY_ENABLE_EXPLAIN(pTaskInfo)) {
-    pOperator->cost.execCreate = taosGetTimestampUs();
-  }
+void recordOpCreateTime(SOperatorInfo* pOperator) {
+  pOperator->cost.execCreate = taosGetTimestampUs();
 }
 
 /**

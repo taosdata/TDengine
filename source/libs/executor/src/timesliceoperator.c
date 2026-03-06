@@ -1452,7 +1452,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream,
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator, pTaskInfo);
+  recordOpCreateTime(pOperator);
 
   pOperator->pPhyNode = pPhyNode;
   SInterpFuncPhysiNode* pInterpPhyNode = (SInterpFuncPhysiNode*)pPhyNode;

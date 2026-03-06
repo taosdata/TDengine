@@ -88,7 +88,7 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator, pTaskInfo);
+  recordOpCreateTime(pOperator);
 
   pOperator->pTaskInfo = pTaskInfo;
   SDataBlockDescNode* pDescNode = pSortNode->node.pOutputDataBlockDesc;
@@ -398,7 +398,6 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
     return code;
   }
 
-  pInfo->startTs = taosGetTimestampUs();
   //  pInfo->binfo.pRes is not equalled to the input datablock.
   pInfo->pSortHandle = NULL;
   code =
@@ -420,7 +419,6 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
 
   code = tsortOpen(pInfo->pSortHandle);
   QUERY_CHECK_CODE(code, lino, _end);
-  pOperator->cost.openCost = (taosGetTimestampUs() - pInfo->startTs) / 1000.0;
   pOperator->status = OP_RES_TO_RETURN;
   OPTR_SET_OPENED(pOperator);
 
@@ -874,7 +872,7 @@ int32_t createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNo
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator, pTaskInfo);
+  recordOpCreateTime(pOperator);
 
   SExprSupp*          pSup = &pOperator->exprSupp;
   SDataBlockDescNode* pDescNode = pSortPhyNode->node.pOutputDataBlockDesc;
