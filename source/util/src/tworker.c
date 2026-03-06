@@ -683,7 +683,7 @@ static void *tQueryAutoQWorkerThreadFp(SQueryAutoQWorker *worker) {
       break;
     }
 
-    if (pool->exit) {
+    if (pool->stopNoWaitQueue) {
       uInfo("worker:%s:%d exit, thread:%08" PRId64, pool->name, worker->id, worker->pid);
       break;
     }
@@ -788,8 +788,6 @@ static void tQueryAutoQWorkerWaitingCheck(SQueryAutoQWorkerPool *pPool) {
 }
 
 bool tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool *pPool, SQueryAutoQWorker *pWorker) {
-  bool res = true;
-  
   if (tQueryAutoQWorkerTrySignalWaitingAfterBlock(pPool) || tQueryAutoQWorkerTrySignalWaitingBeforeProcess(pPool) ||
       tQueryAutoQWorkerTryDecActive(pPool, pPool->num)) {
     (void)taosThreadMutexLock(&pPool->poolLock);
@@ -816,35 +814,27 @@ bool tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool *pPool, SQueryAutoQ
       return false;
     }
 
-    (void)atomic_add_fetch_32(&pPool->notInPoolNum, 1);
+    // put back to backup pool
+    tdListAppendNode(pPool->backupWorkers, pNode);
     (void)taosThreadMutexUnlock(&pPool->poolLock);
 
     // start to wait at backup cond
     (void)taosThreadMutexLock(&pPool->backupLock);
+    (void)atomic_fetch_add_32(&pPool->backupNum, 1);
     if (!pPool->exit) (void)taosThreadCondWait(&pPool->backupCond, &pPool->backupLock);
     (void)taosThreadMutexUnlock(&pPool->backupLock);
 
     // recovered from backup
     (void)taosThreadMutexLock(&pPool->poolLock);
     if (pPool->exit) {
-      // put back to backup pool
-      if (pPool->backupWorkers) {
-        tdListAppendNode(pPool->backupWorkers, pNode);
-        (void)atomic_fetch_add_32(&pPool->backupNum, 1);
-        (void)atomic_sub_fetch_32(&pPool->notInPoolNum, 1);
-      }
       (void)taosThreadMutexUnlock(&pPool->poolLock);
       return false;
     }
-    if (pPool->workers) {
-      tdListAppendNode(pPool->workers, pNode);
-      (void)atomic_sub_fetch_32(&pPool->notInPoolNum, 1);
-    } else {
-      res = false;
-    }
+    SListNode *tNode1 = tdListPopNode(pPool->backupWorkers, pNode);
+    tdListAppendNode(pPool->workers, pNode);
     (void)taosThreadMutexUnlock(&pPool->poolLock);
 
-    return res;
+    return true;
   } else {
     (void)atomicFetchSubRunning(&pPool->activeRunningN, 1);
     return true;
@@ -887,10 +877,9 @@ int32_t tQueryAutoQWorkerInit(SQueryAutoQWorkerPool *pool) {
 
 void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
   (void)taosThreadMutexLock(&pPool->poolLock);
-  if (pPool->stopNoWaitQueue) {
-    pPool->exit = true;
-  }
-  int32_t size = atomic_load_32(&pPool->notInPoolNum);
+  pPool->exit = true;
+
+  int32_t size = 0;
   if (pPool->workers) {
     size += listNEles(pPool->workers);
   }
