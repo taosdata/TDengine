@@ -31,7 +31,7 @@ func TestAdapter2(t *testing.T) {
 			Password: "taosdata",
 			Usessl:   false,
 		},
-		Metrics: config.MetricsConfig{
+		Metrics: config.Metrics{
 			Database: config.Database{
 				Name:    "adapter_report_test",
 				Options: map[string]interface{}{},

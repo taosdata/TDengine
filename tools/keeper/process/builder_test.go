@@ -10,7 +10,7 @@ import (
 
 func TestExpandMetricsFromConfig(t *testing.T) {
 	ctx := context.Background()
-	cfg := &config.MetricsConfig{
+	cfg := &config.Metrics{
 		Tables: []string{"t1", "t1", "t2", "t2"},
 		Database: config.Database{
 			Name: "db",

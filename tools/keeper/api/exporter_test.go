@@ -63,7 +63,9 @@ func TestMain(m *testing.M) {
 	CreatTables(conf.TDengine.Username, conf.TDengine.Password, conf.TDengine.Host, conf.TDengine.Port, conf.TDengine.Usessl, conf.Metrics.Database.Name, createList)
 
 	processor := process.NewProcessor(conf)
-	node := NewNodeExporter(processor)
+	memoryStore := process.NewMemoryStore(5 * time.Minute)
+	defer memoryStore.Close()
+	node := NewNodeExporter(processor, memoryStore, reporter)
 	node.Init(router)
 	m.Run()
 	if _, err = conn.Exec(ctx, fmt.Sprintf("drop database if exists %s", dbName), util.GetQidOwn(config.Conf.InstanceID)); err != nil {
@@ -287,11 +289,11 @@ func TestPutMetrics(t *testing.T) {
 	conf.Drop = "old_taosd_metric_stables"
 	cmd.Process(conf)
 
-	data, err = conn.Query(ctx, "select * from  information_schema.ins_stables where stable_name = 'm_info'", util.GetQidOwn(config.Conf.InstanceID))
+	data, err = conn.Query(ctx, "select * from information_schema.ins_stables where stable_name = 'm_info'", util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		logger.Errorf("execute sql:%s, error:%s", "m_info is not droped", err)
 		t.Fatal(err)
 	}
 	assert.Equal(t, 0, len(data.Data))
-	logger.Infof("ALL  OK  !!!")
+	logger.Infof("ALL OK!!!")
 }

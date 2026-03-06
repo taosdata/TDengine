@@ -106,7 +106,6 @@ func TestExecuteWithRetry(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			// Setup log capturing
 			logger := logrus.New()
 			testHook := &TestLogHook{}
@@ -285,29 +284,116 @@ func TestConnectorQuery_ErrorPath_NoAuthExit_ReturnsError(t *testing.T) {
 	}
 }
 
-func TestConnectorWithSpecialChars(t *testing.T) {
+func IsEnterpriseTest() bool {
+	if _, ok := os.LookupEnv("TEST_ENTERPRISE"); ok {
+		return true
+	}
+	return false
+}
+
+func TestNewConnectorWithDbAndToken(t *testing.T) {
+	if !IsEnterpriseTest() {
+		t.Skip("only for TDengine Enterprise")
+	}
+
 	conn, err := NewConnector("root", "taosdata", "localhost", 6041, false)
 	assert.NoError(t, err)
 	defer conn.Close()
 
-	conn.Exec(context.Background(), "drop user user_1768377310", util.GetQidOwn(config.Conf.InstanceID))
-	_, err = conn.Exec(context.Background(), "create user user_1768377310 pass 'AaZz01234!@#$%^&*()-_+=[]{}:;><?|~,.'", util.GetQidOwn(config.Conf.InstanceID))
+	_, err = conn.Exec(context.Background(), "drop database if exists test_1766988529", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "create database test_1766988529", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
 
-	conn1, err := NewConnector("user_1768377310", "AaZz01234!@#$%^&*()-_+=[]{}:;><?|~,.", "localhost", 6041, false)
+	conn.Exec(context.Background(), "drop user c_token_user", util.GetQidOwn(config.Conf.InstanceID))
+	_, err = conn.Exec(context.Background(), "create user c_token_user pass 'token_pass_1'", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant use,create table on database test_1766988529 to c_token_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant all on test_1766988529.* to c_token_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	time.Sleep(10 * time.Second)
+
+	data, err := conn.Query(context.Background(), "create token test_c_bearer_token from user c_token_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+	token := data.Data[0][0].(string)
+
+	conn1, err := NewConnectorWithDbAndToken("", "", token, "localhost", 6041, "test_1766988529", false)
+	assert.NoError(t, err)
+	defer conn1.Close()
+
+	conn2, err := NewConnectorWithDbAndToken("root", "taosdata", token, "localhost", 6041, "test_1766988529", false)
+	assert.NoError(t, err)
+	defer conn2.Close()
+
+	_, err = conn2.Exec(context.Background(), "create stable st (ts timestamp, c1 int) tags (t1 int)", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	_, err = conn.Exec(context.Background(), "drop database if exists test_1766988529", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "drop user c_token_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+}
+
+func TestNewConnectorWithDbAndTokenWithSpecialChars(t *testing.T) {
+	if !IsEnterpriseTest() {
+		t.Skip("only for TDengine Enterprise")
+	}
+
+	conn, err := NewConnector("root", "taosdata", "localhost", 6041, false)
+	assert.NoError(t, err)
+	defer conn.Close()
+
+	conn.Exec(context.Background(), "drop user user_1768380767", util.GetQidOwn(config.Conf.InstanceID))
+	_, err = conn.Exec(context.Background(), "create user user_1768380767 pass 'AaZz01234!@#$%^&*()-_+=[]{}:;><?|~,.'", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	data, err := conn.Query(context.Background(), "create token token_1768380767 from user user_1768380767", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+	token := data.Data[0][0].(string)
+
+	conn1, err := NewConnectorWithDbAndToken("", "", token, "localhost", 6041, "test_1766988529", false)
 	assert.NoError(t, err)
 	defer conn1.Close()
 
 	_, err = conn1.Query(context.Background(), "select server_version()", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
 
-	conn2, err := NewConnectorWithDb("user_1768377310", "AaZz01234!@#$%^&*()-_+=[]{}:;><?|~,.", "localhost", 6041, "", false)
+	conn2, err := NewConnectorWithDbAndToken("user_1768380767", "AaZz01234!@#$%^&*()-_+=[]{}:;><?|~,.", token, "localhost", 6041, "test_1766988529", false)
 	assert.NoError(t, err)
 	defer conn2.Close()
 
 	_, err = conn2.Query(context.Background(), "select server_version()", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
 
-	_, err = conn.Exec(context.Background(), "drop user user_1768377310", util.GetQidOwn(config.Conf.InstanceID))
+	conn3, err := NewConnectorWithDbAndToken("user_1768380767", "AaZz01234!@#$%^&*()-_+=[]{}:;><?|~,.", "", "localhost", 6041, "test_1766988529", false)
+	assert.NoError(t, err)
+	defer conn3.Close()
+
+	_, err = conn3.Query(context.Background(), "select server_version()", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	_, err = conn.Exec(context.Background(), "drop user user_1768380767", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+}
+
+func TestNewConnectorWithSpecialChars(t *testing.T) {
+	conn, err := NewConnector("root", "taosdata", "localhost", 6041, false)
+	assert.NoError(t, err)
+	defer conn.Close()
+
+	conn.Exec(context.Background(), "drop user user_1768379499", util.GetQidOwn(config.Conf.InstanceID))
+	_, err = conn.Exec(context.Background(), "create user user_1768379499 pass 'AaZz01234!@#$%^&*()-_+=[]{}:;><?|~,.'", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	conn1, err := NewConnector("user_1768379499", "AaZz01234!@#$%^&*()-_+=[]{}:;><?|~,.", "localhost", 6041, false)
+	assert.NoError(t, err)
+	defer conn1.Close()
+
+	_, err = conn1.Query(context.Background(), "select server_version()", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	_, err = conn.Exec(context.Background(), "drop user user_1768379499", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
 }

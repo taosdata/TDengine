@@ -22,6 +22,9 @@ import (
 
 var logger = log.GetLogger("PRG")
 
+// Global memoryStore reference for cleanup on shutdown
+var memoryStore *process.MemoryStore
+
 func Init() *http.Server {
 	conf := config.InitConfig()
 	log.ConfigLog()
@@ -33,7 +36,7 @@ func Init() *http.Server {
 		return nil
 	}
 
-	router := CreateRouter(false, &conf.Cors, false)
+	router := CreateRouter(false, &conf.Cors)
 	router.Use(log.GinLog())
 	router.Use(log.GinRecoverLog())
 
@@ -41,12 +44,23 @@ func Init() *http.Server {
 	reporter.Init(router)
 	monitor.StartMonitor(conf.Metrics.Cluster, conf, reporter)
 
+	// v2: Create memory store and parser (must be before route registration)
+	// Use configurable TTL from config file (convert seconds to duration)
+	memoryStore = process.NewMemoryStore(time.Duration(conf.Prometheus.CacheTTL) * time.Second)
+	metricParser := api.NewMetricParser(memoryStore, conf.Prometheus.IncludeTables)
+	router.Use(api.MetricCacheMiddleware(metricParser))
+	if len(conf.Prometheus.IncludeTables) > 0 {
+		logger.Infof("Memory cache mode (v2) enabled, additional tables: %v", conf.Prometheus.IncludeTables)
+	} else {
+		logger.Info("Memory cache mode (v2) enabled")
+	}
+
 	go func() {
 		// wait for monitor to all metric received
 		time.Sleep(time.Second * 35)
 
 		processor := process.NewProcessor(conf)
-		node := api.NewNodeExporter(processor)
+		node := api.NewNodeExporter(processor, memoryStore, reporter)
 		node.Init(router)
 
 		if version.IsEnterprise == "true" {
@@ -99,8 +113,7 @@ func Start(server *http.Server) {
 	if err != nil {
 		logger.Fatal(err)
 	}
-	err = s.Run()
-	if err != nil {
+	if err := s.Run(); err != nil {
 		logger.Fatal(err)
 	}
 }
@@ -122,12 +135,23 @@ func (p *program) Start(s service.Service) error {
 
 	server := p.server
 	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		fail := func(err error) {
+			if err == nil || err == http.ErrServerClosed {
+				return
+			}
 			logger.Errorf("taoskeeper start up fail: %v", err)
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			log.Close(ctx)
 			cancel()
 			os.Exit(1)
+		}
+
+		if ssl := config.Conf.SSL; ssl.Enable {
+			logger.Infof("Starting HTTPS service at %s", server.Addr)
+			fail(server.ListenAndServeTLS(ssl.CertFile, ssl.KeyFile))
+		} else {
+			logger.Infof("Starting HTTP service at %s", server.Addr)
+			fail(server.ListenAndServe())
 		}
 	}()
 	return nil
@@ -142,6 +166,12 @@ func (p *program) Stop(s service.Service) error {
 		logger.Println("WebServer Shutdown error:", err)
 	}
 
+	// Stop memoryStore cleanup goroutine
+	if memoryStore != nil {
+		logger.Println("Stopping memory store cleanup goroutine")
+		memoryStore.Close()
+	}
+
 	logger.Println("Server exiting")
 	ctxLog, cancelLog := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelLog()
@@ -150,7 +180,7 @@ func (p *program) Stop(s service.Service) error {
 	return nil
 }
 
-func CreateRouter(debug bool, corsConf *web.CorsConfig, enableGzip bool) *gin.Engine {
+func CreateRouter(debug bool, corsConf *web.CorsConfig) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(cors.New(corsConf.GetConfig()))
