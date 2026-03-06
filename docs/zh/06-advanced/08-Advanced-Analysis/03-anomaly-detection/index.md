@@ -1,6 +1,6 @@
 ---
 title: 异常检测
-description: 介绍 TDgpt 内置时序数据异常检测模型
+description: 时序数据异常检测模型
 ---
 
 import ad from '../pic/anomaly-detection.png';

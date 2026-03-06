@@ -1,0 +1,13 @@
+# TDengine Coverage Alarm Cron Jobs
+PATH=/usr/local/bin:/usr/bin:/bin
+
+# Run test report at 10:10
+10 10 * * * root /usr/local/bin/python3 /home/tdengine_coverage_alarm.py -test >> /var/log/cron/cron.log 2>&1
+
+# Run test report with clean at 10:12
+12 10 * * * root /usr/local/bin/python3 /home/tdengine_coverage_alarm.py -test -clean >> /var/log/cron/cron.log 2>&1
+
+# Run clean at 10:50
+50 10 * * * root /usr/local/bin/python3 /home/tdengine_coverage_alarm.py -clean >> /var/log/cron/cron.log 2>&1
+
+# Empty line required at the end

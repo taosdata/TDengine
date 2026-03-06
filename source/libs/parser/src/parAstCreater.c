@@ -149,27 +149,14 @@ static bool checkUserName(SAstCreateContext* pCxt, SToken* pUserName) {
 
 
 
-static bool isValidSimplePassword(const char* password) {
-  for (char c = *password; c != 0; c = *(++password)) {
-    if (c == ' ' || c == '\'' || c == '\"' || c == '`' || c == '\\') {
-      return false;
-    }
-  }
-  return true;
-}
-
-
-
 static bool isValidPassword(SAstCreateContext* pCxt, const char* password, bool imported) {
   if (imported) {
     return strlen(password) == TSDB_PASSWORD_LEN;
   }
-
-  if (tsEnableStrongPassword) {
-    return taosIsComplexString(password);
-  }
-
-  return isValidSimplePassword(password);
+  // leave actual password validation to server side as client/server may have different
+  // 'enableStrongPassword' and 'enableAdvancedSecurity' settings, and client-side
+  // validation may cause confusions.
+  return true;
 }
 
 
@@ -4448,6 +4435,7 @@ SUserOptions* createDefaultUserOptions(SAstCreateContext* pCxt) {
   pOptions->createdb = 0;
   pOptions->isImport = 0;
   pOptions->changepass = 2;
+
   pOptions->sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
   pOptions->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
   pOptions->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
@@ -4829,7 +4817,7 @@ static bool isValidUserOptions(SAstCreateContext* pCxt, const SUserOptions* opts
     return false;
   }
 
-  if (opts->hasPasswordLifeTime && (opts->passwordLifeTime < -1 || opts->passwordLifeTime == 0)) {
+  if (opts->hasPasswordLifeTime && opts->passwordLifeTime != -1 && opts->passwordLifeTime < TSDB_USER_PASSWORD_LIFE_TIME_MIN) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "PASSWORD_LIFE_TIME");
     return false;
   }
@@ -4878,6 +4866,21 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOpt
 
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_USER_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
+
+  pStmt->hasSessionPerUser = opts->hasSessionPerUser;
+  pStmt->hasConnectTime = opts->hasConnectTime;
+  pStmt->hasConnectIdleTime = opts->hasConnectIdleTime;
+  pStmt->hasCallPerSession = opts->hasCallPerSession;
+  pStmt->hasVnodePerCall = opts->hasVnodePerCall;
+  pStmt->hasFailedLoginAttempts = opts->hasFailedLoginAttempts;
+  pStmt->hasPasswordLifeTime = opts->hasPasswordLifeTime;
+  pStmt->hasPasswordReuseTime = opts->hasPasswordReuseTime;
+  pStmt->hasPasswordReuseMax = opts->hasPasswordReuseMax;
+  pStmt->hasPasswordLockTime = opts->hasPasswordLockTime;
+  pStmt->hasPasswordGraceTime = opts->hasPasswordGraceTime;
+  pStmt->hasInactiveAccountTime = opts->hasInactiveAccountTime;
+  pStmt->hasAllowTokenNum = opts->hasAllowTokenNum;
+
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
   tstrncpy(pStmt->password, opts->password, sizeof(pStmt->password));
   tstrncpy(pStmt->totpseed, opts->totpseed, sizeof(pStmt->totpseed));

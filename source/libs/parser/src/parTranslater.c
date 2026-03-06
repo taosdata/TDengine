@@ -5177,16 +5177,6 @@ static int32_t setVSuperTableRefScanVgroupList(STranslateContext* pCxt, SName* p
 
   SArray* pVStbRefs = NULL;
   code = getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs);
-
-  // Handle the case where VStbRefDbs data is not available (e.g., stmt scenario)
-  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code || TSDB_CODE_PAR_INTERNAL_ERROR == code) {
-    // VStbRefDbs not available in cache (stmt scenario without async metadata fetch)
-    // Use empty vgroup list - the executor will resolve vgroups at runtime
-    taosMemoryFreeClear(pRefScanTable->pVgroupList);
-    PAR_ERR_JRET(toVgroupsInfo(vgroupList, &pRefScanTable->pVgroupList));
-    code = TSDB_CODE_SUCCESS;
-    goto _return;
-  }
   PAR_ERR_JRET(code);
 
   dbNameHash = tSimpleHashInit(taosArrayGetSize(pVStbRefs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
@@ -6017,6 +6007,8 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
   if (taosHashGetSize(pTableNameHash) == 1 && pRTNode != NULL) {
     if (pMeta->numOfColRefs > 0 && pMeta->colRef != NULL && pMeta->tableInfo.numOfColumns > 0 &&
         pRTNode->pMeta != NULL && pRTNode->pMeta->tableInfo.numOfColumns > 0) {
+      // if there is only one reference table, we can set ts column's reference to it, which will be used when virtual
+      // table scan node is eliminated.
       const SSchema* pTsSchema = &pMeta->schema[0];
       const SSchema* pRefTsSchema = &pRTNode->pMeta->schema[0];
       PAR_ERR_JRET(setColRef(&pMeta->colRef[0], pTsSchema->colId, (char*)pRefTsSchema->name, pRTNode->table.tableName,
@@ -6461,6 +6453,10 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
   }
   if (!pCxt->refTable) {
     if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
+      if (0 == strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_VC_COLS)) {
+        PAR_ERR_JRET(
+            generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED, pRealTable->table.tableName));
+      }
       if (isSelectStmt(pCxt->pCurrStmt)) {
         ((SSelectStmt*)pCxt->pCurrStmt)->timeLineResMode = TIME_LINE_NONE;
         ((SSelectStmt*)pCxt->pCurrStmt)->timeLineCurMode = TIME_LINE_NONE;
@@ -13530,6 +13526,21 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                    "Cannot create user with inherit roles: %s", pStmt->userName);
   }
+
+  createReq.hasSessionPerUser = pStmt->hasSessionPerUser;
+  createReq.hasConnectTime = pStmt->hasConnectTime;
+  createReq.hasConnectIdleTime = pStmt->hasConnectIdleTime;
+  createReq.hasCallPerSession = pStmt->hasCallPerSession;
+  createReq.hasVnodePerCall = pStmt->hasVnodePerCall;
+  createReq.hasFailedLoginAttempts = pStmt->hasFailedLoginAttempts;
+  createReq.hasPasswordLifeTime = pStmt->hasPasswordLifeTime;
+  createReq.hasPasswordReuseTime = pStmt->hasPasswordReuseTime;
+  createReq.hasPasswordReuseMax = pStmt->hasPasswordReuseMax;
+  createReq.hasPasswordLockTime = pStmt->hasPasswordLockTime;
+  createReq.hasPasswordGraceTime = pStmt->hasPasswordGraceTime;
+  createReq.hasInactiveAccountTime = pStmt->hasInactiveAccountTime;
+  createReq.hasAllowTokenNum = pStmt->hasAllowTokenNum;
+
   tstrncpy(createReq.user, pStmt->userName, TSDB_USER_LEN);
   createReq.createType = 0;
   createReq.superUser = 0;
