@@ -1101,20 +1101,21 @@ _end:
   return code;
 }
 
-static int32_t doGetValueFromBseBySeq(void* arg, uint8_t* pKey, int32_t keyLen, uint8_t** pValue, int32_t* len) {
-  int32_t  code = 0;
+int32_t doGetValueFromBseBySeq(void* arg, uint8_t* pKey, int32_t keyLen, uint8_t** pValue, int32_t* len) {
+  int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
   uint64_t seq = 0;
-  if (arg == NULL) {
-    tsdbError("failed to get value from bse by seq since %s", tstrerror(TSDB_CODE_INVALID_PARA));
+  if (arg == NULL || pValue == NULL || len == NULL || (keyLen > 0 && pKey == NULL)) {
+    tsdbError("%s failed at line %d, failed to get value from bse by seq since %s",
+              __func__, __LINE__, tstrerror(TSDB_CODE_INVALID_PARA));
     return TSDB_CODE_INVALID_PARA;
   }
 
   if (keyLen <= 0) {
-    *len = 0; 
+    *len = 0;
     return code;
   } else {
-    int32_t unusedRet = tGetU64(pKey, &seq);
+    TAOS_UNUSED(tGetU64(pKey, &seq));
   }
  
   if (seq == 0) {
@@ -1126,11 +1127,12 @@ static int32_t doGetValueFromBseBySeq(void* arg, uint8_t* pKey, int32_t keyLen, 
   TSDB_CHECK_CODE(code, lino, _end);
 
 _end:
-  if (code != 0) {
+  if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
 }
+
 static int32_t doReallocBuf(SBlockLoadSuppInfo* pSup, int32_t colIndex, SColumnInfo* pInfo, int32_t len) {
   int32_t code = 0;
   int32_t bytes = pInfo->bytes;
