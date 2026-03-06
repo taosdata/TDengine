@@ -1353,7 +1353,7 @@ static int32_t updatedTagValueArrayToHashMap(SSchemaWrapper* pTagSchema, SArray*
     return TSDB_CODE_INVALID_MSG;
   }
 
-  *hashMap = taosHashInit(numOfTags, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  *hashMap = taosHashInit(numOfTags, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   if (*hashMap == NULL) {
     metaError("%s failed at %s:%d since %s", __func__, __FILE__, __LINE__, tstrerror(terrno));
     return terrno;
@@ -1361,13 +1361,13 @@ static int32_t updatedTagValueArrayToHashMap(SSchemaWrapper* pTagSchema, SArray*
 
   for (int32_t i = 0; i < taosArrayGetSize(arr); i++) {
     SUpdatedTagVal *pTagVal = taosArrayGet(arr, i);
-    if (taosHashGet(*hashMap, pTagVal->tagName, strlen(pTagVal->tagName)) != NULL) {
+    if (taosHashGet(*hashMap, &pTagVal->colId, sizeof(pTagVal->colId)) != NULL) {
       metaError("%s failed at %s:%d since duplicate tags %s", __func__, __FILE__, __LINE__, pTagVal->tagName);
       taosHashCleanup(*hashMap);
       return TSDB_CODE_INVALID_MSG;
     }
 
-    int32_t code = taosHashPut(*hashMap, pTagVal->tagName, strlen(pTagVal->tagName), pTagVal, sizeof(*pTagVal));
+    int32_t code = taosHashPut(*hashMap, &pTagVal->colId, sizeof(pTagVal->colId), pTagVal, sizeof(*pTagVal));
     if (code) {
       metaError("%s failed at %s:%d since %s", __func__, __FILE__, __LINE__, tstrerror(code));
       taosHashCleanup(*hashMap);
@@ -1377,7 +1377,8 @@ static int32_t updatedTagValueArrayToHashMap(SSchemaWrapper* pTagSchema, SArray*
 
   int32_t changed = 0;
   for (int32_t i = 0; i < pTagSchema->nCols; i++) {
-    if (taosHashGet(*hashMap, pTagSchema->pSchema[i].name, strlen(pTagSchema->pSchema[i].name)) != NULL) {
+    int32_t schemaColId = pTagSchema->pSchema[i].colId;
+    if (taosHashGet(*hashMap, &schemaColId, sizeof(schemaColId)) != NULL) {
       changed++;
     }
   }
@@ -1392,31 +1393,42 @@ static int32_t updatedTagValueArrayToHashMap(SSchemaWrapper* pTagSchema, SArray*
 
 
 
-static int32_t metaUpdateTableJsonTagValue(SMeta* pMeta, SMetaEntry* pTable, SSchemaWrapper* pTagSchema, SHashObj* pTagHashMap) {
+static int32_t metaUpdateTableJsonTagValue(SMeta* pMeta, SMetaEntry* pTable, SSchemaWrapper* pTagSchema, SHashObj* pUpdatedTagVals) {
   SSchema *pCol = &pTagSchema->pSchema[0];
-  SUpdatedTagVal *pTagVal = taosHashGet(pTagHashMap, pCol->name, strlen(pCol->name));
+  int32_t colId = pCol->colId;
+  SUpdatedTagVal *pTagVal = taosHashGet(pUpdatedTagVals, &colId, sizeof(colId));
   void *pNewTag = taosMemoryRealloc(pTable->ctbEntry.pTags, pTagVal->nTagVal);
-  if (NULL == pNewTag) {
+  if (pNewTag == NULL) {
     const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
     metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(terrno), pTable->version);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pTable->ctbEntry.pTags = pNewTag;
   memcpy(pTable->ctbEntry.pTags, pTagVal->pTagVal, pTagVal->nTagVal);
-  return TSDB_CODE_SUCCESS;
+
+  int32_t code = metaHandleEntry2(pMeta, pTable);
+  if (code) {
+    const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64;
+    metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTable->uid, pTable->name, pTable->version);
+  } else {
+    const char* msgFmt = "vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64;
+    metaInfo(msgFmt, TD_VID(pMeta->pVnode), pTable->name, pTable->uid, pTable->version);
+  }
+
+  return code;
 }
 
 
 
-static int32_t metaUpdateTableNormalTagValue(SMeta* pMeta, SMetaEntry* pTable, SSchemaWrapper* pTagSchema, SHashObj* pTagHashMap) {
+static int32_t metaUpdateTableNormalTagValue(SMeta* pMeta, SMetaEntry* pTable, SSchemaWrapper* pTagSchema, SHashObj* pUpdatedTagVals) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   const STag *pOldTag = (const STag *)pTable->ctbEntry.pTags;
   SArray     *pTagArray = taosArrayInit(pTagSchema->nCols, sizeof(STagVal));
-  if (NULL == pTagArray) {
+  if (pTagArray == NULL) {
     const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
     metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(terrno), pTable->version);
-    TAOS_RETURN(terrno);
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   bool allSame = true;
@@ -1425,7 +1437,8 @@ static int32_t metaUpdateTableNormalTagValue(SMeta* pMeta, SMetaEntry* pTable, S
     SSchema *pCol = &pTagSchema->pSchema[i];
     STagVal  value = { .cid = pCol->colId };
 
-    SUpdatedTagVal *pNewVal = taosHashGet(pTagHashMap, pCol->name, strlen(pCol->name));
+    int32_t colId = pCol->colId;
+    SUpdatedTagVal *pNewVal = taosHashGet(pUpdatedTagVals, &colId, sizeof(colId));
     if (pNewVal == NULL) {
       if (!tTagGet(pOldTag, &value)) {
         continue;
@@ -1440,6 +1453,12 @@ static int32_t metaUpdateTableNormalTagValue(SMeta* pMeta, SMetaEntry* pTable, S
       }
 
       if (IS_VAR_DATA_TYPE(pCol->type)) {
+        if ((int32_t)pNewVal->nTagVal > (pCol->bytes - VARSTR_HEADER_SIZE)) {
+          const char* msgFmt = "vgId:%d, %s failed at %s:%d since value too long for tag %s, version:%" PRId64;
+          metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pCol->name, pTable->version);
+          taosArrayDestroy(pTagArray);
+          TAOS_RETURN(TSDB_CODE_PAR_VALUE_TOO_LONG);
+        }
         value.pData = pNewVal->pTagVal;
         value.nData = pNewVal->nTagVal;
       } else {
@@ -1451,7 +1470,7 @@ static int32_t metaUpdateTableNormalTagValue(SMeta* pMeta, SMetaEntry* pTable, S
       const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
       metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(terrno), pTable->version);
       taosArrayDestroy(pTagArray);
-      TAOS_RETURN(terrno);
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
   }
 
@@ -1477,31 +1496,302 @@ static int32_t metaUpdateTableNormalTagValue(SMeta* pMeta, SMetaEntry* pTable, S
 }
 
 
+static int32_t regexReplaceBuildSubstitution(const char *pReplace, const regmatch_t *pmatch, int32_t nmatch,
+                                               const char *cursor, char **ppResult, size_t *pResultLen,
+                                               size_t *pResultCap) {
+  char  *result = *ppResult;
+  size_t resultLen = *pResultLen;
+  size_t resultCap = *pResultCap;
+
+  const char *r = pReplace;
+  while (*r != '\0') {
+    const char *chunk = NULL;
+    size_t      chunkLen = 0;
+
+    if (*r == '$' && r[1] >= '0' && r[1] <= '9') {
+      int32_t groupIdx = r[1] - '0';
+      if (groupIdx < nmatch && pmatch[groupIdx].rm_so != -1) {
+        chunk = cursor + pmatch[groupIdx].rm_so;
+        chunkLen = (size_t)(pmatch[groupIdx].rm_eo - pmatch[groupIdx].rm_so);
+      }
+      r += 2;
+    } else if (*r == '$' && r[1] == '$') {
+      chunk = "$";
+      chunkLen = 1;
+      r += 2;
+    } else {
+      chunk = r;
+      chunkLen = 1;
+      r += 1;
+    }
+
+    if (chunkLen > 0) {
+      if (resultLen + chunkLen >= resultCap) {
+        resultCap = (resultLen + chunkLen) * 2 + 1;
+        char *tmp = taosMemoryRealloc(result, resultCap);
+        if (NULL == tmp) {
+          taosMemoryFree(result);
+          *ppResult = NULL;
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+        result = tmp;
+      }
+      (void)memcpy(result + resultLen, chunk, chunkLen);
+      resultLen += chunkLen;
+    }
+  }
+
+  *ppResult = result;
+  *pResultLen = resultLen;
+  *pResultCap = resultCap;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t regexReplace(const char *pStr, const char *pPattern, const char *pReplace, char **ppResult) {
+  regex_t *regex = NULL;
+  int32_t  code = threadGetRegComp(&regex, pPattern);
+  if (code != 0) {
+    return code;
+  }
+
+  size_t strLen = strlen(pStr);
+  size_t resultCap = strLen + 1;
+  size_t resultLen = 0;
+  char  *result = taosMemoryMalloc(resultCap);
+  if (NULL == result) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  const int32_t nmatch = 10;
+  const char   *cursor = pStr;
+  regmatch_t    pmatch[10];
+  int32_t       execFlags = 0;
+
+  while (*cursor != '\0') {
+    int ret = regexec(regex, cursor, nmatch, pmatch, execFlags);
+    if (ret == REG_NOMATCH) {
+      break;
+    }
+    if (ret != 0) {
+      taosMemoryFree(result);
+      return TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+    }
+
+    size_t prefixLen = (size_t)pmatch[0].rm_so;
+    if (resultLen + prefixLen >= resultCap) {
+      resultCap = (resultLen + prefixLen) * 2 + 1;
+      char *tmp = taosMemoryRealloc(result, resultCap);
+      if (NULL == tmp) {
+        taosMemoryFree(result);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      result = tmp;
+    }
+    (void)memcpy(result + resultLen, cursor, prefixLen);
+    resultLen += prefixLen;
+
+    code = regexReplaceBuildSubstitution(pReplace, pmatch, nmatch, cursor, &result, &resultLen, &resultCap);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    if (pmatch[0].rm_so == pmatch[0].rm_eo) {
+      if (resultLen + 1 >= resultCap) {
+        resultCap = resultCap * 2 + 1;
+        char *tmp = taosMemoryRealloc(result, resultCap);
+        if (NULL == tmp) {
+          taosMemoryFree(result);
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+        result = tmp;
+      }
+      result[resultLen++] = cursor[pmatch[0].rm_eo];
+      cursor += pmatch[0].rm_eo + 1;
+    } else {
+      cursor += pmatch[0].rm_eo;
+    }
+
+    execFlags = REG_NOTBOL;
+  }
+
+  size_t tailLen = strlen(cursor);
+  if (resultLen + tailLen + 1 > resultCap) {
+    resultCap = resultLen + tailLen + 1;
+    char *tmp = taosMemoryRealloc(result, resultCap);
+    if (NULL == tmp) {
+      taosMemoryFree(result);
+      return terrno;
+    }
+    result = tmp;
+  }
+  (void)memcpy(result + resultLen, cursor, tailLen);
+  resultLen += tailLen;
+  result[resultLen] = '\0';
+
+  *ppResult = result;
+  return TSDB_CODE_SUCCESS;
+}
+
+
+
+static int32_t computeNewTagValViaRegexReplace(const STag* pOldTag, SUpdatedTagVal* pNewVal) {
+  STagVal oldTagVal = {.cid = pNewVal->colId};
+  if (!tTagGet(pOldTag, &oldTagVal)) {
+    pNewVal->isNull = 1;
+    pNewVal->pTagVal = NULL;
+    pNewVal->nTagVal = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  bool isNchar = (pNewVal->tagType == TSDB_DATA_TYPE_NCHAR);
+  char* oldStr = NULL;
+
+  if (isNchar) {
+    // NCHAR is stored as UCS-4, convert to MBS (VARCHAR) for regex processing
+    int32_t mbsLen = oldTagVal.nData + 1;
+    oldStr = taosMemoryMalloc(mbsLen);
+    if (oldStr == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    int32_t ret = taosUcs4ToMbs((TdUcs4*)oldTagVal.pData, oldTagVal.nData, oldStr, NULL);
+    if (ret < 0) {
+      taosMemoryFree(oldStr);
+      return ret;
+    }
+    oldStr[ret] = '\0';
+  } else {
+    // VARCHAR: build null-terminated string from old tag value
+    oldStr = taosMemoryMalloc(oldTagVal.nData + 1);
+    if (oldStr == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    memcpy(oldStr, oldTagVal.pData, oldTagVal.nData);
+    oldStr[oldTagVal.nData] = '\0';
+  }
+
+  char* newStr = NULL;
+  int32_t code = regexReplace(oldStr, pNewVal->regexp, pNewVal->replacement, &newStr);
+  taosMemoryFree(oldStr);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (isNchar) {
+    // Convert regex result back from MBS to UCS-4 (NCHAR)
+    int32_t newStrLen = (int32_t)strlen(newStr);
+    int32_t ucs4BufLen = (newStrLen + 1) * TSDB_NCHAR_SIZE;
+    char*   ucs4Buf = taosMemoryMalloc(ucs4BufLen);
+    if (ucs4Buf == NULL) {
+      taosMemoryFree(newStr);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    int32_t ucs4Len = 0;
+    bool    cvtOk = taosMbsToUcs4(newStr, newStrLen, (TdUcs4*)ucs4Buf, ucs4BufLen, &ucs4Len, NULL);
+    taosMemoryFree(newStr);
+    if (!cvtOk) {
+      taosMemoryFree(ucs4Buf);
+      return terrno;
+    }
+
+    pNewVal->isNull = 0;
+    pNewVal->pTagVal = (uint8_t*)ucs4Buf;
+    pNewVal->nTagVal = (uint32_t)ucs4Len;
+  } else {
+    pNewVal->isNull = 0;
+    pNewVal->pTagVal = (uint8_t*)newStr;
+    pNewVal->nTagVal = (uint32_t)strlen(newStr);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 
 static int32_t metaUpdateTableTagValueImpl(SMeta* pMeta, SMetaEntry* pTable, SSchemaWrapper* pTagSchema, SHashObj* pUpdatedTagVals) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
   if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
-    code = metaUpdateTableJsonTagValue(pMeta, pTable, pTagSchema, pUpdatedTagVals);
-  } else {
-    code = metaUpdateTableNormalTagValue(pMeta, pTable, pTagSchema, pUpdatedTagVals);
+    return metaUpdateTableJsonTagValue(pMeta, pTable, pTagSchema, pUpdatedTagVals);
+  }
+  
+  int32_t   code = TSDB_CODE_SUCCESS, lino = 0;
+  SHashObj* pNewTagVals = pUpdatedTagVals;
+  SArray*   pRegexResults = NULL;
+
+  void* pIter = taosHashIterate(pUpdatedTagVals, NULL);
+  while (pIter) {
+    SUpdatedTagVal* pVal = (SUpdatedTagVal*)pIter;
+    if (pVal->regexp != NULL) {
+      break;
+    }
+    pIter = taosHashIterate(pUpdatedTagVals, pIter);
   }
 
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _exit;
+  // if there are regular expressions, compute new tag values and store in a new hash map to avoid
+  // modifying the original tag values which may be reused for computing other tag values
+  if (pIter != NULL) {
+    taosHashCancelIterate(pUpdatedTagVals, pIter);
+    pIter = NULL;
+    
+    int32_t sz = taosHashGetSize(pUpdatedTagVals);
+    pNewTagVals = taosHashInit(sz, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+    if (pNewTagVals == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    }
+
+    pRegexResults = taosArrayInit(sz, sizeof(char*));
+    if (pRegexResults == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+    }
+
+    pIter = taosHashIterate(pUpdatedTagVals, NULL);
+    while (pIter) {
+      int32_t       colId = *(int32_t*)taosHashGetKey(pIter, NULL);
+      SUpdatedTagVal newVal = *(SUpdatedTagVal *)pIter;
+      pIter = taosHashIterate(pUpdatedTagVals, pIter);
+
+      if (newVal.regexp != NULL) {
+        const STag* pOldTag = (const STag*)pTable->ctbEntry.pTags;
+        TAOS_CHECK_GOTO(computeNewTagValViaRegexReplace(pOldTag, &newVal), &lino, _exit);
+
+        newVal.regexp = NULL;
+        newVal.replacement = NULL;
+        if (taosArrayPush(pRegexResults, &newVal.pTagVal) == NULL) {
+          TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+        }
+      }
+
+      TAOS_CHECK_GOTO(taosHashPut(pNewTagVals, &colId, sizeof(colId), &newVal, sizeof(newVal)), &lino, _exit);
+    }
   }
 
-  // do handle entry
-  code = metaHandleEntry2(pMeta, pTable);
+  TAOS_CHECK_GOTO(metaUpdateTableNormalTagValue(pMeta, pTable, pTagSchema, pNewTagVals), &lino, _exit);
+  TAOS_CHECK_GOTO(metaHandleEntry2(pMeta, pTable), &lino, _exit);
+
+_exit:
   if (code) {
     const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64;
-    metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTable->uid, pTable->name, pTable->version);
+    metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, lino, tstrerror(code), pTable->uid, pTable->name, pTable->version);
   } else {
     const char* msgFmt = "vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64;
     metaInfo(msgFmt, TD_VID(pMeta->pVnode), pTable->name, pTable->uid, pTable->version);
   }
 
-_exit:
+  if (pRegexResults != NULL) {
+    for (int32_t i = 0; i < taosArrayGetSize(pRegexResults); i++) {
+      char** pp = taosArrayGet(pRegexResults, i);
+      taosMemoryFree(*pp);
+    }
+    taosArrayDestroy(pRegexResults);
+  }
+
+  if (pNewTagVals != pUpdatedTagVals) {
+    taosHashCleanup(pNewTagVals);
+  }
+
+  if (pIter != NULL) {
+    taosHashCancelIterate(pUpdatedTagVals, pIter);
+  }
+
   TAOS_RETURN(code);
 }
 
@@ -1575,14 +1865,18 @@ int32_t metaUpdateTableMultiTableTagValue(SMeta *pMeta, int64_t version, SVAlter
       // just skip it and continue to update other tables,
       // and return success at the end
       code = TSDB_CODE_SUCCESS;
-      continue;
-    }
-    if (code) {
-      const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
-      metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version);
-      TAOS_RETURN(code);
+    } else if (code) {
+      break;
     }
   }
+
+  DestoryThreadLocalRegComp();
+
+  if (code) {
+    const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
+    metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), version);
+  }
+
   TAOS_RETURN(code);
 }
 
@@ -1936,7 +2230,12 @@ int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlter
 
     pChild->version = version;
     code = metaUpdateTableTagValueImpl(pMeta, pChild, &pSuper->stbEntry.schemaTag, pUpdatedTagVals);
-    if (code) {
+    if (code == TSDB_CODE_VND_SAME_TAG) {
+      // we are updating multiple tables, if one table has same tag,
+      // just skip it and continue to update other tables,
+      // and return success at the end
+      code = TSDB_CODE_SUCCESS;
+    } else if (code) {
       const char* fmt = "vgId:%d, %s failed at %s:%d since %s, child table uid %" PRId64 " name %s, version:%" PRId64;
       metaError(fmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), uid, pChild->name, version);
       metaFetchEntryFree(&pChild);
@@ -1947,6 +2246,7 @@ int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlter
   }
 
 _exit:
+  DestoryThreadLocalRegComp();
   taosArrayDestroy(pUids);
   taosHashCleanup(pUpdatedTagVals);
   metaFetchEntryFree(&pSuper);
