@@ -60,24 +60,24 @@ def pre_test_win(){
 def pre_test_build_win(skip_build=false) {
     if (skip_build) {
         echo "SKIP_BUILD is set to true, skipping build stage"
-        // 检查必要的二进制文件是否存在
-        bat '''
-            if not exist "%WIN_INTERNAL_ROOT%\\debug\\build\\bin\\taosd.exe" (
-                echo "ERROR: taosd.exe not found in %WIN_INTERNAL_ROOT%\\debug\\build\\bin\\"
-                echo "Please ensure binaries exist or disable SKIP_BUILD"
+        // 检查必要的二进制文件是否存在（使用双引号确保路径正确）
+        bat """
+            if not exist "${WIN_INTERNAL_ROOT}\\debug\\build\\bin\\taosd.exe" (
+                echo ERROR: taosd.exe not found in ${WIN_INTERNAL_ROOT}\\debug\\build\\bin\\
+                echo Please ensure binaries exist or disable SKIP_BUILD
                 exit 1
             )
-            echo "Using existing build in %WIN_INTERNAL_ROOT%\\debug\\"
-        '''
+            echo Using existing build in ${WIN_INTERNAL_ROOT}\\debug\\
+        """
         // 仍然需要安装 Python 依赖和复制 DLL
-        bat '''
-            cd %WIN_TEST_ROOT%
+        bat """
+            cd ${WIN_TEST_ROOT}
             python3 -m pip install --upgrade pip
             python3 -m pip uninstall taospy -y
             python3 -m pip install taospy
-            xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\bin\\taos.dll C:\\Windows\\System32 || echo "taos.dll already exists"
-            xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\bin\\taosnative.dll C:\\Windows\\System32 || echo "taosnative.dll already exists"
-        '''
+            xcopy /e/y/i/f ${WIN_INTERNAL_ROOT}\\debug\\build\\bin\\taos.dll C:\\Windows\\System32 || echo "taos.dll already exists"
+            xcopy /e/y/i/f ${WIN_INTERNAL_ROOT}\\debug\\build\\bin\\taosnative.dll C:\\Windows\\System32 || echo "taosnative.dll already exists"
+        """
         return 1
     }
     
@@ -118,7 +118,7 @@ def run_win_test_python() {
         time /t
         cd %WIN_TEST_ROOT%
         echo "python testing ..."
-        python3 ci\\run_win_cases.py ci\\test_cases.task
+        python3 ci\\run_win_cases.py ci\\cases.task
         time /t
     '''
 }
@@ -130,10 +130,12 @@ pipeline {
                 stage('windows test') {
                     agent {label " u1-83 "}
                     environment{
-                        WIN_INTERNAL_ROOT="D:\\TDinternal"
-                        WIN_COMMUNITY_ROOT="D:\\TDinternal\\community"
-                        WIN_TEST_ROOT="D:\\TDinternal\\community\\test"
-                        WIN_SYSTEM_TEST_ROOT="D:\\TDinternal\\community\\test"
+                        // 支持通过参数指定路径，默认使用 D:\TDinternal
+                        // 如果 Jenkins 在子目录 checkout，请设置 WIN_INTERNAL_ROOT_PARAM 参数
+                        WIN_INTERNAL_ROOT="${params.WIN_INTERNAL_ROOT_PARAM ?: 'D:\\TDinternal'}"
+                        WIN_COMMUNITY_ROOT="${params.WIN_INTERNAL_ROOT_PARAM ? params.WIN_INTERNAL_ROOT_PARAM + '\\community' : 'D:\\TDinternal\\community'}"
+                        WIN_TEST_ROOT="${params.WIN_INTERNAL_ROOT_PARAM ? params.WIN_INTERNAL_ROOT_PARAM + '\\community\\test' : 'D:\\TDinternal\\community\\test'}"
+                        WIN_SYSTEM_TEST_ROOT="${params.WIN_INTERNAL_ROOT_PARAM ? params.WIN_INTERNAL_ROOT_PARAM + '\\community\\test' : 'D:\\TDinternal\\community\\test'}"
                         BRANCH_NAME="${params.TEST_BRANCH}"
                     }
                     steps {
