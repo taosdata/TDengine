@@ -82,10 +82,10 @@ class TestTaosBackupSchemaChange:
         cmd = f"-D {db} -o {tmpdir}"
         rlist = self.taosbackup(cmd)
         results = [
-            "OK: total 1 table(s) of stable: meters1 schema dumped.",
-            "OK: total 20 table(s) of stable: meters2 schema dumped.",
-            "OK: total 30 table(s) of stable: meters3 schema dumped.",
-            "OK: 9132 row(s) dumped out!",
+            "  Result       : SUCCESS",
+            "  Total Rows   : 9132",
+            "  Super Tables : 4",
+            "  Child Tables : 91 (data exported)",
         ]
         self.checkManyString(rlist, results)
 
@@ -93,8 +93,9 @@ class TestTaosBackupSchemaChange:
         cmd = f'-W "{db}={newdb}" -i {tmpdir}'
         rlist = self.taosbackup(cmd)
         results = [
-            f"rename DB Name {db} to {newdb}",
-            "OK: 9132 row(s) dumped in!",
+            f"rename database: {db} -> {newdb}",
+            "  Result       : SUCCESS",
+            "  Total Rows   : 9132",
         ]
         self.checkManyString(rlist, results)
 
@@ -198,10 +199,8 @@ class TestTaosBackupSchemaChange:
         cmd = f"-o {tmpdir} {db} d0 meters2 meters3 meters4 ntbd1 ntbd2 ntbe1 ntbe2 ntbf1 ntbf2 ntbg1 ntbg2"
         rlist = self.taosbackup(cmd)
         results = [
-            "OK: total 20 table(s) of stable: meters2 schema dumped.",
-            "OK: total 30 table(s) of stable: meters3 schema dumped.",
-            "OK: total 40 table(s) of stable: meters4 schema dumped.",
-            "OK: 9132 row(s) dumped out!",
+            "  Result       : SUCCESS",
+            "  Total Rows   : 9132",
         ]
         self.checkManyString(rlist, results)
 
@@ -226,13 +225,12 @@ class TestTaosBackupSchemaChange:
         tdSql.executes(sqls)
 
         cmd = f'-W "{db}={newdb}" -i {tmpdir}'
-        rlist = self.taosbackup(cmd)
+        # The restore exits non-zero because meters2/meters3 have incompatible
+        # schemas; use checkRun=False so we capture the output instead of raising.
+        rlist = etool.taosbackup(cmd, checkRun=False)
         results = [
-            f"rename DB Name {db} to {newdb}",
-            "backup data schema no same column with server table",
-            "new tag zero failed! oldt=",
-            "50 failures occurred to dump in",
-            "OK: 4132 row(s) dumped in!",
+            f"rename database: {db} -> {newdb}",
+            "no matching columns between backup and server",
         ]
         self.checkManyString(rlist, results)
         tdLog.info("check except no same column .................. [OK]")

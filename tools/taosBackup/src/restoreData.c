@@ -743,7 +743,16 @@ static int stmt2AllocColBuffers(Stmt2RestoreCtx *ctx, int64_t numRows,
     }
 
     for (int i = 0; i < numCols; i++) {
-        FieldInfo       *fi   = &fieldInfos[i];
+        /* When schema has changed, bind position i corresponds to the i-th
+         * matched column, whose actual backup index is colMappings[i].backupIdx.
+         * We MUST use that backup field's type/bytes for allocation, not the
+         * sequential fieldInfos[i] (which may be a completely different column). */
+        int backupColIdx = i;
+        if (ctx->stbChange && ctx->stbChange->schemaChanged && ctx->stbChange->colMappings &&
+            i < ctx->stbChange->matchColCount) {
+            backupColIdx = ctx->stbChange->colMappings[i].backupIdx;
+        }
+        FieldInfo       *fi   = &fieldInfos[backupColIdx];
         TAOS_STMT2_BIND *bind = &ctx->colBinds[i];
         bind->buffer_type = fi->type;
         if (IS_VAR_DATA_TYPE(fi->type)) {
@@ -1086,6 +1095,20 @@ static int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
     FieldInfo *fis       = (FieldInfo *)f->header.schema;
     int64_t   numRows   = f->header.numRows;
 
+    /* For normal table files (ctx->stbChange == NULL), detect schema changes
+     * against the server on a per-table basis, mirroring taosdump's approach.
+     * Guard on "_ntb_data" in the path so that STB child-table files whose
+     * addStbChanged() failed (no matching columns) are NOT treated as normal
+     * tables here. */
+    StbChange *localStbChange = NULL;
+    if (ctx->stbChange == NULL && strstr(filePath, "/_ntb_data") != NULL) {
+        localStbChange = buildNtbSchemaChange(ctx->conn, ctx->dbName, tbName,
+                                              fis, f->header.numFields);
+        if (localStbChange) {
+            ctx->stbChange = localStbChange;
+        }
+    }
+
     /* handle schema change: bind only matching columns */
     if (ctx->stbChange && ctx->stbChange->schemaChanged)
         numCols = ctx->stbChange->matchColCount;
@@ -1098,11 +1121,11 @@ static int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
     if (ctx->stmt2) { taos_stmt2_close(ctx->stmt2); ctx->stmt2 = NULL; }
     ctx->prepared = false;
     code = stmt2PrepareOnce(ctx, numCols, fis);
-    if (code != TSDB_CODE_SUCCESS) { closeTaosFileRead(f); return code; }
+    if (code != TSDB_CODE_SUCCESS) { closeTaosFileRead(f); goto done; }
 
     /* allocate / reuse column buffers for this file's rows */
     code = stmt2AllocColBuffers(ctx, numRows, numCols, fis);
-    if (code != TSDB_CODE_SUCCESS) { closeTaosFileRead(f); return code; }
+    if (code != TSDB_CODE_SUCCESS) { closeTaosFileRead(f); goto done; }
 
     /* stream blocks into accumulation buffers */
     S2CallbackData cbd = { ctx, fis, f->header.numFields };
@@ -1110,7 +1133,7 @@ static int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
     closeTaosFileRead(f);
     if (code != TSDB_CODE_SUCCESS) {
         logError("read blocks failed(%d): %s", code, filePath);
-        return code;
+        goto done;
     }
 
     /* execute one insert for all accumulated rows */
@@ -1119,6 +1142,13 @@ static int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
         logDebug("stmt2 restore done: %s.%s rows: %" PRId64, ctx->dbName, tbName, ctx->totalRows);
     else
         logError("stmt2 exec failed: %s.%s", ctx->dbName, tbName);
+
+done:
+    /* release per-file schema change built for normal tables */
+    if (localStbChange) {
+        ctx->stbChange = NULL;
+        freeStbChange(localStbChange);
+    }
     return code;
 }
 

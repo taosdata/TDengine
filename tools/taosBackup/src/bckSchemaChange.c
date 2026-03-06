@@ -346,6 +346,100 @@ static char* genPartColsStr(ColMapping *mappings, int count) {
 }
 
 
+//
+// Build a per-table StbChange for a NORMAL TABLE using the .dat file's
+// embedded FieldInfo[] as the backup schema.
+// Algorithm mirrors taosdump's localCrossServer: intersect backup columns
+// with server columns by name+type.  Returns NULL when schemas match
+// (no partial write needed) or on error.  Caller must freeStbChange().
+//
+StbChange* buildNtbSchemaChange(TAOS *conn, const char *dbName,
+                                const char *tbName,
+                                FieldInfo *fis, int numFields) {
+    if (!conn || !dbName || !tbName || !fis || numFields <= 0) return NULL;
+
+    // Query current server schema for this normal table
+    const char *targetDb = argRenameDb(dbName);
+    int serverColCount = 0;
+    CsvColInfo *serverCols = queryServerSchema(conn, targetDb, tbName, &serverColCount);
+    if (serverCols == NULL || serverColCount == 0) {
+        logWarn("ntb %s.%s: cannot query server schema, skip schema change detection",
+                targetDb, tbName);
+        if (serverCols) taosMemoryFree(serverCols);
+        return NULL;
+    }
+
+    // For normal tables all DESCRIBE rows are data columns (no TAGs)
+    int serverDataCols = serverColCount;
+
+    // Intersect backup fields with server fields by name + type
+    ColMapping *mappings = (ColMapping *)taosMemoryCalloc(numFields, sizeof(ColMapping));
+    if (!mappings) { taosMemoryFree(serverCols); return NULL; }
+
+    int  matchCount   = 0;
+    bool schemaChanged = false;
+
+    for (int bi = 0; bi < numFields; bi++) {
+        bool found = false;
+        for (int si = 0; si < serverDataCols; si++) {
+            if (strcmp(fis[bi].name, serverCols[si].field) == 0 &&
+                (int8_t)fis[bi].type == serverCols[si].tdType) {
+                ColMapping *m = &mappings[matchCount];
+                strncpy(m->name, fis[bi].name, sizeof(m->name) - 1);
+                m->type          = fis[bi].type;
+                m->bytes         = fis[bi].bytes;
+                m->backupIdx     = bi;
+                m->existsOnServer = true;
+                matchCount++;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            schemaChanged = true;
+            logInfo("ntb %s.%s: backup column '%s' (type=%d) not found on server",
+                    dbName, tbName, fis[bi].name, (int)fis[bi].type);
+        }
+    }
+    if (serverDataCols != numFields) schemaChanged = true;
+
+    taosMemoryFree(serverCols);
+
+    if (matchCount == 0) {
+        logError("ntb %s.%s: no matching columns between backup and server!", dbName, tbName);
+        taosMemoryFree(mappings);
+        return NULL;
+    }
+
+    if (!schemaChanged) {
+        // schemas are identical — no partial-write needed
+        taosMemoryFree(mappings);
+        return NULL;
+    }
+
+    // Build StbChange
+    StbChange *sc = (StbChange *)taosMemoryCalloc(1, sizeof(StbChange));
+    if (!sc) { taosMemoryFree(mappings); return NULL; }
+
+    strncpy(sc->stbName, tbName, TSDB_TABLE_NAME_LEN - 1);
+    sc->schemaChanged  = true;
+    sc->backupColCount = numFields;
+    sc->matchColCount  = matchCount;
+    sc->colMappings    = mappings;
+
+    sc->bindIdxMap = (int *)taosMemoryMalloc(numFields * sizeof(int));
+    if (!sc->bindIdxMap) { freeStbChange(sc); return NULL; }
+    for (int i = 0; i < numFields; i++) sc->bindIdxMap[i] = -1;
+    for (int i = 0; i < matchCount; i++) sc->bindIdxMap[mappings[i].backupIdx] = i;
+
+    sc->partColsStr = genPartColsStr(mappings, matchCount);
+    logInfo("ntb %s.%s: schema changed! backup cols=%d, server cols=%d, matched=%d, partCols=%s",
+            dbName, tbName, numFields, serverDataCols, matchCount,
+            sc->partColsStr ? sc->partColsStr : "NULL");
+    return sc;
+}
+
+
 void freeStbChange(StbChange *sc) {
     if (sc == NULL) return;
     if (sc->colMappings) {

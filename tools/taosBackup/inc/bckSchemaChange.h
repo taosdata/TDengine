@@ -96,4 +96,12 @@ bool isColInPartialWrite(StbChange *sc, int backupIdx);
 // O(1) via pre-built lookup table. Returns -1 if column should be skipped.
 int getPartialWriteBindIdx(StbChange *sc, int backupIdx);
 
+// Build a per-table schema change for a normal table.
+// Uses the file's embedded FieldInfo[] as the backup schema and queries
+// the server's current DESCRIBE for the table.  Returns NULL if schemas
+// match (no partial-write needed) or on error.  Caller must freeStbChange().
+StbChange* buildNtbSchemaChange(TAOS *conn, const char *dbName,
+                                const char *tbName,
+                                FieldInfo *fis, int numFields);
+
 #endif  // INC_BCKSCHEMACHANGE_H_

@@ -364,6 +364,8 @@ static int restoreNtbSql(const char *dbName) {
 //
 // Context for tag block callback - builds CREATE TABLE SQL from raw block data
 //
+#define BCK_MAX_TAG_COLS 128
+
 typedef struct {
     TAOS       *conn;
     const char *dbName;
@@ -372,7 +374,91 @@ typedef struct {
     int         numFields;
     int64_t     successCnt;
     int64_t     failedCnt;
+    // Server stable's tags in their declared order:
+    int         serverTagCount;
+    char        serverTagNames[BCK_MAX_TAG_COLS][65];
+    // For each server tag: index into backup fieldInfos (1-based, so add 1).
+    // -1 means the server has this tag but backup does not (emit NULL).
+    int         tagMapping[BCK_MAX_TAG_COLS];
 } TagRestoreCtx;
+
+//
+// Query the server stable's tag names in declared order.
+// Fills serverTagNames[] and tagMapping[] in ctx by matching against backup fieldInfos.
+// Returns the number of server tags found, or -1 on error.
+//
+static int buildServerTagMapping(TAOS *conn, const char *dbName, const char *stbName,
+                                  TagRestoreCtx *ctx) {
+    char sql[TSDB_TABLE_FNAME_LEN + 32];
+    snprintf(sql, sizeof(sql), "DESCRIBE `%s`.`%s`", dbName, stbName);
+    TAOS_RES *res = taos_query(conn, sql);
+    if (taos_errno(res) != TSDB_CODE_SUCCESS) {
+        taos_free_result(res);
+        return -1;
+    }
+    int numResultCols = taos_field_count(res);
+    int tagCnt = 0;
+    TAOS_ROW row;
+    // TDengine C API: VARCHAR row[i] is NOT null-terminated; must use taos_fetch_lengths().
+    while ((row = taos_fetch_row(res)) != NULL && tagCnt < BCK_MAX_TAG_COLS) {
+        int *lens = taos_fetch_lengths(res);
+        // DESCRIBE: col0=Field, col1=Type, col2=Length, col3=Note, ...
+        if (numResultCols < 4 || row[3] == NULL || lens == NULL) continue;
+        // Check note column == "TAG" (length-safe comparison)
+        if (lens[3] != 3 || strncasecmp((char *)row[3], "TAG", 3) != 0) continue;
+        if (row[0] == NULL) continue;
+
+        // Copy field name (not null-terminated in API response)
+        int nameLen = lens[0] < 64 ? lens[0] : 64;
+        memcpy(ctx->serverTagNames[tagCnt], (char *)row[0], nameLen);
+        ctx->serverTagNames[tagCnt][nameLen] = '\0';
+        const char *tagName = ctx->serverTagNames[tagCnt];
+
+        // Find this tag name in backup fieldInfos (skip col 0 which is tbname).
+        ctx->tagMapping[tagCnt] = -1;  // default: not in backup -> emit NULL
+        for (int c = 1; c < ctx->numFields; c++) {
+            if (strcasecmp(ctx->fieldInfos[c].name, tagName) == 0) {
+                ctx->tagMapping[tagCnt] = c;
+                break;
+            }
+        }
+        tagCnt++;
+    }
+    taos_free_result(res);
+    return tagCnt;
+}
+
+//
+// Query server stable tag names into a flat array (no backup matching needed).
+// Used for the Parquet path where backup field names come from the callback.
+// Returns tag count on success, or -1 on failure.
+//
+static int queryServerTagNames(TAOS *conn, const char *dbName, const char *stbName,
+                               char names[][65], int maxNames) {
+    char sql[TSDB_TABLE_FNAME_LEN + 32];
+    snprintf(sql, sizeof(sql), "DESCRIBE `%s`.`%s`", dbName, stbName);
+    TAOS_RES *res = taos_query(conn, sql);
+    if (taos_errno(res) != TSDB_CODE_SUCCESS) {
+        taos_free_result(res);
+        return -1;
+    }
+    int numResultCols = taos_field_count(res);
+    int tagCnt = 0;
+    TAOS_ROW row;
+    // TDengine C API: VARCHAR row[i] is NOT null-terminated; must use taos_fetch_lengths().
+    while ((row = taos_fetch_row(res)) != NULL && tagCnt < maxNames) {
+        int *lens = taos_fetch_lengths(res);
+        if (numResultCols < 4 || row[3] == NULL || lens == NULL) continue;
+        if (lens[3] != 3 || strncasecmp((char *)row[3], "TAG", 3) != 0) continue;
+        if (row[0] == NULL) continue;
+        int nameLen = lens[0] < 64 ? lens[0] : 64;
+        memcpy(names[tagCnt], (char *)row[0], nameLen);
+        names[tagCnt][nameLen] = '\0';
+        tagCnt++;
+    }
+    taos_free_result(res);
+    return tagCnt;
+}
 
 //
 // Build value string for a single column from raw block data
@@ -562,10 +648,21 @@ static int tagBlockCallback(void *userData,
                            "CREATE TABLE IF NOT EXISTS `%s`.`%s` USING `%s`.`%s` TAGS(",
                            argRenameDb(ctx->dbName), tbName, argRenameDb(ctx->dbName), ctx->stbName);
 
-        // Append tag values (columns 1..numCols-1)
-        for (int c = 1; c < numCols; c++) {
-            if (c > 1) {
-                pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, ",");
+        // Emit tag values in the server's declared order using name-based mapping.
+        // ctx->serverTagCount > 0  → use mapping (handles extra/missing/reordered tags)
+        // ctx->serverTagCount == 0 → DESCRIBE failed; fall back to backup column order
+        int useMapping = (ctx->serverTagCount > 0);
+        int loopCount  = useMapping ? ctx->serverTagCount : (numCols - 1);
+
+        for (int s = 0; s < loopCount; s++) {
+            if (s > 0) pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, ",");
+
+            // c = backup column index; -1 means server tag not present in backup → NULL
+            int c = useMapping ? ctx->tagMapping[s] : (s + 1);
+
+            if (c < 0) {
+                pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "NULL");
+                continue;
             }
 
             int8_t type = fieldInfos[c].type;
@@ -582,9 +679,6 @@ static int tagBlockCallback(void *userData,
                     char *tagVal = tagVarData + tagOffset + sizeof(uint16_t);
                     
                     if (type == TSDB_DATA_TYPE_NCHAR) {
-                        // NCHAR is stored as UCS-4 (UTF-32 LE); must convert to UTF-8 before
-                        // embedding in SQL, otherwise null bytes in UCS-4 encoding truncate
-                        // the C string and produce a malformed CREATE TABLE statement.
                         char *utf8Buf = (char *)taosMemoryMalloc(tagLen + 4);
                         if (utf8Buf != NULL) {
                             int32_t utf8Len = taosUcs4ToMbs((TdUcs4 *)tagVal, (int32_t)tagLen, utf8Buf, NULL);
@@ -605,7 +699,6 @@ static int tagBlockCallback(void *userData,
                         }
                     } else if (type == TSDB_DATA_TYPE_BINARY ||
                                type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_JSON) {
-                        // escape single quotes
                         pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
                         for (uint16_t k = 0; k < tagLen && pos < TSDB_MAX_SQL_LEN - 4; k++) {
                             if (tagVal[k] == '\'') {
@@ -617,7 +710,6 @@ static int tagBlockCallback(void *userData,
                         }
                         pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
                     } else if (type == TSDB_DATA_TYPE_GEOMETRY) {
-                        // Geometry is stored as WKB binary; SQL CREATE TABLE TAGS needs WKT
                         char wkt[4096];
                         int wktLen = bckWkbToWkt((const unsigned char *)tagVal, (int)tagLen, wkt, (int)sizeof(wkt));
                         if (wktLen > 0) {
@@ -626,10 +718,6 @@ static int tagBlockCallback(void *userData,
                             pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "NULL");
                         }
                     } else {
-                        // VARBINARY - embed raw bytes with SQL single-quote escaping.
-                        // Backslash and single-quote are the only characters that
-                        // must be escaped; other bytes (including high-bit bytes)
-                        // are passed through verbatim.
                         pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
                         for (uint16_t k = 0; k < tagLen && pos < TSDB_MAX_SQL_LEN - 4; k++) {
                             unsigned char b = (unsigned char)tagVal[k];
@@ -650,7 +738,6 @@ static int tagBlockCallback(void *userData,
                 char *bitmap = (char *)colDataPtrs[c];
                 char *fixData = (char *)colDataPtrs[c] + bitmapLen;
 
-                // check null bitmap (TDengine convention: bit7=row0, bit6=row1, ...)
                 int byteIdx = row >> 3;
                 int bitIdx  = 7 - (row & 7);
                 bool isNull = (bitmap[byteIdx] & (1u << bitIdx)) != 0;
@@ -747,6 +834,8 @@ typedef struct {
     const char *stbName;
     int64_t     successCnt;
     int64_t     failedCnt;
+    int         serverTagCount;  // number of server tags
+    char        serverTagNames[BCK_MAX_TAG_COLS][65];  // server tag names in declared order
 } ParquetTagCtx;
 
 static int parquetTagCallback(void *userData,
@@ -754,6 +843,24 @@ static int parquetTagCallback(void *userData,
                               TAOS_MULTI_BIND *bindArray, int32_t numRows) {
     ParquetTagCtx *ctx = (ParquetTagCtx *)userData;
     if (numFields < 1) return TSDB_CODE_BCK_NO_FIELDS;
+
+    // Build a per-callback mapping: for each server tag name, find its backup field index.
+    // fields[0] is tbname; fields[1..numFields-1] are backup tags.
+    // serverTagCount==0 means DESCRIBE failed; use backup tag order as fallback.
+    int  sTagMapBuf[BCK_MAX_TAG_COLS];
+    int  useMapping = (ctx->serverTagCount > 0);
+    int  loopCount  = useMapping ? ctx->serverTagCount : (numFields - 1);
+    if (useMapping) {
+        for (int s = 0; s < ctx->serverTagCount; s++) {
+            sTagMapBuf[s] = -1;  // default: not in backup
+            for (int c = 1; c < numFields; c++) {
+                if (strcasecmp(fields[c].name, ctx->serverTagNames[s]) == 0) {
+                    sTagMapBuf[s] = c;
+                    break;
+                }
+            }
+        }
+    }
 
     for (int row = 0; row < numRows; row++) {
         if (g_interrupted) return TSDB_CODE_BCK_USER_CANCEL;
@@ -780,9 +887,16 @@ static int parquetTagCallback(void *userData,
                            argRenameDb(ctx->dbName), tbName,
                            argRenameDb(ctx->dbName), ctx->stbName);
 
-        /* Columns 1..numFields-1 are tag values */
-        for (int c = 1; c < numFields && pos < TSDB_MAX_SQL_LEN - 64; c++) {
-            if (c > 1) pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, ",");
+        /* Emit TAGS in server's declared order (name-based mapping) */
+        for (int s = 0; s < loopCount && pos < TSDB_MAX_SQL_LEN - 64; s++) {
+            if (s > 0) pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, ",");
+
+            // c = backup bind index; -1 → server has tag not in backup → NULL
+            int c = useMapping ? sTagMapBuf[s] : (s + 1);
+            if (c < 0) {
+                pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "NULL");
+                continue;
+            }
 
             TAOS_MULTI_BIND *b   = &bindArray[c];
             bool             isNull = (b->is_null && b->is_null[row]);
@@ -837,6 +951,7 @@ static int parquetTagCallback(void *userData,
                 }
             }
         }
+
         snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, ")");
 
         TAOS_RES *res = taos_query(ctx->conn, sql);
@@ -884,6 +999,18 @@ static void* restoreTagThread(void *arg) {
         ctx.conn    = thread->conn;
         ctx.dbName  = thread->dbInfo->dbName;
         ctx.stbName = thread->stbInfo->stbName;
+        {
+            int n = queryServerTagNames(ctx.conn, argRenameDb(ctx.dbName), ctx.stbName,
+                                        ctx.serverTagNames, BCK_MAX_TAG_COLS);
+            if (n > 0) {
+                ctx.serverTagCount = n;
+                logInfo("parquet stb %s.%s: server has %d tags; using name mapping",
+                        argRenameDb(ctx.dbName), ctx.stbName, n);
+            } else {
+                logWarn("parquet stb %s.%s: DESCRIBE failed, using backup tag order",
+                        argRenameDb(ctx.dbName), ctx.stbName);
+            }
+        }
 
         code = parquetReaderReadAll(pr, parquetTagCallback, &ctx);
         parquetReaderClose(pr);
@@ -913,6 +1040,7 @@ static void* restoreTagThread(void *arg) {
 
     // prepare context
     TagRestoreCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
     ctx.conn       = thread->conn;
     ctx.dbName     = thread->dbInfo->dbName;
     ctx.stbName    = thread->stbInfo->stbName;
@@ -920,6 +1048,19 @@ static void* restoreTagThread(void *arg) {
     ctx.numFields  = taosFile->header.numFields;
     ctx.successCnt = 0;
     ctx.failedCnt  = 0;
+    // Build name-based mapping: server tag order -> backup column index.
+    // serverTagCount == 0 on failure; callback falls back to backup order.
+    {
+        int n = buildServerTagMapping(ctx.conn, argRenameDb(ctx.dbName), ctx.stbName, &ctx);
+        if (n > 0) {
+            ctx.serverTagCount = n;
+            logInfo("stb %s.%s: server has %d tags, backup has %d; using name mapping",
+                    argRenameDb(ctx.dbName), ctx.stbName, n, ctx.numFields - 1);
+        } else {
+            logWarn("stb %s.%s: DESCRIBE failed, using backup tag order",
+                    argRenameDb(ctx.dbName), ctx.stbName);
+        }
+    }
 
     // read blocks and process
     code = readTaosFileBlocks(taosFile, tagBlockCallback, &ctx);
