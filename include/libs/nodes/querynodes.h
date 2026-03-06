@@ -494,8 +494,16 @@ typedef struct SSlidingWindowNode {
 } SSlidingWindowNode;
 
 typedef struct SExternalWindowNode {
-  ENodeType   type;       // QUERY_NODE_EXTERNAL_WINDOW
+  ENodeType   type;  // QUERY_NODE_EXTERNAL_WINDOW
   SNode*      pCol;  // timestamp primary key
+  SNodeList*  pProjectionList;
+  SNodeList*  pAggFuncList;
+  STimeWindow timeRange;
+  SNode*      pTimeRange;
+  void*       timezone;
+  SNode*      pSubquery;
+  SNode*      pFill;
+  char        aliasName[TSDB_COL_NAME_LEN];
 } SExternalWindowNode;
 
 typedef struct SStreamTriggerOptions {
