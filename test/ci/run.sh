@@ -32,9 +32,9 @@ while getopts "m:t:b:l:o:w:eh" opt; do
         ;;
     o)
         timeout_val=$OPTARG
-        # Validate timeout_val is a positive integer to prevent command injection
-        if [[ -z "$timeout_val" ]] || [[ "$timeout_val" =~ [^0-9] ]]; then
-            echo "Invalid timeout value: $timeout_val (must be a positive integer)" >&2
+        # Validate timeout_val is a positive integer (>=1) to prevent command injection
+        if [[ -z "$timeout_val" ]] || [[ "$timeout_val" =~ [^0-9] ]] || [[ "$timeout_val" -eq 0 ]]; then
+            echo "Invalid timeout value: $timeout_val (must be a positive integer greater than 0)" >&2
             exit 1
         fi
         timeout_param="-o $timeout_val"
@@ -85,9 +85,21 @@ fi
 
 # SSH ControlMaster settings for connection reuse (improves performance and stability)
 SSH_CONTROL_DIR="/tmp/ssh_controlmasters_$$"
-mkdir -p "$SSH_CONTROL_DIR"
-chmod 700 "$SSH_CONTROL_DIR"
 SSH_CONTROL_OPTIONS="-o ControlMaster=auto -o ControlPath=$SSH_CONTROL_DIR/%h_%p_%r -o ControlPersist=1200"
+
+# Ensure cleanup of SSH ControlMaster on exit/interrupt
+cleanup_ssh() {
+    if [ -d "$SSH_CONTROL_DIR" ]; then
+        echo "Cleaning up SSH ControlMaster connections..."
+        for socket in "$SSH_CONTROL_DIR"/*; do
+            if [ -S "$socket" ] 2>/dev/null; then
+                ssh -S "$socket" -O exit 2>/dev/null || true
+            fi
+        done
+        rm -rf "$SSH_CONTROL_DIR"
+    fi
+}
+trap cleanup_ssh EXIT INT TERM
 
 hosts=()
 usernames=()
@@ -171,7 +183,29 @@ function get_remote_ssh_command() {
 
 # Initialize SSH ControlMaster connections for all key-based auth hosts
 function init_ssh_control_masters() {
+    local has_key_based_host=false
     local index=0
+    
+    # Check if there are any key-based auth hosts
+    while [ $index -lt ${#hosts[*]} ]; do
+        if ! is_local_host "${hosts[index]}" && [ -z "${passwords[index]}" ]; then
+            has_key_based_host=true
+            break
+        fi
+        index=$((index + 1))
+    done
+    
+    # Skip if no key-based hosts
+    if [ "$has_key_based_host" = false ]; then
+        return 0
+    fi
+    
+    # Create control directory only when needed
+    mkdir -p "$SSH_CONTROL_DIR"
+    chmod 700 "$SSH_CONTROL_DIR"
+    
+    # Establish ControlMaster connections
+    index=0
     while [ $index -lt ${#hosts[*]} ]; do
         if ! is_local_host "${hosts[index]}" && [ -z "${passwords[index]}" ]; then
             local ssh_cmd="ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3"
@@ -294,10 +328,11 @@ function run_thread() {
     fi
     local count=0
     local script="${workdirs[index]}/TDengine/test/ci/run_container.sh"
+    local script_args=""
     if [ $ent -ne 0 ]; then
-        local script="${workdirs[index]}/TDinternal/community/test/ci/run_container.sh -e"
+        script="${workdirs[index]}/TDinternal/community/test/ci/run_container.sh"
+        script_args="-e"
     fi
-    local cmd="${runcase_script} ${script}"
 
     # script="echo"
     while true; do
@@ -384,7 +419,18 @@ function run_thread() {
         if [ -n "$case_path" ]; then
             mkdir -p "$log_dir"/"$case_path"
         fi
-        cmd="${runcase_script} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir}  -s ${case_build_san} ${timeout_param}"
+        # Build command with proper quoting for both local and remote execution
+        local container_args="-w '${workdirs[index]}' -c '${case_cmd}' -t ${thread_no} -d '${exec_dir}' -s ${case_build_san} ${timeout_param}"
+        if [ -n "$script_args" ]; then
+            container_args="${script_args} ${container_args}"
+        fi
+        if is_local_host "${hosts[index]}"; then
+            # Local execution: run script directly with bash
+            cmd="bash ${script} ${container_args}"
+        else
+            # Remote execution: pass through SSH
+            cmd="${runcase_script} bash ${script} ${container_args}"
+        fi
         # echo "$thread_no $count $cmd"
         local ret=0
         local redo_count=1
@@ -521,7 +567,7 @@ function run_thread() {
                     echo "$cmd"
                     bash -c "$cmd" >/dev/null 2>&1 || true
                 else
-                    # 其他用例排除 *est* 文件
+                    # 其他用例排除包含 *est* 的文件，避免保存过多无用的文件
                     cd "${remote_build_dir}" && find . -type f -not -name "*est*" -exec cp --parents {} "${build_dir}/" \; >/dev/null 2>&1 || true
                     cd - >/dev/null 2>&1 || true
                 fi
@@ -720,10 +766,6 @@ if [ -f "$report_dir/index.html" ]; then
 else
     echo "Error: Failed to generate Allure report."
 fi
-
-# Close SSH ControlMaster connections
-echo "Closing SSH ControlMaster connections..."
-close_ssh_control_masters
 
 echo "${log_dir}" >&2
 date
