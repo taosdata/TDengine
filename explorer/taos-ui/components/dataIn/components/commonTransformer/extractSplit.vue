@@ -494,6 +494,7 @@ function getExtractData(): Recordable {
     extract: {}
   });
   cloneDeep(props.extractArr)
+    .filter(item => item.columnname && item.columnname !== '')
     .map(item => {
       let value;
       if (item.type === 'regex' || item.type === 'join') {
