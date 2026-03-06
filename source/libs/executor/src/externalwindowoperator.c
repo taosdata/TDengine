@@ -3371,7 +3371,15 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         break;
       }
 
-      if (pExtW->pTGrpCtx->pCCtx->outWinNum >= pExtW->pTGrpCtx->pCCtx->outWinTotalNum) {
+      if (pExtW->calcWithPartition && (!pExtW->partitionInputDone || pExtW->pPartitionPendingBlock != NULL)) {
+        pExtW->partitionGroupStarted = false;
+        extWinResetPartitionGroupCalcState(pOperator);
+        pOperator->status = OP_NOT_OPENED;
+        continue;
+      }
+
+      if (pExtW->pTGrpCtx == NULL || pExtW->pTGrpCtx->pCCtx == NULL ||
+          pExtW->pTGrpCtx->pCCtx->outWinNum >= pExtW->pTGrpCtx->pCCtx->outWinTotalNum) {
         setOperatorCompleted(pOperator);
         if (pTaskInfo->pStreamRuntimeInfo) {
           extWinFreeResultRow(pExtW);
@@ -3379,6 +3387,7 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         break;
       }
     }
+    break;
   }
 
   if (*ppRes && (*ppRes)->info.rows > 0) {

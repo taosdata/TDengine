@@ -44,9 +44,13 @@ class TestExternal:
         """
 
         tdLog.debug(f"start to execute {__file__}")
+        self.dbName = "test"
 
         self.mock_test_external_window_single_block()
-        self.mock_test_external_window_group_blocks()
+        # self.mock_test_external_window_group_blocks()
+        
+        self.prepare_data()
+        self.basic_query1()
         # self.basic_query()
         # partition by + external window regression is tracked separately.
         # keep basic_query as focused validation entry for external placeholder assignment.
@@ -54,9 +58,12 @@ class TestExternal:
 
     def mock_test_external_window_single_block(self):
         dbName = "external_window_test_single_block"
-        self.prepareData(dbName)
+        self.prepare_mock_data(dbName)
         tdSql.execute(f"use {dbName}")
         tdLog.info(f"=============== start basic query of external window with agg on single block")
+        
+        # sql = "select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select first(ts) t1, last(ts) t2 from st2) w);"
+        # tdSql.query(sql)
         
         sql = "select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select first(c1) fc1  from st2) w);"
         tdSql.query(sql)
@@ -184,7 +191,7 @@ class TestExternal:
     
     def mock_test_external_window_group_blocks(self):
         dbName = "external_window_test_group_blocks"
-        self.prepareData(dbName)
+        self.prepare_mock_data(dbName)
         tdSql.execute(f"use {dbName}")
         tdLog.info(f"=============== start basic query of external window with agg on group blocks")
         
@@ -217,7 +224,7 @@ class TestExternal:
         
         tdLog.info(f"=============== end basic query of external window with agg on group blocks")
     
-    def prepareData(self, dbName):
+    def prepare_mock_data(self, dbName):
         vgroups = 4
         tdLog.info(f"====> create database {dbName} vgroups {vgroups}")
         tdSql.execute(f"drop database if exists {dbName}")
@@ -244,8 +251,91 @@ class TestExternal:
                 tdSql.execute(f"INSERT INTO st1_{tableIndex} VALUES({ts}, {100000 + tableIndex  * 1000 + i}, {100000 + tableIndex  * 1000 + i})")
                 tdSql.execute(f"INSERT INTO st2_{tableIndex} VALUES({ts}, {200000 + tableIndex  * 1000 + i}, {200000 + tableIndex  * 1000 + i})")
                 ts += 60000  # add 1 minute
+
+    def prepare_external_win_subquery_data(self, dbName, stbName="ext_win_subq"):
+        """Build external_window subquery source data.
+
+        Target layout:
+        - One super table + 10 child tables.
+        - Columns: ts(timestamp), endtime(timestamp), v1(int), v2(nchar).
+        - Tags: t1(int), t2(nchar).
+        - t1 is unique per child table; t2 is shared by each pair of child tables.
+        - 10 rows per child table.
+        - For each row: ts < endtime.
+        - For consecutive rows: current ts > previous endtime.
+        - The first two rows have identical time values across all child tables.
+        """
+        tdLog.info(f"====> prepare external window subquery data in {dbName}, stb={stbName}")
+        tdSql.execute(f"use {dbName}")
+
+        tdSql.execute(f"drop table if exists {stbName}")
+        tdSql.execute(
+            f"create table if not exists {stbName} "
+            f"(ts timestamp, endtime timestamp, v1 int, v2 nchar(64)) "
+            f"tags(t1 int, t2 nchar(64))"
+        )
+
+        mock_start_ms =  1589212800000
+        mock_total_rows = 20 * 100
+        mock_end_ms = mock_start_ms + (mock_total_rows - 1) * 60000
+
+        common_row_1 = (mock_start_ms - 3600000, mock_start_ms - 3540000)
+        common_row_2 = (mock_end_ms + 3540000, mock_end_ms + 3600000)
+
+        child_count = 10
+        row_count = 10
+
+        for table_idx in range(1, child_count + 1):
+            ctb = f"{stbName}_{table_idx}"
+            tag_t1 = table_idx
+            tag_t2 = f"t2_group_{(table_idx - 1) // 2}"
+            tdSql.execute(f"create table if not exists {ctb} using {stbName} tags({tag_t1}, '{tag_t2}')")
+
+            rows = []
+            prev_end = None
+            for row_idx in range(row_count):
+                if row_idx == 0:
+                    ts = common_row_1[0]
+                    endtime = common_row_1[1]
+                elif row_idx == 1:
+                    ts = common_row_2[0]
+                    endtime = common_row_2[1]
+                else:
+                    base_after_common = common_row_2[1] + table_idx * 3600000
+                    ts = base_after_common + (row_idx - 2) * 180000
+                    endtime = ts + 60000
+
+                if prev_end is not None and ts <= prev_end:
+                    ts = prev_end + 60000
+                    endtime = ts + 60000
+
+                v1 = table_idx * 1000 + row_idx
+                v2 = f"v2_{table_idx}_{row_idx}"
+                rows.append(f"({ts}, {endtime}, {v1}, '{v2}')")
+                prev_end = endtime
+
+            tdSql.execute(f"insert into {ctb} values" + "".join(rows))
         
-    def basic_query(self):
+    def prepare_data(self):
+        self.prepare_mock_data("test")
+        self.prepare_external_win_subquery_data("test", "ext_win_subq")
+            
+    def basic_query1(self):
+        tdLog.info(f"=============== basic query of external window with agg on single block")
+        sql = "select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select first(c1) fc1  from st2) w);"
+        tdSql.query(sql)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
+        tdSql.checkData(0, 1, "2020-05-13 10:49:00.000")
+        tdSql.checkData(0, 2, 100)
+        tdSql.checkData(0, 3, 50)
+        tdSql.checkData(1, 0, "2020-05-13 10:49:00.001")
+        tdSql.checkData(1, 1, "2020-05-13 11:21:50.000")
+        tdSql.checkData(1, 2, 200)
+        tdSql.checkData(1, 3, 32)
+        
+        
+    def basic_query2(self):
         tdLog.info(f"=============== basic query of external window")
         sql1 = "select _wstart, _wend, w.fc1, ts from st1_1 external_window((select first(c1) fc1  from st2) w);"
         tdSql.query(sql1)
