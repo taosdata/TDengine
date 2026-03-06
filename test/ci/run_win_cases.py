@@ -242,7 +242,7 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
 
                     # 轮询等待
                     waited = 0
-                    while waited < 1800:
+                    while waited < 1200:
                         ret = current_process.poll()
                         if ret is not None:
                             return_code = ret
