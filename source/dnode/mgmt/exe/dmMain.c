@@ -14,6 +14,8 @@
  */
 #define _DEFAULT_SOURCE
 
+#include <ctype.h>
+
 #include "dmMgmt.h"
 #include "dmUtil.h"
 #include "mnode.h"
@@ -46,8 +48,26 @@
 #define DM_EMAIL         "<support@taosdata.com>"
 #define DM_MEM_DBG       "Enable memory debug"
 #define DM_SET_ENCRYPTKEY  "Set encrypt key. such as: -y 1234567890abcdef, the length should be less or equal to 16."
+#define DM_REPAIR_MODE   "Start repair mode. `-r` keeps legacy metadata rebuild when no new repair args are provided."
 
 // clang-format on
+typedef struct {
+  bool withR;
+  bool hasRepairArgs;
+  bool hasNodeType;
+  bool hasFileType;
+  bool hasVnodeId;
+  bool hasBackupPath;
+  bool hasMode;
+  bool hasReplicaNode;
+  char nodeType[32];
+  char fileType[32];
+  char vnodeId[PATH_MAX];
+  char backupPath[PATH_MAX];
+  char mode[32];
+  char replicaNode[PATH_MAX];
+} SDmRepairOption;
+
 static struct {
 #ifdef WINDOWS
   bool winServiceMode;
@@ -67,13 +87,16 @@ static struct {
   bool         printAuth;
   bool         printVersion;
   bool         printHelp;
+  bool         printRepairHelp;
   char         envFile[PATH_MAX];
   char         apolloUrl[PATH_MAX];
   const char **envCmd;
   SArray      *pArgs;  // SConfigPair
   int64_t      startTime;
   bool         generateCode;
+  bool         runRepairFlow;
   char         encryptKey[ENCRYPT_KEY_LEN + 1];
+  SDmRepairOption repairOpt;
 } global = {0};
 
 extern int32_t cryptLoadProviders();
@@ -186,8 +209,261 @@ static void dmSetSignalHandle() {
 
 extern bool generateNewMeta;
 
+static bool dmMatchLongOption(const char *arg, const char *opt, const char **pVal) {
+  int32_t optLen = (int32_t)strlen(opt);
+  if (strncmp(arg, opt, optLen) != 0) {
+    return false;
+  }
+
+  if (arg[optLen] == '\0') {
+    *pVal = NULL;
+    return true;
+  }
+
+  if (arg[optLen] == '=') {
+    *pVal = arg + optLen + 1;
+    return true;
+  }
+
+  return false;
+}
+
+static int32_t dmParseLongOptionValue(int32_t argc, char const *argv[], int32_t *pIndex, const char *opt, char *buf,
+                                      int32_t bufLen, bool *pMatched) {
+  const char *val = NULL;
+  *pMatched = false;
+  if (!dmMatchLongOption(argv[*pIndex], opt, &val)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  *pMatched = true;
+
+  if (val == NULL) {
+    if (*pIndex >= argc - 1 || argv[*pIndex + 1][0] == '-') {
+      printf("'%s' requires a parameter\n", opt);
+      return TSDB_CODE_INVALID_PARA;
+    }
+    val = argv[++(*pIndex)];
+  }
+
+  int32_t vLen = (int32_t)strlen(val);
+  if (vLen <= 0 || vLen >= bufLen) {
+    printf("invalid value for '%s'\n", opt);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  tstrncpy(buf, val, bufLen);
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool dmIsValidVnodeId(const char *vnodeId) {
+  if (vnodeId == NULL || vnodeId[0] == '\0') {
+    return false;
+  }
+
+  bool expectDigit = true;
+  for (const unsigned char *p = (const unsigned char *)vnodeId; *p != '\0'; ++p) {
+    if (isdigit(*p)) {
+      expectDigit = false;
+      continue;
+    }
+
+    if (*p == ',') {
+      if (expectDigit) {
+        return false;
+      }
+      expectDigit = true;
+      continue;
+    }
+
+    return false;
+  }
+
+  return !expectDigit;
+}
+
+static int32_t dmValidateRepairOption() {
+  SDmRepairOption *pOpt = &global.repairOpt;
+
+  if (!pOpt->hasNodeType) {
+    printf("missing '--node-type' in repair mode\n");
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (strcmp(pOpt->nodeType, "vnode") != 0) {
+    printf("'--node-type %s' is not supported in this phase\n", pOpt->nodeType);
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+
+  if (!pOpt->hasFileType) {
+    printf("missing '--file-type' in repair mode\n");
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (strcmp(pOpt->fileType, "wal") != 0 && strcmp(pOpt->fileType, "tsdb") != 0 && strcmp(pOpt->fileType, "meta") != 0) {
+    printf("'--file-type %s' is not supported in this phase\n", pOpt->fileType);
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+
+  if (!pOpt->hasVnodeId) {
+    printf("missing '--vnode-id' in repair mode\n");
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (!dmIsValidVnodeId(pOpt->vnodeId)) {
+    printf("invalid '--vnode-id' format, only digits and comma-separated digits are allowed\n");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (!pOpt->hasMode) {
+    printf("missing '--mode' in repair mode\n");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  bool isForce = strcmp(pOpt->mode, "force") == 0;
+  bool isReplica = strcmp(pOpt->mode, "replica") == 0;
+  bool isCopy = strcmp(pOpt->mode, "copy") == 0;
+  if (!isForce && !isReplica && !isCopy) {
+    printf("invalid '--mode %s', valid options are force|replica|copy\n", pOpt->mode);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (!isCopy && pOpt->hasReplicaNode) {
+    printf("'--replica-node' is only valid when '--mode copy' is used\n");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (isReplica || isCopy) {
+    printf("'--mode %s' is reserved and not supported in this phase\n", pOpt->mode);
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t dmParseRepairOption(int32_t argc, char const *argv[], int32_t *pIndex, bool *pParsed) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  index = *pIndex;
+  const char *arg = argv[index];
+  bool        matched = false;
+  bool        optMatched = false;
+  SDmRepairOption *pOpt = &global.repairOpt;
+
+  *pParsed = false;
+
+  if (strcmp(arg, "--force") == 0 || strncmp(arg, "--force=", 8) == 0) {
+    printf("'--force' is deprecated, use '--mode force' with '-r' instead\n");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  code = dmParseLongOptionValue(argc, argv, &index, "--node-type", pOpt->nodeType, sizeof(pOpt->nodeType),
+                                &optMatched);
+  if (code != 0) return code;
+  if (optMatched) {
+    pOpt->hasRepairArgs = true;
+    pOpt->hasNodeType = true;
+    matched = true;
+  }
+
+  if (!matched) {
+    code = dmParseLongOptionValue(argc, argv, &index, "--file-type", pOpt->fileType, sizeof(pOpt->fileType),
+                                  &optMatched);
+    if (code != 0) return code;
+    if (optMatched) {
+      pOpt->hasRepairArgs = true;
+      pOpt->hasFileType = true;
+      matched = true;
+    }
+  }
+
+  if (!matched) {
+    code = dmParseLongOptionValue(argc, argv, &index, "--vnode-id", pOpt->vnodeId, sizeof(pOpt->vnodeId), &optMatched);
+    if (code != 0) return code;
+    if (optMatched) {
+      pOpt->hasRepairArgs = true;
+      pOpt->hasVnodeId = true;
+      matched = true;
+    }
+  }
+
+  if (!matched) {
+    code = dmParseLongOptionValue(argc, argv, &index, "--backup-path", pOpt->backupPath, sizeof(pOpt->backupPath),
+                                  &optMatched);
+    if (code != 0) return code;
+    if (optMatched) {
+      pOpt->hasRepairArgs = true;
+      pOpt->hasBackupPath = true;
+      matched = true;
+    }
+  }
+
+  if (!matched) {
+    code = dmParseLongOptionValue(argc, argv, &index, "--mode", pOpt->mode, sizeof(pOpt->mode), &optMatched);
+    if (code != 0) return code;
+    if (optMatched) {
+      pOpt->hasRepairArgs = true;
+      pOpt->hasMode = true;
+      matched = true;
+    }
+  }
+
+  if (!matched) {
+    code = dmParseLongOptionValue(argc, argv, &index, "--replica-node", pOpt->replicaNode, sizeof(pOpt->replicaNode),
+                                  &optMatched);
+    if (code != 0) return code;
+    if (optMatched) {
+      pOpt->hasRepairArgs = true;
+      pOpt->hasReplicaNode = true;
+      matched = true;
+    }
+  }
+
+  if (matched) {
+    *pParsed = true;
+    *pIndex = index;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t dmFinalizeRepairOption() {
+  SDmRepairOption *pOpt = &global.repairOpt;
+  global.runRepairFlow = false;
+
+  if (pOpt->hasRepairArgs && !pOpt->withR) {
+    printf("repair options must be used with '-r'\n");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (global.printHelp && pOpt->withR) {
+    global.printRepairHelp = true;
+    generateNewMeta = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (!pOpt->withR) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (!pOpt->hasRepairArgs) {
+    generateNewMeta = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  generateNewMeta = false;
+  int32_t code = dmValidateRepairOption();
+  if (code == TSDB_CODE_SUCCESS) {
+    global.runRepairFlow = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (code == TSDB_CODE_OPS_NOT_SUPPORT) {
+    return 1;
+  }
+
+  return code;
+}
+
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   global.startTime = taosGetTimestampMs();
+  generateNewMeta = false;
+  memset(&global.repairOpt, 0, sizeof(global.repairOpt));
 
   int32_t cmdEnvIndex = 0;
   if (argc < 2) return 0;
@@ -198,6 +474,15 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   }
   memset(global.envCmd, 0, (argc - 1) * sizeof(char *));
   for (int32_t i = 1; i < argc; ++i) {
+    bool    parsedRepairOpt = false;
+    int32_t code = dmParseRepairOption(argc, argv, &i, &parsedRepairOpt);
+    if (code != 0) {
+      return code;
+    }
+    if (parsedRepairOpt) {
+      continue;
+    }
+
     if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
@@ -238,7 +523,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
         return TSDB_CODE_INVALID_CFG;
       }
     } else if (strcmp(argv[i], "-r") == 0) {
-      generateNewMeta = true;
+      global.repairOpt.withR = true;
     } else if (strcmp(argv[i], "-E") == 0) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
@@ -322,7 +607,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
     }
   }
 
-  return 0;
+  return dmFinalizeRepairOption();
 }
 
 static void dmPrintArgs(int32_t argc, char const *argv[]) {
@@ -361,6 +646,7 @@ static void dmPrintHelp() {
   printf("%s%s%s%s\n", indent, "-C,", indent, DM_DMP_CFG);
   printf("%s%s%s%s\n", indent, "-e,", indent, DM_ENV_CMD);
   printf("%s%s%s%s\n", indent, "-E,", indent, DM_ENV_FILE);
+  printf("%s%s%s%s\n", indent, "-r,", indent, DM_REPAIR_MODE);
   printf("%s%s%s%s\n", indent, "-k,", indent, DM_MACHINE_CODE);
 #if defined(LINUX)
   printf("%s%s%s%s\n", indent, "-o, --log-output=OUTPUT", indent, DM_LOG_OUTPUT);
@@ -370,6 +656,23 @@ static void dmPrintHelp() {
   printf("%s%s%s%s\n", indent, "-V,", indent, DM_VERSION);
 
   printf("\n\nReport bugs to %s.\n", DM_EMAIL);
+}
+
+static void dmPrintRepairHelp() {
+  printf("Usage: %sd -r [--node-type NODE_TYPE] [--file-type FILE_TYPE] [--vnode-id IDS]\n", CUS_PROMPT);
+  printf("              [--backup-path PATH] [--mode MODE] [--replica-node NODE]\n\n");
+
+  printf("Compatibility\n");
+  printf("  1) '%sd -r' keeps legacy metadata rebuild when no new repair option is provided.\n", CUS_PROMPT);
+  printf("  2) Any new repair option switches to the new repair parameter flow.\n");
+  printf("  3) '--force' is fully deprecated and rejected.\n\n");
+
+  printf("Phase1 scope\n");
+  printf("  --node-type: vnode (only)\n");
+  printf("  --file-type: wal | tsdb | meta\n");
+  printf("  --mode: force (replica/copy are not supported in this phase)\n");
+  printf("  --vnode-id: comma-separated numeric ids, e.g. 2,3\n");
+  printf("  --backup-path: path or 'none'\n");
 }
 
 static void dmDumpCfg() {
@@ -473,6 +776,12 @@ int mainWindows(int argc, char **argv) {
     return 0;
   }
 
+  if (global.printRepairHelp) {
+    dmPrintRepairHelp();
+    taosCleanupArgs();
+    return 0;
+  }
+
   if (global.printHelp) {
     dmPrintHelp();
     taosCleanupArgs();
@@ -483,6 +792,12 @@ int mainWindows(int argc, char **argv) {
     dmPrintVersion();
     taosCleanupArgs();
     return 0;
+  }
+
+  if (global.runRepairFlow) {
+    printf("repair parameter validation succeeded (phase1). repair execution is not enabled in this phase.\n");
+    taosCleanupArgs();
+    return TSDB_CODE_SUCCESS;
   }
 
 #if defined(LINUX)

@@ -73,3 +73,6 @@ test/screenlog*
 test/output.tmp
 
 CMakeUserPresets.json
+
+.agents/
+skills-lock.json
