@@ -1487,6 +1487,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, SArray* tbUidList, SArray* cidList) {
   void*   pIter = NULL;
   int32_t vgId = TD_VID(pTq->pVnode);
   int32_t code = 0;
+  SArray* tbUidListCopy = NULL;
   // update the table list for each consumer handle
   taosWLockLatch(&pTq->lock);
   while (1) {
@@ -1495,13 +1496,26 @@ int32_t tqUpdateTbUidList(STQ* pTq, SArray* tbUidList, SArray* cidList) {
       break;
     }
 
+    tbUidListCopy = taosArrayInit(4, sizeof(int64_t));
+    if (tbUidListCopy == NULL) {
+      code = terrno;
+      break;
+    }
+
+
+    if (taosArrayAddAll(tbUidListCopy, tbUidList) == NULL) {
+      code = terrno;
+      tqError("copy table uid list failed");
+      break;
+    }
+        
     STqHandle* pTqHandle = (STqHandle*)pIter;
     tqDebug("%s subKey:%s, consumer:0x%" PRIx64 " update table list", __func__, pTqHandle->subKey, pTqHandle->consumerId);
     if (pTqHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       SNode* pTagCond = getTagCondNodeForQueryTmq(pTqHandle->execHandle.task);
       bool ret = checkCidInTagCondition(pTagCond, cidList);
       if (ret){
-        code = qUpdateTableListForStreamScanner(pTqHandle->execHandle.task, tbUidList);
+        code = qUpdateTableListForStreamScanner(pTqHandle->execHandle.task, tbUidListCopy);
         if (code != 0) {
           tqError("update table list for query tmq error for %s, msg:%s", pTqHandle->subKey, tstrerror(code));
           break;
@@ -1511,16 +1525,19 @@ int32_t tqUpdateTbUidList(STQ* pTq, SArray* tbUidList, SArray* cidList) {
       SNode* pTagCond = getTagCondNodeForStableTmq(pTqHandle->execHandle.execTb.node);
       bool ret = checkCidInTagCondition(pTagCond, cidList);
       if (ret){
-        tqReaderRemoveTbUidList(pTqHandle->execHandle.pTqReader, tbUidList);
-        code = addTableListForStableTmq(pTqHandle, pTq, tbUidList);
+        tqReaderRemoveTbUidList(pTqHandle->execHandle.pTqReader, tbUidListCopy);
+        code = addTableListForStableTmq(pTqHandle, pTq, tbUidListCopy);
         if (code != 0) {
           tqError("update table list for stable tmq error for %s, msg:%s", pTqHandle->subKey, tstrerror(code));
           break;
         }
       }
     }
+    taosArrayDestroy(tbUidListCopy);
+    tbUidListCopy = NULL;
   }
 
+  taosArrayDestroy(tbUidListCopy);
   taosHashCancelIterate(pTq->pHandle, pIter);
   taosWUnLockLatch(&pTq->lock);
 
