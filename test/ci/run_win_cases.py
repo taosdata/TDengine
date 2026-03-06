@@ -229,7 +229,7 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
                     break
 
                 global current_process
-                pytest_cmd_clean = f"{pytest_cmd} --clean -u"
+                pytest_cmd_clean = f"{pytest_cmd} --clean"
                 
                 with open(log_file, 'w', buffering=1) as log:
                     current_process = subprocess.Popen(
