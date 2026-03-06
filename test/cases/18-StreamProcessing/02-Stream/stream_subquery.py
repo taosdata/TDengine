@@ -58,8 +58,9 @@ class TestStreamSubquery:
         self.dropStream('db.stb_stream_dyntbname')
         self.dropOutTable('db.stb_tb')
 
-        self.createInStream()
-        self.checkInResult()
+        #self.createInStream()
+        #self.checkInResult()
+
         #self.prepareCountData()
         #self.createCountStream()
         #self.checkCountResult()

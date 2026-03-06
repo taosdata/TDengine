@@ -4247,8 +4247,9 @@ int32_t setValueFromResBlock(STaskSubJobCtx* ctx, SValueNode* pRes, SSDataBlock*
 }
 
 void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetrieveTableRsp* pRsp, bool* fetchDone) {
-  SSDataBlock*   pResBlock = NULL;
-  SExecTaskInfo* pTaskInfo = ctx->pTaskInfo;
+  SSDataBlock*      pResBlock = NULL;
+  SExecTaskInfo*    pTaskInfo = ctx->pTaskInfo;
+  SRemoteValueNode* pRemote = (SRemoteValueNode*)pParam->pRes;
 
   qDebug("%s scl fetch value rsp received, subQIdx:%d, rows:%" PRId64 , ctx->idStr, pParam->subQIdx, pRsp->numOfRows);
 
@@ -4270,8 +4271,7 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
         ctx->code = extractSingleRspBlock(pRsp, pResBlock);
       }
       if (TSDB_CODE_SUCCESS == ctx->code) {
-        ctx->code = setValueFromResBlock(ctx, (SRemoteValueNode*)pParam->pRes, pResBlock);
-        SRemoteValueNode* pRemote = (SRemoteValueNode*)pParam->pRes;
+        ctx->code = setValueFromResBlock(ctx, &pRemote->val, pResBlock);
         pRemote->val.node.type = QUERY_NODE_REMOTE_VALUE;
       }
       if (TSDB_CODE_SUCCESS == ctx->code) {
@@ -4280,7 +4280,6 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
 
       blockDataDestroy(pResBlock);
     } else if (NULL != *ppRes && 0 == pRsp->numOfRows) {
-      SRemoteValueNode* pRemote = (SRemoteValueNode*)pParam->pRes;
       pRemote->val.node.type = QUERY_NODE_VALUE;
       pRsp->completed = true;
     }
@@ -4315,8 +4314,6 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
     return;
   }
 
-  SRemoteValueNode* pRemote = (SRemoteValueNode*)pParam->pRes;
-  
   if (0 == pRsp->numOfRows) {
     pRemote->val.node.type = QUERY_NODE_VALUE;
     pRemote->val.isNull = true;
@@ -4413,7 +4410,7 @@ void handleRemoteValueListRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SR
 
   if (IS_STREAM_MODE(pTaskInfo) && 0 == pRsp->numOfRows) {
     if (!pRemote->hasValue) {
-      ctx->code = scalarBuildRemoteListHash(pRemote, NULL, 0);
+      ctx->code = scalarBuildRemoteListHash(ctx->idStr, pRemote, NULL, 0);
     }
     if (TSDB_CODE_SUCCESS == ctx->code) {
       pRemote->flag &= (~VALUELIST_FLAG_VAL_UNSET);
@@ -4542,7 +4539,7 @@ void handleRemoteZeroRowsRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRe
   }
 
   if (!(*fetchDone)) {
-    int32_t code = sendFetchRemoteNodeReq(ctx, pParam->subQIdx, pParam->pRes);
+    int32_t code = sendFetchRemoteNodeReq(ctx, pParam->subQIdx, pParam->pRes, 0);
     if (TSDB_CODE_SUCCESS != code) {
       ctx->code = code;
       *fetchDone = true;

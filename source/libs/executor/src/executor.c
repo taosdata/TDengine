@@ -320,7 +320,7 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
     }
   }
 
-  code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model, subEndPoints);
+  code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model, &subEndPoints);
   if (code != TSDB_CODE_SUCCESS || NULL == *pTask) {
     qError("failed to createExecTaskInfo, code:%s", tstrerror(code));
     goto _error;
@@ -328,7 +328,7 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
 
   if (subTaskNum > 0) {
     SDownstreamSourceNode* pVal = (SDownstreamSourceNode*)nodesListGetNode(pSubplan->pSubQ, 0);
-    (*pTask)->subJobCtx.queryId = pVal->clientId;
+    (*pTask)->pSubJobCtx->queryId = pVal->clientId;
   }
 
   if (streamInserterParam) {
@@ -361,6 +361,9 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
          tstrerror(code));
 
 _error:
+  if (subEndPoints) {
+    taosArrayDestroyP(subEndPoints, (FDelete)nodesDestroyNode);
+  }
 
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
