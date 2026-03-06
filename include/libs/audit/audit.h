@@ -41,7 +41,7 @@ typedef struct {
 typedef struct {
   int64_t curTime;
   char    strClusterId[TSDB_CLUSTER_ID_LEN];
-  char    clientAddress[50];
+  char    clientAddress[AUDIT_CLIENT_ADD_LEN];
   char    user[TSDB_USER_LEN];
   char    operation[AUDIT_OPERATION_LEN];
   char    target1[TSDB_DB_NAME_LEN]; //put db name

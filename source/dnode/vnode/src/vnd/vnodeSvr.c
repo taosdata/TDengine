@@ -2682,7 +2682,7 @@ static int32_t vnodeDecodeAuditRecord(const SJson *pJson, void *pObj) {
   if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
   code = tjsonGetStringValue2(pJson, "cluster_id", record->strClusterId, TSDB_CLUSTER_ID_LEN);
   if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
-  code = tjsonGetStringValue2(pJson, "client_add", record->clientAddress, 50);
+  code = tjsonGetStringValue2(pJson, "client_add", record->clientAddress, AUDIT_CLIENT_ADD_LEN);
   if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
   code = tjsonGetStringValue2(pJson, "user", record->user, TSDB_USER_LEN);
   if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
@@ -2831,7 +2831,6 @@ static SArray *vnodePrepareRow(SVnode *pVnode, STSchema *pSchema, SAuditRecord *
   }
 
   for (int32_t k = 0; k < pSchema->numOfCols; ++k) {
-    int16_t         colIdx = k;
     const STColumn *pCol = &pSchema->columns[k];
     vTrace("vgId:%d, schema column id:%d, type:%d", TD_VID(pVnode), pCol->colId, pCol->type);
 
@@ -3077,9 +3076,9 @@ _exit:
 
   // update statistics
   (void)atomic_add_fetch_64(&pVnode->statis.nInsert, pSubmitRsp->affectedRows);
-  (void)atomic_add_fetch_64(&pVnode->statis.nInsertSuccess, pSubmitRsp->affectedRows);
   (void)atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
   if (code == 0) {
+    (void)atomic_add_fetch_64(&pVnode->statis.nInsertSuccess, pSubmitRsp->affectedRows);
     (void)atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
   }
 
