@@ -1867,6 +1867,8 @@ int32_t metaUpdateTableMultiTableTagValue(SMeta *pMeta, int64_t version, SVAlter
       code = TSDB_CODE_SUCCESS;
     } else if (code) {
       break;
+    } else {
+      vnodeAlterTagForTmq(pMeta->pVnode, pTable->tbName, pTable->tags);
     }
   }
 
@@ -2240,6 +2242,8 @@ int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlter
       metaError(fmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tstrerror(code), uid, pChild->name, version);
       metaFetchEntryFree(&pChild);
       goto _exit;
+    } else {
+      vnodeAlterTagForTmq(pMeta->pVnode, pChild->name, pReq->pMultiTag);
     }
 
     metaFetchEntryFree(&pChild);
