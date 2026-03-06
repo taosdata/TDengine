@@ -531,6 +531,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_REMOTE_VALUE_LIST:
       code = makeNode(type, sizeof(SRemoteValueListNode), &pNode);
       break;
+    case QUERY_NODE_REMOTE_ROW:
+      code = makeNode(type, sizeof(SRemoteRowNode), &pNode);
+      break;
+    case QUERY_NODE_REMOTE_ZERO_ROWS:
+      code = makeNode(type, sizeof(SRemoteZeroRowsNode), &pNode);
+      break;
     case QUERY_NODE_TRUE_FOR:
       code = makeNode(type, sizeof(STrueForNode), &pNode);
       break;
@@ -1314,7 +1320,9 @@ void nodesDestroyNode(SNode* pNode) {
       destroyExprNode((SExprNode*)pNode);
       break;
     case QUERY_NODE_REMOTE_VALUE:
-    case QUERY_NODE_VALUE: {
+    case QUERY_NODE_VALUE:
+    case QUERY_NODE_REMOTE_ROW:
+    case QUERY_NODE_REMOTE_ZERO_ROWS: {
       SValueNode* pValue = (SValueNode*)pNode;
       destroyExprNode((SExprNode*)pNode);
       taosMemoryFreeClear(pValue->literal);
@@ -3117,6 +3125,9 @@ int32_t nodesSetValueNodeValueExt(SValueNode* pNode, void* value, bool* needFree
 
 char* nodesGetStrValueFromNode(SValueNode* pNode) {
   switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_NULL: {
+      return tstrdup("NULL");
+    }
     case TSDB_DATA_TYPE_BOOL: {
       void* buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
       if (NULL == buf) {
@@ -3195,7 +3206,8 @@ bool nodesIsExprNode(const SNode* pNode) {
   ENodeType type = nodeType(pNode);
   return (QUERY_NODE_COLUMN == type || QUERY_NODE_VALUE == type || QUERY_NODE_OPERATOR == type ||
           QUERY_NODE_FUNCTION == type || QUERY_NODE_LOGIC_CONDITION == type || QUERY_NODE_CASE_WHEN == type ||
-          QUERY_NODE_REMOTE_VALUE == type || QUERY_NODE_SELECT_STMT == type || QUERY_NODE_SET_OPERATOR == type);
+          QUERY_NODE_REMOTE_VALUE == type || QUERY_NODE_SELECT_STMT == type || QUERY_NODE_SET_OPERATOR == type ||
+          QUERY_NODE_REMOTE_VALUE_LIST == type || QUERY_NODE_REMOTE_ROW == type || QUERY_NODE_REMOTE_ZERO_ROWS == type);
 }
 
 bool nodesIsUnaryOp(const SOperatorNode* pOp) {
@@ -3266,6 +3278,8 @@ bool nodesIsComparisonOp(const SOperatorNode* pOp) {
     case OP_TYPE_IS_NOT_TRUE:
     case OP_TYPE_IS_NOT_FALSE:
     case OP_TYPE_IS_NOT_UNKNOWN:
+    case OP_TYPE_EXISTS:
+    case OP_TYPE_NOT_EXISTS:
       return true;
     default:
       break;
@@ -4242,11 +4256,27 @@ void nodesGetSubQType(SNode* pNode, int32_t* pType) {
       break;
     }
     default:
-      *pType = E_SUB_QUERY_ERROR;
+      *pType = E_SUB_QUERY_NOT_SET;
       break;
   }
 
   return;
+}
+
+SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) {
+  SColumnNode* pCol = NULL;
+  terrno = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+  if (NULL == pCol) {
+    return NULL;
+  }
+  pCol->node.resType = pExpr->resType;
+  snprintf(pCol->colName, sizeof(pCol->colName), "%s", pExpr->aliasName);
+  if (NULL != pStmtName) {
+    snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", pStmtName);
+  }
+  snprintf(pCol->node.userAlias, sizeof(pCol->node.userAlias), "%s", pExpr->userAlias);
+  pCol->node.relatedTo = pExpr->relatedTo;
+  return pCol;
 }
 
 

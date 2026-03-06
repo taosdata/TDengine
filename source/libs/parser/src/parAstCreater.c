@@ -149,27 +149,14 @@ static bool checkUserName(SAstCreateContext* pCxt, SToken* pUserName) {
 
 
 
-static bool isValidSimplePassword(const char* password) {
-  for (char c = *password; c != 0; c = *(++password)) {
-    if (c == ' ' || c == '\'' || c == '\"' || c == '`' || c == '\\') {
-      return false;
-    }
-  }
-  return true;
-}
-
-
-
 static bool isValidPassword(SAstCreateContext* pCxt, const char* password, bool imported) {
   if (imported) {
     return strlen(password) == TSDB_PASSWORD_LEN;
   }
-
-  if (tsEnableStrongPassword) {
-    return taosIsComplexString(password);
-  }
-
-  return isValidSimplePassword(password);
+  // leave actual password validation to server side as client/server may have different
+  // 'enableStrongPassword' and 'enableAdvancedSecurity' settings, and client-side
+  // validation may cause confusions.
+  return true;
 }
 
 
@@ -1337,6 +1324,34 @@ static uint8_t getMinusDataType(uint8_t orgType) {
   return orgType;
 }
 
+SNode* setNodeQuantifyType(SAstCreateContext* pCxt, SNode* pNode, EQuantifyType type) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      pSelect->quantify = type;
+      pSelect->subQType = E_SUB_QUERY_COLUMN;
+      break;
+    }  
+    case QUERY_NODE_SET_OPERATOR:{
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      pSet->quantify = type;
+      pSet->subQType = E_SUB_QUERY_COLUMN;
+      break;
+    }
+    default:
+      pCxt->errCode = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
+      CHECK_PARSER_STATUS(pCxt);
+      break;
+  }
+
+  return pNode;
+
+_err:
+  return NULL;
+}
+
 SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pLeft, SNode* pRight) {
   CHECK_PARSER_STATUS(pCxt);
   if (OP_TYPE_MINUS == type && QUERY_NODE_VALUE == nodeType(pLeft)) {
@@ -1359,9 +1374,18 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
     return pLeft;
   }
   if ((OP_TYPE_IN == type || OP_TYPE_NOT_IN == type) && pRight) {
-    SExprNode* pExpr = (SExprNode*)pRight;
-    pExpr->asList = true;
-    parserDebug("operator IN/NOT IN created, rightType:%d,%p", nodeType(pRight), pRight);
+    if (QUERY_NODE_SELECT_STMT == nodeType(pRight)) {
+      ((SSelectStmt*)pRight)->subQType= E_SUB_QUERY_COLUMN;
+    } else if (QUERY_NODE_SET_OPERATOR == nodeType(pRight)) {
+      ((SSetOperator*)pRight)->subQType= E_SUB_QUERY_COLUMN;
+    }
+  }
+  if ((OP_TYPE_EXISTS == type || OP_TYPE_NOT_EXISTS == type) && pLeft) {
+    if (QUERY_NODE_SELECT_STMT == nodeType(pLeft)) {
+      ((SSelectStmt*)pLeft)->subQType= E_SUB_QUERY_ROWNUM;
+    } else if (QUERY_NODE_SET_OPERATOR == nodeType(pLeft)) {
+      ((SSetOperator*)pLeft)->subQType= E_SUB_QUERY_ROWNUM;
+    }
   }
   if (pLeft && QUERY_NODE_VALUE == nodeType(pLeft)) {
     SValueNode* pVal = (SValueNode*)pLeft;
@@ -4448,6 +4472,7 @@ SUserOptions* createDefaultUserOptions(SAstCreateContext* pCxt) {
   pOptions->createdb = 0;
   pOptions->isImport = 0;
   pOptions->changepass = 2;
+
   pOptions->sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
   pOptions->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
   pOptions->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
@@ -4829,7 +4854,7 @@ static bool isValidUserOptions(SAstCreateContext* pCxt, const SUserOptions* opts
     return false;
   }
 
-  if (opts->hasPasswordLifeTime && (opts->passwordLifeTime < -1 || opts->passwordLifeTime == 0)) {
+  if (opts->hasPasswordLifeTime && opts->passwordLifeTime != -1 && opts->passwordLifeTime < TSDB_USER_PASSWORD_LIFE_TIME_MIN) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "PASSWORD_LIFE_TIME");
     return false;
   }
@@ -4878,6 +4903,21 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOpt
 
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_USER_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
+
+  pStmt->hasSessionPerUser = opts->hasSessionPerUser;
+  pStmt->hasConnectTime = opts->hasConnectTime;
+  pStmt->hasConnectIdleTime = opts->hasConnectIdleTime;
+  pStmt->hasCallPerSession = opts->hasCallPerSession;
+  pStmt->hasVnodePerCall = opts->hasVnodePerCall;
+  pStmt->hasFailedLoginAttempts = opts->hasFailedLoginAttempts;
+  pStmt->hasPasswordLifeTime = opts->hasPasswordLifeTime;
+  pStmt->hasPasswordReuseTime = opts->hasPasswordReuseTime;
+  pStmt->hasPasswordReuseMax = opts->hasPasswordReuseMax;
+  pStmt->hasPasswordLockTime = opts->hasPasswordLockTime;
+  pStmt->hasPasswordGraceTime = opts->hasPasswordGraceTime;
+  pStmt->hasInactiveAccountTime = opts->hasInactiveAccountTime;
+  pStmt->hasAllowTokenNum = opts->hasAllowTokenNum;
+
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
   tstrncpy(pStmt->password, opts->password, sizeof(pStmt->password));
   tstrncpy(pStmt->totpseed, opts->totpseed, sizeof(pStmt->totpseed));

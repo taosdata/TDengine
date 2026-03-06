@@ -44,6 +44,7 @@ typedef struct SIndefOperatorInfo {
 static int32_t      doGenerateSourceData(SOperatorInfo* pOperator);
 static int32_t      doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 static int32_t      doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
+int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId, int32_t* numOfRows, bool createNewColModel, const void* pExtraParams);
 
 static void destroyProjectOperatorInfo(void* param) {
   if (NULL == param) {
@@ -852,6 +853,8 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
       } else {
         return TSDB_CODE_OPS_NOT_SUPPORT;
       }
+    } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_OPERATOR) {
+      TAOS_CHECK_RETURN(projectApplyOperator(&pExpr[k], pRes, NULL, outputSlotId, NULL, false, &gTaskScalarExtra));
     } else {
       return TSDB_CODE_OPS_NOT_SUPPORT;
     }
@@ -967,12 +970,15 @@ _exit:
 
 int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId, int32_t* numOfRows, bool createNewColModel, const void* pExtraParams) {
   int32_t code = 0, lino = 0;
-  SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
-  TSDB_CHECK_NULL(pBlockList, code, lino, _exit, terrno);
+  SArray* pBlockList = NULL;
+  if (NULL != pSrcBlock) {
+    pBlockList = taosArrayInit(4, POINTER_BYTES);
+    TSDB_CHECK_NULL(pBlockList, code, lino, _exit, terrno);
 
-  void* px = taosArrayPush(pBlockList, &pSrcBlock);
-  TSDB_CHECK_NULL(px, code, lino, _exit, terrno);
-
+    void* px = taosArrayPush(pBlockList, &pSrcBlock);
+    TSDB_CHECK_NULL(px, code, lino, _exit, terrno);
+  }
+  
   SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
   TSDB_CHECK_NULL(pResColData, code, lino, _exit, terrno);
 
@@ -991,7 +997,9 @@ int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock
   colDataDestroy(&idata);
   TAOS_CHECK_EXIT(code);
 
-  *numOfRows = dest.numOfRows;
+  if (numOfRows) {
+    *numOfRows = dest.numOfRows;
+  }
   
 _exit:
 

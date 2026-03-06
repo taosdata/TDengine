@@ -79,6 +79,37 @@ class TestCase:
         tdSql.execute(f"grant role `SYSINFO_1` to ur1")
         tdSql.execute(f"show users")
 
+    def do_check_6841225129(self):
+        """ Test for drop not exist table """
+
+        tdSql.execute("drop database if exists d1")
+        tdSql.execute("create database d1")
+        tdSql.execute("use d1")
+        tdSql.execute(f"create user u3 pass '{self.test_pass}'")
+        tdSql.execute("drop table if exists d1.not_exist_table")
+        tdSql.error("drop table d1.not_exist_table", expectErrInfo="Table does not exist", fullMatched=False)
+        tdSql.connect("u3", self.test_pass)
+        tdSql.error("drop table if exists d1.not_exist_table", expectErrInfo="Permission denied to use database", fullMatched=False)
+        tdSql.error("drop table d1.not_exist_table", expectErrInfo="Permission denied to use database", fullMatched=False)
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("grant use on database d1 to u3")
+        tdSql.execute("grant drop on table d1.* to u3")
+        tdSql.connect("u3", self.test_pass)
+        tdSql.execute("drop table if exists d1.not_exist_table")
+        tdSql.error("drop table d1.not_exist_table", expectErrInfo="Table does not exist", fullMatched=False)
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("revoke drop on table d1.* from u3")
+        tdSql.connect("u3", self.test_pass)
+        time.sleep(5)  # wait for privileges to take effect
+        tdSql.error("drop table if exists d1.not_exist_table", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.error("drop table d1.not_exist_table", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("grant create database to u3")
+        tdSql.connect("u3", self.test_pass)
+        tdSql.execute("create database d2")
+        tdSql.execute("drop table if exists d2.not_exist_table")
+        tdSql.error("drop table d2.not_exist_table", expectErrInfo="Table does not exist", fullMatched=False)
+
     #
     # ------------------- main ----------------
     #
@@ -122,5 +153,6 @@ class TestCase:
         # self.do_check_user_privileges()
         self.do_check_role_privileges()
         # self.do_check_variable_privileges()
+        self.do_check_6841225129()
         
         tdLog.debug("finish executing %s" % __file__)

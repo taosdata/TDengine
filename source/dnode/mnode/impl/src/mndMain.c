@@ -431,7 +431,7 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
 #endif
 #ifdef USE_SHARED_STORAGE
   if (tsSsEnabled) {
-    if (sec % 10 == 0) { // TODO: make 10 to be configurable
+    if (sec % tsQuerySsMigrateIntervalSec == 0) {
       mndPullupUpdateSsMigrateProgress(pMnode);
     }
     if (tsSsEnabled == 2 && sec % tsSsAutoMigrateIntervalSec == 0) {

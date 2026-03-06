@@ -613,7 +613,7 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
   }
 
   initLimitInfo(pExNode->node.pLimit, pExNode->node.pSlimit, &pInfo->limitInfo);
-  int64_t refId = taosAddRef(exchangeObjRefPool, pInfo);
+  int64_t refId = taosAddRef(fetchObjRefPool, pInfo);
   if (refId < 0) {
     int32_t code = terrno;
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -684,6 +684,7 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
     goto _error;
   }
 
+  pInfo->isExchange = true;
   pOperator->pPhyNode = pExNode;
   pInfo->dynamicOp = pExNode->node.dynamicOp;
   code = initExchangeOperator(pExNode, pInfo, GET_TASKID(pTaskInfo));
@@ -743,7 +744,7 @@ _error:
 
 void destroyExchangeOperatorInfo(void* param) {
   SExchangeInfo* pExInfo = (SExchangeInfo*)param;
-  int32_t        code = taosRemoveRef(exchangeObjRefPool, pExInfo->self);
+  int32_t        code = taosRemoveRef(fetchObjRefPool, pExInfo->self);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
   }
@@ -800,7 +801,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SFetchRspHandleWrapper* pWrapper = (SFetchRspHandleWrapper*)param;
 
   taosMemoryFreeClear(pMsg->pEpSet);
-  SExchangeInfo* pExchangeInfo = taosAcquireRef(exchangeObjRefPool, pWrapper->exchangeId);
+  SExchangeInfo* pExchangeInfo = taosAcquireRef(fetchObjRefPool, pWrapper->exchangeId);
   if (pExchangeInfo == NULL) {
     qWarn("failed to acquire exchange operator, since it may have been released, %p", pExchangeInfo);
     taosMemoryFree(pMsg->pData);
@@ -811,7 +812,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   if (pWrapper->seqId != currSeqId) {
     qDebug("rsp reqId %" PRId64 " mismatch with exchange %p curr seqId %" PRId64 ", ignore it", pWrapper->seqId, pExchangeInfo, currSeqId);
     taosMemoryFree(pMsg->pData);
-    code = taosReleaseRef(exchangeObjRefPool, pWrapper->exchangeId);
+    code = taosReleaseRef(fetchObjRefPool, pWrapper->exchangeId);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     }
@@ -878,7 +879,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     return code;
   }
 
-  code = taosReleaseRef(exchangeObjRefPool, pWrapper->exchangeId);
+  code = taosReleaseRef(fetchObjRefPool, pWrapper->exchangeId);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
   }
