@@ -24,7 +24,7 @@
         <spring.version>5.2.25.RELEASE</spring.version>
         <!-- Logging versions -->
         <slf4j.version>1.7.36</slf4j.version>
-        <log4j2.version>2.17.2</log4j2.version>
+        <log4j2.version>2.25.3</log4j2.version>
         <!-- Arrow version -->
         <arrow.version>13.0.0</arrow.version>
         <!-- Netty version -->
