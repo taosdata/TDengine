@@ -738,8 +738,8 @@ static int32_t smlGenerateSchemaAction(SSchema *colField, SHashObj *colHash, SSm
 }
 
 #define BOUNDARY 1024
-static int32_t smlFindNearestPowerOf2(int32_t length, uint8_t type) {
-  int32_t result = 1;
+static int32_t smlFindNearestPowerOf2(size_t length, uint8_t type) {
+  size_t result = 1;
   if (length >= BOUNDARY) {
     result = length;
   } else {
@@ -760,7 +760,7 @@ static int32_t smlFindNearestPowerOf2(int32_t length, uint8_t type) {
   } else if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
     result = result + VARSTR_HEADER_SIZE;
   }
-  return result;
+  return (int32_t)result;
 }
 
 static int32_t smlBuildFields(SArray **pColumns, SArray **pTags, STableMeta *pTableMeta) {
@@ -785,7 +785,7 @@ END:
   RETURN
 }
 
-static int32_t getBytes(uint8_t type, int32_t length) {
+static int32_t getBytes(uint8_t type, size_t length) {
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_NCHAR ||
       type == TSDB_DATA_TYPE_GEOMETRY) {
     return smlFindNearestPowerOf2(length, type);

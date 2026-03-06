@@ -438,10 +438,10 @@ static int32_t stbSplRewriteFuns(const SNodeList* pFuncs, SNodeList** pPartialFu
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex, uint8_t precision) {
+static int32_t stbSplAppendWStart(SNodeList** pFuncs, int32_t* pIndex, uint8_t precision) {
   int32_t index = 0;
   SNode*  pFunc = NULL;
-  FOREACH(pFunc, pFuncs) {
+  FOREACH(pFunc, *pFuncs) {
     if (FUNCTION_TYPE_WSTART == ((SFunctionNode*)pFunc)->funcType) {
       *pIndex = index;
       return TSDB_CODE_SUCCESS;
@@ -464,7 +464,7 @@ static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex, uint8_t pr
 
   code = fmGetFuncInfo(pWStart, NULL, 0);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListStrictAppend(pFuncs, (SNode*)pWStart);
+    code = nodesListMakeStrictAppend(pFuncs, (SNode*)pWStart);
   }
   *pIndex = index;
   return code;
@@ -605,7 +605,7 @@ static int32_t stbSplCreatePartWindowNode(SSplitContext* pCxt, SWindowLogicNode*
       If the query is not an external window query, we need the _wstart
       placeholder for the merged INTERVAL window to do aggregation.
     */
-    PLAN_ERR_JRET(stbSplAppendWStart(pPartWin->pFuncs, &index,
+    PLAN_ERR_JRET(stbSplAppendWStart(&pPartWin->pFuncs, &index,
                                      pMergeTspk->node.resType.precision));
   }
   if (index < 0 && indexExt < 0) {

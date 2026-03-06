@@ -38,12 +38,12 @@
 #include "wal.h"
 
 static TdThreadOnce initPoolOnce = PTHREAD_ONCE_INIT;
-int32_t             exchangeObjRefPool = -1;
+int32_t             fetchObjRefPool = -1;
 SGlobalExecInfo     gExecInfo = {0};
 
 void setTaskScalarExtraInfo(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  gTaskScalarExtra.pSubJobCtx = &pTaskInfo->subJobCtx;
+  gTaskScalarExtra.pSubJobCtx = pTaskInfo->pSubJobCtx;
   gTaskScalarExtra.fp = qFetchRemoteNode;
 }
 
@@ -63,13 +63,25 @@ int32_t getCurrentMnodeEpset(SEpSet* pEpSet) {
   return TSDB_CODE_SUCCESS;
 }
 
+void doDestroyFetchObj(void* param) {
+  if (param == NULL) {
+    return;
+  }
+
+  if (*(bool*)param) {
+    doDestroyExchangeOperatorInfo(param);
+  } else {
+    destroySubJobCtx((STaskSubJobCtx *)param);
+  }
+}
+
 static void cleanupRefPool() {
-  int32_t ref = atomic_val_compare_exchange_32(&exchangeObjRefPool, exchangeObjRefPool, 0);
+  int32_t ref = atomic_val_compare_exchange_32(&fetchObjRefPool, fetchObjRefPool, 0);
   taosCloseRef(ref);
 }
 
 static void initRefPool() {
-  exchangeObjRefPool = taosOpenRef(1024, doDestroyExchangeOperatorInfo);
+  fetchObjRefPool = taosOpenRef(1024, doDestroyFetchObj);
   (void)atexit(cleanupRefPool);
 }
 
@@ -819,12 +831,12 @@ int32_t qSemWait(qTaskInfo_t task, tsem_t* pSem) {
 
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
-                        EOPTR_EXEC_MODEL model, SArray* subEndPoints) {
+                        EOPTR_EXEC_MODEL model, SArray** subEndPoints) {
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
   (void)taosThreadOnce(&initPoolOnce, initRefPool);
 
   qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d, subEndPoinsNum:%d", 
-    taskId, pSubplan->id.queryId, vgId, (int32_t)taosArrayGetSize(subEndPoints));
+    taskId, pSubplan->id.queryId, vgId, (int32_t)taosArrayGetSize(subEndPoints ? *subEndPoints : NULL));
 
   readHandle->uid = 0;
   int32_t code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model, subEndPoints);
@@ -870,7 +882,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
   }
 
   qDebug("subplan task create completed, TID:0x%" PRIx64 " QID:0x%" PRIx64 " code:%s subEndPoints:%d", 
-    taskId, pSubplan->id.queryId, tstrerror(code), (int32_t)taosArrayGetSize((*pTask)->subJobCtx.subEndPoints));
+    taskId, pSubplan->id.queryId, tstrerror(code), (*pTask)->pSubJobCtx ? (int32_t)taosArrayGetSize((*pTask)->pSubJobCtx->subEndPoints) : 0);
 
 _error:
   // if failed to add ref for all tables in this query, abort current query
@@ -1159,14 +1171,9 @@ void qRemoveTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo) {
 }
 
 void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
-  if (pTaskInfo->subJobCtx.hasSubJobs) {
-    taosWLockLatch(&pTaskInfo->subJobCtx.lock);
-    if (pTaskInfo->subJobCtx.param) {
-      ((SScalarFetchParam*)pTaskInfo->subJobCtx.param)->pSubJobCtx = NULL;
-    }
-    pTaskInfo->subJobCtx.code = pTaskInfo->code;
-    int32_t code = tsem_post(&pTaskInfo->subJobCtx.ready);
-    taosWUnLockLatch(&pTaskInfo->subJobCtx.lock);
+  if (pTaskInfo->pSubJobCtx) {
+    pTaskInfo->pSubJobCtx->code = pTaskInfo->code;
+    int32_t code = tsem_post(&pTaskInfo->pSubJobCtx->ready);
   }
   
   taosWLockLatch(&pTaskInfo->stopInfo.lock);
@@ -1178,7 +1185,7 @@ void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       continue;
     }
-    SExchangeInfo* pExchangeInfo = taosAcquireRef(exchangeObjRefPool, pStop->refId);
+    SExchangeInfo* pExchangeInfo = taosAcquireRef(fetchObjRefPool, pStop->refId);
     if (pExchangeInfo) {
       int32_t code = tsem_post(&pExchangeInfo->ready);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1186,7 +1193,7 @@ void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
       } else {
         qDebug("post to exchange %" PRId64 " to stop", pStop->refId);
       }
-      code = taosReleaseRef(exchangeObjRefPool, pStop->refId);
+      code = taosReleaseRef(fetchObjRefPool, pStop->refId);
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       }
@@ -1961,12 +1968,13 @@ int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
                                         SNodeList* pGroupTags, SNode* pTagCond, SNode* pTagIndexCond,
                                         SStorageAPI* storageAPI, SHashObj* groupIdMap, uint64_t suid, SArray** tableList) {
   int32_t code = TSDB_CODE_SUCCESS;
+  SArray* uidListCopy = NULL;
   STableListInfo* pList = tableListCreate();
   if (pList == NULL) {
     code = terrno;
     goto end;
   }
-  SArray* uidListCopy = taosArrayDup(uidList, NULL);
+  uidListCopy = taosArrayDup(uidList, NULL);
   if (uidListCopy == NULL) {
     code = terrno;
     goto end;
@@ -2048,14 +2056,16 @@ int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamR
 int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t rowStartIdx, int32_t rowEndIdx,
                                        const SStreamRuntimeFuncInfo* pExtraParams) {
   int32_t      code = 0;
-  SNode*       pNode = 0;
+  SNode*       pNode = NULL;
   SNodeList*   pList = NULL;
   SExprInfo*   pExprInfo = NULL;
   int32_t      numOfExprs = 1;
-  int32_t*     offset = 0;
+  int32_t*     offset = NULL;
   STargetNode* pTargetNode = NULL;
   code = nodesMakeNode(QUERY_NODE_TARGET, (SNode**)&pTargetNode);
-  if (code == 0) code = nodesCloneNode(pExpr, &pNode);
+  if (code == 0) {
+    code = nodesCloneNode(pExpr, &pNode);
+  }
 
   if (code == 0) {
     pTargetNode->dataBlockId = 0;
