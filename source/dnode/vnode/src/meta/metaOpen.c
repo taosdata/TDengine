@@ -16,6 +16,17 @@
 #include "meta.h"
 #include "vnd.h"
 
+static char tsMetaRepairDoneVnodeId[PATH_MAX] = {0};
+
+extern bool        dmRepairFlowEnabled();
+extern const char *dmRepairNodeType();
+extern const char *dmRepairFileType();
+extern const char *dmRepairMode();
+extern bool        dmRepairHasVnodeId();
+extern const char *dmRepairVnodeId();
+extern bool        dmRepairHasBackupPath();
+extern const char *dmRepairBackupPath();
+
 #ifndef NO_UNALIGNED_ACCESS
 #define TDB_KEY_ALIGN(k1, k2, kType)
 #else
@@ -276,6 +287,152 @@ void vnodeGetMetaPath(SVnode *pVnode, const char *metaDir, char *fname) {
 
 bool generateNewMeta = false;
 
+static bool metaRepairListContains(const char *vnodeList, int32_t vgId) {
+  if (vnodeList == NULL || vnodeList[0] == '\0') {
+    return false;
+  }
+
+  char listBuf[PATH_MAX] = {0};
+  tstrncpy(listBuf, vnodeList, sizeof(listBuf));
+
+  char *saveptr = NULL;
+  for (char *token = strtok_r(listBuf, ",", &saveptr); token != NULL; token = strtok_r(NULL, ",", &saveptr)) {
+    if (atoi(token) == vgId) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static void metaMarkForceRepairDone(int32_t vgId) {
+  char vnodeText[32] = {0};
+  snprintf(vnodeText, sizeof(vnodeText), "%d", vgId);
+
+  if (tsMetaRepairDoneVnodeId[0] == '\0') {
+    tstrncpy(tsMetaRepairDoneVnodeId, vnodeText, sizeof(tsMetaRepairDoneVnodeId));
+    return;
+  }
+
+  if (metaRepairListContains(tsMetaRepairDoneVnodeId, vgId)) {
+    return;
+  }
+
+  int32_t offset = (int32_t)strlen(tsMetaRepairDoneVnodeId);
+  snprintf(tsMetaRepairDoneVnodeId + offset, sizeof(tsMetaRepairDoneVnodeId) - offset, ",%s", vnodeText);
+}
+
+static bool metaForceRepairMatchesVnode(int32_t vgId) {
+  if (!dmRepairFlowEnabled() || metaRepairListContains(tsMetaRepairDoneVnodeId, vgId)) {
+    return false;
+  }
+
+  if (strcmp(dmRepairNodeType(), "vnode") != 0 || strcmp(dmRepairFileType(), "meta") != 0 ||
+      strcmp(dmRepairMode(), "force") != 0) {
+    return false;
+  }
+
+  if (!dmRepairHasVnodeId()) {
+    return true;
+  }
+
+  return metaRepairListContains(dmRepairVnodeId(), vgId);
+}
+
+static bool metaShouldForceRepair(SVnode *pVnode) { return metaForceRepairMatchesVnode(TD_VID(pVnode)); }
+
+static int32_t metaCopyDirRecursive(const char *srcDir, const char *dstDir) {
+  int32_t code = taosMulMkDir(dstDir);
+  if (code != 0) {
+    return code;
+  }
+
+  TdDirPtr pDir = taosOpenDir(srcDir);
+  if (pDir == NULL) {
+    return terrno;
+  }
+
+  while (true) {
+    TdDirEntryPtr pEntry = taosReadDir(pDir);
+    if (pEntry == NULL) {
+      break;
+    }
+
+    char *name = taosGetDirEntryName(pEntry);
+    if (name == NULL || strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
+      continue;
+    }
+
+    char srcPath[TSDB_FILENAME_LEN] = {0};
+    char dstPath[TSDB_FILENAME_LEN] = {0};
+    snprintf(srcPath, sizeof(srcPath), "%s%s%s", srcDir, TD_DIRSEP, name);
+    snprintf(dstPath, sizeof(dstPath), "%s%s%s", dstDir, TD_DIRSEP, name);
+
+    if (taosDirEntryIsDir(pEntry)) {
+      code = metaCopyDirRecursive(srcPath, dstPath);
+    } else {
+      if (taosCopyFile(srcPath, dstPath) < 0) {
+        code = terrno != 0 ? terrno : TSDB_CODE_FAILED;
+      } else {
+        code = 0;
+      }
+    }
+
+    if (code != 0) {
+      (void)taosCloseDir(&pDir);
+      return code;
+    }
+  }
+
+  return taosCloseDir(&pDir);
+}
+
+static int32_t metaBuildRepairBackupDir(SVnode *pVnode, char *buf, int32_t bufLen) {
+  const char *root = dmRepairHasBackupPath() ? dmRepairBackupPath() : TD_TMP_DIR_PATH;
+  const char *sep = root[strlen(root) - 1] == TD_DIRSEP[0] ? "" : TD_DIRSEP;
+  time_t      now = (time_t)taosGetTimestampSec();
+  struct tm   tmInfo = {0};
+  if (taosLocalTime(&now, &tmInfo, NULL, 0, NULL) == NULL) {
+    return TSDB_CODE_FAILED;
+  }
+
+  char dateBuf[16] = {0};
+  if (taosStrfTime(dateBuf, sizeof(dateBuf), "%Y%m%d", &tmInfo) == 0) {
+    return TSDB_CODE_FAILED;
+  }
+
+  snprintf(buf, bufLen, "%s%staos_backup_%s%svnode%d%smeta", root, sep, dateBuf, TD_DIRSEP, TD_VID(pVnode),
+           TD_DIRSEP);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t metaBackupCurrentMeta(SVnode *pVnode) {
+  char metaDir[TSDB_FILENAME_LEN] = {0};
+  char backupDir[TSDB_FILENAME_LEN] = {0};
+
+  vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
+
+  int32_t code = metaBuildRepairBackupDir(pVnode, backupDir, sizeof(backupDir));
+  if (code != 0) {
+    return code;
+  }
+
+  if (taosCheckExistFile(backupDir)) {
+    metaError("vgId:%d repair backup dir already exists: %s", TD_VID(pVnode), backupDir);
+    return TSDB_CODE_FS_FILE_ALREADY_EXISTS;
+  }
+
+  code = metaCopyDirRecursive(metaDir, backupDir);
+  if (code != 0) {
+    metaError("vgId:%d failed to back up meta from %s to %s, reason:%s", TD_VID(pVnode), metaDir, backupDir,
+              tstrerror(code));
+    return code;
+  }
+
+  metaInfo("vgId:%d backed up meta to %s", TD_VID(pVnode), backupDir);
+  return TSDB_CODE_SUCCESS;
+}
+
 static void metaResetStatisInfo(SMeta *pMeta) {
   pMeta->pVnode->config.vndStats.numOfSTables = 0;
   pMeta->pVnode->config.vndStats.numOfCTables = 0;
@@ -458,6 +615,13 @@ static int32_t metaGenerateNewMeta(SMeta **ppMeta) {
   metaClose(&pNewMeta);
   metaInfo("vgId:%d finish to generate new meta", TD_VID(pVnode));
 
+  if (metaShouldForceRepair(pVnode)) {
+    code = metaBackupCurrentMeta(pVnode);
+    if (code != 0) {
+      return code;
+    }
+  }
+
   // Commit the new metadata
   char metaDir[TSDB_FILENAME_LEN] = {0};
   char metaTempDir[TSDB_FILENAME_LEN] = {0};
@@ -530,11 +694,16 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
     TAOS_RETURN(code);
   }
 
-  if (generateNewMeta) {
+  bool shouldForceRepair = metaShouldForceRepair(pVnode);
+  if (generateNewMeta || shouldForceRepair) {
+    metaInfo("vgId:%d meta repair dispatch legacy:%d force:%d", TD_VID(pVnode), generateNewMeta, shouldForceRepair);
     code = metaGenerateNewMeta(ppMeta);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
       TAOS_RETURN(code);
+    }
+    if (shouldForceRepair) {
+      metaMarkForceRepairDone(TD_VID(pVnode));
     }
   }
 

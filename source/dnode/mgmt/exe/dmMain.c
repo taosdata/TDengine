@@ -302,15 +302,6 @@ static int32_t dmValidateRepairOption() {
     return TSDB_CODE_OPS_NOT_SUPPORT;
   }
 
-  if (!pOpt->hasVnodeId) {
-    printf("missing '--vnode-id' in repair mode\n");
-    return TSDB_CODE_INVALID_PARA;
-  }
-  if (!dmIsValidVnodeId(pOpt->vnodeId)) {
-    printf("invalid '--vnode-id' format, only digits and comma-separated digits are allowed\n");
-    return TSDB_CODE_INVALID_PARA;
-  }
-
   if (!pOpt->hasMode) {
     printf("missing '--mode' in repair mode\n");
     return TSDB_CODE_INVALID_PARA;
@@ -332,6 +323,16 @@ static int32_t dmValidateRepairOption() {
   if (isReplica || isCopy) {
     printf("'--mode %s' is reserved and not supported in this phase\n", pOpt->mode);
     return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+
+  bool allowAllVnodes = strcmp(pOpt->fileType, "meta") == 0 && isForce;
+  if (!pOpt->hasVnodeId && !allowAllVnodes) {
+    printf("missing '--vnode-id' in repair mode\n");
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pOpt->hasVnodeId && !dmIsValidVnodeId(pOpt->vnodeId)) {
+    printf("invalid '--vnode-id' format, only digits and comma-separated digits are allowed\n");
+    return TSDB_CODE_INVALID_PARA;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -459,6 +460,22 @@ static int32_t dmFinalizeRepairOption() {
 
   return code;
 }
+
+bool dmRepairFlowEnabled() { return global.runRepairFlow; }
+
+const char *dmRepairNodeType() { return global.repairOpt.nodeType; }
+
+const char *dmRepairFileType() { return global.repairOpt.fileType; }
+
+const char *dmRepairMode() { return global.repairOpt.mode; }
+
+bool dmRepairHasVnodeId() { return global.repairOpt.hasVnodeId; }
+
+const char *dmRepairVnodeId() { return global.repairOpt.vnodeId; }
+
+bool dmRepairHasBackupPath() { return global.repairOpt.hasBackupPath; }
+
+const char *dmRepairBackupPath() { return global.repairOpt.backupPath; }
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   global.startTime = taosGetTimestampMs();
@@ -794,7 +811,7 @@ int mainWindows(int argc, char **argv) {
     return 0;
   }
 
-  if (global.runRepairFlow) {
+  if (global.runRepairFlow && strcmp(global.repairOpt.fileType, "meta") != 0) {
     printf("repair parameter validation succeeded (phase1). repair execution is not enabled in this phase.\n");
     taosCleanupArgs();
     return TSDB_CODE_SUCCESS;
