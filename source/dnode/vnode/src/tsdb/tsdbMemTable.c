@@ -152,31 +152,6 @@ _err:
   return code;
 }
 
-static void tsdbSecureEraseMemTableData(STbData *pTbData, TSKEY sKey, TSKEY eKey) {
-  SMemSkipListNode *pNode = SL_NODE_FORWARD(pTbData->sl.pHead, 0);
-  while (pNode != pTbData->sl.pTail) {
-    TSDBROW *pRow = &pNode->row;
-    TSKEY    rowTs = TSDBROW_TS(pRow);
-    if (rowTs >= sKey && rowTs <= eKey) {
-      if (pRow->type == TSDBROW_ROW_FMT) {
-        SRow *pSRow = pRow->pTSRow;
-        if (pSRow) {
-          int32_t len = pSRow->len > (int32_t)sizeof(SRow) ? pSRow->len - (int32_t)sizeof(SRow) : 0;
-          if (tsSecureEraseMode == 1) {
-            taosSeedRand((uint32_t)(uintptr_t)pSRow);
-            for (int32_t i = 0; i < len; i++) {
-              pSRow->data[i] = (uint8_t)(taosRand() & 0xFF);
-            }
-          } else {
-            (void)memset(pSRow->data, 0, len);
-          }
-        }
-      }
-    }
-    pNode = SL_NODE_FORWARD(pNode, 0);
-  }
-}
-
 int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey,
                             int8_t secureDelete) {
   int32_t    code = 0;
@@ -204,10 +179,6 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   // secureDelete is merged by planner and vnode runtime config.
   int8_t doSecureErase = secureDelete;
   if (doSecureErase) {
-    // Phase 1: overwrite in-memory (memtable) rows
-    taosWLockLatch(&pTbData->lock);
-    tsdbSecureEraseMemTableData(pTbData, sKey, eKey);
-    taosWUnLockLatch(&pTbData->lock);
 
     // Phase 2: overwrite on-disk (data file + STT file) blocks.
     // Errors are logged but not fatal: delete markers guarantee correctness
