@@ -125,11 +125,11 @@ static int32_t createInstance(const char* accessString, SSharedStorageFS** ppSS)
     size_t asLen = strlen(accessString) + 1;
 
     SSharedStorageFS* ss = (SSharedStorageFS*)taosMemCalloc(1, sizeof(SSharedStorageFS) + asLen);
-    ss->bufCap = (int32_t)asLen;
     if (!ss) {
         tssError("failed to allocate memory for SSharedStorageFS");
         TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
+    ss->bufCap = (int32_t)asLen;
 
     if (initInstance(ss, accessString)) {
         *ppSS = ss;

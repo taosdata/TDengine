@@ -83,7 +83,7 @@ static int get_time(struct tm **ti) {
 
   s = db.now_real_s;
 
-  static struct tm tm_buf;
+  struct tm tm_buf;
   *ti = localtime_r(&s, &tm_buf);
   if (!(*ti)) {
     fprintf(stderr, "Error obtaining system time.\n");

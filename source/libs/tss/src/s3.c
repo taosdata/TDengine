@@ -197,11 +197,11 @@ static bool initInstance(SSharedStorageS3* ss, const char* as) {
 static int32_t createInstance(const char* accessString, SSharedStorageS3** ppSS) {
     size_t asLen = strlen(accessString) + 1;
     SSharedStorageS3* ss = (SSharedStorageS3*)taosMemCalloc(1, sizeof(SSharedStorageS3) + asLen);
-    ss->bufCap = (int32_t)asLen;
     if (!ss) {
         tssError("failed to allocate memory for SSharedStorageS3");
         TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
+    ss->bufCap = (int32_t)asLen;
 
     if (!initInstance(ss, accessString)) {
         taosMemFree(ss);

@@ -181,10 +181,16 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
     return code;
   }
 
-  p += snprintf(p, maxSqlLen, "INSERT INTO ");
-  memcpy(p, t.z, t.n);
-  p += t.n;
-  p += snprintf(p, maxSqlLen - t.n, " (");
+  {
+    size_t rem = maxSqlLen - (p - newSql);
+    int written = snprintf(p, rem, "INSERT INTO %.*s (", (int)t.n, t.z);
+    if (written < 0 || (size_t)written >= rem) {
+      taosMemoryFree(newSql);
+      code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "sql too long");
+      return code;
+    }
+    p += written;
+  }
   pSql += index;
 
   // SET
