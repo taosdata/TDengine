@@ -1678,7 +1678,7 @@ _exit:
   return 0;
 }
 
-static void alterTagForTmq(SVnode *pVnode, const char* tbName, const SArray* tags) {
+void vnodeAlterTagForTmq(SVnode *pVnode, const char* tbName, const SArray* tags) {
   int32_t       code = 0;
   int32_t       lino = 0;
   SArray* tbUids = NULL;
@@ -1749,15 +1749,6 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   if (NULL != vMetaRsp.pSchemas) {
     vnodeUpdateMetaRsp(pVnode, &vMetaRsp);
     vAlterTbRsp.pMeta = &vMetaRsp;
-  }
-
-  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
-    for (int32_t i = 0; i < taosArrayGetSize(vAlterTbReq.tables); i++) {
-      SUpdateTableTagVal* pTable = taosArrayGet(vAlterTbReq.tables, i);
-      alterTagForTmq(pVnode, pTable->tbName, pTable->tags);
-    }
-  } else if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
-    // TODO:
   }
 
 _exit:
