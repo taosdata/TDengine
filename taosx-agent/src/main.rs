@@ -1071,10 +1071,17 @@ fn main() -> anyhow::Result<()> {
     // Safe to call once; subsequent calls are ignored by OnceLock
     #[allow(clippy::redundant_closure)]
     {
-        taosx_core::plugins::register_kinghist_datasets_lister(
+        taosx_core::plugins::register_datasets_lister(
+            source_kinghistorian::KING_HIST_ID,
             source_kinghistorian::kinghist_datasets_lister,
         );
         tracing::info!("Registered KingHistorian datasets lister");
+
+        taosx_core::plugins::register_datasets_lister(
+            source_pspace::PSPACE_ID,
+            source_pspace::pspace_datasets_lister,
+        );
+        tracing::info!("Registered PSPACE datasets lister");
     }
 
     // todo: arrow flight rpc client.

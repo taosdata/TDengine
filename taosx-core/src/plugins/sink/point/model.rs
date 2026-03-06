@@ -31,6 +31,7 @@ pub enum SourceType {
     OPCUA,
     OPCDA,
     KingHistorian,
+    Pspace,
 }
 
 impl SourceType {
@@ -39,6 +40,7 @@ impl SourceType {
             SourceType::OPCUA => "opcua",
             SourceType::OPCDA => "opcda",
             SourceType::KingHistorian => "kinghist",
+            SourceType::Pspace => "pspace",
         }
     }
 }
@@ -54,6 +56,7 @@ impl TryFrom<&Dsn> for SourceType {
             ("opcua", _) => anyhow::Ok(SourceType::OPCUA), // opcua://...
             ("opcda", _) => anyhow::Ok(SourceType::OPCDA), // opcda://...
             ("kinghist", _) => anyhow::Ok(SourceType::KingHistorian), // kinghist://...
+            ("pspace", _) => anyhow::Ok(SourceType::Pspace), // pspace://...
             ("opc", Some("ua")) => anyhow::Ok(SourceType::OPCUA), // opc+ua://...
             ("opc", Some("da")) => anyhow::Ok(SourceType::OPCDA), // opc+da://...
             _ => bail!("invalid source type in dsn: {}", dsn),
@@ -69,6 +72,7 @@ impl TryFrom<&str> for SourceType {
             "opcua" => Ok(SourceType::OPCUA),
             "opcda" => Ok(SourceType::OPCDA),
             "kinghist" => Ok(SourceType::KingHistorian),
+            "pspace" => Ok(SourceType::Pspace),
             _ => Err(anyhow::anyhow!("invalid source type: {}", value)),
         }
     }
@@ -442,6 +446,11 @@ impl PointModelConfig {
                         bail!("invalid tbname expression: {}", tbname);
                     }
                 }
+                SourceType::Pspace => {
+                    if !cap_str.contains("point_id") {
+                        bail!("invalid tbname expression: {}", tbname);
+                    }
+                }
             }
         }
 
@@ -788,9 +797,11 @@ impl PointModelConfig {
         match &generate_rule {
             GeneratePointMappingBy::Rule(rule) => {
                 let index = self.point_config_map.len();
-                let p =
-                    rule.gen_point_config(index, point_id.to_string(), Some(value_type.clone()))?;
-                let t = rule.gen_table_config(Some(value_type.clone()))?;
+                let (p, t) = rule.generate_single_point_mapping(
+                    index,
+                    point_id.to_string(),
+                    Some(value_type.clone()),
+                )?;
                 Ok((p, t))
             }
             GeneratePointMappingBy::Csv((csv_files, csv_origin)) => {
@@ -976,6 +987,7 @@ impl PointConfig {
             "tbname" => match opc_type {
                 SourceType::OPCUA => col_value.contains("{id}") || col_value.contains("{ns}"),
                 SourceType::OPCDA | SourceType::KingHistorian => col_value.contains("{tag_name}"),
+                SourceType::Pspace => col_value.contains("{point_id}"),
             },
             _ => false,
         }
@@ -1133,6 +1145,8 @@ fn parse_stable(header: &CsvHeader, row: &StringRecord) -> Option<String> {
     {_id}：替换为 point_id 中的 / 替换为 _ 之后的值。和 {id#/_} 是等价的，为了兼容历史配置。
     {id#/_}: 将 id 中的所有 '/' 变为 '_'，并去掉开头和结尾可能出现的 '_'（例如 "/Device/Type/TagName/" → "Device_Type_TagName"）。
     {id#-_}: 将 id 中的所有 '-' 变为 '_'，并去掉开头和结尾可能出现的 '_'（例如 "Device-Type-TagName" → "Device_Type_TagName"）。
+* 当 ty = "pspace"（pSpace）
+    {point_id}：替换为数据点位的实际 ID 值。例如 point_id="150017" 时，t_{point_id} → "t_150017"。
 * 其他 ty 类型，直接返回 tb_name 原始值。
 */
 /// OPC UA: <table_prefix>_{ns}_{id}_<table_suffix>
@@ -1206,6 +1220,7 @@ pub fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> 
                 .replace("{id#/_}", &id_slash_to_underscore)
                 .replace("{id#-_}", &id_dash_to_underscore)
         }
+        "pspace" => tb_name.replace("{point_id}", point_id),
         _ => tb_name.to_string(),
     };
 
@@ -1468,6 +1483,7 @@ impl TableConfig {
             None => match source_type {
                 SourceType::OPCUA | SourceType::OPCDA => Some(String::from("opc")),
                 SourceType::KingHistorian => Some("kinghist".to_string()),
+                SourceType::Pspace => Some("pspace".to_string()),
             },
             Some(_stable) => None,
         };
@@ -1850,6 +1866,20 @@ pub enum GeneratePointMappingBy {
     Csv((Vec<String>, Option<String>)),
 }
 
+pub type PointConfigMap = LinkedHashMap<String, PointConfig>;
+pub type TableConfigMap = LinkedHashMap<String, TableConfig>;
+
+pub trait PointMappingGenerator {
+    fn generate(&self, data: Vec<DataSet>) -> anyhow::Result<(PointConfigMap, TableConfigMap)>;
+
+    fn generate_single_point_mapping(
+        &self,
+        index: usize,
+        point_id: String,
+        point_type: Option<IpcDataType>,
+    ) -> anyhow::Result<(PointConfig, TableConfig)>;
+}
+
 /// 点位映射规则
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PointMappingRule {
@@ -1859,52 +1889,10 @@ pub struct PointMappingRule {
     pub tbname_expression: String,           // 字表名的表达式
     pub value_col: String,                   // 值列名
     pub value_transform: Option<String>,     // 值列的转换表达式
+    pub quality_col: String,                 // 数据质量列名
     pub primary_key: String,                 // 主键
     pub primary_key_alias: String,           // 主键的别名
     pub custom_tags: Option<Vec<CustomTag>>, // 自定义标签
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct CustomTag {
-    pub name: String,           // 标签名
-    pub data_type: IpcDataType, // 标签的数据类型
-    pub pattern: String,        // 标签值的表达式
-}
-
-impl CustomTag {
-    // 可以配置多个自定义标签，以";"分隔。每个自定义标签的格式为：<TagType>::<TagName>::<TagPattern>，以"::"做分隔符。
-    // 第一项是 Tag 的数据类型，第二项是 Tag 的名称，第三项是 Tag 值的表达式。
-    pub fn try_from_dsn(dsn: &Dsn) -> anyhow::Result<Option<Vec<CustomTag>>> {
-        if let Some(tags_str) = dsn.params.get("custom_tags") {
-            if tags_str.is_empty() {
-                return Ok(None);
-            }
-            let mut custom_tags = Vec::new();
-            let tags: Vec<&str> = tags_str
-                .split(';')
-                .filter(|tag| !tag.trim().is_empty())
-                .collect();
-            for tag in tags {
-                let parts: Vec<&str> = tag.split("::").collect();
-                if parts.len() != 3 {
-                    bail!("invalid custom_tag format: {}", tag);
-                }
-                let data_type = IpcDataType::from_str(parts[0]).map_err(|_err| {
-                    anyhow::anyhow!("invalid custom_tag data type: {}", parts[0])
-                })?;
-                let name = parts[1].to_string();
-                let pattern = parts[2].to_string();
-                custom_tags.push(CustomTag {
-                    name,
-                    data_type,
-                    pattern,
-                });
-            }
-            Ok(Some(custom_tags))
-        } else {
-            Ok(None)
-        }
-    }
 }
 
 impl PointMappingRule {
@@ -1915,6 +1903,7 @@ impl PointMappingRule {
                 ColumnConfig::parse_stable_expression(dsn, "opc")?
             }
             SourceType::KingHistorian => ColumnConfig::parse_stable_expression(dsn, "kinghist")?,
+            SourceType::Pspace => ColumnConfig::parse_stable_expression(dsn, "pspace")?,
         };
 
         let tbname_expression = ColumnConfig::parse_tbname_expression(dsn)?;
@@ -1926,6 +1915,10 @@ impl PointMappingRule {
         let value_transform = parse_key_in_dsn::<String>(dsn, "value_transform")
             .ok()
             .flatten();
+        let quality_col = parse_key_in_dsn::<String>(dsn, "quality_col")
+            .ok()
+            .flatten()
+            .unwrap_or("quality".to_string());
 
         let primary_key =
             ColumnConfig::parse_primary_key(dsn)?.unwrap_or(ColumnConfig::ORIGINAL_TS.to_string());
@@ -1940,6 +1933,7 @@ impl PointMappingRule {
             tbname_expression,
             value_col,
             value_transform,
+            quality_col,
             primary_key,
             primary_key_alias,
             custom_tags,
@@ -1954,44 +1948,18 @@ impl PointMappingRule {
         LinkedHashMap<String, PointConfig>,
         LinkedHashMap<String, TableConfig>,
     )> {
-        let mut point_map = LinkedHashMap::new();
-        let mut table_map = LinkedHashMap::new();
+        <Self as PointMappingGenerator>::generate(self, data)
+    }
 
-        for (index, p) in data.into_iter().enumerate() {
-            let point_id = p.id.as_str();
-
-            // 如果 p.type 存在，且不等于 Variable 则跳过
-            if let Some(node_class) = &p.r#type
-                && node_class != "Variable"
-            {
-                continue;
-            }
-
-            // 处理 BrowseName,DisplayName,Description 等
-            let opc_node = OpcNode::try_from(p.clone()).unwrap_or(OpcNode {
-                id: point_id.to_string(),
-                is_static: Some(false),
-                name: None,
-                description: None,
-                display_name: None,
-                node_type: None,
-                parent_id: None,
-                path: None,
-            });
-
-            // point_config
-            let mut point_config = self.gen_point_config(index, point_id.to_string(), None)?;
-            // handle extra custom tag values
-            self.extra_custom_tags(&mut point_config, &opc_node)?;
-
-            point_map.insert(point_id.to_string(), point_config);
-
-            // table_config
-            let table_config = self.gen_table_config(None)?;
-            table_map.insert(point_id.to_string(), table_config);
-        }
-
-        Ok((point_map, table_map))
+    pub fn generate_single_point_mapping(
+        &self,
+        index: usize,
+        point_id: String,
+        point_type: Option<IpcDataType>,
+    ) -> anyhow::Result<(PointConfig, TableConfig)> {
+        <Self as PointMappingGenerator>::generate_single_point_mapping(
+            self, index, point_id, point_type,
+        )
     }
 
     pub fn gen_point_config(
@@ -2081,7 +2049,7 @@ impl PointMappingRule {
         column_configs.push(ColumnConfig {
             name: ColumnConfig::QUALITY.to_string(),
             r#type: Some(Ty::Int),
-            alias: None,
+            alias: Some(self.quality_col.clone()),
             transform: None,
             is_primary_key: false,
         });
@@ -2180,6 +2148,104 @@ impl PointMappingRule {
     }
 }
 
+impl PointMappingGenerator for PointMappingRule {
+    fn generate(
+        &self,
+        data: Vec<DataSet>,
+    ) -> anyhow::Result<(
+        LinkedHashMap<String, PointConfig>,
+        LinkedHashMap<String, TableConfig>,
+    )> {
+        let mut point_map = LinkedHashMap::new();
+        let mut table_map = LinkedHashMap::new();
+
+        for (index, p) in data.into_iter().enumerate() {
+            let point_id = p.id.as_str();
+
+            if let Some(node_class) = &p.r#type
+                && node_class != "Variable"
+            {
+                continue;
+            }
+
+            let opc_node = OpcNode::try_from(p.clone()).unwrap_or(OpcNode {
+                id: point_id.to_string(),
+                is_static: Some(false),
+                name: None,
+                description: None,
+                display_name: None,
+                node_type: None,
+                parent_id: None,
+                path: None,
+            });
+
+            let mut point_config = self.gen_point_config(index, point_id.to_string(), None)?;
+            self.extra_custom_tags(&mut point_config, &opc_node)?;
+
+            point_map.insert(point_id.to_string(), point_config);
+
+            let table_config = self.gen_table_config(None)?;
+            table_map.insert(point_id.to_string(), table_config);
+        }
+
+        Ok((point_map, table_map))
+    }
+
+    fn generate_single_point_mapping(
+        &self,
+        index: usize,
+        point_id: String,
+        point_type: Option<IpcDataType>,
+    ) -> anyhow::Result<(PointConfig, TableConfig)> {
+        let point_config = self.gen_point_config(index, point_id, point_type.clone())?;
+        let table_config = self.gen_table_config(point_type)?;
+        Ok((point_config, table_config))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CustomTag {
+    pub name: String,           // 标签名
+    pub data_type: IpcDataType, // 标签的数据类型
+    pub pattern: String,        // 标签值的表达式
+}
+
+impl CustomTag {
+    // 可以配置多个自定义标签，以";"分隔。每个自定义标签的格式为：<TagType>::<TagName>::<TagPattern>，以"::"做分隔符。
+    // 第一项是 Tag 的数据类型，第二项是 Tag 的名称，第三项是 Tag 值的表达式。
+    pub fn try_from_dsn(dsn: &Dsn) -> anyhow::Result<Option<Vec<CustomTag>>> {
+        if let Some(tags_str) = dsn.params.get("custom_tags") {
+            if tags_str.is_empty() {
+                return Ok(None);
+            }
+            let mut custom_tags = Vec::new();
+            let tags: Vec<&str> = tags_str
+                .split(';')
+                .filter(|tag| !tag.trim().is_empty())
+                .collect();
+            for tag in tags {
+                let parts: Vec<&str> = tag.split("::").collect();
+                if parts.len() != 3 {
+                    bail!("invalid custom_tag format: {}", tag);
+                }
+                let data_type = IpcDataType::from_str(parts[0]).map_err(|_err| {
+                    anyhow::anyhow!("invalid custom_tag data type: {}", parts[0])
+                })?;
+                let name = parts[1].to_string();
+                let pattern = parts[2].to_string();
+                custom_tags.push(CustomTag {
+                    name,
+                    data_type,
+                    pattern,
+                });
+            }
+            Ok(Some(custom_tags))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ModelType {
     /// 单列模型：一个点位对应一张表
@@ -2232,6 +2298,7 @@ mod tests {
             tbname_expression: "t_{ns}_{id}".to_string(),
             value_col: "val".to_string(),
             value_transform: None,
+            quality_col: "quality".to_string(),
             primary_key: "original_ts".to_string(),
             primary_key_alias: "ts".to_string(),
             custom_tags: None,

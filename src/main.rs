@@ -970,9 +970,17 @@ fn main() -> Result<()> {
     // Safe to call once; subsequent calls are ignored by OnceLock
     #[allow(clippy::redundant_closure)]
     {
-        taosx_core::plugins::register_kinghist_datasets_lister(
+        taosx_core::plugins::register_datasets_lister(
+            source_kinghistorian::KING_HIST_ID,
             source_kinghistorian::kinghist_datasets_lister,
         );
+        tracing::info!("registered KingHistorian datasets lister");
+
+        taosx_core::plugins::register_datasets_lister(
+            source_pspace::PSPACE_ID,
+            source_pspace::pspace_datasets_lister,
+        );
+        tracing::info!("registered pSpace datasets lister");
     }
 
     let config_file = get_effective_config_path(&args);

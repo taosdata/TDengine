@@ -1,0 +1,32 @@
+[connection]
+server = "192.168.2.149"
+port = 8889
+username = "admin"
+password = "admin888"
+
+[nodes]
+root = 150016
+
+[points]
+# name_filter = "\\北京\\朝阳\\*气温*"
+include_data_type = true
+# point_ids = [150019, 150021, 150023]
+point_ids = [150019]
+
+
+[run]
+mode = "QuerySync"
+start_time = "2026-03-05T00:00:00+08:00"
+time_window = 3600
+time_excursion = 0    # 仅用于 Phase 2 持续同步阶段，向前回溯以捕获乱序数据
+query_interval = 10
+
+[report]
+# remote = "127.0.0.1:6051" # taosx's address ip:port or socket path
+local_only = true
+
+[advanced_options]
+log_level = "info"
+keep_raw_data = true
+keep_raw_data_days = 7
+keep_raw_data_dir = "./raw_data"

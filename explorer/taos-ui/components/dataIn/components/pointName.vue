@@ -7,7 +7,7 @@
         <span v-dompurify-html="t('common.communityTip')"></span>
       </template>
       <el-button :loading="loading" :disabled="loading || dataInProps.isCommunity" type="primary" @click="search">{{
-        t('dataIn.transformer.preview')
+        buttonText
       }}</el-button>
     </el-tooltip>
   </div>
@@ -27,6 +27,8 @@ const props = withDefaults(
   {}
 );
 const localData = reactive(props.data);
+
+const buttonText = computed(() => props.config?.viewText || t('dataIn.transformer.preview'));
 
 const emit = defineEmits(['update:data']);
 watch(localData, newData => {

@@ -77,7 +77,6 @@ pub async fn kinghist_to_taos(
     tracing::info!("kinghist_to_taos create context: {:#?}", context);
 
     // metrics
-
     let metrics = get_metrics_arc_or(task_job_id, || {
         let (task_id, job_id) = task_job_id.unwrap_or((-1, -1));
         // task_id is None if taosx run

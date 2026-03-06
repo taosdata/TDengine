@@ -33,6 +33,7 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
                 source_pulsar::is_valid(&dsn).await
             }
             source_kinghistorian::KING_HIST_ID => source_kinghistorian::is_valid(&dsn).await,
+            source_pspace::PSPACE_ID => source_pspace::is_valid(&dsn).await,
             &_ => DataSourceValidation::unknown(),
         },
     }

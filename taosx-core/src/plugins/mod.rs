@@ -102,20 +102,41 @@ pub const METRIC_POINT_FAILS: &str = "ipc.stream.point_fails";
 pub const METRIC_WRITE_RAW_BLOCKS: &str = "ipc.stream.write_raw_blocks";
 pub const METRIC_WRITE_RAW_BLOCK_FAILS: &str = "ipc.stream.write_raw_blocks_fails";
 
+// =============== Datasets lister hook type ===============
+// Shared function signature for dataset listers to avoid duplicate type aliases.
+type ListDatasetsFn = fn(from: &Dsn, req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>>;
+
 // =============== KingHistorian datasets lister hook ===============
 // To avoid circular dependency between taosx-core and source-kinghistorian,
 // we expose a registration point. The binary (taosx) can depend on
 // source-kinghistorian and register its lister at startup.
 // Then, list_datasets_from will invoke this hook when driver=="kinghist".
+static KINGHIST_DATASETS_HOOK: OnceLock<ListDatasetsFn> = OnceLock::new();
 
-type KinghistDatasetsFn = fn(from: &Dsn, req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>>;
+// =============== PSPACE datasets lister hook ===============
+// Similar to KingHistorian, to avoid circular dependency between taosx-core and source-pspace,
+// we expose a registration point. The binary (taosx/agent) can depend on source-pspace and
+// register its lister at startup. Then, list_datasets_from will invoke this hook when driver=="pspace".
+static PSPACE_DATASETS_HOOK: OnceLock<ListDatasetsFn> = OnceLock::new();
 
-static KINGHIST_DATASETS_HOOK: OnceLock<KinghistDatasetsFn> = OnceLock::new();
-
-/// Register KingHistorian datasets lister.
-/// Call this once at process startup (e.g., in taosx main) if KingHistorian is enabled.
-pub fn register_kinghist_datasets_lister(f: KinghistDatasetsFn) {
-    let _ = KINGHIST_DATASETS_HOOK.set(f);
+/// Unified datasets lister registration for any driver.
+/// For now, it routes to specific driver hooks; future drivers can be supported here without
+/// exposing new per-driver register functions.
+pub fn register_datasets_lister(driver: &str, f: ListDatasetsFn) {
+    match driver {
+        "kinghist" => {
+            let _ = KINGHIST_DATASETS_HOOK.set(f);
+        }
+        "pspace" => {
+            let _ = PSPACE_DATASETS_HOOK.set(f);
+        }
+        other => {
+            tracing::warn!(
+                driver = other,
+                "register_datasets_lister: unsupported driver"
+            );
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -254,6 +275,26 @@ pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSe
                     anyhow::bail!(
                         "KingHistorian datasets lister is not registered; please enable and register it at startup"
                     )
+                }
+            }
+        }
+        "pspace" => {
+            // pspace: delegate to registered hook to avoid circular deps
+            match PSPACE_DATASETS_HOOK.get() {
+                Some(f) => {
+                    tracing::debug!("pspace datasets lister hook found; delegating");
+                    let from = from.clone();
+                    let data_clone = data.clone();
+                    tokio::task::spawn_blocking(move || f(&from, &data_clone))
+                        .await
+                        .context("pspace datasets lister task join error")?
+                }
+                None => {
+                    tracing::warn!(
+                        "pspace datasets lister hook not registered; returning empty list"
+                    );
+                    // Return empty list instead of hard error to keep UI responsive when plugin is missing
+                    Ok(vec![])
                 }
             }
         }

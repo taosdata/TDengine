@@ -119,6 +119,14 @@
         :disabled="isFieldDisabled()"
       >
       </UploadCsv>
+      <LazyTreeSelect
+        v-if="config.type == 'lazyTreeSelect'"
+        v-model="localData[field]"
+        :disabled="isFieldDisabled()"
+        :placeholder="config.placeholder"
+        :clearable="config.clearable !== false"
+        :root-label="config.rootLabel"
+      />
       <Dataset v-if="config.type == 'dataset'" v-model="localData[field]" :config="config" :data="data" />
       <Bucket
         v-if="config.type == 'bucket'"
@@ -168,6 +176,7 @@ import Dataset from './dataset.vue';
 import PointName from './pointName.vue';
 import CustomId from './customId.vue';
 import Bucket from './bucket.vue';
+import LazyTreeSelect from './lazyTreeSelect.vue';
 import InputWithSelect from './inputWithSelect.vue';
 import InputNumberWithSelect from './inputNumberWithSelect.vue';
 import Namespace from './namespace.vue';
@@ -192,7 +201,7 @@ const currentDatePicker = computed(
   () => components[project.isCloud ? 'UTCDateTimePicker' : ('TimezoneDatePicker' as keyof typeof components)]
 );
 
-const fnMap = {
+const fnMap: Record<string, any> = {
   checkJson: checkJson
 };
 

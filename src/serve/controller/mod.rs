@@ -492,7 +492,7 @@ impl TaskController {
                 });
                 result
             }
-            "kinghist" => source_kinghistorian::to_csv_context(datasets)
+            source_kinghistorian::KING_HIST_ID => source_kinghistorian::to_csv_context(datasets)
                 .await
                 .inspect_err(|err| {
                     tracing::error!(
@@ -501,6 +501,33 @@ impl TaskController {
                     )
                 })
                 .context("failed to generate kinghistorian csv content")?,
+            source_pspace::PSPACE_ID => {
+                let csv_format = utils::parse_key_in_dsn::<String>(&from, "csv_format")
+                    .unwrap_or(Some("full".to_string()))
+                    .unwrap_or("full".to_string());
+
+                match csv_format.as_str() {
+                    "preview" => source_pspace::preview_points(datasets)
+                        .await
+                        .inspect_err(|err| {
+                            tracing::error!("failed to preview pspace points, err: {:?}", err)
+                        })
+                        .context("failed to preview pspace points")?,
+                    "full" => source_pspace::to_csv_context(datasets)
+                        .await
+                        .inspect_err(|err| {
+                            tracing::error!(
+                                "failed to generate pspace csv config file , err: {:?}",
+                                err
+                            )
+                        })
+                        .context("failed to generate pspace csv config file")?,
+                    _ => {
+                        tracing::error!("invalid csv_format `{csv_format}` for pspace source");
+                        bail!("invalid csv_format `{csv_format}` for pspace source");
+                    }
+                }
+            }
             _ => unimplemented!(),
         };
 

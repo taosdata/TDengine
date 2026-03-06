@@ -43,6 +43,13 @@ export default function () {
     try {
       loading.value = true;
       // 获取 ticket
+      if (from && (from.type === 'pspace' || from.driver === 'pspace')) {
+        if (!from.params || typeof from.params !== 'object') {
+          from.params = {};
+        }
+        // add csv_format=preview
+        from.params.csv_format = 'preview';
+      }
       const params: Recordable = {
         from_json: from,
         categories: categoryOpc.value

@@ -51,6 +51,7 @@ members = [
   "crates/ha-rpc-client",
   "xnoded",
   "crates/utils",
+  "crates/source-pspace",
 ]
 exclude = ["crates/transform/parsers/hebeipower"]
 
@@ -228,6 +229,7 @@ source-orc.path = "./crates/source-orc"
 source-pi.path = "./crates/source-pi"
 source-pulsar.path = "./crates/source-pulsar"
 source-sparkplugb.path = "./crates/source-sparkplugb"
+source-pspace.path = "./crates/source-pspace"
 taos-to-local.path = "./crates/taos-to-local"
 sink-kafka.path = "./crates/sink-kafka"
 sink-mqtt.path = "./crates/sink-mqtt"
@@ -370,7 +372,7 @@ rand.workspace = true
 console-subscriber = { version = "0.4.0", optional = true }
 opentelemetry = "0.30"
 opentelemetry-otlp = { version = "0.30", features = ["grpc-tonic"] }
-opentelemetry_sdk =  "0.30"
+opentelemetry_sdk = "0.30"
 reqwest = { workspace = true, features = ["json"] }
 tracing = { workspace = true, features = ["log"] }
 tracing-actix-web.workspace = true
@@ -411,6 +413,7 @@ local-to-taos.workspace = true
 source-opc.workspace = true
 source-csv.workspace = true
 source-kinghistorian.workspace = true
+source-pspace.workspace = true
 reclaim-memory.workspace = true
 ha-core.workspace = true
 futures-ext.workspace = true

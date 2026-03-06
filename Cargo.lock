@@ -9749,6 +9749,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "source-pspace"
+version = "2.0.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow-schema",
+ "chrono",
+ "csv",
+ "csv-async",
+ "faststr",
+ "flume 0.11.1",
+ "futures-util",
+ "itertools 0.14.0",
+ "linked-hash-map",
+ "ringbuf",
+ "serde",
+ "serde_json",
+ "taos",
+ "taosx-core",
+ "taosx-ipc",
+ "tempfile",
+ "tokio",
+ "tokio-process-terminate",
+ "tokio-util",
+ "toml 0.9.11+spec-1.1.0",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "source-pulsar"
 version = "2.0.0"
 dependencies = [
@@ -10613,6 +10643,7 @@ dependencies = [
  "source-opc",
  "source-oracle",
  "source-postgres",
+ "source-pspace",
  "strum 0.27.2",
  "sysinfo",
  "taos",
@@ -10676,6 +10707,7 @@ dependencies = [
  "shadow-rs 0.38.1",
  "snafu",
  "source-kinghistorian",
+ "source-pspace",
  "sysinfo",
  "taos",
  "taoslog",
@@ -10908,6 +10940,7 @@ dependencies = [
  "source-parquet",
  "source-pi",
  "source-postgres",
+ "source-pspace",
  "source-pulsar",
  "source-sparkplugb",
  "taos",

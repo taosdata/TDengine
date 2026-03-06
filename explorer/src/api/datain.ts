@@ -281,6 +281,21 @@ export function getStableParser(data: Record<string, any>) {
 
 // opc：提交数据点位模版文件下载请求，获取 ticket
 export function getTicket(data: Recordable) {
+  // If DSN is pspace, inject mode=points for download task
+  try {
+    const from = (data as any)?.from_json;
+    if (from && (from.type === 'pspace' || from.driver === 'pspace')) {
+      if (!from.params || typeof from.params !== 'object') {
+        from.params = {};
+      }
+      // Only set when not already provided by caller
+      if (!('pspace_mode' in from.params) && !('mode' in from.params)) {
+        from.params.pspace_mode = 'points';
+      }
+    }
+  } catch {
+    // noop: best-effort enrichment
+  }
   return request({
     baseURL: pathDetector.getXApiBasePath(),
     url: `/ds/in/point/file/download/task`,
@@ -310,6 +325,7 @@ export function downloadOpcPointFile(ticket: string) {
 
 // 获取 point 类型数据的选项
 // 例如：KingHistorian 要显示 Tag 的过滤条件：测点组、测点、标签等
+// 例如：pSpace 要显示 Root Nodes 的下拉列表
 export function getPointOptions(data: Record<string, any>) {
   // Support two call styles:
   // 1) { kind, q, dsn } -> map to sets-like payload for fetching option lists
@@ -319,11 +335,31 @@ export function getPointOptions(data: Record<string, any>) {
   if (data && (data.from_json || data.categories || data.pattern || data.offset !== undefined)) {
     // Assume caller already formed the payload in the same shape as /ds/in/sets
     payload = { lang: language, ...data };
+    // Inject pspace_mode=nodes for pspace DSN when not explicitly set
+    const from = (payload as any)?.from_json;
+    if (from && (from.type === 'pspace' || from.driver === 'pspace')) {
+      if (!from.params || typeof from.params !== 'object') {
+        from.params = {};
+      }
+      if (!('pspace_mode' in from.params) && !('mode' in from.params)) {
+        from.params.pspace_mode = 'nodes';
+      }
+    }
   } else {
     const { kind, q, dsn } = data || {};
     const via = dsn?.agent ?? undefined;
+    // Prepare DSN and inject pspace_mode=nodes if driver==pspace
+    const dsnObj = dsn ? { ...dsn } : undefined;
+    if (dsnObj && (dsnObj.type === 'pspace' || dsnObj.driver === 'pspace')) {
+      if (!dsnObj.params || typeof dsnObj.params !== 'object') {
+        dsnObj.params = {};
+      }
+      if (!('pspace_mode' in dsnObj.params) && !('mode' in dsnObj.params)) {
+        dsnObj.params.pspace_mode = 'nodes';
+      }
+    }
     payload = {
-      from_json: dsn,
+      from_json: dsnObj,
       categories: kind ? [kind] : [],
       pattern: q ?? '',
       offset: 0,

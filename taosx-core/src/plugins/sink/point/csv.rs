@@ -94,6 +94,11 @@ impl CsvHeader {
                     bail!("tag_name is required");
                 }
             }
+            SourceType::Pspace => {
+                if !self.column_map.contains_key("point_id") {
+                    bail!("point_id is required");
+                }
+            }
         }
 
         if !self.column_map.contains_key("stable") {

@@ -249,17 +249,23 @@ export default {
   rootNode: 'Root node',
   namespace: 'Namespace',
   pointRegexp: 'Regex match',
+  pspaceRootNode: 'Root Node',
+  pspaceRootNodeDesc: 'Traverse all data points starting from this node. For example, `\\Beijing\\Chaoyang` means starting from the `\\Beijing\\Chaoyang` node and traversing downward. By default, traversal starts from the root node.',
+  pspacePointName: 'Point Name',
+  pspacePointNameDesc: 'Filter by data point LongName. Example: `\\Beijing\\Chaoyang\\*temperature*` means all data points under `\\Beijing\\Chaoyang` whose names contain `temperature`.',
   noDsn: 'Please check the server endpoint',
   filterPointDesc:
     'Download data points according to the specified filter rules, and download in the format designed by the CSV template.',
   rootNodePlaceholder: {
     opcua: 'For example: ns=3;i=1001',
-    opcda: 'For example: root.parent'
+    opcda: 'For example: root.parent',
+    pspace: 'e.g., \\Beijing\\Chaoyang'
   },
   namespacePlaceholder: 'Please select after connection check successfully',
   pointRegexpPlaceholder: {
     opcua: 'Match the point id or name',
-    opcda: 'Match the point TagName'
+    opcda: 'Match the point TagName',
+    pspace: 'Match the point LongName'
   },
   kinghist: {
     group: 'Group',

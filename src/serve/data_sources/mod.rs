@@ -213,7 +213,8 @@ pub(super) async fn data_source_collection(
     }
 }
 
-/// Get datasource point options (temporary string response)
+/// 获取数据源点位的 options
+/// 例如：KingHistorian 返回
 #[utoipa::path(
     tag = "data sources",
     request_body = DataSetsReq,
@@ -256,6 +257,7 @@ async fn get_point_options_impl(
     // TODO: 这里为 from dsn 设置了参数 only_groups=true，应该由前端传递更合适
     from.params
         .insert("only_groups".to_string(), "true".to_string());
+
     // 构造新的请求，携带修改过的 from
     let req = DataSetsReq {
         from: Some(from.to_string()),
@@ -269,16 +271,17 @@ async fn get_point_options_impl(
     };
 
     // 获取点位列表
-    let result = if let Some(agent) = req.via {
+    let datasets = if let Some(agent) = req.via {
         controller.list_datasets_via_agent(agent, req).await
     } else {
         list_datasets_from(&req).await
-    };
-    let datasets = result.context("Failed to list datasets when getting point options")?;
+    }
+    .context("Failed to list datasets when getting point options")?;
 
     // 将点位列表转换为 serde_json::Value
     let options = match from.driver.as_str() {
-        "kinghist" => source_kinghistorian::to_point_options(datasets)?,
+        source_kinghistorian::KING_HIST_ID => source_kinghistorian::to_point_options(datasets)?,
+        source_pspace::PSPACE_ID => source_pspace::to_point_options(datasets)?,
         _ => anyhow::bail!(
             "failed to get point options since: Unsupported driver: {}",
             from.driver
@@ -502,6 +505,7 @@ pub async fn is_csv_valid_impl(req: DsnAgentQuery) -> anyhow::Result<()> {
     match driver.as_str() {
         "opcua" | "opcda" | "opc+ua" | "opc+da" => is_opc_csv_valid(from, req.to).await,
         source_kinghistorian::KING_HIST_ID => source_kinghistorian::is_csv_valid(&from).await,
+        source_pspace::PSPACE_ID => source_pspace::is_csv_valid(&from).await,
         _ => Err(anyhow::anyhow!(
             "unsupported driver: {} for csv validation",
             driver

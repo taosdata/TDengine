@@ -1,0 +1,3 @@
+No.,point_id,stable,tbname,value_col,value_transform,type,quality_col,ts_col,ts_transform,request_ts_col,request_ts_transform,received_ts_col,received_ts_transform,tag::VARCHAR(1024)::name,tag::VARCHAR(1024)::LongName,tag::VARCHAR(1024)::Description
+1,150017,pspace_{type},t_{point_id},val,,,quality,ts,,qts,,rts,,气温,\北京\气温,
+2,150019,pspace_{type},t_{point_id},val,,,quality,ts,,qts,,rts,,气温,\北京\朝阳\气温,

@@ -300,6 +300,7 @@ pub async fn get_point_file_template(driver: &str, _lang: &str) -> anyhow::Resul
         "opcua" => source_opc::get_template(OpcType::OPCUA, true),
         "opcda" => source_opc::get_template(OpcType::OPCDA, true),
         source_kinghistorian::KING_HIST_ID => source_kinghistorian::get_template(),
+        source_pspace::PSPACE_ID => source_pspace::get_template(),
         _ => bail!("unsupported driver: {}", driver),
     };
 

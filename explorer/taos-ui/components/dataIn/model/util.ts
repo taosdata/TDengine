@@ -353,6 +353,23 @@ export function formatFromData(from: Recordable) {
     }
   }
 
+  // For pSpace, map the selected tag_datasets tab to a top-level `point_config_mode` query param
+  // select_all_points tab -> point_config_mode=select_all_points; csv_config_file tab -> point_config_mode=csv_config_file
+  if (type === 'pspace') {
+    const selected = dataCopy?.tag_datasets?.currentTab;
+    if (selected === 'select_all_points' || selected === 'csv_config_file') {
+      dataCopy.point_config_mode = selected;
+      if (selected === 'select_all_points') {
+        // pSpace select mode requires point data_type from server side listing.
+        dataCopy.include_data_type = 'true';
+      } else {
+        delete dataCopy.include_data_type;
+      }
+      // Remove currentTab so it won't be flattened into the DSN params
+      delete dataCopy.tag_datasets.currentTab;
+    }
+  }
+
   const resultFrom = {
     agent,
     type,

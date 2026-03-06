@@ -33,6 +33,7 @@ pub async fn plan_task(task: HaTask) -> anyhow::Result<SplitJobResult> {
         | ("tmq", "kafka")
         | ("avevaHistorian", "taos")
         | ("orc", "taos")
+        | ("pspace", "taos")
         | ("mongodb", _)
         | ("mysql", _)
         | ("postgres", _)

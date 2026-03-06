@@ -8,37 +8,55 @@ import re
 script_dir = os.path.abspath(os.getcwd())
 top_dir = os.path.abspath(os.path.join(script_dir, ".."))
 release_dir = os.path.abspath(os.path.join(top_dir, "release"))
-opc_dir = os.path.abspath(os.path.join(top_dir, "plugins","opc"))
-influxdb_dir = os.path.abspath(os.path.join(top_dir, "plugins","influxdb"))
-opentsdb_dir = os.path.abspath(os.path.join(top_dir, "plugins","opentsdb"))
-hebeipower_dir = os.path.abspath(os.path.join(top_dir, "crates", "transform", "parsers", "hebeipower"))
+opc_dir = os.path.abspath(os.path.join(top_dir, "plugins", "opc"))
+influxdb_dir = os.path.abspath(os.path.join(top_dir, "plugins", "influxdb"))
+opentsdb_dir = os.path.abspath(os.path.join(top_dir, "plugins", "opentsdb"))
+pspace_dir = os.path.abspath(os.path.join(top_dir, "plugins", "pspace"))
+hebeipower_dir = os.path.abspath(
+    os.path.join(top_dir, "crates", "transform", "parsers", "hebeipower")
+)
 explore_dir = os.path.abspath(os.path.join(top_dir, "explorer"))
 systemd_path = ""
 target = "taosx"
 
-logging.basicConfig(level=logging.DEBUG,format='%(asctime)s %(levelname)s %(message)s',datefmt='%Y-%m-%d %H:%M:%S')
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
-def release(release_info,build_info):
+
+def release(release_info, build_info):
 
     logging.info("release_info: {0}".format(release_info.__dict__))
 
     init_release_dir(release_info)
     for info in build_info:
         logging.info("build_info: {0}".format(info.__dict__))
-        if info.Name =='opc':
-            build_and_install_opc_on_linux(release_info,info.VersionMode)
-        if info.Name =='influxdb':
+        if info.Name == "opc":
+            build_and_install_opc_on_linux(release_info, info.VersionMode)
+        if info.Name == "influxdb":
             build_and_install_influxdb_on_linux(info.VersionMode)
-        if info.Name =='opentsdb':
+        if info.Name == "opentsdb":
             build_and_install_opentsdb_on_linux(info.VersionMode)
-        if info.Name == 'hebeipower':
+        if info.Name == "pspace":
+            build_and_install_pspace_on_linux(info.VersionMode)
+        if info.Name == "hebeipower":
             # build_and_install_hebeipower_on_linux(info.VersionMode)
             print("build hebeipower plugin is disabled for now")
-        if info.Name =='taosx' and not release_info.UploadAgent and not release_info.BuildAgent:
+        if (
+            info.Name == "taosx"
+            and not release_info.UploadAgent
+            and not release_info.BuildAgent
+        ):
             build_and_install_taosx_on_linux(release_info, info.VersionMode)
-        if info.Name =='taosx-agent':
+        if info.Name == "taosx-agent":
             build_and_install_taosx_agent_on_linux(release_info, info.VersionMode)
-        if info.Name =='taos-explorer' and not release_info.UploadAgent and not release_info.BuildAgent:
+        if (
+            info.Name == "taos-explorer"
+            and not release_info.UploadAgent
+            and not release_info.BuildAgent
+        ):
             install_taos_explorer_on_linux(release_info, info.VersionMode)
 
     chmodReleaseDir(release_info)
@@ -56,32 +74,41 @@ def release(release_info,build_info):
 def init_release_dir(release_info):
     logging.info("init_release_dir")
     global release_dir, systemd_path, target
-    if release_info.Target == "agent" or release_info.UploadAgent or release_info.BuildAgent:
+    if (
+        release_info.Target == "agent"
+        or release_info.UploadAgent
+        or release_info.BuildAgent
+    ):
         target = "taosx-agent"
     release_dir = release_info.InstallPath
     check_directory(release_dir)
-    systemd_path = os.path.join(release_dir,"etc", "systemd", "system")
+    systemd_path = os.path.join(release_dir, "etc", "systemd", "system")
     check_directory(systemd_path)
 
-def build_and_install_opc_on_linux(release_info,mode='release'):
+
+def build_and_install_opc_on_linux(release_info, mode="release"):
     logging.info("building taosx-opc")
 
-    dst_dir = os.path.join(release_dir,"plugins","opc")
-    binary_file = os.path.join(opc_dir,"taosx-opc")
+    dst_dir = os.path.join(release_dir, "plugins", "opc")
+    binary_file = os.path.join(opc_dir, "taosx-opc")
     check_directory(dst_dir)
 
     os.chdir(opc_dir)
-    if mode.lower() == 'release':
-        os.system(f"go build -ldflags "
-                  f"\"-s -w -X 'collector/version.BuildAt={release_info.BuildTime}' "
-                  f"-X 'collector/version.CommitID={release_info.Commit}'\" "
-                  f"-o {binary_file}")
+    if mode.lower() == "release":
+        os.system(
+            f"go build -ldflags "
+            f"\"-s -w -X 'collector/version.BuildAt={release_info.BuildTime}' "
+            f"-X 'collector/version.CommitID={release_info.Commit}'\" "
+            f"-o {binary_file}"
+        )
         logging.info("taosx-opc built successfully")
     else:
-        os.system(f"go build -ldflags "
-                  f"\"-s -w -X 'collector/version.BuildAt={release_info.BuildTime}' "
-                  f"-X 'collector/version.CommitID={release_info.Commit}'\" "
-                  f"-o {binary_file}")
+        os.system(
+            f"go build -ldflags "
+            f"\"-s -w -X 'collector/version.BuildAt={release_info.BuildTime}' "
+            f"-X 'collector/version.CommitID={release_info.Commit}'\" "
+            f"-o {binary_file}"
+        )
         logging.info("taosx-opc built successfully")
 
     shutil.copy2(binary_file, dst_dir)
@@ -89,14 +116,15 @@ def build_and_install_opc_on_linux(release_info,mode='release'):
 
     os.chdir(script_dir)
 
-def build_and_install_influxdb_on_linux(mode='release'):
+
+def build_and_install_influxdb_on_linux(mode="release"):
     logging.info("build_and_install taosx-influxdb on linux")
-    dst_dir = os.path.join(release_dir,"plugins","influxdb")
-    binary_file = os.path.join(influxdb_dir,"target","taosx-influxdb.jar")
+    dst_dir = os.path.join(release_dir, "plugins", "influxdb")
+    binary_file = os.path.join(influxdb_dir, "target", "taosx-influxdb.jar")
     check_directory(dst_dir)
 
     os.chdir(influxdb_dir)
-    if mode.lower() == 'release':
+    if mode.lower() == "release":
         build_command = "mvn clean package"
     else:
         # debug mode
@@ -105,17 +133,21 @@ def build_and_install_influxdb_on_linux(mode='release'):
     os.system(build_command)
     logging.info("taosx-influxdb built successfully")
 
-    shutil.copyfile(binary_file,os.path.join(release_dir,"plugins","influxdb","taosx-influxdb.jar"))
+    shutil.copyfile(
+        binary_file,
+        os.path.join(release_dir, "plugins", "influxdb", "taosx-influxdb.jar"),
+    )
     logging.info("taosx-influxdb copied to {release_dir}".format(release_dir=dst_dir))
 
-def build_and_install_opentsdb_on_linux(mode='release'):
+
+def build_and_install_opentsdb_on_linux(mode="release"):
     logging.info("build_and_install taosx-opentsdb on linux")
-    dst_dir = os.path.join(release_dir,"plugins","opentsdb")
-    binary_file = os.path.join(opentsdb_dir,"target","taosx-opentsdb.jar")
+    dst_dir = os.path.join(release_dir, "plugins", "opentsdb")
+    binary_file = os.path.join(opentsdb_dir, "target", "taosx-opentsdb.jar")
     check_directory(dst_dir)
 
     os.chdir(opentsdb_dir)
-    if mode.lower() == 'release':
+    if mode.lower() == "release":
         build_command = "mvn clean package"
     else:
         # debug mode
@@ -124,10 +156,36 @@ def build_and_install_opentsdb_on_linux(mode='release'):
     os.system(build_command)
     logging.info("taosx-opentsdb built successfully")
 
-    shutil.copyfile(binary_file,os.path.join(release_dir,"plugins","opentsdb","taosx-opentsdb.jar"))
+    shutil.copyfile(
+        binary_file,
+        os.path.join(release_dir, "plugins", "opentsdb", "taosx-opentsdb.jar"),
+    )
     logging.info("taosx-opentsdb copied to {release_dir}".format(release_dir=dst_dir))
 
-def build_and_install_hebeipower_on_linux(mode='release'):
+
+def build_and_install_pspace_on_linux(mode="release"):
+    logging.info("build_and_install taosx-pspace on linux")
+    dst_dir = os.path.join(release_dir, "plugins", "pspace")
+    binary_file = os.path.join(pspace_dir, "target", "taosx-pspace.jar")
+    check_directory(dst_dir)
+
+    os.chdir(pspace_dir)
+    if mode.lower() == "release":
+        build_command = "mvn clean package"
+    else:
+        # debug mode
+        build_command = "mvn clean package"
+    logging.info(f"build_command: {build_command}")
+    os.system(build_command)
+    logging.info("taosx-pspace built successfully")
+
+    shutil.copyfile(
+        binary_file, os.path.join(release_dir, "plugins", "pspace", "taosx-pspace.jar")
+    )
+    logging.info("taosx-pspace copied to {release_dir}".format(release_dir=dst_dir))
+
+
+def build_and_install_hebeipower_on_linux(mode="release"):
     logging.info("build_and_install hebeipower plugin on linux")
     #  /usr/local/taos/plugins/parsers/libhebeipower.so
     dst_dir = os.path.join(release_dir, "plugins", "parsers")
@@ -140,40 +198,60 @@ def build_and_install_hebeipower_on_linux(mode='release'):
     os.system(build_command)
     logging.info("taosx hebeipower plugin built successfully")
 
-    shutil.copyfile(lib_file, os.path.join(release_dir, "plugins", "parsers", "libhebeipower.so"))
-    logging.info("taosx hebeipower plugin copied to {release_dir}".format(release_dir=dst_dir))
+    shutil.copyfile(
+        lib_file, os.path.join(release_dir, "plugins", "parsers", "libhebeipower.so")
+    )
+    logging.info(
+        "taosx hebeipower plugin copied to {release_dir}".format(release_dir=dst_dir)
+    )
 
 
-def build_and_install_taosx_on_linux(release_info, mode='release'):
+def build_and_install_taosx_on_linux(release_info, mode="release"):
     logging.info("build_and_install taosx under linux...")
 
-    dst_dir = os.path.join(release_dir,"bin")
-    binary_file = os.path.join(top_dir,"target","deploy",f"{release_info.CustomPrompt}x")
-    xnoded_binary_file = os.path.join(top_dir,"target","deploy","xnoded")
+    dst_dir = os.path.join(release_dir, "bin")
+    binary_file = os.path.join(
+        top_dir, "target", "deploy", f"{release_info.CustomPrompt}x"
+    )
+    xnoded_binary_file = os.path.join(top_dir, "target", "deploy", "xnoded")
     check_directory(dst_dir)
     os.chdir(top_dir)
 
-    if mode.lower() == 'release':
-        os.system(f"VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME='{release_info.CustomName}' CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=release cargo make deploy-taosx")
-        os.system(f"VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME='{release_info.CustomName}' CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=release cargo make deploy-xnoded")
+    if mode.lower() == "release":
+        os.system(
+            f"VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME='{release_info.CustomName}' CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=release cargo make deploy-taosx"
+        )
+        os.system(
+            f"VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME='{release_info.CustomName}' CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=release cargo make deploy-xnoded"
+        )
     else:
-        os.system(f"VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME='{release_info.CustomName}' CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=dev cargo make deploy-taosx")
-        os.system(f"VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME='{release_info.CustomName}' CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=dev cargo make deploy-xnoded")
+        os.system(
+            f"VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME='{release_info.CustomName}' CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=dev cargo make deploy-taosx"
+        )
+        os.system(
+            f"VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME='{release_info.CustomName}' CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=dev cargo make deploy-xnoded"
+        )
     logging.info("taosx built successfully")
 
-    shutil.copy(binary_file,dst_dir)
-    shutil.copy(xnoded_binary_file,dst_dir)
+    shutil.copy(binary_file, dst_dir)
+    shutil.copy(xnoded_binary_file, dst_dir)
     logging.info("taosx copied to {release_dir}".format(release_dir=dst_dir))
 
-    shutil.copy(os.path.join(top_dir,"target","deploy", f"{release_info.CustomPrompt}x.service"), systemd_path)
+    shutil.copy(
+        os.path.join(
+            top_dir, "target", "deploy", f"{release_info.CustomPrompt}x.service"
+        ),
+        systemd_path,
+    )
 
     cfg_path = os.path.join(release_dir, "etc", "taos")
     check_directory(cfg_path)
-    shutil.copy2(os.path.join(top_dir,"examples","taosx.toml"), cfg_path)
+    shutil.copy2(os.path.join(top_dir, "examples", "taosx.toml"), cfg_path)
 
-def install_taos_explorer_on_linux(release_info, mode='release'):
+
+def install_taos_explorer_on_linux(release_info, mode="release"):
     logging.info("install taosx-explore under linux...")
-    dst_dir = os.path.join(release_dir,"bin")
+    dst_dir = os.path.join(release_dir, "bin")
     deploy_dir = os.path.join(top_dir, "target", "deploy")
     deploy_file = os.path.join(deploy_dir, f"{release_info.CustomPrompt}-explorer")
 
@@ -182,35 +260,53 @@ def install_taos_explorer_on_linux(release_info, mode='release'):
     logging.info("taosx-explorer copied to {release_dir}".format(release_dir=dst_dir))
 
     os.chdir(explore_dir)
-    shutil.copy2(os.path.join(top_dir, "target", "deploy", f"{release_info.CustomPrompt}-explorer.service"), systemd_path)
+    shutil.copy2(
+        os.path.join(
+            top_dir, "target", "deploy", f"{release_info.CustomPrompt}-explorer.service"
+        ),
+        systemd_path,
+    )
 
-    cfg_path = os.path.join(release_dir,"etc", "taos")
+    cfg_path = os.path.join(release_dir, "etc", "taos")
     check_directory(cfg_path)
     shutil.copy2(os.path.join(deploy_dir, "explorer.toml"), cfg_path)
 
-def build_and_install_taosx_agent_on_linux(release_info, mode='release'):
+
+def build_and_install_taosx_agent_on_linux(release_info, mode="release"):
     logging.info("build_and_install taosx-agent under linux...")
-    dst_dir = os.path.join(release_dir,"bin")
-    binary_file = os.path.join(top_dir,"target","deploy","taosx-agent")
+    dst_dir = os.path.join(release_dir, "bin")
+    binary_file = os.path.join(top_dir, "target", "deploy", "taosx-agent")
     check_directory(dst_dir)
 
     os.chdir(top_dir)
 
-    if mode.lower() == 'release':
-        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=release cargo make deploy-taosx-agent')
+    if mode.lower() == "release":
+        os.system(
+            f"VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=release cargo make deploy-taosx-agent"
+        )
     else:
-        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=dev cargo make deploy-taosx-agent')
+        os.system(
+            f"VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=dev cargo make deploy-taosx-agent"
+        )
 
     logging.info("taosx-agent built successfully")
 
-    shutil.copy(binary_file,dst_dir)
+    shutil.copy(binary_file, dst_dir)
     logging.info("taosx-agent copied to {release_dir}".format(release_dir=dst_dir))
 
-    shutil.copy2(os.path.join(top_dir,"target","deploy", f"{release_info.CustomPrompt}x-agent.service"), systemd_path)
+    shutil.copy2(
+        os.path.join(
+            top_dir, "target", "deploy", f"{release_info.CustomPrompt}x-agent.service"
+        ),
+        systemd_path,
+    )
 
-    cfg_path = os.path.join(release_dir,"etc", "taos")
+    cfg_path = os.path.join(release_dir, "etc", "taos")
     check_directory(cfg_path)
-    shutil.copy2(os.path.join(top_dir,"taosx-agent","examples","agent.toml"), cfg_path)
+    shutil.copy2(
+        os.path.join(top_dir, "taosx-agent", "examples", "agent.toml"), cfg_path
+    )
+
 
 def replace_file_content(file, pattern, new_attribute):
     with open(file, "r") as f:
@@ -219,24 +315,30 @@ def replace_file_content(file, pattern, new_attribute):
     with open(file, "w") as f:
         f.write(new_content)
 
-def chmodReleaseDir(release_info):
-    dir = os.path.join(release_dir,"bin")
-    if os.path.exists(dir):
-        os.chmod(os.path.join(release_dir,"bin"),0o755)
 
-    os.chmod(os.path.join(release_dir,"plugins"),0o755)
+def chmodReleaseDir(release_info):
+    dir = os.path.join(release_dir, "bin")
+    if os.path.exists(dir):
+        os.chmod(os.path.join(release_dir, "bin"), 0o755)
+
+    os.chmod(os.path.join(release_dir, "plugins"), 0o755)
+
 
 def make_agent_package(release_info):
     logging.info("making agent package")
-    shutil.copy(os.path.join(script_dir,"uninstall.sh"),release_dir)
-    shutil.copy(os.path.join(script_dir,"install.sh"),release_dir)
-    replace_file_content(os.path.join(release_dir, "uninstall.sh"), 'target=""', f'target="{target}"')
-    replace_file_content(os.path.join(release_dir, "install.sh"), 'target=""', f'target="{target}"')
+    shutil.copy(os.path.join(script_dir, "uninstall.sh"), release_dir)
+    shutil.copy(os.path.join(script_dir, "install.sh"), release_dir)
+    replace_file_content(
+        os.path.join(release_dir, "uninstall.sh"), 'target=""', f'target="{target}"'
+    )
+    replace_file_content(
+        os.path.join(release_dir, "install.sh"), 'target=""', f'target="{target}"'
+    )
 
-    os.chmod(os.path.join(release_dir,"uninstall.sh"),0o755)
-    os.chmod(os.path.join(release_dir,"install.sh"),0o755)
+    os.chmod(os.path.join(release_dir, "uninstall.sh"), 0o755)
+    os.chmod(os.path.join(release_dir, "install.sh"), 0o755)
 
-    os.chdir(os.path.join(release_dir,".."))
+    os.chdir(os.path.join(release_dir, ".."))
 
     filename = f"{release_dir}.tar.gz"
     code = os.system(f"tar -czvf {filename} $(basename {release_dir})")
@@ -244,29 +346,42 @@ def make_agent_package(release_info):
         raise Exception("packaging {0} failed".format(release_info.TdengineVersion))
     else:
         if release_info.UploadAgent:
-            logging.info(f'upload {filename} to taosdata.com')
-            os.system(f"scp {release_dir}.tar.gz root@taosdata.com:/data/www/assets-download/3.0/")
-            logging.info(f'upload {filename} to tdengine.com')
-            os.system(f"scp {release_dir}.tar.gz ubuntu@tdengine.com:/data/www/assets-download/3.0/")
+            logging.info(f"upload {filename} to taosdata.com")
+            os.system(
+                f"scp {release_dir}.tar.gz root@taosdata.com:/data/www/assets-download/3.0/"
+            )
+            logging.info(f"upload {filename} to tdengine.com")
+            os.system(
+                f"scp {release_dir}.tar.gz ubuntu@tdengine.com:/data/www/assets-download/3.0/"
+            )
+
 
 def make_tar_package(release_info):
     logging.info("making tar package")
-    shutil.copy(os.path.join(script_dir,"uninstall.sh"),release_dir)
-    shutil.copy(os.path.join(script_dir,"install.sh"),release_dir)
-    replace_file_content(os.path.join(release_dir, "uninstall.sh"), 'target=""', f'target="{target}"')
-    replace_file_content(os.path.join(release_dir, "install.sh"), 'target=""', f'target="{target}"')
+    shutil.copy(os.path.join(script_dir, "uninstall.sh"), release_dir)
+    shutil.copy(os.path.join(script_dir, "install.sh"), release_dir)
+    replace_file_content(
+        os.path.join(release_dir, "uninstall.sh"), 'target=""', f'target="{target}"'
+    )
+    replace_file_content(
+        os.path.join(release_dir, "install.sh"), 'target=""', f'target="{target}"'
+    )
 
-    os.chmod(os.path.join(release_dir,"uninstall.sh"),0o755)
-    os.chmod(os.path.join(release_dir,"install.sh"),0o755)
+    os.chmod(os.path.join(release_dir, "uninstall.sh"), 0o755)
+    os.chmod(os.path.join(release_dir, "install.sh"), 0o755)
 
-
-    os.chdir(os.path.join(release_dir,".."))
-    code = os.system("tar -czvf {0}.tar.gz $(basename {1}) --remove-files".format(release_dir,release_dir))
+    os.chdir(os.path.join(release_dir, ".."))
+    code = os.system(
+        "tar -czvf {0}.tar.gz $(basename {1}) --remove-files".format(
+            release_dir, release_dir
+        )
+    )
     if code != 0:
         raise Exception("packaging {0} failed".format(release_info.TdengineVersion))
     else:
         logging.info("packaging {0} successfully".format(release_info.TdengineVersion))
         os.chdir(script_dir)
+
 
 def test_handle(release_info, process):
     init_release_dir(release_info)
@@ -277,13 +392,21 @@ def test_handle(release_info, process):
         print("Calling Package function...")
         chmodReleaseDir(release_info)
         make_tar_package(release_info)
-    elif process == "taosx" and not release_info.UploadAgent and not release_info.BuildAgent:
+    elif (
+        process == "taosx"
+        and not release_info.UploadAgent
+        and not release_info.BuildAgent
+    ):
         print("Calling taosx function...")
         build_and_install_taosx_on_linux(release_info, "Debug")
     elif process == "agent":
         print("Calling taosx agent function...")
         build_and_install_taosx_agent_on_linux(release_info, "Debug")
-    elif process == "explorer" and not release_info.UploadAgent and not release_info.BuildAgent:
+    elif (
+        process == "explorer"
+        and not release_info.UploadAgent
+        and not release_info.BuildAgent
+    ):
         print("Calling taos-explorer function...")
         install_taos_explorer_on_linux(release_info, "Release")
     elif process == "influxdb":
@@ -292,13 +415,17 @@ def test_handle(release_info, process):
     elif process == "opentsdb":
         print("Calling opentsDB function...")
         build_and_install_opentsdb_on_linux("Debug")
+    elif process == "pspace":
+        print("Calling pSpace function...")
+        build_and_install_pspace_on_linux("Debug")
     else:
         print(f"Invalid -t param: {process}. Please enter valid input.")
+
 
 def check_directory(path):
     try:
         if not os.path.exists(path):
             os.makedirs(path)
     except Exception as e:
-        print('Error:', e)
+        print("Error:", e)
         sys.exit()

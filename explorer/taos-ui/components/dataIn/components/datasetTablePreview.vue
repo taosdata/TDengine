@@ -21,13 +21,7 @@
       :data="tableData"
       size="default"
     >
-      <el-table-column
-        v-for="col in columns"
-        :key="col"
-        :prop="col"
-        :label="col"
-        show-overflow-tooltip
-      >
+      <el-table-column v-for="col in columns" :key="col" :prop="col" :label="col" show-overflow-tooltip>
         <template #header>
           <el-input
             v-model="searchTextMap[col]"
@@ -50,21 +44,9 @@
       :total="total"
       @current-change="handlePageChange"
     ></el-pagination>
-    <el-drawer
-      id="my-drawer"
-      v-model:visible="drawer"
-      :title="t('dataIn.transformer.resulttb')"
-      direction="rtl"
-      size="100%"
-    >
+    <el-drawer id="my-drawer" v-model="drawer" :title="t('dataIn.transformer.resulttb')" direction="rtl" size="100%">
       <el-table ref="table" border style="width: 100%" :max-height="fullTableHeight" :data="tableData" size="small">
-        <el-table-column
-          v-for="col in columns"
-          :key="col"
-          :prop="col"
-          :label="col"
-          show-overflow-tooltip
-        >
+        <el-table-column v-for="col in columns" :key="col" :prop="col" :label="col" show-overflow-tooltip>
           <template #header>
             <el-input
               v-model="searchTextMap[col]"
@@ -139,7 +121,11 @@ async function searchInputChange() {
   } else {
     const filters = Object.fromEntries(activeFilters);
     filterTableData.value = await lists.value.filter(row =>
-      Object.keys(filters).every(key => String(row[key] ?? '').toLowerCase().includes(String(filters[key]).toLowerCase()))
+      Object.keys(filters).every(key =>
+        String(row[key] ?? '')
+          .toLowerCase()
+          .includes(String(filters[key]).toLowerCase())
+      )
     );
   }
   getTableData(filterTableData.value);
@@ -177,11 +163,14 @@ async function getDatasetsData(res: Recordable) {
 }
 
 function getEleTop() {
-  const dom1 = document.getElementById(`${datasetsField}`) as HTMLElement;
-  const dom2 = document.querySelector('.right-ui') as HTMLElement;
-  const rect1 = dom1?.getBoundingClientRect();
-  const rect2 = dom2?.getBoundingClientRect();
-  defaultTop.value = rect1.top - rect2.top + 'px';
+  nextTick(() => {
+    const dom1 = document.getElementById(`${datasetsField}`) as HTMLElement;
+    const dom2 = document.querySelector('.right-ui') as HTMLElement;
+    if (!dom1 || !dom2) return;
+    const rect1 = dom1.getBoundingClientRect();
+    const rect2 = dom2.getBoundingClientRect();
+    defaultTop.value = rect1.top - rect2.top + 'px';
+  });
 }
 function getFullTableHeight() {
   const dom = document.getElementById('my-drawer') as HTMLElement;

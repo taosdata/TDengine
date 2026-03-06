@@ -1,0 +1,12 @@
+[connection]
+server = "192.168.2.149"
+port = 8889
+username = "admin"
+password = "admin888"
+
+[nodes]
+root = 150016
+
+[points]
+name_filter = "\\北京\\朝阳\\*气温*"
+include_data_type = true

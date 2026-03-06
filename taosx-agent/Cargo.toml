@@ -62,6 +62,7 @@ taos.workspace = true
 
 taosx-task.workspace = true
 source-kinghistorian.workspace = true
+source-pspace.workspace = true
 taosx-utils.workspace = true
 ha-core.workspace = true
 taosx-core.workspace = true

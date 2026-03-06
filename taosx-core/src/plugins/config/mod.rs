@@ -1,18 +1,27 @@
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use taos::Dsn;
 
 /// advanced options for all data sources. Option value is None when data source not support.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdvancedOptions {
     #[allow(dead_code)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub log_level: Option<LogLevel>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub read_concurrency: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub write_concurrency: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub batch_size: Option<usize>,
     /// Batch timeout in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub batch_timeout: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub keep_raw_data: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub keep_raw_data_days: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub keep_raw_data_dir: Option<String>,
 }
 
@@ -29,6 +38,7 @@ impl AdvancedOptions {
             keep_raw_data_dir: Self::parse_keep_raw_data_dir(dsn)?,
         })
     }
+
     fn parse_log_level(dsn: &Dsn) -> anyhow::Result<Option<LogLevel>> {
         if let Some(log_level) = dsn.get("log_level") {
             let log_level = LogLevel::from_str(log_level)?;
@@ -125,7 +135,7 @@ impl AdvancedOptions {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LogLevel {
     Error,
     Warn,

@@ -405,6 +405,18 @@ impl TaskOpts {
                     )
                     .await?
                 }
+                (source_pspace::PSPACE_ID, "taos") => {
+                    source_pspace::pspace_to_taos(
+                        task_job_id,
+                        from.clone(),
+                        to.clone(),
+                        port_pool,
+                        cancel.clone(),
+                        with_agent.clone(),
+                        notify.clone(),
+                    )
+                    .await?
+                }
                 ("taos", "local") => {
                     taos_to_local(task_job_id, from.clone(), to.clone(), cancel.clone()).await?;
                 }

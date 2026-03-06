@@ -245,16 +245,22 @@ export default {
   rootNode: '根节点 ID',
   namespace: '命名空间',
   pointRegexp: '正则匹配',
+  pspaceRootNode: '根节点',
+  pspaceRootNodeDesc: '从该节点开始遍历所有数据点, 例如：`\\北京\\朝阳`，表示从 `\\北京\\朝阳` 节点开始，向下遍历。默认从根节点开始遍历。',
+  pspacePointName: '数据点名称',
+  pspacePointNameDesc: '支持根据数据点的 LongName 过滤。例如：`\\北京\\朝阳\\*气温*`，表示查询 `\\北京\\朝阳`下，所有名称包含`气温`的数据点。',
   noDsn: '请检查输入的服务地址',
   filterPointDesc: '根据输入的查询条件过滤出数据点位填充 CSV 模版生成文件',
   rootNodePlaceholder: {
     opcua: '例如 ns=3;i=1001',
-    opcda: '例如 root.parent'
+    opcda: '例如 root.parent',
+    pspace: '例如：\\北京\\朝阳'
   },
   namespacePlaceholder: '连通性检查通过后，可选择，支持多选',
   pointRegexpPlaceholder: {
     opcua: '数据点位名称或 id 需要满足设置的正则表达式',
-    opcda: '数据点位 TagName 需要满足设置的正则表达式'
+    opcda: '数据点位 TagName 需要满足设置的正则表达式',
+    pspace: '数据点 LongName 需要满足设置的正则表达式'
   },
   kinghist: {
     group: '测点组',

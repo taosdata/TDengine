@@ -39,6 +39,8 @@ tmq-to-local.workspace = true
 local-to-taos.workspace = true
 legacy-to-taos.workspace = true
 taos-to-local.workspace = true
+source-pspace.workspace = true
+
 taosx-core.workspace = true
 taoslog.workspace = true
 ha-core.workspace = true

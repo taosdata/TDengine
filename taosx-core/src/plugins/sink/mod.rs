@@ -1162,6 +1162,7 @@ fn opc_object_node_sqls(
             point::model::SourceType::OPCUA => "t_{ns}_{id#/_}",
             point::model::SourceType::OPCDA => "t_{tagname}",
             point::model::SourceType::KingHistorian => "t_{tagname}",
+            point::model::SourceType::Pspace => "t_{point_id}",
         };
         let tbname =
             generate_tbname_from_pattern(source_type.as_static_str(), tbname_template, &node.id);

@@ -819,12 +819,12 @@ pub async fn point_records_to_sql(
             for ele in tag_configs {
                 let tag_name = ele.name.clone();
                 tag_names.push_str(format!("`{}`,", tag_name).as_str());
+                let empty_str = String::new();
                 let value = point_config
                     .tag_values
                     .as_ref()
-                    .unwrap()
-                    .get(&tag_name)
-                    .unwrap();
+                    .and_then(|tv| tv.get(&tag_name))
+                    .unwrap_or(&empty_str);
                 // Normalize tag value rendering:
                 // - Empty string -> NULL
                 // - Strings (VarChar/NChar/Json) -> single-quoted escaped

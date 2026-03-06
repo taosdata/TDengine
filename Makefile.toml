@@ -144,7 +144,7 @@ dependencies = ["install-protoc"]
 args = ["build", "--profile", "${BUILD_PROFILE}", "-p", "taosx-agent"]
 
 [tasks.plugins]
-dependencies = ["taosx-influxdb", "taosx-opentsdb", "taosx-opc"]
+dependencies = ["taosx-influxdb", "taosx-opentsdb", "taosx-opc", "taosx-pspace"]
 
 [tasks.clean-plugins]
 script = """
@@ -152,6 +152,7 @@ set -ex
 rm -rf plugins/influxdb/target
 rm -rf plugins/opentsdb/target
 rm -rf plugins/opc/taosx-opc
+rm -rf plugins/pspace/target
 """
 
 [tasks.taosx-influxdb]
@@ -161,6 +162,10 @@ args = ["package", "-f", "plugins/influxdb/pom.xml"]
 [tasks.taosx-opentsdb]
 command = "mvn"
 args = ["package", "-f", "plugins/opentsdb/pom.xml"]
+
+[tasks.taosx-pspace]
+command = "mvn"
+args = ["package", "-f", "plugins/pspace/pom.xml"]
 
 [tasks.taosx-opc]
 cwd = "plugins/opc"
@@ -189,6 +194,7 @@ mkdir -p $PKG/usr/bin
 mkdir -p $PKG/usr/local/taos/plugins/influxdb
 mkdir -p $PKG/usr/local/taos/plugins/opentsdb
 mkdir -p $PKG/usr/local/taos/plugins/opc
+mkdir -p $PKG/usr/local/taos/plugins/pspace
 
 mkdir -p $PKG/etc/systemd
 mkdir -p $PKG/etc/taos
@@ -197,6 +203,7 @@ cp target/release/taosx target/release/taosx-agent $PKG/usr/bin
 cp plugins/influxdb/target/taosx-influxdb.jar $PKG/usr/local/taos/plugins/influxdb
 cp plugins/opentsdb/target/taosx-opentsdb.jar $PKG/usr/local/taos/plugins/opentsdb
 cp plugins/opc/taosx-opc $PKG/usr/local/taos/plugins/opc/
+cp plugins/pspace/target/taosx-pspace.jar $PKG/usr/local/taos/plugins/pspace/
 cp packaging/uninstall.sh $PKG/usr/local/taos/
 
 cp target/*.service $PKG/etc/systemd/
@@ -226,6 +233,7 @@ run_task = { name = [
   "install-plugin-opc",
   "install-plugin-influxdb",
   "install-plugin-opentsdb",
+  "install-plugin-pspace",
 ] }
 
 [tasks.install-plugin-opc]
@@ -245,6 +253,12 @@ condition = { files_exist = ["plugins/opentsdb/target/taosx-opentsdb.jar"] }
 script = """
 sudo mkdir -p ${PLUGINS_HOME}/opentsdb
 sudo cp plugins/opentsdb/target/taosx-opentsdb.jar  ${PLUGINS_HOME}/opentsdb/
+"""
+[tasks.install-plugin-pspace]
+condition = { files_exist = ["plugins/pspace/target/taosx-pspace.jar"] }
+script = """
+sudo mkdir -p ${PLUGINS_HOME}/pspace
+sudo cp plugins/pspace/target/taosx-pspace.jar ${PLUGINS_HOME}/pspace/
 """
 
 [tasks.install-agent]

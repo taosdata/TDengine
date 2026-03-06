@@ -62,6 +62,15 @@
           </div>
         </a>
       </el-tooltip>
+      <el-tooltip v-if="isPspace" class="opc-download-point" effect="light" :content="t('dataIn.downloadnodestip')">
+        <a class="ml20" :class="{ disabled: dataInProps.isCommunity }" @click.prevent="openDialog">
+          <el-icon><Download /></el-icon>
+          {{ t('dataIn.downloadnodestip') }}
+          <div class="csv-progress">
+            <el-progress v-if="progressVisible" :percentage="percentage" :format="format" />
+          </div>
+        </a>
+      </el-tooltip>
       <el-button
         v-if="isShowAddOpcPoint"
         :type="dataInProps.isIdmp ? 'default' : 'primary'"
@@ -95,12 +104,34 @@
       </template>
       <div>
         <el-form ref="conditionForm" size="default" :model="info" label-width="150px" label-position="left">
-          <el-form-item :label="t('dataIn.rootNode')" prop="root">
-            <el-input
-              v-model="info.root"
+          <el-form-item :label="isPspace ? t('dataIn.pspaceRootNode') : t('dataIn.rootNode')" prop="root">
+            <!-- pspace 使用懒加载树选择节点，返回节点 id；其他类型保留原文本输入 -->
+            <template v-if="isPspace" #label>
+              <el-tooltip placement="top" effect="light" :open-delay="0">
+                <template #content>
+                  <DocsContent :content="t('dataIn.pspaceRootNodeDesc')" />
+                </template>
+                <span>
+                  <span>{{ t('dataIn.pspaceRootNode') }}</span>
+                  <span style="display: inline-block; margin-left: 2px; vertical-align: middle">
+                    <Icon name="label_info" class="info-icon-custom"></Icon>
+                  </span>
+                </span>
+              </el-tooltip>
+            </template>
+            <lazy-tree-select
+              v-if="sourceForm.type === 'pspace'"
+              v-model="info.root as number"
               style="width: 300px"
               :placeholder="t('dataIn.rootNodePlaceholder.' + sourceForm.type)"
-            ></el-input>
+              :root-label="t('dataIn.pspaceRootNode')"
+            />
+            <el-input
+              v-else
+              v-model="info.root as string"
+              style="width: 300px"
+              :placeholder="t('dataIn.rootNodePlaceholder.' + sourceForm.type)"
+            />
           </el-form-item>
           <el-form-item v-if="isOpcUa" :label="t('dataIn.namespace')" prop="namespaces">
             <el-select
@@ -116,7 +147,20 @@
                 :label="item.label"
               ></el-option>
             </el-select> </el-form-item
-          ><el-form-item :label="t('dataIn.pointRegexp')" prop="pattern">
+          ><el-form-item :label="isPspace ? t('dataIn.pspacePointName') : t('dataIn.pointRegexp')" prop="pattern">
+            <template v-if="isPspace" #label>
+              <el-tooltip placement="top" effect="light" :open-delay="0">
+                <template #content>
+                  <DocsContent :content="t('dataIn.pspacePointNameDesc')" />
+                </template>
+                <span>
+                  <span>{{ t('dataIn.pspacePointName') }}</span>
+                  <span style="display: inline-block; margin-left: 2px; vertical-align: middle">
+                    <Icon name="label_info" class="info-icon-custom"></Icon>
+                  </span>
+                </span>
+              </el-tooltip>
+            </template>
             <el-input
               v-model="info.pattern"
               style="width: 300px"
@@ -266,6 +310,7 @@ import { isEn } from 'config';
 import useSearchPoint from '../model/useSearchPoint';
 import { t } from 'locales';
 import { cloneDeep } from 'lodash-es';
+import LazyTreeSelect from './lazyTreeSelect.vue';
 import {
   currentPageType,
   sourceForm,
@@ -295,7 +340,8 @@ const sourceParent = inject('sourceParent') as any;
 const { loading, timer, search } = useSearchPoint();
 
 interface InfoProps {
-  root: string;
+  // pspace 需要 root 使用节点 id（number），其他驱动可按原有语义（string）
+  root: number | string;
   namespaces: string[];
   pattern: string;
 }
@@ -370,6 +416,7 @@ const isEdit = computed(() => currentPageType.value == 'edit');
 const isOpc = computed(() => ['opcua', 'opcda'].includes(sourceForm.type));
 const isOpcUa = computed(() => ['opcua'].includes(sourceForm.type));
 const isKinghist = computed(() => sourceForm.type === 'kinghist');
+const isPspace = computed(() => sourceForm.type === 'pspace');
 const agentId = computed(() => sourceForm.agent);
 // 统一获取 update_mode：不同数据源/语言包下分组字段名可能不同
 const updateMode = computed<string | undefined>(() => {
@@ -476,7 +523,13 @@ async function submit() {
 
     const fromJson: any = cloneDeep(sourceForm);
     // Keep previous behavior: merge filter fields at top-level
-    fromJson.root = info.root;
+    // pspace: root 必须是节点 id（number）；其他驱动按原有语义
+    if (fromJson.type === 'pspace') {
+      const rootId = Number(info.root);
+      fromJson.root = Number.isFinite(rootId) ? rootId : 0;
+    } else {
+      fromJson.root = info.root as any;
+    }
     fromJson.namespaces = namespaces;
     fromJson.pattern = info.pattern;
     // Critical fix: when downloading OPC points, ignore csv_config_file to force pulling from OPC server
@@ -489,6 +542,16 @@ async function submit() {
         delete fromJson.data.datasets.csv_config_file;
         delete fromJson.data.datasets.csv_config_file_origin;
       }
+    }
+
+    if (fromJson.type === 'pspace') {
+      if (!fromJson.params || typeof fromJson.params !== 'object') {
+        fromJson.params = {};
+      }
+      // add csv_format=full
+      fromJson.params.csv_format = 'full';
+      // include data_type for each point so CSV type column is populated
+      fromJson.params.include_data_type = 'true';
     }
 
     const params: Recordable = {
