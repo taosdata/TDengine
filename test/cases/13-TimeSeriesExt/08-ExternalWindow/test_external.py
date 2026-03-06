@@ -44,23 +44,20 @@ class TestExternal:
         """
 
         tdLog.debug(f"start to execute {__file__}")
-        vgroups = 4
-        self.dbName = "external_window_test_single_block"
 
-        tdLog.info(f"====> create database {self.dbName} vgroups {vgroups}")
-        tdSql.execute(f"drop database if exists {self.dbName}")
-        tdSql.execute(f"create database {self.dbName} vgroups {vgroups}")
-        self.prepareData()
-
-        self.mock_test()
+        self.mock_test_external_window_single_block()
+        self.mock_test_external_window_group_blocks()
         # self.basic_query()
         # partition by + external window regression is tracked separately.
         # keep basic_query as focused validation entry for external placeholder assignment.
         # self.partition_by_group_regression()
 
-    def mock_test(self):
-        tdSql.execute(f"use {self.dbName}")
-        tdLog.info(f"=============== mock test for external window")
+    def mock_test_external_window_single_block(self):
+        dbName = "external_window_test_single_block"
+        self.prepareData(dbName)
+        tdSql.execute(f"use {dbName}")
+        tdLog.info(f"=============== basic query of external window with agg")
+        
         sql = "select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select first(c1) fc1  from st2) w);"
         tdSql.query(sql)
         tdSql.checkRows(2)
@@ -183,8 +180,46 @@ class TestExternal:
         tdSql.checkData(82, 5, 100)
         tdSql.checkData(163, 5, 100)
     
-    def prepareData(self):
-        tdSql.execute(f"use {self.dbName}")
+    def mock_test_external_window_group_blocks(self):
+        dbName = "external_window_test_group_blocks"
+        self.prepareData(dbName)
+        tdSql.execute(f"use {dbName}")
+        tdLog.info(f"=============== basic query of external window with agg on group blocks")
+        
+        sql = "select _wstart, _wend, w.fc1, count(*), dev from st1_1 partition by dev  external_window((select first(c1) fc1  from st2) w);"
+        tdSql.query(sql)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
+        tdSql.checkData(0, 1, "2020-05-13 10:49:00.000")
+        tdSql.checkData(0, 2, 100)
+        tdSql.checkData(0, 3, 50)
+        tdSql.checkData(0, 4, "dev_01")
+        tdSql.checkData(1, 0, "2020-05-13 10:49:00.001")
+        tdSql.checkData(1, 1, "2020-05-13 11:21:50.000")
+        tdSql.checkData(1, 2, 200)
+        tdSql.checkData(1, 3, 32)
+        tdSql.checkData(1, 4, "dev_01")
+        
+        # select _wstart, _wend, w.fc1, count(*), v2 from st1_1 partition by dev  external_window((select first(c1) fc1  from st2) w);
+        
+        # select _wstart, _wend, w.fc1, count(*), v2 from st1_1 partition by v2  external_window((select first(c1) fc1  from st2) w);
+        
+        # sql = "select _wstart, _wend, w.fc1, count(*) from st1 partition by dev external_window((select first(c1) fc1  from st2) w);"
+        # tdSql.query(sql)
+        # tdSql.checkRows(8)
+        # for i in range(8):
+        #     tdSql.checkData(i, 0, "2020-05-13 10:00:00.000")
+        #     tdSql.checkData(i, 1, "2020-05-13 11:21:50.000")
+        #     tdSql.checkData(i, 2, 100)
+        #     tdSql.checkData(i, 3, 100)
+    
+    def prepareData(self, dbName):
+        vgroups = 4
+        tdLog.info(f"====> create database {dbName} vgroups {vgroups}")
+        tdSql.execute(f"drop database if exists {dbName}")
+        tdSql.execute(f"create database {dbName} vgroups {vgroups}")
+        
+        tdSql.execute(f"use {dbName}")
 
         tdLog.info(f"=============== create super table, child table and insert data")
         tdSql.execute(
