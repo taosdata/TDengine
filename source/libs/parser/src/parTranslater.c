@@ -9047,16 +9047,19 @@ _return:
   return code;
 }
 
-static int32_t checkAnomalyExpr(STranslateContext* pCxt, SNode* pNode) {
-  int32_t type = ((SExprNode*)pNode)->resType.type;
-  if (!IS_MATHABLE_TYPE(type)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_TYPE,
-                                   "ANOMALY_WINDOW only support mathable column");
-  }
+static int32_t checkAnomalyExpr(STranslateContext* pCxt, SNodeList* pNodeList) {
+  for(int32_t i = 0; i < pNodeList->length; ++i) {
+    SNode* pNode = nodesListGetNode(pNodeList, i);
+    int32_t type = ((SExprNode*)pNode)->resType.type;
+    if (!IS_MATHABLE_TYPE(type)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_TYPE,
+                                    "ANOMALY_WINDOW only support mathable column");
+    }
 
-  if (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_COL,
-                                   "ANOMALY_WINDOW not support on tag column");
+    if (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_COL,
+                                    "ANOMALY_WINDOW not support on tag column");
+    }
   }
 
   return TSDB_CODE_SUCCESS;

@@ -1997,20 +1997,35 @@ _err:
   return NULL;
 }
 
-SNode* createAnomalyWindowNode(SAstCreateContext* pCxt, SNode* pExpr, const SToken* pFuncOpt) {
+SNode* createAnomalyWindowNode(SAstCreateContext* pCxt, SNodeList* pExprList) {
   SAnomalyWindowNode* pAnomaly = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_ANOMALY_WINDOW, (SNode**)&pAnomaly);
   CHECK_MAKE_NODE(pAnomaly);
+  
   pAnomaly->pCol = createPrimaryKeyCol(pCxt, NULL);
   CHECK_MAKE_NODE(pAnomaly->pCol);
-  pAnomaly->pExpr = pExpr;
-  if (pFuncOpt == NULL) {
+
+  pAnomaly->pExpr = pExprList;
+
+  int32_t len = LIST_LENGTH(pExprList);
+  if (len == 1) {
     tstrncpy(pAnomaly->anomalyOpt, "algo=iqr", TSDB_ANALYTIC_ALGO_OPTION_LEN);
   } else {
-    (void)trimString(pFuncOpt->z, pFuncOpt->n, pAnomaly->anomalyOpt, sizeof(pAnomaly->anomalyOpt));
+    SNode* pNode = nodesListGetNode(pExprList, len - 1);
+    if (pNode != NULL && nodeType(pNode) == QUERY_NODE_VALUE) {
+      tstrncpy(pAnomaly->anomalyOpt, ((SValueNode*)pNode)->literal, TSDB_ANALYTIC_ALGO_OPTION_LEN);
+
+      SListCell* pCell = nodesListGetCell(pExprList, len - 1);
+      (void)nodesListErase(pExprList, pCell);
+      nodesDestroyNode(pNode);
+    } else {
+      tstrncpy(pAnomaly->anomalyOpt, "algo=iqr", TSDB_ANALYTIC_ALGO_OPTION_LEN);
+    }
   }
+
   return (SNode*)pAnomaly;
+
 _err:
   nodesDestroyNode((SNode*)pAnomaly);
   return NULL;

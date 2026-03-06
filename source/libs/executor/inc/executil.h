@@ -277,7 +277,7 @@ void    rmDbVgInfoFromCache(const char* dbFName);
 int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq);
 int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 
-int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* pId);
+int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* typeStr, const char* pId);
 int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes);
 
 #endif  // TDENGINE_EXECUTIL_H

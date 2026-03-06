@@ -481,10 +481,10 @@ typedef struct SCountWindowNode {
 } SCountWindowNode;
 
 typedef struct SAnomalyWindowNode {
-  ENodeType type;  // QUERY_NODE_ANOMALY_WINDOW
-  SNode*    pCol;  // timestamp primary key
-  SNode*    pExpr;
-  char      anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
+  ENodeType  type;  // QUERY_NODE_ANOMALY_WINDOW
+  SNode*     pCol;  // timestamp primary key
+  SNodeList* pExpr;
+  char       anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
 } SAnomalyWindowNode;
 
 typedef struct SSlidingWindowNode {
