@@ -6,8 +6,8 @@ sidebar_label: "部署时序基础模型"
 由众多研究机构及企业开源时序基础模型极大地简化了时序数据分析的复杂程度，在数据分析算法、机器学习和深度学习模型之外，
 提供了一个时间序列数据高级分析的新选择。本章介绍部署并使用开源时序基础模型（Time Series Foundation Model, TSFM）。
 
-TDgpt 在 3.3.6.4 版本原生支持六种类型的时序基础模型：涛思时序基础模型 (TDtsfm v1.0) , time-moe，chronos, moirai, timesfm, moment。
-在官方的安装包中，内置了 TDtsfm 和 time-moe 两个时序模型，如果使用其他的模型，需要您在本地部署服务。部署其他时序基础模型服务的文件，位于
+TDgpt 从 3.3.6.4 版本开始已经陆续支持六种类型的时序基础模型：涛思时序基础模型 (TDtsfm v1.0) , time-moe，chronos, moirai, timesfm, moment。
+安装包中内置了 TDtsfm 和 time-moe 两个时序模型，如果使用其他的模型，需要您在本地部署服务。部署其他时序基础模型服务的文件，位于
 `< tdgpt 根目录>/lib/taosanalytics/tsfmservice/` 下，该目录下包含五个文件，分别用于本地部署启动对应的时序基础模型。TDgpt 适配了以下的时序模型的功能，对于不支持的功能，可能模型本身无法支持也可能是 TDgpt 没有适配该时序基础模型的功能。
 
 <table>
