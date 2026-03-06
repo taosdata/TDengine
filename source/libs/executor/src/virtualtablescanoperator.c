@@ -422,11 +422,8 @@ int32_t openVirtualTableScanOperator(SOperatorInfo* pOperator) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int64_t startTs = taosGetTimestampUs();
-
   code = openVirtualTableScanOperatorImpl(pOperator);
 
-  pOperator->cost.openCost = (double)(taosGetTimestampUs() - startTs) / 1000.0;
   pOperator->status = OP_RES_TO_RETURN;
 
   VTS_ERR_RET(code);
@@ -924,7 +921,7 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
 
   QUERY_CHECK_NULL(pInfo, code, lino, _return, terrno)
   QUERY_CHECK_NULL(pOperator, code, lino, _return, terrno)
-  recordOpCreateTime(pOperator, pTaskInfo);
+  recordOpCreateTime(pOperator);
 
   pOperator->pPhyNode = pVirtualScanPhyNode;
 

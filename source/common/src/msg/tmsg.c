@@ -12685,8 +12685,6 @@ int32_t tSerializeSExplainRsp(void *buf, int32_t bufLen, SExplainRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->numOfPlans));
   for (int32_t i = 0; i < pRsp->numOfPlans; ++i) {
     SExplainExecInfo *info = &pRsp->subplanInfo[i];
-    TAOS_CHECK_EXIT(tEncodeDouble(&encoder, info->startupCost));
-    TAOS_CHECK_EXIT(tEncodeDouble(&encoder, info->totalCost));
     TAOS_CHECK_EXIT(tEncodeU64(&encoder, info->numOfRows));
     TAOS_CHECK_EXIT(tEncodeU32(&encoder, info->verboseLen));
     TAOS_CHECK_EXIT(tEncodeBinary(&encoder, info->verboseInfo, info->verboseLen));
@@ -12729,8 +12727,6 @@ int32_t tDeserializeSExplainRsp(void *buf, int32_t bufLen, SExplainRsp *pRsp) {
     }
   }
   for (int32_t i = 0; i < pRsp->numOfPlans; ++i) {
-    TAOS_CHECK_EXIT(tDecodeDouble(&decoder, &pRsp->subplanInfo[i].startupCost));
-    TAOS_CHECK_EXIT(tDecodeDouble(&decoder, &pRsp->subplanInfo[i].totalCost));
     TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pRsp->subplanInfo[i].numOfRows));
     TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pRsp->subplanInfo[i].verboseLen));
     TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, &pRsp->subplanInfo[i].verboseInfo, NULL));

@@ -125,7 +125,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   pOperator->pPhyNode = pProjPhyNode;
   pOperator->exprSupp.hasWindowOrGroup = false;
   pOperator->pTaskInfo = pTaskInfo;
-  recordOpCreateTime(pOperator, pTaskInfo);
+  recordOpCreateTime(pOperator);
 
   int32_t    lino = 0;
 
@@ -479,7 +479,7 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
 
   pOperator->pPhyNode = pNode;
   pOperator->pTaskInfo = pTaskInfo;
-  recordOpCreateTime(pOperator, pTaskInfo);
+  recordOpCreateTime(pOperator);
 
   SExprSupp* pSup = &pOperator->exprSupp;
   pSup->hasWindowOrGroup = false;
@@ -761,7 +761,6 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
   SExprSupp*   pSup = &pOperator->exprSupp;
   SSDataBlock* pRes = pProjectInfo->binfo.pRes;
   SExprInfo*   pExpr = pSup->pExprInfo;
-  int64_t      st = taosGetTimestampUs();
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
   int32_t code = blockDataEnsureCapacity(pRes, pOperator->resultInfo.capacity);
@@ -853,9 +852,6 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
   pOperator->resultInfo.totalRows += pRes->info.rows;
 
   setOperatorCompleted(pOperator);
-  if (pOperator->cost.openCost == 0) {
-    pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-  }
 
   return code;
 }

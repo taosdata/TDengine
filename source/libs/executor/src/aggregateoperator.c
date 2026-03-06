@@ -91,7 +91,7 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
     goto _error;
   }
 
-  recordOpCreateTime(pOperator, pTaskInfo);
+  recordOpCreateTime(pOperator);
 
   pOperator->exprSupp.hasWindowOrGroup = false;
 

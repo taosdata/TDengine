@@ -3459,8 +3459,6 @@ typedef struct {
 } SRetrieveMetaTableRsp;
 
 typedef struct SExplainExecInfo {
-  double   startupCost;
-  double   totalCost;
   /* the number of rows returned */
   uint64_t numOfRows;
   uint32_t verboseLen;

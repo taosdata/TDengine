@@ -23,8 +23,6 @@ extern "C" {
 
 #include "executorInt.h"
 typedef struct SOperatorCostInfo {
-  double openCost;  // to delete
-  double totalCost; // to delete
   TSKEY  execCreate;
   TSKEY  execStart;
   TSKEY  execFirstRow;
@@ -221,7 +219,7 @@ int32_t resetExprSupp(SExprSupp* pExprSupp, SExecTaskInfo* pTaskInfo, SNodeList*
                       SNodeList* pGroupKeys, SFunctionStateStore* pStore);
 int32_t copyColumnsValue(SNodeList* pNodeList, int64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc, int32_t totalRows);
 
-void recordOpCreateTime(SOperatorInfo* pOperator, SExecTaskInfo* pTaskInfo);
+void recordOpCreateTime(SOperatorInfo* pOperator);
 void recordOpExecBegin(SOperatorInfo* pOperator);
 void recordOpExecBeforeDownstream(SOperatorInfo* pOperator);
 void recordOpExecAfterDownstream(SOperatorInfo* pOperator, size_t inputRows);

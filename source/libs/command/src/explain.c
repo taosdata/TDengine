@@ -288,12 +288,17 @@ _return:
 static int32_t qExplainBufAppendExecInfo(SArray *pExecInfo, char *tbuf,
                                          int32_t *len, double* filterEfficiency) {
   int32_t          tlen = *len;
-  int32_t          nodeNum = taosArrayGetSize(pExecInfo);
+  size_t           nodeNum = taosArrayGetSize(pExecInfo);  // num of total nodes
+  size_t           numNoData = 0;  // num of nodes with no data
   SExplainExecInfo execInfo = {0};
   SExplainExecInfo maxExecInfo = {0};
 
   for (int32_t i = 0; i < nodeNum; ++i) {
     const SExplainExecInfo *pExec = taosArrayGet(pExecInfo, i);
+    if (pExec->numOfRows == 0) {
+      numNoData++;
+      continue;
+    }
     execInfo.execFirstRow += pExec->execFirstRow;
     execInfo.execLastRow += pExec->execLastRow;
     execInfo.numOfRows += pExec->numOfRows;
@@ -306,10 +311,11 @@ static int32_t qExplainBufAppendExecInfo(SArray *pExecInfo, char *tbuf,
   *filterEfficiency = execInfo.inputRows > 0 ?
                       (double)execInfo.numOfRows * 100.0 / (double)execInfo.inputRows : 100.0;
 
-  if (nodeNum == 1) {
+  if (nodeNum == 1 || numNoData == nodeNum) {
     EXPLAIN_ROW_APPEND(EXPLAIN_EXECINFO_FORMAT, EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execFirstRow),
                        EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execLastRow), execInfo.numOfRows);
   } else if (nodeNum > 1) {
+    nodeNum -= numNoData;
     EXPLAIN_ROW_APPEND(EXPLAIN_EXECINFO_FORMAT_EXT,
                        EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execFirstRow) / nodeNum,
                        EXPLAIN_CONVERT_TS_US_TO_MS(maxExecInfo.execFirstRow),
@@ -2635,8 +2641,8 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
     QRY_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  pCtx->groupHash =
-      taosHashInit(EXPLAIN_MAX_GROUP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  pCtx->groupHash = taosHashInit(EXPLAIN_MAX_GROUP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT),
+                                 false, HASH_NO_LOCK);
   if (NULL == pCtx->groupHash) {
     qError("groupHash %d failed", EXPLAIN_MAX_GROUP_NUM);
     QRY_ERR_RET(terrno);

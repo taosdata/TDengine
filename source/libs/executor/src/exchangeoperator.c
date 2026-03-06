@@ -703,7 +703,7 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator, pTaskInfo);
+  recordOpCreateTime(pOperator);
 
   pInfo->isExchange = true;
   pOperator->pPhyNode = pExNode;
@@ -1688,7 +1688,6 @@ int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator) {
          totalSources, (endTs - startTs) / 1000.0);
 
   pOperator->status = OP_RES_TO_RETURN;
-  pOperator->cost.openCost = taosGetTimestampUs() - startTs;
   if (isTaskKilled(pTaskInfo)) {
     T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
   }
@@ -2316,8 +2315,6 @@ int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
   }
 
   OPTR_SET_OPENED(pOperator);
-  pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-
   qDebug("%s prepare load complete", pOperator->pTaskInfo->id.str);
 
 _end:

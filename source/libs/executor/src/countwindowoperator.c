@@ -359,7 +359,7 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
     code = terrno;
     goto _error;
   }
-  recordOpCreateTime(pOperator, pTaskInfo);
+  recordOpCreateTime(pOperator);
 
   pOperator->pPhyNode = physiNode;
   pOperator->exprSupp.hasWindowOrGroup = true;
