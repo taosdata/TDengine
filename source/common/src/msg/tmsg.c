@@ -15268,31 +15268,6 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colNewName));
       break;
-#if 0 // localvar: should be useless, but keep the code for now.
-    case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
-      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->tagName));
-      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->isNull));
-      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->tagType));
-      if (!pReq->isNull) {
-        TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pReq->pTagVal, pReq->nTagVal));
-      }
-      break;
-    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL: {
-      int32_t nTags = taosArrayGetSize(pReq->pMultiTag);
-      TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, nTags));
-      for (int32_t i = 0; i < nTags; i++) {
-        SMultiTagUpdateVal *pTag = taosArrayGet(pReq->pMultiTag, i);
-        TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pTag->colId));
-        TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pTag->tagName));
-        TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTag->isNull));
-        TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTag->tagType));
-        if (!pTag->isNull) {
-          TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pTag->pTagVal, pTag->nTagVal));
-        }
-      }
-      break;
-    }
-#endif
     case TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL: {
       int32_t nTables = taosArrayGetSize(pReq->tables);
       TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, nTables));
@@ -15302,7 +15277,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
         int32_t nTags = taosArrayGetSize(pTable->tags);
         TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, nTags));
         for (int32_t j = 0; j < nTags; j++) {
-          SMultiTagUpdateVal *pTag = taosArrayGet(pTable->tags, j);
+          SUpdatedTagVal *pTag = taosArrayGet(pTable->tags, j);
           int8_t useRegexp = (pTag->regexp != NULL) ? 1 : 0;
           TAOS_CHECK_EXIT(tEncodeI8(pEncoder, useRegexp));
           TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pTag->colId));
@@ -15325,7 +15300,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       int32_t nTags = taosArrayGetSize(pReq->pMultiTag);
       TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, nTags));
       for (int32_t i = 0; i < nTags; i++) {
-        SMultiTagUpdateVal *pTag = taosArrayGet(pReq->pMultiTag, i);
+        SUpdatedTagVal *pTag = taosArrayGet(pReq->pMultiTag, i);
         int8_t useRegexp = (pTag->regexp != NULL) ? 1 : 0;
         TAOS_CHECK_EXIT(tEncodeI8(pEncoder, useRegexp));
         TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pTag->colId));
@@ -15426,38 +15401,6 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colNewName));
       break;
-#if 0 // localvar: should be useless, but keep the code for now.
-    case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->tagName));
-      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->isNull));
-      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->tagType));
-      if (!pReq->isNull) {
-        TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pReq->pTagVal, &pReq->nTagVal));
-      }
-      break;
-    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL: {
-      int32_t nTags;
-      TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nTags));
-      pReq->pMultiTag = taosArrayInit(nTags, sizeof(SMultiTagUpdateVal));
-      if (pReq->pMultiTag == NULL) {
-        TAOS_CHECK_EXIT(terrno);
-      }
-      for (int32_t i = 0; i < nTags; i++) {
-        SMultiTagUpdateVal tag;
-        TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &tag.colId));
-        TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.tagName));
-        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.isNull));
-        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.tagType));
-        if (!tag.isNull) {
-          TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &tag.pTagVal, &tag.nTagVal));
-        }
-        if (taosArrayPush(pReq->pMultiTag, &tag) == NULL) {
-          TAOS_CHECK_EXIT(terrno);
-        }
-      }
-      break;
-    }
-#endif
     case TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL: {
       int32_t nTables;
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nTables));
@@ -15470,12 +15413,12 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
         TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &table.tbName));
         int32_t nTags;
         TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nTags));
-        table.tags = taosArrayInit(nTags, sizeof(SMultiTagUpdateVal));
+        table.tags = taosArrayInit(nTags, sizeof(SUpdatedTagVal));
         if (table.tags == NULL) {
           TAOS_CHECK_EXIT(terrno);
         }
         for (int32_t j = 0; j < nTags; j++) {
-          SMultiTagUpdateVal tag = {0};
+          SUpdatedTagVal tag = {0};
           int8_t useRegexp;
           TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &useRegexp));
           TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &tag.colId));
@@ -15503,12 +15446,12 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
     case TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL: {
       int32_t nTags;
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nTags));
-      pReq->pMultiTag = taosArrayInit(nTags, sizeof(SMultiTagUpdateVal));
+      pReq->pMultiTag = taosArrayInit(nTags, sizeof(SUpdatedTagVal));
       if (pReq->pMultiTag == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
       for (int32_t i = 0; i < nTags; i++) {
-        SMultiTagUpdateVal tag = {0};
+        SUpdatedTagVal tag = {0};
         int8_t useRegexp;
         TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &useRegexp));
         TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &tag.colId));
@@ -15625,7 +15568,7 @@ _exit:
 
 
 void tfreeMultiTagUpateVal(void *val) {
-  SMultiTagUpdateVal *pTag = val;
+  SUpdatedTagVal *pTag = val;
   taosMemoryFree(pTag->tagName);
   for (int i = 0; i < taosArrayGetSize(pTag->pTagArray); ++i) {
     STagVal *p = (STagVal *)taosArrayGet(pTag->pTagArray, i);

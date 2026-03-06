@@ -738,6 +738,8 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
       ADD_TO_JSON_STRING(json, "colNewName", vAlterTbReq.colNewName);
       break;
     }
+
+#if 0 // TODO: localvar
     case TSDB_ALTER_TABLE_UPDATE_TAG_VAL: {
       ADD_TO_JSON_STRING(json, "colName", vAlterTbReq.tagName);
 
@@ -796,7 +798,7 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
         cJSON* member = tmqAddObjectToArray(tags);
         RAW_NULL_CHECK(member);
 
-        SMultiTagUpdateVal* pTagVal = taosArrayGet(vAlterTbReq.pMultiTag, i);
+        SUpdatedTagVal* pTagVal = taosArrayGet(vAlterTbReq.pMultiTag, i);
         ADD_TO_JSON_STRING(member, "colName", pTagVal->tagName);
 
         if (pTagVal->tagType == TSDB_DATA_TYPE_JSON) {
@@ -826,6 +828,16 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
       }
       break;
     }
+#endif
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL: {
+      // TODO: localvar
+    }
+    break;
+
+    case TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL: {
+      // TODO: localvar
+    }
+    break;
 
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS: {
       ADD_TO_JSON_STRING(json, "colName", vAlterTbReq.colName);

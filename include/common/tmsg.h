@@ -4952,7 +4952,7 @@ int32_t tEncodeSVDropTbBatchRsp(SEncoder* pCoder, const SVDropTbBatchRsp* pRsp);
 int32_t tDecodeSVDropTbBatchRsp(SDecoder* pCoder, SVDropTbBatchRsp* pRsp);
 
 // TDMT_VND_ALTER_TABLE =====================
-typedef struct SMultiTagUpdateVal {
+typedef struct SUpdatedTagVal {
   char*    tagName;
   int32_t  colId;
   int8_t   tagType;
@@ -4966,11 +4966,11 @@ typedef struct SMultiTagUpdateVal {
   // support
   char*    regexp;
   char*    replacement;
-} SMultiTagUpdateVal;
+} SUpdatedTagVal;
 
 typedef struct SUpdateTableTagVal {
   char *tbName;
-  SArray* tags; // Array of SMultiTagUpdateVal
+  SArray* tags; // Array of SUpdatedTagVal
 } SUpdateTableTagVal;
 
 typedef struct SVAlterTbReq {

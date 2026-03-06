@@ -23811,7 +23811,7 @@ static int32_t rewriteDropSuperTable(STranslateContext* pCxt, SQuery* pQuery) {
 
 
 static int32_t buildUpdateTagValReqImpl(STranslateContext* pCxt, const char* tagStr, STableMeta* pTableMeta,
-                                         char* colName, SMultiTagUpdateVal* pReq) {
+                                         char* colName, SUpdatedTagVal* pReq) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
   SSchema* pSchema = getTagSchema(pTableMeta, colName);
@@ -24546,7 +24546,7 @@ static int32_t doRewriteAlterMultiTableTagVal(STranslateContext* pCxt, SQuery* p
 
     SUpdateTableTagVal table = {0};
     table.tbName= taosStrdup(pClause->tableName);
-    table.tags = taosArrayInit(pClause->pTagList->length, sizeof(SMultiTagUpdateVal));
+    table.tags = taosArrayInit(pClause->pTagList->length, sizeof(SUpdatedTagVal));
     if (table.tbName == NULL || table.tags == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       tfreeUpdateTableTagVal(&table);
@@ -24556,7 +24556,7 @@ static int32_t doRewriteAlterMultiTableTagVal(STranslateContext* pCxt, SQuery* p
     SNode* pTagNode = NULL;
     FOREACH(pTagNode, pClause->pTagList) {
       SUpdateTagValueNode* pTag = (SUpdateTagValueNode*)pTagNode;
-      SMultiTagUpdateVal* p = taosHashGet(pUniqueTag, pTag->tagName, strlen(pTag->tagName));
+      SUpdatedTagVal* p = taosHashGet(pUniqueTag, pTag->tagName, strlen(pTag->tagName));
       if (p != NULL) {
         code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN, "Duplicated tag: `%s`", pTag->tagName);
         tfreeUpdateTableTagVal(&table);
@@ -24569,7 +24569,7 @@ static int32_t doRewriteAlterMultiTableTagVal(STranslateContext* pCxt, SQuery* p
         goto _error;
       }
 
-      SMultiTagUpdateVal val = {0};
+      SUpdatedTagVal val = {0};
       if (pTag->regexp == NULL) {
         code = buildUpdateTagValReqImpl(pCxt, pTag->pVal->literal, pTableMeta, pTag->tagName, &val);
         if (code != TSDB_CODE_SUCCESS) {
@@ -24583,7 +24583,7 @@ static int32_t doRewriteAlterMultiTableTagVal(STranslateContext* pCxt, SQuery* p
           tfreeUpdateTableTagVal(&table);
           goto _error;
         }
-        if (pSchema->type != TSDB_DATA_TYPE_VARCHAR && pSchema->type != TSDB_DATA_TYPE_NCHAR && pSchema->type != TSDB_DATA_TYPE_VARBINARY) {
+        if (pSchema->type != TSDB_DATA_TYPE_VARCHAR && pSchema->type != TSDB_DATA_TYPE_NCHAR) {
           code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Tag `%s` is not of string type, cannot use regex", pTag->tagName);
           tfreeUpdateTableTagVal(&table);
           goto _error;
@@ -24686,53 +24686,62 @@ typedef struct SAlterChildTagWhereRewriteContext {
 } SAlterChildTagWhereRewriteContext;
 
 static EDealRes rewriteAlterChildTableTagValWhereCond(SNode** pNode, void* pContext) {
-  SAlterChildTagWhereRewriteContext* pCtx = (SAlterChildTagWhereRewriteContext*)pContext;
+  SAlterChildTagWhereRewriteContext* pCxt = (SAlterChildTagWhereRewriteContext*)pContext;
 
-  if (nodeType(*pNode) == QUERY_NODE_COLUMN) {
-    SColumnNode*    pCol = (SColumnNode*)*pNode;
-    const SSchema*  pSchema = getTagSchema((STableMeta*)pCtx->pMeta, pCol->colName);
-    if (pSchema == NULL) {
-      pCtx->code = generateSyntaxErrMsgExt(&pCtx->pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, "Column '%s' in the where condition is not a tag", pCol->colName);
-      return DEAL_RES_ERROR;
-    }
-
-    pCol->colType = COLUMN_TYPE_TAG;
-    pCol->colId = pSchema->colId;
-    pCol->node.resType.type = pSchema->type;
-    pCol->node.resType.bytes = pSchema->bytes;
-
-  } else if (nodeType(*pNode) == QUERY_NODE_FUNCTION) {
-    SFunctionNode* pFunc = (SFunctionNode*)*pNode;
-
-    if (isAggFunc(*pNode)) {
-      pCtx->code = generateSyntaxErrMsgExt(&pCtx->pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC, "Aggregate func '%s' in the where condition is not allowed", pFunc->functionName);
-      return DEAL_RES_ERROR;
-    }
-
-    if (FUNCTION_TYPE_TBNAME == pFunc->funcType) {
-      SColumnNode* pCol = NULL;
-      pCtx->code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
-      if (pCtx->code != TSDB_CODE_SUCCESS) {
+  switch(nodeType(*pNode)) {
+    case QUERY_NODE_COLUMN: {
+      SColumnNode*    pCol = (SColumnNode*)*pNode;
+      const SSchema*  pSchema = getTagSchema((STableMeta*)pCxt->pMeta, pCol->colName);
+      if (pSchema == NULL) {
+        pCxt->code = generateSyntaxErrMsgExt(&pCxt->pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, "Column '%s' in the where condition is not a tag", pCol->colName);
         return DEAL_RES_ERROR;
       }
 
-      pCol->colId = -1;
-      pCol->colType = COLUMN_TYPE_TBNAME;
-      pCol->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
-      pCol->node.resType.bytes = TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE;
-      tstrncpy(pCol->colName, pFunc->functionName, TSDB_COL_NAME_LEN);
-      tstrncpy(pCol->node.aliasName, pFunc->node.aliasName, TSDB_COL_NAME_LEN);
-      tstrncpy(pCol->node.userAlias, pFunc->node.userAlias, TSDB_COL_NAME_LEN);
-
-      nodesDestroyNode(*pNode);
-      *pNode = (SNode*)pCol;
+      pCol->colType = COLUMN_TYPE_TAG;
+      pCol->colId = pSchema->colId;
+      pCol->node.resType.type = pSchema->type;
+      pCol->node.resType.bytes = pSchema->bytes;
     }
+    break;
 
-  } else if (nodeType(*pNode) == QUERY_NODE_OPERATOR) {
-    pCtx->code = scalarGetOperatorResultType((SOperatorNode *)*pNode);
-    if (pCtx->code != TSDB_CODE_SUCCESS) {
-      return DEAL_RES_ERROR;
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunc = (SFunctionNode*)*pNode;
+
+      if (isAggFunc(*pNode)) {
+        pCxt->code = generateSyntaxErrMsgExt(&pCxt->pCxt->msgBuf, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION, "Aggregate func '%s' in the where condition is not allowed", pFunc->functionName);
+        return DEAL_RES_ERROR;
+      }
+
+      if (FUNCTION_TYPE_TBNAME == pFunc->funcType) {
+        SColumnNode* pCol = NULL;
+        pCxt->code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+        if (pCxt->code != TSDB_CODE_SUCCESS) {
+          return DEAL_RES_ERROR;
+        }
+
+        pCol->colId = -1;
+        pCol->colType = COLUMN_TYPE_TBNAME;
+        pCol->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+        pCol->node.resType.bytes = TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE;
+        tstrncpy(pCol->colName, pFunc->functionName, TSDB_COL_NAME_LEN);
+        tstrncpy(pCol->node.aliasName, pFunc->node.aliasName, TSDB_COL_NAME_LEN);
+        tstrncpy(pCol->node.userAlias, pFunc->node.userAlias, TSDB_COL_NAME_LEN);
+
+        nodesDestroyNode(*pNode);
+        *pNode = (SNode*)pCol;
+        return DEAL_RES_CONTINUE;
+      }
+
+      return translateFunction(pCxt->pCxt, (SFunctionNode**)pNode);
     }
+    break;
+    
+    case QUERY_NODE_VALUE:
+      return translateValue(pCxt->pCxt, (SValueNode*)*pNode);
+    case QUERY_NODE_OPERATOR:
+      return translateOperator(pCxt->pCxt, (SOperatorNode*)*pNode);
+    case QUERY_NODE_LOGIC_CONDITION:
+      return translateLogicCond(pCxt->pCxt, (SLogicConditionNode*)*pNode);
   }
 
   return DEAL_RES_CONTINUE;
@@ -24749,6 +24758,7 @@ static int32_t createAlterChildTableTagValVgroupReqs(STranslateContext* pCxt, SA
     if (rewriteCxt.code != TSDB_CODE_SUCCESS) {
       return rewriteCxt.code;
     }
+    // TODO: localvar, why cannot I use [translateExpr] here?
   }
 
   code = getDBVgInfo(pCxt, pStmt->dbName, &pDbVgs);
@@ -24782,7 +24792,7 @@ static int32_t createAlterChildTableTagValVgroupReqs(STranslateContext* pCxt, SA
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
-    req.pReq->pMultiTag = taosArrayInit(pStmt->pList->length, sizeof(SMultiTagUpdateVal));
+    req.pReq->pMultiTag = taosArrayInit(pStmt->pList->length, sizeof(SUpdatedTagVal));
     if (req.pReq->pMultiTag == NULL) {
       destroyVgroupAlterTableReq(&req);
       taosArrayDestroy(pDbVgs);
@@ -24893,7 +24903,7 @@ static int32_t doRewriteAlterChildTableTagVal(STranslateContext* pCxt, SQuery* p
   SNode* pTagNode = NULL;
   FOREACH(pTagNode, pStmt->pList) {
     SUpdateTagValueNode* pTag = (SUpdateTagValueNode*)pTagNode;
-    SMultiTagUpdateVal* p = taosHashGet(pUniqueTag, pTag->tagName, strlen(pTag->tagName));
+    SUpdatedTagVal* p = taosHashGet(pUniqueTag, pTag->tagName, strlen(pTag->tagName));
     if (p != NULL) {
       code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN, "Duplicated tag: `%s`", pTag->tagName);
       goto _error;
@@ -24906,7 +24916,7 @@ static int32_t doRewriteAlterChildTableTagVal(STranslateContext* pCxt, SQuery* p
 
     SVgroupAlterTableReq* pReq =  taosHashIterate(pVgroupReqs, NULL);
     while (pReq != NULL) {
-      SMultiTagUpdateVal val = {0};
+      SUpdatedTagVal val = {0};
       if (pTag->regexp == NULL) {
         code = buildUpdateTagValReqImpl(pCxt, pTag->pVal->literal, pTableMeta, pTag->tagName, &val);
         if (code != TSDB_CODE_SUCCESS) {
@@ -24918,7 +24928,7 @@ static int32_t doRewriteAlterChildTableTagVal(STranslateContext* pCxt, SQuery* p
           code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Invalid tag name: %s", pTag->tagName);
           goto _error;
         }
-        if (pSchema->type != TSDB_DATA_TYPE_VARCHAR && pSchema->type != TSDB_DATA_TYPE_NCHAR && pSchema->type != TSDB_DATA_TYPE_VARBINARY) {
+        if (pSchema->type != TSDB_DATA_TYPE_VARCHAR && pSchema->type != TSDB_DATA_TYPE_NCHAR) {
           code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Tag `%s` is not of string type, cannot use regex", pTag->tagName);
           goto _error;
         }

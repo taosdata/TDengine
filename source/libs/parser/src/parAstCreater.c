@@ -33,6 +33,7 @@
 #include "tdef.h"
 #include "tmsg.h"
 #include "ttokendef.h"
+#include "tcompare.h"
 
 #define CHECK_MAKE_NODE(p) \
   do {                     \
@@ -3882,17 +3883,25 @@ SNode* createAlterTagValueNodeWithExpression(SAstCreateContext* pCxt, SToken* pT
   CHECK_MAKE_NODE(pNode);
   COPY_STRING_FORM_ID_TOKEN(pNode->tagName, pTagName);
 
-  pNode->regexp = taosStrndup(pattern->z, pattern->n);
+  pNode->regexp = taosMemoryMalloc(pattern->n + 1);
   if (pNode->regexp == NULL) {
     pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
+  (void)trimString(pattern->z, pattern->n, pNode->regexp, pattern->n);
 
-  pNode->replacement = taosStrndup(replacement->z, replacement->n);
+  int32_t code = checkRegexPattern(pNode->regexp);
+  if (code != 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "'%s' is not a valid regular expression", pNode->regexp);
+    goto _err;
+  }
+
+  pNode->replacement = taosMemoryMalloc(replacement->n + 1);
   if (pNode->replacement == NULL) {
     pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
+  (void)trimString(replacement->z, replacement->n, pNode->replacement, replacement->n);
 
   return (SNode*)pNode;
 
