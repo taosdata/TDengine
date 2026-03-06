@@ -32,6 +32,7 @@ while getopts "m:t:b:l:o:w:eh" opt; do
         ;;
     o)
         timeout_param="-o $OPTARG"
+        timeout_val=$OPTARG
         ;;
     w)
         web_server=$OPTARG
@@ -141,21 +142,75 @@ function is_local_host() {
     return 1
 }
 
+function get_timeout_val() {
+    echo "${timeout_val:-1260}"
+}
+
+function get_local_workdir() {
+    local i=0
+    while [ $i -lt ${#hosts[*]} ]; do
+        if is_local_host "${hosts[i]}"; then
+            echo "${workdirs[i]}"
+            return 0
+        fi
+        i=$((i + 1))
+    done
+    return 1
+}
+
 function get_remote_ssh_command() {
     local index=$1
+    local cmd_timeout
+    cmd_timeout=$(get_timeout_val)
     if [ -z "${passwords[index]}" ]; then
-        echo "ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+        echo "timeout ${cmd_timeout} ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${usernames[index]}@${hosts[index]}"
     else
-        echo "sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+        echo "timeout ${cmd_timeout} sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${usernames[index]}@${hosts[index]}"
     fi
 }
 
 function get_remote_scp_command() {
     local index=$1
+    local cmd_timeout
+    cmd_timeout=$(get_timeout_val)
     if [ -z "${passwords[index]}" ]; then
-        echo "scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+        echo "timeout ${cmd_timeout} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
     else
-        echo "sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+        echo "timeout ${cmd_timeout} sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+    fi
+}
+
+function save_build_artifacts() {
+    local build_dir=$1
+    local case_info=$2
+    local local_work_dir
+    local local_build_dir
+    local local_unit_test_log_dir
+
+    local_work_dir=$(get_local_workdir)
+    if [ -z "$local_work_dir" ]; then
+        return 0
+    fi
+
+    local_build_dir="${local_work_dir}/${DEBUGPATH}/build"
+    local_unit_test_log_dir="${local_work_dir}/${DEBUGPATH}/Testing/Temporary/"
+
+    if [ ! -d "$local_build_dir" ]; then
+        return 0
+    fi
+
+    mkdir -p "$build_dir" >/dev/null 2>&1 || true
+    if [[ "$case_info" == *"UnitTest/test.sh"* ]]; then
+        cp -rf "${local_build_dir}/"* "$build_dir/" >/dev/null 2>&1 || true
+    else
+        (
+            cd "$local_build_dir" || exit 1
+            find . -type f ! -path "./bin/*est*" -exec cp --parents {} "$build_dir/" \;
+        ) >/dev/null 2>&1 || true
+    fi
+
+    if [ -d "$local_unit_test_log_dir" ] && [ -n "$(ls -A "$local_unit_test_log_dir" 2>/dev/null)" ]; then
+        cp -rf "${local_unit_test_log_dir}"* "$build_dir/" >/dev/null 2>&1 || true
     fi
 }
 
@@ -174,7 +229,7 @@ function transfer_debug_dirs() {
         i=$((i + 1))
     done
 
-    cd "$local_work_dir"
+    cd "$local_work_dir" || return 1
     rm -rf debug.tar.gz
     tar -czf debug.tar.gz \
         debugSan/build/bin/taos* \
@@ -206,11 +261,8 @@ function transfer_debug_dirs() {
             bash -c "${remote_cmd} rm -rf '${workdirs[index]}/debugSan'"
             bash -c "${remote_cmd} rm -rf '${workdirs[index]}/debugNoSan'"
             # transfer debug.tar.gz to remote
-            if [ -n "${passwords[index]}" ]; then
-                sshpass -p "${passwords[index]}" scp -o StrictHostKeyChecking=no -r debug.tar.gz "${usernames[index]}@${hosts[index]}:${workdirs[index]}/debug.tar.gz"
-            else
-                scp -o StrictHostKeyChecking=no -r debug.tar.gz "${usernames[index]}@${hosts[index]}:${workdirs[index]}/debug.tar.gz"
-            fi
+            scp_cmd=$(get_remote_scp_command "$index")
+            bash -c "${scp_cmd}:${workdirs[index]}/debug.tar.gz debug.tar.gz"
             # untar debug.tar.gz to remote
             bash -c "${remote_cmd} \"tar -xzf '${workdirs[index]}/debug.tar.gz' -C '${workdirs[index]}' && rm -rf '${workdirs[index]}/debug.tar.gz'\""
         fi
@@ -354,11 +406,7 @@ function run_thread() {
             local real_start_time
             real_start_time=$(date +%s)
             # echo "cmd:${cmd}"
-            if ! is_local_host "${hosts[index]}"; then
-                $cmd >>"$case_log_file" 2>&1
-            else
-                bash -c "$cmd" >>"$case_log_file" 2>&1
-            fi
+            timeout "$(get_timeout_val)" bash -c "$cmd" >>"$case_log_file" 2>&1
             ret=$?
             local real_end_time
             real_end_time=$(date +%s)
@@ -455,20 +503,7 @@ function run_thread() {
                 echo -e "\e[34m corefiles: $corefile \e[0m"
             fi
             local build_dir=$log_dir/build_${hosts[index]}
-            local remote_build_dir="${workdirs[index]}/${DEBUGPATH}/build"
-            local remote_unit_test_log_dir="${workdirs[index]}/${DEBUGPATH}/Testing/Temporary/"
-
-            if is_local_host "${hosts[index]}"; then
-                mkdir "$build_dir" >/dev/null
-                cmd="cp -rf ${remote_build_dir}/* ${build_dir}/"
-                echo "$cmd"
-                bash -c "$cmd" >/dev/null 2>&1 || true
-                if [ -d "${remote_unit_test_log_dir}" ] && [ "$(ls -A "${remote_unit_test_log_dir}" 2>/dev/null)" ]; then
-                    cmd="cp -rf ${remote_unit_test_log_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    bash -c "$cmd" >/dev/null 2>&1 || true
-                fi
-            fi
+            save_build_artifacts "$build_dir" "$case_info"
             local remote_sim_dir="${workdirs[index]}/tmp/thread_volume/$thread_no"
             if ! is_local_host "${hosts[index]}"; then
                 cmd="$runcase_script \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
