@@ -58,7 +58,6 @@ typedef struct SExprNode {
   bool      asParam;
   bool      asPosition;
   bool      joinSrc;
-  bool      asList;
   bool      hasNull;
   //bool      constValue;
   int32_t   projIdx;
@@ -158,7 +157,6 @@ typedef struct SValueNode {
 
 typedef struct SRemoteValueNode {
   SValueNode val;
-//  bool       valSet;
   int32_t    subQIdx;
 } SRemoteValueNode;
 
@@ -172,6 +170,7 @@ typedef struct SRemoteValueListNode {
   STypeMod   targetTypeMod;
   bool       hasValue;
   bool       hasNull;
+  bool       hasNotNull;
   bool       hashAllocated;
   SHashObj  *pHashFilter;
   SHashObj  *pHashFilterOthers;
@@ -179,6 +178,17 @@ typedef struct SRemoteValueListNode {
   STypeMod   filterValueTypeMod;
   int32_t    subQIdx;
 } SRemoteValueListNode;
+
+typedef struct SRemoteRowNode {
+  SValueNode val;
+  bool       isMinVal;
+  bool       valSet;
+  bool       hasValue;
+  bool       hasNull;
+  int32_t    subQIdx;
+} SRemoteRowNode;
+
+typedef SRemoteValueNode SRemoteZeroRowsNode;
 
 typedef struct SLeftValueNode {
   ENodeType type;
@@ -203,9 +213,12 @@ typedef struct SHintNode {
   void*       value;
 } SHintNode;
 
+#define OPERATOR_FLAG_NEGATIVE_OP      (1 << 0)
+
 typedef struct SOperatorNode {
   SExprNode     node;  // QUERY_NODE_OPERATOR
   EOperatorType opType;
+  int32_t       flag;
   SNode*        pLeft;
   SNode*        pRight;
   timezone_t    tz;
@@ -632,15 +645,18 @@ typedef struct SExtWinTimeWindow {
 
 
 typedef enum ESubQueryType {
-  E_SUB_QUERY_ERROR = 0,
+  E_SUB_QUERY_NOT_SET = 0,
   E_SUB_QUERY_SCALAR = 1,
   E_SUB_QUERY_COLUMN,
-  E_SUB_QUERY_TABLE
+  E_SUB_QUERY_TABLE,
+  E_SUB_QUERY_ROWNUM,
+  E_SUB_QUERY_ROW,
 } ESubQueryType;
 
 typedef struct SSelectStmt {
   SExprNode       node;
   ESubQueryType   subQType;
+  EQuantifyType   quantify;
   bool            isDistinct;
   STimeWindow     timeRange;
   SNode*          pTimeRange; // STimeRangeNode for create stream
@@ -706,6 +722,7 @@ typedef struct SSetOperator {
   SExprNode        node;
   ESetOperatorType opType;
   ESubQueryType    subQType;
+  EQuantifyType    quantify;
   SNodeList*       pSubQueries;   // non table subqueries
   SNodeList*       pProjectionList;
   SNode*           pLeft;
@@ -934,6 +951,7 @@ bool isRelatedToOtherExpr(SExprNode* pExpr);
 bool nodesContainsColumn(SNode* pNode);
 int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond);
 int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst);
+SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr);
 
 #ifdef __cplusplus
 }

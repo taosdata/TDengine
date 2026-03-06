@@ -1324,6 +1324,34 @@ static uint8_t getMinusDataType(uint8_t orgType) {
   return orgType;
 }
 
+SNode* setNodeQuantifyType(SAstCreateContext* pCxt, SNode* pNode, EQuantifyType type) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      pSelect->quantify = type;
+      pSelect->subQType = E_SUB_QUERY_COLUMN;
+      break;
+    }  
+    case QUERY_NODE_SET_OPERATOR:{
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      pSet->quantify = type;
+      pSet->subQType = E_SUB_QUERY_COLUMN;
+      break;
+    }
+    default:
+      pCxt->errCode = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
+      CHECK_PARSER_STATUS(pCxt);
+      break;
+  }
+
+  return pNode;
+
+_err:
+  return NULL;
+}
+
 SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pLeft, SNode* pRight) {
   CHECK_PARSER_STATUS(pCxt);
   if (OP_TYPE_MINUS == type && QUERY_NODE_VALUE == nodeType(pLeft)) {
@@ -1346,9 +1374,18 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
     return pLeft;
   }
   if ((OP_TYPE_IN == type || OP_TYPE_NOT_IN == type) && pRight) {
-    SExprNode* pExpr = (SExprNode*)pRight;
-    pExpr->asList = true;
-    parserDebug("operator IN/NOT IN created, rightType:%d,%p", nodeType(pRight), pRight);
+    if (QUERY_NODE_SELECT_STMT == nodeType(pRight)) {
+      ((SSelectStmt*)pRight)->subQType= E_SUB_QUERY_COLUMN;
+    } else if (QUERY_NODE_SET_OPERATOR == nodeType(pRight)) {
+      ((SSetOperator*)pRight)->subQType= E_SUB_QUERY_COLUMN;
+    }
+  }
+  if ((OP_TYPE_EXISTS == type || OP_TYPE_NOT_EXISTS == type) && pLeft) {
+    if (QUERY_NODE_SELECT_STMT == nodeType(pLeft)) {
+      ((SSelectStmt*)pLeft)->subQType= E_SUB_QUERY_ROWNUM;
+    } else if (QUERY_NODE_SET_OPERATOR == nodeType(pLeft)) {
+      ((SSetOperator*)pLeft)->subQType= E_SUB_QUERY_ROWNUM;
+    }
   }
   if (pLeft && QUERY_NODE_VALUE == nodeType(pLeft)) {
     SValueNode* pVal = (SValueNode*)pLeft;
