@@ -467,6 +467,7 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
     SMultiTableSetSlotIdCxt* pCxt = (SMultiTableSetSlotIdCxt*)pContext;
     char*                    name = NULL;
     int32_t                  len = 0;
+    int32_t cap = 0;
     SColumnNode*             pCol = (SColumnNode*)pNode;
     if (pCxt->isVtb && ((!pCol->hasRef && pCol->colType != COLUMN_TYPE_TAG && '\0' != pCol->tableAlias[0]) || (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID))) {
       // set slot id for :
@@ -477,7 +478,7 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
       // even if ts column has ref, still skip it (VTB only).
       return DEAL_RES_CONTINUE;
     }
-
+  
     pCxt->errCode = getSlotKey(pNode, NULL, &name, &len, 16, &cap);
     if (TSDB_CODE_SUCCESS != pCxt->errCode) {
       return DEAL_RES_ERROR;
