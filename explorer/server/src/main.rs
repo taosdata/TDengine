@@ -1440,7 +1440,6 @@ async fn rest_proxy(
     } else {
         body
     };
-
     let tz = query.get("tz");
     match args.query(&auth, &sql, tz).await {
         Ok(ok) => {

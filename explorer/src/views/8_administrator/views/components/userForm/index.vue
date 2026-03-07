@@ -340,7 +340,7 @@ async function getUserPrivileges() {
           prevDatabasePrivileges[dbName] = [pri];
         } else {
           selectedDatabasePrivileges[dbName].push(pri);
-          prevDatabasePrivileges[dbName] = selectedDatabasePrivileges[dbName];
+          prevDatabasePrivileges[dbName] = [...selectedDatabasePrivileges[dbName]];
         }
       }
     });
@@ -357,15 +357,13 @@ async function getUserTopics() {
        where user_name = '${ruleForm.user}' and ${privFilter}`);
     loading.value = false;
     res.data.map((data: (string)[]) => {
-      const topicName = verLessThan3400 ? data[3] : data[4];
-      const dbName = verLessThan3400 ? data[2] : data[3];
-      if (selectedTopicPrivileges[topicName] === undefined) {
-        selectedTopicPrivileges[topicName] = [{ priv_type: SUBSCRIBE_PRIV, database: dbName }];
-        prevTopicPrivileges[topicName] = [{ priv_type: SUBSCRIBE_PRIV, database: dbName }];
-      } else {  
-        selectedTopicPrivileges[topicName] = [{ priv_type: SUBSCRIBE_PRIV, database: dbName }];
-        prevTopicPrivileges[topicName] = selectedTopicPrivileges[topicName];
-      }
+      // For old version (<3.4.0): db_name stores topic name, table_name is empty
+      // For new version (>=3.4.0): db_name stores database name, obj_name stores topic name
+      const topicName = verLessThan3400 ? data[2] : data[4];
+      const dbName = verLessThan3400 ? '' : data[3];
+      // Always set the privilege since getTopicList() already initialized all topics to []
+      selectedTopicPrivileges[topicName] = [{ priv_type: SUBSCRIBE_PRIV, database: dbName }];
+      prevTopicPrivileges[topicName] = [{ priv_type: SUBSCRIBE_PRIV, database: dbName }];
     });
   } catch (error) {
     console.log(error);
