@@ -225,6 +225,20 @@ typedef struct {
     StbChange  *stbChange;
 } StmtRestoreCtx;
 
+// init stmt
+TAOS_STMT* initStmt(TAOS* taos, bool single) {
+    if (!single) {
+        logInfo("initStmt call taos_stmt_init single=%d\n", single);
+        return taos_stmt_init(taos);
+    }
+
+    TAOS_STMT_OPTIONS op;
+    memset(&op, 0, sizeof(op));
+    op.singleStbInsert      = single;
+    op.singleTableBindOnce  = single;
+    logInfo("initStmt call taos_stmt_init_with_options single=%d\n", single);
+    return taos_stmt_init_with_options(taos, &op);
+}
 
 //
 // Prepare STMT for the first file in a thread:
@@ -317,9 +331,9 @@ static bool stmtResetOnError(StmtRestoreCtx *ctx) {
     }
     ctx->prepared  = false;
     ctx->batchRows = 0;
-    TAOS_STMT *newStmt = taos_stmt_init(ctx->conn);
+    TAOS_STMT *newStmt = initStmt(ctx->conn, true);
     if (newStmt == NULL) {
-        logError("stmtResetOnError: taos_stmt_init failed — connection may be broken");
+        logError("stmtResetOnError: initStmt failed — connection may be broken");
         return false;
     }
     ctx->stmt = newStmt;
@@ -675,6 +689,21 @@ static int dataBlockCallback(void *userData,
 //  STMT2 (TAOS_STMT2) implementation
 // =====================================================================
 
+// init stmt2
+TAOS_STMT2* initStmt2(TAOS* taos, bool single) {
+    TAOS_STMT2_OPTION op2;
+    memset(&op2, 0, sizeof(op2));
+    op2.singleStbInsert      = single;
+    op2.singleTableBindOnce  = single;
+
+    TAOS_STMT2* stmt2 = taos_stmt2_init(taos, &op2);
+    if (stmt2)
+        logInfo("succ  taos_stmt2_init single=%d\n", single);
+    else
+        logError("failed taos_stmt2_init single=%d\n", single);
+    return stmt2;
+}
+
 //
 // Free all per-column buffers inside ctx->colBinds.
 // The colBinds array itself is freed separately.
@@ -829,10 +858,10 @@ static int stmt2PrepareOnce(Stmt2RestoreCtx *ctx, int numCols, FieldInfo *fieldI
     /* Close any existing STMT2 handle (re-prepare per file) */
     if (ctx->stmt2) { taos_stmt2_close(ctx->stmt2); ctx->stmt2 = NULL; }
 
-    /* init STMT2 */
-    ctx->stmt2 = taos_stmt2_init(ctx->conn, NULL);
+    /* init STMT2 */  
+    ctx->stmt2 = initStmt2(ctx->conn, true);
     if (!ctx->stmt2) {
-        logError("taos_stmt2_init failed for %s", ctx->dbName);
+        logError("initStmt2 failed for %s", ctx->dbName);
         taosMemoryFree(sql);
         return TSDB_CODE_BCK_STMT_FAILED;
     }
@@ -1198,9 +1227,9 @@ static int restoreOneParquetFile(TAOS *conn, const char *dbName,
     }
 
     // Build and prepare INSERT stmt
-    TAOS_STMT *stmt = taos_stmt_init(conn);
+    TAOS_STMT *stmt = initStmt(conn, true);
     if (stmt == NULL) {
-        logError("taos_stmt_init failed for %s.%s", dbName, tbName);
+        logError("initStmt failed for %s.%s", dbName, tbName);
         parquetReaderClose(pr);
         return TSDB_CODE_BCK_STMT_FAILED;
     }
@@ -1369,9 +1398,9 @@ static void* restoreDataThread(void *arg) {
     StmtRestoreCtx bCtx;
     memset(&bCtx, 0, sizeof(bCtx));
     if (stmtVer == STMT_VERSION_1) {
-        TAOS_STMT *s1 = taos_stmt_init(thread->conn);
+        TAOS_STMT *s1 = initStmt(thread->conn, true);
         if (!s1) {
-            logError("restore thread %d: taos_stmt_init failed", thread->index);
+            logError("restore thread %d: initStmt failed", thread->index);
             thread->code = TSDB_CODE_BCK_STMT_FAILED;
             return NULL;
         }

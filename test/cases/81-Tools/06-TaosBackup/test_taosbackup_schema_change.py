@@ -239,6 +239,117 @@ class TestTaosBackupSchemaChange:
         self.exceptNoSameCol(db, newdb, tmpdir)
 
     # -----------------------------------------------------------------------
+    # Tag-only schema change (columns identical, tags differ)
+    # -----------------------------------------------------------------------
+
+    def do_tag_only_change(self):
+        """Restore backup onto a server STB that has the same columns but different tags.
+
+        Backup STB tags : t_id INT,   t_city BINARY(16), t_rate FLOAT
+        Server STB tags : t_id INT,   t_region NCHAR(16), t_level INT
+          - t_id    : common tag  → value must be preserved
+          - t_city  : backup-only → silently skipped (no matching server tag)
+          - t_rate  : backup-only → silently skipped
+          - t_region: server-only → must be NULL in restored child tables
+          - t_level : server-only → must be NULL in restored child tables
+        """
+        tmpdir = "./taosbackuptest/tmpdir_tag_only"
+        if os.path.exists(tmpdir):
+            os.system("rm -rf %s" % tmpdir)
+        os.makedirs(tmpdir)
+
+        src_db = "tagonly_src"
+        dst_db = "tagonly_dst"
+
+        # --- Prepare source DB ---
+        tdSql.execute(f"drop database if exists {src_db}")
+        tdSql.execute(f"create database {src_db} keep 3649")
+        tdSql.execute(f"use {src_db}")
+        tdSql.execute(
+            f"create table st("
+            f"  ts timestamp, c1 int, c2 binary(20)"
+            f") tags("
+            f"  t_id INT, t_city BINARY(16), t_rate FLOAT"
+            f")"
+        )
+        tag_sets = [
+            (1, "'beijing'",  "1.5"),
+            (2, "'shanghai'", "2.0"),
+            (3, "'guangzhou'","3.5"),
+        ]
+        for tid, city, rate in tag_sets:
+            tdSql.execute(
+                f"create table ct{tid} using st tags({tid}, {city}, {rate})"
+            )
+            for j in range(10):
+                tdSql.execute(
+                    f"insert into ct{tid} values"
+                    f"({1640000000000 + j * 1000}, {j}, 'val{j}')"
+                )
+
+        # --- Backup the source DB ---
+        rlist = self.taosbackup(f"-D {src_db} -o {tmpdir}")
+        self.checkManyString(rlist, ["Result       : SUCCESS", "Total Rows   : 30"])
+
+        # --- Prepare destination DB with DIFFERENT tags on the same STB ---
+        tdSql.execute(f"drop database if exists {dst_db}")
+        tdSql.execute(f"create database {dst_db} keep 3649")
+        tdSql.execute(f"use {dst_db}")
+        tdSql.execute(
+            f"create table st("
+            f"  ts timestamp, c1 int, c2 binary(20)"
+            f") tags("
+            f"  t_id INT, t_region NCHAR(16), t_level INT"
+            f")"
+        )
+
+        # --- Restore into dst_db (rename) ---
+        rlist2 = self.taosbackup(f'-W "{src_db}={dst_db}" -i {tmpdir}')
+        self.checkManyString(rlist2, [
+            f"rename database: {src_db} -> {dst_db}",
+            "Result       : SUCCESS",
+            "Total Rows   : 30",
+        ])
+
+        # --- Verify data columns are correct ---
+        tdSql.query(f"select count(*) from {dst_db}.st")
+        tdSql.checkData(0, 0, 30)
+
+        for tid, _, _ in tag_sets:
+            tdSql.query(f"select count(*) from {dst_db}.st where t_id={tid}")
+            tdSql.checkData(0, 0, 10)
+
+        tdSql.query(f"select c1, c2 from {dst_db}.ct1 order by ts")
+        tdSql.checkRows(10)
+        for j in range(10):
+            tdSql.checkData(j, 0, j)
+            tdSql.checkData(j, 1, f"val{j}")
+        tdLog.info("  columns c1, c2 correctly restored ........... [passed]")
+
+        # --- Verify tag mapping ---
+        # t_id (common): must have original values
+        tdSql.query(
+            f"select distinct t_id from {dst_db}.st order by t_id"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(2, 0, 3)
+        tdLog.info("  common tag t_id preserved ................... [passed]")
+
+        # t_region, t_level (server-only): must be NULL for all restored CTBs
+        tdSql.checkAgg(
+            f"select count(*) from {dst_db}.ct1 where t_region is null", 10
+        )
+        tdSql.checkAgg(
+            f"select count(*) from {dst_db}.ct2 where t_level is null", 10
+        )
+        tdLog.info("  server-only tags are NULL ................... [passed]")
+
+        os.system("rm -rf %s" % tmpdir)
+        tdLog.info("do_tag_only_change ........................... [passed]")
+
+    # -----------------------------------------------------------------------
     # Main test entry point
     # -----------------------------------------------------------------------
 
@@ -254,6 +365,8 @@ class TestTaosBackupSchemaChange:
         7.  Re-import into renamed database; verify correctness again
         8.  Test exception: alter target schema to be incompatible before import
         9.  Verify error messages about schema mismatch and partial success row count
+        10. Tag-only schema change: columns identical between backup and server, but
+            tags differ; common tags are preserved, server-only tags become NULL
 
         Since: v3.0.0.0
 
@@ -263,6 +376,7 @@ class TestTaosBackupSchemaChange:
 
         History:
             - 2026-03-04 Migrated and adapted from 04-Taosdump/test_taosdump_schema_change.py
+            - 2026-03-06 Added do_tag_only_change() scenario
 
         """
         db = "dd"
@@ -287,3 +401,6 @@ class TestTaosBackupSchemaChange:
 
         # --- exception: incompatible schema ---
         self.testExcept(db, newdb, tmpdir)
+
+        # --- tag-only schema change ---
+        self.do_tag_only_change()
