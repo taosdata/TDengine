@@ -1,6 +1,5 @@
 import { sendSQLReq } from '@/api/explorer';
 import { DB_FIELDS, HIDEDB, DBCustomedFiled } from 'taos-ui/constants/tdengine';
-import { request } from '@/utils/request.ts';
 import { executeDBOperations } from '@/api/explorer';
 import { trimEnd, trimStart } from 'lodash-es';
 
@@ -16,11 +15,11 @@ export async function getDBListReq() {
     );
   } catch (error) {
     return [];
-  };
+  }
 }
 
 export async function getStables(database: string) {
-  const databaseName = formatWithBackticks(database)
+  const databaseName = formatWithBackticks(database);
   try {
     const result = await sendSQLReq(`show  ${databaseName}.stables`);
     return Array.from(result.data).flat(1);
@@ -59,7 +58,7 @@ export async function getDBStruct(dbName: string) {
     const disk_info = await executeDBOperations(`SHOW \`${dbName}\`.disk_info;`);
     if (disk_info && disk_info.length >= 2) {
       const compress_ratio = parseUsage(disk_info[0]._db_usage);
-      if (compress_ratio === "NULL") {
+      if (compress_ratio === 'NULL') {
         fields.compress_ratio = 'NULL (not flushed or no data)';
       } else {
         fields.compress_ratio = compress_ratio;
@@ -75,23 +74,7 @@ export async function getDBStruct(dbName: string) {
 }
 
 export function deleteDBReq(dbName: string) {
-  return request({
-    baseURL: import.meta.env.VITE_APP_BASE_URL,
-    url: '/api/-/rest/sql',
-    data: `DROP DATABASE \`${dbName}\`;`,
-    headers: {
-      'Content-Type': 'text/plain'
-    },
-    method: 'post'
-  })
-    .then(data => {
-      data = JSON.parse(JSON.stringify(data));
-      if (data.code == 0) return data;
-      return Promise.reject(data);
-    })
-    .catch(err => {
-      return Promise.reject(err);
-    });
+  return sendSQLReq(`DROP DATABASE \`${dbName}\``);
 }
 
 function getDBParamsSql(data: Recordable) {
@@ -111,24 +94,8 @@ function getDBParamsSql(data: Recordable) {
 
 export function createDB(data: Recordable) {
   const name = formatWithBackticks(data.name);
-  return request({
-    baseURL: import.meta.env.VITE_APP_BASE_URL,
-    url: '/api/-/rest/sql',
-    headers: {
-      'Content-Type': 'text/plain'
-    },
-    data: `CREATE DATABASE ${name} ${getDBParamsSql(data)};`,
-    method: 'post'
-  })
-    .then(data => {
-      data = JSON.parse(JSON.stringify(data));
-      if (data.code == 0) return data;
-      ElMessage.error(JSON.stringify(data));
-      return Promise.reject(data);
-    })
-    .catch(err => {
-      return Promise.reject(err);
-    });
+  const sql = `CREATE DATABASE ${name} ${getDBParamsSql(data)}`;
+  return sendSQLReq(sql);
 }
 
 function formatWithBackticks(name: any): string {
