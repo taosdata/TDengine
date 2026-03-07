@@ -3393,6 +3393,15 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
 
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   pRequest->inCallback = true;
+  
+  // Set callback phase and timing
+  if (pRequest->currentPhase == 0) {
+    pRequest->currentPhase = 2;  // 2 = query callback phase
+  } else if (pRequest->currentPhase == 1) {
+    pRequest->currentPhase = 3;  // 3 = fetch callback phase
+  }
+  pRequest->actionStartTime = taosGetTimestampMs();
+  
   int64_t this = pRequest->self;
   if (tsQueryTbNotExistAsEmpty && TD_RES_QUERY(&pRequest->resType) && pRequest->isQuery &&
       (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {

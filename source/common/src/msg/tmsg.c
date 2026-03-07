@@ -292,7 +292,8 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
         TAOS_CHECK_RETURN(tEncodeI8(pEncoder, desc->isSubQuery));
         TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, desc->fqdn));
         TAOS_CHECK_RETURN(tEncodeI32(pEncoder, desc->subPlanNum));
-
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, desc->currentPhase));
+        TAOS_CHECK_RETURN(tEncodeI64(pEncoder, desc->actionStartTime));
         int32_t snum = desc->subDesc ? taosArrayGetSize(desc->subDesc) : 0;
         TAOS_CHECK_RETURN(tEncodeI32(pEncoder, snum));
         for (int32_t m = 0; m < snum; ++m) {
@@ -398,6 +399,12 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
           TAOS_CHECK_GOTO(code, &line, _error);
 
           code = tDecodeI32(pDecoder, &desc.subPlanNum);
+          TAOS_CHECK_GOTO(code, &line, _error);
+
+          code = tDecodeI32(pDecoder, &desc.currentPhase);
+          TAOS_CHECK_GOTO(code, &line, _error);
+
+          code = tDecodeI64(pDecoder, &desc.actionStartTime);
           TAOS_CHECK_GOTO(code, &line, _error);
 
           int32_t snum = 0;

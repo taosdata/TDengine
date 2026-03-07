@@ -1326,6 +1326,32 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
       return code;
     }
 
+    const char* phaseStr = NULL;
+    switch (pQuery->currentPhase) {
+      case 0: phaseStr = "query"; break;
+      case 1: phaseStr = "fetch"; break;
+      case 2: phaseStr = "query_callback"; break;
+      case 3: phaseStr = "fetch_callback"; break;
+      default: phaseStr = "unknown"; break;
+    }
+    char phaseVarStr[16 + VARSTR_HEADER_SIZE];
+    STR_TO_VARSTR(phaseVarStr, phaseStr);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)phaseVarStr, false);
+    if (code != 0) {
+      mError("failed to set current phase since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->actionStartTime, false);
+    if (code != 0) {
+      mError("failed to set action start time since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
+
     pBlock->info.rows++;
   }
 

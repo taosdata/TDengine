@@ -2028,6 +2028,10 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   SSqlCallbackWrapper *pWrapper = NULL;
   int32_t              code = TSDB_CODE_SUCCESS;
 
+  // Set query phase and timing
+  pRequest->currentPhase = 0;  // 0 = query phase
+  pRequest->actionStartTime = taosGetTimestampMs();
+
   if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
     code = pRequest->prevCode;
     terrno = code;
@@ -2136,11 +2140,15 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   }
 
   SRequestObj *pRequest = res;
+  
+  // Set fetch phase and timing
+  pRequest->currentPhase = 1;  // 1 = fetch phase
+  pRequest->actionStartTime = taosGetTimestampMs();
+  
   if (TSDB_SQL_RETRIEVE_EMPTY_RESULT == pRequest->type) {
     fp(param, res, 0);
     return;
   }
-
   SAsyncFetchParam *pParam = taosMemoryCalloc(1, sizeof(SAsyncFetchParam));
   if (!pParam) {
     fp(param, res, terrno);
