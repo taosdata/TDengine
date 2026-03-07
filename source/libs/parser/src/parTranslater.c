@@ -24276,7 +24276,7 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
     PAR_ERR_JRET(terrno);
   }
 
-  PAR_ERR_JRET(getTableMeta(pCxt, pStmt->useDbName, pStmt->useTableName, &pSuperTableMeta));
+  PAR_ERR_JRET(refreshGetTableMeta(pCxt, pStmt->useDbName, pStmt->useTableName, &pSuperTableMeta));
 
   if (!pSuperTableMeta->virtualStb) {
     PAR_ERR_JRET(TSDB_CODE_VTABLE_NOT_VIRTUAL_SUPER_TABLE);

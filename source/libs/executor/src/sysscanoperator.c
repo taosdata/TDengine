@@ -718,6 +718,15 @@ static SSDataBlock* doOptimizeVTableNameFilter(SOperatorInfo* pOperator, SSDataB
     pAPI->metaReaderFn.readerReleaseLock(&smrSuperTable);
   }
 
+  if (schemaRow != NULL && schemaRow->pSchema == NULL) {
+    qWarn("doOptimizeVTableNameFilter: vstb schema pSchema is NULL for table %s, returning empty", pInfo->req.filterTb);
+    schemaRow = NULL;
+  }
+
+  if (schemaRow == NULL) {
+    goto _end;
+  }
+
   code = sysTableFillOneVirtualTableRefImpl(pInfo, pTaskInfo, dbname, &numOfRows, dataBlock, schemaRow, colRef,
                                             pVtableRefInfo);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -1356,14 +1365,18 @@ static SSDataBlock* sysTableScanVirtualTableRef(SOperatorInfo* pOperator) {
           return NULL;
         }
         STR_TO_VARSTR(pVtableRefInfo->vStbName, smrSuperTable.me.name);
+        bool hasSchema = (smrSuperTable.me.stbEntry.schemaRow.pSchema != NULL);
         SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&smrSuperTable.me.stbEntry.schemaRow);
-        if (smrSuperTable.me.stbEntry.schemaRow.pSchema) {
-          if (schemaWrapper == NULL) {
-            code = terrno;
-            lino = __LINE__;
-            pAPI->metaReaderFn.clearReader(&smrSuperTable);
-            goto _end;
+        pAPI->metaReaderFn.clearReader(&smrSuperTable);
+        if (schemaWrapper == NULL) {
+          if (!hasSchema) {
+            qWarn("sysTableScanVirtualTableRef: vstb suid:%" PRId64
+                  " has no schema, skipping virtual child table %s", suid, pInfo->pCur->mr.me.name);
+            continue;
           }
+          code = terrno;
+          lino = __LINE__;
+          goto _end;
         }
         code = taosHashPut(pInfo->pSchema, &suid, sizeof(int64_t), &schemaWrapper, POINTER_BYTES);
         if (code != TSDB_CODE_SUCCESS) {
@@ -1372,7 +1385,6 @@ static SSDataBlock* sysTableScanVirtualTableRef(SOperatorInfo* pOperator) {
         }
 
         schemaRow = schemaWrapper;
-        pAPI->metaReaderFn.clearReader(&smrSuperTable);
         QUERY_CHECK_CODE(code, lino, _end);
       }
     } else {
@@ -2915,8 +2927,8 @@ static int32_t sysTableFillOneVirtualTableRefImpl(const SSysTableScanInfo* pInfo
                                                   SVirtualTableRefInfo* pRef) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  if (schemaRow == NULL) {
-    qError("sysTableUserColsFillOneTableCols schemaRow is NULL");
+  if (schemaRow == NULL || schemaRow->pSchema == NULL) {
+    qError("sysTableFillOneVirtualTableRefImpl schemaRow or pSchema is NULL");
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t numOfRows = *pNumOfRows;
