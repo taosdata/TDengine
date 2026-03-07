@@ -160,10 +160,12 @@ function get_local_workdir() {
 
 function get_remote_ssh_command() {
     local index=$1
+    local cmd_timeout
+    cmd_timeout=$(get_timeout_val)
     if [ -z "${passwords[index]}" ]; then
-        echo "ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${usernames[index]}@${hosts[index]}"
+        echo "timeout ${cmd_timeout} ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${usernames[index]}@${hosts[index]}"
     else
-        echo "sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${usernames[index]}@${hosts[index]}"
+        echo "timeout ${cmd_timeout} sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 ${usernames[index]}@${hosts[index]}"
     fi
 }
 
@@ -403,10 +405,10 @@ function run_thread() {
             real_start_time=$(date +%s)
             # echo "cmd:${cmd}"
             if ! is_local_host "${hosts[index]}"; then
-                # 远程：用 timeout 包裹
-                timeout "$(get_timeout_val)" bash -c "$cmd" >>"$case_log_file" 2>&1
+                # 远程：cmd 已包含 timeout ssh，直接执行
+                $cmd >>"$case_log_file" 2>&1
             else
-                # 本地：直接执行
+                # 本地：用 bash -c 执行以正确处理引号
                 bash -c "$cmd" >>"$case_log_file" 2>&1
             fi
             ret=$?
