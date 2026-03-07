@@ -384,9 +384,8 @@ async fn worker(
                 let _entered = span.enter();
                 match chunks {
                     Ok(chunks) => {
-                        let mut chunk_err: Option<String> = None;
                         // chunks
-                        'chunks: for (idx, chunk) in chunks.enumerate() {
+                        for (idx, chunk) in chunks.enumerate() {
                             let mut query = query.clone();
                             query.time_range = chunk;
                             let table_inner = table.clone();
@@ -506,72 +505,72 @@ async fn worker(
                                             continue;
                                         }
 
+                                        // For unrecoverable errors, log and fail the task
                                         tracing::error!(
-                                            "[worker:{worker}] sync table {table} with range {chunk} error: {err:?}, continue next"
+                                            "[worker:{worker}] sync table {table} with range {chunk} error: {err:#}, failing task"
                                         );
                                         if let Some(path) = opts.fails_to.as_ref() {
                                             path.lock().await.write_fmt(format_args!(
-                                                "data\t{}\t{:?}\t{}\n",
+                                                "data\t{}\t{:?}\t{err:#}\n",
                                                 table.as_str(),
                                                 query.time_range,
-                                                format!("{err:?}").replace("\n", " ")
                                             ))?;
                                         } else {
                                             println!(
-                                                "data\t{}\t{:?}\t{}",
+                                                "data\t{}\t{:?}\t{err:#}",
                                                 table.as_str(),
                                                 query.time_range,
-                                                format!("{err:?}").replace("\n", " ")
                                             );
-                                            chunk_err = Some(format!("{err:?}").to_string());
                                         }
-                                        break 'chunks;
+
+                                        // Notify sender of the error
+                                        if let Some(sender) = sender {
+                                            let _ = sender.send(Err(anyhow::format_err!(
+                                                "Syncing table failed: {err:#}"
+                                            )));
+                                        }
+
+                                        // Return error to stop the worker and mark task as interrupted
+                                        return Err(err);
                                     }
                                 };
                             }
                         }
 
+                        // If we reach here, all chunks were successful
                         let _entered = span.enter();
-                        match chunk_err {
-                            Some(err) => {
-                                if let Some(sender) = sender {
-                                    let _ = sender.send(Err(anyhow::format_err!(
-                                        "Syncing table failed: {err}",
-                                    )));
-                                }
-                            }
-                            None => {
-                                metrics.add_finished_tables(1);
-                                tracing::info!(
-                                    finished = metrics.finished_tables(),
-                                    total = metrics.total_tables(),
-                                    "Syncing partially done with table {table}"
-                                );
-                                if let Some(sender) = sender {
-                                    let _ = sender.send(Ok(()));
-                                }
-                            }
+                        metrics.add_finished_tables(1);
+                        tracing::info!(
+                            finished = metrics.finished_tables(),
+                            total = metrics.total_tables(),
+                            "Syncing partially done with table {table}"
+                        );
+                        if let Some(sender) = sender {
+                            let _ = sender.send(Ok(()));
                         }
                     }
                     Err(err) => {
                         tracing::error!(
-                            "[worker:{worker}] sync table {table} error: {err:?}, continue next"
+                            "[worker:{worker}] sync table {table} error: {err:#}, failing task"
                         );
                         if let Some(path) = opts.fails_to.as_ref() {
                             path.lock().await.write_fmt(format_args!(
-                                "data\t{}\t{:?}\t{}\n",
+                                "data\t{}\t{:?}\t{err:#}\n",
                                 table.as_str(),
                                 query.time_range,
-                                format!("{err:?}").replace("\n", " ")
                             ))?;
                         } else {
-                            println!(
-                                "data\t{}\t{:?}\t{}",
-                                table.as_str(),
-                                query.time_range,
-                                format!("{err:?}").replace("\n", " ")
-                            );
+                            println!("data\t{}\t{:?}\t{err:#}", table.as_str(), query.time_range,);
                         }
+
+                        // Notify sender of the error
+                        if let Some(sender) = sender {
+                            let _ = sender
+                                .send(Err(anyhow::format_err!("Syncing table failed: {err:#}")));
+                        }
+
+                        // Return error to stop the worker and mark task as interrupted
+                        return Err(err);
                     }
                 }
             }
@@ -590,7 +589,6 @@ async fn worker(
                     .remap
                     .as_ref()
                     .and_then(|v| v.get(table.as_str()).map(Clone::clone));
-                let mut chunk_err: Option<String> = None;
                 loop {
                     let partial_metrics = metrics_arc.clone();
                     match sync_sparse_stable(
@@ -655,45 +653,42 @@ async fn worker(
                                 continue;
                             }
 
-                            // 对于其他错误无法处理的错误，记录到日志，跳过
+                            // For unrecoverable errors (e.g., memory exhausted), log and fail the task
                             tracing::error!(
-                                "[worker:{worker}] sync table {table} error: {err:?}, continue next"
+                                "[worker:{worker}] sync table {table} error: {err:#}, failing task"
                             );
 
                             if let Some(path) = opts.fails_to.as_ref() {
                                 path.lock().await.write_fmt(format_args!(
-                                    "data\t{}\t{:?}\t{}\n",
+                                    "data\t{}\t{:?}\t{err:#}\n",
                                     table.as_str(),
                                     query.time_range,
-                                    format!("{err:?}").replace("\n", " ")
                                 ))?;
                             } else {
                                 println!(
-                                    "data\t{}\t{:?}\t{}",
+                                    "data\t{}\t{:?}\t{err:#}",
                                     table.as_str(),
                                     query.time_range,
-                                    format!("{err:?}").replace("\n", " ")
                                 );
-                                chunk_err = Some(format!("{err:?}").to_string());
                             }
-                            break;
+
+                            // Notify sender of the error
+                            if let Some(sender) = sender {
+                                let _ = sender.send(Err(anyhow::format_err!(
+                                    "Syncing table failed: {err:#}"
+                                )));
+                            }
+
+                            // Return error to stop the worker and mark task as interrupted
+                            return Err(err);
                         }
                     };
                 }
 
-                match chunk_err {
-                    Some(err) => {
-                        if let Some(sender) = sender {
-                            let _ = sender
-                                .send(Err(anyhow::format_err!("Syncing table failed: {err}",)));
-                        }
-                    }
-                    None => {
-                        metrics.add_finished_tables(1);
-                        if let Some(sender) = sender {
-                            let _ = sender.send(Ok(()));
-                        }
-                    }
+                // If we reach here, sync was successful
+                metrics.add_finished_tables(1);
+                if let Some(sender) = sender {
+                    let _ = sender.send(Ok(()));
                 }
             }
         }
