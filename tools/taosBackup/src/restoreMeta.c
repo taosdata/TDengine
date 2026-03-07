@@ -911,12 +911,23 @@ static int parquetTagCallback(void *userData,
                 int32_t vLen = b->length ? (int32_t)b->length[row]
                                          : (int32_t)b->buffer_length;
                 char   *vPtr = (char *)b->buffer + (size_t)row * b->buffer_length;
-                pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
-                for (int32_t k = 0; k < vLen && pos < TSDB_MAX_SQL_LEN - 4; k++) {
-                    if (vPtr[k] == '\'') sql[pos++] = '\\';
-                    if (pos < TSDB_MAX_SQL_LEN - 2) sql[pos++] = vPtr[k];
+                if (type == TSDB_DATA_TYPE_GEOMETRY) {
+                    /* GEOMETRY is stored as WKB; SQL requires WKT notation.    */
+                    char wkt[4096];
+                    int  wktLen = bckWkbToWkt((const unsigned char *)vPtr, vLen, wkt, (int)sizeof(wkt));
+                    if (wktLen > 0) {
+                        pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'%s'", wkt);
+                    } else {
+                        pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "NULL");
+                    }
+                } else {
+                    pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
+                    for (int32_t k = 0; k < vLen && pos < TSDB_MAX_SQL_LEN - 4; k++) {
+                        if (vPtr[k] == '\'') sql[pos++] = '\\';
+                        if (pos < TSDB_MAX_SQL_LEN - 2) sql[pos++] = vPtr[k];
+                    }
+                    pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
                 }
-                pos += snprintf(sql + pos, TSDB_MAX_SQL_LEN - pos, "'");
             } else {
                 char *vp = (char *)b->buffer + (size_t)row * b->buffer_length;
                 switch (type) {

@@ -158,6 +158,12 @@ def runBinFile(fname, command, show = True, checkRun = False, retFail = False ):
     cmd = f"{bin_file} {command}"
     if show:
         tdLog.info(cmd)
+    # Unset LD_PRELOAD so that ASAN (preloaded for taosd) does not instrument
+    # standalone tools like taosBackup/taosdump/taosBenchmark, which would
+    # otherwise exit with code 1 on leak-detection false-positives from the
+    # TDengine client STMT async thread.
+    if not isWin():
+        cmd = f"unset LD_PRELOAD; {cmd}"
     return runRetList(cmd, checkRun=checkRun, retFail=retFail, show=show)
 
 # exe build/bin file

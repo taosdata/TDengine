@@ -53,11 +53,15 @@ typedef struct ParquetReader ParquetReader;
  * @param fileName  Output file path (.par)
  * @param fields    TAOS_FIELD array describing the result set
  * @param numFields Number of fields
+ * @param efields   TAOS_FIELD_E array (may be NULL).  When provided, precision
+ *                  and scale for DECIMAL columns are stored in the metadata so
+ *                  the reader can reconstruct them without packet format changes.
  * @param code      Receives TSDB_CODE_* on failure
  * @return          Opaque handle, or NULL on failure
  */
 ParquetWriter *parquetWriterCreate(const char *fileName, TAOS_FIELD *fields,
-                                   int numFields, int *code);
+                                   int numFields, TAOS_FIELD_E *efields,
+                                   int *code);
 
 /*
  * Append one TDengine raw block to the Parquet file.

@@ -113,15 +113,19 @@ static constexpr const char *kMetaVerVal   = "1";
 /* per-column metadata keys (append decimal column index) */
 static constexpr const char *kPfxType      = "col_type_";
 static constexpr const char *kPfxBytes     = "col_bytes_";
+/* optional DECIMAL precision/scale (present only when efields provided) */
+static constexpr const char *kPfxPrec      = "col_prec_";
+static constexpr const char *kPfxScale     = "col_scale_";
 
 /* Parquet row-group size (rows) — matches a typical TDengine block */
 static constexpr int64_t kRowGroupSize = 4096;
 
 /* ── TDengine bitmap convention for fixed-width types ──────────────
  *   bit SET   → NULL
- *   bit CLEAR → value present                                        */
+ *   bit CLEAR → value present
+ *   MSB-first within each byte: bit 7 = row 0, bit 6 = row 1, ...          */
 static inline bool bitmapIsNull(const uint8_t *bitmap, int row) {
-    return (bitmap[row >> 3] >> (row & 7)) & 1;
+    return (bitmap[row >> 3] >> (7 - (row & 7))) & 1;
 }
 
 /* ─────────────────────────────── schema helpers ────────────────────*/
@@ -155,9 +159,12 @@ static std::shared_ptr<arrow::DataType> taosTypeToArrow(int8_t t) {
  * Build an Arrow schema from TAOS_FIELD[].
  * TAOS type and byte-width are stored in per-field metadata so the
  * reader can reconstruct the original schema exactly.
+ * When efields is non-NULL, precision and scale for DECIMAL columns are
+ * also stored in the metadata.
  */
 static std::shared_ptr<arrow::Schema> buildArrowSchema(const TAOS_FIELD *fields,
-                                                        int numFields) {
+                                                        int numFields,
+                                                        const TAOS_FIELD_E *efields) {
     arrow::SchemaBuilder sb;
 
     /* file-level metadata */
@@ -175,6 +182,17 @@ static std::shared_ptr<arrow::Schema> buildArrowSchema(const TAOS_FIELD *fields,
         std::string idx = std::to_string(i);
         meta->Append(std::string(kPfxType)  + idx, std::to_string(fields[i].type));
         meta->Append(std::string(kPfxBytes) + idx, std::to_string(fields[i].bytes));
+
+        /* For DECIMAL columns, store precision and scale so the reader can
+         * reconstruct FieldInfo.bytes in packed format (actualBytes<<24 | prec<<8 | scale)
+         * and use decimalToStr when binding to STMT2.             */
+        if ((fields[i].type == TSDB_DATA_TYPE_DECIMAL ||
+             fields[i].type == TSDB_DATA_TYPE_DECIMAL64) && efields) {
+            meta->Append(std::string(kPfxPrec)  + idx,
+                         std::to_string((int)efields[i].precision));
+            meta->Append(std::string(kPfxScale) + idx,
+                         std::to_string((int)efields[i].scale));
+        }
     }
 
     return arrow::schema(fv, meta);
@@ -205,6 +223,25 @@ static bool recoverSchema(const std::shared_ptr<arrow::Schema> &schema,
         }
         outFields[i].type  = (int8_t)std::stoi(meta->value(ti));
         outFields[i].bytes = (int32_t)std::stoi(meta->value(bi));
+
+        /* For DECIMAL columns, if precision/scale were stored, pack them into
+         * outFields[i].bytes as (actualBytes<<24)|(precision<<8)|scale so
+         * that fieldGetRawBytes/fieldGetPrecision/fieldGetScale work correctly
+         * when binding to STMT2 via decimalToStr.                            */
+        if (outFields[i].type == TSDB_DATA_TYPE_DECIMAL ||
+            outFields[i].type == TSDB_DATA_TYPE_DECIMAL64) {
+            std::string precKey  = std::string(kPfxPrec)  + idx;
+            std::string scaleKey = std::string(kPfxScale) + idx;
+            auto pi = meta->FindKey(precKey);
+            auto si = meta->FindKey(scaleKey);
+            if (pi >= 0 && si >= 0) {
+                int32_t actualBytes = outFields[i].bytes;  /* raw width 8 or 16 */
+                int32_t precision   = std::stoi(meta->value(pi));
+                int32_t scale       = std::stoi(meta->value(si));
+                /* pack: same format as FieldInfo in colCompress.h */
+                outFields[i].bytes = (actualBytes << 24) | (precision << 8) | scale;
+            }
+        }
 
         /* name */
         const auto &fn = schema->field(i)->name();
@@ -262,8 +299,6 @@ blockToRecordBatch(const std::shared_ptr<arrow::Schema> &schema,
         }
 
         bool isVar = IS_VAR_DATA_TYPE(f.type) ||
-                     f.type == TSDB_DATA_TYPE_DECIMAL  ||
-                     f.type == TSDB_DATA_TYPE_DECIMAL64 ||
                      f.type == TSDB_DATA_TYPE_JSON      ||
                      f.type == TSDB_DATA_TYPE_VARBINARY ||
                      f.type == TSDB_DATA_TYPE_BLOB      ||
@@ -373,6 +408,27 @@ blockToRecordBatch(const std::shared_ptr<arrow::Schema> &schema,
                 break;
             }
 #undef BUILD_FIXED
+            case TSDB_DATA_TYPE_DECIMAL:
+            case TSDB_DATA_TYPE_DECIMAL64: {
+                /* fixed layout: bitmap[(rows+7)/8] | values[rows * actualBytes]
+                 * f.bytes packed: (actualBytes<<24)|(precision<<8)|scale        */
+                int32_t hi          = (f.bytes >> 24) & 0xFF;
+                int32_t actualBytes = hi != 0 ? hi : f.bytes;
+                arrow::LargeBinaryBuilder b(pool);
+                ARROW_RETURN_NOT_OK(b.Reserve(blockRows));
+                for (int r = 0; r < blockRows; r++) {
+                    if (bitmapIsNull(bitmap, r)) {
+                        ARROW_RETURN_NOT_OK(b.AppendNull());
+                    } else {
+                        ARROW_RETURN_NOT_OK(b.Append(
+                            reinterpret_cast<const uint8_t *>(values)
+                                + r * actualBytes,
+                            actualBytes));
+                    }
+                }
+                ARROW_RETURN_NOT_OK(b.Finish(&arr));
+                break;
+            }
             default:
                 return arrow::Status::NotImplemented(
                     "unsupported fixed TAOS type ", (int)f.type);
@@ -389,9 +445,10 @@ blockToRecordBatch(const std::shared_ptr<arrow::Schema> &schema,
 extern "C" {
 
 ParquetWriter *parquetWriterCreate(const char *fileName,
-                                   TAOS_FIELD *fields,
-                                   int         numFields,
-                                   int        *code) {
+                                   TAOS_FIELD   *fields,
+                                   int           numFields,
+                                   TAOS_FIELD_E *efields,
+                                   int          *code) {
     if (!fileName || !fields || numFields <= 0 || !code) {
         if (code) *code = TSDB_CODE_BCK_INVALID_PARAM;
         return nullptr;
@@ -400,8 +457,8 @@ ParquetWriter *parquetWriterCreate(const char *fileName,
     auto *pw     = new (std::nothrow) ParquetWriter();
     if (!pw) { *code = TSDB_CODE_BCK_MALLOC_FAILED; return nullptr; }
 
-    /* schema */
-    pw->schema = buildArrowSchema(fields, numFields);
+    /* schema — pass efields so DECIMAL precision/scale are stored in metadata */
+    pw->schema = buildArrowSchema(fields, numFields, efields);
     pw->fields .assign(fields, fields + numFields);
 
     /* open output file */
@@ -588,8 +645,8 @@ static int arrowArrayToMultiBind(ParquetReader      *pr,
         /* ─ alloc buffer and lengths ─ */
         auto &cbuf  = pr->colBufs[colIdx];
         auto &clens = pr->colLens[colIdx];
-        cbuf .resize((size_t)numRows * maxLen, 0);
-        clens.resize(numRows, 0);
+        cbuf.assign((size_t)numRows * maxLen, 0);
+        clens.assign(numRows, 0);
 
         for (int r = 0; r < numRows; r++) {
             if (!cnulls[r]) {

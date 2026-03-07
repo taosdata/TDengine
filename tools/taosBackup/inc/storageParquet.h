@@ -38,4 +38,20 @@ int fileParquetToStmt(TAOS_STMT *stmt,
                       const char *fileName,
                       int64_t    *outRows);
 
+/*
+ * Restore a .par file into a table via a pre-prepared TAOS_STMT2.
+ *
+ * Functionally equivalent to fileParquetToStmt() but uses the STMT2 API
+ * (taos_stmt2_bind_param + taos_stmt2_exec) for each row-group.
+ * The TAOS_MULTI_BIND arrays delivered by the Parquet reader are converted
+ * to TAOS_STMT2_BIND on-the-fly; no extra copy of the column data is made.
+ *
+ * @param stmt2      Prepared TAOS_STMT2 (INSERT INTO `db`.`tb` VALUES(?,…))
+ * @param fileName   Path to the .par file
+ * @param outRows    If non-NULL, receives total rows inserted
+ */
+int fileParquetToStmt2(TAOS_STMT2 *stmt2,
+                       const char *fileName,
+                       int64_t    *outRows);
+
 #endif  // INC_STORAGE_PARQUET_H_

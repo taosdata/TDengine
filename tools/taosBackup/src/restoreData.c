@@ -518,17 +518,15 @@ static int bindBlockData(StmtRestoreCtx *ctx,
             bind->is_null = isNull;
 
         } else if (IS_DECIMAL_TYPE(fieldInfos[c].type)) {
-            /* DECIMAL: raw block has bitmap + fixed bytes (8 or 16) per row.
-             * STMT1 for DECIMAL also expects string representation. */
+            /* DECIMAL: raw block has bitmap[(blockRows+7)/8] + fixed bytes
+             * (8 for DECIMAL, 16 for DECIMAL128) per row.
+             * STMT1 requires buffer_type == column type and raw binary data. */
             int32_t actualBytes = fieldGetRawBytes(&fieldInfos[c]);
-            uint8_t precision   = fieldGetPrecision(&fieldInfos[c]);
-            uint8_t scale       = fieldGetScale(&fieldInfos[c]);
             int32_t bitmapLen   = (blockRows + 7) / 8;
             char   *bitmap      = (char *)colData;
             char   *fixData     = (char *)colData + bitmapLen;
 
-            int32_t strBufPerRow = (int32_t)precision + 10;  // max decimal string length
-            char   *buffer  = (char *)taosMemoryCalloc(blockRows, strBufPerRow);
+            char    *buffer  = (char *)taosMemoryCalloc(blockRows, actualBytes);
             int32_t *lengths = (int32_t *)taosMemoryCalloc(blockRows, sizeof(int32_t));
             char    *isNull  = (char *)taosMemoryCalloc(blockRows, sizeof(char));
             if (!buffer || !lengths || !isNull) {
@@ -540,19 +538,21 @@ static int bindBlockData(StmtRestoreCtx *ctx,
 
             for (int row = 0; row < blockRows; row++) {
                 if (bitmap[row >> 3] & (1u << (7 - (row & 7)))) {
-                    isNull[row] = 1;
+                    isNull[row]  = 1;
                     lengths[row] = 0;
                 } else {
-                    isNull[row] = 0;
-                    void *rawDec = fixData + row * actualBytes;
-                    char *dest   = buffer + row * strBufPerRow;
-                    decimalToStr(rawDec, fieldInfos[c].type, precision, scale, dest, strBufPerRow);
-                    lengths[row] = (int32_t)strlen(dest);
+                    isNull[row]  = 0;
+                    lengths[row] = actualBytes;
+                    memcpy(buffer + row * actualBytes,
+                           fixData + row * actualBytes,
+                           actualBytes);
                 }
             }
 
+            /* buffer_type was already set to fieldInfos[c].type (DECIMAL/DECIMAL128)
+             * above; keep it — pass raw binary to STMT1. */
             bind->buffer = buffer;
-            bind->buffer_length = strBufPerRow;
+            bind->buffer_length = actualBytes;
             bind->length = lengths;
             bind->is_null = isNull;
         } else {
@@ -1275,6 +1275,87 @@ static int restoreOneParquetFile(TAOS *conn, const char *dbName,
     return code;
 }
 
+//
+// Restore a single .par (Parquet) file using STMT2.
+//
+// Mirrors restoreOneParquetFile() but uses the TAOS_STMT2 API so the parquet
+// restore path honours the user's -v option just like binary files do.
+//
+static int restoreOneParquetFileV2(TAOS *conn, const char *dbName,
+                                    const char *filePath,
+                                    StbChange *stbChange) {
+    (void)stbChange;  /* reserved for future schema-change support */
+    int code = TSDB_CODE_SUCCESS;
+
+    const char *baseName = strrchr(filePath, '/');
+    if (baseName) baseName++; else baseName = filePath;
+
+    char tbName[TSDB_TABLE_NAME_LEN] = {0};
+    const char *dot = strrchr(baseName, '.');
+    if (dot && (dot - baseName) < TSDB_TABLE_NAME_LEN) {
+        memcpy(tbName, baseName, dot - baseName);
+        tbName[dot - baseName] = '\0';
+    } else {
+        snprintf(tbName, sizeof(tbName), "%s", baseName);
+    }
+
+    logDebug("restore parquet file (STMT2): %s -> table: %s.%s", filePath, dbName, tbName);
+
+    /* Open file briefly just to determine the column count for the SQL */
+    int numFields = 0;
+    {
+        int            err = TSDB_CODE_FAILED;
+        ParquetReader *pr  = parquetReaderOpen(filePath, &err);
+        if (!pr) {
+            logError("open parquet file failed(%d): %s", err, filePath);
+            return err;
+        }
+        TAOS_FIELD *fields = NULL;
+        numFields = parquetReaderGetFields(pr, &fields);
+        parquetReaderClose(pr);
+        if (numFields <= 0) {
+            logError("parquet file has no fields: %s", filePath);
+            return TSDB_CODE_BCK_NO_FIELDS;
+        }
+    }
+
+    /* Build INSERT SQL with db.table fully qualified (required for WebSocket) */
+    char *sql = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN);
+    if (!sql) return TSDB_CODE_BCK_MALLOC_FAILED;
+    char *p = sql;
+    p += snprintf(p, TSDB_MAX_SQL_LEN, "INSERT INTO `%s`.`%s` VALUES(?",
+                  argRenameDb(dbName), tbName);
+    for (int i = 1; i < numFields; i++) p += sprintf(p, ",?");
+    sprintf(p, ")");
+    logDebug("parquet stmt2 prepare: %s", sql);
+
+    TAOS_STMT2 *stmt2 = initStmt2(conn, true);
+    if (!stmt2) {
+        taosMemoryFree(sql);
+        return TSDB_CODE_BCK_STMT_FAILED;
+    }
+
+    int ret = taos_stmt2_prepare(stmt2, sql, 0);
+    taosMemoryFree(sql);
+    if (ret != 0) {
+        logError("taos_stmt2_prepare failed for parquet: %s", taos_stmt2_error(stmt2));
+        taos_stmt2_close(stmt2);
+        return ret;
+    }
+
+    int64_t rows = 0;
+    code = fileParquetToStmt2(stmt2, filePath, &rows);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("restore parquet (STMT2) failed(%d): %s -> %s.%s",
+                 code, filePath, dbName, tbName);
+    } else {
+        logDebug("restore parquet (STMT2) done: %s.%s rows: %" PRId64, dbName, tbName, rows);
+    }
+
+    taos_stmt2_close(stmt2);
+    return code;
+}
+
 
 //
 // Restore a single data .dat file using a pre-prepared (reusable) per-thread STMT.
@@ -1436,8 +1517,13 @@ static void* restoreDataThread(void *arg) {
         bool  isPar   = (pathLen > 4 &&
                          strcmp(filePath + pathLen - 4, ".par") == 0);
         if (isPar) {
-            code = restoreOneParquetFile(thread->conn, dbName, filePath,
-                                         thread->stbChange);
+            if (stmtVer == STMT_VERSION_2) {
+                code = restoreOneParquetFileV2(thread->conn, dbName, filePath,
+                                               thread->stbChange);
+            } else {
+                code = restoreOneParquetFile(thread->conn, dbName, filePath,
+                                             thread->stbChange);
+            }
         } else if (stmtVer == STMT_VERSION_2) {
             code = restoreOneDataFileV2(&s2Ctx, filePath);
         } else {
