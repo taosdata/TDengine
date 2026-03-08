@@ -185,7 +185,19 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
             if not line or line.startswith('#'):
                 continue
 
-            # 解析 pytest 命令
+            # 解析 pytest 命令 - 格式: priority,rerunTimes,sanitizer(y/n),path,command
+            # 检查格式: 第三列是 y/n，第五列决定使用 ./ci/pytest.sh 还是 pytest
+            parts = line.split(',')
+            if len(parts) < 5:
+                logger.error(f"格式错误: 列数不足(应有5列,实际{len(parts)}列): {line}")
+                continue
+            
+            sanitizer = parts[2].strip()  # 第三列: y 或 n
+            if sanitizer not in ('y', 'n'):
+                logger.error(f"格式错误: 第三列必须是 y 或 n, 实际为 '{sanitizer}': {line}")
+                continue
+            
+            # 根据原逻辑解析
             if "ci/pytest.sh " in line:
                 pytest_cmd = line.split("ci/pytest.sh ")[1]
             else:

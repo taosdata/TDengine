@@ -14,3 +14,16 @@ cases/17-DataSubscription/03-MQTT/test_mqtt_bnodes.py
 cases/17-DataSubscription/03-MQTT/test_mqtt_qos.py
 cases/17-DataSubscription/03-MQTT/test_mqtt_special.py
 cases/17-DataSubscription/03-MQTT/test_mqtt_rb.py
+
+# Unit Test
+82-UnitTest/test.sh
+
+#docs Test
+83-DocTest/c.sh
+83-DocTest/python.sh
+83-DocTest/node.sh
+83-DocTest/csharp.sh
+83-DocTest/jdbc.sh
+83-DocTest/rust.sh
+83-DocTest/go.sh
+83-DocTest/test_R.sh
