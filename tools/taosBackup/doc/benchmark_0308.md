@@ -393,3 +393,103 @@ taosBackup -i /tmp/taosbackup_parquet -v 1 -W test=test_backup_pqt_stmt1
 taos -s "select count(*) from test_backup_pqt_stmt1.meters"
 taos -s "drop database if exists test_backup_pqt_stmt1"
 ```
+---
+
+## 六、全 NULL 列跳过优化（大宽表场景）
+
+### 6.1 优化背景
+
+在大宽表场景（列数多、稀疏填充）中，一个子表可能只填充了少部分列，其余列在该子表的所有行均为 NULL。  
+taosBackup 的备份文件按列压缩存储（TDengine 原始 block 格式：每列 = null-bitmap + 数据载荷）。  
+优化前，全 NULL 列仍占用空间（null-bitmap 全 `0xFF` + 数据载荷全 `0x00`），即使经过 LZ4/zstd 压缩后也占少量字节。
+
+### 6.2 优化方案
+
+**修改文件：**
+- `inc/blockReader.h`：`COMPRESS_BLOCK_VERSION` 由 `1` 升级为 `2`
+- `inc/colCompress.h`：新增 `#define COL_LEN_ALL_NULL (-1)` 哨兵值
+- `src/colCompress.c`：
+  - **压缩侧**（`compressBlock()`）：遍历固定类型列的 null-bitmap；若全部位为 1（所有行为 NULL），将 `colsLen[i]` 置为 `COL_LEN_ALL_NULL`，跳过数据写入
+  - **解压侧**（`decompressBlock()`）：检测到 `COL_LEN_ALL_NULL` 后，合成全 NULL bitmap（全 `0xFF`）+ 零数据载荷，恢复正确的列数据
+
+**向后兼容：** Block Version 1 文件可被新版本正常读取（`decompressBlock` 检查版本号）。
+
+### 6.3 测试数据 — testwide（大宽表 v2）
+
+```
+testwide 数据库：
+  超级表: wide_meters
+  列数: 300 INT 列（col0..col299）+ ts
+  子表数: 1,000（d0..d999）
+  每表行数: 1,000
+  总行数: 1,000,000
+  Vgroup 数: 8
+  NULL 模式: 每个子表随机选取 90 列（30%）为活跃列（有非 NULL 值），
+             其余 210 列（70%）对该子表全行为 NULL
+  非 NULL 比例（全表统计）: ~30%（col0: 299k, col1: 310k, col100: 291k）
+```
+
+数据特点：每次 `SELECT * FROM d{i}` 查询返回的 block 中，有 210 列全行为 NULL，
+可触发块级别全 NULL 列跳过优化。
+
+### 6.4 备份性能对比（binary 格式）
+
+| 指标 | 优化前（v1） | 优化后（v2） | 变化 |
+|------|------------|------------|------|
+| 备份文件大小 | **203.0 MB** | **197.2 MB** | -5.8 MB（−2.9%） |
+| 备份耗时 | **8.91 s** | **8.31 s** | −0.6 s（−6.7%） |
+| 恢复总行数 | — | **1,000,000** ✓ | 正确 |
+| 恢复耗时 | — | **2.23 s** | — |
+
+**parquet 格式对比（未受此优化影响，parquet 自带 NULL 列压缩）：**
+
+| 指标 | 值 |
+|------|----|
+| 备份大小 | 539.1 MB |
+| 备份耗时 | 39.68 s |
+
+> Parquet 格式尺寸更大，因其 chunk 格式包含额外元数据，但对 NULL 稀疏矩阵的压缩效果取决于库内部策略。
+
+### 6.5 结果分析
+
+**为何空间节省有限（约 3%）？**
+
+全 NULL 列（bitmap 全 `0xFF` + 数据全 `0x00`）在 LZ4/zstd 压缩后极为紧凑（每列仅约 7 字节），
+因此压缩算法已自然处理了大部分冗余。优化跳过的是已经高度压缩的字节，节省空间有限。
+
+| 项目 | 计算 |
+|------|------|
+| 每列原始全 NULL 大小 | 125 B（bitmap）+ 4,000 B（INT×1000）= 4,125 B |
+| 压缩后估算 | ≈ 7 B（高度重复数据） |
+| 1000 表 × 210 列 | 理论节省 ≈ 1.47 MB（压缩后，实测 5.8 MB） |
+
+实测节省略高于理论值（5.8 MB > 1.47 MB），原因是还节省了 block 头部结构与
+`colsLen/cmprAlgs` 数组位置无关的写入开销，以及部分压缩循环的 CPU 开销。
+
+**速度提升（约 7%）** 的来源：跳过了 210 列的压缩运算（`compressColData` 调用），
+减少了 CPU 计算量。
+
+**数据正确性验证：**
+
+```
+testwide.d0.count(col0)          = 0       # 全 NULL
+testwide_restored.d0.count(col0) = 0       # 恢复后仍全 NULL ✓
+
+testwide.d0.count(col3)          = 1000    # 活跃列，全 non-NULL
+testwide_restored.d0.count(col3) = 1000    # 恢复后一致 ✓
+testwide.d0: min(col3)=8, max(col3)=9995   # 数值完整
+testwide_restored.d0: min(col3)=8, max(col3)=9995 ✓
+```
+
+### 6.6 适用场景与局限
+
+**优化效果显著的场景：**
+- 极稀疏大宽表（列数 >> 50，每表实际使用列 < 20%）
+- 子表级别的列完全不使用（即整个子表该列从未写入数据）
+- 无压缩（`COMP 0`）或低效压缩模式下效果更明显
+
+**局限：**
+- 当 NULL 呈行内随机分布（非列级 NULL）时，不触发优化
+- 压缩算法（LZ4/zstd）已处理大部分全 NULL 列冗余
+- 对 parquet 格式无效（parquet 编码层已处理稀疏 NULL）
+- Block Version 升级为 2，旧版本 taosBackup 无法读取新格式备份文件

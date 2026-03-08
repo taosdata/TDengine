@@ -21,7 +21,7 @@ extern "C" {
 //
 // ---------------- define ----------------
 //
-#define COMPRESS_BLOCK_VERSION 1
+#define COMPRESS_BLOCK_VERSION 2
 
 //
 // ---------------- struct ----------------

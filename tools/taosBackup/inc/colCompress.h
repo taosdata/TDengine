@@ -26,6 +26,11 @@
 // compressBlock->flag
 #define BLOCK_FLAG_NOT_COMPRESS 0x00000001
 
+// Special sentinel stored in colsLen[i] (block version >= 2):
+// when a column is entirely NULL, we skip storing any column data and
+// record this magic value so the reader can synthesise the all-NULL bitmap.
+#define COL_LEN_ALL_NULL  (-1)
+
 //
 // ---------------- struct ----------------
 //

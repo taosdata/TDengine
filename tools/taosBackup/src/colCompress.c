@@ -179,6 +179,37 @@ CompressBlock* compressBlock(void*      block,
             return NULL;
         }
 
+        //
+        // all-NULL optimisation (block version 2+):
+        // For fixed-length columns the null-bitmap is the first bitmapLen bytes
+        // of colData.  If every bit is 1 (every row is NULL) we store nothing
+        // and record COL_LEN_ALL_NULL as the column length sentinel.
+        // Variable-length columns are never fully NULL in normal TDengine blocks,
+        // so we skip the optimisation for them.
+        //
+        if (!IS_VAR_DATA_TYPE(fieldInfos[i].type)) {
+            int32_t bitmapLen = (blockRows + 7) / 8;
+            const uint8_t *bm = (const uint8_t *)colData;
+            bool allNull = true;
+            // check all full bytes
+            for (int b = 0; b < bitmapLen - 1 && allNull; b++) {
+                if (bm[b] != 0xFF) allNull = false;
+            }
+            // check the last (potentially partial) byte
+            if (allNull) {
+                int rem = blockRows % 8;
+                uint8_t mask = (rem == 0) ? 0xFF : (uint8_t)((0xFF << (8 - rem)) & 0xFF);
+                if ((bm[bitmapLen - 1] & mask) != mask) allNull = false;
+            }
+            if (allNull) {
+                colsLen[i]  = COL_LEN_ALL_NULL;
+                cmprAlgs[i] = 0;
+                logDebug("%d column %s: type=%d ALL-NULL, skipped",
+                         i, fieldInfos[i].name, fieldInfos[i].type);
+                continue; // no data written, curDataPos stays
+            }
+        }
+
         // compress column data
         int32_t remainLen = mallocLen - (curDataPos - (char *)compressBlock);
         int32_t compressedLen = remainLen;
@@ -357,6 +388,36 @@ int decompressBlock(CompressBlock* compressBlk,
     // 5. decompress each column and fill col-lengths
     //
     for (int i = 0; i < numOfCols; i++) {
+        //
+        // all-NULL sentinel (block version 2+):
+        // synthesise an all-NULL bitmap + zero data payload in-place.
+        //
+        if (colsLen[i] == COL_LEN_ALL_NULL) {
+            if (IS_VAR_DATA_TYPE(fieldInfos[i].type)) {
+                // Shouldn't happen, but handle gracefully:
+                // write zero-length offsets + empty data
+                int32_t offsetsLen = blockRows * sizeof(int32_t);
+                memset(outPos, 0, offsetsLen);
+                colLengths[i] = 0;
+                logDebug("%d column %s: type=%d ALL-NULL (var) synthesised",
+                         i, fieldInfos[i].name, fieldInfos[i].type);
+                outPos += offsetsLen;
+            } else {
+                int32_t bitmapLen = (blockRows + 7) / 8;
+                int32_t dataLen   = blockRows * fieldGetRawBytes(&fieldInfos[i]);
+                // bitmap: all 1s (all NULL)
+                memset(outPos, 0xFF, bitmapLen);
+                // data area: zeroed (values undefined for NULL rows)
+                memset(outPos + bitmapLen, 0, dataLen);
+                colLengths[i] = dataLen;
+                logDebug("%d column %s: type=%d ALL-NULL synthesised, bitmapLen=%d dataLen=%d",
+                         i, fieldInfos[i].name, fieldInfos[i].type, bitmapLen, dataLen);
+                outPos += bitmapLen + dataLen;
+            }
+            // curCompPos does not advance – no data stored for all-NULL columns
+            continue;
+        }
+
         int32_t remainOut = *uncompressLen - (int32_t)(outPos - (char *)(*uncompressBlock));
         int32_t outputLen = remainOut;
 
