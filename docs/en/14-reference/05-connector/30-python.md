@@ -445,7 +445,7 @@ The interface for binding parameters of the standard Stmt.
 #### Establishing Connection
 
 - `def connect(*args, **kwargs):`
-  - **Interface Description**: Establish a connection to taosAdapter.
+  - **Interface Description**: Creates and returns a database connection object.
   - **Parameter Description**:
     - `kwargs`: Provided in the form of a Python dictionary, can be used to set
       - `user`: Username for the database

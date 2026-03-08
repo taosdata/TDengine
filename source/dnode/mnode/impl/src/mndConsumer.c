@@ -1193,6 +1193,7 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
 END:
   sdbRelease(pSdb, pConsumer);
   sdbCancelFetch(pSdb, pShow->pIter);
+  mndReleaseUser(pMnode, pOperUser);
   if (code != 0) {
     mError("show consumer failed, code:%d", code);
     return code;
