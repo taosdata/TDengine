@@ -185,6 +185,32 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
             if not line or line.startswith('#'):
                 continue
 
+            # 先用 win_ignore_cases 匹配，统一处理需要跳过的 case
+            # 提取第五列 command，检查其路径部分是否在排除列表中
+            should_skip = False
+            if len(exclusion_list) > 0:
+                parts = line.split(',')
+                if len(parts) >= 5:
+                    command = parts[4].strip()
+                    # 提取 command 中的路径部分进行匹配
+                    # 如 "pytest cases/xx/test.py" -> "cases/xx/test.py"
+                    # 如 "bash 82-UnitTest/test.sh" -> "82-UnitTest/test.sh"
+                    if command:
+                        cmd_parts = command.split(' ')
+                        # 取第一个参数之后的路径部分（支持 pytest xxx 或 bash xxx 格式）
+                        for i in range(1, len(cmd_parts)):
+                            if cmd_parts[i] in exclusion_list:
+                                should_skip = True
+                                break
+            
+            if should_skip:
+                skipped_cases += 1
+                logger.info(f"Case in win_ignore_cases, skip: {line}")
+                result_str = f"Skip\t{line}\t\t\t\n"
+                with open(result_file, "a", encoding="utf-8") as rf:
+                    rf.write(result_str)
+                continue
+            
             # 解析 pytest 命令 - 格式: priority,rerunTimes,sanitizer(y/n),path,command
             # 检查格式: 第三列是 y/n，第五列决定使用 ./ci/pytest.sh 还是 pytest
             parts = line.split(',')
@@ -197,7 +223,7 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
                 logger.error(f"格式错误: 第三列必须是 y 或 n, 实际为 '{sanitizer}': {line}")
                 continue
             
-            # 根据原逻辑解析
+            # 根据原逻辑解析 pytest 命令
             if "ci/pytest.sh " in line:
                 pytest_cmd = line.split("ci/pytest.sh ")[1]
             else:
@@ -205,15 +231,6 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
 
             if not pytest_cmd.startswith("pytest"):
                 logger.warning(f"异常pytest命令: {pytest_cmd}")
-                continue
-
-            case_base_name = pytest_cmd.split(" ")[1]
-            if case_base_name and len(exclusion_list) > 0 and case_base_name in exclusion_list:
-                skipped_cases += 1
-                logger.info(f"Case {case_base_name} not support runnning on Windows. Skip test.")
-                result_str = f"Skip\t{pytest_cmd}\t\t\t\n"
-                with open(result_file, "a", encoding="utf-8") as rf:
-                    rf.write(result_str)
                 continue
 
             case_name = pytest_cmd.split("/")[-1].replace(" ", "_")
