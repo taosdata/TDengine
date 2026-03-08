@@ -278,10 +278,11 @@ def main():
     checks.append(("Rolling upgrade completed", True, "all nodes upgraded"))
     rp.check("Rolling upgrade completed", True, "all nodes upgraded")
     rp.info(
-        f"  During upgrade  |  "
-        f"writes succeeded={metrics.get('write_phase4_success', 0):,}  "
-        f"queries succeeded={metrics.get('query_phase4_success', 0):,}  "
-        f"rows subscribed={metrics.get('subscribe_phase4_recv', 0):,}"
+        f"\n        ------------- running information during rolling upgrade -------------\n"
+        f"\n             writes     succeeded={metrics.get('write_phase4_success', 0):,}  rows"
+        f"\n             queries    succeeded={metrics.get('query_phase4_success', 0):,}  "
+        f"\n             subscribed succeeded={metrics.get('subscribe_phase4_recv', 0):,} rows"
+        f"\n        -------------------------------------------------------------\n"
     )
     rp.step_done("Phase 4")
 

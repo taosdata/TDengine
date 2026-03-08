@@ -2,6 +2,7 @@
 # filepath: hot_update/server/rollingUpgrade.py
 
 import os
+import re
 import sys
 import time
 import shutil
@@ -16,6 +17,19 @@ from server.clusterSetup import ClusterManager
 
 
 # ==================== helpers ====================
+
+def _get_taosd_version(bin_path: str) -> str:
+    """Run `bin_path -V` and return the version string, e.g. '3.4.0.8.enterprise'."""
+    try:
+        result = subprocess.run(
+            [bin_path, "-V"],
+            capture_output=True, text=True, timeout=5
+        )
+        output = result.stdout + result.stderr
+        m = re.search(r'taosd version:\s*(\S+)', output)
+        return m.group(1) if m else "unknown"
+    except Exception:
+        return "unknown"
 
 def _find_taosd_pid(cfg_dir: str) -> Optional[int]:
     try:
@@ -72,6 +86,121 @@ class RollingUpgrader:
     def _err(self, msg):
         if self.rp:
             self.rp.error(msg)
+
+    def _node_versions(self) -> dict:
+        """
+        Return a dict mapping dnode index -> version string by running
+        each node's private taosd binary with -V.
+        Falls back to the cluster manager's base taosd for nodes not yet upgraded.
+        """
+        base_taosd = getattr(self.cluster_mgr.dnode_manager, "taosd_path", None)
+        versions = {}
+        for dnode in self.cluster_mgr.dnode_manager.dnodes:
+            bin_path = _node_bin_path(self.base_path, dnode.index)
+            if not os.path.isfile(bin_path):
+                bin_path = base_taosd or ""
+            versions[dnode.index] = _get_taosd_version(bin_path) if bin_path else "unknown"
+        return versions
+
+    def _print_dnodes(self, title: str = ""):
+        """Query SHOW DNODES and print a compact status table via the reporter."""
+        import taos as _taos
+
+        rows = None
+        # Try each dnode in order until one accepts a connection.
+        # Pass port explicitly so the client connects to that node's own port
+        # rather than falling through to firstEp (dnode1:6030) in every config.
+        for dnode in self.cluster_mgr.dnode_manager.dnodes:
+            try:
+                tmp_conn = _taos.connect(host=self.fqdn, port=dnode.port,
+                                         config=dnode.cfg_dir)
+                cursor = tmp_conn.cursor()
+                cursor.execute("SHOW DNODES")
+                rows = cursor.fetchall()
+                cursor.close()
+                tmp_conn.close()
+                break
+            except Exception:
+                continue
+
+        if rows is None:
+            self._log("  [SHOW DNODES unavailable: cluster electing new mnode leader, will recover shortly]")
+            return
+
+        self._render_dnodes(rows, title, self._node_versions())
+
+    def _print_dnodes_after_stop(self, stopped_index: int, timeout: int = 30):
+        """
+        Poll SHOW DNODES until `stopped_index` no longer shows 'ready', then
+        print the table.  This ensures the snapshot reflects the actual offline
+        state rather than the stale MNode cache from before the heartbeat times out.
+        """
+        import taos as _taos
+
+        title    = f"after DNode {stopped_index} stopped"
+        deadline = time.time() + timeout
+
+        while time.time() < deadline:
+            rows = None
+            for dnode in self.cluster_mgr.dnode_manager.dnodes:
+                if dnode.index == stopped_index:
+                    continue   # skip the node we just stopped
+                try:
+                    tmp_conn = _taos.connect(host=self.fqdn, port=dnode.port,
+                                             config=dnode.cfg_dir)
+                    cursor = tmp_conn.cursor()
+                    cursor.execute("SHOW DNODES")
+                    rows = cursor.fetchall()
+                    cursor.close()
+                    tmp_conn.close()
+                    break
+                except Exception:
+                    continue
+
+            if rows is None:
+                # All other nodes unreachable – mnode quorum lost; print note and return
+                self._log("  [SHOW DNODES unavailable: cluster electing new mnode leader, will recover shortly]")
+                return
+
+            # Check if the stopped node has transitioned out of 'ready'
+            for row in rows:
+                if row[0] == stopped_index and str(row[4]) != "ready":
+                    self._render_dnodes(rows, title, self._node_versions())
+                    return
+
+            time.sleep(2)
+
+        # Timed out – print the last snapshot with a note
+        if rows is not None:
+            self._render_dnodes(rows, title + "  (heartbeat timeout pending)", self._node_versions())
+
+    def _render_dnodes(self, rows, title: str, versions: dict = None):
+        """Print a pre-fetched SHOW DNODES result set, with an optional Version column."""
+        versions = versions or {}
+        header = (
+            f"  {'ID':>3}  {'Endpoint':<24}  {'VNodes':>6}  {'Status':<10}  "
+            f"{'Version':<28}  Note"
+        )
+        sep = (
+            f"  {'-'*3}  {'-'*24}  {'-'*6}  {'-'*10}  "
+            f"{'-'*28}  {'-'*20}"
+        )
+        self._log(f"  ── SHOW DNODES  {title}" if title else "  ── SHOW DNODES")
+        self._log(header)
+        self._log(sep)
+        for row in rows:
+            dnode_id   = row[0]
+            endpoint   = str(row[1])
+            vnode_num  = row[2]
+            status     = str(row[4])
+            note       = str(row[5]) if len(row) > 5 and row[5] else ""
+            version    = versions.get(dnode_id, "-")
+            status_fmt = "[OFFLINE]" if status != "ready" else "ready   "
+            self._log(
+                f"  {dnode_id:>3}  {endpoint:<24}  {vnode_num:>6}  {status_fmt:<10}  "
+                f"{version:<28}  {note}"
+            )
+        self._log("")
 
     # ------------------------------------------------------------------
     # Node operations
@@ -167,6 +296,9 @@ class RollingUpgrader:
         if not self._stop_node(index):
             return False
 
+        # Poll until cluster marks the node offline, then print snapshot
+        self._print_dnodes_after_stop(stopped_index=index)
+
         self._install_binary(index, to_taosd_path)
         self._log(f"DNode {index}: binary replaced")
 
@@ -175,6 +307,9 @@ class RollingUpgrader:
 
         if not self._wait_dnode_ready(index):
             return False
+
+        # Print cluster state after node is back and READY
+        self._print_dnodes(title=f"after DNode {index} ready")
 
         time.sleep(3)
 
