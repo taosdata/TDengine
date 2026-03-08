@@ -811,7 +811,8 @@ int mainWindows(int argc, char **argv) {
     return 0;
   }
 
-  if (global.runRepairFlow && strcmp(global.repairOpt.fileType, "meta") != 0) {
+  if (global.runRepairFlow && strcmp(global.repairOpt.fileType, "meta") != 0 &&
+      strcmp(global.repairOpt.fileType, "tsdb") != 0) {
     printf("repair parameter validation succeeded (phase1). repair execution is not enabled in this phase.\n");
     taosCleanupArgs();
     return TSDB_CODE_SUCCESS;
