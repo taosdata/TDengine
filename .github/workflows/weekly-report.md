@@ -32,10 +32,12 @@ Generate a comprehensive weekly report for the **taosdata/TDengine** repository 
 ### Date Calculation
 
 The reporting window is:
+
 - Start: Last Monday 00:00:00 Asia/Shanghai (i.e., the Monday that started 7 days before today)
 - End: Last Sunday 23:59:59 Asia/Shanghai
 
 To calculate the exact UTC date range for API queries:
+
 - Asia/Shanghai is UTC+8
 - Start UTC = Last Monday 00:00:00 +08:00 = Last Sunday 16:00:00 UTC (the day before)
 - End UTC = Last Sunday 23:59:59 +08:00 = Last Sunday 15:59:59 UTC
@@ -46,7 +48,6 @@ Use bash to compute the ISO 8601 date boundaries in UTC for use in API queries:
 # Compute Asia/Shanghai previous-week boundaries in UTC
 python3 -c "
 from datetime import datetime, timedelta, timezone
-import sys
 
 UTC8 = timezone(timedelta(hours=8))
 now_cst = datetime.now(UTC8)
@@ -81,9 +82,10 @@ Query PRs in `taosdata/TDengine` that were created, merged, closed, or still ope
 - **Opened** during the window: `repo:taosdata/TDengine is:pr created:START..END`
 - **Merged** during the window: `repo:taosdata/TDengine is:pr is:merged merged:START..END`
 - **Closed without merge** (terminated) during the window: `repo:taosdata/TDengine is:pr is:closed is:unmerged closed:START..END`
-- **Still open** as of now: Use the list of PRs opened before END that remain open
+- **Still open** as of now: From the PRs opened during the window (`created:START..END`), select those whose state is still `open` as of END
 
 For each PR, collect:
+
 - Number, title, author (login)
 - State (open / merged / closed)
 - Created date, merged date or closed date
@@ -99,6 +101,7 @@ Query issues in `taosdata/TDengine` within the reporting window:
 - **Still open** created during window: filter from created list where state is open
 
 For each issue, collect:
+
 - Number, title, author (login)
 - State (open / closed)
 - Created date, closed date (if applicable)
