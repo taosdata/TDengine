@@ -1,11 +1,12 @@
 # encoding:utf-8
 # pylint: disable=c0103
 """configuration model definition"""
-import configparser
 import importlib.util
 import logging
 import platform
 import os.path
+import torch   # do not remove it
+import keras
 from pathlib import Path
 from typing import Optional
 
