@@ -1048,7 +1048,7 @@ class TDFunction():
         #column = ['(*)','(q_bool)','(q_binary)','(q_nchar)','(q_ts)','(ts)','(_c0)','(_C0)'] 
         #https://taosdata.feishu.cn/wiki/P8Y0w9S13icde2kFZj7c4DUQnIb
         # max / min 函数可以接受字符串作为输入参数，当输入参数为字符串类型时，返回最大的字符串值
-        column = ['(*)','(q_bool)','(q_ts)','(ts)','(_c0)','(_C0)'] 
+        column = ['(*)'] # already suport timestamp/bool 2026-03-09
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         int_cloumn_error = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
         
