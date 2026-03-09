@@ -13,7 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <string.h>
 #include "meta.h"
+#include "tdataformat.h"
 
 // SMetaSnapReader ========================================
 struct SMetaSnapReader {
@@ -412,14 +414,7 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
     TSDB_CHECK_CODE(code, lino, END);
     if (ctx->subType == TOPIC_SUB_TYPE__TABLE) {
       if (!((me.uid == ctx->suid && me.type == TSDB_SUPER_TABLE) ||
-          (me.ctbEntry.suid == ctx->suid && (me.type == TSDB_CHILD_TABLE)))) {
-        tDecoderClear(&dc);
-        continue;
-      }
-    } else if (ctx->subType == TOPIC_SUB_TYPE__DB) {
-      if (me.type == TSDB_VIRTUAL_NORMAL_TABLE ||
-          me.type == TSDB_VIRTUAL_CHILD_TABLE ||
-          TABLE_IS_VIRTUAL(me.flags)) {
+          (me.ctbEntry.suid == ctx->suid && (me.type == TSDB_CHILD_TABLE || me.type == TSDB_VIRTUAL_CHILD_TABLE)))) {
         tDecoderClear(&dc);
         continue;
       }
@@ -457,15 +452,8 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
     TSDB_CHECK_CODE(code, lino, END);
 
     if (ctx->subType == TOPIC_SUB_TYPE__TABLE) {
-      if ((me.uid != ctx->suid && me.type == TSDB_SUPER_TABLE) ||
-          (me.ctbEntry.suid != ctx->suid && me.type == TSDB_CHILD_TABLE)) {
-        tDecoderClear(&dc);
-        continue;
-      }
-    } else if (ctx->subType == TOPIC_SUB_TYPE__DB) {
-      if (me.type == TSDB_VIRTUAL_NORMAL_TABLE ||
-          me.type == TSDB_VIRTUAL_CHILD_TABLE ||
-          TABLE_IS_VIRTUAL(me.flags)) {
+      if (!((me.uid == ctx->suid && me.type == TSDB_SUPER_TABLE) ||
+          (me.ctbEntry.suid == ctx->suid && (me.type == TSDB_CHILD_TABLE || me.type == TSDB_VIRTUAL_CHILD_TABLE)))) {
         tDecoderClear(&dc);
         continue;
       }
@@ -665,18 +653,19 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     req.schemaTag.version = 1;
     req.colCmpr = me.colCmpr;
     req.pExtSchemas = me.pExtSchemas;
+    req.virtualStb = TABLE_IS_VIRTUAL(me.flags);
 
     ret = buildSuperTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_STB;
-  } else if ((ctx->subType == TOPIC_SUB_TYPE__DB && me.type == TSDB_CHILD_TABLE) ||
-             (ctx->subType == TOPIC_SUB_TYPE__TABLE && me.type == TSDB_CHILD_TABLE && me.ctbEntry.suid == ctx->suid)) {
+  } else if ((ctx->subType == TOPIC_SUB_TYPE__DB && (me.type == TSDB_CHILD_TABLE || me.type == TSDB_VIRTUAL_CHILD_TABLE)) ||
+             (ctx->subType == TOPIC_SUB_TYPE__TABLE && (me.type == TSDB_CHILD_TABLE || me.type == TSDB_VIRTUAL_CHILD_TABLE) && me.ctbEntry.suid == ctx->suid)) {
     STableInfoForChildTable* data =
         (STableInfoForChildTable*)taosHashGet(ctx->suidInfo, &me.ctbEntry.suid, sizeof(tb_uid_t));
     TSDB_CHECK_NULL(data, ret, lino, END, terrno);
 
     SVCreateTbReq req = {0};
 
-    req.type = TSDB_CHILD_TABLE;
+    req.type = me.type;
     req.name = me.name;
     req.uid = me.uid;
     req.commentLen = -1;
@@ -708,17 +697,33 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     }
     req.ctb.pTag = me.ctbEntry.pTags;
     req.ctb.tagName = tagName;
+    req.colRef = me.colRef;
+    if (me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+      SMetaEntry *pSuper = NULL;
+      int32_t code = metaFetchEntryByUid(ctx->pMeta, me.ctbEntry.suid, &pSuper);
+      if (code == 0) {
+        for (int i = 0; i < req.colRef.nCols && i < pSuper->stbEntry.schemaRow.nCols; i++) {
+          SColRef *p = &req.colRef.pColRef[i];
+          if (p->hasRef) {
+            SSchema *schema = &pSuper->stbEntry.schemaRow.pSchema[i];
+            tstrncpy(p->colName, schema->name, TSDB_COL_NAME_LEN);
+          }
+        }
+      }
+      metaFetchEntryFree(&pSuper);
+    }
     ret = buildNormalChildTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_TABLE;
-  } else if (ctx->subType == TOPIC_SUB_TYPE__DB && me.type == TSDB_NORMAL_TABLE) {
+  } else if (ctx->subType == TOPIC_SUB_TYPE__DB && (me.type == TSDB_NORMAL_TABLE || me.type == TSDB_VIRTUAL_NORMAL_TABLE)) {
     SVCreateTbReq req = {0};
-    req.type = TSDB_NORMAL_TABLE;
+    req.type = me.type;
     req.name = me.name;
     req.uid = me.uid;
     req.commentLen = -1;
     req.ntb.schemaRow = me.ntbEntry.schemaRow;
     req.colCmpr = me.colCmpr;
     req.pExtSchemas = me.pExtSchemas;
+    req.colRef = me.colRef;
     ret = buildNormalChildTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_TABLE;
   } else {

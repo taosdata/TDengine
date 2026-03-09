@@ -27,16 +27,15 @@
 #include "tjson.h"
 
 typedef struct STaskSubJobCtx {
+  bool               isExchange;
+  int64_t            subJobRefId;
   uint64_t           queryId;
   uint64_t           taskId;
   char*              idStr;
   void*              pTaskInfo;
   void*              rpcHandle;
   int64_t            transporterId;
-  bool               hasSubJobs;
-  SRWLatch           lock;
   int32_t            code;
-  void*              param;
   tsem_t             ready;
   uint64_t           blockIdx;
   SArray*            subEndPoints;  // SArray<SDownstreamSourceNode*>
@@ -46,7 +45,7 @@ typedef struct STaskSubJobCtx {
 typedef struct SScalarFetchParam {
   int32_t           subQIdx;
   SNode*            pRes;
-  STaskSubJobCtx*   pSubJobCtx;
+  int64_t           subJobRefId;
 } SScalarFetchParam;
 
 

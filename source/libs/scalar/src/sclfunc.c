@@ -4709,7 +4709,8 @@ static int32_t doMinMaxScalarFunction(SScalarParam *pInput, int32_t inputNum, SS
         }
         break;
       }
-      case TSDB_DATA_TYPE_BIGINT: {
+      case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_TIMESTAMP: {
         int64_t *in = (int64_t *)pInputData->pData;
         int64_t *out = (int64_t *)pOutputData->pData;
         if ((in[i] > *out) ^ isMinFunc) {

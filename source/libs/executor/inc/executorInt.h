@@ -89,7 +89,7 @@ enum {
   STREAM_RECOVER_STEP__SCAN1,
 };
 
-extern int32_t exchangeObjRefPool;
+extern int32_t fetchObjRefPool;
 
 typedef struct {
   char*   pData;
@@ -217,6 +217,7 @@ typedef struct SExchangeSrcIndex {
 } SExchangeSrcIndex;
 
 typedef struct SExchangeInfo {
+  bool       isExchange;  // KEEP IT FIRST
   int64_t    seqId;
   SArray*    pSources;
   SSHashObj* pHashSources;
