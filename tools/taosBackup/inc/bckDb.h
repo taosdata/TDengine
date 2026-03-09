@@ -22,6 +22,7 @@
 // ---------------- interface ----------------
 char ** getDBSuperTableNames(const char *dbName, int *code);
 char ** getDBNormalTableNames(const char *dbName, int *code);
+char ** getDBVirtualTableNames(const char *dbName, int *code);
 int     getDBNormalTableCount(const char *dbName, int32_t *outCount);
 
 int queryValueInt(const char *sql, int col, int32_t *outValue);
