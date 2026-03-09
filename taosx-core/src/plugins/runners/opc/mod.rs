@@ -150,9 +150,14 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         anyhow::bail!("categories is empty");
     }
 
+    let opc_type = OpcType::from_dsn(&from)?;
+    let default_mode = match opc_type {
+        OpcType::OPCDA | OpcType::FAKE => "all",
+        OpcType::OPCUA => "variable",
+    };
     let opc_points_mode = parse_key_in_dsn::<String>(&from, "opc_points_mode")
-        .unwrap_or(Some("variable".to_string()))
-        .unwrap_or("variable".to_string());
+        .unwrap_or(Some(default_mode.to_string()))
+        .unwrap_or(default_mode.to_string());
     match opc_points_mode.to_lowercase().as_str() {
         "variable" => {
             tracing::info!("OPC points mode: variable");
@@ -181,7 +186,7 @@ async fn opc_datasets_impl(
     let certificate = get_temp_file(&from, "certificate");
     let private_key = get_temp_file(&from, "private_key");
     let auth_certificate = get_temp_file(&from, "auth_certificate");
-    let auth_private_key = get_temp_file(&from, "auth_private_key");
+    let auth_private_key: Option<NamedTempFile> = get_temp_file(&from, "auth_private_key");
 
     let points_mode = PointsMode::from_dsn(&from)?;
     let opc_points = match points_mode {
