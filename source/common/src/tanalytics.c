@@ -226,7 +226,7 @@ bool taosAnalyGetOptStr(const char *option, const char *optName, char *optValue,
   int32_t valLen = taosHashGetValueSize(pVal);
 
   if (optValue != NULL && optMaxLen >= 1) {
-    int32_t len = MIN(valLen + 1, optMaxLen);
+    int32_t len = TMIN(valLen + 1, optMaxLen);
     tstrncpy(optValue, (char *)pVal, len);
   }
 
