@@ -41,18 +41,66 @@ int backCreateDbSql(const char *dbName) {
 }
 
 int backCreateStbSql(const char *dbName, const char *stbName) {
-    int code = TSDB_CODE_FAILED;
-    
-    // path
+    // path: stb.sql (APPEND mode; caller pre-truncates before the loop)
     char sqlFile[MAX_PATH_LEN] = {0};
     obtainFileName(BACK_FILE_STBSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS, sqlFile, sizeof(sqlFile));
 
-    // sql
     char sql[512] = {0};
-    snprintf(sql, sizeof(sql), "show create table `%s`.`%s`;", dbName, stbName);
-    code = queryWriteTxt(sql, 1, sqlFile);
+    snprintf(sql, sizeof(sql), "SHOW CREATE TABLE `%s`.`%s`;", dbName, stbName);
 
-    return code;
+    TAOS *conn = getConnection();
+    if (!conn) return TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+
+    TAOS_RES *res = taos_query(conn, sql);
+    int code = taos_errno(res);
+    if (!res || code) {
+        logError("show create table failed(%s): %s", taos_errstr(res), sql);
+        if (res) taos_free_result(res);
+        releaseConnection(conn);
+        return code;
+    }
+
+    TAOS_ROW row = taos_fetch_row(res);
+    if (!row || !row[1]) {
+        taos_free_result(res);
+        releaseConnection(conn);
+        return TSDB_CODE_BCK_NO_FIELDS;
+    }
+
+    int32_t *lengths = taos_fetch_lengths(res);
+    int      ddlLen  = lengths[1];
+    char    *ddl     = (char *)row[1];
+
+    // Open stb.sql in APPEND mode so multiple STBs accumulate.
+    // The caller is responsible for truncating the file before the STB loop starts.
+    TdFilePtr fp = taosOpenFile(sqlFile, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_APPEND);
+    if (!fp) {
+        logError("open stb.sql for append failed: %s", sqlFile);
+        taos_free_result(res);
+        releaseConnection(conn);
+        return TSDB_CODE_BCK_CREATE_FILE_FAILED;
+    }
+
+    // SHOW CREATE TABLE for virtual super tables can embed '\n' characters
+    // (e.g., between TAGS columns, or before "VIRTUAL 1").
+    // Replace all embedded newlines/CR with spaces so that each STB occupies
+    // exactly ONE line in stb.sql.  Write the entire cleaned DDL in one call
+    // (much faster than byte-by-byte writing).
+    char *buf = (char *)taosMemoryMalloc(ddlLen + 2);
+    if (buf) {
+        int n = 0;
+        for (int i = 0; i < ddlLen; i++) {
+            buf[n++] = (ddl[i] == '\n' || ddl[i] == '\r') ? ' ' : ddl[i];
+        }
+        buf[n++] = '\n';
+        taosWriteFile(fp, buf, n);
+        taosMemoryFree(buf);
+    }
+
+    taosCloseFile(&fp);
+    taos_free_result(res);
+    releaseConnection(conn);
+    return TSDB_CODE_SUCCESS;
 }
 
 int backStbSchema(const char *dbName, const char *stbName, char ** selectTags) {
@@ -248,6 +296,67 @@ int backChildTableTags(DBInfo *dbInfo, StbInfo *stbInfo) {
 }
 
 //
+// Backup virtual child table tags for one virtual super table.
+// Queries ins_tags (table_name, tag_name, tag_value) and stores result
+// as a binary/parquet file in vtags/{vstbname}_data1.{dat|par}.
+// This columnar approach handles an arbitrary number of TAG columns efficiently.
+//
+static int backVstbChildTags(DBInfo *dbInfo, StbInfo *stbInfo) {
+    const char *dbName  = dbInfo->dbName;
+    const char *stbName = stbInfo->stbName;
+
+    // Check whether there are any virtual child tables for this vstb
+    char cntSql[512] = {0};
+    snprintf(cntSql, sizeof(cntSql),
+             "SELECT count(*) FROM information_schema.ins_tables "
+             "WHERE db_name='%s' AND stable_name='%s' AND type='VIRTUAL_CHILD_TABLE';",
+             dbName, stbName);
+    int32_t childCnt = 0;
+    int code = queryValueInt(cntSql, 0, &childCnt);
+    if (code != TSDB_CODE_SUCCESS || childCnt == 0) {
+        logInfo("no virtual child tables for vstb: %s.%s", dbName, stbName);
+        return TSDB_CODE_SUCCESS;
+    }
+    logInfo("backup %d virtual child table tag(s) for vstb: %s.%s", childCnt, dbName, stbName);
+
+    // Create vtags/ directory
+    char vttagDir[MAX_PATH_LEN] = {0};
+    StorageFormat format = argStorageFormat();
+    obtainFileName(BACK_DIR_VTAG, dbName, NULL, NULL, 0, 0, format, vttagDir, sizeof(vttagDir));
+    if (taosMkDir(vttagDir) != 0) {
+        // EEXIST is fine; any other error is fatal
+        if (errno != EEXIST) {
+            logError("create vtags dir failed: %s (errno=%d)", vttagDir, errno);
+            return TSDB_CODE_BCK_CREATE_FILE_FAILED;
+        }
+    }
+
+    // ins_tags gives us (table_name, tag_name, tag_value) for all child tables.
+    // Order by table_name so rows for the same child are contiguous (aids restore).
+    char sql[512] = {0};
+    snprintf(sql, sizeof(sql),
+             "SELECT table_name, tag_name, tag_value "
+             "FROM information_schema.ins_tags "
+             "WHERE db_name='%s' AND stable_name='%s' "
+             "ORDER BY table_name, tag_name;",
+             dbName, stbName);
+
+    char vttagFile[MAX_PATH_LEN] = {0};
+    obtainFileName(BACK_FILE_VTAG, dbName, stbName, NULL, 1, 0, format, vttagFile, sizeof(vttagFile));
+
+    TAOS *conn = getConnection();
+    if (!conn) return TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+
+    code = queryWriteBinary(conn, sql, format, vttagFile, NULL);
+    releaseConnection(conn);
+
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("backup vtable tags failed(%d): %s.%s", code, dbName, stbName);
+    }
+    return code;
+}
+
+//
 // normal tables create sql
 //
 int backNormalTablesSql(const char *dbName) {
@@ -323,6 +432,113 @@ int backNormalTablesSql(const char *dbName) {
 }
 
 //
+// check if a super table is virtual (its DDL contains VIRTUAL columns)
+//
+static bool isVirtualSuperTable(const char *dbName, const char *stbName) {
+    char sql[512];
+    snprintf(sql, sizeof(sql), "SHOW CREATE TABLE `%s`.`%s`", dbName, stbName);
+    TAOS *conn = getConnection();
+    if (!conn) return false;
+    TAOS_RES *res = taos_query(conn, sql);
+    bool isVirtual = false;
+    if (res && taos_errno(res) == TSDB_CODE_SUCCESS) {
+        TAOS_ROW row = taos_fetch_row(res);
+        if (row && row[1]) {
+            isVirtual = (strstr((char *)row[1], "VIRTUAL 1") != NULL);
+        }
+    }
+    if (res) taos_free_result(res);
+    releaseConnection(conn);
+    return isVirtual;
+}
+
+//
+// virtual tables create DDL sql (vtb.sql)
+// backs up: virtual normal tables + virtual child tables (DDL via SHOW CREATE VTABLE)
+//
+int backVirtualTablesSql(const char *dbName) {
+    int code = TSDB_CODE_SUCCESS;
+
+    // get virtual table names (VIRTUAL_NORMAL_TABLE + VIRTUAL_CHILD_TABLE)
+    char **vtbNames = getDBVirtualTableNames(dbName, &code);
+    if (vtbNames == NULL) {
+        if (code != TSDB_CODE_SUCCESS) return code;
+        return TSDB_CODE_SUCCESS; // no virtual tables
+    }
+
+    int vtbCount = 0;
+    for (int i = 0; vtbNames[i] != NULL; i++) vtbCount++;
+    if (vtbCount == 0) {
+        freeArrayPtr(vtbNames);
+        return TSDB_CODE_SUCCESS;
+    }
+
+    logInfo("backup %d virtual table DDL(s) for db: %s", vtbCount, dbName);
+
+    // open vtb.sql file
+    char vtbSqlFile[MAX_PATH_LEN] = {0};
+    obtainFileName(BACK_FILE_VTBSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS, vtbSqlFile, sizeof(vtbSqlFile));
+
+    TdFilePtr fp = taosOpenFile(vtbSqlFile, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+    if (!fp) {
+        logError("open vtb.sql failed: %s", vtbSqlFile);
+        freeArrayPtr(vtbNames);
+        return TSDB_CODE_BCK_CREATE_FILE_FAILED;
+    }
+
+    TAOS *conn = getConnection();
+    if (!conn) {
+        taosCloseFile(&fp);
+        freeArrayPtr(vtbNames);
+        return TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+    }
+
+    code = TSDB_CODE_SUCCESS;
+    char sql[512];
+    for (int i = 0; vtbNames[i] != NULL; i++) {
+        if (g_interrupted) {
+            code = TSDB_CODE_BCK_USER_CANCEL;
+            break;
+        }
+
+        snprintf(sql, sizeof(sql), "SHOW CREATE VTABLE `%s`.`%s`;", dbName, vtbNames[i]);
+        TAOS_RES *res = taos_query(conn, sql);
+        code = taos_errno(res);
+        if (!res || code != TSDB_CODE_SUCCESS) {
+            logError("show create vtable failed(%s): %s", taos_errstr(res), sql);
+            if (res) taos_free_result(res);
+            break;
+        }
+
+        TAOS_ROW row = taos_fetch_row(res);
+        if (row && row[1]) {
+            int32_t *lens = taos_fetch_lengths(res);
+            char    *ddl  = (char *)row[1];
+            // Virtual CHILD table DDL ends with: ... USING `vstb` (`tag1`) TAGS (val1, val2)
+            // Store only the skeleton (without " TAGS (...)") in vtb.sql.
+            // Tag values are stored separately in vtags/ binary files (columnar storage).
+            // Virtual NORMAL tables have no USING/TAGS clause — write the full DDL as-is.
+            char *tagsPos = strstr(ddl, " TAGS (");
+            if (!tagsPos) tagsPos = strstr(ddl, " TAGS(");
+            if (tagsPos) {
+                // child table skeleton: write everything up to " TAGS ("
+                taosWriteFile(fp, ddl, (int64_t)(tagsPos - ddl));
+            } else {
+                // virtual normal table: write full DDL
+                taosWriteFile(fp, ddl, (int64_t)lens[1]);
+            }
+            taosWriteFile(fp, "\n", 1);
+        }
+        taos_free_result(res);
+    }
+
+    releaseConnection(conn);
+    taosCloseFile(&fp);
+    freeArrayPtr(vtbNames);
+    return code;
+}
+
+//
 // backup database meta
 //
 int backDatabaseMeta(DBInfo *dbInfo) {
@@ -345,7 +561,13 @@ int backDatabaseMeta(DBInfo *dbInfo) {
         return code;
     }
 
-    // Loop super table
+    // Truncate stb.sql before writing any STBs so append mode starts clean
+    {
+        char stbSqlFile[MAX_PATH_LEN] = {0};
+        obtainFileName(BACK_FILE_STBSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS, stbSqlFile, sizeof(stbSqlFile));
+        TdFilePtr truncFp = taosOpenFile(stbSqlFile, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+        if (truncFp) taosCloseFile(&truncFp);
+    }
     for (int i = 0; stbNames != NULL && stbNames[i] != NULL; i++) {
         if (g_interrupted) {
             code = TSDB_CODE_BCK_USER_CANCEL;
@@ -397,14 +619,22 @@ int backDatabaseMeta(DBInfo *dbInfo) {
             freePtr(selectTags);
             return code;
         }
-        // tags
+        // tags: virtual super tables use columnar vtags binary (ins_tags); physical use legacy SelectDistinct
         stbInfo.selectTags = selectTags;
-        code = backChildTableTags(dbInfo, &stbInfo);
-        if (code != TSDB_CODE_SUCCESS) {
-            freeArrayPtr(stbNames);
-            freePtr(selectTags);
-            
-            return code;
+        if (!isVirtualSuperTable(dbName, stbNames[i])) {
+            code = backChildTableTags(dbInfo, &stbInfo);
+            if (code != TSDB_CODE_SUCCESS) {
+                freeArrayPtr(stbNames);
+                freePtr(selectTags);
+                return code;
+            }
+        } else {
+            code = backVstbChildTags(dbInfo, &stbInfo);
+            if (code != TSDB_CODE_SUCCESS) {
+                freeArrayPtr(stbNames);
+                freePtr(selectTags);
+                return code;
+            }
         }
         // free
         freePtr(selectTags);
@@ -420,6 +650,14 @@ int backDatabaseMeta(DBInfo *dbInfo) {
     // normal tables sql
     //
     code = backNormalTablesSql(dbName);
+    if (code != TSDB_CODE_SUCCESS) {
+        return code;
+    }
+
+    //
+    // virtual tables DDL sql (vtb.sql): virtual normal tables + virtual child tables
+    //
+    code = backVirtualTablesSql(dbName);
     if (code != TSDB_CODE_SUCCESS) {
         return code;
     }

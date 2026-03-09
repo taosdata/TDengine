@@ -101,6 +101,15 @@ int obtainFileName(BackFileType fileType,
     case BACK_DIR_NTBDATA:
         snprintf(fileName, len, "%s/%s/_ntb_data%d", outPath, dbName, dirIndex);
         break;
+    case BACK_FILE_VTBSQL:
+        snprintf(fileName, len, "%s/%s/vtb.sql", outPath, dbName);
+        break;
+    case BACK_DIR_VTAG:
+        snprintf(fileName, len, "%s/%s/vtags/", outPath, dbName);
+        break;
+    case BACK_FILE_VTAG:
+        snprintf(fileName, len, "%s/%s/vtags/%s_data%d.%s", outPath, dbName, stbName, index, ext);
+        break;
     default:
         return TSDB_CODE_INVALID_PARA;
     }

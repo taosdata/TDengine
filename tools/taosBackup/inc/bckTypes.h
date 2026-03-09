@@ -31,7 +31,10 @@ typedef enum BackFileType {
     BACK_FILE_TAG    = 6,
     BACK_FILE_DATA   = 7,
     BACK_FILE_NTBSQL = 8,
-    BACK_DIR_NTBDATA = 9
+    BACK_DIR_NTBDATA = 9,
+    BACK_FILE_VTBSQL = 10,
+    BACK_DIR_VTAG     = 11,   // {outdir}/{db}/vtags/
+    BACK_FILE_VTAG    = 12    // {outdir}/{db}/vtags/{vstbName}_data{N}.{ext}
 } BackFileType;
 
 typedef enum StorageFormat {

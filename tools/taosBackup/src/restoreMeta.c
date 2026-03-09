@@ -360,6 +360,727 @@ static int restoreNtbSql(const char *dbName) {
 }
 
 
+//
+// -------------------------------------- META: VTB SQL -----------------------------------------
+//
+
+// Replace all occurrences of srcPat with dstPat in buf (in-place, buf must have TSDB_MAX_SQL_LEN capacity)
+static void replaceAllInSql(char *buf, const char *srcPat, const char *dstPat) {
+    int srcLen = (int)strlen(srcPat);
+    int dstLen = (int)strlen(dstPat);
+    if (srcLen == 0 || strcmp(srcPat, dstPat) == 0) return;
+
+    char *tmp = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN);
+    if (!tmp) return;
+
+    int inPos = 0, outPos = 0;
+    int totalLen = (int)strlen(buf);
+    while (inPos < totalLen) {
+        if (inPos <= totalLen - srcLen && memcmp(buf + inPos, srcPat, srcLen) == 0) {
+            if (outPos + dstLen < TSDB_MAX_SQL_LEN - 1) {
+                memcpy(tmp + outPos, dstPat, dstLen);
+                outPos += dstLen;
+            }
+            inPos += srcLen;
+        } else {
+            if (outPos < TSDB_MAX_SQL_LEN - 1) tmp[outPos++] = buf[inPos];
+            inPos++;
+        }
+    }
+    tmp[outPos] = '\0';
+    snprintf(buf, TSDB_MAX_SQL_LEN, "%s", tmp);
+    taosMemoryFree(tmp);
+}
+
+//
+// ---- Virtual child table columnar tag restore (vtags/ binary files) ----
+//
+
+#define BCK_MAX_VTAG 128
+
+// Skeleton entry for one virtual child table in vtb.sql.
+// renamedSql holds the full CREATE VTABLE skeleton *without* the " TAGS (...)" suffix.
+typedef struct {
+    char backupTbName[TSDB_TABLE_NAME_LEN];    // bare child table name, no db/backticks
+    char backupVstbName[TSDB_TABLE_NAME_LEN];  // bare vstb name
+    char renamedSql[TSDB_MAX_SQL_LEN];         // skeleton DDL with targetDb applied, no TAGS
+} VtbChildSkeleton;
+
+// Context for vtbTagBlockCallback
+typedef struct {
+    TAOS             *conn;
+    const char       *dbName;        // backup db name
+    const char       *vstbName;      // vstb name (same in src and dst; only DB is renamed)
+    VtbChildSkeleton *items;         // all child skeletons for this vstb
+    int               itemCount;
+    // server tag ordering and types from DESCRIBE vstb on the target server
+    int     serverTagCount;
+    char    serverTagNames[BCK_MAX_VTAG][65];
+    int8_t  serverTagTypes[BCK_MAX_VTAG];
+    // current child accumulator (rows are sorted by table_name in the binary file)
+    char    curTbname[TSDB_TABLE_NAME_LEN];
+    bool    hasAccum;
+    char    tagValues[BCK_MAX_VTAG][512];
+    bool    tagSet[BCK_MAX_VTAG];
+    // stats
+    int64_t successCnt;
+    int64_t failedCnt;
+} VtbRestoreCtx;
+
+//
+// Extract the bare (unquoted, no db prefix) identifier from a position in a SQL string.
+// Handles "`db`.`name`", "`name`", and plain unquoted identifiers.
+// Only the IMMEDIATE (db`.`name) qualification is recognized; deeper dot-separated
+// paths inside FROM clauses are ignored.
+// Returns number of chars written to out (0 on failure).
+//
+static int extractBareIdent(const char *p, char *out, int outSz) {
+    while (*p == ' ') p++;
+    if (*p != '`') {
+        // Unquoted: read until whitespace or '(' or ','
+        const char *end = p;
+        while (*end && *end != ' ' && *end != '(' && *end != ',') end++;
+        int len = (int)(end - p);
+        if (len >= outSz) len = outSz - 1;
+        memcpy(out, p, len);
+        out[len] = '\0';
+        return len;
+    }
+
+    // Backtick-quoted: extract first segment between backticks
+    p++;  // skip opening backtick
+    const char *seg1End = strchr(p, '`');
+    if (!seg1End) return 0;
+
+    // Check immediately after the closing backtick for ".`" (db-qualified form)
+    const char *after = seg1End + 1;
+    if (after[0] == '.' && after[1] == '`') {
+        // Qualified form: `db`.`name`  — skip db part, extract name part
+        p = after + 2;  // skip ".`", now at start of name content
+        const char *seg2End = strchr(p, '`');
+        if (!seg2End) return 0;
+        int len = (int)(seg2End - p);
+        if (len >= outSz) len = outSz - 1;
+        memcpy(out, p, len);
+        out[len] = '\0';
+        return len;
+    }
+
+    // Unqualified form: `name` — use content of first segment
+    int len = (int)(seg1End - p);
+    if (len >= outSz) len = outSz - 1;
+    memcpy(out, p, len);
+    out[len] = '\0';
+    return len;
+}
+
+//
+// Read a variable-length (VARCHAR or NCHAR) value from a binary block column into outBuf.
+// For NCHAR, UCS4 is converted to UTF-8. Returns false if NULL.
+//
+static bool readBlockVarColStr(int8_t colType, void *colDataPtr,
+                               int row, int blockRows,
+                               char *outBuf, int outBufSz) {
+    int32_t *offsets = (int32_t *)colDataPtr;
+    int32_t  off     = offsets[row];
+    if (off < 0) { outBuf[0] = '\0'; return false; }
+    char    *varData = (char *)colDataPtr + blockRows * sizeof(int32_t);
+    uint16_t varLen  = *(uint16_t *)(varData + off);
+    char    *payload = varData + off + sizeof(uint16_t);
+    if (colType == TSDB_DATA_TYPE_NCHAR) {
+        int32_t utf8Len = taosUcs4ToMbs((TdUcs4 *)payload, (int32_t)varLen, outBuf, NULL);
+        if (utf8Len < 0) utf8Len = 0;
+        if (utf8Len >= outBufSz) utf8Len = outBufSz - 1;
+        outBuf[utf8Len] = '\0';
+    } else {
+        int n = (varLen < outBufSz - 1) ? varLen : outBufSz - 1;
+        memcpy(outBuf, payload, n);
+        outBuf[n] = '\0';
+    }
+    return true;
+}
+
+//
+// Append a tag value to a SQL buffer with proper quoting based on tag type.
+// String/JSON types are single-quoted; numeric/bool types are unquoted.
+// Returns number of chars written.
+//
+static int appendVtabTagValue(char *buf, int bufRemain, int8_t tagType, const char *val) {
+    if (!val || val[0] == '\0') {
+        return snprintf(buf, bufRemain, "NULL");
+    }
+    bool needsQuote = (tagType == TSDB_DATA_TYPE_VARCHAR ||
+                       tagType == TSDB_DATA_TYPE_BINARY  ||
+                       tagType == TSDB_DATA_TYPE_NCHAR   ||
+                       tagType == TSDB_DATA_TYPE_JSON);
+    if (!needsQuote) {
+        return snprintf(buf, bufRemain, "%s", val);
+    }
+    int pos = 0;
+    if (pos < bufRemain - 1) buf[pos++] = '\'';
+    for (int i = 0; val[i] && pos < bufRemain - 2; i++) {
+        if (val[i] == '\'') buf[pos++] = '\'';   // double single-quote escape
+        buf[pos++] = val[i];
+    }
+    if (pos < bufRemain - 1) buf[pos++] = '\'';
+    if (pos < bufRemain)     buf[pos]   = '\0';
+    return pos;
+}
+
+//
+// Emit a CREATE VTABLE statement for the current accumulated child table.
+//
+static void emitVtbChild(VtbRestoreCtx *ctx) {
+    if (!ctx->hasAccum || ctx->curTbname[0] == '\0') return;
+
+    // Find the matching skeleton by the unquoted child table name
+    VtbChildSkeleton *sk = NULL;
+    for (int i = 0; i < ctx->itemCount; i++) {
+        if (strcasecmp(ctx->items[i].backupTbName, ctx->curTbname) == 0) {
+            sk = &ctx->items[i];
+            break;
+        }
+    }
+    if (!sk) {
+        logWarn("no skeleton for vtable child '%s' (vstb %s) — skip",
+                ctx->curTbname, ctx->vstbName);
+        ctx->failedCnt++;
+        return;
+    }
+
+    // Build " TAGS (v1, v2, ...)" suffix
+    char tagsSuffix[4096];
+    int  pos = snprintf(tagsSuffix, sizeof(tagsSuffix), " TAGS (");
+    for (int t = 0; t < ctx->serverTagCount; t++) {
+        if (t > 0 && pos < (int)sizeof(tagsSuffix) - 2) {
+            tagsSuffix[pos++] = ',';
+            tagsSuffix[pos++] = ' ';
+        }
+        const char *v = ctx->tagSet[t] ? ctx->tagValues[t] : NULL;
+        pos += appendVtabTagValue(tagsSuffix + pos, (int)sizeof(tagsSuffix) - pos,
+                                  ctx->serverTagTypes[t], v);
+    }
+    if (pos < (int)sizeof(tagsSuffix) - 2) {
+        tagsSuffix[pos++] = ')';
+        tagsSuffix[pos]   = '\0';
+    }
+
+    // Final SQL: renamedSkeleton + TAGS suffix
+    char *fullSql = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN + 128);
+    if (!fullSql) { ctx->failedCnt++; return; }
+    snprintf(fullSql, TSDB_MAX_SQL_LEN + 128, "%s%s", sk->renamedSql, tagsSuffix);
+
+    logDebug("restore vtable child sql: %s", fullSql);
+    TAOS_RES *res = taos_query(ctx->conn, fullSql);
+    int rc = taos_errno(res);
+    if (res) taos_free_result(res);
+
+    if (rc == TSDB_CODE_SUCCESS) {
+        ctx->successCnt++;
+        atomic_add_fetch_64(&g_stats.childTablesTotal, 1);
+    } else if (rc == TSDB_CODE_TDB_TABLE_ALREADY_EXIST || rc == TSDB_CODE_MND_STB_ALREADY_EXIST) {
+        logWarn("virtual child table already exists, skip: %s", ctx->curTbname);
+        ctx->successCnt++;
+        atomic_add_fetch_64(&g_stats.childTablesTotal, 1);
+    } else {
+        logError("create virtual child table failed (0x%08X): %s  sql: %s",
+                 rc, ctx->curTbname, fullSql);
+        ctx->failedCnt++;
+    }
+    taosMemoryFree(fullSql);
+}
+
+//
+// Block callback for reading ins_tags vtag binary files.
+// Binary layout: col0=table_name, col1=tag_name, col2=tag_value (all variable-length).
+// Rows are sorted by table_name (ORDER BY in backup query) so changes in table_name
+// signal a new child table, allowing us to flush the previous accumulation.
+//
+static int vtbTagBlockCallback(void *userData,
+                               FieldInfo *fieldInfos,
+                               int numFields,
+                               void *blockData,
+                               int32_t blockLen,
+                               int32_t blockRows) {
+    VtbRestoreCtx *ctx = (VtbRestoreCtx *)userData;
+
+    BlockReader reader;
+    int32_t code = initBlockReader(&reader, blockData);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("vtbTagBlockCallback: initBlockReader failed: %d", code);
+        return code;
+    }
+
+    int numCols = reader.oriHeader->numOfCols;
+    if (numCols < 3 || numFields < 3) {
+        logError("vtbTagBlockCallback: expected >=3 cols, got numCols=%d numFields=%d",
+                 numCols, numFields);
+        return TSDB_CODE_BCK_INVALID_FILE;
+    }
+
+    void   **colData = (void **)taosMemoryCalloc(numCols, sizeof(void *));
+    int32_t *colLen  = (int32_t *)taosMemoryCalloc(numCols, sizeof(int32_t));
+    if (!colData || !colLen) {
+        taosMemoryFree(colData);
+        taosMemoryFree(colLen);
+        return TSDB_CODE_BCK_MALLOC_FAILED;
+    }
+
+    for (int c = 0; c < numCols; c++) {
+        int8_t t = (c < numFields) ? fieldInfos[c].type : TSDB_DATA_TYPE_NCHAR;
+        code = getColumnData(&reader, t, &colData[c], &colLen[c]);
+        if (code != TSDB_CODE_SUCCESS) {
+            logError("vtbTagBlockCallback: getColumnData col=%d failed: %d", c, code);
+            taosMemoryFree(colData);
+            taosMemoryFree(colLen);
+            return code;
+        }
+    }
+
+    char tbName[TSDB_TABLE_NAME_LEN];
+    char tagName[65];
+    char tagVal[512];
+
+    for (int row = 0; row < blockRows; row++) {
+        if (g_interrupted) {
+            taosMemoryFree(colData);
+            taosMemoryFree(colLen);
+            return TSDB_CODE_BCK_USER_CANCEL;
+        }
+
+        readBlockVarColStr(fieldInfos[0].type, colData[0], row, blockRows, tbName,  sizeof(tbName));
+        readBlockVarColStr(fieldInfos[1].type, colData[1], row, blockRows, tagName, sizeof(tagName));
+        readBlockVarColStr(fieldInfos[2].type, colData[2], row, blockRows, tagVal,  sizeof(tagVal));
+
+        if (tbName[0] == '\0') continue;
+
+        // Table name changed: emit the previous accumulated child
+        if (ctx->hasAccum && strcmp(tbName, ctx->curTbname) != 0) {
+            emitVtbChild(ctx);
+            memset(ctx->tagValues, 0, sizeof(ctx->tagValues));
+            memset(ctx->tagSet,    0, sizeof(ctx->tagSet));
+        }
+
+        snprintf(ctx->curTbname, sizeof(ctx->curTbname), "%s", tbName);
+        ctx->hasAccum = true;
+
+        // Index tag value by server tag order
+        for (int t = 0; t < ctx->serverTagCount; t++) {
+            if (strcasecmp(ctx->serverTagNames[t], tagName) == 0) {
+                snprintf(ctx->tagValues[t], sizeof(ctx->tagValues[t]), "%s", tagVal);
+                ctx->tagSet[t] = true;
+                break;
+            }
+        }
+    }
+
+    taosMemoryFree(colData);
+    taosMemoryFree(colLen);
+    return TSDB_CODE_SUCCESS;
+}
+
+//
+// Query server vstb tag names and types via DESCRIBE.
+// Returns tag count (>=0) or -1 on error.
+//
+static int queryVstbTagInfo(TAOS *conn, const char *dbName, const char *vstbName,
+                            char names[][65], int8_t *types, int maxN) {
+    char sql[TSDB_TABLE_FNAME_LEN + 32];
+    snprintf(sql, sizeof(sql), "DESCRIBE `%s`.`%s`", dbName, vstbName);
+    TAOS_RES *res = taos_query(conn, sql);
+    if (taos_errno(res) != TSDB_CODE_SUCCESS) {
+        logError("DESCRIBE %s.%s failed: %s", dbName, vstbName, taos_errstr(res));
+        taos_free_result(res);
+        return -1;
+    }
+
+    int numResultCols = taos_field_count(res);
+    int tagCnt = 0;
+    TAOS_ROW row;
+    while ((row = taos_fetch_row(res)) != NULL && tagCnt < maxN) {
+        int *lens = taos_fetch_lengths(res);
+        if (numResultCols < 4 || !row[3] || !lens) continue;
+        if (lens[3] != 3 || strncasecmp((char *)row[3], "TAG", 3) != 0) continue;
+        if (!row[0] || !row[1]) continue;
+
+        int nameLen = lens[0] < 64 ? lens[0] : 64;
+        memcpy(names[tagCnt], (char *)row[0], nameLen);
+        names[tagCnt][nameLen] = '\0';
+
+        // Determine data type for quoting by parsing the type string
+        char typeStr[32] = {0};
+        int  typeLen = lens[1] < 31 ? lens[1] : 31;
+        memcpy(typeStr, (char *)row[1], typeLen);
+        typeStr[typeLen] = '\0';
+
+        if (strncasecmp(typeStr, "NCHAR", 5) == 0) {
+            types[tagCnt] = TSDB_DATA_TYPE_NCHAR;
+        } else if (strncasecmp(typeStr, "VARCHAR", 7) == 0 ||
+                   strncasecmp(typeStr, "BINARY",  6) == 0) {
+            types[tagCnt] = TSDB_DATA_TYPE_VARCHAR;
+        } else if (strncasecmp(typeStr, "JSON",    4) == 0) {
+            types[tagCnt] = TSDB_DATA_TYPE_JSON;
+        } else {
+            // Numeric or bool: treated as unquoted (use INT as a generic marker)
+            types[tagCnt] = TSDB_DATA_TYPE_INT;
+        }
+        tagCnt++;
+    }
+    taos_free_result(res);
+    return tagCnt;
+}
+
+//
+// Find vtag binary files for a vstb under {outPath}/{dbName}/vtags/.
+// Matches {vstbName}_data*.{dat|par}.  Returns NULL-terminated array (caller freeArrayPtr()).
+//
+static char** findVtagFiles(const char *dbName, const char *vstbName, int *count) {
+    *count = 0;
+    char vtagDir[MAX_PATH_LEN] = {0};
+    obtainFileName(BACK_DIR_VTAG, dbName, NULL, NULL, 0, 0, BINARY_TAOS, vtagDir, sizeof(vtagDir));
+
+    TdDirPtr dir = taosOpenDir(vtagDir);
+    if (!dir) {
+        logWarn("vtag dir not found: %s", vtagDir);
+        return NULL;
+    }
+
+    char prefix[TSDB_TABLE_NAME_LEN + 16];
+    snprintf(prefix, sizeof(prefix), "%s_data", vstbName);
+    int prefixLen = (int)strlen(prefix);
+
+    int   capacity = 8;
+    char **files = (char **)taosMemoryCalloc(capacity + 1, sizeof(char *));
+    if (!files) { taosCloseDir(&dir); return NULL; }
+
+    TdDirEntryPtr entry;
+    while ((entry = taosReadDir(dir)) != NULL) {
+        char *name = taosGetDirEntryName(entry);
+        if (name[0] == '.') continue;
+        if (strncmp(name, prefix, prefixLen) != 0) continue;
+        bool isDat = strstr(name, ".dat") != NULL;
+        bool isPar = strstr(name, ".par") != NULL;
+        if (!isDat && !isPar) continue;
+
+        if (*count >= capacity) {
+            capacity *= 2;
+            char **tmp = (char **)taosMemoryRealloc(files, (capacity + 1) * sizeof(char *));
+            if (!tmp) { freeArrayPtr(files); taosCloseDir(&dir); return NULL; }
+            files = tmp;
+        }
+        char fullPath[MAX_PATH_LEN];
+        snprintf(fullPath, sizeof(fullPath), "%s%s", vtagDir, name);
+        files[(*count)++] = taosStrdup(fullPath);
+    }
+    if (*count >= 0) files[*count] = NULL;
+    taosCloseDir(&dir);
+    return files;
+}
+
+//
+// Restore virtual child table TAGS for one virtual super table.
+// Reads vtags binary files and executes CREATE VTABLE ... USING vstb TAGS(...) per child.
+//
+static int restoreVstbChildTags(const char       *dbName,
+                                const char       *vstbName,
+                                VtbChildSkeleton *items,
+                                int               itemCount) {
+    if (itemCount == 0) return TSDB_CODE_SUCCESS;
+
+    int    fileCnt  = 0;
+    char **vtagFiles = findVtagFiles(dbName, vstbName, &fileCnt);
+    if (!vtagFiles || fileCnt == 0) {
+        logWarn("no vtag files for vstb %s.%s; virtual child tag restore skipped",
+                dbName, vstbName);
+        if (vtagFiles) freeArrayPtr(vtagFiles);
+        return TSDB_CODE_SUCCESS;
+    }
+
+    TAOS *conn = getConnection();
+    if (!conn) { freeArrayPtr(vtagFiles); return TSDB_CODE_BCK_CONN_POOL_EXHAUSTED; }
+
+    const char *targetDb = argRenameDb(dbName);
+    int code = TSDB_CODE_SUCCESS;
+
+    for (int f = 0; f < fileCnt && code == TSDB_CODE_SUCCESS; f++) {
+        if (g_interrupted) { code = TSDB_CODE_BCK_USER_CANCEL; break; }
+
+        int openCode = 0;
+        TaosFile *taosFile = openTaosFileForRead(vtagFiles[f], &openCode);
+        if (!taosFile || openCode != TSDB_CODE_SUCCESS) {
+            logError("open vtag file failed(%d): %s", openCode, vtagFiles[f]);
+            code = TSDB_CODE_BCK_READ_FILE_FAILED;
+            break;
+        }
+
+        VtbRestoreCtx ctx;
+        memset(&ctx, 0, sizeof(ctx));
+        ctx.conn      = conn;
+        ctx.dbName    = dbName;
+        ctx.vstbName  = vstbName;
+        ctx.items     = items;
+        ctx.itemCount = itemCount;
+
+        int n = queryVstbTagInfo(conn, targetDb, vstbName,
+                                 ctx.serverTagNames, ctx.serverTagTypes, BCK_MAX_VTAG);
+        if (n > 0) {
+            ctx.serverTagCount = n;
+            logInfo("vstb %s.%s has %d TAG(s) on target server", targetDb, vstbName, n);
+        } else {
+            logWarn("DESCRIBE %s.%s failed; child tag restore may be incomplete",
+                    targetDb, vstbName);
+        }
+
+        code = readTaosFileBlocks(taosFile, vtbTagBlockCallback, &ctx);
+        if (code != TSDB_CODE_SUCCESS) {
+            logError("readTaosFileBlocks failed(%d): %s", code, vtagFiles[f]);
+        }
+
+        // Flush the last accumulated child table (readTaosFileBlocks has no finalize hook)
+        if (ctx.hasAccum) {
+            emitVtbChild(&ctx);
+        }
+
+        logInfo("vtag restore %s: success=%" PRId64 " failed=%" PRId64,
+                vtagFiles[f], ctx.successCnt, ctx.failedCnt);
+        if (ctx.failedCnt > 0 && code == TSDB_CODE_SUCCESS) {
+            code = TSDB_CODE_BCK_EXEC_SQL_FAILED;
+        }
+
+        closeTaosFileRead(taosFile);
+    }
+
+    releaseConnection(conn);
+    freeArrayPtr(vtagFiles);
+    return code;
+}
+
+// restore virtual table DDL (vtb.sql)
+// vtb.sql lines are:
+//   - CREATE VTABLE `db`.`name` (...) [virtual normal table, no USING]
+//   - CREATE VTABLE `db`.`name` (...) USING `db`.`vstb` (`t1`) [child skeleton, no TAGS]
+//   - CREATE VTABLE `db`.`name` (...) USING `db`.`vstb` (`t1`) TAGS (v) [old full format]
+// Normal vtables and old-format children are executed immediately.
+// New-format child skeletons are batched and restored via vtags binary files.
+static int restoreVtbSql(const char *dbName) {
+    int code = TSDB_CODE_SUCCESS;
+
+    char sqlFile[MAX_PATH_LEN] = {0};
+    obtainFileName(BACK_FILE_VTBSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS, sqlFile, sizeof(sqlFile));
+
+    if (!taosCheckExistFile(sqlFile)) {
+        logInfo("vtb.sql not found, skip virtual tables: %s", sqlFile);
+        return TSDB_CODE_SUCCESS;
+    }
+
+    char *content = readFileContent(sqlFile, NULL);
+    if (content == NULL) {
+        logError("read vtb.sql failed: %s", sqlFile);
+        return TSDB_CODE_BCK_READ_FILE_FAILED;
+    }
+
+    TAOS *conn = getConnection();
+    if (conn == NULL) {
+        taosMemoryFree(content);
+        return TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+    }
+
+    const char *targetDb = argRenameDb(dbName);
+
+    // Storage for virtual child table skeletons (USING present, TAGS absent in vtb.sql)
+    int               skeletonCap   = 16;
+    int               skeletonCount = 0;
+    VtbChildSkeleton *skeletons     = (VtbChildSkeleton *)taosMemoryCalloc(
+                                          skeletonCap, sizeof(VtbChildSkeleton));
+    if (!skeletons) {
+        releaseConnection(conn);
+        taosMemoryFree(content);
+        return TSDB_CODE_BCK_MALLOC_FAILED;
+    }
+
+    char *line = content;
+    char *next = NULL;
+    int vtbCount = 0;
+
+    while (line && *line) {
+        if (g_interrupted) {
+            code = TSDB_CODE_BCK_USER_CANCEL;
+            break;
+        }
+
+        next = strchr(line, '\n');
+        if (next) {
+            *next = '\0';
+            next++;
+        }
+
+        // trim
+        while (*line == ' ' || *line == '\r') line++;
+        int lineLen = strlen(line);
+        while (lineLen > 0 && (line[lineLen-1] == ' ' || line[lineLen-1] == '\r')) {
+            line[--lineLen] = '\0';
+        }
+
+        if (lineLen > 0) {
+            char *vtablePos = strstr(line, "VTABLE");
+            if (!vtablePos) { line = next; continue; }
+
+            // Determine line type: has USING? has TAGS?
+            char *usingPos = strstr(vtablePos, " USING ");
+            char *tagsPos  = NULL;
+            if (usingPos) {
+                tagsPos = strstr(usingPos, " TAGS (");
+                if (!tagsPos) tagsPos = strstr(usingPos, " TAGS(");
+            }
+            bool isChildSkeleton = (usingPos != NULL && tagsPos == NULL);
+
+            // Build the renamed SQL (inject `targetDb`. prefix)
+            char *nameStart = vtablePos + strlen("VTABLE");
+            while (*nameStart == ' ') nameStart++;
+            int prefixLen = (int)(nameStart - line);
+
+            char *fullSql = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN);
+            if (fullSql == NULL) {
+                code = TSDB_CODE_BCK_MALLOC_FAILED;
+                break;
+            }
+
+            if (usingPos) {
+                // Extract vtable name span
+                const char *p = nameStart;
+                int vtbLen;
+                if (*p == '`') {
+                    const char *close = strchr(p + 1, '`');
+                    vtbLen = close ? (int)(close - p + 1) : (int)(usingPos - p);
+                } else {
+                    vtbLen = (int)(usingPos - p);
+                }
+                const char *middleStart = nameStart + vtbLen;
+                int          middleLen  = (int)(usingPos - middleStart);
+                char *stbNameStart = usingPos + strlen(" USING ");
+                while (*stbNameStart == ' ') stbNameStart++;
+
+                snprintf(fullSql, TSDB_MAX_SQL_LEN, "%.*s`%s`.%.*s%.*s USING `%s`.%s",
+                         prefixLen, line,
+                         targetDb,
+                         vtbLen, nameStart,
+                         middleLen, middleStart,
+                         targetDb,
+                         stbNameStart);
+            } else {
+                snprintf(fullSql, TSDB_MAX_SQL_LEN, "%.*s`%s`.%s",
+                         prefixLen, line, targetDb, nameStart);
+            }
+
+            // Apply db rename in FROM/USING column references
+            if (strcmp(dbName, targetDb) != 0) {
+                char srcPat[TSDB_DB_NAME_LEN + 5];
+                char dstPat[TSDB_DB_NAME_LEN + 5];
+                snprintf(srcPat, sizeof(srcPat), "`%s`.", dbName);
+                snprintf(dstPat, sizeof(dstPat), "`%s`.", targetDb);
+                replaceAllInSql(fullSql, srcPat, dstPat);
+            }
+
+            if (isChildSkeleton) {
+                // New-format skeleton: store for batch restore via vtags binary
+                char bareTbName[TSDB_TABLE_NAME_LEN]   = {0};
+                char bareVstbName[TSDB_TABLE_NAME_LEN] = {0};
+                extractBareIdent(nameStart, bareTbName, sizeof(bareTbName));
+                extractBareIdent(usingPos + strlen(" USING "), bareVstbName, sizeof(bareVstbName));
+
+                if (skeletonCount >= skeletonCap) {
+                    skeletonCap *= 2;
+                    VtbChildSkeleton *tmp = (VtbChildSkeleton *)taosMemoryRealloc(
+                                               skeletons, skeletonCap * sizeof(VtbChildSkeleton));
+                    if (!tmp) {
+                        taosMemoryFree(fullSql);
+                        code = TSDB_CODE_BCK_MALLOC_FAILED;
+                        break;
+                    }
+                    skeletons = tmp;
+                }
+                VtbChildSkeleton *sk = &skeletons[skeletonCount++];
+                snprintf(sk->backupTbName,   sizeof(sk->backupTbName),   "%s", bareTbName);
+                snprintf(sk->backupVstbName, sizeof(sk->backupVstbName), "%s", bareVstbName);
+                snprintf(sk->renamedSql,     sizeof(sk->renamedSql),     "%s", fullSql);
+            } else {
+                // Execute immediately: virtual normal tables + old-format child DDLs with TAGS
+                logInfo("restore vtable sql: %s", fullSql);
+                TAOS_RES *res = taos_query(conn, fullSql);
+                int rc = taos_errno(res);
+                if (res) taos_free_result(res);
+
+                if (rc == TSDB_CODE_SUCCESS) {
+                    vtbCount++;
+                    atomic_add_fetch_64(&g_stats.ntbTotal, 1);
+                } else if (rc == TSDB_CODE_TDB_TABLE_ALREADY_EXIST ||
+                           rc == TSDB_CODE_MND_STB_ALREADY_EXIST) {
+                    logWarn("virtual table already exists, skip: %s", fullSql);
+                    vtbCount++;
+                    atomic_add_fetch_64(&g_stats.ntbTotal, 1);
+                } else {
+                    logError("create virtual table failed(0x%08X): %s", rc, fullSql);
+                    code = rc;
+                }
+            }
+            taosMemoryFree(fullSql);
+        }
+
+        line = next;
+    }
+
+    releaseConnection(conn);
+
+    // Restore virtual child tables via vtags binary files (new-format backups)
+    if (code == TSDB_CODE_SUCCESS && skeletonCount > 0) {
+        // Collect unique vstb names across all skeletons
+        char vstbsSeen[64][TSDB_TABLE_NAME_LEN];
+        int  vstbSeenCnt = 0;
+        memset(vstbsSeen, 0, sizeof(vstbsSeen));
+
+        for (int i = 0; i < skeletonCount; i++) {
+            const char *vn = skeletons[i].backupVstbName;
+            bool found = false;
+            for (int j = 0; j < vstbSeenCnt; j++) {
+                if (strcasecmp(vstbsSeen[j], vn) == 0) { found = true; break; }
+            }
+            if (!found && vstbSeenCnt < 64) {
+                snprintf(vstbsSeen[vstbSeenCnt], TSDB_TABLE_NAME_LEN, "%s", vn);
+                vstbSeenCnt++;
+            }
+        }
+
+        // Per-vstb: collect its children and restore from vtags binary
+        for (int v = 0; v < vstbSeenCnt && code == TSDB_CODE_SUCCESS; v++) {
+            if (g_interrupted) { code = TSDB_CODE_BCK_USER_CANCEL; break; }
+
+            const char *vstbName = vstbsSeen[v];
+
+            // Filter skeletons belonging to this vstb
+            VtbChildSkeleton *vstbItems = (VtbChildSkeleton *)taosMemoryCalloc(
+                                              skeletonCount, sizeof(VtbChildSkeleton));
+            if (!vstbItems) { code = TSDB_CODE_BCK_MALLOC_FAILED; break; }
+            int vstbItemCnt = 0;
+            for (int i = 0; i < skeletonCount; i++) {
+                if (strcasecmp(skeletons[i].backupVstbName, vstbName) == 0) {
+                    vstbItems[vstbItemCnt++] = skeletons[i];
+                }
+            }
+
+            logInfo("restoring %d virtual child table(s) under vstb: %s.%s",
+                    vstbItemCnt, dbName, vstbName);
+            code = restoreVstbChildTags(dbName, vstbName, vstbItems, vstbItemCnt);
+            vtbCount += vstbItemCnt;
+            taosMemoryFree(vstbItems);
+        }
+    }
+
+    logInfo("restored %d virtual table(s) for db: %s", vtbCount, dbName);
+    taosMemoryFree(skeletons);
+    taosMemoryFree(content);
+    return code;
+}
+
 
 //
 // Context for tag block callback - builds CREATE TABLE SQL from raw block data
@@ -1367,6 +2088,16 @@ int restoreDatabaseMeta(const char *dbName) {
     code = restoreNtbSql(dbName);
     if (code != TSDB_CODE_SUCCESS) {
         logError("restore ntb sql failed(%d): %s", code, dbName);
+        return code;
+    }
+
+    //
+    // 5. Restore virtual table DDL (vtb.sql)
+    //    Must run after physical tables so that virtual columns can reference them
+    //
+    code = restoreVtbSql(dbName);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("restore vtb sql failed(%d): %s", code, dbName);
         return code;
     }
 
