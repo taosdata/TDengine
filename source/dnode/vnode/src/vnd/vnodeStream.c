@@ -783,7 +783,10 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
   STREAM_CHECK_RET_GOTO(tDecodeSVAlterTbReq(&decoder, &req));
 
 
-  // TODO: localvar, need handle TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL & TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL
+  // TODO:
+  // 1. TSDB_ALTER_TABLE_UPDATE_TAG_VAL and TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL is not used any more. 
+  // 2. TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL and TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL are
+  //    added, both support updating tag value for multiple tables.
 
 
   STREAM_CHECK_CONDITION_GOTO(req.action != TSDB_ALTER_TABLE_UPDATE_TAG_VAL && req.action != TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL && 
