@@ -33,6 +33,7 @@ class Configure:
 
     def _get_default_conf(self):
         if platform.system().lower() == "windows":
+
             default = {
                 "log_dir": "c:/tdgpt/log/",
                 "log_path": "c:/tdgpt/log/taosanode.app.log",
@@ -50,6 +51,10 @@ class Configure:
                 "log_level": logging.DEBUG,
                 "draw_result": False,
             }
+
+            if os.environ.get('GITHUB_ACTIONS'):
+               default['log_dir'] = '/home/runner/work/TDengine/TDengine/tools/tdgpt/log/'
+               default['log_path'] = os.path.join(default['log_dir'], 'taosanode.app.log')
 
         return default
 
