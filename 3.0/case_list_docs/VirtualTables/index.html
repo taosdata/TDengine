@@ -1126,8 +1126,41 @@
         
   
     <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_query_boundary.TestVTableQueryBoundary.test_event_window_no_window_not_out_of_range" class="md-nav__link">
+        Event window empty result should not crash. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_query_boundary.TestVTableQueryBoundary.test_event_window_true_for_definition" class="md-nav__link">
+        Event window TRUE_FOR should follow duration/count definition. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_insert.TestVtableInsert.test_vtable_insert" class="md-nav__link">
         Insert: virtual table 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_query_boundary.TestVTableQueryBoundary.test_event_window_last_wend_not_plus_one" class="md-nav__link">
+        Optimized event window keeps final _wend consistent. 
       </a>
       
     </li>
@@ -4672,8 +4705,41 @@
         
   
     <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_query_boundary.TestVTableQueryBoundary.test_event_window_no_window_not_out_of_range" class="md-nav__link">
+        Event window empty result should not crash. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_query_boundary.TestVTableQueryBoundary.test_event_window_true_for_definition" class="md-nav__link">
+        Event window TRUE_FOR should follow duration/count definition. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_insert.TestVtableInsert.test_vtable_insert" class="md-nav__link">
         Insert: virtual table 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_query_boundary.TestVTableQueryBoundary.test_event_window_last_wend_not_plus_one" class="md-nav__link">
+        Optimized event window keeps final _wend consistent. 
       </a>
       
     </li>
@@ -6220,6 +6286,99 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py" target="_blank">
                       cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_query_boundary.TestVTableQueryBoundary.test_event_window_no_window_not_out_of_range" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_query_boundary.TestVTableQueryBoundary.test_event_window_no_window_not_out_of_range" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Event window empty result should not crash.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Validate the optimized virtual-table event window path when start/end</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">predicates never form any window. The query should return zero rows</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">and must not raise out-of-range executor errors.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_boundary.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_query_boundary.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_query_boundary.TestVTableQueryBoundary.test_event_window_last_wend_not_plus_one" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_query_boundary.TestVTableQueryBoundary.test_event_window_last_wend_not_plus_one" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Optimized event window keeps final _wend consistent.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Compare baseline and optimized event-window query paths for the same</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">window definition, and verify the last window&#39;s `_wstart` and `_wend`</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">remain identical between both paths.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_boundary.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_query_boundary.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_query_boundary.TestVTableQueryBoundary.test_event_window_true_for_definition" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_query_boundary.TestVTableQueryBoundary.test_event_window_true_for_definition" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Event window TRUE_FOR should follow duration/count definition.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Build baseline event-window results without TRUE_FOR, then apply</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">duration/count predicates in test code and compare with SQL results of</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">each TRUE_FOR expression.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_boundary.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_query_boundary.py
                     </a>
                   </div>
         </div>
