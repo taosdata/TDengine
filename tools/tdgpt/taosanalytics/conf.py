@@ -151,7 +151,6 @@ app_logger = AppLogger()
 
 def setup_log_info(name: str):
     """ prepare the log info for unit test """
-    # log_file = conf.get_log_dir() + '/' + name
     app_logger.set_handler(name)
 
     try:
