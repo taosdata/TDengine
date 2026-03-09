@@ -117,7 +117,14 @@ async function getParserData(data: any) {
       ? (tableData.value = result[0].columns.map((data: { [x: string]: { toString: () => any } }) => {
           return Object.fromEntries(
             result[0].fields.map((item: { name: any }, index: string | number) => {
-              return [item.name, data[index] ? data[index].toString() : null];
+              return [
+                item.name,
+                filterEmpty(data[index])
+                  ? Array.isArray(data[index])
+                    ? JSON.stringify(data[index])
+                    : data[index].toString()
+                  : null
+              ];
             })
           );
         }))
