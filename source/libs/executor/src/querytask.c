@@ -362,11 +362,7 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
       }
       taosArrayDestroy(pCtx->subResNodes);
     }
-    if (pCtx->pTaskInfo && IS_STREAM_MODE((SExecTaskInfo*)pCtx->pTaskInfo)) {
-      taosArrayDestroyP(pCtx->subEndPoints, (FDelete)nodesDestroyNode);
-    } else {
-      taosArrayDestroyP(pCtx->subEndPoints, NULL);
-    }
+    taosArrayDestroyP(pCtx->subEndPoints, NULL);
     pCtx->subEndPoints = NULL;
   }
   
