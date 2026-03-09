@@ -480,14 +480,14 @@ static int getColumnAndTagTypeFromInsertJsonFile(
 
             if (customName) {
                 if (n >= 1) {
-                    snprintf(col->name, TSDB_COL_NAME_LEN,
+                    (void)snprintf(col->name, TSDB_COL_NAME_LEN,
                              "%s_%d", dataName->valuestring, n);
                 } else {
-                    snprintf(col->name, TSDB_COL_NAME_LEN,
+                    (void)snprintf(col->name, TSDB_COL_NAME_LEN,
                             "%s", dataName->valuestring);
                 }
             } else {
-                snprintf(col->name, TSDB_COL_NAME_LEN, "c%d", index);
+                (void)snprintf(col->name, TSDB_COL_NAME_LEN, "c%d", index);
             }
 
             // encode
@@ -593,10 +593,10 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             (void)benchArrayPush(stbInfo->tags, tag);
             tag = benchArrayGet(stbInfo->tags, stbInfo->tags->size - 1);
             if (customName) {
-                snprintf(tag->name, TSDB_COL_NAME_LEN,
+                (void)snprintf(tag->name, TSDB_COL_NAME_LEN,
                          "%s", dataName->valuestring);
             } else {
-                snprintf(tag->name, TSDB_COL_NAME_LEN, "jtag");
+                (void)snprintf(tag->name, TSDB_COL_NAME_LEN, "jtag");
             }
             tag->type = type;
             tag->length = JSON_FIXED_LENGTH; // json datatype is fixed length: 4096
@@ -745,14 +745,14 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             tag->gen = tagGen;
             if (customName) {
                 if (n >= 1) {
-                    snprintf(tag->name, TSDB_COL_NAME_LEN,
+                    (void)snprintf(tag->name, TSDB_COL_NAME_LEN,
                              "%s_%d", dataName->valuestring, n);
                 } else {
-                    snprintf(tag->name, TSDB_COL_NAME_LEN,
+                    (void)snprintf(tag->name, TSDB_COL_NAME_LEN,
                              "%s", dataName->valuestring);
                 }
             } else {
-                snprintf(tag->name, TSDB_COL_NAME_LEN, "t%d", index);
+                (void)snprintf(tag->name, TSDB_COL_NAME_LEN, "t%d", index);
             }
             index++;
         }

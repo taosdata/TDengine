@@ -347,7 +347,7 @@ static void shellInitArgs(int argc, char *argv[]) {
       printf("\r\n");
       break;
     }
-#ifdef TD_ENTERPRISE      
+#ifdef TD_ENTERPRISE
     else if (strncmp(argv[i], "-q", 2) == 0) {
       // token
       memset(shell.args.token, 0, sizeof(shell.args.token));
@@ -362,7 +362,7 @@ static void shellInitArgs(int argc, char *argv[]) {
           fprintf(stderr, "getchar() return EOF\r\n");
         }
       } else {
-        tstrncpy(shell.args.token, (char *)(argv[i] + 2), sizeof(shell.args.token) - 1);  
+        tstrncpy(shell.args.token, (char *)(argv[i] + 2), sizeof(shell.args.token) - 1);
         strcpy(argv[i], "-q");
       }
       printf("\r\n");
@@ -428,8 +428,8 @@ static int32_t shellCheckArgs() {
       if(!taosIsDir(configDirShell)) {
         printf("folder not exist. cfgdir:%s  expand:%s\r\n", pArgs->cfgdir, configDirShell);
         configDirShell[0] = 0;
-        return -1;          
-      }*/  
+        return -1;
+      }*/
     }
   }
 
@@ -483,40 +483,40 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
 #endif
   char promptContinueFormat[32] = {0};
 #ifdef CUS_PROMPT
-  (void)sprintf(shell.info.promptHeader, "%s> ", CUS_PROMPT);
-  (void)sprintf(promptContinueFormat, "%%%zus> ", strlen(CUS_PROMPT));
+  (void)snprintf(shell.info.promptHeader, sizeof(shell.info.promptHeader), "%s> ", CUS_PROMPT);
+  (void)snprintf(promptContinueFormat, sizeof(promptContinueFormat), "%%%zus> ", strlen(CUS_PROMPT));
 #else
-  (void)sprintf(shell.info.promptHeader, "taos> ");
-  (void)sprintf(promptContinueFormat, "%%%zus> ", strlen("taos"));
+  (void)snprintf(shell.info.promptHeader, sizeof(shell.info.promptHeader), "taos> ");
+  (void)snprintf(promptContinueFormat, sizeof(promptContinueFormat), "%%%zus> ", strlen("taos"));
 #endif
-  (void)sprintf(shell.info.promptContinue, promptContinueFormat, " ");
+  (void)snprintf(shell.info.promptContinue, sizeof(shell.info.promptContinue), promptContinueFormat, " ");
   shell.info.promptSize = strlen(shell.info.promptHeader);
 #ifdef TD_ENTERPRISE
-  snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
+  (void)snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
            "%s\n%s version: %s compatible_version: %s\ngit: %s\ngitOfInternal: %s\nbuild: %s", TD_PRODUCT_NAME,
            CUS_PROMPT, td_version, td_compatible_version, td_gitinfo, td_gitinfoOfInternal, td_buildinfo);
 #else
-  snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
+  (void)snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
            "%s\n%s version: %s compatible_version: %s\ngit: %s\nbuild: %s", TD_PRODUCT_NAME, CUS_PROMPT, td_version,
            td_compatible_version, td_gitinfo, td_buildinfo);
 #endif
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   shell.info.osname = "Windows";
-  snprintf(shell.history.file, TSDB_FILENAME_LEN, "C:/TDengine/%s", SHELL_HISTORY_FILE);
+  (void)snprintf(shell.history.file, TSDB_FILENAME_LEN, "C:/TDengine/%s", SHELL_HISTORY_FILE);
   if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
 #elif defined(_TD_DARWIN_64)
   shell.info.osname = "Darwin";
-  snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getpwuid(getuid())->pw_dir, SHELL_HISTORY_FILE);
+  (void)snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getpwuid(getuid())->pw_dir, SHELL_HISTORY_FILE);
   if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
 #elif defined(TD_ASTRA)
   shell.info.osname = "Astra";
-  snprintf(shell.history.file, TSDB_FILENAME_LEN, "C:%sTDengine%s%s", TD_DIRSEP, TD_DIRSEP,
+  (void)snprintf(shell.history.file, TSDB_FILENAME_LEN, "C:%sTDengine%s%s", TD_DIRSEP, TD_DIRSEP,
            SHELL_HISTORY_FILE);  // TD_ASTRA_TODO getenv("HOME")
   if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
 #else
   shell.info.osname = "Linux";
-  snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getenv("HOME"), SHELL_HISTORY_FILE);
+  (void)snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getenv("HOME"), SHELL_HISTORY_FILE);
   if (shellParseArgsUseArgp(argc, argv) != 0) return -1;
   if (shell.args.abort) {
     return -1;

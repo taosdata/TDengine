@@ -327,7 +327,7 @@ SBenchConn* initBenchConnImpl(char *dbName) {
             port = defaultPort(g_arguments->connMode, g_arguments->dsn);
         }
 
-        (void)sprintf(show, "host:%s port:%d dbname:%s", host, port, dbName);
+        (void)snprintf(show, sizeof(show), "host:%s port:%d dbname:%s", host, port, dbName);
     }
 
     // connect main

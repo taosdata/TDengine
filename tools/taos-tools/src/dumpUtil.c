@@ -343,7 +343,7 @@ TAOS *taosConnect(const char *dbName) {
             port = defaultPort(g_args.connMode, g_args.dsn);
         }
 
-        (void)sprintf(show, "host:%s port:%d ", host, port);
+        (void)snprintf(show, sizeof(show), "host:%s port:%d ", host, port);
     }
 
     //
@@ -442,7 +442,10 @@ uint32_t bkdrHash(const char *str) {
 // Initialize the hash table
 void hashMapInit(HashMap *map) {
     memset(map->buckets, 0, sizeof(map->buckets));
-    (void)pthread_mutex_init(&map->lock, NULL);
+    if (pthread_mutex_init(&map->lock, NULL) != 0) {
+        perror("pthread_mutex_init failed");
+        abort();
+    }
 }
 
 // Insert a key-value pair
@@ -463,7 +466,9 @@ bool hashMapInsert(HashMap *map, const char *key, void *value) {
     map->buckets[hash] = entry;
 
     // unlock map
-    (void)pthread_mutex_unlock(&map->lock);
+    if (pthread_mutex_unlock(&map->lock) != 0) {
+        perror("pthread_mutex_unlock failed");
+    }
     return true;
 }
 

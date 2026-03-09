@@ -39,7 +39,11 @@ void benchQueryInterruptHandler(int32_t signum, void* sigingo, void* context) {
         exit(1);
     }
 
-    (void)sem_post(&g_arguments->cancelSem);
+    if (sem_post(&g_arguments->cancelSem) != 0) {
+        const char* msg = "sem_post failed in signal handler\n";
+        write(STDERR_FILENO, msg, strlen(msg));
+    }
+
     g_stopping = true;
 }
 

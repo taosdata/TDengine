@@ -157,9 +157,15 @@ static int csvParseStbParameter(SSuperTable* stb) {
 static time_t csvAlignTimestamp(time_t seconds, const char* ts_format) {
     struct tm aligned_tm;
 #ifdef _WIN32
-    (void)localtime_s(&aligned_tm, &seconds);
+    if (localtime_s(&aligned_tm, &seconds) != 0) {
+        perror("localtime_s failed");
+        return (time_t)-1;
+    }
 #else
-    (void)localtime_r(&seconds, &aligned_tm);
+    if (localtime_r(&seconds, &aligned_tm) == NULL) {
+        perror("localtime_r failed");
+        return (time_t)-1;
+    }
 #endif
 
     int has_Y = 0, has_m = 0, has_d = 0, has_H = 0, has_M = 0, has_S = 0;

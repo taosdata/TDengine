@@ -90,9 +90,9 @@ float fast_sqrt(float x)
 {
     float xhalf = 0.5f * x;
     uint32_t i = 0;
-    memcpy(&i, &x, sizeof(int));
+    memcpy(&i, &x, sizeof(i));
     i = 0x5f375a86 - (i >> 1);
-    memcpy(&x, &i, sizeof(float));
+    memcpy(&x, &i, sizeof(x));
     x = x * (1.5f - xhalf * x * x);
     return 1/x;
 }

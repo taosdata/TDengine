@@ -747,11 +747,13 @@ if (checkTzPresent(timestr, len)) {
 
 struct tm* toolsLocalTime(const time_t *timep, struct tm *result) {
 #if defined(LINUX) || defined(DARWIN)
-    (void)localtime_r(timep, result);
+    return localtime_r(timep, result);
 #else
-    (void)localtime_s(result, timep);
-#endif
+    if (localtime_s(result, timep) != 0) {
+        return NULL;
+    }
     return result;
+#endif
 }
 
 FORCE_INLINE int32_t toolsGetTimestampSec() { return (int32_t)time(NULL); }

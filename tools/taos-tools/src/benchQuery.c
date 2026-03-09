@@ -236,7 +236,7 @@ static void *specQueryThread(void *sarg) {
     SSQL * sql = benchArrayGet(g_queryInfo.specifiedQueryInfo.sqls, pThreadInfo->querySeq);
 
     if (sql->result[0] != '\0') {
-        snprintf(pThreadInfo->filePath, MAX_PATH_LEN, "%s-%d",
+        (void)snprintf(pThreadInfo->filePath, MAX_PATH_LEN, "%s-%d",
                 sql->result, pThreadInfo->threadID);
     }
 
@@ -347,7 +347,7 @@ static void *stbQueryThread(void *sarg) {
                 }
 
                 if (g_queryInfo.superQueryInfo.result[j][0] != '\0') {
-                    snprintf(pThreadInfo->filePath, MAX_PATH_LEN, "%s-%d",
+                    (void)snprintf(pThreadInfo->filePath, MAX_PATH_LEN, "%s-%d",
                             g_queryInfo.superQueryInfo.result[j],
                             pThreadInfo->threadID);
                 }
@@ -793,7 +793,7 @@ static int specQuery(uint16_t iface, char* dbName) {
 
         int32_t bufLen = strlen(sql->command) + 512;
         char * buf = benchCalloc(bufLen, sizeof(char), false);
-        snprintf(buf , bufLen, "complete query with %d threads and %" PRIu64 " "
+        (void)snprintf(buf , bufLen, "complete query with %d threads and %" PRIu64 " "
                              "sql %"PRIu64" spend %.6fs QPS: %.3f "
                              "query delay "
                              "avg: %.6fs "
@@ -1172,14 +1172,14 @@ void totalQuery(int64_t spends) {
     if(g_arguments->continueIfFail == YES_IF_FAILED) {
         uint64_t totalFail = g_queryInfo.specifiedQueryInfo.totalFail + g_queryInfo.superQueryInfo.totalFail;
         if (totalQueried > 0) {
-            snprintf(errRate, sizeof(errRate), " ,error %" PRIu64 " (rate:%.3f%%)", totalFail, ((float)totalFail * 100)/totalQueried);
+            (void)snprintf(errRate, sizeof(errRate), " ,error %" PRIu64 " (rate:%.3f%%)", totalFail, ((float)totalFail * 100)/totalQueried);
         }
     }
 
     // show
     double  tInS = (double)spends / 1000;
     char buf[512] = "";
-    snprintf(buf, sizeof(buf),
+    (void)snprintf(buf, sizeof(buf),
                 "Spend %.4f second completed total queries: %" PRIu64
                 ", the QPS of all threads: %10.3f%s\n\n",
                 tInS, totalQueried, (double)totalQueried / tInS, errRate);
