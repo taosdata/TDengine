@@ -33,6 +33,7 @@ class TestStreamAutoCreateOutputTable:
         self.prepareData()
         self.check_auto_create_out_ctb()
         self.check_auto_create_out_ntb()
+        self.insertDataAndCheck()
 
     def prepareData(self):
         tdLog.info(f"prepare data")
@@ -52,12 +53,15 @@ class TestStreamAutoCreateOutputTable:
     def check_auto_create_out_ctb(self):
         tdSql.execute(f"use db")
 
-        sql1 ="create stream s1 state_window(c1) from stb partition by tbname into out1 NODELAY_CREATE_SUBTABLE as select * from %%tbname where c1 > 10000;"
-        sql2 ="create stream s2 state_window(c1) from stb partition by tbname into out2 as select * from %%tbname where c1 > 10000;"
-
+        sql1 ="create stream s1 count_window(1) from stb partition by tbname into out_ctb1 NODELAY_CREATE_SUBTABLE as select * from %%tbname where c1 > 10000;"
+        sql2 ="create stream s2 count_window(1) from stb partition by tbname into out_ctb2 as select * from %%tbname where c1 > 10000;"
+        sql3 ="create stream s3 count_window(1) from stb partition by tbname into out_ctb3 NODELAY_CREATE_SUBTABLE OUTPUT_SUBTABLE(CONCAT('out3_', tbname))tags (nameoftbl varchar(128) as tbname) as select * from %%tbname where c1 > 10000;"
+        sql4 ="create stream s4 count_window(1) from stb partition by tbname,t1 into out_ctb4 NODELAY_CREATE_SUBTABLE OUTPUT_SUBTABLE(CONCAT('out4_', tbname))tags (nameoftbl varchar(128) as tbname, tagt1 int as t1) as select * from %%tbname where c1 > 10000;"
         streams = [
             self.StreamItem(sql1, self.checks1),
-            self.StreamItem(sql2, self.checks2)
+            self.StreamItem(sql2, self.checks2),
+            self.StreamItem(sql3, self.checks3),
+            self.StreamItem(sql4, self.checks4)
         ]
         for stream in streams:
             tdSql.execute(stream.sql)
@@ -66,24 +70,25 @@ class TestStreamAutoCreateOutputTable:
     def check_auto_create_out_ntb(self):
         tdSql.execute(f"use db")
 
-        sql1 ="create stream s3 state_window(c1) from tb1 into out3 as select * from tb1 where c1 > 10000;"
+        sql1 ="create stream s10 count_window(1) from tb1 into out_normal as select * from tb1 where c1 > 10000;"
 
         streams = [
-            self.StreamItem(sql1, self.checks3)
+            self.StreamItem(sql1, self.checks10)
         ]
         for stream in streams:
             tdSql.execute(stream.sql)
         tdStream.checkStreamStatus()
 
     def checks1(self):
-        result_sql = f"select * from information_schema.ins_stables where stable_name like 'out1';"
+        tdLog.info(f"start to check nodelay create output ctb")
+        result_sql = f"select * from information_schema.ins_stables where stable_name like 'out_ctb1';"
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 1
-            and tdSql.compareData(0, 0, "out1")
+            and tdSql.compareData(0, 0, "out_ctb1")
         )
 
-        result_sql = f"select tags tag_tbname from out1 order by tag_tbname;"
+        result_sql = f"select tags tag_tbname from out_ctb1 order by tag_tbname;"
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 1
@@ -92,31 +97,137 @@ class TestStreamAutoCreateOutputTable:
         )
 
     def checks2(self):
-        result_sql = f"select * from information_schema.ins_stables where stable_name like 'out2';"
+        tdLog.info(f"start to check delay create output ctb")
+        result_sql = f"select * from information_schema.ins_stables where stable_name like 'out_ctb2';"
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 1
-            and tdSql.compareData(0, 0, "out2")
+            and tdSql.compareData(0, 0, "out_ctb2")
         )
 
-        result_sql = f"select tags tag_tbname from out2 order by tag_tbname;"
+        result_sql = f"select tags tag_tbname from out_ctb2 order by tag_tbname;"
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 0
         )
 
     def checks3(self):
-        result_sql = f"select * from information_schema.ins_tables where stable_name like 'out3';"
+        tdLog.info(f"start to check nodelay create output ctb with custom tbname and tag")
+        result_sql = f"select * from information_schema.ins_stables where stable_name like 'out_ctb3';"
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 1
-            and tdSql.compareData(0, 0, "out3")
+            and tdSql.compareData(0, 0, "out_ctb3")
         )
 
-        result_sql = f"select * from out3;"
+        result_sql = f"select tbname from out_ctb3 order by tbname;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "out3_tb1")
+            and tdSql.compareData(1, 0, "out3_tb2")
+        )
+
+        result_sql = f"select tags nameoftbl from out_ctb3 order by tag_tbname;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "tb1")
+            and tdSql.compareData(1, 0, "tb2")
+        )
+
+    def checks4(self):
+        tdLog.info(f"start to check nodelay create output ctb with multiple tags")
+        result_sql = f"select * from information_schema.ins_stables where stable_name like 'out_ctb4';"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "out_ctb4")
+        )
+
+        result_sql = f"select tags tbname,nameoftbl,tagt1 from out_ctb4 order by tbname;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "out4_tb1")
+            and tdSql.compareData(1, 0, "tb1")
+            and tdSql.compareData(2, 0, "1")
+            and tdSql.compareData(3, 0, "out4_tb2")
+            and tdSql.compareData(4, 0, "tb2")
+            and tdSql.compareData(5, 0, "2")
+        )
+
+    def checks10(self):
+        result_sql = f"select * from information_schema.ins_tables where stable_name like 'out_normal';"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "out_normal")
+        )
+
+        result_sql = f"select * from out_normal;"
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 0
+        )
+    
+    def insertDataAndCheck(self):
+        tdLog.info(f"insert data and check")
+        sqls = [
+            "insert into tb1 values ('2025-01-01 00:00:00', 10001);",
+            "insert into tb2 values ('2025-01-01 00:00:01', 10002);",
+        ]
+        tdSql.executes(sqls)
+        tdLog.info(f"insert data successfully")
+        tdLog.info(f"start to check data")
+        result_sql = f"select c1,tag_tbname from out_ctb1 order by ts;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "10001")
+            and tdSql.compareData(0, 1, "tb1")
+            and tdSql.compareData(1, 0, "10002")
+            and tdSql.compareData(1, 1, "tb2")
+        )
+        result_sql = f"select c1,tag_tbname from out_ctb2 order by ts;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "10001")
+            and tdSql.compareData(0, 1, "tb1")
+            and tdSql.compareData(1, 0, "10002")
+            and tdSql.compareData(1, 1, "tb2")
+        )
+        result_sql = f"select c1,tbname,nameoftbl from out_ctb3 order by ts;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "10001")
+            and tdSql.compareData(0, 1, "out3_tb1")
+            and tdSql.compareData(0, 2, "tb1")
+            and tdSql.compareData(1, 0, "10002")
+            and tdSql.compareData(1, 1, "out3_tb2")
+            and tdSql.compareData(1, 2, "tb2")
+        )
+        result_sql = f"select c1,tbname,nameoftbl,tagt1 from out_ctb4 order by ts;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "10001")
+            and tdSql.compareData(0, 1, "out4_tb1")
+            and tdSql.compareData(0, 2, "tb1")
+            and tdSql.compareData(0, 3, "1")
+            and tdSql.compareData(1, 0, "10002")
+            and tdSql.compareData(1, 1, "out4_tb2")
+            and tdSql.compareData(1, 2, "tb2")
+            and tdSql.compareData(1, 3, "2")
+        )
+        result_sql = f"select * from out_normal order by ts;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+            and tdSql.compareData(0, 1, "10001")
         )
 
     class StreamItem:
