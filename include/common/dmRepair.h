@@ -23,12 +23,6 @@ extern "C" {
 #endif
 
 typedef enum {
-  DM_REPAIR_FILE_TYPE_META = 0,
-  DM_REPAIR_FILE_TYPE_TSDB,
-  DM_REPAIR_FILE_TYPE_WAL,
-} EDmRepairFileType;
-
-typedef enum {
   DM_REPAIR_STRATEGY_NONE = 0,
   DM_REPAIR_STRATEGY_META_FROM_UID,
   DM_REPAIR_STRATEGY_META_FROM_REDO,
@@ -37,17 +31,20 @@ typedef enum {
 } EDmRepairStrategy;
 
 typedef struct {
-  EDmRepairFileType fileType;
-  int32_t           vnodeId;
-  int32_t           fileId;
   EDmRepairStrategy strategy;
-} SDmRepairTarget;
+} SRepairMetaVnodeOpt;
+
+typedef struct {
+  EDmRepairStrategy strategy;
+} SRepairTsdbFileOpt;
 
 bool                  dmRepairFlowEnabled();
-int32_t               dmRepairTargetCount();
-const SDmRepairTarget *dmRepairTargetAt(int32_t index);
 bool                  dmRepairHasBackupPath();
 const char           *dmRepairBackupPath();
+const SRepairMetaVnodeOpt *dmRepairGetMetaVnodeOpt(int32_t vnodeId);
+bool                       dmRepairNeedTsdbRepair(int32_t vnodeId);
+const SRepairTsdbFileOpt  *dmRepairGetTsdbFileOpt(int32_t vnodeId, int32_t fileId);
+bool                       dmRepairNeedWalRepair(int32_t vnodeId);
 
 #ifdef __cplusplus
 }

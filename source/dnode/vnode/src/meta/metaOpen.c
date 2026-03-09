@@ -319,20 +319,15 @@ static bool metaForceRepairMatchesVnode(int32_t vgId, EDmRepairStrategy *pStrate
     return false;
   }
 
-  int32_t targetNum = dmRepairTargetCount();
-  for (int32_t i = 0; i < targetNum; ++i) {
-    const SDmRepairTarget *pTarget = dmRepairTargetAt(i);
-    if (pTarget == NULL || pTarget->fileType != DM_REPAIR_FILE_TYPE_META || pTarget->vnodeId != vgId) {
-      continue;
-    }
-
-    if (pStrategy != NULL) {
-      *pStrategy = pTarget->strategy;
-    }
-    return true;
+  const SRepairMetaVnodeOpt *pOpt = dmRepairGetMetaVnodeOpt(vgId);
+  if (pOpt == NULL) {
+    return false;
   }
 
-  return false;
+  if (pStrategy != NULL) {
+    *pStrategy = pOpt->strategy;
+  }
+  return true;
 }
 
 static bool metaShouldForceRepair(SVnode *pVnode, EDmRepairStrategy *pStrategy) {

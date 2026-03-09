@@ -95,6 +95,15 @@ taosd -r \
 - `tsdbFS2.c` 已改为按 `vnode + fileid` 匹配 target，而不再读取全局 `--vnode-id` 字符串。
 - `test_meta_force_repair.py` 与 `test_tsdb_force_repair.py` 已迁移到新语法。
 
+## Data Model Update (Refined)
+- `SDmRepairOption` 不再以通用 `SArray<SDmRepairTarget>` 作为运行时主模型。
+- 当前运行时模型已改为三类聚合结构：
+  - `meta`: `vnodeId -> SRepairMetaVnodeOpt`
+  - `wal`: `vnodeId -> presence`
+  - `tsdb`: `vnodeId -> (fileId -> SRepairTsdbFileOpt)`
+- `include/common/dmRepair.h` 现在只暴露叶子配置和专用 accessor，不暴露底层容器。
+- `metaOpen.c` / `tsdbFS2.c` 已切换到专用 accessor，不再循环扫描通用 target 列表。
+
 ## Runtime Findings
 - `metaBackupCurrentMeta()` 在旧实现里存在但未被 `metaForceRepair()` 调用；本轮已补入调用。
 - `meta` 的 parser/syntax 用例通过，但真实 backup 用例在当前 pytest 环境下仍未生成外部 backup 目录，后续需要继续抓 repair 进程输出确认卡点。

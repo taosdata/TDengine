@@ -14,8 +14,6 @@
  */
 #define _DEFAULT_SOURCE
 
-#include <ctype.h>
-
 #include "dmMgmt.h"
 #include "dmUtil.h"
 #include "mnode.h"
@@ -50,6 +48,46 @@
 #define DM_SET_ENCRYPTKEY  "Set encrypt key. such as: -y 1234567890abcdef, the length should be less or equal to 16."
 #define DM_REPAIR_MODE   "Start repair mode."
 
+typedef enum {
+  DM_REPAIR_TARGET_META = 0,
+  DM_REPAIR_TARGET_TSDB,
+  DM_REPAIR_TARGET_WAL,
+} EDmRepairTargetType;
+
+typedef struct {
+  uint8_t reserved;
+} SRepairWalVnodeOpt;
+
+typedef struct {
+  SHashObj *pByVnode;  // key: int32_t vnodeId, value: SRepairMetaVnodeOpt
+  int32_t   numOfVnodes;
+  bool      enabled;
+} SRepairMetaOpt;
+
+typedef struct {
+  SHashObj *pByFileId;  // key: int32_t fileId, value: SRepairTsdbFileOpt
+  int32_t   numOfFiles;
+} SRepairTsdbVnodeOpt;
+
+typedef struct {
+  SHashObj *pByVnode;  // key: int32_t vnodeId, value: SRepairTsdbVnodeOpt
+  int32_t   numOfVnodes;
+  bool      enabled;
+} SRepairTsdbOpt;
+
+typedef struct {
+  SHashObj *pByVnode;  // key: int32_t vnodeId, value: SRepairWalVnodeOpt
+  int32_t   numOfVnodes;
+  bool      enabled;
+} SRepairWalOpt;
+
+typedef struct {
+  EDmRepairTargetType type;
+  int32_t             vnodeId;
+  int32_t             fileId;
+  EDmRepairStrategy   strategy;
+} SDmParsedRepairTarget;
+
 typedef struct {
   bool withR;                 // -r
   bool hasRepairArgs;
@@ -60,7 +98,9 @@ typedef struct {
   char backupPath[PATH_MAX];  // --backup-path
   char mode[32];              // --mode
                               //   force: single node recovery mode. (Recovery as mush data as possible with local info)
-  SArray *pTargets;           // SDmRepairTarget
+  SRepairMetaOpt metaOpt;
+  SRepairTsdbOpt tsdbOpt;
+  SRepairWalOpt  walOpt;
 } SDmRepairOption;
 // clang-format on
 
@@ -251,13 +291,13 @@ static int32_t dmParseLongOptionValue(int32_t argc, char const *argv[], int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-static const char *dmRepairFileTypeName(EDmRepairFileType fileType) {
+static const char *dmRepairFileTypeName(EDmRepairTargetType fileType) {
   switch (fileType) {
-    case DM_REPAIR_FILE_TYPE_META:
+    case DM_REPAIR_TARGET_META:
       return "meta";
-    case DM_REPAIR_FILE_TYPE_TSDB:
+    case DM_REPAIR_TARGET_TSDB:
       return "tsdb";
-    case DM_REPAIR_FILE_TYPE_WAL:
+    case DM_REPAIR_TARGET_WAL:
       return "wal";
     default:
       return "unknown";
@@ -269,25 +309,68 @@ static int32_t dmRepairTargetError(const char *raw, const char *reason) {
   return TSDB_CODE_INVALID_PARA;
 }
 
-static bool dmParseRepairFileType(const char *token, EDmRepairFileType *pFileType) {
+static void dmCleanupMetaRepairOpt(SRepairMetaOpt *pOpt) {
+  if (pOpt->pByVnode != NULL) {
+    taosHashCleanup(pOpt->pByVnode);
+    pOpt->pByVnode = NULL;
+  }
+  pOpt->numOfVnodes = 0;
+  pOpt->enabled = false;
+}
+
+static void dmCleanupWalRepairOpt(SRepairWalOpt *pOpt) {
+  if (pOpt->pByVnode != NULL) {
+    taosHashCleanup(pOpt->pByVnode);
+    pOpt->pByVnode = NULL;
+  }
+  pOpt->numOfVnodes = 0;
+  pOpt->enabled = false;
+}
+
+static void dmCleanupTsdbRepairOpt(SRepairTsdbOpt *pOpt) {
+  if (pOpt->pByVnode != NULL) {
+    SRepairTsdbVnodeOpt *pVnodeOpt = taosHashIterate(pOpt->pByVnode, NULL);
+    while (pVnodeOpt != NULL) {
+      if (pVnodeOpt->pByFileId != NULL) {
+        taosHashCleanup(pVnodeOpt->pByFileId);
+        pVnodeOpt->pByFileId = NULL;
+      }
+      pVnodeOpt = taosHashIterate(pOpt->pByVnode, pVnodeOpt);
+    }
+
+    taosHashCleanup(pOpt->pByVnode);
+    pOpt->pByVnode = NULL;
+  }
+
+  pOpt->numOfVnodes = 0;
+  pOpt->enabled = false;
+}
+
+static void dmCleanupRepairOption(SDmRepairOption *pOpt) {
+  dmCleanupMetaRepairOpt(&pOpt->metaOpt);
+  dmCleanupTsdbRepairOpt(&pOpt->tsdbOpt);
+  dmCleanupWalRepairOpt(&pOpt->walOpt);
+}
+
+static bool dmParseRepairFileType(const char *token, EDmRepairTargetType *pFileType) {
   if (strcmp(token, "meta") == 0) {
-    *pFileType = DM_REPAIR_FILE_TYPE_META;
+    *pFileType = DM_REPAIR_TARGET_META;
     return true;
   }
   if (strcmp(token, "tsdb") == 0) {
-    *pFileType = DM_REPAIR_FILE_TYPE_TSDB;
+    *pFileType = DM_REPAIR_TARGET_TSDB;
     return true;
   }
   if (strcmp(token, "wal") == 0) {
-    *pFileType = DM_REPAIR_FILE_TYPE_WAL;
+    *pFileType = DM_REPAIR_TARGET_WAL;
     return true;
   }
 
   return false;
 }
 
-static bool dmParseRepairStrategy(EDmRepairFileType fileType, const char *value, EDmRepairStrategy *pStrategy) {
-  if (fileType == DM_REPAIR_FILE_TYPE_META) {
+static bool dmParseRepairStrategy(EDmRepairTargetType fileType, const char *value, EDmRepairStrategy *pStrategy) {
+  if (fileType == DM_REPAIR_TARGET_META) {
     if (strcmp(value, "from_uid") == 0) {
       *pStrategy = DM_REPAIR_STRATEGY_META_FROM_UID;
       return true;
@@ -299,7 +382,7 @@ static bool dmParseRepairStrategy(EDmRepairFileType fileType, const char *value,
     return false;
   }
 
-  if (fileType == DM_REPAIR_FILE_TYPE_TSDB) {
+  if (fileType == DM_REPAIR_TARGET_TSDB) {
     if (strcmp(value, "shallow_repair") == 0) {
       *pStrategy = DM_REPAIR_STRATEGY_TSDB_SHALLOW_REPAIR;
       return true;
@@ -314,11 +397,11 @@ static bool dmParseRepairStrategy(EDmRepairFileType fileType, const char *value,
   return false;
 }
 
-static EDmRepairStrategy dmDefaultRepairStrategy(EDmRepairFileType fileType) {
+static EDmRepairStrategy dmDefaultRepairStrategy(EDmRepairTargetType fileType) {
   switch (fileType) {
-    case DM_REPAIR_FILE_TYPE_META:
+    case DM_REPAIR_TARGET_META:
       return DM_REPAIR_STRATEGY_META_FROM_UID;
-    case DM_REPAIR_FILE_TYPE_TSDB:
+    case DM_REPAIR_TARGET_TSDB:
       return DM_REPAIR_STRATEGY_TSDB_SHALLOW_REPAIR;
     default:
       return DM_REPAIR_STRATEGY_NONE;
@@ -338,43 +421,122 @@ static int32_t dmParseRepairPositiveInt(const char *rawTarget, const char *key, 
   return TSDB_CODE_SUCCESS;
 }
 
-static bool dmRepairTargetsConflict(const SDmRepairTarget *lhs, const SDmRepairTarget *rhs) {
-  if (lhs->fileType != rhs->fileType || lhs->vnodeId != rhs->vnodeId) {
-    return false;
-  }
-
-  if (lhs->fileType == DM_REPAIR_FILE_TYPE_TSDB) {
-    return lhs->fileId == rhs->fileId;
-  }
-
-  return true;
-}
-
-static int32_t dmValidateRepairTargetUnique(const SDmRepairTarget *pTarget) {
-  if (global.repairOpt.pTargets == NULL) {
+static int32_t dmEnsureMetaRepairHash(SRepairMetaOpt *pOpt) {
+  if (pOpt->pByVnode != NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t targetNum = taosArrayGetSize(global.repairOpt.pTargets);
-  for (int32_t i = 0; i < targetNum; ++i) {
-    const SDmRepairTarget *pExisting = taosArrayGet(global.repairOpt.pTargets, i);
-    if (pExisting == NULL || !dmRepairTargetsConflict(pExisting, pTarget)) {
-      continue;
-    }
+  pOpt->pByVnode = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  return pOpt->pByVnode == NULL ? terrno : TSDB_CODE_SUCCESS;
+}
 
-    if (pTarget->fileType == DM_REPAIR_FILE_TYPE_TSDB) {
-      printf("duplicated repair target for %s vnode %d fileid %d\n", dmRepairFileTypeName(pTarget->fileType),
-             pTarget->vnodeId, pTarget->fileId);
-    } else {
-      printf("duplicated repair target for %s vnode %d\n", dmRepairFileTypeName(pTarget->fileType), pTarget->vnodeId);
-    }
+static int32_t dmEnsureWalRepairHash(SRepairWalOpt *pOpt) {
+  if (pOpt->pByVnode != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pOpt->pByVnode = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  return pOpt->pByVnode == NULL ? terrno : TSDB_CODE_SUCCESS;
+}
+
+static int32_t dmEnsureTsdbRepairHash(SRepairTsdbOpt *pOpt) {
+  if (pOpt->pByVnode != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pOpt->pByVnode = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  return pOpt->pByVnode == NULL ? terrno : TSDB_CODE_SUCCESS;
+}
+
+static int32_t dmInsertMetaRepairTarget(SDmRepairOption *pOpt, int32_t vnodeId, EDmRepairStrategy strategy) {
+  int32_t code = dmEnsureMetaRepairHash(&pOpt->metaOpt);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (taosHashGet(pOpt->metaOpt.pByVnode, &vnodeId, sizeof(vnodeId)) != NULL) {
+    printf("duplicated repair target for meta vnode %d\n", vnodeId);
     return TSDB_CODE_INVALID_PARA;
   }
 
+  SRepairMetaVnodeOpt vnodeOpt = {.strategy = strategy};
+  code = taosHashPut(pOpt->metaOpt.pByVnode, &vnodeId, sizeof(vnodeId), &vnodeOpt, sizeof(vnodeOpt));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  pOpt->metaOpt.enabled = true;
+  pOpt->metaOpt.numOfVnodes++;
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t dmParseRepairTarget(const char *raw, SDmRepairTarget *pTarget) {
+static int32_t dmInsertWalRepairTarget(SDmRepairOption *pOpt, int32_t vnodeId) {
+  int32_t code = dmEnsureWalRepairHash(&pOpt->walOpt);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (taosHashGet(pOpt->walOpt.pByVnode, &vnodeId, sizeof(vnodeId)) != NULL) {
+    printf("duplicated repair target for wal vnode %d\n", vnodeId);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SRepairWalVnodeOpt vnodeOpt = {.reserved = 0};
+  code = taosHashPut(pOpt->walOpt.pByVnode, &vnodeId, sizeof(vnodeId), &vnodeOpt, sizeof(vnodeOpt));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  pOpt->walOpt.enabled = true;
+  pOpt->walOpt.numOfVnodes++;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t dmInsertTsdbRepairTarget(SDmRepairOption *pOpt, int32_t vnodeId, int32_t fileId,
+                                        EDmRepairStrategy strategy) {
+  int32_t code = dmEnsureTsdbRepairHash(&pOpt->tsdbOpt);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  SRepairTsdbVnodeOpt *pVnodeOpt = taosHashGet(pOpt->tsdbOpt.pByVnode, &vnodeId, sizeof(vnodeId));
+  if (pVnodeOpt == NULL) {
+    SRepairTsdbVnodeOpt vnodeOpt = {0};
+    vnodeOpt.pByFileId = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+    if (vnodeOpt.pByFileId == NULL) {
+      return terrno;
+    }
+
+    code = taosHashPut(pOpt->tsdbOpt.pByVnode, &vnodeId, sizeof(vnodeId), &vnodeOpt, sizeof(vnodeOpt));
+    if (code != TSDB_CODE_SUCCESS) {
+      taosHashCleanup(vnodeOpt.pByFileId);
+      return code;
+    }
+
+    pOpt->tsdbOpt.numOfVnodes++;
+    pVnodeOpt = taosHashGet(pOpt->tsdbOpt.pByVnode, &vnodeId, sizeof(vnodeId));
+    if (pVnodeOpt == NULL) {
+      return TSDB_CODE_FAILED;
+    }
+  }
+
+  if (taosHashGet(pVnodeOpt->pByFileId, &fileId, sizeof(fileId)) != NULL) {
+    printf("duplicated repair target for tsdb vnode %d fileid %d\n", vnodeId, fileId);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SRepairTsdbFileOpt fileOpt = {.strategy = strategy};
+  code = taosHashPut(pVnodeOpt->pByFileId, &fileId, sizeof(fileId), &fileOpt, sizeof(fileOpt));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  pVnodeOpt->numOfFiles++;
+  pOpt->tsdbOpt.enabled = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t dmParseRepairTarget(const char *raw, SDmParsedRepairTarget *pTarget) {
   char buf[PATH_MAX] = {0};
   tstrncpy(buf, raw, sizeof(buf));
 
@@ -397,7 +559,7 @@ static int32_t dmParseRepairTarget(const char *raw, SDmRepairTarget *pTarget) {
     }
 
     if (!hasFileType) {
-      if (!dmParseRepairFileType(cursor, &pTarget->fileType)) {
+      if (!dmParseRepairFileType(cursor, &pTarget->type)) {
         char reason[128] = {0};
         snprintf(reason, sizeof(reason), "unknown file type '%s'", cursor);
         return dmRepairTargetError(raw, reason);
@@ -423,10 +585,10 @@ static int32_t dmParseRepairTarget(const char *raw, SDmRepairTarget *pTarget) {
         }
         hasVnode = true;
       } else if (strcmp(key, "fileid") == 0) {
-        if (pTarget->fileType != DM_REPAIR_FILE_TYPE_TSDB) {
+        if (pTarget->type != DM_REPAIR_TARGET_TSDB) {
           char reason[128] = {0};
           snprintf(reason, sizeof(reason), "key 'fileid' is not allowed for file type '%s'",
-                   dmRepairFileTypeName(pTarget->fileType));
+                   dmRepairFileTypeName(pTarget->type));
           return dmRepairTargetError(raw, reason);
         }
         if (hasFileId) {
@@ -438,16 +600,16 @@ static int32_t dmParseRepairTarget(const char *raw, SDmRepairTarget *pTarget) {
         }
         hasFileId = true;
       } else if (strcmp(key, "strategy") == 0) {
-        if (pTarget->fileType == DM_REPAIR_FILE_TYPE_WAL) {
+        if (pTarget->type == DM_REPAIR_TARGET_WAL) {
           return dmRepairTargetError(raw, "key 'strategy' is not supported for file type 'wal' in current phase");
         }
         if (hasStrategy) {
           return dmRepairTargetError(raw, "duplicated key 'strategy'");
         }
-        if (!dmParseRepairStrategy(pTarget->fileType, value, &pTarget->strategy)) {
+        if (!dmParseRepairStrategy(pTarget->type, value, &pTarget->strategy)) {
           char reason[160] = {0};
           snprintf(reason, sizeof(reason), "invalid strategy '%s' for file type '%s'", value,
-                   dmRepairFileTypeName(pTarget->fileType));
+                   dmRepairFileTypeName(pTarget->type));
           return dmRepairTargetError(raw, reason);
         }
         hasStrategy = true;
@@ -468,12 +630,12 @@ static int32_t dmParseRepairTarget(const char *raw, SDmRepairTarget *pTarget) {
     return dmRepairTargetError(raw, "missing required key 'vnode'");
   }
 
-  if (pTarget->fileType == DM_REPAIR_FILE_TYPE_TSDB && !hasFileId) {
+  if (pTarget->type == DM_REPAIR_TARGET_TSDB && !hasFileId) {
     return dmRepairTargetError(raw, "missing required key 'fileid'");
   }
 
   if (!hasStrategy) {
-    pTarget->strategy = dmDefaultRepairStrategy(pTarget->fileType);
+    pTarget->strategy = dmDefaultRepairStrategy(pTarget->type);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -500,7 +662,7 @@ static int32_t dmValidateRepairOption() {
     return TSDB_CODE_OPS_NOT_SUPPORT;
   }
 
-  if (pOpt->pTargets == NULL || taosArrayGetSize(pOpt->pTargets) == 0) {
+  if (!pOpt->metaOpt.enabled && !pOpt->tsdbOpt.enabled && !pOpt->walOpt.enabled) {
     printf("missing '--repair-target' in repair mode\n");
     return TSDB_CODE_INVALID_PARA;
   }
@@ -551,14 +713,24 @@ static int32_t dmParseRepairOption(int32_t argc, char const *argv[], int32_t *pI
     code = dmParseLongOptionValue(argc, argv, &index, "--repair-target", targetBuf, sizeof(targetBuf), &optMatched);
     if (code != 0) return code;
     if (optMatched) {
-      SDmRepairTarget target = {0};
+      SDmParsedRepairTarget target = {0};
       code = dmParseRepairTarget(targetBuf, &target);
       if (code != 0) return code;
-      code = dmValidateRepairTargetUnique(&target);
-      if (code != 0) return code;
-      if (taosArrayPush(pOpt->pTargets, &target) == NULL) {
-        return terrno;
+      switch (target.type) {
+        case DM_REPAIR_TARGET_META:
+          code = dmInsertMetaRepairTarget(pOpt, target.vnodeId, target.strategy);
+          break;
+        case DM_REPAIR_TARGET_TSDB:
+          code = dmInsertTsdbRepairTarget(pOpt, target.vnodeId, target.fileId, target.strategy);
+          break;
+        case DM_REPAIR_TARGET_WAL:
+          code = dmInsertWalRepairTarget(pOpt, target.vnodeId);
+          break;
+        default:
+          code = TSDB_CODE_INVALID_PARA;
+          break;
       }
+      if (code != TSDB_CODE_SUCCESS) return code;
       pOpt->hasRepairArgs = true;
       matched = true;
     }
@@ -576,7 +748,7 @@ static int32_t dmFinalizeRepairOption() {
   SDmRepairOption *pOpt = &global.repairOpt;
   global.runRepairFlow = false;
 
-  if (pOpt->pTargets != NULL && taosArrayGetSize(pOpt->pTargets) > 0 && !pOpt->withR) {
+  if ((pOpt->metaOpt.enabled || pOpt->tsdbOpt.enabled || pOpt->walOpt.enabled) && !pOpt->withR) {
     printf("'--repair-target' must be used with '-r'\n");
     return TSDB_CODE_INVALID_PARA;
   }
@@ -612,30 +784,51 @@ static int32_t dmFinalizeRepairOption() {
 
 bool dmRepairFlowEnabled() { return global.runRepairFlow; }
 
-int32_t dmRepairTargetCount() {
-  return global.repairOpt.pTargets == NULL ? 0 : taosArrayGetSize(global.repairOpt.pTargets);
-}
-
-const SDmRepairTarget *dmRepairTargetAt(int32_t index) {
-  if (global.repairOpt.pTargets == NULL || index < 0 || index >= taosArrayGetSize(global.repairOpt.pTargets)) {
-    return NULL;
-  }
-
-  return taosArrayGet(global.repairOpt.pTargets, index);
-}
-
 bool dmRepairHasBackupPath() { return global.repairOpt.hasBackupPath; }
 
 const char *dmRepairBackupPath() { return global.repairOpt.backupPath; }
+
+const SRepairMetaVnodeOpt *dmRepairGetMetaVnodeOpt(int32_t vnodeId) {
+  if (global.repairOpt.metaOpt.pByVnode == NULL) {
+    return NULL;
+  }
+
+  return taosHashGet(global.repairOpt.metaOpt.pByVnode, &vnodeId, sizeof(vnodeId));
+}
+
+bool dmRepairNeedTsdbRepair(int32_t vnodeId) {
+  if (global.repairOpt.tsdbOpt.pByVnode == NULL) {
+    return false;
+  }
+
+  return taosHashGet(global.repairOpt.tsdbOpt.pByVnode, &vnodeId, sizeof(vnodeId)) != NULL;
+}
+
+const SRepairTsdbFileOpt *dmRepairGetTsdbFileOpt(int32_t vnodeId, int32_t fileId) {
+  if (global.repairOpt.tsdbOpt.pByVnode == NULL) {
+    return NULL;
+  }
+
+  SRepairTsdbVnodeOpt *pVnodeOpt = taosHashGet(global.repairOpt.tsdbOpt.pByVnode, &vnodeId, sizeof(vnodeId));
+  if (pVnodeOpt == NULL || pVnodeOpt->pByFileId == NULL) {
+    return NULL;
+  }
+
+  return taosHashGet(pVnodeOpt->pByFileId, &fileId, sizeof(fileId));
+}
+
+bool dmRepairNeedWalRepair(int32_t vnodeId) {
+  if (global.repairOpt.walOpt.pByVnode == NULL) {
+    return false;
+  }
+
+  return taosHashGet(global.repairOpt.walOpt.pByVnode, &vnodeId, sizeof(vnodeId)) != NULL;
+}
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   global.startTime = taosGetTimestampMs();
   generateNewMeta = false;
   memset(&global.repairOpt, 0, sizeof(global.repairOpt));
-  global.repairOpt.pTargets = taosArrayInit(4, sizeof(SDmRepairTarget));
-  if (global.repairOpt.pTargets == NULL) {
-    return terrno;
-  }
 
   int32_t cmdEnvIndex = 0;
   if (argc < 2) return 0;
@@ -904,8 +1097,7 @@ static int32_t dmInitLog() {
 
 static void taosCleanupArgs() {
   if (global.envCmd != NULL) taosMemoryFreeClear(global.envCmd);
-  if (global.repairOpt.pTargets != NULL) taosArrayDestroy(global.repairOpt.pTargets);
-  global.repairOpt.pTargets = NULL;
+  dmCleanupRepairOption(&global.repairOpt);
 }
 
 #ifdef TAOSD_INTEGRATED

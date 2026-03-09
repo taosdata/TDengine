@@ -47,6 +47,23 @@
   - `test/cases/80-Components/01-Taosd/test_meta_force_repair.py` (modified)
   - `test/cases/80-Components/01-Taosd/test_tsdb_force_repair.py` (modified)
 
+### Phase 3 补记：运行时结构从通用 target array 收敛到按类型聚合
+- **Status:** complete
+- Actions taken:
+  - 将 `include/common/dmRepair.h` 收敛为“叶子配置 + 专用 accessor”，去掉通用 `SDmRepairTarget` 暴露。
+  - 将 `dmMain.c` 的运行时持有结构从通用 `SArray` 改为三类聚合索引：
+    - `meta`: `vnodeId -> strategy`
+    - `wal`: `vnodeId -> enabled`
+    - `tsdb`: `vnodeId -> fileId -> strategy`
+  - `metaOpen.c` / `tsdbFS2.c` 改为调用专用 accessor，不再循环扫描通用 target array。
+  - 重新构建 `taosd` 并回归 `test_com_cmdline.py -k repair_cmdline_repair_target`，均通过。
+- Files created/modified:
+  - `include/common/dmRepair.h` (modified)
+  - `source/dnode/mgmt/exe/dmMain.c` (modified)
+  - `source/dnode/vnode/src/meta/metaOpen.c` (modified)
+  - `source/dnode/vnode/src/tsdb/tsdbFS2.c` (modified)
+  - `source/dnode/vnode/src/vnd/vnodeRepair.c` (modified)
+
 ## Verification
 | Check | Expected | Actual | Status |
 |-------|----------|--------|--------|
@@ -61,6 +78,7 @@
 | `cd test && ./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_meta_force_repair.py -q` | meta runtime updated | 1 passed, 1 failed | FAIL |
 | `cd test && ./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_tsdb_force_repair.py -k 'dispatches_in_open_fs or enters_real_execution_path' -q` | tsdb entry smoke | 2 skipped | PARTIAL |
 | `cd test && ./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_tsdb_force_repair.py -k removes_missing_head_data_sma_from_current -q` | fake-fid fileset removal works | 1 failed | FAIL |
+| `cd test && ./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_cmdline.py -k repair_cmdline_repair_target -q` after data-model refactor | parser cases still pass | 1 passed | PASS |
 
 ## Error Log
 | Timestamp | Error | Attempt | Resolution |

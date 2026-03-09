@@ -120,33 +120,19 @@ static void tsdbMarkForceRepairDone(int32_t vgId) {
 }
 
 static bool tsdbRepairHasTargetForVnode(int32_t vgId) {
-  int32_t targetNum = dmRepairTargetCount();
-  for (int32_t i = 0; i < targetNum; ++i) {
-    const SDmRepairTarget *pTarget = dmRepairTargetAt(i);
-    if (pTarget != NULL && pTarget->fileType == DM_REPAIR_FILE_TYPE_TSDB && pTarget->vnodeId == vgId) {
-      return true;
-    }
-  }
-
-  return false;
+  return dmRepairNeedTsdbRepair(vgId);
 }
 
 static bool tsdbRepairMatchTargetForFid(int32_t vgId, int32_t fid, EDmRepairStrategy *pStrategy) {
-  int32_t targetNum = dmRepairTargetCount();
-  for (int32_t i = 0; i < targetNum; ++i) {
-    const SDmRepairTarget *pTarget = dmRepairTargetAt(i);
-    if (pTarget == NULL || pTarget->fileType != DM_REPAIR_FILE_TYPE_TSDB || pTarget->vnodeId != vgId ||
-        pTarget->fileId != fid) {
-      continue;
-    }
-
-    if (pStrategy != NULL) {
-      *pStrategy = pTarget->strategy;
-    }
-    return true;
+  const SRepairTsdbFileOpt *pOpt = dmRepairGetTsdbFileOpt(vgId, fid);
+  if (pOpt == NULL) {
+    return false;
   }
 
-  return false;
+  if (pStrategy != NULL) {
+    *pStrategy = pOpt->strategy;
+  }
+  return true;
 }
 
 static bool tsdbShouldForceRepair(STFileSystem *fs) {
