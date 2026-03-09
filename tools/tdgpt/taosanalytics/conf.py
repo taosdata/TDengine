@@ -151,7 +151,10 @@ app_logger = AppLogger()
 
 def setup_log_info(name: str):
     """ prepare the log info for unit test """
-    app_logger.set_handler(name)
+    base_dir = "/home/runner/work/TDengine/TDengine/tools/tdgpt/log/" if os.environ.get('GITHUB_ACTIONS') else conf.get_log_dir()
+    log_file = os.path.join(base_dir, name)
+
+    app_logger.set_handler(log_file)
 
     try:
         app_logger.set_log_level(logging.DEBUG)
