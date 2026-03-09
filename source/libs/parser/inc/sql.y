@@ -59,7 +59,7 @@ int32_t taosParseShortWeekday(const char* str);
 %right NOT.
 %left NK_ARROW.
 
-%right INNER LEFT RIGHT FULL OUTER SEMI ANTI ASOF WINDOW JOIN ON WINDOW_OFFSET JLIMIT.
+%right INNER LEFT RIGHT FULL OUTER SEMI ANTI ASOF WINDOW JOIN ON WINDOW_OFFSET JLIMIT ANY SOME EXISTS.
 
 /************************************************ create/alter account *****************************************/
 cmd ::= CREATE ACCOUNT NK_ID PASS NK_STRING account_options.                      { pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
@@ -2297,12 +2297,22 @@ case_when_else_opt(A) ::= .                                                     
 case_when_else_opt(A) ::= ELSE common_expression(B).                              { A = releaseRawExprNode(pCxt, B); }
 
 /************************************************ predicate ***********************************************************/
+%type quantified_expr                                                             { EQuantifyType }           
+%destructor quantified_expr                                                       { }                         
+quantified_expr(A) ::= ANY.                                                       { A = QU_TYPE_ANY; } 
+quantified_expr(A) ::= SOME.                                                      { A = QU_TYPE_ANY; }
+quantified_expr(A) ::= ALL.                                                       { A = QU_TYPE_ALL; }
+
 predicate(A) ::= expr_or_subquery(B) compare_op(C) expr_or_subquery(D).           {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, D);
                                                                                     A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, C, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, D)));
                                                                                   }
-//predicate(A) ::= expression(B) compare_op sub_type expression(B).
+predicate(A) ::= expr_or_subquery(B) quantified_compare_op(C) quantified_expr(D) subquery(E).    {
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, E);
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, C, releaseRawExprNode(pCxt, B), setNodeQuantifyType(pCxt, releaseRawExprNode(pCxt, E), D)));
+                                                                                  }
 predicate(A) ::=
   expr_or_subquery(B) BETWEEN expr_or_subquery(C) AND expr_or_subquery(D).        {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
@@ -2334,15 +2344,28 @@ predicate(A) ::= expr_or_subquery(B) in_op(C) in_predicate_value(D).            
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, D);
                                                                                     A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, C, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, D)));
                                                                                   }
+predicate(A) ::= EXISTS(B) subquery(C).                                           {
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, C);
+                                                                                    A = createRawExprNodeExt(pCxt, &B, &e, createOperatorNode(pCxt, OP_TYPE_EXISTS, releaseRawExprNode(pCxt, C), NULL));
+                                                                                  }
+predicate(A) ::= NOT(B) EXISTS subquery(C).                                       {
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, C);
+                                                                                    A = createRawExprNodeExt(pCxt, &B, &e, createOperatorNode(pCxt, OP_TYPE_NOT_EXISTS, releaseRawExprNode(pCxt, C), NULL));
+                                                                                  }
+
+
+%type quantified_compare_op                                                       { EOperatorType }
+%destructor quantified_compare_op                                                 { }
+quantified_compare_op(A) ::= NK_LT.                                               { A = OP_TYPE_LOWER_THAN; }
+quantified_compare_op(A) ::= NK_GT.                                               { A = OP_TYPE_GREATER_THAN; }
+quantified_compare_op(A) ::= NK_LE.                                               { A = OP_TYPE_LOWER_EQUAL; }
+quantified_compare_op(A) ::= NK_GE.                                               { A = OP_TYPE_GREATER_EQUAL; }
+quantified_compare_op(A) ::= NK_NE.                                               { A = OP_TYPE_NOT_EQUAL; }
+quantified_compare_op(A) ::= NK_EQ.                                               { A = OP_TYPE_EQUAL; }
 
 %type compare_op                                                                  { EOperatorType }
 %destructor compare_op                                                            { }
-compare_op(A) ::= NK_LT.                                                          { A = OP_TYPE_LOWER_THAN; }
-compare_op(A) ::= NK_GT.                                                          { A = OP_TYPE_GREATER_THAN; }
-compare_op(A) ::= NK_LE.                                                          { A = OP_TYPE_LOWER_EQUAL; }
-compare_op(A) ::= NK_GE.                                                          { A = OP_TYPE_GREATER_EQUAL; }
-compare_op(A) ::= NK_NE.                                                          { A = OP_TYPE_NOT_EQUAL; }
-compare_op(A) ::= NK_EQ.                                                          { A = OP_TYPE_EQUAL; }
+compare_op(A) ::= quantified_compare_op(B).                                       { A = B; }
 compare_op(A) ::= LIKE.                                                           { A = OP_TYPE_LIKE; }
 compare_op(A) ::= NOT LIKE.                                                       { A = OP_TYPE_NOT_LIKE; }
 compare_op(A) ::= MATCH.                                                          { A = OP_TYPE_MATCH; }
@@ -2576,9 +2599,12 @@ twindow_clause_opt(A) ::= EVENT_WINDOW START WITH search_condition(B)
   END WITH search_condition(C) true_for_opt(D).                                   { A = createEventWindowNode(pCxt, B, C, D); }
 twindow_clause_opt(A) ::= COUNT_WINDOW NK_LP count_window_args(B) NK_RP.          { A = createCountWindowNodeFromArgs(pCxt, B); }
 twindow_clause_opt(A) ::=
-  ANOMALY_WINDOW NK_LP expr_or_subquery(B) NK_RP.                                 { A = createAnomalyWindowNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
-twindow_clause_opt(A) ::=
-  ANOMALY_WINDOW NK_LP expr_or_subquery(B) NK_COMMA NK_STRING(C) NK_RP.           { A = createAnomalyWindowNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
+  ANOMALY_WINDOW NK_LP anomaly_col_list(B) NK_RP.                                 { A = createAnomalyWindowNode(pCxt, B); }
+
+%type anomaly_col_list                                                            { SNodeList* }
+%destructor anomaly_col_list                                                      { nodesDestroyList($$); }
+anomaly_col_list(A) ::= expr_or_subquery(B).                                      { A = createNodeList(pCxt, releaseRawExprNode(pCxt, B)); }
+anomaly_col_list(A) ::= anomaly_col_list(B) NK_COMMA expr_or_subquery(C).         { A = addNodeToList(pCxt, B, releaseRawExprNode(pCxt, C)); }
 
 extend_literal(A) ::= NK_INTEGER(B).                                              { A = createValueNode(pCxt, TSDB_DATA_TYPE_INT, &B); }
 

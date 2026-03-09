@@ -141,11 +141,11 @@ def get_dynamic_data(data, schema):
     return None if len(dynamic) == 0 else dynamic
 
 
-def get_second_data_list(data, schema):
+def get_more_data_list(data, schema, name='val1'):
     second_list = []
 
     for index, val in enumerate(schema):
-        if val[0] == 'val1':
+        if val[0] == name:
             second_list = data[index]
 
     return None if len(second_list) == 0 else second_list
@@ -168,16 +168,16 @@ def create_sequences(values, time_steps):
 
 def do_initial_check(request):
     if not request.is_json:
-        app_logger.log_inst.error('recv invalid request, %s', request.data)
+        app_logger.log_inst.error('recv invalid request, only json allowed. %s', request.data)
         raise ValueError("invalid request format")
 
     try:
         req_json = request.json
     except Exception as e:
+        app_logger.log_inst.error('recv invalid request, invalid json format:%s', request.data)
         raise ValueError(e)
 
     app_logger.log_inst.debug('req payload: %s', req_json)
-
     return req_json
 
 def do_check_before_exec(request, check_rows=True):

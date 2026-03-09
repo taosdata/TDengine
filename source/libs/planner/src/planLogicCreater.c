@@ -1442,22 +1442,6 @@ _return:
   return code;
 }
 
-static SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) {
-  SColumnNode* pCol = NULL;
-  terrno = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
-  if (NULL == pCol) {
-    return NULL;
-  }
-  pCol->node.resType = pExpr->resType;
-  snprintf(pCol->colName, sizeof(pCol->colName), "%s", pExpr->aliasName);
-  if (NULL != pStmtName) {
-    snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", pStmtName);
-  }
-  snprintf(pCol->node.userAlias, sizeof(pCol->node.userAlias), "%s", pExpr->userAlias);
-  pCol->node.relatedTo = pExpr->relatedTo;
-  return pCol;
-}
-
 static int32_t createGroupingSetNode(SNode* pExpr, SNode** ppNode) {
   SGroupingSetNode* pGroupingSet = NULL;
   int32_t           code = 0;
@@ -2103,7 +2087,7 @@ static int32_t createWindowLogicNodeByAnomaly(SLogicPlanContext* pCxt, SAnomalyW
   pWindow->node.resultDataOrder = pWindow->node.requireDataOrder;
 
   pWindow->pAnomalyExpr = NULL;
-  code = nodesCloneNode(pAnomaly->pExpr, &pWindow->pAnomalyExpr);
+  code = nodesCloneList(pAnomaly->pExpr, &pWindow->pAnomalyExpr);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pWindow);
     return code;
@@ -2119,7 +2103,7 @@ static int32_t createWindowLogicNodeByAnomaly(SLogicPlanContext* pCxt, SAnomalyW
   }
 
   // rewrite the expression in subsequent clauses
-  code = rewriteExprForSelect(pWindow->pAnomalyExpr, pSelect, SQL_CLAUSE_WINDOW);
+  code = rewriteExprsForSelect(pWindow->pAnomalyExpr, pSelect, SQL_CLAUSE_WINDOW, NULL);
   if (TSDB_CODE_SUCCESS == code) {
     code = createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
   } else {

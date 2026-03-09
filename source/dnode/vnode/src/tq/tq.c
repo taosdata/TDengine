@@ -289,8 +289,8 @@ int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg) {
 
   // 2. check consumer-vg assignment status
   if (pHandle->consumerId != req.consumerId) {
-    tqError("ERROR tmq seek, consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
-            req.consumerId, vgId, req.subKey, pHandle->consumerId);
+    tqError("%s consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
+            __func__, req.consumerId, vgId, req.subKey, pHandle->consumerId);
     taosWUnLockLatch(&pTq->lock);
     code = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
     goto end;
@@ -381,8 +381,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
 
     // 2. check rebalance status
     if (pHandle->consumerId != consumerId) {
-      tqError("ERROR tmq poll: consumer:0x%" PRIx64
-              " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
+      tqWarn("tmq poll: consumer:0x%" PRIx64" vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
               consumerId, TD_VID(pTq->pVnode), req.subKey, pHandle->consumerId);
       code = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
       taosWUnLockLatch(&pTq->lock);
@@ -504,8 +503,8 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
 
   // 2. check rebalance status
   if (pHandle->consumerId != consumerId) {
-    tqDebug("ERROR consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
-            consumerId, vgId, req.subKey, pHandle->consumerId);
+    tqError("%s consumer:0x%" PRIx64 " vgId:%d, subkey %s, mismatch for saved handle consumer:0x%" PRIx64,
+            __func__, consumerId, vgId, req.subKey, pHandle->consumerId);
     taosRUnLockLatch(&pTq->lock);
     return TSDB_CODE_TMQ_CONSUMER_MISMATCH;
   }

@@ -1213,10 +1213,83 @@ static int32_t msgToRemoteValueListNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
+enum {
+  REMOTE_ROW_CODE_VAL = 1,
+  REMOTE_ROW_CODE_IS_MIN,
+  REMOTE_ROW_CODE_VAL_SET,
+  REMOTE_ROW_CODE_HAS_VALUE,
+  REMOTE_ROW_CODE_HAS_NULL,
+  REMOTE_ROW_CODE_SUBQ_IDX
+};
+
+static int32_t remoteRowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SRemoteRowNode* pNode = (const SRemoteRowNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, REMOTE_ROW_CODE_VAL, valueNodeToMsg, pNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, REMOTE_ROW_CODE_IS_MIN, pNode->isMinVal);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, REMOTE_ROW_CODE_VAL_SET, pNode->valSet);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, REMOTE_ROW_CODE_HAS_VALUE, pNode->hasValue);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, REMOTE_ROW_CODE_HAS_NULL, pNode->hasNull);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, REMOTE_ROW_CODE_SUBQ_IDX, pNode->subQIdx);
+  }
+
+  return code;
+}
 
 
+static int32_t msgToRemoteRowNode(STlvDecoder* pDecoder, void* pObj) {
+  SRemoteRowNode* pNode = (SRemoteRowNode*)pObj;
 
-enum { OPERATOR_CODE_EXPR_BASE = 1, OPERATOR_CODE_OP_TYPE, OPERATOR_CODE_LEFT, OPERATOR_CODE_RIGHT };
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case REMOTE_ROW_CODE_VAL:
+        code = tlvDecodeObjFromTlv(pTlv, msgToValueNode, &pNode->val);
+        break;
+      case REMOTE_ROW_CODE_IS_MIN:
+        code = tlvDecodeBool(pTlv, &pNode->isMinVal);
+        break;
+      case REMOTE_ROW_CODE_VAL_SET:
+        code = tlvDecodeBool(pTlv, &pNode->valSet);
+        break;
+      case REMOTE_ROW_CODE_HAS_VALUE:
+        code = tlvDecodeBool(pTlv, &pNode->hasValue);
+        break;
+      case REMOTE_ROW_CODE_HAS_NULL:
+        code = tlvDecodeBool(pTlv, &pNode->hasNull);
+        break;
+      case REMOTE_ROW_CODE_SUBQ_IDX:
+        code = tlvDecodeI32(pTlv, &pNode->subQIdx);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
+static int32_t remoteZeroRowsNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  return remoteValueNodeToMsg(pObj, pEncoder);
+}
+
+
+static int32_t msgToRemoteZeroRowsNode(STlvDecoder* pDecoder, void* pObj) {
+  return msgToRemoteValueNode(pDecoder, pObj);
+}
+
+
+enum { OPERATOR_CODE_EXPR_BASE = 1, OPERATOR_CODE_OP_TYPE, OPERATOR_CODE_LEFT, OPERATOR_CODE_RIGHT, OPERATOR_CODE_FLAG };
 
 static int32_t operatorNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SOperatorNode* pNode = (const SOperatorNode*)pObj;
@@ -1224,6 +1297,9 @@ static int32_t operatorNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   int32_t code = tlvEncodeObj(pEncoder, OPERATOR_CODE_EXPR_BASE, exprNodeToMsg, pNode);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeEnum(pEncoder, OPERATOR_CODE_OP_TYPE, pNode->opType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, OPERATOR_CODE_FLAG, pNode->flag);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, OPERATOR_CODE_LEFT, nodeToMsg, pNode->pLeft);
@@ -1247,6 +1323,9 @@ static int32_t msgToOperatorNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case OPERATOR_CODE_OP_TYPE:
         code = tlvDecodeEnum(pTlv, &pNode->opType, sizeof(pNode->opType));
+        break;
+      case OPERATOR_CODE_FLAG:
+        code = tlvDecodeI32(pTlv, &pNode->flag);
         break;
       case OPERATOR_CODE_LEFT:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pLeft);
@@ -4096,7 +4175,7 @@ static int32_t physiAnomalyWindowNodeToMsg(const void* pObj, STlvEncoder* pEncod
 
   int32_t code = tlvEncodeObj(pEncoder, PHY_ANOMALY_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_ANOMALY_CODE_KEY, nodeToMsg, pNode->pAnomalyKey);
+    code = tlvEncodeObj(pEncoder, PHY_ANOMALY_CODE_KEY, nodeListToMsg, pNode->pAnomalyKeys);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeCStr(pEncoder, PHY_ANOMALY_CODE_WINDOW_OPTION, pNode->anomalyOpt);
@@ -4116,7 +4195,7 @@ static int32_t msgToPhysiAnomalyWindowNode(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeObjFromTlv(pTlv, msgToPhysiWindowNode, &pNode->window);
         break;
       case PHY_ANOMALY_CODE_KEY:
-        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pAnomalyKey);
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pAnomalyKeys);
         break;
       case PHY_ANOMALY_CODE_WINDOW_OPTION:
         code = tlvDecodeCStr(pTlv, pNode->anomalyOpt, sizeof(pNode->anomalyOpt));
@@ -5246,6 +5325,12 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_REMOTE_VALUE_LIST:
       code = remoteValueListNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_REMOTE_ROW:
+      code = remoteRowNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_REMOTE_ZERO_ROWS:
+      code = remoteZeroRowsNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       code = physiTagScanNodeToMsg(pObj, pEncoder);
       break;
@@ -5417,6 +5502,12 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       break;
     case QUERY_NODE_REMOTE_VALUE_LIST:
       code = msgToRemoteValueListNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_REMOTE_ROW:
+      code = msgToRemoteRowNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_REMOTE_ZERO_ROWS:
+      code = msgToRemoteZeroRowsNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       code = msgToPhysiTagScanNode(pDecoder, pObj);
