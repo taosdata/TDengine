@@ -398,7 +398,7 @@ int32_t privCheckConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EP
             code = 1;
             goto _exit;
           }
-          if (*pObjType != privInfo->objType) {
+          if ((*pObjType != privInfo->objType) && (*pObjType != PRIV_OBJ_NONE)) {
             code = 2;
             goto _exit;
           }
