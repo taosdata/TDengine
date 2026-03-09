@@ -375,26 +375,74 @@ SELECT DISTINCT bool_col FROM vntb_alltype2;
 SELECT DISTINCT int_tag FROM vstb2 ORDER BY int_tag;
 
 -- ============================================================
--- 28. 3-layer vtable chain (vntb_depth3 -> vntb2 -> vntb1 -> org_ntb)
+-- 28. Deep vtable chain: 1 to 5 layers (TSDB_MAX_VTABLE_REF_DEPTH=5)
+--     chain: org_ntb <- L1 <- L2 <- L3 <- L4 <- L5
+--     L1=vntb1 (already created), L2=vntb2 (already created)
 -- ============================================================
 
-SELECT '=== 28. 3-layer vtable chain ===' AS test;
-CREATE VTABLE vntb_depth3 (ts timestamp, int_col int from vntb2.int_col);
-SELECT '--- query vntb_depth3 (3-layer normal table chain) ---' AS test;
-SELECT * FROM vntb_depth3 ORDER BY ts;
-SELECT COUNT(*) AS cnt, SUM(int_col) AS sum_int FROM vntb_depth3;
+SELECT '=== 28a. Layer 3: vntb_L3 -> vntb2 -> vntb1 -> org_ntb ===' AS test;
+CREATE VTABLE vntb_L3 (ts timestamp, int_col int from vntb2.int_col, bigint_col bigint from vntb2.bigint_col);
+SELECT * FROM vntb_L3 ORDER BY ts LIMIT 5;
+SELECT COUNT(*) AS cnt, SUM(int_col) AS sum_int FROM vntb_L3;
 
-SELECT '--- vstb with child referencing 3-layer chain ---' AS test;
-CREATE STABLE vstb_depth3 (ts timestamp, int_col int) TAGS (t1 int) VIRTUAL 1;
-CREATE VTABLE vctb_depth3 (int_col from vntb_depth3.int_col) USING vstb_depth3 TAGS (0);
-SELECT * FROM vstb_depth3 ORDER BY ts;
-SELECT COUNT(*) FROM vstb_depth3;
+SELECT '=== 28b. Layer 4: vntb_L4 -> vntb_L3 -> vntb2 -> vntb1 -> org_ntb ===' AS test;
+CREATE VTABLE vntb_L4 (ts timestamp, int_col int from vntb_L3.int_col, bigint_col bigint from vntb_L3.bigint_col);
+SELECT * FROM vntb_L4 ORDER BY ts LIMIT 5;
+SELECT COUNT(*) AS cnt, SUM(int_col) AS sum_int FROM vntb_L4;
+
+SELECT '=== 28c. Layer 5: vntb_L5 -> vntb_L4 -> ... -> org_ntb ===' AS test;
+CREATE VTABLE vntb_L5 (ts timestamp, int_col int from vntb_L4.int_col, bigint_col bigint from vntb_L4.bigint_col);
+SELECT * FROM vntb_L5 ORDER BY ts LIMIT 5;
+SELECT COUNT(*) AS cnt, SUM(int_col) AS sum_int FROM vntb_L5;
+SELECT MIN(int_col) AS min_val, MAX(int_col) AS max_val FROM vntb_L5;
+SELECT * FROM vntb_L5 WHERE int_col >= 7 ORDER BY ts;
+SELECT AVG(int_col) FROM vntb_L5;
+
+SELECT '=== 28d. Data consistency across all layers ===' AS test;
+SELECT '--- org_ntb ---' AS test;
+SELECT COUNT(*), SUM(int_col) FROM org_ntb;
+SELECT '--- vntb1 (L1) ---' AS test;
+SELECT COUNT(*), SUM(int_col) FROM vntb1;
+SELECT '--- vntb2 (L2) ---' AS test;
+SELECT COUNT(*), SUM(int_col) FROM vntb2;
+SELECT '--- vntb_L3 ---' AS test;
+SELECT COUNT(*), SUM(int_col) FROM vntb_L3;
+SELECT '--- vntb_L4 ---' AS test;
+SELECT COUNT(*), SUM(int_col) FROM vntb_L4;
+SELECT '--- vntb_L5 ---' AS test;
+SELECT COUNT(*), SUM(int_col) FROM vntb_L5;
+
+SELECT '=== 28e. vstb with child referencing 5-layer chain ===' AS test;
+CREATE STABLE vstb_deep (ts timestamp, int_col int, bigint_col bigint) TAGS (depth int) VIRTUAL 1;
+CREATE VTABLE vctb_deep_L3 (int_col from vntb_L3.int_col, bigint_col from vntb_L3.bigint_col) USING vstb_deep TAGS (3);
+CREATE VTABLE vctb_deep_L4 (int_col from vntb_L4.int_col, bigint_col from vntb_L4.bigint_col) USING vstb_deep TAGS (4);
+CREATE VTABLE vctb_deep_L5 (int_col from vntb_L5.int_col, bigint_col from vntb_L5.bigint_col) USING vstb_deep TAGS (5);
+SELECT '--- vstb_deep scan (3 children at depth 3/4/5) ---' AS test;
+SELECT * FROM vstb_deep ORDER BY ts, depth LIMIT 15;
+SELECT depth, COUNT(*) AS cnt, SUM(int_col) AS sum_int FROM vstb_deep GROUP BY depth ORDER BY depth;
+SELECT COUNT(*) FROM vstb_deep;
+
+SELECT '=== 28f. Aggregation and window on deepest chain (L5) ===' AS test;
+SELECT _wstart, COUNT(*) AS cnt, SUM(int_col) AS sum_int FROM vntb_L5 INTERVAL(3s);
+SELECT FIRST(int_col), LAST(int_col) FROM vntb_L5;
+SELECT SPREAD(int_col) FROM vntb_L5;
+SELECT * FROM vntb_L5 ORDER BY int_col DESC LIMIT 3;
 
 -- ============================================================
--- 29. Single-column vtable referencing single column
+-- 29. Depth exceeded: layer 6 should fail (max=5)
 -- ============================================================
 
-SELECT '=== 29. Single-column chain ===' AS test;
+SELECT '=== 29. Layer 6 (depth=6, exceeds limit of 5) ===' AS test;
+CREATE VTABLE vntb_L6 (ts timestamp, int_col int from vntb_L5.int_col);
+SELECT '--- query L6 (may fail due to depth limit in executor) ---' AS test;
+SELECT * FROM vntb_L6 ORDER BY ts LIMIT 3;
+SELECT COUNT(*) FROM vntb_L6;
+
+-- ============================================================
+-- 29b. Single-column vtable chain
+-- ============================================================
+
+SELECT '=== 29b. Single-column chain ===' AS test;
 CREATE VTABLE vntb_1col_a (ts timestamp, int_col int from org_ntb.int_col);
 CREATE VTABLE vntb_1col_b (ts timestamp, int_col int from vntb_1col_a.int_col);
 SELECT * FROM vntb_1col_b ORDER BY ts;

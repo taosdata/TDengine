@@ -1364,8 +1364,8 @@ static int32_t resolveVirtualTableToPhysical(SStorageAPI* pAPI, void* vnode, SMe
 
   while (pOrgTable->me.type == TSDB_VIRTUAL_NORMAL_TABLE ||
          pOrgTable->me.type == TSDB_VIRTUAL_CHILD_TABLE) {
-    if (++depth > 2) {
-      qError("virtual table reference depth exceeded");
+    if (++depth > TSDB_MAX_VTABLE_REF_DEPTH) {
+      qError("virtual table reference depth exceeded max %d", TSDB_MAX_VTABLE_REF_DEPTH);
       return TSDB_CODE_INVALID_PARA;
     }
 

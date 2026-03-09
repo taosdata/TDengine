@@ -60,8 +60,6 @@
     }                               \
   } while (0)
 
-// Maximum virtual table reference depth (chain length)
-#define TSDB_MAX_VTABLE_REF_DEPTH 2
 
 typedef struct SRewriteTbNameContext {
   int32_t errCode;

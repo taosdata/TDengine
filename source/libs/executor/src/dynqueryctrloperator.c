@@ -2089,7 +2089,7 @@ static int32_t resolveVtableColRefToPhysical(SOperatorInfo* pOperator, const cha
   tstrncpy(curTb, refTb, sizeof(curTb));
   tstrncpy(curCol, refCol, sizeof(curCol));
 
-  while (depth < 2) {
+  while (depth < TSDB_MAX_VTABLE_REF_DEPTH) {
     STableMetaRsp rsp = {0};
     code = getTableMetaViaRpc(pOperator, curDb, curTb, &rsp);
     if (code != TSDB_CODE_SUCCESS) {
