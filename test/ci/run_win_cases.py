@@ -74,7 +74,7 @@ def clean_taos_process(keywords=None):
     :param keywords: List[str]，用于匹配进程命令行的关键字列表。如果为 None，则默认匹配 'taos'。
     """
     if keywords is None:
-        keywords = ["taos", "taosd", "taosadapter", "taoskeeper", "taos-explorer", "taosx", "tmq_sim", "taosdump", "taosBenchmark" ]
+        keywords = ["taos", "taosd", "taosadapter", "taoskeeper", "taos-explorer", "taosx", "tmq_sim", "taosdump", "taosBenchmark", "write_raw_block_test" ]
 
     current_pid = os.getpid()
 
@@ -168,16 +168,30 @@ def process_pytest_file(input_file, log_path="C:\\CI_logs",
         # 1. 结束残留进程
         clean_taos_process()
         
-        # 2. 等待句柄释放
-        time.sleep(1)
+        # 2. 等待句柄释放（Windows 需要更长时间）
+        time.sleep(3)
         
-        # 3. 删除 sim 目录，失败则终止
+        # 3. 删除 sim 目录，使用 safe_rmtree 带重试机制
         if os.path.exists(work_dir):
             try:
-                shutil.rmtree(work_dir)
+                safe_rmtree(work_dir, retries=15, delay=2)
                 logger.info(f"Removed {work_dir}")
             except Exception as e:
                 logger.error(f"CRITICAL: Failed to remove {work_dir}: {e}")
+                # 列出占用文件的进程，帮助诊断
+                if sys.platform == "win32":
+                    try:
+                        logger.info("Attempting to identify processes holding handles to work_dir...")
+                        # 使用 psutil 检查是否有进程仍在使用该目录
+                        for proc in psutil.process_iter(['pid', 'name']):
+                            try:
+                                for item in proc.open_files():
+                                    if work_dir in item.path:
+                                        logger.warning(f"Process {proc.pid} ({proc.name()}) is holding: {item.path}")
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                pass
+                    except Exception as diag_e:
+                        logger.error(f"Failed to diagnose handle holders: {diag_e}")
                 raise RuntimeError(f"Cleanup failed: cannot remove work_dir") from e
 
     with open(input_file, 'r', encoding="utf-8", errors="ignore") as f:
