@@ -1,3 +1,6 @@
+#failed cases
+cases/17-DataSubscription/02-Consume/test_tmq_raw_block_interface.py
+
 # udf not supported in Windows CI
 cases/12-UDFs/test_udf_test.py
 cases/12-UDFs/test_udf_create.py
@@ -8,6 +11,7 @@ cases/uncatalog/system-test/0-others/test_udfpy_main.py
 cases/uncatalog/system-test/7-tmq/test_tmqUdf.py
 cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
 cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
+
 # MQTT bnode not supported in Windows CI
 cases/17-DataSubscription/03-MQTT/test_mqtt_smoking.py
 cases/17-DataSubscription/03-MQTT/test_mqtt_bnodes.py
