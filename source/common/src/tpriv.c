@@ -29,7 +29,7 @@ typedef struct {
 static const SPrivObjInfo __privObjInfo[] = {
     {"CLUSTER", 0}, {"NODE", 0},  {"DATABASE", 0}, {"TABLE", 1}, {"FUNCTION", 0}, {"INDEX", 1},
     {"VIEW", 1},    {"USER", 0},  {"ROLE", 0},     {"RSMA", 1},  {"TSMA", 1},     {"TOPIC", 1},
-    {"STREAM", 1},  {"MOUNT", 0}, {"AUDIT", 0},    {"TOKEN", 0},
+    {"STREAM", 1},  {"MOUNT", 0}, {"AUDIT", 0},    {"TOKEN", 0}, {"NONE", 0},
 };
 
 /**
@@ -287,19 +287,23 @@ int32_t privExpandAll(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLeve
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t privExpandLegacyRw(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel) {
+int32_t privExpandRw(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel) {
   (void)taosThreadOnce(&privInit, initPrivLookup);
 
   if (!privSet) return TSDB_CODE_APP_ERROR;
 
-  bool hasLegacyRead = PRIV_HAS(privSet, PRIV_LEGACY_READ);
-  bool hasLegacyWrite = PRIV_HAS(privSet, PRIV_LEGACY_WRITE);
+  bool hasLegacyRead = PRIV_HAS(privSet, PRIV_CM_READ);
+  bool hasLegacyWrite = PRIV_HAS(privSet, PRIV_CM_WRITE);
 
   if (!hasLegacyRead && !hasLegacyWrite) return TSDB_CODE_SUCCESS;
+  if (pObjType != PRIV_OBJ_DB && pObjType != PRIV_OBJ_TBL && pObjType != PRIV_OBJ_VIEW) {
+    uWarn("privExpandRw: unsupported object type %d for legacy read/write privileges", pObjType);
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
 
   // Remove the legacy types
-  privRemoveType(privSet, PRIV_LEGACY_READ);
-  privRemoveType(privSet, PRIV_LEGACY_WRITE);
+  if (hasLegacyRead) privRemoveType(privSet, PRIV_CM_READ);
+  if (hasLegacyWrite) privRemoveType(privSet, PRIV_CM_WRITE);
 
   SPrivInfoIter iter = {0};
   privInfoIterInit(&iter);

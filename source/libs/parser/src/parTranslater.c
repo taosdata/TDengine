@@ -17877,7 +17877,45 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                    "Target name cannot be empty for non-system privileges");
   }
+#if 0
+  bool isLegacyDbGrant = (objType == PRIV_OBJ_TBL && pStmt->objName[0] != '\0' && pStmt->tabName[0] == '\0');
+  bool isLegacyDbStarGrant = (objType == PRIV_OBJ_TBL && pStmt->tabName[0] == '*' && pStmt->tabName[1] == '\0');
 
+  if (tsEnableAdvancedSecurity == 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "READ/WRITE privileges not supported when enableAdvancedSecurity is on");
+  } else {
+  }
+
+  // When enableAdvancedSecurity is on, legacy DB grant syntax is not supported
+  if (tsEnableAdvancedSecurity && isLegacyDbGrant) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "Legacy 'GRANT ... ON db TO user' syntax not supported when "
+                                   "enableAdvancedSecurity is on, use 'GRANT ... ON DATABASE db TO user' instead");
+  }
+
+  // --- 新增：enableAdvancedSecurity=0 时 db/db.* 仅允许 all/read/write/alter ---
+  if (!tsEnableAdvancedSecurity && (isLegacyDbGrant || isLegacyDbStarGrant)) {
+    // 只允许 ALL/READ/WRITE/ALTER
+    SPrivSet* privSet = &pStmt->privileges.privSet;
+    SPrivSet  check = *privSet;
+    privRemoveType(&check, PRIV_CM_ALL);
+    privRemoveType(&check, PRIV_CM_READ);
+    privRemoveType(&check, PRIV_CM_WRITE);
+    privRemoveType(&check, PRIV_CM_ALTER);
+    if (!privIsEmptySet(&check)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "Only ALL, READ, WRITE, ALTER privileges are allowed on database or "
+                                     "database.* when enableAdvancedSecurity is off");
+    }
+  }
+
+  // expand legacy READ/WRITE privileges to current privilege set
+  // Skip for legacyDbGrant and legacyTblStarGrant - mnode will expand for each object type separately
+  if (!isLegacyDbGrant && !isLegacyDbStarGrant) {
+    TAOS_CHECK_EXIT(privExpandRw(&req.privileges.privSet, objType, objLevel));
+  }
+#endif
   if (objLevel == 0) {
     if (pStmt->tabName[0] != '\0') {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -17935,6 +17973,7 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
         }
       }
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
+      TAOS_CHECK_EXIT(privExpandRw(&pReq->privileges.privSet, objType, objLevel));
       break;
     }
     case PRIV_OBJ_TBL:
@@ -17969,6 +18008,7 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
                                        "Table name cannot be empty for table or view level privileges");
       }
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
+      TAOS_CHECK_EXIT(privExpandRw(&pReq->privileges.privSet, objType, objLevel));
       if (objType == PRIV_OBJ_TBL) {
         code = translateGrantTagCond(pCxt, pStmt, pReq, grant);
         if (TSDB_CODE_SUCCESS != code) {
@@ -18004,6 +18044,8 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
       break;
     case PRIV_OBJ_TOKEN:
       break;
+    case PRIV_OBJ_NONE:
+      break;
     default:
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "Unsupported object type for privilege");
@@ -18034,7 +18076,7 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
   (void)snprintf(req.principal, TSDB_ROLE_LEN, "%s", pStmt->principal);
 
   switch (req.alterType) {
-#ifdef TD_ENTERPRISE
+#if 1  // def TD_ENTERPRISE
     case TSDB_ALTER_ROLE_PRIVILEGES: {
       EPrivCategory category = PRIV_CATEGORY_UNKNOWN;
       EPrivObjType  objType = pStmt->privileges.objType;
@@ -18063,15 +18105,24 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
       }
 
       // rewrite query for view to improve usability
-      if(objType == PRIV_OBJ_VIEW) {
-        if(PRIV_HAS(&tmpPrivSet, PRIV_TBL_SELECT)) {
+      if (objType == PRIV_OBJ_VIEW) {
+        if (PRIV_HAS(&tmpPrivSet, PRIV_TBL_SELECT)) {
           privAddType(&tmpPrivSet, PRIV_VIEW_SELECT);
           privRemoveType(&tmpPrivSet, PRIV_TBL_SELECT);
         }
+      } else if (objType == PRIV_OBJ_NONE) {
+        if (IS_SPECIFIC_OBJ(pStmt->objName) && IS_SPECIFIC_OBJ(pStmt->tabName)) {
+          SName       name = {0};
+          STableMeta* pMeta = NULL;
+          toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
+          if ((code = getTargetMeta(pCxt, &name, &pMeta, false))) {
+            taosMemoryFree(pMeta);
+            goto _exit;
+          }
+          objType = pMeta->tableType == TSDB_VIEW_TABLE ? PRIV_OBJ_VIEW : PRIV_OBJ_TBL;
+          taosMemoryFree(pMeta);
+        }
       }
-
-      // expand legacy READ/WRITE privileges to current privilege set
-      TAOS_CHECK_EXIT(privExpandLegacyRw(&tmpPrivSet, objType, objLevel));
 
       int32_t conflict = privCheckConflicts(&tmpPrivSet, &category, &objType, &objLevel, &conflict0, &conflict1);
       if (conflict > 0) {
@@ -18115,37 +18166,6 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
         }
       }
 
-      // Check for legacy DB grant syntax: "grant ... on db to user" without DATABASE keyword
-      // This is detected when: objType=PRIV_OBJ_TBL (from "ON priv_level"), dbName provided, but tabName empty
-      // Must detect before expanding legacy privileges
-      bool isLegacyDbGrant = (objType == PRIV_OBJ_TBL && pStmt->objName[0] != '\0' && pStmt->tabName[0] == '\0');
-
-      // Check for legacy "grant all/read/write on db.* to user" syntax
-      bool isLegacyTblStarGrant = (objType == PRIV_OBJ_TBL && pStmt->tabName[0] == '*' && pStmt->tabName[1] == '\0' &&
-                                   (PRIV_HAS(&pStmt->privileges.privSet, PRIV_CM_ALL) ||
-                                    PRIV_HAS(&pStmt->privileges.privSet, PRIV_LEGACY_READ) ||
-                                    PRIV_HAS(&pStmt->privileges.privSet, PRIV_LEGACY_WRITE)));
-
-      // When enableAdvancedSecurity is on, READ/WRITE keywords are not supported
-      if (tsEnableAdvancedSecurity && (PRIV_HAS(&pStmt->privileges.privSet, PRIV_LEGACY_READ) ||
-                                       PRIV_HAS(&pStmt->privileges.privSet, PRIV_LEGACY_WRITE))) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                       "READ/WRITE privileges not supported when enableAdvancedSecurity is on");
-      }
-
-      // When enableAdvancedSecurity is on, legacy DB grant syntax is not supported
-      if (tsEnableAdvancedSecurity && isLegacyDbGrant) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                       "Legacy 'GRANT ... ON db TO user' syntax not supported when "
-                                       "enableAdvancedSecurity is on, use 'GRANT ... ON DATABASE db TO user' instead");
-      }
-
-      // expand legacy READ/WRITE privileges to current privilege set
-      // Skip for legacyDbGrant and legacyTblStarGrant - mnode will expand for each object type separately
-      if (!isLegacyDbGrant && !isLegacyTblStarGrant) {
-        TAOS_CHECK_EXIT(privExpandLegacyRw(&req.privileges.privSet, objType, objLevel));
-      }
-
       if (category == PRIV_CATEGORY_SYSTEM) {
         req.sysPriv = 1;
         if (pStmt->objName[0] != '\0' || pStmt->tabName[0] != '\0') {
@@ -18158,21 +18178,15 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
                                                   privInfoGet(PRIV_VG_BALANCE)->name));
         }
       } else {
-        if (isLegacyDbGrant) {
-          req.legacyDbGrant = 1;
-        }
-        if (isLegacyTblStarGrant) {
-          req.legacyTblStarGrant = 1;
-        }
+        // if (isLegacyDbGrant) {
+        //   req.legacyDbGrant = 1;
+        // }
+        // if (isLegacyDbStarGrant) {
+        //   req.legacyTblStarGrant = 1;
+        // }
         req.objType = objType;
         req.objLevel = objLevel;
-        // Skip translateGrantCheckFillObject for legacy DB grant - mnode will handle expansion
-        if (req.legacyDbGrant) {
-          // Format objFName with acctId prefix like translateGrantCheckFillObject does
-          (void)snprintf(req.objFName, sizeof(req.objFName), "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
-        } else {
-          TAOS_CHECK_EXIT(translateGrantCheckFillObject(pCxt, pStmt, category, &req, grant));
-        }
+        TAOS_CHECK_EXIT(translateGrantCheckFillObject(pCxt, pStmt, category, &req, grant));
       }
       break;
     }

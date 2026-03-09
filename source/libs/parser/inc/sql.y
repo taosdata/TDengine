@@ -471,8 +471,8 @@ priv_type(A) ::= STOP.                                                          
 priv_type(A) ::= KILL.                                                            { A = PRIV_SET_TYPE(PRIV_CM_KILL); }
 priv_type(A) ::= RECALCULATE.                                                     { A = PRIV_SET_TYPE(PRIV_CM_RECALC); }
 priv_type(A) ::= SUBSCRIBE.                                                       { A = PRIV_SET_TYPE(PRIV_CM_SUBSCRIBE); }
-priv_type(A) ::= READ.                                                            { A = PRIV_SET_TYPE(PRIV_LEGACY_READ); }
-priv_type(A) ::= WRITE.                                                           { A = PRIV_SET_TYPE(PRIV_LEGACY_WRITE); }
+priv_type(A) ::= READ.                                                            { A = PRIV_SET_TYPE(PRIV_CM_READ); }
+priv_type(A) ::= WRITE.                                                           { A = PRIV_SET_TYPE(PRIV_CM_WRITE); }
 
 priv_type(A) ::= CREATE DATABASE.                                                 { A = PRIV_SET_TYPE(PRIV_DB_CREATE); }
 priv_type(A) ::= USE DATABASE.                                                    { A = PRIV_SET_TYPE(PRIV_DB_USE); }
@@ -637,7 +637,7 @@ priv_level_opt(A) ::= .                                                         
                                                                                     A.first = nil_token; A.second = nil_token; 
                                                                                     A.objType = PRIV_OBJ_CLUSTER; A.cols = NULL; 
                                                                                   }
-priv_level_opt(A) ::= ON priv_level(B).                                           { A = B; A.objType = PRIV_OBJ_TBL; }
+priv_level_opt(A) ::= ON priv_level(B).                                           { A = B; A.objType = PRIV_OBJ_NONE; }
 priv_level_opt(A) ::= ON DATABASE priv_level(B).                                  { A = B; A.objType = PRIV_OBJ_DB; }
 priv_level_opt(A) ::= ON TABLE priv_level(B).                                     { A = B; A.objType = PRIV_OBJ_TBL; }
 priv_level_opt(A) ::= ON VIEW priv_level(B).                                      { A = B; A.objType = PRIV_OBJ_VIEW; }

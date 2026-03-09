@@ -44,19 +44,23 @@ extern "C" {
 #define TSDB_ROLE_DEFAULT TSDB_ROLE_SYSINFO_1
 #endif
 
-#define TSDB_WORD_AUDIT      "audit"
-#define TSDB_WORD_BASIC      "basic"
-#define TSDB_WORD_DEBUG      "debug"
-#define TSDB_WORD_PASS       "pass"
-#define TSDB_WORD_PRIVILEGED "privileged"
-#define TSDB_WORD_SECURITY   "security"
-#define TSDB_WORD_SELF       "self"
-#define TSDB_WORD_SYSTEM     "system"
-#define TSDB_WORD_VARIABLE   "variable"
-#define TSDB_WORD_VARIABLES  "variables"
+#define TSDB_WORD_AUDIT       "audit"
+#define TSDB_WORD_BASIC       "basic"
+#define TSDB_WORD_DEBUG       "debug"
+#define TSDB_WORD_PASS        "pass"
+#define TSDB_WORD_PRIVILEGED  "privileged"
+#define TSDB_WORD_SECURITY    "security"
+#define TSDB_WORD_SELF        "self"
+#define TSDB_WORD_SYSTEM      "system"
+#define TSDB_WORD_VARIABLE    "variable"
+#define TSDB_WORD_VARIABLES   "variables"
 #define TSDB_WORD_INFORMATION "information"
 
-#define PRIV_INFO_TABLE_VERSION 4 // N.B. increase this version for any update of privInfoTable
+#define PRIV_INFO_TABLE_VERSION 4  // N.B. increase this version for any update of privInfoTable
+
+#define IS_WILDCARD_OBJ(objName) ((objName)[0] == '*' && (objName)[1] == '\0')
+#define IS_SPECIFIC_OBJ(objName) ((objName)[0] != '\0' && !IS_WILDCARD_OBJ(objName))
+
 typedef enum {
   PRIV_TYPE_UNKNOWN = -1,
   // ==================== Common Privilege ====================
@@ -70,9 +74,11 @@ typedef enum {
   PRIV_CM_RECALC = 7,       // RECALC PRIVILEGE
   PRIV_CM_KILL = 8,         // KILL PRIVILEGE
   PRIV_CM_SUBSCRIBE = 9,    // SUBSCRIBE PRIVILEGE
-  PRIV_LEGACY_READ = 10,    // Legacy READ PRIVILEGE (converted to specific privileges)
-  PRIV_LEGACY_WRITE = 11,   // Legacy WRITE PRIVILEGE (converted to specific privileges)
-  PRIV_CM_MAX = 29,         // MAX COMMON PRIVILEGE
+  PRIV_CM_READ =
+      10,  // Legacy READ PRIVILEGE (converted to specific privileges if tsEnableAdvancedSecurity is disabled)
+  PRIV_CM_WRITE =
+      11,  // Legacy WRITE PRIVILEGE (converted to specific privileges if tsEnableAdvancedSecurity is disabled)
+  PRIV_CM_MAX = 29,  // MAX COMMON PRIVILEGE
   // ==================== DB Privileges(5~49) ====================
   PRIV_DB_CREATE = 30,  // CREATE DATABASE
   PRIV_DB_USE,          // USE DATABASE
@@ -296,7 +302,8 @@ typedef enum {
   PRIV_OBJ_MOUNT = 13,
   PRIV_OBJ_AUDIT = 14,
   PRIV_OBJ_TOKEN = 15,
-  PRIV_OBJ_MAX = 16,
+  PRIV_OBJ_NONE = 16,  // not specified
+  PRIV_OBJ_MAX = 17,
 } EPrivObjType;
 
 typedef enum {
@@ -420,7 +427,7 @@ static FORCE_INLINE int32_t privTblPrivCnt(SHashObj* privTbls) {
 int32_t privCheckConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType,
                            uint8_t* pObjLevel, EPrivType* conflict0, EPrivType* conflict1);
 int32_t privExpandAll(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel);
-int32_t privExpandLegacyRw(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel);
+int32_t privExpandRw(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel);
 int32_t privUpgradeRwDb(SHashObj* objPrivs, const char* dbFName, const char* tbName, uint8_t rwAttr);
 void    privIterInit(SPrivIter* pIter, SPrivSet* privSet);
 bool    privIterNext(SPrivIter* iter, SPrivInfo** ppPrivInfo);
