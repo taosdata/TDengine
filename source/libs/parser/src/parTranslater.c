@@ -61,7 +61,7 @@
   } while (0)
 
 // Maximum virtual table reference depth (chain length)
-#define TSDB_MAX_VTABLE_REF_DEPTH 5
+#define TSDB_MAX_VTABLE_REF_DEPTH 2
 
 typedef struct SRewriteTbNameContext {
   int32_t errCode;
@@ -6514,6 +6514,58 @@ static int32_t getOriginalTableInfo(STranslateContext* pCxt, const char* pDbName
 }
 
 
+static int32_t resolveColRefToPhysical(STranslateContext* pCxt, SColRef* pColRef) {
+  if (!pColRef->hasRef) return TSDB_CODE_SUCCESS;
+
+  STableMeta* pRefMeta = NULL;
+  int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     depth = 0;
+  char        curDb[TSDB_DB_NAME_LEN];
+  char        curTable[TSDB_TABLE_NAME_LEN];
+  char        curCol[TSDB_COL_NAME_LEN];
+
+  tstrncpy(curDb, pColRef->refDbName, sizeof(curDb));
+  tstrncpy(curTable, pColRef->refTableName, sizeof(curTable));
+  tstrncpy(curCol, pColRef->refColName, sizeof(curCol));
+
+  while (depth < TSDB_MAX_VTABLE_REF_DEPTH) {
+    code = getTableMeta(pCxt, curDb, curTable, &pRefMeta);
+    if (code != TSDB_CODE_SUCCESS) return code;
+
+    bool isVirtual = (pRefMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+                      pRefMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE);
+
+    if (!isVirtual) {
+      taosMemoryFree(pRefMeta);
+      break;
+    }
+
+    bool found = false;
+    for (int32_t i = 0; i < pRefMeta->numOfColRefs; i++) {
+      if (!pRefMeta->colRef[i].hasRef) continue;
+      const SSchema* pSchema = &pRefMeta->schema[i];
+      if (strcmp(pSchema->name, curCol) == 0) {
+        tstrncpy(curDb, pRefMeta->colRef[i].refDbName, sizeof(curDb));
+        tstrncpy(curTable, pRefMeta->colRef[i].refTableName, sizeof(curTable));
+        tstrncpy(curCol, pRefMeta->colRef[i].refColName, sizeof(curCol));
+        found = true;
+        break;
+      }
+    }
+
+    taosMemoryFree(pRefMeta);
+    pRefMeta = NULL;
+
+    if (!found) break;
+    depth++;
+  }
+
+  tstrncpy(pColRef->refDbName, curDb, sizeof(pColRef->refDbName));
+  tstrncpy(pColRef->refTableName, curTable, sizeof(pColRef->refTableName));
+  tstrncpy(pColRef->refColName, curCol, sizeof(pColRef->refColName));
+  return TSDB_CODE_SUCCESS;
+}
+
 static void setTableNameByColRef(SRealTableNode* pTable, SColRef* pRef) {
   tstrncpy(pTable->table.dbName, pRef->refDbName, sizeof(pTable->table.dbName));
   tstrncpy(pTable->table.tableName, pRef->refTableName, sizeof(pTable->table.tableName));
@@ -6592,12 +6644,19 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
   TSWAP(pVTable->pMeta, pRealTable->pMeta);
   TSWAP(pVTable->pVgroupList, pRealTable->pVgroupList);
 
+  bool tmpAsync = pCxt->pParseCxt->async;
+  pCxt->pParseCxt->async = false;
+
+  for (int32_t i = 0; i < pMeta->numOfColRefs; i++) {
+    if (pMeta->colRef[i].hasRef) {
+      PAR_ERR_JRET(resolveColRefToPhysical(pCxt, &pMeta->colRef[i]));
+    }
+  }
+
   pTableNameHash =
       taosHashInit(pMeta->numOfColRefs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   QUERY_CHECK_NULL(pTableNameHash, code, lino, _return, terrno);
 
-  bool tmpAsync = pCxt->pParseCxt->async;
-  pCxt->pParseCxt->async = false;
   pCxt->refTable = true;
   for (int32_t i = 0; i < pMeta->numOfColRefs; i++) {
     if (pMeta->colRef[i].hasRef) {
@@ -6635,6 +6694,8 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
 
 _return:
   qError("translateVirtualNormalChildTable failed, lino:%d, code:%d, errmsg:%s", lino, code, tstrerror(code));
+  pCxt->refTable = false;
+  pCxt->pParseCxt->async = tmpAsync;
   taosHashCleanup(pTableNameHash);
   nodesDestroyNode((SNode*)pRTNode);
   return code;
@@ -24061,34 +24122,31 @@ static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbN
                         (pRefTableMeta->virtualStb && pRefTableMeta->tableType == TSDB_SUPER_TABLE));
 
   if (isVirtualTable) {
-    // For virtual table references, we need to recursively check the chain
-    // Initialize visited tables array for circular reference detection
-    pVisitedTables = taosArrayInit(16, sizeof(char*));
-    if (pVisitedTables == NULL) {
-      PAR_ERR_JRET(terrno);
-    }
-    
-    // Add current table to visited list
-    char fullName[TSDB_TABLE_FNAME_LEN] = {0};
-    snprintf(fullName, sizeof(fullName), "%s.%s", pRefDbName, pRefTableName);
-    char* pFullNameCopy = taosStrdup(fullName);
-    if (pFullNameCopy == NULL || taosArrayPush(pVisitedTables, &pFullNameCopy) == NULL) {
-      taosMemoryFree(pFullNameCopy);
-      PAR_ERR_JRET(terrno);
-    }
+    if (!pCxt->pParseCxt->async) {
+      pVisitedTables = taosArrayInit(16, sizeof(char*));
+      if (pVisitedTables == NULL) {
+        PAR_ERR_JRET(terrno);
+      }
 
-    // Recursively check reference depth and circular references
-    code = checkRefDepth(pCxt, pRefDbName, pRefTableName, 1, pVisitedTables, &originalPrecision);
-    if (code != TSDB_CODE_SUCCESS) {
-      taosArrayDestroy(pVisitedTables);
-      PAR_ERR_JRET(code);
-    }
-    
-    // Check precision matches with the original table through the chain
-    if (originalPrecision != precision) {
-      taosArrayDestroy(pVisitedTables);
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE, 
-                   "timestamp precision of virtual table and its original reference table do not match"));
+      char fullName[TSDB_TABLE_FNAME_LEN] = {0};
+      snprintf(fullName, sizeof(fullName), "%s.%s", pRefDbName, pRefTableName);
+      char* pFullNameCopy = taosStrdup(fullName);
+      if (pFullNameCopy == NULL || taosArrayPush(pVisitedTables, &pFullNameCopy) == NULL) {
+        taosMemoryFree(pFullNameCopy);
+        PAR_ERR_JRET(terrno);
+      }
+
+      code = checkRefDepth(pCxt, pRefDbName, pRefTableName, 1, pVisitedTables, &originalPrecision);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(pVisitedTables);
+        PAR_ERR_JRET(code);
+      }
+
+      if (originalPrecision != precision) {
+        taosArrayDestroy(pVisitedTables);
+        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
+                     "timestamp precision of virtual table and its original reference table do not match"));
+      }
     }
   } else {
     // Original table precision check (for non-virtual tables)

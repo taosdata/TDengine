@@ -122,6 +122,7 @@ typedef struct SVtbScanDynCtrlInfo {
   SHashObj*        vtbGroupIdTagListMap; // key: vtbGroupId, value: SHashObj <key: vtbUid, value: SArray<STagValue>>
   SHashObj*        vtbUidToGroupIdMap; // key: vtbUid, value: vtbGroupId
   SOperatorParam*  vtbScanParam;
+  STableMetaRsp*   pTbMetaRsp;
 } SVtbScanDynCtrlInfo;
 
 typedef struct SVtbWindowDynCtrlInfo {

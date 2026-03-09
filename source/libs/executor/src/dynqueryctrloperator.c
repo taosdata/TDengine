@@ -30,10 +30,14 @@
 #include "ttypes.h"
 #include "tdataformat.h"
 #include "dynqueryctrl.h"
-#include "catalog.h"
 
 
 int64_t gSessionId = 0;
+
+static int32_t dynMakeVgArraySortBy(SDBVgInfo *dbInfo, __compar_fn_t comparFn);
+int dynVgInfoComp(const void* lp, const void* rp);
+int dynHashValueComp(const void* lp, const void* rp);
+int32_t getDbVgInfo(SOperatorInfo* pOperator, SName *name, SDBVgInfo **dbVgInfo);
 
 void freeVgTableList(void* ptr) { 
   taosArrayDestroy(*(SArray**)ptr); 
@@ -216,6 +220,10 @@ static void destroyVtbScanDynCtrlInfo(SVtbScanDynCtrlInfo* pVtbScan) {
   }
   if (pVtbScan->vtbUidToGroupIdMap) {
     taosHashCleanup(pVtbScan->vtbUidToGroupIdMap);
+  }
+  if (pVtbScan->pTbMetaRsp) {
+    tFreeSTableMetaRsp(pVtbScan->pTbMetaRsp);
+    taosMemoryFreeClear(pVtbScan->pTbMetaRsp);
   }
 }
 
@@ -1954,6 +1962,173 @@ _return:
   return code;
 }
 
+static int32_t dynProcessTbMetaRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  int32_t                    lino = 0;
+  SOperatorInfo*             pOperator = (SOperatorInfo*)param;
+  SDynQueryCtrlOperatorInfo* pInfo = (SDynQueryCtrlOperatorInfo*)pOperator->info;
+  SVtbScanDynCtrlInfo*       pVtbScan = &pInfo->vtbScan;
+
+  if (TSDB_CODE_SUCCESS != code) {
+    pOperator->pTaskInfo->code = rpcCvtErrCode(code);
+    qError("get table meta rsp error:%s", tstrerror(code));
+    goto _return;
+  }
+
+  if (pVtbScan->pTbMetaRsp == NULL) {
+    pVtbScan->pTbMetaRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+    QUERY_CHECK_NULL(pVtbScan->pTbMetaRsp, code, lino, _return, terrno)
+  }
+
+  code = tDeserializeSTableMetaRsp(pMsg->pData, (int32_t)pMsg->len, pVtbScan->pTbMetaRsp);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  taosMemoryFreeClear(pMsg->pData);
+
+_return:
+  tsem_post(&pVtbScan->ready);
+  if (code) qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+static int32_t getTableMetaViaRpc(SOperatorInfo* pOperator, const char* dbName, const char* tbName, STableMetaRsp* pRsp) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    lino = 0;
+  SDynQueryCtrlOperatorInfo* pInfo = (SDynQueryCtrlOperatorInfo*)pOperator->info;
+  SVtbScanDynCtrlInfo*       pVtbScan = &pInfo->vtbScan;
+  SExecTaskInfo*             pTaskInfo = pOperator->pTaskInfo;
+
+  SName sname = {0};
+  toName(pVtbScan->acctId, dbName, tbName, &sname);
+
+  SDBVgInfo* dbVgInfo = NULL;
+  code = getDbVgInfo(pOperator, &sname, &dbVgInfo);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  char dbFName[TSDB_DB_FNAME_LEN] = {0};
+  code = tNameGetFullDbName(&sname, dbFName);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  code = dynMakeVgArraySortBy(dbVgInfo, dynVgInfoComp);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  int32_t vgNum = (int32_t)taosArrayGetSize(dbVgInfo->vgArray);
+  if (vgNum <= 0) {
+    code = TSDB_CODE_TSC_DB_NOT_SELECTED;
+    goto _return;
+  }
+
+  char tbFullName[TSDB_TABLE_FNAME_LEN];
+  snprintf(tbFullName, sizeof(tbFullName), "%s.%s", dbFName, tbName);
+  uint32_t hashValue = taosGetTbHashVal(tbFullName, (int32_t)strlen(tbFullName), dbVgInfo->hashMethod,
+                                        dbVgInfo->hashPrefix, dbVgInfo->hashSuffix);
+
+  SVgroupInfo* vgInfo = taosArraySearch(dbVgInfo->vgArray, &hashValue, dynHashValueComp, TD_EQ);
+  if (NULL == vgInfo) {
+    code = TSDB_CODE_CTG_INTERNAL_ERROR;
+    goto _return;
+  }
+
+  STableInfoReq req = {0};
+  req.header.vgId = vgInfo->vgId;
+  tstrncpy(req.dbFName, dbFName, sizeof(req.dbFName));
+  tstrncpy(req.tbName, tbName, sizeof(req.tbName));
+
+  int32_t contLen = tSerializeSTableInfoReq(NULL, 0, &req);
+  char* buf = taosMemoryCalloc(1, contLen);
+  QUERY_CHECK_NULL(buf, code, lino, _return, terrno)
+  tSerializeSTableInfoReq(buf, contLen, &req);
+
+  SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  QUERY_CHECK_NULL(pMsgSendInfo, code, lino, _return, terrno)
+
+  pVtbScan->pTbMetaRsp = pRsp;
+
+  pMsgSendInfo->param = pOperator;
+  pMsgSendInfo->msgInfo.pData = buf;
+  pMsgSendInfo->msgInfo.len = contLen;
+  pMsgSendInfo->msgType = TDMT_VND_TABLE_META;
+  pMsgSendInfo->fp = dynProcessTbMetaRsp;
+  pMsgSendInfo->requestId = pTaskInfo->id.queryId;
+
+  SEp* pEp = &vgInfo->epSet.eps[vgInfo->epSet.inUse];
+  qDebug("getTableMetaViaRpc: sending to vgId:%d ep:%s:%u for table %s.%s", vgInfo->vgId, pEp->fqdn, pEp->port, dbName, tbName);
+
+  code = asyncSendMsgToServer(pVtbScan->pMsgCb->clientRpc, &vgInfo->epSet, NULL, pMsgSendInfo);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  code = tsem_wait(&pVtbScan->ready);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
+    code = pTaskInfo->code;
+    pTaskInfo->code = TSDB_CODE_SUCCESS;
+    qError("getTableMetaViaRpc: rsp error code:%s for %s.%s", tstrerror(code), dbName, tbName);
+    goto _return;
+  }
+
+  pVtbScan->pTbMetaRsp = NULL;
+  return code;
+
+_return:
+  pVtbScan->pTbMetaRsp = NULL;
+  if (code) {
+    qError("%s failed at line %d since %s, db:%s tb:%s", __func__, lino, tstrerror(code), dbName, tbName);
+  }
+  return code;
+}
+
+static int32_t resolveVtableColRefToPhysical(SOperatorInfo* pOperator, const char* refDb, const char* refTb,
+                                              const char* refCol, char* outDb, char* outTb, char* outCol) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t depth = 0;
+  char    curDb[TSDB_DB_NAME_LEN];
+  char    curTb[TSDB_TABLE_NAME_LEN];
+  char    curCol[TSDB_COL_NAME_LEN];
+
+  tstrncpy(curDb, refDb, sizeof(curDb));
+  tstrncpy(curTb, refTb, sizeof(curTb));
+  tstrncpy(curCol, refCol, sizeof(curCol));
+
+  while (depth < 2) {
+    STableMetaRsp rsp = {0};
+    code = getTableMetaViaRpc(pOperator, curDb, curTb, &rsp);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("resolveVtableColRef: getTableMetaViaRpc failed for %s.%s, code:%s", curDb, curTb, tstrerror(code));
+      return code;
+    }
+
+    bool isVirtual = (rsp.tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+                      rsp.tableType == TSDB_VIRTUAL_CHILD_TABLE);
+
+    if (!isVirtual) {
+      tFreeSTableMetaRsp(&rsp);
+      break;
+    }
+
+    bool found = false;
+    for (int32_t i = 0; i < rsp.numOfColRefs; i++) {
+      if (!rsp.pColRefs[i].hasRef) continue;
+      if (i < rsp.numOfColumns && strcmp(rsp.pSchemas[i].name, curCol) == 0) {
+        tstrncpy(curDb, rsp.pColRefs[i].refDbName, sizeof(curDb));
+        tstrncpy(curTb, rsp.pColRefs[i].refTableName, sizeof(curTb));
+        tstrncpy(curCol, rsp.pColRefs[i].refColName, sizeof(curCol));
+        found = true;
+        break;
+      }
+    }
+
+    tFreeSTableMetaRsp(&rsp);
+    if (!found) break;
+    depth++;
+  }
+
+  tstrncpy(outDb, curDb, TSDB_DB_NAME_LEN);
+  tstrncpy(outTb, curTb, TSDB_TABLE_NAME_LEN);
+  tstrncpy(outCol, curCol, TSDB_COL_NAME_LEN);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int dynVgInfoComp(const void* lp, const void* rp) {
   SVgroupInfo* pLeft = (SVgroupInfo*)lp;
   SVgroupInfo* pRight = (SVgroupInfo*)rp;
@@ -2340,11 +2515,19 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
         QUERY_CHECK_CODE(code, line, _return);
       }
 
-      // Parse db/tb/col ref and resolve source table vgId.
+      // Parse db/tb/col ref and resolve virtual table references to physical tables.
       code = extractColRefName(pKV->colrefName, &refDbName, &refTbName, &refColName);
       QUERY_CHECK_CODE(code, line, _return);
 
-      toName(pInfo->vtbScan.acctId, refDbName, refTbName, &name);
+      char physDb[TSDB_DB_NAME_LEN] = {0};
+      char physTb[TSDB_TABLE_NAME_LEN] = {0};
+      char physCol[TSDB_COL_NAME_LEN] = {0};
+      code = resolveVtableColRefToPhysical(pOperator, refDbName, refTbName, refColName, physDb, physTb, physCol);
+      QUERY_CHECK_CODE(code, line, _return);
+
+      qDebug("resolveColRef: %s.%s.%s -> %s.%s.%s", refDbName, refTbName, refColName, physDb, physTb, physCol);
+
+      toName(pInfo->vtbScan.acctId, physDb, physTb, &name);
 
       code = getDbVgInfo(pOperator, &name, &dbVgInfo);
       QUERY_CHECK_CODE(code, line, _return);
@@ -2356,36 +2539,14 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
       void *pVal = taosHashGet(pVtbScan->otbNameToOtbInfoMap, orgTbFName, sizeof(orgTbFName));
       if (!pVal) {
         SOrgTbInfo orgTbInfo = {0};
-        // NEW: Check if the reference table is virtual table
-        // If so, use catalogGetOriginalTableVgroup to resolve to original table's vgroup
-        STableMeta* pRefMeta = NULL;
-        code = catalogGetTableMeta(pTaskInfo->pCatalog, &pTaskInfo->pConn, &name, &pRefMeta);
-        if (TSDB_CODE_SUCCESS == code && pRefMeta != NULL) {
-          bool isVirtualTable = (pRefMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
-                                 pRefMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE ||
-                                 (pRefMeta->virtualStb && pRefMeta->tableType == TSDB_SUPER_TABLE));
-          
-          if (isVirtualTable) {
-            SVgroupInfo originalVgInfo = {0};
-            code = catalogGetOriginalTableVgroup(pTaskInfo->pCatalog, &pTaskInfo->pConn, &name, &originalVgInfo);
-            if (TSDB_CODE_SUCCESS == code) {
-              orgTbInfo.vgId = originalVgInfo.vgId;
-            }
-          }
-          taosMemoryFree(pRefMeta);
-          pRefMeta = NULL;
-        }
-        
-        if (orgTbInfo.vgId == 0) {
-          code = getVgId(dbVgInfo, dbFname, &orgTbInfo.vgId, name.tname);
-          QUERY_CHECK_CODE(code, line, _return);
-        }
+        code = getVgId(dbVgInfo, dbFname, &orgTbInfo.vgId, name.tname);
+        QUERY_CHECK_CODE(code, line, _return);
         tstrncpy(orgTbInfo.tbName, orgTbFName, sizeof(orgTbInfo.tbName));
         orgTbInfo.colMap = taosArrayInit(10, sizeof(SColIdNameKV));
         QUERY_CHECK_NULL(orgTbInfo.colMap, code, line, _return, terrno)
         SColIdNameKV colIdNameKV = {0};
         colIdNameKV.colId = pKV->colId;
-        tstrncpy(colIdNameKV.colName, refColName, sizeof(colIdNameKV.colName));
+        tstrncpy(colIdNameKV.colName, physCol, sizeof(colIdNameKV.colName));
         QUERY_CHECK_NULL(taosArrayPush(orgTbInfo.colMap, &colIdNameKV), code, line, _return, terrno)
         code = taosHashPut(pVtbScan->otbNameToOtbInfoMap, orgTbFName, sizeof(orgTbFName), &orgTbInfo, sizeof(orgTbInfo));
         QUERY_CHECK_CODE(code, line, _return);
@@ -2393,7 +2554,7 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
         SOrgTbInfo *tbInfo = (SOrgTbInfo *)pVal;
         SColIdNameKV colIdNameKV = {0};
         colIdNameKV.colId = pKV->colId;
-        tstrncpy(colIdNameKV.colName, refColName, sizeof(colIdNameKV.colName));
+        tstrncpy(colIdNameKV.colName, physCol, sizeof(colIdNameKV.colName));
         QUERY_CHECK_NULL(taosArrayPush(tbInfo->colMap, &colIdNameKV), code, line, _return, terrno)
       }
       taosMemoryFree(refDbName);

@@ -2147,12 +2147,8 @@ void catalogDestroy(void) {
 }
 // Maximum virtual table reference depth (chain length)
 #ifndef TSDB_MAX_VTABLE_REF_DEPTH
-#define TSDB_MAX_VTABLE_REF_DEPTH 5
+#define TSDB_MAX_VTABLE_REF_DEPTH 2
 #endif
-
-/**
- * @brief Recursively get original table's vgroup from virtual table chain
-
 
 /**
  * @brief Recursively get original table's vgroup from virtual table chain
