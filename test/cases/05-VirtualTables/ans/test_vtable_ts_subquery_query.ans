@@ -1,0 +1,30 @@
+
+taos> select * from test_vtable_ts_pushdown_vtb.ntb_0_vtb where ts >= '2020-10-10 10:00:01' and ts < '2020-10-10 10:00:03' order by ts;
+           ts            |  value_col  |
+========================================
+ 2020-10-10 10:00:01.000 |           2 |
+ 2020-10-10 10:00:02.000 |           3 |
+
+taos> select * from test_vtable_ts_pushdown_vtb.vstb_0 where ts >= '2020-10-10 10:00:01' and ts < '2020-10-10 10:00:03' order by ts;
+           ts            |  value_col  |  group_id   |
+======================================================
+ 2020-10-10 10:00:01.000 |          12 |           1 |
+ 2020-10-10 10:00:02.000 |          13 |           1 |
+
+taos> select * from test_vtable_ts_pushdown_vtb.ntb_0_vtb where ts >= (select lower_ts from test_vtable_ts_pushdown_origin.bound_t limit 1) and ts < (select upper_ts from test_vtable_ts_pushdown_origin.bound_t limit 1) order by ts;
+           ts            |  value_col  |
+========================================
+ 2020-10-10 10:00:01.000 |           2 |
+ 2020-10-10 10:00:02.000 |           3 |
+
+taos> select * from test_vtable_ts_pushdown_vtb.ctb_0_vtb where ts >= (select lower_ts from test_vtable_ts_pushdown_origin.bound_t limit 1) and ts < (select upper_ts from test_vtable_ts_pushdown_origin.bound_t limit 1) order by ts;
+           ts            |  value_col  |
+========================================
+ 2020-10-10 10:00:01.000 |          12 |
+ 2020-10-10 10:00:02.000 |          13 |
+
+taos> select * from test_vtable_ts_pushdown_vtb.vstb_0 where ts = (select exact_ts from test_vtable_ts_pushdown_origin.bound_t limit 1) order by ts;
+           ts            |  value_col  |  group_id   |
+======================================================
+ 2020-10-10 10:00:02.000 |          13 |           1 |
+

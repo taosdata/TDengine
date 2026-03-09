@@ -163,3 +163,41 @@ class TestVTableQuery:
                 for j in range(5,9):
                     tdSql.checkData(row_idx, j, i)
                 row_idx +=1
+
+    def test_select_virtualtable_same_reference_col_with_ts_filter(self):
+        """Query: virtual table with timestamp filter
+
+        1. test normal virtual table query with timestamp range filter
+        2. test child virtual table query with timestamp range filter
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.8.0
+
+        Labels: virtual
+
+        Jira: None
+
+        History:
+            - 2026-3-9 Codex added ts filter regression for primary cond pushdown
+
+        """
+
+        base_ts = 1696000000000
+        start_ts = base_ts + 3 * 1000
+        end_ts = base_ts + 6 * 1000
+        query_tables = ["vtb_virtual_ntb_2", "vtb_virtual_ctb_4"]
+
+        for tbname in query_tables:
+            tdSql.query(
+                f"select * from test_vtable_select_same_reference_col.{tbname} "
+                f"where ts >= {start_ts} and ts < {end_ts} order by ts;")
+            tdSql.checkRows(3)
+            for i in range(3):
+                value = i + 3
+                ts = base_ts + value * 1000
+                for j in range(4):
+                    tdSql.checkData(i, j, ts)
+                for j in range(4, 8):
+                    tdSql.checkData(i, j, value)
