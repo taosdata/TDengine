@@ -33,19 +33,21 @@ class Configure:
 
     def _get_default_conf(self):
         if platform.system().lower() == "windows":
-
+            raw_path = r"%PROGRAMDATA%"
+            base_path = os.path.join(os.path.expandvars(raw_path), "tdgpt")
+            
             default = {
-                "log_dir": "c:/tdgpt/log/",
-                "log_path": "c:/tdgpt/log/taosanode.app.log",
-                "model_dir": "c:/tdgpt/model/",
-                "conf_path": "c:/tdgpt/conf/taosanode.config.py",
+                "log_dir": os.path.join(base_path, "log"),
+                "log_file": "taosanode.app.log",
+                "model_dir": os.path.join(base_path, "model"),
+                "conf_path": os.path.join(base_path, "conf/taosanode.config.py"),
                 "log_level": logging.DEBUG,
                 "draw_result": False,
             }
         else:
             default = {
                 "log_dir": "/var/log/taos/taosanode/",
-                "log_path": "/var/log/taos/taosanode/taosanode.app.log",
+                "log_file": "taosanode.app.log",
                 "model_dir": '/usr/local/taos/taosanode/model/',
                 "conf_path": "/etc/taos/taosanode.config.py",
                 "log_level": logging.DEBUG,
@@ -54,13 +56,12 @@ class Configure:
 
             if os.environ.get('GITHUB_ACTIONS'):
                default['log_dir'] = '/home/runner/work/TDengine/TDengine/tools/tdgpt/log/'
-               default['log_path'] = os.path.join(default['log_dir'], 'taosanode.app.log')
 
         return default
 
     def get_log_path(self) -> str:
         """ return log file full path """
-        return self._conf['log_path']
+        return os.path.join(self._conf['log_dir'], 'taosanode.app.log')
 
     def get_log_dir(self) -> str:
         return self._conf["log_dir"]
@@ -94,7 +95,8 @@ class Configure:
                     conf_vars[key] = value
 
         if 'app_log' in conf_vars:
-            self._conf['log_path'] = conf_vars['app_log']
+            self._conf['log_dir'] = os.path.dirname(conf_vars['app_log'])
+            self._conf['log_file'] = os.path.basename(conf_vars['app_log'])
             conf_vars.pop('app_log')
 
         if 'log_level' in conf_vars:
