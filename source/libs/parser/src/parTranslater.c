@@ -18043,8 +18043,24 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
       break;
     case PRIV_OBJ_TOKEN:
       break;
-    case PRIV_OBJ_NONE:
+    case PRIV_OBJ_NONE: {
+      if (IS_SPECIFIC_OBJ(pStmt->objName) && pStmt->tabName[0] != 0) {
+        SDbCfgInfo dbCfg = {0};
+        code = getDBCfg(pCxt, pStmt->objName, &dbCfg);
+
+        // don't validate the object when revoke
+        if (grant && code != TSDB_CODE_SUCCESS) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST,
+                                         "Failed to get database %s since %s", pStmt->objName, tstrerror(code));
+        }
+
+        if (code == TSDB_CODE_SUCCESS && dbCfg.isAudit) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                         "Cannot grant/revoke privileges on audit database");
+        }
+      }
       break;
+    }
     default:
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "Unsupported object type for privilege");
@@ -18139,6 +18155,11 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
               pStmt->tabName[0] = '*';
               pStmt->tabName[1] = '\0';
             }
+          }
+        } else if (IS_WILDCARD_OBJ(pStmt->objName)) {
+          // extend grant privType on * to u1; to grant privType on *.* to u1;
+          if (pStmt->tabName[0] == 0) {
+            snprintf(pStmt->tabName, sizeof(pStmt->tabName), "*");
           }
         }
       }
