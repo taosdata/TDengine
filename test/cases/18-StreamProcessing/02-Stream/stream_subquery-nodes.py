@@ -7,22 +7,11 @@ import os
 import subprocess
 
 class TestStreamSubquery:
-    #
-    #  taos.cfg config
-    #
-#    updatecfgDict = {
-#        "numOfMnodeStreamMgmtThreads"  : "4",
-#        "numOfStreamMgmtThreads"       : "5",
-#        "numOfVnodeStreamReaderThreads": "6",
-#        "numOfStreamTriggerThreads"    : "7",
-#        "numOfStreamRunnerThreads"     : "8"
-#    }
-
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_subquery(self):
-        """Stream with subquery filter
+        """Stream with subquery filter with multiple dnodes
 
         1. Check stream interval result
 
@@ -103,7 +92,7 @@ class TestStreamSubquery:
             "insert into db.tb values('2026-1-12 00:00:01', 20);",
             "insert into db.tb values('2026-1-12 00:00:02', 30);",
             "insert into db.tb values('2026-1-12 00:00:03', 40);",
-            "create snode on dnode 1;",
+            "create snode on dnode 4;",
         ]
 
         tdSql.executes(sqls)

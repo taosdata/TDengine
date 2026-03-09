@@ -4659,6 +4659,7 @@ _exit:
 }
 
 #define STREAM_TASK_REPLICA_NUM 5
+#define STREAM_TASK_DEPLOY_NUM 3
 
 int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes, bool reset) {
   int32_t          code = TSDB_CODE_SUCCESS;
@@ -4666,7 +4667,9 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
   SExecTaskInfo*   pTaskInfo = ctx->pTaskInfo;
   bool             needStreamPesudoFuncVals = false;
 
-
+  if (IS_STREAM_MODE(pTaskInfo)) {
+    subQIdx *= STREAM_TASK_DEPLOY_NUM;
+  }
   SDownstreamSourceNode* pSource = (SDownstreamSourceNode*)taosArrayGetP(ctx->subEndPoints, subQIdx);
 
   SResFetchReq req = {0};
@@ -4686,6 +4689,7 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
     req.reset = reset;
 
     needStreamPesudoFuncVals = true;
+    subQIdx /= STREAM_TASK_DEPLOY_NUM;
   }
 
   int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req, needStreamPesudoFuncVals);
