@@ -24518,7 +24518,8 @@ static int32_t doRewriteAlterMultiTableTagVal(STranslateContext* pCxt, SQuery* p
     }
 
     if (pTableMeta->tableType == TSDB_SUPER_TABLE) {
-      continue;
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Cannot alter super table: `%s`.`%s`", pClause->dbName, pClause->tableName);
+      goto _error;
     }
     
     if (pTableMeta->tableType != TSDB_CHILD_TABLE && pTableMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
@@ -24712,12 +24713,7 @@ static EDealRes rewriteAlterChildTableTagValWhereCond(SNode** pNode, void* pCont
     case QUERY_NODE_FUNCTION: {
       SFunctionNode* pFunc = (SFunctionNode*)*pNode;
 
-      if (isAggFunc(*pNode)) {
-        pCxt->code = generateSyntaxErrMsgExt(&pCxt->pCxt->msgBuf, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION, "Aggregate func '%s' in the where condition is not allowed", pFunc->functionName);
-        return DEAL_RES_ERROR;
-      }
-
-      if (FUNCTION_TYPE_TBNAME == pFunc->funcType) {
+      if (0 == strcasecmp(pFunc->functionName, "tbname")) {
         SColumnNode* pCol = NULL;
         pCxt->code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
         if (pCxt->code != TSDB_CODE_SUCCESS) {
@@ -24735,6 +24731,11 @@ static EDealRes rewriteAlterChildTableTagValWhereCond(SNode** pNode, void* pCont
         nodesDestroyNode(*pNode);
         *pNode = (SNode*)pCol;
         return DEAL_RES_CONTINUE;
+      }
+
+      if (isAggFunc(*pNode)) {
+        pCxt->code = generateSyntaxErrMsgExt(&pCxt->pCxt->msgBuf, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION, "Aggregate func '%s' in the where condition is not allowed", pFunc->functionName);
+        return DEAL_RES_ERROR;
       }
 
       return translateFunction(pCxt->pCxt, (SFunctionNode**)pNode);

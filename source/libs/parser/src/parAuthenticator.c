@@ -685,11 +685,27 @@ static int32_t authDropVtable(SAuthCxt* pCxt, SDropVirtualTableStmt* pStmt) {
 
 static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
   SNode* pTagCond = NULL;
-  // todo check tag condition for subtable
-  if (checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL)) {
-    return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+  if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
+    int32_t code = 0;
+    SNode* pTableNode = NULL;
+    FOREACH(pTableNode, pStmt->pList) {
+      SAlterTableUpdateTagValClause* pClause = (SAlterTableUpdateTagValClause*)pTableNode;
+      if (checkAuth(pCxt, pClause->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL)) {
+        return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+      }
+      code = checkAuth(pCxt, pClause->dbName, pClause->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+    }
+    return code;
+  } else {
+    // todo check tag condition for subtable
+    if (checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL)) {
+      return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+    }
+    return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
   }
-  return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
 }
 
 static int32_t authAlterVTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {

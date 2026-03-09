@@ -701,6 +701,24 @@ static int32_t collectMetaKeyFromAlterTable(SCollectMetaKeyCxt* pCxt, SAlterTabl
 
 
 static int32_t collectMetaKeyFromAlterStable(SCollectMetaKeyCxt* pCxt, SAlterTableStmt* pStmt) {
+  if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
+    // TODO: should return TSDB_CODE_PAR_INVALID_ALTER_TABLE directly
+    int32_t code = TSDB_CODE_SUCCESS;
+    SNode*  pNode = NULL;
+    FOREACH(pNode, pStmt->pList) {
+      SAlterTableUpdateTagValClause* pClause = (SAlterTableUpdateTagValClause*)pNode;
+      code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pClause->dbName, pCxt->pMetaCache);
+      if (code != TSDB_CODE_SUCCESS) break;
+      code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
+      if (code != TSDB_CODE_SUCCESS) break;
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache);
+      if (code != TSDB_CODE_SUCCESS) break;
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName, pClause->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, pCxt->pMetaCache);
+      if (code != TSDB_CODE_SUCCESS) break;
+    }
+    return code;
+  }
+
   int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
