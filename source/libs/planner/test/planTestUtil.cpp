@@ -393,7 +393,7 @@ class PlannerTestBaseImpl {
     cxt.msgLen = stmtEnv_.msgBuf_.max_size();
     cxt.pUser = caseEnv_.user_.c_str();
 
-    DO_WITH_THROW(qStmtParseQuerySql, &cxt, pQuery);
+    DO_WITH_THROW(qStmtParseQuerySql, &cxt, pQuery, NULL);
     res_.ast_ = toString(pQuery->pRoot);
   }
 

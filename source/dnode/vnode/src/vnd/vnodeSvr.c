@@ -1678,12 +1678,14 @@ static void alterTagForTmq(SVnode *pVnode, SVAlterTbReq *vAlterTbReq) {
   QUERY_CHECK_NULL(cidList, code, lino, end, terrno);
 
   if (vAlterTbReq->action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL){
-    QUERY_CHECK_CONDITION(taosArrayPush(cidList, &vAlterTbReq->colId) != NULL, code, lino, end, terrno);
+    col_id_t cid = vAlterTbReq->colId;
+    QUERY_CHECK_CONDITION(taosArrayPush(cidList, &cid) != NULL, code, lino, end, terrno);
   } else {
     for (int32_t i = 0; i < taosArrayGetSize(vAlterTbReq->pMultiTag); i++) {
       SMultiTagUpateVal *pTagVal = taosArrayGet(vAlterTbReq->pMultiTag, i);
       QUERY_CHECK_NULL(pTagVal, code, lino, end, terrno);
-      QUERY_CHECK_CONDITION(taosArrayPush(cidList, &pTagVal->colId) != NULL, code, lino, end, terrno);
+      col_id_t cid = pTagVal->colId;
+      QUERY_CHECK_CONDITION(taosArrayPush(cidList, &cid) != NULL, code, lino, end, terrno);
     }
   }
   
@@ -3253,5 +3255,5 @@ _OVER:
 
 #ifndef TD_ENTERPRISE
 int32_t vnodeAsyncCompact(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) { return 0; }
-int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, ETsdbOpType type) { return 0; }
+int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, ETsdbOpType type, bool force) { return 0; }
 #endif

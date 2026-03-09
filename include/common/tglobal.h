@@ -75,7 +75,7 @@ extern EEncryptScope tsiEncryptScope;
 // extern char     tsAuthCode[];
 extern char          tsEncryptKey[];
 extern int8_t        tsEnableStrongPassword;
-extern int8_t        tsAllowDefaultPassword;
+extern int8_t        tsEnableAdvancedSecurity;
 extern char          tsEncryptPassAlgorithm[];
 extern EEncryptAlgor tsiEncryptPassAlgorithm;
 
@@ -338,7 +338,8 @@ extern char tsSmlTsDefaultName[];
 // extern int32_t tsSmlBatchSize;
 
 extern int32_t tmqMaxTopicNum;
-extern int32_t tmqRowSize;
+extern char    tmqWriteRefDB[];
+extern bool    tmqWriteCheckRef;
 extern int32_t tsMaxTsmaNum;
 extern int32_t tsMaxTsmaCalcDelay;
 extern int64_t tsmaDataDeleteMark;
@@ -360,6 +361,7 @@ extern int32_t tsTtlPushIntervalSec;
 extern int32_t tsTtlBatchDropNum;
 extern int32_t tsTrimVDbIntervalSec;
 extern int32_t tsQueryTrimIntervalSec;
+extern int32_t tsQuerySsMigrateIntervalSec;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 extern bool    tsUpdateCacheBatch;

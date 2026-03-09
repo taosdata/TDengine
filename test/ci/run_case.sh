@@ -101,9 +101,9 @@ if [ -d "/var/log/taos" ]; then
     cp /var/log/taos/* /home/TDinternal/sim/var_taoslog/ >/dev/null 2>&1
 fi
 
-if [ -f "${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log" ]; then
+if [ -f "${CONTAINER_TESTDIR}/docs/examples/JDBC/JDBCDemo/jdbc-out.log" ]; then
      mkdir -p /home/TDinternal/sim/var_taoslog/
-    cp ${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log \
+    cp ${CONTAINER_TESTDIR}/docs/examples/JDBC/JDBCDemo/jdbc-out.log \
         /home/TDinternal/sim/var_taoslog/ >/dev/null 2>&1
 fi
 

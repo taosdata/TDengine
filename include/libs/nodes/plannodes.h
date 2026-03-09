@@ -390,7 +390,7 @@ typedef struct SWindowLogicNode {
   // for external and interval window
   int8_t                partType;      // bit0 is for has partition, bit1 is for tb partition
   // for anomaly window
-  SNode*                pAnomalyExpr;
+  SNodeList*            pAnomalyExpr;
   char                  anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
 } SWindowLogicNode;
 
@@ -847,7 +847,7 @@ typedef struct SCountWindowPhysiNode {
 
 typedef struct SAnomalyWindowPhysiNode {
   SWindowPhysiNode window;
-  SNode*           pAnomalyKey;
+  SNodeList*       pAnomalyKeys;
   char             anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
 } SAnomalyWindowPhysiNode;
 

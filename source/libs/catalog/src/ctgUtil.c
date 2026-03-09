@@ -2612,7 +2612,20 @@ _next:
         case PRIV_CM_SHOW_CREATE: {
           if (pReq->objType == PRIV_OBJ_TBL) {
             // don't support tag condition
-            CTG_ERR_RET(ctgChkSetTbAuthRsp(pCtg, req, res));
+            code = ctgChkSetTbAuthRsp(pCtg, req, res);
+            if ((pReq->privType == PRIV_CM_DROP) && !pRes->pass[AUTH_RES_BASIC]) {
+              if (pReq->dbOwner) {
+                pRes->pass[AUTH_RES_BASIC] = true;
+                res->metaNotExists = false;  // rewrite metaNotExists since drop tb privilege exists
+                return TSDB_CODE_SUCCESS;
+              }
+              CTG_ERR_RET(ctgChkSetCommonAuthRsp(pCtg, req, res));
+              if (pRes->pass[AUTH_RES_BASIC]) {
+                res->metaNotExists = false;  // rewrite metaNotExists since drop tb privilege exists
+                return TSDB_CODE_SUCCESS;
+              }
+            }
+            CTG_ERR_RET(code);
           } else {
             if (pReq->dbOwner) {
               pRes->pass[AUTH_RES_BASIC] = true;
@@ -2691,73 +2704,7 @@ _next:
 #endif
   return TSDB_CODE_SUCCESS;
 }
-#if 0
-int32_t ctgChkSetViewAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
-  int32_t          code = 0;
-  SUserAuthInfo*   pReq = req->pRawReq;
-  SUserAuthRes*    pRes = res->pRawRes;
-  SGetUserAuthRsp* pInfo = &req->authInfo;
 
-  pRes->pass[AUTH_RES_VIEW] = false;
-  pRes->pCond[AUTH_RES_VIEW] = NULL;
-
-  if (!pInfo->enable) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (pInfo->superAuth) {
-    pRes->pass[AUTH_RES_VIEW] = true;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (pReq->tbName.type != TSDB_TABLE_NAME_T) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  char viewFName[TSDB_VIEW_FNAME_LEN];
-  if (IS_SYS_DBNAME(req->pRawReq->tbName.dbname)) {
-    (void)snprintf(viewFName, sizeof(viewFName), "%s.%s", req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
-  } else {
-    code = tNameExtractFullName(&req->pRawReq->tbName, viewFName);
-    if (code) {
-      ctgError("tNameExtractFullName failed, error:%s, type:%d, dbName:%s, tname:%s", tstrerror(code),
-               req->pRawReq->tbName.type, req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
-      CTG_ERR_RET(code);
-    }
-  }
-  int32_t len = strlen(viewFName) + 1;
-  switch (pReq->privType) {
-    case PRIV_VIEW_SELECT: {
-      char* value = taosHashGet(pInfo->readViews, viewFName, len);
-      if (NULL != value) {
-        pRes->pass[AUTH_RES_VIEW] = true;
-        return TSDB_CODE_SUCCESS;
-      }
-      break;
-    }
-    case PRIV_TBL_INSERT: {
-      char* value = taosHashGet(pInfo->writeViews, viewFName, len);
-      if (NULL != value) {
-        pRes->pass[AUTH_RES_VIEW] = true;
-        return TSDB_CODE_SUCCESS;
-      }
-      break;
-    }
-    case PRIV_VIEW_CREATE: {
-      char* value = taosHashGet(pInfo->alterViews, viewFName, len);
-      if (NULL != value) {
-        pRes->pass[AUTH_RES_VIEW] = true;
-        return TSDB_CODE_SUCCESS;
-      }
-      break;
-    }
-    default:
-      break;
-  }
-  pRes->pass[AUTH_RES_VIEW] = true;
-  return TSDB_CODE_SUCCESS;
-}
-#endif
 int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
 #if 0
   CTG_ERR_RET(ctgChkSetViewAuthRes(pCtg, req, res));

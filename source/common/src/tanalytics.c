@@ -588,7 +588,6 @@ static int32_t taosAnalyJsonBufWriteColBegin(SAnalyticBuf *pBuf, int32_t colInde
 static int32_t taosAnalyJsonBufWriteColEnd(SAnalyticBuf *pBuf, int32_t colIndex) {
   if (colIndex == pBuf->numOfCols - 1) {
     return taosAnalyJsonBufWriteStrUseCol(pBuf, "\n]\n", 0, colIndex);
-
   } else {
     return taosAnalyJsonBufWriteStrUseCol(pBuf, "\n],\n", 0, colIndex);
   }

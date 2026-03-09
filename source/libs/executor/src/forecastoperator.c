@@ -277,7 +277,7 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
   int32_t rows = 0;
   tjsonGetInt32ValueFromDouble(pJson, "rows", rows, code);
   if (rows < 0 && code == 0) {
-    code = parseErrorMsgFromAnalyticServer(pJson, pId);
+    code = parseErrorMsgFromAnalyticServer(pJson, "forecast", pId);
     tjsonDelete(pJson);
     return code;
   }

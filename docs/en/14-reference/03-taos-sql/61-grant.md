@@ -485,7 +485,13 @@ Different object types support different permission types. The specific mapping 
 
 - When using `GRANT` for authorization, you need to specify the object type through `ON [priv_obj]`, and the system will automatically verify whether the permission is applicable to the specified object type.
 - `[(column_list)]` indicates an optional list of column names for implementing column-level permission control. For `view` object, only `SELECT` is supported, and column-list is not supported.
-- Only one rule can be set for the same type of operation per table for column permissions.
+- Only one rule can be set for the same type of privilege per table.
+- When revoking privileges, the `priv_level` is matched exactly; recursive revocation is not supported. For example, `REVOKE SELECT ON d0.* FROM u1` only removes the specific privilege for `d0.*`, and does not remove the privileges explicitly granted on individual objects, such as `d0.t1`.
+
+#### User and Role Permissions
+
+- In most cases, effective permissions are cumulative, forming a union of direct user permissions and inherited role permissions.
+- For row/column permissions, only a single rule takes effect — neither the union nor the intersection. If both the user and the roles have row/column permissions of the same type, the one updated more recently takes precedence; if update times are identical, the user permission takes precedence.
 
 #### Database Permissions
 

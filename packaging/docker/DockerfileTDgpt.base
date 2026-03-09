@@ -1,104 +1,91 @@
 # tdengine/tdgpt-env-amd64:1.1
 ARG ARCH=amd64
+ARG PIP_INDEX_URL=
+ARG PYTHON_BASE=python:3.10-slim-trixie
+ARG TORCH_INDEX=https://download.pytorch.org/whl/cpu
 
-FROM python:3.10-slim-trixie AS base-builder
+FROM ${PYTHON_BASE} AS base-builder
 ARG ARCH=amd64
+ARG PIP_INDEX_URL
+ARG TORCH_INDEX
+COPY ./requirements_docker.txt /tmp/requirements_docker.txt
 RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update -y && \
     apt-get install -y --no-install-recommends gcc libc-dev procps && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Use CPU-only torch/tensorflow in this image (no CUDA dependency)
+# Install torch/tensorflow first, then install requirements to avoid dependency override/conflicts
 RUN if [ "$ARCH" = "arm64" ]; then \
         TORCH_PKG="torch"; \
-        TORCH_INDEX="https://download.pytorch.org/whl/cpu"; \
         TENSORFLOW_PKG="tensorflow"; \
     else \
         TORCH_PKG="torch==2.3.1+cpu"; \
-        TORCH_INDEX="https://download.pytorch.org/whl/cpu"; \
         TENSORFLOW_PKG="tensorflow-cpu==2.15.0"; \
     fi && \
-    echo "arch=$ARCH, pkg1=${TORCH_PKG}, pkg2=${TENSORFLOW_PKG}" && \
+    PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
     pip3 install --upgrade pip && \
-    pip3 install --no-cache-dir --ignore-installed blinker && \
     pip3 install --no-cache-dir $TORCH_PKG --index-url $TORCH_INDEX && \
     pip3 install --no-cache-dir \
-                    $TENSORFLOW_PKG \
-                    numpy==1.26.4 \
-                    pandas==1.5.0 \
-                    scikit-learn==1.7.0 \
-                    outlier_utils==0.0.5 \
-                    statsmodels==0.14.4 \
-                    pyculiarity==0.0.7 \
-                    pmdarima==2.0.4 \
-                    flask==3.1.1 \
-                    matplotlib==3.10.3 \
-                    taospy \
-                    uwsgi==2.0.30 \
-                    accelerate==1.8.1 \
-                    prophet==1.1.7 \
-                    fastdtw==0.3.4 \
-                    -i https://pypi.tuna.tsinghua.edu.cn/simple && \
-    find /usr/local/lib/python3.10 -name "*.pyc" -delete && \
-    find /usr/local/lib/python3.10 -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && \
-    find /usr/local/lib/python3.10 -type d -name 'tests' -exec rm -rf {} + 2>/dev/null || true
+                -r /tmp/requirements_docker.txt \
+                ${PIP_INDEX_ARG} && \
+    find /usr/local/lib/python3.10 -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null
 
-FROM python:3.10-slim-trixie AS venv1-builder
+FROM ${PYTHON_BASE} AS venv1-builder
+ARG PIP_INDEX_URL
 COPY --from=base-builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
 COPY --from=base-builder /usr/local/bin /usr/local/bin
 ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN python3.10 -m venv --system-site-packages $VIRTUAL_ENV && \
-    pip install --no-cache-dir transformers==4.40 \
-        -i https://pypi.tuna.tsinghua.edu.cn/simple && \
-    find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
-    find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
+    PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
+    pip3 install --no-cache-dir transformers==4.40 ${PIP_INDEX_ARG} && \
+    find $VIRTUAL_ENV -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null
 
-FROM python:3.10-slim-trixie AS venv2-builder
+FROM ${PYTHON_BASE} AS venv2-builder
+ARG PIP_INDEX_URL
 COPY --from=base-builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
 COPY --from=base-builder /usr/local/bin /usr/local/bin
 ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv_chronos
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-RUN python -m venv --system-site-packages $VIRTUAL_ENV && \
-    pip install --no-cache-dir transformers==4.55 \
-        chronos-forecasting \
-        -i https://pypi.tuna.tsinghua.edu.cn/simple && \
-    find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
-    find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
+RUN python3.10 -m venv --system-site-packages $VIRTUAL_ENV && \
+    PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
+    pip3 install --no-cache-dir transformers==4.55 chronos-forecasting ${PIP_INDEX_ARG} && \
+    find $VIRTUAL_ENV -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null
 
-FROM python:3.10-slim-trixie AS venv3-builder
+FROM ${PYTHON_BASE} AS venv3-builder
+ARG PIP_INDEX_URL
 COPY --from=base-builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
 COPY --from=base-builder /usr/local/bin /usr/local/bin
 ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv_timesfm
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-RUN python -m venv --system-site-packages $VIRTUAL_ENV && \
-    pip install --no-cache-dir transformers==4.33.3 momentfm \
-        -i https://pypi.tuna.tsinghua.edu.cn/simple && \
-    find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
-    find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
+RUN python3.10 -m venv --system-site-packages $VIRTUAL_ENV && \
+    PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
+    pip3 install --no-cache-dir transformers==4.33.3 momentfm ${PIP_INDEX_ARG} && \
+    find $VIRTUAL_ENV -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null
 
 
-FROM python:3.10-slim-trixie AS venv4-builder
+FROM ${PYTHON_BASE} AS venv4-builder
 ARG ARCH=amd64
+ARG PIP_INDEX_URL
+ARG TORCH_INDEX
 COPY --from=base-builder /usr/local/bin /usr/local/bin
 ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv_moirai
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-RUN if [ "$ARCH" = "arm64" ]; then \
+RUN python3.10 -m venv --system-site-packages $VIRTUAL_ENV && \
+    PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
+    if [ "$ARCH" = "arm64" ]; then \
         TORCH_PKG="torch"; \
-        TORCH_INDEX="https://download.pytorch.org/whl/cpu"; \
     else \
         TORCH_PKG="torch==2.3.1+cpu"; \
-        TORCH_INDEX="https://download.pytorch.org/whl/cpu"; \
     fi && \
-    python -m venv --system-site-packages $VIRTUAL_ENV && \
     pip3 install --no-cache-dir $TORCH_PKG --index-url $TORCH_INDEX && \
-    pip install --no-cache-dir uni2ts flask \
-        -i https://pypi.tuna.tsinghua.edu.cn/simple && \
-    find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
-    find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
+    pip3 install --no-cache-dir uni2ts flask ${PIP_INDEX_ARG} && \
+    find $VIRTUAL_ENV -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null
 
-FROM python:3.10-slim-trixie
+FROM ${PYTHON_BASE}
 RUN apt-get update -y && \
-    apt-get install -y --no-install-recommends procps && \
+    apt-get install -y --no-install-recommends gcc libc-dev g++ build-essential procps && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 COPY --from=base-builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
