@@ -48,24 +48,31 @@
 #define DM_EMAIL         "<support@taosdata.com>"
 #define DM_MEM_DBG       "Enable memory debug"
 #define DM_SET_ENCRYPTKEY  "Set encrypt key. such as: -y 1234567890abcdef, the length should be less or equal to 16."
-#define DM_REPAIR_MODE   "Start repair mode. `-r` keeps legacy metadata rebuild when no new repair args are provided."
+#define DM_REPAIR_MODE   "Start repair mode."
 
 // clang-format on
 typedef struct {
-  bool withR;
-  bool hasRepairArgs;
-  bool hasNodeType;
-  bool hasFileType;
-  bool hasVnodeId;
-  bool hasBackupPath;
-  bool hasMode;
-  bool hasReplicaNode;
-  char nodeType[32];
-  char fileType[32];
-  char vnodeId[PATH_MAX];
-  char backupPath[PATH_MAX];
-  char mode[32];
-  char replicaNode[PATH_MAX];
+  bool withR;                 // -r
+  bool hasRepairArgs;         //
+  bool hasNodeType;           // --node-type
+  bool hasFileType;           // --file-type
+  bool hasVnodeId;            // --vnode-id
+  bool hasBackupPath;         // --backup-path
+  bool hasMode;               // --mode
+  bool hasReplicaNode;        // --replica-node
+  char nodeType[32];          // --node-type(vnode, mnode, dnode, snode)
+  char fileType[32];          // --file-type
+                              //   vnode: wal, tsdb, meta
+                              //   mnode: wal, data
+                              //   dnode: config
+                              //   snode: checkpoint
+  char vnodeId[PATH_MAX];     // --vnode-id: 如 1,2,36
+  char backupPath[PATH_MAX];  // --backup-path
+  char mode[32];              // --mode
+                              //   force: single node recovery mode. (Recovery as mush data as possible with local info)
+                              //   replica: replica recovery mode
+                              //   copy: Copy from backup data
+  char replicaNode[PATH_MAX];  // --replica-node:
 } SDmRepairOption;
 
 static struct {
@@ -347,11 +354,6 @@ static int32_t dmParseRepairOption(int32_t argc, char const *argv[], int32_t *pI
   SDmRepairOption *pOpt = &global.repairOpt;
 
   *pParsed = false;
-
-  if (strcmp(arg, "--force") == 0 || strncmp(arg, "--force=", 8) == 0) {
-    printf("'--force' is deprecated, use '--mode force' with '-r' instead\n");
-    return TSDB_CODE_INVALID_PARA;
-  }
 
   code = dmParseLongOptionValue(argc, argv, &index, "--node-type", pOpt->nodeType, sizeof(pOpt->nodeType),
                                 &optMatched);
@@ -682,7 +684,6 @@ static void dmPrintRepairHelp() {
   printf("Compatibility\n");
   printf("  1) '%sd -r' keeps legacy metadata rebuild when no new repair option is provided.\n", CUS_PROMPT);
   printf("  2) Any new repair option switches to the new repair parameter flow.\n");
-  printf("  3) '--force' is fully deprecated and rejected.\n\n");
 
   printf("Phase1 scope\n");
   printf("  --node-type: vnode (only)\n");
@@ -809,13 +810,6 @@ int mainWindows(int argc, char **argv) {
     dmPrintVersion();
     taosCleanupArgs();
     return 0;
-  }
-
-  if (global.runRepairFlow && strcmp(global.repairOpt.fileType, "meta") != 0 &&
-      strcmp(global.repairOpt.fileType, "tsdb") != 0) {
-    printf("repair parameter validation succeeded (phase1). repair execution is not enabled in this phase.\n");
-    taosCleanupArgs();
-    return TSDB_CODE_SUCCESS;
   }
 
 #if defined(LINUX)
