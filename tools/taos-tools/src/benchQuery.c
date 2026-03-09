@@ -156,7 +156,7 @@ static void *specQueryMixThread(void *sarg) {
     pThreadInfo->query_delay_list = benchArrayInit(queryTimes, sizeof(int64_t));
     for (int i = pThreadInfo->start_sql; i <= pThreadInfo->end_sql; ++i) {
         SSQL * sql = benchArrayGet(g_queryInfo.specifiedQueryInfo.sqls, i);
-        for (int j = 0; j < queryTimes; ++j) {
+        for (uint64_t j = 0; j < queryTimes; ++j) {
             // use cancel
             if(g_arguments->terminate) {
                 infoPrint("%s\n", "user cancel , so exit testing.");
@@ -176,7 +176,7 @@ static void *specQueryMixThread(void *sarg) {
             int ret = selectAndGetResult(pThreadInfo, sql->command, true);
             if (ret) {
                 g_fail = true;
-                errorPrint("failed call mix selectAndGetResult, i=%d j=%d", i, j);
+                errorPrint("failed call mix selectAndGetResult, i=%d j=%" PRIu64 "", i, j);
                 return NULL;
             }
             et = toolsGetTimestampUs();
@@ -240,7 +240,7 @@ static void *specQueryThread(void *sarg) {
                 sql->result, pThreadInfo->threadID);
     }
 
-    while (index < queryTimes) {
+    while (index < (int64_t)queryTimes) {
         // use cancel
         if(g_arguments->terminate) {
             infoPrint("thread[%d] user cancel , so exit testing.\n", pThreadInfo->threadID);

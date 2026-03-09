@@ -107,15 +107,15 @@ bool initLog() {
 // exit log
 void exitLog() {
     for (int32_t i = 0; i < LOG_COUNT; i++) {
-        taosThreadMutexDestroy(&mutexs[i]);
+        (void)taosThreadMutexDestroy(&mutexs[i]);
     }
 }
 
 // lock
 void lockLog(int8_t idx) {
-    taosThreadMutexLock(&mutexs[idx]);
+    (void)taosThreadMutexLock(&mutexs[idx]);
 }
 // unlock
 void unlockLog(int8_t idx) {
-    taosThreadMutexUnlock(&mutexs[idx]);
+    (void)taosThreadMutexUnlock(&mutexs[idx]);
 }

@@ -483,13 +483,13 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
 #endif
   char promptContinueFormat[32] = {0};
 #ifdef CUS_PROMPT
-  sprintf(shell.info.promptHeader, "%s> ", CUS_PROMPT);
-  sprintf(promptContinueFormat, "%%%zus> ", strlen(CUS_PROMPT));
+  (void)sprintf(shell.info.promptHeader, "%s> ", CUS_PROMPT);
+  (void)sprintf(promptContinueFormat, "%%%zus> ", strlen(CUS_PROMPT));
 #else
-  sprintf(shell.info.promptHeader, "taos> ");
-  sprintf(promptContinueFormat, "%%%zus> ", strlen("taos"));
+  (void)sprintf(shell.info.promptHeader, "taos> ");
+  (void)sprintf(promptContinueFormat, "%%%zus> ", strlen("taos"));
 #endif
-  sprintf(shell.info.promptContinue, promptContinueFormat, " ");
+  (void)sprintf(shell.info.promptContinue, promptContinueFormat, " ");
   shell.info.promptSize = strlen(shell.info.promptHeader);
 #ifdef TD_ENTERPRISE
   snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
