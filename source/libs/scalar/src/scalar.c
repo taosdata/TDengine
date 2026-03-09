@@ -904,7 +904,7 @@ int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset,
     }
     case FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN: {
       // external window column from external data, handle type accordingly
-      int32_t placeHoderIndex = ((SValueNode*)pParamNode)->placeholderNo - 1;
+      int32_t placeHoderIndex = ((SValueNode*)pParamNode)->placeholderNo;
       if (placeHoderIndex < 0) {
         sclError("invalid external window column index: %d", ((SValueNode*)pParamNode)->placeholderNo);
         return TSDB_CODE_INTERNAL_ERROR;

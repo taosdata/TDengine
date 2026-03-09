@@ -808,10 +808,10 @@ bool fmIsGroupIdFunc(int32_t funcId) {
 
 const void* fmGetExternalWindowColumnFuncVal(const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo, int32_t index) {
   SSTriggerCalcParam *pParams = taosArrayGet(pStreamRuntimeFuncInfo->pStreamPesudoFuncVals, pStreamRuntimeFuncInfo->curIdx);
-  if (pParams == NULL || pParams->pExternalWindowData == NULL || index <= 0) {
+  if (pParams == NULL || pParams->pExternalWindowData == NULL || index < 0) {
     return NULL;
   }
-  return taosArrayGet(pParams->pExternalWindowData, index - 1);
+  return taosArrayGet(pParams->pExternalWindowData, index);
 }
 
 const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo) {

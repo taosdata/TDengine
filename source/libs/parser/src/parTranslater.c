@@ -7986,14 +7986,12 @@ static int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt*
 #endif
 
 typedef struct STranslateExtCtx {
-  SExternalWindowNode* pExternalWin;
-  int32_t              code;
+  SNode*  pSubquery;
+  char*   subQueryAliasName;
+  int32_t code;
 } STranslateExtCtx;
 
 static int32_t getColIndexFromSubquery(SColumnNode* pCol, SNode* pSubquery, int32_t* pIndex, SNode** pExpr) {
-  // todo xs
-  *pIndex = 1;
-  return 0;
   if (NULL == pCol || NULL == pSubquery || NULL == pIndex) {
     return TSDB_CODE_PAR_INVALID_COLUMN;
   }
@@ -8007,12 +8005,17 @@ static int32_t getColIndexFromSubquery(SColumnNode* pCol, SNode* pSubquery, int3
     return TSDB_CODE_PAR_INVALID_COLUMN;
   }
 
-  int32_t idx = 1;
+  int32_t idx = 0;
   SNode*  pNode = NULL;
   FOREACH(pNode, pProjectionList) {
+    if(idx <= 1) {
+      // skip timestamp:start and timestamp:end column in projection list of external window subquery
+      ++idx;
+      continue;
+    }
     SExprNode* pProj = (SExprNode*)pNode;
     if (0 == strcmp(pCol->colName, pProj->userAlias) || 0 == strcmp(pCol->colName, pProj->aliasName)) {
-      *pIndex = idx;
+      *pIndex = idx - 2; // column index in external window function starts from 0, and projection list of external window subquery has two timestamp columns at the beginning
       if (pExpr) {
         *pExpr = pNode;
       }
@@ -8024,13 +8027,21 @@ static int32_t getColIndexFromSubquery(SColumnNode* pCol, SNode* pSubquery, int3
   return TSDB_CODE_PAR_INVALID_COLUMN;
 }
 
-static int32_t translateExternalWindowColumnFunc(SNode** pNode, SExternalWindowNode* pExternalWin, int32_t colIndex,
+static int32_t translateExternalWindowColumnFunc(SNode** pNode, SNode* pSubquery, int32_t colIndex,
                                                  SNode* pSrcExpr) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SFunctionNode* pFunc = NULL;
   SExprNode*     pExpr = (SExprNode*)pSrcExpr;
+  SExprNode*     pColExpr = pExpr;
   SValueNode*    pColIndexVal = NULL;
+
+  if (NULL == pColExpr && NULL != pSubquery && colIndex > 0) {
+    SNodeList* pProjectionList = getProjectList(pSubquery);
+    if (NULL != pProjectionList && colIndex <= LIST_LENGTH(pProjectionList)) {
+      pColExpr = (SExprNode*)nodesListGetNode(pProjectionList, colIndex - 1);
+    }
+  }
 
   code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (TSDB_CODE_SUCCESS != code) {
@@ -8039,14 +8050,13 @@ static int32_t translateExternalWindowColumnFunc(SNode** pNode, SExternalWindowN
   pFunc->funcType = FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN;
   pFunc->funcId = fmGetExternalWindowColumnFuncId();
   tstrncpy(pFunc->functionName, "_external_window_column", TSDB_COL_NAME_LEN);
-  if (pExpr) {
-    pFunc->node.resType = pExpr->resType;
-  } else {
-    pFunc->node.resType.type = TSDB_DATA_TYPE_BIGINT;
-    pFunc->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  if (NULL == pColExpr) {
+    code = TSDB_CODE_PAR_INVALID_COLUMN;
+    QUERY_CHECK_CODE(code, lino, _exit);
   }
 
-  // todo xs pColIndexVal 应该从 pExpr 获取，表示结果的类型和长度
+  pFunc->node.resType = pColExpr->resType;
+
   code = nodesMakeValueNodeFromInt64(colIndex, (SNode**)&pColIndexVal);
   QUERY_CHECK_CODE(code, lino, _exit);
 
@@ -8080,15 +8090,15 @@ static EDealRes replaceExternalWindowPlace(SNode** pNode, void* pContext) {
     SColumnNode* pCol = (SColumnNode*)(*pNode);
 
     if ('\0' != pCol->tableAlias[0] &&
-        (0 == strncmp(pCol->tableAlias, pCxt->pExternalWin->aliasName, TSDB_COL_NAME_LEN))) {
+        (0 == strncmp(pCol->tableAlias, pCxt->subQueryAliasName, TSDB_COL_NAME_LEN))) {
       int32_t colIndex = -1;
       SNode* pExpr = NULL;
-      code = getColIndexFromSubquery(pCol, pCxt->pExternalWin->pSubquery, &colIndex, &pExpr);
+      code = getColIndexFromSubquery(pCol, pCxt->pSubquery, &colIndex, &pExpr);
       if (TSDB_CODE_SUCCESS != code) {
         pCxt->code = code;
         return DEAL_RES_ERROR;
       }
-      code = translateExternalWindowColumnFunc(pNode, pCxt->pExternalWin, colIndex, pExpr);
+      code = translateExternalWindowColumnFunc(pNode, pCxt->pSubquery, colIndex, pExpr);
       if (TSDB_CODE_SUCCESS != code) {
         pCxt->code = code;
         return DEAL_RES_ERROR;
@@ -8123,7 +8133,6 @@ static int32_t checkExternalWindowSubquerySchema(STranslateContext* pCxt, SNode*
 
 static int32_t translateExternalWindowSelectList(STranslateContext* pCxt, SSelectStmt* pSelect) {
   SExternalWindowNode* pExternalWin = (SExternalWindowNode*)pSelect->pWindow;
-  STranslateExtCtx   extCxt = {.pExternalWin = pExternalWin, .code = TSDB_CODE_SUCCESS};
   EDealRes res = translateExprSubquery(pCxt, &pExternalWin->pSubquery);
   if (DEAL_RES_ERROR == res) {
     return pCxt->errCode;
@@ -8135,7 +8144,9 @@ static int32_t translateExternalWindowSelectList(STranslateContext* pCxt, SSelec
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
- 
+
+  STranslateExtCtx extCxt = {
+      .pSubquery = pSubQuery, .subQueryAliasName = pExternalWin->aliasName, .code = TSDB_CODE_SUCCESS};
   nodesRewriteExprsPostOrder(pSelect->pProjectionList, replaceExternalWindowPlace, &extCxt);
   return pCxt->errCode = extCxt.code;
 }
