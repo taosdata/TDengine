@@ -75,7 +75,7 @@ class TestCase:
                     'rowsPerTbl': 10000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  10,
+                    'pollDelay':  600,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   1}
@@ -208,10 +208,6 @@ class TestCase:
         if not ((actConsumeTotalRows >= 0) and (actConsumeTotalRows <= totalRowsInserted)):
             tdLog.exit("%d tmq consume rows error!"%consumerId)
 
-        time.sleep(10)
-        for i in range(len(topicNameList)):
-            tdSql.query("drop topic %s"%topicNameList[i])
-
         tdLog.printNoPrefix("======== test case 4 end ...... ")
 
     def test_tmq_cons_from_tsdb1(self):
@@ -238,6 +234,6 @@ class TestCase:
         self.tmqCase3()
         self.tmqCase4()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 event = threading.Event()

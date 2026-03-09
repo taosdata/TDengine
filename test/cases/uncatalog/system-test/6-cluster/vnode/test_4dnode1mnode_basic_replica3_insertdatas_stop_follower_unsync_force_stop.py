@@ -535,5 +535,5 @@ class Test4dnode1mnodeBasicReplica3InsertdatasStopFollowerUnsyncForceStop:
 
 
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

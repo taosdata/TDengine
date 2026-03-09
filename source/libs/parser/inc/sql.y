@@ -59,7 +59,7 @@ int32_t taosParseShortWeekday(const char* str);
 %right NOT.
 %left NK_ARROW.
 
-%right INNER LEFT RIGHT FULL OUTER SEMI ANTI ASOF WINDOW JOIN ON WINDOW_OFFSET JLIMIT.
+%right INNER LEFT RIGHT FULL OUTER SEMI ANTI ASOF WINDOW JOIN ON WINDOW_OFFSET JLIMIT ANY SOME EXISTS.
 
 /************************************************ create/alter account *****************************************/
 cmd ::= CREATE ACCOUNT NK_ID PASS NK_STRING account_options.                      { pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
@@ -111,6 +111,7 @@ user_enabled(A) ::= ACCOUNT UNLOCK.                                             
 user_enabled(A) ::= ENABLE NK_INTEGER(B).                                         { A = taosStr2Int8(B.z, NULL, 10); }
 
 %type user_option                                                                 { SUserOptions* }
+// NOTE: TOTPSEED is deprecated, please use CREATE/DROP TOTP_SECRET.
 user_option(A) ::= TOTPSEED NK_STRING(B).                                         { A = mergeUserOptions(pCxt, NULL, NULL); setUserOptionsTotpseed(pCxt, A, &B); }
 user_option(A) ::= TOTPSEED NULL.                                                 { A = mergeUserOptions(pCxt, NULL, NULL); setUserOptionsTotpseed(pCxt, A, NULL); }
 user_option(A) ::= user_enabled(B).                                               { A = mergeUserOptions(pCxt, NULL, NULL); A->enable = B; A->hasEnable = true; }
@@ -360,7 +361,6 @@ cmd ::= CREATE USER not_exists_opt(A) user_name(B) PASS NK_STRING(C) create_user
   }
 cmd ::= ALTER USER user_name(A) alter_user_options(B).                           { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, B); }
 cmd ::= DROP USER exists_opt(A) user_name(B).                                    { pCxt->pRootNode = createDropUserStmt(pCxt, &B, A); }
-cmd ::= ALTER DNODES RELOAD general_name(A).                                     { pCxt->pRootNode = createAlterAllDnodeTLSStmt(pCxt, &A);}
 
 
 /************************************************ create/alter/drop token **********************************************/
@@ -391,6 +391,13 @@ cmd ::= DROP TOKEN exists_opt(A) NK_ID(B). {
   }
 
 
+/************************************************ create/drop totpsecret **********************************************/
+cmd ::= CREATE TOTP_SECRET FOR USER user_name(A). {
+    pCxt->pRootNode = createCreateTotpSecretStmt(pCxt, &A);
+  }
+cmd ::= DROP TOTP_SECRET FROM USER user_name(A). {
+    pCxt->pRootNode = createDropTotpSecretStmt(pCxt, &A);
+  }
 
 /************************************************ create/drop role **********************************************/
 cmd ::= CREATE ROLE not_exists_opt(A) role_name(B).                               { pCxt->pRootNode = createCreateRoleStmt(pCxt, A, &B); }
@@ -468,7 +475,6 @@ priv_type(A) ::= READ.                                                          
 priv_type(A) ::= WRITE.                                                           { A = PRIV_SET_TYPE(PRIV_TYPE_UNKNOWN); }
 
 priv_type(A) ::= CREATE DATABASE.                                                 { A = PRIV_SET_TYPE(PRIV_DB_CREATE); }
-priv_type(A) ::= DROP OWNED DATABASE.                                             { A = PRIV_SET_TYPE(PRIV_DB_DROP_OWNED); }
 priv_type(A) ::= USE DATABASE.                                                    { A = PRIV_SET_TYPE(PRIV_DB_USE); }
 priv_type(A) ::= FLUSH DATABASE.                                                  { A = PRIV_SET_TYPE(PRIV_DB_FLUSH); }
 priv_type(A) ::= COMPACT DATABASE.                                                { A = PRIV_SET_TYPE(PRIV_DB_COMPACT); }
@@ -476,6 +482,7 @@ priv_type(A) ::= TRIM DATABASE.                                                 
 priv_type(A) ::= ROLLUP DATABASE.                                                 { A = PRIV_SET_TYPE(PRIV_DB_ROLLUP); }
 priv_type(A) ::= SCAN DATABASE.                                                   { A = PRIV_SET_TYPE(PRIV_DB_SCAN); }
 priv_type(A) ::= SSMIGRATE DATABASE.                                              { A = PRIV_SET_TYPE(PRIV_DB_SSMIGRATE); }
+priv_type(A) ::= SHOW DATABASES.                                                  { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
 priv_type(A) ::= USE.                                                             { A = PRIV_SET_TYPE(PRIV_DB_USE); }
 priv_type(A) ::= FLUSH.                                                           { A = PRIV_SET_TYPE(PRIV_DB_FLUSH); }
 priv_type(A) ::= COMPACT.                                                         { A = PRIV_SET_TYPE(PRIV_DB_COMPACT); }
@@ -483,7 +490,6 @@ priv_type(A) ::= TRIM.                                                          
 priv_type(A) ::= ROLLUP.                                                          { A = PRIV_SET_TYPE(PRIV_DB_ROLLUP); }
 priv_type(A) ::= SCAN.                                                            { A = PRIV_SET_TYPE(PRIV_DB_SCAN); }
 priv_type(A) ::= SSMIGRATE.                                                       { A = PRIV_SET_TYPE(PRIV_DB_SSMIGRATE); }
-priv_type(A) ::= DROP OWNED.                                                      { A = PRIV_SET_TYPE(PRIV_DB_DROP_OWNED); }
 
 priv_type(A) ::= SHOW VNODES.                                                     { A = PRIV_SET_TYPE(PRIV_SHOW_VNODES); }
 priv_type(A) ::= SHOW VGROUPS.                                                    { A = PRIV_SET_TYPE(PRIV_SHOW_VGROUPS); }
@@ -493,6 +499,10 @@ priv_type(A) ::= SHOW SCANS.                                                    
 priv_type(A) ::= SHOW SSMIGRATES.                                                 { A = PRIV_SET_TYPE(PRIV_SHOW_SSMIGRATES); }
 
 priv_type(A) ::= CREATE TABLE.                                                    { A = PRIV_SET_TYPE(PRIV_TBL_CREATE); }
+priv_type(A) ::= ALTER TABLE.                                                     { A = PRIV_SET_TYPE(PRIV_CM_ALTER); }
+priv_type(A) ::= DROP TABLE.                                                      { A = PRIV_SET_TYPE(PRIV_CM_DROP); }
+priv_type(A) ::= SHOW CREATE TABLE.                                               { A = PRIV_SET_TYPE(PRIV_CM_SHOW_CREATE); }
+priv_type(A) ::= SHOW TABLES.                                                     { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
 
 priv_type(A) ::= priv_type_tbl_dml(B).                                            { A = B; }
 
@@ -501,21 +511,31 @@ priv_type(A) ::= DROP FUNCTION.                                                 
 priv_type(A) ::= SHOW FUNCTIONS.                                                  { A = PRIV_SET_TYPE(PRIV_FUNC_SHOW); }
 
 priv_type(A) ::= CREATE INDEX.                                                    { A = PRIV_SET_TYPE(PRIV_IDX_CREATE); }
-priv_type(A) ::= DROP INDEX.                                                      { A = PRIV_SET_TYPE(PRIV_IDX_DROP); }
-priv_type(A) ::= SHOW INDEXES.                                                    { A = PRIV_SET_TYPE(PRIV_IDX_SHOW); }
+priv_type(A) ::= DROP INDEX.                                                      { A = PRIV_SET_TYPE(PRIV_CM_DROP); }
+priv_type(A) ::= SHOW CREATE INDEX.                                               { A = PRIV_SET_TYPE(PRIV_CM_SHOW_CREATE); }
+priv_type(A) ::= SHOW INDEXES.                                                    { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
 
 priv_type(A) ::= CREATE VIEW.                                                     { A = PRIV_SET_TYPE(PRIV_VIEW_CREATE); }
+priv_type(A) ::= ALTER VIEW.                                                      { A = PRIV_SET_TYPE(PRIV_CM_ALTER); }
+priv_type(A) ::= DROP VIEW.                                                       { A = PRIV_SET_TYPE(PRIV_CM_DROP); }
+priv_type(A) ::= SHOW CREATE VIEW.                                                { A = PRIV_SET_TYPE(PRIV_CM_SHOW_CREATE); }
+priv_type(A) ::= SHOW VIEWS.                                                      { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
 priv_type(A) ::= SELECT VIEW.                                                     { A = PRIV_SET_TYPE(PRIV_VIEW_SELECT); }
 
 priv_type(A) ::= CREATE RSMA.                                                     { A = PRIV_SET_TYPE(PRIV_RSMA_CREATE); }
+priv_type(A) ::= DROP RSMA.                                                       { A = PRIV_SET_TYPE(PRIV_CM_DROP); }
+priv_type(A) ::= SHOW CREATE RSMA.                                                { A = PRIV_SET_TYPE(PRIV_CM_SHOW_CREATE); }
+priv_type(A) ::= SHOW RSMAS.                                                      { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
 priv_type(A) ::= CREATE TSMA.                                                     { A = PRIV_SET_TYPE(PRIV_TSMA_CREATE); }
+priv_type(A) ::= DROP TSMA.                                                       { A = PRIV_SET_TYPE(PRIV_CM_DROP); }
+priv_type(A) ::= SHOW CREATE TSMA.                                                { A = PRIV_SET_TYPE(PRIV_CM_SHOW_CREATE); }
+priv_type(A) ::= SHOW TSMAS.                                                      { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
 
 priv_type(A) ::= CREATE MOUNT.                                                    { A = PRIV_SET_TYPE(PRIV_MOUNT_CREATE); }
 priv_type(A) ::= DROP MOUNT.                                                      { A = PRIV_SET_TYPE(PRIV_MOUNT_DROP); }
 priv_type(A) ::= SHOW MOUNTS.                                                     { A = PRIV_SET_TYPE(PRIV_MOUNT_SHOW); }
 
 priv_type(A) ::= ALTER PASS.                                                      { A = PRIV_SET_TYPE(PRIV_PASS_ALTER); }
-priv_type(A) ::= ALTER SELF PASS.                                                 { A = PRIV_SET_TYPE(PRIV_PASS_ALTER_SELF); }
 
 priv_type(A) ::= CREATE ROLE.                                                     { A = PRIV_SET_TYPE(PRIV_ROLE_CREATE); }
 priv_type(A) ::= DROP ROLE.                                                       { A = PRIV_SET_TYPE(PRIV_ROLE_DROP); }
@@ -523,17 +543,10 @@ priv_type(A) ::= SHOW ROLES.                                                    
 
 priv_type(A) ::= CREATE USER.                                                     { A = PRIV_SET_TYPE(PRIV_USER_CREATE); }
 priv_type(A) ::= DROP USER.                                                       { A = PRIV_SET_TYPE(PRIV_USER_DROP); }
-priv_type(A) ::= SET USER SECURITY INFO.                                          { A = PRIV_SET_TYPE(PRIV_USER_SET_SECURITY); }
-priv_type(A) ::= SET USER AUDIT INFO.                                             { A = PRIV_SET_TYPE(PRIV_USER_SET_AUDIT); }
-priv_type(A) ::= SET USER BASIC INFO.                                             { A = PRIV_SET_TYPE(PRIV_USER_SET_BASIC); }
 priv_type(A) ::= UNLOCK USER.                                                     { A = PRIV_SET_TYPE(PRIV_USER_UNLOCK); }
 priv_type(A) ::= LOCK USER.                                                       { A = PRIV_SET_TYPE(PRIV_USER_LOCK); }
 priv_type(A) ::= SHOW USERS.                                                      { A = PRIV_SET_TYPE(PRIV_USER_SHOW); }
-
-priv_type(A) ::= CREATE AUDIT DATABASE.                                           { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_CREATE); }
-priv_type(A) ::= DROP AUDIT DATABASE.                                             { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_DROP); }
-priv_type(A) ::= ALTER AUDIT DATABASE.                                            { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_ALTER); }
-priv_type(A) ::= USE AUDIT DATABASE.                                              { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_USE); }
+priv_type(A) ::= ALTER USER.                                                      { A = PRIV_SET_TYPE(PRIV_USER_ALTER); }
 
 priv_type(A) ::= CREATE TOKEN.                                                    { A = PRIV_SET_TYPE(PRIV_TOKEN_CREATE); }
 priv_type(A) ::= DROP TOKEN.                                                      { A = PRIV_SET_TYPE(PRIV_TOKEN_DROP); }
@@ -543,7 +556,6 @@ priv_type(A) ::= SHOW TOKENS.                                                   
 priv_type(A) ::= UPDATE KEY.                                                      { A = PRIV_SET_TYPE(PRIV_KEY_UPDATE); }
 priv_type(A) ::= CREATE TOTP.                                                     { A = PRIV_SET_TYPE(PRIV_TOTP_CREATE); }
 priv_type(A) ::= DROP TOTP.                                                       { A = PRIV_SET_TYPE(PRIV_TOTP_DROP); }
-priv_type(A) ::= UPDATE TOTP.                                                     { A = PRIV_SET_TYPE(PRIV_TOTP_UPDATE); }
 
 priv_type(A) ::= GRANT PRIVILEGE.                                                 { A = PRIV_SET_TYPE(PRIV_GRANT_PRIVILEGE); }
 priv_type(A) ::= REVOKE PRIVILEGE.                                                { A = PRIV_SET_TYPE(PRIV_REVOKE_PRIVILEGE); }
@@ -553,36 +565,28 @@ priv_type(A) ::= CREATE NODE.                                                   
 priv_type(A) ::= DROP NODE.                                                       { A = PRIV_SET_TYPE(PRIV_NODE_DROP); }
 priv_type(A) ::= SHOW NODES.                                                      { A = PRIV_SET_TYPE(PRIV_NODES_SHOW); }
 
-priv_type(A) ::= ALTER SECURITY VARIABLE.                                         { A = PRIV_SET_TYPE(PRIV_VAR_SECURITY_ALTER); }
-priv_type(A) ::= ALTER AUDIT VARIABLE.                                            { A = PRIV_SET_TYPE(PRIV_VAR_AUDIT_ALTER); }
-priv_type(A) ::= ALTER SYSTEM VARIABLE.                                           { A = PRIV_SET_TYPE(PRIV_VAR_SYSTEM_ALTER); }
-priv_type(A) ::= ALTER DEBUG VARIABLE.                                            { A = PRIV_SET_TYPE(PRIV_VAR_DEBUG_ALTER); }
-priv_type(A) ::= SHOW SECURITY VARIABLES.                                         { A = PRIV_SET_TYPE(PRIV_VAR_SECURITY_SHOW); }
-priv_type(A) ::= SHOW AUDIT VARIABLES.                                            { A = PRIV_SET_TYPE(PRIV_VAR_AUDIT_SHOW); }
-priv_type(A) ::= SHOW SYSTEM VARIABLES.                                           { A = PRIV_SET_TYPE(PRIV_VAR_SYSTEM_SHOW); }
-priv_type(A) ::= SHOW DEBUG VARIABLES.                                            { A = PRIV_SET_TYPE(PRIV_VAR_DEBUG_SHOW); }
-
 priv_type(A) ::= CREATE TOPIC.                                                    { A = PRIV_SET_TYPE(PRIV_TOPIC_CREATE); }
+priv_type(A) ::= DROP TOPIC.                                                      { A = PRIV_SET_TYPE(PRIV_CM_DROP); }
+priv_type(A) ::= SUBSCRIBE TOPIC.                                                 { A = PRIV_SET_TYPE(PRIV_CM_SUBSCRIBE); }
+priv_type(A) ::= SHOW CREATE TOPIC.                                               { A = PRIV_SET_TYPE(PRIV_CM_SHOW_CREATE); }
+priv_type(A) ::= SHOW TOPICS.                                                     { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
 priv_type(A) ::= SHOW CONSUMERS.                                                  { A = PRIV_SET_TYPE(PRIV_CONSUMER_SHOW); }
 priv_type(A) ::= SHOW SUBSCRIPTIONS.                                              { A = PRIV_SET_TYPE(PRIV_SUBSCRIPTION_SHOW); }
 
 priv_type(A) ::= CREATE STREAM.                                                   { A = PRIV_SET_TYPE(PRIV_STREAM_CREATE); }
+priv_type(A) ::= DROP STREAM.                                                     { A = PRIV_SET_TYPE(PRIV_CM_DROP); }
+priv_type(A) ::= SHOW STREAMS.                                                    { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
+priv_type(A) ::= SHOW CREATE STREAM.                                              { A = PRIV_SET_TYPE(PRIV_CM_SHOW_CREATE); }
+priv_type(A) ::= START STREAM.                                                    { A = PRIV_SET_TYPE(PRIV_CM_START); }
+priv_type(A) ::= STOP STREAMS.                                                    { A = PRIV_SET_TYPE(PRIV_CM_STOP); }
+priv_type(A) ::= RECALCULATE STREAMS.                                             { A = PRIV_SET_TYPE(PRIV_CM_RECALC); }
 
-priv_type(A) ::= SHOW TRANS.                                                      { A = PRIV_SET_TYPE(PRIV_TRANS_SHOW); }
-priv_type(A) ::= KILL TRANS.                                                      { A = PRIV_SET_TYPE(PRIV_TRANS_KILL); }
-priv_type(A) ::= SHOW CONNECTIONS.                                                { A = PRIV_SET_TYPE(PRIV_CONNECTION_SHOW); }
-priv_type(A) ::= KILL CONNECTION.                                                 { A = PRIV_SET_TYPE(PRIV_CONNECTION_KILL); }
+priv_type(A) ::= SHOW TRANSACTIONS.                                               { A = PRIV_SET_TYPE(PRIV_TRANS_SHOW); }
+priv_type(A) ::= KILL TRANSACTION.                                                { A = PRIV_SET_TYPE(PRIV_TRANS_KILL); }
+priv_type(A) ::= SHOW CONNECTIONS.                                                { A = PRIV_SET_TYPE(PRIV_CONN_SHOW); }
+priv_type(A) ::= KILL CONNECTION.                                                 { A = PRIV_SET_TYPE(PRIV_CONN_KILL); }
 priv_type(A) ::= SHOW QUERIES.                                                    { A = PRIV_SET_TYPE(PRIV_QUERY_SHOW); }
 priv_type(A) ::= KILL QUERY.                                                      { A = PRIV_SET_TYPE(PRIV_QUERY_KILL); }
-
-priv_type(A) ::= USE INFORMATION_SCHEMA.                                          { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_USE); }
-priv_type(A) ::= USE PERFORMANCE_SCHEMA.                                          { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_USE); }
-priv_type(A) ::= READ INFORMATION_SCHEMA LIMIT.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_LIMIT); }
-priv_type(A) ::= READ INFORMATION_SCHEMA SECURITY.                                { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_SEC); }
-priv_type(A) ::= READ INFORMATION_SCHEMA AUDIT.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_AUDIT); }
-priv_type(A) ::= READ INFORMATION_SCHEMA BASIC.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_BASIC); }
-priv_type(A) ::= READ PERFORMANCE_SCHEMA LIMIT.                                   { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_LIMIT); }
-priv_type(A) ::= READ PERFORMANCE_SCHEMA BASIC.                                   { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_BASIC); }
 priv_type(A) ::= SHOW GRANTS.                                                     { A = PRIV_SET_TYPE(PRIV_GRANTS_SHOW); }
 priv_type(A) ::= SHOW CLUSTER.                                                    { A = PRIV_SET_TYPE(PRIV_CLUSTER_SHOW); }
 priv_type(A) ::= SHOW APPS.                                                       { A = PRIV_SET_TYPE(PRIV_APPS_SHOW); }
@@ -603,10 +607,23 @@ priv_type_tbl_dml(A) ::= SELECT TABLE.                                          
 priv_type_tbl_dml(A) ::= SELECT specific_cols_with_mask_opt(B).                   { A = PRIV_SET_COLS(PRIV_TBL_SELECT, B, NULL, NULL); }
 priv_type_tbl_dml(A) ::= INSERT TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_INSERT); }
 priv_type_tbl_dml(A) ::= INSERT specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_INSERT, NULL, B, NULL); }
-/*priv_type_tbl_dml(A) ::= UPDATE TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_UPDATE); }
+/*priv_type_tbl_dml(A) ::= UPDATE TABLE.                                          { A = PRIV_SET_TYPE(PRIV_TBL_UPDATE); }
 priv_type_tbl_dml(A) ::= UPDATE specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_UPDATE, NULL, NULL, B); }*/
 priv_type_tbl_dml(A) ::= DELETE TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_DELETE); }
 priv_type_tbl_dml(A) ::= DELETE.                                                  { A = PRIV_SET_TYPE(PRIV_TBL_DELETE); }
+
+priv_type(A) ::= ALTER priv_id(B) priv_id(C).                                     { A = privArgsSet(pCxt, 0, &B, &C); }
+priv_type(A) ::= READ priv_id(B) priv_id(C).                                      { A = privArgsSet(pCxt, 1, &B, &C); }
+priv_type(A) ::= SHOW priv_id(B) priv_id(C).                                      { A = privArgsSet(pCxt, 2, &B, &C); }
+priv_type(A) ::= SET USER priv_id(B) priv_id(C).                                  { A = privArgsSet(pCxt, 3, &B, &C); }
+priv_type(A) ::= SHOW USERS priv_id(B) priv_id(C).                                { A = privArgsSet(pCxt, 4, &B, &C); }
+
+%type priv_id                                                                     { SToken }
+%destructor priv_id                                                               { }
+priv_id(A) ::= NK_ID(B).                                                          { A = B; }
+priv_id(A) ::= SYSTEM(B).                                                         { A = B; }
+priv_id(A) ::= VARIABLES(B).                                                      { A = B; }
+priv_id(A) ::= PASS(B).                                                           { A = B; }
 
 %type priv_level_opt                                                              { SPrivLevelArgs }
 %destructor priv_level_opt                                                        { 
@@ -649,11 +666,115 @@ cmd ::= DROP ENCRYPT_ALGR NK_STRING(A).                                         
 /************************************************ alter encrypt key *********************************************/
 cmd ::= ALTER SYSTEM SET SVR_KEY NK_STRING(A).                                    { pCxt->pRootNode = createAlterEncryptKeyStmt(pCxt, 0, &A); }
 cmd ::= ALTER SYSTEM SET DB_KEY NK_STRING(A).                                     { pCxt->pRootNode = createAlterEncryptKeyStmt(pCxt, 1, &A); }
+cmd ::= ALTER SYSTEM SET KEY_EXPIRATION NK_INTEGER(A) DAYS STRATEGY NK_STRING(B). { pCxt->pRootNode = createAlterKeyExpirationStmt(pCxt, &A, &B); }
 /************************************************ create drop update anode ***************************************/
 cmd ::= CREATE ANODE NK_STRING(A).                                                { pCxt->pRootNode = createCreateAnodeStmt(pCxt, &A); }
 cmd ::= UPDATE ANODE NK_INTEGER(A).                                               { pCxt->pRootNode = createUpdateAnodeStmt(pCxt, &A, false); }
 cmd ::= UPDATE ALL ANODES.                                                        { pCxt->pRootNode = createUpdateAnodeStmt(pCxt, NULL, true); }
 cmd ::= DROP ANODE NK_INTEGER(A).                                                 { pCxt->pRootNode = createDropAnodeStmt(pCxt, &A); }
+
+/************************************************ create drop update xnode ***************************************/
+
+%type xnode_endpoint                                                              { SToken }
+%destructor xnode_endpoint                                                        { }
+xnode_endpoint(A) ::= NK_STRING(B).                                               { A = B; }
+xnode_endpoint(A) ::= NK_INTEGER(B).                                              { A = B; }
+
+%destructor xnode_task_source                                                     { }
+xnode_task_source(A) ::= NK_STRING(B).                                            { A = createXnodeSourceAsDsn(pCxt, &B); }
+xnode_task_source(A) ::= DATABASE db_name(B).                                     { A = createXnodeSourceAsDatabase(pCxt, &B); }
+xnode_task_source(A) ::= TOPIC topic_name(B).                                     { A = createXnodeSourceAsTopic(pCxt, &B); }
+
+xnode_task_sink(A) ::= NK_STRING(B).                                              { A = createXnodeSinkAsDsn(pCxt, &B); }
+xnode_task_sink(A) ::= DATABASE db_name(B).                                       { A = createXnodeSinkAsDatabase(pCxt, &B); }
+
+%type xnode_task_opt_v                                                            { SToken }
+%destructor xnode_task_opt_v                                                      { }
+xnode_task_opt_v(A) ::=  NK_STRING(B).                                            { A = B; }
+xnode_task_opt_v(A) ::=  NK_INTEGER(B).                                           { A = B; }
+xnode_task_options(A) ::= NK_ID(C) xnode_task_opt_v(D).                           { A = setXnodeTaskOption(pCxt, NULL, &C, &D); }
+xnode_task_options(A) ::= NK_ID(C) NK_EQ xnode_task_opt_v(D).                     { A = setXnodeTaskOption(pCxt, NULL, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_ID(C) xnode_task_opt_v(D).     { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_ID(C) NK_EQ xnode_task_opt_v(D).          { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA NK_ID(C) xnode_task_opt_v(D). { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA NK_ID(C) NK_EQ xnode_task_opt_v(D). { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) AND NK_ID(C) xnode_task_opt_v(D).      { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) AND NK_ID(C) NK_EQ xnode_task_opt_v(D).      { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+//xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA NK_ID(C).                { A = setXnodeTaskOption(pCxt, B, &C, NULL); }
+//xnode_task_options(A) ::= xnode_task_options(B) AND NK_ID(C).                     { A = setXnodeTaskOption(pCxt, B, &C, NULL); }
+xnode_task_options(A) ::= xnode_task_options(B) TRIGGER NK_STRING(D).             { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+xnode_task_options(A) ::= xnode_task_options(B) TRIGGER NK_EQ NK_STRING(D).       { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA TRIGGER NK_STRING(D).         { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA TRIGGER NK_EQ NK_STRING(D).         { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+xnode_task_options(A) ::= xnode_task_options(B) AND TRIGGER NK_STRING(D).          { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+xnode_task_options(A) ::= xnode_task_options(B) AND TRIGGER NK_EQ NK_STRING(D).    { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+
+with_task_options_opt(A) ::= .                                                    { A = NULL; }
+with_task_options_opt(A) ::= WITH xnode_task_options(B).                          { A = B; }
+with_task_options_opt(A) ::= SET xnode_task_options(B).                           { A = B; }
+
+xnode_task_from_opt(A) ::= .                                                      { A = NULL; }
+xnode_task_from_opt(A) ::= FROM xnode_task_source(B).                             { A = B; }
+
+xnode_task_to_opt(A) ::= .                                                        { A = NULL; }
+xnode_task_to_opt(A) ::= TO xnode_task_sink(B).                                   { A = B; }
+
+cmd ::= CREATE XNODE NK_STRING(A).                                                { pCxt->pRootNode = createCreateXnodeStmt(pCxt, &A); }
+cmd ::= CREATE XNODE NK_STRING(A) USER user_name(B) PASS NK_STRING(C).            { pCxt->pRootNode = createCreateXnodeWithUserPassStmt(pCxt, &A, &B, &C); }
+cmd ::= CREATE XNODE NK_STRING(A) TOKEN NK_STRING(B).                             { pCxt->pRootNode = createCreateXnodeWithTokenStmt(pCxt, &A, &B); }
+// alter
+cmd ::= ALTER XNODE SET TOKEN NK_STRING(B).                                       { pCxt->pRootNode = createAlterXnodeStmt(pCxt, &B, NULL, NULL); }
+cmd ::= ALTER XNODE SET USER user_name(B) PASS NK_STRING(C).                      { pCxt->pRootNode = createAlterXnodeStmt(pCxt, NULL, &B, &C); }
+cmd ::= DROP XNODE xnode_endpoint(A) force_opt(B).                                { pCxt->pRootNode = createDropXnodeStmt(pCxt, &A, B); }
+cmd ::= DROP XNODE FORCE xnode_endpoint(A).                                       { pCxt->pRootNode = createDropXnodeStmt(pCxt, &A, true); }
+
+cmd ::= DRAIN XNODE NK_INTEGER(A).                                                { pCxt->pRootNode = createDrainXnodeStmt(pCxt, &A); }
+
+%type xnode_resource_type                                                         { EXnodeResourceType }
+%destructor xnode_resource_type                                                   { }
+xnode_resource_type(A) ::= NK_ID(B).                                              { A = setXnodeResourceType(pCxt, &B); }
+
+/* create xnode agent 'a1' */
+cmd ::= CREATE XNODE xnode_resource_type(A) NK_STRING(B) with_task_options_opt(E).
+                                                                                  { pCxt->pRootNode = createXnodeTaskWithOptions(pCxt, A, &B, NULL, NULL, E); }
+
+/* create xnode task 't1' from 'mqtt://xxx' to database s1 with parser '{...}' */
+cmd ::= CREATE XNODE xnode_resource_type(A) NK_STRING(B) FROM xnode_task_source(C) TO xnode_task_sink(D) with_task_options_opt(E).
+                                                                                  { pCxt->pRootNode = createXnodeTaskWithOptions(pCxt, A, &B, C, D, E); }
+
+/* create xnode job on 1 with config '{"json":true}' */
+cmd ::= CREATE XNODE xnode_resource_type(A) ON NK_INTEGER(B) with_task_options_opt(C).
+                                                                                  { pCxt->pRootNode = createXnodeTaskJobWithOptions(pCxt, A, &B, C); }
+
+/*start xnode task 1; stop xnode task 1;*/
+cmd ::= START XNODE xnode_resource_type(A) NK_INTEGER(B).                          { pCxt->pRootNode = createStartXnodeTaskStmt(pCxt, A, &B); }
+cmd ::= START XNODE xnode_resource_type(A) NK_STRING(B).                          { pCxt->pRootNode = createStartXnodeTaskStmt(pCxt, A, &B); }
+cmd ::= STOP XNODE xnode_resource_type(A) NK_INTEGER(B).                           { pCxt->pRootNode = createStopXnodeTaskStmt(pCxt, A, &B); }
+cmd ::= STOP XNODE xnode_resource_type(A) NK_STRING(B).                            { pCxt->pRootNode = createStopXnodeTaskStmt(pCxt, A, &B); }
+
+/* rebalance xnode job 1 with xnode_id 3;*/
+cmd ::= REBALANCE XNODE xnode_resource_type(A) NK_INTEGER(B) with_task_options_opt(C).
+                                                                                   { pCxt->pRootNode = createRebalanceXnodeJobStmt(pCxt, A, &B, C); }
+cmd ::= REBALANCE XNODE xnode_resource_type(A) where_clause_opt(B).
+                                                                                   { pCxt->pRootNode = createRebalanceXnodeJobWhereStmt(pCxt, A, B); }
+                                                                                   
+/* alter xnode task 't1' from 'mqtt://xxx' to database s1 with parser '{...}' */
+cmd ::= ALTER XNODE xnode_resource_type(A) NK_INTEGER(B) xnode_task_from_opt(C) xnode_task_to_opt(D) with_task_options_opt(E).
+                                                                                  { pCxt->pRootNode = alterXnodeTaskWithOptions(pCxt, A, &B, C, D, E); }
+cmd ::= ALTER XNODE xnode_resource_type(A) NK_STRING(B) xnode_task_from_opt(C) xnode_task_to_opt(D) with_task_options_opt(E).
+                                                                                  { pCxt->pRootNode = alterXnodeTaskWithOptions(pCxt, A, &B, C, D, E); }
+
+/* drop xnode agent 'a1'; drop xnode task 't1'; drop xnode job 1; drop xnode task 1; */
+cmd ::= DROP XNODE xnode_resource_type(A) NK_STRING(B).                           { pCxt->pRootNode = dropXnodeResource(pCxt, A, &B); }
+cmd ::= DROP XNODE xnode_resource_type(A) NK_INTEGER(B).                          { pCxt->pRootNode = dropXnodeResource(pCxt, A, &B); }
+cmd ::= DROP XNODE xnode_resource_type(A) WHERE search_condition(B).              { pCxt->pRootNode = dropXnodeResourceWhere(pCxt, A, B); }
+
+/* show xnodes; or show xnodes where ...*/
+cmd ::= SHOW XNODES where_clause_opt(B).                                          { pCxt->pRootNode = createShowXnodeStmtWithCond(pCxt, QUERY_NODE_SHOW_XNODES_STMT, B); }
+/* show xnode tasks; or show xnode tasks where ...*/
+/* show xnode agents; show xnode agents where ... */
+/* show xnode jobs; show xnode jobs where ... */
+cmd ::= SHOW XNODE xnode_resource_type(A) where_clause_opt(B).                    { pCxt->pRootNode = createShowXNodeResourcesWhereStmt(pCxt, A, B); }
 
 /************************************************ create/drop/alter/restore dnode *********************************************/
 cmd ::= CREATE DNODE dnode_endpoint(A).                                           { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, NULL); }
@@ -664,6 +785,7 @@ cmd ::= DROP DNODE NK_INTEGER(A) unsafe_opt(B).                                 
 cmd ::= DROP DNODE dnode_endpoint(A) unsafe_opt(B).                               { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A, false, B); }
 cmd ::= ALTER DNODE NK_INTEGER(A) NK_STRING(B).                                   { pCxt->pRootNode = createAlterDnodeStmt(pCxt, &A, &B, NULL); }
 cmd ::= ALTER DNODE NK_INTEGER(A) NK_STRING(B) NK_STRING(C).                      { pCxt->pRootNode = createAlterDnodeStmt(pCxt, &A, &B, &C); }
+cmd ::= ALTER DNODES RELOAD general_name(A).                                      { pCxt->pRootNode = createAlterAllDnodeTLSStmt(pCxt, &A);}
 cmd ::= ALTER ALL DNODES NK_STRING(A).                                            { pCxt->pRootNode = createAlterDnodeStmt(pCxt, NULL, &A, NULL); }
 cmd ::= ALTER ALL DNODES NK_STRING(A) NK_STRING(B).                               { pCxt->pRootNode = createAlterDnodeStmt(pCxt, NULL, &A, &B); }
 cmd ::= RESTORE DNODE NK_INTEGER(A).                                              { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_DNODE_STMT, &A); }
@@ -802,7 +924,8 @@ db_options(A) ::= db_options(B) COMPACT_INTERVAL NK_VARIABLE(C).                
 db_options(A) ::= db_options(B) COMPACT_TIME_RANGE signed_duration_list(C).       { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_RANGE, C); }
 db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_INTEGER(C).                { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_OFFSET, &C); }
 db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_VARIABLE(C).               { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_OFFSET, &C); }
-db_options(A) ::= db_options(B) IS_AUDIT NK_INTEGER(C).                          { A = setDatabaseOption(pCxt, B, DB_OPTION_IS_AUDIT, &C); }
+db_options(A) ::= db_options(B) IS_AUDIT NK_INTEGER(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_IS_AUDIT, &C); }
+
 
 alter_db_options(A) ::= alter_db_option(B).                                       { A = createAlterDatabaseOptions(pCxt); A = setAlterDatabaseOption(pCxt, A, &B); }
 alter_db_options(A) ::= alter_db_options(B) alter_db_option(C).                   { A = setAlterDatabaseOption(pCxt, B, &C); }
@@ -845,6 +968,7 @@ alter_db_option(A) ::= COMPACT_INTERVAL NK_VARIABLE(B).                         
 alter_db_option(A) ::= COMPACT_TIME_RANGE signed_duration_list(B).                { A.type = DB_OPTION_COMPACT_TIME_RANGE; A.pList = B; }
 alter_db_option(A) ::= COMPACT_TIME_OFFSET NK_INTEGER(B).                         { A.type = DB_OPTION_COMPACT_TIME_OFFSET; A.val = B; }
 alter_db_option(A) ::= COMPACT_TIME_OFFSET NK_VARIABLE(B).                        { A.type = DB_OPTION_COMPACT_TIME_OFFSET; A.val = B; }
+alter_db_option(A) ::= ALLOW_DROP NK_INTEGER(B).                                  { A.type = DB_OPTION_ALLOW_DROP; A.val = B; }
 
 %type integer_list                                                                { SNodeList* }
 %destructor integer_list                                                          { nodesDestroyList($$); }
@@ -1831,10 +1955,10 @@ duration_literal(A) ::= NK_VARIABLE(B).                                         
 
 signed_variable(A) ::= NK_VARIABLE(B).                                            { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
 signed_variable(A) ::= NK_PLUS NK_VARIABLE(B).                                    { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
-signed_variable(A) ::= NK_MINUS(B) NK_VARIABLE(C).                                { 
+signed_variable(A) ::= NK_MINUS(B) NK_VARIABLE(C).                                {
                                                                                     SToken t = B;
                                                                                     t.n = (C.z + C.n) - B.z;
-                                                                                    A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &t)); 
+                                                                                    A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &t));
                                                                                   }
 
 signed_integer(A) ::= NK_INTEGER(B).                                              { A = createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B); }
@@ -2173,12 +2297,22 @@ case_when_else_opt(A) ::= .                                                     
 case_when_else_opt(A) ::= ELSE common_expression(B).                              { A = releaseRawExprNode(pCxt, B); }
 
 /************************************************ predicate ***********************************************************/
+%type quantified_expr                                                             { EQuantifyType }           
+%destructor quantified_expr                                                       { }                         
+quantified_expr(A) ::= ANY.                                                       { A = QU_TYPE_ANY; } 
+quantified_expr(A) ::= SOME.                                                      { A = QU_TYPE_ANY; }
+quantified_expr(A) ::= ALL.                                                       { A = QU_TYPE_ALL; }
+
 predicate(A) ::= expr_or_subquery(B) compare_op(C) expr_or_subquery(D).           {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, D);
                                                                                     A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, C, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, D)));
                                                                                   }
-//predicate(A) ::= expression(B) compare_op sub_type expression(B).
+predicate(A) ::= expr_or_subquery(B) quantified_compare_op(C) quantified_expr(D) subquery(E).    {
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, E);
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, C, releaseRawExprNode(pCxt, B), setNodeQuantifyType(pCxt, releaseRawExprNode(pCxt, E), D)));
+                                                                                  }
 predicate(A) ::=
   expr_or_subquery(B) BETWEEN expr_or_subquery(C) AND expr_or_subquery(D).        {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
@@ -2210,15 +2344,28 @@ predicate(A) ::= expr_or_subquery(B) in_op(C) in_predicate_value(D).            
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, D);
                                                                                     A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, C, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, D)));
                                                                                   }
+predicate(A) ::= EXISTS(B) subquery(C).                                           {
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, C);
+                                                                                    A = createRawExprNodeExt(pCxt, &B, &e, createOperatorNode(pCxt, OP_TYPE_EXISTS, releaseRawExprNode(pCxt, C), NULL));
+                                                                                  }
+predicate(A) ::= NOT(B) EXISTS subquery(C).                                       {
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, C);
+                                                                                    A = createRawExprNodeExt(pCxt, &B, &e, createOperatorNode(pCxt, OP_TYPE_NOT_EXISTS, releaseRawExprNode(pCxt, C), NULL));
+                                                                                  }
+
+
+%type quantified_compare_op                                                       { EOperatorType }
+%destructor quantified_compare_op                                                 { }
+quantified_compare_op(A) ::= NK_LT.                                               { A = OP_TYPE_LOWER_THAN; }
+quantified_compare_op(A) ::= NK_GT.                                               { A = OP_TYPE_GREATER_THAN; }
+quantified_compare_op(A) ::= NK_LE.                                               { A = OP_TYPE_LOWER_EQUAL; }
+quantified_compare_op(A) ::= NK_GE.                                               { A = OP_TYPE_GREATER_EQUAL; }
+quantified_compare_op(A) ::= NK_NE.                                               { A = OP_TYPE_NOT_EQUAL; }
+quantified_compare_op(A) ::= NK_EQ.                                               { A = OP_TYPE_EQUAL; }
 
 %type compare_op                                                                  { EOperatorType }
 %destructor compare_op                                                            { }
-compare_op(A) ::= NK_LT.                                                          { A = OP_TYPE_LOWER_THAN; }
-compare_op(A) ::= NK_GT.                                                          { A = OP_TYPE_GREATER_THAN; }
-compare_op(A) ::= NK_LE.                                                          { A = OP_TYPE_LOWER_EQUAL; }
-compare_op(A) ::= NK_GE.                                                          { A = OP_TYPE_GREATER_EQUAL; }
-compare_op(A) ::= NK_NE.                                                          { A = OP_TYPE_NOT_EQUAL; }
-compare_op(A) ::= NK_EQ.                                                          { A = OP_TYPE_EQUAL; }
+compare_op(A) ::= quantified_compare_op(B).                                       { A = B; }
 compare_op(A) ::= LIKE.                                                           { A = OP_TYPE_LIKE; }
 compare_op(A) ::= NOT LIKE.                                                       { A = OP_TYPE_NOT_LIKE; }
 compare_op(A) ::= MATCH.                                                          { A = OP_TYPE_MATCH; }
@@ -2233,6 +2380,8 @@ in_op(A) ::= IN.                                                                
 in_op(A) ::= NOT IN.                                                              { A = OP_TYPE_NOT_IN; }
 
 in_predicate_value(A) ::= NK_LP(C) literal_list(B) NK_RP(D).                      { A = createRawExprNodeExt(pCxt, &C, &D, createNodeListNode(pCxt, B)); }
+in_predicate_value(A) ::= NK_LP(C) query_expression(B) NK_RP(D).                  { A = createRawExprNodeExt(pCxt, &C, &D, B); }
+in_predicate_value(A) ::= NK_LP(C) subquery(B) NK_RP(D).                          { A = createRawExprNodeExt(pCxt, &C, &D, releaseRawExprNode(pCxt, B)); }
 
 /************************************************ boolean_value_expression ********************************************/
 boolean_value_expression(A) ::= boolean_primary(B).                               { A = B; }
@@ -2375,7 +2524,7 @@ jlimit_clause_opt(A) ::= JLIMIT unsigned_integer(B).                            
 query_specification(A) ::=
   SELECT hint_list(M) set_quantifier_opt(B) tag_mode_opt(N) select_list(C) from_clause_opt(D)
   where_clause_opt(E) partition_by_clause_opt(F) range_opt(J) every_opt(K)
-  interp_fill_opt(L) twindow_clause_opt(G) group_by_clause_opt(H) having_clause_opt(I).  {
+  fill_opt(L) twindow_clause_opt(G) group_by_clause_opt(H) having_clause_opt(I).  {
                                                                                     A = createSelectStmt(pCxt, B, C, D, M);
                                                                                     A = setSelectStmtTagMode(pCxt, A, N);
                                                                                     A = addWhereClause(pCxt, A, E);
@@ -2450,9 +2599,12 @@ twindow_clause_opt(A) ::= EVENT_WINDOW START WITH search_condition(B)
   END WITH search_condition(C) true_for_opt(D).                                   { A = createEventWindowNode(pCxt, B, C, D); }
 twindow_clause_opt(A) ::= COUNT_WINDOW NK_LP count_window_args(B) NK_RP.          { A = createCountWindowNodeFromArgs(pCxt, B); }
 twindow_clause_opt(A) ::=
-  ANOMALY_WINDOW NK_LP expr_or_subquery(B) NK_RP.                                 { A = createAnomalyWindowNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
-twindow_clause_opt(A) ::=
-  ANOMALY_WINDOW NK_LP expr_or_subquery(B) NK_COMMA NK_STRING(C) NK_RP.           { A = createAnomalyWindowNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
+  ANOMALY_WINDOW NK_LP anomaly_col_list(B) NK_RP.                                 { A = createAnomalyWindowNode(pCxt, B); }
+
+%type anomaly_col_list                                                            { SNodeList* }
+%destructor anomaly_col_list                                                      { nodesDestroyList($$); }
+anomaly_col_list(A) ::= expr_or_subquery(B).                                      { A = createNodeList(pCxt, releaseRawExprNode(pCxt, B)); }
+anomaly_col_list(A) ::= anomaly_col_list(B) NK_COMMA expr_or_subquery(C).         { A = addNodeToList(pCxt, B, releaseRawExprNode(pCxt, C)); }
 
 extend_literal(A) ::= NK_INTEGER(B).                                              { A = createValueNode(pCxt, TSDB_DATA_TYPE_INT, &B); }
 
@@ -2472,24 +2624,21 @@ sliding_opt(A) ::= SLIDING NK_LP interval_sliding_duration_literal(B) NK_RP.    
 interval_sliding_duration_literal(A) ::= NK_VARIABLE(B).                          { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
 interval_sliding_duration_literal(A) ::= NK_STRING(B).                            { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
 interval_sliding_duration_literal(A) ::= NK_INTEGER(B).                           { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
+interval_sliding_duration_literal(A) ::= NK_QUESTION(B).                         { A = createRawExprNode(pCxt, &B, createDurationPlaceholderValueNode(pCxt, &B)); }
 
-interp_fill_opt(A) ::= .                                                          { A = NULL; }
-interp_fill_opt(A) ::= fill_value(B).                                             { A = B; }
-interp_fill_opt(A) ::=
-  FILL NK_LP fill_position_mode_extension(B) NK_COMMA expression_list(C) NK_RP.   { A = createFillNode(pCxt, B, createNodeListNode(pCxt, C)); }
-interp_fill_opt(A) ::= FILL NK_LP interp_fill_mode(B) NK_RP.                      { A = createFillNode(pCxt, B, NULL); }
 
 fill_opt(A) ::= .                                                                 { A = NULL; }
-fill_opt(A) ::= FILL NK_LP fill_mode(B) NK_RP.                                    { A = createFillNode(pCxt, B, NULL); }
 fill_opt(A) ::= fill_value(B).                                                    { A = B; }
+fill_opt(A) ::= FILL NK_LP fill_mode(B) NK_RP.                                    { A = createFillNode(pCxt, B, NULL); }
+fill_opt(A) ::=
+  FILL NK_LP fill_position_mode(B) NK_RP surround_opt(C).                         { A = createFillNodeWithSurroundNode(pCxt, B, C); }
+fill_opt(A) ::= 
+  FILL NK_LP fill_position_mode(B) NK_COMMA expression_list(C) NK_RP.             { A = createFillNode(pCxt, B, createNodeListNode(pCxt, C)); }
 
+fill_value(A) ::= FILL NK_LP VALUE NK_RP.                                         { A = createFillNode(pCxt, FILL_MODE_VALUE, NULL); }
 fill_value(A) ::= FILL NK_LP VALUE NK_COMMA expression_list(B) NK_RP.             { A = createFillNode(pCxt, FILL_MODE_VALUE, createNodeListNode(pCxt, B)); }
+fill_value(A) ::= FILL NK_LP VALUE_F NK_RP.                                       { A = createFillNode(pCxt, FILL_MODE_VALUE_F, NULL); }
 fill_value(A) ::= FILL NK_LP VALUE_F NK_COMMA expression_list(B) NK_RP.           { A = createFillNode(pCxt, FILL_MODE_VALUE_F, createNodeListNode(pCxt, B)); }
-
-count_window_args(A) ::= NK_INTEGER(B).                                           { A = createCountWindowArgs(pCxt, &B, NULL, NULL); }
-count_window_args(A) ::= NK_INTEGER(B) NK_COMMA NK_INTEGER(C).                    { A = createCountWindowArgs(pCxt, &B, &C, NULL); }
-count_window_args(A) ::= NK_INTEGER(B) NK_COMMA column_name_list(D).              { A = createCountWindowArgs(pCxt, &B, NULL, D); }
-count_window_args(A) ::= NK_INTEGER(B) NK_COMMA NK_INTEGER(C) NK_COMMA column_name_list(D). { A = createCountWindowArgs(pCxt, &B, &C, D); }
 
 %type fill_mode                                                                   { EFillMode }
 %destructor fill_mode                                                             { }
@@ -2497,22 +2646,24 @@ fill_mode(A) ::= NONE.                                                          
 fill_mode(A) ::= NULL.                                                            { A = FILL_MODE_NULL; }
 fill_mode(A) ::= NULL_F.                                                          { A = FILL_MODE_NULL_F; }
 fill_mode(A) ::= LINEAR.                                                          { A = FILL_MODE_LINEAR; }
-fill_mode(A) ::= fill_position_mode(B).                                           { A = B; }
 
 %type fill_position_mode                                                          { EFillMode }
 %destructor fill_position_mode                                                    { }
 fill_position_mode(A) ::= PREV.                                                   { A = FILL_MODE_PREV; }
 fill_position_mode(A) ::= NEXT.                                                   { A = FILL_MODE_NEXT; }
+fill_position_mode(A) ::= NEAR.                                                   { A = FILL_MODE_NEAR; }
 
-%type fill_position_mode_extension                                                { EFillMode }
-%destructor fill_position_mode_extension                                          { }
-fill_position_mode_extension(A) ::= fill_position_mode(B).                        { A = B; }
-fill_position_mode_extension(A) ::= NEAR.                                         { A = FILL_MODE_NEAR; }
+%type surround_opt                                                                { SNode* }
+%destructor surround_opt                                                          { nodesDestroyNode($$); }
+surround_opt(A) ::= .                                                             { A = NULL; }
+surround_opt(A) ::= SURROUND NK_LP duration_literal(B) NK_RP.                     { A = createSurroundNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
+surround_opt(A) ::=
+  SURROUND NK_LP duration_literal(B) NK_COMMA expression_list(C) NK_RP.           { A = createSurroundNode(pCxt, releaseRawExprNode(pCxt, B), createNodeListNode(pCxt, C)); }
 
-%type interp_fill_mode                                                            { EFillMode }
-%destructor interp_fill_mode                                                      { }
-interp_fill_mode(A) ::= fill_mode(B).                                             { A = B; }
-interp_fill_mode(A) ::= NEAR.                                                     { A = FILL_MODE_NEAR; }
+count_window_args(A) ::= NK_INTEGER(B).                                           { A = createCountWindowArgs(pCxt, &B, NULL, NULL); }
+count_window_args(A) ::= NK_INTEGER(B) NK_COMMA NK_INTEGER(C).                    { A = createCountWindowArgs(pCxt, &B, &C, NULL); }
+count_window_args(A) ::= NK_INTEGER(B) NK_COMMA column_name_list(D).              { A = createCountWindowArgs(pCxt, &B, NULL, D); }
+count_window_args(A) ::= NK_INTEGER(B) NK_COMMA NK_INTEGER(C) NK_COMMA column_name_list(D). { A = createCountWindowArgs(pCxt, &B, &C, D); }
 
 %type group_by_clause_opt                                                         { SNodeList* }
 %destructor group_by_clause_opt                                                   { nodesDestroyList($$); }
@@ -2529,7 +2680,7 @@ having_clause_opt(A) ::= HAVING search_condition(B).                            
 
 range_opt(A) ::= .                                                                { A = NULL; }
 range_opt(A) ::=
-  RANGE NK_LP expr_or_subquery(B) NK_COMMA expr_or_subquery(C) NK_COMMA expr_or_subquery(D) NK_RP.              { 
+  RANGE NK_LP expr_or_subquery(B) NK_COMMA expr_or_subquery(C) NK_COMMA expr_or_subquery(D) NK_RP.              {
                                                                                     A = createInterpTimeRange(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D)); }
 range_opt(A) ::=
   RANGE NK_LP expr_or_subquery(B) NK_COMMA expr_or_subquery(C) NK_RP.             { A = createInterpTimeRange(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C), NULL); }
@@ -2541,6 +2692,9 @@ every_opt(A) ::= EVERY NK_LP duration_literal(B) NK_RP.                         
 
 true_for_opt(A) ::= .                                                             { A = NULL; }
 true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) NK_RP.    { A = releaseRawExprNode(pCxt, B); }
+true_for_opt(A) ::= TRUE_FOR NK_LP COUNT NK_INTEGER(B) NK_RP.                     { A = createTrueForCountNode(pCxt, &B); }
+true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) AND COUNT NK_INTEGER(C) NK_RP. { A = createTrueForAndNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
+true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) OR COUNT NK_INTEGER(C) NK_RP.  { A = createTrueForOrNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
 
 /************************************************ query_expression ****************************************************/
 query_expression(A) ::= query_simple(B)
@@ -2608,6 +2762,7 @@ null_ordering_opt(A) ::= .                                                      
 null_ordering_opt(A) ::= NULLS FIRST.                                             { A = NULL_ORDER_FIRST; }
 null_ordering_opt(A) ::= NULLS LAST.                                              { A = NULL_ORDER_LAST; }
 
+%fallback NK_ID FROM_BASE64 TO_BASE64 MD5 SHA SHA1 SHA2 AES_ENCRYPT AES_DECRYPT SM4_ENCRYPT SM4_DECRYPT.
 %fallback ABORT AFTER ATTACH BEFORE BEGIN BITAND BITNOT BITOR BLOCKS CHANGE COMMA CONCAT CONFLICT COPY DEFERRED DELIMITERS DETACH DIVIDE DOT EACH END FAIL
   FILE FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE RESTRICT ROW SEMI STAR STATEMENT
   STRICT STRING TIMES VALUES VARIABLE VIEW WAL.

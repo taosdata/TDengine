@@ -18,6 +18,9 @@ class TestTmqBugs:
         'asynclog': 0
     }
 
+    clientCfgDict = {'debugFlag': 135, 'asynclog': 0}
+    updatecfgDict["clientCfg"] = clientCfgDict
+
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
 
@@ -873,6 +876,93 @@ class TestTmqBugs:
         print("bug TS-4674 ................ [passed]") 
 
     #
+    # ------------------- 19 ----------------
+    #
+    def do_td_tmq_token(self):
+        insertJson = '''{
+            "filetype": "insert",
+            "cfgdir": "/etc/taos",
+            "host": "localhost",
+            "port": 6030,
+            "user": "root",
+            "password": "taosdata",
+            "connection_pool_size": 10,
+            "thread_count": 10,
+            "create_table_thread_count": 10,
+            "result_file": "./insert-2-2-1.txt",
+            "confirm_parameter_prompt": "no",
+            "num_of_records_per_req": 3600,
+            "prepared_rand": 3600,
+            "chinese": "no",
+            "escape_character": "yes",
+            "continue_if_fail": "no",
+            "databases": [
+                {
+                    "dbinfo": {
+                        "name": "tmq_token",
+                        "drop": "yes",
+                        "vgroups": 10,
+                        "precision": "ms",
+                        "buffer": 512,
+                        "cachemodel":"'both'",
+                        "stt_trigger": 1
+                    },
+                    "super_tables": [
+                        {
+                            "name": "stb",
+                            "child_table_exists": "no",
+                            "childtable_count": 10000,
+                            "childtable_prefix": "d_",
+                            "auto_create_table": "yes",
+                            "batch_create_tbl_num": 10,
+                            "data_source": "csv",
+                            "insert_mode": "stmt",
+                            "non_stop_mode": "no",
+                            "line_protocol": "line",
+                            "insert_rows": 100,
+                            "childtable_limit": 0,
+                            "childtable_offset": 0,
+                            "interlace_rows": 0,
+                            "insert_interval": 0,
+                            "partial_col_num": 0,
+                            "timestamp_step": 1000,
+                            "start_timestamp": "2024-11-01 00:00:00.000",
+                            "sample_format": "csv",
+                            "sample_file": "./td_double10000_juchi.csv",
+                            "use_sample_ts": "no",
+                            "tags_file": "",
+                            "columns": [
+                                {"type": "DOUBLE", "name": "val"},
+                                { "type": "INT", "name": "quality"}
+                            ],
+                            "tags": [
+                                {"type": "INT", "name": "id", "max": 100, "min": 1}
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }'''
+
+        with open('insert.json', 'w') as file:
+            file.write(insertJson)
+
+        tdLog.info("start to insert data: taosBenchmark -f insert.json")
+        if os.system("taosBenchmark -f insert.json") != 0:
+            tdLog.exit("taosBenchmark -f insert.json")
+
+        tdLog.info("test tmq_token insert done ......")
+
+        buildPath = tdCom.getBuildPath()
+        cmdStr = '%s/build/bin/tmq_token'%(buildPath)
+
+        tdLog.info(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
+
+        print("test tmq_token ................ [passed]")       
+
+    #
     # ------------------- main ----------------
     #
     def test_tmq_bugs(self):
@@ -961,3 +1051,4 @@ class TestTmqBugs:
         self.do_ts6115()
         self.do_ts6392()
         self.do_ts7402()
+        self.do_td_tmq_token()

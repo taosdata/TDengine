@@ -131,7 +131,7 @@ class TestClusterSplitVgroupByLearner:
         t1.join()
         t2.join()
         t3.join()
-        tdLog.success(f"{__file__} successfully executed")
+
 
 event = threading.Event()
 

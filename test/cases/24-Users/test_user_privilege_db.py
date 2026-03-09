@@ -98,7 +98,7 @@ class TestUserPrivilegeDb:
         tdSql.execute(f"REVOKE select,insert ON *.* from user1;")
 
         tdLog.info(f"=============== create users")
-        tdSql.execute(f"create user u1 PASS 'taosdata'")
+        tdSql.execute(f"create user u1 PASS 'AAbb1122'")
         tdSql.query(f"select * from information_schema.ins_users")
         tdSql.checkRows(4)
 
@@ -125,7 +125,7 @@ class TestUserPrivilegeDb:
 
         tdLog.info(f"=============== re connect")
         tdLog.info(f"user u1 login")
-        tdSql.connect("u1")
+        tdSql.connect("u1", "AAbb1122")
 
         tdSql.error(f"drop database d1;")
         tdSql.error(f"drop database d2;")
@@ -133,9 +133,7 @@ class TestUserPrivilegeDb:
         tdSql.error(f"create stable d1.st (ts timestamp, i int) tags (j int)")
         tdSql.execute(f"use d2")
         tdSql.execute(f"create table d2_stb (ts timestamp, i int) tags (j int)")
-
-        # Insufficient privilege for operation
-        tdSql.error(f"create topic d2_topic_1 as select ts, i from d2_stb")
+        tdSql.execute(f"create topic d2_topic_1 as select ts, i from d2_stb") # u1 has select privilege since d2_stb is created by u1
 
         tdSql.execute(f"use d1")
         # Insufficient privilege for operation

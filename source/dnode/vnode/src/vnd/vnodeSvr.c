@@ -48,7 +48,6 @@ static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t ver, void *pR
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
-static int32_t vnodeProcessTrimWalReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                      SRpcMsg *pOriginalMsg);
 static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -162,6 +161,10 @@ _exit:
 static int32_t vnodePreProcessAlterTableMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = TSDB_CODE_INVALID_MSG;
   int32_t lino = 0;
+
+  if (pVnode->config.isAudit) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
 
   SDecoder dc = {0};
   tDecoderInit(&dc, (uint8_t *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead));
@@ -544,6 +547,10 @@ int32_t vnodePreProcessDropTbMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   SVDropTbBatchReq receivedBatchReqs = {0};
   SVDropTbBatchReq sentBatchReqs = {0};
 
+  if (pVnode->config.isAudit) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+
   tDecoderInit(&dc, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead));
 
   code = tDecodeSVDropTbBatchReq(&dc, &receivedBatchReqs);
@@ -834,6 +841,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   len = pMsg->contLen - sizeof(SMsgHead);
   bool needCommit = false;
+  bool forceTrimWal = false;
 
   switch (pMsg->msgType) {
     /* META */
@@ -887,8 +895,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       TSDB_CHECK_CODE(code, lino, _err);
       break;
       case TDMT_VND_TRIM_WAL:
-      if (vnodeProcessTrimWalReq(pVnode, pReq, len, pRsp) < 0) goto _err;
-      break;
+        needCommit = true;
+        forceTrimWal = true;
+        break;
 #ifdef TD_ENTERPRISE
     case TDMT_VND_SSMIGRATE_FILESET:
       if (vnodeProcessSsMigrateFileSetReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
@@ -993,7 +1002,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
   // commit if need
   if (needCommit) {
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), ver);
-    code = vnodeAsyncCommit(pVnode);
+    code = vnodeAsyncCommit(pVnode, forceTrimWal);
     if (code) {
       vError("vgId:%d, failed to vnode async commit since %s.", TD_VID(pVnode), tstrerror(terrno));
       goto _err;
@@ -1034,7 +1043,10 @@ int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 }
 
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
-  vTrace("message in vnode query queue is processing");
+  const STraceId *trace = &pMsg->info.traceId;
+  vDebug("vgId:%d, msg:%s, %p in vnode query queue is processing, %" PRIx64 ":%" PRIx64, 
+    pVnode->config.vgId, TMSG_INFO(pMsg->msgType), pMsg, TRACE_GET_ROOTID(trace), TRACE_GET_MSGID(trace));
+
   if (pMsg->msgType == TDMT_VND_TMQ_CONSUME && !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
@@ -1082,7 +1094,9 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
-  vTrace("vgId:%d, msg:%p in fetch queue is processing", pVnode->config.vgId, pMsg);
+  const STraceId *trace = &pMsg->info.traceId;
+  vDebug("vgId:%d, msg:%s, %p in fetch queue is processing, %" PRIx64 ":%" PRIx64, 
+    pVnode->config.vgId, TMSG_INFO(pMsg->msgType), pMsg, TRACE_GET_ROOTID(trace), TRACE_GET_MSGID(trace));
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
        pMsg->msgType == TDMT_VND_BATCH_META || pMsg->msgType == TDMT_VND_TABLE_NAME ||
        pMsg->msgType == TDMT_VND_VSUBTABLES_META || pMsg->msgType == TDMT_VND_VSTB_REF_DBS) &&
@@ -1188,24 +1202,6 @@ _exit:
 }
 
 extern int32_t vnodeAsyncSsMigrateFileSet(SVnode *pVnode, SSsMigrateFileSetReq *pReq);
-
-static int32_t vnodeProcessTrimWalReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  int32_t code = 0;
-
-  vInfo("vgId:%d, process trim wal request, force clean expired WAL files by triggering commit with forceTrim",
-        pVnode->config.vgId);
-
-  // Trigger a commit with forceTrim flag
-  // This will properly calculate ver through sync layer and apply forceTrim during snapshot
-  code = vnodeAsyncCommitEx(pVnode, true);
-  if (code != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, failed to trigger trim wal commit since %s", pVnode->config.vgId, tstrerror(code));
-  } else {
-    vInfo("vgId:%d, successfully triggered trim wal commit", pVnode->config.vgId);
-  }
-
-  return code;
-}
 
 extern int32_t vnodeAsyncS3Migrate(SVnode *pVnode, int64_t now);
 
@@ -1313,9 +1309,9 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
     int32_t code = metaDropMultipleTables(pVnode->pMeta, ver, ttlReq.pTbUids);
     if (code) return code;
 
-    code = tqUpdateTbUidList(pVnode->pTq, ttlReq.pTbUids, false);
+    code = tqDeleteTbUidList(pVnode->pTq, ttlReq.pTbUids);
     if (code) {
-      vError("vgId:%d, failed to update tbUid list since %s", TD_VID(pVnode), tstrerror(code));
+      vError("vgId:%d, failed to delete tbUid list since %s", TD_VID(pVnode), tstrerror(code));
     }
   }
 
@@ -1529,8 +1525,8 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
   }
 
   vTrace("vgId:%d, add %d new created tables into query table list", TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUids));
-  if (tqUpdateTbUidList(pVnode->pTq, tbUids, true) < 0) {
-    vError("vgId:%d, failed to update tbUid list since %s", TD_VID(pVnode), tstrerror(terrno));
+  if (tqAddTbUidList(pVnode->pTq, tbUids) < 0) {
+    vError("vgId:%d, failed to add tbUid list since %s", TD_VID(pVnode), tstrerror(terrno));
   }
 
   // prepare rsp
@@ -1649,7 +1645,7 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     goto _exit;
   }
 
-  if (tqUpdateTbUidList(pVnode->pTq, tbUidList, false) < 0) {
+  if (tqDeleteTbUidList(pVnode->pTq, tbUidList) < 0) {
     rcode = terrno;
     goto _exit;
   }
@@ -1662,6 +1658,47 @@ _exit:
   pRsp->code = rcode;
   tDecoderClear(&decoder);
   return 0;
+}
+
+static void alterTagForTmq(SVnode *pVnode, SVAlterTbReq *vAlterTbReq) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  SArray* tbUids = NULL;
+  SArray* cidList = NULL;
+
+  int64_t uid = metaGetTableEntryUidByName(pVnode->pMeta, vAlterTbReq->tbName);
+  QUERY_CHECK_CONDITION(uid != 0, code, lino, end, TSDB_CODE_TDB_TABLE_NOT_EXIST);
+  
+  tbUids = taosArrayInit(4, sizeof(int64_t));
+  QUERY_CHECK_NULL(tbUids, code, lino, end, terrno);
+
+  QUERY_CHECK_CONDITION(taosArrayPush(tbUids, &uid) != NULL, code, lino, end, terrno);
+
+  cidList = taosArrayInit(4, sizeof(col_id_t));
+  QUERY_CHECK_NULL(cidList, code, lino, end, terrno);
+
+  if (vAlterTbReq->action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL){
+    col_id_t cid = vAlterTbReq->colId;
+    QUERY_CHECK_CONDITION(taosArrayPush(cidList, &cid) != NULL, code, lino, end, terrno);
+  } else {
+    for (int32_t i = 0; i < taosArrayGetSize(vAlterTbReq->pMultiTag); i++) {
+      SMultiTagUpateVal *pTagVal = taosArrayGet(vAlterTbReq->pMultiTag, i);
+      QUERY_CHECK_NULL(pTagVal, code, lino, end, terrno);
+      col_id_t cid = pTagVal->colId;
+      QUERY_CHECK_CONDITION(taosArrayPush(cidList, &cid) != NULL, code, lino, end, terrno);
+    }
+  }
+  
+  vDebug("vgId:%d, try to add table:%s in query table list, cidList size:%"PRIzu, TD_VID(pVnode), vAlterTbReq->tbName, taosArrayGetSize(cidList));
+  code = tqUpdateTbUidList(pVnode->pTq, tbUids, cidList);
+  QUERY_CHECK_CODE(code, lino, end);
+
+end:
+  if (code != 0) {
+    qError("vgId:%d, failed to alter table:%s since %s", TD_VID(pVnode), vAlterTbReq->tbName, tstrerror(code));
+  }
+  taosArrayDestroy(tbUids);
+  taosArrayDestroy(cidList);
 }
 
 static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
@@ -1701,30 +1738,8 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     vAlterTbRsp.pMeta = &vMetaRsp;
   }
 
-  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ||
-      vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
-    int64_t uid = metaGetTableEntryUidByName(pVnode->pMeta, vAlterTbReq.tbName);
-    if (uid == 0) {
-      vError("vgId:%d, %s failed at %s:%d since table %s not found", TD_VID(pVnode), __func__, __FILE__, __LINE__,
-             vAlterTbReq.tbName);
-      goto _exit;
-    }
-
-    SArray *tbUids = taosArrayInit(4, sizeof(int64_t));
-    void   *p = taosArrayPush(tbUids, &uid);
-    TSDB_CHECK_NULL(p, code, lino, _exit, terrno);
-
-    vDebug("vgId:%d, remove tags value altered table:%s from query table list", TD_VID(pVnode), vAlterTbReq.tbName);
-    if ((code = tqUpdateTbUidList(pVnode->pTq, tbUids, false)) < 0) {
-      vError("vgId:%d, failed to remove tbUid list since %s", TD_VID(pVnode), tstrerror(code));
-    }
-
-    vDebug("vgId:%d, try to add table:%s in query table list", TD_VID(pVnode), vAlterTbReq.tbName);
-    if ((code = tqUpdateTbUidList(pVnode->pTq, tbUids, true)) < 0) {
-      vError("vgId:%d, failed to add tbUid list since %s", TD_VID(pVnode), tstrerror(code));
-    }
-
-    taosArrayDestroy(tbUids);
+  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL || vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
+    alterTagForTmq(pVnode, &vAlterTbReq);
   }
 
 _exit:
@@ -1816,7 +1831,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     }
   }
 
-  if (tqUpdateTbUidList(pVnode->pTq, tbUids, false) < 0) {
+  if (tqDeleteTbUidList(pVnode->pTq, tbUids) < 0) {
     vError("vgId:%d, failed to update tbUid list since %s", TD_VID(pVnode), tstrerror(terrno));
   }
 
@@ -2340,7 +2355,7 @@ static int32_t vnodeHandleAutoCreateTable(SVnode      *pVnode,    // vnode
   if (taosArrayGetSize(newTbUids) > 0) {
     vDebug("vgId:%d, add %d table into query table list in handling submit", TD_VID(pVnode),
            (int32_t)taosArrayGetSize(newTbUids));
-    if (tqUpdateTbUidList(pVnode->pTq, newTbUids, true) != 0) {
+    if (tqAddTbUidList(pVnode->pTq, newTbUids) != 0) {
       vError("vgId:%d, failed to update tbUid list", TD_VID(pVnode));
     }
   }
@@ -2819,12 +2834,12 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
 
   vInfo("vgId:%d, start to alter vnode config, page:%d pageSize:%d buffer:%d szPage:%d szBuf:%" PRIu64
         " cacheLast:%d cacheLastSize:%d days:%d keep0:%d keep1:%d keep2:%d keepTimeOffset:%d ssKeepLocal:%d "
-        "ssCompact:%d fsync:%d level:%d "
+        "ssCompact:%d allowDrop:%d fsync:%d level:%d "
         "walRetentionPeriod:%d walRetentionSize:%d",
         TD_VID(pVnode), req.pages, req.pageSize, req.buffer, req.pageSize * 1024, (uint64_t)req.buffer * 1024 * 1024,
         req.cacheLast, req.cacheLastSize, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
-        req.keepTimeOffset, req.ssKeepLocal, req.ssCompact, req.walFsyncPeriod, req.walLevel, req.walRetentionPeriod,
-        req.walRetentionSize);
+        req.keepTimeOffset, req.ssKeepLocal, req.ssCompact, req.allowDrop, req.walFsyncPeriod, req.walLevel,
+        req.walRetentionPeriod, req.walRetentionSize);
 
   if (pVnode->config.cacheLastSize != req.cacheLastSize) {
     pVnode->config.cacheLastSize = req.cacheLastSize;
@@ -2920,6 +2935,9 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
   }
   if (req.ssCompact != -1 && req.ssCompact != pVnode->config.ssCompact) {
     pVnode->config.ssCompact = req.ssCompact;
+  }
+  if (req.allowDrop != pVnode->config.allowDrop) {
+    pVnode->config.allowDrop = req.allowDrop;
   }
 
   if (walChanged) {
@@ -3232,5 +3250,5 @@ _OVER:
 
 #ifndef TD_ENTERPRISE
 int32_t vnodeAsyncCompact(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) { return 0; }
-int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, ETsdbOpType type) { return 0; }
+int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, ETsdbOpType type, bool force) { return 0; }
 #endif

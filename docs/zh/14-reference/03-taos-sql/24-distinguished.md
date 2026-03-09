@@ -47,9 +47,9 @@ TDengine TSDB 支持按时间窗口切分方式进行聚合结果查询，比如
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(true_for_duration)]
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
-  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
+  | STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
 }
 ```
@@ -72,41 +72,13 @@ window_clause: {
 - 窗口子句不可以和 GROUP BY 子句一起使用。
 - WHERE 语句可以指定查询的起止时间和其他过滤条件。
 
-### FILL 子句
-
-FILL 语句指定某一窗口区间数据缺失的情况下的填充模式。填充模式包括以下几种：
-
-1. 不进行填充：NONE（默认填充模式）。
-2. VALUE 填充：固定值填充，此时需要指定填充的数值。例如 `FILL(VALUE, 1.23)`。这里需要注意，最终填充的值受由相应列的类型决定，如 `FILL(VALUE, 1.23)`，相应列为 INT 类型，则填充值为 1，若查询列表中有多列需要 FILL，则需要给每一个 FILL 列指定 VALUE，如 `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`，注意，SELECT 表达式中只有包含普通列时才需要指定 FILL VALUE，如 `_wstart`、`_wstart+1a`、`now`、`1+1` 以及使用 `partition by` 时的 `partition key` (如 tbname) 都不需要指定 VALUE，如 `timediff(last(ts), _wstart)` 则需要指定 VALUE。
-3. PREV 填充：使用前一个值填充数据。例如 FILL(PREV)。
-4. NULL 填充：使用 NULL 填充数据。例如 FILL(NULL)。
-5. LINEAR 填充：根据前后距离最近的值做线性插值填充。例如 FILL(LINEAR)。
-6. NEXT 填充：使用下一个值填充数据。例如 FILL(NEXT)。
-
-以上填充模式中，除了 NONE 模式默认不填充值之外，其他模式在查询的整个时间范围内如果没有数据 FILL 子句将被忽略，即不产生填充数据，查询结果为空。这种行为在部分模式（PREV、NEXT、LINEAR）下具有合理性，因为在这些模式下没有数据意味着无法产生填充数值。而对另外一些模式（NULL、VALUE）来说，理论上是可以产生填充数值的，至于需不需要输出填充数值，取决于应用的需求。所以为了满足这类需要强制填充数据或 NULL 的应用的需求，同时不破坏现有填充模式的行为兼容性，从 v3.0.3.0 开始，增加了两种新的填充模式：
-
-7. NULL_F：强制填充 NULL 值
-8. VALUE_F：强制填充 VALUE 值
-
-NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如下：
-
-- INTERVAL 子句：NULL_F、VALUE_F 为强制填充模式；NULL、VALUE 为非强制模式。在这种模式下下各自的语义与名称相符
-- 流计算中的 INTERVAL 子句：NULL_F 与 NULL 行为相同，均为非强制模式；VALUE_F 与 VALUE 行为相同，均为非强制模式。即流计算中的 INTERVAL 没有强制模式
-- INTERP 子句：NULL 与 NULL_F 行为相同，均为强制模式；VALUE 与 VALUE_F 行为相同，均为强制模式。即 INTERP 中没有非强制模式。
-
-:::info
-
-1. 使用 FILL 语句的时候可能生成大量的填充输出，务必指定查询的时间区间。针对每次查询，系统可返回不超过 1 千万条具有插值的结果。
-2. 在时间维度聚合中，返回的结果中时间序列严格单调递增。
-3. 如果查询对象是超级表，则聚合函数会作用于该超级表下满足值过滤条件的所有表的数据。如果查询中没有使用 PARTITION BY 语句，则返回的结果按照时间序列严格单调递增；如果查询中使用了 PARTITION BY 语句分组，则返回结果中每个 PARTITION 内按照时间序列严格单调递增。
-
-:::
-
 ### 时间窗口
 
 时间窗口又可分为滑动时间窗口和翻转时间窗口。
 
 INTERVAL 子句用于产生相等时间周期的窗口，SLIDING 用以指定窗口向前滑动的时间。每次执行的查询是一个时间窗口，时间窗口随着时间流动向前滑动。在定义连续查询的时候需要指定时间窗口（time window）大小和每次前向增量时间（forward sliding times）。如图，[t0s, t0e] ，[t1s , t1e]，[t2s, t2e] 是分别是执行三次连续查询的时间窗口范围，窗口的前向滑动的时间范围 sliding time 标识。查询过滤、聚合等操作按照每个时间窗口为独立的单位执行。当 SLIDING 与 INTERVAL 相等的时候，滑动窗口即为翻转窗口。默认情况下，窗口是从 Unix time 0（1970-01-01 00:00:00 UTC）开始划分的；如果设置了 interval_offset，那么窗口的划分将从“Unix time 0 + interval_offset”开始。
+
+查询对象是超级表时，聚合函数会作用于该超级表下满足过滤条件的所有表的数据，返回的结果按照窗口起始时间严格单调递增；如果使用 PARTITION BY 语句分组，则返回结果中每个 PARTITION 内按照窗口起始时间严格单调递增。
 
 ![TDengine TSDB Database 时间窗口示意图](./pic/time_window.webp)
 
@@ -134,6 +106,8 @@ SELECT COUNT(*) FROM meters WHERE _rowts < '2018-10-03 15:00:00' INTERVAL (1m, A
 -- 起始时间限制不明确，不生效，仍以 0 为偏移量
 SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
 ```
+
+INTERVAL 子句支持使用 FILL 子句来指定数据缺失时的数据填充方法，支持除 NEAR 填充模式外的所有填充模式。关于 FILL 子句如何使用请参考 [FILL 子句](./20-select.md#fill-子句)。
 
 使用时间窗口需要注意：
 
@@ -236,10 +210,29 @@ taos> select _wstart, _wduration, _wend, count(*) from state_window_example stat
  2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
 ```
 
-状态窗口支持使用 TRUE_FOR 参数来设定窗口的最小持续时长。如果某个状态窗口的宽度低于该设定值，则会自动舍弃，不返回任何计算结果。例如，设置最短持续时长为 3s。
+状态窗口支持使用 TRUE_FOR 参数来设定窗口的过滤条件。只有满足条件的窗口才会返回计算结果。支持以下四种模式：
+
+- `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
+- `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
+- `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
+- `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
+
+例如，设置最短持续时长为 3s：
 
 ```sql
 SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (3s);
+```
+
+或者设置最少行数为 100 行：
+
+```sql
+SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (COUNT 100);
+```
+
+或者同时满足持续时长和行数条件：
+
+```sql
+SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (3s AND COUNT 50);
 ```
 
 ### 会话窗口
@@ -273,10 +266,29 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 
 ![TDengine TSDB Database 事件窗口示意图](./pic/event_window.png)
 
-事件窗口支持使用 TRUE_FOR 参数来设定窗口的最小持续时长。如果某个事件窗口的宽度低于该设定值，则会自动舍弃，不返回任何计算结果。例如，设置最短持续时长为 3s。
+事件窗口支持使用 TRUE_FOR 参数来设定窗口的过滤条件。只有满足条件的窗口才会返回计算结果。支持以下四种模式：
+
+- `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
+- `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
+- `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
+- `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
+
+例如，设置最短持续时长为 3s：
 
 ```sql
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (3s);
+```
+
+或者设置最少行数为 100 行：
+
+```sql
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (COUNT 100);
+```
+
+或者同时满足持续时长和行数条件：
+
+```sql
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (3s AND COUNT 50);
 ```
 
 ### 计数窗口

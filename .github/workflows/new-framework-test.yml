@@ -5,7 +5,7 @@ on:
     branches:
       - '3.0'
       - 'main'
-      - '3.3.6'
+      - '3.3.8'
     paths-ignore:
       - 'packaging/**'
       - 'docs/**'
@@ -21,6 +21,7 @@ on:
       - '!.github/workflows/new-framework-test.yml'
       - 'test/ci/tdgpt_cases.task'
       - 'test/cases/41-TDgpt/**'
+      - "tools/keeper/**"
 
   workflow_dispatch:
     inputs:
@@ -45,6 +46,7 @@ concurrency:
 
 jobs:
   test-new-cases:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && !contains(github.event.pull_request.title, '[manual-only]'))
     uses: taosdata/.github/.github/workflows/new-framework-test.yml@main
     with:
       tdinternal: false

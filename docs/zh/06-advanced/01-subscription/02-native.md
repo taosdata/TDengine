@@ -21,6 +21,7 @@ TDengine TSDB 消费者的概念跟 Kafka 类似，消费者通过订阅主题�
 - td.connect.ip：服务端的 FQDN。
 - td.connect.user：用户名。
 - td.connect.pass：密码。
+- td.connect.token：token。
 - td.connect.port：服务端的端口号。
 - group.id：消费组 ID，同一消费组共享消费进度。
 - client.id：客户端 ID。

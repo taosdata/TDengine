@@ -116,8 +116,8 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
     "UseSSL": false,
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS-RS://127.0.0.1:6041/power?user=root&password=taosdata",
-        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
+        "DatabaseJdbcUrl": "jdbc:TAOS-WS://127.0.0.1:6041/power?user=root&password=taosdata",
+        "SqlDriverClassName": "com.taosdata.jdbc.ws.WebSocketDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
@@ -176,8 +176,8 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
     "UseSSL": false,
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS-RS://127.0.0.1:6041/power?user=root&password=taosdata",
-        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
+        "DatabaseJdbcUrl": "jdbc:TAOS-WS://127.0.0.1:6041/power?user=root&password=taosdata",
+        "SqlDriverClassName": "com.taosdata.jdbc.ws.WebSocketDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
@@ -235,8 +235,8 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
     "UseSSL": false,
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS-RS://127.0.0.1:6041/power?user=root&password=taosdata",
-        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
+        "DatabaseJdbcUrl": "jdbc:TAOS-WS://127.0.0.1:6041/power?user=root&password=taosdata",
+        "SqlDriverClassName": "com.taosdata.jdbc.ws.WebSocketDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }

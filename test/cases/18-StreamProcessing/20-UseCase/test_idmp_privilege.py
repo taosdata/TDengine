@@ -147,8 +147,8 @@ class Test_IDMP_Meters:
     def createUsers(self):
 
         sqls = [
-            "create user user1 pass 'taosdata' sysinfo 1 createdb 1",
-            "create user user2 pass 'taosdata' sysinfo 0 createdb 0"
+            "create user user1 pass 'AAbb1122' sysinfo 1 createdb 1",
+            "create user user2 pass 'AAbb1122' sysinfo 0 createdb 0"
         ]
 
         self.execs(sqls)
@@ -230,7 +230,7 @@ class Test_IDMP_Meters:
     #
     def connectCheckUser1(self):
         print("connect with user1 ...")
-        tdSql.connect(user="user1", password="taosdata")
+        tdSql.connect(user="user1", password="AAbb1122")
 
         #
         #     -------------- ok --------------

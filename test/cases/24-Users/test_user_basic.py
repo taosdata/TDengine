@@ -8,7 +8,6 @@ import time
 import random
 
 class TestUserBasic:
-
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
@@ -48,7 +47,7 @@ class TestUserBasic:
         tdSql.error(f"REVOKE read,write ON *.* from root;")
 
         tdLog.info(f"=============== step1: sysinfo create")
-        tdSql.execute(f"CREATE USER u1 PASS 'taosdata' SYSINFO 0;")
+        tdSql.execute(f"CREATE USER u1 PASS 'AAbb1122' SYSINFO 0;")
         tdSql.query(f"select * from information_schema.ins_users")
         tdSql.checkRows(2)
 
@@ -57,7 +56,7 @@ class TestUserBasic:
         tdSql.checkKeyData("u1", 3, 0)
         tdSql.checkKeyData("u1", 4, 0)
 
-        tdSql.execute(f"CREATE USER u2 PASS 'taosdata' SYSINFO 1;")
+        tdSql.execute(f"CREATE USER u2 PASS 'AAbb1122' SYSINFO 1;")
         tdSql.query(f"select * from information_schema.ins_users")
         tdSql.checkRows(3)
 
@@ -139,10 +138,10 @@ class TestUserBasic:
         tdSql.checkKeyData("u2", 3, 1)
         tdSql.checkKeyData("u2", 4, 0)
 
-        tdSql.error(f"CREATE USER u100 PASS 'taosdata' SYSINFO -1;")
-        tdSql.error(f"CREATE USER u101 PASS 'taosdata' SYSINFO 2;")
-        tdSql.error(f"CREATE USER u102 PASS 'taosdata' SYSINFO 20000;")
-        tdSql.error(f"CREATE USER u103 PASS 'taosdata' SYSINFO 1000;")
+        tdSql.error(f"CREATE USER u100 PASS 'AAbb1122' SYSINFO -1;")
+        tdSql.error(f"CREATE USER u101 PASS 'AAbb1122' SYSINFO 2;")
+        tdSql.error(f"CREATE USER u102 PASS 'AAbb1122' SYSINFO 20000;")
+        tdSql.error(f"CREATE USER u103 PASS 'AAbb1122' SYSINFO 1000;")
         tdSql.error(f"ALTER USER u1 enable -1")
         tdSql.error(f"ALTER USER u1 enable 2")
         tdSql.error(f"ALTER USER u1 enable 1000")
@@ -263,7 +262,7 @@ class TestUserBasic:
             username = f"{self.basic_username}{userIndex}"
             tdSql.execute(f'drop user {username}')  
         # close the connection
-        tdLog.success("%s successfully executed" % __file__)
+
 
         print("do multi user privileges ............. [passed]")
 
@@ -330,9 +329,9 @@ class TestUserBasic:
             elif 'jiacy0' in user_name.lower():
                 tdSql.execute(f'create user {user_name} pass "123abc!@#" sysinfo 0')
         for user_name in ['jiacy1_all', 'jiacy1_read', 'jiacy0_all', 'jiacy0_read']:
-            tdSql.execute(f'grant select on db to {user_name}')
+            tdSql.execute(f'grant select on db.* to {user_name}')
         for user_name in ['jiacy1_all', 'jiacy1_write', 'jiacy0_all', 'jiacy0_write']:
-            tdSql.execute(f'grant insert on db to {user_name}')
+            tdSql.execute(f'grant insert on db.* to {user_name}')
 
     def user_privilege_check(self):
         jiacy1_read_conn = taos.connect(user='jiacy1_read', password='123abc!@#')
@@ -465,6 +464,7 @@ class TestUserBasic:
             - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_user_manager.py
 
         """
+        tdSql.execute("alter all dnodes 'enableAdvancedSecurity' '1'")
         self.do_user_basic()
         self.do_user_privilege_multi_users()
         self.do_user_manage()

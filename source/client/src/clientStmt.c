@@ -279,7 +279,7 @@ int32_t stmtUpdateExecInfo(TAOS_STMT* stmt, SHashObj* pVgHash, SHashObj* pBlockH
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t stmtUpdateInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, SArray* cols, SName* tbName,
+int32_t stmtUpdateInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, SSHashObj** cols, SName* tbName,
                        bool autoCreateTbl, SHashObj* pVgHash, SHashObj* pBlockHash, const char* sTableName,
                        uint8_t tbNameFlag) {
   STscStmt* pStmt = (STscStmt*)stmt;
@@ -1357,7 +1357,7 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
     ctx.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
     STMT_ERR_RET(catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &ctx.pCatalog));
 
-    STMT_ERR_RET(qStmtParseQuerySql(&ctx, pStmt->sql.pQuery));
+    STMT_ERR_RET(qStmtParseQuerySql(&ctx, pStmt->sql.pQuery, NULL));
 
     if (pStmt->sql.pQuery->haveResultSet) {
       STMT_ERR_RET(setResSchemaInfo(&pStmt->exec.pRequest->body.resInfo, pStmt->sql.pQuery->pResSchema,

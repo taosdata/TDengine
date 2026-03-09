@@ -851,6 +851,9 @@ _return1:
 }
 
 void transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg)) {
+  if (queue == NULL) {
+    return;
+  }
   taosMemoryFree(queue->timer);
 
   while (heapSize(queue->heap) > 0) {

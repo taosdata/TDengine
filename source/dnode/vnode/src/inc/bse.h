@@ -34,7 +34,7 @@ enum {
 
 typedef struct {
   int32_t    vgId;
-  int32_t    encryptAlgorithm;
+  char       encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
   char       encryptKey[ENCRYPT_KEY_LEN + 1];
   int8_t     compressType;
   int32_t    blockSize;

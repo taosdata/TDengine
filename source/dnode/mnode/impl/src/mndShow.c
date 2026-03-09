@@ -15,13 +15,14 @@
 
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
+#include "mndInt.h"
 #include "mndPrivilege.h"
 #include "mndUser.h"
 #include "systable.h"
+#include "tmsg.h"
 
 #define SHOW_STEP_SIZE            100
 #define SHOW_COLS_STEP_SIZE       4096
-#define SHOW_PRIVILEGES_STEP_SIZE 2048
 
 static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq);
 static void      mndFreeShowObj(SShowObj *pShow);
@@ -74,6 +75,14 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_ANODE_FULL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_BNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_BNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_XNODES, len) == 0) {
+    type = TSDB_MGMT_TABLE_XNODES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_XNODE_TASKS, len) == 0) {
+    type = TSDB_MGMT_TABLE_XNODE_TASKS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_XNODE_AGENTS, len) == 0) {
+    type = TSDB_MGMT_TABLE_XNODE_AGENTS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_XNODE_JOBS, len) == 0) {
+    type = TSDB_MGMT_TABLE_XNODE_JOBS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_ARBGROUPS, len) == 0) {
     type = TSDB_MGMT_TABLE_ARBGROUP;
   } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, len) == 0) {
@@ -305,15 +314,17 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   }
 
   // expend capacity for ins_columns and privileges
-  if (pShow->type == TSDB_MGMT_TABLE_COL || TSDB_MGMT_TABLE_PRIVILEGES ||
-      pShow->type == TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES || pShow->type == TSDB_MGMT_TABLE_ROLE_PRIVILEGES) {
+  if (pShow->type == TSDB_MGMT_TABLE_COL) {
     rowsToRead = SHOW_COLS_STEP_SIZE;
+  } else if (pShow->type == TSDB_MGMT_TABLE_PRIVILEGES || pShow->type == TSDB_MGMT_TABLE_ROLE_PRIVILEGES ||
+             pShow->type == TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES) {
+    rowsToRead = SHOW_PRIVILEGES_STEP_SIZE;
   }
   ShowRetrieveFp retrieveFp = pMgmt->retrieveFps[pShow->type];
   if (retrieveFp == NULL) {
     mndReleaseShowObj(pShow, false);
     code = TSDB_CODE_MSG_NOT_PROCESSED;
-    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s: retrieveFp is NULL", pShow->id, tstrerror(code));
     TAOS_RETURN(code);
   }
 
@@ -328,6 +339,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
       (code = mndCheckShowPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pShow->type, retrieveReq.db)) != 0) {
     TAOS_RETURN(code);
   }
+#if 0
   if (pShow->type == TSDB_MGMT_TABLE_USER_FULL) {
     if (strcmp(RPC_MSG_USER(pReq), "root") != 0) {
       mError("The operation is not permitted, user:%s, pShow->type:%d", RPC_MSG_USER(pReq), pShow->type);
@@ -335,6 +347,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
       TAOS_RETURN(code);
     }
   }
+#endif
 
   int32_t numOfCols = pShow->pMeta->numOfColumns;
 
@@ -380,7 +393,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
-    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(terrno));
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s: pRsp is NULL", pShow->id, tstrerror(terrno));
     code = terrno;
     goto _exit;
   }
@@ -405,7 +418,8 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
     int32_t len = blockEncode(pBlock, pStart, dataEncodeBufSize, pShow->pMeta->numOfColumns);
     if (len < 0) {
-      mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(terrno));
+      mError("show:0x%" PRIx64 ", failed to retrieve data since %s: block len(%d) < 0", pShow->id, tstrerror(terrno),
+             len);
       code = terrno;
       return code;
     }

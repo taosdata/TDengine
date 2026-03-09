@@ -61,6 +61,7 @@ int32_t dmInitDnode(SDnode *pDnode) {
   pDnode->wrappers[QNODE].func = qmGetMgmtFunc();
   pDnode->wrappers[SNODE].func = smGetMgmtFunc();
   pDnode->wrappers[BNODE].func = bmGetMgmtFunc();
+  pDnode->wrappers[XNODE].func = xmGetMgmtFunc();
 
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
@@ -188,11 +189,11 @@ int32_t dmInitVars(SDnode *pDnode) {
     snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sdnode%sconfig%sderived.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP,
              TD_DIRSEP);
 
-    char    svrKey[129] = {0};
-    char    dbKey[129] = {0};
-    char    cfgKey[129] = {0};
-    char    metaKey[129] = {0};
-    char    dataKey[129] = {0};
+    char    svrKey[ENCRYPT_KEY_LEN + 1] = {0};
+    char    dbKey[ENCRYPT_KEY_LEN + 1] = {0};
+    char    cfgKey[ENCRYPT_KEY_LEN + 1] = {0};
+    char    metaKey[ENCRYPT_KEY_LEN + 1] = {0};
+    char    dataKey[ENCRYPT_KEY_LEN + 1] = {0};
     int32_t algorithm = 0;
     int32_t cfgAlgorithm = 0;
     int32_t metaAlgorithm = 0;
@@ -365,6 +366,9 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
         break;
       case BNODE:
         code = TSDB_CODE_BNODE_NOT_FOUND;
+        break;
+      case XNODE:
+        code = TSDB_CODE_XNODE_NOT_FOUND;
         break;
       case VNODE:
         code = TSDB_CODE_VND_STOPPED;

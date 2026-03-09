@@ -24,6 +24,11 @@ class OutLog:
 
     def init_log(self, log_file):
         self.log_file = log_file
+        
+    def outSuccess(self, message): 
+        self.out("=" * 30)
+        self.out(f"✓ {message}")
+        self.out("=" * 30)        
 
     def out(self, message):
         print(message)

@@ -60,7 +60,7 @@ class TestStreamPrivilegesRecalc:
         self.createOneStream()
 
         # check normal user no write privilege to recalc stream
-        tdSql.connect(self.username1)
+        tdSql.connect(self.username1, "AAbb1122")
         tdLog.info(f"connect user {self.username1} ")
 
         # check normal user no query/write privilege to recalc stream
@@ -68,13 +68,13 @@ class TestStreamPrivilegesRecalc:
 
         # check normal user no write privilege to recalc stream
         self.grantRead()
-        tdSql.connect(self.username1)
+        tdSql.connect(self.username1, "AAbb1122")
         tdLog.info(f"connect user {self.username1} ")
         self.recalcStream()
 
         # check normal user have write privilege to recalc stream
         self.grantWrite()
-        tdSql.connect(self.username1)
+        tdSql.connect(self.username1, "AAbb1122")
         tdLog.info(f"connect user {self.username1} ")
         self.recalcStream()
 
@@ -94,13 +94,15 @@ class TestStreamPrivilegesRecalc:
         except Exception as e:
             if "Insufficient privilege" in str(e):
                 tdLog.info(f"Insufficient privilege to recalc stream")
+            elif "Permission denied to use database" in str(e):
+                tdLog.info(f"Permission denied to use database")
             else:
                 raise Exception(f"recalc stream failed with error: {e}")
 
     def createUser(self):
         tdLog.info(f"create user")
-        tdSql.execute(f'create user {self.username1} pass "taosdata"')
-        tdSql.execute(f'create user {self.username2} pass "taosdata"')
+        tdSql.execute(f'create user {self.username1} pass "AAbb1122"')
+        tdSql.execute(f'create user {self.username2} pass "AAbb1122"')
         self.checkResultRows(2)
 
     def noSysInfo(self):
@@ -132,7 +134,8 @@ class TestStreamPrivilegesRecalc:
         tdSql.connect("root")
         tdSql.execute(f"grant select on {self.dbname}.* to {self.username1}")
         tdSql.execute(f"grant select on {self.dbname2}.* to {self.username2}")
-
+        tdSql.execute(f"grant use on database {self.dbname} to {self.username1}")
+        tdSql.execute(f"grant use on database {self.dbname2} to {self.username2}")
         tdSql.query(
             f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='SELECT';"
         )
@@ -144,6 +147,8 @@ class TestStreamPrivilegesRecalc:
         tdSql.connect("root")
         tdSql.execute(f"grant insert on {self.dbname}.* to {self.username1}")
         tdSql.execute(f"grant insert on {self.dbname2}.* to {self.username2}")
+        tdSql.execute(f"grant use on database {self.dbname} to {self.username1}")
+        tdSql.execute(f"grant use on database {self.dbname2} to {self.username2}")
 
         tdSql.query(
             f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='INSERT';"
@@ -156,6 +161,8 @@ class TestStreamPrivilegesRecalc:
         tdSql.connect("root")
         tdSql.execute(f"revoke select on {self.dbname}.* from {self.username1}")
         tdSql.execute(f"revoke select on {self.dbname2}.* from {self.username2}")
+        tdSql.execute(f"revoke use on database {self.dbname} from {self.username1}")
+        tdSql.execute(f"revoke use on database {self.dbname2} from {self.username2}")
 
         tdSql.query(
             f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='SELECT';"
@@ -168,6 +175,8 @@ class TestStreamPrivilegesRecalc:
         tdSql.connect("root")
         tdSql.execute(f"revoke insert on {self.dbname}.* from {self.username1}")
         tdSql.execute(f"revoke insert on {self.dbname2}.* from {self.username2}")
+        tdSql.execute(f"revoke use on database {self.dbname} from {self.username1}")
+        tdSql.execute(f"revoke use on database {self.dbname2} from {self.username2}")
 
         tdSql.query(
             f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='INSERT';"
@@ -177,7 +186,7 @@ class TestStreamPrivilegesRecalc:
 
     def userCreateStream(self):
         tdLog.info(f"connect with normal user {self.username2}")
-        tdSql.connect("lvze2")
+        tdSql.connect(self.username2, "AAbb1122")
         sql = (
             f"create stream {self.dbname2}.`s100` sliding(1s) from {self.dbname}.st1  partition by tbname "
             "stream_options(fill_history('2025-01-01 00:00:00')) "
@@ -196,7 +205,7 @@ class TestStreamPrivilegesRecalc:
 
     def userStopStream(self):
         tdLog.info(f"connect with normal user {self.username2}")
-        tdSql.connect("lvze2")
+        tdSql.connect(self.username2, "AAbb1122")
         tdSql.query(f"show {self.dbname}.streams;")
         numOfStreams = tdSql.getRows()
         if numOfStreams > 0:
@@ -218,7 +227,7 @@ class TestStreamPrivilegesRecalc:
 
     def userStartStream(self):
         tdLog.info(f"connect with normal user {self.username2}")
-        tdSql.connect("lvze2")
+        tdSql.connect(self.username2, "AAbb1122")
         tdSql.query(f"show {self.dbname}.streams;")
         numOfStreams = tdSql.getRows()
         if numOfStreams > 0:

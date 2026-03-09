@@ -182,7 +182,12 @@ typedef enum {
   SDB_ENCRYPT_ALGORITHMS = 39,
   SDB_TOKEN = 40,
   SDB_ROLE = 41,
-  SDB_MAX = 42
+  SDB_XNODE = 42,
+  SDB_XNODE_TASK = 43,
+  SDB_XNODE_AGENT = 44,
+  SDB_XNODE_JOB = 45,
+  SDB_XNODE_USER_PASS = 46,
+  SDB_MAX = 47
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -207,6 +212,9 @@ typedef struct SSdb {
   int64_t            sync;
   char              *currDir;
   char              *tmpDir;
+  char               mnodePath[PATH_MAX];  // Path to mnode directory for persisting mnode.json
+  int32_t          (*persistEncryptedFlagFp)(void *pMnode);  // Callback to persist encrypted flag
+  void              *pMnodeForCallback;  // Pointer to SMnode for callback
   int64_t            commitIndex;
   int64_t            commitTerm;
   int64_t            commitConfig;
@@ -228,6 +236,7 @@ typedef struct SSdb {
   SdbValidateFp      validateFps[SDB_MAX];
   SdbUpgradeFp       upgradeFps[SDB_MAX];
   TdThreadMutex      filelock;
+  bool               encrypted;
 } SSdb;
 
 typedef struct SSdbIter {

@@ -12,6 +12,7 @@ if(TD_ENTERPRISE)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/view/src/mndView.c)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/mnode/src/mndMount.c)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/token/src/mndTokenImpl.c)
+  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/xnode/src/mndXnodeImpl.c)
 
   if(${BUILD_WITH_S3})
     add_definitions(-DUSE_S3)
@@ -27,9 +28,13 @@ endif()
 add_library(mnode STATIC ${MNODE_SRC})
 target_include_directories(
   mnode
-  PUBLIC "${TD_SOURCE_DIR}/include/dnode/mnode"
+  PUBLIC 
+  "${TD_SOURCE_DIR}/include/dnode/mnode"
+  "${TD_SOURCE_DIR}/include/dnode/mgmt"
+  "${TD_SOURCE_DIR}/include/dnode/xnode"
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
   PUBLIC "${TD_SOURCE_DIR}/source/libs/totp/inc"
+  "${TD_SOURCE_DIR}/include/libs/txnode/inc"
   PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/privilege/inc"
 )
 
@@ -40,7 +45,7 @@ if(TD_ENTERPRISE)
   )
 endif()
 target_link_libraries(
-  mnode scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw totp
+  mnode scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw totp xnode txnode mgmt_mnode
 )
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)

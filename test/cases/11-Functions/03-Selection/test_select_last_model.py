@@ -659,7 +659,7 @@ class TestLastModel:
         self.both_model_test()
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+
 
         print("do last/last_row ...................... [passed]")
 

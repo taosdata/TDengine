@@ -429,9 +429,9 @@ taos> select histogram(f1, 'user_input', '"user_input": "[1, 3, 5, 7]"', (select
 
 DB error: Invalid parameter data type : histogram [0x80002802] 
 taos> select cols(last(f1), (select 1 from tb3 limit 1)) from tb3;
-        expr_1         |
-========================
-                     1 |
+ (select 1 from tb3 limit 1) |
+==============================
+                           1 |
 
 taos> select rand((select 1 from tb3 limit 1)) from tb1;
  rand((select 1 from tb3 limit 1)) |
@@ -582,9 +582,9 @@ taos> select apercentile(1, 1, (select 'am' from tb3 limit 1)) from tb3;
 
 DB error: Invalid parameter data type : apercentile [0x80002802] 
 taos> select cols(last(f1), (select 'am' from tb3 limit 1)) from tb3;
- expr_1 |
-=========
- am     |
+ (select 'am' from tb3 limit 1) |
+=================================
+ am                             |
 
 taos> select to_timestamp('2025', (select 'am' from tb3 limit 1)) from tb3;
 

@@ -89,7 +89,7 @@ class TestMountBasic:
         tdSql.checkRows(1)
         tdSql.checkData(0,4,'ready')
         tdSql.execute("create database if not exists d0 replica 1")
-        tdSql.execute(f"create user u1 PASS 'taosdata'")
+        tdSql.execute(f"create user u1 PASS 'AAbb1122'")
         tdSql.query(f"select * from information_schema.ins_users")
         tdSql.checkRows(2)
 

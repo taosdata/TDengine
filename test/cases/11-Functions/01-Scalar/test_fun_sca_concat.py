@@ -287,7 +287,7 @@ class TestFunConcat:
         self.all_test(dbname="db")
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+
         
 
     #

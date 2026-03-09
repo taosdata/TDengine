@@ -122,6 +122,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INTERNAL_ERROR,               "Internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_TIME_ERROR,                   "Internal error in time")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_DISK_ID,              "Internal error invalid disk id")
 TAOS_DEFINE_ERROR(TSDB_CODE_DECIMAL_OVERFLOW,             "Decimal value overflow")
+TAOS_DEFINE_ERROR(TSDB_CODE_DECIMAL_PARSE_ERROR,          "Decimal value parse error.")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_EDITION_NOT_COMPATIBLE,       "Edition not compatible")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_SIGNATURE,            "Invalid signature")
@@ -258,6 +259,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_PASSWORD_REUSE,      "Password reuse detect
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_WRONG_TOTP_CODE,          "Wrong TOTP code")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USER_IP_RANGE,   "Too many ranges in IP white list")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USER_TIME_RANGE, "Too many ranges in date time white list")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOTP_SECRET_NOT_EXIST,    "TOTP secret does not exists")
 
 //mnode-stable-part1
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STB_ALREADY_EXIST,        "STable already exists")
@@ -300,6 +302,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_OPTION_UNCHANGED,      "Database options not 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_INDEX_NOT_EXIST,       "Index not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO, "WAL retention period is zero")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ENCRYPT_KEY,      "The cluster has not been set properly for database encryption")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_DROP_NOT_ALLOWED,      "Database drop is forbidden: allow_drop is 0")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_IN_CREATING,           "Database in creating status")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SYS_TABLENAME,    "Invalid system table name")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ENCRYPT_NOT_ALLOW_CHANGE, "Encryption is not allowed to be changed after database is created")
@@ -484,6 +487,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NOT_EXIST,           "Invalid role")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NOT_AVAILABLE,       "Role not available")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_INVALID_FORMAT,      "Invalid role format")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_SUBROLE_EXCEEDED,    "Subrole count exceeded")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_CONFLICTS,           "Conflicts with existing role")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA,     "No enabled user with SYSDBA role exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_ROLES,           "Too many roles")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_PRIV_OBJS,       "Too many privilege objects")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_PRIVS,           "Too many privileges for single user/role")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")
@@ -625,6 +633,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_MEMORY_POOL_MEMORY_NOT_ENOUGH, "Alter minReserve
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP,     "Duplicate timestamp not allowed in count/event/state window")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SUBQ_NOT_FOUND,           "Subquery context not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SUBQ_EXEC_ERROR,          "Subquery exec error")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_VSTB_SLOTID_NOT_FOUND,    "VSTB slotId not found for column")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")
@@ -758,7 +767,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SYNTAX_ERROR,              "syntax error near")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INCOMPLETE_SQL,            "Incomplete SQL statement")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLUMN,            "Invalid column name")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TABLE_NOT_EXIST,           "Table does not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_AMBIGUOUS_COLUMN,          "Column ambiguously defined")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_AMBIGUOUS_COLUMN,          "Column is ambiguous")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_WRONG_VALUE_TYPE,          "Invalid value type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION,  "There mustn't be aggregation")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT,    "ORDER BY / GROUP BY item must be the number of a SELECT-list expression")
@@ -878,14 +887,14 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLS_SELECTFUNC,    "cols function's fir
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLS_ALIAS,         "Invalid using alias for cols function")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIM_KEY_MUST_BE_TS,        "Join primary key col must be timestmap type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REF_COLUMN,         "Invalid virtual table's ref column")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TABLE_TYPE,             "Invalid table type")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TABLE_TYPE,         "Invalid table type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,    "Invalid ref column type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_MISMATCH_STABLE_TYPE,       "Create child table using virtual super table")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_TAG_REF_BY_STM,         "Col/Tag referenced by stream")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND,   "Invalid state window extend option")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_COLS,    "More than 1 column returned in subquery as expr")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS,    "More than 1 row returned in subquery as expr")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ,             "Not supported subquery as expr")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_EXPR_SUBQ,               "Not supported subquery as expr")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_STMT_NOT_SUPPORT_SCALAR_SUBQ,    "Current sql does not support subquery as expr")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_USAGE,       "Expr subquery not supported in current clause")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_POLICY,      "Expr subquery not supported in current query policy")
@@ -901,9 +910,16 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_SHORT,     "Option value too sh
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_BIG,       "Option value too big")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_SMALL,     "Option value too small")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ORDERBY_INVALID_EXPR,       "Aggregate functions cannot be used for sorting in non-aggregate queries")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TRUE_FOR_COUNT,     "TRUE_FOR COUNT must be a non-negative integer not exceeding INT32_MAX")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIV_TYPE_TARGET_CONFLICT,  "Conflict between privilege type and target")
-
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_PERMISSION_DENIED,      "Permission denied for columns")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_LACK_OF_PRIMARY_KEY_COL,    "Lack of primary key column")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED,        "Permission denied to use database")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TB_CREATE_PERMISSION_DENIED,     "Permission denied to create table")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TB_INSERT_PERMISSION_DENIED,     "Permission denied to insert into table")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED,     "Permission denied to select from table or view")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_STREAM_CREATE_PERMISSION_DENIED, "Permission denied to create stream")
 
 //planner
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal error")
@@ -997,7 +1013,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Index is rebuilding
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_INVALID_FILE,             "Index file is invalid")
 
 //scalar
-TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_ERROR,           "Cannot convert to specific type")
+TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_ERROR,           "Operation not supported between data types")
 
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
@@ -1020,6 +1036,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_NO_NEED_REBALANCE,          "No need rebalance")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_STATUS,             "Invalid status, please subscribe topic first")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_DATA,               "Invalid data use here")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_RAW_DATA_SPLIT,             "Split submit data for rawdata")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_FETCH_TIMEOUT,              "Fetch data timeout, continue fetch data")
 
 // stream
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_NOT_EXIST,          "Stream task not exist")
@@ -1090,6 +1107,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_VALUE_TOO_LONG, "Blob value too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_EXHAUST_TOO_MANY_MEMORY, "Blob data exhaust too many memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT, "Blob data not support")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_ONLY_ONE_COLUMN_ALLOWED, "only one blob column allowed")
+TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_OP_NOT_SUPPORTED, "Operation not supported for BLOB type")
+
 // NEW-STREAM
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INTERNAL_ERROR,      "Mnode stream internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_WAL_VER_NOT_DATA,        "Wal version is not data in stream reader task")
@@ -1116,6 +1135,37 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE,    "Stream output table
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TBNAME_CALC_FAILED,  "Stream output table name calc failed")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY,    "Stream vtable calculate need redeploy")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INVALID_JSON,        "Stream mnd invalid json message")
+
+// Xnode
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_ALREADY_EXIST,            "Xnode already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_ALREADY_DEPLOYED,             "Xnode already deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NOT_EXIST,                "Xnode not there")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TOO_LONG_URL,             "Xnode too long url")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_INVALID_PROTOCOL,         "Xnode invalid protocol")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_INVALID_MSG,              "Xnode invalid message content")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_NOT_FOUND,                    "Xnode nod found")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_UV_EXEC_FAILURE,              "Xnode xnoded exec failure")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_CANT_ACCESS,          "Xnode xnoded url can't access")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_RESP_IS_NULL,         "Xnode xnoded response is null")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR,          "Xnode request action response not success code")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NEED_USER_PASS,           "Xnode first-time setup requires username and password")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_USER_PASS_NOT_EXIST,      "Xnode username or password error when setup")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_ALREADY_EXIST,       "Xnode task already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_NOT_EXIST,           "Xnode task not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_NAME_TOO_LONG,       "Xnode task name too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,         "Xnode task job syntax error")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG, "Xnode task job config too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_JOB_NOT_EXIST,            "Xnode job not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG,     "Xnode task/job reason too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_RESP_TIMEOUT,         "Xnode xnoded response timeout")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_WHERE_COL_NOT_EXIST,      "Xnode where clause column not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_WHERE_COL_TYPE_DIFF,      "Xnode where clause column type diff")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_WHERE_OP_NOT_SUPPORT,     "Xnode where clause operator not support")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_AGENT_NOT_EXIST,          "Xnode agent not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_AGENT_ALREADY_EXIST,      "Xnode agent already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NAME_DUPLICATE,           "Xnode name duplicate")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_PARSER_TOO_LONG,     "Xnode task parser too long")
+
 
 #ifdef TAOS_ERROR_C
 };

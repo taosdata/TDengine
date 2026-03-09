@@ -37,6 +37,7 @@ There are many parameters for creating consumers, which flexibly support various
 |      `td.connect.ip`      | string  | FQDN of Server                                               | ip or host name                                              |
 |     `td.connect.user`     | string  | Username                                                     |                                                              |
 |     `td.connect.pass`     | string  | Password                                                     |                                                              |
+|     `td.connect.token`    | string  | Token  |  The token is generated through the `create token` statement. If set, it takes precedence over username and password                                                            |
 |     `td.connect.port`     | integer | Server port number                                           |                                                              |
 |        `group.id`         | string  | Consumer group ID, the same consumer group shares consumption progress | <br />**Required**. Maximum length: 192,excess length will be cut off. can not contain colon ':'.<br />Each topic can have up to 100 consumer groups |
 |        `client.id`        | string  | Client ID                                                    | Maximum length: 255, excess length will be cut off.          |
@@ -120,7 +121,7 @@ Introduces how connectors in various languages use WebSocket connection method t
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:create_consumer}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WsConsumerLoopFull.java:create_consumer}}
 ```
 
 </TabItem>
@@ -188,7 +189,7 @@ Introduce how connectors in various languages use native connections to create c
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/ConsumerLoopFull.java:create_consumer}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/ConsumerLoopFull.java:create_consumer}}
 ```
 
 </TabItem>
@@ -253,7 +254,7 @@ After subscribing to a topic, consumers can start receiving and processing messa
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:poll_data_code_piece}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WsConsumerLoopFull.java:poll_data_code_piece}}
 ```
 
 - The parameters of the `subscribe` method mean: the list of topics subscribed to (i.e., names), supporting subscription to multiple topics simultaneously.
@@ -342,7 +343,7 @@ Not supported
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:poll_data_code_piece}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WsConsumerLoopFull.java:poll_data_code_piece}}
 ```
 
 - The parameters of the `subscribe` method mean: the list of topics (i.e., names) to subscribe to, supporting subscription to multiple topics simultaneously.
@@ -429,7 +430,7 @@ Consumers can specify to start reading messages from a specific Offset in the pa
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:consumer_seek}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WsConsumerLoopFull.java:consumer_seek}}
 ```
 
 1. Use the consumer.poll method to poll data until data is obtained.
@@ -505,7 +506,7 @@ Not supported
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:consumer_seek}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WsConsumerLoopFull.java:consumer_seek}}
 ```
 
 1. Use the consumer.poll method to poll data until data is obtained.
@@ -581,7 +582,7 @@ When creating a consumer, if the property `enable.auto.commit` is set to false, 
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:commit_code_piece}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WsConsumerLoopFull.java:commit_code_piece}}
 ```
 
 </TabItem>
@@ -641,7 +642,7 @@ Not supported
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:commit_code_piece}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WsConsumerLoopFull.java:commit_code_piece}}
 ```
 
 </TabItem>
@@ -701,7 +702,7 @@ Consumers can unsubscribe from topics and stop receiving messages. When a consum
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:unsubscribe_data_code_piece}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WsConsumerLoopFull.java:unsubscribe_data_code_piece}}
 ```
 
 </TabItem>
@@ -757,7 +758,7 @@ Not supported
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:unsubscribe_data_code_piece}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WsConsumerLoopFull.java:unsubscribe_data_code_piece}}
 ```
 
 </TabItem>
@@ -813,7 +814,7 @@ Not supported
 <details>
 <summary>Complete code example</summary>
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/WsConsumerLoopFull.java:consumer_demo}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WsConsumerLoopFull.java:consumer_demo}}
 ```
 
 **Note**: The value of the `value.deserializer` configuration parameter should be adjusted according to the package path of the test environment.  
@@ -885,7 +886,7 @@ Not supported
 <details>
 <summary>Complete code example</summary>
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/ConsumerLoopFull.java:consumer_demo}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/ConsumerLoopFull.java:consumer_demo}}
 ```
 
 **Note**: The value of the `value.deserializer` configuration parameter should be adjusted according to the package path in the test environment.  

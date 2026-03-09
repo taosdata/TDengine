@@ -60,6 +60,8 @@ class TestExplain:
         tdSql.query(f"explain select count(*),sum(f1) from st1 group by f1;")
         #sql explain select count(f1) from tb1 interval(10s, 2s) sliding(3s) fill(prev);
         tdSql.query(f"explain insert into t1(ts, t1) select _wstart, count(*) from st1 interval(10s);")
+        tdSql.query(f"explain select TIMETRUNCATE('2026-01-05 15:30:18',1s) from tb1 SESSION(ts,18d);")
+        tdSql.query(f"explain select TIMETRUNCATE('2026-01-05 15:30:18',1s) from tb1 interval(1d);")
 
         tdLog.info(f'======== step3')
         tdSql.query(f"explain verbose true select * from st1 where -2;")
@@ -82,6 +84,8 @@ class TestExplain:
         tdSql.query(f"explain verbose true select last_row(*) from st1;")
         tdSql.query(f"explain verbose true select interp(f1) from tb1 where ts > now - 3m and ts < now range(now-3m,now) every(1m) fill(prev);")
         tdSql.query(f"explain verbose true select _wstart, _wend, count(*) from tb1 EVENT_WINDOW start with f1 > 0 end with f1 < 10;")
+        tdSql.query(f"explain verbose true select TIMETRUNCATE('2026-01-05 15:30:18',1s) from tb1 SESSION(ts,18d);")
+        tdSql.query(f"explain verbose true select TIMETRUNCATE('2026-01-05 15:30:18',1s) from tb1 interval(1d);")
 
         tdLog.info(f'======== step4')
         tdSql.query(f"explain analyze select ts from st1 where -2;")
@@ -97,6 +101,8 @@ class TestExplain:
         tdSql.query(f"explain analyze select count(*),sum(f1) from st1;")
         tdSql.query(f"explain analyze select count(*),sum(f1) from st1 group by f1;")
         tdSql.query(f"explain analyze insert into t1(ts, t1) select _wstart, count(*) from st1 interval(10s);")
+        tdSql.query(f"explain analyze select TIMETRUNCATE('2026-01-05 15:30:18',1s) from tb1 SESSION(ts,18d);")
+        tdSql.query(f"explain analyze select TIMETRUNCATE('2026-01-05 15:30:18',1s) from tb1 interval(1d);")
 
         tdLog.info(f'======== step5')
         tdSql.query(f"explain analyze verbose true select ts from st1 where -2;")
@@ -125,6 +131,8 @@ class TestExplain:
         tdSql.query(f"explain analyze verbose true select last_row(*) from st1;")
         tdSql.query(f"explain analyze verbose true select interp(f1) from tb1 where ts > now - 3m and ts < now range(now-3m,now) every(1m) fill(prev);")
         tdSql.query(f"explain analyze verbose true select _wstart, _wend, count(*) from tb1 EVENT_WINDOW start with f1 > 0 end with f1 < 10;")
+        tdSql.query(f"explain analyze verbose true select TIMETRUNCATE('2026-01-05 15:30:18',1s) from tb1 SESSION(ts,18d);")
+        tdSql.query(f"explain analyze verbose true select TIMETRUNCATE('2026-01-05 15:30:18',1s) from tb1 interval(1d);")
 
         #not pass case
         #sql explain verbose true select count(*),sum(f1) as aa from tb1 where (f1 > 0 or f1 < -1) and ts > '2020-10-31 00:00:00' and ts < '2021-10-31 00:00:00' order by aa;

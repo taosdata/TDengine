@@ -291,7 +291,7 @@ class TestGeometry:
         self.check_td28365()
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+
 
     def test_fun_geo_st_geomfromtext(self):
         """ Fun: st_geomfromtext()

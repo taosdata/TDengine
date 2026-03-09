@@ -28,6 +28,7 @@ SMgmtFunc smGetMgmtFunc();
 SMgmtFunc bmGetMgmtFunc();
 SMgmtFunc vmGetMgmtFunc();
 SMgmtFunc mmGetMgmtFunc();
+SMgmtFunc xmGetMgmtFunc();
 
 void mmGetMonitorInfo(void *pMgmt, SMonMmInfo *pInfo);
 void vmGetMonitorInfo(void *pMgmt, SMonVmInfo *pInfo);

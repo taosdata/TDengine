@@ -334,7 +334,7 @@ class TestCase:
         self.tmqCase2()
         self.tmqCase3()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 event = threading.Event()
 

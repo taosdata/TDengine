@@ -193,4 +193,4 @@ class TestOthersOldCaseBackquoteCheck:
     def stop(self):
         tdSql.execute(f'drop database {self.dbname}')
         tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+

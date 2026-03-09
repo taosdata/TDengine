@@ -104,6 +104,11 @@ ELSE()
     SET(TD_TAOS_TOOLS TRUE)
 ENDIF()
 
+# Enable advanced security features
+IF("${ADVANCED_SECURITY}" MATCHES "true")
+    ADD_DEFINITIONS(-DTD_ENABLE_ADVANCED_SECURITY)
+ENDIF()
+
 SET(TAOS_LIB taos)
 SET(TAOS_LIB_STATIC taos_static)
 SET(TAOS_NATIVE_LIB taosnative)

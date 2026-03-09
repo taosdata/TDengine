@@ -40,7 +40,7 @@ typedef struct SNonSortMergeInfo {
 typedef struct SColsMergeInfo {
   SNodeList* pTargets;
   size_t     sourceNum;
-  uint64_t*  srcBlkIds;
+  int64_t*   srcBlkIds;
 } SColsMergeInfo;
 
 typedef struct SMultiwayMergeOperatorInfo {
@@ -430,6 +430,7 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       SOperatorInfo*  pExtWinOp = pOperator->pDownstream[i];
       SOperatorParam* pParam = pOperator->pDownstreamGetParams[i];
       code = pExtWinOp->fpSet.getNextExtFn(pExtWinOp, pParam, &pBlock);
+      setOperatorCompleted(pExtWinOp);
       pOperator->pDownstreamGetParams[i] = NULL;
       QUERY_CHECK_CODE(code, lino, _return);
       if (pBlock) {
@@ -694,7 +695,7 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
 
       pColsMerge->pTargets = pMergePhyNode->pTargets;
       pColsMerge->sourceNum = numStreams;
-      pColsMerge->srcBlkIds = taosMemoryCalloc(numStreams, sizeof(uint64_t));
+      pColsMerge->srcBlkIds = taosMemoryCalloc(numStreams, sizeof(int64_t));
       for (size_t i = 0; i < numStreams; ++i) {
         pColsMerge->srcBlkIds[i] = getOperatorResultBlockId(downStreams[i], 0);
       }

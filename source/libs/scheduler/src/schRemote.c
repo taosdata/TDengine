@@ -89,11 +89,11 @@ int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rs
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     if (rsp->completed) {
       SRetrieveTableRsp *pRsp = NULL;
-      SCH_ERR_JRET(qExecExplainEnd(pJob->explainCtx, &pRsp));
+      SCH_ERR_JRET(qExecExplainEnd(SCH_JOB_EXPLAIN_CTX(pJob), &pRsp));
       if (pRsp) {
-        SCH_ERR_JRET(schProcessOnExplainDone(pJob, pTask, pRsp));
+        SCH_ERR_JRET(schProcessOnExplainDone(SCH_PARENT_JOB(pJob), pTask, pRsp));
       } else {
-        SCH_ERR_JRET(schNotifyJobAllTasks(pJob, pTask, TASK_NOTIFY_FINISHED));
+        SCH_ERR_JRET(schNotifyJobAllTasks(SCH_PARENT_JOB(pJob), pTask, TASK_NOTIFY_FINISHED));
       }
   
       taosMemoryFreeClear(msg);
@@ -139,7 +139,7 @@ int32_t schProcessExplainRsp(SSchJob *pJob, SSchTask *pTask, SExplainRsp *rsp) {
   SCH_ERR_RET(qExplainUpdateExecInfo(pCtx, rsp, pTask->plan->id.groupId, &pRsp));
   
   if (pRsp) {
-    SCH_ERR_RET(schProcessOnExplainDone(pJob, pTask, pRsp));
+    SCH_ERR_RET(schProcessOnExplainDone(SCH_PARENT_JOB(pJob), pTask, pRsp));
   }
 
   return TSDB_CODE_SUCCESS;
@@ -364,9 +364,9 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
 
       if (taosArrayGetSize(pTask->parents) == 0 && SCH_IS_EXPLAIN_JOB(pJob) && SCH_IS_INSERT_JOB(pJob)) {
         SRetrieveTableRsp *pRsp = NULL;
-        SCH_ERR_JRET(qExecExplainEnd(pJob->explainCtx, &pRsp));
+        SCH_ERR_JRET(qExecExplainEnd(SCH_JOB_EXPLAIN_CTX(pJob), &pRsp));
         if (pRsp) {
-          SCH_ERR_JRET(schProcessOnExplainDone(pJob, pTask, pRsp));
+          SCH_ERR_JRET(schProcessOnExplainDone(SCH_PARENT_JOB(pJob), pTask, pRsp));
         }
       }
 
@@ -437,7 +437,12 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
       code = tDeserializeSCreateTokenResp(pMsg->pData, msgSize, &batchRsp);
       SCH_ERR_JRET(code);
       break;
-      
+    }
+    case TDMT_MND_CREATE_TOTP_SECRET:{
+      SCreateTotpSecretRsp rsp = {0};
+      code = tDeserializeSCreateTotpSecretRsp(pMsg->pData, msgSize, &rsp);
+      SCH_ERR_JRET(code);
+      break;
     }
     default:
       SCH_TASK_ELOG("unknown rsp msg, type:%d, status:%s", msgType, SCH_GET_TASK_STATUS_STR(pTask));
@@ -1266,6 +1271,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       qMsg.msgMask |= (pTask->plan->isView) ? QUERY_MSG_MASK_VIEW() : 0;
       qMsg.msgMask |= (pTask->plan->isAudit) ? QUERY_MSG_MASK_AUDIT() : 0;
       qMsg.msgMask |= (!SCH_IS_PARENT_JOB(pJob) && SCH_IS_ROOT_TASK(pTask)) ? QUERY_MSG_MASK_SUBQUERY() : 0;
+      qMsg.subQType = (!SCH_IS_PARENT_JOB(pJob) && SCH_IS_ROOT_TASK(pTask)) ? pJob->pDag->subQType : 0;
       qMsg.taskType = (pJob->attr.type == JOB_TYPE_HQUERY)? TASK_TYPE_HQUERY:TASK_TYPE_QUERY;
       qMsg.explain = SCH_IS_EXPLAIN_JOB(pJob);
       qMsg.needFetch = SCH_TASK_NEED_FETCH(pTask);
@@ -1406,7 +1412,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
 */    
     case TDMT_SCH_TASK_NOTIFY: {
       ETaskNotifyType* pType = param;
-      STaskNotifyReq qMsg;
+      STaskNotifyReq qMsg = {0};
       qMsg.header.vgId = addr->nodeId;
       qMsg.header.contLen = 0;
       qMsg.sId = pTask->seriesId;

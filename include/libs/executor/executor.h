@@ -72,6 +72,12 @@ typedef struct {
   bool               cacheSttStatis;
 } SReadHandle;
 
+typedef struct STrueForInfo {
+  ETrueForType trueForType;
+  int32_t      count;
+  int64_t      duration;
+} STrueForInfo;
+
 typedef struct SStreamInserterParam {
   SArray*   pFields;     // SArray<SFieldWithOptions>
   SArray*   pTagFields;  // SArray<SFieldWithOptions>
@@ -155,15 +161,10 @@ bool    qTaskIsDone(qTaskInfo_t tinfo);
  */
 int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type);
 
-/**
- * Update the table id list, add or remove.
- *
- * @param tinfo
- * @param id
- * @param isAdd
- * @return
- */
-int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd);
+void    qUpdateTableTagCacheForTmq(qTaskInfo_t tinfo, const SArray* tableIdList, SArray* cids);
+int32_t qUpdateTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
+int32_t qDeleteTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
+int32_t qAddTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
 
 bool qIsDynamicExecTask(qTaskInfo_t tinfo);
 
@@ -182,7 +183,7 @@ void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam);
  */
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
-                        EOPTR_EXEC_MODEL model, SArray* subEndPoints);
+                        EOPTR_EXEC_MODEL model, SArray** subEndPoints);
 
 /**
  *
@@ -235,7 +236,6 @@ void qProcessRspMsg(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 
 int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, SArray* pExecInfoList);
 
-TSKEY       getNextTimeWindowStart(const SInterval* pInterval, TSKEY start, int32_t order);
 void        getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
 void        getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
 STimeWindow getAlignQueryTimeWindow(const SInterval* pInterval, int64_t key);
@@ -246,7 +246,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
 void qStreamSetOpen(qTaskInfo_t tinfo);
 
-void qStreamSetSourceExcluded(qTaskInfo_t tinfo, int8_t sourceExcluded);
+void qStreamSetParams(qTaskInfo_t tinfo, int8_t sourceExcluded, int32_t minPollRows, int64_t timeout, int8_t enableReplay);
 
 int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 
@@ -319,7 +319,11 @@ int32_t getTaskCode(void* pTaskInfo);
 bool    isTaskKilled(void* pTaskInfo);
 
 
-int32_t qSubFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTaskInfo, uint64_t suid);
+bool    isTrueForSatisfied(STrueForInfo* pTrueForInfo, int64_t skey, int64_t ekey, int64_t count);
+int32_t qFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTaskInfo, uint64_t suid);
+bool    checkCidInTagCondition(SNode* node, SArray* cidList);
+SNode*  getTagCondNodeForStableTmq(void* node);
+SNode*  getTagCondNodeForQueryTmq(void* tinfo);
 
 #ifdef __cplusplus
 }

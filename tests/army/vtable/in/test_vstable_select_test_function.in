@@ -50,7 +50,7 @@ select count(*) from test_vtable_select.vtb_virtual_stb limit 50;
 select elapsed(ts) from test_vtable_select.vtb_virtual_stb limit 50;
 select leastsquares(int_col, 0, 1) from test_vtable_select.vtb_virtual_stb limit 50;
 select spread(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
-select stddev(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
+select round(stddev(int_col)) from test_vtable_select.vtb_virtual_stb limit 50;
 select sum(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
 select var_pop(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
 select hyperloglog(int_col) from test_vtable_select.vtb_virtual_stb limit 50;

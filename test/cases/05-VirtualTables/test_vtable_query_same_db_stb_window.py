@@ -12,15 +12,15 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 import os
-from test_vtable_util import TestVtableQueryUtil
+from vtable_util import VtableQueryUtil
 
 class TestVTableQuerySameDBStbWindow:
 
     def setup_class(cls):
-        vtbUtil = TestVtableQueryUtil()
+        vtbUtil = VtableQueryUtil()
         vtbUtil.prepare_same_db_vtables()
     def teardown_class(cls):
-        vtbUtil = TestVtableQueryUtil()
+        vtbUtil = VtableQueryUtil()
         vtbUtil.clean_up_same_db_vtables()
 
     def run_normal_query(self, testCase):
@@ -38,6 +38,9 @@ class TestVTableQuerySameDBStbWindow:
         2. test vstable select super table same db session
         3. test vstable select super table same db event
         4. test vstable select super table same db count
+        5. test vstable select super table same db state in mode 0
+        6. test vstable select super table same db state in mode 1
+        7. test vstable select super table same db state in mode 2
 
         Since: v3.3.6.0
 
@@ -50,6 +53,7 @@ class TestVTableQuerySameDBStbWindow:
             - 2025-5-6 Huo Hong Migrated to new test framework
             - 2025-10-23 Jing Sima Split from test_vtable_query.py
             - 2025-11-21 Jing Sima Remove state test case, split to test_vtable_query_same_db_stb_window_state.py
+            - 2026-1-14 Jing Sima Add back state different mode test
 
         """
 
@@ -57,4 +61,8 @@ class TestVTableQuerySameDBStbWindow:
         self.run_normal_query("test_vstable_select_test_session")
         self.run_normal_query("test_vstable_select_test_event")
         self.run_normal_query("test_vstable_select_test_count")
+        self.run_normal_query("test_vstable_select_test_state_mode_0")
+        #self.run_normal_query("test_vstable_select_test_state_mode_1")
+        self.run_normal_query("test_vstable_select_test_state_mode_2")
+
 

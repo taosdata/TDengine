@@ -231,8 +231,8 @@ typedef struct SInterpFuncLogicNode {
   EFillMode     fillMode;
   SNode*        pFillValues;  // SNodeListNode
   SNode*        pTimeSeries;  // SColumnNode
-  int64_t       rangeInterval;
-  int8_t        rangeIntervalUnit;
+  // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
+  int64_t       surroundingTime;
 } SInterpFuncLogicNode;
 
 typedef struct SForecastFuncLogicNode {
@@ -278,7 +278,6 @@ typedef struct SDynQueryCtrlVtbWindow {
   int32_t               wendSlotId;
   int32_t               wdurationSlotId;
   bool                  isVstb;
-  bool                  singleWinMode;
   EStateWinExtendOption extendOption;
 } SDynQueryCtrlVtbWindow;
 
@@ -372,7 +371,9 @@ typedef struct SWindowLogicNode {
   SNode*                pStartCond;
   SNode*                pEndCond;
   // for event and state window
-  int64_t               trueForLimit;
+  int32_t               trueForType;
+  int32_t               trueForCount;
+  int64_t               trueForDuration;
   // for count window
   int64_t               windowCount;
   int64_t               windowSliding;
@@ -388,7 +389,7 @@ typedef struct SWindowLogicNode {
   // for external and interval window
   int8_t                partType;      // bit0 is for has partition, bit1 is for tb partition
   // for anomaly window
-  SNode*                pAnomalyExpr;
+  SNodeList*            pAnomalyExpr;
   char                  anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
 } SWindowLogicNode;
 
@@ -402,6 +403,8 @@ typedef struct SFillLogicNode {
   STimeWindow timeRange;
   SNode*      pTimeRange; // STimeRangeNode for create stream
   SNodeList*  pFillNullExprs;
+  // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
+  SNode*      pSurroundingTime;
 } SFillLogicNode;
 
 typedef struct SSortLogicNode {
@@ -472,7 +475,7 @@ typedef struct SSlotDescNode {
 
 typedef struct SDataBlockDescNode {
   ENodeType  type;
-  int16_t    dataBlockId;
+  int64_t    dataBlockId;
   SNodeList* pSlots;
   int32_t    totalRowSize;
   int32_t    outputRowSize;
@@ -538,9 +541,22 @@ typedef SLastRowScanPhysiNode STableCountScanPhysiNode;
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;
   SEpSet         mgmtEpSet;
-  bool           showRewrite;
   int32_t        accountId;
+  bool           showRewrite;
   bool           sysInfo;
+  union {
+    uint16_t privInfo;
+    struct {
+      uint16_t privLevel : 3;  // user privilege level
+      uint16_t privInfoBasic : 1;
+      uint16_t privInfoPrivileged : 1;
+      uint16_t privInfoAudit : 1;
+      uint16_t privInfoSec : 1;
+      uint16_t privPerfBasic : 1;
+      uint16_t privPerfPrivileged : 1;
+      uint16_t reserved : 7;
+    };
+  };
 } SSystemTableScanPhysiNode;
 
 typedef struct STableScanPhysiNode {
@@ -604,8 +620,8 @@ typedef struct SInterpFuncPhysiNode {
   EFillMode         fillMode;
   SNode*            pFillValues;  // SNodeListNode
   SNode*            pTimeSeries;  // SColumnNode
-  int64_t       rangeInterval;
-  int8_t        rangeIntervalUnit;
+  // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
+  int64_t           surroundingTime;
 } SInterpFuncPhysiNode;
 
 typedef struct SForecastFuncPhysiNode {
@@ -700,20 +716,17 @@ typedef struct SVtbWindowDynCtrlBasic {
   int32_t               wendSlotId;
   int32_t               wdurationSlotId;
   bool                  isVstb;
-  bool                  singleWinMode;
   SNodeList*            pTargets;
   EStateWinExtendOption extendOption;
 } SVtbWindowDynCtrlBasic;
 
 typedef struct SDynQueryCtrlPhysiNode {
-  SPhysiNode    node;
-  EDynQueryType qType;
-  bool          dynTbname;
-  union {
-    SStbJoinDynCtrlBasic   stbJoin;
-    SVtbScanDynCtrlBasic   vtbScan;
-    SVtbWindowDynCtrlBasic vtbWindow;
-  };
+  SPhysiNode             node;
+  EDynQueryType          qType;
+  bool                   dynTbname;
+  SStbJoinDynCtrlBasic   stbJoin;
+  SVtbScanDynCtrlBasic   vtbScan;
+  SVtbWindowDynCtrlBasic vtbWindow;
 } SDynQueryCtrlPhysiNode;
 
 typedef struct SAggPhysiNode {
@@ -733,7 +746,8 @@ typedef struct SExchangePhysiNode {
   // groups are consecutive
   int32_t    srcStartGroupId;
   int32_t    srcEndGroupId;
-  bool       singleChannel;
+  bool       grpSingleChannel;
+  bool       singleSrc;
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
   bool       seqRecvData;
   bool       dynTbname;
@@ -792,6 +806,8 @@ typedef struct SFillPhysiNode {
   STimeWindow timeRange;
   SNode*      pTimeRange;  // STimeRangeNode for create stream
   SNodeList*  pFillNullExprs;
+  // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
+  SNode*      pSurroundingTime;
 } SFillPhysiNode;
 
 typedef struct SMultiTableIntervalPhysiNode {
@@ -807,7 +823,9 @@ typedef struct SSessionWinodwPhysiNode {
 typedef struct SStateWindowPhysiNode {
   SWindowPhysiNode window;
   SNode*           pStateKey;
-  int64_t          trueForLimit;
+  ETrueForType     trueForType;
+  int32_t          trueForCount;
+  int64_t          trueForDuration;
   EStateWinExtendOption extendOption;
 } SStateWindowPhysiNode;
 
@@ -815,7 +833,9 @@ typedef struct SEventWinodwPhysiNode {
   SWindowPhysiNode window;
   SNode*           pStartCond;
   SNode*           pEndCond;
-  int64_t          trueForLimit;
+  ETrueForType     trueForType;
+  int32_t          trueForCount;
+  int64_t          trueForDuration;
 } SEventWinodwPhysiNode;
 
 typedef struct SCountWindowPhysiNode {
@@ -826,7 +846,7 @@ typedef struct SCountWindowPhysiNode {
 
 typedef struct SAnomalyWindowPhysiNode {
   SWindowPhysiNode window;
-  SNode*           pAnomalyKey;
+  SNodeList*       pAnomalyKeys;
   char             anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
 } SAnomalyWindowPhysiNode;
 
@@ -868,6 +888,7 @@ typedef struct SDataSinkNode {
 
 typedef struct SDataDispatcherNode {
   SDataSinkNode sink;
+  bool          dynamicSchema;
 } SDataDispatcherNode;
 
 typedef struct SDataInserterNode {
@@ -936,15 +957,15 @@ typedef struct SExplainInfo {
 } SExplainInfo;
 
 typedef struct SQueryPlan {
-  ENodeType    type;
-  bool         isScalarQ;
-  uint64_t     queryId;
-  int32_t      numOfSubplans;
-  SNodeList*   pSubplans;  // Element is SNodeListNode. The execution level of subplan, starting from 0.
-  SNodeList*   pChildren;  // Element is SQueryPlan*
-  char*        subSql;
-  SExplainInfo explainInfo;
-  void*        pPostPlan;
+  ENodeType     type;
+  ESubQueryType subQType;
+  uint64_t      queryId;
+  int32_t       numOfSubplans;
+  SNodeList*    pSubplans;  // Element is SNodeListNode. The execution level of subplan, starting from 0.
+  SNodeList*    pChildren;  // Element is SQueryPlan*
+  char*         subSql;
+  SExplainInfo  explainInfo;
+  void*         pPostPlan;
 } SQueryPlan;
 
 const char* dataOrderStr(EDataOrderLevel order);

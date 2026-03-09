@@ -62,6 +62,10 @@ typedef struct {
   STqOffsetVal          currentOffset;  // for tmq
   SMqBatchMetaRsp       btMetaRsp;      // for tmq fetching meta
   int8_t                sourceExcluded;
+  int32_t               minPollRows;
+  int64_t               timeout;
+  int8_t                enableReplay;
+
   int64_t               snapshotVer;
   SSchemaWrapper*       schema;
   char                  tbName[TSDB_TABLE_NAME_LEN];  // this is the current scan table: todo refactor
@@ -105,7 +109,7 @@ struct SExecTaskInfo {
   bool                  paramSet;
   SQueryAutoQWorkerPoolCB* pWorkerCb;
   SStreamRuntimeInfo*      pStreamRuntimeInfo;
-  STaskSubJobCtx           subJobCtx;
+  STaskSubJobCtx*          pSubJobCtx;
 };
 
 void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst, int32_t len);
@@ -115,9 +119,10 @@ void    doDestroyTask(SExecTaskInfo* pTaskInfo);
 void    setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode);
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray* subEndPoints);
+                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray** subEndPoints);
 int32_t qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo);
 int32_t getTableListInfo(const SExecTaskInfo* pTaskInfo, SArray** pList);
+void destroySubJobCtx(STaskSubJobCtx* pCtx);
 
 #ifdef __cplusplus
 }

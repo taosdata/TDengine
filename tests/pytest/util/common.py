@@ -842,7 +842,7 @@ class TDCom:
         if (platform.system().lower() == 'windows'):
             os.system("TASKKILL /F /IM %s.exe"%processorName)
         else:
-            os.system("unset LD_PRELOAD; pkill %s " % processorName)
+            os.system("unset LD_PRELOAD; pkill -9 %s " % processorName)
 
     def gen_tag_col_str(self, gen_type, data_type, count):
         """

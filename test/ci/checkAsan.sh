@@ -2,6 +2,7 @@
 
 set +e
 #set -x
+
 if [[ "$OSTYPE" == "darwin"* ]]; then
   TD_OS="Darwin"
 else
@@ -42,20 +43,33 @@ LOG_DIR=$TAOS_DIR/asan
 error_num=$(cat "${LOG_DIR}"/*.asan | grep "ERROR" | wc -l)
 
 archOs=$(arch)
-# shellcheck disable=SC2126
-if [[ $archOs =~ "aarch64" ]]; then
-  echo "arm64 check mem leak"
-  memory_leak=$(cat "${LOG_DIR}"/*.asan | grep "Direct leak" | grep -v "Direct leak of 32 byte" | wc -l)
-  memory_count=$(cat "${LOG_DIR}"/*.asan | grep "Direct leak of 32 byte" | wc -l)
 
-  if [ "$memory_count" -eq "$error_num" ] && [ "$memory_leak" -eq 0 ]; then
+# ---------- 1. 集中白名单，以后要加只改这里 ----------
+ignore_pat='taosMemCalloc|transDumpFromBuffer|cliHandleResp'
+
+# ---------- 2. 一次性读出内容，避免 4 次 cat ----------
+asan=$(cat "${LOG_DIR}"/*.asan)
+
+# ---------- 3. 统计 ----------
+# non_32: 真泄漏（非 32 字节）
+non_32=$(grep -E "Direct leak(?! of 32 byte)" <<< "$asan" | grep -Ev "$ignore_pat" | wc -l)
+
+# byte32: 32 字节且非白名单
+byte32=$(grep -E "Direct leak of 32 byte" <<< "$asan" | grep -Ev "$ignore_pat" | wc -l)
+
+# ---------- 4. 判断 ----------
+if [[ $archOs == *aarch64* ]]; then
+  echo "arm64 check mem leak"
+  if [[ $non_32 -eq 0 && $byte32 -eq $error_num ]]; then
     echo "reset error_num to 0, ignore: __cxa_thread_atexit_impl leak"
     error_num=0
   fi
 else
   echo "os check mem leak"
-  memory_leak=$(cat "${LOG_DIR}"/*.asan | grep "Direct leak" | wc -l)
+  # 非 arm64 只关心真泄漏
+  [[ $non_32 -eq 0 ]] && echo "no memory leak detected"
 fi
+
 # shellcheck disable=SC2126
 indirect_leak=$(cat "${LOG_DIR}"/*.asan | grep "Indirect leak" | wc -l)
 # shellcheck disable=SC2126

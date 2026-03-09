@@ -32,7 +32,7 @@ class TestSplitVgroupReplica2:
         tdSql.execute(f"alter dnode 1 'supportVnodes' '0'")
         clusterComCheck.checkDnodeSupportVnodes(1, 0)
 
-        tdSql.execute(f"create user u1 pass 'taosdata'")
+        tdSql.execute(f"create user u1 pass 'AAbb1122'")
 
         tdLog.info(f"=============== step1 check dnodes")
         tdSql.query(f"select * from information_schema.ins_dnodes")

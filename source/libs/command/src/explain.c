@@ -975,7 +975,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         nodeNum += group->nodeNum;
       }
 
-      EXPLAIN_ROW_NEW(level, EXPLAIN_EXCHANGE_FORMAT, pExchNode->singleChannel ? 1 : nodeNum);
+      EXPLAIN_ROW_NEW(level, EXPLAIN_EXCHANGE_FORMAT, pExchNode->singleSrc ? 1 : nodeNum);
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
@@ -1008,7 +1008,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
 
       for (int32_t i = pExchNode->srcStartGroupId; i <= pExchNode->srcEndGroupId; ++i) {
         int32_t nlevel = level + 1;
-        QRY_ERR_RET(qExplainAppendGroupResRows(ctx, i, &nlevel, pExchNode->singleChannel));
+        QRY_ERR_RET(qExplainAppendGroupResRows(ctx, i, &nlevel, pExchNode->grpSingleChannel));
       }
       break;
     }
@@ -1094,7 +1094,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pIntNode->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, LIST_LENGTH(pIntNode->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pIntNode->window.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
@@ -1157,7 +1157,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pIntNode->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, LIST_LENGTH(pIntNode->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pIntNode->window.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
@@ -1278,7 +1278,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pSessNode->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, LIST_LENGTH(pSessNode->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pSessNode->window.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
@@ -1321,7 +1321,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
 
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pStateNode->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, LIST_LENGTH(pStateNode->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pStateNode->window.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
@@ -1709,7 +1709,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pIntNode->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, LIST_LENGTH(pIntNode->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
       EXPLAIN_ROW_END();
       QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
@@ -1825,7 +1825,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pEventNode->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, LIST_LENGTH(pEventNode->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pEventNode->window.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
@@ -2064,7 +2064,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pCountNode->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, LIST_LENGTH(pCountNode->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pCountNode->window.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
@@ -2089,7 +2089,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pExternal->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, LIST_LENGTH(pExternal->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pExternal->window.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
@@ -2137,7 +2137,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pExternal->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, LIST_LENGTH(pExternal->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pExternal->window.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
@@ -2185,7 +2185,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pExternal->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, LIST_LENGTH(pExternal->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pExternal->window.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
@@ -2247,7 +2247,7 @@ static int32_t qExplainResNodeToRows(SExplainResNode *pResNode, SExplainCtx *ctx
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t *level, bool singleChannel) {
+static int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t *level, bool grpSingleChannel) {
   SExplainResNode *node = NULL;
   int32_t          code = 0;
   SExplainCtx     *ctx = (SExplainCtx *)pCtx;
@@ -2258,7 +2258,7 @@ static int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t *
     QRY_ERR_RET(TSDB_CODE_APP_ERROR);
   }
 
-  group->singleChannel = singleChannel;
+  group->singleChannel = grpSingleChannel;
   group->physiPlanExecIdx = 0;
 
   QRY_ERR_RET(qExplainGenerateResNode(group->plan, group->plan->pNode, group, &node));
@@ -2353,8 +2353,10 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
     QRY_ERR_RET(terrno);
   }
 
-  for (int32_t i = 0; i < levelNum; ++i) {
-    plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, i);
+  int32_t i = 0;
+  SNode*  levelNode = NULL;
+  FOREACH(levelNode, pDag->pSubplans) {
+    plans = (SNodeListNode *)levelNode;
     if (NULL == plans) {
       qError("empty level plan, level:%d", i);
       QRY_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -2367,11 +2369,14 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
     }
 
     SSubplan *plan = NULL;
-    for (int32_t n = 0; n < taskNum; ++n) {
-      plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
+    int32_t   n = 0;
+    SNode*    taskNode = NULL;
+    FOREACH(taskNode, plans->pNodeList) {
+      plan = (SSubplan *)taskNode;
       pGroup = taosHashGet(pCtx->groupHash, &plan->id.groupId, sizeof(plan->id.groupId));
       if (pGroup) {
         ++pGroup->nodeNum;
+        ++n;
         continue;
       }
 
@@ -2383,6 +2388,7 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
         qError("taosHashPut to explainGroupHash failed, taskIdx:%d", n);
         QRY_ERR_JRET(terrno);
       }
+      ++n;
     }
 
     if (0 == i) {
@@ -2395,6 +2401,7 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
     }
 
     qDebug("level %d group handled, taskNum:%d", i, taskNum);
+    ++i;
   }
 
   pCtx->groupNum = taosHashGetSize(pCtx->groupHash);

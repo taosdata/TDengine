@@ -100,7 +100,8 @@ typedef enum {
   QNODE = 3,
   SNODE = 4,
   BNODE = 5,
-  NODE_END = 6,
+  XNODE = 6,
+  NODE_END = 7,
 } EDndNodeType;
 
 typedef enum {
@@ -225,7 +226,9 @@ void        dmGetMonitorSystemInfo(SMonSysInfo *pInfo);
 int32_t dmReadFile(const char *path, const char *name, bool *pDeployed);
 int32_t dmReadFileJson(const char *path, const char *name, SJson **ppJson, bool* deployed);
 int32_t dmWriteFile(const char *path, const char *name, bool deployed);
+int32_t dmWriteFileWithEncrypted(const char *path, const char *name, bool deployed, bool encrypted);
 int32_t dmWriteFileJson(const char *path, const char *name, SJson *pJson);
+int32_t dmWriteFileJsonWithEncrypted(const char *path, const char *name, SJson *pJson, bool encrypted);
 int32_t dmCheckRunning(const char *dataDir, TdFilePtr *pFile);
 // int32_t dmCheckRunningWrapper(const char *dataDir, TdFilePtr *pFile);
 

@@ -41,6 +41,8 @@ const char *dmNodeName(EDndNodeType ntype) {
       return "bnode";
     case MNODE:
       return "mnode";
+    case XNODE:
+      return "xnode";
     default:
       return "dnode";
   }

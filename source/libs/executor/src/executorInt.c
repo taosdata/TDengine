@@ -842,7 +842,7 @@ _end:
 }
 
 void doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
-                        SGroupResInfo* pGroupResInfo, int32_t threshold, bool ignoreGroup, int64_t minWindowSize) {
+                        SGroupResInfo* pGroupResInfo, int32_t threshold, bool ignoreGroup, STrueForInfo *pTrueForInfo) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SExprInfo*      pExprInfo = pSup->pExprInfo;
@@ -871,9 +871,9 @@ void doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp
       continue;
     }
     // skip the window which is less than the windowMinSize
-    if (llabs(pRow->win.ekey - pRow->win.skey) < minWindowSize) {
-      qDebug("skip small window, groupId: %" PRId64 ", windowSize: %" PRId64 ", minWindowSize: %" PRId64, pPos->groupId,
-             pRow->win.ekey - pRow->win.skey, minWindowSize);
+    if (!isTrueForSatisfied(pTrueForInfo, pRow->win.skey, pRow->win.ekey, pRow->nOrigRows)) {
+      qDebug("skip small window, groupId: %" PRId64 ", skey: %" PRId64 ", ekey: %" PRId64 ", nrows: %u", pPos->groupId,
+             pRow->win.skey, pRow->win.ekey, pRow->nOrigRows);
       pGroupResInfo->index += 1;
       releaseBufPage(pBuf, page);
       continue;
@@ -941,11 +941,11 @@ void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SG
   pBlock->info.id.groupId = 0;
   if (!pbInfo->mergeResultBlock) {
     doCopyToSDataBlock(pTaskInfo, pBlock, &pOperator->exprSupp, pBuf, pGroupResInfo, pOperator->resultInfo.threshold,
-                       false, getMinWindowSize(pOperator));
+                       false, getTrueForInfo(pOperator));
   } else {
     while (hasRemainResults(pGroupResInfo)) {
       doCopyToSDataBlock(pTaskInfo, pBlock, &pOperator->exprSupp, pBuf, pGroupResInfo, pOperator->resultInfo.threshold,
-                         true, getMinWindowSize(pOperator));
+                         true, getTrueForInfo(pOperator));
       if (pBlock->info.rows >= pOperator->resultInfo.threshold) {
         break;
       }
@@ -1037,6 +1037,10 @@ void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOf
     }
     for (int32_t j = 0; j < pCtx[i].numOfParams; ++j) {
       taosVariantDestroy(&pCtx[i].param[j].param);
+    }
+
+    if(pCtx[i].fpSet.cleanup) {
+      pCtx[i].fpSet.cleanup(&pCtx[i]);
     }
 
     taosMemoryFreeClear(pCtx[i].subsidiaries.pCtx);
@@ -1271,24 +1275,37 @@ void freeDynQueryCtrlGetOperatorParam(SOperatorParam* pParam) { freeOperatorPara
 
 void freeDynQueryCtrlNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
+void freeInterpFuncGetOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
+}
+
+void freeInterpFuncNotifyOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM);
+}
+
 void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
-  STableScanOperatorParam* pTableScanParam = (STableScanOperatorParam*)pParam->value;
+  STableScanOperatorParam* pTableScanParam =
+    (STableScanOperatorParam*)pParam->value;
   taosArrayDestroy(pTableScanParam->pUidList);
   if (pTableScanParam->pOrgTbInfo) {
     taosArrayDestroy(pTableScanParam->pOrgTbInfo->colMap);
     taosMemoryFreeClear(pTableScanParam->pOrgTbInfo);
   }
   if (pTableScanParam->pBatchTbInfo) {
-    for (int32_t i = 0; i < taosArrayGetSize(pTableScanParam->pBatchTbInfo); i++) {
-      SOrgTbInfo* pOrgTbInfo = (SOrgTbInfo*)taosArrayGet(pTableScanParam->pBatchTbInfo, i);
+    for (int32_t i = 0;
+      i < taosArrayGetSize(pTableScanParam->pBatchTbInfo); ++i) {
+      SOrgTbInfo* pOrgTbInfo =
+        (SOrgTbInfo*)taosArrayGet(pTableScanParam->pBatchTbInfo, i);
       taosArrayDestroy(pOrgTbInfo->colMap);
     }
     taosArrayDestroy(pTableScanParam->pBatchTbInfo);
     pTableScanParam->pBatchTbInfo = NULL;
   }
   if (pTableScanParam->pTagList) {
-    for (int32_t i = 0; i < taosArrayGetSize(pTableScanParam->pTagList); i++) {
-      STagVal* pTagVal = (STagVal*)taosArrayGet(pTableScanParam->pTagList, i);
+    for (int32_t i = 0;
+      i < taosArrayGetSize(pTableScanParam->pTagList); ++i) {
+      STagVal* pTagVal =
+        (STagVal*)taosArrayGet(pTableScanParam->pTagList, i);
       if (IS_VAR_DATA_TYPE(pTagVal->type)) {
         taosMemoryFreeClear(pTagVal->pData);
       }
@@ -1311,6 +1328,14 @@ void freeOpParamItem(void* pItem) {
   freeOperatorParam(pParam, OP_GET_PARAM);
 }
 
+static void destroyRefColIdGroupParam(void* info) {
+  SRefColIdGroup* pGroup = (SRefColIdGroup*)info;
+  if (pGroup && pGroup->pSlotIdList) {
+    taosArrayDestroy(pGroup->pSlotIdList);
+    pGroup->pSlotIdList = NULL;
+  }
+}
+
 void freeExternalWindowGetOperatorParam(SOperatorParam* pParam) {
   SExternalWindowOperatorParam *pExtParam = (SExternalWindowOperatorParam*)pParam->value;
   taosArrayDestroy(pExtParam->ExtWins);
@@ -1324,6 +1349,10 @@ void freeExternalWindowGetOperatorParam(SOperatorParam* pParam) {
 void freeVirtualTableScanGetOperatorParam(SOperatorParam* pParam) {
   SVTableScanOperatorParam* pVTableScanParam = (SVTableScanOperatorParam*)pParam->value;
   taosArrayDestroyEx(pVTableScanParam->pOpParamArray, freeOpParamItem);
+  if (pVTableScanParam->pRefColGroups) {
+    taosArrayDestroyEx(pVTableScanParam->pRefColGroups, destroyRefColIdGroupParam);
+    pVTableScanParam->pRefColGroups = NULL;
+  }
   freeOpParamItem(&pVTableScanParam->pTagScanOp);
   freeOperatorParamImpl(pParam, OP_GET_PARAM);
 }
@@ -1366,8 +1395,12 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
       type == OP_GET_PARAM ? freeDynQueryCtrlGetOperatorParam(pParam) : freeDynQueryCtrlNotifyOperatorParam(pParam);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+      type == OP_GET_PARAM ? freeInterpFuncGetOperatorParam(pParam) : freeInterpFuncNotifyOperatorParam(pParam);
+      break;
     default:
-      qError("unsupported op %d param, type %d", pParam->opType, type);
+      qError("%s unsupported op %d param, param type %d",
+             __func__, pParam->opType, type);
       break;
   }
 }

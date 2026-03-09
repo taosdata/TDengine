@@ -98,14 +98,18 @@ int32_t taosCheckVersionCompatible(int32_t clientVer, int32_t serverVer, int32_t
 }
 
 int32_t taosCheckEditionCompatible(const char *pClientVersion, const char *pServerVersion) {
-  const char *pClientEdition = strrchr(pClientVersion, '-');
-  const char *pServerEdition = strrchr(pServerVersion, '-');
+  const char *pClientEdition = strrchr(pClientVersion, '.');
+  const char *pServerEdition = strrchr(pServerVersion, '.');
 
-  if ((pServerEdition == NULL) != (pClientEdition == NULL)) {
+  // according to current version number design, the last segment is edition info.
+  // the following checks are based on this assumption, if the design changes, the
+  // checks should be updated accordingly
+
+  if ((pServerEdition == NULL) || (pClientEdition == NULL)) {
     return TSDB_CODE_EDITION_NOT_COMPATIBLE;
   }
   
-  if (pServerEdition != NULL && strcmp(pServerEdition, pClientEdition) != 0) {
+  if (strcmp(pServerEdition, pClientEdition) != 0) {
     return TSDB_CODE_EDITION_NOT_COMPATIBLE;
   }
 

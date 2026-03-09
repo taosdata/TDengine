@@ -159,6 +159,12 @@ typedef struct {
   int64_t            ver;
   void*              param;
   __taos_notify_fn_t fp;
+} STokenNotifyInfo;
+
+typedef struct {
+  int64_t            ver;
+  void*              param;
+  __taos_notify_fn_t fp;
 } SWhiteListInfo;
 
 typedef struct {
@@ -190,6 +196,7 @@ typedef struct STscObj {
   int32_t        acctId;
   uint32_t       connId;
   int32_t        appHbMgrIdx;
+  int32_t        tokenExpireTime;
   int64_t        userId;
   int64_t        id;         // ref ID returned by taosAddRef
   TdThreadMutex  mutex;      // used to protect the operation on db
@@ -201,6 +208,7 @@ typedef struct STscObj {
   SWhiteListInfo whiteListInfo;          // ip white list info
   SWhiteListInfo dateTimeWhiteListInfo;  // date time white list info
   STscNotifyInfo userDroppedInfo;
+  STokenNotifyInfo tokenNotifyInfo;
   SOptionInfo    optionInfo;
 
   SConnAccessInfo sessInfo;
@@ -409,6 +417,9 @@ bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType);
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 
 int32_t taos_connect_internal(const char* ip, const char* user, const char* pass, const char* totp, const char* db,
+                              uint16_t port, int connType, STscObj** pObj);
+                              
+int32_t taos_connect_by_auth(const char* ip, const char* user, const char* auth, const char* totp, const char* db, 
                               uint16_t port, int connType, STscObj** pObj);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);

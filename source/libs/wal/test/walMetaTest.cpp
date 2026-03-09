@@ -98,6 +98,7 @@ class WalKeepEnv : public ::testing::Test {
     pCfg->retentionPeriod = 0;
     pCfg->retentionSize = 0;
     pCfg->level = TAOS_WAL_FSYNC;
+    taosSetSkipKeyCheckMode();
     pWal = walOpen(pathName, pCfg);
     taosMemoryFree(pCfg);
     ASSERT(pWal != NULL);

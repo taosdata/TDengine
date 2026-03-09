@@ -50,7 +50,7 @@ class TestDb:
             tdSql.checkData(0, 2, 0)
 
         tdSql.query("show dnode 1 variables like '%debugFlag'")
-        tdSql.checkRows(28)
+        tdSql.checkRows(29)
 
         tdSql.query("show dnode 1 variables like '____debugFlag'")
         tdSql.checkRows(2)
@@ -199,4 +199,4 @@ class TestDb:
         tdLog.printNoPrefix("==========end show_cluster_variables_like run ...............")
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+

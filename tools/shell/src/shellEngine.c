@@ -743,8 +743,16 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
 // show whole result for this query return true, like limit or describe
 bool shellIsShowWhole(const char *sql) {
   // limit
-  if (taosStrCaseStr(sql, " limit ") != NULL) {
-    return true;
+  char * p = taosStrCaseStr(sql, " limit ");
+  if (p != NULL) {
+    // except subquery, like "select * from (select * from t limit 10) limit 3", only the last limit is valid
+    char * p1 = taosStrCaseStr(p + 7, ")");
+    if (p1 == NULL) {
+      return true;
+    }
+    if (taosStrCaseStr(p1 + 1, " limit ")) {
+      return true;
+    }
   }
   // describe
   if (taosStrCaseStr(sql, "describe ") != NULL) {
@@ -803,9 +811,11 @@ void init_dump_info(tsDumpInfo *dump_info, TAOS_RES *tres, const char *sql, bool
     for (int32_t col = 0; col < dump_info->numFields; col++) {
       dump_info->width[col] = shellCalcColWidth(dump_info->fields + col, dump_info->precision);
     }
-    // check create token and set width
+    // set an appropriate width for token and totp_secret display
     if (shellRegexMatch(sql, "^[\t ]*create[ \t]+token[ \t]+.*", REG_EXTENDED | REG_ICASE)) {
       dump_info->width[0] = TMAX(dump_info->width[0], SHELL_SHOW_TOKEN_DISPLAY_WIDTH);
+    } else if (shellRegexMatch(sql, "^[\t ]*create[ \t]+totp_secret[ \t]+.*", REG_EXTENDED | REG_ICASE)) {
+      dump_info->width[0] = TMAX(dump_info->width[0], SHELL_SHOW_TOTP_SECRET_DISPLAY_WIDTH);
     }
   }
 }

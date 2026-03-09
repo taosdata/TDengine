@@ -7,7 +7,7 @@ on:
     branches:
       - 'main'
       - '3.0'
-      - '3.3.6'
+      - '3.3.8'
     paths:
       - 'tools/tdgpt/**'
       - 'source/libs/executor/src/forecastoperator.c'

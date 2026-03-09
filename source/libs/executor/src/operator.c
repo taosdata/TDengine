@@ -187,7 +187,7 @@ int32_t extractOperatorInTree(SOperatorInfo* pOperator, int32_t type, const char
 
   if (pOperator == NULL) {
     qError("invalid operator, failed to find tableScanOperator %s", id);
-    return TSDB_CODE_PAR_INTERNAL_ERROR;
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
   STraverParam p = {.pParam = &type, .pRet = NULL};
@@ -699,12 +699,12 @@ void destroyOperator(SOperatorInfo* pOperator) {
     pOperator->numOfDownstream = 0;
   }
 
+  cleanupExprSupp(&pOperator->exprSupp);
   if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
     pOperator->fpSet.closeFn(pOperator->info);
     pOperator->info = NULL;
   }
 
-  cleanupExprSupp(&pOperator->exprSupp);
   taosMemoryFreeClear(pOperator);
 }
 
@@ -769,7 +769,17 @@ int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc) {
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE: {
       SExchangeOperatorParam* pDExc = pDst->value;
       SExchangeOperatorParam* pSExc = pSrc->value;
+      if (pSExc->basic.paramType != DYN_TYPE_EXCHANGE_PARAM) {
+        qError("%s, invalid exchange operator param type %d for "
+          "source operator", __func__, pSExc->basic.paramType);
+        return TSDB_CODE_INVALID_PARA;
+      }
       if (!pDExc->multiParams) {
+        if (pDExc->basic.paramType != DYN_TYPE_EXCHANGE_PARAM) {
+          qError("%s, invalid exchange operator param type %d for "
+            "destination operator", __func__, pDExc->basic.paramType);
+          return TSDB_CODE_INVALID_PARA;
+        }
         if (pSExc->basic.vgId != pDExc->basic.vgId) {
           SExchangeOperatorBatchParam* pBatch = taosMemoryMalloc(sizeof(SExchangeOperatorBatchParam));
           if (NULL == pBatch) {
@@ -966,7 +976,7 @@ int32_t optrDefaultNotifyFn(struct SOperatorInfo* pOperator, SOperatorParam* pPa
   return code;
 }
 
-int16_t getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx) {
+int64_t getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx) {
   if (pOperator->transparent) {
     return getOperatorResultBlockId(pOperator->pDownstream[idx], 0);
   }
@@ -1020,7 +1030,7 @@ _error:
   return code;
 }
 
-int32_t copyColumnsValue(SNodeList* pNodeList, uint64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc, int32_t totalRows) {
+int32_t copyColumnsValue(SNodeList* pNodeList, int64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc, int32_t totalRows) {
   bool    isNull = (NULL == pSrc || pSrc->info.rows <= 0);
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   int64_t numOfRows = isNull ? 0 : pSrc->info.rows;
@@ -1054,4 +1064,3 @@ _return:
   qError("failed to copy columns value, line:%d code:%s", lino, tstrerror(code));
   return code;
 }
-

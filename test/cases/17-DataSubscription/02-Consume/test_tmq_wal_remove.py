@@ -170,4 +170,4 @@ class TestCase:
         finally:
             consumer.close()
 
-        tdLog.success(f"{__file__} successfully executed")
+

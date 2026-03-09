@@ -21,6 +21,7 @@
 #include "cJSON.h"
 #include "scheduler.h"
 #include "sync.h"
+#include "tarray.h"
 #include "thash.h"
 #include "tlist.h"
 #include "tlog.h"
@@ -106,8 +107,25 @@ typedef enum {
   MND_OPER_SHOW_RETENTIONS,
   MND_OPER_SHOW_SCANS,
   MND_OPER_SHOW_SSMIGRATES,
-  MND_OPER_MAX // the max operation type
+  MND_OPER_CREATE_XNODE,
+  MND_OPER_UPDATE_XNODE,
+  MND_OPER_DROP_XNODE,
+  MND_OPER_DRAIN_XNODE,
+  MND_OPER_CREATE_XNODE_TASK,
+  MND_OPER_START_XNODE_TASK,
+  MND_OPER_STOP_XNODE_TASK,
+  MND_OPER_UPDATE_XNODE_TASK,
+  MND_OPER_DROP_XNODE_TASK,
+  MND_OPER_CREATE_XNODE_JOB,
+  MND_OPER_UPDATE_XNODE_JOB,
+  MND_OPER_REBALANCE_XNODE_JOB,
+  MND_OPER_DROP_XNODE_JOB,
+  MND_OPER_CREATE_XNODE_AGENT,
+  MND_OPER_UPDATE_XNODE_AGENT,
+  MND_OPER_DROP_XNODE_AGENT,
+  MND_OPER_MAX  // the max operation type
 } EOperType;
+
 typedef enum {
   MND_AUTH_ACCT_START = 0,
   MND_AUTH_ACCT_USER,
@@ -301,6 +319,95 @@ typedef struct {
   SArray** algos;
 } SAnodeObj;
 
+/**
+ * @brief Stucture for XNode object.
+ *
+ * This structure represents an XNode in the system, which contains
+ * information about the node's ID, creation and update times, version,
+ * URL length, status, and a lock for synchronization.
+ */
+typedef struct {
+  int32_t  id;
+  int32_t  urlLen;
+  char*    url;
+  int32_t  statusLen;
+  char*    status;
+  int64_t  createTime;
+  int64_t  updateTime;
+  SRWLatch lock;
+} SXnodeObj;
+
+typedef struct {
+  int32_t  id;
+  int32_t  via;
+  int32_t  xnodeId;
+  int64_t  createTime;
+  int64_t  updateTime;
+  int32_t  sourceType;
+  int32_t  sinkType;
+  int32_t  nameLen;
+  int32_t  sourceDsnLen;
+  int32_t  sinkDsnLen;
+  int32_t  parserLen;
+  int32_t  statusLen;
+  int32_t  reasonLen;
+  int32_t  createdByLen;
+  int32_t  labelsLen;
+  char*    name;
+  char*    sourceDsn;
+  char*    sinkDsn;
+  char*    parser;
+  char*    status;
+  char*    reason;
+  char*    createdBy;
+  char*    labels;
+  SRWLatch lock;
+  // SArray** labels;
+  // int32_t  numOfLabels;
+} SXnodeTaskObj;
+
+typedef struct {
+  int32_t  id;
+  int32_t  taskId;
+  int32_t  configLen;
+  char*    config;
+  int32_t  via;
+  int32_t  xnodeId;
+  int32_t  statusLen;
+  char*    status;
+  int32_t  reasonLen;
+  char*    reason;
+  int64_t  createTime;
+  int64_t  updateTime;
+  SRWLatch lock;
+} SXnodeJobObj;
+
+typedef struct {
+  int32_t  id;
+  int64_t  createTime;
+  int64_t  updateTime;
+  int32_t  nameLen;
+  int32_t  tokenLen;
+  int32_t  statusLen;
+  char*    name;
+  char*    token;
+  char*    status;
+  SRWLatch lock;
+} SXnodeAgentObj;
+
+typedef struct {
+  int32_t  id;
+  int32_t  userLen;
+  char*    user;
+  int32_t  passLen;
+  char*    pass;
+  int32_t  tokenLen;
+  char*    token;
+  int64_t  createTime;
+  int64_t  updateTime;
+  SRWLatch lock;
+} SXnodeUserPassObj;
+
 typedef struct {
   int32_t    id;
   int64_t    createdTime;
@@ -321,7 +428,6 @@ typedef struct {
   SDnodeObj* pDnode;
   SQnodeLoad load;
 } SQnodeObj;
-
 
 typedef struct {
   int32_t    id;
@@ -463,6 +569,19 @@ typedef struct {
 } SUserPassword;
 
 typedef struct {
+  SHashObj* pReadDbs;
+  SHashObj* pWriteDbs;
+  SHashObj* pReadTbs;
+  SHashObj* pWriteTbs;
+  SHashObj* pTopics;
+  SHashObj* pAlterTbs;
+  SHashObj* pReadViews;
+  SHashObj* pWriteViews;
+  SHashObj* pAlterViews;
+  SHashObj* pUseDbs;
+} SPrivHashObjSet;
+
+typedef struct {
   union {
     char name[TSDB_USER_LEN];
     char user[TSDB_USER_LEN];
@@ -517,7 +636,7 @@ typedef struct {
 
   int64_t lastRoleRetrieve;  // Last retrieve time of role, unit is ms, default value is 0. Memory only and no need to
                              // persist.
-  SHashObj* roles;
+  SHashObj* roles;           // k: roleName, v: flag (int8_t: 0x01 enable(default), 0x00 disable)
 
   SPrivSet sysPrivs;
   /**
@@ -526,27 +645,15 @@ typedef struct {
    */
   SHashObj* objPrivs;  // k:EPrivObjType + "." + objName, v: SPrivObjPolicies.
 
-  // SHashObj* readDbs;  // obsolete:  migrate to selectTbs and insertTbs when update from 3.3.x.y
-  // SHashObj* writeDbs;
-  // SHashObj* topics;
-
   // table level privileges
-  SHashObj* selectTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
-  SHashObj* insertTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
-  SHashObj* updateTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
-  SHashObj* deleteTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
-  // SHashObj* alterTbs;   // obsolete: migrate to objPrivs
-
-  // 1.*.*           
-  // 1.db.*
-  // 1.db.tbName     with tag condition, specific columns
-
-  // SHashObj* readViews;
-  // SHashObj* writeViews;
-  // SHashObj* alterViews;
-  // SHashObj* useDbs;
-  SRWLatch  lock;
-  int8_t    passEncryptAlgorithm;
+  SHashObj*        selectTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj*        insertTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj*        updateTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj*        deleteTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj*        ownedDbs;   // k:dbFName, v: empty
+  SRWLatch         lock;
+  int8_t           passEncryptAlgorithm;
+  SPrivHashObjSet* legacyPrivs;  // used to temporarily hold legacy privileges during upgrade
 } SUserObj;
 
 typedef struct {
@@ -610,8 +717,9 @@ typedef struct {
   union {
     uint8_t flags;
     struct {
-      uint8_t isMount : 1;  // TS-5868
-      uint8_t padding : 7;
+      uint8_t isMount : 1;    // TS-5868
+      uint8_t allowDrop : 1;  // TS-7232
+      uint8_t padding : 6;
     };
   };
   int16_t hashPrefix;
@@ -699,6 +807,8 @@ typedef struct {
   int32_t    learnerProgress;
   int64_t    bufferSegmentUsed;
   int64_t    bufferSegmentSize;
+  int32_t    snapSeq;
+  int64_t    syncTotalIndex;
 } SVnodeGid;
 
 typedef struct {
@@ -727,8 +837,6 @@ typedef struct {
   int64_t   keepVersion;  // WAL keep version, -1 for disabled
   int64_t   keepVersionTime;  // WAL keep version time
 } SVgObj;
-
-
 
 typedef struct {
   char           name[TSDB_TABLE_FNAME_LEN];
@@ -1224,31 +1332,31 @@ typedef SCompactDetailObj SRetentionDetailObj;  // reuse compact detail obj for 
 typedef struct {
   int32_t nodeId;    // dnode id of the leader vnode
   int32_t vgId;
-  int32_t fid;       // file set id
+  int32_t fid;  // file set id
   int32_t state;
-  int64_t startTime; // migration start time of this file set in seconds
+  int64_t startTime;  // migration start time of this file set in seconds
 } SSsMigrateFileSet;
 
 typedef enum {
-  SSMIGRATE_VGSTATE_INIT = 0,                  // initial state
-  SSMIGRATE_VGSTATE_WAITING_FSET_LIST = 1,     // waiting for file set list
-  SSMIGRATE_VGSTATE_FSET_LIST_RECEIVED = 2,    // file set list received
-  SSMIGRATE_VGSTATE_FSET_STARTING = 3,         // fset ssmigrate request was sent, waiting for response
-  SSMIGRATE_VGSTATE_FSET_STARTED = 4,          // fset ssmigrate response received
+  SSMIGRATE_VGSTATE_INIT = 0,                // initial state
+  SSMIGRATE_VGSTATE_WAITING_FSET_LIST = 1,   // waiting for file set list
+  SSMIGRATE_VGSTATE_FSET_LIST_RECEIVED = 2,  // file set list received
+  SSMIGRATE_VGSTATE_FSET_STARTING = 3,       // fset ssmigrate request was sent, waiting for response
+  SSMIGRATE_VGSTATE_FSET_STARTED = 4,        // fset ssmigrate response received
 } ESsMigrateVgroupState;
 
 typedef struct {
-  int32_t id;                 // migration id
-  int64_t dbUid;
-  char    dbname[TSDB_TABLE_FNAME_LEN];
-  int64_t startTime;          // migration start time in seconds
-  int64_t stateUpdateTime;    // last state(vgState or currFest.state) update time in seconds
-  int32_t vgIdx;              // index of current vgroup
-  int32_t vgState;            // vgroup migration state
-  int32_t fsetIdx;            // index of current file set
-  SSsMigrateFileSet currFset; // current file set being processed
-  SArray* vgroups;            // SArray<int32_t>, vgroup ids of current migration
-  SArray* fileSets;           // SArray<int32_t>, file set ids of current vgroup
+  int32_t           id;  // migration id
+  int64_t           dbUid;
+  char              dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t           startTime;        // migration start time in seconds
+  int64_t           stateUpdateTime;  // last state(vgState or currFest.state) update time in seconds
+  int32_t           vgIdx;            // index of current vgroup
+  int32_t           vgState;          // vgroup migration state
+  int32_t           fsetIdx;          // index of current file set
+  SSsMigrateFileSet currFset;         // current file set being processed
+  SArray*           vgroups;          // SArray<int32_t>, vgroup ids of current migration
+  SArray*           fileSets;         // SArray<int32_t>, file set ids of current vgroup
 } SSsMigrateObj;
 
 // SGrantLogObj

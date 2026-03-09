@@ -158,7 +158,6 @@ class TestWriteInsertSelect:
         tdLog.info(f"======== tbname isn't in first field")
         tdSql.error(f"INSERT INTO dst_smeters(tbname, current, voltage,location) select concat(tbname,'_', to_char(ts, 'SS')) as sub_table_name, current, voltage, to_char(ts+10000, 'SS') as location from meters partition by tbname;")
 
-
     def Test3(self):
         tdLog.info(f"======== https://project.feishu.cn/taosdata_td/defect/detail/6570627479")
         tdSql.execute(f"drop database if exists db3;")
@@ -173,7 +172,7 @@ class TestWriteInsertSelect:
         tdSql.execute(f"INSERT INTO db3.dst_smeters(tbname, groupId, location, ts, current, voltage, phase) select concat(tbname, to_char(ts, 'SS')), 1, 'Beijing', ts, current, voltage,phase as sub_table_name from db3.meters partition by tbname;")
         tdSql.query(f"select tbname, groupId, location, ts, current, voltage, phase from db3.dst_smeters order by tbname;")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 0, "meters07")
+        tdSql.checkData(0, 0, "meters07") 
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(0, 2, "Beijing")
         tdSql.checkData(0, 3, "2021-04-19 08:00:07")
@@ -187,3 +186,19 @@ class TestWriteInsertSelect:
         tdSql.checkData(1, 4, 10)
         tdSql.checkData(1, 5, 10)
         tdSql.checkData(1, 6, 10)
+        
+        tdLog.info(f"======== bugfix:6554558952")
+        tdSql.execute(f"create stable ohlcv_1m (ts timestamp,open bigint unsigned,high bigint unsigned,low bigint unsigned,close bigint unsigned,volume bigint unsigned ) tags(symbol varchar(10));")
+        tdSql.execute(f"create stable ohlcv_1d (ts timestamp,open bigint unsigned,high bigint unsigned,low bigint unsigned,close bigint unsigned,volume bigint unsigned ) tags(symbol varchar(10));")
+        tdSql.execute(f"insert into oh1 using ohlcv_1m tags('AAPL') values('2025-12-01 00:00:00.000',1,1,1,1,1);")
+        tdSql.execute(f"insert into oh2 using ohlcv_1m tags('AAPL') values('2025-12-01 00:00:00.000',2,2,2,2,2);")
+        tdSql.execute(f" INSERT INTO ohlcv_1d(  tbname,ts)  SELECT concat('t_',tbname) as tb,  '2025-12-01T00:00:00.000-05:00' FROM ohlcv_1m WHERE symbol = 'AAPL' AND ts >= '2025-12-01T00:00:00.000' AND ts < '2025-12-02T00:00:00.000' PARTITION BY tbname, symbol;")
+        tdSql.query(f"select tbname,ts from ohlcv_1d order by tbname;")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "t_oh1")
+        tdSql.checkData(0, 1, "2025-12-01 13:00:00.000")
+        tdSql.checkData(1, 0, "t_oh2")
+        tdSql.checkData(1, 1, "2025-12-01 13:00:00.000")
+
+        tdSql.execute(f"INSERT INTO ohlcv_1d(tbname,ts) SELECT '1.34' as tb,  '2025-12-01T00:00:00.000-05:00' FROM ohlcv_1m WHERE symbol = 'AAPL' AND ts >= '2025-12-01T00:00:00.000' AND ts < '2025-12-02T00:00:00.000' PARTITION BY tbname, symbol;")
+        tdSql.error(f"INSERT INTO ohlcv_1d(tbname,ts) SELECT 1.34 as tb,  '2025-12-01T00:00:00.000-05:00' FROM ohlcv_1m WHERE symbol = 'AAPL' AND ts >= '2025-12-01T00:00:00.000' AND ts < '2025-12-02T00:00:00.000' PARTITION BY tbname, symbol;")
