@@ -89,13 +89,72 @@ char ** getDBNormalTableNames(const char *dbName, int *code) {
         argBuildInClause("table_name", inClause, sizeof(inClause));
         snprintf(specFilter, sizeof(specFilter), " AND %s", inClause);
     }
-    snprintf(sql, sizeof(sql), 
+    snprintf(sql, sizeof(sql),
              "SELECT table_name FROM information_schema.ins_tables "
-             "WHERE db_name='%s' AND stable_name IS NULL%s ORDER BY table_name", dbName, specFilter);
+             "WHERE db_name='%s' AND stable_name IS NULL"
+             " AND type NOT LIKE 'VIRTUAL%%'%s ORDER BY table_name", dbName, specFilter);
     TAOS_RES *res = taos_query(conn, sql);
     if (!res || taos_errno(res)) {
         *code = taos_errno(res);
         logError("query normal tables failed: %s", taos_errstr(res));
+        if (res) taos_free_result(res);
+        releaseConnection(conn);
+        return NULL;
+    }
+
+    int count = 0;
+    int capacity = 16;
+    char **names = (char **)taosMemoryCalloc(capacity + 1, sizeof(char *));
+    if (!names) {
+        *code = TSDB_CODE_BCK_MALLOC_FAILED;
+        taos_free_result(res);
+        releaseConnection(conn);
+        return NULL;
+    }
+
+    TAOS_ROW row;
+    while ((row = taos_fetch_row(res))) {
+        int32_t *length = taos_fetch_lengths(res);
+        if (count >= capacity) {
+            capacity *= 2;
+            char **tmp = (char **)taosMemoryRealloc(names, (capacity + 1) * sizeof(char *));
+            if (!tmp) {
+                freeArrayPtr(names);
+                *code = TSDB_CODE_BCK_MALLOC_FAILED;
+                taos_free_result(res);
+                releaseConnection(conn);
+                return NULL;
+            }
+            names = tmp;
+        }
+        names[count++] = tstrndup((char *)row[0], length[0]);
+    }
+    names[count] = NULL;
+
+    taos_free_result(res);
+    releaseConnection(conn);
+    *code = TSDB_CODE_SUCCESS;
+    return names;
+}
+
+char ** getDBVirtualTableNames(const char *dbName, int *code) {
+    *code = TSDB_CODE_FAILED;
+
+    TAOS *conn = getConnection();
+    if (!conn) {
+        logError("get connection failed");
+        return NULL;
+    }
+
+    char sql[512];
+    snprintf(sql, sizeof(sql),
+             "SELECT table_name FROM information_schema.ins_tables "
+             "WHERE db_name='%s' AND (type='VIRTUAL_NORMAL_TABLE' OR type='VIRTUAL_CHILD_TABLE') "
+             "ORDER BY table_name", dbName);
+    TAOS_RES *res = taos_query(conn, sql);
+    if (!res || taos_errno(res)) {
+        *code = taos_errno(res);
+        logError("query virtual tables failed: %s", taos_errstr(res));
         if (res) taos_free_result(res);
         releaseConnection(conn);
         return NULL;
@@ -146,7 +205,8 @@ int getDBNormalTableCount(const char *dbName, int32_t *outCount) {
     char sql[1024];
     snprintf(sql, sizeof(sql), 
              "SELECT count(*) FROM information_schema.ins_tables "
-             "WHERE db_name='%s' AND stable_name IS NULL%s", dbName, specFilter);
+             "WHERE db_name='%s' AND stable_name IS NULL"
+             " AND type NOT LIKE 'VIRTUAL%%'%s", dbName, specFilter);
     return queryValueInt(sql, 0, outCount);
 }
 

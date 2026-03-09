@@ -40,7 +40,8 @@ typedef struct TagThread {
 //
 // ---------------- interfalce ----------------
 //
-int backDatabaseMeta(DBInfo *dbInfo);
+int  backDatabaseMeta(DBInfo *dbInfo);
+bool isVirtualSuperTable(const char *dbName, const char *stbName);
 
 //
 // ---------------- function ----------------

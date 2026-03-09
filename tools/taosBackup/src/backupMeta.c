@@ -434,7 +434,7 @@ int backNormalTablesSql(const char *dbName) {
 //
 // check if a super table is virtual (its DDL contains VIRTUAL columns)
 //
-static bool isVirtualSuperTable(const char *dbName, const char *stbName) {
+bool isVirtualSuperTable(const char *dbName, const char *stbName) {
     char sql[512];
     snprintf(sql, sizeof(sql), "SHOW CREATE TABLE `%s`.`%s`", dbName, stbName);
     TAOS *conn = getConnection();

@@ -10,6 +10,7 @@
  */
     
 #include "backupData.h"
+#include "backupMeta.h"
 #include "storageTaos.h"
 #include "storageParquet.h"
 #include "bckPool.h"
@@ -460,7 +461,8 @@ static void* backNtbDataThread(void *arg) {
     }
     snprintf(sql, sizeof(sql), 
              "SELECT table_name FROM information_schema.ins_tables "
-             "WHERE db_name='%s' AND stable_name IS NULL%s "
+             "WHERE db_name='%s' AND stable_name IS NULL"
+             " AND type NOT LIKE 'VIRTUAL%%'%s "
              "ORDER BY table_name LIMIT %d OFFSET %d;",
              dbName, specFilter, thread->limit, thread->offset);
 
@@ -654,6 +656,13 @@ int backDatabaseData(DBInfo *dbInfo) {
                 include = (matchCount > 0);
             }
             if (!include) continue;  /* skip this super table */
+        }
+        // Virtual super tables are views over physical tables; their data
+        // lives in the referenced physical tables, not in the VSTB itself.
+        // Skip data backup for virtual STBs entirely.
+        if (isVirtualSuperTable(dbName, stbNames[i])) {
+            logInfo("skip data backup for virtual STB: %s.%s", dbName, stbNames[i]);
+            continue;
         }
         logInfo("backup super table: %s.%s\n", dbName, stbNames[i]);
         StbInfo stbInfo;
