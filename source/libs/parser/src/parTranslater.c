@@ -60,6 +60,9 @@
     }                               \
   } while (0)
 
+// Maximum virtual table reference depth (chain length)
+#define TSDB_MAX_VTABLE_REF_DEPTH 5
+
 typedef struct SRewriteTbNameContext {
   int32_t errCode;
   char*   pTbName;
@@ -23914,8 +23917,8 @@ _err:
   taosHashCleanup(pUnique);
   return code;
 }
-// Maximum virtual table reference depth (chain length)
-#define TSDB_MAX_VTABLE_REF_DEPTH 5
+// Maximum virtual table reference depth is defined at the top of this file
+
 
 /**
  * @brief Check if a virtual table chain has circular reference
@@ -24030,7 +24033,7 @@ static int32_t checkRefDepth(STranslateContext* pCxt, const char* pDbName, const
  */
 static int32_t getOriginalTablePrecision(STranslateContext* pCxt, const char* pDbName, const char* pTableName,
                                           int8_t* pPrecision) {
-  SArray* pVisitedTables = taosArrayInit(16, sizeof(char*), NULL, taosMemoryFree);
+  SArray* pVisitedTables = taosArrayInit(16, sizeof(char*));
   if (pVisitedTables == NULL) {
     return terrno;
   }
@@ -24060,7 +24063,7 @@ static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbN
   if (isVirtualTable) {
     // For virtual table references, we need to recursively check the chain
     // Initialize visited tables array for circular reference detection
-    pVisitedTables = taosArrayInit(16, sizeof(char*), NULL, taosMemoryFree);
+    pVisitedTables = taosArrayInit(16, sizeof(char*));
     if (pVisitedTables == NULL) {
       PAR_ERR_JRET(terrno);
     }

@@ -2360,7 +2360,7 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
         // If so, use catalogGetOriginalTableVgroup to resolve to original table's vgroup
         STableMeta* pRefMeta = NULL;
         code = catalogGetTableMeta(pTaskInfo->pCatalog, &pTaskInfo->pConn, &name, &pRefMeta);
-        if (TSDB_CODE_SUCCESS == code) {
+        if (TSDB_CODE_SUCCESS == code && pRefMeta != NULL) {
           bool isVirtualTable = (pRefMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
                                  pRefMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE ||
                                  (pRefMeta->virtualStb && pRefMeta->tableType == TSDB_SUPER_TABLE));
@@ -2371,13 +2371,15 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
             if (TSDB_CODE_SUCCESS == code) {
               orgTbInfo.vgId = originalVgInfo.vgId;
             }
-          } else
-#endifendif
+          }
+          taosMemoryFree(pRefMeta);
+          pRefMeta = NULL;
         }
         
         if (orgTbInfo.vgId == 0) {
-          code = getVgId(dbVgInfo, dbFname, &orgTbInfo.vgId, name.tname);\n          QUERY_CHECK_CODE(code, line, _return);\n        }
-#endifendif
+          code = getVgId(dbVgInfo, dbFname, &orgTbInfo.vgId, name.tname);
+          QUERY_CHECK_CODE(code, line, _return);
+        }
         tstrncpy(orgTbInfo.tbName, orgTbFName, sizeof(orgTbInfo.tbName));
         orgTbInfo.colMap = taosArrayInit(10, sizeof(SColIdNameKV));
         QUERY_CHECK_NULL(orgTbInfo.colMap, code, line, _return, terrno)
