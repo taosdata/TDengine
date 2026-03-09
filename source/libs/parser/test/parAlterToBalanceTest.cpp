@@ -628,32 +628,48 @@ TEST_F(ParserInitialATest, alterTable) {
       tDecoderInit(&coder, (uint8_t*)pBuf, pVgData->size);
       ASSERT_EQ(tDecodeSVAlterTbReq(&coder, &req), TSDB_CODE_SUCCESS);
 
-      ASSERT_EQ(std::string(req.tbName), std::string(expect.tbName));
-      ASSERT_EQ(req.action, expect.action);
-      if (nullptr != expect.colName) {
-        ASSERT_EQ(std::string(req.colName), std::string(expect.colName));
-      }
-      ASSERT_EQ(req.type, expect.type);
-      ASSERT_EQ(req.flags, expect.flags);
-      ASSERT_EQ(req.bytes, expect.bytes);
-      ASSERT_EQ(req.colModBytes, expect.colModBytes);
-      if (nullptr != expect.colNewName) {
-        ASSERT_EQ(std::string(req.colNewName), std::string(expect.colNewName));
-      }
-      if (nullptr != expect.tagName) {
-        ASSERT_EQ(std::string(req.tagName), std::string(expect.tagName));
-      }
-      ASSERT_EQ(req.isNull, expect.isNull);
-      ASSERT_EQ(req.nTagVal, expect.nTagVal);
-      if (nullptr != req.pTagVal) {
-        ASSERT_EQ(memcmp(req.pTagVal, expect.pTagVal, expect.nTagVal), 0);
-      }
-      ASSERT_EQ(req.updateTTL, expect.updateTTL);
-      ASSERT_EQ(req.newTTL, expect.newTTL);
-      if (nullptr != expect.newComment) {
-        ASSERT_EQ(std::string(req.newComment), std::string(expect.newComment));
-        ASSERT_EQ(req.newCommentLen, strlen(req.newComment));
-        ASSERT_EQ(expect.newCommentLen, strlen(expect.newComment));
+      if (req.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
+        ASSERT_NE(req.tables, nullptr);
+        ASSERT_EQ((int32_t)taosArrayGetSize(req.tables), 1);
+        SUpdateTableTagVal* pTable = (SUpdateTableTagVal*)taosArrayGet(req.tables, 0);
+        ASSERT_EQ(std::string(pTable->tbName), std::string(expect.tbName));
+        ASSERT_NE(pTable->tags, nullptr);
+        ASSERT_EQ((int32_t)taosArrayGetSize(pTable->tags), 1);
+        SUpdatedTagVal* pTag = (SUpdatedTagVal*)taosArrayGet(pTable->tags, 0);
+        ASSERT_EQ(std::string(pTag->tagName), std::string(expect.tagName));
+        ASSERT_EQ(pTag->isNull, expect.isNull);
+        ASSERT_EQ(pTag->nTagVal, expect.nTagVal);
+        if (nullptr != pTag->pTagVal) {
+          ASSERT_EQ(memcmp(pTag->pTagVal, expect.pTagVal, expect.nTagVal), 0);
+        }
+      } else {
+        ASSERT_EQ(std::string(req.tbName), std::string(expect.tbName));
+        ASSERT_EQ(req.action, expect.action);
+        if (nullptr != expect.colName) {
+          ASSERT_EQ(std::string(req.colName), std::string(expect.colName));
+        }
+        ASSERT_EQ(req.type, expect.type);
+        ASSERT_EQ(req.flags, expect.flags);
+        ASSERT_EQ(req.bytes, expect.bytes);
+        ASSERT_EQ(req.colModBytes, expect.colModBytes);
+        if (nullptr != expect.colNewName) {
+          ASSERT_EQ(std::string(req.colNewName), std::string(expect.colNewName));
+        }
+        if (nullptr != expect.tagName) {
+          ASSERT_EQ(std::string(req.tagName), std::string(expect.tagName));
+        }
+        ASSERT_EQ(req.isNull, expect.isNull);
+        ASSERT_EQ(req.nTagVal, expect.nTagVal);
+        if (nullptr != req.pTagVal) {
+          ASSERT_EQ(memcmp(req.pTagVal, expect.pTagVal, expect.nTagVal), 0);
+        }
+        ASSERT_EQ(req.updateTTL, expect.updateTTL);
+        ASSERT_EQ(req.newTTL, expect.newTTL);
+        if (nullptr != expect.newComment) {
+          ASSERT_EQ(std::string(req.newComment), std::string(expect.newComment));
+          ASSERT_EQ(req.newCommentLen, strlen(req.newComment));
+          ASSERT_EQ(expect.newCommentLen, strlen(expect.newComment));
+        }
       }
 
       tDecoderClear(&coder);
