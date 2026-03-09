@@ -50,65 +50,54 @@
 #define DM_SET_ENCRYPTKEY  "Set encrypt key. such as: -y 1234567890abcdef, the length should be less or equal to 16."
 #define DM_REPAIR_MODE   "Start repair mode."
 
-// clang-format on
 typedef struct {
   bool withR;                 // -r
-  bool hasRepairArgs;         //
+  bool hasRepairArgs;
   bool hasNodeType;           // --node-type
-  bool hasFileType;           // --file-type
-  bool hasVnodeId;            // --vnode-id
   bool hasBackupPath;         // --backup-path
   bool hasMode;               // --mode
-  bool hasReplicaNode;        // --replica-node
   char nodeType[32];          // --node-type(vnode, mnode, dnode, snode)
-  char fileType[32];          // --file-type
-                              //   vnode: wal, tsdb, meta
-                              //   mnode: wal, data
-                              //   dnode: config
-                              //   snode: checkpoint
-  char vnodeId[PATH_MAX];     // --vnode-id: 如 1,2,36
   char backupPath[PATH_MAX];  // --backup-path
   char mode[32];              // --mode
                               //   force: single node recovery mode. (Recovery as mush data as possible with local info)
-                              //   replica: replica recovery mode
-                              //   copy: Copy from backup data
-  char replicaNode[PATH_MAX];  // --replica-node:
+  SArray *pTargets;           // SDmRepairTarget
 } SDmRepairOption;
+// clang-format on
 
 static struct {
 #ifdef WINDOWS
   bool winServiceMode;
 #endif
-  bool         dumpConfig;
-  bool         dumpSdb;
-  bool         deleteTrans;
-  bool         modifySdb;
-  char         sdbJsonFile[PATH_MAX];
-  bool         generateGrant;
-  bool         memDbg;
+  bool dumpConfig;
+  bool dumpSdb;
+  bool deleteTrans;
+  bool modifySdb;
+  char sdbJsonFile[PATH_MAX];
+  bool generateGrant;
+  bool memDbg;
 
 #ifdef USE_SHARED_STORAGE
-  bool         checkSs;
+  bool checkSs;
 #endif
 
-  bool         printAuth;
-  bool         printVersion;
-  bool         printHelp;
-  bool         printRepairHelp;
-  char         envFile[PATH_MAX];
-  char         apolloUrl[PATH_MAX];
-  const char **envCmd;
-  SArray      *pArgs;  // SConfigPair
-  int64_t      startTime;
-  bool         generateCode;
-  bool         runRepairFlow;
-  char         encryptKey[ENCRYPT_KEY_LEN + 1];
+  bool            printAuth;
+  bool            printVersion;
+  bool            printHelp;
+  bool            printRepairHelp;
+  char            envFile[PATH_MAX];
+  char            apolloUrl[PATH_MAX];
+  const char    **envCmd;
+  SArray         *pArgs;  // SConfigPair
+  int64_t         startTime;
+  bool            generateCode;
+  bool            runRepairFlow;
+  char            encryptKey[ENCRYPT_KEY_LEN + 1];
   SDmRepairOption repairOpt;
 } global = {0};
 
 extern int32_t cryptLoadProviders();
-static void dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { (void)taosSetGlobalDebugFlag(143); }
-static void dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert = 1; }
+static void    dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { (void)taosSetGlobalDebugFlag(143); }
+static void    dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert = 1; }
 
 static void dmStopDnode(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGUSR1);
@@ -134,7 +123,7 @@ static void dmStopDnode(int signum, void *sigInfo, void *context) {
 #if !defined(WINDOWS) && !defined(TD_ASTRA)
   if (sigInfo != NULL) {
     dInfo("sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
-        taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
+          taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
   }
 #endif
 
@@ -262,83 +251,257 @@ static int32_t dmParseLongOptionValue(int32_t argc, char const *argv[], int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-static bool dmIsValidVnodeId(const char *vnodeId) {
-  if (vnodeId == NULL || vnodeId[0] == '\0') {
+static const char *dmRepairFileTypeName(EDmRepairFileType fileType) {
+  switch (fileType) {
+    case DM_REPAIR_FILE_TYPE_META:
+      return "meta";
+    case DM_REPAIR_FILE_TYPE_TSDB:
+      return "tsdb";
+    case DM_REPAIR_FILE_TYPE_WAL:
+      return "wal";
+    default:
+      return "unknown";
+  }
+}
+
+static int32_t dmRepairTargetError(const char *raw, const char *reason) {
+  printf("invalid '--repair-target %s': %s\n", raw, reason);
+  return TSDB_CODE_INVALID_PARA;
+}
+
+static bool dmParseRepairFileType(const char *token, EDmRepairFileType *pFileType) {
+  if (strcmp(token, "meta") == 0) {
+    *pFileType = DM_REPAIR_FILE_TYPE_META;
+    return true;
+  }
+  if (strcmp(token, "tsdb") == 0) {
+    *pFileType = DM_REPAIR_FILE_TYPE_TSDB;
+    return true;
+  }
+  if (strcmp(token, "wal") == 0) {
+    *pFileType = DM_REPAIR_FILE_TYPE_WAL;
+    return true;
+  }
+
+  return false;
+}
+
+static bool dmParseRepairStrategy(EDmRepairFileType fileType, const char *value, EDmRepairStrategy *pStrategy) {
+  if (fileType == DM_REPAIR_FILE_TYPE_META) {
+    if (strcmp(value, "from_uid") == 0) {
+      *pStrategy = DM_REPAIR_STRATEGY_META_FROM_UID;
+      return true;
+    }
+    if (strcmp(value, "from_redo") == 0) {
+      *pStrategy = DM_REPAIR_STRATEGY_META_FROM_REDO;
+      return true;
+    }
     return false;
   }
 
-  bool expectDigit = true;
-  for (const unsigned char *p = (const unsigned char *)vnodeId; *p != '\0'; ++p) {
-    if (isdigit(*p)) {
-      expectDigit = false;
+  if (fileType == DM_REPAIR_FILE_TYPE_TSDB) {
+    if (strcmp(value, "shallow_repair") == 0) {
+      *pStrategy = DM_REPAIR_STRATEGY_TSDB_SHALLOW_REPAIR;
+      return true;
+    }
+    if (strcmp(value, "deep_repair") == 0) {
+      *pStrategy = DM_REPAIR_STRATEGY_TSDB_DEEP_REPAIR;
+      return true;
+    }
+    return false;
+  }
+
+  return false;
+}
+
+static EDmRepairStrategy dmDefaultRepairStrategy(EDmRepairFileType fileType) {
+  switch (fileType) {
+    case DM_REPAIR_FILE_TYPE_META:
+      return DM_REPAIR_STRATEGY_META_FROM_UID;
+    case DM_REPAIR_FILE_TYPE_TSDB:
+      return DM_REPAIR_STRATEGY_TSDB_SHALLOW_REPAIR;
+    default:
+      return DM_REPAIR_STRATEGY_NONE;
+  }
+}
+
+static int32_t dmParseRepairPositiveInt(const char *rawTarget, const char *key, const char *value, int32_t *pOut) {
+  char   *end = NULL;
+  int32_t parsed = taosStr2Int32(value, &end, 10);
+  if (value[0] == '\0' || end == NULL || *end != '\0' || parsed <= 0) {
+    char reason[128] = {0};
+    snprintf(reason, sizeof(reason), "invalid value '%s' for key '%s'", value, key);
+    return dmRepairTargetError(rawTarget, reason);
+  }
+
+  *pOut = parsed;
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool dmRepairTargetsConflict(const SDmRepairTarget *lhs, const SDmRepairTarget *rhs) {
+  if (lhs->fileType != rhs->fileType || lhs->vnodeId != rhs->vnodeId) {
+    return false;
+  }
+
+  if (lhs->fileType == DM_REPAIR_FILE_TYPE_TSDB) {
+    return lhs->fileId == rhs->fileId;
+  }
+
+  return true;
+}
+
+static int32_t dmValidateRepairTargetUnique(const SDmRepairTarget *pTarget) {
+  if (global.repairOpt.pTargets == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t targetNum = taosArrayGetSize(global.repairOpt.pTargets);
+  for (int32_t i = 0; i < targetNum; ++i) {
+    const SDmRepairTarget *pExisting = taosArrayGet(global.repairOpt.pTargets, i);
+    if (pExisting == NULL || !dmRepairTargetsConflict(pExisting, pTarget)) {
       continue;
     }
 
-    if (*p == ',') {
-      if (expectDigit) {
-        return false;
+    if (pTarget->fileType == DM_REPAIR_FILE_TYPE_TSDB) {
+      printf("duplicated repair target for %s vnode %d fileid %d\n", dmRepairFileTypeName(pTarget->fileType),
+             pTarget->vnodeId, pTarget->fileId);
+    } else {
+      printf("duplicated repair target for %s vnode %d\n", dmRepairFileTypeName(pTarget->fileType), pTarget->vnodeId);
+    }
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t dmParseRepairTarget(const char *raw, SDmRepairTarget *pTarget) {
+  char buf[PATH_MAX] = {0};
+  tstrncpy(buf, raw, sizeof(buf));
+
+  memset(pTarget, 0, sizeof(*pTarget));
+
+  bool  hasFileType = false;
+  bool  hasVnode = false;
+  bool  hasFileId = false;
+  bool  hasStrategy = false;
+  char *cursor = buf;
+
+  while (cursor != NULL) {
+    char *next = strchr(cursor, ':');
+    if (next != NULL) {
+      *next = '\0';
+    }
+
+    if (cursor[0] == '\0') {
+      return dmRepairTargetError(raw, "empty segment is not allowed");
+    }
+
+    if (!hasFileType) {
+      if (!dmParseRepairFileType(cursor, &pTarget->fileType)) {
+        char reason[128] = {0};
+        snprintf(reason, sizeof(reason), "unknown file type '%s'", cursor);
+        return dmRepairTargetError(raw, reason);
       }
-      expectDigit = true;
-      continue;
+      hasFileType = true;
+    } else {
+      char *eq = strchr(cursor, '=');
+      if (eq == NULL || eq == cursor || eq[1] == '\0') {
+        return dmRepairTargetError(raw, "expected key=value after ':'");
+      }
+
+      *eq = '\0';
+      const char *key = cursor;
+      const char *value = eq + 1;
+
+      if (strcmp(key, "vnode") == 0) {
+        if (hasVnode) {
+          return dmRepairTargetError(raw, "duplicated key 'vnode'");
+        }
+        int32_t code = dmParseRepairPositiveInt(raw, key, value, &pTarget->vnodeId);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+        hasVnode = true;
+      } else if (strcmp(key, "fileid") == 0) {
+        if (pTarget->fileType != DM_REPAIR_FILE_TYPE_TSDB) {
+          char reason[128] = {0};
+          snprintf(reason, sizeof(reason), "key 'fileid' is not allowed for file type '%s'",
+                   dmRepairFileTypeName(pTarget->fileType));
+          return dmRepairTargetError(raw, reason);
+        }
+        if (hasFileId) {
+          return dmRepairTargetError(raw, "duplicated key 'fileid'");
+        }
+        int32_t code = dmParseRepairPositiveInt(raw, key, value, &pTarget->fileId);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+        hasFileId = true;
+      } else if (strcmp(key, "strategy") == 0) {
+        if (pTarget->fileType == DM_REPAIR_FILE_TYPE_WAL) {
+          return dmRepairTargetError(raw, "key 'strategy' is not supported for file type 'wal' in current phase");
+        }
+        if (hasStrategy) {
+          return dmRepairTargetError(raw, "duplicated key 'strategy'");
+        }
+        if (!dmParseRepairStrategy(pTarget->fileType, value, &pTarget->strategy)) {
+          char reason[160] = {0};
+          snprintf(reason, sizeof(reason), "invalid strategy '%s' for file type '%s'", value,
+                   dmRepairFileTypeName(pTarget->fileType));
+          return dmRepairTargetError(raw, reason);
+        }
+        hasStrategy = true;
+      } else {
+        char reason[128] = {0};
+        snprintf(reason, sizeof(reason), "unknown key '%s'", key);
+        return dmRepairTargetError(raw, reason);
+      }
     }
 
-    return false;
+    if (next == NULL) {
+      break;
+    }
+    cursor = next + 1;
   }
 
-  return !expectDigit;
+  if (!hasVnode) {
+    return dmRepairTargetError(raw, "missing required key 'vnode'");
+  }
+
+  if (pTarget->fileType == DM_REPAIR_FILE_TYPE_TSDB && !hasFileId) {
+    return dmRepairTargetError(raw, "missing required key 'fileid'");
+  }
+
+  if (!hasStrategy) {
+    pTarget->strategy = dmDefaultRepairStrategy(pTarget->fileType);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t dmValidateRepairOption() {
   SDmRepairOption *pOpt = &global.repairOpt;
+
+  if (!pOpt->hasMode) {
+    printf("missing '--mode' in repair mode\n");
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (strcmp(pOpt->mode, "force") != 0) {
+    printf("'--repair-target' requires '--mode force'\n");
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   if (!pOpt->hasNodeType) {
     printf("missing '--node-type' in repair mode\n");
     return TSDB_CODE_INVALID_PARA;
   }
   if (strcmp(pOpt->nodeType, "vnode") != 0) {
-    printf("'--node-type %s' is not supported in this phase\n", pOpt->nodeType);
+    printf("'--repair-target' currently only supports '--node-type vnode'\n");
     return TSDB_CODE_OPS_NOT_SUPPORT;
   }
 
-  if (!pOpt->hasFileType) {
-    printf("missing '--file-type' in repair mode\n");
-    return TSDB_CODE_INVALID_PARA;
-  }
-  if (strcmp(pOpt->fileType, "wal") != 0 && strcmp(pOpt->fileType, "tsdb") != 0 && strcmp(pOpt->fileType, "meta") != 0) {
-    printf("'--file-type %s' is not supported in this phase\n", pOpt->fileType);
-    return TSDB_CODE_OPS_NOT_SUPPORT;
-  }
-
-  if (!pOpt->hasMode) {
-    printf("missing '--mode' in repair mode\n");
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  bool isForce = strcmp(pOpt->mode, "force") == 0;
-  bool isReplica = strcmp(pOpt->mode, "replica") == 0;
-  bool isCopy = strcmp(pOpt->mode, "copy") == 0;
-  if (!isForce && !isReplica && !isCopy) {
-    printf("invalid '--mode %s', valid options are force|replica|copy\n", pOpt->mode);
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  if (!isCopy && pOpt->hasReplicaNode) {
-    printf("'--replica-node' is only valid when '--mode copy' is used\n");
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  if (isReplica || isCopy) {
-    printf("'--mode %s' is reserved and not supported in this phase\n", pOpt->mode);
-    return TSDB_CODE_OPS_NOT_SUPPORT;
-  }
-
-  bool allowAllVnodes = strcmp(pOpt->fileType, "meta") == 0 && isForce;
-  if (!pOpt->hasVnodeId && !allowAllVnodes) {
-    printf("missing '--vnode-id' in repair mode\n");
-    return TSDB_CODE_INVALID_PARA;
-  }
-  if (pOpt->hasVnodeId && !dmIsValidVnodeId(pOpt->vnodeId)) {
-    printf("invalid '--vnode-id' format, only digits and comma-separated digits are allowed\n");
+  if (pOpt->pTargets == NULL || taosArrayGetSize(pOpt->pTargets) == 0) {
+    printf("missing '--repair-target' in repair mode\n");
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -346,43 +509,20 @@ static int32_t dmValidateRepairOption() {
 }
 
 static int32_t dmParseRepairOption(int32_t argc, char const *argv[], int32_t *pIndex, bool *pParsed) {
-  int32_t  code = TSDB_CODE_SUCCESS;
-  int32_t  index = *pIndex;
-  const char *arg = argv[index];
-  bool        matched = false;
-  bool        optMatched = false;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          index = *pIndex;
+  bool             matched = false;
+  bool             optMatched = false;
   SDmRepairOption *pOpt = &global.repairOpt;
 
   *pParsed = false;
 
-  code = dmParseLongOptionValue(argc, argv, &index, "--node-type", pOpt->nodeType, sizeof(pOpt->nodeType),
-                                &optMatched);
+  code = dmParseLongOptionValue(argc, argv, &index, "--node-type", pOpt->nodeType, sizeof(pOpt->nodeType), &optMatched);
   if (code != 0) return code;
   if (optMatched) {
     pOpt->hasRepairArgs = true;
     pOpt->hasNodeType = true;
     matched = true;
-  }
-
-  if (!matched) {
-    code = dmParseLongOptionValue(argc, argv, &index, "--file-type", pOpt->fileType, sizeof(pOpt->fileType),
-                                  &optMatched);
-    if (code != 0) return code;
-    if (optMatched) {
-      pOpt->hasRepairArgs = true;
-      pOpt->hasFileType = true;
-      matched = true;
-    }
-  }
-
-  if (!matched) {
-    code = dmParseLongOptionValue(argc, argv, &index, "--vnode-id", pOpt->vnodeId, sizeof(pOpt->vnodeId), &optMatched);
-    if (code != 0) return code;
-    if (optMatched) {
-      pOpt->hasRepairArgs = true;
-      pOpt->hasVnodeId = true;
-      matched = true;
-    }
   }
 
   if (!matched) {
@@ -407,12 +547,19 @@ static int32_t dmParseRepairOption(int32_t argc, char const *argv[], int32_t *pI
   }
 
   if (!matched) {
-    code = dmParseLongOptionValue(argc, argv, &index, "--replica-node", pOpt->replicaNode, sizeof(pOpt->replicaNode),
-                                  &optMatched);
+    char targetBuf[PATH_MAX] = {0};
+    code = dmParseLongOptionValue(argc, argv, &index, "--repair-target", targetBuf, sizeof(targetBuf), &optMatched);
     if (code != 0) return code;
     if (optMatched) {
+      SDmRepairTarget target = {0};
+      code = dmParseRepairTarget(targetBuf, &target);
+      if (code != 0) return code;
+      code = dmValidateRepairTargetUnique(&target);
+      if (code != 0) return code;
+      if (taosArrayPush(pOpt->pTargets, &target) == NULL) {
+        return terrno;
+      }
       pOpt->hasRepairArgs = true;
-      pOpt->hasReplicaNode = true;
       matched = true;
     }
   }
@@ -429,6 +576,11 @@ static int32_t dmFinalizeRepairOption() {
   SDmRepairOption *pOpt = &global.repairOpt;
   global.runRepairFlow = false;
 
+  if (pOpt->pTargets != NULL && taosArrayGetSize(pOpt->pTargets) > 0 && !pOpt->withR) {
+    printf("'--repair-target' must be used with '-r'\n");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   if (pOpt->hasRepairArgs && !pOpt->withR) {
     printf("repair options must be used with '-r'\n");
     return TSDB_CODE_INVALID_PARA;
@@ -441,11 +593,6 @@ static int32_t dmFinalizeRepairOption() {
   }
 
   if (!pOpt->withR) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (!pOpt->hasRepairArgs) {
-    generateNewMeta = true;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -465,15 +612,17 @@ static int32_t dmFinalizeRepairOption() {
 
 bool dmRepairFlowEnabled() { return global.runRepairFlow; }
 
-const char *dmRepairNodeType() { return global.repairOpt.nodeType; }
+int32_t dmRepairTargetCount() {
+  return global.repairOpt.pTargets == NULL ? 0 : taosArrayGetSize(global.repairOpt.pTargets);
+}
 
-const char *dmRepairFileType() { return global.repairOpt.fileType; }
+const SDmRepairTarget *dmRepairTargetAt(int32_t index) {
+  if (global.repairOpt.pTargets == NULL || index < 0 || index >= taosArrayGetSize(global.repairOpt.pTargets)) {
+    return NULL;
+  }
 
-const char *dmRepairMode() { return global.repairOpt.mode; }
-
-bool dmRepairHasVnodeId() { return global.repairOpt.hasVnodeId; }
-
-const char *dmRepairVnodeId() { return global.repairOpt.vnodeId; }
+  return taosArrayGet(global.repairOpt.pTargets, index);
+}
 
 bool dmRepairHasBackupPath() { return global.repairOpt.hasBackupPath; }
 
@@ -483,6 +632,10 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   global.startTime = taosGetTimestampMs();
   generateNewMeta = false;
   memset(&global.repairOpt, 0, sizeof(global.repairOpt));
+  global.repairOpt.pTargets = taosArrayInit(4, sizeof(SDmRepairTarget));
+  if (global.repairOpt.pTargets == NULL) {
+    return terrno;
+  }
 
   int32_t cmdEnvIndex = 0;
   if (argc < 2) return 0;
@@ -678,19 +831,19 @@ static void dmPrintHelp() {
 }
 
 static void dmPrintRepairHelp() {
-  printf("Usage: %sd -r [--node-type NODE_TYPE] [--file-type FILE_TYPE] [--vnode-id IDS]\n", CUS_PROMPT);
-  printf("              [--backup-path PATH] [--mode MODE] [--replica-node NODE]\n\n");
+  printf("Usage: %sd -r --mode force --node-type vnode [--backup-path PATH]\n", CUS_PROMPT);
+  printf("              --repair-target TARGET [--repair-target TARGET]...\n\n");
 
-  printf("Compatibility\n");
-  printf("  1) '%sd -r' keeps legacy metadata rebuild when no new repair option is provided.\n", CUS_PROMPT);
-  printf("  2) Any new repair option switches to the new repair parameter flow.\n");
-
-  printf("Phase1 scope\n");
+  printf("Current scope\n");
   printf("  --node-type: vnode (only)\n");
-  printf("  --file-type: wal | tsdb | meta\n");
-  printf("  --mode: force (replica/copy are not supported in this phase)\n");
-  printf("  --vnode-id: comma-separated numeric ids, e.g. 2,3\n");
-  printf("  --backup-path: path or 'none'\n");
+  printf("  --mode: force (only)\n");
+  printf("  --backup-path: optional global backup root\n");
+  printf("  --repair-target: <file-type>:<key>=<value>[:<key>=<value>]...\n\n");
+
+  printf("Supported targets\n");
+  printf("  meta:vnode=<id>[:strategy=from_uid|from_redo]\n");
+  printf("  tsdb:vnode=<id>:fileid=<id>[:strategy=shallow_repair|deep_repair]\n");
+  printf("  wal:vnode=<id>\n");
 }
 
 static void dmDumpCfg() {
@@ -698,12 +851,11 @@ static void dmDumpCfg() {
   cfgDumpCfg(pCfg, 0, true);
 }
 
-
 #ifdef USE_SHARED_STORAGE
 static int32_t dmCheckSs() {
-  int32_t  code = 0;
+  int32_t code = 0;
   (void)printf("\n");
-  
+
   if (!tsSsEnabled) {
     printf("shared storage is disabled (ssEnabled is 0), please enable it and try again.\n");
     return TSDB_CODE_OPS_NOT_SUPPORT;
@@ -729,7 +881,7 @@ static int32_t dmCheckSs() {
   code = tssCheckDefaultInstance(0);
   (void)printf("=================================================================\n");
 
-  if (code == TSDB_CODE_SUCCESS){
+  if (code == TSDB_CODE_SUCCESS) {
     printf("shared storage configuration check finished successfully.\n");
   } else {
     printf("shared storage configuration check finished with error.\n");
@@ -752,6 +904,8 @@ static int32_t dmInitLog() {
 
 static void taosCleanupArgs() {
   if (global.envCmd != NULL) taosMemoryFreeClear(global.envCmd);
+  if (global.repairOpt.pTargets != NULL) taosArrayDestroy(global.repairOpt.pTargets);
+  global.repairOpt.pTargets = NULL;
 }
 
 #ifdef TAOSD_INTEGRATED
@@ -976,7 +1130,9 @@ int mainWindows(int argc, char **argv) {
 
   if ((code = dmInit()) != 0) {
     if (code == TSDB_CODE_NOT_FOUND) {
-      dError("Initialization of dnode failed because your current operating system is not supported. For more information and supported platforms, please visit https://docs.taosdata.com/reference/supported/.");
+      dError(
+          "Initialization of dnode failed because your current operating system is not supported. For more information "
+          "and supported platforms, please visit https://docs.taosdata.com/reference/supported/.");
     } else {
       dError("failed to init dnode since %s", tstrerror(code));
     }

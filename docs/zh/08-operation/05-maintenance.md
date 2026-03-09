@@ -100,6 +100,33 @@ restore qnode on dnode <dnode_id>；# 恢复dnode上的qnode
 - 该功能是基于已有的复制功能的恢复，不是灾难恢复或者备份恢复，所以对于要恢复的 mnode 和 vnode 来说，使用该命令的前提是还存在该 mnode 或 vnode 的其它两个副本仍然能够正常工作。
 - 该命令不能修复数据目录中的个别文件的损坏或者丢失。例如，如果某个 mnode 或者 vnode 中的个别文件或数据损坏，无法单独恢复损坏的某个文件或者某块数据。此时，可以选择将该 mnode/vnode 的数据全部清空再进行恢复。
 
+## 本地修复模式
+
+如果问题只涉及单个节点上的本地文件，并且希望在启动过程中执行修复检查，可以用如下方式启动 `taosd`：
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target meta:vnode=3
+```
+
+也可以在同一次启动中声明多个修复目标：
+
+```bash
+taosd -r --mode force --node-type vnode --backup-path /tmp/repair-bak \
+  --repair-target meta:vnode=3 \
+  --repair-target tsdb:vnode=5:fileid=1809 \
+  --repair-target wal:vnode=6
+```
+
+当前限制：
+
+- 当前只支持 `--mode force`。
+- 当前只支持 `--node-type vnode`。
+- `tsdb` repair target 必须显式指定 `fileid`。
+- `wal` repair target 当前不支持 `strategy`。
+
+完整的命令行 grammar、字段约束、默认策略和更多示例，请参考 [taosd 参考手册](../../reference/components/taosd/)。
+
 ## 分裂虚拟组
 
 当一个 vgroup 因为子表数过多而导致 CPU 或 Disk 资源使用量负载过高时，增加 dnode 节点后，可通过 `split vgroup` 命令把该 vgroup 分裂为两个虚拟组。分裂完成后，新产生的两个 vgroup 承担原来由一个 vgroup 提供的读写服务。该命令在 3.0.6.0 版本第一次发布，建议尽可能使用最新版本。

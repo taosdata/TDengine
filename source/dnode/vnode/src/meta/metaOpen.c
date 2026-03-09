@@ -13,19 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "dmRepair.h"
 #include "meta.h"
 #include "vnd.h"
 
 static char tsMetaRepairDoneVnodeId[PATH_MAX] = {0};
-
-extern bool        dmRepairFlowEnabled();
-extern const char *dmRepairNodeType();
-extern const char *dmRepairFileType();
-extern const char *dmRepairMode();
-extern bool        dmRepairHasVnodeId();
-extern const char *dmRepairVnodeId();
-extern bool        dmRepairHasBackupPath();
-extern const char *dmRepairBackupPath();
 
 #ifndef NO_UNALIGNED_ACCESS
 #define TDB_KEY_ALIGN(k1, k2, kType)
@@ -322,24 +314,30 @@ static void metaMarkForceRepairDone(int32_t vgId) {
   snprintf(tsMetaRepairDoneVnodeId + offset, sizeof(tsMetaRepairDoneVnodeId) - offset, ",%s", vnodeText);
 }
 
-static bool metaForceRepairMatchesVnode(int32_t vgId) {
+static bool metaForceRepairMatchesVnode(int32_t vgId, EDmRepairStrategy *pStrategy) {
   if (!dmRepairFlowEnabled() || metaRepairListContains(tsMetaRepairDoneVnodeId, vgId)) {
     return false;
   }
 
-  if (strcmp(dmRepairNodeType(), "vnode") != 0 || strcmp(dmRepairFileType(), "meta") != 0 ||
-      strcmp(dmRepairMode(), "force") != 0) {
-    return false;
-  }
+  int32_t targetNum = dmRepairTargetCount();
+  for (int32_t i = 0; i < targetNum; ++i) {
+    const SDmRepairTarget *pTarget = dmRepairTargetAt(i);
+    if (pTarget == NULL || pTarget->fileType != DM_REPAIR_FILE_TYPE_META || pTarget->vnodeId != vgId) {
+      continue;
+    }
 
-  if (!dmRepairHasVnodeId()) {
+    if (pStrategy != NULL) {
+      *pStrategy = pTarget->strategy;
+    }
     return true;
   }
 
-  return metaRepairListContains(dmRepairVnodeId(), vgId);
+  return false;
 }
 
-static bool metaShouldForceRepair(SVnode *pVnode) { return metaForceRepairMatchesVnode(TD_VID(pVnode)); }
+static bool metaShouldForceRepair(SVnode *pVnode, EDmRepairStrategy *pStrategy) {
+  return metaForceRepairMatchesVnode(TD_VID(pVnode), pStrategy);
+}
 
 static int32_t metaCopyDirRecursive(const char *srcDir, const char *dstDir) {
   int32_t code = taosMulMkDir(dstDir);
@@ -448,8 +446,11 @@ typedef enum {
   E_META_REPAIR_FROM_REDO,
 } EMetaRepairStrategy;
 
-static EMetaRepairStrategy metaGetRepairStrategy() {
-  // TODO
+static EMetaRepairStrategy metaGetRepairStrategy(EDmRepairStrategy strategy) {
+  if (strategy == DM_REPAIR_STRATEGY_META_FROM_REDO) {
+    return E_META_REPAIR_FROM_REDO;
+  }
+
   return E_META_REPAIR_FROM_UID;
 }
 
@@ -593,18 +594,25 @@ static int32_t metaForceRepairFromRedo(SVnode *pVnode, SMeta *pMeta, SMeta *pNew
   return code;
 }
 
-static int32_t metaForceRepair(SMeta **ppMeta) {
+static int32_t metaForceRepair(SMeta **ppMeta, EDmRepairStrategy repairStrategy) {
+  int32_t code = TSDB_CODE_SUCCESS;
   SMeta  *pNewMeta = NULL;
   SMeta  *pMeta = *ppMeta;
   SVnode *pVnode = pMeta->pVnode;
 
   metaInfo("vgId:%d start to generate new meta", TD_VID(pMeta->pVnode));
 
+  code = metaBackupCurrentMeta(pVnode);
+  if (code != 0) {
+    metaError("vgId:%d failed to back up current meta, reason:%s", TD_VID(pVnode), tstrerror(code));
+    return code;
+  }
+
   // Reset statistics info
   metaResetStatisInfo(pMeta);
 
   // Open a new meta for organization
-  int32_t code = metaOpenImpl(pMeta->pVnode, &pNewMeta, VNODE_META_TMP_DIR, false);
+  code = metaOpenImpl(pMeta->pVnode, &pNewMeta, VNODE_META_TMP_DIR, false);
   if (code) {
     return code;
   }
@@ -614,7 +622,7 @@ static int32_t metaForceRepair(SMeta **ppMeta) {
     return code;
   }
 
-  EMetaRepairStrategy strategy = metaGetRepairStrategy();
+  EMetaRepairStrategy strategy = metaGetRepairStrategy(repairStrategy);
   if (strategy == E_META_REPAIR_FROM_UID) {
     code = metaForceRepairFromUid(pVnode, pMeta, pNewMeta);
     if (code) {
@@ -715,8 +723,9 @@ static int32_t metaRollbackFromRepair(SVnode *pVnode) {
 }
 
 static int32_t metaForceRepairIfShould(SVnode *pVnode, SMeta **ppMeta) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  bool    shouldForceRepair = metaShouldForceRepair(pVnode);
+  int32_t           code = TSDB_CODE_SUCCESS;
+  EDmRepairStrategy strategy = DM_REPAIR_STRATEGY_META_FROM_UID;
+  bool              shouldForceRepair = metaShouldForceRepair(pVnode, &strategy);
 
   // Check if meta should repair
   if (!shouldForceRepair) {
@@ -725,7 +734,7 @@ static int32_t metaForceRepairIfShould(SVnode *pVnode, SMeta **ppMeta) {
   }
 
   // Do repair
-  code = metaForceRepair(ppMeta);
+  code = metaForceRepair(ppMeta, strategy);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
     return code;

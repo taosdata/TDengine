@@ -96,7 +96,22 @@ class TestTsdbForceRepair:
                 return int(value)
         tdLog.exit(f"failed to resolve vnode id from show {dbname}.vgroups result: {row}")
 
-    def _start_repair_process(self, args):
+    def _tsdb_target(self, vnode_id, fid, strategy=None):
+        target = f"tsdb:vnode={vnode_id}:fileid={fid}"
+        if strategy:
+            target += f":strategy={strategy}"
+        return target
+
+    def _tsdb_repair_args(self, vnode_id, fid, strategy=None, backup_root=None, extra_args=""):
+        args = "-r --mode force --node-type vnode"
+        if backup_root:
+            args += f" --backup-path {backup_root}"
+        args += f" --repair-target {self._tsdb_target(vnode_id, fid, strategy)}"
+        if extra_args:
+            args += f" {extra_args}"
+        return args
+
+    def _start_repair_process(self, args, extra_env=None):
         bin_path = self._get_taosd_bin()
         cmd = [bin_path, "-c", self._get_cfg_dir()] + shlex.split(args)
         tdLog.info("run repair cmd: %s" % " ".join(cmd))
@@ -146,6 +161,8 @@ class TestTsdbForceRepair:
                 "detect_leaks=0" if not asan_options else asan_options + ":detect_leaks=0"
             )
         env.setdefault("LSAN_OPTIONS", "detect_leaks=0")
+        if extra_env:
+            env.update(extra_env)
         proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -189,12 +206,16 @@ class TestTsdbForceRepair:
         tdSql.checkData(0, 0, 1)
 
         vnode_id = self._get_vnode_id_for_db(dbname)
+        candidate = self._find_size_matched_core_fileset(vnode_id)
+        if candidate is None:
+            pytest.skip("no real core fileset with manifest-matched head/data sizes found")
+        repair_fid = candidate["fid"]
 
         try:
             tdDnodes.stop(1)
             time.sleep(2)
             code, output = self._run_taosd_with_cfg(
-                f"-r --node-type vnode --file-type tsdb --vnode-id {vnode_id} --mode force --log-output /dev/null",
+                self._tsdb_repair_args(vnode_id, repair_fid, extra_args="--log-output /dev/null"),
                 timeout_sec=10,
             )
         finally:
@@ -235,9 +256,13 @@ class TestTsdbForceRepair:
         tdSql.checkData(0, 0, 1)
 
         vnode_id = self._get_vnode_id_for_db(dbname)
+        candidate = self._find_size_matched_core_fileset(vnode_id)
+        if candidate is None:
+            pytest.skip("no real core fileset with manifest-matched head/data sizes found")
+        repair_fid = candidate["fid"]
 
         code, output = self._run_taosd_with_cfg(
-            f"-r --node-type vnode --file-type tsdb --vnode-id {vnode_id} --mode force --log-output /dev/null"
+            self._tsdb_repair_args(vnode_id, repair_fid, extra_args="--log-output /dev/null")
         )
 
         tdSql.checkEqual("repair execution is not enabled in this phase" in output, False)
@@ -403,9 +428,11 @@ class TestTsdbForceRepair:
             time.sleep(2)
             corrupt_file = self._find_first_tsdb_file(vnode_id, ".stt")
             tdSql.checkEqual(corrupt_file is not None, True)
+            repair_fid = self._parse_fid_from_tsdb_path(corrupt_file)
+            tdSql.checkEqual(repair_fid is not None, True)
             os.remove(corrupt_file)
             code, output = self._run_taosd_with_cfg(
-                f"-r --node-type vnode --file-type tsdb --vnode-id {vnode_id} --mode force --backup-path {backup_root} --log-output /dev/null",
+                self._tsdb_repair_args(vnode_id, repair_fid, backup_root=backup_root, extra_args="--log-output /dev/null"),
                 timeout_sec=5,
             )
             manifest = self._find_backup_manifest(backup_root, vnode_id)
@@ -505,11 +532,13 @@ class TestTsdbForceRepair:
             time.sleep(2)
             corrupt_file = self._find_first_tsdb_file(vnode_id, ".stt")
             tdSql.checkEqual(corrupt_file is not None, True)
+            repair_fid = self._parse_fid_from_tsdb_path(corrupt_file)
+            tdSql.checkEqual(repair_fid is not None, True)
             before_count = self._count_stt_entries_in_current(current_json)
             tdSql.checkEqual(before_count > 0, True)
             os.remove(corrupt_file)
             code, output = self._run_taosd_with_cfg(
-                f"-r --node-type vnode --file-type tsdb --vnode-id {vnode_id} --mode force --log-output /dev/null",
+                self._tsdb_repair_args(vnode_id, repair_fid, extra_args="--log-output /dev/null"),
                 timeout_sec=10,
             )
             after_count = self._count_stt_entries_in_current(current_json)
@@ -565,8 +594,10 @@ class TestTsdbForceRepair:
             abort_marker = "/tmp/taos_repair_test_abort_after_stage"
             with open(abort_marker, "w", encoding="utf-8") as fp:
                 fp.write("1")
+            repair_fid = self._parse_fid_from_tsdb_path(corrupt_file)
+            tdSql.checkEqual(repair_fid is not None, True)
             code, output = self._run_taosd_with_cfg(
-                f"-r --node-type vnode --file-type tsdb --vnode-id {vnode_id} --mode force --log-output /dev/null",
+                self._tsdb_repair_args(vnode_id, repair_fid, extra_args="--log-output /dev/null"),
                 timeout_sec=10,
             )
             if os.path.exists(abort_marker):
@@ -651,7 +682,7 @@ class TestTsdbForceRepair:
             time.sleep(2)
             os.remove(fake_head)
             code, output = self._run_taosd_with_cfg(
-                f"-r --node-type vnode --file-type tsdb --vnode-id {vnode_id} --mode force --log-output /dev/null",
+                self._tsdb_repair_args(vnode_id, fake_fid, extra_args="--log-output /dev/null"),
                 timeout_sec=20,
             )
             fset = self._find_fset_by_fid(current_json, fake_fid)
@@ -705,9 +736,11 @@ class TestTsdbForceRepair:
             time.sleep(2)
             corrupt_file = self._find_first_tsdb_file(vnode_id, ".stt")
             tdSql.checkEqual(corrupt_file is not None, True)
+            repair_fid = self._parse_fid_from_tsdb_path(corrupt_file)
+            tdSql.checkEqual(repair_fid is not None, True)
             os.remove(corrupt_file)
             code, output = self._run_taosd_with_cfg(
-                f"-r --node-type vnode --file-type tsdb --vnode-id {vnode_id} --mode force --backup-path {backup_root} --log-output /dev/null",
+                self._tsdb_repair_args(vnode_id, repair_fid, backup_root=backup_root, extra_args="--log-output /dev/null"),
                 timeout_sec=5,
             )
             repair_log = self._find_backup_log(backup_root, vnode_id)
@@ -792,7 +825,7 @@ class TestTsdbForceRepair:
             time.sleep(2)
             os.remove(fake_data)
             code, output = self._run_taosd_with_cfg(
-                f"-r --node-type vnode --file-type tsdb --vnode-id {vnode_id} --mode force --log-output /dev/null",
+                self._tsdb_repair_args(vnode_id, fake_fid, extra_args="--log-output /dev/null"),
                 timeout_sec=20,
             )
             fset = self._find_fset_by_fid(current_json, fake_fid)
@@ -878,7 +911,7 @@ class TestTsdbForceRepair:
             tdDnodes.stop(1)
             time.sleep(2)
             code, output = self._run_taosd_with_cfg(
-                f"-r --node-type vnode --file-type tsdb --vnode-id {vnode_id} --mode force --log-output /dev/null",
+                self._tsdb_repair_args(vnode_id, fake_fid, extra_args="--log-output /dev/null"),
                 timeout_sec=20,
             )
             fset = self._find_fset_by_fid(current_json, fake_fid)
@@ -965,7 +998,7 @@ class TestTsdbForceRepair:
             tdDnodes.stop(1)
             time.sleep(2)
             code, output = self._run_taosd_with_cfg(
-                f"-r --node-type vnode --file-type tsdb --vnode-id {vnode_id} --mode force --backup-path {backup_root} --log-output /dev/null",
+                self._tsdb_repair_args(vnode_id, fake_fid, backup_root=backup_root, extra_args="--log-output /dev/null"),
                 timeout_sec=5,
             )
             repair_log = self._find_backup_log_for_fid(backup_root, vnode_id, fake_fid)
@@ -1054,7 +1087,7 @@ class TestTsdbForceRepair:
             time.sleep(2)
             os.remove(fake_head)
             code, output = self._run_taosd_with_cfg(
-                f"-r --node-type vnode --file-type tsdb --vnode-id {vnode_id} --mode force --backup-path {backup_root} --log-output /dev/null",
+                self._tsdb_repair_args(vnode_id, fake_fid, backup_root=backup_root, extra_args="--log-output /dev/null"),
                 timeout_sec=5,
             )
             repair_log = self._find_backup_log_for_fid(backup_root, vnode_id, fake_fid)
@@ -1133,7 +1166,7 @@ class TestTsdbForceRepair:
             time.sleep(2)
             self._overwrite_middle_bytes(corrupt_target)
             code, output = self._run_taosd_with_cfg(
-                f"-r --node-type vnode --file-type tsdb --vnode-id {vnode_id} --mode force --backup-path {backup_root} --log-output /dev/null",
+                self._tsdb_repair_args(vnode_id, fid, backup_root=backup_root, extra_args="--log-output /dev/null"),
                 timeout_sec=10,
             )
             repair_log = self._find_backup_log_for_fid(backup_root, vnode_id, fid)

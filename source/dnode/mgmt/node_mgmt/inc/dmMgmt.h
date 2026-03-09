@@ -21,6 +21,7 @@
 #include "uv.h"
 #endif
 
+#include "dmRepair.h"
 #include "dmInt.h"
 #include "tfs.h"
 
@@ -144,16 +145,6 @@ void dmSetVnodeSyncTimeout();
 void dmGetMnodeLoads(SMonMloadInfo *pInfo);
 void dmSetMnodeSyncTimeout();
 void dmGetQnodeLoads(SQnodeLoad *pInfo);
-
-// repair option accessors
-bool        dmRepairFlowEnabled();
-const char *dmRepairNodeType();
-const char *dmRepairFileType();
-const char *dmRepairMode();
-bool        dmRepairHasVnodeId();
-const char *dmRepairVnodeId();
-bool        dmRepairHasBackupPath();
-const char *dmRepairBackupPath();
 
 #ifdef __cplusplus
 }

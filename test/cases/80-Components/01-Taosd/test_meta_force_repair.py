@@ -75,6 +75,12 @@ class TestMetaForceRepair:
         tdSql.checkEqual(code, expected_code)
         tdSql.checkEqual(expected_text in output, True)
 
+    def _meta_target(self, vnode_id, strategy=None):
+        target = f"meta:vnode={vnode_id}"
+        if strategy:
+            target += f":strategy={strategy}"
+        return target
+
 
     def _get_cfg_dir(self):
         return tdDnodes.dnodes[0].cfgDir
@@ -99,6 +105,28 @@ class TestMetaForceRepair:
             if suffix.isdigit():
                 vnode_ids.append(int(suffix))
         return sorted(vnode_ids)
+
+    def _get_vnode_id_for_db(self, dbname, table_name="t1"):
+        tdSql.query(
+            f"select vgroup_id from information_schema.ins_tables where db_name='{dbname}' and table_name='{table_name}'"
+        )
+        if len(tdSql.queryResult) > 0:
+            value = tdSql.queryResult[0][0]
+            if isinstance(value, int) and value > 0:
+                return value
+            if isinstance(value, str) and value.isdigit():
+                return int(value)
+
+        tdSql.query(f"show {dbname}.vgroups")
+        tdSql.checkEqual(len(tdSql.queryResult) > 0, True)
+        row = tdSql.queryResult[0]
+        for value in row:
+            if isinstance(value, int) and value > 0:
+                return value
+            if isinstance(value, str) and value.isdigit():
+                return int(value)
+
+        tdLog.exit(f"failed to resolve vnode id from show {dbname}.vgroups result: {row}")
 
     def _start_repair_process(self, args):
         bin_path = self._get_taosd_bin()
@@ -144,26 +172,27 @@ class TestMetaForceRepair:
             time.sleep(1)
         return False
 
-    def test_meta_force_repair_all_vnodes_without_vnode_id(self):
-        """Meta force repair should allow omitted vnode-id.
+    def test_meta_force_repair_accepts_repair_target_syntax(self):
+        """Meta force repair should accept the new repair-target syntax.
 
-        1. Verify `--file-type meta --mode force` no longer requires `--vnode-id`.
+        1. Verify meta repair uses `--repair-target meta:vnode=<id>`.
+        2. Verify explicit `strategy=from_redo` is also accepted.
 
         Since: v3.4.1.0
 
         Labels: common,ci
         """
         cases = [
-            ("default_backup", "-r --node-type vnode --file-type meta --mode force -V", 0, "version"),
+            ("default_strategy", f"-r --mode force --node-type vnode --repair-target {self._meta_target(3)} -V", 0, "version"),
             (
-                "custom_backup",
-                "-r --node-type vnode --file-type meta --mode force --backup-path /tmp/meta-force-repair -V",
+                "explicit_strategy",
+                f"-r --mode force --node-type vnode --repair-target {self._meta_target(4, 'from_redo')} -V",
                 0,
                 "version",
             ),
             (
                 "custom_backup_trailing_slash",
-                "-r --node-type vnode --file-type meta --mode force --backup-path /tmp/meta-force-repair/ -V",
+                f"-r --mode force --node-type vnode --backup-path /tmp/meta-force-repair/ --repair-target {self._meta_target(5)} -V",
                 0,
                 "version",
             ),
@@ -171,23 +200,6 @@ class TestMetaForceRepair:
 
         for name, args, expected_code, expected_text in cases:
             self._assert_case(name, args, expected_code, expected_text)
-
-    def test_meta_force_repair_keeps_non_meta_in_phase1_placeholder(self):
-        """Non-meta repair stays on the phase1 placeholder path.
-
-        1. Verify this file only relaxes meta force repair and does not silently enable wal repair.
-
-        Since: v3.4.1.0
-
-        Labels: common,ci
-        """
-        self._assert_case(
-            "wal_still_placeholder",
-            "-r --node-type vnode --file-type wal --vnode-id 1 --mode force",
-            0,
-            "repair execution is not enabled in this phase",
-        )
-
 
     def test_meta_force_repair_creates_backup_for_real_vnode(self):
         """Meta force repair should create backup files for a real vnode.
@@ -209,9 +221,7 @@ class TestMetaForceRepair:
         tdSql.query(f"select count(*) from {dbname}.t1")
         tdSql.checkData(0, 0, 1)
 
-        vnode_ids = self._get_vnode_ids()
-        tdSql.checkEqual(len(vnode_ids) > 0, True)
-        vnode_id = vnode_ids[0]
+        vnode_id = self._get_vnode_id_for_db(dbname)
 
         backup_root = "/tmp/meta-force-repair-e2e"
         date_str = datetime.now().strftime("%Y%m%d")
@@ -225,8 +235,9 @@ class TestMetaForceRepair:
         proc = None
         try:
             tdDnodes.stop(1)
+            time.sleep(2)
             proc = self._start_repair_process(
-                f"-r --node-type vnode --file-type meta --vnode-id {vnode_id} --mode force --backup-path {backup_root} --log-output /dev/null"
+                f"-r --mode force --node-type vnode --backup-path {backup_root} --repair-target {self._meta_target(vnode_id)} --log-output /dev/null"
             )
             tdSql.checkEqual(self._wait_for_path(expected_backup_dir), True)
             tdSql.checkEqual(os.path.isdir(expected_backup_dir), True)

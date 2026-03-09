@@ -14,20 +14,12 @@
  */
 
 #include "cos.h"
+#include "dmRepair.h"
 #include "tencrypt.h"
 #include "tsdbDataFileRW.h"
 #include "tsdbFS2.h"
 #include "tsdbUpgrade.h"
 #include "vnd.h"
-
-extern bool        dmRepairFlowEnabled();
-extern const char *dmRepairNodeType();
-extern const char *dmRepairFileType();
-extern const char *dmRepairMode();
-extern bool        dmRepairHasVnodeId();
-extern const char *dmRepairVnodeId();
-extern bool        dmRepairHasBackupPath();
-extern const char *dmRepairBackupPath();
 
 #define BLOCK_COMMIT_FACTOR 3
 
@@ -127,6 +119,36 @@ static void tsdbMarkForceRepairDone(int32_t vgId) {
   snprintf(tsTsdbRepairDoneVnodeId + offset, sizeof(tsTsdbRepairDoneVnodeId) - offset, ",%s", vnodeText);
 }
 
+static bool tsdbRepairHasTargetForVnode(int32_t vgId) {
+  int32_t targetNum = dmRepairTargetCount();
+  for (int32_t i = 0; i < targetNum; ++i) {
+    const SDmRepairTarget *pTarget = dmRepairTargetAt(i);
+    if (pTarget != NULL && pTarget->fileType == DM_REPAIR_FILE_TYPE_TSDB && pTarget->vnodeId == vgId) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool tsdbRepairMatchTargetForFid(int32_t vgId, int32_t fid, EDmRepairStrategy *pStrategy) {
+  int32_t targetNum = dmRepairTargetCount();
+  for (int32_t i = 0; i < targetNum; ++i) {
+    const SDmRepairTarget *pTarget = dmRepairTargetAt(i);
+    if (pTarget == NULL || pTarget->fileType != DM_REPAIR_FILE_TYPE_TSDB || pTarget->vnodeId != vgId ||
+        pTarget->fileId != fid) {
+      continue;
+    }
+
+    if (pStrategy != NULL) {
+      *pStrategy = pTarget->strategy;
+    }
+    return true;
+  }
+
+  return false;
+}
+
 static bool tsdbShouldForceRepair(STFileSystem *fs) {
   int32_t vgId = TD_VID(fs->tsdb->pVnode);
 
@@ -134,16 +156,7 @@ static bool tsdbShouldForceRepair(STFileSystem *fs) {
     return false;
   }
 
-  if (strcmp(dmRepairNodeType(), "vnode") != 0 || strcmp(dmRepairFileType(), "tsdb") != 0 ||
-      strcmp(dmRepairMode(), "force") != 0) {
-    return false;
-  }
-
-  if (!dmRepairHasVnodeId()) {
-    return false;
-  }
-
-  return tsdbRepairListContains(dmRepairVnodeId(), vgId);
+  return tsdbRepairHasTargetForVnode(vgId);
 }
 
 static int32_t tsdbRepairBuildBackupFSetDir(STFileSystem *fs, int32_t fid, char *buf, int32_t bufLen) {
@@ -649,6 +662,12 @@ static int32_t tsdbDispatchForceRepair(STFileSystem *fs) {
   bool changed = false;
   const STFileSet *srcFset = NULL;
   TARRAY2_FOREACH(fs->fSetArr, srcFset) {
+    EDmRepairStrategy repairStrategy = DM_REPAIR_STRATEGY_NONE;
+    if (!tsdbRepairMatchTargetForFid(TD_VID(fs->tsdb->pVnode), srcFset->fid, &repairStrategy)) {
+      continue;
+    }
+    TAOS_UNUSED(repairStrategy);
+
     STsdbRepairPlan plan;
     code = tsdbRepairAnalyzeFileSet(fs, srcFset, &plan);
     if (code != 0) {

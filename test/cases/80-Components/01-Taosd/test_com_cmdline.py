@@ -116,138 +116,119 @@ class TestComCmdLine:
         if not os.path.exists("sdb.json"):
             tdLog.exit("taosd -s failed!")
 
-    def test_repair_cmdline_phase1(self):
-        """Taosd repair cmdline (phase1 freeze)
+    def test_repair_cmdline_repair_target(self):
+        """Taosd repair cmdline (`--repair-target` freeze)
 
-        1. Verify taosd -r parameter-layer behaviors frozen by phase1 doc.
+        1. Verify taosd -r parameter-layer behaviors frozen by the repair-target CLI design.
 
         Since: v3.4.1.0
 
         Labels: common,ci
         """
         cases = [
-            ("P01_legacy_r", "-r -V", 0, "version"),
-            ("P02_repair_help", "-r --help", 0, "Usage: taosd -r"),
+            ("P01_repair_help", "-r --help", 0, "Usage: taosd -r --mode force --node-type vnode"),
             (
-                "P03_force_wal",
-                "-r --node-type vnode --file-type wal --vnode-id 1234 --mode force -V",
+                "P02_force_wal",
+                "-r --mode force --node-type vnode --repair-target wal:vnode=1234 -V",
                 0,
                 "version",
             ),
             (
-                "P03_force_wal_no_version",
-                "-r --node-type vnode --file-type wal --vnode-id 1 --mode force",
-                0,
-                "repair parameter validation succeeded (phase1)",
-            ),
-            (
-                "P03_force_wal_equal_vnode_id",
-                "-r --node-type vnode --file-type wal --vnode-id=1,2,3,4 --mode force",
-                0,
-                "repair parameter validation succeeded (phase1)",
-            ),
-            (
-                "P04_force_tsdb_multi",
-                "-r --node-type vnode --file-type tsdb --vnode-id 2,3 --mode force --backup-path /backup/vnode_tsdb -V",
+                "P03_force_meta_default_strategy",
+                "-r --mode force --node-type vnode --repair-target meta:vnode=3 -V",
                 0,
                 "version",
             ),
             (
-                "P05_force_meta_none_backup",
-                "-r --node-type vnode --file-type meta --vnode-id 1234 --mode force --backup-path none -V",
+                "P04_force_tsdb_default_strategy",
+                "-r --mode force --node-type vnode --repair-target tsdb:vnode=5:fileid=1809 --backup-path /backup/vnode_tsdb -V",
                 0,
                 "version",
             ),
             (
-                "P05_force_meta_all_equals",
-                "-r --node-type=vnode --file-type=meta --vnode-id=1234 --mode=force --backup-path=none -V",
+                "P05_multi_targets",
+                "-r --mode force --node-type vnode --backup-path /backup/vnode_mix --repair-target meta:vnode=3 --repair-target tsdb:vnode=5:fileid=1809:strategy=deep_repair --repair-target wal:vnode=6 -V",
                 0,
                 "version",
             ),
             (
-                "E01_without_r",
-                "--node-type vnode --file-type wal --vnode-id 1 --mode force -V",
+                "E01_target_without_r",
+                "--mode force --node-type vnode --repair-target wal:vnode=1 -V",
                 24,
-                "repair options must be used with '-r'",
+                "'--repair-target' must be used with '-r'",
             ),
             ("E02_unknown", "-r --unknown-opt", 25, "invalid option"),
             (
-                "E03_missing_node_type",
-                "-r --file-type wal --vnode-id 1 --mode force -V",
-                24,
-                "missing '--node-type'",
-            ),
-            (
-                "E03b_node_type_missing_value",
-                "-r --node-type --file-type wal --vnode-id 1 --mode force -V",
-                24,
-                "'--node-type' requires a parameter",
-            ),
-            (
-                "E04_non_vnode",
-                "-r --node-type mnode --file-type wal --vnode-id 1 --mode force -V",
-                1,
-                "not supported in this phase",
-            ),
-            (
-                "E05_missing_file_type",
-                "-r --node-type vnode --vnode-id 1 --mode force -V",
-                24,
-                "missing '--file-type'",
-            ),
-            (
-                "E06_file_type_tdb",
-                "-r --node-type vnode --file-type tdb --vnode-id 1 --mode force -V",
-                1,
-                "not supported in this phase",
-            ),
-            (
-                "E07_missing_vnode_id",
-                "-r --node-type vnode --file-type wal --mode force -V",
-                24,
-                "missing '--vnode-id'",
-            ),
-            (
-                "E08_vnode_id_format",
-                "-r --node-type vnode --file-type wal --vnode-id 1,a --mode force -V",
-                24,
-                "invalid '--vnode-id' format",
-            ),
-            (
-                "E09_missing_mode",
-                "-r --node-type vnode --file-type wal --vnode-id 1 -V",
+                "E03_bare_r",
+                "-r -V",
                 24,
                 "missing '--mode'",
             ),
             (
-                "E10_deprecated_force",
-                "-r --node-type vnode --file-type wal --vnode-id 1 --force 1 -V",
+                "E04_missing_node_type",
+                "-r --mode force --repair-target wal:vnode=1 -V",
                 24,
-                "'--force' is deprecated",
+                "missing '--node-type'",
             ),
             (
-                "E10_deprecated_force_equals",
-                "-r --node-type=vnode --file-type=wal --vnode-id=1 --force=1 -V",
-                24,
-                "'--force' is deprecated",
-            ),
-            (
-                "E11_mode_copy",
-                "-r --node-type vnode --file-type tsdb --vnode-id 1 --mode copy -V",
+                "E05_non_vnode",
+                "-r --mode force --node-type mnode --repair-target wal:vnode=1 -V",
                 1,
-                "'--mode copy' is reserved and not supported in this phase",
+                "currently only supports '--node-type vnode'",
             ),
             (
-                "E11_mode_replica",
-                "-r --node-type vnode --file-type wal --vnode-id 1 --mode replica -V",
-                1,
-                "'--mode replica' is reserved and not supported in this phase",
-            ),
-            (
-                "E12_replica_node_in_force",
-                "-r --node-type vnode --file-type tsdb --vnode-id 1 --mode force --replica-node 1.1.1.1:/d -V",
+                "E06_missing_repair_target",
+                "-r --mode force --node-type vnode -V",
                 24,
-                "'--replica-node' is only valid when '--mode copy' is used",
+                "missing '--repair-target'",
+            ),
+            (
+                "E07_old_file_type_removed",
+                "-r --mode force --node-type vnode --file-type wal -V",
+                25,
+                "invalid option",
+            ),
+            (
+                "E08_old_vnode_id_removed",
+                "-r --mode force --node-type vnode --vnode-id 1 -V",
+                25,
+                "invalid option",
+            ),
+            (
+                "E09_invalid_target_file_type",
+                "-r --mode force --node-type vnode --repair-target foo:vnode=1 -V",
+                24,
+                "unknown file type 'foo'",
+            ),
+            (
+                "E10_duplicate_key",
+                "-r --mode force --node-type vnode --repair-target meta:vnode=3:vnode=4 -V",
+                24,
+                "duplicated key 'vnode'",
+            ),
+            (
+                "E11_wal_strategy_not_supported",
+                "-r --mode force --node-type vnode --repair-target wal:vnode=3:strategy=scan -V",
+                24,
+                "key 'strategy' is not supported for file type 'wal' in current phase",
+            ),
+            (
+                "E12_tsdb_missing_fileid",
+                "-r --mode force --node-type vnode --repair-target tsdb:vnode=5 -V",
+                24,
+                "missing required key 'fileid'",
+            ),
+            (
+                "E13_invalid_strategy",
+                "-r --mode force --node-type vnode --repair-target meta:vnode=3:strategy=foo -V",
+                24,
+                "invalid strategy 'foo' for file type 'meta'",
+            ),
+            (
+                "E14_duplicate_target",
+                "-r --mode force --node-type vnode --repair-target meta:vnode=3 --repair-target meta:vnode=3:strategy=from_redo -V",
+                24,
+                "duplicated repair target for meta vnode 3",
             ),
         ]
 
