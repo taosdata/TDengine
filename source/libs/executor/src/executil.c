@@ -4115,7 +4115,7 @@ _end:
   return code;
 }
 
-int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* pId) {
+int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* typeStr, const char* pId) {
   int32_t code = TSDB_CODE_ANA_ANODE_RETURN_ERROR;
   char*   pMsg = NULL;
   if (pJson == NULL) {
@@ -4124,7 +4124,7 @@ int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* pId) {
 
   int32_t ret = tjsonDupStringValue(pJson, "msg", &pMsg);
   if (ret == 0 && pMsg != NULL) {
-    qError("%s failed to exec imputation, msg:%s", pId, pMsg);
+    qError("%s failed to exec %s operation, msg:%s", pId, typeStr, pMsg);
     if (strstr(pMsg, "white noise") != NULL) {
       code = TSDB_CODE_ANA_WN_DATA;
     } else if (strstr(pMsg, "white-noise") != NULL) {

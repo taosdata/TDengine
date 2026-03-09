@@ -228,7 +228,7 @@ SNode*     createTrueForOrNode(SAstCreateContext* pCxt, SNode* pDuration, const 
 SNode*     createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken,
                                  SNodeList* pColList);
 SNode*     createCountWindowNodeFromArgs(SAstCreateContext* pCxt, SNode* args);
-SNode*     createAnomalyWindowNode(SAstCreateContext* pCxt, SNode* pExpr, const SToken* pFuncOpt);
+SNode*     createAnomalyWindowNode(SAstCreateContext* pCxt, SNodeList* pExprList);
 SNode*     createIntervalWindowNodeExt(SAstCreateContext* pCxt, SNode* pInter, SNode* pSliding);
 SNode*     createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode* pOffset, SNode* pSliding,
                                     SNode* pFill);

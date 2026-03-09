@@ -2972,20 +2972,21 @@ static int32_t createCountWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
 
 static int32_t createAnomalyWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                             SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
-  SAnomalyWindowPhysiNode* pAnomaly = (SAnomalyWindowPhysiNode*)makePhysiNode(
-      pCxt, (SLogicNode*)pWindowLogicNode, QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY);
+  SAnomalyWindowPhysiNode* pAnomaly = (SAnomalyWindowPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pWindowLogicNode,
+                                                                              QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY);
   if (NULL == pAnomaly) {
     return terrno;
   }
 
-  SNodeList* pPrecalcExprs = NULL;
-  SNode*     pAnomalyKey = NULL;
-  int32_t    code = rewritePrecalcExpr(pCxt, pWindowLogicNode->pAnomalyExpr, &pPrecalcExprs, &pAnomalyKey);
-
+  SNodeList*          pPrecalcExprs = NULL;
+  SNodeList*          pAnomalyKeys = NULL;
   SDataBlockDescNode* pChildTupe = NULL;
+
+  int32_t code = rewritePrecalcExprs(pCxt, pWindowLogicNode->pAnomalyExpr, &pPrecalcExprs, &pAnomalyKeys);
   if (TSDB_CODE_SUCCESS == code) {
     code = getChildTuple(&pChildTupe, pChildren);
   }
+
   // push down expression to pOutputDataBlockDesc of child node
   if (TSDB_CODE_SUCCESS == code && NULL != pPrecalcExprs) {
     code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs, &pAnomaly->window.pExprs);
@@ -2995,10 +2996,10 @@ static int32_t createAnomalyWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pAnomalyKey, &pAnomaly->pAnomalyKey);
-    // if (TSDB_CODE_SUCCESS == code) {
-    //   code = addDataBlockSlot(pCxt, &pAnomaly->pAnomalyKey, pAnomaly->window.node.pOutputDataBlockDesc);
-    // }
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pAnomalyKeys, &pAnomaly->pAnomalyKeys);
+    if (TSDB_CODE_SUCCESS == code) {
+      // code = addDataBlockSlots(pCxt, pAnomaly->pAnomalyKeys, pAnomaly->window.node.pOutputDataBlockDesc);
+    }
   }
 
   tstrncpy(pAnomaly->anomalyOpt, pWindowLogicNode->anomalyOpt, sizeof(pAnomaly->anomalyOpt));
@@ -3014,7 +3015,7 @@ static int32_t createAnomalyWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
   }
 
   nodesDestroyList(pPrecalcExprs);
-  nodesDestroyNode(pAnomalyKey);
+  nodesDestroyList(pAnomalyKeys);
 
   return code;
 }

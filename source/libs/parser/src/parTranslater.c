@@ -6485,7 +6485,7 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
       // table scan node is eliminated.
       const SSchema* pTsSchema = &pMeta->schema[0];
       const SSchema* pRefTsSchema = &pRTNode->pMeta->schema[0];
-      PAR_ERR_JRET(setColRef(&pMeta->colRef[0], pTsSchema->colId, (char*)pRefTsSchema->name, pRTNode->table.tableName,
+      PAR_ERR_JRET(setColRef(&pMeta->colRef[0], pTsSchema->colId, NULL, (char*)pRefTsSchema->name, pRTNode->table.tableName,
                              pRTNode->table.dbName));
     }
   }
@@ -9048,16 +9048,19 @@ _return:
   return code;
 }
 
-static int32_t checkAnomalyExpr(STranslateContext* pCxt, SNode* pNode) {
-  int32_t type = ((SExprNode*)pNode)->resType.type;
-  if (!IS_MATHABLE_TYPE(type)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_TYPE,
-                                   "ANOMALY_WINDOW only support mathable column");
-  }
+static int32_t checkAnomalyExpr(STranslateContext* pCxt, SNodeList* pNodeList) {
+  for(int32_t i = 0; i < pNodeList->length; ++i) {
+    SNode* pNode = nodesListGetNode(pNodeList, i);
+    int32_t type = ((SExprNode*)pNode)->resType.type;
+    if (!IS_MATHABLE_TYPE(type)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_TYPE,
+                                    "ANOMALY_WINDOW only support mathable column");
+    }
 
-  if (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_COL,
-                                   "ANOMALY_WINDOW not support on tag column");
+    if (QUERY_NODE_COLUMN == nodeType(pNode) && COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_COL,
+                                    "ANOMALY_WINDOW not support on tag column");
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -22108,7 +22111,7 @@ static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateV
     SSchema*        pSchema = req.ntb.schemaRow.pSchema + index;
     toSchema(pColDef, index + 1, pSchema);
     if (pColDef->pOptions && ((SColumnOptions*)pColDef->pOptions)->hasRef) {
-      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, ((SColumnOptions*)pColDef->pOptions)->refColumn,
+      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, NULL, ((SColumnOptions*)pColDef->pOptions)->refColumn,
                              ((SColumnOptions*)pColDef->pOptions)->refTable,
                              ((SColumnOptions*)pColDef->pOptions)->refDb));
     }
@@ -22163,14 +22166,15 @@ static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, S
         PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
       }
       const SSchema* pSchema = getTableColumnSchema(pStbMeta) + schemaIdx;
-      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[schemaIdx], pSchema->colId, pColRef->refColName, pColRef->refTableName,
+      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[schemaIdx], pSchema->colId, pSchema->name, pColRef->refColName, pColRef->refTableName,
                              pColRef->refDbName));
     }
   } else if (pStmt->pColRefs) {
     col_id_t index = 1;  // start from second column, don't set column ref for ts column
     FOREACH(pCol, pStmt->pColRefs) {
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
-      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, pColRef->refColName, pColRef->refTableName,
+      const SSchema* pSchema = getTableColumnSchema(pStbMeta) + index;
+      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, pSchema->name, pColRef->refColName, pColRef->refTableName,
                              pColRef->refDbName));
       index++;
     }

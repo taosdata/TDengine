@@ -14673,6 +14673,14 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     TAOS_CHECK_EXIT(tEncodeI64v(pCoder, pReq->ntb.userId));
   }
+  if (pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    for (int i = 0; i < pReq->colRef.nCols; i++) {
+      SColRef *p = &pReq->colRef.pColRef[i];
+      if (p->hasRef) {
+        TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->colName));
+      }
+    }
+  }
 
   tEndEncode(pCoder);
 _exit:
@@ -14753,6 +14761,17 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     if (!tDecodeIsEnd(pCoder)) {
       if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
         TAOS_CHECK_EXIT(tDecodeI64v(pCoder, &pReq->ntb.userId));
+      }
+    }
+
+    if (pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
+      if (!tDecodeIsEnd(pCoder)) {
+        for (int i = 0; i < pReq->colRef.nCols; i++) {
+          SColRef *p = &pReq->colRef.pColRef[i];
+          if (p->hasRef) {
+            TAOS_CHECK_EXIT(tDecodeCStrTo(pCoder, p->colName));
+          }
+        }
       }
     }
   }

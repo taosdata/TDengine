@@ -784,6 +784,7 @@ typedef struct {
   char     refDbName[TSDB_DB_NAME_LEN];
   char     refTableName[TSDB_TABLE_NAME_LEN];
   char     refColName[TSDB_COL_NAME_LEN];
+  char     colName[TSDB_COL_NAME_LEN];     // for tmq get json
 } SColRef;
 
 typedef struct {
