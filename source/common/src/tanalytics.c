@@ -20,7 +20,12 @@
 #include "osTime.h"
 
 #ifdef USE_ANALYTICS
-#include <curl/curl.h>
+
+#if defined(WINDOWS)
+#define CURL_STATICLIB
+#endif
+
+#include "curl/curl.h"
 
 #define ANALYTICS_ALOG_SPLIT_CHAR ","
 
