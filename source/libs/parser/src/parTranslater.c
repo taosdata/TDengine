@@ -24014,13 +24014,23 @@ static int32_t detectCircularReference(STranslateContext* pCxt, const char* pDbN
  * @param pOriginalPrecision Output parameter for original table's precision
  * @return TSDB_CODE_SUCCESS if depth is within limit, error code otherwise
  */
+static int32_t checkRefDepthGetMeta(STranslateContext* pCxt, const char* pDbName, const char* pTableName,
+                                     STableMeta** ppMeta) {
+  SName name = {0};
+  toName(pCxt->pParseCxt->acctId, pDbName, pTableName, &name);
+  SRequestConnInfo conn = {.pTrans = pCxt->pParseCxt->pTransporter,
+                           .requestId = pCxt->pParseCxt->requestId,
+                           .requestObjRefId = pCxt->pParseCxt->requestRid,
+                           .mgmtEps = pCxt->pParseCxt->mgmtEpSet};
+  return catalogGetTableMeta(pCxt->pParseCxt->pCatalog, &conn, &name, ppMeta);
+}
+
 static int32_t checkRefDepth(STranslateContext* pCxt, const char* pDbName, const char* pTableName,
                                int32_t currentDepth, SArray* pVisitedTables, int8_t* pOriginalPrecision) {
   STableMeta* pRefTableMeta = NULL;
   int32_t         code = TSDB_CODE_SUCCESS;
   char            fullName[TSDB_TABLE_FNAME_LEN] = {0};
 
-  // Check depth limit
   if (currentDepth > TSDB_MAX_VTABLE_REF_DEPTH) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED,
                                        "virtual table reference depth exceeded maximum limit %d", TSDB_MAX_VTABLE_REF_DEPTH);
@@ -24028,7 +24038,6 @@ static int32_t checkRefDepth(STranslateContext* pCxt, const char* pDbName, const
 
   snprintf(fullName, sizeof(fullName), "%s.%s", pDbName, pTableName);
 
-  // Add current table to visited path
   char* pFullNameCopy = taosStrdup(fullName);
   if (pFullNameCopy == NULL) {
     return terrno;
@@ -24038,21 +24047,17 @@ static int32_t checkRefDepth(STranslateContext* pCxt, const char* pDbName, const
     return terrno;
   }
 
-  // Get the referenced table's metadata
-  code = getTableMeta(pCxt, (char*)pDbName, (char*)pTableName, &pRefTableMeta);
+  code = checkRefDepthGetMeta(pCxt, pDbName, pTableName, &pRefTableMeta);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  // If referenced table is a virtual table, recursively check its references
   if (pRefTableMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
       pRefTableMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE ||
       (pRefTableMeta->virtualStb && pRefTableMeta->tableType == TSDB_SUPER_TABLE)) {
-    
-    // Check circular reference for each column reference
+
     for (int32_t i = 0; i < pRefTableMeta->numOfColRefs; i++) {
       if (pRefTableMeta->colRef[i].hasRef) {
-        // Check for circular reference
         code = detectCircularReference(pCxt, pRefTableMeta->colRef[i].refDbName,
                                          pRefTableMeta->colRef[i].refTableName, pVisitedTables);
         if (code != TSDB_CODE_SUCCESS) {
@@ -24060,7 +24065,6 @@ static int32_t checkRefDepth(STranslateContext* pCxt, const char* pDbName, const
           return code;
         }
 
-        // Recursively check depth
         code = checkRefDepth(pCxt, pRefTableMeta->colRef[i].refDbName,
                             pRefTableMeta->colRef[i].refTableName, currentDepth + 1,
                             pVisitedTables, pOriginalPrecision);
@@ -24071,8 +24075,6 @@ static int32_t checkRefDepth(STranslateContext* pCxt, const char* pDbName, const
       }
     }
   } else {
-    // This is an original table (NORMAL_TABLE or CHILD_TABLE)
-    // Store the original table's precision if needed
     if (pOriginalPrecision != NULL) {
       *pOriginalPrecision = pRefTableMeta->tableInfo.precision;
     }
@@ -24120,32 +24122,37 @@ static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbN
                         (pRefTableMeta->virtualStb && pRefTableMeta->tableType == TSDB_SUPER_TABLE));
 
   if (isVirtualTable) {
-    if (!pCxt->pParseCxt->async) {
-      pVisitedTables = taosArrayInit(16, sizeof(char*));
-      if (pVisitedTables == NULL) {
-        PAR_ERR_JRET(terrno);
+    int32_t     depth = 0;
+    STableMeta* pCurMeta = pRefTableMeta;
+    bool        ownedMeta = false;
+    while (pCurMeta != NULL &&
+           (pCurMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+            pCurMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE)) {
+      depth++;
+      if (depth >= TSDB_MAX_VTABLE_REF_DEPTH) {
+        if (ownedMeta) taosMemoryFree(pCurMeta);
+        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED,
+            "virtual table reference depth exceeded maximum limit %d", TSDB_MAX_VTABLE_REF_DEPTH));
       }
-
-      char fullName[TSDB_TABLE_FNAME_LEN] = {0};
-      snprintf(fullName, sizeof(fullName), "%s.%s", pRefDbName, pRefTableName);
-      char* pFullNameCopy = taosStrdup(fullName);
-      if (pFullNameCopy == NULL || taosArrayPush(pVisitedTables, &pFullNameCopy) == NULL) {
-        taosMemoryFree(pFullNameCopy);
-        PAR_ERR_JRET(terrno);
+      if (pCurMeta->numOfColRefs <= 0 || pCurMeta->colRef == NULL) {
+        break;
       }
-
-      code = checkRefDepth(pCxt, pRefDbName, pRefTableName, 1, pVisitedTables, &originalPrecision);
+      int32_t refIdx = -1;
+      for (int32_t ri = 0; ri < pCurMeta->numOfColRefs; ri++) {
+        if (pCurMeta->colRef[ri].hasRef) { refIdx = ri; break; }
+      }
+      if (refIdx < 0) break;
+      STableMeta* pNextMeta = NULL;
+      code = checkRefDepthGetMeta(pCxt, pCurMeta->colRef[refIdx].refDbName,
+                                   pCurMeta->colRef[refIdx].refTableName, &pNextMeta);
+      if (ownedMeta) taosMemoryFree(pCurMeta);
       if (code != TSDB_CODE_SUCCESS) {
-        taosArrayDestroy(pVisitedTables);
-        PAR_ERR_JRET(code);
+        break;
       }
-
-      if (originalPrecision != precision) {
-        taosArrayDestroy(pVisitedTables);
-        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
-                     "timestamp precision of virtual table and its original reference table do not match"));
-      }
+      pCurMeta = pNextMeta;
+      ownedMeta = true;
     }
+    if (ownedMeta && pCurMeta) taosMemoryFree(pCurMeta);
   } else {
     // Original table precision check (for non-virtual tables)
     if (pRefTableMeta->tableInfo.precision != precision) {

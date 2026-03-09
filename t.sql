@@ -412,12 +412,12 @@ SELECT COUNT(*), SUM(int_col) FROM vntb_L4;
 SELECT '--- vntb_L5 ---' AS test;
 SELECT COUNT(*), SUM(int_col) FROM vntb_L5;
 
-SELECT '=== 28e. vstb with child referencing 5-layer chain ===' AS test;
+SELECT '=== 28e. vstb with child referencing deep chains ===' AS test;
 CREATE STABLE vstb_deep (ts timestamp, int_col int, bigint_col bigint) TAGS (depth int) VIRTUAL 1;
+CREATE VTABLE vctb_deep_L2 (int_col from vntb2.int_col, bigint_col from vntb2.bigint_col) USING vstb_deep TAGS (2);
 CREATE VTABLE vctb_deep_L3 (int_col from vntb_L3.int_col, bigint_col from vntb_L3.bigint_col) USING vstb_deep TAGS (3);
 CREATE VTABLE vctb_deep_L4 (int_col from vntb_L4.int_col, bigint_col from vntb_L4.bigint_col) USING vstb_deep TAGS (4);
-CREATE VTABLE vctb_deep_L5 (int_col from vntb_L5.int_col, bigint_col from vntb_L5.bigint_col) USING vstb_deep TAGS (5);
-SELECT '--- vstb_deep scan (3 children at depth 3/4/5) ---' AS test;
+SELECT '--- vstb_deep scan (3 children at depth 2/3/4) ---' AS test;
 SELECT * FROM vstb_deep ORDER BY ts, depth LIMIT 15;
 SELECT depth, COUNT(*) AS cnt, SUM(int_col) AS sum_int FROM vstb_deep GROUP BY depth ORDER BY depth;
 SELECT COUNT(*) FROM vstb_deep;
@@ -432,11 +432,11 @@ SELECT * FROM vntb_L5 ORDER BY int_col DESC LIMIT 3;
 -- 29. Depth exceeded: layer 6 should fail (max=5)
 -- ============================================================
 
-SELECT '=== 29. Layer 6 (depth=6, exceeds limit of 5) ===' AS test;
+SELECT '=== 29. Layer 6 creation should fail (depth exceeds limit of 5) ===' AS test;
 CREATE VTABLE vntb_L6 (ts timestamp, int_col int from vntb_L5.int_col);
-SELECT '--- query L6 (may fail due to depth limit in executor) ---' AS test;
-SELECT * FROM vntb_L6 ORDER BY ts LIMIT 3;
-SELECT COUNT(*) FROM vntb_L6;
+
+SELECT '=== 29a. vstb child referencing L5 should also fail (6th layer) ===' AS test;
+CREATE VTABLE vctb_deep_L5_fail (int_col from vntb_L5.int_col, bigint_col from vntb_L5.bigint_col) USING vstb_deep TAGS (5);
 
 -- ============================================================
 -- 29b. Single-column vtable chain
