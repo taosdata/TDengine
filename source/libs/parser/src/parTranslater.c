@@ -8062,6 +8062,16 @@ static int32_t translateExternalWindowColumnFunc(SNode** pNode, SNode* pSubquery
 
   pColIndexVal->notReserved = true;
   pColIndexVal->placeholderNo = colIndex;
+
+  SValueNode* extraValue = NULL;
+  QUERY_CHECK_CODE(nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&extraValue), lino, _exit);
+  extraValue->notReserved = true;
+  ((SValueNode*)extraValue)->node.resType = pColExpr->resType;
+  ((SValueNode*)extraValue)->isNull = true;
+
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)extraValue);
+  QUERY_CHECK_CODE(code, lino, _exit);
+
   code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pColIndexVal);
   QUERY_CHECK_CODE(code, lino, _exit);
 

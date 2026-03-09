@@ -915,7 +915,7 @@ int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset,
         return TSDB_CODE_INTERNAL_ERROR;
       }
       
-      if (IS_VAR_DATA_TYPE(pValue->type)) {
+      if (IS_VAR_DATA_TYPE(pValue->type) || pValue->type == TSDB_DATA_TYPE_DECIMAL) {
         // variable-length type: use pData pointer directly
         return colDataSetNItems(pResColData, offset, (const char *)pValue->pData, rows, 1, false);
       } else {

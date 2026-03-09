@@ -3707,6 +3707,13 @@ static int32_t extWinCheckMonotonicWstart(bool hasPrevStart, int64_t prevStart, 
   return TSDB_CODE_SUCCESS;
 }
 
+static void extWinDestroyExternalDataValue(void* ptr) {
+  SValue* pVal = (SValue*)ptr;
+  if (pVal != NULL && (IS_VAR_DATA_TYPE(pVal->type) || pVal->type == TSDB_DATA_TYPE_DECIMAL)) {
+    valueClearDatum(pVal, pVal->type);
+  }
+}
+
 static int32_t extWinBuildExternalWindowDataForRow(SSDataBlock* pBlock, int32_t numCols, int32_t row,
                                                    SArray** ppExternalData) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -3727,12 +3734,15 @@ static int32_t extWinBuildExternalWindowDataForRow(SSDataBlock* pBlock, int32_t 
     val.type = pColData->info.type;
 
     if (!colDataIsNull_s(pColData, row)) {
-      if (val.type == TSDB_DATA_TYPE_INT) {
-        val.val = *(int32_t*)colDataGetData(pColData, row);
-      } else if (val.type == TSDB_DATA_TYPE_BIGINT || val.type == TSDB_DATA_TYPE_TIMESTAMP) {
-        val.val = *(int64_t*)colDataGetData(pColData, row);
+      void* pData = colDataGetData(pColData, row);
+      if (IS_VAR_DATA_TYPE(val.type) || val.type == TSDB_DATA_TYPE_DECIMAL) {
+        int32_t datumLen = IS_VAR_DATA_TYPE(val.type) ? calcStrBytesByType(val.type, (char*)pData) : pColData->info.bytes;
+        void* pDataCopy = taosMemoryMalloc(datumLen);
+        TSDB_CHECK_NULL(pDataCopy, code, lino, _exit, terrno);
+        memcpy(pDataCopy, pData, datumLen);
+        valueSetDatum(&val, val.type, pDataCopy, datumLen);
       } else {
-        val.val = 0;
+        valueSetDatum(&val, val.type, pData, pColData->info.bytes);
       }
     }
 
@@ -3743,7 +3753,7 @@ static int32_t extWinBuildExternalWindowDataForRow(SSDataBlock* pBlock, int32_t 
 
 _exit:
   if (code) {
-    taosArrayDestroy(pExternalData);
+    taosArrayDestroyEx(pExternalData, extWinDestroyExternalDataValue);
   }
   return code;
 }
@@ -3833,7 +3843,7 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
     pRt->pStreamPesudoFuncVals = taosArrayInit(4, sizeof(SSTriggerCalcParam));
     TSDB_CHECK_NULL(pRt->pStreamPesudoFuncVals, code, lino, _exit, terrno);
   } else {
-    taosArrayClear(pRt->pStreamPesudoFuncVals);
+    taosArrayClearEx(pRt->pStreamPesudoFuncVals, tDestroySSTriggerCalcParam);
   }
   
   // Build trigger parameters from all test blocks.
@@ -3862,7 +3872,7 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
 
       code = extWinCheckMonotonicWstart(hasPrevStart, prevStart, param.wstart, row);
       if (code != TSDB_CODE_SUCCESS) {
-        taosArrayDestroy(param.pExternalWindowData);
+        tDestroySSTriggerCalcParam(&param);
         TAOS_CHECK_EXIT(code);
       }
 
@@ -3874,7 +3884,7 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
 
       void* pRet = taosArrayPush(pRt->pStreamPesudoFuncVals, &param);
       if (pRet == NULL) {
-        taosArrayDestroy(param.pExternalWindowData);
+        tDestroySSTriggerCalcParam(&param);
         TAOS_CHECK_EXIT(terrno);
       }
     }

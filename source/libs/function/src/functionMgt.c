@@ -956,7 +956,7 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
       }
     }
   } else if(FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN == t) {
-    SNode* pParamNode = nodesListGetNode(pParamNodes, 0);
+    SNode* pParamNode = nodesListGetNode(pParamNodes, 1);
     const SValue* pVal = fmGetExternalWindowColumnFuncVal(pStreamRuntimeInfo, ((SValueNode*)pParamNode)->placeholderNo);
     if (!pVal) {
       uError("failed to set stream pseudo func param val, NULL val for funcId: %d", funcId);
@@ -967,6 +967,7 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
     } else {
       code = nodesSetValueNodeValue((SValueNode*)pFirstParam, (void*)&pVal->val);
     }
+    ((SValueNode*)pFirstParam)->isNull = colDataIsNull_s(const SColumnInfoData *pColumnInfoData, uint32_t row) pVal->isNull;
     if (code != 0) {
       uError("failed to set value node value: %s", tstrerror(code));
       return code;
