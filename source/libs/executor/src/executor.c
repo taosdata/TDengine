@@ -307,10 +307,14 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
 
   int32_t subTaskNum = (int32_t)LIST_LENGTH(pSubplan->pSubQ);
   SArray* subEndPoints = taosArrayInit(subTaskNum, POINTER_BYTES);
+  SDownstreamSourceNode* pSource = NULL;
   for (int32_t i = 0; i < subTaskNum; ++i) {
     SNode* pVal = nodesListGetNode(pSubplan->pSubQ, i);
 
-    if (NULL == taosArrayPush(subEndPoints, &pVal)) {
+    TSDB_CHECK_CODE(nodesCloneNode(pVal, (SNode**)&pSource), lino, _error);
+
+    if (NULL == taosArrayPush(subEndPoints, &pSource)) {
+      nodesDestroyNode((SNode *)pSource);
       code = terrno;
       goto _error;
     }
