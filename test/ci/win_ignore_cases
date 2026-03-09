@@ -27,3 +27,18 @@ cases/17-DataSubscription/03-MQTT/test_mqtt_rb.py
 83-DocTest/rust.sh
 83-DocTest/go.sh
 83-DocTest/test_R.sh
+
+# Valgrind not supported in Windows CI
+cases/81-Tools/05-Valgrind/test_valgrind_basic1.py
+cases/81-Tools/05-Valgrind/test_valgrind_basic2.py
+cases/81-Tools/05-Valgrind/test_valgrind_basic3.py
+cases/81-Tools/05-Valgrind/test_valgrind_basic4.py
+cases/81-Tools/05-Valgrind/test_valgrind_checkerror1.py
+cases/81-Tools/05-Valgrind/test_valgrind_checkerror2.py
+cases/81-Tools/05-Valgrind/test_valgrind_checkerror3.py
+cases/81-Tools/05-Valgrind/test_valgrind_checkerror4.py
+cases/81-Tools/05-Valgrind/test_valgrind_checkerror5.py
+cases/81-Tools/05-Valgrind/test_valgrind_checkerror6.py
+cases/81-Tools/05-Valgrind/test_valgrind_checkerror7.py
+cases/81-Tools/05-Valgrind/test_valgrind_checkerror8.py
+cases/81-Tools/05-Valgrind/test_valgrind_udf.py
