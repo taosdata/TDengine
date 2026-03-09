@@ -314,7 +314,7 @@ static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
   if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 1000) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 20000) != 0) goto _OVER;
 
   uDebug("curl get request will sent, url:%s", url);
   code = curl_easy_perform(curl);
