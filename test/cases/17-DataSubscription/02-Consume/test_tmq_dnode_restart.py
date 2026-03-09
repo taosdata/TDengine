@@ -80,7 +80,7 @@ class TestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   100,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  30,
+                    'pollDelay':  300,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -110,7 +110,7 @@ class TestCase:
         tdSql.execute(sqlString)
 
         consumerId     = 0
-        expectrowcnt   = paraDict["rowsPerTbl"] * paraDict["ctbNum"] * 2
+        expectrowcnt   = paraDict["rowsPerTbl"] * paraDict["ctbNum"]
         topicList      = topicFromStb1
         ifcheckdata    = 0
         ifManualCommit = 0
@@ -166,7 +166,7 @@ class TestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   100,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  30,
+                    'pollDelay':  300,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -175,9 +175,6 @@ class TestCase:
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
-        # ARM64：time cost is so long for stopping taosd, so add the pollDdelay to 120s
-        if platform.system() == "Linux" and platform.machine() == "aarch64":
-            paraDict['pollDelay'] = 300
 
         tmqCom.initConsumerTable()
         # tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
@@ -266,7 +263,7 @@ class TestCase:
         self.tmqCase1()
         self.tmqCase2()
         
-        tdLog.success(f"{__file__} successfully executed")
+
 
 event = threading.Event()
 

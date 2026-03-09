@@ -323,7 +323,7 @@ static int32_t mndRetrieveScan(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     }
   }
 
-  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(RPC_MSG_USER(pReq), PRIV_SHOW_SCANS, PRIV_OBJ_DB, 0, _OVER);
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), PRIV_SHOW_SCANS, PRIV_OBJ_DB, 0, _OVER);
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_SCAN, pShow->pIter, (void **)&pScan);

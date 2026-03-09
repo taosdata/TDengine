@@ -5,7 +5,6 @@ slug: /developer-guide/connecting-to-tdengine
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import ConnJava from "../assets/resources/_connect_java.mdx";
 import ConnGo from "../assets/resources/_connect_go.mdx";
 import ConnRust from "../assets/resources/_connect_rust.mdx";
 import ConnNode from "../assets/resources/_connect_node.mdx";
@@ -84,7 +83,7 @@ If you are using Maven to manage your project, simply add the following dependen
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.8.0</version>
+  <version>3.8.1</version>
 </dependency>
 ```
 
@@ -140,22 +139,13 @@ If you are using Maven to manage your project, simply add the following dependen
 
 - **Installation Verification**
 
-<Tabs defaultValue="rest">
+<Tabs defaultValue="ws">
 <TabItem value="native" label="Native Connection">
 
 For native connections, it is necessary to verify that both the client driver and the Python connector itself are correctly installed. If the `taos` module can be successfully imported, then the client driver and Python connector are correctly installed. You can enter in the Python interactive Shell:
 
 ```python
 import taos
-```
-
-</TabItem>
-
-<TabItem  value="rest" label="REST Connection">
-For REST connections, you only need to verify if the `taosrest` module can be successfully imported. You can enter in the Python interactive Shell:
-
-```python
-import taosrest
 ```
 
 </TabItem>
@@ -302,7 +292,7 @@ There are many configuration options for connecting, so before establishing a co
 <TabItem label="Java" value="java">
 
 The parameters for establishing a connection with the Java connector are URL and Properties.  
-The JDBC URL format for TDengine is: `jdbc:[TAOS|TAOS-WS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`  
+The JDBC URL format for TDengine is: `jdbc:[TAOS|TAOS-WS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`  
 
 For detailed explanations of URL and Properties parameters and how to use them, see [URL specifications](../../tdengine-reference/client-libraries/java/#url-specification)
 
@@ -349,15 +339,6 @@ Native connection:
 - `cgoThread` specifies the number of cgo operations that can be executed concurrently, default is the number of system cores.
 - `cgoAsyncHandlerPoolSize` specifies the size of the async function handler, default is 10000.
 - `timezone` specifies the timezone used for the connection. Both SQL parsing and query results will be converted according to this timezone. Only IANA timezone formats are supported, and special characters need to be encoded. Taking the Shanghai timezone (`Asia/Shanghai`) as an example: `timezone=Asia%2FShanghai`.
-
-REST connection:
-
-- `disableCompression` whether to accept compressed data, default is true which means not accepting compressed data, set to false if data transmission uses gzip compression.
-- `readBufferSize` the size of the buffer for reading data, default is 4K (4096), this value can be increased appropriately when the query result data volume is large.
-- `token` the token used when connecting to cloud services.
-- `skipVerify` whether to skip certificate verification, default is false which means not skipping certificate verification, set to true if connecting to an insecure service.
-- `timezone` specifies the timezone used for the connection. Both SQL parsing and query results will be converted according to this timezone. Only IANA timezone formats are supported, and special characters need to be encoded. Taking the Shanghai timezone (`Asia/Shanghai`) as an example: `timezone=Asia%2FShanghai`.
-- `bearerToken` the token used for authentication.
 
 WebSocket connection:
 
@@ -431,6 +412,7 @@ Supported parameters are as follows:
 - `db`: Database to connect to.
 - `timezone`: Time zone, default is the local time zone.
 - `connTimeout`: Connection timeout, default is 1 minute.
+- `bearerToken`: Token for connecting to TDengine TSDB.
 
 Additional parameters supported for WebSocket connections:
 
@@ -479,7 +461,7 @@ Below are code examples for establishing WebSocket connections in various langua
 <TabItem label="Java" value="java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/WSConnectExample.java:main}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WSConnectExample.java:main}}
 ```
 
 </TabItem>
@@ -534,11 +516,6 @@ SQLAlchemy supports configuring multiple server addresses through the `hosts` pa
   <ConnCWebSocket />
 </TabItem>
 
-<TabItem label="REST API" value="rest">
-
-Not supported
-
-</TabItem>
 </Tabs>
 
 ### Native Connection
@@ -549,7 +526,7 @@ Below are examples of code for establishing native connections in various langua
 <TabItem label="Java" value="java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/JNIConnectExample.java:main}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/JNIConnectExample.java:main}}
 ```
 
 </TabItem>
@@ -595,72 +572,6 @@ Not supported
 <ConnC />
 
 </TabItem>
-
-<TabItem label="REST API" value="rest">
-
-Not supported
-
-</TabItem>
-</Tabs>
-
-### REST Connection
-
-Below are examples of code for establishing REST connections in various languages. It demonstrates how to connect to the TDengine database using a REST connection method. The entire process mainly involves establishing a database connection and handling exceptions.
-
-<Tabs defaultValue="java" groupId="lang">
-<TabItem label="Java" value="java">
-
-```java
-{{#include docs/examples/java/src/main/java/com/taos/example/RESTConnectExample.java:main}}
-```
-
-</TabItem>
-
-<TabItem label="Python" value="python">
-
-```python
-{{#include docs/examples/python/connect_rest_example.py:connect}}
-```
-
-</TabItem>
-
-<TabItem label="Go" value="go">
-
-```go
-{{#include docs/examples/go/connect/restexample/main.go}}
-```
-
-</TabItem>
-
-<TabItem label="Rust" value="rust">
-
-Not supported
-
-</TabItem>
-
-<TabItem label="Node.js" value="node">
-
-Not supported
-
-</TabItem>
-
-<TabItem label="C#" value="csharp">
-
-Not supported
-
-</TabItem>
-
-<TabItem label="C" value="c">
-
-Not supported
-
-</TabItem>
-
-<TabItem label="REST API" value="rest">
-
-Access TDengine using the REST API method, where the application independently establishes an HTTP connection.
-
-</TabItem>
 </Tabs>
 
 :::tip
@@ -681,7 +592,7 @@ Below are code examples of connection pool support for various language connecto
 Example usage is as follows:
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/HikariDemo.java:connection_pool}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/HikariDemo.java:connection_pool}}
 ```
 
 > After obtaining a connection through HikariDataSource.getConnection(), you need to call the close() method after use, which actually does not close the connection but returns it to the pool.
@@ -692,7 +603,7 @@ Example usage is as follows:
 Example usage is as follows:
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/DruidDemo.java:connection_pool}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/DruidDemo.java:connection_pool}}
 ```
 
 > For more issues about using Druid, please see the [official documentation](https://github.com/alibaba/druid).

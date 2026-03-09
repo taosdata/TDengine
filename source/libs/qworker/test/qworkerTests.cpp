@@ -290,7 +290,8 @@ int qwtRpcSendResponse(const SRpcMsg *pRsp) {
 }
 
 int32_t qwtCreateExecTask(void *tsdb, int32_t vgId, uint64_t taskId, struct SSubplan *pPlan, qTaskInfo_t *pTaskInfo,
-                          DataSinkHandle *handle, SArray* subEndPoints) {
+                          DataSinkHandle *handle, int8_t compressResult, char* sql,
+                        EOPTR_EXEC_MODEL model, SArray** subEndPoints) {
   qwtTestSinkBlockNum = 0;
   qwtTestSinkMaxBlockNum = taosRand() % 100 + 1;
   qwtTestSinkQueryEnd = false;

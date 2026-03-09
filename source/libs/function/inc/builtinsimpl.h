@@ -112,11 +112,10 @@ int32_t diffFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
 int32_t diffFunction(SqlFunctionCtx* pCtx);
 int32_t diffFunctionByRow(SArray* pCtx);
 
-bool    getLagFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
-int32_t lagFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
-int32_t lagFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
-int32_t lagFunction(SqlFunctionCtx* pCtx);
-int32_t lagFunctionByRow(SArray* pCtx);
+bool    getFillforwardFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t fillforwardFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
+int32_t fillforwardFunction(SqlFunctionCtx* pCtx);
+int32_t fillforwardFunctionByRow(SArray* pCtx);
 
 bool    getForecastConfEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
 bool    getCorrFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
@@ -127,6 +126,7 @@ int32_t corrScalarFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam*
 int32_t corrPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t getCorrInfoSize();
 int32_t corrFuncMerge(SqlFunctionCtx* pCtx);
+int32_t hasNullFunction(SqlFunctionCtx* pCtx);
 
 bool    getDerivativeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t derivativeFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
@@ -241,6 +241,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx);
 int32_t twaFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool getHasNullFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 
 int32_t blockDistSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t blockDistFunction(SqlFunctionCtx* pCtx);

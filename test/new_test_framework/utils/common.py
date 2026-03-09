@@ -13,6 +13,7 @@
 
 import random
 import string
+import concurrent
 import requests
 import time
 import socket
@@ -2974,16 +2975,33 @@ class TDCom:
         os.system(taosCmd)
         return self.query_result_file
 
-    def execute_query_file(self, inputfile):
+    def run_sql(self, sql, db):
+        tdsql = self.newTdSql()
+        if db:
+            try:
+                tdsql.execute(f"USE {db};")
+            except Exception as e:
+                tdLog.error(f"USE数据库失败: {db}\n{e}")
+        try:
+            tdsql.execute_ignore_error(sql)
+        except Exception as e:
+            tdLog.error(f"SQL执行失败: {sql}\n{e}")
+
+    def execute_query_file(self, inputfile, max_workers=8):
         if not os.path.exists(inputfile):
             tdLog.exit(f"Input file '{inputfile}' does not exist.")
-        else:
-            cfgPath = self.getClientCfgPath()
-            tdLog.info(f"Executing query file: {inputfile}")
-            if platform.system().lower() == "windows":
-                os.system(f"taos -c {cfgPath} -f {inputfile} > nul 2>&1")
-            else:
-                os.system(f"taos -c {cfgPath} -f {inputfile} > /dev/null 2>&1")
+            return
+
+        tdLog.info(f"Executing query file: {inputfile}")
+
+        with open(inputfile, "r") as f:
+            lines = [line.strip() for line in f if line.strip()]
+        # 假设第一行是 use 语句
+        db = lines[0].split()[1].rstrip(";")
+        sql_lines = [line.replace("\\G", "").rstrip(";") + ";" for line in lines[1:]]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            executor.map(lambda sql: self.run_sql(sql, db), sql_lines)
 
     def generate_query_result(self, inputfile, test_case):
         if not os.path.exists(inputfile):
@@ -3017,7 +3035,14 @@ class TDCom:
                 os.system(f"rm -f {self.query_result_file}.raw")
             else:
                 os.system(
-                    f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' | sed 's/([0-9]\+\.[0-9]\+s)//g' | sed 's/cost=[0-9]\+\.[0-9]\+\.\.[0-9]\+\.[0-9]\+//g' | sed 's/Planning Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/Execution Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/max_row_task=[0-9]\+, //g' > {self.query_result_file}"
+                    f"taos -c {cfgPath} -f {inputfile} "
+                    "| grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' "
+                    "| sed -E 's/[[:space:]]*\\([0-9]+\\.[0-9]+s\\)/ /g' "
+                    "| sed -E 's/cost=[0-9]+\\.[0-9]+\\.\\.[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/Planning Time: [0-9]+\\.[0-9]+ ms//g' "
+                    "| sed -E 's/Execution Time: [0-9]+\\.[0-9]+ ms//g' "
+                    "| sed -E 's/max_row_task=[0-9]+, //g' "
+                    f"> {self.query_result_file}"
                 )
             return self.query_result_file
 

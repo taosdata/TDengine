@@ -1089,4 +1089,21 @@ TEST(testCase, function_fqdn) {
 
 }
 
+TEST(testCase, function_taosTimeTruncate) {
+  int64_t ts = 1633450000000;
+  SInterval interval = {};
+  interval.timezone = NULL;
+  interval.intervalUnit = 'n';
+  interval.slidingUnit = 'n';
+  interval.offsetUnit = 0;
+  interval.precision = 0;
+  interval.interval = 11;
+  interval.sliding = 11;
+  interval.offset = 24105600000;
+  interval.timeRange.skey = INT64_MIN;
+  interval.timeRange.ekey = INT64_MAX;
+  int64_t res = taosTimeTruncate(ts, &interval);
+  ASSERT_LE(res, 1633450000000);
+}
+
 #pragma GCC diagnostic pop

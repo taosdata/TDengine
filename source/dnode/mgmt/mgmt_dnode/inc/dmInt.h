@@ -74,6 +74,7 @@ int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg);
 int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg);
 int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessAlterEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t dmProcessAlterKeyExpirationReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmVerifyAndInitEncryptionKeys(void);
 
 int32_t dmProcessReloadTlsConfig(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);

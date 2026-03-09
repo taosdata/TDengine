@@ -56,6 +56,8 @@ int32_t mndPerfsInitMeta(SHashObj *hash) {
   for (int32_t i = 0; i < size; ++i) {
     tstrncpy(meta.tbName, pSysDbTableMeta[i].name, sizeof(meta.tbName));
     meta.numOfColumns = pSysDbTableMeta[i].colNum;
+    meta.sysInfo = pSysDbTableMeta[i].sysInfo;
+    meta.privCat = pSysDbTableMeta[i].privCat;
 
     TAOS_CHECK_RETURN(mndInitPerfsTableSchema(pSysDbTableMeta[i].schema, pSysDbTableMeta[i].colNum, &meta.pSchemas));
 

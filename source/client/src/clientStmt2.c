@@ -667,6 +667,7 @@ static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
   if (pStmt->sql.fixValueTags) {
     pStmt->sql.fixValueTags = false;
     tdDestroySVCreateTbReq(pStmt->sql.fixValueTbReq);
+    taosMemoryFreeClear(pStmt->sql.fixValueTbReq);
     pStmt->sql.fixValueTbReq = NULL;
   }
 
@@ -1540,12 +1541,20 @@ int stmtCheckTags2(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_SETTAGS));
 
-  if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 &&
-      STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
-    pStmt->bInfo.needParse = false;
+  if (pStmt->sql.fixValueTags) {
+    STMT2_TLOG_E("tags are fixed, use one createTbReq");
+    STMT_ERR_RET(cloneSVreateTbReq(pStmt->sql.fixValueTbReq, pCreateTbReq));
+    if ((*pCreateTbReq)->name) {
+      taosMemoryFree((*pCreateTbReq)->name);
+    }
+    (*pCreateTbReq)->name = taosStrdup(pStmt->bInfo.tbName);
+    int32_t vgId = -1;
+    STMT_ERR_RET(stmtTryAddTableVgroupInfo(pStmt, &vgId));
+    (*pCreateTbReq)->uid = vgId;
+    return TSDB_CODE_SUCCESS;
   }
-  STMT_ERR_RET(stmtCreateRequest(pStmt));
 
+  STMT_ERR_RET(stmtCreateRequest(pStmt));
   if (pStmt->bInfo.needParse) {
     STMT_ERR_RET(stmtParseSql(pStmt));
     if (!pStmt->sql.autoCreateTbl) {
@@ -1575,18 +1584,6 @@ int stmtCheckTags2(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (pStmt->sql.fixValueTags) {
-    STMT2_TLOG_E("tags are fixed, use one createTbReq");
-    STMT_ERR_RET(cloneSVreateTbReq(pStmt->sql.fixValueTbReq, pCreateTbReq));
-    if ((*pCreateTbReq)->name) {
-      taosMemoryFree((*pCreateTbReq)->name);
-    }
-    (*pCreateTbReq)->name = taosStrdup(pStmt->bInfo.tbName);
-    int32_t vgId = -1;
-    STMT_ERR_RET(stmtTryAddTableVgroupInfo(pStmt, &vgId));
-    (*pCreateTbReq)->uid = vgId;
-    return TSDB_CODE_SUCCESS;
-  }
 
   if ((*pDataBlock)->pData->pCreateTbReq) {
     STMT2_TLOG_E("tags are fixed, set createTbReq first time");
@@ -1594,6 +1591,11 @@ int stmtCheckTags2(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
     STMT_ERR_RET(cloneSVreateTbReq((*pDataBlock)->pData->pCreateTbReq, &pStmt->sql.fixValueTbReq));
     STMT_ERR_RET(cloneSVreateTbReq(pStmt->sql.fixValueTbReq, pCreateTbReq));
     (*pCreateTbReq)->uid = (*pDataBlock)->pMeta->vgId;
+
+    // destroy the createTbReq in the data block
+    tdDestroySVCreateTbReq((*pDataBlock)->pData->pCreateTbReq);
+    taosMemoryFreeClear((*pDataBlock)->pData->pCreateTbReq);
+    (*pDataBlock)->pData->pCreateTbReq = NULL;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1904,6 +1906,91 @@ static int32_t stmtRestoreQueryFields(STscStmt2* pStmt) {
 }
 */
 
+/**
+ * Fetch metadata for query statement after parameter binding.
+ * This function collects metadata requirements from the query (after binding),
+ * fetches metadata synchronously from catalog, and returns it for parsing.
+ *
+ * Note: We fetch metadata on every bind because:
+ * 1. Parameter values in WHERE conditions (e.g., dataname IN (?,?)) may change
+ * 2. Different parameter values may require different vgroup lists for virtual tables
+ * 3. Metadata requirements can only be determined after parameters are bound
+ *
+ * @param pStmt Statement handle
+ * @param pCxt Parse context (must have catalog handle initialized)
+ * @param pMetaData Output: Fetched metadata (caller responsible for cleanup)
+ * @return TSDB_CODE_SUCCESS on success, error code otherwise
+ */
+// Callback parameter structure for synchronous catalog metadata fetch
+typedef struct {
+  SMetaData* pRsp;
+  int32_t    code;
+  tsem_t     sem;
+} SCatalogSyncCbParam;
+
+// Callback function for catalogAsyncGetAllMeta to make it synchronous
+static void stmtCatalogSyncGetAllMetaCb(SMetaData* pResultMeta, void* param, int32_t code) {
+  SCatalogSyncCbParam* pCbParam = (SCatalogSyncCbParam*)param;
+  if (TSDB_CODE_SUCCESS == code && pResultMeta) {
+    *pCbParam->pRsp = *pResultMeta;
+    TAOS_MEMSET(pResultMeta, 0, sizeof(SMetaData));  // Clear to avoid double free
+  }
+  pCbParam->code = code;
+  if (tsem_post(&pCbParam->sem) != 0) {
+    tscError("failed to post semaphore");
+  }
+}
+
+static int32_t stmtFetchMetadataForQuery(STscStmt2* pStmt, SParseContext* pCxt, SMetaData* pMetaData) {
+  int32_t          code = 0;
+  SParseMetaCache  metaCache = {0};
+  SCatalogReq      catalogReq = {0};
+  SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
+                           .requestId = pCxt->requestId,
+                           .requestObjRefId = pCxt->requestRid,
+                           .mgmtEps = pCxt->mgmtEpSet};
+
+  TAOS_MEMSET(pMetaData, 0, sizeof(SMetaData));
+
+  code = collectMetaKey(pCxt, pStmt->sql.pQuery, &metaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCatalogReq(&metaCache, &catalogReq);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    SCatalogSyncCbParam cbParam = {.pRsp = pMetaData, .code = TSDB_CODE_SUCCESS};
+    if (tsem_init(&cbParam.sem, 0, 0) != 0) {
+      code = TSDB_CODE_CTG_INTERNAL_ERROR;
+    } else {
+      code = catalogAsyncGetAllMeta(pCxt->pCatalog, &conn, &catalogReq, stmtCatalogSyncGetAllMetaCb, &cbParam, NULL);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tsem_wait(&cbParam.sem);
+        if (code != TSDB_CODE_SUCCESS) {
+          catalogFreeMetaData(pMetaData);
+          TAOS_MEMSET(pMetaData, 0, sizeof(SMetaData));
+        } else {
+          code = cbParam.code;
+        }
+      }
+
+      if (tsem_destroy(&cbParam.sem) != 0) {
+        tscError("failed to destroy semaphore");
+        code = TSDB_CODE_CTG_INTERNAL_ERROR;
+        catalogFreeMetaData(pMetaData);
+        TAOS_MEMSET(pMetaData, 0, sizeof(SMetaData));
+      }
+    }
+  }
+
+  destoryParseMetaCache(&metaCache, false);
+  destoryCatalogReq(&catalogReq);
+
+  if (TSDB_CODE_SUCCESS != code) {
+    catalogFreeMetaData(pMetaData);
+  }
+
+  return code;
+}
+
 int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCreateTbReq* pCreateTbReq) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
   int32_t    code = 0;
@@ -1959,8 +2046,27 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
     if (code != TSDB_CODE_SUCCESS) {
       goto cleanup_root;
     }
-    code = qStmtParseQuerySql(&ctx, pStmt->sql.pQuery);
-    if (code != TSDB_CODE_SUCCESS) {
+
+    // Fetch metadata for query(vtable need)
+    SMetaData metaData = {0};
+    code = stmtFetchMetadataForQuery(pStmt, &ctx, &metaData);
+    if (TSDB_CODE_SUCCESS != code) {
+      goto cleanup_root;
+    }
+
+    code = qStmtParseQuerySql(&ctx, pStmt->sql.pQuery, &metaData);
+    if (TSDB_CODE_SUCCESS == code) {
+      // Copy metaData to pRequest->parseMeta for potential future use
+      // Similar to doAsyncQueryFromAnalyse when parseOnly is true
+      (void)memcpy(&pStmt->exec.pRequest->parseMeta, &metaData, sizeof(SMetaData));
+      (void)memset(&metaData, 0, sizeof(SMetaData));  // Clear to avoid double free
+    } else {
+      // Clean up metaData on failure - free all arrays
+      if (metaData.pVStbRefDbs) {
+        taosArrayDestroy(metaData.pVStbRefDbs);
+        metaData.pVStbRefDbs = NULL;
+      }
+      // Note: Other fields in metaData are managed by catalog module if ctgFree is true
       goto cleanup_root;
     }
 
@@ -2277,6 +2383,7 @@ static int32_t createParseContext(const SRequestObj* pRequest, SParseContext** p
                            .pEffectiveUser = pRequest->effectiveUser,
                            .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
                            .enableSysInfo = pTscObj->sysInfo,
+                           .privInfo = pWrapper->pParseCtx ? pWrapper->pParseCtx->privInfo : 0,
                            .async = true,
                            .svrVer = pTscObj->sVer,
                            .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
@@ -2471,6 +2578,14 @@ int stmtClose2(TAOS_STMT2* stmt) {
     }
   }
 
+  /* On macOS dispatch_semaphore_dispose requires value >= orig (1). After tsem_wait above value is 0; post once before
+   * destroy. */
+  if (pStmt->options.asyncExecFn) {
+    if (tsem_post(&pStmt->asyncExecSem) != 0) {
+      STMT2_ELOG_E("fail to post asyncExecSem");
+    }
+  }
+
   STMT2_DLOG("stbInterlaceMode:%d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
              ", parseSqlNum=>%" PRId64 ", pStmt->stat.bindDataNum=>%" PRId64
              ", settbnameAPI:%u, bindAPI:%u, addbatchAPI:%u, execAPI:%u"
@@ -2498,7 +2613,7 @@ int stmtClose2(TAOS_STMT2* stmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-const char* stmtErrstr2(TAOS_STMT2* stmt) {
+const char* stmt2Errstr(TAOS_STMT2* stmt) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
   if (stmt == NULL || NULL == pStmt->exec.pRequest) {

@@ -23,7 +23,6 @@
 
 #define SHOW_STEP_SIZE            100
 #define SHOW_COLS_STEP_SIZE       4096
-#define SHOW_PRIVILEGES_STEP_SIZE 2048
 
 static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq);
 static void      mndFreeShowObj(SShowObj *pShow);
@@ -315,9 +314,11 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   }
 
   // expend capacity for ins_columns and privileges
-  if (pShow->type == TSDB_MGMT_TABLE_COL || TSDB_MGMT_TABLE_PRIVILEGES ||
-      pShow->type == TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES || pShow->type == TSDB_MGMT_TABLE_ROLE_PRIVILEGES) {
+  if (pShow->type == TSDB_MGMT_TABLE_COL) {
     rowsToRead = SHOW_COLS_STEP_SIZE;
+  } else if (pShow->type == TSDB_MGMT_TABLE_PRIVILEGES || pShow->type == TSDB_MGMT_TABLE_ROLE_PRIVILEGES ||
+             pShow->type == TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES) {
+    rowsToRead = SHOW_PRIVILEGES_STEP_SIZE;
   }
   ShowRetrieveFp retrieveFp = pMgmt->retrieveFps[pShow->type];
   if (retrieveFp == NULL) {
@@ -338,6 +339,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
       (code = mndCheckShowPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pShow->type, retrieveReq.db)) != 0) {
     TAOS_RETURN(code);
   }
+#if 0
   if (pShow->type == TSDB_MGMT_TABLE_USER_FULL) {
     if (strcmp(RPC_MSG_USER(pReq), "root") != 0) {
       mError("The operation is not permitted, user:%s, pShow->type:%d", RPC_MSG_USER(pReq), pShow->type);
@@ -345,6 +347,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
       TAOS_RETURN(code);
     }
   }
+#endif
 
   int32_t numOfCols = pShow->pMeta->numOfColumns;
 

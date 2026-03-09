@@ -1690,7 +1690,7 @@ void syncHbTimerDataFree(SSyncHbTimerData* pData) { taosMemoryFree(pData); }
 void syncNodeClose(SSyncNode* pSyncNode) {
   int32_t code = 0;
   if (pSyncNode == NULL) return;
-  sNInfo(pSyncNode, "sync close, node:%p", pSyncNode);
+  sNInfo(pSyncNode, "sync node close, node:%p", pSyncNode);
 
   syncRespCleanRsp(pSyncNode->pSyncRespMgr);
 
@@ -1780,7 +1780,11 @@ int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode) {
   int32_t code = 0;
   (void)atomic_add_fetch_64(&pSyncNode->pingTimerLogicClockUser, 1);
   bool stop = taosTmrStop(pSyncNode->pPingTimer);
-  sDebug("vgId:%d, stop ping timer, stop:%d", pSyncNode->vgId, stop);
+  if (!stop) {
+    sWarn("vgId:%d, failed to stop ping timer, maybe it's already stopped, stop:%d", pSyncNode->vgId, stop);
+  } else {
+    sDebug("vgId:%d, stop ping timer, stop:%d", pSyncNode->vgId, stop);
+  }
   pSyncNode->pPingTimer = NULL;
   return code;
 }

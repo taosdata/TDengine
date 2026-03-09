@@ -14,7 +14,7 @@ from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 import os
 from vtable_util import VtableQueryUtil
 
-class TestVTableQuerySameDBStbProject:
+class TestVTableQuerySameDBStbAgg:
 
     def setup_class(cls):
         vtbUtil = VtableQueryUtil()

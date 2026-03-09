@@ -33,16 +33,31 @@ char *gJoinTypeStr[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
 static int32_t qExplainGenerateResNode(SSubplan *plan, SPhysiNode *pNode, SExplainGroup *group, SExplainResNode **pResNode);
 static int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t *level, bool singleChannel);
 
-char *qExplainGetDynQryCtrlType(EDynQueryType type) {
-  switch (type) {
+/*
+ * Convert dynamic-query control type to a printable explain label.
+ *
+ * @param pDyn Dynamic-query control physical node, can be NULL.
+ *
+ * @return Static string for explain output, or "unknown task" when type is unknown.
+ */
+char* qExplainGetDynQryCtrlType(const SDynQueryCtrlPhysiNode* pDyn) {
+  if (NULL == pDyn) {
+    return "unknown task";
+  }
+
+  switch (pDyn->qType) {
     case DYN_QTYPE_STB_HASH:
       return "STable Join";
     case DYN_QTYPE_VTB_SCAN:
       return "Virtual Stable Scan";
     case DYN_QTYPE_VTB_WINDOW:
       return "Virtual Table Window";
+    case DYN_QTYPE_VTB_INTERVAL:
+      return "Virtual Stable Interval";
     case DYN_QTYPE_VTB_AGG:
-      return "Virtual Table Agg";
+      return "Virtual Stable Agg";
+    case DYN_QTYPE_VTB_TS_SCAN:
+      return "Virtual Stable Ts Scan";
     default:
       break;
   }
@@ -1972,7 +1987,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
     }
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:{
       SDynQueryCtrlPhysiNode *pDyn = (SDynQueryCtrlPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_DYN_QRY_CTRL_FORMAT, qExplainGetDynQryCtrlType(pDyn->qType));
+      EXPLAIN_ROW_NEW(level, EXPLAIN_DYN_QRY_CTRL_FORMAT, qExplainGetDynQryCtrlType(pDyn));
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
@@ -1995,6 +2010,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
           EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
           break;
         }
+        case DYN_QTYPE_VTB_INTERVAL:
         case DYN_QTYPE_VTB_AGG: {
           EXPLAIN_ROW_APPEND(EXPLAIN_HAS_PARTITION_FORMAT, pDyn->vtbScan.hasPartition);
           EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
@@ -2006,6 +2022,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
           EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
           break;
         }
+        case DYN_QTYPE_VTB_TS_SCAN:
         case DYN_QTYPE_VTB_SCAN: {
           EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT, pDyn->vtbScan.pScanCols->length);
           EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
@@ -2353,8 +2370,10 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
     QRY_ERR_RET(terrno);
   }
 
-  for (int32_t i = 0; i < levelNum; ++i) {
-    plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, i);
+  int32_t i = 0;
+  SNode*  levelNode = NULL;
+  FOREACH(levelNode, pDag->pSubplans) {
+    plans = (SNodeListNode *)levelNode;
     if (NULL == plans) {
       qError("empty level plan, level:%d", i);
       QRY_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -2367,11 +2386,14 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
     }
 
     SSubplan *plan = NULL;
-    for (int32_t n = 0; n < taskNum; ++n) {
-      plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
+    int32_t   n = 0;
+    SNode*    taskNode = NULL;
+    FOREACH(taskNode, plans->pNodeList) {
+      plan = (SSubplan *)taskNode;
       pGroup = taosHashGet(pCtx->groupHash, &plan->id.groupId, sizeof(plan->id.groupId));
       if (pGroup) {
         ++pGroup->nodeNum;
+        ++n;
         continue;
       }
 
@@ -2383,6 +2405,7 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
         qError("taosHashPut to explainGroupHash failed, taskIdx:%d", n);
         QRY_ERR_JRET(terrno);
       }
+      ++n;
     }
 
     if (0 == i) {
@@ -2395,6 +2418,7 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
     }
 
     qDebug("level %d group handled, taskNum:%d", i, taskNum);
+    ++i;
   }
 
   pCtx->groupNum = taosHashGetSize(pCtx->groupHash);

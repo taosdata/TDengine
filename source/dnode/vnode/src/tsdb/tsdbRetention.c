@@ -20,7 +20,7 @@
 #include "vnd.h"
 #include "tsdbInt.h"
 
-extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, ETsdbOpType type);
+extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, ETsdbOpType type, bool force);
 
 // tsdbRetentionMonitor.c
 extern int32_t tsdbAddRetentionMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId, int64_t fileSize);
@@ -381,7 +381,7 @@ int32_t tsdbRetention(void *arg) {
   if (pTsdb->bgTaskDisabled) {
     tsdbInfo("vgId:%d, background task is disabled, skip retention", TD_VID(pTsdb->pVnode));
     (void)taosThreadMutexUnlock(&pTsdb->mutex);
-    return 0;
+    goto _exit;
   }
 
   // set flag and copy

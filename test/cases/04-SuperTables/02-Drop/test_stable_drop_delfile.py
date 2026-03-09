@@ -170,5 +170,5 @@ class TestDeleteCheck:
 
         
     # stop
-        tdLog.success("%s successfully executed" % __file__)
+
 

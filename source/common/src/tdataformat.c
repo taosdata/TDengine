@@ -5199,7 +5199,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
           if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL) {
             if (!pSchemaExt) {
               uError("stmt2 decimal64 type without ext schema info, cannot parse decimal values");
-              code = TSDB_CODE_PAR_INTERNAL_ERROR;
+              code = TSDB_CODE_DECIMAL_PARSE_ERROR;
               goto _exit;
             }
             uint8_t precision = 0, scale = 0;
@@ -5221,7 +5221,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
           } else if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL64) {
             if (!pSchemaExt) {
               uError("stmt2 decimal128 type without ext schema info, cannot parse decimal values");
-              code = TSDB_CODE_PAR_INTERNAL_ERROR;
+              code = TSDB_CODE_DECIMAL_PARSE_ERROR;
               goto _exit;
             }
             uint8_t precision = 0, scale = 0;

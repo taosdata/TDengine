@@ -127,17 +127,38 @@ typedef struct SParseContext {
   bool             isAudit;
   bool             nodeOffline;
   uint8_t          stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
-  const char*      svrVer;
-  SArray*          pTableMetaPos;    // sql table pos => catalog data pos
-  SArray*          pTableVgroupPos;  // sql table pos => catalog data pos
-  int64_t          allocatorId;
-  parseSqlFn       parseSqlFp;
-  void*            parseSqlParam;
   int8_t           biMode;
-  SArray*          pSubMetaList;
-  setQueryFn       setQueryFp;
-  timezone_t       timezone;
-  void            *charsetCxt;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t hasPrivCols : 1;  // user has priv columns
+      uint8_t hasMaskCols : 1;  // user has mask columns
+      uint8_t reserved : 6;     // reserved bits for future use
+    };
+  };
+  union {
+    uint16_t privInfo;
+    struct {
+      uint16_t privLevel : 3;  // user privilege level
+      uint16_t privInfoBasic : 1;
+      uint16_t privInfoPrivileged : 1;
+      uint16_t privInfoAudit : 1;
+      uint16_t privInfoSec : 1;
+      uint16_t privPerfBasic : 1;
+      uint16_t privPerfPrivileged : 1;
+      uint16_t reserved1 : 7;
+    };
+  };
+  const char* svrVer;
+  SArray*     pTableMetaPos;    // sql table pos => catalog data pos
+  SArray*     pTableVgroupPos;  // sql table pos => catalog data pos
+  int64_t     allocatorId;
+  parseSqlFn  parseSqlFp;
+  void*       parseSqlParam;
+  SArray*     pSubMetaList;
+  setQueryFn  setQueryFp;
+  timezone_t  timezone;
+  void*       charsetCxt;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
@@ -184,7 +205,7 @@ STableMeta* qGetTableMetaInDataBlock(STableDataCxt* pDataBlock);
 int32_t     qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData);
 
 int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx, void *charsetCxt);
-int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery);
+int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery, SMetaData* pMetaData);
 int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
                               STSchema** pTSchema, SBindInfo* pBindInfos, void* charsetCxt);
 int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt);
@@ -241,6 +262,29 @@ int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray);
 int32_t serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap, SArray** pOut);
 int32_t serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap, SArray** pOut);
 void    destoryCatalogReq(SCatalogReq* pCatalogReq);
+typedef struct SParseMetaCache {
+  SHashObj* pTableMeta;    // key is tbFName, element is STableMeta*
+  SHashObj* pDbVgroup;     // key is dbFName, element is SArray<SVgroupInfo>*
+  SHashObj* pTableVgroup;  // key is tbFName, element is SVgroupInfo*
+  SHashObj* pDbCfg;        // key is tbFName, element is SDbCfgInfo*
+  SHashObj* pDbInfo;       // key is tbFName, element is SDbInfo*
+  SHashObj* pUserAuth;     // key is SUserAuthInfo serialized string, element is bool
+  SHashObj* pUdf;          // key is funcName, element is SFuncInfo*
+  SHashObj* pTableIndex;   // key is tbFName, element is SArray<STableIndexInfo>*
+  SHashObj* pTableCfg;     // key is tbFName, element is STableCfg*
+  SHashObj* pViews;        // key is viewFName, element is SViewMeta*
+  SHashObj* pTableTSMAs;   // key is tbFName, elements are SArray<STableTSMAInfo*>
+  SHashObj* pTSMAs;        // key is tsmaFName, elements are STableTSMAInfo*
+  SHashObj* pTableName;    // key is tbFUid, elements is STableMeta*(append with tbName)
+  SHashObj* pVStbRefDbs;   // key is tbFName, element is SArray<SVStbRefDbsRsp*>
+  SArray*   pDnodes;       // element is SDNodeAddr
+  bool      dnodeRequired;
+  bool      forceFetchViewMeta;
+} SParseMetaCache;
+
+int32_t collectMetaKey(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache);
+int32_t buildCatalogReq(SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq);
+void    destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request);
 bool    isPrimaryKeyImpl(SNode* pExpr);
 int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
                                   SStbInterlaceInfo* pBuildInfo);

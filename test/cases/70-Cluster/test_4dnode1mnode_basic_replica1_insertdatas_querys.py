@@ -190,5 +190,5 @@ class Test4dnode1mnodeBasicReplica1InsertdatasQuerys:
         writing.join()
         reading.join()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

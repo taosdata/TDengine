@@ -143,6 +143,9 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pFill->pWStartTs, order, walker, pContext);
       }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pFill->pSurroundingTime, order, walker, pContext);
+      }
       break;
     }
     case QUERY_NODE_RAW_EXPR:
@@ -202,7 +205,7 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
     }
     case QUERY_NODE_ANOMALY_WINDOW: {
       SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pNode;
-      res = walkExpr(pAnomaly->pExpr, order, walker, pContext);
+      res = walkExprs(pAnomaly->pExpr, order, walker, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pAnomaly->pCol, order, walker, pContext);
       }
@@ -222,6 +225,11 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
     case QUERY_NODE_STREAM_TRIGGER_OPTIONS: {
       SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pNode;
       res = walkExpr(pOptions->pPreFilter, order, walker, pContext);
+      break;
+    }
+    case QUERY_NODE_TRUE_FOR: {
+      STrueForNode* pTrueFor = (STrueForNode*)pNode;
+      res = walkExpr(pTrueFor->pDuration, order, walker, pContext);
       break;
     }
     default:
@@ -426,6 +434,10 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       if (DEAL_RES_ERROR!= res && DEAL_RES_END!= res) {
         res = rewriteExpr(&(pFill->pTimeRange), order, rewriter, pContext);
       }
+      if (DEAL_RES_ERROR!= res && DEAL_RES_END!= res) {
+        res = rewriteExpr(&(pFill->pSurroundingTime), order, rewriter,
+                          pContext);
+      }
       break;
     }
     case QUERY_NODE_RAW_EXPR:
@@ -485,7 +497,7 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     }
     case QUERY_NODE_ANOMALY_WINDOW: {
       SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pNode;
-      res = rewriteExpr(&pAnomaly->pExpr, order, rewriter, pContext);
+      res = rewriteExprs(pAnomaly->pExpr, order, rewriter, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pAnomaly->pCol, order, rewriter, pContext);
       }
@@ -510,6 +522,11 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pTimeRange->pEnd, order, rewriter, pContext);
       }
+      break;
+    }
+    case QUERY_NODE_TRUE_FOR: {
+      STrueForNode* pTrueFor = (STrueForNode*)pNode;
+      res = rewriteExpr(&pTrueFor->pDuration, order, rewriter, pContext);
       break;
     }
 

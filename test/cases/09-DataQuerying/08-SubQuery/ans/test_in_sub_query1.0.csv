@@ -3154,19 +3154,19 @@ taos> select sum(f1) IN (select f1 from tbb), sum(f1) IN (select f1 from tbb) fr
 
 taos> select sum(f1) IN (select f1 from tb1), * from tb1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select sum(f1) IN (select f1 from tb1 limit 0), * from tb1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select sum(f1) IN (select null from tb1), * from tb1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select sum(f1) IN (1, null), * from tb1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select sum(f1) IN (select f1 from tbb), * from tb1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select case when sum(f1) IN (select f1 from tb1) then 1 else 2 end, sum(f1) from tb1 group by f1;
  case when sum(f1) in (select f1 from tb1) then 1 else 2 end |        sum(f1)        |
 ======================================================================================
@@ -6704,19 +6704,19 @@ taos> select sum(f1) NOT IN (select f1 from tbb), sum(f1) NOT IN (select f1 from
 
 taos> select sum(f1) NOT IN (select f1 from tb1), * from tb1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select sum(f1) NOT IN (select f1 from tb1 limit 0), * from tb1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select sum(f1) NOT IN (select null from tb1), * from tb1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select sum(f1) NOT IN (1, null), * from tb1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select sum(f1) NOT IN (select f1 from tbb), * from tb1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select case when sum(f1) NOT IN (select f1 from tb1) then 1 else 2 end, sum(f1) from tb1 group by f1;
  case when sum(f1) not in (select f1 from tb1) then 1 else 2 end |        sum(f1)        |
 ==========================================================================================
@@ -12014,19 +12014,19 @@ taos> select sum(f1) IN (select f1 from tbb), sum(f1) IN (select f1 from tbb) fr
 
 taos> select sum(f1) IN (select f1 from st1), * from st1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select sum(f1) IN (select f1 from st1 limit 0), * from st1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select sum(f1) IN (select null from st1), * from st1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select sum(f1) IN (1, null), * from st1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select sum(f1) IN (select f1 from tbb), * from st1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select case when sum(f1) IN (select f1 from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when sum(f1) in (select f1 from st1) then 1 else 2 end |        sum(f1)        |
 ======================================================================================
@@ -17594,19 +17594,19 @@ taos> select sum(f1) NOT IN (select f1 from tbb), sum(f1) NOT IN (select f1 from
 
 taos> select sum(f1) NOT IN (select f1 from st1), * from st1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select sum(f1) NOT IN (select f1 from st1 limit 0), * from st1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select sum(f1) NOT IN (select null from st1), * from st1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select sum(f1) NOT IN (1, null), * from st1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select sum(f1) NOT IN (select f1 from tbb), * from st1 order by ts, f1;
 
-DB error: Not a single-group group function [0x8000260C] 
+DB error: Not a single-group group function, 'ts' is used incorrectly [0x8000260C] 
 taos> select case when sum(f1) NOT IN (select f1 from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when sum(f1) not in (select f1 from st1) then 1 else 2 end |        sum(f1)        |
 ==========================================================================================

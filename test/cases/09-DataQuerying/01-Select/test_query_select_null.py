@@ -122,9 +122,11 @@ class TestSelectNull:
         tdSql.query(sql)
         tdSql.checkData(0,0,'varchar4')
         sql = "select max(t_bool) from %s.stb0 where ts<now;"%(database)
-        tdSql.error(sql)
+        tdSql.query(sql)
+        tdSql.checkData(0,0,True)
         sql = "select max(t_bool),ts from %s.stb0 where ts<now;"%(database)
-        tdSql.error(sql)
+        tdSql.query(sql)
+        tdSql.checkData(0,0,True)
         sql = "select max(t_binary) from %s.stb0 where ts<now;"%(database)
         tdSql.query(sql)
         tdSql.checkData(0,0,'binary4')
@@ -226,9 +228,11 @@ class TestSelectNull:
         tdSql.query(sql)
         tdSql.checkData(0,0,'varchar0')
         sql = "select min(t_bool) from %s.stb0 where ts<now;"%(database)
-        tdSql.error(sql)
+        tdSql.query(sql)
+        tdSql.checkData(0,0,False)
         sql = "select min(t_bool),ts from %s.stb0 where ts<now;"%(database)
-        tdSql.error(sql)
+        tdSql.query(sql)
+        tdSql.checkData(0,0,False)
         sql = "select min(t_binary) from %s.stb0 where ts<now;"%(database)
         tdSql.query(sql)
         tdSql.checkData(0,0,'binary0')
@@ -489,7 +493,7 @@ class TestSelectNull:
         print("total time %ds" % (endTime - startTime))
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+
 
     def check_select_as_chinese_characters(self):
         tdSql.execute("use sel_null")
