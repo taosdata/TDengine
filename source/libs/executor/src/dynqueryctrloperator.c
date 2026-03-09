@@ -30,6 +30,8 @@
 #include "ttypes.h"
 #include "tdataformat.h"
 #include "dynqueryctrl.h"
+#include "catalog.h"
+
 
 int64_t gSessionId = 0;
 
@@ -2354,8 +2356,28 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
       void *pVal = taosHashGet(pVtbScan->otbNameToOtbInfoMap, orgTbFName, sizeof(orgTbFName));
       if (!pVal) {
         SOrgTbInfo orgTbInfo = {0};
-        code = getVgId(dbVgInfo, dbFname, &orgTbInfo.vgId, name.tname);
-        QUERY_CHECK_CODE(code, line, _return);
+        // NEW: Check if the reference table is virtual table
+        // If so, use catalogGetOriginalTableVgroup to resolve to original table's vgroup
+        STableMeta* pRefMeta = NULL;
+        code = catalogGetTableMeta(pTaskInfo->pCatalog, &pTaskInfo->pConn, &name, &pRefMeta);
+        if (TSDB_CODE_SUCCESS == code) {
+          bool isVirtualTable = (pRefMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+                                 pRefMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE ||
+                                 (pRefMeta->virtualStb && pRefMeta->tableType == TSDB_SUPER_TABLE));
+          
+          if (isVirtualTable) {
+            SVgroupInfo originalVgInfo = {0};
+            code = catalogGetOriginalTableVgroup(pTaskInfo->pCatalog, &pTaskInfo->pConn, &name, &originalVgInfo);
+            if (TSDB_CODE_SUCCESS == code) {
+              orgTbInfo.vgId = originalVgInfo.vgId;
+            }
+          } else
+#endifendif
+        }
+        
+        if (orgTbInfo.vgId == 0) {
+          code = getVgId(dbVgInfo, dbFname, &orgTbInfo.vgId, name.tname);\n          QUERY_CHECK_CODE(code, line, _return);\n        }
+#endifendif
         tstrncpy(orgTbInfo.tbName, orgTbFName, sizeof(orgTbInfo.tbName));
         orgTbInfo.colMap = taosArrayInit(10, sizeof(SColIdNameKV));
         QUERY_CHECK_NULL(orgTbInfo.colMap, code, line, _return, terrno)
