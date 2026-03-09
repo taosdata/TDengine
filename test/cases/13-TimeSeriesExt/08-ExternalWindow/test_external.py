@@ -1,4 +1,6 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+import os
+
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdCom
 
 
 class TestExternal:
@@ -65,7 +67,7 @@ class TestExternal:
         # sql = "select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select first(ts) t1, last(ts) t2 from st2) w);"
         # tdSql.query(sql)
         
-        sql = "select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select first(c1) fc1  from st2) w);"
+        sql = "select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select ts, ts, first(c1) fc1  from st2) w);"
         tdSql.query(sql)
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
@@ -77,7 +79,7 @@ class TestExternal:
         tdSql.checkData(1, 2, 200)
         tdSql.checkData(1, 3, 32)
         
-        sql = "select _wstart, _wend, w.fc1, ts from st1_1 external_window((select first(c1) fc1  from st2) w);"
+        sql = "select _wstart, _wend, w.fc1, ts from st1_1 external_window((select ts, ts, first(c1) fc1  from st2) w);"
         tdSql.query(sql)
         tdSql.checkRows(82)
         tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
@@ -98,7 +100,7 @@ class TestExternal:
         tdSql.checkData(81, 2, 200)
         tdSql.checkData(81, 3, "2020-05-13 11:21:00.000")
         
-        sql = "select _wstart, _wend, w.fc1+1, ts from st1_1 external_window((select first(c1) fc1  from st2) w);"
+        sql = "select _wstart, _wend, w.fc1+1, ts from st1_1 external_window((select ts, ts, first(c1) fc1  from st2) w);"
         tdSql.query(sql)
         tdSql.checkRows(82)
         tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
@@ -106,7 +108,7 @@ class TestExternal:
         tdSql.checkData(0, 2, 101)
         tdSql.checkData(50, 2, 201)
         
-        sql = "select _wstart, _wend, w.fc1, count(*) from st1_1 partition by dev  external_window((select first(c1) fc1  from st2) w);"
+        sql = "select _wstart, _wend, w.fc1, count(*) from st1_1 partition by dev  external_window((select ts, ts, first(c1) fc1  from st2) w);"
         tdSql.query(sql)
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
@@ -118,7 +120,7 @@ class TestExternal:
         tdSql.checkData(1, 2, 200)
         tdSql.checkData(1, 3, 32)
         
-        sql = "select _wstart, _wend, w.fc1, count(*), dev from st1_1 partition by dev  external_window((select first(c1) fc1  from st2) w);"
+        sql = "select _wstart, _wend, w.fc1, count(*), dev from st1_1 partition by dev  external_window((select ts, ts, first(c1) fc1  from st2) w);"
         tdSql.query(sql)
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
@@ -132,7 +134,7 @@ class TestExternal:
         tdSql.checkData(1, 3, 32)
         tdSql.checkData(1, 4, "dev_01")
         
-        sql = "select _wstart, _wend, w.fc1, count(*), v2 from st1_1 partition by v2  external_window((select first(c1) fc1  from st2) w);"
+        sql = "select _wstart, _wend, w.fc1, count(*), v2 from st1_1 partition by v2  external_window((select ts, ts, first(c1) fc1  from st2) w);"
         tdSql.query(sql)
         # 2 windows * 82 groups. timerange has been pushed down, so groups outside the window range are excluded.
         tdSql.checkRows(164)
@@ -141,7 +143,7 @@ class TestExternal:
         tdSql.checkData(0, 2, 100)
         tdSql.checkData(0, 3, 1)
 
-        sql = "select _wstart, _wend, w.fc1, count(*), v2 from st1_1 partition by v2  external_window((select first(c1) fc1  from st2) w) order by v2 desc;"
+        sql = "select _wstart, _wend, w.fc1, count(*), v2 from st1_1 partition by v2  external_window((select ts, ts, first(c1) fc1  from st2) w) order by v2 desc;"
         tdSql.query(sql)
         # 2 windows * 82 groups. timerange has been pushed down, so groups outside the window range are excluded.
         tdSql.checkRows(164)
@@ -157,7 +159,7 @@ class TestExternal:
         sql = (
             "select _wstart, _wend, w.fc1, count(*), "
             "(select count(*) from (select ts from st1_1) t) as total_rows "
-            "from st1_1 external_window((select first(c1) fc1 from st2) w);"
+            "from st1_1 external_window((select ts, ts, first(c1) fc1 from st2) w);"
         )
         tdSql.query(sql)
         tdSql.checkRows(2)
@@ -173,7 +175,7 @@ class TestExternal:
             "select _wstart, _wend, w.fc1, count(*), v2, "
             "(select count(*) from (select ts from st1_1) t) as total_rows "
             "from st1_1 partition by v2 "
-            "external_window((select first(c1) fc1 from st2) w) "
+            "external_window((select ts, ts, first(c1) fc1 from st2) w) "
             "order by v2 desc;"
         )
         tdSql.query(sql)
@@ -319,22 +321,15 @@ class TestExternal:
     def prepare_data(self):
         self.prepare_mock_data("test")
         self.prepare_external_win_subquery_data("test", "ext_win_subq")
-            
+
     def basic_query1(self):
         tdLog.info(f"=============== basic query of external window with agg on single block")
-        sql = "select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select first(c1) fc1  from st2) w);"
-        tdSql.query(sql)
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
-        tdSql.checkData(0, 1, "2020-05-13 10:49:00.000")
-        tdSql.checkData(0, 2, 100)
-        tdSql.checkData(0, 3, 50)
-        tdSql.checkData(1, 0, "2020-05-13 10:49:00.001")
-        tdSql.checkData(1, 1, "2020-05-13 11:21:50.000")
-        tdSql.checkData(1, 2, 200)
-        tdSql.checkData(1, 3, 32)
-        
-        
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "basic_query1.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "basic_query1.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "basic_query1")
+
+        # select _wstart, _wend, w.v1 from st1_1 external_window((select ts, endtime, v1 from ext_win_subq_1) w);
+
     def basic_query2(self):
         tdLog.info(f"=============== basic query of external window")
         sql1 = "select _wstart, _wend, w.fc1, ts from st1_1 external_window((select first(c1) fc1  from st2) w);"

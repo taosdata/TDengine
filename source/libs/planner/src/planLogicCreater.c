@@ -2293,7 +2293,10 @@ static int32_t buildDefaultTimeRangeForExternalWindow(SLogicPlanContext* pCxt, S
 
 static int32_t createWindowLogicNodeByExternal(SLogicPlanContext* pCxt, SExternalWindowNode* pExternal,
                                                SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (pCxt->pPlanCxt->streamCxt.hasExtWindow) return TSDB_CODE_SUCCESS;
+  if (pCxt->pPlanCxt->streamCxt.hasExtWindow) 
+  {
+    return TSDB_CODE_SUCCESS;
+  }
   pCxt->pPlanCxt->streamCxt.hasExtWindow = true;
 
   SWindowLogicNode* pWindow = NULL;

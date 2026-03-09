@@ -3823,7 +3823,7 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
   }
   
   SRemoteTableNode* pRemote = (SRemoteTableNode*)pPhynode->pSubquery;
-  TAOS_CHECK_EXIT(qFetchRemoteNode(gTaskScalarExtra.pSubJobCtx, pRemote->subQIdx, pRemote));
+  TAOS_CHECK_EXIT(qFetchRemoteNode(gTaskScalarExtra.pSubJobCtx, pRemote->subQIdx, (SNode*)pRemote));
 
   pBlocks = pRemote->pResBlks;
 #endif
@@ -4134,6 +4134,8 @@ static bool extWinDetectTestMockModeFromPhysiNode(SPhysiNode* pNode, SExtWinTest
 }
 
 static SArray* extWinGetSSDataBlocksInTest(SExternalWindowPhysiNode* pPhynode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   if (pPhynode == NULL || pPhynode->pSubquery == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
@@ -4172,15 +4174,25 @@ static SArray* extWinGetSSDataBlocksInTest(SExternalWindowPhysiNode* pPhynode) {
   if (ctx.mode == EXT_WIN_TEST_MOCK_GROUP_BLOCKS) {
     SArray* pBlocks = NULL;
     int32_t code = extWinMockSSDataBlocksWithGroups(&pBlocks);
-    if (code != TSDB_CODE_SUCCESS) {
-      terrno = code;
-      return NULL;
-    }
-    return pBlocks;
+    TAOS_CHECK_EXIT(code);
   }
 
-  terrno = TSDB_CODE_VERSION_NOT_COMPATIBLE;
-  qError("%s extWin test mock unsupported subquery db, only supports test/test_group now", __func__);
+    if (NULL == pPhynode->pSubquery || nodeType(pPhynode->pSubquery) != QUERY_NODE_REMOTE_TABLE) {
+    qError("invalid subquery in external window, pSubquery:%p, type:%d", pPhynode->pSubquery, pPhynode->pSubquery ? nodeType(pPhynode->pSubquery) : -1);
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    TAOS_CHECK_EXIT(code);
+  }
+  
+  SRemoteTableNode* pRemote = (SRemoteTableNode*)pPhynode->pSubquery;
+  TAOS_CHECK_EXIT(qFetchRemoteNode(gTaskScalarExtra.pSubJobCtx, pRemote->subQIdx, (SNode*)pRemote));
+
+  return pRemote->pResBlks;
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    qError("%s : %d error code:%s", __func__, lino, tstrerror(code));
+  }
+
   return NULL;
 }
 #endif

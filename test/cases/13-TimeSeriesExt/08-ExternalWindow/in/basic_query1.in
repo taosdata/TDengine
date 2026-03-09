@@ -1,0 +1,9 @@
+use test;
+select _wstart, _wend, w.v1, count(*) from st1_1 external_window((select ts, endtime, v1 from ext_win_subq_1) w);
+select _wstart, _wend, w.v1, ts from st1_1 external_window((select ts, endtime, v1 fc1  from ext_win_subq_1) w);
+select _wstart, _wend, w.v1+1, ts from st1_1 external_window((select ts, endtime, v1 fc1  from ext_win_subq_1) w);
+select _wstart, _wend, w.v1, count(*) from st1_1 partition by dev  external_window((select ts, endtime, v1 fc1  from ext_win_subq_1) w);
+select _wstart, _wend, w.v1, count(*), dev from st1_1 partition by dev  external_window((select ts, endtime, v1 fc1  from ext_win_subq_1) w);
+select _wstart, _wend, w.v1, count(*), v2 from st1_1 partition by v2  external_window((select ts, endtime, v1 fc1  from ext_win_subq_1) w);
+select _wstart, _wend, w.v1, count(*), v2 from st1_1 partition by v2  external_window((select ts, endtime, v1 fc1  from ext_win_subq_1) w) order by v2 desc;
+select _wstart, _wend, w.v1, count(*), (select count(*) from (select ts from st1_1) t) as total_rows from st1_1 external_window((select ts, endtime, v1 fc1 from ext_win_subq_1) w);select _wstart, _wend, w.v1, count(*), v2, (select count(*) from (select ts from st1_1) t) as total_rows from st1_1 partition by v2 external_window((select ts, endtime, v1 fc1 from ext_win_subq_1) w) order by v2 desc;

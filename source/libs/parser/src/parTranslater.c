@@ -8098,6 +8098,29 @@ static EDealRes replaceExternalWindowPlace(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static int32_t checkExternalWindowSubquerySchema(STranslateContext* pCxt, SNode* pSubQuery) {
+  if (NULL == pSubQuery) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_PC,
+                                   "EXTERNAL_WINDOW requires a valid subquery");
+  }
+
+  SNodeList* pProjectionList = getProjectList(pSubQuery);
+  if (NULL == pProjectionList || LIST_LENGTH(pProjectionList) < 2) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_PC,
+                                   "EXTERNAL_WINDOW subquery must output at least two columns");
+  }
+
+  SExprNode* pFirst = (SExprNode*)nodesListGetNode(pProjectionList, 0);
+  SExprNode* pSecond = (SExprNode*)nodesListGetNode(pProjectionList, 1);
+  if (NULL == pFirst || TSDB_DATA_TYPE_TIMESTAMP != pFirst->resType.type || NULL == pSecond ||
+      TSDB_DATA_TYPE_TIMESTAMP != pSecond->resType.type) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_PC,
+                                   "The first two columns of EXTERNAL_WINDOW subquery must be timestamp");
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateExternalWindowSelectList(STranslateContext* pCxt, SSelectStmt* pSelect) {
   SExternalWindowNode* pExternalWin = (SExternalWindowNode*)pSelect->pWindow;
   STranslateExtCtx   extCxt = {.pExternalWin = pExternalWin, .code = TSDB_CODE_SUCCESS};
@@ -8106,6 +8129,13 @@ static int32_t translateExternalWindowSelectList(STranslateContext* pCxt, SSelec
     return pCxt->errCode;
   }
   //TODO pSubquery=> SRemoteTableNode*
+  SRemoteTableNode* pRemote = (SRemoteTableNode*)pExternalWin->pSubquery;
+  SNode* pSubQuery = nodesListGetNode(pCxt->pSubQueries, pRemote->subQIdx);
+  int32_t code = checkExternalWindowSubquerySchema(pCxt, pSubQuery);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+ 
   nodesRewriteExprsPostOrder(pSelect->pProjectionList, replaceExternalWindowPlace, &extCxt);
   return pCxt->errCode = extCxt.code;
 }
