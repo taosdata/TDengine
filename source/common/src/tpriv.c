@@ -29,7 +29,7 @@ typedef struct {
 static const SPrivObjInfo __privObjInfo[] = {
     {"CLUSTER", 0}, {"NODE", 0},  {"DATABASE", 0}, {"TABLE", 1}, {"FUNCTION", 0}, {"INDEX", 1},
     {"VIEW", 1},    {"USER", 0},  {"ROLE", 0},     {"RSMA", 1},  {"TSMA", 1},     {"TOPIC", 1},
-    {"STREAM", 1},  {"MOUNT", 0}, {"AUDIT", 0},    {"TOKEN", 0}, {"NONE", 0},
+    {"STREAM", 1},  {"MOUNT", 0}, {"AUDIT", 0},    {"TOKEN", 0}, {"NONE", 1},
 };
 
 /**

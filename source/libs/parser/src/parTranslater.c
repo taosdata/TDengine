@@ -17922,8 +17922,7 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
                                      "Table name should be empty for database level privileges");
     }
   } else if (objLevel > 0) {
-    // Skip the check for legacy DB grant syntax - mnode will handle the expansion
-    if (pStmt->tabName[0] == '\0' && pReq->legacyDbGrant == 0) {
+    if (pStmt->tabName[0] == '\0' && pReq->objType != PRIV_OBJ_NONE) {  // grant privType on topic1 to u1;
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "Table name cannot be empty for non-database level privileges");
     }
@@ -18111,16 +18110,36 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
           privRemoveType(&tmpPrivSet, PRIV_TBL_SELECT);
         }
       } else if (objType == PRIV_OBJ_NONE) {
-        if (IS_SPECIFIC_OBJ(pStmt->objName) && IS_SPECIFIC_OBJ(pStmt->tabName)) {
-          SName       name = {0};
-          STableMeta* pMeta = NULL;
-          toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
-          if ((code = getTargetMeta(pCxt, &name, &pMeta, false))) {
+        if (IS_SPECIFIC_OBJ(pStmt->objName)) {
+          if (IS_SPECIFIC_OBJ(pStmt->tabName)) {  // objName.tabName
+            SName       name = {0};
+            STableMeta* pMeta = NULL;
+            toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
+            if ((code = getTargetMeta(pCxt, &name, &pMeta, false))) {  // check table or view at first
+              if (TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
+                taosMemoryFree(pMeta);
+                goto _exit;
+              } else {
+                code = 0;  // recheck topic in mnode
+              }
+            } else {
+              objType = pMeta->tableType == TSDB_VIEW_TABLE ? PRIV_OBJ_VIEW : PRIV_OBJ_TBL;
+            }
             taosMemoryFree(pMeta);
-            goto _exit;
+          } else if (pStmt->tabName[0] == 0) {  // objName: dbName or topicName
+            SDbCfgInfo dbCfg = {0};
+            code = getDBCfg(pCxt, pStmt->objName, &dbCfg); // check db at first
+            if (code) {
+              if (TSDB_CODE_MND_DB_NOT_EXIST != code) {
+                goto _exit;
+              } else {
+                code = 0;  // recheck topic in mnode
+              }
+            } else {
+              pStmt->tabName[0] = '*';
+              pStmt->tabName[1] = '\0';
+            }
           }
-          objType = pMeta->tableType == TSDB_VIEW_TABLE ? PRIV_OBJ_VIEW : PRIV_OBJ_TBL;
-          taosMemoryFree(pMeta);
         }
       }
 
