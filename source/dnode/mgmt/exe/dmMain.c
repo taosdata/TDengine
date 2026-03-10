@@ -100,7 +100,7 @@ typedef struct {
   bool hasNodeType;           // --node-type
   bool hasBackupPath;         // --backup-path
   bool hasMode;               // --mode
-  char nodeType[32];          // --node-type: vnode(only supported option now)|mnode|dnode|snode
+  char nodeType[32];          // --node-type: vnode(only supported option now)|mnode|snode
   char backupPath[PATH_MAX];  // --backup-path
   char mode[32];              // --mode
                               //   force: single node recovery mode. (Recovery as mush data as possible with local info)
@@ -250,8 +250,6 @@ static void dmSetSignalHandle() {
   }
 #endif
 }
-
-extern bool generateNewMeta;
 
 static bool dmMatchLongOption(const char *arg, const char *opt, const char **pVal) {
   int32_t optLen = (int32_t)strlen(opt);
@@ -769,7 +767,6 @@ static int32_t dmFinalizeRepairOption() {
 
   if (global.printHelp && pOpt->withR) {
     global.printRepairHelp = true;
-    generateNewMeta = false;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -777,7 +774,6 @@ static int32_t dmFinalizeRepairOption() {
     return TSDB_CODE_SUCCESS;
   }
 
-  generateNewMeta = false;
   int32_t code = dmValidateRepairOption();
   if (code == TSDB_CODE_SUCCESS) {
     global.runRepairFlow = true;
@@ -836,7 +832,6 @@ bool dmRepairNeedWalRepair(int32_t vnodeId) {
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   global.startTime = taosGetTimestampMs();
-  generateNewMeta = false;
   memset(&global.repairOpt, 0, sizeof(global.repairOpt));
 
   int32_t cmdEnvIndex = 0;

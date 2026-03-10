@@ -277,8 +277,6 @@ void vnodeGetMetaPath(SVnode *pVnode, const char *metaDir, char *fname) {
   snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
 }
 
-bool generateNewMeta = false;
-
 static bool metaRepairListContains(const char *vnodeList, int32_t vgId) {
   if (vnodeList == NULL || vnodeList[0] == '\0') {
     return false;
