@@ -14403,16 +14403,16 @@ int32_t tEncodeSColRefWrapper(SEncoder *pCoder, const SColRefWrapper *pWrapper) 
   int32_t lino;
 
   TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pWrapper->nCols));
-  TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pWrapper->version));
+  TAOS_CHECK_EXIT(tEncodeI32v(pCoder, 1));  // version = 1 for depth field
   for (int32_t i = 0; i < pWrapper->nCols; i++) {
     SColRef *p = &pWrapper->pColRef[i];
     TAOS_CHECK_EXIT(tEncodeI8(pCoder, p->hasRef));
     TAOS_CHECK_EXIT(tEncodeI16v(pCoder, p->id));
     if (p->hasRef) {
+      TAOS_CHECK_EXIT(tEncodeI8(pCoder, p->depth));  // encode depth
       TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refDbName));
       TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refTableName));
       TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refColName));
-    }
   }
 
 _exit:
