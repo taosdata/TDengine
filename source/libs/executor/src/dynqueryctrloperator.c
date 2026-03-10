@@ -3172,16 +3172,11 @@ _return:
 static int32_t vtbDefaultOpen(SOperatorInfo* pOperator) {
   int32_t                    code = TSDB_CODE_SUCCESS;
   int32_t                    line = 0;
-  int64_t                    st = 0;
   SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
   SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
 
   if (OPTR_IS_OPENED(pOperator)) {
     return code;
-  }
-
-  if (pOperator->cost.openCost == 0) {
-    st = taosGetTimestampUs();
   }
 
   code = buildVirtualSuperTableScanChildTableMap(pOperator);
@@ -3190,9 +3185,6 @@ static int32_t vtbDefaultOpen(SOperatorInfo* pOperator) {
   OPTR_SET_OPENED(pOperator);
 
 _return:
-  if (pOperator->cost.openCost == 0) {
-    pOperator->cost.openCost = (double)(taosGetTimestampUs() - st) / 1000.0;
-  }
   if (code) {
     qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
     pOperator->pTaskInfo->code = code;
