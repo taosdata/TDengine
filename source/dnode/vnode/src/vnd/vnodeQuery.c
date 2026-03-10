@@ -314,6 +314,7 @@ _exit:
   taosMemoryFree(metaRsp.pColRefs);
   taosMemoryFree(metaRsp.pSchemas);
   taosMemoryFree(metaRsp.pSchemaExt);
+  taosMemoryFree(metaRsp.pTagRefs);
 _exit2:
   metaReaderClear(&mer2);
 _exit3:

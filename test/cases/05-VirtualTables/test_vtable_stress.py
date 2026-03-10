@@ -178,7 +178,7 @@ class TestVtableStress:
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 100)
 
-            tdSql.execute("DROP TABLE vtb_stress_cycle;")
+            tdSql.execute("DROP VTABLE vtb_stress_cycle;")
 
             if (cycle + 1) % 10 == 0:
                 tdLog.info(f"completed {cycle + 1}/{num_cycles} create/drop cycles.")
