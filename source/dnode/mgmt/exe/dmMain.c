@@ -89,18 +89,26 @@ typedef struct {
 } SDmParsedRepairTarget;
 
 typedef struct {
+  SRepairWalOpt walOpt;
+  SRepairMetaOpt metaOpt;
+  SRepairTsdbOpt tsdbOpt;
+} SRepairVnodeOpt;
+
+typedef struct {
   bool withR;                 // -r
   bool hasRepairArgs;
   bool hasNodeType;           // --node-type
   bool hasBackupPath;         // --backup-path
   bool hasMode;               // --mode
-  char nodeType[32];          // --node-type(vnode, mnode, dnode, snode)
+  char nodeType[32];          // --node-type: vnode(only supported option now)|mnode|dnode|snode
   char backupPath[PATH_MAX];  // --backup-path
   char mode[32];              // --mode
                               //   force: single node recovery mode. (Recovery as mush data as possible with local info)
-  SRepairMetaOpt metaOpt;
-  SRepairTsdbOpt tsdbOpt;
-  SRepairWalOpt  walOpt;
+                              //   copy: copy from backup
+                              //   replica: form replica
+  SRepairVnodeOpt vnodeOpt;
+  // SRepairMnodeOpt mnodeOpt;
+  // SRepairSnodeOpt snodeOpt;
 } SDmRepairOption;
 // clang-format on
 
@@ -347,9 +355,9 @@ static void dmCleanupTsdbRepairOpt(SRepairTsdbOpt *pOpt) {
 }
 
 static void dmCleanupRepairOption(SDmRepairOption *pOpt) {
-  dmCleanupMetaRepairOpt(&pOpt->metaOpt);
-  dmCleanupTsdbRepairOpt(&pOpt->tsdbOpt);
-  dmCleanupWalRepairOpt(&pOpt->walOpt);
+  dmCleanupMetaRepairOpt(&pOpt->vnodeOpt.metaOpt);
+  dmCleanupTsdbRepairOpt(&pOpt->vnodeOpt.tsdbOpt);
+  dmCleanupWalRepairOpt(&pOpt->vnodeOpt.walOpt);
 }
 
 static bool dmParseRepairFileType(const char *token, EDmRepairTargetType *pFileType) {
@@ -449,57 +457,57 @@ static int32_t dmEnsureTsdbRepairHash(SRepairTsdbOpt *pOpt) {
 }
 
 static int32_t dmInsertMetaRepairTarget(SDmRepairOption *pOpt, int32_t vnodeId, EDmRepairStrategy strategy) {
-  int32_t code = dmEnsureMetaRepairHash(&pOpt->metaOpt);
+  int32_t code = dmEnsureMetaRepairHash(&pOpt->vnodeOpt.metaOpt);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  if (taosHashGet(pOpt->metaOpt.pByVnode, &vnodeId, sizeof(vnodeId)) != NULL) {
+  if (taosHashGet(pOpt->vnodeOpt.metaOpt.pByVnode, &vnodeId, sizeof(vnodeId)) != NULL) {
     printf("duplicated repair target for meta vnode %d\n", vnodeId);
     return TSDB_CODE_INVALID_PARA;
   }
 
   SRepairMetaVnodeOpt vnodeOpt = {.strategy = strategy};
-  code = taosHashPut(pOpt->metaOpt.pByVnode, &vnodeId, sizeof(vnodeId), &vnodeOpt, sizeof(vnodeOpt));
+  code = taosHashPut(pOpt->vnodeOpt.metaOpt.pByVnode, &vnodeId, sizeof(vnodeId), &vnodeOpt, sizeof(vnodeOpt));
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  pOpt->metaOpt.enabled = true;
-  pOpt->metaOpt.numOfVnodes++;
+  pOpt->vnodeOpt.metaOpt.enabled = true;
+  pOpt->vnodeOpt.metaOpt.numOfVnodes++;
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t dmInsertWalRepairTarget(SDmRepairOption *pOpt, int32_t vnodeId) {
-  int32_t code = dmEnsureWalRepairHash(&pOpt->walOpt);
+  int32_t code = dmEnsureWalRepairHash(&pOpt->vnodeOpt.walOpt);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  if (taosHashGet(pOpt->walOpt.pByVnode, &vnodeId, sizeof(vnodeId)) != NULL) {
+  if (taosHashGet(pOpt->vnodeOpt.walOpt.pByVnode, &vnodeId, sizeof(vnodeId)) != NULL) {
     printf("duplicated repair target for wal vnode %d\n", vnodeId);
     return TSDB_CODE_INVALID_PARA;
   }
 
   SRepairWalVnodeOpt vnodeOpt = {.reserved = 0};
-  code = taosHashPut(pOpt->walOpt.pByVnode, &vnodeId, sizeof(vnodeId), &vnodeOpt, sizeof(vnodeOpt));
+  code = taosHashPut(pOpt->vnodeOpt.walOpt.pByVnode, &vnodeId, sizeof(vnodeId), &vnodeOpt, sizeof(vnodeOpt));
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  pOpt->walOpt.enabled = true;
-  pOpt->walOpt.numOfVnodes++;
+  pOpt->vnodeOpt.walOpt.enabled = true;
+  pOpt->vnodeOpt.walOpt.numOfVnodes++;
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t dmInsertTsdbRepairTarget(SDmRepairOption *pOpt, int32_t vnodeId, int32_t fileId,
                                         EDmRepairStrategy strategy) {
-  int32_t code = dmEnsureTsdbRepairHash(&pOpt->tsdbOpt);
+  int32_t code = dmEnsureTsdbRepairHash(&pOpt->vnodeOpt.tsdbOpt);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  SRepairTsdbVnodeOpt *pVnodeOpt = taosHashGet(pOpt->tsdbOpt.pByVnode, &vnodeId, sizeof(vnodeId));
+  SRepairTsdbVnodeOpt *pVnodeOpt = taosHashGet(pOpt->vnodeOpt.tsdbOpt.pByVnode, &vnodeId, sizeof(vnodeId));
   if (pVnodeOpt == NULL) {
     SRepairTsdbVnodeOpt vnodeOpt = {0};
     vnodeOpt.pByFileId = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -507,14 +515,14 @@ static int32_t dmInsertTsdbRepairTarget(SDmRepairOption *pOpt, int32_t vnodeId, 
       return terrno;
     }
 
-    code = taosHashPut(pOpt->tsdbOpt.pByVnode, &vnodeId, sizeof(vnodeId), &vnodeOpt, sizeof(vnodeOpt));
+    code = taosHashPut(pOpt->vnodeOpt.tsdbOpt.pByVnode, &vnodeId, sizeof(vnodeId), &vnodeOpt, sizeof(vnodeOpt));
     if (code != TSDB_CODE_SUCCESS) {
       taosHashCleanup(vnodeOpt.pByFileId);
       return code;
     }
 
-    pOpt->tsdbOpt.numOfVnodes++;
-    pVnodeOpt = taosHashGet(pOpt->tsdbOpt.pByVnode, &vnodeId, sizeof(vnodeId));
+    pOpt->vnodeOpt.tsdbOpt.numOfVnodes++;
+    pVnodeOpt = taosHashGet(pOpt->vnodeOpt.tsdbOpt.pByVnode, &vnodeId, sizeof(vnodeId));
     if (pVnodeOpt == NULL) {
       return TSDB_CODE_FAILED;
     }
@@ -532,7 +540,7 @@ static int32_t dmInsertTsdbRepairTarget(SDmRepairOption *pOpt, int32_t vnodeId, 
   }
 
   pVnodeOpt->numOfFiles++;
-  pOpt->tsdbOpt.enabled = true;
+  pOpt->vnodeOpt.tsdbOpt.enabled = true;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -662,7 +670,7 @@ static int32_t dmValidateRepairOption() {
     return TSDB_CODE_OPS_NOT_SUPPORT;
   }
 
-  if (!pOpt->metaOpt.enabled && !pOpt->tsdbOpt.enabled && !pOpt->walOpt.enabled) {
+  if (!pOpt->vnodeOpt.metaOpt.enabled && !pOpt->vnodeOpt.tsdbOpt.enabled && !pOpt->vnodeOpt.walOpt.enabled) {
     printf("missing '--repair-target' in repair mode\n");
     return TSDB_CODE_INVALID_PARA;
   }
@@ -748,7 +756,8 @@ static int32_t dmFinalizeRepairOption() {
   SDmRepairOption *pOpt = &global.repairOpt;
   global.runRepairFlow = false;
 
-  if ((pOpt->metaOpt.enabled || pOpt->tsdbOpt.enabled || pOpt->walOpt.enabled) && !pOpt->withR) {
+  if ((pOpt->vnodeOpt.metaOpt.enabled || pOpt->vnodeOpt.tsdbOpt.enabled || pOpt->vnodeOpt.walOpt.enabled) &&
+      !pOpt->withR) {
     printf("'--repair-target' must be used with '-r'\n");
     return TSDB_CODE_INVALID_PARA;
   }
@@ -789,27 +798,27 @@ bool dmRepairHasBackupPath() { return global.repairOpt.hasBackupPath; }
 const char *dmRepairBackupPath() { return global.repairOpt.backupPath; }
 
 const SRepairMetaVnodeOpt *dmRepairGetMetaVnodeOpt(int32_t vnodeId) {
-  if (global.repairOpt.metaOpt.pByVnode == NULL) {
+  if (global.repairOpt.vnodeOpt.metaOpt.pByVnode == NULL) {
     return NULL;
   }
 
-  return taosHashGet(global.repairOpt.metaOpt.pByVnode, &vnodeId, sizeof(vnodeId));
+  return taosHashGet(global.repairOpt.vnodeOpt.metaOpt.pByVnode, &vnodeId, sizeof(vnodeId));
 }
 
 bool dmRepairNeedTsdbRepair(int32_t vnodeId) {
-  if (global.repairOpt.tsdbOpt.pByVnode == NULL) {
+  if (global.repairOpt.vnodeOpt.tsdbOpt.pByVnode == NULL) {
     return false;
   }
 
-  return taosHashGet(global.repairOpt.tsdbOpt.pByVnode, &vnodeId, sizeof(vnodeId)) != NULL;
+  return taosHashGet(global.repairOpt.vnodeOpt.tsdbOpt.pByVnode, &vnodeId, sizeof(vnodeId)) != NULL;
 }
 
 const SRepairTsdbFileOpt *dmRepairGetTsdbFileOpt(int32_t vnodeId, int32_t fileId) {
-  if (global.repairOpt.tsdbOpt.pByVnode == NULL) {
+  if (global.repairOpt.vnodeOpt.tsdbOpt.pByVnode == NULL) {
     return NULL;
   }
 
-  SRepairTsdbVnodeOpt *pVnodeOpt = taosHashGet(global.repairOpt.tsdbOpt.pByVnode, &vnodeId, sizeof(vnodeId));
+  SRepairTsdbVnodeOpt *pVnodeOpt = taosHashGet(global.repairOpt.vnodeOpt.tsdbOpt.pByVnode, &vnodeId, sizeof(vnodeId));
   if (pVnodeOpt == NULL || pVnodeOpt->pByFileId == NULL) {
     return NULL;
   }
@@ -818,11 +827,11 @@ const SRepairTsdbFileOpt *dmRepairGetTsdbFileOpt(int32_t vnodeId, int32_t fileId
 }
 
 bool dmRepairNeedWalRepair(int32_t vnodeId) {
-  if (global.repairOpt.walOpt.pByVnode == NULL) {
+  if (global.repairOpt.vnodeOpt.walOpt.pByVnode == NULL) {
     return false;
   }
 
-  return taosHashGet(global.repairOpt.walOpt.pByVnode, &vnodeId, sizeof(vnodeId)) != NULL;
+  return taosHashGet(global.repairOpt.vnodeOpt.walOpt.pByVnode, &vnodeId, sizeof(vnodeId)) != NULL;
 }
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
