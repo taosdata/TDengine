@@ -3126,6 +3126,8 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
         TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, precVstr, false), &lino, _OVER);
       } else if (i == 15) {
         TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, statusVstr, false), &lino, _OVER);
+      } else if (i == 28) {
+        TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.keepTimeOffset, false), &lino, _OVER);
       } else {
         colDataSetNULL(pColInfo, rows);
       }

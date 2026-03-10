@@ -2974,7 +2974,7 @@ class TDCom:
         # print(f"taosCmd:{taosCmd}, currentPath:{os.getcwd()}")
         os.system(taosCmd)
         return self.query_result_file
-    
+
     def run_sql(self, sql, db):
         tdsql = self.newTdSql()
         if db:
@@ -2994,14 +2994,11 @@ class TDCom:
 
         tdLog.info(f"Executing query file: {inputfile}")
 
-        with open(inputfile, 'r') as f:
+        with open(inputfile, "r") as f:
             lines = [line.strip() for line in f if line.strip()]
         # 假设第一行是 use 语句
-        db = lines[0].split()[1].rstrip(';')
-        sql_lines = [
-            line.replace('\\G', '').rstrip(';') + ';'
-            for line in lines[1:]
-        ]
+        db = lines[0].split()[1].rstrip(";")
+        sql_lines = [line.replace("\\G", "").rstrip(";") + ";" for line in lines[1:]]
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             executor.map(lambda sql: self.run_sql(sql, db), sql_lines)

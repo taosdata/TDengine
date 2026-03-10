@@ -4487,6 +4487,14 @@ static void clearCatalogReq(SCatalogReq* pCatalogReq) {
 static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCatalogReq, const SMetaData* pMetaData,
                                    SVnodeModifyOpStmt* pStmt) {
   clearCatalogReq(pCatalogReq);
+  if (pStmt->pPrivCols) {
+    taosArrayDestroy(pStmt->pPrivCols);
+    pStmt->pPrivCols = NULL;
+  }
+  if (pStmt->pTagCond) {
+    nodesDestroyNode(pStmt->pTagCond);
+    pStmt->pTagCond = NULL;
+  }
 
   int32_t code = checkAuthFromMetaData(pCxt, pMetaData, pStmt);
 

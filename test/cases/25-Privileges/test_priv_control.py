@@ -1469,7 +1469,7 @@ class TestPrivControl:
         self.query_expect_rows(f"SELECT temperature, humidity FROM {db_name}.st1", 1)  # Only ct1
         '''
         self.exec_sql_failed(f"SELECT status FROM {db_name}.st1", TSDB_CODE_PAR_COL_PERMISSION_DENIED)  # Column not authorized
-        self.exec_sql_failed(f"SELECT temperature FROM {db_name}.ct2", TSDB_CODE_PAR_COL_PERMISSION_DENIED)  # Row not authorized
+        self.query_expect_rows(f"SELECT temperature FROM {db_name}.ct2", 0)  # Row not authorized, reuse super table privilege
         
         # Test 2: Column INSERT with row condition
         self.login()

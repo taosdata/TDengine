@@ -1524,6 +1524,7 @@ static void resetGroupCacheBlockCache(SGcBlkCacheInfo* pCache) {
 }
 
 static int32_t resetGroupCacheDownstreamCtx(SOperatorInfo* pOper) {
+  int32_t code = 0, lino = 0;
   SGroupCacheOperatorInfo* pInfo = pOper->info;
   int32_t                  code = 0;
   if (NULL == pInfo->pDownstreams) {
@@ -1539,12 +1540,8 @@ static int32_t resetGroupCacheDownstreamCtx(SOperatorInfo* pOper) {
     if (pInfo->batchFetch) {
       int32_t defaultVg = 0;
       SGcVgroupCtx vgCtx = {0};
-      initGcVgroupCtx(pOper, &vgCtx, pCtx->id, defaultVg, NULL);
-      code = tSimpleHashPut(pCtx->pVgTbHash, &defaultVg, sizeof(defaultVg), &vgCtx, sizeof(vgCtx));
-      if (TSDB_CODE_SUCCESS != code) {
-        qDebug("reset downstream %d vgTbHash failed", pCtx->id);
-        return code;
-      }
+      initGcVgroupCtx(pOper, &vgCtx, pCtx->id, defaultVg, NULL);      
+      TAOS_CHECK_EXIT(tSimpleHashPut(pCtx->pVgTbHash, &defaultVg, sizeof(defaultVg), &vgCtx, sizeof(vgCtx)));
     }
     
     taosArrayClearEx(pCtx->pFreeBlock, freeGcBlockInList);
@@ -1560,7 +1557,13 @@ static int32_t resetGroupCacheDownstreamCtx(SOperatorInfo* pOper) {
     pCtx->fetchDone = false;
   }
 
-  return TSDB_CODE_SUCCESS;
+_exit:
+
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  return code;
 }
 
 static int32_t resetGroupCacheOperState(SOperatorInfo* pOper) {
@@ -1573,10 +1576,7 @@ static int32_t resetGroupCacheOperState(SOperatorInfo* pOper) {
 
   taosHashClear(pInfo->pGrpHash);
 
-  code = resetGroupCacheDownstreamCtx(pOper);
-  if (TSDB_CODE_SUCCESS != code) {
-    QUERY_CHECK_CODE(code, lino, _exit);
-  }
+  TAOS_CHECK_EXIT(resetGroupCacheDownstreamCtx(pOper));
 
   memset(pInfo->execInfo.pDownstreamBlkNum, 0, pOper->numOfDownstream * sizeof(int64_t));
   
