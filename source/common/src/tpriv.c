@@ -260,8 +260,6 @@ static void initPrivLookup(void) {
 }
 
 int32_t privExpandAll(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel) {
-  (void)taosThreadOnce(&privInit, initPrivLookup);
-
   if (!privSet) return TSDB_CODE_APP_ERROR;
   if (!PRIV_HAS(privSet, PRIV_CM_ALL)) return TSDB_CODE_SUCCESS;
 
@@ -288,22 +286,16 @@ int32_t privExpandAll(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLeve
 }
 
 int32_t privExpandRw(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel) {
-  (void)taosThreadOnce(&privInit, initPrivLookup);
-
   if (!privSet) return TSDB_CODE_APP_ERROR;
 
-  bool hasLegacyRead = PRIV_HAS(privSet, PRIV_CM_READ);
-  bool hasLegacyWrite = PRIV_HAS(privSet, PRIV_CM_WRITE);
+  bool hasRead = PRIV_HAS(privSet, PRIV_CM_READ);
+  bool hasWrite = PRIV_HAS(privSet, PRIV_CM_WRITE);
 
-  if (!hasLegacyRead && !hasLegacyWrite) return TSDB_CODE_SUCCESS;
-  if (pObjType != PRIV_OBJ_DB && pObjType != PRIV_OBJ_TBL && pObjType != PRIV_OBJ_VIEW) {
-    uWarn("privExpandRw: unsupported object type %d for legacy read/write privileges", pObjType);
-    return TSDB_CODE_OPS_NOT_SUPPORT;
-  }
+  if (!hasRead && !hasWrite) return TSDB_CODE_SUCCESS;
 
   // Remove the legacy types
-  if (hasLegacyRead) privRemoveType(privSet, PRIV_CM_READ);
-  if (hasLegacyWrite) privRemoveType(privSet, PRIV_CM_WRITE);
+  if (hasRead) privRemoveType(privSet, PRIV_CM_READ);
+  if (hasWrite) privRemoveType(privSet, PRIV_CM_WRITE);
 
   SPrivInfoIter iter = {0};
   privInfoIterInit(&iter);
@@ -316,10 +308,10 @@ int32_t privExpandRw(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel
 
     // Check rwAttr and add corresponding privileges
     // rwAttr: 1 = read, 2 = write, 3 = read/write
-    if (hasLegacyRead && (pPrivInfo->rwAttr & PRIV_RW_ATTR_READ)) {
+    if (hasRead && (pPrivInfo->rwAttr & PRIV_RW_ATTR_READ)) {
       privAddType(privSet, pPrivInfo->privType);
     }
-    if (hasLegacyWrite && (pPrivInfo->rwAttr & PRIV_RW_ATTR_WRITE)) {
+    if (hasWrite && (pPrivInfo->rwAttr & PRIV_RW_ATTR_WRITE)) {
       privAddType(privSet, pPrivInfo->privType);
     }
   }
@@ -328,8 +320,6 @@ int32_t privExpandRw(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel
 }
 
 int32_t privUpgradeRwDb(SHashObj* objPrivs, const char* dbFName, const char* tbName, uint8_t rwAttr) {
-  (void)taosThreadOnce(&privInit, initPrivLookup);
-
   if (!objPrivs) return TSDB_CODE_APP_ERROR;
 
   int32_t       code = 0, lino = 0;
@@ -468,6 +458,7 @@ _loop:
 }
 
 void privInfoIterInit(SPrivInfoIter* pIter) {
+  (void)taosThreadOnce(&privInit, initPrivLookup);
   pIter->privInfo = privInfoTable;
   pIter->privInfoCnt = sizeof(privInfoTable) / sizeof(privInfoTable[0]);
   pIter->index = 0;
@@ -734,4 +725,15 @@ const SPrivInfo* privInfoGet(EPrivType privType) {
 const char* privInfoGetName(EPrivType privType) {
   const SPrivInfo* privInfo = privInfoGet(privType);
   return privInfo ? privInfo->name : "privUnkown";
+}
+
+void privAddSetByObjType(SPrivSet* fromSet, SPrivSet* toSet, uint8_t objType) {
+  SPrivIter privIter = {0};
+  privIterInit(&privIter, fromSet);
+  SPrivInfo* pPrivInfo = NULL;
+  while (privIterNext(&privIter, &pPrivInfo)) {
+    if (pPrivInfo->objType == objType) {
+      privAddType(toSet, pPrivInfo->privType);
+    }
+  }
 }

@@ -74,11 +74,9 @@ typedef enum {
   PRIV_CM_RECALC = 7,       // RECALC PRIVILEGE
   PRIV_CM_KILL = 8,         // KILL PRIVILEGE
   PRIV_CM_SUBSCRIBE = 9,    // SUBSCRIBE PRIVILEGE
-  PRIV_CM_READ =
-      10,  // Legacy READ PRIVILEGE (converted to specific privileges if tsEnableAdvancedSecurity is disabled)
-  PRIV_CM_WRITE =
-      11,  // Legacy WRITE PRIVILEGE (converted to specific privileges if tsEnableAdvancedSecurity is disabled)
-  PRIV_CM_MAX = 29,  // MAX COMMON PRIVILEGE
+  PRIV_CM_READ = 10,        // Legacy READ PRIVILEGE (converted to specific privileges if tsEnableAdvancedSecurity is 0)
+  PRIV_CM_WRITE = 11,  // Legacy WRITE PRIVILEGE (converted to specific privileges if tsEnableAdvancedSecurity is 0)
+  PRIV_CM_MAX = 29,    // MAX COMMON PRIVILEGE
   // ==================== DB Privileges(5~49) ====================
   PRIV_DB_CREATE = 30,  // CREATE DATABASE
   PRIV_DB_USE,          // USE DATABASE
@@ -444,6 +442,7 @@ int32_t privObjKey(const SPrivInfo* pPrivInfo, int32_t acctId, const char* name,
 int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen,
                         bool fullDb);
 
+void             privAddSetByObjType(SPrivSet* fromSet, SPrivSet* toSet, uint8_t objType);
 const char*      privObjGetName(EPrivObjType objType);
 int32_t          privObjGetLevel(EPrivObjType objType);
 const char*      privInfoGetName(EPrivType privType);
