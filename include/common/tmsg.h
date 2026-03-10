@@ -802,6 +802,7 @@ typedef struct {
 
 typedef struct {
   int16_t colId;
+  int8_t  depth;
   char    refDbName[TSDB_DB_NAME_LEN];
   char    refTableName[TSDB_TABLE_NAME_LEN];
   char    refColName[TSDB_COL_NAME_LEN];

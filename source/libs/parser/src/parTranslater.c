@@ -24120,8 +24120,7 @@ static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbN
   PAR_ERR_JRET(getTableMeta(pCxt, pRefDbName, pRefTableName, &pRefTableMeta));
 
   bool isVirtualTable = (pRefTableMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
-                        pRefTableMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE ||
-                        (pRefTableMeta->virtualStb && pRefTableMeta->tableType == TSDB_SUPER_TABLE));
+                        pRefTableMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE);
 
   if (isVirtualTable) {
     int32_t     depth = 0;
@@ -24170,17 +24169,13 @@ static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbN
                                          colName));
   }
 
-  // Modified: Allow virtual table types as referenced tables
   if (pRefTableMeta->tableType != TSDB_NORMAL_TABLE && 
       pRefTableMeta->tableType != TSDB_CHILD_TABLE &&
       pRefTableMeta->tableType != TSDB_VIRTUAL_NORMAL_TABLE &&
       pRefTableMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
-    // Also check if it's a virtual super table
-    if (!(pRefTableMeta->virtualStb && pRefTableMeta->tableType == TSDB_SUPER_TABLE)) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-                                           "virtual table's column:\"%s\"'s reference can only be normal table, child table, or virtual table",
-                                           colName));
-    }
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
+                                         "virtual table's column:\"%s\"'s reference can only be normal table, child table, or virtual table",
+                                         colName));
   }
 
   const SSchema* pRefCol = getNormalColSchema(pRefTableMeta, pRefColName);

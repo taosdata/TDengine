@@ -81,6 +81,7 @@ typedef struct {
   col_id_t colId;
   int32_t  vgId;
   int32_t  rversion;
+  int8_t   depth;
 } SColRefInfo;
 
 typedef struct SVtbScanDynCtrlInfo {

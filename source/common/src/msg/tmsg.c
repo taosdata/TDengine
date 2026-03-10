@@ -7507,6 +7507,7 @@ int32_t tSerializeSVSubTablesRspImpl(SEncoder *pEncoder, SVSubTablesRsp *pRsp) {
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refDbName));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refTableName));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refColName));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pCol->depth));
     }
   }
 
@@ -7576,6 +7577,11 @@ int32_t tDeserializeSVSubTablesRspImpl(SDecoder *pDecoder, SVSubTablesRsp *pRsp)
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->refCols[n].refDbName));
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->refCols[n].refTableName));
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->refCols[n].refColName));
+          if (!tDecodeIsEnd(pDecoder)) {
+            TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTb->refCols[n].depth));
+          } else {
+            pTb->refCols[n].depth = 0;
+          }
         }
       }
     }
