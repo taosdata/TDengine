@@ -2770,7 +2770,7 @@ static int32_t vnodePrepareCreateTb(SVCreateTbReq *pTbReq, char *tbName, int64_t
 
   STagVal tv = (STagVal){.cid = tSchema->colId,
                          .type = tSchema->type,
-                         .nData = strlen(record->strClusterId) + 1,
+                         .nData = strlen(record->strClusterId),
                          .pData = record->strClusterId};  // address copy, no value
   if ((pTagVals = taosArrayInit(1, sizeof(STagVal))) == NULL) {
     code = terrno;
@@ -2819,6 +2819,7 @@ static SArray *vnodePrepareRow(SVnode *pVnode, STSchema *pSchema, SAuditRecord *
 
   SArray *aRows = NULL;
   SArray *pVals = NULL;
+  SRow   *pRow = NULL;
 
   if (!(aRows = taosArrayInit(1, sizeof(SRow *)))) {
     code = terrno;
@@ -2927,7 +2928,6 @@ static SArray *vnodePrepareRow(SVnode *pVnode, STSchema *pSchema, SAuditRecord *
     }
   }
 
-  SRow             *pRow = NULL;
   SRowBuildScanInfo sinfo = {0};
   if ((code = tRowBuild(pVals, pSchema, &pRow, &sinfo)) < 0) {
     TAOS_CHECK_GOTO(code, &lino, _exit);
@@ -2957,13 +2957,12 @@ static SArray *vnodePrepareSubmitTb(SVnode *pVnode, SAuditRecord *record, STSche
   int32_t lino = 0;
 
   SArray *aSubmitTbData = NULL;
+  SSubmitTbData tbData = {0};
 
   if (!(aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData)))) {
     code = terrno;
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
-
-  SSubmitTbData tbData = {0};
 
   char tbName[TSDB_TABLE_NAME_LEN] = {0};
   (void)tsnprintf(tbName, TSDB_TABLE_NAME_LEN, "t_operations_%s", record->strClusterId);
@@ -3034,12 +3033,12 @@ static int32_t vnodeSaveOneAuditRecord(SVnode *pVnode, int64_t ver, SJson *pJson
   terrno = 0;
 
   SAuditRecord record = {0};
+  SSubmitReq2 *pSubmitReq = NULL;
+  SSubmitRsp2 *pSubmitRsp = &(SSubmitRsp2){0};
+
   TAOS_CHECK_GOTO(vnodeDecodeAuditRecord(pJson, &record), &lino, _exit);
 
   vTrace("vgId:%d, start to audit operation:%s", TD_VID(pVnode), record.operation);
-
-  SSubmitReq2 *pSubmitReq = NULL;
-  SSubmitRsp2 *pSubmitRsp = &(SSubmitRsp2){0};
 
   if (!(pSubmitReq = taosMemoryCalloc(1, sizeof(SSubmitReq2)))) {
     code = terrno;
@@ -3096,7 +3095,7 @@ _exit:
                                    pVnode->monitor.strVgId,
                                    RPC_MSG_USER(pOriginalMsg),
                                    "Success"};
-    int         tv = taos_counter_add(tsInsertCounter, pSubmitRsp->affectedRows, sample_labels);
+    (void)taos_counter_add(tsInsertCounter, pSubmitRsp->affectedRows, sample_labels);
   }
 
   // clear
@@ -3123,7 +3122,7 @@ static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, int64_t ver, void *pRe
     return code;
   }
 
-  vTrace("vgId:%d, start to process AuditRecord Req, data:%s", TD_VID(pVnode), req.data);
+  vTrace("vgId:%d, start to process AuditRecord Req", TD_VID(pVnode));
 
   SJson          *pJson = NULL;
   STSchema       *pSchema = NULL;

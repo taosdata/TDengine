@@ -817,7 +817,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         TAOS_CHECK_GOTO(code, &lino, _OVER);
       } else {
         pDnode = mndAcquireDnodeAllStatusByEp(pMnode, statusReq.dnodeEp);
-        if (pDnode == NULL) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+        if (pDnode == NULL) goto _OVER;
       }
     }
   }
