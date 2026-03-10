@@ -2513,7 +2513,7 @@ static int32_t qExplainGenerateRsp(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) 
 }
 
 int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainPlanCtx *pCurrPlanCtx, SExplainRsp *pRspMsg, int32_t groupId, SRetrieveTableRsp **pRsp) {
-  if(!pCtx || !pRspMsg || !pRsp) return TSDB_CODE_INVALID_PARA;
+  if (!pCtx || !pCurrPlanCtx || !pRspMsg || !pRsp) return TSDB_CODE_INVALID_PARA;
   SExplainResNode *node = NULL;
   int32_t          code = 0;
   bool             groupDone = false;
