@@ -457,11 +457,13 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
     char*                    name = NULL;
     int32_t                  len = 0;
     SColumnNode*             pCol = (SColumnNode*)pNode;
-    if (pCxt->isVtb && !pCol->hasRef && pCol->colType != COLUMN_TYPE_TAG && '\0' != pCol->tableAlias[0]) {
+    if (pCxt->isVtb && ((!pCol->hasRef && pCol->colType != COLUMN_TYPE_TAG && '\0' != pCol->tableAlias[0]) || (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID))) {
       // set slot id for :
       // 1. column with ref
       // 2. tag column
-      // 3. pseduo column function
+      // 3. pseudo column function
+
+      // even if ts column has ref, still skip it (VTB only).
       return DEAL_RES_CONTINUE;
     }
 
@@ -2045,8 +2047,10 @@ static int32_t createDynQueryCtrlPhysiNode(SPhysiPlanContext* pCxt, SNodeList* p
     case DYN_QTYPE_STB_HASH:
       PLAN_ERR_JRET(updateDynQueryCtrlStbJoinInfo(pCxt, pChildren, pLogicNode, pDynCtrl));
       break;
+    case DYN_QTYPE_VTB_TS_SCAN:
     case DYN_QTYPE_VTB_SCAN:
     case DYN_QTYPE_VTB_AGG:
+    case DYN_QTYPE_VTB_INTERVAL:
       PLAN_ERR_JRET(updateDynQueryCtrlVtbScanInfo(pCxt, pChildren, pLogicNode, pDynCtrl, pSubPlan));
       break;
     case DYN_QTYPE_VTB_WINDOW:
@@ -2254,7 +2258,7 @@ static bool isDynVirtualStableAgg(SNode* pNode) {
     return false;
   }
   SDynQueryCtrlPhysiNode* pDynCtrl = (SDynQueryCtrlPhysiNode*)pNode;
-  if (DYN_QTYPE_VTB_AGG != pDynCtrl->qType) {
+  if (DYN_QTYPE_VTB_AGG != pDynCtrl->qType && DYN_QTYPE_VTB_INTERVAL != pDynCtrl->qType) {
     return false;
   }
   if (nodesListGetNode(pDynCtrl->node.pChildren, 0)== NULL) {
@@ -2971,20 +2975,21 @@ static int32_t createCountWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
 
 static int32_t createAnomalyWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                             SWindowLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
-  SAnomalyWindowPhysiNode* pAnomaly = (SAnomalyWindowPhysiNode*)makePhysiNode(
-      pCxt, (SLogicNode*)pWindowLogicNode, QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY);
+  SAnomalyWindowPhysiNode* pAnomaly = (SAnomalyWindowPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pWindowLogicNode,
+                                                                              QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY);
   if (NULL == pAnomaly) {
     return terrno;
   }
 
-  SNodeList* pPrecalcExprs = NULL;
-  SNode*     pAnomalyKey = NULL;
-  int32_t    code = rewritePrecalcExpr(pCxt, pWindowLogicNode->pAnomalyExpr, &pPrecalcExprs, &pAnomalyKey);
-
+  SNodeList*          pPrecalcExprs = NULL;
+  SNodeList*          pAnomalyKeys = NULL;
   SDataBlockDescNode* pChildTupe = NULL;
+
+  int32_t code = rewritePrecalcExprs(pCxt, pWindowLogicNode->pAnomalyExpr, &pPrecalcExprs, &pAnomalyKeys);
   if (TSDB_CODE_SUCCESS == code) {
     code = getChildTuple(&pChildTupe, pChildren);
   }
+
   // push down expression to pOutputDataBlockDesc of child node
   if (TSDB_CODE_SUCCESS == code && NULL != pPrecalcExprs) {
     code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs, &pAnomaly->window.pExprs);
@@ -2994,10 +2999,10 @@ static int32_t createAnomalyWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = setNodeSlotId(pCxt, pChildTupe->dataBlockId, -1, pAnomalyKey, &pAnomaly->pAnomalyKey);
-    // if (TSDB_CODE_SUCCESS == code) {
-    //   code = addDataBlockSlot(pCxt, &pAnomaly->pAnomalyKey, pAnomaly->window.node.pOutputDataBlockDesc);
-    // }
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pAnomalyKeys, &pAnomaly->pAnomalyKeys);
+    if (TSDB_CODE_SUCCESS == code) {
+      // code = addDataBlockSlots(pCxt, pAnomaly->pAnomalyKeys, pAnomaly->window.node.pOutputDataBlockDesc);
+    }
   }
 
   tstrncpy(pAnomaly->anomalyOpt, pWindowLogicNode->anomalyOpt, sizeof(pAnomaly->anomalyOpt));
@@ -3013,7 +3018,7 @@ static int32_t createAnomalyWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* 
   }
 
   nodesDestroyList(pPrecalcExprs);
-  nodesDestroyNode(pAnomalyKey);
+  nodesDestroyList(pAnomalyKeys);
 
   return code;
 }
@@ -3266,6 +3271,7 @@ static int32_t createExchangePhysiNodeByMerge(SMergePhysiNode* pMerge, int32_t i
   pExchange->srcEndGroupId = pMerge->srcGroupId + idx;
   pExchange->grpSingleChannel = grpSingleChannel;
   pExchange->singleSrc = true;
+  pExchange->node.dynamicOp = pMerge->node.dynamicOp;
   pExchange->node.pParent = (SPhysiNode*)pMerge;
   pExchange->node.pOutputDataBlockDesc = NULL;
   code = nodesCloneNode((SNode*)pMerge->node.pOutputDataBlockDesc, (SNode**)&pExchange->node.pOutputDataBlockDesc);

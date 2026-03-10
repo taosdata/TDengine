@@ -570,6 +570,8 @@ int32_t tableBuilderCommit(STableBuilder *p, SBseLiveFileInfo *pInfo) {
 
   if (taosArrayGetSize(pMetaBlock) == 0) {
     bseDebug("no meta block to commit for table %s", p->name);
+    taosArrayDestroy(pMetaBlock);
+    pMetaBlock = NULL;
     return code;
   }
 

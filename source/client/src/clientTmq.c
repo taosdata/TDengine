@@ -297,6 +297,8 @@ typedef struct {
   STqOffsetVal seekOffset;
   int64_t      numOfRows;
   int32_t      vgStatus;
+  int64_t      walVerBegin;
+  int64_t      walVerEnd;
 } SVgroupSaveInfo;
 
 static   TdThreadOnce   tmqInit = PTHREAD_ONCE_INIT;  // initialize only once
@@ -1335,6 +1337,8 @@ static void initClientTopicFromRsp(SMqClientTopic* pTopic, SMqSubTopicEp* pTopic
       tOffsetCopy(&clientVg.offsetInfo.endOffset, &pInfo->currentOffset);
       tOffsetCopy(&clientVg.offsetInfo.committedOffset, &pInfo->commitOffset);
       tOffsetCopy(&clientVg.offsetInfo.beginOffset, &pInfo->seekOffset);
+      clientVg.offsetInfo.walVerBegin = pInfo->walVerBegin;
+      clientVg.offsetInfo.walVerEnd = pInfo->walVerEnd;
     } else {
       clientVg.offsetInfo.endOffset = offsetNew;
       clientVg.offsetInfo.committedOffset = offsetNew;
@@ -1381,7 +1385,10 @@ static void buildNewTopicList(tmq_t* tmq, SArray* newTopics, const SMqAskEpRsp* 
             .seekOffset = pVgCur->offsetInfo.beginOffset,
             .commitOffset = pVgCur->offsetInfo.committedOffset,
             .numOfRows = pVgCur->numOfRows,
-            .vgStatus = pVgCur->vgStatus};
+            .vgStatus = pVgCur->vgStatus,
+            .walVerBegin = pVgCur->offsetInfo.walVerBegin,
+            .walVerEnd = pVgCur->offsetInfo.walVerEnd
+        };
         if (taosHashPut(pVgOffsetHashMap, vgKey, strlen(vgKey), &info, sizeof(SVgroupSaveInfo)) != 0) {
           tqErrorC("consumer:0x%" PRIx64 ", failed to put vg:%d into hashmap", tmq->consumerId, pVgCur->vgId);
         }
@@ -1866,7 +1873,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   }
 
   if (conf->token != NULL) {
-    code = taos_connect_by_auth(conf->ip, NULL, conf->token, NULL, NULL, conf->port, CONN_TYPE__QUERY, &pTmq->pTscObj);
+    code = taos_connect_by_auth(conf->ip, NULL, conf->token, NULL, NULL, conf->port, CONN_TYPE__TMQ, &pTmq->pTscObj);
     if (code) {
       tqErrorC("consumer:0x%" PRIx64 " connect by token failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
       SET_ERROR_MSG_TMQ(terrstr())
@@ -1874,7 +1881,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
     }
   } else {
     // init connection
-    code = taos_connect_internal(conf->ip, user, pass, NULL, NULL, conf->port, CONN_TYPE__QUERY, &pTmq->pTscObj);
+    code = taos_connect_internal(conf->ip, user, pass, NULL, NULL, conf->port, CONN_TYPE__TMQ, &pTmq->pTscObj);
     if (code) {
       tqErrorC("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
       SET_ERROR_MSG_TMQ(terrstr())
@@ -2169,8 +2176,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   int32_t clientEpoch = atomic_load_32(&tmq->epoch);
 
   if (msgEpoch != clientEpoch) {
-    tqErrorC("consumer:0x%" PRIx64
-                 " msg discard from vgId:%d since epoch not equal, rsp epoch %d, current epoch %d, reqId:0x%" PRIx64,
+    tqWarnC("consumer:0x%" PRIx64" msg discard from vgId:%d since epoch not equal, rsp epoch %d, current epoch %d, reqId:0x%" PRIx64,
              tmq->consumerId, vgId, msgEpoch, clientEpoch, requestId);
     code = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
     goto END;
@@ -2497,14 +2503,14 @@ static int32_t processMqRspError(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
     tstrerror(pRspWrapper->code));
   if (pRspWrapper->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||   // for vnode transform
       pRspWrapper->code == TSDB_CODE_SYN_NOT_LEADER) {          // for vnode split
-    code = askEp(tmq, NULL, false, true);
-    if (code != 0) {
-      tqErrorC("consumer:0x%" PRIx64 " failed to ask ep when vnode transform, code:%s", tmq->consumerId, tstrerror(code));
+    int32_t ret = askEp(tmq, NULL, false, true);
+    if (ret != 0) {
+      tqErrorC("consumer:0x%" PRIx64 " failed to ask ep when vnode transform, ret:%s", tmq->consumerId, tstrerror(ret));
     }
   } else if (pRspWrapper->code == TSDB_CODE_TMQ_CONSUMER_MISMATCH) {
     code = syncAskEp(tmq);
     if (code != 0) {
-      tqErrorC("consumer:0x%" PRIx64 " failed to ask ep when consumer mismatch, code:%s", tmq->consumerId, tstrerror(code));
+      tqWarnC("consumer:0x%" PRIx64 " failed to ask ep when consumer mismatch, code:%s", tmq->consumerId, tstrerror(code));
     }
   } else if (pRspWrapper->code == TSDB_CODE_TMQ_NO_TABLE_QUALIFIED){
     code = 0;

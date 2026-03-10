@@ -597,12 +597,17 @@ end:
   *jsonStr = string;
 }
 
-int32_t setColRef(SColRef* colRef, col_id_t colId, char* refColName, char* refTableName, char* refDbName) {
+int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* refColName, char* refTableName, char* refDbName) {
   colRef->id = colId;
   colRef->hasRef = true;
   tstrncpy(colRef->refDbName, refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(colRef->refTableName, refTableName, TSDB_TABLE_NAME_LEN);
   tstrncpy(colRef->refColName, refColName, TSDB_COL_NAME_LEN);
+  if (colName) {
+    tstrncpy(colRef->colName, colName, TSDB_COL_NAME_LEN);
+  } else {
+    colRef->colName[0] = '\0';
+  }
   return TSDB_CODE_SUCCESS;
 }
 

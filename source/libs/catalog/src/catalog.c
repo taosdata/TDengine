@@ -1509,7 +1509,6 @@ int32_t catalogGetCachedTableVgMeta(SCatalog* pCtg, const SName* pTableName,    
   CTG_API_LEAVE(ctgGetCachedTbVgMeta(pCtg, pTableName, pVgroup, pTableMeta));
 }
 
-
 #if 0
 int32_t catalogGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SCatalogReq* pReq, SMetaData* pRsp) {
   CTG_API_ENTER();
@@ -1864,7 +1863,8 @@ static int32_t ctgGetUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const cha
 }
 
 /**
- * @brief shallow copy
+ * @brief shallow copy, only applicable to use non-pointer fields, while pointer fields may become invalid after return,
+ * caller should make deep copy if needed later.
  */
 int32_t catalogGetUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, SGetUserAuthRsp* pRes) {
   CTG_API_ENTER();

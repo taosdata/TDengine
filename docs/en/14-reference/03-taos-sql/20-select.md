@@ -667,6 +667,128 @@ SELECT col1, (SELECT sum(col1) FROM tb1) FROM tb2;
 SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
 ```
 
+## Subquery expression
+
+Starting from version 3.4.1.0, TDengine TSDB began to support the following subquery expressions, where the subqueries are limited to non-correlated subqueries, currently only supported for use in query statements, and not yet supported in statements such as stream computing, subscriptions, DDL (Data Definition Language), and DML (Data Manipulation Language).
+
+### IN Subquery
+
+ The IN operator is used in combination with subqueries, where the result of the subquery serves as the matching list for the IN operator, enabling flexible multi-value query logic to meet the requirements of complex data filtering scenarios. The subquery within it can only output single-column data and supports any query statement (including nested queries) that meets the output requirements.
+
+```sql
+-- Basic usage of the WHERE clause
+select col1 from tb2 where col1 in (select col1 from tb1 where f2 > 10);
+
+-- Used in JOIN association conditions
+select a.ts from tb1 a 
+join tb2 b on a.ts = b.ts and a.f1 in (select col1 from tb1 union select col1 from tb2);
+
+-- Used in CASE expressions
+select case when f1 in (select f2 from tb1) then 0 else 1 end from tb1;
+```
+
+### NOT IN subquery
+
+The combination of the NOT IN operator and subqueries is used to determine whether the value of an expression is not equal to all results returned by the subquery, implementing reverse multi-value filtering logic to meet the requirements of complex data filtering scenarios. The subquery within it can only output single-column data and can support any query statement (including nested queries) that meets the output requirements.
+
+```sql
+-- Basic usage of the WHERE clause
+select col1 from tb2 where col1 not in (select col1 from tb1 where f2 < 100);
+
+-- Usage in the HAVING clause
+select avg(f1) from tb1 
+group by f1 having f1 not in (select f1 from tb2 interval(10s));
+
+-- Usage in JOIN conditions
+select a.ts, b.val from tb1 a
+join tb2 b on a.ts = b.ts and a.f2 not in (select col2 from tb3 where ts > '2026-01-01');
+```
+
+### ALL Subquery
+
+When using the ALL operator in combination with a subquery, ALL must be combined with comparison operators (`=`, `>`, `<`, `>=`, `<=`, `<>`) to determine whether the expression meets all the results returned by the subquery. The subquery within it can only output single-column data and can support any query statement (including nested queries) that meets the output requirements.
+
+```sql
+-- Greater than all results of the subquery
+select col1, col2 from tb1 where col1 > ALL (select f1 from tb2 where f2 > 10);
+
+-- Not equal to all results of the subquery
+select col1 from tb1 where col1 <> ALL (select avg(f1) from tb2 group by f2);
+
+-- Used in the HAVING clause
+select sum(f1) from tb1 
+group by f1 having max(f2) <= ALL (select col3 from tb3 interval(1s));
+```
+
+### ANY Subquery
+
+The combination of the ANY operator and subqueries requires ANY to be used in conjunction with comparison operators (`=`, `>`, `<`, `>=`, `<=`, `<>`) to determine whether an expression meets any of the results returned by the subquery, thereby achieving multi-value condition matching. The subquery within it can only output single-column data and supports any query statement (including nested queries) that meets the output requirements.
+
+```sql
+-- Less than any result of a subquery
+select a.ts, b.val from tb1 a 
+join tb2 b on a.ts = b.ts and a.f1 < ANY (select col1 from tb3 union select col1 from tb4);
+
+-- Used in INSERT INTO SELECT
+insert into tb6 (ts, val) 
+select ts, f1 from tb1 where f1 = ANY (select col1 from tb7 where ts > '2026-01-01 00:00:00');
+
+-- Used in a CASE expression
+select case when f2 >= ANY (select f3 from tb8) then 'high' else 'low' end from tb1;
+```
+
+### SOME Subquery
+
+The combination of the SOME operator and subqueries, where SOME is fully equivalent to ANY, must be used in conjunction with comparison operators (`=`, `>`, `<`, `>=`, `<=`, `<>`) to determine whether an expression meets any of the results returned by the subquery. The subquery within it can only output single-column data and can support any query statement (including nested queries) that meets the output requirements.
+
+```sql
+-- Used in HAVING clause
+select avg(f1) from tb1 
+group by f1 having sum(f2) >= SOME (select f3 from tb2 interval(1s));
+
+-- Used in SELECT list
+select col1, f2 > SOME (select f1 from tb3) as flag from tb1;
+
+-- Basic usage in WHERE clause
+select col1 from tb1 where f3 = SOME (select col2 from tb4 where f4 < 50);
+```
+
+### EXISTS Subquery
+
+The combination of the EXISTS operator and subqueries: EXISTS only determines whether the subquery returns at least one row of data, without paying attention to the specific content of the returned data. The subquery has no column count limit and can support any query statement (including nested queries) that meets the logical requirements.
+
+```sql
+-- Used in CASE expression
+select case when exists (select 1 from tb2 where tb2.col1 = 1) 
+           then 'exist' else 'not exist' end as status from tb1;
+
+-- Used in combination with UNION
+select col1 from tb1 where exists (select 1 from tb4) 
+union 
+select col2 from tb2 where exists (select 1 from tb5 where f2 > 0);
+
+-- Basic usage in WHERE clause
+select col1 from tb1 where exists (select * from tb3 where f3 = 1);
+```
+
+### NOT EXISTS Subquery
+
+The combination of the NOT EXISTS operator and subqueries, where NOT EXISTS is logically the opposite of EXISTS, is used to determine whether the subquery returns no data. The subquery has no column count limit and can support any query statement (including nested queries) that meets the logical requirements.
+
+```sql
+-- Used in the SELECT list
+select col1, not exists (select f1 from tb3 where f1 = 1) as flag from tb1;
+
+-- Used in the WHERE clause
+select col1 from tb1 
+where not exists (select 1 from tb2 where f2 between 10 and 20);
+
+-- Used in the JOIN condition
+select a.ts from tb1 a
+left join tb2 b on a.ts = b.ts 
+where not exists (select 1 from tb3 where tb3.col1 = 1);
+```
+
 ## UNION Clause
 
 ```text title="Syntax"

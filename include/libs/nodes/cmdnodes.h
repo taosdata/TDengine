@@ -488,6 +488,21 @@ typedef struct SUserOptions {
 
 typedef struct SCreateUserStmt {
   ENodeType type;
+
+  bool hasSessionPerUser;
+  bool hasConnectTime;
+  bool hasConnectIdleTime;
+  bool hasCallPerSession;
+  bool hasVnodePerCall;
+  bool hasFailedLoginAttempts;
+  bool hasPasswordLifeTime;
+  bool hasPasswordReuseTime;
+  bool hasPasswordReuseMax;
+  bool hasPasswordLockTime;
+  bool hasPasswordGraceTime;
+  bool hasInactiveAccountTime;
+  bool hasAllowTokenNum;
+
   char      userName[TSDB_USER_LEN];
   char      password[TSDB_USER_PASSWORD_LONGLEN];
   char      totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];

@@ -363,7 +363,9 @@ typedef enum ENodeType {
   QUERY_NODE_TRUE_FOR,
   QUERY_NODE_REMOTE_VALUE_LIST,
   QUERY_NODE_SURROUND,
-
+  QUERY_NODE_REMOTE_ROW,
+  QUERY_NODE_REMOTE_ZERO_ROWS,
+  
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
   QUERY_NODE_SELECT_STMT,
@@ -783,6 +785,7 @@ typedef struct {
   char     refDbName[TSDB_DB_NAME_LEN];
   char     refTableName[TSDB_TABLE_NAME_LEN];
   char     refColName[TSDB_COL_NAME_LEN];
+  char     colName[TSDB_COL_NAME_LEN];     // for tmq get json
 } SColRef;
 
 typedef struct {
@@ -1605,6 +1608,21 @@ bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm);
 
 typedef struct {
   int8_t createType;
+
+  int8_t hasSessionPerUser;
+  int8_t hasConnectTime;
+  int8_t hasConnectIdleTime;
+  int8_t hasCallPerSession;
+  int8_t hasVnodePerCall;
+  int8_t hasFailedLoginAttempts;
+  int8_t hasPasswordLifeTime;
+  int8_t hasPasswordReuseTime;
+  int8_t hasPasswordReuseMax;
+  int8_t hasPasswordLockTime;
+  int8_t hasPasswordGraceTime;
+  int8_t hasInactiveAccountTime;
+  int8_t hasAllowTokenNum;
+
   int8_t superUser;  // denote if it is a super user or not
   int8_t ignoreExists;
 

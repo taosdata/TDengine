@@ -5,6 +5,8 @@ sidebar_label: Installation
 
 import PkgList from "/src/components/PkgList";
 
+Before installing TDgpt, review the [system requirements](../system-requirements/) and ensure that your container or machine meets the minimum specifications.
+
 This section describes how to use TDgpt in Docker.
 
 ## Get Started with Docker
@@ -99,7 +101,7 @@ To use the analytics capabilities offered by TDgpt, you deploy an AI node (anode
 
 - Python: 3.10 or 3.11. 3.12 is not supported for now due to library conflict.
 - TDengine TSDB: 3.3.6.0 or later
-- C compiler: Because uWSGI is compiled during the TDgpt installation process, your environment must contain a C compiler.
+- C compiler: PyTorch can dynamically generate C++ code to improve the performance of model inference. This procedure requires the cc1x, so a development environment is required in this case.
 
 You can run the following commands to install Python 3.10 in Ubuntu.. If you already have a supported version of Python installed, skip this section.
 
