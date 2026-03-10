@@ -8050,6 +8050,13 @@ static int32_t translateExternalWindowColumnFunc(SNode** pNode, SNode* pSubquery
   pFunc->funcType = FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN;
   pFunc->funcId = fmGetExternalWindowColumnFuncId();
   tstrncpy(pFunc->functionName, "_external_window_column", TSDB_COL_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName, TSDB_COL_NAME_LEN);
+  if (((SExprNode*)*pNode)->asAlias) {
+    tstrncpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias, TSDB_COL_NAME_LEN);
+  } else {
+    // todo xs: add table name as prefix to user alias to avoid ambiguity when there are multiple external window columns
+    tstrncpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias, TSDB_COL_NAME_LEN);
+  }
   if (NULL == pColExpr) {
     code = TSDB_CODE_PAR_INVALID_COLUMN;
     QUERY_CHECK_CODE(code, lino, _exit);

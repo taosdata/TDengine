@@ -120,6 +120,8 @@ class TestExternal:
         tdSql.checkData(1, 2, 200)
         tdSql.checkData(1, 3, 32)
         
+        # select _wstart, _wend, w.fc1 + 2, count(*) from st1_1 partition by dev  external_window((select ts, ts, first(c1) fc1  from st2) w);
+        
         sql = "select _wstart, _wend, w.fc1, count(*), dev from st1_1 partition by dev  external_window((select ts, ts, first(c1) fc1  from st2) w);"
         tdSql.query(sql)
         tdSql.checkRows(2)
