@@ -291,7 +291,7 @@ class TestVtableStress:
             tdSql.checkData(0, 0, 100)
 
         for i in range(num_vtables):
-            tdSql.execute(f"DROP TABLE vtb_stress_many_{i};")
+            tdSql.execute(f"DROP VTABLE vtb_stress_many_{i};")
 
         tdLog.info(f"many virtual tables test passed.")
 
@@ -372,13 +372,13 @@ class TestVtableStress:
                 tdSql.checkData(0, 0, 1000)
 
             if i >= 5:
-                tdSql.execute(f"DROP TABLE vtb_stress_mixed_{i - 5};")
+                tdSql.execute(f"DROP VTABLE vtb_stress_mixed_{i - 5};")
 
             if (i + 1) % 5 == 0:
                 tdLog.info(f"completed {i + 1}/{num_iterations} mixed iterations.")
 
         for i in range(max(0, num_iterations - 5), num_iterations):
-            tdSql.execute(f"DROP TABLE IF EXISTS vtb_stress_mixed_{i};")
+            tdSql.execute(f"DROP VTABLE IF EXISTS vtb_stress_mixed_{i};")
 
         tdLog.info(f"mixed DDL/DML test passed.")
 
@@ -420,7 +420,7 @@ class TestVtableStress:
             tdSql.query(f"SELECT COUNT(*) FROM vtb_stress_mem_{cycle};")
             tdSql.checkData(0, 0, 5000)
 
-            tdSql.execute(f"DROP TABLE vtb_stress_mem_{cycle};")
+            tdSql.execute(f"DROP VTABLE vtb_stress_mem_{cycle};")
 
             if (cycle + 1) % 10 == 0:
                 tdLog.info(f"completed {cycle + 1}/{num_cycles} memory cleanup cycles.")

@@ -21999,8 +21999,12 @@ static int32_t rewriteShowValidateVtable(STranslateContext* pCxt, SQuery* pQuery
 
   if (pDbCond && pTableNameCond) {
     PAR_ERR_JRET(createLogicCondNode(&pDbCond, &pTableNameCond, &pWhere, LOGIC_COND_TYPE_AND));
+  } else if (pDbCond) {
+    pWhere = pDbCond;
+    pDbCond = NULL;
   } else {
-    pWhere = (NULL == pDbCond ? pTableNameCond : pDbCond);
+    pWhere = pTableNameCond;
+    pTableNameCond = NULL;
   }
 
   if (pWhere) {
