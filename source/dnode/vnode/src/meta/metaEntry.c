@@ -48,11 +48,13 @@ static int32_t metaEncodeExtSchema(SEncoder* pCoder, const SMetaEntry* pME) {
   return 0;
 }
 
+static int32_t colRefEntryVersion = 1;
+
 int meteEncodeColRefEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   const SColRefWrapper *pw = &pME->colRef;
   TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->nCols));
-  TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->version));
-  uTrace("encode cols:%d", pw->nCols);
+  TAOS_CHECK_RETURN(tEncodeI32v(pCoder, colRefEntryVersion));
+  uTrace("encode cols:%d version:%d", pw->nCols, colRefEntryVersion);
 
   for (int32_t i = 0; i < pw->nCols; i++) {
     SColRef *p = &pw->pColRef[i];
@@ -63,6 +65,7 @@ int meteEncodeColRefEntry(SEncoder *pCoder, const SMetaEntry *pME) {
       TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refTableName));
       TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refColName));
     }
+    TAOS_CHECK_RETURN(tEncodeI8(pCoder, p->depth));
   }
   return 0;
 }
@@ -195,6 +198,11 @@ int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
       TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refDbName));
       TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refTableName));
       TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refColName));
+    }
+    if (pWrapper->version >= 1) {
+      TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &p->depth));
+    } else {
+      p->depth = 0;
     }
   }
   return 0;
