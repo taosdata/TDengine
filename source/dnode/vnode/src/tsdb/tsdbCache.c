@@ -2874,13 +2874,19 @@ int32_t tsdbOpenCache(STsdb *pTsdb) {
 
   (void)taosThreadMutexInit(&pTsdb->lruMutex, NULL);
 
+  pTsdb->lruCache = pCache;
+
+  TAOS_RETURN(0);
+
 _err:
   if (code) {
     tsdbError("tsdb/cache: vgId:%d, open failed at line %d since %s.", TD_VID(pTsdb->pVnode), lino, tstrerror(code));
+    if (pCache) {
+      taosLRUCacheCleanup(pCache);
+      pCache = NULL;
+    }
   }
-
   pTsdb->lruCache = pCache;
-
   TAOS_RETURN(code);
 }
 
