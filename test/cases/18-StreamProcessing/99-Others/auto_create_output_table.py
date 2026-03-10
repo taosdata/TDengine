@@ -28,7 +28,7 @@ class TestStreamAutoCreateOutputTable:
 
         """
 
-        # tdStream.createSnode()
+        tdStream.createSnode()
 
         self.prepareData()
         self.check_auto_create_out_ctb()
@@ -42,9 +42,10 @@ class TestStreamAutoCreateOutputTable:
             "drop database if exists db;",
             "create database db vgroups 1;",
             "use db;",
-            "create table stb (ts timestamp, c1 int) tags(t1 int);",
+            "create table stb (`ts` timestamp, `c1` int) tags(`t1` int);",
             "create table tb1 using stb tags (1);",
             "create table tb2 using stb tags (2);",
+            "create table out_exists (`ts` timestamp, `c1` int, `t1` int) tags(`tag_tbname` varchar(128));",
         ]
 
         tdSql.executes(sqls)
@@ -55,13 +56,15 @@ class TestStreamAutoCreateOutputTable:
 
         sql1 ="create stream s1 count_window(1) from stb partition by tbname into out_ctb1 NODELAY_CREATE_SUBTABLE as select * from %%tbname where c1 > 10000;"
         sql2 ="create stream s2 count_window(1) from stb partition by tbname into out_ctb2 as select * from %%tbname where c1 > 10000;"
-        sql3 ="create stream s3 count_window(1) from stb partition by tbname into out_ctb3 NODELAY_CREATE_SUBTABLE OUTPUT_SUBTABLE(CONCAT('out3_', tbname))tags (nameoftbl varchar(128) as tbname) as select * from %%tbname where c1 > 10000;"
-        sql4 ="create stream s4 count_window(1) from stb partition by tbname,t1 into out_ctb4 NODELAY_CREATE_SUBTABLE OUTPUT_SUBTABLE(CONCAT('out4_', tbname))tags (nameoftbl varchar(128) as tbname, tagt1 int as t1) as select * from %%tbname where c1 > 10000;"
+        sql3 ="create stream s3 count_window(1) from stb partition by tbname into out_ctb3 NODELAY_CREATE_SUBTABLE OUTPUT_SUBTABLE(CONCAT('out3_', tbname))tags (`nameoftbl` varchar(128) as tbname) as select * from %%tbname where c1 > 10000;"
+        sql4 ="create stream s4 count_window(1) from stb partition by tbname,t1 into out_ctb4 NODELAY_CREATE_SUBTABLE OUTPUT_SUBTABLE(CONCAT('out4_', tbname))tags (`nameoftbl` varchar(128) as tbname, tagt1 int as t1) as select * from %%tbname where c1 > 10000;"
+        sql5 ="create stream s5 count_window(1) from stb partition by tbname into out_exists NODELAY_CREATE_SUBTABLE OUTPUT_SUBTABLE(CONCAT('out_exists_', tbname)) as select * from %%tbname where c1 > 10000;"
         streams = [
             self.StreamItem(sql1, self.checks1),
             self.StreamItem(sql2, self.checks2),
             self.StreamItem(sql3, self.checks3),
-            self.StreamItem(sql4, self.checks4)
+            self.StreamItem(sql4, self.checks4),
+            self.StreamItem(sql5, self.checks5)
         ]
         for stream in streams:
             tdSql.execute(stream.sql)
@@ -155,6 +158,16 @@ class TestStreamAutoCreateOutputTable:
             and tdSql.compareData(3, 0, "out4_tb2")
             and tdSql.compareData(4, 0, "tb2")
             and tdSql.compareData(5, 0, "2")
+        )
+    
+    def checks5(self):
+        tdLog.info(f"start to check nodelay create output ctb with exists table")
+        result_sql = f"select tbname from out_exists order by tbname;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "out_exists_tb1")
+            and tdSql.compareData(1, 0, "out_exists_tb2")
         )
 
     def checks10(self):
