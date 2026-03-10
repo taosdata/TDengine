@@ -855,7 +855,11 @@ end:
   taosArrayDestroy(uidListDel);
   taosArrayDestroy(tableList);
   taosArrayDestroy(req.pMultiTag);
-  taosArrayDestroyEx(req.tables, tfreeUpdateTableTagVal);
+  for (int32_t i = 0; i < taosArrayGetSize(req.tables); i++) {
+    SUpdateTableTagVal* pTable = taosArrayGet(req.tables, i);
+    taosArrayDestroy(pTable->tags);
+  }
+  taosArrayDestroy(req.tables);
   tDecoderClear(&decoder);
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   return code;
