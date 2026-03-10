@@ -1925,7 +1925,11 @@ static EDealRes pdcRewriteVtablePrimaryTsCol(SNode** pNode, void* pContext) {
   SVtablePrimaryCondRewriteCxt* pCxt = pContext;
   SNode*                        pNew = NULL;
   pCxt->errCode = nodesCloneNode((SNode*)pCxt->pTsScanCol, &pNew);
-  if (TSDB_CODE_SUCCESS != pCxt->errCode || NULL == pNew) {
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    return DEAL_RES_ERROR;
+  }
+  if (NULL == pNew) {
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
   }
 
