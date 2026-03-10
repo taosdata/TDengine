@@ -3096,6 +3096,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#24-Users.test_user_cloud_compatible.TestUserCloud.test_user_cloud" class="md-nav__link">
+        Cloud service user compatibility tests. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#24-Users.test_user_privilege_table.TestUserPrivilegeTable.test_except_reset_query_cache" class="md-nav__link">
         Except reset query cache 
       </a>
@@ -4001,6 +4012,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#24-Users.test_user_cloud_compatible.TestUserCloud.test_user_cloud" class="md-nav__link">
+        Cloud service user compatibility tests. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#24-Users.test_user_privilege_table.TestUserPrivilegeTable.test_except_reset_query_cache" class="md-nav__link">
         Except reset query cache 
       </a>
@@ -4223,6 +4245,57 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/24-Users/test_user_basic.py" target="_blank">
                       cases/24-Users/test_user_basic.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="24-Users.test_user_cloud_compatible.TestUserCloud.test_user_cloud" class="doc doc-heading">
+
+<a href="#24-Users.test_user_cloud_compatible.TestUserCloud.test_user_cloud" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Cloud service user compatibility tests.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Creates a single cloud_user with sysinfo=0 and createdb=1 and drives</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">all sub-tests without per-test teardown/setup cycles.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Test coverage:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  Legacy (3.3.x.y- compatibility, cloud_user only):</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    1. GRANT/REVOKE READ/WRITE/ALL on dbname.* and dbname.tbname</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    2. Verify SELECT/INSERT permissions from READ/WRITE grants</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  New version (3.4.0.0+):</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  1. Cloud user basic attributes verification</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  2. Createdb=1 allows DB creation; sub_user is blocked</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  3. Owner DML on cloud_db (INSERT / SELECT / DELETE)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  4. Table management (CREATE / ALTER / DROP)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  5. Database-level privilege management (grant/revoke to sub_user)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  6. Super-table level privilege with row-level filtering</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  7. TOPIC privilege management (CREATE / SUBSCRIBE / DROP)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  8. STREAM privilege management (CREATE / SHOW / STOP / DROP)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  9. information_schema access for taosx-style metadata queries</div>
+                          <div style="margin-left: 0.8em; white-space: pre-wrap;"> 10. taosx data subscription pattern</div>
+                          <div style="margin-left: 0.8em; white-space: pre-wrap;"> 11. taosx read query correctness (aggregates, schema discovery)</div>
+                          <div style="margin-left: 0.8em; white-space: pre-wrap;"> 12. SHOW DATABASES / STABLES / TABLES visibility with SYSINFO=0</div>
+                          <div style="margin-left: 0.8em; white-space: pre-wrap;"> 13. Multi-user privilege delegation via root</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/24-Users/test_user_cloud_compatible.py" target="_blank">
+                      cases/24-Users/test_user_cloud_compatible.py
                     </a>
                   </div>
         </div>
