@@ -14,6 +14,7 @@
  */
 
 #include "dmRepair.h"
+#include "tsdbDataFileRW.h"
 #include "tsdbFS2.h"
 #include "tsdbSttFileRW.h"
 
@@ -75,7 +76,48 @@ static int32_t tsdbForceRepairFileSetBadFiles(STFileSystem *pFS, STFileSet *pFil
 
 static int32_t tsdbDeepScanAndFixDataPart() {
   int32_t code = TSDB_CODE_SUCCESS;
-  //
+  SDataFileReader     *reader = NULL;
+  SDataFileWriter     *writer = NULL;
+  SBrinBlock           brinBlock = {0};
+  const TBrinBlkArray *oldBrinBlkArray = NULL;
+  TBrinBlkArray        newBrinBlkArray = {0};
+
+  // Open reader
+  code = tsdbDataFileReaderOpen(const char **fname, const SDataFileReaderConfig *config,
+                                SDataFileReader **reader) if (code) {
+    // TODO
+  }
+
+  // Open writer
+  code = tsdbDataFileWriterOpen();
+  if (code) {
+    // TODO
+  }
+
+  // Load SBlockBlk
+  code = tsdbDataFileReadBrinBlk(reader, &oldBrinBlkArray);
+  if (code) {
+    // TODO: need to delete all data group
+  }
+
+  // Loop to scan each BrinBlock
+  for (int32_t i = 0; i < oldBrinBlkArray->size; i++) {
+    SBrinBlk *pBrinBlk = TARRAY2_GET_PTR(oldBrinBlkArray, i);
+
+    // the SBrinBlk is bad, just skip this brinblock
+    code = tsdbDataFileReadBrinBlock(reader, pBrinBlk, &brinBlock);
+    if (code) {
+      code = TSDB_CODE_SUCCESS;
+      continue;
+    }
+
+    // Loop to scan each DataBlock
+    for (int32_t iBrinRecord = 0; iBrinRecord < BRIN_BLOCK_SIZE(&brinBlock); iBrinRecord++) {
+      // Try to load the Data Block
+    }
+  }
+
+_exit:
   return code;
 }
 
@@ -163,7 +205,7 @@ static int32_t tsdbForceRepairFileSet(STFileSystem *pFS, STFileSet *pFileSet, TF
   }
 
   // TODO: if deep scan and fix the data, do deep scan and fix
-  code = tsdbForceRepairFileSetDeepScanAndFix(pFS);
+  code = tsdbForceRepairFileSetDeepScanAndFix(pFS, pFileSet, opArr, &hasChange);
   if (code) {
     // TODO
     return code;
