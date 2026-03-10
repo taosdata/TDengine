@@ -18155,7 +18155,6 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
           privRemoveType(&req.privileges.privSet, PRIV_TBL_SELECT);
         }
       }
-
       if (category == PRIV_CATEGORY_SYSTEM) {
         req.sysPriv = 1;
         if (pStmt->objName[0] != '\0' || pStmt->tabName[0] != '\0') {
