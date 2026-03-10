@@ -5064,6 +5064,19 @@ typedef struct {
   char    status[TSDB_JOB_STATUS_LEN];
 } SQuerySubDesc;
 
+typedef enum EQueryExecPhase {
+  QUERY_PHASE_NONE        = 0,
+  QUERY_PHASE_PARSE       = 1,
+  QUERY_PHASE_CATALOG     = 2,
+  QUERY_PHASE_PLAN        = 3,
+  QUERY_PHASE_SCHEDULE    = 4,
+  QUERY_PHASE_EXECUTE     = 5,
+  QUERY_PHASE_FETCH       = 6,
+  QUERY_PHASE_DONE        = 7,
+} EQueryExecPhase;
+
+const char* queryPhaseStr(int32_t phase);
+
 typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
   uint64_t queryId;
@@ -5074,9 +5087,9 @@ typedef struct {
   bool     isSubQuery;
   char     fqdn[TSDB_FQDN_LEN];
   int32_t  subPlanNum;
-  int32_t  currentPhase;     // Current execution phase: 0=query, 1=fetch, 2=query callback, 3=fetch callback
-  int64_t  actionStartTime;   // When current action started (timestamp precision ms)
   SArray*  subDesc;  // SArray<SQuerySubDesc>
+  int32_t  execPhase;       // EQueryExecPhase
+  int64_t  phaseStartTime;  // when current phase started, ms
 } SQueryDesc;
 
 typedef struct {

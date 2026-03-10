@@ -1868,20 +1868,25 @@ static int32_t getAllMetaAsync(SSqlCallbackWrapper *pWrapper, catalogCallback fp
 static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t code);
 
 static int32_t phaseAsyncQuery(SSqlCallbackWrapper *pWrapper) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  switch (pWrapper->pRequest->pQuery->execStage) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SRequestObj *pRequest = pWrapper->pRequest;
+  switch (pRequest->pQuery->execStage) {
     case QUERY_EXEC_STAGE_PARSE: {
-      // continue parse after get metadata
+      pRequest->execPhase = QUERY_PHASE_CATALOG;
+      pRequest->phaseStartTime = taosGetTimestampMs();
       code = getAllMetaAsync(pWrapper, doAsyncQueryFromParse);
       break;
     }
     case QUERY_EXEC_STAGE_ANALYSE: {
-      // analysis after get metadata
+      pRequest->execPhase = QUERY_PHASE_CATALOG;
+      pRequest->phaseStartTime = taosGetTimestampMs();
       code = getAllMetaAsync(pWrapper, doAsyncQueryFromAnalyse);
       break;
     }
     case QUERY_EXEC_STAGE_SCHEDULE: {
-      launchAsyncQuery(pWrapper->pRequest, pWrapper->pRequest->pQuery, NULL, pWrapper);
+      pRequest->execPhase = QUERY_PHASE_SCHEDULE;
+      pRequest->phaseStartTime = taosGetTimestampMs();
+      launchAsyncQuery(pRequest, pRequest->pQuery, NULL, pWrapper);
       break;
     }
     default:
@@ -2028,9 +2033,8 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   SSqlCallbackWrapper *pWrapper = NULL;
   int32_t              code = TSDB_CODE_SUCCESS;
 
-  // Set query phase and timing
-  pRequest->currentPhase = 0;  // 0 = query phase
-  pRequest->actionStartTime = taosGetTimestampMs();
+  pRequest->execPhase = QUERY_PHASE_PARSE;
+  pRequest->phaseStartTime = taosGetTimestampMs();
 
   if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
     code = pRequest->prevCode;
@@ -2140,15 +2144,15 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   }
 
   SRequestObj *pRequest = res;
-  
-  // Set fetch phase and timing
-  pRequest->currentPhase = 1;  // 1 = fetch phase
-  pRequest->actionStartTime = taosGetTimestampMs();
-  
+
+  pRequest->execPhase = QUERY_PHASE_FETCH;
+  pRequest->phaseStartTime = taosGetTimestampMs();
+
   if (TSDB_SQL_RETRIEVE_EMPTY_RESULT == pRequest->type) {
     fp(param, res, 0);
     return;
   }
+
   SAsyncFetchParam *pParam = taosMemoryCalloc(1, sizeof(SAsyncFetchParam));
   if (!pParam) {
     fp(param, res, terrno);

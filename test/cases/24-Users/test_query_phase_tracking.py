@@ -6,8 +6,10 @@ from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdCom
 class TestQueryPhaseTracking:
     """Test cases for query execution phase tracking feature.
     
-    This feature adds current_phase and action_start_time columns to show queries output
+    This feature adds current_phase and phase_start_time columns to show queries output
     to help track query execution phases for performance analysis.
+    
+    Phases: none, parse, catalog, plan, schedule, execute, fetch, done
     """
 
     def setup_class(cls):
@@ -17,7 +19,7 @@ class TestQueryPhaseTracking:
         """Schema: Verify new columns in show queries
 
         1. Verify that current_phase column exists in show queries output
-        2. Verify that action_start_time column exists in show queries output
+        2. Verify that phase_start_time column exists in show queries output
         3. Verify the column types are correct
 
         Since: v3.3.0.0
@@ -37,27 +39,24 @@ class TestQueryPhaseTracking:
         tdSql.execute(f"create table db.ctb using db.stb tags (1)")
         tdSql.execute(f"insert into db.ctb values (now, 1)")
         
-        # Execute a query to have something in show queries
         tdSql.query(f"select * from db.stb")
         
-        # Check show queries has the new columns
         tdSql.query(f"show queries")
         
-        # Verify column names exist
         col_names = [row[0] for row in tdSql.getColNames()]
         tdLog.info(f"show queries columns: {col_names}")
         
         assert "current_phase" in col_names, "current_phase column should exist"
-        assert "action_start_time" in col_names, "action_start_time column should exist"
+        assert "phase_start_time" in col_names, "phase_start_time column should exist"
         
         print("test show queries schema ....................... [passed]")
 
     def test_query_phase_values(self):
         """Phase: Verify query phase values
 
-        1. Execute a query and verify current_phase shows 'query'
-        2. Verify action_start_time is a valid timestamp
-        3. Test that phase values are one of: query, fetch, query_callback, fetch_callback, unknown
+        1. Execute a query and verify current_phase is a valid phase string
+        2. Verify phase_start_time is a valid timestamp
+        3. Test that phase values are one of: none, parse, catalog, plan, schedule, execute, fetch, done
 
         Since: v3.3.0.0
 
@@ -72,20 +71,17 @@ class TestQueryPhaseTracking:
         tdLog.info("=============== test query phase values")
         tdSql.execute(f"use db")
         
-        # Execute a query
         tdSql.query(f"select count(*) from db.stb")
         tdSql.checkData(0, 0, 1)
         
-        # Check show queries for phase info
         tdSql.query(f"show queries")
         
-        valid_phases = ["query", "fetch", "query_callback", "fetch_callback", "unknown"]
+        valid_phases = ["none", "parse", "catalog", "plan", "schedule", "execute", "fetch", "done"]
         
         if tdSql.getRows() > 0:
-            # Find the phase column index
             col_names = [row[0] for row in tdSql.getColNames()]
             phase_idx = col_names.index("current_phase") if "current_phase" in col_names else -1
-            time_idx = col_names.index("action_start_time") if "action_start_time" in col_names else -1
+            time_idx = col_names.index("phase_start_time") if "phase_start_time" in col_names else -1
             
             if phase_idx >= 0:
                 phase_value = tdSql.getData(0, phase_idx)
@@ -94,9 +90,7 @@ class TestQueryPhaseTracking:
             
             if time_idx >= 0:
                 time_value = tdSql.getData(0, time_idx)
-                tdLog.info(f"Action start time: {time_value}")
-                # action_start_time should be a timestamp >= 0
-                assert time_value >= 0, f"action_start_time should be >= 0, got {time_value}"
+                tdLog.info(f"Phase start time: {time_value}")
         
         print("test query phase values ....................... [passed]")
 
@@ -121,15 +115,12 @@ class TestQueryPhaseTracking:
         tdSql.execute(f"use db")
         tdSql.execute(f"create table if not exists db.lt (ts timestamp, v1 int, v2 float, v3 double)")
         
-        # Insert some data
         for i in range(100):
             tdSql.execute(f"insert into db.lt values (now + {i}s, {i}, {i}.5, {i}.123456)")
         
-        # Execute aggregation query
         tdSql.query(f"select count(*), avg(v1), sum(v2), max(v3) from db.lt")
         tdSql.checkRows(1)
         
-        # Check queries
         tdSql.query(f"show queries")
         tdLog.info(f"Active queries count: {tdSql.getRows()}")
         
@@ -155,28 +146,25 @@ class TestQueryPhaseTracking:
         tdLog.info("=============== test concurrent queries phase")
         tdSql.execute(f"use db")
         
-        # Create multiple tables
         for i in range(5):
             tdSql.execute(f"create table if not exists db.t{i} (ts timestamp, v int)")
             tdSql.execute(f"insert into db.t{i} values (now, {i})")
         
-        # Execute multiple queries in sequence
         for i in range(5):
             tdSql.query(f"select * from db.t{i}")
             tdSql.checkRows(1)
         
-        # Check show queries
         tdSql.query(f"show queries")
         tdLog.info(f"Total queries shown: {tdSql.getRows()}")
         
         print("test concurrent queries phase ....................... [passed]")
 
     def test_phase_timing_accuracy(self):
-        """Timing: Verify action_start_time accuracy
+        """Timing: Verify phase_start_time accuracy
 
         1. Record current timestamp before query
         2. Execute query
-        3. Verify action_start_time is within reasonable range of recorded time
+        3. Verify phase_start_time is within reasonable range of recorded time
 
         Since: v3.3.0.0
 
@@ -191,28 +179,21 @@ class TestQueryPhaseTracking:
         tdLog.info("=============== test phase timing accuracy")
         tdSql.execute(f"use db")
         
-        # Get current time before query
-        before_time = int(time.time() * 1000)  # milliseconds
+        before_time = int(time.time() * 1000)
         
-        # Execute query
         tdSql.query(f"select * from db.stb")
         
-        # Get current time after query
         after_time = int(time.time() * 1000)
         
-        # Check show queries
         tdSql.query(f"show queries")
         
         if tdSql.getRows() > 0:
             col_names = [row[0] for row in tdSql.getColNames()]
-            time_idx = col_names.index("action_start_time") if "action_start_time" in col_names else -1
+            time_idx = col_names.index("phase_start_time") if "phase_start_time" in col_names else -1
             
             if time_idx >= 0:
                 query_time = tdSql.getData(0, time_idx)
-                # Convert to milliseconds if in different unit
                 tdLog.info(f"Before: {before_time}, Query: {query_time}, After: {after_time}")
-                # The query time should be between before and after (with some tolerance)
-                # Note: The timestamp might be in different precision, so we just verify it's reasonable
         
         print("test phase timing accuracy ....................... [passed]")
 

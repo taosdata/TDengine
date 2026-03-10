@@ -326,8 +326,8 @@ typedef struct SRequestObj {
   SMetaData            parseMeta;
   char*                effectiveUser;
   int8_t               source;
-  int32_t              currentPhase;     // Current execution phase: 0=query, 1=fetch, 2=query callback, 3=fetch callback
-  int64_t              actionStartTime;   // When current action started (timestamp precision ms)
+  int32_t              execPhase;       // EQueryExecPhase
+  int64_t              phaseStartTime;  // when current phase started, ms
 } SRequestObj;
 
 typedef struct SSyncQueryParam {

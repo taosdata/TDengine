@@ -254,6 +254,19 @@ void *taosDecodeSEpSet(const void *buf, SEpSet *pEp) {
   return (void *)buf;
 }
 
+const char* queryPhaseStr(int32_t phase) {
+  switch (phase) {
+    case QUERY_PHASE_PARSE:    return "parse";
+    case QUERY_PHASE_CATALOG:  return "catalog";
+    case QUERY_PHASE_PLAN:     return "plan";
+    case QUERY_PHASE_SCHEDULE: return "schedule";
+    case QUERY_PHASE_EXECUTE:  return "execute";
+    case QUERY_PHASE_FETCH:    return "fetch";
+    case QUERY_PHASE_DONE:     return "done";
+    default:                   return "none";
+  }
+}
+
 static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pReq) {
   TAOS_CHECK_RETURN(tEncodeSClientHbKey(pEncoder, &pReq->connKey));
 
@@ -292,8 +305,6 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
         TAOS_CHECK_RETURN(tEncodeI8(pEncoder, desc->isSubQuery));
         TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, desc->fqdn));
         TAOS_CHECK_RETURN(tEncodeI32(pEncoder, desc->subPlanNum));
-        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, desc->currentPhase));
-        TAOS_CHECK_RETURN(tEncodeI64(pEncoder, desc->actionStartTime));
         int32_t snum = desc->subDesc ? taosArrayGetSize(desc->subDesc) : 0;
         TAOS_CHECK_RETURN(tEncodeI32(pEncoder, snum));
         for (int32_t m = 0; m < snum; ++m) {
@@ -301,6 +312,8 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
           TAOS_CHECK_RETURN(tEncodeI64(pEncoder, sDesc->tid));
           TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, sDesc->status));
         }
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, desc->execPhase));
+        TAOS_CHECK_RETURN(tEncodeI64(pEncoder, desc->phaseStartTime));
       }
     } else {
       TAOS_CHECK_RETURN(tEncodeI32(pEncoder, queryNum));
@@ -401,12 +414,6 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
           code = tDecodeI32(pDecoder, &desc.subPlanNum);
           TAOS_CHECK_GOTO(code, &line, _error);
 
-          code = tDecodeI32(pDecoder, &desc.currentPhase);
-          TAOS_CHECK_GOTO(code, &line, _error);
-
-          code = tDecodeI64(pDecoder, &desc.actionStartTime);
-          TAOS_CHECK_GOTO(code, &line, _error);
-
           int32_t snum = 0;
           code = tDecodeI32(pDecoder, &snum);
           if (snum > 0) {
@@ -432,6 +439,15 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
 
           if (!(desc.subPlanNum == taosArrayGetSize(desc.subDesc))) {
             code = TSDB_CODE_INVALID_MSG;
+            TAOS_CHECK_GOTO(code, &line, _error);
+          }
+
+          desc.execPhase = QUERY_PHASE_NONE;
+          desc.phaseStartTime = 0;
+          if (!tDecodeIsEnd(pDecoder)) {
+            code = tDecodeI32(pDecoder, &desc.execPhase);
+            TAOS_CHECK_GOTO(code, &line, _error);
+            code = tDecodeI64(pDecoder, &desc.phaseStartTime);
             TAOS_CHECK_GOTO(code, &line, _error);
           }
 
