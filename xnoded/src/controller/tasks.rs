@@ -21,20 +21,122 @@ impl TaskJobInfo {
     }
 }
 
+struct TasksInner {
+    jobs: RwLock<HashMap<(i64, i64), TaskJobInfo>>,
+    /// Cached task-level status shared between the periodic updater (every 60s)
+    /// and the real-time event loop. See `job_status_cache` for race notes.
+    task_status_cache: RwLock<HashMap<i64, TaskStatus>>,
+    /// Cached job-level status shared between the periodic updater and event
+    /// loop. Both paths may read/write concurrently. The RwLock guarantees
+    /// memory safety, but a brief logical race is possible: the event loop may
+    /// update a status right before the updater overwrites it with slightly
+    /// stale RPC data. This is benign because the updater self-corrects on the
+    /// next 60-second cycle.
+    job_status_cache: RwLock<HashMap<(i64, i64), TaskStatus>>,
+}
+
 #[derive(Clone)]
-pub struct Tasks(Arc<RwLock<HashMap<(i64, i64), TaskJobInfo>>>);
+pub struct Tasks(Arc<TasksInner>);
 
 impl Tasks {
     pub fn new() -> Self {
-        Self(Arc::new(RwLock::new(HashMap::new())))
+        Self(Arc::new(TasksInner {
+            jobs: RwLock::new(HashMap::new()),
+            task_status_cache: RwLock::new(HashMap::new()),
+            job_status_cache: RwLock::new(HashMap::new()),
+        }))
     }
 
+    // ---- status cache methods ----
+
+    pub fn get_cached_task_status(&self, task_id: i64) -> Option<TaskStatus> {
+        self.0.task_status_cache.read().get(&task_id).copied()
+    }
+
+    pub fn set_cached_task_status(&self, task_id: i64, status: TaskStatus) {
+        self.0.task_status_cache.write().insert(task_id, status);
+    }
+
+    /// Remove the cached task status and all associated job statuses for the
+    /// given task.
+    pub fn del_cached_task_status(&self, task_id: i64) {
+        self.0.task_status_cache.write().remove(&task_id);
+        self.0
+            .job_status_cache
+            .write()
+            .retain(|(tid, _), _| tid != &task_id);
+    }
+
+    pub fn get_cached_job_status(&self, task_id: i64, job_id: i64) -> Option<TaskStatus> {
+        self.0
+            .job_status_cache
+            .read()
+            .get(&(task_id, job_id))
+            .copied()
+    }
+
+    pub fn set_cached_job_status(&self, task_id: i64, job_id: i64, status: TaskStatus) {
+        self.0
+            .job_status_cache
+            .write()
+            .insert((task_id, job_id), status);
+    }
+
+    /// Get the cached status for a single task/job entry.
+    ///
+    /// When `job_id < 0` the entry is a task-level record, so
+    /// `task_status_cache` is queried. For real jobs (`job_id >= 0`)
+    /// `job_status_cache` is queried instead.
+    pub fn get_cached_status(&self, task_id: i64, job_id: i64) -> Option<TaskStatus> {
+        if job_id < 0 {
+            self.0.task_status_cache.read().get(&task_id).copied()
+        } else {
+            self.0
+                .job_status_cache
+                .read()
+                .get(&(task_id, job_id))
+                .copied()
+        }
+    }
+
+    /// Set the cached status for a single task/job entry.
+    ///
+    /// When `job_id < 0` the entry is a task-level record, so
+    /// `task_status_cache` is updated. For real jobs (`job_id >= 0`)
+    /// `job_status_cache` is updated instead.
+    pub fn set_cached_status(&self, task_id: i64, job_id: i64, status: TaskStatus) {
+        if job_id < 0 {
+            self.0.task_status_cache.write().insert(task_id, status);
+        } else {
+            self.0
+                .job_status_cache
+                .write()
+                .insert((task_id, job_id), status);
+        }
+    }
+
+    /// Remove the cached status for a single task/job entry.
+    ///
+    /// When `job_id < 0` the entry is a task-level record, so
+    /// `task_status_cache` is cleared. For real jobs (`job_id >= 0`)
+    /// `job_status_cache` is cleared instead.
+    pub fn del_cached_status(&self, task_id: i64, job_id: i64) {
+        if job_id < 0 {
+            self.0.task_status_cache.write().remove(&task_id);
+        } else {
+            self.0.job_status_cache.write().remove(&(task_id, job_id));
+        }
+    }
+
+    // ---- jobs map methods ----
+
     pub fn contains(&self, tid: i64, jid: i64) -> bool {
-        self.0.read().contains_key(&(tid, jid))
+        self.0.jobs.read().contains_key(&(tid, jid))
     }
 
     pub fn is_stopped(&self, tid: i64) -> bool {
         self.0
+            .jobs
             .read()
             .iter()
             .filter_map(|((task_id, _), info)| (task_id == &tid).then_some(info))
@@ -42,14 +144,17 @@ impl Tasks {
     }
 
     pub fn set_status(&self, tid: i64, jid: i64, status: TaskStatus) {
-        self.0
-            .write()
-            .entry((tid, jid))
-            .and_modify(|info| info.status = Some(status));
+        let mut map = self.0.jobs.write();
+        if let Some(info) = map.get_mut(&(tid, jid)) {
+            info.status = Some(status);
+        } else {
+            tracing::debug!(task_id = tid, job_id = jid, %status, "set_status: key not found in Tasks map, skipping");
+        }
     }
 
     pub fn set_manually_stopped(&self, tid: i64, jid: i64) {
         self.0
+            .jobs
             .write()
             .entry((tid, jid))
             .and_modify(|info| info.manually_stopped = true);
@@ -57,6 +162,7 @@ impl Tasks {
 
     pub fn set_manually_rebalance(&self, tid: i64, jid: i64) {
         self.0
+            .jobs
             .write()
             .entry((tid, jid))
             .and_modify(|info| info.manually_rebalance = true);
@@ -64,6 +170,7 @@ impl Tasks {
 
     pub fn is_manually_stopped(&self, tid: i64) -> bool {
         self.0
+            .jobs
             .read()
             .iter()
             .filter_map(|((task_id, _), info)| (task_id == &tid).then_some(info))
@@ -79,7 +186,7 @@ impl Tasks {
         status: Option<TaskStatus>,
     ) -> Result<(), taos::DsnError> {
         let oneshot = is_oneshot(&config.from)?;
-        self.0.write().insert(
+        self.0.jobs.write().insert(
             (tid, jid),
             TaskJobInfo {
                 xnode_id: xid,
@@ -95,7 +202,7 @@ impl Tasks {
 
     pub fn del_task(&self, tid: i64) -> Vec<((i64, i64), TaskJobInfo)> {
         let mut jobs = Vec::new();
-        self.0.write().retain(|id, job| {
+        self.0.jobs.write().retain(|id, job| {
             if id.0 == tid {
                 jobs.push((*id, job.clone()));
                 false
@@ -107,12 +214,12 @@ impl Tasks {
     }
 
     pub fn del_task_job(&self, tid: i64, jid: i64) {
-        self.0.write().remove(&(tid, jid));
+        self.0.jobs.write().remove(&(tid, jid));
     }
 
     pub fn del_xnode_jobs(&self, xid: i32) -> Vec<((i64, i64), TaskJobInfo)> {
         let mut jobs = Vec::new();
-        self.0.write().retain(|id, job| {
+        self.0.jobs.write().retain(|id, job| {
             if job.xnode_id == xid {
                 jobs.push((*id, job.clone()));
                 false
@@ -125,6 +232,7 @@ impl Tasks {
 
     pub fn xnode_jobs(&self, xid: i32) -> Vec<(i64, i64)> {
         self.0
+            .jobs
             .read()
             .iter()
             .filter(|(_, state)| state.xnode_id == xid)
@@ -134,6 +242,7 @@ impl Tasks {
 
     pub fn task_jobs(&self, tid: i64) -> Vec<((i64, i64), TaskJobInfo)> {
         self.0
+            .jobs
             .read()
             .iter()
             .filter(|(key, _)| key.0 == tid)
@@ -143,17 +252,19 @@ impl Tasks {
 
     pub fn task_has_jobs(&self, tid: i64) -> bool {
         self.0
+            .jobs
             .read()
             .iter()
             .any(|((task_id, job_id), _)| task_id == &tid && *job_id >= 0)
     }
 
     pub fn job(&self, tid: i64, jid: i64) -> Option<TaskJobInfo> {
-        self.0.read().get(&(tid, jid)).cloned()
+        self.0.jobs.read().get(&(tid, jid)).cloned()
     }
 
     pub fn is_oneshot(&self, tid: i64) -> bool {
         self.0
+            .jobs
             .read()
             .iter()
             .any(|((task_id, _), job)| task_id == &tid && job.oneshot)

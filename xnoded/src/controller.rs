@@ -42,7 +42,7 @@ use crate::{
         heartbeat::heartbeat_loop,
         reconnect::reconnect_loop,
         tasks::{TaskJobInfo, Tasks, is_oneshot},
-        updaters::{remove_cached_agent_state, update_agent_status, update_task_status},
+        updaters::{update_agent_status, update_task_status},
         xnodes::{XNodeStatus, XNodes},
     },
 };
@@ -374,6 +374,7 @@ impl Controller {
                 self.tasks
                     .add(task_id, job_id, xnode_id, config.clone(), Some(state.state))
                     .context(InvalidTaskDsnSnafu { task_id, job_id })?;
+                self.tasks.set_cached_status(task_id, job_id, state.state);
                 tracing::info!(task_id, job_id, xnode_id, "add task job");
             }
 
@@ -386,7 +387,8 @@ impl Controller {
                 if xnode_id != task_xnode_id {
                     continue;
                 }
-                // 总任务的状态是 运行中，则子任务需要放到内存中，用户可以手动调度
+                // If the parent task is running, add the sub-job to in-memory
+                // map so the user can manually dispatch it.
                 if db_tasks_status
                     .get(&task_id)
                     .is_some_and(|v| v.is_some_and(|v| v.is_running()))
@@ -394,6 +396,9 @@ impl Controller {
                     self.tasks
                         .add(task_id, job_id, xnode_id, config.clone(), None)
                         .context(InvalidTaskDsnSnafu { task_id, job_id })?;
+                    if let Some(status) = db_status {
+                        self.tasks.set_cached_status(task_id, job_id, *status);
+                    }
                 }
                 if db_status
                     .as_ref()
@@ -459,6 +464,10 @@ impl Controller {
 
     pub fn xnodes(&self) -> XNodes {
         self.xnodes.clone()
+    }
+
+    pub fn agents(&self) -> Agents {
+        self.agents.clone()
     }
 
     #[instrument(skip_all)]
@@ -553,10 +562,10 @@ impl Controller {
     pub async fn delete_xnode(&self, id: i32, force: bool) -> Result<()> {
         match self.drain_xnode(id).await {
             Ok(_) => {
-                self.tasks.del_xnode_jobs(id);
+                self.remove_xnode_jobs_and_cache(id);
             }
             Err(e) if force => {
-                self.tasks.del_xnode_jobs(id);
+                self.remove_xnode_jobs_and_cache(id);
                 tracing::error!("delete xnode error: {}", anyhow::Error::new(e));
             }
             res => {
@@ -576,7 +585,7 @@ impl Controller {
                 xnode_id = id,
                 "xnoded not found, may be offline or not created"
             );
-            self.tasks.del_xnode_jobs(id);
+            self.remove_xnode_jobs_and_cache(id);
             return Ok(());
         };
 
@@ -601,6 +610,13 @@ impl Controller {
                 .await?;
         }
         Ok(())
+    }
+
+    fn remove_xnode_jobs_and_cache(&self, xnode_id: i32) {
+        let removed = self.tasks.del_xnode_jobs(xnode_id);
+        for ((task_id, job_id), _) in &removed {
+            self.tasks.del_cached_status(*task_id, *job_id);
+        }
     }
 
     #[instrument(skip_all)]
@@ -835,6 +851,9 @@ impl Controller {
             }
             self.tasks.set_manually_stopped(task_id, job_id);
         }
+        if del_task {
+            self.tasks.del_cached_task_status(task_id);
+        }
         Ok(())
     }
 
@@ -1040,7 +1059,7 @@ impl Controller {
     #[instrument(skip_all)]
     pub async fn del_agent(&self, id: i64) -> Result<()> {
         self.agents.del(id);
-        remove_cached_agent_state(id);
+        self.agents.remove_cached_agent_state(id);
 
         let xnodes = self.xnodes.availables();
         for xnode_id in xnodes {
@@ -1097,7 +1116,7 @@ impl Controller {
             if !self.agents.has(*agent_id) {
                 continue;
             }
-            update_agent_status(&self.taos_conn, &self.xnodes, *agent_id).await;
+            update_agent_status(&self.taos_conn, &self.xnodes, &self.agents, *agent_id).await;
         }
         Ok(res)
     }

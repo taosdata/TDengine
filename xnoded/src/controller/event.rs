@@ -30,10 +30,7 @@ use crate::controller::{
     agents::Agents,
     start_task_job,
     tasks::Tasks,
-    updaters::{
-        del_task_status, get_job_status, get_task_status, set_job_status, set_task_status,
-        update_agent_status,
-    },
+    updaters::{compute_aggregate_status, update_agent_status},
     xnodes::XNodes,
 };
 
@@ -330,11 +327,13 @@ async fn update_task_job(
     activity: &str,
 ) {
     tasks.set_status(task_id, job_id, task_status);
-    let cached_status = get_job_status(task_id, job_id);
+    // For no-sub-job tasks (job_id < 0) the DB column is the task-level status,
+    // so we compare and update task_status_cache instead of job_status_cache.
+    let cached_status = tasks.get_cached_status(task_id, job_id);
     if !tasks.contains(task_id, job_id) && task_status.is_stopped() {
         return;
     }
-    if !cached_status.is_none_or(|v| v != task_status) {
+    if cached_status.is_some_and(|v| v == task_status) {
         return;
     }
 
@@ -351,10 +350,10 @@ async fn update_task_job(
             tracing::error!("Failed to alter job status: {:#}", anyhow::Error::new(e));
         }
     } else {
-        set_job_status(task_id, job_id, task_status);
+        tasks.set_cached_status(task_id, job_id, task_status);
     }
 
-    // 更新原子任务的 reason
+    // Reset the failure reason when transitioning away from Failed.
     if cached_status.is_none_or(|v| matches!(v, TaskStatus::Failed))
         && !matches!(task_status, TaskStatus::Failed)
     {
@@ -378,7 +377,7 @@ async fn update_task_job(
         }
     }
 
-    // 更新原子任务的失败原因
+    // Record the failure reason when the job transitions to Failed.
     if matches!(task_status, TaskStatus::Failed) {
         let sql = if job_id < 0 {
             format!("ALTER XNODE TASK {task_id} WITH REASON '{activity}'")
@@ -406,19 +405,12 @@ async fn update_task(tasks: &Tasks, taos_conn: &TaosConn, task_id: i64, job_id: 
         return;
     }
 
-    let status = if tasks.is_manually_stopped(task_id) {
-        if tasks.is_stopped(task_id) {
-            TaskStatus::Stopped
-        } else {
-            TaskStatus::Stopping
-        }
-    } else if tasks.is_stopped(task_id) {
-        TaskStatus::Stopped
-    } else {
-        TaskStatus::Running
-    };
+    let status = compute_aggregate_status(tasks, task_id);
 
-    if !get_task_status(task_id).is_none_or(|v| v != status) {
+    if tasks
+        .get_cached_task_status(task_id)
+        .is_some_and(|v| v == status)
+    {
         return;
     }
 
@@ -437,7 +429,7 @@ async fn update_task(tasks: &Tasks, taos_conn: &TaosConn, task_id: i64, job_id: 
             );
         }
     } else {
-        set_task_status(task_id, status);
+        tasks.set_cached_task_status(task_id, status);
     }
 }
 
@@ -454,7 +446,7 @@ async fn schedule_job(
     if tasks.is_manually_stopped(task_id) || tasks.is_oneshot(task_id) {
         if tasks.is_stopped(task_id) {
             tasks.del_task(task_id);
-            del_task_status(task_id);
+            tasks.del_cached_task_status(task_id);
             del_task_backoff(task_id);
         }
         return;
@@ -611,5 +603,5 @@ async fn process_agent_status(
     if agents.has(agent_id) {
         xnodes.set_agent_status(id, agent_id, status);
     }
-    update_agent_status(conn, xnodes, agent_id).await;
+    update_agent_status(conn, xnodes, agents, agent_id).await;
 }

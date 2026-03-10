@@ -7,6 +7,7 @@ use tracing::instrument;
 use taosx_utils::taos_conn::TaosConn;
 
 use crate::controller::{
+    agents::Agents,
     tasks::Tasks,
     updaters::{update_agent_status, update_task_status},
     xnodes::XNodes,
@@ -17,6 +18,7 @@ pub async fn start_updater(
     dsn: String,
     xnodes: XNodes,
     tasks: Tasks,
+    agents: Agents,
     cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     tracing::info!("start updater");
@@ -30,7 +32,7 @@ pub async fn start_updater(
         .is_some()
     {
         if cancel
-            .run_until_cancelled(update(&conn, &xnodes, &tasks))
+            .run_until_cancelled(update(&conn, &xnodes, &tasks, &agents))
             .await
             .is_none()
         {
@@ -41,9 +43,9 @@ pub async fn start_updater(
     Ok(())
 }
 
-async fn update(conn: &TaosConn, xnodes: &XNodes, tasks: &Tasks) {
+async fn update(conn: &TaosConn, xnodes: &XNodes, tasks: &Tasks, agents: &Agents) {
     for agent_id in xnodes.all_agents() {
-        update_agent_status(conn, xnodes, agent_id).await;
+        update_agent_status(conn, xnodes, agents, agent_id).await;
     }
 
     update_task_status(conn, xnodes, tasks, None).await;

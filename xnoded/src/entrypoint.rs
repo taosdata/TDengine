@@ -66,7 +66,14 @@ pub async fn run(args: Args) -> anyhow::Result<()> {
     // updater
     tasks.spawn({
         let cancel = cancel.clone();
-        start_updater(dsn, controller.xnodes(), controller.tasks(), cancel).in_current_span()
+        start_updater(
+            dsn,
+            controller.xnodes(),
+            controller.tasks(),
+            controller.agents(),
+            cancel,
+        )
+        .in_current_span()
     });
 
     // rebalancer

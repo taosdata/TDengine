@@ -58,10 +58,6 @@ impl XNodes {
         Self(Arc::new(RwLock::new(HashMap::new())))
     }
 
-    pub fn all(&self) -> Vec<i32> {
-        self.0.read().keys().copied().collect()
-    }
-
     pub fn availables(&self) -> Vec<i32> {
         self.0
             .read()
