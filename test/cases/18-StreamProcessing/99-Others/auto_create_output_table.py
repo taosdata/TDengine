@@ -94,7 +94,7 @@ class TestStreamAutoCreateOutputTable:
         result_sql = f"select tags tag_tbname from out_ctb1 order by tag_tbname;"
         tdSql.checkResultsByFunc(
             sql=result_sql,
-            func=lambda: tdSql.getRows() == 1
+            func=lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, "tb1")
             and tdSql.compareData(1, 0, "tb2")
         )
@@ -131,7 +131,7 @@ class TestStreamAutoCreateOutputTable:
             and tdSql.compareData(1, 0, "out3_tb2")
         )
 
-        result_sql = f"select tags nameoftbl from out_ctb3 order by tag_tbname;"
+        result_sql = f"select tags nameoftbl from out_ctb3 order by nameoftbl;"
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 1
@@ -153,11 +153,11 @@ class TestStreamAutoCreateOutputTable:
             sql=result_sql,
             func=lambda: tdSql.getRows() == 2
             and tdSql.compareData(0, 0, "out4_tb1")
-            and tdSql.compareData(1, 0, "tb1")
-            and tdSql.compareData(2, 0, "1")
-            and tdSql.compareData(3, 0, "out4_tb2")
-            and tdSql.compareData(4, 0, "tb2")
-            and tdSql.compareData(5, 0, "2")
+            and tdSql.compareData(0, 1, "tb1")
+            and tdSql.compareData(0, 2, "1")
+            and tdSql.compareData(1, 0, "out4_tb2")
+            and tdSql.compareData(1, 1, "tb2")
+            and tdSql.compareData(1, 2, "2")
         )
     
     def checks5(self):
@@ -171,7 +171,7 @@ class TestStreamAutoCreateOutputTable:
         )
 
     def checks10(self):
-        result_sql = f"select * from information_schema.ins_tables where stable_name like 'out_normal';"
+        result_sql = f"select * from information_schema.ins_tables where table_name like 'out_normal';"
         tdSql.checkResultsByFunc(
             sql=result_sql,
             func=lambda: tdSql.getRows() == 1
