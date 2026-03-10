@@ -730,6 +730,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_state.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_ts_7622.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_window_true_for.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_period_natural_units.py
 ## 04-Options
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_abnormal_data_table.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_abnormal_data_vtable.py

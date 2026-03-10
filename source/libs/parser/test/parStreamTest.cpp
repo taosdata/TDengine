@@ -1734,14 +1734,13 @@ TEST_F(ParserStreamTest, TestErrorTriggerWindow) {
   // invalid period unit
   run("create stream stream_streamdb.s1 period(1u) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_PERIOD_UNIT);
   run("create stream stream_streamdb.s1 period(1b) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_PERIOD_UNIT);
-  run("create stream stream_streamdb.s1 period(1w) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_PERIOD_UNIT);
-  run("create stream stream_streamdb.s1 period(1n) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_PERIOD_UNIT);
-  run("create stream stream_streamdb.s1 period(1y) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_PERIOD_UNIT);
 
   // period val out of [10a, 3650d]
   run("create stream stream_streamdb.s1 period(9a) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_PERIOD_RANGE);
   run("create stream stream_streamdb.s1 period(3660d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_PERIOD_RANGE);
-
+  run("create stream stream_streamdb.s1 period(522w) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_PERIOD_RANGE);
+  run("create stream stream_streamdb.s1 period(121n) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_PERIOD_RANGE);
+  run("create stream stream_streamdb.s1 period(11y) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INVALID_PERIOD_RANGE);
 }
 
 TEST_F(ParserStreamTest, TestErrorTriggerTable) {
@@ -1929,6 +1928,57 @@ TEST_F(ParserStreamTest, TestErrorQueryPlaceHolder) {
   run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as select _tlocaltime, %%tbname from stream_querydb.stream_t2", TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
   run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out as select _tlocaltime, c1 from %%tbname", TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
 
+}
+
+TEST_F(ParserStreamTest, TestPeriodOffset) {
+  setAsyncFlag("-1");
+
+  // Valid offset cases
+  // PERIOD(1w, 1d) - week with day offset
+  run("create stream stream_streamdb.s1 period(1w, 1d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1w)");
+
+  // PERIOD(1w, 12h) - week with hour offset
+  run("create stream stream_streamdb.s1 period(1w, 12h) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1w)");
+
+  // PERIOD(1n, 14d) - month with day offset
+  run("create stream stream_streamdb.s1 period(1n, 14d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1n)");
+
+  // PERIOD(1y, 31d) - year with day offset
+  run("create stream stream_streamdb.s1 period(1y, 31d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1y)");
+
+  // Invalid offset cases
+  // offset >= period (should fail)
+  run("create stream stream_streamdb.s1 period(1w, 7d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1w)", TSDB_CODE_PAR_INVALID_OFFSET_VALUE);
+
+  // offset > period (should fail)
+  run("create stream stream_streamdb.s1 period(1w, 8d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1w)", TSDB_CODE_PAR_INVALID_OFFSET_VALUE);
+
+  // Month unit offset overflow (>= 28 days for 1 month)
+  run("create stream stream_streamdb.s1 period(1n, 28d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1n)", TSDB_CODE_PAR_INVALID_OFFSET_VALUE);
+
+  // Month unit offset overflow (>= 56 days for 2 months)
+  run("create stream stream_streamdb.s1 period(2n, 56d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(2n)", TSDB_CODE_PAR_INVALID_OFFSET_VALUE);
+
+  // Valid month offset (< 28 days)
+  run("create stream stream_streamdb.s1 period(1n, 27d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1n)");
+
+  // Invalid offset unit (week not allowed for offset)
+  run("create stream stream_streamdb.s1 period(1n, 1w) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1n)", TSDB_CODE_PAR_INVALID_OFFSET_UNIT);
+
+  // Invalid offset unit (month not allowed for offset)
+  run("create stream stream_streamdb.s1 period(1y, 1n) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1y)", TSDB_CODE_PAR_INVALID_OFFSET_UNIT);
+
+  // Invalid offset unit (year not allowed for offset)
+  run("create stream stream_streamdb.s1 period(1y, 1y) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1y)", TSDB_CODE_PAR_INVALID_OFFSET_UNIT);
+
+  // Multi-unit combinations
+  // Week + various offset units
+  run("create stream stream_streamdb.s1 period(1w, 3600000a) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1w)");  // 1 hour in ms
+  run("create stream stream_streamdb.s1 period(1w, 3600s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1w)");  // 1 hour in seconds
+  run("create stream stream_streamdb.s1 period(1w, 60m) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1w)");  // 1 hour in minutes
+
+  // Negative offset (should fail with syntax error)
+  run("create stream stream_streamdb.s1 period(1w, -1d) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _wstart, avg(c1) from stream_querydb.stream_t2 interval(1w)", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
 }
 
 }  // namespace ParserTest
