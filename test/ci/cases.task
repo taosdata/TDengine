@@ -136,6 +136,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_drop.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_query.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_set_tag_vals.py
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_batch_set_tag_vals.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_ttl.py
 ## 03-PrimaryKey
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_basic.py
@@ -224,6 +225,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_schema_is_old.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_create.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_batch_set_tag_vals.py
 
 # 06-DataIngestion
 ## 01-SQL
