@@ -75,6 +75,7 @@ def clean_taos_process(keywords=None):
     """
     if keywords is None:
         keywords = ["taos", "taosd", "taosadapter", "taoskeeper", "taos-explorer", "taosx", "tmq_sim", "taosdump", "taosBenchmark", "write_raw_block_test" ]
+    keywords = [k.lower() for k in keywords]  
 
     current_pid = os.getpid()
 
