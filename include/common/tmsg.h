@@ -781,6 +781,7 @@ int32_t tPrintFixedSchemaSubmitReq(SSubmitReq* pReq, STSchema* pSchema);
 typedef struct {
   bool     hasRef;
   col_id_t id;
+  int8_t   depth;  // reference depth (1=physical, N=chain length)
   char     refDbName[TSDB_DB_NAME_LEN];
   char     refTableName[TSDB_TABLE_NAME_LEN];
   char     refColName[TSDB_COL_NAME_LEN];
@@ -4322,6 +4323,7 @@ typedef struct SColIdSlotIdPair {
 
 typedef struct SOrgTbInfo {
   int32_t vgId;
+  int8_t  depth;  // reference depth for optimization
   char    tbName[TSDB_TABLE_FNAME_LEN];
   SArray* colMap;  // SArray<SColIdNameKV>
 } SOrgTbInfo;
