@@ -14437,11 +14437,17 @@ int32_t tDecodeSColRefWrapperEx(SDecoder *pDecoder, SColRefWrapper *pWrapper, bo
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, (int8_t *)&p->hasRef));
     TAOS_CHECK_EXIT(tDecodeI16v(pDecoder, &p->id));
     if (p->hasRef) {
+      if (pWrapper->version >= 1) {
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &p->depth));  // decode depth
+      } else {
+        p->depth = 1;  // old data: always references physical table
+      }
       TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->refDbName));
       TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->refTableName));
       TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->refColName));
+    } else {
+      p->depth = 0;  // no reference
     }
-  }
 
 _exit:
   if (code) {
