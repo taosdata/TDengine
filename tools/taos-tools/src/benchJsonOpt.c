@@ -132,7 +132,7 @@ uint8_t parseFuns(char* expr, float* multiple, float* addend, float* base, int32
             funType = i + 1;
             key2 += strlen(funsName[i]);
             int32_t argsLen = parseFunArgs(key2, funType, min, max, step, period, offset);
-            if (argsLen <= 0) {
+            if (len <= 0) {
                 return FUNTYPE_NONE;
             }
             key2 += argsLen;
