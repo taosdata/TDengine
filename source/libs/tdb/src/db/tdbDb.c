@@ -16,7 +16,7 @@
 #include "tdbInt.h"
 
 int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, int8_t rollback,
-                int32_t encryptAlgorithm, char *encryptKey) {
+                SEncryptData *encryptData) {
   TDB *pDb;
   int  dsize;
   int  zsize;
@@ -50,10 +50,7 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
 
   pDb->jfd = -1;
 
-  pDb->encryptAlgorithm = encryptAlgorithm;
-  if (encryptKey != NULL) {
-    tstrncpy(pDb->encryptKey, encryptKey, ENCRYPT_KEY_LEN + 1);
-  }
+  pDb->encryptData = encryptData;
 
   ret = tdbPCacheOpen(szPage, pages, &(pDb->pCache));
   if (ret < 0) {
@@ -81,6 +78,17 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
   }
 
   ret = tdbTbOpen(TDB_FREEDB_NAME, sizeof(SPgno), 0, NULL, pDb, &pDb->pFreeDb, rollback);
+  if (ret < 0) {
+    return ret;
+  }
+
+  // if the underlying data structure is a btree, it will do re-balance when there are too many pages,
+  // the re-balance process include allocate and deallocate of free pages, this is ok for other tables,
+  // but not for the free page table, because it is for free pages management, allocate/deallocate of
+  // free pages during re-balance result in data corruption. so convert it to a linked list based stack
+  // to avoid re-balance.
+  int tdbTbBtreeToStack(TTB *pTb);
+  ret = tdbTbBtreeToStack(pDb->pFreeDb);
   if (ret < 0) {
     return ret;
   }

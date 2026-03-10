@@ -65,7 +65,8 @@ class MndTestTrans2 : public ::testing::Test {
     msgCb.sendRspFp = sendRsp;
     msgCb.queueFps[SYNC_QUEUE] = putToQueue;
     msgCb.queueFps[WRITE_QUEUE] = putToQueue;
-     msgCb.queueFps[READ_QUEUE] = putToQueue;
+    msgCb.queueFps[READ_QUEUE] = putToQueue;
+    msgCb.queueFps[STATUS_QUEUE] = putToQueue;
     msgCb.mgmt = (SMgmtWrapper *)(&msgCb);  // hack
     tmsgSetDefault(&msgCb);
 

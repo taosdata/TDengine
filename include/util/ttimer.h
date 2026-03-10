@@ -43,6 +43,9 @@ bool taosTmrIsStopped(tmr_h* timerId);
 
 bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void *param, void *handle, tmr_h *pTmrId);
 
+bool taosTmrResetPriority(TAOS_TMR_CALLBACK fp, int32_t mseconds, void *param, void *handle, tmr_h *pTmrId,
+                          uint8_t priority);
+
 #ifdef __cplusplus
 }
 #endif

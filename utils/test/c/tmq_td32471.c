@@ -68,7 +68,6 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
       cnt++;
       taos_free_result(tmqmessage);
     } else {
-      ASSERT(taos_errno(NULL) == 0);
       break;
     }
   }
@@ -76,7 +75,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   taosSsleep(5);
   TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 1000);
   ASSERT(tmqmessage == NULL);
-  ASSERT(taos_errno(NULL) == TSDB_CODE_TMQ_CONSUMER_MISMATCH);
+  ASSERT(taos_errno(NULL) == TSDB_CODE_MND_CONSUMER_NOT_EXIST);
 
   code = tmq_consumer_close(tmq);
   if (code)

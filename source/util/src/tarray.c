@@ -174,7 +174,12 @@ void* taosArrayAddAll(SArray* pArray, const SArray* pInput) {
 }
 
 void* taosArrayReserve(SArray* pArray, int32_t num) {
-  int32_t code = taosArrayEnsureCap(pArray, pArray->size + num);
+  int32_t code = 0;
+  if (pArray == NULL || num < 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  code = taosArrayEnsureCap(pArray, pArray->size + num);
   if (code) {
     terrno = code;
     return NULL;
@@ -205,7 +210,7 @@ void* taosArrayGet(const SArray* pArray, size_t index) {
   }
 
   if (index >= pArray->size) {
-    uError("index is out of range, current:%" PRIzu " max:%" PRIzu, index, pArray->size);
+    uWarn("index is out of range, current:%" PRIzu " max:%" PRIzu, index, pArray->size);
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return NULL;
   }
@@ -308,7 +313,34 @@ void taosArrayRemove(SArray* pArray, size_t index) {
   pArray->size -= 1;
 }
 
+void taosArrayRemoveP(SArray* pArray, size_t index, void (*fp)(void*)){
+  if (!(index < pArray->size)) {
+    return;
+  }
+
+  if (index == pArray->size - 1) {
+    void** t = taosArrayPop(pArray);
+    if (fp && t!= NULL) {
+      fp(*t);
+    }
+    return;
+  }
+
+  void* p = taosArrayGetP(pArray, index);
+  if (fp) {
+    fp(p);
+  }
+
+  size_t remain = pArray->size - index - 1;
+  memmove((char*)pArray->pData + index * pArray->elemSize, (char*)pArray->pData + (index + 1) * pArray->elemSize,
+          remain * pArray->elemSize);
+  pArray->size -= 1;
+}
+
 void taosArrayRemoveBatch(SArray* pArray, size_t index, size_t num, FDelete fp) {
+  if(num == 0) {
+    return;
+  }
   if (index + num <= pArray->size) {
     if (fp) {
       for (int32_t i = 0; i < num; i++) {

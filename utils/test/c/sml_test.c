@@ -26,7 +26,10 @@
 int smlProcess_influx_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  TAOS_RES *pRes = taos_query(taos, "drop database if exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "create database if not exists sml_db schemaless 1 keep 36500");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
@@ -87,7 +90,8 @@ int smlProcess_telnet_Test() {
   const char *sql1[] = {"sys.if.bytes.out  1479496100 1.3E0 host=web01 interface=eth0",
                         "sys.if.bytes.out  1479496101 1.3E1 interface=eth0    host=web01   ",
                         "sys.if.bytes.out  1479496102 1.3E3 network=tcp",
-                        " sys.procs.running   1479496100 42 host=web01   "};
+                        " sys.procs.running   1479496100 42 host=web01   ",
+                        " newline   1479496100 42 host=web\n01 t=fsb\n  "};
 
   //  for(int i = 0; i < 4; i++){
   //    strncpy(sql[i], sql1[i], 128);
@@ -1436,7 +1440,7 @@ int sml_td22900_Test() {
 int sml_td24070_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "CREATE user test_db pass 'test@123'");
+  TAOS_RES *pRes = taos_query(taos, "CREATE user if not exists test_db pass 'test@123'");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
@@ -1444,7 +1448,11 @@ int sml_td24070_Test() {
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "grant read on td24070_read to test_db");
+  pRes = taos_query(taos, "grant use on database td24070_read to test_db");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "grant select on td24070_read.* to test_db");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
@@ -1452,7 +1460,11 @@ int sml_td24070_Test() {
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "grant write on td24070_write to test_db");
+  pRes = taos_query(taos, "grant use, create table on database td24070_write to test_db");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+  
+  pRes = taos_query(taos, "grant insert on td24070_write.* to test_db");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
@@ -1469,7 +1481,7 @@ int sml_td24070_Test() {
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_MILLI_SECONDS);
 
-  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  printf("%s:%d result:%s\n", __FUNCTION__, __LINE__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   ASSERT(code != 0);
   taos_free_result(pRes);
@@ -1480,7 +1492,7 @@ int sml_td24070_Test() {
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_MILLI_SECONDS);
 
-  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  printf("%s:%d result:%s\n", __FUNCTION__, __LINE__, taos_errstr(pRes));
   code = taos_errno(pRes);
   ASSERT(code == 0);
   taos_free_result(pRes);
@@ -1491,21 +1503,30 @@ int sml_td24070_Test() {
   // test stable privilege
   taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  pRes = taos_query(taos, "CREATE user test_stb_read pass 'test@123'");
+  pRes = taos_query(taos, "CREATE user if not exists test_stb_read pass 'test@123'");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "CREATE user test_stb_write pass 'test@123'");
+  pRes = taos_query(taos, "CREATE user if not exists test_stb_write pass 'test@123'");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "grant read on td24070_write.stb2 to test_stb_read");
+  pRes = taos_query(taos, "grant select on td24070_write.stb2 to test_stb_read");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "grant write on td24070_write.stb2 to test_stb_write");
+  pRes = taos_query(taos, "grant use on database td24070_write to test_stb_read");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
+
+  pRes = taos_query(taos, "grant insert on td24070_write.stb2 to test_stb_write");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "grant use, create table on database td24070_write to test_stb_write");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
   taos_close(taos);
 
   taos = taos_connect("localhost", "test_stb_read", "test@123", "td24070_write", 0);
@@ -1536,19 +1557,27 @@ int sml_td24070_Test() {
   // test table privilege
   taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  pRes = taos_query(taos, "CREATE user test_tb_read pass 'test@123'");
+  pRes = taos_query(taos, "CREATE user if not exists test_tb_read pass 'test@123'");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "CREATE user test_tb_write pass 'test@123'");
+  pRes = taos_query(taos, "CREATE user if not exists test_tb_write pass 'test@123'");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "grant read on td24070_write.stb2 with t1=1 to test_tb_read");
+  pRes = taos_query(taos, "grant use on database td24070_write to test_tb_read");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "grant write on td24070_write.stb2 with t1=1 to test_tb_write");
+  pRes = taos_query(taos, "grant select on td24070_write.stb2 with t1=1 to test_tb_read");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "grant use, create table on database td24070_write to test_tb_write");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "grant insert on td24070_write.stb2 with t1=1 to test_tb_write");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
   taos_close(taos);
@@ -2355,12 +2384,34 @@ int sml_td17324_Test() {
   return code;
 }
 
+int smlProcess_34114_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_34114_db schemaless 1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_34114_db");
+  taos_free_result(pRes);
+
+  char *sql = {"sys.if.bytes.out  1479496100 1.3E0 host=web01 interface=eth0 \nsys.if.bytes.out  1479496101 1.3E1 interface=eth0    host=web01   "};
+  int32_t totalRows = 0;
+  pRes = taos_schemaless_insert_raw(taos, sql, strlen(sql), &totalRows, TSDB_SML_TELNET_PROTOCOL,
+                                TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  taos_close(taos);
+
+  return code;
+}
+
 int main(int argc, char *argv[]) {
   if (argc == 2) {
     taos_options(TSDB_OPTION_CONFIGDIR, argv[1]);
   }
-
-  int ret = smlProcess_json0_Test();
+  int ret = smlProcess_34114_Test();
+  ASSERT(!ret);
+  ret = smlProcess_json0_Test();
   ASSERT(!ret);
   ret = sml_ts5528_test();
   ASSERT(!ret);

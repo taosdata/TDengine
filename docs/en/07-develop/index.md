@@ -3,6 +3,9 @@ title: Developer's Guide
 slug: /developer-guide
 ---
 
+import DocCardList from '@theme/DocCardList';
+import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
+
 To develop an application, if you plan to use TDengine as a tool for time-series data processing, there are several things to do:
 
 1. Determine the connection method to TDengine. No matter what programming language you use, you can always use the REST interface, but you can also use connectors unique to each programming language for convenient connections.
@@ -19,9 +22,4 @@ If you want to learn more about using SQL, check out the [SQL Manual](../tdengin
 
 If you encounter any problems during the development process, please click ["Report Issue"](https://github.com/taosdata/TDengine/issues/new/choose) at the bottom of each page to submit an Issue directly on GitHub.
 
-```mdx-code-block
-import DocCardList from '@theme/DocCardList';
-import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
-
 <DocCardList items={useCurrentSidebarCategory().items}/>
-```

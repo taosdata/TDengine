@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef USE_UDF
 // clang-format off
 #include "uv.h"
 #include "os.h"
@@ -30,6 +31,7 @@
 #include "trpc.h"
 #include "tmisce.h"
 #include "tversion.h"
+#include "dmUtil.h"
 // clang-format on
 
 #define UDFD_MAX_SCRIPT_PLUGINS 64
@@ -44,7 +46,6 @@ typedef struct SUdfCPluginCtx {
   TUdfAggStartFunc   aggStartFunc;
   TUdfAggProcessFunc aggProcFunc;
   TUdfAggFinishFunc  aggFinishFunc;
-  TUdfAggMergeFunc   aggMergeFunc;
 
   TUdfInitFunc    initFunc;
   TUdfDestroyFunc destroyFunc;
@@ -84,13 +85,6 @@ int32_t udfdCPluginUdfInitLoadAggFuncs(SUdfCPluginCtx *udfCtx, const char *udfNa
   snprintf(finishFuncName, sizeof(finishFuncName), "%s%s", processFuncName, finishSuffix);
   TAOS_CHECK_RETURN(uv_dlsym(&udfCtx->lib, finishFuncName, (void **)(&udfCtx->aggFinishFunc)));
 
-  char  mergeFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
-  char *mergeSuffix = "_merge";
-  snprintf(mergeFuncName, sizeof(mergeFuncName), "%s%s", processFuncName, mergeSuffix);
-  int ret = uv_dlsym(&udfCtx->lib, mergeFuncName, (void **)(&udfCtx->aggMergeFunc));
-  if (ret != 0) {
-    fnInfo("uv_dlsym function %s. error: %s", mergeFuncName, uv_strerror(ret));
-  }
   return 0;
 }
 
@@ -103,7 +97,7 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
   }
   err = uv_dlopen(udf->path, &udfCtx->lib);
   if (err != 0) {
-    fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
+    fnError("can not load library %s. error: %s, %s", udf->path, uv_strerror(err), udfCtx->lib.errmsg);
     taosMemoryFree(udfCtx);
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
@@ -391,7 +385,7 @@ int32_t udfdLoadSharedLib(char *libPath, uv_lib_t *pLib, const char *funcName[],
   TAOS_UDF_CHECK_PTR_RCODE(libPath, pLib, funcName, func);
   int err = uv_dlopen(libPath, pLib);
   if (err != 0) {
-    fnError("can not load library %s. error: %s", libPath, uv_strerror(err));
+    fnError("can not load library %s. error: %s, %s", libPath, uv_strerror(err), pLib->errmsg);
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
 
@@ -656,6 +650,9 @@ int32_t udfdNewUdf(SUdf **pUdf, const char *udfName) {
     }
   }
   *pUdf =  udfNew;
+
+  fnTrace("udf new succeeded. name %s(%p)", udfNew->name, udfNew);
+
   return 0;
 }
 
@@ -673,6 +670,9 @@ void udfdFreeUdf(void *pData) {
 
   uv_mutex_destroy(&pSudf->lock);
   uv_cond_destroy(&pSudf->condReady);
+
+  fnTrace("udf free succeeded. name %s(%p)", pSudf->name, pSudf);
+
   taosMemoryFree(pSudf);
 }
 
@@ -747,12 +747,17 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     }
     uv_mutex_unlock(&udf->lock);
   }
-  SUdfcFuncHandle *handle = taosMemoryMalloc(sizeof(SUdfcFuncHandle));
-  if(handle == NULL) {
-    fnError("udfdProcessSetupRequest: malloc failed.");
-    code = terrno;
+
+  SUdfcFuncHandle *handle = NULL;
+  if (!code) {
+    handle = taosMemoryMalloc(sizeof(SUdfcFuncHandle));
+    if (handle == NULL) {
+      fnError("udfdProcessSetupRequest: malloc failed.");
+      code = terrno;
+    } else {
+      handle->udf = udf;
+    }
   }
-  handle->udf = udf;
 
 _send:
   ;
@@ -768,25 +773,42 @@ _send:
   int32_t len = encodeUdfResponse(NULL, &rsp);
   if(len < 0) {
     fnError("udfdProcessSetupRequest: encode udf response failed. len %d", len);
-    return;
+    code = terrno;
+    goto _exit;
   }
   rsp.msgLen = len;
   void *bufBegin = taosMemoryMalloc(len);
   if(bufBegin == NULL) {
     fnError("udfdProcessSetupRequest: malloc failed. len %d", len);
-    return;
+    code = terrno;
+    goto _exit;
   }
+
   void *buf = bufBegin;
   if(encodeUdfResponse(&buf, &rsp) < 0) {
     fnError("udfdProcessSetupRequest: encode udf response failed. len %d", len);
     taosMemoryFree(bufBegin);
-    return;
+    code = terrno;
+    goto _exit;
   }
   
   uvUdf->output = uv_buf_init(bufBegin, len);
 
   taosMemoryFreeClear(uvUdf->input.base);
-  return;
+
+_exit:
+  if (code) {
+    uv_mutex_lock(&global.udfsMutex);
+    int32_t removeCode = taosHashRemove(global.udfsHash, udf->name, strlen(udf->name));
+    if (removeCode) {
+      fnError("udf name %s remove from hash failed/setup, err:%0x %s", udf->name, removeCode, tstrerror(removeCode));
+    }
+    uv_mutex_unlock(&global.udfsMutex);
+
+    fnError("udf free: setup failed. name %s(%p) err:%0x %s", udf->name, udf, code, tstrerror(code));
+
+    udfdFreeUdf(udf);
+  }
 }
 
 static int32_t checkUDFScalaResult(SSDataBlock *block, SUdfColumn *output) {
@@ -998,11 +1020,8 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   uv_mutex_unlock(&global.udfsMutex);
   if (unloadUdf) {
     fnInfo("udf teardown. udf name: %s type %d: context %p", udf->name, udf->scriptType, (void *)(udf->scriptUdfCtx));
-    uv_cond_destroy(&udf->condReady);
-    uv_mutex_destroy(&udf->lock);
-    code = udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
-    fnDebug("udfd destroy function returns %d", code);
-    taosMemoryFree(udf);
+
+    udfdFreeUdf(udf);
   }
 
 _send:
@@ -1078,7 +1097,7 @@ int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
 
   TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
   if (file == NULL) {
-    fnError("udfd write udf shared library: %s failed, error: %d %s", path, errno, strerror(terrno));
+    fnError("udfd write udf shared library: %s failed, error: %d %s", path, ERRNO, strerror(ERRNO));
     return TSDB_CODE_FILE_CORRUPTED;
   }
   int64_t count = taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
@@ -1106,7 +1125,7 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   }
 
   if (pMsg->code != TSDB_CODE_SUCCESS) {
-    fnError("udfd rpc error. code: %s", tstrerror(pMsg->code));
+    fnError("udfd rpc error, code:%s", tstrerror(pMsg->code));
     msgInfo->code = pMsg->code;
     goto _return;
   }
@@ -1293,7 +1312,16 @@ int32_t udfdOpenClientRpc() {
   connLimitNum = TMIN(connLimitNum, 500);
   rpcInit.connLimitNum = connLimitNum;
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+
+  rpcInit.enableSSL = tsEnableTLS;
+  rpcInit.enableSasl = tsEnableSasl;
+  memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
+  memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
+  memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
+  memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
+  memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
   TAOS_CHECK_RETURN(taosVersionStrToInt(td_version, &rpcInit.compatibilityVer));
+
   global.clientRpc = rpcOpen(&rpcInit);
   if (global.clientRpc == NULL) {
     fnError("failed to init dnode rpc client");
@@ -1312,7 +1340,7 @@ void udfdOnWrite(uv_write_t *req, int status) {
   TAOS_UDF_CHECK_PTR_RVOID(req);
   SUvUdfWork *work = (SUvUdfWork *)req->data;
   if (status < 0) {
-    fnError("udfd send response error, length: %zu code: %s", work->output.len, uv_err_name(status));
+    fnError("udfd send response error, length:%zu code:%s", work->output.len, uv_err_name(status));
   }
   // remove work from the connection work list
   if (work->conn != NULL) {
@@ -1477,7 +1505,7 @@ void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
 void udfdOnNewConnection(uv_stream_t *server, int status) {
   TAOS_UDF_CHECK_PTR_RVOID(server);
   if (status < 0) {
-    fnError("udfd new connection error. code: %s", uv_strerror(status));
+    fnError("udfd new connection error, code:%s", uv_strerror(status));
     return;
   }
   int32_t code = 0;
@@ -1558,7 +1586,7 @@ static int32_t udfdParseArgs(int32_t argc, char *argv[]) {
 }
 
 static void udfdPrintVersion() {
-  (void)printf("udfd version: %s compatible_version: %s\n", td_version, td_compatible_version);
+  (void)printf("%sudf version: %s compatible_version: %s\n", CUS_PROMPT, td_version, td_compatible_version);
   (void)printf("git: %s\n", td_gitinfo);
   (void)printf("build: %s\n", td_buildinfo);
 }
@@ -1761,6 +1789,7 @@ int main(int argc, char *argv[]) {
   bool residentFuncsInited = false;
   bool udfSourceDirInited = false;
   bool globalDataInited = false;
+  taosSetSkipKeyCheckMode();
 
   if (!taosCheckSystemIsLittleEnd()) {
     (void)printf("failed to start since on non-little-end machines\n");
@@ -1784,9 +1813,23 @@ int main(int argc, char *argv[]) {
     logInitialized = true;  // log is initialized
   }
 
-  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0) != 0) {
-    fnError("failed to start since read config error");
-    code = -2;
+  if ((code = taosPreLoadCfg(configDir, NULL, NULL, NULL, NULL, 0)) != 0) {
+    fnError("failed to start since pre load config error");
+    goto _exit;
+  }
+
+  if ((code = dmGetEncryptKey()) != 0) {
+    fnError("failed to start since failed to get encrypt key");
+    goto _exit;
+  }
+
+  if ((code = tryLoadCfgFromDataDir(tsCfg)) != 0) {
+    fnError("failed to start since try load config from data dir error");
+    goto _exit;
+  }
+
+  if ((code = taosApplyCfg(configDir, NULL, NULL, NULL, NULL, 0)) != 0) {
+    fnError("failed to start since apply config error");
     goto _exit;
   }
   cfgInitialized = true;  // cfg is initialized
@@ -1865,3 +1908,4 @@ _exit:
 
   return code;
 }
+#endif

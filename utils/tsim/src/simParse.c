@@ -182,7 +182,9 @@ SScript *simParseScript(char *fileName) {
   SCommand *pCmd = NULL;
   SScript  *script = NULL;
 
-  if ((fileName[0] == '.') || (fileName[0] == '/')) {
+  if (fileName[0] == 0) {
+    return NULL;
+  } else if ((fileName[0] == '.') || (fileName[0] == '/')) {
     tstrncpy(name, fileName, PATH_MAX);
   } else {
     snprintf(name, PATH_MAX, "%s" TD_DIRSEP "%s", simScriptDir, fileName);

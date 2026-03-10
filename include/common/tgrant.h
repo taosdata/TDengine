@@ -29,11 +29,15 @@ extern "C" {
 #endif
 
 #define GRANT_HEART_BEAT_MIN 2
-#define GRANT_EXPIRE_VALUE   (31556995201)
+#define GRANT_EXPIRE_VALUE   (31556995201LL)
 #define GRANT_ACTIVE_CODE    "activeCode"
 #define GRANT_FLAG_ALL       (0x01)
 #define GRANT_FLAG_AUDIT     (0x02)
 #define GRANT_FLAG_VIEW      (0x04)
+// ...
+#define GRANT_FLAG_EX_MULTI_TIER (0x10000)
+#define GRANT_FLAG_EX_VNODE      (0x20000)
+#define GRANT_FLAG_EX_STORAGE    (0x40000)
 
 typedef enum {
   TSDB_GRANT_ALL,
@@ -57,18 +61,24 @@ typedef enum {
   TSDB_GRANT_VIEW,
   TSDB_GRANT_MULTI_TIER,
   TSDB_GRANT_BACKUP_RESTORE,
-  TSDB_GRANT_OBJECT_STORAGE,
+  TSDB_GRANT_SHARED_STORAGE,
   TSDB_GRANT_ACTIVE_ACTIVE,
   TSDB_GRANT_DUAL_REPLICA_HA,
   TSDB_GRANT_DB_ENCRYPTION,
+  TSDB_GRANT_TD_GPT,
+  TSDB_GRANT_VNODE,
+  TSDB_GRANT_MOUNT,
+  TSDB_GRANT_XNODE,
 } EGrantType;
 
 int32_t checkAndGetCryptKey(const char *encryptCode, const char *machineId, char **key);
 int32_t generateEncryptCode(const char *key, const char *machineId, char **encryptCode);
 int64_t grantRemain(EGrantType grant);
 int32_t grantCheck(EGrantType grant);
+int32_t grantCheckEx(EGrantType grant, void *param);
 int32_t grantCheckExpire(EGrantType grant);
 int32_t tGetMachineId(char **result);
+bool    grantCheckDualReplicaDnodes(void *pMnode);
 
 // #ifndef GRANTS_CFG
 #ifdef TD_ENTERPRISE
@@ -82,6 +92,8 @@ int32_t tGetMachineId(char **result);
       {.name = "timeseries", .bytes = 43 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},   \
       {.name = "dnodes", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},       \
       {.name = "cpu_cores", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},    \
+      {.name = "vnodes", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},       \
+      {.name = "storage_size", .bytes = 43 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true}, \
   }
 #else
 #define GRANTS_SCHEMA                                                                                              \
@@ -94,6 +106,8 @@ int32_t tGetMachineId(char **result);
       {.name = "timeseries", .bytes = 43 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},   \
       {.name = "dnodes", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},       \
       {.name = "cpu_cores", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},    \
+      {.name = "vnodes", .bytes = 21 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},       \
+      {.name = "storage_size", .bytes = 43 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true}, \
   }
 #endif
 // #define GRANT_CFG_ADD

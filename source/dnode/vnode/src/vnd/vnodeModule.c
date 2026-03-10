@@ -37,5 +37,4 @@ void vnodeCleanup() {
   if (atomic_val_compare_exchange_32(&VINIT, 1, 0) == 0) return;
   vnodeAsyncClose();
   walCleanUp();
-  smaCleanUp();
 }

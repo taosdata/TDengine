@@ -40,7 +40,7 @@ SSyncSnapshotSender* createSender() {
 #endif
 
   SSyncSnapshotSender* pSender = NULL;
-  assert(snapshotSenderCreate(pSyncNode, 2, &pSender) == 0);
+  TD_ALWAYS_ASSERT(snapshotSenderCreate(pSyncNode, 2, &pSender) == 0);
   pSender->start = true;
   pSender->seq = 10;
   pSender->ack = 20;

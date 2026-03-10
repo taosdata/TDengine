@@ -164,6 +164,7 @@ void test_offset(TAOS* pConn){
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
   tmq_conf_set(conf, "msg.with.table.name", "false");
+  tmq_conf_set(conf, "enable.wal.marker", "true");
 
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
   tmq_conf_destroy(conf);

@@ -64,7 +64,7 @@ var CreateClusterInfoSql = "create table if not exists cluster_info (" +
 	"connections_total int, " +
 	"topics_total int, " +
 	"streams_total int, " +
-	"protocol int " +
+	"`protocol` int " +
 	") tags (cluster_id nchar(32))"
 
 type Dnode struct {
@@ -86,7 +86,7 @@ type Mnode struct {
 
 var CreateMnodeSql = "create table if not exists m_info (" +
 	"ts timestamp, " +
-	"role binary(10)" +
+	"`role` binary(10)" +
 	") tags (mnode_id int, mnode_ep nchar(" + dnodeEpLen + "), cluster_id nchar(32))"
 
 type DnodeInfo struct {

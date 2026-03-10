@@ -24,8 +24,6 @@ extern "C" {
 
 int32_t    mndInitArbGroup(SMnode *pMnode);
 void       mndCleanupArbGroup(SMnode *pMnode);
-SArbGroup *mndAcquireArbGroup(SMnode *pMnode, int32_t vgId);
-void       mndReleaseArbGroup(SMnode *pMnode, SArbGroup *pObj);
 SSdbRaw   *mndArbGroupActionEncode(SArbGroup *pGroup);
 SSdbRow   *mndArbGroupActionDecode(SSdbRaw *pRaw);
 
@@ -38,11 +36,11 @@ int32_t mndSetCreateArbGroupCommitLogs(STrans *pTrans, SArbGroup *pGroup);
 int32_t mndSetDropArbGroupPrepareLogs(STrans *pTrans, SArbGroup *pGroup);
 int32_t mndSetDropArbGroupCommitLogs(STrans *pTrans, SArbGroup *pGroup);
 
-bool mndCheckArbGroupByHeartBeat(SArbGroup *pGroup, SVArbHbRspMember *pRspMember, int64_t nowMs, int32_t dnodeId,
+bool mndArbIsNeedUpdateTokenByHeartBeat(SArbGroup *pGroup, SVArbHbRspMember *pRspMember, int64_t nowMs, int32_t dnodeId,
                                  SArbGroup *pNewGroup);
-bool mndUpdateArbGroupByCheckSync(SArbGroup *pGroup, int32_t vgId, char *member0Token, char *member1Token,
+bool mndArbIsNeedUpdateSyncStatusByCheckSync(SArbGroup *pGroup, int32_t vgId, char *member0Token, char *member1Token,
                                   bool newIsSync, SArbGroup *pNewGroup, int32_t code);
-bool mndUpdateArbGroupBySetAssignedLeader(SArbGroup *pGroup, int32_t vgId, char *memberToken, int32_t errcode,
+bool mndArbIsNeedUpdateAssignedBySetAssignedLeader(SArbGroup *pGroup, int32_t vgId, char *memberToken, int32_t errcode,
                                           SArbGroup *pNewGroup);
 
 int32_t mndGetArbGroupSize(SMnode *pMnode);

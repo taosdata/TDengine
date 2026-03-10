@@ -1,0 +1,19 @@
+select CRC32('hello')
+select CRC32('hello world')
+select CRC32('hello world!')
+select CRC32('hello,world.你好，世界。')
+select CRC32('北京涛思数据科技有限公司')
+select CRC32('hello') from ts_4893.meters limit 5
+select CRC32('hello') + 1 from ts_4893.meters limit 1
+select CRC32('hello') + CRC32('hello') from ts_4893.meters limit 1
+select cast(CRC32('hello') as VARCHAR)
+select CRC32(cast('hello' as VARCHAR))
+select crc32('')
+select crc32(NULL)
+select crc32(1234)
+select crc32(1234) = crc32("1234")
+select crc32(1234.567)
+select crc32(1234.567) = crc32('1234.567')
+select crc32(1234.567 + 0.1) = crc32('1234.667')
+select crc32(TO_TIMESTAMP("2000-01-01 00:00:00+00", "yyyy-mm-dd hh24:mi:ss")) = crc32(TO_CHAR(TO_TIMESTAMP("2000-01-01 00:00:00+00", "yyyy-mm-dd hh24:mi:ss"), "yyyy-mm-dd hh24:mi:ss"))
+select crc32(TO_TIMESTAMP("2000-01-01 00:00:00+00", "yyyy-mm-dd hh24:mi:ss")) = crc32("2000-01-01 00:00:00")

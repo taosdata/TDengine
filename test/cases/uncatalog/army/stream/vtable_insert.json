@@ -1,0 +1,76 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "thread_count": 3,
+    "create_table_thread_count": 4,
+    "result_file": "./insert_res.txt",
+    "confirm_parameter_prompt": "no",
+    "num_of_records_per_req": 10000,
+    "prepared_rand": 10000,
+    "chinese": "no",
+    "escape_character": "yes",
+    "continue_if_fail": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "test_stream_vtable",
+                "drop": "no",
+                "vgroups": 8,
+                "precision": "ms"
+            },
+            "super_tables": [
+                {
+                    "name": "vtb_org_stb",
+                    "child_table_exists": "yes",
+                    "childtable_count": 3,
+                    "childtable_prefix": "vtb_org_child_",
+                    "auto_create_table": "no",
+                    "batch_create_tbl_num": 5,
+                    "data_source": "rand",
+                    "insert_mode": "taosc",
+                    "non_stop_mode": "no",
+                    "line_protocol": "line",
+                    "insert_rows": 10000,
+                    "childtable_limit": 0,
+                    "childtable_offset": 0,
+                    "interlace_rows": 0,
+                    "insert_interval": 10,
+                    "partial_col_num": 0,
+                    "timestamp_step": 500,
+                    "start_timestamp": "2025-01-01 00:00:00.000",
+                    "sample_format": "csv",
+                    "sample_file": "./sample.csv",
+                    "use_sample_ts": "no",
+                    "tags_file": "",
+                    "columns": [
+                        {"type": "UTINYINT", "name": "u_tinyint_col"},
+                        {"type": "USMALLINT", "name": "u_smallint_col"},
+                        {"type": "UINT", "name": "u_int_col"},
+                        {"type": "UBIGINT", "name": "u_bigint_col"},
+                        {"type": "TINYINT", "name": "tinyint_col"},
+                        {"type": "SMALLINT", "name": "smallint_col"},
+                        {"type": "INT", "name": "int_col"},
+                        {"type": "BIGINT", "name": "bigint_col"},
+                        {"type": "FLOAT", "name": "float_col"},
+                        {"type": "DOUBLE", "name": "double_col"},
+                        {"type": "BOOL", "name": "bool_col"},
+                        {"type": "BINARY", "name": "binary_16_col", "len": 16},
+                        {"type": "BINARY", "name": "binary_32_col", "len": 32},
+                        {"type": "NCHAR", "name": "nchar_16_col", "len": 16},
+                        {"type": "NCHAR", "name": "nchar_32_col", "len": 32}
+                    ],
+                    "tags": [
+                        {"type": "INT", "name": "int_tag"},
+                        {"type": "BOOL", "name": "bool_tag"},
+                        {"type": "FLOAT", "name": "float_tag"},
+                        {"type": "DOUBLE", "name": "double_tag"}
+                    ]
+                }
+            ]
+        }
+    ]
+}

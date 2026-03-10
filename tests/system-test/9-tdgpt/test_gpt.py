@@ -23,7 +23,7 @@ class TDTestCase:
                        'test':'test'}
 
     def prepare_anode_data(self):
-        tdSql.execute(f"create anode '127.0.0.1:6090'")
+        tdSql.execute(f"create anode '127.0.0.1:6035'")
         tdSql.execute(f"create database db_gpt")
         tdSql.execute(f"create table if not exists db_gpt.stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned);")
         tdSql.execute(f"create table db_gpt.ct1 using db_gpt.stb tags(1000);")

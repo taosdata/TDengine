@@ -20,6 +20,7 @@
 #include "tdef.h"
 #include "thash.h"
 #include "tmd5.h"
+#include "tsha.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,7 +35,7 @@ char  **strsplit(char *src, const char *delim, int32_t *num);
 char   *strtolower(char *dst, const char *src);
 char   *strntolower(char *dst, const char *src, int32_t n);
 char   *strntolower_s(char *dst, const char *src, int32_t n);
-int64_t strnatoi(char *num, int32_t len);
+int64_t strnatoi(const char *num, int32_t len);
 
 size_t tstrncspn(const char *str, size_t ssize, const char *reject, size_t rsize);
 size_t twcsncspn(const TdUcs4 *wcs, size_t size, const TdUcs4 *reject, size_t rsize);
@@ -53,6 +54,137 @@ void *tmemmem(const char *haystack, int hlen, const char *needle, int nlen);
 int32_t parseCfgReal(const char *str, float *out);
 bool    tIsValidFileName(const char *fileName, const char *pattern);
 bool    tIsValidFilePath(const char *filePath, const char *pattern);
+void    tTrimMountPrefix(char *fullName);
+
+#ifdef TD_ASTRA
+static FORCE_INLINE int32_t taosStrcasecmp(const char *s1, const char *s2) {
+  if (s1[0] == 0 && s2[0] == 0) return 0;
+  return strcasecmp(s1, s2);
+}
+
+static FORCE_INLINE int32_t taosStrncasecmp(const char *s1, const char *s2, size_t n) {
+  if (s1[0] == 0 && s2[0] == 0) return 0;
+  return strncasecmp(s1, s2, n);
+}
+#else
+#define taosStrcasecmp  strcasecmp
+#define taosStrncasecmp strncasecmp
+#endif
+
+#ifdef NO_UNALIGNED_ACCESS
+#define CHECK_ALIGNMENT
+static FORCE_INLINE int64_t taosGetInt64Aligned(int64_t *pVal) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)pVal) & 7) == 0) return *pVal;
+#endif
+  int64_t val;
+  memcpy(&val, pVal, sizeof(int64_t));
+  return val;
+}
+
+static FORCE_INLINE uint64_t taosGetUInt64Aligned(uint64_t *pVal) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)pVal) & 7) == 0) return *pVal;
+#endif
+  uint64_t val;
+  memcpy(&val, pVal, sizeof(uint64_t));
+  return val;
+}
+
+static FORCE_INLINE float taosGetFloatAligned(float *pVal) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)pVal) & 7) == 0) return *pVal;
+#endif
+  float val;
+  memcpy(&val, pVal, sizeof(float));
+  return val;
+}
+
+static FORCE_INLINE double taosGetDoubleAligned(double *pVal) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)pVal) & 7) == 0) return *pVal;
+#endif
+  double val;
+  memcpy(&val, pVal, sizeof(double));
+  return val;
+}
+
+static FORCE_INLINE void taosSetInt64Aligned(int64_t *p, int64_t val) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)p) & 7) == 0) {
+    *p = val;
+    return;
+  }
+#endif
+  memcpy(p, &val, sizeof(int64_t));
+}
+
+static FORCE_INLINE void taosSetUInt64Aligned(uint64_t *p, uint64_t val) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)p) & 7) == 0) {
+    *p = val;
+    return;
+  }
+#endif
+  memcpy(p, &val, sizeof(uint64_t));
+}
+
+static FORCE_INLINE void taosSetPInt64Aligned(int64_t *to, int64_t *from) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)from) & 7) == 0 && ((uintptr_t)to & 7) == 0) {
+    *to = *from;
+    return;
+  }
+#endif
+  memcpy(to, from, sizeof(int64_t));
+}
+
+static FORCE_INLINE void taosSetPFloatAligned(float *to, float *from) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)from) & 7) == 0 && ((uintptr_t)to & 7) == 0) {
+    *to = *from;
+    return;
+  }
+#endif
+  memcpy(to, from, sizeof(float));
+}
+
+static FORCE_INLINE void taosSetPDoubleAligned(double *to, double *from) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)from) & 7) == 0 && ((uintptr_t)to & 7) == 0) {
+    *to = *from;
+    return;
+  }
+#endif
+  memcpy(to, from, sizeof(double));
+}
+
+static FORCE_INLINE void taosSetPUInt64Aligned(uint64_t *to, uint64_t *from) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)from) & 7) == 0 && ((uintptr_t)to & 7) == 0) {
+    *to = *from;
+    return;
+  }
+#endif
+  memcpy(to, from, sizeof(uint64_t));
+}
+
+#define TAOS_SET_OBJ_ALIGNED(pTo, vFrom)  memcpy((pTo), &(vFrom), sizeof(*(pTo)))
+#define TAOS_SET_POBJ_ALIGNED(pTo, pFrom) memcpy((pTo), (pFrom), sizeof(*(pTo)))
+#else
+static FORCE_INLINE int64_t  taosGetInt64Aligned(int64_t *pVal) { return *pVal; }
+static FORCE_INLINE uint64_t taosGetUInt64Aligned(uint64_t *pVal) { return *pVal; }
+static FORCE_INLINE float    taosGetFloatAligned(float *pVal) { return *pVal; }
+static FORCE_INLINE double   taosGetDoubleAligned(double *pVal) { return *pVal; }
+static FORCE_INLINE void     taosSetInt64Aligned(int64_t *p, int64_t val) { *p = val; }
+static FORCE_INLINE void     taosSetUInt64Aligned(uint64_t *p, uint64_t val) { *p = val; }
+static FORCE_INLINE void     taosSetPInt64Aligned(int64_t *to, int64_t *from) { *to = *from; }
+static FORCE_INLINE void     taosSetPFloatAligned(float *to, float *from) { *to = *from; }
+static FORCE_INLINE void     taosSetPDoubleAligned(double *to, double *from) { *to = *from; }
+static FORCE_INLINE void     taosSetPUInt64Aligned(uint64_t *to, uint64_t *from) { *to = *from; }
+#define TAOS_SET_OBJ_ALIGNED(pTo, vFrom)  *(pTo) = (vFrom)
+#define TAOS_SET_POBJ_ALIGNED(pTo, pFrom) *(pTo) = *(pFrom)
+#endif
 
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {
   T_MD5_CTX context;
@@ -84,15 +216,80 @@ static FORCE_INLINE int32_t taosHashBinary(char *pBuf, int32_t len) {
 
 static FORCE_INLINE int32_t taosCreateMD5Hash(char *pBuf, int32_t len) {
   T_MD5_CTX ctx;
+
   tMD5Init(&ctx);
   tMD5Update(&ctx, (uint8_t *)pBuf, len);
   tMD5Final(&ctx);
-  char   *p = pBuf;
-  int32_t resLen = 0;
+
   return sprintf(pBuf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", ctx.digest[0], ctx.digest[1],
                  ctx.digest[2], ctx.digest[3], ctx.digest[4], ctx.digest[5], ctx.digest[6], ctx.digest[7],
                  ctx.digest[8], ctx.digest[9], ctx.digest[10], ctx.digest[11], ctx.digest[12], ctx.digest[13],
                  ctx.digest[14], ctx.digest[15]);
+}
+
+static FORCE_INLINE int32_t taosCreateSHA1Hash(char *pBuf, int32_t len) {
+  uint8_t result[21] = {0};
+
+  tSHA1((char *)result, pBuf, len);
+
+  return sprintf(pBuf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", result[0],
+                 result[1], result[2], result[3], result[4], result[5], result[6], result[7], result[8], result[9],
+                 result[10], result[11], result[12], result[13], result[14], result[15], result[16], result[17],
+                 result[18], result[19]);
+}
+
+static FORCE_INLINE int32_t taosCreateSHA2Hash(char *pBuf, int32_t len, uint32_t digestSize) {
+  uint8_t result[2 * SHA512_DIGEST_SIZE + 1] = {0};
+
+  switch (digestSize / 8) {
+    case SHA224_DIGEST_SIZE:
+      sha224((const uint8_t *)pBuf, len, result);
+      return sprintf(pBuf,
+                     "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
+                     "02x%02x%02x%02x",
+                     result[0], result[1], result[2], result[3], result[4], result[5], result[6], result[7], result[8],
+                     result[9], result[10], result[11], result[12], result[13], result[14], result[15], result[16],
+                     result[17], result[18], result[19], result[20], result[21], result[22], result[23], result[24],
+                     result[25], result[26], result[27]);
+    case SHA256_DIGEST_SIZE:
+      sha256((const uint8_t *)pBuf, len, result);
+      return sprintf(pBuf,
+                     "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
+                     "02x%02x%02x%02x%02x%02x%02x%02x",
+                     result[0], result[1], result[2], result[3], result[4], result[5], result[6], result[7], result[8],
+                     result[9], result[10], result[11], result[12], result[13], result[14], result[15], result[16],
+                     result[17], result[18], result[19], result[20], result[21], result[22], result[23], result[24],
+                     result[25], result[26], result[27], result[28], result[29], result[30], result[31]);
+    case SHA384_DIGEST_SIZE:
+      sha384((const uint8_t *)pBuf, len, result);
+      return sprintf(pBuf,
+                     "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
+                     "02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+                     result[0], result[1], result[2], result[3], result[4], result[5], result[6], result[7], result[8],
+                     result[9], result[10], result[11], result[12], result[13], result[14], result[15], result[16],
+                     result[17], result[18], result[19], result[20], result[21], result[22], result[23], result[24],
+                     result[25], result[26], result[27], result[28], result[29], result[30], result[31], result[32],
+                     result[33], result[34], result[35], result[36], result[37], result[38], result[39], result[40],
+                     result[41], result[42], result[43], result[44], result[45], result[46], result[47]);
+    case SHA512_DIGEST_SIZE:
+      sha512((const uint8_t *)pBuf, len, result);
+      return sprintf(pBuf,
+                     "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
+                     "02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
+                     "02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+                     result[0], result[1], result[2], result[3], result[4], result[5], result[6], result[7], result[8],
+                     result[9], result[10], result[11], result[12], result[13], result[14], result[15], result[16],
+                     result[17], result[18], result[19], result[20], result[21], result[22], result[23], result[24],
+                     result[25], result[26], result[27], result[28], result[29], result[30], result[31], result[32],
+                     result[33], result[34], result[35], result[36], result[37], result[38], result[39], result[40],
+                     result[41], result[42], result[43], result[44], result[45], result[46], result[47], result[48],
+                     result[49], result[50], result[51], result[52], result[53], result[54], result[55], result[56],
+                     result[57], result[58], result[59], result[60], result[61], result[62], result[63]);
+    default:
+      break;
+  }
+
+  return 0;
 }
 
 static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, int32_t method, int32_t prefix,
@@ -148,20 +345,20 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 
 #define QUERY_CHECK_CODE TSDB_CHECK_CODE
 
-#define TSDB_CHECK_CONDITION(condition, CODE, LINO, LABEL, ERRNO) \
-  if (UNLIKELY(!(condition))) {                                   \
-    (CODE) = (ERRNO);                                             \
-    (LINO) = __LINE__;                                            \
-    goto LABEL;                                                   \
+#define TSDB_CHECK_CONDITION(condition, CODE, LINO, LABEL, _ERRNO) \
+  if (UNLIKELY(!(condition))) {                                    \
+    (CODE) = (_ERRNO);                                             \
+    (LINO) = __LINE__;                                             \
+    goto LABEL;                                                    \
   }
 
 #define QUERY_CHECK_CONDITION TSDB_CHECK_CONDITION
 
-#define TSDB_CHECK_NULL(ptr, CODE, LINO, LABEL, ERRNO) \
-  if (UNLIKELY((ptr) == NULL)) {                       \
-    (CODE) = (ERRNO);                                  \
-    (LINO) = __LINE__;                                 \
-    goto LABEL;                                        \
+#define TSDB_CHECK_NULL(ptr, CODE, LINO, LABEL, _ERRNO) \
+  if (UNLIKELY((ptr) == NULL)) {                        \
+    (CODE) = (_ERRNO);                                  \
+    (LINO) = __LINE__;                                  \
+    goto LABEL;                                         \
   }
 
 #define QUERY_CHECK_NULL TSDB_CHECK_NULL
@@ -187,22 +384,23 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     }                               \
   } while (0)
 
-#define TAOS_CHECK_RETURN_SET_CODE(CMD, CODE, ERRNO) \
-  do {                                               \
-    int32_t __c = (CMD);                             \
-    if (__c != TSDB_CODE_SUCCESS) {                  \
-      (CODE) = (ERRNO);                              \
-      TAOS_RETURN(__c);                              \
-    }                                                \
+#define TAOS_CHECK_RETURN_SET_CODE(CMD, CODE, _ERRNO) \
+  do {                                                \
+    int32_t __c = (CMD);                              \
+    if (__c != TSDB_CODE_SUCCESS) {                   \
+      (CODE) = (_ERRNO);                              \
+      TAOS_RETURN(__c);                               \
+    }                                                 \
   } while (0)
 
-#define TAOS_CHECK_RETURN_WITH_RELEASE(CMD, PTR1, PTR2) \
-  do {                                                  \
-    int32_t __c = (CMD);                                \
-    if (__c != TSDB_CODE_SUCCESS) {                     \
-      sdbRelease(PTR1, PTR2);                           \
-      TAOS_RETURN(__c);                                 \
-    }                                                   \
+#define TAOS_CHECK_RETURN_WITH_RELEASE(CMD, PTR1, PTR2)     \
+  do {                                                      \
+    int32_t __c = (CMD);                                    \
+    if (__c != TSDB_CODE_SUCCESS) {                         \
+      sdbRelease(PTR1, PTR2);                               \
+      if (pShow->pIter) sdbCancelFetch(pSdb, pShow->pIter); \
+      TAOS_RETURN(__c);                                     \
+    }                                                       \
   } while (0)
 
 #define TAOS_CHECK_RETURN_WITH_FREE(CMD, PTR) \
@@ -234,14 +432,14 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     }                               \
   } while (0)
 
-#define TAOS_CHECK_EXIT_SET_CODE(CMD, CODE, ERRNO) \
-  do {                                             \
-    code = (CMD);                                  \
-    if (code < TSDB_CODE_SUCCESS) {                \
-      (CODE) = (ERRNO);                            \
-      lino = __LINE__;                             \
-      goto _exit;                                  \
-    }                                              \
+#define TAOS_CHECK_EXIT_SET_CODE(CMD, CODE, _ERRNO) \
+  do {                                              \
+    code = (CMD);                                   \
+    if (code < TSDB_CODE_SUCCESS) {                 \
+      (CODE) = (_ERRNO);                            \
+      lino = __LINE__;                              \
+      goto _exit;                                   \
+    }                                               \
   } while (0)
 
 #define TAOS_UNUSED(expr) (void)(expr)
@@ -250,6 +448,9 @@ bool taosIsBigChar(char c);
 bool taosIsSmallChar(char c);
 bool taosIsNumberChar(char c);
 bool taosIsSpecialChar(char c);
+// check if the string is a complex string, a complex string contains
+// at least 3 types of characters: upper, lower, digit, special
+bool taosIsComplexString(const char* str);
 
 #ifdef __cplusplus
 }

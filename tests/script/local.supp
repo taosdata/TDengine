@@ -1674,6 +1674,21 @@
    fun:start_thread
    fun:clone
 }
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:calloc
+   fun:taosMemCalloc
+   fun:taosOpenRef
+   fun:streamMetaEnvInit
+   fun:__pthread_once_slow
+   fun:taosThreadOnce
+   fun:streamMetaInit
+   fun:dmInitDnode
+   fun:dmInit
+   fun:main
+}
 
 {
    <memalign suppression>

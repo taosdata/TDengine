@@ -46,20 +46,26 @@ if [ -z "$cmd" ]; then
 fi
 
 if [ $ent -eq 0 ]; then
+    echo "TSDB-OSS edition init env"
     export PATH=$PATH:/home/TDengine/debug/build/bin
     export LD_LIBRARY_PATH=/home/TDengine/debug/build/lib
     ln -s /home/TDengine/debug/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
     ln -s /home/TDengine/debug/build/lib/libtaos.so /usr/lib/libtaos.so.1 2>/dev/null
+    ln -s /home/TDengine/debug/build/lib/libtaosnative.so /usr/lib/libtaosnative.so 2>/dev/null
+    ln -s /home/TDengine/debug/build/lib/libtaosnative.so /usr/lib/libtaosnative.so.1 2>/dev/null
     ln -s /home/TDengine/include/client/taos.h /usr/include/taos.h 2>/dev/null
     ln -s /home/TDengine/include/common/taosdef.h /usr/include/taosdef.h 2>/dev/null
     ln -s /home/TDengine/include/util/taoserror.h /usr/include/taoserror.h 2>/dev/null
     ln -s /home/TDengine/include/libs/function/taosudf.h /usr/include/taosudf.h 2>/dev/null
     CONTAINER_TESTDIR=/home/TDengine
 else
+    echo "TSDB-Enterprise edition init env"
     export PATH=$PATH:/home/TDinternal/debug/build/bin
     export LD_LIBRARY_PATH=/home/TDinternal/debug/build/lib
     ln -s /home/TDinternal/debug/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
     ln -s /home/TDinternal/debug/build/lib/libtaos.so /usr/lib/libtaos.so.1 2>/dev/null
+    ln -s /home/TDinternal/debug/build/lib/libtaosnative.so /usr/lib/libtaosnative.so 2>/dev/null
+    ln -s /home/TDinternal/debug/build/lib/libtaosnative.so /usr/lib/libtaosnative.so.1 2>/dev/null
     ln -s /home/TDinternal/community/include/client/taos.h /usr/include/taos.h 2>/dev/null
     ln -s /home/TDinternal/community/include/common/taosdef.h /usr/include/taosdef.h 2>/dev/null
     ln -s /home/TDinternal/community/include/util/taoserror.h /usr/include/taoserror.h 2>/dev/null
@@ -69,22 +75,34 @@ fi
 mkdir -p /var/lib/taos/subscribe
 mkdir -p /var/log/taos
 mkdir -p /var/lib/taos
+mkdir -p /etc/taos
 
-cd $CONTAINER_TESTDIR/tests/$exec_dir
+cd "$CONTAINER_TESTDIR/tests/${exec_dir}"|| { echo "Can't enter the target dirctory: ${CONTAINER_TESTDIR}/tests/${exec_dir}"; exit 1; }
 ulimit -c unlimited
 
 md5sum /usr/lib/libtaos.so.1
 md5sum /home/TDinternal/debug/build/lib/libtaos.so
+md5sum /usr/lib/libtaosnative.so.1
+md5sum /home/TDinternal/debug/build/lib/libtaosnative.so
 
-#get python connector and update: taospy and  taos-ws-py to latest
-pip3 install taospy==2.7.21 
-pip3 install taos-ws-py==0.3.8
+# get python connector and update: taospy 2.8.8 taos-ws-py 0.6.5
+pip3 install taospy==2.8.8
+pip3 install taos-ws-py==0.6.5
 $TIMEOUT_CMD $cmd
 RET=$?
 echo "cmd exit code: $RET"
 md5sum /usr/lib/libtaos.so.1
 md5sum /home/TDinternal/debug/build/lib/libtaos.so
+md5sum /usr/lib/libtaosnative.so.1
+md5sum /home/TDinternal/debug/build/lib/libtaosnative.so
 
+if [ -d "/var/log/taos" ]; then
+    cp /var/log/taos/* /home/TDinternal/sim/var_taoslog/
+fi
+
+if [ -f "${CONTAINER_TESTDIR}/docs/examples/JDBC/JDBCDemo/jdbc-out.log" ]; then
+    cp ${CONTAINER_TESTDIR}/docs/examples/JDBC/JDBCDemo/jdbc-out.log /home/TDinternal/sim/var_taoslog/
+fi
 
 if [ $RET -ne 0 ]; then
     pwd

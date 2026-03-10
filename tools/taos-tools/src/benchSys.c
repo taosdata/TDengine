@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <bench.h>
 #include "benchLog.h"
+#include "cus_name.h"
 
 #ifdef LINUX
 #include <argp.h>
@@ -21,23 +22,7 @@
 #endif
 #endif
 
-extern char version[];
 
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
-#include "cus_name.h"
-#else
-#ifndef CUS_NAME
-#define CUS_NAME        "TDengine"
-#endif
-
-#ifndef CUS_PROMPT
-#define CUS_PROMPT      "taos"
-#endif
-
-#ifndef CUS_EMAIL
-#define CUS_EMAIL       "<support@taosdata.com>"
-#endif
-#endif
 
 #ifdef WINDOWS
 char      g_configDir[MAX_PATH_LEN] = {0};  // "C:\\TDengine\\cfg"};
@@ -88,14 +73,10 @@ void benchPrintHelp() {
     printf("%s%s%s%s\r\n", indent, "-x,", indent, BENCH_AGGR);
     printf("%s%s%s%s\r\n", indent, "-y,", indent, BENCH_YES);
     printf("%s%s%s%s\r\n", indent, "-z,", indent, BENCH_TRYING_INTERVAL);
-#ifdef WEBSOCKET
-    printf("%s%s%s%s\r\n", indent, "-W,", indent, BENCH_DSN);
-    printf("%s%s%s%s\r\n", indent, "-D,", indent, BENCH_TIMEOUT);
-#endif
-#ifdef TD_VER_COMPATIBLE_3_0_0_0
     printf("%s%s%s%s\r\n", indent, "-v,", indent, BENCH_VGROUPS);
-#endif
     printf("%s%s%s%s\r\n", indent, "-V,", indent, BENCH_VERSION);
+    printf("%s%s%s%s\r\n", indent, "-X,", indent, DSN_DESC);
+    printf("%s%s%s%s\r\n", indent, "-Z,", indent, DRIVER_DESC);
     printf("\r\n\r\nReport bugs to %s.\r\n", CUS_EMAIL);
 }
 
@@ -123,25 +104,15 @@ int32_t benchParseArgsNoArgp(int argc, char* argv[]) {
             return -1;
         }
 
-        if (   key[1] == 'f' || key[1] == 'c'
-            || key[1] == 'h' || key[1] == 'P'
-            || key[1] == 'I' || key[1] == 'u'
-            || key[1] == 'p' || key[1] == 'o'
-            || key[1] == 'T' || key[1] == 'i'
-            || key[1] == 'S' || key[1] == 'B'
-            || key[1] == 'r' || key[1] == 't'
-            || key[1] == 'n' || key[1] == 'L'
-            || key[1] == 'd' || key[1] == 'l'
-            || key[1] == 'A' || key[1] == 'b'
-            || key[1] == 'w' || key[1] == 'm'
-            || key[1] == 'R' || key[1] == 'O'
-            || key[1] == 'a' || key[1] == 'F'
-            || key[1] == 'k' || key[1] == 'z'
-#ifdef WEBSOCKET
-            || key[1] == 'D' || key[1] == 'W'
-#endif
-            || key[1] == 'v'
-        ) {
+        if (key[1] == 'E' || key[1] == 'C'
+            || key[1] == 'N' || key[1] == 'M'
+            || key[1] == 'x' || key[1] == 'y'
+            || key[1] == 'g' || key[1] == 'G'
+            || key[1] == 'V' || key[1] == 'Q'
+            || key[1] == 'U') {
+            benchParseSingleOpt(key[1], NULL);
+        } else {
+            // check input value
             if (i + 1 >= argc) {
                 errorPrint("option %s requires an argument\r\n", key);
                 return -1;
@@ -151,17 +122,12 @@ int32_t benchParseArgsNoArgp(int argc, char* argv[]) {
                 errorPrint("option %s requires an argument\r\n", key);
                 return -1;
             }
-            benchParseSingleOpt(key[1], val);
+            
+            if (benchParseSingleOpt(key[1], val)) {
+                errorPrint("Invalid option %s\r\n", key);
+                return -1;
+            }
             i++;
-        } else if (key[1] == 'E' || key[1] == 'C'
-                || key[1] == 'N' || key[1] == 'M'
-                || key[1] == 'x' || key[1] == 'y'
-                || key[1] == 'g' || key[1] == 'G'
-                || key[1] == 'V' || key[1] == 'Q') {
-            benchParseSingleOpt(key[1], NULL);
-        } else {
-            errorPrint("Invalid option %s\r\n", key);
-            return -1;
         }
     }
     return 0;
@@ -179,6 +145,7 @@ static struct argp_option bench_options[] = {
     {"user", 'u', "USER", 0, BENCH_USER},
     {"password", 'p', "PASSWORD", 0, BENCH_PASS},
     {"output", 'o', "FILE", 0, BENCH_OUTPUT},
+    {"output-json-file", 'j', "FILE", 0, BENCH_OUTPUT_JSON},
     {"threads", 'T', "NUMBER", 0, BENCH_THREAD},
     {"insert-interval", 'i', "NUMBER", 0, BENCH_INTERVAL},
     {"time-step", 'S', "NUMBER", 0, BENCH_STEP},
@@ -208,17 +175,14 @@ static struct argp_option bench_options[] = {
     {"debug", 'g', 0, 0, BENCH_DEBUG},
     {"performance", 'G', 0, 0, BENCH_PERFORMANCE},
     {"prepared_rand", 'F', "NUMBER", 0, BENCH_PREPARE},
-#ifdef WEBSOCKET
-    {"cloud_dsn", 'W', "DSN", 0, BENCH_DSN},
-    {"timeout", 'D', "NUMBER", 0, BENCH_TIMEOUT},
-#endif
+    {"cloud_dsn", 'W', "DSN", 0, OLD_DSN_DESC},
     {"keep-trying", 'k', "NUMBER", 0, BENCH_KEEPTRYING},
     {"trying-interval", 'z', "NUMBER", 0, BENCH_TRYING_INTERVAL},
-#ifdef TD_VER_COMPATIBLE_3_0_0_0
     {"vgroups", 'v', "NUMBER", 0, BENCH_VGROUPS},
-#endif
     {"version", 'V', 0, 0, BENCH_VERSION},
     {"nodrop", 'Q', 0, 0, BENCH_NODROP},
+    {"dsn", 'X', "DSN", 0, DSN_DESC},
+    {DRIVER_OPT, 'Z', "DRIVER", 0, DRIVER_DESC},
     {0}
 };
 
@@ -258,7 +222,6 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
 
         case 'h':
             g_arguments->host = arg;
-            g_arguments->host_auto = false;
             break;
 
         case 'P':
@@ -270,13 +233,7 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
                 errorPrint(
                            "Invalid -P: %s, will auto set to default(6030)\n",
                            arg);
-                if (REST_IFACE == g_arguments->iface) {
-                    g_arguments->port = DEFAULT_REST_PORT;
-                } else {
-                    g_arguments->port = DEFAULT_PORT;
-                }
-            } else {
-                g_arguments->port_auto = false;
+                g_arguments->port = DEFAULT_PORT;
             }
             g_arguments->port_inputted = true;
             break;
@@ -290,9 +247,6 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
                 stbInfo->iface = STMT2_IFACE;
             } else if (0 == strcasecmp(arg, "rest")) {
                 stbInfo->iface = REST_IFACE;
-                if (false == g_arguments->port_inputted) {
-                    g_arguments->port = DEFAULT_REST_PORT;
-                }
             } else if (0 == strcasecmp(arg, "sml")
                     || 0 == strcasecmp(arg, "sml-line")) {
                 stbInfo->iface = SML_IFACE;
@@ -307,17 +261,17 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
                 stbInfo->iface = SML_IFACE;
                 stbInfo->lineProtocol = SML_JSON_TAOS_FORMAT;
             } else if (0 == strcasecmp(arg, "sml-rest")
-                    || (0 == strcasecmp(arg, "sml-rest-line"))) {
-                stbInfo->iface = SML_REST_IFACE;
+                   || (0 == strcasecmp(arg, "sml-rest-line"))) {
+                stbInfo->iface        = SML_REST_IFACE;
                 stbInfo->lineProtocol = TSDB_SML_LINE_PROTOCOL;
             } else if (0 == strcasecmp(arg, "sml-rest-telnet")) {
-                stbInfo->iface = SML_REST_IFACE;
+                stbInfo->iface        = SML_REST_IFACE;
                 stbInfo->lineProtocol = TSDB_SML_TELNET_PROTOCOL;
             } else if (0 == strcasecmp(arg, "sml-rest-json")) {
-                stbInfo->iface = SML_REST_IFACE;
+                stbInfo->iface        = SML_REST_IFACE;
                 stbInfo->lineProtocol = TSDB_SML_JSON_PROTOCOL;
             } else if (0 == strcasecmp(arg, "sml-rest-taosjson")) {
-                stbInfo->iface = SML_REST_IFACE;
+                stbInfo->iface        = SML_REST_IFACE;
                 stbInfo->lineProtocol = SML_JSON_TAOS_FORMAT;
             } else {
                 errorPrint(
@@ -337,14 +291,16 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
             break;
 
         case 'c':
-            tstrncpy(g_configDir, arg, TSDB_FILENAME_LEN);
+            TOOLS_STRNCPY(g_configDir, arg, TSDB_FILENAME_LEN);
             g_arguments->cfg_inputted = true;
             break;
 
         case 'o':
             g_arguments->output_file = arg;
             break;
-
+        case 'j':
+            g_arguments->output_json_file = arg;
+            break;
         case 'T':
             if (!toolsIsStringNumber(arg)) {
                 errorPrintReqArg2(CUS_PROMPT"Benchmark", "T");
@@ -439,7 +395,7 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
                 errorPrintReqArg2(CUS_PROMPT"Benchmark", "s");
             }
 
-            g_arguments->startTimestamp = atol(arg);
+            g_arguments->startTimestamp = strtoll(arg, NULL, 10);
             break;
 
         case 'U':
@@ -644,27 +600,17 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
             g_arguments->performance_print = true;
             break;
 
-#ifdef WEBSOCKET
         case 'W':
+        case 'X':
             g_arguments->dsn = arg;
             break;
 
-        case 'D':
-            if (!toolsIsStringNumber(arg)) {
-                errorPrintReqArg2(CUS_PROMPT"Benchmark", "D");
-            }
-
-            g_arguments->timeout = atoi(arg);
-            break;
-#endif
-#ifdef TD_VER_COMPATIBLE_3_0_0_0
         case 'v':
             if (!toolsIsStringNumber(arg)) {
                 errorPrintReqArg2(CUS_PROMPT"Benchmark", "v");
             }
             g_arguments->inputted_vgroups = atoi(arg);
             break;
-#endif
         case 'Q':
             database->drop = false;
             g_argFlag |= ARG_OPT_NODROP;
@@ -672,6 +618,9 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
         case 'V':
             printVersion();
             exit(0);
+        case 'Z':
+            g_arguments->connMode = getConnMode(arg);
+            break;
         default:
             return ARGP_ERR_UNKNOWN;
     }

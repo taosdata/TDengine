@@ -12,7 +12,7 @@ import (
 
 var builderLogger = log.GetLogger("BLD")
 
-func ExpandMetricsFromConfig(ctx context.Context, conn *db.Connector, cfg *config.MetricsConfig) (tables map[string]struct{}, err error) {
+func ExpandMetricsFromConfig(ctx context.Context, conn *db.Connector, cfg *config.Metrics) (tables map[string]struct{}, err error) {
 	tables = make(map[string]struct{})
 	for _, name := range cfg.Tables {
 		builderLogger.Debug("normal table: ", name)
@@ -26,7 +26,7 @@ func ExpandMetricsFromConfig(ctx context.Context, conn *db.Connector, cfg *confi
 	}
 
 	sql := fmt.Sprintf(GetStableNameListSql(), cfg.Database.Name)
-	data, err := conn.Query(ctx, sql, util.GetQidOwn())
+	data, err := conn.QueryWithRetryForever(ctx, sql, util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		return nil, err
 	}

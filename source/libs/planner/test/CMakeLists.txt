@@ -11,16 +11,22 @@ IF(NOT TD_DARWIN)
         "${SOURCE_LIST}/../../../parser/test/mockCatalog.cpp"
         "${SOURCE_LIST}/../../../parser/test/mockCatalogService.cpp"
     )
+    DEP_ext_gtest(plannerTest)
+    DEP_ext_cppstub(plannerTest)
+    if(${BUILD_WINGETOPT})
+        DEP_ext_wingetopt(plannerTest)
+    endif()
+
 
     IF (TD_GRANT)
         TARGET_LINK_LIBRARIES(
                 plannerTest
-                PUBLIC os util common nodes planner parser catalog transport gtest function qcom grant
+                PUBLIC os util common nodes planner parser catalog transport function qcom grant
         )
     ELSE ()
         TARGET_LINK_LIBRARIES(
                 plannerTest
-                PUBLIC os util common nodes planner parser catalog transport gtest function qcom
+                PUBLIC os util common nodes planner parser catalog transport function qcom
         )
     ENDIF()
 
@@ -30,15 +36,6 @@ IF(NOT TD_DARWIN)
             PRIVATE "${TD_SOURCE_DIR}/source/libs/planner/inc"
             PRIVATE "${TD_SOURCE_DIR}/source/libs/parser/test"
     )
-
-
-    if(${BUILD_WINGETOPT})
-        target_include_directories(
-            plannerTest
-            PUBLIC "${TD_SOURCE_DIR}/contrib/wingetopt/src"
-        )
-        target_link_libraries(plannerTest PUBLIC wingetopt)
-    endif()
 
     add_test(
         NAME plannerTest

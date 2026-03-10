@@ -258,6 +258,7 @@ func GetLogNow(isDebug bool) time.Time {
 	}
 	return zeroTime
 }
+
 func GetLogDuration(isDebug bool, s time.Time) time.Duration {
 	if isDebug {
 		return time.Since(s)

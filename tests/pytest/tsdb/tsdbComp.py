@@ -11,7 +11,6 @@
 
 # -*- coding: utf-8 -*-
 
-from distutils.log import debug
 import sys
 import os
 import taos

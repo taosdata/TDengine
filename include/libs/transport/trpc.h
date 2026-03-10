@@ -19,6 +19,7 @@
 extern "C" {
 #endif
 
+#ifndef TD_ASTRA_RPC
 #include <stdbool.h>
 #include <stdint.h>
 #include "taosdef.h"
@@ -29,14 +30,19 @@ extern "C" {
 #define TAOS_CONN_CLIENT 1
 #define IsReq(pMsg)      (pMsg->msgType & 1U)
 
-extern int32_t tsRpcHeadSize;
+typedef enum { IP_FORBIDDEN_WHITE_LIST = 1, IP_FORBIDDEN_DATA_TIME_WHITE_LIST = 2 } SForbiddenType;
+
+#define IP_FORBIDDEN_SET_VAL(type, val)     ((type) |= (val))
+#define IP_FORBIDDEN_CHECK_WHITE_LIST(type) ((type)&IP_FORBIDDEN_WHITE_LIST)
+#define IP_FORBIDDEN_CHECK_DATA_TIME_WHITE_LIST(type) ((type)&IP_FORBIDDEN_DATA_TIME_WHITE_LIST)
 
 typedef struct {
-  uint32_t clientIp;
-  uint16_t clientPort;
+  SIpAddr  cliAddr;
   int64_t  applyIndex;
   uint64_t applyTerm;
   char     user[TSDB_USER_LEN];
+  char     identifier[128];
+  int8_t   isToken;
 } SRpcConnInfo;
 
 typedef struct SRpcHandleInfo {
@@ -76,6 +82,13 @@ typedef struct SRpcMsg {
   int32_t        code;
   SRpcHandleInfo info;
 } SRpcMsg;
+
+#define RPC_MSG_USER(pMsg)  ((pMsg)->info.conn.user)
+#ifdef TD_ENTERPRISE
+#define RPC_MSG_TOKEN(pMsg) ((pMsg)->info.conn.isToken ? (pMsg)->info.conn.identifier : NULL)
+#else
+#define RPC_MSG_TOKEN(pMsg) NULL
+#endif
 
 typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *epset);
 typedef bool (*RpcRfp)(int32_t code, tmsg_t msgType);
@@ -133,6 +146,16 @@ typedef struct SRpcInit {
   int8_t  notWaitAvaliableConn;  // 1: wait to get, 0: no wait
   int8_t  startReadTimer;
   int64_t readTimeout;  // s
+  int8_t  ipv6;
+  int8_t  enableSSL;
+  int8_t  enableSasl;
+
+  char caPath[PATH_MAX];
+  char certPath[PATH_MAX];
+  char keyPath[PATH_MAX];
+  char cliCertPath[PATH_MAX];
+  char cliKeyPath[PATH_MAX];
+  int8_t isToken;
 
   void *parent;
 } SRpcInit;
@@ -183,12 +206,207 @@ int32_t rpcFreeConnById(void *shandle, int64_t connId);
 
 int32_t rpcSetDefaultAddr(void *thandle, const char *ip, const char *fqdn);
 int32_t rpcAllocHandle(int64_t *refId);
+int32_t rpcSetIpWhite(void *thandle, void *arg);
+int32_t rpcSetTimeIpWhite(void *thandle, void *arg);
+int32_t rpcReloadTlsConfig(void* handle, int8_t type);
+
+int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf);
+
+int32_t rpcUtilSWhiteListToStr(SIpWhiteListDual *pWhiteList, char **ppBuf);
+int32_t rpcCvtErrCode(int32_t code);
+
+#else
+#include <stdbool.h>
+#include <stdint.h>
+#include "taosdef.h"
+#include "tmsg.h"
+#include "ttrace.h"
+
+#define TAOS_CONN_SERVER 0
+#define TAOS_CONN_CLIENT 1
+#define IsReq(pMsg)      (pMsg->msgType & 1U)
+
+extern int32_t tsRpcHeadSize;
+
+typedef struct {
+  uint32_t clientIp;
+  uint16_t clientPort;
+  int64_t  applyIndex;
+  uint64_t applyTerm;
+  char     user[TSDB_USER_LEN];
+} SRpcConnInfo;
+
+typedef enum {
+  TD_ASTRA_CLIENT = 1,
+  TD_ASTRA_DSVR_CLIENT = 2,
+  TD_ASTRA_DSVR_STA_CLIENT = 4,
+  TD_ASTRA_DSVR_SYNC_CLIENT = 8,
+  TD_ASTRA_DSVR = 16
+} RPC_TYPE;
+
+typedef struct SRpcHandleInfo {
+  // rpc info
+  void   *handle;         // rpc handle returned to app
+  int64_t refId;          // refid, used by server
+  int8_t  noResp;         // has response or not(default 0, 0: resp, 1: no resp)
+  int8_t  persistHandle;  // persist handle or not
+  int8_t  hasEpSet;
+  int32_t cliVer;
+
+  // app info
+  void *ahandle;    // app handle set by client
+  void *wrapper;    // wrapper handle
+  void *node;       // node mgmt handle
+#ifdef TD_ASTRA_32
+  void *ahandleEx;  // app handle set by client
+#endif
+
+  // resp info
+  void   *rsp;
+  int32_t rspLen;
+
+  STraceId traceId;
+
+  SRpcConnInfo conn;
+  int8_t       forbiddenIp;
+  int8_t       notFreeAhandle;
+  int8_t       compressed;
+  int16_t      connType;
+  int64_t      seq;
+  int64_t      qId;
+  int32_t      msgType;
+  void        *reqWithSem;
+  int32_t      refIdMgt;
+} SRpcHandleInfo;
+
+typedef struct SRpcMsg {
+  tmsg_t         msgType;
+  void          *pCont;
+  int32_t        contLen;
+  int32_t        code;
+  int32_t        type;
+  void          *parent;
+  SRpcHandleInfo info;
+
+} SRpcMsg;
+
+typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *epset);
+typedef bool (*RpcRfp)(int32_t code, tmsg_t msgType);
+typedef bool (*RpcTfp)(int32_t code, tmsg_t msgType);
+typedef bool (*RpcFFfp)(tmsg_t msgType);
+typedef bool (*RpcNoDelayfp)(tmsg_t msgType);
+typedef void (*RpcDfp)(void *ahandle);
+
+typedef struct SRpcInit {
+  char     localFqdn[TSDB_FQDN_LEN];
+  uint16_t localPort;     // local port
+  char    *label;         // for debug purpose
+  int32_t  numOfThreads;  // number of threads to handle connections
+  int32_t  sessions;      // number of sessions allowed
+  int8_t   connType;      // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
+  int32_t  idleTime;      // milliseconds, 0 means idle timer is disabled
+  int32_t  compatibilityVer;
+
+  int32_t retryMinInterval;  // retry init interval
+  int32_t retryStepFactor;   // retry interval factor
+  int32_t retryMaxInterval;  // retry max interval
+  int64_t retryMaxTimeout;
+
+  int32_t failFastThreshold;
+  int32_t failFastInterval;
+
+  int32_t compressSize;  // -1: no compress, 0 : all data compressed, size: compress data if larger than size
+  int8_t  encryption;    // encrypt or not
+
+  // the following is for client app ecurity only
+  char *user;  // user name
+
+  // call back to process incoming msg
+  RpcCfp cfp;
+
+  // retry not not for particular msg
+  RpcRfp rfp;
+
+  // set up timeout for particular msg
+  RpcTfp tfp;
+
+  // destroy client ahandle;
+  RpcDfp dfp;
+  // fail fast fp
+  RpcFFfp ffp;
+
+  RpcNoDelayfp noDelayFp;
+
+  int32_t connLimitNum;
+  int32_t connLimitLock;
+  int32_t timeToGetConn;
+  int8_t  supportBatch;  // 0: no batch, 1. batch
+  int32_t batchSize;
+  int8_t  notWaitAvaliableConn;  // 1: wait to get, 0: no wait
+  int32_t shareConnLimit;
+  int8_t  shareConn;  // 0: no share, 1. share
+  int8_t  startReadTimer;
+  int64_t readTimeout;  // s
+  void   *parent;
+
+} SRpcInit;
+
+typedef struct {
+  void *val;
+  int32_t (*clone)(void *src, void **dst);
+} SRpcCtxVal;
+
+typedef struct {
+  int32_t msgType;
+  void   *val;
+  int32_t (*clone)(void *src, void **dst);
+} SRpcBrokenlinkVal;
+
+typedef struct {
+  SHashObj         *args;
+  SRpcBrokenlinkVal brokenVal;
+  void (*freeFunc)(const void *arg);
+  int64_t st;
+} SRpcCtx;
+
+int32_t rpcInit();
+void    rpcCleanup();
+
+void *rpcOpen(const SRpcInit *pRpc);
+void  rpcClose(void *);
+void  rpcCloseImpl(void *);
+void *rpcMallocCont(int64_t contLen);
+void  rpcFreeCont(void *pCont);
+void *rpcReallocCont(void *ptr, int64_t contLen);
+
+// Because taosd supports multi-process mode
+// These functions should not be used on the server side
+// Please use tmsg<xx> functions, which are defined in tmsgcb.h
+int32_t rpcSendRequest(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid);
+int32_t rpcSendResponse(SRpcMsg *pMsg);
+int32_t rpcRegisterBrokenLinkArg(SRpcMsg *msg);
+int32_t rpcReleaseHandle(void *handle, int8_t type,
+                         int32_t status);  // just release conn to rpc instance, no close sock
+
+// These functions will not be called in the child process
+int32_t rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);
+int32_t rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
+int32_t rpcSendRecvWithTimeout(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp, int8_t *epUpdated,
+                               int32_t timeoutMs);
+
+int32_t rpcFreeConnById(void *shandle, int64_t connId);
+
+int32_t rpcSetDefaultAddr(void *thandle, const char *ip, const char *fqdn);
+int32_t rpcAllocHandle(int64_t *refId);
 int32_t rpcSetIpWhite(void *thandl, void *arg);
+int32_t rpcSetTimeIpWhite(void *thandle, void *arg);
 
 int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf);
 
 int32_t rpcUtilSWhiteListToStr(SIpWhiteList *pWhiteList, char **ppBuf);
 int32_t rpcCvtErrCode(int32_t code);
+
+#endif
 
 #ifdef __cplusplus
 }

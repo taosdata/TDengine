@@ -49,20 +49,6 @@ int32_t tqPushMsg(STQ* pTq, tmsg_t msgType) {
     }
   }
 
-  streamMetaRLock(pTq->pStreamMeta);
-  int32_t numOfTasks = streamMetaGetNumOfTasks(pTq->pStreamMeta);
-  streamMetaRUnLock(pTq->pStreamMeta);
-
-//  tqTrace("vgId:%d handle submit, restore:%d, numOfTasks:%d", TD_VID(pTq->pVnode), pTq->pVnode->restored, numOfTasks);
-
-  // push data for stream processing:
-  // 1. the vnode has already been restored.
-  // 2. the vnode should be the leader.
-  // 3. the stream is not suspended yet.
-  if ((!tsDisableStream) && (numOfTasks > 0)) {
-    code = tqScanWalAsync(pTq, true);
-  }
-
   return code;
 }
 
@@ -88,6 +74,9 @@ int32_t tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg) {
   } else {
     tqPushEmptyDataRsp(pHandle, vgId);
 
+    int32_t ret = taosHashRemove(pTq->pPushMgr, pHandle->subKey, strlen(pHandle->subKey));
+    tqInfo("vgId:%d register handle, remove last handle from mgr,ret:%s, consumerId:0x%" PRIx64 ", register to pHandle:%p, pCont:%p, len:%d", vgId, tstrerror(ret),
+          pHandle->consumerId, pHandle, pHandle->msg->pCont, pHandle->msg->contLen);
     void* tmp = pHandle->msg->pCont;
     (void)memcpy(pHandle->msg, pMsg, sizeof(SRpcMsg));
     pHandle->msg->pCont = tmp;
@@ -96,7 +85,7 @@ int32_t tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg) {
   (void)memcpy(pHandle->msg->pCont, pMsg->pCont, pMsg->contLen);
   pHandle->msg->contLen = pMsg->contLen;
   int32_t ret = taosHashPut(pTq->pPushMgr, pHandle->subKey, strlen(pHandle->subKey), &pHandle, POINTER_BYTES);
-  tqDebug("vgId:%d data is over, ret:%d, consumerId:0x%" PRIx64 ", register to pHandle:%p, pCont:%p, len:%d", vgId, ret,
+  tqInfo("vgId:%d data is over, put handle to mgr,ret:%s, consumerId:0x%" PRIx64 ", register to pHandle:%p, pCont:%p, len:%d", vgId, tstrerror(ret),
           pHandle->consumerId, pHandle, pHandle->msg->pCont, pHandle->msg->contLen);
   if (ret != 0) {
     rpcFreeCont(pHandle->msg->pCont);

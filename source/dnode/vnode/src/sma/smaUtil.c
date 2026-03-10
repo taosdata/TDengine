@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#if 0
 #include "sma.h"
 #include "vnd.h"
 
@@ -46,3 +46,4 @@ int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId) {
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
+#endif

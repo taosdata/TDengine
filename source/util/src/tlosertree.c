@@ -42,7 +42,7 @@ int32_t tMergeTreeCreate(SMultiwayMergeTreeInfo** pTree, uint32_t numOfSources, 
   SMultiwayMergeTreeInfo* pTreeInfo =
       (SMultiwayMergeTreeInfo*)taosMemoryCalloc(1, sizeof(SMultiwayMergeTreeInfo) + sizeof(STreeNode) * totalEntries);
   if (pTreeInfo == NULL) {
-    uError("allocate memory for loser-tree failed. reason:%s", strerror(errno));
+    uError("allocate memory for loser-tree failed. reason:%s", strerror(ERRNO));
     return terrno;
   }
 

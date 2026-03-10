@@ -15,6 +15,7 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include "streamexecutorInt.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -949,7 +950,7 @@ TEST(testCase, build_executor_tree_Test) {
   int32_t          code = qStringToSubplan(msg, &plan);
   ASSERT_EQ(code, 0);
 
-  code = qCreateExecTask(&handle, 2, 1, plan, (void**)&pTaskInfo, &sinkHandle, NULL, OPTR_EXEC_MODEL_BATCH);
+  code = qCreateExecTask(&handle, 2, 1, plan, (void**)&pTaskInfo, &sinkHandle, 0, NULL, OPTR_EXEC_MODEL_BATCH, NULL);
   ASSERT_EQ(code, 0);
 }
 #if 0
@@ -1231,5 +1232,14 @@ TEST(testCase, time_interval_Operator_Test) {
   taosArrayDestroy(pOrderVal);
 }
 #endif
+
+TEST(streamExecutor, calcOutputTbName) {
+  SNode* pNode = NULL;
+  nodesMakeValueNodeFromInt64(1, &pNode);
+  SValueNode* pVal = (SValueNode*)pNode;
+  char tbname[128] = {0};
+  ASSERT_EQ(0, streamCalcOutputTbName(pNode, tbname, 0));
+  ASSERT_STREQ(tbname, "1");
+}
 
 #pragma GCC diagnosti

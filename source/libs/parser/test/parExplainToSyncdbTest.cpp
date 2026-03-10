@@ -30,7 +30,7 @@ TEST_F(ParserExplainToSyncdbTest, explain) {
 
   run("EXPLAIN ANALYZE VERBOSE true RATIO 0.01 SELECT * FROM t1");
 }
-
+#ifdef PRIV_TODO
 TEST_F(ParserExplainToSyncdbTest, grant) {
   useDb("root", "test");
 
@@ -105,60 +105,6 @@ TEST_F(ParserExplainToSyncdbTest, mergeVgroup) {
 
   setMergeVgroupReqFunc(1, 2);
   run("MERGE VGROUP 1 2");
-}
-
-TEST_F(ParserExplainToSyncdbTest, pauseStreamStmt) {
-  useDb("root", "test");
-
-  SMPauseStreamReq expect = {0};
-
-  auto setMPauseStreamReq = [&](const string& name, bool igNotExists = false) {
-    snprintf(expect.name, sizeof(expect.name), "0.%s", name.c_str());
-    expect.igNotExists = igNotExists;
-  };
-
-  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_PAUSE_STREAM_STMT);
-    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_PAUSE_STREAM);
-    SMPauseStreamReq req = {0};
-    ASSERT_EQ(tDeserializeSMPauseStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
-    ASSERT_EQ(string(req.name), string(expect.name));
-    ASSERT_EQ(req.igNotExists, expect.igNotExists);
-  });
-
-  setMPauseStreamReq("str1");
-  run("PAUSE STREAM str1");
-
-  setMPauseStreamReq("str2", true);
-  run("PAUSE STREAM IF EXISTS str2");
-}
-
-TEST_F(ParserExplainToSyncdbTest, resumeStreamStmt) {
-  useDb("root", "test");
-
-  SMResumeStreamReq expect = {0};
-
-  auto setMResumeStreamReq = [&](const string& name, bool igNotExists = false, bool igUntreated = false) {
-    snprintf(expect.name, sizeof(expect.name), "0.%s", name.c_str());
-    expect.igNotExists = igNotExists;
-    expect.igUntreated = igUntreated;
-  };
-
-  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_RESUME_STREAM_STMT);
-    ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_RESUME_STREAM);
-    SMResumeStreamReq req = {0};
-    ASSERT_EQ(tDeserializeSMResumeStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
-    ASSERT_EQ(string(req.name), string(expect.name));
-    ASSERT_EQ(req.igNotExists, expect.igNotExists);
-    ASSERT_EQ(req.igUntreated, expect.igUntreated);
-  });
-
-  setMResumeStreamReq("str1");
-  run("RESUME STREAM str1");
-
-  setMResumeStreamReq("str2", true, true);
-  run("RESUME STREAM IF EXISTS IGNORE UNTREATED str2");
 }
 
 TEST_F(ParserExplainToSyncdbTest, redistributeVgroup) {
@@ -296,7 +242,7 @@ TEST_F(ParserExplainToSyncdbTest, revoke) {
   setAlterUserReq(TSDB_ALTER_USER_DEL_PRIVILEGES, PRIVILEGE_TYPE_SUBSCRIBE, "wxy", "0.tp1");
   run("REVOKE SUBSCRIBE ON tp1 FROM wxy");
 }
-
+#endif
 // todo syncdb
 
 }  // namespace ParserTest

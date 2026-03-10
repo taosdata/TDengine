@@ -53,6 +53,7 @@
 (void)mndGetOrCreateRebSub
 (void)mndPullupArbUpdateGroupBatch
 (void)mndRefreshUserIpWhiteList
+(void)mndRefreshUserDateTimeWhiteList
 (void)mndSendArbHeartBeatReq
 (void)mndUpdClusterInfo
 (void)mndUpdateArbHeartBeat
@@ -79,7 +80,7 @@
 (void)streamMetaAddFailedTask
 (void)streamMetaAddTaskLaunchResult
 (void)streamMetaCommit
-(void)streamMetaRemoveTask
+(void)streamMetaRemoveTaskInMeta
 (void)streamMetaSendHbHelper
 (void)streamMetaStartAllTasks
 (void)streamMetaStartOneTask
@@ -218,7 +219,7 @@
 (void)tSerializeSUseDbRsp
 (void)tSerializeSVDropTtlTableReq
 (void)tSerializeSVKillCompactReq
-(void)tSerializeSVS3MigrateDbReq
+(void)tSerializeSVSsMigrateDbReq
 (void)tSerializeSVTrimDbReq
 (void)tSimpleHashIterateRemove
 (void)tSimpleHashPut
@@ -409,7 +410,7 @@
 (void)tqProcessTaskConsenChkptIdReq
 (void)tqProcessTaskResetReq
 (void)tqScanWalAsync
-(void)tqStopStreamTasksAsync
+(void)tqStopStreamAllTasksAsync
 (void)tqUpdateTbUidList
 (void)transAcquireExHandle
 (void)transAsyncSend

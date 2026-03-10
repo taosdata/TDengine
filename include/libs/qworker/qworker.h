@@ -69,9 +69,13 @@ typedef struct SQWMsg {
   int32_t        code;
   int32_t        msgType;
   void          *msg;
+  void          *req;
   int32_t        msgLen;
+  int32_t        msgMask;
+  ESubQueryType  subQType;
   SQWMsgInfo     msgInfo;
   SRpcHandleInfo connInfo;
+  SArray       **subEndPoints;
   void          *pWorkerCb;
 } SQWMsg;
 
@@ -79,7 +83,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
 
 int32_t qWorkerAbortPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg);
 
-int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGrant);
+int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGrant, int32_t* qType);
 
 int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 

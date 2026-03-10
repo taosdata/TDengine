@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perspective Viewer Dashboard</title>
+    <link rel="stylesheet" crossorigin="anonymous"
+          href="https://unpkg.com/@finos/perspective-viewer/dist/css/themes.css"/>
+    <style>
+        /* define the layout of the entire dashboard */
+        #dashboard {
+            display: grid;
+            /* define a grid layout with two rows and two columns */
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto auto auto;
+            gap: 20px;
+            padding: 20px;
+            /* limit the maximum height of the Dashboard to the viewport height */
+            max-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        /* define the style */
+        .viewer-container {
+            /* adjust the height of the container to ensure it can be displayed on one screen */
+            height: calc((100vh - 30px) / 2);
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #333;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        perspective-viewer {
+            height: 100%;
+            width: 100%;
+        }
+
+        body {
+            background-color: #242526;
+            color: white;
+            font-family: Arial, sans-serif;
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+<!-- introduce JavaScript files related to Perspective Viewer -->
+<script type="module" src="https://unpkg.com/@finos/perspective@3.1.3/dist/cdn/perspective.js"></script>
+<script type="module" src="https://unpkg.com/@finos/perspective-viewer@3.1.3/dist/cdn/perspective-viewer.js"></script>
+<script type="module"
+        src="https://unpkg.com/@finos/perspective-viewer-datagrid@3.1.3/dist/cdn/perspective-viewer-datagrid.js"></script>
+<script type="module"
+        src="https://unpkg.com/@finos/perspective-viewer-d3fc@3.1.3/dist/cdn/perspective-viewer-d3fc.js"></script>
+
+// ANCHOR: perspective_viewer
+<script type="module">
+    // import the Perspective library
+    import perspective from "https://unpkg.com/@finos/perspective@3.1.3/dist/cdn/perspective.js";
+
+    document.addEventListener("DOMContentLoaded", async function () {
+        // an asynchronous function for loading the view
+        async function load_viewer(viewerId, config) {
+            try {
+                const table_name = "meters_values";
+                const viewer = document.getElementById(viewerId);
+                // connect WebSocket server
+                const websocket = await perspective.websocket("ws://localhost:8085/websocket");
+                // open server table
+                const server_table = await websocket.open_table(table_name);
+                // load the table into the view
+                await viewer.load(server_table);
+                // use view configuration
+                await viewer.restore(config);
+            } catch (error) {
+                console.error('发生错误:', error);
+            }
+        }
+
+        // configuration of the view
+        const config1 = {
+            "version": "3.3.1",          // Perspective library version (compatibility identifier)
+            "plugin": "Datagrid",        // View mode: Datagrid (table) or D3FC (chart)
+            "plugin_config": {           // Plugin-specific configuration
+                "columns": {
+                    "current": {
+                        "width": 150       // Column width in pixels
+                    }
+                },
+                "edit_mode": "READ_ONLY",  // Edit mode: READ_ONLY (immutable) or EDIT (editable)
+                "scroll_lock": false       // Whether to lock scroll position
+            },
+            "columns_config": {},        // Custom column configurations (colors, formatting, etc.)
+            "settings": true,            // Whether to show settings panel (true/false)
+            "theme": "Power Meters",     // Custom theme name (must be pre-defined)
+            "title": "Meters list data", // View title
+            "group_by": ["location", "groupid"], // Row grouping fields (equivalent to `row_pivots`)
+            "split_by": [],              // Column grouping fields (equivalent to `column_pivots`)
+            "columns": [                 // Columns to display (in order)
+                "timestamp",
+                "location",
+                "current",
+                "voltage",
+                "phase"
+            ],
+            "filter": [],                // Filter conditions (triplet format array)
+            "sort": [],                  // Sorting rules (format: [field, direction])
+            "expressions": {},           // Custom expressions (e.g., calculated columns)
+            "aggregates": {              // Aggregation function configuration
+                "timestamp": "last",       // Aggregation: last (takes the latest value)
+                "voltage": "last",         // Aggregation: last
+                "phase": "last",           // Aggregation: last
+                "current": "last"          // Aggregation: last
+            }
+        };
+
+        // load the first view
+        await load_viewer("prsp-viewer-1", config1);
+    });
+</script>
+
+<!-- define the HTML Structure of the Dashboard -->
+<div id="dashboard">
+    <div class="viewer-container">
+        <perspective-viewer id="prsp-viewer-1" theme="Pro Dark"></perspective-viewer>
+    </div>
+</div>
+// ANCHOR_END: perspective_viewer
+</body>
+
+</html>

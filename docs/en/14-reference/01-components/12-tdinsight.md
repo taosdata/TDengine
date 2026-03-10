@@ -6,14 +6,6 @@ slug: /tdengine-reference/components/tdinsight
 
 import Tabs from '@theme/Tabs'
 import TabItem from '@theme/TabItem'
-import Image from '@theme/IdealImage';
-import imgStep01 from '../../assets/tdinsight-01.png';
-import imgStep02 from '../../assets/tdinsight-02.png';
-import imgStep03 from '../../assets/tdinsight-03.png';
-import imgStep04 from '../../assets/tdinsight-04.png';
-import imgStep05 from '../../assets/tdinsight-05.png';
-import imgStep06 from '../../assets/tdinsight-06.png';
-import imgStep07 from '../../assets/tdinsight-07.png';
 
 TDinsight is a monitoring solution for TDengine using [Grafana].
 
@@ -45,7 +37,15 @@ For steps on installing the Grafana TDengine data source plugin and configuring 
 
 ## Import TDinsightV3 Dashboard
 
-In the TDengine data source configuration interface, click the "Dashboards" tab, then click "import" to import the "TDengine for 3.x" dashboard.
+- **Recommended Method**: After configuring the data source, click "Dashboards" next to "Settings" — this will display the dashboard built into the data source. Then select "Import" next to "TDengine for 3.x" to import it.  
+![TDinsight V3 import](../../assets/tdinsight-08.webp)  
+
+- Import via Dashboard ID: On the left side of the Grafana main interface, click the "Dashboards" Tab, then select "Import" under the "New" option in the top right corner. Enter the Dashboard ID `18180` for the "TDengine for 3.x" dashboard to complete the import.
+- Import via JSON Configuration:
+    1. First, download the JSON file from [TDinsight for 3.x](https://grafana.com/grafana/dashboards/18180-tdinsight-for-3-x/).
+    2. On the left side of the Grafana main interface, click the "Dashboards" Tab, then select "Import" under the "New" option in the top right corner.
+    3. In the "Import via dashboard JSON model" section, paste the content of the JSON file you just downloaded, then click "Import" to finish the import.
+
 After successful import, you can access this dashboard. In the "Log from" option in the top left corner, select the database set in taosKeeper for recording monitoring metrics to view the monitoring results.
 
 ## TDinsightV3 Dashboard Details
@@ -57,30 +57,26 @@ It mainly includes Cluster Status, DNodes Overview, MNode Overview, Requests, Da
 
 This section includes current information and status of the cluster.
 
-<figure>
-<Image img={imgStep01} alt=""/>
-</figure>
+![Cluster status section](../../assets/tdinsight-01.png)
 
 Metric details (from top to bottom, left to right):
 
 - **First EP**: The `firstEp` setting in the current TDengine cluster.
 - **Version**: TDengine server version (master mnode).
-- **Expire Time** - Expiration time for the enterprise edition.
-- **Used Measuring Points** - Number of measuring points used in the enterprise edition.
+- **Expire Time** - Expiration time for the TSDB-Enterprise.
+- **Used Measuring Points** - Number of measuring points used in the TSDB-Enterprise.
 - **Databases** - Number of databases.
 - **Connections** - Current number of connections.
 - **DNodes/MNodes/VGroups/VNodes**: Total and alive count of each resource.
 - **Classified Connection Counts**: The current number of active connections, classified by user, application, and IP.
 - **DNodes/MNodes/VGroups/VNodes Alive Percent**: The ratio of alive/total for each resource, enable alert rules, and trigger when the resource survival rate (average healthy resource ratio within 1 minute) is less than 100%.
-- **Measuring Points Used**: Number of measuring points used with alert rules enabled (no data for community edition, healthy by default).
+- **Measuring Points Used**: Number of measuring points used with alert rules enabled (no data for TSDB-OSS, healthy by default).
 
 ### DNodes Overview
 
 This section includes basic information about the cluster's dnodes.
 
-<figure>
-<Image img={imgStep02} alt=""/>
-</figure>
+![Dnode overview section](../../assets/tdinsight-02.png)
 
 Metric details:
 
@@ -91,9 +87,7 @@ Metric details:
 
 This section includes basic information about the cluster's mnode.
 
-<figure>
-<Image img={imgStep03} alt=""/>
-</figure>
+![Mnode overview section](../../assets/tdinsight-03.png)
 
 Metric details:
 
@@ -104,9 +98,7 @@ Metric details:
 
 This section includes statistical metrics for SQL execution in the cluster.
 
-<figure>
-<Image img={imgStep04} alt=""/>
-</figure>
+![SQL request overview](../../assets/tdinsight-04.png)
 
 Metric details:
 
@@ -120,9 +112,7 @@ Metric details:
 
 This section includes statistical metrics for tables in the cluster.
 
-<figure>
-<Image img={imgStep05} alt=""/>
-</figure>
+![Table statistics section](../../assets/tdinsight-05.png)
 
 Metric details:
 
@@ -135,9 +125,7 @@ Metric details:
 
 This section includes a display of resource usage for all data nodes in the cluster, with each data node shown as a Row.
 
-<figure>
-<Image img={imgStep06} alt=""/>
-</figure>
+![Dnode resource usage section](../../assets/tdinsight-06.png)
 
 Metric details (from top to bottom, left to right):
 
@@ -159,9 +147,7 @@ Metric details (from top to bottom, left to right):
 
 This section includes detailed statistics for taosAdapter rest and websocket requests.
 
-<figure>
-<Image img={imgStep07} alt=""/>
-</figure>
+![taosAdapter section](../../assets/tdinsight-07.png)
 
 Metric details:
 
@@ -178,31 +164,30 @@ There are also line charts for the above categories.
 
 After summarizing user experience, 14 commonly used alert rules are sorted out. These alert rules can monitor key indicators of the TDengine cluster and report alerts, such as abnormal and exceeded indicators.  
 Starting from TDengine-Server 3.3.4.3 (TDengine-datasource 3.6.3), TDengine Datasource supports automatic import of preconfigured alert rules. You can import 14 alert rules to Grafana (version 11 or later) with one click.  
-In the TDengine-datasource setting interface, turn on the "Load Tengine Alert" switch, click the "Save & test" button, the plugin will automatically load the mentioned 14 alert rules. The rules will be placed in the Grafana alerts directory. If not required, turn off the "Load TDengine Alert" switch, and click the button next to "Clear TDengine Alert" to clear all the alert rules imported into this data source. 
+In the TDengine-datasource setting interface, turn on the "Load Tengine Alert" switch, click the "Save & test" button, the plugin will automatically load the mentioned 14 alert rules. The rules will be placed in the Grafana alerts directory. If not required, turn off the "Load TDengine Alert" switch, and click the button next to "Clear TDengine Alert" to clear all the alert rules imported into this data source.
 
 After importing, click on "Alert rules" on the left side of the Grafana interface to view all current alert rules. By configuring contact points, users can receive alert notifications.
 
 The specific configuration of the 14 alert rules is as follows:  
 
-| alert rule                                                    | Rule threshold                       | Behavior when no data | Data scanning interval | Duration    | SQL                                                                                                                                                                                                                                                                                                                  |
-| ------------------------------------------------------------- | ------------------------------------ | --------------------- | ---------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CPU load of dnode node                                        | average > 80%                        | Trigger alert         | 5 minutes              | 5 minutes   | `select now(),  dnode_id, last(cpu_system) as cup_use from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts < now partition by dnode_id having first(_ts) > 0 `                                                                                                                                                  |
-| Memory of dnode node                                          | average > 60%                        | Trigger alert         | 5 minutes              | 5 minutes   | `select now(), dnode_id, last(mem_engine) / last(mem_total)  * 100 as taosd from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts <now partition by dnode_id`                                                                                                                                                    |
-| Disk capacity occupancy of dnode nodes                        | > 80%                                | Trigger alert         | 5 minutes              | 5 minutes   | `select now(), dnode_id, data_dir_level, data_dir_name, last(used)  / last(total)  * 100 as used from log.taosd_dnodes_data_dirs where _ts >= (now - 5m) and _ts < now partition by dnode_id, data_dir_level, data_dir_name`                                                                                         |
-| Authorization expires                                         | < 60天                               | Trigger alert         | 1 day                  | 0 0 seconds | `select now(), cluster_id, last(grants_expire_time) / 86400 as expire_time from log.taosd_cluster_info where  _ts >= (now - 24h)  and _ts < now  partition by cluster_id having first(_ts) > 0 `                                                                                                                     |
+| alert rule                                                   | Rule threshold                       | Behavior when no data | Data scanning interval | Duration    | SQL                                                          |
+| ------------------------------------------------------------ | ------------------------------------ | --------------------- | ---------------------- | ----------- | ------------------------------------------------------------ |
+| CPU load of dnode node                                       | average > 80%                        | Trigger alert         | 5 minutes              | 5 minutes   | `select now(), dnode_ep, last(cpu_system) as cpu_use from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts < now partition by dnode_ep` |
+| Memory of dnode node                                         | average > 60%                        | Trigger alert         | 5 minutes              | 5 minutes   | `select now(), dnode_ep, last(mem_engine) / last(mem_total)  * 100 as taosd from log.taosd_dnodes_info where _ts >= (now- 5m) and _ts <now partition by dnode_ep` |
+| Disk capacity occupancy of dnode nodes                       | > 80%                                | Trigger alert         | 5 minutes              | 5 minutes   | `select now(), dnode_ep, data_dir_level, data_dir_name, last(used) / last(total)  * 100 as used from log.taosd_dnodes_data_dirs where _ts >= (now - 5m) and _ts < now partition by dnode_ep, data_dir_level, data_dir_name` |
+| Authorization expires                                        | < 60 days                            | Trigger alert         | 1 day                  | 0 0 seconds | `select now(), cluster_id, last(grants_expire_time) / 86400 as expire_time from log.taosd_cluster_info where  _ts >= (now - 24h)  and _ts < now  partition by cluster_id having first(_ts) > 0` |
 | The used measurement points has reached the authorized number | >= 90%                               | Trigger alert         | 1 day                  | 0 seconds   | `select  now(), cluster_id,  CASE  WHEN max(grants_timeseries_total)  > 0.0 THEN max(grants_timeseries_used)  /max(grants_timeseries_total) * 100.0   ELSE 0.0    END AS result from log.taosd_cluster_info where _ts >= (now - 30s) and _ts < now partition by cluster_id  having timetruncate(first(_ts), 1m) > 0` |
-| Number of concurrent query requests                           | > 100                                | Do not trigger alert  | 1 minute               | 0 seconds   | `select now() as ts, count(*) as slow_count from performance_schema.perf_queries`                                                                                                                                                                                                                                    |
-| Maximum time for slow query execution (no time window)        | > 300秒                              | Do not trigger alert  | 1 minute               | 0 seconds   | `select now() as ts, count(*) as slow_count from performance_schema.perf_queries where exec_usec>300000000`                                                                                                                                                                                                          |
-| dnode offline                                                 | total != alive                       | Trigger alert         | 30 seconds             | 0 seconds   | `select now(),  cluster_id, last(dnodes_total)  - last(dnodes_alive) as dnode_offline  from log.taosd_cluster_info where _ts >= (now -30s) and _ts < now partition by cluster_id having first(_ts) > 0`                                                                                                              |
-| vnode offline                                                 | total != alive                       | Trigger alert         | 30 seconds             | 0 seconds   | `select now(),  cluster_id, last(vnodes_total)  - last(vnodes_alive) as vnode_offline  from log.taosd_cluster_info where _ts >= (now - 30s) and _ts < now partition by cluster_id having first(_ts) > 0 `                                                                                                            |
-| Number of data deletion requests                              | > 0                                  | Do not trigger alert  | 30 seconds             | 0 seconds   | ``select  now(), count(`count`)  as `delete_count`  from log.taos_sql_req  where sql_type = 'delete' and _ts >= (now -30s) and _ts < now``                                                                                                                                                                           |
-| Adapter RESTful request fail                                  | > 5                                  | Do not trigger alert  | 30 seconds             | 0 seconds   | ``select now(), sum(`fail`) as `Failed` from log.adapter_requests where req_type=0 and ts >= (now -30s) and ts < now``                                                                                                                                                                                               |
-| Adapter WebSocket request fail                                | > 5                                  | Do not trigger alert  | 30 seconds             | 0 seconds   | ``select now(), sum(`fail`) as `Failed` from log.adapter_requests where req_type=1 and ts >= (now -30s) and ts < now``                                                                                                                                                                                               |
-| Dnode data reporting is missing                               | < 3                                  | Trigger alert         | 180 seconds            | 0 seconds   | `select now(),  cluster_id, count(*) as dnode_report  from log.taosd_cluster_info where _ts >= (now -180s) and _ts < now  partition by cluster_id  having timetruncate(first(_ts), 1h) > 0`                                                                                                                          |
-| Restart dnode                                                 | max(update_time) > last(update_time) | Trigger alert         | 90 seconds             | 0 seconds   | `select now(),  dnode_id, max(uptime) - last(uptime) as dnode_restart  from log.taosd_dnodes_info where _ts >= (now - 90s) and _ts < now  partition by dnode_id`                                                                                                                                                     |
+| Number of concurrent query requests                          | > 100                                | Do not trigger alert  | 1 minute               | 0 seconds   | `select now() as ts, count(*) as slow_count from performance_schema.perf_queries` |
+| Maximum time for slow query execution (no time window)       | > 300 seconds                        | Do not trigger alert  | 1 minute               | 0 seconds   | `select now() as ts, count(*) as slow_count from performance_schema.perf_queries where exec_usec>300000000` |
+| dnode offline                                                | total != alive                       | Trigger alert         | 30 seconds             | 0 seconds   | `select now(),  cluster_id, last(dnodes_total)  - last(dnodes_alive) as dnode_offline  from log.taosd_cluster_info where _ts >= (now -30s) and _ts < now partition by cluster_id having first(_ts) > 0` |
+| vnode offline                                                | total != alive                       | Trigger alert         | 30 seconds             | 0 seconds   | `select now(),  cluster_id, last(vnodes_total)  - last(vnodes_alive) as vnode_offline  from log.taosd_cluster_info where _ts >= (now - 30s) and _ts < now partition by cluster_id having first(_ts) > 0` |
+| Number of data deletion requests                             | > 0                                  | Do not trigger alert  | 30 seconds             | 0 seconds   | `select  now(), sum(`count`) as`delete_count`from log.taos_sql_req where sql_type = 'delete' and _ts >= (now -30s) and _ts < now` |
+| Adapter RESTful request fail                                 | > 5                                  | Do not trigger alert  | 30 seconds             | 0 seconds   | `select now(), sum(`fail`) as`Failed`from log.adapter_requests where req_type=0 and ts >= (now -30s) and ts < now` |
+| Adapter WebSocket request fail                               | > 5                                  | Do not trigger alert  | 30 seconds             | 0 seconds   | `select now(), sum(`fail`) as`Failed`from log.adapter_requests where req_type=1 and ts >= (now -30s) and ts < now` |
+| Dnode data reporting is missing                              | < 3                                  | Trigger alert         | 180 seconds            | 0 seconds   | `select now(),  cluster_id, count(*) as dnode_report  from log.taosd_cluster_info where _ts >= (now -180s) and _ts < now  partition by cluster_id  having timetruncate(first(_ts), 1h) > 0` |
+| Restart dnode                                                | max(update_time) > last(update_time) | Trigger alert         | 90 seconds             | 0 seconds   | `select now(), dnode_ep, max(uptime) - last(uptime) as dnode_report  from log.taosd_dnodes_info where _ts >= (now - 90s) and _ts < now partition by dnode_ep` |
 
 TDengine users can modify and improve these alert rules according to their own business needs. In Grafana 7.5 and below versions, the Dashboard and Alert rules functions are combined, while in subsequent new versions, the two functions are separated. To be compatible with Grafana7.5 and below versions, an Alert Used Only panel has been added to the TDinsight panel, which is only required for Grafana7.5 and below versions.
-
 
 ## Upgrade
 

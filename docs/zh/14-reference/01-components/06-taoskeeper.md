@@ -7,40 +7,41 @@ toc_max_heading_level: 4
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-taosKeeper 是 TDengine 3.0 版本监控指标的导出工具，通过简单的几项配置即可获取 TDengine 的运行状态。taosKeeper 使用 TDengine RESTful 接口，所以不需要安装 TDengine 客户端即可使用。
+taosKeeper 是 TDengine TSDB 3.0 版本监控指标的导出工具，通过简单的几项配置即可获取 TDengine TSDB 的运行状态。taosKeeper 使用 TDengine TSDB RESTful 接口，所以不需要安装 TDengine TSDB 客户端即可使用。
 
 ## 安装
 
 taosKeeper 有两种安装方式：
 
-- 安装 TDengine 官方安装包的同时会自动安装 taosKeeper, 详情请参考[TDengine 安装](../../../get-started/)。
+- 安装 TDengine TSDB 官方安装包的同时会自动安装 taosKeeper，详情请参考 [TDengine TSDB 安装](../../../get-started/)。
 
 - 单独编译 taosKeeper 并安装，详情请参考 [taosKeeper](https://github.com/taosdata/taoskeeper) 仓库。
 
 ## 配置
 
-taosKeeper 需要在操作系统终端执行，该工具支持三种配置方式：命令行参数、环境变量 和 配置文件。优先级为：命令行参数、环境变量、配置文件参数。 一般我们推荐使用配置文件。
+taosKeeper 需要在操作系统终端执行，该工具支持三种配置方式：命令行参数、环境变量 和 配置文件。优先级为：命令行参数、环境变量、配置文件参数。一般我们推荐使用配置文件。
 
 ### 命令行参数和环境变量
 
 命令行参数 和 环境变量说明可以参考命令 `taoskeeper --help` 的输出。下面是一个例子：
 
 ```shell
-Usage of taoskeeper v3.3.3.0:
+Usage of taoskeeper:
   -R, --RotationInterval string                      interval for refresh metrics, such as "300ms", Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h". Env "TAOS_KEEPER_ROTATION_INTERVAL" (default "15s")
   -c, --config string                                config path default /etc/taos/taoskeeper.toml
-      --drop string                                  run taoskeeper in command mode, only support old_taosd_metric_stables.
+      --drop string                                  run taoskeeper in command mode, only support old_taosd_metric_stables. 
       --environment.incgroup                         whether running in cgroup. Env "TAOS_KEEPER_ENVIRONMENT_INCGROUP"
       --fromTime string                              parameter of transfer, example: 2020-01-01T00:00:00+08:00 (default "2020-01-01T00:00:00+08:00")
       --gopoolsize int                               coroutine size. Env "TAOS_KEEPER_POOL_SIZE" (default 50000)
   -h, --help                                         Print this help message and exit
+  -H, --host string                                  http host. Env "TAOS_KEEPER_HOST"
       --instanceId int                               instance ID. Env "TAOS_KEEPER_INSTANCE_ID" (default 64)
       --log.compress                                 whether to compress old log. Env "TAOS_KEEPER_LOG_COMPRESS"
-      --log.keepDays uint                            log retention days, must be a positive integer. Env "TAOS_KEEPER_LOG_KEEP_DAYS" (default 30)
+      --log.keepDays uint                            log retention days, must be a positive integer. Env "TAOS_KEEPER_LOG_KEEP_DAYS" (default 3)
       --log.level string                             log level (trace debug info warning error). Env "TAOS_KEEPER_LOG_LEVEL" (default "info")
       --log.path string                              log path. Env "TAOS_KEEPER_LOG_PATH" (default "/var/log/taos")
       --log.reservedDiskSize string                  reserved disk size for log dir (KB MB GB), must be a positive integer. Env "TAOS_KEEPER_LOG_RESERVED_DISK_SIZE" (default "1GB")
-      --log.rotationCount uint                       log rotation count. Env "TAOS_KEEPER_LOG_ROTATION_COUNT" (default 5)
+      --log.rotationCount uint                       log rotation count. Env "TAOS_KEEPER_LOG_ROTATION_COUNT" (default 3)
       --log.rotationSize string                      log rotation size(KB MB GB), must be a positive integer. Env "TAOS_KEEPER_LOG_ROTATION_SIZE" (default "1GB")
       --log.rotationTime duration                    deprecated: log rotation time always 24 hours. Env "TAOS_KEEPER_LOG_ROTATION_TIME" (default 24h0m0s)
       --logLevel string                              log level (trace debug info warning error). Env "TAOS_KEEPER_LOG_LEVEL" (default "info")
@@ -52,27 +53,29 @@ Usage of taoskeeper v3.3.3.0:
       --metrics.prefix string                        prefix in metrics names. Env "TAOS_KEEPER_METRICS_PREFIX"
       --metrics.tables stringArray                   export some tables that are not super table, multiple values split with white space. Env "TAOS_KEEPER_METRICS_TABLES"
   -P, --port int                                     http port. Env "TAOS_KEEPER_PORT" (default 6043)
-      --tdengine.host string                         TDengine server's ip. Env "TAOS_KEEPER_TDENGINE_HOST" (default "127.0.0.1")
-      --tdengine.password string                     TDengine server's password. Env "TAOS_KEEPER_TDENGINE_PASSWORD" (default "taosdata")
-      --tdengine.port int                            TDengine REST server(taosAdapter)'s port. Env "TAOS_KEEPER_TDENGINE_PORT" (default 6041)
-      --tdengine.username string                     TDengine server's username. Env "TAOS_KEEPER_TDENGINE_USERNAME" (default "root")
-      --tdengine.usessl                              TDengine server use ssl or not. Env "TAOS_KEEPER_TDENGINE_USESSL"
+      --tdengine.host string                         TDengine TSDB server's ip. Env "TAOS_KEEPER_TDENGINE_HOST" (default "127.0.0.1")
+      --tdengine.password string                     TDengine TSDB server's password. Env "TAOS_KEEPER_TDENGINE_PASSWORD" (default "taosdata")
+      --tdengine.port int                            TDengine TSDB REST server(taosAdapter)'s port. Env "TAOS_KEEPER_TDENGINE_PORT" (default 6041)
+      --tdengine.username string                     TDengine TSDB server's username. Env "TAOS_KEEPER_TDENGINE_USERNAME" (default "root")
+      --tdengine.usessl                              TDengine TSDB server use ssl or not. Env "TAOS_KEEPER_TDENGINE_USESSL"
       --transfer string                              run taoskeeper in command mode, only support old_taosd_metric. transfer old metrics data to new tables and exit
-  -V, --version                                      Print the version and exit
+  -V, --version                                      Print the version and exit                                   Print the version and exit
 ```
 
 ### 配置文件
 
 taosKeeper 支持用 `taoskeeper -c <keeper config file>` 命令来指定配置文件。
-若不指定配置文件，taosKeeper 会使用默认配置文件，其路径为： `/etc/taos/taoskeeper.toml` 。
+若不指定配置文件，taosKeeper 会使用默认配置文件，其路径为：`/etc/taos/taoskeeper.toml` 。
 若既不指定 taosKeeper 配置文件，且 `/etc/taos/taoskeeper.toml` 也不存在，将使用默认配置。
 
-**下面是配置文件的示例：**
+**下面是配置文件的示例** ：
 
 ```toml
 # The ID of the currently running taoskeeper instance, default is 64.
 instanceId = 64
 
+# Listening host, supports IPv4/Ipv6, default is ""
+host = ""
 # Listening port, default is 6043.
 port = 6043
 
@@ -116,9 +119,9 @@ incgroup = false
 # path = "/var/log/taos"
 level = "info"
 # Number of log file rotations before deletion.
-rotationCount = 30
+rotationCount = 3
 # The number of days to retain log files.
-keepDays = 30
+keepDays = 3
 # The maximum size of a log file before rotation.
 rotationSize = "1GB"
 # If set to true, log files will be compressed.
@@ -129,14 +132,14 @@ reservedDiskSize = "1GB"
 
 ## 启动
 
-**在运行 taosKeeper 之前要确保 TDengine 集群与 taosAdapter 已经在正确运行。** 并且 TDengine 已经开启监控服务，TDengine 配置文件 `taos.cfg` 中至少需要配置 `monitor` 和 `monitorFqdn`。
+**在运行 taosKeeper 之前要确保 TDengine TSDB 集群与 taosAdapter 已经在正确运行。** 并且 TDengine TSDB 已经开启监控服务，TDengine TSDB 配置文件 `taos.cfg` 中至少需要配置 `monitor` 和 `monitorFqdn`。
 
 ```shell
 monitor 1
 monitorFqdn localhost # taoskeeper 服务的 FQDN
 ```
 
-TDengine 监控配置相关，具体请参考：[TDengine 监控配置](../../../operation/monitor)。
+TDengine TSDB 监控配置相关，具体请参考：[TDengine TSDB 监控配置](../../../operation/monitor)。
 
 <Tabs>
 <TabItem label="Linux" value="linux">
@@ -155,13 +158,13 @@ systemctl status taoskeeper
 
 如果服务进程处于活动状态，则 status 指令会显示如下的相关信息：
 
-```
+```bash
 Active: active (running)
 ```
 
 如果后台服务进程处于停止状态，则 status 指令会显示如下的相关信息：
 
-```
+```bash
 Active: inactive (dead)
 ```
 
@@ -198,7 +201,7 @@ Active: inactive (dead)
 
 :::info
 
-- `launchctl` 命令管理`com.tdengine.taoskeeper`需要管理员权限，务必在前面加 `sudo` 来增强安全性。
+- `launchctl` 命令管理 `com.tdengine.taoskeeper` 需要管理员权限，务必在前面加 `sudo` 来增强安全性。
 - `sudo launchctl list | grep taoskeeper` 指令返回的第一列是 `taoskeeper` 程序的 PID，若为 `-` 则说明 taoskeeper 服务未运行。
 - 故障排查：如果服务异常请查看日志获取更多信息。日志文件默认放在 `/var/log/taos` 下。
 
@@ -211,13 +214,13 @@ Active: inactive (dead)
 
 可以访问 taosKeeper 的 `check_health` 接口来判断服务是否存活，如果服务正常则会返回 HTTP 200 状态码：
 
-```
+```bash
 curl -i http://127.0.0.1:6043/check_health
 ```
 
 返回结果：
 
-```
+```bash
 HTTP/1.1 200 OK
 Content-Type: application/json; charset=utf-8
 Date: Wed, 07 Aug 2024 06:19:50 GMT
@@ -228,13 +231,13 @@ Content-Length: 21
 
 ## 数据收集与监控
 
-taosKeeper 作为 TDengine 监控指标的导出工具，可以将 TDengine 产生的监控数据记录在指定数据库中（默认的监控数据是 `log`），这些监控数据可以用来配置 TDengine 监控。
+taosKeeper 作为 TDengine TSDB 监控指标的导出工具，可以将 TDengine TSDB 产生的监控数据记录在指定数据库中（默认的监控数据是 `log`），这些监控数据可以用来配置 TDengine TSDB 监控。
 
 ### 查看监控数据
 
 可以查看 `log` 库下的超级表，每个超级表都对应一组监控指标，具体指标不再赘述。
 
-```shell
+```sql
 taos> use log;
 Database changed.
 
@@ -261,7 +264,7 @@ Query OK, 14 row(s) in set (0.006542s)
 
 可以查看一个超级表的最近一条上报记录，如：
 
-```shell
+```sql
 taos> select last_row(*) from taosd_dnodes_info;
       last_row(_ts)      |   last_row(disk_engine)   |  last_row(system_net_in)  |   last_row(vnodes_num)    | last_row(system_net_out)  |     last_row(uptime)      |    last_row(has_mnode)    |  last_row(io_read_disk)   | last_row(error_log_count) |     last_row(io_read)     |    last_row(cpu_cores)    |    last_row(has_qnode)    |    last_row(has_snode)    |   last_row(disk_total)    |   last_row(mem_engine)    | last_row(info_log_count)  |   last_row(cpu_engine)    |  last_row(io_write_disk)  | last_row(debug_log_count) |    last_row(disk_used)    |    last_row(mem_total)    |    last_row(io_write)     |     last_row(masters)     |   last_row(cpu_system)    | last_row(trace_log_count) |    last_row(mem_free)     |
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
@@ -271,23 +274,23 @@ Query OK, 1 row(s) in set (0.003168s)
 
 ### 使用 TDInsight 配置监控
 
-收集到监控数据以后，就可以使用 TDInsight 来配置 TDengine 的监控，具体请参考 [TDinsight 参考手册](../tdinsight/)。
+收集到监控数据以后，就可以使用 TDInsight 来配置 TDengine TSDB 的监控，具体请参考 [TDinsight 参考手册](../tdinsight/)。
 
 ## 集成 Prometheus
 
-taoskeeper 提供了 `/metrics` 接口，返回了 Prometheus 格式的监控数据，Prometheus 可以从 taoskeeper 抽取监控数据，实现通过 Prometheus 监控 TDengine 的目的。
+taoskeeper 提供了 `/metrics` 接口，返回了 Prometheus 格式的监控数据，Prometheus 可以从 taoskeeper 抽取监控数据，实现通过 Prometheus 监控 TDengine TSDB 的目的。
 
 ### 导出监控指标
 
 下面通过 `curl` 命令展示 `/metrics` 接口返回的数据格式：
 
-```shell
-$ curl http://127.0.0.1:6043/metrics
+```bash
+curl http://127.0.0.1:6043/metrics
 ```
 
 部分结果集：
 
-```shell
+```bash
 # HELP taos_cluster_info_connections_total
 # TYPE taos_cluster_info_connections_total counter
 taos_cluster_info_connections_total{cluster_id="554014120921134497"} 8
@@ -314,7 +317,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 ##### 监控信息支持的标签
 
-- `cluster_id`： 集群 id
+- `cluster_id`：集群 id
 
 ##### 相关指标及其含义
 
@@ -346,78 +349,78 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 ##### 监控信息支持的标签
 
-- `cluster_id`： 集群 id
-- `dnode_ep`： dnode 端点
+- `cluster_id`：集群 id
+- `dnode_ep`：dnode 端点
 - `dnode_id`：dnode id
 
 ##### 相关指标及其含义
 
-| 指标名称                       | 类型    | 含义                                                                                     |
-| ------------------------------ | ------- | ---------------------------------------------------------------------------------------- |
-| taos_d_info_status             | gauge   | dnode 状态，标签 value 表示状态， ready 表示正常， offline 表示下线， unknown 表示未知。 |
-| taos_dnodes_info_cpu_cores     | gauge   | CPU 核心数                                                                               |
-| taos_dnodes_info_cpu_engine    | gauge   | 该 dnode 的进程所使用的 CPU 百分比（取值范围 0~100）                                     |
-| taos_dnodes_info_cpu_system    | gauge   | 该 dnode 所在节点的系统使用的 CPU 百分比（取值范围 0~100）                               |
-| taos_dnodes_info_disk_engine   | counter | 该 dnode 的进程使用的磁盘容量（单位 Byte)                                                |
-| taos_dnodes_info_disk_total    | counter | 该 dnode 所在节点的磁盘总容量（单位 Byte)                                                |
-| taos_dnodes_info_disk_used     | counter | 该 dnode 所在节点的磁盘已使用的容量（单位 Byte)                                          |
-| taos_dnodes_info_has_mnode     | counter | 是否有 mnode                                                                             |
-| taos_dnodes_info_has_qnode     | counter | 是否有 qnode                                                                             |
-| taos_dnodes_info_has_snode     | counter | 是否有 snode                                                                             |
-| taos_dnodes_info_io_read       | gauge   | 该 dnode 所在节点的 io 读取速率（单位 Byte/s)                                            |
-| taos_dnodes_info_io_read_disk  | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s)                                        |
-| taos_dnodes_info_io_write      | gauge   | 该 dnode 所在节点的 io 写入速率（单位 Byte/s)                                            |
-| taos_dnodes_info_io_write_disk | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s)                                        |
-| taos_dnodes_info_masters       | counter | 主节点数量                                                                               |
-| taos_dnodes_info_mem_engine    | counter | 该 dnode 的进程所使用的内存（单位 KB)                                                    |
-| taos_dnodes_info_mem_system    | counter | 该 dnode 所在节点的系统所使用的内存（单位 KB)                                            |
-| taos_dnodes_info_mem_total     | counter | 该 dnode 所在节点的总内存（单位 KB)                                                      |
-| taos_dnodes_info_net_in        | gauge   | 该 dnode 所在节点的网络传入速率（单位 Byte/s)                                            |
-| taos_dnodes_info_net_out       | gauge   | 该 dnode 所在节点的网络传出速率（单位 Byte/s)                                            |
-| taos_dnodes_info_uptime        | gauge   | 该 dnode 的启动时间(单位 秒)                                                             |
-| taos_dnodes_info_vnodes_num    | counter | 该 dnode 所在节点的 vnode 数量                                                           |
+| 指标名称                       | 类型    | 含义                                                                                  |
+| ------------------------------ | ------- | ------------------------------------------------------------------------------------- |
+| taos_d_info_status             | gauge   | dnode 状态，标签 value 表示状态、ready 表示正常、offline 表示下线、unknown 表示未知。 |
+| taos_dnodes_info_cpu_cores     | gauge   | CPU 核心数                                                                            |
+| taos_dnodes_info_cpu_engine    | gauge   | 该 dnode 的进程所使用的 CPU 百分比（取值范围 0~100）                                  |
+| taos_dnodes_info_cpu_system    | gauge   | 该 dnode 所在节点的系统使用的 CPU 百分比（取值范围 0~100）                            |
+| taos_dnodes_info_disk_engine   | counter | 该 dnode 的进程使用的磁盘容量（单位 Byte）                                            |
+| taos_dnodes_info_disk_total    | counter | 该 dnode 所在节点的磁盘总容量（单位 Byte）                                            |
+| taos_dnodes_info_disk_used     | counter | 该 dnode 所在节点的磁盘已使用的容量（单位 Byte）                                      |
+| taos_dnodes_info_has_mnode     | counter | 是否有 mnode                                                                          |
+| taos_dnodes_info_has_qnode     | counter | 是否有 qnode                                                                          |
+| taos_dnodes_info_has_snode     | counter | 是否有 snode                                                                          |
+| taos_dnodes_info_io_read       | gauge   | 该 dnode 所在节点的 io 读取速率（单位 Byte/s）                                        |
+| taos_dnodes_info_io_read_disk  | gauge   | 该 dnode 所在节点的磁盘 io 读取速率（单位 Byte/s）                                    |
+| taos_dnodes_info_io_write      | gauge   | 该 dnode 所在节点的 io 写入速率（单位 Byte/s）                                        |
+| taos_dnodes_info_io_write_disk | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s）                                    |
+| taos_dnodes_info_masters       | counter | 主节点数量                                                                            |
+| taos_dnodes_info_mem_engine    | counter | 该 dnode 的进程所使用的内存（单位 KB）                                                |
+| taos_dnodes_info_mem_system    | counter | 该 dnode 所在节点的系统所使用的内存（单位 KB）                                        |
+| taos_dnodes_info_mem_total     | counter | 该 dnode 所在节点的总内存（单位 KB）                                                  |
+| taos_dnodes_info_net_in        | gauge   | 该 dnode 所在节点的网络传入速率（单位 Byte/s）                                        |
+| taos_dnodes_info_net_out       | gauge   | 该 dnode 所在节点的网络传出速率（单位 Byte/s）                                        |
+| taos_dnodes_info_uptime        | gauge   | 该 dnode 的启动时间 (单位 秒)                                                         |
+| taos_dnodes_info_vnodes_num    | counter | 该 dnode 所在节点的 vnode 数量                                                        |
 
 #### 数据目录
 
 ##### 监控信息支持的标签
 
-- `cluster_id`： 集群 id
-- `dnode_ep`： dnode 端点
+- `cluster_id`：集群 id
+- `dnode_ep`：dnode 端点
 - `dnode_id`：dnode id
 - `data_dir_name`：数据目录名
 - `data_dir_level`：数据目录级别
 
 ##### 相关指标及其含义
 
-| 指标名称                          | 类型  | 含义                 |
-| --------------------------------- | ----- | -------------------- |
-| taos_taosd_dnodes_data_dirs_avail | gauge | 可用空间（单位 Byte) |
-| taos_taosd_dnodes_data_dirs_total | gauge | 总空间（单位 Byte)   |
-| taos_taosd_dnodes_data_dirs_used  | gauge | 已用空间（单位 Byte) |
+| 指标名称                          | 类型  | 含义                  |
+| --------------------------------- | ----- | --------------------- |
+| taos_taosd_dnodes_data_dirs_avail | gauge | 可用空间（单位 Byte） |
+| taos_taosd_dnodes_data_dirs_total | gauge | 总空间（单位 Byte）   |
+| taos_taosd_dnodes_data_dirs_used  | gauge | 已用空间（单位 Byte） |
 
 #### 日志目录
 
 ##### 监控信息支持的标签
 
-- `cluster_id`： 集群 id
-- `dnode_ep`： dnode 端点
+- `cluster_id`：集群 id
+- `dnode_ep`：dnode 端点
 - `dnode_id`：dnode id
 - `log_dir_name`：日志目录名
 
 ##### 相关指标及其含义
 
-| 指标名称                         | 类型  | 含义                 |
-| -------------------------------- | ----- | -------------------- |
-| taos_taosd_dnodes_log_dirs_avail | gauge | 可用空间（单位 Byte) |
-| taos_taosd_dnodes_log_dirs_total | gauge | 总空间（单位 Byte)   |
-| taos_taosd_dnodes_log_dirs_used  | gauge | 已用空间（单位 Byte) |
+| 指标名称                         | 类型  | 含义                  |
+| -------------------------------- | ----- | --------------------- |
+| taos_taosd_dnodes_log_dirs_avail | gauge | 可用空间（单位 Byte） |
+| taos_taosd_dnodes_log_dirs_total | gauge | 总空间（单位 Byte）   |
+| taos_taosd_dnodes_log_dirs_used  | gauge | 已用空间（单位 Byte） |
 
 #### 日志数量
 
 ##### 监控信息支持的标签
 
-- `cluster_id`： 集群 id
-- `dnode_ep`： dnode 端点
+- `cluster_id`：集群 id
+- `dnode_ep`：dnode 端点
 - `dnode_id`：dnode id
 
 ##### 相关指标及其含义
@@ -460,7 +463,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 ##### 监控信息支持的标签
 
-- `identify`： 节点 endpoint
+- `identify`：节点 endpoint
 
 ##### 相关指标及其含义
 
@@ -474,70 +477,70 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 ##### taos_m_info_role
 
 - **标签**:
-  - `cluster_id`: 集群 id
-  - `mnode_ep`: mnode 端点
-  - `mnode_id`: mnode id
-  - `value`: 角色值（该 mnode 的状态，取值范围：offline, follower, candidate, leader, error, learner）
-- **类型**: gauge
-- **含义**: mnode 角色
+  - `cluster_id`：集群 id
+  - `mnode_ep`：mnode 端点
+  - `mnode_id`：mnode id
+  - `value`：角色值（该 mnode 的状态，取值范围：offline、follower、candidate、leader、error、learner）
+- **类型**：gauge
+- **含义**：mnode 角色
 
 ##### taos_taos_sql_req_count
 
 - **标签**:
-  - `cluster_id`: 集群 id
-  - `result`: 请求结果（取值范围： Success, Failed）
-  - `sql_type`: SQL 类型（取值范围：select, insert，inserted_rows, delete）
-  - `username`: 用户名
-- **类型**: gauge
-- **含义**: SQL 请求数量
+  - `cluster_id`：集群 id
+  - `result`：请求结果（取值范围：Success、Failed）
+  - `sql_type`：SQL 类型（取值范围：select、insert、inserted_rows、delete）
+  - `username`：用户名
+- **类型**：gauge
+- **含义**：SQL 请求数量
 
 ##### taos_taosd_sql_req_count
 
 - **标签**:
-  - `cluster_id`: 集群 id
-  - `dnode_ep`: dnode 端点
-  - `dnode_id`: dnode id
-  - `result`: 请求结果（取值范围： Success, Failed）
-  - `sql_type`: SQL 类型（取值范围：select, insert，inserted_rows, delete）
-  - `username`: 用户名
-  - `vgroup_id`: 虚拟组 id
-- **类型**: gauge
-- **含义**: SQL 请求数量
+  - `cluster_id`：集群 id
+  - `dnode_ep`：dnode 端点
+  - `dnode_id`：dnode id
+  - `result`：请求结果（取值范围：Success、Failed）
+  - `sql_type`：SQL 类型（取值范围：select、insert、inserted_rows、delete）
+  - `username`：用户名
+  - `vgroup_id`：虚拟组 id
+- **类型**：gauge
+- **含义**：SQL 请求数量
 
 ##### taos_taosd_vgroups_info_status
 
 - **标签**:
-  - `cluster_id`: 集群 id
-  - `database_name`: 数据库名称
-  - `vgroup_id`: 虚拟组 id
-- **类型**: gauge
-- **含义**: 虚拟组状态。 0 为 unsynced，表示没有 leader 选出；1 为 ready。
+  - `cluster_id`：集群 id
+  - `database_name`：数据库名称
+  - `vgroup_id`：虚拟组 id
+- **类型**：gauge
+- **含义**：虚拟组状态。0 为 unsynced，表示没有 leader 选出；1 为 ready。
 
 ##### taos_taosd_vgroups_info_tables_num
 
 - **标签**:
-  - `cluster_id`: 集群 id
-  - `database_name`: 数据库名称
-  - `vgroup_id`: 虚拟组 id
-- **类型**: gauge
-- **含义**: 虚拟组表数量
+  - `cluster_id`：集群 id
+  - `database_name`：数据库名称
+  - `vgroup_id`：虚拟组 id
+- **类型**：gauge
+- **含义**：虚拟组表数量
 
 ##### taos_taosd_vnodes_info_role
 
 - **标签**:
-  - `cluster_id`: 集群 id
-  - `database_name`: 数据库名称
-  - `dnode_id`: dnode id
-  - `value`: 角色值（取值范围：offline, follower, candidate, leader, error, learner）
-  - `vgroup_id`: 虚拟组 id
-- **类型**: gauge
-- **含义**: 虚拟节点角色
+  - `cluster_id`：集群 id
+  - `database_name`：数据库名称
+  - `dnode_id`：dnode id
+  - `value`：角色值（取值范围：offline、follower、candidate、leader、error、learner）
+  - `vgroup_id`：虚拟组 id
+- **类型**：gauge
+- **含义**：虚拟节点角色
 
 ### 抽取配置
 
 Prometheus 提供了 `scrape_configs` 配置如何从 endpoint 抽取监控数据，通常只需要修改 `static_configs` 中的 targets 配置为 taoskeeper 的 endpoint 地址，更多配置信息请参考 [Prometheus 配置文档](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#scrape_config)。
 
-```
+```yaml
 # A scrape configuration containing exactly one endpoint to scrape:
 # Here it's Prometheus itself.
 scrape_configs:

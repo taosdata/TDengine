@@ -46,9 +46,11 @@ int32_t taosEOFCmd(TdCmdPtr pCmd);
 
 void    taosCloseCmd(TdCmdPtr *ppCmd);
 
-void *taosLoadDll(const char *filename);
+void *taosLoadDll(const char *fileName);
 
 void taosCloseDll(void *handle);
+
+void *taosLoadDllFunc(void *handle, const char *funcName);
 
 int32_t taosSetConsoleEcho(bool on);
 

@@ -232,6 +232,7 @@ int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQnodeOb
   action.contLen = contLen;
   action.msgType = TDMT_DND_CREATE_QNODE;
   action.acceptableCode = TSDB_CODE_QNODE_ALREADY_DEPLOYED;
+  action.groupId = -1;
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
     taosMemoryFree(pReq);
@@ -309,11 +310,12 @@ static int32_t mndProcessCreateQnodeReq(SRpcMsg *pReq) {
   SQnodeObj       *pObj = NULL;
   SDnodeObj       *pDnode = NULL;
   SMCreateQnodeReq createReq = {0};
+  int64_t          tss = taosGetTimestampMs();
 
   TAOS_CHECK_GOTO(tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
   mInfo("qnode:%d, start to create", createReq.dnodeId);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_QNODE), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_QNODE), NULL, _OVER);
 
   pObj = mndAcquireQnode(pMnode, createReq.dnodeId);
   if (pObj != NULL) {
@@ -332,10 +334,15 @@ static int32_t mndProcessCreateQnodeReq(SRpcMsg *pReq) {
   code = mndCreateQnode(pMnode, pReq, pDnode, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj[33] = {0};
-  (void)tsnprintf(obj, sizeof(obj), "%d", createReq.dnodeId);
+  if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
+    char obj[33] = {0};
+    (void)tsnprintf(obj, sizeof(obj), "%d", createReq.dnodeId);
 
-  auditRecord(pReq, pMnode->clusterId, "createQnode", "", obj, createReq.sql, createReq.sqlLen);
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "createQnode", "", obj, createReq.sql, createReq.sqlLen, duration, 0);
+  }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("qnode:%d, failed to create since %s", createReq.dnodeId, terrstr());
@@ -355,7 +362,7 @@ static int32_t mndSetDropQnodeRedoLogs(STrans *pTrans, SQnodeObj *pObj) {
     if (terrno != 0) code = terrno;
     TAOS_RETURN(code);
   }
-  TAOS_CHECK_RETURN(mndTransAppendRedolog(pTrans, pRedoRaw));
+  TAOS_CHECK_RETURN(mndTransAppendGroupRedolog(pTrans, pRedoRaw, -1));
   TAOS_CHECK_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING));
   TAOS_RETURN(code);
 }
@@ -397,6 +404,7 @@ static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQn
   action.contLen = contLen;
   action.msgType = TDMT_DND_DROP_QNODE;
   action.acceptableCode = TSDB_CODE_QNODE_NOT_DEPLOYED;
+  action.groupId = -1;
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
     taosMemoryFree(pReq);
@@ -443,11 +451,12 @@ static int32_t mndProcessDropQnodeReq(SRpcMsg *pReq) {
   int32_t        code = -1;
   SQnodeObj     *pObj = NULL;
   SMDropQnodeReq dropReq = {0};
+  int64_t        tss = taosGetTimestampMs();
 
   TAOS_CHECK_GOTO(tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
   mInfo("qnode:%d, start to drop", dropReq.dnodeId);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_QNODE), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_QNODE), NULL, _OVER);
 
   if (dropReq.dnodeId <= 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -464,10 +473,14 @@ static int32_t mndProcessDropQnodeReq(SRpcMsg *pReq) {
   code = mndDropQnode(pMnode, pReq, pObj);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj[33] = {0};
-  (void)tsnprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
-
-  auditRecord(pReq, pMnode->clusterId, "dropQnode", "", obj, dropReq.sql, dropReq.sqlLen);
+  if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
+    char obj[33] = {0};
+    (void)tsnprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "dropQnode", "", obj, dropReq.sql, dropReq.sqlLen, duration, 0);
+  }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {

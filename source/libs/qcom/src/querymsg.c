@@ -15,6 +15,7 @@
 
 #include "query.h"
 #include "queryInt.h"
+#include "streamMsg.h"
 #include "systable.h"
 #include "tmsg.h"
 #include "trpc.h"
@@ -25,7 +26,7 @@
 #endif
 
 int32_t (*queryBuildMsg[TDMT_MAX])(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
-                                   void *(*mallocFp)(int64_t)) = {0};
+                                   void *(*mallocFp)(int64_t), void (*freeFp)(void *)) = {0};
 int32_t (*queryProcessMsgRsp[TDMT_MAX])(void *output, char *msg, int32_t msgSize) = {0};
 
 int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
@@ -44,8 +45,9 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   pOut->dbVgroup->hashPrefix = usedbRsp->hashPrefix;
   pOut->dbVgroup->hashSuffix = usedbRsp->hashSuffix;
   pOut->dbVgroup->stateTs = usedbRsp->stateTs;
+  pOut->dbVgroup->flags = usedbRsp->flags;
 
-  qDebug("Got %d vgroup for db %s, vgVersion:%d, stateTs:%" PRId64, usedbRsp->vgNum, usedbRsp->db, usedbRsp->vgVersion,
+  qDebug("db:%s, get %d vgroup, vgVersion:%d, stateTs:%" PRId64, usedbRsp->db, usedbRsp->vgNum, usedbRsp->vgVersion,
          usedbRsp->stateTs);
 
   if (usedbRsp->vgNum <= 0) {
@@ -61,7 +63,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   for (int32_t i = 0; i < usedbRsp->vgNum; ++i) {
     SVgroupInfo *pVgInfo = taosArrayGet(usedbRsp->pVgroupInfos, i);
     pOut->dbVgroup->numOfTable += pVgInfo->numOfTable;
-    qDebug("the %dth vgroup, id %d, epNum %d, current %s port %d", i, pVgInfo->vgId, pVgInfo->epSet.numOfEps,
+    qDebug("db:%s, vgId:%d, epNum:%d, current ep:%s:%u", usedbRsp->db, pVgInfo->vgId, pVgInfo->epSet.numOfEps,
            pVgInfo->epSet.eps[pVgInfo->epSet.inUse].fqdn, pVgInfo->epSet.eps[pVgInfo->epSet.inUse].port);
     if (0 != taosHashPut(pOut->dbVgroup->vgHash, &pVgInfo->vgId, sizeof(int32_t), pVgInfo, sizeof(SVgroupInfo))) {
       return terrno;
@@ -72,7 +74,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
 }
 
 int32_t queryBuildTableMetaReqMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
-                                  void *(*mallcFp)(int64_t)) {
+                                  void *(*mallcFp)(int64_t), void (*freeFp)(void *)) {
   QUERY_PARAM_CHECK(input);
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(msgLen);
@@ -81,6 +83,8 @@ int32_t queryBuildTableMetaReqMsg(void *input, char **msg, int32_t msgSize, int3
   STableInfoReq infoReq = {0};
   infoReq.option = pInput->option;
   infoReq.header.vgId = pInput->vgId;
+  infoReq.autoCreateCtb = pInput->autoCreateCtb;
+
   if (pInput->dbFName) {
     tstrncpy(infoReq.dbFName, pInput->dbFName, TSDB_DB_FNAME_LEN);
   }
@@ -91,9 +95,10 @@ int32_t queryBuildTableMetaReqMsg(void *input, char **msg, int32_t msgSize, int3
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSTableInfoReq(pBuf, bufLen, &infoReq) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
+  int32_t ret = tSerializeSTableInfoReq(pBuf, bufLen, &infoReq);
+  if (ret < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return ret;
   }
 
   *msg = pBuf;
@@ -102,7 +107,8 @@ int32_t queryBuildTableMetaReqMsg(void *input, char **msg, int32_t msgSize, int3
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildUseDbMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
+int32_t queryBuildUseDbMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t),
+                           void (*freeFp)(void *)) {
   QUERY_PARAM_CHECK(input);
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(msgLen);
@@ -121,9 +127,10 @@ int32_t queryBuildUseDbMsg(void *input, char **msg, int32_t msgSize, int32_t *ms
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSUseDbReq(pBuf, bufLen, &usedbReq) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
+  int32_t ret = tSerializeSUseDbReq(pBuf, bufLen, &usedbReq);
+  if (ret < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return ret;
   }
 
   *msg = pBuf;
@@ -132,7 +139,8 @@ int32_t queryBuildUseDbMsg(void *input, char **msg, int32_t msgSize, int32_t *ms
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildQnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
+int32_t queryBuildQnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t), 
+                               void (*freeFp)(void *)) {
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(msgLen);
 
@@ -144,9 +152,11 @@ int32_t queryBuildQnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSQnodeListReq(pBuf, bufLen, &qnodeListReq) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
+
+  int32_t ret = tSerializeSQnodeListReq(pBuf, bufLen, &qnodeListReq);
+  if (ret < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return ret;
   }
 
   *msg = pBuf;
@@ -155,7 +165,8 @@ int32_t queryBuildQnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildDnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
+int32_t queryBuildDnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t),
+                               void (*freeFp)(void *)) {
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(msgLen);
 
@@ -167,9 +178,10 @@ int32_t queryBuildDnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSDnodeListReq(pBuf, bufLen, &dnodeListReq) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
+  int32_t ret = tSerializeSDnodeListReq(pBuf, bufLen, &dnodeListReq);
+  if (ret < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return ret;
   }
 
   *msg = pBuf;
@@ -178,7 +190,8 @@ int32_t queryBuildDnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildGetSerVerMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
+int32_t queryBuildGetSerVerMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t),
+                               void (*freeFp)(void *)) {
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(msgLen);
 
@@ -189,9 +202,10 @@ int32_t queryBuildGetSerVerMsg(void *input, char **msg, int32_t msgSize, int32_t
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSServerVerReq(pBuf, bufLen, &req) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
+  int32_t ret = tSerializeSServerVerReq(pBuf, bufLen, &req);
+  if (ret < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return ret;
   }
 
   *msg = pBuf;
@@ -200,7 +214,8 @@ int32_t queryBuildGetSerVerMsg(void *input, char **msg, int32_t msgSize, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildGetDBCfgMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
+int32_t queryBuildGetDBCfgMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t), 
+                              void (*freeFp)(void *)) {
   QUERY_PARAM_CHECK(input);
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(msgLen);
@@ -213,9 +228,10 @@ int32_t queryBuildGetDBCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSDbCfgReq(pBuf, bufLen, &dbCfgReq) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
+  int32_t ret = tSerializeSDbCfgReq(pBuf, bufLen, &dbCfgReq);
+  if (ret < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return ret;
   }
 
   *msg = pBuf;
@@ -224,7 +240,8 @@ int32_t queryBuildGetDBCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildGetIndexMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
+int32_t queryBuildGetIndexMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t), 
+                              void (*freeFp)(void *)) {
   QUERY_PARAM_CHECK(input);
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(msgLen);
@@ -237,9 +254,10 @@ int32_t queryBuildGetIndexMsg(void *input, char **msg, int32_t msgSize, int32_t 
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSUserIndexReq(pBuf, bufLen, &indexReq) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
+  int32_t ret = tSerializeSUserIndexReq(pBuf, bufLen, &indexReq);
+  if (ret < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return ret;
   }
 
   *msg = pBuf;
@@ -249,7 +267,7 @@ int32_t queryBuildGetIndexMsg(void *input, char **msg, int32_t msgSize, int32_t 
 }
 
 int32_t queryBuildRetrieveFuncMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
-                                  void *(*mallcFp)(int64_t)) {
+                                  void *(*mallcFp)(int64_t), void (*freeFp)(void *)) {
   QUERY_PARAM_CHECK(input);
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(msgLen);
@@ -272,10 +290,11 @@ int32_t queryBuildRetrieveFuncMsg(void *input, char **msg, int32_t msgSize, int3
     taosArrayDestroy(funcReq.pFuncNames);
     return terrno;
   }
-  if(tSerializeSRetrieveFuncReq(pBuf, bufLen, &funcReq) < 0)
-  {
+  int32_t ret = tSerializeSRetrieveFuncReq(pBuf, bufLen, &funcReq);
+  if (ret < 0) {
     taosArrayDestroy(funcReq.pFuncNames);
-    return TSDB_CODE_TSC_INVALID_INPUT;
+    if (freeFp) (*freeFp)(pBuf);
+    return ret;
   }
 
   taosArrayDestroy(funcReq.pFuncNames);
@@ -286,7 +305,8 @@ int32_t queryBuildRetrieveFuncMsg(void *input, char **msg, int32_t msgSize, int3
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildGetUserAuthMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
+int32_t queryBuildGetUserAuthMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t),
+                                 void (*freeFp)(void *)) {
   QUERY_PARAM_CHECK(input);
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(msgLen);
@@ -299,8 +319,10 @@ int32_t queryBuildGetUserAuthMsg(void *input, char **msg, int32_t msgSize, int32
   if (NULL == pBuf) {
     return terrno;
   }
-  if (tSerializeSGetUserAuthReq(pBuf, bufLen, &req) < 0) {
-    return TSDB_CODE_TSC_INVALID_INPUT;
+  int32_t ret = tSerializeSGetUserAuthReq(pBuf, bufLen, &req);
+  if (ret < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return ret;
   }
 
   *msg = pBuf;
@@ -309,7 +331,8 @@ int32_t queryBuildGetUserAuthMsg(void *input, char **msg, int32_t msgSize, int32
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildGetTbIndexMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
+int32_t queryBuildGetTbIndexMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t),
+                                void (*freeFp)(void *)) {
   QUERY_PARAM_CHECK(input);
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(msgLen);
@@ -322,9 +345,10 @@ int32_t queryBuildGetTbIndexMsg(void *input, char **msg, int32_t msgSize, int32_
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSTableIndexReq(pBuf, bufLen, &indexReq) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
+  int32_t ret = tSerializeSTableIndexReq(pBuf, bufLen, &indexReq);
+  if (ret < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return ret;
   }
 
   *msg = pBuf;
@@ -333,7 +357,8 @@ int32_t queryBuildGetTbIndexMsg(void *input, char **msg, int32_t msgSize, int32_
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildGetTbCfgMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
+int32_t queryBuildGetTbCfgMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t),
+                              void (*freeFp)(void *)) {
   QUERY_PARAM_CHECK(input);
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(msgLen);
@@ -349,9 +374,10 @@ int32_t queryBuildGetTbCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSTableCfgReq(pBuf, bufLen, &cfgReq) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
+  int32_t ret = tSerializeSTableCfgReq(pBuf, bufLen, &cfgReq);
+  if (ret < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return ret;
   }
 
   *msg = pBuf;
@@ -360,7 +386,8 @@ int32_t queryBuildGetTbCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildGetViewMetaMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
+int32_t queryBuildGetViewMetaMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t),
+                                 void (*freeFp)(void *)) {
   QUERY_PARAM_CHECK(input);
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(msgLen);
@@ -373,9 +400,10 @@ int32_t queryBuildGetViewMetaMsg(void *input, char **msg, int32_t msgSize, int32
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSViewMetaReq(pBuf, bufLen, &req) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
+  int32_t ret = tSerializeSViewMetaReq(pBuf, bufLen, &req);
+  if (ret < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return ret;
   }
 
   *msg = pBuf;
@@ -384,8 +412,8 @@ int32_t queryBuildGetViewMetaMsg(void *input, char **msg, int32_t msgSize, int32
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildGetTableTSMAMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
-                                  void *(*mallcFp)(int64_t)) {
+int32_t queryBuildGetTableTSMAMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t),
+                                  void (*freeFp)(void *)) {
   QUERY_PARAM_CHECK(input);
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(msgLen);
@@ -398,9 +426,10 @@ int32_t queryBuildGetTableTSMAMsg(void *input, char **msg, int32_t msgSize, int3
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeTableTSMAInfoReq(pBuf, bufLen, &req) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
+  int32_t ret = tSerializeTableTSMAInfoReq(pBuf, bufLen, &req);
+  if (ret < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return ret;
   }
 
   *msg = pBuf;
@@ -408,8 +437,8 @@ int32_t queryBuildGetTableTSMAMsg(void *input, char **msg, int32_t msgSize, int3
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildGetTSMAMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
-                                  void *(*mallcFp)(int64_t)) {
+int32_t queryBuildGetTSMAMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t),
+                             void (*freeFp)(void *)) {
   QUERY_PARAM_CHECK(input);
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(msgLen);
@@ -419,14 +448,14 @@ int32_t queryBuildGetTSMAMsg(void *input, char **msg, int32_t msgSize, int32_t *
   tstrncpy(req.name, input, TSDB_TABLE_FNAME_LEN);
 
   int32_t bufLen = tSerializeTableTSMAInfoReq(NULL, 0, &req);
-  void *  pBuf = (*mallcFp)(bufLen);
-  if(pBuf == NULL)
-  {
+  void   *pBuf = (*mallcFp)(bufLen);
+  if (pBuf == NULL) {
     return terrno;
   }
-  if(tSerializeTableTSMAInfoReq(pBuf, bufLen, &req) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
+  int32_t ret = tSerializeTableTSMAInfoReq(pBuf, bufLen, &req);
+  if (ret < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return ret;
   }
 
   *msg = pBuf;
@@ -434,7 +463,33 @@ int32_t queryBuildGetTSMAMsg(void *input, char **msg, int32_t msgSize, int32_t *
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildGetStreamProgressMsg(void* input, char** msg, int32_t msgSize, int32_t *msgLen, void*(*mallcFp)(int64_t)) {
+static int32_t queryBuildGetRsmaMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
+                                    void *(*mallcFp)(int64_t), void (*freeFp)(void *)) {
+  QUERY_PARAM_CHECK(input);
+  QUERY_PARAM_CHECK(msg);
+  QUERY_PARAM_CHECK(msgLen);
+
+  SRsmaInfoReq req = {.withColName = 1};
+  (void)snprintf(req.name, sizeof(req.name), "%s", (const char *)input);
+
+  int32_t bufLen = tSerializeRsmaInfoReq(NULL, 0, &req);
+  void   *pBuf = (*mallcFp)(bufLen);
+  if (pBuf == NULL) {
+    return terrno;
+  }
+  int32_t ret = tSerializeRsmaInfoReq(pBuf, bufLen, &req);
+  if (ret < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return ret;
+  }
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t queryBuildGetStreamProgressMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
+                                       void *(*mallcFp)(int64_t), void (*freeFp)(void *)) {
   QUERY_PARAM_CHECK(input);
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(msgLen);
@@ -445,13 +500,64 @@ int32_t queryBuildGetStreamProgressMsg(void* input, char** msg, int32_t msgSize,
     return terrno;
   }
 
-  if(tSerializeStreamProgressReq(pBuf, len, input) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
+  int32_t ret = tSerializeStreamProgressReq(pBuf, len, input);
+  if (ret < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return ret;
   }
 
   *msg = pBuf;
   *msgLen = len;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t queryBuildVSubTablesMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t),
+                                void (*freeFp)(void *)) {
+  QUERY_PARAM_CHECK(input);
+  QUERY_PARAM_CHECK(msg);
+  QUERY_PARAM_CHECK(msgLen);
+
+  SVSubTablesReq req = {0};
+  req.suid = *(int64_t*)input;
+
+  int32_t bufLen = tSerializeSVSubTablesReq(NULL, 0, &req);
+  void   *pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    return terrno;
+  }
+  if (tSerializeSVSubTablesReq(pBuf, bufLen, &req) < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t queryBuildVStbRefDBsMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t),
+                                void (*freeFp)(void *)) {
+  QUERY_PARAM_CHECK(input);
+  QUERY_PARAM_CHECK(msg);
+  QUERY_PARAM_CHECK(msgLen);
+
+  SVStbRefDbsReq req = {0};
+  req.suid = *(int64_t*)input;
+
+  int32_t bufLen = tSerializeSVStbRefDbsReq(NULL, 0, &req);
+  void   *pBuf = (*mallcFp)(bufLen);
+  if (NULL == pBuf) {
+    return terrno;
+  }
+  if (tSerializeSVStbRefDbsReq(pBuf, bufLen, &req) < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -462,6 +568,7 @@ int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
     code = TSDB_CODE_TSC_INVALID_INPUT;
+    qError("invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     goto PROCESS_USEDB_OVER;
   }
 
@@ -515,7 +622,8 @@ static int32_t queryConvertTableMetaMsg(STableMetaRsp *pMetaMsg) {
   }
 
   if (pMetaMsg->tableType != TSDB_SUPER_TABLE && pMetaMsg->tableType != TSDB_CHILD_TABLE &&
-      pMetaMsg->tableType != TSDB_NORMAL_TABLE && pMetaMsg->tableType != TSDB_SYSTEM_TABLE) {
+      pMetaMsg->tableType != TSDB_NORMAL_TABLE && pMetaMsg->tableType != TSDB_SYSTEM_TABLE &&
+      pMetaMsg->tableType != TSDB_VIRTUAL_NORMAL_TABLE && pMetaMsg->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
     qError("invalid tableType[%d] in table meta rsp msg", pMetaMsg->tableType);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
@@ -527,6 +635,11 @@ static int32_t queryConvertTableMetaMsg(STableMetaRsp *pMetaMsg) {
 
   if (pMetaMsg->tversion < 0) {
     qError("invalid tversion[%d] in table meta rsp msg", pMetaMsg->tversion);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
+  if (pMetaMsg->rversion < 0) {
+    qError("invalid rversion[%d] in table meta rsp msg", pMetaMsg->rversion);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
@@ -546,9 +659,39 @@ int32_t queryCreateCTableMetaFromMsg(STableMetaRsp *msg, SCTableMeta *pMeta) {
   pMeta->uid = msg->tuid;
   pMeta->suid = msg->suid;
 
-  qDebug("ctable %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s suid %" PRIx64, msg->tbName, pMeta->uid,
+  qDebug("ctb:%s, uid:0x%" PRIx64 " meta returned, type:%d vgId:%d db:%s suid:%" PRIx64, msg->tbName, pMeta->uid,
          pMeta->tableType, pMeta->vgId, msg->dbFName, pMeta->suid);
 
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta) {
+  QUERY_PARAM_CHECK(msg);
+  QUERY_PARAM_CHECK(pMeta);
+  QUERY_PARAM_CHECK(msg->pColRefs);
+
+  int32_t pColRefSize = sizeof(SColRef) * msg->numOfColRefs;
+
+  SVCTableMeta *pTableMeta = taosMemoryCalloc(1, sizeof(SVCTableMeta) + pColRefSize);
+  if (NULL == pTableMeta) {
+    qError("calloc size[%d] failed", (int32_t)sizeof(SVCTableMeta) + pColRefSize);
+    return terrno;
+  }
+
+  pTableMeta->vgId = msg->vgId;
+  pTableMeta->tableType = msg->tableType;
+  pTableMeta->uid = msg->tuid;
+  pTableMeta->suid = msg->suid;
+  pTableMeta->numOfColRefs = msg->numOfColRefs;
+  pTableMeta->rversion = msg->rversion;
+
+  pTableMeta->colRef = (SColRef *)((char *)pTableMeta + sizeof(SVCTableMeta));
+  memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
+
+  qDebug("ctable %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s suid %" PRIx64, msg->tbName, (pTableMeta)->uid,
+         (pTableMeta)->tableType, (pTableMeta)->vgId, msg->dbFName, (pTableMeta)->suid);
+
+  *pMeta = pTableMeta;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -557,14 +700,16 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   QUERY_PARAM_CHECK(pMeta);
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
-  int32_t schemaExtSize = (useCompress(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
+  int32_t schemaExtSize = (withExtSchema(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
+  int32_t pColRefSize = (hasRefCol(msg->tableType) && msg->pColRefs && !isStb) ? sizeof(SColRef) * msg->numOfColRefs : 0;
 
-  STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize);
+  STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + pColRefSize);
   if (NULL == pTableMeta) {
     qError("calloc size[%d] failed", metaSize);
     return terrno;
   }
   SSchemaExt *pSchemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
+  SColRef    *pColRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
 
   pTableMeta->vgId = isStb ? 0 : msg->vgId;
   pTableMeta->tableType = isStb ? TSDB_SUPER_TABLE : msg->tableType;
@@ -572,17 +717,39 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   pTableMeta->suid = msg->suid;
   pTableMeta->sversion = msg->sversion;
   pTableMeta->tversion = msg->tversion;
+  pTableMeta->rversion = msg->rversion;
+  pTableMeta->ownerId = msg->ownerId;
+  pTableMeta->flag = msg->flag;
+  if (msg->virtualStb) {
+    pTableMeta->virtualStb = 1;
+    pTableMeta->numOfColRefs = 0;
+  } else {
+    if (msg->tableType == TSDB_VIRTUAL_CHILD_TABLE && isStb) {
+      pTableMeta->virtualStb = 1;
+      pTableMeta->numOfColRefs = 0;
+    } else {
+      pTableMeta->virtualStb = 0;
+      pTableMeta->numOfColRefs = msg->numOfColRefs;
+    }
+  }
 
   pTableMeta->tableInfo.numOfTags = msg->numOfTags;
   pTableMeta->tableInfo.precision = msg->precision;
   pTableMeta->tableInfo.numOfColumns = msg->numOfColumns;
 
   memcpy(pTableMeta->schema, msg->pSchemas, sizeof(SSchema) * total);
-  if (useCompress(msg->tableType) && msg->pSchemaExt) {
+  if (withExtSchema(msg->tableType) && msg->pSchemaExt) {
     pTableMeta->schemaExt = pSchemaExt;
     memcpy(pSchemaExt, msg->pSchemaExt, schemaExtSize);
   } else {
     pTableMeta->schemaExt = NULL;
+  }
+
+  if (hasRefCol(msg->tableType) && msg->pColRefs && !isStb) {
+    pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
+    memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
+  } else {
+    pTableMeta->colRef = NULL;
   }
 
   bool hasPK = (msg->numOfColumns > 1) && (pTableMeta->schema[1].flags & COL_IS_KEY);
@@ -597,9 +764,9 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
     }
   }
 
-  qDebug("table %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s stb %s suid %" PRIx64
-         " sver %d tver %d"
-         " tagNum %d colNum %d precision %d rowSize %d",
+  qDebug("tb:%s, uid:%" PRIx64 " meta returned, type:%d vgId:%d db:%s stb:%s suid:%" PRIx64
+         " sver:%d tver:%d"
+         " tagNum:%d colNum:%d precision:%d rowSize:%d",
          msg->tbName, pTableMeta->uid, pTableMeta->tableType, pTableMeta->vgId, msg->dbFName, msg->stbName,
          pTableMeta->suid, pTableMeta->sversion, pTableMeta->tversion, pTableMeta->tableInfo.numOfTags,
          pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.precision, pTableMeta->tableInfo.rowSize);
@@ -613,15 +780,17 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   QUERY_PARAM_CHECK(pMeta);
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
-  int32_t schemaExtSize = (useCompress(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
+  int32_t schemaExtSize = (withExtSchema(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
+  int32_t pColRefSize = (hasRefCol(msg->tableType) && msg->pColRefs) ? sizeof(SColRef) * msg->numOfColRefs : 0;
   int32_t tbNameSize = strlen(msg->tbName) + 1;
 
-  STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + tbNameSize);
+  STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + pColRefSize + tbNameSize);
   if (NULL == pTableMeta) {
     qError("calloc size[%d] failed", metaSize);
     return terrno;
   }
   SSchemaExt *pSchemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
+  SColRef    *pColRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
 
   pTableMeta->vgId = isStb ? 0 : msg->vgId;
   pTableMeta->tableType = isStb ? TSDB_SUPER_TABLE : msg->tableType;
@@ -629,17 +798,28 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   pTableMeta->suid = msg->suid;
   pTableMeta->sversion = msg->sversion;
   pTableMeta->tversion = msg->tversion;
+  pTableMeta->rversion = msg->rversion;
+  pTableMeta->virtualStb = msg->virtualStb;
+  pTableMeta->numOfColRefs = msg->numOfColRefs;
+  pTableMeta->ownerId = msg->ownerId;
 
   pTableMeta->tableInfo.numOfTags = msg->numOfTags;
   pTableMeta->tableInfo.precision = msg->precision;
   pTableMeta->tableInfo.numOfColumns = msg->numOfColumns;
 
   TAOS_MEMCPY(pTableMeta->schema, msg->pSchemas, sizeof(SSchema) * total);
-  if (useCompress(msg->tableType) && msg->pSchemaExt) {
+  if (withExtSchema(msg->tableType) && msg->pSchemaExt) {
     pTableMeta->schemaExt = pSchemaExt;
     TAOS_MEMCPY(pSchemaExt, msg->pSchemaExt, schemaExtSize);
   } else {
     pTableMeta->schemaExt = NULL;
+  }
+
+  if (hasRefCol(msg->tableType) && msg->pColRefs) {
+    pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
+    memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
+  } else {
+    pTableMeta->colRef = NULL;
   }
 
   bool hasPK = (msg->numOfColumns > 1) && (pTableMeta->schema[1].flags & COL_IS_KEY);
@@ -654,12 +834,12 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
     }
   }
 
-  char *pTbName = (char *)pTableMeta + metaSize + schemaExtSize;
+  char *pTbName = (char *)pTableMeta + metaSize + schemaExtSize + pColRefSize;
   tstrncpy(pTbName, msg->tbName, tbNameSize);
 
-  qDebug("table %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s stb %s suid %" PRIx64
-         " sver %d tver %d"
-         " tagNum %d colNum %d precision %d rowSize %d",
+  qDebug("tb:%s, uid:%" PRIx64 " meta returned, type:%d vgId:%d db:%s stb:%s suid:%" PRIx64
+         " sver:%d tver:%d"
+         " tagNum:%d colNum:%d precision:%d rowSize:%d",
          msg->tbName, pTableMeta->uid, pTableMeta->tableType, pTableMeta->vgId, msg->dbFName, msg->stbName,
          pTableMeta->suid, pTableMeta->sversion, pTableMeta->tversion, pTableMeta->tableInfo.numOfTags,
          pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.precision, pTableMeta->tableInfo.rowSize);
@@ -673,6 +853,7 @@ int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
   STableMetaRsp metaRsp = {0};
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessTableMetaRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     code = TSDB_CODE_TSC_INVALID_INPUT;
     goto PROCESS_META_OVER;
   }
@@ -687,8 +868,11 @@ int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
     goto PROCESS_META_OVER;
   }
 
+  bool isVirtual = (metaRsp.tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+                    metaRsp.tableType == TSDB_VIRTUAL_CHILD_TABLE ||
+                    metaRsp.virtualStb);
   if (!IS_SYS_DBNAME(metaRsp.dbFName) &&
-      !tIsValidSchema(metaRsp.pSchemas, metaRsp.numOfColumns, metaRsp.numOfTags)) {
+      !tIsValidSchema(metaRsp.pSchemas, metaRsp.numOfColumns, metaRsp.numOfTags, isVirtual)) {
     code = TSDB_CODE_TSC_INVALID_VALUE;
     goto PROCESS_META_OVER;
   }
@@ -708,6 +892,17 @@ int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
     pOut->ctbMeta.uid = metaRsp.tuid;
     pOut->ctbMeta.suid = metaRsp.suid;
 
+    code = queryCreateTableMetaFromMsg(&metaRsp, true, &pOut->tbMeta);
+  } else if (metaRsp.tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+    SET_META_TYPE_BOTH_VTABLE(pOut->metaType);
+
+    tstrncpy(pOut->ctbName, metaRsp.tbName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pOut->tbName, metaRsp.stbName, TSDB_TABLE_NAME_LEN);
+
+    code = queryCreateVCTableMetaFromMsg(&metaRsp, &pOut->vctbMeta);
+    if (TSDB_CODE_SUCCESS != code) {
+      goto PROCESS_META_OVER;
+    }
     code = queryCreateTableMetaFromMsg(&metaRsp, true, &pOut->tbMeta);
   } else {
     SET_META_TYPE_TABLE(pOut->metaType);
@@ -729,6 +924,7 @@ static int32_t queryProcessTableNameRsp(void *output, char *msg, int32_t msgSize
   STableMetaRsp metaRsp = {0};
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessTableNameRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     code = TSDB_CODE_TSC_INVALID_INPUT;
     goto PROCESS_NAME_OVER;
   }
@@ -743,8 +939,12 @@ static int32_t queryProcessTableNameRsp(void *output, char *msg, int32_t msgSize
     goto PROCESS_NAME_OVER;
   }
 
+  bool isVirtual = (metaRsp.tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+                    metaRsp.tableType == TSDB_VIRTUAL_CHILD_TABLE ||
+                    metaRsp.virtualStb);
+
   if (!IS_SYS_DBNAME(metaRsp.dbFName) &&
-      !tIsValidSchema(metaRsp.pSchemas, metaRsp.numOfColumns, metaRsp.numOfTags)) {
+      !tIsValidSchema(metaRsp.pSchemas, metaRsp.numOfColumns, metaRsp.numOfTags, isVirtual)) {
     code = TSDB_CODE_TSC_INVALID_VALUE;
     goto PROCESS_NAME_OVER;
   }
@@ -763,6 +963,18 @@ static int32_t queryProcessTableNameRsp(void *output, char *msg, int32_t msgSize
     pOut->ctbMeta.tableType = metaRsp.tableType;
     pOut->ctbMeta.uid = metaRsp.tuid;
     pOut->ctbMeta.suid = metaRsp.suid;
+
+    code = queryCreateTableMetaExFromMsg(&metaRsp, true, &pOut->tbMeta);
+  } else if (metaRsp.tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+    SET_META_TYPE_BOTH_VTABLE(pOut->metaType);
+
+    tstrncpy(pOut->ctbName, metaRsp.tbName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pOut->tbName, metaRsp.stbName, TSDB_TABLE_NAME_LEN);
+
+    code = queryCreateVCTableMetaFromMsg(&metaRsp, &pOut->vctbMeta);
+    if (TSDB_CODE_SUCCESS != code) {
+      goto PROCESS_NAME_OVER;
+    }
 
     code = queryCreateTableMetaExFromMsg(&metaRsp, true, &pOut->tbMeta);
   } else {
@@ -785,6 +997,7 @@ int32_t queryProcessQnodeListRsp(void *output, char *msg, int32_t msgSize) {
   int32_t       code = 0;
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessQnodeListRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     code = TSDB_CODE_TSC_INVALID_INPUT;
     return code;
   }
@@ -804,6 +1017,7 @@ int32_t queryProcessDnodeListRsp(void *output, char *msg, int32_t msgSize) {
   int32_t       code = 0;
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessDnodeListRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     code = TSDB_CODE_TSC_INVALID_INPUT;
     return code;
   }
@@ -824,6 +1038,7 @@ int32_t queryProcessGetSerVerRsp(void *output, char *msg, int32_t msgSize) {
   int32_t       code = 0;
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetSerVerRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     code = TSDB_CODE_TSC_INVALID_INPUT;
     return code;
   }
@@ -846,11 +1061,12 @@ int32_t queryProcessGetDbCfgRsp(void *output, char *msg, int32_t msgSize) {
   SDbCfgRsp out = {0};
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetDbCfgRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
   if (tDeserializeSDbCfgRsp(msg, msgSize, &out) != 0) {
-    qError("tDeserializeSDbCfgRsp failed, msgSize:%d,dbCfgRsp:%lu", msgSize, sizeof(out));
+    qError("tDeserializeSDbCfgRsp failed, msgSize:%d, dbCfgRsp:%lu", msgSize, sizeof(out));
     return TSDB_CODE_INVALID_MSG;
   }
 
@@ -863,6 +1079,7 @@ int32_t queryProcessGetIndexRsp(void *output, char *msg, int32_t msgSize) {
   SUserIndexRsp out = {0};
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetIndexRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
@@ -880,6 +1097,7 @@ int32_t queryProcessRetrieveFuncRsp(void *output, char *msg, int32_t msgSize) {
   SRetrieveFuncRsp out = {0};
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessRetrieveFuncRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
@@ -904,6 +1122,7 @@ int32_t queryProcessRetrieveFuncRsp(void *output, char *msg, int32_t msgSize) {
 
 int32_t queryProcessGetUserAuthRsp(void *output, char *msg, int32_t msgSize) {
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetUserAuthRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
@@ -917,6 +1136,7 @@ int32_t queryProcessGetUserAuthRsp(void *output, char *msg, int32_t msgSize) {
 
 int32_t queryProcessGetTbIndexRsp(void *output, char *msg, int32_t msgSize) {
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetTbIndexRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
@@ -931,6 +1151,7 @@ int32_t queryProcessGetTbIndexRsp(void *output, char *msg, int32_t msgSize) {
 
 int32_t queryProcessGetTbCfgRsp(void *output, char *msg, int32_t msgSize) {
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetTbCfgRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
@@ -952,6 +1173,7 @@ int32_t queryProcessGetTbCfgRsp(void *output, char *msg, int32_t msgSize) {
 
 int32_t queryProcessGetViewMetaRsp(void *output, char *msg, int32_t msgSize) {
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetViewMetaRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
@@ -975,11 +1197,26 @@ int32_t queryProcessGetViewMetaRsp(void *output, char *msg, int32_t msgSize) {
 
 int32_t queryProcessGetTbTSMARsp(void* output, char* msg, int32_t msgSize) {
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetTbTSMARsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
   if (tDeserializeTableTSMAInfoRsp(msg, msgSize, output) != 0) {
-    qError("tDeserializeSViewMetaRsp failed, msgSize:%d", msgSize);
+    qError("tDeserializeTbTSMARsp failed, msgSize:%d", msgSize);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t queryProcessGetRsmaRsp(void* output, char* msg, int32_t msgSize) {
+  if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetRsmaRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  if (tDeserializeRsmaInfoRsp(msg, msgSize, output) != 0) {
+    qError("tDeserializeRsmaInfoRsp failed, msgSize:%d", msgSize);
     return TSDB_CODE_INVALID_MSG;
   }
 
@@ -988,16 +1225,48 @@ int32_t queryProcessGetTbTSMARsp(void* output, char* msg, int32_t msgSize) {
 
 int32_t queryProcessStreamProgressRsp(void* output, char* msg, int32_t msgSize) {
   if (!output || !msg || msgSize <= 0) {
+    qError("queryProcessStreamProgressRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
   if (tDeserializeSStreamProgressRsp(msg, msgSize, output) != 0) {
-    qError("tDeserializeStreamProgressRsp failed, msgSize: %d", msgSize);
+    qError("tDeserializeStreamProgressRsp failed, msgSize:%d", msgSize);
     return TSDB_CODE_INVALID_MSG;
   }
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryProcessVSubTablesRsp(void* output, char* msg, int32_t msgSize) {
+  if (!output || !msg || msgSize <= 0) {
+    qError("queryProcessVSubTablesRsp input error, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SVSubTablesRsp* pRsp = (SVSubTablesRsp*)output;
+  int32_t code = tDeserializeSVSubTablesRsp(msg, msgSize, pRsp);
+  if (code != 0) {
+    qError("tDeserializeSVSubTablesRsp failed, msgSize: %d, error:%d", msgSize, code);
+    return code;
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t queryProcessVStbRefDbsRsp(void* output, char* msg, int32_t msgSize) {
+  if (!output || !msg || msgSize <= 0) {
+    qError("queryProcessVStbRefDbsRsp input error, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SVStbRefDbsRsp * pRsp = (SVStbRefDbsRsp*)output;
+  int32_t code = tDeserializeSVStbRefDbsRsp(msg, msgSize, pRsp);
+  if (code != 0) {
+    qError("tDeserializeSVStbRefDbsRsp failed, msgSize: %d, error:%d", msgSize, code);
+    return code;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
 
 void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryBuildTableMetaReqMsg;
@@ -1017,7 +1286,10 @@ void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_MND_VIEW_META)] = queryBuildGetViewMetaMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_TABLE_TSMA)] = queryBuildGetTableTSMAMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_TSMA)] = queryBuildGetTSMAMsg;
-  queryBuildMsg[TMSG_INDEX(TDMT_VND_GET_STREAM_PROGRESS)] = queryBuildGetStreamProgressMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_RSMA)] = queryBuildGetRsmaMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_STREAM_PROGRESS)] = queryBuildGetStreamProgressMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_VND_VSUBTABLES_META)] = queryBuildVSubTablesMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_VND_VSTB_REF_DBS)] = queryBuildVStbRefDBsMsg;
 
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryProcessTableMetaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_NAME)] = queryProcessTableNameRsp;
@@ -1036,7 +1308,10 @@ void initQueryModuleMsgHandle() {
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_VIEW_META)] = queryProcessGetViewMetaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_TABLE_TSMA)] = queryProcessGetTbTSMARsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_TSMA)] = queryProcessGetTbTSMARsp;
-  queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_GET_STREAM_PROGRESS)] = queryProcessStreamProgressRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_RSMA)] = queryProcessGetRsmaRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_STREAM_PROGRESS)] = queryProcessStreamProgressRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_VSUBTABLES_META)] = queryProcessVSubTablesRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_VSTB_REF_DBS)] = queryProcessVStbRefDbsRsp;
 }
 
 #pragma GCC diagnostic pop

@@ -1,0 +1,66 @@
+cmake_minimum_required(VERSION 3.16)
+
+set(LIBS3_VER_MAJOR 4 CACHE STRING "libs3 version major" FORCE)
+set(LIBS3_VER_MINOR 1 CACHE STRING "libs3 version minor" FORCE)
+set(LIBS3_VER ${LIBS3_VER_MAJOR}.${LIBS3_VER_MINOR} CACHE STRING "libs3 version" FORCE)
+
+project(
+  libs3
+  VERSION ${LIBS3_VER}
+  DESCRIPTION "libs3 - hand-crafted CMakeLists.txt"
+)
+
+add_library(libs3
+  src/bucket.c src/bucket_metadata.c src/error_parser.c src/general.c
+  src/object.c src/request.c src/request_context.c
+  src/response_headers_handler.c src/service_access_logging.c
+  src/service.c src/simplexml.c src/util.c src/multipart.c
+)
+target_compile_definitions(libs3 PRIVATE
+  LIBS3_VER_MAJOR="${LIBS3_VER_MAJOR}"
+  LIBS3_VER_MINOR="${LIBS3_VER_MINOR}"
+  LIBS3_VER="${LIBS3_VER}"
+)
+target_include_directories(libs3
+  PUBLIC
+    inc
+    ${CURL_INCLUDE}
+    ${OPENSSL_INCLUDE}
+    ${LIBXML2_INCLUDE}
+    ${ZLIB_INCLUDE}
+)
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+  find_library(CORE_FOUNDATION CoreFoundation)
+  find_library(SYSTEM_CONFIGURATION SystemConfiguration)
+  target_link_libraries(libs3 PRIVATE ${CORE_FOUNDATION} ${SYSTEM_CONFIGURATION})
+  target_link_libraries(libs3 PRIVATE iconv)
+endif()
+find_package(Threads REQUIRED)
+target_link_libraries(libs3 PUBLIC
+  ${CURL_LIBS}
+  ${OPENSSL_LIBS}
+  ${CRYPTO_LIBS}
+  ${LIBXML2_LIBS}
+  ${ZLIB_LIBS}
+  m
+  dl
+  ${CMAKE_THREAD_LIBS_INIT}
+)
+set_target_properties(libs3 PROPERTIES
+  PUBLIC_HEADER "inc/libs3.h"
+)
+
+add_executable(s3
+  src/s3.c
+)
+target_link_libraries(s3 PRIVATE libs3)
+
+add_executable(testsimplexml
+  src/testsimplexml.c
+)
+target_link_libraries(testsimplexml PRIVATE libs3)
+
+install(TARGETS libs3 s3 testsimplexml
+  PUBLIC_HEADER
+)
+

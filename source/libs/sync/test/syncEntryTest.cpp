@@ -11,7 +11,7 @@ void logTest() {
 
 void test1() {
   SSyncRaftEntry* pEntry = syncEntryBuild(10);
-  assert(pEntry != NULL);
+  TD_ALWAYS_ASSERT(pEntry != NULL);
   pEntry->msgType = 1;
   pEntry->originalRpcType = 2;
   pEntry->seqNum = 3;
@@ -54,7 +54,7 @@ void test3() {
 
 void test4() {
   SSyncRaftEntry* pEntry = syncEntryBuild(10);
-  assert(pEntry != NULL);
+  TD_ALWAYS_ASSERT(pEntry != NULL);
   pEntry->msgType = 11;
   pEntry->originalRpcType = 22;
   pEntry->seqNum = 33;

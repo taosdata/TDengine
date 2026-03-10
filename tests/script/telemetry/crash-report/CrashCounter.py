@@ -13,7 +13,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # define version
-version = "3.3.2.*"
+version = os.getenv("VERSION")
+version_list = os.getenv("VERSION_LIST").split(",")
 version_pattern_str = version.replace('.', r'\.').replace('*', r'\d+')
 version_pattern = re.compile(rf'^{version_pattern_str}$')
 version_stack_list = list()
@@ -82,6 +83,19 @@ def get_sum(output):
             total_sum += number
 
     return total_sum
+
+def get_crash_count_by_version(version_list):
+    file_path = " ".join(get_files())
+    results = {}
+    sum = 0
+    for version in version_list:
+        pattern = f'"version":"{version}"'
+        command = f"grep '{pattern}' {file_path} | grep -v '{ip}' | wc -l"
+        count = int(subprocess.getoutput(command))
+        sum += count
+        results[version] = count
+    output = "version\tcrash_count\n" + "\n".join([f"v{version}\t{count}" for version, count in results.items()])
+    return output, sum
 
 def convert_html(data):
     # convert data to json
@@ -204,13 +218,13 @@ def get_version_stack_list(res):
     return version_stack_list
 
 # get msg info
-def get_msg(text):
+def get_msg(text, title="Telemetry Statistics"):
     return {
         "msg_type": "post",
         "content": {
             "post": {
                 "zh_cn": {
-                    "title": "Telemetry Statistics",
+                    "title": title,
                     "content": [
                         [{
                             "tag": "text",
@@ -280,8 +294,19 @@ def send_report(res, sum, html_report_file):
     details: http://{http_serv_ip}:{http_serv_port}/{html_report_file}
     '''
     print(get_msg(content))
-    send_msg(get_msg(content))
-    # print(content)
+    send_msg(get_msg(content, "Telemetry Crash Info Statistics"))
+
+def send_crash_count_info_report(res, sum):
+    content = f'''
+    from: {get_files()[6].split("/")[-1].split(".")[0]}
+    to: {get_files()[0].split("/")[-1].split(".")[0]}
+    ip: {server_ip}
+    owner: {owner}
+    result: \n{res}\n
+    total crashes: {sum}
+    '''
+    print(get_msg(content))
+    send_msg(get_msg(content, "Telemetry Crash Count Statistics"))
 
 # for none-taosAssertDebug
 nassert_res = get_res(nassert_script_path)
@@ -306,3 +331,5 @@ sum = get_sum(res)
 # send report
 send_report(res, sum, html_report_file)
 
+crash_count_info, crash_count_sum = get_crash_count_by_version(version_list)
+send_crash_count_info_report(crash_count_info, crash_count_sum)

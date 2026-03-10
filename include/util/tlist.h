@@ -156,6 +156,34 @@ extern "C" {
     TD_DLIST_NELES(dl) += 1;                                                                        \
   } while (0)
 
+#define TD_DLIST_INSERT_BEFORE(dl, refdln, dln)               \
+  do {                                                        \
+    if (TD_DLIST_HEAD(dl) == (refdln)) {                      \
+      TD_DLIST_HEAD(dl) = (dln);                              \
+    }                                                         \
+    TD_DLIST_NODE_PREV(dln) = TD_DLIST_NODE_PREV(refdln);     \
+    TD_DLIST_NODE_NEXT(dln) = (refdln);                       \
+    if (TD_DLIST_NODE_PREV(refdln) != NULL) {                 \
+      TD_DLIST_NODE_NEXT(TD_DLIST_NODE_PREV(refdln)) = (dln); \
+    }                                                         \
+    TD_DLIST_NODE_PREV(refdln) = (dln);                       \
+    TD_DLIST_NELES(dl) += 1;                                  \
+  } while (0)
+
+#define TD_DLIST_APPEND_AFTER(dl, refdln, dln)                \
+  do {                                                        \
+    if (TD_DLIST_TAIL(dl) == (refdln)) {                      \
+      TD_DLIST_TAIL(dl) = (dln);                              \
+    }                                                         \
+    TD_DLIST_NODE_NEXT(dln) = TD_DLIST_NODE_NEXT(refdln);     \
+    TD_DLIST_NODE_PREV(dln) = (refdln);                       \
+    if (TD_DLIST_NODE_NEXT(refdln) != NULL) {                 \
+      TD_DLIST_NODE_PREV(TD_DLIST_NODE_NEXT(refdln)) = (dln); \
+    }                                                         \
+    TD_DLIST_NODE_NEXT(refdln) = (dln);                       \
+    TD_DLIST_NELES(dl) += 1;                                  \
+  } while (0)
+
 #define TD_DLIST_POP(dl, dln)                                                \
   do {                                                                       \
     if (TD_DLIST_HEAD(dl) == (dln)) {                                        \
@@ -229,6 +257,8 @@ void       tdListPrependNode(SList *list, SListNode *node);
 void       tdListAppendNode(SList *list, SListNode *node);
 int32_t    tdListPrepend(SList *list, void *data);
 int32_t    tdListAppend(SList *list, const void *data);
+void*      tdListPreReserve(SList *list);
+void*      tdListReserve(SList *list);
 SListNode *tdListAdd(SList *list, const void *data);
 SListNode *tdListPopHead(SList *list);
 SListNode *tdListPopTail(SList *list);

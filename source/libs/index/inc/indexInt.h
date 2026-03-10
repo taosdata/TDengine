@@ -32,12 +32,12 @@ extern "C" {
 #endif
 
 // clang-format off
-#define indexFatal(...) do { if (idxDebugFlag & DEBUG_FATAL) {  taosPrintLog("IDX FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }} while (0)
-#define indexError(...) do { if (idxDebugFlag & DEBUG_ERROR) {  taosPrintLog("IDX ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }} while (0)
-#define indexWarn(...)  do { if (idxDebugFlag & DEBUG_WARN)  {  taosPrintLog("IDX WARN ", DEBUG_WARN, 255, __VA_ARGS__); }} while (0)
-#define indexInfo(...)  do { if (idxDebugFlag & DEBUG_INFO)  { taosPrintLog("IDX ", DEBUG_INFO, 255, __VA_ARGS__); } } while (0)
-#define indexDebug(...) do { if (idxDebugFlag & DEBUG_DEBUG) { taosPrintLog("IDX ", DEBUG_DEBUG, idxDebugFlag, __VA_ARGS__);} } while (0)
-#define indexTrace(...) do { if (idxDebugFlag & DEBUG_TRACE) { taosPrintLog("IDX", DEBUG_TRACE, idxDebugFlag, __VA_ARGS__);} } while (0)
+#define indexFatal(...) do { if (idxDebugFlag & DEBUG_FATAL) { taosPrintLog("IDX FATAL ", DEBUG_FATAL, 255,          __VA_ARGS__);}} while (0)
+#define indexError(...) do { if (idxDebugFlag & DEBUG_ERROR) { taosPrintLog("IDX ERROR ", DEBUG_ERROR, 255,          __VA_ARGS__);}} while (0)
+#define indexWarn(...)  do { if (idxDebugFlag & DEBUG_WARN)  { taosPrintLog("IDX WARN  ", DEBUG_WARN,  255,          __VA_ARGS__);}} while (0)
+#define indexInfo(...)  do { if (idxDebugFlag & DEBUG_INFO)  { taosPrintLog("IDX INFO  ", DEBUG_INFO,  255,          __VA_ARGS__);}} while (0)
+#define indexDebug(...) do { if (idxDebugFlag & DEBUG_DEBUG) { taosPrintLog("IDX DEBUG ", DEBUG_DEBUG, idxDebugFlag, __VA_ARGS__);}} while (0)
+#define indexTrace(...) do { if (idxDebugFlag & DEBUG_TRACE) { taosPrintLog("IDX TRACE ", DEBUG_TRACE, idxDebugFlag, __VA_ARGS__);}} while (0)
 // clang-format on
 
 extern void* indexQhandle;

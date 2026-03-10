@@ -12,6 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifdef USE_UDF
 #include "uv.h"
 
 #include "os.h"
@@ -65,7 +66,7 @@ void udfUdfdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal) 
   TAOS_UDF_CHECK_PTR_RVOID(process);
   fnInfo("udfd process exited with status %" PRId64 ", signal %d", exitStatus, termSignal);
   SUdfdData *pData = process->data;
-  if(pData == NULL) {
+  if (pData == NULL) {
     fnError("udfd process data is NULL");
     return;
   }
@@ -102,16 +103,17 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
     TAOS_STRNCPY(path, tsProcPath, PATH_MAX);
     TAOS_DIRNAME(path);
   }
+
 #ifdef WINDOWS
   if (strlen(path) == 0) {
     TAOS_STRCAT(path, "C:\\TDengine");
   }
-  TAOS_STRCAT(path, "\\udfd.exe");
+  TAOS_STRCAT(path, "\\" CUS_PROMPT "udf.exe");
 #else
   if (strlen(path) == 0) {
     TAOS_STRCAT(path, "/usr/bin");
   }
-  TAOS_STRCAT(path, "/udfd");
+  TAOS_STRCAT(path, "/" CUS_PROMPT "udf");
 #endif
   char *argsUdfd[] = {path, "-c", configDir, NULL};
   options.args = argsUdfd;
@@ -158,9 +160,9 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   udfdPathLdLib[udfdLdLibPathLen] = ':';
   tstrncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen - 1);
   if (udfdLdLibPathLen + taosdLdLibPathLen < 1024) {
-    fnInfo("[UDFD]udfd LD_LIBRARY_PATH: %s", udfdPathLdLib);
+    fnInfo("udfd LD_LIBRARY_PATH: %s", udfdPathLdLib);
   } else {
-    fnError("[UDFD]can not set correct udfd LD_LIBRARY_PATH");
+    fnError("can not set correct udfd LD_LIBRARY_PATH");
   }
   char ldLibPathEnvItem[1024 + 32] = {0};
   snprintf(ldLibPathEnvItem, 1024 + 32, "%s=%s", "LD_LIBRARY_PATH", udfdPathLdLib);
@@ -410,7 +412,7 @@ typedef void *QUEUE[2];
 #define QUEUE_NEXT_PREV(q) (QUEUE_PREV(QUEUE_NEXT(q)))
 
 /* Public macros. */
-#define QUEUE_DATA(ptr, type, field) ((type *)((char *)(ptr) - offsetof(type, field)))
+#define QUEUE_DATA(ptr, type, field) ((type *)((char *)(ptr)-offsetof(type, field)))
 
 /* Important note: mutating the list while QUEUE_FOREACH is
  * iterating over its elements results in undefined behavior.
@@ -864,6 +866,12 @@ void *decodeUdfResponse(const void *buf, SUdfResponse *rsp) {
       buf = decodeUdfSetupResponse(buf, &rsp->setupRsp);
       break;
     case UDF_TASK_CALL:
+      if (rsp->code) {
+        fnError("udf response failed, code:0x%x", rsp->code);
+
+        return NULL;
+      }
+
       buf = decodeUdfCallResponse(buf, &rsp->callRsp);
       break;
     case UDF_TASK_TEARDOWN:
@@ -961,6 +969,8 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
           int32_t colSize = 0;
           if (col->info.type == TSDB_DATA_TYPE_JSON) {
             colSize = getJsonValueLen(pColData);
+          } else if (IS_STR_DATA_BLOB(col->info.type)) {
+            colSize = blobDataTLen(pColData);
           } else {
             colSize = varDataTLen(pColData);
           }
@@ -1189,7 +1199,7 @@ int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
       }
     }
   }
-  uv_mutex_unlock(&gUdfcProxy.udfStubsMutex);
+  //uv_mutex_unlock(&gUdfcProxy.udfStubsMutex);
   *pHandle = NULL;
   code = doSetupUdf(udfName, pHandle);
   if (code == TSDB_CODE_SUCCESS) {
@@ -1198,7 +1208,7 @@ int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
     stub.handle = *pHandle;
     ++stub.refCount;
     stub.createTime = taosGetTimestampUs();
-    uv_mutex_lock(&gUdfcProxy.udfStubsMutex);
+    //uv_mutex_lock(&gUdfcProxy.udfStubsMutex);
     if (taosArrayPush(gUdfcProxy.udfStubs, &stub) == NULL) {
       fnError("acquireUdfFuncHandle: failed to push udf stub to array");
       uv_mutex_unlock(&gUdfcProxy.udfStubsMutex);
@@ -1206,10 +1216,11 @@ int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
     } else {
       taosArraySort(gUdfcProxy.udfStubs, compareUdfcFuncSub);
     }
-    uv_mutex_unlock(&gUdfcProxy.udfStubsMutex);
   } else {
     *pHandle = NULL;
   }
+
+  uv_mutex_unlock(&gUdfcProxy.udfStubsMutex);
 
 _exit:
   return code;
@@ -1733,7 +1744,7 @@ void onUdfcPipeWrite(uv_write_t *write, int32_t status) {
 void onUdfcPipeConnect(uv_connect_t *connect, int32_t status) {
   SClientUvTaskNode *uvTask = connect->data;
   if (status != 0) {
-    fnError("client connect error, task seq: %" PRId64 ", code: %s", uvTask->seqNum, uv_strerror(status));
+    fnError("client connect error, task seq: %" PRId64 ", code:%s", uvTask->seqNum, uv_strerror(status));
   }
   uvTask->errCode = status;
 
@@ -1812,7 +1823,7 @@ int32_t udfcQueueUvTask(SClientUvTaskNode *uvTask) {
   uv_mutex_unlock(&udfc->taskQueueMutex);
   int32_t code = uv_async_send(&udfc->loopTaskAync);
   if (code != 0) {
-    fnError("udfc queue uv task to event loop failed. code: %s", uv_strerror(code));
+    fnError("udfc queue uv task to event loop failed. code:%s", uv_strerror(code));
     return TSDB_CODE_UDF_UV_EXEC_FAILURE;
   }
 
@@ -1884,7 +1895,7 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
         int32_t err = uv_write(write, (uv_stream_t *)pipe, &uvTask->reqBuf, 1, onUdfcPipeWrite);
         if (err != 0) {
           taosMemoryFree(write);
-          fnError("udfc event loop start req_rsp task uv_write failed. uvtask: %p, code: %s", uvTask, uv_strerror(err));
+          fnError("udfc event loop start req_rsp task uv_write failed. uvtask: %p, code:%s", uvTask, uv_strerror(err));
         }
         code = err;
       }
@@ -2102,6 +2113,16 @@ _exit:
   return code;
 }
 
+static void freeTaskSession(SClientUdfTask *task) {
+  uv_mutex_lock(&gUdfcProxy.udfcUvMutex);
+  if (task->session->udfUvPipe != NULL && task->session->udfUvPipe->data != NULL) {
+    SClientUvConn *conn = task->session->udfUvPipe->data;
+    conn->session = NULL;
+  }
+  uv_mutex_unlock(&gUdfcProxy.udfcUvMutex);
+  taosMemoryFreeClear(task->session);
+}
+
 int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   int32_t         code = TSDB_CODE_SUCCESS, lino = 0;
   SClientUdfTask *task = taosMemoryCalloc(1, sizeof(SClientUdfTask));
@@ -2142,7 +2163,7 @@ _exit:
   if (code != 0) {
     fnError("failed to setup udf. udfname: %s, err: %d line:%d", udfName, code, lino);
   }
-  taosMemoryFree(task->session);
+  freeTaskSession(task);
   taosMemoryFree(task);
   return code;
 }
@@ -2270,8 +2291,8 @@ int32_t doCallUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t 
   int32_t     err = callUdf(handle, callType, &inputBlock, NULL, NULL, &resultBlock, NULL);
   if (err == 0) {
     err = convertDataBlockToScalarParm(&resultBlock, output);
-    taosArrayDestroy(resultBlock.pDataBlock);
   }
+  taosArrayDestroy(resultBlock.pDataBlock);
 
   blockDataFreeRes(&inputBlock);
   return err;
@@ -2307,19 +2328,31 @@ int32_t doTeardownUdf(UdfcFuncHandle handle) {
 
   fnInfo("tear down udf. udf name: %s, udf func handle: %p", session->udfName, handle);
   // TODO: synchronization refactor between libuv event loop and request thread
-  uv_mutex_lock(&gUdfcProxy.udfcUvMutex);
-  if (session->udfUvPipe != NULL && session->udfUvPipe->data != NULL) {
-    SClientUvConn *conn = session->udfUvPipe->data;
-    conn->session = NULL;
-  }
-  uv_mutex_unlock(&gUdfcProxy.udfcUvMutex);
+  // uv_mutex_lock(&gUdfcProxy.udfcUvMutex);
+  // if (session->udfUvPipe != NULL && session->udfUvPipe->data != NULL) {
+  //   SClientUvConn *conn = session->udfUvPipe->data;
+  //   conn->session = NULL;
+  // }
+  // uv_mutex_unlock(&gUdfcProxy.udfcUvMutex);
 
 _exit:
   if (code != 0) {
     fnError("failed to teardown udf. udf name: %s, err: %d, line: %d", session->udfName, code, lino);
   }
-  taosMemoryFree(session);
+  freeTaskSession(task);
   taosMemoryFree(task);
 
   return code;
 }
+#else
+#include "tudf.h"
+
+int32_t cleanUpUdfs() { return 0; }
+int32_t udfcOpen() { return 0; }
+int32_t udfcClose() { return 0; }
+int32_t udfStartUdfd(int32_t startDnodeId) { return 0; }
+void    udfStopUdfd() { return; }
+int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols, SScalarParam *output) {
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+#endif

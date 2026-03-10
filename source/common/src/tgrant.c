@@ -19,6 +19,7 @@
 #ifndef _GRANT
 
 int32_t grantCheck(EGrantType grant) { return TSDB_CODE_SUCCESS; }
+int32_t grantCheckEx(EGrantType grant, void* param) { return TSDB_CODE_SUCCESS; }
 int32_t grantCheckExpire(EGrantType grant) { return TSDB_CODE_SUCCESS; }
 
 #else

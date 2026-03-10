@@ -28,21 +28,44 @@ extern "C" {
 typedef struct SPhysiPlanContext {
   SPlanContext* pPlanCxt;
   int32_t       errCode;
-  int16_t       nextDataBlockId;
+  int64_t       nextDataBlockId;
   SArray*       pLocationHelper;
   SArray*       pProjIdxLocHelper;
-  bool          hasScan;
-  bool          hasSysScan;
 } SPhysiPlanContext;
 
+#define planFatal(param, ...)  qFatal ("plan " param, ##__VA_ARGS__)
+#define planError(param, ...)  qError ("plan " param, ##__VA_ARGS__)
+#define planWarn(param, ...)   qWarn  ("plan " param, ##__VA_ARGS__)
+#define planInfo(param, ...)   qInfo  ("plan " param, ##__VA_ARGS__)
+#define planDebug(param, ...)  qDebug ("plan " param, ##__VA_ARGS__)
+#define planDebugL(param, ...) qDebugL("plan " param, ##__VA_ARGS__)
+#define planTrace(param, ...)  qTrace ("plan " param, ##__VA_ARGS__)
 
-#define planFatal(param, ...)  qFatal("PLAN: " param, ##__VA_ARGS__)
-#define planError(param, ...)  qError("PLAN: " param, ##__VA_ARGS__)
-#define planWarn(param, ...)   qWarn("PLAN: " param, ##__VA_ARGS__)
-#define planInfo(param, ...)   qInfo("PLAN: " param, ##__VA_ARGS__)
-#define planDebug(param, ...)  qDebug("PLAN: " param, ##__VA_ARGS__)
-#define planDebugL(param, ...) qDebugL("PLAN: " param, ##__VA_ARGS__)
-#define planTrace(param, ...)  qTrace("PLAN: " param, ##__VA_ARGS__)
+#define PLAN_ERR_RET(c)                \
+  do {                                 \
+    int32_t _code = c;                 \
+    if (_code != TSDB_CODE_SUCCESS) {  \
+      terrno = _code;                  \
+      return _code;                    \
+    }                                  \
+  } while (0)
+#define PLAN_RET(c)                    \
+  do {                                 \
+    int32_t _code = c;                 \
+    if (_code != TSDB_CODE_SUCCESS) {  \
+      terrno = _code;                  \
+    }                                  \
+    return _code;                      \
+  } while (0)
+#define PLAN_ERR_JRET(c)              \
+  do {                                \
+    code = c;                         \
+    if (code != TSDB_CODE_SUCCESS) {  \
+      terrno = code;                  \
+      goto _return;                   \
+    }                                 \
+  } while (0)
+
 
 int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...);
 int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList);
@@ -83,7 +106,7 @@ int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, S
                                                    bool* pNotOptimize, SNodeList** pSequencingNodes, bool* keepSort);
 bool isColRefExpr(const SColumnNode* pCol, const SExprNode* pExpr);
 void rewriteTargetsWithResId(SNodeList* pTargets);
-
+bool checkScanLogicNode(SLogicNode* pNode);
 
 #ifdef __cplusplus
 }

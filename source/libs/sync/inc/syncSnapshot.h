@@ -26,7 +26,6 @@ extern "C" {
 #define SYNC_SNAPSHOT_SEQ_INVALID      -2
 #define SYNC_SNAPSHOT_SEQ_PREP         -1
 #define SYNC_SNAPSHOT_SEQ_BEGIN        0
-#define SYNC_SNAPSHOT_SEQ_END          0x7FFFFFFF
 
 #define SYNC_SNAPSHOT_RETRY_MS 5000
 
@@ -62,7 +61,7 @@ typedef struct SSyncSnapshotSender {
   SSyncCfg       lastConfig;
   int64_t        sendingMS;
   SyncTerm       term;
-  int64_t        startTime;
+  int64_t        senderStartTime;
   int64_t        lastSendTime;
   bool           finish;
 
@@ -87,7 +86,7 @@ typedef struct SSyncSnapshotReceiver {
   int32_t  ack;
   SyncTerm term;
   SRaftId  fromId;
-  int64_t  startTime;
+  int64_t  receiverStartTime;
 
   // update when begin
   void          *pWriter;

@@ -12,7 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#if 0
 #include "sma.h"
 #include "tsdb.h"
 
@@ -200,3 +200,4 @@ int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer, int8_t roll
 
   return tdRSmaProcessRestoreImpl(pSma, type, committedVer, rollback);
 }
+#endif

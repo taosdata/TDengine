@@ -21,6 +21,7 @@
 #include "tdef.h"
 #include "tlog.h"
 #include "tmsg.h"
+#include "ttrace.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,8 +54,8 @@ typedef struct {
   int64_t  segSize;
   int64_t  committed;
   EWalType level;  // wal level
-  int32_t  encryptAlgorithm;
-  char     encryptKey[ENCRYPT_KEY_LEN + 1];
+  int32_t      encryptAlgr;
+  SEncryptData encryptData;
   int8_t   clearFiles;
 } SWalCfg;
 
@@ -118,6 +119,8 @@ typedef struct SWal {
   TdThreadRwlock mutex;
   // ref
   SHashObj *pRefHash;  // refId -> SWalRef
+  // keep version for preventing auto deletion
+  int64_t keepVersion;
   // path
   char path[WAL_PATH_LEN];
 
@@ -133,15 +136,6 @@ typedef struct {
   SWal   *pWal;
 } SWalRef;
 
-typedef struct {
-  int8_t scanUncommited;
-  int8_t scanNotApplied;
-  int8_t scanMeta;
-  int8_t deleteMsg;
-  int8_t enableRef;
-  int8_t scanDropCtb;
-} SWalFilterCond;
-
 // todo hide this struct
 typedef struct SWalReader {
   SWal     *pWal;
@@ -150,11 +144,8 @@ typedef struct SWalReader {
   TdFilePtr pIdxFile;
   int64_t   curFileFirstVer;
   int64_t   curVersion;
-  int64_t skipToVersion;  // skip data and jump to destination version, usually used by stream resume ignoring untreated
-                          // data
   int64_t        capacity;
   TdThreadMutex  mutex;
-  SWalFilterCond cond;
   SWalCkHead    *pHead;
 } SWalReader;
 
@@ -170,7 +161,8 @@ void    walClose(SWal *);
 
 // write interfaces
 // By assigning index by the caller, wal gurantees linearizability
-int32_t walAppendLog(SWal *, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen);
+int32_t walAppendLog(SWal *, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen,
+                     const STraceId *trace);
 int32_t walFsync(SWal *, bool force);
 
 // apis for lifecycle management
@@ -178,17 +170,17 @@ int32_t walCommit(SWal *, int64_t ver);
 int32_t walRollback(SWal *, int64_t ver);
 // notify that previous logs can be pruned safely
 int32_t walBeginSnapshot(SWal *, int64_t ver, int64_t logRetention);
-int32_t walEndSnapshot(SWal *);
+int32_t walEndSnapshot(SWal *, bool forceTrim);
 int32_t walRestoreFromSnapshot(SWal *, int64_t ver);
 void    walApplyVer(SWal *, int64_t ver);
 
 // wal reader
-SWalReader *walOpenReader(SWal *, SWalFilterCond *pCond, int64_t id);
+SWalReader *walOpenReader(SWal *, int64_t id);
 void        walCloseReader(SWalReader *pRead);
 void        walReadReset(SWalReader *pReader);
 int32_t     walReadVer(SWalReader *pRead, int64_t ver);
 int32_t     walReaderSeekVer(SWalReader *pRead, int64_t ver);
-int32_t     walNextValidMsg(SWalReader *pRead);
+int32_t     walNextValidMsg(SWalReader *pRead, bool scanMeta);
 int64_t     walReaderGetCurrentVer(const SWalReader *pReader);
 int64_t     walReaderGetValidFirstVer(const SWalReader *pReader);
 int64_t     walReaderGetSkipToVersion(SWalReader *pReader);
@@ -203,7 +195,6 @@ int32_t walSkipFetchBody(SWalReader *pRead);
 
 SWalRef *walOpenRef(SWal *);
 void     walCloseRef(SWal *pWal, int64_t refId);
-int32_t  walSetRefVer(SWalRef *, int64_t ver);
 void     walRefFirstVer(SWal *, SWalRef *);
 void     walRefLastVer(SWal *, SWalRef *);
 
@@ -218,6 +209,7 @@ int64_t walGetLastVer(SWal *);
 int64_t walGetVerRetention(SWal *pWal, int64_t bytes);
 int64_t walGetCommittedVer(SWal *);
 int64_t walGetAppliedVer(SWal *);
+int32_t walSetKeepVersion(SWal *pWal, int64_t ver);
 
 #ifdef __cplusplus
 }

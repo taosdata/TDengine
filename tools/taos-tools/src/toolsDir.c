@@ -17,6 +17,7 @@
 #endif
 #include "toolsdef.h"
 
+#include <stdlib.h>
 #define toolsMemoryFree free
 #define toolsMemoryMalloc malloc
 
@@ -93,36 +94,6 @@ typedef struct dirent TdDirEntry;
 
 #endif
 
-int32_t toolsExpandDir(const char *dirname, char *outname, int32_t maxlen) {
-    wordexp_t full_path;
-    switch (wordexp(dirname, &full_path, 0)) {
-        case 0:
-            break;
-        case WRDE_NOSPACE:
-            wordfree(&full_path);
-            // printf("failed to expand path:%s since Out of memory\n", dirname);
-            return -1;
-        case WRDE_BADCHAR:
-            // printf("failed to expand path:%s since illegal occurrence of newline or one of |, &, ;, <, >, (, ), {, }\n",
-            // dirname);
-            return -1;
-        case WRDE_SYNTAX:
-            // printf("failed to expand path:%s since Shell syntax error, such as unbalanced parentheses or unmatched
-            // quotes\n", dirname);
-            return -1;
-        default:
-            // printf("failed to expand path:%s since %s\n", dirname, strerror(errno));
-            return -1;
-    }
-
-    if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {
-        strncpy(outname, full_path.we_wordv[0], maxlen);
-    }
-
-    wordfree(&full_path);
-
-    return 0;
-}
 
 TdDirPtr toolsOpenDir(const char *dirname) {
     if (dirname == NULL) {
@@ -147,7 +118,7 @@ TdDirPtr toolsOpenDir(const char *dirname) {
 #elif defined(DARWIN)
     DIR *pDir = opendir(dirname);
     if (pDir == NULL) return NULL;
-    TdDirPtr dirPtr = (TdDirPtr)taosMemoryMalloc(sizeof(TdDir));
+    TdDirPtr dirPtr = (TdDirPtr)toolsMemoryMalloc(sizeof(TdDir));
     dirPtr->dirEntryPtr = (TdDirEntryPtr) & (dirPtr->dirEntry1);
     dirPtr->pDir = pDir;
     return dirPtr;

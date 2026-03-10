@@ -34,6 +34,7 @@ extern "C" {
 #include "tmsgtype.h"
 #include "trpc.h"
 
+// #include "clientSession.h"
 #include "tconfig.h"
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
@@ -45,6 +46,7 @@ enum {
   RES_TYPE__TMQ_META,
   RES_TYPE__TMQ_METADATA,
   RES_TYPE__TMQ_BATCH_META,
+  RES_TYPE__TMQ_RAWDATA,
 };
 
 #define SHOW_VARIABLES_RESULT_COLS       5
@@ -55,6 +57,7 @@ enum {
 #define SHOW_VARIABLES_RESULT_FIELD5_LEN (TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE)
 
 #define TD_RES_QUERY(res)          (*(int8_t*)(res) == RES_TYPE__QUERY)
+#define TD_RES_TMQ_RAW(res)        (*(int8_t*)(res) == RES_TYPE__TMQ_RAWDATA)
 #define TD_RES_TMQ(res)            (*(int8_t*)(res) == RES_TYPE__TMQ)
 #define TD_RES_TMQ_META(res)       (*(int8_t*)(res) == RES_TYPE__TMQ_META)
 #define TD_RES_TMQ_METADATA(res)   (*(int8_t*)(res) == RES_TYPE__TMQ_METADATA)
@@ -113,20 +116,24 @@ typedef struct SQueryExecMetric {
 typedef struct {
   SMonitorParas monitorParas;
   int8_t        enableAuditDelete;
+  int8_t        enableAuditSelect;
+  int8_t        enableAuditInsert;
+  int8_t        auditLevel;
+  int8_t        enableStrongPass;
 } SAppInstServerCFG;
 struct SAppInstInfo {
   int64_t            numOfConns;
-  SCorEpSet          mgmtEp;
   int32_t            totalDnodes;
   int32_t            onlineDnodes;
-  TdThreadMutex      qnodeMutex;
-  SArray*            pQnodeList;
-  SAppClusterSummary summary;
-  SList*             pConnList;  // STscObj linked list
   int64_t            clusterId;
+  SAppClusterSummary summary;
+  SArray*            pQnodeList;
+  SList*             pConnList;  // STscObj linked list
   void*              pTransporter;
   SAppHbMgr*         pAppHbMgr;
   char*              instKey;
+  TdThreadMutex      qnodeMutex;
+  SCorEpSet          mgmtEp;
   SAppInstServerCFG  serverCfg;
 };
 
@@ -152,18 +159,33 @@ typedef struct {
   int64_t            ver;
   void*              param;
   __taos_notify_fn_t fp;
+} STokenNotifyInfo;
+
+typedef struct {
+  int64_t            ver;
+  void*              param;
+  __taos_notify_fn_t fp;
 } SWhiteListInfo;
 
 typedef struct {
   timezone_t    timezone;
   void         *charsetCxt;
   char          userApp[TSDB_APP_NAME_LEN];
+  char          cInfo[CONNECTOR_INFO_LEN];
   uint32_t      userIp;
+  SIpRange      userDualIp;  // user ip range
 }SOptionInfo;
+
+typedef struct {
+  int64_t startTime;
+  int64_t lastAccessTime;
+} SConnAccessInfo;
 
 typedef struct STscObj {
   char           user[TSDB_USER_LEN];
+  char           tokenName[TSDB_TOKEN_NAME_LEN];
   char           pass[TSDB_PASSWORD_LEN];
+  char           token[TSDB_TOKEN_LEN];
   char           db[TSDB_DB_FNAME_LEN];
   char           sVer[TSDB_VERSION_LEN];
   char           sDetailVer[128];
@@ -174,6 +196,8 @@ typedef struct STscObj {
   int32_t        acctId;
   uint32_t       connId;
   int32_t        appHbMgrIdx;
+  int32_t        tokenExpireTime;
+  int64_t        userId;
   int64_t        id;         // ref ID returned by taosAddRef
   TdThreadMutex  mutex;      // used to protect the operation on db
   int32_t        numOfReqs;  // number of sqlObj bound to this connection
@@ -181,9 +205,14 @@ typedef struct STscObj {
   SAppInstInfo*  pAppInfo;
   SHashObj*      pRequests;
   SPassInfo      passInfo;
-  SWhiteListInfo whiteListInfo;
+  SWhiteListInfo whiteListInfo;          // ip white list info
+  SWhiteListInfo dateTimeWhiteListInfo;  // date time white list info
   STscNotifyInfo userDroppedInfo;
+  STokenNotifyInfo tokenNotifyInfo;
   SOptionInfo    optionInfo;
+
+  SConnAccessInfo sessInfo;
+  void*           pSessMetric;
 } STscObj;
 
 typedef struct STscDbg {
@@ -202,7 +231,7 @@ typedef struct SReqResultInfo {
   SExecResult    execRes;
   const char*    pRspMsg;
   const char*    pData;
-  TAOS_FIELD*    fields;      // todo, column names are not needed.
+  TAOS_FIELD_E*  fields;      // todo, column names are not needed.
   TAOS_FIELD*    userFields;  // the fields info that return to user
   uint32_t       numOfCols;
   int32_t*       length;
@@ -240,7 +269,6 @@ typedef struct {
   char           topic[TSDB_TOPIC_FNAME_LEN];
   char           db[TSDB_DB_FNAME_LEN];
   int32_t        vgId;
-  SSchemaWrapper schema;
   int32_t        resIter;
   SReqResultInfo resInfo;
   union{
@@ -262,8 +290,9 @@ typedef struct SReqRelInfo {
 
 typedef struct SRequestObj {
   int8_t               resType;  // query or tmq
-  uint64_t             requestId;
   int32_t              type;  // request type
+  uint64_t             requestId;
+  SQuery*              pQuery;
   STscObj*             pTscObj;
   char*                pDb;     // current database string
   char*                sqlstr;  // sql string
@@ -286,12 +315,11 @@ typedef struct SRequestObj {
   bool                 inRetry;
   bool                 isSubReq;
   bool                 inCallback;
-  bool                 isStmtBind;  // is statement bind parameter
+  uint8_t              stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
   bool                 isQuery;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
   int64_t              allocatorRefId;
-  SQuery*              pQuery;
   void*                pPostPlan;
   SReqRelInfo          relation;
   void*                pWrapper;
@@ -311,9 +339,9 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
 
 void    doSetOneRowPtr(SReqResultInfo* pResultInfo);
 void    setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
-int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4);
-int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4);
-int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
+int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4, bool isStmt);
+int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4, bool isStmt);
+int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols, const SExtSchema* pExtSchema, bool isStmt);
 void    doFreeReqResultInfo(SReqResultInfo* pResInfo);
 int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq);
 void    syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
@@ -345,8 +373,7 @@ static FORCE_INLINE SReqResultInfo* tscGetCurResInfo(TAOS_RES* res) {
 
 extern SAppInfo appInfo;
 extern int32_t  clientReqRefPool;
-extern int32_t  clientConnRefPool;
-extern int32_t  timestampDeltaLimit;
+extern int32_t   clientConnRefPool;
 extern int64_t  lastClusterId;
 extern SHashObj* pTimezoneMap;
 
@@ -389,7 +416,10 @@ typedef struct AsyncArg {
 bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType);
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 
-int32_t taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
+int32_t taos_connect_internal(const char* ip, const char* user, const char* pass, const char* totp, const char* db,
+                              uint16_t port, int connType, STscObj** pObj);
+                              
+int32_t taos_connect_by_auth(const char* ip, const char* user, const char* auth, const char* totp, const char* db, 
                               uint16_t port, int connType, STscObj** pObj);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);
@@ -416,7 +446,7 @@ void    stopAllRequests(SHashObj* pRequests);
 // SAppInstInfo* getAppInstInfo(const char* clusterKey);
 
 // conn level
-int32_t hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
+int32_t hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, const char* user, const char* tokenName, int64_t clusterId, int8_t connType);
 void    hbDeregisterConn(STscObj* pTscObj, SClientHbKey connKey);
 
 typedef struct SSqlCallbackWrapper {
@@ -448,6 +478,7 @@ void    stopAllQueries(SRequestObj* pRequest);
 void    doRequestCallback(SRequestObj* pRequest, int32_t code);
 void    freeQueryParam(SSyncQueryParam* param);
 
+void    updateConnAccessInfo(SConnAccessInfo* pInfo);
 int32_t tzInit();
 void    tzCleanup();
 

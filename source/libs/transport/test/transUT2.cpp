@@ -322,7 +322,7 @@ TEST_F(TransEnv, 01sendAndRec) {
   //   req.pCont = rpcMallocCont(10);
   //   req.contLen = 10;
   //   tr->cliSendAndRecv(&req, &resp);
-  //   assert(resp.code == 0);
+  //   TD_ALWAYS_ASSERT(resp.code == 0);
   // }
 }
 
@@ -334,7 +334,7 @@ TEST_F(TransEnv, 02StopServer) {
   //   req.pCont = rpcMallocCont(10);
   //   req.contLen = 10;
   //   tr->cliSendAndRecv(&req, &resp);
-  //   assert(resp.code == 0);
+  //   TD_ALWAYS_ASSERT(resp.code == 0);
   // }
   // SRpcMsg req = {0}, resp = {0};
   // req.info.ahandle = (void *)0x35;
@@ -344,7 +344,7 @@ TEST_F(TransEnv, 02StopServer) {
   // tr->StopSrv();
   // // tr->RestartSrv();
   // tr->cliSendAndRecv(&req, &resp);
-  // assert(resp.code != 0);
+  // TD_ALWAYS_ASSERT(resp.code != 0);
 }
 TEST_F(TransEnv, clientUserDefined) {
   // tr->RestartSrv();
@@ -354,7 +354,7 @@ TEST_F(TransEnv, clientUserDefined) {
   //   req.pCont = rpcMallocCont(10);
   //   req.contLen = 10;
   //   tr->cliSendAndRecv(&req, &resp);
-  //   assert(resp.code == 0);
+  //   TD_ALWAYS_ASSERT(resp.code == 0);
   // }
 
   //////////////////
@@ -618,7 +618,7 @@ TEST_F(TransEnv, http) {
 #if 1
     STelemAddrMgmt mgt;
     taosTelemetryMgtInit(&mgt, "telemetry.taosdata.com");
-    int32_t code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, "test", strlen("test"),HTTP_FLAT); 
+    code = taosSendTelemReport(&mgt, tsTelemUri, tsTelemPort, "test", strlen("test"), HTTP_FLAT);
     printf("old addr:%s new addr:%s\n",mgt.defaultAddr, mgt.cachedAddr); 
 
     taosMsleep(2000);

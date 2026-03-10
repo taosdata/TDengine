@@ -22,7 +22,6 @@ try:
         "CREATE TABLE IF NOT EXISTS `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(16))"
     )
 
-    # ANCHOR: stmt
     sql = "INSERT INTO ? USING meters (groupid, location) TAGS(?,?) VALUES (?,?,?,?)"
     stmt = conn.statement()
     stmt.prepare(sql)
@@ -41,7 +40,7 @@ try:
         voltages = []
         phases = []
         for j in range (numOfRow):
-            timestamps.append(current + i)
+            timestamps.append(current + j)
             currents.append(random.random() * 30)
             voltages.append(random.randint(100, 300))
             phases.append(random.random())

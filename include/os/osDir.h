@@ -31,9 +31,7 @@
 extern "C" {
 #endif
 
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
-#endif
 
 #ifdef WINDOWS
 
@@ -61,6 +59,20 @@ extern "C" {
 #define TD_DATA_DIR_PATH "/var/lib/taos/"
 #define TD_LOG_DIR_PATH  "/var/log/taos/"
 #endif  // CUS_PROMPT
+
+#elif defined(TD_ASTRA)
+
+#ifdef CUS_NAME
+#define TD_TMP_DIR_PATH  "C:\\" CUS_NAME "\\Temp\\"
+#define TD_CFG_DIR_PATH  "C:\\" CUS_NAME "\\cfg\\"
+#define TD_DATA_DIR_PATH "C:\\" CUS_NAME "\\data\\"
+#define TD_LOG_DIR_PATH  "C:\\" CUS_NAME "\\log\\"
+#else
+#define TD_TMP_DIR_PATH  "C:\\TDengine\\Temp\\"
+#define TD_CFG_DIR_PATH  "C:\\TDengine\\cfg\\"
+#define TD_DATA_DIR_PATH "C:\\TDengine\\data\\"
+#define TD_LOG_DIR_PATH  "C:\\TDengine\\log\\"
+#endif  // CUS_NAME
 
 #else
 
@@ -100,7 +112,9 @@ bool          taosDirEntryIsDir(TdDirEntryPtr pDirEntry);
 char         *taosGetDirEntryName(TdDirEntryPtr pDirEntry);
 int32_t       taosCloseDir(TdDirPtr *ppDir);
 
-int taosGetDirSize(const char *path, int64_t *size);
+int32_t taosAppPath(char *path, int32_t maxLen);
+int32_t taosGetDirSize(const char *path, int64_t *size);
+
 #ifdef __cplusplus
 }
 #endif

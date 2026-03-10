@@ -29,7 +29,7 @@ void init() {
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
   pWal = walOpen(pWalPath, &walCfg);
-  assert(pWal != NULL);
+  TD_ALWAYS_ASSERT(pWal != NULL);
 
   pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
   memset(pSyncNode, 0, sizeof(SSyncNode));
@@ -44,15 +44,15 @@ void cleanup() {
 
 void logStoreTest() {
   pLogStore = logStoreCreate(pSyncNode);
-  assert(pLogStore);
-  assert(pLogStore->syncLogLastIndex(pLogStore) == SYNC_INDEX_INVALID);
+  TD_ALWAYS_ASSERT(pLogStore);
+  TD_ALWAYS_ASSERT(pLogStore->syncLogLastIndex(pLogStore) == SYNC_INDEX_INVALID);
 
   logStoreLog2((char*)"logStoreTest", pLogStore);
 
   for (int i = 0; i < 5; ++i) {
     int32_t         dataLen = 10;
     SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
-    assert(pEntry != NULL);
+    TD_ALWAYS_ASSERT(pEntry != NULL);
     pEntry->msgType = 1;
     pEntry->originalRpcType = 2;
     pEntry->seqNum = 3;
@@ -66,7 +66,7 @@ void logStoreTest() {
     syncEntryDestory(pEntry);
 
     if (i == 0) {
-      assert(pLogStore->syncLogLastIndex(pLogStore) == SYNC_INDEX_BEGIN);
+      TD_ALWAYS_ASSERT(pLogStore->syncLogLastIndex(pLogStore) == SYNC_INDEX_BEGIN);
     }
   }
   logStoreLog2((char*)"after appendEntry", pLogStore);

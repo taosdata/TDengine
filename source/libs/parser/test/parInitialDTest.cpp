@@ -228,37 +228,6 @@ TEST_F(ParserInitialDTest, dropSTable) {
   run("DROP STABLE st1");
 }
 
-TEST_F(ParserInitialDTest, dropStream) {
-  useDb("root", "test");
-
-  SMDropStreamReq expect = {0};
-
-  auto clearDropStreamReq = [&]() { memset(&expect, 0, sizeof(SMDropStreamReq)); };
-
-  auto setDropStreamReq = [&](const char* pStream, int8_t igNotExists = 0) {
-    sprintf(expect.name, "0.%s", pStream);
-    expect.igNotExists = igNotExists;
-  };
-
-  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_DROP_STREAM_STMT);
-    SMDropStreamReq req = {0};
-    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSMDropStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
-
-    ASSERT_EQ(std::string(req.name), std::string(expect.name));
-    ASSERT_EQ(req.igNotExists, expect.igNotExists);
-    tFreeMDropStreamReq(&req);
-  });
-
-  setDropStreamReq("s1");
-  run("DROP STREAM s1");
-  clearDropStreamReq();
-
-  setDropStreamReq("s2", 1);
-  run("DROP STREAM IF EXISTS s2");
-  clearDropStreamReq();
-}
-
 TEST_F(ParserInitialDTest, dropTable) {
   useDb("root", "test");
 

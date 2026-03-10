@@ -39,6 +39,11 @@ extern "C" {
 struct SMJoinOperatorInfo;
 
 
+typedef enum EPrimExprType {
+  E_PRIM_TIMETRUNCATE = 1,
+  E_PRIM_VALUE
+} EPrimExprType;
+
 
 
 typedef struct SMJoinRowPos {
@@ -84,9 +89,15 @@ typedef struct SMJoinNMatchCtx {
 
 // for now timetruncate only
 typedef struct SMJoinPrimExprCtx {
-  int64_t truncateUnit;
-  int64_t timezoneUnit;
-  int32_t targetSlotId;
+  EPrimExprType type;
+
+  // FOR TIMETRUNCATE
+  int64_t       truncateUnit;
+  int64_t       timezoneUnit;
+  int32_t       targetSlotId;
+
+  // FOR VALUE
+  int64_t       constTs;
 } SMJoinPrimExprCtx;
 
 typedef struct SMJoinTableCtx {
@@ -98,7 +109,7 @@ typedef struct SMJoinTableCtx {
   SNode*             primExpr;
   SMJoinPrimExprCtx  primCtx;
 
-  int32_t            blkId;
+  int64_t            blkId;
   SQueryStat         inputStat;
 
   uint64_t           lastInGid;
@@ -334,6 +345,8 @@ typedef struct SMJoinOperatorInfo {
 #define PROBE_TS_NREACH(_asc, _pts, _bts) (((_asc) && (_pts) > (_bts)) || (!(_asc) && (_pts) < (_bts)))
 #define MJOIN_BUILD_BLK_OOR(_asc, _pts, _pidx, _bts, _bnum) (((_asc) && (*((int64_t*)(_pts) + (_pidx)) > *((int64_t*)(_bts) + (_bnum) - 1))) || ((!(_asc)) && (*((int64_t*)(_pts) + (_pidx)) < *((int64_t*)(_bts) + (_bnum) - 1))))
 
+#define MJOIN_PRIM_EXPR_GOT(_pJoin) ((_pJoin)->probe->primCtx.type > 0 || (_pJoin)->build->primCtx.type > 0)
+
 #define GRP_REMAIN_ROWS(_grp) ((_grp)->endIdx - (_grp)->readIdx + 1)
 #define GRP_DONE(_grp) ((_grp)->readIdx > (_grp)->endIdx)
 
@@ -344,7 +357,7 @@ typedef struct SMJoinOperatorInfo {
 
 #define BLK_IS_FULL(_blk) ((_blk)->info.rows == (_blk)->info.capacity)
 
-#define MJOIN_ROW_BITMAP_SET(_b, _base, _idx) (!colDataIsNull_f((_b + _base), _idx))
+#define MJOIN_ROW_BITMAP_SET(_b, _base, _idx) (!BMIsNull((_b + _base), _idx))
 #define MJOIN_SET_ROW_BITMAP(_b, _base, _idx) colDataClearNull_f((_b + _base), _idx)
 
 #define ASOF_EQ_ROW_INCLUDED(_op) (OP_TYPE_GREATER_EQUAL == (_op) || OP_TYPE_LOWER_EQUAL == (_op) || OP_TYPE_EQUAL == (_op))

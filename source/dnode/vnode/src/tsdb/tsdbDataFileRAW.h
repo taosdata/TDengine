@@ -103,7 +103,7 @@ int32_t tsdbDataFileRAWWriterClose(SDataFileRAWWriter **writer, bool abort, TFil
 
 int32_t tsdbDataFileRAWWriterDoOpen(SDataFileRAWWriter *writer);
 int32_t tsdbDataFileRAWWriteBlockData(SDataFileRAWWriter *writer, const STsdbDataRAWBlockHeader *bHdr,
-                                      int32_t encryptAlgorithm, char *encryptKey);
+                                      SEncryptData *encryptData);
 int32_t tsdbDataFileRAWFlush(SDataFileRAWWriter *writer);
 
 #ifdef __cplusplus

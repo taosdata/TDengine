@@ -33,6 +33,10 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   pSdb->currDir = taosStrdup(path);
   snprintf(path, sizeof(path), "%s%stmp", pOption->path, TD_DIRSEP);
   pSdb->tmpDir = taosStrdup(path);
+
+  // Store mnode directory path for persisting encrypted flag
+  tstrncpy(pSdb->mnodePath, pOption->path, PATH_MAX);
+
   if (pSdb->currDir == NULL || pSdb->tmpDir == NULL) {
     sdbCleanup(pSdb);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -60,6 +64,7 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   pSdb->commitTerm = -1;
   pSdb->commitConfig = -1;
   pSdb->pMnode = pOption->pMnode;
+  pSdb->encrypted = false;
   (void)taosThreadMutexInit(&pSdb->filelock, NULL);
   mInfo("sdb init success");
   return pSdb;
@@ -82,6 +87,8 @@ void sdbCleanup(SSdb *pSdb) {
     taosRemoveDir(pSdb->tmpDir);
     taosMemoryFreeClear(pSdb->tmpDir);
   }
+
+  // mnodePath is now a fixed-size array (char mnodePath[PATH_MAX]), no need to free
 
   for (ESdbType i = 0; i < SDB_MAX; ++i) {
     SHashObj *hash = pSdb->hashObjs[i];
@@ -127,6 +134,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
   pSdb->deployFps[sdbType] = table.deployFp;
   pSdb->encodeFps[sdbType] = table.encodeFp;
   pSdb->decodeFps[sdbType] = table.decodeFp;
+  pSdb->upgradeFps[sdbType] = table.upgradeFp;
   pSdb->afterRestoredFps[sdbType] = table.afterRestoredFp;
   pSdb->validateFps[sdbType] = table.validateFp;
 
@@ -154,13 +162,13 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
 static int32_t sdbCreateDir(SSdb *pSdb) {
   int32_t code = 0;
   if (taosMulMkDir(pSdb->currDir) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     mError("failed to create dir:%s since %s", pSdb->currDir, tstrerror(code));
     TAOS_RETURN(code);
   }
 
   if (taosMkDir(pSdb->tmpDir) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     mError("failed to create dir:%s since %s", pSdb->tmpDir, tstrerror(code));
     TAOS_RETURN(code);
   }

@@ -1,0 +1,1 @@
+{"version":1,"name":"weather_sensors","cols": [{"name":"ts", "type":9},{"name":"ambient_temperature", "type":7},{"name":"module_temperature", "type":7},{"name":"irradiation", "type":7}],"tags": [{"name":"pv_asset", "type":10},{"name":"plant_id", "type":8},{"name":"weather_sensor_id", "type":8}]}

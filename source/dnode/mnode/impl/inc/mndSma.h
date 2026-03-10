@@ -26,11 +26,9 @@ int32_t  mndInitSma(SMnode *pMnode);
 void     mndCleanupSma(SMnode *pMnode);
 SSmaObj *mndAcquireSma(SMnode *pMnode, char *smaName);
 void     mndReleaseSma(SMnode *pMnode, SSmaObj *pSma);
-int32_t  mndDropSmasByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb);
-int32_t  mndDropSmasByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
-int32_t  mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool *exist);
 int32_t  mndValidateTSMAInfo(SMnode *pMnode, STSMAVersion *pTsmaVersions, int32_t numOfTsmas, void **ppRsp,
                              int32_t *pRspLen);
+int32_t  mndDropTSMAsByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 int32_t  mndGetDbTsmas(SMnode *pMnode, const char *dbFName, uint64_t dbUid, STableTSMAInfoRsp *pRsp, bool *exist);
 
 #ifdef __cplusplus

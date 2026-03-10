@@ -3,13 +3,10 @@ aux_source_directory(src AZ_SRC)
 
 add_library(az STATIC ${AZ_SRC})
 
-if(${BUILD_S3})
+if(${BUILD_SHARED_STORAGE})
   add_definitions(-DUSE_S3)
-  target_link_libraries(
-    az
-    PUBLIC _azure_sdk
-    PUBLIC crypt
-  )
+  DEP_ext_azure(az)
+  DEP_ext_libxml2(az)
 endif()
 
 target_include_directories(
@@ -20,16 +17,15 @@ target_include_directories(
 
 target_link_libraries(
   az
-  PUBLIC cjson
   PUBLIC os
   PUBLIC util
   PUBLIC common
 )
 
-if(${BUILD_S3})
-if(${BUILD_TEST})
-  add_subdirectory(test)
-endif(${BUILD_TEST})
+if(${BUILD_SHARED_STORAGE})
+  if(${BUILD_TEST})
+    add_subdirectory(test)
+  endif(${BUILD_TEST})
 endif()
 
 # endif(${TD_LINUX})

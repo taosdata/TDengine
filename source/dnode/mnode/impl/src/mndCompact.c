@@ -20,6 +20,7 @@
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 #include "mndVgroup.h"
 #include "tmisce.h"
 #include "tmsgcb.h"
@@ -64,6 +65,8 @@ int32_t tSerializeSCompactObj(void *buf, int32_t bufLen, const SCompactObj *pObj
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pObj->compactId));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->dbname));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pObj->startTime));
+  TAOS_CHECK_EXIT(tEncodeU32v(&encoder, pObj->flags));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->dbUid));
 
   tEndEncode(&encoder);
 
@@ -87,6 +90,17 @@ int32_t tDeserializeSCompactObj(void *buf, int32_t bufLen, SCompactObj *pObj) {
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pObj->compactId));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->dbname));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pObj->startTime));
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeU32v(&decoder, &pObj->flags));
+  } else {
+    pObj->flags = 0;
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->dbUid));
+  } else {
+    pObj->dbUid = 0;
+  }
 
   tEndDecode(&decoder);
 
@@ -208,7 +222,7 @@ int32_t mndCompactActionInsert(SSdb *pSdb, SCompactObj *pCompact) {
 }
 
 int32_t mndCompactActionDelete(SSdb *pSdb, SCompactObj *pCompact) {
-  mTrace("compact:%" PRId32 ", perform insert action", pCompact->compactId);
+  mTrace("compact:%" PRId32 ", perform delete action", pCompact->compactId);
   tFreeCompactObj(pCompact);
   return 0;
 }
@@ -235,7 +249,7 @@ void mndReleaseCompact(SMnode *pMnode, SCompactObj *pCompact) {
   pCompact = NULL;
 }
 
-int32_t mndCompactGetDbName(SMnode *pMnode, int32_t compactId, char *dbname, int32_t len) {
+static int32_t mndCompactGetDbInfo(SMnode *pMnode, int32_t compactId, char *dbname, int32_t len, int64_t *dbUid) {
   int32_t      code = 0;
   SCompactObj *pCompact = mndAcquireCompact(pMnode, compactId);
   if (pCompact == NULL) {
@@ -245,6 +259,7 @@ int32_t mndCompactGetDbName(SMnode *pMnode, int32_t compactId, char *dbname, int
   }
 
   tstrncpy(dbname, pCompact->dbname, len);
+  if (dbUid) *dbUid = pCompact->dbUid;
   mndReleaseCompact(pMnode, pCompact);
   TAOS_RETURN(code);
 }
@@ -255,6 +270,7 @@ int32_t mndAddCompactToTran(SMnode *pMnode, STrans *pTrans, SCompactObj *pCompac
   pCompact->compactId = tGenIdPI32();
 
   tstrncpy(pCompact->dbname, pDb->name, sizeof(pCompact->dbname));
+  pCompact->dbUid = pDb->uid;
 
   pCompact->startTime = taosGetTimestampMs();
 
@@ -289,6 +305,11 @@ int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, 
   SDbObj      *pDb = NULL;
   int32_t      code = 0;
   int32_t      lino = 0;
+  SUserObj    *pUser = NULL;
+  SDbObj      *pIterDb = NULL;
+  char         objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
+  bool         showAll = false, showIter = false;
+  int64_t      dbUid = 0;
 
   if (strlen(pShow->db) > 0) {
     sep = strchr(pShow->db, '.');
@@ -301,9 +322,13 @@ int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, 
     }
   }
 
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), PRIV_SHOW_COMPACTS, PRIV_OBJ_DB, 0, _OVER);
+
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_COMPACT, pShow->pIter, (void **)&pCompact);
     if (pShow->pIter == NULL) break;
+
+    MND_SHOW_CHECK_DB_PRIVILEGE(pDb, pCompact->dbname, pCompact, RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_COMPACTS, _OVER);
 
     SColumnInfoData *pColInfo;
     SName            n;
@@ -335,9 +360,13 @@ int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, 
   }
 
 _OVER:
-  if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
-  pShow->numOfRows += numOfRows;
+  if (pUser) mndReleaseUser(pMnode, pUser);
   mndReleaseDb(pMnode, pDb);
+  if (code != 0) {
+    mError("failed to retrieve compact at line %d since %s", lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 
@@ -372,6 +401,7 @@ static void *mndBuildKillCompactReq(SMnode *pMnode, SVgObj *pVgroup, int32_t *pC
   int32_t ret = 0;
   if ((ret = tSerializeSVKillCompactReq((char *)pReq + sizeof(SMsgHead), contLen, &req)) < 0) {
     terrno = ret;
+    taosMemoryFreeClear(pReq);
     return NULL;
   }
   *pContLen = contLen;
@@ -500,6 +530,7 @@ int32_t mndProcessKillCompactReq(SRpcMsg *pReq) {
   int32_t         code = 0;
   int32_t         lino = 0;
   SKillCompactReq killCompactReq = {0};
+  int64_t         tss = taosGetTimestampMs();
 
   if ((code = tDeserializeSKillCompactReq(pReq->pCont, pReq->contLen, &killCompactReq)) != 0) {
     TAOS_RETURN(code);
@@ -515,20 +546,26 @@ int32_t mndProcessKillCompactReq(SRpcMsg *pReq) {
     TAOS_RETURN(code);
   }
 
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_COMPACT_DB), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_COMPACT_DB), &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndKillCompact(pMnode, pReq, pCompact), &lino, _OVER);
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char    obj[TSDB_INT32_ID_LEN] = {0};
-  int32_t nBytes = snprintf(obj, sizeof(obj), "%d", pCompact->compactId);
-  if ((uint32_t)nBytes < sizeof(obj)) {
-    auditRecord(pReq, pMnode->clusterId, "killCompact", pCompact->dbname, obj, killCompactReq.sql,
-                killCompactReq.sqlLen);
-  } else {
-    mError("compact:%" PRId32 " failed to audit since %s", pCompact->compactId, tstrerror(TSDB_CODE_OUT_OF_RANGE));
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    char    obj[TSDB_INT32_ID_LEN] = {0};
+    int32_t nBytes = snprintf(obj, sizeof(obj), "%d", pCompact->compactId);
+    if ((uint32_t)nBytes < sizeof(obj)) {
+      int64_t tse = taosGetTimestampMs();
+      double  duration = (double)(tse - tss);
+      duration = duration / 1000;
+      auditRecord(pReq, pMnode->clusterId, "killCompact", pCompact->dbname, obj, killCompactReq.sql,
+                  killCompactReq.sqlLen, duration, 0);
+    } else {
+      mError("compact:%" PRId32 " failed to audit since %s", pCompact->compactId, tstrerror(TSDB_CODE_OUT_OF_RANGE));
+    }
   }
+
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("failed to kill compact %" PRId32 " since %s", killCompactReq.compactId, terrstr());
@@ -692,10 +729,11 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
-  char dbname[TSDB_TABLE_FNAME_LEN] = {0};
-  TAOS_CHECK_RETURN(mndCompactGetDbName(pMnode, compactId, dbname, TSDB_TABLE_FNAME_LEN));
+  char    dbname[TSDB_TABLE_FNAME_LEN] = {0};
+  int64_t dbUid = 0;
+  TAOS_CHECK_RETURN(mndCompactGetDbInfo(pMnode, compactId, dbname, TSDB_TABLE_FNAME_LEN, &dbUid));
 
-  if (!mndDbIsExist(pMnode, dbname)) {
+  if (!mndDbIsExist(pMnode, dbname, dbUid)) {
     needSave = true;
     mWarn("compact:%" PRId32 ", no db exist, set needSave:%s", compactId, dbname);
   }
@@ -787,7 +825,7 @@ static int32_t mndSaveCompactProgress(SMnode *pMnode, int32_t compactId) {
     sdbRelease(pMnode->pSdb, pDetail);
   }
 
-  if (!mndDbIsExist(pMnode, dbname)) {
+  if (!mndDbIsExist(pMnode, dbname, dbUid)) {
     allFinished = true;
     mWarn("compact:%" PRId32 ", no db exist, set all finished:%s", compactId, dbname);
   }
@@ -903,6 +941,7 @@ static int32_t mndCompactDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pD
   if (!tsEnableAudit || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) {
     return 0;
   }
+  int64_t tss = taosGetTimestampMs();
 
   SName   name = {0};
   int32_t sqlLen = 0;
@@ -922,12 +961,19 @@ static int32_t mndCompactDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pD
     sqlLen = tsnprintf(sql, sizeof(sql), "compact db %s start with %" PRIi64 " end with %" PRIi64, pDbName, tw->skey,
                        tw->ekey);
   }
-  auditRecord(NULL, pMnode->clusterId, "autoCompactDB", name.dbname, "", sql, sqlLen);
+
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(NULL, pMnode->clusterId, "autoCompactDB", name.dbname, "", sql, sqlLen, duration, 0);
+  }
 
   return 0;
 }
 
-extern int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds);
+extern int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds,
+                            bool metaOnly, ETsdbOpType type, ETriggerType triggerType);
 static int32_t mndCompactDispatch(SRpcMsg *pReq) {
   int32_t code = 0;
   SMnode *pMnode = pReq->info.node;
@@ -940,6 +986,11 @@ static int32_t mndCompactDispatch(SRpcMsg *pReq) {
   while ((pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb))) {
     if (pDb->cfg.compactInterval <= 0) {
       mDebug("db:%p,%s, compact interval is %dm, skip", pDb, pDb->name, pDb->cfg.compactInterval);
+      sdbRelease(pSdb, pDb);
+      continue;
+    }
+
+    if (pDb->cfg.isMount) {
       sdbRelease(pSdb, pDb);
       continue;
     }
@@ -982,7 +1033,7 @@ static int32_t mndCompactDispatch(SRpcMsg *pReq) {
         .skey = convertTimePrecision(curMs + compactStartTime * 60000LL, TSDB_TIME_PRECISION_MILLI, pDb->cfg.precision),
         .ekey = convertTimePrecision(curMs + compactEndTime * 60000LL, TSDB_TIME_PRECISION_MILLI, pDb->cfg.precision)};
 
-    if ((code = mndCompactDb(pMnode, NULL, pDb, tw, NULL)) == 0) {
+    if ((code = mndCompactDb(pMnode, NULL, pDb, tw, NULL, false, TSDB_OPTR_NORMAL, TSDB_TRIGGER_AUTO)) == 0) {
       mInfo("db:%p,%s, succeed to dispatch compact with range:[%" PRIi64 ",%" PRIi64 "], interval:%dm, start:%" PRIi64
             "m, end:%" PRIi64 "m, offset:%" PRIi8 "h",
             pDb, pDb->name, tw.skey, tw.ekey, pDb->cfg.compactInterval, compactStartTime, compactEndTime,

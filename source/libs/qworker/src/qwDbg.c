@@ -187,12 +187,12 @@ void qwDbgDumpJobsInfo(void) {
   int32_t jobIdx = 0;
   SQWJobInfo* pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, NULL);
   while (NULL != pJob) {
-    qDebug("QID:0x%" PRIx64 " CID:0x%" PRIx64 " the %dth remain job", pJob->memInfo->jobId, pJob->memInfo->clientId, jobIdx++);
+    qDebug("QID:0x%" PRIx64 ", CID:0x%" PRIx64 " the %dth remain job", pJob->memInfo->jobId, pJob->memInfo->clientId, jobIdx++);
 
     int32_t sessionIdx = 0;
     SQWSessionInfo* pSession = (SQWSessionInfo*)taosHashIterate(pJob->pSessions, NULL);
     while (NULL != pSession) {
-      qDebug("QID:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d the %dth remain session", 
+      qDebug("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d the %dth remain session", 
           pSession->qId, pSession->sId, pSession->cId, pSession->tId, pSession->eId, sessionIdx++);
 
       pSession = (SQWSessionInfo*)taosHashIterate(pJob->pSessions, pSession);    
@@ -237,7 +237,7 @@ int32_t qwDbgBuildAndSendRedirectRsp(int32_t rspType, SRpcHandleInfo *pConn, int
 
   tmsgSendRsp(&rpcRsp);
 
-  qDebug("response %s msg, code: %s", TMSG_INFO(rspType), tstrerror(code));
+  qDebug("response %s msg, code:%s", TMSG_INFO(rspType), tstrerror(code));
 
   return TSDB_CODE_SUCCESS;
 }

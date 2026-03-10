@@ -1,0 +1,66 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "num_of_records_per_req": 3000,
+    "thread_count": 2,
+    "confirm_parameter_prompt": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "test",
+                "drop": "yes",
+                "precision": "us",
+                "vgroups": 2
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "child_table_exists": "no",
+                    "childtable_count": 2,
+                    "insert_rows": 1000,
+                    "childtable_prefix": "d",
+                    "insert_mode": "taosc",
+                    "insert_interval": 0,
+                    "timestamp_step": 1000,
+                    "start_timestamp":1700000000000000,
+                    "columns": [
+                        { "type": "bool",        "name": "bc", "encode":"disabled", "compress":"disabled" },
+                        { "type": "float",       "name": "fc", "encode":"delta-d", "compress":"zlib", "level":"medium", "max": 100, "min": 0 },
+                        { "type": "double",      "name": "dc", "encode":"delta-d", "compress":"xz", "level":"low", "max": 100, "min": 0 },
+                        { "type": "tinyint",     "name": "ti", "encode":"simple8b", "compress":"zstd", "level":"high", "max": 100, "min": 0 },
+                        { "type": "smallint",    "name": "si",  "max": 100, "min": 0, "compress":"zlib" },
+                        { "type": "int",         "name": "ic",  "max": 100, "min": 0, "compress":"zstd" },
+                        { "type": "bigint",      "name": "bi",  "max": 100, "min": 0, "encode":"delta-i" },
+                        { "type": "utinyint",    "name": "uti", "max": 100, "min": 0, "level":"high" },
+                        { "type": "usmallint",   "name": "usi", "max": 100, "min": 0, "level":"medium" },
+                        { "type": "uint",        "name": "ui",  "max": 100, "min": 0, "level":"low" },
+                        { "type": "ubigint",     "name": "ubi", "max": 100, "min": 0, "compress":"xz", "level":"medium" },
+                        { "type": "binary",      "name": "bin", "len": 4, "compress":"zstd"},
+                        { "type": "nchar",       "name": "nch", "len": 8, "compress":"xz"},
+                        { "type": "decimal", "name": "dec64", "precision": 10, "scale": 6, "dec_max": "1234.456789", "dec_min": "-4321.987654"},
+                        { "type": "decimal", "name": "dec128", "precision": 20, "scale": 8, "dec_max": "1234.56", "dec_min": "-999999999999.99999999"}
+                    ],
+                    "tags": [
+                        { "type": "bool",        "name": "tbc"},
+                        { "type": "float",       "name": "tfc",  "max": 1, "min": 0 },
+                        { "type": "double",      "name": "tdc",  "max": 10, "min": 0 },
+                        { "type": "tinyint",     "name": "tti",  "max": 100, "min": -100 },
+                        { "type": "smallint",    "name": "tsi",  "max": 100, "min": -50 },
+                        { "type": "int",         "name": "tic",  "max": 1000, "min": -1000 },
+                        { "type": "bigint",      "name": "tbi",  "max": 100, "min": -1000 },
+                        { "type": "utinyint",    "name": "tuti", "max": 100, "min": 0 },
+                        { "type": "usmallint",   "name": "tusi", "max": 100, "min": 0 },
+                        { "type": "uint",        "name": "tui",  "max": 1000, "min": 0 },
+                        { "type": "ubigint",     "name": "tubi", "max": 10000, "min": 0 },
+                        { "type": "binary",      "name": "tbin", "len": 4},
+                        { "type": "nchar",       "name": "tnch", "len": 8}
+                    ]
+                }
+            ]
+        }
+    ]
+}

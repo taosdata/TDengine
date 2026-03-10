@@ -12,37 +12,27 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
 #define _DEFAULT_SOURCE
+
 #include "dmMgmt.h"
+#include "dmUtil.h"
 #include "mnode.h"
+#include "osEnv.h"
 #include "osFile.h"
+#include "qworker.h"
 #include "tconfig.h"
-#include "tglobal.h"
-#include "version.h"
 #include "tconv.h"
+#include "tglobal.h"
+#include "tss.h"
+#include "version.h"
+
 #ifdef TD_JEMALLOC_ENABLED
+#define ALLOW_FORBID_FUNC
 #include "jemalloc/jemalloc.h"
 #endif
-#include "dmUtil.h"
-#include "tcs.h"
-#include "qworker.h"
 
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
-#else
-#ifndef CUS_NAME
-#define CUS_NAME "TDengine"
-#endif
 
-#ifndef CUS_PROMPT
-#define CUS_PROMPT "taos"
-#endif
-
-#ifndef CUS_EMAIL
-#define CUS_EMAIL "<support@taosdata.com>"
-#endif
-#endif
 // clang-format off
 #define DM_APOLLO_URL    "The apollo string to use when configuring the server, such as: -a 'jsonFile:./tests/cfg.json', cfg.json text can be '{\"fqdn\":\"td1\"}'."
 #define DM_CFG_DIR       "Configuration directory."
@@ -65,9 +55,15 @@ static struct {
   bool         dumpConfig;
   bool         dumpSdb;
   bool         deleteTrans;
+  bool         modifySdb;
+  char         sdbJsonFile[PATH_MAX];
   bool         generateGrant;
   bool         memDbg;
-  bool         checkS3;
+
+#ifdef USE_SHARED_STORAGE
+  bool         checkSs;
+#endif
+
   bool         printAuth;
   bool         printVersion;
   bool         printHelp;
@@ -80,12 +76,14 @@ static struct {
   char         encryptKey[ENCRYPT_KEY_LEN + 1];
 } global = {0};
 
+extern int32_t cryptLoadProviders();
 static void dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { (void)taosSetGlobalDebugFlag(143); }
 static void dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert = 1; }
 
 static void dmStopDnode(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGUSR1);
   // taosIgnSignal(SIGUSR2);
+#ifndef TD_ASTRA
   if (taosIgnSignal(SIGTERM) != 0) {
     dWarn("failed to ignore signal SIGTERM");
   }
@@ -101,15 +99,19 @@ static void dmStopDnode(int signum, void *sigInfo, void *context) {
   if (taosIgnSignal(SIGBREAK) != 0) {
     dWarn("failed to ignore signal SIGBREAK");
   }
-
+#endif
   dInfo("shut down signal is %d", signum);
-#ifndef WINDOWS
-  dInfo("sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
+  if (sigInfo != NULL) {
+    dInfo("sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
         taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
+  }
 #endif
 
   dmStop();
 }
+
+void dmStopDaemon() { dmStopDnode(SIGTERM, NULL, NULL); }
 
 void dmLogCrash(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGTERM);
@@ -131,8 +133,9 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
   if (taosIgnSignal(SIGSEGV) != 0) {
     dWarn("failed to ignore signal SIGABRT");
   }
+#ifdef USE_REPORT
   writeCrashLogToFile(signum, sigInfo, CUS_PROMPT "d", dmGetClusterId(), global.startTime);
-
+#endif
 #ifdef _TD_DARWIN_64
   exit(signum);
 #elif defined(WINDOWS)
@@ -221,6 +224,19 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       global.dumpSdb = true;
     } else if (strcmp(argv[i], "-dTxn") == 0) {
       global.deleteTrans = true;
+    } else if (strcmp(argv[i], "-mSdb") == 0) {
+      global.modifySdb = true;
+      if (i < argc - 1) {
+        i++;
+        if (strlen(argv[i]) >= PATH_MAX) {
+          printf("sdb.json file path is too long\n");
+          return TSDB_CODE_INVALID_CFG;
+        }
+        tstrncpy(global.sdbJsonFile, argv[i], PATH_MAX);
+      } else {
+        printf("'-mSdb' requires sdb.json file path\n");
+        return TSDB_CODE_INVALID_CFG;
+      }
     } else if (strcmp(argv[i], "-r") == 0) {
       generateNewMeta = true;
     } else if (strcmp(argv[i], "-E") == 0) {
@@ -281,7 +297,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-C") == 0) {
       global.dumpConfig = true;
-    } else if (strcmp(argv[i], "-V") == 0) {
+    } else if (strcmp(argv[i], "-V") == 0 || strcmp(argv[i], "--version") == 0) {
       global.printVersion = true;
 #ifdef WINDOWS
     } else if (strcmp(argv[i], "--win_service") == 0) {
@@ -292,12 +308,17 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       cmdEnvIndex++;
     } else if (strcmp(argv[i], "-dm") == 0) {
       global.memDbg = true;
-    } else if (strcmp(argv[i], "--checks3") == 0) {
-      global.checkS3 = true;
+#ifdef USE_SHARED_STORAGE
+    } else if (strcmp(argv[i], "--checkss") == 0) {
+      global.checkSs = true;
+#endif
     } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0 ||
                strcmp(argv[i], "-?") == 0) {
       global.printHelp = true;
     } else {
+      printf("taosd: invalid option: %s\n", argv[i]);
+      printf("Try `taosd --help' or `taosd --usage' for more information.\n");
+      return TSDB_CODE_INVALID_CFG;
     }
   }
 
@@ -308,10 +329,12 @@ static void dmPrintArgs(int32_t argc, char const *argv[]) {
   char path[1024] = {0};
   taosGetCwd(path, sizeof(path));
 
-  char    args[1024] = {0};
-  int32_t arglen = tsnprintf(args, sizeof(args), "%s", argv[0]);
-  for (int32_t i = 1; i < argc; ++i) {
-    arglen = arglen + tsnprintf(args + arglen, sizeof(args) - arglen, " %s", argv[i]);
+  char args[1024] = {0};
+  if (argc > 0) {
+    int32_t arglen = tsnprintf(args, sizeof(args), "%s", argv[0]);
+    for (int32_t i = 1; i < argc; ++i) {
+      arglen = arglen + tsnprintf(args + arglen, sizeof(args) - arglen, " %s", argv[i]);
+    }
   }
 
   dInfo("startup path:%s args:%s", path, args);
@@ -354,16 +377,49 @@ static void dmDumpCfg() {
   cfgDumpCfg(pCfg, 0, true);
 }
 
-static int32_t dmCheckS3() {
-  int32_t  code = 0;
-  SConfig *pCfg = taosGetCfg();
-  cfgDumpCfgS3(pCfg, 0, true);
 
-#if defined(USE_S3)
-  code = tcsCheckCfg();
-#endif
+#ifdef USE_SHARED_STORAGE
+static int32_t dmCheckSs() {
+  int32_t  code = 0;
+  (void)printf("\n");
+  
+  if (!tsSsEnabled) {
+    printf("shared storage is disabled (ssEnabled is 0), please enable it and try again.\n");
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+
+  code = tssInit();
+  if (code != 0) {
+    printf("failed to initialize shared storage, error code=%d.\n", code);
+    return code;
+  }
+
+  code = tssCreateDefaultInstance();
+  if (code != 0) {
+    printf("failed to create default shared storage instance, error code=%d.\n", code);
+    (void)tssUninit();
+    return code;
+  }
+
+  (void)printf("shared storage configuration\n");
+  (void)printf("=================================================================\n");
+  tssPrintDefaultConfig();
+  (void)printf("=================================================================\n");
+  code = tssCheckDefaultInstance(0);
+  (void)printf("=================================================================\n");
+
+  if (code == TSDB_CODE_SUCCESS){
+    printf("shared storage configuration check finished successfully.\n");
+  } else {
+    printf("shared storage configuration check finished with error.\n");
+  }
+
+  (void)tssCloseDefaultInstance();
+  (void)tssUninit();
+
   return code;
 }
+#endif
 
 static int32_t dmInitLog() {
   const char *logName = CUS_PROMPT "dlog";
@@ -377,7 +433,11 @@ static void taosCleanupArgs() {
   if (global.envCmd != NULL) taosMemoryFreeClear(global.envCmd);
 }
 
+#ifdef TAOSD_INTEGRATED
+int dmStartDaemon(int argc, char const *argv[]) {
+#else
 int main(int argc, char const *argv[]) {
+#endif
   int32_t code = 0;
 #ifdef TD_JEMALLOC_ENABLED
   bool jeBackgroundThread = true;
@@ -465,14 +525,34 @@ int mainWindows(int argc, char **argv) {
   }
 
   dmPrintArgs(argc, argv);
-
-  if ((code = taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0)) != 0) {
-    dError("failed to start since read config error");
+  if ((code = taosPreLoadCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0)) != 0) {
+    dError("failed to start since pre load config error");
     taosCloseLog();
     taosCleanupArgs();
     return code;
   }
-  
+
+  if ((code = dmGetEncryptKey()) != 0) {
+    dError("failed to start since failed to get encrypt key");
+    taosCloseLog();
+    taosCleanupArgs();
+    return code;
+  };
+
+  if ((code = tryLoadCfgFromDataDir(tsCfg)) != 0) {
+    dError("failed to start since try load config from data dir error");
+    taosCloseLog();
+    taosCleanupArgs();
+    return code;
+  }
+
+  if ((code = taosApplyCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0)) != 0) {
+    dError("failed to start since apply config error");
+    taosCloseLog();
+    taosCleanupArgs();
+    return code;
+  }
+
   if ((code = taosMemoryPoolInit(qWorkerRetireJobs, qWorkerRetireJob)) != 0) {
     dError("failed to init memPool, error:0x%x", code);
     taosCloseLog();
@@ -480,21 +560,25 @@ int mainWindows(int argc, char **argv) {
     return code;
   }
 
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL) {
     dError("failed to init conv");
     taosCloseLog();
     taosCleanupArgs();
     return code;
   }
+#endif
 
-  if (global.checkS3) {
-    code = dmCheckS3();
+#ifdef USE_SHARED_STORAGE
+  if (global.checkSs) {
+    code = dmCheckSs();
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();
     taosConvDestroy();
     return code;
   }
+#endif
 
   if (global.dumpConfig) {
     dmDumpCfg();
@@ -507,6 +591,7 @@ int mainWindows(int argc, char **argv) {
 
   if (global.dumpSdb) {
     int32_t code = 0;
+    tsSkipKeyCheckMode = true;  // Set global flag to skip key check mode
     TAOS_CHECK_RETURN(mndDumpSdb());
     taosCleanupCfg();
     taosCloseLog();
@@ -532,19 +617,39 @@ int mainWindows(int argc, char **argv) {
     return 0;
   }
 
+  if (global.modifySdb) {
+    int32_t   code = 0;
+    TdFilePtr pFile;
+    if ((code = dmCheckRunning(tsDataDir, &pFile)) != 0) {
+      printf("failed to modify sdb since taosd is running, please stop it first, reason:%s", tstrerror(code));
+      return code;
+    }
+
+    TAOS_CHECK_RETURN(mndModifySdb(global.sdbJsonFile));
+    taosCleanupCfg();
+    taosCloseLog();
+    taosCleanupArgs();
+    taosConvDestroy();
+    return 0;
+  }
+
   osSetProcPath(argc, (char **)argv);
   taosCleanupArgs();
 
-  if ((code = dmGetEncryptKey()) != 0) {
-    dError("failed to start since failed to get encrypt key");
-    taosCloseLog();
-    taosCleanupArgs();
-    return code;
-  };
+  if (tsEncryptExtDir[0] != '\0') {
+#if defined(TD_ENTERPRISE) && defined(LINUX)
+    if ((code = cryptLoadProviders()) != 0) {
+      dError("failed to load encrypt providers since %s", tstrerror(code));
+      taosCloseLog();
+      taosCleanupArgs();
+      return code;
+    }
+#endif
+  }
 
   if ((code = dmInit()) != 0) {
     if (code == TSDB_CODE_NOT_FOUND) {
-      dError("failed to init dnode since unsupported platform, please visit https://www.taosdata.com for support");
+      dError("Initialization of dnode failed because your current operating system is not supported. For more information and supported platforms, please visit https://docs.taosdata.com/reference/supported/.");
     } else {
       dError("failed to init dnode since %s", tstrerror(code));
     }
@@ -557,8 +662,6 @@ int mainWindows(int argc, char **argv) {
 
   dInfo("start to init service");
   dmSetSignalHandle();
-  tsDndStart = taosGetTimestampMs();
-  tsDndStartOsUptime = taosGetOsUptime();
 
   code = dmRun();
   dInfo("shutting down the service");

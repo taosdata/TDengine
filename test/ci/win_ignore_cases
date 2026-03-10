@@ -1,0 +1,29 @@
+# udf not supported in Windows CI
+cases/12-UDFs/test_udf_test.py
+cases/12-UDFs/test_udf_create.py
+cases/12-UDFs/test_udf_restart_taosd.py
+cases/12-UDFs/test_udf_cfg1.py
+cases/12-UDFs/test_udf_cfg2.py
+cases/uncatalog/system-test/0-others/test_udfpy_main.py
+cases/uncatalog/system-test/7-tmq/test_tmqUdf.py
+cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
+cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
+# MQTT bnode not supported in Windows CI
+cases/17-DataSubscription/03-MQTT/test_mqtt_smoking.py
+cases/17-DataSubscription/03-MQTT/test_mqtt_bnodes.py
+cases/17-DataSubscription/03-MQTT/test_mqtt_qos.py
+cases/17-DataSubscription/03-MQTT/test_mqtt_special.py
+cases/17-DataSubscription/03-MQTT/test_mqtt_rb.py
+
+# Unit Test
+82-UnitTest/test.sh
+
+#docs Test
+83-DocTest/c.sh
+83-DocTest/python.sh
+83-DocTest/node.sh
+83-DocTest/csharp.sh
+83-DocTest/jdbc.sh
+83-DocTest/rust.sh
+83-DocTest/go.sh
+83-DocTest/test_R.sh

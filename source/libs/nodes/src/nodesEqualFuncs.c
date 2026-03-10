@@ -13,7 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "functionMgt.h"
 #include "querynodes.h"
+
+static bool nodeListNodeEqual(const SNodeListNode* a, const SNodeListNode* b);
 
 #define COMPARE_SCALAR_FIELD(fldname)           \
   do {                                          \
@@ -26,7 +29,10 @@
   (((a) != NULL && (b) != NULL)                                                                                 \
        ? (varDataLen((a)) == varDataLen((b)) && memcmp(varDataVal((a)), varDataVal((b)), varDataLen((a))) == 0) \
        : (a) == (b))
-
+#define COMPARE_BLOBDATA(a, b)                                                                                       \
+  (((a) != NULL && (b) != NULL)                                                                                      \
+       ? (blobDataLen((a)) == blobDataLen((b)) && memcmp(blobDataVal((a)), blobDataVal((b)), blobDataLen((a))) == 0) \
+       : (a) == (b))
 #define COMPARE_STRING_FIELD(fldname)                          \
   do {                                                         \
     if (!COMPARE_STRING(a->fldname, b->fldname)) return false; \
@@ -35,6 +41,11 @@
 #define COMPARE_VARDATA_FIELD(fldname)                          \
   do {                                                          \
     if (!COMPARE_VARDATA(a->fldname, b->fldname)) return false; \
+  } while (0)
+
+#define COMPARE_BLOBDATA_FIELD(fldname)                          \
+  do {                                                           \
+    if (!COMPARE_BLOBDATA(a->fldname, b->fldname)) return false; \
   } while (0)
 
 #define COMPARE_OBJECT_FIELD(fldname, equalFunc)          \
@@ -111,9 +122,11 @@ static bool valueNodeEqual(const SValueNode* a, const SValueNode* b) {
       COMPARE_VARDATA_FIELD(datum.p);
       break;
     case TSDB_DATA_TYPE_JSON:
-    case TSDB_DATA_TYPE_DECIMAL:
-    case TSDB_DATA_TYPE_BLOB:
       return false;
+    case TSDB_DATA_TYPE_DECIMAL:
+      return false;
+    case TSDB_DATA_TYPE_BLOB:
+      COMPARE_BLOBDATA_FIELD(datum.p);
     default:
       break;
   }
@@ -122,6 +135,7 @@ static bool valueNodeEqual(const SValueNode* a, const SValueNode* b) {
 
 static bool operatorNodeEqual(const SOperatorNode* a, const SOperatorNode* b) {
   COMPARE_SCALAR_FIELD(opType);
+  COMPARE_SCALAR_FIELD(flag);
   COMPARE_NODE_FIELD(pLeft);
   COMPARE_NODE_FIELD(pRight);
   return true;
@@ -137,6 +151,15 @@ static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
   COMPARE_SCALAR_FIELD(funcId);
   COMPARE_STRING_FIELD(functionName);
   COMPARE_NODE_LIST_FIELD(pParameterList);
+  if (a->funcType == FUNCTION_TYPE_SELECT_VALUE) {
+    if ((a->node.relatedTo != b->node.relatedTo)) return false;
+  } else {
+    // select cols(cols(first(c0), ts),  first(c0) from meters;
+    if ((a->node.bindExprID != b->node.bindExprID)) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -158,6 +181,39 @@ static bool groupingSetNodeEqual(const SGroupingSetNode* a, const SGroupingSetNo
   COMPARE_NODE_LIST_FIELD(pParameterList);
   return true;
 }
+
+static bool remoteValueNodeEqual(const SRemoteValueNode* a, const SRemoteValueNode* b) {
+  COMPARE_SCALAR_FIELD(subQIdx);
+  return valueNodeEqual(&a->val, &b->val);
+}
+
+static bool remoteValueNodeListEqual(const SRemoteValueListNode* a, const SRemoteValueListNode* b) {
+  COMPARE_OBJECT_FIELD(node.resType, dataTypeEqual);
+  COMPARE_SCALAR_FIELD(subQIdx);
+  return true;
+}
+
+static bool remoteRowNodeEqual(const SRemoteRowNode* a, const SRemoteRowNode* b) {
+  COMPARE_SCALAR_FIELD(valSet);
+  COMPARE_SCALAR_FIELD(hasValue);
+  COMPARE_SCALAR_FIELD(hasNull);
+  COMPARE_SCALAR_FIELD(subQIdx);
+  return valueNodeEqual(&a->val, &b->val);
+}
+
+static bool remoteZeroRowsNodeEqual(const SRemoteZeroRowsNode* a, const SRemoteZeroRowsNode* b) {
+  return remoteValueNodeEqual((const SRemoteValueNode*)a, (const SRemoteValueNode*)b);
+}
+
+static bool nodeListNodeEqual(const SNodeListNode* a, const SNodeListNode* b) {
+  if (LIST_LENGTH(a->pNodeList) != LIST_LENGTH(b->pNodeList)) {
+    return false;
+  }
+
+  COMPARE_NODE_LIST_FIELD(pNodeList);
+  return true;
+}
+
 
 bool nodesEqualNode(const SNode* a, const SNode* b) {
   if (a == b) {
@@ -189,33 +245,26 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
       return caseWhenNodeEqual((const SCaseWhenNode*)a, (const SCaseWhenNode*)b);
     case QUERY_NODE_GROUPING_SET:
       return groupingSetNodeEqual((const SGroupingSetNode*)a, (const SGroupingSetNode*)b);
+    case QUERY_NODE_NODE_LIST:
+      return nodeListNodeEqual((const SNodeListNode*)a, (const SNodeListNode*)b);
     case QUERY_NODE_REAL_TABLE:
+    case QUERY_NODE_VIRTUAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
     case QUERY_NODE_JOIN_TABLE:
     case QUERY_NODE_ORDER_BY_EXPR:
     case QUERY_NODE_LIMIT:
       return false;
+    case QUERY_NODE_REMOTE_VALUE:
+      return remoteValueNodeEqual((const SRemoteValueNode*)a, (const SRemoteValueNode*)b);
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      return remoteValueNodeListEqual((const SRemoteValueListNode*)a, (const SRemoteValueListNode*)b);
+    case QUERY_NODE_REMOTE_ROW:
+      return remoteRowNodeEqual((const SRemoteRowNode*)a, (const SRemoteRowNode*)b);
+    case QUERY_NODE_REMOTE_ZERO_ROWS:
+      return remoteZeroRowsNodeEqual((const SRemoteZeroRowsNode*)a, (const SRemoteZeroRowsNode*)b);
     default:
       break;
   }
 
-  return false;
-}
-
- bool nodeListNodeEqual(const SNodeList* a, const SNode* b) {
-  if (NULL == a || NULL == b) {
-    return false;
-  }
-
-  if (LIST_LENGTH(a) < 1) {
-    return false;
-  }
-
-  SNode *na;
-  FOREACH(na, a) {
-    if (nodesEqualNode(na, b)) {
-      return true;
-    }
-  }
   return false;
 }

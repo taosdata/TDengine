@@ -76,8 +76,36 @@ const char *sdbTableName(ESdbType type) {
       return "arb_group";
     case SDB_ANODE:
       return "anode";
+    case SDB_BNODE:
+      return "bnode";
+    case SDB_XNODE:
+      return "xnode";
     case SDB_CFG:
       return "config";
+    case SDB_MOUNT:
+      return "mount";
+    case SDB_MOUNT_LOG:
+      return "mount_log";
+    case SDB_SSMIGRATE:
+      return "ssmigrate";
+    case SDB_SCAN:
+      return "scan";
+    case SDB_SCAN_DETAIL:
+      return "scan_detail";
+    case SDB_RSMA:
+      return "rsma";
+    case SDB_RETENTION:
+      return "retention";
+    case SDB_RETENTION_DETAIL:
+      return "retention_detail";
+    case SDB_INSTANCE:
+      return "instance";
+    case SDB_ENCRYPT_ALGORITHMS:
+      return "encrypt_algr";
+    case SDB_TOKEN:
+      return "token";
+    case SDB_ROLE:
+      return "role";
     default:
       return "undefine";
   }
@@ -382,6 +410,9 @@ void sdbReleaseLock(SSdb *pSdb, void *pObj, bool lock) {
   if (ref <= 0 && pRow->status == SDB_STATUS_DROPPED) {
     sdbFreeRow(pSdb, pRow, true);
   }
+  if (ref < 0) {
+    mError("row:%p, ref:%d, type:%s", pRow, ref, sdbTableName(type));
+  }
 
   if (lock) {
     sdbUnLock(pSdb, type);
@@ -406,7 +437,8 @@ void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj) {
       continue;
     }
 
-    (void)atomic_add_fetch_32(&pRow->refCount, 1);
+    (void) atomic_add_fetch_32(&pRow->refCount, 1);
+
     sdbPrintOper(pSdb, pRow, "fetch");
     *ppObj = pRow->pObj;
     break;
@@ -547,3 +579,18 @@ int32_t sdbGetValidSize(SSdb *pSdb, ESdbType type) {
   sdbTraverse(pSdb, type, countValid, &num, 0, 0);
   return num;
 }
+
+
+bool sdbCheckExists(SSdb *pSdb, ESdbType type, const void *pKey) {
+  SHashObj *hash = sdbGetHash(pSdb, type);
+  if (hash == NULL) return false;
+  int32_t keySize = sdbGetkeySize(pSdb, type, pKey);
+
+  sdbReadLock(pSdb, type);
+  void* p = taosHashGet(hash, pKey, keySize);
+  sdbUnLock(pSdb, type);
+
+  return (NULL != p);
+}
+
+

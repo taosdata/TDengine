@@ -74,11 +74,78 @@ typedef struct SStbJoinDynCtrlInfo {
   SDataBlockDescNode*   pOutputDataBlockDesc;
 } SStbJoinDynCtrlInfo;
 
+typedef struct {
+  char*    colName;
+  char*    colrefName;
+  tb_uid_t uid;
+  col_id_t colId;
+  int32_t  vgId;
+  int32_t  rversion;
+} SColRefInfo;
+
+typedef struct SVtbScanDynCtrlInfo {
+  bool             batchProcessChild;
+  bool             scanAllCols;
+  bool             isSuperTable;
+  bool             needRedeploy;
+  bool             hasPartition;
+  bool             genNewParam;
+  char*            dbName;
+  char*            tbName;
+  tsem_t           ready;
+  SEpSet           epSet;
+  SUseDbRsp*       pRsp;
+  uint64_t         suid;
+  uint64_t         uid;
+  uint64_t         dynTbUid;
+  int32_t          rversion;
+  int32_t          acctId;
+  int32_t          curTableIdx;
+  int32_t          lastTableIdx;
+  STimeWindow      window;
+  SArray*          readColList;
+  SHashObj*        readColSet; // key: col_id_t, value: NULL
+  SArray*          refColGroups; // Array of <SRefColIdGroup> (slotId groups)
+  SArray*          childTableList; // Array of <Array<SColRefInfo>> used for virtual super table
+  SArray*          colRefInfo; // Array of <SColRefInfo> used for single virtual normal/child table
+  SHashObj*        newAddedVgInfo;
+  SHashObj*        childTableMap;
+  SHashObj*        dbVgInfoMap;
+  SHashObj*        existOrgTbVg; // key: vgId, value: NULL
+  SHashObj*        curOrgTbVg; // key: vgId, value: NULL
+  SMsgCb*          pMsgCb;
+  SHashObj*        otbNameToOtbInfoMap; // key: orgTbFName, value: SOrgTbInfo
+  SHashObj*        otbVgIdToOtbInfoArrayMap; // key: vgId, value: SArray<SOrgTbInfo>
+  SHashObj*        vtbUidToVgIdMapMap; // key: vtbUid, value: SHashObj <key: vgId, value: SArray<SOrgTbInfo>>
+  SHashObj*        vtbGroupIdToVgIdMapMap; // key: vtbGroupId, value: SHashObj <key: vgId, value: SArray<SOrgTbInfo>>
+  SHashObj*        vtbUidTagListMap; // key: vtbUid, value: SArray<STagValue>
+  SHashObj*        vtbGroupIdTagListMap; // key: vtbGroupId, value: SHashObj <key: vtbUid, value: SArray<STagValue>>
+  SHashObj*        vtbUidToGroupIdMap; // key: vtbUid, value: vtbGroupId
+  SOperatorParam*  vtbScanParam;
+} SVtbScanDynCtrlInfo;
+
+typedef struct SVtbWindowDynCtrlInfo {
+  EWindowType              winType;
+  int32_t                  wstartSlotId;
+  int32_t                  wendSlotId;
+  int32_t                  wdurationSlotId;
+  int32_t                  outputWstartSlotId;
+  int32_t                  outputWendSlotId;
+  int32_t                  outputWdurationSlotId;
+  bool                     isVstb;
+  SNodeList*               pTargets;
+  SArray*                  pWins;        // SArray<SArray<SExtWinTimeWindow>>
+  int32_t                  curWinBatchIdx;
+  SSDataBlock*             pRes;
+  EStateWinExtendOption    extendOption;
+} SVtbWindowDynCtrlInfo;
+
+
 typedef struct SDynQueryCtrlOperatorInfo {
   EDynQueryType         qType;
-  union {
-    SStbJoinDynCtrlInfo stbJoin;
-  };
+  SStbJoinDynCtrlInfo   stbJoin;
+  SVtbScanDynCtrlInfo   vtbScan;
+  SVtbWindowDynCtrlInfo vtbWindow;
 } SDynQueryCtrlOperatorInfo;
 
 #ifdef __cplusplus

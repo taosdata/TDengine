@@ -5,11 +5,28 @@ slug: /operations-and-maintenance/manage-users-and-permissions
 
 TDengine is configured by default with only one root user, who has the highest permissions. TDengine supports access control for system resources, databases, tables, views, and topics. The root user can set different access permissions for each user for different resources. This section introduces user and permission management in TDengine. User and permission management is a feature unique to TDengine Enterprise.
 
+Starting from 3.4.0.0, TDengine Enterprise Edition implements a strict separation of three powers mechanism through role-based access control (RBAC). Some syntax is no longer compatible with previous versions.
+
+## Version Comparison
+
+| Feature | 3.3.x.y- | 3.4.0.0+ |
+|---------|---------|----------|
+| Basic User Management | ✓ | ✓ |
+| RBAC Role Management | ✗ | ✓ |
+| Separation of Three Powers (SYSDBA/SYSSEC/SYSAUDIT) | ✗ | ✓ |
+| Fine-grained Permissions | ✗ | ✓ |
+| Audit Database Permissions | ✗ | ✓ |
+| Table Permissions | ✓ | ✓ |
+| Row Permissions | ✗ | ✓ |
+| Column Permissions | ✗ | ✓ |
+
+---
+
 ## User Management
 
 ### Creating Users
 
-Only the root user can perform the operation of creating users, with the syntax as follows.
+Creating a user with the following syntax:
 
 ```sql
 create user user_name pass'password' [sysinfo {1|0}] [createdb {1|0}]
@@ -18,7 +35,12 @@ create user user_name pass'password' [sysinfo {1|0}] [createdb {1|0}]
 The parameters are explained as follows.
 
 - user_name: Up to 23 B long.
-- password: The password must be between 8 and 16 characters long and include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters. Special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`.
+- password: The password must be between 8 and 255 characters long. The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`, and this requirement is able to be closed by adding enableStrongPassword 0 in taos.cfg, or by the following SQL:
+
+```sql
+alter all dnodes 'EnableStrongPassword' '0'
+```
+
 - sysinfo: Whether the user can view system information. 1 means they can view it, 0 means they cannot. System information includes server configuration information, various node information such as dnode, query node (qnode), etc., as well as storage-related information, etc. The default is to view system information.
 - createdb: Whether the user can create databases. 1 means they can create databases, 0 means they cannot. The default value is 0. // Supported starting from TDengine Enterprise version 3.3.2.0
 
@@ -94,7 +116,7 @@ The syntax for granting a user access to databases and tables is as follows.
 grant privileges on resources [with tag_filter] to user_name
 privileges: {
  all,
- | priv_type [, priv_type] …
+ | priv_type [, priv_type] ...
 }
 priv_type: {
  read
@@ -282,3 +304,11 @@ The SQL for revoking the subscribe permission of user test on the message subscr
 ```sql
 revoke subscribe on topic_name from test
 ```
+
+---
+
+## Permission Management - 3.4.0.0+ Versions
+
+Starting from 3.4.0.0, TDengine Enterprise Edition implements a separation of three powers mechanism through role-based access control (RBAC). The management permissions of the root user are split into SYSDBA, SYSSEC, and SYSAUDIT three system management permissions, thus achieving effective isolation and checks and balances of permissions.
+
+For detailed information, please refer to the [Permission Management](/tdengine-reference/sql-manual/manage-permissions) section.

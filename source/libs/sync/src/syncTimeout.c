@@ -58,20 +58,27 @@ static void syncNodeCleanConfigIndex(SSyncNode* ths) {
 static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   ths->tmrRoutineNum++;
 
-  if (ths->tmrRoutineNum % 60 == 0 && ths->totalReplicaNum > 1) {
+  sDebug("vgId:%d, timer routine, status report", ths->vgId);
+  if (ths->tmrRoutineNum % (tsRoutineReportInterval / (ths->pingTimerMS / 1000)) == 0) {
     sNInfo(ths, "timer routines");
   } else {
     sNTrace(ths, "timer routines");
   }
 
   // timer replicate
-  TAOS_CHECK_RETURN(syncNodeReplicate(ths));
+  sDebug("vgId:%d, timer routine, node replicate", ths->vgId);
+  int32_t ret = 0;
+  if((ret = syncNodeReplicate(ths)) != 0){
+    sWarn("vgId:%d, failed to replicate node since %s", ths->vgId, tstrerror(ret));
+  }
 
   // clean mnode index
+  sDebug("vgId:%d, timer routine, clean config index", ths->vgId);
   if (syncNodeIsMnode(ths)) {
     syncNodeCleanConfigIndex(ths);
   }
 
+  sDebug("vgId:%d, timer routine, snapshot resend", ths->vgId);
   int64_t timeNow = taosGetTimestampMs();
 
   for (int i = 0; i < ths->peersNum; ++i) {
@@ -89,12 +96,15 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
           snapshotSenderStop(pSender, false);
         } else {
           sSWarn(pSender, "snap replication resend.");
-          TAOS_CHECK_RETURN(snapshotReSend(pSender));
+          if((ret = snapshotReSend(pSender)) != 0){
+            sWarn("vgId:%d, failed to snapshot resend in timer routine since %s", ths->vgId, tstrerror(ret));
+          }
         }
       }
     }
   }
 
+  sDebug("vgId:%d, timer routine, resp clean", ths->vgId);
   if (!syncNodeIsMnode(ths)) {
     syncRespClean(ths->pSyncRespMgr);
   }
@@ -106,7 +116,7 @@ int32_t syncNodeOnTimeout(SSyncNode* ths, const SRpcMsg* pRpc) {
   int32_t      ret = 0;
   SyncTimeout* pMsg = pRpc->pCont;
 
-  syncLogRecvTimer(ths, pMsg, "");
+  syncLogRecvTimer(ths, pMsg, &pRpc->info.traceId);
 
   if (pMsg->timeoutType == SYNC_TIMEOUT_PING) {
     if (atomic_load_64(&ths->pingTimerLogicClockUser) <= pMsg->logicClock) {

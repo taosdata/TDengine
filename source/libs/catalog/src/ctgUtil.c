@@ -24,7 +24,7 @@ void ctgFreeSViewMeta(SViewMeta* pMeta) {
     return;
   }
 
-  taosMemoryFree(pMeta->user);
+  taosMemoryFree(pMeta->createUser);
   taosMemoryFree(pMeta->querySql);
   taosMemoryFree(pMeta->pSchema);
 }
@@ -113,6 +113,10 @@ char* ctgTaskTypeStr(CTG_TASK_TYPE type) {
       return "[get TSMA]";
     case CTG_TASK_GET_TB_NAME:
       return "[bget table name]";
+    case CTG_TASK_GET_V_STBREFDBS:
+      return "[get vStbRefDbs]";
+    case CTG_TASK_GET_RSMA:
+      return "[get rsma]";
     default:
       return "unknown";
   }
@@ -202,21 +206,13 @@ void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pTsmas);
   pData->pTsmas = NULL;
 
+  taosArrayDestroy(pData->pVStbRefDbs);
+  pData->pVStbRefDbs = NULL;
+
   taosMemoryFreeClear(pData->pSvrVer);
 }
 
-void ctgFreeSCtgUserAuth(SCtgUserAuth* userCache) {
-  taosHashCleanup(userCache->userAuth.createdDbs);
-  taosHashCleanup(userCache->userAuth.readDbs);
-  taosHashCleanup(userCache->userAuth.writeDbs);
-  taosHashCleanup(userCache->userAuth.readTbs);
-  taosHashCleanup(userCache->userAuth.writeTbs);
-  taosHashCleanup(userCache->userAuth.alterTbs);
-  taosHashCleanup(userCache->userAuth.readViews);
-  taosHashCleanup(userCache->userAuth.writeViews);
-  taosHashCleanup(userCache->userAuth.alterViews);
-  taosHashCleanup(userCache->userAuth.useDbs);
-}
+void ctgFreeSCtgUserAuth(SCtgUserAuth* userCache) { tFreeSGetUserAuthRsp(&userCache->userAuth); }
 
 void ctgFreeMetaRent(SCtgRentMgmt* mgmt) {
   if (NULL == mgmt->slots) {
@@ -430,7 +426,7 @@ void ctgFreeHandle(SCatalog* pCtg) {
 
   taosMemoryFree(pCtg);
 
-  ctgInfo("handle freed, clusterId:0x%" PRIx64, clusterId);
+  ctgInfo("clusterId:0x%" PRIx64 ", handle freed", clusterId);
 }
 
 void ctgClearHandleMeta(SCatalog* pCtg, int64_t* pClearedSize, int64_t* pCleardNum, bool* roundDone) {
@@ -541,7 +537,7 @@ void ctgClearHandle(SCatalog* pCtg) {
 
   CTG_STAT_RT_INC(numOfOpClearCache, 1);
 
-  ctgInfo("handle cleared, clusterId:0x%" PRIx64, clusterId);
+  ctgInfo("clusterId:0x%" PRIx64 ", handle cleared", clusterId);
 }
 
 void ctgFreeSUseDbOutput(SUseDbOutput* pOutput) {
@@ -591,6 +587,7 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
     case TDMT_VND_TABLE_NAME: {
       STableMetaOutput* pOut = (STableMetaOutput*)pCtx->out;
       taosMemoryFree(pOut->tbMeta);
+      taosMemoryFree(pOut->vctbMeta);
       taosMemoryFreeClear(pCtx->out);
       break;
     }
@@ -618,16 +615,7 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
     }
     case TDMT_MND_GET_USER_AUTH: {
       SGetUserAuthRsp* pOut = (SGetUserAuthRsp*)pCtx->out;
-      taosHashCleanup(pOut->createdDbs);
-      taosHashCleanup(pOut->readDbs);
-      taosHashCleanup(pOut->writeDbs);
-      taosHashCleanup(pOut->readTbs);
-      taosHashCleanup(pOut->writeTbs);
-      taosHashCleanup(pOut->alterTbs);
-      taosHashCleanup(pOut->readViews);
-      taosHashCleanup(pOut->writeViews);
-      taosHashCleanup(pOut->alterViews);
-      taosHashCleanup(pOut->useDbs);
+      tFreeSGetUserAuthRsp(pOut);
       taosMemoryFreeClear(pCtx->out);
       break;
     }
@@ -650,10 +638,14 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       }
       break;
     }
-    case TDMT_VND_GET_STREAM_PROGRESS: {
+    case TDMT_MND_GET_STREAM_PROGRESS: {
       if (pCtx->out) {
         taosMemoryFreeClear(pCtx->out);
       }
+      break;
+    }
+    case TDMT_VND_VSTB_REF_DBS: {
+      taosMemoryFreeClear(pCtx->target);
       break;
     }
     default:
@@ -676,6 +668,7 @@ void ctgFreeSTableMetaOutput(STableMetaOutput* pOutput) {
   }
 
   taosMemoryFree(pOutput->tbMeta);
+  taosMemoryFree(pOutput->vctbMeta);
   taosMemoryFree(pOutput);
 }
 
@@ -789,6 +782,9 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
         for (int32_t i = 0; i < AUTH_RES_MAX_VALUE; ++i) {
           nodesDestroyNode(pAuth->pCond[i]);
         }
+        if(pAuth->pCols) {
+          taosArrayDestroy(pAuth->pCols);
+        }
         taosMemoryFreeClear(*pRes);
       }
       break;
@@ -857,6 +853,11 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
       *pRes = NULL;  // no need to free it
       break;
     }
+    case CTG_TASK_GET_V_STBREFDBS: {
+      SArray* pArray = (SArray*)*pRes;
+      taosArrayDestroyEx(pArray, tDestroySVStbRefDbsRsp);
+      break;
+    }
     default:
       qError("invalid task type %d", type);
       break;
@@ -922,6 +923,9 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
     case CTG_TASK_GET_TB_NAME: {
       taosArrayDestroyEx(*pRes, ctgFreeBatchMeta);
       *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_V_STBREFDBS: {
       break;
     }
     default:
@@ -1049,6 +1053,19 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       taosMemoryFreeClear(pTask->taskCtx);
       break;
     }
+    case CTG_TASK_GET_V_STBREFDBS: {
+      SCtgVStbRefDbsCtx* taskCtx = (SCtgVStbRefDbsCtx*)pTask->taskCtx;
+      if (taskCtx->clonedVgroups) {
+        taosArrayDestroy(taskCtx->pVgroups);
+        taskCtx->pVgroups = NULL;
+      }
+      if (taskCtx->pResList) {
+        taosArrayDestroyEx(taskCtx->pResList, tDestroySVStbRefDbsRsp);
+      }
+      taosMemoryFreeClear(taskCtx->pMeta);
+      taosMemoryFreeClear(pTask->taskCtx);
+      break;
+    }
     default:
       qError("invalid task type %d", pTask->type);
       break;
@@ -1097,7 +1114,7 @@ void ctgFreeJob(void* job) {
 
   taosMemoryFree(job);
 
-  qDebug("QID:0x%" PRIx64 ", ctg job 0x%" PRIx64 " freed", qid, rid);
+  qTrace("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", catalog job freed", qid, rid);
 }
 
 int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* target) {
@@ -1196,7 +1213,7 @@ int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList, cons
 
   *pList = vgList;
 
-  ctgDebug("Got vgList from cache, vgNum:%d", vgNum);
+  ctgDebug("get vgList from cache, vgNum:%d", vgNum);
 
   return TSDB_CODE_SUCCESS;
 
@@ -1265,7 +1282,7 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* d
              pTableName->dbname, pTableName->tname);
     CTG_ERR_RET(code);
   }
-
+  if (dbInfo->isMount) tTrimMountPrefix(tbFullName);
   uint32_t hashValue = taosGetTbHashVal(tbFullName, (uint32_t)strlen(tbFullName), dbInfo->hashMethod,
                                         dbInfo->hashPrefix, dbInfo->hashSuffix);
 
@@ -1286,14 +1303,14 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* d
   */
 
   if (NULL == vgInfo) {
-    ctgError("no hash range found for hash value [%u], db:%s, numOfVgId:%d", hashValue, db,
+    ctgError("tb:%s, no hash range found for hash value [%u], db:%s, numOfVgId:%d", tbFullName, hashValue, db,
              (int32_t)taosArrayGetSize(dbInfo->vgArray));
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
   *pVgroup = *vgInfo;
 
-  ctgDebug("Got tb %s hash vgroup, vgId:%d, epNum %d, current %s port %d", tbFullName, vgInfo->vgId,
+  ctgTrace("tb:%s, get hash vgroup, vgId:%d, epNum:%d, current ep:%s:%u", tbFullName, vgInfo->vgId,
            vgInfo->epSet.numOfEps, vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn,
            vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
@@ -1327,7 +1344,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
 
       TAOS_MEMCPY(vgInfo, &mgmtInfo, sizeof(mgmtInfo));
 
-      ctgDebug("Got tb hash vgroup, vgId:%d, epNum %d, current %s port %d", vgInfo->vgId, vgInfo->epSet.numOfEps,
+      ctgDebug("get tb hash vgroup, vgId:%d, epNum %d, current %s port %d", vgInfo->vgId, vgInfo->epSet.numOfEps,
                vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn, vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
       if (update) {
@@ -1376,7 +1393,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
 
       TAOS_MEMCPY(vgInfo, pSrcVg, sizeof(*pSrcVg));
 
-      ctgDebug("Got tb hash vgroup, vgId:%d, epNum %d, current %s port %d", vgInfo->vgId, vgInfo->epSet.numOfEps,
+      ctgDebug("get tb hash vgroup, vgId:%d, epNum %d, current %s port %d", vgInfo->vgId, vgInfo->epSet.numOfEps,
                vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn, vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
       if (update) {
@@ -1406,6 +1423,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
 
   char tbFullName[TSDB_TABLE_FNAME_LEN];
   (void)snprintf(tbFullName, sizeof(tbFullName), "%s.", dbFName);
+  if (dbInfo->isMount) tTrimMountPrefix(tbFullName);
   int32_t offset = strlen(tbFullName);
   SName*  pName = NULL;
   int32_t tbNameLen = 0;
@@ -1419,7 +1437,6 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
 
     tbNameLen = offset + strlen(pName->tname);
     TAOS_STRCPY(tbFullName + offset, pName->tname);
-
     uint32_t hashValue = taosGetTbHashVal(tbFullName, (uint32_t)strlen(tbFullName), dbInfo->hashMethod,
                                           dbInfo->hashPrefix, dbInfo->hashSuffix);
 
@@ -1437,7 +1454,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
 
     *pNewVg = *vgInfo;
 
-    ctgDebug("Got tb %s hash vgroup, vgId:%d, epNum %d, current %s port %d", tbFullName, vgInfo->vgId,
+    ctgTrace("tb:%s, get hash vgroup, vgId:%d, epNum:%d, current ep:%s:%u", tbFullName, vgInfo->vgId,
              vgInfo->epSet.numOfEps, vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn,
              vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
@@ -1496,7 +1513,7 @@ int32_t ctgGetVgIdsFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, char* dbFNam
 
     vgId[i] = vgInfo->vgId;
 
-    ctgDebug("Got tb %s vgId:%d", tbFullName, vgInfo->vgId);
+    ctgDebug("tb:%s, get vgId:%d", tbFullName, vgInfo->vgId);
   }
 
   CTG_RET(code);
@@ -1681,15 +1698,42 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
 
   TAOS_MEMCPY(*pOutput, output, sizeof(STableMetaOutput));
 
+  if (output->vctbMeta) {
+    int32_t metaSize = sizeof(SVCTableMeta);
+    int32_t colRefSize = 0;
+    if (hasRefCol(output->vctbMeta->tableType) && (*pOutput)->vctbMeta->colRef) {
+      colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
+    }
+    (*pOutput)->vctbMeta = taosMemoryMalloc(metaSize + colRefSize);
+    if (NULL == (*pOutput)->vctbMeta) {
+      qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
+      taosMemoryFreeClear(*pOutput);
+      CTG_ERR_RET(terrno);
+    }
+
+    TAOS_MEMCPY((*pOutput)->vctbMeta, output->vctbMeta, metaSize);
+    if (hasRefCol(output->vctbMeta->tableType) && (*pOutput)->vctbMeta->colRef) {
+      (*pOutput)->vctbMeta->colRef = (SColRef*)((char*)(*pOutput)->vctbMeta + metaSize);
+      TAOS_MEMCPY((*pOutput)->vctbMeta->colRef, output->vctbMeta->colRef, colRefSize);
+    } else {
+      (*pOutput)->vctbMeta->colRef = NULL;
+    }
+  }
+
   if (output->tbMeta) {
     int32_t metaSize = CTG_META_SIZE(output->tbMeta);
     int32_t schemaExtSize = 0;
-    if (useCompress(output->tbMeta->tableType) && (*pOutput)->tbMeta->schemaExt) {
+    int32_t colRefSize = 0;
+    if (withExtSchema(output->tbMeta->tableType) && (*pOutput)->tbMeta->schemaExt) {
       schemaExtSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
     }
+    if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->colRef) {
+      colRefSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SColRef);
+    }
 
-    (*pOutput)->tbMeta = taosMemoryMalloc(metaSize + schemaExtSize);
-    qDebug("tbMeta cloned, size:%d, p:%p", metaSize, (*pOutput)->tbMeta);
+    (*pOutput)->tbMeta = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize);
+    qTrace("tbmeta cloned, size:%d, p:%p", metaSize, (*pOutput)->tbMeta);
+
     if (NULL == (*pOutput)->tbMeta) {
       qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
       taosMemoryFreeClear(*pOutput);
@@ -1697,11 +1741,17 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     }
 
     TAOS_MEMCPY((*pOutput)->tbMeta, output->tbMeta, metaSize);
-    if (useCompress(output->tbMeta->tableType) && (*pOutput)->tbMeta->schemaExt) {
+    if (withExtSchema(output->tbMeta->tableType) && (*pOutput)->tbMeta->schemaExt) {
       (*pOutput)->tbMeta->schemaExt = (SSchemaExt*)((char*)(*pOutput)->tbMeta + metaSize);
       TAOS_MEMCPY((*pOutput)->tbMeta->schemaExt, output->tbMeta->schemaExt, schemaExtSize);
     } else {
       (*pOutput)->tbMeta->schemaExt = NULL;
+    }
+    if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->colRef) {
+      (*pOutput)->tbMeta->colRef = (SColRef*)((char*)(*pOutput)->tbMeta + metaSize + schemaExtSize);
+      TAOS_MEMCPY((*pOutput)->tbMeta->colRef, output->tbMeta->colRef, colRefSize);
+    } else {
+      (*pOutput)->tbMeta->colRef = NULL;
     }
   }
 
@@ -1741,13 +1791,15 @@ int32_t ctgCloneTableIndex(SArray* pIndex, SArray** pRes) {
 
 int32_t ctgUpdateSendTargetInfo(SMsgSendInfo* pMsgSendInfo, int32_t msgType, char* dbFName, int32_t vgId) {
   if (msgType == TDMT_VND_TABLE_META || msgType == TDMT_VND_TABLE_CFG || msgType == TDMT_VND_BATCH_META ||
-      msgType == TDMT_VND_TABLE_NAME) {
+      msgType == TDMT_VND_TABLE_NAME || msgType == TDMT_VND_VSTB_REF_DBS) {
     pMsgSendInfo->target.type = TARGET_TYPE_VNODE;
     pMsgSendInfo->target.vgId = vgId;
     pMsgSendInfo->target.dbFName = taosStrdup(dbFName);
     if (NULL == pMsgSendInfo->target.dbFName) {
       CTG_ERR_RET(terrno);
     }
+  } else if (msgType == TDMT_SND_BATCH_META) {
+    pMsgSendInfo->target.type = TARGET_TYPE_OTHER;
   } else {
     pMsgSendInfo->target.type = TARGET_TYPE_MNODE;
   }
@@ -2025,7 +2077,7 @@ static void ctgFreeViewMeta(void* p) {
   if (NULL == pMeta) {
     return;
   }
-  taosMemoryFree(pMeta->user);
+  taosMemoryFree(pMeta->createUser);
   taosMemoryFree(pMeta->querySql);
   taosMemoryFree(pMeta->pSchema);
   taosMemoryFree(pMeta);
@@ -2036,12 +2088,18 @@ void ctgFreeTbTSMAInfo(void* p) {
   taosMemoryFree(((SMetaRes*)p)->pRes);
 }
 
+void ctgFreeVStbRefDbs(void* p) {
+  taosArrayDestroyEx((SArray*)((SMetaRes*)p)->pRes, tDestroySVStbRefDbsRsp);
+  taosMemoryFree(((SMetaRes*)p)->pRes);
+}
+
+
 int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
   STableMeta*      pMeta = NULL;
   SGetUserAuthRsp* pInfo = &req->authInfo;
-  SHashObj*        pTbs = (AUTH_TYPE_READ == req->singleType) ? pInfo->readTbs : pInfo->writeTbs;
-  char*            stbName = NULL;
+  SHashObj*        pTbs = (PRIV_TBL_SELECT== req->singleType) ? pInfo->selectTbs : pInfo->insertTbs;
+  char* stbName = NULL;
 
   char tbFName[TSDB_TABLE_FNAME_LEN];
   char dbFName[TSDB_DB_FNAME_LEN];
@@ -2076,7 +2134,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
     if (NULL == pMeta) {
       if (req->onlyCache) {
         res->metaNotExists = true;
-        ctgDebug("db %s tb %s meta not in cache for auth", req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
+        ctgDebug("db:%s, tb:%s meta not in cache for auth", req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
         goto _return;
       }
 
@@ -2087,17 +2145,17 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
       CTG_ERR_JRET(ctgGetTbMeta(pCtg, req->pConn, &ctx, &pMeta));
     }
 
-    if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType) {
+    if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType || TSDB_VIRTUAL_NORMAL_TABLE == pMeta->tableType) {
       res->pRawRes->pass[AUTH_RES_BASIC] = false;
       goto _return;
     }
 
-    if (TSDB_CHILD_TABLE == pMeta->tableType) {
+    if (TSDB_CHILD_TABLE == pMeta->tableType || TSDB_VIRTUAL_CHILD_TABLE == pMeta->tableType) {
       CTG_ERR_JRET(ctgGetCachedStbNameFromSuid(pCtg, dbFName, pMeta->suid, &stbName));
       if (NULL == stbName) {
         if (req->onlyCache) {
           res->metaNotExists = true;
-          ctgDebug("suid %" PRIu64 " name not in cache for auth", pMeta->suid);
+          ctgDebug("suid:%" PRIu64 ", name not in cache for auth", pMeta->suid);
           goto _return;
         }
 
@@ -2108,7 +2166,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
       continue;
     }
 
-    ctgError("Invalid table type %d for %s", pMeta->tableType, tbFName);
+    ctgError("invalid table type %d for %s", pMeta->tableType, tbFName);
     CTG_ERR_JRET(TSDB_CODE_INVALID_PARA);
   }
 
@@ -2116,6 +2174,309 @@ _return:
 
   taosMemoryFree(pMeta);
   taosMemoryFree(stbName);
+
+  CTG_RET(code);
+}
+
+#if 0
+static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
+  int32_t          code = 0;
+  STableMeta*      pMeta = NULL;
+  SGetUserAuthRsp* pInfo = &req->authInfo;
+  SPrivInfo*       privInfo = req->privInfo;
+  int32_t          sizeTbPrivs = taosHashGetSize(req->tbPrivs);
+  SUserAuthInfo*   pReq = req->pRawReq;
+  SUserAuthRes*    pRes = res->pRawRes;
+  char*            stbName = NULL;
+
+#if 0  // in most cases, there is table level privilege, so skip the check first
+  if (taosHashGetSize(pInfo->objPrivs) <= 0 && taosHashGetSize(tbPrivs) <= 0)
+    return code;
+#endif
+
+  char tbName[TSDB_TABLE_NAME_LEN];
+  char tbFName[TSDB_TABLE_FNAME_LEN];
+  char dbFName[TSDB_DB_FNAME_LEN];
+  code = tNameExtractFullName(&pReq->tbName, tbFName);
+  if (code) {
+    ctgError("tNameExtractFullName failed, error:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), pReq->tbName.type,
+             pReq->tbName.dbname, pReq->tbName.tname);
+    CTG_ERR_RET(code);
+  }
+
+  (void)tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
+  (void)snprintf(tbName, sizeof(tbName), "%s", pReq->tbName.tname);
+
+  SName  stbSName;
+  SName* pSName = &pReq->tbName;
+
+  while (true) {
+    taosMemoryFreeClear(pMeta);
+
+    if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, tbName, privInfo, true)) {
+      res->pRawRes->pass[AUTH_RES_BASIC] = true;
+      goto _return;
+    }
+
+    if (sizeTbPrivs > 0) {
+      SPrivTblPolicy* tblPolicy =
+          privGetConstraintTblPrivileges(req->tbPrivs, pSName->acctId, pSName->dbname, tbName, privInfo);
+      if (tblPolicy) {
+        if (tblPolicy->condLen > 0) {
+          CTG_ERR_JRET(nodesStringToNode(tblPolicy->cond, &res->pRawRes->pCond[AUTH_RES_BASIC]));
+        }
+        // TODO: check the columns
+        res->pRawRes->pass[AUTH_RES_BASIC] = true;
+        goto _return;
+      }
+    }
+
+
+    if (stbName) {
+      res->pRawRes->pass[AUTH_RES_BASIC] = false;
+      goto _return;
+    }
+
+    CTG_ERR_JRET(catalogGetCachedTableMeta(pCtg, pSName, &pMeta));
+    if (NULL == pMeta) {
+      if (req->onlyCache) {
+        res->metaNotExists = true;
+        ctgDebug("db:%s, tb:%s meta not in cache for auth", pSName->dbname, pSName->tname);
+        goto _return;
+      }
+
+      SCtgTbMetaCtx ctx = {0};
+      ctx.pName = (SName*)&pReq->tbName;
+      ctx.flag = CTG_FLAG_UNKNOWN_STB | CTG_FLAG_SYNC_OP;
+
+      CTG_ERR_JRET(ctgGetTbMeta(pCtg, req->pConn, &ctx, &pMeta));
+    }
+
+    if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType ||
+        TSDB_VIRTUAL_NORMAL_TABLE == pMeta->tableType) {
+        res->pRawRes->pass[AUTH_RES_BASIC] = false;
+        goto _return;
+    }
+
+    if (TSDB_CHILD_TABLE == pMeta->tableType || TSDB_VIRTUAL_CHILD_TABLE == pMeta->tableType) {
+      CTG_ERR_JRET(ctgGetCachedStbNameFromSuid(pCtg, dbFName, pMeta->suid, &stbName));
+      if (NULL == stbName) {
+        if (req->onlyCache) {
+          res->metaNotExists = true;
+          ctgDebug("suid:%" PRIu64 ", name not in cache for auth", pMeta->suid);
+          goto _return;
+        }
+
+        continue;
+      }
+
+      // check privilege of it's super table
+      (void)snprintf(tbName, sizeof(tbName), "%s", stbName);
+      continue;
+    }
+
+    ctgError("invalid table type %d for %s.%s", pMeta->tableType, dbFName, tbName);
+    CTG_ERR_JRET(TSDB_CODE_INVALID_PARA);
+  }
+_return:
+  taosMemoryFree(pMeta);
+  taosMemoryFree(stbName);
+
+  CTG_RET(code);
+}
+#else
+
+/**
+ * @brief check and set table level authorization response
+ *  priority of privileges :
+ *  1) child table: chile table or owner > super table or owner > any table
+ *  2) normal/super table: normal/super table or owner > any table
+ *
+ * @param pCtg
+ * @param req
+ * @param res
+ * @return int32_t
+ */
+
+static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
+  int32_t          code = 0;
+  STableMeta*      pMeta = NULL;
+  SGetUserAuthRsp* pInfo = &req->authInfo;
+  const SPrivInfo* privInfo = req->privInfo;
+  int32_t          sizeTbPrivs = taosHashGetSize(req->tbPrivs);
+  SUserAuthInfo*   pReq = req->pRawReq;
+  SUserAuthRes*    pRes = res->pRawRes;
+  char*            stbName = NULL;
+
+#if 0  // in most cases, there is table level privilege, so skip the check first
+  if (taosHashGetSize(pInfo->objPrivs) <= 0 && taosHashGetSize(tbPrivs) <= 0)
+    return code;
+#endif
+
+  char tbName[TSDB_TABLE_NAME_LEN];
+  char tbFName[TSDB_TABLE_FNAME_LEN];
+  char dbFName[TSDB_DB_FNAME_LEN];
+  code = tNameExtractFullName(&pReq->tbName, tbFName);
+  if (code) {
+    ctgError("tNameExtractFullName failed, error:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), pReq->tbName.type,
+             pReq->tbName.dbname, pReq->tbName.tname);
+    CTG_ERR_RET(code);
+  }
+
+  (void)tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
+  (void)snprintf(tbName, sizeof(tbName), "%s", pReq->tbName.tname);
+
+  SName  stbSName;
+  SName* pSName = &pReq->tbName;
+  bool   isOwner = false;
+
+  while (true) {
+    // check the tblPrivs first since the more specific fine-grained privileges has higher priority
+    if (sizeTbPrivs > 0) {
+      SPrivTblPolicy* tblPolicy =
+          privGetConstraintTblPrivileges(req->tbPrivs, pSName->acctId, pSName->dbname, tbName, privInfo);
+      if (tblPolicy) {
+        if (tblPolicy->condLen > 0) {
+          CTG_ERR_JRET(nodesStringToNode(tblPolicy->cond, &res->pRawRes->pCond[AUTH_RES_BASIC]));
+        }
+        if (taosArrayGetSize(tblPolicy->cols) > 0) {
+          if (!(res->pRawRes->pCols = taosArrayDup(tblPolicy->cols, NULL))) {
+            CTG_ERR_JRET(terrno);
+          }
+        }
+        res->pRawRes->pass[AUTH_RES_BASIC] = true;
+        goto _return;
+      }
+    }
+    if (isOwner) {
+      res->pRawRes->pass[AUTH_RES_BASIC] = true;
+      goto _return;
+    }
+
+    CTG_ERR_JRET(catalogGetCachedTableMeta(pCtg, pSName, &pMeta));
+    if (NULL == pMeta) {
+      res->withInsertCond = (req->authInfo.withInsertCond == 1);
+      if (pReq->smlInsert) {
+        if (privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, true)) {
+          res->pRawRes->pass[AUTH_RES_BASIC] = true;
+          goto _return;
+        }
+      }
+      if (req->onlyCache) {
+        res->metaNotExists = true;
+        ctgDebug("db:%s, tb:%s meta not in cache for auth", pSName->dbname, pSName->tname);
+        goto _return;
+      }
+
+      SCtgTbMetaCtx ctx = {0};
+      ctx.pName = (SName*)&pReq->tbName;
+      ctx.flag = CTG_FLAG_UNKNOWN_STB | CTG_FLAG_SYNC_OP;
+
+      CTG_ERR_JRET(ctgGetTbMeta(pCtg, req->pConn, &ctx, &pMeta));
+    }
+
+    /**
+     *  1. skip owner check for audit table
+     *  2. rewrite privilege for audit table
+     */
+    if (pMeta->isAudit) {
+      isOwner = false;
+      if (privInfo->privType == PRIV_TBL_INSERT) {
+        privInfo = privInfoGet(PRIV_AUDIT_TBL_INSERT);
+      } else if (privInfo->privType == PRIV_TBL_SELECT) {
+        privInfo = privInfoGet(PRIV_AUDIT_TBL_SELECT);
+      }
+    } else if (pReq->dbOwner || (req->authInfo.userId == pMeta->ownerId)) {
+      isOwner = true;
+    }
+
+    if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType ||
+        TSDB_VIRTUAL_NORMAL_TABLE == pMeta->tableType) {
+      // check specific table for normal/super table privilege, and then check recursively to wildcard table
+      if (isOwner) {
+        res->pRawRes->pass[AUTH_RES_BASIC] = true;
+      } else if (privInfo->category == PRIV_CATEGORY_SYSTEM) {
+        if (PRIV_HAS(&pInfo->sysPrivs, privInfo->privType)) {
+          pRes->pass[AUTH_RES_BASIC] = true;
+        }
+      } else if (privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, true)) {
+        res->pRawRes->pass[AUTH_RES_BASIC] = true;
+      }
+      goto _return;  // return directly for normal/super table
+    } else {
+      // check the specific child table privileges, don't check wildcard child table privileges here
+      if (privInfo->category == PRIV_CATEGORY_SYSTEM) {
+        if (PRIV_HAS(&pInfo->sysPrivs, privInfo->privType)) {
+          pRes->pass[AUTH_RES_BASIC] = true;
+          goto _return;
+        }
+      } else if (privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, false)) {
+        res->pRawRes->pass[AUTH_RES_BASIC] = true;
+        goto _return;
+      }
+      // check super table privilege
+    }
+
+    if (stbName) {
+      res->pRawRes->pass[AUTH_RES_BASIC] = false;
+      goto _return;
+    }
+
+    if (TSDB_CHILD_TABLE == pMeta->tableType || TSDB_VIRTUAL_CHILD_TABLE == pMeta->tableType) {
+      CTG_ERR_JRET(ctgGetCachedStbNameFromSuid(pCtg, dbFName, pMeta->suid, &stbName));
+      if (NULL == stbName) {
+        res->withInsertCond = (req->authInfo.withInsertCond == 1);
+        if (req->onlyCache) {
+          res->metaNotExists = true;
+          ctgDebug("suid:%" PRIu64 ", name not in cache for auth", pMeta->suid);
+          goto _return;
+        }
+
+        taosMemoryFreeClear(pMeta);
+        continue;
+      }
+
+      // check privilege of it's super table
+      (void)snprintf(tbName, sizeof(tbName), "%s", stbName);
+      stbSName = pReq->tbName;
+      snprintf(stbSName.tname, sizeof(stbSName.tname), "%s", stbName);
+      pSName = &stbSName;
+      taosMemoryFreeClear(pMeta);
+      continue;
+    }
+
+    ctgError("invalid table type %d for %s.%s", pMeta->tableType, dbFName, tbName);
+    taosMemoryFreeClear(pMeta);
+    CTG_ERR_JRET(TSDB_CODE_INVALID_PARA);
+  }
+_return:
+  taosMemoryFree(pMeta);
+  taosMemoryFree(stbName);
+
+  CTG_RET(code);
+}
+#endif
+
+static int32_t ctgChkSetCommonAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
+  int32_t        code = 0;
+  SUserAuthInfo* pReq = req->pRawReq;
+  SPrivInfo*     privInfo = req->privInfo;
+  char           tbFName[TSDB_TABLE_FNAME_LEN];
+
+  if ((code = tNameExtractFullName(&pReq->tbName, tbFName))) {
+    ctgError("tNameExtractFullName failed, error:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), pReq->tbName.type,
+             pReq->tbName.dbname, pReq->tbName.tname);
+    CTG_ERR_RET(code);
+  }
+
+  if (privHasObjPrivilege(req->authInfo.objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, pReq->tbName.tname,
+                          privInfo, true)) {
+    if (privInfo->objType == PRIV_OBJ_VIEW) {
+      res->pRawRes->pass[AUTH_RES_VIEW] = true;
+    } else {
+      res->pRawRes->pass[AUTH_RES_BASIC] = true;
+    }
+  }
 
   CTG_RET(code);
 }
@@ -2150,9 +2511,6 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
     pReq->tbName.type = TSDB_DB_NAME_T;
   }
 
-  char dbFName[TSDB_DB_FNAME_LEN];
-  (void)tNameGetFullDbName(&pReq->tbName, dbFName);
-
   // since that we add read/write previliges when create db, there is no need to check createdDbs
 #if 0
   if (pInfo->createdDbs && taosHashGet(pInfo->createdDbs, dbFName, strlen(dbFName))) {
@@ -2161,6 +2519,142 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
   }
 #endif
 
+  const SPrivInfo* pPrivInfo = privInfoGet(pReq->privType);
+  if (!pPrivInfo) {
+    return TSDB_CODE_CTG_INTERNAL_ERROR;
+  }
+  SPrivInfo privInfo = *pPrivInfo;
+  if (privInfo.category == PRIV_CATEGORY_SYSTEM) {
+    if (PRIV_HAS(&pInfo->sysPrivs, pReq->privType)) {
+      pRes->pass[AUTH_RES_BASIC] = true;
+    }
+    return TSDB_CODE_SUCCESS;
+  } else if (PRIV_CATEGORY_OBJECT == privInfo.category || pReq->objType > 0) {
+    // reset objType for PRIV_CATEGORY_COMMON
+    if (privInfo.objType <= 0) {
+      privInfo.objType = pReq->objType;
+      privInfo.objLevel = privObjGetLevel(privInfo.objType);
+    }
+
+    int8_t dbOwner = 0;
+    char dbFName[TSDB_DB_FNAME_LEN];
+    (void)tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
+    if (pReq->useDb) {
+      if ((pReq->useDb & AUTH_AUTHORIZED_MASK)) {
+        const SPrivInfo* dbPrivInfo = privInfoGet(PRIV_DB_USE);
+        if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, NULL, dbPrivInfo, true)) {
+          if (pReq->tbName.type == TSDB_DB_NAME_T) {
+            pRes->pass[AUTH_RES_BASIC] = true;
+            return TSDB_CODE_SUCCESS;
+          }
+          goto _next; // pass for db level, check table level
+        }
+      }
+      if ((pReq->useDb & AUTH_OWNED_MASK)) {
+        if (taosHashGet(pInfo->ownedDbs, dbFName, strlen(dbFName) + 1)) {
+          if (pReq->tbName.type == TSDB_DB_NAME_T) {
+            pRes->pass[AUTH_RES_BASIC] = true;
+            return TSDB_CODE_SUCCESS;
+          }
+          dbOwner = 1;
+          goto _next; // pass for db level, check table level
+        }
+      }
+      return TSDB_CODE_SUCCESS;
+    } else if (pReq->tbName.type == TSDB_DB_NAME_T) {
+      if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, NULL, &privInfo, true)) {
+        pRes->pass[AUTH_RES_BASIC] = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+_next:
+    if (pReq->tbName.type == TSDB_TABLE_NAME_T) {
+      if ((dbOwner == 1) || taosHashGet(pInfo->ownedDbs, dbFName, strlen(dbFName) + 1)) {
+        pReq->dbOwner = 1;
+      } else {
+        pReq->dbOwner = 0;
+      }
+      req->singleType = pReq->privType;
+      req->privInfo = &privInfo;
+      switch (pReq->privType) {
+        case PRIV_TBL_UPDATE: {  // support tag condition
+          // N/A: no update clause, update is done by insert clause
+          break;
+        }
+        case PRIV_TBL_SELECT: {
+          req->tbPrivs = pInfo->selectTbs;
+          CTG_ERR_RET(ctgChkSetTbAuthRsp(pCtg, req, res));
+          if (pRes->pass[AUTH_RES_BASIC] || res->metaNotExists) {
+            return TSDB_CODE_SUCCESS;
+          }
+          break;
+        }
+        case PRIV_TBL_INSERT: {
+          req->tbPrivs = pInfo->insertTbs;
+          CTG_ERR_RET(ctgChkSetTbAuthRsp(pCtg, req, res));
+          if (pRes->pass[AUTH_RES_BASIC] || res->metaNotExists) {
+            return TSDB_CODE_SUCCESS;
+          }
+          break;
+        }
+        case PRIV_TBL_DELETE: {
+          req->tbPrivs = pInfo->deleteTbs;
+          CTG_ERR_RET(ctgChkSetTbAuthRsp(pCtg, req, res));
+          if (pRes->pass[AUTH_RES_BASIC] || res->metaNotExists) {
+            return TSDB_CODE_SUCCESS;
+          }
+          break;
+        }
+        case PRIV_VIEW_SELECT:
+        case PRIV_CM_ALTER:
+        case PRIV_CM_DROP:
+        case PRIV_CM_SHOW_CREATE: {
+          if (pReq->objType == PRIV_OBJ_TBL) {
+            // don't support tag condition
+            code = ctgChkSetTbAuthRsp(pCtg, req, res);
+            if ((pReq->privType == PRIV_CM_DROP) && !pRes->pass[AUTH_RES_BASIC]) {
+              if (pReq->dbOwner) {
+                pRes->pass[AUTH_RES_BASIC] = true;
+                res->metaNotExists = false;  // rewrite metaNotExists since drop tb privilege exists
+                return TSDB_CODE_SUCCESS;
+              }
+              CTG_ERR_RET(ctgChkSetCommonAuthRsp(pCtg, req, res));
+              if (pRes->pass[AUTH_RES_BASIC]) {
+                res->metaNotExists = false;  // rewrite metaNotExists since drop tb privilege exists
+                return TSDB_CODE_SUCCESS;
+              }
+            }
+            CTG_ERR_RET(code);
+          } else {
+            if (pReq->dbOwner) {
+              pRes->pass[AUTH_RES_BASIC] = true;
+              return TSDB_CODE_SUCCESS;
+            }
+            CTG_ERR_RET(ctgChkSetCommonAuthRsp(pCtg, req, res));
+          }
+          break;
+        }
+        case PRIV_CM_SHOW: {  // don't support tag condition
+          // N/A: check in server for stb, check when filter result for ctb
+          break;
+        }
+        default: {
+          if (pReq->dbOwner || privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname,
+                                                   pReq->tbName.tname, &privInfo, true)) {
+            pRes->pass[AUTH_RES_BASIC] = true;
+            return TSDB_CODE_SUCCESS;
+          }
+          break;
+        }
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+    ctgError("%s:%d invalid priv category %d for %s", __func__, __LINE__, privInfo.category, privInfo.name);
+    return TSDB_CODE_CTG_INTERNAL_ERROR;
+}
+
+#ifdef PRIV_TODO
   switch (pReq->type) {
     case AUTH_TYPE_READ: {
       if (pReq->tbName.type == TSDB_TABLE_NAME_T && pInfo->readTbs && taosHashGetSize(pInfo->readTbs) > 0) {
@@ -2207,79 +2701,12 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
     default:
       break;
   }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t ctgChkSetViewAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
-  int32_t          code = 0;
-  SUserAuthInfo*   pReq = req->pRawReq;
-  SUserAuthRes*    pRes = res->pRawRes;
-  SGetUserAuthRsp* pInfo = &req->authInfo;
-
-  pRes->pass[AUTH_RES_VIEW] = false;
-  pRes->pCond[AUTH_RES_VIEW] = NULL;
-
-  if (!pInfo->enable) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (pInfo->superAuth) {
-    pRes->pass[AUTH_RES_VIEW] = true;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (pReq->tbName.type != TSDB_TABLE_NAME_T) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  char viewFName[TSDB_VIEW_FNAME_LEN];
-  if (IS_SYS_DBNAME(req->pRawReq->tbName.dbname)) {
-    (void)snprintf(viewFName, sizeof(viewFName), "%s.%s", req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
-  } else {
-    code = tNameExtractFullName(&req->pRawReq->tbName, viewFName);
-    if (code) {
-      ctgError("tNameExtractFullName failed, error:%s, type:%d, dbName:%s, tname:%s", tstrerror(code),
-               req->pRawReq->tbName.type, req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
-      CTG_ERR_RET(code);
-    }
-  }
-  int32_t len = strlen(viewFName) + 1;
-
-  switch (pReq->type) {
-    case AUTH_TYPE_READ: {
-      char* value = taosHashGet(pInfo->readViews, viewFName, len);
-      if (NULL != value) {
-        pRes->pass[AUTH_RES_VIEW] = true;
-        return TSDB_CODE_SUCCESS;
-      }
-      break;
-    }
-    case AUTH_TYPE_WRITE: {
-      char* value = taosHashGet(pInfo->writeViews, viewFName, len);
-      if (NULL != value) {
-        pRes->pass[AUTH_RES_VIEW] = true;
-        return TSDB_CODE_SUCCESS;
-      }
-      break;
-    }
-    case AUTH_TYPE_ALTER: {
-      char* value = taosHashGet(pInfo->alterViews, viewFName, len);
-      if (NULL != value) {
-        pRes->pass[AUTH_RES_VIEW] = true;
-        return TSDB_CODE_SUCCESS;
-      }
-      break;
-    }
-    default:
-      break;
-  }
-
+#endif
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
-#ifdef TD_ENTERPRISE
+#if 0
   CTG_ERR_RET(ctgChkSetViewAuthRes(pCtg, req, res));
   if (req->pRawReq->isView) {
     return TSDB_CODE_SUCCESS;
@@ -2381,6 +2808,7 @@ void ctgDestroySMetaData(SMetaData* pData) {
   taosArrayDestroyEx(pData->pView, ctgFreeViewMeta);
   taosArrayDestroyEx(pData->pTableTsmas, ctgFreeTbTSMAInfo);
   taosArrayDestroyEx(pData->pTsmas, ctgFreeTbTSMAInfo);
+  taosArrayDestroyEx(pData->pVStbRefDbs, ctgFreeVStbRefDbs);
   taosMemoryFreeClear(pData->pSvrVer);
 }
 
@@ -2397,7 +2825,7 @@ uint64_t ctgGetViewMetaCacheSize(SViewMeta* pMeta) {
     return 0;
   }
 
-  return sizeof(*pMeta) + strlen(pMeta->querySql) + 1 + strlen(pMeta->user) + 1 + pMeta->numOfCols * sizeof(SSchema);
+  return sizeof(*pMeta) + strlen(pMeta->querySql) + 1 + strlen(pMeta->createUser) + 1 + pMeta->numOfCols * sizeof(SSchema);
 }
 
 FORCE_INLINE uint64_t ctgGetTbMetaCacheSize(STableMeta* pMeta) {
@@ -2410,6 +2838,8 @@ FORCE_INLINE uint64_t ctgGetTbMetaCacheSize(STableMeta* pMeta) {
       return sizeof(*pMeta) + (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags) * sizeof(SSchema);
     case TSDB_CHILD_TABLE:
       return sizeof(SCTableMeta);
+    case TSDB_VIRTUAL_CHILD_TABLE:
+      return sizeof(SVCTableMeta);
     default:
       return sizeof(*pMeta) + pMeta->tableInfo.numOfColumns * sizeof(SSchema);
   }
@@ -2426,12 +2856,57 @@ uint64_t ctgGetDbVgroupCacheSize(SDBVgInfo* pVg) {
          taosArrayGetSize(pVg->vgArray) * sizeof(SVgroupInfo);
 }
 
+static uint64_t tGetHashKvSize(SHashObj* pHash) {
+  uint64_t totalSize = 0;
+  int32_t  nPolicies = taosHashGetSize((SHashObj*)pHash);
+  if (nPolicies > 0) {
+    void* pIter = NULL;
+    while ((pIter = taosHashIterate((SHashObj*)pHash, pIter))) {
+      size_t klen = 0;
+      char*  tbKey = taosHashGetKey(pIter, &klen);
+      totalSize += klen;
+      totalSize += taosHashGetValueSize(pIter);
+    }
+  }
+  return totalSize;
+}
+
+static uint64_t tGetPrivTblPoliciesSize(SHashObj* pHash) {
+  uint64_t totalSize = 0;
+  int32_t  nPolicies = taosHashGetSize((SHashObj*)pHash);
+  if (nPolicies > 0) {
+    void* pIter = NULL;
+    while ((pIter = taosHashIterate((SHashObj*)pHash, pIter))) {
+      size_t klen = 0, vlen = 0;
+      char*  tbKey = taosHashGetKey(pIter, &klen);
+      totalSize += klen;
+      vlen = taosHashGetValueSize(pIter);
+      if (vlen == 0) {
+        continue;  // 1.*.* or 1.db.*
+      }
+      SPrivTblPolicies* pTblPolicies = (SPrivTblPolicies*)pIter;
+      SArray*           pPolicies = pTblPolicies->policy;
+      if (!pPolicies) continue;
+      int32_t nTblPolicies = taosArrayGetSize(pPolicies);
+      totalSize += nTblPolicies * sizeof(SPrivTblPolicy);
+      for (int32_t j = 0; j < nTblPolicies; ++j) {
+        SPrivTblPolicy* pPolicy = (SPrivTblPolicy*)TARRAY_GET_ELEM(pPolicies, j);
+        int32_t         nCols = taosArrayGetSize(pPolicy->cols);
+        if (nCols) totalSize += nCols * sizeof(SColNameFlag);
+        totalSize += pPolicy->condLen;
+      }
+    }
+  }
+  return totalSize;
+}
+
 uint64_t ctgGetUserCacheSize(SGetUserAuthRsp* pAuth) {
   if (NULL == pAuth) {
     return 0;
   }
 
   uint64_t cacheSize = 0;
+#if 0
   char*    p = taosHashIterate(pAuth->createdDbs, NULL);
   while (p != NULL) {
     size_t len = 0;
@@ -2521,6 +2996,12 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp* pAuth) {
 
     ref = taosHashIterate(pAuth->useDbs, ref);
   }
+#endif
+  cacheSize += tGetHashKvSize(pAuth->objPrivs);
+  cacheSize += tGetPrivTblPoliciesSize(pAuth->selectTbs);
+  cacheSize += tGetPrivTblPoliciesSize(pAuth->insertTbs);
+  cacheSize += tGetPrivTblPoliciesSize(pAuth->deleteTbs);
+  cacheSize += tGetHashKvSize(pAuth->ownedDbs);
 
   return cacheSize;
 }
@@ -2666,10 +3147,11 @@ int32_t dupViewMetaFromRsp(SViewMetaRsp* pRsp, SViewMeta* pViewMeta) {
   if (NULL == pViewMeta->querySql) {
     CTG_ERR_RET(terrno);
   }
-  pViewMeta->user = tstrdup(pRsp->user);
-  if (NULL == pViewMeta->user) {
+  pViewMeta->createUser = tstrdup(pRsp->createUser);
+  if (NULL == pViewMeta->createUser) {
     CTG_ERR_RET(terrno);
   }
+  pViewMeta->ownerId = pRsp->ownerId;
   pViewMeta->version = pRsp->version;
   pViewMeta->viewId = pRsp->viewId;
   pViewMeta->precision = pRsp->precision;
@@ -2714,6 +3196,9 @@ uint64_t ctgGetTbTSMACacheSize(STableTSMAInfo* pTsmaInfo) {
   if (pTsmaInfo->pUsedCols) {
     size += sizeof(SSchema) * pTsmaInfo->pUsedCols->size;
   }
+  if (pTsmaInfo->streamAddr) {
+    size += sizeof(SStreamTaskAddr);
+  }
 
   return size;
 }
@@ -2740,8 +3225,8 @@ bool isCtgTSMACacheOutOfDate(STSMACache* pTsmaCache) {
   bool    ret = !pTsmaCache->fillHistoryFinished ||
              (tsMaxTsmaCalcDelay * 1000 - pTsmaCache->delayDuration) < (now - pTsmaCache->reqTs);
   if (ret) {
-    qDebug("tsma %s.%s in cache has been out of date, history finished: %d, remain valid after: %" PRId64
-           " passed: %" PRId64,
+    qDebug("tsma:%s.%s in cache has been out of date, history finished:%d, remain valid after:%" PRId64
+           " passed:%" PRId64,
            pTsmaCache->dbFName, pTsmaCache->name, pTsmaCache->fillHistoryFinished,
            tsMaxTsmaCalcDelay * 1000 - pTsmaCache->delayDuration, now - pTsmaCache->reqTs);
   }
@@ -2775,3 +3260,4 @@ int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t*
 
   return TSDB_CODE_SUCCESS;
 }
+

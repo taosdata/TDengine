@@ -17,10 +17,10 @@ SyncIndex   gSnapshotLastApplyIndex;
 
 void init() {
   int code = walInit();
-  assert(code == 0);
+  TD_ALWAYS_ASSERT(code == 0);
 
   code = syncInit();
-  assert(code == 0);
+  TD_ALWAYS_ASSERT(code == 0);
 
   sprintf(tsTempDir, "%s", ".");
 }
@@ -107,7 +107,7 @@ SWal* createWal(char* path, int32_t vgId) {
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
   SWal* pWal = walOpen(path, &walCfg);
-  assert(pWal != NULL);
+  TD_ALWAYS_ASSERT(pWal != NULL);
   return pWal;
 }
 
@@ -142,10 +142,10 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
   }
 
   int64_t rid = syncOpen(&syncInfo);
-  assert(rid > 0);
+  TD_ALWAYS_ASSERT(rid > 0);
 
   SSyncNode* pSyncNode = (SSyncNode*)syncNodeAcquire(rid);
-  assert(pSyncNode != NULL);
+  TD_ALWAYS_ASSERT(pSyncNode != NULL);
   // gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
   // gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
   // gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
@@ -208,22 +208,22 @@ int main(int argc, char** argv) {
   gSnapshotLastApplyIndex = lastApplyIndex;
 
   if (!isStandBy) {
-    assert(replicaNum >= 1 && replicaNum <= 5);
-    assert(myIndex >= 0 && myIndex < replicaNum);
-    assert(lastApplyIndex >= -1);
-    assert(writeRecordNum >= 0);
+    TD_ALWAYS_ASSERT(replicaNum >= 1 && replicaNum <= 5);
+    TD_ALWAYS_ASSERT(myIndex >= 0 && myIndex < replicaNum);
+    TD_ALWAYS_ASSERT(lastApplyIndex >= -1);
+    TD_ALWAYS_ASSERT(writeRecordNum >= 0);
   }
 
   init();
   int32_t ret = syncIOStart((char*)"127.0.0.1", gPorts[myIndex]);
-  assert(ret == 0);
+  TD_ALWAYS_ASSERT(ret == 0);
 
   char walPath[128];
   snprintf(walPath, sizeof(walPath), "%s_wal_replica%d_index%d", gDir, replicaNum, myIndex);
   SWal* pWal = createWal(walPath, gVgId);
 
   int64_t rid = createSyncNode(replicaNum, myIndex, gVgId, pWal, (char*)gDir, isStandBy);
-  assert(rid > 0);
+  TD_ALWAYS_ASSERT(rid > 0);
 
   syncStart(rid);
 
@@ -236,7 +236,7 @@ int main(int argc, char** argv) {
   */
 
   SSyncNode* pSyncNode = (SSyncNode*)syncNodeAcquire(rid);
-  assert(pSyncNode != NULL);
+  TD_ALWAYS_ASSERT(pSyncNode != NULL);
 
   if (isConfigChange) {
     configChange(rid, 2, myIndex);
@@ -253,7 +253,7 @@ int main(int argc, char** argv) {
       if (ret == -1 && terrno == TSDB_CODE_SYN_NOT_LEADER) {
         sTrace("%s value%d write not leader", s, alreadySend);
       } else {
-        assert(ret == 0);
+        TD_ALWAYS_ASSERT(ret == 0);
         sTrace("%s value%d write ok", s, alreadySend);
       }
       alreadySend++;

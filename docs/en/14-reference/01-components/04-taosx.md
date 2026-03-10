@@ -2,10 +2,12 @@
 title: taosX Reference
 sidebar_label: taosX
 slug: /tdengine-reference/components/taosx
+toc_max_heading_level: 4
 ---
 
-import Image from '@theme/IdealImage';
-import imgTdx from '../../assets/taosx-01.png';
+import Enterprise from '../../assets/resources/_enterprise.mdx';
+
+<Enterprise/>
 
 taosX is a core component of TDengine Enterprise, providing the capability of zero-code data access. taosX supports two modes of operation: service mode and command line mode. This section discusses how to use taosX in these two ways. To use taosX, you must first install the TDengine Enterprise package.
 
@@ -54,22 +56,23 @@ Data in [] is optional.
 - kafka: Enable Kafka connector to subscribe to messages from Kafka Topics
 - influxdb: Enable influxdb connector to get data from InfluxDB
 - csv: Parse data from CSV files
+- parquet: Read data from Parquet files
 
-2. +protocol includes the following options:
+1. +protocol includes the following options:
 
 - +ws: Used when the driver is taos or tmq, indicating that data is obtained using rest. If +ws is not used, it indicates that data is obtained using a native connection, in which case taosx must be installed on the server.
 - +ua: Used when the driver is opc, indicating that the data's opc-server is opc-ua
 - +da: Used when the driver is opc, indicating that the data's opc-server is opc-da
 
-3. host:port represents the address and port of the data source.
-4. object represents the specific data source, which can be a TDengine database, supertable, table, or a local backup file path, or a database in the corresponding data source server.
-5. username and password represent the username and password of that data source.
-6. params represent the parameters of the dsn.
+1. host:port represents the address and port of the data source.
+1. object represents the specific data source, which can be a TDengine database, supertable, table, or a local backup file path, or a database in the corresponding data source server.
+1. username and password represent the username and password of that data source.
+1. params represent the parameters of the dsn.
 
 ### Other Parameters
 
 1. --jobs `<number>` specifies the number of concurrent tasks, only supports tmq tasks
-2. -v is used to specify the log level of taosx, -v enables info level logs, -vv corresponds to debug, -vvv corresponds to trace
+1. -v is used to specify the log level of taosx, -v enables info level logs, -vv corresponds to debug, -vvv corresponds to trace
 
 ### Usage Examples
 
@@ -133,13 +136,13 @@ taosx run \
   -t 'taos:///db2' -v
 ```
 
-2. Synchronize data for a specified time interval (using RFC3339 time format, note the timezone):
+1. Synchronize data for a specified time interval (using RFC3339 time format, note the timezone):
 
 ```shell
 taosx run -f 'taos:///db1?start=2022-10-10T00:00:00Z' -t 'taos:///db2' -v
 ```
 
-3. Continuous synchronization, `restro` specifies syncing data from the last 5 minutes and syncing new data, in the example it checks every 1s, `excursion` allows for 500ms of delay or out-of-order data
+1. Continuous synchronization, `restro` specifies syncing data from the last 5 minutes and syncing new data, in the example it checks every 1s, `excursion` allows for 500ms of delay or out-of-order data
 
 ```shell
 taosx run \
@@ -147,13 +150,13 @@ taosx run \
   -t 'taos:///db2' -v
 ```
 
-4. Synchronize historical data + real-time data:
+1. Synchronize historical data + real-time data:
 
 ```shell
 taosx run -f 'taos:///db1?mode=all' -t 'taos:///db2' -v
 ```
 
-5. Configure data synchronization through --transform or -T (only supports synchronization between 2.6 to 3.0 and within 3.0) for operations on table names and table fields during the process. It cannot be set through Explorer yet. Configuration instructions are as follows:
+1. Configure data synchronization through --transform or -T (only supports synchronization between 2.6 to 3.0 and within 3.0) for operations on table names and table fields during the process. It cannot be set through Explorer yet. Configuration instructions are as follows:
 
   ```shell
   1.AddTag, add tag to a table. Setting example: -T add-tag:<tag1>=<value1>.
@@ -179,7 +182,7 @@ taosx run -f 'taos:///db1?mode=all' -t 'taos:///db2' -v
 Example explanation: `^prefix1(?<old>)` is a regular expression that matches table names starting with `prefix1` and records the suffix as `old`. `prefix2$old` will then replace it using `prefix2` and `old`. Note: The two parts are separated by the key character `::`, so ensure that the regular expression does not contain this character.
 For more complex replacement needs, please refer to: [https://docs.rs/regex/latest/regex/#example-replacement-with-named-capture-groups](https://docs.rs/regex/latest/regex/#example-replacement-with-named-capture-groups) or consult taosx developers.
 
-3. Using a CSV mapping file to rename tables: The following example uses the `map.csv` file to rename tables
+1. Using a CSV mapping file to rename tables: The following example uses the `map.csv` file to rename tables
 
 `-T rename-child-table:map:@./map.csv`
 
@@ -238,9 +241,151 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 
 It will import data from `./meters/meters.csv.gz` (a gzip-compressed CSV file) into the supertable `meters`, inserting each row into the specified table name - `${tbname}` using the `tbname` column from the CSV content as the table name (i.e., in the JSON parser's `.model.name`).
 
+#### Importing Parquet File Data
+
+Basic usage is as follows:
+
+```shell
+taosx run -f parquet:/data/sensors.parquet -t taos:///iot_db -v
+```
+
+DSN Parameter Description:
+
+Parquet data source uses the following DSN format:
+
+```text
+parquet:<file_path1>[,<file_path2>...]?[batch_size=<size>][&projection=<columns>][&unprocessed_batches=<count>]
+```
+
+Supported parameters:
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| file_path | string | Yes | - | Parquet file path, multiple files can be separated by commas |
+| batch_size | integer | No | 1000 | Number of rows to read per batch |
+| projection | string | No | all | Column projection, can be column names or indices (starting from 0) |
+| unprocessed_batches | integer | No | 64 | Maximum number of unprocessed batches for backpressure control |
+
+Usage Examples:
+
+1. Read a single Parquet file:
+
+```shell
+taosx run -f parquet:/data/sensors.parquet -t taos:///iot_db -v
+```
+
+2. Read multiple Parquet files:
+
+```shell
+taosx run -f 'parquet:/data/sensors_2024_01.parquet,/data/sensors_2024_02.parquet' \
+  -t taos:///iot_db -v
+```
+
+3. Use column projection (by column name):
+
+```shell
+taosx run -f 'parquet:/data/sensors.parquet?projection=ts,temperature,humidity' \
+  -t taos:///iot_db -v
+```
+
+4. Use column projection (by index):
+
+```shell
+taosx run -f 'parquet:/data/sensors.parquet?projection=0,2,5' \
+  -t taos:///iot_db -v
+```
+
+5. Custom batch size:
+
+```shell
+taosx run -f 'parquet:/data/large_file.parquet?batch_size=5000' \
+  -t taos:///iot_db -v
+```
+
+6. Complete configuration example:
+
+```shell
+taosx run -f 'parquet:/data/sensors.parquet?batch_size=2000&projection=ts,device_id,temperature&unprocessed_batches=100' \
+  -t taos:///iot_db -v
+```
+
+Data Type Mapping:
+
+Parquet data types are automatically mapped to TDengine data types:
+
+| Parquet Type | TDengine Type |
+| --- | --- |
+| BOOLEAN | BOOL |
+| INT32 | INT |
+| INT64 | BIGINT |
+| FLOAT | FLOAT |
+| DOUBLE | DOUBLE |
+| BYTE_ARRAY (UTF8) | NCHAR |
+| BYTE_ARRAY (Binary) | BINARY |
+| INT96 (Timestamp) | TIMESTAMP |
+
+#### Exporting SQL Query Results to Parquet Files
+
+taosx supports exporting SQL query results from TDengine database to Parquet file format, facilitating data analysis and integration with other systems.
+
+Basic usage is as follows:
+
+```shell
+taosx run -f "taos:///test?query=select tbname,* from test.meters" -t "parquet:./test.parquet"
+```
+
+Parameter Description:
+
+- `-f` specifies the data source as TDengine database, with SQL query statement specified via the `query` parameter
+- `-t` specifies the export target as Parquet file, including the file path
+
+Usage Examples:
+
+1. Export complete query results:
+
+```shell
+taosx run -f "taos:///test?query=select tbname,* from test.meters" \
+  -t "parquet:./test.parquet"
+```
+
+2. Export query results with time range:
+
+```shell
+taosx run -f "taos:///db1?query=select * from meters where ts >= '2024-01-01 00:00:00' and ts < '2024-02-01 00:00:00'" \
+  -t "parquet:./meters_202401.parquet"
+```
+
+3. Export aggregated query results:
+
+```shell
+taosx run -f "taos:///test?query=select tbname, avg(voltage) as avg_voltage, max(current) as max_current from test.meters group by tbname" \
+  -t "parquet:./meters_stats.parquet"
+```
+
+4. Export using WebSocket connection:
+
+```shell
+taosx run -f "taos+ws://root:taosdata@localhost:6041/test?query=select * from test.meters" \
+  -t "parquet:./test.parquet"
+```
+
+Notes:
+
+- SQL query statements need to be URL encoded, especially when containing special characters
+- Ensure the query result set size is moderate to avoid memory overflow
+- TDengine data types will be automatically mapped to corresponding Parquet data types
+- The exported Parquet files can be read by various data analysis tools, such as Apache Spark, Pandas, etc.
+
 ## Service Mode
 
 This section discusses how to deploy `taosX` in service mode. When running taosX in service mode, its functions need to be used through the graphical interface on taosExplorer.
+
+:::tip
+
+1. Starting from version 3.4.0.0, taosX uses TSDB as the metadata storage medium and no longer uses SQLite to store metadata. It is not compatible with earlier versions.
+2. Starting from version 3.4.0.0, taosX requires creating an XNODE before creating tasks. Refer to [Creating XNODE](../03-taos-sql/94-datain.md#create-xnode).
+
+:::
 
 ### Configuration
 
@@ -252,10 +397,16 @@ This section discusses how to deploy `taosX` in service mode. When running taosX
 - `logs_home`: Directory where log files are stored, the prefix for `taosX` log files is `taosx.log`, external data sources have their own log file name prefixes. Deprecated, please use `log.path` instead.
 - `log_level`: Log level, available levels include `error`, `warn`, `info`, `debug`, `trace`, default value is `info`. Deprecated, please use `log.level` instead.
 - `log_keep_days`: Maximum storage days for logs, `taosX` logs will be divided into different files by day. Deprecated, please use `log.keepDays` instead.
-- `jobs`: Maximum number of threads per runtime. In service mode, the total number of threads is `jobs*2`, default number of threads is `current server cores*2`.
-- `serve.listen`: `taosX` REST API listening address, default value is `0.0.0.0:6050`.
-- `serve.database_url`: Address of the `taosX` database, format is `sqlite:<path>`.
+- `jobs`: Program default runtime worker threads, default value is `current server cores*2`.
+- `serve.listen`: `taosX` REST API listening address, default value is `0.0.0.0:6050`. Supports IPv6 and multiple comma-separated addresses with the same port.
+- `serve.ssl_cert`: SSL/TLS certificate file.
+- `serve.ssl_key`: SSL/TLS server's private key.
+- `serve.ssl_ca`: SSL/TLS certificate authority (CA) certificates.
 - `serve.request_timeout`: Global interface API timeout.
+- `serve.grpc`:`taosX` gRPC listening address, default value is `0.0.0.0:6055`. Supports IPv6 and multiple comma-separated addresses with the same port.
+- `rest_api_threads`: Runtime worker threads for rest api service, default value is `current server cores*2`.
+- `grpc_threads`: Runtime worker threads for grpc service, default value is `current server cores*2`.
+- `scheduler_threads`: Runtime worker threads for scheduler service, default value is `current server cores*2`.
 - `monitor.fqdn`: FQDN of the `taosKeeper` service, no default value, leave blank to disable monitoring.
 - `monitor.port`: Port of the `taosKeeper` service, default `6043`.
 - `monitor.interval`: Frequency of sending metrics to `taosKeeper`, default is every 10 seconds, only values between 1 and 10 are valid.
@@ -291,11 +442,36 @@ As shown below:
 # listen to ip:port address
 #listen = "0.0.0.0:6050"
 
-# database url
-#database_url = "sqlite:taosx.db"
+# TLS/SSL certificate
+#ssl_cert = "/path/to/tls/server.pem"
+# TLS/SSL certificate key
+#ssl_key = "/path/to/tls/server.key"
+# TLS/SSL CA certificate
+#ssl_ca = "/path/to/tls/ca.pem"
 
 # default global request timeout which unit is second. This parameter takes effect for certain interfaces that require a timeout setting
 #request_timeout = 30
+
+# GRPC listen address; use ip:port like `0.0.0.0:6055`.
+#
+# When use this in explorer, please set explorer grpc configuration to **Public** IP or
+# FQDN with correct port, which might be changed exposing to Public network.
+#
+# - Example 1: "http://192.168.111.111:6055" 
+# - Example 2: "http://node1.company.domain:6055" 
+#
+# Please also make sure the above address is not blocked if firewall is enabled.
+#
+#grpc = "0.0.0.0:6055"
+
+# number of threads used for rest api service, default to 0 (means cores * 2)
+#rest_api_threads = 0
+
+# number of threads used for grpc service, default to 0 (means cores * 2)
+#grpc_threads = 0
+
+# number of threads used for scheduler service, default to 0 (means cores * 2)
+#scheduler_threads = 0
 
 [monitor]
 # FQDN of taosKeeper service, no default value
@@ -384,7 +560,7 @@ The default log level of `taosX` is `info`. To specify a different level, please
 
 To specify command line parameters when `taosX` is running as a service, please refer to the configuration.
 
-2. View `taosX` logs
+1. View `taosX` logs
 
 You can view the log files or use the `journalctl` command to view the logs of `taosX`.
 

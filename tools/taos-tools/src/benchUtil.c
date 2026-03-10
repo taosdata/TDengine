@@ -10,8 +10,17 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
+#include <ctype.h>
 #include <bench.h>
 #include "benchLog.h"
+#include "decimal.h"
+#include "pub.h"
+#if defined(_TD_DARWIN_64)
+#include <sys/sysctl.h>
+#include <mach/mach.h>
+#include <mach/mach_host.h>
+#include <mach/vm_page_size.h> 
+#endif
 
 char resEncodingChunk[] = "Encoding: chunked";
 char succMessage[] = "succ";
@@ -24,7 +33,7 @@ FORCE_INLINE void* benchCalloc(size_t nmemb, size_t size, bool record) {
     void* ret = calloc(nmemb, size);
     if (NULL == ret) {
         errorPrint("%s", "failed to allocate memory\n");
-        exit(EXIT_FAILURE);
+        return NULL;
     }
     if (record) {
         g_memoryUsage += nmemb * size;
@@ -49,9 +58,8 @@ FORCE_INLINE bool isRest(int32_t iface) {
     return REST_IFACE == iface || SML_REST_IFACE == iface;
 }
 
-void ERROR_EXIT(const char *msg) {
-    errorPrint("%s", msg);
-    exit(EXIT_FAILURE);
+void engineError(char * module, char * fun, int32_t code) {
+    errorPrint("%s API:%s error code:0x%08X %s\n", TIP_ENGINE_ERR, fun, code, module);
 }
 
 #ifdef WINDOWS
@@ -97,13 +105,6 @@ unsigned int taosRandom() {
     return number;
 }
 #else  // Not windows
-void setupForAnsiEscape(void) {}
-
-void resetAfterAnsiEscape(void) {
-    // Reset colors
-    printf("\x1b[0m");
-}
-
 FORCE_INLINE unsigned int taosRandom() { return (unsigned int)rand(); }
 #endif
 
@@ -119,7 +120,7 @@ int getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
         int64_t childTblCountOfSuperTbl) {
     char cmd[SHORT_1K_SQL_BUFF_LEN] = "\0";
     snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
-             "select distinct tbname from %s.`%s` limit %" PRId64 "",
+             "select distinct tbname from %s.`%s` limit %" PRId64,
             dbName, stbName, childTblCountOfSuperTbl);
     TAOS_RES *res = taos_query(taos, cmd);
     int32_t   code = taos_errno(res);
@@ -205,6 +206,7 @@ int convertHostToServAddr(char *host, uint16_t port,
     return 0;
 }
 
+
 void prompt(bool nonStopMode) {
     if (!g_arguments->answer_yes) {
         g_arguments->in_prompt = true;
@@ -228,7 +230,7 @@ void prompt(bool nonStopMode) {
     }
 }
 
-static void appendResultBufToFile(char *resultBuf, char * filePath) {
+void appendResultBufToFile(char *resultBuf, char * filePath) {
     FILE* fp = fopen(filePath, "at");
     if (fp == NULL) {
         errorPrint(
@@ -254,7 +256,7 @@ int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex) {
             "`%s`.%s", g_queryInfo.dbName,
             g_queryInfo.superQueryInfo.childTblName[tblIndex]);
 
-    tstrncpy(outSql, inSql, pos - inSql + 1);
+    TOOLS_STRNCPY(outSql, inSql, pos - inSql + 1);
     snprintf(outSql + (pos - inSql), TSDB_MAX_ALLOWED_SQL_LEN - 1,
              "%s%s", subTblName, pos + strlen(mark));
     return 0;         
@@ -270,87 +272,101 @@ int64_t toolsGetTimestamp(int32_t precision) {
     }
 }
 
-int regexMatch(const char *s, const char *reg, int cflags) {
-    regex_t regex;
-    char    msgbuf[100] = {0};
-
-    /* Compile regular expression */
-    if (regcomp(&regex, reg, cflags) != 0)
-        ERROR_EXIT("Failed to regex compile\n");
-
-    /* Execute regular expression */
-    int reti = regexec(&regex, s, 0, NULL, 0);
-    if (!reti) {
-        regfree(&regex);
-        return 1;
-    } else if (reti == REG_NOMATCH) {
-        regfree(&regex);
-        return 0;
-    } else {
-        regerror(reti, &regex, msgbuf, sizeof(msgbuf));
-        regfree(&regex);
-        printf("Regex match failed: %s\n", msgbuf);
-        exit(EXIT_FAILURE);
-    }
-    return 0;
-}
-
-
-
-
-SBenchConn* initBenchConnImpl() {
+SBenchConn* initBenchConnImpl(char *dbName) {
     SBenchConn* conn = benchCalloc(1, sizeof(SBenchConn), true);
-#ifdef WEBSOCKET
-    if (g_arguments->websocket) {
-        conn->taos_ws = ws_connect(g_arguments->dsn);
-        char maskedDsn[256] = "\0";
-        memcpy(maskedDsn, g_arguments->dsn, 20);
-        memcpy(maskedDsn+20, "...", 3);
-        memcpy(maskedDsn+23,
-               g_arguments->dsn + strlen(g_arguments->dsn)-10, 10);
-        if (conn->taos_ws == NULL) {
-            errorPrint("failed to connect %s, reason: %s\n",
-                    maskedDsn, ws_errstr(NULL));
+    char     show[256] = "\0";
+    char *   host = NULL;
+    uint16_t port = 0;
+    char *   user = NULL;
+    char *   pwd  = NULL;
+    int32_t  code = 0;
+    char *   dsnc = NULL;
+
+    // set mode
+    if (g_arguments->connMode != CONN_MODE_NATIVE && g_arguments->dsn) {
+        dsnc = strToLowerCopy(g_arguments->dsn);
+        if (dsnc == NULL) {
             tmfree(conn);
             return NULL;
         }
 
-        succPrint("%s conneced\n", maskedDsn);
+        char *cport = NULL;
+        char error[512] = "\0";
+        code = parseDsn(dsnc, &host, &cport, &user, &pwd, error);
+        if (code) {
+            errorPrint("%s dsn=%s\n", error, dsnc);
+            tmfree(conn);
+            tmfree(dsnc);
+            return NULL;
+        }
+
+        // default ws port
+        if (cport == NULL) {
+            if (user)
+                port = DEFAULT_PORT_WS_CLOUD;
+            else
+                port = DEFAULT_PORT_WS_LOCAL;
+        } else {
+            port = atoi(cport);
+        }
+
+        // websocket
+        memcpy(show, g_arguments->dsn, 20);
+        memcpy(show + 20, "...", 3);
+        memcpy(show + 23, g_arguments->dsn + strlen(g_arguments->dsn) - 10, 10);
+
     } else {
-#endif
-        conn->taos = taos_connect(g_arguments->host,
-                g_arguments->user, g_arguments->password,
-                NULL, g_arguments->port);
-        if (conn->taos == NULL) {
-            errorPrint("failed to connect native %s:%d, "
-                       "code: 0x%08x, reason: %s\n",
-                    g_arguments->host, g_arguments->port,
-                    taos_errno(NULL), taos_errstr(NULL));
-            tmfree(conn);
-            return NULL;
+
+        host = g_arguments->host;
+        user = g_arguments->user;
+        pwd  = g_arguments->password;
+
+        if (g_arguments->port_inputted) {
+            port = g_arguments->port;
+        } else {
+            port = defaultPort(g_arguments->connMode, g_arguments->dsn);
         }
 
-        conn->ctaos = taos_connect(g_arguments->host,
-                                   g_arguments->user,
-                                   g_arguments->password,
-                                   NULL, g_arguments->port);
-#ifdef WEBSOCKET
+        sprintf(show, "host:%s port:%d dbname:%s", host, port, dbName);
     }
-#endif
+
+    // connect main
+    conn->taos = taos_connect(host, user, pwd, dbName, port);
+    if (conn->taos == NULL) {
+        errorPrint("failed to connect %s:%d, "
+                    "code: 0x%08x, reason: %s\n",
+                g_arguments->host, g_arguments->port,
+                taos_errno(NULL), taos_errstr(NULL));
+        tmfree(conn);
+        if (dsnc) {
+            tmfree(dsnc);
+        }
+        return NULL;
+    }
+    succPrint("%s connect successfully.\n", show);
+
+    // check write correct connect
+    if (g_arguments->check_sql) {
+        conn->ctaos = taos_connect(host, user, pwd, NULL, port);
+    }
+
+    if (dsnc) {
+        tmfree(dsnc);
+    }
     return conn;
 }
 
-SBenchConn* initBenchConn() {
+SBenchConn* initBenchConn(char *dbName) {
 
     SBenchConn* conn = NULL;
     int32_t keep_trying = 0;
     while(1) {
-        conn = initBenchConnImpl();
+        conn = initBenchConnImpl(dbName);
         if(conn || ++keep_trying > g_arguments->keep_trying  || g_arguments->terminate) {
             break;
         }
 
-        infoPrint("sleep %dms and try to connect... %d  \n", g_arguments->trying_interval, keep_trying);
+        infoPrint("sleep %dms and try to connect... %d/%d  \n", g_arguments->trying_interval, keep_trying, g_arguments->keep_trying);
         if(g_arguments->trying_interval > 0) {
             toolsMsleep(g_arguments->trying_interval);
         }        
@@ -362,468 +378,17 @@ SBenchConn* initBenchConn() {
 void closeBenchConn(SBenchConn* conn) {
     if(conn == NULL)
        return ;
-#ifdef WEBSOCKET
-    if (g_arguments->websocket) {
-        ws_close(conn->taos_ws);
-    } else {
-#endif
-        if(conn->taos) {
-            taos_close(conn->taos);
-            conn->taos = NULL;
-        }
-        if (conn->ctaos) {
-            taos_close(conn->ctaos);
-            conn->ctaos = NULL;
-        }
-#ifdef WEBSOCKET
+
+    if(conn->taos) {
+        taos_close(conn->taos);
+        conn->taos = NULL;
     }
-#endif
+
+    if (conn->ctaos) {
+        taos_close(conn->ctaos);
+        conn->ctaos = NULL;
+    }
     tmfree(conn);
-}
-
-int32_t queryDbExecRest(char *command, char* dbName, int precision,
-                    int iface, int protocol, bool tcp, int sockfd) {
-    int32_t code = postProceSql(command,
-                         dbName,
-                         precision,
-                         iface,
-                         protocol,
-                         g_arguments->port,
-                         tcp,
-                         sockfd,
-                         NULL);
-    return code;
-}
-
-int32_t queryDbExecCall(SBenchConn *conn, char *command) {
-    int32_t code = 0;
-#ifdef WEBSOCKET
-    if (g_arguments->websocket) {
-        WS_RES* res = ws_query_timeout(conn->taos_ws,
-                                       command, g_arguments->timeout);
-        code = ws_errno(res);
-        if (code != 0) {
-            errorPrint("Failed to execute <%s>, code: 0x%08x, reason: %s\n",
-                       command, code, ws_errstr(res));
-        }
-        ws_free_result(res);
-    } else {
-#endif
-        TAOS_RES *res = taos_query(conn->taos, command);
-        code = taos_errno(res);
-        if (code) {
-            printErrCmdCodeStr(command, code, res);
-        } else {
-            taos_free_result(res);
-        }
-#ifdef WEBSOCKET
-    }
-#endif
-    return code;
-}
-
-void encodeAuthBase64() {
-    char        userpass_buf[INPUT_BUF_LEN];
-    static char base64[] = {
-        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-        'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-        'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'};
-    snprintf(userpass_buf, INPUT_BUF_LEN, "%s:%s", g_arguments->user,
-            g_arguments->password);
-
-    int mod_table[] = {0, 2, 1};
-
-    size_t userpass_buf_len = strlen(userpass_buf);
-    size_t encoded_len = 4 * ((userpass_buf_len + 2) / 3);
-
-    memset(g_arguments->base64_buf, 0, INPUT_BUF_LEN);
-    for (int n = 0, m = 0; n < userpass_buf_len;) {
-        uint32_t oct_a =
-            n < userpass_buf_len ? (unsigned char)userpass_buf[n++] : 0;
-        uint32_t oct_b =
-            n < userpass_buf_len ? (unsigned char)userpass_buf[n++] : 0;
-        uint32_t oct_c =
-            n < userpass_buf_len ? (unsigned char)userpass_buf[n++] : 0;
-        uint32_t triple = (oct_a << 0x10) + (oct_b << 0x08) + oct_c;
-
-        g_arguments->base64_buf[m++] = base64[(triple >> 3 * 6) & 0x3f];
-        g_arguments->base64_buf[m++] = base64[(triple >> 2 * 6) & 0x3f];
-        g_arguments->base64_buf[m++] = base64[(triple >> 1 * 6) & 0x3f];
-        g_arguments->base64_buf[m++] = base64[(triple >> 0 * 6) & 0x3f];
-    }
-
-    for (int l = 0; l < mod_table[userpass_buf_len % 3]; l++)
-        g_arguments->base64_buf[encoded_len - 1 - l] = '=';
-}
-
-int postProceSqlImpl(char *sqlstr, char* dbName, int precision, int iface,
-                     int protocol, uint16_t rest_port, bool tcp, int sockfd,
-                     char* filePath,
-                     char *responseBuf, int64_t response_length) {
-    int32_t      code = -1;
-    char *       req_fmt =
-        "POST %s HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\nAuthorization: "
-        "Basic %s\r\nContent-Length: %d\r\nContent-Type: "
-        "application/x-www-form-urlencoded\r\n\r\n%s";
-    char url[URL_BUFF_LEN] = {0};
-    if (iface == REST_IFACE) {
-        snprintf(url, URL_BUFF_LEN, "/rest/sql/%s", dbName);
-    } else if (iface == SML_REST_IFACE
-            && protocol == TSDB_SML_LINE_PROTOCOL) {
-        snprintf(url, URL_BUFF_LEN,
-                 "/influxdb/v1/write?db=%s&precision=%s", dbName,
-                precision == TSDB_TIME_PRECISION_MILLI
-                ? "ms"
-                : precision == TSDB_TIME_PRECISION_NANO
-                ? "ns"
-                : "u");
-    } else if (iface == SML_REST_IFACE
-            && protocol == TSDB_SML_TELNET_PROTOCOL) {
-        snprintf(url, URL_BUFF_LEN, "/opentsdb/v1/put/telnet/%s", dbName);
-    } else if (iface == SML_REST_IFACE
-            && (protocol == TSDB_SML_JSON_PROTOCOL
-                || protocol == SML_JSON_TAOS_FORMAT)) {
-        snprintf(url, URL_BUFF_LEN, "/opentsdb/v1/put/json/%s", dbName);
-    }
-
-    int      bytes, sent, received, req_str_len, resp_len;
-    char *   request_buf = NULL;
-    int req_buf_len = (int)strlen(sqlstr) + REQ_EXTRA_BUF_LEN;
-
-    if (g_arguments->terminate) {
-        goto free_of_postImpl;
-    }
-    request_buf = benchCalloc(1, req_buf_len, false);
-
-    int r;
-    if (protocol == TSDB_SML_TELNET_PROTOCOL && tcp) {
-        r = snprintf(request_buf, req_buf_len, "%s", sqlstr);
-    } else {
-        r = snprintf(request_buf, req_buf_len, req_fmt, url, g_arguments->host,
-                rest_port, g_arguments->base64_buf, strlen(sqlstr),
-                sqlstr);
-    }
-    if (r >= req_buf_len) {
-        free(request_buf);
-        ERROR_EXIT("too long request");
-    }
-
-    req_str_len = (int)strlen(request_buf);
-    debugPrint("request buffer: %s\n", request_buf);
-    sent = 0;
-    do {
-        bytes = send(sockfd, request_buf + sent,
-                req_str_len - sent, 0);
-        if (bytes < 0) {
-            errorPrint("%s", "writing no message to socket\n");
-            goto free_of_postImpl;
-        }
-        if (bytes == 0) break;
-        sent += bytes;
-    } while ((sent < req_str_len) && !g_arguments->terminate);
-
-    if (protocol == TSDB_SML_TELNET_PROTOCOL
-            && iface == SML_REST_IFACE && tcp) {
-        code = 0;
-        goto free_of_postImpl;
-    }
-
-    resp_len = response_length - 1;
-    received = 0;
-
-    bool chunked = false;
-
-    if (g_arguments->terminate) {
-        goto free_of_postImpl;
-    }
-    do {
-        bytes = recv(sockfd, responseBuf + received,
-                resp_len - received, 0);
-        if (bytes <= 0) {
-            errorPrint("%s", "reading no response from socket\n");
-            goto free_of_postImpl;
-        }
-        responseBuf[resp_len] = 0;
-        debugPrint("response buffer: %s bytes=%d\n", responseBuf, bytes);
-        if (NULL != strstr(responseBuf, resEncodingChunk)) {
-            chunked = true;
-        }
-        int64_t index = strlen(responseBuf) - 1;
-        while (responseBuf[index] == '\n' || responseBuf[index] == '\r') {
-            if (index == 0) {
-                break;
-            }
-            index--;
-        }
-        debugPrint("index: %" PRId64 "\n", index);
-        if (chunked && responseBuf[index] == '0') {
-            code = 0;
-            break;
-        }
-        if (!chunked && responseBuf[index] == '}') {
-            code = 0;
-            break;
-        }
-
-        received += bytes;
-
-        if (g_arguments->test_mode == INSERT_TEST) {
-            if (strlen(responseBuf)) {
-                if (((NULL != strstr(responseBuf, resEncodingChunk)) &&
-                            (NULL != strstr(responseBuf, resHttp))) ||
-                        ((NULL != strstr(responseBuf, resHttpOk)) ||
-                         (NULL != strstr(responseBuf, influxHttpOk)) ||
-                         (NULL != strstr(responseBuf, opentsdbHttpOk)))) {
-                    break;
-                }
-            }
-        }
-    } while ((received < resp_len) && !g_arguments->terminate);
-
-    if (received == resp_len) {
-        errorPrint("%s", "storing complete response from socket\n");
-        goto free_of_postImpl;
-    }
-
-    if (NULL == strstr(responseBuf, resHttpOk) &&
-            NULL == strstr(responseBuf, influxHttpOk) &&
-            NULL == strstr(responseBuf, succMessage) &&
-            NULL == strstr(responseBuf, opentsdbHttpOk)) {
-        errorPrint("Response:\n%s\n", responseBuf);
-        goto free_of_postImpl;
-    }
-
-    code = 0;
-free_of_postImpl:
-    if (filePath && strlen(filePath) > 0 && !g_arguments->terminate) {
-        appendResultBufToFile(responseBuf, filePath);
-    }
-    tmfree(request_buf);
-    return code;
-}
-
-static int getServerVersionRestImpl(int16_t rest_port, int sockfd) {
-    int server_ver = -1;
-    char       command[SHORT_1K_SQL_BUFF_LEN] = "\0";
-    snprintf(command, SHORT_1K_SQL_BUFF_LEN, "SELECT SERVER_VERSION()");
-    char *responseBuf = benchCalloc(1, RESP_BUF_LEN, false);
-    int code = postProceSqlImpl(command,
-                                NULL,
-                                0,
-                                REST_IFACE,
-                                0,
-                                rest_port,
-                                false,
-                                sockfd,
-                                NULL, responseBuf, RESP_BUF_LEN);
-    if (code != 0) {
-        errorPrint("Failed to execute command: %s\n", command);
-        goto free_of_getversion;
-    }
-    debugPrint("response buffer: %s\n", responseBuf);
-    if (NULL != strstr(responseBuf, resHttpOk)) {
-        char* start = strstr(responseBuf, "{");
-        if (start == NULL) {
-            errorPrint("Invalid response format: %s\n", responseBuf);
-            goto free_of_getversion;
-        }
-        tools_cJSON* resObj = tools_cJSON_Parse(start);
-        if (resObj == NULL) {
-            errorPrint("Cannot parse response into json: %s\n", start);
-        }
-        tools_cJSON* dataObj = tools_cJSON_GetObjectItem(resObj, "data");
-        if (!tools_cJSON_IsArray(dataObj)) {
-            char* pstr = tools_cJSON_Print(resObj);
-            errorPrint("Invalid or miss 'data' key in json: %s\n", pstr ? pstr : "null");
-            tmfree(pstr);
-            tools_cJSON_Delete(resObj);
-            goto free_of_getversion;
-        }
-        tools_cJSON *versionObj = tools_cJSON_GetArrayItem(dataObj, 0);
-        tools_cJSON *versionStrObj = tools_cJSON_GetArrayItem(versionObj, 0);
-        server_ver = atoi(versionStrObj->valuestring);
-        char* pstr = tools_cJSON_Print(versionStrObj);        
-        debugPrint("versionStrObj: %s, version: %s, server_ver: %d\n",
-                   pstr ? pstr : "null",
-                   versionStrObj->valuestring, server_ver);
-        tmfree(pstr);
-        tools_cJSON_Delete(resObj);
-    }
-free_of_getversion:
-    free(responseBuf);
-    return server_ver;
-}
-
-int getServerVersionRest(int16_t rest_port) {
-    int sockfd = createSockFd();
-    if (sockfd < 0) {
-        return -1;
-    }
-
-    int server_version = getServerVersionRestImpl(rest_port, sockfd);
-
-    destroySockFd(sockfd);
-    return server_version;
-}
-
-static int getCodeFromResp(char *responseBuf) {
-    int code = -1;
-    char* start = strstr(responseBuf, "{");
-    if (start == NULL) {
-        errorPrint("Invalid response format: %s\n", responseBuf);
-        return -1;
-    }
-    tools_cJSON* resObj = tools_cJSON_Parse(start);
-    if (resObj == NULL) {
-        errorPrint("Cannot parse response into json: %s\n", start);
-        return -1;
-    }
-    tools_cJSON* codeObj = tools_cJSON_GetObjectItem(resObj, "code");
-    if (!tools_cJSON_IsNumber(codeObj)) {
-        char* pstr = tools_cJSON_Print(resObj);
-        errorPrint("Invalid or miss 'code' key in json: %s\n", pstr ? pstr : "null");
-        tmfree(pstr);
-        tools_cJSON_Delete(resObj);
-        return -1;
-    }
-
-    code = codeObj->valueint;
-
-    if (codeObj->valueint != 0) {
-        tools_cJSON* desc = tools_cJSON_GetObjectItem(resObj, "desc");
-        if (!tools_cJSON_IsString(desc)) {
-            char* pstr = tools_cJSON_Print(resObj);
-            errorPrint("Invalid or miss 'desc' key in json: %s\n", pstr ? pstr : "null");
-            tmfree(pstr);
-            return -1;
-        }
-        errorPrint("response, code: %d, reason: %s\n",
-                   (int)codeObj->valueint, desc->valuestring);
-    }
-
-    tools_cJSON_Delete(resObj);
-    return code;
-}
-
-int postProceSql(char *sqlstr, char* dbName, int precision, int iface,
-                 int protocol, uint16_t rest_port,
-                 bool tcp, int sockfd, char* filePath) {
-    uint64_t response_length;
-    if (g_arguments->test_mode == INSERT_TEST) {
-        response_length = RESP_BUF_LEN;
-    } else {
-        response_length = g_queryInfo.response_buffer;
-    }
-
-    char *responseBuf = benchCalloc(1, response_length, false);
-    int code = postProceSqlImpl(sqlstr, dbName, precision, iface, protocol,
-                                rest_port,
-                                tcp, sockfd, filePath, responseBuf,
-                                response_length);
-    // compatibility 2.6
-    if (-1 == g_arguments->rest_server_ver_major) {
-        // confirm version is 2.x according to "succ"
-        if (NULL != strstr(responseBuf, succMessage) && iface == REST_IFACE) {
-            g_arguments->rest_server_ver_major = 2;
-        }
-    }
-
-    if (NULL != strstr(responseBuf, resHttpOk) && iface == REST_IFACE) {
-        // if taosd is not starting , rest_server_ver_major can't be got by 'select server_version()' , so is -1
-        if (-1 == g_arguments->rest_server_ver_major || 3 <= g_arguments->rest_server_ver_major) {
-            code = getCodeFromResp(responseBuf);
-        } else {
-            code = 0;
-        }
-        goto free_of_post;
-    }
-
-    if (2 == g_arguments->rest_server_ver_major) {
-        if (NULL != strstr(responseBuf, succMessage) && iface == REST_IFACE) {
-            code = getCodeFromResp(responseBuf);
-        } else {
-            code = 0;
-        }
-        goto free_of_post;
-    }
-
-    if (NULL != strstr(responseBuf, influxHttpOk) &&
-            protocol == TSDB_SML_LINE_PROTOCOL && iface == SML_REST_IFACE) {
-        code = 0;
-        goto free_of_post;
-    }
-
-    if (NULL != strstr(responseBuf, opentsdbHttpOk)
-            && (protocol == TSDB_SML_TELNET_PROTOCOL
-            || protocol == TSDB_SML_JSON_PROTOCOL
-            || protocol == SML_JSON_TAOS_FORMAT)
-            && iface == SML_REST_IFACE) {
-        code = 0;
-        goto free_of_post;
-    }
-
-    if (g_arguments->test_mode == INSERT_TEST) {
-        debugPrint("Response: \n%s\n", responseBuf);
-        char* start = strstr(responseBuf, "{");
-        if ((start == NULL)
-                && (TSDB_SML_TELNET_PROTOCOL != protocol)
-                && (TSDB_SML_JSON_PROTOCOL != protocol)
-                && (SML_JSON_TAOS_FORMAT != protocol)
-                ) {
-            errorPrint("Invalid response format: %s\n", responseBuf);
-            goto free_of_post;
-        }
-        tools_cJSON* resObj = tools_cJSON_Parse(start);
-        if ((resObj == NULL)
-                && (TSDB_SML_TELNET_PROTOCOL != protocol)
-                && (TSDB_SML_JSON_PROTOCOL != protocol)
-                && (SML_JSON_TAOS_FORMAT != protocol)
-                ) {
-            errorPrint("Cannot parse response into json: %s\n", start);
-        }
-        tools_cJSON* codeObj = tools_cJSON_GetObjectItem(resObj, "code");
-        if ((!tools_cJSON_IsNumber(codeObj))
-                && (TSDB_SML_TELNET_PROTOCOL != protocol)
-                && (TSDB_SML_JSON_PROTOCOL != protocol)
-                && (SML_JSON_TAOS_FORMAT != protocol)
-                ) {
-            char* pstr = tools_cJSON_Print(resObj);
-            errorPrint("Invalid or miss 'code' key in json: %s\n", pstr ? pstr : "null");
-            tmfree(pstr);
-            tools_cJSON_Delete(resObj);
-            goto free_of_post;
-        }
-
-        if ((SML_REST_IFACE == iface) && codeObj
-                && (200 == codeObj->valueint)) {
-            code = 0;
-            tools_cJSON_Delete(resObj);
-            goto free_of_post;
-        }
-
-        if ((iface == SML_REST_IFACE)
-                && (protocol == TSDB_SML_LINE_PROTOCOL)
-                && codeObj
-                && (codeObj->valueint != 0) && (codeObj->valueint != 200)) {
-            tools_cJSON* desc = tools_cJSON_GetObjectItem(resObj, "desc");
-            if (!tools_cJSON_IsString(desc)) {
-                char* pstr = tools_cJSON_Print(resObj);
-                errorPrint("Invalid or miss 'desc' key in json: %s\n", pstr ? pstr : "null");
-                tmfree(pstr);
-            } else {
-                errorPrint("insert mode response, code: %d, reason: %s\n",
-                       (int)codeObj->valueint, desc->valuestring);
-            }
-        } else {
-            code = 0;
-        }
-        tools_cJSON_Delete(resObj);
-    }
-free_of_post:
-    free(responseBuf);
-    return code;
 }
 
 // fetch result fo file or nothing
@@ -909,6 +474,11 @@ char *convertDatatypeToString(int type) {
             return "varbinary";
         case TSDB_DATA_TYPE_GEOMETRY:
             return "geometry";
+        case TSDB_DATA_TYPE_DECIMAL:
+        case TSDB_DATA_TYPE_DECIMAL64:
+            return "decimal";
+        case TSDB_DATA_TYPE_BLOB:
+            return "blob";
         default:
             break;
     }
@@ -945,6 +515,12 @@ int convertTypeToLength(uint8_t type) {
         case TSDB_DATA_TYPE_JSON:
             ret = JSON_FIXED_LENGTH;
             break;
+        case TSDB_DATA_TYPE_DECIMAL:
+            ret = sizeof(Decimal128);
+            break;
+        case TSDB_DATA_TYPE_DECIMAL64:
+            ret = sizeof(Decimal64);
+            break;
         default:
             break;
     }
@@ -968,6 +544,8 @@ int64_t convertDatatypeToDefaultMin(uint8_t type) {
         case TSDB_DATA_TYPE_BIGINT:
         case TSDB_DATA_TYPE_FLOAT:
         case TSDB_DATA_TYPE_DOUBLE:
+        case TSDB_DATA_TYPE_DECIMAL:
+        case TSDB_DATA_TYPE_DECIMAL64:
             ret = -1 * (RAND_MAX >> 1);
             break;
         default:
@@ -999,6 +577,8 @@ int64_t convertDatatypeToDefaultMax(uint8_t type) {
         case TSDB_DATA_TYPE_BIGINT:
         case TSDB_DATA_TYPE_FLOAT:
         case TSDB_DATA_TYPE_DOUBLE:
+        case TSDB_DATA_TYPE_DECIMAL:
+        case TSDB_DATA_TYPE_DECIMAL64:
             ret = RAND_MAX >> 1;
             break;
         case TSDB_DATA_TYPE_UINT:
@@ -1012,6 +592,121 @@ int64_t convertDatatypeToDefaultMax(uint8_t type) {
     return ret;
 }
 
+
+void doubleToDecimal64(double val, uint8_t precision, uint8_t scale, Decimal64* dec) {
+    char buf[DECIMAL64_BUFF_LEN] = {0};
+    (void)snprintf(buf, sizeof(buf), "%.*f", scale, val);
+    decimal64FromStr(buf, strlen(buf), precision, scale, dec);
+}
+
+
+void doubleToDecimal128(double val, uint8_t precision, uint8_t scale, Decimal128* dec) {
+    char buf[DECIMAL_BUFF_LEN] = {0};
+    (void)snprintf(buf, sizeof(buf), "%.*f", scale, val);
+    decimal128FromStr(buf, strlen(buf), precision, scale, dec);
+}
+
+
+void stringToDecimal64(const char* str, uint8_t precision, uint8_t scale, Decimal64* dec) {
+    decimal64FromStr(str, strlen(str), precision, scale, dec);
+}
+
+
+void stringToDecimal128(const char* str, uint8_t precision, uint8_t scale, Decimal128* dec) {
+    decimal128FromStr(str, strlen(str), precision, scale, dec);
+}
+
+
+int decimal64ToString(const Decimal64* dec, uint8_t precision, uint8_t scale, char* buf, size_t size) {
+    return decimalToStr(dec, TSDB_DATA_TYPE_DECIMAL64, precision, scale, buf, size);
+}
+
+
+int decimal128ToString(const Decimal128* dec, uint8_t precision, uint8_t scale, char* buf, size_t size) {
+    return decimalToStr(dec, TSDB_DATA_TYPE_DECIMAL, precision, scale, buf, size);
+}
+
+
+void getDecimal64DefaultMax(uint8_t precision, uint8_t scale, Decimal64* dec) {
+    char maxStr[DECIMAL64_BUFF_LEN];
+
+    precision = MIN(precision, DECIMAL64_BUFF_LEN - 1);
+    for(int i = 0; i < precision; ++i) {
+        maxStr[i] = '9';
+    }
+    maxStr[precision] = '\0';
+    
+    stringToDecimal64(maxStr, precision, scale, dec);
+    return;
+}
+
+
+void getDecimal64DefaultMin(uint8_t precision, uint8_t scale, Decimal64* dec) {
+    char minStr[DECIMAL64_BUFF_LEN];
+
+    precision = MIN(precision, DECIMAL64_BUFF_LEN - 2);
+    minStr[0] = '-';
+    for(int i = 1; i <= precision; ++i) {
+        minStr[i] = '9';
+    }
+    minStr[precision + 1] = '\0';
+    
+    stringToDecimal64(minStr, precision, scale, dec);
+    return;
+}
+
+
+void getDecimal128DefaultMax(uint8_t precision, uint8_t scale, Decimal128* dec) {
+    char maxStr[DECIMAL_BUFF_LEN];
+
+    precision = MIN(precision, DECIMAL_BUFF_LEN - 1);
+    for(int i = 0; i < precision; ++i) {
+        maxStr[i] = '9';
+    }
+    maxStr[precision] = '\0';
+    
+    stringToDecimal128(maxStr, precision, scale, dec);
+    return;
+}
+
+
+void getDecimal128DefaultMin(uint8_t precision, uint8_t scale, Decimal128* dec) {
+    char minStr[DECIMAL_BUFF_LEN];
+
+    precision = MIN(precision, DECIMAL_BUFF_LEN - 2);
+    minStr[0] = '-';
+    for(int i = 1; i <= precision; ++i) {
+        minStr[i] = '9';
+    }
+    minStr[precision + 1] = '\0';
+    
+    stringToDecimal128(minStr, precision, scale, dec);
+    return;
+}
+
+
+int decimal64BCompare(const Decimal64* a, const Decimal64* b) {
+    return DECIMAL64_GET_VALUE(a) < DECIMAL64_GET_VALUE(b) ? -1 : (DECIMAL64_GET_VALUE(a) > DECIMAL64_GET_VALUE(b));
+}
+
+
+int decimal128BCompare(const Decimal128* a, const Decimal128* b) {
+    const uint64_t sign_mask = (uint64_t)1 << 63;
+    int a_sign = (DECIMAL128_HIGH_WORD(a) & sign_mask) >> 63;
+    int b_sign = (DECIMAL128_HIGH_WORD(b) & sign_mask) >> 63;
+
+    if (a_sign != b_sign) {
+        return a_sign < b_sign ? 1 : -1;
+    }
+
+    if (DECIMAL128_HIGH_WORD(a) != DECIMAL128_HIGH_WORD(b)) {
+        return DECIMAL128_HIGH_WORD(a) < DECIMAL128_HIGH_WORD(b) ? -1 : 1;
+    } else {
+        return DECIMAL128_LOW_WORD(a) < DECIMAL128_LOW_WORD(b) ? -1 : (DECIMAL128_LOW_WORD(a) > DECIMAL128_LOW_WORD(b));
+    }
+}
+
+
 // compare str with length
 int32_t strCompareN(char *str1, char *str2, int length) {
     if (length == 0) {
@@ -1021,7 +716,7 @@ int32_t strCompareN(char *str1, char *str2, int length) {
     }
 }
 
-int convertStringToDatatype(char *type, int length) {
+int convertStringToDatatype(char *type, int length, void* ctx) {
     // compare with length
     if (0 == strCompareN(type, "binary", length)) {
         return TSDB_DATA_TYPE_BINARY;
@@ -1033,18 +728,26 @@ int convertStringToDatatype(char *type, int length) {
         return TSDB_DATA_TYPE_BOOL;
     } else if (0 == strCompareN(type, "tinyint", length)) {
         return TSDB_DATA_TYPE_TINYINT;
+    } else if (0 == strCompareN(type, "tinyint unsigned", length)) {
+        return TSDB_DATA_TYPE_UTINYINT;
     } else if (0 == strCompareN(type, "utinyint", length)) {
         return TSDB_DATA_TYPE_UTINYINT;
     } else if (0 == strCompareN(type, "smallint", length)) {
         return TSDB_DATA_TYPE_SMALLINT;
+    } else if (0 == strCompareN(type, "smallint unsigned", length)) {
+        return TSDB_DATA_TYPE_USMALLINT;
     } else if (0 == strCompareN(type, "usmallint", length)) {
         return TSDB_DATA_TYPE_USMALLINT;
     } else if (0 == strCompareN(type, "int", length)) {
         return TSDB_DATA_TYPE_INT;
+    } else if (0 == strCompareN(type, "int unsigned", length)) {
+        return TSDB_DATA_TYPE_UINT;
     } else if (0 == strCompareN(type, "uint", length)) {
         return TSDB_DATA_TYPE_UINT;
     } else if (0 == strCompareN(type, "bigint", length)) {
         return TSDB_DATA_TYPE_BIGINT;
+    } else if (0 == strCompareN(type, "bigint unsigned", length)) {
+        return TSDB_DATA_TYPE_UBIGINT;
     } else if (0 == strCompareN(type, "ubigint", length)) {
         return TSDB_DATA_TYPE_UBIGINT;
     } else if (0 == strCompareN(type, "float", length)) {
@@ -1059,6 +762,14 @@ int convertStringToDatatype(char *type, int length) {
         return TSDB_DATA_TYPE_VARBINARY;
     } else if (0 == strCompareN(type, "geometry", length)) {
         return TSDB_DATA_TYPE_GEOMETRY;
+    } else if (0 == strCompareN(type, "decimal", length)) {
+        uint8_t precision = *(uint8_t*)ctx;
+        if (precision > TSDB_DECIMAL64_MAX_PRECISION)
+            return TSDB_DATA_TYPE_DECIMAL;
+        else
+            return TSDB_DATA_TYPE_DECIMAL64;
+    } else if (0 == strCompareN(type, "blob", length)) {
+        return TSDB_DATA_TYPE_BLOB;
     } else {
         errorPrint("unknown data type: %s\n", type);
         exit(EXIT_FAILURE);
@@ -1167,9 +878,17 @@ bool searchBArray(BArray *pArray, const char *field_name, int32_t name_len, uint
     if (pArray == NULL || field_name == NULL) {
         return false;
     }
+
     for (int i = 0; i < pArray->size; i++) {
         Field *field = benchArrayGet(pArray, i);
-        if (strlen(field->name) == name_len && strncasecmp(field->name, field_name, name_len) == 0) {
+        char * field_name_ptr = field->name;
+        int32_t field_name_len = strlen(field_name_ptr);
+        if (field_name_ptr[0] == '`' && field_name_ptr[field_name_len - 1] == '`') {
+            // remove the back quote
+            field_name_ptr++;
+            field_name_len -= 2;
+        }
+        if (field_name_len == name_len && strncasecmp(field_name_ptr, field_name, name_len) == 0) {
             if (field->type == field_type) {
                 return true;
             }
@@ -1212,28 +931,34 @@ void benchSetSignal(int32_t signum, ToolsSignalHandler sigfp) {
 #endif
 
 int convertServAddr(int iface, bool tcp, int protocol) {
+    // get host
+    char * host = g_arguments->host ? g_arguments->host :DEFAULT_HOST;
+
+    // covert
     if (tcp
             && iface == SML_REST_IFACE
             && protocol == TSDB_SML_TELNET_PROTOCOL) {
         // telnet_tcp_port        
-        if (convertHostToServAddr(g_arguments->host,
+        if (convertHostToServAddr(host,
                     g_arguments->telnet_tcp_port,
                     &(g_arguments->serv_addr))) {
-            errorPrint("%s\n", "convert host to server address");
+            errorPrint("failed to convertHostToServAddr host=%s telnet_tcp_port:%d iface=%d \n", 
+                    host, g_arguments->telnet_tcp_port, iface);
             return -1;
         }
-        infoPrint("convertServAddr host=%s telnet_tcp_port:%d to serv_addr=%p iface=%d \n", 
-                g_arguments->host, g_arguments->telnet_tcp_port, &g_arguments->serv_addr, iface);
+        infoPrint("restful connect -> convertServAddr host=%s telnet_tcp_port:%d to serv_addr=%p iface=%d \n", 
+                host, g_arguments->telnet_tcp_port, &g_arguments->serv_addr, iface);
     } else {
+        // port
         int port = g_arguments->port_inputted ? g_arguments->port:DEFAULT_REST_PORT;
-        if (convertHostToServAddr(g_arguments->host,
+        if (convertHostToServAddr(host,
                                     port,
                     &(g_arguments->serv_addr))) {
             errorPrint("%s\n", "convert host to server address");
             return -1;
         }
-        infoPrint("convertServAddr host=%s port:%d to serv_addr=%p iface=%d \n", 
-                g_arguments->host, port, &g_arguments->serv_addr, iface);
+        infoPrint("restful connect -> convertServAddr host=%s port:%d to serv_addr=%p iface=%d \n", 
+                host, port, &g_arguments->serv_addr, iface);
     }
     return 0;
 }
@@ -1318,37 +1043,15 @@ void destroySockFd(int sockfd) {
 }
 
 FORCE_INLINE void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res) {    
-    char buff[512];
+    char buff[530];
     char *msg = cmd;
     if (strlen(cmd) >= sizeof(buff)) {
-        memcpy(buff, cmd, 500);
-        buff[500] = 0;
-        strcat(buff, "...");
+        snprintf(buff, sizeof(buff), "%s", cmd);
         msg = buff;
     }
-    errorPrint("failed to run error code: 0x%08x, reason: %s command %s\n",
+    errorPrint("%s error code: 0x%08x, reason: %s command %s\n", TIP_ENGINE_ERR,
                code, taos_errstr(res), msg);
     taos_free_result(res);
-}
-
-int32_t benchGetTotalMemory(int64_t *totalKB) {
-#ifdef WINDOWS
-  MEMORYSTATUSEX memsStat;
-  memsStat.dwLength = sizeof(memsStat);
-  if (!GlobalMemoryStatusEx(&memsStat)) {
-    return -1;
-  }
-
-  *totalKB = memsStat.ullTotalPhys / 1024;
-  return 0;
-#elif defined(_TD_DARWIN_64)
-  *totalKB = 0;
-  return 0;
-#else
-  int64_t tsPageSizeKB = sysconf(_SC_PAGESIZE) / 1024;
-  *totalKB = (int64_t)(sysconf(_SC_PHYS_PAGES) * tsPageSizeKB);
-  return 0;
-#endif
 }
 
 // geneate question mark string , using insert into ... values(?,?,?...)
@@ -1360,6 +1063,24 @@ char* genQMark( int32_t QCnt) {
             strcat(buf, "?");
         else
             strcat(buf, ",?");
+    }
+    return buf;
+}
+
+// get colNames , first is tbname if tbName is true
+char *genColNames(BArray *cols, bool tbName, char * primaryKeyName) {
+    // reserve tbname,ts and "," space
+    char * buf = benchCalloc(TSDB_TABLE_NAME_LEN + 1, cols->size + 1, false);
+    if (tbName) {
+        snprintf(buf, TSDB_TABLE_NAME_LEN, "tbname,%s", primaryKeyName);
+    } else {
+        strcpy(buf, primaryKeyName);
+    }
+   
+    for (int32_t i = 0; i < cols->size; i++) {
+        Field * col = benchArrayGet(cols, i);
+        strcat(buf, ",");
+        strcat(buf, col->name);
     }
     return buf;
 }
@@ -1411,17 +1132,6 @@ void resetBindV(TAOS_STMT2_BINDV *bindv, int32_t capacity, int32_t tagCnt, int32
         bindv->bind_cols[i] = (TAOS_STMT2_BIND*)p;
         p += sizeof(TAOS_STMT2_BIND) * colCnt; // skip cols bodys
     }
-}
-
-// clear bindv
-void clearBindV(TAOS_STMT2_BINDV *bindv) {
-    if (bindv == NULL)
-        return ;
-    for(int32_t i = 0; i < bindv->count; i++) {
-        bindv->tags[i]      = NULL;
-        bindv->bind_cols[i] = NULL;
-    }
-    bindv->count = 0;
 }
 
 // free
@@ -1505,69 +1215,6 @@ int32_t calcGroupIndex(char* dbName, char* tbName, int32_t groupCnt) {
     return groupCnt - 1;
 }
 
-// windows no export MurmurHash3_32 function from engine
-#ifdef WINDOWS
-// define
-#define ROTL32(x, r) ((x) << (r) | (x) >> (32u - (r)))
-#define FMIX32(h)      \
-  do {                 \
-    (h) ^= (h) >> 16;  \
-    (h) *= 0x85ebca6b; \
-    (h) ^= (h) >> 13;  \
-    (h) *= 0xc2b2ae35; \
-    (h) ^= (h) >> 16;  \
-  } while (0)
-
-// impl MurmurHash3_32
-uint32_t MurmurHash3_32(const char *key, uint32_t len) {
-  const uint8_t *data = (const uint8_t *)key;
-  const int32_t  nblocks = len >> 2u;
-
-  uint32_t h1 = 0x12345678;
-
-  const uint32_t c1 = 0xcc9e2d51;
-  const uint32_t c2 = 0x1b873593;
-
-  const uint32_t *blocks = (const uint32_t *)(data + nblocks * 4);
-
-  for (int32_t i = -nblocks; i; i++) {
-    uint32_t k1 = blocks[i];
-
-    k1 *= c1;
-    k1 = ROTL32(k1, 15u);
-    k1 *= c2;
-
-    h1 ^= k1;
-    h1 = ROTL32(h1, 13u);
-    h1 = h1 * 5 + 0xe6546b64;
-  }
-
-  const uint8_t *tail = (data + nblocks * 4);
-
-  uint32_t k1 = 0;
-
-  switch (len & 3u) {
-    case 3:
-      k1 ^= tail[2] << 16;
-    case 2:
-      k1 ^= tail[1] << 8;
-    case 1:
-      k1 ^= tail[0];
-      k1 *= c1;
-      k1 = ROTL32(k1, 15u);
-      k1 *= c2;
-      h1 ^= k1;
-  };
-
-  h1 ^= len;
-
-  FMIX32(h1);
-
-  return h1;
-}
-#endif
-
-
 //
 // ---------------- benchQuery util ----------------------
 //
@@ -1582,7 +1229,7 @@ int32_t initQueryConn(qThreadInfo * pThreadInfo, int iface) {
         }
         pThreadInfo->sockfd = sockfd;
     } else {
-        pThreadInfo->conn = initBenchConn();
+        pThreadInfo->conn = initBenchConn(pThreadInfo->dbName);
         if (pThreadInfo->conn == NULL) {
             return -1;
         }
@@ -1630,10 +1277,8 @@ void freeSpecialQueryInfo() {
 #define KILLID_LEN  64
 
 void *queryKiller(void *arg) {
-    char host[MAX_HOSTNAME_LEN] = {0};
-    tstrncpy(host, g_arguments->host, MAX_HOSTNAME_LEN);
-
-    while (true) {
+    int32_t loop = 0;
+    while (!g_arguments->terminate && ++loop < 3) {
         TAOS *taos = taos_connect(g_arguments->host, g_arguments->user,
                 g_arguments->password, NULL, g_arguments->port);
         if (NULL == taos) {
@@ -1643,7 +1288,7 @@ void *queryKiller(void *arg) {
             return NULL;
         }
 
-        char command[TSDB_MAX_ALLOWED_SQL_LEN] =
+        char command[] =
             "SELECT kill_id,exec_usec,sql FROM performance_schema.perf_queries";
         TAOS_RES *res = taos_query(taos, command);
         int32_t code = taos_errno(res);
@@ -1661,12 +1306,12 @@ void *queryKiller(void *arg) {
 
                 if (execUSec > g_queryInfo.killQueryThreshold * 1000000) {
                     char sql[SHORT_1K_SQL_BUFF_LEN] = {0};
-                    tstrncpy(sql, (char*)row[2],
+                    TOOLS_STRNCPY(sql, (char*)row[2],
                              min(strlen((char*)row[2])+1,
                                  SHORT_1K_SQL_BUFF_LEN));
 
                     char killId[KILLID_LEN] = {0};
-                    tstrncpy(killId, (char*)row[0],
+                    TOOLS_STRNCPY(killId, (char*)row[0],
                             min(strlen((char*)row[0])+1, KILLID_LEN));
                     char killCommand[KILLID_LEN + 32] = {0};
                     snprintf(killCommand, sizeof(killCommand), "KILL QUERY '%s'", killId);
@@ -1706,22 +1351,16 @@ int killSlowQuery() {
 
 // fetch super table child name from server
 int fetchChildTableName(char *dbName, char *stbName) {
-    SBenchConn* conn = initBenchConn();
+    SBenchConn* conn = initBenchConn(dbName);
     if (conn == NULL) {
         return -1;
     }
 
     // get child count
     char  cmd[SHORT_1K_SQL_BUFF_LEN] = "\0";
-    if (3 == g_majorVersionOfClient) {
-        snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
-                "SELECT COUNT(*) FROM( SELECT DISTINCT(TBNAME) FROM `%s`.`%s`)",
-                dbName, stbName);
-    } else {
-        snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
-                    "SELECT COUNT(TBNAME) FROM `%s`.`%s`",
-                dbName, stbName);
-    }
+    snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
+            "SELECT COUNT(*) FROM( SELECT DISTINCT(TBNAME) FROM `%s`.`%s`)",
+            dbName, stbName);
     TAOS_RES *res = taos_query(conn->taos, cmd);
     int32_t   code = taos_errno(res);
     if (code) {
@@ -1766,5 +1405,462 @@ int fetchChildTableName(char *dbName, char *stbName) {
     closeBenchConn(conn);
 
     // succ
+    return 0;
+}
+
+// skip prefix suffix blank
+int trimCaseCmp(char *str1, char *str2) {
+    // Skip leading whitespace in str1
+    while (isblank((unsigned char)*str1)) {
+        str1++;
+    }
+
+    // Compare characters case-insensitively
+    while (*str2 != '\0') {
+        if (tolower((unsigned char)*str1) != tolower((unsigned char)*str2)) {
+            return -1;
+        }
+        str1++;
+        str2++;
+    }
+
+    // Check if the remaining characters in str1 are all whitespace
+    while (*str1 != '\0') {    
+        if (!isblank((unsigned char)*str1)) {
+            return -1;
+        }
+        str1++;
+    }
+
+    return 0;
+}
+
+int32_t queryDbExecRest(char *command, char* dbName, int precision,
+                    int iface, int protocol, bool tcp, int sockfd) {
+    int32_t code = postProcessSql(command,
+                         dbName,
+                         precision,
+                         iface,
+                         protocol,
+                         g_arguments->port,
+                         tcp,
+                         sockfd,
+                         NULL);
+    return code;
+}
+
+int32_t queryDbExecCall(SBenchConn *conn, char *command) {
+    int32_t code = 0;
+    TAOS_RES *res = taos_query(conn->taos, command);
+    code = taos_errno(res);
+    if (code) {
+        printErrCmdCodeStr(command, code, res);
+    } else {
+        taos_free_result(res);
+    }
+    return code;
+}
+
+void encodeAuthBase64() {
+    char        userpass_buf[INPUT_BUF_LEN];
+    static char base64[] = {
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+        'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+        'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'};
+
+    // auth
+    char *user     = g_arguments->user     ? g_arguments->user     : TSDB_DEFAULT_USER;
+    char *password = g_arguments->password ? g_arguments->password : TSDB_DEFAULT_PASS;
+    snprintf(userpass_buf, INPUT_BUF_LEN, "%s:%s", user, password);
+
+    int mod_table[] = {0, 2, 1};
+
+    size_t userpass_buf_len = strlen(userpass_buf);
+    size_t encoded_len = 4 * ((userpass_buf_len + 2) / 3);
+
+    memset(g_arguments->base64_buf, 0, INPUT_BUF_LEN);
+    for (int n = 0, m = 0; n < userpass_buf_len;) {
+        uint32_t oct_a =
+            n < userpass_buf_len ? (unsigned char)userpass_buf[n++] : 0;
+        uint32_t oct_b =
+            n < userpass_buf_len ? (unsigned char)userpass_buf[n++] : 0;
+        uint32_t oct_c =
+            n < userpass_buf_len ? (unsigned char)userpass_buf[n++] : 0;
+        uint32_t triple = (oct_a << 0x10) + (oct_b << 0x08) + oct_c;
+
+        g_arguments->base64_buf[m++] = base64[(triple >> 3 * 6) & 0x3f];
+        g_arguments->base64_buf[m++] = base64[(triple >> 2 * 6) & 0x3f];
+        g_arguments->base64_buf[m++] = base64[(triple >> 1 * 6) & 0x3f];
+        g_arguments->base64_buf[m++] = base64[(triple >> 0 * 6) & 0x3f];
+    }
+
+    for (int l = 0; l < mod_table[userpass_buf_len % 3]; l++)
+        g_arguments->base64_buf[encoded_len - 1 - l] = '=';
+}
+
+int postProceSqlImpl(char *sqlstr, char* dbName, int precision, int iface,
+                     int protocol, uint16_t rest_port, bool tcp, int sockfd,
+                     char* filePath,
+                     char *responseBuf, int64_t response_length) {
+    int32_t      code = -1;
+    char *       req_fmt =
+        "POST %s HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\nAuthorization: "
+        "Basic %s\r\nContent-Length: %d\r\nContent-Type: "
+        "application/x-www-form-urlencoded\r\n\r\n%s";
+    char url[URL_BUFF_LEN] = {0};
+    if (iface == REST_IFACE) {
+        snprintf(url, URL_BUFF_LEN, "/rest/sql/%s", dbName);
+    } else if (iface == SML_REST_IFACE
+            && protocol == TSDB_SML_LINE_PROTOCOL) {
+        snprintf(url, URL_BUFF_LEN,
+                 "/influxdb/v1/write?db=%s&precision=%s", dbName,
+                precision == TSDB_TIME_PRECISION_MILLI
+                ? "ms"
+                : precision == TSDB_TIME_PRECISION_NANO
+                ? "ns"
+                : "u");
+    } else if (iface == SML_REST_IFACE
+            && protocol == TSDB_SML_TELNET_PROTOCOL) {
+        snprintf(url, URL_BUFF_LEN, "/opentsdb/v1/put/telnet/%s", dbName);
+    } else if (iface == SML_REST_IFACE
+            && (protocol == TSDB_SML_JSON_PROTOCOL
+                || protocol == SML_JSON_TAOS_FORMAT)) {
+        snprintf(url, URL_BUFF_LEN, "/opentsdb/v1/put/json/%s", dbName);
+    }
+
+    int      bytes, sent, received, req_str_len, resp_len;
+    char *   request_buf = NULL;
+    int req_buf_len = (int)strlen(sqlstr) + REQ_EXTRA_BUF_LEN;
+
+    if (g_arguments->terminate) {
+        goto free_of_postImpl;
+    }
+    request_buf = benchCalloc(1, req_buf_len, false);
+
+    int r;
+    if (protocol == TSDB_SML_TELNET_PROTOCOL && tcp) {
+        r = snprintf(request_buf, req_buf_len, "%s", sqlstr);
+    } else {
+        r = snprintf(request_buf, req_buf_len, req_fmt, url, g_arguments->host,
+                rest_port, g_arguments->base64_buf, strlen(sqlstr),
+                sqlstr);
+    }
+    if (r >= req_buf_len) {
+        free(request_buf);
+        errorPrint("%s","too long request");
+        goto free_of_postImpl;
+    }
+
+    req_str_len = (int)strlen(request_buf);
+    debugPrint("request buffer: %s\n", request_buf);
+    sent = 0;
+    do {
+        bytes = send(sockfd, request_buf + sent,
+                req_str_len - sent, 0);
+        if (bytes < 0) {
+            errorPrint("%s", "writing no message to socket\n");
+            goto free_of_postImpl;
+        }
+        if (bytes == 0) break;
+        sent += bytes;
+    } while ((sent < req_str_len) && !g_arguments->terminate);
+
+    if (protocol == TSDB_SML_TELNET_PROTOCOL
+            && iface == SML_REST_IFACE && tcp) {
+        code = 0;
+        goto free_of_postImpl;
+    }
+
+    resp_len = response_length - 1;
+    received = 0;
+
+    bool chunked = false;
+
+    if (g_arguments->terminate) {
+        goto free_of_postImpl;
+    }
+    do {
+        bytes = recv(sockfd, responseBuf + received,
+                resp_len - received, 0);
+        responseBuf[resp_len] = 0;
+        debugPrint("response buffer: %s\n", responseBuf);
+        if (NULL != strstr(responseBuf, resEncodingChunk)) {
+            chunked = true;
+        }
+        int64_t index = strlen(responseBuf) - 1;
+        while (responseBuf[index] == '\n' || responseBuf[index] == '\r') {
+            index--;
+        }
+        debugPrint("index: %" PRId64 "\n", index);
+        if (chunked && responseBuf[index] == '0') {
+            code = 0;
+            break;
+        }
+        if (!chunked && responseBuf[index] == '}') {
+            code = 0;
+            break;
+        }
+
+        if (bytes <= 0) {
+            errorPrint("%s", "reading no response from socket\n");
+            goto free_of_postImpl;
+        }
+
+        received += bytes;
+
+        if (g_arguments->test_mode == INSERT_TEST) {
+            if (strlen(responseBuf)) {
+                if (((NULL != strstr(responseBuf, resEncodingChunk)) &&
+                            (NULL != strstr(responseBuf, resHttp))) ||
+                        ((NULL != strstr(responseBuf, resHttpOk)) ||
+                         (NULL != strstr(responseBuf, influxHttpOk)) ||
+                         (NULL != strstr(responseBuf, opentsdbHttpOk)))) {
+                    break;
+                }
+            }
+        }
+    } while ((received < resp_len) && !g_arguments->terminate);
+
+    if (received == resp_len) {
+        errorPrint("%s", "storing complete response from socket\n");
+        goto free_of_postImpl;
+    }
+
+    if (NULL == strstr(responseBuf, resHttpOk) &&
+            NULL == strstr(responseBuf, influxHttpOk) &&
+            NULL == strstr(responseBuf, succMessage) &&
+            NULL == strstr(responseBuf, opentsdbHttpOk)) {
+        errorPrint("Response:\n%s\n", responseBuf);
+        goto free_of_postImpl;
+    }
+
+    code = 0;
+free_of_postImpl:
+    if (filePath && strlen(filePath) > 0 && !g_arguments->terminate) {
+        appendResultBufToFile(responseBuf, filePath);
+    }
+    tmfree(request_buf);
+    return code;
+}
+
+static int getServerVersionRestImpl(int16_t rest_port, int sockfd) {
+    int server_ver = -1;
+    char       command[SHORT_1K_SQL_BUFF_LEN] = "\0";
+    snprintf(command, SHORT_1K_SQL_BUFF_LEN, "SELECT SERVER_VERSION()");
+    char *responseBuf = benchCalloc(1, RESP_BUF_LEN, false);
+    int code = postProceSqlImpl(command,
+                                NULL,
+                                0,
+                                REST_IFACE,
+                                0,
+                                rest_port,
+                                false,
+                                sockfd,
+                                NULL, responseBuf, RESP_BUF_LEN);
+    if (code != 0) {
+        errorPrint("Failed to execute command: %s\n", command);
+        goto free_of_getversion;
+    }
+    debugPrint("response buffer: %s\n", responseBuf);
+    if (NULL != strstr(responseBuf, resHttpOk)) {
+        char* start = strstr(responseBuf, "{");
+        if (start == NULL) {
+            errorPrint("Invalid response format: %s\n", responseBuf);
+            goto free_of_getversion;
+        }
+        tools_cJSON* resObj = tools_cJSON_Parse(start);
+        if (resObj == NULL) {
+            errorPrint("Cannot parse response into json: %s\n", start);
+        }
+        tools_cJSON* dataObj = tools_cJSON_GetObjectItem(resObj, "data");
+        if (!tools_cJSON_IsArray(dataObj)) {
+            char* pstr = tools_cJSON_Print(resObj);
+            errorPrint("Invalid or miss 'data' key in json: %s\n", pstr ? pstr : "null");
+            tmfree(pstr);
+            tools_cJSON_Delete(resObj);
+            goto free_of_getversion;
+        }
+        tools_cJSON *versionObj = tools_cJSON_GetArrayItem(dataObj, 0);
+        tools_cJSON *versionStrObj = tools_cJSON_GetArrayItem(versionObj, 0);
+        server_ver = atoi(versionStrObj->valuestring);
+        char* pstr = tools_cJSON_Print(versionStrObj);        
+        debugPrint("versionStrObj: %s, version: %s, server_ver: %d\n",
+                   pstr ? pstr : "null",
+                   versionStrObj->valuestring, server_ver);
+        tmfree(pstr);
+        tools_cJSON_Delete(resObj);
+    }
+free_of_getversion:
+    free(responseBuf);
+    return server_ver;
+}
+
+int getServerVersionRest(int16_t rest_port) {
+    int sockfd = createSockFd();
+    if (sockfd < 0) {
+        return -1;
+    }
+
+    int server_version = getServerVersionRestImpl(rest_port, sockfd);
+
+    destroySockFd(sockfd);
+    return server_version;
+}
+
+int getCodeFromResp(char *responseBuf) {
+    int code = -1;
+    char* start = strstr(responseBuf, "{");
+    if (start == NULL) {
+        errorPrint("Invalid response format: %s\n", responseBuf);
+        return -1;
+    }
+    tools_cJSON* resObj = tools_cJSON_Parse(start);
+    if (resObj == NULL) {
+        errorPrint("Cannot parse response into json: %s\n", start);
+        return -1;
+    }
+    tools_cJSON* codeObj = tools_cJSON_GetObjectItem(resObj, "code");
+    if (!tools_cJSON_IsNumber(codeObj)) {
+        char* pstr = tools_cJSON_Print(resObj);
+        errorPrint("Invalid or miss 'code' key in json: %s\n", pstr ? pstr : "null");
+        tmfree(pstr);
+        tools_cJSON_Delete(resObj);
+        return -1;
+    }
+
+    code = codeObj->valueint;
+
+    if (codeObj->valueint != 0) {
+        tools_cJSON* desc = tools_cJSON_GetObjectItem(resObj, "desc");
+        if (!tools_cJSON_IsString(desc)) {
+            char* pstr = tools_cJSON_Print(resObj);
+            errorPrint("Invalid or miss 'desc' key in json: %s\n", pstr ? pstr : "null");
+            tmfree(pstr);
+            return -1;
+        }
+        errorPrint("response, code: %d, reason: %s\n",
+                   (int)codeObj->valueint, desc->valuestring);
+    }
+
+    tools_cJSON_Delete(resObj);
+    return code;
+}
+
+int postProcessSql(char *sqlstr, char* dbName, int precision, int iface,
+                 int protocol, uint16_t rest_port,
+                 bool tcp, int sockfd, char* filePath) {
+    uint64_t response_length;
+    if (g_arguments->test_mode == INSERT_TEST) {
+        response_length = RESP_BUF_LEN;
+    } else {
+        response_length = g_queryInfo.response_buffer;
+    }
+
+    char *responseBuf = benchCalloc(1, response_length, false);
+    int code = postProceSqlImpl(sqlstr, dbName, precision, iface, protocol,
+                                rest_port,
+                                tcp, sockfd, filePath, responseBuf,
+                                response_length);
+    debugPrint("sqls:%s db:%s iface:%d protocal:%d rest_port:%d tcp:%d sockfd:%d response=%s\n",
+           sqlstr, dbName, iface, protocol, rest_port, tcp, sockfd, responseBuf);
+
+    if (NULL != strstr(responseBuf, resHttpOk) && iface == REST_IFACE) {
+        code = 0;
+        // if taosd is not starting , rest_server_ver_major can't be got by 'select server_version()' , so is -1
+        if (-1 == g_arguments->rest_server_ver_major || 3 <= g_arguments->rest_server_ver_major) {
+            code = getCodeFromResp(responseBuf);
+        }
+        goto free_of_post;
+    }
+
+    // influx
+    if (NULL != strstr(responseBuf, influxHttpOk) &&
+            protocol == TSDB_SML_LINE_PROTOCOL && iface == SML_REST_IFACE) {
+        code = 0;
+        goto free_of_post;
+    }
+
+    // opentsdb
+    if (NULL != strstr(responseBuf, opentsdbHttpOk)
+            && (protocol == TSDB_SML_TELNET_PROTOCOL
+            || protocol == TSDB_SML_JSON_PROTOCOL
+            || protocol == SML_JSON_TAOS_FORMAT)
+            && iface == SML_REST_IFACE) {
+        code = 0;
+        goto free_of_post;
+    }
+
+    if (g_arguments->test_mode == INSERT_TEST) {
+        debugPrint("Response: \n%s\n", responseBuf);
+        char* start = strstr(responseBuf, "{");
+        if ((start == NULL)
+                && (TSDB_SML_TELNET_PROTOCOL != protocol)
+                && (TSDB_SML_JSON_PROTOCOL != protocol)
+                && (SML_JSON_TAOS_FORMAT != protocol)
+                ) {
+            errorPrint("Invalid response format: %s\n", responseBuf);
+            goto free_of_post;
+        }
+        tools_cJSON* resObj = tools_cJSON_Parse(start);
+        if ((resObj == NULL)
+                && (TSDB_SML_TELNET_PROTOCOL != protocol)
+                && (TSDB_SML_JSON_PROTOCOL != protocol)
+                && (SML_JSON_TAOS_FORMAT != protocol)
+                ) {
+            errorPrint("Cannot parse response into json: %s\n", start);
+        }
+        tools_cJSON* codeObj = tools_cJSON_GetObjectItem(resObj, "code");
+        if ((!tools_cJSON_IsNumber(codeObj))
+                && (TSDB_SML_TELNET_PROTOCOL != protocol)
+                && (TSDB_SML_JSON_PROTOCOL != protocol)
+                && (SML_JSON_TAOS_FORMAT != protocol)
+                ) {
+            char* pstr = tools_cJSON_Print(resObj);
+            errorPrint("Invalid or miss 'code' key in json: %s\n", pstr ? pstr : "null");
+            tmfree(pstr);
+            tools_cJSON_Delete(resObj);
+            goto free_of_post;
+        }
+
+        if ((SML_REST_IFACE == iface) && codeObj
+                && (200 == codeObj->valueint)) {
+            code = 0;
+            tools_cJSON_Delete(resObj);
+            goto free_of_post;
+        }
+
+        if ((iface == SML_REST_IFACE)
+                && (protocol == TSDB_SML_LINE_PROTOCOL)
+                && codeObj
+                && (codeObj->valueint != 0) && (codeObj->valueint != 200)) {
+            tools_cJSON* desc = tools_cJSON_GetObjectItem(resObj, "desc");
+            if (!tools_cJSON_IsString(desc)) {
+                char* pstr = tools_cJSON_Print(resObj);
+                errorPrint("Invalid or miss 'desc' key in json: %s\n", pstr ? pstr : "null");
+                tmfree(pstr);
+            } else {
+                errorPrint("insert mode response, code: %d, reason: %s\n",
+                       (int)codeObj->valueint, desc->valuestring);
+            }
+        } else {
+            code = 0;
+        }
+        tools_cJSON_Delete(resObj);
+    }
+free_of_post:
+    free(responseBuf);
+    return code;
+}
+
+int check_write_permission(const char *path) {
+    FILE *fp = fopen(path, "w");
+    if (fp == NULL) {
+        errorPrint("Error: %s No write permission\n", path);
+        return -1;
+    }
+    fclose(fp);
+    
     return 0;
 }

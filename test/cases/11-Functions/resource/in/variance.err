@@ -1,0 +1,8 @@
+select variance() from ts_4893.d0;
+select variance(ts) from ts_4893.d0;
+select variance(name) from ts_4893.d0;
+select variance(id, current) from ts_4893.d0;
+select variance() from ts_4893.meters;
+select variance(ts) from ts_4893.meters;
+select variance(name) from ts_4893.meters;
+select variance(id, current) from ts_4893.meters;

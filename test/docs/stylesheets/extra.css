@@ -1,0 +1,6 @@
+h1, .doc.doc-heading, h1.doc.doc-heading {
+  margin-top: 0 !important;
+  margin-bottom: 4px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}

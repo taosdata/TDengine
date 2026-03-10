@@ -1,0 +1,15 @@
+
+set max_binary_display_width 300 ;
+explain verbose true select _wstart, _wend, count(*) from test_vtable_select.vtb_virtual_stb interval(1s);
+explain verbose true select _wstart, _wend, count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_stb interval(1s);
+explain verbose true select _wstart, _wend, count(u_tinyint_col), avg(u_smallint_col), sum(u_int_col) from test_vtable_select.vtb_virtual_stb interval(2s);
+explain verbose true select _wstart, _wend, count(u_tinyint_col), avg(u_smallint_col), sum(u_int_col) from test_vtable_select.vtb_virtual_stb interval(500a);
+explain verbose true select _wstart, _wend, count(u_tinyint_col), avg(u_smallint_col), sum(u_int_col) from test_vtable_select.vtb_virtual_stb interval(1m);
+explain verbose true select _wstart, _wend, count(u_tinyint_col), avg(u_smallint_col), sum(u_int_col) from test_vtable_select.vtb_virtual_stb where bool_col != false interval(1s);
+explain verbose true select _wstart, _wend, count(u_tinyint_col), avg(u_smallint_col), sum(u_int_col) from test_vtable_select.vtb_virtual_stb where bool_col != false and u_tinyint_col > 10 interval(2s);
+explain verbose true select _wstart, _wend, count(u_tinyint_col), avg(u_smallint_col), sum(u_int_col) from test_vtable_select.vtb_virtual_stb where ts >= '2020-10-01 00:00:20.262' and ts <= '2020-10-01 00:00:20.295' interval(1s);
+explain verbose true select _wstart, _wend, count(u_tinyint_col), avg(u_smallint_col), sum(u_int_col) from test_vtable_select.vtb_virtual_stb where ts >= '2020-10-01 00:00:20.262' and ts <= '2020-10-01 00:00:20.295' and bool_col != false interval(500a);
+explain verbose true select _wstart, _wend, count(u_tinyint_col), avg(int_tag) from test_vtable_select.vtb_virtual_stb interval(1s);
+explain verbose true select _wstart, _wend, first(u_tinyint_col), last(u_tinyint_col), count(u_tinyint_col) from test_vtable_select.vtb_virtual_stb interval(1s);
+explain verbose true select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_stb partition by u_tinyint_col interval(1s) order by 1,2,3,4 slimit 10 limit 10;
+explain verbose true select _wstart, _wend, u_tinyint_col, count(u_smallint_col), sum(u_int_col) from test_vtable_select.vtb_virtual_stb partition by u_tinyint_col interval(1s) order by 1,2,3,4,5 slimit 10 limit 10;

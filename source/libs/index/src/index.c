@@ -790,7 +790,7 @@ static int64_t idxGetAvailableVer(SIndex* sIdx, IndexCache* cache) {
 
   if (rd != NULL) {
     ver = (ver > rd->header.version ? ver : rd->header.version) + 1;
-    indexInfo("header: %" PRId64 ", ver: %" PRId64 "", rd->header.version, ver);
+    indexInfo("header: %" PRId64 ", ver: %" PRId64, rd->header.version, ver);
   }
   tfileReaderUnRef(rd);
   return ver;
@@ -799,7 +799,7 @@ static int32_t idxGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   int32_t code = 0;
 
   int64_t version = idxGetAvailableVer(sIdx, cache);
-  indexInfo("file name version: %" PRId64 "", version);
+  indexInfo("file name version: %" PRId64, version);
 
   TFileWriter* tw = NULL;
 

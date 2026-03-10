@@ -30,32 +30,42 @@ typedef struct SDnodeMgmt {
   const char                  *name;
   TdThread                     statusThread;
   TdThread                     configThread;
+  TdThread                     keySyncThread;
   TdThread                     statusInfoThread;
   TdThread                     notifyThread;
   TdThread                     monitorThread;
   TdThread                     auditThread;
   TdThread                     crashReportThread;
+  TdThread                     metricsThread;
   SSingleWorker                mgmtWorker;
   ProcessCreateNodeFp          processCreateNodeFp;
+  ProcessAlterNodeFp           processAlterNodeFp;
   ProcessAlterNodeTypeFp       processAlterNodeTypeFp;
   ProcessDropNodeFp            processDropNodeFp;
   SendMonitorReportFp          sendMonitorReportFp;
+  SendMetricsReportFp          sendMetricsReportFp;
   MonitorCleanExpiredSamplesFp monitorCleanExpiredSamplesFp;
+  MetricsCleanExpiredSamplesFp metricsCleanExpiredSamplesFp;
   SendAuditRecordsFp           sendAuditRecordsFp;
   GetVnodeLoadsFp              getVnodeLoadsFp;
   GetVnodeLoadsFp              getVnodeLoadsLiteFp;
+  SetVnodeSyncTimeoutFp        setVnodeSyncTimeoutFp;
   GetMnodeLoadsFp              getMnodeLoadsFp;
+  SetMnodeSyncTimeoutFp        setMnodeSyncTimeoutFp;
   GetQnodeLoadsFp              getQnodeLoadsFp;
   int32_t                      statusSeq;
+  SDispatchWorkerPool          streamMgmtWorker;
 } SDnodeMgmt;
 
 // dmHandle.c
 SArray *dmGetMsgHandles();
 void    dmSendStatusReq(SDnodeMgmt *pMgmt);
 void    dmSendConfigReq(SDnodeMgmt *pMgmt);
+void    dmSendKeySyncReq(SDnodeMgmt *pMgmt);
 void    dmUpdateStatusInfo(SDnodeMgmt *pMgmt);
 void    dmSendNotifyReq(SDnodeMgmt *pMgmt, SNotifyReq *pReq);
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
@@ -63,14 +73,21 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg);
 int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg);
 int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t dmProcessAlterEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t dmProcessAlterKeyExpirationReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t dmVerifyAndInitEncryptionKeys(void);
+
+int32_t dmProcessReloadTlsConfig(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 // dmWorker.c
 int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt);
 int32_t dmStartConfigThread(SDnodeMgmt *pMgmt);
+int32_t dmStartKeySyncThread(SDnodeMgmt *pMgmt);
 int32_t dmStartStatusInfoThread(SDnodeMgmt *pMgmt);
 void    dmStopStatusThread(SDnodeMgmt *pMgmt);
 void    dmStopConfigThread(SDnodeMgmt *pMgmt);
+void    dmStopKeySyncThread(SDnodeMgmt *pMgmt);
 void    dmStopStatusInfoThread(SDnodeMgmt *pMgmt);
 int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt);
 void    dmStopNotifyThread(SDnodeMgmt *pMgmt);
@@ -80,8 +97,12 @@ void    dmStopMonitorThread(SDnodeMgmt *pMgmt);
 void    dmStopAuditThread(SDnodeMgmt *pMgmt);
 int32_t dmStartCrashReportThread(SDnodeMgmt *pMgmt);
 void    dmStopCrashReportThread(SDnodeMgmt *pMgmt);
+int32_t dmStartMetricsThread(SDnodeMgmt *pMgmt);
+void    dmStopMetricsThread(SDnodeMgmt *pMgmt);
 int32_t dmStartWorker(SDnodeMgmt *pMgmt);
 void    dmStopWorker(SDnodeMgmt *pMgmt);
+int32_t dmPutMsgToStreamMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t dmProcessStreamHbRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

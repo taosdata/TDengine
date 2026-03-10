@@ -15,10 +15,13 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include <cstring> 
+#include <cctype>
 #include "shellAuto.h"
+#include "shellInt.h"
 
 TEST(fieldOptionsArea, autoTabTest) {
-  printf("hellow world  SHELL tab test\n");
+  printf("hello world  SHELL tab test\n");
 
   // str false
   const char *s0[] = {
@@ -129,7 +132,52 @@ TEST(isCreateFieldsArea, autoTabTest) {
   }
 }
 
+TEST(shellCountPrefixOnes, checkUtf8) {
+  // test ASCII
+  assert(shellCountPrefixOnes(0x00) == 1);   // 00000000 → 0 leading 1s → Return 1
+  assert(shellCountPrefixOnes(0x41) == 1);   // 01000001 → 0 leading 1s → Return 1
+  assert(shellCountPrefixOnes(0x7F) == 1);   // 01111111 → 0 leading 1s → Return 1
+
+  // test two byte characters (such as Latin extended characters)
+  assert(shellCountPrefixOnes(0xC2) == 2);   // 11000010 → 2 leading 1s → Return 2
+  assert(shellCountPrefixOnes(0xDF) == 2);   // 11011111 → 2 leading 1s → Return 2
+
+  // test three byte characters (such as Chinese)
+  assert(shellCountPrefixOnes(0xE0) == 3);   // 11100000 → 3 leading 1s → Return 3
+  assert(shellCountPrefixOnes(0xEF) == 3);   // 11101111 → 3 leading 1s → Return 3
+
+  // test four byte characters (such as emojis)
+  assert(shellCountPrefixOnes(0xF0) == 4);   // 11110000 → 4 leading 1s → Return 4
+  assert(shellCountPrefixOnes(0xF7) == 4);   // 11110111 → 4 leading 1s → Return 4
+
+  // test for illegal UTF-8 first byte (only verifying leading 1 count)
+  assert(shellCountPrefixOnes(0xF8) == 5);   // 11111000 → 5 leading 1s → Return 5
+  assert(shellCountPrefixOnes(0xFF) == 8);   // 11111111 → 8个 leading 1s → Return 8
+}
+
+TEST(shellUtil, trimStr) {
+    struct Case { const char* in; const char* expect; } cases[] = {
+      {"3.0.8.0 trial ", "3.0.8.0"},    // remove "trial" and trailing spaces
+      {"3.0.8.0 trial",  "3.0.8.0"},    // remove "trial"
+      {"3.0.8.0   ",     "3.0.8.0"},   // remove trailing spaces
+      {"3.0.8.0",        "3.0.8.0"},   // no change
+      {"trial",          ""},           // exact match "trial" -> empty
+      {"trial ",         ""},           // "trial" followed by a space
+      {" trial",         ""},           // leading space + "trial"
+      {"3.0.8.0,trial",  "3.0.8.0,"},   // remove ",trial"
+    };
+
+    for (const auto& c : cases) {
+        char buf[64] = {0};
+        strncpy(buf, c.in, sizeof(buf) - 1);
+        trimStr(buf, "trial");
+        EXPECT_STREQ(c.expect, buf) << "input: '" << c.in << "'";
+    }
+}
+
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
+

@@ -26,7 +26,8 @@ extern "C" {
 enum {
   SORT_MULTISOURCE_MERGE = 0x1,
   SORT_SINGLESOURCE_SORT = 0x2,
-  SORT_BLOCK_TS_MERGE = 0x3
+  SORT_BLOCK_TS_MERGE = 0x3,
+  SORT_MULTISOURCE_TS_MERGE = 0x4
 };
 
 typedef struct SMultiMergeSource {
@@ -165,7 +166,24 @@ void tsortGetValue(STupleHandle* pVHandle, int32_t colId, void** pVal);
  * @return
  */
 uint64_t tsortGetGroupId(STupleHandle* pVHandle);
+int64_t  tsortGetBlockId(STupleHandle* pVHandle);
 void     tsortGetBlockInfo(STupleHandle* pVHandle, SDataBlockInfo* pInfo);
+
+/**
+ * return the SColumnInfoData of columns in the tuple
+ * @param pVHandle
+ * @param colId
+ * @return
+ */
+void tsortGetColumnInfo(STupleHandle* pVHandle, int32_t colIndex, SColumnInfoData** pColInfo);
+
+/**
+ * return the number of columns in the tuple
+ * @param pVHandle
+ * @return
+ */
+size_t tsortGetColNum(STupleHandle* pVHandle);
+
 /**
  *
  * @param pSortHandle

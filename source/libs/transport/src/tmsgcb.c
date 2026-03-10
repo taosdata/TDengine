@@ -37,7 +37,7 @@ int32_t tmsgPutToQueue(const SMsgCb* msgcb, EQueueType qtype, SRpcMsg* pMsg) {
 }
 
 int32_t tmsgGetQueueSize(const SMsgCb* msgcb, int32_t vgId, EQueueType qtype) {
-  return (*msgcb->qsizeFp)(msgcb->mgmt, vgId, qtype);
+  return (*msgcb->qsizeFp)(msgcb->mgmt, vgId, qtype);  // vmGetQueueSize
 }
 
 int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) {
@@ -51,10 +51,10 @@ int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) {
 
 int32_t tmsgSendSyncReq(const SEpSet* epSet, SRpcMsg* pMsg) {
   int32_t code = (*defaultMsgCb.sendSyncReqFp)(epSet, pMsg);
-  if (code != 0) {
-    rpcFreeCont(pMsg->pCont);
-    pMsg->pCont = NULL;
-  }
+  // if (code != 0) {
+  //   rpcFreeCont(pMsg->pCont);
+  //   pMsg->pCont = NULL;
+  // }
   return code;
 }
 

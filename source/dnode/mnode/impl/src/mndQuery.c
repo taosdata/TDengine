@@ -18,10 +18,13 @@
 #include "mndMnode.h"
 #include "qworker.h"
 
-int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg) {
-  if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) return 0;
+int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg, int32_t* qType) {
   SMnode *pMnode = pMsg->info.node;
-  return qWorkerPreprocessQueryMsg(pMnode->pQuery, pMsg, false);
+  if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) {
+    return 0;
+  }
+
+  return qWorkerPreprocessQueryMsg(pMnode->pQuery, pMsg, false, qType);
 }
 
 void mndPostProcessQueryMsg(SRpcMsg *pMsg) {
@@ -34,7 +37,8 @@ int32_t mndProcessQueryMsg(SRpcMsg *pMsg, SQueueInfo *pInfo) {
   int32_t code = -1;
   SMnode *pMnode = pMsg->info.node;
 
-  SReadHandle handle = {.mnd = pMnode, .pMsgCb = &pMnode->msgCb, .pWorkerCb = pInfo->workerCb};
+  SReadHandle handle = {0};
+  handle =  (SReadHandle){.mnd = pMnode, .pMsgCb = &pMnode->msgCb, .pWorkerCb = pInfo->workerCb};
 
   mTrace("msg:%p, in query queue is processing", pMsg);
   switch (pMsg->msgType) {

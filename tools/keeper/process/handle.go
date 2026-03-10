@@ -266,8 +266,7 @@ type Value struct {
 }
 
 func NewProcessor(conf *config.Config) *Processor {
-
-	conn, err := db.NewConnector(conf.TDengine.Username, conf.TDengine.Password, conf.TDengine.Host, conf.TDengine.Port, conf.TDengine.Usessl)
+	conn, err := db.NewConnectorWithRetryForever(conf.TDengine.Username, conf.TDengine.Password, conf.TDengine.Host, conf.TDengine.Port, conf.TDengine.Usessl)
 	if err != nil {
 		panic(err)
 	}
@@ -307,7 +306,7 @@ func (p *Processor) Prepare() {
 
 		err := pool.GoroutinePool.Submit(func() {
 			defer wg.Done()
-			data, err := p.dbConn.Query(p.ctx, fmt.Sprintf("describe %s", p.withDBName(tableName)), util.GetQidOwn())
+			data, err := p.dbConn.QueryWithRetryForever(p.ctx, fmt.Sprintf("describe %s", p.withDBName(tableName)), util.GetQidOwn(config.Conf.InstanceID))
 			if err != nil {
 				var tdEngineError *taosError.TaosError
 				if errors.As(err, &tdEngineError) {
@@ -465,7 +464,7 @@ func (p *Processor) Process() {
 		}
 		sql := b.String()
 		pool.BytesPoolPut(b)
-		data, err := p.dbConn.Query(p.ctx, sql, util.GetQidOwn())
+		data, err := p.dbConn.QueryWithRetryForever(p.ctx, sql, util.GetQidOwn(config.Conf.InstanceID))
 		logger.Debug(sql)
 		if err != nil {
 			logger.WithError(err).Errorln("select data sql:", sql)
@@ -544,7 +543,6 @@ func (p *Processor) Process() {
 }
 
 func (p *Processor) buildFQName(tableName string, column string) string {
-
 	// keep same metric name
 	tempFQName := tableName + "_" + column
 	if _, ok := metricNameMap[tempFQName]; ok {

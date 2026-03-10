@@ -100,9 +100,16 @@ void sifMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   vnode->node.resType.type = dataType;
 
   if (IS_VAR_DATA_TYPE(dataType)) {
+    if (IS_STR_DATA_BLOB(dataType)) {
+    vnode->datum.p = (char *)taosMemoryMalloc(blobDataTLen(value));
+    blobDataCopy(vnode->datum.p, value);
+    vnode->node.resType.bytes = blobDataTLen(value);
+
+    } else {
     vnode->datum.p = (char *)taosMemoryMalloc(varDataTLen(value));
     varDataCopy(vnode->datum.p, value);
     vnode->node.resType.bytes = varDataTLen(value);
+    }
   } else {
     vnode->node.resType.bytes = tDataTypes[dataType].bytes;
     assignVal((char *)nodesGetValueFromNode(vnode), (const char *)value, 0, dataType);
@@ -160,7 +167,7 @@ void sifMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nodeLis
   *pNode = (SNode *)onode;
 }
 
-void sifMakeTargetNode(SNode **pNode, int16_t dataBlockId, int16_t slotId, SNode *snode) {
+void sifMakeTargetNode(SNode **pNode, int64_t dataBlockId, int16_t slotId, SNode *snode) {
   SNode       *node = (SNode *)nodesMakeNode(QUERY_NODE_TARGET);
   STargetNode *onode = (STargetNode *)node;
   onode->pExpr = snode;

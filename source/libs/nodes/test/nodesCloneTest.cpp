@@ -91,6 +91,7 @@ TEST_F(NodesCloneTest, stateWindow) {
     SStateWindowNode* pDstNode = (SStateWindowNode*)pDst;
     ASSERT_EQ(nodeType(pSrcNode->pCol), nodeType(pDstNode->pCol));
     ASSERT_EQ(nodeType(pSrcNode->pExpr), nodeType(pDstNode->pExpr));
+    ASSERT_EQ(nodeType(pSrcNode->pTrueForLimit), nodeType(pDstNode->pTrueForLimit));
   });
 
   std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
@@ -102,6 +103,7 @@ TEST_F(NodesCloneTest, stateWindow) {
     SStateWindowNode* pNode = (SStateWindowNode*)srcNode.get();
     code = nodesMakeNode(QUERY_NODE_COLUMN, &pNode->pCol);
     code = nodesMakeNode(QUERY_NODE_OPERATOR, &pNode->pExpr);
+    code = nodesMakeNode(QUERY_NODE_VALUE, &pNode->pTrueForLimit);
     return srcNode.get();
   }());
 }
@@ -255,62 +257,6 @@ TEST_F(NodesCloneTest, physiSystemTableScan) {
       int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, &pNew);
     srcNode.reset(pNew);
     SSystemTableScanPhysiNode* pNode = (SSystemTableScanPhysiNode*)srcNode.get();
-    return srcNode.get();
-  }());
-}
-
-TEST_F(NodesCloneTest, physiStreamSemiSessionWinodw) {
-  registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
-    ASSERT_EQ(nodeType(pSrc), nodeType(pDst));
-    SStreamSemiSessionWinodwPhysiNode* pSrcNode = (SStreamSemiSessionWinodwPhysiNode*)pSrc;
-    SStreamSemiSessionWinodwPhysiNode* pDstNode = (SStreamSemiSessionWinodwPhysiNode*)pDst;
-    ASSERT_EQ(pSrcNode->gap, pDstNode->gap);
-  });
-
-  std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
-
-  run([&]() {
-    SNode*  pNew = NULL;
-    int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION, &pNew);
-    srcNode.reset(pNew);
-    SStreamSemiSessionWinodwPhysiNode* pNode = (SStreamSemiSessionWinodwPhysiNode*)srcNode.get();
-    return srcNode.get();
-  }());
-}
-
-TEST_F(NodesCloneTest, physiStreamFinalSessionWinodw) {
-  registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
-    ASSERT_EQ(nodeType(pSrc), nodeType(pDst));
-    SStreamFinalSessionWinodwPhysiNode* pSrcNode = (SStreamFinalSessionWinodwPhysiNode*)pSrc;
-    SStreamFinalSessionWinodwPhysiNode* pDstNode = (SStreamFinalSessionWinodwPhysiNode*)pDst;
-    ASSERT_EQ(pSrcNode->gap, pDstNode->gap);
-  });
-
-  std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
-
-  run([&]() {
-    SNode*  pNew = NULL;
-    int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION, &pNew);
-    srcNode.reset(pNew);
-    SStreamFinalSessionWinodwPhysiNode* pNode = (SStreamFinalSessionWinodwPhysiNode*)srcNode.get();
-    return srcNode.get();
-  }());
-}
-
-TEST_F(NodesCloneTest, physiStreamPartition) {
-  registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
-    ASSERT_EQ(nodeType(pSrc), nodeType(pDst));
-    SStreamPartitionPhysiNode* pSrcNode = (SStreamPartitionPhysiNode*)pSrc;
-    SStreamPartitionPhysiNode* pDstNode = (SStreamPartitionPhysiNode*)pDst;
-  });
-
-  std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
-
-  run([&]() {
-    SNode* pNew = NULL;
-    int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION, &pNew);
-    srcNode.reset(pNew);
-    SStreamPartitionPhysiNode* pNode = (SStreamPartitionPhysiNode*)srcNode.get();
     return srcNode.get();
   }());
 }

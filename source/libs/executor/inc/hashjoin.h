@@ -40,8 +40,7 @@ extern "C" {
 typedef int32_t (*hJoinImplFp)(SOperatorInfo*);
 typedef int32_t (*hJoinBuildFp)(SOperatorInfo*, bool*);
 
-
-#pragma pack(push, 1) 
+#pragma pack(push, 1)
 typedef struct SBufRowInfo {
   void*    next;
   uint16_t pageId;
@@ -82,10 +81,11 @@ typedef struct SHJoinCtx {
 typedef struct SHJoinColInfo {
   int32_t          srcSlot;
   int32_t          dstSlot;
-  int32_t          keyIdx;
+  int32_t          keyColIdx;
   bool             vardata;
   int32_t          offset;
   int32_t          bytes;
+  int32_t          bufOffset;
   char*            data;
   char*            bitMap;
   SColumnInfoData* colData;
@@ -129,7 +129,7 @@ typedef struct SHJoinTableCtx {
   EJoinTableType type;
   int32_t        downStreamIdx;
   SOperatorInfo* downStream;
-  int32_t        blkId;
+  int64_t        blkId;
   SQueryStat     inputStat;
   bool           hasTimeRange;
 
@@ -186,6 +186,7 @@ typedef struct SHJoinOperatorInfo {
   hJoinBuildFp     buildFp;
 } SHJoinOperatorInfo;
 
+#define IS_HASH_JOIN_KEY_COL(_keyIdx) ((_keyIdx) >= 0)
 
 #define HJ_ERR_RET(c)                 \
   do {                                \

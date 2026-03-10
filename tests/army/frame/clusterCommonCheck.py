@@ -291,9 +291,9 @@ class ClusterComCheck:
                         return True
 
             elif self.db_replica == 3 :
-                vgroup_status_first=[tdSql.res[0][4],tdSql.res[0][6],tdSql.res[0][8]]
+                vgroup_status_first=[tdSql.res[0][4],tdSql.res[0][7],tdSql.res[0][10]]
 
-                vgroup_status_last=[tdSql.res[last_number][4],tdSql.res[last_number][6],tdSql.res[last_number][8]]
+                vgroup_status_last=[tdSql.res[last_number][4],tdSql.res[last_number][7],tdSql.res[last_number][10]]
                 if  vgroup_status_first.count('leader') == 1 and vgroup_status_first.count('follower') == 2:
                     if vgroup_status_last.count('leader') == 1 and vgroup_status_last.count('follower') == 2:
                         tdSql.query(f"select `replica` from information_schema.ins_databases where `name`='{db_name}';")
@@ -301,6 +301,18 @@ class ClusterComCheck:
                         if tdSql.res[0][0] == db_replica:
                             tdLog.success(f"elections of {db_name}.vgroups with replica {self.db_replica}  are ready in {count} s")
                             return True
+                        
+                vgruop_apply_commit_first = [tdSql.res[0][5],tdSql.res[0][8],tdSql.res[0][11]]
+                vgruop_apply_commit_end = [tdSql.res[last_number][5],tdSql.res[last_number][8],tdSql.res[last_number][11]]
+                for i in range(3):
+                    v = vgruop_apply_commit_first[i].split('/')
+                    assert (int(v[0]) <= int(v[1])) ,f"apply {v[0]} > commit {v[1]}"
+
+                    v = vgruop_apply_commit_end[i].split('/')
+                    assert (int(v[0]) <= int(v[1])) ,f"apply {v[0]} > commit {v[1]}"
+                
+                        
+
         else:
             tdLog.debug(tdSql.res)
             tdLog.notice(f"elections of {db_name} all vgroups with replica {self.db_replica}  are failed in {count} s ")

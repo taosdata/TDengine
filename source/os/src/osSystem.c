@@ -75,50 +75,18 @@ void stratWindowsService(MainWindows mainWindows) {
   StartServiceCtrlDispatcher(ServiceTable);
 }
 
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ASTRA)
 #else
 #include <dlfcn.h>
 #include <termios.h>
 #include <unistd.h>
 #endif
 
-#if !defined(WINDOWS)
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
 struct termios oldtio;
 #endif
 
 typedef struct FILE TdCmd;
-
-#ifdef BUILD_NO_CALL
-void* taosLoadDll(const char* filename) {
-#if defined(WINDOWS)
-  return NULL;
-#elif defined(_TD_DARWIN_64)
-  return NULL;
-#else
-  void* handle = dlopen(filename, RTLD_LAZY);
-  if (!handle) {
-    // printf("load dll:%s failed, error:%s", filename, dlerror());
-    return NULL;
-  }
-
-  // printf("dll %s loaded", filename);
-
-  return handle;
-#endif
-}
-
-void taosCloseDll(void* handle) {
-#if defined(WINDOWS)
-  return;
-#elif defined(_TD_DARWIN_64)
-  return;
-#else
-  if (handle) {
-    dlclose(handle);
-  }
-#endif
-}
-#endif
 
 int32_t taosSetConsoleEcho(bool on) {
 #if defined(WINDOWS)
@@ -143,13 +111,15 @@ int32_t taosSetConsoleEcho(bool on) {
   }
 
   return 0;
+#elif defined(TD_ASTRA) // TD_ASTRA_TODO
+  return 0;
 #else
 #define ECHOFLAGS (ECHO | ECHOE | ECHOK | ECHONL)
   int            err;
   struct termios term;
 
   if (tcgetattr(STDIN_FILENO, &term) == -1) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -160,7 +130,7 @@ int32_t taosSetConsoleEcho(bool on) {
 
   err = tcsetattr(STDIN_FILENO, TCSAFLUSH, &term);
   if (err == -1) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -169,7 +139,7 @@ int32_t taosSetConsoleEcho(bool on) {
 }
 
 int32_t taosSetTerminalMode() {
-#if defined(WINDOWS)
+#if defined(WINDOWS) || defined(TD_ASTRA) // TD_ASTRA_TODO
   return 0;
 #else
   struct termios newtio;
@@ -195,7 +165,7 @@ int32_t taosSetTerminalMode() {
   newtio.c_cc[VTIME] = 0;
 
   if (-1 == tcsetattr(0, TCSANOW, &newtio)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     (void)fprintf(stderr, "Fail to set terminal properties!\n");
     return terrno;
   }
@@ -205,17 +175,18 @@ int32_t taosSetTerminalMode() {
 }
 
 int32_t taosGetOldTerminalMode() {
-#if defined(WINDOWS)
+#if defined(WINDOWS) || defined(TD_ASTRA) // TD_ASTRA_TODO
+  return 0;
 #else
   /* Make sure stdin is a terminal. */
   if (!isatty(STDIN_FILENO)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
   // Get the parameter of current terminal
   if (-1 == tcgetattr(0, &oldtio)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -224,10 +195,11 @@ int32_t taosGetOldTerminalMode() {
 }
 
 int32_t taosResetTerminalMode() {
-#if defined(WINDOWS)
+#if defined(WINDOWS) || defined(TD_ASTRA) // TD_ASTRA_TODO
+  return 0;
 #else
   if (-1 == tcsetattr(0, TCSANOW, &oldtio)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     (void)fprintf(stderr, "Fail to reset the terminal properties!\n");
     return terrno;
   }
@@ -243,10 +215,12 @@ TdCmdPtr taosOpenCmd(const char* cmd) {
   
 #ifdef WINDOWS
   return (TdCmdPtr)_popen(cmd, "r");
+#elif defined(TD_ASTRA)
+  return NULL;
 #else
   TdCmdPtr p = (TdCmdPtr)popen(cmd, "r");
   if (NULL == p) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
   return p;
 #endif
@@ -287,11 +261,41 @@ int64_t taosGetLineCmd(TdCmdPtr pCmd, char** __restrict ptrBuf) {
   }
   (*ptrBuf)[1023] = 0;
   return strlen(*ptrBuf);
+#elif defined(TD_ASTRA)
+  size_t bufsize = 128;
+  size_t pos = 0;
+  int    c;
+  if (*ptrBuf == NULL) {
+    *ptrBuf = (char*)taosMemoryMalloc(bufsize);
+    if (*ptrBuf == NULL) {
+      return terrno;
+    }
+  }
+  while ((c = fgetc((FILE*)pCmd)) != EOF) {
+    if (pos + 1 >= bufsize) {
+      size_t new_size = bufsize << 1;
+      char*  new_line = (char*)taosMemoryRealloc(*ptrBuf, new_size);
+      if (new_line == NULL) {
+        return terrno;
+      }
+      *ptrBuf = new_line;
+      bufsize = new_size;
+    }
+    (*ptrBuf)[pos++] = (char)c;
+    if (c == '\n') {
+      break;
+    }
+  }
+  if (pos == 0 && c == EOF) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  (*ptrBuf)[pos] = '\0';
+  return (ssize_t)pos;
 #else
   ssize_t len = 0;
   len = getline(ptrBuf, (size_t*)&len, (FILE*)pCmd);
   if (-1 == len) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
   return len;
@@ -311,6 +315,7 @@ void taosCloseCmd(TdCmdPtr* ppCmd) {
   }
 #ifdef WINDOWS
   _pclose((FILE*)(*ppCmd));
+#elif defined(TD_ASTRA) // TD_ASTRA_TODO
 #else
   (void)pclose((FILE*)(*ppCmd));
 #endif

@@ -13,7 +13,6 @@ Below, we introduce how to use language connectors to execute SQL for creating d
 
 :::note
 
-REST connection: Connectors for various programming languages encapsulate the use of `HTTP` requests for connections, supporting data writing and querying operations, with developers still using the interfaces provided by the connectors to access `TDengine`.  
 REST API: Directly call the REST API interface provided by `taosadapter` for data writing and querying operations. Code examples use the `curl` command for demonstration.
 
 :::
@@ -27,7 +26,7 @@ Next, create a supertable (STABLE) named `meters`, whose table structure include
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/JdbcCreatDBDemo.java:create_db_and_table}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/JdbcCreatDBDemo.java:create_db_and_table}}
 ```
 
 </TabItem>
@@ -39,10 +38,6 @@ Next, create a supertable (STABLE) named `meters`, whose table structure include
 
 ```python title="Native Connection"
 {{#include docs/examples/python/create_db_native.py}}
-```
-
-```python title="Rest Connection"
-{{#include docs/examples/python/create_db_rest.py}}
 ```
 
 </TabItem>
@@ -71,10 +66,10 @@ Next, create a supertable (STABLE) named `meters`, whose table structure include
 <TabItem label="C" value="c">
 
 ```c  title="WebSocket Connection"
-{{#include docs/examples/c-ws/create_db_demo.c:create_db_and_table}}
+{{#include docs/examples/c-ws-new/create_db_demo.c:create_db_and_table}}
 ```
 
-```c  title="Native Connection"
+```c title="Native Connection"
 {{#include docs/examples/c/create_db_demo.c:create_db_and_table}}
 ```
 
@@ -106,7 +101,7 @@ Below, using smart meters as an example, demonstrates how to use connectors to e
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/JdbcInsertDataDemo.java:insert_data}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/JdbcInsertDataDemo.java:insert_data}}
 ```
 
 **Note**
@@ -121,10 +116,6 @@ NOW is an internal system function, defaulting to the current time of the client
 
 ```python title="Native Connection"
 {{#include docs/examples/python/insert_native.py}}
-```
-
-```python title="Rest Connection"
-{{#include docs/examples/python/insert_rest.py}}
 ```
 
 </TabItem>
@@ -153,7 +144,7 @@ NOW is an internal system function, defaulting to the current time of the client
 <TabItem label="C" value="c">
 
 ```c title="WebSocket Connection"
-{{#include docs/examples/c-ws/insert_data_demo.c:insert_data}}
+{{#include docs/examples/c-ws-new/insert_data_demo.c:insert_data}}
 ```
 
 ```c title="Native Connection"
@@ -183,7 +174,7 @@ Below, using smart meters as an example, demonstrates how to use connectors in v
 <TabItem label="Java" value="java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/JdbcQueryDemo.java:query_data}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/JdbcQueryDemo.java:query_data}}
 ```
 
 **Note** Querying and operating relational databases are consistent, use indices starting from 1 to get returned field content, and it is recommended to use field names to retrieve.
@@ -197,10 +188,6 @@ Below, using smart meters as an example, demonstrates how to use connectors in v
 
 ```python title="Native Connection"
 {{#include docs/examples/python/query_native.py}}
-```
-
-```python title="Rest Connection"
-{{#include docs/examples/python/query_rest.py}}
 ```
 
 </TabItem>
@@ -235,10 +222,10 @@ Rust connector also supports using **serde** for deserializing to get structured
 <TabItem label="C" value="c">
 
 ```c  title="WebSocket Connection"
-{{#include docs/examples/c-ws/query_data_demo.c:query_data}}
+{{#include docs/examples/c-ws-new/query_data_demo.c:query_data}}
 ```
 
-```c  title="Native Connection"
+```c title="Native Connection"
 {{#include docs/examples/c/query_data_demo.c:query_data}}
 ```
 
@@ -273,7 +260,7 @@ Below are code examples of setting reqId to execute SQL in various language conn
 <TabItem label="Java" value="java">
 
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/JdbcReqIdDemo.java:with_reqid}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/JdbcReqIdDemo.java:with_reqid}}
 ```
 
 </TabItem>
@@ -285,10 +272,6 @@ Below are code examples of setting reqId to execute SQL in various language conn
 
 ```python title="Native Connection"
 {{#include docs/examples/python/reqid_native.py}}
-```
-
-```python title="Rest Connection"
-{{#include docs/examples/python/reqid_rest.py}}
 ```
 
 </TabItem>
@@ -316,11 +299,11 @@ Below are code examples of setting reqId to execute SQL in various language conn
 </TabItem>
 <TabItem label="C" value="c">
 
-```c "WebSocket Connection"
-{{#include docs/examples/c-ws/with_reqid_demo.c:with_reqid}}
+```c title="WebSocket Connection"
+{{#include docs/examples/c-ws-new/with_reqid_demo.c:with_reqid}}
 ```
 
-```c "Native Connection"
+```c title="Native Connection"
 {{#include docs/examples/c/with_reqid_demo.c:with_reqid}}
 ```
 

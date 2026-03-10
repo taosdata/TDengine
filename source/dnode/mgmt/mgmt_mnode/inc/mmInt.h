@@ -18,6 +18,7 @@
 
 #include "dmUtil.h"
 #include "mnode.h"
+#include "sdb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,8 +31,10 @@ typedef struct SMnodeMgmt {
   const char    *path;
   const char    *name;
   SSingleWorker  queryWorker;
+  SSingleWorker  mqueryWorker;
   SSingleWorker  fetchWorker;
   SSingleWorker  readWorker;
+  SSingleWorker  statusWorker;
   SSingleWorker  writeWorker;
   SSingleWorker  arbWorker;
   SSingleWorker  syncWorker;
@@ -39,11 +42,15 @@ typedef struct SMnodeMgmt {
   bool           stopped;
   int32_t        refCount;
   TdThreadRwlock lock;
+  SWWorkerPool        streamReaderPool;  
+  STaosQueue         *pStreamReaderQ;
+  SDispatchWorkerPool streamMgmtWorkerPool;
 } SMnodeMgmt;
 
 // mmFile.c
 int32_t mmReadFile(const char *path, SMnodeOpt *pOption);
 int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption);
+int32_t mndSetEncryptedFlag(SSdb *pSdb);
 
 // mmHandle.c
 SArray *mmGetMsgHandles();
@@ -58,9 +65,14 @@ int32_t mmPutMsgToArbQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToSyncRdQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutMsgToStatusQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToFetchQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc);
+int32_t mmPutMsgToStreamMgmtQueue(SMnodeMgmt* pMgmt, SRpcMsg* pMsg);
+int32_t mmPutMsgToStreamReaderQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+
+int32_t mndProcessStreamHb(SRpcMsg *pReq);
 
 #ifdef __cplusplus
 }

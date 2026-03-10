@@ -1,5 +1,7 @@
 PROJECT(TDengine)
 
+if(${BUILD_TEST})
+
 IF(TD_LINUX)
   INCLUDE_DIRECTORIES(. ${TD_SOURCE_DIR}/src/inc ${TD_SOURCE_DIR}/src/client/inc ${TD_SOURCE_DIR}/inc)
   AUX_SOURCE_DIRECTORY(. SRC)
@@ -42,27 +44,27 @@ IF(TD_LINUX)
   )
 
   target_link_libraries(tmq
-    ${TAOS_LIB}
+    ${TAOS_NATIVE_LIB}
   )
 
   target_link_libraries(stream_demo
-    ${TAOS_LIB}
+    ${TAOS_NATIVE_LIB}
   )
 
   target_link_libraries(schemaless
-    ${TAOS_LIB}
+    ${TAOS_NATIVE_LIB}
   )
 
   target_link_libraries(prepare
-    ${TAOS_LIB}
+    ${TAOS_NATIVE_LIB}
   )
 
   target_link_libraries(demo
-    ${TAOS_LIB}
+    ${TAOS_NATIVE_LIB}
   )
 
   target_link_libraries(asyncdemo
-    ${TAOS_LIB}
+    ${TAOS_NATIVE_LIB}
   )
 
   SET_TARGET_PROPERTIES(tmq PROPERTIES OUTPUT_NAME tmq)
@@ -77,3 +79,5 @@ IF(TD_DARWIN)
   INCLUDE_DIRECTORIES(. ${TD_SOURCE_DIR}/src/inc ${TD_SOURCE_DIR}/src/client/inc ${TD_SOURCE_DIR}/inc)
   AUX_SOURCE_DIRECTORY(. SRC)
 ENDIF()
+
+endif(${BUILD_TEST})

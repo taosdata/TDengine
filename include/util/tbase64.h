@@ -17,6 +17,7 @@
 #define _TD_UTIL_BASE64_H_
 
 #include "os.h"
+#include "types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,6 +25,11 @@ extern "C" {
 
 int32_t base64_decode(const char *value, int32_t inlen, int32_t *outlen, uint8_t **result);
 int32_t base64_encode(const uint8_t *value, int32_t vlen, char **result);
+
+void     tbase64_encode(uint8_t *out, const uint8_t *input, size_t in_len, VarDataLenT out_len);
+int32_t  tbase64_decode(uint8_t *out, const uint8_t *input, size_t in_len, VarDataLenT *out_len);
+uint32_t tbase64_encode_len(size_t in_len);
+uint32_t tbase64_decode_len(size_t in_len);
 
 #ifdef __cplusplus
 }

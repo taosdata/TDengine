@@ -36,6 +36,12 @@ database_option: {
   | WAL_FSYNC_PERIOD value
   | WAL_RETENTION_PERIOD value
   | WAL_RETENTION_SIZE value
+  | SS_KEEPLOCAL value
+  | SS_CHUNKPAGES value
+  | SS_COMPACT value
+  | COMPACT_INTERVAL value
+  | COMPACT_TIME_RANGE value
+  | COMPACT_TIME_OFFSET value
 }
 ```
 
@@ -44,7 +50,6 @@ database_option: {
 - VGROUPS: The number of initial vgroups in the database.
 - PRECISION: The timestamp precision of the database. ms for milliseconds, us for microseconds, ns for nanoseconds, default is ms.
 - REPLICA: Indicates the number of database replicas, which can be 1, 2, or 3, default is 1; 2 is only available in the enterprise version 3.3.0.0 and later. In a cluster, the number of replicas must be less than or equal to the number of DNODEs. The following restrictions apply:
-  - Operations such as SPLITE VGROUP or REDISTRIBUTE VGROUP are not supported for databases with double replicas.
   - A single-replica database can be changed to a double-replica database, but changing from double replicas to other numbers of replicas, or from three replicas to double replicas is not supported.
 - BUFFER: The size of the memory pool for writing into a VNODE, in MB, default is 256, minimum is 3, maximum is 16384.
 - PAGES: The number of cache pages in a VNODE's metadata storage engine, default is 256, minimum 64. A VNODE's metadata storage occupies PAGESIZE * PAGES, which by default is 1MB of memory.
@@ -60,7 +65,7 @@ database_option: {
   - 0: Indicates no compression.
   - 1: Indicates first-stage compression.
   - 2: Indicates two-stage compression.
-- DURATION: The time span for storing data in data files. Can use unit-specified formats, such as DURATION 100h, DURATION 10d, etc., supports m (minutes), h (hours), and d (days) three units. If no time unit is added, the default unit is days, e.g., DURATION 50 means 50 days.
+- DURATION: The time span for storing data in data files.default value is 10d, range [60m, 3650d] Can use unit-specified formats, such as DURATION 100h, DURATION 10d, etc., supports m (minutes), h (hours), and d (days) three units. If no time unit is added, the default unit is days, e.g., DURATION 50 means 50 days.
 - MAXROWS: The maximum number of records in a file block, default is 4096.
 - MINROWS: The minimum number of records in a file block, default is 100.
 - KEEP: Indicates the number of days data files are kept, default value is 3650, range [1, 365000], and must be greater than or equal to 3 times the DURATION parameter value. The database will automatically delete data that has been saved for longer than the KEEP value to free up storage space. KEEP can use unit-specified formats, such as KEEP 100h, KEEP 10d, etc., supports m (minutes), h (hours), and d (days) three units. It can also be written without a unit, like KEEP 50, where the default unit is days. The enterprise version supports multi-tier storage feature, thus, multiple retention times can be set (multiple separated by commas, up to 3, satisfying keep 0 \<= keep 1 \<= keep 2, such as KEEP 100h,100d,3650d); the community version does not support multi-tier storage feature (even if multiple retention times are configured, it will not take effect, KEEP will take the longest retention time).
@@ -79,6 +84,31 @@ database_option: {
 - WAL_FSYNC_PERIOD: When the WAL_LEVEL parameter is set to 2, it is used to set the disk writing period. Default is 3000, in milliseconds. Minimum is 0, meaning immediate disk writing upon each write; maximum is 180000, i.e., three minutes.
 - WAL_RETENTION_PERIOD: For data subscription consumption, the maximum duration strategy for additional retention of WAL log files. WAL log cleaning is not affected by the consumption status of subscription clients. In seconds. Default is 3600, meaning WAL retains the most recent 3600 seconds of data, please modify this parameter to an appropriate value according to the needs of data subscription.
 - WAL_RETENTION_SIZE: For data subscription consumption, the maximum cumulative size strategy for additional retention of WAL log files. In KB. Default is 0, meaning there is no upper limit on cumulative size.
+- SS_KEEPLOCAL: When shared storage is enabled, data will be kept local at least this duration before being migrated to shared storage, only available in the enterprise version 3.3.7.0 and later. Minimum is 1 day, maximum is 36500 days, default is 365 days.
+- SS_CHUNKPAGES: When shared storage is enabled, data files larger than this size will be migrated to shared storage, only available in the enterprise version 3.3.7.0 and later. Minimum is 131072, maximum is 1048576, default is 131072. The unit is TSDB page, which is typically 4KB.
+- SS_COMPACT: When shared storage is enabled, if set to 1, file will be compacted before its first migration; if set to 0, compact is skipped. Only available in the enterprise version 3.3.7.0 and later.
+
+:::note
+
+The following parameters are available in TDengine Enterprise only.
+
+:::
+
+- **COMPACT_INTERVAL:** Interval at which to trigger automatic database compaction. The default value is 0, which disables automatic database compaction. To enable automatic database compaction, specify a value between 10m and `KEEP2`. The time unit of the value can be minutes (m), hours (h), or days (d), and the default unit is days.
+
+  - Note that time slices start from 1970-01-01T00:00:00Z.
+
+  - Automatic database compaction is not triggered when an existing compaction task is already running on the database.
+
+- **COMPACT_TIME_RANGE:** Time range for automatic compact tasks. The default value is `0, 0`, which indicates the range from `-KEEP2` to `-DURATION`. You can specify a custom time range starting at or after `-KEEP2` and ending at or before `-DURATION`. The time unit of the values in this range can be minutes (m), hours (h), or days (d), and the default unit is days.
+
+  For example, `-300, -200` would compact data between 300 and 200 days in the past each time automatic compaction is triggered. If the duration parameter of the database is the default 10 days, `-300, -5` would return an error because the second value (5 days in the past) is more recent than the value of `-DURATION` (10 days in the past).
+
+  Note that these values are negative numbers, indicating that the time range to be compacted is in the past.
+
+- **COMPACT_TIME_OFFSET:** Time offset relative to local time at which to trigger automatic database compaction. The default value is 0. You can enter an offset between 0 and 23 to trigger compaction after the specified number of hours.
+
+  For example, if `COMPACT_INTERVAL` is `1d` and `COMPACT_TIME_OFFSET` is `0`, automatic compact is triggered at 00:00 every day. If `COMPACT_TIME_OFFSET` is `2`, automatic compact is triggered at 02:00 every day.
 
 ### Database Creation Example
 
@@ -94,7 +124,7 @@ The above example creates a database named db with 10 vgroups, where each vnode 
 USE db_name;
 ```
 
-Use/switch database (not valid in REST connection mode).
+Use/switch database.
 
 ## Delete Database
 
@@ -136,11 +166,11 @@ The command to modify database parameters is simple, but the difficulty lies in 
 
 You can view the specific values of these cachesize through select * from information_schema.ins_databases;.
 
-2. How to view cacheload?
+1. How to view cacheload?
 
 You can view cacheload through show \<db_name>.vgroups;
 
-3. Determine if cachesize is sufficient
+1. Determine if cachesize is sufficient
 
 If cacheload is very close to cachesize, then cachesize may be too small. If cacheload is significantly less than cachesize, then cachesize is sufficient. You can decide whether to modify cachesize based on this principle. The specific modification value can be determined based on the available system memory, whether to double it or increase it several times.
 
@@ -181,6 +211,14 @@ TRIM DATABASE db_name;
 
 Deletes expired data and reorganizes data according to the multi-level storage configuration.
 
+## Delete Expired WAL
+
+```sql
+TRIM DATABASE db_name WAL;
+```
+
+Delete expired WAL logs. Using `trim wal` ignores the vgroup `keep_version` restriction.
+
 ## Flush Memory Data to Disk
 
 ```sql
@@ -213,17 +251,18 @@ SHOW db_name.ALIVE;
 
 Query the availability status of the database db_name, with return values of 0 (unavailable), 1 (fully available), or 2 (partially available, indicating that some VNODEs in the database are available while others are not).
 
-## View DB Disk Usage 
+## View DB Disk Usage
 
-```sql 
+```sql
 select * from  INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db_name'   
-```  
+```
 
 View the disk usage of each module in the DB.
 
 ```sql
 SHOW db_name.disk_info;
 ```
+
 View the compression ratio and disk usage of the database db_name
 
 This command is essentially equivalent to `select sum(data1 + data2 + data3)/sum(raw_data), sum(data1 + data2 + data3) from information_schema.ins_disk_usage where db_name="dbname"`

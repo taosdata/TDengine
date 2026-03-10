@@ -33,6 +33,7 @@ COPY --from=builder /root/bin/taosdump /usr/bin
 COPY --from=builder /root/bin/taos /usr/bin
 COPY --from=builder /root/cfg/taos.cfg /etc/taos/
 COPY --from=builder /root/lib/libtaos.so.* /usr/lib/libtaos.so.1
+COPY --from=builder /root/lib/libtaosnative.so.* /usr/lib/libtaosnative.so.1
  
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib"
 ENV LC_CTYPE=en_US.UTF-8

@@ -20,6 +20,7 @@
 #include "sync.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
+#include "tqueue.h"
 #include "trpc.h"
 
 #ifdef __cplusplus
@@ -32,6 +33,7 @@ typedef struct SMnode SMnode;
 typedef struct {
   int32_t  dnodeId;
   bool     deploy;
+  int32_t  version;
   int8_t   selfIndex;
   int8_t   numOfReplicas;
   int8_t   numOfTotalReplicas;
@@ -39,6 +41,7 @@ typedef struct {
   int32_t  nodeRoles[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
   SMsgCb   msgCb;
   int64_t  lastIndex;
+  int32_t  encrypted;  // 0: not encrypted, 1: encrypted
 } SMnodeOpt;
 
 /* ------------------------ SMnode ------------------------ */
@@ -66,6 +69,10 @@ void mndPreClose(SMnode *pMnode);
  */
 int32_t mndStart(SMnode *pMnode);
 
+bool mndNeedUpgrade(SMnode *pMnode, int32_t version);
+
+int32_t mndGetVersion(SMnode *pMnode);
+int32_t mndGetEncryptedFlag(SMnode *pMnode);
 /**
  * @brief Stop mnode
  *
@@ -100,7 +107,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
  * @return int32_t 0 for success, -1 for failure.
  */
 int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
-
+int32_t mndResetTimer(SMnode *pMnode);
 int64_t mndGetRoleTimeMs(SMnode *pMnode);
 
 /**
@@ -111,7 +118,7 @@ int64_t mndGetRoleTimeMs(SMnode *pMnode);
  */
 int32_t mndProcessRpcMsg(SRpcMsg *pMsg, SQueueInfo *pQueueInfo);
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg);
-int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg);
+int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg, int32_t* qType);
 void    mndPostProcessQueryMsg(SRpcMsg *pMsg);
 
 /**
@@ -122,6 +129,8 @@ void mndGenerateMachineCode();
 int32_t mndDumpSdb();
 
 int32_t mndDeleteTrans();
+
+int32_t mndModifySdb(char *path);
 
 #ifdef __cplusplus
 }

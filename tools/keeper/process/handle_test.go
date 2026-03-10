@@ -3,6 +3,7 @@ package process
 import (
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -124,4 +125,97 @@ func Test_withDBName(t *testing.T) {
 	processor := &Processor{db: "db"}
 	res := processor.withDBName("test")
 	assert.Equal(t, res, "`db`.`test`")
+}
+
+func Test_exchangeDBType_UnsupportedType_Panics(t *testing.T) {
+	assert.PanicsWithValue(t, "unsupported type", func() { _ = exchangeDBType("DECIMAL_UNSUPPORTED") })
+}
+
+func TestProcessorGetMetric(t *testing.T) {
+	processor := &Processor{}
+	metric := processor.GetMetric()
+	assert.Nil(t, metric)
+}
+
+func TestProcessor_buildFQName_UsesMappedName(t *testing.T) {
+	p := &Processor{prefix: "pref"}
+
+	got := p.buildFQName("taosd_cluster_basic", "first_ep")
+	want := "pref_cluster_info_first_ep"
+
+	if got != want {
+		t.Fatalf("buildFQName mapped name mismatch: got %q, want %q", got, want)
+	}
+}
+
+func TestProcessorCollect_Gauge_SkipsNilAndEmitsMetric(t *testing.T) {
+	p := &Processor{
+		metricMap: map[string]*Metric{},
+	}
+	m := &Metric{
+		FQName:    "test_gauge",
+		Type:      Gauge,
+		Variables: []string{"a"},
+	}
+	m.SetValue([]*Value{
+		{Label: map[string]string{"a": "1"}, Value: nil},
+		{Label: map[string]string{"a": "2"}, Value: float64(3.14)},
+	})
+	p.metricMap["test_gauge"] = m
+
+	ch := make(chan prometheus.Metric, 4)
+	p.Collect(ch)
+
+	if len(ch) != 1 {
+		t.Fatalf("expected 1 metric emitted, got %d", len(ch))
+	}
+}
+
+func TestProcessorCollect_Counter_SkipNilAndNegative_EmitPositive(t *testing.T) {
+	p := &Processor{
+		metricMap: map[string]*Metric{},
+	}
+	m := &Metric{
+		FQName:    "test_counter",
+		Type:      Counter,
+		Variables: []string{"a"},
+	}
+	m.SetValue([]*Value{
+		{Label: map[string]string{"a": "x"}, Value: nil},
+		{Label: map[string]string{"a": "y"}, Value: float64(-2)},
+		{Label: map[string]string{"a": "z"}, Value: int64(3)},
+		{Label: map[string]string{"a": "b"}, Value: true},
+	})
+	p.metricMap["test_counter"] = m
+
+	ch := make(chan prometheus.Metric, 4)
+	p.Collect(ch)
+
+	if len(ch) != 2 {
+		t.Fatalf("expected 2 metrics emitted, got %d", len(ch))
+	}
+}
+
+func TestProcessorCollect_Info_SkipNilAndEmitWithValueLabel(t *testing.T) {
+	p := &Processor{
+		metricMap: map[string]*Metric{},
+	}
+
+	m := &Metric{
+		FQName:    "test_info_metric",
+		Type:      Info,
+		Variables: []string{"tag"},
+	}
+	m.SetValue([]*Value{
+		nil,
+		{Label: map[string]string{"tag": "x"}, Value: "ready"},
+	})
+	p.metricMap["test_info_metric"] = m
+
+	ch := make(chan prometheus.Metric, 2)
+	p.Collect(ch)
+
+	if len(ch) != 1 {
+		t.Fatalf("expected 1 metric emitted, got %d", len(ch))
+	}
 }

@@ -155,7 +155,7 @@ static void *taosCacheTimedRefresh(void *handle);
 static void doInitRefreshThread(void) {
   pCacheArrayList = taosArrayInit(4, POINTER_BYTES);
   if (pCacheArrayList == NULL) {
-    uError("failed to allocate memory, reason:%s", strerror(errno));
+    uError("failed to allocate memory, reason:%s", strerror(ERRNO));
     return;
   }
 
@@ -174,7 +174,7 @@ TdThread doRegisterCacheObj(SCacheObj *pCacheObj) {
 
   (void)taosThreadMutexLock(&guard);
   if (taosArrayPush(pCacheArrayList, &pCacheObj) == NULL) {
-    uError("failed to add cache object into array, reason:%s", strerror(errno));
+    uError("failed to add cache object into array, reason:%s", strerror(ERRNO));
     (void)taosThreadMutexUnlock(&guard);
     return cacheRefreshWorker;
   }
@@ -366,7 +366,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInMs, bool extendLi
 
   SCacheObj *pCacheObj = (SCacheObj *)taosMemoryCalloc(1, sizeof(SCacheObj));
   if (pCacheObj == NULL) {
-    uError("failed to allocate memory, reason:%s", strerror(errno));
+    uError("failed to allocate memory, reason:%s", strerror(ERRNO));
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
@@ -376,7 +376,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInMs, bool extendLi
   pCacheObj->pEntryList = taosMemoryCalloc(pCacheObj->capacity, sizeof(SCacheEntry));
   if (pCacheObj->pEntryList == NULL) {
     taosMemoryFree(pCacheObj);
-    uError("failed to allocate memory, reason:%s", strerror(errno));
+    uError("failed to allocate memory, reason:%s", strerror(ERRNO));
     return NULL;
   }
 
@@ -400,7 +400,7 @@ SCacheObj *taosCacheInit(int32_t keyType, int64_t refreshTimeInMs, bool extendLi
     taosMemoryFreeClear(pCacheObj->name);
     taosMemoryFree(pCacheObj);
 
-    uError("failed to init lock, reason:%s", strerror(errno));
+    uError("failed to init lock, reason:%s", strerror(ERRNO));
     return NULL;
   }
 
@@ -725,7 +725,7 @@ SCacheNode *taosCreateCacheNode(const char *key, size_t keyLen, const char *pDat
 
   SCacheNode *pNewNode = taosMemoryCalloc(1, sizeInBytes);
   if (pNewNode == NULL) {
-    uError("failed to allocate memory, reason:%s", strerror(errno));
+    uError("failed to allocate memory, reason:%s", strerror(ERRNO));
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }

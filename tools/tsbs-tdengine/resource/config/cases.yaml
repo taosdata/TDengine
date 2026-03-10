@@ -1,0 +1,964 @@
+testCases:
+    - scenarioId: "A1"
+      classif: "Summary"
+      description: ""
+      sql: |
+        create stream db1.stm_a1 
+                sliding(1h) 
+                from db1.readings 
+                stream_options(IGNORE_DISORDER) 
+                into db1.res_a1 
+                as select _tcurrent_ts ts, avg(fuel_consumption)
+                        from db1.readings 
+                        where _c0 >= _tprev_ts and _c0 < _tcurrent_ts;
+
+    - scenarioId: "A2"
+      classif: "Summary"
+      description: ""
+      sql: |
+        create stream db1.stm_a2 
+               sliding(1m) 
+               from db1.readings 
+               stream_options(IGNORE_DISORDER) 
+               into db1.res_a2 
+               as 
+                  select _tcurrent_ts ts, count(*), avg(fuel_consumption) 
+                      from (  
+                              select fuel_consumption, last(grade) cur_grade 
+                                 from db1.readings 
+                                 where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                                 partition by tbname
+                            ) 
+                      where cur_grade > 70;
+
+    - scenarioId: "A3"
+      classif: "Summary"
+      description: ""
+      sql: |
+        create stream db1.stm_a3 
+            sliding(1m) 
+            from db1.readings 
+            stream_options(IGNORE_DISORDER) 
+            into db1.res_a3 
+            as 
+              select _tcurrent_ts cur_ts, count(*), avg(avg_fuel) 
+                  from (
+                          select last(elevation) last_elev, avg(fuel_consumption) avg_fuel 
+                             from db1.readings 
+                             where _c0 >= _tprev_ts and _c0 < _tcurrent_ts 
+                             partition by tbname 
+                      ) 
+                  where last_elev > 1000;
+
+    - scenarioId: "A4"
+      classif: "Summary"
+      description: ""
+      sql: |
+        create stream db2.stm_a4 
+            sliding(10m) 
+            from db2.diagnostics
+            stream_options(IGNORE_DISORDER) 
+            into db2.res_a4 
+            as 
+              select _tcurrent_ts, sum(load) 
+                from (
+                      select last(current_load) load 
+                        from db2.diagnostics 
+                        where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                        partition by tbname
+                     )
+
+    - scenarioId: "A5"
+      classif: "Summary"
+      description: ""
+      sql: |
+        create stream db1.stm_a5 
+            sliding(10m) 
+            from db1.readings 
+            stream_options(IGNORE_DISORDER) 
+            into db1.res_a5 (ts, last_heading primary key, num) 
+            as 
+              select _tcurrent_ts, last_heading, count(*) 
+                from (
+                      select case when last(heading) < 45 or last(heading) >= 315   then 0 
+                                  when last(heading) >= 45 and last(heading) < 135  then 90 
+                                  when last(heading) >= 135 and last(heading) < 225 then 180 
+                                  else 270 end last_heading 
+                          from db1.readings 
+                          where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                          partition by tbname
+                     ) 
+                partition by last_heading;
+
+    - scenarioId: "A6"
+      classif: "Summary"
+      description: ""
+      sql: |
+        create stream db1.stm_a6 
+            sliding(1h) 
+            from db1.readings 
+            stream_options(IGNORE_DISORDER) 
+            into db1.res_a6 
+            as 
+              select _tcurrent_ts, count(*), avg(last_velocity) 
+                  from (
+                            select _tprev_ts ts, last(current_load) load, load_capacity, name 
+                              from db2.diagnostics 
+                              where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                              partition by tbname
+                        ) a 
+                   join (
+                            select _tprev_ts ts, last(velocity) last_velocity, name 
+                              from db1.readings where _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                              partition by tbname
+                       ) b 
+                  on a.ts = b.ts and a.load < 0.1 * a.load_capacity and a.name = b.name;
+
+    - scenarioId: "A7"
+      classif: "Summary"
+      description: ""
+      sql: |
+        create stream db1.stm_a7
+            interval(1h)
+            sliding(1h) 
+            from db1.readings 
+            stream_options(IGNORE_DISORDER) 
+            into db1.res_a7 
+            as 
+              select _twstart, avg(fuel_consumption) 
+                from db1.readings 
+                where _c0 >= _twstart and _c0 < _twend;
+
+    - scenarioId: "A8"
+      classif: "Summary"
+      description: ""
+      sql: |
+        create stream db2.stm_a8
+            interval(1h) 
+            sliding(1h) 
+            from db2.diagnostics 
+            stream_options(IGNORE_DISORDER) 
+            into db2.res_a8 
+            as 
+              select _twstart, sum(tduration)/3600000 
+                 from (
+                        select _wduration tduration, count(*) 
+                          from db2.diagnostics 
+                          where _c0 >= _twstart and _c0 < _twend 
+                          partition by tbname 
+                          event_window start with status > 0 end with status = 0
+                      )
+
+    - scenarioId: "A9"
+      classif: "Summary"
+      description: ""
+      sql: |
+        create stream db2.stm_a9 
+            interval(1h) 
+            sliding(1h) 
+            from db2.diagnostics 
+            stream_options(IGNORE_DISORDER) 
+            into db2.res_a9
+            as 
+              select _twstart, count(*) 
+                from (
+                       select sum(tduration) sduration 
+                       from (
+                              select tbname name, _wduration tduration, count(*) 
+                                from db2.diagnostics 
+                                where _c0 >= _twstart and _c0 < _twend 
+                                partition by tbname 
+                                event_window start with status > 0 end with status = 0
+                            ) 
+                       partition by name
+                     ) 
+                where sduration > 12 * 60000; 
+
+    - scenarioId: "F1"
+      classif: "Fleet"
+      description: ""
+      sql: |
+        create stream db1.stm_f1 
+            period(1m) 
+            from db1.readings partition by fleet 
+            into db1.res_f1 
+            as 
+              select cast(_tlocaltime/1000000 as timestamp), count(*) 
+                from (
+                      select last(velocity) last_velocity, fleet 
+                        from db1.readings 
+                        where fleet = %%1 
+                        partition by tbname
+                      ) 
+                where last_velocity > 0;
+
+    - scenarioId: "F2"
+      classif: "Fleet"
+      description: ""
+      sql: |
+        create stream db2.stm_f2 
+            period(1m) 
+            from db2.diagnostics partition by fleet 
+            into db2.res_f2 
+            as 
+              select cast(_tlocaltime/1000000 as timestamp) tlocaltime, count(*) cnt
+                from (
+                      select last(status) last_status, fleet 
+                        from db2.diagnostics 
+                        where fleet = %%1 
+                        partition by tbname
+                     ) 
+                where last_status > 0;
+
+    - scenarioId: "F3"
+      classif: "Fleet"
+      description: ""
+      sql: |
+        create stream db1.stm_f3 
+        interval(1h) 
+        sliding(1h) 
+        from db1.readings 
+        partition by fleet 
+        stream_options(IGNORE_DISORDER) 
+        into db1.res_f3 
+        as 
+          select _twend, avg(fuel_consumption) 
+            from db1.readings 
+            where (fleet = %%1 or (fleet is null and %%1 is null)) and _c0 >= _twstart and _c0 < _twend;
+
+    - scenarioId: "F4"
+      classif: "Fleet"
+      description: ""
+      sql: |
+          create stream db1.stm_f4 
+          interval(1h) 
+          sliding(1h) 
+          from db1.readings 
+          partition by fleet 
+          stream_options(fill_history_first) 
+          into db1.res_f4 
+          as 
+              select _twstart ts, avg_load/avg_fuel efficiency 
+              from (
+                      select _twstart ts, avg(fuel_consumption) avg_fuel 
+                        from db1.readings 
+                        where (fleet = %%1 or (fleet is null and %%1 is null)) and _c0 >= _twstart and _c0 < _twend
+                    ) a         
+              join 
+                    (
+                      select _twstart ts, avg(current_load) avg_load 
+                          from db2.diagnostics 
+                          where (fleet = %%1 or (fleet is null and %%1 is null)) and _c0 >= _twstart and _c0 < _twend
+                    ) b 
+              on a.ts = b.ts;
+
+
+    - scenarioId: "F5"
+      classif: "Fleet"
+      description: ""
+      sql: |
+        create stream db2.stm_f5 
+        interval(1h) 
+        sliding(1h) 
+        from db2.diagnostics 
+        partition by fleet 
+        stream_options(IGNORE_DISORDER) 
+        into db2.res_f5 
+        as 
+          select _twstart, sum(tduration)/3600000 
+          from (
+                select _wduration tduration, count(*) 
+                  from db2.diagnostics 
+                  where (fleet = %%1 or (fleet is null and %%1 is null)) and _c0 >= _twstart and _c0 < _twend 
+                  partition by tbname 
+                  event_window start with status > 0 end with status = 0
+               )
+
+    - scenarioId: "F6"
+      classif: "Fleet"
+      description: ""
+      sql: |
+        create stream db2.stm_f6 
+            sliding(1h) 
+            from db2.diagnostics partition by fleet 
+            stream_options(IGNORE_DISORDER) 
+            into db2.res_f6 
+            as 
+              select _tcurrent_ts, sum(cur_load)/sum(load_capacity) 
+                from (
+                        select fleet, last(current_load) cur_load, load_capacity 
+                        from db2.diagnostics 
+                          where (fleet = %%1 or (fleet is null and %%1 is null)) and _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                          partition by tbname 
+                      )
+
+    - scenarioId: "F7"
+      classif: "Fleet"
+      description: ""
+      sql: |
+        create stream db2.stm_f7 
+            sliding(1h) 
+            from db2.diagnostics partition by fleet 
+            stream_options(IGNORE_DISORDER) 
+            into db2.res_f7 
+            as 
+              select _tcurrent_ts, sum(breakdown)/count(*) 
+                from (
+                       select fleet, case when last(status) > 0 then 1 else 0 end breakdown 
+                       from db2.diagnostics 
+                          where (fleet = %%1 or (fleet is null and %%1 is null)) and _c0 >= _tprev_ts and _c0 <= _tcurrent_ts 
+                          partition by tbname
+                     )
+
+    - scenarioId: "F8"
+      classif: "Fleet"
+      description: ""
+      sql: |
+        create stream db1.stm_f8 
+        interval(1h) 
+        sliding(1h) 
+        from db1.readings partition by fleet 
+        stream_options(IGNORE_DISORDER) 
+        into db1.res_f8 (ts, name primary key, top_fuel) 
+        as 
+          select _twstart ts, name, top(avg_fuel, 5) top_fuel 
+            from (
+                  select name, fleet, avg(fuel_consumption) avg_fuel 
+                    from db1.readings where (fleet = %%1 or (fleet is null and %%1 is null)) and _c0 >= _twstart and _c0 < _twend 
+                    partition by tbname
+                 )
+
+    - scenarioId: "T1"
+      classif: "Vehicle"
+      description: ""
+      sql: |
+        create stream db1.stm_t1 
+            interval(1h) 
+            sliding(1h) 
+            from db1.readings partition by tbname 
+            stream_options(IGNORE_DISORDER) 
+            into db1.res_t1 
+            as 
+              select _twstart ts, avg(fuel_consumption) avg_fuel 
+                from %%tbname 
+                where _c0 >= _twstart and _c0 < _twend;
+
+    - scenarioId: "T2"
+      classif: "Vehicle"
+      description: ""
+      sql: |
+        create stream db1.stm_t2 
+            interval(1h) 
+            sliding(1h) 
+            from db1.readings partition by tbname 
+            stream_options(IGNORE_DISORDER) 
+            into db1.res_t2 
+            as 
+              select _twstart ts, sum(stime) stop_time 
+                from (
+                      select _wduration stime, count(*) 
+                        from %%tbname 
+                        where _c0 >= _twstart and _c0 < _twend 
+                        event_window start with velocity = 0 end with velocity > 0
+                     )
+
+    - scenarioId: "T3"
+      classif: "Vehicle"
+      description: ""
+      sql: |
+        create stream db1.stm_t3 
+            state_window (
+                case when grade <= 30 then 0 
+                     when grade <= 70 then 1 
+                     else 2 end ) 
+            from db1.readings partition by tbname 
+            stream_options(IGNORE_DISORDER) 
+            into db1.res_t3 
+            as 
+              select _twstart ts, avg(fuel_consumption), avg(velocity) 
+                from  %%tbname 
+                where _c0 >= _twstart and _c0 <= _twend;
+
+    - scenarioId: "T4"
+      classif: "Vehicle"
+      description: ""
+      sql: |
+        create stream db1.stm_t4 
+            state_window(
+                          case when velocity <= 30 then 0 
+                               when velocity <= 70 then 1 
+                          else 2 end
+                        ) 
+            from db1.readings 
+            partition by tbname 
+            stream_options(IGNORE_DISORDER) 
+            into db1.res_t4 
+            as 
+              select _twstart ts, avg(fuel_consumption) 
+                from %%tbname 
+                where _c0 >= _twstart and _c0 <= _twend;
+
+    - scenarioId: "T5"
+      classif: "Vehicle"
+      description: ""
+      sql: |
+        create stream db2.stm_t5 
+          state_window(
+                        case when status > 0 then 1 
+                        else 0 end
+                      ) 
+          from db2.diagnostics partition by tbname 
+          stream_options(IGNORE_DISORDER) 
+          into db2.res_t5 
+          as 
+            select _twstart, _twduration, avg(current_load) 
+              from %%tbname 
+              where _c0 >= _twstart and _c0 <= _twend;
+
+    - scenarioId: "T6"
+      classif: "Vehicle"
+      description: ""
+      sql: |
+        create stream db2.stm_t6 
+            state_window(
+                          case when fuel_state < 0.2 * fuel_capacity 
+                          then 1 else 0 end
+                         ) 
+            from db2.diagnostics partition by tbname 
+            stream_options(IGNORE_DISORDER) 
+            into db2.res_t6 
+            as 
+               select  _twstart, _twduration, count(*) 
+                  from %%tbname 
+                  where _c0 >= _twstart and _c0 <= _twend;
+
+    - scenarioId: "T7"
+      classif: "Vehicle"
+      description: ""
+      sql: |
+        create stream db1.stm_t7 
+            state_window(
+                          case when fuel_consumption > 2 * nominal_fuel_consumption then 1 
+                          else 0 end
+                        ) 
+            from db1.readings partition by tbname, name 
+            stream_options(IGNORE_DISORDER) 
+            into db1.res_t7 
+            as 
+              select a.ts, a.wduration, a.avg_velocity, a.avg_grade, a.avg_elevation, b.avg_load 
+                from (
+                      select  _twstart ts, _twduration wduration, avg(velocity) avg_velocity, avg(grade) avg_grade, avg(elevation) avg_elevation 
+                        from %%tbname 
+                        where _c0 >= _twstart and _c0 <= _twend
+                     ) a 
+                join (
+                       select _twstart ts, avg(current_load) avg_load 
+                          from db2.diagnostics 
+                          where name = %%2 and _c0 >= _twstart and _c0 <= _twend
+                     ) b 
+                on a.ts = b.ts;
+
+    - scenarioId: "T8"
+      classif: "Vehicle"
+      description: ""
+      sql: |
+        create stream db1.stm_t8 
+            event_window(
+                         start with velocity > 70 and grade > 70 
+                         end   with velocity <= 70 or grade <= 70
+                        ) 
+            from db1.readings partition by tbname 
+            stream_options(IGNORE_DISORDER) 
+            into db1.res_t8 
+            as 
+              select _twstart, _twduration, avg(fuel_consumption) 
+                  from %%tbname 
+                  where _c0 >= _twstart and _c0 <= _twend;
+
+    - scenarioId: "T9"
+      classif: "Vehicle"
+      description: ""
+      sql: |
+        create stream db2.stm_t9 
+            state_window(
+                          case when fuel_state = 1 then 1 
+                          else 0 end 
+                        ) 
+            from db2.diagnostics partition by tbname 
+            stream_options(IGNORE_DISORDER) 
+            into db2.res_t9 
+            as 
+              select _twstart, first(current_load) 
+                from %%tbname 
+                where _c0 >= _twstart and _c0 <= _twend;
+
+    - scenarioId: "U1"
+      classif: "UserCase"
+      description: ""
+      sql: |
+        create stream metron_dmp.alarm_stream 
+        state_window(
+            cast(
+                case when m6033 is null then 0 else m6033 end + 
+                case when m6120 is null then 0 else m6120 end + 
+                case when m6121 is null then 0 else m6121 end + 
+                case when m6122 is null then 0 else m6122 end + 
+                case when m6140 is null then 0 else m6140 end + 
+                case when m6024 is null then 0 else m6024 end + 
+                case when m6025 is null then 0 else m6025 end + 
+                case when m6026 is null then 0 else m6026 end + 
+                case when m6100 is null then 0 else m6100 end + 
+                case when m6101 is null then 0 else m6101 end + 
+                case when m6102 is null then 0 else m6102 end + 
+                case when m6103 is null then 0 else m6103 end + 
+                case when m6104 is null then 0 else m6104 end + 
+                case when m6105 is null then 0 else m6105 end + 
+                case when m6108 is null then 0 else m6108 end + 
+                case when m6109 is null then 0 else m6109 end + 
+                case when m6112 is null then 0 else m6112 end + 
+                case when m6113 is null then 0 else m6113 end + 
+                case when m6114 is null then 0 else m6114 end + 
+                case when m6115 is null then 0 else m6115 end + 
+                case when m6027 is null then 0 else m6027 end + 
+                case when m6028 is null then 0 else m6028 end + 
+                case when m6032 is null then 0 else m6032 end + 
+                case when m6050 is null then 0 else m6050 end + 
+                case when m6051 is null then 0 else m6051 end + 
+                case when m6052 is null then 0 else m6052 end + 
+                case when m6053 is null then 0 else m6053 end + 
+                case when m6054 is null then 0 else m6054 end + 
+                case when m6055 is null then 0 else m6055 end + 
+                case when m6056 is null then 0 else m6056 end + 
+                case when m6057 is null then 0 else m6057 end + 
+                case when m6058 is null then 0 else m6058 end + 
+                case when m6059 is null then 0 else m6059 end + 
+                case when m6060 is null then 0 else m6060 end + 
+                case when m6061 is null then 0 else m6061 end + 
+                case when m6062 is null then 0 else m6062 end + 
+                case when m6063 is null then 0 else m6063 end + 
+                case when m6064 is null then 0 else m6064 end + 
+                case when m7000 is null then 0 else m7000 end + 
+                case when m7001 is null then 0 else m7001 end + 
+                case when m7002 is null then 0 else m7002 end + 
+                case when m7003 is null then 0 else m7003 end + 
+                case when m7004 is null then 0 else m7004 end + 
+                case when m7005 is null then 0 else m7005 end + 
+                case when m7006 is null then 0 else m7006 end + 
+                case when m7007 is null then 0 else m7007 end + 
+                case when m7010 is null then 0 else m7010 end + 
+                case when m7011 is null then 0 else m7011 end + 
+                case when m7012 is null then 0 else m7012 end + 
+                case when m7013 is null then 0 else m7013 end + 
+                case when m7014 is null then 0 else m7014 end + 
+                case when m7015 is null then 0 else m7015 end + 
+                case when m7016 is null then 0 else m7016 end + 
+                case when m7017 is null then 0 else m7017 end + 
+                case when m7020 is null then 0 else m7020 end + 
+                case when m7021 is null then 0 else m7021 end + 
+                case when m7022 is null then 0 else m7022 end + 
+                case when m7023 is null then 0 else m7023 end + 
+                case when m7024 is null then 0 else m7024 end + 
+                case when m7025 is null then 0 else m7025 end + 
+                case when m7026 is null then 0 else m7026 end + 
+                case when m7027 is null then 0 else m7027 end + 
+                case when m7030 is null then 0 else m7030 end + 
+                case when m7031 is null then 0 else m7031 end + 
+                case when m7032 is null then 0 else m7032 end + 
+                case when m7033 is null then 0 else m7033 end + 
+                case when m7034 is null then 0 else m7034 end + 
+                case when m7035 is null then 0 else m7035 end + 
+                case when m7036 is null then 0 else m7036 end + 
+                case when m7037 is null then 0 else m7037 end + 
+                case when m7038 is null then 0 else m7038 end + 
+                case when m7039 is null then 0 else m7039 end + 
+                case when m7040 is null then 0 else m7040 end + 
+                case when m7041 is null then 0 else m7041 end + 
+                case when m7042 is null then 0 else m7042 end + 
+                case when m7043 is null then 0 else m7043 end + 
+                case when m7044 is null then 0 else m7044 end + 
+                case when m7045 is null then 0 else m7045 end + 
+                case when m7046 is null then 0 else m7046 end + 
+                case when m7047 is null then 0 else m7047 end + 
+                case when m7048 is null then 0 else m7048 end + 
+                case when m7049 is null then 0 else m7049 end + 
+                case when m7050 is null then 0 else m7050 end + 
+                case when m7051 is null then 0 else m7051 end + 
+                case when m7052 is null then 0 else m7052 end + 
+                case when m7053 is null then 0 else m7053 end + 
+                case when m7054 is null then 0 else m7054 end + 
+                case when m7055 is null then 0 else m7055 end + 
+                case when m7056 is null then 0 else m7056 end + 
+                case when m7057 is null then 0 else m7057 end + 
+                case when m7060 is null then 0 else m7060 end + 
+                case when m7061 is null then 0 else m7061 end + 
+                case when m7062 is null then 0 else m7062 end + 
+                case when m7063 is null then 0 else m7063 end + 
+                case when m7064 is null then 0 else m7064 end + 
+                case when m7065 is null then 0 else m7065 end + 
+                case when m7066 is null then 0 else m7066 end + 
+                case when m7080 is null then 0 else m7080 end + 
+                case when m7081 is null then 0 else m7081 end + 
+                case when m7082 is null then 0 else m7082 end + 
+                case when m7083 is null then 0 else m7083 end + 
+                case when m7085 is null then 0 else m7085 end + 
+                case when m7086 is null then 0 else m7086 end + 
+                case when m7087 is null then 0 else m7087 end + 
+                case when m7088 is null then 0 else m7088 end + 
+                case when m7089 is null then 0 else m7089 end + 
+                case when m7090 is null then 0 else m7090 end + 
+                case when m7091 is null then 0 else m7091 end + 
+                case when m7092 is null then 0 else m7092 end + 
+                case when m7094 is null then 0 else m7094 end + 
+                case when m7095 is null then 0 else m7095 end + 
+                case when m7096 is null then 0 else m7096 end + 
+                case when m7097 is null then 0 else m7097 end + 
+                case when m6000 is null then 0 else m6000 end + 
+                case when m6001 is null then 0 else m6001 end + 
+                case when m6002 is null then 0 else m6002 end + 
+                case when m6003 is null then 0 else m6003 end + 
+                case when m6004 is null then 0 else m6004 end + 
+                case when m6005 is null then 0 else m6005 end + 
+                case when m6006 is null then 0 else m6006 end + 
+                case when m6007 is null then 0 else m6007 end + 
+                case when m6008 is null then 0 else m6008 end + 
+                case when m6009 is null then 0 else m6009 end + 
+                case when m6010 is null then 0 else m6010 end + 
+                case when m6011 is null then 0 else m6011 end + 
+                case when m6012 is null then 0 else m6012 end + 
+                case when m6013 is null then 0 else m6013 end + 
+                case when m6014 is null then 0 else m6014 end + 
+                case when m6015 is null then 0 else m6015 end + 
+                case when m6016 is null then 0 else m6016 end + 
+                case when m6017 is null then 0 else m6017 end + 
+                case when m6018 is null then 0 else m6018 end + 
+                case when m6020 is null then 0 else m6020 end + 
+                case when m6021 is null then 0 else m6021 end + 
+                case when m6022 is null then 0 else m6022 end + 
+                case when m6023 is null then 0 else m6023 end + 
+                case when m6029 is null then 0 else m6029 end + 
+                case when m6030 is null then 0 else m6030 end + 
+                case when m6031 is null then 0 else m6031 end + 
+                case when m6034 is null then 0 else m6034 end + 
+                case when m6035 is null then 0 else m6035 end + 
+                case when m6036 is null then 0 else m6036 end + 
+                case when m6037 is null then 0 else m6037 end + 
+                case when m6038 is null then 0 else m6038 end + 
+                case when m6039 is null then 0 else m6039 end + 
+                case when m6040 is null then 0 else m6040 end + 
+                case when m6041 is null then 0 else m6041 end + 
+                case when m6042 is null then 0 else m6042 end + 
+                case when m6043 is null then 0 else m6043 end + 
+                case when m6044 is null then 0 else m6044 end + 
+                case when m6045 is null then 0 else m6045 end + 
+                case when m6046 is null then 0 else m6046 end + 
+                case when m6080 is null then 0 else m6080 end + 
+                case when m6081 is null then 0 else m6081 end + 
+                case when m6082 is null then 0 else m6082 end + 
+                case when m6083 is null then 0 else m6083 end + 
+                case when m6085 is null then 0 else m6085 end + 
+                case when m6086 is null then 0 else m6086 end + 
+                case when m6087 is null then 0 else m6087 end + 
+                case when m6088 is null then 0 else m6088 end + 
+                case when m6089 is null then 0 else m6089 end + 
+                case when m6090 is null then 0 else m6090 end + 
+                case when m6091 is null then 0 else m6091 end + 
+                case when m6092 is null then 0 else m6092 end + 
+                case when m6093 is null then 0 else m6093 end + 
+                case when m6094 is null then 0 else m6094 end + 
+                case when m6095 is null then 0 else m6095 end + 
+                case when m6096 is null then 0 else m6096 end + 
+                case when m6097 is null then 0 else m6097 end + 
+                case when m6098 is null then 0 else m6098 end + 
+                case when m6099 is null then 0 else m6099 end + 
+                case when m6106 is null then 0 else m6106 end + 
+                case when m6107 is null then 0 else m6107 end + 
+                case when m6110 is null then 0 else m6110 end + 
+                case when m6111 is null then 0 else m6111 end + 
+                case when m6116 is null then 0 else m6116 end + 
+                case when m6117 is null then 0 else m6117 end + 
+                case when m6118 is null then 0 else m6118 end + 
+                case when m6119 is null then 0 else m6119 end + 
+                case when m6160 is null then 0 else m6160 end + 
+                case when m6161 is null then 0 else m6161 end + 
+                case when m6162 is null then 0 else m6162 end + 
+                case when m6163 is null then 0 else m6163 end + 
+                case when m6164 is null then 0 else m6164 end + 
+                case when m6165 is null then 0 else m6165 end + 
+                case when m6170 is null then 0 else m6170 end + 
+                case when m6171 is null then 0 else m6171 end + 
+                case when m6184 is null then 0 else m6184 end + 
+                case when m6191 is null then 0 else m6191 end + 
+                case when m6192 is null then 0 else m6192 end + 
+                case when m6193 is null then 0 else m6193 end + 
+                case when m6194 is null then 0 else m6194 end + 
+                case when m6195 is null then 0 else m6195 end + 
+                case when m6196 is null then 0 else m6196 end + 
+                case when m6197 is null then 0 else m6197 end + 
+                case when m6198 is null then 0 else m6198 end + 
+                case when m6199 is null then 0 else m6199 end + 
+                case when m7067 is null then 0 else m7067 end + 
+                case when m7068 is null then 0 else m7068 end + 
+                case when m7070 is null then 0 else m7070 end + 
+                case when m7100 is null then 0 else m7100 end + 
+                case when m7101 is null then 0 else m7101 end + 
+                case when m7102 is null then 0 else m7102 end + 
+                case when m7103 is null then 0 else m7103 end + 
+                case when m7104 is null then 0 else m7104 end + 
+                case when m7105 is null then 0 else m7105 end + 
+                case when m7106 is null then 0 else m7106 end + 
+                case when m7107 is null then 0 else m7107 end + 
+                case when m7108 is null then 0 else m7108 end + 
+                case when m7109 is null then 0 else m7109 end + 
+                case when m7110 is null then 0 else m7110 end + 
+                case when m7111 is null then 0 else m7111 end + 
+                case when m7112 is null then 0 else m7112 end + 
+                case when m7113 is null then 0 else m7113 end + 
+                case when m7114 is null then 0 else m7114 end + 
+                case when m7128 is null then 0 else m7128 end + 
+                case when m7129 is null then 0 else m7129 end + 
+                case when m7130 is null then 0 else m7130 end + 
+                case when m7131 is null then 0 else m7131 end + 
+                case when m7132 is null then 0 else m7132 end + 
+                case when m7133 is null then 0 else m7133 end + 
+                case when m7134 is null then 0 else m7134 end + 
+                case when m7135 is null then 0 else m7135 end + 
+                case when m7136 is null then 0 else m7136 end + 
+                case when m7137 is null then 0 else m7137 end 
+            as int)
+        ) 
+        from metron_dmp.alarm 
+        partition by tbname, line, workshop, factory 
+        STREAM_OPTIONS(IGNORE_DISORDER|EVENT_TYPE(WINDOW_OPEN))  
+        into metron_dmp.result_alarm 
+        output_subtable(concat_ws('_', 'stream', tbname, line, workshop, factory))
+        TAGS(line varchar(20) as line, workshop varchar(20) as workshop, factory varchar(20) as factory)  
+        as 
+        select 
+            _twstart as ts, 
+            last_row(m6033) as m6033, 
+            last_row(m6120) as m6120, 
+            last_row(m6121) as m6121, 
+            last_row(m6122) as m6122, 
+            last_row(m6140) as m6140, 
+            last_row(m6024) as m6024, 
+            last_row(m6025) as m6025, 
+            last_row(m6026) as m6026, 
+            last_row(m6100) as m6100, 
+            last_row(m6101) as m6101, 
+            last_row(m6102) as m6102, 
+            last_row(m6103) as m6103, 
+            last_row(m6104) as m6104, 
+            last_row(m6105) as m6105, 
+            last_row(m6108) as m6108, 
+            last_row(m6109) as m6109, 
+            last_row(m6112) as m6112, 
+            last_row(m6113) as m6113, 
+            last_row(m6114) as m6114, 
+            last_row(m6115) as m6115, 
+            last_row(m6027) as m6027, 
+            last_row(m6028) as m6028, 
+            last_row(m6032) as m6032, 
+            last_row(m6050) as m6050, 
+            last_row(m6051) as m6051, 
+            last_row(m6052) as m6052, 
+            last_row(m6053) as m6053, 
+            last_row(m6054) as m6054, 
+            last_row(m6055) as m6055, 
+            last_row(m6056) as m6056, 
+            last_row(m6057) as m6057, 
+            last_row(m6058) as m6058, 
+            last_row(m6059) as m6059, 
+            last_row(m6060) as m6060, 
+            last_row(m6061) as m6061, 
+            last_row(m6062) as m6062, 
+            last_row(m6063) as m6063, 
+            last_row(m6064) as m6064, 
+            last_row(m7000) as m7000, 
+            last_row(m7001) as m7001, 
+            last_row(m7002) as m7002, 
+            last_row(m7003) as m7003, 
+            last_row(m7004) as m7004, 
+            last_row(m7005) as m7005, 
+            last_row(m7006) as m7006, 
+            last_row(m7007) as m7007, 
+            last_row(m7010) as m7010, 
+            last_row(m7011) as m7011, 
+            last_row(m7012) as m7012, 
+            last_row(m7013) as m7013, 
+            last_row(m7014) as m7014, 
+            last_row(m7015) as m7015, 
+            last_row(m7016) as m7016, 
+            last_row(m7017) as m7017, 
+            last_row(m7020) as m7020, 
+            last_row(m7021) as m7021, 
+            last_row(m7022) as m7022, 
+            last_row(m7023) as m7023, 
+            last_row(m7024) as m7024, 
+            last_row(m7025) as m7025, 
+            last_row(m7026) as m7026, 
+            last_row(m7027) as m7027, 
+            last_row(m7030) as m7030, 
+            last_row(m7031) as m7031, 
+            last_row(m7032) as m7032, 
+            last_row(m7033) as m7033, 
+            last_row(m7034) as m7034, 
+            last_row(m7035) as m7035, 
+            last_row(m7036) as m7036, 
+            last_row(m7037) as m7037, 
+            last_row(m7038) as m7038, 
+            last_row(m7039) as m7039, 
+            last_row(m7040) as m7040, 
+            last_row(m7041) as m7041, 
+            last_row(m7042) as m7042, 
+            last_row(m7043) as m7043, 
+            last_row(m7044) as m7044, 
+            last_row(m7045) as m7045, 
+            last_row(m7046) as m7046, 
+            last_row(m7047) as m7047, 
+            last_row(m7048) as m7048, 
+            last_row(m7049) as m7049, 
+            last_row(m7050) as m7050, 
+            last_row(m7051) as m7051, 
+            last_row(m7052) as m7052, 
+            last_row(m7053) as m7053, 
+            last_row(m7054) as m7054, 
+            last_row(m7055) as m7055, 
+            last_row(m7056) as m7056, 
+            last_row(m7057) as m7057, 
+            last_row(m7060) as m7060, 
+            last_row(m7061) as m7061, 
+            last_row(m7062) as m7062, 
+            last_row(m7063) as m7063, 
+            last_row(m7064) as m7064, 
+            last_row(m7065) as m7065, 
+            last_row(m7066) as m7066, 
+            last_row(m7080) as m7080, 
+            last_row(m7081) as m7081, 
+            last_row(m7082) as m7082, 
+            last_row(m7083) as m7083, 
+            last_row(m7085) as m7085, 
+            last_row(m7086) as m7086, 
+            last_row(m7087) as m7087, 
+            last_row(m7088) as m7088, 
+            last_row(m7089) as m7089, 
+            last_row(m7090) as m7090, 
+            last_row(m7091) as m7091, 
+            last_row(m7092) as m7092, 
+            last_row(m7094) as m7094, 
+            last_row(m7095) as m7095, 
+            last_row(m7096) as m7096, 
+            last_row(m7097) as m7097, 
+            last_row(m6000) as m6000, 
+            last_row(m6001) as m6001, 
+            last_row(m6002) as m6002, 
+            last_row(m6003) as m6003, 
+            last_row(m6004) as m6004, 
+            last_row(m6005) as m6005, 
+            last_row(m6006) as m6006, 
+            last_row(m6007) as m6007, 
+            last_row(m6008) as m6008, 
+            last_row(m6009) as m6009, 
+            last_row(m6010) as m6010, 
+            last_row(m6011) as m6011, 
+            last_row(m6012) as m6012, 
+            last_row(m6013) as m6013, 
+            last_row(m6014) as m6014, 
+            last_row(m6015) as m6015, 
+            last_row(m6016) as m6016, 
+            last_row(m6017) as m6017, 
+            last_row(m6018) as m6018, 
+            last_row(m6020) as m6020, 
+            last_row(m6021) as m6021, 
+            last_row(m6022) as m6022, 
+            last_row(m6023) as m6023, 
+            last_row(m6029) as m6029, 
+            last_row(m6030) as m6030, 
+            last_row(m6031) as m6031, 
+            last_row(m6034) as m6034, 
+            last_row(m6035) as m6035, 
+            last_row(m6036) as m6036, 
+            last_row(m6037) as m6037, 
+            last_row(m6038) as m6038, 
+            last_row(m6039) as m6039, 
+            last_row(m6040) as m6040, 
+            last_row(m6041) as m6041, 
+            last_row(m6042) as m6042, 
+            last_row(m6043) as m6043, 
+            last_row(m6044) as m6044, 
+            last_row(m6045) as m6045, 
+            last_row(m6046) as m6046, 
+            last_row(m6080) as m6080, 
+            last_row(m6081) as m6081, 
+            last_row(m6082) as m6082, 
+            last_row(m6083) as m6083, 
+            last_row(m6085) as m6085, 
+            last_row(m6086) as m6086, 
+            last_row(m6087) as m6087, 
+            last_row(m6088) as m6088, 
+            last_row(m6089) as m6089, 
+            last_row(m6090) as m6090, 
+            last_row(m6091) as m6091, 
+            last_row(m6092) as m6092, 
+            last_row(m6093) as m6093, 
+            last_row(m6094) as m6094, 
+            last_row(m6095) as m6095, 
+            last_row(m6096) as m6096, 
+            last_row(m6097) as m6097, 
+            last_row(m6098) as m6098, 
+            last_row(m6099) as m6099, 
+            last_row(m6106) as m6106, 
+            last_row(m6107) as m6107, 
+            last_row(m6110) as m6110, 
+            last_row(m6111) as m6111, 
+            last_row(m6116) as m6116, 
+            last_row(m6117) as m6117, 
+            last_row(m6118) as m6118, 
+            last_row(m6119) as m6119, 
+            last_row(m6160) as m6160, 
+            last_row(m6161) as m6161, 
+            last_row(m6162) as m6162, 
+            last_row(m6163) as m6163, 
+            last_row(m6164) as m6164, 
+            last_row(m6165) as m6165, 
+            last_row(m6170) as m6170, 
+            last_row(m6171) as m6171, 
+            last_row(m6184) as m6184, 
+            last_row(m6191) as m6191, 
+            last_row(m6192) as m6192, 
+            last_row(m6193) as m6193, 
+            last_row(m6194) as m6194, 
+            last_row(m6195) as m6195, 
+            last_row(m6196) as m6196, 
+            last_row(m6197) as m6197, 
+            last_row(m6198) as m6198, 
+            last_row(m6199) as m6199, 
+            last_row(m7067) as m7067, 
+            last_row(m7068) as m7068, 
+            last_row(m7070) as m7070, 
+            last_row(m7100) as m7100, 
+            last_row(m7101) as m7101, 
+            last_row(m7102) as m7102, 
+            last_row(m7103) as m7103, 
+            last_row(m7104) as m7104, 
+            last_row(m7105) as m7105, 
+            last_row(m7106) as m7106, 
+            last_row(m7107) as m7107, 
+            last_row(m7108) as m7108, 
+            last_row(m7109) as m7109, 
+            last_row(m7110) as m7110, 
+            last_row(m7111) as m7111, 
+            last_row(m7112) as m7112, 
+            last_row(m7113) as m7113, 
+            last_row(m7114) as m7114, 
+            last_row(m7128) as m7128, 
+            last_row(m7129) as m7129, 
+            last_row(m7130) as m7130, 
+            last_row(m7131) as m7131, 
+            last_row(m7132) as m7132, 
+            last_row(m7133) as m7133, 
+            last_row(m7134) as m7134, 
+            last_row(m7135) as m7135, 
+            last_row(m7136) as m7136, 
+            last_row(m7137) as m7137 
+        from %%tbname 
+        where ts >= _twstart and ts <= _twend;

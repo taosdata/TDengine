@@ -17,28 +17,30 @@
 #define _TD_SHELL_INT_H_
 
 #include "os.h"
-#include "taos.h"
 #include "taosdef.h"
 #include "taoserror.h"
+#include "taos.h"
+#include "tcommon.h"
 #include "tconfig.h"
 #include "tglobal.h"
 #include "trpc.h"
 #include "ttypes.h"
 #include "tutil.h"
+#include "tversion.h"
+#include "version.h"
+#include "../../inc/pub.h"
 
-#ifdef WEBSOCKET
-#include "taosws.h"
-
-#define SHELL_WS_TIMEOUT                        30
-#define SHELL_WS_DSN_BUFF                       256
-#define SHELL_WS_DSN_MASK                       10
-#endif
-
+#define SHELL_WS_TIMEOUT                       30
+#define SHELL_WS_DSN_BUFF                      256
+#define SHELL_WS_DSN_MASK                      10
 #define SHELL_MAX_HISTORY_SIZE                 1000
 #define SHELL_MAX_COMMAND_SIZE                 1048586
 #define SHELL_HISTORY_FILE                     ".taos_history"
 #define SHELL_DEFAULT_RES_SHOW_NUM             100
 #define SHELL_DEFAULT_MAX_BINARY_DISPLAY_WIDTH 30
+#define SHELL_SHOW_TOKEN_DISPLAY_WIDTH         (TSDB_TOKEN_LEN - 1)
+#define SHELL_SHOW_TOTP_SECRET_DISPLAY_WIDTH   ((TSDB_TOTP_SECRET_LEN * 8 + 4) / 5) // base32 encoding length
+#define SHELL_TOKEN_LEN                        256
 #define SHELL_MAX_PKG_LEN                      2 * 1024 * 1024
 #define SHELL_MIN_PKG_LEN                      1
 #define SHELL_DEF_PKG_LEN                      1024
@@ -48,7 +50,9 @@
 #define SHELL_FLOAT_WIDTH                      20
 #define SHELL_DOUBLE_WIDTH                     25
 
-#define ERROR_CODE_DETAIL "\r\n\r\nTo view possible causes and suggested actions for error codes, see \r\n\"Error Code Reference\" in the TDengine online documentation.\r\n"
+#define ERROR_CODE_DETAIL                                                                                           \
+  "\r\n\r\nTo view possible causes and suggested actions for error codes, see \r\n\"Error Code Reference\" in the " \
+  "TDengine online documentation.\r\n"
 typedef struct {
   char*   hist[SHELL_MAX_HISTORY_SIZE];
   char    file[TSDB_FILENAME_LEN];
@@ -65,7 +69,10 @@ typedef struct {
   const char* commands;
   const char* netrole;
   char        file[PATH_MAX];
-  char        password[TSDB_USET_PASSWORD_LEN];
+  char        password[TSDB_USER_PASSWORD_LONGLEN + 1];
+#ifdef TD_ENTERPRISE
+  char        token[SHELL_TOKEN_LEN];
+#endif  
   bool        is_gen_auth;
   bool        is_bi_mode;
   bool        is_raw_time;
@@ -79,20 +86,17 @@ typedef struct {
   int32_t     pktNum;
   int32_t     displayWidth;
   int32_t     abort;
-#ifdef WEBSOCKET
-  bool        restful;
-  bool        cloud;
-  bool        local;
   char*       dsn;
   int32_t     timeout;
-#endif
+  int8_t      connMode;
+  bool        port_inputted;
 } SShellArgs;
 
 typedef struct {
-  const char *clientVersion;
-  char cusName[32];
-  char promptHeader[32];
-  char promptContinue[32];
+  const char* clientVersion;
+  char        cusName[32];
+  char        promptHeader[32];
+  char        promptContinue[32];
   const char* osname;
   int32_t     promptSize;
   char        programVersion[256];
@@ -106,10 +110,6 @@ typedef struct {
   TdThread        pid;
   tsem_t          cancelSem;
   bool            exit;
-#ifdef WEBSOCKET
-  WS_TAOS*        ws_conn;
-  bool            stop_query;
-#endif
 } SShellObj;
 
 typedef struct {
@@ -127,13 +127,15 @@ int32_t shellParseArgs(int32_t argc, char* argv[]);
 
 // shellCommand.c
 int32_t shellReadCommand(char* command);
+int32_t shellCountPrefixOnes(uint8_t c);
 
 // shellEngine.c
-int32_t shellExecute();
+int32_t shellExecute(int argc, char *argv[]);
 int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision);
 void    shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields);
 void    shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t length, int32_t precision);
 void    shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision); 
+
 // shellUtil.c
 int32_t shellCheckIntSize();
 void    shellPrintVersion();
@@ -142,21 +144,15 @@ void    shellGenerateAuth();
 void    shellDumpConfig();
 void    shellCheckServerStatus();
 bool    shellRegexMatch(const char* s, const char* reg, int32_t cflags);
+int32_t getDsnEnv();
 void    shellExit();
+void trimStr(char *srcInfo, char *removeStr);
 
 // shellNettest.c
 void shellTestNetWork();
 
-#ifdef WEBSOCKET
-void shellCheckConnectMode();
-// shellWebsocket.c
-int shell_conn_ws_server(bool first);
-int32_t shell_run_websocket();
-void shellRunSingleCommandWebsocketImp(char *command); 
-#endif
-
 // shellMain.c
 extern SShellObj shell;
-extern void tscWriteCrashInfo(int signum, void *sigInfo, void *context);
+extern char configDirShell[PATH_MAX];
 
 #endif /*_TD_SHELL_INT_H_*/

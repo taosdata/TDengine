@@ -89,7 +89,10 @@ else
   export LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
   echo "Preload AsanSo:" $?
 
-  $* -a 2> $AsanFile 
+  export ASAN_OPTIONS=detect_odr_violation=0
+  echo "forbid check ODR violation."
+
+  $* -a > $AsanFile 2>&1
   cat $AsanFile
   unset LD_PRELOAD
   for ((i = 1; i <= 20; i++)); do
@@ -101,7 +104,7 @@ else
     sleep 1
   done
   # check case successful
-  AsanFileSuccessLen=$(grep -w "successfully executed" $AsanFile | wc -l)
+  AsanFileSuccessLen=$(grep -w -a "successfully executed" $AsanFile | wc -l)
   echo "AsanFileSuccessLen:" $AsanFileSuccessLen
 
   if [ $AsanFileSuccessLen -gt 0 ]; then

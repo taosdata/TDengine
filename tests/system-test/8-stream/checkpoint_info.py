@@ -86,6 +86,18 @@ class TDTestCase:
     def restart_stream(self):
         tdLog.debug("========restart stream========")
         time.sleep(10)
+
+        st = time.time()
+        while True:
+            sql = 'select status from information_schema.ins_stream_tasks where status<>"ready" '
+            if len(tdSql.getResult(sql)) != 0:
+                time.sleep(1)
+                tdLog.info("wait for task to be ready, 1s")
+            else:
+                et = time.time()
+                tdLog.info(f"wait for tasks to be ready: {et-st}s")
+                break
+
         for i in range(5):
             tdSql.execute("pause stream s1", 60)
             time.sleep(2)
@@ -129,7 +141,7 @@ class TDTestCase:
         time.sleep(5)
         self.print_time_info()
         self.redistribute_vnode()
-        time.sleep(20)
+        time.sleep(200)
         self.restart_stream()
         time.sleep(5)
         self.print_time_info()

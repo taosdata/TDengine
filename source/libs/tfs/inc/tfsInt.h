@@ -31,12 +31,12 @@ extern "C" {
 
 // For debug purpose
 // clang-format off
-#define fFatal(...) { if (fsDebugFlag & DEBUG_FATAL) { taosPrintLog("TFS FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
-#define fError(...) { if (fsDebugFlag & DEBUG_ERROR) { taosPrintLog("TFS ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
-#define fWarn(...)  { if (fsDebugFlag & DEBUG_WARN)  { taosPrintLog("TFS WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}
-#define fInfo(...)  { if (fsDebugFlag & DEBUG_INFO)  { taosPrintLog("TFS ", DEBUG_INFO, 255, __VA_ARGS__); }}
-#define fDebug(...) { if (fsDebugFlag & DEBUG_DEBUG) { taosPrintLog("TFS ", DEBUG_DEBUG, fsDebugFlag, __VA_ARGS__); }}
-#define fTrace(...) { if (fsDebugFlag & DEBUG_TRACE) { taosPrintLog("TFS ", DEBUG_TRACE, fsDebugFlag, __VA_ARGS__); }}
+#define fFatal(...) { if (fsDebugFlag & DEBUG_FATAL) { taosPrintLog("TFS FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }}
+#define fError(...) { if (fsDebugFlag & DEBUG_ERROR) { taosPrintLog("TFS ERROR ", DEBUG_ERROR, 255,         __VA_ARGS__); }}
+#define fWarn(...)  { if (fsDebugFlag & DEBUG_WARN)  { taosPrintLog("TFS WARN  ", DEBUG_WARN,  255,         __VA_ARGS__); }}
+#define fInfo(...)  { if (fsDebugFlag & DEBUG_INFO)  { taosPrintLog("TFS INFO  ", DEBUG_INFO,  255,         __VA_ARGS__); }}
+#define fDebug(...) { if (fsDebugFlag & DEBUG_DEBUG) { taosPrintLog("TFS DEBUG ", DEBUG_DEBUG, fsDebugFlag, __VA_ARGS__); }}
+#define fTrace(...) { if (fsDebugFlag & DEBUG_TRACE) { taosPrintLog("TFS TRACE ", DEBUG_TRACE, fsDebugFlag, __VA_ARGS__); }}
 // clang-format on
 
 typedef struct {

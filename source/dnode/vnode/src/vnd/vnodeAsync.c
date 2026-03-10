@@ -127,6 +127,7 @@ struct {
     [2] = {"vnode-merge", NULL},
     [3] = {"vnode-compact", NULL},
     [4] = {"vnode-retention", NULL},
+    [5] = {"vnode-scan", NULL},
 };
 
 #define MIN_ASYNC_ID 1
@@ -438,6 +439,12 @@ static int32_t vnodeAsyncDestroy(SVAsync **async) {
 }
 
 static void vnodeAsyncLaunchWorker(SVAsync *async) {
+  TdThreadAttr thAttr;
+  (void)taosThreadAttrInit(&thAttr);
+  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+#ifdef TD_COMPACT_OS
+  (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
+#endif
   for (int32_t i = 0; i < async->numWorkers; i++) {
     if (async->workers[i].state == EVA_WORKER_STATE_ACTIVE) {
       continue;
@@ -446,7 +453,7 @@ static void vnodeAsyncLaunchWorker(SVAsync *async) {
       async->workers[i].state = EVA_WORKER_STATE_UINIT;
     }
 
-    int32_t ret = taosThreadCreate(&async->workers[i].thread, NULL, vnodeAsyncLoop, &async->workers[i]);
+    int32_t ret = taosThreadCreate(&async->workers[i].thread, &thAttr, vnodeAsyncLoop, &async->workers[i]);
     if (ret) {
       vError("failed to create worker thread since %s", tstrerror(ret));
     } else {
@@ -455,6 +462,9 @@ static void vnodeAsyncLaunchWorker(SVAsync *async) {
     }
     break;
   }
+#ifdef TD_ASTRA
+  (void)taosThreadAttrDestroy(&thAttr);
+#endif
 }
 
 int32_t vnodeAsyncOpen() {
@@ -467,6 +477,7 @@ int32_t vnodeAsyncOpen() {
       tsNumOfCommitThreads,     // vnode-merge
       tsNumOfCompactThreads,    // vnode-compact
       tsNumOfRetentionThreads,  // vnode-retention
+      2,                        // vnode-scan
   };
 
   for (int32_t i = 1; i < sizeof(GVnodeAsyncs) / sizeof(GVnodeAsyncs[0]); i++) {

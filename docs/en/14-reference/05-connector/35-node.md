@@ -25,6 +25,14 @@ Support all platforms that can run Node.js.
 
 | Node.js Connector Version | Major Changes                                                            | TDengine Version            |
 | ------------------------- | ------------------------------------------------------------------------ | --------------------------- |
+| 3.2.2                     | Fix timezone handling issues on Windows systems. | - |
+| 3.2.1                     | Fix SQL query result sorting issue. | - |
+| 3.2.0                     | Optimize STMT parameter binding to improve write efficiency. | - |
+| 3.1.9                     | Fix timezone handling in WebSocket connections. | - |
+| 3.1.8                     | Fix when the connection pool returns unavailable connections during network anomalies. | - |
+| 3.1.7                     | Fix cloud service TMQ connection parameter issue. | - |
+| 3.1.6                     | 1. Check if the connector supports database version.  <br/> 2. The connector supports adding new subscription parameters. | - |  
+| 3.1.5                     | Password supports special characters. |  - |
 | 3.1.4                     | Modified the readme.| -                           |
 | 3.1.3                     | Upgraded the es5-ext version to address vulnerabilities in the lower version. | -                      |
 | 3.1.2                     | Optimized data protocol and parsing, significantly improved performance. | -                           |
@@ -33,28 +41,7 @@ Support all platforms that can run Node.js.
 
 ## Exception Handling
 
-After an error occurs when calling the connector API, the error information and error code can be obtained through try-catch.
-
-Error description: Node.js connector error codes range from 100 to 110, errors outside this range are from other TDengine modules.
-
-For specific connector error codes, please refer to:
-
-| Error Code | Description                                                     | Suggested Actions                                                                                                             |
-| ---------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| 100        | invalid variables                                               | The parameters are illegal, please check the corresponding interface specifications and adjust the parameter types and sizes. |
-| 101        | invalid url                                                     | URL error, please check if the URL is correctly filled.                                                                       |
-| 102        | received server data but did not find a callback for processing | Received server data but no upper layer callback was found                                                                    |
-| 103        | invalid message type                                            | Received message type unrecognized, please check if the server is normal.                                                     |
-| 104        | connection creation failed                                      | Connection creation failed, please check if the network is normal.                                                            |
-| 105        | websocket request timeout                                       | Request timed out                                                                                                             |
-| 106        | authentication fail                                             | Authentication failed, please check if the username and password are correct.                                                 |
-| 107        | unknown sql type in tdengine                                    | Please check the Data Type types supported by TDengine.                                                                       |
-| 108        | connection has been closed                                      | The connection has been closed, please check if the Connection is used again after closing, or if the connection is normal.   |
-| 109        | fetch block data parse fail                                     | Failed to parse the fetched query data                                                                                        |
-| 110        | websocket connection has reached its maximum limit              | WebSocket connection has reached its maximum limit                                                                            |
-
-- [TDengine Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
-- For errors from other TDengine modules, please refer to [Error Codes](../../error-codes/)
+For error code information please refer to [Error Codes](../../error-codes/)
 
 ## Data Type Mapping
 
@@ -98,6 +85,8 @@ The table below shows the mapping between TDengine DataType and Node.js DataType
 - The Node.js connector (`@tdengine/websocket`) supports Node.js version 14 and above. Versions below 14 may have package compatibility issues.
 - Currently, only WebSocket connections are supported, and taosAdapter needs to be started in advance.
 - After using the connector, you need to call taos.connectorDestroy(); to release the connector resources.
+- To set the time zone for time strings in SQL statements, you need to configure the time zone settings of taosc on the machine where taosadapter is located.
+- When parsing result sets, JavaScript does not support the int64 type, so timezone conversion cannot be directly performed. If users have such requirements, third-party libraries can be introduced to provide support.
 
 ## Common Issues
 
@@ -119,14 +108,18 @@ Node.js connector (`@tdengine/websocket`), which connects to a TDengine instance
 
 - **protocol**: Use the websocket protocol to establish a connection. For example, `ws://localhost:6041`
 - **username/password**: Username and password for the database.
-- **host/port**: Host address and port number. For example, `localhost:6041`
+- **host/port**: The host_name parameter supports valid domain names or IP addresses. The `@tdengine/websocket` supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., [::1] or [2001:db8:1234:5678::1]) to avoid port number parsing conflicts.
 - **database**: Database name.
 - **params**: Other parameters. For example, token.
 
-- Complete URL example:
+- Complete DSN example:
 
 ```js
-    ws://root:taosdata@localhost:6041
+  // IPV4:
+  ws://root:taosdata@localhost:6041
+    
+  // IPV6:
+  ws://root:taosdata@[::1]:6041
 ```
 
 ### WSConfig

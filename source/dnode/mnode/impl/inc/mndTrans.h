@@ -56,6 +56,7 @@ typedef struct {
   int64_t mTraceId;
   int64_t startTime;
   int64_t endTime;
+  int32_t groupId;
 } STransAction;
 
 typedef void (*TransCbFp)(SMnode *pMnode, void *param, int32_t paramLen);
@@ -71,6 +72,7 @@ void    mndTransDrop(STrans *pTrans);
 
 int32_t mndTransAppendPrepareLog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendRedolog(STrans *pTrans, SSdbRaw *pRaw);
+int32_t mndTransAppendGroupRedolog(STrans *pTrans, SSdbRaw *pRaw, int32_t groupId);
 int32_t mndTransAppendUndolog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendNullLog(STrans *pTrans);
@@ -80,8 +82,10 @@ int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
 void    mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *param, int32_t paramLen);
 void    mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname);
+void    mndTransSetUserData(STrans *pTrans, void* data, int32_t dataLen);
 void    mndTransAddArbGroupId(STrans *pTrans, int32_t groupId);
 void    mndTransSetSerial(STrans *pTrans);
+void    mndTransSetGroupParallel(STrans *pTrans);
 void    mndTransSetBeKilled(STrans *pTrans, bool ableToBeKilled);
 void    mndTransSetKillMode(STrans *pTrans, ETrnKillMode killMode);
 void    mndTransSetParallel(STrans *pTrans);
@@ -89,6 +93,7 @@ void    mndTransSetChangeless(STrans *pTrans);
 void    mndTransSetOper(STrans *pTrans, EOperType oper);
 int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans);
 int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans);
+int32_t mndTransCheckConflictWithRetention(SMnode *pMnode, STrans *pTrans);
 #ifndef BUILD_NO_CALL
 static int32_t mndTrancCheckConflict(SMnode *pMnode, STrans *pTrans) {
     return mndTransCheckConflict(pMnode, pTrans);
@@ -98,7 +103,7 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
 int32_t mndTransProcessRsp(SRpcMsg *pRsp);
 void    mndTransPullup(SMnode *pMnode);
 int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans);
-void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
+void    mndTransExecute(SMnode *pMnode, STrans *pTrans, bool notSend);
 void    mndTransRefresh(SMnode *pMnode, STrans *pTrans);
 int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, const char *dbname);
 

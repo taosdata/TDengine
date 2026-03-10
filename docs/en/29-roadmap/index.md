@@ -1,0 +1,12 @@
+---
+title: Product Roadmap
+---
+
+The 2026 roadmap for TDengine OSS is described in the following table.
+
+|  Quarter   |  Feature  |
+| :----- | :----- |
+| 2026Q1 | <ol><li>Storage: batch tag modification, dynamic adjustment of last cache LRU</li><li>Query: subqueries, external windows, ANY/SOME/ALL/EXISTS operators, window and interpolation enhancements, Explain and Show Queries optimization</li><li>Virtual Tables: virtual tables support referencing virtual tables, virtual table query performance optimization, subscription to virtual table metadata changes</li><li>Stream: triggering by natural week/month/quarter/year, event trigger condition optimization, grouped computation performance optimization, virtual supertable triggering supports child table additions/deletions/modifications</li></ol> |
+| 2026Q2 | <ol><li>Storage: multi-replica leader switching and node recovery optimization, last cache optimization (such as forced refresh, multi-column write optimization, specified column caching)</li><li>Query: join queries, relaxed window query restrictions, time windows support week/month/quarter/year, Interp performance improvement</li><li>Functions: window functions and OVER clause</li><li>Virtual Tables: support for virtual table inheritance, virtual supertable column name modification</li><li>Stream: performance optimization for multiple customer scenarios, performance optimization for multi-measurement point scenarios, historical computation performance optimization, virtual table triggering performance optimization</li><li>Others: TDgpt predictive maintenance, minute-level timezone support</li></ol> |
+| 2026Q3 | <ol><li>Query: complex query performance optimization, scalar correlated subqueries, cumulative windows, further enhancement of join queries, SQL testing tools</li><li>Functions: 15 customer-requested functions</li><li>Virtual Tables: subscription to virtual table data through continuous queries</li><li>Stream: maintainability improvement</li><li>Others: TDgpt supports PCA, PLS, cluster analysis</li></ol> |
+| 2026Q4 | <ol><li>TEXT data type, variable-length string data type, database name modification, column name modification</li><li>Query: query parallelization, addition of observability metrics</li><li>Functions: support for MySQL operators and functions, UDF function framework refactoring</li><li>Others: engine CPU and memory management</li></ol> |

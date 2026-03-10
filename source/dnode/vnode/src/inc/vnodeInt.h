@@ -18,8 +18,13 @@
 
 #include "executor.h"
 #include "filter.h"
+#include "osMemory.h"
 #include "qworker.h"
+#include "tarray.h"
+#include "ttypes.h"
+#ifdef USE_ROCKSDB
 #include "rocksdb/c.h"
+#endif
 #include "sync.h"
 #include "tRealloc.h"
 #include "tchecksum.h"
@@ -40,13 +45,15 @@
 #include "trbtree.h"
 #include "tref.h"
 #include "tskiplist.h"
-#include "tstream.h"
+#include "stream.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "wal.h"
 
+#include "bse.h"
 #include "vnode.h"
 
+#include "metrics.h"
 #include "taos_monitor.h"
 
 #ifdef __cplusplus
@@ -86,6 +93,8 @@ typedef struct SStreamNotifyHandleMap SStreamNotifyHandleMap;
 #define VNODE_META_TMP_DIR    "meta.tmp"
 #define VNODE_META_BACKUP_DIR "meta.backup"
 
+
+#define VNODE_TSDB_NAME_LEN  6
 #define VNODE_META_DIR       "meta"
 #define VNODE_TSDB_DIR       "tsdb"
 #define VNODE_TQ_DIR         "tq"
@@ -98,6 +107,7 @@ typedef struct SStreamNotifyHandleMap SStreamNotifyHandleMap;
 #define VNODE_TQ_STREAM      "stream"
 #define VNODE_CACHE_DIR      "cache.rdb"
 #define VNODE_TSDB_CACHE_DIR VNODE_TSDB_DIR TD_DIRSEP VNODE_CACHE_DIR
+#define VNODE_BSE_DIR   "bse"
 
 #if SUSPEND_RESUME_TEST  // only for test purpose
 #define VNODE_BUFPOOL_SEGMENTS 1
@@ -140,9 +150,11 @@ int   vnodeDecodeInfo(uint8_t* pData, SVnodeInfo* pInfo);
 void vnodeBufPoolRegisterQuery(SVBufPool* pPool, SQueryNode* pQNode);
 void vnodeBufPoolDeregisterQuery(SVBufPool* pPool, SQueryNode* pQNode, bool proactive);
 
+void  initStorageAPI(SStorageAPI* pAPI);
+
 // meta
 typedef struct SMStbCursor SMStbCursor;
-typedef struct STbUidStore STbUidStore;
+// typedef struct STbUidStore STbUidStore;
 
 #define META_BEGIN_HEAP_BUFFERPOOL 0
 #define META_BEGIN_HEAP_OS         1
@@ -167,16 +179,26 @@ int32_t         metaDropMultipleTables(SMeta* pMeta, int64_t version, SArray* tb
 int             metaTtlFindExpired(SMeta* pMeta, int64_t timePointMs, SArray* tbUids, int32_t ttlDropMaxCount);
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
 int             metaUpdateChangeTimeWithLock(SMeta* pMeta, tb_uid_t uid, int64_t changeTimeMs);
-SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, int64_t* createTime);
+SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema** extSchema, int8_t type);
+int64_t         metaGetTableCreateTime(SMeta* pMeta, tb_uid_t uid, int lock);
+SExtSchema*     metaGetSExtSchema(const SMetaEntry* pME);
+int32_t         metaGetRsmaSchema(const SMetaEntry* pME, SSchemaRsma** rsmaSchema);
 int32_t         metaGetTbTSchemaNotNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 int32_t         metaGetTbTSchemaMaybeNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
 int32_t         metaGetTbTSchemaEx(SMeta* pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver, STSchema** ppTSchema);
+SRSchema*       metaGetTbTSchemaR(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
 int             metaAlterCache(SMeta* pMeta, int32_t nPage);
+int             metaCreateRsma(SMeta* pMeta, int64_t version, SVCreateRsmaReq* pReq);
+int             metaDropRsma(SMeta* pMeta, int64_t version, SVDropRsmaReq* pReq);
+int             metaAlterRsma(SMeta* pMeta, int64_t version, SVAlterRsmaReq* pReq);
+void            metaFreeRsmaParam(SRSmaParam* pParam, int8_t type);
 
 int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid);
 int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid);
+int32_t metaRefDbsCacheClear(SMeta* pMeta, uint64_t suid);
+void    metaCacheClear(SMeta* pMeta);
 
 int32_t metaAddIndexToSuperTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int32_t metaDropIndexFromSuperTable(SMeta* pMeta, int64_t version, SDropIndexReq* pReq);
@@ -197,9 +219,17 @@ SArray*       metaGetSmaIdsByTable(SMeta* pMeta, tb_uid_t uid);
 SArray*       metaGetSmaTbUids(SMeta* pMeta);
 void*         metaGetIdx(SMeta* pMeta);
 void*         metaGetIvtIdx(SMeta* pMeta);
+int32_t       metaFlagCache(SVnode* pVnode);
 
 int64_t metaGetTbNum(SMeta* pMeta);
 void    metaReaderDoInit(SMetaReader* pReader, SMeta* pMeta, int32_t flags);
+
+int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, 
+                 int32_t numOfExpr, SStorageAPI* api, uint64_t uid, 
+                 col_id_t colId, SRWLatch* lock);
+int32_t fillTag(SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr,
+                uint64_t uid, SSDataBlock* pBlock, uint32_t currentRow, 
+                uint32_t numOfRows, uint32_t numOfBlocks, SRWLatch* lock);
 
 int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
@@ -236,59 +266,37 @@ int64_t tsdbGetEarliestTs(STsdb* pTsdb);
 
 // tq
 int32_t tqOpen(const char* path, SVnode* pVnode);
-void    tqNotifyClose(STQ*);
 void    tqClose(STQ*);
 int     tqPushMsg(STQ*, tmsg_t msgType);
 int     tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
 void    tqUnregisterPushHandle(STQ* pTq, void* pHandle);
-int     tqScanWalAsync(STQ* pTq, bool ckPause);
+void    tqScanWalAsync(STQ* pTq);
 int32_t tqStopStreamTasksAsync(STQ* pTq);
-int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp);
-int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskRetrieveTriggerReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskRetrieveTriggerRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessStreamHbRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessStreamReqCheckpointRsp(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessAllTaskStopReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskChkptReportRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg);
-
-int32_t tqBuildStreamTask(void* pTq, SStreamTask* pTask, int64_t ver);
-int32_t tqScanWal(STQ* pTq);
 
 // injection error
 void streamMetaFreeTQDuringScanWalError(STQ* pTq);
 
-int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
-int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId);
+int32_t tqAddTbUidList(STQ* pTq, SArray* tbUidList);
+int32_t tqDeleteTbUidList(STQ* pTq, SArray* tbUidList);
+int32_t tqUpdateTbUidList(STQ* pTq, SArray* tbUidList, SArray* cidList);
+
 // tq-mq
-int32_t tqProcessAddCheckInfoReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessDelCheckInfoReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessPollPush(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessPollPush(STQ* pTq);
 int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg);
 
 // tq-stream
-int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessTaskCheckReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskCheckRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqStreamProgressRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskUpdateCheckpointReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskConsenChkptIdReq(STQ* pTq, SRpcMsg* pMsg);
 
 // sma
@@ -306,6 +314,7 @@ int32_t smaRetention(SSma* pSma, int64_t now);
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
 
+#if 0
 int32_t tdProcessRSmaCreate(SSma* pSma, SVCreateStbReq* pReq);
 int32_t tdProcessRSmaSubmit(SSma* pSma, int64_t version, void* pReq, void* pMsg, int32_t len);
 int32_t tdProcessRSmaDelete(SSma* pSma, int64_t version, void* pReq, void* pMsg, int32_t len);
@@ -313,6 +322,7 @@ int32_t tdProcessRSmaDrop(SSma* pSma, SVDropStbReq* pReq);
 int32_t tdFetchTbUidList(SSma* pSma, STbUidStore** ppStore, tb_uid_t suid, tb_uid_t uid);
 int32_t tdUpdateTbUidList(SSma* pSma, STbUidStore* pUidStore, bool isAdd);
 void*   tdUidStoreFree(STbUidStore* pStore);
+#endif
 
 // SMetaSnapReader ========================================
 int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapReader** ppReader);
@@ -424,6 +434,7 @@ struct SVnodeInfo {
   SVStatis  statis;
 };
 
+#if 0
 typedef enum {
   TSDB_TYPE_TSDB = 0,     // TSDB
   TSDB_TYPE_TSMA = 1,     // TSMA
@@ -431,6 +442,7 @@ typedef enum {
   TSDB_TYPE_RSMA_L1 = 3,  // RSMA Level 1
   TSDB_TYPE_RSMA_L2 = 4,  // RSMA Level 2
 } ETsdbType;
+#endif
 
 struct STsdbKeepCfg {
   int8_t  precision;  // precision always be used with below keep cfgs
@@ -462,15 +474,43 @@ typedef struct {
   int64_t id;
 } SVATaskID;
 
+struct SVnodeWriteMetrics {
+  int64_t total_requests;
+  int64_t total_rows;
+  int64_t total_bytes;
+  int64_t cache_hit_ratio;
+  int64_t rpc_queue_wait;
+  int64_t preprocess_time;
+  int64_t apply_time;
+  int64_t apply_bytes;
+  int64_t fetch_batch_meta_time;
+  int64_t fetch_batch_meta_count;
+  int64_t memory_table_size;
+  int64_t commit_count;
+  int64_t merge_count;
+  int64_t commit_time;
+  int64_t merge_time;
+  int64_t block_commit_time;
+  int64_t blocked_commit_count;
+  int64_t memtable_wait_time;
+  int64_t last_cache_commit_time;
+  int64_t last_cache_commit_count;
+};
+
 struct SVnode {
-  char*     path;
-  SVnodeCfg config;
   SVState   state;
   SVStatis  statis;
+  char*     path;
   STfs*     pTfs;
+  STfs*     pMountTfs;
   int32_t   diskPrimary;
+  SVnodeCfg config;
   SMsgCb    msgCb;
   bool      disableWrite;
+  bool      mounted;
+
+  //  Metrics
+  SVnodeWriteMetrics writeMetrics;
 
   // Buffer Pool
   TdThreadMutex mutex;
@@ -485,12 +525,19 @@ struct SVnode {
 
   // commit variables
   SVATaskID commitTask;
+  SVATaskID commitTask2;
 
-  SMeta*        pMeta;
-  SSma*         pSma;
+  struct {
+    TdThreadRwlock metaRWLock;
+    SMeta*         pMeta;
+    SMeta*         pNewMeta;
+    SVATaskID      metaCompactTask;
+  };
+
   STsdb*        pTsdb;
   SWal*         pWal;
   STQ*          pTq;
+  SBse*         pBse;
   SSink*        pSink;
   int64_t       sync;
   TdThreadMutex lock;
@@ -501,6 +548,7 @@ struct SVnode {
   int64_t       blockSeq;
   SQHandle*     pQuery;
   SVMonitorObj  monitor;
+  uint32_t      applyQueueErrorCount;
 
   // Notification Handles
   SStreamNotifyHandleMap* pNotifyHandleMap;
@@ -509,17 +557,17 @@ struct SVnode {
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
 
 #define VND_TSDB(vnd)       ((vnd)->pTsdb)
-#define VND_RSMA0(vnd)      ((vnd)->pTsdb)
-#define VND_RSMA1(vnd)      ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L0])
-#define VND_RSMA2(vnd)      ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L1])
-#define VND_RETENTIONS(vnd) (&(vnd)->config.tsdbCfg.retentions)
 #define VND_IS_RSMA(v)      ((v)->config.isRsma == 1)
-#define VND_IS_TSMA(v)      ((v)->config.isTsma == 1)
 
 #define TSDB_CACHE_NO(c)       ((c).cacheLast == 0)
 #define TSDB_CACHE_LAST_ROW(c) (((c).cacheLast & 1) > 0)
 #define TSDB_CACHE_LAST(c)     (((c).cacheLast & 2) > 0)
+#define TSDB_CACHE_RESET(c)    (((c).cacheLast & 4) > 0)
 
+#define TSDB_TFS(v)            ((v)->pMountTfs ? (v)->pMountTfs : (v)->pTfs)
+#define TSDB_VID(v)            ((v)->mounted ? (v)->config.mountVgId : (v)->config.vgId)
+
+#if 0
 struct STbUidStore {
   tb_uid_t  suid;
   SArray*   tbUids;
@@ -534,7 +582,7 @@ struct SSma {
   void*         pTSmaEnv;
   void*         pRSmaEnv;
 };
-
+#endif
 #define SMA_CFG(s)                       (&(s)->pVnode->config)
 #define SMA_TSDB_CFG(s)                  (&(s)->pVnode->config.tsdbCfg)
 #define SMA_RETENTION(s)                 ((SRetention*)&(s)->pVnode->config.tsdbCfg.retentions)
@@ -547,10 +595,7 @@ struct SSma {
 #define SMA_RSMA_TSDB0(s)                ((s)->pVnode->pTsdb)
 #define SMA_RSMA_TSDB1(s)                ((s)->pRSmaTsdb[TSDB_RETENTION_L0])
 #define SMA_RSMA_TSDB2(s)                ((s)->pRSmaTsdb[TSDB_RETENTION_L1])
-#define SMA_RSMA_GET_TSDB(pVnode, level) ((level == 0) ? pVnode->pTsdb : pVnode->pSma->pRSmaTsdb[level - 1])
-
-// sma
-void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
+#define SMA_RSMA_GET_TSDB(pVnode, level) ((level == 0) ? pVnode->pTsdb : NULL)
 
 enum {
   SNAP_DATA_CFG = 0,
@@ -566,8 +611,9 @@ enum {
   SNAP_DATA_STREAM_TASK_CHECKPOINT = 10,
   SNAP_DATA_STREAM_STATE = 11,
   SNAP_DATA_STREAM_STATE_BACKEND = 12,
-  SNAP_DATA_TQ_CHECKINFO = 13,
+  // SNAP_DATA_TQ_CHECKINFO = 13,
   SNAP_DATA_RAW = 14,
+  SNAP_DATA_BSE = 15,
 };
 
 struct SSnapDataHdr {
@@ -582,6 +628,7 @@ struct SCommitInfo {
   SVnodeInfo info;
   SVnode*    pVnode;
   TXN*       txn;
+  bool       forceTrim;  // force trim WAL, ignore keepVersion constraint
 };
 
 struct SCompactInfo {
@@ -590,8 +637,6 @@ struct SCompactInfo {
   int64_t     commitID;
   STimeWindow tw;
 };
-
-void initStorageAPI(SStorageAPI* pAPI);
 
 // a simple hash table impl
 typedef struct SVHashTable SVHashTable;

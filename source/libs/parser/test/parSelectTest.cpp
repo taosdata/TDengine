@@ -122,7 +122,7 @@ TEST_F(ParserSelectTest, timelineFunc) {
 
   run("select diff(ts) from (select _wstart as ts, count(*) from st1 partition by tbname interval(1d) order by ts)");
 
-  run("select t1.* from st1s1 t1, (select _wstart as ts, count(*) from st1s2 partition by tbname interval(1d)) WHERE t1.ts = t2.ts", TSDB_CODE_PAR_NOT_SUPPORT_JOIN);
+  run("select t1.* from st1s1 t1, (select _wstart as ts, count(*) from st1s2 partition by tbname interval(1d)) t2 WHERE t1.ts = t2.ts");
 
   run("select t1.* from st1s1 t1, (select _wstart as ts, count(*) from st1s2 partition by tbname interval(1d) order by ts) t2 WHERE t1.ts = t2.ts");
 
@@ -411,19 +411,19 @@ TEST_F(ParserSelectTest, semanticCheck) {
 
   run("SELECT COUNT(*) FROM t1 order by c1", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
 
-  run("SELECT c1 FROM t1 order by COUNT(*)", TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  run("SELECT c1 FROM t1 order by COUNT(*)", TSDB_CODE_PAR_ORDERBY_INVALID_EXPR);
 
   run("SELECT COUNT(*) FROM t1 order by COUNT(*)");
 
   run("SELECT COUNT(*) FROM t1 order by last(c2)");
 
-  run("SELECT c1 FROM t1 order by last(ts)");
+  run("SELECT c1 FROM t1 order by last(ts)", TSDB_CODE_PAR_ORDERBY_INVALID_EXPR);
 
-  run("SELECT ts FROM t1 order by last(ts)");
+  run("SELECT ts FROM t1 order by last(ts)", TSDB_CODE_PAR_ORDERBY_INVALID_EXPR);
 
-  run("SELECT c2 FROM t1 order by last(ts)");
+  run("SELECT c2 FROM t1 order by last(ts)", TSDB_CODE_PAR_ORDERBY_INVALID_EXPR);
 
-  run("SELECT * FROM t1 order by last(ts)");
+  run("SELECT * FROM t1 order by last(ts)", TSDB_CODE_PAR_ORDERBY_INVALID_EXPR);
 
   run("SELECT last(ts) FROM t1 order by last(ts)");
 
@@ -438,9 +438,9 @@ TEST_F(ParserSelectTest, semanticCheck) {
   // TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION
   run("SELECT distinct c1, c2 FROM t1 WHERE c1 > 0 order by ts", TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION);
 
-  run("SELECT distinct c1 FROM t1 WHERE c1 > 0 order by COUNT(c2)", TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION);
+  run("SELECT distinct c1 FROM t1 WHERE c1 > 0 order by COUNT(c2)", TSDB_CODE_PAR_ORDERBY_INVALID_EXPR);
 
-  run("SELECT distinct c2 FROM t1 WHERE c1 > 0 order by COUNT(c2)", TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION);
+  run("SELECT distinct c2 FROM t1 WHERE c1 > 0 order by COUNT(c2)", TSDB_CODE_PAR_ORDERBY_INVALID_EXPR);
 }
 
 TEST_F(ParserSelectTest, syntaxError) {
@@ -505,8 +505,7 @@ TEST_F(ParserSelectTest, withoutFromSemanticCheck) {
 TEST_F(ParserSelectTest, joinSemanticCheck) {
   useDb("root", "test");
 
-  run("SELECT * FROM (SELECT tag1, SUM(c1) s FROM st1 GROUP BY tag1) t1, st1 t2 where t1.tag1 = t2.tag1",
-      TSDB_CODE_PAR_NOT_SUPPORT_JOIN);
+  run("SELECT * FROM (SELECT tag1, SUM(c1) s FROM st1 GROUP BY tag1) t1, st1 t2 where t1.tag1 = t2.tag1");
 
   run("SELECT count(*) FROM t1 a join t1 b on a.ts=b.ts where a.ts=b.ts");
 }

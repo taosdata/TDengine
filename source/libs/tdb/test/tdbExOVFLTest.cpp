@@ -40,7 +40,7 @@ static void clearPool(SPoolMem *pPool) {
     taosMemoryFree(pMem);
   } while (1);
 
-  assert(pPool->size == 0);
+  TD_ALWAYS_ASSERT(pPool->size == 0);
 }
 
 static void closePool(SPoolMem *pPool) {
@@ -55,7 +55,7 @@ static void *poolMalloc(void *arg, size_t size) {
 
   pMem = (SPoolMem *)taosMemoryMalloc(sizeof(*pMem) + size);
   if (pMem == NULL) {
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
 
   pMem->size = sizeof(*pMem) + size;
@@ -141,7 +141,7 @@ static void generateBigVal(char *val, int valLen) {
 static TDB *openEnv(char const *envName, int const pageSize, int const pageNum) {
   TDB *pEnv = NULL;
 
-  int ret = tdbOpen(envName, pageSize, pageNum, &pEnv, 0, 0, NULL);
+  int ret = tdbOpen(envName, pageSize, pageNum, &pEnv, 0, NULL);
   if (ret) {
     pEnv = NULL;
   }
@@ -336,8 +336,8 @@ tdbBegin(pEnv, &txn);
     int   vLen = -1;
 
     ret = tdbTbGet(pDb, "key1", strlen("key1"), &pVal, &vLen);
-    ASSERT(ret == -1);
-    GTEST_ASSERT_EQ(ret, -1);
+    ASSERT(ret == TSDB_CODE_NOT_FOUND);
+    GTEST_ASSERT_EQ(ret, TSDB_CODE_NOT_FOUND);
 
     GTEST_ASSERT_EQ(vLen, -1);
     GTEST_ASSERT_EQ(pVal, nullptr);
@@ -371,7 +371,7 @@ TEST(tdb_test, simple_insert1) {
   taosRemoveDir("tdb");
 
   // Open Env
-  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0, 0, NULL);
+  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0, NULL);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database

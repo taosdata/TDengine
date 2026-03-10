@@ -1,0 +1,26 @@
+{
+	"filetype": "query",
+	"cfgdir": "/etc/taos",
+	"host": "127.0.0.1",
+	"port": 6030,
+	"user": "root",
+	"password": "taosdata",
+	"confirm_parameter_prompt": "no",
+	"databases": "test",
+	"query_times": 100,
+	"query_mode": "taosc",
+	"result_json_file":"./query_res.json",
+	"specified_table_query": {
+		"threads": 4,
+		"mixed_query": "yes",
+		"sqls": [
+			{
+				"sql": "select last_row(*) from meters"
+			},
+			{
+				"sql": "select count(*) from d0",
+				"result": "./query_res1.txt"
+			}
+		]
+	}
+}

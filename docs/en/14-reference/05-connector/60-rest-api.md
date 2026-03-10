@@ -82,7 +82,7 @@ Parameter explanation:
 
 For example: `http://h1.taos.com:6041/rest/sql/test` points to the URL at `h1.taos.com:6041` and sets the default database name to `test`.
 
-The HTTP request header must contain authentication information. TDengine supports two authentication mechanisms: Basic authentication and custom authentication. Future versions will provide a standard secure digital signature mechanism for identity verification.
+The HTTP request header must contain authentication information. TDengine supports three authentication mechanisms: Basic authentication, Bearer token authentication and custom authentication. Future versions will provide a standard secure digital signature mechanism for identity verification.
 
 - Custom authentication information is as follows:
 
@@ -94,6 +94,12 @@ The HTTP request header must contain authentication information. TDengine suppor
 
   ```text
   Authorization: Basic <TOKEN>
+  ```
+  
+- Bearer token authentication information is as follows:
+
+  ```text
+  Authorization: Bearer <TOKEN>
   ```
 
 The BODY of the HTTP request contains a complete SQL statement. The data table in the SQL statement should provide a database prefix, such as db_name.tb_name. If the table name does not include a database prefix and no database name is specified in the URL, the system will return an error. This is because the HTTP module is just a simple forwarder and does not have the concept of the current DB.
@@ -118,28 +124,28 @@ Here, `TOKEN` is the string `{username}:{password}` after Base64 encoding, for e
 
 By default, `taosAdapter` returns a 200 response code for most C interface call errors, but the HTTP body contains error information. Starting from `TDengine 3.0.3.0`, `taosAdapter` provides a configuration parameter `httpCodeServerError` to set whether to return a non-200 HTTP response code when the C interface returns an error. Regardless of whether this parameter is set, the response body contains detailed error codes and error information, please refer to [Errors](../rest-api/).
 
-**When httpCodeServerError is false:**
+When httpCodeServerError is false:
 
-| **Description**             |**HTTP Response Code** |
-|--------------------|-------------------------------|
-| C interface call successful  | 200                           |
-| C interface call error, not an authentication error | 200                   |
-| HTTP request URL parameter error               | 400    |
-| C interface call authentication error               | 401                           |
-| Interface does not exist              | 404                           |
-| Insufficient system resources             | 503                          |
+| **Description**                                     | **HTTP Response Code** |
+|-----------------------------------------------------|------------------------|
+| C interface call successful                         | 200                    |
+| C interface call error, not an authentication error | 200                    |
+| HTTP request URL parameter error                    | 400                    |
+| C interface call authentication error               | 401                    |
+| Interface does not exist                            | 404                    |
+| Insufficient system resources                       | 503                    |
 
-**When httpCodeServerError is true:**
+When httpCodeServerError is true:
 
-| **Description**             |  **HTTP Response Code**          |
-|--------------------|-------------------------------|
-| C interface call successful  |  200                                   |
-| HTTP request URL parameter error and C interface call parameter parsing error    | 400  |
-| C interface call authentication error                 |  401          |
-| Interface does not exist              | 404             |
-| C interface call network unavailable error            | 502            |
-| Insufficient system resources             |503                |
-| Other C interface call errors | 500                |
+| **Description**                                                               | **HTTP Response Code** |
+|-------------------------------------------------------------------------------|------------------------|
+| C interface call successful                                                   | 200                    |
+| HTTP request URL parameter error and C interface call parameter parsing error | 400                    |
+| C interface call authentication error                                         | 401                    |
+| Interface does not exist                                                      | 404                    |
+| C interface call network unavailable error                                    | 502                    |
+| Insufficient system resources                                                 | 503                    |
+| Other C interface call errors                                                 | 500                    |
 
 C interface parameter parsing related error codes:
 
@@ -274,16 +280,19 @@ Column types use the following strings:
 - "JSON"
 - "VARBINARY"
 - "GEOMETRY"
+- "DECIMAL(precision, scale)"
+- "BLOB"
 
-`VARBINARY` and `GEOMETRY` types return data as Hex strings, example:
+For the `DECIMAL` data type, `precision` refers to the maximum number of significant digits supported, and `scale` refers to the maximum number of decimal places. For example, `DECIMAL(8, 4)` represents a range of `[-9999.9999, 9999.9999]`.
+
+`VARBINARY`, `GEOMETRY` and `BLOB` types return data as Hex strings, example:
 
 Prepare data
 
 ```shell
-create database demo
-use demo
-create table t(ts timestamp,c1 varbinary(20),c2 geometry(100))
-insert into t values(now,'\x7f8290','point(100 100)')
+create database demo;
+create table demo.t(ts timestamp,c1 varbinary(20),c2 geometry(100),c3 blob);
+insert into demo.t values(now,'\x7f8290','point(100 100)','\x010203ddff');
 ```
 
 Execute query
@@ -315,13 +324,19 @@ Return result
             "c2",
             "GEOMETRY",
             100
+        ],
+        [
+            "c3",
+            "BLOB",
+            4194304
         ]
     ],
     "data": [
         [
-            "2023-11-01T06:28:15.210Z",
+            "2025-07-22T05:58:41.798Z",
             "7f8290",
-            "010100000000000000000059400000000000005940"
+            "010100000000000000000059400000000000005940",
+            "010203ddff"
         ]
     ],
     "rows": 1
@@ -423,6 +438,38 @@ Data Query Return Example
     "rows": 1
 }
 ```
+
+## Token Authentication
+
+Starting from version 3.4.0.0, TDengine TSDB supports the token authentication mechanism.
+This mechanism is similar to Basic authentication, with the key difference being that the authorization code `<TOKEN>` used in token authentication is generated by the TDengine TSDB server and distributed to clients,
+rather than being generated by the client via Base64 encoding.
+
+HTTP request headers must contain identity authentication information. For Token authentication, the information is formatted as follows:
+
+```shell
+Authorization: Bearer <TOKEN>
+```
+
+TOKEN is created using the SQL statement `CREATE TOKEN`, detailed usage can be found in the [Token Management](../../sql-manual/manage-users/#token-management) section.
+
+Examples:
+
+1. Create a token:
+
+    ```bash
+    taos> create token root_token from user root\G;
+    *************************** 1.row ***************************
+    token: bjUvkeBfqFsrXBSj8QjnORJcN0nyA6vdkLNAbkI2MhbWPt289OnIQcZHDIDa8SR
+    ```
+
+2. Use the created token to access the RESTful API:
+
+    ```bash
+    curl -L -H "Authorization: Bearer bjUvkeBfqFsrXBSj8QjnORJcN0nyA6vdkLNAbkI2MhbWPt289OnIQcZHDIDa8SR" \
+      -d "select name, ntables, status from information_schema.ins_databases;" \
+      h1.taosdata.com:6041/rest/sql
+    ```
 
 ## Custom Authorization Code
 

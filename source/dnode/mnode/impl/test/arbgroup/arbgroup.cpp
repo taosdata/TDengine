@@ -67,7 +67,7 @@ TEST_F(ArbgroupTest, 01_encode_decode_sdb) {
   group.members[1].info.dnodeId = 2;
   generateArbToken(2, 5, group.members[1].state.token);
   group.isSync = 1;
-  group.assignedLeader.dnodeId = 1;
+  group.assignedLeader.assignedDnodeId = 1;
   generateArbToken(1, 5, group.assignedLeader.token);
   group.version = 2234;
 
@@ -85,7 +85,7 @@ TEST_F(ArbgroupTest, 01_encode_decode_sdb) {
   ASSERT_EQ(group.members[0].info.dnodeId, pNewGroup->members[0].info.dnodeId);
   ASSERT_EQ(group.members[1].info.dnodeId, pNewGroup->members[1].info.dnodeId);
   ASSERT_EQ(group.isSync, pNewGroup->isSync);
-  ASSERT_EQ(group.assignedLeader.dnodeId, pNewGroup->assignedLeader.dnodeId);
+  ASSERT_EQ(group.assignedLeader.assignedDnodeId, pNewGroup->assignedLeader.assignedDnodeId);
 
   ASSERT_EQ(std::string(group.members[0].state.token), std::string(pNewGroup->members[0].state.token));
   ASSERT_EQ(std::string(group.members[1].state.token), std::string(pNewGroup->members[1].state.token));
@@ -113,7 +113,7 @@ TEST_F(ArbgroupTest, 02_process_heart_beat_rsp) {
   generateArbToken(2, vgId, group.members[1].state.token);
 
   group.isSync = 1;
-  group.assignedLeader.dnodeId = dnodeId;
+  group.assignedLeader.assignedDnodeId = dnodeId;
   strncpy(group.assignedLeader.token, group.members[0].state.token, TSDB_ARB_TOKEN_SIZE);
 
   taosThreadMutexInit(&group.mutex, NULL);
@@ -127,7 +127,7 @@ TEST_F(ArbgroupTest, 02_process_heart_beat_rsp) {
     int32_t nowMs = group.members[0].state.lastHbMs + 10;
 
     SArbGroup newGroup = {0};
-    bool      updateToken = mndCheckArbGroupByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
+    bool      updateToken = mndArbIsNeedUpdateTokenByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
 
     ASSERT_EQ(updateToken, false);
     ASSERT_NE(group.members[0].state.responsedHbSeq, rspMember.hbSeq);
@@ -142,7 +142,7 @@ TEST_F(ArbgroupTest, 02_process_heart_beat_rsp) {
     int32_t nowMs = group.members[0].state.lastHbMs + 10;
 
     SArbGroup newGroup = {0};
-    bool      updateToken = mndCheckArbGroupByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
+    bool      updateToken = mndArbIsNeedUpdateTokenByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
 
     ASSERT_EQ(updateToken, false);
     ASSERT_EQ(group.members[0].state.responsedHbSeq, rspMember.hbSeq);
@@ -157,7 +157,7 @@ TEST_F(ArbgroupTest, 02_process_heart_beat_rsp) {
     int32_t nowMs = group.members[0].state.lastHbMs + 10;
 
     SArbGroup newGroup = {0};
-    bool      updateToken = mndCheckArbGroupByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
+    bool      updateToken = mndArbIsNeedUpdateTokenByHeartBeat(&group, &rspMember, nowMs, dnodeId, &newGroup);
 
     ASSERT_EQ(updateToken, true);
     ASSERT_EQ(group.members[0].state.responsedHbSeq, rspMember.hbSeq);
@@ -165,7 +165,7 @@ TEST_F(ArbgroupTest, 02_process_heart_beat_rsp) {
 
     ASSERT_EQ(std::string(newGroup.members[0].state.token), std::string(rspMember.memberToken));
     ASSERT_EQ(newGroup.isSync, false);
-    ASSERT_EQ(newGroup.assignedLeader.dnodeId, 0);
+    ASSERT_EQ(newGroup.assignedLeader.assignedDnodeId, 0);
     ASSERT_EQ(std::string(newGroup.assignedLeader.token).size(), 0);
   }
 
@@ -201,7 +201,7 @@ TEST_F(ArbgroupTest, 03_process_check_sync_rsp) {
     bool newIsSync = false;
 
     SArbGroup newGroup = {0};
-    bool updateIsSync = mndUpdateArbGroupByCheckSync(&group, vgId, member0Token, member1Token, newIsSync, &newGroup, 0);
+    bool updateIsSync = mndArbIsNeedUpdateSyncStatusByCheckSync(&group, vgId, member0Token, member1Token, newIsSync, &newGroup, 0);
 
     ASSERT_EQ(updateIsSync, false);
   }
@@ -214,7 +214,7 @@ TEST_F(ArbgroupTest, 03_process_check_sync_rsp) {
     bool newIsSync = true;
 
     SArbGroup newGroup = {0};
-    bool updateIsSync = mndUpdateArbGroupByCheckSync(&group, vgId, member0Token, member1Token, newIsSync, &newGroup, 0);
+    bool updateIsSync = mndArbIsNeedUpdateSyncStatusByCheckSync(&group, vgId, member0Token, member1Token, newIsSync, &newGroup, 0);
 
     ASSERT_EQ(updateIsSync, true);
     ASSERT_EQ(newGroup.isSync, true);
@@ -240,7 +240,7 @@ TEST_F(ArbgroupTest, 04_process_set_assigned_leader){
   generateArbToken(2, vgId, group.members[1].state.token);
 
   group.isSync = 1;
-  group.assignedLeader.dnodeId = dnodeId;
+  group.assignedLeader.assignedDnodeId = dnodeId;
   strncpy(group.assignedLeader.token, group.members[0].state.token, TSDB_ARB_TOKEN_SIZE);
 
   taosThreadMutexInit(&group.mutex, NULL);
@@ -252,7 +252,7 @@ TEST_F(ArbgroupTest, 04_process_set_assigned_leader){
     int32_t errcode = TSDB_CODE_SUCCESS;
 
     SArbGroup newGroup = {0};
-    bool      updateAssigned = mndUpdateArbGroupBySetAssignedLeader(&group, vgId, memberToken, errcode, &newGroup);
+    bool      updateAssigned = mndArbIsNeedUpdateAssignedBySetAssignedLeader(&group, vgId, memberToken, errcode, &newGroup);
 
     ASSERT_EQ(updateAssigned, false);
   }
@@ -263,7 +263,7 @@ TEST_F(ArbgroupTest, 04_process_set_assigned_leader){
     int32_t errcode = TSDB_CODE_MND_ARB_TOKEN_MISMATCH;
 
     SArbGroup newGroup = {0};
-    bool      updateAssigned = mndUpdateArbGroupBySetAssignedLeader(&group, vgId, memberToken, errcode, &newGroup);
+    bool      updateAssigned = mndArbIsNeedUpdateAssignedBySetAssignedLeader(&group, vgId, memberToken, errcode, &newGroup);
 
     ASSERT_EQ(updateAssigned, false);
   }
@@ -274,7 +274,7 @@ TEST_F(ArbgroupTest, 04_process_set_assigned_leader){
     int32_t errcode = TSDB_CODE_SUCCESS;
 
     SArbGroup newGroup = {0};
-    bool      updateAssigned = mndUpdateArbGroupBySetAssignedLeader(&group, vgId, memberToken, errcode, &newGroup);
+    bool      updateAssigned = mndArbIsNeedUpdateAssignedBySetAssignedLeader(&group, vgId, memberToken, errcode, &newGroup);
 
     ASSERT_EQ(updateAssigned, true);
     ASSERT_EQ(newGroup.isSync, false);
@@ -301,20 +301,20 @@ TEST_F(ArbgroupTest, 05_check_sync_timer) {
   taosThreadMutexInit(&group.mutex, NULL);
 
   SArbAssignedLeader assgnedLeader = {0};
-  assgnedLeader.dnodeId = assgndDnodeId;
-  assgnedLeader.acked = false;
+  assgnedLeader.assignedDnodeId = assgndDnodeId;
+  assgnedLeader.assignAcked = false;
   strncpy(assgnedLeader.token, group.members[0].state.token, TSDB_ARB_TOKEN_SIZE);
 
   SArbAssignedLeader noneAsgndLeader = {0};
-  noneAsgndLeader.dnodeId = 0;
-  noneAsgndLeader.acked = false;
+  noneAsgndLeader.assignedDnodeId = 0;
+  noneAsgndLeader.assignAcked = false;
 
   ECheckSyncOp op = CHECK_SYNC_NONE;
   SArbGroup    newGroup = {0};
 
   // 1. asgnd,sync,noAck --> send set assigned
   group.assignedLeader = assgnedLeader;
-  group.assignedLeader.acked = false;
+  group.assignedLeader.assignAcked = false;
   group.isSync = true;
   mndArbCheckSync(&group, nowMs, &op, &newGroup);
 
@@ -324,7 +324,7 @@ TEST_F(ArbgroupTest, 05_check_sync_timer) {
   newGroup = {0};
   group.assignedLeader = assgnedLeader;
   group.isSync = false;
-  group.assignedLeader.acked = false;
+  group.assignedLeader.assignAcked = false;
   mndArbCheckSync(&group, nowMs, &op, &newGroup);
 
   ASSERT_EQ(op, CHECK_SYNC_SET_ASSIGNED_LEADER);
@@ -333,7 +333,7 @@ TEST_F(ArbgroupTest, 05_check_sync_timer) {
   newGroup = {0};
   group.assignedLeader = noneAsgndLeader;
   group.isSync = false;
-  group.assignedLeader.acked = false;
+  group.assignedLeader.assignAcked = false;
   mndArbCheckSync(&group, nowMs, &op, &newGroup);
 
   ASSERT_EQ(op, CHECK_SYNC_CHECK_SYNC);
@@ -342,15 +342,15 @@ TEST_F(ArbgroupTest, 05_check_sync_timer) {
   newGroup = {0};
   group.assignedLeader = noneAsgndLeader;
   group.isSync = true;
-  group.assignedLeader.acked = false;
+  group.assignedLeader.assignAcked = false;
   group.members[1].state.lastHbMs = nowMs - 2 * tsArbSetAssignedTimeoutSec * 1000; // member1 timeout
   mndArbCheckSync(&group, nowMs, &op, &newGroup);
 
   ASSERT_EQ(op, CHECK_SYNC_UPDATE);
-  ASSERT_EQ(newGroup.assignedLeader.dnodeId, assgndDnodeId);
+  ASSERT_EQ(newGroup.assignedLeader.assignedDnodeId, assgndDnodeId);
   ASSERT_EQ(std::string(newGroup.assignedLeader.token), std::string(group.members[0].state.token));
   ASSERT_EQ(newGroup.isSync, true);
-  ASSERT_EQ(newGroup.assignedLeader.acked, false);
+  ASSERT_EQ(newGroup.assignedLeader.assignAcked, false);
 }
 
 #pragma GCC diagnostic pop

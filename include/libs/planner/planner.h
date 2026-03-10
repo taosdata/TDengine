@@ -21,19 +21,33 @@ extern "C" {
 #endif
 
 #include "plannodes.h"
-#include "taos.h"
+
+#define SYS_SCAN_FLAG  0x01
+#define HSYS_SCAN_FLAG 0x03
+
+#define IS_SYS_SCAN(_flag)  (((_flag) & (SYS_SCAN_FLAG)) != 0)
+#define IS_HSYS_SCAN(_flag) (((_flag) & (HSYS_SCAN_FLAG)) != 0)
+
+#define SET_SYS_SCAN_FLAG(_f) (_f) = SYS_SCAN_FLAG
+#define SET_HSYS_SCAN_FLAG(_f) (_f) = HSYS_SCAN_FLAG
 
 typedef struct SPlanContext {
   uint64_t    queryId;
   int32_t     acctId;
+  int32_t     groupId;
   SEpSet      mgmtEpSet;
   SNode*      pAstRoot;
   bool        topicQuery;
-  bool        streamQuery;
+  bool        streamCalcQuery;
+  bool        streamTriggerQuery;
+  bool        streamForceOutput;
   bool        rSmaQuery;
   bool        showRewrite;
   bool        isView;
   bool        isAudit;
+  bool        withExtWindow;
+  bool        hasScan;
+  int32_t     sysScanFlag;
   int8_t      triggerType;
   int64_t     watermark;
   int64_t     deleteMark;
@@ -43,10 +57,28 @@ typedef struct SPlanContext {
   int32_t     msgLen;
   const char* pUser;
   bool        sysInfo;
+  union {
+    uint16_t privInfo;
+    struct {
+      uint16_t privLevel : 3;  // user privilege level
+      uint16_t privInfoBasic : 1;
+      uint16_t privInfoPrivileged : 1;
+      uint16_t privInfoAudit : 1;
+      uint16_t privInfoSec : 1;
+      uint16_t privPerfBasic : 1;
+      uint16_t privPerfPrivileged : 1;
+      uint16_t reserved1 : 7;
+    };
+  };
   int64_t     allocatorId;
-  bool        destHasPrimaryKey;
-  bool        sourceHasPrimaryKey;
+  int64_t     userId;
   void*       timezone;
+  int64_t     recalculateInterval;
+  bool        streamVtableCalc;
+  SNode*      streamTriggerScanSubplan;
+  SArray*     streamCalcScanPlanArray;
+  ENodeType   streamTriggerWinType;
+  SNodeList*  streamTriggerScanList;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

@@ -16,16 +16,29 @@
 #ifndef _CUS_NAME_H_
 #define _CUS_NAME_H_
 
+//
+// support OEM
+//
+#ifndef TD_PRODUCT_NAME
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA)
+#define TD_PRODUCT_NAME "TDengine TSDB-Enterprise"
+#else
+#define TD_PRODUCT_NAME "TDengine TSDB-OSS"
+#endif
+#endif
+
 #ifndef CUS_NAME
-#define CUS_NAME    "TDengine"
+// CUS_NAME should only be defined by the build system, define it here results in
+// bugs like TD-37744.
+// #define CUS_NAME "TDengine TSDB"
 #endif
 
 #ifndef CUS_PROMPT
-#define CUS_PROMPT  "taos"
+#define CUS_PROMPT "taos"
 #endif
 
 #ifndef CUS_EMAIL
-#define CUS_EMAIL   "<support@taosdata.com>"
+#define CUS_EMAIL "<support@taosdata.com>"
 #endif
 
 #endif  // _CUS_NAME_H_

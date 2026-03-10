@@ -168,6 +168,7 @@ bool nodesMatchNode(const SNode* pSub, const SNode* p) {
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
     case QUERY_NODE_JOIN_TABLE:
+    case QUERY_NODE_VIRTUAL_TABLE:
     case QUERY_NODE_GROUPING_SET:
     case QUERY_NODE_ORDER_BY_EXPR:
     case QUERY_NODE_LIMIT:

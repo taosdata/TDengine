@@ -1282,7 +1282,7 @@ void s3DeleteObjectsByPrefix(const char *prefix) {
   SArray *objectArray = getListByPrefix(prefix);
   if (objectArray == NULL) return;
   int32_t code = s3DeleteObjects(TARRAY_DATA(objectArray), TARRAY_SIZE(objectArray));
-  if (!code) {
+  if (code) {
     uError("%s failed at line %d since %s.", __func__, __LINE__, tstrerror(code));
   }
   taosArrayDestroyEx(objectArray, s3FreeObjectKey);

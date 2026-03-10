@@ -67,6 +67,13 @@ static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
     return terrno;
   }
 
+  int64_t realSize = -1;
+  if (taosFStatFile(pBuf->pFile, &realSize, NULL) != TSDB_CODE_SUCCESS) {
+    realSize = -1;
+  }
+  uDebug("paged buffer file opened, path:%s, realSize:%" PRId64 ", nextPos:%" PRIu64 ", fileSize:%" PRIu64 ", %s",
+         pBuf->path, realSize, pBuf->nextPos, pBuf->fileSize, pBuf->id);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -270,7 +277,6 @@ static SPageInfo* registerNewPageInfo(SDiskbasedBuf* pBuf, int32_t pageId) {
 
   SPageInfo* ppi = taosMemoryMalloc(sizeof(SPageInfo));
   if (ppi == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -408,7 +414,7 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int64_t inMem
     goto _error;
   }
 
-  //  qDebug("QInfo:0x%"PRIx64" create resBuf for output, page size:%d, inmem buf pages:%d, file:%s", qId,
+  //  qDebug("QInfo:0x%"PRIx64 ", create resBuf for output, page size:%d, inmem buf pages:%d, file:%s", qId,
   //  pPBuf->pageSize, pPBuf->inMemPages, pPBuf->path);
 
   *pBuf = pPBuf;
@@ -431,9 +437,6 @@ static char* doExtractPage(SDiskbasedBuf* pBuf) {
   } else {
     availablePage =
         taosMemoryCalloc(1, getAllocPageSize(pBuf->pageSize));  // add extract bytes in case of zipped buffer increased.
-    if (availablePage == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-    }
   }
 
   return availablePage;
@@ -629,7 +632,8 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
 
     int32_t code = taosCloseFile(&pBuf->pFile);
     if (TSDB_CODE_SUCCESS != code) {
-      uDebug("WARNING tPage failed to close file when destroy disk basebuf: %s", pBuf->path);
+      uError("failed to close paged buffer file when destroying, path:%s, closeCode:%d, err:%s, %s", pBuf->path, code,
+             tstrerror(code), pBuf->id);
     }
   } else {
     uDebug("Paged buffer closed, total:%.2f Kb, no file created, %s", pBuf->totalBufSize / 1024.0, pBuf->id);
@@ -652,7 +656,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   if (needRemoveFile) {
     int32_t ret = taosRemoveFile(pBuf->path);
     if (ret != 0) {  // print the error and discard this error info
-      uDebug("WARNING tPage remove file failed. path=%s, code:%s", pBuf->path, strerror(errno));
+      uDebug("WARNING tPage remove file failed. path=%s, code:%s", pBuf->path, strerror(ERRNO));
     }
   }
 
@@ -760,6 +764,22 @@ void dBufPrintStatis(const SDiskbasedBuf* pBuf) {
 }
 
 void clearDiskbasedBuf(SDiskbasedBuf* pBuf) {
+  if (pBuf == NULL) {
+    return;
+  }
+
+  int64_t realSizeBefore = -1;
+  if (pBuf->pFile != NULL && taosFStatFile(pBuf->pFile, &realSizeBefore, NULL) != TSDB_CODE_SUCCESS) {
+    realSizeBefore = -1;
+  }
+
+  const SDiskbasedBufStatis* ps = &pBuf->statis;
+  uDebug(
+      "clear paged buffer begin, pages:%d, inMemPages:%d, fileSize:%" PRIu64 ", nextPos:%" PRIu64
+      ", realSize:%" PRId64 ", get/release:%d/%d, flush/load:%d/%d, %s",
+      pBuf->numOfPages, listNEles(pBuf->lruList), pBuf->fileSize, pBuf->nextPos, realSizeBefore, ps->getPages,
+      ps->releasePages, ps->flushPages, ps->loadPages, pBuf->id);
+
   size_t n = taosArrayGetSize(pBuf->pIdList);
   for (int32_t i = 0; i < n; ++i) {
     SPageInfo* pi = taosArrayGetP(pBuf->pIdList, i);
@@ -781,4 +801,21 @@ void clearDiskbasedBuf(SDiskbasedBuf* pBuf) {
   pBuf->totalBufSize = 0;
   pBuf->allocateId = -1;
   pBuf->fileSize = 0;
+  pBuf->nextPos = 0;
+
+  if (pBuf->pFile != NULL) {
+    int32_t code = taosFtruncateFile(pBuf->pFile, 0);
+    if (code != TSDB_CODE_SUCCESS) {
+      uWarn("failed to truncate paged buffer file, path:%s, code:%s, %s", pBuf->path, tstrerror(code), pBuf->id);
+    }
+  }
+
+  int64_t realSizeAfter = -1;
+  if (pBuf->pFile != NULL && taosFStatFile(pBuf->pFile, &realSizeAfter, NULL) != TSDB_CODE_SUCCESS) {
+    realSizeAfter = -1;
+  }
+
+  uDebug("clear paged buffer end, pages:%d, inMemPages:%d, fileSize:%" PRIu64 ", nextPos:%" PRIu64
+         ", realSize:%" PRId64 ", %s",
+         pBuf->numOfPages, listNEles(pBuf->lruList), pBuf->fileSize, pBuf->nextPos, realSizeAfter, pBuf->id);
 }

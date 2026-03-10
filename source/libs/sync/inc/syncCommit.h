@@ -51,7 +51,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode);
 bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index);
 
 int64_t syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commitIndex);
-int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely);
+int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely, const STraceId *trace);
 
 int64_t syncNodeUpdateAssignedCommitIndex(SSyncNode* ths, SyncIndex assignedCommitIndex);
 

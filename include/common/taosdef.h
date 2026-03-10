@@ -39,7 +39,9 @@ typedef enum {
   TSDB_SYSTEM_TABLE = 5,
   TSDB_TSMA_TABLE = 6,  // time-range-wise sma
   TSDB_VIEW_TABLE = 7,
-  TSDB_TABLE_MAX = 8
+  TSDB_VIRTUAL_NORMAL_TABLE = 8,
+  TSDB_VIRTUAL_CHILD_TABLE = 9,
+  TSDB_TABLE_MAX = 10
 } ETableType;
 
 typedef enum {

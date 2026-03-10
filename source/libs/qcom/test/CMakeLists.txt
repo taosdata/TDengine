@@ -6,6 +6,7 @@ SET(CMAKE_CXX_STANDARD 11)
 AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
 ADD_EXECUTABLE(queryUtilTest ${SOURCE_LIST})
+DEP_ext_gtest(queryUtilTest)
 
 TARGET_INCLUDE_DIRECTORIES(
         queryUtilTest
@@ -15,5 +16,5 @@ TARGET_INCLUDE_DIRECTORIES(
 
 TARGET_LINK_LIBRARIES(
         queryUtilTest
-        PUBLIC os util gtest qcom common transport
+        PUBLIC os util qcom common transport
 )

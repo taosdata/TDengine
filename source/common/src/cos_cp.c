@@ -217,7 +217,7 @@ static int32_t cos_cp_save_json(cJSON const* json, SCheckpoint* checkpoint) {
   }
 
   if (taosFsyncFile(fp) < 0) {
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(ERRNO), &lino, _exit);
   }
 
 _exit:

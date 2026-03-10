@@ -1,8 +1,7 @@
-# ADD_SUBDIRECTORY(examples/c)
-ADD_SUBDIRECTORY(tsim)
-ADD_SUBDIRECTORY(test/c)
+add_subdirectory(tsim)
+
+if(${BUILD_TEST})
+  add_subdirectory(test/c)
+endif()
 
 # ADD_SUBDIRECTORY(comparisonTest/tdengine)
-IF(NOT "${TSZ_ENABLED}" MATCHES "false")
-  ADD_SUBDIRECTORY(TSZ)
-ENDIF()

@@ -1,5 +1,7 @@
 instanceId = 64
 
+# Listening host, supports IPv4/Ipv6, default is ""
+host = ""
 # Listen port, default is 6043
 port = 6043
 
@@ -10,6 +12,7 @@ gopoolsize = 50000
 RotationInterval = "15s"
 
 [tdengine]
+# Use square brackets for IPv6 (e.g., "[::1]") and dotted decimal for IPv4.
 host = "127.0.0.1"
 port = 6041
 username = "root"
@@ -42,9 +45,9 @@ incgroup = false
 # path = "/var/log/taos"
 level = "info"
 # Number of log file rotations before deletion.
-rotationCount = 30
+rotationCount = 3
 # The number of days to retain log files.
-keepDays = 30
+keepDays = 3
 # The maximum size of a log file before rotation.
 rotationSize = "1GB"
 # If set to true, log files will be compressed.

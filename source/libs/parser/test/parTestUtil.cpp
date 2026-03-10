@@ -66,7 +66,8 @@ int32_t getLogLevel() { return g_logLevel; }
 class ParserTestBaseImpl {
  public:
   ParserTestBaseImpl(ParserTestBase* pBase) : pBase_(pBase), sqlNo_(0), sqlNum_(0) {
-    assert(TSDB_CODE_SUCCESS == qInitKeywordsTable());
+    int32_t code = qInitKeywordsTable();
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == code);
     caseEnv_.numOfSkipSql_ = g_skipSql;
     caseEnv_.numOfLimitSql_ = g_limitSql;
   }
@@ -224,6 +225,7 @@ class ParserTestBaseImpl {
     pCxt->pUser = caseEnv_.user_.c_str();
     pCxt->isSuperUser = caseEnv_.user_ == "root";
     pCxt->enableSysInfo = true;
+    pCxt->privInfo = UINT16_MAX;
     pCxt->pSql = stmtEnv_.sql_.c_str();
     pCxt->sqlLen = stmtEnv_.sql_.length();
     pCxt->pMsg = stmtEnv_.msgBuf_.data();
@@ -242,7 +244,7 @@ class ParserTestBaseImpl {
     DO_WITH_THROW(collectMetaKey, pCxt, pQuery, pMetaCache);
   }
 
-  void doBuildCatalogReq(SParseContext* pCxt, const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
+  void doBuildCatalogReq(SParseContext* pCxt, SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
     DO_WITH_THROW(buildCatalogReq, pMetaCache, pCatalogReq);
   }
 
@@ -250,7 +252,7 @@ class ParserTestBaseImpl {
     DO_WITH_THROW(g_mockCatalogService->catalogGetAllMeta, pCatalogReq, pMetaData);
   }
 
-  void doPutMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache) {
+  void doPutMetaDataToCache(const SCatalogReq* pCatalogReq, SMetaData* pMetaData, SParseMetaCache* pMetaCache) {
     DO_WITH_THROW(putMetaDataToCache, pCatalogReq, pMetaData, pMetaCache);
   }
 
@@ -283,7 +285,7 @@ class ParserTestBaseImpl {
     }
   }
 
-  void doAnalyseSqlSemantic(SParseContext* pCxt, const SCatalogReq* pCatalogReq, const SMetaData* pMetaData,
+  void doAnalyseSqlSemantic(SParseContext* pCxt, const SCatalogReq* pCatalogReq, SMetaData* pMetaData,
                             SQuery* pQuery) {
     DO_WITH_THROW(qAnalyseSqlSemantic, pCxt, pCatalogReq, pMetaData, pQuery);
     res_.calcConstAst_ = toString(pQuery->pRoot);

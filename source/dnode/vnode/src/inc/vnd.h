@@ -25,19 +25,19 @@ extern "C" {
 #endif
 
 // clang-format off
-#define vFatal(...) do { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define vError(...) do { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define vWarn(...)  do { if (vDebugFlag & DEBUG_WARN)  { taosPrintLog("VND WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define vInfo(...)  do { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define vDebug(...) do { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND ", DEBUG_DEBUG, vDebugFlag, __VA_ARGS__); }}    while(0)
-#define vTrace(...) do { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", DEBUG_TRACE, vDebugFlag, __VA_ARGS__); }}    while(0)
+#define vFatal(...) do { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }} while(0)
+#define vError(...) do { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }} while(0)
+#define vWarn(...)  do { if (vDebugFlag & DEBUG_WARN)  { taosPrintLog("VND WARN  ", DEBUG_WARN,  255,        __VA_ARGS__); }} while(0)
+#define vInfo(...)  do { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND INFO  ", DEBUG_INFO,  255,        __VA_ARGS__); }} while(0)
+#define vDebug(...) do { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND DEBUG ", DEBUG_DEBUG, vDebugFlag, __VA_ARGS__); }} while(0)
+#define vTrace(...) do { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND TRACE ", DEBUG_TRACE, vDebugFlag, __VA_ARGS__); }} while(0)
 
-#define vGTrace(param, ...) do { if (vDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vTrace(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
-#define vGFatal(param, ...) do { if (vDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vFatal(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
-#define vGError(param, ...) do { if (vDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vError(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
-#define vGWarn(param, ...)  do { if (vDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vWarn(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
-#define vGInfo(param, ...)  do { if (vDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vInfo(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
-#define vGDebug(param, ...) do { if (vDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vDebug(param ",QID:%s", __VA_ARGS__, buf);}}    while(0)
+#define vGTrace(trace, param, ...) do { if (vDebugFlag & DEBUG_TRACE) { vTrace(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
+#define vGFatal(trace, param, ...) do { if (vDebugFlag & DEBUG_FATAL) { vFatal(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
+#define vGError(trace, param, ...) do { if (vDebugFlag & DEBUG_ERROR) { vError(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
+#define vGWarn(trace, param, ...)  do { if (vDebugFlag & DEBUG_WARN)  { vWarn(param  ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
+#define vGInfo(trace, param, ...)  do { if (vDebugFlag & DEBUG_INFO)  { vInfo(param  ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
+#define vGDebug(trace, param, ...) do { if (vDebugFlag & DEBUG_DEBUG) { vDebug(param ", QID:0x%" PRIx64 ":0x%" PRIx64, __VA_ARGS__, (trace) ? (trace)->rootId : 0, (trace) ? (trace)->msgId : 0);}} while(0)
 
 // clang-format on
 
@@ -66,6 +66,7 @@ typedef enum {
 #define MERGE_TASK_ASYNC     2
 #define COMPACT_TASK_ASYNC   3
 #define RETENTION_TASK_ASYNC 4
+#define SCAN_TASK_ASYNC      5
 
 int32_t vnodeAsyncOpen();
 void    vnodeAsyncClose();
@@ -88,7 +89,7 @@ struct SVBufPoolNode {
   SVBufPoolNode*  prev;
   SVBufPoolNode** pnext;
   int64_t         size;
-  uint8_t         data[];
+  uint8_t*        data;
 };
 
 struct SVBufPool {
@@ -104,7 +105,6 @@ struct SVBufPool {
   SVnode*           pVnode;
   int32_t           id;
   volatile int32_t  nRef;
-  TdThreadSpinlock* lock;
   int64_t           size;
   uint8_t*          ptr;
   SVBufPoolNode*    pTail;
@@ -119,6 +119,7 @@ int32_t vnodeBufPoolRecycle(SVBufPool* pPool);
 
 // vnodeOpen.c
 void vnodeGetPrimaryDir(const char* relPath, int32_t diskPrimary, STfs* pTfs, char* buf, size_t bufLen);
+void vnodeGetPrimaryPath(SVnode* pVnode, bool mount, char* buf, size_t bufLen);
 
 // vnodeQuery.c
 int32_t vnodeQueryOpen(SVnode* pVnode);
@@ -127,7 +128,8 @@ void    vnodeQueryClose(SVnode* pVnode);
 int32_t vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
 int     vnodeGetTableCfg(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
 int32_t vnodeGetBatchMeta(SVnode* pVnode, SRpcMsg* pMsg);
-int32_t vnodeGetStreamProgress(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
+int32_t vnodeGetVSubtablesMeta(SVnode *pVnode, SRpcMsg *pMsg);
+int32_t vnodeGetVStbRefDbs(SVnode *pVnode, SRpcMsg *pMsg);
 
 // vnodeCommit.c
 int32_t vnodeBegin(SVnode* pVnode);
@@ -137,7 +139,8 @@ int32_t vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
 int32_t vnodeCommitInfo(const char* dir);
 int32_t vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);
 int32_t vnodeSyncCommit(SVnode* pVnode);
-int32_t vnodeAsyncCommit(SVnode* pVnode);
+int32_t vnodeAsyncCommit(SVnode* pVnode, bool forceTrimWal);
+int32_t vnodeAsyncCommitEx(SVnode* pVnode, bool forceTrimWal);
 bool    vnodeShouldRollback(SVnode* pVnode);
 
 // vnodeSync.c
@@ -151,6 +154,7 @@ void    vnodeSyncClose(SVnode* pVnode);
 void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg, int32_t code);
 bool    vnodeIsLeader(SVnode* pVnode);
 bool    vnodeIsRoleLeader(SVnode* pVnode);
+int32_t    vnodeSetElectBaseline(SVnode* pVnode, int32_t ms);
 
 #ifdef __cplusplus
 }

@@ -9,6 +9,7 @@ TARGETS = connect_example       \
           with_reqid_demo       \
           sml_insert_demo       \
           stmt_insert_demo      \
+          stmt2_insert_demo      \
           tmq_demo
 
 SOURCES = connect_example.c     \
@@ -18,6 +19,7 @@ SOURCES = connect_example.c     \
           with_reqid_demo.c     \
           sml_insert_demo.c     \
           stmt_insert_demo.c    \
+          stmt2_insert_demo.c    \
           tmq_demo.c
 
 LIBS = -ltaos -lpthread

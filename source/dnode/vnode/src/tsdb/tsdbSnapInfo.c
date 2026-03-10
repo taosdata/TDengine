@@ -387,18 +387,7 @@ static STsdbFSetPartList* tsdbSnapGetFSetPartList(STFileSystem* fs) {
   return pList;
 }
 
-ETsdbFsState tsdbSnapGetFsState(SVnode* pVnode) {
-  if (!VND_IS_RSMA(pVnode)) {
-    return pVnode->pTsdb->pFS->fsstate;
-  }
-  for (int32_t lvl = 0; lvl < TSDB_RETENTION_MAX; ++lvl) {
-    STsdb* pTsdb = SMA_RSMA_GET_TSDB(pVnode, lvl);
-    if (pTsdb && pTsdb->pFS->fsstate != TSDB_FS_STATE_NORMAL) {
-      return TSDB_FS_STATE_INCOMPLETE;
-    }
-  }
-  return TSDB_FS_STATE_NORMAL;
-}
+ETsdbFsState tsdbSnapGetFsState(SVnode* pVnode) { return pVnode->pTsdb->pFS->fsstate; }
 
 // description
 typedef struct STsdbPartitionInfo {
@@ -411,7 +400,7 @@ typedef struct STsdbPartitionInfo {
 static int32_t tsdbPartitionInfoInit(SVnode* pVnode, STsdbPartitionInfo* pInfo) {
   int32_t subTyps[TSDB_RETENTION_MAX] = {SNAP_DATA_TSDB, SNAP_DATA_RSMA1, SNAP_DATA_RSMA2};
   pInfo->vgId = TD_VID(pVnode);
-  pInfo->tsdbMaxCnt = (!VND_IS_RSMA(pVnode) ? 1 : TSDB_RETENTION_MAX);
+  pInfo->tsdbMaxCnt = 1;
 
   if (!(sizeof(pInfo->subTyps) == sizeof(subTyps))) {
     return TSDB_CODE_INVALID_PARA;

@@ -32,6 +32,7 @@ static int32_t mndCfgActionDeploy(SMnode *pMnode);
 static int32_t mndCfgActionAfterRestored(SMnode *pMnode);
 
 static int32_t mndProcessConfigReq(SRpcMsg *pReq);
+int32_t        mndSetDeleteConfigCommitLogs(STrans *pTrans, SConfigObj *item);
 #ifdef __cplusplus
 }
 #endif

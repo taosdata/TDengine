@@ -87,7 +87,7 @@ int32_t qwAddSchedulerImpl(SQWorker *mgmt, uint64_t clientId, int32_t rwType) {
     if (!HASH_NODE_EXIST(code)) {
       QW_UNLOCK(QW_WRITE, &mgmt->schLock);
 
-      QW_SCH_ELOG("taosHashPut new sch to scheduleHash failed, errno:%d", errno);
+      QW_SCH_ELOG("taosHashPut new sch to scheduleHash failed, errno:%d", ERRNO);
       taosHashCleanup(newSch.tasksHash);
       QW_ERR_RET(code);
     }
@@ -317,6 +317,15 @@ int32_t qwKillTaskHandle(SQWTaskCtx *ctx, int32_t rspCode) {
   QW_RET(code);
 }
 
+void qwFreeFetchRspItem(void* param) {
+  if (NULL == param) {
+    return;
+  }
+
+  SQWRspItem* pItem = (SQWRspItem*)param;
+  qwFreeFetchRsp(NULL, pItem->rsp);
+}
+
 void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   if (ctx->ctrlConnInfo.handle) {
     tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER, ctx->rspCode);
@@ -333,8 +342,18 @@ void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 
   taosArrayDestroy(ctx->tbInfo);
 
+  if (QW_IS_SUBQ(ctx)) {
+    if (QW_IS_SCALAR_SUBQ(ctx)) {
+      qwFreeFetchRsp(ctx, ctx->subQRes.scalarRsp.rsp);
+    } else {
+      taosArrayDestroy(ctx->subQRes.waitList);
+      taosArrayDestroyEx(ctx->subQRes.rspList, qwFreeFetchRspItem);
+    }
+  }
+  
   if (gMemPoolHandle && ctx->memPoolSession) {
-    qwDestroySession(QW_FPARAMS(), ctx->pJobInfo, ctx->memPoolSession);
+    qwDestroySession(QW_FPARAMS(), ctx->pJobInfo, ctx->memPoolSession, true);
+    ctx->memPoolSession = NULL;
   }
 }
 
@@ -417,16 +436,16 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
   atomic_store_ptr(&ctx->sinkHandle, NULL);
   atomic_store_ptr(&ctx->pJobInfo, NULL);
   atomic_store_ptr(&ctx->memPoolSession, NULL);
+  atomic_store_ptr(&ctx->tbInfo, NULL);
 
   QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_DROP);
 
   if (taosHashRemove(mgmt->ctxHash, id, sizeof(id))) {
     QW_TASK_ELOG_E("taosHashRemove from ctx hash failed");
-    code = QW_CTX_NOT_EXISTS_ERR_CODE(mgmt);
+    return QW_CTX_NOT_EXISTS_ERR_CODE(mgmt);
   }
 
   qwFreeTaskCtx(QW_FPARAMS(), &octx);
-  ctx->tbInfo = NULL;
 
   QW_TASK_DLOG_E("task ctx dropped");
   
@@ -562,7 +581,7 @@ int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
   while (true) {
     tbGet = false;
     code = qGetQueryTableSchemaVersion(pTaskInfo, dbFName, TSDB_DB_FNAME_LEN, tbName, TSDB_TABLE_NAME_LEN,
-                                       &tbInfo.sversion, &tbInfo.tversion, i, &tbGet);
+                                       &tbInfo.sversion, &tbInfo.tversion, &tbInfo.rversion, i, &tbGet);
     if (TSDB_CODE_SUCCESS != code || !tbGet) {
       break;
     }

@@ -69,18 +69,24 @@ int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) {
 }
 
 int32_t qndPreprocessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
+  int32_t qType = 0;
   if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) {
     return 0;
   }
 
-  return qWorkerPreprocessQueryMsg(pQnode->pQuery, pMsg, false);
+  return qWorkerPreprocessQueryMsg(pQnode->pQuery, pMsg, false, &qType);
 }
 
 int32_t qndProcessQueryMsg(SQnode *pQnode, SQueueInfo *pInfo, SRpcMsg *pMsg) {
   int32_t     code = -1;
   int64_t     ts = pInfo->timestamp;
-  SReadHandle handle = {.pMsgCb = &pQnode->msgCb, .pWorkerCb = pInfo->workerCb};
-  qTrace("message in qnode queue is processing");
+  SReadHandle handle = {0};
+  handle.pMsgCb = &pQnode->msgCb;
+  handle.pWorkerCb = pInfo->workerCb;
+  
+  const STraceId *trace = &pMsg->info.traceId;
+  qDebug("qnodeId:%d, msg:%s, %p in qnode queue is processing, %" PRIx64 ":%" PRIx64, 
+    pQnode->qndId, TMSG_INFO(pMsg->msgType), pMsg, TRACE_GET_ROOTID(trace), TRACE_GET_MSGID(trace));
 
   switch (pMsg->msgType) {
     case TDMT_SCH_QUERY:

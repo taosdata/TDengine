@@ -22,7 +22,7 @@
 #define _BSD_SOURCE
 #define _DEFAULT_SOURCE
 #include "ttime.h"
-
+#include "tcommon.h"
 #include "tlog.h"
 
 static int32_t parseFraction(char* str, char** end, int32_t timePrec, int64_t* pFraction);
@@ -55,6 +55,9 @@ bool checkTzPresent(const char* str, int32_t len) {
 
   char* c = &seg[seg_len - 1];
   for (int32_t i = 0; i < seg_len; ++i) {
+    if (0 == *c) {
+      break;
+    }
     if (*c == 'Z' || *c == 'z' || *c == '+' || *c == '-') {
       return true;
     }
@@ -234,13 +237,13 @@ int32_t parseTimeWithTz(const char* timestr, int64_t* time, int32_t timePrec, ch
   }
 
 /* mktime will be affected by TZ, set by using taos_options */
-#ifdef WINDOWS
+#if defined(WINDOWS) || defined(TD_ASTRA) 
   int64_t seconds = user_mktime64(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 0);
   // int64_t seconds = gmtime(&tm);
 #else
   int64_t seconds = taosTimeGm(&tm);
   if (seconds == -1){
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 #endif
 
@@ -489,6 +492,124 @@ int32_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+// 连续 N 个月的最少天数（N = 0..12）
+// index 0 表示 0 个月
+static const int32_t MIN_DAYS_IN_N_MONTHS[13] = {
+    0,    // 0
+    28,   // 1
+    59,   // 2
+    89,   // 3
+    120,  // 4
+    150,  // 5
+    181,  // 6
+    212,  // 7
+    242,  // 8
+    273,  // 9
+    303,  // 10
+    334,  // 11
+    365   // 12
+};
+
+/**
+ * Convert a calendar-based duration (year or month) into the minimal possible
+ * continuous time length with the specified time precision.
+ *
+ * This function is used to compare calendar intervals (such as INTERVAL and
+ * SLIDING windows) against timestamp-based durations. Since calendar units
+ * (months / years) do not have a fixed length in days, the conversion follows
+ * a **minimum-duration strategy** to avoid overestimating the time range.
+ *
+ * Conversion rules:
+ * - Month ('n' / 'N'):
+ *   Interpreted as a count of consecutive calendar months. The result is the
+ *   **minimum possible number of days** among all valid continuous-month
+ *   windows, based on the real Gregorian calendar month lengths
+ *   (28 / 30 / 31 days). A precomputed constant table is used.
+ *
+ * - Year ('y' / 'Y'):
+ *   Interpreted as a count of consecutive calendar years. Each year is treated
+ *   as 365 days. Leap years are intentionally ignored; the ±1 day deviation is
+ *   acceptable for window comparison purposes.
+ *
+ * General notes:
+ * - The start month/year is not specified.
+ * - Cross-year month sequences are allowed.
+ * - The returned value represents the **minimum continuous duration** and is
+ *   therefore safe for interval and sliding-window comparisons.
+ *
+ * @param time        Number of calendar units (months or years).
+ * @param fromUnit    Calendar unit:
+ *                    'n' or 'N' for month,
+ *                    'y' or 'Y' for year.
+ * @param toPrecision Target time precision:
+ *                    TSDB_TIME_PRECISION_MILLI,
+ *                    TSDB_TIME_PRECISION_MICRO,
+ *                    TSDB_TIME_PRECISION_NANO.
+ * @param pRes        Output parameter. On success, stores the converted duration
+ *                    expressed in the specified precision.
+ *
+ * @return TSDB_CODE_SUCCESS on success,
+ *         TSDB_CODE_INVALID_PARA if parameters are invalid.
+ */
+
+int32_t convertCalendarTimeFromUnitToPrecision(
+    int64_t time,
+    char fromUnit,
+    int32_t toPrecision,
+    int64_t* pRes
+) {
+    if (pRes == NULL) {
+        return TSDB_CODE_INVALID_PARA;
+    }
+
+    if (toPrecision != TSDB_TIME_PRECISION_MILLI &&
+        toPrecision != TSDB_TIME_PRECISION_MICRO &&
+        toPrecision != TSDB_TIME_PRECISION_NANO) {
+        return TSDB_CODE_INVALID_PARA;
+    }
+
+    static const int64_t factors[] = {
+        NANOSECOND_PER_MSEC,  // milli
+        NANOSECOND_PER_USEC,  // micro
+        1                     // nano
+    };
+
+    int64_t totalDays = 0;
+
+    switch (fromUnit) {
+        case 'n':   // month
+        case 'N': {
+            if (time < 0) {
+                return TSDB_CODE_INVALID_PARA;
+            }
+
+            int64_t years = time / 12;
+            int32_t rem   = (int32_t)(time % 12);
+
+            totalDays = years * 365 + MIN_DAYS_IN_N_MONTHS[rem];
+            break;
+        }
+
+        case 'y':   // year
+        case 'Y': {
+            if (time < 0) {
+                return TSDB_CODE_INVALID_PARA;
+            }
+
+            // 连续 time 年的最少天数（忽略闰年）
+            totalDays = time * 365;
+            break;
+        }
+
+        default:
+            return TSDB_CODE_INVALID_PARA;
+    }
+
+    *pRes = totalDays * (NANOSECOND_PER_DAY / factors[toPrecision]);
+
+    return TSDB_CODE_SUCCESS;
+}
+
 int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal, timezone_t tz, void* charsetCxt) {
   int32_t charLen = varDataLen(inputData);
   char*   newColData;
@@ -591,13 +712,13 @@ int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecisi
  */
 int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* duration, char* unit,
                               int32_t timePrecision) {
-  errno = 0;
+  SET_ERRNO(0);
   char* endPtr = NULL;
 
   /* get the basic numeric value */
   int64_t timestamp = taosStr2Int64(token, &endPtr, 10);
-  if ((timestamp == 0 && token[0] != '0') || errno != 0) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+  if ((timestamp == 0 && token[0] != '0') || ERRNO != 0) {
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   /* natual month/year are not allowed in absolute duration */
@@ -611,12 +732,12 @@ int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* dura
 
 int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision,
                             bool negativeAllow) {
-  errno = 0;
+  SET_ERRNO(0);
 
   /* get the basic numeric value */
   *duration = taosStr2Int64(token, NULL, 10);
-  if ((*duration < 0 && !negativeAllow) || errno != 0) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+  if ((*duration < 0 && !negativeAllow) || ERRNO != 0) {
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   *unit = token[tokenLen - 1];
@@ -638,7 +759,13 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
   }
 
   if (!IS_CALENDAR_TIME_DURATION(unit)) {
-    return t + duration;
+    double tmp = t;
+    if (tmp + duration >= (double)INT64_MAX || tmp + duration <= (double)INT64_MIN) {
+      uError("time overflow, t:%" PRId64 ", duration:%" PRId64 ", unit:%c, precision:%d", t, duration, unit, precision);
+      return t;
+    } else {
+      return t + duration;
+    }
   }
 
   // The following code handles the y/n time duration
@@ -648,12 +775,18 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
   struct tm  tm;
   time_t     tt = (time_t)(t / TSDB_TICK_PER_SECOND(precision));
   if(taosLocalTime(&tt, &tm, NULL, 0, tz) == NULL) {
-    uError("failed to convert time to gm time, code:%d", errno);
+    uError("failed to convert time to gm time, code:%d", ERRNO);
     return t;
   }
-  int32_t    mon = tm.tm_year * 12 + tm.tm_mon + (int32_t)numOfMonth;
-  tm.tm_year = mon / 12;
-  tm.tm_mon = mon % 12;
+  int64_t mon = tm.tm_year * 12 + tm.tm_mon + (int32_t)numOfMonth;
+  int32_t y = mon / 12;
+  int32_t m = mon % 12;
+  if (m < 0) {
+    m += 12;
+    y -= 1;
+  }
+  tm.tm_year = y;
+  tm.tm_mon = m;
   int daysOfMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
   if (taosIsLeapYear(1900 + tm.tm_year)) {
     daysOfMonth[1] = 29;
@@ -664,7 +797,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
 
   tt = taosMktime(&tm, tz);
   if (tt == -1){
-    uError("failed to convert gm time to time, code:%d", errno);
+    uError("failed to convert gm time to time, code:%d", ERRNO);
     return t;
   }
   return (int64_t)(tt * TSDB_TICK_PER_SECOND(precision) + fraction);
@@ -718,14 +851,14 @@ int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interva
     struct tm  tm;
     time_t     t = (time_t)skey;
     if (taosLocalTime(&t, &tm, NULL, 0, NULL) == NULL) {
-      uError("%s failed to convert time to local time, code:%d", __FUNCTION__, errno);
+      uError("%s failed to convert time to local time, code:%d", __FUNCTION__, ERRNO);
       return ret;
     }
     int32_t    smon = tm.tm_year * 12 + tm.tm_mon;
 
     t = (time_t)ekey;
     if (taosLocalTime(&t, &tm, NULL, 0, NULL) == NULL) {
-      uError("%s failed to convert time to local time, code:%d", __FUNCTION__, errno);
+      uError("%s failed to convert time to local time, code:%d", __FUNCTION__, ERRNO);
       return ret;
     }
     int32_t emon = tm.tm_year * 12 + tm.tm_mon;
@@ -739,7 +872,23 @@ int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interva
   return ret + 1;
 }
 
+TSKEY getNextTimeWindowStart(const SInterval* pInterval, TSKEY start, int32_t order) {
+  int32_t factor = GET_FORWARD_DIRECTION_FACTOR(order);
+  return taosTimeAdd(start, factor * pInterval->sliding, pInterval->slidingUnit, pInterval->precision,
+                     pInterval->timezone);
+}
+
+// used together with taosTimeTruncate. when offset is great than zero, slide-start/slide-end is the anchor point
+int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval) {
+  return taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision,
+                     pInterval->timezone) -
+         1;
+}
+
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
+  if (ts <= INT64_MIN || ts >= INT64_MAX) {
+    return ts;
+  }
   if (pInterval->sliding == 0) {
     return ts;
   }
@@ -752,7 +901,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     struct tm  tm;
     time_t     tt = (time_t)start;
     if (taosLocalTime(&tt, &tm, NULL, 0, pInterval->timezone) == NULL){
-      uError("%s failed to convert time to local time, code:%d", __FUNCTION__, errno);
+      uError("%s failed to convert time to local time, code:%d", __FUNCTION__, ERRNO);
       return ts;
     }
     tm.tm_sec = 0;
@@ -772,7 +921,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
     tt = taosMktime(&tm, pInterval->timezone);
     if (tt == -1){
-      uError("%s failed to convert local time to time, code:%d", __FUNCTION__, errno);
+      uError("%s failed to convert local time to time, code:%d", __FUNCTION__, ERRNO);
       return ts;
     }
     start = (int64_t)(tt * TSDB_TICK_PER_SECOND(precision));
@@ -852,23 +1001,18 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
   if (pInterval->offset > 0) {
     // try to move current window to the left-hande-side, due to the offset effect.
-    int64_t newe = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
-    int64_t slidingStart = start;
-    while (newe >= ts) {
-      start = slidingStart;
-      slidingStart = taosTimeAdd(slidingStart, -pInterval->sliding, pInterval->slidingUnit, precision, pInterval->timezone);
-      int64_t news = taosTimeAdd(slidingStart, pInterval->offset, pInterval->offsetUnit, precision, pInterval->timezone);
-      newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
-    }
     start = taosTimeAdd(start, pInterval->offset, pInterval->offsetUnit, precision, pInterval->timezone);
+    int64_t end = taosTimeGetIntervalEnd(start, pInterval);
+    int64_t nextStart = start;
+
+    while (end >= ts) {
+      start = nextStart;
+      nextStart = getNextTimeWindowStart(pInterval, start, TSDB_ORDER_DESC);
+      end = taosTimeGetIntervalEnd(nextStart, pInterval);
+    }
   }
 
   return start;
-}
-
-// used together with taosTimeTruncate. when offset is great than zero, slide-start/slide-end is the anchor point
-int64_t taosTimeGetIntervalEnd(int64_t intervalStart, const SInterval* pInterval) {
-  return taosTimeAdd(intervalStart, pInterval->interval, pInterval->intervalUnit, pInterval->precision, pInterval->timezone) - 1;
 }
 
 void calcIntervalAutoOffset(SInterval* interval) {
@@ -990,7 +1134,7 @@ int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precisio
   }
 
   if (NULL == taosLocalTime(&quot, &ptm, buf, bufLen, NULL)) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
   int32_t length = (int32_t)taosStrfTime(ts, 40, "%Y-%m-%dT%H:%M:%S", &ptm);
   length += tsnprintf(ts + length, fractionLen, format, mod);
@@ -1000,11 +1144,38 @@ int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precisio
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+char* formatTimestampLocal(char* buf, int64_t val, int precision) {
+  time_t tt;
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    tt = (time_t)(val / 1000000);
+  } else if (precision == TSDB_TIME_PRECISION_NANO) {
+    tt = (time_t)(val / 1000000000);
+  } else {
+    tt = (time_t)(val / 1000);
+  }
+
+  struct tm tm;
+  if (taosLocalTime(&tt, &tm, NULL, 0, NULL) == NULL) {
+    return NULL;
+  }
+  size_t pos = taosStrfTime(buf, 32, "%Y-%m-%d %H:%M:%S", &tm);
+
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    sprintf(buf + pos, ".%06d", (int)(val % 1000000));
+  } else if (precision == TSDB_TIME_PRECISION_NANO) {
+    sprintf(buf + pos, ".%09d", (int)(val % 1000000000));
+  } else {
+    sprintf(buf + pos, ".%03d", (int)(val % 1000));
+  }
+
+  return buf;
+}
+
 int32_t taosTs2Tm(int64_t ts, int32_t precision, struct STm* tm, timezone_t tz) {
   tm->fsec = ts % TICK_PER_SECOND[precision] * (TICK_PER_SECOND[TSDB_TIME_PRECISION_NANO] / TICK_PER_SECOND[precision]);
   time_t t = ts / TICK_PER_SECOND[precision];
   if (NULL == taosLocalTime(&t, &tm->tm, NULL, 0, tz)) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1344,9 +1515,6 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
         s += 4;
         break;
       case TSFKW_DDD:
-#ifdef WINDOWS
-        return TSDB_CODE_FUNC_TO_CHAR_NOT_SUPPORTED;
-#endif
         (void)sprintf(s, "%03d", tm->tm.tm_yday + 1);
         s += strlen(s);
         break;
@@ -1480,6 +1648,8 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
       case TSFKW_TZH:{
 #ifdef WINDOWS
         int32_t gmtoff = -_timezone;
+#elif defined(TD_ASTRA)
+        int32_t gmtoff = -timezone;
 #else
         int32_t gmtoff = tm->tm.tm_gmtoff;
 #endif
@@ -1566,7 +1736,7 @@ static const char* tsFormatStr2Int32(int32_t* dest, const char* str, int32_t len
     // no integers found
     return NULL;
   }
-  if (errno == ERANGE || res > INT32_MAX || res < INT32_MIN) {
+  if (ERRNO == ERANGE || res > INT32_MAX || res < INT32_MIN) {
     // out of range
     return NULL;
   }
@@ -1909,6 +2079,8 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   if (tzHour != 0) {
 #ifdef WINDOWS
     int32_t gmtoff = -_timezone;
+#elif defined(TD_ASTRA)
+    int32_t gmtoff = -timezone;
 #else
     int32_t gmtoff = tm.tm.tm_gmtoff;
 #endif
@@ -2108,7 +2280,7 @@ int64_t taosGetTimestampToday(int32_t precision, timezone_t tz) {
   }
   struct tm tm;
   if (taosLocalTime(&t, &tm, NULL, 0,  tz) == NULL){
-    uError("%s failed to get local time, code:%d", __FUNCTION__, errno);
+    uError("%s failed to get local time, code:%d", __FUNCTION__, ERRNO);
     return t;
   }
   tm.tm_hour = 0;
@@ -2117,8 +2289,17 @@ int64_t taosGetTimestampToday(int32_t precision, timezone_t tz) {
 
   time_t tmp = taosMktime(&tm, tz);
   if (tmp == (time_t)-1) {
-    uError("%s failed to get timestamp of today, code:%d", __FUNCTION__, errno);
+    uError("%s failed to get timestamp of today, code:%d", __FUNCTION__, ERRNO);
     return t;
   }
   return (int64_t)tmp * factor;
+}
+
+int32_t taosParseShortWeekday(const char* str) {
+  for (int32_t i = 0; i < 7; i++) {
+    if (strcasecmp(shortWeekDays[i], str) == 0) {
+      return i;
+    }
+  }
+  return -1;
 }

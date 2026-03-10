@@ -19,21 +19,15 @@
 #include "wincrypt.h"
 #include "windows.h"
 #else
+#ifndef TD_ASTRA
 #include <sys/file.h>
+#endif // !TD_ASTRA
 #include <unistd.h>
 #endif
 
 void taosSeedRand(uint32_t seed) { return srand(seed); }
 
-uint32_t taosRand(void) {
-#ifdef WINDOWS
-  unsigned int pSeed;
-  rand_s(&pSeed);
-  return pSeed;
-#else
-  return rand();
-#endif
-}
+uint32_t taosRand(void) { return rand(); }
 
 uint32_t taosRandR(uint32_t* pSeed) {
 #ifdef WINDOWS
@@ -57,6 +51,8 @@ uint32_t taosSafeRand(void) {
   }
   if (hCryptProv != NULL) CryptReleaseContext(hCryptProv, 0);
   return seed;
+#elif defined(TD_ASTRA)
+  return (uint32_t)taosGetTimestampSec();
 #else
   TdFilePtr pFile;
   int       seed;
@@ -76,6 +72,38 @@ uint32_t taosSafeRand(void) {
 #endif
 }
 
+void taosSafeRandBytes(uint8_t* pBuf, int32_t size) {
+#ifdef WINDOWS
+  HCRYPTPROV hCryptProv;
+  if (!CryptAcquireContext(&hCryptProv, NULL, NULL, PROV_RSA_FULL, CRYPT_NEWKEYSET)) {
+    goto _error;
+  }
+  if (!CryptGenRandom(hCryptProv, size, pBuf)) {
+    CryptReleaseContext(hCryptProv, 0);
+    goto _error;
+  }
+  CryptReleaseContext(hCryptProv, 0);
+  return;
+#elif !defined(TD_ASTRA)
+  TdFilePtr pFile;
+  pFile = taosOpenFile("/dev/urandom", TD_FILE_READ);
+  if (pFile == NULL) {
+    goto _error;
+  }
+  if (taosReadFile(pFile, pBuf, size) < 0) {
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+    goto _error;
+  }
+  TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+  return;
+#endif
+
+_error:
+  for (int32_t i = 0; i < size; ++i) {
+    pBuf[i] = (uint8_t)(taosRand() % 256);
+  }
+}
+
 void taosRandStr(char* str, int32_t size) {
   const char* set = "abcdefghijklmnopqrstuvwxyz0123456789-_.";
   int32_t     len = 39;
@@ -87,7 +115,7 @@ void taosRandStr(char* str, int32_t size) {
 
 void taosRandStr2(char* str, int32_t size) {
   const char* set = "abcdefghijklmnopqrstuvwxyz0123456789@";
-  int32_t     len = strlen(set);
+  int32_t     len = 37;
 
   for (int32_t i = 0; i < size; ++i) {
     str[i] = set[taosRand() % len];

@@ -531,7 +531,6 @@ TEST(testCase, StreamWithoutDotInStbName2) {
 
 TEST(testCase, StreamWithLongStbName) {
   char     ctbName[TSDB_TABLE_NAME_LEN];
-  char     expectName[TSDB_TABLE_NAME_LEN];
   char    *stbName = "a_simle_stb_name";
   uint64_t groupId = UINT64_MAX;
 
@@ -550,29 +549,13 @@ TEST(testCase, StreamWithLongStbName) {
   EXPECT_EQ(buildCtbNameAddGroupId(stbName, NULL, groupId, sizeof(ctbName)), TSDB_CODE_INTERNAL_ERROR);
   EXPECT_EQ(buildCtbNameAddGroupId(stbName, ctbName, groupId, sizeof(ctbName) - 1), TSDB_CODE_INTERNAL_ERROR);
 
-  // test md5 conversion of stbName with groupid
+  // test truncation of long ctbName
   for (int32_t i = 0; i < 159; ++i) ctbName[i] = 'A';
   ctbName[159] = '\0';
   stbName = taosStrdup(ctbName);
-  snprintf(expectName, TSDB_TABLE_NAME_LEN, "%s_d85f0d87946d76eeedd7b7b78b7492a2", ctbName);
+  std::string expectName = std::string(ctbName) + "_" + std::string(stbName) + "_" + std::to_string(groupId);
   EXPECT_EQ(buildCtbNameAddGroupId(stbName, ctbName, groupId, sizeof(ctbName)), TSDB_CODE_SUCCESS);
-  EXPECT_STREQ(ctbName, expectName);
-
-  // test md5 conversion of all parts
-  for (int32_t i = 0; i < 190; ++i) ctbName[i] = 'A';
-  ctbName[190] = '\0';
-  tstrncpy(expectName, "t_d38a8b2df999bef0082ffc80a59a9cd7_d85f0d87946d76eeedd7b7b78b7492a2", TSDB_TABLE_NAME_LEN);
-  EXPECT_EQ(buildCtbNameAddGroupId(stbName, ctbName, groupId, sizeof(ctbName)), TSDB_CODE_SUCCESS);
-  EXPECT_STREQ(ctbName, expectName);
-
-  // test larger stbName
-  taosMemoryFree(stbName);
-  for (int32_t i = 0; i < 190; ++i) ctbName[i] = 'A';
-  ctbName[190] = '\0';
-  stbName = taosStrdup(ctbName);
-  tstrncpy(expectName, "t_d38a8b2df999bef0082ffc80a59a9cd7_9c99cc7c52073b63fb750af402d9b84b", TSDB_TABLE_NAME_LEN);
-  EXPECT_EQ(buildCtbNameAddGroupId(stbName, ctbName, groupId, sizeof(ctbName)), TSDB_CODE_SUCCESS);
-  EXPECT_STREQ(ctbName, expectName);
+  EXPECT_STREQ(ctbName, expectName.c_str() + expectName.size() - TSDB_TABLE_NAME_LEN + 1);
 
   taosMemoryFree(stbName);
 }

@@ -1,4 +1,3 @@
-const { sleep } = require("@tdengine/websocket");
 const taos = require("@tdengine/websocket");
 
 const db = 'power';

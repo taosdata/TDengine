@@ -128,6 +128,7 @@ int32_t qDebugFlag = 131;
 int32_t stDebugFlag = 131;
 int32_t wDebugFlag = 131;
 int32_t azDebugFlag = 131;
+int32_t tssDebugFlag = 131;
 int32_t sDebugFlag = 131;
 int32_t tsdbDebugFlag = 131;
 int32_t tdbDebugFlag = 131;
@@ -138,7 +139,10 @@ int32_t udfDebugFlag = 131;
 int32_t smaDebugFlag = 131;
 int32_t idxDebugFlag = 131;
 int32_t sndDebugFlag = 131;
+int32_t bndDebugFlag = 131;
+int32_t xndDebugFlag = 131;
 int32_t simDebugFlag = 131;
+int32_t bseDebugFlag = 131;
 
 int32_t tqClientDebugFlag = 131;
 
@@ -159,6 +163,9 @@ static void      taosWriteSlowLog(SLogBuff *pLogBuf);
 static int32_t taosStartLog() {
   TdThreadAttr threadAttr;
   (void)taosThreadAttrInit(&threadAttr);
+#ifdef TD_COMPACT_OS
+  (void)taosThreadAttrSetStackSize(&threadAttr, STACK_SIZE_SMALL);
+#endif
   if (taosThreadCreate(&(tsLogObj.logHandle->asyncThread), &threadAttr, taosAsyncOutputLog, tsLogObj.logHandle) != 0) {
     return terrno;
   }
@@ -210,6 +217,7 @@ int32_t taosInitSlowLog() {
   int32_t code = getDay(day, sizeof(day));
   if (code != 0) {
     (void)printf("failed to get day, reason:%s\n", tstrerror(code));
+    SET_ERROR_MSG("failed to get day, reason:%s", tstrerror(code));
     return code;
   }
   (void)snprintf(name, PATH_MAX + TD_TIME_STR_LEN, "%s.%s", tsLogObj.slowLogName, day);
@@ -219,9 +227,10 @@ int32_t taosInitSlowLog() {
   if (tsLogObj.slowHandle == NULL) return terrno;
 
   TAOS_UNUSED(taosUmaskFile(0));
-  tsLogObj.slowHandle->pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  tsLogObj.slowHandle->pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE | TD_FILE_APPEND);
   if (tsLogObj.slowHandle->pFile == NULL) {
-    (void)printf("\nfailed to open slow log file:%s, reason:%s\n", name, strerror(errno));
+    (void)printf("\nfailed to open slow log file:%s, reason:%s\n", name, strerror(ERRNO));
+    SET_ERROR_MSG("failed to open slow log file:%s, reason:%s", name, strerror(ERRNO));
     return terrno;
   }
 
@@ -364,7 +373,7 @@ static void taosUnLockLogFile(TdFilePtr pFile) {
 }
 
 static void taosReserveOldLog(char *oldName, char *keepName) {
-  if (tsLogKeepDays <= 0) {
+  if (tsLogKeepDays == 0) {
     keepName[0] = 0;
     return;
   }
@@ -458,8 +467,8 @@ static void *taosThreadToCloseOldFile(void *param) {
   taosCloseLogByFd(oldFileKeeper->pOldFile);
   taosKeepOldLog(oldFileKeeper->keepName);
   taosMemoryFree(oldFileKeeper);
-  if (tsLogKeepDays > 0) {
-    taosRemoveOldFiles(tsLogDir, tsLogKeepDays);
+  if (tsLogKeepDays != 0) {
+    taosRemoveOldFiles(tsLogDir, abs(tsLogKeepDays));
   }
   taosWUnLockLatch(&tsLogRotateLatch);
   return NULL;
@@ -476,7 +485,9 @@ static int32_t taosOpenNewLogFile() {
     TdThreadAttr attr;
     (void)taosThreadAttrInit(&attr);
     (void)taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_DETACHED);
-
+#ifdef TD_COMPACT_OS
+    (void)taosThreadAttrSetStackSize(&attr, STACK_SIZE_SMALL);
+#endif
     OldFileKeeper *oldFileKeeper = taosOpenNewFile();
     if (!oldFileKeeper) {
       tsLogObj.openInProgress = 0;
@@ -527,7 +538,7 @@ void taosOpenNewSlowLogFile() {
   (void)snprintf(name, PATH_MAX + TD_TIME_STR_LEN, "%s.%s", tsLogObj.slowLogName, day);
   pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pFile == NULL) {
-    uError("open new log file fail! reason:%s, reuse lastlog", strerror(errno));
+    uError("open new log file fail! reason:%s, reuse lastlog", strerror(ERRNO));
     (void)taosThreadMutexUnlock(&tsLogObj.logMutex);
     return;
   }
@@ -561,7 +572,8 @@ static bool taosCheckFileIsOpen(char *logFileName) {
     if (lastErrorIsFileNotExist()) {
       return false;
     } else {
-      printf("\nfailed to open log file:%s, reason:%s\n", logFileName, strerror(errno));
+      printf("\n%s:%d failed to open log file:%s, reason:%s\n", __func__, __LINE__, logFileName, strerror(ERRNO));
+      SET_ERROR_MSG("%s:%d failed to open log file:%s, reason:%s", __func__, __LINE__, logFileName, strerror(ERRNO));
       return true;
     }
   }
@@ -661,9 +673,10 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
   tsLogObj.logHandle = taosLogBuffNew(LOG_DEFAULT_BUF_SIZE);
   if (tsLogObj.logHandle == NULL) return terrno;
 
-  tsLogObj.logHandle->pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE);
+  tsLogObj.logHandle->pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE);
   if (tsLogObj.logHandle->pFile == NULL) {
-    (void)printf("\nfailed to open log file:%s, reason:%s\n", name, strerror(errno));
+    (void)printf("\n%s:%d failed to open log file:%s, reason:%s\n", __func__, __LINE__, name, strerror(ERRNO));
+    SET_ERROR_MSG("%s:%d failed to open log file:%s, reason:%s", __func__, __LINE__, name, strerror(ERRNO));
     return terrno;
   }
   TAOS_UNUSED(taosLockLogFile(tsLogObj.logHandle->pFile));
@@ -690,6 +703,7 @@ _exit:
   if (code != 0) {
     taosUnLockLogFile(tsLogObj.logHandle->pFile);
     TAOS_UNUSED(printf("failed to init normal log file:%s at line %d, reason:%s\n", name, lino, tstrerror(code)));
+    SET_ERROR_MSG("failed to init normal log file:%s at line %d, reason:%s", name, lino, tstrerror(code));
   }
   return code;
 }
@@ -722,7 +736,7 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
   time_t curTime = timeSecs.tv_sec;
   ptm = taosLocalTime(&curTime, &Tm, NULL, 0, NULL);
   if (ptm == NULL) {
-    uError("%s failed to get local time, code:%d", __FUNCTION__, errno);
+    uError("%s failed to get local time, code:%d", __FUNCTION__, ERRNO);
     return 0;
   }
   return snprintf(buffer, LOG_MAX_STACK_LINE_BUFFER_SIZE, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s %s",
@@ -749,7 +763,11 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
 
   int fd = 0;
   if (tsLogObj.outputType == LOG_OUTPUT_FILE) {
+#ifndef TAOSD_INTEGRATED    
     if (dflag & DEBUG_SCREEN) fd = 1;
+#else
+    if ((dflag & DEBUG_SCREEN) && tsLogEmbedded) fd = 1;
+#endif
   } else if (tsLogObj.outputType == LOG_OUTPUT_STDOUT) {
     fd = 1;
   } else if (tsLogObj.outputType == LOG_OUTPUT_STDERR) {
@@ -759,9 +777,13 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
   if (fd) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-result"
+#ifndef TD_ASTRA
     if (write(fd, buffer, (uint32_t)len) < 0) {
-      TAOS_UNUSED(printf("failed to write log to screen, reason:%s\n", strerror(errno)));
+      TAOS_UNUSED(printf("failed to write log to screen, reason:%s\n", strerror(ERRNO)));
     }
+#else
+    TAOS_UNUSED(fprintf(fd == 1 ? stdout : stderr, "%s", buffer));
+#endif
 #pragma GCC diagnostic pop
   }
 }
@@ -947,8 +969,7 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   remainSize = (start > end) ? (start - end - 1) : (start + LOG_BUF_SIZE(pLogBuf) - end - 1);
 
   if (lostLine > 0) {
-    snprintf(tmpBuf, tListLen(tmpBuf), "...Lost %" PRId64 " lines here...\n", lostLine);
-    tmpBufLen = (int32_t)strlen(tmpBuf);
+    tmpBufLen = snprintf(tmpBuf, tListLen(tmpBuf), "...Lost %" PRId64 " lines here...\n", lostLine);
   }
 
   if (remainSize <= msgLen || ((lostLine > 0) && (remainSize <= (msgLen + tmpBufLen)))) {
@@ -993,8 +1014,10 @@ static void taosWriteSlowLog(SLogBuff *pLogBuf) {
   atomic_store_32(&pLogBuf->lock, 0);
 }
 static void taosWriteLog(SLogBuff *pLogBuf) {
+  (void)taosThreadMutexLock(&LOG_BUF_MUTEX(pLogBuf));
   int32_t start = LOG_BUF_START(pLogBuf);
   int32_t end = LOG_BUF_END(pLogBuf);
+  (void)taosThreadMutexUnlock(&LOG_BUF_MUTEX(pLogBuf));
 
   if (start == end) {
     dbgEmptyW++;
@@ -1038,10 +1061,12 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
     }
   }
 
+  (void)taosThreadMutexLock(&LOG_BUF_MUTEX(pLogBuf));
   LOG_BUF_START(pLogBuf) = (LOG_BUF_START(pLogBuf) + pollSize) % LOG_BUF_SIZE(pLogBuf);
 
   start = LOG_BUF_START(pLogBuf);
   end = LOG_BUF_END(pLogBuf);
+  (void)taosThreadMutexUnlock(&LOG_BUF_MUTEX(pLogBuf));
 
   pollSize = taosGetLogRemainSize(pLogBuf, start, end);
   if (pollSize < pLogBuf->minBuffSize) {
@@ -1059,10 +1084,30 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
 #define LOG_INACTIVE_TIME 5
 #define LOG_ROTATE_BOOT   (LOG_INACTIVE_TIME + 1)
 #endif
-
-static void *taosLogRotateFunc(void *param) {
+static int8_t tsLogRotateRunning = 0;
+static void  *taosLogRotateFunc(void *param) {
   setThreadName("logRotate");
   int32_t code = 0;
+  if (0 != atomic_val_compare_exchange_8(&tsLogRotateRunning, 0, 1)) {
+    uInfo("log rotation is already in progress");
+    return NULL;
+  }
+  // get prefix of logfile name
+  char *filePrefix = NULL;
+  char *filePos = strrchr(tsLogObj.logName, TD_DIRSEP_CHAR);
+  if (!filePos || !(++filePos)) {
+    atomic_store_8(&tsLogRotateRunning, 0);
+    return NULL;
+  }
+  int32_t filePrefixLen = strlen(filePos);
+  if (!(filePrefix = taosMemoryMalloc(filePrefixLen + 1))) {
+    atomic_store_8(&tsLogRotateRunning, 0);
+    return NULL;
+  }
+  tstrncpy(filePrefix, filePos, filePrefixLen + 1);
+  int32_t i = filePrefixLen - 1;
+  while (i > 0 && isdigit(filePrefix[i])) filePrefix[i--] = '\0';
+
   taosWLockLatch(&tsLogRotateLatch);
   // compress or remove the old log files
   TdDirPtr pDir = taosOpenDir(tsLogDir);
@@ -1076,6 +1121,8 @@ static void *taosLogRotateFunc(void *param) {
     if (!fname) {
       continue;
     }
+
+    if (!strstr(fname, filePrefix)) continue;
 
     char *pSec = strrchr(fname, '.');
     if (!pSec) {
@@ -1118,7 +1165,7 @@ static void *taosLogRotateFunc(void *param) {
     }
 
     int32_t days = inactiveSec / 86400 + 1;
-    if (tsLogKeepDays > 0 && days > tsLogKeepDays) {
+    if (tsLogKeepDays != 0 && days > abs(tsLogKeepDays)) {
       TAOS_UNUSED(taosRemoveFile(fullName));
       uInfo("file:%s is removed, days:%d, keepDays:%d, sed:%" PRId64, fullName, days, tsLogKeepDays, fileSec);
     } else {
@@ -1129,11 +1176,13 @@ static void *taosLogRotateFunc(void *param) {
     uWarn("%s:%d failed to close dir %s since %s\n", __func__, __LINE__, tsLogDir, tstrerror(code));
   }
 
-  if (tsLogKeepDays > 0) {
-    taosRemoveOldFiles(tsLogDir, tsLogKeepDays);
+  if (tsLogKeepDays != 0) {
+    taosRemoveOldFiles(tsLogDir, abs(tsLogKeepDays));
   }
 _exit:
   taosWUnLockLatch(&tsLogRotateLatch);
+  atomic_store_8(&tsLogRotateRunning, 0);
+  taosMemFreeClear(filePrefix);
   return NULL;
 }
 
@@ -1175,11 +1224,14 @@ static void *taosAsyncOutputLog(void *param) {
     // process the log rotation every LOG_ROTATE_INTERVAL
     int64_t curSec = taosGetTimestampMs() / 1000;
     if (curSec >= lastCheckSec) {
-      if ((curSec - lastCheckSec) >= LOG_ROTATE_INTERVAL) {
+      if ((curSec - lastCheckSec) >= (LOG_ROTATE_INTERVAL + (taosRand() % LOG_ROTATE_BOOT))) {
         TdThread     thread;
         TdThreadAttr attr;
         (void)taosThreadAttrInit(&attr);
         (void)taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_DETACHED);
+#ifdef TD_COMPACT_OS
+        (void)taosThreadAttrSetStackSize(&attr, STACK_SIZE_SMALL);
+#endif
         if (taosThreadCreate(&thread, &attr, taosLogRotateFunc, tsLogObj.logHandle) == 0) {
           uInfo("process log rotation");
           lastCheckSec = curSec;
@@ -1214,8 +1266,9 @@ bool taosAssertDebug(bool condition, const char *file, int32_t line, bool core, 
   taosPrintLogImp(1, 255, buffer, len);
 
   taosPrintLog(flags, level, dflag, "tAssert at file %s:%d exit:%d", file, line, tsAssert);
+#ifndef TD_ASTRA
   taosPrintTrace(flags, level, dflag, -1);
-
+#endif
   if (tsAssert || core) {
     taosCloseLog();
     taosMsleep(300);
@@ -1229,7 +1282,7 @@ bool taosAssertDebug(bool condition, const char *file, int32_t line, bool core, 
 
   return true;
 }
-
+#ifdef USE_REPORT
 void taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, void *sigInfo) {
   const char *flags = "UTL FATAL ";
   ELogLevel   level = DEBUG_FATAL;
@@ -1357,7 +1410,11 @@ static void checkWriteCrashLogToFileInNewThead() {
     }
     taosLogCrashInfo(gCrashBasicInfo.nodeType, pMsg, msgLen, gCrashBasicInfo.signum, gCrashBasicInfo.sigInfo);
     setCrashWriterStatus(CRASH_LOG_WRITER_INIT);
-    tsem_post(&gCrashBasicInfo.sem);
+    int32_t code = tsem_post(&gCrashBasicInfo.sem);
+    if (code != 0 ) {
+      uError("failed to post sem for crashBasicInfo, code:%d", code);
+    }
+    TAOS_UNUSED(tsem_post(&gCrashBasicInfo.sem));
   }
 }
 
@@ -1386,7 +1443,7 @@ void writeCrashLogToFile(int signum, void *sigInfo, char *nodeType, int64_t clus
     gCrashBasicInfo.nodeType = nodeType;
     gCrashBasicInfo.signum = signum;
     gCrashBasicInfo.sigInfo = sigInfo;
-    tsem_wait(&gCrashBasicInfo.sem);
+    TAOS_UNUSED(tsem_wait(&gCrashBasicInfo.sem));
   }
 }
 
@@ -1415,7 +1472,7 @@ void taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr 
 
     pFile = taosOpenFile(filepath, TD_FILE_READ | TD_FILE_WRITE);
     if (pFile == NULL) {
-      if (ENOENT == errno) {
+      if (ENOENT == ERRNO) {
         return;
       }
 
@@ -1481,6 +1538,7 @@ void taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile) {
   TAOS_UNUSED(taosUnLockFile(pFile));
   TAOS_UNUSED(taosCloseFile(&pFile));
 }
+#endif // USE_REPORT
 
 #ifdef NDEBUG
 bool taosAssertRelease(bool condition) {
@@ -1502,31 +1560,46 @@ bool taosAssertRelease(bool condition) {
 }
 #endif
 
+#define NUM_BASE 100
+#define DIGIT_LENGTH 2
+#define MAX_DIGITS 24
+
 char* u64toaFastLut(uint64_t val, char* buf) {
+  // Look-up table for 2-digit numbers
   static const char* lut =
       "0001020304050607080910111213141516171819202122232425262728293031323334353637383940414243444546474849505152535455"
       "5657585960616263646566676869707172737475767778798081828384858687888990919293949596979899";
 
-  char  temp[24];
-  char* p = temp;
+  char  temp[MAX_DIGITS];
+  char* p = temp + tListLen(temp);
 
-  while (val >= 100) {
-    strncpy(p, lut + (val % 100) * 2, 2);
-    val /= 100;
-    p += 2;
+  // Process the digits greater than or equal to 100
+  while (val >= NUM_BASE) {
+    // Get the last 2 digits from the look-up table and add to the buffer
+    p -= DIGIT_LENGTH;
+    strncpy(p, lut + (val % NUM_BASE) * DIGIT_LENGTH, DIGIT_LENGTH);
+    val /= NUM_BASE;
   }
 
+  // Process the remaining 1 or 2 digits
   if (val >= 10) {
-    strncpy(p, lut + val * 2, 2);
-    p += 2;
+    // If the number is 10 or more, get the 2 digits from the look-up table
+    p -= DIGIT_LENGTH;
+    strncpy(p, lut + val * DIGIT_LENGTH, DIGIT_LENGTH);
   } else if (val > 0 || p == temp) {
-    *(p++) = val + '0';
+    // If the number is less than 10, add the single digit to the buffer
+    p -= 1;
+    *p = val + '0';
   }
 
-  while (p != temp) {
-    *buf++ = *--p;
+  int64_t len = temp + tListLen(temp) - p;
+  if (len > 0) {
+    memcpy(buf, p, len);
+  } else {
+    buf[0] = '0';
+    len = 1;
   }
+  buf[len] = '\0';
 
-  *buf = '\0';
-  return buf;
+  return buf + len;
 }

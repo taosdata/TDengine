@@ -1,19 +1,11 @@
-use taos_query::common::SchemalessPrecision;
-use taos_query::common::SchemalessProtocol;
-use taos_query::common::SmlDataBuilder;
+use taos::{
+    taos_query::common::{SchemalessPrecision, SchemalessProtocol, SmlDataBuilder},
+    *,
+};
 
-use crate::AsyncQueryable;
-use crate::AsyncTBuilder;
-use crate::TaosBuilder;
-
-async fn put_json() -> anyhow::Result<()> {
-    // std::env::set_var("RUST_LOG", "taos=trace");
-    std::env::set_var("RUST_LOG", "taos=debug");
-    pretty_env_logger::init();
-    let dsn =
-        std::env::var("TDENGINE_ClOUD_DSN").unwrap_or("http://localhost:6041".to_string());
-    log::debug!("dsn: {:?}", &dsn);
-
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let dsn = "taos://localhost:6030";
     let client = TaosBuilder::from_dsn(dsn)?.build().await?;
 
     let db = "demo_schemaless_ws";
