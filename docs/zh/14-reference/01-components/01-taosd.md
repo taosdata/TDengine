@@ -1266,7 +1266,7 @@ charset 的有效值是 UTF-8。
 
 #### auditSaveInSelf
 
-- 说明：审计数据保存在自身，而不发送给taoskeeper
+- 说明：审计数据保存在自身，而不发送给 taoskeeper
 - 类型：整数；0:关闭，1：开启。
 - 默认值：0
 - 最小值：0
