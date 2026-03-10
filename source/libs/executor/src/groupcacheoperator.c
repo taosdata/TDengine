@@ -1526,7 +1526,6 @@ static void resetGroupCacheBlockCache(SGcBlkCacheInfo* pCache) {
 static int32_t resetGroupCacheDownstreamCtx(SOperatorInfo* pOper) {
   int32_t code = 0, lino = 0;
   SGroupCacheOperatorInfo* pInfo = pOper->info;
-  int32_t                  code = 0;
   if (NULL == pInfo->pDownstreams) {
     return TSDB_CODE_SUCCESS;
   }
