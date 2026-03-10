@@ -435,9 +435,16 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
     indexError("invalid operation node, left: %p, rigth: %p", node->pLeft, node->pRight);
     SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
+
+  if (nParam == 2 && node->pRight != NULL && (nodeType(node->pRight)) != QUERY_NODE_VALUE) {
+    indexError("right node should be value, node:%p, type:%d", node->pRight, nodeType(node->pRight));
+    SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
   if (node->opType == OP_TYPE_JSON_GET_VALUE) {
     return code;
   }
+
   if ((node->pLeft != NULL && nodeType(node->pLeft) == QUERY_NODE_COLUMN) &&
       (node->pRight != NULL && nodeType(node->pRight) == QUERY_NODE_VALUE)) {
     SColumnNode *cn = (SColumnNode *)(node->pLeft);
@@ -720,6 +727,11 @@ static int32_t sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typ
 static int8_t sifShouldUseIndexBasedOnType(SIFParam *left, SIFParam *right) {
   // not compress
   if (left->colValType == TSDB_DATA_TYPE_FLOAT) return 0;
+
+  // Column-to-column comparison cannot use index filter (e.g., tag1=tag2)
+  // right->condValue is NULL when right operand is a column reference, not a value
+  if (right->condValue == NULL) return 0;
+
 
   if (left->colValType == TSDB_DATA_TYPE_GEOMETRY || right->colValType == TSDB_DATA_TYPE_GEOMETRY ||
       left->colValType == TSDB_DATA_TYPE_JSON || right->colValType == TSDB_DATA_TYPE_JSON) {
