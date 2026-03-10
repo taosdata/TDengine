@@ -5062,6 +5062,8 @@ typedef struct {
 typedef struct {
   int64_t tid;
   char    status[TSDB_JOB_STATUS_LEN];
+  int64_t startTs;  // sub-task first execution start time, us
+  int64_t endTs;    // sub-task end time, us (0 if not finished)
 } SQuerySubDesc;
 
 typedef enum EQueryExecPhase {

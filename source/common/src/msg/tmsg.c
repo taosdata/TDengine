@@ -314,6 +314,11 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
         }
         TAOS_CHECK_RETURN(tEncodeI32(pEncoder, desc->execPhase));
         TAOS_CHECK_RETURN(tEncodeI64(pEncoder, desc->phaseStartTime));
+        for (int32_t m = 0; m < snum; ++m) {
+          SQuerySubDesc *sDesc = taosArrayGet(desc->subDesc, m);
+          TAOS_CHECK_RETURN(tEncodeI64(pEncoder, sDesc->startTs));
+          TAOS_CHECK_RETURN(tEncodeI64(pEncoder, sDesc->endTs));
+        }
       }
     } else {
       TAOS_CHECK_RETURN(tEncodeI32(pEncoder, queryNum));
@@ -449,6 +454,20 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
             TAOS_CHECK_GOTO(code, &line, _error);
             code = tDecodeI64(pDecoder, &desc.phaseStartTime);
             TAOS_CHECK_GOTO(code, &line, _error);
+
+            if (!tDecodeIsEnd(pDecoder) && snum > 0) {
+              for (int32_t m = 0; m < snum; ++m) {
+                SQuerySubDesc *sDesc = taosArrayGet(desc.subDesc, m);
+                if (NULL == sDesc) {
+                  code = TSDB_CODE_INVALID_MSG;
+                  TAOS_CHECK_GOTO(code, &line, _error);
+                }
+                code = tDecodeI64(pDecoder, &sDesc->startTs);
+                TAOS_CHECK_GOTO(code, &line, _error);
+                code = tDecodeI64(pDecoder, &sDesc->endTs);
+                TAOS_CHECK_GOTO(code, &line, _error);
+              }
+            }
           }
 
           if (!taosArrayPush(pReq->query->queryDesc, &desc)) {

@@ -197,6 +197,57 @@ class TestQueryPhaseTracking:
         
         print("test phase timing accuracy ....................... [passed]")
 
+    def test_sub_status_timing_format(self):
+        """SubTask: Verify sub_status includes timing info
+
+        1. Create a supertable with multiple child tables to generate sub-tasks
+        2. Execute a distributed query to trigger sub-plan execution
+        3. Verify sub_status format contains tid:status:startMs:endMs
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-3-10 Created for sub-task timing tracking feature
+
+        """
+        tdLog.info("=============== test sub status timing format")
+        tdSql.execute(f"create database if not exists db2 vgroups 2")
+        tdSql.execute(f"use db2")
+        tdSql.execute(f"create table db2.stb2 (ts timestamp, v int) tags (t int)")
+        for i in range(4):
+            tdSql.execute(f"create table db2.ct{i} using db2.stb2 tags ({i})")
+            tdSql.execute(f"insert into db2.ct{i} values (now, {i})")
+
+        tdSql.query(f"select count(*) from db2.stb2 group by tbname")
+
+        tdSql.query(f"show queries")
+        if tdSql.getRows() > 0:
+            col_names = [row[0] for row in tdSql.getColNames()]
+            sub_status_idx = col_names.index("sub_status") if "sub_status" in col_names else -1
+            sub_num_idx = col_names.index("sub_num") if "sub_num" in col_names else -1
+
+            if sub_num_idx >= 0:
+                sub_num = tdSql.getData(0, sub_num_idx)
+                tdLog.info(f"Sub plan num: {sub_num}")
+
+            if sub_status_idx >= 0:
+                sub_status = tdSql.getData(0, sub_status_idx)
+                tdLog.info(f"Sub status: {sub_status}")
+                if sub_status:
+                    parts = sub_status.split(",")
+                    for part in parts:
+                        fields = part.split(":")
+                        tdLog.info(f"  Sub-task fields: {fields}")
+                        assert len(fields) == 4, \
+                            f"sub_status entry should have 4 fields (tid:status:startMs:endMs), got {len(fields)}: {part}"
+
+        tdSql.execute(f"drop database if exists db2")
+        print("test sub status timing format ....................... [passed]")
+
     def cleanup_class(cls):
         tdLog.info(f"cleanup {__file__}")
         tdSql.execute(f"drop database if exists db")

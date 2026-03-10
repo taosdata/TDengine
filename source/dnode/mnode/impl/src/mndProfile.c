@@ -1280,8 +1280,10 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
       }
       if (offset + reserve < strSize) {
         SQuerySubDesc *pDesc = taosArrayGet(pQuery->subDesc, i);
-        offset +=
-            tsnprintf(subStatus + offset, sizeof(subStatus) - offset, "%" PRIu64 ":%s", pDesc->tid, pDesc->status);
+        int64_t startMs = pDesc->startTs / 1000;
+        int64_t endMs = pDesc->endTs / 1000;
+        offset += tsnprintf(subStatus + offset, sizeof(subStatus) - offset,
+                            "%" PRIu64 ":%s:%" PRId64 ":%" PRId64, pDesc->tid, pDesc->status, startMs, endMs);
       } else {
         break;
       }
