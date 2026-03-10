@@ -266,8 +266,11 @@ IF((NOT TD_ENTERPRISE) OR TD_WINDOWS)
   set(BUILD_SHARED_STORAGE OFF)
   set(BUILD_WITH_S3 OFF)
   set(BUILD_WITH_COS OFF)
+ELSE()
+  MESSAGE("switch shared storage ON with enterprise Linux edition")
+  set(BUILD_SHARED_STORAGE ON)
+  set(BUILD_WITH_S3 ON)  
 ENDIF ()
-
 
 IF(${BUILD_SHARED_STORAGE})
   add_definitions(-DUSE_SHARED_STORAGE)
