@@ -229,16 +229,16 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
 #if defined(LINUX)
     case 'o':
       if (strlen(arg) >= PATH_MAX) {
-       (void)printf("failed to set log output since length overflow, max length is %d\r\n", PATH_MAX);
+        (void)printf("failed to set log output since length overflow, max length is %d\r\n", PATH_MAX);
         return TSDB_CODE_INVALID_CFG;
       }
       tsLogOutput = taosMemoryMalloc(PATH_MAX);
       if (!tsLogOutput) {
-       (void)printf("failed to set log output: '%s' since %s\r\n", arg, tstrerror(terrno));
+        (void)printf("failed to set log output: '%s' since %s\r\n", arg, tstrerror(terrno));
         return terrno;
       }
       if (taosExpandDir(arg, tsLogOutput, PATH_MAX) != 0) {
-       (void)printf("failed to expand log output: '%s' since %s\r\n", arg, tstrerror(terrno));
+        (void)printf("failed to expand log output: '%s' since %s\r\n", arg, tstrerror(terrno));
         return terrno;
       }
       break;
@@ -365,7 +365,7 @@ static void shellInitArgs(int argc, char *argv[]) {
         tstrncpy(shell.args.token, (char *)(argv[i] + 2), sizeof(shell.args.token) - 1);  
         strcpy(argv[i], "-q");
       }
-     (void)printf("\r\n");
+      (void)printf("\r\n");
       break;
     }
 #endif
@@ -389,22 +389,22 @@ static void shellInitArgs(int argc, char *argv[]) {
 static int32_t shellCheckArgs() {
   SShellArgs *pArgs = &shell.args;
   if (pArgs->host != NULL && (strlen(pArgs->host) <= 0 || strlen(pArgs->host) > TSDB_FQDN_LEN)) {
-   (void)printf("Invalid host:%s\r\n", pArgs->host);
+    (void)printf("Invalid host:%s\r\n", pArgs->host);
     return -1;
   }
 
   if (pArgs->user != NULL && (strlen(pArgs->user) <= 0 || strlen(pArgs->user) > TSDB_USER_LEN)) {
-   (void)printf("Invalid user:%s\r\n", pArgs->user);
+    (void)printf("Invalid user:%s\r\n", pArgs->user);
     return -1;
   }
 
   if (pArgs->auth != NULL && (strlen(pArgs->auth) <= 0 || strlen(pArgs->auth) > TSDB_PASSWORD_LEN)) {
-   (void)printf("Invalid auth:%s\r\n", pArgs->auth);
+    (void)printf("Invalid auth:%s\r\n", pArgs->auth);
     return -1;
   }
 
   if (pArgs->database != NULL && (strlen(pArgs->database) <= 0 || strlen(pArgs->database) > TSDB_DB_NAME_LEN)) {
-   (void)printf("Invalid database:%s\r\n", pArgs->database);
+    (void)printf("Invalid database:%s\r\n", pArgs->database);
     return -1;
   }
 
@@ -417,7 +417,7 @@ static int32_t shellCheckArgs() {
 
   if (pArgs->cfgdir != NULL) {
     if (strlen(pArgs->cfgdir) <= 0 || strlen(pArgs->cfgdir) >= PATH_MAX) {
-     (void)printf("Invalid cfgdir:%s\r\n", pArgs->cfgdir);
+      (void)printf("Invalid cfgdir:%s\r\n", pArgs->cfgdir);
       return -1;
     } else {
       if (taosExpandDir(pArgs->cfgdir, configDirShell, PATH_MAX) != 0) {
@@ -426,7 +426,7 @@ static int32_t shellCheckArgs() {
       // check cfg dir exist
       /*
       if(!taosIsDir(configDirShell)) {
-       (void)printf("folder not exist. cfgdir:%s  expand:%s\r\n", pArgs->cfgdir, configDirShell);
+        (void)printf("folder not exist. cfgdir:%s  expand:%s\r\n", pArgs->cfgdir, configDirShell);
         configDirShell[0] = 0;
         return -1;          
       }*/  
@@ -434,37 +434,37 @@ static int32_t shellCheckArgs() {
   }
 
   if (pArgs->commands != NULL && (strlen(pArgs->commands) <= 0)) {
-   (void)printf("Invalid commands:%s\r\n", pArgs->commands);
+    (void)printf("Invalid commands:%s\r\n", pArgs->commands);
     return -1;
   }
 
   if (pArgs->netrole != NULL && !(strcmp(pArgs->netrole, "client") == 0 || strcmp(pArgs->netrole, "server") == 0)) {
-   (void)printf("Invalid netrole:%s\r\n", pArgs->netrole);
+    (void)printf("Invalid netrole:%s\r\n", pArgs->netrole);
     return -1;
   }
 
   if (/*pArgs->password != NULL && */ (strlen(pArgs->password) <= 0)) {
-   (void)printf("Invalid password\r\n");
+    (void)printf("Invalid password\r\n");
     return -1;
   }
 
   if (pArgs->port < 0 || pArgs->port > 65535) {
-   (void)printf("Invalid port\r\n");
+    (void)printf("Invalid port\r\n");
     return -1;
   }
 
   if (pArgs->pktLen < SHELL_MIN_PKG_LEN || pArgs->pktLen > SHELL_MAX_PKG_LEN) {
-   (void)printf("Invalid pktLen:%d, range:[%d, %d]\r\n", pArgs->pktLen, SHELL_MIN_PKG_LEN, SHELL_MAX_PKG_LEN);
+    (void)printf("Invalid pktLen:%d, range:[%d, %d]\r\n", pArgs->pktLen, SHELL_MIN_PKG_LEN, SHELL_MAX_PKG_LEN);
     return -1;
   }
 
   if (pArgs->pktNum < SHELL_MIN_PKG_NUM || pArgs->pktNum > SHELL_MAX_PKG_NUM) {
-   (void)printf("Invalid pktNum:%d, range:[%d, %d]\r\n", pArgs->pktNum, SHELL_MIN_PKG_NUM, SHELL_MAX_PKG_NUM);
+    (void)printf("Invalid pktNum:%d, range:[%d, %d]\r\n", pArgs->pktNum, SHELL_MIN_PKG_NUM, SHELL_MAX_PKG_NUM);
     return -1;
   }
 
   if (pArgs->displayWidth <= 0 || pArgs->displayWidth > 10 * 1024) {
-   (void)printf("Invalid displayWidth:%d, range:[1, 10 * 1024]\r\n", pArgs->displayWidth);
+    (void)printf("Invalid displayWidth:%d, range:[1, 10 * 1024]\r\n", pArgs->displayWidth);
     return -1;
   }
 
