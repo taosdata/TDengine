@@ -58,42 +58,42 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg);
 
 void shellPrintHelp() {
   char indent[] = "  ";
- (void)printf("Usage: %s [OPTION...] \r\n\r\n", CUS_PROMPT);
- (void)printf("%s%s%s%s\r\n", indent, "-a,", indent, SHELL_AUTH);
- (void)printf("%s%s%s%s\r\n", indent, "-A,", indent, SHELL_GEN_AUTH);
- (void)printf("%s%s%s%s\r\n", indent, "-B,", indent, SHELL_BI_MODE);
- (void)printf("%s%s%s%s\r\n", indent, "-c,", indent, SHELL_CFG_DIR);
- (void)printf("%s%s%s%s\r\n", indent, "-C,", indent, SHELL_DMP_CFG);
- (void)printf("%s%s%s%s\r\n", indent, "-d,", indent, SHELL_DB);
- (void)printf("%s%s%s%s\r\n", indent, "-f,", indent, SHELL_FILE);
- (void)printf("%s%s%s%s\r\n", indent, "-h,", indent, SHELL_HOST);
- (void)printf("%s%s%s%s\r\n", indent, "-k,", indent, SHELL_CHECK);
- (void)printf("%s%s%s%s\r\n", indent, "-l,", indent, SHELL_PKT_LEN);
- (void)printf("%s%s%s%s\r\n", indent, "-n,", indent, SHELL_NET_ROLE);
- (void)printf("%s%s%s%s\r\n", indent, "-N,", indent, SHELL_PKT_NUM);
+  (void)printf("Usage: %s [OPTION...] \r\n\r\n", CUS_PROMPT);
+  (void)printf("%s%s%s%s\r\n", indent, "-a,", indent, SHELL_AUTH);
+  (void)printf("%s%s%s%s\r\n", indent, "-A,", indent, SHELL_GEN_AUTH);
+  (void)printf("%s%s%s%s\r\n", indent, "-B,", indent, SHELL_BI_MODE);
+  (void)printf("%s%s%s%s\r\n", indent, "-c,", indent, SHELL_CFG_DIR);
+  (void)printf("%s%s%s%s\r\n", indent, "-C,", indent, SHELL_DMP_CFG);
+  (void)printf("%s%s%s%s\r\n", indent, "-d,", indent, SHELL_DB);
+  (void)printf("%s%s%s%s\r\n", indent, "-f,", indent, SHELL_FILE);
+  (void)printf("%s%s%s%s\r\n", indent, "-h,", indent, SHELL_HOST);
+  (void)printf("%s%s%s%s\r\n", indent, "-k,", indent, SHELL_CHECK);
+  (void)printf("%s%s%s%s\r\n", indent, "-l,", indent, SHELL_PKT_LEN);
+  (void)printf("%s%s%s%s\r\n", indent, "-n,", indent, SHELL_NET_ROLE);
+  (void)printf("%s%s%s%s\r\n", indent, "-N,", indent, SHELL_PKT_NUM);
 #if defined(LINUX)
- (void)printf("%s%s%s%s\r\n", indent, "-o,", indent, SHELL_LOG_OUTPUT);
+  (void)printf("%s%s%s%s\r\n", indent, "-o,", indent, SHELL_LOG_OUTPUT);
 #endif
- (void)printf("%s%s%s%s\r\n", indent, "-p,", indent, SHELL_PASSWORD);
+  (void)printf("%s%s%s%s\r\n", indent, "-p,", indent, SHELL_PASSWORD);
 #ifdef TD_ENTERPRISE
- (void)printf("%s%s%s%s\r\n", indent, "-q,", indent, SHELL_TOKEN);
+  (void)printf("%s%s%s%s\r\n", indent, "-q,", indent, SHELL_TOKEN);
 #endif
- (void)printf("%s%s%s%s\r\n", indent, "-P,", indent, SHELL_PORT);
- (void)printf("%s%s%s%s\r\n", indent, "-r,", indent, SHELL_RAW_TIME);
- (void)printf("%s%s%s%s\r\n", indent, "-s,", indent, SHELL_CMD);
- (void)printf("%s%s%s%s\r\n", indent, "-t,", indent, SHELL_STARTUP);
- (void)printf("%s%s%s%s\r\n", indent, "-u,", indent, SHELL_USER);
- (void)printf("%s%s%s%s\r\n", indent, "-E,", indent, OLD_DSN_DESC);
- (void)printf("%s%s%s%s\r\n", indent, "-T,", indent, SHELL_TIMEOUT);
- (void)printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
- (void)printf("%s%s%s%s\r\n", indent, "-V,", indent, SHELL_VERSION);
- (void)printf("%s%s%s%s\r\n", indent, "-X,", indent, DSN_DESC);
- (void)printf("%s%s%s%s\r\n", indent, "-Z,", indent, DRIVER_DESC);
+  (void)printf("%s%s%s%s\r\n", indent, "-P,", indent, SHELL_PORT);
+  (void)printf("%s%s%s%s\r\n", indent, "-r,", indent, SHELL_RAW_TIME);
+  (void)printf("%s%s%s%s\r\n", indent, "-s,", indent, SHELL_CMD);
+  (void)printf("%s%s%s%s\r\n", indent, "-t,", indent, SHELL_STARTUP);
+  (void)printf("%s%s%s%s\r\n", indent, "-u,", indent, SHELL_USER);
+  (void)printf("%s%s%s%s\r\n", indent, "-E,", indent, OLD_DSN_DESC);
+  (void)printf("%s%s%s%s\r\n", indent, "-T,", indent, SHELL_TIMEOUT);
+  (void)printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
+  (void)printf("%s%s%s%s\r\n", indent, "-V,", indent, SHELL_VERSION);
+  (void)printf("%s%s%s%s\r\n", indent, "-X,", indent, DSN_DESC);
+  (void)printf("%s%s%s%s\r\n", indent, "-Z,", indent, DRIVER_DESC);
 
 #ifdef CUS_EMAIL
- (void)printf("\r\n\r\nReport bugs to %s.\r\n", CUS_EMAIL);
+  (void)printf("\r\n\r\nReport bugs to %s.\r\n", CUS_EMAIL);
 #else
- (void)printf("\r\n\r\nReport bugs to %s.\r\n", "support@taosdata.com");
+  (void)printf("\r\n\r\nReport bugs to %s.\r\n", "support@taosdata.com");
 #endif
 }
 
