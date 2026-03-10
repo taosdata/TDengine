@@ -49,7 +49,7 @@ int32_t hJoinHandleRowRemains(struct SOperatorInfo* pOperator, SHJoinOperatorInf
   HJ_ERR_RET((*pJoin->joinFp)(pOperator));
   
   if (pJoin->finBlk->info.rows > 0 && pJoin->pFinFilter != NULL) {
-    doFilter(pJoin->finBlk, pJoin->pFinFilter, NULL);
+    doFilter(pJoin->finBlk, pJoin->pFinFilter, NULL, NULL);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -148,12 +148,12 @@ int32_t hJoinLaunchPrimExpr(SSDataBlock* pBlock, SHJoinTableCtx* pTable, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t hJoinLaunchEqualExpr(SSDataBlock* pBlock, SHJoinTableCtx* pTable, int32_t startIdx, int32_t endIdx) {
+int32_t hJoinLaunchEqualExpr(SOperatorInfo*       pOperator, SSDataBlock* pBlock, SHJoinTableCtx* pTable, int32_t startIdx, int32_t endIdx) {
   if (NULL != pTable->primExpr) {
     HJ_ERR_RET(hJoinLaunchPrimExpr(pBlock, pTable, startIdx, endIdx));
   }
   if (pTable->exprSup.numOfExprs > 0) {
-    HJ_ERR_RET(projectApplyFunctions(pTable->exprSup.pExprInfo, pBlock, pBlock, pTable->exprSup.pCtx, pTable->exprSup.numOfExprs, NULL));
+    HJ_ERR_RET(projectApplyFunctions(pTable->exprSup.pExprInfo, pBlock, pBlock, pTable->exprSup.pCtx, pTable->exprSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo)));
   }
   
   return TSDB_CODE_SUCCESS;
@@ -206,7 +206,6 @@ static int32_t hJoinInitKeyColsInfo(SHJoinTableCtx* pTable, SNodeList* pList, bo
     pTable->keyCols[i].srcSlot = pColNode->slotId;
     pTable->keyCols[i].vardata = IS_VAR_DATA_TYPE(pColNode->node.resType.type);
     pTable->keyCols[i].bytes = pColNode->node.resType.bytes;
-    pTable->keyCols[i].offset = 0;
     bufSize += pColNode->node.resType.bytes;
     ++i;
   }  
@@ -550,9 +549,6 @@ static int32_t hJoinCopyResRowsToBlock(SHJoinOperatorInfo* pJoin, int32_t rowNum
   int32_t probeIdx = 0;
   SBufRowInfo* pRow = pStart;
   int32_t code = 0;
-  char* pColData = NULL;
-  bool isNull = false;
-  int32_t keyIdx = 0;
   char* pData = NULL;
 
   for (int32_t r = 0; r < rowNum; ++r) {
@@ -832,10 +828,10 @@ static FORCE_INLINE int32_t hJoinGetValBufSize(SHJoinTableCtx* pTable, int32_t r
   int32_t varColNum = taosArrayGetSize(pTable->valVarCols);
   for (int32_t i = 0; i < varColNum; ++i) {
     varColIdx = taosArrayGet(pTable->valVarCols, i);
-    if (-1 == pTable->valCols[*varColIdx].offset[rowIdx]) {
+    if (-1 == pTable->valCols[*varColIdx].colData->varmeta.offset[rowIdx]) {
       continue;
     }
-    char* pData = pTable->valCols[*varColIdx].data + pTable->valCols[*varColIdx].offset[rowIdx];
+    char* pData = pTable->valCols[*varColIdx].data + pTable->valCols[*varColIdx].colData->varmeta.offset[rowIdx];
     bufLen += calcStrBytesByType(pTable->valCols[*varColIdx].colData->info.type, pData);
   }
 
@@ -961,7 +957,7 @@ static int32_t hJoinAddBlockRowsToHash(SSDataBlock* pBlock, SHJoinOperatorInfo* 
     return TSDB_CODE_SUCCESS;
   }
 
-  HJ_ERR_RET(hJoinLaunchEqualExpr(pBlock, pBuild, startIdx, endIdx));
+  HJ_ERR_RET(hJoinLaunchEqualExpr(pJoin->pOperator, pBlock, pBuild, startIdx, endIdx));
 
   int32_t code = hJoinSetKeyColsData(pBlock, pBuild);
   if (code) {
@@ -1050,7 +1046,7 @@ static int32_t hJoinPrepareStart(struct SOperatorInfo* pOperator, SSDataBlock* p
     return TSDB_CODE_SUCCESS;
   }
 
-  HJ_ERR_RET(hJoinLaunchEqualExpr(pBlock, pProbe, startIdx, endIdx));
+  HJ_ERR_RET(hJoinLaunchEqualExpr(pOperator, pBlock, pProbe, startIdx, endIdx));
 
   int32_t code = hJoinSetKeyColsData(pBlock, pProbe);
   if (code) {
@@ -1114,38 +1110,35 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
 
   if (pOperator->status == OP_EXEC_DONE) {
     pRes->info.rows = 0;
-    goto _end;
+    goto _exit;
   }
 
   blockDataCleanup(pRes);
 
   if (!pJoin->keyHashBuilt) {
     bool returnDirect = false;
-    code = (*pJoin->buildFp)(pOperator, &returnDirect);
-    QUERY_CHECK_CODE(code, lino, _end);
+    TAOS_CHECK_EXIT((*pJoin->buildFp)(pOperator, &returnDirect));
 
     if (returnDirect) {
-      goto _end;
+      goto _exit;
     }
   }
   
   while (true) {
     if (pJoin->ctx.midRemains) {
-      code = hJoinHandleMidRemains(pJoin);
-      QUERY_CHECK_CODE(code, lino, _end);
+      TAOS_CHECK_EXIT(hJoinHandleMidRemains(pJoin));
       
       pRes = pJoin->finBlk;
       if (hJoinBlkReachThreshold(pJoin, pRes->info.rows)) {
-        goto _end;
+        goto _exit;
       }
     }
     
     if (pJoin->ctx.rowRemains) {
-      code = hJoinHandleRowRemains(pOperator, pJoin);
-      QUERY_CHECK_CODE(code, lino, _end);
+      TAOS_CHECK_EXIT(hJoinHandleRowRemains(pOperator, pJoin));
       
       if (pRes->info.rows > 0) {
-        goto _end;
+        goto _exit;
       }
 
       continue;
@@ -1156,7 +1149,7 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
       hJoinSetDone(pOperator);
 
       if (pRes->info.rows > 0 && pJoin->pFinFilter != NULL) {
-        doFilter(pRes, pJoin->pFinFilter, NULL);
+        TAOS_CHECK_EXIT(doFilter(pRes, pJoin->pFinFilter, NULL, NULL));
       }
 
       break;
@@ -1165,16 +1158,14 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
     pJoin->execInfo.probeBlkNum++;
     pJoin->execInfo.probeBlkRows += pBlock->info.rows;
 
-    code = hJoinPrepareStart(pOperator, pBlock);
-    QUERY_CHECK_CODE(code, lino, _end);
+    TAOS_CHECK_EXIT(hJoinPrepareStart(pOperator, pBlock));
 
     if (!hJoinBlkReachThreshold(pJoin, pRes->info.rows)) {
       continue;
     }
 
     if (pRes->info.rows > 0 && pJoin->pFinFilter != NULL) {
-      code = doFilter(pRes, pJoin->pFinFilter, NULL, NULL);
-      QUERY_CHECK_CODE(code, lino, _end);
+      TAOS_CHECK_EXIT(doFilter(pRes, pJoin->pFinFilter, NULL, NULL));
     }
 
     if (pRes->info.rows > 0) {
@@ -1182,7 +1173,7 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
     }
   }
 
-_end:
+_exit:
 
   if (pOperator->cost.openCost == 0) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
@@ -1360,6 +1351,7 @@ int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDow
 
   pInfo->tblTimeRange.skey = pJoinNode->timeRange.skey;
   pInfo->tblTimeRange.ekey = pJoinNode->timeRange.ekey;
+  pInfo->pOperator = pOperator;
 
   HJ_ERR_JRET(hJoinInitJoinCtx(&pInfo->ctx, pJoinNode));
   

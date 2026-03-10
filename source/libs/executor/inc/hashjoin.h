@@ -83,7 +83,6 @@ typedef struct SHJoinColInfo {
   int32_t          dstSlot;
   int32_t          keyColIdx;
   bool             vardata;
-  int32_t          offset;
   int32_t          bytes;
   int32_t          bufOffset;
   char*            data;
@@ -164,6 +163,7 @@ typedef struct SHJoinExecInfo {
 
 
 typedef struct SHJoinOperatorInfo {
+  SOperatorInfo*   pOperator;
   EJoinType        joinType;
   EJoinSubType     subType;
   SHJoinTableCtx   tbs[2];
@@ -224,7 +224,7 @@ int32_t hJoinCopyNMatchRowsToBlock(SHJoinOperatorInfo* pJoin, SSDataBlock* pRes,
 int32_t hJoinBuildHash(struct SOperatorInfo* pOperator, bool* returnDirect);
 int32_t hJoinAddRowToHash(SHJoinOperatorInfo* pJoin, SSDataBlock* pBlock, size_t keyLen, int32_t rowIdx);
 bool    hJoinFilterTimeRange(SHJoinCtx* pCtx, SSDataBlock* pBlock, STimeWindow* pRange, int32_t primSlot, int32_t* startIdx, int32_t* endIdx);
-int32_t hJoinLaunchEqualExpr(SSDataBlock* pBlock, SHJoinTableCtx* pTable, int32_t startIdx, int32_t endIdx);
+int32_t hJoinLaunchEqualExpr(SOperatorInfo* pOperator, SSDataBlock* pBlock, SHJoinTableCtx* pTable, int32_t startIdx, int32_t endIdx);
 int32_t hJoinSetKeyColsData(SSDataBlock* pBlock, SHJoinTableCtx* pTable);
 
 int32_t mJoinFilterAndKeepSingleRow(SSDataBlock* pBlock, SFilterInfo* pFilterInfo);

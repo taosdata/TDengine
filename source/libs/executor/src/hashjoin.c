@@ -702,7 +702,7 @@ static int32_t hFullJoinCopyBuildNMRowsToBlock(SHJoinOperatorInfo* pJoin, SSData
       break;
     } else {
       if (pJoin->pFinFilter != NULL) {
-        QRY_ERR_RET(doFilter(pRes, pJoin->pFinFilter, NULL));
+        QRY_ERR_RET(doFilter(pRes, pJoin->pFinFilter, NULL, NULL));
       }
 
       if (pRes->info.rows > 0) {
@@ -763,7 +763,7 @@ static int32_t hFullJoinAddBlockRowsToHash(SSDataBlock* pBlock, SHJoinOperatorIn
     return hFullJoinCopyBuildNMRowsToBlock(pJoin, pJoin->finBlk, pCtx, returnDirect);
   }
 
-  HJ_ERR_RET(hJoinLaunchEqualExpr(pBlock, pBuild, pCtx->buildStartIdx, pCtx->buildEndIdx));
+  HJ_ERR_RET(hJoinLaunchEqualExpr(pJoin->pOperator, pBlock, pBuild, pCtx->buildStartIdx, pCtx->buildEndIdx));
 
   HJ_ERR_RET(hJoinSetKeyColsData(pBlock, pBuild));
 
@@ -820,7 +820,7 @@ int32_t hFullJoinBuildHash(struct SOperatorInfo* pOperator, bool* returnDirect) 
   }
 
   if (pJoin->finBlk->info.rows > 0 && pJoin->pFinFilter != NULL) {
-    QRY_ERR_RET(doFilter(pJoin->finBlk, pJoin->pFinFilter, NULL));
+    QRY_ERR_RET(doFilter(pJoin->finBlk, pJoin->pFinFilter, NULL, NULL));
   }
   
   if (pJoin->finBlk->info.rows > 0) {
@@ -844,7 +844,7 @@ int32_t hFullJoinHandleSeqRemainBuildRows(struct SOperatorInfo* pOperator, SHJoi
   while (!allFetched) {
     hJoinAppendResToBlock(pOperator, pJoin->midBlk, &allFetched);
     if (pJoin->midBlk->info.rows > 0) {
-      HJ_ERR_RET(doFilter(pJoin->midBlk, pJoin->pPreFilter, NULL));
+      HJ_ERR_RET(doFilter(pJoin->midBlk, pJoin->pPreFilter, NULL, NULL));
       if (pJoin->midBlk->info.rows > 0) {
         pCtx->readMatch = true;
         HJ_ERR_RET(hJoinCopyMergeMidBlk(pCtx, &pJoin->midBlk, &pJoin->finBlk));
@@ -930,7 +930,7 @@ int32_t hFullJoinHandleSeqProbeRows(struct SOperatorInfo* pOperator, SHJoinOpera
     while (!allFetched) {
       hJoinAppendResToBlock(pOperator, pJoin->midBlk, &allFetched);
       if (pJoin->midBlk->info.rows > 0) {
-        HJ_ERR_RET(doFilter(pJoin->midBlk, pJoin->pPreFilter, NULL));
+        HJ_ERR_RET(doFilter(pJoin->midBlk, pJoin->pPreFilter, NULL, NULL));
         if (pJoin->midBlk->info.rows > 0) {
           pCtx->readMatch = true;
           HJ_ERR_RET(hJoinCopyMergeMidBlk(pCtx, &pJoin->midBlk, &pJoin->finBlk));
