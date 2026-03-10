@@ -580,7 +580,7 @@ void shellPrintNChar(const char *str, int32_t length, int32_t width) {
   }
 
   if (totalCols > width) {
-    // width could be 1 or 2, so(void)printf("...") cannot be used
+    // width could be 1 or 2, so printf("...") cannot be used
     for (int32_t i = 0; i < 3; i++) {
       if (cols >= width) {
         break;
@@ -1143,7 +1143,7 @@ void shellCleanupHistory() {
 void shellPrintError(TAOS_RES *tres, int64_t st) {
   int code = taos_errno(tres);
   int64_t et = taosGetTimestampUs();
-   (void)printf("\r\nDB error: %s [0x%08X] (%.6fs)\r\n", taos_errstr(tres), code, (et - st) / 1E6);
+  (void)printf("\r\nDB error: %s [0x%08X] (%.6fs)\r\n", taos_errstr(tres), code, (et - st) / 1E6);
   taos_free_result(tres);
 
   // tip
