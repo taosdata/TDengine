@@ -13,8 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbFS2.h"
 #include "dmRepair.h"
+#include "tsdbFS2.h"
+#include "tsdbSttFileRW.h"
 
 bool tsdbShouldForceRepair(STFileSystem *fs) {
   int32_t vgId = TD_VID(fs->tsdb->pVnode);
@@ -38,7 +39,186 @@ bool tsdbShouldForceRepair(STFileSystem *fs) {
   return true;
 }
 
+static int32_t tsdbForceRepairFileSetBadFiles(STFileSystem *pFS, STFileSet *pFileSet, TFileOpArray *opArr) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // TODO: Handle .head .data .sma
+  STFileObj *pHead = pFileSet->farr[TSDB_FTYPE_HEAD];
+  STFileObj *pData = pFileSet->farr[TSDB_FTYPE_DATA];
+  STFileObj *pSMA = pFileSet->farr[TSDB_FTYPE_SMA];
+  STFileObj *pTomb = pFileSet->farr[TSDB_FTYPE_TOMB];
+  if (pHead) {
+    if (!taosCheckExistFile(pHead->fname)) {
+      // TODO: append delete head op to opArr
+      // TODO: append delete data op to opArr
+      // TODO: append delete sma op to opArr
+    }
+  }
+
+  // TODO: handle .tomb missing
+  if (pTomb && !taosCheckExistFile(pTomb->fname)) {
+    // TODO: append delete tomb op to opArr
+  }
+
+  // Loop to handle stt files
+  SSttLvl *sttLevel = NULL;
+  TARRAY2_FOREACH(pFileSet->lvlArr, sttLevel) {
+    STFileObj *pStt;
+    TARRAY2_FOREACH(sttLevel->fobjArr, pStt) {
+      if (!taosCheckExistFile(pStt->fname)) {
+        // TODO: append delete stt op to op arr
+      }
+    }
+  }
+  return code;
+}
+
+static int32_t tsdbDeepScanAndFixDataPart() {
+  int32_t code = TSDB_CODE_SUCCESS;
+  //
+  return code;
+}
+
+static int32_t tsdbDeepScanAndFixSttFile(STFileset *pFileSet, STFileObj *pStt) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  SSttFileReader     *reader;
+  const TSttBlkArray *sttBlkArray = NULL;
+
+  // Open
+  SSttFileReaderConfig config = {
+      // TODO
+
+  };
+  code = tsdbSttFileReaderOpen(pStt->fname, &config, &reader);
+  if (code) {
+    // TODO: error handle, need to delete this file
+  }
+
+  // read the index part
+  code = tsdbSttFileReadSttBlk(reader, &sttBlkArray);
+  if (code) {
+    // TODO: error handle, need to delete this file
+  }
+
+  // Loop to read each data part
+  for (int32_t i = 0; i < sttBlkArray->size; i++) {
+    SSttBlk *pSttBlk = ;
+    code = tsdbReadFile(STsdbFD * pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint,
+                        SEncryptData *encryptData);
+    if (code) {
+      // TODO: find a bad block, need to eliminate it
+    }
+  };
+
+  return code;
+}
+
+static int32_t tsdbDeepScanAndFixSttPart(STFileSet *pFileSet) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SSttLvl *sttLevel = NULL;
+  TARRAY2_FOREACH(pFileSet->lvlArr, sttLevel) {
+    STFileObj *pStt;
+    TARRAY2_FOREACH(sttLevel->fobjArr, pStt) {
+      code = tsdbDeepScanAndFixSttFile(pFileSet, pStt);
+      if (code) {
+        // TODO: tsdbError
+        return code
+      }
+    }
+  }
+
+  //
+  return code;
+}
+
+static int32_t tsdbForceRepairFileSetDeepScanAndFix(STFileSystem *pFS, STFileSet *pFileSet, TFileOpArray *opArr,
+                                                    bool *hasChange) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  code = tsdbDeepScanAndFixDataPart();
+  if (code) {
+    // TODO: tsdbError
+    return code;
+  }
+
+  code = tsdbDeepScanAndFixSttPart();
+  if (code) {
+    // TODO: tsdbError
+    return code;
+  }
+
+  // TODO
+  return code;
+}
+
+static int32_t tsdbForceRepairFileSet(STFileSystem *pFS, STFileSet *pFileSet, TFileOpArray *opArr, bool *hasChange) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // TODO: if .head or .data is missing, just delete the data
+  code = tsdbForceRepairFileSetBadFiles(pFS);
+  if (code) {
+    // TODO
+    return code;
+  }
+
+  // TODO: if deep scan and fix the data, do deep scan and fix
+  code = tsdbForceRepairFileSetDeepScanAndFix(pFS);
+  if (code) {
+    // TODO
+    return code;
+  }
+
+  return code;
+}
+
+static int32_t tsdbForceRepairCommitChange(STFileSystem *pFS, const TFileOpArray *opArr) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  STsdb  *pTsdb = pFS->tsdb;
+
+  // Begin to commit the change
+  code = tsdbFSEditBegin(pFS, opArr, /* TODO: EFEditT etype*/);
+  if (code) {
+    // TODO: output error message
+    return code;
+  }
+
+  // Commit the change
+  (void)taosThreadMutexLock(&pTsdb->mutex);
+  code = tsdbFSEditCommit(pFS);
+  if (code) {
+    // TODO: output error message
+    (void)taosThreadMutexUnlock(&pTsdb->mutex);
+    return code;
+  }
+  (void)taosThreadMutexUnlock(&pTsdb->mutex);
+  return code;
+}
+
 int32_t tsdbForceRepair(STFileSystem *fs) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  bool         hasChange = false;
+  TFileOpArray opArr = {0};
+
+  // Loop to force repair each file set
+  STFileSet *pFileSet = NULL;
+  TARRAY2_FOREACH(fs->fSetArr, pFileSet) {
+    code = tsdbForceRepairFileSet(fs, pFileSet, &hasChange);
+    if (code) {
+      tsdbError("vgId:%d %s failed to force repair file set, fid:%d since %s, code:%d", TD_VID(fs->tsdb->pVnode),
+                __func__, pFileSet->fid, tstrerror(code), code);
+      return code;
+    }
+  }
+
+  code = tsdbForceRepairCommitChange(fs, &opArr);
+  if (code) {
+    // TODO: output error log
+    return code;
+  }
+
+#if 0
   int32_t code = tsdbFSDupState(fs);
   if (code != 0) {
     return code;
@@ -105,7 +285,8 @@ int32_t tsdbForceRepair(STFileSystem *fs) {
   printf("tsdb force repair dispatch: vnode%d\n", TD_VID(fs->tsdb->pVnode));
   fflush(stdout);
   tsdbMarkForceRepairDone(TD_VID(fs->tsdb->pVnode));
-  return 0;
+#endif
+  return code;
 }
 
 #if 0
