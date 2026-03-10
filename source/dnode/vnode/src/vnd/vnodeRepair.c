@@ -9,6 +9,8 @@
 #include "dmRepair.h"
 
 TD_WEAK bool dmRepairFlowEnabled() { return false; }
+TD_WEAK bool dmRepairNodeTypeIsVnode() { return false; }
+TD_WEAK bool dmRepairModeIsForce() { return false; }
 TD_WEAK bool dmRepairHasBackupPath() { return false; }
 TD_WEAK const char *dmRepairBackupPath() { return ""; }
 TD_WEAK const SRepairMetaVnodeOpt *dmRepairGetMetaVnodeOpt(int32_t vnodeId) {

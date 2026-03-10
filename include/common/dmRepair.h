@@ -39,6 +39,8 @@ typedef struct {
 } SRepairTsdbFileOpt;
 
 bool                  dmRepairFlowEnabled();
+bool                  dmRepairNodeTypeIsVnode();
+bool                  dmRepairModeIsForce();
 bool                  dmRepairHasBackupPath();
 const char           *dmRepairBackupPath();
 const SRepairMetaVnodeOpt *dmRepairGetMetaVnodeOpt(int32_t vnodeId);

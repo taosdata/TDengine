@@ -789,6 +789,10 @@ static int32_t dmFinalizeRepairOption() {
 
 bool dmRepairFlowEnabled() { return global.runRepairFlow; }
 
+bool dmRepairNodeTypeIsVnode() { return memcmp(global.repairOpt.nodeType, "vnode", sizeof("vnode")) == 0; }
+
+bool dmRepairModeIsForce() { return memcmp(global.repairOpt.mode, "force", sizeof("force")) == 0; }
+
 bool dmRepairHasBackupPath() { return global.repairOpt.hasBackupPath; }
 
 const char *dmRepairBackupPath() { return global.repairOpt.backupPath; }
