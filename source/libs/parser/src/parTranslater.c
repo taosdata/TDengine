@@ -18093,7 +18093,7 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
             SName       name = {0};
             STableMeta* pMeta = NULL;
             toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
-            if ((code = getTargetMeta(pCxt, &name, &pMeta, false))) {  // check table or view at first
+            if ((code = getTargetMeta(pCxt, &name, &pMeta, true))) {  // check table or view at first
               if (TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
                 taosMemoryFree(pMeta);
                 goto _exit;
@@ -18102,6 +18102,12 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
               }
             } else {
               objType = pMeta->tableType == TSDB_VIEW_TABLE ? PRIV_OBJ_VIEW : PRIV_OBJ_TBL;
+              if (objType == PRIV_OBJ_VIEW) {
+                if (PRIV_HAS(&tmpPrivSet, PRIV_TBL_SELECT)) {
+                  privAddType(&tmpPrivSet, PRIV_VIEW_SELECT);
+                  privRemoveType(&tmpPrivSet, PRIV_TBL_SELECT);
+                }
+              }
             }
             taosMemoryFree(pMeta);
           } else if (pStmt->tabName[0] == 0) {  // objName: dbName or topicName
