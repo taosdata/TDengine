@@ -563,7 +563,7 @@ TaosResult object can be iterated over to retrieve queried data.
   - client.id: Client ID.
   - td.connect.user: Database username.
   - td.connect.pass: Database password.
-  - td.connect.token: Database authentication token, with higher authentication priority than username and password.
+  - td.connect.bearer_token: Database authentication token, with higher authentication priority than username and password.
   - auto.offset.reset: Determines the consumption position as either the latest data (latest) or including old data (earliest).
   - enable.auto.commit: Whether to allow automatic submission.
   - auto.commit.interval.ms: Automatic submission interval.
