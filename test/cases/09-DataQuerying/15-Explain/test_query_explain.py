@@ -1,7 +1,7 @@
 from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck, tdCom, tdDnodes,etool
 import datetime
 import random
-import os
+import re
 
 PRIMARY_COL = "ts"
 
@@ -979,6 +979,63 @@ class TestExplain:
 
         print("do explain complex .................... [passed]")
 
+    def __extract_explain_plan_lines(self):
+        lines = []
+        for row in tdSql.queryResult:
+            line = row[0] if isinstance(row, (list, tuple)) else row
+            if line is not None:
+                lines.append(str(line))
+        return lines
+
+    def __extract_scan_rows_by_exchange(self, plan_lines):
+        exchange_idx = [
+            idx for idx, line in enumerate(plan_lines) if "Data Exchange" in line
+        ]
+        scan_rows = []
+        for ex_idx in exchange_idx:
+            branch_lines = plan_lines[ex_idx + 1:]
+            for line in branch_lines:
+                if "Data Exchange" in line:
+                    break
+                if "Table Scan" not in line:
+                    continue
+                rows_match = re.search(r"rows=(\d+)", line)
+                if rows_match is not None:
+                    scan_rows.append(int(rows_match.group(1)))
+                    break
+        return exchange_idx, scan_rows
+
+    def do_explain_partition_by_tag_regression(self):
+        tdSql.execute("drop database if exists db_explain_reg")
+        tdSql.execute("create database db_explain_reg vgroups 2")
+        tdSql.execute("use db_explain_reg")
+        tdSql.execute("create stable stb (ts timestamp, v int) tags(gid int)")
+        tdSql.execute("create table t1 using stb tags(1)")
+        tdSql.execute("create table t2 using stb tags(2)")
+        tdSql.execute("create table t3 using stb tags(3)")
+
+        insert_rows = 4
+        tdSql.execute("insert into t1 values(now, 1)")
+        tdSql.execute("insert into t2 values(now - 1s, 2)(now - 2s, 3)(now - 3s, 4)")
+
+        tdSql.query("explain analyze verbose true select * from stb partition by gid")
+
+        plan_lines = self.__extract_explain_plan_lines()
+        exchange_idx, scan_rows = self.__extract_scan_rows_by_exchange(plan_lines)
+        assert len(exchange_idx) >= 2, (
+            "expect at least two Data Exchange nodes for partition by gid"
+        )
+
+        assert len(scan_rows) >= 2, (
+            "expect each Data Exchange branch has Table Scan statistics"
+        )
+        assert len(set(scan_rows)) >= 2 and sum(scan_rows) == insert_rows, (
+            "table scan stats should not be merged across exchange branches"
+        )
+
+        tdSql.execute("drop database if exists db_explain_reg")
+        print("do explain partition by tag regression ... [passed]")
+
     
     #
     # ------------------- main ----------------
@@ -1000,9 +1057,11 @@ class TestExplain:
             - 2025-8-20 Simon Guan Migrated from tsim/query/explain_tsorder.sim
             - 2025-10-31 Alex Duan Migrated from uncatalog/system-test/99-TDcase/test_TD_20582.py
             - 2025-12-19 Alex Duan Migrated from uncatalog/system-test/2-query/test_explain.py
+            - 2026-3-9 Tony Zhang Create partition by tag regression test case
 
         """
         self.do_explain_basic()
         self.do_td_20582()
         self.do_explain_complex()
+        self.do_explain_partition_by_tag_regression()
     
