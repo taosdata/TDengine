@@ -744,6 +744,14 @@ static int32_t hFullJoinAddBlockRowsToHashImpl(SHJoinOperatorInfo* pJoin, SHJoin
 
   pCtx->buildStartIdx = -1;
 
+  if (pCtx->buildNMStartIdx >= 0) {
+    pCtx->buildNMEndIdx = pCtx->buildEndIdx;
+    HJ_ERR_RET(hFullJoinCopyBuildNMRowsToBlock(pJoin, pJoin->finBlk, pCtx, returnDirect));
+    if (*returnDirect) {
+      return code;
+    }
+  }
+    
   return TSDB_CODE_SUCCESS;
 }
 
@@ -754,16 +762,19 @@ static int32_t hFullJoinAddBlockRowsToHash(SSDataBlock* pBlock, SHJoinOperatorIn
 
   pCtx->pBuildData = pBlock;
   pCtx->buildNMStartIdx = -1;
-  pCtx->buildStartIdx = -1;
+  pCtx->buildStartIdx = 0;
+  pCtx->buildEndIdx = pBlock->info.rows - 1;
 
+  // 先计算表达式，确保所有列数据正确
+  HJ_ERR_RET(hJoinLaunchEqualExpr(pJoin->pOperator, pBlock, pBuild, pCtx->buildStartIdx, pCtx->buildEndIdx));
+
+  // 再检查时间范围过滤
   if (pBuild->hasTimeRange && !hJoinFilterTimeRange(pCtx, pBlock, &pJoin->tblTimeRange, pBuild->primCol->srcSlot, &pCtx->buildStartIdx, &pCtx->buildEndIdx)) {
     pCtx->buildNMStartIdx = 0;
     pCtx->buildNMEndIdx = pBlock->info.rows - 1;
     
     return hFullJoinCopyBuildNMRowsToBlock(pJoin, pJoin->finBlk, pCtx, returnDirect);
   }
-
-  HJ_ERR_RET(hJoinLaunchEqualExpr(pJoin->pOperator, pBlock, pBuild, pCtx->buildStartIdx, pCtx->buildEndIdx));
 
   HJ_ERR_RET(hJoinSetKeyColsData(pBlock, pBuild));
 

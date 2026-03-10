@@ -89,19 +89,17 @@ int32_t getJsonValueLen(const char* data) {
   return dataLen;
 }
 
-static int32_t getDataLen(int32_t type, const char* pData) {
+int32_t calcStrBytesByType(int8_t type, const char* data) {
   int32_t dataLen = 0;
   if (type == TSDB_DATA_TYPE_JSON) {
-    dataLen = getJsonValueLen(pData);
+    dataLen = getJsonValueLen(data);
   } else if (IS_STR_DATA_BLOB(type)) {
-    dataLen = blobDataTLen(pData);
+    dataLen = blobDataTLen(data);
   } else {
-    dataLen = varDataTLen(pData);
+    dataLen = varDataTLen(data);
   }
   return dataLen;
 }
-
-int32_t calcStrBytesByType(int8_t type, char* data) { return getDataLen(type, data); }
 
 static int32_t checkAllocLen(SColumnInfoData* pColumnInfoData, char** pData, int32_t dataLen){
   SVarColAttr* pAttr = &pColumnInfoData->varmeta;
@@ -145,7 +143,7 @@ static int32_t colDataSetValHelp(SColumnInfoData* pColumnInfoData, uint32_t rowI
 
   int32_t type = pColumnInfoData->info.type;
   if (IS_VAR_DATA_TYPE(type)) {
-    int32_t dataLen = getDataLen(type, pData);
+    int32_t dataLen = calcStrBytesByType(type, pData);
     if (pColumnInfoData->varmeta.offset[rowIndex] > 0) {
       pColumnInfoData->varmeta.length = pColumnInfoData->varmeta.offset[rowIndex];
     }

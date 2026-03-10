@@ -663,6 +663,7 @@ void hJoinAppendResToBlock(struct SOperatorInfo* pOperator, SSDataBlock* pRes, b
 bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t *pBufLen) {
   char *pData = NULL;
   size_t bufLen = 0;
+  int32_t dataLen = 0;
   
   if (1 == pTable->keyNum) {
     if (colDataIsNull_s(pTable->keyCols[0].colData, rowIdx)) {
@@ -670,7 +671,7 @@ bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t *p
     }
     if (pTable->keyCols[0].vardata) {
       pData = pTable->keyCols[0].data + pTable->keyCols[0].colData->varmeta.offset[rowIdx];
-      bufLen = varDataTLen(pData);
+      bufLen = calcStrBytesByType(pTable->keyCols[0].colData->info.type, pData);
     } else {
       pData = pTable->keyCols[0].data + pTable->keyCols[0].bytes * rowIdx;
       bufLen = pTable->keyCols[0].bytes;
@@ -686,8 +687,9 @@ bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t *p
       
       if (pTable->keyCols[i].vardata) {
         pData = pTable->keyCols[i].data + pTable->keyCols[i].colData->varmeta.offset[rowIdx];
-        TAOS_MEMCPY(pTable->keyBuf + bufLen, pData, varDataTLen(pData));
-        bufLen += varDataTLen(pData);
+        dataLen = calcStrBytesByType(pTable->keyCols[i].colData->info.type, pData);
+        TAOS_MEMCPY(pTable->keyBuf + bufLen, pData, dataLen);
+        bufLen += dataLen;
       } else {
         pData = pTable->keyCols[i].data + pTable->keyCols[i].bytes * rowIdx;
         TAOS_MEMCPY(pTable->keyBuf + bufLen, pData, pTable->keyCols[i].bytes);
@@ -1022,6 +1024,8 @@ static int32_t hJoinPrepareStart(struct SOperatorInfo* pOperator, SSDataBlock* p
   SHJoinTableCtx* pProbe = pJoin->pProbe;
   int32_t startIdx = 0, endIdx = pBlock->info.rows - 1;
 
+  HJ_ERR_RET(hJoinLaunchEqualExpr(pOperator, pBlock, pProbe, startIdx, endIdx));
+
   if (NULL == pJoin->pKeyHash) {
     pJoin->ctx.probeEndIdx = -1;
     pJoin->ctx.probePostIdx = 0;
@@ -1045,8 +1049,6 @@ static int32_t hJoinPrepareStart(struct SOperatorInfo* pOperator, SSDataBlock* p
     
     return TSDB_CODE_SUCCESS;
   }
-
-  HJ_ERR_RET(hJoinLaunchEqualExpr(pOperator, pBlock, pProbe, startIdx, endIdx));
 
   int32_t code = hJoinSetKeyColsData(pBlock, pProbe);
   if (code) {
@@ -1178,14 +1180,17 @@ _exit:
   if (pOperator->cost.openCost == 0) {
     pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
+  
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
+  
   if (pRes->info.rows > 0) {
     *pResBlock = pRes;
     qDebug("%s %s output %" PRId64 " rows final res", GET_TASKID(pTaskInfo), __func__, pRes->info.rows);
+    printDataBlock(*pResBlock, __func__, GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
   }
 
   return code;

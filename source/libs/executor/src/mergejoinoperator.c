@@ -850,7 +850,6 @@ static int32_t mJoinInitColsInfo(int32_t* colNum, int64_t* rowSize, SMJoinColInf
   FOREACH(pNode, pList) {
     SColumnNode* pColNode = (SColumnNode*)pNode;
     (*pCols)[i].srcSlot = pColNode->slotId;
-    (*pCols)[i].jsonData = TSDB_DATA_TYPE_JSON == pColNode->node.resType.type;
     (*pCols)[i].vardata = IS_VAR_DATA_TYPE(pColNode->node.resType.type);
     (*pCols)[i].bytes = pColNode->node.resType.bytes;
     *rowSize += pColNode->node.resType.bytes;
@@ -1501,17 +1500,15 @@ int32_t mJoinSetKeyColsData(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
 bool mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t* pBufLen) {
   char*  pData = NULL;
   size_t bufLen = 0;
+  int32_t dataLen = 0;
 
   if (1 == pTable->keyNum) {
     if (colDataIsNull_s(pTable->keyCols[0].colData, rowIdx)) {
       return true;
     }
-    if (pTable->keyCols[0].jsonData) {
+    if (pTable->keyCols[0].vardata) {
       pData = pTable->keyCols[0].data + pTable->keyCols[0].offset[rowIdx];
-      bufLen = getJsonValueLen(pData);
-    } else if (pTable->keyCols[0].vardata) {
-      pData = pTable->keyCols[0].data + pTable->keyCols[0].offset[rowIdx];
-      bufLen = varDataTLen(pData);
+      bufLen = calcStrBytesByType(pTable->keyCols[0].colData->info.type, pData);
     } else {
       pData = pTable->keyCols[0].data + pTable->keyCols[0].bytes * rowIdx;
       bufLen = pTable->keyCols[0].bytes;
@@ -1522,14 +1519,11 @@ bool mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t* p
       if (colDataIsNull_s(pTable->keyCols[i].colData, rowIdx)) {
         return true;
       }
-      if (pTable->keyCols[0].jsonData) {
+      if (pTable->keyCols[i].vardata) {
         pData = pTable->keyCols[i].data + pTable->keyCols[i].offset[rowIdx];
-        TAOS_MEMCPY(pTable->keyBuf + bufLen, pData, getJsonValueLen(pData));
-        bufLen += getJsonValueLen(pData);
-      } else if (pTable->keyCols[i].vardata) {
-        pData = pTable->keyCols[i].data + pTable->keyCols[i].offset[rowIdx];
-        TAOS_MEMCPY(pTable->keyBuf + bufLen, pData, varDataTLen(pData));
-        bufLen += varDataTLen(pData);
+        dataLen = calcStrBytesByType(pTable->keyCols[i].colData->info.type, pData);
+        TAOS_MEMCPY(pTable->keyBuf + bufLen, pData, dataLen);
+        bufLen += dataLen;
       } else {
         pData = pTable->keyCols[i].data + pTable->keyCols[i].bytes * rowIdx;
         TAOS_MEMCPY(pTable->keyBuf + bufLen, pData, pTable->keyCols[i].bytes);
