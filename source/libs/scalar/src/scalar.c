@@ -909,19 +909,24 @@ int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset,
         sclError("invalid external window column index: %d", ((SValueNode*)pParamNode)->placeholderNo);
         return TSDB_CODE_INTERNAL_ERROR;
       }
-      SValue *pValue = taosArrayGet(pParams->pExternalWindowData, placeHoderIndex);
+      SStreamGroupValue *pValue = taosArrayGet(pParams->pExternalWindowData, placeHoderIndex);
       if (pValue == NULL) {
         sclError("null external window column data");
         return TSDB_CODE_INTERNAL_ERROR;
       }
-      
-      if (IS_VAR_DATA_TYPE(pValue->type) || pValue->type == TSDB_DATA_TYPE_DECIMAL) {
-        // variable-length type: use pData pointer directly
-        return colDataSetNItems(pResColData, offset, (const char *)pValue->pData, rows, 1, false);
-      } else {
-        // fixed-length type: use val field (stored as int64_t)
-        return colDataSetNItems(pResColData, offset, (const char *)&pValue->val, rows, 1, false);
+
+      if (pValue->isNull) {
+        colDataSetNItemsNull(pResColData, offset, rows);
+        return TSDB_CODE_SUCCESS;
       }
+      
+      if (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL) {
+        // variable-length type: use pData pointer directly
+        return colDataSetNItems(pResColData, offset, (const char *)pValue->data.pData, rows, 1, false);
+      }
+      
+      // fixed-length type: use val field (stored as int64_t)
+      return colDataSetNItems(pResColData, offset, (const char *)&pValue->data.val, rows, 1, false);
     }
     default:
       uError("invalid placeholder function type: %d in ext win range expr", t);

@@ -3718,7 +3718,7 @@ static int32_t extWinBuildExternalWindowDataForRow(SSDataBlock* pBlock, int32_t 
                                                    SArray** ppExternalData) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  SArray* pExternalData = taosArrayInit(numCols - 2, sizeof(SValue));
+  SArray* pExternalData = taosArrayInit(numCols - 2, sizeof(SStreamGroupValue));
   TSDB_CHECK_NULL(pBlock, code, lino, _exit, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pBlock->pDataBlock, code, lino, _exit, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(ppExternalData, code, lino, _exit, TSDB_CODE_INVALID_PARA);
@@ -3730,23 +3730,27 @@ static int32_t extWinBuildExternalWindowDataForRow(SSDataBlock* pBlock, int32_t 
       continue;
     }
 
-    SValue val = {0};
-    val.type = pColData->info.type;
+    SStreamGroupValue data = {0};
+    SValue* pVal = &data.data;
+
+    pVal->type = pColData->info.type;
 
     if (!colDataIsNull_s(pColData, row)) {
       void* pData = colDataGetData(pColData, row);
-      if (IS_VAR_DATA_TYPE(val.type) || val.type == TSDB_DATA_TYPE_DECIMAL) {
-        int32_t datumLen = IS_VAR_DATA_TYPE(val.type) ? calcStrBytesByType(val.type, (char*)pData) : pColData->info.bytes;
+      if (IS_VAR_DATA_TYPE(pVal->type) || pVal->type == TSDB_DATA_TYPE_DECIMAL) {
+        int32_t datumLen = IS_VAR_DATA_TYPE(pVal->type) ? calcStrBytesByType(pVal->type, (char*)pData) : pColData->info.bytes;
         void* pDataCopy = taosMemoryMalloc(datumLen);
         TSDB_CHECK_NULL(pDataCopy, code, lino, _exit, terrno);
         memcpy(pDataCopy, pData, datumLen);
-        valueSetDatum(&val, val.type, pDataCopy, datumLen);
+        valueSetDatum(pVal, pVal->type, pDataCopy, datumLen);
       } else {
-        valueSetDatum(&val, val.type, pData, pColData->info.bytes);
+        valueSetDatum(pVal, pVal->type, pData, pColData->info.bytes);
       }
+    } else {
+      data.isNull = true;
     }
 
-    TSDB_CHECK_NULL(taosArrayPush(pExternalData, &val), code, lino, _exit, terrno);
+    TSDB_CHECK_NULL(taosArrayPush(pExternalData, &data), code, lino, _exit, terrno);
   }
 
   *ppExternalData = pExternalData;

@@ -957,17 +957,21 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
     }
   } else if(FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN == t) {
     SNode* pParamNode = nodesListGetNode(pParamNodes, 1);
-    const SValue* pVal = fmGetExternalWindowColumnFuncVal(pStreamRuntimeInfo, ((SValueNode*)pParamNode)->placeholderNo);
+    const SStreamGroupValue* pVal = fmGetExternalWindowColumnFuncVal(pStreamRuntimeInfo, ((SValueNode*)pParamNode)->placeholderNo);
     if (!pVal) {
       uError("failed to set stream pseudo func param val, NULL val for funcId: %d", funcId);
       return TSDB_CODE_INTERNAL_ERROR;
     }
-    if (IS_VAR_DATA_TYPE(pVal->type)) {
-      code = nodesSetValueNodeValue((SValueNode*)pFirstParam, pVal->pData);
+    if (pVal->isNull) {
+      ((SValueNode*)pFirstParam)->isNull = true;
     } else {
-      code = nodesSetValueNodeValue((SValueNode*)pFirstParam, (void*)&pVal->val);
+      ((SValueNode*)pFirstParam)->isNull = false;
+      if (IS_VAR_DATA_TYPE(pVal->data.type)) {
+        code = nodesSetValueNodeValue((SValueNode*)pFirstParam, pVal->data.pData);
+      } else {
+        code = nodesSetValueNodeValue((SValueNode*)pFirstParam, (void*)&pVal->data.val);
+      }
     }
-    ((SValueNode*)pFirstParam)->isNull = colDataIsNull_s(const SColumnInfoData *pColumnInfoData, uint32_t row) pVal->isNull;
     if (code != 0) {
       uError("failed to set value node value: %s", tstrerror(code));
       return code;
