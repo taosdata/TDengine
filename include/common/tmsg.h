@@ -1469,9 +1469,7 @@ typedef struct {
       uint32_t sysPriv : 1;  // system or object privileges
       uint32_t objLevel : 2;
       uint32_t ignoreNotExists : 1;
-      uint32_t legacyDbGrant : 1;       // legacy "grant ... on db to user" syntax requiring expansion
-      uint32_t legacyTblStarGrant : 1;  // legacy "grant all/read/write on db.* to user" syntax, expand to views
-      uint32_t reserve : 24;
+      uint32_t reserve : 26;
     };
   };
   union {

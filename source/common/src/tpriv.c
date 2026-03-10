@@ -737,3 +737,64 @@ void privAddSetByObjType(SPrivSet* fromSet, SPrivSet* toSet, uint8_t objType) {
     }
   }
 }
+
+EPrivObjType translateDeduceObjType(SPrivSet* privSet) {
+  uint32_t objTypeMask = 0;  // extend to uint64_t if needed
+
+  if (PRIV_OBJ_MAX >= 32) {
+    return PRIV_OBJ_NONE;
+  }
+
+  SPrivIter privIter = {0};
+  privIterInit(&privIter, privSet);
+  SPrivInfo* pPrivInfo = NULL;
+
+  while (privIterNext(&privIter, &pPrivInfo)) {
+    if (pPrivInfo->category == PRIV_CATEGORY_SYSTEM) {
+      return PRIV_OBJ_NONE;
+    }
+    if (pPrivInfo->category == PRIV_CATEGORY_OBJECT) {
+      switch (pPrivInfo->objType) {
+        case PRIV_OBJ_DB:
+          objTypeMask |= (1 << PRIV_OBJ_DB);
+          break;
+        case PRIV_OBJ_TBL:
+          objTypeMask |= (1 << PRIV_OBJ_TBL);
+          break;
+        case PRIV_OBJ_VIEW:
+          objTypeMask |= (1 << PRIV_OBJ_VIEW);
+          break;
+        case PRIV_OBJ_TOPIC:
+          objTypeMask |= (1 << PRIV_OBJ_TOPIC);
+          break;
+        case PRIV_OBJ_IDX:
+          objTypeMask |= (1 << PRIV_OBJ_IDX);
+          break;
+        case PRIV_OBJ_RSMA:
+          objTypeMask |= (1 << PRIV_OBJ_RSMA);
+          break;
+        case PRIV_OBJ_TSMA:
+          objTypeMask |= (1 << PRIV_OBJ_TSMA);
+          break;
+        case PRIV_OBJ_STREAM:
+          objTypeMask |= (1 << PRIV_OBJ_STREAM);
+          break;
+        default:
+          return PRIV_OBJ_NONE;
+      }
+    } else if (pPrivInfo->privType == PRIV_CM_SUBSCRIBE) {
+      objTypeMask |= (1 << PRIV_OBJ_TOPIC);
+    }
+    if (objTypeMask > 0) {
+      uint32_t mask = objTypeMask & (objTypeMask - 1);
+      if (mask > 0) return PRIV_OBJ_NONE;
+    }
+  }
+  if (objTypeMask == 0) return PRIV_OBJ_NONE;
+
+  int32_t bitPos = BUILDIN_CTZL(objTypeMask);
+  if (bitPos < 0 || bitPos >= PRIV_OBJ_MAX) {
+    return PRIV_OBJ_NONE;
+  }
+  return bitPos;
+}
