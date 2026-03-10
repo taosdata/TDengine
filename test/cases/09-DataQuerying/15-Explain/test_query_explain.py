@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck, tdCom, tdDnodes,etool
+from new_test_framework.utils import tdLog, tdSql, tdStream, tdCom, tdDnodes, etool
 import datetime
 import random
 import re
@@ -987,6 +987,26 @@ class TestExplain:
                 lines.append(str(line))
         return lines
 
+    def __check_filter_efficiency_percent(self, plan_lines):
+        matched = []
+        for line in plan_lines:
+            if "Filter" not in line or "Tag Index" in line:
+                continue
+            m = re.search(r"efficiency=(\d+(?:\.\d+)?)%", line)
+            if m is None:
+                raise AssertionError(
+                    "efficiency field not found in Filter line: {}".format(line)
+                )
+            try:
+                matched.append(float(m.group(1)))
+            except ValueError:
+                raise AssertionError(
+                    "efficiency value is not a valid number in line: {}".format(line)
+                )
+
+        for v in matched:
+            assert 0.0 <= v <= 100.0, f"efficiency out of range: {v}"
+
     def __extract_scan_rows_by_exchange(self, plan_lines):
         exchange_idx = [
             idx for idx, line in enumerate(plan_lines) if "Data Exchange" in line
@@ -1018,25 +1038,39 @@ class TestExplain:
         tdSql.execute("insert into t1 values(now, 1)")
         tdSql.execute("insert into t2 values(now - 1s, 2)(now - 2s, 3)(now - 3s, 4)")
 
+        # check partition by gid
         tdSql.query("explain analyze verbose true select * from stb partition by gid")
-
         plan_lines = self.__extract_explain_plan_lines()
         exchange_idx, scan_rows = self.__extract_scan_rows_by_exchange(plan_lines)
-        assert len(exchange_idx) >= 2, (
-            "expect at least two Data Exchange nodes for partition by gid"
+        assert len(exchange_idx) == 2, (
+            "expect two Data Exchange nodes for partition by gid"
         )
 
-        assert len(scan_rows) >= 2, (
+        assert len(scan_rows) == 2, (
             "expect each Data Exchange branch has Table Scan statistics"
         )
-        assert len(set(scan_rows)) >= 2 and sum(scan_rows) == insert_rows, (
-            "table scan stats should not be merged across exchange branches"
+        assert len(set(scan_rows)) == 2 and sum(scan_rows) == insert_rows, (
+            "table scan stats should be merged across exchange branches"
         )
 
-        tdSql.execute("drop database if exists db_explain_reg")
-        print("do explain partition by tag regression ... [passed]")
+        # check union and filter
+        tdSql.query("explain analyze verbose true select ts, v from stb where "
+            "gid < 3 and v > 0 union select * from t3")
+        plan_lines = self.__extract_explain_plan_lines()
+        exchange_idx, scan_rows = self.__extract_scan_rows_by_exchange(plan_lines)
+        assert len(exchange_idx) == 2, (
+            "expect two Data Exchange nodes for union and filter"
+        )
 
-    
+        # only first query has exchange operator and data
+        assert len(set(scan_rows)) == 1 and sum(scan_rows) == insert_rows, (
+            "table scan stats should be merged across exchange branches"
+        )
+
+        self.__check_filter_efficiency_percent(plan_lines)
+
+        tdLog.info("do explain partition by tag regression ... [passed]")
+
     #
     # ------------------- main ----------------
     #
@@ -1064,4 +1098,3 @@ class TestExplain:
         self.do_td_20582()
         self.do_explain_complex()
         self.do_explain_partition_by_tag_regression()
-    
