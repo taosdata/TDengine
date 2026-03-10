@@ -34,6 +34,8 @@ char *gJoinTypeStr[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
 
 static int32_t qExplainGenerateResNode(SSubplan *plan, SPhysiNode *pNode, SExplainGroup *group, SExplainResNode **pResNode);
 static int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t *level, bool singleChannel);
+static int32_t qExplainAppendGroupResRowsByVgIds(void *pCtx, int32_t groupId, int32_t *level,
+                                                 bool grpSingleChannel, const SArray* pVgIds);
 
 /*
  * Convert dynamic-query control type to a printable explain label.
@@ -91,6 +93,26 @@ char* qExplainGetTimerangeTargetStr(int32_t target) {
   }
 
   return targetName[target];
+}
+
+static bool qExplainRspMatchVgIds(const SExplainRsp* pRsp, const SArray* pVgIds) {
+  if (NULL == pRsp || NULL == pVgIds || pRsp->numOfPlans <= 0 ||
+      NULL == pRsp->subplanInfo) {
+    return false;
+  }
+
+  int32_t vgCnt = (int32_t)taosArrayGetSize(pVgIds);
+  for (int32_t subplanIdx = 0; subplanIdx < pRsp->numOfPlans; ++subplanIdx) {
+    int32_t rspVgId = pRsp->subplanInfo[subplanIdx].vgId;
+    for (int32_t vgIdx = 0; vgIdx < vgCnt; ++vgIdx) {
+      const int32_t* pCurr = taosArrayGet(pVgIds, vgIdx);
+      if (pCurr && *pCurr == rspVgId) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 void qExplainFreeResNode(SExplainResNode *resNode) {
@@ -1192,11 +1214,24 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE: {
       SExchangePhysiNode *pExchNode = (SExchangePhysiNode *)pNode;
       int32_t nodeNum = 0;
-      for (int32_t i = pExchNode->srcStartGroupId; i <= pExchNode->srcEndGroupId; ++i) {
-        SExplainGroup      *group = taosHashGet(ctx->pCurrPlanCtx->groupHash, &pExchNode->srcStartGroupId, sizeof(pExchNode->srcStartGroupId));
+      for (int32_t gid = pExchNode->srcStartGroupId; gid <= pExchNode->srcEndGroupId; ++gid) {
+        SExplainGroup *group = taosHashGet(ctx->pCurrPlanCtx->groupHash, &gid, sizeof(gid));
         if (NULL == group) {
-          qError("exchange src group %d not in groupHash", pExchNode->srcStartGroupId);
+          qError("exchange src group %d not in groupHash", gid);
           QRY_ERR_RET(TSDB_CODE_APP_ERROR);
+        }
+
+        if (pExchNode->childrenVgIds && group->nodeExecInfo) {
+          int32_t matchedCnt = 0;
+          int32_t rspCnt = (int32_t)taosArrayGetSize(group->nodeExecInfo);
+          for (int32_t j = 0; j < rspCnt; ++j) {
+            const SExplainRsp* pRsp = taosArrayGet(group->nodeExecInfo, j);
+            if (qExplainRspMatchVgIds(pRsp, pExchNode->childrenVgIds)) {
+              ++matchedCnt;
+            }
+          }
+          nodeNum += matchedCnt;
+          continue;
         }
 
         nodeNum += group->nodeNum;
@@ -1259,7 +1294,12 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
 
       for (int32_t i = pExchNode->srcStartGroupId; i <= pExchNode->srcEndGroupId; ++i) {
         int32_t nlevel = level + 1;
-        QRY_ERR_RET(qExplainAppendGroupResRows(ctx, i, &nlevel, pExchNode->grpSingleChannel));
+        if (pExchNode->childrenVgIds) {
+          QRY_ERR_RET(qExplainAppendGroupResRowsByVgIds(ctx, i, &nlevel, pExchNode->grpSingleChannel,
+                                                        pExchNode->childrenVgIds));
+        } else {
+          QRY_ERR_RET(qExplainAppendGroupResRows(ctx, i, &nlevel, pExchNode->grpSingleChannel));
+        }
       }
       break;
     }
@@ -2564,6 +2604,66 @@ _return:
 
   qExplainFreeResNode(node);
 
+  QRY_RET(code);
+}
+
+/**
+  @brief Append explain rows for one group filtered by exchange children vgIds.
+*/
+static int32_t qExplainAppendGroupResRowsByVgIds(void *pCtx, int32_t groupId, int32_t *level,
+                                                 bool grpSingleChannel, const SArray* pVgIds) {
+  SExplainResNode *node = NULL;
+  int32_t          code = 0;
+  SExplainCtx     *ctx = (SExplainCtx *)pCtx;
+  SExplainGroup    filtered = {0};
+
+  SExplainGroup *group = taosHashGet(ctx->pCurrPlanCtx->groupHash, &groupId, sizeof(groupId));
+  if (NULL == group) {
+    qError("%s failed at line %d, group %d not in groupHash",
+           __func__, __LINE__, groupId);
+    QRY_ERR_RET(TSDB_CODE_INTERNAL_ERROR);
+  }
+
+  filtered.plan = group->plan;
+  filtered.singleChannel = false;
+  filtered.physiPlanExecIdx = 0;
+
+  if (group->nodeExecInfo && pVgIds) {
+    int32_t rspCnt = (int32_t)taosArrayGetSize(group->nodeExecInfo);
+    filtered.nodeExecInfo = taosArrayInit(rspCnt, sizeof(SExplainRsp));
+    if (NULL == filtered.nodeExecInfo) {
+      QRY_ERR_RET(terrno);
+    }
+
+    for (int32_t i = 0; i < rspCnt; ++i) {
+      const SExplainRsp *pRsp = taosArrayGet(group->nodeExecInfo, i);
+      if (!qExplainRspMatchVgIds(pRsp, pVgIds)) {
+        continue;
+      }
+      if (NULL == taosArrayPush(filtered.nodeExecInfo, pRsp)) {
+        QRY_ERR_JRET(terrno);
+      }
+    }
+
+    filtered.nodeNum = (int32_t)taosArrayGetSize(filtered.nodeExecInfo);
+  } else {
+    filtered.nodeNum = group->nodeNum;
+    filtered.nodeExecInfo = group->nodeExecInfo;
+    filtered.singleChannel = grpSingleChannel;
+  }
+
+  if (filtered.nodeNum <= 0) {
+    goto _return;
+  }
+
+  QRY_ERR_RET(qExplainGenerateResNode(filtered.plan, filtered.plan->pNode, &filtered, &node));
+  QRY_ERR_JRET(qExplainResNodeToRows(node, ctx, level));
+
+_return:
+  qExplainFreeResNode(node);
+  if (filtered.nodeExecInfo != group->nodeExecInfo) {
+    taosArrayDestroy(filtered.nodeExecInfo);
+  }
   QRY_RET(code);
 }
 
