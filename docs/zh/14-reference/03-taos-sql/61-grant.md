@@ -405,7 +405,7 @@ GRANT privileges ON [priv_obj] priv_level [WITH condition] TO {user_name | role_
 -- 撤销对象权限
 REVOKE privileges ON [priv_obj] priv_level [WITH condition] FROM {user_name | role_name}
 
--- 权限作用对象（不指定默认为表）
+-- 权限作用对象
 priv_obj: {
     database           -- 数据库
   | table              -- 表
@@ -416,6 +416,9 @@ priv_obj: {
   | topic              -- 主题
   | stream             -- 流计算
 }
+说明：
+-- 不指定 priv_obj 时：1）在 3.4.0.0 至 3.4.0.10 版本，priv_obj 默认为 table。2）自 3.4.0.11 版本起，如果 enableAdvancedSecurity 为 0，兼容 3.3.x.y 版本语法的功能，根据 privileges 中的权限类型 和 priv_level，自适应的扩展为 database/table/view/index/tsma/rsma/topic/stream 对应的权限；如果 enableAdvancedSecurity 为 1，不兼容 3.3.x.y 版本语法的功能，仅自适应的扩展为 table/view/topic 对应的权限。
+-- 为了更精细的控制权限对象，推荐明确的指定 priv_obj。
 
 priv_level: {
     *                  -- 所有库
@@ -427,6 +430,7 @@ priv_level: {
 
 privileges: {
     ALL [PRIVILEGES]
+  | read | write       -- 为兼容 3.3.x.y 版本的语法，自 3.4.0.11 版本开始支持 read/write
   | priv_type [, priv_type] ...
 }
 

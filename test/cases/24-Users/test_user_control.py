@@ -450,7 +450,7 @@ class TestUserControl:
             self.__grant_user_privileges(privilege="any_priv", user_name=self.__user_list[0]),
             self.__grant_user_privileges(privilege="", dbname="db", user_name=self.__user_list[0]) ,
             self.__grant_user_privileges(privilege=" ".join(self.__privilege), user_name=self.__user_list[0]) ,
-            f"GRANT {self.__privilege[0]} ON * TO {self.__user_list[0]}" ,
+            f"GRANT {self.__privilege[0]} ON _ TO {self.__user_list[0]}" ,
             # f"GRANT {self.__privilege[0]} ON {DBNAME}.{NTBNAME} TO {self.__user_list[0]}" ,
         ]
 
@@ -463,7 +463,7 @@ class TestUserControl:
             self.__revoke_user_privileges(privilege="any_priv", user_name=self.__user_list[0]),
             self.__revoke_user_privileges(privilege="", dbname="db", user_name=self.__user_list[0]) ,
             self.__revoke_user_privileges(privilege=" ".join(self.__privilege), user_name=self.__user_list[0]) ,
-            f"REVOKE {self.__privilege[0]} ON * FROM {self.__user_list[0]}" ,
+            f"REVOKE {self.__privilege[0]} ON . FROM {self.__user_list[0]}" ,
             # f"REVOKE {self.__privilege[0]} ON {DBNAME}.{NTBNAME} FROM {self.__user_list[0]}" ,
         ]
 

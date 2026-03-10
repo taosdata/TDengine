@@ -4003,6 +4003,9 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
   if (pUser->enable == 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_USER_DISABLED);
   }
+  if(pUser->superUser) {
+    TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);
+  }
 
   if (pAlterReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
 #ifdef TD_ENTERPRISE
