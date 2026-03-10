@@ -8,7 +8,6 @@ import psutil
 import sys
 import zipfile
 import signal
-import signal
 from datetime import datetime
 
 logging.basicConfig(level=logging.INFO,
