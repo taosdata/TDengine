@@ -205,6 +205,12 @@ alter_table_option: {
 ALTER TABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 ...;
 ```
 
+#### 批量修改标签值
+
+```sql
+ALTER TABLE tb_name1 SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 tb_name2 SET TAG tag_name3=new_tag_value3 ...;
+```
+
 #### 修改生命周期
 
 ```sql
