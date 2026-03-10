@@ -17884,7 +17884,8 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
                                      "Table name should be empty for database level privileges");
     }
   } else if (objLevel > 0) {
-    if (pStmt->tabName[0] == '\0' && pReq->objType != PRIV_OBJ_NONE) {  // grant privType on topic1 to u1;
+    if (pStmt->tabName[0] == '\0' &&
+        (pReq->objType != PRIV_OBJ_NONE && pReq->objType != PRIV_OBJ_TOPIC)) {  // grant privType on topic1 to u1;
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "Table name cannot be empty for non-database level privileges");
     }
@@ -17908,6 +17909,22 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                      "Cannot grant/revoke this privilege on system database");
     }
+  } else {
+    if (IS_SPECIFIC_OBJ(pStmt->objName) && pStmt->tabName[0] != 0) {
+      SDbCfgInfo dbCfg = {0};
+      code = getDBCfg(pCxt, pStmt->objName, &dbCfg);
+
+      // don't validate the object when revoke
+      if (grant && code != TSDB_CODE_SUCCESS) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST, "Failed to get database %s since %s",
+                                       pStmt->objName, tstrerror(code));
+      }
+
+      if (code == TSDB_CODE_SUCCESS && dbCfg.isAudit) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                       "Cannot grant/revoke privileges on audit database");
+      }
+    }
   }
 
   switch (objType) {
@@ -17918,21 +17935,6 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                        "Table name should be empty for database level privileges");
       }
-      // don't validate the object when revoke
-      if (strncmp(pStmt->objName, "*", 2) != 0) {
-        SDbCfgInfo dbCfg = {0};
-        code = getDBCfg(pCxt, pStmt->objName, &dbCfg);
-
-        if (grant && code != TSDB_CODE_SUCCESS) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST,
-                                         "Failed to get database %s since %s", pStmt->objName, tstrerror(code));
-        }
-
-        if (code == TSDB_CODE_SUCCESS && dbCfg.isAudit) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                         "Cannot grant/revoke privileges on audit database");
-        }
-      }
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
       TAOS_CHECK_EXIT(privExpandRw(&pReq->privileges.privSet, objType, objLevel));
       break;
@@ -17940,13 +17942,6 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
     case PRIV_OBJ_TBL:
       TAOS_CHECK_EXIT(translateGrantFillColPrivileges(pCxt, pStmt, pReq));
     case PRIV_OBJ_VIEW: {
-      if (grant && (strncmp(pStmt->objName, "*", 2) != 0)) {
-        SDbCfgInfo  dbCfg = {0};
-        if (0 != (code = getDBCfg(pCxt, pStmt->objName, &dbCfg))) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST,
-                                         "Failed to get database %s since %s", pStmt->objName, tstrerror(code));
-        }
-      }
       if (0 != pStmt->tabName[0]) {
         // not validate the object when revoke
         if (grant && (strncmp(pStmt->tabName, "*", 2) != 0)) {
@@ -18005,24 +18000,8 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
       break;
     case PRIV_OBJ_TOKEN:
       break;
-    case PRIV_OBJ_NONE: {
-      if (IS_SPECIFIC_OBJ(pStmt->objName) && pStmt->tabName[0] != 0) {
-        SDbCfgInfo dbCfg = {0};
-        code = getDBCfg(pCxt, pStmt->objName, &dbCfg);
-
-        // don't validate the object when revoke
-        if (grant && code != TSDB_CODE_SUCCESS) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST,
-                                         "Failed to get database %s since %s", pStmt->objName, tstrerror(code));
-        }
-
-        if (code == TSDB_CODE_SUCCESS && dbCfg.isAudit) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                         "Cannot grant/revoke privileges on audit database");
-        }
-      }
+    case PRIV_OBJ_NONE: 
       break;
-    }
     default:
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "Unsupported object type for privilege");

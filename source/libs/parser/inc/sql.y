@@ -556,8 +556,8 @@ priv_type(A) ::= ALTER TOKEN.                                                   
 priv_type(A) ::= SHOW TOKENS.                                                     { A = PRIV_SET_TYPE(PRIV_TOKEN_SHOW); }
 
 priv_type(A) ::= UPDATE KEY.                                                      { A = PRIV_SET_TYPE(PRIV_KEY_UPDATE); }
-priv_type(A) ::= CREATE TOTP.                                                     { A = PRIV_SET_TYPE(PRIV_TOTP_CREATE); }
-priv_type(A) ::= DROP TOTP.                                                       { A = PRIV_SET_TYPE(PRIV_TOTP_DROP); }
+priv_type(A) ::= CREATE TOTP_SECRET.                                              { A = PRIV_SET_TYPE(PRIV_TOTP_CREATE); }
+priv_type(A) ::= DROP TOTP_SECRET.                                                { A = PRIV_SET_TYPE(PRIV_TOTP_DROP); }
 
 priv_type(A) ::= GRANT PRIVILEGE.                                                 { A = PRIV_SET_TYPE(PRIV_GRANT_PRIVILEGE); }
 priv_type(A) ::= REVOKE PRIVILEGE.                                                { A = PRIV_SET_TYPE(PRIV_REVOKE_PRIVILEGE); }
