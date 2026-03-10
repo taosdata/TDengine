@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
+import ctypes
 import sys
 import os
 import os.path
@@ -25,6 +26,7 @@ import shutil
 import psutil
 from fabric2 import Connection
 from shutil import which
+import signal
 
 # self
 from ..log import *
@@ -57,7 +59,7 @@ class TDDnode:
             "stDebugFlag": "135",
             "smaDebugFlag": "135",
             "jniDebugFlag": "131",
-            "qDebugFlag": "131",
+            "qDebugFlag": "143",
             "rpcDebugFlag": "135",
             "tmrDebugFlag": "131",
             "uDebugFlag": "131",
@@ -282,7 +284,9 @@ class TDDnode:
 
         if self.valgrind == 0:
             if platform.system().lower() == "windows":
-                cmd = f"mintty -h never {self.binPath} -c {self.cfgDir}"
+                # cmd = f"mintty -h never {self.binPath} -c {self.cfgDir}"
+                cmd = ""
+                self.startOnWindows(self.binPath, self.cfgDir)
             else:
                 if self.asan:
                     asanDir = "%s/asan/dnode%d.asan" % (self.path, self.index)
@@ -392,7 +396,9 @@ class TDDnode:
 
         if self.valgrind == 0:
             if platform.system().lower() == "windows":
-                cmd = "mintty -h never %s -c %s" % (self.binPath, self.cfgDir)
+                cmd = ""
+                # cmd = "mintty -h never %s -c %s" % (self.binPath, self.cfgDir)
+                self.startOnWindows(self.binPath, self.cfgDir)
             else:
                 if self.asan:
                     asanDir = "%s/asan/dnode%d.asan" % (self.path, self.index)
@@ -488,7 +494,8 @@ class TDDnode:
 
         if self.valgrind == 0:
             if platform.system().lower() == "windows":
-                cmd = "mintty -h never %s -c %s" % (self.binPath, self.cfgDir)
+                # cmd = "mintty -h never %s -c %s" % (self.binPath, self.cfgDir)
+                self.startOnWindows(self.binPath, self.cfgDir)
             else:
                 if self.asan:
                     asanDir = "%s/asan/dnode%d.asan" % (self.path, self.index)
@@ -543,6 +550,55 @@ class TDDnode:
         self.running = 1
         tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
 
+    def startOnWindows(self, taosd, cfg):
+        pid = subprocess.Popen(
+            [taosd, "-c", cfg],
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        tdLog.info(f"taosd started with PID: {pid.pid}")
+        
+    def stopOnWindows(self):
+        try:
+            pid = None
+            # 通过 psutil 查找进程
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    if 'taosd' in (proc.info['name'] or '').lower():
+                        if proc.info['cmdline'] and f'dnode{self.index}' in str(proc.info['cmdline']):
+                            pid = proc.info['pid']
+                            break
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+
+            if pid:
+                tdLog.info(f"Sending CTRL_BREAK_EVENT to taosd process (PID: {pid})")
+                # 发送 CTRL_BREAK_EVENT 信号，taosd 会捕获并优雅退出
+                os.kill(pid, signal.CTRL_BREAK_EVENT)
+                # ctypes.windll.kernel32.GenerateConsoleCtrlEvent(1, pid)
+                # 等待进程退出
+                timeout = 30
+                interval = 0.5
+                waited = 0
+                while waited < timeout:
+                    # 检查进程是否还存在
+                    if not psutil.pid_exists(pid):
+                        tdLog.info(f"taosd process {pid} has exited")
+                        break
+                    sleep(interval)
+                    waited += interval
+                
+                if waited >= timeout:
+                    tdLog.info(f"taosd process {pid} did not exit gracefully, force killing...")
+                    os.kill(pid, signal.SIGTERM)
+
+            else:
+                tdLog.info(f"No taosd process found for dnode{self.index}")
+                
+        except Exception as e:
+            tdLog.error(f"Error stopping taosd: {e}")
+            
     def stop(self):
         if self.asan:
             stopCmd = "%s -s stop -n dnode%d" % (self.execPath, self.index)
@@ -565,24 +621,7 @@ class TDDnode:
 
         if self.running != 0:
             if platform.system().lower() == "windows":
-                pid = None
-                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                    if 'mintty' in  proc.info['name']:
-                        tdLog.info(proc.info['cmdline'])
-                    if ('mintty' in  proc.info['name']
-                        and proc.info['cmdline']  # 确保 cmdline 非空
-                        and 'taosd' in proc.info['cmdline'][3] and f'dnode{self.index}' in proc.info['cmdline'][5]
-                    ):
-                        tdLog.info(proc.info)
-                        tdLog.info("Found taosd.exe process with PID: %s", proc.info['pid'])
-                        pid = proc.info['pid']
-                        killCmd = f"taskkill /PID {pid} /T /F"
-                        #killCmd = "for /f %%a in ('wmic process where \"name='taosd.exe'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)"
-                        os.system(killCmd)
-                        tdLog.info("dnode:%d is stopped by kill -INT" % (self.index))
-                        break
-                if pid is None:
-                    tdLog.error("No taosd.exe process found for dnode:%d" % (self.index))
+                self.stopOnWindows()
             else:
                 psCmd = (
                     "ps -efww |grep -w %s| grep -v grep | awk '{print $2}' | xargs"
@@ -640,24 +679,8 @@ class TDDnode:
 
         if self.running != 0:
             if platform.system().lower() == "windows":
-                pid = None
-                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                    if 'mintty' in  proc.info['name']:
-                        tdLog.info(proc.info['cmdline'])
-                    if ('mintty' in  proc.info['name']
-                        and proc.info['cmdline']  # 确保 cmdline 非空
-                        and 'taosd' in proc.info['cmdline'][3] and f'dnode{self.index}' in proc.info['cmdline'][5]
-                    ):
-                        tdLog.info(proc.info)
-                        tdLog.info("Found taosd.exe process with PID: %s", proc.info['pid'])
-                        pid = proc.info['pid']
-                        killCmd = f"taskkill /PID {pid} /T /F"
-                        #killCmd = "for /f %%a in ('wmic process where \"name='taosd.exe'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)"
-                        os.system(killCmd)
-                        tdLog.info("dnode:%d is stopped by kill -INT" % (self.index))
-                        break
-                if pid is None:
-                    tdLog.error("No taosd.exe process found for dnode:%d" % (self.index))
+                # Windows 平台：使用 CTRL_BREAK_EVENT 发送信号实现优雅停止
+                self.stopOnWindows()
             else:
                 psCmd = (
                     "ps -efww | grep -w %s | grep dnode%d | grep -v grep | awk '{print $2}' | xargs"

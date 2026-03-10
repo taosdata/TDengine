@@ -137,8 +137,17 @@ class TaosD:
                 self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
             else:
                 if platform.system().lower() == "windows":
-                    start_cmd = f"mintty -h never {taosd_path} -c {dnode['config_dir']}"
-                    self._remote.cmd_windows(cfg["fqdn"], [start_cmd])
+                    # Windows 平台使用 subprocess.Popen 启动
+                    pid = subprocess.Popen(
+                        [taosd_path, "-c", dnode['config_dir']],
+                        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE
+                    )
+                    self.logger.info(f"taosd started with PID: {pid.pid}")
+
+                    # start_cmd = f"mintty -h never {taosd_path} -c {dnode['config_dir']}"
+                    # self._remote.cmd_windows(cfg["fqdn"], [start_cmd])
                 else:
                     start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}  "
                     self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
