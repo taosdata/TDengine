@@ -17,8 +17,6 @@
 #include "meta.h"
 #include "vnd.h"
 
-static char tsMetaRepairDoneVnodeId[PATH_MAX] = {0};
-
 #ifndef NO_UNALIGNED_ACCESS
 #define TDB_KEY_ALIGN(k1, k2, kType)
 #else
@@ -277,46 +275,12 @@ void vnodeGetMetaPath(SVnode *pVnode, const char *metaDir, char *fname) {
   snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
 }
 
-static bool metaRepairListContains(const char *vnodeList, int32_t vgId) {
-  if (vnodeList == NULL || vnodeList[0] == '\0') {
+static bool metaShouldForceRepair(SVnode *pVnode, EDmRepairStrategy *pStrategy) {
+  if (!dmRepairFlowEnabled()) {
     return false;
   }
 
-  char listBuf[PATH_MAX] = {0};
-  tstrncpy(listBuf, vnodeList, sizeof(listBuf));
-
-  char *saveptr = NULL;
-  for (char *token = strtok_r(listBuf, ",", &saveptr); token != NULL; token = strtok_r(NULL, ",", &saveptr)) {
-    if (atoi(token) == vgId) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-static void metaMarkForceRepairDone(int32_t vgId) {
-  char vnodeText[32] = {0};
-  snprintf(vnodeText, sizeof(vnodeText), "%d", vgId);
-
-  if (tsMetaRepairDoneVnodeId[0] == '\0') {
-    tstrncpy(tsMetaRepairDoneVnodeId, vnodeText, sizeof(tsMetaRepairDoneVnodeId));
-    return;
-  }
-
-  if (metaRepairListContains(tsMetaRepairDoneVnodeId, vgId)) {
-    return;
-  }
-
-  int32_t offset = (int32_t)strlen(tsMetaRepairDoneVnodeId);
-  snprintf(tsMetaRepairDoneVnodeId + offset, sizeof(tsMetaRepairDoneVnodeId) - offset, ",%s", vnodeText);
-}
-
-static bool metaForceRepairMatchesVnode(int32_t vgId, EDmRepairStrategy *pStrategy) {
-  if (!dmRepairFlowEnabled() || metaRepairListContains(tsMetaRepairDoneVnodeId, vgId)) {
-    return false;
-  }
-
+  int32_t vgId = TD_VID(pVnode);
   const SRepairMetaVnodeOpt *pOpt = dmRepairGetMetaVnodeOpt(vgId);
   if (pOpt == NULL) {
     return false;
@@ -326,10 +290,6 @@ static bool metaForceRepairMatchesVnode(int32_t vgId, EDmRepairStrategy *pStrate
     *pStrategy = pOpt->strategy;
   }
   return true;
-}
-
-static bool metaShouldForceRepair(SVnode *pVnode, EDmRepairStrategy *pStrategy) {
-  return metaForceRepairMatchesVnode(TD_VID(pVnode), pStrategy);
 }
 
 static int32_t metaCopyDirRecursive(const char *srcDir, const char *dstDir) {
