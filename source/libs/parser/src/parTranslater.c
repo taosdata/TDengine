@@ -24527,10 +24527,6 @@ static int32_t doRewriteAlterMultiTableTagVal(STranslateContext* pCxt, SQuery* p
       goto _error;
     }
 
-    // it seems the below check is neither necessary nor effective, because:
-    //   for tables which has TSMA enabled, buildUpdateTagValReqImpl will return TSDB_CODE_PAR_COL_TAG_REF_BY_STM;
-    //   getTableTsmasFromCache always return a NULL pTsmas;
-#if 0
     if (pCxt->pMetaCache) {
       SArray* pTsmas = NULL;
       code = getTableTsmasFromCache(pCxt->pMetaCache, &tbName, &pTsmas);
@@ -24542,7 +24538,6 @@ static int32_t doRewriteAlterMultiTableTagVal(STranslateContext* pCxt, SQuery* p
         goto _error;
       }
     }
-#endif
 
     pUniqueTag = taosHashInit(pClause->pTagList->length, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
     if (pUniqueTag == NULL) {
@@ -24880,11 +24875,6 @@ static int32_t doRewriteAlterChildTableTagVal(STranslateContext* pCxt, SQuery* p
     goto _error;
   }
 
-  // below code block is not the correct way to check whether a super table has TSMA enabled
-  // as getTableTsmasFromCache always return a NULL pTsmas;
-  // but it seems checking TSMA here is not necessary  because buildUpdateTagValReqImpl
-  // will return TSDB_CODE_PAR_COL_TAG_REF_BY_STM if TSMA is enabled;
-#if 0
   if (pCxt->pMetaCache) {
     SArray* pTsmas = NULL;
     code = getTableTsmasFromCache(pCxt->pMetaCache, &tbName, &pTsmas);
@@ -24896,7 +24886,6 @@ static int32_t doRewriteAlterChildTableTagVal(STranslateContext* pCxt, SQuery* p
       goto _error;
     }
   }
-#endif
 
   code = createAlterChildTableTagValVgroupReqs(pCxt, pStmt, pTableMeta, &pVgroupReqs);
   if (code != TSDB_CODE_SUCCESS) {

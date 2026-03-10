@@ -198,6 +198,12 @@ Parameter Description:
 ALTER TABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 ...;
 ```
 
+### Batch Modify Subtable Tag Value
+
+```sql
+ALTER TABLE tb_name1 SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 tb_name2 SET TAG tag_name3=new_tag_value3 ...
+```
+
 ### Modify Table Lifespan
 
 ```sql
