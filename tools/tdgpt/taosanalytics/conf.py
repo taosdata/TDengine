@@ -33,9 +33,11 @@ class Configure:
 
     def _get_default_conf(self):
         if platform.system().lower() == "windows":
-            raw_path = r"%PROGRAMDATA%"
-            base_path = os.path.join(os.path.expandvars(raw_path), "tdgpt")
-            
+            # raw_path = r"%PROGRAMDATA%"
+            # base_path = os.path.join(os.path.expandvars(raw_path), "tdgpt")
+            # keep inline with the TDengine installation configuration
+            base_path = "c:/TDengine/tdgpt/"
+
             default = {
                 "log_dir": os.path.join(base_path, "log"),
                 "log_file": "taosanode.app.log",

@@ -979,7 +979,7 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
 
   pInfo->cleanGroupResInfo = false;
   while (1) {
-    SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
+    SSDataBlock* pBlock = getNextBlockFromDownstreamRemainDetach(pOperator, 0);
     if (pBlock == NULL) {
       break;
     }
@@ -1279,6 +1279,7 @@ static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
     endIndex = pUnfinishedBlock->info.rows;
 
     pInfo->binfo.pRes->info.scanFlag = pUnfinishedBlock->info.scanFlag;
+    pInfo->binfo.pRes->info.dataLoad = 1;
     code = setInputDataBlock(
       pSup, pUnfinishedBlock, order, pUnfinishedBlock->info.scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1384,10 +1385,20 @@ static int32_t doBuildIntervalResultNext(SOperatorInfo* pOperator, SSDataBlock**
   int32_t                   lino = 0;
   SIntervalAggOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
+  size_t                    rows = 0;
 
-  if (pOperator->status == OP_EXEC_DONE) {
+  if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
     (*ppRes) = NULL;
     return code;
+  }
+
+  if (pOperator->pOperatorGetParam) {
+    if (pOperator->status == OP_EXEC_DONE && pOperator->fpSet.resetStateFn) {
+      code = pOperator->fpSet.resetStateFn(pOperator);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
+    pOperator->pOperatorGetParam = NULL;
   }
 
   SSDataBlock* pBlock = pInfo->binfo.pRes;
@@ -1410,7 +1421,7 @@ static int32_t doBuildIntervalResultNext(SOperatorInfo* pOperator, SSDataBlock**
     }
   }
 
-  size_t rows = pBlock->info.rows;
+  rows = pBlock->info.rows;
   pOperator->resultInfo.totalRows += rows;
 
 _end:
@@ -1881,6 +1892,7 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
     }
 
     pBInfo->pRes->info.scanFlag = pBlock->info.scanFlag;
+    pBInfo->pRes->info.dataLoad = 1;
     if (pInfo->scalarSupp.pExprInfo != NULL) {
       SExprSupp* pExprSup = &pInfo->scalarSupp;
       code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
@@ -2327,7 +2339,7 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
   while (1) {
     SSDataBlock* pBlock = NULL;
     if (pMiaInfo->prefetchedBlock == NULL) {
-      pBlock = getNextBlockFromDownstream(pOperator, 0);
+      pBlock = getNextBlockFromDownstreamRemainDetach(pOperator, 0);
     } else {
       pBlock = pMiaInfo->prefetchedBlock;
       pMiaInfo->prefetchedBlock = NULL;

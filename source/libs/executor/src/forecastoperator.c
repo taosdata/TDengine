@@ -120,8 +120,8 @@ static int32_t forecastCacheBlock(SForecastSupp* pSupp, SSDataBlock* pBlock, con
     char*   val = colDataGetData(pValCol, j);
     int16_t valType = pValCol->info.type;
 
-    pSupp->minTs = MIN(pSupp->minTs, ts);
-    pSupp->maxTs = MAX(pSupp->maxTs, ts);
+    pSupp->minTs = TMIN(pSupp->minTs, ts);
+    pSupp->maxTs = TMAX(pSupp->maxTs, ts);
     pSupp->numOfRows++;
 
     // write the primary time stamp column data

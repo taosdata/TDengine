@@ -152,7 +152,6 @@ static struct argp_option options[] = {
     {"inspect",  'I', 0,  0,
         "inspect avro file content and print on screen.", 10},
     {"no-escape",  'n', 0,  0,  "No escape char '`'. Default is using it.", 10},
-    {"restful",  'R', 0,  0,  "Use RESTful interface to connect server.", 11},
     {"cloud",  'C', "CLOUD_DSN",  0, OLD_DSN_DESC, 11},
     {"timeout", 't', "SECONDS", 0, "The timeout seconds for "
                  "websocket to interact."},
@@ -862,9 +861,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
                 exit(EXIT_FAILURE);
             }
             g_args.thread_num = atoi((const char *)arg);
-            break;
-        case 'R':
-            warnPrint("%s\n", "'-R' is not supported, ignore this options.");
             break;
         case 'C':
         case 'X':
