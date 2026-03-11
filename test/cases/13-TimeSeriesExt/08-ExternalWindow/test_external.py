@@ -120,7 +120,17 @@ class TestExternal:
         tdSql.checkData(1, 2, 200)
         tdSql.checkData(1, 3, 32)
         
-        # select _wstart, _wend, w.fc1 + 2, count(*) from st1_1 partition by dev  external_window((select ts, ts, first(c1) fc1  from st2) w);
+        sql = "select _wstart, _wend, w.fc1 + 2, count(*) from st1_1 partition by dev  external_window((select ts, ts, first(c1) fc1  from st2) w);"
+        tdSql.query(sql)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
+        tdSql.checkData(0, 1, "2020-05-13 10:49:00.001")
+        tdSql.checkData(0, 2, 102)
+        tdSql.checkData(0, 3, 50)
+        tdSql.checkData(1, 0, "2020-05-13 10:49:00.001")
+        tdSql.checkData(1, 1, "2020-05-13 11:21:50.001")
+        tdSql.checkData(1, 2, 202)
+        tdSql.checkData(1, 3, 32)
         
         sql = "select _wstart, _wend, w.fc1, count(*), dev from st1_1 partition by dev  external_window((select ts, ts, first(c1) fc1  from st2) w);"
         tdSql.query(sql)

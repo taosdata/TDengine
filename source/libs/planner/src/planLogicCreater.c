@@ -1891,7 +1891,7 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
       }
       
       SNodeList* pProjTargets = NULL;
-      PLAN_ERR_RET(nodesCloneList(pSelect->pProjectionList, &pProjTargets));
+      PLAN_ERR_RET(nodesCloneList(pWindow->pProjs, &pProjTargets));
       PLAN_ERR_RET(rewriteExprsForSelect(pProjTargets, pSelect, SQL_CLAUSE_EXT_WINDOW, NULL));
       PLAN_ERR_RET(createColumnByRewriteExprs(pProjTargets, &pWindow->node.pTargets));
       nodesDestroyList(pProjTargets);
