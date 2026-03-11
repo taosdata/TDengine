@@ -17910,7 +17910,8 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
                                      "Cannot grant/revoke this privilege on system database");
     }
   } else {
-    if (IS_SPECIFIC_OBJ(pStmt->objName) && pStmt->tabName[0] != 0) {
+    if (IS_SPECIFIC_OBJ(pStmt->objName) &&
+        ((objType != PRIV_OBJ_DB && pStmt->tabName[0] != 0) || (objType == PRIV_OBJ_DB && pStmt->tabName[0] == '\0'))) {
       SDbCfgInfo dbCfg = {0};
       code = getDBCfg(pCxt, pStmt->objName, &dbCfg);
 
@@ -17988,9 +17989,14 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
     case PRIV_OBJ_TSMA:
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
       break;
-    case PRIV_OBJ_TOPIC:
+    case PRIV_OBJ_TOPIC: {
+      if (IS_WILDCARD_OBJ(pStmt->objName) && pStmt->tabName[0] == 0) {
+        pStmt->tabName[0] = '*';  // rewrite to topic.* for better usability
+        pStmt->tabName[1] = '\0';
+      }
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
       break;
+    }
     case PRIV_OBJ_STREAM:
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
       break;
