@@ -362,7 +362,7 @@ The effective value of charset is UTF-8.
 | -------------------- | ----------------- | -------------------------------- | ------------------------------------------------------------ |
 | enableCoreFile       |                   | Supported, effective immediately | Whether to generate a core file when crashing, 0: do not generate, 1: generate; default value is 1 |
 | configDir            |                   | Not supported                    | Directory where the configuration files are located          |
-| forceReadConfig        | After 3.3.5.0, Before 3.4.0.0      | Not supported                                                | Force read configuration file; default value false |
+| forceReadConfig        | After 3.3.5.0, Before 3.4.0.0      | Not supported                                                | Whether to use persisted local configuration parameters: modifying configuration parameters via the configuration file has been deprecated since v3.4.0.0. For v3.4.0.0 and later, please modify configuration parameters via SQL. |
 | scriptDir            |                   | Not supported                    | Directory for internal test tool scripts                     |
 | assert               |                   | Not supported                    | Assertion control switch, default value is 0                 |
 | randErrorChance      |                   | Supported, effective immediately | Internal parameter, used for random failure testing          |
