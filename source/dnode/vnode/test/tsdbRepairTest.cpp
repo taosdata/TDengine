@@ -1,0 +1,360 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include <gtest/gtest.h>
+
+#include <sys/syscall.h>
+#include <unistd.h>
+
+#include <cstring>
+
+extern "C" {
+#include "dmRepair.h"
+#include "vnodeInt.h"
+
+typedef struct STFileObj STFileObj;
+typedef struct SDataFileWriter SDataFileWriter;
+typedef struct SSttFileWriter SSttFileWriter;
+
+typedef struct {
+  SRowKey key;
+  int64_t version;
+} STsdbRowKey;
+
+typedef struct {
+  int64_t     suid;
+  int64_t     uid;
+  STsdbRowKey firstKey;
+  STsdbRowKey lastKey;
+  int64_t     minVer;
+  int64_t     maxVer;
+  int64_t     blockOffset;
+  int64_t     smaOffset;
+  int32_t     blockSize;
+  int32_t     blockKeySize;
+  int32_t     smaSize;
+  int32_t     numRow;
+  int32_t     count;
+} SBrinRecord;
+
+typedef struct {
+  int64_t  suid;
+  int64_t  uid;
+  int32_t  nRow;
+  int64_t *aUid;
+  int64_t *aVersion;
+  TSKEY   *aTSKEY;
+} SBlockData;
+
+enum {
+  TSDB_REPAIR_ACTION_KEEP = 0,
+  TSDB_REPAIR_ACTION_DROP = 1,
+  TSDB_REPAIR_ACTION_REBUILD = 2,
+};
+
+bool tsdbRepairDataBlockLooksValid(const SBlockData *blockData, const SBrinRecord *record);
+bool tsdbRepairSttBlockLooksValid(const SBlockData *blockData);
+int32_t tsdbRepairResolveCoreAction(int32_t keptBlocks, int32_t droppedBlocks);
+int32_t tsdbRepairResolveSttAction(int32_t keptDataBlocks, int32_t keptTombBlocks, int32_t droppedDataBlocks,
+                                   int32_t droppedTombBlocks);
+EDmRepairStrategy tsdbRepairNormalizeStrategy(EDmRepairStrategy strategy);
+const char *tsdbRepairStrategyName(EDmRepairStrategy strategy);
+int32_t     tsdbRepairResolveMode(EDmRepairStrategy strategy);
+void        tsdbRepairBuildHeadOnlyBrinRecord(const SBrinRecord *src, bool keepSma, SBrinRecord *dst);
+int32_t     tsdbRepairDescribeHeadOnlyOps(bool hasHead, bool hasSma, bool dropSma);
+bool        tsdbRepairFileAffected(const STFileObj *fobj);
+const char *tsdbRepairFileIssue(const STFileObj *fobj);
+int32_t     tsdbDataFileWriterClose(SDataFileWriter **writer, bool abort, void *opArray);
+int32_t     tsdbSttFileWriterClose(SSttFileWriter **writer, int8_t abort, void *opArray);
+}
+
+struct TestFileMeta {
+  int32_t type;
+  SDiskID did;
+  int32_t fid;
+  int32_t lcn;
+  int32_t mid;
+  int64_t cid;
+  int64_t size;
+  int64_t minVer;
+  int64_t maxVer;
+  union {
+    struct {
+      int32_t level;
+    } stt[1];
+  };
+};
+
+struct TestFileObj {
+  TdThreadMutex mutex;
+  TestFileMeta  f[1];
+  int32_t       state;
+  int32_t       ref;
+  int32_t       nlevel;
+  char          fname[TSDB_FILENAME_LEN];
+};
+
+int main(int argc, char **argv) {
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+
+class TsdbRepairValidationTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    std::memset(&block_, 0, sizeof(block_));
+    std::memset(&record_, 0, sizeof(record_));
+
+    block_.suid = 42;
+    block_.uid = 7;
+    block_.nRow = 2;
+    block_.aTSKEY = ts_;
+    block_.aVersion = versions_;
+
+    record_.suid = 42;
+    record_.uid = 7;
+  }
+
+  SBlockData  block_ = {};
+  SBrinRecord record_ = {};
+  int64_t     versions_[2] = {10, 11};
+  TSKEY       ts_[2] = {100, 101};
+  int64_t     uids_[2] = {7001, 7002};
+};
+
+TEST_F(TsdbRepairValidationTest, AcceptsMatchingCoreBlock) {
+  EXPECT_TRUE(tsdbRepairDataBlockLooksValid(&block_, &record_));
+}
+
+TEST_F(TsdbRepairValidationTest, RejectsCoreBlockWithMismatchedUid) {
+  record_.uid = 9;
+  EXPECT_FALSE(tsdbRepairDataBlockLooksValid(&block_, &record_));
+}
+
+TEST_F(TsdbRepairValidationTest, RejectsCoreBlockWithoutDecodedArrays) {
+  block_.aTSKEY = nullptr;
+  EXPECT_FALSE(tsdbRepairDataBlockLooksValid(&block_, &record_));
+}
+
+TEST_F(TsdbRepairValidationTest, AcceptsSttBlockWithDecodedRows) {
+  block_.uid = 0;
+  block_.aUid = uids_;
+  EXPECT_TRUE(tsdbRepairSttBlockLooksValid(&block_));
+}
+
+TEST_F(TsdbRepairValidationTest, RejectsSttBlockWithoutUidArrayWhenUidIsZero) {
+  block_.uid = 0;
+  block_.aUid = nullptr;
+  EXPECT_FALSE(tsdbRepairSttBlockLooksValid(&block_));
+}
+
+TEST(TsdbRepairDecisionTest, KeepsHealthyCore) {
+  EXPECT_EQ(tsdbRepairResolveCoreAction(3, 0), TSDB_REPAIR_ACTION_KEEP);
+}
+
+TEST(TsdbRepairDecisionTest, RebuildsPartiallyDamagedCore) {
+  EXPECT_EQ(tsdbRepairResolveCoreAction(2, 1), TSDB_REPAIR_ACTION_REBUILD);
+}
+
+TEST(TsdbRepairDecisionTest, DropsFullyDamagedCore) {
+  EXPECT_EQ(tsdbRepairResolveCoreAction(0, 2), TSDB_REPAIR_ACTION_DROP);
+}
+
+TEST(TsdbRepairDecisionTest, KeepsHealthySttFile) {
+  EXPECT_EQ(tsdbRepairResolveSttAction(2, 1, 0, 0), TSDB_REPAIR_ACTION_KEEP);
+}
+
+TEST(TsdbRepairDecisionTest, RebuildsPartiallyDamagedSttFile) {
+  EXPECT_EQ(tsdbRepairResolveSttAction(1, 0, 0, 1), TSDB_REPAIR_ACTION_REBUILD);
+}
+
+TEST(TsdbRepairDecisionTest, DropsFullyDamagedSttFile) {
+  EXPECT_EQ(tsdbRepairResolveSttAction(0, 0, 2, 1), TSDB_REPAIR_ACTION_DROP);
+}
+
+enum {
+  TSDB_REPAIR_MODE_DROP_INVALID_ONLY = 0,
+  TSDB_REPAIR_MODE_HEAD_ONLY_REBUILD = 1,
+  TSDB_REPAIR_MODE_FULL_REBUILD = 2,
+};
+
+enum {
+  TSDB_REPAIR_HEAD_OP_REMOVE_HEAD = 1 << 0,
+  TSDB_REPAIR_HEAD_OP_CREATE_HEAD = 1 << 1,
+  TSDB_REPAIR_HEAD_OP_REMOVE_DATA = 1 << 2,
+  TSDB_REPAIR_HEAD_OP_CREATE_DATA = 1 << 3,
+  TSDB_REPAIR_HEAD_OP_REMOVE_SMA = 1 << 4,
+  TSDB_REPAIR_HEAD_OP_CREATE_SMA = 1 << 5,
+};
+
+TEST(TsdbRepairStrategyTest, UsesPublicTsdbStrategyNames) {
+  EXPECT_STREQ(tsdbRepairStrategyName(DM_REPAIR_STRATEGY_TSDB_DROP_INVALID_ONLY), "drop_invalid_only");
+  EXPECT_STREQ(tsdbRepairStrategyName(DM_REPAIR_STRATEGY_TSDB_HEAD_ONLY_REBUILD), "head_only_rebuild");
+  EXPECT_STREQ(tsdbRepairStrategyName(DM_REPAIR_STRATEGY_TSDB_FULL_REBUILD), "full_rebuild");
+}
+
+TEST(TsdbRepairModeTest, MapsDropOnlyStrategyToBadFileOnlyMode) {
+  EXPECT_EQ(tsdbRepairResolveMode(DM_REPAIR_STRATEGY_TSDB_DROP_INVALID_ONLY), TSDB_REPAIR_MODE_DROP_INVALID_ONLY);
+}
+
+TEST(TsdbRepairModeTest, MapsHeadOnlyStrategyToHeadOnlyMode) {
+  EXPECT_EQ(tsdbRepairResolveMode(DM_REPAIR_STRATEGY_TSDB_HEAD_ONLY_REBUILD), TSDB_REPAIR_MODE_HEAD_ONLY_REBUILD);
+}
+
+TEST(TsdbRepairModeTest, MapsFullRebuildStrategyToFullRebuildMode) {
+  EXPECT_EQ(tsdbRepairResolveMode(DM_REPAIR_STRATEGY_TSDB_FULL_REBUILD), TSDB_REPAIR_MODE_FULL_REBUILD);
+}
+
+TEST(TsdbRepairDefaultStrategyTest, NormalizesMissingStrategyToDropInvalidOnly) {
+  EXPECT_EQ(tsdbRepairNormalizeStrategy(DM_REPAIR_STRATEGY_NONE), DM_REPAIR_STRATEGY_TSDB_DROP_INVALID_ONLY);
+}
+
+TEST(TsdbRepairBrinRecordTest, KeepsSmaOffsetsForHealthyHeadOnlyRewrite) {
+  SBrinRecord src = {
+      .suid = 11,
+      .uid = 12,
+      .minVer = 13,
+      .maxVer = 14,
+      .blockOffset = 15,
+      .smaOffset = 16,
+      .blockSize = 17,
+      .blockKeySize = 18,
+      .smaSize = 19,
+      .numRow = 20,
+      .count = 21,
+  };
+  SBrinRecord dst = {};
+
+  tsdbRepairBuildHeadOnlyBrinRecord(&src, true, &dst);
+
+  EXPECT_EQ(dst.suid, src.suid);
+  EXPECT_EQ(dst.uid, src.uid);
+  EXPECT_EQ(dst.minVer, src.minVer);
+  EXPECT_EQ(dst.maxVer, src.maxVer);
+  EXPECT_EQ(dst.blockOffset, src.blockOffset);
+  EXPECT_EQ(dst.blockSize, src.blockSize);
+  EXPECT_EQ(dst.blockKeySize, src.blockKeySize);
+  EXPECT_EQ(dst.smaOffset, src.smaOffset);
+  EXPECT_EQ(dst.smaSize, src.smaSize);
+  EXPECT_EQ(dst.numRow, src.numRow);
+  EXPECT_EQ(dst.count, src.count);
+}
+
+TEST(TsdbRepairBrinRecordTest, ClearsSmaOffsetsForDamagedHeadOnlyRewrite) {
+  SBrinRecord src = {
+      .suid = 21,
+      .uid = 22,
+      .minVer = 23,
+      .maxVer = 24,
+      .blockOffset = 25,
+      .smaOffset = 26,
+      .blockSize = 27,
+      .blockKeySize = 28,
+      .smaSize = 29,
+      .numRow = 30,
+      .count = 31,
+  };
+  SBrinRecord dst = {};
+
+  tsdbRepairBuildHeadOnlyBrinRecord(&src, false, &dst);
+
+  EXPECT_EQ(dst.suid, src.suid);
+  EXPECT_EQ(dst.uid, src.uid);
+  EXPECT_EQ(dst.blockOffset, src.blockOffset);
+  EXPECT_EQ(dst.blockSize, src.blockSize);
+  EXPECT_EQ(dst.blockKeySize, src.blockKeySize);
+  EXPECT_EQ(dst.numRow, src.numRow);
+  EXPECT_EQ(dst.count, src.count);
+  EXPECT_EQ(dst.smaOffset, 0);
+  EXPECT_EQ(dst.smaSize, 0);
+}
+
+TEST(TsdbRepairHeadOnlyRebuildTest, ReplacesOnlyHeadWhenSmaStaysHealthy) {
+  int32_t opMask = tsdbRepairDescribeHeadOnlyOps(true, true, false);
+
+  EXPECT_NE(opMask & TSDB_REPAIR_HEAD_OP_REMOVE_HEAD, 0);
+  EXPECT_NE(opMask & TSDB_REPAIR_HEAD_OP_CREATE_HEAD, 0);
+  EXPECT_EQ(opMask & TSDB_REPAIR_HEAD_OP_REMOVE_DATA, 0);
+  EXPECT_EQ(opMask & TSDB_REPAIR_HEAD_OP_CREATE_DATA, 0);
+  EXPECT_EQ(opMask & TSDB_REPAIR_HEAD_OP_REMOVE_SMA, 0);
+  EXPECT_EQ(opMask & TSDB_REPAIR_HEAD_OP_CREATE_SMA, 0);
+}
+
+TEST(TsdbRepairHeadOnlyRebuildTest, RemovesSmaWhenOriginalSmaIsBad) {
+  int32_t opMask = tsdbRepairDescribeHeadOnlyOps(true, true, true);
+
+  EXPECT_NE(opMask & TSDB_REPAIR_HEAD_OP_REMOVE_HEAD, 0);
+  EXPECT_NE(opMask & TSDB_REPAIR_HEAD_OP_CREATE_HEAD, 0);
+  EXPECT_EQ(opMask & TSDB_REPAIR_HEAD_OP_REMOVE_DATA, 0);
+  EXPECT_EQ(opMask & TSDB_REPAIR_HEAD_OP_CREATE_DATA, 0);
+  EXPECT_NE(opMask & TSDB_REPAIR_HEAD_OP_REMOVE_SMA, 0);
+  EXPECT_EQ(opMask & TSDB_REPAIR_HEAD_OP_CREATE_SMA, 0);
+}
+
+class TsdbRepairFileIssueTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    std::snprintf(path_, sizeof(path_), "/tmp/tsdb-repair-test-XXXXXX");
+    int fd = mkstemp(path_);
+    ASSERT_GE(fd, 0);
+
+    static const char payload[] = "0123456789abcdef";
+    ssize_t           written = write(fd, payload, sizeof(payload) - 1);
+    ASSERT_EQ(written, static_cast<ssize_t>(sizeof(payload) - 1));
+    ASSERT_EQ(syscall(SYS_close, fd), 0);
+
+    std::memset(&fobj_, 0, sizeof(fobj_));
+    std::snprintf(fobj_.fname, sizeof(fobj_.fname), "%s", path_);
+    fobj_.f->size = 8;
+  }
+
+  void TearDown() override { taosRemoveFile(path_); }
+
+  char        path_[TSDB_FILENAME_LEN] = {0};
+  TestFileObj fobj_ = {};
+};
+
+TEST_F(TsdbRepairFileIssueTest, SizeMismatchDoesNotMarkFileAsAffected) {
+  const STFileObj *fobj = reinterpret_cast<const STFileObj *>(&fobj_);
+
+  EXPECT_FALSE(tsdbRepairFileAffected(fobj));
+  EXPECT_EQ(tsdbRepairFileIssue(fobj), nullptr);
+}
+
+TEST(TsdbSttFileWriterCloseTest, NullWriterHandleDoesNotCrash) {
+  ASSERT_EXIT(
+      {
+        SSttFileWriter *writer = nullptr;
+        int32_t         code = tsdbSttFileWriterClose(&writer, 1, nullptr);
+        if (code != 0) {
+          _exit(1);
+        }
+        _exit(0);
+      },
+      ::testing::ExitedWithCode(0), "");
+}
+
+TEST(TsdbDataFileWriterCloseTest, NullWriterPointerDoesNotCrash) {
+  ASSERT_EXIT(
+      {
+        SDataFileWriter **writer = nullptr;
+        int32_t           code = tsdbDataFileWriterClose(writer, true, nullptr);
+        if (code != 0) {
+          _exit(1);
+        }
+        _exit(0);
+      },
+      ::testing::ExitedWithCode(0), "");
+}

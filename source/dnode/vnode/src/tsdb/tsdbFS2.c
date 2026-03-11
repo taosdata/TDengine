@@ -933,6 +933,11 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
   code = commit_edit(fs);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  // Disable merge schedule when repair
+  if (fs->etype == TSDB_FEDIT_FORCE_REPAIR) {
+    return code;
+  }
+
   // schedule merge
   int32_t sttTrigger = fs->tsdb->pVnode->config.sttTrigger;
   if (sttTrigger > 1 && !fs->tsdb->bgTaskDisabled) {

@@ -52,7 +52,7 @@ Rules:
 | File Type | Required Keys | Optional Keys | Default Strategy | Supported Strategies |
 | --- | --- | --- | --- | --- |
 | `meta` | `vnode` | `strategy` | `from_uid` | `from_uid`, `from_redo` |
-| `tsdb` | `vnode`, `fileid` | `strategy` | `shallow_repair` | `shallow_repair`, `deep_repair` |
+| `tsdb` | `vnode`, `fileid` | `strategy` | `drop_invalid_only` | `drop_invalid_only`, `head_only_rebuild`, `full_rebuild` |
 | `wal` | `vnode` | none | none | none |
 
 Additional notes:
@@ -60,6 +60,10 @@ Additional notes:
 - `fileid` is only valid for `tsdb`, and it is required in the current phase.
 - `strategy` is not currently supported for `wal`.
 - `--backup-path` is global for the whole repair startup, not per target.
+- TSDB repair strategies behave as follows:
+  - `drop_invalid_only`: only remove obviously bad files before any deep scan.
+  - `head_only_rebuild`: deep-scan valid core blocks and rebuild `.head` only; keep `.data` unchanged and drop `.sma` if SMA metadata is unusable.
+  - `full_rebuild`: deep-scan valid core blocks and rebuild the full core payload with the existing writer path.
 
 ### Limitations
 
@@ -81,7 +85,14 @@ Repair one TSDB file set and use an explicit strategy:
 
 ```bash
 taosd -r --mode force --node-type vnode \
-  --repair-target tsdb:vnode=5:fileid=1809:strategy=deep_repair
+  --repair-target tsdb:vnode=5:fileid=1809:strategy=head_only_rebuild
+```
+
+Repair one TSDB file set and force a full core rebuild:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target tsdb:vnode=5:fileid=1809:strategy=full_rebuild
 ```
 
 Repair multiple targets in one startup:

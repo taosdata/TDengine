@@ -54,7 +54,7 @@ taosd -r --mode force --node-type vnode [--backup-path <path>] \
 | 文件类型 | 必填字段 | 可选字段 | 默认策略 | 支持的策略 |
 | --- | --- | --- | --- | --- |
 | `meta` | `vnode` | `strategy` | `from_uid` | `from_uid`、`from_redo` |
-| `tsdb` | `vnode`、`fileid` | `strategy` | `shallow_repair` | `shallow_repair`、`deep_repair` |
+| `tsdb` | `vnode`、`fileid` | `strategy` | `drop_invalid_only` | `drop_invalid_only`、`head_only_rebuild`、`full_rebuild` |
 | `wal` | `vnode` | 无 | 无 | 无 |
 
 补充说明：
@@ -62,6 +62,10 @@ taosd -r --mode force --node-type vnode [--backup-path <path>] \
 - `fileid` 仅允许用于 `tsdb`，且当前阶段必须显式指定。
 - `wal` 当前阶段不支持 `strategy`。
 - `--backup-path` 是本次 repair 启动的全局参数，不属于某个特定 target。
+- TSDB repair 策略语义如下：
+  - `drop_invalid_only`：仅在 deep scan 前删除明显损坏的文件。
+  - `head_only_rebuild`：对有效 core block 做 deep scan，只重建 `.head`；保留 `.data`，如果 `.sma` 元数据不可用则删除 `.sma`。
+  - `full_rebuild`：对有效 core block 做 deep scan，并沿用现有 writer 路径重建完整 core 数据。
 
 ### 当前限制
 
@@ -83,7 +87,14 @@ taosd -r --mode force --node-type vnode \
 
 ```bash
 taosd -r --mode force --node-type vnode \
-  --repair-target tsdb:vnode=5:fileid=1809:strategy=deep_repair
+  --repair-target tsdb:vnode=5:fileid=1809:strategy=head_only_rebuild
+```
+
+修复一个 TSDB file set，并强制执行完整 core 重建：
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target tsdb:vnode=5:fileid=1809:strategy=full_rebuild
 ```
 
 一次启动同时声明多个修复目标：

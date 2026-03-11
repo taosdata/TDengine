@@ -389,12 +389,16 @@ static bool dmParseRepairStrategy(EDmRepairTargetType fileType, const char *valu
   }
 
   if (fileType == DM_REPAIR_TARGET_TSDB) {
-    if (strcmp(value, "shallow_repair") == 0) {
-      *pStrategy = DM_REPAIR_STRATEGY_TSDB_SHALLOW_REPAIR;
+    if (strcmp(value, "drop_invalid_only") == 0) {
+      *pStrategy = DM_REPAIR_STRATEGY_TSDB_DROP_INVALID_ONLY;
       return true;
     }
-    if (strcmp(value, "deep_repair") == 0) {
-      *pStrategy = DM_REPAIR_STRATEGY_TSDB_DEEP_REPAIR;
+    if (strcmp(value, "head_only_rebuild") == 0) {
+      *pStrategy = DM_REPAIR_STRATEGY_TSDB_HEAD_ONLY_REBUILD;
+      return true;
+    }
+    if (strcmp(value, "full_rebuild") == 0) {
+      *pStrategy = DM_REPAIR_STRATEGY_TSDB_FULL_REBUILD;
       return true;
     }
     return false;
@@ -408,7 +412,7 @@ static EDmRepairStrategy dmDefaultRepairStrategy(EDmRepairTargetType fileType) {
     case DM_REPAIR_TARGET_META:
       return DM_REPAIR_STRATEGY_META_FROM_UID;
     case DM_REPAIR_TARGET_TSDB:
-      return DM_REPAIR_STRATEGY_TSDB_SHALLOW_REPAIR;
+      return DM_REPAIR_STRATEGY_TSDB_DROP_INVALID_ONLY;
     default:
       return DM_REPAIR_STRATEGY_NONE;
   }
@@ -1043,7 +1047,7 @@ static void dmPrintRepairHelp() {
 
   printf("Supported targets\n");
   printf("  meta:vnode=<id>[:strategy=from_uid|from_redo]\n");
-  printf("  tsdb:vnode=<id>:fileid=<id>[:strategy=shallow_repair|deep_repair]\n");
+  printf("  tsdb:vnode=<id>:fileid=<id>[:strategy=drop_invalid_only|head_only_rebuild|full_rebuild]\n");
   printf("  wal:vnode=<id>\n");
 }
 
