@@ -14417,13 +14417,14 @@ int32_t tEncodeSColRefWrapper(SEncoder *pCoder, const SColRefWrapper *pWrapper) 
     TAOS_CHECK_EXIT(tEncodeI8(pCoder, p->hasRef));
     TAOS_CHECK_EXIT(tEncodeI16v(pCoder, p->id));
     if (p->hasRef) {
-      TAOS_CHECK_EXIT(tEncodeI8(pCoder, p->depth));  // encode depth
       TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refDbName));
       TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refTableName));
       TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refColName));
+      TAOS_CHECK_EXIT(tEncodeI8(pCoder, p->depth));
     }
-    TAOS_CHECK_EXIT(tEncodeI8(pCoder, p->depth));
+  }
 _exit:
+  return code;
 }
 
 int32_t tDecodeSColRefWrapperEx(SDecoder *pDecoder, SColRefWrapper *pWrapper, bool decoderMalloc) {
@@ -14444,27 +14445,22 @@ int32_t tDecodeSColRefWrapperEx(SDecoder *pDecoder, SColRefWrapper *pWrapper, bo
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, (int8_t *)&p->hasRef));
     TAOS_CHECK_EXIT(tDecodeI16v(pDecoder, &p->id));
     if (p->hasRef) {
-      if (pWrapper->version >= 1) {
-        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &p->depth));  // decode depth
-      } else {
-        p->depth = 1;  // old data: always references physical table
-      }
       TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->refDbName));
       TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->refTableName));
       TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->refColName));
+      if (pWrapper->version >= 1) {
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &p->depth));
+      } else {
+        p->depth = 0;
+      }
     } else {
       p->depth = 0;  // no reference
-    }
-    if (pWrapper->version >= 1) {
-      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &p->depth));
-    } else {
-      p->depth = 0;
     }
   }
 
 _exit:
   if (code) {
-    taosMemoryFree(pWrapper->pColRef);
+    if (!decoderMalloc) taosMemoryFree(pWrapper->pColRef);
   }
   return code;
 }
