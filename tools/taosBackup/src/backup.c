@@ -82,13 +82,18 @@ int backDatabase(const char *dbName) {
 //
 // Query all non-system databases from TDengine
 //
-static char** getAllDatabases(int *count) {
+static char** getAllDatabases(int *count, int *retCode) {
     *count = 0;
+    *retCode = TSDB_CODE_SUCCESS;
     TAOS *conn = getConnection();
-    if (!conn) return NULL;
+    if (!conn) {
+        *retCode = g_interrupted ? TSDB_CODE_BCK_USER_CANCEL : taos_errno(NULL);
+        return NULL;
+    }
 
     TAOS_RES *res = taos_query(conn, "SHOW DATABASES;");
     if (!res || taos_errno(res)) {
+        *retCode = taos_errno(res);
         logError("query databases failed: %s", taos_errstr(res));
         if (res) taos_free_result(res);
         releaseConnection(conn);
@@ -98,6 +103,7 @@ static char** getAllDatabases(int *count) {
     int capacity = 16;
     char **names = (char **)taosMemoryCalloc(capacity + 1, sizeof(char *));
     if (!names) {
+        *retCode = TSDB_CODE_BCK_MALLOC_FAILED;
         taos_free_result(res);
         releaseConnection(conn);
         return NULL;
@@ -122,6 +128,7 @@ static char** getAllDatabases(int *count) {
             char **tmp = (char **)taosMemoryRealloc(names, (capacity + 1) * sizeof(char *));
             if (!tmp) {
                 freeArrayPtr(names);
+                *retCode = TSDB_CODE_BCK_MALLOC_FAILED;
                 taos_free_result(res);
                 releaseConnection(conn);
                 return NULL;
@@ -148,10 +155,11 @@ int backupMain() {
     if (backDB == NULL || backDB[0] == NULL) {
         // no -D specified: backup all non-system databases
         int dbCount = 0;
-        allDBs = getAllDatabases(&dbCount);
+        allDBs = getAllDatabases(&dbCount, &code);
         if (allDBs == NULL || dbCount == 0) {
-            logError("no database found to backup");
             if (allDBs) freeArrayPtr(allDBs);
+            if (code != TSDB_CODE_SUCCESS) return code;
+            logError("no database found to backup");
             return TSDB_CODE_INVALID_PARA;
         }
         backDB = allDBs;

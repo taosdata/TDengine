@@ -27,5 +27,8 @@ TAOS* createConnection();
 
 void releaseConnection(TAOS* conn);
 
+// returns the taos error code from the last failed taos_connect attempt (0 if none)
+int getLastConnectError();
+
 
 #endif  // INC_BCKPOOL_H_

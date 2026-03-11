@@ -89,22 +89,36 @@ TAOS* getConnection() {
             }
         }
 
-        // pool not full, create new connection
+        // pool not full: try to create a new connection
         if (g_pool.count < g_pool.size) {
+            // check interrupt before blocking in taos_connect
+            if (g_interrupted) {
+                pthread_mutex_unlock(&g_pool.mutex);
+                return NULL;
+            }
             TAOS *conn = taos_connect(argHost(), argUser(), argPassword(), NULL, argPort());
             if (conn) {
+                // successfully created new connection, add to pool
                 g_pool.pool[g_pool.count] = conn;
                 g_pool.used[g_pool.count] = 1;
                 g_pool.count++;
                 pthread_mutex_unlock(&g_pool.mutex);
                 return conn;
             }
-            // connect failed, fall through to wait
-            logWarn("taos_connect failed, will wait for idle connection");
+            // connection failed
+            int    errCode = taos_errno(NULL);
+            const char *errStr  = taos_errstr(NULL);
+            if (g_pool.count == 0) {
+                // no existing connections at all — server is unreachable
+                logError("connect to %s:%d failed (0x%08X): %s", argHost(), argPort(), errCode, errStr);
+                pthread_mutex_unlock(&g_pool.mutex);
+                return NULL;
+            }
+            // some connections already exist; just couldn't expand — wait for idle
+            logWarn("failed to expand connection pool (0x%08X): %s, waiting for idle ...", errCode, errStr);
         }
 
-        // all connections busy, wait with timeout so we can check g_interrupted
-        logWarn("connection pool exhausted (size=%d), waiting for idle connection ...", g_pool.size);
+        // all connections busy, wait for release
         {
             struct timespec ts;
             clock_gettime(CLOCK_REALTIME, &ts);

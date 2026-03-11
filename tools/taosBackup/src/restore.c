@@ -112,6 +112,10 @@ int restoreMain() {
         int dbCount = 0;
         allDBs = scanBackupDatabases(&dbCount);
         if (allDBs == NULL || dbCount == 0) {
+            if (g_interrupted) {
+                if (allDBs) freeArrayPtr(allDBs);
+                return TSDB_CODE_BCK_USER_CANCEL;
+            }
             logError("no database found in backup directory");
             if (allDBs) freeArrayPtr(allDBs);
             return TSDB_CODE_INVALID_PARA;

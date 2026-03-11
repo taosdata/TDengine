@@ -225,6 +225,11 @@ int main(int argc, char *argv[]) {
     int64_t endMs = taosGetTimestampMs();
     double elapsed = (double)(endMs - startMs) / 1000.0;
 
+    // if the user interrupted and the code doesn't already reflect that, override it
+    if (g_interrupted && code != TSDB_CODE_BCK_USER_CANCEL) {
+        code = TSDB_CODE_BCK_USER_CANCEL;
+    }
+
     printEndSummary(action, code, elapsed);
 
     //
