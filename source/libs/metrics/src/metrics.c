@@ -135,20 +135,20 @@ void cleanupMetrics() {
   // monitorfw handles cleanup automatically
 }
 
-#define TAOS_COUNTER_ADD(counter, value, label_values)                  \
-  do {                                                                  \
-    int64_t r = taos_counter_add(counter, (double)value, label_values); \
-    if (r != 0) {                                                       \
-      uError("failed to add metric since %s", tstrerror(r));            \
-    }                                                                   \
+#define TAOS_COUNTER_ADD(counter, value, label_values)                            \
+  do {                                                                            \
+    int64_t r = taos_counter_add(counter, (double)value, label_values);           \
+    if (r != 0) {                                                                 \
+      uError("failed to add metric since %s", tstrerror(TSDB_CODE_INVALID_PARA)); \
+    }                                                                             \
   } while (0)
 
-#define TAOS_GAUGE_SET(gauge, value, label_values)                  \
-  do {                                                              \
-    int64_t r = taos_gauge_set(gauge, (double)value, label_values); \
-    if (r != 0) {                                                   \
-      uError("failed to set metric since %s", tstrerror(r));        \
-    }                                                               \
+#define TAOS_GAUGE_SET(gauge, value, label_values)                                \
+  do {                                                                            \
+    int64_t r = taos_gauge_set(gauge, (double)value, label_values);               \
+    if (r != 0) {                                                                 \
+      uError("failed to set metric since %s", tstrerror(TSDB_CODE_INVALID_PARA)); \
+    }                                                                             \
   } while (0)
 
 int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const char *dnodeEp, const char *dbname,
