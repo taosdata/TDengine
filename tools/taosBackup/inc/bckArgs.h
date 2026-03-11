@@ -135,4 +135,6 @@ int          argBuildInClause(const char *colName, char *buf, int bufLen);
 // (meaning the user requested the whole super table, not individual CTBs)
 bool         argStbNameInSpecTables(const char *stbName);
 
+void printVersion(bool verbose);
+
 #endif  // INC_BACKARGS_H_

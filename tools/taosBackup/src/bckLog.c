@@ -11,6 +11,7 @@
     
 #include "bckArgs.h"
 #include "bckLog.h"
+#include "bckProgress.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <time.h>
@@ -63,6 +64,8 @@ void logInfo(const char *format, ...) {
     buf[total++] = '\n';
     buf[total] = '\0';
     flockfile(stdout);
+    // clear the progress rolling line so this message starts on a clean line
+    if (g_tty_progress) fwrite("\r\033[K", 1, 4, stdout);
     fwrite(buf, 1, total, stdout);
     fflush(stdout);
     funlockfile(stdout);
@@ -104,7 +107,9 @@ void logDebug(const char *format, ...) {
     buf[total++] = '\n';
     buf[total] = '\0';
     flockfile(stdout);
+    // clear the progress rolling line so this message starts on a clean line
+    if (g_tty_progress) fwrite("\r\033[K", 1, 4, stdout);
     fwrite(buf, 1, total, stdout);
     fflush(stdout);
     funlockfile(stdout);
-}
+}  // logDebug

@@ -1743,7 +1743,8 @@ static int restoreStbData(DBInfo *dbInfo, const char *stbName, StbChangeMap *cha
     StbChange *stbChange = NULL;
     if (changeMap && strcmp(stbName, "_ntb") != 0) {
         // Get a connection to query server schema
-        TAOS *schemaConn = getConnection();
+        int scConnCode = TSDB_CODE_FAILED;
+        TAOS *schemaConn = getConnection(&scConnCode);
         if (schemaConn) {
             int scCode = addStbChanged(changeMap, schemaConn, dbName, stbName);
             if (scCode != 0) {
@@ -1765,7 +1766,7 @@ static int restoreStbData(DBInfo *dbInfo, const char *stbName, StbChangeMap *cha
         threads[i].stbInfo   = &stbInfo;
         threads[i].index     = i + 1;
         threads[i].stbChange = stbChange;  // shared across threads (read-only)
-        threads[i].conn    = getConnection();
+        threads[i].conn    = getConnection(&code);
         if (!threads[i].conn) {
             for (int j = 0; j < i; j++) {
                 releaseConnection(threads[j].conn);
@@ -1775,7 +1776,7 @@ static int restoreStbData(DBInfo *dbInfo, const char *stbName, StbChangeMap *cha
             taosMemoryFree(fileCounts);
             taosMemoryFree(threads);
             freeArrayPtr(dataFiles);
-            return g_interrupted ? TSDB_CODE_BCK_USER_CANCEL : TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+            return code;
         }
         threads[i].files   = threadFiles[i];
         threads[i].fileCnt = fileCounts[i];

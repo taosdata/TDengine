@@ -48,8 +48,9 @@ int backCreateStbSql(const char *dbName, const char *stbName) {
     char sql[512] = {0};
     snprintf(sql, sizeof(sql), "SHOW CREATE TABLE `%s`.`%s`;", dbName, stbName);
 
-    TAOS *conn = getConnection();
-    if (!conn) return TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+    int connCode = TSDB_CODE_FAILED;
+    TAOS *conn = getConnection(&connCode);
+    if (!conn) return connCode;
 
     TAOS_RES *res = taos_query(conn, sql);
     int code = taos_errno(res);
@@ -233,13 +234,12 @@ TagThread * splitTaskTag(DBInfo *dbInfo, StbInfo *stbInfo, int *code, int *outCo
             threads[i].limit += 1;
         }
         threads[i].offset  = offset;
-        threads[i].conn    = getConnection();
+        threads[i].conn    = getConnection(code);
         if (!threads[i].conn) {
             for (int j = 0; j < i; j++) {
                 releaseConnection(threads[j].conn);
             }
             taosMemoryFree(threads);
-            *code = g_interrupted ? TSDB_CODE_BCK_USER_CANCEL : TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
             return NULL;
         }
         offset += threads[i].limit;
@@ -344,8 +344,8 @@ static int backVstbChildTags(DBInfo *dbInfo, StbInfo *stbInfo) {
     char vttagFile[MAX_PATH_LEN] = {0};
     obtainFileName(BACK_FILE_VTAG, dbName, stbName, NULL, 1, 0, format, vttagFile, sizeof(vttagFile));
 
-    TAOS *conn = getConnection();
-    if (!conn) return TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+    TAOS *conn = getConnection(&code);
+    if (!conn) return code;
 
     code = queryWriteBinary(conn, sql, format, vttagFile, NULL);
     releaseConnection(conn);
@@ -392,11 +392,11 @@ int backNormalTablesSql(const char *dbName) {
     }
 
     // for each normal table: show create table -> write to file
-    TAOS *conn = getConnection();
+    TAOS *conn = getConnection(&code);
     if (!conn) {
         taosCloseFile(&fp);
         freeArrayPtr(ntbNames);
-        return TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+        return code;
     }
 
     code = TSDB_CODE_SUCCESS;
@@ -437,7 +437,8 @@ int backNormalTablesSql(const char *dbName) {
 bool isVirtualSuperTable(const char *dbName, const char *stbName) {
     char sql[512];
     snprintf(sql, sizeof(sql), "SHOW CREATE TABLE `%s`.`%s`", dbName, stbName);
-    TAOS *conn = getConnection();
+    int connCode = TSDB_CODE_FAILED;
+    TAOS *conn = getConnection(&connCode);
     if (!conn) return false;
     TAOS_RES *res = taos_query(conn, sql);
     bool isVirtual = false;
@@ -486,11 +487,11 @@ int backVirtualTablesSql(const char *dbName) {
         return TSDB_CODE_BCK_CREATE_FILE_FAILED;
     }
 
-    TAOS *conn = getConnection();
+    TAOS *conn = getConnection(&code);
     if (!conn) {
         taosCloseFile(&fp);
         freeArrayPtr(vtbNames);
-        return TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+        return code;
     }
 
     code = TSDB_CODE_SUCCESS;

@@ -14,6 +14,7 @@
 #include "backupData.h"
 #include "bckArgs.h"
 #include "bckPool.h"
+#include "bckProgress.h"
 
 //
 // -------------------------------------- UTIL -----------------------------------------
@@ -85,9 +86,9 @@ int backDatabase(const char *dbName) {
 static char** getAllDatabases(int *count, int *retCode) {
     *count = 0;
     *retCode = TSDB_CODE_SUCCESS;
-    TAOS *conn = getConnection();
+    logInfo("Connect to %s:%d ...", argHost(), argPort());
+    TAOS *conn = getConnection(retCode);
     if (!conn) {
-        *retCode = g_interrupted ? TSDB_CODE_BCK_USER_CANCEL : taos_errno(NULL);
         return NULL;
     }
 
@@ -170,9 +171,11 @@ int backupMain() {
     for (int i = 0; backDB[i] != NULL; i++) {
         g_stats.dbTotal++;
     }
+    g_progress.dbTotal = g_stats.dbTotal;
 
     // loop backup each database
     for (int i = 0; backDB[i] != NULL; i++) {
+        g_progress.dbIndex = i + 1;
         logInfo("[%d/%d] starting backup for database: %s", i+1, (int)g_stats.dbTotal, backDB[i]);
 
         // backup data

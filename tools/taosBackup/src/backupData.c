@@ -15,6 +15,7 @@
 #include "storageParquet.h"
 #include "bckPool.h"
 #include "bckDb.h"
+#include "bckProgress.h"
 
 volatile int64_t g_backDataFiles = 0;
 
@@ -175,9 +176,8 @@ static void* backDataThread(void *arg) {
     }
     
     // query child table names
-    TAOS* conn = getConnection();
+    TAOS* conn = getConnection(&thread->code);
     if (!conn) {
-        thread->code = g_interrupted ? TSDB_CODE_BCK_USER_CANCEL : TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
         return NULL;
     }
     TAOS_RES *res = taos_query(conn, sql);
@@ -223,7 +223,12 @@ static void* backDataThread(void *arg) {
                 break;
             }
             else if (errorCodeCanRetry(code)) {
-                // can retry
+                // can retry — evict potentially-stale connection and get a fresh one
+                releaseConnectionBad(thread->conn);
+                thread->conn = getConnection(&code);
+                if (!thread->conn) {
+                    break;
+                }
                 n += 1;
                 logInfo("retry backup child table data: %s, times: %d", childTableName, n);
                 sleepMs(retrySleepMs);
@@ -240,6 +245,9 @@ static void* backDataThread(void *arg) {
             break;
         }
 
+        // count completed CTB for progress display
+        atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
+
         // save checkpoint
         offset += 1;
     }
@@ -255,7 +263,7 @@ static void* backDataThread(void *arg) {
 //
 // split child tables to thread groups
 //
-DataThread * splitTaskData(StbInfo *stbInfo, int *code, int *outCount) {
+DataThread * splitTaskData(StbInfo *stbInfo, int *code, int *outCount, int *totCtbs) {
     int threadCnt = *outCount;
     DBInfo *dbInfo = stbInfo->dbInfo;
     const char* dbName = stbInfo->dbInfo->dbName;
@@ -276,6 +284,7 @@ DataThread * splitTaskData(StbInfo *stbInfo, int *code, int *outCount) {
     if (*code != TSDB_CODE_SUCCESS) {
         return NULL;
     }
+    if (totCtbs) *totCtbs = tableCnt;
     
     if (tableCnt == 0) {
         logDebug("%s.%s child table count is zero.", dbName, stbName);
@@ -309,14 +318,14 @@ DataThread * splitTaskData(StbInfo *stbInfo, int *code, int *outCount) {
             threads[i].limit += 1;
         }
         threads[i].offset  = offset;
-        threads[i].conn    = getConnection();
+        threads[i].conn    = getConnection(&threads[i].code);
         if (!threads[i].conn) {
             // release already-allocated connections
             for (int j = 0; j < i; j++) {
                 releaseConnection(threads[j].conn);
             }
             taosMemoryFree(threads);
-            *code = g_interrupted ? TSDB_CODE_BCK_USER_CANCEL : TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+            *code = threads[i].code;
             return NULL;
         }
         offset += threads[i].limit;
@@ -338,12 +347,18 @@ int backStbData(StbInfo *stbInfo) {
     // reset global file count
     g_backDataFiles = 0;
 
-    // splite child tables to thread groups
-    DataThread * threads = splitTaskData(stbInfo, &code, &count);
+    // split child tables to thread groups; also get total CTB count for progress
+    int totCtbs = 0;
+    DataThread * threads = splitTaskData(stbInfo, &code, &count, &totCtbs);
     if (threads == NULL) {
         return code;
     }
-    
+
+    // update progress: how many CTBs this STB has
+    g_progress.ctbTotalCur  = totCtbs;
+    atomic_add_fetch_64(&g_progress.ctbTotalAll, totCtbs);
+    atomic_store_64(&g_progress.ctbDoneCur, 0);
+
     // calculate total child tables
     int totalChildTables = 0;
     for (int i = 0; i < count; i++) {
@@ -466,9 +481,8 @@ static void* backNtbDataThread(void *arg) {
              "ORDER BY table_name LIMIT %d OFFSET %d;",
              dbName, specFilter, thread->limit, thread->offset);
 
-    TAOS *conn = getConnection();
+    TAOS *conn = getConnection(&thread->code);
     if (!conn) {
-        thread->code = g_interrupted ? TSDB_CODE_BCK_USER_CANCEL : TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
         return NULL;
     }
     TAOS_RES *res = taos_query(conn, sql);
@@ -504,8 +518,16 @@ static void* backNtbDataThread(void *arg) {
             }
 
             if (thread->code == TSDB_CODE_SUCCESS) {
+                // count completed NTB for progress display
+                atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
                 break;
             } else if (errorCodeCanRetry(thread->code)) {
+                // evict potentially-stale connection and get a fresh one
+                releaseConnectionBad(thread->conn);
+                thread->conn = getConnection(&thread->code);
+                if (!thread->conn) {
+                    break;
+                }
                 n++;
                 logInfo("retry backup normal table data: %s, times: %d", tableName, n);
                 sleepMs(retrySleepMs);
@@ -541,6 +563,13 @@ static int backNormalTableData(DBInfo *dbInfo) {
 
     logInfo("backup %d normal table(s) data for db: %s", tableCnt, dbName);
 
+    // update progress for the NTB phase (treat as one more STB-like entry)
+    g_progress.stbIndex++;
+    snprintf(g_progress.stbName, PROGRESS_STB_NAME_LEN, "(ntb)");
+    g_progress.ctbTotalCur = tableCnt;
+    atomic_add_fetch_64(&g_progress.ctbTotalAll, tableCnt);
+    atomic_store_64(&g_progress.ctbDoneCur, 0);
+
     int threadCnt = argDataThread();
     if (tableCnt < threadCnt) threadCnt = tableCnt;
 
@@ -564,13 +593,14 @@ static int backNormalTableData(DBInfo *dbInfo) {
         threads[i].limit   = base + (remain > 0 ? 1 : 0);
         if (remain > 0) remain--;
         threads[i].offset  = offset;
-        threads[i].conn    = getConnection();
+        threads[i].conn    = getConnection(&threads[i].code);
         if (!threads[i].conn) {
             for (int j = 0; j < i; j++) {
                 releaseConnection(threads[j].conn);
             }
+            int errCode = threads[i].code;
             taosMemoryFree(threads);
-            return g_interrupted ? TSDB_CODE_BCK_USER_CANCEL : TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+            return errCode;
         }
         offset += threads[i].limit;
     }
@@ -631,6 +661,14 @@ int backDatabaseData(DBInfo *dbInfo) {
     if (stbNames == NULL && code != TSDB_CODE_SUCCESS) {
         return code;
     }
+
+    // count STBs for progress display (rough count before virtual/spec filtering)
+    int stbRawCount = 0;
+    for (int k = 0; stbNames != NULL && stbNames[k] != NULL; k++) stbRawCount++;
+    g_progress.stbTotal = stbRawCount;
+    g_progress.stbIndex = 0;
+
+    int stbEffectiveIdx = 0;  // index of STBs actually processed (skips filtered ones)
     for (int i = 0; stbNames != NULL && stbNames[i] != NULL; i++) {
         // If specific tables are requested, only include stbs that either
         // (a) are directly named in specTables, or
@@ -664,6 +702,14 @@ int backDatabaseData(DBInfo *dbInfo) {
             logInfo("skip data backup for virtual STB: %s.%s", dbName, stbNames[i]);
             continue;
         }
+
+        stbEffectiveIdx++;
+        // update progress: which STB we're starting
+        g_progress.stbIndex = stbEffectiveIdx;
+        snprintf(g_progress.stbName, PROGRESS_STB_NAME_LEN, "%s", stbNames[i]);
+        g_progress.ctbTotalCur = 0;
+        atomic_store_64(&g_progress.ctbDoneCur, 0);
+
         logInfo("backup super table: %s.%s", dbName, stbNames[i]);
         StbInfo stbInfo;
         memset(&stbInfo, 0, sizeof(StbInfo));
@@ -671,10 +717,18 @@ int backDatabaseData(DBInfo *dbInfo) {
         stbInfo.stbName = stbNames[i];
 
         code = backStbData(&stbInfo);
+
+        // accumulate completed CTBs for global ETA
+        int64_t doneCur = g_progress.ctbDoneCur;
+        atomic_add_fetch_64(&g_progress.ctbDoneAll, doneCur);
+        atomic_store_64(&g_progress.ctbDoneCur, 0);
+
         if (code != TSDB_CODE_SUCCESS) {
             freeArrayPtr(stbNames);
             return code;
         }
+        logInfo("stb done: %s  ctb=%" PRId64 "  total_rows=%" PRId64,
+                stbNames[i], doneCur, g_stats.totalRows);
     }
 
     freeArrayPtr(stbNames);
@@ -683,6 +737,15 @@ int backDatabaseData(DBInfo *dbInfo) {
     // normal tables
     //
     code = backNormalTableData(dbInfo);
+    // accumulate NTB done count
+    {
+        int64_t ntbDone = g_progress.ctbDoneCur;
+        atomic_add_fetch_64(&g_progress.ctbDoneAll, ntbDone);
+        atomic_store_64(&g_progress.ctbDoneCur, 0);
+        if (ntbDone > 0) {
+            logInfo("ntb done: total_rows=%" PRId64, g_stats.totalRows);
+        }
+    }
     if (code != TSDB_CODE_SUCCESS) {
         return code;
     }

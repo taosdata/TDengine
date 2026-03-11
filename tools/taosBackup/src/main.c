@@ -13,6 +13,7 @@
 #include "backup.h"
 #include "restore.h"
 #include "bckArgs.h"
+#include "bckProgress.h"
 
 // global interrupt flag
 volatile sig_atomic_t g_interrupted = 0;
@@ -20,7 +21,7 @@ volatile sig_atomic_t g_interrupted = 0;
 // global statistics
 BckStats g_stats = {0};
 
-static void signalHandler(int sig) {
+static void signalHandler(int32_t signum, void *sigInfo, void *context) {
     g_interrupted = 1;
     const char *msg = "\nReceived interrupt signal, stopping gracefully...\n";
     // write() is async-signal-safe, printf is not
@@ -53,7 +54,7 @@ static void printStartSummary(enum ActionType action) {
             }
             printf("\n");
         } else {
-            printf("  Databases    : ALL (system databases excluded)\n");
+            printf("  Databases    : ALL %s\n", action == ACTION_BACKUP ? "(system databases excluded)" : "");
         }
     }
     printf("  Data Threads : %d\n", argDataThread());
@@ -84,10 +85,10 @@ static void printStartSummary(enum ActionType action) {
                 printf("\n");
             }
         }
-        printf("  Resume Mode  : %s\n", argCheckpoint() ? "yes (-C)" : "no");
+        printf("  Check Point  : %s\n", argCheckpoint() ? "yes" : "no");
     }
     if (action == ACTION_RESTORE) {
-        printf("  Resume Mode  : %s\n", argCheckpoint() ? "yes (-C)" : "no");
+        printf("  Check Point  : %s\n", argCheckpoint() ? "yes" : "no");
         const char *rl = argRenameList();
         if (rl) printf("  Rename       : %s\n", rl);
     }
@@ -122,11 +123,27 @@ static void printEndSummary(enum ActionType action, int code, double elapsed) {
         printf("  Data Files   : total=%" PRId64 ", skipped(checkpoint)=%" PRId64 ", failed=%" PRId64 "\n",
                g_stats.dataFilesTotal, g_stats.dataFilesSkipped, g_stats.dataFilesFailed);
     }
-    // calculate output directory size
+    // calculate directory size:
+    // - backup : always the whole output path
+    // - restore: only the database subdirectory(ies) being restored, not the whole input path
     int64_t dirSize = 0;
     const char *outPath = argOutPath();
     if (outPath && taosDirExist(outPath)) {
-        taosGetDirSize(outPath, &dirSize);
+        char **dbs = argBackDB();
+        if (action == ACTION_RESTORE && dbs && dbs[0]) {
+            // sum only the selected database directories
+            for (int i = 0; dbs[i]; i++) {
+                char dbPath[MAX_PATH_LEN];
+                snprintf(dbPath, sizeof(dbPath), "%s/%s", outPath, dbs[i]);
+                if (taosDirExist(dbPath)) {
+                    int64_t sz = 0;
+                    taosGetDirSize(dbPath, &sz);
+                    dirSize += sz;
+                }
+            }
+        } else {
+            taosGetDirSize(outPath, &dirSize);
+        }
     }
     double sizeMB = (double)dirSize / (1024.0 * 1024.0);
     if (sizeMB >= 1024.0) {
@@ -151,14 +168,10 @@ static void printEndSummary(enum ActionType action, int code, double elapsed) {
 }
 
 int main(int argc, char *argv[]) {
+    printVersion(false);
     // register signal handlers for graceful shutdown
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = signalHandler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    sigaction(SIGINT, &sa, NULL);
-    sigaction(SIGTERM, &sa, NULL);
+    taosSetSignal(SIGINT,  signalHandler);
+    taosSetSignal(SIGTERM, signalHandler);
 
     int code = TSDB_CODE_SUCCESS;
 
@@ -208,6 +221,12 @@ int main(int argc, char *argv[]) {
     // record start time
     int64_t startMs = taosGetTimestampMs();
 
+    // start progress display thread (backup only; no-op for restore)
+    if (action == ACTION_BACKUP) {
+        g_progress.startMs = startMs;
+        progressStart();
+    }
+
     switch (action) {
         case ACTION_BACKUP:
             code = backupMain();
@@ -219,6 +238,11 @@ int main(int argc, char *argv[]) {
             logError("unknown action");
             code = TSDB_CODE_INVALID_PARA;
             break;
+    }
+
+    // stop progress display thread
+    if (action == ACTION_BACKUP) {
+        progressStop();
     }
 
     // calc elapsed time

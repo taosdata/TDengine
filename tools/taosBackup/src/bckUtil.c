@@ -36,8 +36,9 @@ void freePtr(void *ptr) {
 
 bool errorCodeCanRetry(int code) {
     if (code == TSDB_CODE_RPC_NETWORK_ERROR ||
-        code == TSDB_CODE_RPC_NETWORK_BUSY ||
-        code == TSDB_CODE_RPC_TIMEOUT) {
+        code == TSDB_CODE_RPC_NETWORK_BUSY  ||
+        code == TSDB_CODE_RPC_TIMEOUT       ||
+        code == TSDB_CODE_RPC_BROKEN_LINK) {
         return true;
     }
 

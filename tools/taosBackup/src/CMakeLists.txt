@@ -107,6 +107,7 @@ ADD_EXECUTABLE(
         bckPool.c
         backupMeta.c
         backupData.c
+        bckProgress.c
         storageTaos.c
         storageParquet.c
         parquetBlock.cpp

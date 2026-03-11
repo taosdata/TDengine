@@ -18,7 +18,7 @@ char ** getDBSuperTableNames(const char *dbName, int *code) {
     *code = TSDB_CODE_FAILED;
     
     // get connection
-    TAOS *conn = getConnection();
+    TAOS *conn = getConnection(code);
     if (!conn) {
         logError("get connection failed");
         return NULL;
@@ -76,7 +76,7 @@ char ** getDBSuperTableNames(const char *dbName, int *code) {
 char ** getDBNormalTableNames(const char *dbName, int *code) {
     *code = TSDB_CODE_FAILED;
     
-    TAOS *conn = getConnection();
+    TAOS *conn = getConnection(code);
     if (!conn) {
         logError("get connection failed");
         return NULL;
@@ -140,7 +140,7 @@ char ** getDBNormalTableNames(const char *dbName, int *code) {
 char ** getDBVirtualTableNames(const char *dbName, int *code) {
     *code = TSDB_CODE_FAILED;
 
-    TAOS *conn = getConnection();
+    TAOS *conn = getConnection(code);
     if (!conn) {
         logError("get connection failed");
         return NULL;
@@ -211,9 +211,10 @@ int getDBNormalTableCount(const char *dbName, int32_t *outCount) {
 }
 
 int queryValueInt(const char *sql, int col, int32_t *outValue) {
-    TAOS* conn = getConnection();
+    int connCode = TSDB_CODE_FAILED;
+    TAOS* conn = getConnection(&connCode);
     if (conn == NULL) {
-        return TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+        return connCode;
     }
     TAOS_RES *res = taos_query(conn, sql);
     int code = taos_errno(res);

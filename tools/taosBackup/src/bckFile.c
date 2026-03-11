@@ -16,10 +16,11 @@
 #include "storageParquet.h"
 
 int queryWriteTxt(const char *sql, int32_t col, const char *pathFile) {
-    TAOS *conn = getConnection();
+    int connCode = TSDB_CODE_FAILED;
+    TAOS *conn = getConnection(&connCode);
     if (!conn) {
         logError("get connection failed");
-        return TSDB_CODE_FAILED;
+        return connCode;
     }
 
     TAOS_RES *res = taos_query(conn, sql);
@@ -73,10 +74,11 @@ int queryWriteTxt(const char *sql, int32_t col, const char *pathFile) {
 
 
 int queryWriteCsv(const char *sql, const char *pathFile, char ** selectTags) {
-    TAOS *conn = getConnection();
+    int connCode = TSDB_CODE_FAILED;
+    TAOS *conn = getConnection(&connCode);
     if (!conn) {
         logError("get connection failed");
-        return TSDB_CODE_FAILED;
+        return connCode;
     }
 
     TAOS_RES *res = taos_query(conn, sql);

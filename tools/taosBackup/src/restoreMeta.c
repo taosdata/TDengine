@@ -131,11 +131,11 @@ static int restoreDbSql(const char *dbName) {
 
     logDebug("restore db sql: %s", execContent);
 
-    TAOS *conn = getConnection();
+    TAOS *conn = getConnection(&code);
     if (conn == NULL) {
         taosMemoryFree(content);
         if (renamedSql) taosMemoryFree(renamedSql);
-        return TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+        return code;
     }
 
     // execute - if database exists, this may fail, which is fine (APPEND mode)
@@ -180,10 +180,10 @@ static int restoreStbSql(const char *dbName) {
         return TSDB_CODE_BCK_READ_FILE_FAILED;
     }
 
-    TAOS *conn = getConnection();
+    TAOS *conn = getConnection(&code);
     if (conn == NULL) {
         taosMemoryFree(content);
-        return TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+        return code;
     }
 
     // stb.sql may contain multiple CREATE STABLE statements separated by newlines
@@ -282,10 +282,10 @@ static int restoreNtbSql(const char *dbName) {
         return TSDB_CODE_BCK_READ_FILE_FAILED;
     }
 
-    TAOS *conn = getConnection();
+    TAOS *conn = getConnection(&code);
     if (conn == NULL) {
         taosMemoryFree(content);
-        return TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+        return code;
     }
 
     // ntb.sql contains CREATE TABLE statements, one per line
@@ -796,8 +796,9 @@ static int restoreVstbChildTags(const char       *dbName,
         return TSDB_CODE_SUCCESS;
     }
 
-    TAOS *conn = getConnection();
-    if (!conn) { freeArrayPtr(vtagFiles); return TSDB_CODE_BCK_CONN_POOL_EXHAUSTED; }
+    int connCode = TSDB_CODE_FAILED;
+    TAOS *conn = getConnection(&connCode);
+    if (!conn) { freeArrayPtr(vtagFiles); return connCode; }
 
     const char *targetDb = argRenameDb(dbName);
     int code = TSDB_CODE_SUCCESS;
@@ -879,10 +880,10 @@ static int restoreVtbSql(const char *dbName) {
         return TSDB_CODE_BCK_READ_FILE_FAILED;
     }
 
-    TAOS *conn = getConnection();
+    TAOS *conn = getConnection(&code);
     if (conn == NULL) {
         taosMemoryFree(content);
-        return TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+        return code;
     }
 
     const char *targetDb = argRenameDb(dbName);
@@ -1912,14 +1913,14 @@ static int restoreStbTags(DBInfo *dbInfo, StbInfo *stbInfo) {
         threads[i].dbInfo  = dbInfo;
         threads[i].stbInfo = stbInfo;
         threads[i].index   = i + 1;
-        threads[i].conn    = getConnection();
+        threads[i].conn    = getConnection(&code);
         if (!threads[i].conn) {
             for (int j = 0; j < i; j++) {
                 releaseConnection(threads[j].conn);
             }
             taosMemoryFree(threads);
             freeArrayPtr(tagFiles);
-            return g_interrupted ? TSDB_CODE_BCK_USER_CANCEL : TSDB_CODE_BCK_CONN_POOL_EXHAUSTED;
+            return code;
         }
         snprintf(threads[i].tagFile, MAX_PATH_LEN, "%s", tagFiles[i]);
 

@@ -67,8 +67,12 @@ static int8_t g_driver = CONN_MODE_INVALID;
 // ---------------- usage ----------------
 //
 
-static void printVersion() {
-    printf("taosBackup version: v1.1\n");
+void printVersion(bool verbose) {
+    printf("taosBackup version: %s\n", TD_VER_NUMBER);
+    if (verbose) {
+        printf("git: %s\n", TAOSBACKUP_COMMIT_ID);
+        printf("build: %s\n", BUILD_INFO);
+    }
 }
 
 static void printUsage(const char *prog) {
@@ -427,7 +431,7 @@ int argsInit(int argc, char *argv[]) {
         }
         // ---- version ----
         else if (strcmp(argv[i], "-V") == 0 || matchLong(argc, argv, &i, "--version", 0)) {
-            printVersion();
+            printVersion(true);
             exit(0);
         }
         // ---- help ----

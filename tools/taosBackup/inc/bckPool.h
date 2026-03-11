@@ -21,14 +21,14 @@
 int initConnectionPool(int poolSize);
 void destroyConnectionPool();
 
-TAOS* getConnection();
+TAOS* getConnection(int *code);
 
 TAOS* createConnection();
 
 void releaseConnection(TAOS* conn);
 
-// returns the taos error code from the last failed taos_connect attempt (0 if none)
-int getLastConnectError();
+// Close and evict a stale/broken connection from the pool.
+void releaseConnectionBad(TAOS* conn);
 
 
 #endif  // INC_BCKPOOL_H_

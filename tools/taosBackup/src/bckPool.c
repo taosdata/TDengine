@@ -70,13 +70,14 @@ void destroyConnectionPool() {
     pthread_mutex_destroy(&g_pool.mutex);
 }
 
-TAOS* getConnection() {
+TAOS* getConnection(int *code) {
     pthread_mutex_lock(&g_pool.mutex);
 
     while (1) {
         // check if interrupted
         if (g_interrupted) {
             pthread_mutex_unlock(&g_pool.mutex);
+            *code = TSDB_CODE_BCK_USER_CANCEL;
             return NULL;
         }
 
@@ -94,6 +95,7 @@ TAOS* getConnection() {
             // check interrupt before blocking in taos_connect
             if (g_interrupted) {
                 pthread_mutex_unlock(&g_pool.mutex);
+                *code = TSDB_CODE_BCK_USER_CANCEL;
                 return NULL;
             }
             TAOS *conn = taos_connect(argHost(), argUser(), argPassword(), NULL, argPort());
@@ -112,6 +114,7 @@ TAOS* getConnection() {
                 // no existing connections at all — server is unreachable
                 logError("connect to %s:%d failed (0x%08X): %s", argHost(), argPort(), errCode, errStr);
                 pthread_mutex_unlock(&g_pool.mutex);
+                *code = errCode;
                 return NULL;
             }
             // some connections already exist; just couldn't expand — wait for idle
@@ -187,6 +190,32 @@ void releaseConnection(TAOS* conn) {
         }
     }
     
+    pthread_mutex_unlock(&g_pool.mutex);
+}
+
+// Mark a connection as broken: close it and evict it from the pool so the next
+// getConnection() call creates a fresh one instead of handing out this stale handle.
+void releaseConnectionBad(TAOS* conn) {
+    if (!conn) return;
+
+    pthread_mutex_lock(&g_pool.mutex);
+
+    for (int i = 0; i < g_pool.count; i++) {
+        if (g_pool.pool[i] == conn) {
+            taos_close(conn);
+            // shift remaining entries down to fill the gap
+            for (int j = i; j < g_pool.count - 1; j++) {
+                g_pool.pool[j] = g_pool.pool[j + 1];
+                g_pool.used[j]  = g_pool.used[j + 1];
+            }
+            g_pool.pool[g_pool.count - 1] = NULL;
+            g_pool.used[g_pool.count - 1]  = 0;
+            g_pool.count--;
+            pthread_cond_signal(&g_pool.cond);
+            break;
+        }
+    }
+
     pthread_mutex_unlock(&g_pool.mutex);
 }
 
