@@ -927,7 +927,7 @@ static void parse_args(
                   || (strncmp(argv[i], "--password", 10) == 0)) {
                 printf("Enter password: ");
                 (void)setConsoleEcho(false);
-                if (scanf("%255s", arguments->password) > 1) {
+                if (scanf("%255s", arguments->password) != 1) {
                     errorPrint("%s() LN%d, password read error!\n",
                             __func__, __LINE__);
                 }
