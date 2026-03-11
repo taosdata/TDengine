@@ -989,9 +989,11 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     case TDMT_VND_AUDIT_RECORD:
       vTrace("vgId:%d, processed audit msg", TD_VID(pVnode));
       code = vnodeProcessAuditRecordReq(pVnode, ver, pReq, len, pMsg);
-      // TODO dmchen audit need commit ? 1. test restart done 2. test large write
+      pRsp->code = code;
+      pRsp->msgType = TDMT_VND_AUDIT_RECORD_RSP;
+      pRsp->pCont = NULL;
+      pRsp->contLen = 0;
       if (code) {
-        pRsp->code = code;
         goto _err;
       }
       break;
