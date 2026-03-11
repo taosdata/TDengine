@@ -35,6 +35,8 @@ class TestVTableQuerySameDBStbAgg:
         2. test vstable select super table agg with tag condition
         3. test vstable select super table agg with time condition
         4. test vstable select super table agg with partition expression
+        5. test vstable select super table agg with group by
+        6. test vstable select super table agg with group by expression
 
         Catalog:
             - VirtualTable
@@ -53,4 +55,5 @@ class TestVTableQuerySameDBStbAgg:
         self.run_normal_query("test_vstable_select_test_agg_tag_cond")
         self.run_normal_query("test_vstable_select_test_agg_time_cond")
         self.run_normal_query("test_vstable_select_test_agg_partition_expr")
-
+        self.run_normal_query("test_vstable_select_test_agg_group")
+        self.run_normal_query("test_vstable_select_test_agg_group_expr")

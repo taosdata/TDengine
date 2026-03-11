@@ -31,6 +31,7 @@ class TestVTablePlanAggOptimize:
         """Query: virtual stable query plan
 
         1. test select super table agg's plan
+        2. test select super table group agg's plan
 
         Catalog:
             - VirtualTable
@@ -47,4 +48,4 @@ class TestVTablePlanAggOptimize:
         """
 
         self.run_normal_query("test_vstable_plan_test_agg")
-
+        self.run_normal_query("test_vstable_plan_test_agg_group")

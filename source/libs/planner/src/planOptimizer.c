@@ -9950,28 +9950,30 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
-
-  if (pAgg->pGroupKeys) {
-    return false;
-  }
   if (LIST_LENGTH(pAgg->node.pChildren) == 1) {
     if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
       if (((SDynQueryCtrlLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0))->qType != DYN_QTYPE_VTB_SCAN) {
         return false;
       }
+      if (pAgg->pGroupKeys && keysHasCol(pAgg->pGroupKeys)) {
+        return false;
+      }
       // ok
     } else if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_PARTITION) {
-        SPartitionLogicNode* pPart = (SPartitionLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
-        if (LIST_LENGTH(pPart->node.pChildren) != 1 ||
-            nodeType(nodesListGetNode(pPart->node.pChildren, 0)) != QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
-          return false;
-        }
-        if (((SDynQueryCtrlLogicNode*)nodesListGetNode(pPart->node.pChildren, 0))->qType != DYN_QTYPE_VTB_SCAN) {
-          return false;
-        }
-        if (keysHasCol(pPart->pPartitionKeys)) {
-          return false;
-        }
+      if (pAgg->pGroupKeys) {
+        return false;
+      }
+      SPartitionLogicNode* pPart = (SPartitionLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+      if (LIST_LENGTH(pPart->node.pChildren) != 1 ||
+          nodeType(nodesListGetNode(pPart->node.pChildren, 0)) != QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
+        return false;
+      }
+      if (((SDynQueryCtrlLogicNode*)nodesListGetNode(pPart->node.pChildren, 0))->qType != DYN_QTYPE_VTB_SCAN) {
+        return false;
+      }
+      if (keysHasCol(pPart->pPartitionKeys)) {
+        return false;
+      }
     } else {
       return false;
     }
@@ -10199,6 +10201,82 @@ _return:
 }
 
 /*
+ * Extract plain partition expressions from aggregate group-by keys.
+ *
+ * @param pGroupKeys Grouping-set list from aggregate logic node.
+ * @param ppPartKeys Output list of cloned plain expressions.
+ *
+ * @return TSDB_CODE_SUCCESS on success, otherwise error code.
+ */
+static int32_t extractPartitionKeysFromGroupKeys(const SNodeList* pGroupKeys, SNodeList** ppPartKeys) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SNode*  pNode = NULL;
+
+  FOREACH(pNode, pGroupKeys) {
+    SGroupingSetNode* pGroupingSet = (SGroupingSetNode*)pNode;
+    QUERY_CHECK_NULL(pGroupingSet, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
+    SNode* pExpr = nodesListGetNode(pGroupingSet->pParameterList, 0);
+    QUERY_CHECK_NULL(pExpr, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
+    SNode* pNew = NULL;
+    PLAN_ERR_JRET(nodesCloneNode(pExpr, &pNew));
+    PLAN_ERR_JRET(nodesListMakeStrictAppend(ppPartKeys, pNew));
+  }
+
+  return code;
+
+_return:
+  planError("%s failed at line %d, code: %d", __func__, lino, code);
+  nodesDestroyList(*ppPartKeys);
+  *ppPartKeys = NULL;
+  return code;
+}
+
+/*
+ * Rewrite eligible virtual-stable GROUP BY agg into a partition-style layout.
+ *
+ * @param pAgg Aggregate logic node cloned for virtual-stable optimization.
+ *
+ * @return TSDB_CODE_SUCCESS on success, otherwise error code.
+ */
+static int32_t rewriteVstableGroupByToPartition(SAggLogicNode* pAgg) {
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  int32_t                 lino = 0;
+  SPartitionLogicNode*    pPartition = NULL;
+  SDynQueryCtrlLogicNode* pDynVstbScan = NULL;
+
+  QUERY_CHECK_NULL(pAgg, code, lino, _return, TSDB_CODE_INVALID_PARA)
+  QUERY_CHECK_NULL(pAgg->pGroupKeys, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
+  pDynVstbScan = (SDynQueryCtrlLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+  QUERY_CHECK_NULL(pDynVstbScan, code, lino, _return, TSDB_CODE_INVALID_PARA)
+
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PARTITION, (SNode**)&pPartition));
+  pPartition->node.groupAction = GROUP_ACTION_SET;
+  pPartition->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  pPartition->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+
+  PLAN_ERR_JRET(extractPartitionKeysFromGroupKeys(pAgg->pGroupKeys, &pPartition->pPartitionKeys));
+  PLAN_ERR_JRET(partTagsRewriteGroupTagsToFuncs(pPartition->pPartitionKeys, 0, pAgg));
+
+  NODES_DESTORY_LIST(pAgg->pGroupKeys);
+  pAgg->hasGroupKeyOptimized = true;
+
+  clearChildList((SLogicNode*)pAgg);
+  PLAN_ERR_JRET(appendNewChild((SLogicNode*)pPartition, (SLogicNode*)pDynVstbScan));
+  PLAN_ERR_JRET(appendNewChild((SLogicNode*)pAgg, (SLogicNode*)pPartition));
+
+  return code;
+
+_return:
+  planError("%s failed at line %d, code: %d", __func__, lino, code);
+  nodesDestroyNode((SNode*)pPartition);
+  return code;
+}
+
+/*
  * Rebuild dynamic virtual-stable scan targets from a rewritten parent node.
  *
  * @param pDynVstbScan Dynamic virtual-stable scan node.
@@ -10353,6 +10431,10 @@ static int32_t vstableAggOptimizeWithPartition(SOptimizeContext* pCxt, SLogicSub
 
   PLAN_ERR_JRET(nodesCloneNode((SNode*)pAgg, (SNode**)&pNewAgg));
 
+  if (nodeType(nodesListGetNode(pNewAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
+    PLAN_ERR_JRET(rewriteVstableGroupByToPartition(pNewAgg));
+  }
+
   pPartition = (SPartitionLogicNode*)nodesListGetNode(pNewAgg->node.pChildren, 0);
   QUERY_CHECK_NULL(pPartition, code, lino, _return, terrno)
 
@@ -10450,7 +10532,7 @@ static int32_t vstableAggOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 
   OPTIMIZE_FLAG_SET_MASK(pAgg->node.optimizedFlag, OPTIMIZE_FLAG_VTB_AGG);
 
-  if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_PARTITION) {
+  if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_PARTITION || pAgg->pGroupKeys) {
     PLAN_ERR_JRET(vstableAggOptimizeWithPartition(pCxt, pLogicSubplan, pAgg));
   } else if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
     PLAN_ERR_JRET(vstableAggOptimizeWithoutPartition(pCxt, pLogicSubplan, pAgg));
