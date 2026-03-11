@@ -14,6 +14,7 @@ on:
       - '**/*.md'
       - 'test/**'
       - '.github/workflows/tdengine-docs-ci.yml'
+      - '.github/workflows/new-framework-test.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
