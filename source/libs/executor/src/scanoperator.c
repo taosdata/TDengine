@@ -1375,6 +1375,16 @@ static int32_t resolveVirtualTableToPhysical(SStorageAPI* pAPI, void* vnode, SMe
       return TSDB_CODE_INVALID_PARA;
     }
 
+    int8_t maxColDepth = 0;
+    for (int32_t d = 0; d < pColRefW->nCols; d++) {
+      if (pColRefW->pColRef[d].hasRef && pColRefW->pColRef[d].depth > maxColDepth) {
+        maxColDepth = pColRefW->pColRef[d].depth;
+      }
+    }
+    if (maxColDepth > 0 && maxColDepth <= 1 && depth == 1) {
+      qDebug("resolveVTable: all colRefs depth<=1, single-step resolve");
+    }
+
     SSchemaWrapper* curSchema = NULL;
     if (pOrgTable->me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
       curSchema = &pOrgTable->me.ntbEntry.schemaRow;

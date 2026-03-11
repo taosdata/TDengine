@@ -6681,7 +6681,7 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
       const SSchema* pTsSchema = &pMeta->schema[0];
       const SSchema* pRefTsSchema = &pRTNode->pMeta->schema[0];
       PAR_ERR_JRET(setColRef(&pMeta->colRef[0], pTsSchema->colId, (char*)pRefTsSchema->name, pRTNode->table.tableName,
-                             pRTNode->table.dbName));
+                             pRTNode->table.dbName, 0));
     }
   }
   nodesDestroyNode(*pTable);
@@ -22213,7 +22213,8 @@ static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateV
     if (pColDef->pOptions && ((SColumnOptions*)pColDef->pOptions)->hasRef) {
       PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, ((SColumnOptions*)pColDef->pOptions)->refColumn,
                              ((SColumnOptions*)pColDef->pOptions)->refTable,
-                             ((SColumnOptions*)pColDef->pOptions)->refDb));
+                             ((SColumnOptions*)pColDef->pOptions)->refDb,
+                             ((SColumnOptions*)pColDef->pOptions)->refDepth));
     }
     ++index;
   }
@@ -22267,14 +22268,14 @@ static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, S
       }
       const SSchema* pSchema = getTableColumnSchema(pStbMeta) + schemaIdx;
       PAR_ERR_JRET(setColRef(&req.colRef.pColRef[schemaIdx], pSchema->colId, pColRef->refColName, pColRef->refTableName,
-                             pColRef->refDbName));
+                             pColRef->refDbName, pColRef->refDepth));
     }
   } else if (pStmt->pColRefs) {
-    col_id_t index = 1;  // start from second column, don't set column ref for ts column
+    col_id_t index = 1;
     FOREACH(pCol, pStmt->pColRefs) {
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
       PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, pColRef->refColName, pColRef->refTableName,
-                             pColRef->refDbName));
+                             pColRef->refDbName, pColRef->refDepth));
       index++;
     }
   } else {
@@ -24108,18 +24109,18 @@ static int32_t getOriginalTablePrecision(STranslateContext* pCxt, const char* pD
 
 
 static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbName, char* pRefTableName, char* pRefColName,
-                           SDataType type, int8_t precision) {
+                           SDataType type, int8_t precision, int8_t* pDepth) {
   STableMeta* pRefTableMeta = NULL;
   int32_t     code = TSDB_CODE_SUCCESS;
   SArray*     pVisitedTables = NULL;
   int8_t      originalPrecision = 0;
 
+  if (pDepth) *pDepth = 1;
+
   PAR_ERR_JRET(getTableMeta(pCxt, pRefDbName, pRefTableName, &pRefTableMeta));
 
-  // Check if referenced table is a virtual table
   bool isVirtualTable = (pRefTableMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
-                        pRefTableMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE ||
-                        (pRefTableMeta->virtualStb && pRefTableMeta->tableType == TSDB_SUPER_TABLE));
+                        pRefTableMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE);
 
   if (isVirtualTable) {
     int32_t     depth = 0;
@@ -24153,11 +24154,12 @@ static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbN
       ownedMeta = true;
     }
     if (ownedMeta && pCurMeta) taosMemoryFree(pCurMeta);
+    if (pDepth) *pDepth = (int8_t)(depth + 1);
   } else {
-    // Original table precision check (for non-virtual tables)
     if (pRefTableMeta->tableInfo.precision != precision) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE, "timestamp precision of virtual table and its reference table do not match"));
     }
+    if (pDepth) *pDepth = 1;
   }
 
   // org table cannot has composite primary key
@@ -24167,17 +24169,13 @@ static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbN
                                          colName));
   }
 
-  // Modified: Allow virtual table types as referenced tables
   if (pRefTableMeta->tableType != TSDB_NORMAL_TABLE && 
       pRefTableMeta->tableType != TSDB_CHILD_TABLE &&
       pRefTableMeta->tableType != TSDB_VIRTUAL_NORMAL_TABLE &&
       pRefTableMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
-    // Also check if it's a virtual super table
-    if (!(pRefTableMeta->virtualStb && pRefTableMeta->tableType == TSDB_SUPER_TABLE)) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-                                           "virtual table's column:\"%s\"'s reference can only be normal table, child table, or virtual table",
-                                           colName));
-    }
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
+                                         "virtual table's column:\"%s\"'s reference can only be normal table, child table, or virtual table",
+                                         colName));
   }
 
   const SSchema* pRefCol = getNormalColSchema(pRefTableMeta, pRefColName);
@@ -24238,7 +24236,7 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
     // check ref column exists and check type
     PAR_ERR_RET(checkColRef(pCxt, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
                             (SDataType){.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)},
-                            pTableMeta->tableInfo.precision));
+                            pTableMeta->tableInfo.precision, NULL));
 
     pReq->type = pStmt->dataType.type;
     pReq->bytes = calcTypeBytes(pStmt->dataType);
@@ -24451,7 +24449,7 @@ static int buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* pS
 
   PAR_ERR_JRET(checkColRef(pCxt, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
                            (SDataType){.type = pSchema->type, .bytes = pSchema->bytes},
-                           pTableMeta->tableInfo.precision));
+                           pTableMeta->tableInfo.precision, NULL));
 
   pReq->colName = taosStrdup(pStmt->colName);
   pReq->refDbName = taosStrdup(pStmt->refDbName);
@@ -24772,7 +24770,7 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
       PAR_ERR_JRET(
           checkColRef(pCxt, pColNode->colName, pColOptions->refDb, pColOptions->refTable, pColOptions->refColumn,
                       (SDataType){.type = pColNode->dataType.type, .bytes = calcTypeBytes(pColNode->dataType)},
-                      dbCfg.precision));
+                      dbCfg.precision, &pColOptions->refDepth));
     }
     index++;
   }
@@ -24828,7 +24826,7 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
       }
       PAR_ERR_JRET(checkColRef(pCxt, pColRef->colName, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
                                (SDataType){.type = pSchema->type, .bytes = pSchema->bytes},
-                               pSuperTableMeta->tableInfo.precision));
+                               pSuperTableMeta->tableInfo.precision, &pColRef->refDepth));
     }
   } else if (pStmt->pColRefs) {
     int32_t index = 1;
@@ -24837,7 +24835,7 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
       PAR_ERR_JRET(checkColRef(
           pCxt, pColRef->colName, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
           (SDataType){.type = pSuperTableMeta->schema[index].type, .bytes = pSuperTableMeta->schema[index].bytes},
-          pSuperTableMeta->tableInfo.precision));
+          pSuperTableMeta->tableInfo.precision, &pColRef->refDepth));
       index++;
     }
   } else {

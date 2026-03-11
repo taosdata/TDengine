@@ -2078,9 +2078,9 @@ _return:
 }
 
 static int32_t resolveVtableColRefToPhysical(SOperatorInfo* pOperator, const char* refDb, const char* refTb,
-                                              const char* refCol, char* outDb, char* outTb, char* outCol) {
+                                              const char* refCol, int8_t colDepth,
+                                              char* outDb, char* outTb, char* outCol) {
   int32_t code = TSDB_CODE_SUCCESS;
-  int32_t depth = 0;
   char    curDb[TSDB_DB_NAME_LEN];
   char    curTb[TSDB_TABLE_NAME_LEN];
   char    curCol[TSDB_COL_NAME_LEN];
@@ -2089,7 +2089,15 @@ static int32_t resolveVtableColRefToPhysical(SOperatorInfo* pOperator, const cha
   tstrncpy(curTb, refTb, sizeof(curTb));
   tstrncpy(curCol, refCol, sizeof(curCol));
 
-  while (depth < TSDB_MAX_VTABLE_REF_DEPTH) {
+  if (colDepth == 1) {
+    tstrncpy(outDb, curDb, TSDB_DB_NAME_LEN);
+    tstrncpy(outTb, curTb, TSDB_TABLE_NAME_LEN);
+    tstrncpy(outCol, curCol, TSDB_COL_NAME_LEN);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t iterDepth = 0;
+  while (iterDepth < TSDB_MAX_VTABLE_REF_DEPTH) {
     STableMetaRsp rsp = {0};
     code = getTableMetaViaRpc(pOperator, curDb, curTb, &rsp);
     if (code != TSDB_CODE_SUCCESS) {
@@ -2119,7 +2127,7 @@ static int32_t resolveVtableColRefToPhysical(SOperatorInfo* pOperator, const cha
 
     tFreeSTableMetaRsp(&rsp);
     if (!found) break;
-    depth++;
+    iterDepth++;
   }
 
   tstrncpy(outDb, curDb, TSDB_DB_NAME_LEN);
@@ -2309,6 +2317,7 @@ int32_t getColRefInfo(SColRefInfo *pInfo, SArray* pDataBlock, int32_t index) {
   SColumnInfoData *pRefCol = taosArrayGet(pDataBlock, 6);
   SColumnInfoData *pVgIdCol = taosArrayGet(pDataBlock, 7);
   SColumnInfoData *pRefVerCol = taosArrayGet(pDataBlock, 8);
+  SColumnInfoData *pDepthCol = (taosArrayGetSize(pDataBlock) > 9) ? taosArrayGet(pDataBlock, 9) : NULL;
 
   QUERY_CHECK_NULL(pColNameCol, code, line, _return, terrno)
   QUERY_CHECK_NULL(pUidCol, code, line, _return, terrno)
@@ -2339,6 +2348,11 @@ int32_t getColRefInfo(SColRefInfo *pInfo, SArray* pDataBlock, int32_t index) {
   }
   if (!colDataIsNull_s(pVgIdCol, index)) {
     GET_TYPED_DATA(pInfo->vgId, int32_t, TSDB_DATA_TYPE_INT, colDataGetNumData(pVgIdCol, index), 0);
+  }
+  if (pDepthCol && !colDataIsNull_s(pDepthCol, index)) {
+    GET_TYPED_DATA(pInfo->depth, int8_t, TSDB_DATA_TYPE_TINYINT, colDataGetNumData(pDepthCol, index), 0);
+  } else {
+    pInfo->depth = 0;
   }
 
 _return:
@@ -2522,7 +2536,7 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
       char physDb[TSDB_DB_NAME_LEN] = {0};
       char physTb[TSDB_TABLE_NAME_LEN] = {0};
       char physCol[TSDB_COL_NAME_LEN] = {0};
-      code = resolveVtableColRefToPhysical(pOperator, refDbName, refTbName, refColName, physDb, physTb, physCol);
+      code = resolveVtableColRefToPhysical(pOperator, refDbName, refTbName, refColName, pKV->depth, physDb, physTb, physCol);
       QUERY_CHECK_CODE(code, line, _return);
 
       qDebug("resolveColRef: %s.%s.%s -> %s.%s.%s", refDbName, refTbName, refColName, physDb, physTb, physCol);
