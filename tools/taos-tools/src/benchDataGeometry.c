@@ -70,14 +70,14 @@ static SGeoObj2D *geoObject2DRandInit(EGeoSubType subType, int coordNum) {
         SGeoCoord2D *pCoord = (SGeoCoord2D *)benchCalloc(1, sizeof(SGeoCoord2D), true);
         SGeoCoord2D *pFirstCoord= benchArrayGet(array, 0);
         memcpy(pCoord, pFirstCoord, sizeof(SGeoCoord2D));
-        benchArrayPush(array, pCoord);
+        (void)benchArrayPush(array, pCoord);
     }
     return geoObject2DInit(subType, array);
 }
 
 static void geoObject2DDestory(SGeoObj2D *pObj) {
     if (!pObj) return;
-    benchArrayDestroy(pObj->coordArray);
+    (void)benchArrayDestroy(pObj->coordArray);
     tmfree(pObj);
 }
 
@@ -117,7 +117,7 @@ static BArray *randCoordArray(int count) {
         SGeoCoord2D *pCoord = (SGeoCoord2D *)benchCalloc(1, sizeof(SGeoCoord2D), true);
         pCoord->x = x;
         pCoord->y = y;
-        benchArrayPush(array, pCoord);
+        (void)benchArrayPush(array, pCoord);
     }
     return array;
 }
@@ -154,6 +154,6 @@ void rand_geometry(char *str, int fieldLen, int maxType) {
     }
 
     SGeoObj2D *pObj = geoObject2DRandInit(type, coordNum);
-    geoObject2DToStr(str, pObj);
+    (void)geoObject2DToStr(str, pObj);
     geoObject2DDestory(pObj);
 }
