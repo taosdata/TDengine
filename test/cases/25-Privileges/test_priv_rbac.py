@@ -198,7 +198,7 @@ class TestCase:
 
         dict_array = [
             {"enableAdvancedSecurity": 0, "readPrivNum": 29, "writePrivNum": 31, "allPrivNum": 59},
-            {"enableAdvancedSecurity": 1, "readPrivNum": 11, "writePrivNum": 11, "allPrivNum": 22},
+            {"enableAdvancedSecurity": 1, "readPrivNum": 6, "writePrivNum": 10, "allPrivNum": 16},
         ]
 
         tdSql.connect("root", "taosdata")
