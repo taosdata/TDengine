@@ -18116,7 +18116,7 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
           }
         }
         if (objType == PRIV_OBJ_NONE) {
-          objType = translateDeduceObjType(&tmpPrivSet);
+          objType = privDeduceObjType(&tmpPrivSet);
         }
       }
 

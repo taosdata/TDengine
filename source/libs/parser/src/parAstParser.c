@@ -1529,9 +1529,6 @@ static int32_t collectMetaKeyFromGrantImpl(SCollectMetaKeyCxt* pCxt, SGrantStmt*
     }
     if (TSDB_CODE_SUCCESS == code) {
       if (isRealObj && IS_SPECIFIC_OBJ(pStmt->tabName)) {
-        EPrivObjType objType = PRIV_OBJ_TBL;
-        SPrivIter    privIter = {0};
-        privIterInit(&privIter, &pStmt->privileges.privSet);
         if (PRIV_OBJ_TBL == pStmt->privileges.objType) {
           code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, pCxt->pMetaCache);
         } else if (PRIV_OBJ_VIEW == pStmt->privileges.objType || PRIV_OBJ_NONE == pStmt->privileges.objType) {

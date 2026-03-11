@@ -739,7 +739,7 @@ void privAddSetByObjType(SPrivSet* fromSet, SPrivSet* toSet, uint8_t objType) {
   }
 }
 
-EPrivObjType translateDeduceObjType(SPrivSet* privSet) {
+EPrivObjType privDeduceObjType(SPrivSet* privSet) {
   uint32_t objTypeMask = 0;  // extend to uint64_t if needed
 
   if (PRIV_OBJ_MAX >= 32) {
