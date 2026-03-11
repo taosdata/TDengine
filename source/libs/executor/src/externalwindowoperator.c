@@ -2702,6 +2702,10 @@ static int32_t extWinAggOutputMulNoOrderCGrpsRes(SOperatorInfo* pOperator, SExte
   SExtWinTrigGrpCtx* pTGrpCtx = pExtW->pTGrpCtx;
   SSDataBlock*    pBlock = pExtW->binfo.pRes;
 
+  if (pTGrpCtx == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pTGrpCtx->pCCtx) {
     TAOS_CHECK_EXIT(extWinAggOutputSingleCGrpRes(pOperator, pExtW, NULL));
   }
@@ -2778,6 +2782,10 @@ static int32_t extWinAggOutputMulOrderCGrpsRes(SOperatorInfo* pOperator, SExtern
   SSDataBlock*    pBlock = pExtW->binfo.pRes;
   int32_t grpNum = taosArrayGetSize(pExtW->pGrpIds);
   bool grpDone = false;
+
+  if (pTGrpCtx == NULL || pTGrpCtx->pCGCtxs == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   for (; pExtW->lastGrpIdx < grpNum; ++pExtW->lastGrpIdx) {
     uint64_t *grpId = taosArrayGet(pExtW->pGrpIds, pExtW->lastGrpIdx);

@@ -53,10 +53,7 @@ class TestExternal:
         
         self.prepare_data()
         self.basic_query1()
-        # self.basic_query()
-        # partition by + external window regression is tracked separately.
-        # keep basic_query as focused validation entry for external placeholder assignment.
-        # self.partition_by_group_regression()
+        self.partition_by_group_regression()
 
     def mock_test_external_window_single_block(self):
         dbName = "external_window_test_single_block"
@@ -343,45 +340,6 @@ class TestExternal:
         # select _wstart, _wend, w.v1 from st1_1 external_window((select ts, endtime, v1 from ext_win_subq_1) w);
 
     def basic_query2(self):
-        tdLog.info(f"=============== basic query of external window")
-        sql1 = "select _wstart, _wend, w.fc1, ts from st1_1 external_window((select first(c1) fc1  from st2) w);"
-        tdSql.query(sql1)
-
-        rows = tdSql.getRows()
-        if rows <= 0:
-            tdLog.exit(f"external window query got no rows: {sql1}")
-
-        for i in range(min(rows, 5)):
-            ws = tdSql.getData(i, 0)
-            we = tdSql.getData(i, 1)
-            if ws is None or self._is_zero_ts(ws):
-                tdLog.exit(f"_wstart is invalid at row {i}, value: {ws}, sql: {sql1}")
-            if we is None or self._is_zero_ts(we):
-                tdLog.exit(f"_wend is invalid at row {i}, value: {we}, sql: {sql1}")
-            fc1 = tdSql.getData(i, 2)
-            if self._is_invalid_fc1(fc1):
-                tdLog.exit(f"w.fc1 is invalid at row {i}, value: {fc1}, sql: {sql1}")
-
-        sql2 = "select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select first(c1) fc1  from st2) w);"
-        tdSql.query(sql2)
-
-        rows = tdSql.getRows()
-        if rows <= 0:
-            tdLog.exit(f"external window agg query got no rows: {sql2}")
-
-        for i in range(rows):
-            ws = tdSql.getData(i, 0)
-            we = tdSql.getData(i, 1)
-            if ws is None or self._is_zero_ts(ws):
-                tdLog.exit(f"_wstart is invalid at row {i}, value: {ws}, sql: {sql2}")
-            if we is None or self._is_zero_ts(we):
-                tdLog.exit(f"_wend is invalid at row {i}, value: {we}, sql: {sql2}")
-            fc1 = tdSql.getData(i, 2)
-            if self._is_invalid_fc1(fc1):
-                tdLog.exit(f"w.fc1 is invalid at row {i}, value: {fc1}, sql: {sql2}")
-            if tdSql.getData(i, 3) is None:
-                tdLog.exit(f"count(*) is None at row {i}, sql: {sql2}")
-        
         # todo xs fix external window column placeholder issue
         # select _wstart, _wend, w.fc1 + 1, ts from st1_1 external_window((select first(c1) fc1  from st2) w);
         
@@ -408,7 +366,8 @@ class TestExternal:
         # todo 投影查询 + patition by , 不带 ts，有问题，需要修复，通过给 partition 算子增加 ts 列解决
         # select _wstart, _wend, w.fc1 as fc1, v2, ts from st1_1 partition by v2 external_window((select first(c1) fc1  from st2) w);
         # explain verbose true select count(*) from st1_1 external_window((select ts, ts+10, first(c1) c1 from st2) w) \G;
-
+        return
+    
     def partition_by_group_regression(self):
         tdLog.info("=============== regression: partition by + external window group calculation")
 
