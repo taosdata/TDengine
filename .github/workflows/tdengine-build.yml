@@ -13,8 +13,8 @@ on:
       - 'tests/**'
       - '**/*.md'
       - 'test/**'
-      - '.github/workflows/tdengine-docs-ci.yml'
-      - '.github/workflows/new-framework-test.yml'
+      - '.github/workflows/**'
+      - '!.github/workflows/tdengine-build.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
