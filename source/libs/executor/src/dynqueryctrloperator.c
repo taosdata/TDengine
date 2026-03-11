@@ -2089,7 +2089,7 @@ static int32_t resolveVtableColRefToPhysical(SOperatorInfo* pOperator, const cha
   tstrncpy(curTb, refTb, sizeof(curTb));
   tstrncpy(curCol, refCol, sizeof(curCol));
 
-  if (colDepth > 0 && colDepth <= 1) {
+  if (colDepth == 1) {
     tstrncpy(outDb, curDb, TSDB_DB_NAME_LEN);
     tstrncpy(outTb, curTb, TSDB_TABLE_NAME_LEN);
     tstrncpy(outCol, curCol, TSDB_COL_NAME_LEN);
