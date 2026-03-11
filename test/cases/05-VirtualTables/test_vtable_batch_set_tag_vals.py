@@ -330,6 +330,8 @@ class TestVtableBatchSetTagVals:
         tdSql.error("alter vtable using vntb set tag t1=1 where t1=1")
         # using aggregate function in where clause is not allowed
         tdSql.error("alter vtable using vstb set tag t1=1 where MAX(t1)=1")
+        # using non-tag column in where clause is not allowed
+        tdSql.error("alter vtable using vstb set tag t1=1 where c1=10")
 
 
     def test_child_table_batch_set_tag(self):
