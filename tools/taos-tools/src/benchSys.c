@@ -122,7 +122,7 @@ int32_t benchParseArgsNoArgp(int argc, char* argv[]) {
                 errorPrint("option %s requires an argument\r\n", key);
                 return -1;
             }
-            
+
             if (benchParseSingleOpt(key[1], val)) {
                 errorPrint("Invalid option %s\r\n", key);
                 return -1;
@@ -193,7 +193,7 @@ static error_t benchParseOpt(int key, char *arg, struct argp_state *state) {
 static struct argp bench_argp = {bench_options, benchParseOpt, "", ""};
 
 void benchParseArgsByArgp(int argc, char *argv[]) {
-    argp_parse(&bench_argp, argc, argv, 0, 0, g_arguments);
+    (void)argp_parse(&bench_argp, argc, argv, 0, 0, g_arguments);
 }
 #endif  // LINUX
 
@@ -315,7 +315,7 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
             } else {
                 g_argFlag |= ARG_OPT_THREAD;
             }
-            
+
             break;
 
         case 'i':
@@ -359,7 +359,7 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
                            arg);
                 stbInfo->angle_step = 1;
             }
-            break;            
+            break;
 
         case 'B':
             if (!toolsIsStringNumber(arg)) {
@@ -590,7 +590,7 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
             cfg->name = "replica";
             cfg->valuestring = NULL;
             cfg->valueint = replica;
-            benchArrayPush(database->cfgs, cfg);
+            (void)benchArrayPush(database->cfgs, cfg);
             break;
         }
         case 'g':
