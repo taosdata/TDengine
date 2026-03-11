@@ -4,11 +4,7 @@ use std::sync::{
 };
 
 use bitfield::bitfield;
-use http::HeaderMap;
-use taoslog::{
-    QidManager,
-    utils::{QidMetadataSetter, Span},
-};
+use taoslog::{QidManager, utils::Span};
 
 pub(crate) static INSTANCE_ID: OnceLock<u8> = OnceLock::new();
 pub(crate) const DEFAULT_INSTANCE_ID: u8 = 1;
@@ -36,6 +32,8 @@ impl Qid {
             return;
         }
         self.inner.set_sequence_id(self.inner.sequence_id() + 1);
+        // `set_qid` is provided by the QidMetadataSetter trait for Span; import it so the method is in scope.
+        use taoslog::utils::QidMetadataSetter;
         Span.set_qid(self);
     }
 }
@@ -86,9 +84,15 @@ impl From<u64> for Qid {
     }
 }
 
-pub(crate) fn headers_with_qid(qid: &Qid) -> HeaderMap {
-    let mut headers = HeaderMap::new();
-    headers.set_qid(qid);
+pub(crate) fn headers_with_qid(qid: &Qid) -> reqwest::header::HeaderMap {
+    // Build a reqwest HeaderMap for forwarding to external HTTP clients.
+    // This avoids mixing `http` crate versions by constructing reqwest types directly.
+    let mut headers = reqwest::header::HeaderMap::new();
+    if let Ok(value) = reqwest::header::HeaderValue::from_str(&format!("{}", qid.display())) {
+        let key = reqwest::header::HeaderName::from_static(taoslog::utils::QID_HEADER_KEY);
+        headers.insert(key, value);
+    }
+
     headers
 }
 

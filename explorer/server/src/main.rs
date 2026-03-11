@@ -1,5 +1,6 @@
 use actix_cors::Cors;
 use actix_files::NamedFile;
+use actix_web::http::StatusCode;
 use actix_web::{CustomizeResponder, http::header::ContentType};
 use actix_web_rust_embed_responder::{EmbedResponse, IntoResponse};
 use anyhow::Context;
@@ -10,7 +11,6 @@ use faststr::FastStr;
 use favorites::Storage;
 use futures_util::StreamExt;
 use geos::{Geom, Geometry};
-use http::{HeaderMap, HeaderValue, StatusCode};
 use log::LevelFilter;
 use reqwest::RequestBuilder;
 use rustls::server::ServerConfig;
@@ -766,10 +766,10 @@ impl<T> ResponseError for R<T>
 where
     T: std::fmt::Debug + serde::Serialize,
 {
-    fn status_code(&self) -> reqwest::StatusCode {
+    fn status_code(&self) -> StatusCode {
         match self.code {
-            1 => reqwest::StatusCode::INTERNAL_SERVER_ERROR,
-            _ => reqwest::StatusCode::OK,
+            1 => StatusCode::INTERNAL_SERVER_ERROR,
+            _ => StatusCode::OK,
         }
     }
 
@@ -1171,7 +1171,7 @@ fn real_ip_forward(req: &HttpRequest, mut builder: RequestBuilder) -> RequestBui
     if !req.headers().contains_key(X_FORWARDED_FOR)
         && let Some(real_ip) = real_ip
     {
-        builder = builder.header(X_FORWARDED_FOR, real_ip);
+        builder = builder.header(X_FORWARDED_FOR.as_str(), real_ip);
     }
     if !req.headers().contains_key(X_REAL_IP)
         && let Some(real_ip) = real_ip
@@ -1179,7 +1179,8 @@ fn real_ip_forward(req: &HttpRequest, mut builder: RequestBuilder) -> RequestBui
         builder = builder.header(X_REAL_IP, real_ip);
     }
     for (key, value) in req.headers() {
-        builder = builder.header(key, value);
+        // Convert header name/value to string form to avoid mixing http crate versions
+        builder = builder.header(key.as_str(), value.to_str().unwrap_or_default());
     }
     builder
 }
@@ -1189,7 +1190,7 @@ async fn proxy(
     mut payload: web::Payload,
     client: &reqwest::Client,
     url: &str,
-    append_headers: Option<HeaderMap>,
+    append_headers: Option<reqwest::header::HeaderMap>,
 ) -> Result<HttpResponse, actix_web::Error> {
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
@@ -1202,8 +1203,13 @@ async fn proxy(
     });
 
     debug!(url, "proxy to taosx");
+    let method: reqwest::Method = req
+        .method()
+        .as_str()
+        .parse()
+        .unwrap_or(reqwest::Method::GET);
     let mut builder = client
-        .request(req.method().clone(), url)
+        .request(method, url)
         .timeout(Duration::from_secs(u64::MAX))
         .body(reqwest::Body::wrap_stream(UnboundedReceiverStream::new(rx)));
     if let Some(headers) = append_headers {
@@ -1535,9 +1541,15 @@ async fn import(
 }
 
 fn reqwest_into_http_response(res: reqwest::Response) -> HttpResponse {
-    let mut client_resp = HttpResponse::build(res.status());
+    // Convert reqwest status to actix StatusCode to avoid http crate version mismatch
+    let status =
+        StatusCode::from_u16(res.status().as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    let mut client_resp = HttpResponse::build(status);
     for (header_name, header_value) in res.headers().iter().filter(|(h, _)| *h != "connection") {
-        client_resp.insert_header((header_name.clone(), header_value.clone()));
+        client_resp.insert_header((
+            header_name.as_str(),
+            header_value.to_str().unwrap_or_default(),
+        ));
     }
     client_resp.streaming(res.bytes_stream())
 }
@@ -1577,9 +1589,12 @@ async fn grafana_api(
         "{grafana_api}/grafana/{grafana_path}?{}",
         req.query_string()
     );
-    let mut headers = HeaderMap::new();
+    let mut headers = reqwest::header::HeaderMap::new();
     let token = format!("Bearer {}", grafana.unwrap().token.as_ref().unwrap());
-    headers.insert("Authorization", HeaderValue::from_str(&token).unwrap());
+    headers.insert(
+        reqwest::header::AUTHORIZATION,
+        reqwest::header::HeaderValue::from_str(&token).unwrap(),
+    );
 
     proxy(req, payload, &client, &url, Some(headers))
         .await
@@ -1613,8 +1628,13 @@ async fn x_api_doc(
 
     qid.add_sequence_id();
     debug!(url, "proxy to taosx");
+    let method: reqwest::Method = req
+        .method()
+        .as_str()
+        .parse()
+        .unwrap_or(reqwest::Method::GET);
     let builder = client
-        .request(req.method().clone(), url)
+        .request(method, url)
         .timeout(Duration::from_secs(u64::MAX))
         .headers(qid::headers_with_qid(&qid))
         .body(reqwest::Body::wrap_stream(UnboundedReceiverStream::new(rx)));
@@ -1624,9 +1644,15 @@ async fn x_api_doc(
         .await
         .map_err(error::ErrorInternalServerError)?;
     debug!("Got proxy result");
-    let mut client_resp = HttpResponse::build(res.status());
+    // Convert reqwest status to actix StatusCode to avoid http crate version mismatch
+    let status =
+        StatusCode::from_u16(res.status().as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    let mut client_resp = HttpResponse::build(status);
     for (header_name, header_value) in res.headers().iter().filter(|(h, _)| *h != "connection") {
-        client_resp.insert_header((header_name.clone(), header_value.clone()));
+        client_resp.insert_header((
+            header_name.as_str(),
+            header_value.to_str().unwrap_or_default(),
+        ));
     }
     // client_resp.
     let mut api: serde_json::Value = res.json().await.map_err(error::ErrorInternalServerError)?;

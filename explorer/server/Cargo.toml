@@ -16,7 +16,7 @@ futures-util.workspace = true
 bytes.workspace = true
 rustls = { workspace = true, default-features = false, features = ["ring"] }
 rustls-pemfile.workspace = true
-reqwest = { version = "0.11", default-features = false, features = [
+reqwest = { workspace = true, features = [
   "stream",
   "json",
   "deflate",
