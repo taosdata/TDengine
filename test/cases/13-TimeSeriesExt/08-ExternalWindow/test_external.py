@@ -64,8 +64,8 @@ class TestExternal:
         tdSql.execute(f"use {dbName}")
         tdLog.info(f"=============== start basic query of external window with agg on single block")
         
-        # sql = "select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select first(ts) t1, last(ts) t2 from st2) w);"
-        # tdSql.query(sql)
+        sql = "select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select first(ts) t1, last(ts) t2 from st2) w);"
+        tdSql.error(sql)
         
         sql = "select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select ts, ts, first(c1) fc1  from st2) w);"
         tdSql.query(sql)
@@ -120,7 +120,7 @@ class TestExternal:
         tdSql.checkData(1, 2, 200)
         tdSql.checkData(1, 3, 32)
         
-        sql = "select _wstart, _wend, w.fc1 + 2, count(*) from st1_1 partition by dev  external_window((select ts, ts, first(c1) fc1  from st2) w);"
+        sql = "select _wstart, _wend+1, w.fc1 + 2, count(*) from st1_1 partition by dev  external_window((select ts, ts, first(c1) fc1  from st2) w);"
         tdSql.query(sql)
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
@@ -209,7 +209,7 @@ class TestExternal:
         tdSql.execute(f"use {dbName}")
         tdLog.info(f"=============== start basic query of external window with agg on group blocks")
         
-        sql = "select _wstart, _wend, w.fc1, count(*), dev from st1_1 partition by dev  external_window((select first(c1) fc1  from st2) w);"
+        sql = "select _wstart, _wend, w.fc1, count(*), dev from st1_1 partition by dev  external_window((select ts, ts, first(c1) fc1  from st2) w);"
         tdSql.query(sql)
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
