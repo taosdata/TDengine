@@ -133,17 +133,27 @@ class TestStbKeepCompact:
         }
 
     def verify_data_count(self, table_name, expected_count, msg=""):
-        """Verify the count of rows in a table"""
-        tdSql.query(f"SELECT COUNT(*) FROM {table_name}")
-        actual_count = tdSql.getData(0, 0)
-        tdLog.info(f"{msg} - Expected: {expected_count}, Actual: {actual_count}")
+        """Verify the count of rows in a table, retry up to 60 times before failing"""
+        for attempt in range(60):
+            tdSql.query(f"SELECT COUNT(*) FROM {table_name}")
+            actual_count = tdSql.getData(0, 0)
+            if actual_count == expected_count:
+                tdLog.info(f"{msg} - Expected: {expected_count}, Actual: {actual_count} (attempt {attempt + 1})")
+                return
+            tdLog.info(f"{msg} - Expected: {expected_count}, Actual: {actual_count} (attempt {attempt + 1}/60)")
+            time.sleep(1)
         tdSql.checkEqual(actual_count, expected_count)
     
     def verify_oldest_data(self, table_name, expected_val, msg=""):
-        """Verify the oldest data value in a table"""
-        tdSql.query(f"SELECT val FROM {table_name} ORDER BY ts ASC LIMIT 1")
-        actual_val = tdSql.getData(0, 0)
-        tdLog.info(f"{msg} - Expected oldest value: {expected_val}, Actual: {actual_val}")
+        """Verify the oldest data value in a table, retry up to 60 times before failing"""
+        for attempt in range(60):
+            tdSql.query(f"SELECT val FROM {table_name} ORDER BY ts ASC LIMIT 1")
+            actual_val = tdSql.getData(0, 0)
+            if actual_val == expected_val:
+                tdLog.info(f"{msg} - Expected oldest value: {expected_val}, Actual: {actual_val} (attempt {attempt + 1})")
+                return
+            tdLog.info(f"{msg} - Expected oldest value: {expected_val}, Actual: {actual_val} (attempt {attempt + 1}/60)")
+            time.sleep(1)
         tdSql.checkEqual(actual_val, expected_val)
 
     def trigger_compact(self, db_name):

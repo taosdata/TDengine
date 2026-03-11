@@ -231,7 +231,7 @@ bool setNextIteratorFromMem(SResultIter** ppResult) {
       return true;
     }
   } else {
-    // 在读取数据时已完成指针移动
+    // pointer movement is completed while reading data
     SAlignGrpMgr* pAlignGrpMgr = (SAlignGrpMgr*)pResult->groupData;
     return pAlignGrpMgr->blocksInMem->size == 0;
   }
