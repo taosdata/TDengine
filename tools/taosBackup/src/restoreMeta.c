@@ -129,7 +129,7 @@ static int restoreDbSql(const char *dbName) {
         logInfo("rename database: %s -> %s", dbName, targetDb);
     }
 
-    logInfo("restore db sql: %s", execContent);
+    logDebug("restore db sql: %s", execContent);
 
     TAOS *conn = getConnection();
     if (conn == NULL) {
@@ -234,7 +234,7 @@ static int restoreStbSql(const char *dbName) {
                 snprintf(fullSql, TSDB_MAX_SQL_LEN, "%s", line);
             }
 
-            logInfo("restore stb sql: %s", fullSql);
+            logDebug("restore stb sql: %s", fullSql);
             // execute - if stable already exists, it's ok
             TAOS_RES *res = taos_query(conn, fullSql);
             int rc = taos_errno(res);
@@ -1005,7 +1005,7 @@ static int restoreVtbSql(const char *dbName) {
                 snprintf(sk->renamedSql,     sizeof(sk->renamedSql),     "%s", fullSql);
             } else {
                 // Execute immediately: virtual normal tables + old-format child DDLs with TAGS
-                logInfo("restore vtable sql: %s", fullSql);
+                logDebug("restore vtable sql: %s", fullSql);
                 TAOS_RES *res = taos_query(conn, fullSql);
                 int rc = taos_errno(res);
                 if (res) taos_free_result(res);

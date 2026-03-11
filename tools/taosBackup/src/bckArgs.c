@@ -476,60 +476,6 @@ int argsInit(int argc, char *argv[]) {
         g_dbs[1] = NULL;
     }
 
-    // print summary
-    printf("Action: %s\n", g_action == ACTION_BACKUP ? "backup" : "restore");
-    {
-        const char *drvStr = (g_driver == CONN_MODE_WEBSOCKET) ? "WebSocket" :
-                             (g_driver == CONN_MODE_NATIVE)    ? "Native"    :
-                             (g_dsnMode ? "WebSocket (auto from DSN)" : "Native (default)");
-        printf("Driver: %s\n", drvStr);
-    }
-    if (g_dsnMode) {
-        printf("DSN: %s\n", g_dsn);
-        printf("Host: %s, Port: %d, User: %s (from DSN)\n", g_host, g_port, g_user);
-    } else {
-        printf("Host: %s, Port: %d, User: %s\n", g_host, g_port, g_user);
-    }
-    printf("OutPath: %s\n", g_outPath);
-    if (g_dbCount == 0) {
-        printf("Databases: all\n");
-    } else {
-        printf("Databases(%d):", g_dbCount);
-        for (int i = 0; i < g_dbCount; i++) {
-            printf(" %s", g_dbs[i]);
-        }
-        printf("\n");
-    }
-    // show positional spec info
-    if (g_specDb[0] != '\0') {
-        if (g_specTableCount > 0) {
-            printf("SpecDatabase: %s\n", g_specDb);
-            printf("SpecTables(%d):", g_specTableCount);
-            for (int i = 0; i < g_specTableCount; i++) {
-                printf(" %s", g_specTables[i]);
-            }
-            printf("\n");
-        } else {
-            printf("SpecDatabase: %s (all tables)\n", g_specDb);
-        }
-    }
-    printf("DataThreads: %d, TagThreads: %d\n", g_dataThread, g_tagThread);
-    printf("Format: %s\n", g_storageFormat == BINARY_TAOS ? "binary" : "parquet");
-    if (g_action == ACTION_RESTORE)
-        printf("StmtVersion: %s\n", g_stmtVersion == STMT_VERSION_2 ? "2 (STMT2)" : "1 (STMT1)");
-    if (g_schemaOnly)   printf("SchemaOnly: yes\n");
-    if (g_checkpoint)   printf("Checkpoint: yes (resume mode)\n");
-    if (g_debug)        printf("Debug: yes\n");
-    if (g_startTime[0]) printf("StartTime: %s\n", g_startTime);
-    if (g_endTime[0])   printf("EndTime: %s\n", g_endTime);
-    if (g_renameCount > 0) {
-        printf("Rename(%d):", g_renameCount);
-        for (int i = 0; i < g_renameCount; i++) {
-            printf(" %s->%s", g_renameOld[i], g_renameNew[i]);
-        }
-        printf("\n");
-    }
-
     // build time filter
     if (g_startTime[0] || g_endTime[0]) {
         // helper: if all digits, use as-is (epoch); otherwise wrap in quotes (ISO8601)
@@ -621,6 +567,14 @@ int argDataThread() {
 char* argTimeFilter() {
     if (g_timeFilter[0] == '\0') return NULL;
     return g_timeFilter;
+}
+
+char* argStartTime() {
+    return g_startTime[0] ? g_startTime : NULL;
+}
+
+char* argEndTime() {
+    return g_endTime[0] ? g_endTime : NULL;
 }
 
 int argSchemaOnly() {

@@ -33,15 +33,15 @@ static int restoreDatabase(const char *dbName) {
     code = restoreDatabaseMeta(dbName);
     if (code != TSDB_CODE_SUCCESS || g_interrupted) {
         if (g_interrupted && code == TSDB_CODE_SUCCESS) code = TSDB_CODE_BCK_USER_CANCEL;
-        if (g_interrupted) logInfo("restore database:%s cancelled by user", dbName);
-        else logError("restore database:%s meta failed, code: 0x%08X", dbName, code);
+        if (g_interrupted) logInfo("restore database: %s cancelled by user", dbName);
+        else logError("restore database: %s meta failed, code: 0x%08X", dbName, code);
         return code;
     }
 
     // data: read .dat files and write via STMT
     code = restoreDatabaseData(dbName);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("restore database:%s data failed, code: 0x%08X", dbName, code);
+        logError("restore database: %s data failed, code: 0x%08X", dbName, code);
         return code;
     }
 

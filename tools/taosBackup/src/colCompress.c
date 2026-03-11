@@ -247,8 +247,8 @@ CompressBlock* compressBlock(void*      block,
     // check need compress or not
     //
     if(compressBlock->dataLen > reader.oriHeader->actualLen) {
-        logWarn("compress block size large origin data , so not compress, original size: %d, compress size: %d",
-                 reader.oriHeader->actualLen, compressBlock->dataLen);
+        logWarn("compressed block (%d bytes) >= original (%d bytes), skipping compression",
+                 compressBlock->dataLen, reader.oriHeader->actualLen);
         // not compress, use original block
         compressBlock->flag = BLOCK_FLAG_NOT_COMPRESS;
         memcpy(compressBlock->data, block, reader.oriHeader->actualLen);

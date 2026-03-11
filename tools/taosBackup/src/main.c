@@ -30,20 +30,18 @@ static void signalHandler(int sig) {
 //
 // print startup summary
 //
-static void printStartSummary(enum ActionType action, int poolSize) {
+static void printStartSummary(enum ActionType action) {
+    bool wsMode = (argDriver() == CONN_MODE_WEBSOCKET) ||
+                  (argDriver() == CONN_MODE_INVALID && argIsDsn());
     printf("\n");
     printf("===========================================================================\n");
     printf("  taosBackup - %s\n", action == ACTION_BACKUP ? "BACKUP" : "RESTORE");
     printf("===========================================================================\n");
-    {
-        bool wsMode = (argDriver() == CONN_MODE_WEBSOCKET) ||
-                      (argDriver() == CONN_MODE_INVALID && argIsDsn());
-        printf("  Connect Mode : %s\n", wsMode ? "WebSocket" : "Native");
-    }
-    printf("  Server       : %s:%d\n", argHost(), argPort());
+    printf("  Connect Mode : %s\n", wsMode ? "WebSocket" : "Native");
     if (argIsDsn()) {
         printf("  DSN          : %s\n", argDsn());
     }
+    printf("  Server       : %s:%d\n", argHost(), argPort());
     printf("  User         : %s\n", argUser());
     printf("  Output Path  : %s\n", argOutPath());
     {
@@ -55,22 +53,44 @@ static void printStartSummary(enum ActionType action, int poolSize) {
             }
             printf("\n");
         } else {
-            printf("  Databases    : (auto-discover all)\n");
+            printf("  Databases    : ALL (system databases excluded)\n");
         }
     }
     printf("  Data Threads : %d\n", argDataThread());
     printf("  Tag Threads  : %d\n", argTagThread());
-    printf("  Pool Size    : %d\n", poolSize);
     if (action == ACTION_BACKUP) {
+        printf("  Format       : %s\n", argStorageFormat() == BINARY_TAOS ? "binary" : "parquet");
         printf("  Schema Only  : %s\n", argSchemaOnly() ? "yes" : "no");
-        char *tf = argTimeFilter();
-        printf("  Time Filter  : %s\n", (tf && strlen(tf) > 0) ? tf : "(none)");
+        {
+            const char *ts = argStartTime();
+            const char *te = argEndTime();
+            if (ts && te) {
+                printf("  Time Range   : %s ~ %s\n", ts, te);
+            } else if (ts) {
+                printf("  Time Range   : %s ~\n", ts);
+            } else if (te) {
+                printf("  Time Range   : ~ %s\n", te);
+            } else {
+                printf("  Time Range   : ALL\n");
+            }
+        }
+        {
+            char **specTbs = argSpecTables();
+            if (specTbs) {
+                printf("  Tables       :");
+                for (int i = 0; specTbs[i]; i++) {
+                    printf(" %s", specTbs[i]);
+                }
+                printf("\n");
+            }
+        }
+        printf("  Resume Mode  : %s\n", argCheckpoint() ? "yes (-C)" : "no");
     }
     if (action == ACTION_RESTORE) {
+        printf("  Resume Mode  : %s\n", argCheckpoint() ? "yes (-C)" : "no");
         const char *rl = argRenameList();
         if (rl) printf("  Rename       : %s\n", rl);
     }
-    printf("  Retry Count  : %d\n", argRetryCount());
     printf("===========================================================================\n");
     printf("\n");
 }
@@ -140,7 +160,6 @@ int main(int argc, char *argv[]) {
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
 
-    printf("taosBackup tool v1.0\n");
     int code = TSDB_CODE_SUCCESS;
 
     //
@@ -149,7 +168,7 @@ int main(int argc, char *argv[]) {
     
     // arguments
     if (argsInit(argc, argv) != 0) {
-        printf("init args failed\n");
+        logError("init args failed");
         return -1;
     }
     // Determine and apply connection driver before any connection is opened.
@@ -161,18 +180,17 @@ int main(int argc, char *argv[]) {
         const char *drvName = useWs ? "websocket" : "native";
         int rc = taos_options(TSDB_OPTION_DRIVER, drvName);
         if (rc != 0) {
-            fprintf(stderr, "failed to set driver '%s': %s\n", drvName, taos_errstr(NULL));
+            logError("failed to set driver '%s': %s", drvName, taos_errstr(NULL));
             argsDestroy();
             return -1;
         }
-        printf("Connect mode: %s\n", useWs ? "WebSocket" : "Native");
     }
     // conn pool
     // conn pool: data threads each need 2 conns (one pre-assigned, one for queries),
     // tag threads need 1 each, plus a few for main thread operations
     int poolSize = argDataThread() * 2 + argTagThread() + 4;
     if (initConnectionPool(poolSize) != 0) {
-        printf("initialize connection pool failed\n");
+        logError("initialize connection pool failed");
         argsDestroy();
         return -1;
     }
@@ -185,22 +203,20 @@ int main(int argc, char *argv[]) {
     //
     enum ActionType action = argAction();
 
-    printStartSummary(action, poolSize);
+    printStartSummary(action);
 
     // record start time
     int64_t startMs = taosGetTimestampMs();
 
     switch (action) {
         case ACTION_BACKUP:
-            logInfo("perform backup action");
             code = backupMain();
             break;
         case ACTION_RESTORE:
-            logInfo("perform restore action");
             code = restoreMain();
             break;
         default:
-            printf("unknown action\n");
+            logError("unknown action");
             code = TSDB_CODE_INVALID_PARA;
             break;
     }

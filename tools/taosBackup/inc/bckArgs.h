@@ -74,8 +74,10 @@ bool         argIsDsn();  // true when DSN/WebSocket-cloud mode is active
 #define CONN_MODE_DEFAULT    CONN_MODE_NATIVE
 int8_t argDriver();  // returns one of CONN_MODE_* constants
 
-// time start-end
+// time start-end filter
 char* argTimeFilter();
+char* argStartTime();
+char* argEndTime();
 
 // schema only
 int argSchemaOnly();

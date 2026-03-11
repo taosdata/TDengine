@@ -598,7 +598,7 @@ int backDatabaseMeta(DBInfo *dbInfo) {
             }
             if (!include) continue;  /* skip this super table */
         }
-        logInfo("backup super table meta: %s.%s\n", dbName, stbNames[i]);
+        logInfo("backup super table meta: %s.%s", dbName, stbNames[i]);
         atomic_add_fetch_64(&g_stats.stbTotal, 1);
         StbInfo stbInfo;
         memset(&stbInfo, 0, sizeof(StbInfo));

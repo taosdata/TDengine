@@ -100,7 +100,7 @@ TAOS* getConnection() {
                 return conn;
             }
             // connect failed, fall through to wait
-            logError("taos_connect failed, waiting for idle connection");
+            logWarn("taos_connect failed, will wait for idle connection");
         }
 
         // all connections busy, wait with timeout so we can check g_interrupted

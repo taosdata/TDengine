@@ -54,7 +54,7 @@ int backDatabase(const char *dbName) {
     code = backDatabaseMeta(&dbInfo);
     if (code != TSDB_CODE_SUCCESS) {
         if (code != TSDB_CODE_BCK_USER_CANCEL) {
-            logError("backup database:%s meta failed, code: 0x%08X\n", dbName, code);
+            logError("backup database: %s meta failed, code: 0x%08X", dbName, code);
         }
         return code;
     }
@@ -65,7 +65,7 @@ int backDatabase(const char *dbName) {
         code = backDatabaseData(&dbInfo);
         if (code != TSDB_CODE_SUCCESS) {
             if (code != TSDB_CODE_BCK_USER_CANCEL) {
-                logError("backup database:%s data failed, code: 0x%08X\n", dbName, code);
+                logError("backup database: %s data failed, code: 0x%08X", dbName, code);
             }
             return code;
         }

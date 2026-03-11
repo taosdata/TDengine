@@ -664,7 +664,7 @@ int backDatabaseData(DBInfo *dbInfo) {
             logInfo("skip data backup for virtual STB: %s.%s", dbName, stbNames[i]);
             continue;
         }
-        logInfo("backup super table: %s.%s\n", dbName, stbNames[i]);
+        logInfo("backup super table: %s.%s", dbName, stbNames[i]);
         StbInfo stbInfo;
         memset(&stbInfo, 0, sizeof(StbInfo));
         stbInfo.dbInfo = dbInfo;
