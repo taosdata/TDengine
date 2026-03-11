@@ -195,7 +195,7 @@ typedef struct SExplainCtx {
 #define EXPLAIN_JOIN_STRING(_type) ((JOIN_TYPE_INNER == _type) ? "Inner join" : "Join")
 #define EXPLAIN_MERGE_MODE_STRING(_mode) ((_mode) == MERGE_TYPE_SORT ? "sort" : ((_mode) == MERGE_TYPE_NON_SORT ? "merge" : "column"))
 
-#define EXPLAIN_GET_CUR_PLAN_CTX(_ctx) ((_ctx)->currPlanId < 0 ? &(_ctx)->planCtx : (SExplainPlanCtx*)taosArrayGet((_ctx)->subPlanCtxs, (_ctx)->currPlanId))
+#define EXPLAIN_GET_CUR_PLAN_CTX(_ctx, _pid) ((_pid) < 0 ? &(_ctx)->planCtx : (SExplainPlanCtx*)taosArrayGet((_ctx)->subPlanCtxs, (_pid)))
 
 #define INVERAL_TIME_FROM_PRECISION_TO_UNIT(_t, _u, _p, _r)         \
 do {                                                                \

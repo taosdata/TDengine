@@ -2529,19 +2529,13 @@ static int32_t qExplainGenerateRsp(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) 
   return TSDB_CODE_SUCCESS;
 }
 
-void qExplainSetCurrPlan(SExplainCtx *pCtx, int32_t subJobId) {
-  pCtx->currPlanId = subJobId;
-  pCtx->pCurrPlanCtx = EXPLAIN_GET_CUR_PLAN_CTX(pCtx);
-}
-
-int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t groupId, SRetrieveTableRsp **pRsp) {
-  if(!pCtx || !pRspMsg || !pRsp) return TSDB_CODE_INVALID_PARA;
+int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainPlanCtx *pCurrPlanCtx, SExplainRsp *pRspMsg, int32_t groupId, SRetrieveTableRsp **pRsp) {
+  if (!pCtx || !pCurrPlanCtx || !pRspMsg || !pRsp) return TSDB_CODE_INVALID_PARA;
   SExplainResNode *node = NULL;
   int32_t          code = 0;
   bool             groupDone = false;
-  SExplainCtx     *ctx = (SExplainCtx *)pCtx;
 
-  SExplainGroup *group = taosHashGet(ctx->pCurrPlanCtx->groupHash, &groupId, sizeof(groupId));
+  SExplainGroup *group = taosHashGet(pCurrPlanCtx->groupHash, &groupId, sizeof(groupId));
   if (NULL == group) {
     qError("group %d not in groupHash", groupId);
     tFreeSExplainRsp(pRspMsg);
@@ -2641,3 +2635,8 @@ int32_t qExecExplainEnd(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+SExplainPlanCtx* qExplainGetCurrPlan(SExplainCtx *pCtx, int32_t subJobId) {
+  return EXPLAIN_GET_CUR_PLAN_CTX(pCtx, subJobId);
+}
+
