@@ -61,9 +61,10 @@ Additional notes:
 - `strategy` is not currently supported for `wal`.
 - `--backup-path` is global for the whole repair startup, not per target.
 - TSDB repair strategies behave as follows:
-  - `drop_invalid_only`: only remove obviously bad files before any deep scan.
+  - `drop_invalid_only`: only remove obviously bad missing-file cases before any deep scan. It does not inspect size-mismatch corruption against `current.json`.
   - `head_only_rebuild`: deep-scan valid core blocks and rebuild `.head` only; keep `.data` unchanged and drop `.sma` if SMA metadata is unusable.
   - `full_rebuild`: deep-scan valid core blocks and rebuild the full core payload with the existing writer path.
+  - Use `head_only_rebuild` or `full_rebuild` when you need recovery behavior for size-mismatch corruption.
 
 ### Limitations
 

@@ -63,9 +63,10 @@ taosd -r --mode force --node-type vnode [--backup-path <path>] \
 - `wal` 当前阶段不支持 `strategy`。
 - `--backup-path` 是本次 repair 启动的全局参数，不属于某个特定 target。
 - TSDB repair 策略语义如下：
-  - `drop_invalid_only`：仅在 deep scan 前删除明显损坏的文件。
+  - `drop_invalid_only`：仅在 deep scan 前删除明显的缺失文件场景；不会检查与 `current.json` 不一致的 size mismatch 损坏。
   - `head_only_rebuild`：对有效 core block 做 deep scan，只重建 `.head`；保留 `.data`，如果 `.sma` 元数据不可用则删除 `.sma`。
   - `full_rebuild`：对有效 core block 做 deep scan，并沿用现有 writer 路径重建完整 core 数据。
+  - 如果需要处理 size mismatch 这类损坏，请显式使用 `head_only_rebuild` 或 `full_rebuild`。
 
 ### 当前限制
 

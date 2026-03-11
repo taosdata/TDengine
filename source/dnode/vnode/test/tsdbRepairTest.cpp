@@ -69,6 +69,7 @@ bool tsdbRepairSttBlockLooksValid(const SBlockData *blockData);
 int32_t tsdbRepairResolveCoreAction(int32_t keptBlocks, int32_t droppedBlocks);
 int32_t tsdbRepairResolveSttAction(int32_t keptDataBlocks, int32_t keptTombBlocks, int32_t droppedDataBlocks,
                                    int32_t droppedTombBlocks);
+bool        tsdbRepairShouldProcessFileSet(int32_t vnodeId, int32_t fid);
 EDmRepairStrategy tsdbRepairNormalizeStrategy(EDmRepairStrategy strategy);
 const char *tsdbRepairStrategyName(EDmRepairStrategy strategy);
 int32_t     tsdbRepairResolveMode(EDmRepairStrategy strategy);
@@ -78,6 +79,21 @@ bool        tsdbRepairFileAffected(const STFileObj *fobj);
 const char *tsdbRepairFileIssue(const STFileObj *fobj);
 int32_t     tsdbDataFileWriterClose(SDataFileWriter **writer, bool abort, void *opArray);
 int32_t     tsdbSttFileWriterClose(SSttFileWriter **writer, int8_t abort, void *opArray);
+}
+
+namespace {
+bool              g_hasTsdbRepairTarget = false;
+int32_t           g_targetVnodeId = 0;
+int32_t           g_targetFileId = 0;
+SRepairTsdbFileOpt g_targetTsdbFileOpt = {.strategy = DM_REPAIR_STRATEGY_TSDB_DROP_INVALID_ONLY};
+}  // namespace
+
+extern "C" const SRepairTsdbFileOpt *dmRepairGetTsdbFileOpt(int32_t vnodeId, int32_t fileId) {
+  if (g_hasTsdbRepairTarget && vnodeId == g_targetVnodeId && fileId == g_targetFileId) {
+    return &g_targetTsdbFileOpt;
+  }
+
+  return nullptr;
 }
 
 struct TestFileMeta {
@@ -219,6 +235,42 @@ TEST(TsdbRepairModeTest, MapsFullRebuildStrategyToFullRebuildMode) {
 
 TEST(TsdbRepairDefaultStrategyTest, NormalizesMissingStrategyToDropInvalidOnly) {
   EXPECT_EQ(tsdbRepairNormalizeStrategy(DM_REPAIR_STRATEGY_NONE), DM_REPAIR_STRATEGY_TSDB_DROP_INVALID_ONLY);
+}
+
+class TsdbRepairScopeTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    g_hasTsdbRepairTarget = false;
+    g_targetVnodeId = 0;
+    g_targetFileId = 0;
+    g_targetTsdbFileOpt.strategy = DM_REPAIR_STRATEGY_TSDB_DROP_INVALID_ONLY;
+  }
+
+  void TearDown() override {
+    g_hasTsdbRepairTarget = false;
+    g_targetVnodeId = 0;
+    g_targetFileId = 0;
+  }
+};
+
+TEST_F(TsdbRepairScopeTest, SkipsFileSetWithoutExplicitTarget) {
+  EXPECT_FALSE(tsdbRepairShouldProcessFileSet(7, 101));
+}
+
+TEST_F(TsdbRepairScopeTest, ProcessesExplicitlyTargetedFileSet) {
+  g_hasTsdbRepairTarget = true;
+  g_targetVnodeId = 7;
+  g_targetFileId = 101;
+
+  EXPECT_TRUE(tsdbRepairShouldProcessFileSet(7, 101));
+}
+
+TEST_F(TsdbRepairScopeTest, SkipsDifferentFileIdWithinSameVnode) {
+  g_hasTsdbRepairTarget = true;
+  g_targetVnodeId = 7;
+  g_targetFileId = 101;
+
+  EXPECT_FALSE(tsdbRepairShouldProcessFileSet(7, 102));
 }
 
 TEST(TsdbRepairBrinRecordTest, KeepsSmaOffsetsForHealthyHeadOnlyRewrite) {

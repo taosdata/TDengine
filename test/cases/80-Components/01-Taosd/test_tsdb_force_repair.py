@@ -851,11 +851,12 @@ class TestTsdbForceRepair:
 
 
     def test_tsdb_force_repair_removes_size_mismatch_head_data_sma_from_current(self):
-        """TSDB force repair should drop head/data/sma when core file size mismatches manifest.
+        """TSDB deep repair should drop head/data/sma when core file size mismatches manifest.
 
         1. Inject one synthetic head/data/sma fileset into current.json.
         2. Keep head file present but with size different from manifest.
-        3. Run tsdb force repair and verify current.json no longer references head/data/sma for that fid.
+        3. Run tsdb force repair with an explicit deep strategy and verify current.json no longer references
+           head/data/sma for that fid.
 
         Since: v3.4.1.0
 
@@ -911,7 +912,7 @@ class TestTsdbForceRepair:
             tdDnodes.stop(1)
             time.sleep(2)
             code, output = self._run_taosd_with_cfg(
-                self._tsdb_repair_args(vnode_id, fake_fid, extra_args="--log-output /dev/null"),
+                self._tsdb_repair_args(vnode_id, fake_fid, strategy="full_rebuild", extra_args="--log-output /dev/null"),
                 timeout_sec=20,
             )
             fset = self._find_fset_by_fid(current_json, fake_fid)
@@ -937,11 +938,11 @@ class TestTsdbForceRepair:
 
 
     def test_tsdb_force_repair_backup_writes_size_mismatch_reason(self):
-        """TSDB force repair backup should record size mismatch reason for core files.
+        """TSDB deep repair backup should record size mismatch reason for core files.
 
         1. Inject one synthetic head/data/sma fileset into current.json.
         2. Keep head present but with size different from manifest.
-        3. Run tsdb force repair and verify repair.log contains `size_mismatch_core`.
+        3. Run tsdb force repair with an explicit deep strategy and verify repair.log contains `size_mismatch_core`.
 
         Since: v3.4.1.0
 
@@ -998,7 +999,13 @@ class TestTsdbForceRepair:
             tdDnodes.stop(1)
             time.sleep(2)
             code, output = self._run_taosd_with_cfg(
-                self._tsdb_repair_args(vnode_id, fake_fid, backup_root=backup_root, extra_args="--log-output /dev/null"),
+                self._tsdb_repair_args(
+                    vnode_id,
+                    fake_fid,
+                    strategy="full_rebuild",
+                    backup_root=backup_root,
+                    extra_args="--log-output /dev/null",
+                ),
                 timeout_sec=5,
             )
             repair_log = self._find_backup_log_for_fid(backup_root, vnode_id, fake_fid)

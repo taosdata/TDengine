@@ -124,6 +124,7 @@ taosd -r --mode force --node-type vnode --backup-path /tmp/repair-bak \
 - 当前只支持 `--node-type vnode`。
 - `tsdb` repair target 必须显式指定 `fileid`。
 - `wal` repair target 当前不支持 `strategy`。
+- TSDB 默认策略 `drop_invalid_only` 只处理缺失文件这类损坏；如果要处理 size mismatch，请显式指定 `head_only_rebuild` 或 `full_rebuild`。
 
 完整的命令行 grammar、字段约束、默认策略和更多示例，请参考 [taosd 参考手册](../../reference/components/taosd/)。
 

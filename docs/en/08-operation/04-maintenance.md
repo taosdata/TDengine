@@ -122,6 +122,7 @@ Current limitations:
 - Only `--node-type vnode` is supported.
 - `tsdb` repair targets must include `fileid`.
 - `wal` repair targets currently do not support `strategy`.
+- The default TSDB strategy `drop_invalid_only` only handles missing-file style damage; size-mismatch recovery requires an explicit deep strategy such as `head_only_rebuild` or `full_rebuild`.
 
 For the complete CLI grammar, supported keys, default strategies, and more examples, see [taosd Reference](../../tdengine-reference/components/taosd/).
 

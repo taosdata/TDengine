@@ -211,6 +211,10 @@ static EDmRepairStrategy tsdbRepairGetStrategyForFileSet(int32_t vgId, int32_t f
   return tsdbRepairNormalizeStrategy(pOpt == NULL ? DM_REPAIR_STRATEGY_NONE : pOpt->strategy);
 }
 
+bool tsdbRepairShouldProcessFileSet(int32_t vnodeId, int32_t fid) {
+  return dmRepairGetTsdbFileOpt(vnodeId, fid) != NULL;
+}
+
 static const char *tsdbRepairModeName(ETsdbRepairMode mode) {
   switch (mode) {
     case TSDB_REPAIR_MODE_DROP_INVALID_ONLY:
@@ -1586,6 +1590,12 @@ int32_t tsdbForceRepair(STFileSystem *fs) {
 
   STFileSet *pFileSet = NULL;
   TARRAY2_FOREACH(fs->fSetArr, pFileSet) {
+    if (!tsdbRepairShouldProcessFileSet(vgId, pFileSet->fid)) {
+      tsdbDebug("vgId:%d fid:%d skip fileset because it is not part of the explicit repair target set", vgId,
+                pFileSet->fid);
+      continue;
+    }
+
     code = tsdbForceRepairFileSet(fs, pFileSet, opArr, &hasChange);
     if (code != 0) {
       tsdbError("vgId:%d failed to force repair fileset, fid:%d since %s, code:%d", vgId, pFileSet->fid,

@@ -12,6 +12,7 @@
 #include "tcommon.h"
 #include "tdatablock.h"
 #include "tdef.h"
+#include "dmRepair.h"
 #include "tmisce.h"
 #include "ttime.h"
 #include "ttokendef.h"
@@ -235,6 +236,10 @@ TEST(testCase, toInteger_test) {
   s = "-9323372036854775807";
   ret = toInteger(s, strlen(s), 10, &val);
   ASSERT_EQ(ret, -1);
+}
+
+TEST(testCase, dmRepairDefaultsToNoWalRepair) {
+  ASSERT_FALSE(dmRepairNeedWalRepair(123));
 }
 
 TEST(testCase, Datablock_test_inc) {
