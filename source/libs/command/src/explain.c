@@ -337,7 +337,6 @@ static int32_t qExplainBufAppendExecInfo(SArray *pExecInfo, char *tbuf,
     EXPLAIN_ROW_APPEND(EXPLAIN_EXECINFO_FORMAT, EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execFirstRow),
                        EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execLastRow), execInfo.numOfRows);
   } else if (nodeNum > 1) {
-    nodeNum -= numNoData;
     EXPLAIN_ROW_APPEND(EXPLAIN_EXECINFO_FORMAT_EXT,
                        EXPLAIN_CONVERT_TS_US_TO_MS(execInfo.execFirstRow) / nodeNum,
                        EXPLAIN_CONVERT_TS_US_TO_MS(maxExecInfo.execFirstRow),
@@ -501,7 +500,7 @@ static int32_t qExplainExecAnalyze(const SExplainResNode *pResNode,
   int32_t tlen = 0;
   char    createAvgTs[32] = {0}; // 32 is enough for formatted ts: "%Y-%m-%d %H:%M:%S.ffffff"
   char    createMaxTs[32] = {0};
-  EXPLAIN_ROW_NEW(level + 1, EXPLAIN_EXEC_FORMAT);
+  EXPLAIN_ROW_NEW(level + 1, EXPLAIN_EXEC_COST_FORMAT);
 
   int32_t nodeNum = (int32_t)taosArrayGetSize(pResNode->pExecInfo);
   SExplainExecInfo execInfo = {0};
@@ -1222,7 +1221,8 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         nodeNum += group->nodeNum;
       }
 
-      EXPLAIN_ROW_NEW(level, EXPLAIN_EXCHANGE_FORMAT, pExchNode->singleSrc ? 1 : nodeNum);
+      int32_t srcCount = pExchNode->singleSrc ? 1 : nodeNum;
+      EXPLAIN_ROW_NEW(level, EXPLAIN_EXCHANGE_FORMAT, srcCount);
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
@@ -1253,17 +1253,27 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
             const SExchangeExplainInfo *pExchInfo = (SExchangeExplainInfo *)execInfo->verboseInfo;
             EXPLAIN_ROW_NEW(level + 1, EXPLAIN_NETWORK_FORMAT);
             EXPLAIN_ROW_APPEND(EXPLAIN_EXCHANGE_MODE_FORMAT,
-                           pExchInfo->mode == 0 ? "concurrent" : "sequential");
-            EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-            EXPLAIN_ROW_APPEND(EXPLAIN_FETCH_TIMES_FORMAT,
-                              pExchInfo->avgFetchTimes, pExchInfo->maxFetchTimes);
-            EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-            EXPLAIN_ROW_APPEND(EXPLAIN_FETCH_ROWS_FORMAT,
-                              pExchInfo->avgFetchRows, pExchInfo->maxFetchRows);
-            EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-            EXPLAIN_ROW_APPEND(EXPLAIN_FETCH_COST_FORMAT,
-                              EXPLAIN_CONVERT_TS_US_TO_MS(pExchInfo->avgFetchCost),
-                              EXPLAIN_CONVERT_TS_US_TO_MS(pExchInfo->maxFetchCost));
+              pExchInfo->mode == 0 ? EXPLAIN_EXCHANGE_MODE_CONCURRENT : EXPLAIN_EXCHANGE_MODE_SEQUENCE);
+            if (srcCount > 1) {
+              EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+              EXPLAIN_ROW_APPEND(EXPLAIN_FETCH_TIMES_FORMAT_EXT,
+                                pExchInfo->avgFetchTimes, pExchInfo->maxFetchTimes);
+              EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+              EXPLAIN_ROW_APPEND(EXPLAIN_FETCH_ROWS_FORMAT_EXT,
+                                pExchInfo->avgFetchRows, pExchInfo->maxFetchRows);
+              EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+              EXPLAIN_ROW_APPEND(EXPLAIN_FETCH_COST_FORMAT_EXT,
+                                EXPLAIN_CONVERT_TS_US_TO_MS(pExchInfo->avgFetchCost),
+                                EXPLAIN_CONVERT_TS_US_TO_MS(pExchInfo->maxFetchCost));
+            } else {
+              EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+              EXPLAIN_ROW_APPEND(EXPLAIN_FETCH_TIMES_FORMAT, pExchInfo->avgFetchTimes);
+              EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+              EXPLAIN_ROW_APPEND(EXPLAIN_FETCH_ROWS_FORMAT, pExchInfo->avgFetchRows);
+              EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+              EXPLAIN_ROW_APPEND(EXPLAIN_FETCH_COST_FORMAT,
+                                EXPLAIN_CONVERT_TS_US_TO_MS(pExchInfo->avgFetchCost));
+            }
             EXPLAIN_ROW_END();
             QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
           }

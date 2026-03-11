@@ -42,9 +42,14 @@ extern "C" {
 #define EXPLAIN_EXCHANGE_FORMAT "Data Exchange %d:1"
 #define EXPLAIN_NETWORK_FORMAT "Network: "
 #define EXPLAIN_EXCHANGE_MODE_FORMAT "mode=%s"
-#define EXPLAIN_FETCH_TIMES_FORMAT "fetch_times=%.1f(%" PRIu64 ")"
-#define EXPLAIN_FETCH_ROWS_FORMAT "fetch_rows=%.1f(%" PRIu64 ")"
-#define EXPLAIN_FETCH_COST_FORMAT "fetch_cost=%.3f(%.3f)"
+#define EXPLAIN_EXCHANGE_MODE_CONCURRENT "concurrent"
+#define EXPLAIN_EXCHANGE_MODE_SEQUENCE "sequence"
+#define EXPLAIN_FETCH_TIMES_FORMAT "fetch_times=%" PRIu64
+#define EXPLAIN_FETCH_TIMES_FORMAT_EXT "fetch_times=%.1f(%" PRIu64 ")"
+#define EXPLAIN_FETCH_ROWS_FORMAT "fetch_rows=%" PRIu64
+#define EXPLAIN_FETCH_ROWS_FORMAT_EXT "fetch_rows=%.1f(%" PRIu64 ")"
+#define EXPLAIN_FETCH_COST_FORMAT "fetch_cost=%.3f"
+#define EXPLAIN_FETCH_COST_FORMAT_EXT "fetch_cost=%.3f(%.3f)"
 #define EXPLAIN_SORT_FORMAT "Sort"
 #define EXPLAIN_GROUP_SORT_FORMAT "Group Sort"
 #define EXPLAIN_INTERVAL_FORMAT "Interval on Column %s"
@@ -167,7 +172,7 @@ extern "C" {
 #define EXPLAIN_CHECK_ROWS_FORMAT "check_rows=%" PRId64
 #define EXPLAIN_CHECK_ROWS_FORMAT_EXT "check_rows=%.1f(%" PRId64 ")"
 #define EXPLAIN_SLOWEST_NODE_FORMAT "slowest_vgroup_id=%d slow_deviation=%d%% cost_ratio=%.1f data_deviation=%d%%"
-#define EXPLAIN_EXEC_FORMAT "Exec cost: "
+#define EXPLAIN_EXEC_COST_FORMAT "Exec cost: "
 #define EXPLAIN_COMPUTE_FORMAT "compute=%.3f"
 #define EXPLAIN_COMPUTE_FORMAT_EXT "compute=%.3f(%.3f)"
 #define EXPLAIN_CREATE_FORMAT "create=%.3f"
