@@ -32,7 +32,7 @@ Additional Notes:
 
 1. Method to modify global configuration parameters via SQL: `alter all dnodes 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
 2. Method to modify local configuration parameters via SQL: `alter dnode <dnode_id> 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
-3. To modify local configuration parameters via taos.cfg configuration file, set the `forceReadConfig` parameter to 1 and restart for changes to take effect.
+3. From 3.4.0.0, to prevent configuration file tampering, the `forceReadConfig` parameter has been removed. Except for the first startup, configuration will not be loaded from the configuration file.
 4. For dynamic modification methods of configuration parameters, please refer to [Node Management](../../sql-manual/manage-nodes/).
 5. Some parameters exist in both the client (taosc) and server (taosd), with different scopes and meanings in different contexts. For details, please refer to [TDengine Configuration Parameter Scope Comparison](../../components/configuration-scope/).
 
@@ -362,7 +362,7 @@ The effective value of charset is UTF-8.
 | -------------------- | ----------------- | -------------------------------- | ------------------------------------------------------------ |
 | enableCoreFile       |                   | Supported, effective immediately | Whether to generate a core file when crashing, 0: do not generate, 1: generate; default value is 1 |
 | configDir            |                   | Not supported                    | Directory where the configuration files are located          |
-| forceReadConfig        | After 3.3.5.0           | Not supported                                                | Force read configuration file; default value false |
+| forceReadConfig        | After 3.3.5.0, Before 3.4.0.0      | Not supported                                                | Force read configuration file; default value false |
 | scriptDir            |                   | Not supported                    | Directory for internal test tool scripts                     |
 | assert               |                   | Not supported                    | Assertion control switch, default value is 0                 |
 | randErrorChance      |                   | Supported, effective immediately | Internal parameter, used for random failure testing          |

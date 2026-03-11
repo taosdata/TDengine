@@ -186,6 +186,7 @@ void cleanUpVirtualScanInfo(SVirtualTableScanInfo* pVirtualScanInfo) {
       taosMemoryFree(pCtx);
     }
     taosArrayDestroy(pVirtualScanInfo->pSortCtxList);
+    pVirtualScanInfo->pSortCtxList = NULL;
   }
 }
 
@@ -201,12 +202,13 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
   SNodeList*                      pMergeKeys = NULL;
   SSortSource*                    ps = NULL;
   int32_t                         scanOpIndex = 0;
+  SLoadNextCtx*                   pCtx = NULL;
 
   cleanUpVirtualScanInfo(pVirtualScanInfo);
   VTS_ERR_JRET(makeTSMergeKey(&pMergeKeys, pVirtualScanInfo->orgTsSlotId));
   pVirtualScanInfo->pSortInfo = createSortInfo(pMergeKeys);
   TSDB_CHECK_NULL(pVirtualScanInfo->pSortInfo, code, lino, _return, terrno)
-  nodesDestroyList(pMergeKeys);
+  NODES_DESTORY_LIST(pMergeKeys);
 
   VTS_ERR_JRET(tsortCreateSortHandle(pVirtualScanInfo->pSortInfo, SORT_MULTISOURCE_TS_MERGE, pVirtualScanInfo->bufPageSize,
                                      numOfBufPage, pVirtualScanInfo->pInputBlock, pTaskInfo->id.str, 0, 0, 0, &pVirtualScanInfo->pSortHandle));
@@ -234,10 +236,9 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
   pOperator->pDownstream[scanOpIndex]->status = OP_NOT_OPENED;
   pVirtualScanInfo->pSortCtxList = taosArrayInit(taosArrayGetSize((pParam)->pOpParamArray), POINTER_BYTES);
   TSDB_CHECK_NULL(pVirtualScanInfo->pSortCtxList, code, lino, _return, terrno)
+
   for (int32_t i = 0; i < taosArrayGetSize((pParam)->pOpParamArray); i++) {
     SOperatorParam* pOpParam = *(SOperatorParam**)taosArrayGet((pParam)->pOpParamArray, i);
-    SLoadNextCtx*   pCtx = NULL;
-    ps = NULL;
 
     pCtx = taosMemoryMalloc(sizeof(SLoadNextCtx));
     QUERY_CHECK_NULL(pCtx, code, lino, _return, terrno)
@@ -254,20 +255,24 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
     ps->param = pCtx;
     ps->onlyRef = true;
 
-    VTS_ERR_JRET(tsortAddSource(pVirtualScanInfo->pSortHandle, ps));
     QUERY_CHECK_NULL(taosArrayPush(pVirtualScanInfo->pSortCtxList, &pCtx), code, lino, _return, terrno)
+    pCtx = NULL;
+    VTS_ERR_JRET(tsortAddSource(pVirtualScanInfo->pSortHandle, ps));
+    ps = NULL;
   }
 
   VTS_ERR_JRET(tsortOpen(pVirtualScanInfo->pSortHandle));
 
-  return code;
 _return:
   if (code != 0) {
     qError("%s failed at line %d with msg:%s", __func__, lino, tstrerror(code));
-  }
-  nodesDestroyList(pMergeKeys);
-  if (ps != NULL) {
-    taosMemoryFree(ps);
+    if (ps) {
+      taosMemoryFree(ps);
+    }
+    if (pCtx) {
+      taosMemoryFree(pCtx);
+    }
+    NODES_DESTORY_LIST(pMergeKeys);
   }
   return code;
 }
