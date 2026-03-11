@@ -3095,7 +3095,8 @@ _exit:
                                    pVnode->monitor.strVgId,
                                    RPC_MSG_USER(pOriginalMsg),
                                    "Success"};
-    (void)taos_counter_add(tsInsertCounter, pSubmitRsp->affectedRows, sample_labels);
+    int         tv = taos_counter_add(tsInsertCounter, pSubmitRsp->affectedRows, sample_labels);
+    if (tv != 0) vError("vgId:%d, failed to taos counter add since return is %d", TD_VID(pVnode), tv);
   }
 
   // clear
@@ -3286,6 +3287,7 @@ _exit:
                                    RPC_MSG_USER(pOriginalMsg),
                                    "Success"};
     int         tv = taos_counter_add(tsInsertCounter, pSubmitRsp->affectedRows, sample_labels);
+    if (tv != 0) vError("vgId:%d, failed to taos counter add since return is %d", TD_VID(pVnode), tv);
   }
 
   if (code == 0) {
