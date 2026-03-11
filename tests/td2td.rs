@@ -399,6 +399,7 @@ fn test_td_33256_with_taos() -> anyhow::Result<()> {
         .arg(format!(
             "CREATE USER `{USER}` PASS '{PASS}';\
                 GRANT ALL ON database `{SOURCE}` TO `{USER}`;\
+                GRANT ALL ON table `{SOURCE}`.* TO `{USER}`;\
                 CREATE DATABASE `{SINK}`;"
         ))
         .assert()

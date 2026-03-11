@@ -14,10 +14,8 @@ use crate::runners::opc::config::collect::CollectConfig;
 use crate::runners::opc::config::connect::ConnectConfig;
 use crate::runners::opc::config::points::PointsConfig;
 use crate::runners::opc::config::report::ReportConfig;
-use crate::runners::opc::points::OpcNode;
-use crate::runners::opc::{OpcType, opc_datasets_impl};
+use crate::runners::opc::{OpcType, opc_datasets_impl, opc_points_filter};
 use crate::sink::point::model::SourceType;
-use crate::utils::parse_key_in_dsn;
 
 pub mod collect;
 pub mod connect;
@@ -80,17 +78,7 @@ impl OPCConfig {
                 // 选择数据点位
 
                 // 1. 执行 taosx-opc points 查询点位
-                let opc_points_mode = parse_key_in_dsn(dsn, "opc_points_mode")
-                    .unwrap_or(Some("variable".to_string()))
-                    .unwrap_or("variable".to_string());
-                let filter = match opc_points_mode.as_str() {
-                    "variable" => Some(OpcNode::variable_node_filter()),
-                    "object" => Some(OpcNode::object_node_filter()),
-                    "all" => None,
-                    _ => {
-                        bail!("unsupported opc_points_mode: {}", opc_points_mode);
-                    }
-                };
+                let filter = opc_points_filter(dsn)?;
                 let points = opc_datasets_impl(dsn.clone(), filter).await?;
                 // 2. 从 dsn 中解析点位到 TDengine 的映射规则
                 let rule: PointMappingRule = PointMappingRule::from_dsn(dsn)?;
