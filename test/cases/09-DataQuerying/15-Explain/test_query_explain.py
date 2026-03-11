@@ -447,24 +447,6 @@ class TestExplain:
             return
         return f"explain verbose false select {select_clause} from {from_clause} {where_condition} {group_condition}"
 
-    def __single_sql_ratio(self, select_clause, from_clause, where_condition="", group_condition=""):
-        ratio = random.uniform(0.001,1)
-        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
-            return
-        return f"explain ratio {ratio} select {select_clause} from {from_clause} {where_condition} {group_condition}"
-
-    def __single_sql_ratio_verbose_true(self, select_clause, from_clause, where_condition="", group_condition=""):
-        ratio = random.uniform(0.001,1)
-        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
-            return
-        return f"explain ratio {ratio} verbose true select {select_clause} from {from_clause} {where_condition} {group_condition}"
-
-    def __single_sql_ratio_verbose_false(self, select_clause, from_clause, where_condition="", group_condition=""):
-        ratio = random.uniform(0.001,1)
-        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
-            return
-        return f"explain ratio {ratio} verbose false select {select_clause} from {from_clause} {where_condition} {group_condition}"
-
     def __single_sql_analyze(self, select_clause, from_clause, where_condition="", group_condition=""):
         if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
             return
@@ -480,23 +462,24 @@ class TestExplain:
             return
         return f"explain analyze verbose false select {select_clause} from {from_clause} {where_condition} {group_condition}"
 
-    def __single_sql_analyze_ratio(self, select_clause, from_clause, where_condition="", group_condition=""):
-        ratio = random.uniform(0.001,1)
-        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
-            return
-        return f"explain analyze ratio {ratio} select {select_clause} from {from_clause} {where_condition} {group_condition}"
+    # reason for remove ratio: not implemented in the code
+    # def __single_sql_analyze_ratio(self, select_clause, from_clause, where_condition="", group_condition=""):
+    #     ratio = random.uniform(0.001,1)
+    #     if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
+    #         return
+    #     return f"explain analyze ratio {ratio} select {select_clause} from {from_clause} {where_condition} {group_condition}"
 
-    def __single_sql_analyze_ratio_verbose_true(self, select_clause, from_clause, where_condition="", group_condition=""):
-        ratio = random.uniform(0.001,1)
-        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
-            return
-        return f"explain analyze ratio {ratio} verbose true select {select_clause} from {from_clause} {where_condition} {group_condition}"
+    # def __single_sql_analyze_ratio_verbose_true(self, select_clause, from_clause, where_condition="", group_condition=""):
+    #     ratio = random.uniform(0.001,1)
+    #     if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
+    #         return
+    #     return f"explain analyze ratio {ratio} verbose true select {select_clause} from {from_clause} {where_condition} {group_condition}"
 
-    def __single_sql_analyze_ratio_verbose_false(self, select_clause, from_clause, where_condition="", group_condition=""):
-        ratio = random.uniform(0.001,1)
-        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
-            return
-        return f"explain analyze ratio {ratio} verbose false select {select_clause} from {from_clause} {where_condition} {group_condition}"
+    # def __single_sql_analyze_ratio_verbose_false(self, select_clause, from_clause, where_condition="", group_condition=""):
+    #     ratio = random.uniform(0.001,1)
+    #     if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
+    #         return
+    #     return f"explain analyze ratio {ratio} verbose false select {select_clause} from {from_clause} {where_condition} {group_condition}"
                     
     @property
     def __tb_list(self, dbname=DBNAME):
@@ -533,18 +516,19 @@ class TestExplain:
                         self.__single_sql_verbose_false(select_claus, tb, where_condition=where_claus),
                         self.__single_sql_verbose_false(select_claus, tb, group_condition=group_claus),
                         
-                        self.__single_sql_ratio(select_claus, tb, where_claus, having_claus),
-                        self.__single_sql_ratio(select_claus, tb,),
-                        self.__single_sql_ratio(select_claus, tb, where_condition=where_claus),
-                        self.__single_sql_ratio(select_claus, tb, group_condition=group_claus),
-                        self.__single_sql_ratio_verbose_true(select_claus, tb, where_claus, having_claus),
-                        self.__single_sql_ratio_verbose_true(select_claus, tb,),
-                        self.__single_sql_ratio_verbose_true(select_claus, tb, where_condition=where_claus),
-                        self.__single_sql_ratio_verbose_true(select_claus, tb, group_condition=group_claus),
-                        self.__single_sql_ratio_verbose_false(select_claus, tb, where_claus, having_claus),
-                        self.__single_sql_ratio_verbose_false(select_claus, tb,),
-                        self.__single_sql_ratio_verbose_false(select_claus, tb, where_condition=where_claus),
-                        self.__single_sql_ratio_verbose_false(select_claus, tb, group_condition=group_claus),
+                        # reason for remove ratio: not implemented in the code
+                        # self.__single_sql_ratio(select_claus, tb, where_claus, having_claus),
+                        # self.__single_sql_ratio(select_claus, tb,),
+                        # self.__single_sql_ratio(select_claus, tb, where_condition=where_claus),
+                        # self.__single_sql_ratio(select_claus, tb, group_condition=group_claus),
+                        # self.__single_sql_ratio_verbose_true(select_claus, tb, where_claus, having_claus),
+                        # self.__single_sql_ratio_verbose_true(select_claus, tb,),
+                        # self.__single_sql_ratio_verbose_true(select_claus, tb, where_condition=where_claus),
+                        # self.__single_sql_ratio_verbose_true(select_claus, tb, group_condition=group_claus),
+                        # self.__single_sql_ratio_verbose_false(select_claus, tb, where_claus, having_claus),
+                        # self.__single_sql_ratio_verbose_false(select_claus, tb,),
+                        # self.__single_sql_ratio_verbose_false(select_claus, tb, where_condition=where_claus),
+                        # self.__single_sql_ratio_verbose_false(select_claus, tb, group_condition=group_claus),
                         
                         self.__single_sql_analyze(select_claus, tb, where_claus, having_claus),
                         self.__single_sql_analyze(select_claus, tb,),
@@ -559,18 +543,19 @@ class TestExplain:
                         self.__single_sql_analyze_verbose_false(select_claus, tb, where_condition=where_claus),
                         self.__single_sql_analyze_verbose_false(select_claus, tb, group_condition=group_claus),
                         
-                        self.__single_sql_analyze_ratio(select_claus, tb, where_claus, having_claus),
-                        self.__single_sql_analyze_ratio(select_claus, tb,),
-                        self.__single_sql_analyze_ratio(select_claus, tb, where_condition=where_claus),
-                        self.__single_sql_analyze_ratio(select_claus, tb, group_condition=group_claus),
-                        self.__single_sql_analyze_ratio_verbose_true(select_claus, tb, where_claus, having_claus),
-                        self.__single_sql_analyze_ratio_verbose_true(select_claus, tb,),
-                        self.__single_sql_analyze_ratio_verbose_true(select_claus, tb, where_condition=where_claus),
-                        self.__single_sql_analyze_ratio_verbose_true(select_claus, tb, group_condition=group_claus),
-                        self.__single_sql_analyze_ratio_verbose_false(select_claus, tb, where_claus, having_claus),
-                        self.__single_sql_analyze_ratio_verbose_false(select_claus, tb,),
-                        self.__single_sql_analyze_ratio_verbose_false(select_claus, tb, where_condition=where_claus),
-                        self.__single_sql_analyze_ratio_verbose_false(select_claus, tb, group_condition=group_claus),
+                        # reason for remove ratio: not implemented in the code
+                        # self.__single_sql_analyze_ratio(select_claus, tb, where_claus, having_claus),
+                        # self.__single_sql_analyze_ratio(select_claus, tb,),
+                        # self.__single_sql_analyze_ratio(select_claus, tb, where_condition=where_claus),
+                        # self.__single_sql_analyze_ratio(select_claus, tb, group_condition=group_claus),
+                        # self.__single_sql_analyze_ratio_verbose_true(select_claus, tb, where_claus, having_claus),
+                        # self.__single_sql_analyze_ratio_verbose_true(select_claus, tb,),
+                        # self.__single_sql_analyze_ratio_verbose_true(select_claus, tb, where_condition=where_claus),
+                        # self.__single_sql_analyze_ratio_verbose_true(select_claus, tb, group_condition=group_claus),
+                        # self.__single_sql_analyze_ratio_verbose_false(select_claus, tb, where_claus, having_claus),
+                        # self.__single_sql_analyze_ratio_verbose_false(select_claus, tb,),
+                        # self.__single_sql_analyze_ratio_verbose_false(select_claus, tb, where_condition=where_claus),
+                        # self.__single_sql_analyze_ratio_verbose_false(select_claus, tb, group_condition=group_claus),
                     )
                 )
 
