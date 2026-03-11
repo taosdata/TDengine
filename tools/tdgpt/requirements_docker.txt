@@ -1,5 +1,7 @@
 pandas==1.5.3 ; python_version <= "3.11"
 pandas==2.2.0 ; python_version >= "3.12"
+# install waitress on windows platform, since the gunicorn is not available for windows
+waitress==3.0.0; sys_platform == "win32"
 scipy==1.15.0
 wheel==0.35.0
 scikit-learn==1.5.2
