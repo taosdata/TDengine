@@ -22279,11 +22279,11 @@ static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, S
     col_id_t index = 1;
     FOREACH(pCol, pStmt->pColRefs) {
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
-      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, NULL, pColRef->refColName, pColRef->refTableName,
-                             pColRef->refDbName, pColRef->refDepth));
+      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, NULL, pColRef->refColName, pColRef->refTableName, pColRef->refDbName, pColRef->refDepth));
     }
   } else {
     // no column reference.
+  }
 
   pBatch->info = *pVgroupInfo;
   (void)strcpy(pBatch->dbName, pStmt->dbName);
