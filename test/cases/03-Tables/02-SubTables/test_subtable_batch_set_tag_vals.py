@@ -53,6 +53,36 @@ class TestSubTableBatchSetTagVals:
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, None)
 
+    def multi_table_across_database(self):
+        tdSql.execute("drop database if exists test1")
+        tdSql.execute("drop database if exists test2")
+        tdSql.execute("create database test1 vgroups 1")
+        tdSql.execute("create database test2 vgroups 1")
+
+        tdSql.execute("use test1")
+        tdSql.execute("create table stb (ts timestamp, c1 int) tags(t1 int, t2 binary(10))")
+        tdSql.execute("create table ct1 using stb tags(1, 'tag1')")
+        tdSql.execute("insert into ct1 values(now, 10)")
+
+        tdSql.execute("use test2")
+        tdSql.execute("create table stb (ts timestamp, c1 int) tags(t1 int, t2 binary(10))")
+        tdSql.execute("create table ct2 using stb tags(2, 'tag2')")
+        tdSql.execute("insert into ct2 values(now, 20)")
+
+        tdSql.execute(
+            "alter table test1.ct1 set tag t1=111, t2='updated1' "
+            "test2.ct2 set tag t1=222, t2='updated2'"
+        )
+        tdSql.query("select tbname, t1, t2 from test1.stb where tbname='ct1'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 111)
+        tdSql.checkData(0, 2, "updated1")
+        tdSql.query("select tbname, t1, t2 from test2.stb where tbname='ct2'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 222)
+        tdSql.checkData(0, 2, "updated2")
+
+
     def multi_table_various_types(self):
         tdSql.execute("drop database if exists test")
         tdSql.execute("create database test vgroups 4")
@@ -166,6 +196,7 @@ class TestSubTableBatchSetTagVals:
         """
 
         self.multi_table_basic()
+        self.multi_table_across_database()
         self.multi_table_various_types()
         self.multi_table_error_cases()
 
