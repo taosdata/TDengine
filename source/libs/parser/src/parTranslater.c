@@ -24498,6 +24498,8 @@ static EDealRes rewriteAlterChildTableTagValWhereCond(SNode** pNode, void* pCont
       return translateOperator(pCxt->pCxt, (SOperatorNode*)*pNode);
     case QUERY_NODE_LOGIC_CONDITION:
       return translateLogicCond(pCxt->pCxt, (SLogicConditionNode*)*pNode);
+    default:
+      return DEAL_RES_CONTINUE;
   }
 
   return DEAL_RES_CONTINUE;

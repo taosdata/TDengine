@@ -684,7 +684,11 @@ static int32_t authDropVtable(SAuthCxt* pCxt, SDropVirtualTableStmt* pStmt) {
 }
 
 static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
-  SNode* pTagCond = NULL;
+  // TODO: if alterType is TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL, the tables to
+  // change tag value are child tables but we only have the super table name here.
+  // the auth logic below haven't handled this case, but as this case is only for internal
+  // use and not exposed to users, we can live with this for now and improve it later if needed.
+
   if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
     int32_t code = 0;
     SNode* pTableNode = NULL;
@@ -709,6 +713,27 @@ static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
 }
 
 static int32_t authAlterVTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
+  // TODO: if alterType is TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL, the tables to
+  // change tag value are child tables but we only have the super table name here.
+  // the auth logic below haven't handled this case, but as this case is only for internal
+  // use and not exposed to users, we can live with this for now and improve it later if needed.
+
+  if (pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
+    int32_t code = 0;
+    SNode* pTableNode = NULL;
+    FOREACH(pTableNode, pStmt->pList) {
+      SAlterTableUpdateTagValClause* pClause = (SAlterTableUpdateTagValClause*)pTableNode;
+      if (checkAuth(pCxt, pClause->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL)) {
+        return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+      }
+      code = checkAuth(pCxt, pClause->dbName, pClause->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+    }
+    PAR_RET(code);
+  } 
+
   if (checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL)) {
     return TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
   }
