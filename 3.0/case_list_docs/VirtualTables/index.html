@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
     
     
       
@@ -1491,6 +1491,28 @@
     <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_plan_window_optimize.TestVTablePlanAggOptimize.test_virtual_table_plan" class="md-nav__link">
         Query: virtual stable query plan 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_query_ts_subquery_pushdown.TestVTableQueryTsSubqueryPushdown.test_vtable_ts_subquery_query" class="md-nav__link">
+        Query: virtual table ts filter with renamed origin ts column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_plan_pushdown_ts_subquery.TestVTablePlanPushdownTsSubquery.test_vtable_plan_ts_subquery" class="md-nav__link">
+        Query: virtual table ts subquery explain plan 
       </a>
       
     </li>
@@ -5079,6 +5101,28 @@
         
   
     <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_query_ts_subquery_pushdown.TestVTableQueryTsSubqueryPushdown.test_vtable_ts_subquery_query" class="md-nav__link">
+        Query: virtual table ts filter with renamed origin ts column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#05-VirtualTables.test_vtable_plan_pushdown_ts_subquery.TestVTablePlanPushdownTsSubquery.test_vtable_plan_ts_subquery" class="md-nav__link">
+        Query: virtual table ts subquery explain plan 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#05-VirtualTables.test_vtable_query_with_null_value.TestVTableQuery.test_select_virtualtable_with_null_value" class="md-nav__link">
         Query: virtual table with null value 
       </a>
@@ -6123,6 +6167,38 @@
   
   
   
+<h2 id="05-VirtualTables.test_vtable_plan_pushdown_ts_subquery.TestVTablePlanPushdownTsSubquery.test_vtable_plan_ts_subquery" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_plan_pushdown_ts_subquery.TestVTablePlanPushdownTsSubquery.test_vtable_plan_ts_subquery" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Query: virtual table ts subquery explain plan</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. validate explain/analyze plan with ts scalar-subquery range conditions</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. validate multi-origin virtual table can push ts scalar-subquery conditions to every origin scan</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. validate analyze output shows origin table scans only read filtered rows</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. validate filtered `first/last(...)` scalar subqueries keep the same pushdown shape</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_plan_pushdown_ts_subquery.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_plan_pushdown_ts_subquery.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="05-VirtualTables.test_vtable_plan_replace_tbname.TestVtablePlanEliminateVirtualScan.test_virtual_table_plan" class="doc doc-heading">
 
 <a href="#05-VirtualTables.test_vtable_plan_replace_tbname.TestVtablePlanEliminateVirtualScan.test_virtual_table_plan" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -6954,6 +7030,38 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_same_reference_col.py" target="_blank">
                       cases/05-VirtualTables/test_vtable_query_same_reference_col.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="05-VirtualTables.test_vtable_query_ts_subquery_pushdown.TestVTableQueryTsSubqueryPushdown.test_vtable_ts_subquery_query" class="doc doc-heading">
+
+<a href="#05-VirtualTables.test_vtable_query_ts_subquery_pushdown.TestVTableQueryTsSubqueryPushdown.test_vtable_ts_subquery_query" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Query: virtual table ts filter with renamed origin ts column</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. validate direct ts range filter when origin ts column is not named ts</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. validate scalar-subquery ts range filter on virtual normal/child/super tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. validate scalar-subquery ts range filter on multi-origin virtual normal table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. validate scalar subqueries using filtered `first/last(...)` timestamps</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/05-VirtualTables/test_vtable_query_ts_subquery_pushdown.py" target="_blank">
+                      cases/05-VirtualTables/test_vtable_query_ts_subquery_pushdown.py
                     </a>
                   </div>
         </div>
