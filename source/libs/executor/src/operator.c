@@ -353,20 +353,26 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         return terrno;
       }
 
-      code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, true, pHandle, pTableListInfo,
-                                     pTagCond, pTagIndexCond, pTaskInfo, NULL);
-      if (code) {
-        pTaskInfo->code = code;
-        tableListDestroy(pTableListInfo);
-        qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
-        return code;
-      }
+      if (pTableScanNode->scan.node.dynamicOp) {
+        pTaskInfo->dynamicTask = true;
+        pTableListInfo->idInfo.suid = pTableScanNode->scan.suid;
+        pTableListInfo->idInfo.tableType = pTableScanNode->scan.tableType;
+      } else {
+        code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, true, pHandle, pTableListInfo,
+                                       pTagCond, pTagIndexCond, pTaskInfo, NULL);
+        if (code) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          qError("failed to createScanTableListInfo, code:%s, %s", tstrerror(code), idstr);
+          return code;
+        }
 
-      code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
-      if (code) {
-        pTaskInfo->code = code;
-        tableListDestroy(pTableListInfo);
-        return code;
+        code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
+        if (code) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          return code;
+        }
       }
 
       code = createTableMergeScanOperatorInfo(pTableScanNode, pHandle, pTableListInfo, pTaskInfo, &pOperator);
@@ -931,6 +937,70 @@ SSDataBlock* getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, i
     }
   }
   return (code == 0)? p:NULL;
+}
+
+/*
+ * Fetch one block from downstream without preserving reused get-param ownership.
+ *
+ * @param pOperator Current operator.
+ * @param idx Downstream index.
+ * @param pResBlock Output result block pointer.
+ *
+ * @return TSDB_CODE_SUCCESS on success, otherwise error code.
+ */
+static FORCE_INLINE int32_t getNextBlockFromDownstreamRemainDetachImpl(struct SOperatorInfo* pOperator, int32_t idx,
+                                                                       SSDataBlock** pResBlock) {
+  QRY_PARAM_CHECK(pResBlock);
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (pOperator->pDownstreamGetParams && pOperator->pDownstreamGetParams[idx]) {
+    SOperatorParam* pGetParam = pOperator->pDownstreamGetParams[idx];
+    pOperator->pDownstreamGetParams[idx] = NULL;
+    // Once detached from the parent operator, downstream must own/free this param.
+    pGetParam->reUse = false;
+
+    qDebug("DynOp: op %s start to get block from downstream %s", pOperator->name, pOperator->pDownstream[idx]->name);
+    code = pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx], pGetParam, pResBlock);
+    QUERY_CHECK_CODE(code, lino, _return);
+  } else {
+    code = pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx], pResBlock);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+_return:
+  if (code) {
+    qError("failed to get next data block from upstream at %s, line:%d code:%s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+/*
+ * Fetch and validate one downstream block while detaching one-shot get-param.
+ *
+ * @param pOperator Current operator.
+ * @param idx Downstream index.
+ *
+ * @return Valid block pointer on success, or NULL on failure.
+ */
+SSDataBlock* getNextBlockFromDownstreamRemainDetach(struct SOperatorInfo* pOperator, int32_t idx) {
+  SSDataBlock* p = NULL;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+
+  code = getNextBlockFromDownstreamRemainDetachImpl(pOperator, idx, &p);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  code = blockDataCheck(p);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+_return:
+  if (code) {
+    qError("failed to get next data block from downstream at %s, line:%d code:%s", __func__, lino, tstrerror(code));
+    return NULL;
+  }
+  return p;
 }
 
 int32_t optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam, SSDataBlock** pRes) {

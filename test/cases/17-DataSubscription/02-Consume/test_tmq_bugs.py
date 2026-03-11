@@ -801,21 +801,21 @@ class TestTmqBugs:
         
         while True:
             leader_after = -1
-            tdLog.debug("balancing vgroup leader")
+            tdLog.info("balancing vgroup leader")
             tdSql.execute("balance vgroup leader")
             while True:
-                tdLog.debug("get new vgroup leader")
+                tdLog.info("get new vgroup leader")
                 leader_after = self.get_leader()
                 if leader_after != -1 :
                     break
                 else:
                     time.sleep(1)
             if leader_after != leader_before:
-                tdLog.debug("leader changed")
+                tdLog.info("leader changed")
                 break
             else :
                 time.sleep(1)
-                tdLog.debug("leader not changed")
+                tdLog.info("leader not changed")
 
     def do_ts4674(self):
         tdSql.execute(f'create database d1 replica 3 vgroups 1')

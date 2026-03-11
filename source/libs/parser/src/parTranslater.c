@@ -1866,8 +1866,10 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
 
   int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
   for (int32_t i = 0; i < nums; ++i) {
-    if (0 == strcmp(pCol->colName, pMeta->schema[i].name) &&
-        !invisibleColumn(true, pMeta->tableType, pMeta->schema[i].flags)) { // pCxt->pParseCxt->enableSysInfo, only control the output columns
+    if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
+      if (invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PERMISSION_DENIED, pCol->colName);
+      }
       SSchemaExt* pSchemaExt =
           pMeta->schemaExt ? (i >= pMeta->tableInfo.numOfColumns ? NULL : (pMeta->schemaExt + i)) : NULL;
       setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns), pCol,
@@ -6680,7 +6682,7 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
       // table scan node is eliminated.
       const SSchema* pTsSchema = &pMeta->schema[0];
       const SSchema* pRefTsSchema = &pRTNode->pMeta->schema[0];
-      PAR_ERR_JRET(setColRef(&pMeta->colRef[0], pTsSchema->colId, (char*)pRefTsSchema->name, pRTNode->table.tableName,
+      PAR_ERR_JRET(setColRef(&pMeta->colRef[0], pTsSchema->colId, NULL, (char*)pRefTsSchema->name, pRTNode->table.tableName,
                              pRTNode->table.dbName, 0));
     }
   }
@@ -7944,6 +7946,9 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
   FOREACH(pNode, pRetrievedCols) {
     if (QUERY_NODE_COLUMN == nodeType(pNode)) {
       SColumnNode* pCol = (SColumnNode*)pNode;
+      if (pCol->appendByPrivCond) {
+        continue;
+      }
       SColIdNameKV colIdNameKV = {.colId = pCol->colId};
       snprintf(colIdNameKV.colName, TSDB_COL_NAME_LEN, "%s", pCol->colName);
       STableCols* pTblCols = tSimpleHashGet(pTblColHash, (const void*)&pCol->tableId, sizeof(pCol->tableId));
@@ -18532,7 +18537,7 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
     return code;
   }
 
-  int32_t        columnNum = pTableMeta->tableInfo.numOfColumns;
+  int32_t        columnNum = pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags;
   const SSchema* pSchemaCols = pTableMeta->schema;
   SNode*         pNode = NULL;
   SColumnNode*   pCol = NULL;
@@ -22211,7 +22216,7 @@ static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateV
     SSchema*        pSchema = req.ntb.schemaRow.pSchema + index;
     toSchema(pColDef, index + 1, pSchema);
     if (pColDef->pOptions && ((SColumnOptions*)pColDef->pOptions)->hasRef) {
-      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, ((SColumnOptions*)pColDef->pOptions)->refColumn,
+      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, NULL, ((SColumnOptions*)pColDef->pOptions)->refColumn,
                              ((SColumnOptions*)pColDef->pOptions)->refTable,
                              ((SColumnOptions*)pColDef->pOptions)->refDb,
                              ((SColumnOptions*)pColDef->pOptions)->refDepth));
@@ -22267,20 +22272,18 @@ static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, S
         PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
       }
       const SSchema* pSchema = getTableColumnSchema(pStbMeta) + schemaIdx;
-      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[schemaIdx], pSchema->colId, pColRef->refColName, pColRef->refTableName,
+      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[schemaIdx], pSchema->colId, pSchema->name, pColRef->refColName, pColRef->refTableName,
                              pColRef->refDbName, pColRef->refDepth));
     }
   } else if (pStmt->pColRefs) {
     col_id_t index = 1;
     FOREACH(pCol, pStmt->pColRefs) {
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
-      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, pColRef->refColName, pColRef->refTableName,
+      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, NULL, pColRef->refColName, pColRef->refTableName,
                              pColRef->refDbName, pColRef->refDepth));
-      index++;
     }
   } else {
     // no column reference.
-  }
 
   pBatch->info = *pVgroupInfo;
   (void)strcpy(pBatch->dbName, pStmt->dbName);

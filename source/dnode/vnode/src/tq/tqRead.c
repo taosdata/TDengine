@@ -39,8 +39,9 @@ static void processCreateTbMsg(SDecoder* dcoder, SWalCont* pHead, STqReader* pRe
 
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
-    if (pCreateReq->type == TSDB_CHILD_TABLE && pCreateReq->ctb.suid == tbSuid &&
-        taosHashGet(pReader->tbIdHash, &pCreateReq->uid, sizeof(int64_t)) != NULL) {  
+    if ((pCreateReq->type == TSDB_CHILD_TABLE || pCreateReq->type == TSDB_VIRTUAL_CHILD_TABLE) && 
+         pCreateReq->ctb.suid == tbSuid &&
+         taosHashGet(pReader->tbIdHash, &pCreateReq->uid, sizeof(int64_t)) != NULL) {  
       needRebuild++;
     }
   }
@@ -58,7 +59,8 @@ static void processCreateTbMsg(SDecoder* dcoder, SWalCont* pHead, STqReader* pRe
     }
     for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
       pCreateReq = req.pReqs + iReq;
-      if (pCreateReq->type == TSDB_CHILD_TABLE && pCreateReq->ctb.suid == tbSuid &&
+      if ((pCreateReq->type == TSDB_CHILD_TABLE || pCreateReq->type == TSDB_VIRTUAL_CHILD_TABLE) &&
+          pCreateReq->ctb.suid == tbSuid &&
           taosHashGet(pReader->tbIdHash, &pCreateReq->uid, sizeof(int64_t)) != NULL) {
         reqNew.nReqs++;
         if (taosArrayPush(reqNew.pArray, pCreateReq) == NULL) {
