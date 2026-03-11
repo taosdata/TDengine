@@ -59,6 +59,41 @@ class TestVtableBatchSetTagVals:
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, None)
 
+    def multi_table_across_database(self):
+        tdSql.execute("drop database if exists test1")
+        tdSql.execute("drop database if exists test2")
+        tdSql.execute("create database test1 vgroups 1")
+        tdSql.execute("create database test2 vgroups 1")
+
+        # create source and virtual table in test1
+        tdSql.execute("use test1")
+        tdSql.execute("create table org_tb (ts timestamp, c1 int)")
+        tdSql.execute("insert into org_tb values(now, 1)")
+        tdSql.execute("create stable vstb (ts timestamp, c1 int) tags(t1 int, t2 varchar(10)) virtual 1")
+        tdSql.execute("create vtable vct1 (c1 from org_tb.c1) using vstb tags(1, 'tag1')")
+
+        # create source and virtual table in test2
+        tdSql.execute("use test2")
+        tdSql.execute("create table org_tb (ts timestamp, c1 int)")
+        tdSql.execute("insert into org_tb values(now, 1)")
+        tdSql.execute("create stable vstb (ts timestamp, c1 int) tags(t1 int, t2 varchar(10)) virtual 1")
+        tdSql.execute("create vtable vct1 (c1 from org_tb.c1) using vstb tags(2, 'tag2')")
+
+        # batch set tags on virtual child tables in different databases
+        tdSql.execute(
+            "alter vtable test1.vct1 set tag t1=111, t2='updated1' "
+            "test2.vct1 set tag t1=222, t2='updated2'"
+        )
+        tdSql.query("select tbname, t1, t2 from test1.vstb where tbname='vct1'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 111)
+        tdSql.checkData(0, 2, "updated1")
+        tdSql.query("select tbname, t1, t2 from test2.vstb where tbname='vct1'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 222)
+        tdSql.checkData(0, 2, "updated2")
+
+
     def multi_table_various_types(self):
         tdSql.execute("drop database if exists test")
         tdSql.execute("create database test vgroups 4")
