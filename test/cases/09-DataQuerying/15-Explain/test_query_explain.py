@@ -260,7 +260,7 @@ class TestExplain:
         #tdCom.compare_result_files(
         #    resultfile, "cases/09-DataQuerying/15-Explain/r/test_explain.result"
         #)
-        print("do explain basic ...................... [passed]")
+        tdLog.printNoPrefix("do explain basic ...................... [passed]")
         
     #
     # ------------------- test_TD_20582.py ----------------
@@ -331,7 +331,7 @@ class TestExplain:
 
         self.check_result()
 
-        print("do TD-20582 ........................... [passed]")
+        tdLog.printNoPrefix("do TD-20582 ........................... [passed]")
 
     
     #
@@ -961,8 +961,7 @@ class TestExplain:
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()
     
-
-        print("do explain complex .................... [passed]")
+        tdLog.printNoPrefix("do explain complex .................... [passed]")
 
     def __extract_explain_plan_lines(self):
         lines = []
@@ -972,7 +971,25 @@ class TestExplain:
                 lines.append(str(line))
         return lines
 
+    def __extract_exchange_indices(self, plan_lines):
+        exchange_idx = [
+            idx for idx, line in enumerate(plan_lines) if "Data Exchange" in line
+        ]
+        return exchange_idx
+
     def __check_filter_efficiency_percent(self, plan_lines):
+        """
+        Check filter efficiency percentage in explain plan lines.
+
+        Format examples:
+          - ...Filter: conditions=t1=1 efficiency=33.3%...
+          - ...Tag Index Filter: conditions=t1=1...
+
+        Validation rules:
+          1. efficiency field must be present in Filter or Tag Index Filter line
+          2. efficiency value must be a valid number
+          3. efficiency value must be between 0 and 100
+        """
         matched = []
         for line in plan_lines:
             if "Filter" not in line or "Tag Index" in line:
@@ -992,23 +1009,455 @@ class TestExplain:
         for v in matched:
             assert 0.0 <= v <= 100.0, f"efficiency out of range: {v}"
 
-    def __extract_scan_rows_by_exchange(self, plan_lines):
-        exchange_idx = [
-            idx for idx, line in enumerate(plan_lines) if "Data Exchange" in line
-        ]
-        scan_rows = []
-        for ex_idx in exchange_idx:
-            branch_lines = plan_lines[ex_idx + 1:]
-            for line in branch_lines:
-                if "Data Exchange" in line:
+    def __check_cost_and_rows_validity(self, plan_lines):
+        """
+        Check cost and rows values in explain plan lines.
+
+        Format examples:
+          - ...cost=0.316..0.316 rows=1...
+          - ...cost=0.316(0.316)..0.316(0.316) rows=1...
+
+        Validation rules:
+          1. cost values must be non-negative
+          2. cost values must not be millisecond timestamps (not near current time)
+          3. for cost=A..C or cost=A(B)..C(D), C must >= A and D must >= B and B must >= A and D must >= C
+          4. if all cost values are 0, then rows must also be 0
+        """
+        # Threshold for detecting timestamp values (1 day in ms)
+        COST_MAX_REASONABLE_MS = 24 * 60 * 60 * 1000
+
+        for line in plan_lines:
+            if "cost=" not in line or " rows=" not in line:
+                # note that the space before "rows=" is important
+                continue
+
+            # Extract cost values
+            # Pattern 1: cost=X..Y (two values)
+            # Pattern 2: cost=A(B)..C(D) (four values)
+            cost_pattern = r"cost=([0-9.]+)(?:\(([0-9.]+)\))?\.\.([0-9.]+)(?:\(([0-9.]+)\))?"
+            cost_match = re.search(cost_pattern, line)
+            if cost_match is None:
+                raise AssertionError(
+                    "cost pattern not found in line: {}".format(line)
+                )
+
+            cost_values = []
+            cost_values.append(float(cost_match.group(1)))
+            cost_values.append(float(cost_match.group(3)))
+            if cost_match.group(2) is not None:
+                cost_values.append(float(cost_match.group(2)))
+            if cost_match.group(4) is not None:
+                cost_values.append(float(cost_match.group(4)))
+
+            # Extract rows value
+            rows_pattern = r"rows=([0-9.]+)"
+            rows_match = re.search(rows_pattern, line)
+            if rows_match is None:
+                raise AssertionError(
+                    "rows pattern not found in line: {}".format(line)
+                )
+            rows_value = float(rows_match.group(1))
+
+            # Validation 1: cost values must be non-negative
+            for cv in cost_values:
+                if cv < 0:
+                    raise AssertionError(
+                        "cost value is negative: {} in line: {}".format(cv, line)
+                    )
+
+            # Validation 2: cost values must not be millisecond timestamps
+            for cv in cost_values:
+                if cv > COST_MAX_REASONABLE_MS:
+                    raise AssertionError(
+                        "cost value {} appears to be a timestamp (too large) in line: {}".format(cv, line)
+                    )
+
+            # Validation 3: for cost=A..C or cost=A(B)..C(D),
+            # C must >= A and D must >= B and B must >= A and D must >= C
+            cost_first = float(cost_match.group(1))
+            cost_last = float(cost_match.group(3))
+            if cost_last < cost_first:
+                raise AssertionError(
+                    "cost last row time {} < first row time {} in line: {}" \
+                        .format(cost_last, cost_first, line)
+                )
+            if cost_match.group(2) is not None and cost_match.group(4) is not None:
+                max_first = float(cost_match.group(2))
+                max_last = float(cost_match.group(4))
+                if max_last < max_first:
+                    raise AssertionError(
+                        "aggregated cost max last row time {} < max first row time {} in line: {}" \
+                            .format(max_last, max_first, line)
+                    )
+                if max_first < cost_first or max_last < cost_last:
+                    raise AssertionError(
+                        "aggregated cost max first row time {} < avg first row time {} or "
+                        "max last row time {} < avg last row time {} in line: {}" \
+                            .format(max_first, cost_first, max_last, cost_last, line)
+                    )
+
+            # Validation 4: if all cost values are 0, rows must be 0
+            if all(cv == 0 for cv in cost_values) and rows_value != 0:
+                raise AssertionError(
+                    "all cost values are 0 but rows={} in line: {}" \
+                        .format(rows_value, line)
+                )
+
+    def __check_exec_cost_validity(self, plan_lines):
+        """
+        Check Exec cost line for compute, times, input_wait, output_wait fields.
+
+        Format examples:
+          - Exec cost: compute=0.316(0.316) times=1.0(1) input_wait=0.251(0.259) output_wait=0.5(1)
+
+        Validation rules:
+          1. values must be non-negative
+          2. if aggregated, max value (in parentheses) >= avg value (before parentheses)
+        """
+        # Fields to check
+        check_fields = ["compute", "times", "input_wait", "output_wait"]
+
+        for line in plan_lines:
+            if "Exec cost:" not in line:
+                continue
+
+            for field in check_fields:
+                # Pattern: field=value or field=avg(max)
+                pattern = r"{}=([0-9.]+)(?:\(([0-9.]+)\))?".format(field)
+                match = re.search(pattern, line)
+                if match is None:
+                    raise AssertionError(
+                        "{} field pattern not found in line: {}".format(field, line)
+                    )
+
+                avg_value = float(match.group(1))
+
+                # Validation 1: value must be non-negative
+                if avg_value < 0:
+                    raise AssertionError(
+                        "{} value {} is negative in line: {}"
+                            .format(field, avg_value, line)
+                    )
+
+                # Validation 2: if aggregated, max >= avg
+                if match.group(2) is not None:
+                    max_value = float(match.group(2))
+                    if max_value < 0:
+                        raise AssertionError(
+                            "{} max value {} is negative in line: {}"
+                                .format(field, max_value, line)
+                        )
+                    if max_value < avg_value:
+                        raise AssertionError(
+                            "{} max value {} < avg value {} in line: {}" \
+                                .format(field, max_value, avg_value, line)
+                        )
+
+    def __check_exchange_network_validity(self, plan_lines):
+        """
+        Check Network line under Data Exchange operator.
+
+        Format examples:
+          - Data Exchange 2:1 (cost=0.316..0.316 rows=1 width=16)
+          - ...
+          -    Network: mode=concurrent fetch_times=1.0(1) fetch_rows=0.5(1) fetch_cost=0.251(0.259)
+
+        Validation rules:
+          1. Each Data Exchange must have a corresponding Network line
+          2. mode must be either 'concurrent' or 'sequence'
+          3. fetch fields (fetch_times, fetch_rows, fetch_cost) must be non-negative
+          4. if aggregated, max value >= avg value
+          5. N:1 exchange (N>1) must have aggregated fetch values (avg(max) format)
+             1:1 exchange must have single fetch values (no parentheses)
+        """
+        valid_modes = {"concurrent", "sequence"}
+        fetch_fields = ["fetch_times", "fetch_rows", "fetch_cost"]
+
+        # Find all Data Exchange lines and their Network lines
+        exchange_pattern = r"Data Exchange\s+(\d+):(\d+)"
+        network_pattern = r"Network:\s+mode=(\w+)"
+
+        i = 0
+        while i < len(plan_lines):
+            line = plan_lines[i]
+            exchange_match = re.search(exchange_pattern, line)
+
+            if exchange_match is None:
+                i += 1
+                continue
+
+            # Look for the corresponding Network line (should be within next few lines)
+            network_line = None
+            for j in range(i + 1, min(i + 10, len(plan_lines))):
+                if "Network:" in plan_lines[j]:
+                    network_line = plan_lines[j]
                     break
-                if "Table Scan" not in line:
-                    continue
-                rows_match = re.search(r"rows=(\d+)", line)
-                if rows_match is not None:
-                    scan_rows.append(int(rows_match.group(1)))
+                # Stop if we hit another Data Exchange
+                if "Data Exchange" in plan_lines[j]:
                     break
-        return exchange_idx, scan_rows
+
+            if network_line is None:
+                raise AssertionError(
+                    "Network line not found for Data Exchange at line: {}".format(line)
+                )
+
+            # Found a Data Exchange line
+            src_count = int(exchange_match.group(1))
+
+            # Check mode
+            mode_match = re.search(network_pattern, network_line)
+            if mode_match is None:
+                raise AssertionError(
+                    "mode not found in Network line: {}".format(network_line)
+                )
+            mode = mode_match.group(1)
+            if mode not in valid_modes:
+                raise AssertionError(
+                    "invalid mode '{}' in Network line: {}".format(mode, network_line)
+                )
+
+            # Check fetch fields
+            for field in fetch_fields:
+                # Pattern: field=value or field=avg(max)
+                pattern = r"{}=([0-9.]+)(?:\(([0-9.]+)\))?".format(field)
+                match = re.search(pattern, network_line)
+                if match is None:
+                    raise AssertionError(
+                        "{} field not found in Network line: {}".format(field, network_line)
+                    )
+
+                avg_value = float(match.group(1))
+                has_aggregation = match.group(2) is not None
+
+                # Validation: value must be non-negative
+                if avg_value < 0:
+                    raise AssertionError(
+                        "{} value {} is negative in Network line: {}"
+                            .format(field, avg_value, network_line)
+                    )
+
+                # Validation: aggregation format must match exchange type
+                if src_count > 1 and not has_aggregation:
+                    raise AssertionError(
+                        "N:1 exchange should have aggregated {} (avg(max) format) in Network line: {}"
+                            .format(field, network_line)
+                    )
+                if src_count == 1 and has_aggregation:
+                    raise AssertionError(
+                        "1:1 exchange should have single {} value (no parentheses) in Network line: {}"
+                            .format(field, network_line)
+                    )
+
+                # Validation: if aggregated, max >= avg
+                if has_aggregation:
+                    max_value = float(match.group(2))
+                    if max_value < 0:
+                        raise AssertionError(
+                            "{} max value {} is negative in Network line: {}"
+                                .format(field, max_value, network_line)
+                        )
+                    if max_value < avg_value:
+                        raise AssertionError(
+                            "{} max value {} < avg value {} in Network line: {}" \
+                                .format(field, max_value, avg_value, network_line)
+                        )
+
+            i = j + 1 # skip to the next Data Exchange line
+
+    def __check_io_cost_validity(self, plan_lines):
+        """
+        Check I/O cost lines (3 consecutive lines under Table Scan).
+
+        Format examples:
+        Line 1: total_blocks, file_load_blocks, stt_load_blocks, mem_load_blocks, sma_load_blocks, composed_blocks
+        Line 2: file_load_elapsed, stt_load_elapsed, mem_load_elapsed, sma_load_elapsed, composed_elapsed
+        Line 3: total_rows, check_rows [, slowest_vgroup_id, slow_deviation, cost_ratio, data_deviation]
+
+        Validation rules:
+          1. all numeric values must be non-negative (including percentages)
+          2. check_rows >= total_blocks
+          3. slowest_vgroup_id, slow_deviation, cost_ratio, data_deviation only appear when
+             there are multiple vgroups
+        """
+        # Fields that should be non-negative (with optional aggregation)
+        block_fields = ["total_blocks", "file_load_blocks", "stt_load_blocks",
+                        "mem_load_blocks", "sma_load_blocks", "composed_blocks"]
+        elapsed_fields = ["file_load_elapsed", "stt_load_elapsed", "mem_load_elapsed",
+                          "sma_load_elapsed", "composed_elapsed"]
+        row_fields = ["total_rows", "check_rows"]
+
+        # Optional fields (only present when there are multiple vgroups)
+        opt_single_fields = ["slowest_vgroup_id", "cost_ratio"]
+        opt_percent_fields = ["slow_deviation", "data_deviation"]
+
+        def extract_value(line, field, allow_aggregation=True):
+            """Extract value from line, returns (avg_value, max_value or None)"""
+            if allow_aggregation:
+                pattern = r"{}=([0-9.]+)(?:\(([0-9.]+)\))?".format(field)
+            else:
+                pattern = r"{}=([0-9.]+)".format(field)
+            match = re.search(pattern, line)
+            if match is None:
+                return None, None
+            avg = float(match.group(1))
+            max_val = float(match.group(2)) if match.lastindex and match.lastindex >= 2 else None
+            return avg, max_val
+
+        def extract_percent(line, field):
+            """Extract percentage value from line (e.g., slow_deviation=3%)"""
+            pattern = r"{}=([0-9.]+)%".format(field)
+            match = re.search(pattern, line)
+            if match is None:
+                return None
+            return float(match.group(1))
+
+        i = 0
+        while i < len(plan_lines):
+            line = plan_lines[i]
+
+            # Look for I/O cost header line
+            if "I/O cost:" not in line:
+                i += 1
+                continue
+
+            # Collect the 3 I/O cost lines
+            io_lines = [line]
+            for j in range(i + 1, min(i + 3, len(plan_lines))):
+                if "I/O cost:" in plan_lines[j]:
+                    break
+                io_lines.append(plan_lines[j])
+
+            if len(io_lines) < 3:
+                raise AssertionError(
+                    "I/O cost section has less than 3 lines starting at: {}".format(line)
+                )
+
+            line1, line2, line3 = io_lines[0], io_lines[1], io_lines[2]
+
+            # Check if data is aggregated by checking total_blocks format
+            _, total_blocks_max = extract_value(line1, "total_blocks")
+            is_aggregated = total_blocks_max is not None
+
+            # Validation 1: all values must be non-negative
+
+            # Check block fields (line 1)
+            for field in block_fields:
+                avg, max_val = extract_value(line1, field)
+                if avg is None:
+                    raise AssertionError(
+                        "{} not found in I/O cost line: {}".format(field, line1)
+                    )
+                if avg < 0:
+                    raise AssertionError(
+                        "{} value {} is negative in line: {}".format(field, avg, line1)
+                    )
+                if max_val is not None and max_val < 0:
+                    raise AssertionError(
+                        "{} max value {} is negative in line: {}".format(field, max_val, line1)
+                    )
+                if max_val is not None and max_val < avg:
+                    raise AssertionError(
+                        "{} max {} < avg {} in line: {}".format(field, max_val, avg, line1)
+                    )
+
+            # Check elapsed fields (line 2)
+            for field in elapsed_fields:
+                avg, max_val = extract_value(line2, field)
+                if avg is None:
+                    raise AssertionError(
+                        "{} not found in I/O cost line: {}".format(field, line2)
+                    )
+                if avg < 0:
+                    raise AssertionError(
+                        "{} value {} is negative in line: {}".format(field, avg, line2)
+                    )
+                if max_val is not None and max_val < 0:
+                    raise AssertionError(
+                        "{} max value {} is negative in line: {}".format(field, max_val, line2)
+                    )
+                if max_val is not None and max_val < avg:
+                    raise AssertionError(
+                        "{} max {} < avg {} in line: {}".format(field, max_val, avg, line2)
+                    )
+
+            # Check row fields (line 3)
+            for field in row_fields:
+                avg, max_val = extract_value(line3, field)
+                if avg is None:
+                    raise AssertionError(
+                        "{} not found in I/O cost line: {}".format(field, line3)
+                    )
+                if avg < 0:
+                    raise AssertionError(
+                        "{} value {} is negative in line: {}".format(field, avg, line3)
+                    )
+                if max_val is not None and max_val < 0:
+                    raise AssertionError(
+                        "{} max value {} is negative in line: {}".format(field, max_val, line3)
+                    )
+                if max_val is not None and max_val < avg:
+                    raise AssertionError(
+                        "{} max {} < avg {} in line: {}".format(field, max_val, avg, line3)
+                    )
+
+            # Check optional fields (line 3) - only when aggregated
+            if is_aggregated:
+                # Check optional single value fields
+                for field in opt_single_fields:
+                    avg, _ = extract_value(line3, field, allow_aggregation=False)
+                    if avg is None:
+                        raise AssertionError(
+                            "{} not found in aggregated I/O cost line: {}".format(field, line3)
+                        )
+                    if avg < 0:
+                        raise AssertionError(
+                            "{} value {} is negative in line: {}".format(field, avg, line3)
+                        )
+
+                # Check optional percentage fields
+                for field in opt_percent_fields:
+                    val = extract_percent(line3, field)
+                    if val is None:
+                        raise AssertionError(
+                            "{} not found in aggregated I/O cost line: {}".format(field, line3)
+                        )
+                    if val < 0:
+                        raise AssertionError(
+                            "{} value {}% is negative in line: {}".format(field, val, line3)
+                        )
+            else:
+                # When not aggregated, optional fields should not be present
+                for field in opt_single_fields:
+                    avg, _ = extract_value(line3, field, allow_aggregation=False)
+                    if avg is not None:
+                        raise AssertionError(
+                            "{} should not appear in non-aggregated I/O cost line: {}".format(field, line3)
+                        )
+                for field in opt_percent_fields:
+                    val = extract_percent(line3, field)
+                    if val is not None:
+                        raise AssertionError(
+                            "{} should not appear in non-aggregated I/O cost line: {}".format(field, line3)
+                        )
+
+            # Validation 2: check_rows >= total_blocks
+            check_rows_avg, check_rows_max = extract_value(line3, "check_rows")
+            total_blocks_avg, total_blocks_max = extract_value(line1, "total_blocks")
+
+            if check_rows_avg < total_blocks_avg:
+                raise AssertionError(
+                    "check_rows {} < total_blocks {} in I/O cost lines: {} / {}"
+                        .format(check_rows_avg, total_blocks_avg, line1, line3)
+                )
+
+            if check_rows_max is not None and total_blocks_max is not None:
+                if check_rows_max < total_blocks_max:
+                    raise AssertionError(
+                        "check_rows max {} < total_blocks max {} in I/O cost lines: {} / {}"
+                            .format(check_rows_max, total_blocks_max, line1, line3)
+                    )
+
+            i += len(io_lines)
 
     def do_explain_partition_by_tag_regression(self):
         tdSql.execute("drop database if exists db_explain_reg")
@@ -1026,35 +1475,30 @@ class TestExplain:
         # check partition by gid
         tdSql.query("explain analyze verbose true select * from stb partition by gid")
         plan_lines = self.__extract_explain_plan_lines()
-        exchange_idx, scan_rows = self.__extract_scan_rows_by_exchange(plan_lines)
+        self.__check_exchange_network_validity(plan_lines)
+        self.__check_cost_and_rows_validity(plan_lines)
+        self.__check_exec_cost_validity(plan_lines)
+        self.__check_io_cost_validity(plan_lines)
+        exchange_idx = self.__extract_exchange_indices(plan_lines)
         assert len(exchange_idx) == 2, (
             "expect two Data Exchange nodes for partition by gid"
-        )
-
-        assert len(scan_rows) == 2, (
-            "expect each Data Exchange branch has Table Scan statistics"
-        )
-        assert len(set(scan_rows)) == 2 and sum(scan_rows) == insert_rows, (
-            "table scan stats should be merged across exchange branches"
         )
 
         # check union and filter
         tdSql.query("explain analyze verbose true select ts, v from stb where "
             "gid < 3 and v > 0 union select * from t3")
         plan_lines = self.__extract_explain_plan_lines()
-        exchange_idx, scan_rows = self.__extract_scan_rows_by_exchange(plan_lines)
+        self.__check_filter_efficiency_percent(plan_lines)
+        self.__check_exchange_network_validity(plan_lines)
+        self.__check_cost_and_rows_validity(plan_lines)
+        self.__check_exec_cost_validity(plan_lines)
+        self.__check_io_cost_validity(plan_lines)
+        exchange_idx = self.__extract_exchange_indices(plan_lines)
         assert len(exchange_idx) == 2, (
             "expect two Data Exchange nodes for union and filter"
         )
 
-        # only first query has exchange operator and data
-        assert len(set(scan_rows)) == 1 and sum(scan_rows) == insert_rows, (
-            "table scan stats should be merged across exchange branches"
-        )
-
-        self.__check_filter_efficiency_percent(plan_lines)
-
-        tdLog.info("do explain partition by tag regression ... [passed]")
+        tdLog.printNoPrefix("do explain partition by tag regression ... [passed]")
 
     #
     # ------------------- main ----------------
