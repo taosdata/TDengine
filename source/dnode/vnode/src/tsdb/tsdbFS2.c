@@ -935,7 +935,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
 
   // Disable merge schedule when repair
   if (fs->etype == TSDB_FEDIT_FORCE_REPAIR) {
-    return code;
+    goto _exit;
   }
 
   // schedule merge

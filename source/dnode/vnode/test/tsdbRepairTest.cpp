@@ -27,6 +27,14 @@ extern "C" {
 typedef struct STFileObj STFileObj;
 typedef struct SDataFileWriter SDataFileWriter;
 typedef struct SSttFileWriter SSttFileWriter;
+typedef struct STFileSet STFileSet;
+typedef struct SBlockData SBlockData;
+
+typedef struct {
+  int32_t    size;
+  int32_t    capacity;
+  STFileSet **data;
+} TFileSetArray;
 
 typedef struct {
   SRowKey key;
@@ -49,20 +57,53 @@ typedef struct {
   int32_t     count;
 } SBrinRecord;
 
-typedef struct {
+struct SBlockData {
   int64_t  suid;
   int64_t  uid;
   int32_t  nRow;
   int64_t *aUid;
   int64_t *aVersion;
   TSKEY   *aTSKEY;
-} SBlockData;
+};
 
 enum {
   TSDB_REPAIR_ACTION_KEEP = 0,
   TSDB_REPAIR_ACTION_DROP = 1,
   TSDB_REPAIR_ACTION_REBUILD = 2,
 };
+
+typedef enum {
+  TSDB_FEDIT_COMMIT = 1,
+  TSDB_FEDIT_MERGE,
+  TSDB_FEDIT_COMPACT,
+  TSDB_FEDIT_RETENTION,
+  TSDB_FEDIT_SSMIGRATE,
+  TSDB_FEDIT_ROLLUP,
+  TSDB_FEDIT_FORCE_REPAIR,
+} EFEditT;
+
+typedef enum {
+  TSDB_FCURRENT = 1,
+  TSDB_FCURRENT_C,
+  TSDB_FCURRENT_M,
+} EFCurrentT;
+
+struct STsdb {
+  char   *path;
+  SVnode *pVnode;
+  char    name[VNODE_TSDB_NAME_LEN];
+};
+
+typedef struct STFileSystem {
+  STsdb        *tsdb;
+  tsem_t        canEdit;
+  int32_t       fsstate;
+  int32_t       rollupLevel;
+  int64_t       neid;
+  EFEditT       etype;
+  TFileSetArray fSetArr[1];
+  TFileSetArray fSetArrTmp[1];
+} STFileSystem;
 
 bool tsdbRepairDataBlockLooksValid(const SBlockData *blockData, const SBrinRecord *record);
 bool tsdbRepairSttBlockLooksValid(const SBlockData *blockData);
@@ -79,6 +120,8 @@ bool        tsdbRepairFileAffected(const STFileObj *fobj);
 const char *tsdbRepairFileIssue(const STFileObj *fobj);
 int32_t     tsdbDataFileWriterClose(SDataFileWriter **writer, bool abort, void *opArray);
 int32_t     tsdbSttFileWriterClose(SSttFileWriter **writer, int8_t abort, void *opArray);
+void        current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype);
+int32_t     tsdbFSEditCommit(STFileSystem *fs);
 }
 
 namespace {
@@ -409,4 +452,60 @@ TEST(TsdbDataFileWriterCloseTest, NullWriterPointerDoesNotCrash) {
         _exit(0);
       },
       ::testing::ExitedWithCode(0), "");
+}
+
+class TsdbForceRepairCommitTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    std::snprintf(rootPath_, sizeof(rootPath_), "/tmp/tsdb-force-repair-commit-XXXXXX");
+    ASSERT_NE(mkdtemp(rootPath_), nullptr);
+
+    std::snprintf(tsdbPath_, sizeof(tsdbPath_), "%s/testtsdb", rootPath_);
+    ASSERT_EQ(taosMkDir(tsdbPath_), 0);
+
+    std::memset(&vnode_, 0, sizeof(vnode_));
+    std::memset(&tsdb_, 0, sizeof(tsdb_));
+    std::memset(&fs_, 0, sizeof(fs_));
+
+    vnode_.path = rootPath_;
+    vnode_.config.vgId = 7;
+    std::snprintf(tsdb_.name, sizeof(tsdb_.name), "testtsdb");
+    tsdb_.pVnode = &vnode_;
+    fs_.tsdb = &tsdb_;
+    fs_.etype = TSDB_FEDIT_FORCE_REPAIR;
+    fs_.fSetArr->size = 0;
+    fs_.fSetArr->capacity = 0;
+    fs_.fSetArr->data = nullptr;
+    fs_.fSetArrTmp->size = 0;
+    fs_.fSetArrTmp->capacity = 0;
+    fs_.fSetArrTmp->data = nullptr;
+
+    ASSERT_EQ(tsem_init(&fs_.canEdit, 0, 1), 0);
+
+    char currentTmp[TSDB_FILENAME_LEN] = {0};
+    current_fname(&tsdb_, currentTmp, TSDB_FCURRENT_M);
+
+    TdFilePtr fp = taosCreateFile(currentTmp, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    ASSERT_NE(fp, nullptr);
+    ASSERT_EQ(taosWriteFile(fp, "{}", 2), 2);
+    ASSERT_EQ(taosCloseFile(&fp), 0);
+  }
+
+  void TearDown() override {
+    ASSERT_EQ(tsem_destroy(&fs_.canEdit), 0);
+    taosRemoveDir(rootPath_);
+  }
+
+  char        rootPath_[TSDB_FILENAME_LEN] = {0};
+  char        tsdbPath_[TSDB_FILENAME_LEN] = {0};
+  SVnode      vnode_ = {};
+  STsdb       tsdb_ = {};
+  STFileSystem fs_ = {};
+};
+
+TEST_F(TsdbForceRepairCommitTest, ForceRepairCommitReleasesCanEditSemaphore) {
+  ASSERT_EQ(tsem_wait(&fs_.canEdit), 0);
+
+  ASSERT_EQ(tsdbFSEditCommit(&fs_), 0);
+  EXPECT_EQ(tsem_timewait(&fs_.canEdit, 10), 0);
 }
