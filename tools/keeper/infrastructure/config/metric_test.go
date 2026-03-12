@@ -66,18 +66,18 @@ func copyConfigFile() bool {
 		return false
 	}
 
-	source, err := os.Open(sourceFile) //open the source file
+	source, err := os.Open(sourceFile) // open the source file
 	if err != nil {
 		panic(err)
 	}
 	defer source.Close()
 
-	destination, err := os.Create(destinationFile) //create the destination file
+	destination, err := os.Create(destinationFile) // create the destination file
 	if err != nil {
 		panic(err)
 	}
 	defer destination.Close()
-	_, err = io.Copy(destination, source) //copy the contents of source to destination file
+	_, err = io.Copy(destination, source) // copy the contents of source to destination file
 	if err != nil {
 		panic(err)
 	}
