@@ -219,7 +219,7 @@ int queryWriteBinary(TAOS* conn, const char *sql, StorageFormat format, const ch
     int64_t rows = 0;
     if (format == BINARY_PARQUET) {
         // parquet
-        code = resultToFileParquet(res, pathFile);
+        code = resultToFileParquet(res, pathFile, &rows);
     } else {
         // taos
         code = resultToFileTaos(res, pathFile, &rows);

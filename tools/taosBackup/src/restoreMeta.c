@@ -1920,13 +1920,8 @@ static int restoreStbTags(DBInfo *dbInfo, StbInfo *stbInfo) {
                     closeTaosFileRead(pf);
                 }
             } else if (ext && strcmp(ext, ".par") == 0) {
-                int peekCode = 0;
-                ParquetReader *pr = parquetReaderOpen(tagFiles[i], &peekCode);
-                if (pr) {
-                    int64_t n = parquetReaderGetNumRows(pr);
-                    if (n > 0) totalCtbs += n;
-                    parquetReaderClose(pr);
-                }
+                int64_t n = parquetGetNumRowsQuick(tagFiles[i]);
+                if (n > 0) totalCtbs += n;
             }
         }
         g_progress.ctbTotalCur = totalCtbs;

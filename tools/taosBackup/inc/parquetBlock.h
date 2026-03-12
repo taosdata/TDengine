@@ -121,11 +121,12 @@ int parquetReaderReadAll(ParquetReader *pr,
 void parquetReaderClose(ParquetReader *pr);
 
 /*
- * Return the total number of rows stored in the Parquet file.
- * Reads only file-footer metadata — no row-data is scanned.
- * Returns -1 on error.
+ * Return the total number of rows stored in a Parquet file.
+ * Reads ONLY the file footer (no Arrow reader init, no schema parse, no data scan).
+ * Suitable for a quick row-count peek before opening the file for actual work.
+ * Returns -1 on any error.
  */
-int64_t parquetReaderGetNumRows(ParquetReader *pr);
+int64_t parquetGetNumRowsQuick(const char *fileName);
 
 /*
  * Retrieve the schema recovered from the file metadata.

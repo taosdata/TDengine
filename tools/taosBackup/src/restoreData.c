@@ -1574,13 +1574,9 @@ static void* restoreDataThread(void *arg) {
             atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
             // accumulate actual processed bytes for File Size summary
             {
-                TdFilePtr szFp = taosOpenFile(filePath, TD_FILE_READ);
-                if (szFp) {
-                    int64_t fsz = 0;
-                    taosFStatFile(szFp, &fsz, NULL);
-                    taosCloseFile(&szFp);
-                    if (fsz > 0) atomic_add_fetch_64(&g_stats.dataFilesSizeBytes, fsz);
-                }
+                int64_t fsz = 0;
+                if (taosStatFile(filePath, &fsz, NULL, NULL) == 0 && fsz > 0)
+                    atomic_add_fetch_64(&g_stats.dataFilesSizeBytes, fsz);
             }
         }
     }

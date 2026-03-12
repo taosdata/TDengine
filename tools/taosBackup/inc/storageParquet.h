@@ -17,7 +17,7 @@
 /*
  * Backup: stream TAOS_RES rows into a .par (ApacheArrow/Parquet) file.
  */
-int resultToFileParquet(TAOS_RES *res, const char *fileName);
+int resultToFileParquet(TAOS_RES *res, const char *fileName, int64_t *outRows);
 
 /*
  * Restore: read a .par file and insert all rows into @dbName.@tbName

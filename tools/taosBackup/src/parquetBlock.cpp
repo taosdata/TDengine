@@ -841,9 +841,16 @@ void parquetReaderClose(ParquetReader *pr) {
     if (pr) delete pr;
 }
 
-int64_t parquetReaderGetNumRows(ParquetReader *pr) {
-    if (!pr || !pr->reader) return -1;
-    return pr->reader->parquet_reader()->metadata()->num_rows();
+int64_t parquetGetNumRowsQuick(const char *fileName) {
+    if (!fileName) return -1;
+    try {
+        /* Use parquet::ParquetFileReader directly — only reads footer metadata,
+         * no Arrow reader initialisation, no schema recovery, no data scan. */
+        auto reader = parquet::ParquetFileReader::OpenFile(fileName, /*memory_map=*/false);
+        return reader->metadata()->num_rows();
+    } catch (...) {
+        return -1;
+    }
 }
 
 int parquetReaderGetFields(ParquetReader *pr, TAOS_FIELD **outFields) {

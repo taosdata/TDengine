@@ -41,7 +41,7 @@ static void progFmtEta(char *buf, size_t sz, double secs) {
     if (s < 60)
         snprintf(buf, sz, "~%ds", s);
     else if (s < 3600)
-        snprintf(buf, sz, "~%02dm%02ds", s / 60, s % 60);
+        snprintf(buf, sz, "~%2dm%02ds", s / 60, s % 60);
     else
         snprintf(buf, sz, "~%dh%02dm", s / 3600, (s % 3600) / 60);
 }
