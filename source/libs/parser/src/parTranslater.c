@@ -24573,6 +24573,28 @@ static int32_t rewriteShowXnodeStmt(STranslateContext* pCxt, SQuery* pQuery) {
       nodesDestroyNode((SNode*)pSelect);
       return code;
     }
+    SColumnNode* pCol = NULL;
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+    if (TSDB_CODE_SUCCESS == code) {
+      tstrncpy(pCol->colName, "id", TSDB_COL_NAME_LEN);
+      SOrderByExprNode* pOrderByExpr = NULL;
+      code = nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&pOrderByExpr);
+      if (TSDB_CODE_SUCCESS == code) {
+        pOrderByExpr->order = ORDER_ASC;
+        pOrderByExpr->nullOrder = NULL_ORDER_FIRST;
+        pOrderByExpr->pExpr = (SNode*)pCol;
+        code = nodesListMakeStrictAppend(&pSelect->pOrderByList, (SNode*)pOrderByExpr);
+        if (TSDB_CODE_SUCCESS != code) {
+          nodesDestroyNode((SNode*)pOrderByExpr);
+        }
+      } else {
+        nodesDestroyNode((SNode*)pCol);
+      }
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pSelect);
+      return code;
+    }
     pCxt->showRewrite = true;
     pQuery->showRewrite = true;
     nodesDestroyNode(pQuery->pRoot);
