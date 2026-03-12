@@ -144,6 +144,8 @@ static struct {
 } global = {0};
 
 extern int32_t cryptLoadProviders();
+static int32_t dmFinalizeRepairOption(void);
+static int32_t dmParseArgs(int32_t argc, char const *argv[]);
 static void    dmSetDebugFlag(int32_t signum, void *sigInfo, void *context) { (void)taosSetGlobalDebugFlag(143); }
 static void    dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert = 1; }
 
@@ -1107,10 +1109,32 @@ static int32_t dmInitLog() {
   return taosCreateLog(logName, 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0);
 }
 
-static void taosCleanupArgs() {
+static void taosCleanupTransientArgs() {
   if (global.envCmd != NULL) taosMemoryFreeClear(global.envCmd);
+}
+
+static void taosCleanupRepairArgs() {
   dmCleanupRepairOption(&global.repairOpt);
 }
+
+static void taosCleanupArgs() {
+  taosCleanupTransientArgs();
+  taosCleanupRepairArgs();
+}
+
+#ifdef DM_MAIN_TESTING
+int32_t dmTestParseArgs(int32_t argc, char const *argv[]) { return dmParseArgs(argc, argv); }
+int32_t dmTestFinalizeRepairOption(void) { return dmFinalizeRepairOption(); }
+void    dmTestCleanupTransientArgs(void) { taosCleanupTransientArgs(); }
+void    dmTestCleanupRepairArgs(void) { taosCleanupRepairArgs(); }
+void    dmTestResetState(void) {
+  taosCleanupArgs();
+  memset(&global.repairOpt, 0, sizeof(global.repairOpt));
+  global.runRepairFlow = false;
+  global.printHelp = false;
+  global.printRepairHelp = false;
+}
+#endif
 
 #ifdef TAOSD_INTEGRATED
 int dmStartDaemon(int argc, char const *argv[]) {
@@ -1319,14 +1343,14 @@ int mainWindows(int argc, char **argv) {
   }
 
   osSetProcPath(argc, (char **)argv);
-  taosCleanupArgs();
+  taosCleanupTransientArgs();
 
   if (tsEncryptExtDir[0] != '\0') {
 #if defined(TD_ENTERPRISE) && defined(LINUX)
     if ((code = cryptLoadProviders()) != 0) {
       dError("failed to load encrypt providers since %s", tstrerror(code));
       taosCloseLog();
-      taosCleanupArgs();
+      taosCleanupRepairArgs();
       return code;
     }
 #endif
@@ -1344,6 +1368,7 @@ int mainWindows(int argc, char **argv) {
     taosCleanupCfg();
     taosCloseLog();
     taosConvDestroy();
+    taosCleanupRepairArgs();
     return code;
   }
 
@@ -1354,5 +1379,6 @@ int mainWindows(int argc, char **argv) {
   dInfo("shutting down the service");
 
   dmCleanup();
+  taosCleanupRepairArgs();
   return code;
 }
