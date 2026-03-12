@@ -36,7 +36,7 @@ class Configure:
             # raw_path = r"%PROGRAMDATA%"
             # base_path = os.path.join(os.path.expandvars(raw_path), "tdgpt")
             # keep inline with the TDengine installation configuration
-            base_path = "c:/TDengine/tdgpt/"
+            base_path = "c:/TDengine/taosanode/"
 
             default = {
                 "log_dir": os.path.join(base_path, "log"),

@@ -1,0 +1,184 @@
+# TDGPT Windows 打包脚本
+
+这个目录包含 TDGPT (TDengine Analytics Node) 的 Windows 打包脚本，使用 Inno Setup 创建安装程序。
+
+## 文件说明
+
+```
+packaging/
+├── win_release.py           # Python 打包脚本（主入口）
+└── README.md                # 本文档
+
+script/
+├── taosanode_service.py     # 统一的服务管理脚本（跨平台）
+└── ...                      # 其他脚本
+```
+
+## 统一服务管理脚本
+
+使用 **Python 统一脚本** `taosanode_service.py` 替代原有的 shell/bat 脚本，一套代码跨平台（Linux/Windows）。
+
+### 功能
+
+| 命令 | 说明 |
+|------|------|
+| `start` | 启动 taosanode 主服务 |
+| `stop` | 停止 taosanode 主服务 |
+| `status` | 查看服务状态 |
+| `model-start [name]` | 启动模型服务（name: tdtsfm, timemoe, chronos, moirai, moment, timesfm, all） |
+| `model-stop [name]` | 停止模型服务 |
+| `model-status` | 查看模型服务状态 |
+
+### 使用示例
+
+```bash
+# 主服务
+python taosanode_service.py start
+python taosanode_service.py stop
+python taosanode_service.py status
+
+# 模型服务
+python taosanode_service.py model-start tdtsfm
+python taosanode_service.py model-start all
+python taosanode_service.py model-stop all
+python taosanode_service.py model-status
+```
+
+### Windows 批处理包装
+
+为了方便 Windows 用户使用，提供了批处理包装：
+
+```
+bin/
+├── taosanode_service.py    # 核心 Python 脚本
+├── start-taosanode.bat     # 包装: python taosanode_service.py start
+├── stop-taosanode.bat      # 包装: python taosanode_service.py stop
+├── status-taosanode.bat    # 包装: python taosanode_service.py status
+├── start-model.bat         # 包装: python taosanode_service.py model-start
+├── stop-model.bat          # 包装: python taosanode_service.py model-stop
+└── status-model.bat        # 包装: python taosanode_service.py model-status
+```
+
+## 前置要求
+
+1. **Python 3.9+** - 需要安装 Python 并添加到 PATH
+2. **Inno Setup 6** - 用于创建安装程序
+   - 下载地址: https://jrsoftware.org/isdl.php
+   - 安装后确保 `ISCC.exe` 在 PATH 中或在脚本中指定路径
+
+## 使用方法
+
+### 基础用法
+
+```bash
+# Community 版本
+python packaging/win_release.py -e community -v 3.3.6.0
+
+# Enterprise 版本
+python packaging/win_release.py -e enterprise -v 3.3.6.0
+
+# 包含模型文件
+python packaging/win_release.py -e community -v 3.3.6.0 -m D:\models
+
+# 包含所有模型
+python packaging/win_release.py -e community -v 3.3.6.0 -m D:\models -a
+
+# 自定义输出目录
+python packaging/win_release.py -e community -v 3.3.6.0 -o D:\release
+```
+
+## 打包脚本参数说明
+
+| 参数 | 简写 | 说明 | 必填 |
+|------|------|------|------|
+| `--edition` | `-e` | 版本类型: enterprise 或 community | 是 |
+| `--version` | `-v` | 版本号 (如 3.3.6.0) | 是 |
+| `--model-dir` | `-m` | 模型文件目录 | 否 |
+| `--all-models` | `-a` | 打包所有模型 | 否 |
+| `--output` | `-o` | 输出目录 (默认: D:\tdgpt-release) | 否 |
+| `--iscc-path` | | Inno Setup 编译器路径 | 否 |
+
+## 安装程序特性
+
+- **默认安装路径**: `C:\TDengine\taosanode`
+- **服务管理**: 使用统一的 Python 脚本 `taosanode_service.py`
+- **虚拟环境**: 自动创建 Python 虚拟环境
+- **环境变量**: 自动添加 `bin` 目录到 PATH
+- **日志目录**: `C:\TDengine\taosanode\log`
+- **配置保护**: 升级时保留现有配置文件
+
+## 服务管理
+
+安装完成后，可以使用以下命令管理服务：
+
+```bash
+# 启动/停止/查看状态
+C:\TDengine\taosanode\bin\start-taosanode.bat
+C:\TDengine\taosanode\bin\stop-taosanode.bat
+C:\TDengine\taosanode\bin\status-taosanode.bat
+
+# 模型服务
+C:\TDengine\taosanode\bin\start-model.bat tdtsfm
+C:\TDengine\taosanode\bin\start-model.bat all
+C:\TDengine\taosanode\bin\stop-model.bat all
+C:\TDengine\taosanode\bin\status-model.bat
+```
+
+或者直接使用 Python 脚本：
+
+```bash
+cd C:\TDengine\taosanode
+python bin\taosanode_service.py start
+python bin\taosanode_service.py model-start all
+```
+
+## 与 Linux 打包的差异
+
+| 特性 | Linux | Windows |
+|------|-------|---------|
+| 服务管理 | Python 统一脚本 | Python 统一脚本 + bat 包装 |
+| WSGI 服务器 | gunicorn | waitress |
+| 默认路径 | /usr/local/taos/taosanode | C:\TDengine\taosanode |
+| 配置文件 | taosanode.config.py | taosanode.config.py |
+| 进程管理 | signal / ps | taskkill |
+
+## 注意事项
+
+1. **Python 版本**: 推荐使用 Python 3.9 或更高版本
+2. **配置文件**: `taosanode.config.py` 已内置 Windows 路径支持，通过 `on_windows` 变量自动切换
+3. **防火墙**: 服务默认使用 6035 端口，需要配置防火墙
+4. **依赖安装**: 首次启动时会自动安装 Python 依赖，可能需要联网
+
+## 故障排除
+
+### 服务无法启动
+
+1. 检查 Python 是否正确安装并添加到 PATH
+2. 检查日志文件：`C:\TDengine\taosanode\log\taosanode_service_*.log`
+3. 手动运行启动脚本查看错误：
+   ```bash
+   cd C:\TDengine\taosanode
+   python bin\taosanode_service.py start
+   ```
+
+### 依赖安装失败
+
+1. 确保可以访问 PyPI
+2. 手动安装依赖：
+   ```bash
+   cd C:\TDengine\taosanode
+   python -m venv venv
+   venv\Scripts\activate.bat
+   pip install -r requirements_ess.txt
+   ```
+
+### 端口被占用
+
+修改配置文件 `C:\TDengine\taosanode\cfg\taosanode.config.py` 中的 `bind` 设置。
+
+## 参考
+
+- [Inno Setup 文档](https://jrsoftware.org/ishelp/)
+- [TDGPT Linux 打包脚本](../script/release.sh)
+- [TDGPT Linux 安装脚本](../script/install.sh)
+- [TDengine Windows 打包流程](../../../../enterprise/packaging/new_win_release.py)

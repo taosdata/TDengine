@@ -1,0 +1,1010 @@
+#!/usr/bin/env python3
+"""
+TDGPT Taosanode Unified Service Manager
+统一的服务管理脚本，支持 Linux 和 Windows
+
+Usage:
+    python taosanode_service.py [command] [options]
+
+Commands:
+    start               启动 taosanode 主服务
+    stop                停止 taosanode 主服务
+    status              查看服务状态
+    model-start [name]  启动模型服务 (name: tdtsfm, timemoe, chronos, moirai, moment, timesfm, all)
+    model-stop [name]   停止模型服务
+    model-status        查看模型服务状态
+    install             安装为系统服务（Windows: 服务, Linux: systemd）
+    uninstall           卸载系统服务
+
+Examples:
+    python taosanode_service.py start
+    python taosanode_service.py model-start tdtsfm
+    python taosanode_service.py model-start all
+    python taosanode_service.py model-stop all
+"""
+
+import os
+import sys
+import platform
+import subprocess
+import signal
+import time
+import argparse
+import logging
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+from typing import Optional, List, Dict
+import json
+
+# Platform detection
+IS_WINDOWS = platform.system().lower() == "windows"
+IS_LINUX = platform.system().lower() == "linux"
+
+# Default paths - will be overridden by config
+DEFAULT_INSTALL_DIR = r"C:\TDengine\taosanode" if IS_WINDOWS else "/usr/local/taos/taosanode"
+DEFAULT_DATA_DIR = r"C:\TDengine\taosanode\data" if IS_WINDOWS else "/var/lib/taos/taosanode"
+DEFAULT_LOG_DIR = r"C:\TDengine\taosanode\log" if IS_WINDOWS else "/var/log/taos/taosanode"
+
+# PID file paths
+PID_FILE = os.path.join(DEFAULT_INSTALL_DIR, "taosanode.pid")
+MODEL_PID_DIR = os.path.join(DEFAULT_DATA_DIR, "pids")
+
+# Model configurations - will be loaded from config file
+MODELS = {}
+
+# Global logger instance
+_logger = None
+
+
+def setup_logger(name: str, log_file: str, level=logging.INFO) -> logging.Logger:
+    """创建并配置logger实例
+
+    Args:
+        name: logger名称
+        log_file: 日志文件路径
+        level: 日志级别
+
+    Returns:
+        配置好的logger实例
+    """
+    logger = logging.getLogger(name)
+
+    # 避免重复添加handler
+    if logger.handlers:
+        return logger
+
+    logger.setLevel(level)
+
+    # 确保日志目录存在
+    log_dir = os.path.dirname(log_file)
+    if log_dir:
+        os.makedirs(log_dir, exist_ok=True)
+
+    # 文件handler（带轮转）
+    file_handler = RotatingFileHandler(
+        log_file,
+        maxBytes=10*1024*1024,  # 10MB
+        backupCount=5
+    )
+    file_handler.setLevel(level)
+    file_formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    file_handler.setFormatter(file_formatter)
+
+    # 控制台handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(level)
+    console_formatter = logging.Formatter('%(levelname)s: %(message)s')
+    console_handler.setFormatter(console_formatter)
+
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+    return logger
+
+
+def get_logger(name: str = "taosanode_service") -> logging.Logger:
+    """获取全局logger实例"""
+    global _logger
+    if _logger is None:
+        log_file = os.path.join(DEFAULT_LOG_DIR, "taosanode_service.log")
+        _logger = setup_logger(name, log_file)
+    return _logger
+
+
+class Config:
+    """配置管理类"""
+
+    def __init__(self, config_path: Optional[str] = None):
+        self.install_dir = DEFAULT_INSTALL_DIR
+        self.data_dir = DEFAULT_DATA_DIR
+        self.log_dir = DEFAULT_LOG_DIR
+        self.cfg_dir = os.path.join(self.install_dir, "cfg")
+
+        # Initialize logger
+        self.logger = setup_logger(
+            'Config',
+            os.path.join(self.log_dir, 'config.log')
+        )
+
+        # Try to load from taosanode.config.py
+        self._load_config(config_path)
+    
+    def _load_config(self, config_path: Optional[str] = None):
+        """从 taosanode.config.py 加载配置"""
+        if config_path is None:
+            config_path = os.path.join(self.cfg_dir, "taosanode.config.py")
+
+        if not os.path.exists(config_path):
+            self.logger.warning(f"Config file not found: {config_path}")
+            return
+
+        try:
+            # Add cfg dir to path for import
+            sys.path.insert(0, self.cfg_dir)
+
+            # Import config module
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("taosanode_config", config_path)
+            config_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(config_module)
+
+            # Extract paths from config
+            if hasattr(config_module, 'pidfile'):
+                self.pid_file = config_module.pidfile
+            else:
+                self.pid_file = PID_FILE
+
+            if hasattr(config_module, 'app_log'):
+                self.app_log = config_module.app_log
+            else:
+                self.app_log = os.path.join(self.log_dir, "taosanode.app.log")
+
+            if hasattr(config_module, 'model_dir'):
+                self.model_dir = config_module.model_dir
+            else:
+                self.model_dir = os.path.join(self.data_dir, "model")
+
+            # Get virtualenv path
+            if hasattr(config_module, 'virtualenv'):
+                self.venv_dir = config_module.virtualenv
+            else:
+                self.venv_dir = os.path.join(self.data_dir, "venv")
+
+            # Bind address
+            if hasattr(config_module, 'bind'):
+                self.bind = config_module.bind
+            else:
+                self.bind = "0.0.0.0:6035"
+
+            # Workers
+            if hasattr(config_module, 'workers'):
+                self.workers = config_module.workers
+            else:
+                self.workers = 2
+
+            # Model venv paths from config
+            self.timesfm_venv = getattr(config_module, 'timesfm_venv',
+                                       os.path.join(self.data_dir, "timesfm_venv"))
+            self.moirai_venv = getattr(config_module, 'moirai_venv',
+                                       os.path.join(self.data_dir, "moirai_venv"))
+            self.chronos_venv = getattr(config_module, 'chronos_venv',
+                                        os.path.join(self.data_dir, "chronos_venv"))
+            self.moment_venv = getattr(config_module, 'momentfm_venv',
+                                       os.path.join(self.data_dir, "momentfm_venv"))
+
+            # Load model configurations from config file
+            if hasattr(config_module, 'models'):
+                self.models = config_module.models
+            else:
+                # Fallback to default models if not in config
+                self.models = self._get_default_models()
+
+        except Exception as e:
+            self.logger.warning(f"Failed to load config: {e}")
+            self.pid_file = PID_FILE
+            self.app_log = os.path.join(self.log_dir, "taosanode.app.log")
+            self.model_dir = os.path.join(self.data_dir, "model")
+            self.venv_dir = os.path.join(self.data_dir, "venv")
+            self.bind = "0.0.0.0:6035"
+            self.workers = 2
+            self.models = self._get_default_models()
+
+    def _get_default_models(self) -> Dict:
+        """Get default model configurations"""
+        return {
+            "tdtsfm": {
+                "script": "tdtsfm-server.py",
+                "default_model": None,
+                "port": 6036,
+                "required": True,
+            },
+            "timemoe": {
+                "script": "timemoe-server.py",
+                "default_model": "Maple728/TimeMoE-200M",
+                "port": 6037,
+                "required": True,
+            },
+            "timesfm": {
+                "script": "timesfm-server.py",
+                "default_model": "google/timesfm-2.0-500m-pytorch",
+                "port": 0,
+                "required": False,
+            },
+            "moirai": {
+                "script": "moirai-server.py",
+                "default_model": "Salesforce/moirai-moe-1.0-R-base",
+                "port": 0,
+                "required": False,
+            },
+            "chronos": {
+                "script": "chronos-server.py",
+                "default_model": "amazon/chronos-bolt-base",
+                "port": 0,
+                "required": False,
+            },
+            "moment": {
+                "script": "moment-server.py",
+                "default_model": "AutonLab/MOMENT-1-large",
+                "port": 0,
+                "required": False,
+            },
+        }
+
+
+class ProcessManager:
+    """进程管理类"""
+
+    def __init__(self, config: Config):
+        self.config = config
+        self.logger = setup_logger(
+            'ProcessManager',
+            os.path.join(config.log_dir, 'process_manager.log')
+        )
+        self._ensure_dirs()
+    
+    def _ensure_dirs(self):
+        """确保必要的目录存在"""
+        os.makedirs(self.config.log_dir, exist_ok=True)
+        os.makedirs(self.config.data_dir, exist_ok=True)
+        os.makedirs(MODEL_PID_DIR, exist_ok=True)
+    
+    def _get_python_exe(self, venv_dir: Optional[str] = None) -> str:
+        """获取 Python 解释器路径"""
+        if venv_dir is None:
+            venv_dir = self.config.venv_dir
+
+        if IS_WINDOWS:
+            python_exe = os.path.join(venv_dir, "Scripts", "python.exe")
+        else:
+            python_exe = os.path.join(venv_dir, "bin", "python3")
+
+        # Check if venv exists
+        if not os.path.exists(python_exe):
+            self.logger.error(f"Virtual environment not found: {venv_dir}")
+            self.logger.error(f"Please run installation first or check configuration")
+            raise FileNotFoundError(f"Python executable not found: {python_exe}")
+
+        return python_exe
+    
+    def _get_pid_file(self, service_name: str = "taosanode") -> str:
+        """获取 PID 文件路径"""
+        if service_name == "taosanode":
+            return self.config.pid_file
+        else:
+            return os.path.join(MODEL_PID_DIR, f"{service_name}.pid")
+    
+    def read_pid(self, service_name: str = "taosanode") -> Optional[int]:
+        """读取 PID"""
+        pid_file = self._get_pid_file(service_name)
+        try:
+            if os.path.exists(pid_file):
+                with open(pid_file, 'r') as f:
+                    return int(f.read().strip())
+        except (ValueError, IOError):
+            pass
+        return None
+    
+    def write_pid(self, pid: int, service_name: str = "taosanode"):
+        """写入 PID"""
+        pid_file = self._get_pid_file(service_name)
+        os.makedirs(os.path.dirname(pid_file), exist_ok=True)
+        with open(pid_file, 'w') as f:
+            f.write(str(pid))
+    
+    def remove_pid(self, service_name: str = "taosanode"):
+        """删除 PID 文件"""
+        pid_file = self._get_pid_file(service_name)
+        if os.path.exists(pid_file):
+            os.remove(pid_file)
+    
+    def is_running(self, service_name: str = "taosanode") -> bool:
+        """检查服务是否运行"""
+        pid = self.read_pid(service_name)
+        if pid is None:
+            return False
+
+        try:
+            if IS_WINDOWS:
+                # Windows: use tasklist with precise parsing
+                result = subprocess.run(
+                    ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+                    capture_output=True, text=True
+                )
+                # Parse output more precisely to avoid false positives
+                # tasklist output format: "imagename.exe    PID    Session Name    Session#    Memory Usage"
+                lines = result.stdout.strip().split('\n')
+                for line in lines:
+                    if line.strip():
+                        # Split by whitespace and check if PID matches exactly
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            try:
+                                line_pid = int(parts[1])
+                                if line_pid == pid:
+                                    return True
+                            except ValueError:
+                                continue
+                return False
+            else:
+                # Unix: send signal 0
+                os.kill(pid, 0)
+                return True
+        except (OSError, ProcessLookupError):
+            return False
+
+    def wait_for_service(self, service_name: str, timeout: int = 10) -> bool:
+        """等待服务启动，使用轮询检查"""
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if self.is_running(service_name):
+                return True
+            time.sleep(0.5)
+        return False
+
+    def kill_process(self, pid: int, force: bool = False):
+        """终止进程"""
+        try:
+            if IS_WINDOWS:
+                if force:
+                    subprocess.run(["taskkill", "/F", "/PID", str(pid)], 
+                                 capture_output=True)
+                else:
+                    subprocess.run(["taskkill", "/PID", str(pid)], 
+                                 capture_output=True)
+            else:
+                sig = signal.SIGKILL if force else signal.SIGTERM
+                os.kill(pid, sig)
+        except (OSError, ProcessLookupError):
+            pass
+
+
+class TaosanodeService:
+    """Taosanode 主服务管理"""
+
+    def __init__(self, config: Config, process_mgr: ProcessManager):
+        self.config = config
+        self.process_mgr = process_mgr
+        self.logger = setup_logger(
+            'TaosanodeService',
+            os.path.join(config.log_dir, 'taosanode_service.log')
+        )
+    
+    def start(self) -> bool:
+        """启动 taosanode 服务"""
+        if self.process_mgr.is_running("taosanode"):
+            self.logger.info("Taosanode is already running")
+            return True
+
+        self.logger.info("Starting taosanode service...")
+
+        # Prepare environment
+        env = os.environ.copy()
+        env["PYTHONPATH"] = os.path.join(self.config.install_dir, "lib")
+
+        # Build command
+        python_exe = self.process_mgr._get_python_exe()
+        lib_dir = os.path.join(self.config.install_dir, "lib", "taosanalytics")
+
+        if IS_WINDOWS:
+            # Windows: use waitress
+            try:
+                # Check if waitress is installed
+                subprocess.run([python_exe, "-c", "import waitress"],
+                             capture_output=True, check=True)
+            except subprocess.CalledProcessError:
+                self.logger.info("Installing waitress...")
+                subprocess.run([python_exe, "-m", "pip", "install", "waitress"],
+                             capture_output=True)
+
+            # Parse bind address
+            bind_host, bind_port = self.config.bind.split(':')
+
+            # Get waitress configuration from config file
+            wc = getattr(self.config, 'waitress_config', {
+                'threads': 4,
+                'channel_timeout': 1200,
+                'connection_limit': 1000,
+                'cleanup_interval': 30,
+                'log_socket_errors': True
+            })
+
+            cmd = [
+                python_exe, "-c",
+                f"from waitress import serve; from taosanalytics.app import app; "
+                f"serve(app, "
+                f"host='{bind_host}', "
+                f"port={bind_port}, "
+                f"threads={wc.get('threads', 4)}, "
+                f"channel_timeout={wc.get('channel_timeout', 1200)}, "
+                f"connection_limit={wc.get('connection_limit', 1000)}, "
+                f"cleanup_interval={wc.get('cleanup_interval', 30)}, "
+                f"log_socket_errors={wc.get('log_socket_errors', True)})"
+            ]
+        else:
+            # Linux: use gunicorn
+            cmd = [
+                python_exe, "-m", "gunicorn",
+                "-c", os.path.join(self.config.cfg_dir, "taosanode.config.py"),
+                "-D",  # Daemon mode
+            ]
+
+        # Start process
+        try:
+            if IS_WINDOWS:
+                # Windows: redirect output to log file for debugging
+                log_file = os.path.join(self.config.log_dir, "taosanode_startup.log")
+                with open(log_file, 'a') as log:
+                    proc = subprocess.Popen(
+                        cmd,
+                        env=env,
+                        cwd=lib_dir,
+                        stdout=log,
+                        stderr=subprocess.STDOUT,
+                        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+                    )
+            else:
+                # Linux: daemon mode handled by gunicorn
+                proc = subprocess.Popen(
+                    cmd,
+                    env=env,
+                    cwd=lib_dir,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+
+            # Wait for service to start using polling
+            if self.process_mgr.wait_for_service("taosanode", timeout=10):
+                pid = self.process_mgr.read_pid("taosanode")
+                self.logger.info(f"Taosanode started with PID {pid}")
+                self.logger.info(f"Listening on {self.config.bind}")
+                return True
+            else:
+                self.logger.error("Failed to start taosanode - service did not start within timeout")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"Error starting taosanode: {e}")
+            return False
+    
+    def stop(self) -> bool:
+        """停止 taosanode 服务"""
+        if not self.process_mgr.is_running("taosanode"):
+            self.logger.info("Taosanode is not running")
+            self.process_mgr.remove_pid("taosanode")
+            return True
+
+        self.logger.info("Stopping taosanode service...")
+        pid = self.process_mgr.read_pid("taosanode")
+
+        if pid:
+            # Try graceful shutdown first
+            self.process_mgr.kill_process(pid, force=False)
+            time.sleep(2)
+
+            # Check if still running
+            if self.process_mgr.is_running("taosanode"):
+                self.logger.info("Force killing taosanode...")
+                self.process_mgr.kill_process(pid, force=True)
+
+        self.process_mgr.remove_pid("taosanode")
+        self.logger.info("Taosanode stopped")
+        return True
+    
+    def status(self) -> Dict:
+        """获取服务状态"""
+        is_running = self.process_mgr.is_running("taosanode")
+        pid = self.process_mgr.read_pid("taosanode")
+
+        return {
+            "service": "taosanode",
+            "running": is_running,
+            "pid": pid,
+            "bind": self.config.bind,
+        }
+
+    def install_service(self) -> bool:
+        """安装Windows服务"""
+        if not IS_WINDOWS:
+            self.logger.error("Service installation is only supported on Windows")
+            return False
+
+        service_exe = os.path.join(self.config.install_dir, "bin", "taosanode-service.exe")
+        if not os.path.exists(service_exe):
+            self.logger.error("ERROR: Service wrapper not found. Please reinstall.")
+            return False
+
+        try:
+            # 安装服务
+            subprocess.run([service_exe, "install"], check=True, cwd=self.config.install_dir)
+            self.logger.info("Service installed successfully")
+            self.logger.info("To start the service: net start Taosanode")
+            self.logger.info("Or use: taosanode_service.py start-service")
+            return True
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"ERROR: Failed to install service: {e}")
+            return False
+
+    def uninstall_service(self) -> bool:
+        """卸载Windows服务"""
+        if not IS_WINDOWS:
+            self.logger.error("Service uninstallation is only supported on Windows")
+            return False
+
+        service_exe = os.path.join(self.config.install_dir, "bin", "taosanode-service.exe")
+        if not os.path.exists(service_exe):
+            self.logger.warning("Service wrapper not found")
+            return True
+
+        try:
+            # 先停止服务
+            subprocess.run([service_exe, "stop"], capture_output=True)
+            time.sleep(2)
+
+            # 卸载服务
+            subprocess.run([service_exe, "uninstall"], check=True, cwd=self.config.install_dir)
+            self.logger.info("Service uninstalled successfully")
+            return True
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"ERROR: Failed to uninstall service: {e}")
+            return False
+
+    def start_service(self) -> bool:
+        """启动Windows服务"""
+        if not IS_WINDOWS:
+            self.logger.error("Service management is only supported on Windows")
+            return False
+
+        try:
+            subprocess.run(["net", "start", "Taosanode"], check=True)
+            self.logger.info("Service started successfully")
+            return True
+        except subprocess.CalledProcessError:
+            self.logger.error("ERROR: Failed to start service")
+            return False
+
+    def stop_service(self) -> bool:
+        """停止Windows服务"""
+        if not IS_WINDOWS:
+            self.logger.error("Service management is only supported on Windows")
+            return False
+
+        try:
+            subprocess.run(["net", "stop", "Taosanode"], check=True)
+            self.logger.info("Service stopped successfully")
+            return True
+        except subprocess.CalledProcessError:
+            self.logger.error("ERROR: Failed to stop service")
+            return False
+
+
+class ModelService:
+    """模型服务管理"""
+
+    def __init__(self, config: Config, process_mgr: ProcessManager):
+        self.config = config
+        self.process_mgr = process_mgr
+        self.logger = setup_logger(
+            'ModelService',
+            os.path.join(config.log_dir, 'model_service.log')
+        )
+    
+    def _get_model_venv(self, model_name: str) -> str:
+        """获取模型对应的虚拟环境"""
+        if model_name == "timesfm":
+            return self.config.timesfm_venv
+        elif model_name == "moirai":
+            return self.config.moirai_venv
+        elif model_name == "chronos":
+            return self.config.chronos_venv
+        elif model_name == "moment":
+            return self.config.moment_venv
+        else:
+            return self.config.venv_dir
+    
+    def _build_model_args(self, model_name: str) -> List[str]:
+        """构建模型启动参数"""
+        model_config = self.config.models.get(model_name)
+        if not model_config:
+            raise ValueError(f"Unknown model: {model_name}")
+
+        model_dir = os.path.join(self.config.model_dir, model_name)
+        args = []
+
+        if model_name == "tdtsfm":
+            args = [model_dir, "--action", "server"]
+        elif model_config.get("default_model"):
+            args = [model_dir, model_config["default_model"], "False"]
+
+        return args
+    
+    def start(self, model_name: str) -> bool:
+        """启动模型服务"""
+        if model_name == "all":
+            return self._start_all()
+
+        if model_name not in self.config.models:
+            self.logger.error(f"Unknown model: {model_name}")
+            self.logger.error(f"Supported models: {', '.join(self.config.models.keys())}")
+            return False
+
+        if self.process_mgr.is_running(f"model-{model_name}"):
+            self.logger.info(f"Model {model_name} is already running")
+            return True
+
+        model_dir = os.path.join(self.config.model_dir, model_name)
+        if not os.path.exists(model_dir):
+            model_config = self.config.models[model_name]
+            is_required = model_config.get("required", False)
+            if is_required:
+                self.logger.error(f"Required model directory not found: {model_dir}")
+                return False
+            else:
+                self.logger.info(f"Skipping optional model {model_name} - directory not found: {model_dir}")
+                return True
+
+        self.logger.info(f"Starting model service: {model_name}")
+
+        # Get configuration
+        venv_dir = self._get_model_venv(model_name)
+        python_exe = self.process_mgr._get_python_exe(venv_dir)
+        model_config = self.config.models[model_name]
+
+        # Build command
+        service_dir = os.path.join(
+            self.config.install_dir, "lib", "taosanalytics", "tsfmservice"
+        )
+        script_path = os.path.join(service_dir, model_config["script"])
+
+        if not os.path.exists(script_path):
+            self.logger.error(f"Script not found: {script_path}")
+            return False
+
+        args = self._build_model_args(model_name)
+        cmd = [python_exe, script_path] + args
+
+        # Log file with rotation
+        log_file = os.path.join(
+            self.config.log_dir, f"taosanode_service_{model_name}.log"
+        )
+
+        # Setup rotating file handler for logging
+        logger = logging.getLogger(f"model-{model_name}")
+        logger.setLevel(logging.DEBUG)
+
+        # Remove existing handlers to avoid duplicates
+        logger.handlers.clear()
+
+        # Create rotating file handler (10MB per file, keep 5 backups)
+        handler = RotatingFileHandler(
+            log_file,
+            maxBytes=10*1024*1024,  # 10MB
+            backupCount=5
+        )
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
+        try:
+            # Start process
+            with open(log_file, 'a') as log:
+                if IS_WINDOWS:
+                    proc = subprocess.Popen(
+                        cmd,
+                        cwd=service_dir,
+                        stdout=log,
+                        stderr=subprocess.STDOUT,
+                        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+                    )
+                else:
+                    proc = subprocess.Popen(
+                        cmd,
+                        cwd=service_dir,
+                        stdout=log,
+                        stderr=subprocess.STDOUT
+                    )
+
+                # Write initial PID immediately after process creation
+                service_name = f"model-{model_name}"
+                self.process_mgr.write_pid(proc.pid, service_name)
+
+            # Wait and check using polling (timeout 15 seconds for model loading)
+            if self.process_mgr.wait_for_service(service_name, timeout=15):
+                pid = self.process_mgr.read_pid(service_name)
+                self.logger.info(f"Model {model_name} started with PID {pid}")
+                return True
+            else:
+                self.logger.error(f"Failed to start model {model_name} - service did not start within timeout")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"Error starting model {model_name}: {e}")
+            return False
+    
+    def _start_all(self) -> bool:
+        """启动所有模型 - 并发启动以提高效率"""
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        self.logger.info("Starting all models...")
+        results = {}
+        failed_models = []
+        skipped_models = []
+
+        # Use ThreadPoolExecutor for concurrent startup (max 3 workers)
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            # Submit all model startup tasks
+            future_to_model = {
+                executor.submit(self.start, model_name): model_name
+                for model_name in self.config.models.keys()
+            }
+
+            # Collect results as they complete
+            for future in as_completed(future_to_model):
+                model_name = future_to_model[future]
+                try:
+                    result = future.result()
+                    results[model_name] = result
+
+                    # Check if model was skipped (optional model not found)
+                    model_dir = os.path.join(self.config.model_dir, model_name)
+                    if not os.path.exists(model_dir):
+                        model_config = self.config.models[model_name]
+                        if not model_config.get("required", False):
+                            skipped_models.append(model_name)
+                    elif result:
+                        pass  # Successfully started
+                    else:
+                        failed_models.append(model_name)
+                except Exception as e:
+                    self.logger.error(f"Error starting model {model_name}: {e}")
+                    results[model_name] = False
+                    failed_models.append(model_name)
+
+        # Log summary
+        started = sum(1 for v in results.values() if v)
+        total = len(results)
+
+        summary_lines = [
+            "=" * 50,
+            "Model Startup Summary:",
+            "=" * 50,
+        ]
+
+        if skipped_models:
+            summary_lines.append(f"✓ Skipped (optional): {', '.join(skipped_models)}")
+        if failed_models:
+            summary_lines.append(f"✗ Failed: {', '.join(failed_models)}")
+
+        summary_lines.append(f"✓ Started: {started}/{total - len(skipped_models)} models")
+        summary_lines.append("=" * 50)
+
+        for line in summary_lines:
+            self.logger.info(line)
+
+        # Return True only if no required models failed
+        return len(failed_models) == 0
+    
+    def stop(self, model_name: str) -> bool:
+        """停止模型服务"""
+        if model_name == "all":
+            return self._stop_all()
+
+        if model_name not in self.config.models:
+            self.logger.error(f"Unknown model: {model_name}")
+            return False
+
+        service_name = f"model-{model_name}"
+
+        if not self.process_mgr.is_running(service_name):
+            self.logger.info(f"Model {model_name} is not running")
+            self.process_mgr.remove_pid(service_name)
+            return True
+
+        self.logger.info(f"Stopping model service: {model_name}")
+        pid = self.process_mgr.read_pid(service_name)
+
+        if pid:
+            # Try graceful shutdown first
+            self.process_mgr.kill_process(pid, force=False)
+            time.sleep(3)
+
+            # Check if still running
+            if self.process_mgr.is_running(service_name):
+                self.logger.info(f"Force killing model {model_name}...")
+                self.process_mgr.kill_process(pid, force=True)
+
+        self.process_mgr.remove_pid(service_name)
+        self.logger.info(f"Model {model_name} stopped")
+        return True
+    
+    def _stop_all(self) -> bool:
+        """停止所有模型 - 并发停止"""
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        self.logger.info("Stopping all models...")
+        results = {}
+
+        # Use ThreadPoolExecutor for concurrent shutdown
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            # Submit all model stop tasks
+            future_to_model = {
+                executor.submit(self.stop, model_name): model_name
+                for model_name in self.config.models.keys()
+            }
+
+            # Collect results as they complete
+            for future in as_completed(future_to_model):
+                model_name = future_to_model[future]
+                try:
+                    result = future.result()
+                    results[model_name] = result
+                except Exception as e:
+                    self.logger.error(f"Error stopping model {model_name}: {e}")
+                    results[model_name] = False
+
+        # Log summary
+        success = sum(1 for v in results.values() if v)
+        total = len(results)
+        self.logger.info(f"Stopped {success}/{total} models")
+        return all(results.values())
+    
+    def status(self) -> List[Dict]:
+        """获取所有模型状态"""
+        statuses = []
+        for model_name in self.config.models.keys():
+            service_name = f"model-{model_name}"
+            is_running = self.process_mgr.is_running(service_name)
+            pid = self.process_mgr.read_pid(service_name)
+
+            statuses.append({
+                "model": model_name,
+                "running": is_running,
+                "pid": pid,
+            })
+        
+        return statuses
+
+
+def print_status(status: Dict or List):
+    """打印状态信息"""
+    if isinstance(status, list):
+        print("-" * 50)
+        print(f"{'Model':<15} {'Status':<10} {'PID':<10}")
+        print("-" * 50)
+        for s in status:
+            state = "Running" if s["running"] else "Stopped"
+            pid = str(s["pid"]) if s["pid"] else "-"
+            print(f"{s['model']:<15} {state:<10} {pid:<10}")
+        print("-" * 50)
+    else:
+        print("-" * 50)
+        print(f"Service: {status['service']}")
+        print(f"Status: {'Running' if status['running'] else 'Stopped'}")
+        if status['pid']:
+            print(f"PID: {status['pid']}")
+        print(f"Bind: {status['bind']}")
+        print("-" * 50)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="TDGPT Taosanode Service Manager",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+    %(prog)s start                    # 启动 taosanode
+    %(prog)s stop                     # 停止 taosanode
+    %(prog)s status                   # 查看状态
+    %(prog)s model-start tdtsfm       # 启动 tdtsfm 模型
+    %(prog)s model-start all          # 启动所有模型
+    %(prog)s model-stop all           # 停止所有模型
+    %(prog)s install-service          # 安装Windows服务
+    %(prog)s uninstall-service        # 卸载Windows服务
+    %(prog)s start-service            # 启动Windows服务
+    %(prog)s stop-service             # 停止Windows服务
+        """
+    )
+
+    parser.add_argument(
+        "command",
+        choices=["start", "stop", "status", "model-start", "model-stop", "model-status",
+                 "install-service", "uninstall-service", "start-service", "stop-service"],
+        help="Command to execute"
+    )
+    parser.add_argument(
+        "target",
+        nargs="?",
+        help="Target for model commands (model name or 'all')"
+    )
+    parser.add_argument(
+        "-c", "--config",
+        help="Path to taosanode.config.py"
+    )
+    parser.add_argument(
+        "--foreground",
+        action="store_true",
+        help="Run in foreground (for service mode)"
+    )
+
+    args = parser.parse_args()
+
+    # Initialize
+    config = Config(args.config)
+    process_mgr = ProcessManager(config)
+    taosanode = TaosanodeService(config, process_mgr)
+    models = ModelService(config, process_mgr)
+    logger = get_logger()
+
+    # Execute command
+    if args.command == "start":
+        success = taosanode.start()
+        sys.exit(0 if success else 1)
+
+    elif args.command == "stop":
+        success = taosanode.stop()
+        sys.exit(0 if success else 1)
+
+    elif args.command == "status":
+        status = taosanode.status()
+        print_status(status)
+
+    elif args.command == "model-start":
+        if not args.target:
+            logger.error("model-start requires a target (model name or 'all')")
+            logger.error(f"Supported models: {', '.join(config.models.keys())}")
+            sys.exit(1)
+        success = models.start(args.target)
+        sys.exit(0 if success else 1)
+
+    elif args.command == "model-stop":
+        if not args.target:
+            logger.error("model-stop requires a target (model name or 'all')")
+            sys.exit(1)
+        success = models.stop(args.target)
+        sys.exit(0 if success else 1)
+
+    elif args.command == "model-status":
+        status = models.status()
+        print_status(status)
+
+    elif args.command == "install-service":
+        success = taosanode.install_service()
+        sys.exit(0 if success else 1)
+
+    elif args.command == "uninstall-service":
+        success = taosanode.uninstall_service()
+        sys.exit(0 if success else 1)
+
+    elif args.command == "start-service":
+        success = taosanode.start_service()
+        sys.exit(0 if success else 1)
+
+    elif args.command == "stop-service":
+        success = taosanode.stop_service()
+        sys.exit(0 if success else 1)
+
+
+if __name__ == "__main__":
+    main()
