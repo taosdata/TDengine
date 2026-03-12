@@ -1,5 +1,8 @@
-# gunicorn_config.py
+# gunicorn_config.py, not valid for windows
 import multiprocessing
+import platform
+
+on_windows = platform.system().lower() == "windows"
 
 # list address and port
 bind = '0.0.0.0:6035'
@@ -26,9 +29,12 @@ timeout = 1200
 # keep-alive time
 keepalive = 1200
 
-# Log Setting
+# Log Setting, only valid on Linux
 accesslog = '/var/log/taos/taosanode/access.log'
 errorlog = '/var/log/taos/taosanode/error.log'
+
+# only valid on the Windows system.
+waitresslog = 'C:/TDengine/tdgpt/log/waitress.log'
 
 # log level: debug, info, warning, error, critical
 loglevel = 'debug'
@@ -37,10 +43,10 @@ loglevel = 'debug'
 proc_name = 'tdgpt_taosanode_app'
 
 # set the pid file 
-pidfile = '/usr/local/taos/taosanode/taosanode.pid'
+pidfile = 'c:/TDengine/tdgpt/taosanode.pid' if on_windows else '/usr/local/taos/taosanode/taosanode.pid'
 
 # set the taosanoded basic python library directory
-pythonpath = '/usr/local/taos/taosanode/lib/taosanalytics/'
+pythonpath = 'c:/TDengine/tdgpt/taosanode/taosanalytics/' if on_windows else '/usr/local/taos/taosanode/lib/taosanalytics/'
 
 # wsgi app name
 wsgi_app = 'app:app'
@@ -49,11 +55,12 @@ wsgi_app = 'app:app'
 preload_app = True
 
 # [taosanode]
+# The following configuration parameters are valid on both Windows and Linux system.
 # default app log file
-app_log = '/var/log/taos/taosanode/taosanode.app.log'
+app_log = 'c:/TDengine/tdgpt/log/taosanode.app.log' if on_windows else '/var/log/taos/taosanode/taosanode.app.log'
 
 # model storage directory
-model_dir = '/usr/local/taos/taosanode/model/'
+model_dir = 'c:/TDengine/tdgpt/model/' if on_windows else '/usr/local/taos/taosanode/model/'
 
 # default log level
 log_level = 'DEBUG'
