@@ -35,6 +35,11 @@ env:
   COVERAGE_THRESHOLD: 48.0 # Default threshold, may be overridden by target branch coverage
   COVERAGE_ALLOW_DECREASE: 0.2 # Allowable decrease in coverage compared to target branch
 
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -52,12 +57,13 @@ jobs:
     name: Check
     runs-on: [self-hosted, linux, x64, app2]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           clean: false
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
       - uses: rustsec/audit-check@v2.0.0
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
       - name: Packaging check
         run: ruff check packaging/*.py
       - name: Format check
@@ -76,9 +82,10 @@ jobs:
     name: Unit Test
     runs-on: [self-hosted, linux, x64, app2]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           clean: false
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
       - name: Cache Explorer UI
         id: cache-explorer-ui
         uses: actions/cache@v4
@@ -136,7 +143,9 @@ jobs:
     name: Upload Coverage Report
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
       - uses: actions/download-artifact@v4
         with:
           name: taosx-ci-coverage-report
@@ -241,9 +250,10 @@ jobs:
     if: github.event.pull_request.base.ref == 'main'
     runs-on: [self-hosted, linux, x64, app2]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           clean: false
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
       - name: check
         run: |
           cargo make zigbuild-aarch64-taosx
@@ -254,9 +264,10 @@ jobs:
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           clean: false
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
       - name: Build taosx
         run: |
           cargo make taosx
@@ -278,9 +289,10 @@ jobs:
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           clean: false
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
 
       - name: Build agent
         run: |
@@ -296,9 +308,10 @@ jobs:
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           clean: false
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
 
       - name: Build explorer
         run: |
@@ -314,9 +327,10 @@ jobs:
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           clean: false
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
       - name: Print Env
         run: |
           pwd
@@ -350,9 +364,10 @@ jobs:
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           clean: false
+          token: ${{ secrets.TAOSX_CI_TOKEN }}
       - name: Print Env
         run: |
           pwd

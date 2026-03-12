@@ -22,6 +22,8 @@ use taosx_utils::dsn::json_to_dsn;
 pub mod config;
 pub mod points;
 
+pub type OpcNodeFilter = Option<fn(&points::OpcNode) -> bool>;
+
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Hash, Copy)]
 #[serde(rename_all = "lowercase")]
@@ -150,39 +152,39 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         anyhow::bail!("categories is empty");
     }
 
-    let opc_type = OpcType::from_dsn(&from)?;
+    let filter = opc_points_filter(&from)?;
+    opc_datasets_impl(from, filter).await
+}
+
+pub fn opc_points_filter(dsn: &Dsn) -> anyhow::Result<OpcNodeFilter> {
+    let opc_type = OpcType::from_dsn(dsn)?;
     let default_mode = match opc_type {
         OpcType::OPCDA | OpcType::FAKE => "all",
         OpcType::OPCUA => "variable",
     };
-    let opc_points_mode = parse_key_in_dsn::<String>(&from, "opc_points_mode")
+    let opc_points_mode = parse_key_in_dsn::<String>(dsn, "opc_points_mode")
         .unwrap_or(Some(default_mode.to_string()))
         .unwrap_or(default_mode.to_string());
     match opc_points_mode.to_lowercase().as_str() {
         "variable" => {
             tracing::info!("OPC points mode: variable");
-            let filter = points::OpcNode::variable_node_filter();
-            opc_datasets_impl(from, Some(filter)).await
+            Ok(Some(points::OpcNode::variable_node_filter()))
         }
         "object" => {
             tracing::info!("OPC points mode: object");
-            let filter = points::OpcNode::object_node_filter();
-            opc_datasets_impl(from, Some(filter)).await
+            Ok(Some(points::OpcNode::object_node_filter()))
         }
         "all" => {
             tracing::info!("OPC points mode: all");
-            opc_datasets_impl(from, None).await
+            Ok(None)
         }
         _ => {
-            anyhow::bail!("invalid opc_points_mode: {}", opc_points_mode);
+            bail!("invalid opc_points_mode: {}", opc_points_mode);
         }
     }
 }
 
-async fn opc_datasets_impl(
-    from: Dsn,
-    filter: Option<fn(&points::OpcNode) -> bool>,
-) -> anyhow::Result<Vec<DataSet>> {
+async fn opc_datasets_impl(from: Dsn, filter: OpcNodeFilter) -> anyhow::Result<Vec<DataSet>> {
     let certificate = get_temp_file(&from, "certificate");
     let private_key = get_temp_file(&from, "private_key");
     let auth_certificate = get_temp_file(&from, "auth_certificate");
@@ -354,7 +356,7 @@ async fn fetch_opc_nodes_by_command(config: &OPCConfig) -> anyhow::Result<Vec<po
 /// 将 OpcNode 列表转换为 DataSet，并应用节点级过滤
 fn nodes_to_datasets(
     nodes: &[points::OpcNode],
-    filter: Option<fn(&points::OpcNode) -> bool>,
+    filter: OpcNodeFilter,
 ) -> anyhow::Result<Vec<DataSet>> {
     nodes
         .iter()
