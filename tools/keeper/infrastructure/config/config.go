@@ -30,6 +30,7 @@ type Config struct {
 	RotationInterval string          `toml:"RotationInterval"`
 	TDengine         TDengineRestful `toml:"tdengine"`
 	Metrics          Metrics         `toml:"metrics"`
+	Prometheus       Prometheus      `toml:"prometheus"`
 	Env              Environment     `toml:"environment"`
 	Audit            Audit           `toml:"audit"`
 	SSL              SSL             `toml:"ssl"`
@@ -183,6 +184,7 @@ func init() {
 
 	initTDengine()
 	initMetrics()
+	initPrometheus()
 	initEnvironment()
 	initSSL()
 	initLog()
