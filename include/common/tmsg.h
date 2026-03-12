@@ -444,7 +444,6 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_TOTP_SECRET_STMT,
   QUERY_NODE_ALTER_KEY_EXPIRATION_STMT,
 
-
   // placeholder for [155, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
   QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
@@ -5253,7 +5252,7 @@ static FORCE_INLINE int32_t tDecodeSKv(SDecoder* pDecoder, SKv* pKv) {
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pKv->key));
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pKv->valueLen));
 
-  if (pKv->valueLen < 0 || pKv->valueLen > TSDB_MAX_BINARY_LEN) {
+  if (pKv->valueLen < 0) {
     return TSDB_CODE_INVALID_MSG;
   }
 
