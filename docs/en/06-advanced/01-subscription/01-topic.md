@@ -31,9 +31,10 @@ CREATE TOPIC [IF NOT EXISTS] topic_name as subquery;
 This SQL query subscribes to data using a SELECT statement (for example, SELECT * or SELECT ts, c1), and may include filter conditions and scalar function calculations. However, aggregate functions and time-window aggregations are not supported.
 
 1. Once this type of topic is created, the structure of the subscribed data is fixed.
-2. Columns or tags that are subscribed to or referenced in calculations cannot be deleted (`ALTER TABLE DROP`) or modified (`ALTER TABLE MODIFY`).From 3.3.9, you can modify and delete, but you need to reload the topic.
+2. Columns or tags that are subscribed to or referenced in calculations cannot be deleted (`ALTER TABLE DROP`) or modified (`ALTER TABLE MODIFY`). From 3.4.0.0, you can modify and delete, but you need to reload the topic.
 3. If the table schema changes, any newly added columns will not appear in the subscription result.
 4. For SELECT \*, the subscription expands to include all columns present at creation time. For subtables and normal tables, these are data columns; for supertables, they include both data and tag columns.
+5. Query subscription on virtual tables is not supported.
 
 For example, if you need to subscribe to all smart meter records where the voltage is greater than 200, and only return the timestamp, current, and voltage (excluding the phase), you can create a topic named `power_topic` with the following SQL statement:
 
@@ -52,13 +53,14 @@ CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS STABLE stb_name [where_co
 The differences between this and subscribing with `SELECT * FROM stbName` are as follows:
 
 1. Schema changes are not restricted. Any structural changes to the supertable, as well as new data inserted afterward, will continue to be included in the subscription.
-1. The returned data is unstructured, and its schema dynamically adapts to changes in the supertable definition.
-1. The optional `WITH META` parameter allows the subscription to return statements for creating the supertable and its subtables — primarily used by taosX during supertable migration.
-1. The optional `WHERE` condition parameter filters the subtables to subscribe to.
+2. The returned data is unstructured, and its schema dynamically adapts to changes in the supertable definition.
+3. The optional `WITH META` parameter allows the subscription to return statements for creating the supertable and its subtables — primarily used by taosX during supertable migration.
+4. The optional `WHERE` condition parameter filters the subtables to subscribe to.
    - Only tags or tbname can be used in the `WHERE` clause; regular columns are not allowed.
    - Functions can be used to filter tags, but aggregate functions are not supported, since subtable tag values cannot be aggregated.
    - Constant expressions such as 2 > 1 (subscribe to all subtables) or FALSE (subscribe to none) are also valid.
-1. The returned data does not include tag values.
+5. The returned data does not include tag values.
+6. Subscription to virtual supertables is supported, but only metadata of virtual supertables can be subscribed. Therefore, the with meta parameter must be specified when subscribing to virtual supertables; otherwise, no content will be received.
 
 ### Database Topics
 
@@ -71,7 +73,9 @@ CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS DATABASE db_name;
 This statement creates a subscription that includes data from all tables within the specified database:
 
 1. The optional `WITH META` parameter allows the subscription to return metadata statements for creating, deleting, or modifying all supertables, subtables, and regular tables in the database. This is primarily used by taosX for database migration.
-1. Supertable and database-level subscriptions are considered advanced subscription modes and are more prone to errors. If you need to use them, please consult technical support in advance.
+2. When using with meta, virtual table information can be subscribed, and only metadata of virtual tables can be retrieved.
+
+Note: Supertable and database-level subscriptions are considered advanced subscription modes and are more prone to errors. If you need to use them, please consult technical support in advance.
 
 ## Deleting a Topic
 

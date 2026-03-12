@@ -595,7 +595,7 @@ static int32_t resetGroupOperState(SOperatorInfo* pOper) {
 
   qInfo("[group key] len use:%d", pInfo->groupKeyLen);
   int32_t code = resetAggSup(&pOper->exprSupp, &pInfo->aggSup, pTaskInfo, pPhynode->pAggFuncs, pPhynode->pGroupKeys,
-    pInfo->groupKeyLen + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+    pInfo->groupKeyLen + POINTER_BYTES, pTaskInfo->id.str, NULL,
     &pTaskInfo->storageAPI.functionStore);
 
   if (code == 0){
@@ -662,7 +662,7 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, pInfo->groupKeyLen, pTaskInfo->id.str,
-                    pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
+                    NULL, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = filterInitFromNode((SNode*)pAggNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
@@ -1381,61 +1381,6 @@ int32_t setGroupResultOutputBuf(SOperatorInfo* pOperator, SOptrBasicInfo* binfo,
   }
 
   return setResultRowInitCtx(pResultRow, pCtx, numOfCols, pOperator->exprSupp.rowEntryInfoOffset);
-}
-
-SSDataBlock* buildCreateTableBlock(SExprSupp* tbName, SExprSupp* tag) {
-  int32_t      code = TSDB_CODE_SUCCESS;
-  int32_t      lino = 0;
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  if (!pBlock) {
-    return NULL;
-  }
-  pBlock->info.hasVarCol = false;
-  pBlock->info.id.groupId = 0;
-  pBlock->info.rows = 0;
-  pBlock->info.type = STREAM_CREATE_CHILD_TABLE;
-  pBlock->info.watermark = INT64_MIN;
-
-  pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
-  QUERY_CHECK_NULL(pBlock->pDataBlock, code, lino, _end, terrno);
-  SColumnInfoData infoData = {0};
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  if (tbName->numOfExprs > 0) {
-    infoData.info.bytes = tbName->pExprInfo->base.resSchema.bytes;
-  } else {
-    infoData.info.bytes = 1;
-  }
-  pBlock->info.rowSize += infoData.info.bytes;
-  // sub table name
-  void* tmp = taosArrayPush(pBlock->pDataBlock, &infoData);
-  QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
-
-  SColumnInfoData gpIdData = {0};
-  gpIdData.info.type = TSDB_DATA_TYPE_UBIGINT;
-  gpIdData.info.bytes = 8;
-  pBlock->info.rowSize += gpIdData.info.bytes;
-  // group id
-  tmp = taosArrayPush(pBlock->pDataBlock, &gpIdData);
-  QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
-
-  for (int32_t i = 0; i < tag->numOfExprs; i++) {
-    SColumnInfoData tagCol = {0};
-    tagCol.info.type = tag->pExprInfo[i].base.resSchema.type;
-    tagCol.info.bytes = tag->pExprInfo[i].base.resSchema.bytes;
-    tagCol.info.precision = tag->pExprInfo[i].base.resSchema.precision;
-    // tag info
-    tmp = taosArrayPush(pBlock->pDataBlock, &tagCol);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
-    pBlock->info.rowSize += tagCol.info.bytes;
-  }
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    blockDataDestroy(pBlock);
-    return NULL;
-  }
-  return pBlock;
 }
 
 void freePartItem(void* ptr) {

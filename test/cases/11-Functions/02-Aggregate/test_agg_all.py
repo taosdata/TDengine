@@ -472,8 +472,10 @@ class TestAggFunction:
             - 2024-9-28 qevolg Created
             - 2025-5-08 Huo Hong Migrated to new test framework
             - 2025-12-13 Alex Duan Migrated test/cases/uncatalog/system-test/2-query/test_agg_null.py
+            - 2026-03-09 Alex Duan Added test for min/max with timestamp/bool data type
 
         """
+
         self.run_stddev_pop()
         self.run_stddev_samp()
         self.run_varpop()
@@ -493,6 +495,9 @@ class TestAggFunction:
         
         # null
         self.do_agg_null()
+        
+        # min/max support timestamp/bool
+        self.do_min_max_timestamp_bool()        
 
     def initdabase(self):
         tdSql.execute('create database if not exists db_test vgroups 2  buffer 10')
@@ -604,3 +609,100 @@ class TestAggFunction:
         self.initdabase()
         self.insert_data()
         self.verify_agg_null()
+        
+    def do_min_max_timestamp_bool(self):
+        db = "db_minmax_bool_ts"
+
+        # prepare database and table
+        tdSql.execute(f"drop database if exists {db};")
+        tdSql.execute(f"create database {db} precision 'ms';")
+        tdSql.execute(f"use {db};")
+
+        tdSql.execute(
+            "create stable stb_minmax (ts timestamp, b1 bool, b2 bool, t1 timestamp, t2 timestamp) tags (tag_ts timestamp, tag_b1 bool);"
+        )
+
+        base_ts = 1700000000000
+        t_base = 1700001000000
+        tag_ts1 = 1700000500000
+        tag_ts2 = 1700002500000
+
+        # two subtables with different TAG timestamp/bool to verify MIN/MAX on TAGs
+        tdSql.execute(f"create table tb1 using stb_minmax tags({tag_ts1}, 0);")
+        tdSql.execute(f"create table tb2 using stb_minmax tags({tag_ts2}, 1);")
+
+        # 10 fixed rows, with partial column lists and explicit NULLs
+        # rows 0-4 in tb1
+        tdSql.execute(f"insert into tb1(ts, b1, t1) values({base_ts + 0 * 1000}, 1, {t_base + 1000});")
+        tdSql.execute(f"insert into tb1(ts, b2, t1, t2) values({base_ts + 1 * 1000}, 0, {t_base + 2000}, {t_base + 3000});")
+        tdSql.execute(f"insert into tb1(ts, b1) values({base_ts + 2 * 1000}, 0);")
+        tdSql.execute(f"insert into tb1(ts, b1, b2, t2) values({base_ts + 3 * 1000}, 1, 1, {t_base + 4000});")
+        tdSql.execute(f"insert into tb1(ts) values({base_ts + 4 * 1000});")
+
+        # rows 5-9 in tb2
+        tdSql.execute(f"insert into tb2(ts, b1, b2, t1) values({base_ts + 5 * 1000}, 1, 0, {t_base + 1500});")
+        tdSql.execute(f"insert into tb2(ts, b2) values({base_ts + 6 * 1000}, 1);")
+        tdSql.execute(f"insert into tb2(ts, b1, t2) values({base_ts + 7 * 1000}, 0, {t_base + 2500});")
+        tdSql.execute(f"insert into tb2(ts, b2, t1, t2) values({base_ts + 8 * 1000}, 0, {t_base + 5000}, {t_base + 6000});")
+        tdSql.execute(f"insert into tb2(ts, b1, b2) values({base_ts + 9 * 1000}, 1, 1);")
+
+        # basic row count
+        tdSql.query("select count(*) from stb_minmax;")
+        tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, 10)
+
+        # MIN/MAX on BOOL columns, NULLs should be ignored
+        tdSql.query("select min(b1), max(b1), min(b2), max(b2) from tb1;")
+        tdSql.checkRows(1)
+        tdSql.checkCols(4)
+        tdSql.checkData(0, 0, False)
+        tdSql.checkData(0, 1, True)
+        tdSql.checkData(0, 2, False)
+        tdSql.checkData(0, 3, True)
+
+        # MIN/MAX on TIMESTAMP columns, NULLs should be ignored
+        tdSql.query("select min(t1), max(t1), min(t2), max(t2) from stb_minmax;")
+        tdSql.checkRows(1)
+        tdSql.checkCols(4)
+        tdSql.checkData(0, 0, t_base + 1000)
+        tdSql.checkData(0, 1, t_base + 5000)
+        tdSql.checkData(0, 2, t_base + 2500)
+        tdSql.checkData(0, 3, t_base + 6000)
+
+        # MIN/MAX on primary TIMESTAMP column and implicit _c0 column
+        tdSql.query("select min(ts), max(ts) from stb_minmax;")
+        tdSql.checkRows(1)
+        tdSql.checkCols(2)
+        tdSql.checkData(0, 0, base_ts)
+        tdSql.checkData(0, 1, base_ts + 9000)
+
+        tdSql.query("select min(_c0), max(_c0) from stb_minmax;")
+        tdSql.checkRows(1)
+        tdSql.checkCols(2)
+        tdSql.checkData(0, 0, base_ts)
+        tdSql.checkData(0, 1, base_ts + 9000)
+
+        # group by BOOL column with TIMESTAMP aggregates
+        tdSql.query(
+            "select b1, min(ts), max(ts) from stb_minmax where b1 is not null group by b1 order by b1;"
+        )
+        tdSql.checkRows(2)
+        tdSql.checkCols(3)
+        # b1 = False
+        tdSql.checkData(0, 0, False)
+        tdSql.checkData(0, 1, base_ts + 2 * 1000)
+        tdSql.checkData(0, 2, base_ts + 7 * 1000)
+        # b1 = True
+        tdSql.checkData(1, 0, True)
+        tdSql.checkData(1, 1, base_ts + 0 * 1000)
+        tdSql.checkData(1, 2, base_ts + 9 * 1000)
+
+        # MIN/MAX on TAG columns (TIMESTAMP and BOOL)
+        tdSql.query("select min(tag_b1), max(tag_b1), min(tag_ts), max(tag_ts) from stb_minmax;")
+        tdSql.checkRows(1)
+        tdSql.checkCols(4)
+        tdSql.checkData(0, 0, False)
+        tdSql.checkData(0, 1, True)
+        tdSql.checkData(0, 2, tag_ts1)
+        tdSql.checkData(0, 3, tag_ts2)

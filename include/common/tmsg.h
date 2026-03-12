@@ -784,6 +784,7 @@ typedef struct {
   char     refDbName[TSDB_DB_NAME_LEN];
   char     refTableName[TSDB_TABLE_NAME_LEN];
   char     refColName[TSDB_COL_NAME_LEN];
+  char     colName[TSDB_COL_NAME_LEN];     // for tmq get json
 } SColRef;
 
 typedef struct {
@@ -4532,22 +4533,6 @@ typedef struct SVgroupVer {
   int32_t vgId;
   int64_t ver;
 } SVgroupVer;
-
-typedef struct STaskNotifyEventStat {
-  int64_t notifyEventAddTimes;     // call times of add function
-  int64_t notifyEventAddElems;     // elements added by add function
-  double  notifyEventAddCostSec;   // time cost of add function
-  int64_t notifyEventPushTimes;    // call times of push function
-  int64_t notifyEventPushElems;    // elements pushed by push function
-  double  notifyEventPushCostSec;  // time cost of push function
-  int64_t notifyEventPackTimes;    // call times of pack function
-  int64_t notifyEventPackElems;    // elements packed by pack function
-  double  notifyEventPackCostSec;  // time cost of pack function
-  int64_t notifyEventSendTimes;    // call times of send function
-  int64_t notifyEventSendElems;    // elements sent by send function
-  double  notifyEventSendCostSec;  // time cost of send function
-  int64_t notifyEventHoldElems;    // elements hold due to watermark
-} STaskNotifyEventStat;
 
 enum {
   TOPIC_SUB_TYPE__DB = 1,
