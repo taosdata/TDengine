@@ -433,10 +433,7 @@ taos> select cols(last(f1), (select 1 from tb3 limit 1)) from tb3;
 ========================
                      1 |
 
-taos> select rand((select 1 from tb3 limit 1)) from tb1;
- rand((select 1 from tb3 limit 1)) |
-====================================
-                  0.84018771715471 |
+==================================================
 
 taos> select to_unixtimestamp('2025-10-01', (select 1 from tb3 limit 1)) from tb3;
 

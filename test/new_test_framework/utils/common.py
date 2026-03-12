@@ -2988,14 +2988,29 @@ class TDCom:
             tdLog.error(f"SQL执行失败: {sql}\n{e}")
 
     def execute_query_file(self, inputfile, max_workers=8):
+        # 规范化路径以支持 Windows
+        inputfile = os.path.normpath(inputfile)
+
         if not os.path.exists(inputfile):
             tdLog.exit(f"Input file '{inputfile}' does not exist.")
             return
 
         tdLog.info(f"Executing query file: {inputfile}")
 
-        with open(inputfile, "r") as f:
-            lines = [line.strip() for line in f if line.strip()]
+        # 尝试多种编码以支持不同平台
+        lines = []
+        for encoding in ['utf-8', 'gbk', 'utf-8-sig', 'latin-1']:
+            try:
+                with open(inputfile, "r", encoding=encoding, newline=None) as f:
+                    lines = [line.strip() for line in f if line.strip()]
+                break
+            except (UnicodeDecodeError, LookupError):
+                continue
+
+        if not lines:
+            tdLog.exit(f"Failed to read file '{inputfile}' with supported encodings.")
+            return
+
         # 假设第一行是 use 语句
         db = lines[0].split()[1].rstrip(";")
         sql_lines = [line.replace("\\G", "").rstrip(";") + ";" for line in lines[1:]]
@@ -3015,7 +3030,7 @@ class TDCom:
             if platform.system().lower() == "windows":
                 # 过滤 taos> 行
                 os.system(
-                    f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' > {self.query_result_file}.raw "
+                    f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' | sed 's/([0-9]\+\.[0-9]\+s)//g' | sed 's/cost=[0-9]\+\.[0-9]\+\.\.[0-9]\+\.[0-9]\+//g' | sed 's/Planning Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/Execution Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/max_row_task=[0-9]\+, //g' > {self.query_result_file}.raw "
                 )
                 time.sleep(1)
                 with (
