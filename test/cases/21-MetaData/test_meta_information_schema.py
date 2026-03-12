@@ -771,7 +771,7 @@ class TestDdlInSysdb:
 
         tdSql.checkData(1, 1, 5)
 
-        tdSql.checkData(2, 1, 57)
+        tdSql.checkData(2, 1, 58)
 
         tdSql.checkData(3, 1, 6)
 
@@ -790,7 +790,7 @@ class TestDdlInSysdb:
 
         tdSql.checkData(4, 2, 3)
 
-        tdSql.checkData(5, 2, 57)
+        tdSql.checkData(5, 2, 58)
 
         tdSql.checkData(6, 2, 6)
 
