@@ -694,7 +694,7 @@ _exit:
       code = code == 0 ? closeCode : code;
     }
   }
-  tsdbDataFileWriterClose(&writer, true, NULL);
+  // tsdbDataFileWriterClose(&writer, true, NULL);
   tsdbDataFileReaderClose(&reader);
   return code;
 }
@@ -1363,7 +1363,7 @@ _exit:
       code = code == 0 ? closeCode : code;
     }
   }
-  tsdbSttFileWriterClose(&writer, true, NULL);
+  // tsdbSttFileWriterClose(&writer, true, NULL);
   if (tombBlockInit) {
     tTombBlockDestroy(&tombBlock);
   }
