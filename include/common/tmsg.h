@@ -364,7 +364,7 @@ typedef enum ENodeType {
   QUERY_NODE_SURROUND,
   QUERY_NODE_REMOTE_ROW,
   QUERY_NODE_REMOTE_ZERO_ROWS,
-  
+
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
   QUERY_NODE_SELECT_STMT,
@@ -5252,9 +5252,14 @@ static FORCE_INLINE int32_t tEncodeSKv(SEncoder* pEncoder, const SKv* pKv) {
 static FORCE_INLINE int32_t tDecodeSKv(SDecoder* pDecoder, SKv* pKv) {
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pKv->key));
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pKv->valueLen));
+
+  if (pKv->valueLen < 0 || pKv->valueLen > TSDB_MAX_BINARY_LEN) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   pKv->value = taosMemoryMalloc(pKv->valueLen + 1);
   if (pKv->value == NULL) {
-    TAOS_CHECK_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, (char*)pKv->value));
   return 0;
@@ -5383,7 +5388,7 @@ typedef struct {
 typedef struct {
   char**  name;
   int32_t count;
-  int8_t igNotExists;
+  int8_t  igNotExists;
 } SMDropStreamReq;
 
 typedef struct {
@@ -5434,7 +5439,6 @@ int32_t tSerializeSMRecalcStreamReq(void* buf, int32_t bufLen, const SMRecalcStr
 int32_t tDeserializeSMRecalcStreamReq(void* buf, int32_t bufLen, SMRecalcStreamReq* pReq);
 void    tFreeMRecalcStreamReq(SMRecalcStreamReq* pReq);
 
-
 typedef struct SVndSetKeepVersionReq {
   int64_t keepVersion;
 } SVndSetKeepVersionReq;
@@ -5456,16 +5460,16 @@ typedef struct SVUpdateCheckpointInfoReq {
 } SVUpdateCheckpointInfoReq;
 
 typedef struct {
-  int64_t leftForVer;
-  int32_t vgId;
-  int64_t oldConsumerId;
-  int64_t newConsumerId;
-  char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  int8_t  subType;
-  int8_t  withMeta;
-  char*   qmsg;  // SubPlanToString
+  int64_t        leftForVer;
+  int32_t        vgId;
+  int64_t        oldConsumerId;
+  int64_t        newConsumerId;
+  char           subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int8_t         subType;
+  int8_t         withMeta;
+  char*          qmsg;  // SubPlanToString
   SSchemaWrapper schema;
-  int64_t suid;
+  int64_t        suid;
 } SMqRebVgReq;
 
 int32_t tEncodeSMqRebVgReq(SEncoder* pCoder, const SMqRebVgReq* pReq);
@@ -5935,9 +5939,9 @@ static FORCE_INLINE void* tDecodeSMqSubVgEp(void* buf, SMqSubVgEp* pVgEp) {
 }
 
 typedef struct {
-  char           topic[TSDB_TOPIC_FNAME_LEN];
-  char           db[TSDB_DB_FNAME_LEN];
-  SArray*        vgs;  // SArray<SMqSubVgEp>
+  char    topic[TSDB_TOPIC_FNAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
+  SArray* vgs;  // SArray<SMqSubVgEp>
 } SMqSubTopicEp;
 
 int32_t tEncodeMqSubTopicEp(void** buf, const SMqSubTopicEp* pTopicEp);
@@ -6014,8 +6018,8 @@ int32_t tSemiDecodeMqBatchMetaRsp(SDecoder* pDecoder, SMqBatchMetaRsp* pRsp);
 void    tDeleteMqBatchMetaRsp(SMqBatchMetaRsp* pRsp);
 
 typedef struct {
-  int32_t    code;
-  SArray*    topics;  // SArray<SMqSubTopicEp>
+  int32_t code;
+  SArray* topics;  // SArray<SMqSubTopicEp>
 } SMqAskEpRsp;
 
 static FORCE_INLINE int32_t tEncodeSMqAskEpRsp(void** buf, const SMqAskEpRsp* pRsp) {
@@ -6442,7 +6446,6 @@ void setFieldWithOptions(SFieldWithOptions* fieldWithOptions, SField* field);
 int32_t tSerializeSVSubTablesRspImpl(SEncoder* pEncoder, SVSubTablesRsp* pRsp);
 int32_t tDeserializeSVSubTablesRspImpl(SDecoder* pDecoder, SVSubTablesRsp* pRsp);
 
-
 typedef struct {
   char    id[TSDB_INSTANCE_ID_LEN];
   char    type[TSDB_INSTANCE_TYPE_LEN];
@@ -6708,4 +6711,3 @@ int32_t tDeserializeSScanVnodeReq(void* buf, int32_t bufLen, SScanVnodeReq* pReq
 #endif
 
 #endif /*_TD_COMMON_TAOS_MSG_H_*/
- 
