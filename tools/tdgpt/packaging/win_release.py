@@ -21,7 +21,6 @@ import logging
 import datetime
 import re
 import subprocess
-import zipfile
 
 # Configure logging
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -453,15 +452,6 @@ echo Verifying Installation...
 echo ==========================================
 echo.
 
-REM Verify Python is available
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo ERROR: Python not found in PATH
-    echo Please ensure Python 3.10/3.11/3.12 is installed and added to PATH
-    pause
-    exit /b 1
-)
-
 REM Verify service can be accessed
 python "%INSTALL_DIR%\\bin\\taosanode_service.py" status >nul 2>&1
 if errorlevel 1 (
@@ -469,7 +459,7 @@ if errorlevel 1 (
     echo Please check logs at %INSTALL_DIR%\\log
     echo.
 ) else (
-    echo ✓ Service verification passed
+    echo [OK] Service verification passed
     echo.
 )
 
@@ -600,20 +590,6 @@ def build_installer(iss_path):
         return False
 
 
-def create_zip_package():
-    """Create a ZIP package as alternative"""
-    zip_path = os.path.join(install_info.release_dir, f"{install_info.package_name}.zip")
-
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for root, dirs, files in os.walk(install_info.install_dir):
-            for file in files:
-                file_path = os.path.join(root, file)
-                arcname = os.path.relpath(file_path, install_info.install_dir)
-                zipf.write(file_path, arcname)
-
-    logging.info(f"Created ZIP package: {zip_path}")
-    return zip_path
-
 
 def download_winsw():
     """Download winsw executable for Windows service wrapper (with local cache support)"""
@@ -699,17 +675,16 @@ def main():
         logging.info("Packaging completed successfully!")
         logging.info(f"Installer: {os.path.join(install_info.release_dir, install_info.package_name + '.exe')}")
         logging.info("=" * 60)
+        return 0
     else:
-        # Fallback: Create ZIP package if Inno Setup is not available
-        logging.warning("Creating ZIP package as fallback...")
-        zip_path = create_zip_package()
-        logging.info("=" * 60)
-        logging.info("ZIP package created (Inno Setup not available)")
-        logging.info(f"Package: {zip_path}")
-        logging.info("=" * 60)
+        logging.error("=" * 60)
+        logging.error("Failed to build installer with Inno Setup")
+        logging.error("Please check:")
+        logging.error("1. Inno Setup is installed and ISCC.exe is in PATH")
+        logging.error("2. All required files exist in the staging directory")
+        logging.error("3. Check the Inno Setup log for details")
+        logging.error("=" * 60)
         return 1
-
-    return 0
 
 
 if __name__ == "__main__":
