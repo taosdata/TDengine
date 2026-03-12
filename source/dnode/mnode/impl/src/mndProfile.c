@@ -1283,14 +1283,20 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
       SQuerySubDesc *pDesc = taosArrayGet(pQuery->subDesc, i);
       if (NULL == pDesc) break;
 
-      char startBuf[32] = "-";
+      char startBuf[32] = {0};
+      (void)snprintf(startBuf, sizeof(startBuf), "-");
       if (pDesc->startTs > 0) {
         time_t    startSec = (time_t)(pDesc->startTs / 1000000);
         int32_t   startFrac = (int32_t)(pDesc->startTs % 1000000) / 1000;
         struct tm startTm;
         if (taosLocalTime(&startSec, &startTm, NULL, 0, NULL) != NULL) {
           size_t n = taosStrfTime(startBuf, sizeof(startBuf), "%Y-%m-%d %H:%M:%S", &startTm);
-          tsnprintf(startBuf + n, sizeof(startBuf) - n, ".%03d", startFrac);
+          if (tsnprintf(startBuf + n, sizeof(startBuf) - n, ".%03d", startFrac) < 0) {
+            mError("failed to format start time for sub query since %s", tstrerror(terrno));
+            code = terrno;
+            taosRUnLockLatch(&pConn->queryLock);
+            return code;
+          }
         }
       }
 

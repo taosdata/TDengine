@@ -2033,8 +2033,8 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   SSqlCallbackWrapper *pWrapper = NULL;
   int32_t              code = TSDB_CODE_SUCCESS;
 
-  pRequest->execPhase = QUERY_PHASE_PARSE;
-  pRequest->phaseStartTime = taosGetTimestampMs();
+  atomic_store_32(&pRequest->execPhase, QUERY_PHASE_PARSE);
+  atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
 
   if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
     code = pRequest->prevCode;

@@ -1450,8 +1450,8 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   int64_t     st = taosGetTimestampUs();
 
   if (!pRequest->parseOnly) {
-    pRequest->execPhase = QUERY_PHASE_PLAN;
-    pRequest->phaseStartTime = taosGetTimestampMs();
+    atomic_store_32((int32_t*)&pRequest->execPhase, QUERY_PHASE_PLAN);
+    atomic_store_64((int64_t*)&pRequest->phaseStartTime, taosGetTimestampMs());
 
     pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
     if (NULL == pMnodeList) {
