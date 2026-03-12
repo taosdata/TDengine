@@ -188,7 +188,6 @@ toc_max_heading_level: 4
 | **调试相关** | | |
 | enableCoreFile | both | crash 时是否生成 core 文件 |
 | configDir | both | 配置文件所在目录 |
-| forceReadConfig | taosd | 是否使用持久化的局部配置参数 |
 | scriptDir | both | 测试工具的脚本目录 |
 | assert | both | 断言控制开关 |
 | randErrorChance | both | 用于随机失败测试 |

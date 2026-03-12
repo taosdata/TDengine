@@ -277,8 +277,14 @@ TaosResult objects can be accessed by iterating over them to retrieve the querie
   - **Interface Description**: Get the field information of the queried data, including: name, type, and field length.
   - **Return Value**: `Vec<TaosField>` Array of field information.
 - `fn field_count(&self) -> i32`
-  - **Interface Description**: Get the number of records queried.
-  - **Return Value**: `i32` Number of records queried.
+  - **Interface Description**: Get the number of fields in the query results.
+  - **Return Value**: `i32` The number of fields.
+- `fn __iter__(slf: PyRef<Self>) -> PyRef<Self>`
+  - **Interface Description**: Enables the `TaosResult` object to support the iterator protocol, returning the iterator itself. Each row of data in the result set can be traversed using a `for` loop.
+  - **Return Value**: The `PyRef<Self>` iterator object itself.
+- `fn __next__(mut slf: PyRefMut<Self>) -> PyResult<Option<PyObject>>`
+  - **Interface Description**: Retrieves the next row of data in the result set, ending the iteration after all data has been traversed. Each row of data is returned as a tuple, with the elements in the tuple in the same order as the fields.
+  - **Return Value**: The `Option<PyObject>` tuple containing the values ​​of one row of fields.
 
 #### Schemaless Insert
 
@@ -487,11 +493,17 @@ TaosResult object can be iterated over to retrieve queried data.
   - **Interface Description**: Get field information of the queried data, including: name, type, and field length.
   - **Return Value**: `TaosFields` list of field information.
 - `def field_count(&self)`
-  - **Interface Description**: Get the number of records queried.
-  - **Return Value**: Number of records queried.
+  - **Interface Description**: Get the number of fields in the query results.
+  - **Return Value**: The number of fields.
 - `def fetch_all_into_dict(self)`
   - **Interface Description**: Convert all records into dictionaries.
   - **Return Value**: List of dictionaries.
+- `def __iter__(self)`
+  - **Interface Description**: Enables the `TaosResult` object to support the iterator protocol, returning the iterator itself. Each row of data in the result set can be traversed using a `for` loop.
+  - **Return Value**: Returns the iterator object itself.
+- `def __next__(self)`
+  - **Interface Description**: Retrieves the next row of data in the result set, ending the iteration after all data has been traversed. Each row of data is returned as a tuple, with the elements in the tuple in the same order as the fields.
+  - **Return Value**: A tuple containing the values ​​of one row of fields.
 
 #### Schemaless Insertion
 

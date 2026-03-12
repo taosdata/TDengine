@@ -183,7 +183,7 @@ int send__real_publish(struct tmqtt *ttq, uint16_t mid, const char *topic, uint3
   }
 
   if (ttq->protocol == ttq_p_mqtt5) {
-    packet__write_varint(packet, proplen);
+    UNUSED(packet__write_varint(packet, proplen));
     property__write_all(packet, cmsg_props, false);
     property__write_all(packet, store_props, false);
     if (expiry_interval > 0) {
