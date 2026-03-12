@@ -4,10 +4,10 @@ import shutil
 import time
 
 from new_test_framework.utils import tdDnodes, tdSql
-from test_tsdb_force_repair_base import TestTsdbForceRepairBase
+from test_tsdb_force_repair_base import TsdbForceRepairBase
 
 
-class TestWalForceRepairE2E(TestTsdbForceRepairBase):
+class TestWalForceRepairE2E(TsdbForceRepairBase):
     def _get_wal_dir(self, vnode_id):
         return os.path.join(
             self._get_primary_data_dir(), "vnode", f"vnode{vnode_id}", "wal"

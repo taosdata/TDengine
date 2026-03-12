@@ -5,10 +5,10 @@ import time
 import pytest
 
 from new_test_framework.utils import tdDnodes, tdLog, tdSql
-from test_tsdb_force_repair_base import TestTsdbForceRepairBase
+from test_tsdb_force_repair_base import TsdbForceRepairBase
 
 
-class TestTsdbForceRepairCoreE2E(TestTsdbForceRepairBase):
+class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
     def test_tsdb_force_repair_missing_head_real_fileset_remains_writable(self):
         """TSDB force repair should keep a real fileset writable after missing-head repair.
 

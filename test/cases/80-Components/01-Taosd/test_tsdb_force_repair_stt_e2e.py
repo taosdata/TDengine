@@ -3,10 +3,10 @@ import shutil
 import time
 
 from new_test_framework.utils import tdDnodes, tdSql
-from test_tsdb_force_repair_base import TestTsdbForceRepairBase
+from test_tsdb_force_repair_base import TsdbForceRepairBase
 
 
-class TestTsdbForceRepairSttE2E(TestTsdbForceRepairBase):
+class TestTsdbForceRepairSttE2E(TsdbForceRepairBase):
     def test_tsdb_force_repair_missing_stt_real_fileset_remains_writable(self):
         """TSDB force repair should keep the database writable after missing-stt repair.
 

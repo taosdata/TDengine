@@ -23,7 +23,7 @@ import tempfile
 import pytest
 
 
-class TestTsdbForceRepairBase:
+class TsdbForceRepairBase:
     _TSDB_FILE_SIZE_TOLERANCE = 4096
 
     def setup_class(cls):

@@ -5,10 +5,10 @@ import time
 import pytest
 
 from new_test_framework.utils import tdDnodes, tdSql
-from test_tsdb_force_repair_base import TestTsdbForceRepairBase
+from test_tsdb_force_repair_base import TsdbForceRepairBase
 
 
-class TestTsdbForceRepairMetadata(TestTsdbForceRepairBase):
+class TestTsdbForceRepairMetadata(TsdbForceRepairBase):
     def test_force_repair_fixture_builder_exposes_real_fileset(self):
         """TSDB force repair fixture builder should expose one real core fileset.
 
