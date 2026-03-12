@@ -15,7 +15,7 @@ import TabItem from "@theme/TabItem";
 
 要让 Grafana 能正常添加 TDengine TSDB 数据源，需要以下几方面的准备工作。
 
-- Grafana 服务已经部署并正常运行。当前 TDengine TSDB 支持 Grafana 7.5 及以上版本，建议使用最新版本。  
+- Grafana 服务已经部署并正常运行。当前 TDengine TSDB 支持 Grafana 8.0 及以上版本，建议使用最新版本。  
     **注意**：要确保启动 Grafana 的账号有其安装目录的写权限，否则可能后面无法安装插件。
 - TDengine TSDB 集群已经部署并正常运行。
 - taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](../../../reference/components/taosadapter)
@@ -30,7 +30,7 @@ import TabItem from "@theme/TabItem";
 <Tabs defaultValue="script">
 <TabItem value="script" label="安装脚本">
 
-对于使用 Grafana 7.x 版本或使用 [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) 配置的用户，可以在 Grafana 服务器上使用安装脚本自动安装插件即添加数据源 Provisioning 配置文件。
+对于使用 Grafana 8.x 及以上版本或使用 [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) 配置的用户，可以在 Grafana 服务器上使用安装脚本自动安装插件即添加数据源 Provisioning 配置文件。
 
 ```sh
 bash -c "$(curl -fsSL \

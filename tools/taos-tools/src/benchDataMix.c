@@ -29,7 +29,7 @@ int32_t inul = 20; // interval null count
         } else {                        \
             if(RD(50) == 0) mid = min;  \
         }                               \
-        sprintf(val, format, mid);      \
+        (void)sprintf(val, format, mid);      \
       }                                 \
 
 #define UNSIGNED_RANDOM(type, high, format)   \
@@ -42,7 +42,7 @@ int32_t inul = 20; // interval null count
         } else {                        \
             if(RD(50) == 0) mid = min;  \
         }                               \
-        sprintf(val, format, mid);      \
+        (void)sprintf(val, format, mid);      \
       }                                 \
 
 
@@ -55,7 +55,7 @@ int32_t inul = 20; // interval null count
         } else {                        \
             if(RD(50) == 0) mid = min;  \
         }                               \
-        sprintf(val, "%f", mid);        \
+        (void)sprintf(val, "%f", mid);        \
       }                                 \
 
 // data row generate by randowm
@@ -70,49 +70,49 @@ uint32_t dataGenByField(Field* fd, char* pstr, uint32_t len, char* prefix, int64
 
     const char * format = ",%s";
 
-    switch (fd->type) {    
+    switch (fd->type) {
     case TSDB_DATA_TYPE_BOOL:
-        sprintf(val, "%d", tmpBool(fd));
+        (void)sprintf(val, "%d", tmpBool(fd));
         break;
-    // timestamp    
+    // timestamp
     case TSDB_DATA_TYPE_TIMESTAMP:
         nowts = toolsGetTimestampMs();
         strcpy(val, "\'");
-        toolsFormatTimestamp(val, nowts, TSDB_TIME_PRECISION_MILLI);
+        (void)toolsFormatTimestamp(val, nowts, TSDB_TIME_PRECISION_MILLI);
         strcat(val, "\'");
         break;
-    // signed    
+    // signed
     case TSDB_DATA_TYPE_TINYINT:
-        sprintf(val, "%d", tmpInt8Impl(fd, *k));
-        break;        
+        (void)sprintf(val, "%d", tmpInt8Impl(fd, *k));
+        break;
     case TSDB_DATA_TYPE_SMALLINT:
-        sprintf(val, "%d", tmpInt16Impl(fd, *k));
+        (void)sprintf(val, "%d", tmpInt16Impl(fd, *k));
         break;
     case TSDB_DATA_TYPE_INT:
-        sprintf(val, "%d", tmpInt32Impl(fd, 0, 0, *k));
+        (void)sprintf(val, "%d", tmpInt32Impl(fd, 0, 0, *k));
         break;
     case TSDB_DATA_TYPE_BIGINT:
-        sprintf(val, "%"PRId64, tmpInt64Impl(fd, 0, *k));
+        (void)sprintf(val, "%"PRId64, tmpInt64Impl(fd, 0, *k));
         break;
-    // unsigned    
+    // unsigned
     case TSDB_DATA_TYPE_UTINYINT:
-        sprintf(val, "%u", tmpUint8Impl(fd, *k));
+        (void)sprintf(val, "%u", tmpUint8Impl(fd, *k));
         break;
     case TSDB_DATA_TYPE_USMALLINT:
-        sprintf(val, "%u", tmpUint16Impl(fd, *k));
+        (void)sprintf(val, "%u", tmpUint16Impl(fd, *k));
         break;
     case TSDB_DATA_TYPE_UINT:
-        sprintf(val, "%u", tmpUint32Impl(fd, 0, 0, *k));
+        (void)sprintf(val, "%u", tmpUint32Impl(fd, 0, 0, *k));
         break;
     case TSDB_DATA_TYPE_UBIGINT:
-        sprintf(val, "%"PRIu64, tmpUint64Impl(fd, 0, *k));
+        (void)sprintf(val, "%"PRIu64, tmpUint64Impl(fd, 0, *k));
         break;
     // float double
     case TSDB_DATA_TYPE_FLOAT:
-        sprintf(val, "%f", tmpFloatImpl(fd, 0, 0, *k));
+        (void)sprintf(val, "%f", tmpFloatImpl(fd, 0, 0, *k));
         break;
     case TSDB_DATA_TYPE_DOUBLE:
-        sprintf(val, "%f", tmpDoubleImpl(fd, 0, *k));
+        (void)sprintf(val, "%f", tmpDoubleImpl(fd, 0, *k));
         break;
     case TSDB_DATA_TYPE_DECIMAL: {
         Decimal128 dec = tmpDecimal128Impl(fd, 0, *k);
@@ -148,42 +148,42 @@ uint32_t dataGenByCalcTs(Field* fd, char* pstr, uint32_t len, int64_t ts) {
     uint32_t size = 0;
     char val[512] = VAL_NULL;
 
-    switch (fd->type) {    
+    switch (fd->type) {
     case TSDB_DATA_TYPE_BOOL:
         strcpy(val, (ts % 2 == 0) ? "true" : "false");
         break;
     // timestamp
     case TSDB_DATA_TYPE_TIMESTAMP:
-        sprintf(val, "%" PRId64, ts);
+        (void)sprintf(val, "%" PRId64, ts);
         break;
-    // signed    
+    // signed
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_SMALLINT:
-        sprintf(val, "%d", (int32_t)(ts%100)); 
+        (void)sprintf(val, "%d", (int32_t)(ts%100));
         break;
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_BIGINT:
-        sprintf(val, "%d", (int32_t)(ts%1000000)); 
+        (void)sprintf(val, "%d", (int32_t)(ts%1000000));
         break;
-    // unsigned    
+    // unsigned
     case TSDB_DATA_TYPE_UTINYINT:
     case TSDB_DATA_TYPE_USMALLINT:
-        sprintf(val, "%u", (uint32_t)(ts%100)); 
-        break;    
+        (void)sprintf(val, "%u", (uint32_t)(ts%100));
+        break;
     case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_UBIGINT:
-        sprintf(val, "%u", (uint32_t)(ts%1000000)); 
+        (void)sprintf(val, "%u", (uint32_t)(ts%1000000));
         break;
     // float double
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
-        sprintf(val, "%u.%u", (uint32_t)(ts/10000), (uint32_t)(ts%10000)); 
+        (void)sprintf(val, "%u.%u", (uint32_t)(ts/10000), (uint32_t)(ts%10000));
         break;
     // binary nchar
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_NCHAR:
-        sprintf(val, "%" PRId64, ts);
+        (void)sprintf(val, "%" PRId64, ts);
         break;
     default:
         break;

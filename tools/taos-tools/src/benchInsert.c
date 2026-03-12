@@ -175,7 +175,7 @@ static int getSuperTableFromServerTaosc(
 static int getSuperTableFromServer(SDataBase* database, SSuperTable* stbInfo) {
     int ret = 0;
     char command[SHORT_1K_SQL_BUFF_LEN] = "\0";
-    snprintf(command, SHORT_1K_SQL_BUFF_LEN,
+    (void)snprintf(command, SHORT_1K_SQL_BUFF_LEN,
              "DESCRIBE `%s`.`%s`", database->dbName,
              stbInfo->stbName);
 
@@ -299,7 +299,7 @@ static int createSuperTable(SDataBase* database, SSuperTable* stbInfo) {
             n = snprintf(colsBuf + len, col_buffer_len - len, " %s", keys);
         }
 
-        if (n < 0 || n >= col_buffer_len - len) {
+        if (n < 0 || n >= ((int)col_buffer_len - len)) {
             errorPrint("%s() LN%d, snprintf overflow on %d\n",
                        __func__, __LINE__, colIndex);
             break;
@@ -312,7 +312,7 @@ static int createSuperTable(SDataBase* database, SSuperTable* stbInfo) {
     stbInfo->colsOfCreateChildTable =
         (char *)benchCalloc(len + TIMESTAMP_BUFF_LEN, 1, true);
 
-    snprintf(stbInfo->colsOfCreateChildTable, len + TIMESTAMP_BUFF_LEN,
+    (void)snprintf(stbInfo->colsOfCreateChildTable, len + TIMESTAMP_BUFF_LEN,
              "(%s timestamp%s)", stbInfo->primaryKeyName, colsBuf);
 
     if (stbInfo->tags->size == 0) {
@@ -328,7 +328,7 @@ static int createSuperTable(SDataBase* database, SSuperTable* stbInfo) {
 
     int n;
     n = snprintf(tagsBuf + len, tag_buffer_len - len, "(");
-    if (n < 0 || n >= tag_buffer_len - len) {
+    if (n < 0 || n >= ((int)tag_buffer_len - len)) {
         errorPrint("%s() LN%d snprintf overflow\n",
                        __func__, __LINE__);
         free(colsBuf);
@@ -355,7 +355,7 @@ static int createSuperTable(SDataBase* database, SSuperTable* stbInfo) {
         } else if (tag->type == TSDB_DATA_TYPE_JSON) {
             n = snprintf(tagsBuf + len, tag_buffer_len - len,
                     "%s json", tag->name);
-            if (n < 0 || n >= tag_buffer_len - len) {
+            if (n < 0 || n >= ((int)tag_buffer_len - len)) {
                 errorPrint("%s() LN%d snprintf overflow on %d\n",
                        __func__, __LINE__, tagIndex);
                 break;
@@ -376,7 +376,7 @@ static int createSuperTable(SDataBase* database, SSuperTable* stbInfo) {
                     convertDatatypeToString(tag->type));
         }
 
-        if (n < 0 || n >= tag_buffer_len - len) {
+        if (n < 0 || n >= ((int)tag_buffer_len - len)) {
             errorPrint("%s() LN%d snprintf overflow on %d\n",
                        __func__, __LINE__, tagIndex);
             break;
@@ -386,7 +386,7 @@ static int createSuperTable(SDataBase* database, SSuperTable* stbInfo) {
     }
     len -= 1;
 skip:
-    snprintf(tagsBuf + len, tag_buffer_len - len, ")");
+    (void)snprintf(tagsBuf + len, tag_buffer_len - len, ")");
 
     int length = snprintf(
         command, TSDB_MAX_ALLOWED_SQL_LEN,
@@ -458,7 +458,7 @@ skip:
         }
     }
     if (!first_sma) {
-        snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length, ")");
+        (void)snprintf(command + length, TSDB_MAX_ALLOWED_SQL_LEN - length, ")");
     }
     debugPrint("create stable: <%s>\n", command);
 
@@ -471,7 +471,7 @@ skip:
 int32_t getVgroupsNative(SBenchConn *conn, SDataBase *database) {
     int     vgroups = 0;
     char    cmd[SHORT_1K_SQL_BUFF_LEN] = "\0";
-    snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
+    (void)snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
             g_arguments->escape_character
             ? "SHOW `%s`.VGROUPS"
             : "SHOW %s.VGROUPS",
@@ -496,7 +496,7 @@ int32_t getVgroupsNative(SBenchConn *conn, SDataBase *database) {
     for (int32_t v = 0; (v < vgroups
             && !g_arguments->terminate); v++) {
         SVGroup *vg = benchCalloc(1, sizeof(SVGroup), true);
-        benchArrayPush(database->vgArray, vg);
+        (void)benchArrayPush(database->vgArray, vg);
     }
 
     res = taos_query(conn->taos, cmd);
@@ -581,15 +581,15 @@ int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
 
     switch (database->precision) {
         case TSDB_TIME_PRECISION_MILLI:
-            snprintf(command + dataLen, TSDB_MAX_ALLOWED_SQL_LEN - dataLen,
+            (void)snprintf(command + dataLen, TSDB_MAX_ALLOWED_SQL_LEN - dataLen,
                                 " PRECISION \'ms\';");
             break;
         case TSDB_TIME_PRECISION_MICRO:
-            snprintf(command + dataLen, TSDB_MAX_ALLOWED_SQL_LEN - dataLen,
+            (void)snprintf(command + dataLen, TSDB_MAX_ALLOWED_SQL_LEN - dataLen,
                                 " PRECISION \'us\';");
             break;
         case TSDB_TIME_PRECISION_NANO:
-            snprintf(command + dataLen, TSDB_MAX_ALLOWED_SQL_LEN - dataLen,
+            (void)snprintf(command + dataLen, TSDB_MAX_ALLOWED_SQL_LEN - dataLen,
                                 " PRECISION \'ns\';");
             break;
     }
@@ -607,7 +607,7 @@ int createDatabaseRest(SDataBase* database) {
     }
 
     // drop exist database
-    snprintf(command, SHORT_1K_SQL_BUFF_LEN,
+    (void)snprintf(command, SHORT_1K_SQL_BUFF_LEN,
             g_arguments->escape_character
                 ? "DROP DATABASE IF EXISTS `%s`;"
                 : "DROP DATABASE IF EXISTS %s;",
@@ -694,7 +694,7 @@ int createDatabaseTaosc(SDataBase* database) {
     for (int i = 0; i < g_arguments->streams->size; i++) {
         SSTREAM* stream = benchArrayGet(g_arguments->streams, i);
         if (stream->drop) {
-            snprintf(command, SHORT_1K_SQL_BUFF_LEN,
+            (void)snprintf(command, SHORT_1K_SQL_BUFF_LEN,
                         "DROP STREAM IF EXISTS %s;",
                     stream->stream_name);
             if (queryDbExecCall(conn, command)) {
@@ -707,7 +707,7 @@ int createDatabaseTaosc(SDataBase* database) {
     }
 
     // drop old database
-    snprintf(command, SHORT_1K_SQL_BUFF_LEN,
+    (void)snprintf(command, SHORT_1K_SQL_BUFF_LEN,
             g_arguments->escape_character
                 ? "DROP DATABASE IF EXISTS `%s`;":
             "DROP DATABASE IF EXISTS %s;",
@@ -815,7 +815,7 @@ static int generateChildTblName(int len, char *buffer, SDataBase *database,
         tagsForSQL = firstComma + 1;
     } else {
         // generate table name using prefix + sequence number
-        snprintf(tableName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64,
+        (void)snprintf(tableName, TSDB_TABLE_NAME_LEN, "%s%" PRIu64,
                  stbInfo->childTblPrefix, tableSeq);
         tagsForSQL = tagStart;
 
@@ -884,7 +884,7 @@ static void *createTable(void *sarg) {
               pThreadInfo->threadID, pThreadInfo->start_table_from,
               pThreadInfo->end_table_to);
     if (stbInfo->ttl != 0) {
-        snprintf(ttl, SMALL_BUFF_LEN, "TTL %d", stbInfo->ttl);
+        (void)snprintf(ttl, SMALL_BUFF_LEN, "TTL %d", stbInfo->ttl);
     }
 
     // tag read from csv
@@ -909,14 +909,14 @@ static void *createTable(void *sarg) {
         }
         if (!stbInfo->use_metric || stbInfo->tags->size == 0) {
             if (stbInfo->childTblCount == 1) {
-                snprintf(pThreadInfo->buffer, TSDB_MAX_ALLOWED_SQL_LEN,
+                (void)snprintf(pThreadInfo->buffer, TSDB_MAX_ALLOWED_SQL_LEN,
                          g_arguments->escape_character
                          ? "CREATE TABLE IF NOT EXISTS `%s`.`%s` %s;"
                          : "CREATE TABLE IF NOT EXISTS %s.%s %s;",
                          database->dbName, stbInfo->stbName,
                          stbInfo->colsOfCreateChildTable);
             } else {
-                snprintf(pThreadInfo->buffer, TSDB_MAX_ALLOWED_SQL_LEN,
+                (void)snprintf(pThreadInfo->buffer, TSDB_MAX_ALLOWED_SQL_LEN,
                          g_arguments->escape_character
                          ? "CREATE TABLE IF NOT EXISTS `%s`.`%s` %s;"
                          : "CREATE TABLE IF NOT EXISTS %s.%s %s;",
@@ -1085,7 +1085,7 @@ static int startMultiThreadCreateChildTable(SDataBase* database, SSuperTable* st
     int64_t mod = ntables % threads;
 
     int threadCnt = 0;
-    for (uint32_t i = 0; (i < threads && !g_arguments->terminate); i++) {
+    for (uint32_t i = 0; ((int32_t)i < threads && !g_arguments->terminate); i++) {
         threadInfo *pThreadInfo = infos + i;
         pThreadInfo->threadID = i;
         pThreadInfo->stbInfo = stbInfo;
@@ -1155,7 +1155,7 @@ static int createChildTables() {
                   "start creating %" PRId64 " table(s) with %d thread(s)\n",
                   g_arguments->totalChildTables, g_arguments->table_threads);
     }
-    int64_t start = (double)toolsGetTimestampMs();
+    int64_t start = (int64_t)toolsGetTimestampMs();
 
     for (int i = 0; (i < g_arguments->databases->size
             && !g_arguments->terminate); i++) {
@@ -1522,7 +1522,7 @@ static int smartContinueIfFail(threadInfo *pThreadInfo,
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
     char *buffer =
         benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, false);
-    snprintf(
+    (void)snprintf(
             buffer, TSDB_MAX_ALLOWED_SQL_LEN,
             g_arguments->escape_character ?
                 "CREATE TABLE IF NOT EXISTS `%s`.`%s` USING `%s`.`%s` TAGS (%s) %s "
@@ -1762,7 +1762,7 @@ int32_t submitStmt2(threadInfo * pThreadInfo, TAOS_STMT2_BINDV *bindv, int64_t *
                 // failed finally
                 char tip[64] = "";
                 if (i > 0) {
-                    snprintf(tip, sizeof(tip), " after retry %d", i);
+                    (void)snprintf(tip, sizeof(tip), " after retry %d", i);
                 }
                 errorPrint("finally faild execute submitStmt2()%s\n", tip);
                 return -1;
@@ -1891,21 +1891,21 @@ static void *syncWriteInterlace(void *sarg) {
             }
             char ttl[SMALL_BUFF_LEN] = "";
             if (stbInfo->ttl != 0) {
-                snprintf(ttl, SMALL_BUFF_LEN, "TTL %d", stbInfo->ttl);
+                (void)snprintf(ttl, SMALL_BUFF_LEN, "TTL %d", stbInfo->ttl);
             }
             switch (stbInfo->iface) {
                 case REST_IFACE:
                 case TAOSC_IFACE: {
                     char escapedTbName[TSDB_TABLE_NAME_LEN+2] = "\0";
                     if (g_arguments->escape_character) {
-                        snprintf(escapedTbName, TSDB_TABLE_NAME_LEN+2, "`%s`",
+                        (void)snprintf(escapedTbName, TSDB_TABLE_NAME_LEN+2, "`%s`",
                                 tableName);
                     } else {
-                        snprintf(escapedTbName, TSDB_TABLE_NAME_LEN+2, "%s",
+                        (void)snprintf(escapedTbName, TSDB_TABLE_NAME_LEN+2, "%s",
                                 tableName);
                     }
                     if (i == 0) {
-                        ds_add_str(&pThreadInfo->buffer, STR_INSERT_INTO);
+                        (void)ds_add_str(&pThreadInfo->buffer, STR_INSERT_INTO);
                     }
 
                     // generator
@@ -1974,9 +1974,9 @@ static void *syncWriteInterlace(void *sarg) {
                         char time_string[BIGINT_BUFF_LEN];
                         if(stbInfo->useNow && stbInfo->interlaceRows == 1 && !fillBack) {
                             int64_t now = toolsGetTimestamp(database->precision);
-                            snprintf(time_string, BIGINT_BUFF_LEN, "%"PRId64"", now);
+                            (void)snprintf(time_string, BIGINT_BUFF_LEN, "%"PRId64"", now);
                         } else {
-                            snprintf(time_string, BIGINT_BUFF_LEN, "%"PRId64"",
+                            (void)snprintf(time_string, BIGINT_BUFF_LEN, "%"PRId64"",
                                     disorderTs?disorderTs:childTbl->ts);
                         }
 
@@ -2021,10 +2021,10 @@ static void *syncWriteInterlace(void *sarg) {
                 case STMT_IFACE: {
                     char escapedTbName[TSDB_TABLE_NAME_LEN+2] = "\0";
                     if (g_arguments->escape_character) {
-                        snprintf(escapedTbName, TSDB_TABLE_NAME_LEN+2,
+                        (void)snprintf(escapedTbName, TSDB_TABLE_NAME_LEN+2,
                                 "`%s`", tableName);
                     } else {
-                        snprintf(escapedTbName, TSDB_TABLE_NAME_LEN, "%s",
+                        (void)snprintf(escapedTbName, TSDB_TABLE_NAME_LEN, "%s",
                                 tableName);
                     }
 
@@ -2153,7 +2153,7 @@ static void *syncWriteInterlace(void *sarg) {
                                 database->sml_precision,
                                 disorderTs?disorderTs:childTbl->ts);
                         } else if (TSDB_SML_LINE_PROTOCOL == protocol) {
-                            snprintf(
+                            (void)snprintf(
                                 pThreadInfo->lines[generated],
                                 stbInfo->lenOfCols + stbInfo->lenOfTags,
                                 "%s %s %" PRId64,
@@ -2163,7 +2163,7 @@ static void *syncWriteInterlace(void *sarg) {
                                     sampleDataBuf + pos * stbInfo->lenOfCols,
                                 disorderTs?disorderTs:childTbl->ts);
                         } else {
-                            snprintf(
+                            (void)snprintf(
                                 pThreadInfo->lines[generated],
                                 stbInfo->lenOfCols + stbInfo->lenOfTags,
                                 "%s %" PRId64 " %s %s", stbInfo->stbName,
@@ -2346,10 +2346,10 @@ static int32_t prepareProgressDataStmt(
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
     char escapedTbName[TSDB_TABLE_NAME_LEN + 2] = "\0";
     if (g_arguments->escape_character) {
-        snprintf(escapedTbName, TSDB_TABLE_NAME_LEN + 2,
+        (void)snprintf(escapedTbName, TSDB_TABLE_NAME_LEN + 2,
                  "`%s`", childTbl->name);
     } else {
-        snprintf(escapedTbName, TSDB_TABLE_NAME_LEN, "%s",
+        (void)snprintf(escapedTbName, TSDB_TABLE_NAME_LEN, "%s",
                  childTbl->name);
     }
     int64_t start = toolsGetTimestampUs();
@@ -2551,7 +2551,7 @@ static int32_t prepareProgressDataSmlLineOrTelnet(
         // table index
         int ti = tableSeq - pThreadInfo->start_table_from;
         if (TSDB_SML_LINE_PROTOCOL == protocol) {
-            snprintf(
+            (void)snprintf(
                     pThreadInfo->lines[j],
                     stbInfo->lenOfCols + stbInfo->lenOfTags,
                     "%s %s %" PRId64,
@@ -2559,7 +2559,7 @@ static int32_t prepareProgressDataSmlLineOrTelnet(
                     sampleDataBuf + pos * stbInfo->lenOfCols,
                     *timestamp);
         } else {
-            snprintf(
+            (void)snprintf(
                     pThreadInfo->lines[j],
                     stbInfo->lenOfCols + stbInfo->lenOfTags,
                     "%s %" PRId64 " %s %s", stbInfo->stbName,
@@ -2890,7 +2890,7 @@ void *syncWriteProgressive(void *sarg) {
 
         char ttl[SMALL_BUFF_LEN] = "";
         if (stbInfo->ttl != 0) {
-            snprintf(ttl, SMALL_BUFF_LEN, "TTL %d", stbInfo->ttl);
+            (void)snprintf(ttl, SMALL_BUFF_LEN, "TTL %d", stbInfo->ttl);
         }
         for (uint64_t i = 0; i < stbInfo->insertRows;) {
             if (g_arguments->terminate) {
@@ -3012,7 +3012,7 @@ void *syncWriteProgressive(void *sarg) {
             // flush
             if (database->flush) {
                 char sql[260] = "";
-                sprintf(sql, "flush database %s", database->dbName);
+                (void)sprintf(sql, "flush database %s", database->dbName);
                 int32_t code = executeSql(pThreadInfo->conn->taos,sql);
                 if (code != 0) {
                   perfPrint(" %s failed. error code = 0x%x\n", sql, code);
@@ -3429,7 +3429,7 @@ static int64_t fillChildTblNameByCount(SSuperTable *stbInfo) {
 
     for (int64_t i = 0; i < stbInfo->childTblCount; i++) {
         char childName[TSDB_TABLE_NAME_LEN]={0};
-        snprintf(childName,
+        (void)snprintf(childName,
                  TSDB_TABLE_NAME_LEN,
                  "%s%" PRIu64,
                  stbInfo->childTblPrefix, i);
@@ -3445,7 +3445,7 @@ static int64_t fillChildTblNameByFromTo(SDataBase *database,
         SSuperTable* stbInfo) {
     for (int64_t i = stbInfo->childTblFrom; i <= stbInfo->childTblTo; i++) {
         char childName[TSDB_TABLE_NAME_LEN]={0};
-        snprintf(childName,
+        (void)snprintf(childName,
                 TSDB_TABLE_NAME_LEN,
                 "%s%" PRIu64,
                 stbInfo->childTblPrefix, i);
@@ -3463,13 +3463,13 @@ static int64_t fillChildTblNameByLimitOffset(SDataBase *database,
     }
     char cmd[SHORT_1K_SQL_BUFF_LEN] = "\0";
     if (g_arguments->taosc_version == 3) {
-        snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
+        (void)snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
                  "SELECT DISTINCT(TBNAME) FROM %s.`%s` LIMIT %" PRId64
                  " OFFSET %" PRIu64,
                  database->dbName, stbInfo->stbName, stbInfo->childTblLimit,
                  stbInfo->childTblOffset);
     } else {
-        snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
+        (void)snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
                  "SELECT TBNAME FROM %s.`%s` LIMIT %" PRId64
                  " OFFSET %" PRIu64,
                  database->dbName, stbInfo->stbName, stbInfo->childTblLimit,
@@ -3551,7 +3551,7 @@ static int printTotalDelay(SDataBase *database,
 
     char subDelay[128] = "";
     if(totalDelay1 + totalDelay2 + totalDelay3 > 0) {
-        sprintf(subDelay, " stmt delay1=%.2fs delay2=%.2fs delay3=%.2fs",
+        (void)sprintf(subDelay, " stmt delay1=%.2fs delay2=%.2fs delay3=%.2fs",
                 totalDelay1/threads/1E6,
                 totalDelay2/threads/1E6,
                 totalDelay3/threads/1E6);
@@ -3656,7 +3656,7 @@ static int64_t fillChildTblName(SDataBase *database, SSuperTable *stbInfo) {
     if (stbInfo->childTblCount == 1 && stbInfo->tags->size == 0) {
         // Normal table
         char childName[TSDB_TABLE_NAME_LEN]={0};
-        snprintf(childName, TSDB_TABLE_NAME_LEN,
+        (void)snprintf(childName, TSDB_TABLE_NAME_LEN,
                     "%s", stbInfo->stbName);
         stbInfo->childTblArray[0]->name = strdup(childName);
     } else if ((stbInfo->iface != SML_IFACE
@@ -3677,7 +3677,7 @@ static bool fillSTableLastTs(SDataBase *database, SSuperTable *stbInfo) {
         return false;
     }
     char cmd[SHORT_1K_SQL_BUFF_LEN] = "\0";
-    snprintf(cmd, SHORT_1K_SQL_BUFF_LEN, "select last(ts) from %s.`%s`", database->dbName, stbInfo->stbName);
+    (void)snprintf(cmd, SHORT_1K_SQL_BUFF_LEN, "select last(ts) from %s.`%s`", database->dbName, stbInfo->stbName);
 
     infoPrint("fillBackTime: %s\n", cmd);
     TAOS_RES *res = taos_query(conn->taos, cmd);
@@ -3715,7 +3715,7 @@ static bool calcExprFromServer(SDataBase *database, SSuperTable *stbInfo) {
         return false;
     }
     char cmd[SHORT_1K_SQL_BUFF_LEN] = "\0";
-    snprintf(cmd, SHORT_1K_SQL_BUFF_LEN, "select %s", stbInfo->calcNow);
+    (void)snprintf(cmd, SHORT_1K_SQL_BUFF_LEN, "select %s", stbInfo->calcNow);
 
     infoPrint("calcExprFromServer: %s\n", cmd);
     TAOS_RES *res = taos_query(conn->taos, cmd);
@@ -4018,7 +4018,7 @@ void *genInsertTheadInfo(void* arg) {
                 goto END;
             }
             char* command = benchCalloc(1, SHORT_1K_SQL_BUFF_LEN, false);
-            snprintf(command, SHORT_1K_SQL_BUFF_LEN,
+            (void)snprintf(command, SHORT_1K_SQL_BUFF_LEN,
                     g_arguments->escape_character ? "USE `%s`" : "USE %s",
                     pThreadInfo->dbInfo->dbName);
             if (queryDbExecCall(pThreadInfo->conn, command)) {
@@ -4474,7 +4474,7 @@ static int startMultiThreadInsertData(SDataBase* database, SSuperTable* stbInfo)
 static int getStbInsertedRows(char* dbName, char* stbName, TAOS* taos) {
     int rows = 0;
     char command[SHORT_1K_SQL_BUFF_LEN];
-    snprintf(command, SHORT_1K_SQL_BUFF_LEN, "SELECT COUNT(*) FROM %s.%s",
+    (void)snprintf(command, SHORT_1K_SQL_BUFF_LEN, "SELECT COUNT(*) FROM %s.%s",
              dbName, stbName);
     TAOS_RES* res = taos_query(taos, command);
     int code = taos_errno(res);
@@ -4500,7 +4500,7 @@ static void create_tsma(TSMA* tsma, SBenchConn* conn, char* stbName) {
                        tsma->name, stbName, tsma->func,
                        tsma->interval, tsma->sliding);
     if (tsma->custom) {
-        snprintf(command + len, SHORT_1K_SQL_BUFF_LEN - len,
+        (void)snprintf(command + len, SHORT_1K_SQL_BUFF_LEN - len,
                  " %s", tsma->custom);
     }
     int code = queryDbExecCall(conn, command);
