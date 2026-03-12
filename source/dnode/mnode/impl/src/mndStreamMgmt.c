@@ -1728,7 +1728,7 @@ static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, int32_t dagIdx, SStmSta
     TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
   }
 
-  if (pDag->numOfSubplans != pStream->pCreate->numOfCalcSubplan) {
+  if ((*pRoot)->numOfSubplans != pStream->pCreate->numOfCalcSubplan) {
     mstsError("numOfCalcSubplan %d mismatch with numOfSubplans %d", pStream->pCreate->numOfCalcSubplan, pDag->numOfSubplans);
     TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
   }
@@ -1822,30 +1822,32 @@ static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, int32_t dagIdx, SStmSta
             i, pTask->taskIdx, plan->id.groupId, plan->id.subplanId);
 
         if (subQ) {
-          SStmTaskSrcAddr addr = {0};
-          SDownstreamSourceNode* pSource = NULL;
+          if (i == 0) {
+            SStmTaskSrcAddr addr = {0};
+            SDownstreamSourceNode* pSource = NULL;
 
-          TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_DOWNSTREAM_SOURCE, (SNode**)&pSource));
+            TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_DOWNSTREAM_SOURCE, (SNode**)&pSource));
 
-          addr.taskId = pDeploy->task.taskId;
-          addr.vgId = pDeploy->task.nodeId;
-          addr.groupId = plan->id.groupId;
-          addr.epset = mndGetDnodeEpsetById(pCtx->pMnode, pDeploy->task.nodeId);
+            addr.taskId = pDeploy->task.taskId;
+            addr.vgId = pDeploy->task.nodeId;
+            addr.groupId = plan->id.groupId;
+            addr.epset = mndGetDnodeEpsetById(pCtx->pMnode, pDeploy->task.nodeId);
 
-          pSource->addr.epSet = addr.epset;
-          pSource->addr.nodeId = addr.vgId;
+            pSource->addr.epSet = addr.epset;
+            pSource->addr.nodeId = addr.vgId;
 
-          pSource->clientId = streamId;
-          pSource->taskId = pDeploy->task.taskId;
-          pSource->sId = 0;
-          pSource->execId = 0;
-          pSource->fetchMsgType = TDMT_STREAM_FETCH_FROM_RUNNER;
-          pSource->localExec = false;
+            pSource->clientId = streamId;
+            pSource->taskId = pDeploy->task.taskId;
+            pSource->sId = 0;
+            pSource->execId = 0;
+            pSource->fetchMsgType = TDMT_STREAM_FETCH_FROM_RUNNER;
+            pSource->localExec = false;
 
-          code = nodesListMakeStrictAppend(subEP, (SNode *)pSource);
-          if (code) {
-            TAOS_CHECK_EXIT(code);
-          }
+            code = nodesListMakeStrictAppend(subEP, (SNode *)pSource);
+            if (code) {
+              TAOS_CHECK_EXIT(code);
+            }
+	  }
         } else {
           TAOS_CHECK_EXIT(nodesCloneList(*subEP, &plan->pSubQ));
         }

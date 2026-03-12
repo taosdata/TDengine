@@ -4664,11 +4664,16 @@ _exit:
 int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes, bool reset) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
+  int32_t          taskIdStep = 0;
   SExecTaskInfo*   pTaskInfo = ctx->pTaskInfo;
   bool             needStreamPesudoFuncVals = false;
 
   if (IS_STREAM_MODE(pTaskInfo)) {
     subQIdx *= STREAM_TASK_DEPLOY_NUM;
+    SDownstreamSourceNode* pPrev = (SDownstreamSourceNode*)taosArrayGetP(ctx->subEndPoints, subQIdx);
+    SDownstreamSourceNode* pNext = (SDownstreamSourceNode*)taosArrayGetP(ctx->subEndPoints, subQIdx + 1);
+
+    taskIdStep = pNext->taskId - pPrev->taskId;
   }
   SDownstreamSourceNode* pSource = (SDownstreamSourceNode*)taosArrayGetP(ctx->subEndPoints, subQIdx);
 
@@ -4684,7 +4689,7 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
 
   if (IS_STREAM_MODE(pTaskInfo)) {
     req.execId = pTaskInfo->pStreamRuntimeInfo->execId;
-    req.taskId += req.execId / STREAM_TASK_REPLICA_NUM;
+    req.taskId += req.execId / STREAM_TASK_REPLICA_NUM * taskIdStep;
     req.pStRtFuncInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
     req.reset = reset;
 
