@@ -67,7 +67,6 @@ def check_python_version():
 
 def parse_arguments():
     """Parse command line arguments"""
-    global tdgpt_version, install_info
 
     parser = argparse.ArgumentParser(description='Release TDGPT on Windows')
     parser.add_argument('-e', '--edition', type=str, required=True,
