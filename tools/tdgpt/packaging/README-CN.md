@@ -80,13 +80,13 @@ python packaging/win_release.py -e community -v 3.3.6.0
 python packaging/win_release.py -e enterprise -v 3.3.6.0
 
 # 包含模型文件
-python packaging/win_release.py -e community -v 3.3.6.0 -m D:\models
+python packaging/win_release.py -e community -v 3.3.6.0 -m D:\workspace\models
 
 # 包含所有模型
-python packaging/win_release.py -e community -v 3.3.6.0 -m D:\models -a
+python packaging/win_release.py -e community -v 3.3.6.0 -m D:\workspace\models -a
 
 # 自定义输出目录
-python packaging/win_release.py -e community -v 3.3.6.0 -o D:\release
+python packaging/win_release.py -e community -v 3.3.6.0 -o D:\workspace\main\release
 ```
 
 ## 打包脚本参数说明
