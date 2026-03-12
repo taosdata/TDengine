@@ -206,6 +206,27 @@ jobs:
           taosd.exe --help
           taosadapter.exe --help
 
+      - name: Upload Windows libraries artifact
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tdengine-windows-libraries-${{ matrix.os }}-${{ github.run_id }}
+          path: |
+            C:\TDengine\driver\taos.dll
+            C:\TDengine\driver\taosnative.dll
+            C:\TDengine\driver\taosws.dll
+          retention-days: 7
+
+      - name: Upload Windows executables artifact
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tdengine-windows-executables-${{ matrix.os }}-${{ github.run_id }}
+          path: |
+            C:\TDengine\taos.exe
+            C:\TDengine\taosd.exe
+          retention-days: 7
+
       - name: Statistics ldd
         if: runner.os == 'Linux'
         run: |
