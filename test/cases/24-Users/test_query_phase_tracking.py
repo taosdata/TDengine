@@ -5,7 +5,7 @@ from new_test_framework.utils import tdLog, tdSql
 class TestQueryPhaseTracking:
     """Test cases for query execution phase tracking feature.
     
-    This feature adds current_phase and phase_start_time columns to show queries output
+    This feature adds phase_name and phase_start_time columns to show queries output
     to help track query execution phases for performance analysis.
     
     Phases: none, parse, catalog, plan, schedule, execute, fetch, done
@@ -19,7 +19,7 @@ class TestQueryPhaseTracking:
     def test_show_queries_schema(self):
         """Schema: Verify new columns in show queries
 
-        1. Verify that current_phase column exists in show queries output
+        1. Verify that phase_name column exists in show queries output
         2. Verify that phase_start_time column exists in show queries output
         3. Verify the column types are correct
 
@@ -45,7 +45,7 @@ class TestQueryPhaseTracking:
         col_names = tdSql.getColNameList("show queries")
         tdLog.info(f"show queries columns: {col_names}")
         
-        assert "current_phase" in col_names, "current_phase column should exist"
+        assert "phase_name" in col_names, "phase_name column should exist"
         assert "phase_start_time" in col_names, "phase_start_time column should exist"
         
         print("test show queries schema ....................... [passed]")
@@ -53,7 +53,7 @@ class TestQueryPhaseTracking:
     def test_query_phase_values(self):
         """Phase: Verify query phase values
 
-        1. Execute a query and verify current_phase is a valid phase string
+        1. Execute a query and verify phase_name is a valid phase string
         2. Verify phase_start_time is a valid timestamp
         3. Test that phase values are one of: none, parse, catalog, plan, schedule, execute, fetch, done
 
@@ -79,7 +79,7 @@ class TestQueryPhaseTracking:
         
         if tdSql.getRows() > 0:
             col_names = [desc[0] for desc in tdSql.cursor.description]
-            phase_idx = col_names.index("current_phase") if "current_phase" in col_names else -1
+            phase_idx = col_names.index("phase_name") if "phase_name" in col_names else -1
             time_idx = col_names.index("phase_start_time") if "phase_start_time" in col_names else -1
             
             if phase_idx >= 0:
