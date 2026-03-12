@@ -1281,6 +1281,7 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
       if (offset + reserve >= strSize) break;
 
       SQuerySubDesc *pDesc = taosArrayGet(pQuery->subDesc, i);
+      if (NULL == pDesc) break;
 
       char startBuf[32] = "-";
       if (pDesc->startTs > 0) {
