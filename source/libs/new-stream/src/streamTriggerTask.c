@@ -2967,10 +2967,10 @@ static int32_t stRealtimeContextCalcExpr(SSTriggerRealtimeContext *pContext, SSD
     pResCol->info.precision = 0;
 
     int32_t nrows = blockDataGetNumOfRows(pDataBlock);
-    code = colInfoDataEnsureCapacity(pResCol, nrows, false);
+    code = colInfoDataEnsureCapacity(pResCol, pDataBlock->info.capacity, false);
     QUERY_CHECK_CODE(code, lino, _end);
-    TAOS_MEMSET(pResCol->nullbitmap, 0, BitmapLen(nrows));
-    TAOS_MEMSET(pResCol->pData, 0, nrows);
+    TAOS_MEMSET(pResCol->nullbitmap, 0, BitmapLen(pDataBlock->info.capacity));
+    TAOS_MEMSET(pResCol->pData, 0, pDataBlock->info.capacity);
 
     uint8_t        idx = 1;
     SNode         *pNode = NULL;
@@ -3006,8 +3006,23 @@ static int32_t stRealtimeContextCalcExpr(SSTriggerRealtimeContext *pContext, SSD
     pResCol->info.scale = pType->scale;
     pResCol->info.precision = pType->precision;
 
-    SScalarParam output = {.columnData = pResCol};
+    if (pTmpCol == NULL) {
+      pTmpCol = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+      QUERY_CHECK_NULL(pTmpCol, code, lino, _end, terrno);
+    }
+    pTmpCol->info.type = pType->type;
+    pTmpCol->info.bytes = pType->bytes;
+    pTmpCol->info.scale = pType->scale;
+    pTmpCol->info.precision = pType->precision;
+
+    SScalarParam output = {.columnData = pTmpCol};
     code = scalarCalculate(pExpr, pList, &output, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+    int32_t nrows = blockDataGetNumOfRows(pDataBlock);
+    QUERY_CHECK_CONDITION(output.numOfRows == nrows, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    code = colInfoDataEnsureCapacity(pResCol, pDataBlock->info.capacity, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = colDataAssign(pResCol, pTmpCol, nrows, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -5931,10 +5946,10 @@ static int32_t stHistoryContextCalcExpr(SSTriggerHistoryContext *pContext, SSDat
     pResCol->info.precision = 0;
 
     int32_t nrows = blockDataGetNumOfRows(pDataBlock);
-    code = colInfoDataEnsureCapacity(pResCol, nrows, false);
+    code = colInfoDataEnsureCapacity(pResCol, pDataBlock->info.capacity, false);
     QUERY_CHECK_CODE(code, lino, _end);
-    TAOS_MEMSET(pResCol->nullbitmap, 0, BitmapLen(nrows));
-    TAOS_MEMSET(pResCol->pData, 0, nrows);
+    TAOS_MEMSET(pResCol->nullbitmap, 0, BitmapLen(pDataBlock->info.capacity));
+    TAOS_MEMSET(pResCol->pData, 0, pDataBlock->info.capacity);
 
     uint8_t        idx = 1;
     SNode         *pNode = NULL;
@@ -5970,8 +5985,23 @@ static int32_t stHistoryContextCalcExpr(SSTriggerHistoryContext *pContext, SSDat
     pResCol->info.scale = pType->scale;
     pResCol->info.precision = pType->precision;
 
-    SScalarParam output = {.columnData = pResCol};
+    if (pTmpCol == NULL) {
+      pTmpCol = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+      QUERY_CHECK_NULL(pTmpCol, code, lino, _end, terrno);
+    }
+    pTmpCol->info.type = pType->type;
+    pTmpCol->info.bytes = pType->bytes;
+    pTmpCol->info.scale = pType->scale;
+    pTmpCol->info.precision = pType->precision;
+
+    SScalarParam output = {.columnData = pTmpCol};
     code = scalarCalculate(pExpr, pList, &output, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+    int32_t nrows = blockDataGetNumOfRows(pDataBlock);
+    QUERY_CHECK_CONDITION(output.numOfRows == nrows, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    code = colInfoDataEnsureCapacity(pResCol, pDataBlock->info.capacity, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = colDataAssign(pResCol, pTmpCol, nrows, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 

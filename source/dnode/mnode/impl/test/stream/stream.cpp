@@ -36,40 +36,7 @@ SRpcMsg buildHbReq() {
   SStreamHbMsg msg = {0};
   msg.vgId = 1;
   msg.numOfTasks = 5;
-  msg.pTaskStatus = taosArrayInit(4, sizeof(STaskStatusEntry));
 
-  for (int32_t i = 0; i < 4; ++i) {
-    STaskStatusEntry entry = {0};
-    entry.nodeId = i + 1;
-    entry.stage = 1;
-    entry.id.taskId = i + 1;
-    entry.id.streamId = defStreamId;
-
-    if (i == 0) {
-      entry.stage = 4;
-    }
-
-    void* px = taosArrayPush(msg.pTaskStatus, &entry);
-    ASSERT(px != NULL);
-
-  }
-
-  // (p->checkpointId != 0) && p->checkpointFailed
-  // add failed checkpoint info
-  {
-    STaskStatusEntry entry = {0};
-    entry.nodeId = 5;
-    entry.stage = 1;
-
-    entry.id.taskId = 5;
-    entry.id.streamId = defStreamId;
-
-    entry.checkpointInfo.activeId = 1;
-    entry.checkpointInfo.failed = true;
-
-    void* px = taosArrayPush(msg.pTaskStatus, &entry);
-    ASSERT(px != NULL);
-  }
 
   int32_t  tlen = 0;
   int32_t  code = 0;
@@ -115,22 +82,6 @@ void setTask(SStreamTask* pTask, int32_t nodeId, int64_t streamId, int32_t taskI
   pTask->id.streamId = streamId;
   pTask->id.taskId = taskId;
   pTask->info.nodeId = nodeId;
-
-  STaskId id;
-  id.streamId = pTask->id.streamId;
-  id.taskId = pTask->id.taskId;
-
-  STaskStatusEntry entry;
-  streamTaskStatusInit(&entry, pTask);
-
-  entry.stage = 1;
-  entry.status = TASK_STATUS__READY;
-
-  int32_t code = taosHashPut(pExecNode->pTaskMap, &id, sizeof(id), &entry, sizeof(entry));
-  ASSERT(code == 0);
-
-  void* px = taosArrayPush(pExecNode->pTaskList, &id);
-  ASSERT(px != NULL);
 }
 
 void initStreamExecInfo() {

@@ -1013,7 +1013,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Index is rebuilding
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_INVALID_FILE,             "Index file is invalid")
 
 //scalar
-TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_ERROR,           "Cannot convert to specific type")
+TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_ERROR,           "Operation not supported between data types")
 
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
@@ -1099,6 +1099,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_TOPIC,       "Virtual table not s
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_CROSS_DB,    "Virtual super table query not support origin table from different databases")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH,    "Virtual super table query find column type mismatch")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_TOO_MANY_REFERENCE,      "Virtual table has too many reference tables")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_ORIGIN_SCAN,     "Virtual table query find invalid origin scan")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_ORIGIN_TS_COL,   "Virtual table query cannot find origin timestamp column")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_SEQ_NOT_FOUND, "Blob seq not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT_TAG, "Blob type not support on tag")
@@ -1107,6 +1109,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_VALUE_TOO_LONG, "Blob value too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_EXHAUST_TOO_MANY_MEMORY, "Blob data exhaust too many memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT, "Blob data not support")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_ONLY_ONE_COLUMN_ALLOWED, "only one blob column allowed")
+TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_OP_NOT_SUPPORTED, "Operation not supported for BLOB type")
+
 // NEW-STREAM
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INTERNAL_ERROR,      "Mnode stream internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_WAL_VER_NOT_DATA,        "Wal version is not data in stream reader task")

@@ -13177,7 +13177,9 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
   TAOS_CHECK_RETURN(tEncodeBool(pEncoder, pOpParam->reUse));
 
   switch (pOpParam->opType) {
-    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE: {
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN: {
@@ -13185,6 +13187,7 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
       TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pTagScan->vcUid));
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
       STableScanOperatorParam *pScan =
         (STableScanOperatorParam *)pOpParam->value;
@@ -13297,7 +13300,9 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
   TAOS_CHECK_RETURN(tDecodeBool(pDecoder, &pOpParam->reUse));
 
   switch (pOpParam->opType) {
-    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:{
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE: {
       pOpParam->value = NULL;
       break;
     }
@@ -13310,6 +13315,7 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
       TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pTagScan->vcUid));
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
       pOpParam->value = taosMemoryCalloc(1, sizeof(STableScanOperatorParam));
       if (NULL == pOpParam->value) {
@@ -14673,6 +14679,14 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     TAOS_CHECK_EXIT(tEncodeI64v(pCoder, pReq->ntb.userId));
   }
+  if (pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    for (int i = 0; i < pReq->colRef.nCols; i++) {
+      SColRef *p = &pReq->colRef.pColRef[i];
+      if (p->hasRef) {
+        TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->colName));
+      }
+    }
+  }
 
   tEndEncode(pCoder);
 _exit:
@@ -14753,6 +14767,17 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     if (!tDecodeIsEnd(pCoder)) {
       if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
         TAOS_CHECK_EXIT(tDecodeI64v(pCoder, &pReq->ntb.userId));
+      }
+    }
+
+    if (pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
+      if (!tDecodeIsEnd(pCoder)) {
+        for (int i = 0; i < pReq->colRef.nCols; i++) {
+          SColRef *p = &pReq->colRef.pColRef[i];
+          if (p->hasRef) {
+            TAOS_CHECK_EXIT(tDecodeCStrTo(pCoder, p->colName));
+          }
+        }
       }
     }
   }

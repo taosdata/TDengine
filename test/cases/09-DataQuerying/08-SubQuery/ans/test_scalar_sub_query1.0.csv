@@ -1363,8 +1363,10 @@ taos> select min((select max(f1) from tb1 partition by f1)), avg(f1) from tb1 in
                                               1 |                         1 |
 
 taos> select min((select a.ts from tb1 a join tb1 b on a.ts = b.ts)), avg(f1) from tb1 interval(1d);
+ min((select a.ts from tb1 a join tb1 b on a.ts = b.ts)) |          avg(f1)          |
+======================================================================================
+ 2025-12-01 00:00:00.000 |                         1 |
 
-DB error: Invalid parameter data type : min [0x80002802] 
 taos> select min((select sum(f1) from tb1 interval(1d))), avg(f1) from tb1 interval(1d);
  min((select sum(f1) from tb1 interval(1d))) |          avg(f1)          |
 ==========================================================================
@@ -1425,8 +1427,10 @@ taos> select max((select max(f1) from tb1 partition by f1) + 1), avg(f1) from tb
                                                   2 |                         1 |
 
 taos> select max((select a.ts from tb1 a join tb1 b on a.ts = b.ts) + 1), avg(f1) from tb1 interval(1d);
+ max((select a.ts from tb1 a join tb1 b on a.ts = b.ts) + 1) |          avg(f1)          |
+==========================================================================================
+ 2025-12-01 00:00:00.001 |                         1 |
 
-DB error: Invalid parameter data type : max [0x80002802] 
 taos> select max((select sum(f1) from tb1 interval(1d)) + 1), avg(f1) from tb1 interval(1d);
  max((select sum(f1) from tb1 interval(1d)) + 1) |          avg(f1)          |
 ==============================================================================
@@ -4234,7 +4238,7 @@ taos> select min((select max(f1) from tb2 partition by f1)), avg(f1) from tb2 in
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select min((select a.ts from tb2 a join tb2 b on a.ts = b.ts)), avg(f1) from tb2 interval(1d);
 
-DB error: Invalid parameter data type : min [0x80002802] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select min((select sum(f1) from tb2 interval(1d))), avg(f1) from tb2 interval(1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -4288,7 +4292,7 @@ taos> select max((select max(f1) from tb2 partition by f1) + 1), avg(f1) from tb
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select max((select a.ts from tb2 a join tb2 b on a.ts = b.ts) + 1), avg(f1) from tb2 interval(1d);
 
-DB error: Invalid parameter data type : max [0x80002802] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select max((select sum(f1) from tb2 interval(1d)) + 1), avg(f1) from tb2 interval(1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -7030,7 +7034,7 @@ taos> select min((select max(f1) from tb3 partition by f1)), avg(f1) from tb3 in
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select min((select a.ts from tb3 a join tb3 b on a.ts = b.ts)), avg(f1) from tb3 interval(1d);
 
-DB error: Invalid parameter data type : min [0x80002802] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select min((select sum(f1) from tb3 interval(1d))), avg(f1) from tb3 interval(1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -7088,7 +7092,7 @@ taos> select max((select max(f1) from tb3 partition by f1) + 1), avg(f1) from tb
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select max((select a.ts from tb3 a join tb3 b on a.ts = b.ts) + 1), avg(f1) from tb3 interval(1d);
 
-DB error: Invalid parameter data type : max [0x80002802] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select max((select sum(f1) from tb3 interval(1d)) + 1), avg(f1) from tb3 interval(1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -10076,8 +10080,10 @@ taos> select min((select max(f1) from tba partition by f1)), avg(f1) from tba in
                                               0 |                         0 |
 
 taos> select min((select a.ts from tba a join tba b on a.ts = b.ts)), avg(f1) from tba interval(1d);
+ min((select a.ts from tba a join tba b on a.ts = b.ts)) |          avg(f1)          |
+======================================================================================
+ 2025-12-01 00:00:00.000 |                         0 |
 
-DB error: Invalid parameter data type : min [0x80002802] 
 taos> select min((select sum(f1) from tba interval(1d))), avg(f1) from tba interval(1d);
  min((select sum(f1) from tba interval(1d))) |          avg(f1)          |
 ==========================================================================
@@ -10138,8 +10144,10 @@ taos> select max((select max(f1) from tba partition by f1) + 1), avg(f1) from tb
                                                   1 |                         0 |
 
 taos> select max((select a.ts from tba a join tba b on a.ts = b.ts) + 1), avg(f1) from tba interval(1d);
+ max((select a.ts from tba a join tba b on a.ts = b.ts) + 1) |          avg(f1)          |
+==========================================================================================
+ 2025-12-01 00:00:00.001 |                         0 |
 
-DB error: Invalid parameter data type : max [0x80002802] 
 taos> select max((select sum(f1) from tba interval(1d)) + 1), avg(f1) from tba interval(1d);
  max((select sum(f1) from tba interval(1d)) + 1) |          avg(f1)          |
 ==============================================================================
@@ -13111,8 +13119,10 @@ taos> select min((select max(f1) from tbb partition by f1)), avg(f1) from tbb in
                                               1 |                         1 |
 
 taos> select min((select a.ts from tbb a join tbb b on a.ts = b.ts)), avg(f1) from tbb interval(1d);
+ min((select a.ts from tbb a join tbb b on a.ts = b.ts)) |          avg(f1)          |
+======================================================================================
+ 2025-12-02 00:00:00.000 |                         1 |
 
-DB error: Invalid parameter data type : min [0x80002802] 
 taos> select min((select sum(f1) from tbb interval(1d))), avg(f1) from tbb interval(1d);
  min((select sum(f1) from tbb interval(1d))) |          avg(f1)          |
 ==========================================================================
@@ -13173,8 +13183,10 @@ taos> select max((select max(f1) from tbb partition by f1) + 1), avg(f1) from tb
                                                   2 |                         1 |
 
 taos> select max((select a.ts from tbb a join tbb b on a.ts = b.ts) + 1), avg(f1) from tbb interval(1d);
+ max((select a.ts from tbb a join tbb b on a.ts = b.ts) + 1) |          avg(f1)          |
+==========================================================================================
+ 2025-12-02 00:00:00.001 |                         1 |
 
-DB error: Invalid parameter data type : max [0x80002802] 
 taos> select max((select sum(f1) from tbb interval(1d)) + 1), avg(f1) from tbb interval(1d);
  max((select sum(f1) from tbb interval(1d)) + 1) |          avg(f1)          |
 ==============================================================================
@@ -15618,7 +15630,6 @@ taos> select min((select max(f1) from tbe partition by f1)), avg(f1) from tbe in
 
 taos> select min((select a.ts from tbe a join tbe b on a.ts = b.ts)), avg(f1) from tbe interval(1d);
 
-DB error: Invalid parameter data type : min [0x80002802] 
 taos> select min((select sum(f1) from tbe interval(1d))), avg(f1) from tbe interval(1d);
 
 taos> select min((select f1 from tbe union select f1 from tbe)), avg(f1) from tbe interval(1d);
@@ -15649,7 +15660,6 @@ taos> select max((select max(f1) from tbe partition by f1) + 1), avg(f1) from tb
 
 taos> select max((select a.ts from tbe a join tbe b on a.ts = b.ts) + 1), avg(f1) from tbe interval(1d);
 
-DB error: Invalid parameter data type : max [0x80002802] 
 taos> select max((select sum(f1) from tbe interval(1d)) + 1), avg(f1) from tbe interval(1d);
 
 taos> select max((select f1 from tbe union select f1 from tbe) + 1), avg(f1) from tbe interval(1d);
@@ -17915,7 +17925,7 @@ taos> select min((select max(f1) from st1 partition by f1)), avg(f1) from st1 in
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select min((select a.ts from st1 a join st1 b on a.ts = b.ts)), avg(f1) from st1 interval(1d);
 
-DB error: Invalid parameter data type : min [0x80002802] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select min((select sum(f1) from st1 interval(1d))), avg(f1) from st1 interval(1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -17973,7 +17983,7 @@ taos> select max((select max(f1) from st1 partition by f1) + 1), avg(f1) from st
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select max((select a.ts from st1 a join st1 b on a.ts = b.ts) + 1), avg(f1) from st1 interval(1d);
 
-DB error: Invalid parameter data type : max [0x80002802] 
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select max((select sum(f1) from st1 interval(1d)) + 1), avg(f1) from st1 interval(1d);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 

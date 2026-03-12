@@ -23,10 +23,6 @@
 #include "decimal.h"
 #include "cmdnodes.h"
 
-#ifndef WINDOWS
-#include "curl/curl.h"
-#endif
-
 int32_t streamGetThreadIdx(int32_t threadNum, int64_t streamGId) { return threadNum ? (streamGId % threadNum) : 0; }
 
 int32_t stmAddFetchStreamGid(void) {
@@ -766,8 +762,6 @@ _end:
   return code;
 }
 
-#ifndef WINDOWS
-
 #define STREAM_EVENT_NOTIFY_RETRY_MS 50  // 50 ms
 
 int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
@@ -884,14 +878,6 @@ _end:
   }
   return code;
 }
-#else
-int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
-                                int64_t groupId, const SArray* pNotifyAddrUrls, int32_t errorHandle,
-                                const SSTriggerCalcParam* pParams, int32_t nParam) {
-  ST_TASK_ELOG("stream notify events is not supported on windows, streamName:%s", streamName);
-  return TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS;
-}
-#endif
 
 int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int64_t groupId, TSKEY start,
                             TSKEY end, void*** pppIter) {

@@ -46,7 +46,7 @@ You can change the behavior of the TDengine CLI by configuring command line para
   - If the `-p` parameter is not followed by a password string, the user will be prompted to enter the password, e.g., `taos -u root -p`.
   - If the `-p` parameter is directly followed by a password string, that password will be used for connection, e.g., `taos -u root -ptaosdata`.
 - -?, --help: Prints out all command line parameters.
-- -s COMMAND: SQL command executed in non-interactive mode.  
+- -s COMMAND: SQL command executed in non-interactive mode.
     Use the `-s` parameter to execute SQL non interactively, and exit after execution. This mode is suitable for use in automated scripts.
     For example, connect to the server h1.taos.com with the following command, and execute the SQL specified by `-s`:
 
@@ -54,7 +54,7 @@ You can change the behavior of the TDengine CLI by configuring command line para
     taos -h my-server -s "use db; show tables;"
     ```
 
-- -c CONFIGDIR: Specify the configuration file directory.  
+- -c CONFIGDIR: Specify the configuration file directory.
     In Linux, the default is `/etc/tao`. The default name of the configuration file in this directory is `taos.cfg`.
     Use the `-c` parameter to change the location where the `taosc` client loads the configuration file. For client configuration parameters, refer to [Client Configuration](../../components/taosc).
     The following command specifies the `taos.cfg` configuration file under `/root/cfg/` loaded by the `taosc` client.
@@ -80,7 +80,6 @@ You can change the behavior of the TDengine CLI by configuring command line para
   - If the `-q` parameter is not followed by a token string, the user will be prompted to enter the token, e.g., `taos -u root -q`.
   - If the `-q` parameter is directly followed by a token string, that token will be used for connection, e.g., `taos -u root -q<token_string>`.
 - -r: Convert time columns to unsigned 64-bit integer type output (i.e., uint64_t in C language).
-- -R: Connect to the server using RESTful mode.
 - -t: Test the startup status of the server, status same as -k.
 - -w DISPLAYWIDTH: Client column display width.
 - -z TIMEZONE: Specifies the timezone, default is the local timezone.

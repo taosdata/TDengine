@@ -27,16 +27,15 @@
 #include "tjson.h"
 
 typedef struct STaskSubJobCtx {
+  bool               isExchange;
+  int64_t            subJobRefId;
   uint64_t           queryId;
   uint64_t           taskId;
   char*              idStr;
   void*              pTaskInfo;
   void*              rpcHandle;
   int64_t            transporterId;
-  bool               hasSubJobs;
-  SRWLatch           lock;
   int32_t            code;
-  void*              param;
   tsem_t             ready;
   uint64_t           blockIdx;
   SArray*            subEndPoints;  // SArray<SDownstreamSourceNode*>
@@ -46,7 +45,7 @@ typedef struct STaskSubJobCtx {
 typedef struct SScalarFetchParam {
   int32_t           subQIdx;
   SNode*            pRes;
-  STaskSubJobCtx*   pSubJobCtx;
+  int64_t           subJobRefId;
 } SScalarFetchParam;
 
 
@@ -278,7 +277,7 @@ void    rmDbVgInfoFromCache(const char* dbFName);
 int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq);
 int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 
-int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* pId);
+int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* typeStr, const char* pId);
 int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes);
 
 #endif  // TDENGINE_EXECUTIL_H
