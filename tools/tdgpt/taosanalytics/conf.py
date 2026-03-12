@@ -5,8 +5,8 @@ import importlib.util
 import logging
 import platform
 import os.path
-import torch   # do not remove it
-import keras
+import torch  # noqa: F401 - Required for model loading
+import keras  # noqa: F401 - Required for model loading
 from pathlib import Path
 from typing import Optional
 
@@ -36,7 +36,7 @@ class Configure:
             # raw_path = r"%PROGRAMDATA%"
             # base_path = os.path.join(os.path.expandvars(raw_path), "tdgpt")
             # keep inline with the TDengine installation configuration
-            base_path = "c:/TDengine/tdgpt/"
+            base_path = "c:/TDengine/taosanode/"
 
             default = {
                 "log_dir": os.path.join(base_path, "log"),
@@ -57,7 +57,7 @@ class Configure:
             }
 
             if os.environ.get('GITHUB_ACTIONS'):
-               default['log_dir'] = '/home/runner/work/TDengine/TDengine/tools/tdgpt/log/'
+                default['log_dir'] = '/home/runner/work/TDengine/TDengine/tools/tdgpt/log/'
 
         return default
 
@@ -160,7 +160,8 @@ app_logger = AppLogger()
 
 def setup_log_info(name: str):
     """ prepare the log info for unit test """
-    base_dir = "/home/runner/work/TDengine/TDengine/tools/tdgpt/log/" if os.environ.get('GITHUB_ACTIONS') else conf.get_log_dir()
+    base_dir = "/home/runner/work/TDengine/TDengine/tools/tdgpt/log/" if os.environ.get(
+        'GITHUB_ACTIONS') else conf.get_log_dir()
     log_file = os.path.join(base_dir, name)
 
     app_logger.set_handler(log_file)

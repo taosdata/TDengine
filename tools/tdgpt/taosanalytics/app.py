@@ -1,27 +1,28 @@
 # encoding:utf-8
 # pylint: disable=c0103
 """the main route definition for restful service"""
-import os.path, sys
+import os.path
+import sys
 
 import numpy as np
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
-from flask import Flask, request
-
-import taosanalytics
-from taosanalytics.algo.imputation import (do_imputation, do_set_imputation_params, check_freq_param)
-from taosanalytics.algo.anomaly import do_ad_check
-from taosanalytics.algo.forecast import do_forecast, do_add_fc_params
-from taosanalytics.algo.correlation import do_dtw, do_tlcc
-from taosanalytics.algo.tool.batch import do_batch_process, update_config
-
-from taosanalytics.conf import conf
-from taosanalytics.model import model_manager
-from taosanalytics.servicemgmt import loader
-from taosanalytics.util import (app_logger, parse_options, get_past_dynamic_data, get_dynamic_data,
-                                get_more_data_list,
-                                do_check_before_exec, do_initial_check)
+# Imports below require modified sys.path
+from flask import Flask, request  # noqa: E402 - Import after sys.path modification
+import taosanalytics  # noqa: E402 - Import after sys.path modification
+from taosanalytics.algo.imputation import (do_imputation, do_set_imputation_params, check_freq_param)  # noqa: E402
+from taosanalytics.algo.anomaly import do_ad_check  # noqa: E402
+from taosanalytics.algo.forecast import do_forecast, do_add_fc_params  # noqa: E402
+from taosanalytics.algo.correlation import do_dtw, do_tlcc  # noqa: E402
+from taosanalytics.algo.tool.batch import do_batch_process, update_config  # noqa: E402
+from taosanalytics.conf import conf  # noqa: E402
+from taosanalytics.model import model_manager  # noqa: E402
+from taosanalytics.servicemgmt import loader  # noqa: E402
+from taosanalytics.util import (  # noqa: E402
+    app_logger, parse_options, get_past_dynamic_data, get_dynamic_data,
+    get_more_data_list, do_check_before_exec, do_initial_check
+)
 
 app = Flask(__name__)
 app.config["PROPAGATE_EXCEPTIONS"] = True
