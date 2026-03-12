@@ -172,6 +172,15 @@ class TestMetaForceRepair:
             time.sleep(1)
         return False
 
+    def _wait_for_process_exit(self, proc, timeout_sec=20):
+        deadline = time.time() + timeout_sec
+        while time.time() < deadline:
+            if proc.poll() is not None:
+                output = proc.stdout.read() if proc.stdout else ""
+                return proc.returncode, output
+            time.sleep(1)
+        return None, proc.stdout.read() if proc.stdout else ""
+
     def test_meta_force_repair_accepts_repair_target_syntax(self):
         """Meta force repair should accept the new repair-target syntax.
 
@@ -250,3 +259,100 @@ class TestMetaForceRepair:
             tdSql.query("select * from information_schema.ins_databases")
             if os.path.exists(backup_root):
                 shutil.rmtree(backup_root)
+
+    def test_meta_force_repair_rejects_existing_backup_dir(self):
+        """Meta force repair should fail when the target backup directory already exists.
+
+        1. Create real vnode data and pre-create the expected backup directory.
+        2. Stop taosd and run meta force repair against that vnode.
+        3. Verify the process fails with the existing-backup-dir error.
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+        """
+        tdSql.prepare()
+        dbname = f"meta_repair_exists_{int(time.time())}"
+        tdSql.execute(f"drop database if exists {dbname}")
+        tdSql.execute(f"create database {dbname} vgroups 1")
+        tdSql.execute(f"create table {dbname}.t1(ts timestamp, v int)")
+        tdSql.execute(f"insert into {dbname}.t1 values(now, 1)")
+        tdSql.query(f"select count(*) from {dbname}.t1")
+        tdSql.checkData(0, 0, 1)
+
+        vnode_id = self._get_vnode_id_for_db(dbname)
+        backup_root = "/tmp/meta-force-repair-exists"
+        date_str = datetime.now().strftime("%Y%m%d")
+        expected_backup_dir = os.path.join(
+            backup_root, f"taos_backup_{date_str}", f"vnode{vnode_id}", "meta"
+        )
+
+        if os.path.exists(backup_root):
+            shutil.rmtree(backup_root)
+        os.makedirs(expected_backup_dir, exist_ok=True)
+
+        try:
+            tdDnodes.stop(1)
+            time.sleep(2)
+            code, output = self._run_taosd(
+                f"-c {self._get_cfg_dir()} -r --mode force --node-type vnode "
+                f"--backup-path {backup_root} --repair-target {self._meta_target(vnode_id)} --log-output stdout"
+            )
+        finally:
+            tdDnodes.start(1)
+            time.sleep(2)
+            tdSql.query("select * from information_schema.ins_databases")
+            if os.path.exists(backup_root):
+                shutil.rmtree(backup_root)
+
+        tdSql.checkEqual(code != 0, True)
+        tdSql.checkEqual("repair backup dir already exists" in output, True)
+
+    def test_meta_force_repair_uses_default_tmp_backup_root(self):
+        """Meta force repair should use the default tmp backup root when backup-path is omitted.
+
+        1. Create real vnode data and remove any pre-existing default backup directory.
+        2. Stop taosd and run meta force repair without `--backup-path`.
+        3. Verify the backup appears under the default tmp root.
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+        """
+        tdSql.prepare()
+        dbname = f"meta_repair_default_{int(time.time())}"
+        tdSql.execute(f"drop database if exists {dbname}")
+        tdSql.execute(f"create database {dbname} vgroups 1")
+        tdSql.execute(f"create table {dbname}.t1(ts timestamp, v int)")
+        tdSql.execute(f"insert into {dbname}.t1 values(now, 1)")
+        tdSql.query(f"select count(*) from {dbname}.t1")
+        tdSql.checkData(0, 0, 1)
+
+        vnode_id = self._get_vnode_id_for_db(dbname)
+        date_str = datetime.now().strftime("%Y%m%d")
+        expected_backup_dir = os.path.join(
+            "/tmp", f"taos_backup_{date_str}", f"vnode{vnode_id}", "meta"
+        )
+
+        if os.path.exists(expected_backup_dir):
+            shutil.rmtree(os.path.join("/tmp", f"taos_backup_{date_str}", f"vnode{vnode_id}"))
+
+        proc = None
+        try:
+            tdDnodes.stop(1)
+            time.sleep(2)
+            proc = self._start_repair_process(
+                f"-r --mode force --node-type vnode --repair-target {self._meta_target(vnode_id)} --log-output /dev/null"
+            )
+            tdSql.checkEqual(self._wait_for_path(expected_backup_dir), True)
+            tdSql.checkEqual(os.path.isdir(expected_backup_dir), True)
+            tdSql.checkEqual(len(os.listdir(expected_backup_dir)) > 0, True)
+        finally:
+            if proc is not None:
+                self._stop_repair_process(proc)
+            tdDnodes.start(1)
+            time.sleep(2)
+            tdSql.query("select * from information_schema.ins_databases")
+            vnode_backup_root = os.path.join("/tmp", f"taos_backup_{date_str}", f"vnode{vnode_id}")
+            if os.path.exists(vnode_backup_root):
+                shutil.rmtree(vnode_backup_root)

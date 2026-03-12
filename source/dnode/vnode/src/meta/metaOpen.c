@@ -555,13 +555,11 @@ static int32_t metaForceRepair(SMeta **ppMeta, EDmRepairStrategy repairStrategy)
 
   metaInfo("vgId:%d start to generate new meta", TD_VID(pMeta->pVnode));
 
-#if 0
   code = metaBackupCurrentMeta(pVnode);
   if (code != 0) {
     metaError("vgId:%d failed to back up current meta, reason:%s", TD_VID(pVnode), tstrerror(code));
     return code;
   }
-#endif
   // Reset statistics info
   metaResetStatisInfo(pMeta);
 

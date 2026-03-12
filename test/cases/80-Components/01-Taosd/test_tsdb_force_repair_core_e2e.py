@@ -166,6 +166,133 @@ class TestTsdbForceRepairCoreE2E(TestTsdbForceRepairBase):
             if os.path.exists(backup_root) and not keep_backup:
                 shutil.rmtree(backup_root)
 
+    def test_tsdb_force_repair_head_only_rebuild_recovers_real_head_damage(self):
+        """TSDB force repair head-only rebuild should recover real head damage.
+
+        1. Build one real core fixture and corrupt a real `.head` file without changing file size.
+        2. Run force repair with `head_only_rebuild` for the affected fid.
+        3. Verify the original `.data` file remains on disk and the database stays writable after restart.
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+        """
+        fixture = self._prepare_core_fixture()
+        dbname = fixture["dbname"]
+        vnode_id = fixture["vnode_id"]
+        fid = fixture["fid"]
+        backup_root = f"/tmp/tsdb-force-repair-head-only-{int(time.time())}"
+        head_path = fixture["fileset"]["head"]
+        data_path = fixture["fileset"]["data"]
+        data_size_before = os.path.getsize(data_path)
+
+        try:
+            tdDnodes.stop(1)
+            time.sleep(2)
+            self._overwrite_middle_bytes(head_path)
+            code, output = self._run_taosd_with_cfg(
+                self._tsdb_repair_args(
+                    vnode_id,
+                    fid,
+                    strategy="head_only_rebuild",
+                    backup_root=backup_root,
+                    extra_args="--log-output /dev/null",
+                ),
+                timeout_sec=10,
+            )
+        finally:
+            self._restart_taosd_and_wait_ready()
+
+        tdSql.checkEqual(code, 0)
+        tdSql.checkEqual(os.path.isfile(data_path), True)
+        tdSql.checkEqual(os.path.getsize(data_path), data_size_before)
+        tdSql.query(f"select count(*) from {dbname}.t1")
+        repaired_rows = tdSql.queryResult[0][0]
+        tdSql.checkEqual(repaired_rows > 0, True)
+        tdSql.checkEqual(repaired_rows <= fixture["row_count"], True)
+        self._assert_database_writable_after_repair(
+            dbname, "pk_after_head_only_rebuild", 3501
+        )
+        if os.path.exists(backup_root):
+            shutil.rmtree(backup_root)
+
+    def test_tsdb_force_repair_drop_invalid_only_does_not_fix_head_size_mismatch(self):
+        """TSDB force repair default strategy should not fix head size mismatch.
+
+        1. Build one real core fixture and extend its head file to create size mismatch.
+        2. Run force repair without an explicit strategy so it uses `drop_invalid_only`.
+        3. Verify the head file size remains changed, proving deep repair was not applied.
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+        """
+        fixture = self._prepare_core_fixture()
+        vnode_id = fixture["vnode_id"]
+        fid = fixture["fid"]
+        head_path = fixture["fileset"]["head"]
+        head_size_before = os.path.getsize(head_path)
+
+        try:
+            tdDnodes.stop(1)
+            time.sleep(2)
+            self._corrupt_size_mismatch(head_path, mode="extend")
+            head_size_after_corrupt = os.path.getsize(head_path)
+            code, output = self._run_force_repair(
+                vnode_id, fid, timeout_sec=10
+            )
+        finally:
+            self._restart_taosd_and_wait_ready()
+
+        tdSql.checkEqual(code, 0)
+        tdSql.checkEqual(head_size_after_corrupt > head_size_before, True)
+        tdSql.checkEqual(os.path.getsize(head_path), head_size_after_corrupt)
+
+    def test_tsdb_force_repair_multi_target_repairs_two_filesets(self):
+        """TSDB force repair should repair two targeted filesets in one run.
+
+        1. Build one vnode fixture with multiple real filesets.
+        2. Corrupt two targeted heads and run one repair command with two `--repair-target` entries.
+        3. Verify the database remains readable and writable after restart.
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+        """
+        fixture = self._prepare_multi_fileset_core_fixture()
+        dbname = fixture["dbname"]
+        vnode_id = fixture["vnode_id"]
+        target_a = fixture["filesets"][0]
+        target_b = fixture["filesets"][1]
+        backup_root = f"/tmp/tsdb-force-repair-multi-target-{int(time.time())}"
+
+        args = (
+            f"-r --mode force --node-type vnode --backup-path {backup_root} "
+            f"--repair-target {self._tsdb_target(vnode_id, target_a['fid'])} "
+            f"--repair-target {self._tsdb_target(vnode_id, target_b['fid'])} "
+            f"--log-output /dev/null"
+        )
+
+        try:
+            tdDnodes.stop(1)
+            time.sleep(2)
+            self._corrupt_missing_file(target_a["head"])
+            self._overwrite_middle_bytes(target_b["head"])
+            code, output = self._run_taosd_with_cfg(args, timeout_sec=10)
+        finally:
+            self._restart_taosd_and_wait_ready()
+
+        tdSql.checkEqual(code, 0)
+        tdSql.query(f"select count(*) from {dbname}.t1")
+        repaired_rows = tdSql.queryResult[0][0]
+        tdSql.checkEqual(repaired_rows > 0, True)
+        tdSql.checkEqual(repaired_rows <= fixture["row_count"], True)
+        self._assert_database_writable_after_repair(
+            dbname, "pk_after_multi_target_repair", 3601
+        )
+        if os.path.exists(backup_root):
+            shutil.rmtree(backup_root)
+
     def test_tsdb_force_repair_full_rebuild_recovers_real_head_size_mismatch(self):
         """TSDB force repair full rebuild should recover a real head size mismatch.
 
