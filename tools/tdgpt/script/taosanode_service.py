@@ -32,9 +32,7 @@ import time
 import argparse
 import logging
 from logging.handlers import RotatingFileHandler
-from pathlib import Path
 from typing import Optional, List, Dict
-import json
 
 # Platform detection
 IS_WINDOWS = platform.system().lower() == "windows"
@@ -131,7 +129,7 @@ class Config:
 
         # Try to load from taosanode.config.py
         self._load_config(config_path)
-    
+
     def _load_config(self, config_path: Optional[str] = None):
         """从 taosanode.config.py 加载配置"""
         if config_path is None:
@@ -264,13 +262,13 @@ class ProcessManager:
             os.path.join(config.log_dir, 'process_manager.log')
         )
         self._ensure_dirs()
-    
+
     def _ensure_dirs(self):
         """确保必要的目录存在"""
         os.makedirs(self.config.log_dir, exist_ok=True)
         os.makedirs(self.config.data_dir, exist_ok=True)
         os.makedirs(MODEL_PID_DIR, exist_ok=True)
-    
+
     def _get_python_exe(self, venv_dir: Optional[str] = None) -> str:
         """获取 Python 解释器路径"""
         if venv_dir is None:
@@ -284,18 +282,18 @@ class ProcessManager:
         # Check if venv exists
         if not os.path.exists(python_exe):
             self.logger.error(f"Virtual environment not found: {venv_dir}")
-            self.logger.error(f"Please run installation first or check configuration")
+            self.logger.error("Please run installation first or check configuration")
             raise FileNotFoundError(f"Python executable not found: {python_exe}")
 
         return python_exe
-    
+
     def _get_pid_file(self, service_name: str = "taosanode") -> str:
         """获取 PID 文件路径"""
         if service_name == "taosanode":
             return self.config.pid_file
         else:
             return os.path.join(MODEL_PID_DIR, f"{service_name}.pid")
-    
+
     def read_pid(self, service_name: str = "taosanode") -> Optional[int]:
         """读取 PID"""
         pid_file = self._get_pid_file(service_name)
@@ -306,20 +304,20 @@ class ProcessManager:
         except (ValueError, IOError):
             pass
         return None
-    
+
     def write_pid(self, pid: int, service_name: str = "taosanode"):
         """写入 PID"""
         pid_file = self._get_pid_file(service_name)
         os.makedirs(os.path.dirname(pid_file), exist_ok=True)
         with open(pid_file, 'w') as f:
             f.write(str(pid))
-    
+
     def remove_pid(self, service_name: str = "taosanode"):
         """删除 PID 文件"""
         pid_file = self._get_pid_file(service_name)
         if os.path.exists(pid_file):
             os.remove(pid_file)
-    
+
     def is_running(self, service_name: str = "taosanode") -> bool:
         """检查服务是否运行"""
         pid = self.read_pid(service_name)
@@ -369,10 +367,10 @@ class ProcessManager:
         try:
             if IS_WINDOWS:
                 if force:
-                    subprocess.run(["taskkill", "/F", "/PID", str(pid)], 
+                    subprocess.run(["taskkill", "/F", "/PID", str(pid)],
                                  capture_output=True)
                 else:
-                    subprocess.run(["taskkill", "/PID", str(pid)], 
+                    subprocess.run(["taskkill", "/PID", str(pid)],
                                  capture_output=True)
             else:
                 sig = signal.SIGKILL if force else signal.SIGTERM
@@ -391,7 +389,7 @@ class TaosanodeService:
             'TaosanodeService',
             os.path.join(config.log_dir, 'taosanode_service.log')
         )
-    
+
     def start(self) -> bool:
         """启动 taosanode 服务"""
         if self.process_mgr.is_running("taosanode"):
@@ -457,7 +455,7 @@ class TaosanodeService:
                 # Windows: redirect output to log file for debugging
                 log_file = os.path.join(self.config.log_dir, "taosanode_startup.log")
                 with open(log_file, 'a') as log:
-                    proc = subprocess.Popen(
+                    subprocess.Popen(
                         cmd,
                         env=env,
                         cwd=lib_dir,
@@ -467,7 +465,7 @@ class TaosanodeService:
                     )
             else:
                 # Linux: daemon mode handled by gunicorn
-                proc = subprocess.Popen(
+                subprocess.Popen(
                     cmd,
                     env=env,
                     cwd=lib_dir,
@@ -488,7 +486,7 @@ class TaosanodeService:
         except Exception as e:
             self.logger.error(f"Error starting taosanode: {e}")
             return False
-    
+
     def stop(self) -> bool:
         """停止 taosanode 服务"""
         if not self.process_mgr.is_running("taosanode"):
@@ -512,7 +510,7 @@ class TaosanodeService:
         self.process_mgr.remove_pid("taosanode")
         self.logger.info("Taosanode stopped")
         return True
-    
+
     def status(self) -> Dict:
         """获取服务状态"""
         is_running = self.process_mgr.is_running("taosanode")
@@ -610,7 +608,7 @@ class ModelService:
             'ModelService',
             os.path.join(config.log_dir, 'model_service.log')
         )
-    
+
     def _get_model_venv(self, model_name: str) -> str:
         """获取模型对应的虚拟环境"""
         if model_name == "timesfm":
@@ -623,7 +621,7 @@ class ModelService:
             return self.config.moment_venv
         else:
             return self.config.venv_dir
-    
+
     def _build_model_args(self, model_name: str) -> List[str]:
         """构建模型启动参数"""
         model_config = self.config.models.get(model_name)
@@ -639,7 +637,7 @@ class ModelService:
             args = [model_dir, model_config["default_model"], "False"]
 
         return args
-    
+
     def start(self, model_name: str) -> bool:
         """启动模型服务"""
         if model_name == "all":
@@ -742,7 +740,7 @@ class ModelService:
         except Exception as e:
             self.logger.error(f"Error starting model {model_name}: {e}")
             return False
-    
+
     def _start_all(self) -> bool:
         """启动所有模型 - 并发启动以提高效率"""
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -805,7 +803,7 @@ class ModelService:
 
         # Return True only if no required models failed
         return len(failed_models) == 0
-    
+
     def stop(self, model_name: str) -> bool:
         """停止模型服务"""
         if model_name == "all":
@@ -838,7 +836,7 @@ class ModelService:
         self.process_mgr.remove_pid(service_name)
         self.logger.info(f"Model {model_name} stopped")
         return True
-    
+
     def _stop_all(self) -> bool:
         """停止所有模型 - 并发停止"""
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -869,7 +867,7 @@ class ModelService:
         total = len(results)
         self.logger.info(f"Stopped {success}/{total} models")
         return all(results.values())
-    
+
     def status(self) -> List[Dict]:
         """获取所有模型状态"""
         statuses = []
@@ -883,7 +881,7 @@ class ModelService:
                 "running": is_running,
                 "pid": pid,
             })
-        
+
         return statuses
 
 

@@ -145,7 +145,7 @@ def clean_release_dir():
     if os.path.exists(install_info.release_dir):
         shutil.rmtree(install_info.release_dir)
         logging.info(f"Cleaned release directory: {install_info.release_dir}")
-    
+
     os.makedirs(install_info.release_dir, exist_ok=True)
     os.makedirs(install_info.install_dir, exist_ok=True)
     logging.info(f"Created release directory: {install_info.release_dir}")
@@ -155,16 +155,16 @@ def copy_config_files():
     """Copy configuration files"""
     cfg_dir = os.path.join(install_info.install_dir, "cfg")
     os.makedirs(cfg_dir, exist_ok=True)
-    
+
     source_cfg = os.path.join(install_info.source_dir, "cfg")
-    
+
     # Copy taosanode.config.py
     src_config = os.path.join(source_cfg, "taosanode.config.py")
     dst_config = os.path.join(cfg_dir, "taosanode.config.py")
     if os.path.exists(src_config):
         shutil.copy2(src_config, dst_config)
-        logging.info(f"Copied taosanode.config.py")
-    
+        logging.info("Copied taosanode.config.py")
+
     logging.info("Configuration files copied")
 
 
@@ -172,21 +172,21 @@ def copy_python_files():
     """Copy Python source files"""
     lib_dir = os.path.join(install_info.install_dir, "lib")
     os.makedirs(lib_dir, exist_ok=True)
-    
+
     source_dir = install_info.source_dir
-    
+
     # Copy taosanalytics directory
     src_analytics = os.path.join(source_dir, "taosanalytics")
     dst_analytics = os.path.join(lib_dir, "taosanalytics")
-    
+
     if os.path.exists(dst_analytics):
         shutil.rmtree(dst_analytics)
-    
+
     # Copy directory, excluding __pycache__ and .pyc files
     shutil.copytree(src_analytics, dst_analytics,
                     ignore=shutil.ignore_patterns('__pycache__', '*.pyc', '.git*'))
     logging.info(f"Copied taosanalytics to {dst_analytics}")
-    
+
     # Update version in __init__.py
     init_file = os.path.join(dst_analytics, "__init__.py")
     if os.path.exists(init_file):
@@ -196,7 +196,7 @@ def copy_python_files():
         with open(init_file, 'w', encoding='utf-8') as f:
             f.write(content)
         logging.info(f"Updated version to {tdgpt_version.version} in __init__.py")
-    
+
     logging.info("Python files copied")
 
 
@@ -204,7 +204,7 @@ def copy_resource_files():
     """Copy resource files"""
     resource_dir = os.path.join(install_info.install_dir, "resource")
     os.makedirs(resource_dir, exist_ok=True)
-    
+
     source_resource = os.path.join(install_info.source_dir, "resource")
     if os.path.exists(source_resource):
         for item in os.listdir(source_resource):
@@ -214,7 +214,7 @@ def copy_resource_files():
                 shutil.copytree(src, dst, dirs_exist_ok=True)
             else:
                 shutil.copy2(src, dst)
-        logging.info(f"Copied resource files")
+        logging.info("Copied resource files")
 
 
 def copy_requirements():
@@ -265,22 +265,22 @@ def copy_model_files():
     if not install_info.model_dir or not os.path.exists(install_info.model_dir):
         logging.info("No model directory specified or directory does not exist, skipping model files")
         return
-    
+
     model_dir = os.path.join(install_info.install_dir, "model")
     os.makedirs(model_dir, exist_ok=True)
-    
+
     # Copy tdtsfm model
     tdtsfm_file = os.path.join(install_info.model_dir, "tdtsfm.tar.gz")
     if os.path.exists(tdtsfm_file):
         shutil.copy2(tdtsfm_file, model_dir)
         logging.info("Copied tdtsfm model")
-    
+
     # Copy timemoe model
     timemoe_file = os.path.join(install_info.model_dir, "timemoe.tar.gz")
     if os.path.exists(timemoe_file):
         shutil.copy2(timemoe_file, model_dir)
         logging.info("Copied timemoe model")
-    
+
     # Copy additional models if --all-models is specified
     if install_info.all_models:
         for model_name in ["chronos", "moment-large", "moirai", "timesfm"]:
@@ -288,7 +288,7 @@ def copy_model_files():
             if os.path.exists(model_file):
                 shutil.copy2(model_file, model_dir)
                 logging.info(f"Copied {model_name} model")
-    
+
     logging.info("Model files copied")
 
 
@@ -296,11 +296,12 @@ def copy_enterprise_files():
     """Copy enterprise-specific files"""
     if tdgpt_version.ver_type != "enterprise":
         return
-    
+
     # Copy enterprise tools from outside
-    enterprise_src = os.path.join(install_info.source_dir, "..", "..", "..", "enterprise", "src", "kit", "tools", "tdgpt", "taosanalytics", "misc")
+    enterprise_src = os.path.join(install_info.source_dir, "..", "..", "..", "enterprise",
+                                  "src", "kit", "tools", "tdgpt", "taosanalytics", "misc")
     enterprise_dst = os.path.join(install_info.install_dir, "lib", "taosanalytics", "misc")
-    
+
     if os.path.exists(enterprise_src) and os.path.exists(enterprise_dst):
         for item in os.listdir(enterprise_src):
             src = os.path.join(enterprise_src, item)
@@ -314,23 +315,23 @@ def copy_service_scripts():
     """Copy unified Python service management scripts"""
     bin_dir = os.path.join(install_info.install_dir, "bin")
     os.makedirs(bin_dir, exist_ok=True)
-    
+
     source_script_dir = os.path.join(install_info.source_dir, "script")
-    
+
     # Copy taosanode_service.py (unified service manager)
     src_service = os.path.join(source_script_dir, "taosanode_service.py")
     dst_service = os.path.join(bin_dir, "taosanode_service.py")
     if os.path.exists(src_service):
         shutil.copy2(src_service, dst_service)
         logging.info("Copied taosanode_service.py")
-    
+
     # Create wrapper batch scripts for Windows
     create_service_wrappers(bin_dir)
 
 
 def create_service_wrappers(bin_dir):
     """Create Windows batch wrappers for Python service scripts"""
-    
+
     # start-taosanode.bat
     start_bat = os.path.join(bin_dir, "start-taosanode.bat")
     with open(start_bat, 'w') as f:
@@ -340,7 +341,7 @@ REM Start taosanode service
 python "%~dp0taosanode_service.py" start %*
 """)
     logging.info("Created start-taosanode.bat")
-    
+
     # stop-taosanode.bat
     stop_bat = os.path.join(bin_dir, "stop-taosanode.bat")
     with open(stop_bat, 'w') as f:
@@ -350,7 +351,7 @@ REM Stop taosanode service
 python "%~dp0taosanode_service.py" stop %*
 """)
     logging.info("Created stop-taosanode.bat")
-    
+
     # status-taosanode.bat
     status_bat = os.path.join(bin_dir, "status-taosanode.bat")
     with open(status_bat, 'w') as f:
@@ -361,7 +362,7 @@ python "%~dp0taosanode_service.py" status %*
 pause
 """)
     logging.info("Created status-taosanode.bat")
-    
+
     # start-model.bat
     start_model_bat = os.path.join(bin_dir, "start-model.bat")
     with open(start_model_bat, 'w') as f:
@@ -377,7 +378,7 @@ if "%~1"=="" (
 python "%~dp0taosanode_service.py" model-start %*
 """)
     logging.info("Created start-model.bat")
-    
+
     # stop-model.bat
     stop_model_bat = os.path.join(bin_dir, "stop-model.bat")
     with open(stop_model_bat, 'w') as f:
@@ -392,7 +393,7 @@ if "%~1"=="" (
 python "%~dp0taosanode_service.py" model-stop %*
 """)
     logging.info("Created stop-model.bat")
-    
+
     # status-model.bat
     status_model_bat = os.path.join(bin_dir, "status-model.bat")
     with open(status_model_bat, 'w') as f:
@@ -532,13 +533,13 @@ def check_inno_setup():
         r"C:\Program Files (x86)\Inno Setup 5\ISCC.exe",
         r"C:\Program Files\Inno Setup 5\ISCC.exe",
     ]
-    
+
     for path in iscc_paths:
         if os.path.exists(path):
             install_info.iscc_path = path
             logging.info(f"Found Inno Setup compiler: {path}")
             return True
-    
+
     logging.error("Inno Setup compiler (ISCC.exe) not found!")
     logging.error("Please install Inno Setup from https://jrsoftware.org/isdl.php")
     return False
@@ -547,11 +548,11 @@ def check_inno_setup():
 def create_iss_script():
     """Create Inno Setup script"""
     iss_path = os.path.join(install_info.release_dir, "tdgpt.iss")
-    
+
     # Pre-process paths for Windows (use forward slashes for ISS file)
     install_dir_iss = install_info.install_dir.replace('\\', '/')
     release_dir_iss = install_info.release_dir.replace('\\', '/')
-    
+
     iss_content = f"""; TDGPT Windows Installer Script
 ; Generated by win_release.py
 
@@ -676,10 +677,10 @@ begin
   end;
 end;
 """
-    
+
     with open(iss_path, 'w', encoding='utf-8') as f:
         f.write(iss_content)
-    
+
     logging.info(f"Created Inno Setup script: {iss_path}")
     return iss_path
 
@@ -688,10 +689,10 @@ def build_installer(iss_path):
     """Build the installer using Inno Setup"""
     if not check_inno_setup():
         return False
-    
+
     cmd = f'"{install_info.iscc_path}" "{iss_path}"'
     logging.info(f"Building installer with command: {cmd}")
-    
+
     try:
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         if result.returncode == 0:
@@ -704,7 +705,7 @@ def build_installer(iss_path):
                 logging.warning("Installer may have been created, but file not found at expected location")
                 return True
         else:
-            logging.error(f"Failed to build installer:")
+            logging.error("Failed to build installer:")
             logging.error(result.stdout)
             logging.error(result.stderr)
             return False
@@ -787,12 +788,12 @@ def create_winsw_config():
 def main():
     """Main function"""
     check_python_version()
-    args = parse_arguments()
+    parse_arguments()
     print_params()
-    
+
     # Clean and prepare release directory
     clean_release_dir()
-    
+
     # Copy all necessary files
     copy_config_files()
     copy_python_files()
@@ -808,10 +809,10 @@ def main():
     # Create batch scripts
     create_install_script()
     create_uninstall_script()
-    
+
     # Create Inno Setup script and build installer
     iss_path = create_iss_script()
-    
+
     if build_installer(iss_path):
         logging.info("=" * 60)
         logging.info("Packaging completed successfully!")
@@ -826,7 +827,7 @@ def main():
         logging.info(f"Package: {zip_path}")
         logging.info("=" * 60)
         return 1
-    
+
     return 0
 
 

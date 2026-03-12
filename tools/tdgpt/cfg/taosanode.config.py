@@ -42,7 +42,7 @@ loglevel = 'debug'
 # Set process name
 proc_name = 'tdgpt_taosanode_app'
 
-# set the pid file 
+# set the pid file
 pidfile = 'c:/TDengine/taosanode/taosanode.pid' if on_windows else '/usr/local/taos/taosanode/taosanode.pid'
 
 # set the taosanoded basic python library directory
