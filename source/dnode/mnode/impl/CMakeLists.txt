@@ -48,6 +48,9 @@ target_link_libraries(
   mnode scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw totp xnode txnode mgmt_mnode
 )
 
+# Add OpenSSL dependency for mndXnode.c
+DEP_ext_ssl(mnode)
+
 if(DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
 endif()
