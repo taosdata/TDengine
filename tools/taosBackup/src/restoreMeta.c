@@ -1906,8 +1906,8 @@ static int restoreStbTags(DBInfo *dbInfo, StbInfo *stbInfo) {
 
     logDebug("found %d tag files for %s.%s", fileCnt, dbName, stbName);
 
-    // Sum row counts from .dat file headers to set ctbTotalCur for progress display.
-    // Parquet files don't expose a row count without full scan, so treat as 0.
+    // Sum row counts from tag file headers to set ctbTotalCur for progress display.
+    // .dat: read numRows from binary header.  .par: read from Parquet footer metadata.
     {
         int64_t totalCtbs = 0;
         for (int i = 0; i < fileCnt; i++) {
@@ -1919,9 +1919,18 @@ static int restoreStbTags(DBInfo *dbInfo, StbInfo *stbInfo) {
                     totalCtbs += pf->header.numRows;
                     closeTaosFileRead(pf);
                 }
+            } else if (ext && strcmp(ext, ".par") == 0) {
+                int peekCode = 0;
+                ParquetReader *pr = parquetReaderOpen(tagFiles[i], &peekCode);
+                if (pr) {
+                    int64_t n = parquetReaderGetNumRows(pr);
+                    if (n > 0) totalCtbs += n;
+                    parquetReaderClose(pr);
+                }
             }
         }
         g_progress.ctbTotalCur = totalCtbs;
+        atomic_add_fetch_64(&g_progress.ctbTotalAll, totalCtbs);
         atomic_store_64(&g_progress.ctbDoneCur, 0);
     }
 
@@ -2102,6 +2111,7 @@ int restoreDatabaseMeta(const char *dbName) {
     atomic_store_64(&g_progress.ctbDoneCur,  0);
     atomic_store_64(&g_progress.ctbDoneAll,  0);
     atomic_store_64(&g_progress.ctbTotalAll, 0);
+    g_progress.startMs = taosGetTimestampMs();
 
     for (int i = 0; stbNames[i] != NULL; i++) {
         if (g_interrupted) {

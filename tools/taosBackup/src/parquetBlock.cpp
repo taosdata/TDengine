@@ -841,6 +841,11 @@ void parquetReaderClose(ParquetReader *pr) {
     if (pr) delete pr;
 }
 
+int64_t parquetReaderGetNumRows(ParquetReader *pr) {
+    if (!pr || !pr->reader) return -1;
+    return pr->reader->parquet_reader()->metadata()->num_rows();
+}
+
 int parquetReaderGetFields(ParquetReader *pr, TAOS_FIELD **outFields) {
     if (!pr || !outFields) return TSDB_CODE_BCK_INVALID_PARAM;
     *outFields = pr->fields.data();
