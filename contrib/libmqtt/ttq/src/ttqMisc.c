@@ -24,7 +24,7 @@ FILE *tmqtt__fopen(const char *path, const char *mode, bool restrict_read) {
 
     old_mask = umask(0077);
     fptr = fopen(path, mode);
-    umask(old_mask);
+    UNUSED(umask(old_mask));
   } else {
     fptr = fopen(path, mode);
   }
@@ -46,7 +46,7 @@ FILE *tmqtt__fopen(const char *path, const char *mode, bool restrict_read) {
       char          buf[4096];
       struct passwd pw, *result;
 
-      getpwuid_r(getuid(), &pw, buf, sizeof(buf), &result);
+      UNUSED(getpwuid_r(getuid(), &pw, buf, sizeof(buf), &result));
       if (result) {
         ttq_log(NULL, TTQ_LOG_WARNING,
                 "Warning: File %s owner is not %s. Future versions will refuse to load this file."
@@ -58,7 +58,7 @@ FILE *tmqtt__fopen(const char *path, const char *mode, bool restrict_read) {
       char         buf[4096];
       struct group grp, *result;
 
-      getgrgid_r(getgid(), &grp, buf, sizeof(buf), &result);
+      UNUSED(getgrgid_r(getgid(), &grp, buf, sizeof(buf), &result));
       if (result) {
         ttq_log(NULL, TTQ_LOG_WARNING,
                 "Warning: File %s group is not %s. Future versions will refuse to load this file.", path,

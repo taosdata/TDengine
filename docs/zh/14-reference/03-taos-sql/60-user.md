@@ -54,10 +54,10 @@ alter all dnodes 'EnableAdvancedSecurity' '1'
 - `ENABLE` 表示是否启用该用户。`1` 表示启用，`0` 表示未启用，未启用的用户不能登录系统。缺省值为 `1`。
 - `CREATEDB` 表示该用户是否能够创建数据库。`1` 表示可以创建，`0` 表示无权创建。缺省值为 `0`。从企业版 v3.3.2.0 开始支持。
 - `CHANGEPASS` 表示用户是否能够或必须修改密码。`2` 表示可以修改，`1`表示必须修改，`0`表示不能修改。缺省值为`2`。从企业版 v3.4.0.0 开始支持。
-- `SESSION_PER_USER` 限制用户同时建立的数据库连接数量，`enableAdvancedSecurity` 打开时默认 32，否则默认 UNLIMITED。最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
-- `CONNECT_TIME` 限制单次会话最大持续时间，单位为分钟，`enableAdvancedSecurity` 打开时默认 480，否则默认 UNLIMITED。最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
-- `CONNECT_IDLE_TIME` 允许的会话最大空闲时间，单位为分钟，`enableAdvancedSecurity` 打开时默认 30，否则默认 UNLIMITED。最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
-- `CALL_PER_SESSION` 单会话最大并发子调用数量，`enableAdvancedSecurity` 打开时默认 128，否则默认 UNLIMITED。最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
+- `SESSION_PER_USER` 限制用户同时建立的数据库连接数量，`enableAdvancedSecurity` 打开时默认 32，否则默认 -1（UNLIMITED，不限制）。最小 1，设置为 -1 或 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
+- `CONNECT_TIME` 限制单次会话最大持续时间，单位为分钟，`enableAdvancedSecurity` 打开时默认 480，否则默认 -1（UNLIMITED，不限制）。最小 1，设置为 -1 或 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
+- `CONNECT_IDLE_TIME` 允许的会话最大空闲时间，单位为分钟，`enableAdvancedSecurity` 打开时默认 30，否则默认 -1（UNLIMITED，不限制）。最小 1，设置为 -1 或 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
+- `CALL_PER_SESSION` 单会话最大并发子调用数量，`enableAdvancedSecurity` 打开时默认 128，否则默认 -1（UNLIMITED，不限制）。最小 1，设置为 -1 或 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `VNODE_PER_CALL` 单调用可以涉及的最大 vnode 数量。默认 -1，代表无限制。从企业版 v3.4.0.0 开始支持。
 - `FAILED_LOGIN_ATTEMPTS` 允许的连续失败登录次数，超过次数后账户将被锁定，`enableAdvancedSecurity` 打开时默认 3，否则默认 UNLIMITED。最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `PASSWORD_LOCK_TIME` 账户因登录失败被锁定后的解锁等待时间，单位分钟，`enableAdvancedSecurity` 打开时默认 1440，否则默认 1。最小 1，设置为 UNLIMITED 则永久锁定。从企业版 v3.4.0.0 开始支持。

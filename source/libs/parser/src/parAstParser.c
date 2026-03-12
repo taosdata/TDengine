@@ -1523,25 +1523,15 @@ static int32_t collectMetaKeyFromGrantImpl(SCollectMetaKeyCxt* pCxt, SGrantStmt*
       }
     }
   } else if (TSDB_ALTER_ROLE_PRIVILEGES == pStmt->optrType) {
-    bool isRealObj = ('\0' != pStmt->objName[0] && strncmp(pStmt->objName, "*", TSDB_OBJ_NAME_LEN) != 0);
+    bool isRealObj = IS_SPECIFIC_OBJ(pStmt->objName);
     if (isRealObj) {
       code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->objName, pCxt->pMetaCache);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      if (isRealObj && '\0' != pStmt->tabName[0] && strncmp(pStmt->tabName, "*", TSDB_TABLE_NAME_LEN) != 0) {
-        EPrivObjType objType = PRIV_OBJ_TBL;
-        SPrivIter    privIter = {0};
-        privIterInit(&privIter, &pStmt->privileges.privSet);
-#if 0
-        SPrivInfo* pPrivInfo = NULL;
-        while (privIterNext(&privIter, &pPrivInfo)) {
-          break;
-        }
-        if (pPrivInfo) objType = pPrivInfo->objType;
-#endif
+      if (isRealObj && IS_SPECIFIC_OBJ(pStmt->tabName)) {
         if (PRIV_OBJ_TBL == pStmt->privileges.objType) {
           code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, pCxt->pMetaCache);
-        } else if (PRIV_OBJ_VIEW == pStmt->privileges.objType) {
+        } else if (PRIV_OBJ_VIEW == pStmt->privileges.objType || PRIV_OBJ_NONE == pStmt->privileges.objType) {
           code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, pCxt->pMetaCache);
           pCxt->pMetaCache->forceFetchViewMeta = true;
         } else {

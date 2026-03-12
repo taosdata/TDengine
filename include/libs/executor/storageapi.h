@@ -359,14 +359,6 @@ typedef struct SUpdateInfo {
   __compar_fn_t comparePkCol;
 } SUpdateInfo;
 
-typedef struct SRecDataInfo {
-  STimeWindow calWin;
-  uint64_t    tableUid;
-  int64_t     dataVersion;
-  EStreamType mode;
-  char        pPkColData[];
-} SRecDataInfo;
-
 typedef struct SScanRange {
   STimeWindow win;
   STimeWindow calWin;
@@ -403,7 +395,6 @@ typedef struct STableTsDataState {
   int32_t          curRecId;
   void*            pStreamTaskState;
   SArray*          pScanRanges;
-  SRecDataInfo*    pRecValueBuff;
   int32_t          recValueLen;
   SStreamStateCur* pRecCur;
   int32_t          cfgIndex;

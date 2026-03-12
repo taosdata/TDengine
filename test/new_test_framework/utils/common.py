@@ -22,6 +22,7 @@ import toml
 import subprocess
 import os
 import platform
+import tempfile
 from .boundary import DataBoundary
 import taos
 from .log import *
@@ -3047,14 +3048,20 @@ class TDCom:
             return self.query_result_file
 
     def compare_result_files(self, file1, file2):
+        normalized_file1 = None
+        normalized_file2 = None
         try:
             # use subprocess.run to execute  diff/fc commands
             # print(file1, file2)
             if platform.system().lower() != "windows":
+                normalized_file1 = self._normalize_diff_file(file1)
+                normalized_file2 = self._normalize_diff_file(file2)
                 cmd = "diff"
                 tdLog.info(f"cmd: {cmd} -u --color {file1} {file2}")
                 result = subprocess.run(
-                    [cmd, "-u", "--color", file1, file2], text=True, capture_output=True
+                    [cmd, "-u", "--color", normalized_file1, normalized_file2],
+                    text=True,
+                    capture_output=True,
                 )
                 tdLog.info(f"result: {result}")
             else:
@@ -3093,6 +3100,23 @@ class TDCom:
             )
         except Exception as e:
             tdLog.debug(f"An error occurred: {e}")
+        finally:
+            for normalized_file in (normalized_file1, normalized_file2):
+                if normalized_file and os.path.exists(normalized_file):
+                    os.remove(normalized_file)
+
+    def _normalize_diff_file(self, input_file):
+        with open(input_file, "r", encoding="utf-8", newline="") as fin:
+            with tempfile.NamedTemporaryFile(
+                mode="w", delete=False, encoding="utf-8", newline=""
+            ) as fout:
+                for line in fin:
+                    if re.fullmatch(r"[ \t]+\|\r?\n", line):
+                        line_ending = "\r\n" if line.endswith("\r\n") else "\n"
+                        fout.write("|" + line_ending)
+                    else:
+                        fout.write(line)
+                return fout.name
 
     def compare_query_with_result_file(self, idx, sql, resultFile, test_case):
         self.generate_query_result_file(test_case, idx, sql)

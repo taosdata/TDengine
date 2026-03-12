@@ -188,7 +188,6 @@ This document compares the configuration parameters of taosd (server-side) and t
 | **Debugging Related** | | |
 | enableCoreFile | both | Whether to generate a core file when crashing |
 | configDir | both | Directory where the configuration files are located |
-| forceReadConfig | taosd | Whether to force reading configuration from file |
 | scriptDir | both | Directory for internal test tool scripts |
 | assert | both | Assertion control switch |
 | randErrorChance | both | Internal parameter, used for random failure testing |
