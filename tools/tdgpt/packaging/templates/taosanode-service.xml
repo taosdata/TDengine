@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<service>
+  <id>Taosanode</id>
+  <name>TDengine Analytics Node</name>
+  <description>TDengine TDGPT Analytics Service</description>
+  <executable>%BASE%\venv\Scripts\python.exe</executable>
+  <arguments>%BASE%\bin\taosanode_service.py start --foreground</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+  <logpath>%BASE%\log</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="20 sec"/>
+  <resetfailure>1 hour</resetfailure>
+  <env name="PYTHONPATH" value="%BASE%\lib\taosanalytics"/>
+  <env name="TAOSANODE_CONFIG" value="%BASE%\cfg\taosanode.config.py"/>
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <stopparentprocessfirst>true</stopparentprocessfirst>
+  <stoptimeout>30 sec</stoptimeout>
+</service>
