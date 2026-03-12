@@ -676,6 +676,14 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
 
+        if (pTblScanNode->pPrimaryCond) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_PRIMARY_FILTER_FORMAT);
+          QRY_ERR_RET(nodesNodeToSQL(pTblScanNode->pPrimaryCond, tbuf + VARSTR_HEADER_SIZE,
+                                     TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        }
+
         if (qExplainCouldApplyTagIndex(pResNode->pPlan)) {
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TAG_INDEX_FORMAT);
           QRY_ERR_RET(nodesNodeToSQL(pResNode->pPlan->pTagIndexCond, tbuf + VARSTR_HEADER_SIZE,
@@ -2529,19 +2537,13 @@ static int32_t qExplainGenerateRsp(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) 
   return TSDB_CODE_SUCCESS;
 }
 
-void qExplainSetCurrPlan(SExplainCtx *pCtx, int32_t subJobId) {
-  pCtx->currPlanId = subJobId;
-  pCtx->pCurrPlanCtx = EXPLAIN_GET_CUR_PLAN_CTX(pCtx);
-}
-
-int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t groupId, SRetrieveTableRsp **pRsp) {
-  if(!pCtx || !pRspMsg || !pRsp) return TSDB_CODE_INVALID_PARA;
+int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainPlanCtx *pCurrPlanCtx, SExplainRsp *pRspMsg, int32_t groupId, SRetrieveTableRsp **pRsp) {
+  if (!pCtx || !pCurrPlanCtx || !pRspMsg || !pRsp) return TSDB_CODE_INVALID_PARA;
   SExplainResNode *node = NULL;
   int32_t          code = 0;
   bool             groupDone = false;
-  SExplainCtx     *ctx = (SExplainCtx *)pCtx;
 
-  SExplainGroup *group = taosHashGet(ctx->pCurrPlanCtx->groupHash, &groupId, sizeof(groupId));
+  SExplainGroup *group = taosHashGet(pCurrPlanCtx->groupHash, &groupId, sizeof(groupId));
   if (NULL == group) {
     qError("group %d not in groupHash", groupId);
     tFreeSExplainRsp(pRspMsg);
@@ -2641,3 +2643,8 @@ int32_t qExecExplainEnd(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+SExplainPlanCtx* qExplainGetCurrPlan(SExplainCtx *pCtx, int32_t subJobId) {
+  return EXPLAIN_GET_CUR_PLAN_CTX(pCtx, subJobId);
+}
+

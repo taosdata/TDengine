@@ -159,7 +159,7 @@ int packet__write(struct tmqtt *ttq) {
   ttq_pthread_mutex_unlock(&ttq->out_packet_mutex);
 
   if (ttq->current_out_packet) {
-    ttqMuxAddOut(ttq);
+    UNUSED(ttqMuxAddOut(ttq));
   }
 
   state = tmqtt__get_state(ttq);
@@ -223,7 +223,7 @@ int packet__write(struct tmqtt *ttq) {
   }
 
   if (NULL == ttq->current_out_packet) {
-    ttqMuxRemoveOut(ttq);
+    UNUSED(ttqMuxRemoveOut(ttq));
   }
 
   ttq_pthread_mutex_unlock(&ttq->current_out_packet_mutex);
