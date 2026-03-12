@@ -43,10 +43,10 @@ loglevel = 'debug'
 proc_name = 'tdgpt_taosanode_app'
 
 # set the pid file 
-pidfile = 'c:/TDengine/tdgpt/taosanode.pid' if on_windows else '/usr/local/taos/taosanode/taosanode.pid'
+pidfile = 'c:/TDengine/taosanode/taosanode.pid' if on_windows else '/usr/local/taos/taosanode/taosanode.pid'
 
 # set the taosanoded basic python library directory
-pythonpath = 'c:/TDengine/tdgpt/taosanode/taosanalytics/' if on_windows else '/usr/local/taos/taosanode/lib/taosanalytics/'
+pythonpath = 'c:/TDengine/taosanode/lib/taosanalytics/' if on_windows else '/usr/local/taos/taosanode/lib/taosanalytics/'
 
 # wsgi app name
 wsgi_app = 'app:app'
@@ -57,10 +57,10 @@ preload_app = True
 # [taosanode]
 # The following configuration parameters are valid on both Windows and Linux system.
 # default app log file
-app_log = 'c:/TDengine/tdgpt/log/taosanode.app.log' if on_windows else '/var/log/taos/taosanode/taosanode.app.log'
+app_log = 'c:/TDengine/taosanode/log/taosanode.app.log' if on_windows else '/var/log/taos/taosanode/taosanode.app.log'
 
 # model storage directory
-model_dir = 'c:/TDengine/tdgpt/model/' if on_windows else '/usr/local/taos/taosanode/model/'
+model_dir = 'c:/TDengine/taosanode/model/' if on_windows else '/usr/local/taos/taosanode/model/'
 
 # default log level
 log_level = 'DEBUG'
@@ -71,3 +71,54 @@ draw_result = False
 # moe default service host
 tdtsfm_1 = 'http://127.0.0.1:6036/tdtsfm'
 timemoe_fc = 'http://127.0.0.1:6037/ds_predict'
+
+# Model configuration - defines all available models
+# Required models: tdtsfm, timemoe (must exist, error if missing)
+# Optional models: timesfm, moirai, chronos, moment (skip if not found)
+models = {
+    "tdtsfm": {
+        "script": "tdtsfm-server.py",
+        "default_model": None,
+        "port": 6036,
+        "required": True,  # Must exist
+    },
+    "timemoe": {
+        "script": "timemoe-server.py",
+        "default_model": "Maple728/TimeMoE-200M",
+        "port": 6037,
+        "required": True,  # Must exist
+    },
+    "timesfm": {
+        "script": "timesfm-server.py",
+        "default_model": "google/timesfm-2.0-500m-pytorch",
+        "port": 0,
+        "required": False,  # Optional
+    },
+    "moirai": {
+        "script": "moirai-server.py",
+        "default_model": "Salesforce/moirai-moe-1.0-R-base",
+        "port": 0,
+        "required": False,  # Optional
+    },
+    "chronos": {
+        "script": "chronos-server.py",
+        "default_model": "amazon/chronos-bolt-base",
+        "port": 0,
+        "required": False,  # Optional
+    },
+    "moment": {
+        "script": "moment-server.py",
+        "default_model": "AutonLab/MOMENT-1-large",
+        "port": 0,
+        "required": False,  # Optional
+    },
+}
+
+# Windows下waitress服务器配置（仅在Windows系统上使用）
+waitress_config = {
+    'threads': 4,                    # 工作线程数
+    'channel_timeout': 1200,         # 通道超时（秒）
+    'connection_limit': 1000,        # 最大连接数
+    'cleanup_interval': 30,          # 清理间隔（秒）
+    'log_socket_errors': True        # 记录socket错误
+}
