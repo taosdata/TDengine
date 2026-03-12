@@ -246,6 +246,16 @@ class TestTsdbForceRepair:
             tdSql.checkEqual(reason in log_text, True)
 
     def test_force_repair_fixture_builder_exposes_real_fileset(self):
+        """TSDB force repair fixture builder should expose one real core fileset.
+
+        1. Build a real core fixture from on-disk vnode data.
+        2. Verify the fixture reports vnode, fid, and row count.
+        3. Verify the resolved head and data files exist on disk.
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+        """
         fixture = self._prepare_core_fixture()
 
         tdSql.checkEqual(fixture["vnode_id"] > 0, True)
@@ -255,6 +265,16 @@ class TestTsdbForceRepair:
         tdSql.checkEqual(os.path.isfile(fixture["fileset"]["data"]), True)
 
     def test_force_repair_multi_fileset_fixture_exposes_multiple_real_filesets(self):
+        """TSDB force repair fixture builder should expose multiple real core filesets.
+
+        1. Build a multi-fileset core fixture from one vnode.
+        2. Verify at least two distinct filesets are returned.
+        3. Verify companion head and data files exist for those filesets.
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+        """
         fixture = self._prepare_multi_fileset_core_fixture()
 
         tdSql.checkEqual(fixture["vnode_id"] > 0, True)
@@ -264,6 +284,16 @@ class TestTsdbForceRepair:
         tdSql.checkEqual(os.path.isfile(fixture["filesets"][1]["data"]), True)
 
     def test_force_repair_stt_fixture_exposes_real_stt_file(self):
+        """TSDB force repair fixture builder should expose one real stt file.
+
+        1. Build a real stt fixture from flushed vnode data.
+        2. Verify the fixture resolves vnode, fid, and stt entry count.
+        3. Verify the referenced stt file exists on disk.
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+        """
         fixture = self._prepare_stt_fixture()
 
         tdSql.checkEqual(fixture["vnode_id"] > 0, True)
@@ -272,6 +302,16 @@ class TestTsdbForceRepair:
         tdSql.checkEqual(os.path.isfile(fixture["stt_path"]), True)
 
     def test_force_repair_corrupt_size_mismatch_changes_file_size(self):
+        """TSDB force repair size-mismatch injector should alter file size.
+
+        1. Create a temporary file with known size.
+        2. Apply the size-mismatch corruption helper.
+        3. Verify the helper reports size-mismatch and the file size changed.
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+        """
         with tempfile.NamedTemporaryFile(delete=False) as fp:
             fp.write(b"x" * 64)
             path = fp.name
@@ -288,6 +328,16 @@ class TestTsdbForceRepair:
                 os.remove(path)
 
     def test_tsdb_force_repair_noop_on_healthy_fileset(self):
+        """TSDB force repair should leave a healthy fileset readable and writable.
+
+        1. Build one real healthy core fixture.
+        2. Run force repair against that fileset without injecting corruption.
+        3. Verify row count is unchanged and the table remains writable after restart.
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+        """
         fixture = self._prepare_core_fixture()
         dbname = fixture["dbname"]
         vnode_id = fixture["vnode_id"]
@@ -313,6 +363,16 @@ class TestTsdbForceRepair:
         strict=False,
     )
     def test_tsdb_force_repair_missing_head_real_fileset_remains_writable(self):
+        """TSDB force repair should keep the database writable after missing-head repair.
+
+        1. Build one real core fixture and remove its head file.
+        2. Run force repair with backup enabled for the affected fid.
+        3. Verify repair output is persisted and the database remains writable after restart.
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+        """
         fixture = self._prepare_core_fixture()
         dbname = fixture["dbname"]
         vnode_id = fixture["vnode_id"]
@@ -344,6 +404,16 @@ class TestTsdbForceRepair:
         strict=False,
     )
     def test_tsdb_force_repair_missing_old_head_in_multi_fileset_keeps_database_writable(self):
+        """TSDB force repair should keep multi-fileset databases writable after old-head repair.
+
+        1. Build one vnode fixture with multiple real core filesets.
+        2. Remove the head file from an older fileset and run force repair.
+        3. Verify remaining data stays readable and the table remains writable after restart.
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+        """
         fixture = self._prepare_multi_fileset_core_fixture()
         dbname = fixture["dbname"]
         vnode_id = fixture["vnode_id"]
@@ -369,6 +439,16 @@ class TestTsdbForceRepair:
         strict=False,
     )
     def test_tsdb_force_repair_full_rebuild_recovers_real_head_size_mismatch(self):
+        """TSDB force repair full rebuild should recover real head size mismatch.
+
+        1. Build one real core fixture and truncate its head file to create a size mismatch.
+        2. Run force repair with `full_rebuild` for the affected fid.
+        3. Verify rows remain queryable and the database stays writable after restart.
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+        """
         fixture = self._prepare_core_fixture()
         dbname = fixture["dbname"]
         vnode_id = fixture["vnode_id"]
@@ -394,6 +474,16 @@ class TestTsdbForceRepair:
         strict=False,
     )
     def test_tsdb_force_repair_missing_stt_real_fileset_remains_writable(self):
+        """TSDB force repair should keep the database writable after missing-stt repair.
+
+        1. Build one real stt fixture and remove its stt file.
+        2. Run force repair for the affected fid.
+        3. Verify the table still accepts writes after the node restarts.
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+        """
         fixture = self._prepare_stt_fixture()
         dbname = fixture["dbname"]
         vnode_id = fixture["vnode_id"]
