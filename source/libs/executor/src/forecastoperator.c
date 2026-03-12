@@ -441,7 +441,7 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (pResBlock->info.rows > 0) {
       (*ppRes) = pResBlock;
       qDebug("%s group:%" PRId64 ", return to upstream, blocks:%d", pId, pResBlock->info.id.groupId, numOfBlocks);
-      recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+      recordOpExecEnd(pOperator, (*ppRes)->info.rows);
       return code;
     }
   }
@@ -463,7 +463,7 @@ _end:
   }
 
   (*ppRes) = (pResBlock->info.rows == 0) ? NULL : pResBlock;
-  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 

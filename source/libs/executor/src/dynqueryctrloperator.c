@@ -1946,7 +1946,7 @@ _return:
   } else {
     code = seqStableJoinComposeRes(pStbJoin, *pRes);
   }
-  recordOpExecEnd(pOperator, *pRes != NULL && (*pRes)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*pRes) ? (*pRes)->info.rows : 0);
   return code;
 }
 
@@ -3157,7 +3157,7 @@ _return:
     pOperator->pTaskInfo->code = code;
     T_LONG_JMP(pOperator->pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, *pRes != NULL && (*pRes)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*pRes) ? (*pRes)->info.rows : 0);
   return code;
 }
 
@@ -3756,7 +3756,7 @@ _return:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 
@@ -4000,7 +4000,7 @@ _return:
     pOperator->pTaskInfo->code = code;
     T_LONG_JMP(pOperator->pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, *pRes != NULL && (*pRes)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*pRes) ? (*pRes)->info.rows : 0);
   return code;
 }
 

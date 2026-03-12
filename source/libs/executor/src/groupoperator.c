@@ -500,8 +500,6 @@ static SSDataBlock* buildGroupResultDataBlockByHash(SOperatorInfo* pOperator) {
     }
   }
 
-  pOperator->resultInfo.totalRows += pRes->info.rows;
-
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -526,7 +524,7 @@ static int32_t hashGroupbyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
 
   if (pOperator->status == OP_RES_TO_RETURN) {
     (*ppRes) = buildGroupResultDataBlockByHash(pOperator);
-    recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+    recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
     return code;
   }
 
@@ -577,7 +575,7 @@ _end:
     (*ppRes) = buildGroupResultDataBlockByHash(pOperator);
   }
 
-  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 
@@ -1103,7 +1101,6 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
-  pOperator->resultInfo.totalRows += pInfo->binfo.pRes->info.rows;
   return pInfo->binfo.pRes;
 }
 
@@ -1176,7 +1173,7 @@ _end:
   }
 
   (*ppRes) = buildPartitionResult(pOperator);
-  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 

@@ -1483,7 +1483,7 @@ _end:
     pOperator->pTaskInfo->code = code;
     T_LONG_JMP(pOperator->pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, *pRes != NULL && (*pRes)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*pRes) ? (*pRes)->info.rows : 0);
   return code;
 }
 

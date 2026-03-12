@@ -2,7 +2,7 @@ from new_test_framework.utils import tdLog, tdSql, tdStream, tdCom, tdDnodes, et
 import datetime
 import random
 import re
-
+import math
 PRIMARY_COL = "ts"
 
 INT_COL     = "c1"
@@ -1007,6 +1007,7 @@ class TestExplain:
         self.__check_filter_efficiency_percent(plan_lines)
         self.__check_exchange_network_validity(plan_lines)
         self.__check_cost_and_rows_validity(plan_lines)
+        self.__check_rows_hierarchy(plan_lines)
         self.__check_exec_cost_validity(plan_lines)
         self.__check_io_cost_validity(plan_lines)
 
@@ -1134,6 +1135,91 @@ class TestExplain:
                 raise AssertionError(
                     "all cost values are 0 but rows={} in line: {}" \
                         .format(rows_value, line)
+                )
+
+    def __check_rows_hierarchy(self, plan_lines):
+        """
+        Check rows values hierarchy between operators.
+
+        Validation rule:
+          For any operator that has child operators, the parent's rows value
+          must be less than or equal to the sum of its direct children's rows
+          values.
+        """
+
+        def get_indent_level(line):
+            """Get the indentation level of a line (number of leading spaces)"""
+            return len(line) - len(line.lstrip())
+
+        rows_pattern = re.compile(r"rows=([0-9.]+)")
+        exchange_pattern = re.compile(r"Data Exchange\s+(\d+):(\d+)")
+
+        nodes = []
+        stack = []
+
+        for idx, line in enumerate(plan_lines):
+            if " rows=" not in line:
+                continue
+            if "Exec cost:" in line or "Network:" in line:
+                continue
+
+            rows_match = rows_pattern.search(line)
+            if rows_match is None:
+                continue
+
+            rows_value = float(rows_match.group(1))
+            indent = get_indent_level(line)
+
+            node = {
+                "index": idx,
+                "indent": indent,
+                "rows": rows_value,
+                "exchange_src_cnt": None,
+                "children": [],
+            }
+
+            exchange_match = exchange_pattern.search(line)
+            if exchange_match is not None:
+                node["exchange_src_cnt"] = int(exchange_match.group(1))
+
+            while stack and stack[-1]["indent"] >= indent:
+                stack.pop()
+
+            if stack:
+                stack[-1]["children"].append(len(nodes))
+
+            stack.append(node)
+            nodes.append(node)
+
+        for node in nodes:
+            if not node["children"]:
+                continue
+
+            parent_line = plan_lines[node["index"]]
+            if "Fill" in parent_line or "Interp" in parent_line:
+                ## skip fill and interp operators since they could generate additional rows
+                continue
+
+            sum_children_rows = 0.0
+            for child_idx in node["children"]:
+                child_rows = nodes[child_idx]["rows"]
+                if node["exchange_src_cnt"] is not None:
+                    child_rows = math.ceil(child_rows * node["exchange_src_cnt"])
+                sum_children_rows += child_rows
+
+            if node["rows"] > sum_children_rows:
+                child_lines = [
+                    plan_lines[nodes[child_idx]["index"]] for child_idx in node["children"]
+                ]
+                raise AssertionError(
+                    "parent rows value {} is greater than sum of children rows {}.\n"
+                    "Parent line: {}\n"
+                    "Children lines:\n{}".format(
+                        node["rows"],
+                        sum_children_rows,
+                        parent_line,
+                        "\n".join(child_lines),
+                    )
                 )
 
     def __check_exec_cost_validity(self, plan_lines):
@@ -1544,7 +1630,7 @@ class TestExplain:
 
     def prepare_complex_data(self):
         tdSql.execute("drop database if exists db_explain")
-        tdSql.execute("create database db_explain vgroups 2")
+        tdSql.execute("create database db_explain vgroups 2 keep 36500")
         tdSql.execute("use db_explain")
         tdSql.execute("create stable stb (ts timestamp, c1 int) tags(gid int)")
         tdSql.execute("create table ctb1 using stb tags(1)")
@@ -1556,14 +1642,165 @@ class TestExplain:
         tdSql.execute("create vtable vctb2 (ctb2.c1) using vstb tags (2);")
         tdSql.execute("create vtable vctb3 (ctb3.c1) using vstb tags (3);")
 
-        tdSql.execute("insert into ctb1 values(now, 1)")
-        tdSql.execute("insert into ctb2 values(now + 1s, 2)(now + 2s, 3)(now + 3s, 4)")
-        tdSql.execute("insert into ctb3 values(now + 4s, 5)(now + 5s, 6)(now + 6s, 7)")
+        tdSql.execute("insert into ctb1 values('2026-03-01 11:11:11', 1)")
+        tdSql.execute("insert into ctb2 values('2026-03-01 11:11:12', 2)('2026-03-01 11:11:13', 3)('2026-03-01 11:11:14', 4)")
+        tdSql.execute("insert into ctb3 values('2026-03-01 11:11:15', 5)('2026-03-01 11:11:16', 6)('2026-03-01 11:11:17', 7)")
 
     def do_explain_window(self):
         # test interval window, state window, session window, event window, count window
         # combine with fill, order by, limit, slimit, soffset, etc.
-        pass
+        tdSql.execute("use db_explain")
+
+        # 1. interval window - basic
+        tdSql.query(
+            "explain analyze verbose true "
+            "select _wstart, _wend, count(*) from stb interval(10s)",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 2. interval window with fill
+        tdSql.query(
+            "explain analyze verbose true "
+            "select _wstart, avg(c1) from stb "
+            "where ts >= '2026-03-01 11:11:11' and ts < '2026-03-01 11:11:18' "
+            "interval(2s) fill(linear)",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 3. interval window with sliding
+        tdSql.query(
+            "explain analyze verbose true "
+            "select _wstart, sum(c1) from stb interval(10s, 5s)",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 4. state window
+        tdSql.query(
+            "explain analyze verbose true "
+            "select _wstart, _wend, count(*) from stb state_window(c1)",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 5. session window
+        tdSql.query(
+            "explain analyze verbose true "
+            "select _wstart, _wend, count(*) from stb session(ts, 10s)",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 6. event window - start and end conditions
+        tdSql.query(
+            "explain analyze verbose true "
+            "select _wstart, _wend, count(*) from stb "
+            "event_window start with c1 > 2 end with c1 < 5",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 7. count window
+        tdSql.query(
+            "explain analyze verbose true "
+            "select _wstart, _wend, count(*) from stb count_window(3)",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 8. count window with sliding
+        tdSql.query(
+            "explain analyze verbose true "
+            "select _wstart, _wend, avg(c1) from stb count_window(5, 2)",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 9. interval window with partition by
+        tdSql.query(
+            "explain analyze verbose true "
+            "select _wstart, gid, count(*) from stb "
+            "partition by gid interval(10s)",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 10. interval window with order by and limit
+        tdSql.query(
+            "explain analyze verbose true "
+            "select _wstart, count(*) as cnt from stb "
+            "interval(10s) order by cnt desc limit 5",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 11. session window with partition by
+        tdSql.query(
+            "explain analyze verbose true "
+            "select _wstart, _wend, gid, count(*) from stb "
+            "partition by gid session(ts, 20s)",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 12. state window with where clause
+        tdSql.query(
+            "explain analyze verbose true "
+            "select _wstart, _wend, count(*) from stb "
+            "where c1 > 1 state_window(c1)",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 13. multiple windows - interval with fill and slimit/soffset
+        tdSql.query(
+            "explain analyze verbose true "
+            "select _wstart, gid, avg(c1) from stb "
+            "where ts >= '2026-03-01 11:11:11' and ts < '2026-03-01 11:11:18' "
+            "partition by gid interval(2s) fill(value, 0) "
+            "slimit 2 soffset 1",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 14. event window with multiple aggregations
+        tdSql.query(
+            "explain analyze verbose true "
+            "select _wstart, _wend, count(*), sum(c1), avg(c1) from stb "
+            "event_window start with c1 >= 3 end with c1 <= 1",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 15. combined: interval window with where, fill, order by, and limit
+        tdSql.query(
+            "explain analyze verbose true "
+            "select _wstart, count(*) as cnt, sum(c1) as total from stb "
+            "where ts >= '2026-03-01 11:11:11' and ts < '2026-03-01 11:11:18' "
+            "interval(2s) fill(null) "
+            "order by total desc limit 10",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        tdLog.printNoPrefix("do explain window ... [passed]")
 
     def do_explain_order_by_and_limit(self):
         # test order by and limit
@@ -1597,6 +1834,8 @@ class TestExplain:
         )
         plan_lines = self.__extract_explain_plan_lines()
         self.__check_explain_plan_rules(plan_lines)
+
+        tdLog.printNoPrefix("do explain order by and limit ... [passed]")
 
     def do_explain_group_by_and_having(self):
         # test group by and having
@@ -1668,25 +1907,267 @@ class TestExplain:
         plan_lines = self.__extract_explain_plan_lines()
         self.__check_explain_plan_rules(plan_lines)
 
+        tdLog.printNoPrefix("do explain group by and having ... [passed]")
+
     def do_explain_join(self):
         # test join
-        pass
+        tdSql.execute("use db_explain")
+
+        # 1. basic inner join
+        tdSql.query(
+            "explain analyze verbose true "
+            "select a.ts, a.c1, b.c1 from ctb1 a join ctb2 b on a.ts = b.ts",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 2. join with where clause
+        tdSql.query(
+            "explain analyze verbose true "
+            "select a.ts, a.c1, b.c1 from stb a join stb b on a.ts = b.ts "
+            "where a.c1 > 1 and b.c1 < 5",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 3. left join
+        tdSql.query(
+            "explain analyze verbose true "
+            "select a.ts, a.c1, b.c1 from ctb1 a left join ctb2 b on a.ts = b.ts",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 4. join with aggregation
+        tdSql.query(
+            "explain analyze verbose true "
+            "select a.gid, count(*) from stb a join stb b on a.ts = b.ts group by a.gid",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 5. multiple table join
+        tdSql.query(
+            "explain analyze verbose true "
+            "select a.ts, a.c1, b.c1, c.c1 from ctb1 a "
+            "join ctb2 b on a.ts = b.ts "
+            "join ctb3 c on b.ts = c.ts",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        tdLog.printNoPrefix("do explain join ... [passed]")
 
     def do_explain_subquery(self):
         # test subquery
-        pass
+        tdSql.execute("use db_explain")
+
+        # 1. basic subquery in from clause
+        tdSql.query(
+            "explain analyze verbose true "
+            "select * from (select ts, c1 from stb where c1 > 2) as sub",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 2. subquery with aggregation
+        tdSql.query(
+            "explain analyze verbose true "
+            "select * from (select gid, count(*) as cnt from stb group by gid) as sub "
+            "where cnt > 1",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 3. nested subquery
+        tdSql.query(
+            "explain analyze verbose true "
+            "select * from (select * from (select ts, c1 from stb) as sub1 where c1 > 1) as sub2",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 4. subquery with order by and limit
+        tdSql.query(
+            "explain analyze verbose true "
+            "select * from (select ts, c1 from stb order by c1 desc limit 5) as sub",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 5. subquery with window function
+        tdSql.query(
+            "explain analyze verbose true "
+            "select * from (select _wstart, count(*) as cnt from stb interval(10s)) as sub "
+            "where cnt > 0",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        tdLog.printNoPrefix("do explain subquery ... [passed]")
 
     def do_explain_sys_scan(self):
         # test system scan
-        pass
+        tdSql.execute("use db_explain")
+
+        # 1. query information_schema.ins_databases
+        tdSql.query(
+            "explain analyze verbose true "
+            "select * from information_schema.ins_databases",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 2. query information_schema.ins_tables with filter
+        tdSql.query(
+            "explain analyze verbose true "
+            "select * from information_schema.ins_tables where db_name = 'db_explain'",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 3. query information_schema.ins_stables
+        tdSql.query(
+            "explain analyze verbose true "
+            "select * from information_schema.ins_stables where db_name = 'db_explain'",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 4. query performance_schema.perf_connections
+        tdSql.query(
+            "explain analyze verbose true "
+            "select * from performance_schema.perf_connections",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 5. query information_schema.ins_dnodes
+        tdSql.query(
+            "explain analyze verbose true "
+            "select * from information_schema.ins_dnodes",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        tdLog.printNoPrefix("do explain sys scan ... [passed]")
 
     def do_explain_interp(self):
         # test interp and fill
-        pass
+        tdSql.execute("use db_explain")
+
+        # 1. basic interp with fill
+        tdSql.query(
+            "explain analyze verbose true "
+            "select interp(c1) from stb range('2026-03-01 11:11:11', '2026-03-01 11:11:17') every(1s) fill(linear)",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 2. interp with fill value
+        tdSql.query(
+            "explain analyze verbose true "
+            "select interp(c1) from stb range('2026-03-01 11:11:11', '2026-03-01 11:11:17') every(1s) fill(value, 0)",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 3. interp with partition by
+        tdSql.query(
+            "explain analyze verbose true "
+            "select interp(c1) from stb partition by gid range('2026-03-01 11:11:11', '2026-03-01 11:11:17') every(2s) fill(null)",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 4. interp with multiple columns
+        tdSql.query(
+            "explain analyze verbose true "
+            "select interp(c1) from stb range('2026-03-01 11:11:11', '2026-03-01 11:11:17') every(1s) fill(prev)",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 5. interp with where clause
+        tdSql.query(
+            "explain analyze verbose true "
+            "select interp(c1) from stb where gid > 1 range('2026-03-01 11:11:11', '2026-03-01 11:11:17') every(1s) fill(next)",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        tdLog.printNoPrefix("do explain interp ... [passed]")
 
     def do_explain_dynamic_query(self):
         # test dynamic query on virtual table
-        pass
+        tdSql.execute("use db_explain")
+
+        # 1. basic query on virtual stable
+        tdSql.query(
+            "explain analyze verbose true "
+            "select * from vstb",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 2. query virtual stable with aggregation
+        tdSql.query(
+            "explain analyze verbose true "
+            "select gid, count(*) from vstb group by gid",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 3. query virtual stable with partition by
+        tdSql.query(
+            "explain analyze verbose true "
+            "select * from vstb partition by gid",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 4. query virtual table directly
+        tdSql.query(
+            "explain analyze verbose true "
+            "select * from vctb1",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        # 5. query virtual stable with order by
+        tdSql.query(
+            "explain analyze verbose true "
+            "select * from vstb order by ts limit 5",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        tdLog.printNoPrefix("do explain dynamic query ... [passed]")
 
     def do_explain_partition_by_tag_regression(self):
         tdSql.execute("use db_explain")
@@ -1711,9 +2192,10 @@ class TestExplain:
 
         tdLog.printNoPrefix("do explain partition by tag regression ... [passed]")
 
-    def test_explain_complex(self):
+    def test_explain_analzye(self):
         """
-        Test explain in complex cases. These cases cover all operators and their combinations.
+        Test explain in analyze mode.
+        These cases cover almost all operators and their combinations.
 
         Since: v3.4.1.0
 
@@ -1724,5 +2206,11 @@ class TestExplain:
         """
         self.prepare_complex_data()
         self.do_explain_partition_by_tag_regression()
+        self.do_explain_window()
         self.do_explain_order_by_and_limit()
         self.do_explain_group_by_and_having()
+        self.do_explain_join()
+        self.do_explain_subquery()
+        self.do_explain_sys_scan()
+        self.do_explain_interp()
+        self.do_explain_dynamic_query()

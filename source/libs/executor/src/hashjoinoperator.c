@@ -1035,6 +1035,7 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
 
     if (pRes->info.rows > 0) {
       *pResBlock = pRes;
+      recordOpExecEnd(pOperator, (*pResBlock)->info.rows);
       return code;
     }
   }
@@ -1077,7 +1078,7 @@ _end:
     qDebug("%s %s output %" PRId64 " rows final res", GET_TASKID(pTaskInfo), __func__, pRes->info.rows);
   }
 
-  recordOpExecEnd(pOperator, pRes->info.rows > 0);
+  recordOpExecEnd(pOperator, (*pResBlock) ? (*pResBlock)->info.rows : 0);
   return code;
 }
 

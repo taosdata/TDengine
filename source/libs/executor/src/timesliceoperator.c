@@ -1348,7 +1348,7 @@ _finished:
   }
 
   (*ppRes) = pResBlock->info.rows == 0 ? NULL : pResBlock;
-  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 

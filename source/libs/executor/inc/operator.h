@@ -16,6 +16,7 @@
 #ifndef TDENGINE_OPERATOR_H
 #define TDENGINE_OPERATOR_H
 
+#include <stddef.h>
 #include "tcommon.h"
 #ifdef __cplusplus
 extern "C" {
@@ -223,7 +224,7 @@ void recordOpCreateTime(SOperatorInfo* pOperator);
 void recordOpExecBegin(SOperatorInfo* pOperator);
 void recordOpExecBeforeDownstream(SOperatorInfo* pOperator);
 void recordOpExecAfterDownstream(SOperatorInfo* pOperator, size_t inputRows);
-void recordOpExecEnd(SOperatorInfo* pOperator, bool hasData);
+void recordOpExecEnd(SOperatorInfo* pOperator, size_t rows);
 
 #ifdef __cplusplus
 }

@@ -259,7 +259,7 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     if (pRes->info.rows >= pOperator->resultInfo.threshold ||
         (pRes->info.id.groupId != pInfo->groupId && pRes->info.rows > 0)) {
       (*ppRes) = pRes;
-      recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+      recordOpExecEnd(pOperator, (*ppRes)->info.rows);
       return code;
     }
   }
@@ -271,7 +271,7 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) =  pRes->info.rows == 0 ? NULL : pRes;
-  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 

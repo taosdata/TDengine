@@ -544,7 +544,6 @@ int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   }
 
   if ((*pResBlock) != NULL) {
-    pOperator->resultInfo.totalRows += (*pResBlock)->info.rows;
     code = blockDataCheck(*pResBlock);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
@@ -557,7 +556,7 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, *pResBlock != NULL && (*pResBlock)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*pResBlock) ? (*pResBlock)->info.rows : 0);
   return code;
 }
 

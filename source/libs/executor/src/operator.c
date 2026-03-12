@@ -1008,6 +1008,7 @@ SSDataBlock* getNextBlockFromDownstreamRemainDetach(struct SOperatorInfo* pOpera
   SSDataBlock* p = NULL;
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
+  recordOpExecBeforeDownstream(pOperator);
 
   code = getNextBlockFromDownstreamRemainDetachImpl(pOperator, idx, &p);
   QUERY_CHECK_CODE(code, lino, _return);
@@ -1016,6 +1017,7 @@ SSDataBlock* getNextBlockFromDownstreamRemainDetach(struct SOperatorInfo* pOpera
   QUERY_CHECK_CODE(code, lino, _return);
 
 _return:
+  recordOpExecAfterDownstream(pOperator, p && code == TSDB_CODE_SUCCESS ? p->info.rows : 0);
   if (code) {
     qError("failed to get next data block from downstream at %s, line:%d code:%s", __func__, lino, tstrerror(code));
     return NULL;
@@ -1220,18 +1222,19 @@ void recordOpExecAfterDownstream(SOperatorInfo* pOperator, size_t inputRows) {
   - record the time when the last row is returned
   Only record the metrics in explain analyze mode.
 */
-void recordOpExecEnd(SOperatorInfo* pOperator, bool hasData) {
+void recordOpExecEnd(SOperatorInfo* pOperator, size_t rows) {
   if (QUERY_ENABLE_EXPLAIN(pOperator->pTaskInfo)) {
     pOperator->cost.endTs = taosGetTimestampUs();
     pOperator->cost.execTimes++;
     pOperator->cost.execElapsed += pOperator->cost.endTs - pOperator->cost.startTs;
 
-    if (hasData) {
+    if (rows > 0) {
       // record the first time data is returned
       if (pOperator->cost.execFirstRow == 0) {
         pOperator->cost.execFirstRow = pOperator->cost.endTs;
       }
       pOperator->cost.execLastRow = pOperator->cost.endTs;
     }
+    pOperator->resultInfo.totalRows += rows;
   }
 }
