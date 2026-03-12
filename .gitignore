@@ -73,3 +73,6 @@ test/screenlog*
 test/output.tmp
 
 CMakeUserPresets.json
+
+# TDGPT - WinSW cache (local binary, not committed to repo)
+tools/tdgpt/packaging/bin/WinSW.exe

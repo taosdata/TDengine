@@ -550,7 +550,7 @@ def create_iss_script():
     iss_path = os.path.join(install_info.release_dir, "tdgpt.iss")
 
     # Read template file
-    template_path = os.path.join(os.path.dirname(__file__), "templates", "tdgpt.iss")
+    template_path = os.path.join(os.path.dirname(__file__), "installer", "tdgpt.iss")
     with open(template_path, 'r', encoding='utf-8') as f:
         iss_content = f.read()
 
@@ -655,7 +655,7 @@ def create_winsw_config():
     os.makedirs(bin_dir, exist_ok=True)
 
     # Read template file
-    template_path = os.path.join(os.path.dirname(__file__), "templates", "taosanode-service.xml")
+    template_path = os.path.join(os.path.dirname(__file__), "installer", "taosanode-service.xml")
     with open(template_path, 'r', encoding='utf-8') as f:
         config_content = f.read()
 
