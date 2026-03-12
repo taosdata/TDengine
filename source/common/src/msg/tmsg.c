@@ -317,7 +317,6 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
         for (int32_t m = 0; m < snum; ++m) {
           SQuerySubDesc *sDesc = taosArrayGet(desc->subDesc, m);
           TAOS_CHECK_RETURN(tEncodeI64(pEncoder, sDesc->startTs));
-          TAOS_CHECK_RETURN(tEncodeI64(pEncoder, sDesc->endTs));
         }
       }
     } else {
@@ -463,8 +462,6 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
                   TAOS_CHECK_GOTO(code, &line, _error);
                 }
                 code = tDecodeI64(pDecoder, &sDesc->startTs);
-                TAOS_CHECK_GOTO(code, &line, _error);
-                code = tDecodeI64(pDecoder, &sDesc->endTs);
                 TAOS_CHECK_GOTO(code, &line, _error);
               }
             }

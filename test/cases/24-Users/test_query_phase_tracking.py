@@ -14,6 +14,8 @@ class TestQueryPhaseTracking:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("drop database if exists db2")
 
     def test_show_queries_schema(self):
         """Schema: Verify new columns in show queries
@@ -41,9 +43,7 @@ class TestQueryPhaseTracking:
         
         tdSql.query(f"select * from db.stb")
         
-        tdSql.query(f"show queries")
-        
-        col_names = [row[0] for row in tdSql.getColNames()]
+        col_names = tdSql.getColNameList("show queries")
         tdLog.info(f"show queries columns: {col_names}")
         
         assert "current_phase" in col_names, "current_phase column should exist"
@@ -79,7 +79,7 @@ class TestQueryPhaseTracking:
         valid_phases = ["none", "parse", "catalog", "plan", "schedule", "execute", "fetch", "done"]
         
         if tdSql.getRows() > 0:
-            col_names = [row[0] for row in tdSql.getColNames()]
+            col_names = [desc[0] for desc in tdSql.cursor.description]
             phase_idx = col_names.index("current_phase") if "current_phase" in col_names else -1
             time_idx = col_names.index("phase_start_time") if "phase_start_time" in col_names else -1
             
@@ -152,7 +152,7 @@ class TestQueryPhaseTracking:
         
         for i in range(5):
             tdSql.query(f"select * from db.t{i}")
-            tdSql.checkRows(1)
+            assert tdSql.getRows() >= 1, f"table db.t{i} should have at least 1 row"
         
         tdSql.query(f"show queries")
         tdLog.info(f"Total queries shown: {tdSql.getRows()}")
@@ -188,7 +188,7 @@ class TestQueryPhaseTracking:
         tdSql.query(f"show queries")
         
         if tdSql.getRows() > 0:
-            col_names = [row[0] for row in tdSql.getColNames()]
+            col_names = [desc[0] for desc in tdSql.cursor.description]
             time_idx = col_names.index("phase_start_time") if "phase_start_time" in col_names else -1
             
             if time_idx >= 0:
@@ -198,11 +198,12 @@ class TestQueryPhaseTracking:
         print("test phase timing accuracy ....................... [passed]")
 
     def test_sub_status_timing_format(self):
-        """SubTask: Verify sub_status includes timing info
+        """SubTask: Verify sub_status includes timing info with human-readable time
 
         1. Create a supertable with multiple child tables to generate sub-tasks
         2. Execute a distributed query to trigger sub-plan execution
-        3. Verify sub_status format contains tid:status:startMs:endMs
+        3. Verify sub_status format contains tid:status:startTime
+           where startTime is human-readable (e.g. 2026-03-12 10:00:00.123) or "-"
 
         Since: v3.3.0.0
 
@@ -212,6 +213,7 @@ class TestQueryPhaseTracking:
 
         History:
             - 2026-3-10 Created for sub-task timing tracking feature
+            - 2026-3-12 Changed time format from unix ms to human-readable
 
         """
         tdLog.info("=============== test sub status timing format")
@@ -226,7 +228,7 @@ class TestQueryPhaseTracking:
 
         tdSql.query(f"show queries")
         if tdSql.getRows() > 0:
-            col_names = [row[0] for row in tdSql.getColNames()]
+            col_names = [desc[0] for desc in tdSql.cursor.description]
             sub_status_idx = col_names.index("sub_status") if "sub_status" in col_names else -1
             sub_num_idx = col_names.index("sub_num") if "sub_num" in col_names else -1
 
@@ -240,10 +242,16 @@ class TestQueryPhaseTracking:
                 if sub_status:
                     parts = sub_status.split(",")
                     for part in parts:
-                        fields = part.split(":")
+                        fields = part.split(":", 2)
                         tdLog.info(f"  Sub-task fields: {fields}")
-                        assert len(fields) == 4, \
-                            f"sub_status entry should have 4 fields (tid:status:startMs:endMs), got {len(fields)}: {part}"
+                        assert len(fields) == 3, \
+                            f"sub_status entry should have 3 fields (tid:status:startTime), got {len(fields)}: {part}"
+                        tid_str, status, start_time = fields
+                        assert tid_str.isdigit(), f"tid should be numeric, got: {tid_str}"
+                        assert len(status) > 0, f"status should not be empty"
+                        if start_time != "-":
+                            assert "." in start_time, \
+                                f"startTime should be human-readable (YYYY-MM-DD HH:MM:SS.ms) or '-', got: {start_time}"
 
         tdSql.execute(f"drop database if exists db2")
         print("test sub status timing format ....................... [passed]")
