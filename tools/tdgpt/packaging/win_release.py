@@ -667,6 +667,19 @@ def main():
     create_install_script()
     create_uninstall_script()
 
+    # Validate model directory exists (required for Windows packaging)
+    model_dir = os.path.join(install_info.install_dir, "model")
+    if not os.path.exists(model_dir) or not os.listdir(model_dir):
+        logging.error("=" * 60)
+        logging.error("ERROR: Model directory is empty or missing")
+        logging.error(f"Expected location: {model_dir}")
+        logging.error("")
+        logging.error("Model files are REQUIRED for Windows packaging.")
+        logging.error("Please specify model directory using --model-dir option:")
+        logging.error(f"  python {sys.argv[0]} -e {tdgpt_version.ver_type} -v {tdgpt_version.version} -m <model_dir>")
+        logging.error("=" * 60)
+        return 1
+
     # Create Inno Setup script and build installer
     iss_path = create_iss_script()
 

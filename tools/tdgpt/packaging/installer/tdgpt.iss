@@ -44,8 +44,8 @@ Source: "{#MyAppSourceDir}\lib\*"; DestDir: "{app}\lib"; Flags: ignoreversion re
 ; Resource files
 Source: "{#MyAppSourceDir}\resource\*"; DestDir: "{app}\resource"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-; Model files (optional - only if directory exists)
-Source: "{#MyAppSourceDir}\model\*"; DestDir: "{app}\model"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+; Model files (required for production, use --model-dir to specify)
+Source: "{#MyAppSourceDir}\model\*"; DestDir: "{app}\model"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: DirExists(ExpandConstant('{#MyAppSourceDir}\model'))
 
 ; Requirements files
 Source: "{#MyAppSourceDir}\requirements*.txt"; DestDir: "{app}"; Flags: ignoreversion
