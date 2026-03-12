@@ -161,13 +161,6 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
 
   (*pTaskInfo)->pSubplan = pPlan;
 
-  if (pHandle) {
-    if (pHandle->pStateBackend) {
-      (*pTaskInfo)->streamInfo.pState = pHandle->pStateBackend;
-      (*pTaskInfo)->streamInfo.pOtherState = pHandle->pOtherBackend;
-    }
-  }
-
   if (NULL != sql) {
     (*pTaskInfo)->sql = taosStrdup(sql);
     if (NULL == (*pTaskInfo)->sql) {
@@ -331,11 +324,9 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
   return pqSw;
 }
 
-static void cleanupStreamInfo(SStreamTaskInfo* pStreamInfo) {
-  tDeleteSchemaWrapper(pStreamInfo->schema);
-  tOffsetDestroy(&pStreamInfo->currentOffset);
-  tDeleteSchemaWrapper(pStreamInfo->notifyResultSchema);
-  taosMemoryFree(pStreamInfo->stbFullName);
+static void cleanupTmqInfo(STmqTaskInfo* pTmqInfo) {
+  tDeleteSchemaWrapper(pTmqInfo->schema);
+  tOffsetDestroy(&pTmqInfo->currentOffset);
 }
 
 static void freeBlock(void* pParam) {
@@ -382,7 +373,7 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   }
 
   taosArrayDestroyEx(pTaskInfo->schemaInfos, cleanupQueriedTableScanInfo);
-  cleanupStreamInfo(&pTaskInfo->streamInfo);
+  cleanupTmqInfo(&pTaskInfo->tmqInfo);
 
   if (!pTaskInfo->localFetch.localExec) {
     nodesDestroyNode((SNode*)pTaskInfo->pSubplan);

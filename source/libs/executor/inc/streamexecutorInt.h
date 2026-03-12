@@ -25,25 +25,6 @@ extern "C" {
 #include "querytask.h"
 #include "tutil.h"
 
-int32_t initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo, const struct SOperatorInfo* pOperator);
-int32_t encodeStreamBasicInfo(void** buf, const SSteamOpBasicInfo* pBasicInfo);
-int32_t decodeStreamBasicInfo(void** buf, SSteamOpBasicInfo* pBasicInfo);
-
-int32_t addEventAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionKey* pSessionKey,
-                               const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t ri,
-                               SStreamNotifyEventSupp* sup, STaskNotifyEventStat* pNotifyEventStat);
-int32_t addStateAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionKey* pSessionKey,
-                               const SStateKeys* pCurState, const SStateKeys* pAnotherState, bool onlyUpdate,
-                               SStreamNotifyEventSupp* sup, STaskNotifyEventStat* pNotifyEventStat);
-int32_t addIntervalAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionKey* pSessionKey,
-                                  SStreamNotifyEventSupp* sup, STaskNotifyEventStat* pNotifyEventStat);
-int32_t addSessionAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionKey* pSessionKey,
-                                 SStreamNotifyEventSupp* sup, STaskNotifyEventStat* pNotifyEventStat);
-int32_t addCountAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionKey* pSessionKey,
-                               SStreamNotifyEventSupp* sup, STaskNotifyEventStat* pNotifyEventStat);
-int32_t addAggDeleteNotifyEvent(const SSDataBlock* pDeleteBlock, SStreamNotifyEventSupp* sup,
-                                STaskNotifyEventStat* pNotifyEventStat);
-
 int32_t doTableScanNext(struct SOperatorInfo* pOperator, SSDataBlock** ppRes);
 int32_t extractTableIdList(const STableListInfo* pTableListInfo, SArray** ppArrayRes);
 void releaseFlusedPos(void* pRes);
