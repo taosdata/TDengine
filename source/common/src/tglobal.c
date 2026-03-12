@@ -305,6 +305,12 @@ int32_t tsQueryRspPolicy = 0;
 int64_t tsQueryMaxConcurrentTables = 200;  // unit is TSDB_TABLE_NUM_UNIT
 bool    tsEnableQueryHb = true;
 bool    tsEnableScience = false;  // on taos-cli show float and doulbe with scientific notation if true
+bool    tsSqlSecurityEnabled = false;
+int32_t tsSqlSecurityWhitelistMode = 0;
+bool    tsSqlSecurityStringCheck = true;
+bool    tsSqlSecurityASTCheck = true;
+bool    tsSqlSecurityLogicCheck = false;
+char    tsSqlSecurityRuleFile[PATH_MAX] = "/etc/taos/sql_rules.json";
 int32_t tsQuerySmaOptimize = 0;
 int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from which level to query rsma data.
 bool    tsQueryPlannerTrace = false;
@@ -812,6 +818,19 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "tmqWriteCheckRef", tmqWriteCheckRef, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
                                CFG_CATEGORY_LOCAL, CFG_PRIV_DEBUG));
+  // sql fire wall configuration
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "sqlSecurity", tsSqlSecurityEnabled, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
+                               CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "sqlSecurityWhitelistMode", tsSqlSecurityWhitelistMode, 0, 3, CFG_SCOPE_CLIENT,
+                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "sqlSecurityStringCheck", tsSqlSecurityStringCheck, CFG_SCOPE_CLIENT,
+                               CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "sqlSecurityASTCheck", tsSqlSecurityASTCheck, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
+                               CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "sqlSecurityLogicCheck", tsSqlSecurityLogicCheck, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
+                               CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "sqlSecurityRuleFile", tsSqlSecurityRuleFile, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
+                                 CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1547,6 +1566,20 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tmqWriteCheckRef");
   tmqWriteCheckRef = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sqlSecurity");
+  tsSqlSecurityEnabled = pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sqlSecurityWhitelistMode");
+  tsSqlSecurityWhitelistMode = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sqlSecurityStringCheck");
+  tsSqlSecurityStringCheck = pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sqlSecurityASTCheck");
+  tsSqlSecurityASTCheck = pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sqlSecurityLogicCheck");
+  tsSqlSecurityLogicCheck = pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sqlSecurityRuleFile");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX));
+  tstrncpy(tsSqlSecurityRuleFile, pItem->str, PATH_MAX);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "queryPlannerTrace");
   tsQueryPlannerTrace = pItem->bval;
@@ -3186,6 +3219,31 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_COL_NAME_LEN), &lino, _out);
         uInfo("%s set from %s to %s", name, tsSmlTsDefaultName, pItem->str);
         tstrncpy(tsSmlTsDefaultName, pItem->str, TSDB_COL_NAME_LEN);
+        matched = true;
+      } else if (strcasecmp("sqlSecurity", name) == 0) {
+        tsSqlSecurityEnabled = pItem->bval;
+        uInfo("%s set to %d", name, tsSqlSecurityEnabled);
+        matched = true;
+      } else if (strcasecmp("sqlSecurityWhitelistMode", name) == 0) {
+        tsSqlSecurityWhitelistMode = pItem->i32;
+        uInfo("%s set to %d", name, tsSqlSecurityWhitelistMode);
+        matched = true;
+      } else if (strcasecmp("sqlSecurityStringCheck", name) == 0) {
+        tsSqlSecurityStringCheck = pItem->bval;
+        uInfo("%s set to %d", name, tsSqlSecurityStringCheck);
+        matched = true;
+      } else if (strcasecmp("sqlSecurityASTCheck", name) == 0) {
+        tsSqlSecurityASTCheck = pItem->bval;
+        uInfo("%s set to %d", name, tsSqlSecurityASTCheck);
+        matched = true;
+      } else if (strcasecmp("sqlSecurityLogicCheck", name) == 0) {
+        tsSqlSecurityLogicCheck = pItem->bval;
+        uInfo("%s set to %d", name, tsSqlSecurityLogicCheck);
+        matched = true;
+      } else if (strcasecmp("sqlSecurityRuleFile", name) == 0) {
+        TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX), &lino, _out);
+        uInfo("%s set from %s to %s", name, tsSqlSecurityRuleFile, pItem->str);
+        tstrncpy(tsSqlSecurityRuleFile, pItem->str, PATH_MAX);
         matched = true;
       } else if (strcasecmp("serverPort", name) == 0) {
         SConfigItem *pFqdnItem = cfgGetItem(pCfg, "fqdn");
