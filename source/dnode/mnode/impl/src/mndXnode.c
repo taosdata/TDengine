@@ -39,7 +39,11 @@
 #include "xnode.h"
 
 #define TSDB_XNODE_RESERVE_SIZE 64
+#ifdef _WIN32
+#define XNODED_PIPE_SOCKET_URL "http://localhost:6051"
+#else
 #define XNODED_PIPE_SOCKET_URL "http://localhost"
+#endif
 typedef enum {
   HTTP_TYPE_GET = 0,
   HTTP_TYPE_POST,
