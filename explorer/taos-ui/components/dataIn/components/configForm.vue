@@ -104,7 +104,11 @@
       </template>
 
       <!-- 特殊处理 Groups-after 和 Groups-before 的子元素 -->
-      <template v-if="item.children && (item.label === 'Groups-after' || item.label === 'Groups-before') && item.children.length > 0">
+      <template
+        v-if="
+          item.children && (item.label === 'Groups-after' || item.label === 'Groups-before') && item.children.length > 0
+        "
+      >
         <div v-for="child in item.children" :key="child.label" class="block-wrapper">
           <el-collapse v-model="activeNames" :class="`advanced-${lang}`">
             <el-collapse-item :name="child.field || child.label">
@@ -150,7 +154,10 @@ import CsvTransformer from './csv/csvTransformer.vue';
 import { useRoute } from 'vue-router';
 
 const route = useRoute();
-const injectedReadonly = inject<Ref<boolean>>('isReadonly', computed(() => route.query.readonly === 'true'));
+const injectedReadonly = inject<Ref<boolean>>(
+  'isReadonly',
+  computed(() => route.query.readonly === 'true')
+);
 const isReadonly = computed(() => injectedReadonly.value);
 
 provide('isReadonly', isReadonly);
@@ -355,7 +362,7 @@ $color-description: rgb(137 130 130);
       transform: rotate(-90deg);
     }
 
-    border-top: 0;
+    border: 0;
   }
 }
 

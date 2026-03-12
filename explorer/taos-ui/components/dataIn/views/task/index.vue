@@ -119,10 +119,12 @@
           class-name="task-id-cell"
           :label="t('dataIn.taskid')"
           prop="taskid"
-          width="30"
+          width="25"
         >
           <template #default="scope">
-            <span style="padding-left: 0px; padding-right: 0px">{{ scope.row.taskid }}</span>
+            <el-tooltip :content="scope.row.taskid" placement="top-start">
+              <span class="no-wrap">{{ scope.row.taskid }}</span>
+            </el-tooltip>
           </template>
         </el-table-column>
         <el-table-column
@@ -133,10 +135,10 @@
           min-width="180"
         >
           <template #default="scope">
-            <div class="name-cell">
+            <div class="flex-start">
               <i class="el-circle mr-5px status-icon" :class="getStatusClass(scope.row.healthStatus)"></i>
               <el-tooltip :content="scope.row.localname" placement="top-start">
-                <span class="status-name">{{ scope.row.localname }}</span>
+                <span class="no-wrap min-width-160px">{{ scope.row.localname }}</span>
               </el-tooltip>
             </div>
           </template>
@@ -149,11 +151,10 @@
           sortable
           :filters="filterMap.type"
           :filter-method="filterHandler"
+          show-overflow-tooltip
         >
           <template #default="scope">
-            <el-tooltip :content="scope.row.localtype" placement="top-start">
-              <span class="nowrap">{{ scope.row.localtype }}</span>
-            </el-tooltip>
+            <span class="no-wrap">{{ scope.row.localtype }}</span>
           </template>
         </el-table-column>
         <el-table-column
@@ -162,11 +163,10 @@
           prop="target"
           sortable
           min-width="120"
+          show-overflow-tooltip
         >
           <template #default="scope">
-            <el-tooltip :content="scope.row.target" placement="top-start">
-              <span class="nowrap">{{ scope.row.target }}</span>
-            </el-tooltip>
+            <span class="no-wrap">{{ scope.row.target }}</span>
           </template>
         </el-table-column>
         <el-table-column
@@ -175,9 +175,10 @@
           prop="created_at"
           sortable
           min-width="180"
+          show-overflow-tooltip
         >
           <template #default="scope">
-            <span>{{ getTimeParser(scope.row.created_at) }}</span>
+            <span class="no-wrap">{{ getTimeParser(scope.row.created_at) }}</span>
           </template>
         </el-table-column>
         <el-table-column
@@ -188,7 +189,7 @@
         >
           <template #default="{ row }">
             <el-tooltip :content="agentMap[row.via]" placement="top-start">
-              <span class="nowrap" style="cursor: pointer">{{ agentMap[row.via] }}</span>
+              <span class="no-wrap" style="cursor: pointer">{{ agentMap[row.via] }}</span>
             </el-tooltip>
           </template>
         </el-table-column>
@@ -230,9 +231,11 @@
                 <template #content>
                   <div v-dompurify-html="scope.row.reason" style="max-height: 200px; overflow: auto"></div>
                 </template>
-                <span style="display: inline-block; width: 80px">{{ getStatusText(scope.row.status) }}</span>
+                <span style="display: inline-block; width: 80px" class="no-wrap">{{
+                  getStatusText(scope.row.status)
+                }}</span>
               </el-tooltip>
-              <span v-else style="display: inline-block; width: 80px">{{ getStatusText(scope.row.status) }}</span>
+              <span v-else class="no-wrap">{{ getStatusText(scope.row.status) }}</span>
             </div>
           </template>
         </el-table-column>
@@ -268,11 +271,7 @@
             <span v-else style="display: inline-block; width: 80px">-</span>
           </template>
         </el-table-column>
-        <el-table-column
-          class="with-operations"
-          :width="dataInProps.isIdmp ? 45 : 50"
-          fixed="right"
-        >
+        <el-table-column class="with-operations" :width="dataInProps.isIdmp ? 45 : 50" fixed="right">
           <template #default="scope">
             <el-dropdown
               :class="{
@@ -289,9 +288,9 @@
               <template #dropdown>
                 <el-dropdown-menu @mouseenter="onMenuMouseEnter" @mouseleave="onMenuMouseLeave">
                   <el-dropdown-item @click="viewTask(scope.row, scope.row.status.toLowerCase())">
-                      <el-icon><View /></el-icon>
-                      {{ t('common.view') }}
-                    </el-dropdown-item>
+                    <el-icon><View /></el-icon>
+                    {{ t('common.view') }}
+                  </el-dropdown-item>
                   <template v-if="permitStartStatus.includes(scope.row.status.toLowerCase())">
                     <el-dropdown-item @click="start(scope.row)">
                       <el-icon><VideoPlay /></el-icon>
@@ -1083,17 +1082,6 @@ const skipToLatest = async () => {
   }
 }
 
-// 配合将 max-height 设置为百分比
-// .data-source {
-//   &:deep(.el-table) {
-//     display: flex;
-//     flex-direction: column;
-//   }
-//   &:deep(.el-table__header-wrapper) {
-//     min-height: 30px;
-//   }
-// }
-
 :deep(.el-table td.el-table__cell) div {
   word-break: break-word;
   word-wrap: break-word;
@@ -1101,6 +1089,7 @@ const skipToLatest = async () => {
 
 .el-circle {
   display: inline-block;
+  flex-shrink: 0;
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -1160,31 +1149,6 @@ td {
   .operations {
     right: 10px;
   }
-}
-
-/* 新增：所有 el-table-column 单元格文本不换行，溢出显示省略号 */
-:deep(.el-table .el-table__cell) {
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  max-width: 100%;
-}
-
-/* 保证内部常用类也遵循单行省略规则 */
-:deep(.el-table .el-table__cell .nowrap),
-:deep(.el-table .el-table__cell .status-name),
-:deep(.el-table .el-table__cell span),
-:deep(.el-table .el-table__cell div) {
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  min-width: 0; /* 允许 flex 子项收缩 */
-}
-
-/* 新增：task id 列单元格左右内边距为 0 */
-:deep(.task-id-cell) {
-  padding-left: 0 !important;
-  padding-right: 0 !important;
 }
 
 /* 兼容 Element 单元格内部 .cell 容器 */

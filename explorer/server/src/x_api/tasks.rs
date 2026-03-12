@@ -137,26 +137,18 @@ async fn create_task_inner(
     }
 
     let labels = match (config.labels, backup_topic) {
-        (Some(labels), Some(oneshot_topic)) => {
-            let mut labels = labels.clone();
+        (Some(mut labels), Some(oneshot_topic)) => {
             if let Some(map) = labels.as_object_mut() {
                 map.insert("oneshot_topic".to_string(), oneshot_topic.into());
             }
-            Some(labels)
+            labels
         }
-        (Some(labels), None) => Some(labels),
-        (None, Some(oneshot_topic)) => Some(serde_json::json!({"oneshot_topic": oneshot_topic})),
-        (None, None) => None,
+        (Some(labels), None) => labels,
+        (None, Some(oneshot_topic)) => serde_json::json!({"oneshot_topic": oneshot_topic}),
+        (None, None) => serde_json::json!({"type": "datain"}),
     };
-    if let Some(labels) = labels
-        .as_ref()
-        .map(serde_json::to_string::<serde_json::Value>)
-        .transpose()
-        .context("invalid `labels` param")?
-    {
-        sql.push_str(&format!(" LABELS {}", sql_value_escaped_fmt(&labels)));
-    }
-
+    let labels = serde_json::to_string(&labels).context("invalid `labels` param")?;
+    sql.push_str(&format!(" LABELS {}", sql_value_escaped_fmt(&labels)));
     tracing::debug!(sql, "create task sql");
     let dsn = get_dsn(args, req).await?;
     exec(&dsn, &sql).await?;
@@ -353,7 +345,8 @@ pub async fn import_task(
     params: Json<ExportTaskResult>,
     req: HttpRequest,
 ) -> JsonResult<()> {
-    for task in params.into_inner().tasks {
+    let exported_task = params.into_inner();
+    for task in exported_task.tasks {
         create_task_inner(&args, &req, task.into(), false).await?;
     }
     Ok(Json(()))

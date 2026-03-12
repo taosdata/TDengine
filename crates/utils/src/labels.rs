@@ -1,21 +1,89 @@
 use std::collections::HashMap;
 
-/// 用于过滤 JSON 值的结构体，支持链式调用和嵌套路径匹配
+/// Error type for label parsing failures
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LabelParseError;
+
+impl std::fmt::Display for LabelParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid label format, expected 'key::value'")
+    }
+}
+
+impl std::error::Error for LabelParseError {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Label<'a>(&'a str, &'a str);
+
+impl<'a> Label<'a> {
+    /// Separator for label format
+    pub const SEPARATOR: &'static str = "::";
+
+    /// Create a new label from key and value
+    pub fn new(key: &'a str, value: &'a str) -> Self {
+        Self(key, value)
+    }
+
+    /// Get the key
+    pub fn key(&self) -> &'a str {
+        self.0
+    }
+
+    /// Get the value
+    pub fn value(&self) -> &'a str {
+        self.1
+    }
+
+    /// Parse a label from string in "key::value" format
+    pub fn parse(s: &'a str) -> Result<Self, LabelParseError> {
+        s.split_once(Self::SEPARATOR)
+            .map(|(key, value)| Self::new(key, value))
+            .ok_or(LabelParseError)
+    }
+}
+
+impl<'a> std::fmt::Display for Label<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}{}", self.0, Self::SEPARATOR, self.1)
+    }
+}
+
+impl<'a> std::convert::From<(&'a str, &'a str)> for Label<'a> {
+    fn from(value: (&'a str, &'a str)) -> Self {
+        Self::new(value.0, value.1)
+    }
+}
+
+impl<'a> std::convert::From<Label<'a>> for (&'a str, &'a str) {
+    fn from(value: Label<'a>) -> Self {
+        (value.0, value.1)
+    }
+}
+
+impl<'a> std::convert::From<&Label<'a>> for (&'a str, &'a str) {
+    fn from(value: &Label<'a>) -> Self {
+        (value.0, value.1)
+    }
+}
+
+/// Struct for filtering JSON values, supporting chain calls and nested path matching
 #[derive(Debug, Default, Clone)]
 pub struct LabelFilter {
     filters: HashMap<String, serde_json::Value>,
 }
 
 impl LabelFilter {
-    /// 创建一个新的 LabelFilter
+    /// Create a new LabelFilter
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// 添加一个过滤条件，支持链式调用
+    /// Add a filter condition, supporting chain calls
     ///
-    /// # 示例
+    /// # Examples
     /// ```
+    /// use taosx_utils::labels::LabelFilter;
+    ///
     /// let filter = LabelFilter::default()
     ///     .with("key1", "value1")
     ///     .with("nested.key", "value2");
@@ -25,10 +93,12 @@ impl LabelFilter {
         self
     }
 
-    /// 检查给定的 JSON 值是否匹配所有过滤条件
+    /// Check if the given JSON value matches all filter conditions
     ///
-    /// # 示例
+    /// # Examples
     /// ```
+    /// use taosx_utils::labels::LabelFilter;
+    ///
     /// let filter = LabelFilter::default()
     ///     .with("a", "b");
     ///
@@ -41,89 +111,114 @@ impl LabelFilter {
             .all(|(key, expected_value)| Self::match_value(value, key, expected_value))
     }
 
-    /// 使用点符号路径来匹配 JSON 中的值
+    /// Use dot notation paths to match values in JSON
     fn match_value(json: &serde_json::Value, path: &str, expected: &serde_json::Value) -> bool {
-        let parts: Vec<&str> = path.split('.').collect();
         let mut current = json;
 
-        // 遍历路径中的每一部分
-        for part in parts {
+        // Traverse each path segment without allocating a Vec
+        for part in path.split('.') {
             match current.get(part) {
                 Some(next) => current = next,
                 None => return false,
             }
         }
 
-        // 比较最终值
+        // Compare the final value
         current == expected
     }
 }
 
-/// 从逗号分隔的字符串中解析标签
+/// Parse labels from a comma-separated string
 ///
-/// # 示例
+/// Empty strings and blank entries are ignored.
+///
+/// # Examples
 /// ```
+/// use taosx_utils::labels::parse_labels;
+///
 /// let pairs = parse_labels("key1::value1,key2::value2");
 /// assert_eq!(pairs.len(), 2);
+///
+/// assert_eq!(parse_labels("").len(), 0);
 /// ```
-pub fn parse_labels(labels: &str) -> Vec<(&str, &str)> {
-    let labels = labels.split(',');
-    parse_label_pairs(labels)
+pub fn parse_labels(labels: &str) -> Vec<Label<'_>> {
+    parse_label_pairs(labels.split(',').map(str::trim).filter(|s| !s.is_empty()))
 }
 
-/// 从字符串迭代器中解析标签对 (key::value 格式)
+/// Parse label pairs from a string iterator (key::value format)
 ///
-/// # 示例
+/// # Examples
 /// ```
+/// use taosx_utils::labels::parse_label_pairs;
+///
 /// let labels = vec!["key1::value1", "key2::value2"];
-/// let pairs = parse_label_pairs(&labels);
+/// let pairs = parse_label_pairs(labels);
 /// assert_eq!(pairs.len(), 2);
 /// ```
-pub fn parse_label_pairs<'a, I>(labels: I) -> Vec<(&'a str, &'a str)>
+pub fn parse_label_pairs<'a, I>(labels: I) -> Vec<Label<'a>>
 where
     I: IntoIterator<Item = &'a str>,
 {
     let labels = labels.into_iter();
-    let mut kvs = Vec::with_capacity(labels.size_hint().0);
+    let mut kvs = Vec::with_capacity(labels.size_hint().1.unwrap_or(labels.size_hint().0));
     for label in labels {
-        let Some(kv) = label.split_once("::") else {
-            continue;
-        };
-        kvs.push(kv);
+        if let Ok(l) = Label::parse(label) {
+            kvs.push(l);
+        }
     }
     kvs
 }
 
-/// 从标签列表构建 JSON 对象
+/// Internal helper: insert parsed `key::value` pairs into a JSON map.
+fn insert_labels_into_map<'a>(
+    map: &mut serde_json::Map<String, serde_json::Value>,
+    labels: impl Iterator<Item = &'a str>,
+) {
+    for label in labels {
+        if let Ok(l) = Label::parse(label) {
+            map.insert(
+                l.key().to_string(),
+                serde_json::Value::String(l.value().to_string()),
+            );
+        }
+    }
+}
+
+/// Build a JSON object from a list of labels
 ///
-/// 支持接收 `&[&str]` 和 `&[String]` 两种类型
+/// Supports both `&[&str]` and `&[String]` types
 ///
-/// # 示例
+/// # Examples
 /// ```
-/// // 使用 &[&str]
+/// use taosx_utils::labels::build_json_labels_from_iter;
+///
+/// // Using &[&str]
 /// let labels = vec!["key1::value1", "key2::value2"];
 /// let json = build_json_labels_from_iter(&labels);
 /// assert_eq!(json.get("key1").and_then(|v| v.as_str()), Some("value1"));
 ///
-/// // 使用 &[String]
+/// // Using &[String]
 /// let labels_owned = vec![String::from("key1::value1"), String::from("key2::value2")];
 /// let json = build_json_labels_from_iter(&labels_owned);
 /// assert_eq!(json.get("key1").and_then(|v| v.as_str()), Some("value1"));
 /// ```
 pub fn build_json_labels_from_iter<T: AsRef<str>>(labels: &[T]) -> serde_json::Value {
-    let kvs = parse_label_pairs(labels.iter().map(|l| l.as_ref()));
-    serde_json::Value::from_iter(kvs)
+    let mut map = serde_json::Map::with_capacity(labels.len());
+    insert_labels_into_map(&mut map, labels.iter().map(|s| s.as_ref()));
+    serde_json::Value::Object(map)
 }
 
-/// 从 JSON 对象中提取标签对（仅提取字符串类型的值）
+/// Extract label pairs from a JSON object (only extracts string values)
 ///
-/// # 示例
+/// # Examples
 /// ```
+/// use taosx_utils::labels::extract_label_pairs;
+///
 /// let json = serde_json::json!({"key1": "value1", "key2": "value2"});
 /// let pairs = extract_label_pairs(&json);
 /// assert_eq!(pairs.len(), 2);
 /// ```
-pub fn extract_label_pairs(json: &serde_json::Value) -> Vec<(&str, &str)> {
+pub fn extract_label_pairs(json: &serde_json::Value) -> Vec<Label<'_>> {
     let Some(json) = json.as_object() else {
         return Vec::new();
     };
@@ -132,23 +227,46 @@ pub fn extract_label_pairs(json: &serde_json::Value) -> Vec<(&str, &str)> {
         let serde_json::Value::String(v) = v else {
             continue;
         };
-        kvs.push((k.as_str(), v.as_str()));
+        kvs.push((k.as_str(), v.as_str()).into());
     }
     kvs
 }
 
-/// 从逗号分隔的字符串中构建 JSON 对象
+/// Build a JSON object from a comma-separated string
 ///
-/// 内部调用 `parse_labels(labels)` 直接构建 JSON 对象
+/// Internally calls `parse_labels(labels)` to build the JSON object directly
 ///
-/// # 示例
+/// # Examples
 /// ```
-/// let json = build_json_from_string("service::api,env::prod");
+/// use taosx_utils::labels::build_json_labels_from_string;
+///
+/// let json = build_json_labels_from_string("service::api,env::prod");
 /// assert_eq!(json.get("service").and_then(|v| v.as_str()), Some("api"));
 /// assert_eq!(json.get("env").and_then(|v| v.as_str()), Some("prod"));
 /// ```
 pub fn build_json_labels_from_string(labels: &str) -> serde_json::Value {
-    serde_json::Value::from_iter(parse_labels(labels))
+    let mut map = serde_json::Map::new();
+    insert_labels_into_map(&mut map, labels.split(',').filter(|s| !s.is_empty()));
+    serde_json::Value::Object(map)
+}
+
+/// Extract labels from JSON and convert to string format
+///
+/// # Examples
+/// ```
+/// use taosx_utils::labels::extract_labels_as_strings;
+///
+/// let json = serde_json::json!({"key1": "value1", "key2": "value2"});
+/// let labels = extract_labels_as_strings(&json);
+/// assert_eq!(labels.len(), 2);
+/// assert!(labels.contains(&"key1::value1".to_string()));
+/// assert!(labels.contains(&"key2::value2".to_string()));
+/// ```
+pub fn extract_labels_as_strings(json: &serde_json::Value) -> Vec<String> {
+    extract_label_pairs(json)
+        .into_iter()
+        .map(|label| label.to_string())
+        .collect()
 }
 
 #[cfg(test)]
@@ -316,9 +434,9 @@ mod tests {
         let labels = vec!["key1::value1", "key2::value2", "key3::value3"];
         let result = parse_label_pairs(labels);
         assert_eq!(result.len(), 3);
-        assert_eq!(result[0], ("key1", "value1"));
-        assert_eq!(result[1], ("key2", "value2"));
-        assert_eq!(result[2], ("key3", "value3"));
+        assert_eq!(result[0], ("key1", "value1").into());
+        assert_eq!(result[1], ("key2", "value2").into());
+        assert_eq!(result[2], ("key3", "value3").into());
     }
 
     #[test]
@@ -340,8 +458,8 @@ mod tests {
         let labels = vec!["key1::value1", "invalid", "key2::value2"];
         let result = parse_label_pairs(labels);
         assert_eq!(result.len(), 2);
-        assert_eq!(result[0], ("key1", "value1"));
-        assert_eq!(result[1], ("key2", "value2"));
+        assert_eq!(result[0], ("key1", "value1").into());
+        assert_eq!(result[1], ("key2", "value2").into());
     }
 
     #[test]
@@ -349,7 +467,7 @@ mod tests {
         let labels = vec!["key::"];
         let result = parse_label_pairs(labels);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0], ("key", ""));
+        assert_eq!(result[0], ("key", "").into());
     }
 
     #[test]
@@ -357,7 +475,7 @@ mod tests {
         let labels = vec!["::value"];
         let result = parse_label_pairs(labels);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0], ("", "value"));
+        assert_eq!(result[0], ("", "value").into());
     }
 
     #[test]
@@ -365,7 +483,7 @@ mod tests {
         let labels = vec!["key::value::extra"];
         let result = parse_label_pairs(labels);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0], ("key", "value::extra"));
+        assert_eq!(result[0], ("key", "value::extra").into());
     }
 
     // ==================== build_json_from_labels Tests ====================
@@ -405,7 +523,7 @@ mod tests {
     fn test_build_json_from_labels_duplicate_keys() {
         let labels = vec!["key::value1", "key::value2"];
         let json = build_json_labels_from_iter(&labels);
-        // 后一个值会覆盖前一个
+        // Later value overrides earlier value
         assert_eq!(json.get("key").and_then(|v| v.as_str()), Some("value2"));
     }
 
@@ -427,15 +545,15 @@ mod tests {
 
     #[test]
     fn test_build_json_from_labels_mixed_type_compatibility() {
-        // 测试 &[&str] 类型
+        // Test &[&str] type
         let str_refs = vec!["key::value"];
         let json1 = build_json_labels_from_iter(&str_refs);
 
-        // 测试 &[String] 类型
+        // Test &[String] type
         let owned_strings = vec![String::from("key::value")];
         let json2 = build_json_labels_from_iter(&owned_strings);
 
-        // 两种方式应该产生相同的结果
+        // Both methods should produce the same result
         assert_eq!(
             json1.get("key").and_then(|v| v.as_str()),
             json2.get("key").and_then(|v| v.as_str())
@@ -449,7 +567,7 @@ mod tests {
         let json = serde_json::json!({"key": "value"});
         let result = extract_label_pairs(&json);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0], ("key", "value"));
+        assert_eq!(result[0], ("key", "value").into());
     }
 
     #[test]
@@ -457,8 +575,9 @@ mod tests {
         let json = serde_json::json!({"key1": "value1", "key2": "value2"});
         let result = extract_label_pairs(&json);
         assert_eq!(result.len(), 2);
-        // HashMap 的顺序不确定，所以检查包含
-        let result_map: std::collections::HashMap<_, _> = result.into_iter().collect();
+        // HashMap order is not guaranteed, so check containment
+        let result_map: std::collections::HashMap<_, _> =
+            result.into_iter().map(|l| (l.0, l.1)).collect();
         assert_eq!(result_map.get("key1").copied(), Some("value1"));
         assert_eq!(result_map.get("key2").copied(), Some("value2"));
     }
@@ -468,7 +587,7 @@ mod tests {
         let json = serde_json::json!({"string_key": "value", "number_key": 42, "bool_key": true});
         let result = extract_label_pairs(&json);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0], ("string_key", "value"));
+        assert_eq!(result[0], ("string_key", "value").into());
     }
 
     #[test]
@@ -504,7 +623,7 @@ mod tests {
         let json = serde_json::json!({"key": "value", "nested": {"inner": "data"}});
         let result = extract_label_pairs(&json);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0], ("key", "value"));
+        assert_eq!(result[0], ("key", "value").into());
     }
 
     #[test]
@@ -512,7 +631,7 @@ mod tests {
         let json = serde_json::json!({"key": ""});
         let result = extract_label_pairs(&json);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0], ("key", ""));
+        assert_eq!(result[0], ("key", "").into());
     }
 
     // ==================== Integration Tests ====================
@@ -555,9 +674,9 @@ mod tests {
         let labels_str = "key1::value1,key2::value2,key3::value3";
         let result = parse_labels(labels_str);
         assert_eq!(result.len(), 3);
-        assert_eq!(result[0], ("key1", "value1"));
-        assert_eq!(result[1], ("key2", "value2"));
-        assert_eq!(result[2], ("key3", "value3"));
+        assert_eq!(result[0], ("key1", "value1").into());
+        assert_eq!(result[1], ("key2", "value2").into());
+        assert_eq!(result[2], ("key3", "value3").into());
     }
 
     #[test]
@@ -637,5 +756,29 @@ mod tests {
         let json = build_json_labels_from_string(original);
         let extracted = extract_label_pairs(&json);
         assert_eq!(extracted.len(), 3);
+    }
+
+    #[test]
+    fn test_extract_labels_as_strings() {
+        let json = serde_json::json!({"key1": "value1", "key2": "value2"});
+        let labels = extract_labels_as_strings(&json);
+        assert_eq!(labels.len(), 2);
+        assert!(labels.contains(&"key1::value1".to_string()));
+        assert!(labels.contains(&"key2::value2".to_string()));
+    }
+
+    #[test]
+    fn test_extract_labels_as_strings_empty() {
+        let json = serde_json::json!({});
+        let labels = extract_labels_as_strings(&json);
+        assert!(labels.is_empty());
+    }
+
+    #[test]
+    fn test_extract_labels_as_strings_with_non_string() {
+        let json = serde_json::json!({"key1": "value1", "number": 42, "bool": true});
+        let labels = extract_labels_as_strings(&json);
+        assert_eq!(labels.len(), 1);
+        assert_eq!(labels[0], "key1::value1");
     }
 }

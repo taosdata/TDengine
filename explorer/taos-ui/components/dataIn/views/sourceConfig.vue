@@ -26,7 +26,11 @@
 
               <section>
                 <el-form-item :label="t('dataIn.name2')" prop="name">
-                  <el-input id="name" v-model="sourceForm.name" :placeholder="t('dataIn.placeholders.taskName')"></el-input>
+                  <el-input
+                    id="name"
+                    v-model="sourceForm.name"
+                    :placeholder="t('dataIn.placeholders.taskName')"
+                  ></el-input>
                 </el-form-item>
                 <el-form-item :label="t('dataIn.type')" prop="type" class="hidden-required">
                   <el-select id="type" v-model="sourceForm.type" :disabled="!!taskId" @change="typeChang">
@@ -59,7 +63,12 @@
                     :placeholder="t('dataIn.placeholders.agentPlaceholder')"
                     clearable
                   >
-                    <el-option v-for="item in agentList" :key="item.name" :label="item.name" :value="item.id"></el-option>
+                    <el-option
+                      v-for="item in agentList"
+                      :key="item.name"
+                      :label="item.name"
+                      :value="item.id"
+                    ></el-option>
                   </el-select>
                   <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
                     <template #content>
@@ -122,12 +131,7 @@
         <el-affix position="bottom" :offset="0">
           <div class="btn-group-task">
             <template v-if="isView">
-              <el-button
-                type="primary"
-                size="default"
-                :round="dataInProps.isIdmp"
-                @click="enterEditMode"
-              >
+              <el-button type="primary" size="default" :round="dataInProps.isIdmp" @click="enterEditMode">
                 {{ t('dataIn.editconfig') }}
               </el-button>
               <el-button :round="dataInProps.isIdmp" size="default" @click="goBack">
@@ -318,12 +322,7 @@ function getBaseUrl(): string {
 
 const labels = computed(() => {
   if (dataInProps.isCloud) {
-    return [
-      'ds',
-      sourceForm.type,
-      'name::' + sourceForm.name,
-      'dsType::' + sourceForm.type
-    ];
+    return ['ds', sourceForm.type, 'name::' + sourceForm.name, 'dsType::' + sourceForm.type];
   }
   return ['type::datain', `user::${instance?.user}`];
 });
@@ -365,7 +364,10 @@ onMounted(async () => {
 });
 
 const isView = ref(route?.query?.readonly === 'true');
-provide('isReadonly', computed(() => isView.value));
+provide(
+  'isReadonly',
+  computed(() => isView.value)
+);
 
 const isShowAgent = computed(() => !NoNeedAgentType.includes(sourceForm.type));
 
@@ -770,109 +772,109 @@ $color-description: rgb(137 130 130);
     }
 
     .block-wrapper {
-    padding: 0px 15px 0px 15px;
-    margin-bottom: 10px;
-    border: 1px solid #ececef;
-    border-radius: 12px;
-  }
+      padding: 0px 15px 0px 15px;
+      margin-bottom: 10px;
+      border: 1px solid #ececef;
+      border-radius: 12px;
+    }
 
-  &:deep(.el-tabs__item.is-disabled) {
-    cursor: not-allowed;
-  }
+    &:deep(.el-tabs__item.is-disabled) {
+      cursor: not-allowed;
+    }
 
-  .docs-content {
-    margin-bottom: 10px;
-    font-size: 14px;
-    color: $color-description;
-    text-align: left;
-  }
+    .docs-content {
+      margin-bottom: 10px;
+      font-size: 14px;
+      color: $color-description;
+      text-align: left;
+    }
 
-  &:deep(.el-tabs__item) {
-    display: table-cell;
-    max-width: 240px;
-    line-height: 22px !important;
-    word-wrap: break-word;
-    white-space: pre-wrap;
-    vertical-align: middle;
-  }
+    &:deep(.el-tabs__item) {
+      display: table-cell;
+      max-width: 240px;
+      line-height: 22px !important;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+      vertical-align: middle;
+    }
 
-  .form-tabs {
-    margin-top: 1.5rem;
-  }
+    .form-tabs {
+      margin-top: 1.5rem;
+    }
 
-  .mb10 {
-    margin-bottom: 0px;
-  }
+    .mb10 {
+      margin-bottom: 0px;
+    }
 
-  .advanced-en {
-    :deep(.el-collapse-item__header) {
-      min-height: 40px;
-      font-weight: 300;
-      line-height: 1.2;
-      border-bottom: 0;
+    .advanced-en {
+      :deep(.el-collapse-item__header) {
+        min-height: 40px;
+        font-weight: 300;
+        line-height: 1.2;
+        border-bottom: 0;
 
-      .mb10 {
-        font-weight: 400;
+        .mb10 {
+          font-weight: 400;
 
-        * {
-          font-weight: 400 !important;
+          * {
+            font-weight: 400 !important;
+          }
         }
       }
+
+      :deep(.el-collapse-item__content) {
+        padding-bottom: 0;
+      }
+
+      :deep(.el-collapse-item__wrap) {
+        border-bottom: 0;
+      }
+
+      :deep(.el-collapse-item__arrow) {
+        transform: rotate(90deg);
+      }
+
+      :deep(.el-collapse-item.is-active .el-collapse-item__arrow) {
+        transform: rotate(-90deg);
+      }
+
+      border: 0;
     }
 
-    :deep(.el-collapse-item__content) {
-      padding-bottom: 0;
-    }
+    .advanced-zh {
+      :deep(.el-collapse-item__header) {
+        min-height: 40px;
+        font-weight: 300;
+        line-height: 1.2;
+        border-bottom: 0;
 
-    :deep(.el-collapse-item__wrap) {
-      border-bottom: 0;
-    }
+        .mb10 {
+          font-weight: 400;
 
-    :deep(.el-collapse-item__arrow) {
-      transform: rotate(90deg);
-    }
-
-    :deep(.el-collapse-item.is-active .el-collapse-item__arrow) {
-      transform: rotate(-90deg);
-    }
-
-    border-top: 0;
-  }
-
-  .advanced-zh {
-    :deep(.el-collapse-item__header) {
-      min-height: 40px;
-      font-weight: 300;
-      line-height: 1.2;
-      border-bottom: 0;
-
-      .mb10 {
-        font-weight: 400;
-
-        * {
-          font-weight: 400 !important;
+          * {
+            font-weight: 400 !important;
+          }
         }
       }
-    }
 
-    :deep(.el-collapse-item__content) {
-      padding-bottom: 0;
-    }
+      :deep(.el-collapse-item__content) {
+        padding-bottom: 0;
+      }
 
-    :deep(.el-collapse-item__wrap) {
-      border-bottom: 0;
-    }
+      :deep(.el-collapse-item__wrap) {
+        border-bottom: 0;
+      }
 
-    :deep(.el-collapse-item__arrow) {
-      transform: rotate(90deg);
-    }
+      :deep(.el-collapse-item__arrow) {
+        transform: rotate(90deg);
+      }
 
-    :deep(.el-collapse-item.is-active .el-collapse-item__arrow) {
-      transform: rotate(-90deg);
-    }
+      :deep(.el-collapse-item.is-active .el-collapse-item__arrow) {
+        transform: rotate(-90deg);
+      }
 
-    border-top: 0;
-  }
+      border: 0;
+    }
   }
 
   .right-ui {
@@ -924,7 +926,7 @@ $color-description: rgb(137 130 130);
     .breadcrumb-separator {
       margin: 0 4px;
       color: #606266;
-    } 
+    }
   }
 
   .preview-btn,

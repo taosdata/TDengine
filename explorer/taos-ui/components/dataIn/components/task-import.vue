@@ -7,6 +7,7 @@
     :on-progress="handleStart"
     :on-error="handleError"
     :file-list="fileList"
+    :with-credentials="true"
     :show-file-list="false"
   >
     <template v-if="$slots.btn"><slot name="btn"></slot></template>

@@ -9,7 +9,7 @@ use ha_core::{
 use taos::Dsn;
 use taosx_utils::{
     dsn::{dsn_to_json, json_to_dsn},
-    labels::build_json_labels_from_iter,
+    labels::{self, build_json_labels_from_iter},
 };
 
 macro_rules! extract_from {
@@ -99,7 +99,7 @@ pub struct Task {
     to: String,
     parser: Option<serde_json::Value>,
     via: Option<i64>,
-    labels: Vec<String>,
+    labels: Option<Vec<String>>,
     trigger: Option<serde_json::Value>,
 }
 
@@ -115,9 +115,20 @@ impl TryFrom<Task> for HaTask {
     type Error = anyhow::Error;
 
     fn try_from(task: Task) -> Result<Self, Self::Error> {
-        let mut labels = build_json_labels_from_iter(&task.labels);
-        if let (Some(labels), Some(trigger)) = (labels.as_object_mut(), task.trigger) {
-            labels.insert("trigger".into(), trigger);
+        let mut labels = task.labels.map(|v| build_json_labels_from_iter(&v));
+        match (
+            labels.as_mut().and_then(|v| v.as_object_mut()),
+            task.trigger,
+        ) {
+            (Some(labels_obj), Some(trigger_value)) => {
+                labels_obj.insert("trigger".into(), trigger_value);
+            }
+            (None, Some(trigger_value)) => {
+                let mut map = serde_json::Map::new();
+                map.insert("trigger".into(), trigger_value);
+                labels = Some(serde_json::Value::Object(map));
+            }
+            _ => {}
         }
         Ok(HaTask {
             name: task.name,
@@ -125,7 +136,7 @@ impl TryFrom<Task> for HaTask {
             to: task.to,
             parser: task.parser,
             via: task.via,
-            labels: Some(labels),
+            labels,
         })
     }
 }
@@ -161,10 +172,12 @@ pub struct ExportedTask {
     via: Option<i64>,
     created_at: DateTime<Utc>,
     trigger: Option<serde_json::Value>,
+    labels: Option<serde_json::Value>,
 }
 
 impl From<ExportedTask> for Task {
     fn from(value: ExportedTask) -> Self {
+        let labels = value.labels.map(|v| labels::extract_labels_as_strings(&v));
         Self {
             name: value.name,
             from: None,
@@ -172,7 +185,7 @@ impl From<ExportedTask> for Task {
             to: value.to,
             parser: value.parser,
             via: value.via,
-            labels: vec![],
+            labels,
             trigger: value.trigger,
         }
     }
@@ -192,10 +205,13 @@ impl TryFrom<TaskRecord> for ExportedTask {
             .context("param `parser` not valid json")?;
         let mut labels = task
             .labels
-            .map(|v| serde_json::from_str::<HashMap<String, serde_json::Value>>(&v))
+            .map(|v| serde_json::from_str::<serde_json::Value>(&v))
             .transpose()
-            .context("param `labels` no valid json")?
-            .unwrap_or_default();
+            .context("param `labels` not valid json")?;
+        let mut trigger = None;
+        if let Some(v) = labels.as_mut().and_then(|v| v.as_object_mut()) {
+            trigger = v.get("trigger").cloned();
+        }
         Ok(Self {
             id: task.id,
             name: task.name,
@@ -204,7 +220,8 @@ impl TryFrom<TaskRecord> for ExportedTask {
             parser,
             via: task.via,
             created_at: task.create_time,
-            trigger: labels.remove("trigger"),
+            trigger,
+            labels,
         })
     }
 }
