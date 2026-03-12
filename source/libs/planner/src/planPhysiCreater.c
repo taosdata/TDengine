@@ -2046,8 +2046,10 @@ static int32_t createDynQueryCtrlPhysiNode(SPhysiPlanContext* pCxt, SNodeList* p
     case DYN_QTYPE_STB_HASH:
       PLAN_ERR_JRET(updateDynQueryCtrlStbJoinInfo(pCxt, pChildren, pLogicNode, pDynCtrl));
       break;
+    case DYN_QTYPE_VTB_TS_SCAN:
     case DYN_QTYPE_VTB_SCAN:
     case DYN_QTYPE_VTB_AGG:
+    case DYN_QTYPE_VTB_INTERVAL:
       PLAN_ERR_JRET(updateDynQueryCtrlVtbScanInfo(pCxt, pChildren, pLogicNode, pDynCtrl, pSubPlan));
       break;
     case DYN_QTYPE_VTB_WINDOW:
@@ -2255,7 +2257,7 @@ static bool isDynVirtualStableAgg(SNode* pNode) {
     return false;
   }
   SDynQueryCtrlPhysiNode* pDynCtrl = (SDynQueryCtrlPhysiNode*)pNode;
-  if (DYN_QTYPE_VTB_AGG != pDynCtrl->qType) {
+  if (DYN_QTYPE_VTB_AGG != pDynCtrl->qType && DYN_QTYPE_VTB_INTERVAL != pDynCtrl->qType) {
     return false;
   }
   if (nodesListGetNode(pDynCtrl->node.pChildren, 0)== NULL) {
@@ -3268,6 +3270,7 @@ static int32_t createExchangePhysiNodeByMerge(SMergePhysiNode* pMerge, int32_t i
   pExchange->srcEndGroupId = pMerge->srcGroupId + idx;
   pExchange->grpSingleChannel = grpSingleChannel;
   pExchange->singleSrc = true;
+  pExchange->node.dynamicOp = pMerge->node.dynamicOp;
   pExchange->node.pParent = (SPhysiNode*)pMerge;
   pExchange->node.pOutputDataBlockDesc = NULL;
   code = nodesCloneNode((SNode*)pMerge->node.pOutputDataBlockDesc, (SNode**)&pExchange->node.pOutputDataBlockDesc);

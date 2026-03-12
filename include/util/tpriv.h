@@ -52,7 +52,7 @@ extern "C" {
 #define TSDB_WORD_VARIABLES  "variables"
 #define TSDB_WORD_INFORMATION "information"
 
-#define PRIV_INFO_TABLE_VERSION 3
+#define PRIV_INFO_TABLE_VERSION 4 // N.B. increase this version for any update of privInfoTable
 typedef enum {
   PRIV_TYPE_UNKNOWN = -1,
   // ==================== Common Privilege ====================

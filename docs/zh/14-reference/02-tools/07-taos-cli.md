@@ -48,7 +48,7 @@ taos> quit
 - -?, --help：打印出所有命令行参数。
 - -s COMMAND：以非交互模式执行的 SQL 命令。
 
-    使用 `-s` 参数可进行非交互式执行 SQL，执行完成后退出，此模式适合在自动化脚本中使用。  
+    使用 `-s` 参数可进行非交互式执行 SQL，执行完成后退出，此模式适合在自动化脚本中使用。
     如以下命令连接到服务器 h1.taos.com, 执行 -s 指定的 SQL：
 
     ```bash
@@ -58,7 +58,7 @@ taos> quit
 - -c CONFIGDIR：指定配置文件目录。
 
     Linux 环境下默认为 `/etc/taos`，该目录下的配置文件默认名称为 `taos.cfg`。
-    使用 `-c` 参数改变 `taosc` 客户端加载配置文件的位置，客户端配置参数参考 [客户端配置](../../components/taosc)。  
+    使用 `-c` 参数改变 `taosc` 客户端加载配置文件的位置，客户端配置参数参考 [客户端配置](../../components/taosc)。
     以下命令指定了 `taosc` 客户端加载 `/root/cfg/` 下的 `taos.cfg` 配置文件。
 
     ```bash
@@ -84,7 +84,6 @@ taos> quit
   - 如果 `-q` 参数后面不跟 Token 字符串，则会提示用户输入 Token，如：`taos -u root -q`。
   - 如果 `-q` 参数后面直接跟 Token 字符串，则使用该 Token 进行连接，如：`taos -u root -q<token_string>`。
 - -r：将时间列转化为无符号 64 位整数类型输出 (即 C 语言中 uint64_t)。
-- -R：使用 RESTful 模式连接服务端。
 - -t：测试服务端启动状态，状态同 -k。
 - -w DISPLAYWIDTH：客户端列显示宽度。
 - -z TIMEZONE：指定时区，默认为本地时区。
@@ -119,7 +118,7 @@ taos> source <filename>;
 
 ### 设置字符列显示宽度
 
-可以在 TDengine TSDB CLI 里使用如下命令调整字符串类型字段列显示宽度，默认显示宽度为 30 个字符。  
+可以在 TDengine TSDB CLI 里使用如下命令调整字符串类型字段列显示宽度，默认显示宽度为 30 个字符。
 以下命令设置了显示宽度为 120 个字符：
 
 ```sql
