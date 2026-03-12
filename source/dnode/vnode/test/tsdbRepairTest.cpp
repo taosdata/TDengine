@@ -131,7 +131,9 @@ int32_t           g_targetFileId = 0;
 SRepairTsdbFileOpt g_targetTsdbFileOpt = {.strategy = DM_REPAIR_STRATEGY_TSDB_DROP_INVALID_ONLY};
 }  // namespace
 
-extern "C" SDmNotifyHandle dmNotifyHdl = {.state = 0};
+extern "C" {
+SDmNotifyHandle dmNotifyHdl = {.state = 0};
+}
 
 extern "C" const SRepairTsdbFileOpt *dmRepairGetTsdbFileOpt(int32_t vnodeId, int32_t fileId) {
   if (g_hasTsdbRepairTarget && vnodeId == g_targetVnodeId && fileId == g_targetFileId) {
