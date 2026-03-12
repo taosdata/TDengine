@@ -799,8 +799,8 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
       return TSDB_CODE_FAILED;
     }
     desc.subPlanNum = pRequest->body.subplanNum;
-    desc.execPhase = pRequest->execPhase;
-    desc.phaseStartTime = pRequest->phaseStartTime;
+    desc.execPhase = atomic_load_32(&pRequest->execPhase);
+    desc.phaseStartTime = atomic_load_64(&pRequest->phaseStartTime);
 
     if (desc.subPlanNum) {
       desc.subDesc = taosArrayInit(desc.subPlanNum, sizeof(SQuerySubDesc));
