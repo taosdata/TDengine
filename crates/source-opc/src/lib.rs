@@ -58,7 +58,7 @@ pub async fn opc_to_taos(
         task_id, job_id, ..
     }) = with_agent
     {
-        let _ = core_metrics::init_task_metrics(&from, &to, task_id, job_id).await;
+        let _ = core_metrics::init_task_metrics(&from, &to, task_id, job_id, None).await;
     }
     let ipc_port = port_pool
         .get()

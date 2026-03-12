@@ -111,6 +111,7 @@ pub struct CommonMetrics {
     pub stable: String,
     pub task_id: i64,
     pub job_id: i64,
+    pub task_name: Option<String>,
     pub start_time: TaskStartTime,
     pub total_execute_time: AtomicU64,
     pub total_written_rows: AtomicU64,
@@ -131,6 +132,7 @@ impl Default for CommonMetrics {
             stable: String::new(),
             task_id: -1,
             job_id: -1,
+            task_name: None,
             start_time: TaskStartTime::default(),
             total_execute_time: AtomicU64::new(0),
             total_written_rows: AtomicU64::new(0),
@@ -167,11 +169,12 @@ impl std::ops::AddAssign for CommonMetrics {
 }
 
 impl CommonMetrics {
-    pub fn new(stable: String, task_id: i64, job_id: i64) -> Self {
+    pub fn new(stable: String, task_id: i64, job_id: i64, task_name: Option<String>) -> Self {
         Self {
             stable,
             task_id,
             job_id,
+            task_name,
             ..Default::default()
         }
     }
@@ -576,6 +579,7 @@ pub async fn init_task_metrics(
     to: &Dsn,
     task_id: i64,
     job_id: i64,
+    task_name: Option<String>,
 ) -> Option<Arc<CoreMetrics>> {
     let driver = from.driver.as_str();
     match (driver, to.driver.as_str()) {
@@ -589,7 +593,7 @@ pub async fn init_task_metrics(
                 tracing::info!("create new metrics for task ({task_id},{job_id})");
                 let stable = String::from("taosx_task_tdengine2");
                 let metrics = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::new(
-                    stable, task_id, job_id,
+                    stable, task_id, job_id, task_name,
                 )));
                 insert_metrics(task_id, job_id, metrics.clone());
                 Some(metrics)
@@ -604,7 +608,9 @@ pub async fn init_task_metrics(
             } else {
                 tracing::info!("create new metrics for task ({task_id},{job_id})");
                 let stable = String::from("taosx_task_tdengine3");
-                let metrics = Arc::new(CoreMetrics::TMQ(TmqMetrics::new(stable, task_id, job_id)));
+                let metrics = Arc::new(CoreMetrics::TMQ(TmqMetrics::new(
+                    stable, task_id, job_id, task_name,
+                )));
                 insert_metrics(task_id, job_id, metrics.clone());
                 Some(metrics)
             }
@@ -624,7 +630,9 @@ pub async fn init_task_metrics(
             } else {
                 tracing::info!("create new metrics for task {}", task_id);
                 let stable = String::from("taosx_task_") + driver;
-                let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::new(stable, task_id, job_id)));
+                let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::new(
+                    stable, task_id, job_id, task_name,
+                )));
                 insert_metrics(task_id, job_id, metrics.clone());
                 Some(metrics)
             }
@@ -767,7 +775,7 @@ mod tests {
     /// This test case is to verify that the global metrics can be accessed by multiple threads and the metrics can be updated concurrently.
     #[tokio::test]
     async fn test_global_metrics() {
-        let legacy_to_taos_metrics = LegacyToTaosMetrics::new(TEST_STABLE.to_string(), 1, 1);
+        let legacy_to_taos_metrics = LegacyToTaosMetrics::new(TEST_STABLE.to_string(), 1, 1, None);
         legacy_to_taos_metrics
             .read_concurrency
             .fetch_add(10, std::sync::atomic::Ordering::SeqCst);
@@ -826,7 +834,8 @@ mod tests {
         std::fs::create_dir_all(&task_dir).unwrap();
         let db = MetricsStore::new(1024, -1).await;
 
-        let legacy_to_taos_metrics = LegacyToTaosMetrics::new(TEST_STABLE.to_string(), 1024, -1);
+        let legacy_to_taos_metrics =
+            LegacyToTaosMetrics::new(TEST_STABLE.to_string(), 1024, -1, None);
         legacy_to_taos_metrics
             .read_concurrency
             .fetch_add(10, std::sync::atomic::Ordering::SeqCst);
@@ -842,7 +851,7 @@ mod tests {
 
     #[test]
     fn test_common_metrics_new() {
-        let metrics = CommonMetrics::new("test_stable".to_string(), 123, -1);
+        let metrics = CommonMetrics::new("test_stable".to_string(), 123, -1, None);
 
         assert_eq!(metrics.stable, "test_stable");
         assert_eq!(metrics.task_id, 123);
@@ -958,7 +967,7 @@ mod tests {
 
     #[test]
     fn test_core_metrics_deref() {
-        let legacy_metrics = LegacyToTaosMetrics::new("test".to_string(), 1, -1);
+        let legacy_metrics = LegacyToTaosMetrics::new("test".to_string(), 1, -1, None);
         let core_metrics = CoreMetrics::Legacy(legacy_metrics);
 
         // Test deref to CommonMetrics
@@ -969,7 +978,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "metrics type not match")]
     fn test_core_metrics_legacy_panic() {
-        let tmq_metrics = TmqMetrics::new("test".to_string(), 1, -1);
+        let tmq_metrics = TmqMetrics::new("test".to_string(), 1, -1, None);
         let core_metrics = CoreMetrics::TMQ(tmq_metrics);
 
         // This should panic because it's TMQ, not Legacy
@@ -979,7 +988,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "metrics type not match")]
     fn test_core_metrics_tmq_panic() {
-        let legacy_metrics = LegacyToTaosMetrics::new("test".to_string(), 1, -1);
+        let legacy_metrics = LegacyToTaosMetrics::new("test".to_string(), 1, -1, None);
         let core_metrics = CoreMetrics::Legacy(legacy_metrics);
 
         // This should panic because it's Legacy, not TMQ
@@ -989,7 +998,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "metrics type not match")]
     fn test_core_metrics_ipc_panic() {
-        let legacy_metrics = LegacyToTaosMetrics::new("test".to_string(), 1, -1);
+        let legacy_metrics = LegacyToTaosMetrics::new("test".to_string(), 1, -1, None);
         let core_metrics = CoreMetrics::Legacy(legacy_metrics);
 
         // This should panic because it's Legacy, not IPC
@@ -1105,6 +1114,7 @@ mod tests {
                 "stb_none".to_string(),
                 -99,
                 1,
+                None,
             )))
         });
         // None path returns provided metrics without insertion; verify attributes
@@ -1118,6 +1128,7 @@ mod tests {
                 "stb_insert".to_string(),
                 id,
                 id,
+                None,
             )))
         });
 

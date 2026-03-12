@@ -27,7 +27,7 @@ impl TaskStatus {
     pub fn is_running(&self) -> bool {
         matches!(
             self,
-            TaskStatus::Queued | TaskStatus::Running | TaskStatus::Tick
+            TaskStatus::Queued | TaskStatus::Running | TaskStatus::Tick | TaskStatus::Stopping
         )
     }
 }

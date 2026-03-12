@@ -107,6 +107,7 @@ async fn ipc_stream_writer(
     ))?;
     let task_id = task.id;
     let job_id = task.job_id;
+    let task_name = task.name;
     let from = json_to_dsn(&serde_json::Value::String(task.from.clone()))?;
     let to: Dsn = task.to.parse().unwrap();
     let taos = pool.get().await?;
@@ -132,7 +133,7 @@ async fn ipc_stream_writer(
         if let Some(arc) = get_metrics(task_id, job_id) {
             arc
         } else {
-            let _ = init_task_metrics(&from, &to, task_id, job_id).await;
+            let _ = init_task_metrics(&from, &to, task_id, job_id, Some(task_name)).await;
             get_metrics(task_id, job_id).ok_or_else(|| anyhow::format_err!("metrics not found"))?
         }
     };
@@ -730,7 +731,8 @@ impl PutStream {
                 // let from: Dsn = task.from.parse()?;
                 let from = json_to_dsn(&serde_json::Value::String(task.from.clone()))?;
                 let to: Dsn = task.to.parse()?;
-                let _ = init_task_metrics(&from, &to, self.task_id, self.job_id).await;
+                let _ =
+                    init_task_metrics(&from, &to, self.task_id, self.job_id, Some(task.name)).await;
                 get_metrics(self.task_id, self.job_id)
                     .ok_or_else(|| anyhow::format_err!("metrics not found"))?
             }

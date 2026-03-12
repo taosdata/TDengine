@@ -42,8 +42,9 @@ fn resolve_unreported_status(
     if xnode_online {
         match cached {
             Some(s) if s.is_stopped() => Some(s),
-            Some(_) => Some(TaskStatus::Stopped),
-            None => db_status,
+            Some(s) if s.is_running() => Some(TaskStatus::Stopped),
+            // do not modify db status when Created
+            _ => db_status,
         }
     } else {
         cached.or(db_status)
@@ -97,7 +98,7 @@ pub async fn update_task_status(
     for job in &db_jobs {
         let state = state_map.get(&(job.task_id, job.id)).copied().or_else(|| {
             resolve_unreported_status(
-                tasks.get_cached_job_status(job.task_id, job.id),
+                tasks.get_cached_status(job.task_id, job.id),
                 job.status,
                 xnodes.is_online(job.xnode_id),
             )
@@ -113,7 +114,7 @@ pub async fn update_task_status(
         });
 
         if tasks
-            .get_cached_job_status(job.task_id, job.id)
+            .get_cached_status(job.task_id, job.id)
             .is_some_and(|v| v == state)
         {
             continue;
@@ -301,25 +302,25 @@ mod tests {
         let job_id_b = 11_i64;
 
         assert!(tasks.get_cached_task_status(task_id).is_none());
-        assert!(tasks.get_cached_job_status(task_id, job_id_a).is_none());
+        assert!(tasks.get_cached_status(task_id, job_id_a).is_none());
 
         tasks.set_cached_task_status(task_id, TaskStatus::Running);
-        tasks.set_cached_job_status(task_id, job_id_a, TaskStatus::Running);
-        tasks.set_cached_job_status(task_id, job_id_b, TaskStatus::Stopped);
+        tasks.set_cached_status(task_id, job_id_a, TaskStatus::Running);
+        tasks.set_cached_status(task_id, job_id_b, TaskStatus::Stopped);
 
         tasks.set_cached_task_status(other_task_id, TaskStatus::Stopped);
-        tasks.set_cached_job_status(other_task_id, job_id_a, TaskStatus::Stopped);
+        tasks.set_cached_status(other_task_id, job_id_a, TaskStatus::Stopped);
 
         assert_eq!(
             tasks.get_cached_task_status(task_id),
             Some(TaskStatus::Running)
         );
         assert_eq!(
-            tasks.get_cached_job_status(task_id, job_id_a),
+            tasks.get_cached_status(task_id, job_id_a),
             Some(TaskStatus::Running)
         );
         assert_eq!(
-            tasks.get_cached_job_status(task_id, job_id_b),
+            tasks.get_cached_status(task_id, job_id_b),
             Some(TaskStatus::Stopped)
         );
         assert_eq!(
@@ -327,22 +328,22 @@ mod tests {
             Some(TaskStatus::Stopped)
         );
         assert_eq!(
-            tasks.get_cached_job_status(other_task_id, job_id_a),
+            tasks.get_cached_status(other_task_id, job_id_a),
             Some(TaskStatus::Stopped)
         );
 
         tasks.del_cached_task_status(task_id);
 
         assert!(tasks.get_cached_task_status(task_id).is_none());
-        assert!(tasks.get_cached_job_status(task_id, job_id_a).is_none());
-        assert!(tasks.get_cached_job_status(task_id, job_id_b).is_none());
+        assert!(tasks.get_cached_status(task_id, job_id_a).is_none());
+        assert!(tasks.get_cached_status(task_id, job_id_b).is_none());
 
         assert_eq!(
-            tasks.get_cached_task_status(other_task_id),
+            tasks.get_cached_status(other_task_id, -1),
             Some(TaskStatus::Stopped)
         );
         assert_eq!(
-            tasks.get_cached_job_status(other_task_id, job_id_a),
+            tasks.get_cached_status(other_task_id, job_id_a),
             Some(TaskStatus::Stopped)
         );
     }
@@ -412,6 +413,7 @@ mod tests {
         use ha_core::types::HaTask;
 
         let config = HaTask {
+            name: "test".into(),
             from: "taos://localhost:6030".to_string(),
             to: "taos://localhost:6030".to_string(),
             parser: None,

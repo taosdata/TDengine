@@ -54,7 +54,7 @@ pub async fn sparkplugb_to_taos(
         task_id, job_id, ..
     }) = with_agent
     {
-        core_metrics::init_task_metrics(from, to, task_id, job_id)
+        core_metrics::init_task_metrics(from, to, task_id, job_id, None)
             .await
             .context("init task metrics error")?;
     }

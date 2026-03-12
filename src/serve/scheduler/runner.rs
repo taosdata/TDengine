@@ -543,6 +543,10 @@ impl TaskJob {
         }
     }
 
+    pub async fn state(&self) -> InnerState {
+        self.task.state.read().await.clone()
+    }
+
     /// Check if a task is running.
     pub async fn is_running(&self) -> bool {
         self.task.state.read().await.is_running()
@@ -710,9 +714,15 @@ pub async fn task_job_run(
     let to_dsn = task.task.to.parse().unwrap();
     let task_id = task.task.id;
     let job_id = task.task.job_id;
-    let metrics = init_task_metrics(&from_dsn, &to_dsn, task_id, job_id)
-        .in_current_span()
-        .await;
+    let metrics = init_task_metrics(
+        &from_dsn,
+        &to_dsn,
+        task_id,
+        job_id,
+        Some(task.task.name.clone()),
+    )
+    .in_current_span()
+    .await;
 
     if let Some(metrics) = metrics.clone() {
         auto_save_task_metrics(metrics, opts.task.cancellation.child_token())

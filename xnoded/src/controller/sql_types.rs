@@ -2,6 +2,7 @@ use ha_core::{activity::TaskStatus, types::HaTask};
 
 #[derive(Debug, serde::Deserialize)]
 pub struct TaskRecord {
+    pub name: String,
     pub id: i64,
     pub xnode_id: Option<i32>,
     pub from: String,

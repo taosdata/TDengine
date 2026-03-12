@@ -3363,7 +3363,8 @@ pub async fn legacy_to_taos(
         if let Some(arc) = get_metrics(task_id, job_id) {
             arc
         } else {
-            let _ = taosx_core::core_metrics::init_task_metrics(&from, &to, task_id, job_id).await;
+            let _ = taosx_core::core_metrics::init_task_metrics(&from, &to, task_id, job_id, None)
+                .await;
             get_metrics(task_id, job_id).ok_or_else(|| anyhow::format_err!("Cannot get metrics"))?
         }
     };
@@ -4834,7 +4835,7 @@ mod tests {
         let sink = format!("taos://{host}/{db2}").into_dsn()?;
         let actions = vec![Action::from_str("rename-table:map:nTb1,nTb2")?; 1];
         taosx_core::core_metrics::clear_metrics(tid, -1).await;
-        let _ = taosx_core::core_metrics::init_task_metrics(&source, &sink, tid, -1).await;
+        let _ = taosx_core::core_metrics::init_task_metrics(&source, &sink, tid, -1, None).await;
         legacy_to_taos(
             source,
             actions,
@@ -4912,7 +4913,7 @@ mod tests {
         let sink: Dsn = format!("taos://{host}/{db2}").parse()?;
         let actions = vec![Action::from_str("rename-table:map:nTb1,nTb2").unwrap(); 1];
         taosx_core::core_metrics::clear_metrics(tid, -1).await;
-        let _ = taosx_core::core_metrics::init_task_metrics(&source, &sink, tid, -1).await;
+        let _ = taosx_core::core_metrics::init_task_metrics(&source, &sink, tid, -1, None).await;
         legacy_to_taos(
             source,
             actions,

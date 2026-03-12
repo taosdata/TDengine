@@ -11,6 +11,7 @@ pub struct TopicConsumers {
 }
 
 pub fn alloc_jobs(
+    task_name: String,
     mut task: SplitJobResult,
     xnodes: &XNodes,
     via: Option<i64>,
@@ -52,6 +53,7 @@ pub fn alloc_jobs(
                     jobs.push((
                         *xnode,
                         HaTask {
+                            name: task_name.clone(),
                             from: from.to_string(),
                             to: task.to.clone(),
                             parser: task.parser.clone(),
@@ -67,11 +69,18 @@ pub fn alloc_jobs(
     tracing::info!(total_concurrency);
     let xnode_concurrency = xnodes.alloc_concurrency(total_concurrency, via);
     tracing::info!(?xnode_concurrency);
-    jobs.extend(alloc(task, topics, xnode_concurrency, update_dsn, via)?);
+    jobs.extend(alloc(
+        task_name,
+        task,
+        topics,
+        xnode_concurrency,
+        update_dsn,
+        via,
+    )?);
     if jobs.len() == 1
         && let Some((id, job)) = jobs.pop()
     {
-        Ok(AllocatedJobs::Task(id, job))
+        Ok(AllocatedJobs::Task(id, Box::new(job)))
     } else {
         Ok(AllocatedJobs::Jobs(jobs))
     }
@@ -103,7 +112,7 @@ mod tests {
             to: "taos://localhost:6030".into(),
             parser: None,
         };
-        let res = alloc_jobs(task_no_topics, &xnodes, None);
+        let res = alloc_jobs("test".into(), task_no_topics, &xnodes, None);
         assert!(matches!(res, Err(Error::SplitTopicsNotFound)));
 
         let task_empty_topics = SplitJobResult {
@@ -111,7 +120,7 @@ mod tests {
             to: "taos://localhost:6030".into(),
             parser: None,
         };
-        let res = alloc_jobs(task_empty_topics, &xnodes, None);
+        let res = alloc_jobs("test".into(), task_empty_topics, &xnodes, None);
         assert!(matches!(res, Err(Error::TopicEmpty)));
     }
 }

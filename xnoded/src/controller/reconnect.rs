@@ -166,6 +166,7 @@ async fn restart_tasks(
             }
         };
         let config = HaTask {
+            name: task.name,
             from: task.from,
             to: task.to,
             parser,

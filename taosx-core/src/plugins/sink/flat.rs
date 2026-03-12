@@ -3774,7 +3774,7 @@ pub mod tests {
         let target_precision = taos::Precision::Millisecond;
 
         let stable = String::from("taosx_task_t1");
-        let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::new(stable, task_id, -1)));
+        let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::new(stable, task_id, -1, None)));
         insert_metrics(task_id, -1, metrics.clone());
 
         let cancel = CancellationToken::new();

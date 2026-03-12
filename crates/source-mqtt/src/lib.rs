@@ -59,7 +59,8 @@ pub async fn mqtt_to_taos(
         task_id, job_id, ..
     }) = with_agent
     {
-        let _ = taosx_core::core_metrics::init_task_metrics(&from, &to, task_id, job_id).await;
+        let _ =
+            taosx_core::core_metrics::init_task_metrics(&from, &to, task_id, job_id, None).await;
     }
     let metrics = get_metrics_arc_from_i64(task_job_id);
     if let Some(parser) = parser.as_mut() {

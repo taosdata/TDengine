@@ -67,21 +67,6 @@ impl Tasks {
             .retain(|(tid, _), _| tid != &task_id);
     }
 
-    pub fn get_cached_job_status(&self, task_id: i64, job_id: i64) -> Option<TaskStatus> {
-        self.0
-            .job_status_cache
-            .read()
-            .get(&(task_id, job_id))
-            .copied()
-    }
-
-    pub fn set_cached_job_status(&self, task_id: i64, job_id: i64, status: TaskStatus) {
-        self.0
-            .job_status_cache
-            .write()
-            .insert((task_id, job_id), status);
-    }
-
     /// Get the cached status for a single task/job entry.
     ///
     /// When `job_id < 0` the entry is a task-level record, so
@@ -126,6 +111,14 @@ impl Tasks {
         } else {
             self.0.job_status_cache.write().remove(&(task_id, job_id));
         }
+    }
+
+    pub fn del_cached_status_by_task_id(&self, task_id: i64) {
+        self.0.task_status_cache.write().remove(&task_id);
+        self.0
+            .job_status_cache
+            .write()
+            .retain(|(tid, _), _| *tid != task_id);
     }
 
     // ---- jobs map methods ----
@@ -285,6 +278,7 @@ mod tests {
 
     fn make_task(from: &str) -> HaTask {
         HaTask {
+            name: "test".into(),
             from: from.to_string(),
             to: "taos://localhost:6030".to_string(),
             parser: None,

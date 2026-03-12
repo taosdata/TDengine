@@ -5,7 +5,7 @@ use axum::{
     extract::{Path, State},
 };
 use axum_extra::extract::WithRejection;
-use ha_core::types::{HaTask, ListTaskJobStatesResult};
+use ha_core::types::ListTaskJobStatesResult;
 
 use crate::{
     api::{CancelledSnafu, Data, Error, JsonResult, RawResult, call},
@@ -20,29 +20,6 @@ pub struct TaskConfigParam {
     pub parser: Option<String>,
     pub via: Option<i64>,
     pub labels: Option<String>,
-}
-
-impl TryFrom<&TaskConfigParam> for HaTask {
-    type Error = serde_json::Error;
-    fn try_from(value: &TaskConfigParam) -> Result<Self, Self::Error> {
-        let parser = value
-            .parser
-            .as_ref()
-            .map(|v| serde_json::from_str(v))
-            .transpose()?;
-        let labels = value
-            .labels
-            .as_ref()
-            .map(|v| serde_json::from_str(v))
-            .transpose()?;
-        Ok(Self {
-            from: value.from.clone(),
-            to: value.to.clone(),
-            parser,
-            via: value.via,
-            labels,
-        })
-    }
 }
 
 pub async fn check_task(

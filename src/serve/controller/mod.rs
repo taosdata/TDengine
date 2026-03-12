@@ -695,6 +695,8 @@ pub struct Task {
 
     pub job_id: i64,
 
+    pub name: String,
+
     /// The stream data source.
     pub from: String,
 
@@ -743,6 +745,7 @@ impl TryFrom<ha_core::types::StartTaskJobParam> for Task {
             "StartTaskJobParam field `oneshot_topic` not valid"
         );
         Ok(Self {
+            name: param.name,
             id: param.task_id,
             job_id: param.job_id,
             from: param.from,

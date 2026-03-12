@@ -183,7 +183,7 @@ mod tests {
 
     #[tokio::test]
     async fn metrics_test() -> anyhow::Result<()> {
-        let metrics = init_task_metrics(&"mqtt://".parse()?, &"taos://".parse()?, 1, 1)
+        let metrics = init_task_metrics(&"mqtt://".parse()?, &"taos://".parse()?, 1, 1, None)
             .await
             .context("metrics not found")?;
         let metrics = MqttMetrics::new(metrics);

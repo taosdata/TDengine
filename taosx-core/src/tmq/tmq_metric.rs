@@ -204,9 +204,9 @@ impl AddAssign for TmqMetrics {
 }
 
 impl TmqMetrics {
-    pub fn new(stable: String, task_id: i64, job_id: i64) -> Self {
+    pub fn new(stable: String, task_id: i64, job_id: i64, task_name: Option<String>) -> Self {
         Self {
-            com: CommonMetrics::new(stable, task_id, job_id),
+            com: CommonMetrics::new(stable, task_id, job_id, task_name),
             ..Default::default()
         }
     }

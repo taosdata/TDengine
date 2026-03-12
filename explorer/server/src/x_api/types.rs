@@ -115,19 +115,16 @@ impl TryFrom<Task> for HaTask {
     type Error = anyhow::Error;
 
     fn try_from(task: Task) -> Result<Self, Self::Error> {
-        let from = extract_from!(task);
-        let to = task.to;
-        let parser = task.parser;
-        let via = task.via;
         let mut labels = build_json_labels_from_iter(&task.labels);
         if let (Some(labels), Some(trigger)) = (labels.as_object_mut(), task.trigger) {
             labels.insert("trigger".into(), trigger);
         }
         Ok(HaTask {
-            from,
-            to,
-            parser,
-            via,
+            name: task.name,
+            from: extract_from!(task),
+            to: task.to,
+            parser: task.parser,
+            via: task.via,
             labels: Some(labels),
         })
     }

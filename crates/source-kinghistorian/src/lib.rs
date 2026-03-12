@@ -84,6 +84,7 @@ pub async fn kinghist_to_taos(
             format!("taosx_task_{}", KING_HIST_ID),
             task_id,
             job_id,
+            None,
         )))
     });
     if task_job_id.is_none() {

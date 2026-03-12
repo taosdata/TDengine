@@ -245,9 +245,9 @@ impl std::ops::AddAssign for IpcMetrics {
 }
 
 impl IpcMetrics {
-    pub fn new(stable: String, task_id: i64, job_id: i64) -> Self {
+    pub fn new(stable: String, task_id: i64, job_id: i64, task_name: Option<String>) -> Self {
         Self {
-            com: CommonMetrics::new(stable, task_id, job_id),
+            com: CommonMetrics::new(stable, task_id, job_id, task_name),
             ..Default::default()
         }
     }
@@ -552,7 +552,7 @@ mod tests {
 
     #[test]
     fn test_counters_and_reset() {
-        let metrics = IpcMetrics::new("stable".into(), 7, -1);
+        let metrics = IpcMetrics::new("stable".into(), 7, -1, None);
 
         metrics.add_received_batches(3);
         metrics.add_processed_batches(2);
@@ -628,7 +628,7 @@ mod tests {
 
     #[test]
     fn test_json_roundtrip() {
-        let metrics = IpcMetrics::new("stable".into(), 9, -1);
+        let metrics = IpcMetrics::new("stable".into(), 9, -1, None);
         metrics.add_processed_rows(11);
         metrics.add_failed_rows(2);
         let key = FastStr::from_static_str("total_custom");

@@ -161,6 +161,7 @@ async fn csv_to_taos_with_channel(
             "taosx_task_csv".to_string(),
             -1,
             -1,
+            None,
         )))
     });
     if let Some(parser) = parser.as_mut() {

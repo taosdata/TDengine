@@ -91,6 +91,7 @@ impl std::fmt::Display for XnodedId {
 
 #[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize, serde::Serialize)]
 pub struct HaTask {
+    pub name: String,
     pub from: String,
     pub to: String,
     pub parser: Option<serde_json::Value>,
@@ -156,6 +157,7 @@ pub enum Samples {
 /// A streaming workflow task description.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StartTaskJobParam {
+    pub name: String,
     /// Unique id for the task item.
     pub task_id: i64,
 

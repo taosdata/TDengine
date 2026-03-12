@@ -10,6 +10,7 @@ pub struct TopicConcurrency {
 }
 
 pub fn alloc_jobs(
+    task_name: String,
     mut task: SplitJobResult,
     xnodes: &XNodes,
     via: Option<i64>,
@@ -35,17 +36,18 @@ pub fn alloc_jobs(
     tracing::info!(total_concurrency);
     let xnode_concurrency = xnodes.alloc_concurrency(total_concurrency, via);
     tracing::info!(?xnode_concurrency);
-    let mut jobs = alloc(task, topics, xnode_concurrency, update_dsn, via)?;
+    let mut jobs = alloc(task_name, task, topics, xnode_concurrency, update_dsn, via)?;
     if jobs.len() == 1
         && let Some((id, job)) = jobs.pop()
     {
-        Ok(AllocatedJobs::Task(id, job))
+        Ok(AllocatedJobs::Task(id, Box::new(job)))
     } else {
         Ok(AllocatedJobs::Jobs(jobs))
     }
 }
 
 pub fn alloc<I, F>(
+    task_name: String,
     task: SplitJobResult,
     topics: I,
     xnode_concurrency: Vec<(i32, usize)>,
@@ -71,6 +73,7 @@ where
             if concurrency >= tp.concurrency {
                 let from = job_dsn(from.clone(), &tp.name, tp.concurrency, jobs.len());
                 let job = HaTask {
+                    name: task_name.clone(),
                     from,
                     to: task.to.clone(),
                     parser: task.parser.clone(),
@@ -83,6 +86,7 @@ where
             } else {
                 let from = job_dsn(from.clone(), &tp.name, concurrency, jobs.len());
                 let job = HaTask {
+                    name: task_name.clone(),
                     from,
                     to: task.to.clone(),
                     parser: task.parser.clone(),
@@ -133,13 +137,22 @@ mod tests {
             },
         ];
         let xnode_concurrency = vec![(0, 3), (1, 4), (2, 9)];
-        let jobs = alloc(task, topics, xnode_concurrency, update_dsn, None).unwrap();
+        let jobs = alloc(
+            "test".into(),
+            task,
+            topics,
+            xnode_concurrency,
+            update_dsn,
+            None,
+        )
+        .unwrap();
         assert_eq!(
             jobs,
             vec![
                 (
                     0,
                     HaTask {
+                        name: "test".into(),
                         from: "kafka://?read_concurrency=3&topics=a".into(),
                         to: "taos://localhost:6030".into(),
                         parser: None,
@@ -150,6 +163,7 @@ mod tests {
                 (
                     1,
                     HaTask {
+                        name: "test".into(),
                         from: "kafka://?read_concurrency=4&topics=b".into(),
                         to: "taos://localhost:6030".into(),
                         parser: None,
@@ -160,6 +174,7 @@ mod tests {
                 (
                     2,
                     HaTask {
+                        name: "test".into(),
                         from: "kafka://?read_concurrency=1&topics=b".into(),
                         to: "taos://localhost:6030".into(),
                         parser: None,
@@ -170,6 +185,7 @@ mod tests {
                 (
                     2,
                     HaTask {
+                        name: "test".into(),
                         from: "kafka://?read_concurrency=8&topics=c".into(),
                         to: "taos://localhost:6030".into(),
                         parser: None,
@@ -195,7 +211,15 @@ mod tests {
             concurrency: 3,
         }];
         let xnode_concurrency = vec![(0, 1), (1, 2)];
-        let jobs = alloc(task, topics, xnode_concurrency, update_dsn, Some(7)).unwrap();
+        let jobs = alloc(
+            "test".into(),
+            task,
+            topics,
+            xnode_concurrency,
+            update_dsn,
+            Some(7),
+        )
+        .unwrap();
         assert!(!jobs.is_empty());
         for (_, job) in jobs {
             assert_eq!(job.via, Some(7));
@@ -222,7 +246,15 @@ mod tests {
             },
         ];
         let xnode_concurrency = vec![(5, 3)];
-        let jobs = alloc(task, topics, xnode_concurrency, update_dsn, None).unwrap();
+        let jobs = alloc(
+            "test".into(),
+            task,
+            topics,
+            xnode_concurrency,
+            update_dsn,
+            None,
+        )
+        .unwrap();
         assert!(!jobs.is_empty());
         for (xid, _) in jobs {
             assert_eq!(xid, 5);
@@ -246,7 +278,7 @@ mod tests {
             to: "taos://localhost:6030".into(),
             parser: None,
         };
-        let res = super::alloc_jobs(task_no_topics, &xnodes, None);
+        let res = super::alloc_jobs("test".into(), task_no_topics, &xnodes, None);
         assert!(matches!(res, Err(Error::SplitTopicsNotFound)));
 
         let task_empty_topics = SplitJobResult {
@@ -254,7 +286,7 @@ mod tests {
             to: "taos://localhost:6030".into(),
             parser: None,
         };
-        let res = super::alloc_jobs(task_empty_topics, &xnodes, None);
+        let res = super::alloc_jobs("test".into(), task_empty_topics, &xnodes, None);
         assert!(matches!(res, Err(Error::TopicEmpty)));
     }
 }

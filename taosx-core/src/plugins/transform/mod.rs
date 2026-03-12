@@ -3544,7 +3544,7 @@ mod parser_tests {
             }
         });
         let mut parser: Parser = serde_json::from_value(parser)?;
-        let metrics = IpcMetrics::new("stb".to_string(), 1, -1);
+        let metrics = IpcMetrics::new("stb".to_string(), 1, -1, None);
         parser.metrics = Some(Arc::new(CoreMetrics::IPC(metrics)));
         let (tx, _rx) = flume::bounded(10);
 

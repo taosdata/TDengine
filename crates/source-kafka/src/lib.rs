@@ -110,7 +110,8 @@ pub async fn kafka_to_taos(
     );
     if let Some(via) = &with_agent {
         let _ =
-            taosx_core::core_metrics::init_task_metrics(&from, &to, via.task_id, via.job_id).await;
+            taosx_core::core_metrics::init_task_metrics(&from, &to, via.task_id, via.job_id, None)
+                .await;
     }
     let metrics_arc = get_metrics_arc_from_i64(task_job_id);
     if let Some(parser) = parser.as_mut() {

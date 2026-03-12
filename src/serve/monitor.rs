@@ -115,6 +115,8 @@ impl Monitor {
         let handle_clone = recorder_handle.clone();
         recorder.install();
         let taosx_id = self.taosx_id.clone();
+        let monitor_enabled = self.cfg.fqdn.is_some();
+        let tasks = self.tasks.clone();
         tokio::spawn(
             async move {
                 use sysinfo::*;
@@ -136,7 +138,16 @@ impl Monitor {
                 };
                 loop {
                     interval.tick().await;
-                    process_metrics(&mut sys, kind, &taosx_id, process_id, monitor_interval).await;
+                    process_metrics(
+                        &mut sys,
+                        kind,
+                        &taosx_id,
+                        &tasks,
+                        process_id,
+                        monitor_interval,
+                        monitor_enabled,
+                    )
+                    .await;
                 }
             }
             .in_current_span(),
@@ -268,8 +279,10 @@ pub async fn process_metrics(
     sys: &mut sysinfo::System,
     kind: sysinfo::RefreshKind,
     taosx_id: &str,
+    tasks: &Arc<RwLock<MultiIndexTaskJobMap>>,
     process_id: sysinfo::Pid,
     monitor_interval: u64,
+    monitor_enabled: bool,
 ) {
     sys.refresh_specifics(kind);
     sys.refresh_processes_specifics(
@@ -304,6 +317,23 @@ pub async fn process_metrics(
         gauge!("process_disk_written_bytes", &labels)
             .set(disk.written_bytes as f64 / monitor_interval as f64);
         gauge!("process_uptime", &labels).set(ps.run_time() as f64);
+    }
+    if monitor_enabled {
+        use crate::serve::scheduler::runner::InnerState;
+        let mut running_tasks = 0;
+        let mut completed_tasks = 0;
+        let mut failed_tasks = 0;
+        for (_, task) in tasks.read().await.iter() {
+            match task.state().await {
+                InnerState::Running => running_tasks += 1,
+                InnerState::Completed => completed_tasks += 1,
+                InnerState::Failed(_) => failed_tasks += 1,
+                _ => {}
+            }
+        }
+        gauge!("running_tasks", &labels).set(running_tasks as f64);
+        gauge!("completed_tasks", &labels).set(completed_tasks as f64);
+        gauge!("failed_tasks", &labels).set(failed_tasks as f64);
     }
     // connector process metrics
     update_sub_connector_process_metrics(
@@ -500,7 +530,7 @@ trait IntoTags {
 
 impl IntoTags for CommonMetrics {
     fn gen_tags(&self, taosx_id: String) -> Vec<Tag> {
-        vec![
+        let mut tags = vec![
             Tag {
                 name: "taosx_id".to_string(),
                 value: taosx_id,
@@ -509,7 +539,14 @@ impl IntoTags for CommonMetrics {
                 name: "task_id".to_string(),
                 value: self.task_id.to_string(),
             },
-        ]
+        ];
+        if let Some(task_name) = &self.task_name {
+            tags.push(Tag {
+                name: "task_name".to_string(),
+                value: task_name.to_string(),
+            });
+        }
+        tags
     }
 }
 

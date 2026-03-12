@@ -442,6 +442,7 @@ pub async fn pspace_to_taos(
             format!("taosx_task_{}", PSPACE_ID),
             task_id,
             job_id,
+            None,
         )))
     });
     if task_job_id.is_none() {

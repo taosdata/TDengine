@@ -11,6 +11,7 @@ use crate::controller::{
 };
 
 pub fn alloc_jobs(
+    task_name: String,
     task: SplitJobResult,
     xnodes: &XNodes,
     via: Option<i64>,
@@ -40,13 +41,14 @@ pub fn alloc_jobs(
         }
         return Ok(AllocatedJobs::Task(
             xnode_id,
-            HaTask {
+            Box::new(HaTask {
+                name: task_name,
                 from: from.to_string(),
                 to: task.to,
                 parser: task.parser,
                 via: None,
                 labels: None,
-            },
+            }),
         ));
     }
     let mut jobs = Vec::with_capacity(time_ranges.len());
@@ -65,6 +67,7 @@ pub fn alloc_jobs(
         jobs.push((
             xnode_id,
             HaTask {
+                name: task_name.clone(),
                 from: from.to_string(),
                 to: task.to.clone(),
                 parser: task.parser.clone(),
@@ -91,7 +94,7 @@ mod tests {
         };
         let xnodes = XNodes::new();
 
-        let res = alloc_jobs(task, &xnodes, None);
+        let res = alloc_jobs("test".into(), task, &xnodes, None);
         assert!(matches!(res, Err(Error::StartTimestampNotFound)));
     }
 
@@ -104,7 +107,7 @@ mod tests {
         };
         let xnodes = XNodes::new();
 
-        let res = alloc_jobs(task, &xnodes, None);
+        let res = alloc_jobs("test".into(), task, &xnodes, None);
         assert!(
             matches!(res, Err(Error::InvalidTimestamp { ts, .. }) if ts == "invalid-timestamp")
         );
@@ -122,7 +125,7 @@ mod tests {
         };
         let xnodes = XNodes::new();
 
-        let res = alloc_jobs(task, &xnodes, None);
+        let res = alloc_jobs("test".into(), task, &xnodes, None);
         assert!(matches!(res, Err(Error::FromDsnNotString)));
     }
 }

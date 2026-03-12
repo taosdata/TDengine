@@ -150,6 +150,8 @@ pub enum Error {
     },
     #[snafu(display("Task {task_id} job {job_id} not exists"))]
     TaskJobNotExists { task_id: i64, job_id: i64 },
+    #[snafu(display("Task {task_id} not exists"))]
+    TaskNotExists { task_id: i64 },
     #[snafu(display("Failed to check valid, from {from} to {to} on xnode id {xnode_id}"))]
     CheckValid {
         xnode_id: i32,
@@ -302,6 +304,7 @@ impl Controller {
                 .transpose()
                 .context(DeserializeTaskLabelsSnafu { task_id })?;
             let config = HaTask {
+                name: task.name,
                 from: task.from,
                 to: task.to,
                 parser,
@@ -676,7 +679,16 @@ impl Controller {
             .map(|v| serde_json::from_str(v))
             .transpose()
             .context(DeserializeTaskLabelsSnafu { task_id })?;
+        // 停掉旧任务
+        let sql = format!("SHOW XNODE TASKS WHERE ID = {task_id}");
+        let db_task = self
+            .taos_conn
+            .query_one::<sql_types::TaskRecord>(&sql)
+            .await
+            .context(ShowJobsSqlSnafu)?
+            .context(TaskNotExistsSnafu { task_id })?;
         let config = HaTask {
+            name: db_task.name,
             from: task.from.clone(),
             to: task.to.clone(),
             parser: parser.clone(),
@@ -685,20 +697,10 @@ impl Controller {
         };
         match task.xnode_id {
             Some(xnode_id) => {
-                // 停掉旧任务
-                let sql = format!("SHOW XNODE TASKS WHERE ID = {task_id}");
-                let db_task = self
-                    .taos_conn
-                    .query_one::<sql_types::TaskRecord>(&sql)
-                    .await
-                    .context(ShowJobsSqlSnafu)?;
-                if let Some(task) = db_task
-                    && let Some(xnode_id) = task.xnode_id
-                {
+                if let Some(xnode_id) = db_task.xnode_id {
                     self.stop_job(task_id, -1, xnode_id).await?;
                 }
                 // 启动新任务
-                let config = task.try_into().context(InvalidTaskParserSnafu)?;
                 start_task(
                     xnode_id,
                     task_id,
@@ -753,13 +755,13 @@ impl Controller {
                 let split_config = client.plan_task(&config).await.context(PlanTaskSnafu {
                     xnode_id: plan_xnode_id,
                 })?;
-                let jobs =
-                    alloc_jobs(split_config, &self.xnodes, task.via).context(SplitJobSnafu)?;
+                let jobs = alloc_jobs(config.name, split_config, &self.xnodes, task.via)
+                    .context(SplitJobSnafu)?;
                 tracing::debug!(?jobs, "alloc jobs result");
                 match jobs {
                     AllocatedJobs::Task(xnode_id, mut task) => {
                         task.labels = config.labels.clone();
-                        self.start_task(task_id, xnode_id, task).await?;
+                        self.start_task(task_id, xnode_id, *task).await?;
                     }
                     AllocatedJobs::Jobs(jobs) => {
                         let mut created_jobs = Vec::with_capacity(jobs.len());
@@ -852,7 +854,7 @@ impl Controller {
             self.tasks.set_manually_stopped(task_id, job_id);
         }
         if del_task {
-            self.tasks.del_cached_task_status(task_id);
+            self.tasks.del_cached_status_by_task_id(task_id);
         }
         Ok(())
     }
@@ -1158,6 +1160,7 @@ pub async fn start_task(
         .get_client(xnode_id)
         .context(XnodeNotAvailableSnafu { xnode_id })?;
     let param = StartTaskJobParam {
+        name: config.name,
         task_id,
         job_id: -1,
         from: config.from,
@@ -1200,6 +1203,7 @@ pub async fn start_job(
         .get_client(xnode_id)
         .context(XnodeNotAvailableSnafu { xnode_id })?;
     let param = StartTaskJobParam {
+        name: config.name,
         task_id,
         job_id,
         from: config.from,

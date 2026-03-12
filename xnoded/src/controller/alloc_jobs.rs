@@ -54,12 +54,13 @@ type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum AllocatedJobs {
-    Task(i32, HaTask),
+    Task(i32, Box<HaTask>),
     Jobs(Vec<(i32, HaTask)>),
 }
 
 /// Split a task into multiple jobs based on the number of xnodes.
 pub fn alloc_jobs(
+    task_name: String,
     task: SplitJobResult,
     xnodes: &XNodes,
     via: Option<i64>,
@@ -73,22 +74,23 @@ pub fn alloc_jobs(
     let to = Dsn::from_str(&task_to).context(InvalidDsnSnafu { dsn: &task_to })?;
 
     let res = match (from.driver.as_str(), to.driver.as_str()) {
-        ("kafka", _) => source_kafka::alloc_jobs(task, xnodes, via)?,
-        ("mqtt", _) => source_mqtt::alloc_jobs(task, xnodes, via)?,
-        ("tmq" | "sync", "taos") => tmq2td::alloc_jobs(task, xnodes, via)?,
+        ("kafka", _) => source_kafka::alloc_jobs(task_name, task, xnodes, via)?,
+        ("mqtt", _) => source_mqtt::alloc_jobs(task_name, task, xnodes, via)?,
+        ("tmq" | "sync", "taos") => tmq2td::alloc_jobs(task_name, task, xnodes, via)?,
         ("mysql" | "postgres" | "oracle" | "mssql" | "mongodb", _) | ("taos", "taos") => {
-            source_db::alloc_jobs(task, xnodes, via)?
+            source_db::alloc_jobs(task_name, task, xnodes, via)?
         }
         _ => {
             let xnode = xnodes.best_xnode(via).context(NoXnodeAvailableSnafu)?;
             let job = HaTask {
+                name: task_name,
                 from: task.from.to_string(),
                 to: task_to,
                 parser: task.parser,
                 via: None,
                 labels: None,
             };
-            AllocatedJobs::Task(xnode, job)
+            AllocatedJobs::Task(xnode, Box::new(job))
         }
     };
 
@@ -110,7 +112,7 @@ mod tests {
         };
         let xnodes = XNodes::new();
 
-        let res = alloc_jobs(task, &xnodes, None);
+        let res = alloc_jobs("test".into(), task, &xnodes, None);
         assert!(matches!(res, Err(Error::FromDsnInvalidType)));
     }
 
@@ -123,7 +125,7 @@ mod tests {
         };
         let xnodes = XNodes::new();
 
-        let res = alloc_jobs(task, &xnodes, None);
+        let res = alloc_jobs("test".into(), task, &xnodes, None);
         assert!(matches!(res, Err(Error::InvalidDsn { .. })));
     }
 
@@ -138,7 +140,7 @@ mod tests {
         };
         let xnodes = XNodes::new();
 
-        let res = alloc_jobs(task, &xnodes, None);
+        let res = alloc_jobs("test".into(), task, &xnodes, None);
         assert!(matches!(res, Err(Error::NoXnodeAvailable)));
     }
 }
