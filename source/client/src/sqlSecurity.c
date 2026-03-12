@@ -50,8 +50,12 @@ typedef struct {
 } SSqlSecMatchResult;
 
 typedef struct {
-  bool hasOrTrue;
-  bool hasDangerFunc;
+  bool    hasOrTrue;
+  bool    hasDangerFunc;
+  bool    hasDeepSubquery;
+  bool    hasUnsafeJoin;
+  int32_t subqueryDepth;
+  int32_t maxSubqueryDepth;
 } SSqlSecAstResult;
 
 static SSqlSecCtx gSqlSecCtx = {0};
@@ -173,12 +177,13 @@ static void sqlSecReloadRulesIfNeeded(const char* ruleFile) {
     gSqlSecCtx.inited = true;
   }
 
+  // Check if reload is needed (with lock to avoid race condition)
+  (void)taosThreadMutexLock(&gSqlSecCtx.lock);
   int64_t now = taosGetTimestampMs();
   if (now - gSqlSecCtx.lastLoadTsMs < 1000) {
+    (void)taosThreadMutexUnlock(&gSqlSecCtx.lock);
     return;
   }
-
-  (void)taosThreadMutexLock(&gSqlSecCtx.lock);
   gSqlSecCtx.lastLoadTsMs = now;
 
   int64_t mtime = sqlSecGetFileMtime(ruleFile);
@@ -203,6 +208,7 @@ static void sqlSecReloadRulesIfNeeded(const char* ruleFile) {
   int64_t   fsize = 0;
   TdFilePtr fp = taosOpenFile(ruleFile, TD_FILE_READ);
   if (fp == NULL) {
+    tscWarn("sql security: failed to open rule file:%s, using default rules", ruleFile);
     sqlSecLoadDefaultRules(&gSqlSecCtx);
     (void)taosThreadMutexUnlock(&gSqlSecCtx.lock);
     return;
@@ -210,12 +216,14 @@ static void sqlSecReloadRulesIfNeeded(const char* ruleFile) {
 
   if (taosFStatFile(fp, &fsize, NULL) != TSDB_CODE_SUCCESS) {
     TAOS_UNUSED(taosCloseFile(&fp));
+    tscWarn("sql security: failed to stat rule file:%s, using default rules", ruleFile);
     sqlSecLoadDefaultRules(&gSqlSecCtx);
     (void)taosThreadMutexUnlock(&gSqlSecCtx.lock);
     return;
   }
   if (fsize <= 0 || fsize > 4 * 1024 * 1024) {
     TAOS_UNUSED(taosCloseFile(&fp));
+    tscWarn("sql security: invalid rule file size:%" PRId64 ", using default rules", fsize);
     sqlSecLoadDefaultRules(&gSqlSecCtx);
     (void)taosThreadMutexUnlock(&gSqlSecCtx.lock);
     return;
@@ -224,6 +232,7 @@ static void sqlSecReloadRulesIfNeeded(const char* ruleFile) {
   char* pBuf = taosMemoryCalloc(1, (size_t)fsize + 1);
   if (pBuf == NULL) {
     TAOS_UNUSED(taosCloseFile(&fp));
+    tscWarn("sql security: failed to allocate memory for rule file, using default rules");
     sqlSecLoadDefaultRules(&gSqlSecCtx);
     (void)taosThreadMutexUnlock(&gSqlSecCtx.lock);
     return;
@@ -232,6 +241,7 @@ static void sqlSecReloadRulesIfNeeded(const char* ruleFile) {
   TAOS_UNUSED(taosCloseFile(&fp));
   if (nread != fsize) {
     taosMemoryFree(pBuf);
+    tscWarn("sql security: failed to read rule file, using default rules");
     sqlSecLoadDefaultRules(&gSqlSecCtx);
     (void)taosThreadMutexUnlock(&gSqlSecCtx.lock);
     return;
@@ -240,6 +250,7 @@ static void sqlSecReloadRulesIfNeeded(const char* ruleFile) {
   cJSON* pRoot = cJSON_Parse(pBuf);
   taosMemoryFree(pBuf);
   if (pRoot == NULL) {
+    tscWarn("sql security: failed to parse rule file JSON, using default rules");
     sqlSecLoadDefaultRules(&gSqlSecCtx);
     (void)taosThreadMutexUnlock(&gSqlSecCtx.lock);
     return;
@@ -256,7 +267,10 @@ static void sqlSecReloadRulesIfNeeded(const char* ruleFile) {
   cJSON_Delete(pRoot);
 
   if (gSqlSecCtx.numOfRules == 0) {
+    tscWarn("sql security: no valid rules loaded, using default rules");
     sqlSecLoadDefaultRules(&gSqlSecCtx);
+  } else {
+    tscInfo("sql security: loaded %d rules from %s", gSqlSecCtx.numOfRules, ruleFile);
   }
   (void)taosThreadMutexUnlock(&gSqlSecCtx.lock);
 }
@@ -270,14 +284,18 @@ static int32_t sqlSecDecideFromMatches(const SSqlSecMatchResult* pRes, int8_t en
   bool whitelist = sqlSecIsModeWhitelist(mode);
   bool blacklist = sqlSecIsModeBlacklist(mode);
 
+  // Blacklist mode: deny if matched and no whitelist override
   if (blacklist && pRes->denyMatched && (!whitelist || !pRes->allowMatched)) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
 
+  // Whitelist mode: deny if not matched
   if (whitelist && !pRes->allowMatched) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
 
+  // Mixed mode: both matched, compare priority
+  // Rule: Higher priority wins. If equal, blacklist wins (deny >= allow means deny)
   if (blacklist && whitelist && pRes->denyMatched && pRes->allowMatched) {
     if (pRes->denyPriority >= pRes->allowPriority) {
       return TSDB_CODE_PAR_PERMISSION_DENIED;
@@ -357,10 +375,37 @@ static bool sqlSecIsValueTrue(const SNode* pNode) {
   const SValueNode* pVal = (const SValueNode*)pNode;
   if (pVal->isNull) return false;
   if (pVal->node.resType.type == TSDB_DATA_TYPE_BOOL) return pVal->datum.b;
-  if (IS_INTEGER_TYPE(pVal->node.resType.type)) return pVal->datum.i == 1;
+  if (IS_INTEGER_TYPE(pVal->node.resType.type)) return pVal->datum.i != 0;
   if (pVal->literal != NULL && (strcasecmp(pVal->literal, "true") == 0 || strcmp(pVal->literal, "1") == 0)) {
     return true;
   }
+  return false;
+}
+
+static bool sqlSecIsValueEqual(const SNode* pLeft, const SNode* pRight) {
+  if (pLeft == NULL || pRight == NULL) return false;
+  if (nodeType(pLeft) != QUERY_NODE_VALUE || nodeType(pRight) != QUERY_NODE_VALUE) return false;
+
+  const SValueNode* l = (const SValueNode*)pLeft;
+  const SValueNode* r = (const SValueNode*)pRight;
+
+  if (l->isNull || r->isNull) return false;
+
+  // Check if both are numbers and equal
+  if (IS_NUMERIC_TYPE(l->node.resType.type) && IS_NUMERIC_TYPE(r->node.resType.type)) {
+    if (IS_INTEGER_TYPE(l->node.resType.type) && IS_INTEGER_TYPE(r->node.resType.type)) {
+      return l->datum.i == r->datum.i;
+    }
+    if (IS_FLOAT_TYPE(l->node.resType.type) && IS_FLOAT_TYPE(r->node.resType.type)) {
+      return l->datum.d == r->datum.d;
+    }
+  }
+
+  // Check if both are strings and equal
+  if (l->literal != NULL && r->literal != NULL) {
+    return strcmp(l->literal, r->literal) == 0;
+  }
+
   return false;
 }
 
@@ -369,17 +414,16 @@ static bool sqlSecIsConstEqTrue(const SNode* pNode) {
   const SOperatorNode* pOp = (const SOperatorNode*)pNode;
   if (pOp->opType != OP_TYPE_EQUAL || pOp->pLeft == NULL || pOp->pRight == NULL) return false;
 
+  // Check if both sides are true values (TRUE, 1, etc.)
   if (sqlSecIsValueTrue(pOp->pLeft) && sqlSecIsValueTrue(pOp->pRight)) {
     return true;
   }
 
-  if (nodeType(pOp->pLeft) == QUERY_NODE_VALUE && nodeType(pOp->pRight) == QUERY_NODE_VALUE) {
-    const SValueNode* l = (const SValueNode*)pOp->pLeft;
-    const SValueNode* r = (const SValueNode*)pOp->pRight;
-    if (l->literal != NULL && r->literal != NULL && strcmp(l->literal, r->literal) == 0) {
-      return true;
-    }
+  // Check if both sides are equal constant values (1=1, 'a'='a', 0=0, etc.)
+  if (sqlSecIsValueEqual(pOp->pLeft, pOp->pRight)) {
+    return true;
   }
+
   return false;
 }
 
@@ -390,6 +434,7 @@ static EDealRes sqlSecAstWalker(SNode* pNode, void* pContext) {
 
   SSqlSecAstResult* pRes = (SSqlSecAstResult*)pContext;
 
+  // Check logic conditions (OR with true values)
   if (nodeType(pNode) == QUERY_NODE_LOGIC_CONDITION) {
     SLogicConditionNode* pCond = (SLogicConditionNode*)pNode;
     if (pCond->condType == LOGIC_COND_TYPE_OR) {
@@ -401,16 +446,46 @@ static EDealRes sqlSecAstWalker(SNode* pNode, void* pContext) {
         }
       }
     }
-  } else if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
+  }
+  // Check operators (constant equal true like 1=1)
+  else if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
     if (sqlSecIsConstEqTrue(pNode)) {
       pRes->hasOrTrue = true;
       return DEAL_RES_END;
     }
-  } else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
+  }
+  // Check dangerous functions
+  else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
-    if (strcasecmp(pFunc->functionName, "load_file") == 0 || strcasecmp(pFunc->functionName, "exec") == 0 ||
-        strcasecmp(pFunc->functionName, "eval") == 0 || strcasecmp(pFunc->functionName, "sleep") == 0) {
+    if (strcasecmp(pFunc->functionName, "load_file") == 0 ||
+        strcasecmp(pFunc->functionName, "exec") == 0 ||
+        strcasecmp(pFunc->functionName, "eval") == 0 ||
+        strcasecmp(pFunc->functionName, "sleep") == 0 ||
+        strcasecmp(pFunc->functionName, "system") == 0 ||
+        strcasecmp(pFunc->functionName, "shell") == 0) {
       pRes->hasDangerFunc = true;
+      return DEAL_RES_END;
+    }
+  }
+  // Check JOIN conditions
+  else if (nodeType(pNode) == QUERY_NODE_JOIN_TABLE) {
+    SJoinTableNode* pJoin = (SJoinTableNode*)pNode;
+    if (pJoin->pOnCond != NULL) {
+      // Check if JOIN condition is always true (e.g., ON 1=1)
+      if (sqlSecIsValueTrue(pJoin->pOnCond) || sqlSecIsConstEqTrue(pJoin->pOnCond)) {
+        pRes->hasUnsafeJoin = true;
+        return DEAL_RES_END;
+      }
+    }
+  }
+  // Check subquery depth
+  else if (nodeType(pNode) == QUERY_NODE_SELECT_STMT) {
+    pRes->subqueryDepth++;
+    if (pRes->subqueryDepth > pRes->maxSubqueryDepth) {
+      pRes->maxSubqueryDepth = pRes->subqueryDepth;
+    }
+    if (pRes->maxSubqueryDepth > 5) {  // Max depth limit
+      pRes->hasDeepSubquery = true;
       return DEAL_RES_END;
     }
   }
@@ -426,11 +501,13 @@ int32_t sqlSecurityCheckASTLevel(SRequestObj* pRequest, SQuery* pQuery) {
   }
 
   SSqlSecAstResult res = {0};
+  res.maxSubqueryDepth = 5;  // Default max depth
   nodesWalkExpr((SNode*)pQuery->pRoot, sqlSecAstWalker, &res);
 
-  if (res.hasOrTrue || res.hasDangerFunc) {
-    tscWarn("req:0x%" PRIx64 ", sql security AST check denied, hasOrTrue:%d, hasDangerFunc:%d, sql:%s", pRequest->self,
-            res.hasOrTrue, res.hasDangerFunc, pRequest->sqlstr ? pRequest->sqlstr : "");
+  if (res.hasOrTrue || res.hasDangerFunc || res.hasDeepSubquery || res.hasUnsafeJoin) {
+    tscWarn("req:0x%" PRIx64 ", sql security AST check denied, hasOrTrue:%d, hasDangerFunc:%d, hasDeepSubquery:%d, hasUnsafeJoin:%d, sql:%s",
+            pRequest->self, res.hasOrTrue, res.hasDangerFunc, res.hasDeepSubquery, res.hasUnsafeJoin,
+            pRequest->sqlstr ? pRequest->sqlstr : "");
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
 

@@ -309,7 +309,6 @@ bool    tsSqlSecurityEnabled = false;
 int32_t tsSqlSecurityWhitelistMode = 0;
 bool    tsSqlSecurityStringCheck = true;
 bool    tsSqlSecurityASTCheck = true;
-bool    tsSqlSecurityLogicCheck = false;
 char    tsSqlSecurityRuleFile[PATH_MAX] = "/etc/taos/sql_rules.json";
 int32_t tsQuerySmaOptimize = 0;
 int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from which level to query rsma data.
@@ -826,8 +825,6 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "sqlSecurityStringCheck", tsSqlSecurityStringCheck, CFG_SCOPE_CLIENT,
                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "sqlSecurityASTCheck", tsSqlSecurityASTCheck, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
-                               CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "sqlSecurityLogicCheck", tsSqlSecurityLogicCheck, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
                                CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "sqlSecurityRuleFile", tsSqlSecurityRuleFile, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
                                  CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
@@ -1575,8 +1572,6 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsSqlSecurityStringCheck = pItem->bval;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sqlSecurityASTCheck");
   tsSqlSecurityASTCheck = pItem->bval;
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sqlSecurityLogicCheck");
-  tsSqlSecurityLogicCheck = pItem->bval;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sqlSecurityRuleFile");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX));
   tstrncpy(tsSqlSecurityRuleFile, pItem->str, PATH_MAX);
@@ -3235,10 +3230,6 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
       } else if (strcasecmp("sqlSecurityASTCheck", name) == 0) {
         tsSqlSecurityASTCheck = pItem->bval;
         uInfo("%s set to %d", name, tsSqlSecurityASTCheck);
-        matched = true;
-      } else if (strcasecmp("sqlSecurityLogicCheck", name) == 0) {
-        tsSqlSecurityLogicCheck = pItem->bval;
-        uInfo("%s set to %d", name, tsSqlSecurityLogicCheck);
         matched = true;
       } else if (strcasecmp("sqlSecurityRuleFile", name) == 0) {
         TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX), &lino, _out);
