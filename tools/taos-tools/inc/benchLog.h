@@ -49,7 +49,7 @@ void exitLog();
             struct tm      Tm, *ptm;                                        \
             struct timeval timeSecs;                                        \
             time_t         curTime;                                         \
-            toolsGetTimeOfDay(&timeSecs);                                   \
+            (void)toolsGetTimeOfDay(&timeSecs);                             \
             curTime = timeSecs.tv_sec;                                      \
             ptm = toolsLocalTime(&curTime, &Tm);                            \
             lockLog(LOG_STDOUT);                                            \
@@ -70,7 +70,7 @@ void exitLog();
             struct tm      Tm, *ptm;                                        \
             struct timeval timeSecs;                                        \
             time_t         curTime;                                         \
-            toolsGetTimeOfDay(&timeSecs);                                   \
+            (void)toolsGetTimeOfDay(&timeSecs);                             \
             curTime = timeSecs.tv_sec;                                      \
             ptm = toolsLocalTime(&curTime, &Tm);                            \
             lockLog(LOG_STDOUT);                                            \
@@ -124,7 +124,7 @@ void exitLog();
         struct tm      Tm, *ptm;                                            \
         struct timeval timeSecs;                                            \
         time_t         curTime;                                             \
-        toolsGetTimeOfDay(&timeSecs);                                       \
+        (void)toolsGetTimeOfDay(&timeSecs);                                 \
         curTime = timeSecs.tv_sec;                                          \
         ptm = toolsLocalTime(&curTime, &Tm);                                \
         lockLog(LOG_STDOUT);                                                \
@@ -141,7 +141,7 @@ void exitLog();
         struct tm      Tm, *ptm;                                         \
         struct timeval timeSecs;                                         \
         time_t         curTime;                                          \
-        toolsGetTimeOfDay(&timeSecs);                                    \
+        (void)toolsGetTimeOfDay(&timeSecs);                              \
         curTime = timeSecs.tv_sec;                                       \
         ptm = toolsLocalTime(&curTime, &Tm);                             \
         lockLog(LOG_RESULT);                                             \
@@ -158,7 +158,7 @@ void exitLog();
             struct tm      Tm, *ptm;                                        \
             struct timeval timeSecs;                                        \
             time_t         curTime;                                         \
-            toolsGetTimeOfDay(&timeSecs);                                   \
+            (void)toolsGetTimeOfDay(&timeSecs);                             \
             curTime = timeSecs.tv_sec;                                      \
             ptm = toolsLocalTime(&curTime, &Tm);                            \
             lockLog(LOG_STDERR);                                            \
@@ -189,7 +189,7 @@ void exitLog();
         struct tm      Tm, *ptm;                                            \
         struct timeval timeSecs;                                            \
         time_t         curTime;                                             \
-        toolsGetTimeOfDay(&timeSecs);                                       \
+        (void)toolsGetTimeOfDay(&timeSecs);                                 \
         curTime = timeSecs.tv_sec;                                          \
         ptm = toolsLocalTime(&curTime, &Tm);                                \
         lockLog(LOG_STDERR);                                                \
@@ -222,7 +222,7 @@ void exitLog();
         struct tm      Tm, *ptm;                                            \
         struct timeval timeSecs;                                            \
         time_t         curTime;                                             \
-        toolsGetTimeOfDay(&timeSecs);                                       \
+        (void)toolsGetTimeOfDay(&timeSecs);                                 \
         curTime = timeSecs.tv_sec;                                          \
         ptm = toolsLocalTime(&curTime, &Tm);                                \
         lockLog(LOG_STDERR);                                                \
@@ -255,7 +255,7 @@ void exitLog();
         struct tm      Tm, *ptm;                                            \
         struct timeval timeSecs;                                            \
         time_t         curTime;                                             \
-        toolsGetTimeOfDay(&timeSecs);                                       \
+        (void)toolsGetTimeOfDay(&timeSecs);                                 \
         curTime = timeSecs.tv_sec;                                          \
         ptm = toolsLocalTime(&curTime, &Tm);                                \
         lockLog(LOG_STDERR);                                                \
