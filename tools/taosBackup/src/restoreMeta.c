@@ -19,6 +19,7 @@
 #include "bckArgs.h"
 #include "ttypes.h"
 #include "osString.h"
+#include "bckProgress.h"
 
 //
 // -------------------------------------- UTIL -----------------------------------------
@@ -29,7 +30,7 @@ static int execSql(TAOS *conn, const char *sql) {
     TAOS_RES *res = taos_query(conn, sql);
     int code = taos_errno(res);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("exec sql failed(%s): %s", taos_errstr(res), sql);
+        logError("exec sql failed(0x%08X %s): %s", code, taos_errstr(res), sql);
     }
     if (res) taos_free_result(res);
     return code;
@@ -141,11 +142,14 @@ static int restoreDbSql(const char *dbName) {
     // execute - if database exists, this may fail, which is fine (APPEND mode)
     TAOS_RES *res = taos_query(conn, execContent);
     code = taos_errno(res);
-    if (res) taos_free_result(res);
 
     if (code != TSDB_CODE_SUCCESS) {
         // try USE database instead - database may already exist
-        logWarn("create database may already exist (code=0x%08X), trying USE %s", code, targetDb);
+        logWarn("create database may already exist(0x%08X %s), trying USE `%s`: %s", code, taos_errstr(res), targetDb, execContent);
+    }
+    if (res) taos_free_result(res);
+
+    if (code != TSDB_CODE_SUCCESS) {
         char useSql[256];
         snprintf(useSql, sizeof(useSql), "USE `%s`", targetDb);
         code = execSql(conn, useSql);
@@ -238,16 +242,16 @@ static int restoreStbSql(const char *dbName) {
             // execute - if stable already exists, it's ok
             TAOS_RES *res = taos_query(conn, fullSql);
             int rc = taos_errno(res);
-            if (res) taos_free_result(res);
             if (rc == TSDB_CODE_SUCCESS) {
                 // ok
             } else if (rc == TSDB_CODE_MND_STB_ALREADY_EXIST) {
-                logWarn("stable already exists (0x%08X): %s", rc, fullSql);
+                logWarn("stable already exists(0x%08X %s): %s", rc, taos_errstr(res), fullSql);
                 // fine in APPEND mode
             } else {
-                logError("create stable failed (0x%08X): %s", rc, fullSql);
+                logError("create stable failed(0x%08X %s): %s", rc, taos_errstr(res), fullSql);
                 code = rc;
             }
+            if (res) taos_free_result(res);
             taosMemoryFree(fullSql);
         }
 
@@ -272,7 +276,7 @@ static int restoreNtbSql(const char *dbName) {
     obtainFileName(BACK_FILE_NTBSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS, sqlFile, sizeof(sqlFile));
 
     if (!taosCheckExistFile(sqlFile)) {
-        logInfo("ntb.sql not found, skip normal tables: %s", sqlFile);
+        logDebug("ntb.sql not found, skip normal tables: %s", sqlFile);
         return TSDB_CODE_SUCCESS;
     }
 
@@ -334,19 +338,19 @@ static int restoreNtbSql(const char *dbName) {
 
             TAOS_RES *res = taos_query(conn, fullSql);
             int rc = taos_errno(res);
-            if (res) taos_free_result(res);
 
             if (rc == TSDB_CODE_SUCCESS) {
                 ntbCount++;
                 atomic_add_fetch_64(&g_stats.ntbTotal, 1);
             } else if (rc == TSDB_CODE_TDB_TABLE_ALREADY_EXIST || rc == TSDB_CODE_MND_STB_ALREADY_EXIST) {
-                logWarn("normal table already exists, skip: %s", fullSql);
+                logWarn("normal table already exists(0x%08X %s): %s", rc, taos_errstr(res), fullSql);
                 ntbCount++;
                 atomic_add_fetch_64(&g_stats.ntbTotal, 1);
             } else {
-                logError("create normal table failed(0x%08X): %s", rc, fullSql);
+                logError("create normal table failed(0x%08X %s): %s", rc, taos_errstr(res), fullSql);
                 code = rc;
             }
+            if (res) taos_free_result(res);
             taosMemoryFree(fullSql);
         }
 
@@ -573,20 +577,22 @@ static void emitVtbChild(VtbRestoreCtx *ctx) {
     logDebug("restore vtable child sql: %s", fullSql);
     TAOS_RES *res = taos_query(ctx->conn, fullSql);
     int rc = taos_errno(res);
-    if (res) taos_free_result(res);
 
     if (rc == TSDB_CODE_SUCCESS) {
         ctx->successCnt++;
         atomic_add_fetch_64(&g_stats.childTablesTotal, 1);
+        atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
     } else if (rc == TSDB_CODE_TDB_TABLE_ALREADY_EXIST || rc == TSDB_CODE_MND_STB_ALREADY_EXIST) {
-        logWarn("virtual child table already exists, skip: %s", ctx->curTbname);
+        logWarn("virtual child table already exists(0x%08X %s): %s", rc, taos_errstr(res), ctx->curTbname);
         ctx->successCnt++;
         atomic_add_fetch_64(&g_stats.childTablesTotal, 1);
+        atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
     } else {
-        logError("create virtual child table failed (0x%08X): %s  sql: %s",
-                 rc, ctx->curTbname, fullSql);
+        logError("create virtual child table failed(0x%08X %s): %s",
+                 rc, taos_errstr(res), fullSql);
         ctx->failedCnt++;
     }
+    if (res) taos_free_result(res);
     taosMemoryFree(fullSql);
 }
 
@@ -689,7 +695,7 @@ static int queryVstbTagInfo(TAOS *conn, const char *dbName, const char *vstbName
     snprintf(sql, sizeof(sql), "DESCRIBE `%s`.`%s`", dbName, vstbName);
     TAOS_RES *res = taos_query(conn, sql);
     if (taos_errno(res) != TSDB_CODE_SUCCESS) {
-        logError("DESCRIBE %s.%s failed: %s", dbName, vstbName, taos_errstr(res));
+        logError("DESCRIBE %s.%s failed(0x%08X %s): %s", dbName, vstbName, taos_errno(res), taos_errstr(res), sql);
         taos_free_result(res);
         return -1;
     }
@@ -870,7 +876,7 @@ static int restoreVtbSql(const char *dbName) {
     obtainFileName(BACK_FILE_VTBSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS, sqlFile, sizeof(sqlFile));
 
     if (!taosCheckExistFile(sqlFile)) {
-        logInfo("vtb.sql not found, skip virtual tables: %s", sqlFile);
+        logDebug("vtb.sql not found, skip virtual tables: %s", sqlFile);
         return TSDB_CODE_SUCCESS;
     }
 
@@ -1009,20 +1015,20 @@ static int restoreVtbSql(const char *dbName) {
                 logDebug("restore vtable sql: %s", fullSql);
                 TAOS_RES *res = taos_query(conn, fullSql);
                 int rc = taos_errno(res);
-                if (res) taos_free_result(res);
 
                 if (rc == TSDB_CODE_SUCCESS) {
                     vtbCount++;
                     atomic_add_fetch_64(&g_stats.ntbTotal, 1);
                 } else if (rc == TSDB_CODE_TDB_TABLE_ALREADY_EXIST ||
                            rc == TSDB_CODE_MND_STB_ALREADY_EXIST) {
-                    logWarn("virtual table already exists, skip: %s", fullSql);
+                    logWarn("virtual table already exists(0x%08X %s): %s", rc, taos_errstr(res), fullSql);
                     vtbCount++;
                     atomic_add_fetch_64(&g_stats.ntbTotal, 1);
                 } else {
-                    logError("create virtual table failed(0x%08X): %s", rc, fullSql);
+                    logError("create virtual table failed(0x%08X %s): %s", rc, taos_errstr(res), fullSql);
                     code = rc;
                 }
+                if (res) taos_free_result(res);
             }
             taosMemoryFree(fullSql);
         }
@@ -1115,6 +1121,7 @@ static int buildServerTagMapping(TAOS *conn, const char *dbName, const char *stb
     snprintf(sql, sizeof(sql), "DESCRIBE `%s`.`%s`", dbName, stbName);
     TAOS_RES *res = taos_query(conn, sql);
     if (taos_errno(res) != TSDB_CODE_SUCCESS) {
+        logError("DESCRIBE failed(0x%08X %s): %s", taos_errno(res), taos_errstr(res), sql);
         taos_free_result(res);
         return -1;
     }
@@ -1522,23 +1529,24 @@ static int tagBlockCallback(void *userData,
 
         // execute
         TAOS_RES *res = taos_query(ctx->conn, sql);
-        int rc = taos_errno(res);
-        if (res) taos_free_result(res);
-        
-        if (rc == TSDB_CODE_SUCCESS) {
+        int code = taos_errno(res);
+        if (code == TSDB_CODE_SUCCESS) {
             ctx->successCnt++;
             atomic_add_fetch_64(&g_stats.childTablesTotal, 1);
-        } else if (rc == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
+            atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
+        } else if (code == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
             // table already exists - that's fine in APPEND mode
-            logWarn("create child table may already exist (0x%08X): %s", rc, tbName);
+        logWarn("create child table may already exist(0x%08X %s): %s", code, taos_errstr(res), tbName);
             ctx->successCnt++;
             atomic_add_fetch_64(&g_stats.childTablesTotal, 1);
+            atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
         } else {
             // real error - table creation failed
-            logError("create child table failed (0x%08X): %s, sql: %s", rc, tbName, sql);
+            logError("create child table failed(0x%08X %s): %s", code, taos_errstr(res), sql);
             ctx->failedCnt++;
         }
 
+        if (res) taos_free_result(res);
         taosMemoryFree(sql);
     }
 
@@ -1695,6 +1703,7 @@ static int parquetTagCallback(void *userData,
         if (rc == TSDB_CODE_SUCCESS || rc == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
             ctx->successCnt++;
             atomic_add_fetch_64(&g_stats.childTablesTotal, 1);
+            atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
         } else {
             logError("create child table failed (0x%08X): %s.%s",
                      rc, argRenameDb(ctx->dbName), tbName);
@@ -1711,7 +1720,9 @@ static void* restoreTagThread(void *arg) {
     RestoreTagThread *thread = (RestoreTagThread *)arg;
     thread->code = TSDB_CODE_SUCCESS;
 
-    logInfo("restore tag thread %d start, file: %s", thread->index, thread->tagFile);
+    logDebug("restore tag thread %d start, file: %s", thread->index, thread->tagFile);
+    const char *_dbName4log  = thread->dbInfo  ? thread->dbInfo->dbName  : "?";
+    const char *_stb4log     = thread->stbInfo ? thread->stbInfo->stbName : "?";
 
     /* Detect file format from extension */
     const char *ext       = strrchr(thread->tagFile, '.');
@@ -1737,7 +1748,7 @@ static void* restoreTagThread(void *arg) {
                                         ctx.serverTagNames, BCK_MAX_TAG_COLS);
             if (n > 0) {
                 ctx.serverTagCount = n;
-                logInfo("parquet stb %s.%s: server has %d tags; using name mapping",
+                logDebug("parquet stb %s.%s: server has %d tags; using name mapping",
                         argRenameDb(ctx.dbName), ctx.stbName, n);
             } else {
                 logWarn("parquet stb %s.%s: DESCRIBE failed, using backup tag order",
@@ -1750,8 +1761,9 @@ static void* restoreTagThread(void *arg) {
         if (code != TSDB_CODE_SUCCESS)
             logError("read parquet tag file failed(%d): %s", code, thread->tagFile);
 
-        logInfo("restore tag thread %d done. success: %" PRId64 " failed: %" PRId64,
+        logDebug("restore tag thread %d done. success: %" PRId64 " failed: %" PRId64,
                 thread->index, ctx.successCnt, ctx.failedCnt);
+        logInfo("tag thread %d finished for %s.%s", thread->index, _dbName4log, _stb4log);
         thread->code = code;
         return NULL;
     }
@@ -1787,7 +1799,7 @@ static void* restoreTagThread(void *arg) {
         int n = buildServerTagMapping(ctx.conn, argRenameDb(ctx.dbName), ctx.stbName, &ctx);
         if (n > 0) {
             ctx.serverTagCount = n;
-            logInfo("stb %s.%s: server has %d tags, backup has %d; using name mapping",
+            logDebug("stb %s.%s: server has %d tags, backup has %d; using name mapping",
                     argRenameDb(ctx.dbName), ctx.stbName, n, ctx.numFields - 1);
         } else {
             logWarn("stb %s.%s: DESCRIBE failed, using backup tag order",
@@ -1802,8 +1814,9 @@ static void* restoreTagThread(void *arg) {
     }
     thread->code = code;
 
-    logInfo("restore tag thread %d done. success: %" PRId64 " failed: %" PRId64,
+    logDebug("restore tag thread %d done. success: %" PRId64 " failed: %" PRId64,
             thread->index, ctx.successCnt, ctx.failedCnt);
+    logInfo("tag thread %d finished for %s.%s", thread->index, _dbName4log, _stb4log);
 
     closeTaosFileRead(taosFile);
     return NULL;
@@ -1891,7 +1904,26 @@ static int restoreStbTags(DBInfo *dbInfo, StbInfo *stbInfo) {
         return TSDB_CODE_SUCCESS;
     }
 
-    logInfo("found %d tag files for %s.%s", fileCnt, dbName, stbName);
+    logDebug("found %d tag files for %s.%s", fileCnt, dbName, stbName);
+
+    // Sum row counts from .dat file headers to set ctbTotalCur for progress display.
+    // Parquet files don't expose a row count without full scan, so treat as 0.
+    {
+        int64_t totalCtbs = 0;
+        for (int i = 0; i < fileCnt; i++) {
+            const char *ext = strrchr(tagFiles[i], '.');
+            if (ext && strcmp(ext, ".dat") == 0) {
+                int peekCode = 0;
+                TaosFile *pf = openTaosFileForRead(tagFiles[i], &peekCode);
+                if (pf) {
+                    totalCtbs += pf->header.numRows;
+                    closeTaosFileRead(pf);
+                }
+            }
+        }
+        g_progress.ctbTotalCur = totalCtbs;
+        atomic_store_64(&g_progress.ctbDoneCur, 0);
+    }
 
     // determine thread count
     int threadCnt = argTagThread();
@@ -1913,6 +1945,7 @@ static int restoreStbTags(DBInfo *dbInfo, StbInfo *stbInfo) {
         threads[i].dbInfo  = dbInfo;
         threads[i].stbInfo = stbInfo;
         threads[i].index   = i + 1;
+        logInfo("tag thread %d started for %s.%s", i + 1, dbName, stbName);
         threads[i].conn    = getConnection(&code);
         if (!threads[i].conn) {
             for (int j = 0; j < i; j++) {
@@ -2056,20 +2089,47 @@ int restoreDatabaseMeta(const char *dbName) {
     DBInfo dbInfo;
     dbInfo.dbName = dbName;
 
+    // count STBs for meta progress
+    int stbCount = 0;
+    for (int k = 0; stbNames[k] != NULL; k++) stbCount++;
+
+    // set up META phase progress
+    g_progress.phase    = PROGRESS_PHASE_META;
+    g_progress.stbTotal = stbCount;
+    g_progress.stbIndex = 0;
+    g_progress.stbName[0] = '\0';
+    g_progress.ctbTotalCur = 0;
+    atomic_store_64(&g_progress.ctbDoneCur,  0);
+    atomic_store_64(&g_progress.ctbDoneAll,  0);
+    atomic_store_64(&g_progress.ctbTotalAll, 0);
+
     for (int i = 0; stbNames[i] != NULL; i++) {
         if (g_interrupted) {
             code = TSDB_CODE_BCK_USER_CANCEL;
             break;
         }
 
-        logInfo("restore tags for super table: %s.%s", dbName, stbNames[i]);
+        // update progress for this STB
+        g_progress.stbIndex = i + 1;
+        snprintf(g_progress.stbName, PROGRESS_STB_NAME_LEN, "%s", stbNames[i]);
+        g_progress.ctbTotalCur = 0;
+        atomic_store_64(&g_progress.ctbDoneCur, 0);
+
         atomic_add_fetch_64(&g_stats.stbTotal, 1);
+        logInfo("[%lld/%lld] db: %s  [%d/%d] stb: %s  meta start",
+                (long long)g_progress.dbIndex, (long long)g_progress.dbTotal,
+                dbName, i + 1, stbCount, stbNames[i]);
         StbInfo stbInfo;
         memset(&stbInfo, 0, sizeof(StbInfo));
         stbInfo.dbInfo = &dbInfo;
         stbInfo.stbName = stbNames[i];
 
         code = restoreStbTags(&dbInfo, &stbInfo);
+
+        // accumulate completed CTBs
+        atomic_add_fetch_64(&g_progress.ctbDoneAll, g_progress.ctbDoneCur);
+        atomic_store_64(&g_progress.ctbDoneCur, 0);
+
         if (code != TSDB_CODE_SUCCESS) {
             logError("restore stb tags failed(%d): %s.%s", code, dbName, stbNames[i]);
             freeArrayPtr(stbNames);

@@ -21,6 +21,7 @@
 #include "decimal.h"
 #include "ttypes.h"
 #include "osString.h"
+#include "bckProgress.h"
 
 //
 // -------------------------------------- RESTORE CHECKPOINT -----------------------------------------
@@ -30,11 +31,11 @@ static pthread_mutex_t g_ckptMutex = PTHREAD_MUTEX_INITIALIZER;
 static char  g_ckptPath[MAX_PATH_LEN] = "";
 static char **g_ckptDone = NULL;   // loaded completed file paths
 static int   g_ckptCount = 0;
-static bool  g_ckptEnabled = true;  // false when output dir is read-only
+static bool  g_allowWriteCP = true;  // false when output dir is read-only
 
 static void loadRestoreCheckpoint(const char *dbName) {
     snprintf(g_ckptPath, sizeof(g_ckptPath), "%s/%s/restore_checkpoint.txt", argOutPath(), dbName);
-    g_ckptEnabled = true;
+    g_allowWriteCP = true;
 
     // free previous
     if (g_ckptDone) {
@@ -54,10 +55,15 @@ static void loadRestoreCheckpoint(const char *dbName) {
             // is fine — the read below will just find no entries.
         } else {
             logInfo("restore checkpoint disabled: cannot write to %s (read-only directory), restoring without checkpoint", g_ckptPath);
-            g_ckptEnabled = false;
+            g_allowWriteCP = false;
             return;  // skip loading — no checkpoint entries, start fresh
         }
     }
+
+    // Without -C the caller never calls isRestoreDone(), so there is no need
+    // to load previous entries into memory.  The write-access probe above is
+    // still required so that saveRestoreCheckpoint() works for the current run.
+    if (!argCheckpoint()) return;
 
     // read entire checkpoint file
     TdFilePtr fp = taosOpenFile(g_ckptPath, TD_FILE_READ);
@@ -118,7 +124,7 @@ static bool isRestoreDone(const char *filePath) {
 }
 
 static void saveRestoreCheckpoint(const char *filePath) {
-    if (!g_ckptEnabled) return;
+    if (!g_allowWriteCP) return;
     pthread_mutex_lock(&g_ckptMutex);
     TdFilePtr fp = taosOpenFile(g_ckptPath, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_APPEND);
     if (fp) {
@@ -142,9 +148,9 @@ static void freeRestoreCheckpoint() {
 // Delete the checkpoint file after a fully successful restore so that the
 // next restore run always starts fresh instead of skipping everything.
 static void deleteRestoreCheckpoint() {
-    if (g_ckptEnabled && g_ckptPath[0] != '\0') {
-        remove(g_ckptPath);
-        logInfo("deleted restore checkpoint: %s", g_ckptPath);
+    if (g_allowWriteCP && g_ckptPath[0] != '\0') {
+        int ret = taosRemoveFile(g_ckptPath);
+        logDebug("deleted restore checkpoint: %s ret:%d", g_ckptPath, ret);
     }
 }
 
@@ -228,7 +234,6 @@ typedef struct {
 // init stmt
 TAOS_STMT* initStmt(TAOS* taos, bool single) {
     if (!single) {
-        logInfo("initStmt call taos_stmt_init single=%d\n", single);
         return taos_stmt_init(taos);
     }
 
@@ -236,7 +241,6 @@ TAOS_STMT* initStmt(TAOS* taos, bool single) {
     memset(&op, 0, sizeof(op));
     op.singleStbInsert      = single;
     op.singleTableBindOnce  = single;
-    logInfo("initStmt call taos_stmt_init_with_options single=%d\n", single);
     return taos_stmt_init_with_options(taos, &op);
 }
 
@@ -698,7 +702,7 @@ TAOS_STMT2* initStmt2(TAOS* taos, bool single) {
 
     TAOS_STMT2* stmt2 = taos_stmt2_init(taos, &op2);
     if (stmt2)
-        logInfo("succ  taos_stmt2_init single=%d\n", single);
+        logDebug("succ  taos_stmt2_init single=%d\n", single);
     else
         logError("failed taos_stmt2_init single=%d\n", single);
     return stmt2;
@@ -1191,7 +1195,8 @@ done:
 //
 static int restoreOneParquetFile(TAOS *conn, const char *dbName,
                                   const char *filePath,
-                                  StbChange *stbChange) {
+                                  StbChange *stbChange,
+                                  int64_t   *rowsOut) {
     (void)stbChange;  /* reserved for future schema-change support */
     int code = TSDB_CODE_SUCCESS;
 
@@ -1269,6 +1274,7 @@ static int restoreOneParquetFile(TAOS *conn, const char *dbName,
                  code, filePath, dbName, tbName);
     } else {
         logDebug("restore parquet done: %s.%s rows: %" PRId64, dbName, tbName, rows);
+        if (rowsOut) *rowsOut = rows;
     }
 
     taos_stmt_close(stmt);
@@ -1283,7 +1289,8 @@ static int restoreOneParquetFile(TAOS *conn, const char *dbName,
 //
 static int restoreOneParquetFileV2(TAOS *conn, const char *dbName,
                                     const char *filePath,
-                                    StbChange *stbChange) {
+                                    StbChange *stbChange,
+                                    int64_t   *rowsOut) {
     (void)stbChange;  /* reserved for future schema-change support */
     int code = TSDB_CODE_SUCCESS;
 
@@ -1350,6 +1357,7 @@ static int restoreOneParquetFileV2(TAOS *conn, const char *dbName,
                  code, filePath, dbName, tbName);
     } else {
         logDebug("restore parquet (STMT2) done: %s.%s rows: %" PRId64, dbName, tbName, rows);
+        if (rowsOut) *rowsOut = rows;
     }
 
     taos_stmt2_close(stmt2);
@@ -1462,11 +1470,11 @@ static void* restoreDataThread(void *arg) {
     RestoreDataThread *thread = (RestoreDataThread *)arg;
     thread->code = TSDB_CODE_SUCCESS;
 
-    logInfo("restore data thread %d start, files: %d", thread->index, thread->fileCnt);
-
     const char *dbName = thread->dbInfo->dbName;
+    const char *stbName4log = thread->stbInfo ? thread->stbInfo->stbName : "(ntb)";
+    logInfo("data thread %d started for %s.%s (files: %d)",
+            thread->index, dbName, stbName4log, thread->fileCnt);
     StmtVersion  stmtVer = argStmtVersion();
-    logInfo("restore thread %d using STMT%d", thread->index, (int)stmtVer);
 
     /* ---- STMT2 path ---- */
     Stmt2RestoreCtx s2Ctx;
@@ -1502,13 +1510,15 @@ static void* restoreDataThread(void *arg) {
 
         // skip if already restored (resume support; only active with -C / --checkpoint)
         if (argCheckpoint() && isRestoreDone(filePath)) {
-            logInfo("restore thread %d: skip already restored: %s", thread->index, filePath);
+            logDebug("restore thread %d: skip already restored: %s", thread->index, filePath);
             atomic_add_fetch_64(&g_stats.dataFilesSkipped, 1);
             atomic_add_fetch_64(&g_stats.dataFilesTotal, 1);
+            // count skip as progress so the bar keeps advancing
+            atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
             continue;
         }
 
-        logInfo("restore data thread %d: file %d/%d: %s",
+        logDebug("restore data thread %d: file %d/%d: %s",
                 thread->index, i + 1, thread->fileCnt, filePath);
 
         // Dispatch on file extension: .dat → binary-taos, .par → parquet
@@ -1516,18 +1526,23 @@ static void* restoreDataThread(void *arg) {
         int   pathLen = strlen(filePath);
         bool  isPar   = (pathLen > 4 &&
                          strcmp(filePath + pathLen - 4, ".par") == 0);
+        int64_t fileRows = 0;  // rows restored in this single file
         if (isPar) {
             if (stmtVer == STMT_VERSION_2) {
                 code = restoreOneParquetFileV2(thread->conn, dbName, filePath,
-                                               thread->stbChange);
+                                               thread->stbChange, &fileRows);
             } else {
                 code = restoreOneParquetFile(thread->conn, dbName, filePath,
-                                             thread->stbChange);
+                                             thread->stbChange, &fileRows);
             }
         } else if (stmtVer == STMT_VERSION_2) {
+            int64_t rowsBefore = s2Ctx.totalRows;
             code = restoreOneDataFileV2(&s2Ctx, filePath);
+            fileRows = s2Ctx.totalRows - rowsBefore;
         } else {
+            int64_t rowsBefore = bCtx.totalRows;
             code = restoreOneDataFile(&bCtx, filePath);
+            fileRows = bCtx.totalRows - rowsBefore;
         }
 
         atomic_add_fetch_64(&g_stats.dataFilesTotal, 1);
@@ -1553,12 +1568,22 @@ static void* restoreDataThread(void *arg) {
         } else {
             // Write checkpoint immediately so a mid-run kill still saves progress.
             saveRestoreCheckpoint(filePath);
+            // accumulate rows immediately so the progress display is real-time
+            if (fileRows > 0) atomic_add_fetch_64(&g_stats.totalRows, fileRows);
+            // count completed file for progress display
+            atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
+            // accumulate actual processed bytes for File Size summary
+            {
+                TdFilePtr szFp = taosOpenFile(filePath, TD_FILE_READ);
+                if (szFp) {
+                    int64_t fsz = 0;
+                    taosFStatFile(szFp, &fsz, NULL);
+                    taosCloseFile(&szFp);
+                    if (fsz > 0) atomic_add_fetch_64(&g_stats.dataFilesSizeBytes, fsz);
+                }
+            }
         }
     }
-
-    /* accumulate per-thread row counts into global stats */
-    atomic_add_fetch_64(&g_stats.totalRows, s2Ctx.totalRows);
-    atomic_add_fetch_64(&g_stats.totalRows, bCtx.totalRows);
 
     /* ----- cleanup ----- */
     /* STMT2 */
@@ -1578,7 +1603,7 @@ static void* restoreDataThread(void *arg) {
         bCtx.stmt = NULL;
     }
 
-    logInfo("restore data thread %d done", thread->index);
+    logInfo("data thread %d finished for %s.%s", thread->index, dbName, stbName4log);
     return NULL;
 }
 
@@ -1686,13 +1711,23 @@ static int restoreStbData(DBInfo *dbInfo, const char *stbName, StbChangeMap *cha
         return TSDB_CODE_SUCCESS;
     }
 
-    logInfo("found %d data files for %s.%s", fileCnt, dbName, stbName);
+    logDebug("found %d data files for %s.%s", fileCnt, dbName, stbName);
+
+    // update progress: how many files this STB/NTB has
+    g_progress.ctbTotalCur = fileCnt;
+    atomic_add_fetch_64(&g_progress.ctbTotalAll, fileCnt);
+    atomic_store_64(&g_progress.ctbDoneCur, 0);
 
     // Determine thread count
     int threadCnt = argDataThread();
     if (fileCnt < threadCnt) {
         threadCnt = fileCnt;
     }
+
+    logInfo("[%lld/%lld] db: %s  [%lld/%lld] stb: %s  data start  file: %d  threads: %d",
+            (long long)g_progress.dbIndex, (long long)g_progress.dbTotal, dbName,
+            (long long)g_progress.stbIndex, (long long)g_progress.stbTotal, stbName,
+            fileCnt, threadCnt);
 
     // Allocate threads
     RestoreDataThread *threads = (RestoreDataThread *)taosMemoryCalloc(threadCnt, sizeof(RestoreDataThread));
@@ -1741,7 +1776,7 @@ static int restoreStbData(DBInfo *dbInfo, const char *stbName, StbChangeMap *cha
 
     // Detect schema change for this super table (skip for normal tables "_ntb")
     StbChange *stbChange = NULL;
-    if (changeMap && strcmp(stbName, "_ntb") != 0) {
+    if (changeMap && strcmp(stbName, NORMAL_TABLE_DIR) != 0) {
         // Get a connection to query server schema
         int scConnCode = TSDB_CODE_FAILED;
         TAOS *schemaConn = getConnection(&scConnCode);
@@ -1892,6 +1927,14 @@ static char** getBackupStbNamesForData(const char *dbName, int *code) {
 int restoreDatabaseData(const char *dbName) {
     int code = TSDB_CODE_SUCCESS;
 
+    // Reset DATA-phase progress counters so META-phase accumulation in
+    // ctbDoneAll / ctbTotalAll doesn't corrupt ETA and speed calculations.
+    atomic_store_64(&g_progress.ctbDoneAll,  0);
+    atomic_store_64(&g_progress.ctbTotalAll, 0);
+    atomic_store_64(&g_progress.ctbDoneCur,  0);
+    g_progress.ctbTotalCur = 0;
+    g_progress.startMs     = taosGetTimestampMs();
+
     // load checkpoint for resume support
     loadRestoreCheckpoint(dbName);
 
@@ -1920,15 +1963,34 @@ int restoreDatabaseData(const char *dbName) {
     DBInfo dbInfo;
     dbInfo.dbName = dbName;
 
+    // count STBs for progress (+1 for NTB phase only if NTB dir exists)
+    int stbRawCount = 0;
+    for (int k = 0; stbNames[k] != NULL; k++) stbRawCount++;
+    char ntbDir[MAX_PATH_LEN];
+    snprintf(ntbDir, sizeof(ntbDir), "%s/%s/" NORMAL_TABLE_DIR "_data0", argOutPath(), dbName);
+    bool hasNtb = taosDirExist(ntbDir);
+    g_progress.stbTotal = stbRawCount + (hasNtb ? 1 : 0);
+    g_progress.stbIndex = 0;
+
     for (int i = 0; stbNames[i] != NULL; i++) {
         if (g_interrupted) {
             code = TSDB_CODE_BCK_USER_CANCEL;
             break;
         }
 
-        logInfo("restore data for super table: %s.%s", dbName, stbNames[i]);
+        // update progress: which STB we're restoring
+        g_progress.stbIndex++;
+        snprintf(g_progress.stbName, PROGRESS_STB_NAME_LEN, "%s", stbNames[i]);
+        g_progress.ctbTotalCur = 0;
+        atomic_store_64(&g_progress.ctbDoneCur, 0);
 
         code = restoreStbData(&dbInfo, stbNames[i], &changeMap);
+
+        // accumulate completed files
+        int64_t doneCur = g_progress.ctbDoneCur;
+        atomic_add_fetch_64(&g_progress.ctbDoneAll, doneCur);
+        atomic_store_64(&g_progress.ctbDoneCur, 0);
+
         if (code != TSDB_CODE_SUCCESS) {
             logError("restore stb data failed(0x%08X): %s.%s", code, dbName, stbNames[i]);
             freeArrayPtr(stbNames);
@@ -1949,8 +2011,27 @@ int restoreDatabaseData(const char *dbName) {
     //
     // normal tables data (no schema change detection for normal tables)
     //
-    logInfo("restore normal table data for db: %s", dbName);
-    code = restoreStbData(&dbInfo, "_ntb", NULL);
+    if (!hasNtb) {
+        logDebug("no normal table data dir for db: %s, skipping", dbName);
+        g_progress.stbIndex++;  // keep progress counter consistent
+        goto ntb_done;
+    }
+
+    // update progress for NTB phase
+    g_progress.stbIndex++;
+    snprintf(g_progress.stbName, PROGRESS_STB_NAME_LEN, "(ntb)");
+    g_progress.ctbTotalCur = 0;
+    atomic_store_64(&g_progress.ctbDoneCur, 0);
+
+    code = restoreStbData(&dbInfo, NORMAL_TABLE_DIR, NULL);
+
+    // accumulate NTB files
+    {
+        int64_t ntbDone = g_progress.ctbDoneCur;
+        atomic_add_fetch_64(&g_progress.ctbDoneAll, ntbDone);
+        atomic_store_64(&g_progress.ctbDoneCur, 0);
+    }
+
     if (code != TSDB_CODE_SUCCESS) {
         logError("restore normal table data failed(%d): %s", code, dbName);
         stbChangeMapDestroy(&changeMap);
@@ -1958,6 +2039,7 @@ int restoreDatabaseData(const char *dbName) {
         return code;
     }
 
+ntb_done:
     // All data restored successfully.  Delete the checkpoint file so that
     // the next restore run always starts fresh instead of skipping everything.
     deleteRestoreCheckpoint();

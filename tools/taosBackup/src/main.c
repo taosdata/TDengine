@@ -113,7 +113,12 @@ static void printEndSummary(enum ActionType action, int code, double elapsed) {
     printf("  Databases    : total=%" PRId64 ", success=%" PRId64 ", failed=%" PRId64 "\n",
            g_stats.dbTotal, g_stats.dbSuccess, g_stats.dbFailed);
     printf("  Super Tables : %" PRId64 "\n", g_stats.stbTotal);
-    printf("  Child Tables : %" PRId64 " (data exported)\n", g_stats.childTablesTotal);
+    if (action == ACTION_RESTORE) {
+        int64_t restored = g_stats.dataFilesTotal - g_stats.dataFilesFailed - g_stats.dataFilesSkipped;
+        printf("  Child Tables : %" PRId64 " (data restored)\n", restored);
+    } else {
+        printf("  Child Tables : %" PRId64 " (data exported)\n", g_stats.childTablesTotal);
+    }
     printf("  Total Rows   : %" PRId64 "\n", g_stats.totalRows);
     printf("  Normal Tables: %" PRId64 "\n", g_stats.ntbTotal);
     if (action == ACTION_BACKUP) {
@@ -123,29 +128,19 @@ static void printEndSummary(enum ActionType action, int code, double elapsed) {
         printf("  Data Files   : total=%" PRId64 ", skipped(checkpoint)=%" PRId64 ", failed=%" PRId64 "\n",
                g_stats.dataFilesTotal, g_stats.dataFilesSkipped, g_stats.dataFilesFailed);
     }
-    // calculate directory size:
-    // - backup : always the whole output path
-    // - restore: only the database subdirectory(ies) being restored, not the whole input path
-    int64_t dirSize = 0;
-    const char *outPath = argOutPath();
-    if (outPath && taosDirExist(outPath)) {
-        char **dbs = argBackDB();
-        if (action == ACTION_RESTORE && dbs && dbs[0]) {
-            // sum only the selected database directories
-            for (int i = 0; dbs[i]; i++) {
-                char dbPath[MAX_PATH_LEN];
-                snprintf(dbPath, sizeof(dbPath), "%s/%s", outPath, dbs[i]);
-                if (taosDirExist(dbPath)) {
-                    int64_t sz = 0;
-                    taosGetDirSize(dbPath, &sz);
-                    dirSize += sz;
-                }
-            }
-        } else {
-            taosGetDirSize(outPath, &dirSize);
+    // File Size:
+    // - backup : scan the whole output directory (files written)
+    // - restore: use accumulated byte count of files actually processed
+    int64_t displayBytes = 0;
+    if (action == ACTION_RESTORE) {
+        displayBytes = g_stats.dataFilesSizeBytes;
+    } else {
+        const char *outPath = argOutPath();
+        if (outPath && taosDirExist(outPath)) {
+            taosGetDirSize(outPath, &displayBytes);
         }
     }
-    double sizeMB = (double)dirSize / (1024.0 * 1024.0);
+    double sizeMB = (double)displayBytes / (1024.0 * 1024.0);
     if (sizeMB >= 1024.0) {
         printf("  File Size    : %.2f GB\n", sizeMB / 1024.0);
     } else {
@@ -221,9 +216,11 @@ int main(int argc, char *argv[]) {
     // record start time
     int64_t startMs = taosGetTimestampMs();
 
-    // start progress display thread (backup only; no-op for restore)
-    if (action == ACTION_BACKUP) {
-        g_progress.startMs = startMs;
+    // start progress display thread
+    if (action == ACTION_BACKUP || action == ACTION_RESTORE) {
+        memset(&g_progress, 0, sizeof(g_progress));
+        g_progress.startMs   = startMs;
+        g_progress.isRestore = (action == ACTION_RESTORE) ? 1 : 0;
         progressStart();
     }
 
@@ -241,7 +238,7 @@ int main(int argc, char *argv[]) {
     }
 
     // stop progress display thread
-    if (action == ACTION_BACKUP) {
+    if (action == ACTION_BACKUP || action == ACTION_RESTORE) {
         progressStop();
     }
 

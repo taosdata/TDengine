@@ -51,7 +51,6 @@ int backDatabase(const char *dbName) {
     }
 
     // meta
-    logInfo("backing up metadata for database: %s", dbName);
     code = backDatabaseMeta(&dbInfo);
     if (code != TSDB_CODE_SUCCESS) {
         if (code != TSDB_CODE_BCK_USER_CANCEL) {
@@ -62,7 +61,7 @@ int backDatabase(const char *dbName) {
 
     // data
     if (!argSchemaOnly()) {
-        logInfo("backing up data for database: %s", dbName);
+        g_progress.phase = PROGRESS_PHASE_DATA;
         code = backDatabaseData(&dbInfo);
         if (code != TSDB_CODE_SUCCESS) {
             if (code != TSDB_CODE_BCK_USER_CANCEL) {
@@ -93,9 +92,9 @@ static char** getAllDatabases(int *count, int *retCode) {
     }
 
     TAOS_RES *res = taos_query(conn, "SHOW DATABASES;");
-    if (!res || taos_errno(res)) {
-        *retCode = taos_errno(res);
-        logError("query databases failed: %s", taos_errstr(res));
+    *retCode = taos_errno(res);
+    if (!res || *retCode) {
+        logError("query databases failed(0x%08X %s): SHOW DATABASES", *retCode, taos_errstr(res));
         if (res) taos_free_result(res);
         releaseConnection(conn);
         return NULL;
@@ -176,7 +175,7 @@ int backupMain() {
     // loop backup each database
     for (int i = 0; backDB[i] != NULL; i++) {
         g_progress.dbIndex = i + 1;
-        logInfo("[%d/%d] starting backup for database: %s", i+1, (int)g_stats.dbTotal, backDB[i]);
+        snprintf(g_progress.dbName, sizeof(g_progress.dbName), "%s", backDB[i]);
 
         // backup data
         code = backDatabase(backDB[i]);

@@ -26,7 +26,7 @@ int queryWriteTxt(const char *sql, int32_t col, const char *pathFile) {
     TAOS_RES *res = taos_query(conn, sql);
     int32_t code = taos_errno(res);
     if (!res || code) {
-        logError("query failed: %s sql: %s", taos_errstr(res), sql);
+        logError("query failed(0x%08X %s): %s", code, taos_errstr(res), sql);
         if (res) taos_free_result(res);
         releaseConnection(conn);
         return code;

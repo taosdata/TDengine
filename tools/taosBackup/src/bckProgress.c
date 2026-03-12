@@ -41,9 +41,9 @@ static void progFmtEta(char *buf, size_t sz, double secs) {
     if (s < 60)
         snprintf(buf, sz, "~%ds", s);
     else if (s < 3600)
-        snprintf(buf, sz, "~%dm%ds", s / 60, s % 60);
+        snprintf(buf, sz, "~%02dm%02ds", s / 60, s % 60);
     else
-        snprintf(buf, sz, "~%dh%dm", s / 3600, (s % 3600) / 60);
+        snprintf(buf, sz, "~%dh%02dm", s / 3600, (s % 3600) / 60);
 }
 
 // Print one progress line.  newline=true adds \n (used for non-tty or final clear).
@@ -51,9 +51,14 @@ static void progPrintLine(bool newline) {
     char ts[10];
     progFmtTimestamp(ts, sizeof(ts));
 
+    int64_t phase  = g_progress.phase;
+
     // snapshot all atomic/volatile fields
     int64_t dbIdx  = g_progress.dbIndex;
     int64_t dbTot  = g_progress.dbTotal;
+    char    dname[PROGRESS_DB_NAME_LEN];
+    memcpy(dname, (char *)g_progress.dbName, PROGRESS_DB_NAME_LEN - 1);
+    dname[PROGRESS_DB_NAME_LEN - 1] = '\0';
     int64_t stbIdx = g_progress.stbIndex;
     int64_t stbTot = g_progress.stbTotal;
     char    sname[PROGRESS_STB_NAME_LEN];
@@ -91,7 +96,7 @@ static void progPrintLine(bool newline) {
     else
         snprintf(pctBuf, sizeof(pctBuf), "-");
 
-    // row count abbreviation
+    // row count abbreviation (data phase only; meta phase shows ctb count)
     int64_t rows = g_stats.totalRows;
     char rowsBuf[32];
     if      (rows >= 1000000000LL) snprintf(rowsBuf, sizeof(rowsBuf), "%.1fB", (double)rows / 1e9);
@@ -99,17 +104,35 @@ static void progPrintLine(bool newline) {
     else if (rows >= 1000LL)       snprintf(rowsBuf, sizeof(rowsBuf), "%.1fK", (double)rows / 1e3);
     else                           snprintf(rowsBuf, sizeof(rowsBuf), "%" PRId64, rows);
 
-    // compose
     char line[512];
-    snprintf(line, sizeof(line),
-             "[%s]  db: %" PRId64 "/%" PRId64
-             "  stb: %s (%" PRId64 "/%" PRId64 ")"
-             "  ctb: %" PRId64 "/%" PRId64 " (%s)"
-             "  rows: %s  speed: %.0f/s  ETA: %s",
-             ts, dbIdx, dbTot,
-             sname[0] ? sname : "-", stbIdx, stbTot,
-             ctbDone, ctbTot, pctBuf,
-             rowsBuf, speed, etaBuf);
+
+    const char *dbDisp  = dname[0] ? dname : "-";
+    const char *stbDisp = sname[0] ? sname : "-";
+
+    if (phase == PROGRESS_PHASE_META) {
+        // META phase: [X/Y] db: name  [X/Y] stb: name  meta  ctb: X/Y (%)  speed: N/s  ETA: xxx
+        snprintf(line, sizeof(line),
+                 "[%s]  [%" PRId64 "/%" PRId64 "] db: %s"
+                 "  [%" PRId64 "/%" PRId64 "] stb: %s  meta"
+                 "  ctb: %" PRId64 "/%" PRId64 " (%s)"
+                 "  speed: %.0f/s  ETA: %s",
+                 ts, dbIdx, dbTot, dbDisp,
+                 stbIdx, stbTot, stbDisp,
+                 ctbDone, ctbTot, pctBuf,
+                 speed, etaBuf);
+    } else {
+        // DATA phase: [X/Y] db: name  [X/Y] stb: name  (file|ctb): X/Y (%)  rows: N  speed: N/s  ETA: xxx
+        const char *unitLabel = g_progress.isRestore ? "file" : "ctb";
+        snprintf(line, sizeof(line),
+                 "[%s]  [%" PRId64 "/%" PRId64 "] db: %s"
+                 "  [%" PRId64 "/%" PRId64 "] stb: %s"
+                 "  %s: %" PRId64 "/%" PRId64 " (%s)"
+                 "  rows: %s  speed: %.0f/s  ETA: %s",
+                 ts, dbIdx, dbTot, dbDisp,
+                 stbIdx, stbTot, stbDisp,
+                 unitLabel, ctbDone, ctbTot, pctBuf,
+                 rowsBuf, speed, etaBuf);
+    }
 
     flockfile(stdout);
     if (g_tty_progress) {
@@ -136,8 +159,8 @@ static void *progressThread(void *arg) {
         }
         if (s_progStop) break;
 
-        // wait until at least one STB is in progress
-        if (g_progress.stbTotal == 0) continue;
+        // wait until at least one STB is in progress (meta or data phase)
+        if (g_progress.phase == PROGRESS_PHASE_IDLE) continue;
 
         if (tty) {
             progPrintLine(false);
@@ -151,7 +174,7 @@ static void *progressThread(void *arg) {
     }
 
     // in tty mode: clear the rolling line so the next log message prints cleanly
-    if (tty && g_progress.stbTotal > 0) {
+    if (tty && g_progress.phase != PROGRESS_PHASE_IDLE) {
         flockfile(stdout);
         printf("\r\033[K");
         fflush(stdout);
@@ -164,7 +187,6 @@ static void *progressThread(void *arg) {
 
 void progressStart(void) {
     s_progStop = 0;
-    memset(&g_progress, 0, sizeof(g_progress));
     pthread_create(&s_progThread, NULL, progressThread, NULL);
 }
 

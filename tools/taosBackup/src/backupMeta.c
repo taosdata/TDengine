@@ -13,6 +13,7 @@
 #include "bckPool.h"
 #include "bckDb.h"
 #include "bckArgs.h"
+#include "bckProgress.h"
 
 
 //
@@ -55,7 +56,7 @@ int backCreateStbSql(const char *dbName, const char *stbName) {
     TAOS_RES *res = taos_query(conn, sql);
     int code = taos_errno(res);
     if (!res || code) {
-        logError("show create table failed(%s): %s", taos_errstr(res), sql);
+        logError("show create table failed(0x%08X %s): %s", code, taos_errstr(res), sql);
         if (res) taos_free_result(res);
         releaseConnection(conn);
         return code;
@@ -125,6 +126,9 @@ int backStbSchema(const char *dbName, const char *stbName, char ** selectTags) {
 static void* backTagThread(void *arg) {
     TagThread *thread = (TagThread *)arg;
     thread->code = TSDB_CODE_SUCCESS;
+    logInfo("tag thread %d started for %s.%s (offset=%d, limit=%d)",
+            thread->index, thread->dbInfo->dbName, thread->stbInfo->stbName,
+            thread->offset, thread->limit);
 
     char *sql = (char *)taosMemoryCalloc(TSDB_MAX_SQL_LEN, sizeof(char));
     if (sql == NULL) {
@@ -172,7 +176,8 @@ static void* backTagThread(void *arg) {
     thread->code = code;
 
     freePtr(sql);
-    logInfo("backup tag thread %d finished.", thread->index);
+    logInfo("tag thread %d finished for %s.%s",
+            thread->index, thread->dbInfo->dbName, thread->stbInfo->stbName);
     return NULL;
 }
 
@@ -269,8 +274,9 @@ int backChildTableTags(DBInfo *dbInfo, StbInfo *stbInfo) {
     for (int i = 0; i < count; i++) {
         totalChildTables += threads[i].limit;
     }
-    logInfo("backing up tags for %d child tables of %s.%s using %d tag threads", 
-            totalChildTables, dbInfo->dbName, stbInfo->stbName, count);
+    // set per-STB CTB total for progress display
+    g_progress.ctbTotalCur = totalChildTables;
+    atomic_store_64(&g_progress.ctbDoneCur, 0);
 
     // create threads
     for (int i = 0; i < count; i++) {
@@ -289,6 +295,9 @@ int backChildTableTags(DBInfo *dbInfo, StbInfo *stbInfo) {
             code = threads[i].code;
         }
     }
+
+    // mark all CTBs as done for progress display (backup writes them in bulk)
+    atomic_store_64(&g_progress.ctbDoneCur, (int64_t)totalChildTables);
 
     // free
     freePtr(threads);
@@ -411,7 +420,7 @@ int backNormalTablesSql(const char *dbName) {
         TAOS_RES *res = taos_query(conn, sql);
         code = taos_errno(res);
         if (!res || code != TSDB_CODE_SUCCESS) {
-            logError("show create table failed(%s): %s", taos_errstr(res), sql);
+            logError("show create table failed(0x%08X %s): %s", code, taos_errstr(res), sql);
             if (res) taos_free_result(res);
             break;
         }
@@ -506,7 +515,7 @@ int backVirtualTablesSql(const char *dbName) {
         TAOS_RES *res = taos_query(conn, sql);
         code = taos_errno(res);
         if (!res || code != TSDB_CODE_SUCCESS) {
-            logError("show create vtable failed(%s): %s", taos_errstr(res), sql);
+            logError("show create vtable failed(0x%08X %s): %s", code, taos_errstr(res), sql);
             if (res) taos_free_result(res);
             break;
         }
@@ -569,6 +578,19 @@ int backDatabaseMeta(DBInfo *dbInfo) {
         TdFilePtr truncFp = taosOpenFile(stbSqlFile, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
         if (truncFp) taosCloseFile(&truncFp);
     }
+    // Count super tables for META phase progress
+    {
+        int stbCount = 0;
+        for (int k = 0; stbNames != NULL && stbNames[k] != NULL; k++) stbCount++;
+        g_progress.stbTotal       = stbCount;
+        g_progress.stbIndex       = 0;
+        g_progress.stbName[0]     = '\0';
+        g_progress.ctbTotalCur    = 0;
+        g_progress.ctbTotalAll    = 0;
+        atomic_store_64(&g_progress.ctbDoneCur, 0);
+        atomic_store_64(&g_progress.ctbDoneAll, 0);
+        g_progress.phase          = PROGRESS_PHASE_META;
+    }
     for (int i = 0; stbNames != NULL && stbNames[i] != NULL; i++) {
         if (g_interrupted) {
             code = TSDB_CODE_BCK_USER_CANCEL;
@@ -599,8 +621,14 @@ int backDatabaseMeta(DBInfo *dbInfo) {
             }
             if (!include) continue;  /* skip this super table */
         }
-        logInfo("backup super table meta: %s.%s", dbName, stbNames[i]);
-        atomic_add_fetch_64(&g_stats.stbTotal, 1);
+        // Update META phase progress for this STB
+        g_progress.stbIndex = atomic_add_fetch_64(&g_stats.stbTotal, 1);
+        snprintf(g_progress.stbName, sizeof(g_progress.stbName), "%s", stbNames[i]);
+        g_progress.ctbTotalCur = 0;
+        atomic_store_64(&g_progress.ctbDoneCur, 0);
+        logInfo("[%lld/%lld] db: %s  [%lld/%lld] stb: %s  meta start",
+                (long long)g_progress.dbIndex, (long long)g_progress.dbTotal, dbName,
+                (long long)g_progress.stbIndex, (long long)g_progress.stbTotal, stbNames[i]);
         StbInfo stbInfo;
         memset(&stbInfo, 0, sizeof(StbInfo));
         stbInfo.dbInfo = dbInfo;
@@ -637,6 +665,8 @@ int backDatabaseMeta(DBInfo *dbInfo) {
                 return code;
             }
         }
+        // Accumulate child table progress across all STBs
+        atomic_add_fetch_64(&g_progress.ctbDoneAll, g_progress.ctbDoneCur);
         // free
         freePtr(selectTags);
     }    

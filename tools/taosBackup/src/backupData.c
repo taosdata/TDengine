@@ -181,8 +181,9 @@ static void* backDataThread(void *arg) {
         return NULL;
     }
     TAOS_RES *res = taos_query(conn, sql);
-    if (res == NULL || taos_errno(res)) {
-        logError("query child table names failed(%s): %s", taos_errstr(res), sql);
+    thread->code = taos_errno(res);
+    if (res == NULL || thread->code) {
+        logError("query child table names failed(0x%08X %s): %s", thread->code, taos_errstr(res), sql);
         if (res) taos_free_result(res);
         releaseConnection(conn);
         return NULL;
@@ -364,8 +365,10 @@ int backStbData(StbInfo *stbInfo) {
     for (int i = 0; i < count; i++) {
         totalChildTables += threads[i].limit;
     }
-    logInfo("backing up %d child tables for %s.%s using %d data threads", 
-            totalChildTables, stbInfo->dbInfo->dbName, stbInfo->stbName, count);
+    logInfo("[%lld/%lld] db: %s  [%lld/%lld] stb: %s  data start  ctb: %d  threads: %d",
+            (long long)g_progress.dbIndex, (long long)g_progress.dbTotal, stbInfo->dbInfo->dbName,
+            (long long)g_progress.stbIndex, (long long)g_progress.stbTotal, stbInfo->stbName,
+            totalChildTables, count);
 
     // create threads
     for (int i = 0; i < count; i++) {
@@ -486,8 +489,9 @@ static void* backNtbDataThread(void *arg) {
         return NULL;
     }
     TAOS_RES *res = taos_query(conn, sql);
-    if (res == NULL || taos_errno(res)) {
-        logError("query normal table names failed(%s): %s", taos_errstr(res), sql);
+    int32_t code = taos_errno(res);
+    if (res == NULL || code) {
+        logError("query normal table names failed(0x%08X %s): %s", code, taos_errstr(res), sql);
         if (res) taos_free_result(res);
         releaseConnection(conn);
         return NULL;
@@ -557,7 +561,7 @@ static int backNormalTableData(DBInfo *dbInfo) {
     code = getDBNormalTableCount(dbName, &tableCnt);
     if (code != TSDB_CODE_SUCCESS) return code;
     if (tableCnt == 0) {
-        logInfo("no normal tables in db: %s", dbName);
+        logDebug("no normal tables in db: %s", dbName);
         return TSDB_CODE_SUCCESS;
     }
 
@@ -584,7 +588,7 @@ static int backNormalTableData(DBInfo *dbInfo) {
     StbInfo ntbStbInfo;
     memset(&ntbStbInfo, 0, sizeof(StbInfo));
     ntbStbInfo.dbInfo  = dbInfo;
-    ntbStbInfo.stbName = "_ntb";
+    ntbStbInfo.stbName = NORMAL_TABLE_DIR;
 
     for (int i = 0; i < threadCnt; i++) {
         threads[i].dbInfo  = dbInfo;
@@ -651,8 +655,16 @@ int backDatabaseData(DBInfo *dbInfo) {
         if (g_backResumeMode)
             logInfo("backup db %s: checkpoint mode, resuming from previous run", dbName);
         else
-            logInfo("backup db %s: no complete flag, starting fresh (use -C to resume)", dbName);
+            logDebug("backup db %s: no complete flag, starting fresh (use -C to resume)", dbName);
     }
+
+    // Reset DATA-phase progress counters so META-phase accumulation in
+    // ctbDoneAll / ctbTotalAll doesn't corrupt ETA and speed calculations.
+    atomic_store_64(&g_progress.ctbDoneAll,  0);
+    atomic_store_64(&g_progress.ctbTotalAll, 0);
+    atomic_store_64(&g_progress.ctbDoneCur,  0);
+    g_progress.ctbTotalCur = 0;
+    g_progress.startMs     = taosGetTimestampMs();
 
     //
     // super tables
@@ -710,7 +722,6 @@ int backDatabaseData(DBInfo *dbInfo) {
         g_progress.ctbTotalCur = 0;
         atomic_store_64(&g_progress.ctbDoneCur, 0);
 
-        logInfo("backup super table: %s.%s", dbName, stbNames[i]);
         StbInfo stbInfo;
         memset(&stbInfo, 0, sizeof(StbInfo));
         stbInfo.dbInfo = dbInfo;
@@ -756,7 +767,7 @@ int backDatabaseData(DBInfo *dbInfo) {
         TdFilePtr fp = taosOpenFile(completeFlagPath, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
         if (fp) {
             taosCloseFile(&fp);
-            logInfo("backup db %s: complete flag written (%s)", dbName, completeFlagPath);
+            logDebug("backup db %s: complete flag written (%s)", dbName, completeFlagPath);
         } else {
             logWarn("backup db %s: failed to write complete flag", dbName);
         }

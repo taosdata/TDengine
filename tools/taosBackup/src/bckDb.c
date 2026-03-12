@@ -28,9 +28,9 @@ char ** getDBSuperTableNames(const char *dbName, int *code) {
     char sql[256];
     snprintf(sql, sizeof(sql), "SHOW `%s`.STABLES", dbName);
     TAOS_RES *res = taos_query(conn, sql);
-    if (!res || taos_errno(res)) {
-        *code = taos_errno(res);
-        logError("query stables failed: %s", taos_errstr(res));
+    *code = taos_errno(res);
+    if (!res || *code) {
+        logError("query stables failed(0x%08X %s): %s", *code, taos_errstr(res), sql);
         if (res) taos_free_result(res);
         releaseConnection(conn);
         return NULL;
@@ -94,9 +94,9 @@ char ** getDBNormalTableNames(const char *dbName, int *code) {
              "WHERE db_name='%s' AND stable_name IS NULL"
              " AND type NOT LIKE 'VIRTUAL%%'%s ORDER BY table_name", dbName, specFilter);
     TAOS_RES *res = taos_query(conn, sql);
-    if (!res || taos_errno(res)) {
-        *code = taos_errno(res);
-        logError("query normal tables failed: %s", taos_errstr(res));
+    *code = taos_errno(res);
+    if (!res || *code) {
+        logError("query normal tables failed(0x%08X %s): %s", *code, taos_errstr(res), sql);
         if (res) taos_free_result(res);
         releaseConnection(conn);
         return NULL;

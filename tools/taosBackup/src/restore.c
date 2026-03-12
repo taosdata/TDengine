@@ -12,6 +12,7 @@
 #include "restore.h"
 #include "restoreMeta.h"
 #include "restoreData.h"
+#include "bckProgress.h"
 
 //
 // -------------------------------------- UTIL -----------------------------------------
@@ -39,6 +40,7 @@ static int restoreDatabase(const char *dbName) {
     }
 
     // data: read .dat files and write via STMT
+    g_progress.phase = PROGRESS_PHASE_DATA;
     code = restoreDatabaseData(dbName);
     if (code != TSDB_CODE_SUCCESS) {
         logError("restore database: %s data failed, code: 0x%08X", dbName, code);
@@ -128,14 +130,24 @@ int restoreMain() {
     for (int i = 0; backDB[i] != NULL; i++) {
         g_stats.dbTotal++;
     }
+    g_progress.dbTotal = g_stats.dbTotal;
 
     // loop restore each database (serial)
     for (int i = 0; backDB[i] != NULL; i++) {
+        g_progress.dbIndex = i + 1;
+        snprintf(g_progress.dbName, sizeof(g_progress.dbName), "%s", backDB[i]);
+        // reset per-DB progress fields for each database
+        g_progress.stbTotal = 0;
+        g_progress.stbIndex = 0;
+        g_progress.stbName[0] = '\0';
+        atomic_store_64(&g_progress.ctbTotalAll, 0);
+        atomic_store_64(&g_progress.ctbDoneAll, 0);
+        atomic_store_64(&g_progress.ctbDoneCur, 0);
+        g_progress.ctbTotalCur = 0;
         const char *targetDb = argRenameDb(backDB[i]);
         if (strcmp(targetDb, backDB[i]) != 0) {
-            logInfo("restore database: %s -> %s", backDB[i], targetDb);
-        } else {
-            logInfo("restore database: %s", backDB[i]);
+            logInfo("[%d/%d] db: %s -> %s  restore start",
+                    i + 1, (int)g_stats.dbTotal, backDB[i], targetDb);
         }
 
         // restore: meta + data

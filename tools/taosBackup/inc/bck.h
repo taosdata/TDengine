@@ -34,6 +34,7 @@ typedef struct {
     volatile int64_t  dataFilesFailed;  // data files failed
     volatile int64_t  childTablesTotal; // child tables with data exported
     volatile int64_t  totalRows;        // total rows backed up / restored
+    volatile int64_t  dataFilesSizeBytes; // cumulative size of successfully processed data files (restore only)
 } BckStats;
 
 extern BckStats g_stats;
@@ -55,7 +56,7 @@ extern BckStats g_stats;
 #define MAX_PATH_LEN 512
 #define FOLDER_MAXFILE 100000
 
-
+#define NORMAL_TABLE_DIR "_ntb"
 
 // ---------------- struct ----------------
 
