@@ -47,6 +47,7 @@ class InstallInfo:
         self.all_models = False
         self.offline = False
         self.iscc_path = ""
+        self.skip_model_check = False
 
 
 tdgpt_version = TDGPTVersion("community", "1.0.0")
@@ -83,6 +84,8 @@ def parse_arguments():
     parser.add_argument('--iscc-path', type=str,
                         default=r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
                         help='Path to Inno Setup compiler')
+    parser.add_argument('--skip-model-check', action='store_true',
+                        help='Skip model validation (for testing only, NOT for production)')
 
     version_pattern = re.compile(r'^[0-9]+\.([0-9]+\.){1,3}[0-9]+$')
     args = parser.parse_args()
@@ -117,6 +120,7 @@ def parse_arguments():
     install_info.all_models = args.all_models
     install_info.iscc_path = args.iscc_path
     install_info.offline = args.offline
+    install_info.skip_model_check = args.skip_model_check
 
     return args
 
@@ -667,18 +671,50 @@ def main():
     create_install_script()
     create_uninstall_script()
 
-    # Validate model directory exists (required for Windows packaging)
-    model_dir = os.path.join(install_info.install_dir, "model")
-    if not os.path.exists(model_dir) or not os.listdir(model_dir):
-        logging.error("=" * 60)
-        logging.error("ERROR: Model directory is empty or missing")
-        logging.error(f"Expected location: {model_dir}")
-        logging.error("")
-        logging.error("Model files are REQUIRED for Windows packaging.")
-        logging.error("Please specify model directory using --model-dir option:")
-        logging.error(f"  python {sys.argv[0]} -e {tdgpt_version.ver_type} -v {tdgpt_version.version} -m <model_dir>")
-        logging.error("=" * 60)
-        return 1
+    # Validate model directory (required for production packaging)
+    if not install_info.skip_model_check:
+        model_dir = os.path.join(install_info.install_dir, "model")
+
+        # Check if model directory exists and has files
+        if not os.path.exists(model_dir) or not os.listdir(model_dir):
+            logging.error("=" * 60)
+            logging.error("ERROR: Model directory is empty or missing")
+            logging.error(f"Expected location: {model_dir}")
+            logging.error("")
+            logging.error("Model files are REQUIRED for production packaging.")
+            logging.error("Please specify model directory using --model-dir option:")
+            logging.error(f"  python {sys.argv[0]} -e {tdgpt_version.ver_type} -v {tdgpt_version.version} -m <model_dir>")
+            logging.error("")
+            logging.error("For testing only, you can skip this check with --skip-model-check")
+            logging.error("=" * 60)
+            return 1
+
+        # Check required model files for production
+        required_models = ['timemoe.tar.gz', 'tdtsfm.tar.gz']
+        missing_models = []
+        for model_file in required_models:
+            model_path = os.path.join(model_dir, model_file)
+            if not os.path.exists(model_path):
+                missing_models.append(model_file)
+
+        if missing_models:
+            logging.error("=" * 60)
+            logging.error("ERROR: Required model files are missing")
+            logging.error(f"Missing files: {', '.join(missing_models)}")
+            logging.error(f"Model directory: {model_dir}")
+            logging.error("")
+            logging.error("Production packaging requires:")
+            logging.error("  - timemoe.tar.gz")
+            logging.error("  - tdtsfm.tar.gz")
+            logging.error("=" * 60)
+            return 1
+
+        logging.info("Model validation passed: all required files present")
+    else:
+        logging.warning("=" * 60)
+        logging.warning("WARNING: Model validation SKIPPED (--skip-model-check)")
+        logging.warning("This is for TESTING ONLY - NOT for production!")
+        logging.warning("=" * 60)
 
     # Create Inno Setup script and build installer
     iss_path = create_iss_script()
