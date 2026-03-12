@@ -697,7 +697,6 @@ static int32_t mergeAlignExtWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   mergeAlignExtWinDo(pOperator);
   
   size_t rows = pRes->info.rows;
-  pOperator->resultInfo.totalRows += rows;
   (*ppRes) = (rows == 0) ? NULL : pRes;
 
 _exit:
@@ -707,7 +706,7 @@ _exit:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 
@@ -2312,7 +2311,6 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   }
 
   if (*ppRes) {
-    pOperator->resultInfo.totalRows += (*ppRes)->info.rows;
     printDataBlock(*ppRes, __func__, GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
   }
   
@@ -2332,7 +2330,7 @@ _exit:
     printDataBlock(*ppRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo), pTaskInfo->id.queryId);
   }
 
-  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 

@@ -442,7 +442,6 @@ int32_t doSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   recordOpExecBegin(pOperator);
 
   if (pOperator->status == OP_EXEC_DONE) {
-    recordOpExecEnd(pOperator, false);
     return code;
   }
 
@@ -460,8 +459,10 @@ int32_t doSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
+    recordOpExecBeforeDownstream(pOperator);
     code = getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,
                                 pInfo->matchInfo.pList, pInfo, &pBlock);
+    recordOpExecAfterDownstream(pOperator, pBlock ? pBlock->info.rows : 0);
     QUERY_CHECK_CODE(code, lino, _end);
     if (pBlock == NULL) {
       setOperatorCompleted(pOperator);
@@ -481,7 +482,6 @@ int32_t doSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       resetLimitInfoForNextGroup(&pInfo->limitInfo);
     }
 
-    pOperator->resultInfo.totalRows += pBlock->info.rows;
     if (pBlock->info.rows > 0) {
       break;
     }
@@ -494,7 +494,7 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, *pResBlock != NULL && (*pResBlock)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*pResBlock) ? (*pResBlock)->info.rows : 0);
   return code;
 }
 
@@ -784,12 +784,13 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
+    recordOpExecBeforeDownstream(pOperator);
     code = getGroupSortedBlockData(pInfo->pCurrSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity,
                                      pInfo->matchInfo.pList, pInfo, &pBlock);
+    recordOpExecAfterDownstream(pOperator, pBlock ? pBlock->info.rows : 0);
     QUERY_CHECK_CODE(code, lino, _end);
     if (pBlock != NULL) {
       pBlock->info.id.groupId = pInfo->currGroupId;
-      pOperator->resultInfo.totalRows += pBlock->info.rows;
       *pResBlock = pBlock;
       goto _end;
     } else {
@@ -812,7 +813,7 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, *pResBlock != NULL && (*pResBlock)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*pResBlock) ? (*pResBlock)->info.rows : 0);
   return code;
 }
 

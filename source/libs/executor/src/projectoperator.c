@@ -317,7 +317,7 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     }
 
     *pResBlock = (pRes->info.rows > 0)? pRes:NULL;
-    recordOpExecEnd(pOperator, *pResBlock != NULL && (*pResBlock)->info.rows > 0);
+    recordOpExecEnd(pOperator, (*pResBlock) ? (*pResBlock)->info.rows : 0);
     return code;
   }
 
@@ -415,7 +415,6 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   }
 
   SSDataBlock* p = pProjectInfo->mergeDataBlocks ? pFinalRes : pRes;
-  pOperator->resultInfo.totalRows += p->info.rows;
   p->info.dataLoad = 1;
 
   if (pProjectInfo->outputIgnoreGroup) {
@@ -434,7 +433,7 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, *pResBlock != NULL && (*pResBlock)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*pResBlock) ? (*pResBlock)->info.rows : 0);
   return code;
 }
 
@@ -666,8 +665,6 @@ int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlo
   }
 
   size_t rows = pInfo->pRes->info.rows;
-  pOperator->resultInfo.totalRows += rows;
-
   *pResBlock = (rows > 0) ? pInfo->pRes : NULL;
 
 _end:
@@ -676,7 +673,7 @@ _end:
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  recordOpExecEnd(pOperator, *pResBlock != NULL && (*pResBlock)->info.rows > 0);
+  recordOpExecEnd(pOperator, rows);
   return code;
 }
 
@@ -848,8 +845,6 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
   }
 
   (void) doIngroupLimitOffset(&pProjectInfo->limitInfo, 0, pRes, pOperator);
-
-  pOperator->resultInfo.totalRows += pRes->info.rows;
 
   setOperatorCompleted(pOperator);
 

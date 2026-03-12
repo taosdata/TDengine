@@ -337,12 +337,8 @@ static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     }
   }
 
-  if (fillResult != NULL) {
-    pOperator->resultInfo.totalRows += fillResult->info.rows;
-  }
-
   (*ppRes) = fillResult;
-  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 

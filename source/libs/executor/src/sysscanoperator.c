@@ -3338,7 +3338,7 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     qError("%s failed since %s", __func__, tstrerror(pTaskInfo->code));
     T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
   }
-  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return pTaskInfo->code;
 }
 
@@ -3361,6 +3361,7 @@ static void sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScan
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
+  pOperator->cost.inputRows += pBlock->info.rows;  /* record input rows before filter */
   code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -4158,7 +4159,8 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) = pBlock;
-  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+  pOperator->cost.inputRows += (*ppRes) ? (*ppRes)->info.rows : 0;
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 

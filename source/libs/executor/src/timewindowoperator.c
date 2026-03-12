@@ -1363,8 +1363,6 @@ static int32_t doStateWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
     }
   }
 
-  pOperator->resultInfo.totalRows += pBInfo->pRes->info.rows;
-
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -1372,7 +1370,7 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) = (pBInfo->pRes->info.rows == 0) ? NULL : pBInfo->pRes;
-  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 
@@ -1381,7 +1379,6 @@ static int32_t doBuildIntervalResultNext(SOperatorInfo* pOperator, SSDataBlock**
   int32_t                   lino = 0;
   SIntervalAggOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
-  size_t                    rows = 0;
   recordOpExecBegin(pOperator);
 
   if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
@@ -1418,17 +1415,14 @@ static int32_t doBuildIntervalResultNext(SOperatorInfo* pOperator, SSDataBlock**
     }
   }
 
-  rows = pBlock->info.rows;
-  pOperator->resultInfo.totalRows += rows;
-
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  (*ppRes) = (rows == 0) ? NULL : pBlock;
-  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+  (*ppRes) = (pBlock->info.rows == 0) ? NULL : pBlock;
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 
@@ -1874,9 +1868,8 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
         break;
       }
     }
-    pOperator->resultInfo.totalRows += pBInfo->pRes->info.rows;
     (*ppRes) = (pBInfo->pRes->info.rows == 0) ? NULL : pBInfo->pRes;
-    recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+    recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
     return code;
   }
 
@@ -1933,7 +1926,6 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
       break;
     }
   }
-  pOperator->resultInfo.totalRows += pBInfo->pRes->info.rows;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1942,7 +1934,7 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) = (pBInfo->pRes->info.rows == 0) ? NULL : pBInfo->pRes;
-  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 
@@ -2447,10 +2439,8 @@ static int32_t mergeAlignedIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock
     doMergeAlignedIntervalAgg(pOperator);
   }
 
-  size_t rows = pRes->info.rows;
-  pOperator->resultInfo.totalRows += rows;
-  (*ppRes) = (rows == 0) ? NULL : pRes;
-  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+  (*ppRes) = (pRes->info.rows == 0) ? NULL : pRes;
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 
@@ -2811,17 +2801,14 @@ static int32_t doMergeIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
     setOperatorCompleted(pOperator);
   }
 
-  size_t rows = pRes->info.rows;
-  pOperator->resultInfo.totalRows += rows;
-
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-  (*ppRes) = (rows == 0) ? NULL : pRes;
-  recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+  (*ppRes) = (pRes->info.rows == 0) ? NULL : pRes;
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 

@@ -757,7 +757,7 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     }
   }
 
-  recordOpExecEnd(pOperator, *pResBlock != NULL && (*pResBlock)->info.rows > 0);
+  recordOpExecEnd(pOperator, (*pResBlock) ? (*pResBlock)->info.rows : 0);
   return code;
 _return:
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));

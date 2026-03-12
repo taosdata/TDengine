@@ -467,7 +467,7 @@ static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     SSDataBlock* pBlock = doLoadRemoteDataImpl(pOperator);
     if (pBlock == NULL) {
       (*ppRes) = NULL;
-      recordOpExecEnd(pOperator, false);
+      recordOpExecEnd(pOperator, 0);
       return code;
     }
 
@@ -489,18 +489,18 @@ static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
         if (pBlock->info.rows == 0) {
           setOperatorCompleted(pOperator);
           (*ppRes) = NULL;
-          recordOpExecEnd(pOperator, false);
+          recordOpExecEnd(pOperator, 0);
           return code;
         } else {
           (*ppRes) = pBlock;
-          recordOpExecEnd(pOperator, true);
+          recordOpExecEnd(pOperator, pBlock->info.rows);
           return code;
         }
       }
     } else {
       (*ppRes) = pBlock;
       qDebug("block with rows %" PRId64 " returned in exechange", pBlock->info.rows);
-      recordOpExecEnd(pOperator, *ppRes != NULL && (*ppRes)->info.rows > 0);
+      recordOpExecEnd(pOperator, pBlock->info.rows);
       return code;
     }
   }
@@ -516,6 +516,7 @@ _end:
   }
   
   (*ppRes) = NULL;
+  recordOpExecEnd(pOperator, 0);
   return code;
 }
 
@@ -1564,7 +1565,6 @@ void updateLoadRemoteInfo(SLoadRemoteDataInfo* pInfo, int64_t numOfRows,
   pInfo->totalRows += numOfRows;
   pInfo->totalSize += dataLen;
   pInfo->totalElapsed += (taosGetTimestampUs() - startTs);
-  pOperator->resultInfo.totalRows += numOfRows;
 }
 
 int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pColList, char** pNextStart, bool isVstbScan) {
