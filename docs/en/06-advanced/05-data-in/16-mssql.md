@@ -8,7 +8,7 @@ import Enterprise from '../../assets/resources/_enterprise.mdx';
 
 <Enterprise/>
 
-This section describes how to create data migration tasks through the Explorer interface, migrating data from Microsoft SQL Server to the current TDengine cluster.
+This section describes how to create data migration tasks through the Explorer interface, migrating data from Microsoft SQL Server(2016+ or with TLS1.2+ support) to the current TDengine cluster.
 
 ## Feature Overview
 
