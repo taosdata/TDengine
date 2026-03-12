@@ -152,7 +152,7 @@ call :check_svc taoskeeper
 
 if exist c:\\windows\\sysnative (
     echo x86
-    copy /y C:\\TDengine\taos.dll %windir%\\sysnative > nul
+    copy /y C:\\TDengine\\taos.dll %windir%\\sysnative > nul
     copy /y C:\\TDengine\\taosnative.dll %windir%\\sysnative > nul
     copy /y C:\\TDengine\\pthreadVC3.dll %windir%\\sysnative > nul
     if exist C:\\TDengine\\taosws.dll (
