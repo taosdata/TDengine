@@ -21,8 +21,8 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
 int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
 int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
 int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
-int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq);
-int32_t metaUpdateTableMultiTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq);
+int32_t metaUpdateTableMultiTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq);
+int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq);
 int32_t metaUpdateTableOptions2(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq);
 int32_t metaUpdateTableColCompress2(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq);
 int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
@@ -851,10 +851,10 @@ int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMeta
       return metaAlterTableColumnBytes(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
       return metaAlterTableColumnName(pMeta, version, pReq, pMetaRsp);
-    case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
-      return metaUpdateTableTagValue(pMeta, version, pReq);
-    case TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL:
-      return metaUpdateTableMultiTagValue(pMeta, version, pReq);
+    case TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL:
+      return metaUpdateTableMultiTableTagValue(pMeta, version, pReq);
+    case TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL:
+      return metaUpdateTableChildTableTagValue(pMeta, version, pReq);
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
       return metaUpdateTableOptions2(pMeta, version, pReq);
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:

@@ -781,6 +781,14 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
   tDecoderInit(&decoder, data, len);
   
   STREAM_CHECK_RET_GOTO(tDecodeSVAlterTbReq(&decoder, &req));
+
+
+  // TODO:
+  // 1. TSDB_ALTER_TABLE_UPDATE_TAG_VAL and TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL is not used any more. 
+  // 2. TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL and TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL are
+  //    added, both support updating tag value for multiple tables.
+
+
   STREAM_CHECK_CONDITION_GOTO(req.action != TSDB_ALTER_TABLE_UPDATE_TAG_VAL && req.action != TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL && 
     req.action != TSDB_ALTER_TABLE_ALTER_COLUMN_REF && req.action != TSDB_ALTER_TABLE_REMOVE_COLUMN_REF, TDB_CODE_SUCCESS);
 
@@ -847,6 +855,11 @@ end:
   taosArrayDestroy(uidListDel);
   taosArrayDestroy(tableList);
   taosArrayDestroy(req.pMultiTag);
+  for (int32_t i = 0; i < taosArrayGetSize(req.tables); i++) {
+    SUpdateTableTagVal* pTable = taosArrayGet(req.tables, i);
+    taosArrayDestroy(pTable->tags);
+  }
+  taosArrayDestroy(req.tables);
   tDecoderClear(&decoder);
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   return code;

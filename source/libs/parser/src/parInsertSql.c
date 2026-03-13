@@ -1669,6 +1669,10 @@ int32_t parseTagValue(SMsgBuf* pMsgBuf, const char** pSql, uint8_t precision, SS
     }
   }
 
+  if (TSDB_CODE_SUCCESS != code && IS_VAR_DATA_TYPE(val.type)) {
+    taosMemoryFree(val.pData);
+  }
+
   return code;
 }
 
