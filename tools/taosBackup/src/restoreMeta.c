@@ -178,17 +178,6 @@ static int restoreStbSql(const char *dbName) {
         return TSDB_CODE_SUCCESS;
     }
 
-    /* An empty stb.sql is normal for databases that contain only normal tables
-     * (no super tables).  Treat it as "nothing to restore" rather than an error. */
-    {
-        int64_t sqlFileSize = 0;
-        taosStatFile(sqlFile, &sqlFileSize, NULL, NULL);
-        if (sqlFileSize == 0) {
-            logDebug("stb.sql is empty (no super tables in this database): %s", sqlFile);
-            return TSDB_CODE_SUCCESS;
-        }
-    }
-
     char *content = readFileContent(sqlFile, NULL);
     if (content == NULL) {
         logError("read stb.sql failed: %s", sqlFile);
