@@ -66,7 +66,7 @@ int8_t        tsEnableAdvancedSecurity = 1;
 #else
 int8_t        tsEnableAdvancedSecurity = 0;
 #endif
-int8_t        tsEnableGrantLegacySyntax = 1;
+int8_t        tsEnableGrantLegacySyntax = 0;
 
 char          tsEncryptPassAlgorithm[16] = {0};
 EEncryptAlgor tsiEncryptPassAlgorithm = 0;
@@ -3004,6 +3004,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"queryNoFetchTimeoutSec", &tsQueryNoFetchTimeoutSec},
                                          {"enableStrongPassword", &tsEnableStrongPassword},
                                          {"enableAdvancedSecurity", &tsEnableAdvancedSecurity},
+                                         {"enableGrantLegacySyntax", &tsEnableGrantLegacySyntax},
                                          {"enableMetrics", &tsEnableMetrics},
                                          {"metricsInterval", &tsMetricsInterval},
                                          {"metricsLevel", &tsMetricsLevel},

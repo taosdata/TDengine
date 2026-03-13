@@ -1775,7 +1775,7 @@ charset 的有效值是 UTF-8。
 
 - 说明：是否启用兼容 3.3.x.y 版本 grant/revoke 语法的功能；启用时（1），grant/revoke 授权语法在不指定权限对象时，会根据权限类型和 priv_level 自适应扩展为 database/table/view/index/tsma/rsma/topic/stream 对应的权限；禁用时（0），仅自适应扩展为 table/view 对应的权限。
 - 类型：整数；0：不启用，1：启用
-- 默认值：1
+- 默认值：0
 - 最小值：0
 - 最大值：1
 - 参数类型：全局配置参数
