@@ -2700,17 +2700,20 @@ _exit:
 }
 
 static int32_t extWinAggOutputSingleCGrpRes(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW, bool* grpDone) {
-  int32_t                  code = TSDB_CODE_SUCCESS;
-  int32_t                  lino = 0;
-  SExprInfo*               pExprInfo = pOperator->exprSupp.pExprInfo;
-  int32_t                  numOfExprs = pOperator->exprSupp.numOfExprs;
-  int32_t*                 rowEntryOffset = pOperator->exprSupp.rowEntryInfoOffset;
-  SqlFunctionCtx*          pCtx = pOperator->exprSupp.pCtx;
-  SSDataBlock*             pBlock = pExtW->binfo.pRes;
-  SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
-  SExtWinTrigGrpCtx*       pTGrpCtx = pExtW->pTGrpCtx;
-  SExtWinCalcGrpCtx*       pCCtx = pTGrpCtx->pCCtx;
-  int32_t                  numOfWin = taosArrayGetSize(pCCtx->pWins);
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            lino = 0;
+  SExprInfo*         pExprInfo = pOperator->exprSupp.pExprInfo;
+  int32_t            numOfExprs = pOperator->exprSupp.numOfExprs;
+  int32_t*           rowEntryOffset = pOperator->exprSupp.rowEntryInfoOffset;
+  SqlFunctionCtx*    pCtx = pOperator->exprSupp.pCtx;
+  SSDataBlock*       pBlock = pExtW->binfo.pRes;
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SExtWinTrigGrpCtx* pTGrpCtx = pExtW->pTGrpCtx;
+  if (!pExtW->pTGrpCtx) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SExtWinCalcGrpCtx* pCCtx = pTGrpCtx->pCCtx;
+  int32_t            numOfWin = taosArrayGetSize(pCCtx->pWins);
 
   for (; pCCtx->outWinIdx < numOfWin && pCCtx->outWinNum < pCCtx->outWinTotalNum; pCCtx->outWinIdx += 1) {
     SExtWinTimeWindow* pWin = TARRAY_GET_ELEM(pCCtx->pWins, pCCtx->outWinIdx);
