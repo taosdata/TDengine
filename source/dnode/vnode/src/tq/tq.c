@@ -101,10 +101,18 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
 
   taosInitRWLatch(&pTq->lock);
 
+<<<<<<< HEAD
   pTq->pPushMgr = taosHashInit(64, MurmurHash3_32, false, HASH_NO_LOCK);
   if (pTq->pPushMgr == NULL) {
     return terrno;
   }
+=======
+  pTq->pCheckInfo = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (pTq->pCheckInfo == NULL) {
+    return terrno;
+  }
+  taosHashSetFreeFp(pTq->pCheckInfo, (FDelete)tDeleteSTqCheckInfo);
+>>>>>>> 70aef009104 (fix(tmq): client does not poll data in a long time if there are some exceptions in channel)
 
   pTq->pOffset = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
   if (pTq->pOffset == NULL) {
@@ -134,20 +142,7 @@ void tqClose(STQ* pTq) {
     vgId = TD_VID(pTq->pVnode);
   }
 
-  void* pIter = taosHashIterate(pTq->pPushMgr, NULL);
-  while (pIter) {
-    STqHandle* pHandle = *(STqHandle**)pIter;
-    if (pHandle->msg != NULL) {
-      tqPushEmptyDataRsp(pHandle, vgId);
-      rpcFreeCont(pHandle->msg->pCont);
-      taosMemoryFree(pHandle->msg);
-      pHandle->msg = NULL;
-    }
-    pIter = taosHashIterate(pTq->pPushMgr, pIter);
-  }
-
   taosHashCleanup(pTq->pHandle);
-  taosHashCleanup(pTq->pPushMgr);
   taosHashCleanup(pTq->pOffset);
   taosMemoryFree(pTq->path);
   tqMetaClose(pTq);
@@ -298,7 +293,7 @@ int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg) {
 
   // if consumer register to push manager, push empty to consumer to change vg status from TMQ_VG_STATUS__WAIT to
   // TMQ_VG_STATUS__IDLE, otherwise poll data failed after seek.
-  tqUnregisterPushHandle(pTq, pHandle);
+  // tqUnregisterPushHandle(pTq, pHandle);
   taosWUnLockLatch(&pTq->lock);
 
 end:
@@ -307,6 +302,7 @@ end:
   return 0;
 }
 
+<<<<<<< HEAD
 int32_t tqProcessPollPush(STQ* pTq) {
   if (pTq == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -342,6 +338,38 @@ int32_t tqProcessPollPush(STQ* pTq) {
     taosHashClear(pTq->pPushMgr);
   }
   taosWUnLockLatch(&pTq->lock);
+=======
+int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId) {
+  if (pTq == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  void* pIter = NULL;
+
+  while (1) {
+    pIter = taosHashIterate(pTq->pCheckInfo, pIter);
+    if (pIter == NULL) {
+      break;
+    }
+
+    STqCheckInfo* pCheck = (STqCheckInfo*)pIter;
+
+    if (pCheck->ntbUid == tbUid) {
+      int32_t sz = taosArrayGetSize(pCheck->colIdList);
+      for (int32_t i = 0; i < sz; i++) {
+        int16_t* pForbidColId = taosArrayGet(pCheck->colIdList, i);
+        if (pForbidColId == NULL) {
+          continue;
+        }
+
+        if ((*pForbidColId) == colId) {
+          taosHashCancelIterate(pTq->pCheckInfo, pIter);
+          return -1;
+        }
+      }
+    }
+  }
+
+>>>>>>> 70aef009104 (fix(tmq): client does not poll data in a long time if there are some exceptions in channel)
   return 0;
 }
 
@@ -590,7 +618,7 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
         taosMsleep(10);
         continue;
       }
-      tqUnregisterPushHandle(pTq, pHandle);
+      // tqUnregisterPushHandle(pTq, pHandle);
       code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
       if (code != 0) {
         tqError("cannot process tq delete req %s, since no such handle", pReq->subKey);
@@ -693,7 +721,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
 
         atomic_store_64(&pHandle->consumerId, req.newConsumerId);
         atomic_store_32(&pHandle->epoch, 0);
-        tqUnregisterPushHandle(pTq, pHandle);
+        // tqUnregisterPushHandle(pTq, pHandle);
         ret = tqMetaSaveHandle(pTq, req.subKey, pHandle);
       }
       taosWUnLockLatch(&pTq->lock);
