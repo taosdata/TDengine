@@ -2855,8 +2855,11 @@ _exit:
 int32_t tsdbOpenCache(STsdb *pTsdb) {
   int32_t code = 0, lino = 0;
   size_t  cfgCapacity = (size_t)pTsdb->pVnode->config.cacheLastSize * 1024 * 1024;
+  int32_t numShardBits = pTsdb->pVnode->config.cacheLastShards;
 
-  SLRUCache *pCache = taosLRUCacheInit(cfgCapacity, 0, .5);
+  // Use configured shard bits, or -1 to auto-calculate based on cache size
+  // This enables multi-shard LRU cache for better concurrency
+  SLRUCache *pCache = taosLRUCacheInit(cfgCapacity, numShardBits, .5);
   if (pCache == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err);
   }
@@ -2876,6 +2879,9 @@ int32_t tsdbOpenCache(STsdb *pTsdb) {
 
   pTsdb->lruCache = pCache;
 
+  tsdbInfo("vgId:%d, lruCache opened with capacity:%zu bytes, numShards:%d (configured:%d)",
+           TD_VID(pTsdb->pVnode), cfgCapacity, taosLRUCacheGetNumShards(pCache), numShardBits);
+           
   TAOS_RETURN(0);
 
 _err:
@@ -2886,6 +2892,7 @@ _err:
       pCache = NULL;
     }
   }
+
   pTsdb->lruCache = pCache;
   TAOS_RETURN(code);
 }

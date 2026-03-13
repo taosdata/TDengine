@@ -389,6 +389,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.pageSize = pNew->cfg.pageSize;
   pOld->cfg.pages = pNew->cfg.pages;
   pOld->cfg.cacheLastSize = pNew->cfg.cacheLastSize;
+  pOld->cfg.cacheLastShards = pNew->cfg.cacheLastShards;
   pOld->cfg.daysPerFile = pNew->cfg.daysPerFile;
   pOld->cfg.daysToKeep0 = pNew->cfg.daysToKeep0;
   pOld->cfg.daysToKeep1 = pNew->cfg.daysToKeep1;
@@ -682,6 +683,7 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->strict < 0) pCfg->strict = TSDB_DEFAULT_DB_STRICT;
   if (pCfg->cacheLast < 0) pCfg->cacheLast = TSDB_DEFAULT_CACHE_MODEL;
   if (pCfg->cacheLastSize <= 0) pCfg->cacheLastSize = TSDB_DEFAULT_CACHE_SIZE;
+  if (pCfg->cacheLastShards < 0) pCfg->cacheLastShards = -1;  // -1 means auto-calculate
   if (pCfg->numOfRetensions < 0) pCfg->numOfRetensions = 0;
   if (pCfg->schemaless < 0) pCfg->schemaless = TSDB_DB_SCHEMALESS_OFF;
   if (pCfg->walRetentionPeriod < 0 && pCfg->walRetentionPeriod != -1)
