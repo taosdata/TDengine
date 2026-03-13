@@ -3834,6 +3834,7 @@ static int32_t stTriggerTaskSendCreateTableReq(SStreamTriggerTask *pTask, SSTrig
   SStreamRunnerTarget  *pCalcRunner = NULL;
   SRpcMsg               msg = {.msgType = TDMT_STREAM_TRIGGER_CALC};
   bool                  needTagValue = false;
+  bool                  needDestroyAhandle = false;
 
   code = stTriggerTaskAcquireRequest(pTask, sessionId, gid, &pCalcReq);
   if (code != TSDB_CODE_SUCCESS || pCalcReq == NULL) {
@@ -3847,8 +3848,8 @@ static int32_t stTriggerTaskSendCreateTableReq(SStreamTriggerTask *pTask, SSTrig
   param.notifyType = STRIGGER_EVENT_WINDOW_NONE;
   if (taosArrayPush(pCalcReq->params, &param) == NULL) {
     code = terrno;
-    stTriggerTaskReleaseRequest(pTask, &pCalcReq);
-    return code;
+    lino = __LINE__;
+    goto _end;
   }
   if (pTask->hasPartitionBy || (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_IDX) ||
       (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_TBNAME)) {
@@ -3863,14 +3864,16 @@ static int32_t stTriggerTaskSendCreateTableReq(SStreamTriggerTask *pTask, SSTrig
           SStreamGroupValue *pValue = TARRAY_GET_ELEM(pGroupColVals, i);
           SStreamGroupValue *pDst = taosArrayPush(pCalcReq->groupColVals, pValue);
           if (pDst == NULL) {
-            stTriggerTaskReleaseRequest(pTask, &pCalcReq);
-            return terrno;
+            code = terrno;
+            lino = __LINE__;
+            goto _end;
           }
           if (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL) {
             pDst->data.pData = taosMemoryMalloc(pDst->data.nData);
             if (pDst->data.pData == NULL) {
-              stTriggerTaskReleaseRequest(pTask, &pCalcReq);
-              return terrno;
+              code = terrno;
+              lino = __LINE__;
+              goto _end;
             }
             TAOS_MEMCPY(pDst->data.pData, pValue->data.pData, pDst->data.nData);
           }
@@ -3887,26 +3890,28 @@ static int32_t stTriggerTaskSendCreateTableReq(SStreamTriggerTask *pTask, SSTrig
     pCalcRunner = NULL;
   }
   if (pCalcRunner == NULL) {
-    stTriggerTaskReleaseRequest(pTask, &pCalcReq);
-    return TSDB_CODE_INTERNAL_ERROR;
+    code = TSDB_CODE_INTERNAL_ERROR;
+    lino = __LINE__;
+    goto _end;
   }
   code = stTriggerTaskAllocAhandle(pTask, sessionId, pCalcReq, &msg.info.ahandle);
   if (code != TSDB_CODE_SUCCESS) {
-    stTriggerTaskReleaseRequest(pTask, &pCalcReq);
-    return code;
+    lino = __LINE__;
+    goto _end;
   }
+  needDestroyAhandle = true;
   msg.contLen = tSerializeSTriggerCalcRequest(NULL, 0, pCalcReq);
   if (msg.contLen <= 0) {
-    destroyAhandle(msg.info.ahandle);
-    stTriggerTaskReleaseRequest(pTask, &pCalcReq);
-    return TSDB_CODE_INTERNAL_ERROR;
+    code = TSDB_CODE_INTERNAL_ERROR;
+    lino = __LINE__;
+    goto _end;
   }
   msg.contLen += sizeof(SMsgHead);
   msg.pCont = rpcMallocCont(msg.contLen);
   if (msg.pCont == NULL) {
-    destroyAhandle(msg.info.ahandle);
-    stTriggerTaskReleaseRequest(pTask, &pCalcReq);
-    return terrno;
+    code = terrno;
+    lino = __LINE__;
+    goto _end;
   }
   SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
   pMsgHead->contLen = htonl(msg.contLen);
@@ -3914,22 +3919,41 @@ static int32_t stTriggerTaskSendCreateTableReq(SStreamTriggerTask *pTask, SSTrig
   int32_t tlen =
       tSerializeSTriggerCalcRequest((char *)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pCalcReq);
   if (tlen != msg.contLen - sizeof(SMsgHead)) {
-    rpcFreeCont(msg.pCont);
-    destroyAhandle(msg.info.ahandle);
-    stTriggerTaskReleaseRequest(pTask, &pCalcReq);
-    return TSDB_CODE_INTERNAL_ERROR;
+    code = TSDB_CODE_INTERNAL_ERROR;
+    lino = __LINE__;
+    goto _end;
   }
   TRACE_SET_ROOTID(&msg.info.traceId, pTask->task.streamId);
   TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
   code = tmsgSendReq(&pCalcRunner->addr.epset, &msg);
   if (code != TSDB_CODE_SUCCESS) {
-    destroyAhandle(msg.info.ahandle);
-    stTriggerTaskReleaseRequest(pTask, &pCalcReq);
-    return code;
+    lino = __LINE__;
+    goto _end;
   }
   ST_TASK_DLOG("pull rsp: send create-table-only calc request to runner task:%" PRIx64 " gid:%" PRId64,
                pCalcRunner->addr.taskId, gid);
   return TSDB_CODE_SUCCESS;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  if (msg.pCont != NULL) {
+    rpcFreeCont(msg.pCont);
+    msg.pCont = NULL;
+  }
+  if (needDestroyAhandle) {
+    destroyAhandle(msg.info.ahandle);
+  }
+  if (pCalcReq != NULL) {
+    code = stTriggerTaskReleaseRequest(pTask, &pCalcReq);
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+      return code;
+    }
+  }
+  return code;
 }
 
 static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext) {
