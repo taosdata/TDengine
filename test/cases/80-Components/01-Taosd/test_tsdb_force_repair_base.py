@@ -223,7 +223,27 @@ class TsdbForceRepairBase:
             extra_env=extra_env,
         )
 
-    def _restart_taosd_and_wait_ready(self, timeout_sec=30):
+    def _wait_for_database_ready(self, dbname, timeout_sec=30):
+        deadline = time.time() + timeout_sec
+        last_status = None
+
+        while time.time() < deadline:
+            tdSql.query(
+                f"select * from information_schema.ins_databases where name='{dbname}'"
+            )
+            if tdSql.queryRows > 0:
+                last_status = tdSql.queryResult[0][15]
+                if last_status == "ready":
+                    return
+            time.sleep(1)
+
+        if last_status is None:
+            tdLog.exit(f"database {dbname} not found within {timeout_sec}s after restart")
+        tdLog.exit(
+            f"database {dbname} status is {last_status} after waiting {timeout_sec}s"
+        )
+
+    def _restart_taosd_and_wait_ready(self, timeout_sec=30, dbname=None):
         deadline = time.time() + timeout_sec
         last_error = None
 
@@ -237,6 +257,8 @@ class TsdbForceRepairBase:
         while time.time() < deadline:
             try:
                 tdSql.query("select * from information_schema.ins_databases")
+                if dbname is not None:
+                    self._wait_for_database_ready(dbname, timeout_sec=timeout_sec)
                 return
             except BaseException as exc:
                 last_error = exc

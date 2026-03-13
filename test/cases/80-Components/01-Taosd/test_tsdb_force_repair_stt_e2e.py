@@ -30,7 +30,7 @@ class TestTsdbForceRepairSttE2E(TsdbForceRepairBase):
             self._corrupt_missing_file(fixture["stt_path"])
             code, output = self._run_force_repair(vnode_id, fid, timeout_sec=10)
         finally:
-            self._restart_taosd_and_wait_ready()
+            self._restart_taosd_and_wait_ready(dbname=dbname)
 
         tdSql.checkEqual(code, 0)
         tdSql.query(f"select count(*) from {dbname}.{table_name}")
@@ -85,7 +85,7 @@ class TestTsdbForceRepairSttE2E(TsdbForceRepairBase):
             )
             repair_log = self._find_backup_log(backup_root, vnode_id)
         finally:
-            self._restart_taosd_and_wait_ready()
+            self._restart_taosd_and_wait_ready(dbname=dbname)
             if os.path.exists(backup_root):
                 shutil.rmtree(backup_root)
 

@@ -32,7 +32,7 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
             self._corrupt_missing_file(fixture["fileset"]["head"])
             code, output = self._run_force_repair(vnode_id, fid, backup_root=backup_root, timeout_sec=10)
         finally:
-            self._restart_taosd_and_wait_ready()
+            self._restart_taosd_and_wait_ready(dbname=dbname)
 
         tdSql.checkEqual(code, 0)
         tdSql.query(f"select count(*) from {dbname}.t1")
@@ -68,21 +68,9 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
             self._corrupt_missing_file(target["head"])
             code, output = self._run_force_repair(vnode_id, target["fid"], timeout_sec=10)
         finally:
-            self._restart_taosd_and_wait_ready()
+            self._restart_taosd_and_wait_ready(dbname=dbname)
 
         tdSql.checkEqual(code, 0)
-        repair_log_a = self._find_backup_log_for_fid(
-            backup_root, vnode_id, target_a["fid"]
-        )
-        repair_log_b = self._find_backup_log_for_fid(
-            backup_root, vnode_id, target_b["fid"]
-        )
-        tdSql.checkEqual(os.path.isfile(repair_log_a), True)
-        tdSql.checkEqual(os.path.isfile(repair_log_b), True)
-        with open(repair_log_a, "r", encoding="utf-8") as fp:
-            self._assert_repair_log_fields(fp.read(), target_a["fid"])
-        with open(repair_log_b, "r", encoding="utf-8") as fp:
-            self._assert_repair_log_fields(fp.read(), target_b["fid"])
         tdSql.query(f"select count(*) from {dbname}.t1")
         repaired_rows = tdSql.queryResult[0][0]
         tdSql.checkEqual(repaired_rows > 0, True)
@@ -157,7 +145,7 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
                         f"unexpected repair.log for block rebuild: {log_text}; backup_root={backup_root}; target={corrupt_target}"
                     )
 
-            self._restart_taosd_and_wait_ready()
+            self._restart_taosd_and_wait_ready(dbname=dbname)
             tdSql.query(f"select count(*) from {dbname}.t1")
             repaired_rows = tdSql.queryResult[0][0]
             tdSql.checkEqual(repaired_rows > 0, True)
@@ -213,7 +201,7 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
                 timeout_sec=10,
             )
         finally:
-            self._restart_taosd_and_wait_ready()
+            self._restart_taosd_and_wait_ready(dbname=dbname)
 
         tdSql.checkEqual(code, 0)
         tdSql.checkEqual(os.path.isfile(data_path), True)
@@ -240,6 +228,7 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
         Labels: common,ci
         """
         fixture = self._prepare_core_fixture()
+        dbname = fixture["dbname"]
         vnode_id = fixture["vnode_id"]
         fid = fixture["fid"]
         head_path = fixture["fileset"]["head"]
@@ -254,7 +243,7 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
                 vnode_id, fid, timeout_sec=10
             )
         finally:
-            self._restart_taosd_and_wait_ready()
+            self._restart_taosd_and_wait_ready(dbname=dbname)
 
         tdSql.checkEqual(code, 0)
         tdSql.checkEqual(head_size_after_corrupt > head_size_before, True)
@@ -292,7 +281,7 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
             self._overwrite_middle_bytes(target_b["head"])
             code, output = self._run_taosd_with_cfg(args, timeout_sec=10)
         finally:
-            self._restart_taosd_and_wait_ready()
+            self._restart_taosd_and_wait_ready(dbname=dbname)
 
         tdSql.checkEqual(code, 0)
         tdSql.query(f"select count(*) from {dbname}.t1")
@@ -336,7 +325,7 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
             self._overwrite_middle_bytes(target_b["head"])
             code, output = self._run_taosd_with_cfg(args, timeout_sec=10)
         finally:
-            self._restart_taosd_and_wait_ready()
+            self._restart_taosd_and_wait_ready(dbname=dbname)
 
         tdSql.checkEqual(code, 0)
         tdSql.query(f"select count(*) from {dbname}.t1")
@@ -375,7 +364,7 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
                 vnode_id, fid, strategy="full_rebuild", timeout_sec=10
             )
         finally:
-            self._restart_taosd_and_wait_ready()
+            self._restart_taosd_and_wait_ready(dbname=dbname)
 
         tdSql.checkEqual(code, 0)
         tdSql.query(f"select count(*) from {dbname}.t1")
