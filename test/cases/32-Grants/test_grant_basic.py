@@ -70,7 +70,7 @@ class TestCase:
             else:
                 tdLog.info(f"timeseries: {timeseries}, != full_timeseries: {full_timeseries}, retry: {nRetry}") 
                 time.sleep(1)
-        raise Exception("Timeseries not equal within {maxRetry} seconds")
+        raise Exception(f"Timeseries not equal within {maxRetry} seconds")
 
     def getTablesTimeSeries(self, ):
         tdSql.query(f"select cast(sum(columns-1) as int) as tss from information_schema.ins_tables where db_name not in ('information_schema', 'performance_schema', 'audit') and type not like '%VIRTUAL%'")
