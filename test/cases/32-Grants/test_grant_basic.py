@@ -294,6 +294,8 @@ class TestCase:
         tkAuditStb = self.parseSystemStbArrayFromC(vnodeQueryPath, "tkAuditStb")
         tdLog.info(f"Parsed tkLogStb ({len(tkLogStb)} items): {tkLogStb}")
         tdLog.info(f"Parsed tkAuditStb ({len(tkAuditStb)} items): {tkAuditStb}")
+        assert len(tkLogStb) > 0, "Parsed tkLogStb is empty"
+        assert len(tkAuditStb) > 0, "Parsed tkAuditStb is empty"
 
         tdLog.printNoPrefix("======== test timeseries exclude systable: ")
         try:
