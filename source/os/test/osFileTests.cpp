@@ -29,6 +29,10 @@
 #include "os.h"
 #include "tlog.h"
 
+static void buildTmpPath(char* out, size_t n, const char* fileName) {
+  (void)snprintf(out, n, "%s%s", TD_TMP_DIR_PATH, fileName);
+}
+
 TEST(osFileTests, taosGetTmpfilePath) {
   char inputTmpDir[100] = "/tmp";
   char fileNamePrefix[100] = "txt";
@@ -214,4 +218,313 @@ TEST(osFileTests, taosCreateFile) {
 
   TdFilePtr retptr2 = taosOpenFile(NULL, 0);
   EXPECT_EQ(retptr2, nullptr);
+}
+
+TEST(osFileTests, taosFsyncFile) {
+  char testFile[64] = "/tmp/test_fsync.txt";
+  TdFilePtr pFile = taosOpenFile(testFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  ASSERT_NE(pFile, nullptr);
+
+  const char* data = "test data\n";
+  taosWriteFile(pFile, data, strlen(data));
+
+  // Test fsync
+  int32_t ret = taosFsyncFile(pFile);
+  EXPECT_EQ(ret, 0);
+
+  // Test with NULL
+  ret = taosFsyncFile(NULL);
+  EXPECT_EQ(ret, 0);
+
+  taosCloseFile(&pFile);
+  taosRemoveFile(testFile);
+}
+
+TEST(osFileTests, taosFprintfFile) {
+  char testFile[64] = "/tmp/test_fprintf.txt";
+  TdFilePtr pFile = taosOpenFile(testFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+  ASSERT_NE(pFile, nullptr);
+
+  // Test fprintf
+  taosFprintfFile(pFile, "Hello %s %d\n", "world", 123);
+
+  // Test with NULL
+  taosFprintfFile(NULL, "test");
+
+  taosCloseFile(&pFile);
+  taosRemoveFile(testFile);
+}
+
+TEST(osFileTests, taosUmaskFile) {
+#ifndef WINDOWS
+  int32_t oldMask = taosUmaskFile(0022);
+  EXPECT_GE(oldMask, 0);
+  taosUmaskFile(oldMask);
+#else
+  int32_t ret = taosUmaskFile(0022);
+  EXPECT_EQ(ret, 0);
+#endif
+}
+
+TEST(osFileTests, taosSymLink) {
+  char targetFile[64] = "/tmp/test_symlink_target.txt";
+  char linkFile[64] = "/tmp/test_symlink_link.txt";
+
+  taosRemoveFile(linkFile);
+  taosRemoveFile(targetFile);
+
+  TdFilePtr pFile = taosOpenFile(targetFile, TD_FILE_CREATE | TD_FILE_WRITE);
+  ASSERT_NE(pFile, nullptr);
+  taosWriteFile(pFile, "target", 6);
+  taosCloseFile(&pFile);
+
+  int32_t ret = taosSymLink(targetFile, linkFile);
+#ifndef WINDOWS
+  EXPECT_EQ(ret, 0);
+  bool exists = taosCheckExistFile(linkFile);
+  EXPECT_TRUE(exists);
+#endif
+
+  taosRemoveFile(linkFile);
+  taosRemoveFile(targetFile);
+}
+
+TEST(osFileTests, taosSetFileHandlesLimit) {
+  int32_t ret = taosSetFileHandlesLimit();
+  EXPECT_EQ(ret, 0);
+}
+
+TEST(osFileTests, taosCloseCFile) {
+  char testFile[64] = "/tmp/test_cfile.txt";
+  FILE* fp = taosOpenCFile(testFile, "w");
+  ASSERT_NE(fp, nullptr);
+
+  fprintf(fp, "test\n");
+
+  int ret = taosCloseCFile(fp);
+  EXPECT_EQ(ret, 0);
+
+  taosRemoveFile(testFile);
+}
+
+TEST(osFileTests, taosSetAutoDelFile) {
+  char testFile[64] = "/tmp/test_autodel.txt";
+
+  TdFilePtr pFile = taosOpenFile(testFile, TD_FILE_CREATE | TD_FILE_WRITE);
+  ASSERT_NE(pFile, nullptr);
+  taosWriteFile(pFile, "test", 4);
+  taosCloseFile(&pFile);
+
+  int ret = taosSetAutoDelFile(testFile);
+
+#ifndef WINDOWS
+  EXPECT_EQ(ret, 0);
+#endif
+}
+
+TEST(osFileTests, taosWritevFile) {
+  char testFile[64] = "/tmp/test_writev.txt";
+
+  TdFilePtr pFile = taosOpenFile(testFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  ASSERT_NE(pFile, nullptr);
+
+  TaosIOVec iov[3];
+  char buf1[] = "Hello ";
+  char buf2[] = "World ";
+  char buf3[] = "!\n";
+
+  iov[0].iov_base = buf1;
+  iov[0].iov_len = strlen(buf1);
+  iov[1].iov_base = buf2;
+  iov[1].iov_len = strlen(buf2);
+  iov[2].iov_base = buf3;
+  iov[2].iov_len = strlen(buf3);
+
+  int64_t written = taosWritevFile(pFile, iov, 3);
+  EXPECT_GT(written, 0);
+
+  // Test error cases
+  int64_t ret = taosWritevFile(NULL, iov, 3);
+  EXPECT_EQ(ret, -1);
+
+  ret = taosWritevFile(pFile, NULL, 3);
+  EXPECT_EQ(ret, -1);
+
+  ret = taosWritevFile(pFile, iov, 0);
+  EXPECT_EQ(ret, -1);
+
+  taosCloseFile(&pFile);
+  taosRemoveFile(testFile);
+}
+
+TEST(osFileTests, lastErrorIsFileNotExist) {
+  char nonExistentFile[64] = "/tmp/this_file_does_not_exist_xyz123.txt";
+
+  TdFilePtr pFile = taosOpenFile(nonExistentFile, TD_FILE_READ);
+  EXPECT_EQ(pFile, nullptr);
+
+  bool isNotExist = lastErrorIsFileNotExist();
+  EXPECT_TRUE(isNotExist);
+}
+
+TEST(osFileTests, taosCopyFileSuccessPath) {
+  char src[256] = {0};
+  char dst[256] = {0};
+  buildTmpPath(src, sizeof(src), "td_osfile_copy_src.bin");
+  buildTmpPath(dst, sizeof(dst), "td_osfile_copy_dst.bin");
+
+  taosRemoveFile(src);
+  taosRemoveFile(dst);
+
+  TdFilePtr pSrc = taosOpenFile(src, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  ASSERT_NE(pSrc, nullptr);
+
+  char payload[5000];
+  (void)memset(payload, 'a', sizeof(payload));
+  int64_t w = taosWriteFile(pSrc, payload, sizeof(payload));
+  EXPECT_EQ(w, (int64_t)sizeof(payload));
+  EXPECT_EQ(taosCloseFile(&pSrc), 0);
+
+  int64_t copied = taosCopyFile(src, dst);
+  EXPECT_EQ(copied, (int64_t)sizeof(payload));
+
+  int64_t size = 0;
+  EXPECT_EQ(taosStatFile(dst, &size, NULL, NULL), 0);
+  EXPECT_EQ(size, (int64_t)sizeof(payload));
+
+  taosRemoveFile(src);
+  taosRemoveFile(dst);
+}
+
+TEST(osFileTests, taosCreateFileAutoMkDirAndRenameSuccess) {
+  char dir[256] = {0};
+  char src[256] = {0};
+  char dst[256] = {0};
+  buildTmpPath(dir, sizeof(dir), "td_osfile_nested_a");
+  buildTmpPath(src, sizeof(src), "td_osfile_nested_a/td_osfile_src.txt");
+  buildTmpPath(dst, sizeof(dst), "td_osfile_nested_a/td_osfile_dst.txt");
+
+  taosRemoveFile(dst);
+  taosRemoveFile(src);
+  taosRemoveDir(dir);
+
+  TdFilePtr p = taosCreateFile(src, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  ASSERT_NE(p, nullptr);
+  EXPECT_EQ(taosWriteFile(p, "abc", 3), 3);
+  EXPECT_EQ(taosCloseFile(&p), 0);
+
+  EXPECT_EQ(taosRenameFile(src, dst), 0);
+
+  int64_t size = 0, mtime = 0, atime = 0;
+  EXPECT_EQ(taosStatFile(dst, &size, &mtime, &atime), 0);
+  EXPECT_EQ(size, 3);
+  EXPECT_GT(mtime, 0);
+  EXPECT_GT(atime, 0);
+
+  int64_t diskid = 0;
+  EXPECT_EQ(taosGetFileDiskID(dst, &diskid), 0);
+
+  taosRemoveFile(dst);
+  taosRemoveDir(dir);
+}
+
+TEST(osFileTests, taosOpenFileForStreamAndCFileHappyPath) {
+  char path[256] = {0};
+  buildTmpPath(path, sizeof(path), "td_osfile_stream.txt");
+  taosRemoveFile(path);
+
+  FILE* f = taosOpenFileForStream(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_TEXT);
+  ASSERT_NE(f, nullptr);
+  (void)fprintf(f, "hello\n");
+  EXPECT_EQ(taosCloseCFile(f), 0);
+
+  f = taosOpenCFile(path, "r");
+  ASSERT_NE(f, nullptr);
+  EXPECT_EQ(taosSeekCFile(f, 0, SEEK_SET), 0);
+  char buf[32] = {0};
+  EXPECT_EQ(taosReadFromCFile(buf, 1, sizeof(buf) - 1, f) > 0, true);
+  EXPECT_EQ(taosCloseCFile(f), 0);
+
+  taosRemoveFile(path);
+}
+
+TEST(osFileTests, taosPosixReadWriteSeekStatLockUnlock) {
+  char path[256] = {0};
+  buildTmpPath(path, sizeof(path), "td_osfile_rw_ops.bin");
+  taosRemoveFile(path);
+
+  TdFilePtr p = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE | TD_FILE_TRUNC);
+  ASSERT_NE(p, nullptr);
+
+  const char* s1 = "AAAA";
+  const char* s2 = "BBBB";
+  EXPECT_EQ(taosPWriteFile(p, s1, 4, 0), 4);
+  EXPECT_EQ(taosPWriteFile(p, s2, 4, 4), 4);
+
+  char out[9] = {0};
+  EXPECT_EQ(taosPReadFile(p, out, 8, 0), 8);
+  EXPECT_STREQ(out, "AAAABBBB");
+
+  EXPECT_EQ(taosLSeekFile(p, 0, SEEK_SET), 0);
+
+  int64_t size = 0, mtime = 0;
+  EXPECT_EQ(taosFStatFile(p, &size, &mtime), 0);
+  EXPECT_EQ(size, 8);
+
+  EXPECT_EQ(taosLockFile(p), 0);
+  EXPECT_EQ(taosUnLockFile(p), 0);
+
+  EXPECT_EQ(taosFtruncateFile(p, 3), 0);
+  EXPECT_EQ(taosFStatFile(p, &size, NULL), 0);
+  EXPECT_EQ(size, 3);
+
+  EXPECT_EQ(taosCloseFile(&p), 0);
+  taosRemoveFile(path);
+}
+
+TEST(osFileTests, taosFSendFileSuccessLinuxPath) {
+  char src[256] = {0};
+  char dst[256] = {0};
+  buildTmpPath(src, sizeof(src), "td_osfile_send_src.bin");
+  buildTmpPath(dst, sizeof(dst), "td_osfile_send_dst.bin");
+
+  taosRemoveFile(src);
+  taosRemoveFile(dst);
+
+  TdFilePtr in = taosOpenFile(src, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  ASSERT_NE(in, nullptr);
+  char payload[2048];
+  (void)memset(payload, 'z', sizeof(payload));
+  EXPECT_EQ(taosWriteFile(in, payload, sizeof(payload)), (int64_t)sizeof(payload));
+  EXPECT_EQ(taosCloseFile(&in), 0);
+
+  in = taosOpenFile(src, TD_FILE_READ);
+  TdFilePtr out = taosOpenFile(dst, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  ASSERT_NE(in, nullptr);
+  ASSERT_NE(out, nullptr);
+
+  int64_t off = 0;
+  int64_t sent = taosFSendFile(out, in, &off, sizeof(payload));
+  EXPECT_EQ(sent, (int64_t)sizeof(payload));
+
+  EXPECT_EQ(taosCloseFile(&in), 0);
+  EXPECT_EQ(taosCloseFile(&out), 0);
+
+  int64_t size = 0;
+  EXPECT_EQ(taosStatFile(dst, &size, NULL, NULL), 0);
+  EXPECT_EQ(size, (int64_t)sizeof(payload));
+
+  taosRemoveFile(src);
+  taosRemoveFile(dst);
+}
+
+TEST(osFileTests, taosSetAutoDelFileErrorPath) {
+  char path[256] = {0};
+  buildTmpPath(path, sizeof(path), "td_osfile_autodel_missing.bin");
+  taosRemoveFile(path);
+
+  int ret = taosSetAutoDelFile(path);
+#ifndef WINDOWS
+  EXPECT_NE(ret, 0);
+#endif
 }
