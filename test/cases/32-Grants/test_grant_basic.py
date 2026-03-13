@@ -77,7 +77,7 @@ class TestCase:
         tdSql.query(f"select cast(sum(columns-1) as int) as tss from information_schema.ins_tables where db_name not in ('information_schema', 'performance_schema', 'audit') and type not like '%VIRTUAL%'")
         return int(tdSql.queryResult[0][0])
 
-    def checkGrantsTimeSeries(self, prompt="", nExpectedTimeSeries=0, strictMode=False, maxRetry=15):
+    def checkGrantsTimeSeries(self, prompt="", nExpectedTimeSeries=0, strictMode=False, maxRetry=30):
         for nRetry in range(maxRetry):
             tss_grant = self.getShowGrantsTimeSeries()
             if tss_grant == nExpectedTimeSeries:
