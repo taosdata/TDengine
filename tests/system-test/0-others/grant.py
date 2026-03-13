@@ -63,33 +63,11 @@ def get_vnode_query_path():
 
 
 # Dynamically load tkLogStb and tkAuditStb from vnodeQuery.c
-try:
-    _vnode_query_path = get_vnode_query_path()
-    tkLogStb = parse_c_string_array(_vnode_query_path, "tkLogStb")
-    tkAuditStb = parse_c_string_array(_vnode_query_path, "tkAuditStb")
-except Exception as e:
-    # Fallback to hardcoded values if parsing fails
-    print(f"Warning: Failed to parse arrays from vnodeQuery.c: {e}")
-    print("Using fallback hardcoded values.")
-    tkLogStb = [
-        "cluster_info", "data_dir", "dnodes_info", "d_info", "grants_info",
-        "keeper_monitor", "logs", "log_dir", "log_summary", "m_info",
-        "taosadapter_restful_http_request_fail", "taosadapter_restful_http_request_in_flight",
-        "taosadapter_restful_http_request_summary_milliseconds", "taosadapter_restful_http_request_total",
-        "taosadapter_system_cpu_percent", "taosadapter_system_mem_percent", "temp_dir", "vgroups_info",
-        "vnodes_role", "taosd_dnodes_status", "adapter_conn_pool", "taosd_vnodes_info", "taosd_dnodes_metrics",
-        "taosd_vgroups_info", "taos_sql_req", "taosd_mnodes_info", "adapter_c_interface", "taosd_cluster_info",
-        "taosd_sql_req", "taosd_dnodes_info", "adapter_requests", "taosd_write_metrics", "adapter_status",
-        "taos_slow_sql", "taos_slow_sql_detail", "taosd_cluster_basic", "taosd_dnodes_data_dirs",
-        "taosd_dnodes_log_dirs", "xnode_agent_activities", "xnode_task_activities", "xnode_task_metrics",
-        "taosx_task_csv", "taosx_task_progress", "taosx_task_kinghist", "taosx_task_tdengine2",
-        "taosx_task_tdengine3", "taosx_task_opc_da", "taosx_task_opc_ua", "taosx_task_kafka",
-        "taosx_task_influxdb", "taosx_task_mqtt", "taosx_task_avevahistorian", "taosx_task_opentsdb",
-        "taosx_task_mysql", "taosx_task_postgres", "taosx_task_oracle", "taosx_task_mssql",
-        "taosx_task_mongodb", "taosx_task_sparkplugb", "taosx_task_orc", "taosx_task_pulsar", "taosx_task_pspace"
-    ]
-    tkAuditStb = ["operations"]
-
+_vnode_query_path = get_vnode_query_path()
+tkLogStb = parse_c_string_array(_vnode_query_path, "tkLogStb")
+tkAuditStb = parse_c_string_array(_vnode_query_path, "tkAuditStb")
+assert len(tkLogStb) > 0, "Parsed tkLogStb is empty"
+assert len(tkAuditStb) > 0, "Parsed tkAuditStb is empty"
 
 class MyDnodes(TDDnodes):
     def __init__(self ,dnodes_lists):
