@@ -683,11 +683,12 @@ Below are the business error codes for each module.
 
 | Error Code | Description                                             | Possible Error Scenarios or Reasons                                                                                                                                  | Recommended Actions for Users                                                 |
 |------------|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|
-| 0x80006103 | Audit database must be encrypted                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006104 | Audit database wal_level must be 2                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006105 | Audit database keep2 must be greater than 1825d                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006106 | Audit database already exist                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
-| 0x80006107 | Audit database is not allowed to change                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006103 | Audit database must be encrypted                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006104 | Audit database wal_level must be 2                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006105 | Audit database keep2 must be greater than 1825d                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006106 | Audit database already exist                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006107 | Audit database is not allowed to change                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006108 | Audit database is not allowed to keep multiple vgroups        | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
 
 #### virtual table
 
@@ -703,6 +704,8 @@ Below are the business error codes for each module.
 | 0x80006207 | Virtual super table query not support origin table from different databases | Virtual super table's child table's origin table from different databases                                                                        | make sure virtual super table's child table's origin table from same database |
 | 0x80006208 | Virtual super table query find column type mismatch                         | Virtual super table's child table's column type and origin table's column type mismatch  | make sure virtual child table's column type same with origin table's column type                                                      |
 | 0x80006209 | Virtual table has too many reference tables                                 | Virtual table's origin table num is too many.                                                                                                    | make sure virtual table's origin table num do not exceed 1000.                |
+| 0x8000620A | Virtual table query find invalid origin scan                               | The optimizer generated an invalid origin scan node for a virtual table query during primary-key condition pushdown.                             | Keep the SQL and explain plan, then contact development for handling.         |
+| 0x8000620B | Virtual table query cannot find origin timestamp column                    | The origin scan schema of a virtual table query cannot provide the timestamp primary key column needed for ts-condition pushdown.                | Keep the SQL and explain plan, then contact development for handling.         |
 
 #### stream
 

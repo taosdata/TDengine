@@ -1087,6 +1087,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_MUST_WALFORCE,            "Audit database wal_
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_MUST_KEEPFORCE,           "Audit database keep2 must be greater than 1825d")
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_DB_ALREADY_EXIST,         "Audit database already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_DB_NOT_ALLOW_CHANGE,      "Audit database is not allowed to change")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_DB_NOT_MULTI_VGROUP,      "Audit database is not allowed to keep multiple vgroups")
 
 // VTABLE
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR,     "Virtual table scan internal error")
@@ -1099,6 +1100,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_TOPIC,       "Virtual table not s
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_CROSS_DB,    "Virtual super table query not support origin table from different databases")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH,    "Virtual super table query find column type mismatch")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_TOO_MANY_REFERENCE,      "Virtual table has too many reference tables")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_ORIGIN_SCAN,     "Virtual table query find invalid origin scan")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_ORIGIN_TS_COL,   "Virtual table query cannot find origin timestamp column")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_SEQ_NOT_FOUND, "Blob seq not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT_TAG, "Blob type not support on tag")
