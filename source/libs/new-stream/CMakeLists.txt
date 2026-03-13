@@ -12,7 +12,7 @@ target_include_directories(
 if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
   DEP_ext_rocksdb(new-stream)
 else()
-  target_link_libraries(new-stream PRIVATE rocksdb)
+  target_link_libraries(new-stream PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static/librocksdb.a")
 endif()
 
 if(${BUILD_WITH_ROCKSDB})
