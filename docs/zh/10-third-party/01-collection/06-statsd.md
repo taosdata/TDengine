@@ -70,6 +70,6 @@ taos>
 
 :::note
 
-- TDengine TSDB will automatically create unique IDs for sub-table names by the rule.
+- TDengine TSDB 会根据规则自动生成唯一的 ID 作为子表名。
 
 :::
