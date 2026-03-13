@@ -891,3 +891,10 @@ bool taosLRUCacheIsStrictCapacity(SLRUCache *cache) {
 
   return strict;
 }
+
+int32_t taosLRUCacheGetNumShards(SLRUCache *cache) {
+  if (!cache) {
+    return 0;
+  }
+  return cache->numShards;
+}
