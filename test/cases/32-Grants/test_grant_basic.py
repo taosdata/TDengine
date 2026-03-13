@@ -198,7 +198,7 @@ class TestCase:
             self.genClusterInfo(check=True)
             files_and_dirs = os.listdir(f'{self.workPath}')
             print(f"files_and_dirs: {files_and_dirs}")
-            process = subprocess.Popen(f'{self.workPath}{os.sep}grantTest', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            process = subprocess.Popen([f'{self.workPath}{os.sep}grantTest'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             output, error = process.communicate() 
             output = output.decode(encoding="utf-8")
             error = error.decode(encoding="utf-8")
