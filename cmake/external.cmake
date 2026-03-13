@@ -830,25 +830,28 @@ if(${BUILD_CRASHDUMP})      # {
 endif(${BUILD_CRASHDUMP})   # }
 
 # ssl
+# TODO: why at this moment???
+# file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
+if(${TD_LINUX})
+    set(ext_ssl_static libssl.a)
+    set(ext_crypto_static libcrypto.a)
+elseif(${TD_DARWIN})
+    set(ext_ssl_static libssl.a)
+    set(ext_crypto_static libcrypto.a)
+elseif(${TD_WINDOWS})
+    set(ext_ssl_static libssl.lib)
+    set(ext_crypto_static libcrypto.lib)    
+endif()
+INIT_EXT(ext_ssl
+    INC_DIR          include
+    LIB              lib/${ext_ssl_static}
+                     lib/${ext_crypto_static}
+    # debugging github working flow
+    # CHK_NAME         SSL
+)
+list(SUBLIST ext_ssl_libs 0 1 ext_ssl_lib_ssl)
+list(SUBLIST ext_ssl_libs 1 1 ext_ssl_lib_crypto)
 if(NOT ${TD_WINDOWS})       # {
-    # TODO: why at this moment???
-    # file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
-    if(${TD_LINUX})
-        set(ext_ssl_static libssl.a)
-        set(ext_crypto_static libcrypto.a)
-    elseif(${TD_DARWIN})
-        set(ext_ssl_static libssl.a)
-        set(ext_crypto_static libcrypto.a)
-    endif()
-    INIT_EXT(ext_ssl
-        INC_DIR          include
-        LIB              lib/${ext_ssl_static}
-                         lib/${ext_crypto_static}
-        # debugging github working flow
-        # CHK_NAME         SSL
-    )
-    list(SUBLIST ext_ssl_libs 0 1 ext_ssl_lib_ssl)
-    list(SUBLIST ext_ssl_libs 1 1 ext_ssl_lib_crypto)
     # URL https://github.com/openssl/openssl/releases/download/openssl-3.1.3/openssl-3.1.3.tar.gz
     # URL_HASH SHA256=f0316a2ebd89e7f2352976445458689f80302093788c466692fb2a188b2eacf6
     get_from_local_if_exists("https://github.com/openssl/openssl/releases/download/openssl-3.1.3/openssl-3.1.3.tar.gz")
@@ -871,7 +874,29 @@ if(NOT ${TD_WINDOWS})       # {
         VERBATIM
     )
     add_dependencies(build_externals ext_ssl)     # this is for github workflow in cache-miss step.
-endif(NOT ${TD_WINDOWS})    # }
+else()
+    # URL https://github.com/openssl/openssl/releases/download/openssl-3.1.3/openssl-3.1.3.tar.gz
+    # URL_HASH SHA256=f0316a2ebd89e7f2352976445458689f80302093788c466692fb2a188b2eacf6
+    get_from_local_if_exists("https://github.com/openssl/openssl/releases/download/openssl-3.1.3/openssl-3.1.3.tar.gz")
+    ExternalProject_Add(ext_ssl
+        URL ${_url}
+        URL_HASH SHA256=f0316a2ebd89e7f2352976445458689f80302093788c466692fb2a188b2eacf6
+        # GIT_SHALLOW TRUE
+        PREFIX "${_base}"
+        BUILD_IN_SOURCE TRUE
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CONFIGURE_COMMAND
+            COMMAND perl Configure VC-WIN64A --prefix=${_ins} no-shared --libdir=lib
+        BUILD_COMMAND
+            COMMAND nmake
+        INSTALL_COMMAND
+            COMMAND nmake install_sw
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+endif()    # }
+add_dependencies(build_externals ext_ssl)     # this is for github workflow in cache-miss step.
 
 # libcurl
 if(${TD_LINUX})

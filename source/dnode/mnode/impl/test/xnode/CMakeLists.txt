@@ -1,3 +1,40 @@
+# Common include directories for tests that use mnode internal headers
+set(XNODE_MNODE_INCLUDES
+  "${TD_SOURCE_DIR}/include/dnode/mnode"
+  "${TD_SOURCE_DIR}/include/dnode/mgmt"
+  "${TD_SOURCE_DIR}/include/dnode/xnode"
+  "${TD_SOURCE_DIR}/source/dnode/mnode/impl/inc"
+  "${TD_SOURCE_DIR}/source/dnode/mnode/sdb/inc"
+  "${TD_SOURCE_DIR}/include/libs/scheduler"
+  "${TD_SOURCE_DIR}/include/libs/catalog"
+  "${TD_SOURCE_DIR}/include/libs/planner"
+  "${TD_SOURCE_DIR}/include/libs/qcom"
+  "${TD_SOURCE_DIR}/include/libs/nodes"
+  "${TD_SOURCE_DIR}/include/libs/transport"
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${TD_SOURCE_DIR}/include/libs/monitor"
+  "${TD_SOURCE_DIR}/include/libs/audit"
+  "${TD_SOURCE_DIR}/include/libs/wal"
+  "${TD_SOURCE_DIR}/include/libs/index"
+  "${TD_SOURCE_DIR}/include/libs/function"
+  "${TD_SOURCE_DIR}/include/libs/scalar"
+  "${TD_SOURCE_DIR}/include/libs/executor"
+  "${TD_SOURCE_DIR}/include/libs/new-stream"
+  "${TD_SOURCE_DIR}/include/libs/qworker"
+  "${TD_SOURCE_DIR}/include/libs/parser"
+  "${TD_SOURCE_DIR}/include/libs/command"
+  "${TD_SOURCE_DIR}/include/libs/monitorfw"
+  "${TD_SOURCE_DIR}/include/libs/crypt"
+  "${TD_SOURCE_DIR}/include/libs/tfs"
+  "${TD_SOURCE_DIR}/include/libs/sm4"
+  "${TD_SOURCE_DIR}/include/libs/geometry"
+  "${TD_SOURCE_DIR}/include/libs/decimal"
+  "${TD_SOURCE_DIR}/include/libs/tdb"
+  "${TD_SOURCE_DIR}/include/common"
+  "${TD_SOURCE_DIR}/include/util"
+  "${TD_SOURCE_DIR}/include/os"
+)
+
 add_executable(xnodeEncodeDecodeTest "xnodeEncodeDecodeTest.cpp")
 DEP_ext_gtest(xnodeEncodeDecodeTest)
 target_include_directories(
@@ -41,11 +78,7 @@ DEP_ext_gtest(xnodeMemoryTest)
 target_include_directories(
   xnodeMemoryTest
   PUBLIC
-  "${TD_SOURCE_DIR}/include/dnode/mnode"
-  "${TD_SOURCE_DIR}/include/dnode/mgmt"
-  "${TD_SOURCE_DIR}/include/dnode/xnode"
-  "${TD_SOURCE_DIR}/include/dnode/impl/inc"
-  "${TD_SOURCE_DIR}/source/dnode/mnode/impl/inc"
+  ${XNODE_MNODE_INCLUDES}
 )
 target_link_libraries(
   xnodeMemoryTest
@@ -77,13 +110,8 @@ DEP_ext_gtest(xnodeSdbTest)
 target_include_directories(
   xnodeSdbTest
   PUBLIC
-  "${TD_SOURCE_DIR}/include/dnode/mnode"
-  "${TD_SOURCE_DIR}/include/dnode/mgmt"
-  "${TD_SOURCE_DIR}/include/dnode/xnode"
-  "${TD_SOURCE_DIR}/include/dnode/impl/inc"
-  "${TD_SOURCE_DIR}/source/dnode/mnode/impl/inc"
+  ${XNODE_MNODE_INCLUDES}
 )
-
 target_link_libraries(xnodeSdbTest
   PUBLIC
   mnode xnode txnode os util
@@ -100,14 +128,8 @@ DEP_ext_gtest(xnodeProductionTest)
 target_include_directories(
   xnodeProductionTest
   PUBLIC
-  "${TD_SOURCE_DIR}/include/common"
-  "${TD_SOURCE_DIR}/include/dnode/mnode"
-  "${TD_SOURCE_DIR}/include/dnode/mgmt"
-  "${TD_SOURCE_DIR}/include/dnode/xnode"
-  "${TD_SOURCE_DIR}/include/dnode/impl/inc"
-  "${TD_SOURCE_DIR}/source/dnode/mnode/impl/inc"
+  ${XNODE_MNODE_INCLUDES}
 )
-
 target_link_libraries(xnodeProductionTest
   PUBLIC
   mnode
@@ -126,14 +148,8 @@ DEP_ext_gtest(xnodeAgentTest)
 target_include_directories(
   xnodeAgentTest
   PUBLIC
-  "${TD_SOURCE_DIR}/include/common"
-  "${TD_SOURCE_DIR}/include/dnode/mnode"
-  "${TD_SOURCE_DIR}/include/dnode/mgmt"
-  "${TD_SOURCE_DIR}/include/dnode/xnode"
-  "${TD_SOURCE_DIR}/include/dnode/impl/inc"
-  "${TD_SOURCE_DIR}/source/dnode/mnode/impl/inc"
+  ${XNODE_MNODE_INCLUDES}
 )
-
 target_link_libraries(xnodeAgentTest
   PUBLIC
   mnode

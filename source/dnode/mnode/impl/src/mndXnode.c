@@ -18,14 +18,14 @@
 #include "mndDef.h"
 #include "tdatablock.h"
 #include "types.h"
-#ifndef WINDOWS
+// #ifndef WINDOWS
 #include <curl/curl.h>
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
-#endif
+// #endif
 #include "audit.h"
 #include "mndDnode.h"
 #include "mndPrivilege.h"
@@ -39,7 +39,11 @@
 #include "xnode.h"
 
 #define TSDB_XNODE_RESERVE_SIZE 64
+#ifdef WINDOWS
+#define XNODED_PIPE_SOCKET_URL "http://localhost:6051"
+#else
 #define XNODED_PIPE_SOCKET_URL "http://localhost"
+#endif
 typedef enum {
   HTTP_TYPE_GET = 0,
   HTTP_TYPE_POST,
@@ -3862,7 +3866,7 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
   }
 }
 
-#ifndef WINDOWS
+// #ifndef WINDOWS
 static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp, int32_t timeout, const char *socketPath) {
   CURL   *curl = NULL;
   int32_t code = 0;
@@ -3874,7 +3878,9 @@ static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp, int32_t time
     return -1;
   }
 
+  #ifndef WINDOWS
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, socketPath), &lino, _OVER);
+  #endif
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_URL, url), &lino, _OVER);
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData), &lino, _OVER);
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp), &lino, _OVER);
@@ -3919,7 +3925,9 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   }
 
   headers = curl_slist_append(headers, "Content-Type:application/json;charset=UTF-8");
+  #ifndef WINDOWS
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, socketPath), &lino, _OVER);
+  #endif
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers), &lino, _OVER);
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_URL, url), &lino, _OVER);
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData), &lino, _OVER);
@@ -3972,7 +3980,9 @@ static int32_t taosCurlDeleteRequest(const char *url, SCurlResp *pRsp, int32_t t
     return -1;
   }
 
+  #ifndef WINDOWS
   if (curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, socketPath)) goto _OVER;
+  #endif
   if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE") != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
@@ -4003,25 +4013,27 @@ _OVER:
   XND_LOG_END(code, lino);
   return code;
 }
-#else
-static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp, int32_t timeout, const char *socketPath) { return 0; }
-static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int32_t bufLen, int32_t timeout,
-                                   const char *socketPath) {
-  return 0;
-}
-static int32_t taosCurlDeleteRequest(const char *url, SCurlResp *pRsp, int32_t timeout, const char *socketPath) { return 0; }
-#endif
+// #else
+// static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp, int32_t timeout, const char *socketPath) { return 0; }
+// static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int32_t bufLen, int32_t timeout,
+//                                    const char *socketPath) {
+//   return 0;
+// }
+// static int32_t taosCurlDeleteRequest(const char *url, SCurlResp *pRsp, int32_t timeout, const char *socketPath) { return 0; }
+// #endif
 SJson *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const char *buf, int64_t bufLen) {
   SJson    *pJson = NULL;
   SCurlResp curlRsp = {0};
   char      socketPath[PATH_MAX] = {0};
 
   getXnodedPipeName(socketPath, sizeof(socketPath));
+  #ifndef WINDOWS
   if (!taosCheckExistFile(socketPath)) {
     uError("xnode failed to send request, socket path:%s not exist", socketPath);
     terrno = TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
     goto _EXIT;
   }
+  #endif
   if (type == HTTP_TYPE_GET) {
     if ((terrno = taosCurlGetRequest(url, &curlRsp, timeout, socketPath)) != 0) {
       goto _OVER;
@@ -4352,7 +4364,7 @@ static int32_t mndCheckXnodeAgentExists(SMnode *pMnode, const char *name) {
   return TSDB_CODE_SUCCESS;
 }
 
-#ifndef WINDOWS
+// #ifndef WINDOWS
 typedef struct {
   int64_t sub;  // agent ID
   int64_t iat;  // issued at time
@@ -4653,11 +4665,11 @@ _exit:
 
   return token;
 }
-#endif
+// #endif
 
 int32_t mndXnodeGenAgentToken(const SXnodeAgentObj *pAgent, char *pTokenBuf) {
   int32_t code = 0, lino = 0;
-  #ifndef WINDOWS
+  // #ifndef WINDOWS
   // char *token =
   //     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3Njc1OTc3NzIsInN1YiI6MTIzNDV9.i7HvYf_S-yWGEExDzQESPUwVX23Ok_"
   //     "7Fxo93aqgKrtw";
@@ -4678,7 +4690,7 @@ _exit:
     mError("xnode agent line: %d failed gen token since %s", lino, tstrerror(code));
   }
   taosMemoryFree(token);
-  #endif
+  // #endif
   TAOS_RETURN(code);
 }
 

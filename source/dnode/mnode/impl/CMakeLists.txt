@@ -44,8 +44,10 @@ if(TD_ENTERPRISE)
     PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/taosk/inc"
   )
 endif()
+
+DEP_ext_ssl(mnode)
 target_link_libraries(
-  mnode scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw totp xnode txnode mgmt_mnode
+  mnode PRIVATE scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw totp xnode txnode mgmt_mnode
 )
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)
@@ -53,7 +55,7 @@ if(DEFINED GRANT_CFG_INCLUDE_DIR)
 endif()
 
 if(TD_GRANT)
-  TARGET_LINK_LIBRARIES(mnode grant)
+  TARGET_LINK_LIBRARIES(mnode PRIVATE grant)
   ADD_DEFINITIONS(-D_GRANT)
 endif()
 
