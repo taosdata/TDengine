@@ -82,6 +82,7 @@ class TestCase:
             tss_grant = self.getShowGrantsTimeSeries()
             if tss_grant == nExpectedTimeSeries:
                 if not strictMode:
+                    tdLog.info(f"{prompt}: tss_grant: {tss_grant} == nExpectedTimeSeries: {nExpectedTimeSeries}, retry: {nRetry}")
                     return
                 tss_table = self.getTablesTimeSeries()
                 if tss_grant == tss_table:
@@ -293,6 +294,8 @@ class TestCase:
         tkAuditStb = self.parseSystemStbArrayFromC(vnodeQueryPath, "tkAuditStb")
         tdLog.info(f"Parsed tkLogStb ({len(tkLogStb)} items): {tkLogStb}")
         tdLog.info(f"Parsed tkAuditStb ({len(tkAuditStb)} items): {tkAuditStb}")
+        assert len(tkLogStb) > 0, "Parsed tkLogStb is empty"
+        assert len(tkAuditStb) > 0, "Parsed tkAuditStb is empty"
 
         tdLog.printNoPrefix("======== test timeseries exclude systable: ")
         try:
