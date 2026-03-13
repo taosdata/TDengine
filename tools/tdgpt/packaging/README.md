@@ -73,21 +73,35 @@ bin/
 ### Basic Usage
 
 ```bash
-# Community edition
-python packaging/win_release.py -e community -v 3.3.6.0
+# Community edition (production packaging, requires model files)
+python packaging/win_release.py -e community -v 3.3.6.0 -m D:\models
 
 # Enterprise edition
-python packaging/win_release.py -e enterprise -v 3.3.6.0
-
-# Include model files
-python packaging/win_release.py -e community -v 3.3.6.0 -m D:\models
+python packaging/win_release.py -e enterprise -v 3.3.6.0 -m D:\models
 
 # Include all models
 python packaging/win_release.py -e community -v 3.3.6.0 -m D:\models -a
 
 # Custom output directory
-python packaging/win_release.py -e community -v 3.3.6.0 -o D:\release
+python packaging/win_release.py -e community -v 3.3.6.0 -m D:\models -o D:\release
+
+# Testing mode (quick workflow validation, no model files needed)
+python packaging/win_release.py -e community -v 3.3.6.0 --skip-model-check
 ```
+
+### Model Files Requirements
+
+**Production Packaging (default):**
+- Must specify model directory using `-m` parameter
+- Model directory must contain the following files:
+  - `timemoe.tar.gz` (required)
+  - `tdtsfm.tar.gz` (required)
+- Missing any required file will cause packaging to fail
+
+**Testing Mode (`--skip-model-check`):**
+- Skip model validation, no model files needed
+- For quick testing of packaging workflow only
+- ⚠️ **NOT for production use**
 
 ## Packaging Script Parameters
 
@@ -95,10 +109,11 @@ python packaging/win_release.py -e community -v 3.3.6.0 -o D:\release
 |-----------|-------|-------------|----------|
 | `--edition` | `-e` | Edition type: enterprise or community | Yes |
 | `--version` | `-v` | Version number (e.g., 3.3.6.0) | Yes |
-| `--model-dir` | `-m` | Model files directory | No |
+| `--model-dir` | `-m` | Model files directory (required for production) | Production only |
 | `--all-models` | `-a` | Package all models | No |
 | `--output` | `-o` | Output directory (default: D:\tdgpt-release) | No |
 | `--iscc-path` | | Inno Setup compiler path | No |
+| `--skip-model-check` | | Skip model validation (testing only) | No |
 
 ## Installer Features
 

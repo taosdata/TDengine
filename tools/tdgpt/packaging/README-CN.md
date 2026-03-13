@@ -73,21 +73,35 @@ bin/
 ### 基础用法
 
 ```bash
-# Community 版本
-python packaging/win_release.py -e community -v 3.3.6.0
+# Community 版本（生产打包，需要模型文件）
+python packaging/win_release.py -e community -v 3.3.6.0 -m D:\workspace\models
 
 # Enterprise 版本
-python packaging/win_release.py -e enterprise -v 3.3.6.0
-
-# 包含模型文件
-python packaging/win_release.py -e community -v 3.3.6.0 -m D:\workspace\models
+python packaging/win_release.py -e enterprise -v 3.3.6.0 -m D:\workspace\models
 
 # 包含所有模型
 python packaging/win_release.py -e community -v 3.3.6.0 -m D:\workspace\models -a
 
 # 自定义输出目录
-python packaging/win_release.py -e community -v 3.3.6.0 -o D:\workspace\main\release
+python packaging/win_release.py -e community -v 3.3.6.0 -m D:\workspace\models -o D:\workspace\main\release
+
+# 测试模式（快速验证打包流程，无需模型文件）
+python packaging/win_release.py -e community -v 3.3.6.0 --skip-model-check
 ```
+
+### 模型文件要求
+
+**生产打包（默认）：**
+- 必须使用 `-m` 参数指定模型目录
+- 模型目录必须包含以下文件：
+  - `timemoe.tar.gz` （必需）
+  - `tdtsfm.tar.gz` （必需）
+- 缺少任何必需文件将导致打包失败
+
+**测试模式（`--skip-model-check`）：**
+- 跳过模型验证，无需模型文件
+- 仅用于快速测试打包流程
+- ⚠️ **不适用于生产环境**
 
 ## 打包脚本参数说明
 
@@ -95,10 +109,11 @@ python packaging/win_release.py -e community -v 3.3.6.0 -o D:\workspace\main\rel
 |------|------|------|------|
 | `--edition` | `-e` | 版本类型: enterprise 或 community | 是 |
 | `--version` | `-v` | 版本号 (如 3.3.6.0) | 是 |
-| `--model-dir` | `-m` | 模型文件目录 | 否 |
+| `--model-dir` | `-m` | 模型文件目录（生产必需） | 生产必需 |
 | `--all-models` | `-a` | 打包所有模型 | 否 |
 | `--output` | `-o` | 输出目录 (默认: D:\tdgpt-release) | 否 |
 | `--iscc-path` | | Inno Setup 编译器路径 | 否 |
+| `--skip-model-check` | | 跳过模型验证（仅测试用） | 否 |
 
 ## 安装程序特性
 
