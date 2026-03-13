@@ -1872,20 +1872,20 @@ static int32_t phaseAsyncQuery(SSqlCallbackWrapper *pWrapper) {
   SRequestObj *pRequest = pWrapper->pRequest;
   switch (pRequest->pQuery->execStage) {
     case QUERY_EXEC_STAGE_PARSE: {
-      pRequest->execPhase = QUERY_PHASE_CATALOG;
-      pRequest->phaseStartTime = taosGetTimestampMs();
+      atomic_store_32(&pRequest->execPhase, QUERY_PHASE_CATALOG);
+      atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
       code = getAllMetaAsync(pWrapper, doAsyncQueryFromParse);
       break;
     }
     case QUERY_EXEC_STAGE_ANALYSE: {
-      pRequest->execPhase = QUERY_PHASE_CATALOG;
-      pRequest->phaseStartTime = taosGetTimestampMs();
+      atomic_store_32(&pRequest->execPhase, QUERY_PHASE_CATALOG);
+      atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
       code = getAllMetaAsync(pWrapper, doAsyncQueryFromAnalyse);
       break;
     }
     case QUERY_EXEC_STAGE_SCHEDULE: {
-      pRequest->execPhase = QUERY_PHASE_SCHEDULE;
-      pRequest->phaseStartTime = taosGetTimestampMs();
+      atomic_store_32(&pRequest->execPhase, QUERY_PHASE_SCHEDULE);
+      atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
       launchAsyncQuery(pRequest, pRequest->pQuery, NULL, pWrapper);
       break;
     }
@@ -2145,8 +2145,8 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
 
   SRequestObj *pRequest = res;
 
-  pRequest->execPhase = QUERY_PHASE_FETCH;
-  pRequest->phaseStartTime = taosGetTimestampMs();
+  atomic_store_32(&pRequest->execPhase, QUERY_PHASE_FETCH);
+  atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
 
   if (TSDB_SQL_RETRIEVE_EMPTY_RESULT == pRequest->type) {
     fp(param, res, 0);
