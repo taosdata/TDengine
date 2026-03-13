@@ -57,6 +57,8 @@ taosgen -h 127.0.0.1 -c config.yaml
 | -u/--user              | Username for connecting to the server, default is root |
 | -p/--password          | Password for connecting to the server, default is taosdata |
 | -c/--config-file       | Path to the YAML configuration file |
+| -d/--log-dir           | Specify log output directory, default is ./log |
+| -f/--log-file          | Specify complete log file path (overrides --log-dir) |
 | -?/--help              | Show help information and exit |
 | -V/--version           | Show version information and exit. Cannot be used with other parameters |
 
@@ -168,7 +170,7 @@ By combining multiple steps, jobs can implement complex logic flows, such as TDe
       - timestamp_offset: Timestamp offset configuration.
         - offset_type (string): Offset type, options: "relative", "absolute".
         - value (string/int): Offset value (relative) or starting timestamp (absolute):
-          - For "relative": string format `±[value][unit]` (e.g., "+1d3h" means add 1 day 3 hours), units: y (year), m (month), d (day), s (second).
+          - For "relative": string format `±[value][unit]` (e.g., "+1d3h30m" means add 1 day 3 hours 30 minutes), units: y (year), M (month, uppercase), d (day), h (hour), m (minute, lowercase), s (second).
           - For "absolute": int or string, either timestamp value (precision as per timestamp_precision) or ISO 8601 string ("YYYY-MM-DD HH:mm:ss").
   - tbname: Table name generation configuration:
     - prefix (string): Table name prefix, default: "d".
