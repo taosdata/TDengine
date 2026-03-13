@@ -58,42 +58,42 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg);
 
 void shellPrintHelp() {
   char indent[] = "  ";
-  printf("Usage: %s [OPTION...] \r\n\r\n", CUS_PROMPT);
-  printf("%s%s%s%s\r\n", indent, "-a,", indent, SHELL_AUTH);
-  printf("%s%s%s%s\r\n", indent, "-A,", indent, SHELL_GEN_AUTH);
-  printf("%s%s%s%s\r\n", indent, "-B,", indent, SHELL_BI_MODE);
-  printf("%s%s%s%s\r\n", indent, "-c,", indent, SHELL_CFG_DIR);
-  printf("%s%s%s%s\r\n", indent, "-C,", indent, SHELL_DMP_CFG);
-  printf("%s%s%s%s\r\n", indent, "-d,", indent, SHELL_DB);
-  printf("%s%s%s%s\r\n", indent, "-f,", indent, SHELL_FILE);
-  printf("%s%s%s%s\r\n", indent, "-h,", indent, SHELL_HOST);
-  printf("%s%s%s%s\r\n", indent, "-k,", indent, SHELL_CHECK);
-  printf("%s%s%s%s\r\n", indent, "-l,", indent, SHELL_PKT_LEN);
-  printf("%s%s%s%s\r\n", indent, "-n,", indent, SHELL_NET_ROLE);
-  printf("%s%s%s%s\r\n", indent, "-N,", indent, SHELL_PKT_NUM);
+  (void)printf("Usage: %s [OPTION...] \r\n\r\n", CUS_PROMPT);
+  (void)printf("%s%s%s%s\r\n", indent, "-a,", indent, SHELL_AUTH);
+  (void)printf("%s%s%s%s\r\n", indent, "-A,", indent, SHELL_GEN_AUTH);
+  (void)printf("%s%s%s%s\r\n", indent, "-B,", indent, SHELL_BI_MODE);
+  (void)printf("%s%s%s%s\r\n", indent, "-c,", indent, SHELL_CFG_DIR);
+  (void)printf("%s%s%s%s\r\n", indent, "-C,", indent, SHELL_DMP_CFG);
+  (void)printf("%s%s%s%s\r\n", indent, "-d,", indent, SHELL_DB);
+  (void)printf("%s%s%s%s\r\n", indent, "-f,", indent, SHELL_FILE);
+  (void)printf("%s%s%s%s\r\n", indent, "-h,", indent, SHELL_HOST);
+  (void)printf("%s%s%s%s\r\n", indent, "-k,", indent, SHELL_CHECK);
+  (void)printf("%s%s%s%s\r\n", indent, "-l,", indent, SHELL_PKT_LEN);
+  (void)printf("%s%s%s%s\r\n", indent, "-n,", indent, SHELL_NET_ROLE);
+  (void)printf("%s%s%s%s\r\n", indent, "-N,", indent, SHELL_PKT_NUM);
 #if defined(LINUX)
-  printf("%s%s%s%s\r\n", indent, "-o,", indent, SHELL_LOG_OUTPUT);
+  (void)printf("%s%s%s%s\r\n", indent, "-o,", indent, SHELL_LOG_OUTPUT);
 #endif
-  printf("%s%s%s%s\r\n", indent, "-p,", indent, SHELL_PASSWORD);
+  (void)printf("%s%s%s%s\r\n", indent, "-p,", indent, SHELL_PASSWORD);
 #ifdef TD_ENTERPRISE
-  printf("%s%s%s%s\r\n", indent, "-q,", indent, SHELL_TOKEN);
+  (void)printf("%s%s%s%s\r\n", indent, "-q,", indent, SHELL_TOKEN);
 #endif
-  printf("%s%s%s%s\r\n", indent, "-P,", indent, SHELL_PORT);
-  printf("%s%s%s%s\r\n", indent, "-r,", indent, SHELL_RAW_TIME);
-  printf("%s%s%s%s\r\n", indent, "-s,", indent, SHELL_CMD);
-  printf("%s%s%s%s\r\n", indent, "-t,", indent, SHELL_STARTUP);
-  printf("%s%s%s%s\r\n", indent, "-u,", indent, SHELL_USER);
-  printf("%s%s%s%s\r\n", indent, "-E,", indent, OLD_DSN_DESC);
-  printf("%s%s%s%s\r\n", indent, "-T,", indent, SHELL_TIMEOUT);
-  printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
-  printf("%s%s%s%s\r\n", indent, "-V,", indent, SHELL_VERSION);
-  printf("%s%s%s%s\r\n", indent, "-X,", indent, DSN_DESC);
-  printf("%s%s%s%s\r\n", indent, "-Z,", indent, DRIVER_DESC);
+  (void)printf("%s%s%s%s\r\n", indent, "-P,", indent, SHELL_PORT);
+  (void)printf("%s%s%s%s\r\n", indent, "-r,", indent, SHELL_RAW_TIME);
+  (void)printf("%s%s%s%s\r\n", indent, "-s,", indent, SHELL_CMD);
+  (void)printf("%s%s%s%s\r\n", indent, "-t,", indent, SHELL_STARTUP);
+  (void)printf("%s%s%s%s\r\n", indent, "-u,", indent, SHELL_USER);
+  (void)printf("%s%s%s%s\r\n", indent, "-E,", indent, OLD_DSN_DESC);
+  (void)printf("%s%s%s%s\r\n", indent, "-T,", indent, SHELL_TIMEOUT);
+  (void)printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
+  (void)printf("%s%s%s%s\r\n", indent, "-V,", indent, SHELL_VERSION);
+  (void)printf("%s%s%s%s\r\n", indent, "-X,", indent, DSN_DESC);
+  (void)printf("%s%s%s%s\r\n", indent, "-Z,", indent, DRIVER_DESC);
 
 #ifdef CUS_EMAIL
-  printf("\r\n\r\nReport bugs to %s.\r\n", CUS_EMAIL);
+  (void)printf("\r\n\r\nReport bugs to %s.\r\n", CUS_EMAIL);
 #else
-  printf("\r\n\r\nReport bugs to %s.\r\n", "support@taosdata.com");
+  (void)printf("\r\n\r\nReport bugs to %s.\r\n", "support@taosdata.com");
 #endif
 }
 
@@ -229,16 +229,16 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
 #if defined(LINUX)
     case 'o':
       if (strlen(arg) >= PATH_MAX) {
-        printf("failed to set log output since length overflow, max length is %d\r\n", PATH_MAX);
+        (void)printf("failed to set log output since length overflow, max length is %d\r\n", PATH_MAX);
         return TSDB_CODE_INVALID_CFG;
       }
       tsLogOutput = taosMemoryMalloc(PATH_MAX);
       if (!tsLogOutput) {
-        printf("failed to set log output: '%s' since %s\r\n", arg, tstrerror(terrno));
+        (void)printf("failed to set log output: '%s' since %s\r\n", arg, tstrerror(terrno));
         return terrno;
       }
       if (taosExpandDir(arg, tsLogOutput, PATH_MAX) != 0) {
-        printf("failed to expand log output: '%s' since %s\r\n", arg, tstrerror(terrno));
+        (void)printf("failed to expand log output: '%s' since %s\r\n", arg, tstrerror(terrno));
         return terrno;
       }
       break;
@@ -281,7 +281,7 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
 
     char   *key = argv[i];
     if (key[0] != '-') {
-      fprintf(stderr, "invalid option %s\r\n", key);
+      (void)fprintf(stderr, "invalid option %s\r\n", key);
       return -1;
     }
     int32_t keyLen = strlen(key);
@@ -292,7 +292,7 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
       if (keyLen > 2) {
         ret = shellParseSingleOpt(key[1], key + 2);
       } else if ((i + 1 >= argc) || (argv[i + 1][0] == '-')) {
-        fprintf(stderr, "option %s requires an argument\r\n", key);
+        (void)fprintf(stderr, "option %s requires an argument\r\n", key);
         return -1;
       } else {
         ret = shellParseSingleOpt(key[1], argv[i + 1]);
@@ -306,13 +306,13 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
         ret = shellParseSingleOpt(key[1], NULL);
       }
     } else if (keyLen != 2) {
-      fprintf(stderr, "invalid option %s\r\n", key);
+      (void)fprintf(stderr, "invalid option %s\r\n", key);
       return -1;
     } else if (key[1] == 'A' || key[1] == 'C' || key[1] == 'r' || key[1] == 'k' || key[1] == 't' ||
                key[1] == 'V' || key[1] == '?' || key[1] == 1 || key[1] == 'R'|| key[1] == 'B') {
       ret = shellParseSingleOpt(key[1], NULL);
     } else {
-      fprintf(stderr, "invalid option %s\r\n", key);
+      (void)fprintf(stderr, "invalid option %s\r\n", key);
       return -1;
     }
 
@@ -331,41 +331,41 @@ static void shellInitArgs(int argc, char *argv[]) {
       // password
       memset(shell.args.password, 0, sizeof(shell.args.password));
       if (strlen(argv[i]) == 2) {
-        printf("Enter password: ");
-        taosSetConsoleEcho(false);
+        (void)printf("Enter password: ");
+        (void)taosSetConsoleEcho(false);
         if (scanf("%255s", shell.args.password) != 1) {
-          fprintf(stderr, "password reading error\n");
+          (void)fprintf(stderr, "password reading error\n");
         }
-        taosSetConsoleEcho(true);
+        (void)taosSetConsoleEcho(true);
         if (EOF == getchar()) {
-          fprintf(stderr, "getchar() return EOF\r\n");
+          (void)fprintf(stderr, "getchar() return EOF\r\n");
         }
       } else {
         tstrncpy(shell.args.password, (char *)(argv[i] + 2), sizeof(shell.args.password) - 1);
         strcpy(argv[i], "-p");
       }
-      printf("\r\n");
+      (void)printf("\r\n");
       break;
     }
-#ifdef TD_ENTERPRISE      
+#ifdef TD_ENTERPRISE
     else if (strncmp(argv[i], "-q", 2) == 0) {
       // token
       memset(shell.args.token, 0, sizeof(shell.args.token));
       if (strlen(argv[i]) == 2) {
-        printf("Enter token: ");
-        taosSetConsoleEcho(false);
+        (void)printf("Enter token: ");
+        (void)taosSetConsoleEcho(false);
         if (scanf("%255s", shell.args.token) != 1) {
-          fprintf(stderr, "token reading error\n");
+          (void)fprintf(stderr, "token reading error\n");
         }
-        taosSetConsoleEcho(true);
+        (void)taosSetConsoleEcho(true);
         if (EOF == getchar()) {
-          fprintf(stderr, "getchar() return EOF\r\n");
+          (void)fprintf(stderr, "getchar() return EOF\r\n");
         }
       } else {
-        tstrncpy(shell.args.token, (char *)(argv[i] + 2), sizeof(shell.args.token) - 1);  
+        tstrncpy(shell.args.token, (char *)(argv[i] + 2), sizeof(shell.args.token) - 1);
         strcpy(argv[i], "-q");
       }
-      printf("\r\n");
+      (void)printf("\r\n");
       break;
     }
 #endif
@@ -389,22 +389,22 @@ static void shellInitArgs(int argc, char *argv[]) {
 static int32_t shellCheckArgs() {
   SShellArgs *pArgs = &shell.args;
   if (pArgs->host != NULL && (strlen(pArgs->host) <= 0 || strlen(pArgs->host) > TSDB_FQDN_LEN)) {
-    printf("Invalid host:%s\r\n", pArgs->host);
+    (void)printf("Invalid host:%s\r\n", pArgs->host);
     return -1;
   }
 
   if (pArgs->user != NULL && (strlen(pArgs->user) <= 0 || strlen(pArgs->user) > TSDB_USER_LEN)) {
-    printf("Invalid user:%s\r\n", pArgs->user);
+    (void)printf("Invalid user:%s\r\n", pArgs->user);
     return -1;
   }
 
   if (pArgs->auth != NULL && (strlen(pArgs->auth) <= 0 || strlen(pArgs->auth) > TSDB_PASSWORD_LEN)) {
-    printf("Invalid auth:%s\r\n", pArgs->auth);
+    (void)printf("Invalid auth:%s\r\n", pArgs->auth);
     return -1;
   }
 
   if (pArgs->database != NULL && (strlen(pArgs->database) <= 0 || strlen(pArgs->database) > TSDB_DB_NAME_LEN)) {
-    printf("Invalid database:%s\r\n", pArgs->database);
+    (void)printf("Invalid database:%s\r\n", pArgs->database);
     return -1;
   }
 
@@ -417,7 +417,7 @@ static int32_t shellCheckArgs() {
 
   if (pArgs->cfgdir != NULL) {
     if (strlen(pArgs->cfgdir) <= 0 || strlen(pArgs->cfgdir) >= PATH_MAX) {
-      printf("Invalid cfgdir:%s\r\n", pArgs->cfgdir);
+      (void)printf("Invalid cfgdir:%s\r\n", pArgs->cfgdir);
       return -1;
     } else {
       if (taosExpandDir(pArgs->cfgdir, configDirShell, PATH_MAX) != 0) {
@@ -426,45 +426,45 @@ static int32_t shellCheckArgs() {
       // check cfg dir exist
       /*
       if(!taosIsDir(configDirShell)) {
-        printf("folder not exist. cfgdir:%s  expand:%s\r\n", pArgs->cfgdir, configDirShell);
+        (void)printf("folder not exist. cfgdir:%s  expand:%s\r\n", pArgs->cfgdir, configDirShell);
         configDirShell[0] = 0;
-        return -1;          
-      }*/  
+        return -1;
+      }*/
     }
   }
 
   if (pArgs->commands != NULL && (strlen(pArgs->commands) <= 0)) {
-    printf("Invalid commands:%s\r\n", pArgs->commands);
+    (void)printf("Invalid commands:%s\r\n", pArgs->commands);
     return -1;
   }
 
   if (pArgs->netrole != NULL && !(strcmp(pArgs->netrole, "client") == 0 || strcmp(pArgs->netrole, "server") == 0)) {
-    printf("Invalid netrole:%s\r\n", pArgs->netrole);
+    (void)printf("Invalid netrole:%s\r\n", pArgs->netrole);
     return -1;
   }
 
   if (/*pArgs->password != NULL && */ (strlen(pArgs->password) <= 0)) {
-    printf("Invalid password\r\n");
+    (void)printf("Invalid password\r\n");
     return -1;
   }
 
   if (pArgs->port < 0 || pArgs->port > 65535) {
-    printf("Invalid port\r\n");
+    (void)printf("Invalid port\r\n");
     return -1;
   }
 
   if (pArgs->pktLen < SHELL_MIN_PKG_LEN || pArgs->pktLen > SHELL_MAX_PKG_LEN) {
-    printf("Invalid pktLen:%d, range:[%d, %d]\r\n", pArgs->pktLen, SHELL_MIN_PKG_LEN, SHELL_MAX_PKG_LEN);
+    (void)printf("Invalid pktLen:%d, range:[%d, %d]\r\n", pArgs->pktLen, SHELL_MIN_PKG_LEN, SHELL_MAX_PKG_LEN);
     return -1;
   }
 
   if (pArgs->pktNum < SHELL_MIN_PKG_NUM || pArgs->pktNum > SHELL_MAX_PKG_NUM) {
-    printf("Invalid pktNum:%d, range:[%d, %d]\r\n", pArgs->pktNum, SHELL_MIN_PKG_NUM, SHELL_MAX_PKG_NUM);
+    (void)printf("Invalid pktNum:%d, range:[%d, %d]\r\n", pArgs->pktNum, SHELL_MIN_PKG_NUM, SHELL_MAX_PKG_NUM);
     return -1;
   }
 
   if (pArgs->displayWidth <= 0 || pArgs->displayWidth > 10 * 1024) {
-    printf("Invalid displayWidth:%d, range:[1, 10 * 1024]\r\n", pArgs->displayWidth);
+    (void)printf("Invalid displayWidth:%d, range:[1, 10 * 1024]\r\n", pArgs->displayWidth);
     return -1;
   }
 
@@ -483,40 +483,40 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
 #endif
   char promptContinueFormat[32] = {0};
 #ifdef CUS_PROMPT
-  sprintf(shell.info.promptHeader, "%s> ", CUS_PROMPT);
-  sprintf(promptContinueFormat, "%%%zus> ", strlen(CUS_PROMPT));
+  (void)snprintf(shell.info.promptHeader, sizeof(shell.info.promptHeader), "%s> ", CUS_PROMPT);
+  (void)snprintf(promptContinueFormat, sizeof(promptContinueFormat), "%%%zus> ", strlen(CUS_PROMPT));
 #else
-  sprintf(shell.info.promptHeader, "taos> ");
-  sprintf(promptContinueFormat, "%%%zus> ", strlen("taos"));
+  (void)snprintf(shell.info.promptHeader, sizeof(shell.info.promptHeader), "taos> ");
+  (void)snprintf(promptContinueFormat, sizeof(promptContinueFormat), "%%%zus> ", strlen("taos"));
 #endif
-  sprintf(shell.info.promptContinue, promptContinueFormat, " ");
+  (void)snprintf(shell.info.promptContinue, sizeof(shell.info.promptContinue), promptContinueFormat, " ");
   shell.info.promptSize = strlen(shell.info.promptHeader);
 #ifdef TD_ENTERPRISE
-  snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
+  (void)snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
            "%s\n%s version: %s compatible_version: %s\ngit: %s\ngitOfInternal: %s\nbuild: %s", TD_PRODUCT_NAME,
            CUS_PROMPT, td_version, td_compatible_version, td_gitinfo, td_gitinfoOfInternal, td_buildinfo);
 #else
-  snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
+  (void)snprintf(shell.info.programVersion, sizeof(shell.info.programVersion),
            "%s\n%s version: %s compatible_version: %s\ngit: %s\nbuild: %s", TD_PRODUCT_NAME, CUS_PROMPT, td_version,
            td_compatible_version, td_gitinfo, td_buildinfo);
 #endif
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   shell.info.osname = "Windows";
-  snprintf(shell.history.file, TSDB_FILENAME_LEN, "C:/TDengine/%s", SHELL_HISTORY_FILE);
+  (void)snprintf(shell.history.file, TSDB_FILENAME_LEN, "C:/TDengine/%s", SHELL_HISTORY_FILE);
   if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
 #elif defined(_TD_DARWIN_64)
   shell.info.osname = "Darwin";
-  snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getpwuid(getuid())->pw_dir, SHELL_HISTORY_FILE);
+  (void)snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getpwuid(getuid())->pw_dir, SHELL_HISTORY_FILE);
   if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
 #elif defined(TD_ASTRA)
   shell.info.osname = "Astra";
-  snprintf(shell.history.file, TSDB_FILENAME_LEN, "C:%sTDengine%s%s", TD_DIRSEP, TD_DIRSEP,
+  (void)snprintf(shell.history.file, TSDB_FILENAME_LEN, "C:%sTDengine%s%s", TD_DIRSEP, TD_DIRSEP,
            SHELL_HISTORY_FILE);  // TD_ASTRA_TODO getenv("HOME")
   if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
 #else
   shell.info.osname = "Linux";
-  snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getenv("HOME"), SHELL_HISTORY_FILE);
+  (void)snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getenv("HOME"), SHELL_HISTORY_FILE);
   if (shellParseArgsUseArgp(argc, argv) != 0) return -1;
   if (shell.args.abort) {
     return -1;
@@ -529,7 +529,7 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
 int32_t getDsnEnv() {
   if (shell.args.connMode == CONN_MODE_NATIVE) {
     if (shell.args.dsn != NULL) {
-      fprintf(stderr, DSN_NATIVE_CONFLICT);
+      (void)fprintf(stderr, DSN_NATIVE_CONFLICT);
       return -1;
     }
   } else {
@@ -539,7 +539,7 @@ int32_t getDsnEnv() {
       // read cloud
       shell.args.dsn = getenv("TDENGINE_CLOUD_DSN");
       if (shell.args.dsn && strlen(shell.args.dsn) > 4) {
-        fprintf(stderr, "Use the environment variable TDENGINE_CLOUD_DSN:%s as the input for the DSN option.\r\n",
+        (void)fprintf(stderr, "Use the environment variable TDENGINE_CLOUD_DSN:%s as the input for the DSN option.\r\n",
                 shell.args.dsn);
         return 0;
       }
@@ -547,7 +547,7 @@ int32_t getDsnEnv() {
       // read local
       shell.args.dsn = getenv("TDENGINE_DSN");
       if (shell.args.dsn && strlen(shell.args.dsn) > 4) {
-        fprintf(stderr, "Use the environment variable TDENGINE_DSN:%s as the input for the DSN option.\r\n",
+        (void)fprintf(stderr, "Use the environment variable TDENGINE_DSN:%s as the input for the DSN option.\r\n",
                 shell.args.dsn);
         return 0;
       }

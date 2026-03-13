@@ -69,7 +69,7 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
   (void)atomic_val_compare_exchange_8(&pAppHbMgr->connHbFlag, 1, 2);
 
 _return:
-  taosArrayDestroy(batchRsp.pArray);
+  tFreeSUserAuthBatchRsp(&batchRsp);
   return code;
 }
 

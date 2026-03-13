@@ -471,8 +471,8 @@ priv_type(A) ::= STOP.                                                          
 priv_type(A) ::= KILL.                                                            { A = PRIV_SET_TYPE(PRIV_CM_KILL); }
 priv_type(A) ::= RECALCULATE.                                                     { A = PRIV_SET_TYPE(PRIV_CM_RECALC); }
 priv_type(A) ::= SUBSCRIBE.                                                       { A = PRIV_SET_TYPE(PRIV_CM_SUBSCRIBE); }
-priv_type(A) ::= READ.                                                            { A = PRIV_SET_TYPE(PRIV_TYPE_UNKNOWN); }
-priv_type(A) ::= WRITE.                                                           { A = PRIV_SET_TYPE(PRIV_TYPE_UNKNOWN); }
+priv_type(A) ::= READ.                                                            { A = PRIV_SET_TYPE(PRIV_CM_READ); }
+priv_type(A) ::= WRITE.                                                           { A = PRIV_SET_TYPE(PRIV_CM_WRITE); }
 
 priv_type(A) ::= CREATE DATABASE.                                                 { A = PRIV_SET_TYPE(PRIV_DB_CREATE); }
 priv_type(A) ::= USE DATABASE.                                                    { A = PRIV_SET_TYPE(PRIV_DB_USE); }
@@ -539,6 +539,8 @@ priv_type(A) ::= ALTER PASS.                                                    
 
 priv_type(A) ::= CREATE ROLE.                                                     { A = PRIV_SET_TYPE(PRIV_ROLE_CREATE); }
 priv_type(A) ::= DROP ROLE.                                                       { A = PRIV_SET_TYPE(PRIV_ROLE_DROP); }
+priv_type(A) ::= UNLOCK ROLE.                                                     { A = PRIV_SET_TYPE(PRIV_ROLE_UNLOCK); }
+priv_type(A) ::= LOCK ROLE.                                                       { A = PRIV_SET_TYPE(PRIV_ROLE_LOCK); }
 priv_type(A) ::= SHOW ROLES.                                                      { A = PRIV_SET_TYPE(PRIV_ROLE_SHOW); }
 
 priv_type(A) ::= CREATE USER.                                                     { A = PRIV_SET_TYPE(PRIV_USER_CREATE); }
@@ -554,8 +556,8 @@ priv_type(A) ::= ALTER TOKEN.                                                   
 priv_type(A) ::= SHOW TOKENS.                                                     { A = PRIV_SET_TYPE(PRIV_TOKEN_SHOW); }
 
 priv_type(A) ::= UPDATE KEY.                                                      { A = PRIV_SET_TYPE(PRIV_KEY_UPDATE); }
-priv_type(A) ::= CREATE TOTP.                                                     { A = PRIV_SET_TYPE(PRIV_TOTP_CREATE); }
-priv_type(A) ::= DROP TOTP.                                                       { A = PRIV_SET_TYPE(PRIV_TOTP_DROP); }
+priv_type(A) ::= CREATE TOTP_SECRET.                                              { A = PRIV_SET_TYPE(PRIV_TOTP_CREATE); }
+priv_type(A) ::= DROP TOTP_SECRET.                                                { A = PRIV_SET_TYPE(PRIV_TOTP_DROP); }
 
 priv_type(A) ::= GRANT PRIVILEGE.                                                 { A = PRIV_SET_TYPE(PRIV_GRANT_PRIVILEGE); }
 priv_type(A) ::= REVOKE PRIVILEGE.                                                { A = PRIV_SET_TYPE(PRIV_REVOKE_PRIVILEGE); }
@@ -635,7 +637,7 @@ priv_level_opt(A) ::= .                                                         
                                                                                     A.first = nil_token; A.second = nil_token; 
                                                                                     A.objType = PRIV_OBJ_CLUSTER; A.cols = NULL; 
                                                                                   }
-priv_level_opt(A) ::= ON priv_level(B).                                           { A = B; A.objType = PRIV_OBJ_TBL; }
+priv_level_opt(A) ::= ON priv_level(B).                                           { A = B; A.objType = PRIV_OBJ_NONE; }
 priv_level_opt(A) ::= ON DATABASE priv_level(B).                                  { A = B; A.objType = PRIV_OBJ_DB; }
 priv_level_opt(A) ::= ON TABLE priv_level(B).                                     { A = B; A.objType = PRIV_OBJ_TBL; }
 priv_level_opt(A) ::= ON VIEW priv_level(B).                                      { A = B; A.objType = PRIV_OBJ_VIEW; }

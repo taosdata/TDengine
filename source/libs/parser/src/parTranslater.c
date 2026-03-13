@@ -1865,8 +1865,10 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
 
   int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
   for (int32_t i = 0; i < nums; ++i) {
-    if (0 == strcmp(pCol->colName, pMeta->schema[i].name) &&
-        !invisibleColumn(true, pMeta->tableType, pMeta->schema[i].flags)) { // pCxt->pParseCxt->enableSysInfo, only control the output columns
+    if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
+      if (invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PERMISSION_DENIED, pCol->colName);
+      }
       SSchemaExt* pSchemaExt =
           pMeta->schemaExt ? (i >= pMeta->tableInfo.numOfColumns ? NULL : (pMeta->schemaExt + i)) : NULL;
       setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns), pCol,
@@ -6484,7 +6486,7 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
       // table scan node is eliminated.
       const SSchema* pTsSchema = &pMeta->schema[0];
       const SSchema* pRefTsSchema = &pRTNode->pMeta->schema[0];
-      PAR_ERR_JRET(setColRef(&pMeta->colRef[0], pTsSchema->colId, (char*)pRefTsSchema->name, pRTNode->table.tableName,
+      PAR_ERR_JRET(setColRef(&pMeta->colRef[0], pTsSchema->colId, NULL, (char*)pRefTsSchema->name, pRTNode->table.tableName,
                              pRTNode->table.dbName));
     }
   }
@@ -7746,6 +7748,9 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
   FOREACH(pNode, pRetrievedCols) {
     if (QUERY_NODE_COLUMN == nodeType(pNode)) {
       SColumnNode* pCol = (SColumnNode*)pNode;
+      if (pCol->appendByPrivCond) {
+        continue;
+      }
       SColIdNameKV colIdNameKV = {.colId = pCol->colId};
       snprintf(colIdNameKV.colName, TSDB_COL_NAME_LEN, "%s", pCol->colName);
       STableCols* pTblCols = tSimpleHashGet(pTblColHash, (const void*)&pCol->tableId, sizeof(pCol->tableId));
@@ -18334,7 +18339,7 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
     return code;
   }
 
-  int32_t        columnNum = pTableMeta->tableInfo.numOfColumns;
+  int32_t        columnNum = pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags;
   const SSchema* pSchemaCols = pTableMeta->schema;
   SNode*         pNode = NULL;
   SColumnNode*   pCol = NULL;
@@ -18534,7 +18539,8 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
                                      "Table name should be empty for database level privileges");
     }
   } else if (objLevel > 0) {
-    if (pStmt->tabName[0] == '\0') {
+    if (pStmt->tabName[0] == '\0' &&
+        (pReq->objType != PRIV_OBJ_NONE && pReq->objType != PRIV_OBJ_TOPIC)) {  // grant privType on topic1 to u1;
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "Table name cannot be empty for non-database level privileges");
     }
@@ -18558,6 +18564,23 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                      "Cannot grant/revoke this privilege on system database");
     }
+  } else {
+    if (IS_SPECIFIC_OBJ(pStmt->objName) &&
+        ((objType != PRIV_OBJ_DB && pStmt->tabName[0] != 0) || (objType == PRIV_OBJ_DB && pStmt->tabName[0] == '\0'))) {
+      SDbCfgInfo dbCfg = {0};
+      code = getDBCfg(pCxt, pStmt->objName, &dbCfg);
+
+      // don't validate the object when revoke
+      if (grant && code != TSDB_CODE_SUCCESS) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST, "Failed to get database %s since %s",
+                                       pStmt->objName, tstrerror(code));
+      }
+
+      if (code == TSDB_CODE_SUCCESS && dbCfg.isAudit) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                       "Cannot grant/revoke privileges on audit database");
+      }
+    }
   }
 
   switch (objType) {
@@ -18568,34 +18591,13 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                        "Table name should be empty for database level privileges");
       }
-      // don't validate the object when revoke
-      if (strncmp(pStmt->objName, "*", 2) != 0) {
-        SDbCfgInfo dbCfg = {0};
-        code = getDBCfg(pCxt, pStmt->objName, &dbCfg);
-
-        if (grant && code != TSDB_CODE_SUCCESS) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST,
-                                         "Failed to get database %s since %s", pStmt->objName, tstrerror(code));
-        }
-
-        if (code == TSDB_CODE_SUCCESS && dbCfg.isAudit) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                         "Cannot grant/revoke privileges on audit database");
-        }
-      }
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
+      TAOS_CHECK_EXIT(privExpandRw(&pReq->privileges.privSet, objType, objLevel));
       break;
     }
     case PRIV_OBJ_TBL:
       TAOS_CHECK_EXIT(translateGrantFillColPrivileges(pCxt, pStmt, pReq));
     case PRIV_OBJ_VIEW: {
-      if (grant && (strncmp(pStmt->objName, "*", 2) != 0)) {
-        SDbCfgInfo  dbCfg = {0};
-        if (0 != (code = getDBCfg(pCxt, pStmt->objName, &dbCfg))) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST,
-                                         "Failed to get database %s since %s", pStmt->objName, tstrerror(code));
-        }
-      }
       if (0 != pStmt->tabName[0]) {
         // not validate the object when revoke
         if (grant && (strncmp(pStmt->tabName, "*", 2) != 0)) {
@@ -18618,6 +18620,7 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
                                        "Table name cannot be empty for table or view level privileges");
       }
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
+      TAOS_CHECK_EXIT(privExpandRw(&pReq->privileges.privSet, objType, objLevel));
       if (objType == PRIV_OBJ_TBL) {
         code = translateGrantTagCond(pCxt, pStmt, pReq, grant);
         if (TSDB_CODE_SUCCESS != code) {
@@ -18641,9 +18644,14 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
     case PRIV_OBJ_TSMA:
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
       break;
-    case PRIV_OBJ_TOPIC:
+    case PRIV_OBJ_TOPIC: {
+      if (IS_WILDCARD_OBJ(pStmt->objName) && pStmt->tabName[0] == 0) {
+        pStmt->tabName[0] = '*';  // rewrite to topic.* for better usability
+        pStmt->tabName[1] = '\0';
+      }
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
       break;
+    }
     case PRIV_OBJ_STREAM:
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
       break;
@@ -18652,6 +18660,8 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
     case PRIV_OBJ_AUDIT:
       break;
     case PRIV_OBJ_TOKEN:
+      break;
+    case PRIV_OBJ_NONE: 
       break;
     default:
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -18712,10 +18722,56 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
       }
 
       // rewrite query for view to improve usability
-      if(objType == PRIV_OBJ_VIEW) {
-        if(PRIV_HAS(&tmpPrivSet, PRIV_TBL_SELECT)) {
+      if (objType == PRIV_OBJ_VIEW) {
+        if (PRIV_HAS(&tmpPrivSet, PRIV_TBL_SELECT)) {
           privAddType(&tmpPrivSet, PRIV_VIEW_SELECT);
           privRemoveType(&tmpPrivSet, PRIV_TBL_SELECT);
+        }
+      } else if (objType == PRIV_OBJ_NONE) {
+        if (IS_SPECIFIC_OBJ(pStmt->objName)) {
+          if (IS_SPECIFIC_OBJ(pStmt->tabName)) {  // objName.tabName
+            SName       name = {0};
+            STableMeta* pMeta = NULL;
+            toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
+            if ((code = getTargetMeta(pCxt, &name, &pMeta, true))) {  // check table or view at first
+              if (TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
+                taosMemoryFree(pMeta);
+                goto _exit;
+              } else {
+                code = 0;  // recheck topic in mnode
+              }
+            } else {
+              objType = pMeta->tableType == TSDB_VIEW_TABLE ? PRIV_OBJ_VIEW : PRIV_OBJ_TBL;
+              if (objType == PRIV_OBJ_VIEW) {
+                if (PRIV_HAS(&tmpPrivSet, PRIV_TBL_SELECT)) {
+                  privAddType(&tmpPrivSet, PRIV_VIEW_SELECT);
+                  privRemoveType(&tmpPrivSet, PRIV_TBL_SELECT);
+                }
+              }
+            }
+            taosMemoryFree(pMeta);
+          } else if (pStmt->tabName[0] == 0) {  // objName: dbName or topicName
+            SDbCfgInfo dbCfg = {0};
+            code = getDBCfg(pCxt, pStmt->objName, &dbCfg); // check db at first
+            if (code) {
+              if (TSDB_CODE_MND_DB_NOT_EXIST != code) {
+                goto _exit;
+              } else {
+                code = 0;  // recheck topic in mnode
+              }
+            } else {
+              pStmt->tabName[0] = '*';
+              pStmt->tabName[1] = '\0';
+            }
+          }
+        } else if (IS_WILDCARD_OBJ(pStmt->objName)) {
+          // extend grant privType on * to u1; to grant privType on *.* to u1;
+          if (pStmt->tabName[0] == 0) {
+            snprintf(pStmt->tabName, sizeof(pStmt->tabName), "*");
+          }
+        }
+        if (objType == PRIV_OBJ_NONE) {
+          objType = privDeduceObjType(&tmpPrivSet);
         }
       }
 
@@ -22013,7 +22069,7 @@ static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateV
     SSchema*        pSchema = req.ntb.schemaRow.pSchema + index;
     toSchema(pColDef, index + 1, pSchema);
     if (pColDef->pOptions && ((SColumnOptions*)pColDef->pOptions)->hasRef) {
-      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, ((SColumnOptions*)pColDef->pOptions)->refColumn,
+      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, NULL, ((SColumnOptions*)pColDef->pOptions)->refColumn,
                              ((SColumnOptions*)pColDef->pOptions)->refTable,
                              ((SColumnOptions*)pColDef->pOptions)->refDb));
     }
@@ -22068,14 +22124,15 @@ static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, S
         PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
       }
       const SSchema* pSchema = getTableColumnSchema(pStbMeta) + schemaIdx;
-      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[schemaIdx], pSchema->colId, pColRef->refColName, pColRef->refTableName,
+      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[schemaIdx], pSchema->colId, pSchema->name, pColRef->refColName, pColRef->refTableName,
                              pColRef->refDbName));
     }
   } else if (pStmt->pColRefs) {
     col_id_t index = 1;  // start from second column, don't set column ref for ts column
     FOREACH(pCol, pStmt->pColRefs) {
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
-      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, pColRef->refColName, pColRef->refTableName,
+      const SSchema* pSchema = getTableColumnSchema(pStbMeta) + index;
+      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, pSchema->name, pColRef->refColName, pColRef->refTableName,
                              pColRef->refDbName));
       index++;
     }

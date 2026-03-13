@@ -747,11 +747,13 @@ if (checkTzPresent(timestr, len)) {
 
 struct tm* toolsLocalTime(const time_t *timep, struct tm *result) {
 #if defined(LINUX) || defined(DARWIN)
-    localtime_r(timep, result);
+    return localtime_r(timep, result);
 #else
-    localtime_s(result, timep);
-#endif
+    if (localtime_s(result, timep) != 0) {
+        return NULL;
+    }
     return result;
+#endif
 }
 
 FORCE_INLINE int32_t toolsGetTimestampSec() { return (int32_t)time(NULL); }
@@ -777,14 +779,14 @@ FORCE_INLINE int32_t toolsGetTimeOfDay(struct timeval *tv) {
 
 FORCE_INLINE int64_t toolsGetTimestampMs() {
     struct timeval systemTime;
-    toolsGetTimeOfDay(&systemTime);
+    (void)toolsGetTimeOfDay(&systemTime);
     return (int64_t)systemTime.tv_sec * 1000L +
         (int64_t)systemTime.tv_usec / 1000;
 }
 
 FORCE_INLINE int64_t toolsGetTimestampUs() {
     struct timeval systemTime;
-    toolsGetTimeOfDay(&systemTime);
+    (void)toolsGetTimeOfDay(&systemTime);
     return (int64_t)systemTime.tv_sec * 1000000L + (int64_t)systemTime.tv_usec;
 }
 
@@ -807,12 +809,12 @@ void usleep(__int64 usec)
 
 FORCE_INLINE int64_t toolsGetTimestampNs() {
     struct timespec systemTime = {0};
-    toolsClockGetTime(CLOCK_REALTIME, &systemTime);
+    (void)toolsClockGetTime(CLOCK_REALTIME, &systemTime);
     return (int64_t)systemTime.tv_sec * 1000000000L +
         (int64_t)systemTime.tv_nsec;
 }
 
-FORCE_INLINE void toolsMsleep(int32_t mseconds) { usleep(mseconds * 1000); }
+FORCE_INLINE void toolsMsleep(int32_t mseconds) { (void)usleep(mseconds * 1000); }
 
 struct tm *tLocalTime(const time_t *timep, struct tm *result, char *buf) {
   struct tm *res = NULL;

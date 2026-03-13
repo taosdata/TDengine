@@ -39,8 +39,9 @@ static void processCreateTbMsg(SDecoder* dcoder, SWalCont* pHead, STqReader* pRe
 
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
-    if (pCreateReq->type == TSDB_CHILD_TABLE && pCreateReq->ctb.suid == tbSuid &&
-        taosHashGet(pReader->tbIdHash, &pCreateReq->uid, sizeof(int64_t)) != NULL) {  
+    if ((pCreateReq->type == TSDB_CHILD_TABLE || pCreateReq->type == TSDB_VIRTUAL_CHILD_TABLE) && 
+         pCreateReq->ctb.suid == tbSuid &&
+         taosHashGet(pReader->tbIdHash, &pCreateReq->uid, sizeof(int64_t)) != NULL) {  
       needRebuild++;
     }
   }
@@ -58,7 +59,8 @@ static void processCreateTbMsg(SDecoder* dcoder, SWalCont* pHead, STqReader* pRe
     }
     for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
       pCreateReq = req.pReqs + iReq;
-      if (pCreateReq->type == TSDB_CHILD_TABLE && pCreateReq->ctb.suid == tbSuid &&
+      if ((pCreateReq->type == TSDB_CHILD_TABLE || pCreateReq->type == TSDB_VIRTUAL_CHILD_TABLE) &&
+          pCreateReq->ctb.suid == tbSuid &&
           taosHashGet(pReader->tbIdHash, &pCreateReq->uid, sizeof(int64_t)) != NULL) {
         reqNew.nReqs++;
         if (taosArrayPush(reqNew.pArray, pCreateReq) == NULL) {
@@ -1341,18 +1343,41 @@ int32_t tqDeleteTbUidList(STQ* pTq, SArray* tbUidList) {
   return 0;
 }
 
+static SArray* copyUidList(SArray* tbUidList) {
+  SArray* tbUidListCopy = taosArrayInit(4, sizeof(int64_t));
+  if (tbUidListCopy == NULL) {
+    return NULL;
+  }
+
+  if (taosArrayAddAll(tbUidListCopy, tbUidList) == NULL) {
+    taosArrayDestroy(tbUidListCopy);
+    tqError("copy table uid list failed");
+    return NULL;
+  }
+  return tbUidListCopy;
+}
+
 static int32_t addTableListForStableTmq(STqHandle* pTqHandle, STQ* pTq, SArray* tbUidList) {
-  int     ret = qFilterTableList(pTq->pVnode, tbUidList, pTqHandle->execHandle.execTb.node,
+  int32_t code = 0;
+  SArray* tbUidListCopy = copyUidList(tbUidList);
+  if (tbUidListCopy == NULL) {
+    code = terrno;
+    goto END;
+  }
+  code = qFilterTableList(pTq->pVnode, tbUidListCopy, pTqHandle->execHandle.execTb.node,
                       pTqHandle->execHandle.task, pTqHandle->execHandle.execTb.suid);
-  if (ret != TDB_CODE_SUCCESS) {
-    tqError("tqAddTbUidList error:%d handle %s consumer:0x%" PRIx64, ret, pTqHandle->subKey,
+  if (code != TDB_CODE_SUCCESS) {
+    tqError("tqAddTbUidList error:%d handle %s consumer:0x%" PRIx64, code, pTqHandle->subKey,
             pTqHandle->consumerId);
-    return ret;
+    goto END;
   }
   tqDebug("%s handle %s consumer:0x%" PRIx64 " add %d tables to tqReader", __func__, pTqHandle->subKey,
-          pTqHandle->consumerId, (int32_t)taosArrayGetSize(tbUidList));
-  tqReaderAddTbUidList(pTqHandle->execHandle.pTqReader, tbUidList);
-  return 0;
+          pTqHandle->consumerId, (int32_t)taosArrayGetSize(tbUidListCopy));
+  tqReaderAddTbUidList(pTqHandle->execHandle.pTqReader, tbUidListCopy);
+
+END:
+  taosArrayDestroy(tbUidListCopy);
+  return code;
 }
 
 int32_t tqAddTbUidList(STQ* pTq, SArray* tbUidList) {

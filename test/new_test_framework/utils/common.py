@@ -22,6 +22,7 @@ import toml
 import subprocess
 import os
 import platform
+import tempfile
 from .boundary import DataBoundary
 import taos
 from .log import *
@@ -2974,7 +2975,7 @@ class TDCom:
         # print(f"taosCmd:{taosCmd}, currentPath:{os.getcwd()}")
         os.system(taosCmd)
         return self.query_result_file
-    
+
     def run_sql(self, sql, db):
         tdsql = self.newTdSql()
         if db:
@@ -2994,14 +2995,11 @@ class TDCom:
 
         tdLog.info(f"Executing query file: {inputfile}")
 
-        with open(inputfile, 'r') as f:
+        with open(inputfile, "r") as f:
             lines = [line.strip() for line in f if line.strip()]
         # 假设第一行是 use 语句
-        db = lines[0].split()[1].rstrip(';')
-        sql_lines = [
-            line.replace('\\G', '').rstrip(';') + ';'
-            for line in lines[1:]
-        ]
+        db = lines[0].split()[1].rstrip(";")
+        sql_lines = [line.replace("\\G", "").rstrip(";") + ";" for line in lines[1:]]
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             executor.map(lambda sql: self.run_sql(sql, db), sql_lines)
@@ -3038,19 +3036,32 @@ class TDCom:
                 os.system(f"rm -f {self.query_result_file}.raw")
             else:
                 os.system(
-                    f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' | sed 's/([0-9]\+\.[0-9]\+s)//g' | sed 's/cost=[0-9]\+\.[0-9]\+\.\.[0-9]\+\.[0-9]\+//g' | sed 's/Planning Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/Execution Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/max_row_task=[0-9]\+, //g' > {self.query_result_file}"
+                    f"taos -c {cfgPath} -f {inputfile} "
+                    "| grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' "
+                    "| sed -E 's/[[:space:]]*\\([0-9]+\\.[0-9]+s\\)/ /g' "
+                    "| sed -E 's/cost=[0-9]+\\.[0-9]+\\.\\.[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/Planning Time: [0-9]+\\.[0-9]+ ms//g' "
+                    "| sed -E 's/Execution Time: [0-9]+\\.[0-9]+ ms//g' "
+                    "| sed -E 's/max_row_task=[0-9]+, //g' "
+                    f"> {self.query_result_file}"
                 )
             return self.query_result_file
 
     def compare_result_files(self, file1, file2):
+        normalized_file1 = None
+        normalized_file2 = None
         try:
             # use subprocess.run to execute  diff/fc commands
             # print(file1, file2)
             if platform.system().lower() != "windows":
+                normalized_file1 = self._normalize_diff_file(file1)
+                normalized_file2 = self._normalize_diff_file(file2)
                 cmd = "diff"
                 tdLog.info(f"cmd: {cmd} -u --color {file1} {file2}")
                 result = subprocess.run(
-                    [cmd, "-u", "--color", file1, file2], text=True, capture_output=True
+                    [cmd, "-u", "--color", normalized_file1, normalized_file2],
+                    text=True,
+                    capture_output=True,
                 )
                 tdLog.info(f"result: {result}")
             else:
@@ -3089,6 +3100,23 @@ class TDCom:
             )
         except Exception as e:
             tdLog.debug(f"An error occurred: {e}")
+        finally:
+            for normalized_file in (normalized_file1, normalized_file2):
+                if normalized_file and os.path.exists(normalized_file):
+                    os.remove(normalized_file)
+
+    def _normalize_diff_file(self, input_file):
+        with open(input_file, "r", encoding="utf-8", newline="") as fin:
+            with tempfile.NamedTemporaryFile(
+                mode="w", delete=False, encoding="utf-8", newline=""
+            ) as fout:
+                for line in fin:
+                    if re.fullmatch(r"[ \t]+\|\r?\n", line):
+                        line_ending = "\r\n" if line.endswith("\r\n") else "\n"
+                        fout.write("|" + line_ending)
+                    else:
+                        fout.write(line)
+                return fout.name
 
     def compare_query_with_result_file(self, idx, sql, resultFile, test_case):
         self.generate_query_result_file(test_case, idx, sql)
