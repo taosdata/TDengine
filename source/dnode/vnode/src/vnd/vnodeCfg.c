@@ -24,6 +24,7 @@ const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                    .szCache = 256,
                                    .cacheLast = 3,
                                    .cacheLastSize = 8,
+                                   .cacheLastShards = -1,  // -1 means auto-calculate
                                    .szBuf = 96 * 1024 * 1024,
                                    .isHeap = false,
                                    .isWeak = 0,
