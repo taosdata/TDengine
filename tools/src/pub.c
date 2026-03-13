@@ -40,7 +40,7 @@
      // find "://"
      char *p1 = strstr(dsn, "://");
      if (p1 == NULL) {
-         sprintf(error, "%s", "dsn invalid, not found \"://\" ");
+         (void)sprintf(error, "%s", "dsn invalid, not found \"://\" ");
          return -1;
      }
      *host = p1 + 3; // host
@@ -70,7 +70,7 @@
          *p4  = 0; 
          *pwd = p4 + 1;
      } else {
-         sprintf(error, "%s", "dsn invalid, found \"?\" but not found \"=\" ");
+         (void)sprintf(error, "%s", "dsn invalid, found \"?\" but not found \"=\" ");
          return -1;
      }
  
@@ -145,4 +145,4 @@ uint16_t defaultPort(int8_t connMode, char *dsn) {
     return mode == CONN_MODE_NATIVE ? DEFAULT_PORT_NATIVE : DEFAULT_PORT_WS_LOCAL;
     */
 }
- 
+
