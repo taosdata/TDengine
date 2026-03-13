@@ -59,7 +59,7 @@ class TestCase:
         tdSql.execute("flush database db")
         tdLog.info("prepare test data done")
     
-    def getShowGrantsTimeSeries(self, maxRetry=10):
+    def getShowGrantsTimeSeries(self, maxRetry=30):
         for nRetry in range(maxRetry):
             tdSql.query("show grants")
             timeseries = tdSql.queryResult[0][5]
