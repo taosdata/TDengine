@@ -76,6 +76,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TLCC,
   FUNCTION_TYPE_LAG,
   FUNCTION_TYPE_FILL_FORWARD,
+  FUNCTION_TYPE_LEAD,
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
@@ -419,6 +420,8 @@ void fmGetStreamPesudoFuncValTbname(int32_t funcId, const SStreamRuntimeFuncInfo
 int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes,
                                       const SStreamRuntimeFuncInfo* pStreamRuntimeInfo);
 
+
+bool canCoexistIndefiniteRowsFunc(int32_t funcId1, int32_t funcId2);
 #ifdef __cplusplus
 }
 #endif

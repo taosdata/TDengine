@@ -112,6 +112,17 @@ int32_t diffFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
 int32_t diffFunction(SqlFunctionCtx* pCtx);
 int32_t diffFunctionByRow(SArray* pCtx);
 
+bool    getLagFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t lagFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
+int32_t lagFunction(SqlFunctionCtx* pCtx);
+int32_t lagFunctionByRow(SArray* pCtx);
+void    lagLeadFunctionCleanupExt(SqlFunctionCtx* pCtx);
+
+bool    getLeadFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t leadFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
+int32_t leadFunction(SqlFunctionCtx* pCtx);
+int32_t leadFunctionByRow(SArray* pCtx);
+
 bool    getFillforwardFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t fillforwardFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
 int32_t fillforwardFunction(SqlFunctionCtx* pCtx);
