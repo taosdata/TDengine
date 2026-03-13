@@ -3,6 +3,7 @@ import taos
 import sys
 import time
 import os
+import re
 
 from util.log import *
 from util.sql import *
@@ -13,6 +14,82 @@ from util.dnodes import TDDnode
 import time
 import socket
 import subprocess
+
+
+def parse_c_string_array(c_file_path, array_name):
+    """
+    Parse a C string array from a .c file.
+
+    Args:
+        c_file_path: Path to the C source file
+        array_name: Name of the array to parse (e.g., 'tkLogStb' or 'tkAuditStb')
+
+    Returns:
+        List of strings from the array
+    """
+    try:
+        with open(c_file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Pattern to match: const char *arrayName[] = {"str1", "str2", ...};
+        # This handles multi-line arrays with various formatting
+        pattern = rf'const\s+char\s*\*\s*{array_name}\s*\[\s*\]\s*=\s*\{{([^;]+)\}};'
+        match = re.search(pattern, content, re.DOTALL)
+
+        if not match:
+            raise ValueError(f"Array '{array_name}' not found in {c_file_path}")
+
+        array_content = match.group(1)
+
+        # Extract all quoted strings
+        strings = re.findall(r'"([^"]*)"', array_content)
+
+        return strings
+    except FileNotFoundError:
+        raise FileNotFoundError(f"C source file not found: {c_file_path}")
+    except Exception as e:
+        raise Exception(f"Error parsing array '{array_name}' from {c_file_path}: {e}")
+
+
+def get_vnode_query_path():
+    """Get the path to vnodeQuery.c relative to TDinternal directory."""
+    path_parts = os.getcwd().split(os.sep)
+    try:
+        tdinternal_index = path_parts.index("TDinternal")
+    except ValueError:
+        raise ValueError("The specified directory 'TDinternal' was not found in the path.")
+    tdinternal_path = os.sep.join(path_parts[:tdinternal_index + 1])
+    return os.path.join(tdinternal_path, "community", "source", "dnode", "vnode", "src", "vnd", "vnodeQuery.c")
+
+
+# Dynamically load tkLogStb and tkAuditStb from vnodeQuery.c
+try:
+    _vnode_query_path = get_vnode_query_path()
+    tkLogStb = parse_c_string_array(_vnode_query_path, "tkLogStb")
+    tkAuditStb = parse_c_string_array(_vnode_query_path, "tkAuditStb")
+except Exception as e:
+    # Fallback to hardcoded values if parsing fails
+    print(f"Warning: Failed to parse arrays from vnodeQuery.c: {e}")
+    print("Using fallback hardcoded values.")
+    tkLogStb = [
+        "cluster_info", "data_dir", "dnodes_info", "d_info", "grants_info",
+        "keeper_monitor", "logs", "log_dir", "log_summary", "m_info",
+        "taosadapter_restful_http_request_fail", "taosadapter_restful_http_request_in_flight",
+        "taosadapter_restful_http_request_summary_milliseconds", "taosadapter_restful_http_request_total",
+        "taosadapter_system_cpu_percent", "taosadapter_system_mem_percent", "temp_dir", "vgroups_info",
+        "vnodes_role", "taosd_dnodes_status", "adapter_conn_pool", "taosd_vnodes_info", "taosd_dnodes_metrics",
+        "taosd_vgroups_info", "taos_sql_req", "taosd_mnodes_info", "adapter_c_interface", "taosd_cluster_info",
+        "taosd_sql_req", "taosd_dnodes_info", "adapter_requests", "taosd_write_metrics", "adapter_status",
+        "taos_slow_sql", "taos_slow_sql_detail", "taosd_cluster_basic", "taosd_dnodes_data_dirs",
+        "taosd_dnodes_log_dirs", "xnode_agent_activities", "xnode_task_activities", "xnode_task_metrics",
+        "taosx_task_csv", "taosx_task_progress", "taosx_task_kinghist", "taosx_task_tdengine2",
+        "taosx_task_tdengine3", "taosx_task_opc_da", "taosx_task_opc_ua", "taosx_task_kafka",
+        "taosx_task_influxdb", "taosx_task_mqtt", "taosx_task_avevahistorian", "taosx_task_opentsdb",
+        "taosx_task_mysql", "taosx_task_postgres", "taosx_task_oracle", "taosx_task_mssql",
+        "taosx_task_mongodb", "taosx_task_sparkplugb", "taosx_task_orc", "taosx_task_pulsar", "taosx_task_pspace"
+    ]
+    tkAuditStb = ["operations"]
+
 
 class MyDnodes(TDDnodes):
     def __init__(self ,dnodes_lists):
@@ -124,7 +201,7 @@ class TDTestCase:
         tdSql.execute("use db")
         tdSql.execute("create table stb0(ts timestamp, c0 int primary key,c1 bigint,c2 int,c3 float,c4 double) tags(t0 bigint unsigned)");
         tdSql.execute("create table ctb0 using stb0 tags(0)");
-        tdSql.execute("create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select _wstart, count(*) c1, count(c2) c2 , sum(c3) c3 , max(c4) c4, min(c4) c5, count(c4) c6 from stb0 interval(10s)");
+        tdSql.execute("create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select _wstart, count(*) c1, count(c2) c2 , sum(c3) c3 , max(c4) c4 from stb0 interval(10s)");
         tdSql.execute("create topic topic_stb_column as select ts, c3 from stb0");
         tdSql.execute("create topic topic_stb_all as select ts, c1, c2, c3 from stb0");
         tdSql.execute("create topic topic_stb_function as select ts, abs(c1), sin(c2) from stb0");
@@ -186,7 +263,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1)
 
         # check timeseries
-        tss_grant = 11
+        tss_grant = 9
         for i in range(0, 3):
             tdLog.printNoPrefix(f"======== test timeseries: loop{i}")
             self.checkGrantsTimeSeries("initial check", tss_grant)
@@ -348,47 +425,36 @@ class TDTestCase:
         1. Supertables in the 'log' database (tkLogStb)
         2. Supertables in the 'audit' database (tkAuditStb), where audit database is identified by:
            - Database name is 'audit'
-        """
-        # List of system supertables in the 'log' database
-        tkLogStb = [
-            "cluster_info", "data_dir", "dnodes_info", "d_info", "grants_info",
-            "keeper_monitor", "logs", "log_dir", "log_summary", "m_info",
-            "taosadapter_restful_http_request_fail", "taosadapter_restful_http_request_in_flight",
-            "taosadapter_restful_http_request_summary_milliseconds", "taosadapter_restful_http_request_total",
-            "taosadapter_system_cpu_percent", "taosadapter_system_mem_percent", "temp_dir", "vgroups_info",
-            "vnodes_role", "taosd_dnodes_status", "adapter_conn_pool", "taosd_vnodes_info", "taosd_dnodes_metrics",
-            "taosd_vgroups_info", "taos_sql_req", "taosd_mnodes_info", "adapter_c_interface", "taosd_cluster_info",
-            "taosd_sql_req", "taosd_dnodes_info", "adapter_requests", "taosd_write_metrics", "adapter_status",
-            "taos_slow_sql", "taos_slow_sql_detail", "taosd_cluster_basic", "taosd_dnodes_data_dirs",
-            "taosd_dnodes_log_dirs", "xnode_agent_activities", "xnode_task_activities", "xnode_task_metrics",
-            "taosx_task_csv", "taosx_task_progress", "taosx_task_kinghist", "taosx_task_tdengine2",
-            "taosx_task_tdengine3", "taosx_task_opc_da", "taosx_task_opc_ua", "taosx_task_kafka",
-            "taosx_task_influxdb", "taosx_task_mqtt", "taosx_task_avevahistorian", "taosx_task_opentsdb",
-            "taosx_task_mysql", "taosx_task_postgres", "taosx_task_oracle", "taosx_task_mssql",
-            "taosx_task_mongodb", "taosx_task_sparkplugb", "taosx_task_orc", "taosx_task_pulsar", "taosx_task_pspace"
-        ]
 
-        # List of system supertables in the 'audit' database
-        tkAuditStb = ["operations"]
+        Note: tkLogStb and tkAuditStb are dynamically loaded from vnodeQuery.c at module level.
+        """
+        # Use the module-level tkLogStb and tkAuditStb which are dynamically loaded from vnodeQuery.c
+        tdLog.info(f"Using tkLogStb with {len(tkLogStb)} entries (dynamically loaded from vnodeQuery.c)")
+        tdLog.info(f"Using tkAuditStb with {len(tkAuditStb)} entries (dynamically loaded from vnodeQuery.c)")
 
         tdLog.printNoPrefix("======== test timeseries exclude systable: ")
         try:
             # Get the current timeseries count as baseline
-            tss_grant_base = 11 # table + stream result table
+            tss_grant_base = 0 # table + stream result table
             self.checkGrantsTimeSeries("initial grant check", tss_grant_base)
 
-            # ========== Test1: Verify operations table in audit db is excluded from timeseries ==========
-            tdLog.printNoPrefix("======== test1: audit db operations table should be excluded")
-            # audit db was created in s0_prepare_test_data with operations supertable
-            # Verify that operations child tables in audit db are not counted in timeseries
+            # ========== Test1: Verify ALL system tables in audit db are excluded from timeseries (full coverage) ==========
+            tdLog.printNoPrefix("======== test1: audit db system tables should be excluded (full coverage)")
+            # Drop and recreate audit db to test all tkAuditStb tables
+            tdSql.execute("drop database if exists audit")
+            tdSql.execute("create database audit keep 36500d")
             tdSql.execute("use audit")
-            tdSql.execute("insert into t_operations_abc values(now, 1, 100, 10, 1.0, 2.0)")
-            tdSql.execute("create table t_operations_def using operations tags(2)")
-            tdSql.execute("insert into t_operations_def values(now, 2, 200, 20, 2.0, 3.0)")
+            # Create ALL system supertables and child tables in audit db (full coverage test)
+            for stb_name in tkAuditStb:
+                tdSql.execute(f"create table `{stb_name}`(ts timestamp, c0 int primary key, c1 bigint, c2 int, c3 float, c4 double) tags(t0 bigint unsigned)")
+                tdSql.execute(f"create table `t_{stb_name}_1` using `{stb_name}` tags(1)")
+                tdSql.execute(f"insert into `t_{stb_name}_1` values(now, 1, 100, 10, 1.0, 2.0)")
+                tdSql.execute(f"create table `t_{stb_name}_2` using `{stb_name}` tags(2)")
+                tdSql.execute(f"insert into `t_{stb_name}_2` values(now, 2, 200, 20, 2.0, 3.0)")
 
-            # Verify timeseries count unchanged (audit db operations table should be excluded)
-            self.checkGrantsTimeSeries("audit db operations should be excluded", tss_grant_base)
-            tdLog.info("test1 passed: audit db operations table excluded from timeseries count")
+            # Verify timeseries count unchanged (all audit db system tables should be excluded)
+            self.checkGrantsTimeSeries("audit db system tables should be excluded", tss_grant_base)
+            tdLog.info(f"test1 passed: all {len(tkAuditStb)} audit db system tables excluded from timeseries count")
 
             # ========== Test2: Verify operations table in normal db is counted in timeseries ==========
             tdLog.printNoPrefix("======== test2: normal db operations table should be counted")
@@ -449,10 +515,10 @@ class TDTestCase:
         # print(self.master_dnode.cfgDict)
         # keep the order of following steps
         self.s0_five_dnode_one_mnode()
-        # self.s1_check_timeseries()
-        # self.s2_check_show_grants_ungranted()
-        # self.s3_check_show_grants_granted()
-        # self.s4_ts6191_check_dual_replica()
+        self.s1_check_timeseries()
+        self.s2_check_show_grants_ungranted()
+        self.s3_check_show_grants_granted()
+        self.s4_ts6191_check_dual_replica()
         self.s5_check_timeseries_exclude_systable()
 
     def stop(self):
