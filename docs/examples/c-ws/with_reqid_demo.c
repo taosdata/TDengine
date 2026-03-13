@@ -14,7 +14,7 @@
  */
 
 // TAOS standard API example. The same syntax as MySQL, but only a subset
-// to compile: gcc -o with_reqid_demo with_reqid_demo.c -ltaos
+// to compile: gcc -o with_reqid_demo with_reqid_demo.c -ltaosws
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -42,7 +42,10 @@ static int DemoWithReqId() {
   if (code != 0) {
     fprintf(stderr, "Failed to execute sql withQID: %ld, ErrCode: 0x%x, ErrMessage: %s\n.", reqid, code,
             ws_errstr(result));
-    ws_close(taos);
+    code = ws_close(taos);
+    if (code != 0) {
+      fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    }
     return -1;
   }
 
@@ -60,10 +63,23 @@ static int DemoWithReqId() {
     rows++;
   }
   fprintf(stdout, "total rows: %d\n", rows);
-  ws_free_result(result);
+  code = ws_free_result(result);
+  if (code != 0) {
+    fprintf(stderr, "Failed to free result, ErrCode: 0x%x, ErrMessage: %s\n.", code, ws_errstr(result));
+    code = ws_close(taos);
+    if (code != 0) {
+      fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    }
+    return -1;
+  }
 
   // close & clean
-  ws_close(taos);
+  code = ws_close(taos);
+  if (code != 0) {
+    fprintf(stderr, "Failed to close connection, ErrCode: 0x%x, ErrMessage: %s.\n", code, ws_errstr(NULL));
+    return -1;
+  }
+
   return 0;
   // ANCHOR_END: with_reqid
 }
