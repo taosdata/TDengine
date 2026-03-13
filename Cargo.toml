@@ -66,7 +66,7 @@ shadow-rs = { version = "0.38.1", default-features = false }
 itertools = "0.14.0"
 flume = "0.11"
 urlencoding = "2"
-reqwest = "0.12"
+reqwest = { version = "0.12", default-features = false }
 clap = { version = "4.5", features = ["default", "derive", "env"] }
 clap-verbosity-flag = "3.0.2"
 regex = "1.11.0"
@@ -373,7 +373,7 @@ console-subscriber = { version = "0.4.0", optional = true }
 opentelemetry = "0.30"
 opentelemetry-otlp = { version = "0.30", features = ["grpc-tonic"] }
 opentelemetry_sdk = "0.30"
-reqwest = { workspace = true, features = ["json"] }
+reqwest = { workspace = true, features = ["json", "charset", "http2", "system-proxy", "rustls-tls"] }
 tracing = { workspace = true, features = ["log"] }
 tracing-actix-web.workspace = true
 tracing-opentelemetry = "0.31"
