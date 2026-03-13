@@ -1,26 +1,26 @@
-from new_test_framework.utils import tdLog, tdSql, TDDnodes, tdCom, TDDnode, tdDnodes
-from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
-import taos
-import sys
-import time
+from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes
+from new_test_framework.utils.sqlset import TDSetSql
+from decimal import Decimal
 import os
-import platform
-
+import random
+import string
+import taos
+import threading
 import time
-import socket
-import subprocess
+import shutil
 
-class MyDnodes(TDDnodes):
-    def __init__(self ,dnodes_lists):
-        super(MyDnodes,self).__init__()
-        self.dnodes = dnodes_lists  # dnode must be TDDnode instance
-        if platform.system().lower() == 'windows':
-            self.simDeployed = True
-        else:
-            self.simDeployed = False
-
-class TestGrant:
-    noConn = True
+class TestCase:
+    path_parts = os.getcwd().split(os.sep)
+    try:
+        tdinternal_index = path_parts.index("TDinternal")
+    except ValueError:
+        raise ValueError("The specified directory 'TDinternal' was not found in the path.")
+    TDinternal = os.sep.join(path_parts[:tdinternal_index + 1])
+    dnode1Path = os.path.join(TDinternal, "sim", "dnode1")
+    configFile = os.path.join(dnode1Path, "cfg", "taos.cfg")
+    hostPath = os.path.join(dnode1Path, "multi")
+    localSSPath = os.path.join(TDinternal, "sim", "localSS") # shared storage path for local test
+    clientCfgDict = {'debugFlag': 135}
     encryptConfig = {
         "svrKey": "1234567890",
         "dbKey": "1234567890",
@@ -29,60 +29,10 @@ class TestGrant:
         "generateMeta": True,
         "generateData": True
     }
-    def getTDinternalPath():
-        path_parts = os.getcwd().split(os.sep)
-        try:
-            tdinternal_index = path_parts.index("TDinternal")
-        except ValueError:
-            raise ValueError("The specified directory 'TDinternal' was not found in the path.")
-        return os.sep.join(path_parts[:tdinternal_index + 1])
         
-    def setup_class(cls):
-        tdLog.debug(f"start to excute {__file__}")
-
-
-    def deploy_cluster(self ,dnodes_nums):
-
-        testCluster = False
-        valgrind = 0
-        hostname = self.host
-        dnodes = []
-        start_port = 6030
-        for num in range(1, dnodes_nums+1):
-            dnode = TDDnode(num)
-            dnode.addExtraCfg("firstEp", f"{hostname}:{start_port}")
-            dnode.addExtraCfg("fqdn", f"{hostname}")
-            dnode.addExtraCfg("serverPort", f"{start_port + (num-1)*100}")
-            dnode.addExtraCfg("monitorFqdn", hostname)
-            dnode.addExtraCfg("monitorPort", 7043)
-            dnode.addExtraCfg("encryptConfig", self.encryptConfig)
-            dnodes.append(dnode)
-
-        self.TDDnodes = MyDnodes(dnodes)
-        self.TDDnodes.init("", tdDnodes.binPath)
-        self.TDDnodes.setTestCluster(testCluster)
-        self.TDDnodes.setValgrind(valgrind)
-
-        self.TDDnodes.setAsan(tdDnodes.getAsan())
-        self.TDDnodes.stopAll()
-        for dnode in self.TDDnodes.dnodes:
-            self.TDDnodes.deploy(dnode.index,{})
-
-        for dnode in self.TDDnodes.dnodes:
-            self.TDDnodes.starttaosd(dnode.index)
-
-        # create cluster
-        for dnode in self.TDDnodes.dnodes[1:]:
-            # print(dnode.cfgDict)
-            dnode_id = dnode.cfgDict["fqdn"] +  ":" +dnode.cfgDict["serverPort"]
-            dnode_first_host = dnode.cfgDict["firstEp"].split(":")[0]
-            dnode_first_port = dnode.cfgDict["firstEp"].split(":")[-1]
-            cmd = f"{tdCom.getBuildPath()}/build/bin/taos -h {dnode_first_host} -P {dnode_first_port} -s \"create dnode \\\"{dnode_id}\\\"\""
-            print(cmd)
-            os.system(cmd)
-
-        time.sleep(2)
-        tdLog.info(" create cluster done! ")
+    def setup_cls(cls):
+        tdLog.debug("start to execute %s" % __file__)
+        cls.setsql = TDSetSql()
 
     def s0_five_dnode_one_mnode(self):
         tdSql.query("select * from information_schema.ins_dnodes;")
@@ -474,12 +424,12 @@ class TestGrant:
         # print(self.master_dnode.cfgDict)
         # keep the order of following steps
 
-        self.TDDnodes = None
-        self.deploy_cluster(5)
-        self.master_dnode = tdDnodes.dnodes[0]
-        self.host=self.master_dnode.cfgDict["fqdn"]
-        conn1 = taos.connect(self.master_dnode.cfgDict["fqdn"] , config=self.master_dnode.cfgDir)
-        tdSql.init(conn1.cursor(), True)
+        # self.TDDnodes = None
+        # self.deploy_cluster(5)
+        # self.master_dnode = tdDnodes.dnodes[0]
+        # self.host=self.master_dnode.cfgDict["fqdn"]
+        # conn1 = taos.connect(self.master_dnode.cfgDict["fqdn"] , config=self.master_dnode.cfgDir)
+        # tdSql.init(conn1.cursor(), True)
         self.workPath = os.path.join(tdCom.getBuildPath(), "build", "bin")
         tdLog.info(self.workPath)
         self.s0_five_dnode_one_mnode()
