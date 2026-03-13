@@ -4255,7 +4255,6 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
   if (IS_STREAM_MODE(pTaskInfo)) {
     SNode** ppRes = taosArrayGet(ctx->subResNodes, pParam->subQIdx);
     if (NULL == *ppRes && 0 == pRsp->numOfRows) {
-      SRemoteValueNode* pRemote = (SRemoteValueNode*)pParam->pRes;
       pRemote->val.node.type = QUERY_NODE_VALUE;
       pRemote->val.isNull = true;
       pRemote->val.translate = true;

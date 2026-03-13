@@ -1843,10 +1843,7 @@ static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, int32_t dagIdx, SStmSta
             pSource->fetchMsgType = TDMT_STREAM_FETCH_FROM_RUNNER;
             pSource->localExec = false;
 
-            code = nodesListMakeStrictAppend(subEP, (SNode *)pSource);
-            if (code) {
-              TAOS_CHECK_EXIT(code);
-            }
+            TAOS_CHECK_EXIT(nodesListMakeStrictAppend(subEP, (SNode *)pSource));
 	  }
         } else {
           TAOS_CHECK_EXIT(nodesCloneList(*subEP, &plan->pSubQ));

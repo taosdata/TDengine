@@ -17555,7 +17555,7 @@ int32_t checkSubQueryStmt(SNode* pNode) {
       break;
   }
 
-  parserError("subQuery not suppored in %s statement", nodesNodeName(nodeType(pNode)));
+  parserError("subQuery not supported in %s statement", nodesNodeName(nodeType(pNode)));
 
   return TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_USAGE;
 }
