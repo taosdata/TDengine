@@ -197,8 +197,8 @@ class TestCase:
         """ Test for legacy grammar of privileges: 6841578151 """
 
         dict_array = [
-            {"enableAdvancedSecurity": 0, "readPrivNum": 29, "writePrivNum": 31, "allPrivNum": 59},
-            {"enableAdvancedSecurity": 1, "readPrivNum": 6, "writePrivNum": 10, "allPrivNum": 16},
+            {"enableGrantLegacySyntax": 1, "readPrivNum": 29, "writePrivNum": 31, "allPrivNum": 59},
+            {"enableGrantLegacySyntax": 0, "readPrivNum": 6, "writePrivNum": 10, "allPrivNum": 16},
         ]
 
         tdSql.connect("root", "taosdata")
@@ -207,7 +207,7 @@ class TestCase:
         tdSql.execute("use d3")
         tdSql.execute(f"create user u_legacy pass '{self.test_pass}'")
         for item in dict_array:
-            tdSql.execute(f"alter all dnodes 'enableAdvancedSecurity {item['enableAdvancedSecurity']}'")
+            tdSql.execute(f"alter all dnodes 'enableGrantLegacySyntax {item['enableGrantLegacySyntax']}'")
             self.do_check_user_privileges("u_legacy", 0)
             tdSql.execute("grant all on d3.* to u_legacy")
             self.do_check_user_privileges("u_legacy", item["allPrivNum"])
