@@ -239,7 +239,7 @@ class TDTestCase:
             tss_grant = self.getShowGrantsTimeSeries()
             if tss_grant == nExpectedTimeSeries:
                 if not strictMode:
-                    tdLog.info(f"{prompt}: tss_grant: {tss_grant} == nExpectedTimeSeries: {nExpectedTimeSeries}")
+                    tdLog.info(f"{prompt}: tss_grant: {tss_grant} == nExpectedTimeSeries: {nExpectedTimeSeries} retry: {nRetry}")
                     return
                 tss_table = self.getTablesTimeSeries()
                 if tss_grant == tss_table:
