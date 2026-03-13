@@ -44,8 +44,8 @@ if(TD_ENTERPRISE)
     PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/taosk/inc"
   )
 endif()
-target_link_libraries(
-  mnode scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw totp xnode txnode mgmt_mnode
+target_link_libraries(mnode PRIVATE
+  scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw totp xnode txnode mgmt_mnode
 )
 
 # Add OpenSSL dependency for mndXnode.c
