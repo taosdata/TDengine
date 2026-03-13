@@ -659,6 +659,10 @@ function lcovFunc {
         exit 1
     fi
 
+    echo "cp $TDENGINE_DIR/coverage_tdengine.info $/home/test_logs/coverage_tdengine.info"
+    cp $TDENGINE_DIR/coverage_tdengine.info /home/test_logs/coverage_tdengine.info
+    
+    # echo "exit 0 and dont report"
     # exit 0
 
     # 调试输出覆盖率文件内容样例
