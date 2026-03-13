@@ -939,8 +939,12 @@ void truncateTimezoneString(char *tz) {
     return;
   }
 
-  while (tz[0] == '/') {
-    memmove(tz, tz + 1, strlen(tz));
+  const char *firstChar = tz;
+  while (*firstChar == '/') {
+    ++firstChar;
+  }
+  if (firstChar != tz) {
+    memmove(tz, firstChar, strlen(firstChar) + 1);
   }
 
   char *spacePos = strchr(tz, ' ');

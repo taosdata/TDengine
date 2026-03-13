@@ -547,11 +547,28 @@ static int32_t metaForceRepairFromRedo(SVnode *pVnode, SMeta *pMeta, SMeta *pNew
   return code;
 }
 
+int32_t metaForceRepairCleanupTmpDir(const char *tmpDir) {
+  if (tmpDir == NULL || tmpDir[0] == '\0' || !taosCheckExistFile(tmpDir)) {
+    return 0;
+  }
+
+  taosRemoveDir(tmpDir);
+  return 0;
+}
+
 static int32_t metaForceRepair(SMeta **ppMeta, EDmRepairStrategy repairStrategy) {
   int32_t code = TSDB_CODE_SUCCESS;
   SMeta  *pNewMeta = NULL;
   SMeta  *pMeta = *ppMeta;
   SVnode *pVnode = pMeta->pVnode;
+  bool    cleanupTmpDirOnError = false;
+  char    metaDir[TSDB_FILENAME_LEN] = {0};
+  char    metaTempDir[TSDB_FILENAME_LEN] = {0};
+  char    metaBackupDir[TSDB_FILENAME_LEN] = {0};
+
+  vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
+  vnodeGetMetaPath(pVnode, VNODE_META_TMP_DIR, metaTempDir);
+  vnodeGetMetaPath(pVnode, VNODE_META_BACKUP_DIR, metaBackupDir);
 
   metaInfo("vgId:%d start to generate new meta", TD_VID(pMeta->pVnode));
 
@@ -566,12 +583,13 @@ static int32_t metaForceRepair(SMeta **ppMeta, EDmRepairStrategy repairStrategy)
   // Open a new meta for organization
   code = metaOpenImpl(pMeta->pVnode, &pNewMeta, VNODE_META_TMP_DIR, false);
   if (code) {
-    return code;
+    goto _exit;
   }
+  cleanupTmpDirOnError = true;
 
   code = metaBegin(pNewMeta, META_BEGIN_HEAP_NIL);
   if (code) {
-    return code;
+    goto _exit;
   }
 
   EMetaRepairStrategy strategy = metaGetRepairStrategy(repairStrategy);
@@ -579,43 +597,36 @@ static int32_t metaForceRepair(SMeta **ppMeta, EDmRepairStrategy repairStrategy)
     code = metaForceRepairFromUid(pVnode, pMeta, pNewMeta);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
-      return code;
+      goto _exit;
     }
   } else if (strategy == E_META_REPAIR_FROM_REDO) {
     code = metaForceRepairFromRedo(pVnode, pMeta, pNewMeta);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
-      return code;
+      goto _exit;
     }
   }
 
   code = metaCommit(pNewMeta, pNewMeta->txn);
   if (code) {
     metaError("vgId:%d failed to commit, reason:%s", TD_VID(pVnode), tstrerror(code));
-    return code;
+    goto _exit;
   }
 
   code = metaFinishCommit(pNewMeta, pNewMeta->txn);
   if (code) {
     metaError("vgId:%d failed to finish commit, reason:%s", TD_VID(pVnode), tstrerror(code));
-    return code;
+    goto _exit;
   }
 
   if ((code = metaBegin(pNewMeta, META_BEGIN_HEAP_NIL)) != 0) {
     metaError("vgId:%d failed to begin new meta, reason:%s", TD_VID(pVnode), tstrerror(code));
   }
   metaClose(&pNewMeta);
+  cleanupTmpDirOnError = false;
   metaInfo("vgId:%d finish to generate new meta", TD_VID(pVnode));
 
   // Commit the new metadata
-  char metaDir[TSDB_FILENAME_LEN] = {0};
-  char metaTempDir[TSDB_FILENAME_LEN] = {0};
-  char metaBackupDir[TSDB_FILENAME_LEN] = {0};
-
-  vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
-  vnodeGetMetaPath(pVnode, VNODE_META_TMP_DIR, metaTempDir);
-  vnodeGetMetaPath(pVnode, VNODE_META_BACKUP_DIR, metaBackupDir);
-
   metaClose(ppMeta);
   if (taosRenameFile(metaDir, metaBackupDir) != 0) {
     metaError("vgId:%d failed to rename old meta to backup, reason:%s", TD_VID(pVnode), tstrerror(terrno));
@@ -637,6 +648,24 @@ static int32_t metaForceRepair(SMeta **ppMeta, EDmRepairStrategy repairStrategy)
   metaInfo("vgId:%d successfully opened new meta", TD_VID(pVnode));
 
   return 0;
+
+_exit:
+  if (pNewMeta != NULL) {
+    metaClose(&pNewMeta);
+  }
+
+  if (cleanupTmpDirOnError) {
+    int32_t cleanupCode = metaForceRepairCleanupTmpDir(metaTempDir);
+    if (cleanupCode != 0) {
+      metaError("vgId:%d failed to clean tmp meta dir:%s, reason:%s", TD_VID(pVnode), metaTempDir,
+                tstrerror(cleanupCode));
+      if (code == 0) {
+        code = cleanupCode;
+      }
+    }
+  }
+
+  return code;
 }
 
 static int32_t metaRollbackFromRepair(SVnode *pVnode) {

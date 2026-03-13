@@ -192,6 +192,22 @@ int32_t tsdbRepairResolveSttAction(int32_t keptDataBlocks, int32_t keptTombBlock
   return (keptDataBlocks > 0 || keptTombBlocks > 0) ? TSDB_REPAIR_ACTION_REBUILD : TSDB_REPAIR_ACTION_DROP;
 }
 
+bool tsdbRepairShouldAbortCoreWriterClose(int32_t rebuiltBlocks) { return rebuiltBlocks <= 0; }
+
+bool tsdbRepairShouldAbortSttWriterClose(int32_t rebuiltDataBlocks, int32_t rebuiltTombBlocks) {
+  return rebuiltDataBlocks <= 0 && rebuiltTombBlocks <= 0;
+}
+
+int32_t tsdbRepairResolveHeadOnlyBrinFlushThreshold(int32_t maxRows) { return maxRows > 0 ? maxRows : 1; }
+
+bool tsdbRepairShouldFlushHeadOnlyBrinBlock(int32_t numOfRecords, int32_t maxRows) {
+  return numOfRecords >= tsdbRepairResolveHeadOnlyBrinFlushThreshold(maxRows);
+}
+
+bool tsdbRepairShouldRetryHeadOnlyBrinPut(int32_t putCode, int32_t numOfRecords, int32_t maxRows) {
+  return putCode == TSDB_CODE_INVALID_PARA && tsdbRepairShouldFlushHeadOnlyBrinBlock(numOfRecords, maxRows);
+}
+
 static const char *tsdbRepairActionName(ETsdbRepairAction action) {
   switch (action) {
     case TSDB_REPAIR_ACTION_KEEP:
@@ -686,8 +702,9 @@ static int32_t tsdbRepairRebuildCore(STFileSystem *pFS, const STFileSet *pFileSe
 
 _exit:
   tBlockDataDestroy(&blockData);
-  if (writer != NULL && *rebuiltBlocks > 0) {
-    int32_t closeCode = tsdbDataFileWriterClose(&writer, false, writerOps);
+  if (writer != NULL) {
+    bool    abort = tsdbRepairShouldAbortCoreWriterClose(*rebuiltBlocks);
+    int32_t closeCode = tsdbDataFileWriterClose(&writer, abort, abort ? NULL : writerOps);
     if (closeCode != 0) {
       tsdbError("vgId:%d fid:%d failed to close rebuilt core writer since %s, code:%d", vgId, pFileSet->fid,
                 tstrerror(closeCode), closeCode);
@@ -896,32 +913,31 @@ static int32_t tsdbRepairWriteHeadOnlyCore(STFileSystem *pFS, const STFileSet *p
     goto _exit;
   }
 
+  int32_t flushThreshold = tsdbRepairResolveHeadOnlyBrinFlushThreshold(pFS->tsdb->pVnode->config.tsdbCfg.maxRows);
   for (int32_t i = 0; i < TARRAY2_SIZE(recordArr); ++i) {
     const SBrinRecord *record = TARRAY2_GET_PTR(recordArr, i);
 
-    for (;;) {
-      code = tBrinBlockPut(&brinBlock, record);
-      if (code == TSDB_CODE_INVALID_PARA) {
-        code = tsdbFileWriteBrinBlock(writer->fd, &brinBlock, pFS->tsdb->pVnode->config.tsdbCfg.compression,
-                                      &writer->file.size, brinBlkArray, buffers, &range, pEncryptData);
-        if (code != 0) {
-          goto _exit;
-        }
-        continue;
-      }
-
-      if (code != 0) {
-        goto _exit;
-      }
-      break;
-    }
-
-    if (brinBlock.numOfRecords >= 256) {
+    if (tsdbRepairShouldFlushHeadOnlyBrinBlock(brinBlock.numOfRecords, flushThreshold)) {
       code = tsdbFileWriteBrinBlock(writer->fd, &brinBlock, pFS->tsdb->pVnode->config.tsdbCfg.compression,
                                     &writer->file.size, brinBlkArray, buffers, &range, pEncryptData);
       if (code != 0) {
         goto _exit;
       }
+    }
+
+    code = tBrinBlockPut(&brinBlock, record);
+    if (tsdbRepairShouldRetryHeadOnlyBrinPut(code, brinBlock.numOfRecords, flushThreshold)) {
+      code = tsdbFileWriteBrinBlock(writer->fd, &brinBlock, pFS->tsdb->pVnode->config.tsdbCfg.compression,
+                                    &writer->file.size, brinBlkArray, buffers, &range, pEncryptData);
+      if (code != 0) {
+        goto _exit;
+      }
+
+      code = tBrinBlockPut(&brinBlock, record);
+    }
+
+    if (code != 0) {
+      goto _exit;
     }
   }
 
@@ -1355,8 +1371,9 @@ static int32_t tsdbRepairRebuildSttFile(STFileSystem *pFS, const STFileSet *pFil
 
 _exit:
   tBlockDataDestroy(&blockData);
-  if (writer != NULL && (*rebuiltDataBlocks > 0 || *rebuiltTombBlocks > 0)) {
-    int32_t closeCode = tsdbSttFileWriterClose(&writer, false, writerOps);
+  if (writer != NULL) {
+    int8_t  abort = tsdbRepairShouldAbortSttWriterClose(*rebuiltDataBlocks, *rebuiltTombBlocks);
+    int32_t closeCode = tsdbSttFileWriterClose(&writer, abort, abort ? NULL : writerOps);
     if (closeCode != 0) {
       tsdbError("vgId:%d fid:%d level:%d failed to close rebuilt stt writer for file:%s since %s, code:%d", vgId,
                 pFileSet->fid, pStt->f->stt->level, pStt->fname, tstrerror(closeCode), closeCode);
