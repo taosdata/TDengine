@@ -118,11 +118,19 @@ taosd -r --mode force --node-type vnode --backup-path /tmp/repair-bak \
   --repair-target wal:vnode=6
 ```
 
+如果要一次修复同一个 vnode 下全部 TSDB fileset，可以直接使用 `fileid=*`：
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target 'tsdb:vnode=5:fileid=*'
+```
+
 当前限制：
 
 - 当前只支持 `--mode force`。
 - 当前只支持 `--node-type vnode`。
-- `tsdb` repair target 必须显式指定 `fileid`。
+- `tsdb` repair target 必须显式指定 `fileid`，可以是单个 fileset 的 ID，也可以是 `*` 表示该 vnode 下全部 fileset。
+- 同一个 vnode 内，`fileid=*` 不能与显式 `fileid=<n>` target 混用。
 - `wal` repair target 当前不支持 `strategy`。
 - TSDB 默认策略 `drop_invalid_only` 只处理缺失文件这类损坏；如果要处理 size mismatch，请显式指定 `head_only_rebuild` 或 `full_rebuild`。
 

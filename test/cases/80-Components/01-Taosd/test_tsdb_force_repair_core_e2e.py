@@ -71,6 +71,18 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
             self._restart_taosd_and_wait_ready()
 
         tdSql.checkEqual(code, 0)
+        repair_log_a = self._find_backup_log_for_fid(
+            backup_root, vnode_id, target_a["fid"]
+        )
+        repair_log_b = self._find_backup_log_for_fid(
+            backup_root, vnode_id, target_b["fid"]
+        )
+        tdSql.checkEqual(os.path.isfile(repair_log_a), True)
+        tdSql.checkEqual(os.path.isfile(repair_log_b), True)
+        with open(repair_log_a, "r", encoding="utf-8") as fp:
+            self._assert_repair_log_fields(fp.read(), target_a["fid"])
+        with open(repair_log_b, "r", encoding="utf-8") as fp:
+            self._assert_repair_log_fields(fp.read(), target_b["fid"])
         tdSql.query(f"select count(*) from {dbname}.t1")
         repaired_rows = tdSql.queryResult[0][0]
         tdSql.checkEqual(repaired_rows > 0, True)
@@ -289,6 +301,50 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
         tdSql.checkEqual(repaired_rows <= fixture["row_count"], True)
         self._assert_database_writable_after_repair(
             dbname, "pk_after_multi_target_repair", 3601
+        )
+        if os.path.exists(backup_root):
+            shutil.rmtree(backup_root)
+
+    def test_tsdb_force_repair_wildcard_target_repairs_all_filesets_in_vnode(self):
+        """TSDB force repair wildcard target should repair all filesets in one vnode.
+
+        1. Build one vnode fixture with multiple real filesets.
+        2. Corrupt two filesets and run one repair command with `fileid=*`.
+        3. Verify the database remains readable and writable after restart.
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+        """
+        fixture = self._prepare_multi_fileset_core_fixture()
+        dbname = fixture["dbname"]
+        vnode_id = fixture["vnode_id"]
+        target_a = fixture["filesets"][0]
+        target_b = fixture["filesets"][1]
+        backup_root = f"/tmp/tsdb-force-repair-wildcard-{time.time_ns()}"
+
+        args = (
+            f"-r --mode force --node-type vnode --backup-path {backup_root} "
+            f"--repair-target tsdb:vnode={vnode_id}:fileid=* "
+            f"--log-output /dev/null"
+        )
+
+        try:
+            tdDnodes.stop(1)
+            time.sleep(2)
+            self._corrupt_missing_file(target_a["head"])
+            self._overwrite_middle_bytes(target_b["head"])
+            code, output = self._run_taosd_with_cfg(args, timeout_sec=10)
+        finally:
+            self._restart_taosd_and_wait_ready()
+
+        tdSql.checkEqual(code, 0)
+        tdSql.query(f"select count(*) from {dbname}.t1")
+        repaired_rows = tdSql.queryResult[0][0]
+        tdSql.checkEqual(repaired_rows > 0, True)
+        tdSql.checkEqual(repaired_rows <= fixture["row_count"], True)
+        self._assert_database_writable_after_repair(
+            dbname, "pk_after_wildcard_repair", 3651
         )
         if os.path.exists(backup_root):
             shutil.rmtree(backup_root)

@@ -173,6 +173,12 @@ class TestComCmdLine:
                 "version",
             ),
             (
+                "valid_tsdb_all_filesets_target",
+                "-r --mode force --node-type vnode --repair-target tsdb:vnode=5:fileid=* -V",
+                0,
+                "version",
+            ),
+            (
                 "valid_tsdb_head_only_rebuild_strategy",
                 "-r --mode force --node-type vnode --repair-target tsdb:vnode=5:fileid=1809:strategy=head_only_rebuild -V",
                 0,
@@ -252,6 +258,18 @@ class TestComCmdLine:
                 "-r --mode force --node-type vnode --repair-target tsdb:vnode=5:fileid=1809 --repair-target tsdb:vnode=5:fileid=1809:strategy=full_rebuild -V",
                 24,
                 "duplicated repair target for tsdb vnode 5 fileid 1809",
+            ),
+            (
+                "wildcard_then_explicit_tsdb_target_overlap",
+                "-r --mode force --node-type vnode --repair-target tsdb:vnode=5:fileid=* --repair-target tsdb:vnode=5:fileid=1809 -V",
+                24,
+                "fileid=* overlaps existing tsdb repair targets",
+            ),
+            (
+                "explicit_then_wildcard_tsdb_target_overlap",
+                "-r --mode force --node-type vnode --repair-target tsdb:vnode=5:fileid=1809 --repair-target tsdb:vnode=5:fileid=* -V",
+                24,
+                "fileid=* overlaps existing tsdb repair targets",
             ),
         ]
 

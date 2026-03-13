@@ -67,6 +67,8 @@ typedef struct {
 typedef struct {
   SHashObj *pByFileId;  // key: int32_t fileId, value: SRepairTsdbFileOpt
   int32_t   numOfFiles;
+  bool      allFiles;
+  SRepairTsdbFileOpt allFileOpt;
 } SRepairTsdbVnodeOpt;
 
 typedef struct {
@@ -85,6 +87,7 @@ typedef struct {
   EDmRepairTargetType type;
   int32_t             vnodeId;
   int32_t             fileId;
+  bool                fileIdIsWildcard;
   EDmRepairStrategy   strategy;
 } SDmParsedRepairTarget;
 
@@ -505,7 +508,7 @@ static int32_t dmInsertWalRepairTarget(SDmRepairOption *pOpt, int32_t vnodeId) {
 }
 
 static int32_t dmInsertTsdbRepairTarget(SDmRepairOption *pOpt, int32_t vnodeId, int32_t fileId,
-                                        EDmRepairStrategy strategy) {
+                                        bool fileIdIsWildcard, EDmRepairStrategy strategy) {
   int32_t code = dmEnsureTsdbRepairHash(&pOpt->vnodeOpt.tsdbOpt);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -530,6 +533,23 @@ static int32_t dmInsertTsdbRepairTarget(SDmRepairOption *pOpt, int32_t vnodeId, 
     if (pVnodeOpt == NULL) {
       return TSDB_CODE_FAILED;
     }
+  }
+
+  if (fileIdIsWildcard) {
+    if (pVnodeOpt->allFiles || pVnodeOpt->numOfFiles > 0) {
+      printf("fileid=* overlaps existing tsdb repair targets for vnode %d\n", vnodeId);
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    pVnodeOpt->allFiles = true;
+    pVnodeOpt->allFileOpt.strategy = strategy;
+    pOpt->vnodeOpt.tsdbOpt.enabled = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pVnodeOpt->allFiles) {
+    printf("fileid=* overlaps existing tsdb repair targets for vnode %d\n", vnodeId);
+    return TSDB_CODE_INVALID_PARA;
   }
 
   if (taosHashGet(pVnodeOpt->pByFileId, &fileId, sizeof(fileId)) != NULL) {
@@ -606,9 +626,14 @@ static int32_t dmParseRepairTarget(const char *raw, SDmParsedRepairTarget *pTarg
         if (hasFileId) {
           return dmRepairTargetError(raw, "duplicated key 'fileid'");
         }
-        int32_t code = dmParseRepairPositiveInt(raw, key, value, &pTarget->fileId);
-        if (code != TSDB_CODE_SUCCESS) {
-          return code;
+        if (strcmp(value, "*") == 0) {
+          pTarget->fileId = 0;
+          pTarget->fileIdIsWildcard = true;
+        } else {
+          int32_t code = dmParseRepairPositiveInt(raw, key, value, &pTarget->fileId);
+          if (code != TSDB_CODE_SUCCESS) {
+            return code;
+          }
         }
         hasFileId = true;
       } else if (strcmp(key, "strategy") == 0) {
@@ -733,7 +758,8 @@ static int32_t dmParseRepairOption(int32_t argc, char const *argv[], int32_t *pI
           code = dmInsertMetaRepairTarget(pOpt, target.vnodeId, target.strategy);
           break;
         case DM_REPAIR_TARGET_TSDB:
-          code = dmInsertTsdbRepairTarget(pOpt, target.vnodeId, target.fileId, target.strategy);
+          code = dmInsertTsdbRepairTarget(pOpt, target.vnodeId, target.fileId, target.fileIdIsWildcard,
+                                          target.strategy);
           break;
         case DM_REPAIR_TARGET_WAL:
           code = dmInsertWalRepairTarget(pOpt, target.vnodeId);
@@ -826,10 +852,15 @@ const SRepairTsdbFileOpt *dmRepairGetTsdbFileOpt(int32_t vnodeId, int32_t fileId
 
   SRepairTsdbVnodeOpt *pVnodeOpt = taosHashGet(global.repairOpt.vnodeOpt.tsdbOpt.pByVnode, &vnodeId, sizeof(vnodeId));
   if (pVnodeOpt == NULL || pVnodeOpt->pByFileId == NULL) {
-    return NULL;
+    return (pVnodeOpt != NULL && pVnodeOpt->allFiles) ? &pVnodeOpt->allFileOpt : NULL;
   }
 
-  return taosHashGet(pVnodeOpt->pByFileId, &fileId, sizeof(fileId));
+  const SRepairTsdbFileOpt *pFileOpt = taosHashGet(pVnodeOpt->pByFileId, &fileId, sizeof(fileId));
+  if (pFileOpt != NULL) {
+    return pFileOpt;
+  }
+
+  return pVnodeOpt->allFiles ? &pVnodeOpt->allFileOpt : NULL;
 }
 
 bool dmRepairNeedWalRepair(int32_t vnodeId) {
@@ -1049,7 +1080,7 @@ static void dmPrintRepairHelp() {
 
   printf("Supported targets\n");
   printf("  meta:vnode=<id>[:strategy=from_uid|from_redo]\n");
-  printf("  tsdb:vnode=<id>:fileid=<id>[:strategy=drop_invalid_only|head_only_rebuild|full_rebuild]\n");
+  printf("  tsdb:vnode=<id>:fileid=<id|*>[:strategy=drop_invalid_only|head_only_rebuild|full_rebuild]\n");
   printf("  wal:vnode=<id>\n");
 }
 

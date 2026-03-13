@@ -48,6 +48,7 @@ taosd -r --mode force --node-type vnode [--backup-path <path>] \
 - `key=value` 的顺序不影响语义，但文档示例统一采用固定顺序。
 - 同一条 target 内，key 不允许重复。
 - 多条 target 如果命中同一个修复对象，会直接报错。
+- 对 `tsdb` 来说，`fileid=*` 表示命中该 vnode 下全部 fileset，且不能和同一 vnode 下的显式 `fileid=<n>` target 混用。
 
 ### 当前支持的 Target
 
@@ -59,7 +60,8 @@ taosd -r --mode force --node-type vnode [--backup-path <path>] \
 
 补充说明：
 
-- `fileid` 仅允许用于 `tsdb`，且当前阶段必须显式指定。
+- `fileid` 仅允许用于 `tsdb`，且当前阶段必须显式指定。使用 `fileid=<n>` 表示修复单个 fileset，使用 `fileid=*` 表示修复该 vnode 下全部 fileset。
+- 同一个 vnode 内，`fileid=*` 与显式 `fileid=<n>` target 互斥。
 - `wal` 当前阶段不支持 `strategy`。
 - `--backup-path` 是本次 repair 启动的全局参数，不属于某个特定 target。
 - TSDB repair 策略语义如下：
@@ -96,6 +98,13 @@ taosd -r --mode force --node-type vnode \
 ```bash
 taosd -r --mode force --node-type vnode \
   --repair-target tsdb:vnode=5:fileid=1809:strategy=full_rebuild
+```
+
+用一条 target 修复一个 vnode 下全部 TSDB fileset：
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target 'tsdb:vnode=5:fileid=*'
 ```
 
 一次启动同时声明多个修复目标：

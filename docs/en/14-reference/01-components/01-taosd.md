@@ -46,6 +46,7 @@ Rules:
 - Key order is not significant, but examples in this document use a consistent order.
 - Repeating the same key in one target is invalid.
 - Repeating the same repair object across multiple targets is invalid.
+- For `tsdb`, `fileid=*` means all file sets in the target vnode, and it cannot be mixed with explicit `fileid=<n>` targets in the same vnode.
 
 ### Supported Targets
 
@@ -57,7 +58,8 @@ Rules:
 
 Additional notes:
 
-- `fileid` is only valid for `tsdb`, and it is required in the current phase.
+- `fileid` is only valid for `tsdb`, and it is required in the current phase. Use `fileid=<n>` to repair one file set, or `fileid=*` to repair all file sets in one vnode.
+- `fileid=*` and explicit `fileid=<n>` targets are mutually exclusive within the same vnode.
 - `strategy` is not currently supported for `wal`.
 - `--backup-path` is global for the whole repair startup, not per target.
 - TSDB repair strategies behave as follows:
@@ -94,6 +96,13 @@ Repair one TSDB file set and force a full core rebuild:
 ```bash
 taosd -r --mode force --node-type vnode \
   --repair-target tsdb:vnode=5:fileid=1809:strategy=full_rebuild
+```
+
+Repair all TSDB file sets in one vnode with one target:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target 'tsdb:vnode=5:fileid=*'
 ```
 
 Repair multiple targets in one startup:
