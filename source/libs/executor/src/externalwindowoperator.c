@@ -585,6 +585,9 @@ typedef struct SMergeAlignedExternalWindowOperator {
   SSDataBlock* pNewGroup;
 } SMergeAlignedExternalWindowOperator;
 
+static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo,
+                                                       STimeWindow* pTimeRange);
+
 void destroyMergeAlignedExternalWindowOperator(void* pOperator) {
   SMergeAlignedExternalWindowOperator* pMAExtW = (SMergeAlignedExternalWindowOperator*)pOperator;
   destroyExternalWindowOperatorInfo(pMAExtW->pExtW);
@@ -1053,6 +1056,7 @@ static int32_t mergeAlignExtWinAggDo(SOperatorInfo* pOperator, SResultRowInfo* p
   int64_t* tsCols = extWinExtractTsCol(pBlock, pExtW->primaryTsIndex, pTaskInfo);
   TSKEY ts = getStartTsKey(&pBlock->info.window, tsCols);
   
+  extWinSetCurWinIdx(pOperator, 0);
   code = mergeAlignExtWinGetWinFromTs(pOperator, pExtW, ts, &pWin);
   if (code) {
     qError("failed to get time window for tgrp %" PRIu64 " ts:%" PRId64 ", prim ts index:%d, error:%s", 
@@ -1165,8 +1169,14 @@ void mergeAlignExtWinDo(SOperatorInfo* pOperator) {
   taosArrayClear(pExtW->pWinRowIdx);
   blockDataCleanup(pRes);
 
+  SSDataBlock* pBlock = NULL;
   while (1) {
-    SSDataBlock* pBlock = (pMAExtW->pNewGroup) ? pMAExtW->pNewGroup : getNextBlockFromDownstream(pOperator, 0);
+    if (pMAExtW->pNewGroup != NULL) {
+      pBlock = pMAExtW->pNewGroup;
+      pMAExtW->pNewGroup = NULL;
+    } else {
+      pBlock = getNextBlockFromDownstream(pOperator, 0);
+    }
 
     if (pBlock == NULL) {
       // close last time window
@@ -1294,7 +1304,8 @@ _exit:
 
 int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNode,
                                                  SExecTaskInfo* pTaskInfo, SOperatorInfo** ppOptrOut) {
-  SMergeAlignedIntervalPhysiNode* pPhynode = (SMergeAlignedIntervalPhysiNode*)pNode;
+  SExternalWindowPhysiNode* pPhynode = (SExternalWindowPhysiNode*)pNode;
+  STimeWindow nonStreamExtWinRange = {.skey = INT64_MAX, .ekey = INT64_MIN};
   int32_t code = 0;
   int32_t lino = 0;
   SMergeAlignedExternalWindowOperator* pMAExtW = taosMemoryCalloc(1, sizeof(SMergeAlignedExternalWindowOperator));
@@ -1333,6 +1344,11 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   SExprInfo* pExprInfo = NULL;
   code = createExprInfo(pPhynode->window.pFuncs, NULL, &pExprInfo, &num);
   QUERY_CHECK_CODE(code, lino, _error);
+
+  if (pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM) {
+    code = extWinInitNonStreamWindowDataFromBlock(pPhynode, pTaskInfo, &nonStreamExtWinRange);
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
 
   if (pExtW->mode == EEXT_MODE_AGG) {
     code = initAggSup(pSup, &pExtW->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
@@ -1486,29 +1502,66 @@ static int32_t extWinCreateEmptyInputBlock(SOperatorInfo* pOperator, SSDataBlock
   pBlock->info.rows = 1;
   pBlock->info.capacity = 0;
 
-  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
-    SColumnInfoData colInfo = {0};
-    colInfo.hasNull = true;
-    colInfo.info.type = TSDB_DATA_TYPE_NULL;
-    colInfo.info.bytes = 1;
+  // for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+  //   SColumnInfoData colInfo = {0};
+  //   colInfo.hasNull = true;
+  //   colInfo.info.type = TSDB_DATA_TYPE_NULL;
+  //   colInfo.info.bytes = 1;
 
-    SExprInfo* pOneExpr = &pOperator->exprSupp.pExprInfo[i];
-    for (int32_t j = 0; j < pOneExpr->base.numOfParams; ++j) {
-      SFunctParam* pFuncParam = &pOneExpr->base.pParam[j];
-      if (pFuncParam->type == FUNC_PARAM_TYPE_COLUMN) {
+  //   SExprInfo* pOneExpr = &pOperator->exprSupp.pExprInfo[i];
+  //   for (int32_t j = 0; j < pOneExpr->base.numOfParams; ++j) {
+  //     SFunctParam* pFuncParam = &pOneExpr->base.pParam[j];
+  //     if (pFuncParam->type == FUNC_PARAM_TYPE_COLUMN) {
+  //       int32_t slotId = pFuncParam->pCol->slotId;
+  //       int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  //       if (slotId >= numOfCols) {
+  //         code = taosArrayEnsureCap(pBlock->pDataBlock, slotId + 1);
+  //         QUERY_CHECK_CODE(code, lino, _end);
+
+  //         for (int32_t k = numOfCols; k < slotId + 1; ++k) {
+  //           void* tmp = taosArrayPush(pBlock->pDataBlock, &colInfo);
+  //           QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+  //         }
+  //       }
+  //     } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
+  //       // do nothing
+  //     }
+  //   }
+  // }
+
+  SExprSupp* pSupps[] = {&pOperator->exprSupp, &pExtW->scalarSupp};
+  for (int32_t s = 0; s < 2; ++s) {
+    SExprSupp* pSupp = pSupps[s];
+    if (pSupp == NULL || pSupp->pExprInfo == NULL) {
+      continue;
+    }
+
+    for (int32_t i = 0; i < pSupp->numOfExprs; ++i) {
+      SColumnInfoData colInfo = {0};
+      colInfo.hasNull = true;
+      colInfo.info.type = TSDB_DATA_TYPE_NULL;
+      colInfo.info.bytes = 1;
+
+      SExprInfo* pOneExpr = &pSupp->pExprInfo[i];
+      for (int32_t j = 0; j < pOneExpr->base.numOfParams; ++j) {
+        SFunctParam* pFuncParam = &pOneExpr->base.pParam[j];
+        if (pFuncParam->type != FUNC_PARAM_TYPE_COLUMN) {
+          continue;
+        }
+
         int32_t slotId = pFuncParam->pCol->slotId;
         int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
-        if (slotId >= numOfCols) {
-          code = taosArrayEnsureCap(pBlock->pDataBlock, slotId + 1);
-          QUERY_CHECK_CODE(code, lino, _end);
-
-          for (int32_t k = numOfCols; k < slotId + 1; ++k) {
-            void* tmp = taosArrayPush(pBlock->pDataBlock, &colInfo);
-            QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
-          }
+        if (slotId < numOfCols) {
+          continue;
         }
-      } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
-        // do nothing
+
+        code = taosArrayEnsureCap(pBlock->pDataBlock, slotId + 1);
+        QUERY_CHECK_CODE(code, lino, _end);
+
+        for (int32_t k = numOfCols; k < slotId + 1; ++k) {
+          void* tmp = taosArrayPush(pBlock->pDataBlock, &colInfo);
+          QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+        }
       }
     }
   }
@@ -3126,8 +3179,8 @@ static int32_t extWinOpenForPartitionDownstream(SOperatorInfo* pOperator) {
     }
 
     if (!pExtW->partitionGroupStarted) {
-      pExtW->partitionGroupId = pBlock->info.id.groupId;
-      pExtW->partitionGroupStarted = true;
+        pExtW->partitionGroupId = pBlock->info.id.groupId;
+        pExtW->partitionGroupStarted = true;
     } else if (pBlock->info.id.groupId != pExtW->partitionGroupId) {
       pExtW->pPartitionPendingBlock = pBlock;
       if (EEXT_MODE_AGG == pExtW->mode) {
@@ -3341,7 +3394,6 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                  lino = 0;
   SExternalWindowOperator* pExtW = pOperator->info;
   SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
-
   if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
     *ppRes = NULL;
     return code;
@@ -3538,12 +3590,13 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     QUERY_CHECK_CODE(code, lino, _error);
 
     nodesWalkExprs(pPhynode->window.pFuncs, extWinHasCountLikeFunc, &pExtW->hasCountFunc);
-    if (pExtW->hasCountFunc) {
+    if (pExtW->hasCountFunc && pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
       code = extWinCreateEmptyInputBlock(pOperator, &pExtW->pEmptyInputBlock);
       QUERY_CHECK_CODE(code, lino, _error);
       qDebug("%s ext window has CountLikeFunc", pOperator->pTaskInfo->id.str);
     } else {
-      qDebug("%s ext window doesn't have CountLikeFunc", pOperator->pTaskInfo->id.str);
+      qDebug("%s ext window have CountLikeFunc: %d. IsInStream:%d", pOperator->pTaskInfo->id.str, pExtW->hasCountFunc,
+             pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
     }
 
     code = initExecTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &pTaskInfo->window);
@@ -3709,7 +3762,7 @@ static int32_t extWinCheckMonotonicWstart(bool hasPrevStart, int64_t prevStart, 
     qError("%s invalid external-window block: wstart must be monotonic non-decreasing, row:%d, prev:%" PRId64
            ", curr:%" PRId64,
            __func__, row, prevStart, currStart);
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_EXT_WIN_SUB_UNORDERED;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -4197,6 +4250,7 @@ static SArray* extWinGetSSDataBlocksInTest(SExternalWindowPhysiNode* pPhynode) {
     SArray* pBlocks = NULL;
     int32_t code = extWinMockSSDataBlocksWithGroups(&pBlocks);
     TAOS_CHECK_EXIT(code);
+    return pBlocks;
   }
 
     if (NULL == pPhynode->pSubquery || nodeType(pPhynode->pSubquery) != QUERY_NODE_REMOTE_TABLE) {

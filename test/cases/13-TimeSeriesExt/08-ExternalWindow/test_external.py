@@ -49,10 +49,10 @@ class TestExternal:
         self.dbName = "test"
 
         self.mock_test_external_window_single_block()
-        # self.mock_test_external_window_group_blocks()
+        self.mock_test_external_window_group_blocks()
         
         self.prepare_data()
-        self.basic_query1()
+        self.basic_query()
         self.partition_by_group_regression()
 
     def mock_test_external_window_single_block(self):
@@ -146,7 +146,8 @@ class TestExternal:
         sql = "select _wstart, _wend, w.fc1, count(*), v2 from st1_1 partition by v2  external_window((select ts, ts, first(c1) fc1  from st2) w);"
         tdSql.query(sql)
         # 2 windows * 82 groups. timerange has been pushed down, so groups outside the window range are excluded.
-        tdSql.checkRows(164)
+        # if there is no data in the window, window will not output. so total groups is 82 instead of 164.
+        tdSql.checkRows(82)
         tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
         tdSql.checkData(0, 1, "2020-05-13 10:49:00.000")
         tdSql.checkData(0, 2, 100)
@@ -155,7 +156,8 @@ class TestExternal:
         sql = "select _wstart, _wend, w.fc1, count(*), v2 from st1_1 partition by v2  external_window((select ts, ts, first(c1) fc1  from st2) w) order by v2 desc;"
         tdSql.query(sql)
         # 2 windows * 82 groups. timerange has been pushed down, so groups outside the window range are excluded.
-        tdSql.checkRows(164)
+        # if there is no data in the window, window will not output. so total groups is 82 instead of 164.
+        tdSql.checkRows(82)
         tdSql.checkData(0, 0, "2020-05-13 10:49:00.001")
         tdSql.checkData(0, 1, "2020-05-13 11:21:50.000")
         tdSql.checkData(0, 2, 200)
@@ -188,15 +190,11 @@ class TestExternal:
             "order by v2 desc;"
         )
         tdSql.query(sql)
-        tdSql.checkRows(164)
+        tdSql.checkRows(82)
         tdSql.checkData(0, 3, 1)
         tdSql.checkData(81, 3, 1)
-        tdSql.checkData(82, 3, 0)
-        tdSql.checkData(163, 3, 0)
         tdSql.checkData(0, 5, 100)
         tdSql.checkData(81, 5, 100)
-        tdSql.checkData(82, 5, 100)
-        tdSql.checkData(163, 5, 100)
         
         tdLog.info(f"=============== end basic query of external window with agg on group blocks")
     
@@ -208,7 +206,7 @@ class TestExternal:
         
         sql = "select _wstart, _wend, w.fc1, count(*), dev from st1_1 partition by dev  external_window((select ts, ts, first(c1) fc1  from st2) w);"
         tdSql.query(sql)
-        tdSql.checkRows(2)
+        tdSql.checkRows(3)
         tdSql.checkData(0, 0, "2020-05-13 10:00:00.000")
         tdSql.checkData(0, 1, "2020-05-13 10:49:00.000")
         tdSql.checkData(0, 2, 100)
@@ -219,19 +217,11 @@ class TestExternal:
         tdSql.checkData(1, 2, 200)
         tdSql.checkData(1, 3, 32)
         tdSql.checkData(1, 4, "dev_01")
-        
-        # select _wstart, _wend, w.fc1, count(*), v2 from st1_1 partition by dev  external_window((select first(c1) fc1  from st2) w);
-        
-        # select _wstart, _wend, w.fc1, count(*), v2 from st1_1 partition by v2  external_window((select first(c1) fc1  from st2) w);
-        
-        # sql = "select _wstart, _wend, w.fc1, count(*) from st1 partition by dev external_window((select first(c1) fc1  from st2) w);"
-        # tdSql.query(sql)
-        # tdSql.checkRows(8)
-        # for i in range(8):
-        #     tdSql.checkData(i, 0, "2020-05-13 10:00:00.000")
-        #     tdSql.checkData(i, 1, "2020-05-13 11:21:50.000")
-        #     tdSql.checkData(i, 2, 100)
-        #     tdSql.checkData(i, 3, 100)
+        tdSql.checkData(2, 0, "2020-05-13 11:00:00.000")
+        tdSql.checkData(2, 1, "2020-05-13 11:49:00.000")
+        tdSql.checkData(2, 2, 200)
+        tdSql.checkData(2, 3, 40)
+        tdSql.checkData(2, 4, "dev_01")
         
         tdLog.info(f"=============== end basic query of external window with agg on group blocks")
     
@@ -331,43 +321,12 @@ class TestExternal:
         self.prepare_mock_data("test")
         self.prepare_external_win_subquery_data("test", "ext_win_subq")
 
-    def basic_query1(self):
+    def basic_query(self):
         tdLog.info(f"=============== basic query of external window with agg on single block")
-        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "basic_query1.in")
-        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "basic_query1.ans")
-        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "basic_query1")
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "basic_query.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "basic_query.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "basic_query")
 
-        # select _wstart, _wend, w.v1 from st1_1 external_window((select ts, endtime, v1 from ext_win_subq_1) w);
-
-    def basic_query2(self):
-        # todo xs fix external window column placeholder issue
-        # select _wstart, _wend, w.fc1 + 1, ts from st1_1 external_window((select first(c1) fc1  from st2) w);
-        
-        # select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select first(c1) fc1  from st2) w); 
-        # select _wstart, _wend, w.fc1, count(*) from st1_1 external_window((select ts, ts+1, first(c1) fc1 from st2) w);
-        # select _wstart, _wend, w.fc1, ts from st1_1 external_window((select ts, ts+1, first(c1) fc1 from st2) w);
-        # select _wstart, _wend, _wduration, ts from st1_1 external_window((select ts, ts+1, first(c1) c1 from st2) w);
-        # select _wstart, _wend, ts from st1_1 external_window((select ts, ts+1, first(c1) c1 from st2) w);
-        # select _wstart, _wend, ts, cast(ts as bigint)- cast(_wstart as bigint) from st1_1 external_window((select ts, ts+1, first(c1) c1 from st2) w);
-        # tdSql.execute("select count(*) from st1_1 external_window((select ts, ts+10, first(c1) c1 from st2) w);")
-        # tdSql.execute("select _wstart, count(*) from st1_1 external_window((select ts, ts+10, first(c1) c1 from st2) w);")
-        # select _wstart, * from st1_1 external_window((select ts, ts+10, first(c1) c1 from st2) w);
-        # select _wstart, count(*) from st1 external_window((select ts, ts+10, first(c1) c1 from st2) w);
-        # select _wstart, w.c1, count(*) from st1 external_window((select ts, ts+10, first(c1) c1 from st2) w);
-        # select _wstart, count(*) from st1 external_window((select ts, ts+10, first(c1) from st2) w);
-        # select _wstart, count(*) from st1 external_window((select ts, ts+10 from st2) w);
-        # select _wstart, count(*) from st1 external_window((select ts, ts+10 from st2 interval(2m)) w);
-        # select _wstart, count(*) from st1 external_window((select _wstart, _wend from st2 interval(2m)) w);
-        
-        # todo xsren: 从超级表查询
-        
-        # 投影查询 + patition by , 自带 ts
-        # select _wstart, _wend, w.fc1 as fc1, v2 from st1_1 partition by v2 external_window((select first(c1) fc1  from st2) w);
-        # todo 投影查询 + patition by , 不带 ts，有问题，需要修复，通过给 partition 算子增加 ts 列解决
-        # select _wstart, _wend, w.fc1 as fc1, v2, ts from st1_1 partition by v2 external_window((select first(c1) fc1  from st2) w);
-        # explain verbose true select count(*) from st1_1 external_window((select ts, ts+10, first(c1) c1 from st2) w) \G;
-        return
-    
     def partition_by_group_regression(self):
         tdLog.info("=============== regression: partition by + external window group calculation")
 
@@ -376,8 +335,8 @@ class TestExternal:
         tdSql.execute("drop table if exists ext_src")
         tdSql.execute("drop table if exists ext_win")
 
-        tdSql.execute("create table ext_src (ts timestamp, v int) tags(g int)")
-        tdSql.execute("create table ext_win (ts timestamp, v int) tags(g int)")
+        tdSql.execute("create table ext_src (ts timestamp, v int) tags(t1 int)")
+        tdSql.execute("create table ext_win (ts timestamp, v int) tags(t1 int)")
 
         tdSql.execute("create table ext_src_1 using ext_src tags(1)")
         tdSql.execute("create table ext_src_2 using ext_src tags(2)")
@@ -390,28 +349,7 @@ class TestExternal:
         tdSql.execute(f"insert into ext_src_1 values({t0 + 60000}, 10)({t0 + 120000}, 11)")
         tdSql.execute(f"insert into ext_src_2 values({t0 + 660000}, 20)")
 
-        sql = (
-            "select tbname, cast(_wstart as bigint) as ws, count(*) as c "
-            "from ext_src partition by tbname "
-            "external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w) "
-            "order by tbname, ws"
-        )
-
-        tdSql.query(sql)
-        tdSql.checkRows(4)
-
-        tdSql.checkData(0, 0, "ext_src_1")
-        tdSql.checkData(0, 1, t0)
-        tdSql.checkData(0, 2, 2)
-
-        tdSql.checkData(1, 0, "ext_src_1")
-        tdSql.checkData(1, 1, t0 + 600000)
-        tdSql.checkData(1, 2, 0)
-
-        tdSql.checkData(2, 0, "ext_src_2")
-        tdSql.checkData(2, 1, t0)
-        tdSql.checkData(2, 2, 0)
-
-        tdSql.checkData(3, 0, "ext_src_2")
-        tdSql.checkData(3, 1, t0 + 600000)
-        tdSql.checkData(3, 2, 1)
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "partition_by_group_regression.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "partition_by_group_regression.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "partition_by_group_regression")
+        

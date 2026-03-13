@@ -426,6 +426,26 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
         pIndex = taosHashGet(pCxt->pRightProdIdxHash, name, strlen(name));
       }
     }
+    if (NULL == pIndex) {
+      SColumnNode* pCol = (SColumnNode*)pNode;
+      if (false == pCol->hasRef && false == pCol->hasDep) {
+        int32_t colLen = (int32_t)strlen(pCol->colName);
+        if (colLen > 0) {
+          pIndex = taosHashGet(pCxt->pLeftHash, pCol->colName, colLen);
+          if (NULL == pIndex) {
+            pIndex = taosHashGet(pCxt->pRightHash, pCol->colName, colLen);
+          }
+        }
+
+        if (NULL == pIndex && ((SExprNode*)pCol)->aliasName[0] != '\0') {
+          int32_t aliasLen = (int32_t)strlen(((SExprNode*)pCol)->aliasName);
+          pIndex = taosHashGet(pCxt->pLeftHash, ((SExprNode*)pCol)->aliasName, aliasLen);
+          if (NULL == pIndex) {
+            pIndex = taosHashGet(pCxt->pRightHash, ((SExprNode*)pCol)->aliasName, aliasLen);
+          }
+        }
+      }
+    }
 
     if (NULL == pIndex) {
       name[len] = 0;

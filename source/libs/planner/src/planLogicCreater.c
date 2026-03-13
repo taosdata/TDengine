@@ -1883,9 +1883,18 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
         if (NULL != pOutputPartitionKeys) {
           SNode* pPartKey = NULL;
           FOREACH(pPartKey, pOutputPartitionKeys) {
-            SNode* pNew = NULL;
-            PLAN_ERR_RET(nodesCloneNode(pPartKey, &pNew));
-            PLAN_ERR_RET(nodesListMakeStrictAppend(&pWindow->pFuncs, pNew));
+            if (QUERY_NODE_COLUMN != nodeType(pPartKey)) {
+              planError("external window partition key must be column node, nodeType:%d", nodeType(pPartKey));
+              PLAN_ERR_RET(TSDB_CODE_PLAN_INTERNAL_ERROR);
+            }
+
+            SFunctionNode* pGroupKey = createGroupKeyAggFunc((SColumnNode*)pPartKey);
+            if (NULL == pGroupKey) {
+              PLAN_ERR_RET(terrno);
+            }
+            tstrncpy(pGroupKey->node.aliasName, ((SExprNode*)pPartKey)->aliasName, TSDB_COL_NAME_LEN);
+            tstrncpy(pGroupKey->node.userAlias, ((SExprNode*)pPartKey)->userAlias, TSDB_COL_NAME_LEN);
+            PLAN_ERR_RET(nodesListMakeStrictAppend(&pWindow->pFuncs, (SNode*)pGroupKey));
           }
         }
       }

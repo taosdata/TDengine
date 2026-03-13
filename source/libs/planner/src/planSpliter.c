@@ -400,32 +400,39 @@ static bool stbSplFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SL
 static int32_t stbSplRewriteFuns(const SNodeList* pFuncs, SNodeList** pPartialFuncs, SNodeList** pMidFuncs, SNodeList** pMergeFuncs) {
   SNode* pNode = NULL;
   FOREACH(pNode, pFuncs) {
-    SFunctionNode* pFunc = (SFunctionNode*)pNode;
     SFunctionNode* pPartFunc = NULL;
     SFunctionNode* pMidFunc = NULL;
     SFunctionNode* pMergeFunc = NULL;
     int32_t        code = TSDB_CODE_SUCCESS;
-    if (fmIsWindowPseudoColumnFunc(pFunc->funcId) || fmIsPlaceHolderFunc(pFunc->funcId)) {
-      code = nodesCloneNode(pNode, (SNode**)&pPartFunc);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = nodesCloneNode(pNode, (SNode**)&pMergeFunc);
-      }
-      if(TSDB_CODE_SUCCESS == code && pMidFuncs != NULL){
-        code = nodesCloneNode(pNode, (SNode**)&pMidFunc);
-        if (NULL == pMidFunc) {
-          nodesDestroyNode((SNode*)pMidFunc);
-        }
-      }
+
+    if (nodeType(pNode) != QUERY_NODE_FUNCTION) {
+      planError("%s failed, expect function node in function list, actual nodeType:%d", __FUNCTION__, nodeType(pNode));
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
     } else {
-      code = fmGetDistMethod(pFunc, &pPartFunc, &pMidFunc, &pMergeFunc);
+      SFunctionNode* pFunc = (SFunctionNode*)pNode;
+      if (fmIsWindowPseudoColumnFunc(pFunc->funcId) || fmIsPlaceHolderFunc(pFunc->funcId) || FUNCTION_TYPE_GROUP_KEY == pFunc->funcType) {
+        code = nodesCloneNode(pNode, (SNode**)&pPartFunc);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = nodesCloneNode(pNode, (SNode**)&pMergeFunc);
+        }
+        if (TSDB_CODE_SUCCESS == code && pMidFuncs != NULL) {
+          code = nodesCloneNode(pNode, (SNode**)&pMidFunc);
+          if (NULL == pMidFunc) {
+            nodesDestroyNode((SNode*)pMidFunc);
+          }
+        }
+      } else {
+        code = fmGetDistMethod(pFunc, &pPartFunc, &pMidFunc, &pMergeFunc);
+      }
     }
+
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListMakeStrictAppend(pPartialFuncs, (SNode*)pPartFunc);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      if(pMidFuncs != NULL){
+      if (pMidFuncs != NULL) {
         code = nodesListMakeStrictAppend(pMidFuncs, (SNode*)pMidFunc);
-      }else{
+      } else {
         nodesDestroyNode((SNode*)pMidFunc);
       }
     }
@@ -446,7 +453,7 @@ static int32_t stbSplAppendWStart(SNodeList** pFuncs, int32_t* pIndex, uint8_t p
   int32_t index = 0;
   SNode*  pFunc = NULL;
   FOREACH(pFunc, *pFuncs) {
-    if (FUNCTION_TYPE_WSTART == ((SFunctionNode*)pFunc)->funcType) {
+    if (nodeType(pFunc) == QUERY_NODE_FUNCTION && FUNCTION_TYPE_WSTART == ((SFunctionNode*)pFunc)->funcType) {
       *pIndex = index;
       return TSDB_CODE_SUCCESS;
     }
@@ -468,9 +475,13 @@ static int32_t stbSplAppendWStart(SNodeList** pFuncs, int32_t* pIndex, uint8_t p
 
   code = fmGetFuncInfo(pWStart, NULL, 0);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListMakeStrictAppend(pFuncs, (SNode*)pWStart);
+    code = nodesListStrictAppend(*pFuncs, (SNode*)pWStart);
   }
-  *pIndex = index;
+  if (TSDB_CODE_SUCCESS == code) {
+    *pIndex = index;
+  } else {
+    nodesDestroyNode((SNode*)pWStart);
+  }
   return code;
 }
 
