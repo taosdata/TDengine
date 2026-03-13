@@ -37,7 +37,8 @@ FstRegex *regexCreate(const char *str) {
     return NULL;
   }
 
-  for (int i = 0; i < strlen(str); i++) {
+  int32_t len = strlen(str);
+  for (int32_t i = 0; i < len; i++) {
     uint8_t v = str[i];
     if (taosArrayPush(insts, &v) == NULL) {
       taosArrayDestroy(insts);
