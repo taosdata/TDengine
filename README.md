@@ -65,7 +65,7 @@ TDengine is an open source, high-performance, cloud native and AI powered [time-
 
 - **[Cloud Native](https://tdengine.com/tdengine/cloud-native-time-series-database/)**: Through native distributed design, sharding and partitioning, separation of compute and storage, RAFT, support for kubernetes deployment and full observability, TDengine is a cloud native Time-Series Database and can be deployed on public, private or hybrid clouds.
 
-- **[AI Powered](https://tdengine.com/tdengine/tdgpt/)**: Through the built in AI agent TDgpt, TDengine can connect to a variety of time series foundation model, large language model, machine learning and traditional algorithms to provide time series data forecasting, anomly detection, imputation and classification.
+- **[AI Powered](https://tdengine.com/tdengine/tdgpt/)**: Through the built in AI agent TDgpt, TDengine can connect to a variety of time series foundation model, large language model, machine learning and traditional algorithms to provide time series data forecasting, anomaly detection, imputation and classification.
 
 - **[Ease of Use](https://tdengine.com/tdengine/easy-time-series-data-platform/)**: For administrators, TDengine significantly reduces the effort to deploy and maintain. For developers, it provides a simple interface, simplified solution and seamless integrations for third party tools. For data users, it gives easy data access.
 
