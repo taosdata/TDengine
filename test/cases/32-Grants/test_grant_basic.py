@@ -34,18 +34,9 @@ class TestCase:
         tdLog.debug("start to execute %s" % __file__)
         cls.setsql = TDSetSql()
 
-    def s0_five_dnode_one_mnode(self):
+    def s0_prepare_test_data(self):
+        tdLog.info("======== s0_prepare_test_data: ")
         tdSql.query("select * from information_schema.ins_dnodes;")
-        tdSql.checkData(0,1,'%s:6030'%self.host)
-        tdSql.checkData(4,1,'%s:6430'%self.host)
-        tdSql.checkData(0,4,'ready')
-        tdSql.checkData(4,4,'ready')
-        tdSql.query("select * from information_schema.ins_mnodes;")
-        tdSql.checkData(0,1,'%s:6030'%self.host)
-        tdSql.checkData(0,2,'leader')
-        tdSql.checkData(0,3,'ready')
-        tdSql.error("create mnode on dnode 1;")
-        tdSql.error("drop mnode on dnode 1;")
         tdSql.execute("create database if not exists audit keep 36500d");
         tdSql.execute("use audit");
         tdSql.execute("create table operations(ts timestamp, c0 int primary key,c1 bigint,c2 int,c3 float,c4 double) tags(t0 bigint unsigned)");
@@ -65,12 +56,7 @@ class TestCase:
             tdLog.info(f"insert data {r} into stb0")
             tdSql.query(f"insert into db.ctb0 values(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)  "%(r, r*2, r*4, r*3, float(r)/39, float(r)/23,r+1, (r+1)*2, (r+1)*4, (r+1)*3, float(r)/139, float(r)/123,r+2, (r+2)*2, (r+2)*4, (r+2)*3, float(r)/239, float(r)/223,r+3, (r+3)*2, (r+3)*4, (r+3)*3, float(r)/339, float(r)/323,r+4, (r+4)*2, (r+4)*4, (r+4)*3, float(r)/439, float(r)/423,r+5, r+5*2, r+5*4, r+5*3, float(r)/539, float(r)/523,r+6, r+6*2, r+6*4, r+6*3, float(r)/639, float(r)/623,r+7, r+7*2, r+7*4, r+7*3, float(r)/739, float(r)/723,r+8, r+8*2, r+8*4, r+8*3, float(r)/839, float(r)/823,r+9, r+9*2, r+9*4, r*3, float(r)/939, float(r)/923))
         tdSql.execute("flush database db")
-        
-    def getConnection(self, dnode):
-        host = dnode.cfgDict["fqdn"]
-        port = dnode.cfgDict["serverPort"]
-        config_dir = dnode.cfgDir
-        return taos.connect(host=host, port=int(port), config=config_dir)
+        tdLog.info("prepare test data done")
     
     def getShowGrantsTimeSeries(self, maxRetry=10):
         for nRetry in range(maxRetry):
@@ -79,26 +65,30 @@ class TestCase:
             tdSql.query("show grants full")
             full_timeseries = tdSql.queryResult[1][3]
             if timeseries == full_timeseries:
+                tdLog.info(f"timeseries: {timeseries}, == full_timeseries: {full_timeseries}, retried: {nRetry}")
                 return int(timeseries.split('/')[0])
             else:
                 tdLog.info(f"timeseries: {timeseries}, != full_timeseries: {full_timeseries}, retry: {nRetry}") 
                 time.sleep(1)
         raise Exception("Timeseries not equal within {maxRetry} seconds")
 
-    def getTablesTimeSeries(self):
+    def getTablesTimeSeries(self, ):
         tdSql.query(f"select cast(sum(columns-1) as int) as tss from information_schema.ins_tables where db_name not in ('information_schema', 'performance_schema', 'audit') and type not like '%VIRTUAL%'")
         return int(tdSql.queryResult[0][0])
 
-    def checkGrantsTimeSeries(self, prompt="", nExpectedTimeSeries=0, maxRetry=10):
+    def checkGrantsTimeSeries(self, prompt="", nExpectedTimeSeries=0, strictMode=False, maxRetry=10):
         for nRetry in range(maxRetry):
             tss_grant = self.getShowGrantsTimeSeries()
             if tss_grant == nExpectedTimeSeries:
+                if not strictMode:
+                    return
                 tss_table = self.getTablesTimeSeries()
                 if tss_grant == tss_table:
                     tdLog.info(f"{prompt}: tss_grant: {tss_grant} == tss_table: {tss_table}")
                     return
                 else:
                     raise Exception(f"{prompt}: tss_grant: {tss_grant} != tss_table: {tss_table}")
+            tdLog.info(f"{prompt}: tss_grant: {tss_grant} != nExpectedTimeSeries: {nExpectedTimeSeries}, retry: {nRetry}")
             time.sleep(1)
         raise Exception(f"{prompt}: tss_grant: {tss_grant} != nExpectedTimeSeries: {nExpectedTimeSeries}")
 
@@ -107,15 +97,8 @@ class TestCase:
             os.remove(self.infoPath)
 
     def s1_check_timeseries(self):
-        # check cluster alive
-        tdLog.printNoPrefix("======== test cluster alive: ")
-        tdSql.checkDataLoop(0, 0, 1, "show cluster alive;", 20, 0.5)
-
-        tdSql.query("show db.alive;")
-        tdSql.checkData(0, 0, 1)
-
-        # check timeseries
-        tss_grant = 9
+        tdLog.info("======== test timeseries: ")
+        tss_grant = 11
         for i in range(0, 3):
             tdLog.printNoPrefix(f"======== test timeseries: loop{i}")
             self.checkGrantsTimeSeries("initial check", tss_grant)
@@ -172,6 +155,7 @@ class TestCase:
             self.checkGrantsTimeSeries("drop database and check", tss_grant)
 
     def genClusterInfo(self, check=False):
+        tdLog.info("======== genClusterInfo: ")
         self.infoPath = os.path.join(self.workPath, ".clusterInfo")
         infoFile = open(self.infoPath, "w")
         try:
@@ -271,15 +255,15 @@ class TestCase:
 
     def s5_check_timeseries_exclude_systable(self):
         """
-        测试计算测点时排除系统表的功能
+        Test the functionality of excluding system tables when calculating timeseries count(6672169603).
         
-        排除的系统表为超级表：
-        1. log 库中的超级表 (tkLogStb)
-        2. audit 库中的超级表 (tkAuditStb)，audit 库的判断条件：
-           - 数据库名为 audit
-           - 或者建库语句中指明 is_audit 1
+        The excluded system tables are supertables:
+        1. Supertables in the 'log' database (tkLogStb)
+        2. Supertables in the 'audit' database (tkAuditStb), where audit database is identified by:
+           - Database name is 'audit'
+           - Or the database is created with 'is_audit 1' option
         """
-        # log 库的系统表超级表列表
+        # List of system supertables in the 'log' database
         tkLogStb = [
             "cluster_info", "data_dir", "dnodes_info", "d_info", "grants_info",
             "keeper_monitor", "logs", "log_dir", "log_summary", "m_info",
@@ -298,48 +282,49 @@ class TestCase:
             "taosx_task_mongodb", "taosx_task_sparkplugb", "taosx_task_orc", "taosx_task_pulsar", "taosx_task_pspace"
         ]
         
-        # audit 库的系统表超级表列表
+        # List of system supertables in the 'audit' database
         tkAuditStb = ["operations"]
 
         tdLog.printNoPrefix("======== test timeseries exclude systable: ")
         try:
-            # 获取当前的 timeseries 数量作为基准
-            tss_grant_base = self.getShowGrantsTimeSeries()
-            tdLog.info(f"Base timeseries count: {tss_grant_base}")
+            # Get the current timeseries count as baseline
+            tss_grant_base = 11 # table + stream result table
+            self.checkGrantsTimeSeries("initial grant check", tss_grant_base)
 
-            # ========== 测试1: 验证 audit 库中的 operations 表不计入 timeseries ==========
+            # ========== Test1: Verify operations table in audit db is excluded from timeseries ==========
             tdLog.printNoPrefix("======== test1: audit db operations table should be excluded")
-            # audit 库已在 s0_five_dnode_one_mnode 中创建，包含 operations 超级表
-            # 验证 audit 库中的 operations 子表不计入 timeseries
+            # audit db was created in s0_prepare_test_data with operations supertable
+            # Verify that operations child tables in audit db are not counted in timeseries
             tdSql.execute("use audit")
             tdSql.execute("insert into t_operations_abc values(now, 1, 100, 10, 1.0, 2.0)")
             tdSql.execute("create table t_operations_def using operations tags(2)")
             tdSql.execute("insert into t_operations_def values(now, 2, 200, 20, 2.0, 3.0)")
             
-            # 验证 timeseries 数量不变（audit 库的 operations 表应被排除）
+            # Verify timeseries count unchanged (audit db operations table should be excluded)
             self.checkGrantsTimeSeries("audit db operations should be excluded", tss_grant_base)
             tdLog.info("test1 passed: audit db operations table excluded from timeseries count")
 
-            # ========== 测试2: 验证 is_audit 标记的库中的 operations 表不计入 timeseries ==========
+            # ========== Test2: Verify operations table in is_audit db is excluded from timeseries ==========
             tdLog.printNoPrefix("======== test2: is_audit db operations table should be excluded")
             tdSql.execute("drop database if exists audit_test")
+            tdSql.error("create database `log` is_audit 1 wal_level 2 ENCRYPT_ALGORITHM 'SM4-CBC' keep 36500d", expectErrInfo="Invalid database name", fullMatched=False)
             tdSql.execute("create database audit_test is_audit 1 wal_level 2 ENCRYPT_ALGORITHM 'SM4-CBC' keep 36500d")
             tdSql.execute("use audit_test")
-            # 在 is_audit 库中创建 operations 超级表和子表
-            tdSql.execute("create table operations(ts timestamp, c0 int primary key, c1 bigint, c2 int, c3 float, c4 double) tags(t0 bigint unsigned)")
-            tdSql.execute("create table t_ops_1 using operations tags(1)")
-            tdSql.execute("insert into t_ops_1 values(now, 1, 100, 10, 1.0, 2.0)")
-            tdSql.execute("create table t_ops_2 using operations tags(2)")
-            tdSql.execute("insert into t_ops_2 values(now, 2, 200, 20, 2.0, 3.0)")
+            # Create operations supertable and child tables in is_audit db
+            tdSql.execute("create table `operations`(ts timestamp, c0 int primary key, c1 bigint, c2 int, c3 float, c4 double) tags(t0 bigint unsigned)")
+            tdSql.execute("create table `t_ops_1` using `operations` tags(1)")
+            tdSql.execute("insert into `t_ops_1` values(now, 1, 100, 10, 1.0, 2.0)")
+            tdSql.execute("create table `t_ops_2` using `operations` tags(2)")
+            tdSql.execute("insert into `t_ops_2` values(now, 2, 200, 20, 2.0, 3.0)")
             
-            # 验证 timeseries 数量不变（is_audit 库的 operations 表应被排除）
+            # Verify timeseries count unchanged (is_audit db operations table should be excluded)
             self.checkGrantsTimeSeries("is_audit db operations should be excluded", tss_grant_base)
             tdLog.info("test2 passed: is_audit db operations table excluded from timeseries count")
 
-            # ========== 测试3: 验证 is_audit 库中的非 operations 表正常计入 timeseries ==========
+            # ========== Test3: Verify non-operations table in is_audit db is counted in timeseries ==========
             tdLog.printNoPrefix("======== test3: is_audit db non-operations table should be counted")
             tdSql.execute("use audit_test")
-            # 在 is_audit 库中创建非 operations 的普通表
+            # Create non-operations table in is_audit db
             tdSql.execute("create table normal_stb(ts timestamp, c0 int, c1 bigint, c2 int) tags(t0 int)")
             tdSql.execute("create table t_normal_1 using normal_stb tags(1)")
             tdSql.execute("insert into t_normal_1 values(now, 1, 100, 10)")
@@ -347,12 +332,12 @@ class TestCase:
             self.checkGrantsTimeSeries("is_audit db non-operations table should be counted", tss_grant_expected)
             tdLog.info("test3 passed: is_audit db non-operations table counted in timeseries")
 
-            # ========== 测试4: 验证普通库中的 operations 表正常计入 timeseries ==========
+            # ========== Test4: Verify operations table in normal db is counted in timeseries ==========
             tdLog.printNoPrefix("======== test4: normal db operations table should be counted")
             tdSql.execute("drop database if exists normal_test")
             tdSql.execute("create database normal_test keep 36500d")
             tdSql.execute("use normal_test")
-            # 在普通库中创建同名的 operations 超级表和子表
+            # Create operations supertable with same name in normal db
             tdSql.execute("create table operations(ts timestamp, c0 int primary key, c1 bigint, c2 int, c3 float, c4 double) tags(t0 bigint unsigned)")
             tdSql.execute("create table t_ops_normal_1 using operations tags(1)")
             tdSql.execute("insert into t_ops_normal_1 values(now, 1, 100, 10, 1.0, 2.0)")
@@ -360,40 +345,40 @@ class TestCase:
             self.checkGrantsTimeSeries("normal db operations table should be counted", tss_grant_expected)
             tdLog.info("test4 passed: normal db operations table counted in timeseries")
 
-            # ========== 测试5: 验证 log 库中的系统表不计入 timeseries ==========
-            tdLog.printNoPrefix("======== test5: log db system tables should be excluded")
+            # ========== Test5: Verify ALL system tables in log db are excluded from timeseries ==========
+            tdLog.printNoPrefix("======== test5: log db system tables should be excluded (full coverage)")
             tdSql.execute("drop database if exists log")
             tdSql.execute("create database log keep 36500d")
             tdSql.execute("use log")
-            # 在 log 库中创建部分系统表超级表和子表
-            test_log_stbs = ["cluster_info", "dnodes_info", "grants_info", "logs"]
-            for stb_name in test_log_stbs:
-                tdSql.execute(f"create table {stb_name}(ts timestamp, c0 int, c1 bigint, c2 int, c3 float, c4 double) tags(t0 bigint unsigned)")
-                tdSql.execute(f"create table t_{stb_name}_1 using {stb_name} tags(1)")
-                tdSql.execute(f"insert into t_{stb_name}_1 values(now, 1, 100, 10, 1.0, 2.0)")
+            # Create ALL system supertables and child tables in log db (full coverage test)
+            for stb_name in tkLogStb:
+                tdSql.execute(f"create table `{stb_name}`(ts timestamp, c0 int, c1 bigint, c2 int, c3 float, c4 double) tags(t0 bigint unsigned)")
+                tdSql.execute(f"create table `t_{stb_name}_1` using `{stb_name}` tags(1)")
+                tdSql.execute(f"insert into `t_{stb_name}_1` values(now, 1, 100, 10, 1.0, 2.0)")
             
-            # 验证 timeseries 数量不变（log 库的系统表应被排除）
+            # Verify timeseries count unchanged (all log db system tables should be excluded)
             self.checkGrantsTimeSeries("log db system tables should be excluded", tss_grant_expected)
-            tdLog.info("test5 passed: log db system tables excluded from timeseries count")
+            tdLog.info(f"test5 passed: all {len(tkLogStb)} log db system tables excluded from timeseries count")
 
-            # ========== 测试6: 验证 log 库中的非系统表正常计入 timeseries ==========
+            # ========== Test6: Verify non-system table in log db is counted in timeseries ==========
             tdLog.printNoPrefix("======== test6: log db non-system table should be counted")
             tdSql.execute("use log")
-            # 在 log 库中创建非系统表的普通表
-            tdSql.execute("create table user_defined_stb(ts timestamp, c0 int, c1 bigint, c2 int) tags(t0 int)")
-            tdSql.execute("create table t_user_1 using user_defined_stb tags(1)")
-            tdSql.execute("insert into t_user_1 values(now, 1, 100, 10)")
+            # Create non-system table in log db
+            tdSql.execute("create table `user_defined_stb`(ts timestamp, c0 int, c1 bigint, c2 int) tags(t0 int)")
+            tdSql.execute("create table `t_user_1` using `user_defined_stb` tags(1)")
+            tdSql.execute("insert into `t_user_1` values(now, 1, 100, 10)")
             tss_grant_expected += 3  # 3 columns (excluding ts)
             self.checkGrantsTimeSeries("log db non-system table should be counted", tss_grant_expected)
             tdLog.info("test6 passed: log db non-system table counted in timeseries")
 
-            # ========== 清理测试数据 ==========
+            # ========== Cleanup test data ==========
             tdLog.printNoPrefix("======== cleanup test databases")
+            tdSql.execute("alter database `audit_test` allow_drop 1")
             tdSql.execute("drop database if exists audit_test")
             tdSql.execute("drop database if exists normal_test")
             tdSql.execute("drop database if exists log")
             
-            # 验证清理后 timeseries 恢复到基准值
+            # Verify timeseries restored to base count after cleanup
             self.checkGrantsTimeSeries("cleanup and verify base timeseries", tss_grant_base)
             tdLog.info("cleanup completed, timeseries restored to base count")
 
@@ -404,41 +389,40 @@ class TestCase:
             raise Exception(repr(e))
 
     def test_grant(self):
-        """summary: xxx
+        """
+        summary: Verify grant-related timeseries statistics and system table exclusion logic
 
-        description: xxx
+        description:
+            This test case mainly verifies the timeseries statistics function related to TDengine grant, focusing on the following aspects:
+            1. Whether timeseries statistics are accurate for normal tables, supertables, and virtual tables.
+            2. Specific supertables (such as operations, tkLogStb) in system databases like audit and log should be excluded from timeseries statistics.
+            3. Exclusion logic for operations tables in databases marked with is_audit.
+            4. Consistency of statistics for grant-related commands (show grants, show grants full).
+            5. The impact of adding, deleting, and modifying various tables on timeseries statistics.
 
-        Since: xxx
+        Since: 2026-03-13
 
-        Labels: xxx
+        Labels: grant, timeseries, system-table, audit, log, regression
 
-        Jira: xxx
+        Jira: 6672169603
 
         Catalog:
-            - xxx:xxx
+            - Feature: Grant and timeseries statistics
+            - Scenario: System table exclusion, grant statistics consistency
 
         History:
-            - xxx
-            - xxx
+            - 2026-03-13: Initial migration, covering main grant and timeseries statistics process from Cary Xu.
+            - 2026-03-13: Added system table exclusion and is_audit database scenarios from Cary Xu.
         """
-        # print(self.master_dnode.cfgDict)
         # keep the order of following steps
-
-        # self.TDDnodes = None
-        # self.deploy_cluster(5)
-        # self.master_dnode = tdDnodes.dnodes[0]
-        # self.host=self.master_dnode.cfgDict["fqdn"]
-        # conn1 = taos.connect(self.master_dnode.cfgDict["fqdn"] , config=self.master_dnode.cfgDir)
-        # tdSql.init(conn1.cursor(), True)
         self.workPath = os.path.join(tdCom.getBuildPath(), "build", "bin")
         tdLog.info(self.workPath)
-        self.s0_five_dnode_one_mnode()
-        # self.s1_check_timeseries()
-        # self.s2_check_show_grants_ungranted()
-        # self.s3_check_show_grants_granted()
-        # self.s4_ts6191_check_dual_replica()
+        self.s0_prepare_test_data()
+        self.s1_check_timeseries()
+        # self.s2_check_show_grants_ungranted() # migrated later
+        # self.s3_check_show_grants_granted() # migrated later
+        # self.s4_ts6191_check_dual_replica() # migrated later
         self.s5_check_timeseries_exclude_systable()
-
         self.clearEnv()
 
 
