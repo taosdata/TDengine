@@ -1190,7 +1190,17 @@ void mergeAlignExtWinDo(SOperatorInfo* pOperator) {
     if (pExtW->lastCGrpId != pBlock->info.id.groupId) {
       if (pMAExtW->curTs != INT64_MIN && EEXT_MODE_AGG == pExtW->mode) {
         TAOS_CHECK_EXIT(mergeAlignExtWinFinalizeResult(pOperator, &pExtW->binfo.resultRowInfo, pRes));
+
+        // Group boundary: always clear row state and curTs after finalize to avoid
+        // duplicate finalization and cross-group state reuse on next block.
+
+        if (pMAExtW->pResultRow != NULL) {
+          resetResultRow(pMAExtW->pResultRow, pExtW->aggSup.resultRowSize - sizeof(SResultRow));
+        }
+
+        pMAExtW->curTs = INT64_MIN;
       }
+
       if (pRes->info.rows > 0) {
         pMAExtW->pNewGroup = pBlock;
         pMAExtW->curTs = INT64_MIN;
