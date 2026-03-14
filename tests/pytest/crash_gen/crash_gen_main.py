@@ -1250,6 +1250,60 @@ class Database:
     def getNextColor(self):
         return random.choice(self.ALL_COLORS)
 
+    def generateColumnValue(self, col_name: str, col_type: str) -> str:
+        """Generate a value for any column type, returns SQL-ready string"""
+        col_type_upper = col_type.upper()
+
+        # TIMESTAMP - always use getNextTick()
+        if 'TIMESTAMP' in col_type_upper:
+            return "'{}'".format(self.getNextTick())
+
+        # Integer types (signed)
+        elif col_type_upper in ('INT', 'BIGINT', 'SMALLINT', 'TINYINT'):
+            return str(self.getNextInt())
+
+        # Integer types (unsigned)
+        elif 'UNSIGNED' in col_type_upper:
+            return str(abs(self.getNextInt()))
+
+        # Boolean
+        elif col_type_upper == 'BOOL':
+            return str(random.choice([0, 1]))
+
+        # Floating point
+        elif col_type_upper in ('FLOAT', 'DOUBLE'):
+            return str(self.getNextFloat())
+
+        # Decimal
+        elif col_type_upper.startswith('DECIMAL'):
+            return str(round(self.getNextFloat(), 2))
+
+        # String types - BINARY, VARCHAR
+        elif col_type_upper.startswith('BINARY') or col_type_upper.startswith('VARCHAR'):
+            return "'{}'".format(self.getNextColor())
+
+        # NCHAR
+        elif col_type_upper.startswith('NCHAR'):
+            return "'{}'".format(random.choice(['北京', '上海', '深圳', '广州', '杭州']))
+
+        # VARBINARY, BLOB
+        elif col_type_upper in ('VARBINARY', 'BLOB'):
+            return "'{}'".format(self.getNextColor())
+
+        # GEOMETRY (WKT format)
+        elif col_type_upper == 'GEOMETRY':
+            x = random.uniform(-180, 180)
+            y = random.uniform(-90, 90)
+            return "'POINT({} {})'".format(x, y)
+
+        # JSON (only for tags, but handle it)
+        elif col_type_upper == 'JSON':
+            return "'{\"key\":\"value\"}'".format()
+
+        # Default to INT
+        else:
+            return str(self.getNextInt())
+
 
 class TaskExecutor():
     class BoundedList:
@@ -2114,14 +2168,79 @@ class TaskCreateSuperTable(StateTransitionTask):
         sTable = self._db.getFixedSuperTable()  # type: TdSuperTable
         # wt.execSql("use db")    # should always be in place
 
-        sTable.create(wt.getDbConn(),
-                      {'ts': TdDataType.TIMESTAMP, 'speed': TdDataType.INT, 'color': TdDataType.BINARY16}, {
-                          'b': TdDataType.BINARY200, 'f': TdDataType.FLOAT},
-                      dropIfExists=True
-                      )
+        # Use enhanced schema with 20+ data types and professional naming
+        from .enhanced_schema import EnhancedSchemaConfig
+        schema_config = EnhancedSchemaConfig(seed=Dice.seed)
+        columns_def, tags_def = schema_config.generate_schema(num_columns=10, num_tags=3)
+
+        # Convert ColumnDef to TdDataType format
+        cols = {}
+        for col in columns_def:
+            cols[col.name] = self._map_column_to_tdtype(col)
+
+        tags = {}
+        for tag in tags_def:
+            tags[tag.name] = self._map_column_to_tdtype(tag)
+
+        sTable.create(wt.getDbConn(), cols, tags, dropIfExists=True)
         # self.execWtSql(wt,"create table db.{} (ts timestamp, speed int) tags (b binary(200), f float) ".format(tblName))
         # No need to create the regular tables, INSERT will do that
         # automatically
+
+    def _map_column_to_tdtype(self, col):
+        """Map ColumnDef to TdDataType - returns the enum value (string)"""
+        col_type_upper = col.type.upper()
+
+        # For types with size parameters, create a custom TdDataType-like object
+        # that has a .value attribute returning the SQL type string
+        class CustomTdDataType:
+            def __init__(self, value):
+                self.value = value
+
+        # Handle types with size parameters
+        if col_type_upper.startswith('BINARY'):
+            if col.size > 0:
+                return CustomTdDataType(f'BINARY({col.size})')
+            return TdDataType.BINARY
+        elif col_type_upper.startswith('VARCHAR'):
+            if col.size > 0:
+                return CustomTdDataType(f'VARCHAR({col.size})')
+            return TdDataType.VARCHAR
+        elif col_type_upper.startswith('NCHAR'):
+            if col.size > 0:
+                return CustomTdDataType(f'NCHAR({col.size})')
+            return TdDataType.NCHAR
+        elif col_type_upper.startswith('VARBINARY'):
+            if col.size > 0:
+                return CustomTdDataType(f'VARBINARY({col.size})')
+            return TdDataType.VARBINARY
+        elif col_type_upper.startswith('GEOMETRY'):
+            if col.size > 0:
+                return CustomTdDataType(f'GEOMETRY({col.size})')
+            return TdDataType.GEOMETRY
+        elif col_type_upper.startswith('DECIMAL'):
+            # DECIMAL already includes precision/scale in col.type
+            return CustomTdDataType(col.type)
+
+        # Handle basic types
+        type_map = {
+            'TIMESTAMP': TdDataType.TIMESTAMP,
+            'INT': TdDataType.INT,
+            'INT UNSIGNED': TdDataType.INT_UNSIGNED,
+            'BIGINT': TdDataType.BIGINT,
+            'BIGINT UNSIGNED': TdDataType.BIGINT_UNSIGNED,
+            'FLOAT': TdDataType.FLOAT,
+            'DOUBLE': TdDataType.DOUBLE,
+            'SMALLINT': TdDataType.SMALLINT,
+            'SMALLINT UNSIGNED': TdDataType.SMALLINT_UNSIGNED,
+            'TINYINT': TdDataType.TINYINT,
+            'TINYINT UNSIGNED': TdDataType.TINYINT_UNSIGNED,
+            'BOOL': TdDataType.BOOL,
+            'BLOB': TdDataType.BLOB,
+            'JSON': TdDataType.JSON,
+        }
+
+        return type_map.get(col_type_upper, TdDataType.INT)  # Default to INT
 
 
 class TdSuperTable:
@@ -2342,16 +2461,40 @@ class TdSuperTable:
         tagStrs = []
         for tagName in tags:
             tagType = tags[tagName]
-            if tagType == 'BINARY':
+            tagTypeUpper = tagType.upper()
+
+            # String types
+            if 'BINARY' in tagTypeUpper or 'VARCHAR' in tagTypeUpper:
                 tagStrs.append("'Beijing-Shanghai-LosAngeles'")
-            elif tagType == 'VARCHAR':
-                tagStrs.append("'London-Paris-Berlin'")
-            elif tagType == 'FLOAT':
+            elif 'NCHAR' in tagTypeUpper:
+                tagStrs.append("'北京上海深圳'")
+            # Floating point types
+            elif tagTypeUpper in ('FLOAT', 'DOUBLE'):
                 tagStrs.append('9.9')
-            elif tagType == 'INT':
+            # Integer types (signed)
+            elif tagTypeUpper in ('INT', 'BIGINT', 'SMALLINT', 'TINYINT'):
                 tagStrs.append('88')
+            # Integer types (unsigned)
+            elif 'UNSIGNED' in tagTypeUpper:
+                tagStrs.append('88')
+            # Boolean
+            elif tagTypeUpper == 'BOOL':
+                tagStrs.append('TRUE')
+            # Decimal
+            elif 'DECIMAL' in tagTypeUpper:
+                tagStrs.append('123.45')
+            # JSON
+            elif tagTypeUpper == 'JSON':
+                tagStrs.append("'{\"key\":\"value\"}'")
+            # Binary types
+            elif 'VARBINARY' in tagTypeUpper or tagTypeUpper == 'BLOB':
+                tagStrs.append("'\\x48656c6c6f'")  # "Hello" in hex
+            # Geometry
+            elif 'GEOMETRY' in tagTypeUpper:
+                tagStrs.append("'POINT(1.0 1.0)'")
             else:
-                raise RuntimeError("Unexpected tag type: {}".format(tagType))
+                # Default fallback
+                tagStrs.append("'default_value'")
         return ", ".join(tagStrs)
 
     def _getTags(self, dbc) -> dict:
@@ -2360,6 +2503,13 @@ class TdSuperTable:
         # print(stCols)
         ret = {row[0]: row[1] for row in stCols if row[3] == 'TAG'}  # name:type
         # print("Tags retrieved: {}".format(ret))
+        return ret
+
+    def _getColumns(self, dbc) -> dict:
+        """Get all columns (non-TAG fields) from super table"""
+        dbc.query("DESCRIBE {}.{}".format(self._dbName, self._stName))
+        stCols = dbc.getQueryResult()
+        ret = {row[0]: row[1] for row in stCols if row[3] != 'TAG'}  # name:type, exclude tags
         return ret
 
     def addTag(self, dbc, tagName, tagType):
@@ -2389,6 +2539,27 @@ class TdSuperTable:
         ''' Generate queries to test/exercise this super table '''
         ret = []  # type: List[SqlQuery]
 
+        # Get columns dynamically
+        columns = self._getColumns(dbc)
+        tags = self._getTags(dbc)
+
+        # Categorize columns by type
+        numeric_cols = []
+        string_cols = []
+        ts_col = None
+
+        for col_name, col_type in columns.items():
+            col_type_upper = col_type.upper()
+            if 'TIMESTAMP' in col_type_upper:
+                ts_col = col_name
+            elif any(t in col_type_upper for t in ['INT', 'FLOAT', 'DOUBLE', 'DECIMAL', 'BOOL']):
+                numeric_cols.append(col_name)
+            elif any(t in col_type_upper for t in ['BINARY', 'VARCHAR', 'NCHAR', 'CHAR']):
+                string_cols.append(col_name)
+
+        # Get tag columns for partition
+        tag_cols = list(tags.keys())
+
         for rTbName in self.getRegTables(dbc):  # regular tables
 
             filterExpr = Dice.choice([  # TODO: add various kind of WHERE conditions
@@ -2398,87 +2569,88 @@ class TdSuperTable:
             # Run the query against the regular table first
             doAggr = (Dice.throw(2) == 0)  # 1 in 2 chance
             if not doAggr:  # don't do aggregate query, just simple one
-                commonExpr = Dice.choice([
-                    '*',
-                    'abs(speed)',
-                    'acos(speed)',
-                    'asin(speed)',
-                    'atan(speed)',
-                    'ceil(speed)',
-                    'cos(speed)',
-                    'cos(speed)',
-                    'floor(speed)',
-                    'log(speed,2)',
-                    'pow(speed,2)',
-                    'round(speed)',
-                    'sin(speed)',
-                    'sqrt(speed)',
-                    'char_length(color)',
-                    'concat(color,color)',
-                    'concat_ws(" ", color,color," ")',
-                    'length(color)',
-                    'lower(color)',
-                    'ltrim(color)',
-                    'substr(color , 2)',
-                    'upper(color)',
-                    'cast(speed as double)',
-                    'cast(ts as bigint)',
-                    # 'TO_ISO8601(color)',
-                    # 'TO_UNIXTIMESTAMP(ts)',
-                    'now()',
-                    'timediff(ts,now)',
-                    'timezone()',
-                    'TIMETRUNCATE(ts,1s)',
-                    'TIMEZONE()',
-                    'TODAY()',
-                    'distinct(color)'
-                ]
-                )
+                # Build expression list dynamically
+                expr_list = ['*']
+
+                # Add numeric column functions
+                if numeric_cols:
+                    num_col = Dice.choice(numeric_cols)
+                    expr_list.extend([
+                        f'abs({num_col})',
+                        f'ceil({num_col})',
+                        f'floor({num_col})',
+                        f'round({num_col})',
+                        f'cast({num_col} as double)',
+                    ])
+
+                # Add string column functions
+                if string_cols:
+                    str_col = Dice.choice(string_cols)
+                    expr_list.extend([
+                        f'char_length({str_col})',
+                        f'concat({str_col},{str_col})',
+                        f'length({str_col})',
+                        f'lower({str_col})',
+                        f'upper({str_col})',
+                        f'distinct({str_col})'
+                    ])
+
+                # Add timestamp functions
+                if ts_col:
+                    expr_list.extend([
+                        f'cast({ts_col} as bigint)',
+                        'now()',
+                        f'timediff({ts_col},now)',
+                        'timezone()',
+                        f'TIMETRUNCATE({ts_col},1s)',
+                        'TODAY()',
+                    ])
+
+                commonExpr = Dice.choice(expr_list)
                 ret.append(SqlQuery(  # reg table
                     "select {} from {}.{}".format(commonExpr, self._dbName, rTbName)))
                 ret.append(SqlQuery(  # super table
                     "select {} from {}.{}".format(commonExpr, self._dbName, self.getName())))
             else:  # Aggregate query
-                aggExpr = Dice.choice([
-                    'count(*)',
-                    'avg(speed)',
-                    # 'twa(speed)', # TODO: this one REQUIRES a where statement, not reasonable
-                    'sum(speed)',
-                    'stddev(speed)',
-                    # SELECTOR functions
-                    'min(speed)',
-                    'max(speed)',
-                    'first(speed)',
-                    'last(speed)',
-                    'top(speed, 50)',  # TODO: not supported?
-                    'bottom(speed, 50)',  # TODO: not supported?
-                    'apercentile(speed, 10)',  # TODO: TD-1316
-                    'last_row(*)',  # TODO: commented out per TD-3231, we should re-create
-                    # Transformation Functions
-                    # 'diff(speed)', # TODO: no supported?!
-                    'spread(speed)',
-                    'elapsed(ts)',
-                    'mode(speed)',
-                    'bottom(speed,1)',
-                    'top(speed,1)',
-                    'tail(speed,1)',
-                    'unique(color)',
-                    'csum(speed)',
-                    'DERIVATIVE(speed,1s,1)',
-                    'diff(speed,1)',
-                    'irate(speed)',
-                    'mavg(speed,3)',
-                    'sample(speed,5)',
-                    'STATECOUNT(speed,"LT",1)',
-                    'STATEDURATION(speed,"LT",1)',
-                    'twa(speed)'
+                # Build aggregate expression list dynamically
+                agg_list = ['count(*)', 'last_row(*)']
 
-                ])  # TODO: add more from 'top'
+                if numeric_cols:
+                    num_col = Dice.choice(numeric_cols)
+                    agg_list.extend([
+                        f'avg({num_col})',
+                        f'sum({num_col})',
+                        f'stddev({num_col})',
+                        f'min({num_col})',
+                        f'max({num_col})',
+                        f'first({num_col})',
+                        f'last({num_col})',
+                        f'spread({num_col})',
+                        f'mode({num_col})',
+                        f'csum({num_col})',
+                    ])
+
+                if string_cols:
+                    str_col = Dice.choice(string_cols)
+                    agg_list.extend([
+                        f'unique({str_col})',
+                    ])
+
+                if ts_col:
+                    agg_list.append(f'elapsed({ts_col})')
+
+                aggExpr = Dice.choice(agg_list)
 
                 # if aggExpr not in ['stddev(speed)']: # STDDEV not valid for super tables?! (Done in TD-1049)
                 sql = "select {} from {}.{}".format(aggExpr, self._dbName, self.getName())
                 if Dice.throw(3) == 0:  # 1 in X chance
-                    partion_expr = Dice.choice(['color', 'tbname'])
+                    # Use dynamic partition column
+                    partition_options = ['tbname']
+                    if string_cols:
+                        partition_options.append(Dice.choice(string_cols))
+                    if tag_cols:
+                        partition_options.append(Dice.choice(tag_cols))
+                    partion_expr = Dice.choice(partition_options)
                     sql = sql + ' partition BY ' + partion_expr + ' order by ' + partion_expr
                     Progress.emit(Progress.QUERY_GROUP_BY)
                     # Logging.info("Executing GROUP-BY query: " + sql)
@@ -2717,12 +2889,17 @@ class TaskAddData(StateTransitionTask):
         fullTableName = db.getName() + '.' + regTableName
         self._lockTableIfNeeded(fullTableName, 'batch')
 
+        # Get columns from super table
+        sTable = db.getFixedSuperTable()
+        columns = sTable._getColumns(dbc)
+
         sql = "INSERT INTO {} VALUES ".format(fullTableName)
         for j in range(numRecords):  # number of records per table
-            nextInt = db.getNextInt()
-            nextTick = db.getNextTick()
-            nextColor = db.getNextColor()
-            sql += "('{}', {}, '{}');".format(nextTick, nextInt, nextColor)
+            values = []
+            for col_name, col_type in columns.items():
+                value = db.generateColumnValue(col_name, col_type)
+                values.append(value)
+            sql += "({});".format(", ".join(values))
 
         # Logging.info("Adding data in batch: {}".format(sql))
         try:
@@ -2734,10 +2911,37 @@ class TaskAddData(StateTransitionTask):
     def _addData(self, db: Database, dbc, regTableName, te: TaskExecutor):  # implied: NOT in batches
         numRecords = self.LARGE_NUMBER_OF_RECORDS if Config.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
 
+        # Get columns from super table
+        sTable = db.getFixedSuperTable()
+        columns = sTable._getColumns(dbc)
+        col_names = list(columns.keys())
+
+        # Find first non-timestamp column for tracking (for record_ops compatibility)
+        track_col_name = None
+        for col_name, col_type in columns.items():
+            if 'TIMESTAMP' not in col_type.upper():
+                track_col_name = col_name
+                break
+
         for j in range(numRecords):  # number of records per table
+            # Generate values for all columns
+            col_values = {}
+            for col_name, col_type in columns.items():
+                col_values[col_name] = db.generateColumnValue(col_name, col_type)
+
+            # Get timestamp for verification
+            nextTick = None
+            for col_name, col_type in columns.items():
+                if 'TIMESTAMP' in col_type.upper():
+                    nextTick = db.getNextTick()
+                    col_values[col_name] = "'{}'".format(nextTick)
+                    break
+
+            # Get tracking value (for record_ops)
             intToWrite = db.getNextInt()
-            nextTick = db.getNextTick()
-            nextColor = db.getNextColor()
+            if track_col_name and 'INT' in columns[track_col_name].upper():
+                col_values[track_col_name] = str(intToWrite)
+
             if Config.getConfig().record_ops:
                 self.prepToRecordOps()
                 if self.fAddLogReady is None:
@@ -2752,11 +2956,8 @@ class TaskAddData(StateTransitionTask):
                 fullTableName)  # so that we are verify read-back. TODO: deal with exceptions before unlock
 
             try:
-                sql = "INSERT INTO {} VALUES ('{}', {}, '{}');".format(  # removed: tags ('{}', {})
-                    fullTableName,
-                    # ds.getFixedSuperTableName(),
-                    # ds.getNextBinary(), ds.getNextFloat(),
-                    nextTick, intToWrite, nextColor)
+                values_str = ", ".join([col_values[col_name] for col_name in col_names])
+                sql = "INSERT INTO {} VALUES ({});".format(fullTableName, values_str)
                 # Logging.info("Adding data: {}".format(sql))
                 dbc.execute(sql)
                 # Logging.info("Data added: {}".format(sql))
@@ -2765,13 +2966,11 @@ class TaskAddData(StateTransitionTask):
                 # Quick hack, attach an update statement here. TODO: create an "update" task
                 if (not Config.getConfig().use_shadow_db) and Dice.throw(
                         5) == 0:  # 1 in N chance, plus not using shaddow DB
-                    intToUpdate = db.getNextInt()  # Updated， but should not succeed
-                    nextColor = db.getNextColor()
-                    sql = "INSERt INTO {} VALUES ('{}', {}, '{}');".format(  # "INSERt" means "update" here
-                        fullTableName,
-                        nextTick, intToUpdate, nextColor)
-                    # sql = "UPDATE {} set speed={}, color='{}' WHERE ts='{}'".format(
-                    #     fullTableName, db.getNextInt(), db.getNextColor(), nextTick)
+                    intToUpdate = db.getNextInt()
+                    if track_col_name and 'INT' in columns[track_col_name].upper():
+                        col_values[track_col_name] = str(intToUpdate)
+                    values_str = ", ".join([col_values[col_name] for col_name in col_names])
+                    sql = "INSERt INTO {} VALUES ({});".format(fullTableName, values_str)
                     dbc.execute(sql)
                     intWrote = intToUpdate  # We updated, seems TDengine non-cluster accepts this.
 
@@ -2782,12 +2981,13 @@ class TaskAddData(StateTransitionTask):
             # Now read it back and verify, we might encounter an error if table is dropped
             if Config.getConfig().verify_data:  # only if command line asks for it
                 try:
-                    readBack = dbc.queryScalar("SELECT speed from {}.{} WHERE ts='{}'".
-                                               format(db.getName(), regTableName, nextTick))
-                    if readBack != intWrote:
-                        raise taos.error.ProgrammingError(
-                            "Failed to read back same data, wrote: {}, read: {}"
-                            .format(intWrote, readBack), 0x999)
+                    if track_col_name and nextTick:
+                        readBack = dbc.queryScalar("SELECT {} from {}.{} WHERE ts='{}'".
+                                                   format(track_col_name, db.getName(), regTableName, nextTick))
+                        if readBack != intWrote:
+                            raise taos.error.ProgrammingError(
+                                "Failed to read back same data, wrote: {}, read: {}"
+                                .format(intWrote, readBack), 0x999)
                 except taos.error.ProgrammingError as err:
                     errno = Helper.convertErrno(err.errno)
                     if errno == CrashGenError.INVALID_EMPTY_RESULT:  # empty result
