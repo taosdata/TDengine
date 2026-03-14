@@ -60,10 +60,11 @@ Supports Python 3.0 and above.
 
 ## Version History
 
-Python Connector historical versions (it is recommended to use the latest version of 'taopsy'):
+Python Connector historical versions (it is recommended to use the latest version of 'taospy'):
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
+|2.8.9 | Data subscription supports token authentication | - |
 |2.8.8 | Support TOTP authentication and token authentication | - |
 |2.8.6 | Support for pandas' read_Sql_table, to_Sql, and read_Sql interface calls                                    | - |
 |2.8.5 | Support the SQLAlchemy feature of taos-ws-py                                                                | - |
@@ -89,6 +90,7 @@ WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
+|0.6.6 | Data subscription supports token authentication | - |
 |0.6.5 | Support TOTP authentication and token authentication | - |
 |0.6.4 | Support reporting connector version information | - |
 |0.6.3 | Support configuring the response timeout for WebSocket connections (excluding data subscription) | - |
@@ -387,7 +389,8 @@ The interface for binding parameters of the standard Stmt.
   - client.id: Client ID.
   - td.connect.user: Database username.
   - td.connect.pass: Database password.
-  - td.connect.token: Database connection token.
+  - td.connect.token: Cloud service authentication token.
+  - td.connect.bearer_token: Database authentication token, with higher authentication priority than username and password.
   - auto.offset.reset: Determines the consumption position as either the latest data (latest) or including old data (earliest).
   - enable.auto.commit: Whether to allow automatic commit.
   - auto.commit.interval.ms: Automatic commit interval.
@@ -572,7 +575,7 @@ TaosResult object can be iterated over to retrieve queried data.
   - client.id: Client ID.
   - td.connect.user: Database username.
   - td.connect.pass: Database password.
-  - td.connect.token: Database connection token.
+  - td.connect.bearer_token: Database authentication token, with higher authentication priority than username and password.
   - auto.offset.reset: Determines the consumption position as either the latest data (latest) or including old data (earliest).
   - enable.auto.commit: Whether to allow automatic submission.
   - auto.commit.interval.ms: Automatic submission interval.
