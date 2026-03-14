@@ -9,6 +9,9 @@
 /home/TDinternal/community/utils/test/c/tmq_ts6115.c
 /home/TDinternal/community/utils/test/c/tmq_ts7402.c
 /home/TDinternal/community/utils/test/c/tmq_ts7662.c
+/home/TDinternal/community/utils/test/c/tmq_td38404.c
+/home/TDinternal/community/utils/test/c/tmq_token.c
+/home/TDinternal/community/utils/test/c/tmq_vtable.c
 /home/TDinternal/community/utils/test/c/tmq_get_meta_json.c
 /home/TDinternal/community/utils/test/c/varbinary_test.c
 /home/TDinternal/community/utils/test/c/write_raw_block_test.c
