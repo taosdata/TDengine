@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 #include <inttypes.h>
 #include <iostream>
+#include <cstring>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -51,11 +52,120 @@ TEST(osTest, locale) {
 }
 
 TEST(osTest, memory) {
-  int32_t ret = taosMemoryDbgInitRestore();
+  // Test taosMemoryDbgInit
+  int32_t ret = taosMemoryDbgInit();
+#if defined(LINUX) && !defined(_ALPINE) && !defined(TD_ASTRA)
   EXPECT_EQ(ret, 0);
+#else
+  EXPECT_NE(ret, 0);
+#endif
 
+  // Test taosMemoryDbgInitRestore
+  ret = taosMemoryDbgInitRestore();
+#if defined(LINUX) && !defined(_ALPINE) && !defined(TD_ASTRA)
+  EXPECT_EQ(ret, 0);
+#else
+  EXPECT_NE(ret, 0);
+#endif
+
+  // Test taosMemSize with NULL
   int64_t ret64 = taosMemSize(NULL);
   EXPECT_EQ(ret64, 0);
+
+  // Test basic memory allocation and free
+  void *ptr1 = taosMemMalloc(1024);
+  ASSERT_NE(ptr1, nullptr);
+  
+  ret64 = taosMemSize(ptr1);
+#if defined(WINDOWS) || defined(_TD_DARWIN_64) || !defined(TD_ASTRA)
+  EXPECT_GT(ret64, 0);
+#endif
+  
+  taosMemFree(ptr1);
+  
+  // Test taosMemCalloc
+  void *ptr2 = taosMemCalloc(10, 100);
+  ASSERT_NE(ptr2, nullptr);
+  taosMemFree(ptr2);
+  
+  // Test taosMemRealloc
+  void *ptr3 = taosMemMalloc(512);
+  ASSERT_NE(ptr3, nullptr);
+  
+  void *ptr4 = taosMemRealloc(ptr3, 1024);
+  ASSERT_NE(ptr4, nullptr);
+  taosMemFree(ptr4);
+  
+  // Test taosMemRealloc with NULL (should behave like malloc)
+  void *ptr5 = taosMemRealloc(NULL, 256);
+  ASSERT_NE(ptr5, nullptr);
+  taosMemFree(ptr5);
+  
+  // Test taosStrdupi
+  const char *testStr = "Hello TDengine";
+  char *ptr6 = (char*)taosMemMalloc(strlen(testStr) + 1);
+  ASSERT_NE(ptr6, nullptr);
+  strcpy(ptr6, testStr);
+  
+  char *dupStr = taosStrdupi(ptr6);
+  ASSERT_NE(dupStr, nullptr);
+  EXPECT_STREQ(dupStr, testStr);
+  taosMemFree(dupStr);
+  taosMemFree(ptr6);
+  
+  // Test taosMemTrim with NULL trimed parameter
+  ret = taosMemTrim(0, NULL);
+  EXPECT_EQ(ret, TSDB_CODE_SUCCESS);
+  
+  // Test taosMemTrim with trimed parameter
+  bool trimed = false;
+  ret = taosMemTrim(0, &trimed);
+  EXPECT_EQ(ret, TSDB_CODE_SUCCESS);
+  
+  // Test taosMemMallocAlign
+#if defined(LINUX) && !defined(USE_TD_MEMORY)
+  void *alignedPtr = taosMemMallocAlign(16, 1024);
+  ASSERT_NE(alignedPtr, nullptr);
+  
+  // Check alignment
+  EXPECT_EQ((uintptr_t)alignedPtr % 16, 0);
+  taosMemFree(alignedPtr);
+  
+  // Test large alignment
+  void *alignedPtr2 = taosMemMallocAlign(256, 2048);
+  ASSERT_NE(alignedPtr2, nullptr);
+  EXPECT_EQ((uintptr_t)alignedPtr2 % 256, 0);
+  taosMemFree(alignedPtr2);
+#else
+  // On non-Linux or USE_TD_MEMORY, should return NULL or fallback to malloc
+  void *alignedPtr3 = taosMemMallocAlign(16, 1024);
+#ifdef USE_TD_MEMORY
+  EXPECT_EQ(alignedPtr3, nullptr);
+#else
+  if (alignedPtr3 != nullptr) {
+    taosMemFree(alignedPtr3);
+  }
+#endif
+#endif
+
+  // Test edge cases
+  void *zero_alloc = taosMemMalloc(0);
+  if (zero_alloc != nullptr) {
+    taosMemFree(zero_alloc);
+  }
+  
+  void *zero_calloc = taosMemCalloc(0, 100);
+  if (zero_calloc != nullptr) {
+    taosMemFree(zero_calloc);
+  }
+  
+  void *zero_calloc2 = taosMemCalloc(100, 0);
+  if (zero_calloc2 != nullptr) {
+    taosMemFree(zero_calloc2);
+  }
+  
+  // Test free NULL (should not crash)
+  taosMemFree(NULL);
 }
 
 TEST(osTest, rand2) {

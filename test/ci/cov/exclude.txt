@@ -4,8 +4,6 @@
 /home/TDinternal/community/utils/test/c/tmq_taosx_ci.c
 /home/TDinternal/community/utils/test/c/tmq_td32187.c
 /home/TDinternal/community/utils/test/c/tmq_td32471.c
-/home/TDinternal/community/utils/test/c/tmq_td32526.c
-/home/TDinternal/community/utils/test/c/tmq_td35698.c
 /home/TDinternal/community/utils/test/c/tmq_td37436.c
 /home/TDinternal/community/utils/test/c/tmq_ts5466.c
 /home/TDinternal/community/utils/test/c/tmq_ts6115.c
@@ -16,7 +14,6 @@
 /home/TDinternal/community/utils/test/c/write_raw_block_test.c
 /home/TDinternal/community/contrib/lemon/lemon.c
 /home/TDinternal/debug/community/source/libs/parser/sql.c
-/home/TDinternal/community/tools/taos-tools/src/taosdump.c
 /home/TDinternal/community/tools/taos-tools/src/benchData.c
 /home/TDinternal/community/tools/taos-tools/src/benchInsert.c
 /home/TDinternal/community/tools/taos-tools/src/benchJsonOpt.c
