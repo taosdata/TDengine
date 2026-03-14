@@ -248,7 +248,7 @@ static void monGenBasicJsonBasic(SMonInfo *pMonitor) {
   SJson *pJson = pMonitor->pJson;
   char   buf[40] = {0};
 
-  (void)tsnprintf(buf, 40, "%" PRId64, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
+  (void)snprintf(buf, 40, "%" PRId64, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
   if (tjsonAddStringToObject(pJson, "ts", buf) != 0) uError("failed to add ts");
   if (tjsonAddDoubleToObject(pJson, "dnode_id", pInfo->dnode_id) != 0) uError("failed to add dnode_id");
   if (tjsonAddStringToObject(pJson, "dnode_ep", pInfo->dnode_ep) != 0) uError("failed to add dnode_ep");
@@ -643,7 +643,7 @@ void monSendReportBasic(SMonInfo *pMonitor) {
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
     char          tmp[100] = {0};
-    (void)tsnprintf(tmp, 100, "0x%" PRIxLEAST64, tGenQid64(tsMonitor.dnodeId));
+    (void)snprintf(tmp, 100, "0x%" PRIxLEAST64, tGenQid64(tsMonitor.dnodeId));
     uDebug("report cont basic with QID:%s", tmp);
     if (taosSendHttpReportWithQID(tsMonitor.cfg.server, tsMonFwBasicUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag,
                                   tmp) != 0) {
@@ -698,7 +698,7 @@ void monSendContent(char *pCont, const char *uri) {
   }
   if (pCont != NULL) {
     char tmp[100] = {0};
-    (void)tsnprintf(tmp, 100, "0x%" PRIxLEAST64, tGenQid64(tsMonitor.dnodeId));
+    (void)snprintf(tmp, 100, "0x%" PRIxLEAST64, tGenQid64(tsMonitor.dnodeId));
     uDebugL("report client cont with QID:%s", tmp);
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
     if (taosSendHttpReportWithQID(tsMonitor.cfg.server, uri, tsMonitor.cfg.port, pCont, strlen(pCont), flag, tmp) !=

@@ -117,7 +117,7 @@ int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
 
       SQuerySubDesc subDesc = {0};
       subDesc.tid = pTask->taskId;
-      TAOS_STRCPY(subDesc.status, jobTaskStatusStr(pTask->status));
+      tstrncpy(subDesc.status, jobTaskStatusStr(pTask->status), sizeof(subDesc.status));
 
       if (NULL == taosArrayPush(pSub, &subDesc)) {
         qError("taosArrayPush task %d failed, error:0x%x", m, terrno);

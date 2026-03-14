@@ -706,8 +706,8 @@ SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
     }
     if (TSDB_CODE_SUCCESS == code) {
       char    name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
-      int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
-      (void)taosHashBinary(name, len);
+      int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
+      (void)taosHashBinary(name, len, sizeof(name));
       tstrncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN);
     }
   }

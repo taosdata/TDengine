@@ -79,7 +79,7 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     }
 
     char name[TSDB_DB_FNAME_LEN + TSDB_NAME_QUOTE] = {0};
-    strncpy(name, pTableName->z, dbLen);
+    tstrncpy(name, pTableName->z, dbLen < sizeof(name) ? dbLen + 1 : sizeof(name));
     int32_t actualDbLen = strdequote(name);
 
     // after dbname dequote
@@ -105,7 +105,7 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     }
 
     char tbname[TSDB_TABLE_NAME_LEN + TSDB_NAME_QUOTE] = {0};
-    strncpy(tbname, p + 1, tbLen);
+    tstrncpy(tbname, p + 1, tbLen < sizeof(tbname) ? tbLen + 1 : sizeof(tbname));
     int32_t actualTbLen = strdequote(tbname);
 
     // after tbname dequote
@@ -132,7 +132,7 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     }
 
     char tbname[TSDB_TABLE_NAME_LEN + TSDB_NAME_QUOTE] = {0};
-    strncpy(tbname, pTableName->z, tbLen);
+    tstrncpy(tbname, pTableName->z, tbLen < sizeof(tbname) ? tbLen + 1 : sizeof(tbname));
     int32_t actualTbLen = strdequote(tbname);
     // after tbname dequote
     if (actualTbLen <= 0) {

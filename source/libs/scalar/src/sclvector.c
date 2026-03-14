@@ -791,7 +791,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
       int64_t value = 0;
       GET_TYPED_DATA(value, int64_t, pCtx->inType, colDataGetData(pInputCol, i),
                      typeGetTypeModFromColInfo(&pInputCol->info));
-      int32_t len = tsnprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%" PRId64, value);
+      int32_t len = snprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%" PRId64, value);
       varDataLen(tmp) = len;
       if (pCtx->outType == TSDB_DATA_TYPE_NCHAR) {
         SCL_ERR_RET(varToNchar(tmp, pCtx->pOut, i, NULL));
@@ -809,7 +809,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
       uint64_t value = 0;
       GET_TYPED_DATA(value, uint64_t, pCtx->inType, colDataGetData(pInputCol, i),
                      typeGetTypeModFromColInfo(&pInputCol->info));
-      int32_t len = tsnprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%" PRIu64, value);
+      int32_t len = snprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%" PRIu64, value);
       varDataLen(tmp) = len;
       if (pCtx->outType == TSDB_DATA_TYPE_NCHAR) {
         SCL_ERR_RET(varToNchar(tmp, pCtx->pOut, i, NULL));
@@ -827,7 +827,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
       double value = 0;
       GET_TYPED_DATA(value, double, pCtx->inType, colDataGetData(pInputCol, i),
                      typeGetTypeModFromColInfo(&pInputCol->info));
-      int32_t len = tsnprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%lf", value);
+      int32_t len = snprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%lf", value);
       varDataLen(tmp) = len;
       if (pCtx->outType == TSDB_DATA_TYPE_NCHAR) {
         SCL_ERR_RET(varToNchar(tmp, pCtx->pOut, i, NULL));

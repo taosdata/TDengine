@@ -756,7 +756,7 @@ static int ttqNetSocketListen_unix(struct tmqtt__listener *listener) {
   ttq_log(NULL, TTQ_LOG_INFO, "Opening unix listen socket on path %s.", listener->unix_socket_path);
   memset(&addr, 0, sizeof(struct sockaddr_un));
   addr.sun_family = AF_UNIX;
-  strncpy(addr.sun_path, listener->unix_socket_path, sizeof(addr.sun_path) - 1);
+  tstrncpy(addr.sun_path, listener->unix_socket_path, sizeof(addr.sun_path));
 
   sock = socket(AF_UNIX, SOCK_STREAM, 0);
   if (sock == INVALID_SOCKET) {

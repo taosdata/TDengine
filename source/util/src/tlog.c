@@ -1577,7 +1577,7 @@ char* u64toaFastLut(uint64_t val, char* buf) {
   while (val >= NUM_BASE) {
     // Get the last 2 digits from the look-up table and add to the buffer
     p -= DIGIT_LENGTH;
-    strncpy(p, lut + (val % NUM_BASE) * DIGIT_LENGTH, DIGIT_LENGTH);
+    TAOS_STRNCPY(p, lut + (val % NUM_BASE) * DIGIT_LENGTH, DIGIT_LENGTH);
     val /= NUM_BASE;
   }
 
@@ -1585,7 +1585,7 @@ char* u64toaFastLut(uint64_t val, char* buf) {
   if (val >= 10) {
     // If the number is 10 or more, get the 2 digits from the look-up table
     p -= DIGIT_LENGTH;
-    strncpy(p, lut + val * DIGIT_LENGTH, DIGIT_LENGTH);
+    TAOS_STRNCPY(p, lut + val * DIGIT_LENGTH, DIGIT_LENGTH);
   } else if (val > 0 || p == temp) {
     // If the number is less than 10, add the single digit to the buffer
     p -= 1;

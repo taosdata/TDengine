@@ -972,17 +972,17 @@ int32_t cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t
   int32_t len = 0;
   switch (pItem->dtype) {
     case CFG_DTYPE_BOOL:
-      len = tsnprintf(buf, bufSize, "%u", pItem->bval);
+      len = snprintf(buf, bufSize, "%u", pItem->bval);
       break;
     case CFG_DTYPE_INT32:
-      len = tsnprintf(buf, bufSize, "%d", pItem->i32);
+      len = snprintf(buf, bufSize, "%d", pItem->i32);
       break;
     case CFG_DTYPE_INT64:
-      len = tsnprintf(buf, bufSize, "%" PRId64, pItem->i64);
+      len = snprintf(buf, bufSize, "%" PRId64, pItem->i64);
       break;
     case CFG_DTYPE_FLOAT:
     case CFG_DTYPE_DOUBLE:
-      len = tsnprintf(buf, bufSize, "%f", pItem->fval);
+      len = snprintf(buf, bufSize, "%f", pItem->fval);
       break;
     case CFG_DTYPE_TIMEZONE: {
       //      char str1[TD_TIMEZONE_LEN] = {0};
@@ -990,7 +990,7 @@ int32_t cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t
       //      if (taosFormatTimezoneStr(tx1, buf, NULL, str1) != 0) {
       //        tstrncpy(str1, "tz error", sizeof(str1));
       //      }
-      //      len = tsnprintf(buf, bufSize, "%s", str1);
+      //      len = snprintf(buf, bufSize, "%s", str1);
       //      break;
     }
     case CFG_DTYPE_STRING:
@@ -998,7 +998,7 @@ int32_t cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t
     case CFG_DTYPE_LOCALE:
     case CFG_DTYPE_CHARSET:
     case CFG_DTYPE_NONE:
-      len = tsnprintf(buf, bufSize, "%s", pItem->str);
+      len = snprintf(buf, bufSize, "%s", pItem->str);
       break;
   }
 
@@ -1014,13 +1014,13 @@ int32_t cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t
   int32_t len = 0;
   switch (pItem->scope) {
     case CFG_SCOPE_SERVER:
-      len = tsnprintf(buf, bufSize, "server");
+      len = snprintf(buf, bufSize, "server");
       break;
     case CFG_SCOPE_CLIENT:
-      len = tsnprintf(buf, bufSize, "client");
+      len = snprintf(buf, bufSize, "client");
       break;
     case CFG_SCOPE_BOTH:
-      len = tsnprintf(buf, bufSize, "both");
+      len = snprintf(buf, bufSize, "both");
       break;
   }
 
@@ -1040,10 +1040,10 @@ int32_t cfgDumpItemCategory(SConfigItem *pItem, char *buf, int32_t bufSize, int3
   int32_t len = 0;
   switch (pItem->category) {
     case CFG_CATEGORY_LOCAL:
-      len = tsnprintf(buf, bufSize, "local");
+      len = snprintf(buf, bufSize, "local");
       break;
     case CFG_CATEGORY_GLOBAL:
-      len = tsnprintf(buf, bufSize, "global");
+      len = snprintf(buf, bufSize, "global");
       break;
     default:
       uError("invalid category:%d", pItem->category);

@@ -1419,7 +1419,7 @@ char *taosMemPoolStrdup(void* poolHandle, void* session, const char *ptr, char* 
 
   code = mpMalloc(pPool, pSession, &input.size, 0, &input.pMem);
   if (NULL != input.pMem) {
-    TAOS_STRCPY(input.pMem, ptr);
+    tstrncpy((char*)input.pMem, ptr, size);
     *((char*)input.pMem + size - 1) = 0;
   }
 
