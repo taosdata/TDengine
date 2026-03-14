@@ -12,6 +12,7 @@ function usage() {
     echo -e "\t -h help"
 }
 
+
 ent=0
 while getopts "m:t:b:l:o:w:eh" opt; do
     case $opt in
