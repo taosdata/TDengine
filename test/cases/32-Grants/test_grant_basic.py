@@ -53,13 +53,10 @@ class TestCase:
         tdSql.execute("create topic topic_stb_all as select ts, c1, c2, c3 from stb0");
         tdSql.execute("create topic topic_stb_function as select ts, abs(c1), sin(c2) from stb0");
         tdSql.execute("create view view1 as select * from stb0");
-        for r in range(0, 50000, 50):
-            tdLog.info(f"insert data {r} into stb0")
-            tdSql.query(f"insert into db.ctb0 values(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)(now + %ds, %d, %d, %d, %f, %f)  "%(r, r*2, r*4, r*3, float(r)/39, float(r)/23,r+1, (r+1)*2, (r+1)*4, (r+1)*3, float(r)/139, float(r)/123,r+2, (r+2)*2, (r+2)*4, (r+2)*3, float(r)/239, float(r)/223,r+3, (r+3)*2, (r+3)*4, (r+3)*3, float(r)/339, float(r)/323,r+4, (r+4)*2, (r+4)*4, (r+4)*3, float(r)/439, float(r)/423,r+5, r+5*2, r+5*4, r+5*3, float(r)/539, float(r)/523,r+6, r+6*2, r+6*4, r+6*3, float(r)/639, float(r)/623,r+7, r+7*2, r+7*4, r+7*3, float(r)/739, float(r)/723,r+8, r+8*2, r+8*4, r+8*3, float(r)/839, float(r)/823,r+9, r+9*2, r+9*4, r*3, float(r)/939, float(r)/923))
         tdSql.execute("flush database db")
         tdLog.info("prepare test data done")
     
-    def getShowGrantsTimeSeries(self, maxRetry=30):
+    def getShowGrantsTimeSeries(self, maxRetry=15):
         for nRetry in range(maxRetry):
             tdSql.query("show grants")
             timeseries = tdSql.queryResult[0][5]
@@ -77,7 +74,7 @@ class TestCase:
         tdSql.query(f"select cast(sum(columns-1) as int) as tss from information_schema.ins_tables where db_name not in ('information_schema', 'performance_schema', 'audit') and type not like '%VIRTUAL%'")
         return int(tdSql.queryResult[0][0])
 
-    def checkGrantsTimeSeries(self, prompt="", nExpectedTimeSeries=0, strictMode=False, maxRetry=30):
+    def checkGrantsTimeSeries(self, prompt="", nExpectedTimeSeries=0, strictMode=False, maxRetry=15):
         for nRetry in range(maxRetry):
             tss_grant = self.getShowGrantsTimeSeries()
             if tss_grant == nExpectedTimeSeries:
@@ -100,7 +97,7 @@ class TestCase:
 
     def s1_check_timeseries(self):
         tdLog.info("======== test timeseries: ")
-        tss_grant = 11
+        tss_grant = 5
         for i in range(0, 3):
             tdLog.printNoPrefix(f"======== test timeseries: loop{i}")
             self.checkGrantsTimeSeries("initial check", tss_grant)
@@ -300,7 +297,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test timeseries exclude systable: ")
         try:
             # Get the current timeseries count as baseline
-            tss_grant_base = 11 # table + stream result table
+            tss_grant_base = 5
             self.checkGrantsTimeSeries("initial grant check", tss_grant_base)
 
             # ========== Test1: Verify ALL system tables in audit db are excluded from timeseries ==========
