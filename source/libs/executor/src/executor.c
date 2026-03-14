@@ -1611,19 +1611,9 @@ void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   qDebug("rsp msg got, code:%x, len:%d, 0x%" PRIx64 ":0x%" PRIx64, 
       pMsg->code, pMsg->contLen, TRACE_GET_ROOTID(&pMsg->info.traceId), TRACE_GET_MSGID(&pMsg->info.traceId));
 
-  SDataBuf buf = {.len = pMsg->contLen, .pData = NULL};
-
-  if (pMsg->contLen > 0) {
-    buf.pData = taosMemoryCalloc(1, pMsg->contLen);
-    if (buf.pData == NULL) {
-      pMsg->code = terrno;
-    } else {
-      memcpy(buf.pData, pMsg->pCont, pMsg->contLen);
-    }
-  }
+  SDataBuf buf = {.len = pMsg->contLen, .pData = pMsg->pCont};
 
   (void)pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
-  rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
 }
 

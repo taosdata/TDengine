@@ -510,7 +510,7 @@ int32_t ctgHandleMsgCallback(void* param, SDataBuf* pMsg, int32_t rspCode) {
 
 _return:
 
-  taosMemoryFree(pMsg->pData);
+  rpcFreeCont(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
   if (pJob) {
