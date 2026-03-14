@@ -275,7 +275,11 @@ void taos_cleanup(void) {
   clientConnRefPool = -1;
   taosCloseRef(id);
 
-  nodesDestroyAllocatorSet();
+  // Order requirement:
+  // 1) Close request/connection ref pools first, so destroyTscObj() can safely
+  //    access pAppInfo/pTransporter during object teardown.
+  // 2) Then cleanup app instances and rpc/task queue to stop async activities.
+  // 3) Destroy allocator set last, otherwise background cleanup paths may hit UAF.
   cleanupAppInfo();
   rpcCleanup();
   tscDebug("rpc cleanup");
@@ -283,6 +287,8 @@ void taos_cleanup(void) {
   if (TSDB_CODE_SUCCESS != cleanupTaskQueue()) {
     tscWarn("failed to cleanup task queue");
   }
+
+  nodesDestroyAllocatorSet();
 
   sessMgtDestroy();
 

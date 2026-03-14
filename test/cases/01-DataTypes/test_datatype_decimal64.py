@@ -13,7 +13,6 @@ import re
 import platform
 if platform.system().lower() == 'windows':
     import wexpect
-
 from new_test_framework.utils import tdLog, tdSql, TDSql
 from decimal import *
 from multiprocessing import Value, Lock
@@ -215,7 +214,7 @@ class TaosShell:
         self.tmp_file_path = os.path.join(os.path.dirname(__file__), "taos_shell_result")
     
     def get_file_path(self):
-        return f"{self.tmp_file_path}_{self.counter_}"
+        return f"{self.tmp_file_path}_{os.getpid()}_{self.counter_}"
 
     def read_result(self):
         with open(self.get_file_path(), "r") as f:
@@ -253,13 +252,21 @@ class TaosShell:
                 command = f'taos -s "{sql} >> {self.get_file_path()}"'
                 tdLog.debug(f"exec command: {command}")
                 result = subprocess.run(
-                    command, shell=True, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE
+                    command,
+                    shell=True,
+                    check=True,
+                    stderr=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    text=True,
                 )
             self.read_result()
+        except subprocess.CalledProcessError as e:
+            # Surface stderr (e.g., ASAN diagnostics) without causing secondary decode errors
+            err_msg = e.stderr or ""
+            tdLog.exit(f"Command '{sql}' failed ({type(e).__name__}):\n{err_msg}")
         except Exception as e:
-            tdLog.exit(f"Command '{sql}' failed with error: {e.stderr.decode('utf-8')}")
-            self.queryResult = []
-            raise
+            extra = getattr(e, 'stderr', None) or ""
+            tdLog.exit(f"Unexpected error ({type(e).__name__}) while running '{sql}':\n{extra or str(e)}")
         return self.queryResult
 
 class DecimalColumnExpr:
