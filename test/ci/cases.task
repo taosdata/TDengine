@@ -863,6 +863,9 @@
 
 # 31-Keywords
 
+# 32-Grants
+,,n,.,./ci/pytest.sh pytest cases/32-Grants/test_grant_basic.py
+
 
 # 70-Cluster
 
