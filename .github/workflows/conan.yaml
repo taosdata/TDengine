@@ -1,0 +1,417 @@
+name: Conan CI
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+  push:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TD_CONFIG: Release
+  CONAN_NON_INTERACTIVE: '1'
+
+jobs:
+  conan:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runs_on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            runs_on: ubuntu-24.04
+            arch: x86_64
+            emulate: false
+          - name: linux-aarch64 (qemu)
+            runs_on: ubuntu-24.04
+            arch: aarch64
+            emulate: true
+          - name: macos
+            runs_on: macos-14
+            arch: native
+            emulate: false
+          - name: windows
+            runs_on: windows-2022
+            arch: x86_64
+            emulate: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        if: matrix.emulate != true
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install system deps (Linux)
+        if: runner.os == 'Linux' && matrix.emulate != true
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            pkg-config \
+            gawk \
+            autoconf \
+            automake \
+            libtool \
+            perl \
+            git
+
+      - name: Install system deps (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          brew update
+          brew install \
+            cmake \
+            ninja \
+            pkg-config \
+            gawk \
+            autoconf \
+            automake \
+            libtool
+
+      - name: Install Conan (Linux/macOS)
+        if: runner.os != 'Windows' && matrix.emulate != true
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install conan==2.25.1
+          conan --version
+
+      - name: Install Conan (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install conan==2.25.1
+          conan --version
+
+      - name: Cache Conan (Linux/macOS)
+        if: runner.os != 'Windows' && matrix.emulate != true
+        uses: actions/cache@v4
+        with:
+          path: ~/.conan2
+          key: conan-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('conanfile.py', 'conan/**/conanfile.py') }}
+          restore-keys: |
+            conan-${{ runner.os }}-${{ matrix.arch }}-
+
+      - name: Cache Conan (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.USERPROFILE }}\.conan2
+          key: conan-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('conanfile.py', 'conan/**/conanfile.py') }}
+          restore-keys: |
+            conan-${{ runner.os }}-${{ matrix.arch }}-
+
+      - name: Prepare MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install build tools (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install -y ninja strawberryperl nasm
+
+      - name: Conan profile detect (Linux/macOS)
+        if: runner.os != 'Windows' && matrix.emulate != true
+        shell: bash
+        run: |
+          conan profile detect --force
+          conan profile show -pr default
+
+      - name: Conan install + build (Linux/macOS)
+        if: runner.os != 'Windows' && matrix.emulate != true
+        shell: bash
+        run: |
+          chmod +x ./build.sh
+          ./build.sh conan-install -o '&:with_taos_tools=False' -o '&:with_taosws=False'
+          ./build.sh conan-gen \
+            -DWEBSOCKET:STRING=false \
+            -DBUILD_TOOLS=false \
+            -DBUILD_KEEPER=false \
+            -DBUILD_HTTP=false
+          ./build.sh conan-bld --target osTimeTests
+          ./build.sh conan-test -R osTimeTests
+
+      - name: Conan export + install + build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          conan profile detect --force
+
+          $recipes = @(
+            'conan/cppstub',
+            'conan/fast-lzma2',
+            'conan/avro-c',
+            'conan/tz',
+            'conan/libdwarf',
+            'conan/libdwarf-addr2line',
+            'conan/libs3',
+            'conan/td-azure-sdk',
+            'conan/mxml',
+            'conan/apr',
+            'conan/apr-util',
+            'conan/cos-c-sdk',
+            'conan/taosws',
+            'conan/pthread-win32',
+            'conan/win-iconv',
+            'conan/libgnurx-msvc',
+            'conan/wcwidth-cjk',
+            'conan/wingetopt',
+            'conan/crashdump'
+          )
+
+          foreach ($r in $recipes) {
+            conan export $r
+          }
+
+          $out = 'build/conan-release'
+
+          # Conan's default MSVC profile often sets cppstd=14; RocksDB requires C++17.
+          conan install . --output-folder=$out --build=missing -s build_type=Release -s compiler.cppstd=17 -o '&:with_test=True' -o '&:with_uv=True' -o '&:with_geos=True' -o '&:with_pcre2=True' -o '&:with_taos_tools=False' -o '&:with_taosws=False'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $toolchain = "$out/generators/conan_toolchain.cmake"
+          if (-not (Test-Path $toolchain)) {
+            throw "Conan toolchain file not found: $toolchain"
+          }
+
+          # Ensure runtime deps (DLLs) are discoverable for tests when any dependency is shared.
+          $conanrun = "$out/generators/conanrun.ps1"
+          if (Test-Path $conanrun) {
+            & $conanrun
+          }
+
+          cmake -B $out -G Ninja -DCMAKE_TOOLCHAIN_FILE=$toolchain -DCMAKE_BUILD_TYPE=Release -DUSE_CONAN:BOOL=ON -DBUILD_TEST:BOOL=ON -DBUILD_DEPENDENCY_TESTS:BOOL=OFF -DBUILD_HTTP:BOOL=OFF -DWEBSOCKET:STRING=false -DBUILD_TOOLS=false -DBUILD_KEEPER=false
+          cmake --build $out --target osTimeTests
+          ctest --test-dir $out -C Release -R osTimeTests --output-on-failure
+
+      - name: Set up QEMU (Linux aarch64)
+        if: runner.os == 'Linux' && matrix.emulate == true
+        uses: docker/setup-qemu-action@v3
+
+      - name: Conan install + build (Linux aarch64 via QEMU)
+        if: runner.os == 'Linux' && matrix.emulate == true
+        uses: uraimo/run-on-arch-action@v2
+        with:
+          arch: aarch64
+          distro: ubuntu22.04
+          githubToken: ${{ github.token }}
+          install: |
+            apt-get update
+            apt-get install -y \
+              bash \
+              build-essential \
+              cmake \
+              ninja-build \
+              pkg-config \
+              gawk \
+              python3 \
+              python3-pip \
+              autoconf \
+              automake \
+              libtool \
+              perl \
+              git
+            python3 -m pip install --upgrade pip
+            pip3 install conan==2.25.1
+          run: |
+            export CONAN_NON_INTERACTIVE=1
+            chmod +x ./build.sh
+            conan profile detect --force
+            ./build.sh conan-install -o '&:with_taos_tools=False' -o '&:with_taosws=False'
+            ./build.sh conan-gen \
+              -DWEBSOCKET:STRING=false \
+              -DBUILD_TOOLS=false \
+              -DBUILD_KEEPER=false \
+              -DBUILD_HTTP=false
+            ./build.sh conan-bld --target osTimeTests
+            ./build.sh conan-test -R osTimeTests
+
+  conan-recipes:
+    name: Conan recipes (${{ matrix.name }})
+    needs: conan
+    runs-on: ${{ matrix.runs_on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            runs_on: ubuntu-24.04
+            arch: x86_64
+            recipes: >-
+              conan/cppstub
+              conan/tz
+              conan/fast-lzma2
+              conan/avro-c
+              conan/libdwarf
+              conan/libdwarf-addr2line
+              conan/libs3
+              conan/mxml
+              conan/apr
+              conan/apr-util
+              conan/cos-c-sdk
+              conan/td-azure-sdk
+          - name: macos
+            runs_on: macos-14
+            arch: native
+            recipes: >-
+              conan/cppstub
+              conan/tz
+              conan/fast-lzma2
+              conan/avro-c
+              conan/libdwarf
+              conan/libdwarf-addr2line
+              conan/libs3
+              conan/mxml
+              conan/apr
+              conan/apr-util
+              conan/cos-c-sdk
+              conan/td-azure-sdk
+          - name: windows
+            runs_on: windows-2022
+            arch: x86_64
+            recipes: >-
+              conan/pthread-win32
+              conan/win-iconv
+              conan/libgnurx-msvc
+              conan/wcwidth-cjk
+              conan/wingetopt
+              conan/crashdump
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install system deps (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            pkg-config \
+            gawk \
+            autoconf \
+            automake \
+            libtool \
+            m4 \
+            perl \
+            git
+
+      - name: Install system deps (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          brew update
+          brew install \
+            cmake \
+            ninja \
+            pkg-config \
+            gawk \
+            autoconf \
+            automake \
+            libtool \
+            m4
+
+      - name: Prepare MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install build tools (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install -y ninja strawberryperl nasm
+
+      - name: Install Conan (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install conan==2.25.1
+          conan --version
+
+      - name: Install Conan (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install conan==2.25.1
+          conan --version
+
+      - name: Cache Conan (Linux/macOS)
+        if: runner.os != 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: ~/.conan2
+          key: conan-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('conanfile.py', 'conan/**/conanfile.py') }}
+          restore-keys: |
+            conan-${{ runner.os }}-${{ matrix.arch }}-
+
+      - name: Cache Conan (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.USERPROFILE }}\.conan2
+          key: conan-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('conanfile.py', 'conan/**/conanfile.py') }}
+          restore-keys: |
+            conan-${{ runner.os }}-${{ matrix.arch }}-
+
+      - name: Conan profile detect (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          conan profile detect --force
+
+      - name: Conan profile detect (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          conan profile detect --force
+
+      - name: Validate recipes (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -u
+          for recipe in ${{ matrix.recipes }}; do
+            echo "=== conan create ${recipe} ==="
+            conan create "${recipe}" --build=missing -s build_type=${TD_CONFIG}
+          done
+
+      - name: Validate recipes (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $recipes = "${{ matrix.recipes }}" -split "\s+" | Where-Object { $_ -ne '' }
+          foreach ($r in $recipes) {
+            Write-Host "=== conan create $r ==="
+            conan create $r --build=missing -s build_type=Release
+          }

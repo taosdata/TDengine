@@ -59,9 +59,8 @@ endif()
 
 if(BUILD_ADDR2LINE)
     if(NOT TD_WINDOWS)
-        target_link_libraries(
-            os PUBLIC addr2line dl
-        )
+        # addr2line/backtrace support is libdwarf-based (see osMemory.c)
+        DEP_ext_dwarf(os)
     endif()
 
     add_definitions(-DUSE_ADDR2LINE)
