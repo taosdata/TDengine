@@ -22,6 +22,14 @@ from .config import Config
 from .misc import Logging, CrashGenError, Helper
 from .types import QueryResult
 
+# Lazy import to avoid circular dependency; recorder may not be initialised yet
+def _record_sql(sql: str):
+    try:
+        from crash_gen.sql_recorder import SqlRecorder
+        SqlRecorder.record(sql)
+    except Exception:
+        pass
+
 class DbConn:
     TYPE_NATIVE = "native-c"
     TYPE_REST =   "rest-api"
@@ -469,6 +477,7 @@ class DbConnNative(DbConn):
                 "Cannot exec SQL unless db connection is open", CrashGenError.DB_CONNECTION_NOT_OPEN)
         Logging.debug("[SQL] Executing SQL: {}".format(sql))
         self._lastSql = sql
+        _record_sql(sql)
         time_cost = -1
         nRows = 0
         time_start = time.time()
@@ -495,6 +504,7 @@ class DbConnNative(DbConn):
                 "Cannot query database until connection is open, restarting?", CrashGenError.DB_CONNECTION_NOT_OPEN)
         Logging.debug("[SQL] Executing SQL: {}".format(sql))
         self._lastSql = sql
+        _record_sql(sql)
         self.saveSqlForCurrentThread(sql) # Save in global structure too. #TODO: combine with above
         nRows = self._tdSql.query(sql)
         cls = self.__class__

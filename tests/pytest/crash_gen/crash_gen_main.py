@@ -2899,7 +2899,8 @@ class TaskAddData(StateTransitionTask):
             for col_name, col_type in columns.items():
                 value = db.generateColumnValue(col_name, col_type)
                 values.append(value)
-            sql += "({});".format(", ".join(values))
+            sql += "({}) ".format(", ".join(values))
+        sql = sql.rstrip() + ";"
 
         # Logging.info("Adding data in batch: {}".format(sql))
         try:
@@ -2924,18 +2925,14 @@ class TaskAddData(StateTransitionTask):
                 break
 
         for j in range(numRecords):  # number of records per table
-            # Generate values for all columns
+            # Generate values for all columns; capture timestamp for later verification
+            nextTick = None
             col_values = {}
             for col_name, col_type in columns.items():
                 col_values[col_name] = db.generateColumnValue(col_name, col_type)
-
-            # Get timestamp for verification
-            nextTick = None
-            for col_name, col_type in columns.items():
-                if 'TIMESTAMP' in col_type.upper():
-                    nextTick = db.getNextTick()
-                    col_values[col_name] = "'{}'".format(nextTick)
-                    break
+                if nextTick is None and 'TIMESTAMP' in col_type.upper():
+                    # Extract raw tick string from the quoted value e.g. '2020-01-01 00:00:01'
+                    nextTick = col_values[col_name].strip("'")
 
             # Get tracking value (for record_ops)
             intToWrite = db.getNextInt()
@@ -3495,6 +3492,9 @@ class MainExec:
         except requests.exceptions.ConnectionError as err:
             Logging.warning("Failed to open REST connection to DB: {}".format(err))
             # don't raise
+        finally:
+            from .sql_recorder import SqlRecorder
+            SqlRecorder.close()
         return ret
 
     def runService(self):
@@ -3630,7 +3630,6 @@ class MainExec:
             '--continue-on-exception',
             action='store_true',
             help='Continue execution after encountering unexpected/disallowed errors/exceptions (default: false)')
-
         return parser
 
     def init(self):  # TODO: refactor
@@ -3650,6 +3649,10 @@ class MainExec:
         Logging.clsInit(Config.getConfig().debug)
 
         Dice.seed(0)  # initial seeding of dice
+
+        # 默认开启 SQL 录制，自动在 sql_records/ 目录下生成递增编号文件
+        from .sql_recorder import SqlRecorder
+        SqlRecorder.init()
 
     def run(self):
         if Config.getConfig().run_tdengine:  # run server
