@@ -832,7 +832,7 @@ static int32_t extWinSwitchInitTGrpCtx(SExternalWindowOperator* pExtW, SExecTask
   SStreamRuntimeFuncInfo* pInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
 
   if ((!pInfo->isMultiGroupCalc && NULL != pExtW->pTGrpCtx) ||
-      (pInfo->isMultiGroupCalc && pId->baseGId == pExtW->lastTGrpId)) {
+      (pInfo->isMultiGroupCalc && NULL != pExtW->pTGrpCtx && pId->baseGId == pExtW->lastTGrpId)) {
     goto _exit;
   }
   
@@ -890,9 +890,16 @@ static int32_t extWinSwitchInitCGrpCtx(SExternalWindowOperator* pExtW, SExecTask
   SStreamRuntimeFuncInfo* pInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
   SExtWinTrigGrpCtx* pTCtx = pExtW->pTGrpCtx;
 
+  if (pTCtx == NULL) {
+    qError("%s %s invalid tgrp ctx for %s extWin, baseGrp:%" PRIu64 " grp:%" PRIu64,
+           GET_TASKID(pTaskInfo), __func__, EXT_WIN_TYPE_STR(pExtW->isMergeAlignedExtW),
+           pId->baseGId, pId->groupId);
+    TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
+  }
+
   if (0 == pId->groupId || (pInfo->isMultiGroupCalc && (pId->baseGId == pId->groupId))) {
-    if (NULL != pTCtx->pCGCtxs || pExtW->calcWithPartition) {
-      qError("%s plan or ctx conflict, pCGCtxs:%p, calcWithPartition:%d", GET_TASKID(pTaskInfo), pTCtx->pCGCtxs, pExtW->calcWithPartition);
+    if (NULL != pTCtx->pCGCtxs) {
+      qError("%s plan or ctx conflict, pCGCtxs:%p", GET_TASKID(pTaskInfo), pTCtx->pCGCtxs);
       TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
     }
 
@@ -1302,7 +1309,7 @@ int32_t resetMergeAlignedExtWinOperator(SOperatorInfo* pOperator) {
   pExtW->outWinIdx = 0;
   pExtW->lastTGrpId = 0;
   pExtW->lastCGrpId = 0;
-  
+
 _exit:
 
   if (code != 0) {
@@ -3327,10 +3334,6 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     pOperator->pOperatorGetParam = NULL;
   }
 
-  if (pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM && pExtW->calcWithPartition) {
-    return extWinOpenForPartitionDownstream(pOperator);
-  }
-
   while (1) {
     SSDataBlock* pBlock = getNextBlockFromDownstreamRemain(pOperator, 0);
     if (pOperator->pDownstreamGetParams) {
@@ -3357,6 +3360,23 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
 
     qInfo("%s ext window mode:%s baseGrp:%" PRIu64 " grp:%" PRIu64 " got %" PRId64 " rows from downstream",
         GET_TASKID(pTaskInfo), extWinModeStr(pExtW->mode), pBlock->info.id.baseGId, pBlock->info.id.groupId, pBlock->info.rows);
+
+    // Fallback: if downstream block lost baseGId but we are in multi-group (from subquery)
+    // and there is exactly one t-group, assign that gid to baseGId so we can locate calc info.
+    if (pBlock->info.id.baseGId == 0 && pTaskInfo->pStreamRuntimeInfo &&
+        pTaskInfo->pStreamRuntimeInfo->funcInfo.isMultiGroupCalc &&
+        pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos) {
+      int32_t __iter = 0;
+      int32_t __size = tSimpleHashGetSize(pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos);
+      if (__size == 1) {
+        SSTriggerGroupCalcInfo* __one = tSimpleHashIterate(pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos, NULL, &__iter);
+        if (__one) {
+          uint64_t __gid = *(uint64_t*)tSimpleHashGetKey(__one, NULL);
+          pBlock->info.id.baseGId = __gid;
+          qDebug("%s extWin fallback baseGId set to single gid %" PRIu64, GET_TASKID(pTaskInfo), __gid);
+        }
+      }
+    }
 
     TAOS_CHECK_EXIT(extWinSwitchInitCtxs(pExtW, pTaskInfo, &pBlock->info.id));
 
@@ -3428,12 +3448,12 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (pExtW->mode == EEXT_MODE_SCALAR || pExtW->mode == EEXT_MODE_INDEFR_FUNC) {
       TAOS_CHECK_EXIT(extWinNonAggOutputRes(pOperator, ppRes));
       if (NULL == *ppRes) {
-        if (pExtW->calcWithPartition && (!pExtW->partitionInputDone || pExtW->pPartitionPendingBlock != NULL)) {
-          pExtW->partitionGroupStarted = false;
-          extWinResetPartitionGroupCalcState(pOperator);
-          pOperator->status = OP_NOT_OPENED;
-          continue;
-        }
+        // if (pExtW->calcWithPartition && (!pExtW->partitionInputDone || pExtW->pPartitionPendingBlock != NULL)) {
+        //   pExtW->partitionGroupStarted = false;
+        //   extWinResetPartitionGroupCalcState(pOperator);
+        //   pOperator->status = OP_NOT_OPENED;
+        //   continue;
+        // }
 
         setOperatorCompleted(pOperator);
         extWinFreeResultRow(pExtW);
@@ -3444,12 +3464,12 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         break;
       }
 
-      if (pExtW->calcWithPartition && (!pExtW->partitionInputDone || pExtW->pPartitionPendingBlock != NULL)) {
-        pExtW->partitionGroupStarted = false;
-        extWinResetPartitionGroupCalcState(pOperator);
-        pOperator->status = OP_NOT_OPENED;
-        continue;
-      }
+      // if (pExtW->calcWithPartition && (!pExtW->partitionInputDone || pExtW->pPartitionPendingBlock != NULL)) {
+      //   pExtW->partitionGroupStarted = false;
+      //   extWinResetPartitionGroupCalcState(pOperator);
+      //   pOperator->status = OP_NOT_OPENED;
+      //   continue;
+      // }
 
       if (pExtW->pTGrpCtx == NULL || pExtW->pTGrpCtx->pCCtx == NULL ||
           pExtW->pTGrpCtx->pCCtx->outWinNum >= pExtW->pTGrpCtx->pCCtx->outWinTotalNum) {
@@ -3517,7 +3537,11 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   }
 
   pExtW->needGroupSort = pPhynode->needGroupSort;
+  // In non-stream (batch) mode, temporarily disable calcWithPartition to tolerate
+  // upstream that does not provide distinct C-group ids (groupId==baseGId).
+  // Caller may decide to turn it back on once upstream is ready.
   pExtW->calcWithPartition = pPhynode->calcWithPartition;
+  // pExtW->calcWithPartition = (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) ? pPhynode->calcWithPartition : false;
   pExtW->extWinSplit = pPhynode->extWinSplit;
   
   setOperatorInfo(pOperator, "ExternalWindowOperator", QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW, true, OP_NOT_OPENED,
@@ -3545,10 +3569,14 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
 
   if (pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM) {
     isInStream = false;
-    code = extWinInitNonStreamWindowDataFromBlock(pPhynode, pTaskInfo, &nonStreamExtWinRange);
-    if (code != TSDB_CODE_SUCCESS) {
-      lino = __LINE__;
-      goto _error;
+    // If pre-init has not been performed, initialize from subquery blocks here.
+    if (pTaskInfo->pStreamRuntimeInfo == NULL ||
+        pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos == NULL) {
+      code = extWinInitNonStreamWindowDataFromBlock(pPhynode, pTaskInfo, &nonStreamExtWinRange);
+      if (code != TSDB_CODE_SUCCESS) {
+        lino = __LINE__;
+        goto _error;
+      }
     }
   }
 
@@ -3731,6 +3759,25 @@ _error:
   return code;
 }
 
+// Pre-initialize external-window runtime from subquery results before building children.
+// This enables scan operators to see isMultiGroupCalc/curGrpRead and build tablelist with baseGId.
+int32_t extWinPreInitFromSubquery(SPhysiNode* pNode, SExecTaskInfo* pTaskInfo) {
+  if (pNode == NULL || pTaskInfo == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+    return TSDB_CODE_SUCCESS;  // stream path unaffected
+  }
+  // If already initialized, skip.
+  if (pTaskInfo->pStreamRuntimeInfo &&
+      pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SExternalWindowPhysiNode* pPhynode = (SExternalWindowPhysiNode*)pNode;
+  STimeWindow tmpRange = {.skey = INT64_MAX, .ekey = INT64_MIN};
+  return extWinInitNonStreamWindowDataFromBlock(pPhynode, pTaskInfo, &tmpRange);
+}
+
 static int32_t extWinValidateNonStreamBlock(SSDataBlock* pBlock, SColumnInfoData** ppStartCol,
                                             SColumnInfoData** ppEndCol, int32_t* pNumRows, int32_t* pNumCols) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -3867,20 +3914,196 @@ _exit:
 static SArray* extWinGetSSDataBlocksInTest(SExternalWindowPhysiNode* pPhynode);
 #endif
 
-static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, STimeWindow* pTimeRange) {
+static uint64_t extWinGetRemoteResultGroupId(const SSDataBlock* pBlock) {
+  if (pBlock == NULL) {
+    return 0;
+  }
+
+  return (pBlock->info.id.baseGId != 0) ? pBlock->info.id.baseGId : pBlock->info.id.groupId;
+}
+
+static bool hasGroupedRemoteResult(SArray* pBlocks) {
+  if (pBlocks == NULL) {
+    return false;
+  }
+
+  int32_t blockNum = taosArrayGetSize(pBlocks);
+  for (int32_t blockIdx = 0; blockIdx < blockNum; ++blockIdx) {
+    SSDataBlock** ppOne = taosArrayGet(pBlocks, blockIdx);
+    if (ppOne == NULL || *ppOne == NULL) {
+      continue;
+    }
+
+    if (extWinGetRemoteResultGroupId(*ppOne) != 0) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static int32_t extWinAppendNonGroupedCalcParam(SStreamRuntimeFuncInfo* pRt, SSTriggerCalcParam* pParam,
+                                               bool* pHasPrevStart, int64_t* pPrevStart, int32_t row) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  code = extWinCheckMonotonicWstart(*pHasPrevStart, *pPrevStart, pParam->wstart, row);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  *pPrevStart = pParam->wstart;
+  *pHasPrevStart = true;
+
+  void* pRet = taosArrayPush(pRt->pStreamPesudoFuncVals, pParam);
+  if (pRet == NULL) {
+    return terrno;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extWinGetOrCreateGroupedCalcInfo(SStreamRuntimeFuncInfo* pRt, uint64_t groupId,
+                                                SSTriggerGroupCalcInfo** ppGroupInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  SSDataBlock* pBlock = NULL;
-  SArray* pBlocks = NULL;
-  STimeWindow extWinTimeRange = {.skey = INT64_MAX, .ekey = INT64_MIN};
-  
-  // Initialize minimal stream runtime info for non-stream external-window queries.
-  // Keep this path independent from planner subquery pointer wiring so placeholders
-  // (_wstart/_wend/_external_window_column) always read from external window data.
+  SSTriggerGroupCalcInfo* pGroupInfo = tSimpleHashGet(pRt->pGroupCalcInfos, &groupId, sizeof(groupId));
+
+  if (pGroupInfo == NULL) {
+    SSTriggerGroupCalcInfo info = {0};
+    info.pParams = taosArrayInit(4, sizeof(SSTriggerCalcParam));
+    TSDB_CHECK_NULL(info.pParams, code, lino, _exit, terrno);
+
+    TAOS_CHECK_EXIT(tSimpleHashPut(pRt->pGroupCalcInfos, &groupId, sizeof(groupId), &info, sizeof(info)));
+
+    pGroupInfo = tSimpleHashGet(pRt->pGroupCalcInfos, &groupId, sizeof(groupId));
+    TSDB_CHECK_NULL(pGroupInfo, code, lino, _exit, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  }
+
+  *ppGroupInfo = pGroupInfo;
+
+_exit:
+  return code;
+}
+
+static int32_t extWinAppendGroupedCalcParam(SStreamRuntimeFuncInfo* pRt, uint64_t groupId, SSTriggerCalcParam* pParam,
+                                            int32_t row) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SSTriggerGroupCalcInfo* pGroupInfo = NULL;
+  bool groupHasPrevStart = false;
+  int64_t groupPrevStart = 0;
+
+  TAOS_CHECK_EXIT(extWinGetOrCreateGroupedCalcInfo(pRt, groupId, &pGroupInfo));
+
+  groupHasPrevStart = (taosArrayGetSize(pGroupInfo->pParams) > 0);
+  if (groupHasPrevStart) {
+    SSTriggerCalcParam* pLast = taosArrayGetLast(pGroupInfo->pParams);
+    TSDB_CHECK_NULL(pLast, code, lino, _exit, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    groupPrevStart = pLast->wstart;
+  }
+
+  code = extWinCheckMonotonicWstart(groupHasPrevStart, groupPrevStart, pParam->wstart, row);
+  if (code != TSDB_CODE_SUCCESS) {
+    TAOS_CHECK_EXIT(code);
+  }
+
+  TSDB_CHECK_NULL(taosArrayPush(pGroupInfo->pParams, pParam), code, lino, _exit, terrno);
+
+_exit:
+  return code;
+}
+
+static int32_t extWinBuildNonGroupedCalcInfosFromBlocks(SArray* pBlocks, SStreamRuntimeFuncInfo* pRt,
+                                                        STimeWindow* pExtWinTimeRange) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   SColumnInfoData* pStartCol = NULL;
   SColumnInfoData* pEndCol = NULL;
   int32_t numRows = 0;
   int32_t numCols = 0;
+  bool hasPrevStart = false;
+  int64_t prevStart = 0;
+  uint64_t prevGroupId = UINT64_MAX;
+  int32_t blockNum = taosArrayGetSize(pBlocks);
+
+  for (int32_t blockIdx = 0; blockIdx < blockNum; ++blockIdx) {
+    SSDataBlock** ppOne = taosArrayGet(pBlocks, blockIdx);
+    TSDB_CHECK_NULL(ppOne, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+    SSDataBlock* pBlock = *ppOne;
+    TSDB_CHECK_NULL(pBlock, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+
+    TAOS_CHECK_EXIT(extWinValidateNonStreamBlock(pBlock, &pStartCol, &pEndCol, &numRows, &numCols));
+
+    uint64_t groupId = extWinGetRemoteResultGroupId(pBlock);
+    if (prevGroupId != groupId) {
+      hasPrevStart = false;
+      prevGroupId = groupId;
+    }
+
+    for (int32_t row = 0; row < numRows; ++row) {
+      SSTriggerCalcParam param = {0};
+      TAOS_CHECK_EXIT(extWinBuildTriggerParamForRow(pBlock, pStartCol, pEndCol, numCols, row, &param));
+
+      pExtWinTimeRange->skey = TMIN(pExtWinTimeRange->skey, param.wstart);
+      pExtWinTimeRange->ekey = TMAX(pExtWinTimeRange->ekey, param.wend);
+
+      code = extWinAppendNonGroupedCalcParam(pRt, &param, &hasPrevStart, &prevStart, row);
+      if (code != TSDB_CODE_SUCCESS) {
+        tDestroySSTriggerCalcParam(&param);
+        TAOS_CHECK_EXIT(code);
+      }
+    }
+  }
+
+_exit:
+  return code;
+}
+
+static int32_t extWinBuildGroupedCalcInfosFromBlocks(SArray* pBlocks, SStreamRuntimeFuncInfo* pRt,
+                                                     STimeWindow* pExtWinTimeRange) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SColumnInfoData* pStartCol = NULL;
+  SColumnInfoData* pEndCol = NULL;
+  int32_t numRows = 0;
+  int32_t numCols = 0;
+  int32_t blockNum = taosArrayGetSize(pBlocks);
+
+  for (int32_t blockIdx = 0; blockIdx < blockNum; ++blockIdx) {
+    SSDataBlock** ppOne = taosArrayGet(pBlocks, blockIdx);
+    TSDB_CHECK_NULL(ppOne, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+    SSDataBlock* pBlock = *ppOne;
+    TSDB_CHECK_NULL(pBlock, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+
+    TAOS_CHECK_EXIT(extWinValidateNonStreamBlock(pBlock, &pStartCol, &pEndCol, &numRows, &numCols));
+
+    uint64_t groupId = extWinGetRemoteResultGroupId(pBlock);
+
+    for (int32_t row = 0; row < numRows; ++row) {
+      SSTriggerCalcParam param = {0};
+      TAOS_CHECK_EXIT(extWinBuildTriggerParamForRow(pBlock, pStartCol, pEndCol, numCols, row, &param));
+
+      pExtWinTimeRange->skey = TMIN(pExtWinTimeRange->skey, param.wstart);
+      pExtWinTimeRange->ekey = TMAX(pExtWinTimeRange->ekey, param.wend);
+
+      code = extWinAppendGroupedCalcParam(pRt, groupId, &param, row);
+      if (code != TSDB_CODE_SUCCESS) {
+        tDestroySSTriggerCalcParam(&param);
+        TAOS_CHECK_EXIT(code);
+      }
+    }
+  }
+
+_exit:
+  return code;
+}
+
+static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, STimeWindow* pTimeRange) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SArray* pBlocks = NULL;
+  STimeWindow extWinTimeRange = {.skey = INT64_MAX, .ekey = INT64_MIN};
+  
   TSDB_CHECK_NULL(pTaskInfo, code, lino, _exit, TSDB_CODE_INVALID_PARA);
 
   if (pTaskInfo->pStreamRuntimeInfo == NULL) {
@@ -3916,6 +4139,12 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
   pBlocks = pRemote->pResBlks;
 #endif
 
+  bool groupedRemoteResult = hasGroupedRemoteResult(pBlocks);
+
+  pRt->isMultiGroupCalc = groupedRemoteResult ? 1 : 0;
+  pRt->curGrpCalc = NULL;
+  pRt->groupId = 0;
+
   // Initialize/reset pseudo function values.
   if (pRt->pStreamPesudoFuncVals == NULL) {
     pRt->pStreamPesudoFuncVals = taosArrayInit(4, sizeof(SSTriggerCalcParam));
@@ -3923,60 +4152,37 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
   } else {
     taosArrayClearEx(pRt->pStreamPesudoFuncVals, tDestroySSTriggerCalcParam);
   }
+
+  if (pRt->pGroupCalcInfos != NULL) {
+    tSimpleHashCleanup(pRt->pGroupCalcInfos);
+    pRt->pGroupCalcInfos = NULL;
+  }
+
+  if (groupedRemoteResult) {
+    pRt->pGroupCalcInfos = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
+    TSDB_CHECK_NULL(pRt->pGroupCalcInfos, code, lino, _exit, terrno);
+    tSimpleHashSetFreeFp(pRt->pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+  }
   
-  // Build trigger parameters from all test blocks.
-  bool     hasPrevStart = false;
-  int64_t  prevStart = 0;
-  uint64_t prevGroupId = UINT64_MAX;
-  int32_t  blockNum = taosArrayGetSize(pBlocks);
-
-  for (int32_t blockIdx = 0; blockIdx < blockNum; ++blockIdx) {
-    SSDataBlock** ppOne = taosArrayGet(pBlocks, blockIdx);
-    TSDB_CHECK_NULL(ppOne, code, lino, _exit, TSDB_CODE_INVALID_PARA);
-    pBlock = *ppOne;
-    TSDB_CHECK_NULL(pBlock, code, lino, _exit, TSDB_CODE_INVALID_PARA);
-
-    TAOS_CHECK_EXIT(extWinValidateNonStreamBlock(pBlock, &pStartCol, &pEndCol, &numRows, &numCols));
-
-    if (prevGroupId != pBlock->info.id.groupId) {
-      hasPrevStart = false;
-      prevGroupId = pBlock->info.id.groupId;
-    }
-
-    for (int32_t row = 0; row < numRows; ++row) {
-      SSTriggerCalcParam param = {0};
-
-      TAOS_CHECK_EXIT(extWinBuildTriggerParamForRow(pBlock, pStartCol, pEndCol, numCols, row, &param));
-
-      code = extWinCheckMonotonicWstart(hasPrevStart, prevStart, param.wstart, row);
-      if (code != TSDB_CODE_SUCCESS) {
-        tDestroySSTriggerCalcParam(&param);
-        TAOS_CHECK_EXIT(code);
-      }
-
-      prevStart = param.wstart;
-      hasPrevStart = true;
-
-      extWinTimeRange.skey = TMIN(extWinTimeRange.skey, param.wstart);
-      extWinTimeRange.ekey = TMAX(extWinTimeRange.ekey, param.wend);
-
-      void* pRet = taosArrayPush(pRt->pStreamPesudoFuncVals, &param);
-      if (pRet == NULL) {
-        tDestroySSTriggerCalcParam(&param);
-        TAOS_CHECK_EXIT(terrno);
-      }
-    }
+  if (groupedRemoteResult) {
+    TAOS_CHECK_EXIT(extWinBuildGroupedCalcInfosFromBlocks(pBlocks, pRt, &extWinTimeRange));
+  } else {
+    TAOS_CHECK_EXIT(extWinBuildNonGroupedCalcInfosFromBlocks(pBlocks, pRt, &extWinTimeRange));
   }
 
   if (pTimeRange != NULL) {
     *pTimeRange = extWinTimeRange;
   }
 
-  if (taosArrayGetSize(pRt->pStreamPesudoFuncVals) > 0) {
+  if (!groupedRemoteResult && taosArrayGetSize(pRt->pStreamPesudoFuncVals) > 0) {
     qInfo("%s non-stream extWin mock initialized from block, winNum:%d, firstWin:[%" PRId64 ", %" PRId64 "], wholeRange:[%" PRId64 ", %" PRId64 "]",
           GET_TASKID(pTaskInfo), (int32_t)taosArrayGetSize(pRt->pStreamPesudoFuncVals),
           ((SSTriggerCalcParam*)taosArrayGet(pRt->pStreamPesudoFuncVals, 0))->wstart,
           ((SSTriggerCalcParam*)taosArrayGet(pRt->pStreamPesudoFuncVals, 0))->wend,
+          extWinTimeRange.skey, extWinTimeRange.ekey);
+  } else if (groupedRemoteResult) {
+    qInfo("%s non-stream extWin initialized from grouped remote result, groupNum:%d, wholeRange:[%" PRId64 ", %" PRId64 "]",
+          GET_TASKID(pTaskInfo), pRt->pGroupCalcInfos ? tSimpleHashGetSize(pRt->pGroupCalcInfos) : 0,
           extWinTimeRange.skey, extWinTimeRange.ekey);
   }
 

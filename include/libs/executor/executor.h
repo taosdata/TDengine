@@ -28,6 +28,7 @@ extern "C" {
 #include "tmsgcb.h"
 #include "storageapi.h"
 #include "functionMgt.h"
+#include "plannodes.h"
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
@@ -324,6 +325,10 @@ int32_t qFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTask
 bool    checkCidInTagCondition(SNode* node, SArray* cidList);
 SNode*  getTagCondNodeForStableTmq(void* node);
 SNode*  getTagCondNodeForQueryTmq(void* tinfo);
+
+// Pre-initialize external-window runtime (batch mode) from subquery results so that
+// downstream scan can build table list with baseGId via stream multi-group path.
+int32_t  extWinPreInitFromSubquery(SPhysiNode* pNode, SExecTaskInfo* pTaskInfo);
 
 #ifdef __cplusplus
 }

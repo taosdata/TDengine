@@ -38,6 +38,7 @@
 #include "filter.h"
 #include "operator.h"
 #include "tref.h"
+#include "streamMsg.h"
 
 typedef struct tagFilterAssist {
   SHashObj* colHash;
@@ -4086,6 +4087,30 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
                                 SExecTaskInfo* pTaskInfo, SHashObj* groupIdMap) {
   int32_t code = 0;
+  // Ensure curGrpRead is prepared from pre-initialized group calc infos for non-stream external-window initialization.
+  if (pTaskInfo->pStreamRuntimeInfo) {
+    SStreamRuntimeFuncInfo* pStream = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+    if (pStream->isMultiGroupCalc && pStream->curGrpRead == NULL && pStream->pGroupCalcInfos != NULL) {
+      int32_t n = tSimpleHashGetSize(pStream->pGroupCalcInfos);
+      if (n < 0) n = 0;
+      pStream->curGrpRead = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), n > 0 ? n : 4);
+      if (pStream->curGrpRead == NULL) {
+        return terrno;
+      }
+      int32_t iter = 0;
+      SSTriggerGroupCalcInfo* pGrp = tSimpleHashIterate(pStream->pGroupCalcInfos, NULL, &iter);
+      while (pGrp != NULL) {
+        uint64_t gid = *(uint64_t*)tSimpleHashGetKey(pGrp, NULL);
+        SSTriggerGroupReadInfo readInfo = {0};
+        readInfo.gid = gid;
+        readInfo.pTables = NULL;  // tables decided by getTableList when needed
+        if (taosArrayPush(pStream->curGrpRead, &readInfo) == NULL) {
+          return terrno;
+        }
+        pGrp = tSimpleHashIterate(pStream->pGroupCalcInfos, pGrp, &iter);
+      }
+    }
+  }
   if (pTaskInfo->pStreamRuntimeInfo && pTaskInfo->pStreamRuntimeInfo->funcInfo.isMultiGroupCalc /*&&got table list*/) {
     code = createStreamMultiGrpTableListInfo(pScanNode, pGroupTags, groupSort,
                                     pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo, groupIdMap);

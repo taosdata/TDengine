@@ -344,7 +344,9 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
     pDataBlock->info.dataLoad = 1;
     pDataBlock->info.rows = p->info.rows;
     pDataBlock->info.scanFlag = p->info.scanFlag;
+    // propagate both C-group id and baseGId from upstream
     pDataBlock->info.id.groupId = p->info.id.groupId;
+    pDataBlock->info.id.baseGId = p->info.id.baseGId;
   }
 
   blockDataDestroy(p);
@@ -783,7 +785,10 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
                                      pInfo->matchInfo.pList, pInfo, &pBlock);
     QUERY_CHECK_CODE(code, lino, _end);
     if (pBlock != NULL) {
+      // keep both ids aligned with current group
       pBlock->info.id.groupId = pInfo->currGroupId;
+      // baseGId follows upstream; if upstream is empty here, preserve current
+      // (no-op if not set). We cannot reconstruct baseGId here; rely on upstream propagation.
       pOperator->resultInfo.totalRows += pBlock->info.rows;
       *pResBlock = pBlock;
       return code;
