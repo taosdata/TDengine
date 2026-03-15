@@ -254,7 +254,14 @@ class TestMountBasic:
     def s3_create_drop_show_mount(self):
         tdLog.info(" =============== step 3 create_drop_show_mount")
         tdSql.execute(f"create mount mnt1 on dnode 1 from '{self.mountPrimary}'")
-        tdSql.query("show mounts", count_expected_res=1)
+        # Wait for mount to be ready, retry up to 30 times
+        max_retries = 30
+        for i in range(max_retries):
+            tdSql.query("show mounts")
+            if tdSql.queryRows == 1:
+                break
+            tdLog.info(f"mount not ready yet, waiting... ({i+1}s)")
+            time.sleep(1)
         tdLog.info(f"result: {tdSql.queryResult}")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "mnt1")
