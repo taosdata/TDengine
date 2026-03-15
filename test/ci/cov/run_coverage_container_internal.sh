@@ -283,6 +283,9 @@ if [ ! -d "${TMP_DIR}/thread_volume/$thread_no/test" ]; then
         subdir=`echo "$exec_dir"|cut -d/ -f1`
         echo "cp -rf ${REPDIR}/test/$subdir ${TMP_DIR}/thread_volume/$thread_no/"
         cp -rf ${REPDIR}/test/$subdir ${TMP_DIR}/thread_volume/$thread_no/
+        # 额外复制 ci 目录，确保容器内可以访问 run_case.sh
+        echo "cp -rf ${REPDIR}/test/ci ${TMP_DIR}/thread_volume/$thread_no/"
+        cp -rf ${REPDIR}/test/ci ${TMP_DIR}/thread_volume/$thread_no/
     else
         echo "cp -rf ${REPDIR}/test/* ${TMP_DIR}/thread_volume/$thread_no/"
         cp -rf "${REPDIR}/test/"* "${TMP_DIR}/thread_volume/$thread_no/"
