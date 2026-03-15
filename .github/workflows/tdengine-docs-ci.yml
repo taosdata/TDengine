@@ -105,6 +105,8 @@ jobs:
     runs-on:
       group: CI
       labels: [self-hosted, doc-build]
+    env:
+      HOME: /root
     needs: 
         - check-with-typos
         - check-with-autocorrect
