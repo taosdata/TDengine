@@ -9,9 +9,10 @@
 #define MyProductFullName "TDGPT - TDengine Analytics Node"
 #define MyAppInstallDir "C:\TDengine\taosanode"
 #define MyAppSourceDir "{{SOURCE_DIR}}"
+#define MyAppIco "{{ICON_FILE}}"
 
 [Setup]
-AppId={{A0F7A93C-79C4-485D-B2B8-F0D03DF42FAB}
+AppId={{a77a678d-8806-48a5-8017-1d55749b6895}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -22,6 +23,8 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir={{OUTPUT_DIR}}
 OutputBaseFilename={#MyAppInstallName}
+SetupIconFile={#MyAppIco}
+UninstallDisplayIcon={#MyAppIco}
 Compression=lzma
 SolidCompression=yes
 CloseApplications=force
@@ -60,24 +63,32 @@ Name: "{app}\log"; Permissions: everyone-modify
 Name: "{app}\model"; Permissions: everyone-modify
 Name: "{app}\data"; Permissions: everyone-modify
 Name: "{app}\data\pids"; Permissions: everyone-modify
+Name: "{app}\venv"; Permissions: everyone-modify
+Name: "{app}\timesfm_venv"; Permissions: everyone-modify
+Name: "{app}\moirai_venv"; Permissions: everyone-modify
+Name: "{app}\chronos_venv"; Permissions: everyone-modify
+Name: "{app}\momentfm_venv"; Permissions: everyone-modify
 
 [Run]
-; Run install script after installation
-Filename: "{app}\install.bat"; Description: "Run installation script"; Flags: postinstall runascurrentuser waituntilidle
+; Run install script after installation with user-selected flags
+Filename: "{app}\install.bat"; Parameters: "{code:GetInstallFlags}"; Description: "Run installation script"; Flags: postinstall runascurrentuser waituntilidle
 
 [UninstallRun]
 ; Run uninstall script before uninstallation
 Filename: "{app}\uninstall.bat"; Flags: runhidden
 
 [UninstallDelete]
+; Only delete log files during uninstall
+; Preserve: cfg, model, data, venv (consistent with Linux behavior)
 Name: "{app}\log"; Type: filesandordirs
-Name: "{app}\data"; Type: filesandordirs
-Name: "{app}\venv"; Type: filesandordirs
 
 [Icons]
 Name: "{group}\Start Taosanode"; Filename: "{app}\bin\start-taosanode.bat"
 Name: "{group}\Stop Taosanode"; Filename: "{app}\bin\stop-taosanode.bat"
 Name: "{group}\Status Taosanode"; Filename: "{app}\bin\status-taosanode.bat"
+Name: "{group}\Log Viewer"; Filename: "{app}\bin\log-viewer.bat"; Comment: "View TDGPT logs"
+Name: "{group}\Configuration Wizard"; Filename: "{app}\bin\config-wizard.bat"; Comment: "Configure TDGPT settings"
+Name: "{group}\Check for Updates"; Filename: "{app}\bin\check-update.bat"; Comment: "Check for new versions"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{commondesktop}\Start Taosanode"; Filename: "{app}\bin\start-taosanode.bat"; Tasks: desktopicon
 
@@ -91,6 +102,12 @@ Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environmen
     Check: NeedsAddPath('{app}\bin')
 
 [Code]
+var
+  InstallModePage: TInputOptionWizardPage;
+  ModelSelectionPage: TInputOptionWizardPage;
+  IsOnlineMode: Boolean;
+  InstallAllModels: Boolean;
+
 function NeedsAddPath(Param: string): boolean;
 var
   OrigPath: string;
@@ -108,6 +125,68 @@ end;
 function DirExists(const Dir: string): Boolean;
 begin
   Result := DirectoryExists(Dir);
+end;
+
+procedure InitializeWizard();
+begin
+  // Create custom page for installation mode selection
+  InstallModePage := CreateInputOptionPage(wpSelectDir,
+    'Installation Mode', 'Select installation options',
+    'Choose how you want to install TDGPT:',
+    True, False);
+
+  // Add installation mode options
+  InstallModePage.Add('Online Mode (Recommended)');
+  InstallModePage.Add('Offline Mode');
+
+  // Set default to Online Mode
+  InstallModePage.Values[0] := True;
+
+  // Create another page for model selection
+  ModelSelectionPage := CreateInputOptionPage(InstallModePage.ID,
+    'Model Selection', 'Select which models to install',
+    'Choose the models you want to install:',
+    True, False);
+
+  // Add model selection options
+  ModelSelectionPage.Add('Install required models only (tdtsfm, timemoe)');
+  ModelSelectionPage.Add('Install all models (includes chronos, timesfm, moirai, moment)');
+
+  // Set default to required models only
+  ModelSelectionPage.Values[0] := True;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+
+  // Save user selections when leaving the installation mode page
+  if CurPageID = InstallModePage.ID then
+  begin
+    IsOnlineMode := InstallModePage.Values[0];
+  end;
+
+  // Save user selections when leaving the model selection page
+  if CurPageID = ModelSelectionPage.ID then
+  begin
+    InstallAllModels := ModelSelectionPage.Values[1];
+  end;
+end;
+
+function GetInstallFlags(Param: String): String;
+begin
+  Result := '';
+
+  // Add offline flag if offline mode is selected
+  if not IsOnlineMode then
+    Result := Result + '-o ';
+
+  // Add all models flag if selected
+  if InstallAllModels then
+    Result := Result + '-a ';
+
+  // Trim trailing space
+  Result := Trim(Result);
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

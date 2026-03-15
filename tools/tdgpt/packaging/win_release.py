@@ -328,8 +328,48 @@ def copy_service_scripts():
         shutil.copy2(src_service, dst_service)
         logging.info("Copied taosanode_service.py")
 
+    # Copy install.py (installation script)
+    src_install = os.path.join(source_script_dir, "install.py")
+    dst_install = os.path.join(install_info.install_dir, "install.py")
+    if os.path.exists(src_install):
+        shutil.copy2(src_install, dst_install)
+        logging.info("Copied install.py")
+
+    # Copy uninstall.py (uninstallation script)
+    src_uninstall = os.path.join(source_script_dir, "uninstall.py")
+    dst_uninstall = os.path.join(install_info.install_dir, "uninstall.py")
+    if os.path.exists(src_uninstall):
+        shutil.copy2(src_uninstall, dst_uninstall)
+        logging.info("Copied uninstall.py")
+
+    # Copy GUI tools (log viewer, config wizard, update checker)
+    gui_tools = ["log_viewer.py", "config_wizard.py", "check_update.py"]
+    for tool in gui_tools:
+        src_tool = os.path.join(source_script_dir, tool)
+        dst_tool = os.path.join(bin_dir, tool)
+        if os.path.exists(src_tool):
+            shutil.copy2(src_tool, dst_tool)
+            logging.info(f"Copied {tool}")
+
     # Create wrapper batch scripts for Windows
     create_service_wrappers(bin_dir)
+
+
+def copy_icon_file():
+    """Copy icon file from enterprise packaging"""
+    # Try to find icon file from enterprise packaging
+    enterprise_icon = os.path.join(install_info.source_dir, "..", "..", "..", "enterprise",
+                                   "packaging", "windows", "favicon.ico")
+
+    if os.path.exists(enterprise_icon):
+        dst_icon = os.path.join(install_info.install_dir, "favicon.ico")
+        shutil.copy2(enterprise_icon, dst_icon)
+        logging.info(f"Copied icon file from enterprise: {enterprise_icon}")
+        return "favicon.ico"
+    else:
+        logging.warning(f"Icon file not found at: {enterprise_icon}")
+        logging.warning("Installer will be created without custom icon")
+        return "favicon.ico"  # Use placeholder, will be handled by ISS
 
 
 def create_service_wrappers(bin_dir):
@@ -408,67 +448,87 @@ pause
 """)
     logging.info("Created status-model.bat")
 
+    # log-viewer.bat
+    log_viewer_bat = os.path.join(bin_dir, "log-viewer.bat")
+    with open(log_viewer_bat, 'w') as f:
+        f.write("""@echo off
+chcp 65001 >nul
+REM Launch log viewer
+python "%~dp0log_viewer.py"
+""")
+    logging.info("Created log-viewer.bat")
+
+    # config-wizard.bat
+    config_wizard_bat = os.path.join(bin_dir, "config-wizard.bat")
+    with open(config_wizard_bat, 'w') as f:
+        f.write("""@echo off
+chcp 65001 >nul
+REM Launch configuration wizard
+python "%~dp0config_wizard.py"
+""")
+    logging.info("Created config-wizard.bat")
+
+    # check-update.bat
+    check_update_bat = os.path.join(bin_dir, "check-update.bat")
+    with open(check_update_bat, 'w') as f:
+        f.write("""@echo off
+chcp 65001 >nul
+REM Check for updates
+python "%~dp0check_update.py"
+pause
+""")
+    logging.info("Created check-update.bat")
+
 
 def create_install_script():
     """Create install.bat for post-installation setup"""
     install_bat = os.path.join(install_info.install_dir, "install.bat")
+
+    # Determine offline mode flag
+    offline_flag = "-o" if install_info.offline else ""
+    all_models_flag = "-a" if install_info.all_models else ""
+
     with open(install_bat, 'w') as f:
-        f.write("""@echo off
+        f.write(f"""@echo off
 chcp 65001 >nul
 setlocal enabledelayedexpansion
 
 echo ==========================================
 echo TDGPT Installation Script
 echo ==========================================
-
-set INSTALL_DIR=C:\\TDengine\\taosanode
-
-REM Create necessary directories
-if not exist "%INSTALL_DIR%\\log" mkdir "%INSTALL_DIR%\\log"
-if not exist "%INSTALL_DIR%\\model" mkdir "%INSTALL_DIR%\\model"
-if not exist "%INSTALL_DIR%\\data" mkdir "%INSTALL_DIR%\\data"
-if not exist "%INSTALL_DIR%\\data\\pids" mkdir "%INSTALL_DIR%\\data\\pids"
-
-echo.
-echo ==========================================
-echo Installing Python Dependencies...
-echo ==========================================
 echo.
 
-REM Check if offline wheels are available
-if exist "%INSTALL_DIR%\\wheels\\" (
-    echo Installing dependencies from local wheels (offline mode)...
-    python -m pip install --no-index --find-links="%INSTALL_DIR%\\wheels" -r "%INSTALL_DIR%\\requirements_ess.txt"
-) else (
-    echo Installing dependencies from PyPI (online mode)...
-    python -m pip install -r "%INSTALL_DIR%\\requirements_ess.txt"
+set INSTALL_DIR=%~dp0
+set INSTALL_DIR=%INSTALL_DIR:~0,-1%
+
+REM Check if Python is available
+python --version >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: Python not found in PATH
+    echo Please install Python 3.10/3.11/3.12 from https://www.python.org/
+    pause
+    exit /b 1
 )
 
+echo.
+echo Running installation script...
+echo.
+
+REM Call install.py with appropriate flags
+python "%INSTALL_DIR%\\install.py" {offline_flag} {all_models_flag}
+
 if errorlevel 1 (
-    echo ERROR: Failed to install dependencies
+    echo.
+    echo ERROR: Installation failed
+    echo Please check the error messages above
     pause
     exit /b 1
 )
 
 echo.
 echo ==========================================
-echo Verifying Installation...
+echo Installation completed successfully!
 echo ==========================================
-echo.
-
-REM Verify service can be accessed
-python "%INSTALL_DIR%\\bin\\taosanode_service.py" status >nul 2>&1
-if errorlevel 1 (
-    echo WARNING: Service verification failed
-    echo Please check logs at %INSTALL_DIR%\\log
-    echo.
-) else (
-    echo [OK] Service verification passed
-    echo.
-)
-
-echo ==========================================
-echo Installation completed!
 echo.
 echo Quick Start Commands:
 echo   Start taosanode: %INSTALL_DIR%\\bin\\start-taosanode.bat
@@ -481,6 +541,7 @@ echo   Stop all models:  %INSTALL_DIR%\\bin\\stop-model.bat all
 echo   Model status:     %INSTALL_DIR%\\bin\\status-model.bat
 echo.
 echo Configuration file: %INSTALL_DIR%\\cfg\\taosanode.config.py
+echo Log file: %INSTALL_DIR%\\install.log
 echo ==========================================
 
 pause
@@ -500,18 +561,36 @@ REM This script is called by Inno Setup before uninstalling files
 
 echo Stopping TDGPT services...
 
-REM Stop taosanode main service
-python "%~dp0bin\\taosanode_service.py" stop 2>nul
+set INSTALL_DIR=%~dp0
+set INSTALL_DIR=%INSTALL_DIR:~0,-1%
 
-REM Stop all model services
-python "%~dp0bin\\taosanode_service.py" model-stop all 2>nul
+REM Check if Python is available
+python --version >nul 2>&1
+if errorlevel 1 (
+    echo WARNING: Python not found, skipping graceful shutdown
+    goto FORCE_KILL
+)
 
+REM Check if uninstall.py exists
+if exist "%INSTALL_DIR%\\uninstall.py" (
+    echo Running uninstall script...
+    python "%INSTALL_DIR%\\uninstall.py" >nul 2>&1
+    goto END
+)
+
+REM Fallback: Stop services using taosanode_service.py
+if exist "%INSTALL_DIR%\\bin\\taosanode_service.py" (
+    python "%INSTALL_DIR%\\bin\\taosanode_service.py" stop 2>nul
+    python "%INSTALL_DIR%\\bin\\taosanode_service.py" model-stop all 2>nul
+)
+
+:FORCE_KILL
 REM Kill only taosanode-related python processes
-REM Use tasklist to find processes and filter by command line
 for /f "tokens=2" %%i in ('tasklist /FI "IMAGENAME eq python.exe" /FO LIST ^| findstr /C:"PID:"') do (
     wmic process where "ProcessId=%%i and CommandLine like '%%taosanode%%'" delete 2>nul
 )
 
+:END
 echo Services stopped.
 REM Exit without pause - this script is run by the installer silently
 """)
@@ -552,11 +631,15 @@ def create_iss_script():
     install_dir_iss = install_info.install_dir.replace('\\', '/')
     release_dir_iss = install_info.release_dir.replace('\\', '/')
 
+    # Icon file path (relative to install_dir)
+    icon_file = install_dir_iss + '/favicon.ico'
+
     # Replace placeholders
     iss_content = iss_content.replace('{{VERSION}}', tdgpt_version.version)
     iss_content = iss_content.replace('{{PACKAGE_NAME}}', install_info.package_name)
     iss_content = iss_content.replace('{{SOURCE_DIR}}', install_dir_iss)
     iss_content = iss_content.replace('{{OUTPUT_DIR}}', release_dir_iss)
+    iss_content = iss_content.replace('{{ICON_FILE}}', icon_file)
 
     with open(iss_path, 'w', encoding='utf-8') as f:
         f.write(iss_content)
@@ -664,6 +747,7 @@ def main():
     copy_model_files()
     copy_enterprise_files()
     copy_service_scripts()  # New unified service scripts
+    copy_icon_file()  # Copy icon file from enterprise
     download_winsw()  # Download winsw for Windows service support
     create_winsw_config()  # Create winsw configuration
 

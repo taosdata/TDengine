@@ -367,15 +367,7 @@ function install_anode_venv() {
     source ${venvDir}/bin/activate
     # Install default virtualenv dependencies; requirements_ess.txt pins transformers==4.40.0
     echo -e "install the required packages by pip3, this may take a while depending on the network condition"
-
-    # Check if offline wheels are available
-    if [ -d "${script_dir}/wheels" ]; then
-      echo -e "Installing from local wheels (offline mode)..."
-      ${csudo}${venvDir}/bin/pip3 install --no-index --find-links="${script_dir}/wheels" -r "${script_dir}/requirements_ess.txt"
-    else
-      echo -e "Installing from PyPI (online mode)..."
-      ${csudo}${venvDir}/bin/pip3 install -r "${script_dir}/requirements_ess.txt" "${pip_extra_args[@]}"
-    fi
+   ${csudo}${venvDir}/bin/pip3 install -r "${script_dir}/requirements_ess.txt" "${pip_extra_args[@]}"
 
     echo -e "Install python library for venv completed!"
   else
