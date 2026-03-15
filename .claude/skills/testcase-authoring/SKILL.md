@@ -1,3 +1,8 @@
+---
+name: testcase-authoring
+description: Guidelines for writing efficient and reliable TDengine test cases. Use when creating or reviewing TDengine test cases, especially for timeout handling, batch inserts, DRY refactoring, and assertion-safe data volume changes.
+---
+
 # Test Case Authoring Guide
 
 ## Description
@@ -11,11 +16,11 @@ Guidelines for writing efficient, reliable TDengine test cases. Emphasizes DRY p
 ### 1.1 Preserve Original Behavior
 **Critical**: Performance optimizations must not change the original logic or behavior.
 
-```python
-# Original: Single INSERT for atomicity
+```sql
+-- Original: Single INSERT for atomicity
 INSERT INTO tb VALUES (...) tb1 VALUES (...)
 
-# Wrong: Splitting changes atomicity
+-- Wrong: Splitting changes atomicity
 INSERT INTO tb VALUES (...)
 INSERT INTO tb1 VALUES (...)
 ```
@@ -43,21 +48,24 @@ for i in range(30):
 
 **Available helpers:**
 - `tdSql.checkRowsLoop(expectedRows, sql, loopCount, waitTime)` - Retry until row count matches
+- `tdSql.checkDataLoop(row, col, data, sql, loopCount=10, waitTime=1)` - Retry until a specific cell matches the expected value
 
 ### 2.2 Custom Loop (When Helper Not Available)
 
 Set `queryTimes=1` to prevent nested timeout multiplication:
 
 ```python
-def wait_for_custom_condition(self, timeout=100):
-    count = 0
-    while count < timeout:
+import time
+
+
+def wait_for_custom_condition(self, timeout_seconds=100):
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
         result = tdSql.query("SELECT ...", exit=False, queryTimes=1)
         if condition_met(result):
             return True
         time.sleep(1)
-        count += 1
-    raise Exception(f"Timeout after {timeout}s")
+    raise Exception(f"Timeout after {timeout_seconds}s")
 ```
 
 ---
@@ -65,7 +73,11 @@ def wait_for_custom_condition(self, timeout=100):
 ## 3. Batch Insert
 
 ### Rule
-Use batch insert when inserting >100 rows. Choose batch size based on row size to stay under maxSQLLength=4MB limit.
+Use batch insert when inserting >100 rows. Choose batch size based on row size to stay under the configured `maxSQLLength` limit.
+
+### SQL Literal Safety
+When building SQL text, convert each value to a valid SQL literal first (quote/escape strings, format timestamps, preserve NULL).
+If your test framework path supports parameterized execution, prefer that for dynamic values.
 
 ### Batch Size Guidelines
 
@@ -80,16 +92,14 @@ Use batch insert when inserting >100 rows. Choose batch size based on row size t
 ```python
 def insert_data_batch(self, table, rows):
     batch_size = 100
-    values = []
-    
-    for i, row in enumerate(rows):
-        values.append(f"({row.ts}, {row.value})")
-        if len(values) >= batch_size:
+
+    for batch_start in range(0, len(rows), batch_size):
+        batch = rows[batch_start:batch_start + batch_size]
+        # Each field must already be converted to a valid SQL literal.
+        values = [f"({row.ts}, {row.value_sql})" for row in batch]
+
+        if values:
             tdSql.execute(f"INSERT INTO {table} VALUES {','.join(values)}")
-            values = []
-    
-    if values:  # Remaining rows
-        tdSql.execute(f"INSERT INTO {table} VALUES {','.join(values)}")
 ```
 
 ### Important: Check for Empty Lists
@@ -98,8 +108,14 @@ Always check if values list is non-empty before executing:
 
 ```python
 # Good: Check before execute
-if values_tb and values_tb1:
-    tdSql.execute(f"INSERT INTO tb VALUES {','.join(values_tb)} tb1 VALUES {','.join(values_tb1)}")
+clauses = []
+if values_tb:
+    clauses.append(f"tb VALUES {','.join(values_tb)}")
+if values_tb1:
+    clauses.append(f"tb1 VALUES {','.join(values_tb1)}")
+
+if clauses:
+    tdSql.execute(f"INSERT INTO {' '.join(clauses)}")
 
 # Avoid: Empty list causes syntax error
 tdSql.execute(f"INSERT INTO tb VALUES {','.join(values_tb)}")  # Error if values_tb is []
@@ -187,10 +203,10 @@ tdSql.checkRows(100)  # FAIL: actual rows = 50
 
 - [ ] Optimization preserves original behavior?
 - [ ] Tested edge cases (empty, single, batch boundary)?
-- [ ] Pattern exists in framework? → Use existing helper
-- [ ] Same pattern used 3+ times? → Abstract into function
-- [ ] Custom wait loop? → `queryTimes=1` + explicit timeout error
-- [ ] >100 INSERTs? → Batch insert (size 100/20) + empty check
-- [ ] Integer division? → Use `//`
-- [ ] Magic numbers? → Named constants
-- [ ] Test data volume? → Parameterized (note: changing requires updating assertions)
+- [ ] Pattern exists in framework? -> Use existing helper
+- [ ] Same pattern used 3+ times? -> Abstract into function
+- [ ] Custom wait loop? -> `queryTimes=1` + explicit timeout error
+- [ ] >100 INSERTs? -> Batch insert (size 100/20) + empty check
+- [ ] Integer division? -> Use `//`
+- [ ] Magic numbers? -> Named constants
+- [ ] Test data volume? -> Parameterized (note: changing requires updating assertions)
