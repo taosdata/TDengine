@@ -34,9 +34,8 @@ class TestTD_21561:
     #
     # ------------------- test_td_21561.py ----------------
     #
-    def dropandcreateDB_random(self,database,n):
+    def dropandcreateDB_random(self,database,n,num_random=10):
         ts = 1630000000000
-        num_random = 10
         fake = Faker('zh_CN')
         tdSql.execute('''drop database if exists %s ;''' %database)
         tdSql.execute('''create database %s keep 36500 ;'''%(database))
@@ -124,7 +123,7 @@ class TestTD_21561:
 
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
-        self.dropandcreateDB_random("%s" %self.db, 100)
+        self.dropandcreateDB_random("%s" %self.db, 100, num_random=50)
 
         self.check_flushdb("%s" %self.db)
 

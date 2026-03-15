@@ -730,7 +730,7 @@ class TestWriteBasic:
     #
     # ------------------ test_system_insert_select.py ------------------
     #
-    def dropandcreateDB_random(self,database,n):
+    def dropandcreateDB_random(self,database,n,num_random=100):
         ts = 1604298064000
 
         tdSql.execute('''drop database if exists %s ;''' %database)
@@ -874,7 +874,7 @@ class TestWriteBasic:
     def do_insert_select(self):
         startTime = time.time()  
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
-        self.dropandcreateDB_random("%s" %self.db, random.randint(10000,30000))
+        self.dropandcreateDB_random("%s" %self.db, random.randint(10000,30000), num_random=50)
             
         #taos -f sql 
         print("taos -f sql start!")

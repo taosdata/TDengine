@@ -1582,7 +1582,7 @@ class TestAggGroupNotReturnValue:
         # self.insert_data()     
         
         nested_query_test = NestedQueryHelper()
-        nested_query_test.dropandcreateDB_random("nested", 1)
+        nested_query_test.dropandcreateDB_random("nested", 1, num_random=50)
         self.modify_tables()
         tdSql.execute('alter local "countAlwaysReturnValue" "0"')
                

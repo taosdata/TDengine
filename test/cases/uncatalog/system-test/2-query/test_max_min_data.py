@@ -30,9 +30,8 @@ class TestMaxMinData:
         
         cls.db = "max_min"
 
-    def dropandcreateDB_random(self,database,n):
+    def dropandcreateDB_random(self,database,n,num_random=5):
         ts = 1630000000000
-        num_random = 5
         fake = Faker('zh_CN')
         tdSql.execute('''drop database if exists %s ;''' %database)
         tdSql.execute('''create database %s keep 36500 ;'''%(database))
@@ -148,11 +147,11 @@ class TestMaxMinData:
                   
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
         
-        self.dropandcreateDB_random("%s" %self.db, 2000)
+        self.dropandcreateDB_random("%s" %self.db, 2000, num_random=50)
         
         self.TD_22219_max("%s" %self.db)
         
-        self.dropandcreateDB_random("%s" %self.db, 2000)
+        self.dropandcreateDB_random("%s" %self.db, 2000, num_random=50)
         
         self.TD_22219_min("%s" %self.db)
 

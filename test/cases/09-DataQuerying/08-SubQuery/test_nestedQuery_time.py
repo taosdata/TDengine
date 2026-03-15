@@ -32,7 +32,7 @@ class TestNestedQueryCase:
         self.fornum = 15
 
         self.db_nest = "nest"
-        self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        self.dropandcreateDB_random("%s" %self.db_nest, 1, num_random=50)
 
         # regular column select
         #q_select= ['ts' , '*' , 'q_int', 'q_bigint' , 'q_bigint' , 'q_smallint' , 'q_tinyint' , 'q_bool' , 'q_binary' , 'q_nchar' ,'q_float' , 'q_double' ,'q_ts ']
@@ -586,9 +586,8 @@ class TestNestedQueryCase:
         sql = 'select * from stable_1 limit 5;'
         self.cur1.execute(sql)
 
-    def dropandcreateDB_random(self,database,n):
+    def dropandcreateDB_random(self,database,n,num_random=100):
         ts = 1630000000000
-        num_random = 100
         fake = Faker('zh_CN')
         tdSql.execute('''drop database if exists %s ;''' %database)
         tdSql.execute('''create database %s keep 36500;'''%database)
@@ -780,7 +779,7 @@ class TestNestedQueryCase:
         tdLog.info("==========%s===start=============" %timelist)
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
-        self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        self.dropandcreateDB_random("%s" %self.db_nest, 1, num_random=50)
 
         if (timelist == ['NOW','TODAY']) or (timelist == ['TIMEZONE']):
             time_functions = timelist
