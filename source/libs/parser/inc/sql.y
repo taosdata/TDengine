@@ -1232,6 +1232,11 @@ col_name_with_mask(A) ::= MASK NK_LP column_name(B) NK_RP.                      
 cmd ::= CREATE MOUNT not_exists_opt(A) mount_name(B) ON DNODE NK_INTEGER(C) FROM NK_STRING(D). { pCxt->pRootNode = createCreateMountStmt(pCxt, A, &B, &C, &D); }
 cmd ::= DROP MOUNT exists_opt(A) mount_name(B).                                   { pCxt->pRootNode = createDropMountStmt(pCxt, A, &B); }
 
+/*********************************** Transaction - begin/commit/rollback ***************************************/
+cmd ::= BEGIN.                                                                    { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_BEGIN_TRANSACTION_STMT); }
+cmd ::= START TRANSACTION.                                                        { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_BEGIN_TRANSACTION_STMT); }
+cmd ::= COMMIT.                                                                   { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_COMMIT_TRANSACTION_STMT); }
+cmd ::= ROLLBACK.                                                                 { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_ROLLBACK_TRANSACTION_STMT); }
 /************************************************ show ****************************************************************/
 cmd ::= SHOW DNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DNODES_STMT); }
 cmd ::= SHOW USERS.                                                               { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USERS_STMT); }

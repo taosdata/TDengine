@@ -4299,6 +4299,18 @@ _err:
   return NULL;
 }
 
+SNode* createTransStmt(SAstCreateContext* pCxt, int8_t transType, utxn_id_t transId) {
+  CHECK_PARSER_STATUS(pCxt);
+  STransStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TRANS_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->transType = transType;
+  pStmt->transId = transId;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createShowTransactionDetailsStmt(SAstCreateContext* pCxt, SNode* pTransactionIdNode) {
   CHECK_PARSER_STATUS(pCxt);
   SShowTransactionDetailsStmt* pStmt = NULL;

@@ -495,6 +495,7 @@ typedef enum ENodeType {
   QUERY_NODE_SET_VGROUP_KEEP_VERSION_STMT,
   QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT,
   QUERY_NODE_DROP_ENCRYPT_ALGR_STMT,
+  QUERY_NODE_TRANS_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -4142,6 +4143,37 @@ typedef struct {
 int32_t tSerializeSKillTransReq(void* buf, int32_t bufLen, SKillTransReq* pReq);
 int32_t tDeserializeSKillTransReq(void* buf, int32_t bufLen, SKillTransReq* pReq);
 
+// Distributed transaction: BEGIN / COMMIT / ROLLBACK
+typedef struct {
+  int32_t useless;  // placeholder
+  int32_t sqlLen;
+  char*   sql;
+} SBeginTransReq;
+
+int32_t tSerializeSBeginTransReq(void* buf, int32_t bufLen, SBeginTransReq* pReq);
+int32_t tDeserializeSBeginTransReq(void* buf, int32_t bufLen, SBeginTransReq* pReq);
+void    tFreeSBeginTransReq(SBeginTransReq* pReq);
+
+typedef struct {
+  int32_t useless;  // placeholder
+  int32_t sqlLen;
+  char*   sql;
+} SCommitTransReq;
+
+int32_t tSerializeSCommitTransReq(void* buf, int32_t bufLen, SCommitTransReq* pReq);
+int32_t tDeserializeSCommitTransReq(void* buf, int32_t bufLen, SCommitTransReq* pReq);
+void    tFreeSCommitTransReq(SCommitTransReq* pReq);
+
+typedef struct {
+  int32_t useless;  // placeholder
+  int32_t sqlLen;
+  char*   sql;
+} SRollbackTransReq;
+
+int32_t tSerializeSRollbackTransReq(void* buf, int32_t bufLen, SRollbackTransReq* pReq);
+int32_t tDeserializeSRollbackTransReq(void* buf, int32_t bufLen, SRollbackTransReq* pReq);
+void    tFreeSRollbackTransReq(SRollbackTransReq* pReq);
+
 typedef struct {
   int32_t useless;  // useless
   int32_t sqlLen;
@@ -6446,6 +6478,27 @@ int32_t tSerializeSInstanceListReq(void* buf, int32_t bufLen, SInstanceListReq* 
 int32_t tDeserializeSInstanceListReq(void* buf, int32_t bufLen, SInstanceListReq* pReq);
 int32_t tSerializeSInstanceListRsp(void* buf, int32_t bufLen, SInstanceListRsp* pRsp);
 int32_t tDeserializeSInstanceListRsp(void* buf, int32_t bufLen, SInstanceListRsp* pRsp);
+
+typedef struct {
+  utxn_id_t txnId;
+  int8_t    type;  // EUTxnStage: UTXN_STAGE_BEGIN, UTXN_STAGE_PROPOSE, UTXN_STAGE_COMMIT, UTXN_STAGE_ROLLBACK
+  int32_t   timeout;
+} STxnCtrlMsg;
+
+typedef struct {
+  int32_t code;
+  utxn_id_t txnId;
+  int8_t    txnState;
+} STxnCtrlRsp;
+
+typedef struct {
+  utxn_id_t uTxnId;
+  int8_t    stage;        // EUTxnStage: UTXN_STAGE_BEGIN, UTXN_STAGE_PROPOSE, UTXN_STAGE_COMMIT, UTXN_STAGE_ROLLBACK
+  int8_t    action;       // CREATE_TABLE, ALTER_TABLE, DROP_TABLE
+  int64_t   baseVersion;  // for client to check if the schema is changed during the transaction
+  int32_t   contLen;      // length of the flexible array
+  char      pCont[];      // actual schema change content (serialized SSchema)
+} STxnDdlMsg;
 
 #ifdef USE_MOUNT
 typedef struct {

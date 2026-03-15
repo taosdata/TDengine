@@ -848,11 +848,20 @@ typedef enum {
 } EVersionType;
 
 typedef enum {
-  TSDB_META_TRN_NORMAL = 0,
-  TSDB_META_TRN_PRE_CREATE,
-  TSDB_META_TRN_PRE_ALTER,
-  TSDB_META_TRN_PRE_DROP,
-} EMetaTransStatus;
+  UTXN_STAGE_BEGIN = 0,
+  UTXN_STAGE_PROPOSE = 1,
+  UTXN_STAGE_COMMIT = 2,
+  UTXN_STAGE_ROLLBACK = 3,
+} EUTxnStage;
+
+typedef enum {
+  META_TXN_NORMAL = 0,
+  META_TXN_PRE_CREATE,
+  META_TXN_PRE_ALTER,
+  META_TXN_PRE_DROP,
+} EMetaTxnStatus;
+
+typedef uint64_t utxn_id_t;
 
 #define MIN_RESERVE_MEM_SIZE 1024  // MB
 

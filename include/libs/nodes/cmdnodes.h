@@ -931,6 +931,12 @@ typedef struct SShowTokensStmt {
   ENodeType type;
 } SShowTokensStmt;
 
+typedef struct STransStmt {
+  ENodeType type;
+  int8_t    transType;  // 0: begin, 1: commit, 2: rollback
+  utxn_id_t  transId;
+} STransStmt;
+
 typedef struct SShowTransactionDetailsStmt {
   ENodeType type;
   SNode*    pTransactionId;

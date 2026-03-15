@@ -965,6 +965,89 @@ void taos_close(TAOS *taos) {
   taosMemoryFree(taos);
 }
 
+int taos_txn_begin(TAOS *taos) {
+  if (taos == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
+  if (NULL == pObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    tscError("invalid parameter for %s", __func__);
+    return terrno;
+  }
+
+  pthread_mutex_lock(&pObj->mutex);
+  if (pObj->txnId > 0) {
+    pthread_mutex_unlock(&pObj->mutex);
+    return TSDB_CODE_TXN_ALREADY_IN_PROGRESS;
+  }
+
+  STxnCtrlMsg req = {.type = UTXN_STAGE_BEGIN};
+
+  STxnCtrlRsp rsp = {0};
+  int code = 0;  // taosSendSyncMsgToMnode(pObj, &req, &rsp); // send sync message to mnode to begin txn, and get
+                 // allocated txnId
+
+  if (code == TSDB_CODE_SUCCESS) {
+    pObj->txnState = UTXN_STAGE_BEGIN;
+    pObj->txnId = rsp.txnId;  // key: save the txnId allocated by mnode
+  }
+
+  pthread_mutex_unlock(&pObj->mutex);
+  return code;
+}
+
+int taos_txn_commit(TAOS *taos) {
+  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
+  if (NULL == pObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    tscError("invalid parameter for %s", __func__);
+    return terrno;
+  }
+
+  if (pObj->txnState != UTXN_STAGE_BEGIN) {
+    releaseTscObj(*(int64_t *)taos);
+    return TSDB_CODE_TXN_NOT_IN_PROGRESS;
+  }
+
+  // 构造 COMMIT 消息，必须携带 txnId
+  STxnCtrlMsg req = {.type = TXN_MSG_COMMIT, .txnId = pObj->txnId};
+
+  int code = taosSendSyncMsgToMnode(pObj, &req, NULL);
+
+  // 无论成功失败（除非是网络超时等可重试错误），通常提交后本地状态都要重置
+  pObj->txnState = 0; // TSDB_TXN_STATUS_NORMAL;
+  pObj->txnId = 0;
+
+  releaseTscObj(*(int64_t *)taos);
+  return code;
+}
+int taos_txn_rollback(TAOS *taos) {
+  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
+  if (NULL == pObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    tscError("invalid parameter for %s", __func__);
+    return terrno;
+  }
+
+  if (pObj->txnState != UTXN_STAGE_BEGIN) {
+    releaseTscObj(*(int64_t *)taos);
+    return TSDB_CODE_SUCCESS;  // 没开启事务直接返回成功
+  }
+
+  STxnCtrlMsg req = {.type = TXN_MSG_ROLLBACK, .txnId = pObj->txnId};
+
+  // 异步或同步发送均可，回滚通常不阻塞用户
+  taosSendSyncMsgToMnode(pObj, &req, NULL);
+
+  pObj->txnState = 0; // TSDB_TXN_STATUS_NORMAL;
+  pObj->txnId = 0;
+
+  releaseTscObj(*(int64_t *)taos);
+  return TSDB_CODE_SUCCESS;
+}
+
 int taos_errno(TAOS_RES *res) {
   if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return terrno;

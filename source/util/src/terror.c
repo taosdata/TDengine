@@ -1015,6 +1015,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_INVALID_FILE,             "Index file is inval
 //scalar
 TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_ERROR,           "Operation not supported between data types")
 
+//utxn
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_ALREADY_IN_PROGRESS,        "Transaction already in progress")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_NOT_IN_PROGRESS,            "Transaction not in progress")
+
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_NEED_INITIALIZED,           "Assignment or poll interface need to be called first")
