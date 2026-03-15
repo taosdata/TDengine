@@ -7029,7 +7029,7 @@ _err:
 }
 
 SNode* createStreamOutTableNode(SAstCreateContext* pCxt, SNode* pIntoTable, SNode* pOutputSubTable, SNodeList* pColList,
-                                SNodeList* pTagList) {
+                                SNodeList* pTagList, int32_t nodelayCreateSubtable) {
   SStreamOutTableNode* pOutTable = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_OUT_TABLE, (SNode**)&pOutTable);
@@ -7038,6 +7038,7 @@ SNode* createStreamOutTableNode(SAstCreateContext* pCxt, SNode* pIntoTable, SNod
   pOutTable->pSubtable = pOutputSubTable;
   pOutTable->pCols = pColList;
   pOutTable->pTags = pTagList;
+  pOutTable->nodelayCreateSubtable = (nodelayCreateSubtable != 0) ? 1 : 0;
   return (SNode*)pOutTable;
 
 _err:
@@ -7363,6 +7364,7 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode*
   pStmt->pTags = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pTags : NULL;
   pStmt->pSubtable = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pSubtable : NULL;
   pStmt->pCols = pOutTable ? ((SStreamOutTableNode*)pOutTable)->pCols : NULL;
+  pStmt->nodelayCreateSubtable = pOutTable ? ((SStreamOutTableNode*)pOutTable)->nodelayCreateSubtable : 0;
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pOutTable);

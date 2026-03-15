@@ -18,7 +18,7 @@ TDengine TSDB 的流计算引擎还提供了其他使用上的便利。针对结
 ## 创建流式计算
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
+CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 
 options: {
     trigger_type [FROM [db_name.]table_name] [PARTITION BY col1 [, ...]] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
@@ -301,7 +301,7 @@ COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 流计算的计算结果默认会保存到输出表中，每个输出表中的计算结果是截至当前时刻已经触发和计算完成的输出。可以指定输出表的结构定义，如果存在分组还可以指定子表的标签值。
 
 ```sql
-[INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] 
+[INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] 
 
 tag_definition:
     tag_name type_name [COMMENT 'string_value'] AS expr
@@ -313,6 +313,7 @@ tag_definition:
   - 存在触发分组时该表为超级表。
   - 不存在触发分组时该表为普通表。
   - 只触发通知不计算，或计算结果只通知不保存时，不需要指定。
+- [NODELAY_CREATE_SUBTABLE]：可选，指定在建流的时候立即创建每个分组的计算输出子表，默认情况下计算输出子表在有一条计算数据写入时才创建。如果添加该选项，创建流之后，子表会异步的创建，如果未全部创建成功，则流的状态会是 `Idle` ；如果创建成功，则状态会变更为  `Running` 。输出表为普通表和超级表默认会在建流的时候自动建立，无需进行配置。
 - [OUTPUT_SUBTABLE(tbname_expr)]：可选，指定每个触发分组的计算输出表（子表）名，没有触发分组时不可以指定。未指定时自动为每个分组生成唯一的输出表（子表）名。`tbname_expr` 为任意输出字符串的表达式，可根据需要选择触发表分组列（来自 `[PARTITION BY col1[, ...]]`），输出长度不能超过表名最大长度，超过时截断处理。如果不希望不同分组输出到同一子表中，用户需确保每个分组输出表名都是唯一的。
 - [(column_name1, column_name2 [COMPOSITE KEY][, ...])]：可选，指定输出表的每列列名，未指定时每列列名与计算结果的每列列名相同。可以通过 `[COMPOSITE KEY]` 指定第二列为主键列，与第一列共同组成复合主键。
 - [TAGS (tag_definition [, ...])]：可选，指定输出超级表的标签列定义与值的列表，只有存在触发分组时才可以指定。未指定时，标签列的定义和值来自于所有分组列，此时分组列中不可以存在相同的列名。当按子表分组时，默认产生的标签列名为 `tag_tbname`，类型为 `VARCHAR(270)`。具体的 `tag_definition` 参数说明如下：

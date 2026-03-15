@@ -20,6 +20,7 @@
 #include "plannodes.h"
 #include "scalar.h"
 #include "streamInt.h"
+#include "streamReader.h"
 #include "taos.h"
 #include "taoserror.h"
 #include "tarray.h"
@@ -2451,6 +2452,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   }
 
   pTask->leaderSnodeId = pMsg->leaderSnodeId;
+  pTask->nodelayCreateSubtable = pMsg->nodelayCreateSubtable;
   TSWAP(pTask->readerList, pMsg->readerList);
   if (pTask->isVirtualTable) {
     pTask->virtReaderList = taosArrayInit(0, sizeof(SStreamTaskAddr));
@@ -3551,6 +3553,11 @@ static void stRealtimeContextDestroy(void *ptr) {
   tdListEmpty(&pContext->retryCalcReqs);
   tdListEmpty(&pContext->dropTableReqs);
 
+  if (pContext->pPendingCreateTableGids != NULL) {
+    taosArrayDestroy(pContext->pPendingCreateTableGids);
+    pContext->pPendingCreateTableGids = NULL;
+  }
+
   taosMemFreeClear(*ppContext);
 }
 
@@ -3959,6 +3966,176 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     destroyAhandle(msg.info.ahandle);
     ST_TASK_ELOG("%s failed at line %d since %s, type: %d", __func__, lino, tstrerror(code), type);
+  }
+  return code;
+}
+
+// send STRIGGER_PULL_GROUP_COL_VALUE for given (pProgress, gid); used when pulling groupInfo for pending create-table
+static int32_t stRealtimeContextSendPullReqForGid(SSTriggerRealtimeContext *pContext, SSTriggerWalProgress *pProgress,
+                                                   int64_t gid) {
+  SStreamTriggerTask       *pTask = pContext->pTask;
+  SSTriggerPullRequest      *pReq = &pProgress->pullReq.base;
+  SStreamTaskAddr           *pReader = pProgress->pTaskAddr;
+  SRpcMsg                    msg = {.msgType = TDMT_STREAM_TRIGGER_PULL};
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    lino = 0;
+
+  pReq->type = STRIGGER_PULL_GROUP_COL_VALUE;
+  pReq->readerTaskId = pReader->taskId;
+  pProgress->pullReq.groupColValueReq.gid = gid;
+
+  QUERY_CHECK_CODE(stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pReq, &msg.info.ahandle), lino, _end);
+  msg.contLen = tSerializeSTriggerPullRequest(NULL, 0, pReq);
+  QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  msg.contLen += sizeof(SMsgHead);
+  msg.pCont = rpcMallocCont(msg.contLen);
+  QUERY_CHECK_NULL(msg.pCont, code, lino, _end, terrno);
+  SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
+  pMsgHead->contLen = htonl(msg.contLen);
+  pMsgHead->vgId = htonl(pReader->nodeId);
+  int32_t tlen =
+      tSerializeSTriggerPullRequest((char *)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pReq);
+  QUERY_CHECK_CONDITION(tlen == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  TRACE_SET_ROOTID(&msg.info.traceId, pTask->task.streamId);
+  TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
+  code = tmsgSendReq(&pReader->epset, &msg);
+  QUERY_CHECK_CODE(code, lino, _end);
+  ST_TASK_DLOG("send pull GROUP_COL_VALUE for gid:%" PRId64 " to node:%d", gid, pReader->nodeId);
+  return code;
+_end:
+  if (code != TSDB_CODE_SUCCESS && msg.info.ahandle != NULL) {
+    destroyAhandle(msg.info.ahandle);
+  }
+  return code;
+}
+
+// send one "create table only" calc request to runner for the given gid (uses reader response info)
+static int32_t stTriggerTaskSendCreateTableReq(SStreamTriggerTask *pTask, SSTriggerRealtimeContext *pContext,
+                                               int64_t sessionId, int64_t gid) {
+  int32_t               code = TSDB_CODE_SUCCESS;
+  int32_t               lino = 0;
+  SSTriggerCalcRequest *pCalcReq = NULL;
+  SStreamRunnerTarget  *pCalcRunner = NULL;
+  SRpcMsg               msg = {.msgType = TDMT_STREAM_TRIGGER_CALC};
+  bool                  needTagValue = false;
+  bool                  needDestroyAhandle = false;
+
+  code = stTriggerTaskAcquireRequest(pTask, sessionId, gid, &pCalcReq);
+  if (code != TSDB_CODE_SUCCESS || pCalcReq == NULL) {
+    return TSDB_CODE_SUCCESS;  // no slot or busy, skip
+  }
+  pCalcReq->createTable = 1;
+  SSTriggerCalcParam param = {0};
+  param.triggerTime = taosGetTimestampNs();
+  param.wstart = 0;
+  param.wend = 0;
+  param.notifyType = STRIGGER_EVENT_WINDOW_NONE;
+  if (taosArrayPush(pCalcReq->params, &param) == NULL) {
+    code = terrno;
+    lino = __LINE__;
+    goto _end;
+  }
+  if (pTask->hasPartitionBy || (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_IDX) ||
+      (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_TBNAME)) {
+    needTagValue = true;
+  }
+  if (needTagValue && pContext != NULL && pContext->pGroupColVals != NULL && taosArrayGetSize(pCalcReq->groupColVals) == 0) {
+    void *px = tSimpleHashGet(pContext->pGroupColVals, &gid, sizeof(int64_t));
+    if (px != NULL) {
+      SArray *pGroupColVals = *(SArray **)px;
+      if (pGroupColVals != NULL) {
+        for (int32_t i = 0; i < TARRAY_SIZE(pGroupColVals); i++) {
+          SStreamGroupValue *pValue = TARRAY_GET_ELEM(pGroupColVals, i);
+          SStreamGroupValue *pDst = taosArrayPush(pCalcReq->groupColVals, pValue);
+          if (pDst == NULL) {
+            code = terrno;
+            lino = __LINE__;
+            goto _end;
+          }
+          if (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL) {
+            pDst->data.pData = taosMemoryMalloc(pDst->data.nData);
+            if (pDst->data.pData == NULL) {
+              code = terrno;
+              lino = __LINE__;
+              goto _end;
+            }
+            TAOS_MEMCPY(pDst->data.pData, pValue->data.pData, pDst->data.nData);
+          }
+        }
+      }
+    }
+  }
+  int32_t nRunners = taosArrayGetSize(pTask->runnerList);
+  for (int32_t i = 0; i < nRunners; i++) {
+    pCalcRunner = TARRAY_GET_ELEM(pTask->runnerList, i);
+    if (pCalcRunner->addr.taskId == pCalcReq->runnerTaskId) {
+      break;
+    }
+    pCalcRunner = NULL;
+  }
+  if (pCalcRunner == NULL) {
+    code = TSDB_CODE_INTERNAL_ERROR;
+    lino = __LINE__;
+    goto _end;
+  }
+  code = stTriggerTaskAllocAhandle(pTask, sessionId, pCalcReq, &msg.info.ahandle);
+  if (code != TSDB_CODE_SUCCESS) {
+    lino = __LINE__;
+    goto _end;
+  }
+  needDestroyAhandle = true;
+  msg.contLen = tSerializeSTriggerCalcRequest(NULL, 0, pCalcReq);
+  if (msg.contLen <= 0) {
+    code = TSDB_CODE_INTERNAL_ERROR;
+    lino = __LINE__;
+    goto _end;
+  }
+  msg.contLen += sizeof(SMsgHead);
+  msg.pCont = rpcMallocCont(msg.contLen);
+  if (msg.pCont == NULL) {
+    code = terrno;
+    lino = __LINE__;
+    goto _end;
+  }
+  SMsgHead *pMsgHead = (SMsgHead *)msg.pCont;
+  pMsgHead->contLen = htonl(msg.contLen);
+  pMsgHead->vgId = htonl(SNODE_HANDLE);
+  int32_t tlen =
+      tSerializeSTriggerCalcRequest((char *)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pCalcReq);
+  if (tlen != msg.contLen - sizeof(SMsgHead)) {
+    code = TSDB_CODE_INTERNAL_ERROR;
+    lino = __LINE__;
+    goto _end;
+  }
+  TRACE_SET_ROOTID(&msg.info.traceId, pTask->task.streamId);
+  TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
+  code = tmsgSendReq(&pCalcRunner->addr.epset, &msg);
+  if (code != TSDB_CODE_SUCCESS) {
+    lino = __LINE__;
+    goto _end;
+  }
+  ST_TASK_DLOG("pull rsp: send create-table-only calc request to runner task:%" PRIx64 " gid:%" PRId64,
+               pCalcRunner->addr.taskId, gid);
+  return TSDB_CODE_SUCCESS;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+
+  if (msg.pCont != NULL) {
+    rpcFreeCont(msg.pCont);
+    msg.pCont = NULL;
+  }
+  if (needDestroyAhandle) {
+    destroyAhandle(msg.info.ahandle);
+  }
+  if (pCalcReq != NULL) {
+    code = stTriggerTaskReleaseRequest(pTask, &pCalcReq);
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+      return code;
+    }
   }
   return code;
 }
@@ -5198,14 +5375,30 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       pProgress->doneVer = pProgress->startVer;
       pProgress->lastScanVer = pProgress->startVer;
       int32_t nrows = blockDataGetNumOfRows(pDataBlock);
+      int64_t         *pGidData = NULL;
+      int64_t         *pTsData = NULL;
+
       if (nrows > 0) {
         int32_t          iCol = 0;
         SColumnInfoData *pGidCol = taosArrayGet(pDataBlock->pDataBlock, iCol++);
         QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
-        int64_t         *pGidData = (int64_t *)pGidCol->pData;
+        pGidData = (int64_t *)pGidCol->pData;
         SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, iCol++);
         QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
-        int64_t *pTsData = (int64_t *)pTsCol->pData;
+        pTsData = (int64_t *)pTsCol->pData;
+      } else if (pDataBlock->pDataBlock != NULL && pTask->nodelayCreateSubtable) {
+        int32_t          iCol = 0;
+        SColumnInfoData *pGidCol = taosArrayGet(pDataBlock->pDataBlock, iCol++);
+        if (pGidCol != NULL && pGidCol->pData != NULL) {
+          pGidData = (int64_t *)pGidCol->pData;
+        }
+        SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, iCol++);
+        if (pTsCol != NULL && pTsCol->pData != NULL) {
+          pTsData = (int64_t *)pTsCol->pData;
+        }
+      }
+
+      if (nrows > 0 && pGidData != NULL && pTsData != NULL) {
         if (pTask->isVirtualTable) {
           for (int32_t i = 0; i < nrows; i++) {
             int64_t                 obtUid = pGidData[i];
@@ -5239,8 +5432,49 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         }
       }
 
+      if (pTask->nodelayCreateSubtable && nrows > 0 && pGidData != NULL) {
+        if (pContext->pPendingCreateTableGids == NULL) {
+          pContext->pPendingCreateTableGids =
+              taosArrayInit(0, sizeof(SSTriggerPendingCreateTableEntry));
+          QUERY_CHECK_NULL(pContext->pPendingCreateTableGids, code, lino, _end, terrno);
+        }
+        if (pTask->isVirtualTable) {
+          for (int32_t i = 0; i < nrows; i++) {
+            int64_t                 obtUid = pGidData[i];
+            SSTriggerOrigTableInfo *pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &obtUid, sizeof(int64_t));
+            if (pOrigTableInfo == NULL) continue;
+            for (int32_t j = 0; j < TARRAY_SIZE(pOrigTableInfo->pVtbUids); j++) {
+              int64_t                 vtbUid = *(int64_t *)TARRAY_GET_ELEM(pOrigTableInfo->pVtbUids, j);
+              SSTriggerVirtTableInfo *pVirtTableInfo =
+                  tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(int64_t));
+              if (pVirtTableInfo == NULL) continue;
+              SSTriggerPendingCreateTableEntry entry = {.gid = pVirtTableInfo->tbGid, .pProgress = pProgress};
+              void *px = taosArrayPush(pContext->pPendingCreateTableGids, &entry);
+              QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+            }
+          }
+        } else {
+          for (int32_t i = 0; i < nrows; i++) {
+            SSTriggerPendingCreateTableEntry entry = {.gid = pGidData[i], .pProgress = pProgress};
+            void *px = taosArrayPush(pContext->pPendingCreateTableGids, &entry);
+            QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+          }
+        }
+      }
+
       if (--pContext->curReaderIdx > 0) {
         // wait for responses from other readers
+        goto _end;
+      }
+
+      // all readers responded; send first GROUP_COL_VALUE pull for nodelay create-table if any
+      if (pContext->pPendingCreateTableGids != NULL &&
+          taosArrayGetSize(pContext->pPendingCreateTableGids) > 0) {
+        SSTriggerPendingCreateTableEntry *pFirst =
+            (SSTriggerPendingCreateTableEntry *)taosArrayGet(pContext->pPendingCreateTableGids, 0);
+        QUERY_CHECK_NULL(pFirst, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        code = stRealtimeContextSendPullReqForGid(pContext, pFirst->pProgress, pFirst->gid);
+        QUERY_CHECK_CODE(code, lino, _end);
         goto _end;
       }
 
@@ -5667,9 +5901,44 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
 
     case STRIGGER_PULL_GROUP_COL_VALUE: {
       QUERY_CHECK_CONDITION(
-          (pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ || pContext->status == STRIGGER_CONTEXT_SEND_DROP_REQ),
+          (pContext->status == STRIGGER_CONTEXT_DETERMINE_BOUND || pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ ||
+           pContext->status == STRIGGER_CONTEXT_SEND_DROP_REQ),
           code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerGroupColValueRequest *pRequest = (SSTriggerGroupColValueRequest *)pReq;
+      if (pContext->status == STRIGGER_CONTEXT_DETERMINE_BOUND && pContext->pPendingCreateTableGids != NULL) {
+        // pending create-table: LAST_TS needed tag, we pulled groupInfo for one gid; create table then continue or finish
+        SStreamGroupInfo groupInfo = {0};
+        if (pRsp->contLen > 0) {
+          code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        code = tSimpleHashPut(pContext->pGroupColVals, &pRequest->gid, sizeof(int64_t), &groupInfo.gInfo, POINTER_BYTES);
+        if (code != TSDB_CODE_SUCCESS) {
+          taosArrayClearEx(groupInfo.gInfo, tDestroySStreamGroupValue);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        (void)stTriggerTaskSendCreateTableReq(pTask, pContext, pContext->sessionId, pRequest->gid);
+        (void)taosArrayRemove(pContext->pPendingCreateTableGids, 0);
+        if (taosArrayGetSize(pContext->pPendingCreateTableGids) > 0) {
+          SSTriggerPendingCreateTableEntry *pNext =
+              (SSTriggerPendingCreateTableEntry *)taosArrayGet(pContext->pPendingCreateTableGids, 0);
+          QUERY_CHECK_NULL(pNext, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+          code =
+              stRealtimeContextSendPullReqForGid(pContext, pNext->pProgress, pNext->gid);
+          QUERY_CHECK_CODE(code, lino, _end);
+        } else {
+          taosArrayDestroy(pContext->pPendingCreateTableGids);
+          pContext->pPendingCreateTableGids = NULL;
+          if (--pContext->curReaderIdx > 0) {
+            goto _end;
+          }
+          pContext->boundDetermined = true;
+          pContext->status = STRIGGER_CONTEXT_IDLE;
+          code = stRealtimeContextCheck(pContext);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        break;
+      }
       switch (pContext->status) {
         case STRIGGER_CONTEXT_SEND_CALC_REQ: {
           SStreamGroupInfo groupInfo = {0};

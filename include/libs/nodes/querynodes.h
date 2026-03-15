@@ -540,6 +540,7 @@ typedef struct SStreamOutTableNode {
   SNode*                pSubtable;
   SNodeList*            pTags; // SStreamTagDefNode
   SNodeList*            pCols; // SColumnDefNode
+  int8_t                nodelayCreateSubtable;  // 1 = create sub-tables at stream create time; 0 = default, do not
 } SStreamOutTableNode;
 
 typedef struct SStreamCalcRangeNode {
