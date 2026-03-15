@@ -39,9 +39,16 @@ IS_WINDOWS = platform.system().lower() == "windows"
 IS_LINUX = platform.system().lower() == "linux"
 
 # Default paths - will be overridden by config
-DEFAULT_INSTALL_DIR = r"C:\TDengine\taosanode" if IS_WINDOWS else "/usr/local/taos/taosanode"
-DEFAULT_DATA_DIR = r"C:\TDengine\taosanode\data" if IS_WINDOWS else "/var/lib/taos/taosanode"
-DEFAULT_LOG_DIR = r"C:\TDengine\taosanode\log" if IS_WINDOWS else "/var/log/taos/taosanode"
+# Auto-detect install dir from script location: <install_dir>/bin/taosanode_service.py
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_script_parent = os.path.dirname(_script_dir)
+if IS_WINDOWS:
+    # Script is in <install_dir>\bin\ when installed via Inno Setup
+    DEFAULT_INSTALL_DIR = _script_parent if os.path.basename(_script_dir).lower() == "bin" else r"C:\TDengine\taosanode"
+else:
+    DEFAULT_INSTALL_DIR = _script_parent if os.path.basename(_script_dir) == "bin" else "/usr/local/taos/taosanode"
+DEFAULT_DATA_DIR = os.path.join(DEFAULT_INSTALL_DIR, "data")
+DEFAULT_LOG_DIR = os.path.join(DEFAULT_INSTALL_DIR, "log")
 
 # PID file paths
 PID_FILE = os.path.join(DEFAULT_INSTALL_DIR, "taosanode.pid")
@@ -135,6 +142,19 @@ class Config:
         if config_path is None:
             config_path = os.path.join(self.cfg_dir, "taosanode.config.py")
 
+        # Set attribute defaults so they always exist even if config file is missing
+        self.pid_file = PID_FILE
+        self.app_log = os.path.join(self.log_dir, "taosanode.app.log")
+        self.model_dir = os.path.join(self.data_dir, "model")
+        self.venv_dir = os.path.join(self.install_dir, "venv")
+        self.bind = "0.0.0.0:6035"
+        self.workers = 2
+        self.timesfm_venv = os.path.join(self.install_dir, "timesfm_venv")
+        self.moirai_venv = os.path.join(self.install_dir, "moirai_venv")
+        self.chronos_venv = os.path.join(self.install_dir, "chronos_venv")
+        self.moment_venv = os.path.join(self.install_dir, "momentfm_venv")
+        self.models = self._get_default_models()
+
         if not os.path.exists(config_path):
             self.logger.warning(f"Config file not found: {config_path}")
             return
@@ -169,7 +189,7 @@ class Config:
             if hasattr(config_module, 'virtualenv'):
                 self.venv_dir = config_module.virtualenv
             else:
-                self.venv_dir = os.path.join(self.data_dir, "venv")
+                self.venv_dir = os.path.join(self.install_dir, "venv")
 
             # Bind address
             if hasattr(config_module, 'bind'):
@@ -185,13 +205,13 @@ class Config:
 
             # Model venv paths from config
             self.timesfm_venv = getattr(config_module, 'timesfm_venv',
-                                       os.path.join(self.data_dir, "timesfm_venv"))
+                                       os.path.join(self.install_dir, "timesfm_venv"))
             self.moirai_venv = getattr(config_module, 'moirai_venv',
-                                       os.path.join(self.data_dir, "moirai_venv"))
+                                       os.path.join(self.install_dir, "moirai_venv"))
             self.chronos_venv = getattr(config_module, 'chronos_venv',
-                                        os.path.join(self.data_dir, "chronos_venv"))
+                                        os.path.join(self.install_dir, "chronos_venv"))
             self.moment_venv = getattr(config_module, 'momentfm_venv',
-                                       os.path.join(self.data_dir, "momentfm_venv"))
+                                       os.path.join(self.install_dir, "momentfm_venv"))
 
             # Load model configurations from config file
             if hasattr(config_module, 'models'):
@@ -205,7 +225,7 @@ class Config:
             self.pid_file = PID_FILE
             self.app_log = os.path.join(self.log_dir, "taosanode.app.log")
             self.model_dir = os.path.join(self.data_dir, "model")
-            self.venv_dir = os.path.join(self.data_dir, "venv")
+            self.venv_dir = os.path.join(self.install_dir, "venv")
             self.bind = "0.0.0.0:6035"
             self.workers = 2
             self.models = self._get_default_models()
@@ -455,7 +475,7 @@ class TaosanodeService:
                 # Windows: redirect output to log file for debugging
                 log_file = os.path.join(self.config.log_dir, "taosanode_startup.log")
                 with open(log_file, 'a') as log:
-                    subprocess.Popen(
+                    proc = subprocess.Popen(
                         cmd,
                         env=env,
                         cwd=lib_dir,
@@ -465,7 +485,7 @@ class TaosanodeService:
                     )
             else:
                 # Linux: daemon mode handled by gunicorn
-                subprocess.Popen(
+                proc = subprocess.Popen(
                     cmd,
                     env=env,
                     cwd=lib_dir,
@@ -473,8 +493,11 @@ class TaosanodeService:
                     stderr=subprocess.DEVNULL
                 )
 
-            # Wait for service to start using polling
-            if self.process_mgr.wait_for_service("taosanode", timeout=10):
+            # Write PID immediately so is_running() can find the process
+            self.process_mgr.write_pid(proc.pid, "taosanode")
+
+            # Wait for service to start using polling (process existence check)
+            if self.process_mgr.wait_for_service("taosanode", timeout=30):
                 pid = self.process_mgr.read_pid("taosanode")
                 self.logger.info(f"Taosanode started with PID {pid}")
                 self.logger.info(f"Listening on {self.config.bind}")

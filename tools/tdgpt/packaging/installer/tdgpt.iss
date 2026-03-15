@@ -56,7 +56,9 @@ Source: "{#MyAppSourceDir}\requirements*.txt"; DestDir: "{app}"; Flags: ignoreve
 ; Service management scripts
 Source: "{#MyAppSourceDir}\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "{#MyAppSourceDir}\install.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#MyAppSourceDir}\install.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppSourceDir}\uninstall.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#MyAppSourceDir}\uninstall.py"; DestDir: "{app}"; Flags: ignoreversion
 
 [Dirs]
 Name: "{app}\log"; Permissions: everyone-modify
@@ -120,11 +122,6 @@ begin
     exit;
   end;
   Result := Pos(';' + Param + ';', ';' + OrigPath + ';') = 0;
-end;
-
-function DirExists(const Dir: string): Boolean;
-begin
-  Result := DirectoryExists(Dir);
 end;
 
 procedure InitializeWizard();

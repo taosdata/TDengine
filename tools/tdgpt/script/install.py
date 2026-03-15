@@ -59,8 +59,8 @@ class Colors:
     BLUE = '\033[0;34m' if COLORS_ENABLED else ''
     NC = '\033[0m' if COLORS_ENABLED else ''  # No Color
 
-# 默认安装路径
-INSTALL_DIR = Path(r"C:\TDengine\taosanode")
+# 默认安装路径：从脚本本身位置自动推断（脚本在安装根目录中）
+INSTALL_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
 
 # 模型配置
 REQUIRED_MODELS = ["tdtsfm", "timemoe"]

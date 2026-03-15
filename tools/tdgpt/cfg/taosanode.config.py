@@ -1,8 +1,14 @@
 # gunicorn_config.py, not valid for windows
 import multiprocessing
 import platform
+import os as _os
 
 on_windows = platform.system().lower() == "windows"
+
+# Auto-detect install directory from this config file's location:
+# cfg/taosanode.config.py → parent dir is <install_dir>
+_cfg_dir = _os.path.dirname(_os.path.abspath(__file__))
+_install_dir = _os.path.dirname(_cfg_dir)
 
 # list address and port
 bind = '0.0.0.0:6035'
@@ -34,7 +40,7 @@ accesslog = '/var/log/taos/taosanode/access.log'
 errorlog = '/var/log/taos/taosanode/error.log'
 
 # only valid on the Windows system.
-waitresslog = 'C:/TDengine/tdgpt/log/waitress.log'
+waitresslog = _os.path.join(_install_dir, 'log', 'waitress.log').replace('\\', '/') if on_windows else '/var/log/taos/taosanode/waitress.log'
 
 # log level: debug, info, warning, error, critical
 loglevel = 'debug'
@@ -43,10 +49,13 @@ loglevel = 'debug'
 proc_name = 'tdgpt_taosanode_app'
 
 # set the pid file
-pidfile = 'c:/TDengine/taosanode/taosanode.pid' if on_windows else '/usr/local/taos/taosanode/taosanode.pid'
+pidfile = _os.path.join(_install_dir, 'taosanode.pid').replace('\\', '/') if on_windows else '/usr/local/taos/taosanode/taosanode.pid'
+
+# virtual environment directory
+virtualenv = _os.path.join(_install_dir, 'venv').replace('\\', '/') if on_windows else '/usr/local/taos/taosanode/venv'
 
 # set the taosanoded basic python library directory
-pythonpath = 'c:/TDengine/taosanode/lib/taosanalytics/' if on_windows else '/usr/local/taos/taosanode/lib/taosanalytics/'
+pythonpath = (_os.path.join(_install_dir, 'lib', 'taosanalytics') + '/').replace('\\', '/') if on_windows else '/usr/local/taos/taosanode/lib/taosanalytics/'
 
 # wsgi app name
 wsgi_app = 'app:app'
@@ -57,10 +66,10 @@ preload_app = True
 # [taosanode]
 # The following configuration parameters are valid on both Windows and Linux system.
 # default app log file
-app_log = 'c:/TDengine/taosanode/log/taosanode.app.log' if on_windows else '/var/log/taos/taosanode/taosanode.app.log'
+app_log = _os.path.join(_install_dir, 'log', 'taosanode.app.log').replace('\\', '/') if on_windows else '/var/log/taos/taosanode/taosanode.app.log'
 
 # model storage directory
-model_dir = 'c:/TDengine/taosanode/model/' if on_windows else '/usr/local/taos/taosanode/model/'
+model_dir = (_os.path.join(_install_dir, 'model') + '/').replace('\\', '/') if on_windows else '/usr/local/taos/taosanode/model/'
 
 # default log level
 log_level = 'DEBUG'
