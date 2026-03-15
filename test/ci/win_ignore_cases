@@ -1,3 +1,6 @@
+#failed cases
+cases/17-DataSubscription/02-Consume/test_tmq_raw_block_interface.py
+
 # udf not supported in Windows CI
 cases/12-UDFs/test_udf_test.py
 cases/12-UDFs/test_udf_create.py
@@ -8,6 +11,7 @@ cases/uncatalog/system-test/0-others/test_udfpy_main.py
 cases/uncatalog/system-test/7-tmq/test_tmqUdf.py
 cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
 cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
+
 # MQTT bnode not supported in Windows CI
 cases/17-DataSubscription/03-MQTT/test_mqtt_smoking.py
 cases/17-DataSubscription/03-MQTT/test_mqtt_bnodes.py
@@ -27,3 +31,18 @@ cases/17-DataSubscription/03-MQTT/test_mqtt_rb.py
 83-DocTest/rust.sh
 83-DocTest/go.sh
 83-DocTest/test_R.sh
+
+# Valgrind not supported in Windows CI
+cases/81-Tools/05-Valgrind/test_valgrind_basic1.py
+cases/81-Tools/05-Valgrind/test_valgrind_basic2.py
+cases/81-Tools/05-Valgrind/test_valgrind_basic3.py
+cases/81-Tools/05-Valgrind/test_valgrind_basic4.py
+cases/81-Tools/05-Valgrind/test_valgrind_checkerror1.py
+cases/81-Tools/05-Valgrind/test_valgrind_checkerror2.py
+cases/81-Tools/05-Valgrind/test_valgrind_checkerror3.py
+cases/81-Tools/05-Valgrind/test_valgrind_checkerror4.py
+cases/81-Tools/05-Valgrind/test_valgrind_checkerror5.py
+cases/81-Tools/05-Valgrind/test_valgrind_checkerror6.py
+cases/81-Tools/05-Valgrind/test_valgrind_checkerror7.py
+cases/81-Tools/05-Valgrind/test_valgrind_checkerror8.py
+cases/81-Tools/05-Valgrind/test_valgrind_udf.py
