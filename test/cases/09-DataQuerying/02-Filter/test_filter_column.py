@@ -6,6 +6,7 @@ class TestFilterColumn:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
+
     def test_filter_column(self):
         """Filter columns
 
