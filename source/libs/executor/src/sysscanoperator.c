@@ -1716,6 +1716,17 @@ static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* 
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
     code = colDataSetVal(pColInfoData, numOfRows, (char*)&colRef->version, false);
     QUERY_CHECK_CODE(code, lino, _end);
+
+    // col ref depth
+    pColInfoData = taosArrayGet(dataBlock->pDataBlock, 9);
+    QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
+    if (!colRef || !colRef->pColRef[i].hasRef) {
+      int8_t zero = 0;
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&zero, false);
+    } else {
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&colRef->pColRef[i].depth, false);
+    }
+    QUERY_CHECK_CODE(code, lino, _end);
     ++numOfRows;
   }
 

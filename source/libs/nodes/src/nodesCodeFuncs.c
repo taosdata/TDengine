@@ -730,6 +730,7 @@ static int32_t jsonToSchema(const SJson* pJson, void* pObj) {
 
 static const char* jkRefColHasRef = "HasRef";
 static const char* jkRefColColId = "ColId";
+static const char* jkRefColDepth = "Depth";
 static const char* jkRefColDbName = "DbName";
 static const char* jkRefColTableName = "TableName";
 static const char* jkRefColColName = "ColName";
@@ -740,6 +741,9 @@ static int32_t refColToJson(const void* pObj, SJson* pJson) {
   int32_t code = tjsonAddBoolToObject(pJson, jkRefColHasRef, pCol->hasRef);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkRefColColId, pCol->id);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkRefColDepth, pCol->depth);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkRefColDbName, pCol->refDbName);
@@ -760,6 +764,9 @@ static int32_t jsonToRefCol(const SJson* pJson, void* pObj) {
   int32_t code = tjsonGetBoolValue(pJson, jkRefColHasRef, &pCol->hasRef);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetSmallIntValue(pJson, jkRefColColId, &pCol->id);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetTinyIntValue(pJson, jkRefColDepth, &pCol->depth);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue(pJson, jkRefColDbName, pCol->refDbName);

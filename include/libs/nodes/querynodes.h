@@ -118,6 +118,7 @@ typedef struct SColumnRefNode {
   char      refDbName[TSDB_DB_NAME_LEN];
   char      refTableName[TSDB_TABLE_NAME_LEN];
   char      refColName[TSDB_COL_NAME_LEN];
+  int8_t    refDepth;
 } SColumnRefNode;
 
 typedef struct STargetNode {

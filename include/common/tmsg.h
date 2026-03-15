@@ -781,6 +781,7 @@ int32_t tPrintFixedSchemaSubmitReq(SSubmitReq* pReq, STSchema* pSchema);
 typedef struct {
   bool     hasRef;
   col_id_t id;
+  int8_t   depth;
   char     refDbName[TSDB_DB_NAME_LEN];
   char     refTableName[TSDB_TABLE_NAME_LEN];
   char     refColName[TSDB_COL_NAME_LEN];
@@ -802,6 +803,7 @@ typedef struct {
 
 typedef struct {
   int16_t colId;
+  int8_t  depth;
   char    refDbName[TSDB_DB_NAME_LEN];
   char    refTableName[TSDB_TABLE_NAME_LEN];
   char    refColName[TSDB_COL_NAME_LEN];
@@ -1161,6 +1163,7 @@ static FORCE_INLINE int32_t tDecodeSSchemaExt(SDecoder* pDecoder, SSchemaExt* pS
 static FORCE_INLINE int32_t tEncodeSColRef(SEncoder* pEncoder, const SColRef* pColRef) {
   TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pColRef->hasRef));
   TAOS_CHECK_RETURN(tEncodeI16(pEncoder, pColRef->id));
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pColRef->depth));
   if (pColRef->hasRef) {
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refDbName));
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refTableName));
@@ -1172,6 +1175,7 @@ static FORCE_INLINE int32_t tEncodeSColRef(SEncoder* pEncoder, const SColRef* pC
 static FORCE_INLINE int32_t tDecodeSColRef(SDecoder* pDecoder, SColRef* pColRef) {
   TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t*)&pColRef->hasRef));
   TAOS_CHECK_RETURN(tDecodeI16(pDecoder, &pColRef->id));
+  TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pColRef->depth));
   if (pColRef->hasRef) {
     TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refDbName));
     TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refTableName));
@@ -4334,6 +4338,7 @@ typedef struct SColIdSlotIdPair {
 
 typedef struct SOrgTbInfo {
   int32_t vgId;
+  int8_t  depth;  // reference depth for optimization
   char    tbName[TSDB_TABLE_FNAME_LEN];
   SArray* colMap;  // SArray<SColIdNameKV>
 } SOrgTbInfo;

@@ -272,6 +272,7 @@ typedef enum EQuantifyType {
 #define TSDB_MAX_COLUMNS             32767
 #define TSDB_MAX_COLUMNS_NON_VIRTUAL 4096
 #define TSDB_MIN_COLUMNS             2  // PRIMARY COLUMN(timestamp) + other columns
+#define TSDB_MAX_VTABLE_REF_DEPTH    5
 
 #define TSDB_NODE_NAME_LEN            64
 #define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string

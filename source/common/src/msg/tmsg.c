@@ -7551,6 +7551,7 @@ int32_t tSerializeSVSubTablesRspImpl(SEncoder *pEncoder, SVSubTablesRsp *pRsp) {
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refDbName));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refTableName));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refColName));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pCol->depth));
     }
   }
 
@@ -7620,6 +7621,11 @@ int32_t tDeserializeSVSubTablesRspImpl(SDecoder *pDecoder, SVSubTablesRsp *pRsp)
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->refCols[n].refDbName));
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->refCols[n].refTableName));
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->refCols[n].refColName));
+          if (!tDecodeIsEnd(pDecoder)) {
+            TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTb->refCols[n].depth));
+          } else {
+            pTb->refCols[n].depth = 0;
+          }
         }
       }
     }
@@ -14497,12 +14503,14 @@ _exit:
   return code;
 }
 
+static int32_t colRefWrapperVersion = 1;
+
 int32_t tEncodeSColRefWrapper(SEncoder *pCoder, const SColRefWrapper *pWrapper) {
   int32_t code = 0;
   int32_t lino;
 
   TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pWrapper->nCols));
-  TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pWrapper->version));
+  TAOS_CHECK_EXIT(tEncodeI32v(pCoder, colRefWrapperVersion));
   for (int32_t i = 0; i < pWrapper->nCols; i++) {
     SColRef *p = &pWrapper->pColRef[i];
     TAOS_CHECK_EXIT(tEncodeI8(pCoder, p->hasRef));
@@ -14511,9 +14519,9 @@ int32_t tEncodeSColRefWrapper(SEncoder *pCoder, const SColRefWrapper *pWrapper) 
       TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refDbName));
       TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refTableName));
       TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refColName));
+      TAOS_CHECK_EXIT(tEncodeI8(pCoder, p->depth));
     }
   }
-
 _exit:
   return code;
 }
@@ -14539,12 +14547,19 @@ int32_t tDecodeSColRefWrapperEx(SDecoder *pDecoder, SColRefWrapper *pWrapper, bo
       TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->refDbName));
       TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->refTableName));
       TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->refColName));
+      if (pWrapper->version >= 1) {
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &p->depth));
+      } else {
+        p->depth = 0;
+      }
+    } else {
+      p->depth = 0;  // no reference
     }
   }
 
 _exit:
   if (code) {
-    taosMemoryFree(pWrapper->pColRef);
+    if (!decoderMalloc) taosMemoryFree(pWrapper->pColRef);
   }
   return code;
 }

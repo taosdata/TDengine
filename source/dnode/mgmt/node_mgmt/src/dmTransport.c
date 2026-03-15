@@ -201,6 +201,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     case TDMT_STREAM_FETCH_FROM_RUNNER_RSP:
     case TDMT_STREAM_FETCH_FROM_CACHE_RSP:
     case TDMT_VND_SNODE_DROP_TABLE_RSP:
+    case TDMT_VND_TABLE_META_RSP:
       code = qWorkerProcessRspMsg(NULL, NULL, pRpc, 0);
       return;
     case TDMT_MND_STATUS_RSP:

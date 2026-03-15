@@ -1346,6 +1346,111 @@ static bool isNewScanParam(STableScanOperatorParam* pParam) {
   return pParam->isNewParam;
 }
 
+static int32_t resolveVirtualTableToPhysical(SStorageAPI* pAPI, void* vnode, SMetaReader* pOrgTable,
+                                              SMetaReader* pSuperTable, SOrgTbInfo* pOrgTbInfo,
+                                              SSchemaWrapper** ppSchema) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t depth = 0;
+
+  while (pOrgTable->me.type == TSDB_VIRTUAL_NORMAL_TABLE ||
+         pOrgTable->me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+    if (++depth > TSDB_MAX_VTABLE_REF_DEPTH) {
+      qError("virtual table reference depth exceeded max %d", TSDB_MAX_VTABLE_REF_DEPTH);
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    SColRefWrapper* pColRefW = &pOrgTable->me.colRef;
+    if (pColRefW->nCols <= 0 || pColRefW->pColRef == NULL) {
+      qError("virtual table has no col references");
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    int8_t maxColDepth = 0;
+    for (int32_t d = 0; d < pColRefW->nCols; d++) {
+      if (pColRefW->pColRef[d].hasRef && pColRefW->pColRef[d].depth > maxColDepth) {
+        maxColDepth = pColRefW->pColRef[d].depth;
+      }
+    }
+    if (maxColDepth > 0 && maxColDepth <= 1 && depth == 1) {
+      qDebug("resolveVTable: all colRefs depth<=1, single-step resolve");
+    }
+
+    SSchemaWrapper* curSchema = NULL;
+    if (pOrgTable->me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
+      curSchema = &pOrgTable->me.ntbEntry.schemaRow;
+    } else {
+      pAPI->metaReaderFn.initReader(pSuperTable, vnode, META_READER_LOCK, &pAPI->metaFn);
+      code = pAPI->metaReaderFn.getTableEntryByUid(pSuperTable, pOrgTable->me.ctbEntry.suid);
+      pAPI->metaReaderFn.readerReleaseLock(pSuperTable);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      curSchema = &pSuperTable->me.stbEntry.schemaRow;
+    }
+
+    for (int32_t i = 0; i < taosArrayGetSize(pOrgTbInfo->colMap); ++i) {
+      SColIdNameKV* kv = taosArrayGet(pOrgTbInfo->colMap, i);
+      if (!kv) continue;
+      for (int32_t j = 0; j < pColRefW->nCols && j < curSchema->nCols; j++) {
+        SColRef* pRef = &pColRefW->pColRef[j];
+        if (!pRef->hasRef) continue;
+        if (strcmp(kv->colName, curSchema->pSchema[j].name) == 0) {
+          tstrncpy(kv->colName, pRef->refColName, sizeof(kv->colName));
+          qDebug("resolve vtable col %s -> %s.%s.%s", curSchema->pSchema[j].name,
+                 pRef->refDbName, pRef->refTableName, pRef->refColName);
+          break;
+        }
+      }
+    }
+
+    SColRef* pFirstRef = NULL;
+    for (int32_t j = 0; j < pColRefW->nCols; j++) {
+      if (pColRefW->pColRef[j].hasRef) {
+        pFirstRef = &pColRefW->pColRef[j];
+        break;
+      }
+    }
+    if (!pFirstRef) {
+      qError("virtual table has no valid col references");
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    char nextTableName[TSDB_TABLE_NAME_LEN] = {0};
+    tstrncpy(nextTableName, pFirstRef->refTableName, sizeof(nextTableName));
+
+    char fullName[TSDB_TABLE_FNAME_LEN] = {0};
+    snprintf(fullName, sizeof(fullName), "%s.%s", pFirstRef->refDbName, pFirstRef->refTableName);
+    tstrncpy(pOrgTbInfo->tbName, fullName, sizeof(pOrgTbInfo->tbName));
+
+    pAPI->metaReaderFn.clearReader(pOrgTable);
+    memset(pOrgTable, 0, sizeof(SMetaReader));
+    pAPI->metaReaderFn.initReader(pOrgTable, vnode, META_READER_LOCK, &pAPI->metaFn);
+    code = pAPI->metaReaderFn.getTableEntryByName(pOrgTable, nextTableName);
+    pAPI->metaReaderFn.readerReleaseLock(pOrgTable);
+    if (code != TSDB_CODE_SUCCESS) {
+      qDebug("resolve vtable: next table %s not on this vnode, will be routed correctly", nextTableName);
+      pOrgTable->me.type = TSDB_NORMAL_TABLE;
+      break;
+    }
+  }
+
+  switch (pOrgTable->me.type) {
+    case TSDB_CHILD_TABLE:
+      pAPI->metaReaderFn.initReader(pSuperTable, vnode, META_READER_LOCK, &pAPI->metaFn);
+      code = pAPI->metaReaderFn.getTableEntryByUid(pSuperTable, pOrgTable->me.ctbEntry.suid);
+      pAPI->metaReaderFn.readerReleaseLock(pSuperTable);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      *ppSchema = &pSuperTable->me.stbEntry.schemaRow;
+      break;
+    case TSDB_NORMAL_TABLE:
+      *ppSchema = &pOrgTable->me.ntbEntry.schemaRow;
+      break;
+    default:
+      qError("invalid table type:%d after resolve", pOrgTable->me.type);
+      return TSDB_CODE_INVALID_PARA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
   int32_t                  code = 0;
   int32_t                  lino = 0;
@@ -1408,22 +1513,8 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
     pAPI->metaReaderFn.readerReleaseLock(&orgTable);
     qDebug("dynamic vtable scan for origin table:%s, %s", pOrgTbInfo->tbName, GET_TASKID(pTaskInfo));
     QUERY_CHECK_CODE(code, lino, _return);
-    switch (orgTable.me.type) {
-      case TSDB_CHILD_TABLE:
-        pAPI->metaReaderFn.initReader(&superTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
-        code = pAPI->metaReaderFn.getTableEntryByUid(&superTable, orgTable.me.ctbEntry.suid);
-        pAPI->metaReaderFn.readerReleaseLock(&superTable);
-        QUERY_CHECK_CODE(code, lino, _return);
-        schema = &superTable.me.stbEntry.schemaRow;
-        break;
-      case TSDB_NORMAL_TABLE:
-        schema = &orgTable.me.ntbEntry.schemaRow;
-        break;
-      default:
-        qError("invalid table type:%d", orgTable.me.type);
-        return TSDB_CODE_INVALID_PARA;
-        break;
-    }
+    code = resolveVirtualTableToPhysical(pAPI, pInfo->base.readHandle.vnode, &orgTable, &superTable, pOrgTbInfo, &schema);
+    QUERY_CHECK_CODE(code, lino, _return);
 
     pListInfo->oneTableForEachGroup = true;
     taosHashClear(pListInfo->map);
@@ -1631,22 +1722,8 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   pAPI->metaReaderFn.readerReleaseLock(&orgTable);
   qDebug("dynamic vtable scan for origin table:%s, %s", pOrgTbInfo->tbName, GET_TASKID(pTaskInfo));
   QUERY_CHECK_CODE(code, lino, _return);
-  switch (orgTable.me.type) {
-    case TSDB_CHILD_TABLE:
-      pAPI->metaReaderFn.initReader(&superTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
-      code = pAPI->metaReaderFn.getTableEntryByUid(&superTable, orgTable.me.ctbEntry.suid);
-      pAPI->metaReaderFn.readerReleaseLock(&superTable);
-      QUERY_CHECK_CODE(code, lino, _return);
-      schema = &superTable.me.stbEntry.schemaRow;
-      break;
-    case TSDB_NORMAL_TABLE:
-      schema = &orgTable.me.ntbEntry.schemaRow;
-      break;
-    default:
-      qError("invalid table type:%d", orgTable.me.type);
-      return TSDB_CODE_INVALID_PARA;
-      break;
-  }
+  code = resolveVirtualTableToPhysical(pAPI, pInfo->base.readHandle.vnode, &orgTable, &superTable, pOrgTbInfo, &schema);
+  QUERY_CHECK_CODE(code, lino, _return);
 
   pListInfo->oneTableForEachGroup = true;
   taosHashClear(pListInfo->map);
