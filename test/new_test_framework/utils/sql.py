@@ -293,7 +293,7 @@ class TDSql:
 
                 if count_expected_res is not None:
                     counter = 0
-                    while count_expected_res != self.queryResult[0][0]:
+                    while len(self.queryResult) == 0 or count_expected_res != self.queryResult[0][0]:
                         self.cursor.execute(sql)
                         self.queryResult = self.cursor.fetchall()
                         if counter < queryTimes:
