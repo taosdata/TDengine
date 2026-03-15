@@ -17,9 +17,104 @@ taosd 命令行参数如下：
 - -e：指定环境变量的字符串，例如 `-e 'TAOS_FQDN=td1'`。
 - -E：指定环境变量的文件路径，默认是 `./.env`，.env 文件中的内容可以是 `TAOS_FQDN=td1`。
 - -o：指定日志输入方式，可选 `stdout`、`stderr`、`/dev/null`、`<directory>`、`<directory>/<filename>`、`<filename>`。
+- -r：启动本地修复模式。该参数必须与 `--mode force`、`--node-type vnode` 以及至少一个 `--repair-target` 一起使用。
 - -k：获取机器码
 - -dm：启用内存调度
 - -V：打印版本信息
+
+## 修复模式
+
+使用 `taosd -r` 可以进入本地修复模式。当前阶段只支持 `--mode force` 和 `--node-type vnode`。
+
+### 语法
+
+```bash
+taosd -r --mode force --node-type vnode [--backup-path <path>] \
+  --repair-target <target> [--repair-target <target>]...
+```
+
+### `--repair-target` 语法
+
+每个 `--repair-target` 的取值格式如下：
+
+```text
+<file-type>:<key>=<value>[:<key>=<value>]...
+```
+
+规则如下：
+
+- `<file-type>` 必须放在第一个 segment。
+- 当前支持的 file type 为 `meta`、`tsdb`、`wal`。
+- `key=value` 的顺序不影响语义，但文档示例统一采用固定顺序。
+- 同一条 target 内，key 不允许重复。
+- 多条 target 如果命中同一个修复对象，会直接报错。
+- 对 `tsdb` 来说，`fileid=*` 表示命中该 vnode 下全部 fileset，且不能和同一 vnode 下的显式 `fileid=<n>` target 混用。
+
+### 当前支持的 Target
+
+| 文件类型 | 必填字段 | 可选字段 | 默认策略 | 支持的策略 |
+| --- | --- | --- | --- | --- |
+| `meta` | `vnode` | `strategy` | `from_uid` | `from_uid`、`from_redo` |
+| `tsdb` | `vnode`、`fileid` | `strategy` | `drop_invalid_only` | `drop_invalid_only`、`head_only_rebuild`、`full_rebuild` |
+| `wal` | `vnode` | 无 | 无 | 无 |
+
+补充说明：
+
+- `fileid` 仅允许用于 `tsdb`，且当前阶段必须显式指定。使用 `fileid=<n>` 表示修复单个 fileset，使用 `fileid=*` 表示修复该 vnode 下全部 fileset。
+- 同一个 vnode 内，`fileid=*` 与显式 `fileid=<n>` target 互斥。
+- `wal` 当前阶段不支持 `strategy`。
+- `--backup-path` 是本次 repair 启动的全局参数，不属于某个特定 target。
+- TSDB repair 策略语义如下：
+  - `drop_invalid_only`：仅在 deep scan 前删除明显的缺失文件场景；不会检查与 `current.json` 不一致的 size mismatch 损坏。
+  - `head_only_rebuild`：对有效 core block 做 deep scan，只重建 `.head`；保留 `.data`，如果 `.sma` 元数据不可用则删除 `.sma`。
+  - `full_rebuild`：对有效 core block 做 deep scan，并沿用现有 writer 路径重建完整 core 数据。
+  - 如果需要处理 size mismatch 这类损坏，请显式使用 `head_only_rebuild` 或 `full_rebuild`。
+
+### 当前限制
+
+- 当前只支持 `--mode force`。
+- 当前只支持 `--node-type vnode`。
+- `taosd -r` 如果缺少 `--mode`、`--node-type` 或 `--repair-target`，会直接报错。
+- 旧的修复参数 `--file-type`、`--vnode-id`、`--replica-node` 已经从这套接口中移除。
+
+### 示例
+
+修复某个 vnode 的 meta，并使用默认策略：
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target meta:vnode=3
+```
+
+修复一个 TSDB file set，并显式指定策略：
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target tsdb:vnode=5:fileid=1809:strategy=head_only_rebuild
+```
+
+修复一个 TSDB file set，并强制执行完整 core 重建：
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target tsdb:vnode=5:fileid=1809:strategy=full_rebuild
+```
+
+用一条 target 修复一个 vnode 下全部 TSDB fileset：
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target 'tsdb:vnode=5:fileid=*'
+```
+
+一次启动同时声明多个修复目标：
+
+```bash
+taosd -r --mode force --node-type vnode --backup-path /tmp/repair-bak \
+  --repair-target meta:vnode=3 \
+  --repair-target tsdb:vnode=5:fileid=1809 \
+  --repair-target wal:vnode=6
+```
 
 ## 配置参数
 

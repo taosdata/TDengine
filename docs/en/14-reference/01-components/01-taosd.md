@@ -15,9 +15,104 @@ The command line parameters for taosd are as follows:
 - -s: Prints SDB information.
 - -C: Prints configuration information.
 - -e: Specifies environment variables, formatted like `-e 'TAOS_FQDN=td1'`.
+- -r: Starts local repair mode. This option must be used together with `--mode force`, `--node-type vnode`, and at least one `--repair-target`.
 - -k: Retrieves the machine code.
 - -dm: Enables memory scheduling.
 - -V: Prints version information.
+
+## Repair Mode
+
+Use `taosd -r` to start local repair mode. In the current phase, repair mode only supports `--mode force` and `--node-type vnode`.
+
+### Syntax
+
+```bash
+taosd -r --mode force --node-type vnode [--backup-path <path>] \
+  --repair-target <target> [--repair-target <target>]...
+```
+
+### Repair Target Grammar
+
+Each `--repair-target` value uses the following grammar:
+
+```text
+<file-type>:<key>=<value>[:<key>=<value>]...
+```
+
+Rules:
+
+- `<file-type>` must be the first segment.
+- Supported file types are `meta`, `tsdb`, and `wal`.
+- Key order is not significant, but examples in this document use a consistent order.
+- Repeating the same key in one target is invalid.
+- Repeating the same repair object across multiple targets is invalid.
+- For `tsdb`, `fileid=*` means all file sets in the target vnode, and it cannot be mixed with explicit `fileid=<n>` targets in the same vnode.
+
+### Supported Targets
+
+| File Type | Required Keys | Optional Keys | Default Strategy | Supported Strategies |
+| --- | --- | --- | --- | --- |
+| `meta` | `vnode` | `strategy` | `from_uid` | `from_uid`, `from_redo` |
+| `tsdb` | `vnode`, `fileid` | `strategy` | `drop_invalid_only` | `drop_invalid_only`, `head_only_rebuild`, `full_rebuild` |
+| `wal` | `vnode` | none | none | none |
+
+Additional notes:
+
+- `fileid` is only valid for `tsdb`, and it is required in the current phase. Use `fileid=<n>` to repair one file set, or `fileid=*` to repair all file sets in one vnode.
+- `fileid=*` and explicit `fileid=<n>` targets are mutually exclusive within the same vnode.
+- `strategy` is not currently supported for `wal`.
+- `--backup-path` is global for the whole repair startup, not per target.
+- TSDB repair strategies behave as follows:
+  - `drop_invalid_only`: only remove obviously bad missing-file cases before any deep scan. It does not inspect size-mismatch corruption against `current.json`.
+  - `head_only_rebuild`: deep-scan valid core blocks and rebuild `.head` only; keep `.data` unchanged and drop `.sma` if SMA metadata is unusable.
+  - `full_rebuild`: deep-scan valid core blocks and rebuild the full core payload with the existing writer path.
+  - Use `head_only_rebuild` or `full_rebuild` when you need recovery behavior for size-mismatch corruption.
+
+### Limitations
+
+- Only `--mode force` is supported.
+- Only `--node-type vnode` is supported.
+- `taosd -r` without `--mode`, `--node-type`, or `--repair-target` is invalid.
+- The older repair parameters `--file-type`, `--vnode-id`, and `--replica-node` have been removed from this interface.
+
+### Examples
+
+Repair meta on one vnode and use the default strategy:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target meta:vnode=3
+```
+
+Repair one TSDB file set and use an explicit strategy:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target tsdb:vnode=5:fileid=1809:strategy=head_only_rebuild
+```
+
+Repair one TSDB file set and force a full core rebuild:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target tsdb:vnode=5:fileid=1809:strategy=full_rebuild
+```
+
+Repair all TSDB file sets in one vnode with one target:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target 'tsdb:vnode=5:fileid=*'
+```
+
+Repair multiple targets in one startup:
+
+```bash
+taosd -r --mode force --node-type vnode --backup-path /tmp/repair-bak \
+  --repair-target meta:vnode=3 \
+  --repair-target tsdb:vnode=5:fileid=1809 \
+  --repair-target wal:vnode=6
+```
 
 ## Configuration Parameters
 
