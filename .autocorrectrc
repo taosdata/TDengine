@@ -1,0 +1,29 @@
+# AutoCorrect Configuration
+# https://github.com/huacnlee/autocorrect
+
+# File patterns to include/exclude
+[files]
+# Include patterns
+include = [
+    "**/*.md",
+    "**/*.mdx",
+]
+
+# Exclude patterns
+exclude = [
+    ".claude/**",
+    "node_modules/**",
+    "target/**",
+    "dist/**",
+    "build/**",
+]
+
+# Spellcheck configuration
+[spellcheck]
+# Enable spellcheck
+enable = false
+
+# Rules configuration
+[rules]
+# Enable default rules
+default = true
