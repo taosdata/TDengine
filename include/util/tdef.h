@@ -847,6 +847,13 @@ typedef enum {
   TSDB_VERSION_END,
 } EVersionType;
 
+typedef enum {
+  TSDB_META_TRN_NORMAL = 0,
+  TSDB_META_TRN_PRE_CREATE,
+  TSDB_META_TRN_PRE_ALTER,
+  TSDB_META_TRN_PRE_DROP,
+} EMetaTransStatus;
+
 #define MIN_RESERVE_MEM_SIZE 1024  // MB
 
 // Decimal

@@ -49,9 +49,18 @@ typedef struct SMeta SMeta;
 typedef TSKEY (*GetTsFun)(void*);
 
 typedef struct SMetaEntry {
-  int64_t  version;
-  int8_t   type;
-  int8_t   flags;  // TODO: need refactor?
+  int64_t version;
+  int8_t  type;
+  union {
+    int8_t flags;
+    struct {
+      uint8_t rollup : 1;         // TABLE_ROLLUP_ON
+      uint8_t colCompressed : 1;  // TABLE_COL_COMPRESSED
+      uint8_t isVirtual : 1;      // TABLE_VIRTUAL
+      uint8_t tranStatus : 3;     // EMetaTransStatus
+      uint8_t reserved : 2;       // Reserved for future use
+    };
+  };
   tb_uid_t uid;
   char*    name;
   union {
