@@ -215,6 +215,8 @@ static int32_t extWinBlockListAddBlock(SExternalWindowOperator* pExtW, SList* pL
   }
 
   (*ppBlock)->info.id.groupId = pExtW->lastCGrpId;
+  // ensure projection path blocks also carry the matching T-group id
+  (*ppBlock)->info.id.baseGId = pExtW->lastTGrpId;
 
   
 _exit:
@@ -771,9 +773,14 @@ static int32_t extWinInitCGrpCtx(SExternalWindowOperator* pExtW, SExecTaskInfo* 
 
   pCtx->lastSKey = INT64_MIN;
   pCtx->lastWinId = -1;
+  pCtx->lastWinIdx = -1;
   pCtx->blkWinIdx = -1;
   pCtx->blkWinStartSet = false;
   pCtx->blkRowStartIdx = 0;
+  pCtx->outWinIdx = 0;
+  pCtx->outWinLastIdx = -1;
+  pCtx->outWinTotalNum = 0;
+  pCtx->outWinNum = 0;
   
   SStreamRuntimeFuncInfo* pInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
 
@@ -2272,10 +2279,13 @@ static int32_t extWinProjectDo(SOperatorInfo* pOperator, SSDataBlock* pInputBloc
   TAOS_CHECK_EXIT(blockDataMergeNRows(pExtW->pTmpBlock, pInputBlock, startPos, rows));
 
   qDebug("%s %s start to apply project to tmp blk", pOperator->pTaskInfo->id.str, __func__);
-  TAOS_CHECK_EXIT(projectApplyFunctionsWithSelect(pExprSup->pExprInfo, pResBlock, pExtW->pTmpBlock, pExprSup->pCtx, pExprSup->numOfExprs,
-        NULL, GET_STM_RTINFO(pOperator->pTaskInfo), true, pExprSup->hasIndefRowsFunc));
+  TAOS_CHECK_EXIT(projectApplyFunctionsWithSelect(pExprSup->pExprInfo, pResBlock, pExtW->pTmpBlock, pExprSup->pCtx,
+                                                  pExprSup->numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo),
+                                                  true, pExprSup->hasIndefRowsFunc));
 
-    pResBlock->info.id.groupId = pInputBlock->info.id.groupId;
+  // propagate both ids so downstream (e.g., non-agg output/filters) can align with trigger group
+  pResBlock->info.id.groupId = pInputBlock->info.id.groupId;
+  pResBlock->info.id.baseGId = pInputBlock->info.id.baseGId;
 
   TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pIdx, pResBlock, extWinGetCurWinIdx(pOperator->pTaskInfo), rows));
 
@@ -2538,7 +2548,7 @@ static int32_t extWinNonAggOutputMultiGrpRes(SOperatorInfo* pOperator, SExternal
   if (pStream->curGrpCalc) {
     TAOS_CHECK_EXIT(extWinNonAggOutputSingleGrpRes(pOperator, pExtW, &pBlock));
   }
-  if (0 == pBlock->info.rows) {
+  if (pBlock == NULL || pBlock->info.rows == 0) {
     pStream->curGrpCalc = tSimpleHashIterate(pStream->pGroupCalcInfos, pStream->curGrpCalc, &pExtW->lastOutputIter);
     while (pStream->curGrpCalc != NULL) {
       if (pStream->curGrpCalc->pRunnerGrpCtx) {
@@ -2546,7 +2556,7 @@ static int32_t extWinNonAggOutputMultiGrpRes(SOperatorInfo* pOperator, SExternal
         pExtW->pTGrpCtx = pStream->curGrpCalc->pRunnerGrpCtx;
         
         TAOS_CHECK_EXIT(extWinNonAggOutputSingleGrpRes(pOperator, pExtW, &pBlock));
-        if (pBlock->info.rows > 0) {
+        if (pBlock != NULL && pBlock->info.rows > 0) {
           break;
         }
       }
