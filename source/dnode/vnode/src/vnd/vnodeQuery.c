@@ -50,7 +50,7 @@ int32_t fillTableColCmpr(SMetaReader *reader, SSchemaExt *pExt, int32_t numOfCol
   return 0;
 }
 
-void vnodePrintTableMeta(STableMetaRsp *pMeta) {
+void vnodeDebugTableMeta(STableMetaRsp *pMeta) {
   if (!(qDebugFlag & DEBUG_DEBUG)) {
     return;
   }
@@ -94,6 +94,28 @@ int32_t fillTableColRef(SMetaReader *reader, SColRef *pRef, int32_t numOfCol) {
         tstrncpy(pRef[i].refDbName, pColRef->refDbName, TSDB_DB_NAME_LEN);
         tstrncpy(pRef[i].refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
         tstrncpy(pRef[i].refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
+      }
+    }
+  }
+  return 0;
+}
+
+int32_t fillTableTagRef(SMetaReader *reader, SColRef *pRef, int32_t numOfTagRefs) {
+  int8_t tblType = reader->me.type;
+  if (hasRefCol(tblType)) {
+    SColRefWrapper *p = &(reader->me.colRef);
+    if (numOfTagRefs != p->nTagRefs) {
+      vError("fillTableTagRef table type:%d, tag ref num:%d, expected:%d mismatch", tblType, numOfTagRefs, p->nTagRefs);
+      return TSDB_CODE_APP_ERROR;
+    }
+    for (int i = 0; i < p->nTagRefs; i++) {
+      SColRef *pTagRef = &p->pTagRef[i];
+      pRef[i].hasRef = pTagRef->hasRef;
+      pRef[i].id = pTagRef->id;
+      if (pRef[i].hasRef) {
+        tstrncpy(pRef[i].refDbName, pTagRef->refDbName, TSDB_DB_NAME_LEN);
+        tstrncpy(pRef[i].refTableName, pTagRef->refTableName, TSDB_TABLE_NAME_LEN);
+        tstrncpy(pRef[i].refColName, pTagRef->refColName, TSDB_COL_NAME_LEN);
       }
     }
   }
@@ -236,12 +258,33 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       }
     }
     metaRsp.numOfColRefs = metaRsp.numOfColumns;
+
+    // Fill tag references
+    if (mer1.me.colRef.nTagRefs > 0) {
+      metaRsp.pTagRefs = (SColRef*)taosMemoryMalloc(sizeof(SColRef) * mer1.me.colRef.nTagRefs);
+      if (metaRsp.pTagRefs) {
+        code = fillTableTagRef(&mer1, metaRsp.pTagRefs, mer1.me.colRef.nTagRefs);
+        if (code < 0) {
+          taosMemoryFreeClear(metaRsp.pTagRefs);
+          goto _exit;
+        }
+      } else {
+        code = terrno;
+        goto _exit;
+      }
+      metaRsp.numOfTagRefs = mer1.me.colRef.nTagRefs;
+    } else {
+      metaRsp.pTagRefs = NULL;
+      metaRsp.numOfTagRefs = 0;
+    }
   } else {
     metaRsp.pColRefs = NULL;
     metaRsp.numOfColRefs = 0;
+    metaRsp.pTagRefs = NULL;
+    metaRsp.numOfTagRefs = 0;
   }
 
-  vnodePrintTableMeta(&metaRsp);
+  vnodeDebugTableMeta(&metaRsp);
 
   // encode and send response
   rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
@@ -271,6 +314,7 @@ _exit:
   taosMemoryFree(metaRsp.pColRefs);
   taosMemoryFree(metaRsp.pSchemas);
   taosMemoryFree(metaRsp.pSchemaExt);
+  taosMemoryFree(metaRsp.pTagRefs);
 _exit2:
   metaReaderClear(&mer2);
 _exit3:
