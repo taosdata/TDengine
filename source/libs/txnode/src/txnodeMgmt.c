@@ -63,16 +63,17 @@ SXnodedData xnodedGlobal = {0};
 static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData);
 
 static void getXnodedPidPath(char *pipeName, int32_t size) {
-#ifdef _WIN32
-  snprintf(pipeName, size, "%s%s", tsDataDir, XNODED_XNODED_PID_NAME);
-#else
   int32_t len = strlen(tsDataDir);
-  if (len > 0 && tsDataDir[len - 1] != '/') {
+
+  if (len > 0 && (tsDataDir[len - 1] != '/' && tsDataDir[len - 1] != '\\')) {
+  #ifdef _WIN32
+    snprintf(pipeName, size, "%s\\%s", tsDataDir, XNODED_XNODED_PID_NAME);
+  #else
     snprintf(pipeName, size, "%s/%s", tsDataDir, XNODED_XNODED_PID_NAME);
+  #endif
   } else {
     snprintf(pipeName, size, "%s%s", tsDataDir, XNODED_XNODED_PID_NAME);
   }
-#endif
   xndDebug("xnode get xnoded pid path:%s", pipeName);
 }
 
@@ -318,7 +319,7 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
         }
         tstrncpy(envXnodedWithPEnv[numEnviron + j], envXnoded[i], len);
         j++;
-      } 
+      }
     }
     envXnodedWithPEnv[numEnviron + lenEnvXnoded - 1] = NULL;
 
