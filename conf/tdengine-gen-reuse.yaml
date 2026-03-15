@@ -46,8 +46,8 @@ schema:
         - Austin
   generation:
     interlace: 1
-    per_table_rows: 100
-    per_batch_rows: 10000
+    rows_per_table: 100
+    rows_per_batch: 10000
     tables_reuse_data: true
 
 jobs:

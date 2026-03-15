@@ -17,20 +17,21 @@
 ## Table of Contents
 - [1. Introduction](#1-introduction)
 - [2. Documentation](#2-documentation)
-- [3. Prerequisites](#3-prerequisites)
-- [4. Build](#4-build)
-- [5. Testing](#5-testing)
-  - [5.1 Run Tests](#51-run-tests)
-  - [5.2 Add Test Cases](#52-add-test-cases)
-- [6. CI/CD](#6-cicd)
-- [7. Submitting Issues](#7-submitting-issues)
-  - [7.1 Required Information](#71-required-information)
-  - [7.2 Additional Information](#72-additional-information)
-- [8. Submitting PRs](#8-submitting-prs)
-- [9. References](#9-references)
-- [10. Appendix](#10-appendix)
-  - [10.1 Performance Benchmarks](#101-performance-benchmarks)
-- [11. License](#11-license)
+- [3. AI Agent Integration](#3-ai-agent-integration)
+- [4. Prerequisites](#4-prerequisites)
+- [5. Build](#5-build)
+- [6. Testing](#6-testing)
+  - [6.1 Run Tests](#61-run-tests)
+  - [6.2 Add Test Cases](#62-add-test-cases)
+- [7. CI/CD](#7-cicd)
+- [8. Submitting Issues](#8-submitting-issues)
+  - [8.1 Required Information](#81-required-information)
+  - [8.2 Additional Information](#82-additional-information)
+- [9. Submitting PRs](#9-submitting-prs)
+- [10. References](#10-references)
+- [11. Appendix](#11-appendix)
+  - [11.1 Performance Benchmarks](#111-performance-benchmarks)
+- [12. License](#12-license)
 
 ## 1. Introduction
 `taosgen` is a performance benchmarking tool for time-series data products, supporting data generation and write performance testing. `taosgen` uses "jobs" as the basic unit, which are user-defined sets of operations for specific tasks. Each job contains one or more steps and can be connected to other jobs via dependencies, forming a Directed Acyclic Graph (DAG) execution flow for flexible and efficient task orchestration.
@@ -41,7 +42,67 @@ Currently, `taosgen` supports Linux and macOS systems.
 - For usage, refer to the [Reference Manual](https://docs.tdengine.com/tdengine-reference/tools/taosgen/), which covers running, command-line arguments, configuration parameters, and sample configuration files.
 - This quick guide is mainly for developers who want to contribute, build, and test the `taosgen` tool. For more information about TDengine, visit the [official documentation](https://docs.tdengine.com/).
 
-## 3. Prerequisites
+## 3. AI Agent Integration
+
+`taosgen` provides AI Skill configurations to help AI agents (such as Claude, Claude Code, Cursor, etc.) assist users through natural language conversations. These skills cover configuration generation, build assistance, and development workflows.
+
+**Skills Location:** `.agent/skills/`
+
+**Available Skills:**
+
+1. **taosgen-config** - Generate benchmark configurations
+   - Create taosgen configuration files for TDengine, MQTT, and Kafka through natural language descriptions
+   - Automatically validate configurations and provide optimization suggestions
+   - Support various data generation methods (random, expression, CSV import)
+   - Configure complex job workflows with dependencies
+
+2. **taosgen-build** - Build and compile assistance
+   - Guide users through the build process with cmake and conan
+   - Troubleshoot common build issues on different platforms
+   - Provide IDE integration instructions (VSCode, CLion)
+   - Assist with testing and installation
+
+**How to use (taking Claude Code as an example):**
+
+**Option 1: Copy to Claude Code skills directory (Recommended)**
+```bash
+mkdir -p ~/.claude/skills/
+cp -r .agent/skills/taosgen-* ~/.claude/skills/
+
+# Then start Claude Code in your project directory
+claude
+```
+
+**Option 2: Project-local symlink**
+Claude Code recognizes skills from the `.claude/skills/` directory. To use the skill locally in this project:
+```bash
+# Create symlink in project's .claude directory
+mkdir -p .claude/
+ln -s ../.agent/skills .claude/
+
+# Start Claude Code
+claude
+```
+
+
+**Example conversations with Claude Code:**
+
+```
+"Create a taosgen config for testing TDengine with 10,000 devices,
+ each reporting temperature and humidity every second for 1 hour"
+
+"Generate an MQTT benchmark configuration to simulate 1000 IoT devices
+ publishing to topics with QoS 1"
+
+"Help me create a Kafka load test config with 5M messages and batch processing"
+```
+
+**Skill Documentation:**
+- [taosgen-config/SKILL.md](.agent/skills/taosgen-config/SKILL.md) - Configuration generator
+- [taosgen-config/references/](.agent/skills/taosgen-config/references/) - Configuration reference docs
+- [taosgen-build/SKILL.md](.agent/skills/taosgen-build/SKILL.md) - Build assistant
+
+## 4. Prerequisites
 First, ensure TDengine is deployed locally. For detailed deployment steps, see [Deploy TDengine](https://docs.tdengine.com/get-started/deploy-from-package/). Make sure both taosd and taosAdapter services are running.
 
 Before installing and using `taosgen`, ensure you meet the following platform-specific prerequisites:
@@ -49,7 +110,7 @@ Before installing and using `taosgen`, ensure you meet the following platform-sp
 - cmake, version 3.19 or above. See [cmake](https://cmake.org).
 - conan, version 2.19 or above. See [conan](https://conan.io).
 
-## 4. Build
+## 5. Build
 This section provides detailed instructions for building `taosgen` on Linux or macOS platforms.
 Before proceeding, make sure you are in the project root directory.
 
@@ -67,24 +128,24 @@ On macOS, if your compiler does not automatically select the appropriate default
 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_SYSROOT=$(xcrun --show-sdk-path) -DCMAKE_TOOLCHAIN_FILE=./conan/conan_toolchain.cmake
 ```
 
-## 5. Testing
+## 6. Testing
 
-### 5.1 Run Tests
+### 6.1 Run Tests
 `taosgen` uses ctest as its test framework. Run `ctest` in the build directory to execute all test cases.
 
-### 5.2 Add Test Cases
+### 6.2 Add Test Cases
 Test cases are located in the test directories of each submodule.
 - To add test cases to an existing test file: name the test functions with the prefix `test_` and call them in the `main` function.
 - To add a new test file: write test cases and a `main` function in the file, and add the build configuration in the corresponding `CMakeLists.txt` in the same directory.
 
-## 6. CI/CD
+## 7. CI/CD
 - [Build Workflow](https://github.com/taosdata/tsgen/actions/workflows/build.yml)
 - [Code Coverage](https://app.codecov.io/github/taosdata/taosgen)
 
-## 7. Submitting Issues
+## 8. Submitting Issues
 We welcome [GitHub Issues](https://github.com/taosdata/taosgen/issues/new?template=Blank+issue). Please provide the following information to help us diagnose and resolve issues efficiently:
 
-### 7.1 Required Information
+### 8.1 Required Information
 - Problem Description:
   Provide a clear and detailed description of the issue.
   Indicate whether the issue is persistent or intermittent.
@@ -94,13 +155,13 @@ We welcome [GitHub Issues](https://github.com/taosdata/taosgen/issues/new?templa
 - taosgen configuration parameters
 - TDengine server version
 
-### 7.2 Additional Information
+### 8.2 Additional Information
 - Operating System: Specify the OS and its version.
 - Steps to Reproduce: Provide instructions to reproduce the issue.
 - Environment Configuration: Include any relevant environment settings.
 - Logs: Attach any logs that may help diagnose the issue.
 
-## 8. Submitting PRs
+## 9. Submitting PRs
 We welcome contributions! Please follow these steps when submitting a PR:
 1. Fork the project ([how to fork a repo](https://docs.github.com/en/get-started/quickstart/fork-a-repo)).
 2. Create a new branch from `main` with a meaningful name (`git checkout -b my_branch`). Do not modify the `main` branch directly.
@@ -110,11 +171,11 @@ We welcome contributions! Please follow these steps when submitting a PR:
 6. After submitting the PR, you can find it under [Pull Requests](https://github.com/taosdata/taosgen/pulls). Click the link to view CI status. If it passes, you'll see “All checks have passed”. You can always click “Show all checks” -> “Details” for detailed logs.
 7. After CI passes, you can check your PR's test coverage on [codecov](https://app.codecov.io/gh/taosdata/taosgen/pulls).
 
-## 9. References
+## 10. References
 - [TDengine Official Website](https://www.tdengine.com/)
 - [TDengine GitHub](https://github.com/taosdata/TDengine)
 
-## 10. Appendix
+## 11. Appendix
 Project source code layout (directories only):
 ```
 <root>
@@ -232,7 +293,7 @@ Project source code layout (directories only):
         └── src
 ```
 
-### 10.1 Performance Benchmarks
+### 11.1 Performance Benchmarks
 
 - Test environment: Client and server identical
 
@@ -263,5 +324,5 @@ Notes:
 - TDengine vs taosBenchmark: under equivalent setup, taosgen shows higher throughput and low framework overhead.
 - Kafka vs official tool: taosgen outperforms in single-thread and multi-process scenarios.
 
-## 11. License
+## 12. License
 [MIT License](./LICENSE)
