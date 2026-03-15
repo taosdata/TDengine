@@ -435,6 +435,7 @@ typedef struct {
 typedef struct {
   int32_t execReplica;
   void*   calcScanPlan;
+  bool    freeScanPlan;
 } SStreamReaderDeployFromCalc;
 
 typedef union {
