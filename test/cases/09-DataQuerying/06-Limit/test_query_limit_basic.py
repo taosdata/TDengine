@@ -143,6 +143,7 @@ class TestLimit:
                     ts_tb1 = ts_tb + int(halfNum)
                     values_tb1.append(f"( {ts_tb1} , {c2} , NULL , {c2} , NULL , {c2} , {c2} , true, {binary} , {nchar} )")
                 
+                # Two separate INSERTs (original behavior) - timestamps are different
                 if values_tb:
                     tdSql.execute(f"insert into {tb} values {','.join(values_tb)}")
                 if values_tb1:
@@ -1352,8 +1353,9 @@ class TestLimit:
                     nchar = "'nchar" + str(c) + "'"
                     values_tb.append(f"( {ts} , {c} , {c} , {c} , {c} , {c} , {c} , true, {binary} , {nchar} )")
                     values_tb1.append(f"( {ts} , {c} , NULL , {c} , NULL , {c} , {c} , true, {binary} , {nchar} )")
-                tdSql.execute(f"insert into {tb} values {','.join(values_tb)}")
-                tdSql.execute(f"insert into {tb1} values {','.join(values_tb1)}")
+                # Single INSERT for both tables (same timestamp)
+                if values_tb and values_tb1:
+                    tdSql.execute(f"insert into {tb} values {','.join(values_tb)} {tb1} values {','.join(values_tb1)}")
             i = i + 1
 
         tdLog.info(f"====== tables created")
@@ -2470,8 +2472,9 @@ class TestLimit:
                     nchar = "'nchar" + str(c) + "'"
                     values_tb.append(f"( {ts} , {c} , {c} , {c} , {c} , {c} , {c} , true, {binary} , {nchar} )")
                     values_tb1.append(f"( {ts} , {c} , NULL , {c} , NULL , {c} , {c} , true, {binary} , {nchar} )")
-                tdSql.execute(f"insert into {tb} values {','.join(values_tb)}")
-                tdSql.execute(f"insert into {tb1} values {','.join(values_tb1)}")
+                # Single INSERT for both tables to maintain atomicity
+                if values_tb and values_tb1:
+                    tdSql.execute(f"insert into {tb} values {','.join(values_tb)} {tb1} values {','.join(values_tb1)}")
 
             i = i + 1
 
@@ -2852,7 +2855,9 @@ class TestLimit:
                     values_tb.append(f"({tstart} , {c} , {c} , {c} , {c} , {c} , {c} , {c} , {binary} , {nchar} )")
                     values_tb1.append(f"({tstart} , {c} , {c} , {c} , {c} , {c} , {c} , {c} , {binary} , {nchar} )")
                     tstart = tstart + 1
-                tdSql.execute(f"insert into {tb} values {','.join(values_tb)} {tb1} values {','.join(values_tb1)}")
+                # Single INSERT for both tables (same timestamp)
+                if values_tb and values_tb1:
+                    tdSql.execute(f"insert into {tb} values {','.join(values_tb)} {tb1} values {','.join(values_tb1)}")
 
             i = i + 1
             tstart = 100000
