@@ -152,7 +152,7 @@ _exit:
 
 
 int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray** subEndPoints) {
+                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray** subEndPoints, bool enableExplain) {
   int32_t code = doCreateTask(pPlan->id.queryId, taskId, vgId, model, &pHandle->api, pTaskInfo);
   if (*pTaskInfo == NULL || code != 0) {
     nodesDestroyNode((SNode*)pPlan);
@@ -173,6 +173,7 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
 
   (*pTaskInfo)->pWorkerCb = pHandle->pWorkerCb;
   (*pTaskInfo)->pStreamRuntimeInfo = pHandle->streamRtInfo;
+  (*pTaskInfo)->enableExplain = enableExplain;
 
   if (subEndPoints && taosArrayGetSize(*subEndPoints) > 0) {
     code = initTaskSubJobCtx(*pTaskInfo, subEndPoints, pHandle);

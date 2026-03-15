@@ -295,6 +295,7 @@ static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t            code = TSDB_CODE_SUCCESS;
   SFillOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  recordOpExecBegin(pOperator);
 
   if (pInfo->pTimeRange != NULL) {
     STimeWindow pWinRange = {0};
@@ -336,11 +337,8 @@ static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     }
   }
 
-  if (fillResult != NULL) {
-    pOperator->resultInfo.totalRows += fillResult->info.rows;
-  }
-
   (*ppRes) = fillResult;
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 
@@ -520,6 +518,7 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
     code = terrno;
     goto _error;
   }
+  recordOpCreateTime(pOperator);
 
   pOperator->pPhyNode = pPhyFillNode;
   pInfo->pRes = createDataBlockFromDescNode(pPhyFillNode->node.pOutputDataBlockDesc);

@@ -13,20 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "filter.h"
-#include "function.h"
-#include "tname.h"
-
-#include "tglobal.h"
-
 #include "executorInt.h"
-#include "index.h"
+#include "function.h"
 #include "operator.h"
+#include "osTime.h"
 #include "query.h"
 #include "querytask.h"
-
 #include "storageapi.h"
+#include "taoserror.h"
 #include "tdatablock.h"
+#include "tdef.h"
+#include "tglobal.h"
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
                                    __optr_close_fn_t closeFn, __optr_reqBuf_fn_t reqBufFn, __optr_explain_fn_t explain,
@@ -59,7 +56,6 @@ void setOperatorResetStateFn(SOperatorInfo* pOperator, __optr_reset_state_fn_t r
 
 int32_t optrDummyOpenFn(SOperatorInfo* pOperator) {
   OPTR_SET_OPENED(pOperator);
-  pOperator->cost.openCost = 0;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -77,7 +73,6 @@ int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t 
 
 void setOperatorCompleted(SOperatorInfo* pOperator) {
   pOperator->status = OP_EXEC_DONE;
-  pOperator->cost.totalCost = (taosGetTimestampUs() - pOperator->pTaskInfo->cost.start) / 1000.0;
   setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
 }
 
@@ -739,10 +734,29 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
   }
 
   pExplainInfo->numOfRows = operatorInfo->resultInfo.totalRows;
-  pExplainInfo->startupCost = operatorInfo->cost.openCost;
-  pExplainInfo->totalCost = operatorInfo->cost.totalCost;
   pExplainInfo->verboseLen = 0;
   pExplainInfo->verboseInfo = NULL;
+  pExplainInfo->vgId = operatorInfo->pTaskInfo->id.vgId;
+  pExplainInfo->execCreate = operatorInfo->cost.execCreate;
+
+  /*
+    For the start, first and last row ts, we need to subtract the execCreate time
+    to compute the real elapsed time since the operator is created.
+  */
+  pExplainInfo->execStart = operatorInfo->cost.execStart - operatorInfo->cost.execCreate;
+  if (operatorInfo->resultInfo.totalRows > 0) {
+    /*
+      When there is no data returned, keep execFirstRow and execLastRow as 0.
+    */
+    pExplainInfo->execFirstRow = operatorInfo->cost.execFirstRow - operatorInfo->cost.execCreate;
+    pExplainInfo->execLastRow = operatorInfo->cost.execLastRow - operatorInfo->cost.execCreate;
+  }
+
+  pExplainInfo->execTimes = operatorInfo->cost.execTimes;
+  pExplainInfo->execElapsed = operatorInfo->cost.execElapsed;
+  pExplainInfo->inputWaitElapsed = operatorInfo->cost.inputWaitElapsed;
+  pExplainInfo->outputWaitElapsed = operatorInfo->cost.outputWaitElapsed;
+  pExplainInfo->inputRows = operatorInfo->cost.inputRows;
 
   if (operatorInfo->fpSet.getExplainFn) {
     int32_t code =
@@ -916,27 +930,33 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInpu
 }
 
 SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx) {
+  recordOpExecBeforeDownstream(pOperator);
   SSDataBlock* p = NULL;
   int32_t      code = getNextBlockFromDownstreamImpl(pOperator, idx, true, &p);
   if (code == TSDB_CODE_SUCCESS) {
     code = blockDataCheck(p);
     if (code != TSDB_CODE_SUCCESS) {
-      qError("blockDataCheck failed, code:%s", tstrerror(code));
+      qError("%s, %s failed at line %d, code:%s", GET_TASKID(pOperator->pTaskInfo),
+             __func__, __LINE__, tstrerror(code));
     }
   }
-  return (code == 0) ? p : NULL;
+  recordOpExecAfterDownstream(pOperator, p && code == TSDB_CODE_SUCCESS ? p->info.rows : 0);
+  return (code == TSDB_CODE_SUCCESS) ? p : NULL;
 }
 
 SSDataBlock* getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, int32_t idx) {
+  recordOpExecBeforeDownstream(pOperator);
   SSDataBlock* p = NULL;
   int32_t      code = getNextBlockFromDownstreamImpl(pOperator, idx, false, &p);
   if (code == TSDB_CODE_SUCCESS) {
     code = blockDataCheck(p);
     if (code != TSDB_CODE_SUCCESS) {
-      qError("blockDataCheck failed, code:%s", tstrerror(code));
+      qError("%s, %s failed at line %d, code:%s", GET_TASKID(pOperator->pTaskInfo),
+             __func__, __LINE__, tstrerror(code));
     }
   }
-  return (code == 0)? p:NULL;
+  recordOpExecAfterDownstream(pOperator, p && code == TSDB_CODE_SUCCESS ? p->info.rows : 0);
+  return (code == TSDB_CODE_SUCCESS) ? p : NULL;
 }
 
 /*
@@ -988,6 +1008,7 @@ SSDataBlock* getNextBlockFromDownstreamRemainDetach(struct SOperatorInfo* pOpera
   SSDataBlock* p = NULL;
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
+  recordOpExecBeforeDownstream(pOperator);
 
   code = getNextBlockFromDownstreamRemainDetachImpl(pOperator, idx, &p);
   QUERY_CHECK_CODE(code, lino, _return);
@@ -996,6 +1017,7 @@ SSDataBlock* getNextBlockFromDownstreamRemainDetach(struct SOperatorInfo* pOpera
   QUERY_CHECK_CODE(code, lino, _return);
 
 _return:
+  recordOpExecAfterDownstream(pOperator, p && code == TSDB_CODE_SUCCESS ? p->info.rows : 0);
   if (code) {
     qError("failed to get next data block from downstream at %s, line:%d code:%s", __func__, lino, tstrerror(code));
     return NULL;
@@ -1133,4 +1155,86 @@ int32_t copyColumnsValue(SNodeList* pNodeList, int64_t targetBlkId, SSDataBlock*
 _return:
   qError("failed to copy columns value, line:%d code:%s", lino, tstrerror(code));
   return code;
+}
+
+/**
+  @brief Record the create time of the operator.
+*/
+void recordOpCreateTime(SOperatorInfo* pOperator) {
+  pOperator->cost.execCreate = taosGetTimestampUs();
+}
+
+/**
+  @brief Record the performance metrics at the beginning of the
+  operator execution:
+  - record the start time of the operator execution
+  - calculate the output wait time (time since last call returned)
+  - record the first time nextFn interface is called
+  Only record the metrics in explain analyze mode.
+*/
+void recordOpExecBegin(SOperatorInfo* pOperator) {
+  if (QUERY_ENABLE_EXPLAIN(pOperator->pTaskInfo)) {
+    pOperator->cost.startTs = taosGetTimestampUs();
+    // calculate output wait time (time since last call returned)
+    if (pOperator->cost.execLastRow > 0) {
+      pOperator->cost.outputWaitElapsed += pOperator->cost.startTs - pOperator->cost.execLastRow;
+    }
+    // record the first time nextFn is called
+    if (pOperator->cost.execStart == 0) {
+      pOperator->cost.execStart = pOperator->cost.startTs;
+    }
+  }
+}
+
+/**
+  @brief Record the performance metrics before the downstream execution:
+  - record the elapsed time since the operator execution started
+  - update the start time of the operator execution
+  Only record the metrics in explain analyze mode.
+*/
+void recordOpExecBeforeDownstream(SOperatorInfo* pOperator) {
+  if (QUERY_ENABLE_EXPLAIN(pOperator->pTaskInfo)) {
+    pOperator->cost.endTs = taosGetTimestampUs();
+    pOperator->cost.execElapsed += pOperator->cost.endTs - pOperator->cost.startTs;
+  }
+}
+
+/**
+  @brief Record the performance metrics after the downstream execution:
+  - record the elapsed time since the downstream execution started
+  - update the end time of the downstream execution
+  Only record the metrics in explain analyze mode.
+*/
+void recordOpExecAfterDownstream(SOperatorInfo* pOperator, size_t inputRows) {
+  if (QUERY_ENABLE_EXPLAIN(pOperator->pTaskInfo)) {
+    pOperator->cost.startTs = taosGetTimestampUs();
+    pOperator->cost.inputWaitElapsed += pOperator->cost.startTs - pOperator->cost.endTs;
+    pOperator->cost.inputRows += inputRows;
+  }
+}
+
+/**
+  @brief Record the performance metrics at the end of the
+  operator execution:
+  - record the number of times the operator's next interface is called
+  - record the elapsed time for executing the operator's nextFn interface
+  - record the time when the first row is returned
+  - record the time when the last row is returned
+  Only record the metrics in explain analyze mode.
+*/
+void recordOpExecEnd(SOperatorInfo* pOperator, size_t rows) {
+  if (QUERY_ENABLE_EXPLAIN(pOperator->pTaskInfo)) {
+    pOperator->cost.endTs = taosGetTimestampUs();
+    pOperator->cost.execTimes++;
+    pOperator->cost.execElapsed += pOperator->cost.endTs - pOperator->cost.startTs;
+
+    if (rows > 0) {
+      // record the first time data is returned
+      if (pOperator->cost.execFirstRow == 0) {
+        pOperator->cost.execFirstRow = pOperator->cost.endTs;
+      }
+      pOperator->cost.execLastRow = pOperator->cost.endTs;
+    }
+    pOperator->resultInfo.totalRows += rows;
+  }
 }

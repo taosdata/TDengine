@@ -1764,6 +1764,8 @@ void mJoinResetOperator(struct SOperatorInfo* pOperator) {
 int32_t mJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SMJoinOperatorInfo* pJoin = pOperator->info;
   int32_t             code = TSDB_CODE_SUCCESS;
+  recordOpExecBegin(pOperator);
+
   if (pOperator->status == OP_EXEC_DONE) {
     if (NULL == pOperator->pDownstreamGetParams || NULL == pOperator->pDownstreamGetParams[0] ||
         NULL == pOperator->pDownstreamGetParams[1]) {
@@ -1773,11 +1775,6 @@ int32_t mJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBloc
       mJoinResetOperator(pOperator);
       qDebug("%s start new round merge join", GET_TASKID(pOperator->pTaskInfo));
     }
-  }
-
-  int64_t st = 0;
-  if (pOperator->cost.openCost == 0) {
-    st = taosGetTimestampUs();
   }
 
   SSDataBlock* pBlock = NULL;
@@ -1806,15 +1803,12 @@ int32_t mJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBloc
     }
   }
 
-  if (pOperator->cost.openCost == 0) {
-    pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-  }
-
   pJoin->execInfo.resRows += pBlock ? pBlock->info.rows : 0;
   if (pBlock && pBlock->info.rows > 0) {
     *pResBlock = pBlock;
   }
 
+  recordOpExecEnd(pOperator, (*pResBlock) ? (*pResBlock)->info.rows : 0);
   return code;
 }
 
@@ -1966,6 +1960,7 @@ int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDo
     code = terrno;
     goto _return;
   }
+  recordOpCreateTime(pOperator);
 
   pInfo->pOperator = pOperator;
   MJ_ERR_JRET(mJoinInitDownstreamInfo(pInfo, &pDownstream, &numOfDownstream, &newDownstreams));

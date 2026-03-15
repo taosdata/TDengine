@@ -3248,6 +3248,7 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SSysTableScanInfo* pInfo = pOperator->info;
   char               dbName[TSDB_DB_NAME_LEN] = {0};
+  recordOpExecBegin(pOperator);
 
   while (1) {
     if (isTaskKilled(pOperator->pTaskInfo)) {
@@ -3312,11 +3313,11 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     break;
   }
 
-_end:
   if (pTaskInfo->code) {
     qError("%s failed since %s", __func__, tstrerror(pTaskInfo->code));
     T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
   }
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return pTaskInfo->code;
 }
 
@@ -3339,6 +3340,7 @@ static void sysTableScanFillTbName(SOperatorInfo* pOperator, const SSysTableScan
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
+  pOperator->cost.inputRows += pBlock->info.rows;  /* record input rows before filter */
   code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -3533,6 +3535,7 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
     lino = __LINE__;
     goto _error;
   }
+  recordOpCreateTime(pOperator);
 
   pOperator->pPhyNode = pScanPhyNode;
   SScanPhysiNode*     pScanNode = &pScanPhyNode->scan;
@@ -4073,6 +4076,8 @@ static int32_t doGetTableRowSize(SReadHandle* pHandle, uint64_t uid, int32_t* ro
 static int32_t doBlockInfoScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  recordOpExecBegin(pOperator);
+
   if (pOperator->status == OP_EXEC_DONE) {
     (*ppRes) = NULL;
     return code;
@@ -4133,6 +4138,8 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
   (*ppRes) = pBlock;
+  pOperator->cost.inputRows += (*ppRes) ? (*ppRes)->info.rows : 0;
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 
@@ -4188,6 +4195,7 @@ int32_t createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanP
     pTaskInfo->code = code = terrno;
     goto _error;
   }
+  recordOpCreateTime(pOperator);
 
   pInfo->pResBlock = createDataBlockFromDescNode(pBlockScanNode->node.pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pInfo->pResBlock, code, lino, _error, terrno);

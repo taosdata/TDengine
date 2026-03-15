@@ -91,6 +91,8 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
     goto _error;
   }
 
+  recordOpCreateTime(pOperator);
+
   pOperator->exprSupp.hasWindowOrGroup = false;
 
   SSDataBlock* pResBlock = createDataBlockFromDescNode(pAggNode->node.pOutputDataBlockDesc);
@@ -201,7 +203,6 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
   }
 
   SExprSupp*   pSup = &pOperator->exprSupp;
-  int64_t      st = taosGetTimestampUs();
   int32_t      order = pAggInfo->binfo.inputTsOrder;
   SSDataBlock* pBlock = pAggInfo->pNewGroupBlock;
 
@@ -291,12 +292,12 @@ _end:
   return pBlock != NULL;
 }
 
-int32_t getAggregateResultNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+static int32_t getAggregateResultNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t           code = TSDB_CODE_SUCCESS;
   int32_t           lino = 0;
   SAggOperatorInfo* pAggInfo = pOperator->info;
   SOptrBasicInfo*   pInfo = &pAggInfo->binfo;
-
+  recordOpExecBegin(pOperator);
   if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
     (*ppRes) = NULL;
     return code;
@@ -337,9 +338,6 @@ int32_t getAggregateResultNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     }
   } while (pInfo->pRes->info.rows == 0 && hasNewGroups);
 
-  size_t rows = blockDataGetNumOfRows(pInfo->pRes);
-  pOperator->resultInfo.totalRows += rows;
-
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -349,7 +347,8 @@ _end:
 
   printDataBlock(pInfo->pRes, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
 
-  (*ppRes) = (rows == 0) ? NULL : pInfo->pRes;
+  (*ppRes) = (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
+  recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
   return code;
 }
 
