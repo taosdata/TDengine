@@ -587,8 +587,9 @@ class TestParaTms:
         # cls.cur1.execute(sql)
 
 
-    def dropandcreateDB_random(self,database,n,num_random=100):
+    def dropandcreateDB_random(self,database,n):
         ts = 1630000000000
+        num_random = 100
         fake = Faker('zh_CN')
         tdSql.execute('''drop database if exists %s ;''' %database)
         tdSql.execute('''create database %s keep 36500;'''%database)
@@ -774,7 +775,7 @@ class TestParaTms:
         print("==========%s===start=============" %mathlist)
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
-        #self.dropandcreateDB_random("%s" %self.db_nest, 1, num_random=50)
+        #self.dropandcreateDB_random(self.db_nest, 1)
 
         if (mathlist == ['ABS','SQRT']) or (mathlist == ['SIN','COS','TAN','ASIN','ACOS','ATAN']) or (mathlist == ['FLOOR','CEIL','ROUND']) \
             or (mathlist == ['CSUM']) :
@@ -1482,7 +1483,7 @@ class TestParaTms:
         print("==========%s===start=============" %strlist)
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
-        #self.dropandcreateDB_random("%s" %self.db_nest, 1, num_random=50)
+        #self.dropandcreateDB_random(self.db_nest, 1)
 
         if (strlist == ['LTRIM','RTRIM','LOWER','UPPER']) or (strlist == ['LENGTH','CHAR_LENGTH'])  \
             or (strlist == ['']):
@@ -2216,7 +2217,7 @@ class TestParaTms:
         print("==========%s===start=============" %timelist)
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
-        #self.dropandcreateDB_random("%s" %self.db_nest, 1, num_random=50)
+        #self.dropandcreateDB_random(self.db_nest, 1)
 
         if (timelist == ['NOW','TODAY']) or (timelist == ['TIMEZONE']):
             time_functions = timelist
@@ -3372,7 +3373,7 @@ class TestParaTms:
         print('=====================2.6 old function start ===========')
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
-        self.dropandcreateDB_random("%s" %self.db_nest, 1, num_random=50)
+        self.dropandcreateDB_random(self.db_nest, 1)
 
         #1 select /*+ para_tables_sort() */* from (select /*+ para_tables_sort() */column form regular_table where <\>\in\and\or order by)
         tdSql.query("select /*+ para_tables_sort() */1-1 from stable_1;")
@@ -4912,7 +4913,7 @@ class TestParaTms:
 
         #self.function_before_26()
 
-        self.dropandcreateDB_random("%s" %self.db_nest, 1, num_random=50)
+        self.dropandcreateDB_random(self.db_nest, 1)
         self.conn1 = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos/")
         self.cur1 = self.conn1.cursor()
         self.cur1.execute("use %s ;" %self.db_nest)
