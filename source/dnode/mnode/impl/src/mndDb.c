@@ -1275,6 +1275,11 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
       mError("db:%s, audit db already exist, %s", createReq.db, pAuditDb->name);
       TAOS_CHECK_GOTO(TSDB_CODE_AUDIT_DB_ALREADY_EXIST, &lino, _OVER);
     }
+    char *realDbName = strchr(createReq.db, '.');
+    if (realDbName && strcmp(realDbName + 1, "log") == 0) {
+      mError("db:%s, failed to create, db name not allowed for audit db, %s", createReq.db, realDbName + 1);
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_DB, &lino, _OVER);
+    }
   }
 
   TAOS_CHECK_GOTO(mndCreateDb(pMnode, pReq, &createReq, pUser, dnodeList), &lino, _OVER);
