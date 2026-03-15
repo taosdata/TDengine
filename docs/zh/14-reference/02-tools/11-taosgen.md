@@ -56,6 +56,8 @@ taosgen -h 127.0.0.1 -c config.yaml
 | -u/--user             | 指定用于连接服务器的用户名，默认为 root |
 | -p/--password         | 指定用于连接服务器的密码，默认值为 taosdata |
 | -c/--config-file      | 指定 yaml 格式配置文件的路径 |
+| -d/--log-dir          | 指定日志输出目录，默认值为 ./log |
+| -f/--log-file         | 指定完整的日志文件路径（优先级高于 --log-dir） |
 | -?/--help             | 显示帮助信息并退出|
 | -V/--version          | 显示版本信息并退出，不能与其它参数混用 |
 
@@ -166,10 +168,12 @@ taosgen -h 127.0.0.1 -c config.yaml
       - timestamp_offset：描述时间戳数值的偏移配置参数。
         - offset_type（字符串）：表示时间戳偏移类型，可选值为："relative"、"absolute"。
         - value（字符串或整型）：表示时间戳的偏移量（relative）或起始时间戳（absolute）：
-          - 时间戳偏移类型为 "relative" 时：字符串类型，格式为 ±[数值][单位] 组合（示例："+1d3h" 表示加 1 天 3 小时），支持以下时间单位：
+          - 时间戳偏移类型为 "relative" 时：字符串类型，格式为 ±[数值][单位] 组合（示例："+1d3h30m" 表示加 1 天 3 小时 30 分钟），支持以下时间单位：
             - y：年偏移量
-            - m：月偏移量
+            - M：月偏移量（大写）
             - d：天偏移量
+            - h：小时偏移量
+            - m：分钟偏移量（小写）
             - s：秒偏移量
           - 时间戳偏移类型为 "absolute" 时：整型或字符串类型，格式如下：
             - 时间戳数值（精度由 timestamp_precision 参数决定）
