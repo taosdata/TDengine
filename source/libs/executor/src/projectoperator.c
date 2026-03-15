@@ -364,8 +364,12 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
       if (pProjectInfo->mergeDataBlocks) {
         pFinalRes->info.scanFlag = scanFlag = pBlock->info.scanFlag;
+        // propagate upstream baseGId for consumers that rely on T-group id (e.g., external window)
+        pFinalRes->info.id.baseGId = pBlock->info.id.baseGId;
       } else {
         pRes->info.scanFlag = scanFlag = pBlock->info.scanFlag;
+        // propagate upstream baseGId for consumers that rely on T-group id (e.g., external window)
+        pRes->info.id.baseGId = pBlock->info.id.baseGId;
       }
 
       code = setInputDataBlock(pSup, pBlock, order, scanFlag, false);
@@ -386,14 +390,15 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       break;
     }
 
-    if (pProjectInfo->mergeDataBlocks) {
-      if (pRes->info.rows > 0) {
-        pFinalRes->info.id.groupId = 0;  // clear groupId
-        pFinalRes->info.version = pRes->info.version;
+      if (pProjectInfo->mergeDataBlocks) {
+        if (pRes->info.rows > 0) {
+          pFinalRes->info.id.groupId = 0;  // clear groupId
+          pFinalRes->info.version = pRes->info.version;
+          // keep baseGId from current upstream block; already set above for this merge round
 
-        // continue merge data, ignore the group id
-        code = blockDataMerge(pFinalRes, pRes);
-        QUERY_CHECK_CODE(code, lino, _end);
+          // continue merge data, ignore the group id
+          code = blockDataMerge(pFinalRes, pRes);
+          QUERY_CHECK_CODE(code, lino, _end);
 
         if (pFinalRes->info.rows + pRes->info.rows <= pOperator->resultInfo.threshold && (pOperator->status != OP_EXEC_DONE)) {
           continue;

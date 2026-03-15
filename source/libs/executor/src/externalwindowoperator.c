@@ -897,7 +897,10 @@ static int32_t extWinSwitchInitCGrpCtx(SExternalWindowOperator* pExtW, SExecTask
     TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
   }
 
-  if (0 == pId->groupId || (pInfo->isMultiGroupCalc && (pId->baseGId == pId->groupId))) {
+  // In partitioned multi-group mode, only blocks whose C-group (groupId)
+  // matches the current T-group (baseGId) should proceed. Treat mismatches
+  // like "no cgrp" here; extWinOpen has an early filter to skip such blocks.
+  if (0 == pId->groupId || (pInfo->isMultiGroupCalc && (pId->baseGId != pId->groupId))) {
     if (NULL != pTCtx->pCGCtxs) {
       qError("%s plan or ctx conflict, pCGCtxs:%p", GET_TASKID(pTaskInfo), pTCtx->pCGCtxs);
       TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
@@ -1212,6 +1215,23 @@ void mergeAlignExtWinDo(SOperatorInfo* pOperator) {
         pMAExtW->pNewGroup = pBlock;
         pMAExtW->curTs = INT64_MIN;
         break;
+      }
+    }
+
+    // If baseGId is missing in merge-aligned path but we know there is exactly
+    // one trigger group from the subquery, fill it so T-group ctx can be found.
+    if (pBlock->info.id.baseGId == 0 && pTaskInfo->pStreamRuntimeInfo &&
+        pTaskInfo->pStreamRuntimeInfo->funcInfo.isMultiGroupCalc &&
+        pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos) {
+      int32_t __iter = 0;
+      int32_t __size = tSimpleHashGetSize(pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos);
+      if (__size == 1) {
+        SSTriggerGroupCalcInfo* __one = tSimpleHashIterate(pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos, NULL, &__iter);
+        if (__one) {
+          uint64_t __gid = *(uint64_t*)tSimpleHashGetKey(__one, NULL);
+          pBlock->info.id.baseGId = __gid;
+          qDebug("%s mergeAlign extWin fallback baseGId set to single gid %" PRIu64, GET_TASKID(pTaskInfo), __gid);
+        }
       }
     }
 
@@ -3272,9 +3292,13 @@ static void extWinPrepareForOutput(SOperatorInfo* pOperator, SExternalWindowOper
 
   if (pExtW->needGroupSort) {
     if (pStream->isMultiGroupCalc && pExtW->calcWithPartition) {
-      taosArraySort(pExtW->pCTGrpIds, extWinGrpIdCompare);
+      if (pExtW->pCTGrpIds) {
+        taosArraySort(pExtW->pCTGrpIds, extWinGrpIdCompare);
+      }
     } else {
-      taosArraySort(pExtW->pGrpIds, extWinGrpIdCompare);
+      if (pExtW->pGrpIds) {
+        taosArraySort(pExtW->pGrpIds, extWinGrpIdCompare);
+      }
     }
   }
 
@@ -3376,6 +3400,18 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
           qDebug("%s extWin fallback baseGId set to single gid %" PRIu64, GET_TASKID(pTaskInfo), __gid);
         }
       }
+    }
+
+    // Equality gating in partitioned multi-group mode:
+    // process the block only when baseGId == groupId; otherwise skip it.
+    if (pTaskInfo->pStreamRuntimeInfo &&
+        pTaskInfo->pStreamRuntimeInfo->funcInfo.isMultiGroupCalc &&
+        pExtW->calcWithPartition &&
+        pBlock->info.id.groupId != 0 && pBlock->info.id.baseGId != 0 &&
+        pBlock->info.id.groupId != pBlock->info.id.baseGId) {
+      qDebug("%s skip block: baseGId %" PRIu64 " != groupId %" PRIu64,
+             GET_TASKID(pTaskInfo), pBlock->info.id.baseGId, pBlock->info.id.groupId);
+      continue;
     }
 
     TAOS_CHECK_EXIT(extWinSwitchInitCtxs(pExtW, pTaskInfo, &pBlock->info.id));
