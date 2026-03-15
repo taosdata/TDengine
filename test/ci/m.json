@@ -1,0 +1,30 @@
+[
+  {
+    "host": "localhost",
+    "username": "",
+    "password": "",
+    "workdir": "/Users/apple/chr",
+    "thread": 2
+  },
+  {
+    "host": "localhost",
+    "username": "",
+    "password": "",
+    "workdir": "/Users/apple/chr",
+    "thread": 1
+  },
+  {
+    "host": "localhost",
+    "username": "",
+    "password": "",
+    "workdir": "/Users/apple/chr",
+    "thread": 1
+  },
+  {
+    "host": "localhost",
+    "username": "",
+    "password": "",
+    "workdir": "/Users/apple/chr",
+    "thread": 1
+  }
+]

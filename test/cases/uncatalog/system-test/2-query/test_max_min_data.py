@@ -147,11 +147,11 @@ class TestMaxMinData:
                   
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
         
-        self.dropandcreateDB_random("%s" %self.db, 2000, num_random=50)
+        self.dropandcreateDB_random("%s" %self.db, 2000, num_random=100)
         
         self.TD_22219_max("%s" %self.db)
         
-        self.dropandcreateDB_random("%s" %self.db, 2000, num_random=50)
+        self.dropandcreateDB_random("%s" %self.db, 2000, num_random=100)
         
         self.TD_22219_min("%s" %self.db)
 

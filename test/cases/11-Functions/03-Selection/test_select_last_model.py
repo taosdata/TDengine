@@ -969,7 +969,7 @@ class TestLastModel:
         tdSql.prepare()
         startTime = time.time() 
         nested_query_test = NestedQueryHelper()
-        nested_query_test.dropandcreateDB_random("nested", 1, num_random=50)
+        nested_query_test.dropandcreateDB_random("nested", 1, num_random=100)
         self.modify_tables()
                
         for i in range(2):

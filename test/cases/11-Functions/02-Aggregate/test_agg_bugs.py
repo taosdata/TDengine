@@ -123,7 +123,7 @@ class TestTD_21561:
 
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
-        self.dropandcreateDB_random("%s" %self.db, 100, num_random=50)
+        self.dropandcreateDB_random("%s" %self.db, 100, num_random=100)
 
         self.check_flushdb("%s" %self.db)
 

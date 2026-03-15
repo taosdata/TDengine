@@ -1,0 +1,43 @@
+[group1]
+192.168.2.201
+192.168.2.202
+192.168.2.203
+192.168.2.204
+192.168.2.205
+192.168.2.206
+192.168.2.209
+192.168.2.210
+192.168.2.211
+192.168.2.212
+192.168.2.213
+192.168.2.214
+192.168.2.215
+192.168.2.216
+192.168.2.217
+
+[group2]
+192.168.1.50
+192.168.1.48
+192.168.1.47
+192.168.1.52
+192.168.1.49
+
+[group3]
+192.168.0.218
+192.168.0.202
+
+[group1:vars]
+ansible_user=root
+ansible_ssh_pass=tbase125!
+ansible_connection=ssh
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+[group2:vars]
+ansible_user=root
+ansible_ssh_pass=12345678
+ansible_connection=ssh
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+[group3:vars]
+ansible_user=root
+ansible_ssh_pass=tbase126!
+ansible_connection=ssh
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'

@@ -874,7 +874,7 @@ class TestWriteBasic:
     def do_insert_select(self):
         startTime = time.time()  
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
-        self.dropandcreateDB_random("%s" %self.db, random.randint(10000,30000), num_random=50)
+        self.dropandcreateDB_random("%s" %self.db, random.randint(10000,30000), num_random=100)
             
         #taos -f sql 
         print("taos -f sql start!")
