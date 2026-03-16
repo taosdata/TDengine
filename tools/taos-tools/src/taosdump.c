@@ -2041,17 +2041,18 @@ char *queryCreateTableSql(void** taos_v, const char *dbName, char *tbName, bool 
     }
 
     // detect virtual table flag by searching for "VIRTUAL 1" anywhere in output
+    // (it may be followed by other options such as SECURE_DELETE N, so end-of-string
+    // check is not sufficient)
     if (isVirtual) {
         const char keyword[] = "VIRTUAL 1";
-        const char *p = data;
+        size_t klen = sizeof(keyword) - 1;
         bool found = false;
-        while ((p = strcasestr(p, keyword)) != NULL) {
-            // ensure it is preceded by a space or is at string start (word boundary)
-            if (p == data || *(p - 1) == ' ' || *(p - 1) == '\t') {
+        for (size_t i = 0; i + klen <= (size_t)len; i++) {
+            if ((i == 0 || data[i - 1] == ' ' || data[i - 1] == '\t') &&
+                strncasecmp(data + i, keyword, klen) == 0) {
                 found = true;
                 break;
             }
-            p++;
         }
         *isVirtual = found;
     }
