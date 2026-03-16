@@ -65,8 +65,8 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
     TRACE_SET_ROOTID(&(rpcMsg.info.traceId), tGenIdPI64());
     sInfo("vgId:%d, send request-vote msg to peerId:0x%" PRIx64 ", lastLogIndex:%" PRId64 ", lastLogTerm:%" PRId64
           ", QID:0x%" PRIx64 ":0x%" PRIx64,
-          pNode->vgId, pNode->peersId[i].addr, pMsg->lastLogIndex, pMsg->lastLogTerm, rpcMsg.info.traceId.rootId,
-          rpcMsg.info.traceId.msgId);
+          pNode->vgId, pNode->peersId[i].addr, pMsg->lastLogIndex, pMsg->lastLogTerm,
+          (uint64_t)rpcMsg.info.traceId.rootId, (uint64_t)rpcMsg.info.traceId.msgId);
     ret = syncNodeSendMsgById(&pNode->peersId[i], pNode, &rpcMsg);
     if (ret < 0) {
       sError("vgId:%d, failed to send msg to peerId:0x%" PRIx64, pNode->vgId, pNode->peersId[i].addr);
