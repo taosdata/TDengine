@@ -184,7 +184,22 @@ class TestBatchAlterTag:
         tdLog.printNoPrefix("======== Test Case 3 completed ========")
 
     def test_run(self):
-        """Main test execution"""
+        """Basic: error handling
+        
+        1. Test Alter table tag in tmq batch mode, verify that tag alterations are correctly captured and reflected in the TMQ topic.
+        2. Test Alter table tag with filter in tmq batch mode, verify that only the tables matching the filter criteria are altered and reflected in the TMQ topic.
+        3. Test Alter table tag in tmq batch mode with database-level topic, verify that alterations to any table in the database are captured and reflected in the TMQ topic.
+        
+        Since: v3.4.1.0
+
+        Labels: tmq,alter
+
+        Jira: None
+
+        History:
+            - 
+
+        """
         tdLog.printNoPrefix("========== Starting TMQ Batch ALTER Tag Tests ==========")
 
         try:

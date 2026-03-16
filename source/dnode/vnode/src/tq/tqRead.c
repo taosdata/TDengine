@@ -143,17 +143,17 @@ static void processAlterTbMsg(SDecoder* dcoder, SWalCont* pHead, STqReader* pRea
     if (needRebuild == 0) {
       // No tables in subscription scope, skip message
       tqDebug("vgId:%d, processAlterTbMsg Type 1: 0/%d tables in subscription, skip",
-              TD_VID(pReader->pVnode), taosArrayGetSize(req.tables));
+              TD_VID(pReader->pVnode), (int)taosArrayGetSize(req.tables));
     } else if (needRebuild == taosArrayGetSize(req.tables)) {
       // All tables in subscription scope, forward complete message
       *realTbSuid = tbSuid;
       tqDebug("vgId:%d, processAlterTbMsg Type 1: %d/%d tables in subscription, forward all",
-              TD_VID(pReader->pVnode), needRebuild, taosArrayGetSize(req.tables));
+              TD_VID(pReader->pVnode), needRebuild, (int)taosArrayGetSize(req.tables));
     } else {
       // Partial match: rebuild message with only subscribed tables
       *realTbSuid = tbSuid;
       tqDebug("vgId:%d, processAlterTbMsg Type 1: %d/%d tables in subscription, rebuild message",
-              TD_VID(pReader->pVnode), needRebuild, taosArrayGetSize(req.tables));
+              TD_VID(pReader->pVnode), needRebuild, (int)taosArrayGetSize(req.tables));
 
       // Build filtered message
       reqNew.action = req.action;
@@ -225,8 +225,8 @@ static void processAlterTbMsg(SDecoder* dcoder, SWalCont* pHead, STqReader* pRea
       }
       (void)memcpy(pHead->body + sizeof(SMsgHead), buf, tlen);
       pHead->bodyLen = tlen + sizeof(SMsgHead);
-      tqInfo("vgId:%d, processAlterTbMsg Type 1 rebuilt message with %d/%d tables",
-             TD_VID(pReader->pVnode), needRebuild, taosArrayGetSize(req.tables));
+      tqInfo("vgId:%d, processAlterTbMsg Type 1 rebuilt message with %d/% tables",
+             TD_VID(pReader->pVnode), needRebuild, (int)taosArrayGetSize(req.tables));
     }
 
   } else if (req.action == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
