@@ -19,6 +19,7 @@ add_executable(tmq_td33798 tmq_td33798.c)
 add_executable(tmq_td37265 tmq_td37265.c)
 add_executable(tmq_ts7402 tmq_ts7402.c)
 add_executable(tmq_token tmq_token.c)
+add_executable(tmq_batch_alter_tag tmq_batch_alter_tag.c)
 add_executable(tmq_alter_tag tmq_alter_tag.c)
 add_executable(tmq_poll_test tmq_poll_test.c)
 add_executable(tmq_write_raw_test tmq_write_raw_test.c)
@@ -206,8 +207,17 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_td32526
+    PUBLIC ${TAOS_NATIVE_LIB}
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+)
+
+target_link_libraries(
+    tmq_batch_alter_tag
     PUBLIC ${TAOS_NATIVE_LIB}
     PUBLIC util
     PUBLIC common
