@@ -50,7 +50,7 @@ class TestStability1:
         stability_test = StabilityHelper()
         stability_test.case_init()
         stability_test.function_before_26()
-        stability_test.dropandcreateDB_random("%s" %stability_test.db_nest, 1)
+        stability_test.dropandcreateDB_random(stability_test.db_nest, 1)
 
         # self.math_nest(['UNIQUE'])
         # self.math_nest(['MODE'])

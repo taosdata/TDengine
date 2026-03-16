@@ -419,7 +419,7 @@ priv_obj: {
   | stream             -- Stream computing
 }
 Note: 
--- When priv_obj is not specified: 1) In versions 3.4.0.0 to 3.4.0.10, priv_obj defaults to table. 2) Starting from version 3.4.0.11, if enableAdvancedSecurity is 0, to be compatible with the 3.3.x.y version syntax, the function will adaptively expand privileges to database/table/view/index/tsma/rsma/topic/stream according to the privilege type in privileges and priv_level; if enableAdvancedSecurity is 1, it is not compatible with the 3.3.x.y version syntax, and will only adaptively expand privileges to table/view. 
+-- When priv_obj is not specified: 1) In versions 3.4.0.0 to 3.4.0.10, priv_obj defaults to table. 2) Starting from version 3.4.0.11, if enableGrantLegacySyntax is 1, to be compatible with the 3.3.x.y version syntax, the function will adaptively expand privileges to database/table/view/index/tsma/rsma/topic/stream according to the privilege type in privileges and priv_level; if enableGrantLegacySyntax is 0 (default value), it is not compatible with the 3.3.x.y version syntax, and will only adaptively expand privileges to table/view. 
 -- For more granular control over privilege objects, it is recommended to explicitly specify priv_obj.
 
 priv_level: {

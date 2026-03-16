@@ -1456,7 +1456,7 @@ int32_t metaInitTbFilterCache(SMeta* pMeta) {
   if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
     tbNum = tkLogStbNum;
     pTbArr = (const char**)&tkLogStb;
-  } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN)) {
+  } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN) || pMeta->pVnode->config.isAudit) {
     tbNum = tkAuditStbNum;
     pTbArr = (const char**)&tkAuditStb;
   }
