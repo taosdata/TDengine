@@ -200,6 +200,38 @@ IF(NOT TD_ASTRA)
         "If build with lz4"
         ON
     )
+
+    option(
+        BUILD_WITH_UV
+        "If build with libuv"
+        ON
+    )
+
+    option(
+        BUILD_WITH_UV_TRANS
+        "If build with libuv_trans "
+        ON
+    )
+
+    IF(${TD_LINUX} MATCHES TRUE)
+        option(
+            BUILD_DEPENDENCY_TESTS
+            "If build dependency tests"
+            ON
+        )
+    ENDIF ()
+
+    option(
+        BUILD_DOCS
+        "If use doxygen build documents"
+        OFF
+    )
+
+    option(
+       BUILD_WITH_INVERTEDINDEX
+       "If use invertedIndex"
+       ON
+    )
 ELSE ()
 
     option(
@@ -336,43 +368,6 @@ option(
     "If build with NuRaft"
     OFF
 )
-
-IF(NOT TD_ASTRA)
-
-option(
-    BUILD_WITH_UV
-    "If build with libuv"
-    ON
-)
-
-option(
-    BUILD_WITH_UV_TRANS
-    "If build with libuv_trans "
-    ON
-)
-
-IF(${TD_LINUX} MATCHES TRUE)
-
-option(
-    BUILD_DEPENDENCY_TESTS
-    "If build dependency tests"
-    ON
-)
-
-ENDIF ()
-
-option(
-    BUILD_DOCS
-    "If use doxygen build documents"
-    OFF
-)
-
-option(
-   BUILD_WITH_INVERTEDINDEX
-   "If use invertedIndex"
-   ON
-)
-ENDIF ()
 
 option(
    BUILD_RELEASE
