@@ -108,11 +108,11 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SyncTerm currentTerm = raftStoreGetTerm(ths);
   if (!(pMsg->term <= currentTerm)) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
-  bool grant = (pMsg->term == currentTerm) && logOK &&
-               ((!raftStoreHasVoted(ths)) || (syncUtilSameId(&ths->raftStore.voteFor, &pMsg->srcId)));
+  bool hasVoted = raftStoreHasVoted(ths);
+  bool sameId = syncUtilSameId(&ths->raftStore.voteFor, &pMsg->srcId);
+  bool grant = (pMsg->term == currentTerm) && logOK && ((!hasVoted) || sameId);
   sInfo("vgId:%d, grant:%d, hasVoted:%d, sameId:%d, logOK:%d, msg term:%" PRIu64 ", current term:%" PRIu64, ths->vgId,
-        grant, raftStoreHasVoted(ths), syncUtilSameId(&ths->raftStore.voteFor, &pMsg->srcId), logOK, pMsg->term,
-        currentTerm);
+        grant, hasVoted, sameId, logOK, pMsg->term, currentTerm);
   if (grant) {
     // maybe has already voted for pMsg->srcId
     // vote again, no harm
