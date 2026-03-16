@@ -1,0 +1,20 @@
+use test;
+
+## Subquery partition-by(t1) + outer partition-by(t1)
+select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_win partition by t1 interval(10m)) w) order by t1, ws;
+
+## Subquery partition-by(t1) + outer NO partition
+select cast(_wstart as bigint) as ws, count(*) as c from ext_src external_window((select _wstart, _wend, count(*) as wc from ext_win partition by t1 interval(10m)) w) order by ws;
+
+## Subquery partition-by(t1) + outer partition-by(t1) (no ORDER BY)
+select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_win partition by t1 interval(10m)) w);
+
+## Subquery partition-by(t1) + ext_src_2 only (expect 0 rows)
+select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_src_2 partition by t1 external_window((select _wstart, _wend from ext_win partition by t1 interval(10m)) w);
+
+select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_src_1 partition by t1 external_window((select _wstart, _wend from ext_win partition by t1 interval(10m)) w);
+
+## Subquery partition emits wc; outer selects wc (sanity)
+select t1, cast(_wstart as bigint) as ws, w.wc from ext_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_win partition by t1 interval(10m)) w) order by t1, ws;
+select t1, cast(_wstart as bigint) as ws from ext_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_win partition by t1 interval(10m)) w) order by t1, ws;
+select t1, cast(_wstart as bigint) as ws, wc from ext_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_win partition by t1 interval(10m)) w) order by t1, ws;

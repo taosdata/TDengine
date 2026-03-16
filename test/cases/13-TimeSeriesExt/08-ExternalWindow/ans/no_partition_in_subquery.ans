@@ -1,0 +1,64 @@
+
+taos> use test;
+Database changed.
+
+taos> select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w) order by tbname, ws;
+             tbname             |          ws           |           c           |
+=================================================================================
+ ext_src_1                      |         1699999800000 |                     2 |
+ ext_src_2                      |         1700000400000 |                     1 |
+
+taos> select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w);
+             tbname             |          ws           |           c           |
+=================================================================================
+ ext_src_1                      |         1699999800000 |                     2 |
+ ext_src_2                      |         1700000400000 |                     1 |
+
+taos> select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w) order by t1, ws;
+     t1      |          ws           |           c           |
+==============================================================
+           1 |         1699999800000 |                     2 |
+           2 |         1700000400000 |                     1 |
+
+taos> select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w);
+     t1      |          ws           |           c           |
+==============================================================
+           2 |         1700000400000 |                     1 |
+           1 |         1699999800000 |                     2 |
+
+taos> select _wstart, _wend, count(*) from ext_src external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w);
+         _wstart         |          _wend          |       count(*)        |
+============================================================================
+ 2023-11-15 06:10:00.000 | 2023-11-15 06:20:00.000 |                     2 |
+ 2023-11-15 06:20:00.000 | 2023-11-15 06:30:00.000 |                     1 |
+
+taos> select _wstart, _wend, count(*) from ext_src external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w) order by _wstart;
+         _wstart         |          _wend          |       count(*)        |
+============================================================================
+ 2023-11-15 06:10:00.000 | 2023-11-15 06:20:00.000 |                     2 |
+ 2023-11-15 06:20:00.000 | 2023-11-15 06:30:00.000 |                     1 |
+
+taos> select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_src external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w) order by ws;
+          ws           |          we           |           c           |
+========================================================================
+         1699999800000 |         1700000400000 |                     2 |
+         1700000400000 |         1700001000000 |                     1 |
+
+taos> select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c, sum(v) as sv from ext_src external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w) order by ws;
+          ws           |          we           |           c           |          sv           |
+================================================================================================
+         1699999800000 |         1700000400000 |                     2 |                    21 |
+         1700000400000 |         1700001000000 |                     1 |                    20 |
+
+taos> select tbname, cast(_wstart as bigint) as ws, max(v)-min(v) as span, sum(v) as sv from ext_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w) order by tbname, ws;
+             tbname             |          ws           |           span            |          sv           |
+=============================================================================================================
+ ext_src_1                      |         1699999800000 |                         1 |                    21 |
+ ext_src_2                      |         1700000400000 |                         0 |                    20 |
+
+taos> select t1, cast(_wstart as bigint) as ws, min(v) as minv, max(v) as maxv from ext_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w) order by ws desc;
+     t1      |          ws           |    minv     |    maxv     |
+==================================================================
+           2 |         1700000400000 |          20 |          20 |
+           1 |         1699999800000 |          10 |          11 |
+
