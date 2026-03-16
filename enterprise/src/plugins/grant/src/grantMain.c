@@ -225,6 +225,7 @@
   (gStatus.expired | (gStatus.multiTierExpired ? gStatus.nDiskCfg > 1 : 0) | gStatus.storageSizeLimited)
 #define GRANT_TS_SEC_LEN 20
 #define GRANT_LOG_MAX_MACHINE 300
+#define GRANT_TIMESERIES_BONUS 1000
 
 static const char gConnName[CONN_TYPE_DYN_MAX][GRANT_ITEM_NAME_LEN] = {
     "opc_da", "opc_ua",   "pi",     "kafka", "influxdb", "mqtt", "avevahistorian", "opentsdb", "td2.6",    "td3.0",
@@ -2132,12 +2133,14 @@ static int32_t grantCheckMounts() {
 }
 
 static int32_t grantCheckTimeSeries() {
-  if (gStatus.limitTimeSeries == GRANT_UNIQ_UNLIMITED || gStatus.curTimeSeries < gStatus.limitTimeSeries) {
+  if ((gStatus.limitTimeSeries == GRANT_UNIQ_UNLIMITED) ||
+      (gStatus.curTimeSeries - GRANT_TIMESERIES_BONUS < gStatus.limitTimeSeries)) {
     return 0;
   }
 
-  uError("grant failed to create table/add column, exist:%" PRIi64 ", reason:grant timeseries limited",
-         gStatus.curTimeSeries);
+  uError("grant failed to create table/add column, exist:%" PRIi64 ", limit:%" PRIi64
+         ", bonus:%d, reason:grant timeseries limited",
+         gStatus.curTimeSeries, gStatus.limitTimeSeries, GRANT_TIMESERIES_BONUS);
   return TSDB_CODE_GRANT_TIMESERIES_LIMITED;
 }
 
