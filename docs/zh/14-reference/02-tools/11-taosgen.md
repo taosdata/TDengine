@@ -75,6 +75,8 @@ taosgen -h 127.0.0.1 -c config.yaml
 - schema：描述数据定义和生成的相关配置参数。
 - concurrency：描述作业执行的并发度。
 - jobs：列表结构，描述所有作业的具体相关参数。
+- log_dir：指定日志输出目录，默认值为 `log/`。
+- log_file：指定完整的日志文件路径（优先级高于 log_dir）。
 
 #### 作业的格式
 
@@ -96,6 +98,18 @@ taosgen -h 127.0.0.1 -c config.yaml
 通过组合多个步骤，作业能够实现复杂的逻辑流程，例如 TDengine 创建超级表 & 子表、TDengine 写入数据等。
 
 ### 全局配置参数
+
+#### 日志参数
+
+- log_dir（字符串）：指定日志输出目录，默认值为 `log/`。仅设置 log_dir 时，日志文件将写入 `<log_dir>/taosgen.log`。
+- log_file（字符串）：指定完整的日志文件路径，设置后将覆盖 log_dir。
+
+这些参数也可以通过命令行选项（`--log-dir`、`--log-file`）设置。优先级从高到低为：
+1. `--log-file`（命令行）
+2. `--log-dir`（命令行）
+3. `log_file`（YAML 配置文件）
+4. `log_dir`（YAML 配置文件）
+5. 默认值：`log/taosgen.log`
 
 #### TDengine 参数
 

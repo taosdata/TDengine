@@ -76,6 +76,8 @@ The configuration file is divided into many parts: "tdengine", "mqtt", "kafka", 
 - schema: Describes configuration parameters for data definition and generation.
 - concurrency: Describes job execution concurrency.
 - jobs: List structure, describes specific parameters for all jobs.
+- log_dir: Specifies the log output directory, default: `log/`.
+- log_file: Specifies the complete log file path (overrides log_dir).
 
 #### Job Format
 
@@ -97,6 +99,18 @@ A step is the basic operation unit in a job, representing the execution process 
 By combining multiple steps, jobs can implement complex logic flows, such as TDengine creating super tables & child tables, writing data, etc.
 
 ### Global Configuration Parameters
+
+#### Log Parameters
+
+- log_dir (string): Specifies the log output directory, default: `log/`. When only log_dir is set, the log file will be written to `<log_dir>/taosgen.log`.
+- log_file (string): Specifies the complete log file path. When set, this overrides log_dir.
+
+These parameters can also be set via command line options (`--log-dir`, `--log-file`). The priority order from highest to lowest is:
+1. `--log-file` (CLI)
+2. `--log-dir` (CLI)
+3. `log_file` (YAML config)
+4. `log_dir` (YAML config)
+5. Default: `log/taosgen.log`
 
 #### TDengine Parameters
 
