@@ -5050,30 +5050,29 @@ typedef struct {
 } SQuerySubDesc;
 
 typedef enum EQueryExecPhase {
-  /* Main phases */
-  QUERY_PHASE_NONE        = 0,
-  QUERY_PHASE_PARSE       = 1,
-  QUERY_PHASE_CATALOG     = 2,
-  QUERY_PHASE_PLAN        = 3,
-  QUERY_PHASE_SCHEDULE    = 4,
-  QUERY_PHASE_EXECUTE     = 5,
-  QUERY_PHASE_FETCH       = 6,
-  QUERY_PHASE_DONE        = 7,
+  /* Main phases: 0-9 */
+  QUERY_PHASE_NONE     = 0,
+  QUERY_PHASE_PARSE    = 1,
+  QUERY_PHASE_CATALOG  = 2,
+  QUERY_PHASE_PLAN     = 3,
+  QUERY_PHASE_SCHEDULE = 4,
+  QUERY_PHASE_EXECUTE  = 5,
+  QUERY_PHASE_FETCH    = 6,
+  QUERY_PHASE_DONE     = 7,
 
-  /* SCHEDULE sub-phases - simplified */
+  /* SCHEDULE sub-phases: 4x */
   QUERY_PHASE_SCHEDULE_ANALYSIS       = 41,
   QUERY_PHASE_SCHEDULE_PLANNING       = 42,
   QUERY_PHASE_SCHEDULE_NODE_SELECTION = 43,
-  QUERY_PHASE_SCHEDULE_RESOURCE_ALLOC = 44,
 
-  /* FETCH sub-phases - simplified */
-  QUERY_PHASE_FETCH_CLIENT_REQUEST    = 61,
+  /* EXECUTE sub-phases: 5x */
+  QUERY_PHASE_EXEC_DATA_QUERY  = 51,
+  QUERY_PHASE_EXEC_MERGE_QUERY = 52,
+
+  /* FETCH sub-phases: 6x */
+  QUERY_PHASE_FETCH_CLIENT_REQUEST     = 61,
   QUERY_PHASE_FETCH_SERVER_PROCESSING  = 62,
   QUERY_PHASE_FETCH_PREPARING_RESPONSE = 63,
-
-  /* EXECUTE sub-phases - data query vs merge query */
-  QUERY_PHASE_EXEC_DATA_QUERY         = 51,  // Executing data scan query
-  QUERY_PHASE_EXEC_MERGE_QUERY        = 52,  // Executing merge query
 } EQueryExecPhase;
 
 const char* queryPhaseStr(int32_t phase);

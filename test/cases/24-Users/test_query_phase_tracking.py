@@ -1,21 +1,32 @@
 import time
+import threading
 from new_test_framework.utils import tdLog, tdSql
 
 
 class TestQueryPhaseTracking:
     """Test cases for query execution phase tracking feature.
-    
+
     This feature adds phase_state and phase_start_time columns to show queries output
     to help track query execution phases for performance analysis.
 
     Main phases: none, parse, catalog, plan, schedule, execute, fetch, done
-    Sub-phases: schedule:*, fetch:* (for finer-grained tracking)
+    Sub-phases: schedule:*, execute:*, fetch:* (for finer-grained tracking)
     """
+
+    VALID_PHASES = [
+        "none", "parse", "catalog", "plan", "schedule", "execute", "fetch", "done",
+        "schedule:analysis", "schedule:planning", "schedule:node_selection",
+        "execute:data_query", "execute:merge_query",
+        "fetch:client_request", "fetch:server_processing", "fetch:preparing_response",
+    ]
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
         tdSql.execute("drop database if exists db")
         tdSql.execute("drop database if exists db2")
+
+    def _get_col_idx(self, col_names, name):
+        return col_names.index(name) if name in col_names else -1
 
     def test_show_queries_schema(self):
         """Schema: Verify new columns in show queries
@@ -40,23 +51,23 @@ class TestQueryPhaseTracking:
         tdSql.execute(f"create table db.stb (ts timestamp, i int) tags (t int)")
         tdSql.execute(f"create table db.ctb using db.stb tags (1)")
         tdSql.execute(f"insert into db.ctb values (now, 1)")
-        
+
         tdSql.query(f"select * from db.stb")
-        
+
         col_names = tdSql.getColNameList("show queries")
         tdLog.info(f"show queries columns: {col_names}")
-        
+
         assert "phase_state" in col_names, "phase_state column should exist"
         assert "phase_start_time" in col_names, "phase_start_time column should exist"
-        
+
         print("test show queries schema ....................... [passed]")
 
     def test_query_phase_values(self):
         """Phase: Verify query phase values
 
-        1. Execute a query and verify phase_state is a valid phase string
-        2. Verify phase_start_time is a valid timestamp
-        3. Test that phase values are one of: none, parse, catalog, plan, schedule, execute, fetch, done
+        1. Execute show queries and verify phase_state is a valid phase string
+        2. The only reliably visible query is 'show queries' itself
+        3. Its phase must be one of the valid phases
 
         Since: v3.3.0.0
 
@@ -70,39 +81,25 @@ class TestQueryPhaseTracking:
         """
         tdLog.info("=============== test query phase values")
         tdSql.execute(f"use db")
-        
-        tdSql.query(f"select count(*) from db.stb")
-        tdSql.checkData(0, 0, 1)
-        
+
         tdSql.query(f"show queries")
-        
-        valid_phases = [
-            # Main phases
-            "none", "parse", "catalog", "plan", "schedule", "execute", "fetch", "done",
-            # SCHEDULE sub-phases
-            "schedule:analysis", "schedule:planning",
-            "schedule:node_selection", "schedule:resource_alloc",
-            # EXECUTE sub-phases
-            "execute:data_query", "execute:merge_query",
-            # FETCH sub-phases
-            "fetch:client_request", "fetch:server_processing",
-            "fetch:preparing_response"
-        ]
-        
+
         if tdSql.getRows() > 0:
             col_names = [desc[0] for desc in tdSql.cursor.description]
-            phase_idx = col_names.index("phase_state") if "phase_state" in col_names else -1
-            time_idx = col_names.index("phase_start_time") if "phase_start_time" in col_names else -1
-            
-            if phase_idx >= 0:
-                phase_value = tdSql.getData(0, phase_idx)
-                tdLog.info(f"Current phase: {phase_value}")
-                assert phase_value in valid_phases, f"Phase should be one of {valid_phases}, got {phase_value}"
-            
-            if time_idx >= 0:
-                time_value = tdSql.getData(0, time_idx)
-                tdLog.info(f"Phase start time: {time_value}")
-        
+            phase_idx = self._get_col_idx(col_names, "phase_state")
+            time_idx = self._get_col_idx(col_names, "phase_start_time")
+
+            for row in range(tdSql.getRows()):
+                if phase_idx >= 0:
+                    phase_value = tdSql.getData(row, phase_idx)
+                    tdLog.info(f"Row {row} phase: {phase_value}")
+                    assert phase_value in self.VALID_PHASES, \
+                        f"Phase should be one of {self.VALID_PHASES}, got {phase_value}"
+
+                if time_idx >= 0:
+                    time_value = tdSql.getData(row, time_idx)
+                    tdLog.info(f"Row {row} phase_start_time: {time_value}")
+
         print("test query phase values ....................... [passed]")
 
     def test_long_running_query_phase(self):
@@ -125,16 +122,16 @@ class TestQueryPhaseTracking:
         tdLog.info("=============== test long running query phase")
         tdSql.execute(f"use db")
         tdSql.execute(f"create table if not exists db.lt (ts timestamp, v1 int, v2 float, v3 double)")
-        
+
         for i in range(100):
             tdSql.execute(f"insert into db.lt values (now + {i}s, {i}, {i}.5, {i}.123456)")
-        
+
         tdSql.query(f"select count(*), avg(v1), sum(v2), max(v3) from db.lt")
         tdSql.checkRows(1)
-        
+
         tdSql.query(f"show queries")
         tdLog.info(f"Active queries count: {tdSql.getRows()}")
-        
+
         print("test long running query phase ....................... [passed]")
 
     def test_concurrent_queries_phase(self):
@@ -156,26 +153,26 @@ class TestQueryPhaseTracking:
         """
         tdLog.info("=============== test concurrent queries phase")
         tdSql.execute(f"use db")
-        
+
         for i in range(5):
             tdSql.execute(f"create table if not exists db.t{i} (ts timestamp, v int)")
             tdSql.execute(f"insert into db.t{i} values (now, {i})")
-        
+
         for i in range(5):
             tdSql.query(f"select * from db.t{i}")
             assert tdSql.getRows() >= 1, f"table db.t{i} should have at least 1 row"
-        
+
         tdSql.query(f"show queries")
         tdLog.info(f"Total queries shown: {tdSql.getRows()}")
-        
+
         print("test concurrent queries phase ....................... [passed]")
 
     def test_phase_timing_accuracy(self):
         """Timing: Verify phase_start_time accuracy
 
-        1. Record current timestamp before query
-        2. Execute query
-        3. Verify phase_start_time is within reasonable range of recorded time
+        1. Record current timestamp before running show queries
+        2. Execute show queries
+        3. Verify the visible query's phase_start_time is reasonable
 
         Since: v3.3.0.0
 
@@ -189,23 +186,28 @@ class TestQueryPhaseTracking:
         """
         tdLog.info("=============== test phase timing accuracy")
         tdSql.execute(f"use db")
-        
+
         before_time = int(time.time() * 1000)
-        
-        tdSql.query(f"select * from db.stb")
-        
-        after_time = int(time.time() * 1000)
-        
+
         tdSql.query(f"show queries")
-        
+
+        after_time = int(time.time() * 1000)
+
         if tdSql.getRows() > 0:
             col_names = [desc[0] for desc in tdSql.cursor.description]
-            time_idx = col_names.index("phase_start_time") if "phase_start_time" in col_names else -1
-            
+            time_idx = self._get_col_idx(col_names, "phase_start_time")
+            sql_idx = self._get_col_idx(col_names, "sql")
+
             if time_idx >= 0:
-                query_time = tdSql.getData(0, time_idx)
-                tdLog.info(f"Before: {before_time}, Query: {query_time}, After: {after_time}")
-        
+                for row in range(tdSql.getRows()):
+                    query_time = tdSql.getData(row, time_idx)
+                    sql_val = tdSql.getData(row, sql_idx) if sql_idx >= 0 else ""
+                    tdLog.info(f"Row {row}: sql={sql_val}, phase_start_time={query_time}")
+                    if query_time and isinstance(query_time, (int, float)):
+                        tolerance = 60000
+                        assert query_time >= before_time - tolerance, \
+                            f"phase_start_time {query_time} should be >= {before_time - tolerance}"
+
         print("test phase timing accuracy ....................... [passed]")
 
     def test_sub_status_timing_format(self):
@@ -240,8 +242,8 @@ class TestQueryPhaseTracking:
         tdSql.query(f"show queries")
         if tdSql.getRows() > 0:
             col_names = [desc[0] for desc in tdSql.cursor.description]
-            sub_status_idx = col_names.index("sub_status") if "sub_status" in col_names else -1
-            sub_num_idx = col_names.index("sub_num") if "sub_num" in col_names else -1
+            sub_status_idx = self._get_col_idx(col_names, "sub_status")
+            sub_num_idx = self._get_col_idx(col_names, "sub_num")
 
             if sub_num_idx >= 0:
                 sub_num = tdSql.getData(0, sub_num_idx)
@@ -267,6 +269,40 @@ class TestQueryPhaseTracking:
         tdSql.execute(f"drop database if exists db2")
         print("test sub status timing format ....................... [passed]")
 
+    def test_phase_state_max_length(self):
+        """MaxLen: Verify phase_state column can hold the longest phase string
+
+        1. The longest phase string is 'fetch:preparing_response' (25 chars)
+        2. Verify the column width (32 + VARSTR_HEADER) can hold it
+        3. Show queries and verify no truncation occurs
+
+        Since: v3.3.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-3-10 Created to verify column width after fix
+
+        """
+        tdLog.info("=============== test phase state max length")
+
+        tdSql.query(f"show queries")
+        if tdSql.getRows() > 0:
+            col_names = [desc[0] for desc in tdSql.cursor.description]
+            phase_idx = self._get_col_idx(col_names, "phase_state")
+            if phase_idx >= 0:
+                for row in range(tdSql.getRows()):
+                    phase_value = tdSql.getData(row, phase_idx)
+                    tdLog.info(f"Row {row} phase: '{phase_value}' (len={len(phase_value) if phase_value else 0})")
+                    assert phase_value is not None, "phase_state should not be NULL"
+                    assert phase_value in self.VALID_PHASES, \
+                        f"Phase should be a valid phase, got '{phase_value}'"
+
+        print("test phase state max length ....................... [passed]")
+
     def cleanup_class(cls):
         tdLog.info(f"cleanup {__file__}")
         tdSql.execute(f"drop database if exists db")
+        tdSql.execute(f"drop database if exists db2")

@@ -256,50 +256,31 @@ void *taosDecodeSEpSet(const void *buf, SEpSet *pEp) {
 
 const char *queryPhaseStr(int32_t phase) {
   switch (phase) {
-    /* Main phases */
-    case QUERY_PHASE_NONE:
-      return "none";
-    case QUERY_PHASE_PARSE:
-      return "parse";
-    case QUERY_PHASE_CATALOG:
-      return "catalog";
-    case QUERY_PHASE_PLAN:
-      return "plan";
-    case QUERY_PHASE_SCHEDULE:
-      return "schedule";
-    case QUERY_PHASE_EXECUTE:
-      return "execute";
-    case QUERY_PHASE_FETCH:
-      return "fetch";
-    case QUERY_PHASE_DONE:
-      return "done";
+    /* Main phases: 0-9 */
+    case QUERY_PHASE_NONE:     return "none";
+    case QUERY_PHASE_PARSE:    return "parse";
+    case QUERY_PHASE_CATALOG:  return "catalog";
+    case QUERY_PHASE_PLAN:     return "plan";
+    case QUERY_PHASE_SCHEDULE: return "schedule";
+    case QUERY_PHASE_EXECUTE:  return "execute";
+    case QUERY_PHASE_FETCH:    return "fetch";
+    case QUERY_PHASE_DONE:     return "done";
 
-    /* SCHEDULE sub-phases */
-    case QUERY_PHASE_SCHEDULE_ANALYSIS:
-      return "schedule:analysis";
-    case QUERY_PHASE_SCHEDULE_PLANNING:
-      return "schedule:planning";
-    case QUERY_PHASE_SCHEDULE_NODE_SELECTION:
-      return "schedule:node_selection";
-    case QUERY_PHASE_SCHEDULE_RESOURCE_ALLOC:
-      return "schedule:resource_alloc";
+    /* SCHEDULE sub-phases: 4x */
+    case QUERY_PHASE_SCHEDULE_ANALYSIS:       return "schedule:analysis";
+    case QUERY_PHASE_SCHEDULE_PLANNING:       return "schedule:planning";
+    case QUERY_PHASE_SCHEDULE_NODE_SELECTION: return "schedule:node_selection";
 
-    /* EXECUTE sub-phases */
-    case QUERY_PHASE_EXEC_DATA_QUERY:
-      return "execute:data_query";
-    case QUERY_PHASE_EXEC_MERGE_QUERY:
-      return "execute:merge_query";
+    /* EXECUTE sub-phases: 5x */
+    case QUERY_PHASE_EXEC_DATA_QUERY:  return "execute:data_query";
+    case QUERY_PHASE_EXEC_MERGE_QUERY: return "execute:merge_query";
 
-    /* FETCH sub-phases */
-    case QUERY_PHASE_FETCH_CLIENT_REQUEST:
-      return "fetch:client_request";
-    case QUERY_PHASE_FETCH_SERVER_PROCESSING:
-      return "fetch:server_processing";
-    case QUERY_PHASE_FETCH_PREPARING_RESPONSE:
-      return "fetch:preparing_response";
+    /* FETCH sub-phases: 6x */
+    case QUERY_PHASE_FETCH_CLIENT_REQUEST:     return "fetch:client_request";
+    case QUERY_PHASE_FETCH_SERVER_PROCESSING:  return "fetch:server_processing";
+    case QUERY_PHASE_FETCH_PREPARING_RESPONSE: return "fetch:preparing_response";
 
-    default:
-      return "unknown";
+    default: return "unknown";
   }
 }
 

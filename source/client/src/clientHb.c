@@ -800,17 +800,14 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
     }
     desc.subPlanNum = pRequest->body.subplanNum;
 
-    // Get phase from scheduler job (prefer scheduler phase over client phase)
     int32_t  jobPhase = QUERY_PHASE_NONE;
     int64_t  jobPhaseTime = 0;
-    int32_t  code = schedulerGetJobPhase(pRequest->body.queryJob, &jobPhase, &jobPhaseTime);
+    int32_t  phaseCode = schedulerGetJobPhase(pRequest->body.queryJob, &jobPhase, &jobPhaseTime);
 
-    if (code == TSDB_CODE_SUCCESS) {
-      // Use scheduler job phase (even if it's NONE - scheduler's phase is authoritative)
+    if (phaseCode == TSDB_CODE_SUCCESS && jobPhase != QUERY_PHASE_NONE) {
       desc.execPhase = jobPhase;
       desc.phaseStartTime = jobPhaseTime;
     } else {
-      // Scheduler job not found or error, fallback to client request phase
       desc.execPhase = atomic_load_32(&pRequest->execPhase);
       desc.phaseStartTime = atomic_load_64(&pRequest->phaseStartTime);
     }

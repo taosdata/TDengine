@@ -67,20 +67,17 @@ int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
   int32_t  code = 0;
   SSchJob *pJob = NULL;
 
-  // schInitJob sets phase to ANALYSIS internally
   SCH_ERR_JRET(schInitJob(pJobId, pReq));
 
   SCH_ERR_JRET(schHandleOpBeginEvent(*pJobId, &pJob, SCH_OP_EXEC, pReq));
 
-  // Set phase to ANALYSIS at the start of scheduling
   atomic_store_32(&pJob->execPhase, QUERY_PHASE_SCHEDULE_ANALYSIS);
   atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
 
-  // Set phase to PLANNING before status switches
+  SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_INIT, pReq));
+
   atomic_store_32(&pJob->execPhase, QUERY_PHASE_SCHEDULE_PLANNING);
   atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
-
-  SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_INIT, pReq));
 
   SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_EXEC, pReq));
 

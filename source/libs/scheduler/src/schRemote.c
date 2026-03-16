@@ -1259,13 +1259,12 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     }
     case TDMT_SCH_QUERY:
     case TDMT_SCH_MERGE_QUERY: {
-      // Set phase to distinguish data query from merge query
-      if (TDMT_SCH_QUERY == msgType) {
-        atomic_store_32(&pJob->execPhase, QUERY_PHASE_EXEC_DATA_QUERY);
-      } else {
-        atomic_store_32(&pJob->execPhase, QUERY_PHASE_EXEC_MERGE_QUERY);
+      int32_t newPhase = (TDMT_SCH_QUERY == msgType) ? QUERY_PHASE_EXEC_DATA_QUERY : QUERY_PHASE_EXEC_MERGE_QUERY;
+      int32_t oldPhase = atomic_load_32(&pJob->execPhase);
+      if (oldPhase != newPhase) {
+        atomic_store_32(&pJob->execPhase, newPhase);
+        atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
       }
-      atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
 
       SCH_ERR_RET(schMakeQueryRpcCtx(pJob, pTask, &rpcCtx));
 
