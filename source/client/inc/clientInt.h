@@ -326,6 +326,8 @@ typedef struct SRequestObj {
   SMetaData            parseMeta;
   char*                effectiveUser;
   int8_t               source;
+  int32_t              execPhase;       // EQueryExecPhase
+  int64_t              phaseStartTime;  // when current phase started, ms
 } SRequestObj;
 
 typedef struct SSyncQueryParam {

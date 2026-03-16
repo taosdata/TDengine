@@ -1450,6 +1450,9 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   int64_t     st = taosGetTimestampUs();
 
   if (!pRequest->parseOnly) {
+    atomic_store_32((int32_t*)&pRequest->execPhase, QUERY_PHASE_PLAN);
+    atomic_store_64((int64_t*)&pRequest->phaseStartTime, taosGetTimestampMs());
+
     pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
     if (NULL == pMnodeList) {
       code = terrno;
@@ -1517,6 +1520,8 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
       };
 
       if (TSDB_CODE_SUCCESS == code) {
+        pRequest->execPhase = QUERY_PHASE_EXECUTE;
+        pRequest->phaseStartTime = taosGetTimestampMs();
         code = schedulerExecJob(&req, &pRequest->body.queryJob);
       }
       taosArrayDestroy(pNodeList);
@@ -3393,6 +3398,9 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
 
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   pRequest->inCallback = true;
+  pRequest->execPhase = QUERY_PHASE_DONE;
+  pRequest->phaseStartTime = taosGetTimestampMs();
+
   int64_t this = pRequest->self;
   if (tsQueryTbNotExistAsEmpty && TD_RES_QUERY(&pRequest->resType) && pRequest->isQuery &&
       (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {

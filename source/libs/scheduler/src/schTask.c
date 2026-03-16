@@ -88,6 +88,7 @@ int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *
   }
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_INIT);
+  pTask->profile.startTs = taosGetTimestampUs();
 
   SCH_TASK_DLOG("task initialized, max retry(exec):%d(%d), max retry duration:%.2fs", pTask->maxRetryTimes,
                 pTask->maxExecTimes, (pTask->redirectCtx.redirectDelayMs * pTask->maxRetryTimes) / 1000.0);
