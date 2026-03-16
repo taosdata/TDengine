@@ -8719,21 +8719,79 @@ static int32_t translateIntervalWindow(STranslateContext* pCxt, SSelectStmt* pSe
 
 static const int64_t periodLowerBound = 10;
 static const int64_t periodUpperBound = (int64_t)3650 * 24 * 60 * 60 * 1000;  // 10 years in milliseconds
-static const int64_t offsetUpperBound = (int64_t)24 * 60 * 60 * 1000;         // 1 day in milliseconds
 
+/**
+ * @brief Validate PERIOD trigger window parameters
+ *
+ * Validates period interval and offset parameters for stream PERIOD triggers.
+ * Performs unit validation, range checking, and offset-period relationship validation.
+ *
+ * @param pCxt Translation context for error reporting
+ * @param pPeriod Period window node containing interval and offset
+ * @return TSDB_CODE_SUCCESS on valid parameters, error code otherwise
+ *
+ * @note Period unit validation:
+ *       - Natural units: n (month), y (year)
+ *       - Fixed units: a (ms), s (second), m (minute), h (hour), d (day), w (week)
+ * @note Period range validation:
+ *       - Month: [1n, 120n] (10 years)
+ *       - Year: [1y, 10y]
+ *       - Fixed units: [10a, 3650d]
+ * @note Offset validation:
+ *       - Supported units: a, s, m, h, d (week/month/year not allowed)
+ *       - Must satisfy: offset < period (strict inequality)
+ *       - Month unit special case: offset < N * 28 days (shortest month)
+ */
 static int32_t checkPeriodWindow(STranslateContext* pCxt, SPeriodWindowNode* pPeriod) {
   uint8_t     precision = TSDB_TIME_PRECISION_MILLI;
   SValueNode* pPer = (SValueNode*)pPeriod->pPeroid;
   SValueNode* pOffset = (SValueNode*)pPeriod->pOffset;
 
   if (pPer) {
-    if (pPer->unit != 'a' && pPer->unit != 's' && pPer->unit != 'm' && pPer->unit != 'h' && pPer->unit != 'd') {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PERIOD_UNIT, pPer->unit);
+    if (pPer->unit != 'a' && pPer->unit != 's' && pPer->unit != 'm' && pPer->unit != 'h' && pPer->unit != 'd' &&
+        pPer->unit != 'w' && pPer->unit != 'n' && pPer->unit != 'y') {
+      char errMsg[256];
+      snprintf(errMsg, sizeof(errMsg),
+               "Invalid time unit '%c' in PERIOD interval. "
+               "Supported interval units: a (millisecond), s (second), m (minute), h (hour), d (day), w (week), n (month), y (year)",
+               pPer->unit);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PERIOD_UNIT, errMsg);
     }
-    if (pPer->datum.i / getPrecisionMultiple(precision) < periodLowerBound ||
-        pPer->datum.i / getPrecisionMultiple(precision) > periodUpperBound) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PERIOD_RANGE,
-                                     "Period value out of range [10a, 3650d]");
+
+    // Range validation based on unit type
+    // Note: For 'n' and 'y', datum.i is the original value (e.g., 3 for "3n")
+    //       For other units, datum.i is already converted by getDuration() to the target precision
+    int64_t value = pPer->datum.i;
+    bool outOfRange = false;
+    const char* rangeMsg = NULL;
+
+    switch (pPer->unit) {
+      case 'n':  // Month: [1n, 120n] (10 years)
+        // datum.i is the original value for natural units
+        if (value < 1 || value > 120) {
+          outOfRange = true;
+          rangeMsg = "Period value out of range [1n, 120n]";
+        }
+        break;
+      case 'y':  // Year: [1y, 10y]
+        // datum.i is the original value for natural units
+        if (value < 1 || value > 10) {
+          outOfRange = true;
+          rangeMsg = "Period value out of range [1y, 10y]";
+        }
+        break;
+      default:  // Fixed duration units: a/s/m/h/d/w
+        // datum.i is already converted to target precision
+        if (pPer->datum.i / getPrecisionMultiple(precision) < periodLowerBound ||
+            pPer->datum.i / getPrecisionMultiple(precision) > periodUpperBound) {
+          outOfRange = true;
+          rangeMsg = "Period value out of range [10a, 3650d]";
+        }
+        break;
+    }
+
+    if (outOfRange) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PERIOD_RANGE, rangeMsg);
     }
   }
 
@@ -8747,13 +8805,29 @@ static int32_t checkPeriodWindow(STranslateContext* pCxt, SPeriodWindowNode* pPe
           generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "Negative period offset value"));
     }
 
-    if (pOffset->unit != 'a' && pOffset->unit != 's' && pOffset->unit != 'm' && pOffset->unit != 'h') {
-      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, pOffset->unit));
+    if (pOffset->unit != 'a' && pOffset->unit != 's' && pOffset->unit != 'm' && pOffset->unit != 'h' && pOffset->unit != 'd') {
+      char errMsg[256];
+      snprintf(errMsg, sizeof(errMsg),
+               "Invalid time unit '%c' in PERIOD offset. "
+               "Supported offset units: a (millisecond), s (second), m (minute), h (hour), d (day)",
+               pOffset->unit);
+      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OFFSET_UNIT, errMsg));
     }
 
-    if (pOffset->datum.i > offsetUpperBound) {
-      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                          "Period offset value should less than 1d"));
+    // Validate offset < period (strict inequality)
+    // Note: offset datum.i is already converted by getDuration() to target precision
+    //       period datum.i is converted for non-natural units, original value for 'n'/'y'
+    // Convert both to milliseconds for comparison
+    int64_t offsetValue = pOffset->datum.i;
+    int64_t periodValue = pPer->datum.i;
+    if (pPer->unit == 'n') {
+      periodValue = convertTimePrecision(periodValue * 28LL * MILLISECOND_PER_DAY, TSDB_TIME_PRECISION_MILLI, precision);  // Convert N months to milliseconds using 28 days/month
+    } else if (pPer->unit == 'y') {
+      periodValue = convertTimePrecision(periodValue * 365LL * MILLISECOND_PER_DAY, TSDB_TIME_PRECISION_MILLI, precision); // Convert N years to milliseconds using 365 days/year
+    }
+    if (offsetValue >= periodValue) {
+      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OFFSET_VALUE,
+                                          "Offset must be strictly less than period"));
     }
   }
 

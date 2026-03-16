@@ -681,6 +681,9 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
     }
     case WINDOW_TYPE_PERIOD: {
       // period trigger
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->trigger.period.periodUnit));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->trigger.period.offsetUnit));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->trigger.period.precision));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.period.period));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.period.offset));
       break;
@@ -1253,6 +1256,9 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
     
     case WINDOW_TYPE_PERIOD:
       // period trigger
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, (int8_t*)&pMsg->trigger.period.periodUnit));
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, (int8_t*)&pMsg->trigger.period.offsetUnit));
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->trigger.period.precision));
       TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->trigger.period.period));
       TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->trigger.period.offset));
       break;

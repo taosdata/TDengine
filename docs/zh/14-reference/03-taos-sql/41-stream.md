@@ -74,8 +74,8 @@ PERIOD(period_time[, offset_time])
 
 定时触发通过系统时间的固定间隔来驱动，本质上就是我们常说的定时任务。定时触发不属于窗口触发。各参数含义如下：
 
-- period_time：定时间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)，支持的时间范围为 `[10a, 3650d]`。
-- offset_time：可选，定时偏移，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)，偏移大小应该小于 1 天。
+- period_time：定时间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)、周 (w)、月 (n)、年 (y)，支持的时间范围为 `[10a, 3650d]`。
+- offset_time：可选，定时偏移，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)。对于周/月/年单位，offset 必须严格小于触发周期；对于月单位，以 28 天/月为基准静态校验（如 `PERIOD(1n, 28d)` 非法）。
 
 使用说明：
 
@@ -83,9 +83,11 @@ PERIOD(period_time[, offset_time])
   - 定时间隔为 5 小时 30 分钟，那么当天的触发时刻为 `[00:00, 05:30, 11:00, 16:30, 22:00]`，后续每一天的触发时刻都是相同的。
   - 同样的定时间隔，如果指定时间偏移为 1 分钟，那么当天的触发时刻为 `[00:01, 05:31, 11:01, 16:31, 22:01]`，后续每一天的触发时刻都是相同的。
   - 同样条件下，如果建流时当前系统时间为 `12:00`，那么当天的触发时刻为 `[16:31, 22:01]`，后续每一天内的触发时刻为 `[00:01, 05:31, 11:01, 16:31, 22:01]`。
-- 定时间隔大于等于 1 天时，基准时间点为当日的零点加定时偏移，后续不会重置。例如：
-  - 定时间隔为 1 天 1 小时，建流时当前系统时间为 `05-01 12:00`，那么在当天及随后几天的触发时刻为 `[05-02 01:00, 05-03 02:00, 05-04 03:00, 05-05 04:00, ……]`。
-  - 同样条件下，如果指定时间偏移为 1 分钟，那么当天及随后几天的触发时刻为 `[05-02 01:01, 05-03 02:02, 05-04 03:03, 05-05 04:04, ……]`。
+- 定时间隔大于等于 1 天时，基准时间点为服务端时区的 Unix epoch（1970-01-01 00:00:00）加定时偏移，按触发间隔整除对齐，保证所有任务触发时刻全局一致。例如：
+  - 定时间隔为 2 天，所有使用该间隔的任务都会在距离 epoch 整数倍 2 天的时刻触发（如 1970-01-03 00:00:00, 1970-01-05 00:00:00, ...），确保全局对齐。
+  - 定时间隔为 1 周（`PERIOD(1w)`），触发时刻对齐每周一 00:00:00；`PERIOD(1w, 1d)` 则在每周二 00:00:00 触发。
+  - 定时间隔为 1 月（`PERIOD(1n)`），触发时刻对齐每月 1 日 00:00:00；`PERIOD(1n, 14d)` 则在每月 15 日 00:00:00 触发。
+  - 定时间隔为 1 年（`PERIOD(1y)`），触发时刻对齐每年 1 月 1 日 00:00:00；`PERIOD(1y, 31d)` 则在每年 2 月 1 日 00:00:00 触发。
 
 适用场景：需要按照系统时间连续定时驱动计算的场景，例如每小时计算生成一次当天的统计数据，每天定时发送统计报告等。
 
@@ -1015,4 +1017,73 @@ CREATE stream stream_consumer_energy
      SELECT cast(_tlocaltime/1000000 AS timestamp) ,sum(current*voltage) AS sum_power
           FROM meters
           WHERE ts >= cast(_tprev_localtime/1000000 AS timestamp) AND ts <= cast(_tlocaltime/1000000 AS timestamp);
+```
+
+- 每周一 00:00:00 计算上周的设备运行汇总，计算结果写入 weekly_summary 表。
+
+```SQL
+CREATE STREAM weekly_device_summary
+  PERIOD(1w)
+  FROM meters PARTITION BY location
+  INTO weekly_summary
+  AS
+    SELECT _wstart AS week_start,
+           location,
+           AVG(current) AS avg_current,
+           MAX(voltage) AS max_voltage,
+           COUNT(*) AS record_count
+    FROM meters
+    INTERVAL(1w)
+    PARTITION BY location;
+```
+
+- 每月 1 日 00:00:00 计算上月的能耗账单，计算结果写入 monthly_bill 表。
+
+```SQL
+CREATE STREAM monthly_energy_bill
+  PERIOD(1n)
+  FROM meters PARTITION BY location, groupId
+  INTO monthly_bill
+  AS
+    SELECT _wstart AS month_start,
+           location,
+           groupId,
+           SUM(current * voltage) AS total_energy
+    FROM meters
+    INTERVAL(1n)
+    PARTITION BY location, groupId;
+```
+
+- 每月 15 日 00:00:00 计算半月结算报表（使用 offset 参数）。
+
+```SQL
+CREATE STREAM mid_month_settlement
+  PERIOD(1n, 14d)
+  FROM meters PARTITION BY location
+  INTO mid_month_settlement_table
+  AS
+    SELECT _wstart AS period_start,
+           location,
+           SUM(current * voltage) AS total_energy
+    FROM meters
+    INTERVAL(1n)
+    PARTITION BY location;
+```
+
+- 每年 1 月 1 日 00:00:00 归档上一年的全量数据。
+
+```SQL
+CREATE STREAM yearly_archive
+  PERIOD(1y)
+  FROM meters PARTITION BY location, groupId
+  INTO yearly_archive_table
+  AS
+    SELECT _wstart AS year_start,
+           location,
+           groupId,
+           AVG(current) AS avg_current,
+           SUM(current * voltage) AS total_energy
+    FROM meters
+    INTERVAL(1y)
+    PARTITION BY location, groupId;
 ```
