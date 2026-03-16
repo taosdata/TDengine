@@ -105,6 +105,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 - log_file（字符串）：指定完整的日志文件路径，设置后将覆盖 log_dir。
 
 这些参数也可以通过命令行选项（`--log-dir`、`--log-file`）设置。优先级从高到低为：
+
 1. `--log-file`（命令行）
 2. `--log-dir`（命令行）
 3. `log_file`（YAML 配置文件）

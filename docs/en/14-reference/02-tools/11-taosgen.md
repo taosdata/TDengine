@@ -106,6 +106,7 @@ By combining multiple steps, jobs can implement complex logic flows, such as TDe
 - log_file (string): Specifies the complete log file path. When set, this overrides log_dir.
 
 These parameters can also be set via command line options (`--log-dir`, `--log-file`). The priority order from highest to lowest is:
+
 1. `--log-file` (CLI)
 2. `--log-dir` (CLI)
 3. `log_file` (YAML config)
