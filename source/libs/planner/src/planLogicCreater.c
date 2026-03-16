@@ -1863,8 +1863,8 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
         PLAN_ERR_RET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
         PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_EXT_WINDOW, NULL));
 
-        // 补齐：将 ORDER BY 用到的“简单列（COLUMN）”作为隐藏列加入 external_window 的投影集合，
-        // 以便上层 Sort 在 external_window 之上绑定排序键时，能在子节点输出 slot 中命中这些基础列（如 ts）。
+        // Supplement projection with ORDER BY simple columns (COLUMN) as hidden columns,
+        // so upper Sort can bind keys above external_window using child output slots.
         if (pSelect->pOrderByList && LIST_LENGTH(pSelect->pOrderByList) > 0) {
           SNode* pOB = NULL;
           FOREACH(pOB, pSelect->pOrderByList) {
@@ -1878,7 +1878,7 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
               continue;
             }
 
-            // 去重：若 pProjs 已包含同名列或同 alias，则跳过
+            // Deduplicate: skip when pProjs already contains same column name or alias.
             bool exists = false;
             SNode* pProj = NULL;
             FOREACH(pProj, pWindow->pProjs) {
@@ -1906,7 +1906,7 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
               continue;
             }
 
-            // 追加一份克隆列，补齐稳定别名
+            // Append a cloned column and backfill stable aliases.
             SNode* pClone = NULL;
             PLAN_ERR_RET(nodesCloneNode(pExpr, &pClone));
             if (nodesIsExprNode(pClone)) {

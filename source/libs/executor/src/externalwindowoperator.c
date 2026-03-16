@@ -131,11 +131,6 @@ typedef struct SExternalWindowOperator {
   int32_t            orgTableVgId;
   tb_uid_t           orgTableUid;
   STimeWindow        orgTableTimeRange;
-
-  bool               partitionInputDone;
-  bool               partitionGroupStarted;
-  uint64_t           partitionGroupId;
-  SSDataBlock*       pPartitionPendingBlock;
 } SExternalWindowOperator;
 
 static char* extWinModeStr(EExtWinMode mode) {
@@ -510,76 +505,6 @@ static int32_t extWinApplyNonStreamTimeRangeToDownstream(SOperatorInfo* pOperato
   return TSDB_CODE_SUCCESS;
 }
 
-static void extWinResetWindowOutState(SExternalWindowOperator* pExtW) {
-  if (pExtW == NULL || pExtW->pTGrpCtx == NULL || pExtW->pTGrpCtx->pCCtx == NULL ||
-      pExtW->pTGrpCtx->pCCtx->pWins == NULL) {
-    return;
-  }
-
-  for (int32_t i = 0; i < taosArrayGetSize(pExtW->pTGrpCtx->pCCtx->pWins); ++i) {
-    SExtWinTimeWindow* pWin = taosArrayGet(pExtW->pTGrpCtx->pCCtx->pWins, i);
-    if (pWin) {
-      pWin->resWinIdx = -1;
-    }
-  }
-}
-
-static void extWinResetPartitionGroupCalcState(SOperatorInfo* pOperator) {
-  SExternalWindowOperator* pExtW = pOperator->info;
-  SExtWinCalcGrpCtx*       pCtx = (pExtW && pExtW->pTGrpCtx) ? pExtW->pTGrpCtx->pCCtx : NULL;
-
-  if (pCtx) {
-    pCtx->blkWinIdx = -1;
-    pCtx->blkWinStartSet = false;
-    pCtx->blkRowStartIdx = 0;
-    pCtx->blkWinStartIdx = 0;
-    pCtx->outWinIdx = 0;
-    pCtx->outWinNum = 0;
-    pCtx->outWinTotalNum = 0;
-    pCtx->lastSKey = INT64_MIN;
-    pCtx->lastWinId = -1;
-    pCtx->lastWinIdx = -1;
-  }
-
-  pExtW->outWinIdx = 0;
-  pExtW->resWinIdx = 0;
-  pExtW->resultRows.resRowsIdx = 0;
-  pExtW->resultRows.resRowIdx = 0;
-  if (pOperator->pTaskInfo->pStreamRuntimeInfo) {
-    pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx = 0;
-  }
-
-  initResultRowInfo(&pExtW->binfo.resultRowInfo);
-  blockDataCleanup(pExtW->binfo.pRes);
-
-  if (pExtW->pWinRowIdx) {
-    taosArrayClear(pExtW->pWinRowIdx);
-  }
-
-  extWinRecycleBlkNode(pExtW, &pExtW->pLastBlkNode);
-
-  if (pExtW->pOutputBlocks) {
-    int32_t n = taosArrayGetSize(pExtW->pOutputBlocks);
-    for (int32_t i = 0; i < n; ++i) {
-      SList** ppList = taosArrayGet(pExtW->pOutputBlocks, i);
-      if (ppList) {
-        extWinRecycleBlockList(pExtW, ppList);
-      }
-    }
-  }
-
-  if (pExtW->resultRows.pResultRows && pExtW->resultRows.resRowsSize > 0 && pExtW->aggSup.resultRowSize > 0) {
-    for (int32_t i = 0; i < pExtW->resultRows.resRowsSize; ++i) {
-      if (pExtW->resultRows.pResultRows[i]) {
-        memset(pExtW->resultRows.pResultRows[i], 0,
-               pExtW->resultRows.resRowSize * pExtW->aggSup.resultRowSize);
-      }
-    }
-  }
-
-  extWinResetWindowOutState(pExtW);
-}
-
 typedef struct SMergeAlignedExternalWindowOperator {
   SExternalWindowOperator* pExtW;
   int64_t curTs;
@@ -628,12 +553,6 @@ static int32_t extWinGetCurWinIdx(SExecTaskInfo* pTaskInfo) {
   return pInfo->isMultiGroupCalc ? ((SExtWinTrigGrpCtx*)pInfo->curGrpCalc->pRunnerGrpCtx)->pCCtx->curIdx : pInfo->curIdx;
 }
 
-static void extWinIncCurWinIdx(SOperatorInfo* pOperator) {
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  SStreamRuntimeFuncInfo* pInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
-  pInfo->isMultiGroupCalc ? ((SExtWinTrigGrpCtx*)pInfo->curGrpCalc->pRunnerGrpCtx)->pCCtx->curIdx++ : pInfo->curIdx++;
-}
-
 static void extWinSetCurWinIdx(SOperatorInfo* pOperator, int32_t idx) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   if (pTaskInfo->pStreamRuntimeInfo) {
@@ -658,13 +577,6 @@ static void extWinIncCurWinOutIdx(SStreamRuntimeInfo* pStreamRuntimeInfo) {
   } else {
     pInfo->curIdx++;
   }
-}
-
-
-static const STimeWindow* extWinGetNextWin(SExternalWindowOperator* pExtW, SExecTaskInfo* pTaskInfo) {
-  int32_t curIdx = extWinGetCurWinIdx(pTaskInfo);
-  if (curIdx + 1 >= pExtW->pTGrpCtx->pCCtx->pWins->size) return NULL;
-  return taosArrayGet(pExtW->pTGrpCtx->pCCtx->pWins, curIdx + 1);
 }
 
 
@@ -1492,10 +1404,6 @@ static int32_t resetExternalWindowOperator(SOperatorInfo* pOperator) {
   pExtW->lastCGrpId = 0;
   pExtW->pTGrpCtx = NULL;
   pExtW->isDynWindow = false;
-  pExtW->partitionInputDone = false;
-  pExtW->partitionGroupStarted = false;
-  pExtW->partitionGroupId = 0;
-  pExtW->pPartitionPendingBlock = NULL;
 
   extWinResetResultRows(&pExtW->resultRows);
   
@@ -1545,33 +1453,6 @@ static int32_t extWinCreateEmptyInputBlock(SOperatorInfo* pOperator, SSDataBlock
 
   pBlock->info.rows = 1;
   pBlock->info.capacity = 0;
-
-  // for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
-  //   SColumnInfoData colInfo = {0};
-  //   colInfo.hasNull = true;
-  //   colInfo.info.type = TSDB_DATA_TYPE_NULL;
-  //   colInfo.info.bytes = 1;
-
-  //   SExprInfo* pOneExpr = &pOperator->exprSupp.pExprInfo[i];
-  //   for (int32_t j = 0; j < pOneExpr->base.numOfParams; ++j) {
-  //     SFunctParam* pFuncParam = &pOneExpr->base.pParam[j];
-  //     if (pFuncParam->type == FUNC_PARAM_TYPE_COLUMN) {
-  //       int32_t slotId = pFuncParam->pCol->slotId;
-  //       int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
-  //       if (slotId >= numOfCols) {
-  //         code = taosArrayEnsureCap(pBlock->pDataBlock, slotId + 1);
-  //         QUERY_CHECK_CODE(code, lino, _end);
-
-  //         for (int32_t k = numOfCols; k < slotId + 1; ++k) {
-  //           void* tmp = taosArrayPush(pBlock->pDataBlock, &colInfo);
-  //           QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
-  //         }
-  //       }
-  //     } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
-  //       // do nothing
-  //     }
-  //   }
-  // }
 
   SExprSupp* pSupps[] = {&pOperator->exprSupp, &pExtW->scalarSupp};
   for (int32_t s = 0; s < 2; ++s) {
@@ -2040,28 +1921,6 @@ static int32_t extWinGetMultiTbOvlpWin(SOperatorInfo* pOperator, int64_t* tsCol,
 
   *ppWin = NULL;
   return TSDB_CODE_SUCCESS;
-}
-
-
-static int32_t extWinGetWinStartPos(STimeWindow win, const SDataBlockInfo* pBlockInfo, int32_t lastEndPos, int32_t order, int32_t* nextPos, int64_t* tsCol) {
-  bool ascQuery = order == TSDB_ORDER_ASC;
-
-  if (win.ekey <= pBlockInfo->window.skey && ascQuery) {
-    return -2;
-  }
-//if (win.skey > pBlockInfo->window.ekey && !ascQuery) return -2;
-
-  if (win.skey > pBlockInfo->window.ekey && ascQuery) return -1;
-//if (win.ekey < pBlockInfo->window.skey && !ascQuery) return -1;
-
-  while (true) {
-    if (win.ekey <= tsCol[lastEndPos + 1] && ascQuery) return -2;
-    if (win.skey <= tsCol[lastEndPos + 1] && ascQuery) break;
-    lastEndPos++;
-  }
-
-  *nextPos = lastEndPos + 1;
-  return 0;
 }
 
 
@@ -2611,9 +2470,6 @@ static int32_t extWinNonAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppR
   }
 
   if (pRes) {
-    if (pExtW->calcWithPartition) {
-      pRes->info.id.groupId = pExtW->partitionGroupId;
-    }
     qDebug("%s result generated, rows:%" PRId64 , GET_TASKID(pOperator->pTaskInfo), pRes->info.rows);
     pRes->info.version = pOperator->pTaskInfo->version;
     pRes->info.dataLoad = 1;
@@ -3189,109 +3045,6 @@ _exit:
   return code;
 }
 
-static int32_t extWinOpenForPartitionDownstream(SOperatorInfo* pOperator) {
-  int32_t                  code = TSDB_CODE_SUCCESS;
-  int32_t                  lino = 0;
-  SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
-  SExternalWindowOperator* pExtW = pOperator->info;
-
-  if (pExtW->partitionInputDone && pExtW->pPartitionPendingBlock == NULL) {
-    OPTR_SET_OPENED(pOperator);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  while (1) {
-    if (pExtW->pTGrpCtx && pExtW->pTGrpCtx->pCCtx) {
-      pExtW->pTGrpCtx->pCCtx->blkWinIdx = -1;
-      pExtW->pTGrpCtx->pCCtx->blkWinStartSet = false;
-      pExtW->pTGrpCtx->pCCtx->blkRowStartIdx = 0;
-    }
-
-    SSDataBlock* pBlock = pExtW->pPartitionPendingBlock;
-    if (pBlock) {
-      pExtW->pPartitionPendingBlock = NULL;
-    } else {
-      pBlock = getNextBlockFromDownstreamRemain(pOperator, 0);
-      if (pOperator->pDownstreamGetParams) {
-        pOperator->pDownstreamGetParams[0] = NULL;
-      }
-    }
-
-    if (pBlock == NULL) {
-      if (pExtW->partitionGroupStarted && EEXT_MODE_AGG == pExtW->mode) {
-        TAOS_CHECK_EXIT(extWinAggHandleEmptyWins(pOperator, NULL, true, NULL));
-      }
-      pExtW->partitionInputDone = true;
-      if (pExtW->pTGrpCtx && pExtW->pTGrpCtx->pCCtx && pExtW->pTGrpCtx->pCCtx->pWins) {
-        pExtW->pTGrpCtx->pCCtx->blkWinStartIdx = taosArrayGetSize(pExtW->pTGrpCtx->pCCtx->pWins);
-      }
-      break;
-    }
-
-    if (!pExtW->partitionGroupStarted) {
-        pExtW->partitionGroupId = pBlock->info.id.groupId;
-        pExtW->partitionGroupStarted = true;
-    } else if (pBlock->info.id.groupId != pExtW->partitionGroupId) {
-      pExtW->pPartitionPendingBlock = pBlock;
-      if (EEXT_MODE_AGG == pExtW->mode) {
-        TAOS_CHECK_EXIT(extWinAggHandleEmptyWins(pOperator, NULL, true, NULL));
-      }
-      break;
-    }
-
-    if (pExtW->isDynWindow) {
-      TSKEY skey = 0;
-      TSKEY ekey = 0;
-      code = getTimeWindowOfBlock(pBlock, pExtW->primaryTsIndex, &skey, &ekey);
-      QUERY_CHECK_CODE(code, lino, _exit);
-      pExtW->orgTableTimeRange.skey = TMIN(pExtW->orgTableTimeRange.skey, skey);
-      pExtW->orgTableTimeRange.ekey = TMAX(pExtW->orgTableTimeRange.ekey, ekey);
-    }
-
-    printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
-
-    qDebug("ext window(partition) mode:%d groupId:%" PRIu64 " got %" PRId64 " rows from downstream", pExtW->mode,
-           pExtW->partitionGroupId, pBlock->info.rows);
-
-    TAOS_CHECK_EXIT(extWinSwitchInitCtxs(pExtW, pTaskInfo, &pBlock->info.id));
-
-    switch (pExtW->mode) {
-      case EEXT_MODE_SCALAR:
-        TAOS_CHECK_EXIT(extWinProjectOpen(pOperator, pBlock));
-        if (extWinNonAggGotResBlock(pExtW)) {
-          OPTR_SET_OPENED(pOperator);
-          return code;
-        }
-        break;
-      case EEXT_MODE_AGG:
-        TAOS_CHECK_EXIT(extWinAggOpen(pOperator, pBlock));
-        break;
-      case EEXT_MODE_INDEFR_FUNC:
-        TAOS_CHECK_EXIT(extWinIndefRowsOpen(pOperator, pBlock));
-        if (extWinNonAggGotResBlock(pExtW)) {
-          OPTR_SET_OPENED(pOperator);
-          return code;
-        }
-        break;
-      default:
-        break;
-    }
-  }
-
-  OPTR_SET_OPENED(pOperator);
-  return code;
-
-_exit:
-
-  if (code != 0) {
-    qError("%s failed at line %d since:%s", __func__, lino, tstrerror(code));
-    pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
-  }
-
-  return code;
-}
-
 static void extWinPrepareForOutput(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW) {
   SStreamRuntimeFuncInfo* pStream = &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo;
 
@@ -3494,13 +3247,6 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (pExtW->mode == EEXT_MODE_SCALAR || pExtW->mode == EEXT_MODE_INDEFR_FUNC) {
       TAOS_CHECK_EXIT(extWinNonAggOutputRes(pOperator, ppRes));
       if (NULL == *ppRes) {
-        // if (pExtW->calcWithPartition && (!pExtW->partitionInputDone || pExtW->pPartitionPendingBlock != NULL)) {
-        //   pExtW->partitionGroupStarted = false;
-        //   extWinResetPartitionGroupCalcState(pOperator);
-        //   pOperator->status = OP_NOT_OPENED;
-        //   continue;
-        // }
-
         setOperatorCompleted(pOperator);
         extWinFreeResultRow(pExtW);
       }
@@ -3509,13 +3255,6 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       if (NULL != *ppRes) {
         break;
       }
-
-      // if (pExtW->calcWithPartition && (!pExtW->partitionInputDone || pExtW->pPartitionPendingBlock != NULL)) {
-      //   pExtW->partitionGroupStarted = false;
-      //   extWinResetPartitionGroupCalcState(pOperator);
-      //   pOperator->status = OP_NOT_OPENED;
-      //   continue;
-      // }
 
       if (pExtW->pTGrpCtx == NULL || pExtW->pTGrpCtx->pCCtx == NULL ||
           pExtW->pTGrpCtx->pCCtx->outWinNum >= pExtW->pTGrpCtx->pCCtx->outWinTotalNum) {
@@ -3635,10 +3374,9 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     code = initExprSupp(&pExtW->scalarSupp, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
 
-  //if (pExtW->multiTableMode) {
     pExtW->pOutputBlocks = taosArrayInit(STREAM_CALC_REQ_MAX_WIN_NUM, POINTER_BYTES);
     if (!pExtW->pOutputBlocks) QUERY_CHECK_CODE(terrno, lino, _error);
-  //}
+
     pExtW->pFreeBlocks = tdListNew(POINTER_BYTES * 2);
     QUERY_CHECK_NULL(pExtW->pFreeBlocks, code, lino, _error, terrno);
   } else if (pExtW->mode == EEXT_MODE_AGG) {
@@ -3713,9 +3451,6 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     TSDB_CHECK_CODE(code, lino, _error);
     pOperator->exprSupp.hasWindowOrGroup = false;
     
-    //code = setFunctionResultOutput(pOperator, &pExtW->binfo, &pExtW->aggSup, MAIN_SCAN, numOfExpr);
-    //TSDB_CHECK_CODE(code, lino, _error);
-    
     code = filterInitFromNode((SNode*)pNode->pConditions, &pOperator->exprSupp.pFilterInfo, 0,
                               pTaskInfo->pStreamRuntimeInfo);
     TSDB_CHECK_CODE(code, lino, _error);
@@ -3725,10 +3460,9 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     code = setRowTsColumnOutputInfo(pOperator->exprSupp.pCtx, numOfExpr, &pExtW->pPseudoColInfo);
     TSDB_CHECK_CODE(code, lino, _error);
 
-  //if (pExtW->multiTableMode) {
     pExtW->pOutputBlocks = taosArrayInit(STREAM_CALC_REQ_MAX_WIN_NUM, POINTER_BYTES);
     if (!pExtW->pOutputBlocks) QUERY_CHECK_CODE(terrno, lino, _error);
-  //}
+
     pExtW->pFreeBlocks = tdListNew(POINTER_BYTES * 2);
     QUERY_CHECK_NULL(pExtW->pFreeBlocks, code, lino, _error, terrno);  
   }

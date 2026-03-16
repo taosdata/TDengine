@@ -7564,11 +7564,6 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  // 追踪：记录是否 external_window、投影与排序项数量
-  parserError("parser orderby trace: extWin=%d projLen=%d orderLen=%d",
-              currentStmtWithExternalWindow(pCxt),
-              (int)LIST_LENGTH(pSelect->pProjectionList),
-              (int)LIST_LENGTH(pSelect->pOrderByList));
 
   code = translateClausePosition(pCxt, pSelect->pProjectionList, pSelect->pOrderByList, &other);
   if (TSDB_CODE_SUCCESS == code) {
