@@ -2581,6 +2581,15 @@ class TdSuperTable:
                         f'floor({num_col})',
                         f'round({num_col})',
                         f'cast({num_col} as double)',
+                        f'sqrt(abs({num_col}))',
+                        f'pow({num_col}, 2)',
+                        f'log(abs({num_col})+1)',
+                        f'exp({num_col}/1000)',  # 避免溢出
+                        f'sin({num_col})',
+                        f'cos({num_col})',
+                        f'tan({num_col})',
+                        f'sign({num_col})',
+                        f'mod({num_col}, 10)',
                     ])
 
                 # Add string column functions
@@ -2592,7 +2601,11 @@ class TdSuperTable:
                         f'length({str_col})',
                         f'lower({str_col})',
                         f'upper({str_col})',
-                        f'distinct({str_col})'
+                        f'distinct({str_col})',
+                        f'ltrim({str_col})',
+                        f'rtrim({str_col})',
+                        f'trim({str_col})',
+                        f'substr({str_col}, 1, 5)',
                     ])
 
                 # Add timestamp functions
@@ -2628,6 +2641,16 @@ class TdSuperTable:
                         f'spread({num_col})',
                         f'mode({num_col})',
                         f'csum({num_col})',
+                        f'variance({num_col})',
+                        f'percentile({num_col}, 50)',
+                        f'apercentile({num_col}, 90)',
+                        f'top({num_col}, 5)',
+                        f'bottom({num_col}, 5)',
+                        f'hyperloglog({num_col})',
+                        f'diff({num_col})',
+                        f'derivative({num_col}, 1s, 0)',
+                        f'mavg({num_col}, 5)',
+                        f'twa({num_col})',
                     ])
 
                 if string_cols:
