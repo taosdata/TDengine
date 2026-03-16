@@ -11008,6 +11008,12 @@ static int32_t translateDelete(STranslateContext* pCxt, SDeleteStmt* pDelete) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     pDelete->precision = ((STableNode*)pDelete->pFromTable)->precision;
+    if (nodeType(pDelete->pFromTable) == QUERY_NODE_REAL_TABLE) {
+      SRealTableNode* pTbl = (SRealTableNode*)pDelete->pFromTable;
+      if (pTbl->pMeta) {
+        pDelete->secureDelete |= pTbl->pMeta->secureDelete;
+      }
+    }
     code = translateDeleteWhere(pCxt, pDelete);
   }
   pCxt->currClause = SQL_CLAUSE_SELECT;
