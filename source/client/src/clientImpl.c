@@ -1279,6 +1279,10 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   SRequestObj*         pRequest = pWrapper->pRequest;
   STscObj*             pTscObj = pRequest->pTscObj;
 
+  // Note: This is EXECUTE completion callback, not FETCH callback.
+  // Scheduler job phase is authoritative. Client phase is only fallback.
+  // Let heartbeat read scheduler job phase via schedulerGetJobPhase().
+
   pRequest->code = code;
   if (pResult) {
     destroyQueryExecRes(&pRequest->body.resInfo.execRes);
@@ -1322,6 +1326,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   }
 
   pRequest->metric.execCostUs = taosGetTimestampUs() - pRequest->metric.execStart;
+
   int32_t code1 = handleQueryExecRsp(pRequest);
   if (pRequest->code == TSDB_CODE_SUCCESS && pRequest->code != code1) {
     pRequest->code = code1;
@@ -1450,7 +1455,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   int64_t     st = taosGetTimestampUs();
 
   if (!pRequest->parseOnly) {
-    atomic_store_32((int32_t*)&pRequest->execPhase, QUERY_PHASE_PLAN);
+    atomic_store_32((int32_t*)&pRequest->execPhase, QUERY_PHASE_SCHEDULE_ANALYSIS);
     atomic_store_64((int64_t*)&pRequest->phaseStartTime, taosGetTimestampMs());
 
     pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
@@ -1473,6 +1478,8 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .timezone = pRequest->pTscObj->optionInfo.timezone,
                         .allocatorId = pRequest->stmtBindVersion > 0 ? 0 : pRequest->allocatorRefId};
     if (TSDB_CODE_SUCCESS == code) {
+      atomic_store_32((int32_t*)&pRequest->execPhase, QUERY_PHASE_SCHEDULE_PLANNING);
+      atomic_store_64((int64_t*)&pRequest->phaseStartTime, taosGetTimestampMs());
       code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
     }
     if (code) {
@@ -1489,6 +1496,8 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
 
   if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
     if (QUERY_NODE_VNODE_MODIFY_STMT != nodeType(pQuery->pRoot)) {
+      atomic_store_32((int32_t*)&pRequest->execPhase, QUERY_PHASE_SCHEDULE_NODE_SELECTION);
+      atomic_store_64((int64_t*)&pRequest->phaseStartTime, taosGetTimestampMs());
       code = buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta);
     }
 
@@ -1498,6 +1507,8 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
     }
 
     if (code == TSDB_CODE_SUCCESS) {
+      atomic_store_32((int32_t*)&pRequest->execPhase, QUERY_PHASE_SCHEDULE_RESOURCE_ALLOC);
+      atomic_store_64((int64_t*)&pRequest->phaseStartTime, taosGetTimestampMs());
       SRequestConnInfo conn = {.pTrans = getAppInfo(pRequest)->pTransporter,
                                .requestId = pRequest->requestId,
                                .requestObjRefId = pRequest->self};
@@ -3312,6 +3323,10 @@ TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly,
 static void fetchCallback(void* pResult, void* param, int32_t code) {
   SRequestObj* pRequest = (SRequestObj*)param;
 
+  // Server response received, preparing to process
+  atomic_store_32(&pRequest->execPhase, QUERY_PHASE_FETCH_PREPARING_RESPONSE);
+  atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
+
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
 
   tscDebug("req:0x%" PRIx64 ", enter scheduler fetch cb, code:%d - %s, QID:0x%" PRIx64, pRequest->self, code,
@@ -3383,11 +3398,19 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
     return;
   }
 
+  // Client preparing to send fetch request to server
+  atomic_store_32(&pRequest->execPhase, QUERY_PHASE_FETCH_CLIENT_REQUEST);
+  atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
+
   SSchedulerReq req = {
       .syncReq = false,
       .fetchFp = fetchCallback,
       .cbParam = pRequest,
   };
+
+  // Request sent, waiting for server processing
+  atomic_store_32(&pRequest->execPhase, QUERY_PHASE_FETCH_SERVER_PROCESSING);
+  atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
 
   int32_t code = schedulerFetchRows(pRequest->body.queryJob, &req);
   if (TSDB_CODE_SUCCESS != code) {

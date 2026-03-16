@@ -81,10 +81,14 @@ int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rs
   int32_t code = 0;
   
   SCH_ERR_JRET(rspCode);
-  
+
   if (NULL == msg) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
+
+  // Set phase to PREPARING_RESPONSE when fetch response is received
+  atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_PREPARING_RESPONSE);
+  atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
   
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     if (rsp->completed) {
@@ -1255,6 +1259,14 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     }
     case TDMT_SCH_QUERY:
     case TDMT_SCH_MERGE_QUERY: {
+      // Set phase to distinguish data query from merge query
+      if (TDMT_SCH_QUERY == msgType) {
+        atomic_store_32(&pJob->execPhase, QUERY_PHASE_EXEC_DATA_QUERY);
+      } else {
+        atomic_store_32(&pJob->execPhase, QUERY_PHASE_EXEC_MERGE_QUERY);
+      }
+      atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+
       SCH_ERR_RET(schMakeQueryRpcCtx(pJob, pTask, &rpcCtx));
 
       SSubQueryMsg qMsg;

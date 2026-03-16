@@ -7,8 +7,9 @@ class TestQueryPhaseTracking:
     
     This feature adds phase_state and phase_start_time columns to show queries output
     to help track query execution phases for performance analysis.
-    
-    Phases: none, parse, catalog, plan, schedule, execute, fetch, done
+
+    Main phases: none, parse, catalog, plan, schedule, execute, fetch, done
+    Sub-phases: schedule:*, fetch:* (for finer-grained tracking)
     """
 
     def setup_class(cls):
@@ -75,7 +76,18 @@ class TestQueryPhaseTracking:
         
         tdSql.query(f"show queries")
         
-        valid_phases = ["none", "parse", "catalog", "plan", "schedule", "execute", "fetch", "done"]
+        valid_phases = [
+            # Main phases
+            "none", "parse", "catalog", "plan", "schedule", "execute", "fetch", "done",
+            # SCHEDULE sub-phases
+            "schedule:analysis", "schedule:planning",
+            "schedule:node_selection", "schedule:resource_alloc",
+            # EXECUTE sub-phases
+            "execute:data_query", "execute:merge_query",
+            # FETCH sub-phases
+            "fetch:client_request", "fetch:server_processing",
+            "fetch:preparing_response"
+        ]
         
         if tdSql.getRows() > 0:
             col_names = [desc[0] for desc in tdSql.cursor.description]

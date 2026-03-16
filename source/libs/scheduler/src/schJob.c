@@ -536,6 +536,9 @@ int32_t schDumpJobFetchRes(SSchJob *pJob, void **pData) {
   pJob->fetched = true;
 
   if (pJob->fetchRes && ((SRetrieveTableRsp *)pJob->fetchRes)->completed) {
+    // Set phase to DONE before switching job status to SUCC
+    atomic_store_32(&pJob->execPhase, QUERY_PHASE_DONE);
+    atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
     SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_SUCC, NULL));
   }
 
@@ -798,7 +801,15 @@ int32_t schLaunchJobImpl(SSchJob *pJob) {
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
+  // Set phase to node selection before launching tasks
+  atomic_store_32(&pJob->execPhase, QUERY_PHASE_SCHEDULE_NODE_SELECTION);
+  atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+
   SCH_ERR_RET(schLaunchLevelTasks(pJob, level));
+
+  // Note: We don't set RESOURCE_ALLOC phase here because tasks may still be
+  // in flow control queue and not actually launched yet. The EXEC phase will
+  // be set when actual query messages are sent in schBuildAndSendMsg.
 
   return TSDB_CODE_SUCCESS;
 }

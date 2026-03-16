@@ -799,8 +799,21 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
       return TSDB_CODE_FAILED;
     }
     desc.subPlanNum = pRequest->body.subplanNum;
-    desc.execPhase = atomic_load_32(&pRequest->execPhase);
-    desc.phaseStartTime = atomic_load_64(&pRequest->phaseStartTime);
+
+    // Get phase from scheduler job (prefer scheduler phase over client phase)
+    int32_t  jobPhase = QUERY_PHASE_NONE;
+    int64_t  jobPhaseTime = 0;
+    int32_t  code = schedulerGetJobPhase(pRequest->body.queryJob, &jobPhase, &jobPhaseTime);
+
+    if (code == TSDB_CODE_SUCCESS) {
+      // Use scheduler job phase (even if it's NONE - scheduler's phase is authoritative)
+      desc.execPhase = jobPhase;
+      desc.phaseStartTime = jobPhaseTime;
+    } else {
+      // Scheduler job not found or error, fallback to client request phase
+      desc.execPhase = atomic_load_32(&pRequest->execPhase);
+      desc.phaseStartTime = atomic_load_64(&pRequest->phaseStartTime);
+    }
 
     if (desc.subPlanNum) {
       desc.subDesc = taosArrayInit(desc.subPlanNum, sizeof(SQuerySubDesc));

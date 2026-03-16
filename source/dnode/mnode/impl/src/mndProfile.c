@@ -1344,7 +1344,7 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     }
 
     const char* phaseStr = queryPhaseStr(pQuery->execPhase);
-    char phaseVarStr[16 + VARSTR_HEADER_SIZE];
+    char        phaseVarStr[64 + VARSTR_HEADER_SIZE];
     STR_TO_VARSTR(phaseVarStr, phaseStr);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)phaseVarStr, false);

@@ -67,9 +67,18 @@ int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
   int32_t  code = 0;
   SSchJob *pJob = NULL;
 
+  // schInitJob sets phase to ANALYSIS internally
   SCH_ERR_JRET(schInitJob(pJobId, pReq));
 
   SCH_ERR_JRET(schHandleOpBeginEvent(*pJobId, &pJob, SCH_OP_EXEC, pReq));
+
+  // Set phase to ANALYSIS at the start of scheduling
+  atomic_store_32(&pJob->execPhase, QUERY_PHASE_SCHEDULE_ANALYSIS);
+  atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+
+  // Set phase to PLANNING before status switches
+  atomic_store_32(&pJob->execPhase, QUERY_PHASE_SCHEDULE_PLANNING);
+  atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
 
   SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_INIT, pReq));
 
@@ -88,7 +97,15 @@ int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq *pReq) {
 
   SCH_ERR_JRET(schHandleOpBeginEvent(jobId, &pJob, SCH_OP_FETCH, pReq));
 
+  // Set phase to CLIENT_REQUEST before starting fetch
+  atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_CLIENT_REQUEST);
+  atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+
   SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_FETCH, pReq));
+
+  // After fetch task launched successfully, set to server processing phase
+  atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_SERVER_PROCESSING);
+  atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
 
 _return:
 
@@ -130,6 +147,25 @@ int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
 _return:
 
   SCH_RET(schHandleOpEndEvent(pJob, SCH_OP_GET_STATUS, NULL, code));
+}
+
+int32_t schedulerGetJobPhase(int64_t jobId, int32_t *pPhase, int64_t *pPhaseStartTime) {
+  SSchJob *pJob = NULL;
+  int32_t  code = 0;
+
+  SCH_ERR_RET(schAcquireJob(jobId, &pJob));
+  if (NULL == pJob) {
+    qDebug("jobId:0x%" PRIx64 ", acquire sch job failed for phase query", jobId);
+    SCH_ERR_RET(TSDB_CODE_SCH_JOB_NOT_EXISTS);
+  }
+
+  *pPhase = atomic_load_32(&pJob->execPhase);
+  *pPhaseStartTime = atomic_load_64(&pJob->phaseStartTime);
+
+  (void)schReleaseJob(pJob->refId);
+
+  qDebug("jobId:0x%" PRIx64 ", retrieved phase:%d, startTime:%" PRId64, jobId, *pPhase, *pPhaseStartTime);
+  return TSDB_CODE_SUCCESS;
 }
 
 void schedulerStopQueryHb(void *pTrans) {

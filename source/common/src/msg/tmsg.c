@@ -256,6 +256,9 @@ void *taosDecodeSEpSet(const void *buf, SEpSet *pEp) {
 
 const char *queryPhaseStr(int32_t phase) {
   switch (phase) {
+    /* Main phases */
+    case QUERY_PHASE_NONE:
+      return "none";
     case QUERY_PHASE_PARSE:
       return "parse";
     case QUERY_PHASE_CATALOG:
@@ -270,8 +273,33 @@ const char *queryPhaseStr(int32_t phase) {
       return "fetch";
     case QUERY_PHASE_DONE:
       return "done";
+
+    /* SCHEDULE sub-phases */
+    case QUERY_PHASE_SCHEDULE_ANALYSIS:
+      return "schedule:analysis";
+    case QUERY_PHASE_SCHEDULE_PLANNING:
+      return "schedule:planning";
+    case QUERY_PHASE_SCHEDULE_NODE_SELECTION:
+      return "schedule:node_selection";
+    case QUERY_PHASE_SCHEDULE_RESOURCE_ALLOC:
+      return "schedule:resource_alloc";
+
+    /* EXECUTE sub-phases */
+    case QUERY_PHASE_EXEC_DATA_QUERY:
+      return "execute:data_query";
+    case QUERY_PHASE_EXEC_MERGE_QUERY:
+      return "execute:merge_query";
+
+    /* FETCH sub-phases */
+    case QUERY_PHASE_FETCH_CLIENT_REQUEST:
+      return "fetch:client_request";
+    case QUERY_PHASE_FETCH_SERVER_PROCESSING:
+      return "fetch:server_processing";
+    case QUERY_PHASE_FETCH_PREPARING_RESPONSE:
+      return "fetch:preparing_response";
+
     default:
-      return "none";
+      return "unknown";
   }
 }
 

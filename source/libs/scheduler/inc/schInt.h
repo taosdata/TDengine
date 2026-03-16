@@ -115,6 +115,7 @@ typedef struct SSchResInfo {
   schedulerExecFp  execFp;
   schedulerFetchFp fetchFp;
   void            *cbParam;
+  void            *pRequest;  // Add pointer to request object for phase tracking
 } SSchResInfo;
 
 typedef struct SSchOpEvent {
@@ -327,6 +328,8 @@ typedef struct SSchJob {
   SQueryProfileSummary summary;
   int8_t               source;
   void                *pWorkerCb;
+  int32_t              execPhase;      // Add phase tracking for query execution
+  int64_t              phaseStartTime; // When current phase started (ms)
 } SSchJob;
 
 typedef struct SSchTaskCtx {
@@ -335,6 +338,9 @@ typedef struct SSchTaskCtx {
   SSchTask *pTask;
   bool      asyncLaunch;
 } SSchTaskCtx;
+
+// Phase tracking helper functions
+void schSetExecPhase(void *pRequest, int32_t phase);
 
 extern SSchedulerMgmt schMgmt;
 
