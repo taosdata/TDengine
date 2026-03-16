@@ -566,7 +566,7 @@ QUERY_PLAN: Execution Time: 8.138 m
 
 ## 诊断建议
 
-### 没有使用标签索引：
+### 没有使用标签索引
 
 ```text
 -> Table Scan on meters (...)
