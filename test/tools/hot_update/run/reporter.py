@@ -43,7 +43,9 @@ class Reporter:
     def summary_start(self, from_ver: str, to_ver: str, fqdn: str,
                       dnode_count: int, mnode_count: int,
                       subtables: int, rows_per_table: int,
-                      verify_window: int):
+                      verify_window: int,
+                      check_sysinfo: bool = False,
+                      gen_whitelist=None):
         print(_bar("═"))
         print(f"  TDengine Rolling Upgrade Test")
         print(_bar("─"))
@@ -53,6 +55,11 @@ class Reporter:
         print(f"  Cluster      : {dnode_count} DNODEs / {mnode_count} MNODEs / 3-replica")
         print(f"  Dataset      : {subtables} subtables × {rows_per_table:,} rows")
         print(f"  Verify window: {verify_window}s")
+        if gen_whitelist is not None:
+            fname = gen_whitelist if isinstance(gen_whitelist, str) else "(auto)"
+            print(f"  Gen-whitelist: {fname}")
+        elif check_sysinfo:
+            print(f"  SysInfo check: enabled")
         print(f"  Started at   : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(_bar("═"))
         print()
@@ -129,6 +136,7 @@ class Reporter:
         elapsed = time.time() - start_time
         m, s = divmod(int(elapsed), 60)
 
+        print("\n")
         print(_bar("═"))
         print(f"  TDengine Rolling Upgrade Test  ─  SUMMARY")
         print(_bar("─"))

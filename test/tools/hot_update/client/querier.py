@@ -4,7 +4,13 @@
 # Background querier process.
 # Executes  SELECT COUNT(*) FROM {stable}  once per second.
 # Updates shared metrics dict with latency information.
-# Retry policy mirrors writer.py: RETRY_INTERVAL_S / RETRY_TIMEOUT_S.
+#
+# Retry policy
+# ------------
+# On failure: sleep RETRY_INTERVAL_S and retry (no process exit).
+# After MAX_CONSECUTIVE_RETRIES consecutive failures increment query_error_count
+# (= 1 real failure) and reset the counter.  The process keeps running.
+# Pass/fail judgment is done in main.py: query_error_count == 0 → pass.
 
 import os
 import sys
@@ -27,7 +33,8 @@ def querier_main(fqdn: str, cfg_dir: str, metrics, stop_event):
     import taos
 
     conn        = None
-    error_since = None
+    retry_count = 0    # consecutive failure count
+    retry_since = None # wall time when current retry window started
 
     def _connect() -> taos.TaosConnection:
         return taos.connect(host=fqdn, config=cfg_dir)
@@ -55,7 +62,9 @@ def querier_main(fqdn: str, cfg_dir: str, metrics, stop_event):
             cursor.close()
             latency = time.time() - t0
 
-            error_since = None
+            # Success – reset consecutive failure counter
+            retry_count = 0
+            retry_since = None
 
             metrics["query_last_latency"] = latency
             if latency > metrics.get("query_max_latency", 0.0):
@@ -63,7 +72,6 @@ def querier_main(fqdn: str, cfg_dir: str, metrics, stop_event):
             if latency > metrics.get("query_window_max", 0.0):
                 metrics["query_window_max"] = latency
             metrics["query_phase4_success"] = metrics.get("query_phase4_success", 0) + 1
-            # Store COUNT(*) result for display
             if rows:
                 metrics["query_last_count"] = int(rows[0][0])
 
@@ -75,18 +83,27 @@ def querier_main(fqdn: str, cfg_dir: str, metrics, stop_event):
                 pass
             conn = None
 
+            retry_count += 1
+            metrics["query_retry_count"] = metrics.get("query_retry_count", 0) + 1
             now = time.time()
-            if error_since is None:
-                error_since = now
+            if retry_since is None:
+                retry_since = now
+            elapsed_retry = now - retry_since
+            hit_count = retry_count >= config.MAX_CONSECUTIVE_RETRIES
+            hit_time  = elapsed_retry >= config.RETRY_MAX_DURATION_S
+            if hit_count or hit_time:
+                reason = (
+                    f"retries={retry_count}/{config.MAX_CONSECUTIVE_RETRIES}  "
+                    f"duration={elapsed_retry:.1f}s/{config.RETRY_MAX_DURATION_S}s"
+                )
                 metrics["query_error_count"] = metrics.get("query_error_count", 0) + 1
-
-            if now - error_since >= config.RETRY_TIMEOUT_S:
-                metrics["query_failed"] = True
+                retry_count = 0
+                retry_since = None
                 sys.stderr.write(
-                    f"[querier] FATAL: query failed for {config.RETRY_TIMEOUT_S}s, "
+                    f"[querier] failure threshold reached ({reason}), "
+                    f"total failures={metrics['query_error_count']}, "
                     f"last error: {e}\n"
                 )
-                return
 
             time.sleep(config.RETRY_INTERVAL_S)
             continue

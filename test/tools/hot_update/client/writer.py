@@ -3,9 +3,13 @@
 #
 # Background writer process.
 # Inserts 1 row per second into subtable d0.
-# Updates shared metrics dict with latency information.
-# On failure: retries every RETRY_INTERVAL_S seconds.
-# If retries exceed RETRY_TIMEOUT_S, marks metrics["write_failed"] = True and exits.
+#
+# Retry policy
+# ------------
+# On failure: sleep RETRY_INTERVAL_S and retry (no process exit).
+# After MAX_CONSECUTIVE_RETRIES consecutive failures increment write_error_count
+# (= 1 real failure) and reset the counter.  The process keeps running.
+# Pass/fail judgment is done in main.py: write_error_count == 0 → pass.
 
 import os
 import sys
@@ -19,8 +23,6 @@ import config
 
 def writer_main(fqdn: str, cfg_dir: str, metrics, stop_event):
     """
-    Entry point for the writer child process.
-
     Parameters
     ----------
     fqdn       : cluster FQDN
@@ -28,13 +30,22 @@ def writer_main(fqdn: str, cfg_dir: str, metrics, stop_event):
     metrics    : multiprocessing.Manager().dict() – shared metrics
     stop_event : multiprocessing.Event – set by parent to request graceful shutdown
     """
-    # Import taos inside the worker; it inherits LD_LIBRARY_PATH from the parent
-    # (Linux fork), so the correct libtaos.so is already loaded.
     import taos
 
     conn         = None
-    error_since  = None   # timestamp of first consecutive failure in a retry window
+    retry_count  = 0       # consecutive failure count
+    retry_since  = None    # wall time when current retry window started
     ts           = 1789000000000
+
+    # Wait until the subscriber has confirmed its subscription is active so that
+    # no rows are written before TMQ offset is established (avoids leading gap).
+    _wait_start = time.time()
+    while not metrics.get("subscribe_ready", False):
+        if time.time() - _wait_start > 30:
+            sys.stderr.write("[writer] subscribe_ready timeout, starting anyway\n")
+            break
+        time.sleep(0.1)
+    sys.stderr.write("   [writer] subscriber ready, starting writes\n")
 
     def _connect() -> taos.TaosConnection:
         return taos.connect(host=fqdn, config=cfg_dir)
@@ -64,24 +75,23 @@ def writer_main(fqdn: str, cfg_dir: str, metrics, stop_event):
             )
             latency = time.time() - t0
 
-            # Reset error window on success
-            error_since = None
+            # Success – reset consecutive failure counter
+            retry_count = 0
+            retry_since = None
 
-            # Update metrics
             metrics["write_last_latency"] = latency
             if latency > metrics.get("write_max_latency", 0.0):
                 metrics["write_max_latency"] = latency
             if latency > metrics.get("write_window_max", 0.0):
                 metrics["write_window_max"] = latency
             metrics["write_phase4_success"] = metrics.get("write_phase4_success", 0) + 1
-            # Store last-written row for display
+            metrics["write_total_rows"]      = metrics.get("write_total_rows", 0) + 1
             metrics["write_last_ts"]      = ts
             metrics["write_last_current"] = current
             metrics["write_last_voltage"] = voltage
             metrics["write_last_phase"]   = phase
 
         except Exception as e:
-            # Reconnect next iteration
             try:
                 if conn:
                     conn.close()
@@ -89,18 +99,27 @@ def writer_main(fqdn: str, cfg_dir: str, metrics, stop_event):
                 pass
             conn = None
 
+            retry_count += 1
+            metrics["write_retry_count"] = metrics.get("write_retry_count", 0) + 1
             now = time.time()
-            if error_since is None:
-                error_since = now
+            if retry_since is None:
+                retry_since = now
+            elapsed_retry = now - retry_since
+            hit_count = retry_count >= config.MAX_CONSECUTIVE_RETRIES
+            hit_time  = elapsed_retry >= config.RETRY_MAX_DURATION_S
+            if hit_count or hit_time:
+                reason = (
+                    f"retries={retry_count}/{config.MAX_CONSECUTIVE_RETRIES}  "
+                    f"duration={elapsed_retry:.1f}s/{config.RETRY_MAX_DURATION_S}s"
+                )
                 metrics["write_error_count"] = metrics.get("write_error_count", 0) + 1
-
-            if now - error_since >= config.RETRY_TIMEOUT_S:
-                metrics["write_failed"] = True
+                retry_count = 0
+                retry_since = None
                 sys.stderr.write(
-                    f"[writer] FATAL: write failed for {config.RETRY_TIMEOUT_S}s, "
+                    f"[writer] failure threshold reached ({reason}), "
+                    f"total failures={metrics['write_error_count']}, "
                     f"last error: {e}\n"
                 )
-                return
 
             time.sleep(config.RETRY_INTERVAL_S)
             continue

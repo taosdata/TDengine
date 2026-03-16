@@ -26,7 +26,9 @@ def _get_taosd_version(bin_path: str) -> str:
             capture_output=True, text=True, timeout=5
         )
         output = result.stdout + result.stderr
-        m = re.search(r'taosd version:\s*(\S+)', output)
+        # 3.4+: "taosd version: 3.4.0.8.enterprise"
+        # 3.3.0.x: "enterprise version: 3.3.0.0"
+        m = re.search(r'(?:taosd|enterprise) version:\s*(\S+)', output)
         return m.group(1) if m else "unknown"
     except Exception:
         return "unknown"
@@ -175,15 +177,22 @@ class RollingUpgrader:
             self._render_dnodes(rows, title + "  (heartbeat timeout pending)", self._node_versions())
 
     def _render_dnodes(self, rows, title: str, versions: dict = None):
-        """Print a pre-fetched SHOW DNODES result set, with an optional Version column."""
+        """Print a pre-fetched SHOW DNODES result set, with an optional Version column.
+
+        SHOW DNODES column layouts:
+          3.3.x (7 cols):  id, endpoint, vnodes, support_vnodes, status,
+                           create_time, note
+          3.4.x (9 cols):  id, endpoint, vnodes, support_vnodes, status,
+                           create_time, reboot_time, note, machine_id
+        """
         versions = versions or {}
         header = (
             f"  {'ID':>3}  {'Endpoint':<24}  {'VNodes':>6}  {'Status':<10}  "
-            f"{'Version':<28}  Note"
+            f"{'Version':<28}  {'Reboot':<24}  Note"
         )
         sep = (
             f"  {'-'*3}  {'-'*24}  {'-'*6}  {'-'*10}  "
-            f"{'-'*28}  {'-'*20}"
+            f"{'-'*28}  {'-'*24}  {'-'*20}"
         )
         self._log(f"  ── SHOW DNODES  {title}" if title else "  ── SHOW DNODES")
         self._log(header)
@@ -193,12 +202,23 @@ class RollingUpgrader:
             endpoint   = str(row[1])
             vnode_num  = row[2]
             status     = str(row[4])
-            note       = str(row[5]) if len(row) > 5 and row[5] else ""
+            # Detect column layout by row width:
+            #   len == 7  → 3.3.x:  note at [6], no reboot_time
+            #   len >= 9  → 3.4.x:  reboot_time at [6], note at [7]
+            if len(row) >= 9:
+                reboot_time = str(row[6]) if row[6] else "-"
+                note        = str(row[7]) if row[7] else ""
+            elif len(row) >= 7:
+                reboot_time = "-"
+                note        = str(row[6]) if row[6] else ""
+            else:
+                reboot_time = "-"
+                note        = ""
             version    = versions.get(dnode_id, "-")
             status_fmt = "[OFFLINE]" if status != "ready" else "ready   "
             self._log(
                 f"  {dnode_id:>3}  {endpoint:<24}  {vnode_num:>6}  {status_fmt:<10}  "
-                f"{version:<28}  {note}"
+                f"{version:<28}  {reboot_time:<24}  {note}"
             )
         self._log("")
 
@@ -299,6 +319,13 @@ class RollingUpgrader:
         # Poll until cluster marks the node offline, then print snapshot
         self._print_dnodes_after_stop(stopped_index=index)
 
+        # Simulate the time required to install a new package in production
+        self._log(
+            f"DNode {index}: waiting {config.NODE_INSTALL_SLEEP_S}s "
+            f"(simulating package installation) ..."
+        )
+        time.sleep(config.NODE_INSTALL_SLEEP_S)
+
         self._install_binary(index, to_taosd_path)
         self._log(f"DNode {index}: binary replaced")
 
@@ -312,10 +339,6 @@ class RollingUpgrader:
         self._print_dnodes(title=f"after DNode {index} ready")
 
         time.sleep(3)
-
-        if metrics.get("write_failed") or metrics.get("query_failed") or metrics.get("subscribe_failed"):
-            self._err(f"Workload failure detected after upgrading DNode {index}")
-            return False
 
         if hasattr(self.rp, "node_upgrade_done"):
             self.rp.node_upgrade_done(index)
@@ -344,4 +367,55 @@ class RollingUpgrader:
                 self._err(f"Upgrade failed at DNode {idx}")
                 return False
 
+        return True
+
+
+# ==================== ColdUpgrader ====================
+
+class ColdUpgrader(RollingUpgrader):
+    """
+    Orchestrates cold (offline) upgrade of all DNodes:
+      1. Stop every node
+      2. Replace binaries on every node
+      3. Start every node
+      4. Wait for all nodes to become ready
+    Background workloads are NOT running during this process.
+    """
+
+    def run(self, to_taosd_path: str, node_count: int, metrics) -> bool:
+        to_taosd_path = os.path.abspath(to_taosd_path)
+        if not os.path.isfile(to_taosd_path):
+            self._err(f"Target taosd not found: {to_taosd_path}")
+            return False
+        os.chmod(to_taosd_path, 0o755)
+
+        order: List[int] = list(range(1, node_count + 1))
+
+        # Step 1: stop all nodes
+        self._log("Cold upgrade: stopping all nodes ...")
+        for idx in order:
+            self._log(f"  DNode {idx}: stopping ...")
+            if not self._stop_node(idx):
+                self._err(f"Failed to stop DNode {idx}")
+                return False
+        self._log("All nodes stopped.")
+
+        # Step 2: replace binaries on all nodes
+        for idx in order:
+            self._install_binary(idx, to_taosd_path)
+            self._log(f"  DNode {idx}: binary replaced")
+
+        # Step 3: start all nodes
+        self._log("Cold upgrade: starting all nodes ...")
+        for idx in order:
+            self._log(f"  DNode {idx}: starting ...")
+            if not self._start_node(idx):
+                self._err(f"Failed to start DNode {idx}")
+                return False
+
+        # Step 4 is intentionally omitted: the parent process still uses the
+        # old (from_dir) client library which cannot connect to the upgraded
+        # servers.  Connectivity and node-ready checking is performed by the
+        # Phase 4-5 subprocess that starts with the new (to_dir) library.
+        self._log("All nodes started (port listening confirmed).")
         return True

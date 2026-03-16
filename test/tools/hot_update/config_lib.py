@@ -7,8 +7,8 @@
 # os.environ changes within the same process do NOT retroactively affect
 # subsequent dlopen() calls for bare library names like "libtaos.so".
 #
-# Fix: if LD_LIBRARY_PATH does not already point at version_dir, create the
-# symlink and then os.execv() to re-launch the same Python script with the
+# Fix: if LD_LIBRARY_PATH does not already point at version_dir, set it
+# and then os.execv() to re-launch the same Python script with the
 # correct LD_LIBRARY_PATH set from process start.  The re-launched process
 # detects the env is already correct and skips the re-exec.
 
@@ -24,11 +24,10 @@ def prepare_native_lib(version_dir: str) -> str:
     """
     Ensure libtaos.so from `version_dir` is loaded when `import taos` runs.
 
-    1. Verify libtaosnative.so exists.
-    2. Create symlink  libtaos.so -> libtaosnative.so  in version_dir.
-    3. If LD_LIBRARY_PATH already includes version_dir (i.e. we were re-exec'ed),
+    1. Verify libtaos.so exists in version_dir.
+    2. If LD_LIBRARY_PATH already includes version_dir (i.e. we were re-exec'ed),
        return immediately – libtaos.so will be found at import time.
-    4. Otherwise set LD_LIBRARY_PATH and os.execv() to restart this process
+    3. Otherwise set LD_LIBRARY_PATH and os.execv() to restart this process
        with the correct environment from the very beginning.
     """
     version_dir = os.path.abspath(version_dir)
@@ -41,21 +40,15 @@ def prepare_native_lib(version_dir: str) -> str:
     if current_lib_dir == version_dir:
         return version_dir
 
-    # -- Step 2: verify source library ------------------------------------
-    native_lib = os.path.join(version_dir, "libtaosnative.so")
-    if not os.path.isfile(native_lib):
+    # -- Step 2: verify library -------------------------------------------
+    taos_lib = os.path.join(version_dir, "libtaos.so")
+    if not os.path.isfile(taos_lib):
         raise FileNotFoundError(
-            f"libtaosnative.so not found in {version_dir}. "
-            "Directory must contain both taosd and libtaosnative.so."
+            f"libtaos.so not found in {version_dir}. "
+            "Directory must contain both taosd and libtaos.so."
         )
 
-    # -- Step 3: symlink --------------------------------------------------
-    taos_link = os.path.join(version_dir, "libtaos.so")
-    if os.path.islink(taos_link) or os.path.exists(taos_link):
-        os.remove(taos_link)
-    os.symlink(native_lib, taos_link)
-
-    # -- Step 4: set env and re-exec --------------------------------------
+    # -- Step 3: set env and re-exec --------------------------------------
     old_ldpath = os.environ.get("LD_LIBRARY_PATH", "")
     parts = [p for p in old_ldpath.split(":") if p and p != version_dir]
     os.environ["LD_LIBRARY_PATH"] = ":".join([version_dir] + parts)

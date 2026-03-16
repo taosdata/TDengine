@@ -4,13 +4,14 @@
 # Background TMQ subscriber process.
 # Records time gaps between consecutive received message batches.
 #
-# Retry policy: on any consumer error reconnect.
-# If reconnection keeps failing for RETRY_TIMEOUT_S, marks
-# metrics["subscribe_failed"] = True and exits.
+# Retry policy: on any consumer error reconnect and keep running (no fatal exit).
+# Pass/fail criterion is checked in main.py:
+#   if no data received for SUBSCRIBE_NO_DATA_TIMEOUT_S seconds → not ok.
 
 import os
 import sys
 import time
+import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import config
@@ -28,9 +29,8 @@ def subscriber_main(fqdn: str, cfg_dir: str, metrics, stop_event):
     from taos.tmq import Consumer
     from taos.error import TmqError
 
-    consumer    = None
-    error_since = None
-    last_msg_time: float = 0.0
+    consumer       = None
+    last_msg_time  = 0.0   # local copy; also written to metrics for main.py check
 
     def _make_consumer():
         c = Consumer({
@@ -58,21 +58,14 @@ def subscriber_main(fqdn: str, cfg_dir: str, metrics, stop_event):
         # Ensure consumer is alive
         if consumer is None:
             try:
-                consumer    = _make_consumer()
-                error_since = None
+                consumer = _make_consumer()
+                # Signal writer that the subscription is active before it writes row 1
+                if not metrics.get("subscribe_ready", False):
+                    metrics["subscribe_ready"] = True
+                    sys.stderr.write("   [subscriber] subscription active, writer may start\n")
             except Exception as e:
-                now = time.time()
-                if error_since is None:
-                    error_since = now
                 metrics["subscribe_error_count"] = metrics.get("subscribe_error_count", 0) + 1
-
-                if now - error_since >= config.RETRY_TIMEOUT_S:
-                    metrics["subscribe_failed"] = True
-                    sys.stderr.write(
-                        f"[subscriber] FATAL: cannot connect for "
-                        f"{config.RETRY_TIMEOUT_S}s, last error: {e}\n"
-                    )
-                    return
+                sys.stderr.write(f"   [subscriber] reconnect error: {e}\n")
                 time.sleep(config.RETRY_INTERVAL_S)
                 continue
 
@@ -83,14 +76,23 @@ def subscriber_main(fqdn: str, cfg_dir: str, metrics, stop_event):
             if msg is not None and msg.error() is None:
                 # Count rows in this batch safely
                 batch_rows = 0
-                try:
-                    for block in msg:
-                        try:
-                            batch_rows += len(block)
-                        except Exception:
-                            batch_rows += 1
-                except Exception:
-                    pass
+                val = msg.value()
+                if val:
+                    running_total = metrics.get("subscribe_recv_total", 0)
+                    for block in val:
+                        data = block.fetchall()
+                        if data:
+                            for row in data:
+                                running_total += 1
+                                batch_rows    += 1
+                                ts = row[0]
+                                if isinstance(ts, datetime.datetime):
+                                    ts_raw = int(ts.timestamp() * 1000)
+                                elif isinstance(ts, (int, float)):
+                                    ts_raw = int(ts)
+                                else:
+                                    ts_raw = ts   
+                                #sys.stderr.write(f"   [subscriber] recv ts={ts_raw}  total={running_total}\n")
 
                 now = time.time()
                 if last_msg_time > 0:
@@ -101,7 +103,9 @@ def subscriber_main(fqdn: str, cfg_dir: str, metrics, stop_event):
                     if gap > metrics.get("subscribe_window_max", 0.0):
                         metrics["subscribe_window_max"] = gap
                 last_msg_time = now
-                # Accumulate total rows received via TMQ
+                # Expose last-received timestamp so main.py can apply 90s check
+                metrics["subscribe_last_recv_time"] = now
+
                 if batch_rows > 0:
                     metrics["subscribe_last_batch_rows"] = batch_rows
                     metrics["subscribe_recv_total"] = (
@@ -113,18 +117,9 @@ def subscriber_main(fqdn: str, cfg_dir: str, metrics, stop_event):
 
         except Exception as e:
             metrics["subscribe_error_count"] = metrics.get("subscribe_error_count", 0) + 1
-            now = time.time()
-            if error_since is None:
-                error_since = now
-            if now - error_since >= config.RETRY_TIMEOUT_S:
-                metrics["subscribe_failed"] = True
-                sys.stderr.write(
-                    f"[subscriber] FATAL: polling failed for "
-                    f"{config.RETRY_TIMEOUT_S}s, last error: {e}\n"
-                )
-                _close_consumer()
-                return
+            sys.stderr.write(f"   [subscriber] poll error: {e}\n")
             _close_consumer()
             time.sleep(config.RETRY_INTERVAL_S)
 
     _close_consumer()
+

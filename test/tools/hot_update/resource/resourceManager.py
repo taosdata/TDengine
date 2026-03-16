@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import taos
 import config
 from server.clusterSetup import Logger
+from resource.priv_compat import grant_keywords, revoke_default_role, snapshot_privileges
 
 
 # ==================== helpers ====================
@@ -67,8 +68,9 @@ class ResourceManager:
             cursor.execute(
                 f"CREATE DATABASE IF NOT EXISTS {config.DB_NAME} "
                 f"REPLICA {config.REPLICA} "
+                f"VGROUPS {config.VGROUPS} "
+                f"STT_TRIGGER 2 "
                 f"WAL_RETENTION_PERIOD 3600 "
-                f"WAL_LEVEL 2"
             )
             cursor.execute(f"USE {config.DB_NAME}")
             self.logger.success(f"Database '{config.DB_NAME}' ready.")
@@ -220,6 +222,578 @@ class ResourceManager:
                 f"AS SELECT * FROM {config.STABLE_NAME}"
             )
             self.logger.success(f"Topic '{config.TOPIC_NAME}' ready.")
+        finally:
+            cursor.close()
+            conn.close()
+
+    # ------------------------------------------------------------------
+    # Step 6 – Test user + privilege grants
+    # Creates:
+    #   • Three stables with the same schema as STABLE_NAME:
+    #       meters_ro   → test_user has SELECT only
+    #       meters_wo   → test_user has INSERT only
+    #       meters_hidden → test_user has NO access
+    #   • One subtable under each stable
+    #   • User test_user with SYSINFO 0
+    #   • GRANT SELECT ON test_db.meters_ro TO test_user
+    #   • GRANT INSERT ON test_db.meters_wo TO test_user
+    # ------------------------------------------------------------------
+
+    def create_test_user(self) -> frozenset:
+        """
+        Set up test_user and its restricted privileges.
+        Returns a frozenset of (priv_type, priv_scope, db_name, table_name) tuples
+        representing the exact privilege set granted – to be compared after upgrade.
+        """
+        self.logger.info(
+            f"Creating test user '{config.TEST_USER_NAME}' with restricted privileges ..."
+        )
+        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        cursor = conn.cursor()
+        try:
+            cursor.execute(f"USE {config.DB_NAME}")
+
+            # ---- create the three permission-test stables ----
+            schema = (
+                "(ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) "
+                "TAGS (groupid INT, location BINARY(64))"
+            )
+            for sname in (
+                config.TEST_USER_READ_STABLE,
+                config.TEST_USER_WRITE_STABLE,
+                config.TEST_USER_HIDDEN_STABLE,
+            ):
+                cursor.execute(
+                    f"CREATE STABLE IF NOT EXISTS {config.DB_NAME}.{sname} {schema}"
+                )
+
+            # ---- create one subtable under each stable ----
+            cursor.execute(
+                f"CREATE TABLE IF NOT EXISTS {config.DB_NAME}.d_ro0 "
+                f"USING {config.DB_NAME}.{config.TEST_USER_READ_STABLE} TAGS(0, 'ro')"
+            )
+            cursor.execute(
+                f"CREATE TABLE IF NOT EXISTS {config.DB_NAME}.d_wo0 "
+                f"USING {config.DB_NAME}.{config.TEST_USER_WRITE_STABLE} TAGS(0, 'wo')"
+            )
+            cursor.execute(
+                f"CREATE TABLE IF NOT EXISTS {config.DB_NAME}.d_hidden0 "
+                f"USING {config.DB_NAME}.{config.TEST_USER_HIDDEN_STABLE} TAGS(0, 'hidden')"
+            )
+
+            # ---- create user ----
+            cursor.execute(
+                f"CREATE USER {config.TEST_USER_NAME} "
+                f"PASS '{config.TEST_USER_PASS}' SYSINFO 0"
+            )
+
+            # ---- grant privileges (version-aware) ----
+            read_kw, write_kw = grant_keywords(cursor)
+            self.logger.info(
+                f"Server → using GRANT {read_kw}/{write_kw} syntax"
+            )
+            revoke_default_role(cursor, config.TEST_USER_NAME, self.logger)
+
+            cursor.execute(
+                f"GRANT {read_kw} ON {config.DB_NAME}.{config.TEST_USER_READ_STABLE} "
+                f"TO {config.TEST_USER_NAME}"
+            )
+            cursor.execute(
+                f"GRANT {write_kw} ON {config.DB_NAME}.{config.TEST_USER_WRITE_STABLE} "
+                f"TO {config.TEST_USER_NAME}"
+            )
+
+            # ---- capture normalised privilege snapshot ----
+            snap = snapshot_privileges(cursor, config.TEST_USER_NAME)
+            self.logger.success(
+                f"test_user '{config.TEST_USER_NAME}' created; "
+                f"{len(snap)} privilege row(s) granted "
+                f"({read_kw} on {config.TEST_USER_READ_STABLE}, "
+                f"{write_kw} on {config.TEST_USER_WRITE_STABLE})"
+            )
+            return snap
+
+        finally:
+            cursor.close()
+            conn.close()
+
+    # ------------------------------------------------------------------
+    # Step 7 – Tag index
+    # Creates one explicit tag index on the main stable:
+    #   idx_compat_location → meters.location
+    # (meters.groupid is the first tag and already has an auto-generated index;
+    # attempting to add another index on it raises 0x0483 "index already exists".)
+    # Returns a snapshot (dict) to be compared after upgrade.
+    # ------------------------------------------------------------------
+
+    def _show_index_snapshot(self, cursor) -> dict:
+        """
+        Run ``SHOW INDEXES FROM <stable> FROM <db>`` and return a dict keyed
+        by index name.  Values are raw row tuples (positional) so no column
+        name string is relied upon for cross-version comparisons.
+
+        The column that holds the index name is located via cursor.description
+        (case-insensitive search for "index_name"); position 2 is the fallback
+        per the documented schema: db_name, table_name, index_name, …
+        """
+        cursor.execute(
+            f"SHOW INDEXES FROM {config.STABLE_NAME} FROM {config.DB_NAME}"
+        )
+        desc = [d[0].lower() for d in cursor.description]
+        try:
+            name_pos = next(i for i, c in enumerate(desc) if c == "index_name")
+        except StopIteration:
+            name_pos = 2  # documented position fallback
+
+        target = {config.TAG_INDEX_LOCATION}
+        return {
+            row[name_pos]: tuple(row)
+            for row in cursor.fetchall()
+            if row[name_pos] in target
+        }
+
+    def create_tag_indexes(self) -> dict:
+        """
+        Create two tag indexes on the main stable and return a positional
+        snapshot from ``SHOW INDEXES`` to be compared after upgrade.
+
+        Returns:
+            dict[str, tuple]: index_name → row tuple (positional)
+        """
+        self.logger.info("Creating tag indexes on stable 'meters' ...")
+        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        cursor = conn.cursor()
+        try:
+            cursor.execute(f"USE {config.DB_NAME}")
+            cursor.execute(
+                f"CREATE INDEX {config.TAG_INDEX_LOCATION} "
+                f"ON {config.STABLE_NAME} (location)"
+            )
+
+            snapshot = self._show_index_snapshot(cursor)
+            self.logger.success(
+                f"Tag indexes created: {sorted(snapshot.keys())}"
+            )
+            return snapshot
+
+        finally:
+            cursor.close()
+            conn.close()
+
+    def verify_tag_indexes(self, snapshot: dict) -> tuple:
+        """
+        Re-query indexes via ``SHOW INDEXES`` after upgrade and compare
+        against *snapshot* (positional row tuples from Phase 2).
+
+        Rows are compared positionally up to the length of the baseline tuple
+        so that harmlessly added trailing columns do not cause false failures.
+
+        Returns:
+            (True,  summary_str)  – all indexes present and values unchanged
+            (False, error_str)    – one or more indexes missing or differ
+        """
+        if not snapshot:
+            return False, "baseline snapshot is empty – Phase 2 did not capture indexes"
+
+        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        cursor = conn.cursor()
+        try:
+            current = self._show_index_snapshot(cursor)
+
+            errors = []
+            for name, expected_row in sorted(snapshot.items()):
+                if name not in current:
+                    errors.append(f"index '{name}' missing after upgrade")
+                    continue
+                got_row = current[name]
+                n = len(expected_row)  # compare only baseline columns
+                if tuple(got_row[:n]) != tuple(expected_row[:n]):
+                    errors.append(
+                        f"index '{name}' values changed: "
+                        f"expected {expected_row[:n]} got {got_row[:n]}"
+                    )
+
+            if errors:
+                return False, "; ".join(errors)
+
+            names = sorted(current.keys())
+            return True, f"all {len(names)} tag index(es) intact: {names}"
+
+        finally:
+            cursor.close()
+            conn.close()
+
+    # ------------------------------------------------------------------
+    # Step 9 – TSMA
+    # Creates one TSMA on the main stable.
+    # Snapshot uses SHOW {db}.TSMAS (immediately consistent; no column-name
+    # dependency).  Key fields snapshotted: tsma_name, db_name, table_name,
+    # func_list, interval
+    # ------------------------------------------------------------------
+
+    _TSMA_SNAP_FIELDS = {"tsma_name", "db_name", "table_name", "func_list", "interval"}
+
+    def _show_tsma_row(self, cursor, tsma_name: str):
+        """
+        Run ``SHOW {db}.TSMAS``, return a dict of snapshot fields for the
+        named TSMA, or None if not found.  Column positions resolved
+        dynamically via cursor.description.
+        """
+        cursor.execute(f"SHOW {config.DB_NAME}.TSMAS")
+        desc = [d[0].lower() for d in cursor.description]
+        try:
+            name_pos = next(i for i, c in enumerate(desc) if c == "tsma_name")
+        except StopIteration:
+            name_pos = 0
+
+        snap_positions = {
+            col: i for i, col in enumerate(desc)
+            if col in self._TSMA_SNAP_FIELDS
+        }
+
+        for row in cursor.fetchall():
+            if str(row[name_pos]) == tsma_name:
+                return {field: str(row[pos]) for field, pos in snap_positions.items()}
+        return None
+
+    def create_tsma(self) -> dict:
+        """
+        Create a TSMA on the main stable and snapshot its key metadata via
+        ``SHOW {db}.TSMAS`` for post-upgrade comparison.
+
+        Returns:
+            dict[str, dict]: tsma_name → {field: value} snapshot dict
+        """
+        self.logger.info(
+            f"Creating TSMA '{config.TSMA_NAME}' on stable '{config.STABLE_NAME}' ..."
+        )
+        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        cursor = conn.cursor()
+        try:
+            cursor.execute(f"USE {config.DB_NAME}")
+
+            # TSMA uses stream computation internally which requires a Snode.
+            # Create one on dnode 1 (idempotent: ignore "already exists").
+            try:
+                cursor.execute("CREATE SNODE ON DNODE 1")
+            except Exception:
+                pass  # already exists — fine
+
+            # Drop TSMA first for idempotency
+            try:
+                cursor.execute(f"DROP TSMA {config.TSMA_NAME}")
+            except Exception:
+                pass  # not found — fine
+
+            cursor.execute(
+                f"CREATE TSMA {config.TSMA_NAME} "
+                f"ON {config.DB_NAME}.{config.STABLE_NAME} "
+                f"FUNCTION(sum(voltage), avg(current), min(voltage), max(voltage), "
+                f"count(ts), last(phase)) "
+                f"INTERVAL(1m)"
+            )
+
+            snap = self._show_tsma_row(cursor, config.TSMA_NAME)
+            if snap is None:
+                raise RuntimeError(
+                    f"SHOW TSMAS returned nothing for '{config.TSMA_NAME}'"
+                )
+
+            self.logger.success(
+                f"TSMA '{config.TSMA_NAME}' created; "
+                f"interval={snap.get('interval')}, func_list={snap.get('func_list')}"
+            )
+            return {config.TSMA_NAME: snap}
+
+        finally:
+            cursor.close()
+            conn.close()
+
+    def verify_tsma(self, snapshot: dict) -> tuple:
+        """
+        Re-query ``SHOW {db}.TSMAS`` after upgrade and compare key fields
+        against *snapshot* captured in Phase 2.
+
+        Returns:
+            (True,  summary_str)  – TSMA present with all key fields unchanged
+            (False, error_str)    – TSMA missing or a field changed
+        """
+        if not snapshot:
+            return False, "baseline snapshot is empty – Phase 2 did not capture TSMA"
+
+        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        cursor = conn.cursor()
+        try:
+            errors = []
+            for name, expected in sorted(snapshot.items()):
+                got = self._show_tsma_row(cursor, name)
+                if got is None:
+                    errors.append(f"TSMA '{name}' missing after upgrade")
+                    continue
+                for field, exp_val in expected.items():
+                    got_val = got.get(field)
+                    if str(exp_val) != str(got_val):
+                        errors.append(
+                            f"TSMA '{name}' field '{field}' changed: "
+                            f"{exp_val!r} → {got_val!r}"
+                        )
+
+            if errors:
+                return False, "; ".join(errors)
+
+            names = sorted(snapshot.keys())
+            return True, f"all {len(names)} TSMA(s) intact: {names}"
+
+        finally:
+            cursor.close()
+            conn.close()
+
+    # ------------------------------------------------------------------
+    # Step 8 – RSMA
+    # Creates one RSMA on the main stable covering current/voltage/phase.
+    # Snapshot uses SHOW {db}.RSMAS (immediately consistent; no DDL string
+    # comparison so minor formatting changes across versions don't fail us).
+    # Key fields snapshotted: rsma_name, db_name, table_name, interval, func_list
+    # ------------------------------------------------------------------
+
+    # Fields we care about (subset of SHOW RSMAS output; time/id columns excluded)
+    _RSMA_SNAP_FIELDS = {"rsma_name", "db_name", "table_name", "interval", "func_list"}
+
+    def _show_rsma_row(self, cursor, rsma_name: str):
+        """
+        Run ``SHOW {db}.RSMAS``, return a dict of snapshot fields for the
+        named RSMA, or None if not found.  Column positions are resolved
+        dynamically via cursor.description so renames don't break the check.
+        """
+        cursor.execute(f"SHOW {config.DB_NAME}.RSMAS")
+        desc = [d[0].lower() for d in cursor.description]
+        try:
+            name_pos = next(i for i, c in enumerate(desc) if c == "rsma_name")
+        except StopIteration:
+            name_pos = 0
+
+        snap_positions = {
+            col: i for i, col in enumerate(desc)
+            if col in self._RSMA_SNAP_FIELDS
+        }
+
+        for row in cursor.fetchall():
+            if str(row[name_pos]) == rsma_name:
+                return {field: str(row[pos]) for field, pos in snap_positions.items()}
+        return None
+
+    def create_rsma(self) -> dict:
+        """
+        Create a RSMA on the main stable and snapshot its key metadata via
+        ``SHOW {db}.RSMAS`` for post-upgrade comparison.
+
+        Returns:
+            dict[str, dict]: rsma_name → {field: value} snapshot dict
+        """
+        self.logger.info(
+            f"Creating RSMA '{config.RSMA_NAME}' on stable '{config.STABLE_NAME}' ..."
+        )
+        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        cursor = conn.cursor()
+        try:
+            cursor.execute(f"USE {config.DB_NAME}")
+
+            # Drop first for idempotency (IF EXISTS not supported on all base versions)
+            try:
+                cursor.execute(f"DROP RSMA {config.RSMA_NAME}")
+            except Exception:
+                pass  # not found — fine
+
+            cursor.execute(
+                f"CREATE RSMA {config.RSMA_NAME} "
+                f"ON {config.DB_NAME}.{config.STABLE_NAME} "
+                f"FUNCTION(min(voltage), avg(current), last(phase)) "
+                f"INTERVAL(1h, 5h)"
+            )
+
+            snap = self._show_rsma_row(cursor, config.RSMA_NAME)
+            if snap is None:
+                raise RuntimeError(
+                    f"SHOW RSMAS returned nothing for '{config.RSMA_NAME}'"
+                )
+
+            self.logger.success(
+                f"RSMA '{config.RSMA_NAME}' created; "
+                f"interval={snap.get('interval')}, func_list={snap.get('func_list')}"
+            )
+            return {config.RSMA_NAME: snap}
+
+        finally:
+            cursor.close()
+            conn.close()
+
+    def verify_rsma(self, snapshot: dict) -> tuple:
+        """
+        Re-query ``SHOW {db}.RSMAS`` after upgrade and compare key fields
+        against *snapshot* captured in Phase 2.
+
+        Returns:
+            (True,  summary_str)  – RSMA present with all key fields unchanged
+            (False, error_str)    – RSMA missing or a field changed
+        """
+        if not snapshot:
+            return False, "baseline snapshot is empty – Phase 2 did not capture RSMA"
+
+        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        cursor = conn.cursor()
+        try:
+            errors = []
+            for name, expected in sorted(snapshot.items()):
+                got = self._show_rsma_row(cursor, name)
+                if got is None:
+                    errors.append(f"RSMA '{name}' missing after upgrade")
+                    continue
+                for field, exp_val in expected.items():
+                    got_val = got.get(field)
+                    if str(exp_val) != str(got_val):
+                        errors.append(
+                            f"RSMA '{name}' field '{field}' changed: "
+                            f"{exp_val!r} → {got_val!r}"
+                        )
+
+            if errors:
+                return False, "; ".join(errors)
+
+            names = sorted(snapshot.keys())
+            return True, f"all {len(names)} RSMA(s) intact: {names}"
+
+        finally:
+            cursor.close()
+            conn.close()
+
+    # ------------------------------------------------------------------
+    # Step 10 – Stream (全新流)
+    # Creates one new-style PERIOD stream on the main stable.
+    # The stream requires a Snode (already ensured by create_tsma).
+    # Snapshot: stream_name + status from ``SHOW {db}.STREAMS``.
+    # After upgrade we verify the stream still exists (status is not
+    # checked strictly since it may transition briefly during upgrade).
+    # ------------------------------------------------------------------
+
+    _STREAM_SNAP_FIELDS = {"stream_name", "status"}
+
+    def _show_stream_row(self, cursor, stream_name: str):
+        """
+        Run ``SHOW {db}.STREAMS``, return a dict of snapshot fields for the
+        named stream, or None if not found.
+        """
+        cursor.execute(f"SHOW {config.DB_NAME}.STREAMS")
+        desc = [d[0].lower() for d in cursor.description]
+        try:
+            name_pos = next(i for i, c in enumerate(desc) if c == "stream_name")
+        except StopIteration:
+            name_pos = 0
+
+        snap_positions = {
+            col: i for i, col in enumerate(desc)
+            if col in self._STREAM_SNAP_FIELDS
+        }
+
+        for row in cursor.fetchall():
+            if str(row[name_pos]) == stream_name:
+                return {field: str(row[pos]) for field, pos in snap_positions.items()}
+        return None
+
+    def create_stream(self) -> dict:
+        """
+        Create a new-style PERIOD stream on the main stable and snapshot
+        its key metadata via ``SHOW {db}.STREAMS`` for post-upgrade comparison.
+
+        Returns:
+            dict[str, dict]: stream_name → {field: value} snapshot dict
+        """
+        self.logger.info(
+            f"Creating Stream '{config.STREAM_NAME}' on stable '{config.STABLE_NAME}' ..."
+        )
+        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        cursor = conn.cursor()
+        try:
+            # Snode already exists from create_tsma; streams need it too.
+            try:
+                cursor.execute("CREATE SNODE ON DNODE 1")
+            except Exception:
+                pass  # already exists — fine
+
+            # Drop for idempotency
+            try:
+                cursor.execute(f"DROP STREAM IF EXISTS {config.DB_NAME}.{config.STREAM_NAME}")
+            except Exception:
+                pass
+
+            cursor.execute(f"USE {config.DB_NAME}")
+
+            # Drop the output table if it exists from a previous run
+            try:
+                cursor.execute(f"DROP TABLE IF EXISTS {config.DB_NAME}.{config.STREAM_OUT_TABLE}")
+            except Exception:
+                pass
+
+            # New-style PERIOD stream: every 1 minute compute aggregates over
+            # the meters stable and write into an output table.
+            cursor.execute(
+                f"CREATE STREAM {config.STREAM_NAME} "
+                f"PERIOD(1m) "
+                f"FROM {config.DB_NAME}.{config.STABLE_NAME} "
+                f"INTO {config.DB_NAME}.{config.STREAM_OUT_TABLE} "
+                f"AS SELECT "
+                f"  CAST(_TLOCALTIME / 1000000 AS TIMESTAMP) AS ts, "
+                f"  AVG(current) AS avg_current, "
+                f"  MAX(voltage) AS max_voltage, "
+                f"  LAST(phase) AS last_phase "
+                f"FROM {config.DB_NAME}.{config.STABLE_NAME} "
+                f"WHERE ts >= _TPREV_LOCALTIME / 1000000 "
+                f"  AND ts <= _TNEXT_LOCALTIME / 1000000"
+            )
+
+            snap = self._show_stream_row(cursor, config.STREAM_NAME)
+            if snap is None:
+                raise RuntimeError(
+                    f"SHOW STREAMS returned nothing for '{config.STREAM_NAME}'"
+                )
+
+            self.logger.success(
+                f"Stream '{config.STREAM_NAME}' created; "
+                f"status={snap.get('status')}"
+            )
+            return {config.STREAM_NAME: snap}
+
+        finally:
+            cursor.close()
+            conn.close()
+
+    def verify_stream(self, snapshot: dict) -> tuple:
+        """
+        Re-query ``SHOW {db}.STREAMS`` after upgrade and verify the stream
+        still exists.  Status is allowed to be any non-empty value (it may
+        transition briefly during the rolling upgrade).
+
+        Returns:
+            (True,  summary_str)  – stream present after upgrade
+            (False, error_str)    – stream missing
+        """
+        if not snapshot:
+            return False, "baseline snapshot is empty – Phase 2 did not capture stream"
+
+        conn   = _make_conn(self.fqdn, self.cfg_dir)
+        cursor = conn.cursor()
+        try:
+            errors = []
+            for name in sorted(snapshot.keys()):
+                got = self._show_stream_row(cursor, name)
+                if got is None:
+                    errors.append(f"Stream '{name}' missing after upgrade")
+
+            if errors:
+                return False, "; ".join(errors)
+
+            names = sorted(snapshot.keys())
+            return True, f"all {len(names)} stream(s) intact: {names}"
+
         finally:
             cursor.close()
             conn.close()
