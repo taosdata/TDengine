@@ -85,6 +85,7 @@ static int32_t toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* p
   TAOS_STRCPY(pRes->tableName, pHandle->pDeleter->tableFName);
   TAOS_STRCPY(pRes->tsColName, pHandle->pDeleter->tsColName);
   pRes->affectedRows = *(int64_t*)pColRes->pData;
+  pRes->secureDelete = pHandle->pDeleter->secureDelete | pHandle->pParam->secureDelete;
 
   if (pRes->affectedRows) {
     pRes->skey = *(int64_t*)pColSKey->pData;

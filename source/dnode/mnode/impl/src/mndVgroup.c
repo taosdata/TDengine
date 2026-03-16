@@ -370,6 +370,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   }
   createReq.isAudit = pDb->cfg.isAudit ? 1 : 0;
   createReq.allowDrop = pDb->cfg.allowDrop;
+  createReq.secureDelete = pDb->cfg.secureDelete;
   int32_t code = 0;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
@@ -475,6 +476,7 @@ static void *mndBuildAlterVnodeConfigReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pV
   alterReq.ssKeepLocal = pDb->cfg.ssKeepLocal;
   alterReq.ssCompact = pDb->cfg.ssCompact;
   alterReq.allowDrop = (int8_t)pDb->cfg.allowDrop;
+  alterReq.secureDelete = pDb->cfg.secureDelete;
 
   mInfo("vgId:%d, build alter vnode config req", pVgroup->vgId);
   int32_t contLen = tSerializeSAlterVnodeConfigReq(NULL, 0, &alterReq);

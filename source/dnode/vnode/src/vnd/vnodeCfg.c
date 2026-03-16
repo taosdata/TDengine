@@ -122,6 +122,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "tsdbPageSize", pCfg->tsdbPageSize));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "isAudit", pCfg->isAudit));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "allowDrop", pCfg->allowDrop));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "secureDelete", pCfg->secureDelete));
   if (pCfg->tsdbCfg.retentions[0].keep > 0) {
     int32_t nRetention = 1;
     if (pCfg->tsdbCfg.retentions[1].freq > 0) {
@@ -405,6 +406,14 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "isAudit", pCfg->isAudit, code);
   if (pCfg->isAudit < TSDB_MIN_DB_IS_AUDIT || pCfg->isAudit > TSDB_MAX_DB_IS_AUDIT) {
     pCfg->isAudit = 0;
+  }
+  if (tjsonGetObjectItem(pJson, "secureDelete") != NULL) {
+    tjsonGetNumberValue(pJson, "secureDelete", pCfg->secureDelete, code);
+    if (pCfg->secureDelete < TSDB_MIN_DB_SECURE_DELETE || pCfg->secureDelete > TSDB_MAX_DB_SECURE_DELETE) {
+      pCfg->secureDelete = TSDB_DEFAULT_DB_SECURE_DELETE;
+    }
+  } else {
+    pCfg->secureDelete = TSDB_DEFAULT_DB_SECURE_DELETE;
   }
   if (tjsonGetObjectItem(pJson, "allowDrop") == NULL) {
     pCfg->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;

@@ -143,6 +143,7 @@ extern int32_t tsNumOfStreamRunnerThreads;
 
 extern int32_t tsNumOfCompactThreads;
 extern int32_t tsNumOfRetentionThreads;
+extern int32_t tsSecureEraseMode;
 
 // sync raft
 extern int32_t tsElectInterval;

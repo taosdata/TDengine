@@ -994,8 +994,9 @@ int32_t schInitSubJob(SSchJob* pParent, SQueryPlan* pDag, int32_t subJobId, SSch
   pJob->chkKillParam = pParent->chkKillParam;
   pJob->userRes.execFp = pParent->userRes.execFp;
   pJob->userRes.cbParam = pParent->userRes.cbParam;
-  pJob->source = pParent->source;
-  pJob->pWorkerCb = pParent->pWorkerCb;
+  pJob->source       = pParent->source;
+  pJob->secureDelete = pParent->secureDelete;
+  pJob->pWorkerCb    = pParent->pWorkerCb;
   pJob->nodeList = pParent->nodeList;
 
   qDebug("QID:0x%" PRIx64 " subJob %d init with pTrans:%p, pJob:%p, pDag:%p, subQType:%d", 
@@ -1072,8 +1073,9 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   pJob->chkKillParam = pReq->chkKillParam;
   pJob->userRes.execFp = pReq->execFp;
   pJob->userRes.cbParam = pReq->cbParam;
-  pJob->source = pReq->source;
-  pJob->pWorkerCb = pReq->pWorkerCb;
+  pJob->source       = pReq->source;
+  pJob->secureDelete = pReq->secureDelete;
+  pJob->pWorkerCb    = pReq->pWorkerCb;
   pJob->subJobId = -1;
   pJob->queryId = pReq->pDag->queryId;
   (void)atomic_add_fetch_64(&pJob->seriesId, 1);

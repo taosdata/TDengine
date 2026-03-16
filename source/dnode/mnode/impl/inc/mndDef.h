@@ -742,6 +742,7 @@ typedef struct {
   int32_t compactStartTime;   // minute
   int32_t compactEndTime;     // minute
   int8_t  isAudit;
+  int8_t  secureDelete;
 } SDbCfg;
 
 typedef struct {
@@ -948,6 +949,7 @@ typedef struct {
   int64_t     keep;
   SExtSchema* pExtSchemas;
   int8_t      virtualStb;
+  int8_t      secureDelete;
 } SStbObj;
 
 typedef struct {
