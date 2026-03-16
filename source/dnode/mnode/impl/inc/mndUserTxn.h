@@ -49,6 +49,9 @@ typedef struct {
   pthread_mutex_t lock;
 } SUserTxnMgr;
 
+int32_t mndInitTxn(SMnode *pMnode);
+void mndCleanupTxn(SMnode *pMnode) {}
+
 #ifdef __cplusplus
 }
 #endif
