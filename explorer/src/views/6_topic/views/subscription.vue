@@ -51,7 +51,7 @@
     >
       <el-form ref="ruleFormRef" :model="ruleForm" label-width="120px" class="demo-ruleForm" :rules="rules">
         <el-form-item :label="$t('topic.user_name')" prop="user_name">
-          <el-select v-model="ruleForm.user_name" style="width: 100%">
+          <el-select v-model="ruleForm.user_name" :placeholder="$t('pleaseSelect')" style="width: 100%">
             <el-option v-for="item in userList" :key="item.name" :label="item.name" :value="item.name"></el-option>
           </el-select>
         </el-form-item>
