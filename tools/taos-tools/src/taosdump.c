@@ -2040,25 +2040,20 @@ char *queryCreateTableSql(void** taos_v, const char *dbName, char *tbName, bool 
         return NULL;
     }
 
-    // detect virtual table flag by checking tailing "VIRTUAL 1"
+    // detect virtual table flag by searching for "VIRTUAL 1" anywhere in output
     if (isVirtual) {
-        size_t end = (size_t)len;
-        // trim trailing whitespace and optional ';'
-        while (end > 0) {
-            char ch = data[end - 1];
-            if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' || ch == ';') {
-                end--;
-            } else {
+        const char keyword[] = "VIRTUAL 1";
+        const char *p = data;
+        bool found = false;
+        while ((p = strcasestr(p, keyword)) != NULL) {
+            // ensure it is preceded by a space or is at string start (word boundary)
+            if (p == data || *(p - 1) == ' ' || *(p - 1) == '\t') {
+                found = true;
                 break;
             }
+            p++;
         }
-        const char suffix[] = "VIRTUAL 1";
-        size_t suffix_len = sizeof(suffix) - 1;
-        if (end >= suffix_len && strncasecmp(data + end - suffix_len, suffix, suffix_len) == 0) {
-            *isVirtual = true;
-        } else {
-            *isVirtual = false;
-        }
+        *isVirtual = found;
     }
 
     // prefix check
