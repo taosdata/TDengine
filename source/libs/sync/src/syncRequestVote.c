@@ -140,8 +140,8 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   // trace log
   syncLogRecvRequestVote(ths, pMsg, pReply->voteGranted, "", "proceed", &pRpcMsg->info.traceId);
 
+  rpcMsg.info.traceId = pRpcMsg->info.traceId;
   TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
-  TRACE_SET_ROOTID(&(rpcMsg.info.traceId), tGenIdPI64());
   syncLogSendRequestVoteReply(ths, pReply, "", &rpcMsg.info.traceId);
   TAOS_CHECK_RETURN(syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg));
 
