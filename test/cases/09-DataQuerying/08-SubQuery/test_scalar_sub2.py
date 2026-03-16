@@ -77,7 +77,7 @@ class TestScalarSubQuery2:
         "select histogram({scalarSql}, 'user_input', '\"user_input\": \"[1, 3, 5, 7]\"', 0) from {tableName}",
         "select histogram(f1, 'user_input', '\"user_input\": \"[1, 3, 5, 7]\"', {scalarSql}) from {tableName}",
         "select cols(last(f1), {scalarSql}) from {tableName}",
-        "select rand({scalarSql}) from tb1",
+        "select rand({scalarSql}), 'Copyright' from tb1",
         "select to_unixtimestamp('2025-10-01', {scalarSql}) from {tableName}",
         "select derivative({scalarSql}, 1s, 1) from {tableName}",
         "select derivative(1, 1s, {scalarSql}) from {tableName}",
@@ -516,7 +516,7 @@ class TestScalarSubQuery2:
             self.querySql = self.correlatedSqls[self.mainIdx]
             # ensure exactly one trailing semicolon
             self.querySql = self.querySql.rstrip().rstrip(';') + ';'
-            tdLog.info(f"generated sql: {self.querySql}")
+            #tdLog.info(f"generated sql: {self.querySql}")
 
             self.saved_count += 1
 
