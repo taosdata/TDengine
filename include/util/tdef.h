@@ -849,7 +849,7 @@ typedef enum {
 
 typedef enum {
   UTXN_STAGE_BEGIN = 0,
-  UTXN_STAGE_PROPOSE = 1,
+  UTXN_STAGE_PREPARE = 1,
   UTXN_STAGE_COMMIT = 2,
   UTXN_STAGE_ROLLBACK = 3,
 } EUTxnStage;

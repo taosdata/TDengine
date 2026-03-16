@@ -268,6 +268,17 @@ typedef struct {
 } STrans;
 
 typedef struct {
+  utxn_id_t  id;
+  char       createUser[TSDB_USER_LEN];
+  int64_t    ownerId;
+  int64_t    createTime;
+  int64_t    lastActiveTime;  // client hb or user operation 
+  int32_t    timeoutSec;
+  EUTxnStage stage;
+  SRWLatch   lock;
+} STxnObj;
+
+typedef struct {
   int64_t id;
   char    name[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;

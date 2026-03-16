@@ -1030,7 +1030,7 @@ _exit:
 }
 
 int taos_txn_commit(TAOS *taos) {
-#ifdef TD_ENTERPRISE
+#ifndef TD_ENTERPRISE
   STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
   if (NULL == pTscObj) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
@@ -1059,7 +1059,7 @@ int taos_txn_commit(TAOS *taos) {
 #endif
 }
 int taos_txn_rollback(TAOS *taos) {
-#ifdef TD_ENTERPRISE
+#ifndef TD_ENTERPRISE
   STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
   if (NULL == pTscObj) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;

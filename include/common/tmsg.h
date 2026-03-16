@@ -6493,7 +6493,7 @@ int32_t tDeserializeSInstanceListRsp(void* buf, int32_t bufLen, SInstanceListRsp
 
 typedef struct {
   utxn_id_t uTxnId;
-  int8_t    stage;        // EUTxnStage: UTXN_STAGE_BEGIN, UTXN_STAGE_PROPOSE, UTXN_STAGE_COMMIT, UTXN_STAGE_ROLLBACK
+  int8_t    stage;        // EUTxnStage: UTXN_STAGE_BEGIN, UTXN_STAGE_PREPARE, UTXN_STAGE_COMMIT, UTXN_STAGE_ROLLBACK
   int8_t    action;       // CREATE_TABLE, ALTER_TABLE, DROP_TABLE
   int64_t   baseVersion;  // for client to check if the schema is changed during the transaction
   int32_t   contLen;      // length of the flexible array
