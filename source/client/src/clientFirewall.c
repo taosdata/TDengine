@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include <regex.h>
 #include <string.h>
+#include <stdatomic.h>
 #include "cJSON.h"
 #include "clientInt.h"
 #include "clientLog.h"
@@ -12,7 +13,6 @@
 #include "querynodes.h"
 
 #include "tglobal.h"
-#include "ttime.h"
 #define SQL_SEC_MAX_RULES        128
 #define SQL_SEC_RULE_NAME_LEN    128
 #define SQL_SEC_RULE_PATTERN_LEN 512
@@ -80,14 +80,17 @@ typedef struct {
   int32_t       nextRuleId;
   // Thread related
   TdThread      thread;
-  bool          threadRunning;
-  bool          threadStop;
+  atomic_bool   threadRunning;
+  atomic_bool   threadStop;
   TdThreadCond  cond;
   TdThreadMutex threadLock;
 } SSqlLearningCtx;
 
 static SSqlSecCtx      gSqlSecCtx = {0};
 static SSqlLearningCtx gLearningCtx = {0};
+
+static TdThreadOnce gLearningInitOnce = PTHREAD_ONCE_INIT;
+static TdThreadOnce gSqlSecInitOnce   = PTHREAD_ONCE_INIT;
 
 // Generalize SQL by replacing literals with placeholders
 static void sqlSecGeneralizePattern(const char* sql, char* pattern, int32_t patternLen) {
@@ -321,19 +324,21 @@ static int32_t sqlSecSaveLearnedRules(const char* ruleFile) {
   return added;
 }
 
-static void sqlSecInitLearning() {
-  if (gLearningCtx.enabled) return;
-
+static void sqlSecInitLearningOnce(void) {
   (void)taosThreadMutexInit(&gLearningCtx.lock, NULL);
   (void)taosThreadMutexInit(&gLearningCtx.threadLock, NULL);
   (void)taosThreadCondInit(&gLearningCtx.cond, NULL);
-  gLearningCtx.enabled = true;
+  gLearningCtx.enabled       = true;
   gLearningCtx.numOfPatterns = 0;
-  gLearningCtx.startTs = taosGetTimestampMs();
-  gLearningCtx.nextRuleId = 1000;  // Start from 1000 for learned rules
-  gLearningCtx.threadRunning = false;
-  gLearningCtx.threadStop = false;
+  gLearningCtx.startTs       = taosGetTimestampMs();
+  gLearningCtx.nextRuleId    = 1000;  // Start from 1000 for learned rules
+  atomic_store(&gLearningCtx.threadRunning, false);
+  atomic_store(&gLearningCtx.threadStop, false);
   tscInfo("sql security: learning mode initialized");
+}
+
+static void sqlSecInitLearning(void) {
+  (void)taosThreadOnce(&gLearningInitOnce, sqlSecInitLearningOnce);
 }
 
 static void sqlSecRecordPattern(const char* sql) {
@@ -394,7 +399,7 @@ static void* sqlSecLearningThreadFunc(void* arg) {
 
   (void)taosThreadMutexLock(&gLearningCtx.threadLock);
 
-  while (!gLearningCtx.threadStop) {
+  while (!atomic_load(&gLearningCtx.threadStop)) {
     // Wait for 10 seconds or until signaled to stop
     struct timespec ts = {0};
     int64_t         nowMs = taosGetTimestampMs();
@@ -404,7 +409,7 @@ static void* sqlSecLearningThreadFunc(void* arg) {
 
     int ret = taosThreadCondTimedWait(&gLearningCtx.cond, &gLearningCtx.threadLock, &ts);
 
-    if (gLearningCtx.threadStop) {
+    if (atomic_load(&gLearningCtx.threadStop)) {
       break;
     }
 
@@ -441,13 +446,13 @@ void sqlSecurityStartLearningThread() {
 
   (void)taosThreadMutexLock(&gLearningCtx.threadLock);
 
-  if (gLearningCtx.threadRunning) {
+  if (atomic_load(&gLearningCtx.threadRunning)) {
     (void)taosThreadMutexUnlock(&gLearningCtx.threadLock);
     tscInfo("sql security: learning thread already running");
     return;
   }
 
-  gLearningCtx.threadStop = false;
+  atomic_store(&gLearningCtx.threadStop, false);
 
   TdThreadAttr attr;
   taosThreadAttrInit(&attr);
@@ -460,7 +465,7 @@ void sqlSecurityStartLearningThread() {
   }
 
   taosThreadAttrDestroy(&attr);
-  gLearningCtx.threadRunning = true;
+  atomic_store(&gLearningCtx.threadRunning, true);
 
   (void)taosThreadMutexUnlock(&gLearningCtx.threadLock);
 
@@ -470,13 +475,13 @@ void sqlSecurityStartLearningThread() {
 void sqlSecurityStopLearningThread() {
   (void)taosThreadMutexLock(&gLearningCtx.threadLock);
 
-  if (!gLearningCtx.threadRunning) {
+  if (!atomic_load(&gLearningCtx.threadRunning)) {
     (void)taosThreadMutexUnlock(&gLearningCtx.threadLock);
     tscInfo("sql security: learning thread not running");
     return;
   }
 
-  gLearningCtx.threadStop = true;
+  atomic_store(&gLearningCtx.threadStop, true);
 
   // Signal the thread to wake up
   (void)taosThreadCondSignal(&gLearningCtx.cond);
@@ -487,7 +492,7 @@ void sqlSecurityStopLearningThread() {
   taosThreadJoin(gLearningCtx.thread, NULL);
 
   (void)taosThreadMutexLock(&gLearningCtx.threadLock);
-  gLearningCtx.threadRunning = false;
+  atomic_store(&gLearningCtx.threadRunning, false);
   (void)taosThreadMutexUnlock(&gLearningCtx.threadLock);
 
   tscInfo("sql security: learning thread stopped");
@@ -602,13 +607,19 @@ static int64_t sqlSecGetFileMtime(const char* path) {
   return mtime;
 }
 
+static void sqlSecInitRulesOnce(void) {
+  (void)taosThreadMutexInit(&gSqlSecCtx.lock, NULL);
+  gSqlSecCtx.inited       = true;
+  gSqlSecCtx.numOfRules   = 0;
+  gSqlSecCtx.lastLoadTsMs = 0;
+  gSqlSecCtx.lastRuleMtime = 0;
+  gSqlSecCtx.lastRulePath[0] = '\0';
+}
+
 static void sqlSecReloadRulesIfNeeded(const char* ruleFile) {
   if (ruleFile == NULL || ruleFile[0] == 0) return;
 
-  if (!gSqlSecCtx.inited) {
-    (void)taosThreadMutexInit(&gSqlSecCtx.lock, NULL);
-    gSqlSecCtx.inited = true;
-  }
+  (void)taosThreadOnce(&gSqlSecInitOnce, sqlSecInitRulesOnce);
 
   // Check if reload is needed (with lock to avoid race condition)
   (void)taosThreadMutexLock(&gSqlSecCtx.lock);
@@ -757,13 +768,13 @@ int32_t sqlSecurityCheckStringLevel(SRequestObj* pRequest, const char* sql, int3
   // Manage learning thread based on tsWhitelistLearning
   if (tsWhitelistLearning) {
     // Learning mode enabled, ensure thread is running
-    if (!gLearningCtx.threadRunning) {
+    if (!atomic_load(&gLearningCtx.threadRunning)) {
       sqlSecurityStartLearningThread();
     }
     sqlSecRecordPattern(sql);
   } else {
     // Learning mode disabled, ensure thread is stopped
-    if (gLearningCtx.threadRunning) {
+    if (atomic_load(&gLearningCtx.threadRunning)) {
       sqlSecurityStopLearningThread();
     }
   }

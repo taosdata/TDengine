@@ -86,15 +86,22 @@ class TestSqlFirewall:
         tdSql.execute("drop database db_fw")
 
     def test_sql_firewall(self):
-        """SQL Firewall blacklist
+        """ Test sql blacklist features
 
         1. UNION SELECT denied (string layer)
         2. DROP TABLE denied (rule file)
         3. Normal SQL allowed
 
-        Since: v3.0.0.0
+        Since: v3.4.1.0
+
         Labels: common,ci
+
+        Jira: 6670404791
+
+        History:
+            - 2025-03-16 Created based on 6670404791
         """
+
         self.test_mode2_blacklist_union_select_denied()
         self.test_mode2_blacklist_drop_table_denied()
         self.test_mode2_blacklist_normal_sql_allowed()

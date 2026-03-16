@@ -309,7 +309,11 @@ bool    tsSqlSecurityEnabled = false;
 int32_t tsSqlSecurityWhitelistMode = 0;
 bool    tsSqlSecurityStringCheck = true;
 bool    tsSqlSecurityASTCheck = true;
-char    tsSqlSecurityRuleFile[PATH_MAX] = "/tmp/sql_rules.json";
+#ifdef WINDOWS
+char tsSqlSecurityRuleFile[PATH_MAX] = "C:\\TDengine\\data\\sql_rules.json";
+#else
+char tsSqlSecurityRuleFile[PATH_MAX] = "/var/lib/taos/sql_rules.json";
+#endif
 bool    tsWhitelistLearning = false;
 int32_t tsWhitelistLearningPeriod = 7;
 int32_t tsWhitelistLearningThreshold = 10;

@@ -57,22 +57,27 @@ class TestWhitelistLearning:
         tdLog.debug("start to execute %s" % __file__)
 
     def test_whitelist_learning(self):
-        """Main test entry point for whitelist learning.
+        """ Test sql whitelist learning features
 
-        Tests the complete whitelist learning functionality:
         1. Basic learning - patterns are recorded
         2. Pattern generalization - different values map to same pattern
         3. Threshold behavior - only frequent patterns are learned
         4. Complete workflow - learn, export, protect
 
-        Since: v3.0.0.0
+        Since: v3.4.1.0
+
         Labels: common,ci
+
+        Jira: 6670404791
+
+        History:
+            - 2025-03-16 Created based on 6670404791
         """
+
         self.prepare()
         self.test_learning_basic()
-        # self.test_learning_with_different_values()
-        # self.test_learning_threshold()
-        # self.test_learning_mode_workflow()
+        self.test_learning_with_different_values()
+        self.test_learning_threshold()
 
         tdLog.success("%s successfully executed" % __file__)
 
