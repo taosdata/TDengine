@@ -63,6 +63,10 @@ static bool  g_dsnMode      = false;
 // driver / connect mode (set via -Z / --driver); CONN_MODE_INVALID = auto
 static int8_t g_driver = CONN_MODE_INVALID;
 
+// data-batch: max rows per STMT bind/execute call; 0 = use per-version default
+static int g_dataBatch = 0;
+static bool g_stmtVersionSet = false;
+
 //
 // ---------------- usage ----------------
 //
@@ -76,6 +80,7 @@ void printVersion(bool verbose) {
 }
 
 static void printUsage(const char *prog) {
+    printf("\n");
     printf("Usage: %s [OPTION...] dbname [tbname ...] -o outpath\n", prog);
     printf("  or:  %s [OPTION...] -o outpath\n", prog);
     printf("  or:  %s [OPTION...] -i inpath\n", prog);
@@ -92,6 +97,12 @@ static void printUsage(const char *prog) {
     printf("  -F, --format=FORMAT        Data file format: binary (default) or parquet\n");
     printf("  -v, --stmt-version=VER     Restore STMT API version: 2 (default, faster)\n");
     printf("                             or 1 (legacy). Restore only.\n");
+    printf("  -B, --data-batch=DATA_BATCH\n");
+    printf("                             Number of rows per insert stmt. Restore only.\n");
+    printf("                             STMT2 (default): range [1, %d], default %d.\n",
+           STMT2_BATCH_MAX, STMT2_BATCH_DEFAULT);
+    printf("                             STMT1 (-v 1):    range [1, %d], default %d.\n",
+           STMT1_BATCH_MAX, STMT1_BATCH_DEFAULT);
     printf("  -s, --schemaonly           Only backup table schemas, no data.\n");
     printf("  -S, --start-time=START_TIME\n");
     printf("                             Start time to dump. Either epoch or\n");
@@ -180,10 +191,8 @@ static void applyDsn(const char *dsn) {
     // find "://"
     const char *after = strstr(dsn, "://");
     if (!after) {
-        fprintf(stderr, "warning: DSN missing '://', using raw value as host\n");
-        snprintf(g_host, sizeof(g_host), "%s", dsn);
-        g_port = defaultPort;
-        return;
+        fprintf(stderr, "error: DSN missing '://', expected format: https://host[:port]?token=<TOKEN>\n");
+        exit(-1);
     }
     after += 3;
 
@@ -302,13 +311,29 @@ int argsInit(int argc, char *argv[]) {
                 return -1;
             }
         }
+        // ---- data-batch ----
+        else if ((strcmp(argv[i], "-B") == 0 && i + 1 < argc && (val = argv[++i])) ||
+                 (val = matchLong(argc, argv, &i, "--data-batch", 1))) {
+            int bval = atoi(val);
+            // Accept the full valid range here; STMT-version-specific upper bound
+            // is checked in the post-parse validation step below.
+            if (bval < 1 || bval > STMT1_BATCH_MAX) {
+                printf("error: --data-batch must be in range [1, %d], got: %s\n",
+                       STMT1_BATCH_MAX, val);
+                printUsage(argv[0]);
+                return -1;
+            }
+            g_dataBatch = bval;
+        }
         // ---- stmt-version ----
         else if ((strcmp(argv[i], "-v") == 0 && i + 1 < argc && (val = argv[++i])) ||
                  (val = matchLong(argc, argv, &i, "--stmt-version", 1))) {
             if (strcmp(val, "1") == 0 || strcasecmp(val, "stmt1") == 0) {
                 g_stmtVersion = STMT_VERSION_1;
+                g_stmtVersionSet = true;
             } else if (strcmp(val, "2") == 0 || strcasecmp(val, "stmt2") == 0) {
                 g_stmtVersion = STMT_VERSION_2;
+                g_stmtVersionSet = true;
             } else {
                 printf("error: unknown stmt-version: %s (use 1 or 2)\n", val);
                 printUsage(argv[0]);
@@ -319,13 +344,21 @@ int argsInit(int argc, char *argv[]) {
         else if ((strcmp(argv[i], "-T") == 0 && i + 1 < argc && (val = argv[++i])) ||
                  (val = matchLong(argc, argv, &i, "--thread-num", 1))) {
             g_dataThread = atoi(val);
-            if (g_dataThread < 1) g_dataThread = 1;
+            if (g_dataThread < 1) {
+                printf("error: --thread-num must be >= 1, got: %s\n", val);
+                printUsage(argv[0]);
+                return -1;
+            }
         }
         // ---- tag-thread-num ----
         else if ((strcmp(argv[i], "-m") == 0 && i + 1 < argc && (val = argv[++i])) ||
                  (val = matchLong(argc, argv, &i, "--tag-thread-num", 1))) {
             g_tagThread = atoi(val);
-            if (g_tagThread < 1) g_tagThread = 1;
+            if (g_tagThread < 1) {
+                printf("error: --tag-thread-num must be >= 1, got: %s\n", val);
+                printUsage(argv[0]);
+                return -1;
+            }
         }
         // ---- host ----
         else if ((strcmp(argv[i], "-h") == 0 && i + 1 < argc && (val = argv[++i])) ||
@@ -335,7 +368,13 @@ int argsInit(int argc, char *argv[]) {
         // ---- port ----
         else if ((strcmp(argv[i], "-P") == 0 && i + 1 < argc && (val = argv[++i])) ||
                  (val = matchLong(argc, argv, &i, "--port", 1))) {
-            g_port = atoi(val);
+            int pval = atoi(val);
+            if (pval < 1 || pval > 65535) {
+                printf("error: --port must be in range [1, 65535], got: %s\n", val);
+                printUsage(argv[0]);
+                return -1;
+            }
+            g_port = pval;
         }
         // ---- user ----
         else if ((strcmp(argv[i], "-u") == 0 && i + 1 < argc && (val = argv[++i])) ||
@@ -373,13 +412,21 @@ int argsInit(int argc, char *argv[]) {
         else if ((strcmp(argv[i], "-k") == 0 && i + 1 < argc && (val = argv[++i])) ||
                  (val = matchLong(argc, argv, &i, "--retry-count", 1))) {
             g_retryCount = atoi(val);
-            if (g_retryCount < 0) g_retryCount = 0;
+            if (g_retryCount < 0) {
+                printf("error: --retry-count must be >= 0, got: %s\n", val);
+                printUsage(argv[0]);
+                return -1;
+            }
         }
         // ---- retry-sleep-ms ----
         else if ((strcmp(argv[i], "-z") == 0 && i + 1 < argc && (val = argv[++i])) ||
                  (val = matchLong(argc, argv, &i, "--retry-sleep-ms", 1))) {
             g_retrySleepMs = atoi(val);
-            if (g_retrySleepMs < 0) g_retrySleepMs = 0;
+            if (g_retrySleepMs < 0) {
+                printf("error: --retry-sleep-ms must be >= 0, got: %s\n", val);
+                printUsage(argv[0]);
+                return -1;
+            }
         }
         // ---- rename ----
         else if ((strcmp(argv[i], "-W") == 0 && i + 1 < argc && (val = argv[++i])) ||
@@ -467,6 +514,46 @@ int argsInit(int argc, char *argv[]) {
         printf("error: must specify -o (backup) or -i (restore)\n");
         printUsage(argv[0]);
         return -1;
+    }
+
+    // cross-validate restore-only options against backup mode
+    if (g_action == ACTION_BACKUP) {
+        if (g_dataBatch > 0) {
+            printf("error: --data-batch is for restore only, not allowed with -o\n");
+            printUsage(argv[0]);
+            return -1;
+        }
+        if (g_stmtVersionSet) {
+            printf("error: --stmt-version is for restore only, not allowed with -o\n");
+            printUsage(argv[0]);
+            return -1;
+        }
+        if (g_renameCount > 0) {
+            printf("error: --rename is for restore only, not allowed with -o\n");
+            printUsage(argv[0]);
+            return -1;
+        }
+    }
+
+    // cross-validate backup-only options against restore mode
+    if (g_action == ACTION_RESTORE) {
+        if (g_startTime[0] || g_endTime[0]) {
+            printf("error: --start-time/--end-time is for backup only, not allowed with -i\n");
+            printUsage(argv[0]);
+            return -1;
+        }
+    }
+
+    // cross-validate --data-batch against the selected --stmt-version (restore only)
+    if (g_dataBatch > 0) {
+        int maxBatch = (g_stmtVersion == STMT_VERSION_2) ? STMT2_BATCH_MAX : STMT1_BATCH_MAX;
+        if (g_dataBatch > maxBatch) {
+            printf("error: --data-batch=%d exceeds the maximum %d for STMT%d.\n"
+                   "       Use -v 1 / --stmt-version=1 to raise the limit to %d.\n",
+                   g_dataBatch, maxBatch, (int)g_stmtVersion, STMT1_BATCH_MAX);
+            printUsage(argv[0]);
+            return -1;
+        }
     }
 
     // if positional dbname specified, override -D databases list
@@ -681,4 +768,8 @@ int argBuildInClause(const char *colName, char *buf, int bufLen) {
     }
     off += snprintf(buf + off, bufLen - off, ")");
     return off;
+}
+
+int argDataBatch() {
+    return g_dataBatch;
 }

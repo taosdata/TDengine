@@ -158,11 +158,18 @@ static void deleteRestoreCheckpoint() {
 // -------------------------------------- STMT UTIL -----------------------------------------
 //
 
-// Maximum rows per STMT2 bind_param call.
-// taos_stmt2_bind_param enforces bind->num <= INT16_MAX (32767); we use a
-// comfortable margin below that limit so normal TDengine block sizes (≤4096
-// rows) always fit in one accumulation round.
-#define STMT2_MAX_ROWS_PER_BATCH  16384
+// Maximum rows per STMT2 bind_param call — equals STMT2_BATCH_MAX from bckArgs.h.
+// Kept here as a local alias so the comment context remains self-contained.
+// taos_stmt2_bind_param enforces bind->num <= INT16_MAX (32767); STMT2_BATCH_MAX
+// (16384) is a safe conservative bound well below that limit.
+#define STMT2_MAX_ROWS_PER_BATCH  STMT2_BATCH_MAX
+
+// Minimum row-buffer capacity: must hold at least one complete raw TDengine block.
+// TDengine's storage engine limits each compressed block to at most 4096 rows
+// (MAXROWS in the engine internals).  stmt2AllocColBuffers enforces this floor so
+// that stmt2AccBlock can always accumulate a full block before the first flush,
+// even when --data-batch is set to a value smaller than 4096.
+#define STMT2_MIN_ROW_BUF_CAP  4096
 
 //
 // ----------------------------- STMT2 RESTORE CONTEXT ---------------------------------
@@ -214,7 +221,7 @@ typedef struct {
 //
 // Classic TAOS_STMT path.  Kept for compatibility / benchmarking via -I 1.
 //
-#define STMT_BATCH_THRESHOLD 50000  // rows to accumulate before executing
+#define STMT_BATCH_THRESHOLD STMT1_BATCH_DEFAULT  // default execute-threshold (rows before taos_stmt_execute)
 
 typedef struct {
     TAOS_STMT  *stmt;
@@ -675,7 +682,8 @@ static int dataBlockCallback(void *userData,
     ctx->batchRows += blockRows;
 
     // Execute when accumulated enough rows or this is the last opportunity
-    if (ctx->batchRows >= STMT_BATCH_THRESHOLD) {
+    int64_t batchThreshold = (argDataBatch() > 0) ? (int64_t)argDataBatch() : STMT_BATCH_THRESHOLD;
+    if (ctx->batchRows >= batchThreshold) {
         code = taos_stmt_execute(ctx->stmt);
         if (code != 0) {
             logError("taos_stmt_execute failed: %s, table: %s.%s, batchRows: %" PRId64, 
@@ -731,8 +739,19 @@ static void stmt2FreeColBuffers(Stmt2RestoreCtx *ctx) {
 //
 static int stmt2AllocColBuffers(Stmt2RestoreCtx *ctx, int64_t numRows,
                                 int numCols, FieldInfo *fieldInfos) {
-    /* clamp requested row count so we never exceed the STMT2 API limit */
-    int64_t targetCap = (numRows < STMT2_MAX_ROWS_PER_BATCH) ? numRows : STMT2_MAX_ROWS_PER_BATCH;
+    /* Determine effective batch cap: user override via --data-batch, else STMT2 default */
+    int64_t batchCap = (argDataBatch() > 0) ? (int64_t)argDataBatch() : (int64_t)STMT2_BATCH_DEFAULT;
+    /* clamp requested row count so we never exceed the effective batch cap */
+    int64_t targetCap = (numRows < batchCap) ? numRows : batchCap;
+    /* The buffer must be large enough to hold at least one complete raw TDengine
+     * block (≤ STMT2_MIN_ROW_BUF_CAP rows).  When --data-batch is smaller than
+     * that, stmt2AccBlock uses batchCap as the flush trigger instead; the buffer
+     * still needs the larger capacity so that a whole block can be assembled
+     * before the first flush opportunity. */
+    {
+        int64_t minCap = (numRows < STMT2_MIN_ROW_BUF_CAP) ? numRows : STMT2_MIN_ROW_BUF_CAP;
+        if (targetCap < minCap) targetCap = minCap;
+    }
 
     bool needAlloc = (ctx->colBinds == NULL ||
                       ctx->colBindsCap < numCols ||
@@ -759,7 +778,7 @@ static int stmt2AllocColBuffers(Stmt2RestoreCtx *ctx, int64_t numRows,
         ctx->colBinds = NULL;
     }
 
-    int64_t cap = targetCap;  /* already clamped to STMT2_MAX_ROWS_PER_BATCH */
+    int64_t cap = targetCap;  /* already clamped to effective batchCap */
     ctx->colBinds = (TAOS_STMT2_BIND *)taosMemoryCalloc(numCols, sizeof(TAOS_STMT2_BIND));
     if (!ctx->colBinds) return TSDB_CODE_BCK_MALLOC_FAILED;
 
@@ -903,11 +922,14 @@ static int stmt2FlushBatch(Stmt2RestoreCtx *ctx);
 //
 static int stmt2AccBlock(Stmt2RestoreCtx *ctx, void *blockData, int32_t blockRows,
                          FieldInfo *fieldInfos, int numFields) {
-    /* Flush the current batch if this block would overflow the row buffer.
-     * After flushing, accRows resets to 0 so the buffer is safe to reuse.
-     * A single TDengine block is always ≤ MAXROWS (4096) rows which is well
-     * below STMT2_MAX_ROWS_PER_BATCH (16384), so one flush is always enough. */
-    if (ctx->accRows + blockRows > ctx->rowBufCap) {
+    /* Flush the current batch before accumulating this block when:
+     *   (a) the block would overflow the row buffer, OR
+     *   (b) the user's --data-batch threshold has already been reached.
+     * Case (b) is needed when --data-batch < STMT2_MIN_ROW_BUF_CAP: the buffer
+     * can still hold more rows, but we honour the user's requested batch size. */
+    int64_t batchThresh = (argDataBatch() > 0) ? (int64_t)argDataBatch() : ctx->rowBufCap;
+    if (ctx->accRows + blockRows > ctx->rowBufCap ||
+        (ctx->accRows > 0 && ctx->accRows >= batchThresh)) {
         int flushCode = stmt2FlushBatch(ctx);
         if (flushCode != TSDB_CODE_SUCCESS) return flushCode;
     }

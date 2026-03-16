@@ -135,6 +135,22 @@ int          argBuildInClause(const char *colName, char *buf, int bufLen);
 // (meaning the user requested the whole super table, not individual CTBs)
 bool         argStbNameInSpecTables(const char *stbName);
 
+// STMT batch size limits and defaults (used by --data-batch / -B, restore only).
+//   STMT2: rows buffered before taos_stmt2_bind_param+exec; hard API constraint
+//          bind->num <= INT16_MAX (32767); safe conservative limit used here.
+//   STMT1: rows accumulated before taos_stmt_execute (execute-threshold);
+//          no hard API bind-level limit; practical upper bound below.
+#define STMT2_BATCH_MAX     16384
+#define STMT2_BATCH_DEFAULT 10000   /* floor(STMT2_BATCH_MAX * 0.6) */
+#define STMT1_BATCH_MAX     100000
+#define STMT1_BATCH_DEFAULT 60000   /* floor(STMT1_BATCH_MAX * 0.6) */
+
+// data-batch: maximum rows per STMT bind/execute call (restore only).
+// Returns 0 when not set (use built-in per-version defaults).
+// Valid range is version-dependent:
+//   STMT2: [1, STMT2_BATCH_MAX]   STMT1: [1, STMT1_BATCH_MAX]
+int          argDataBatch();
+
 void printVersion(bool verbose);
 
 #endif  // INC_BACKARGS_H_

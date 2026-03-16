@@ -675,6 +675,11 @@ class TestTaosBackupBasic:
         tdLog.info("do_taosbackup_stmt_version .................. [passed]")
 
     #
+    # ------------------- do_taosbackup_special_types ----------------
+    #
+    def do_taosbackup_special_types(self):
+        """Test backup/restore with VARBINARY, GEOMETRY, DECIMAL, BLOB columns."""
+        tmpdir = "./taosbackuptest/tmpdir_special_types"
 
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database db keep 3649")
@@ -782,6 +787,402 @@ class TestTaosBackupBasic:
         tdSql.query("select c1, c2, c3, c4 from db.nt1 where ts=1640000000001")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, None)
+
+        tdLog.info("do_taosbackup_special_types ................. [passed]")
+
+    #
+    # ------------------- do_taosbackup_skip_empty_ctb ----------------
+    #
+    def do_taosbackup_skip_empty_ctb(self):
+        """New code: empty child tables produce no .dat file (skip-empty-table path)."""
+        tmpdir = "./taosbackuptest/tmpdir_skip_empty_ctb"
+
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("create database db keep 3649")
+        tdSql.execute("use db")
+        tdSql.execute("create table st(ts timestamp, c1 int) tags(t1 int)")
+        tdSql.execute("create table t1 using st tags(1)")
+        tdSql.execute("insert into t1 values(1640000000000, 100)")  # has data
+        tdSql.execute("create table t2 using st tags(2)")           # empty
+
+        binPath = etool.taosBackupFile()
+        if binPath == "":
+            tdLog.exit("taosBackup not found!")
+
+        self.makeDir(tmpdir)
+        self.exec("%s -D db -o %s -T 1" % (binPath, tmpdir))
+
+        # t1.dat must exist; t2.dat must NOT exist (empty table → skipped)
+        dat_t1 = "%s/db/st_data0/t1.dat" % tmpdir
+        dat_t2 = "%s/db/st_data0/t2.dat" % tmpdir
+        assert os.path.exists(dat_t1), "t1.dat should exist for non-empty child table"
+        assert not os.path.exists(dat_t2), "t2.dat must NOT exist for empty child table"
+
+        tdSql.execute("drop database db")
+        self.exec("%s -i %s -T 1" % (binPath, tmpdir))
+
+        assert self.dbFound("db"), "database 'db' not found after restore"
+        tdSql.execute("use db")
+        # Schema for both CTBs must be present
+        tdSql.query("show tables")
+        tdSql.checkRows(2)
+        # Only t1 carries data
+        tdSql.query("select count(*) from db.t1")
+        tdSql.checkData(0, 0, 1)
+        tdSql.query("select count(*) from db.t2")
+        tdSql.checkData(0, 0, 0)
+
+        tdLog.info("do_taosbackup_skip_empty_ctb ................ [passed]")
+
+    #
+    # ------------------- do_taosbackup_skip_empty_ntb ----------------
+    #
+    def do_taosbackup_skip_empty_ntb(self):
+        """New code: empty normal tables produce no .dat file (skip-empty-ntb path)."""
+        tmpdir = "./taosbackuptest/tmpdir_skip_empty_ntb"
+
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("create database db keep 3649")
+        tdSql.execute("use db")
+        tdSql.execute("create table nt1(ts timestamp, c1 int)")
+        tdSql.execute("insert into nt1 values(1640000000000, 42)")  # has data
+        tdSql.execute("create table nt2(ts timestamp, c1 int)")     # empty
+
+        binPath = etool.taosBackupFile()
+        if binPath == "":
+            tdLog.exit("taosBackup not found!")
+
+        self.makeDir(tmpdir)
+        self.exec("%s -D db -o %s -T 1" % (binPath, tmpdir))
+
+        # nt1.dat must exist; nt2.dat must NOT exist
+        dat_nt1 = "%s/db/_ntb_data0/nt1.dat" % tmpdir
+        dat_nt2 = "%s/db/_ntb_data0/nt2.dat" % tmpdir
+        assert os.path.exists(dat_nt1), "nt1.dat should exist for non-empty normal table"
+        assert not os.path.exists(dat_nt2), "nt2.dat must NOT exist for empty normal table"
+
+        tdSql.execute("drop database db")
+        self.exec("%s -i %s -T 1" % (binPath, tmpdir))
+
+        assert self.dbFound("db"), "database 'db' not found after restore"
+        tdSql.execute("use db")
+        tdSql.query("show tables")
+        tdSql.checkRows(2)
+        tdSql.query("select count(*) from db.nt1")
+        tdSql.checkData(0, 0, 1)
+        tdSql.query("select count(*) from db.nt2")
+        tdSql.checkData(0, 0, 0)
+
+        tdLog.info("do_taosbackup_skip_empty_ntb ................ [passed]")
+
+    #
+    # ------------------- do_taosbackup_skip_empty_time_range ----------------
+    #
+    def do_taosbackup_skip_empty_time_range(self):
+        """New code: CTBs with no rows in the requested time range get no .dat file."""
+        tmpdir = "./taosbackuptest/tmpdir_skip_time_range"
+
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("create database db keep 3649")
+        tdSql.execute("use db")
+        tdSql.execute("create table st(ts timestamp, c1 int) tags(t1 int)")
+        tdSql.execute("create table t1 using st tags(1)")
+        # t1: data in 2022 — inside the backup range
+        tdSql.execute("insert into t1 values(1641000000000, 10)")
+        tdSql.execute("create table t2 using st tags(2)")
+        # t2: data in 2021 — outside the backup range
+        tdSql.execute("insert into t2 values(1609459200000, 20)")
+
+        binPath = etool.taosBackupFile()
+        if binPath == "":
+            tdLog.exit("taosBackup not found!")
+
+        self.makeDir(tmpdir)
+        # Backup only 2022 data
+        self.exec(
+            "%s -D db -o %s -T 1 -S '2022-01-01 00:00:00.000' -E '2022-12-31 23:59:59.999'"
+            % (binPath, tmpdir)
+        )
+
+        # t1.dat must exist; t2.dat must NOT exist (0 rows in range)
+        dat_t1 = "%s/db/st_data0/t1.dat" % tmpdir
+        dat_t2 = "%s/db/st_data0/t2.dat" % tmpdir
+        assert os.path.exists(dat_t1), "t1.dat should exist: t1 has data in time range"
+        assert not os.path.exists(dat_t2), "t2.dat must NOT exist: t2 has no data in time range"
+
+        tdSql.execute("drop database db")
+        self.exec("%s -i %s -T 1" % (binPath, tmpdir))
+
+        assert self.dbFound("db"), "database 'db' not found after restore"
+        tdSql.execute("use db")
+        # Schema for both CTBs must be present
+        tdSql.query("show tables")
+        tdSql.checkRows(2)
+        # Only in-range row (t1) must be restored
+        tdSql.query("select count(*) from db.t1")
+        tdSql.checkData(0, 0, 1)
+        tdSql.query("select count(*) from db.t2")
+        tdSql.checkData(0, 0, 0)
+
+        tdLog.info("do_taosbackup_skip_empty_time_range ......... [passed]")
+
+    #
+    # ------------------- do_taosbackup_complete_flag ----------------
+    #
+    def do_taosbackup_complete_flag(self):
+        """New code: backup_complete.flag lifecycle — created after backup, deleted at start of next fresh run."""
+        tmpdir = "./taosbackuptest/tmpdir_complete_flag"
+
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("create database db keep 3649")
+        tdSql.execute("use db")
+        tdSql.execute("create table st(ts timestamp, c1 int) tags(t1 int)")
+        tdSql.execute("create table t1 using st tags(1)")
+        tdSql.execute("insert into t1 values(1640000000000, 1)")
+
+        binPath = etool.taosBackupFile()
+        if binPath == "":
+            tdLog.exit("taosBackup not found!")
+
+        self.makeDir(tmpdir)
+
+        # First backup — flag must be created on completion
+        self.exec("%s -D db -o %s -T 1" % (binPath, tmpdir))
+        flag_path = "%s/db/backup_complete.flag" % tmpdir
+        assert os.path.exists(flag_path), "backup_complete.flag must exist after successful backup"
+
+        # Second backup — flag is detected, deleted at start (fresh run), then recreated
+        self.exec("%s -D db -o %s -T 1" % (binPath, tmpdir))
+        assert os.path.exists(flag_path), "backup_complete.flag must exist after second backup"
+
+        # Restore and verify correctness after two successive backups
+        tdSql.execute("drop database db")
+        self.exec("%s -i %s -T 1" % (binPath, tmpdir))
+
+        assert self.dbFound("db"), "database 'db' not found after restore"
+        tdSql.execute("use db")
+        tdSql.query("select count(*) from db.st")
+        tdSql.checkData(0, 0, 1)
+
+        tdLog.info("do_taosbackup_complete_flag ................. [passed]")
+
+    #
+    # ------------------- do_taosbackup_prefilter_empty_ctb ----------------
+    #
+    def do_taosbackup_prefilter_empty_ctb(self):
+        """Pre-filter empty CTBs using last(ts) aggregate (no time filter path).
+        Verifies:
+          - non-empty CTBs produce .dat files and all rows are restored correctly
+          - empty CTBs produce no .dat files and restore with 0 rows (schema present)
+        """
+        tmpdir = "./taosbackuptest/tmpdir_prefilter_notf"
+
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("create database db keep 3649")
+        tdSql.execute("use db")
+        tdSql.execute("create table st(ts timestamp, c1 int) tags(t1 int)")
+
+        # t1, t2, t3: each has 10 rows
+        for i in range(1, 4):
+            tdSql.execute("create table t%d using st tags(%d)" % (i, i))
+            for j in range(10):
+                tdSql.execute(
+                    "insert into t%d values(%d, %d)" % (i, 1640000000000 + j, j)
+                )
+        # t4, t5: empty
+        tdSql.execute("create table t4 using st tags(4)")
+        tdSql.execute("create table t5 using st tags(5)")
+
+        binPath = etool.taosBackupFile()
+        if binPath == "":
+            tdLog.exit("taosBackup not found!")
+
+        self.makeDir(tmpdir)
+        self.exec("%s -D db -o %s -T 2" % (binPath, tmpdir))
+
+        # .dat files exist only for non-empty CTBs
+        for i in range(1, 4):
+            dat = "%s/db/st_data0/t%d.dat" % (tmpdir, i)
+            assert os.path.exists(dat), "t%d.dat must exist (non-empty CTB)" % i
+        for i in range(4, 6):
+            dat = "%s/db/st_data0/t%d.dat" % (tmpdir, i)
+            assert not os.path.exists(dat), "t%d.dat must NOT exist (empty CTB)" % i
+
+        tdSql.execute("drop database db")
+        self.exec("%s -i %s -T 2" % (binPath, tmpdir))
+
+        assert self.dbFound("db"), "database 'db' not found after restore"
+        tdSql.execute("use db")
+        # All 5 CTB schemas must be present
+        tdSql.query("show tables")
+        tdSql.checkRows(5)
+        # Non-empty CTBs: all 10 rows intact (correctness)
+        for i in range(1, 4):
+            tdSql.query("select count(*) from db.t%d" % i)
+            tdSql.checkData(0, 0, 10)
+        # Empty CTBs: schema present, 0 rows
+        for i in range(4, 6):
+            tdSql.query("select count(*) from db.t%d" % i)
+            tdSql.checkData(0, 0, 0)
+
+        tdLog.info("do_taosbackup_prefilter_empty_ctb ........... [passed]")
+
+    #
+    # ------------------- do_taosbackup_prefilter_empty_ctb_time_filter ----------------
+    #
+    def do_taosbackup_prefilter_empty_ctb_time_filter(self):
+        """Pre-filter empty CTBs using last_row(ts) aggregate (-S/-E time filter path).
+        Verifies that in-range CTBs are fully backed up, out-of-range CTBs produce no
+        .dat file, and mixed CTBs retain only in-range rows after restore.
+        """
+        tmpdir = "./taosbackuptest/tmpdir_prefilter_tf"
+
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("create database db keep 3649")
+        tdSql.execute("use db")
+        tdSql.execute("create table st(ts timestamp, c1 int) tags(t1 int)")
+
+        # t1: 5 rows entirely inside range (2022)
+        tdSql.execute("create table t1 using st tags(1)")
+        for j in range(5):
+            tdSql.execute("insert into t1 values(%d, %d)" % (1641000000000 + j, j))
+
+        # t2: 3 rows entirely outside range (2021)
+        tdSql.execute("create table t2 using st tags(2)")
+        for j in range(3):
+            tdSql.execute("insert into t2 values(%d, %d)" % (1609459200000 + j, j))
+
+        # t3: 4 rows outside range (2021) + 6 rows inside range (2022)
+        tdSql.execute("create table t3 using st tags(3)")
+        for j in range(4):
+            tdSql.execute(
+                "insert into t3 values(%d, %d)" % (1609459200000 + j, j)
+            )
+        for j in range(6):
+            tdSql.execute(
+                "insert into t3 values(%d, %d)" % (1641000000000 + j, j + 10)
+            )
+
+        # t4: empty
+        tdSql.execute("create table t4 using st tags(4)")
+
+        binPath = etool.taosBackupFile()
+        if binPath == "":
+            tdLog.exit("taosBackup not found!")
+
+        self.makeDir(tmpdir)
+        self.exec(
+            "%s -D db -o %s -T 2 -S '2022-01-01 00:00:00.000' -E '2022-12-31 23:59:59.999'"
+            % (binPath, tmpdir)
+        )
+
+        # t1: has in-range data → must have .dat
+        assert os.path.exists("%s/db/st_data0/t1.dat" % tmpdir), \
+            "t1.dat must exist (has in-range data)"
+        # t2: no in-range data → must NOT have .dat
+        assert not os.path.exists("%s/db/st_data0/t2.dat" % tmpdir), \
+            "t2.dat must NOT exist (all data outside range)"
+        # t3: has in-range data → must have .dat
+        assert os.path.exists("%s/db/st_data0/t3.dat" % tmpdir), \
+            "t3.dat must exist (has in-range data)"
+        # t4: empty → must NOT have .dat
+        assert not os.path.exists("%s/db/st_data0/t4.dat" % tmpdir), \
+            "t4.dat must NOT exist (empty)"
+
+        tdSql.execute("drop database db")
+        self.exec("%s -i %s -T 2" % (binPath, tmpdir))
+
+        assert self.dbFound("db"), "database 'db' not found after restore"
+        tdSql.execute("use db")
+        # All 4 CTB schemas restored
+        tdSql.query("show tables")
+        tdSql.checkRows(4)
+        # t1: all 5 in-range rows
+        tdSql.query("select count(*) from db.t1")
+        tdSql.checkData(0, 0, 5)
+        # t2: 0 rows (no in-range data backed up)
+        tdSql.query("select count(*) from db.t2")
+        tdSql.checkData(0, 0, 0)
+        # t3: only the 6 in-range rows (out-of-range rows not backed up)
+        tdSql.query("select count(*) from db.t3")
+        tdSql.checkData(0, 0, 6)
+        # t4: 0 rows
+        tdSql.query("select count(*) from db.t4")
+        tdSql.checkData(0, 0, 0)
+
+        tdLog.info("do_taosbackup_prefilter_empty_ctb_time_filter [passed]")
+
+    #
+    # ------------------- do_taosbackup_prefilter_spec_tables_time_filter ----------------
+    #
+    def do_taosbackup_prefilter_spec_tables_time_filter(self):
+        """Pre-filter empty CTBs with spec-tables and time filter combined.
+        The inner WHERE clause merges tbname IN(...) and ts range; verifies that
+        -S/-E is applied even when specific CTBs are named on the command line.
+        """
+        tmpdir = "./taosbackuptest/tmpdir_prefilter_spec_tf"
+
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("create database db keep 3649")
+        tdSql.execute("use db")
+        tdSql.execute("create table st(ts timestamp, c1 int) tags(t1 int)")
+
+        # t1 (spec): 8 rows inside range (2022)
+        tdSql.execute("create table t1 using st tags(1)")
+        for j in range(8):
+            tdSql.execute("insert into t1 values(%d, %d)" % (1641000000000 + j, j))
+
+        # t2 (spec): 5 rows entirely outside range (2021) — no .dat expected
+        tdSql.execute("create table t2 using st tags(2)")
+        for j in range(5):
+            tdSql.execute("insert into t2 values(%d, %d)" % (1609459200000 + j, j))
+
+        # t3 (NOT in spec): 5 in-range rows — must not appear at all
+        tdSql.execute("create table t3 using st tags(3)")
+        for j in range(5):
+            tdSql.execute(
+                "insert into t3 values(%d, %d)" % (1641000000000 + j, j + 100)
+            )
+
+        binPath = etool.taosBackupFile()
+        if binPath == "":
+            tdLog.exit("taosBackup not found!")
+
+        self.makeDir(tmpdir)
+        # Specify t1 and t2 explicitly (spec-tables path), plus time filter
+        self.exec(
+            "%s db t1 t2 -o %s -T 1 -S '2022-01-01 00:00:00.000' -E '2022-12-31 23:59:59.999'"
+            % (binPath, tmpdir)
+        )
+
+        # t1: spec + in-range → .dat must exist
+        assert os.path.exists("%s/db/st_data0/t1.dat" % tmpdir), \
+            "t1.dat must exist (spec, has in-range data)"
+        # t2: spec but no in-range data → .dat must NOT exist
+        assert not os.path.exists("%s/db/st_data0/t2.dat" % tmpdir), \
+            "t2.dat must NOT exist (spec, all data outside range)"
+        # t3: not in spec → .dat must NOT exist
+        assert not os.path.exists("%s/db/st_data0/t3.dat" % tmpdir), \
+            "t3.dat must NOT exist (not in spec)"
+
+        tdSql.execute("drop database db")
+        self.exec('%s -i %s -T 1 -W "db=newdb"' % (binPath, tmpdir))
+
+        assert self.dbFound("newdb"), "newdb not found after restore"
+        tdSql.execute("use newdb")
+        # Only t1 and t2 schemas restored (spec-tables)
+        tdSql.query("show tables")
+        tdSql.checkRows(2)
+        # t1: all 8 in-range rows correctly restored
+        tdSql.query("select count(*) from newdb.t1")
+        tdSql.checkData(0, 0, 8)
+        # t2: 0 rows (time filter excluded all its data)
+        tdSql.query("select count(*) from newdb.t2")
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.execute("drop database newdb")
+        tdLog.info("do_taosbackup_prefilter_spec_tables_time_filter [passed]")
+
     #
     # ------------------- main test method ----------------
     #
@@ -798,6 +1199,14 @@ class TestTaosBackupBasic:
         8. Test backup/restore with maximum number of columns (300 cols, 128 tags)
         9. Test -m tag-thread-num for multi-threaded tag backup
         10. Test -v stmt-version option for restore (v1 legacy and v2 default)
+        11. Test backup/restore with VARBINARY, GEOMETRY, DECIMAL, BLOB columns
+        12. Test skip-empty-ctb: empty child tables produce no .dat file
+        13. Test skip-empty-ntb: empty normal tables produce no .dat file
+        14. Test skip-empty-time-range: CTBs with no in-range rows get no .dat file
+        15. Test backup_complete.flag lifecycle (created / deleted on fresh run)
+        16. Pre-filter empty CTBs via last(ts): mixed CTBs, no time filter; all non-empty rows intact
+        17. Pre-filter empty CTBs via last_row(ts): time filter; in-range rows correct, out-of-range skipped
+        18. Pre-filter empty CTBs with spec-tables + time filter; -S/-E applies to named CTBs
 
         Since: v3.0.0.0
 
@@ -819,3 +1228,11 @@ class TestTaosBackupBasic:
         self.do_taosbackup_many_cols()
         self.do_taosbackup_tag_threads()
         self.do_taosbackup_stmt_version()
+        self.do_taosbackup_special_types()
+        self.do_taosbackup_skip_empty_ctb()
+        self.do_taosbackup_skip_empty_ntb()
+        self.do_taosbackup_skip_empty_time_range()
+        self.do_taosbackup_complete_flag()
+        self.do_taosbackup_prefilter_empty_ctb()
+        self.do_taosbackup_prefilter_empty_ctb_time_filter()
+        self.do_taosbackup_prefilter_spec_tables_time_filter()

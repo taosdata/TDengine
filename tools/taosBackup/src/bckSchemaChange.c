@@ -115,6 +115,15 @@ static int8_t typeStrToTdType(const char *typeStr) {
     if (strcasecmp(typeStr, "JSON") == 0)              return TSDB_DATA_TYPE_JSON;
     if (strcasecmp(typeStr, "VARBINARY") == 0)         return TSDB_DATA_TYPE_VARBINARY;
     if (strcasecmp(typeStr, "GEOMETRY") == 0)          return TSDB_DATA_TYPE_GEOMETRY;
+    if (strcasecmp(typeStr, "BLOB") == 0)              return TSDB_DATA_TYPE_BLOB;
+    if (strcasecmp(typeStr, "MEDIUMBLOB") == 0)        return TSDB_DATA_TYPE_MEDIUMBLOB;
+    /* DECIMAL(p,s) — DESCRIBE returns "DECIMAL(p, s)"; precision <= 18 → DECIMAL64 */
+    if (strncasecmp(typeStr, "DECIMAL", 7) == 0) {
+        int precision = 38;  /* default to 128-bit if no parens */
+        const char *paren = strchr(typeStr, '(');
+        if (paren) sscanf(paren + 1, " %d", &precision);
+        return (precision <= 18) ? TSDB_DATA_TYPE_DECIMAL64 : TSDB_DATA_TYPE_DECIMAL;
+    }
     return -1;
 }
 

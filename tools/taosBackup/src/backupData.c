@@ -123,18 +123,24 @@ int backChildTableData(DataThread* thread, const char *childTableName) {
     int64_t rows = 0;
     code = queryWriteBinary(thread->conn, sql, format, tmpFile, &rows);
     if (code == TSDB_CODE_SUCCESS) {
-        if (rename(tmpFile, pathFile) != 0) {
+        if (rows == 0) {
+            // No data (empty table or no rows in time range): discard the tmp
+            // file and skip creating a .dat file entirely.  This avoids 1000s of
+            // zero-row files when backing up sparse / high-cardinality datasets.
+            taosRemoveFile(tmpFile);
+            logDebug("skip empty table (0 rows): %s.%s", dbName, childTableName);
+            return TSDB_CODE_SUCCESS;
+        }
+        if (taosRenameFile(tmpFile, pathFile) != 0) {
             logError("rename tmp file failed: %s -> %s, errno: %d", tmpFile, pathFile, errno);
             code = TSDB_CODE_FAILED;
         } else {
             atomic_add_fetch_64(&g_stats.totalRows, rows);
-            if (rows > 0) {
-                atomic_add_fetch_64(&g_stats.childTablesTotal, 1);
-            }
+            atomic_add_fetch_64(&g_stats.childTablesTotal, 1);
         }
     } else {
         // remove incomplete tmp file
-        remove(tmpFile);
+        taosRemoveFile(tmpFile);
     }
 
     atomic_add_fetch_64(&g_stats.dataFilesTotal, 1);
@@ -156,24 +162,37 @@ static void* backDataThread(void *arg) {
     logInfo("data thread %d started for %s.%s (offset=%d, limit=%d)", 
             thread->index, thread->dbInfo->dbName, thread->stbInfo->stbName, thread->offset, thread->limit);
 
-    char sql[8192] = {0};
-    if (argSpecTables() && !argStbNameInSpecTables(thread->stbInfo->stbName)) {
-        // filter to only the requested child tables
-        char inClause[7800] = "";
-        argBuildInClause("tbname", inClause, sizeof(inClause));
-        snprintf(sql, sizeof(sql), "select DISTINCT tbname from `%s`.`%s` WHERE %s ORDER BY tbname LIMIT %d OFFSET %d;",
-                 thread->dbInfo->dbName,
-                 thread->stbInfo->stbName,
-                 inClause,
-                 thread->limit,
-                 thread->offset);
-    } else {
-        snprintf(sql, sizeof(sql), "select DISTINCT tbname from `%s`.`%s` ORDER BY tbname LIMIT %d OFFSET %d;",
-                 thread->dbInfo->dbName,
-                 thread->stbInfo->stbName,
-                 thread->limit,
-                 thread->offset);
+    // Aggregate function:
+    //   last(ts)     – no time filter: benefits from last-value cache when enabled, O(n_tables)
+    //   last_row(ts) – with time filter: only inspects the last row in range, faster than full scan
+    const char *tf = argTimeFilter();
+    bool hasTf = (tf && tf[0]);
+    char innerWhere[10240] = "";
+    {
+        char tfPart[256] = "", inPart[7800] = "";
+        if (hasTf)
+            snprintf(tfPart, sizeof(tfPart), "%s", tf + 6);  // strip leading "WHERE "
+        if (argSpecTables() && !argStbNameInSpecTables(thread->stbInfo->stbName))
+            argBuildInClause("tbname", inPart, sizeof(inPart));
+        bool hasIn = (inPart[0] != '\0');
+        if (hasTf && hasIn)
+            snprintf(innerWhere, sizeof(innerWhere), "WHERE %s AND %s", tfPart, inPart);
+        else if (hasTf)
+            snprintf(innerWhere, sizeof(innerWhere), "WHERE %s", tfPart);
+        else if (hasIn)
+            snprintf(innerWhere, sizeof(innerWhere), "WHERE %s", inPart);
     }
+    char sql[12288] = {0};
+    snprintf(sql, sizeof(sql),
+             "SELECT tbname FROM ("
+             "SELECT %s lts, tbname FROM `%s`.`%s` %s GROUP BY tbname"
+             ") WHERE lts IS NOT NULL ORDER BY tbname LIMIT %d OFFSET %d;",
+             hasTf ? "last_row(ts)" : "last(ts)",
+             thread->dbInfo->dbName,
+             thread->stbInfo->stbName,
+             innerWhere,
+             thread->limit,
+             thread->offset);
     
     // query child table names
     TAOS* conn = getConnection(&thread->code);
@@ -270,16 +289,37 @@ DataThread * splitTaskData(StbInfo *stbInfo, int *code, int *outCount, int *totC
     const char* dbName = stbInfo->dbInfo->dbName;
     const char* stbName = stbInfo->stbName;
 
-    // query table count
-    char sql[8192] = {0};
-    char specFilter[4096] = "";
-    if (argSpecTables() && !argStbNameInSpecTables(stbName)) {
-        // user specified individual CTBs, not the whole STB
-        char inClause[3800] = "";
-        argBuildInClause("table_name", inClause, sizeof(inClause));
-        snprintf(specFilter, sizeof(specFilter), " AND %s", inClause);
+    // Pre-filter: count only CTBs that have data in the backup range (方案四).
+    // Build innerWhere combining -S/-E time filter and/or spec-tables IN filter;
+    // -S/-E applies to the spec-tables path too.
+    // Aggregate function:
+    //   last(ts)     – no time filter: benefits from last-value cache when enabled, O(n_tables)
+    //   last_row(ts) – with time filter: only inspects the last row in range, faster than full scan
+    // HAVING with aggregate is not supported for this syntax; use subquery instead.
+    const char *tf = argTimeFilter();
+    bool hasTf = (tf && tf[0]);
+    char innerWhere[8192] = "";
+    {
+        char tfPart[256] = "", inPart[3800] = "";
+        if (hasTf)
+            snprintf(tfPart, sizeof(tfPart), "%s", tf + 6);  // strip leading "WHERE "
+        if (argSpecTables() && !argStbNameInSpecTables(stbName))
+            argBuildInClause("tbname", inPart, sizeof(inPart));
+        bool hasIn = (inPart[0] != '\0');
+        if (hasTf && hasIn)
+            snprintf(innerWhere, sizeof(innerWhere), "WHERE %s AND %s", tfPart, inPart);
+        else if (hasTf)
+            snprintf(innerWhere, sizeof(innerWhere), "WHERE %s", tfPart);
+        else if (hasIn)
+            snprintf(innerWhere, sizeof(innerWhere), "WHERE %s", inPart);
     }
-    snprintf(sql, sizeof(sql), "select count(*) from information_schema.ins_tables where db_name='%s' and stable_name='%s'%s;", dbName, stbName, specFilter);
+    char sql[8192] = {0};
+    snprintf(sql, sizeof(sql),
+             "SELECT count(*) FROM ("
+             "SELECT %s lts FROM `%s`.`%s` %s GROUP BY tbname"
+             ") WHERE lts IS NOT NULL;",
+             hasTf ? "last_row(ts)" : "last(ts)",
+             dbName, stbName, innerWhere);
     int32_t tableCnt = 0;
     *code = queryValueInt(sql, 0, &tableCnt);
     if (*code != TSDB_CODE_SUCCESS) {
@@ -441,14 +481,20 @@ static int backNormalOneTable(DataThread* thread, const char *tableName) {
     int64_t rows = 0;
     code = queryWriteBinary(thread->conn, sql, format, tmpFile, &rows);
     if (code == TSDB_CODE_SUCCESS) {
-        if (rename(tmpFile, pathFile) != 0) {
+        if (rows == 0) {
+            // No data in time range: discard tmp file, nothing to back up.
+            taosRemoveFile(tmpFile);
+            logDebug("skip empty normal table (0 rows): %s.%s", dbName, tableName);
+            return TSDB_CODE_SUCCESS;
+        }
+        if (taosRenameFile(tmpFile, pathFile) != 0) {
             logError("rename tmp file failed: %s -> %s, errno: %d", tmpFile, pathFile, errno);
             code = TSDB_CODE_FAILED;
         } else {
             atomic_add_fetch_64(&g_stats.totalRows, rows);
         }
     } else {
-        remove(tmpFile);
+        taosRemoveFile(tmpFile);
     }
 
     atomic_add_fetch_64(&g_stats.dataFilesTotal, 1);
@@ -644,7 +690,7 @@ int backDatabaseData(DBInfo *dbInfo) {
     char completeFlagPath[MAX_PATH_LEN];
     backCompleteFlagPath(dbName, completeFlagPath, sizeof(completeFlagPath));
     if (taosCheckExistFile(completeFlagPath)) {
-        remove(completeFlagPath);
+        taosRemoveFile(completeFlagPath);
         g_backResumeMode = false;
         logInfo("backup db %s: previous run completed, starting fresh", dbName);
     } else {

@@ -46,8 +46,17 @@ static char* readFileContent(const char *filePath, int *outLen) {
 
     // get file size
     int64_t fileSize = 0;
-    if (taosFStatFile(fp, &fileSize, NULL) != 0 || fileSize <= 0) {
-        // try read up to 1MB
+    int statRet = taosFStatFile(fp, &fileSize, NULL);
+    if (statRet == 0 && fileSize == 0) {
+        // empty file — caller should treat this as "nothing to process"
+        taosCloseFile(&fp);
+        char *empty = (char *)taosMemoryMalloc(1);
+        if (empty) empty[0] = '\0';
+        if (outLen) *outLen = 0;
+        return empty;
+    }
+    if (statRet != 0 || fileSize < 0) {
+        // fstat failed — fall back to unbounded read (up to 1 MB)
         fileSize = 1024 * 1024;
     }
 

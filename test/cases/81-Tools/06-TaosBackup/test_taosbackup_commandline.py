@@ -218,19 +218,92 @@ class TestTaosBackupCommandline:
     def exceptCommandLine(self, taosbackup, db, tmpdir):
         """Test commandline arguments that should fail (exit non-zero quickly).
 
-        NOTE: -P 65536, invalid cloud DSN, and non-existent output path are
-        intentionally excluded because taosBackup defers port/connection
-        validation until it has filled the connection pool, causing those cases
-        to hang instead of failing fast.
+        All validation below happens at argument-parse time (before any network
+        connection), so these cases exit immediately with a non-zero code.
         """
         # invalid driver
         self.checkExcept(taosbackup + f" -Z invalid -D {db} -o {tmpdir}")
         # invalid format
         self.checkExcept(taosbackup + f" -F unknownfmt -D {db} -o {tmpdir}")
-        # invalid stmt version
+        # invalid stmt-version value
         self.checkExcept(taosbackup + f" -v 99 -D {db} -o {tmpdir}")
         # missing output path
         self.checkExcept(taosbackup + f" -D {db}")
+
+        # --- restore-only options must be rejected in backup mode ---
+        # -B (data-batch) is restore-only
+        self.checkExcept(taosbackup + f" -B 20000 -D {db} -o {tmpdir}")
+        # -v (stmt-version) is restore-only
+        self.checkExcept(taosbackup + f" -v 1 -D {db} -o {tmpdir}")
+        self.checkExcept(taosbackup + f" -v 2 -D {db} -o {tmpdir}")
+        # -W (rename) is restore-only
+        self.checkExcept(taosbackup + f' -W "{db}=newdb" -D {db} -o {tmpdir}')
+
+        # --- backup-only options must be rejected in restore mode ---
+        # -S / -E (time range) are backup-only
+        self.checkExcept(taosbackup + f" -S 2024-01-01T00:00:00 -D {db} -i {tmpdir}")
+        self.checkExcept(taosbackup + f" -E 2024-01-01T00:00:00 -D {db} -i {tmpdir}")
+
+        # --- -B range validation (all at parse time; -i used so action=RESTORE) ---
+        # below minimum: 0
+        self.checkExcept(taosbackup + f" -B 0 -D {db} -i {tmpdir}")
+        # below minimum: negative (use long-form to avoid shell flag confusion)
+        self.checkExcept(taosbackup + f" --data-batch=-1 -D {db} -i {tmpdir}")
+        # above global max (>100000), caught at parse time regardless of -v
+        self.checkExcept(taosbackup + f" -B 100001 -D {db} -i {tmpdir}")
+        # above STMT1 max explicitly: -v 1, B=100001
+        self.checkExcept(taosbackup + f" -B 100001 -v 1 -D {db} -i {tmpdir}")
+        # exceeds STMT2 max (16384) when -v 2 is explicit: boundary value 16385
+        self.checkExcept(taosbackup + f" -B 16385 -v 2 -D {db} -i {tmpdir}")
+        # exceeds STMT2 max (16384) when -v 2 is the default (no explicit -v)
+        self.checkExcept(taosbackup + f" -B 16385 -D {db} -i {tmpdir}")
+        # mid-range value valid for STMT1 but exceeds STMT2 max: 50000 with -v 2
+        self.checkExcept(taosbackup + f" -B 50000 -v 2 -D {db} -i {tmpdir}")
+        # same with default STMT2 (no -v): 50000 should also fail
+        self.checkExcept(taosbackup + f" -B 50000 -D {db} -i {tmpdir}")
+
+        # --- -T / -m thread counts must be >= 1 ---
+        self.checkExcept(taosbackup + f" -T 0 -D {db} -o {tmpdir}")
+        self.checkExcept(taosbackup + f" -m 0 -D {db} -o {tmpdir}")
+
+        # --- -P port must be in [1, 65535] (parse-time check, exits immediately) ---
+        self.checkExcept(taosbackup + f" -P 99999 -D {db} -o {tmpdir}")
+        self.checkExcept(taosbackup + f" -P 65536 -D {db} -o {tmpdir}")
+        self.checkExcept(taosbackup + f" -P 0 -D {db} -o {tmpdir}")
+
+    def checkDataBatch(self, db, jsonFile, tmpdir):
+        """Validate -B (data-batch) and -v (stmt-version) boundary values for restore.
+
+        STMT2 (default): range [1, 16384], default 10000
+        STMT1 (-v 1):    range [1, 100000], default 60000
+
+        Backup is performed once; all restore cases reuse the same backup dir.
+        Each restore uses a unique renamed db which is verified then dropped.
+        """
+        # backup once, reuse for all restore tests
+        self.clearPath(tmpdir)
+        self.taosbackup(f"-D {db} -o {tmpdir}")
+
+        cases = [
+            # (stmt_ver, batch_size, label)
+            (2,      1, "STMT2 min=1"),
+            (2,  10000, "STMT2 default=10000"),
+            (2,  16384, "STMT2 max=16384"),
+            (1,      1, "STMT1 min=1"),
+            (1,  60000, "STMT1 default=60000"),
+            (1, 100000, "STMT1 max=100000"),
+        ]
+
+        for (stmt_ver, batch, label) in cases:
+            newdb = f"bckb{stmt_ver}x{batch}"
+            tdSql.execute(f"drop database if exists {newdb}")
+            rlist = self.taosbackup(
+                f'-v {stmt_ver} -B {batch} -W "{db}={newdb}" -i {tmpdir}'
+            )
+            self.checkManyString(rlist, [RESULT_SUCCESS])
+            self.verifyResult(db, newdb, jsonFile)
+            tdSql.execute(f"drop database if exists {newdb}")
+            tdLog.info(f"  {label}: B={batch} v={stmt_ver} ............... [OK]")
 
     def checkConnMode(self, db, tmpdir):
         """Test connection mode priority: cmd option > env variable."""
@@ -279,15 +352,21 @@ class TestTaosBackupCommandline:
            - -Z native/websocket driver
            - -F binary/parquet format
            - -g debug mode (backup succeeds with richer output)
-        4. Test invalid commandline arguments (should fail):
+        4. Test invalid commandline arguments (all errors occur at parse time):
            - Invalid driver (-Z invalid)
            - Invalid format (-F unknown)
-           - Invalid stmt version (-v 99)
+           - Invalid stmt-version value (-v 99)
            - Missing output path
-           Note: -P 65536, invalid DSN, and non-existent path excluded
-           because taosBackup defers validation and hangs rather than
-           exiting non-zero immediately.
+           - Restore-only options used with -o: -B, -v, -W
+           - Backup-only options used with -i: -S, -E
+           - -B below minimum (0, -1) and above global max (100001)
+           - -B exceeds STMT2 max (16385 with -v 2 or default)
+           - -T 0, -m 0 (thread count must be >= 1)
+           - -P out of range (0, 65536, 99999) — parse-time check
         5. Test connection mode priority: cmd > env variable (TDENGINE_CLOUD_DSN)
+        6. Test -B/-v boundary values for restore:
+           - STMT2: B=1 (min), B=10000 (default), B=16384 (max)
+           - STMT1: B=1 (min), B=60000 (default), B=100000 (max)
 
         Since: v3.0.0.0
 
@@ -298,6 +377,7 @@ class TestTaosBackupCommandline:
         History:
             - 2026-03-04 Migrated and adapted from 04-Taosdump/test_taosdump_commandline.py
             - 2026-03-06 Added -g debug mode to basicCommandLine checks
+            - 2026-03-16 Added -B/-v boundary tests and extended error validation
 
         """
         taosbackup, benchmark, tmpdir = self.findPrograme()
@@ -327,3 +407,7 @@ class TestTaosBackupCommandline:
         # 5. check conn mode priority
         self.checkConnMode(db, tmpdir)
         tdLog.info("5. check conn mode priority ......................... [Passed]")
+
+        # 6. -B/-v boundary values for restore (STMT2 and STMT1)
+        self.checkDataBatch(db, jsonFile, tmpdir)
+        tdLog.info("6. data-batch -B/-v boundary restore tests ......... [Passed]")
