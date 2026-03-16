@@ -1,8 +1,17 @@
 # vnode
 add_subdirectory(src/tqCommon)
 add_library(vnode STATIC "")
-if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
-  DEP_ext_rocksdb(vnode)
+if(${BUILD_CONTRIB} OR NOT ${TD_LINUX})
+    DEP_ext_rocksdb(vnode)
+else()
+    target_include_directories(
+        vnode
+        PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
+    )
+    target_link_directories(
+        vnode
+        PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
+    )
 endif()
 
 if(${TD_DARWIN})
@@ -105,38 +114,15 @@ if(TD_VNODE_PLUGINS)
     )
 endif()
 
-if(${BUILD_CONTRIB})
-    target_include_directories(
-        vnode
-        PUBLIC "inc"
-        PUBLIC "src/inc"
-        PUBLIC "${TD_SOURCE_DIR}/include/libs/tcs"
-        PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
-        PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
-        PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
-    )
-else()
-    target_include_directories(
-        vnode
-        PUBLIC "inc"
-        PUBLIC "src/inc"
-        PUBLIC "${TD_SOURCE_DIR}/include/libs/tcs"
-        PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
-        PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
-        PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
-    )
-
-    if(${TD_LINUX})
-        target_include_directories(
-            vnode
-            PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
-        )
-        target_link_directories(
-            vnode
-            PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
-        )
-    endif()
-endif()
+target_include_directories(
+    vnode
+    PUBLIC "inc"
+    PUBLIC "src/inc"
+    PUBLIC "${TD_SOURCE_DIR}/include/libs/tcs"
+    PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
+    PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
+    PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
+)
 
 target_link_directories(
     vnode
