@@ -2193,8 +2193,8 @@ class TestExplain:
         tdLog.printNoPrefix("do explain partition by tag regression ... [passed]")
 
     def test_explain_analyze(self):
-        """
-        Test explain in analyze mode.
+        """Test explain in analyze mode.
+
         These cases cover almost all operators and their combinations.
 
         Since: v3.4.1.0
