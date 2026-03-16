@@ -3955,7 +3955,6 @@ _exit:
   return code;
 }
 
-#define BUILD_TEST
 #if defined(BUILD_TEST)
 static SArray* extWinGetSSDataBlocksInTest(SExternalWindowPhysiNode* pPhynode);
 #endif
@@ -4172,7 +4171,7 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
   pBlocks = extWinGetSSDataBlocksInTest(pPhynode);
   TSDB_CHECK_NULL(pBlocks, code, lino, _exit, terrno);
 #else
-  // todo xs get the block with external window values from subquery, for now just return error since this code
+  // get the block with external window values from subquery, for now just return error since this code
   // path is only for non-stream query which is not supported yet.
   if (NULL == pPhynode->pSubquery || nodeType(pPhynode->pSubquery) != QUERY_NODE_REMOTE_TABLE) {
     qError("invalid subquery in external window, pSubquery:%p, type:%d", pPhynode->pSubquery, pPhynode->pSubquery ? nodeType(pPhynode->pSubquery) : -1);

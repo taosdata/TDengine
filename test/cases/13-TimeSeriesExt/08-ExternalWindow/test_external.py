@@ -48,12 +48,14 @@ class TestExternal:
         tdLog.debug(f"start to execute {__file__}")
         self.dbName = "test"
 
-        self.mock_test_external_window_single_block()
-        self.mock_test_external_window_group_blocks()
+        # only used for BUILD_TEST is defined, which is not the case for regular test runs.
+        # self.mock_test_external_window_single_block()
+        # self.mock_test_external_window_group_blocks()
         
         self.prepare_data()
+        self.prepare_for_partition_and_subquery()
         self.basic_query()
-        self.partition_by_group_regression()
+        self.partition_and_subquery_regression()
 
     def mock_test_external_window_single_block(self):
         dbName = "external_window_test_single_block"
@@ -327,8 +329,8 @@ class TestExternal:
         self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "basic_query.ans")
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "basic_query")
 
-    def partition_by_group_regression(self):
-        tdLog.info("=============== regression: partition by + external window group calculation")
+    def prepare_for_partition_and_subquery(self):
+        tdLog.info("=============== external window: partition/group combinations (outer and subquery)")
 
         tdSql.execute(f"use {self.dbName}")
 
@@ -349,7 +351,14 @@ class TestExternal:
         tdSql.execute(f"insert into ext_src_1 values({t0 + 60000}, 10)({t0 + 120000}, 11)")
         tdSql.execute(f"insert into ext_src_2 values({t0 + 660000}, 20)")
 
-        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "partition_by_group_regression.in")
-        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "partition_by_group_regression.ans")
-        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "partition_by_group_regression")
+    def partition_and_subquery_regression(self):
+        tdSql.execute(f"use {self.dbName}")
+        
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "no_partition_in_subquery.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "no_partition_in_subquery.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "no_partition_in_subquery")
+
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", "partition_group_and_subquery.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "partition_group_and_subquery.ans")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "partition_group_and_subquery")
         

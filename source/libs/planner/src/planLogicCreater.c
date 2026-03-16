@@ -1862,6 +1862,67 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
         pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
         PLAN_ERR_RET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
         PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_EXT_WINDOW, NULL));
+
+        // 补齐：将 ORDER BY 用到的“简单列（COLUMN）”作为隐藏列加入 external_window 的投影集合，
+        // 以便上层 Sort 在 external_window 之上绑定排序键时，能在子节点输出 slot 中命中这些基础列（如 ts）。
+        if (pSelect->pOrderByList && LIST_LENGTH(pSelect->pOrderByList) > 0) {
+          SNode* pOB = NULL;
+          FOREACH(pOB, pSelect->pOrderByList) {
+            SNode* pExpr = (nodeType(pOB) == QUERY_NODE_ORDER_BY_EXPR) ? ((SOrderByExprNode*)pOB)->pExpr : pOB;
+            if (pExpr == NULL || QUERY_NODE_COLUMN != nodeType(pExpr)) {
+              continue;
+            }
+
+            SColumnNode* pCol = (SColumnNode*)pExpr;
+            if (0 == strcmp(pCol->colName, "*")) {
+              continue;
+            }
+
+            // 去重：若 pProjs 已包含同名列或同 alias，则跳过
+            bool exists = false;
+            SNode* pProj = NULL;
+            FOREACH(pProj, pWindow->pProjs) {
+              if (!nodesIsExprNode(pProj)) {
+                continue;
+              }
+
+              const char* a1 = ((SExprNode*)pProj)->aliasName;
+              const char* a2 = ((SExprNode*)pExpr)->aliasName;
+              if (a1[0] != '\0' && a2[0] != '\0' && strcasecmp(a1, a2) == 0) {
+                exists = true;
+                break;
+              }
+
+              if (QUERY_NODE_COLUMN == nodeType(pProj)) {
+                const char* c1 = ((SColumnNode*)pProj)->colName;
+                if (strcasecmp(c1, pCol->colName) == 0) {
+                  exists = true;
+                  break;
+                }
+              }
+            }
+
+            if (exists) {
+              continue;
+            }
+
+            // 追加一份克隆列，补齐稳定别名
+            SNode* pClone = NULL;
+            PLAN_ERR_RET(nodesCloneNode(pExpr, &pClone));
+            if (nodesIsExprNode(pClone)) {
+              SExprNode* pE = (SExprNode*)pClone;
+              if (pE->aliasName[0] == '\0') {
+                tstrncpy(pE->aliasName, ((SColumnNode*)pClone)->colName, TSDB_COL_NAME_LEN);
+              }
+              if (pE->userAlias[0] == '\0') {
+                tstrncpy(pE->userAlias, ((SColumnNode*)pClone)->colName, TSDB_COL_NAME_LEN);
+              }
+            }
+
+            PLAN_ERR_RET(nodesListMakeStrictAppend(&pWindow->pProjs, pClone));
+          }
+        }
+
         PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
       }
     } else {

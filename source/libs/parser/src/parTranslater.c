@@ -1330,6 +1330,15 @@ static SNodeList* getProjectList(const SNode* pNode) {
   return NULL;
 }
 
+static bool hasGroupOrPartition(const SNode* pNode) {
+  if (QUERY_NODE_SELECT_STMT == nodeType(pNode)) {
+    return ((SSelectStmt*)pNode)->pPartitionByList != NULL || ((SSelectStmt*)pNode)->pGroupByList != NULL;
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pNode)) {
+    return false;
+  }
+  return false;
+}
+
 static bool isBlockTimeLineQuery(SNode* pStmt) {
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     return (TIME_LINE_MULTI == ((SSelectStmt*)pStmt)->timeLineCurMode) ||
@@ -7555,6 +7564,12 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
+  // 追踪：记录是否 external_window、投影与排序项数量
+  parserError("parser orderby trace: extWin=%d projLen=%d orderLen=%d",
+              currentStmtWithExternalWindow(pCxt),
+              (int)LIST_LENGTH(pSelect->pProjectionList),
+              (int)LIST_LENGTH(pSelect->pOrderByList));
+
   code = translateClausePosition(pCxt, pSelect->pProjectionList, pSelect->pOrderByList, &other);
   if (TSDB_CODE_SUCCESS == code) {
     if (0 == LIST_LENGTH(pSelect->pOrderByList)) {
@@ -8129,6 +8144,11 @@ static int32_t checkExternalWindowSubquerySchema(STranslateContext* pCxt, SNode*
   if (NULL == pSubQuery) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_PC,
                                    "EXTERNAL_WINDOW requires a valid subquery");
+  }
+
+  if(!hasGroupOrPartition(pCxt->pCurrStmt) && hasGroupOrPartition(pSubQuery)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_PC,
+                                   "EXTERNAL_WINDOW subquery cannot have GROUP BY or PARTITION BY clause if the outer query doesn't have");
   }
 
   SNodeList* pProjectionList = getProjectList(pSubQuery);
@@ -10912,7 +10932,9 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
     code = checkHavingGroupBy(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    parserError("parser trace: entering translateOrderBy for QID:0x%" PRIx64, pCxt->pParseCxt ? pCxt->pParseCxt->requestId : 0);
     code = translateOrderBy(pCxt, pSelect);
+    parserError("parser trace: leaving translateOrderBy, code=%d", code);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkIsEmptyResult(pCxt, pSelect);
