@@ -24,6 +24,7 @@
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
+#include "tutil.h"
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
                                    __optr_close_fn_t closeFn, __optr_reqBuf_fn_t reqBufFn, __optr_explain_fn_t explain,
@@ -743,7 +744,6 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
     For the start, first and last row ts, we need to subtract the execCreate time
     to compute the real elapsed time since the operator is created.
   */
-  pExplainInfo->execStart = operatorInfo->cost.execStart - operatorInfo->cost.execCreate;
   if (operatorInfo->resultInfo.totalRows > 0) {
     /*
       When there is no data returned, keep execFirstRow and execLastRow as 0.
@@ -753,10 +753,13 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
   }
 
   pExplainInfo->execTimes = operatorInfo->cost.execTimes;
-  pExplainInfo->execElapsed = operatorInfo->cost.execElapsed;
-  pExplainInfo->inputWaitElapsed = operatorInfo->cost.inputWaitElapsed;
-  pExplainInfo->outputWaitElapsed = operatorInfo->cost.outputWaitElapsed;
-  pExplainInfo->inputRows = operatorInfo->cost.inputRows;
+  if (operatorInfo->cost.execTimes > 0) {
+    pExplainInfo->execStart = operatorInfo->cost.execStart - operatorInfo->cost.execCreate;
+    pExplainInfo->execElapsed = operatorInfo->cost.execElapsed;
+    pExplainInfo->inputWaitElapsed = operatorInfo->cost.inputWaitElapsed;
+    pExplainInfo->outputWaitElapsed = operatorInfo->cost.outputWaitElapsed;
+    pExplainInfo->inputRows = operatorInfo->cost.inputRows;
+  }
 
   if (operatorInfo->fpSet.getExplainFn) {
     int32_t code =

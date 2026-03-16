@@ -1020,7 +1020,7 @@ class TestExplain:
           - ...Tag Index Filter: conditions=t1=1...
 
         Validation rules:
-          1. efficiency field must be present in Filter or Tag Index Filter line
+          1. efficiency field must be present in Filter line
           2. efficiency value must be a valid number
           3. efficiency value must be between 0 and 100
         """
@@ -1437,7 +1437,7 @@ class TestExplain:
         Format examples:
         Line 1: total_blocks, file_load_blocks, stt_load_blocks, mem_load_blocks, sma_load_blocks, composed_blocks
         Line 2: file_load_elapsed, stt_load_elapsed, mem_load_elapsed, sma_load_elapsed, composed_elapsed
-        Line 3: total_rows, check_rows [, slowest_vgroup_id, slow_deviation, cost_ratio, data_deviation]
+        Line 3: check_rows [, slowest_vgroup_id, slow_deviation, cost_ratio, data_deviation]
 
         Validation rules:
           1. all numeric values must be non-negative (including percentages)
@@ -1450,7 +1450,7 @@ class TestExplain:
                         "mem_load_blocks", "sma_load_blocks", "composed_blocks"]
         elapsed_fields = ["file_load_elapsed", "stt_load_elapsed", "mem_load_elapsed",
                           "sma_load_elapsed", "composed_elapsed"]
-        row_fields = ["total_rows", "check_rows"]
+        row_fields = ["check_rows"]
 
         # Optional fields (only present when there are multiple vgroups)
         opt_single_fields = ["slowest_vgroup_id", "cost_ratio"]
@@ -2192,7 +2192,7 @@ class TestExplain:
 
         tdLog.printNoPrefix("do explain partition by tag regression ... [passed]")
 
-    def test_explain_analzye(self):
+    def test_explain_analyze(self):
         """
         Test explain in analyze mode.
         These cases cover almost all operators and their combinations.

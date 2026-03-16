@@ -1119,6 +1119,7 @@ static int32_t hashPartitionNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
 
   if (pOperator->status == OP_RES_TO_RETURN) {
     (*ppRes) = buildPartitionResult(pOperator);
+    recordOpExecEnd(pOperator, (*ppRes) ? (*ppRes)->info.rows : 0);
     return code;
   }
 

@@ -7490,12 +7490,12 @@ _end:
 }
 
 /**
-  @brief Set the execution information from the reader to table scan operator
+  @brief Transfer the execution information from the reader to table scan operator
   @param pReader the reader to get the execution information
   @param pExecInfo the target execution information to set
 */
 void tsdbReaderSetExecInfo(const STsdbReader* pReader, STableScanAnalyzeInfo* pExecInfo) {
-  if (pReader == NULL) {
+  if (pReader == NULL || pExecInfo == NULL) {
     return;
   }
 

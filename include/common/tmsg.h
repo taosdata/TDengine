@@ -3516,7 +3516,6 @@ typedef struct STableScanAnalyzeInfo {
   int64_t composedBlocks;
   double  composedElapsed;
   
-  uint64_t totalRows;  // total output rows
   uint64_t checkRows;
 
   uint64_t skipBlocks;

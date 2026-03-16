@@ -17,12 +17,14 @@
 #include "commandInt.h"
 #include "plannodes.h"
 #include "query.h"
+#include "taoserror.h"
 #include "tcommon.h"
 #include "tdatablock.h"
 #include "systable.h"
 #include "functionMgt.h"
 #include "tmsg.h"
 #include "ttime.h"
+#include "tutil.h"
 
 char *gJoinTypeStr[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
            /* NONE                OUTER                  SEMI                  ANTI                   ASOF                   WINDOW */
@@ -317,10 +319,6 @@ static int32_t qExplainBufAppendExecInfo(SArray *pExecInfo, char *tbuf,
 
   for (int32_t i = 0; i < nodeNum; ++i) {
     const SExplainExecInfo *pExec = taosArrayGet(pExecInfo, i);
-    if (pExec->numOfRows == 0) {
-      numNoData++;
-      continue;
-    }
     execInfo.execFirstRow += pExec->execFirstRow;
     execInfo.execLastRow += pExec->execLastRow;
     execInfo.numOfRows += pExec->numOfRows;
@@ -510,6 +508,11 @@ static int32_t qExplainExecAnalyze(const SExplainResNode *pResNode,
 
   for (int32_t i = 0; i < nodeNum; ++i) {
     const SExplainExecInfo *pExecInfo = taosArrayGet(pResNode->pExecInfo, i);
+    if (pExecInfo == NULL) {
+      qError("%s failed at line %d, execInfo is NULL",
+             __func__, __LINE__);
+      return TSDB_CODE_INVALID_PARA;
+    }
     execInfo.execElapsed += pExecInfo->execElapsed;
     execInfo.execCreate += pExecInfo->execCreate;
     execInfo.execStart += pExecInfo->execStart;
@@ -602,8 +605,13 @@ static int32_t qExplainIOAnalyze(const SExplainResNode *pResNode,
   STableScanAnalyzeInfo maxAnalyzeInfo = {0};
 
   for (int32_t i = 0; i < nodeNum; ++i) {
-    SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, i);
-    const STableScanAnalyzeInfo *pScanInfo = (STableScanAnalyzeInfo *)execInfo->verboseInfo;
+    const SExplainExecInfo *pExecInfo = taosArrayGet(pResNode->pExecInfo, i);
+    if (pExecInfo == NULL || pExecInfo->verboseInfo == NULL) {
+      qError("%s failed at line %d, execInfo or verboseInfo is NULL",
+             __func__, __LINE__);
+      return TSDB_CODE_INVALID_PARA;
+    }
+    const STableScanAnalyzeInfo *pScanInfo = (STableScanAnalyzeInfo *)pExecInfo->verboseInfo;
 
     analyzeInfo.totalBlocks += pScanInfo->totalBlocks;
     analyzeInfo.fileLoadBlocks += pScanInfo->fileLoadBlocks;
@@ -616,7 +624,6 @@ static int32_t qExplainIOAnalyze(const SExplainResNode *pResNode,
     analyzeInfo.smaLoadElapsed += pScanInfo->smaLoadElapsed;
     analyzeInfo.composedBlocks += pScanInfo->composedBlocks;
     analyzeInfo.composedElapsed += pScanInfo->composedElapsed;
-    analyzeInfo.totalRows += pScanInfo->totalRows;
     analyzeInfo.checkRows += pScanInfo->checkRows;
 
     maxAnalyzeInfo.totalBlocks = TMAX(maxAnalyzeInfo.totalBlocks, pScanInfo->totalBlocks);
@@ -630,7 +637,6 @@ static int32_t qExplainIOAnalyze(const SExplainResNode *pResNode,
     maxAnalyzeInfo.smaLoadElapsed = TMAX(maxAnalyzeInfo.smaLoadElapsed, pScanInfo->smaLoadElapsed);
     maxAnalyzeInfo.composedBlocks = TMAX(maxAnalyzeInfo.composedBlocks, pScanInfo->composedBlocks);
     maxAnalyzeInfo.composedElapsed = TMAX(maxAnalyzeInfo.composedElapsed, pScanInfo->composedElapsed);
-    maxAnalyzeInfo.totalRows = TMAX(maxAnalyzeInfo.totalRows, pScanInfo->totalRows);
     maxAnalyzeInfo.checkRows = TMAX(maxAnalyzeInfo.checkRows, pScanInfo->checkRows);
   }
 
@@ -662,9 +668,7 @@ static int32_t qExplainIOAnalyze(const SExplainResNode *pResNode,
     EXPLAIN_ROW_END();
     QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level+2));
 
-    EXPLAIN_ROW_NEW(level+2, EXPLAIN_TOTAL_ROWS_FORMAT, analyzeInfo.totalRows);
-    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-    EXPLAIN_ROW_APPEND(EXPLAIN_CHECK_ROWS_FORMAT, analyzeInfo.checkRows);
+    EXPLAIN_ROW_NEW(level+2, EXPLAIN_CHECK_ROWS_FORMAT, analyzeInfo.checkRows);
   } else if (nodeNum > 1) {
     EXPLAIN_ROW_APPEND(EXPLAIN_TOTAL_BLOCKS_FORMAT_EXT,
                        (double)analyzeInfo.totalBlocks / nodeNum, maxAnalyzeInfo.totalBlocks);
@@ -703,10 +707,7 @@ static int32_t qExplainIOAnalyze(const SExplainResNode *pResNode,
     EXPLAIN_ROW_END();
     QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level+2));
 
-    EXPLAIN_ROW_NEW(level+2, EXPLAIN_TOTAL_ROWS_FORMAT_EXT,
-                       (double)analyzeInfo.totalRows / nodeNum, maxAnalyzeInfo.totalRows);
-    EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-    EXPLAIN_ROW_APPEND(EXPLAIN_CHECK_ROWS_FORMAT_EXT,
+    EXPLAIN_ROW_NEW(level+2, EXPLAIN_CHECK_ROWS_FORMAT_EXT,
                      (double)analyzeInfo.checkRows / nodeNum, maxAnalyzeInfo.checkRows);
 
     /* slowest query node information */
