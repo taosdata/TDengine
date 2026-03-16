@@ -1810,13 +1810,22 @@ void tFreeSStmTaskDeploy(void* param) {
   }
 }
 
+
 void tFreeSStmStreamDeploy(void* param) {
   if (NULL == param) {
     return;
   }
   
   SStmStreamDeploy* pDeploy = (SStmStreamDeploy*)param;
+  int32_t readerNum = taosArrayGetSize(pDeploy->readerTasks);
+  for (int32_t i = 0; i < readerNum; ++i) {
+    SStmTaskDeploy* pReader = taosArrayGet(pDeploy->readerTasks, i);
+    if (!pReader->msg.reader.triggerReader && pReader->msg.reader.msg.calc.freeScanPlan) {
+      taosMemoryFreeClear(pReader->msg.reader.msg.calc.calcScanPlan);
+    }
+  }
   taosArrayDestroy(pDeploy->readerTasks);
+
   if (pDeploy->triggerTask) {
     taosArrayDestroy(pDeploy->triggerTask->msg.trigger.readerList);
     taosArrayDestroy(pDeploy->triggerTask->msg.trigger.runnerList);
