@@ -327,6 +327,7 @@ typedef struct SSchJob {
   char                *sql;
   SQueryProfileSummary summary;
   int8_t               source;
+  int8_t               secureDelete;
   void                *pWorkerCb;
   int32_t              execPhase;      // Add phase tracking for query execution
   int64_t              phaseStartTime; // When current phase started (ms)

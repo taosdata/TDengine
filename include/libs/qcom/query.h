@@ -151,6 +151,7 @@ typedef struct STableMeta {
     };
   };
   int64_t ownerId;
+  int8_t  secureDelete;
   SSchema schema[];
 } STableMeta;
 #pragma pack(pop)

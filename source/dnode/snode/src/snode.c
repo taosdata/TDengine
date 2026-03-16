@@ -15,10 +15,10 @@
 
 #include "executor.h"
 #include "sndInt.h"
-#include "tdatablock.h"
-#include "tuuid.h"
 #include "stream.h"
 #include "streamRunner.h"
+#include "tdatablock.h"
+#include "tuuid.h"
 
 // clang-format off
 #define sndError(...) do {  if (sndDebugFlag & DEBUG_ERROR) { taosPrintLog("SND ERROR ", DEBUG_ERROR, sndDebugFlag, __VA_ARGS__);}} while (0)
@@ -222,14 +222,16 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   calcReq.runnerTaskId = req.taskId;
   calcReq.brandNew = req.reset;
   calcReq.execId = req.execId;
-  calcReq.sessionId = req.pStRtFuncInfo->sessionId;
-  calcReq.triggerType = req.pStRtFuncInfo->triggerType;
-  calcReq.isWindowTrigger = req.pStRtFuncInfo->isWindowTrigger;
-  calcReq.precision = req.pStRtFuncInfo->precision;
-  TSWAP(calcReq.groupColVals, req.pStRtFuncInfo->pStreamPartColVals);
-  TSWAP(calcReq.params, req.pStRtFuncInfo->pStreamPesudoFuncVals);
-  calcReq.gid = req.pStRtFuncInfo->groupId;
-  calcReq.curWinIdx = req.pStRtFuncInfo->curIdx;
+  if (req.pStRtFuncInfo) {
+    calcReq.sessionId = req.pStRtFuncInfo->sessionId;
+    calcReq.triggerType = req.pStRtFuncInfo->triggerType;
+    calcReq.isWindowTrigger = req.pStRtFuncInfo->isWindowTrigger;
+    calcReq.precision = req.pStRtFuncInfo->precision;
+    TSWAP(calcReq.groupColVals, req.pStRtFuncInfo->pStreamPartColVals);
+    TSWAP(calcReq.params, req.pStRtFuncInfo->pStreamPesudoFuncVals);
+    calcReq.gid = req.pStRtFuncInfo->groupId;
+    calcReq.curWinIdx = req.pStRtFuncInfo->curIdx;
+  }
   calcReq.pOutBlock = NULL;
 
   TAOS_CHECK_EXIT(streamAcquireTask(calcReq.streamId, calcReq.runnerTaskId, (SStreamTask**)&pTask, &taskAddr));

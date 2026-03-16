@@ -451,6 +451,7 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes
   pRes->affectedRows = pDelRes->affectedRows;
   TAOS_STRCPY(pRes->tableFName, pDelRes->tableName);
   TAOS_STRCPY(pRes->tsColName, pDelRes->tsColName);
+  pRes->secureDelete |= pDelRes->secureDelete;
   taosMemoryFree(output.pData);
 
   return TSDB_CODE_SUCCESS;

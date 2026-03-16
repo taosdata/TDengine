@@ -417,7 +417,7 @@ priv_obj: {
   | stream             -- 流计算
 }
 说明：
--- 不指定 priv_obj 时：1）在 3.4.0.0 至 3.4.0.10 版本，priv_obj 默认为 table。2）自 3.4.0.11 版本起，如果 enableAdvancedSecurity 为 0，兼容 3.3.x.y 版本语法的功能，根据 privileges 中的权限类型 和 priv_level，自适应的扩展为 database/table/view/index/tsma/rsma/topic/stream 对应的权限；如果 enableAdvancedSecurity 为 1，不兼容 3.3.x.y 版本语法的功能，仅自适应的扩展为 table/view 对应的权限。
+-- 不指定 priv_obj 时：1）在 3.4.0.0 至 3.4.0.10 版本，priv_obj 默认为 table。2）自 3.4.0.11 版本起，如果 enableGrantLegacySyntax 为 1，兼容 3.3.x.y 版本语法的功能，根据 privileges 中的权限类型 和 priv_level，自适应的扩展为 database/table/view/index/tsma/rsma/topic/stream 对应的权限；如果 enableGrantLegacySyntax 为 0 (默认值)，不兼容 3.3.x.y 版本语法的功能，仅自适应的扩展为 table/view 对应的权限。
 -- 为了更精细的控制权限对象，推荐明确的指定 priv_obj。
 
 priv_level: {

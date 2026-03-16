@@ -328,6 +328,7 @@ typedef struct SRequestObj {
   int8_t               source;
   int32_t              execPhase;       // EQueryExecPhase
   int64_t              phaseStartTime;  // when current phase started, ms
+  int8_t               secureDelete;
 } SRequestObj;
 
 typedef struct SSyncQueryParam {

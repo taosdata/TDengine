@@ -33,6 +33,20 @@ add_test(
     COMMAND dataformatTest
 )
 
+# ttimeNaturalUnitsTest.cpp
+add_executable(ttimeNaturalUnitsTest "ttimeNaturalUnitsTest.cpp")
+DEP_ext_gtest(ttimeNaturalUnitsTest)
+target_link_libraries(ttimeNaturalUnitsTest PRIVATE common)
+target_include_directories(
+    ttimeNaturalUnitsTest
+    PUBLIC "${TD_SOURCE_DIR}/include/common"
+    PUBLIC "${TD_SOURCE_DIR}/include/util"
+)
+add_test(
+    NAME ttimeNaturalUnitsTest
+    COMMAND ttimeNaturalUnitsTest
+)
+
 # # cosCpTest.cpp
 # add_executable(cosCpTest "cosCpTest.cpp")
 # DEP_ext_gtest(cosCpTest)

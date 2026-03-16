@@ -117,7 +117,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
 int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
-int32_t vnodeProcessStreamReaderMsg(SVnode *pVnode, SRpcMsg *pMsg);
+int32_t vnodeProcessStreamReaderMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 void    vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit);
@@ -388,6 +388,7 @@ struct SVnodeCfg {
   int8_t      ssCompact;
   int8_t      isAudit;
   int8_t      allowDrop;
+  int8_t      secureDelete;
 };
 
 #define TABLE_ROLLUP_ON         ((int8_t)0x1)

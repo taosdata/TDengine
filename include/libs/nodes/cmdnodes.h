@@ -144,6 +144,7 @@ typedef struct SDatabaseOptions {
   int8_t      withArbitrator;
   int8_t      isAudit;
   int8_t      allowDrop;
+  int8_t      secureDelete;
   // for auto-compact
   int32_t     compactTimeOffset;  // hours
   int32_t     compactInterval;    // minutes
@@ -279,6 +280,7 @@ typedef struct STableOptions {
   SNodeList*  pSma;
   SValueNode* pKeepNode;
   int32_t     keep;
+  int8_t      secureDelete;
 } STableOptions;
 
 typedef struct SColumnOptions {

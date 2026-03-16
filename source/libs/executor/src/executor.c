@@ -269,10 +269,30 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
   (void)taosThreadOnce(&initPoolOnce, initRefPool);
   qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d", taskId, pSubplan->id.queryId, vgId);
 
-  code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model, NULL);
+  int32_t subTaskNum = (int32_t)LIST_LENGTH(pSubplan->pSubQ);
+  SArray* subEndPoints = taosArrayInit(subTaskNum, POINTER_BYTES);
+  SDownstreamSourceNode* pSource = NULL;
+  for (int32_t i = 0; i < subTaskNum; ++i) {
+    SNode* pVal = nodesListGetNode(pSubplan->pSubQ, i);
+
+    TSDB_CHECK_CODE(nodesCloneNode(pVal, (SNode**)&pSource), lino, _error);
+
+    if (NULL == taosArrayPush(subEndPoints, &pSource)) {
+      nodesDestroyNode((SNode *)pSource);
+      code = terrno;
+      goto _error;
+    }
+  }
+
+  code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model, &subEndPoints);
   if (code != TSDB_CODE_SUCCESS || NULL == *pTask) {
     qError("failed to createExecTaskInfo, code:%s", tstrerror(code));
     goto _error;
+  }
+
+  if (subTaskNum > 0) {
+    SDownstreamSourceNode* pVal = (SDownstreamSourceNode*)nodesListGetNode(pSubplan->pSubQ, 0);
+    (*pTask)->pSubJobCtx->queryId = pVal->clientId;
   }
 
   if (streamInserterParam) {
@@ -305,6 +325,9 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
          tstrerror(code));
 
 _error:
+  if (subEndPoints) {
+    taosArrayDestroyP(subEndPoints, (FDelete)nodesDestroyNode);
+  }
 
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));

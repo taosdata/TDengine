@@ -3962,11 +3962,11 @@ taos> select f1 from st1 where _c0 between (select first(_c0) from st1) and (sel
            6 |
 
 taos> create stream stm1 interval(1d) sliding(1d) from tb1 partition by (select 1 from tb3 limit 1) into out1 as select * from tb3;
+Create OK, 0 row(s) affected 
 
-DB error: Expr subquery not supported in current clause [0x800026A8] 
 taos> create stream stm1 interval(1d) sliding(1d) from tb1 into out2 as select ts, (select 1 from tb3 limit 1) from tb3;
 
-DB error: Expr subquery not supported in current clause [0x800026A8] 
+DB error: Stream already exists [0x800003F0] 
 taos> create topic topic1 as select (select 1 from tb3 limit 1) from tb3;
 
 DB error: Expr subquery not supported in current clause [0x800026A8] 

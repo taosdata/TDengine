@@ -2739,6 +2739,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->compactTimeOffset = TSDB_DEFAULT_COMPACT_TIME_OFFSET;
   pOptions->encryptAlgorithmStr[0] = 0;
   pOptions->isAudit = 0;
+  pOptions->secureDelete = 0;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2790,6 +2791,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->encryptAlgorithmStr[0] = 0;
   pOptions->isAudit = -1;
   pOptions->allowDrop = -1;
+  pOptions->secureDelete = -1;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2964,6 +2966,9 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       break;
     case DB_OPTION_ALLOW_DROP:
       pDbOptions->allowDrop = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_SECURE_DELETE:
+      pDbOptions->secureDelete = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     default:
       break;
@@ -3190,6 +3195,7 @@ SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   pOptions->keep = -1;
   pOptions->virtualStb = false;
   pOptions->commentNull = true;  // mark null
+  pOptions->secureDelete = 0;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -3203,6 +3209,7 @@ SNode* createAlterTableOptions(SAstCreateContext* pCxt) {
   pOptions->ttl = -1;
   pOptions->commentNull = true;  // mark null
   pOptions->keep = -1;
+  pOptions->secureDelete = -1;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -3255,6 +3262,15 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
         pCxt->errCode = TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
       } else {
         ((STableOptions*)pOptions)->virtualStb = virtualStb;
+      }
+      break;
+    }
+    case TABLE_OPTION_SECURE_DELETE: {
+      int64_t secureDelete = taosStr2Int64(((SToken*)pVal)->z, NULL, 10);
+      if (secureDelete != 0 && secureDelete != 1) {
+        pCxt->errCode = TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+      } else {
+        ((STableOptions*)pOptions)->secureDelete = (int8_t)secureDelete;
       }
       break;
     }
@@ -7691,12 +7707,21 @@ SNode* createDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere) {
   CHECK_MAKE_NODE(pStmt->pCountFunc);
   CHECK_MAKE_NODE(pStmt->pFirstFunc);
   CHECK_MAKE_NODE(pStmt->pLastFunc);
+  pStmt->secureDelete = 0;
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode((SNode*)pStmt);
   nodesDestroyNode(pTable);
   nodesDestroyNode(pWhere);
   return NULL;
+}
+
+SNode* createSecureDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere) {
+  SNode* pNode = createDeleteStmt(pCxt, pTable, pWhere);
+  if (pNode) {
+    ((SDeleteStmt*)pNode)->secureDelete = 1;
+  }
+  return pNode;
 }
 
 SNode* createInsertStmt(SAstCreateContext* pCxt, SNode* pTable, SNodeList* pCols, SNode* pQuery) {

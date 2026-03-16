@@ -1444,3 +1444,102 @@ class TestXnode:
         rs = tdSql.query(f"show xnode jobs where task_id={rid}", row_tag=True)
         tdLog.info(f"show xnodes where result:' {rs}")
         assert rs[0][2] == ''
+
+    def test_show_xnode_order_by_id(self):
+        """测试 SHOW XNODE 语句结果按 id 正序排序
+
+        1. Create multiple xnode tasks
+        2. Create multiple xnode agents
+        3. Create multiple xnode jobs
+        4. Query show xnode tasks/agents/jobs and verify results are sorted by id asc
+
+        Since: v3.4.0.10
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-03-12 Created
+        """
+        dbname = f"xnode_db_{self.suffix}"
+
+        # Clean up existing data first
+        rs = tdSql.query("SHOW XNODE TASKS", row_tag=True)
+        for row in rs:
+            task_id = row[0]
+            self.no_syntax_fail_execute(f"DROP XNODE TASK {task_id}")
+
+        rs = tdSql.query("SHOW XNODE AGENTS", row_tag=True)
+        for row in rs:
+            agent_id = row[0]
+            self.no_syntax_fail_execute(f"DROP XNODE AGENT {agent_id}")
+
+        rs = tdSql.query("SHOW XNODE JOBS", row_tag=True)
+        for row in rs:
+            job_id = row[0]
+            self.no_syntax_fail_execute(f"DROP XNODE JOB {job_id}")
+
+        # Create test tasks with random ids (to ensure non-sequential insertion)
+        task_names = []
+        for i in range(10):
+            rid = random.randint(10000, 99999)
+            task_name = f"sort_test_task_{rid}_{self.suffix}"
+            task_names.append(task_name)
+            self.no_syntax_fail_execute(
+                f"CREATE XNODE TASK '{task_name}' FROM 'mqtt://broker{i}:1883' TO DATABASE {dbname} "
+                "WITH parser 'parser_json', batch 1024, TRIGGER 'manual'"
+            )
+
+        # Verify tasks are sorted by id asc
+        rs = tdSql.query("SHOW XNODE TASKS", row_tag=True)
+        task_ids = [row[0] for row in rs if f"_{self.suffix}" in row[1]]
+        tdLog.info(f"Task ids from query: {task_ids}")
+
+        # Verify ascending order
+        for i in range(len(task_ids) - 1):
+            assert task_ids[i] <= task_ids[i + 1], \
+                f"Task ids not in ascending order: {task_ids[i]} > {task_ids[i + 1]}"
+
+        # Create test agents
+        agent_names = []
+        for i in range(10):
+            rid = random.randint(10000, 99999)
+            agent_name = f"sort_test_agent_{rid}_{self.suffix}"
+            agent_names.append(agent_name)
+            self.no_syntax_fail_execute(
+                f"CREATE XNODE AGENT '{agent_name}' WITH status 'created', `regionA` 'region_{i}'"
+            )
+
+        # Verify agents are sorted by id asc
+        rs = tdSql.query("SHOW XNODE AGENTS", row_tag=True)
+        agent_ids = [row[0] for row in rs if f"_{self.suffix}" in row[1]]
+        tdLog.info(f"Agent ids from query: {agent_ids}")
+
+        # Verify ascending order
+        for i in range(len(agent_ids) - 1):
+            assert agent_ids[i] <= agent_ids[i + 1], \
+                f"Agent ids not in ascending order: {agent_ids[i]} > {agent_ids[i + 1]}"
+
+        # Create test jobs
+        for i in range(50):
+            self.no_syntax_fail_execute(
+                f"CREATE XNODE JOB ON 1 WITH config '{{\"idx\":{i},\"test\":true}}'"
+            )
+
+        # Verify jobs are sorted by id asc
+        rs = tdSql.query("SHOW XNODE JOBS", row_tag=True)
+        job_ids = [row[0] for row in rs]
+        tdLog.info(f"Job ids from query: {job_ids}")
+
+        # Verify ascending order
+        for i in range(len(job_ids) - 1):
+            assert job_ids[i] <= job_ids[i + 1], \
+                f"Job ids not in ascending order: {job_ids[i]} > {job_ids[i + 1]}"
+
+        # Cleanup
+        for task_name in task_names:
+            self.no_syntax_fail_execute(f"DROP XNODE TASK '{task_name}'")
+        for agent_name in agent_names:
+            self.no_syntax_fail_execute(f"DROP XNODE AGENT '{agent_name}'")
+        self.no_syntax_fail_execute("DROP XNODE JOB WHERE id > 0")
