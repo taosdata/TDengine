@@ -2,7 +2,9 @@
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  */
 
+#include <ctype.h>
 #include <regex.h>
+#include <string.h>
 #include "cJSON.h"
 #include "clientInt.h"
 #include "clientLog.h"
@@ -13,6 +15,8 @@
 #define SQL_SEC_MAX_RULES        128
 #define SQL_SEC_RULE_NAME_LEN    128
 #define SQL_SEC_RULE_PATTERN_LEN 512
+#define SQL_SEC_MAX_PATTERNS     256
+#define SQL_SEC_PATTERN_LEN      1024
 
 typedef enum {
   SQL_SEC_ACTION_DENY = 0,
@@ -58,7 +62,433 @@ typedef struct {
   int32_t maxSubqueryDepth;
 } SSqlSecAstResult;
 
-static SSqlSecCtx gSqlSecCtx = {0};
+typedef struct {
+  char    pattern[SQL_SEC_PATTERN_LEN];
+  int32_t count;
+  int64_t firstSeenTs;
+  int64_t lastSeenTs;
+  bool    exported;  // Mark if this pattern has been exported
+} SSqlPattern;
+
+typedef struct {
+  bool          enabled;
+  TdThreadMutex lock;
+  SSqlPattern   patterns[SQL_SEC_MAX_PATTERNS];
+  int32_t       numOfPatterns;
+  int64_t       startTs;
+  int32_t       nextRuleId;
+  // Thread related
+  TdThread      thread;
+  bool          threadRunning;
+  bool          threadStop;
+  TdThreadCond  cond;
+  TdThreadMutex threadLock;
+} SSqlLearningCtx;
+
+static SSqlSecCtx      gSqlSecCtx = {0};
+static SSqlLearningCtx gLearningCtx = {0};
+
+// Generalize SQL by replacing literals with placeholders
+static void sqlSecGeneralizePattern(const char* sql, char* pattern, int32_t patternLen) {
+  if (sql == NULL || pattern == NULL || patternLen <= 0) return;
+
+  const char* p = sql;
+  char*       out = pattern;
+  int32_t     outLen = 0;
+  bool        inString = false;
+  bool        inNumber = false;
+
+  while (*p && outLen < patternLen - 10) {
+    if (*p == '\'') {
+      if (!inString) {
+        // Start of string literal
+        inString = true;
+        if (outLen + 3 < patternLen) {
+          strcpy(out, "?");
+          out += 1;
+          outLen += 1;
+        }
+      } else {
+        // End of string literal
+        inString = false;
+      }
+      p++;
+      continue;
+    }
+
+    if (inString) {
+      p++;
+      continue;
+    }
+
+    // Check for number (including floats like 25.5)
+    if (isdigit(*p) || (*p == '-' && isdigit(*(p + 1)))) {
+      if (!inNumber) {
+        // Start of number
+        inNumber = true;
+        if (outLen + 3 < patternLen) {
+          strcpy(out, "?");
+          out += 1;
+          outLen += 1;
+        }
+      }
+      p++;
+      continue;
+    } else if (inNumber && *p == '.' && isdigit(*(p + 1))) {
+      // Decimal point in a number, continue as part of the number
+      p++;
+      continue;
+    } else {
+      inNumber = false;
+    }
+
+    // Copy other characters (convert to lowercase)
+    *out = tolower(*p);
+    out++;
+    outLen++;
+    p++;
+  }
+
+  *out = '\0';
+}
+
+static int32_t sqlSecSaveLearnedRules(const char* ruleFile) {
+  if (ruleFile == NULL || ruleFile[0] == 0) return -1;
+
+  (void)taosThreadMutexLock(&gLearningCtx.lock);
+
+  // Read existing rules
+  cJSON* pRoot = NULL;
+  cJSON* pRules = NULL;
+
+  TdFilePtr fp = taosOpenFile(ruleFile, TD_FILE_READ);
+  if (fp != NULL) {
+    int64_t fsize = 0;
+    if (taosFStatFile(fp, &fsize, NULL) == TSDB_CODE_SUCCESS && fsize > 0 && fsize < 4 * 1024 * 1024) {
+      char* pBuf = taosMemoryCalloc(1, (size_t)fsize + 1);
+      if (pBuf != NULL) {
+        int64_t nread = taosReadFile(fp, pBuf, fsize);
+        if (nread == fsize) {
+          pRoot = cJSON_Parse(pBuf);
+        }
+        taosMemoryFree(pBuf);
+      }
+    }
+    TAOS_UNUSED(taosCloseFile(&fp));
+  }
+
+  if (pRoot == NULL) {
+    pRoot = cJSON_CreateObject();
+    cJSON_AddStringToObject(pRoot, "version", "1.0");
+    pRules = cJSON_CreateArray();
+    cJSON_AddItemToObject(pRoot, "rules", pRules);
+  } else {
+    pRules = cJSON_GetObjectItemCaseSensitive(pRoot, "rules");
+    if (!cJSON_IsArray(pRules)) {
+      pRules = cJSON_CreateArray();
+      cJSON_AddItemToObject(pRoot, "rules", pRules);
+    }
+  }
+
+  // Build a set of existing patterns to avoid duplicates
+  SHashObj* existingPatterns = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  if (existingPatterns != NULL) {
+    int32_t rulesCount = cJSON_GetArraySize(pRules);
+    for (int32_t i = 0; i < rulesCount; ++i) {
+      cJSON* pRule = cJSON_GetArrayItem(pRules, i);
+      cJSON* pDesc = cJSON_GetObjectItemCaseSensitive(pRule, "description");
+      if (cJSON_IsString(pDesc) && pDesc->valuestring != NULL) {
+        // Extract original pattern from description
+        const char* desc = pDesc->valuestring;
+        const char* prefix = "Learned pattern (count:";
+        if (strncmp(desc, prefix, strlen(prefix)) == 0) {
+          // This is a learned rule, mark it as existing
+          // We use description as a simple way to identify duplicates
+          // Better approach: store original pattern in description
+          taosHashPut(existingPatterns, desc, strlen(desc), &i, sizeof(i));
+        }
+      }
+    }
+  }
+
+  // Add learned patterns that reached threshold and haven't been exported
+  int32_t added = 0;
+  for (int32_t i = 0; i < gLearningCtx.numOfPatterns; ++i) {
+    SSqlPattern* pPattern = &gLearningCtx.patterns[i];
+    if (pPattern->count >= tsWhitelistLearningThreshold && !pPattern->exported) {
+      // Check if this pattern already exists in the file
+      char desc[256];
+      snprintf(desc, sizeof(desc), "Pattern: %s", pPattern->pattern);
+
+      bool exists = false;
+      if (existingPatterns != NULL) {
+        // Check if pattern already exists
+        int32_t rulesCount = cJSON_GetArraySize(pRules);
+        for (int32_t j = 0; j < rulesCount; ++j) {
+          cJSON* pRule = cJSON_GetArrayItem(pRules, j);
+          cJSON* pRuleDesc = cJSON_GetObjectItemCaseSensitive(pRule, "description");
+          if (cJSON_IsString(pRuleDesc) && pRuleDesc->valuestring != NULL) {
+            if (strstr(pRuleDesc->valuestring, pPattern->pattern) != NULL) {
+              exists = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (exists) {
+        pPattern->exported = true;
+        continue;
+      }
+
+      cJSON* pRule = cJSON_CreateObject();
+      cJSON_AddNumberToObject(pRule, "ruleId", gLearningCtx.nextRuleId++);
+
+      char ruleName[128];
+      snprintf(ruleName, sizeof(ruleName), "LEARNED_RULE_%d", gLearningCtx.nextRuleId - 1);
+      cJSON_AddStringToObject(pRule, "ruleName", ruleName);
+      cJSON_AddStringToObject(pRule, "action", "ALLOW");
+      cJSON_AddStringToObject(pRule, "priority", "MEDIUM");
+
+      // Convert pattern to regex
+      // Replace ? with regex pattern for any value
+      char        regexPattern[SQL_SEC_PATTERN_LEN * 2] = {0};
+      const char* src = pPattern->pattern;
+      char*       dst = regexPattern;
+      while (*src && (dst - regexPattern) < sizeof(regexPattern) - 30) {
+        if (*src == '?') {
+          // Replace ? with more flexible regex pattern
+          // Match: number (int/float), 'string', "string", or identifier
+          const char* placeholder = "[^[:space:],;)]+";
+          strcpy(dst, placeholder);
+          dst += strlen(placeholder);
+          src++;
+        } else if (*src == '*' || *src == '+' || *src == '.' || *src == '[' || *src == ']' || *src == '(' ||
+                   *src == ')' || *src == '{' || *src == '}' || *src == '^' || *src == '$' || *src == '|' ||
+                   *src == '\\' || *src == '?') {
+          // Escape regex special characters
+          *dst++ = '\\';
+          *dst++ = *src++;
+        } else {
+          *dst++ = *src++;
+        }
+      }
+      *dst = '\0';
+
+      cJSON_AddStringToObject(pRule, "pattern", regexPattern);
+
+      snprintf(desc, sizeof(desc), "Learned pattern (count:%d) - Pattern: %s", pPattern->count, pPattern->pattern);
+      cJSON_AddStringToObject(pRule, "description", desc);
+      cJSON_AddBoolToObject(pRule, "enabled", true);
+
+      cJSON_AddItemToArray(pRules, pRule);
+      pPattern->exported = true;
+      added++;
+    }
+  }
+
+  if (existingPatterns != NULL) {
+    taosHashCleanup(existingPatterns);
+  }
+
+  // Write back to file
+  if (added > 0) {
+    char* jsonStr = cJSON_Print(pRoot);
+    if (jsonStr != NULL) {
+      fp = taosOpenFile(ruleFile, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+      if (fp != NULL) {
+        taosWriteFile(fp, jsonStr, strlen(jsonStr));
+        TAOS_UNUSED(taosCloseFile(&fp));
+        tscInfo("sql security: saved %d learned rules to %s", added, ruleFile);
+
+        // Force reload rules by clearing the cache
+        if (gSqlSecCtx.inited) {
+          (void)taosThreadMutexLock(&gSqlSecCtx.lock);
+          gSqlSecCtx.lastRuleMtime = 0;  // Force reload on next check
+          (void)taosThreadMutexUnlock(&gSqlSecCtx.lock);
+        }
+      } else {
+        tscWarn("sql security: failed to open rule file for writing: %s", ruleFile);
+      }
+      taosMemoryFree(jsonStr);
+    }
+  }
+
+  cJSON_Delete(pRoot);
+  (void)taosThreadMutexUnlock(&gLearningCtx.lock);
+
+  return added;
+}
+
+static void sqlSecInitLearning() {
+  if (gLearningCtx.enabled) return;
+
+  (void)taosThreadMutexInit(&gLearningCtx.lock, NULL);
+  (void)taosThreadMutexInit(&gLearningCtx.threadLock, NULL);
+  (void)taosThreadCondInit(&gLearningCtx.cond, NULL);
+  gLearningCtx.enabled = true;
+  gLearningCtx.numOfPatterns = 0;
+  gLearningCtx.startTs = taosGetTimestampMs();
+  gLearningCtx.nextRuleId = 1000;  // Start from 1000 for learned rules
+  gLearningCtx.threadRunning = false;
+  gLearningCtx.threadStop = false;
+  tscInfo("sql security: learning mode initialized");
+}
+
+static void sqlSecRecordPattern(const char* sql) {
+  if (!tsWhitelistLearning || sql == NULL) return;
+
+  if (!gLearningCtx.enabled) {
+    sqlSecInitLearning();
+  }
+
+  char pattern[SQL_SEC_PATTERN_LEN] = {0};
+  sqlSecGeneralizePattern(sql, pattern, sizeof(pattern));
+
+  if (strlen(pattern) == 0) return;
+
+  (void)taosThreadMutexLock(&gLearningCtx.lock);
+
+  int64_t now = taosGetTimestampMs();
+  int64_t periodMs = (int64_t)tsWhitelistLearningPeriod * 24 * 3600 * 1000;
+
+  // Check if pattern already exists
+  int32_t foundIdx = -1;
+  for (int32_t i = 0; i < gLearningCtx.numOfPatterns; ++i) {
+    if (strcmp(gLearningCtx.patterns[i].pattern, pattern) == 0) {
+      foundIdx = i;
+      break;
+    }
+  }
+
+  if (foundIdx >= 0) {
+    // Update existing pattern
+    gLearningCtx.patterns[foundIdx].count++;
+    gLearningCtx.patterns[foundIdx].lastSeenTs = now;
+
+    // Check if threshold reached - log it
+    if (gLearningCtx.patterns[foundIdx].count == tsWhitelistLearningThreshold) {
+      tscInfo("sql security: pattern reached threshold, count:%d, pattern:%s", gLearningCtx.patterns[foundIdx].count,
+              pattern);
+    }
+  } else {
+    // Add new pattern
+    if (gLearningCtx.numOfPatterns < SQL_SEC_MAX_PATTERNS) {
+      SSqlPattern* pPattern = &gLearningCtx.patterns[gLearningCtx.numOfPatterns];
+      tstrncpy(pPattern->pattern, pattern, SQL_SEC_PATTERN_LEN);
+      pPattern->count = 1;
+      pPattern->firstSeenTs = now;
+      pPattern->lastSeenTs = now;
+      pPattern->exported = false;
+      gLearningCtx.numOfPatterns++;
+    }
+  }
+
+  (void)taosThreadMutexUnlock(&gLearningCtx.lock);
+}
+
+// Learning thread function
+static void* sqlSecLearningThreadFunc(void* arg) {
+  tscInfo("sql security: learning export thread started");
+
+  (void)taosThreadMutexLock(&gLearningCtx.threadLock);
+
+  while (!gLearningCtx.threadStop) {
+    // Wait for 10 seconds or until signaled to stop
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    ts.tv_sec += 10;  // Check every 10 seconds
+
+    int ret = taosThreadCondTimedWait(&gLearningCtx.cond, &gLearningCtx.threadLock, &ts);
+
+    if (gLearningCtx.threadStop) {
+      break;
+    }
+
+    // Check if there are patterns that reached threshold
+    (void)taosThreadMutexLock(&gLearningCtx.lock);
+    bool hasThresholdPatterns = false;
+    for (int32_t i = 0; i < gLearningCtx.numOfPatterns; ++i) {
+      if (gLearningCtx.patterns[i].count >= tsWhitelistLearningThreshold) {
+        hasThresholdPatterns = true;
+        break;
+      }
+    }
+    (void)taosThreadMutexUnlock(&gLearningCtx.lock);
+
+    // Export rules if there are patterns that reached threshold
+    if (hasThresholdPatterns) {
+      int32_t saved = sqlSecSaveLearnedRules(tsSqlSecurityRuleFile);
+      if (saved > 0) {
+        tscInfo("sql security: learning thread exported %d rules to %s", saved, tsSqlSecurityRuleFile);
+      }
+    }
+  }
+
+  (void)taosThreadMutexUnlock(&gLearningCtx.threadLock);
+
+  tscInfo("sql security: learning export thread stopped");
+  return NULL;
+}
+
+void sqlSecurityStartLearningThread() {
+  if (!gLearningCtx.enabled) {
+    sqlSecInitLearning();
+  }
+
+  (void)taosThreadMutexLock(&gLearningCtx.threadLock);
+
+  if (gLearningCtx.threadRunning) {
+    (void)taosThreadMutexUnlock(&gLearningCtx.threadLock);
+    tscInfo("sql security: learning thread already running");
+    return;
+  }
+
+  gLearningCtx.threadStop = false;
+
+  TdThreadAttr attr;
+  taosThreadAttrInit(&attr);
+  taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_JOINABLE);
+
+  if (taosThreadCreate(&gLearningCtx.thread, &attr, sqlSecLearningThreadFunc, NULL) != 0) {
+    tscError("sql security: failed to create learning thread");
+    (void)taosThreadMutexUnlock(&gLearningCtx.threadLock);
+    return;
+  }
+
+  taosThreadAttrDestroy(&attr);
+  gLearningCtx.threadRunning = true;
+
+  (void)taosThreadMutexUnlock(&gLearningCtx.threadLock);
+
+  tscInfo("sql security: learning thread started");
+}
+
+void sqlSecurityStopLearningThread() {
+  (void)taosThreadMutexLock(&gLearningCtx.threadLock);
+
+  if (!gLearningCtx.threadRunning) {
+    (void)taosThreadMutexUnlock(&gLearningCtx.threadLock);
+    tscInfo("sql security: learning thread not running");
+    return;
+  }
+
+  gLearningCtx.threadStop = true;
+
+  // Signal the thread to wake up
+  (void)taosThreadCondSignal(&gLearningCtx.cond);
+
+  (void)taosThreadMutexUnlock(&gLearningCtx.threadLock);
+
+  // Wait for thread to finish
+  taosThreadJoin(gLearningCtx.thread, NULL);
+
+  (void)taosThreadMutexLock(&gLearningCtx.threadLock);
+  gLearningCtx.threadRunning = false;
+  (void)taosThreadMutexUnlock(&gLearningCtx.threadLock);
+
+  tscInfo("sql security: learning thread stopped");
+}
 
 static void sqlSecClearRules(SSqlSecCtx* pCtx) {
   for (int32_t i = 0; i < pCtx->numOfRules; ++i) {
@@ -320,6 +750,21 @@ static SAppInstServerCFG* sqlSecGetCfg(SRequestObj* pRequest) {
 
 int32_t sqlSecurityCheckStringLevel(SRequestObj* pRequest, const char* sql, int32_t sqlLen) {
   SAppInstServerCFG* pCfg = sqlSecGetCfg(pRequest);
+
+  // Manage learning thread based on tsWhitelistLearning
+  if (tsWhitelistLearning) {
+    // Learning mode enabled, ensure thread is running
+    if (!gLearningCtx.threadRunning) {
+      sqlSecurityStartLearningThread();
+    }
+    sqlSecRecordPattern(sql);
+  } else {
+    // Learning mode disabled, ensure thread is stopped
+    if (gLearningCtx.threadRunning) {
+      sqlSecurityStopLearningThread();
+    }
+  }
+
   if (pCfg == NULL || !tsSqlSecurityEnabled || !tsSqlSecurityStringCheck || sql == NULL || sqlLen <= 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -457,12 +902,9 @@ static EDealRes sqlSecAstWalker(SNode* pNode, void* pContext) {
   // Check dangerous functions
   else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
-    if (strcasecmp(pFunc->functionName, "load_file") == 0 ||
-        strcasecmp(pFunc->functionName, "exec") == 0 ||
-        strcasecmp(pFunc->functionName, "eval") == 0 ||
-        strcasecmp(pFunc->functionName, "sleep") == 0 ||
-        strcasecmp(pFunc->functionName, "system") == 0 ||
-        strcasecmp(pFunc->functionName, "shell") == 0) {
+    if (strcasecmp(pFunc->functionName, "load_file") == 0 || strcasecmp(pFunc->functionName, "exec") == 0 ||
+        strcasecmp(pFunc->functionName, "eval") == 0 || strcasecmp(pFunc->functionName, "sleep") == 0 ||
+        strcasecmp(pFunc->functionName, "system") == 0 || strcasecmp(pFunc->functionName, "shell") == 0) {
       pRes->hasDangerFunc = true;
       return DEAL_RES_END;
     }
@@ -505,9 +947,11 @@ int32_t sqlSecurityCheckASTLevel(SRequestObj* pRequest, SQuery* pQuery) {
   nodesWalkExpr((SNode*)pQuery->pRoot, sqlSecAstWalker, &res);
 
   if (res.hasOrTrue || res.hasDangerFunc || res.hasDeepSubquery || res.hasUnsafeJoin) {
-    tscWarn("req:0x%" PRIx64 ", sql security AST check denied, hasOrTrue:%d, hasDangerFunc:%d, hasDeepSubquery:%d, hasUnsafeJoin:%d, sql:%s",
-            pRequest->self, res.hasOrTrue, res.hasDangerFunc, res.hasDeepSubquery, res.hasUnsafeJoin,
-            pRequest->sqlstr ? pRequest->sqlstr : "");
+    tscWarn(
+        "req:0x%" PRIx64
+        ", sql security AST check denied, hasOrTrue:%d, hasDangerFunc:%d, hasDeepSubquery:%d, hasUnsafeJoin:%d, sql:%s",
+        pRequest->self, res.hasOrTrue, res.hasDangerFunc, res.hasDeepSubquery, res.hasUnsafeJoin,
+        pRequest->sqlstr ? pRequest->sqlstr : "");
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
 

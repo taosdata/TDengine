@@ -309,7 +309,10 @@ bool    tsSqlSecurityEnabled = false;
 int32_t tsSqlSecurityWhitelistMode = 0;
 bool    tsSqlSecurityStringCheck = true;
 bool    tsSqlSecurityASTCheck = true;
-char    tsSqlSecurityRuleFile[PATH_MAX] = "/etc/taos/sql_rules.json";
+char    tsSqlSecurityRuleFile[PATH_MAX] = "/tmp/sql_rules.json";
+bool    tsWhitelistLearning = false;
+int32_t tsWhitelistLearningPeriod = 7;
+int32_t tsWhitelistLearningThreshold = 10;
 int32_t tsQuerySmaOptimize = 0;
 int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from which level to query rsma data.
 bool    tsQueryPlannerTrace = false;
@@ -828,6 +831,12 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
                                CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "sqlSecurityRuleFile", tsSqlSecurityRuleFile, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
                                  CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "whitelistLearning", tsWhitelistLearning, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
+                               CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "whitelistLearningPeriod", tsWhitelistLearningPeriod, 1, 365, CFG_SCOPE_CLIENT,
+                                CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "whitelistLearningThreshold", tsWhitelistLearningThreshold, 1, 10000,
+                                CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1575,6 +1584,12 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sqlSecurityRuleFile");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX));
   tstrncpy(tsSqlSecurityRuleFile, pItem->str, PATH_MAX);
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "whitelistLearning");
+  tsWhitelistLearning = pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "whitelistLearningPeriod");
+  tsWhitelistLearningPeriod = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "whitelistLearningThreshold");
+  tsWhitelistLearningThreshold = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "queryPlannerTrace");
   tsQueryPlannerTrace = pItem->bval;
@@ -3277,6 +3292,22 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
           uError("failed to create tempDir:%s since %s", tsTempDir, tstrerror(code));
           goto _out;
         }
+        matched = true;
+      }
+      break;
+    }
+    case 'w': {
+      if (strcasecmp("whitelistLearning", name) == 0) {
+        tsWhitelistLearning = pItem->bval;
+        uInfo("%s set to %d", name, tsWhitelistLearning);
+        matched = true;
+      } else if (strcasecmp("whitelistLearningPeriod", name) == 0) {
+        tsWhitelistLearningPeriod = pItem->i32;
+        uInfo("%s set to %d", name, tsWhitelistLearningPeriod);
+        matched = true;
+      } else if (strcasecmp("whitelistLearningThreshold", name) == 0) {
+        tsWhitelistLearningThreshold = pItem->i32;
+        uInfo("%s set to %d", name, tsWhitelistLearningThreshold);
         matched = true;
       }
       break;
