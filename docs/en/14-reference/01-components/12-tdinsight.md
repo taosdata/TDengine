@@ -18,7 +18,7 @@ First, check the following services:
 - TDengine is installed and running normally. This dashboard requires TDengine 3.0.0.0 or above, and monitoring reporting configuration enabled. For specific configurations, please refer to: [TDengine Monitoring Configuration](../taosd/).
 - taosAdapter is installed and running normally. For details, please refer to: [taosAdapter Reference Manual](../taosadapter)
 - taosKeeper is installed and running normally. For details, please refer to: [taosKeeper Reference Manual](../taoskeeper)
-- Grafana service is installed and running normally. We recommend using the latest version of Grafana, TDInsight supports Grafana 7.5 and above.
+- Grafana service is installed and running normally. We recommend using the latest version of Grafana, TDInsight supports Grafana 8.0 and above.
   :::info
 
   In the following description, we use Grafana v11.0.0 as an example. Other versions may differ in functionality, please refer to [Grafana Official Website](https://grafana.com/docs/grafana/latest/).
@@ -163,8 +163,8 @@ There are also line charts for the above categories.
 ### Automatic import of preconfigured alert rules
 
 After summarizing user experience, 14 commonly used alert rules are sorted out. These alert rules can monitor key indicators of the TDengine cluster and report alerts, such as abnormal and exceeded indicators.  
-Starting from TDengine-Server 3.3.4.3 (TDengine-datasource 3.6.3), TDengine Datasource supports automatic import of preconfigured alert rules. You can import 14 alert rules to Grafana (version 11 or later) with one click.  
-In the TDengine-datasource setting interface, turn on the "Load Tengine Alert" switch, click the "Save & test" button, the plugin will automatically load the mentioned 14 alert rules. The rules will be placed in the Grafana alerts directory. If not required, turn off the "Load TDengine Alert" switch, and click the button next to "Clear TDengine Alert" to clear all the alert rules imported into this data source.
+Starting from TDengine-Server 3.3.4.3 (TDengine-datasource 3.6.3), TDengine Datasource supports automatic import of preconfigured alert rules. You can import 14 alert rules to Grafana (**version 11 or later**) with one click.  
+In the TDengine-datasource setting interface, turn on the "Load TDengine Alert" switch, click the "Save & test" button, the plugin will automatically load the mentioned 14 alert rules. The rules will be placed in the Grafana alerts directory. If not required, turn off the "Load TDengine Alert" switch, and click the button next to "Clear TDengine Alert" to clear all the alert rules imported into this data source.
 
 After importing, click on "Alert rules" on the left side of the Grafana interface to view all current alert rules. By configuring contact points, users can receive alert notifications.
 
@@ -187,7 +187,7 @@ The specific configuration of the 14 alert rules is as follows:
 | Dnode data reporting is missing                              | < 3                                  | Trigger alert         | 180 seconds            | 0 seconds   | `select now(),  cluster_id, count(*) as dnode_report  from log.taosd_cluster_info where _ts >= (now -180s) and _ts < now  partition by cluster_id  having timetruncate(first(_ts), 1h) > 0` |
 | Restart dnode                                                | max(update_time) > last(update_time) | Trigger alert         | 90 seconds             | 0 seconds   | `select now(), dnode_ep, max(uptime) - last(uptime) as dnode_report  from log.taosd_dnodes_info where _ts >= (now - 90s) and _ts < now partition by dnode_ep` |
 
-TDengine users can modify and improve these alert rules according to their own business needs. In Grafana 7.5 and below versions, the Dashboard and Alert rules functions are combined, while in subsequent new versions, the two functions are separated. To be compatible with Grafana7.5 and below versions, an Alert Used Only panel has been added to the TDinsight panel, which is only required for Grafana7.5 and below versions.
+TDengine users can modify and improve these alert rules according to their own business needs.
 
 ## Upgrade
 

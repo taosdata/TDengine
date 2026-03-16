@@ -18,13 +18,16 @@
 #include "mndDef.h"
 #include "tdatablock.h"
 #include "types.h"
-#ifndef WINDOWS
 #include <curl/curl.h>
+#ifndef WINDOWS
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
+#else
+#include "tsha.h"
+#include "tbase64.h"
 #endif
 #include "audit.h"
 #include "mndDnode.h"
@@ -39,7 +42,11 @@
 #include "xnode.h"
 
 #define TSDB_XNODE_RESERVE_SIZE 64
+#ifdef WINDOWS
+#define XNODED_PIPE_SOCKET_URL "http://localhost:6051"
+#else
 #define XNODED_PIPE_SOCKET_URL "http://localhost"
+#endif
 typedef enum {
   HTTP_TYPE_GET = 0,
   HTTP_TYPE_POST,
@@ -2701,14 +2708,14 @@ int32_t mndXnodeUserPassActionUpdate(SSdb *pSdb, SXnodeUserPassObj *pOld, SXnode
   tmp = pOld->token;
   pOld->token = pNew->token;
   pNew->token = tmp;
-  
+
   // swapFields(&pNew->userLen, &pNew->user, &pOld->userLen, &pOld->user);
   // swapFields(&pNew->passLen, &pNew->pass, &pOld->passLen, &pOld->pass);
   // swapFields(&pNew->tokenLen, &pNew->token, &pOld->tokenLen, &pOld->token);
   // SXnodeUserPassObj* tmp = pNew;
   // pNew = pOld;
   // pOld = tmp;
-  
+
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }
@@ -3222,7 +3229,8 @@ static SHashObj *convertJob2Map(const SXnodeJobObj *pJob) {
   createTime.nd.node.type = QUERY_NODE_VALUE;
   createTime.nd.node.resType.type = TSDB_DATA_TYPE_BINARY;
   createTime.nd.datum.p = taosMemoryCalloc(1, TD_TIME_STR_LEN);
-  createTime.nd.datum.p = formatTimestampLocal(createTime.nd.datum.p, pJob->createTime, TSDB_TIME_PRECISION_MILLI);
+  createTime.nd.datum.p =
+      formatTimestampLocal(createTime.nd.datum.p, TD_TIME_STR_LEN, pJob->createTime, TSDB_TIME_PRECISION_MILLI);
   createTime.shouldFree = true;
   code = taosHashPut(pMap, "create_time", strlen("create_time") + 1, &createTime, sizeof(SXndRefValueNode));
   if (code != 0) {
@@ -3234,7 +3242,8 @@ static SHashObj *convertJob2Map(const SXnodeJobObj *pJob) {
   updateTime.nd.node.type = QUERY_NODE_VALUE;
   updateTime.nd.node.resType.type = TSDB_DATA_TYPE_BINARY;
   updateTime.nd.datum.p = taosMemoryCalloc(1, TD_TIME_STR_LEN);
-  updateTime.nd.datum.p = formatTimestampLocal(updateTime.nd.datum.p, pJob->updateTime, TSDB_TIME_PRECISION_MILLI);
+  updateTime.nd.datum.p =
+      formatTimestampLocal(updateTime.nd.datum.p, TD_TIME_STR_LEN, pJob->updateTime, TSDB_TIME_PRECISION_MILLI);
   updateTime.shouldFree = true;
   code = taosHashPut(pMap, "update_time", strlen("update_time") + 1, &updateTime, sizeof(SXndRefValueNode));
   return pMap;
@@ -3862,7 +3871,6 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
   }
 }
 
-#ifndef WINDOWS
 static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp, int32_t timeout, const char *socketPath) {
   CURL   *curl = NULL;
   int32_t code = 0;
@@ -3874,7 +3882,9 @@ static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp, int32_t time
     return -1;
   }
 
+  #ifndef WINDOWS
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, socketPath), &lino, _OVER);
+  #endif
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_URL, url), &lino, _OVER);
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData), &lino, _OVER);
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp), &lino, _OVER);
@@ -3919,7 +3929,9 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   }
 
   headers = curl_slist_append(headers, "Content-Type:application/json;charset=UTF-8");
+  #ifndef WINDOWS
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, socketPath), &lino, _OVER);
+  #endif
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers), &lino, _OVER);
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_URL, url), &lino, _OVER);
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData), &lino, _OVER);
@@ -3972,7 +3984,9 @@ static int32_t taosCurlDeleteRequest(const char *url, SCurlResp *pRsp, int32_t t
     return -1;
   }
 
+  #ifndef WINDOWS
   if (curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, socketPath)) goto _OVER;
+  #endif
   if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE") != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
@@ -4003,25 +4017,20 @@ _OVER:
   XND_LOG_END(code, lino);
   return code;
 }
-#else
-static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp, int32_t timeout, const char *socketPath) { return 0; }
-static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int32_t bufLen, int32_t timeout,
-                                   const char *socketPath) {
-  return 0;
-}
-static int32_t taosCurlDeleteRequest(const char *url, SCurlResp *pRsp, int32_t timeout, const char *socketPath) { return 0; }
-#endif
+
 SJson *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const char *buf, int64_t bufLen) {
   SJson    *pJson = NULL;
   SCurlResp curlRsp = {0};
   char      socketPath[PATH_MAX] = {0};
 
   getXnodedPipeName(socketPath, sizeof(socketPath));
+  #ifndef WINDOWS
   if (!taosCheckExistFile(socketPath)) {
     uError("xnode failed to send request, socket path:%s not exist", socketPath);
     terrno = TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
     goto _EXIT;
   }
+  #endif
   if (type == HTTP_TYPE_GET) {
     if ((terrno = taosCurlGetRequest(url, &curlRsp, timeout, socketPath)) != 0) {
       goto _OVER;
@@ -4352,7 +4361,6 @@ static int32_t mndCheckXnodeAgentExists(SMnode *pMnode, const char *name) {
   return TSDB_CODE_SUCCESS;
 }
 
-#ifndef WINDOWS
 typedef struct {
   int64_t sub;  // agent ID
   int64_t iat;  // issued at time
@@ -4361,6 +4369,8 @@ typedef struct {
 const unsigned char MNDXNODE_DEFAULT_SECRET[] = {126, 222, 130, 137, 43,  122, 41,  173, 144, 146, 116,
                                                  138, 153, 244, 251, 99,  50,  55,  140, 238, 218, 232,
                                                  15,  161, 226, 54,  130, 40,  211, 234, 111, 171};
+
+#ifndef WINDOWS
 
 agentTokenField mndXnodeCreateAgentTokenField(long agent_id, time_t issued_at) {
   agentTokenField field = {0};
@@ -4653,18 +4663,264 @@ _exit:
 
   return token;
 }
+#else
+
+static int32_t mndXnodeHmacSha256Windows(const unsigned char *key, size_t key_len, const unsigned char *message,
+                                         size_t message_len, unsigned char *output) {
+  unsigned char k_pad[64];
+  unsigned char k_ipad[64];
+  unsigned char k_opad[64];
+  unsigned char inner_hash[SHA256_DIGEST_SIZE];
+  sha256_ctx    ctx;
+
+  if (key_len > 64) {
+    sha256_init(&ctx);
+    sha256_update(&ctx, key, key_len);
+    sha256_final(&ctx, k_pad);
+    memset(k_pad + SHA256_DIGEST_SIZE, 0, 64 - SHA256_DIGEST_SIZE);
+  } else {
+    memcpy(k_pad, key, key_len);
+    memset(k_pad + key_len, 0, 64 - key_len);
+  }
+
+  for (int i = 0; i < 64; i++) {
+    k_ipad[i] = k_pad[i] ^ 0x36;
+    k_opad[i] = k_pad[i] ^ 0x5c;
+  }
+
+  sha256_init(&ctx);
+  sha256_update(&ctx, k_ipad, 64);
+  sha256_update(&ctx, message, message_len);
+  sha256_final(&ctx, inner_hash);
+
+  sha256_init(&ctx);
+  sha256_update(&ctx, k_opad, 64);
+  sha256_update(&ctx, inner_hash, SHA256_DIGEST_SIZE);
+  sha256_final(&ctx, output);
+
+  return 0;
+}
+
+static char *mndXnodeBase64UrlEncodeWindows(const unsigned char *input, size_t input_len) {
+  char *base64_str = NULL;
+
+  int32_t ret = base64_encode(input, input_len, &base64_str);
+  if (ret != 0 || !base64_str) {
+    return NULL;
+  }
+
+  for (size_t i = 0; base64_str[i] != '\0'; i++) {
+    if (base64_str[i] == '+') {
+      base64_str[i] = '-';
+    } else if (base64_str[i] == '/') {
+      base64_str[i] = '_';
+    }
+  }
+
+  size_t len = strlen(base64_str);
+  while (len > 0 && base64_str[len - 1] == '=') {
+    base64_str[len - 1] = '\0';
+    len--;
+  }
+
+  return base64_str;
+}
+
+static char *mndXnodeCreateTokenHeaderWindows() {
+  int32_t code = 0, lino = 0;
+  cJSON  *headerJson = NULL;
+  char   *headerJsonStr = NULL;
+  char   *encoded = NULL;
+
+  headerJson = tjsonCreateObject();
+  if (!headerJson) {
+    code = terrno;
+    goto _exit;
+  }
+
+  TAOS_CHECK_EXIT(tjsonAddStringToObject(headerJson, "alg", "HS256"));
+  TAOS_CHECK_EXIT(tjsonAddStringToObject(headerJson, "typ", "JWT"));
+
+  headerJsonStr = tjsonToUnformattedString(headerJson);
+  if (!headerJsonStr) {
+    code = terrno;
+    goto _exit;
+  }
+  encoded = mndXnodeBase64UrlEncodeWindows((const unsigned char *)headerJsonStr, strlen(headerJsonStr));
+  if (!encoded) {
+    code = terrno;
+    goto _exit;
+  }
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("xnode agent: line: %d failed to create header since %s", lino, tstrerror(code));
+    taosMemoryFree(encoded);
+    encoded = NULL;
+  }
+
+  if (headerJsonStr) {
+    taosMemoryFree(headerJsonStr);
+  }
+  if (headerJson) {
+    tjsonDelete(headerJson);
+  }
+
+  return encoded;
+}
+
+static char *mndXnodeCreateTokenPayloadWindows(const agentTokenField *claims) {
+  int32_t code = 0, lino = 0;
+  cJSON  *payloadJson = NULL;
+  char   *payloadStr = NULL;
+  char   *encoded = NULL;
+
+  if (!claims) {
+    code = TSDB_CODE_INVALID_PARA;
+    terrno = code;
+    return NULL;
+  }
+
+  payloadJson = tjsonCreateObject();
+  if (!payloadJson) {
+    code = terrno;
+    goto _exit;
+  }
+
+  TAOS_CHECK_EXIT(tjsonAddDoubleToObject(payloadJson, "iat", claims->iat));
+  TAOS_CHECK_EXIT(tjsonAddDoubleToObject(payloadJson, "sub", claims->sub));
+
+  payloadStr = tjsonToUnformattedString(payloadJson);
+  if (!payloadStr) {
+    code = terrno;
+    goto _exit;
+  }
+  encoded = mndXnodeBase64UrlEncodeWindows((const unsigned char *)payloadStr, strlen(payloadStr));
+  if (!encoded) {
+    code = terrno;
+    goto _exit;
+  }
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("xnode agent line: %d failed to create payload since %s", lino, tstrerror(code));
+    taosMemoryFree(encoded);
+    encoded = NULL;
+  }
+  if (payloadStr) {
+    taosMemoryFree(payloadStr);
+  }
+  if (payloadJson) {
+    tjsonDelete(payloadJson);
+  }
+  return encoded;
+}
+
+static char *mndXnodeCreateTokenSignatureWindows(const char *header_payload, const unsigned char *secret,
+                                                  size_t secret_len) {
+  int32_t       code = 0, lino = 0;
+  unsigned char hash[SHA256_DIGEST_SIZE] = {0};
+  char         *encoded = NULL;
+
+  int32_t ret = mndXnodeHmacSha256Windows(secret, secret_len, (const unsigned char *)header_payload,
+                                          strlen(header_payload), hash);
+  if (ret != 0) {
+    code = terrno;
+    goto _exit;
+  }
+
+  encoded = mndXnodeBase64UrlEncodeWindows(hash, SHA256_DIGEST_SIZE);
+  if (!encoded) {
+    code = terrno;
+    goto _exit;
+  }
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("xnode agent line: %d failed create signature since %s", lino, tstrerror(code));
+    taosMemoryFree(encoded);
+    encoded = NULL;
+  }
+  return encoded;
+}
+
+char *mndXnodeCreateAgentToken(const agentTokenField *claims, const unsigned char *secret, size_t secret_len) {
+  int32_t code = 0, lino = 0;
+  char   *header = NULL, *payload = NULL;
+  char   *headerPayload = NULL;
+  char   *signature = NULL;
+  char   *token = NULL;
+
+  if (!claims) {
+    code = TSDB_CODE_INVALID_PARA;
+    goto _exit;
+  }
+
+  if (!secret || secret_len == 0) {
+    secret = MNDXNODE_DEFAULT_SECRET;
+    secret_len = sizeof(MNDXNODE_DEFAULT_SECRET);
+  }
+
+  header = mndXnodeCreateTokenHeaderWindows();
+  if (!header) {
+    code = terrno;
+    goto _exit;
+  }
+
+  payload = mndXnodeCreateTokenPayloadWindows(claims);
+  if (!payload) {
+    code = terrno;
+    goto _exit;
+  }
+
+  size_t header_payload_len = strlen(header) + strlen(payload) + 2;
+  headerPayload = taosMemoryMalloc(header_payload_len);
+  if (!headerPayload) {
+    code = terrno;
+    goto _exit;
+  }
+  snprintf(headerPayload, header_payload_len, "%s.%s", header, payload);
+
+  signature = mndXnodeCreateTokenSignatureWindows(headerPayload, secret, secret_len);
+  if (!signature) {
+    code = terrno;
+    goto _exit;
+  }
+
+  size_t token_len = strlen(headerPayload) + strlen(signature) + 2;
+  token = taosMemoryCalloc(1, token_len);
+  if (!token) {
+    code = terrno;
+    goto _exit;
+  }
+
+  snprintf(token, token_len, "%s.%s", headerPayload, signature);
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("xnode agent line: %d failed create token since %s", lino, tstrerror(code));
+    taosMemoryFree(token);
+    token = NULL;
+  }
+  taosMemoryFree(signature);
+  taosMemoryFree(headerPayload);
+  taosMemoryFree(payload);
+  taosMemoryFree(header);
+
+  return token;
+}
+
 #endif
 
 int32_t mndXnodeGenAgentToken(const SXnodeAgentObj *pAgent, char *pTokenBuf) {
   int32_t code = 0, lino = 0;
-  #ifndef WINDOWS
-  // char *token =
-  //     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3Njc1OTc3NzIsInN1YiI6MTIzNDV9.i7HvYf_S-yWGEExDzQESPUwVX23Ok_"
-  //     "7Fxo93aqgKrtw";
+
   agentTokenField claims = {
       .iat = pAgent->createTime,
       .sub = pAgent->id,
   };
+  // token be like:
+  // "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3Njc1OTc3NzIsInN1YiI6MTIzNDV9.i7HvYf_S-yWGEExDzQESPUwVX23Ok_7Fxo93aqgKrtw"
   char *token = mndXnodeCreateAgentToken(&claims, MNDXNODE_DEFAULT_SECRET, sizeof(MNDXNODE_DEFAULT_SECRET));
   if (!token) {
     code = terrno;
@@ -4678,7 +4934,6 @@ _exit:
     mError("xnode agent line: %d failed gen token since %s", lino, tstrerror(code));
   }
   taosMemoryFree(token);
-  #endif
   TAOS_RETURN(code);
 }
 

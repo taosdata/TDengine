@@ -450,19 +450,35 @@ class TestFunCount:
         tdSql.execute(f"use d")
         
     def do_count_interval(self):
+        # Batch size limited to avoid exceeding maxSQLLength (default 4MB)
+        # Each row ~50 bytes, 200 rows ~10KB, well within 4MB limit
+        batch_size = 200
+        
+        # Timestamp constants
+        TS_BASE_1 = 1626624000000  # 2021-07-18 16:00:00 UTC
+        TS_BASE_2 = 1648758398208  # 2022-03-31 23:59:58 UTC
+        
         tdSql.execute("drop database if exists d")
         tdSql.execute("create database d")
         tdSql.execute("use d")
         tdSql.execute("create table st(ts timestamp, f int) tags (t int)")
         
-        for i in range(-2048, 2047):
-            ts = 1626624000000 + i
-            tdSql.execute(f"insert into ct1 using st tags(1) values({ts}, {i})")
+        # First batch insert: -2048 to 2046 (4095 rows)
+        tdLog.printNoPrefix("inserting first batch data...")
+        data_range = range(-2048, 2047)
+        for batch_start in range(0, len(data_range), batch_size):
+            batch_end = min(batch_start + batch_size, len(data_range))
+            values = ','.join([f"({TS_BASE_1 + data_range[i]}, {data_range[i]})" for i in range(batch_start, batch_end)])
+            tdSql.execute(f"insert into ct1 using st tags(1) values {values}")
             
         tdSql.execute("flush database d")
-        for i in range(1638):
-            ts = 1648758398208 + i
-            tdSql.execute(f"insert into ct1 using st tags(1) values({ts}, {i})")
+        
+        # Second batch insert: 0 to 1637 (1638 rows)
+        tdLog.printNoPrefix("inserting second batch data...")
+        for batch_start in range(0, 1638, batch_size):
+            batch_end = min(batch_start + batch_size, 1638)
+            values = ','.join([f"({TS_BASE_2 + i}, {i})" for i in range(batch_start, batch_end)])
+            tdSql.execute(f"insert into ct1 using st tags(1) values {values}")
         tdSql.execute("insert into ct1 using st tags(1) values(1648970742528, 1638)")
         tdSql.execute("flush database d")
         
@@ -541,6 +557,9 @@ class TestFunCount:
         num_rows = 20000
         num_tables = 6
         ts_base = 1685548800000
+        # Batch size limited to avoid exceeding maxSQLLength (default 4MB)
+        # Each row ~100-150 bytes, 100 rows ~10-15KB, well within 4MB limit
+        batch_size = 100
 
         tdSql.prepare()
 
@@ -557,35 +576,68 @@ class TestFunCount:
 
         tdLog.printNoPrefix("==========step2:insert data")
 
-        for i in range(num_rows):
-            tdSql.execute(f"insert into {dbname}.{tbnames[0]} values ({ts_base + i}, null, null, null, null, null, null, null, null, null)")
+        # tb1: all null values
+        tdLog.printNoPrefix("inserting tb1...")
+        for batch_start in range(0, num_rows, batch_size):
+            batch_end = min(batch_start + batch_size, num_rows)
+            values = ','.join([f"({ts_base + i}, null, null, null, null, null, null, null, null, null)" for i in range(batch_start, batch_end)])
+            tdSql.execute(f"insert into {dbname}.{tbnames[0]} values {values}")
 
-        for i in range(num_rows):
-            tdSql.execute(f"insert into {dbname}.{tbnames[1]} values ({ts_base + i}, 1, 1, 1, 1, 1, 1, 1, null, null)")
+        # tb2: non-null numeric/bool columns, null string columns (c7, c8)
+        tdLog.printNoPrefix("inserting tb2...")
+        for batch_start in range(0, num_rows, batch_size):
+            batch_end = min(batch_start + batch_size, num_rows)
+            values = ','.join([f"({ts_base + i}, 1, 1, 1, 1, 1, 1, 1, null, null)" for i in range(batch_start, batch_end)])
+            tdSql.execute(f"insert into {dbname}.{tbnames[1]} values {values}")
 
-        for i in range(num_rows):
-            if i % 2 == 0:
-                tdSql.execute(f"insert into {dbname}.{tbnames[2]} values ({ts_base + i}, null, null, null, null, null, null, null, null, null)")
-            else:
-                tdSql.execute(f"insert into {dbname}.{tbnames[2]} values ({ts_base + i}, 1, 1, 1, 1, 1, 1, 1, 'binary', 'nchar')")
+        # tb3: alternating null and non-null
+        tdLog.printNoPrefix("inserting tb3...")
+        for batch_start in range(0, num_rows, batch_size):
+            batch_end = min(batch_start + batch_size, num_rows)
+            values_list = []
+            for i in range(batch_start, batch_end):
+                if i % 2 == 0:
+                    values_list.append(f"({ts_base + i}, null, null, null, null, null, null, null, null, null)")
+                else:
+                    values_list.append(f"({ts_base + i}, 1, 1, 1, 1, 1, 1, 1, 'binary', 'nchar')")
+            tdSql.execute(f"insert into {dbname}.{tbnames[2]} values {','.join(values_list)}")
 
-        for i in range(num_rows):
-            if i % 2 == 0:
-                tdSql.execute(f"insert into {dbname}.{tbnames[3]} values ({ts_base + i}, null, null, null, null, null, null, null, 'binary', 'nchar')")
-            else:
-                tdSql.execute(f"insert into {dbname}.{tbnames[3]} values ({ts_base + i}, 1, 1, 1, 1, 1, 1, 1, null, null)")
+        # tb4: alternating pattern
+        tdLog.printNoPrefix("inserting tb4...")
+        for batch_start in range(0, num_rows, batch_size):
+            batch_end = min(batch_start + batch_size, num_rows)
+            values_list = []
+            for i in range(batch_start, batch_end):
+                if i % 2 == 0:
+                    values_list.append(f"({ts_base + i}, null, null, null, null, null, null, null, 'binary', 'nchar')")
+                else:
+                    values_list.append(f"({ts_base + i}, 1, 1, 1, 1, 1, 1, 1, null, null)")
+            tdSql.execute(f"insert into {dbname}.{tbnames[3]} values {','.join(values_list)}")
 
-        for i in range(num_rows):
-            if i < num_rows / 2:
-                tdSql.execute(f"insert into {dbname}.{tbnames[4]} values ({ts_base + i}, null, null, null, null, null, null, null, null, null)")
-            else:
-                tdSql.execute(f"insert into {dbname}.{tbnames[4]} values ({ts_base + i}, 1, 1, 1, 1, 1, 1, 1, 'binary', 'nchar')")
+        # tb5: first half null, second half non-null
+        tdLog.printNoPrefix("inserting tb5...")
+        half = num_rows // 2
+        for batch_start in range(0, num_rows, batch_size):
+            batch_end = min(batch_start + batch_size, num_rows)
+            values_list = []
+            for i in range(batch_start, batch_end):
+                if i < half:
+                    values_list.append(f"({ts_base + i}, null, null, null, null, null, null, null, null, null)")
+                else:
+                    values_list.append(f"({ts_base + i}, 1, 1, 1, 1, 1, 1, 1, 'binary', 'nchar')")
+            tdSql.execute(f"insert into {dbname}.{tbnames[4]} values {','.join(values_list)}")
 
-        for i in range(num_rows):
-            if i >= num_rows / 2:
-                tdSql.execute(f"insert into {dbname}.{tbnames[5]} values ({ts_base + i}, null, null, null, null, null, null, null, null, null)")
-            else:
-                tdSql.execute(f"insert into {dbname}.{tbnames[5]} values ({ts_base + i}, 1, 1, 1, 1, 1, 1, 1, 'binary', 'nchar')")
+        # tb6: first half non-null, second half null
+        tdLog.printNoPrefix("inserting tb6...")
+        for batch_start in range(0, num_rows, batch_size):
+            batch_end = min(batch_start + batch_size, num_rows)
+            values_list = []
+            for i in range(batch_start, batch_end):
+                if i >= half:
+                    values_list.append(f"({ts_base + i}, null, null, null, null, null, null, null, null, null)")
+                else:
+                    values_list.append(f"({ts_base + i}, 1, 1, 1, 1, 1, 1, 1, 'binary', 'nchar')")
+            tdSql.execute(f"insert into {dbname}.{tbnames[5]} values {','.join(values_list)}")
 
 
         tdLog.printNoPrefix("==========step3:check result in memory")

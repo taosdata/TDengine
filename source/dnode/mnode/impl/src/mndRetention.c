@@ -654,10 +654,10 @@ void mndRetentionSendProgressReq(SMnode *pMnode, SRetentionObj *pObj) {
       rpcMsg.pCont = pHead;
 
       char    detail[1024] = {0};
-      int32_t len = tsnprintf(detail, sizeof(detail), "msgType:%s numOfEps:%d inUse:%d",
-                              TMSG_INFO(TDMT_VND_QUERY_TRIM_PROGRESS), epSet.numOfEps, epSet.inUse);
+      int32_t len = snprintf(detail, sizeof(detail), "msgType:%s numOfEps:%d inUse:%d",
+                             TMSG_INFO(TDMT_VND_QUERY_TRIM_PROGRESS), epSet.numOfEps, epSet.inUse);
       for (int32_t i = 0; i < epSet.numOfEps; ++i) {
-        len += tsnprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
+        len += snprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
       }
 
       mDebug("retention:%d, send update progress msg to %s", pDetail->id, detail);
@@ -927,10 +927,10 @@ static int32_t mndTrimDbDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb
 
   if (taosFormatUtcTime(skeyStr, sizeof(skeyStr), tw->skey, pDb->cfg.precision) == 0 &&
       taosFormatUtcTime(ekeyStr, sizeof(ekeyStr), tw->ekey, pDb->cfg.precision) == 0) {
-    sqlLen = tsnprintf(sql, sizeof(sql), "trim db %s start with '%s' end with '%s'", pDbName, skeyStr, ekeyStr);
+    sqlLen = snprintf(sql, sizeof(sql), "trim db %s start with '%s' end with '%s'", pDbName, skeyStr, ekeyStr);
   } else {
-    sqlLen = tsnprintf(sql, sizeof(sql), "trim db %s start with %" PRIi64 " end with %" PRIi64, pDbName, tw->skey,
-                       tw->ekey);
+    sqlLen =
+        snprintf(sql, sizeof(sql), "trim db %s start with %" PRIi64 " end with %" PRIi64, pDbName, tw->skey, tw->ekey);
   }
 
   int64_t tse = taosGetTimestampMs();

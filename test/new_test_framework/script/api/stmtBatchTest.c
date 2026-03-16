@@ -1330,7 +1330,7 @@ static void checkResult(TAOS     *taos, char *tname, int printr, int expected) {
   char sql[255] = "SELECT * FROM ";
   TAOS_RES *result;
 
-  strcat(sql, tname);
+  snprintf(sql, sizeof(sql), "SELECT * FROM %s", tname);
 
   result = taos_query(taos, sql);
   int code = taos_errno(result);

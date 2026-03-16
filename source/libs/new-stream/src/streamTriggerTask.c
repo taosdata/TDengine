@@ -1835,7 +1835,7 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   }
 
   if (infoBuf && bufLen < bufCap) {
-    bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "columnId in the datablock: {");
+    bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "columnId in the datablock: {");
   }
   // create the data block for virtual table
   int32_t nTotalCols = TARRAY_SIZE(pVirColIds);
@@ -1864,14 +1864,14 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     code = blockDataAppendColInfo(pTask->pVirDataBlock, &col);
     QUERY_CHECK_CODE(code, lino, _end);
     if (infoBuf && bufLen < bufCap) {
-      bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", id);
+      bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", id);
     }
   }
   pTask->nVirDataCols = nDataCols;
 
   if (infoBuf && bufLen < bufCap) {
     infoBuf[bufLen - 1] = '}';
-    bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "; slotId of trigger data:{");
+    bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "; slotId of trigger data:{");
   }
 
   // get new slot id of trig data block and calc data block
@@ -1890,13 +1890,13 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     void *px = taosArrayPush(pTrigSlotids, &slotid);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
     if (infoBuf && bufLen < bufCap) {
-      bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", slotid);
+      bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", slotid);
     }
   }
 
   if (infoBuf && bufLen < bufCap) {
     infoBuf[bufLen - 1] = '}';
-    bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "; slotId of calc data:{");
+    bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "; slotId of calc data:{");
   }
 
   pCalcSlotids = taosArrayInit(nCalcCols, sizeof(int32_t));
@@ -1914,7 +1914,7 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     void *px = taosArrayPush(pCalcSlotids, &slotid);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
     if (infoBuf && bufLen < bufCap) {
-      bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", slotid);
+      bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", slotid);
     }
   }
   if (infoBuf && bufLen < bufCap) {
@@ -3667,8 +3667,8 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
               char       *colName = tSimpleHashGetKey(px2, NULL);
               OTableInfo *pInfo = taosArrayReserve(pReq->cols, 1);
               QUERY_CHECK_NULL(pInfo, code, lino, _end, terrno);
-              (void)strncpy(pInfo->refTableName, tbName, sizeof(pInfo->refTableName));
-              (void)strncpy(pInfo->refColName, colName, sizeof(pInfo->refColName));
+              tstrncpy(pInfo->refTableName, tbName, sizeof(pInfo->refTableName));
+              tstrncpy(pInfo->refColName, colName, sizeof(pInfo->refColName));
               px2 = tSimpleHashIterate(pTbInfo->pColumns, px2, &iter3);
             }
           }
@@ -5691,7 +5691,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           SStreamDbTableName *pName = taosArrayReserve(pOrigTableNames, 1);
           QUERY_CHECK_NULL(pName, code, lino, _end, terrno);
           (void)snprintf(pName->dbFName, sizeof(pName->dbFName), "%d.%s", 1, dbName);
-          (void)strncpy(pName->tbName, tbName, sizeof(pName->tbName));
+          tstrncpy(pName->tbName, tbName, sizeof(pName->tbName));
           pTbInfo = tSimpleHashIterate(pDbInfo, pTbInfo, &iter2);
         }
         px = tSimpleHashIterate(pTask->pOrigTableCols, px, &iter1);
@@ -6403,7 +6403,7 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
         buf[0] = '\0';
         for (int32_t i = 0; i < TARRAY_SIZE(pReq->cids); i++) {
           col_id_t colId = *(col_id_t *)TARRAY_GET_ELEM(pReq->cids, i);
-          bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%d,", colId);
+          bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d,", colId);
         }
         if (bufLen > 0) {
           buf[bufLen - 1] = '\0';

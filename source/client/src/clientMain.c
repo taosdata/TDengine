@@ -401,7 +401,7 @@ TAOS *taos_connect_with(const OPTIONS *options) {
       } else if (strcmp(key, "db") == 0) {
         db = value;
       } else if (strcmp(key, "port") == 0) {
-        port = (uint16_t)atoi(value);
+        port = (uint16_t)taosStr2Int32(value, NULL, 10);
       } else if (strcmp(key, "charset") == 0) {
         charset = value;
       } else if (strcmp(key, "timezone") == 0) {
@@ -1145,41 +1145,41 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
     }
 
     if (row[i] == NULL) {
-      len += tsnprintf(str + len, size - len, "%s", TSDB_DATA_NULL_STR);
+      len += snprintf(str + len, size - len, "%s", TSDB_DATA_NULL_STR);
       continue;
     }
 
     switch (fields[i].type) {
       case TSDB_DATA_TYPE_TINYINT:
-        len += tsnprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
+        len += snprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_UTINYINT:
-        len += tsnprintf(str + len, size - len, "%u", *((uint8_t *)row[i]));
+        len += snprintf(str + len, size - len, "%u", *((uint8_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_SMALLINT:
-        len += tsnprintf(str + len, size - len, "%d", *((int16_t *)row[i]));
+        len += snprintf(str + len, size - len, "%d", *((int16_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_USMALLINT:
-        len += tsnprintf(str + len, size - len, "%u", *((uint16_t *)row[i]));
+        len += snprintf(str + len, size - len, "%u", *((uint16_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_INT:
-        len += tsnprintf(str + len, size - len, "%d", *((int32_t *)row[i]));
+        len += snprintf(str + len, size - len, "%d", *((int32_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_UINT:
-        len += tsnprintf(str + len, size - len, "%u", *((uint32_t *)row[i]));
+        len += snprintf(str + len, size - len, "%u", *((uint32_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_BIGINT:
-        len += tsnprintf(str + len, size - len, "%" PRId64, *((int64_t *)row[i]));
+        len += snprintf(str + len, size - len, "%" PRId64, *((int64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_UBIGINT:
-        len += tsnprintf(str + len, size - len, "%" PRIu64, *((uint64_t *)row[i]));
+        len += snprintf(str + len, size - len, "%" PRIu64, *((uint64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_FLOAT: {
@@ -1244,11 +1244,11 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
       } break;
 
       case TSDB_DATA_TYPE_TIMESTAMP:
-        len += tsnprintf(str + len, size - len, "%" PRId64, *((int64_t *)row[i]));
+        len += snprintf(str + len, size - len, "%" PRId64, *((int64_t *)row[i]));
         break;
 
       case TSDB_DATA_TYPE_BOOL:
-        len += tsnprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
+        len += snprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
         break;
       case TSDB_DATA_TYPE_DECIMAL64:
       case TSDB_DATA_TYPE_DECIMAL: {

@@ -862,7 +862,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
                    encryptKeyChanged || enableWhiteListChanged || auditDBChanged || auditTokenChanged;
   const STraceId *trace = &pReq->info.traceId;
   char            timestamp[TD_TIME_STR_LEN] = {0};
-  if (mDebugFlag & DEBUG_TRACE) (void)formatTimestampLocal(timestamp, statusReq.timestamp, TSDB_TIME_PRECISION_MILLI);
+  if (mDebugFlag & DEBUG_TRACE)
+    (void)formatTimestampLocal(timestamp, sizeof(timestamp), statusReq.timestamp, TSDB_TIME_PRECISION_MILLI);
   mGTrace(
       "dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d "
       "timestamp:%s",
@@ -1259,7 +1260,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
 
   if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
     char obj[200] = {0};
-    (void)tsnprintf(obj, sizeof(obj), "%s:%d", createReq.fqdn, createReq.port);
+    (void)snprintf(obj, sizeof(obj), "%s:%d", createReq.fqdn, createReq.port);
 
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
@@ -1499,7 +1500,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
 
   if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
     char obj1[30] = {0};
-    (void)tsnprintf(obj1, sizeof(obj1), "%d", dropReq.dnodeId);
+    (void)snprintf(obj1, sizeof(obj1), "%d", dropReq.dnodeId);
 
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);

@@ -270,7 +270,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
       taosMemoryFree(pUseCols);
       return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_INVALID_COLUMN, token.z);
     }
-    strncpy(tmpTokenBuf, token.z, token.n);
+    tstrncpy(tmpTokenBuf, token.z, token.n < sizeof(tmpTokenBuf) ? token.n + 1 : sizeof(tmpTokenBuf));
     token.z = tmpTokenBuf;
     token.n = strdequote(token.z);
 
@@ -676,7 +676,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       (void)memcpy(*pData, input, inputBytes);
-      int32_t len = taosCreateMD5Hash(*pData, inputBytes);
+      int32_t len = taosCreateMD5Hash(*pData, inputBytes, bufLen);
       *nData = len;
     } else if (pToken->type == TK_SHA2) {
       NEXT_VALID_TOKEN(*ppSql, *pToken);
@@ -768,7 +768,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       (void)memcpy(*pData, input, inputBytes);
-      int32_t len = taosCreateSHA2Hash(*pData, inputBytes, digestLen);
+      int32_t len = taosCreateSHA2Hash((char *)*pData, inputBytes, digestLen, bufLen);
       *nData = len;
     } else if (pToken->type == TK_SHA || pToken->type == TK_SHA1) {
       NEXT_VALID_TOKEN(*ppSql, *pToken);
@@ -819,7 +819,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       (void)memcpy(*pData, input, inputBytes);
-      int32_t len = taosCreateSHA1Hash(*pData, inputBytes);
+      int32_t len = taosCreateSHA1Hash((char *)(*pData), inputBytes, bufLen) ;
       *nData = len;
     } else if (pToken->type == TK_AES_ENCRYPT) {
       NEXT_VALID_TOKEN(*ppSql, *pToken);
@@ -1395,7 +1395,6 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
   }
 #endif
 
-  //  strcpy(val->colName, pSchema->name);
   val->cid = pSchema->colId;
   val->type = pSchema->type;
 
@@ -3891,7 +3890,7 @@ static int32_t parseDataFromFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
     if (pFilePath->n >= PATH_MAX) {
       return buildSyntaxErrMsg(&pCxt->msg, "file path is too long, max length is 4096", pFilePath->z);
     }
-    strncpy(filePathStr, pFilePath->z, pFilePath->n);
+    tstrncpy(filePathStr, pFilePath->z, pFilePath->n < sizeof(filePathStr) ? pFilePath->n + 1 : sizeof(filePathStr));
   }
   pStmt->fp = taosOpenFile(filePathStr, TD_FILE_READ);
   if (NULL == pStmt->fp) {

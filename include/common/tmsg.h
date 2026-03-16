@@ -1460,7 +1460,7 @@ typedef struct {
 
 typedef struct {
   uint8_t alterType;  // TSDB_ALTER_ROLE_LOCK, TSDB_ALTER_ROLE_ROLE, TSDB_ALTER_ROLE_PRIVILEGES
-  uint8_t objType;    // db, table, view, rsma, topic, etc.
+  uint8_t objType;    // none, db, table, view, rsma, topic, etc.
   union {
     uint32_t flag;
     struct {
@@ -1478,7 +1478,7 @@ typedef struct {
   };
   char    principal[TSDB_ROLE_LEN];      // role or user name
   char    objFName[TSDB_OBJ_FNAME_LEN];  // db
-  char    tblName[TSDB_TABLE_NAME_LEN];  // table, view, rsma, topic, etc.
+  char    tblName[TSDB_TABLE_NAME_LEN];  // none, table, view, rsma, topic, etc.
   int32_t sqlLen;
   char*   sql;
 } SAlterRoleReq;

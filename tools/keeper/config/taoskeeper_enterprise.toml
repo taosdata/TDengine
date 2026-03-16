@@ -39,6 +39,17 @@ buffer = 64
 keep = 90
 cachemodel = "both"
 
+# prometheus v2 memory cache mode configuration
+[prometheus]
+# Additional tables to cache (restore from default exclusion list)
+# Example: includeTables = ["taosd_write_metrics", "adapter_c_interface"]
+includeTables = []
+
+# TTL for cached metrics in memory (in seconds)
+# Data older than this will be automatically cleaned up
+# Default: 300 (5 minutes), Minimum: 60 (1 minute)
+cacheTTL = 300
+
 [environment]
 # Whether running in cgroup.
 incgroup = false

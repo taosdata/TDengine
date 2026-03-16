@@ -75,10 +75,11 @@ typedef struct {
 
 #endif
 
-#define tstrncpy(dst, src, size)         \
-  do {                                   \
-    (void)strncpy((dst), (src), (size)); \
-    (dst)[(size)-1] = 0;                 \
+#define tstrncpy(dst, src, size)      \
+  do {                                \
+    int32_t _sz = (int32_t)(size);    \
+    (void)strncpy((dst), (src), _sz); \
+    (dst)[_sz - 1] = 0;               \
   } while (0)
 
 int64_t tsnprintf(char *dst, int64_t size, const char *format, ...);
@@ -134,6 +135,16 @@ int32_t  taosAscii2Hex(const char *z, uint32_t n, void **data, uint32_t *size);
 // int32_t  taosBin2Ascii(const char *z, uint32_t n, void** data, uint32_t* size);
 bool isHex(const char *z, uint32_t n);
 bool isValidateHex(const char *z, uint32_t n);
+
+typedef struct {
+  char   *buf;
+  int32_t len;
+  int32_t cap;
+} TSlice;
+
+void    sliceInit(TSlice *p, char *buf, int32_t cap);
+int32_t sliceAppend(TSlice *p, const char *src, int32_t len);
+char   *sliceGet(TSlice *p, int32_t *len);
 
 #ifdef TD_ASTRA
 static FORCE_INLINE size_t strnlen(const char *s, size_t maxlen) {
