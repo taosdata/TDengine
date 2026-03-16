@@ -46,6 +46,10 @@ int32_t taosFormatTimezoneStr(time_t t, const char *tzStr, timezone_t sp, char *
 int32_t initTimezoneInfo();
 void    cleanupTimezoneInfo();
 
+#ifdef WINDOWS
+int64_t getWindowsTimezoneOffset(void);
+#endif
+
 timezone_t getGlobalDefaultTZ();
 #ifdef __cplusplus
 }

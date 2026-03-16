@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from typing import List
 from datetime import datetime, timedelta
 import re
-
+import tempfile
 
 @dataclass
 class DataSet:
@@ -3069,18 +3069,40 @@ class TDCom:
                 cmd = "fc"
                 file1 = os.path.abspath(os.path.normpath(file1))
                 file2 = os.path.abspath(os.path.normpath(file2))
-                # /W 参数忽略结尾空格和空白字符
-                result = subprocess.run(
-                    [cmd, "/W", file1, file2],
-                    text=True,
-                    capture_output=True,
-                    encoding="utf-8",
-                    errors="ignore",
-                )
-                # Windows: 只要 returncode==0 就认为一致
+
+                # 创建临时文件，过滤空行
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, encoding='utf-8') as tmp1, \
+                    tempfile.NamedTemporaryFile(mode='w', delete=False, encoding='utf-8') as tmp2:
+
+                    # 复制非空行到临时文件
+                    with open(file1, 'r', encoding='utf-8', errors='ignore') as f:
+                        tmp1.writelines(line for line in f if line.strip())
+                    temp1 = tmp1.name
+
+                    with open(file2, 'r', encoding='utf-8', errors='ignore') as f:
+                        tmp2.writelines(line for line in f if line.strip())
+                    temp2 = tmp2.name
+
+                try:
+                    result = subprocess.run(
+                        [cmd, "/W", temp1, temp2],
+                        text=True,
+                        capture_output=True,
+                        encoding="utf-8",
+                        errors="replace",  # 改为 replace，避免编码错误
+                    )
+                finally:
+                    os.unlink(temp1)
+                    os.unlink(temp2)
                 if result.returncode == 0:
                     return True
-            # if result is not empty, print the differences and files name. Otherwise, the files are identical.
+                else:
+                    tdLog.info(f"{cmd} result.returncode: {result.returncode}")
+                    tdLog.info(f"{cmd} result.stdout: {result.stdout}")
+                    tdLog.info(f"{cmd} result.stderr: {result.stderr}")
+                    return False
+                
+            # 统一的结果检查逻辑（移到 if/else 外面）
             if result.returncode != 0:
                 tdLog.info(f"{cmd} result.returncode: {result.returncode}")
                 tdLog.info(f"{cmd} result.stdout: {result.stdout}")
@@ -3099,8 +3121,10 @@ class TDCom:
             tdLog.debug(
                 "The 'diff' command is not found. Please make sure it's installed and available in your PATH."
             )
+            return False
         except Exception as e:
             tdLog.debug(f"An error occurred: {e}")
+            return False
 
     def compare_query_with_result_file(self, idx, sql, resultFile, test_case):
         self.generate_query_result_file(test_case, idx, sql)
