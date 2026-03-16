@@ -13,10 +13,14 @@ async function submitLoginForm(page: Page, username: string, password: string) {
   await usernameInput.fill(username);
   await passwordInput.fill(password);
 
-  await Promise.all([
-    page.waitForURL(/\/explorer/, { timeout: 60_000 }),
-    page.locator('button.signin').click()
-  ]);
+  // Wait a bit for any form validation
+  await page.waitForTimeout(500);
+
+  // Try pressing Enter key to submit form
+  await passwordInput.press('Enter');
+
+  // Wait for navigation
+  await page.waitForURL(/\/explorer/, { timeout: 60_000 });
 
   // Explorer home should be visible after successful login.
   await expect(page.locator('.dbs-tree-header')).toBeVisible({ timeout: 60_000 });
@@ -44,7 +48,8 @@ export async function ensureLogin(
   try {
     pathname = new URL(page.url()).pathname;
   } catch {
-    // ignore
+    // Keep fallback behavior when URL is temporarily unparsable.
+    pathname = null;
   }
 
   // If the route guard redirects us to /login, complete the login flow then retry the original URL.
