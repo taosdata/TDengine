@@ -309,6 +309,7 @@ typedef struct SVnodeModifyLogicNode {
   STimeWindow      deleteTimeRange;
   SVgroupsInfo*    pVgroupList;
   SNodeList*       pInsertCols;
+  int8_t           secureDelete;
 } SVnodeModifyLogicNode;
 
 typedef struct SExchangeLogicNode {
@@ -920,6 +921,7 @@ typedef struct SDataDeleterNode {
   SNode*        pAffectedRows;  // usless
   SNode*        pStartTs;       // usless
   SNode*        pEndTs;         // usless
+  int8_t        secureDelete;
 } SDataDeleterNode;
 
 typedef struct SSubplan {

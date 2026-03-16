@@ -4140,6 +4140,7 @@ static const char* jkDeletePhysiPlanDeleteTimeRangeEndKey = "DeleteTimeRangeEndK
 static const char* jkDeletePhysiPlanAffectedRows = "AffectedRows";
 static const char* jkDeletePhysiPlanStartTs = "StartTs";
 static const char* jkDeletePhysiPlanEndTs = "EndTs";
+static const char* jkDeletePhysiPlanSecureDelete = "SecureDelete";
 
 static int32_t physiDeleteNodeToJson(const void* pObj, SJson* pJson) {
   const SDataDeleterNode* pNode = (const SDataDeleterNode*)pObj;
@@ -4171,6 +4172,9 @@ static int32_t physiDeleteNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkDeletePhysiPlanEndTs, nodeToJson, pNode->pEndTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDeletePhysiPlanSecureDelete, pNode->secureDelete);
   }
 
   return code;
@@ -4206,6 +4210,9 @@ static int32_t jsonToPhysiDeleteNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkDeletePhysiPlanEndTs, &pNode->pEndTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkDeletePhysiPlanSecureDelete, &pNode->secureDelete);
   }
 
   return code;

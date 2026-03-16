@@ -11009,6 +11009,12 @@ static int32_t translateDelete(STranslateContext* pCxt, SDeleteStmt* pDelete) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     pDelete->precision = ((STableNode*)pDelete->pFromTable)->precision;
+    if (nodeType(pDelete->pFromTable) == QUERY_NODE_REAL_TABLE) {
+      SRealTableNode* pTbl = (SRealTableNode*)pDelete->pFromTable;
+      if (pTbl->pMeta) {
+        pDelete->secureDelete |= pTbl->pMeta->secureDelete;
+      }
+    }
     code = translateDeleteWhere(pCxt, pDelete);
   }
   pCxt->currClause = SQL_CLAUSE_SELECT;
@@ -11238,6 +11244,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->compactEndTime = pStmt->pOptions->compactEndTime;
   pReq->compactTimeOffset = pStmt->pOptions->compactTimeOffset;
   pReq->isAudit = pStmt->pOptions->isAudit;
+  pReq->secureDelete = pStmt->pOptions->secureDelete;
 
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
@@ -11839,6 +11846,10 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbEnumOption(pCxt, "allowDrop", pOptions->allowDrop, TSDB_MIN_DB_ALLOW_DROP, TSDB_MAX_DB_ALLOW_DROP);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbEnumOption(pCxt, "secureDelete", pOptions->secureDelete, TSDB_MIN_DB_SECURE_DELETE,
+                             TSDB_MAX_DB_SECURE_DELETE);
+  }
   /*
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbEnumOption(pCxt, "encryptAlgorithm", pOptions->encryptAlgorithm, TSDB_MIN_ENCRYPT_ALGO,
@@ -12281,6 +12292,7 @@ static int32_t buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStm
   tstrncpy(pReq->encryptAlgrName, pStmt->pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGR_NAME_LEN);
   pReq->isAudit = pStmt->pOptions->isAudit;
   pReq->allowDrop = pStmt->pOptions->allowDrop;
+  pReq->secureDelete = pStmt->pOptions->secureDelete;
   return code;
 }
 
@@ -13550,6 +13562,7 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   }
   if (TSDB_CODE_SUCCESS == code) {
     pReq->virtualStb = pStmt->pOptions->virtualStb;
+    pReq->secureDelete = pStmt->pOptions->secureDelete;
   }
   return code;
 }
@@ -13616,6 +13629,12 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
 
     if (pStmt->pOptions->keep > 0) {
       pAlterReq->keep = pStmt->pOptions->keep;
+    }
+
+    if (pStmt->pOptions->secureDelete >= 0) {
+      pAlterReq->secureDelete = pStmt->pOptions->secureDelete;
+    } else {
+      pAlterReq->secureDelete = -1;
     }
 
     return TSDB_CODE_SUCCESS;

@@ -67,6 +67,7 @@ typedef struct SSchedulerReq {
   SExecResult*       pExecRes;
   void**             pFetchRes;
   int8_t             source;
+  int8_t             secureDelete;
   void*              pWorkerCb;
 } SSchedulerReq;
 
