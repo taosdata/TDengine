@@ -2168,7 +2168,7 @@ int32_t buildStreamSubmitReqFromBlock(SStreamRunnerTask* pTask, SDataInserterHan
 _end:
   releaseStreamInsertTableInfo(ppTbInfo);
   if (code != TSDB_CODE_SUCCESS) {
-    ST_TASK_ELOG("buildStreamSubmitReqFromBlock, code:0x%0x, groupId:%" PRId64 " tbname:%s autoCreate:%d", code,
+    ST_TASK_ELOG("buildStreamSubmitReqFromBlock, failed at line %d with code:0x%0x, groupId:%" PRId64 " tbname:%s autoCreate:%d", lino, code,
                  pInserterInfo->groupId, pInserterInfo->tbName, pInserterInfo->isAutoCreateTable);
   }
   return code;

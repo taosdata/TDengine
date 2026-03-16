@@ -116,6 +116,7 @@ int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray** subEndPoints, SRead
   ctx->pTaskInfo = pTaskInfo;
   ctx->subEndPoints = *subEndPoints;
   ctx->rpcHandle = (readHandle && readHandle->pMsgCb) ? readHandle->pMsgCb->clientRpc : NULL;
+  ctx->isStream = pTaskInfo && IS_STREAM_MODE(pTaskInfo);
 
   *subEndPoints = NULL;
   
@@ -353,7 +354,11 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
       }
       taosArrayDestroy(pCtx->subResNodes);
     }
-    taosArrayDestroyP(pCtx->subEndPoints, NULL);
+    if (pCtx->isStream) {
+      taosArrayDestroyP(pCtx->subEndPoints, (FDelete)nodesDestroyNode);
+    } else {
+      taosArrayDestroyP(pCtx->subEndPoints, NULL);
+    }
     pCtx->subEndPoints = NULL;
   }
   

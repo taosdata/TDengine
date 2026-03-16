@@ -177,6 +177,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_FAIL_GENERATE_JSON,       "failed to generate JS
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR,   "bind number out of range or not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PERIOD_UNIT,      "Invalid period unit")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PERIOD_RANGE,     "Invalid period range")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_OFFSET_UNIT,      "Invalid offset unit")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_OFFSET_VALUE,     "Invalid offset value")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_DROP_VTABLE,      "Invalid drop vtable")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLUMN_REF,       "Invalid column reference")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SLIDING_OFFSET,   "Invalid sliding offset")
@@ -1087,6 +1089,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_MUST_WALFORCE,            "Audit database wal_
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_MUST_KEEPFORCE,           "Audit database keep2 must be greater than 1825d")
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_DB_ALREADY_EXIST,         "Audit database already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_DB_NOT_ALLOW_CHANGE,      "Audit database is not allowed to change")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_DB_NOT_MULTI_VGROUP,      "Audit database is not allowed to keep multiple vgroups")
 
 // VTABLE
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR,     "Virtual table scan internal error")

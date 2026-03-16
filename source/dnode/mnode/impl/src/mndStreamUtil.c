@@ -72,6 +72,12 @@ void mstDestroySStmTaskToDeployExt(void* param) {
     case STREAM_RUNNER_TASK:
       taosMemoryFreeClear(pExt->deploy.msg.runner.pPlan);
       break;
+    case STREAM_READER_TASK:
+      if (!pExt->deploy.msg.reader.triggerReader) {
+        SStreamReaderDeployFromCalc* pCalcReaderDeploy = &pExt->deploy.msg.reader.msg.calc;
+        taosMemoryFreeClear(pCalcReaderDeploy->calcScanPlan);
+      }
+      break;
     default:  
       break;;
   }

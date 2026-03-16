@@ -170,7 +170,7 @@ static void vmProcessStreamReaderQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   dGTrace("vgId:%d, msg:%p, get from vnode-fetch queue", pVnode->vgId, pMsg);
 
   terrno = 0;
-  int32_t code = vnodeProcessStreamReaderMsg(pVnode->pImpl, pMsg);
+  int32_t code = vnodeProcessStreamReaderMsg(pVnode->pImpl, pMsg, pInfo);
   if (code != 0) {
     if (code == -1 && terrno != 0) {
       code = terrno;

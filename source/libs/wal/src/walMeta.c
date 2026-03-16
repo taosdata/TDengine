@@ -14,6 +14,7 @@
  */
 
 #include "cJSON.h"
+#include "dmRepair.h"
 #include "os.h"
 #include "taoserror.h"
 #include "tencrypt.h"
@@ -38,6 +39,8 @@ int64_t FORCE_INLINE walGetLastVer(SWal* pWal) { return pWal->vers.lastVer; }
 int64_t FORCE_INLINE walGetCommittedVer(SWal* pWal) { return pWal->vers.commitVer; }
 
 int64_t FORCE_INLINE walGetAppliedVer(SWal* pWal) { return pWal->vers.appliedVer; }
+
+static FORCE_INLINE bool walShouldDeleteCorruption(const SWal* pWal);
 
 int32_t walSetKeepVersion(SWal *pWal, int64_t ver) {
   int32_t code = 0;
@@ -454,7 +457,7 @@ static int32_t walLogEntriesComplete(SWal* pWal) {
     wError("vgId:%d, WAL log entries incomplete in range [%" PRId64 ", %" PRId64 "], index:%" PRId64
            ", snaphot index:%" PRId64,
            pWal->cfg.vgId, pWal->vers.firstVer, pWal->vers.lastVer, index, pWal->vers.snapshotVer);
-    if (tsWalDeleteOnCorruption) {
+    if (walShouldDeleteCorruption(pWal)) {
       TAOS_RETURN(walRenameCorruptedDir(pWal));
     } else {
       TAOS_RETURN(TSDB_CODE_WAL_LOG_INCOMPLETE);
@@ -516,6 +519,10 @@ void walRegfree(regex_t* ptr) {
     return;
   }
   regfree(ptr);
+}
+
+static FORCE_INLINE bool walShouldDeleteCorruption(const SWal* pWal) {
+  return tsWalDeleteOnCorruption || dmRepairNeedWalRepair(pWal->cfg.vgId);
 }
 
 int32_t walCheckAndRepairMeta(SWal* pWal) {
@@ -608,7 +615,7 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
     if (lastVer < 0) {
       if (code != TSDB_CODE_WAL_LOG_NOT_EXIST) {
         wError("vgId:%d, failed to scan wal last index since %s", pWal->cfg.vgId, tstrerror(code));
-        if (tsWalDeleteOnCorruption) {
+        if (walShouldDeleteCorruption(pWal)) {
           TAOS_RETURN(walRenameCorruptedDir(pWal));
         }
         goto _exit;

@@ -681,6 +681,9 @@ int32_t tEncodeSStreamTriggerDeployMsg(SEncoder* pEncoder, const SStreamTriggerD
     }
     case WINDOW_TYPE_PERIOD: {
       // period trigger
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->trigger.period.periodUnit));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->trigger.period.offsetUnit));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->trigger.period.precision));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.period.period));
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMsg->trigger.period.offset));
       break;
@@ -1253,6 +1256,9 @@ int32_t tDecodeSStreamTriggerDeployMsg(SDecoder* pDecoder, SStreamTriggerDeployM
     
     case WINDOW_TYPE_PERIOD:
       // period trigger
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, (int8_t*)&pMsg->trigger.period.periodUnit));
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, (int8_t*)&pMsg->trigger.period.offsetUnit));
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->trigger.period.precision));
       TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->trigger.period.period));
       TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pMsg->trigger.period.offset));
       break;
@@ -1804,13 +1810,22 @@ void tFreeSStmTaskDeploy(void* param) {
   }
 }
 
+
 void tFreeSStmStreamDeploy(void* param) {
   if (NULL == param) {
     return;
   }
   
   SStmStreamDeploy* pDeploy = (SStmStreamDeploy*)param;
+  int32_t readerNum = taosArrayGetSize(pDeploy->readerTasks);
+  for (int32_t i = 0; i < readerNum; ++i) {
+    SStmTaskDeploy* pReader = taosArrayGet(pDeploy->readerTasks, i);
+    if (!pReader->msg.reader.triggerReader && pReader->msg.reader.msg.calc.freeScanPlan) {
+      taosMemoryFreeClear(pReader->msg.reader.msg.calc.calcScanPlan);
+    }
+  }
   taosArrayDestroy(pDeploy->readerTasks);
+
   if (pDeploy->triggerTask) {
     taosArrayDestroy(pDeploy->triggerTask->msg.trigger.readerList);
     taosArrayDestroy(pDeploy->triggerTask->msg.trigger.runnerList);

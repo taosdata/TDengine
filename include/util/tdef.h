@@ -815,6 +815,7 @@ enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 #define MONITOR_METRIC_NAME_LEN 100
 
 #define AUDIT_OPERATION_LEN 20
+#define AUDIT_CLIENT_ADD_LEN 256
 #define CONNECTOR_INFO_LEN  256
 
 typedef enum {
@@ -835,6 +836,8 @@ typedef enum {
   ANALY_ALGO_TYPE_MOTIF = 5,
   ANALY_ALGO_TYPE_END = 10,
 } EAnalyAlgoType;
+
+#define AUDIT_STABLE_NAME "operations"
 
 typedef enum {
   TSDB_VERSION_UNKNOWN = 0,

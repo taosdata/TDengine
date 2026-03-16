@@ -4786,6 +4786,7 @@ static EDealRes doTranslateExpr(SNode** pNode, void* pContext) {
       return translateLogicCond(pCxt, (SLogicConditionNode*)*pNode);
     case QUERY_NODE_SELECT_STMT:
     case QUERY_NODE_SET_OPERATOR:
+    case QUERY_NODE_CREATE_STREAM_STMT:
       return translateExprSubquery(pCxt, pNode);
     case QUERY_NODE_WHEN_THEN:
       return translateWhenThen(pCxt, (SWhenThenNode*)*pNode);
@@ -8719,21 +8720,79 @@ static int32_t translateIntervalWindow(STranslateContext* pCxt, SSelectStmt* pSe
 
 static const int64_t periodLowerBound = 10;
 static const int64_t periodUpperBound = (int64_t)3650 * 24 * 60 * 60 * 1000;  // 10 years in milliseconds
-static const int64_t offsetUpperBound = (int64_t)24 * 60 * 60 * 1000;         // 1 day in milliseconds
 
+/**
+ * @brief Validate PERIOD trigger window parameters
+ *
+ * Validates period interval and offset parameters for stream PERIOD triggers.
+ * Performs unit validation, range checking, and offset-period relationship validation.
+ *
+ * @param pCxt Translation context for error reporting
+ * @param pPeriod Period window node containing interval and offset
+ * @return TSDB_CODE_SUCCESS on valid parameters, error code otherwise
+ *
+ * @note Period unit validation:
+ *       - Natural units: n (month), y (year)
+ *       - Fixed units: a (ms), s (second), m (minute), h (hour), d (day), w (week)
+ * @note Period range validation:
+ *       - Month: [1n, 120n] (10 years)
+ *       - Year: [1y, 10y]
+ *       - Fixed units: [10a, 3650d]
+ * @note Offset validation:
+ *       - Supported units: a, s, m, h, d (week/month/year not allowed)
+ *       - Must satisfy: offset < period (strict inequality)
+ *       - Month unit special case: offset < N * 28 days (shortest month)
+ */
 static int32_t checkPeriodWindow(STranslateContext* pCxt, SPeriodWindowNode* pPeriod) {
   uint8_t     precision = TSDB_TIME_PRECISION_MILLI;
   SValueNode* pPer = (SValueNode*)pPeriod->pPeroid;
   SValueNode* pOffset = (SValueNode*)pPeriod->pOffset;
 
   if (pPer) {
-    if (pPer->unit != 'a' && pPer->unit != 's' && pPer->unit != 'm' && pPer->unit != 'h' && pPer->unit != 'd') {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PERIOD_UNIT, pPer->unit);
+    if (pPer->unit != 'a' && pPer->unit != 's' && pPer->unit != 'm' && pPer->unit != 'h' && pPer->unit != 'd' &&
+        pPer->unit != 'w' && pPer->unit != 'n' && pPer->unit != 'y') {
+      char errMsg[256];
+      snprintf(errMsg, sizeof(errMsg),
+               "Invalid time unit '%c' in PERIOD interval. "
+               "Supported interval units: a (millisecond), s (second), m (minute), h (hour), d (day), w (week), n (month), y (year)",
+               pPer->unit);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PERIOD_UNIT, errMsg);
     }
-    if (pPer->datum.i / getPrecisionMultiple(precision) < periodLowerBound ||
-        pPer->datum.i / getPrecisionMultiple(precision) > periodUpperBound) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PERIOD_RANGE,
-                                     "Period value out of range [10a, 3650d]");
+
+    // Range validation based on unit type
+    // Note: For 'n' and 'y', datum.i is the original value (e.g., 3 for "3n")
+    //       For other units, datum.i is already converted by getDuration() to the target precision
+    int64_t value = pPer->datum.i;
+    bool outOfRange = false;
+    const char* rangeMsg = NULL;
+
+    switch (pPer->unit) {
+      case 'n':  // Month: [1n, 120n] (10 years)
+        // datum.i is the original value for natural units
+        if (value < 1 || value > 120) {
+          outOfRange = true;
+          rangeMsg = "Period value out of range [1n, 120n]";
+        }
+        break;
+      case 'y':  // Year: [1y, 10y]
+        // datum.i is the original value for natural units
+        if (value < 1 || value > 10) {
+          outOfRange = true;
+          rangeMsg = "Period value out of range [1y, 10y]";
+        }
+        break;
+      default:  // Fixed duration units: a/s/m/h/d/w
+        // datum.i is already converted to target precision
+        if (pPer->datum.i / getPrecisionMultiple(precision) < periodLowerBound ||
+            pPer->datum.i / getPrecisionMultiple(precision) > periodUpperBound) {
+          outOfRange = true;
+          rangeMsg = "Period value out of range [10a, 3650d]";
+        }
+        break;
+    }
+
+    if (outOfRange) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PERIOD_RANGE, rangeMsg);
     }
   }
 
@@ -8747,13 +8806,29 @@ static int32_t checkPeriodWindow(STranslateContext* pCxt, SPeriodWindowNode* pPe
           generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER, "Negative period offset value"));
     }
 
-    if (pOffset->unit != 'a' && pOffset->unit != 's' && pOffset->unit != 'm' && pOffset->unit != 'h') {
-      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT, pOffset->unit));
+    if (pOffset->unit != 'a' && pOffset->unit != 's' && pOffset->unit != 'm' && pOffset->unit != 'h' && pOffset->unit != 'd') {
+      char errMsg[256];
+      snprintf(errMsg, sizeof(errMsg),
+               "Invalid time unit '%c' in PERIOD offset. "
+               "Supported offset units: a (millisecond), s (second), m (minute), h (hour), d (day)",
+               pOffset->unit);
+      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OFFSET_UNIT, errMsg));
     }
 
-    if (pOffset->datum.i > offsetUpperBound) {
-      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                          "Period offset value should less than 1d"));
+    // Validate offset < period (strict inequality)
+    // Note: offset datum.i is already converted by getDuration() to target precision
+    //       period datum.i is converted for non-natural units, original value for 'n'/'y'
+    // Convert both to milliseconds for comparison
+    int64_t offsetValue = pOffset->datum.i;
+    int64_t periodValue = pPer->datum.i;
+    if (pPer->unit == 'n') {
+      periodValue = convertTimePrecision(periodValue * 28LL * MILLISECOND_PER_DAY, TSDB_TIME_PRECISION_MILLI, precision);  // Convert N months to milliseconds using 28 days/month
+    } else if (pPer->unit == 'y') {
+      periodValue = convertTimePrecision(periodValue * 365LL * MILLISECOND_PER_DAY, TSDB_TIME_PRECISION_MILLI, precision); // Convert N years to milliseconds using 365 days/year
+    }
+    if (offsetValue >= periodValue) {
+      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OFFSET_VALUE,
+                                          "Offset must be strictly less than period"));
     }
   }
 
@@ -17542,6 +17617,56 @@ static int32_t getExtWindowBorder(STranslateContext* pCxt, SNode* pTriggerWindow
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t checkSubQueryStmt(SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT:
+    case QUERY_NODE_SET_OPERATOR:
+    case QUERY_NODE_CREATE_STREAM_STMT:
+    case QUERY_NODE_EXPLAIN_STMT:
+    case QUERY_NODE_INSERT_STMT:
+      return TSDB_CODE_SUCCESS;
+    default:
+      break;
+  }
+
+  parserError("subQuery not supported in %s statement", nodesNodeName(nodeType(pNode)));
+
+  return TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_USAGE;
+}
+
+static void transferSubQueries(STranslateContext* pCxt, SNode* pNode) {
+  if (NULL == pNode) {
+    return;
+  }
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      pSelect->pSubQueries = pCxt->pSubQueries;
+      pCxt->pSubQueries = NULL;
+      break;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      pSet->pSubQueries = pCxt->pSubQueries;
+      pCxt->pSubQueries = NULL;
+      break;
+    }
+    case QUERY_NODE_EXPLAIN_STMT: {
+      SExplainStmt* pExplain = (SExplainStmt*)pNode;
+      transferSubQueries(pCxt, pExplain->pQuery);
+      break;
+    }
+    case QUERY_NODE_INSERT_STMT: {
+      SInsertStmt* pInsert = (SInsertStmt*)pNode;
+      transferSubQueries(pCxt, pInsert->pQuery);
+      break;
+    }
+    default:
+      break;
+  }
+}
+
 static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTriggerPartition, SNode* pTriggerTbl,
                                         SNode* pStreamCalcQuery, SNode* pNotifyCond, SNode* pTriggerWindow) {
   int32_t    code = TSDB_CODE_SUCCESS;
@@ -17586,6 +17711,12 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNodeList* pTri
   }
 
   PAR_ERR_JRET(translateQuery(pCxt, pStreamCalcQuery));
+  if (pCxt->pSubQueries && pCxt->pSubQueries->length > 0) {
+    if (TSDB_CODE_SUCCESS == code) {
+      code = checkSubQueryStmt(pStreamCalcQuery);
+    }
+    transferSubQueries(pCxt, pStreamCalcQuery);
+  }
   pCxt->streamInfo.calcClause = false;
   pCxt->streamInfo.triggerTbl = NULL;
   pCxt->streamInfo.triggerPartitionList = NULL;
@@ -17645,26 +17776,15 @@ _return:
   return code;
 }
 
-// Build calculation plan in create stream request
-static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan,
-                                            SArray* pScanPlanArray, SCMCreateStreamReq* pReq) {
+// traverse all scan plans in calculation plan, split them from their parents, and make a fake value node to replace them.
+// value node's value is the scan plan's (groupId << 32 | subplanId).
+static int32_t streamSplitCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan,
+                                            SArray* pScanPlanArray, SCMCreateStreamReq* pReq,
+					    SHashObj* pPlanMap) {
   int32_t          code = TSDB_CODE_SUCCESS;
-  SHashObj*        pPlanMap = NULL;
   SStreamCalcScan* pCalcScan = NULL;
   bool             cutoff = false;
 
-  parserDebug("translate create stream req start build calculate plan");
-
-  pReq->calcScanPlanList = taosArrayInit(1, sizeof(SStreamCalcScan));
-  pPlanMap = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
-  if (NULL == pReq->calcScanPlanList || NULL == pPlanMap) {
-    PAR_ERR_JRET(terrno);
-  }
-
-  pReq->calcTsSlotId = -1;
-  pReq->calcPkSlotId = -1;
-  // traverse all scan plans in calculation plan, split them from their parents, and make a fake value node to replace them.
-  // value node's value is the scan plan's (groupId << 32 | subplanId).
   for (int32_t i = 0; i < taosArrayGetSize(pScanPlanArray); i++) {
     pCalcScan = taosArrayGet(pScanPlanArray, i);
     if (pCalcScan == NULL) {
@@ -17696,7 +17816,7 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan*
           REPLACE_NODE(NULL);
           ERASE_NODE(calcPlan->pSubplans);
         }
-        calcPlan->numOfSubplans--;
+        --calcPlan->numOfSubplans;
         break;
       }
       WHERE_NEXT;
@@ -17731,16 +17851,53 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan*
     cutoff = false;
   }
 
-  pReq->numOfCalcSubplan = calcPlan->numOfSubplans;
-  PAR_ERR_JRET(nodesNodeToString((SNode*)calcPlan, false, (char**)&pReq->calcPlan, NULL));
-
-  taosHashCleanup(pPlanMap);
   return code;
+
 _return:
   if (cutoff) {
     taosArrayDestroy(pCalcScan->vgList);
     nodesDestroyNode(pCalcScan->scanPlan);
   }
+
+  parserError("streamSplitCalcPlan failed, code:%d", code);
+
+  return code;
+}
+
+// Build calculation plan in create stream request
+static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan,
+                                            SArray* pScanPlanArray, SCMCreateStreamReq* pReq) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  SHashObj*        pPlanMap = NULL;
+  SNode*           pNode = NULL;
+
+  parserDebug("translate create stream req start build calculate plan");
+
+  pReq->calcScanPlanList = taosArrayInit(1, sizeof(SStreamCalcScan));
+  pPlanMap = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  if (NULL == pReq->calcScanPlanList || NULL == pPlanMap) {
+    PAR_ERR_JRET(terrno);
+  }
+
+  pReq->calcTsSlotId = -1;
+  pReq->calcPkSlotId = -1;
+  
+  PAR_ERR_JRET(streamSplitCalcPlan(pCxt, calcPlan, pScanPlanArray, pReq, pPlanMap));
+  FOREACH(pNode, calcPlan->pChildren) {
+    SQueryPlan *calcSubQPlan = (SQueryPlan *)pNode;
+
+    calcPlan->numOfSubplans -= calcSubQPlan->numOfSubplans;
+
+    PAR_ERR_JRET(streamSplitCalcPlan(pCxt, calcSubQPlan, pScanPlanArray, pReq, pPlanMap));
+  }
+
+  pReq->numOfCalcSubplan = calcPlan->numOfSubplans;
+  PAR_ERR_JRET(nodesNodeToString((SNode*)calcPlan, false, (char**)&pReq->calcPlan, NULL));
+
+  taosHashCleanup(pPlanMap);
+  return code;
+
+_return:
   parserError("createStreamReqBuildCalcPlan failed, code:%d", code);
   taosHashCleanup(pPlanMap);
   return code;
@@ -20751,12 +20908,25 @@ static int32_t translateTableSubquery(STranslateContext* pCxt, SNode* pNode) {
   return code;
 }
 
+static int32_t updateStreamSubquery(STranslateContext* pCxt, STranslateContext* pSubCxt) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+
+  if (inStreamCalcClause(pCxt)) {
+    pSubCxt->streamInfo = pCxt->streamInfo;
+  }
+
+  return code;
+}
+
 static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) {
   int32_t    code = TSDB_CODE_SUCCESS;
   STranslateContext cxt = {0};
   cxt.isExprSubQ = true;
 
   code = initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, true, &cxt);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = updateStreamSubquery(pCxt, &cxt);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     cxt.pSubQueries = pCxt->pSubQueries;
     code = setCurrLevelNsFromParent(pCxt, &cxt);
@@ -25550,55 +25720,6 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
   }
 
   return TSDB_CODE_SUCCESS;
-}
-
-static void transferSubQueries(STranslateContext* pCxt, SNode* pNode) {
-  if (NULL == pNode) {
-    return;
-  }
-
-  switch (nodeType(pNode)) {
-    case QUERY_NODE_SELECT_STMT: {
-      SSelectStmt* pSelect = (SSelectStmt*)pNode;
-      pSelect->pSubQueries = pCxt->pSubQueries;
-      pCxt->pSubQueries = NULL;
-      break;
-    }
-    case QUERY_NODE_SET_OPERATOR: {
-      SSetOperator* pSet = (SSetOperator*)pNode;
-      pSet->pSubQueries = pCxt->pSubQueries;
-      pCxt->pSubQueries = NULL;
-      break;
-    }
-    case QUERY_NODE_EXPLAIN_STMT: {
-      SExplainStmt* pExplain = (SExplainStmt*)pNode;
-      transferSubQueries(pCxt, pExplain->pQuery);
-      break;
-    }
-    case QUERY_NODE_INSERT_STMT: {
-      SInsertStmt* pInsert = (SInsertStmt*)pNode;
-      transferSubQueries(pCxt, pInsert->pQuery);
-      break;
-    }
-    default:
-      break;
-  }
-}
-
-int32_t checkSubQueryStmt(SNode* pNode) {
-  switch (nodeType(pNode)) {
-    case QUERY_NODE_SELECT_STMT:
-    case QUERY_NODE_SET_OPERATOR:
-    case QUERY_NODE_EXPLAIN_STMT:
-    case QUERY_NODE_INSERT_STMT:
-      return TSDB_CODE_SUCCESS;
-    default:
-      break;
-  }
-
-  parserError("subQuery not suppored in %s statement", nodesNodeName(nodeType(pNode)));
-
-  return TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_USAGE;
 }
 
 int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
