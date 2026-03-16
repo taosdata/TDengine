@@ -61,11 +61,15 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
       continue;
     }
 
-    sInfo("vgId:%d, send request-vote msg to peerId:%" PRId64 ", lastLogIndex:%" PRId64 ", lastLogTerm:%" PRId64,
-           pNode->vgId, pNode->peersId[i].addr, pMsg->lastLogIndex, pMsg->lastLogTerm);
+    TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
+    TRACE_SET_ROOTID(&(rpcMsg.info.traceId), tGenIdPI64());
+    sInfo("vgId:%d, send request-vote msg to peerId:0x%" PRIx64 ", lastLogIndex:%" PRId64 ", lastLogTerm:%" PRId64
+          ", QID:0x%" PRIx64 ":0x%" PRIx64,
+          pNode->vgId, pNode->peersId[i].addr, pMsg->lastLogIndex, pMsg->lastLogTerm, rpcMsg.info.traceId.rootId,
+          rpcMsg.info.traceId.msgId);
     ret = syncNodeSendMsgById(&pNode->peersId[i], pNode, &rpcMsg);
     if (ret < 0) {
-      sError("vgId:%d, failed to send msg to peerId:%" PRId64, pNode->vgId, pNode->peersId[i].addr);
+      sError("vgId:%d, failed to send msg to peerId:0x%" PRIx64, pNode->vgId, pNode->peersId[i].addr);
       continue;
     }
   }
