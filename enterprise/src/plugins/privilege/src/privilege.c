@@ -1527,7 +1527,7 @@ static int32_t mndCheckObjPrivExpandConflicts(SPrivSet *privSet, bool legacyMode
 static int32_t mndAlterLegacyDbGrant(SMnode *pMnode, void *pNew, SAlterRoleReq *pAlterReq, int objTypeSize,
                                      EPrivObjType sdbType) {
   int32_t code = 0;
-  bool    legacyMode = (tsEnableAdvancedSecurity == 0 ? true : false);
+  bool    legacyMode = (tsEnableGrantLegacySyntax == 1 ? true : false);
 
   TAOS_CHECK_RETURN(mndCheckObjPrivExpandConflicts(&pAlterReq->privileges.privSet, legacyMode));
 
