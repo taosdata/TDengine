@@ -56,6 +56,7 @@ class TestExternal:
         self.prepare_for_partition_and_subquery()
         self.basic_query()
         self.partition_and_subquery_regression()
+        self.more_branch_coverage()
 
     def mock_test_external_window_single_block(self):
         dbName = "external_window_test_single_block"
@@ -362,3 +363,96 @@ class TestExternal:
         self.ansFile = os.path.join(os.path.dirname(__file__), "ans", "partition_group_and_subquery.ans")
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, "partition_group_and_subquery")
         
+    def more_branch_coverage(self):
+        """
+        Add targeted coverage for planner/operator branches that are hard to express
+        in .in/.ans golden files (especially negative cases with stable errno checks).
+        """
+        tdSql.execute(f"use {self.dbName}")
+
+        # 1) Projection-only external_window + outer PARTITION + ORDER BY on base column
+        #    that is NOT present in projection list (regression: sort slot key not found).
+        sql = (
+            "select t1, cast(_wstart as bigint) as ws, cast(ts as bigint) as t "
+            "from ext_src partition by t1 "
+            "external_window((select _wstart, _wend from ext_win interval(10m)) w) "
+            "order by t1, ts"
+        )
+        tdSql.query(sql)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 1699999800000)
+        tdSql.checkData(0, 2, 1700000060000)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(1, 1, 1699999800000)
+        tdSql.checkData(1, 2, 1700000120000)
+        tdSql.checkData(2, 0, 2)
+        tdSql.checkData(2, 1, 1700000400000)
+        tdSql.checkData(2, 2, 1700000660000)
+
+        # 2) Projection-only external_window + subquery PARTITION + outer PARTITION
+        #    ensure gid matching behaves: only t1=1 has windows, so t1=2 should not output.
+        sql = (
+            "select t1, cast(_wstart as bigint) as ws, cast(ts as bigint) as t "
+            "from ext_src partition by t1 "
+            "external_window((select _wstart, _wend from ext_win partition by t1 interval(10m)) w) "
+            "order by t1, ts"
+        )
+        tdSql.query(sql)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 1699999800000)
+        tdSql.checkData(0, 2, 1700000060000)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(1, 1, 1699999800000)
+        tdSql.checkData(1, 2, 1700000120000)
+
+        # 3) Negative: if subquery has PARTITION/GROUP BY, outer query must also have.
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_src "
+            "external_window((select _wstart, _wend from ext_win partition by t1 interval(10m)) w) "
+            "order by ws",
+            expectedErrno=0x80002658,
+        )
+
+        # 4) Negative: agg + non-group column without PARTITION BY should error
+        #    (semantics same as: select t1, count(*) from ext_src;).
+        tdSql.error(
+            "select t1, count(*) "
+            "from ext_src "
+            "external_window((select _wstart, _wend from ext_win interval(10m)) w)",
+            expectedErrno=0x8000260C,
+        )
+
+        # 5) Negative: stable/child-table tbname/tag must be in PARTITION BY keys when aggregating.
+        #    Expected: "Not a single-group group function" instead of planner slot key errors.
+        tdSql.error(
+            "select tbname, cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_src partition by t1 "
+            "external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w)",
+            expectedErrno=0x8000260C,
+        )
+        tdSql.error(
+            "select tbname, cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_src_1 partition by t1 "
+            "external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w)",
+            expectedErrno=0x8000260C,
+        )
+        tdSql.error(
+            "select t1, cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_src_1 partition by tbname "
+            "external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w)",
+            expectedErrno=0x8000260C,
+        )
+
+        # 6) Sanity: tbname in PARTITION BY is supported.
+        tdSql.query(
+            "select tbname, cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_src_1 partition by tbname "
+            "external_window((select _wstart, _wend, count(*) as wc from ext_win interval(10m)) w)"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "ext_src_1")
+        tdSql.checkData(0, 1, 1699999800000)
+        tdSql.checkData(0, 2, 2)

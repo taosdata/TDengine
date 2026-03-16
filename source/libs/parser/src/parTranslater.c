@@ -5431,12 +5431,77 @@ static int32_t resetSelectFuncNumWithoutDup(SSelectStmt* pSelect) {
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct {
+  STranslateContext* pTranslateCxt;
+  SSelectStmt*       pSelect;
+  const char*        invalidName;
+} CheckExtWinPartAggProjCxt;
+
+static bool extWinIsNodeInPartitionByList(SSelectStmt* pSelect, SNode* pNode) {
+  if (NULL == pSelect->pPartitionByList) {
+    return false;
+  }
+
+  SNode* pPartKey = NULL;
+  FOREACH(pPartKey, pSelect->pPartitionByList) {
+    if (nodesEqualNode(pPartKey, pNode)) {
+      return true;
+    }
+    if (IsEqualTbNameFuncNode(pSelect, pPartKey, pNode)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static EDealRes checkExtWinPartAggProjectionWalker(SNode* pNode, void* pContext) {
+  CheckExtWinPartAggProjCxt* pCxt = (CheckExtWinPartAggProjCxt*)pContext;
+  if (pCxt->invalidName) {
+    return DEAL_RES_END;
+  }
+
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && isTbnameFuction(pNode)) {
+    if (!extWinIsNodeInPartitionByList(pCxt->pSelect, pNode)) {
+      pCxt->invalidName = ((SFunctionNode*)pNode)->functionName;
+      return DEAL_RES_END;
+    }
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(pNode) && ((SColumnNode*)pNode)->colType == COLUMN_TYPE_TAG) {
+    if (!extWinIsNodeInPartitionByList(pCxt->pSelect, pNode)) {
+      pCxt->invalidName = ((SColumnNode*)pNode)->colName;
+      return DEAL_RES_END;
+    }
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
 static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (NULL != pSelect->pGroupByList || NULL != pSelect->pWindow || isWindowJoinStmt(pSelect) ||
+  if (NULL != pSelect->pGroupByList ||
+      (NULL != pSelect->pWindow && nodeType(pSelect->pWindow) != QUERY_NODE_EXTERNAL_WINDOW) ||
+      isWindowJoinStmt(pSelect) ||
       (!pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc && !pSelect->hasInterpFunc &&
        !pSelect->hasForecastFunc)) {
     return TSDB_CODE_SUCCESS;
   }
+
+  // For EXTERNAL_WINDOW, `PARTITION BY` provides the grouping semantics already.
+  // Do NOT rewrite columns-to-selectVal here, otherwise
+  // it may perturb downstream slot mapping (e.g. window primary ts key) and cause
+  // execution-time failures.
+  if (NULL != pSelect->pWindow && nodeType(pSelect->pWindow) == QUERY_NODE_EXTERNAL_WINDOW &&
+      NULL != pSelect->pPartitionByList) {
+    // Still enforce "not single-group" for tbname/tag outputs that are not in PARTITION BY.
+    // Keep the behavior consistent with non-window queries, while avoiding select_val rewrite.
+    CheckExtWinPartAggProjCxt extCxt = {.pTranslateCxt = pCxt, .pSelect = pSelect, .invalidName = NULL};
+    nodesWalkExprs(pSelect->pProjectionList, checkExtWinPartAggProjectionWalker, &extCxt);
+    if (extCxt.invalidName) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SINGLE_GROUP, extCxt.invalidName);
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (!pSelect->onlyHasKeepOrderFunc) {
     pSelect->timeLineResMode = TIME_LINE_NONE;
   }
