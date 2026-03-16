@@ -237,7 +237,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 
 | 指标 | 含义 | 诊断价值 |
 | --- | --- | --- |
-| `check_rows=` | 过滤或检查过的行数 | 若远大于 `total_rows`，说明过滤前扫描量很大 |
+| `check_rows=` | 过滤或检查过的行数 | 若远大于 `rows`，说明过滤前扫描量很大 |
 | `composed_blocks=` | 组合生成的块数 | 说明扫描结果经过了额外的块拼装 |
 | `composed_elapsed=` | 结果块组合耗时 | 值高说明块拼装或重组成本显著 |
 | `cost_ratio=` | 最慢节点与最快节点的耗时比值 | 比值越大，倾斜越严重 |
@@ -253,7 +253,6 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 | `stt_load_blocks=` | 从 STT 相关结构加载的块数 | 用于分析 STT 路径参与程度 |
 | `stt_load_elapsed=` | STT 加载耗时 | 判断 STT 路径代价 |
 | `total_blocks=` | 总处理块数 | 反映扫描总体工作量 |
-| `total_rows=` | 总输出行数 | 用于判断扫描层实际吐出了多少数据 |
 
 诊断建议：
 
@@ -346,7 +345,7 @@ QUERY_PLAN:          -> I/O cost: total_blocks=6.0(12) file_load_blocks=0.8(1) s
 *************************** 16.row ***************************
 QUERY_PLAN:                file_load_elapsed=0.000(0.000) stt_load_elapsed=0.000(0.000) mem_load_elapsed=0.000(0.000) sma_load_elapsed=0.000(0.000) composed_elapsed=3.578(6.655)
 *************************** 17.row ***************************
-QUERY_PLAN:                total_rows=20000.0(40000) check_rows=20000.0(40000) slowest_vgroup_id=4 slow_deviation=130% cost_ratio=173.7 data_deviation=300%
+QUERY_PLAN:                check_rows=20000.0(40000) slowest_vgroup_id=4 slow_deviation=130% cost_ratio=173.7 data_deviation=300%
 *************************** 18.row ***************************
 QUERY_PLAN: Planning Time: 0.606 ms
 *************************** 19.row ***************************
@@ -390,7 +389,7 @@ QUERY_PLAN:          -> I/O cost: total_blocks=22.5(30) file_load_blocks=0.0(0) 
 *************************** 15.row ***************************
 QUERY_PLAN:                file_load_elapsed=0.000(0.000) stt_load_elapsed=0.000(0.000) mem_load_elapsed=4.229(6.031) sma_load_elapsed=0.000(0.000) composed_elapsed=4.229(6.031)
 *************************** 16.row ***************************
-QUERY_PLAN:                total_rows=75000.0(100000) check_rows=75000.0(100000) slowest_vgroup_id=4 slow_deviation=41% cost_ratio=3.8 data_deviation=25%
+QUERY_PLAN:                check_rows=75000.0(100000) slowest_vgroup_id=4 slow_deviation=41% cost_ratio=3.8 data_deviation=25%
 *************************** 17.row ***************************
 QUERY_PLAN: Planning Time: 8.821 ms
 *************************** 18.row ***************************
@@ -456,7 +455,7 @@ QUERY_PLAN:                -> I/O cost: total_blocks=27 file_load_blocks=0 stt_l
 *************************** 27.row ***************************
 QUERY_PLAN:                      file_load_elapsed=0.000 stt_load_elapsed=0.000 mem_load_elapsed=5.141 sma_load_elapsed=0.000 composed_elapsed=5.141
 *************************** 28.row ***************************
-QUERY_PLAN:                      total_rows=90000 check_rows=90000
+QUERY_PLAN:                      check_rows=90000
 *************************** 29.row ***************************
 QUERY_PLAN:       -> Data Exchange 1:1 (cost=0.310..0.310 rows=10 width=82)
 *************************** 30.row ***************************
@@ -490,7 +489,7 @@ QUERY_PLAN:                -> I/O cost: total_blocks=30 file_load_blocks=0 stt_l
 *************************** 44.row ***************************
 QUERY_PLAN:                      file_load_elapsed=0.000 stt_load_elapsed=0.000 mem_load_elapsed=4.978 sma_load_elapsed=0.000 composed_elapsed=4.978
 *************************** 45.row ***************************
-QUERY_PLAN:                      total_rows=100000 check_rows=100000
+QUERY_PLAN:                      check_rows=100000
 *************************** 46.row ***************************
 QUERY_PLAN:       -> Data Exchange 1:1 (cost=0.579..0.579 rows=10 width=82)
 *************************** 47.row ***************************
@@ -524,7 +523,7 @@ QUERY_PLAN:                -> I/O cost: total_blocks=24 file_load_blocks=0 stt_l
 *************************** 61.row ***************************
 QUERY_PLAN:                      file_load_elapsed=0.000 stt_load_elapsed=0.000 mem_load_elapsed=3.922 sma_load_elapsed=0.000 composed_elapsed=3.922
 *************************** 62.row ***************************
-QUERY_PLAN:                      total_rows=80000 check_rows=80000
+QUERY_PLAN:                      check_rows=80000
 *************************** 63.row ***************************
 QUERY_PLAN:       -> Data Exchange 1:1 (cost=0.580..0.580 rows=10 width=82)
 *************************** 64.row ***************************
@@ -558,7 +557,7 @@ QUERY_PLAN:                -> I/O cost: total_blocks=9 file_load_blocks=0 stt_lo
 *************************** 78.row ***************************
 QUERY_PLAN:                      file_load_elapsed=0.000 stt_load_elapsed=0.000 mem_load_elapsed=2.756 sma_load_elapsed=0.000 composed_elapsed=2.756
 *************************** 79.row ***************************
-QUERY_PLAN:                      total_rows=30000 check_rows=30000
+QUERY_PLAN:                      check_rows=30000
 *************************** 80.row ***************************
 QUERY_PLAN: Planning Time: 0.484 ms
 *************************** 81.row ***************************
