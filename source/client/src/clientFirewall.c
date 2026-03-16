@@ -12,6 +12,7 @@
 #include "querynodes.h"
 
 #include "tglobal.h"
+#include "ttime.h"
 #define SQL_SEC_MAX_RULES        128
 #define SQL_SEC_RULE_NAME_LEN    128
 #define SQL_SEC_RULE_PATTERN_LEN 512
@@ -395,9 +396,11 @@ static void* sqlSecLearningThreadFunc(void* arg) {
 
   while (!gLearningCtx.threadStop) {
     // Wait for 10 seconds or until signaled to stop
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    ts.tv_sec += 10;  // Check every 10 seconds
+    struct timespec ts = {0};
+    int64_t         nowMs = taosGetTimestampMs();
+    int64_t         futMs = nowMs + 10 * 1000;  // check every 10 seconds
+    ts.tv_sec = (time_t)(futMs / 1000);
+    ts.tv_nsec = (long)((futMs % 1000) * 1000000);
 
     int ret = taosThreadCondTimedWait(&gLearningCtx.cond, &gLearningCtx.threadLock, &ts);
 
