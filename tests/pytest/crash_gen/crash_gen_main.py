@@ -2666,7 +2666,42 @@ class TdSuperTable:
 
                 # if aggExpr not in ['stddev(speed)']: # STDDEV not valid for super tables?! (Done in TD-1049)
                 sql = "select {} from {}.{}".format(aggExpr, self._dbName, self.getName())
-                if Dice.throw(3) == 0:  # 1 in X chance
+
+                # 添加窗口查询（30% 概率）
+                if Dice.throw(10) < 3 and ts_col:
+                    window_type = Dice.choice([
+                        'INTERVAL',
+                        'STATE_WINDOW',
+                        'SESSION',
+                    ])
+
+                    if window_type == 'INTERVAL':
+                        # 时间窗口：INTERVAL(10s) SLIDING(5s)
+                        interval = Dice.choice(['5s', '10s', '1m', '5m'])
+                        sql = f"select _wstart, {aggExpr} from {self._dbName}.{self.getName()} INTERVAL({interval})"
+
+                        # 30% 概率添加 SLIDING
+                        if Dice.throw(10) < 3:
+                            sliding = Dice.choice(['2s', '5s', '30s'])
+                            sql += f" SLIDING({sliding})"
+
+                        # 30% 概率添加 FILL
+                        if Dice.throw(10) < 3:
+                            fill_mode = Dice.choice(['NULL', 'VALUE, 0', 'PREV', 'NEXT', 'LINEAR'])
+                            sql += f" FILL({fill_mode})"
+
+                    elif window_type == 'STATE_WINDOW' and (numeric_cols or string_cols):
+                        # 状态窗口：STATE_WINDOW(status)
+                        state_col = Dice.choice(numeric_cols + string_cols) if (numeric_cols and string_cols) else (Dice.choice(numeric_cols) if numeric_cols else Dice.choice(string_cols))
+                        sql = f"select _wstart, _wend, {aggExpr} from {self._dbName}.{self.getName()} STATE_WINDOW({state_col})"
+
+                    elif window_type == 'SESSION':
+                        # 会话窗口：SESSION(ts, 10s)
+                        session_gap = Dice.choice(['5s', '10s', '1m'])
+                        sql = f"select _wstart, _wend, {aggExpr} from {self._dbName}.{self.getName()} SESSION({ts_col}, {session_gap})"
+
+                # 添加 PARTITION BY（20% 概率，不与窗口查询冲突）
+                elif Dice.throw(5) == 0:
                     # Use dynamic partition column
                     partition_options = ['tbname']
                     if string_cols:
@@ -2677,7 +2712,71 @@ class TdSuperTable:
                     sql = sql + ' partition BY ' + partion_expr + ' order by ' + partion_expr
                     Progress.emit(Progress.QUERY_GROUP_BY)
                     # Logging.info("Executing GROUP-BY query: " + sql)
+
                 ret.append(SqlQuery(sql))
+
+        # 添加 JOIN 查询（10% 概率）
+        reg_tables = self.getRegTables(dbc)
+        if len(reg_tables) >= 2 and Dice.throw(10) == 0:
+            # 随机选择两张表
+            table1 = Dice.choice(reg_tables)
+            table2 = Dice.choice([t for t in reg_tables if t != table1])
+
+            # JOIN 类型
+            join_type = Dice.choice([
+                'INNER JOIN',
+                'LEFT JOIN',
+                'RIGHT JOIN',
+                'LEFT SEMI JOIN',
+            ])
+
+            # 选择列
+            if numeric_cols:
+                num_col = Dice.choice(numeric_cols)
+                select_expr = f'a.{ts_col}, a.{num_col}, b.{num_col}'
+            else:
+                select_expr = f'a.{ts_col}, a.*, b.*'
+
+            # JOIN 条件（主连接条件：时间戳相等）
+            join_condition = f'a.{ts_col} = b.{ts_col}'
+
+            # 30% 概率添加额外条件
+            if numeric_cols and Dice.throw(10) < 3:
+                num_col = Dice.choice(numeric_cols)
+                threshold = Dice.choice([0, 10, 100])
+                join_condition += f' AND a.{num_col} > {threshold} AND b.{num_col} > {threshold}'
+
+            sql = f"SELECT {select_expr} FROM {self._dbName}.{table1} a {join_type} {self._dbName}.{table2} b ON {join_condition}"
+
+            # 20% 概率添加 LIMIT
+            if Dice.throw(5) == 0:
+                sql += f" LIMIT {Dice.choice([10, 50, 100])}"
+
+            ret.append(SqlQuery(sql))
+
+        # 使用 ply_sql_generator 生成高级查询（10% 概率）
+        if Dice.throw(10) == 0:
+            try:
+                from .ply_sql_generator import OptimizedSQLGenerator
+
+                # 初始化生成器
+                sql_gen = OptimizedSQLGenerator(seed=Dice.seed)
+
+                # 更新 schema 信息
+                sql_gen.databases = [self._dbName]
+                sql_gen.tables = self.getRegTables(dbc)
+                sql_gen.columns = columns
+
+                # 生成 1-3 条高级查询
+                num_queries = Dice.choice([1, 2, 3])
+                for _ in range(num_queries):
+                    sql, features = sql_gen.generate_from_corpus()
+                    # 只生成高级查询（JOIN/UNION/子查询/窗口）
+                    if any(f in features for f in ['join', 'union', 'subquery', 'window', 'partition_by']):
+                        ret.append(SqlQuery(sql))
+            except Exception as e:
+                # 如果生成失败，静默忽略
+                pass
 
         return ret
 

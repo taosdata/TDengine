@@ -165,6 +165,192 @@ class SelectQueryCorpus:
             description="Complex SELECT with all clauses"
         ))
 
+        # INNER JOIN
+        self.seeds.append(SeedQuery(
+            sql="SELECT a.{col}, b.{col} FROM {table1} a INNER JOIN {table2} b ON a.ts = b.ts",
+            features={'join', 'inner_join'},
+            description="INNER JOIN"
+        ))
+
+        # LEFT JOIN
+        self.seeds.append(SeedQuery(
+            sql="SELECT a.{col}, b.{col} FROM {table1} a LEFT JOIN {table2} b ON a.ts = b.ts",
+            features={'join', 'left_join'},
+            description="LEFT JOIN"
+        ))
+
+        # RIGHT JOIN
+        self.seeds.append(SeedQuery(
+            sql="SELECT a.{col}, b.{col} FROM {table1} a RIGHT JOIN {table2} b ON a.ts = b.ts",
+            features={'join', 'right_join'},
+            description="RIGHT JOIN"
+        ))
+
+        # FULL OUTER JOIN
+        self.seeds.append(SeedQuery(
+            sql="SELECT a.ts, a.{col}, b.{col} FROM {table1} a FULL OUTER JOIN {table2} b ON a.ts = b.ts LIMIT {limit}",
+            features={'join', 'full_outer_join'},
+            description="FULL OUTER JOIN"
+        ))
+
+        # LEFT SEMI JOIN
+        self.seeds.append(SeedQuery(
+            sql="SELECT a.ts FROM {table1} a LEFT SEMI JOIN {table2} b ON a.ts = b.ts",
+            features={'join', 'semi_join'},
+            description="LEFT SEMI JOIN"
+        ))
+
+        # LEFT ASOF JOIN
+        self.seeds.append(SeedQuery(
+            sql="SELECT a.ts, a.{col} FROM {table1} a LEFT ASOF JOIN {table2} b ON a.ts >= b.ts LIMIT {limit}",
+            features={'join', 'asof_join'},
+            description="LEFT ASOF JOIN"
+        ))
+
+        # LEFT ASOF JOIN with JLIMIT
+        self.seeds.append(SeedQuery(
+            sql="SELECT a.ts, a.{col} FROM {table1} a LEFT ASOF JOIN {table2} b ON a.ts >= b.ts JLIMIT {jlimit} LIMIT {limit}",
+            features={'join', 'asof_join', 'jlimit'},
+            description="LEFT ASOF JOIN with JLIMIT"
+        ))
+
+        # UNION ALL
+        self.seeds.append(SeedQuery(
+            sql="SELECT {col} FROM {table1} UNION ALL SELECT {col} FROM {table2}",
+            features={'union', 'union_all'},
+            description="UNION ALL"
+        ))
+
+        # UNION (distinct)
+        self.seeds.append(SeedQuery(
+            sql="SELECT {col} FROM {table1} UNION SELECT {col} FROM {table2}",
+            features={'union'},
+            description="UNION"
+        ))
+
+        # Subquery in WHERE
+        self.seeds.append(SeedQuery(
+            sql="SELECT {cols} FROM {table} WHERE {col} IN (SELECT {col} FROM {table2} LIMIT 10)",
+            features={'subquery', 'where'},
+            description="Subquery in WHERE"
+        ))
+
+        # Subquery in FROM
+        self.seeds.append(SeedQuery(
+            sql="SELECT {col} FROM (SELECT {cols} FROM {table} LIMIT {limit}) AS sub",
+            features={'subquery', 'derived_table'},
+            description="Subquery in FROM"
+        ))
+
+        # INTERVAL window
+        self.seeds.append(SeedQuery(
+            sql="SELECT _wstart, {agg_func} FROM {table} INTERVAL({interval})",
+            features={'window', 'interval'},
+            description="INTERVAL window"
+        ))
+
+        # INTERVAL + SLIDING
+        self.seeds.append(SeedQuery(
+            sql="SELECT _wstart, {agg_func} FROM {table} INTERVAL({interval}) SLIDING({sliding})",
+            features={'window', 'interval', 'sliding'},
+            description="INTERVAL with SLIDING"
+        ))
+
+        # INTERVAL + FILL
+        self.seeds.append(SeedQuery(
+            sql="SELECT _wstart, {agg_func} FROM {table} WHERE ts >= '{time_start}' AND ts < '{time_end}' INTERVAL({interval}) FILL({fill_mode})",
+            features={'window', 'interval', 'fill'},
+            description="INTERVAL with FILL"
+        ))
+
+        # SESSION window
+        self.seeds.append(SeedQuery(
+            sql="SELECT _wstart, _wend, {agg_func} FROM {table} SESSION(ts, {session_gap})",
+            features={'window', 'session'},
+            description="SESSION window"
+        ))
+
+        # STATE_WINDOW
+        self.seeds.append(SeedQuery(
+            sql="SELECT _wstart, _wend, {agg_func} FROM {table} STATE_WINDOW({state_col})",
+            features={'window', 'state_window'},
+            description="STATE_WINDOW"
+        ))
+
+        # PARTITION BY
+        self.seeds.append(SeedQuery(
+            sql="SELECT {col}, {agg_func} FROM {table} PARTITION BY {partition_col}",
+            features={'partition_by'},
+            description="PARTITION BY"
+        ))
+
+        # IS NULL / IS NOT NULL
+        self.seeds.append(SeedQuery(
+            sql="SELECT {cols} FROM {table} WHERE {col} IS NULL",
+            features={'where', 'is_null'},
+            description="IS NULL"
+        ))
+
+        self.seeds.append(SeedQuery(
+            sql="SELECT {cols} FROM {table} WHERE {col} IS NOT NULL",
+            features={'where', 'is_not_null'},
+            description="IS NOT NULL"
+        ))
+
+        # SLIMIT / SOFFSET (超级表分区限制)
+        self.seeds.append(SeedQuery(
+            sql="SELECT {cols} FROM {table} PARTITION BY {partition_col} SLIMIT {slimit}",
+            features={'partition_by', 'slimit'},
+            description="SLIMIT"
+        ))
+
+        self.seeds.append(SeedQuery(
+            sql="SELECT {cols} FROM {table} PARTITION BY {partition_col} SLIMIT {slimit} SOFFSET {soffset}",
+            features={'partition_by', 'slimit', 'soffset'},
+            description="SLIMIT with SOFFSET"
+        ))
+
+        # CAST 类型转换
+        self.seeds.append(SeedQuery(
+            sql="SELECT CAST({col} AS {cast_type}) FROM {table}",
+            features={'cast'},
+            description="CAST type conversion"
+        ))
+
+        # CASE WHEN
+        self.seeds.append(SeedQuery(
+            sql="SELECT CASE WHEN {col} > {value} THEN 1 ELSE 0 END FROM {table}",
+            features={'case_when'},
+            description="CASE WHEN"
+        ))
+
+        self.seeds.append(SeedQuery(
+            sql="SELECT {col}, CASE WHEN {col} > {value} THEN 'high' WHEN {col} > {value2} THEN 'medium' ELSE 'low' END FROM {table}",
+            features={'case_when', 'multi_when'},
+            description="CASE with multiple WHEN"
+        ))
+
+        # TBNAME 伪列
+        self.seeds.append(SeedQuery(
+            sql="SELECT tbname, {agg_func} FROM {table} PARTITION BY tbname",
+            features={'tbname', 'partition_by'},
+            description="TBNAME pseudo column"
+        ))
+
+        # INTERP 插值
+        self.seeds.append(SeedQuery(
+            sql="SELECT INTERP({col}) FROM {table} WHERE ts >= '{time_start}' AND ts <= '{time_end}' EVERY({interval})",
+            features={'interp', 'every'},
+            description="INTERP with EVERY"
+        ))
+
+        # RANGE 查询
+        self.seeds.append(SeedQuery(
+            sql="SELECT {agg_func} FROM {table} RANGE({time_start}, {time_end}) EVERY({interval})",
+            features={'range', 'every'},
+            description="RANGE with EVERY"
+        ))
+
 
 class OptimizedSQLGenerator:
     """
@@ -342,6 +528,73 @@ class OptimizedSQLGenerator:
         # Arithmetic operation
         if "{arith_op}" in result:
             result = result.replace("{arith_op}", self.rng.choice(self.arithmetic_ops))
+
+        # Table references for JOIN (table1, table2)
+        if "{table1}" in result or "{table2}" in result:
+            db = self.rng.choice(self.databases)
+            if len(self.tables) >= 2:
+                table1, table2 = self.rng.sample(self.tables, 2)
+            else:
+                table1 = table2 = self.rng.choice(self.tables)
+            result = result.replace("{table1}", f"{db}.{table1}")
+            result = result.replace("{table2}", f"{db}.{table2}")
+
+        # JLIMIT (for ASOF JOIN)
+        if "{jlimit}" in result:
+            result = result.replace("{jlimit}", str(self.rng.choice([1, 3, 5, 10])))
+
+        # INTERVAL duration
+        if "{interval}" in result:
+            result = result.replace("{interval}", self.rng.choice(['5s', '10s', '1m', '5m', '1h']))
+
+        # SLIDING duration
+        if "{sliding}" in result:
+            result = result.replace("{sliding}", self.rng.choice(['2s', '5s', '30s', '1m']))
+
+        # SESSION gap
+        if "{session_gap}" in result:
+            result = result.replace("{session_gap}", self.rng.choice(['5s', '10s', '1m', '5m']))
+
+        # FILL mode
+        if "{fill_mode}" in result:
+            result = result.replace("{fill_mode}", self.rng.choice(['NULL', 'VALUE, 0', 'PREV', 'NEXT', 'LINEAR']))
+
+        # Time range for FILL
+        if "{time_start}" in result:
+            result = result.replace("{time_start}", "2024-01-01 00:00:00")
+        if "{time_end}" in result:
+            result = result.replace("{time_end}", "2024-01-01 01:00:00")
+
+        # STATE_WINDOW column (must be integer/bool/varchar)
+        if "{state_col}" in result:
+            # Prefer integer columns for STATE_WINDOW
+            numeric_cols = self._get_numeric_columns()
+            if numeric_cols:
+                result = result.replace("{state_col}", self.rng.choice(numeric_cols))
+            else:
+                result = result.replace("{state_col}", self.rng.choice(list(self.columns.keys())))
+
+        # PARTITION BY column
+        if "{partition_col}" in result:
+            # Can use any column or tbname
+            partition_options = ['tbname'] + list(self.columns.keys())
+            result = result.replace("{partition_col}", self.rng.choice(partition_options))
+
+        # SLIMIT / SOFFSET
+        if "{slimit}" in result:
+            result = result.replace("{slimit}", str(self.rng.choice([1, 5, 10, 20])))
+
+        if "{soffset}" in result:
+            result = result.replace("{soffset}", str(self.rng.choice([0, 1, 5, 10])))
+
+        # CAST type
+        if "{cast_type}" in result:
+            cast_types = ['BIGINT', 'DOUBLE', 'BINARY(16)', 'NCHAR(16)', 'TIMESTAMP']
+            result = result.replace("{cast_type}", self.rng.choice(cast_types))
+
+        # Second value for CASE WHEN
+        if "{value2}" in result:
+            result = result.replace("{value2}", str(self.rng.randint(0, 500)))
 
         return result
 
