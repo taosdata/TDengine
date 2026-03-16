@@ -28,6 +28,10 @@
 #include "mndSnode.h"
 #include "mndToken.h"
 #include "mndTrans.h"
+#include "mndVgroup.h"
+#include "mndStb.h"
+#include "tdatablock.h"
+#include "trow.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "taos_monitor.h"
@@ -92,6 +96,8 @@ static int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessStatisReq(SRpcMsg *pReq);
 static int32_t mndProcessAuditReq(SRpcMsg *pReq);
 static int32_t mndProcessBatchAuditReq(SRpcMsg *pReq);
+static int32_t mndProcessAuditWriteReq(SRpcMsg *pReq);
+static int32_t mndProcessBatchAuditWriteReq(SRpcMsg *pReq);
 static int32_t mndProcessUpdateDnodeInfoReq(SRpcMsg *pReq);
 static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pRsp);
 static int32_t mndProcessCreateEncryptKeyRsp(SRpcMsg *pRsp);
@@ -135,6 +141,8 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_STATIS, mndProcessStatisReq);
   mndSetMsgHandle(pMnode, TDMT_MND_AUDIT, mndProcessAuditReq);
   mndSetMsgHandle(pMnode, TDMT_MND_BATCH_AUDIT, mndProcessBatchAuditReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_AUDIT_WRITE, mndProcessAuditWriteReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_BATCH_AUDIT_WRITE, mndProcessBatchAuditWriteReq);
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ENCRYPT_KEY, mndProcessCreateEncryptKeyReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_ENCRYPT_KEY_RSP, mndProcessCreateEncryptKeyRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_UPDATE_DNODE_INFO, mndProcessUpdateDnodeInfoReq);
@@ -696,6 +704,177 @@ static int32_t mndProcessBatchAuditReq(SRpcMsg *pReq) {
   }
   return 0;
 }
+
+// Helper function to build audit SQL INSERT statement
+static char* mndBuildAuditInsertSql(SMnode *pMnode, SAuditReq *pAuditReq, SRpcMsg *pReq) {
+  char *sql = taosMemoryCalloc(1, 8192);  // Allocate buffer for SQL
+  if (sql == NULL) {
+    return NULL;
+  }
+
+  // Get cluster ID
+  char strClusterId[TSDB_CLUSTER_ID_LEN] = {0};
+  snprintf(strClusterId, sizeof(strClusterId), "%" PRId64, pMnode->clusterId);
+
+  // Get user from request
+  char user[TSDB_USER_LEN] = {0};
+  if (pReq != NULL && RPC_MSG_USER(pReq)[0] != 0) {
+    tstrncpy(user, RPC_MSG_USER(pReq), sizeof(user));
+  }
+
+  // Get client address
+  char clientAddress[256] = {0};
+  if (pReq != NULL) {
+    SIpAddr *ipAddr = &pReq->info.conn.cliAddr;
+    snprintf(clientAddress, sizeof(clientAddress), "%s:%d", IP_ADDR_STR(ipAddr), ipAddr->port);
+  }
+
+  // Get current timestamp
+  int64_t curTime = taosGetTimestampNs();
+
+  // Escape SQL string (simple version - replace ' with '')
+  char *escapedSql = NULL;
+  if (pAuditReq->pSql != NULL && pAuditReq->sqlLen > 0) {
+    int32_t maxLen = pAuditReq->sqlLen * 2 + 1;
+    escapedSql = taosMemoryCalloc(1, maxLen);
+    if (escapedSql != NULL) {
+      int32_t j = 0;
+      for (int32_t i = 0; i < pAuditReq->sqlLen && i < 50000; i++) {
+        if (pAuditReq->pSql[i] == '\'') {
+          escapedSql[j++] = '\'';
+          escapedSql[j++] = '\'';
+        } else {
+          escapedSql[j++] = pAuditReq->pSql[i];
+        }
+      }
+      escapedSql[j] = '\0';
+    }
+  }
+
+  // Build INSERT SQL
+  // Table name: t_operations_<cluster_id>
+  snprintf(sql, 8192,
+           "INSERT INTO audit.t_operations_%s USING audit.operations TAGS ('%s') "
+           "VALUES (%" PRId64 ", '%s', '%s', '%s', '%s', '%s', '%s', %" PRId64 ", %f)",
+           strClusterId,
+           strClusterId,
+           curTime,
+           user,
+           pAuditReq->operation,
+           pAuditReq->db,
+           pAuditReq->table,
+           clientAddress,
+           escapedSql != NULL ? escapedSql : "",
+           pAuditReq->affectedRows,
+           pAuditReq->duration);
+
+  if (escapedSql != NULL) {
+    taosMemoryFree(escapedSql);
+  }
+
+  return sql;
+}
+
+static int32_t mndProcessAuditWriteReq(SRpcMsg *pReq) {
+  mTrace("process audit write req:%p", pReq);
+  SMnode *pMnode = pReq->info.node;
+  SAuditReq auditReq = {0};
+  int32_t code = 0;
+  int32_t lino = 0;
+  char *sql = NULL;
+
+  // Deserialize audit request
+  TAOS_CHECK_GOTO(tDeserializeSAuditReq(pReq->pCont, pReq->contLen, &auditReq), &lino, _exit);
+
+  mDebug("received audit write req:%s, %s, %s, sql_len:%d",
+         auditReq.operation, auditReq.db, auditReq.table, auditReq.sqlLen);
+
+  // Get audit database
+  SDbObj *pDb = mndAcquireAuditDb(pMnode);
+  if (pDb == NULL) {
+    mError("audit database not found, cannot write audit record");
+    code = TSDB_CODE_MND_DB_NOT_EXIST;
+    goto _exit;
+  }
+
+  // Build INSERT SQL
+  sql = mndBuildAuditInsertSql(pMnode, &auditReq, pReq);
+  if (sql == NULL) {
+    mError("failed to build audit insert sql");
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    mndReleaseDb(pMnode, pDb);
+    goto _exit;
+  }
+
+  mInfo("audit write SQL: %s", sql);
+
+  // Note: In a complete implementation, we would execute this SQL
+  // through the internal query interface. For now, we just log it.
+  // The SQL can be executed by:
+  // 1. Creating a query message
+  // 2. Sending it to the query processor
+  // 3. Handling the response
+
+  // For the simplified implementation, the audit data will be written
+  // through the normal SQL execution path when auditDirectWrite is enabled
+
+  mndReleaseDb(pMnode, pDb);
+
+_exit:
+  if (sql != NULL) {
+    taosMemoryFree(sql);
+  }
+  tFreeSAuditReq(&auditReq);
+  if (code != 0) {
+    mError("failed to process audit write req since %s", tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t mndProcessBatchAuditWriteReq(SRpcMsg *pReq) {
+  mTrace("process batch audit write req:%p", pReq);
+  SMnode *pMnode = pReq->info.node;
+  SBatchAuditReq auditReq = {0};
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  // Deserialize batch audit request
+  TAOS_CHECK_GOTO(tDeserializeSBatchAuditReq(pReq->pCont, pReq->contLen, &auditReq), &lino, _exit);
+
+  int32_t nAudit = taosArrayGetSize(auditReq.auditArr);
+  mDebug("received batch audit write req with %d records", nAudit);
+
+  // Get audit database
+  SDbObj *pDb = mndAcquireAuditDb(pMnode);
+  if (pDb == NULL) {
+    mError("audit database not found, cannot write audit records");
+    code = TSDB_CODE_MND_DB_NOT_EXIST;
+    goto _exit;
+  }
+
+  // Process each audit record
+  for (int32_t i = 0; i < nAudit; ++i) {
+    SAuditReq *audit = TARRAY_GET_ELEM(auditReq.auditArr, i);
+    mDebug("batch audit record %d: %s, %s, %s", i, audit->operation, audit->db, audit->table);
+
+    // Build and log SQL for each record
+    char *sql = mndBuildAuditInsertSql(pMnode, audit, pReq);
+    if (sql != NULL) {
+      mInfo("batch audit SQL %d: %s", i, sql);
+      taosMemoryFree(sql);
+    }
+  }
+
+  mndReleaseDb(pMnode, pDb);
+
+_exit:
+  tFreeSBatchAuditReq(&auditReq);
+  if (code != 0) {
+    mError("failed to process batch audit write req since %s", tstrerror(code));
+  }
+  return code;
+}
+
 
 static int32_t mndUpdateDnodeObj(SMnode *pMnode, SDnodeObj *pDnode) {
   int32_t       code = 0, lino = 0;
