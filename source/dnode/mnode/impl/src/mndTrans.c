@@ -1201,7 +1201,7 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
   if (pNew->conflict == TRN_CONFLICT_NOTHING) return conflict;
 
   int32_t size = sdbGetSize(pMnode->pSdb, SDB_TRANS);
-  mInfo("trans:%d, trans hash size %d", pNew->id, size);
+  mDebug("trans:%d, trans hash size %d", pNew->id, size);
 
   while (1) {
     pIter = sdbFetch(pMnode->pSdb, SDB_TRANS, pIter, (void **)&pTrans);

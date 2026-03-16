@@ -826,6 +826,7 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     switch (pCol->info.type) {
       case TSDB_DATA_TYPE_UBIGINT:
       case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_TIMESTAMP:
         ((int64_t*)pCol->pData)[currentRow] = pRes->v;
         break;
       case TSDB_DATA_TYPE_UINT:
@@ -999,6 +1000,7 @@ int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
   switch (type) {
     case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
       if (pSBuf->assign && (COMPARE_MINMAX_DATA(int64_t) || !pDBuf->assign)) {
         pDBuf->v = pSBuf->v;
         replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
@@ -2594,6 +2596,12 @@ bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   return true;
 }
 
+
+bool getHasNullFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = pFunc->node.resType.bytes;
+  return true;
+}
+
 bool getGroupKeyFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
   pEnv->calcMemSize = sizeof(SGroupKeyInfo) + pNode->node.resType.bytes;
@@ -3541,6 +3549,9 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
 bool funcInputGetNextRowIndex(SInputColumnInfoData* pInput, int32_t from, bool firstOccur, int32_t* pRowIndex,
                               int32_t* nextFrom) {
   if (pInput->pPrimaryKey == NULL) {
+    if (pInput->numOfRows == 0) {
+      return false;
+    }
     if (from == -1) {
       from = pInput->startRowIndex;
     } else if (from >= pInput->numOfRows + pInput->startRowIndex) {
@@ -4235,13 +4246,34 @@ int32_t doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSD
   return TSDB_CODE_SUCCESS;
 }
 
+
+bool hasNullFunc(  SColumnInfoData *pData,   SColumnDataAgg *pAgg, int32_t startIdx, int64_t rows) {
+  if (NULL != pAgg) {
+    return pAgg->numOfNull > 0 ? true : false;
+  }
+
+  if (!pData->hasNull) {
+    return false;
+  }
+
+  int64_t endIdx = startIdx + rows;
+  for (int64_t i = startIdx; i < endIdx; ++i) {
+    if (colDataIsNull_s(pData, i)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+
 /*
  * +------------------------------------+--------------+--------------+
  * |            null bitmap             |              |              |
  * |(n columns, one bit for each column)| src column #1| src column #2|
  * +------------------------------------+--------------+--------------+
  */
-int32_t serializeTupleData(const SSDataBlock* pSrcBlock, int32_t rowIndex, SSubsidiaryResInfo* pSubsidiaryies,
+int32_t serializeTupleData(SqlFunctionCtx* pCtx, const SSDataBlock* pSrcBlock, int32_t rowIndex, SSubsidiaryResInfo* pSubsidiaryies,
                            char* buf, char** res) {
   char* nullList = buf;
   char* pStart = (char*)(nullList + sizeof(bool) * pSubsidiaryies->num);
@@ -4256,27 +4288,30 @@ int32_t serializeTupleData(const SSDataBlock* pSrcBlock, int32_t rowIndex, SSubs
       continue;
     }
 
-    SFunctParam* pFuncParam = &pc->pExpr->base.pParam[0];
-    int32_t      srcSlotId = pFuncParam->pCol->slotId;
+    if (fmIsSelectValueFunc(pc->functionId)) {
+      SFunctParam* pFuncParam = &pc->pExpr->base.pParam[0];
+      int32_t      srcSlotId = pFuncParam->pCol->slotId;
 
-    SColumnInfoData* pCol = taosArrayGet(pSrcBlock->pDataBlock, srcSlotId);
-    if (NULL == pCol) {
-      return TSDB_CODE_OUT_OF_RANGE;
-    }
-    if ((nullList[i] = colDataIsNull_s(pCol, rowIndex)) == true) {
+      SColumnInfoData* pCol = taosArrayGet(pSrcBlock->pDataBlock, srcSlotId);
+      if (NULL == pCol) {
+        return TSDB_CODE_OUT_OF_RANGE;
+      }
+      if ((nullList[i] = colDataIsNull_s(pCol, rowIndex)) == true) {
+        offset += pCol->info.bytes;
+        continue;
+      }
+
+      char* p = colDataGetData(pCol, rowIndex);
+      if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+        int32_t bytes = calcStrBytesByType(pCol->info.type, p);
+        (void)memcpy(pStart + offset, p, bytes);
+      } else {
+        (void)memcpy(pStart + offset, p, pCol->info.bytes);
+      }
+
       offset += pCol->info.bytes;
       continue;
     }
-
-    char* p = colDataGetData(pCol, rowIndex);
-    if (IS_VAR_DATA_TYPE(pCol->info.type)) {
-      int32_t bytes = calcStrBytesByType(pCol->info.type, p);
-      (void)memcpy(pStart + offset, p, bytes);
-    } else {
-      (void)memcpy(pStart + offset, p, pCol->info.bytes);
-    }
-
-    offset += pCol->info.bytes;
   }
 
   *res = buf;
@@ -4348,7 +4383,7 @@ int32_t saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock*
   }
 
   char* buf = NULL;
-  code = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf, &buf);
+  code = serializeTupleData(pCtx, pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf, &buf);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -4382,7 +4417,7 @@ int32_t updateTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBloc
   }
 
   char* buf = NULL;
-  code = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf, &buf);
+  code = serializeTupleData(pCtx, pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf, &buf);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -7884,3 +7919,52 @@ int32_t corrFuncMerge(SqlFunctionCtx* pCtx) {
   SET_VAL(GET_RES_INFO(pCtx), pInfo->count, 1);
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t hasNullFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  bool* pRes = GET_ROWCELL_INTERBUF(pResInfo);
+  if (*pRes) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnDataAgg*       pAgg = pInput->pColumnDataAgg[0];
+  SColumnInfoData* pCol = pInput->pData[0];
+
+  if (pInput->numOfRows > 0) {
+    pResInfo->numOfRes = 1;
+  }
+
+  if (IS_NULL_TYPE(pCol->info.type) && pInput->numOfRows > 0) {
+    *pRes = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pInput->colDataSMAIsSet) {
+    if (pAgg->numOfNull > 0) {
+      *pRes = true;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (pInput->numOfRows <= INT16_MAX) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  int32_t start = pInput->startRowIndex;
+  int32_t end = start + pInput->numOfRows;
+
+  if (pCol->hasNull) {
+    for (int32_t i = start; i < end; ++i) {
+      if (colDataIsNull_s(pCol, i)) {
+        *pRes = true;
+        break;
+      }
+    }
+  }  
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+

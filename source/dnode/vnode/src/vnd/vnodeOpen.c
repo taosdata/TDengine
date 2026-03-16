@@ -592,6 +592,10 @@ _err:
   if (pVnode->pWal) walClose(pVnode->pWal);
   if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
   if (pVnode->pMeta) metaClose(&pVnode->pMeta);
+  if (pVnode->pBse) {
+    bseClose(pVnode->pBse);
+    pVnode->pBse = NULL;
+  }
   if (pVnode->freeList) vnodeCloseBufPool(pVnode);
 
   (void)taosThreadRwlockDestroy(&pVnode->metaRWLock);

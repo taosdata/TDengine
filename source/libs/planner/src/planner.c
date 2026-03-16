@@ -73,6 +73,15 @@ static void dumpLogicPlan(SLogicSubplan* pLogicSubplan, int32_t level) {
   return;
 }
 
+static void initSubQueryPlanContext(SPlanContext* pDst, SPlanContext* pSrc, SNode* pRoot) {
+  memcpy(pDst, pSrc, sizeof(*pSrc));
+
+  pDst->groupId++;
+  pDst->withExtWindow = false;
+  pDst->hasScan = false;
+  
+  pDst->pAstRoot = pRoot;
+}
 
 static int32_t createSubQueryPlans(SPlanContext* pSrc, SQueryPlan* pParent, SArray* pExecNodeList) {
   int32_t code = TSDB_CODE_SUCCESS, lino = 0;
@@ -110,13 +119,13 @@ static int32_t createSubQueryPlans(SPlanContext* pSrc, SQueryPlan* pParent, SArr
   }
 
   FOREACH(pNode, pSubQueries) {
-    memcpy(&ctx, pSrc, sizeof(*pSrc));
-    ctx.pAstRoot = pNode;
+    initSubQueryPlanContext(&ctx, pSrc, pNode);
     TAOS_CHECK_EXIT(qCreateQueryPlan(&ctx, &pPlan, pExecNodeList));
     TAOS_CHECK_EXIT(nodesListMakeStrictAppend(&pParent->pChildren, (SNode*)pPlan));
     pParent->numOfSubplans += pPlan->numOfSubplans;
     pPlan->subSql = nodesGetSubSql(pNode);
-    pPlan->isScalarQ = nodesIsScalarSubQuery(pNode);
+    nodesGetSubQType(pNode, (int32_t*)&pPlan->subQType);
+    pSrc->groupId = ++ctx.groupId;
   }
 
 _exit:
@@ -147,15 +156,15 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   if (TSDB_CODE_SUCCESS == code) {
     code = validateQueryPlan(pCxt, *pPlan);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = dumpQueryPlan(*pPlan);
-  }
   (void)nodesReleaseAllocator(pCxt->allocatorId);
-  
+
   if (TSDB_CODE_SUCCESS == code) {
     code = createSubQueryPlans(pCxt, *pPlan, pExecNodeList);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = dumpQueryPlan(*pPlan);
+  }
+  
   nodesDestroyNode((SNode*)pLogicSubplan);
   nodesDestroyNode((SNode*)pLogicPlan);
   

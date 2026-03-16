@@ -57,9 +57,11 @@ typedef enum {
 } EReaderStatus;
 
 typedef enum {
+  EXTERNAL_ROWS_INIT = 0x0,
   EXTERNAL_ROWS_PREV = 0x1,
   EXTERNAL_ROWS_MAIN = 0x2,
   EXTERNAL_ROWS_NEXT = 0x3,
+  EXTERNAL_ROWS_DONE = 0x4,
 } EContentData;
 
 typedef struct STsdbReaderInfo {
@@ -298,6 +300,7 @@ struct STsdbReader {
   SDataFileReader*    pFileReader;  // the file reader
   SBlockInfoBuf       blockInfoBuf;
   EContentData        step;
+  bool                currentStepDone;
   STsdbReader*        innerReader[2];
   bool                bFilesetDelimited;  // duration by duration output
   TsdReaderNotifyCbFn notifyFn;

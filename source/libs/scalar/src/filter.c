@@ -265,6 +265,11 @@ int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool 
   //  }
 
   switch (type) {
+    case TSDB_DATA_TYPE_NULL:
+    case TSDB_DATA_TYPE_JSON: 
+      // ignore types
+      *comparFn = 0;
+      break;
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
       *comparFn = 1;
@@ -369,6 +374,7 @@ int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool 
       break;
     default:
       *comparFn = 0;
+      code = TSDB_CODE_SCALAR_CONVERT_ERROR;
       break;
   }
 
@@ -1324,7 +1330,7 @@ int32_t fltAddGroupUnitFromNode(void *pContext, SFilterInfo *info, SNode *tree, 
     FOREACH(nodeItem, listNode->pNodeList) {
       SValueNode *valueNode = (SValueNode *)nodeItem;
       if (valueNode->node.resType.type != type) {
-        int32_t overflow = 0;
+        int8_t overflow = 0;
         code = sclConvertValueToSclParam(valueNode, &out, &overflow);
         if (TSDB_CODE_SUCCESS != code) {
           //        fltError("convert from %d to %d failed", in.type, out.type);
@@ -1888,7 +1894,7 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
       for (uint32_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
         SFilterField *field = &info->fields[FLD_TYPE_COLUMN].fields[i];
         SColumnNode  *refNode = (SColumnNode *)field->desc;
-        qDebug("COL%d => [%d][%d]", i, refNode->dataBlockId, refNode->slotId);
+        qDebug("COL%d => [%" PRId64 "][%d]", i, refNode->dataBlockId, refNode->slotId);
       }
 
       qDebug("VALUE Field Num:%u", info->fields[FLD_TYPE_VALUE].num);
@@ -1919,8 +1925,8 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
         SColumnNode  *refNode = (SColumnNode *)left->desc;
         if (unit->compare.optr <= OP_TYPE_JSON_CONTAINS) {
-          len += snprintf(str, sizeof(str), "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
-                          operatorTypeStr(unit->compare.optr));
+          len += tsnprintf(str, sizeof(str), "UNIT[%d] => [%" PRId64 "][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
+                           operatorTypeStr(unit->compare.optr));
         }
 
         if (unit->right.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != OP_TYPE_IN) {
@@ -1950,8 +1956,8 @@ int32_t filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t optio
           (void)strncat(str, " && ", sizeof(str) - len - 1);
           len += 4;
           if (unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS) {
-            len += snprintf(str + len, sizeof(str) - len, "[%d][%d]  %s  [", refNode->dataBlockId, refNode->slotId,
-                            operatorTypeStr(unit->compare.optr2));
+            len += tsnprintf(str + len, sizeof(str) - len, "[%" PRId64 "][%d]  %s  [", refNode->dataBlockId, refNode->slotId,
+                             operatorTypeStr(unit->compare.optr2));
           }
 
           if (unit->right2.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != OP_TYPE_IN) {
@@ -3625,6 +3631,7 @@ int32_t filterExecuteImplRange(void *pinfo, int32_t numOfRows, SColumnInfoData *
     if (colDataIsNull_s(pData, i)) {
       *all = false;
       p[i] = 0;
+      colDataSetNULL(pRes, i);
       continue;
     }
 
@@ -3658,6 +3665,7 @@ int32_t filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *p
     uint32_t uidx = info->groups[0].unitIdxs[0];
     if (colDataIsNull_s((SColumnInfoData *)info->cunits[uidx].colData, i)) {
       p[i] = 0;
+      colDataSetNULL(pRes, i);
       *all = false;
       continue;
     }
@@ -3729,7 +3737,14 @@ int32_t filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
         }
 
         if (colData == NULL || isNull) {
-          p[i] = optr == OP_TYPE_IS_NULL ? true : false;
+          if (optr == OP_TYPE_IS_NULL) {
+            p[i] = true;
+          } else {
+            p[i] = false;
+            if (optr != OP_TYPE_IS_NOT_NULL) {
+              colDataSetNULL(pRes, i);
+            }
+          }
         } else {
           if (optr == OP_TYPE_IS_NOT_NULL) {
             p[i] = 1;
@@ -4968,7 +4983,8 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
     return DEAL_RES_CONTINUE;
   }
 
-  if (QUERY_NODE_REMOTE_VALUE == nodeType(*pNode)) {
+  if (QUERY_NODE_REMOTE_VALUE == nodeType(*pNode) || QUERY_NODE_REMOTE_VALUE_LIST == nodeType(*pNode) ||
+      QUERY_NODE_REMOTE_ROW == nodeType(*pNode) || QUERY_NODE_REMOTE_ZERO_ROWS == nodeType(*pNode)) {
     stat->scalarMode = true;
     stat->info->hasRemoteNode = true;
     return DEAL_RES_CONTINUE;
@@ -5086,7 +5102,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
         }
       } else {
         SNodeListNode *listNode = (SNodeListNode *)node->pRight;
-        if (LIST_LENGTH(listNode->pNodeList) > 10 || OP_TYPE_NOT_IN == node->opType) {
+        if (LIST_LENGTH(listNode->pNodeList) > 10 || OP_TYPE_NOT_IN == node->opType || listNode->node.hasNull) {
           stat->scalarMode = true;
         }
         int32_t type = refNode->node.resType.type;

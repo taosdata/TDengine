@@ -41,7 +41,8 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRu
     if (pMsg->outTblType == TSDB_NORMAL_TABLE) {
       tstrncpy(exec.tbname, pMsg->outTblName, sizeof(exec.tbname));
     }
-    ST_TASK_DLOG("init task exec mgr with execId:%d, topTask:%d", exec.runtimeInfo.execId, pTask->topTask);
+    ST_TASK_DLOG("init task exec mgr with execId:%d, topTask:%d, deployId: %d", exec.runtimeInfo.execId, pTask->topTask,
+		    pTask->task.deployId);
     code = tdListAppend(pMgr->pFreeExecs, &exec);
     if (code != 0) {
       ST_TASK_ELOG("failed to append task exec mgr:%s", tstrerror(code));

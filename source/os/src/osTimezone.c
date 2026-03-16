@@ -926,6 +926,7 @@ void getTimezoneStr(char *tz) {
   }
 
 END:
+  truncateTimezoneString(tz);
   if (tz[0] == '\0') {
     memcpy(tz, TZ_UNKNOWN, sizeof(TZ_UNKNOWN));
   }
@@ -934,9 +935,21 @@ END:
 }
 
 void truncateTimezoneString(char *tz) {
+  if (tz == NULL) {
+    return;
+  }
+
+  const char *firstChar = tz;
+  while (*firstChar == '/') {
+    ++firstChar;
+  }
+  if (firstChar != tz) {
+    memmove(tz, firstChar, strlen(firstChar) + 1);
+  }
+
   char *spacePos = strchr(tz, ' ');
   if (spacePos != NULL) {
-      *spacePos = '\0';
+    *spacePos = '\0';
   }
 }
 

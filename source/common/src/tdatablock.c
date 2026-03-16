@@ -1274,7 +1274,7 @@ size_t blockDataGetSerialMetaSizeImpl(uint32_t numOfCols, bool internal) {
   // internal: |scanFlag |
   return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(bool) + sizeof(int32_t) + sizeof(int32_t) +
          sizeof(uint64_t) + numOfCols * (sizeof(int8_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t) + 
-         (internal ? (sizeof(uint8_t)) : 0);
+         (internal ? (sizeof(uint8_t)) : 0) + (internal ? numOfCols * sizeof(int16_t) : 0);
 }
 
 size_t blockDataGetSerialMetaSizeInternal(uint32_t numOfCols) {
@@ -1932,99 +1932,6 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc) {
   return code;
 }
 
-int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock) {
-  QRY_PARAM_CHECK(pBlock);
-
-  int32_t      code = 0;
-  SSDataBlock* p = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  if (p == NULL) {
-    return terrno;
-  }
-
-  p->info.hasVarCol = false;
-  p->info.id.groupId = 0;
-  p->info.rows = 0;
-  p->info.type = type;
-  p->info.rowSize = sizeof(TSKEY) + sizeof(TSKEY) + sizeof(uint64_t) + sizeof(uint64_t) + sizeof(TSKEY) +
-                    sizeof(TSKEY) + VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN;
-  p->info.watermark = INT64_MIN;
-
-  p->pDataBlock = taosArrayInit(6, sizeof(SColumnInfoData));
-  if (p->pDataBlock == NULL) {
-    taosMemoryFree(p);
-    return terrno;
-  }
-
-  SColumnInfoData infoData = {0};
-  infoData.info.type = TSDB_DATA_TYPE_TIMESTAMP;
-  infoData.info.bytes = sizeof(TSKEY);
-
-  // window start ts
-  void* px = taosArrayPush(p->pDataBlock, &infoData);
-  if (px == NULL) {
-    code = terrno;
-    goto _err;
-  }
-
-  // window end ts
-  px = taosArrayPush(p->pDataBlock, &infoData);
-  if (px == NULL) {
-    code = terrno;
-    goto _err;
-  }
-
-  infoData.info.type = TSDB_DATA_TYPE_UBIGINT;
-  infoData.info.bytes = sizeof(uint64_t);
-
-  // uid
-  px = taosArrayPush(p->pDataBlock, &infoData);
-  if (px == NULL) {
-    code = terrno;
-    goto _err;
-  }
-
-  // group id
-  px = taosArrayPush(p->pDataBlock, &infoData);
-  if (px == NULL) {
-    code = terrno;
-    goto _err;
-  }
-
-  infoData.info.type = TSDB_DATA_TYPE_TIMESTAMP;
-  infoData.info.bytes = sizeof(TSKEY);
-
-  // calculate start ts
-  px = taosArrayPush(p->pDataBlock, &infoData);
-  if (px == NULL) {
-    code = terrno;
-    goto _err;
-  }
-
-  // calculate end ts
-  px = taosArrayPush(p->pDataBlock, &infoData);
-  if (px == NULL) {
-    code = terrno;
-    goto _err;
-  }
-
-  // table name
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN;
-  px = taosArrayPush(p->pDataBlock, &infoData);
-  if (px == NULL) {
-    code = terrno;
-    goto _err;
-  }
-
-  *pBlock = p;
-  return code;
-
-_err:
-  taosArrayDestroy(p->pDataBlock);
-  taosMemoryFree(p);
-  return code;
-}
-
 int32_t blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx, SSDataBlock** pResBlock) {
   QRY_PARAM_CHECK(pResBlock);
 
@@ -2302,6 +2209,8 @@ int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pSrcBlock, const SSDat
   pDstBlock->info.rows = pSrcBlock->info.rows;
   pDstBlock->info.capacity = pSrcBlock->info.rows;
   pDstBlock->info.window = pSrcBlock->info.window;
+  pDstBlock->info.dataLoad = pSrcBlock->info.dataLoad;
+  pDstBlock->info.scanFlag = pSrcBlock->info.scanFlag;
 
   *pResBlock = pDstBlock;
   return code;
@@ -2803,10 +2712,10 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
   }
 
   int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
-  len += snprintf(dumpBuf + len, size - len,
-                  "%" PRIx64 " %s %s|block type %d|child id %d|group id:%" PRIx64 "|uid:%" PRId64 "|rows:%" PRId64
+  len += tsnprintf(dumpBuf + len, size - len,
+                  "%" PRIx64 " %s %s|child id %d|group id:%" PRIx64 "|uid:%" PRId64 "|rows:%" PRId64
                   "|version:%" PRIu64 "|cal start:%" PRIu64 "|cal end:%" PRIu64 "|tbl:%s\n",
-                  qId, taskIdStr, flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId,
+                  qId, taskIdStr, flag, pDataBlock->info.childId,
                   pDataBlock->info.id.groupId, pDataBlock->info.id.uid, pDataBlock->info.rows, pDataBlock->info.version,
                   pDataBlock->info.calWin.skey, pDataBlock->info.calWin.ekey, pDataBlock->info.parTbName);
   if (len >= size - 1) {
@@ -3472,6 +3381,18 @@ int32_t blockEncodeImpl(const SSDataBlock* pBlock, char* data, size_t dataBuflen
     uint8_t* scanFlag = (uint8_t*)data;
     *scanFlag = pBlock->info.scanFlag;
     data += sizeof(uint8_t);
+
+    // Slot ids used only for virtual super table scan: each column's slotId here
+    // refers to the slot position in virtual super table's datablock.
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+      if (pColInfoData == NULL) {
+        return -1;
+      }
+
+      *((int16_t *)data) = pColInfoData->info.slotId;
+      data += sizeof(int16_t);
+    }
   }
 
   *actualLen = dataLen;
@@ -3628,6 +3549,18 @@ int32_t blockDecodeImpl(SSDataBlock* pBlock, const char* pData, const char** pEn
   if (internal && (pStart - pData) < dataLen) {
     pBlock->info.scanFlag = *(uint8_t*)pStart;
     pStart += sizeof(uint8_t);
+  }
+
+  if (internal && (pStart - pData) < dataLen) {
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+      if (pColInfoData == NULL) {
+        return terrno;
+      }
+
+      pColInfoData->info.slotId = *(int16_t*)pStart;
+      pStart += sizeof(int16_t);
+    }
   }
 
   pBlock->info.dataLoad = 1;
@@ -4509,4 +4442,3 @@ int32_t getStreamBlockTS(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t row, 
   *ts = *(TSKEY*)(pColInfoData->pData + row * sizeof(TSKEY));
   return TSDB_CODE_SUCCESS;
 }
-

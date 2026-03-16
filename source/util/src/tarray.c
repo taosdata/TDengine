@@ -174,7 +174,12 @@ void* taosArrayAddAll(SArray* pArray, const SArray* pInput) {
 }
 
 void* taosArrayReserve(SArray* pArray, int32_t num) {
-  int32_t code = taosArrayEnsureCap(pArray, pArray->size + num);
+  int32_t code = 0;
+  if (pArray == NULL || num < 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  code = taosArrayEnsureCap(pArray, pArray->size + num);
   if (code) {
     terrno = code;
     return NULL;
@@ -205,7 +210,7 @@ void* taosArrayGet(const SArray* pArray, size_t index) {
   }
 
   if (index >= pArray->size) {
-    uError("index is out of range, current:%" PRIzu " max:%" PRIzu, index, pArray->size);
+    uWarn("index is out of range, current:%" PRIzu " max:%" PRIzu, index, pArray->size);
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return NULL;
   }

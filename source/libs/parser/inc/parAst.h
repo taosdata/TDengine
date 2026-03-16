@@ -228,14 +228,17 @@ SNode*     createTrueForOrNode(SAstCreateContext* pCxt, SNode* pDuration, const 
 SNode*     createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken,
                                  SNodeList* pColList);
 SNode*     createCountWindowNodeFromArgs(SAstCreateContext* pCxt, SNode* args);
-SNode*     createAnomalyWindowNode(SAstCreateContext* pCxt, SNode* pExpr, const SToken* pFuncOpt);
+SNode*     createAnomalyWindowNode(SAstCreateContext* pCxt, SNodeList* pExprList);
 SNode*     createIntervalWindowNodeExt(SAstCreateContext* pCxt, SNode* pInter, SNode* pSliding);
 SNode*     createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode* pOffset, SNode* pSliding,
                                     SNode* pFill);
 SNode*     createSlidingWindowNode(SAstCreateContext* pCxt, SNode* pSlidingVal, SNode* pOffset);
 SNode*     createPeriodWindowNode(SAstCreateContext* pCxt, SNode* pPeriodTime, SNode* pOffset);
 SNode*     createWindowOffsetNode(SAstCreateContext* pCxt, SNode* pStartOffset, SNode* pEndOffset);
+SNode*     createSurroundNode(SAstCreateContext* pCxt, SNode* pSurroundingTime, SNode* pValues);
 SNode*     createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues);
+SNode*     createFillNodeWithSurroundNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pSurroundNode);
+SNode*     createFillNodeWithSurroundingTime(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues, SNode* pSurroundingTime);
 SNode*     createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode);
 SNode*     createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd, SNode* pInterval);
 SNode*     createInterpTimePoint(SAstCreateContext* pCxt, SNode* pPoint);
@@ -534,6 +537,8 @@ SNode* createShowScansStmt(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowScanDetailsStmt(SAstCreateContext* pCxt, SNode* pScanIdNode);
 
 SNode* createAlterAllDnodeTLSStmt(SAstCreateContext* pCxt, SToken* alterName);
+
+SNode* setNodeQuantifyType(SAstCreateContext* pCxt, SNode* pNode, EQuantifyType type);
 
 #ifdef __cplusplus
 }

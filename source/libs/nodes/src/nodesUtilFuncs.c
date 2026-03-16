@@ -441,6 +441,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_NODE_LIST:
       code = makeNode(type, sizeof(SNodeListNode), &pNode);
       break;
+    case QUERY_NODE_SURROUND:
+      code = makeNode(type, sizeof(SSurroundNode), &pNode);
+      break;
     case QUERY_NODE_FILL:
       code = makeNode(type, sizeof(SFillNode), &pNode);
       break;
@@ -524,6 +527,15 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_REMOTE_VALUE:
       code = makeNode(type, sizeof(SRemoteValueNode), &pNode);
+      break;
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      code = makeNode(type, sizeof(SRemoteValueListNode), &pNode);
+      break;
+    case QUERY_NODE_REMOTE_ROW:
+      code = makeNode(type, sizeof(SRemoteRowNode), &pNode);
+      break;
+    case QUERY_NODE_REMOTE_ZERO_ROWS:
+      code = makeNode(type, sizeof(SRemoteZeroRowsNode), &pNode);
       break;
     case QUERY_NODE_TRUE_FOR:
       code = makeNode(type, sizeof(STrueForNode), &pNode);
@@ -1308,12 +1320,23 @@ void nodesDestroyNode(SNode* pNode) {
       destroyExprNode((SExprNode*)pNode);
       break;
     case QUERY_NODE_REMOTE_VALUE:
-    case QUERY_NODE_VALUE: {
+    case QUERY_NODE_VALUE:
+    case QUERY_NODE_REMOTE_ROW:
+    case QUERY_NODE_REMOTE_ZERO_ROWS: {
       SValueNode* pValue = (SValueNode*)pNode;
       destroyExprNode((SExprNode*)pNode);
       taosMemoryFreeClear(pValue->literal);
       if (IS_VAR_DATA_TYPE(pValue->node.resType.type) || pValue->node.resType.type == TSDB_DATA_TYPE_DECIMAL) {
         taosMemoryFreeClear(pValue->datum.p);
+      }
+      break;
+    }
+    case QUERY_NODE_REMOTE_VALUE_LIST: {
+      SRemoteValueListNode* pRemote = (SRemoteValueListNode*)pNode;
+      destroyExprNode((SExprNode*)pNode);
+      if (pRemote->hashAllocated) {
+        taosHashCleanup(pRemote->pHashFilter);
+        taosHashCleanup(pRemote->pHashFilterOthers);
       }
       break;
     }
@@ -1438,11 +1461,18 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_NODE_LIST:
       nodesDestroyList(((SNodeListNode*)pNode)->pNodeList);
       break;
+    case QUERY_NODE_SURROUND: {
+      SSurroundNode* pSurround = (SSurroundNode*)pNode;
+      nodesDestroyNode(pSurround->pSurroundingTime);
+      nodesDestroyNode(pSurround->pValues);
+      break;
+    }
     case QUERY_NODE_FILL: {
       SFillNode* pFill = (SFillNode*)pNode;
       nodesDestroyNode(pFill->pValues);
       nodesDestroyNode(pFill->pWStartTs);
       nodesDestroyNode(pFill->pTimeRange);
+      nodesDestroyNode(pFill->pSurroundingTime);
       break;
     }
     case QUERY_NODE_RAW_EXPR:
@@ -1571,7 +1601,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_ANOMALY_WINDOW: {
       SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pNode;
       nodesDestroyNode(pAnomaly->pCol);
-      nodesDestroyNode(pAnomaly->pExpr);
+      nodesDestroyList(pAnomaly->pExpr);
       break;
     }
     case QUERY_NODE_EXTERNAL_WINDOW: {
@@ -2235,6 +2265,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pWStartTs);
       nodesDestroyNode(pLogicNode->pValues);
       nodesDestroyNode(pLogicNode->pTimeRange);
+      nodesDestroyNode(pLogicNode->pSurroundingTime);
       nodesDestroyList(pLogicNode->pFillExprs);
       nodesDestroyList(pLogicNode->pNotFillExprs);
       nodesDestroyList(pLogicNode->pFillNullExprs);
@@ -2291,7 +2322,11 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL: {
       SDynQueryCtrlLogicNode* pLogicNode = (SDynQueryCtrlLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
-      if (pLogicNode->qType == DYN_QTYPE_VTB_SCAN || pLogicNode->qType == DYN_QTYPE_VTB_AGG) {
+      if (pLogicNode->qType == DYN_QTYPE_VTB_SCAN ||
+          pLogicNode->qType == DYN_QTYPE_VTB_AGG ||
+          pLogicNode->qType == DYN_QTYPE_VTB_INTERVAL ||
+          pLogicNode->qType == DYN_QTYPE_VTB_WINDOW ||
+          pLogicNode->qType == DYN_QTYPE_VTB_TS_SCAN) {
         taosMemoryFreeClear(pLogicNode->vtbScan.pVgroupList);
         nodesDestroyList(pLogicNode->vtbScan.pOrgVgIds);
       }
@@ -2441,6 +2476,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pValues);
       nodesDestroyList(pPhyNode->pFillNullExprs);
       nodesDestroyNode(pPhyNode->pTimeRange);
+      nodesDestroyNode(pPhyNode->pSurroundingTime);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
@@ -2467,7 +2503,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY: {
       SAnomalyWindowPhysiNode* pPhyNode = (SAnomalyWindowPhysiNode*)pNode;
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
-      nodesDestroyNode(pPhyNode->pAnomalyKey);
+      nodesDestroyList(pPhyNode->pAnomalyKeys);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {
@@ -2530,7 +2566,9 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL: {
       SDynQueryCtrlPhysiNode* pPhyNode = (SDynQueryCtrlPhysiNode*)pNode;
-      if (pPhyNode->qType == DYN_QTYPE_VTB_SCAN || pPhyNode->qType == DYN_QTYPE_VTB_AGG) {
+      if (pPhyNode->qType == DYN_QTYPE_VTB_SCAN || pPhyNode->qType == DYN_QTYPE_VTB_TS_SCAN ||
+          pPhyNode->qType == DYN_QTYPE_VTB_AGG || pPhyNode->qType == DYN_QTYPE_VTB_INTERVAL ||
+          pPhyNode->qType == DYN_QTYPE_VTB_WINDOW) {
         nodesDestroyList(pPhyNode->vtbScan.pScanCols);
         nodesDestroyList(pPhyNode->vtbScan.pOrgVgIds);
       }
@@ -2553,6 +2591,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesClearList(pSubplan->pChildren);
       nodesDestroyNode((SNode*)pSubplan->pNode);
       nodesDestroyNode((SNode*)pSubplan->pDataSink);
+      nodesDestroyList(pSubplan->pSubQ);
       nodesDestroyNode((SNode*)pSubplan->pTagCond);
       nodesDestroyNode((SNode*)pSubplan->pTagIndexCond);
       tSimpleHashCleanup(pSubplan->pVTables);
@@ -3092,6 +3131,9 @@ int32_t nodesSetValueNodeValueExt(SValueNode* pNode, void* value, bool* needFree
 
 char* nodesGetStrValueFromNode(SValueNode* pNode) {
   switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_NULL: {
+      return tstrdup("NULL");
+    }
     case TSDB_DATA_TYPE_BOOL: {
       void* buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
       if (NULL == buf) {
@@ -3170,7 +3212,8 @@ bool nodesIsExprNode(const SNode* pNode) {
   ENodeType type = nodeType(pNode);
   return (QUERY_NODE_COLUMN == type || QUERY_NODE_VALUE == type || QUERY_NODE_OPERATOR == type ||
           QUERY_NODE_FUNCTION == type || QUERY_NODE_LOGIC_CONDITION == type || QUERY_NODE_CASE_WHEN == type ||
-          QUERY_NODE_REMOTE_VALUE == type || QUERY_NODE_SELECT_STMT == type || QUERY_NODE_SET_OPERATOR == type);
+          QUERY_NODE_REMOTE_VALUE == type || QUERY_NODE_SELECT_STMT == type || QUERY_NODE_SET_OPERATOR == type ||
+          QUERY_NODE_REMOTE_VALUE_LIST == type || QUERY_NODE_REMOTE_ROW == type || QUERY_NODE_REMOTE_ZERO_ROWS == type);
 }
 
 bool nodesIsUnaryOp(const SOperatorNode* pOp) {
@@ -3241,6 +3284,8 @@ bool nodesIsComparisonOp(const SOperatorNode* pOp) {
     case OP_TYPE_IS_NOT_TRUE:
     case OP_TYPE_IS_NOT_FALSE:
     case OP_TYPE_IS_NOT_UNKNOWN:
+    case OP_TYPE_EXISTS:
+    case OP_TYPE_NOT_EXISTS:
       return true;
     default:
       break;
@@ -4211,3 +4256,41 @@ char* nodesGetSubSql(SNode* pNode) {
 
   return NULL;
 }
+
+void nodesGetSubQType(SNode* pNode, int32_t* pType) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      *pType = pSelect->subQType;
+      break;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      *pType = pSet->subQType;
+      break;
+    }
+    default:
+      *pType = E_SUB_QUERY_NOT_SET;
+      break;
+  }
+
+  return;
+}
+
+SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) {
+  SColumnNode* pCol = NULL;
+  terrno = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+  if (NULL == pCol) {
+    return NULL;
+  }
+  pCol->node.resType = pExpr->resType;
+  snprintf(pCol->colName, sizeof(pCol->colName), "%s", pExpr->aliasName);
+  if (NULL != pStmtName) {
+    snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", pStmtName);
+  }
+  snprintf(pCol->node.userAlias, sizeof(pCol->node.userAlias), "%s", pExpr->userAlias);
+  pCol->node.relatedTo = pExpr->relatedTo;
+  return pCol;
+}
+
+

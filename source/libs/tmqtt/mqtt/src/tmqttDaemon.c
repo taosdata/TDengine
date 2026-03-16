@@ -499,7 +499,7 @@ void mqttdOnNewConnection(uv_stream_t *server, int status) {
     }
     ctx->pWorkList = NULL;
     ctx->client = (uv_stream_t *)client;
-    ctx->inputBuf = 0;
+    ctx->inputBuf = NULL;
     ctx->inputLen = 0;
     ctx->inputCap = 0;
     client->data = ctx;

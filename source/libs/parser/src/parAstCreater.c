@@ -1325,6 +1325,34 @@ static uint8_t getMinusDataType(uint8_t orgType) {
   return orgType;
 }
 
+SNode* setNodeQuantifyType(SAstCreateContext* pCxt, SNode* pNode, EQuantifyType type) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      pSelect->quantify = type;
+      pSelect->subQType = E_SUB_QUERY_COLUMN;
+      break;
+    }  
+    case QUERY_NODE_SET_OPERATOR:{
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      pSet->quantify = type;
+      pSet->subQType = E_SUB_QUERY_COLUMN;
+      break;
+    }
+    default:
+      pCxt->errCode = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
+      CHECK_PARSER_STATUS(pCxt);
+      break;
+  }
+
+  return pNode;
+
+_err:
+  return NULL;
+}
+
 SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pLeft, SNode* pRight) {
   CHECK_PARSER_STATUS(pCxt);
   if (OP_TYPE_MINUS == type && QUERY_NODE_VALUE == nodeType(pLeft)) {
@@ -1345,6 +1373,20 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
     pVal->literal = pNewLiteral;
     pVal->node.resType.type = getMinusDataType(pVal->node.resType.type);
     return pLeft;
+  }
+  if ((OP_TYPE_IN == type || OP_TYPE_NOT_IN == type) && pRight) {
+    if (QUERY_NODE_SELECT_STMT == nodeType(pRight)) {
+      ((SSelectStmt*)pRight)->subQType= E_SUB_QUERY_COLUMN;
+    } else if (QUERY_NODE_SET_OPERATOR == nodeType(pRight)) {
+      ((SSetOperator*)pRight)->subQType= E_SUB_QUERY_COLUMN;
+    }
+  }
+  if ((OP_TYPE_EXISTS == type || OP_TYPE_NOT_EXISTS == type) && pLeft) {
+    if (QUERY_NODE_SELECT_STMT == nodeType(pLeft)) {
+      ((SSelectStmt*)pLeft)->subQType= E_SUB_QUERY_ROWNUM;
+    } else if (QUERY_NODE_SET_OPERATOR == nodeType(pLeft)) {
+      ((SSetOperator*)pLeft)->subQType= E_SUB_QUERY_ROWNUM;
+    }
   }
   if (pLeft && QUERY_NODE_VALUE == nodeType(pLeft)) {
     SValueNode* pVal = (SValueNode*)pLeft;
@@ -1956,20 +1998,35 @@ _err:
   return NULL;
 }
 
-SNode* createAnomalyWindowNode(SAstCreateContext* pCxt, SNode* pExpr, const SToken* pFuncOpt) {
+SNode* createAnomalyWindowNode(SAstCreateContext* pCxt, SNodeList* pExprList) {
   SAnomalyWindowNode* pAnomaly = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_ANOMALY_WINDOW, (SNode**)&pAnomaly);
   CHECK_MAKE_NODE(pAnomaly);
+  
   pAnomaly->pCol = createPrimaryKeyCol(pCxt, NULL);
   CHECK_MAKE_NODE(pAnomaly->pCol);
-  pAnomaly->pExpr = pExpr;
-  if (pFuncOpt == NULL) {
+
+  pAnomaly->pExpr = pExprList;
+
+  int32_t len = LIST_LENGTH(pExprList);
+  if (len == 1) {
     tstrncpy(pAnomaly->anomalyOpt, "algo=iqr", TSDB_ANALYTIC_ALGO_OPTION_LEN);
   } else {
-    (void)trimString(pFuncOpt->z, pFuncOpt->n, pAnomaly->anomalyOpt, sizeof(pAnomaly->anomalyOpt));
+    SNode* pNode = nodesListGetNode(pExprList, len - 1);
+    if (pNode != NULL && nodeType(pNode) == QUERY_NODE_VALUE) {
+      tstrncpy(pAnomaly->anomalyOpt, ((SValueNode*)pNode)->literal, TSDB_ANALYTIC_ALGO_OPTION_LEN);
+
+      SListCell* pCell = nodesListGetCell(pExprList, len - 1);
+      (void)nodesListErase(pExprList, pCell);
+      nodesDestroyNode(pNode);
+    } else {
+      tstrncpy(pAnomaly->anomalyOpt, "algo=iqr", TSDB_ANALYTIC_ALGO_OPTION_LEN);
+    }
   }
+
   return (SNode*)pAnomaly;
+
 _err:
   nodesDestroyNode((SNode*)pAnomaly);
   return NULL;
@@ -2050,21 +2107,66 @@ _err:
   return NULL;
 }
 
+SNode* createSurroundNode(SAstCreateContext* pCxt, SNode* pSurroundingTime,
+                          SNode* pValues) {
+  SSurroundNode* pSurround = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SURROUND, (SNode**)&pSurround);
+  CHECK_MAKE_NODE(pSurround);
+  pSurround->pSurroundingTime = pSurroundingTime;
+  pSurround->pValues = pValues;
+  return (SNode*)pSurround;
+_err:
+  nodesDestroyNode((SNode*)pSurround);
+  nodesDestroyNode(pSurroundingTime);
+  nodesDestroyNode(pValues);
+  return NULL;
+}
+
 SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues) {
+  return createFillNodeWithSurroundingTime(pCxt, mode, pValues, NULL);
+}
+
+SNode* createFillNodeWithSurroundNode(SAstCreateContext* pCxt, EFillMode mode,
+                                      SNode* pSurroundNode) {
+  if (pSurroundNode == NULL) {
+    return createFillNode(pCxt, mode, NULL);
+  }
+
+  SSurroundNode* pSurround = (SSurroundNode*)pSurroundNode;
+  SNode* pSurroundingTime = pSurround->pSurroundingTime;
+  SNode* pValues = pSurround->pValues;
+
+  /* set surround node to NULL to avoid freeing before using */
+  pSurround->pSurroundingTime = NULL;
+  pSurround->pValues = NULL;
+  nodesDestroyNode((SNode*)pSurround);
+
+  return createFillNodeWithSurroundingTime(pCxt, mode, pValues,
+                                           pSurroundingTime);
+}
+
+SNode* createFillNodeWithSurroundingTime(SAstCreateContext* pCxt,
+                                         EFillMode mode, SNode* pValues,
+                                         SNode* pSurroundingTime) {
   SFillNode* fill = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_FILL, (SNode**)&fill);
   CHECK_MAKE_NODE(fill);
   fill->mode = mode;
   fill->pValues = pValues;
+  fill->pSurroundingTime = pSurroundingTime;
   fill->pWStartTs = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&(fill->pWStartTs));
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION,
+                                (SNode**)&(fill->pWStartTs));
   CHECK_MAKE_NODE(fill->pWStartTs);
-  tstrncpy(((SFunctionNode*)fill->pWStartTs)->functionName, "_wstart", TSDB_FUNC_NAME_LEN);
+  tstrncpy(((SFunctionNode*)fill->pWStartTs)->functionName, "_wstart",
+           TSDB_FUNC_NAME_LEN);
   return (SNode*)fill;
 _err:
   nodesDestroyNode((SNode*)fill);
   nodesDestroyNode(pValues);
+  nodesDestroyNode(pSurroundingTime);
   return NULL;
 }
 

@@ -14,7 +14,7 @@ This document describes how to integrate the TDengine data source with the open-
 
 To add the TDengine data source to Grafana normally, the following preparations are needed.
 
-- Grafana service has been deployed and is running normally. TDengine currently supports Grafana version 7.5 and above. It is recommended to use the latest version.  
+- Grafana service has been deployed and is running normally. TDengine currently supports Grafana version 8.0 and above. It is recommended to use the latest version.  
     **Note**: Ensure that the account starting Grafana has write permissions to its installation directory, otherwise you may not be able to install plugins later.
 - TDengine cluster has been deployed and is running normally.
 - taosAdapter has been installed and is running normally. For details, please refer to the [taosAdapter user manual](../../../tdengine-reference/components/taosadapter/)
@@ -29,7 +29,7 @@ Record the following information:
 <Tabs defaultValue="script">
 <TabItem value="script" label="Installation Script">
 
-For users using Grafana version 7.x or configuring with [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/), you can use the installation script on the Grafana server to automatically install the plugin and add the data source Provisioning configuration file.
+For users using Grafana version 8.x or later or configuring with [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/), you can use the installation script on the Grafana server to automatically install the plugin and add the data source Provisioning configuration file.
 
 ```shell
 bash -c "$(curl -fsSL \

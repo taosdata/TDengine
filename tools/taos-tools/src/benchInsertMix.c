@@ -28,7 +28,7 @@
 
 #define MCNT 3
 
-#define  NEED_TAKEOUT_ROW_TOBUF(type)  (mix->genCnt[type] > 0 && mix->doneCnt[type] + mix->bufCnt[type] < mix->genCnt[type] && taosRandom()%100 <= mix->ratio[type]*2)
+#define  NEED_TAKEOUT_ROW_TOBUF(type)  (mix->genCnt[type] > 0 && mix->doneCnt[type] + mix->bufCnt[type] < mix->genCnt[type] && (int)(taosRandom()%100) <= mix->ratio[type]*2)
 #define  FORCE_TAKEOUT(type) (mix->insertedRows * 100 / mix->insertRows > 80)
 
 #define FAILED_BREAK()   \
@@ -185,7 +185,7 @@ uint32_t genInsertPreSql(threadInfo* info, SDataBase* db, SSuperTable* stb, char
     // ttl
     char ttl[20] = "";
     if (stb->ttl != 0) {
-      sprintf(ttl, "TTL %d", stb->ttl);
+      (void)sprintf(ttl, "TTL %d", stb->ttl);
     }
 
     if (stb->partialColNum == stb->cols->size) {
@@ -232,7 +232,7 @@ uint32_t genInsertPreSql(threadInfo* info, SDataBase* db, SSuperTable* stb, char
     // random select cnt elements from max
     randomFillCols(info->batCols, max, info->nBatCols);
   }
-  
+
   char * colNames = genBatColsNames(info, stb);
   len = snprintf(pstr, TSDB_MAX_ALLOWED_SQL_LEN, "%s %s.%s (%s) VALUES ", STR_INSERT_INTO, db->dbName, tableName, colNames);
   free(colNames);
@@ -264,7 +264,7 @@ uint32_t appendRowRuleOld(SSuperTable* stb, char* pstr, uint32_t len, int64_t ti
   } else {
     int64_t disorderTs = 0;
     if (stb->disorderRatio > 0) {
-      int rand_num = taosRandom() % 100;
+      unsigned int rand_num = taosRandom() % 100;
       if (rand_num < stb->disorderRatio) {
         disorderRange--;
         if (0 == disorderRange) {
@@ -296,7 +296,7 @@ uint32_t genRowMixAll(threadInfo* info, SSuperTable* stb, char* pstr, uint32_t l
       int32_t min = RD(stb->durMinute);
       if (min <= 0) min = 1;
       if (min > 120) min -= 60;  // delay 1 hour prevent date time out
-      sprintf(now, "now+%dm", min);
+      (void)sprintf(now, "now+%dm", min);
     }
 
     size = snprintf(pstr + len, TSDB_MAX_ALLOWED_SQL_LEN - len, "(%s", now);
@@ -393,7 +393,7 @@ bool takeRowOutToBuf(SMixRatio* mix, uint8_t type, int64_t ts) {
 // row rule mix , global info put into mix
 //
 #define MIN_COMMIT_ROWS 10000
-uint32_t appendRowRuleMix(threadInfo* info, SSuperTable* stb, SMixRatio* mix, char* pstr, 
+uint32_t appendRowRuleMix(threadInfo* info, SSuperTable* stb, SMixRatio* mix, char* pstr,
                         uint32_t len, int64_t ts, uint32_t* pGenRows, int64_t *k) {
     uint32_t size = 0;
     // remain need generate rows
@@ -419,7 +419,7 @@ uint32_t appendRowRuleMix(threadInfo* info, SSuperTable* stb, SMixRatio* mix, ch
 
     // update
     if (forceUpd || NEED_TAKEOUT_ROW_TOBUF(MUPD)) {
-        takeRowOutToBuf(mix, MUPD, ts);
+        (void)takeRowOutToBuf(mix, MUPD, ts);
     }
 
     return size;
@@ -428,7 +428,7 @@ uint32_t appendRowRuleMix(threadInfo* info, SSuperTable* stb, SMixRatio* mix, ch
 //
 // fill update rows from mix
 //
-uint32_t fillBatchWithBuf(threadInfo* info, SSuperTable* stb, SMixRatio* mix, int64_t startTime, char* pstr, 
+uint32_t fillBatchWithBuf(threadInfo* info, SSuperTable* stb, SMixRatio* mix, int64_t startTime, char* pstr,
                 uint32_t len, uint32_t* pGenRows, uint8_t type, uint32_t maxFill, bool force, int64_t *k) {
     uint32_t size = 0;
     if (maxFill == 0) return 0;
@@ -464,7 +464,7 @@ uint32_t fillBatchWithBuf(threadInfo* info, SSuperTable* stb, SMixRatio* mix, in
         }
 
         char sts[128];
-        sprintf(sts, "%" PRId64, ts);
+        (void)sprintf(sts, "%" PRId64, ts);
         if (info->csql && strstr(info->csql, sts)) {
           infoPrint("   %s found duplicate ts=%" PRId64 "\n", type == MDIS ? "dis" : "upd", ts);
         }
@@ -488,7 +488,7 @@ uint32_t fillBatchWithBuf(threadInfo* info, SSuperTable* stb, SMixRatio* mix, in
 //
 // generate  insert batch body, return rows in batch
 //
-uint32_t genBatchSql(threadInfo* info, SSuperTable* stb, SMixRatio* mix, int64_t* pStartTime, char* pstr, 
+uint32_t genBatchSql(threadInfo* info, SSuperTable* stb, SMixRatio* mix, int64_t* pStartTime, char* pstr,
                      uint32_t slen, STotal* pBatT, int32_t *pkCur, int32_t *pkCnt, int64_t *k) {
   int32_t genRows = 0;
   int64_t  ts = *pStartTime;
@@ -511,7 +511,7 @@ uint32_t genBatchSql(threadInfo* info, SSuperTable* stb, SMixRatio* mix, int64_t
         pBatT->ordRows ++;
     } else {
         char sts[128];
-        sprintf(sts, "%" PRId64, ts);
+        (void)sprintf(sts, "%" PRId64, ts);
 
         // add new row (maybe del)
         if (mix->insertedRows + pBatT->disRows + pBatT->ordRows  < mix->insertRows) {
@@ -642,15 +642,15 @@ uint32_t genBatchDelSql(SSuperTable* stb, SMixRatio* mix, int64_t batStartTime, 
   int64_t de = ds + count * stb->timestamp_step;
 
   char where[128] = "";
-  sprintf(where, " ts >= %" PRId64 " and ts < %" PRId64 ";", ds, de);
-  sprintf(sql, "select count(*) from %s where %s", tbName, where);
+  (void)sprintf(where, " ts >= %" PRId64 " and ts < %" PRId64 ";", ds, de);
+  (void)sprintf(sql, "select count(*) from %s where %s", tbName, where);
 
   int64_t count64 = 0;
   queryCnt(taos, sql, &count64);
   if(count64 == 0) return 0;
   count = count64;
 
-  snprintf(pstr + slen, TSDB_MAX_ALLOWED_SQL_LEN - slen, "%s", where);
+  (void)snprintf(pstr + slen, TSDB_MAX_ALLOWED_SQL_LEN - slen, "%s", where);
   //infoPrint("  batch delete cnt=%d range=%s \n", count, where);
 
   return count;
@@ -706,7 +706,7 @@ bool checkCorrect(threadInfo* info, SDataBase* db, SSuperTable* stb, char* tbNam
   uint64_t calcCount = (lastTs - stb->startTimestamp) / stb->timestamp_step + 1;
 
   // check count correct
-  sprintf(sql, "select count(*) from %s.%s ", db->dbName, tbName);
+  (void)sprintf(sql, "select count(*) from %s.%s ", db->dbName, tbName);
   int32_t loop = 0;
   int32_t code = 0;
 
@@ -732,7 +732,7 @@ bool checkCorrect(threadInfo* info, SDataBase* db, SSuperTable* stb, char* tbNam
   }
 
   // check last(ts) correct
-  sprintf(sql, "select last(ts) from %s.%s ", db->dbName, tbName);
+  (void)sprintf(sql, "select last(ts) from %s.%s ", db->dbName, tbName);
   loop = 0;
   do {
     code = queryTS(info->conn->taos, sql, &ts);
@@ -812,8 +812,8 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
     SMixRatio mixRatio;
     mixRatioInit(&mixRatio, stb);
     int64_t batStartTime = stb->startTimestamp;
-    int32_t pkCur = 0; // primary key repeat ts current count 
-    int32_t pkCnt = 0; // primary key repeat ts count  
+    int32_t pkCur = 0; // primary key repeat ts current count
+    int32_t pkCnt = 0; // primary key repeat ts count
     STotal tbTotal;
     memset(&tbTotal, 0 , sizeof(STotal));
     int64_t k = 0; // position
@@ -828,10 +828,10 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
           // generator
           if (w == 0) {
               if(!generateTagData(stb, tagData, TAG_BATCH_COUNT, csvFile, NULL, index)) {
-                 FAILED_BREAK()                
+                 FAILED_BREAK()
               }
           }
-      }   
+      }
 
       // generate pre sql  like "insert into tbname ( part column names) values  "
       uint32_t len = genInsertPreSql(info, db, stb, tbName, tagData, tbIdx, info->buffer);
@@ -842,7 +842,7 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
               // reset for gen again
               w = 0;
               index += TAG_BATCH_COUNT;
-          } 
+          }
       }
 
       // batch create sql values
@@ -924,7 +924,7 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
       // flush
       if (db->flush) {
         char sql[260] = "";
-        sprintf(sql, "flush database %s", db->dbName);
+        (void)sprintf(sql, "flush database %s", db->dbName);
         int32_t code = executeSql(info->conn->taos,sql);
         if (code != 0) {
           perfPrint(" %s failed. error code = 0x%x\n", sql, code);
@@ -949,7 +949,7 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
 
         int64_t* pdelay = benchCalloc(1, sizeof(int64_t), false);
         *pdelay = delay;
-        benchArrayPush(info->delayList, pdelay);
+        (void)benchArrayPush(info->delayList, pdelay);
         info->totalDelay += delay;
       }
 

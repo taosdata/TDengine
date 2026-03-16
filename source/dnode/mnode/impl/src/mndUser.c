@@ -33,6 +33,8 @@
 #include "mndToken.h"
 #include "tbase64.h"
 #include "totp.h"
+#include "mndDnode.h"
+#include "mndVgroup.h"
 
 // clang-format on
 
@@ -3461,6 +3463,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
     duration = duration / 1000;
+
     auditRecord(pReq, pMnode->clusterId, operation, "", createReq.user, detail, strlen(detail), duration, 0);
   }
 
@@ -4002,6 +4005,9 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
 
   if (pUser->enable == 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_USER_DISABLED);
+  }
+  if(pUser->superUser) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_NO_RIGHTS);
   }
 
   if (pAlterReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {

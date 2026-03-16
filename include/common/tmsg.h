@@ -360,7 +360,11 @@ typedef enum ENodeType {
   QUERY_NODE_REMOTE_VALUE,
   QUERY_NODE_TOKEN_OPTIONS,
   QUERY_NODE_TRUE_FOR,
-
+  QUERY_NODE_REMOTE_VALUE_LIST,
+  QUERY_NODE_SURROUND,
+  QUERY_NODE_REMOTE_ROW,
+  QUERY_NODE_REMOTE_ZERO_ROWS,
+  
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
   QUERY_NODE_SELECT_STMT,
@@ -780,6 +784,7 @@ typedef struct {
   char     refDbName[TSDB_DB_NAME_LEN];
   char     refTableName[TSDB_TABLE_NAME_LEN];
   char     refColName[TSDB_COL_NAME_LEN];
+  char     colName[TSDB_COL_NAME_LEN];     // for tmq get json
 } SColRef;
 
 typedef struct {
@@ -1460,7 +1465,7 @@ typedef struct {
 
 typedef struct {
   uint8_t alterType;  // TSDB_ALTER_ROLE_LOCK, TSDB_ALTER_ROLE_ROLE, TSDB_ALTER_ROLE_PRIVILEGES
-  uint8_t objType;    // db, table, view, rsma, topic, etc.
+  uint8_t objType;    // none, db, table, view, rsma, topic, etc.
   union {
     uint32_t flag;
     struct {
@@ -1478,7 +1483,7 @@ typedef struct {
   };
   char    principal[TSDB_ROLE_LEN];      // role or user name
   char    objFName[TSDB_OBJ_FNAME_LEN];  // db
-  char    tblName[TSDB_TABLE_NAME_LEN];  // table, view, rsma, topic, etc.
+  char    tblName[TSDB_TABLE_NAME_LEN];  // none, table, view, rsma, topic, etc.
   int32_t sqlLen;
   char*   sql;
 } SAlterRoleReq;
@@ -2506,6 +2511,7 @@ typedef struct SDownstreamSourceNode {
   uint64_t       clientId;
   uint64_t       taskId;
   uint64_t       sId;
+  uint64_t       srcTaskId;
   int32_t        execId;
   int32_t        fetchMsgType;
   bool           localExec;
@@ -2716,6 +2722,8 @@ typedef struct {
   int64_t syncCommitIndex;
   int64_t bufferSegmentUsed;
   int64_t bufferSegmentSize;
+  int32_t snapSeq;
+  int64_t syncTotalIndex;
 } SVnodeLoad;
 
 typedef struct {
@@ -2805,6 +2813,8 @@ typedef struct {
   int64_t     timestamp;
   char        auditDB[TSDB_DB_FNAME_LEN];
   char        auditToken[TSDB_TOKEN_LEN];
+  SEpSet      auditEpSet;
+  int32_t     auditVgId;
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
@@ -2904,6 +2914,8 @@ typedef struct {
   int64_t   timeWhiteVer;
   char      auditDB[TSDB_DB_FNAME_LEN];
   char      auditToken[TSDB_TOKEN_LEN];
+  SEpSet    auditEpSet;
+  int32_t   auditVgId;
 } SStatusRsp;
 
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
@@ -4062,6 +4074,13 @@ int32_t tDeserializeSVArbSetAssignedLeaderReq(void* buf, int32_t bufLen, SVArbSe
 void    tFreeSVArbSetAssignedLeaderReq(SVArbSetAssignedLeaderReq* pReq);
 
 typedef struct {
+  char* data;
+} SVAuditRecordReq;
+int32_t tSerializeSVAuditRecordReq(void* buf, int32_t bufLen, SVAuditRecordReq* pReq);
+int32_t tDeserializeSVAuditRecordReq(void* buf, int32_t bufLen, SVAuditRecordReq* pReq);
+void    tFreeSVAuditRecordReq(SVAuditRecordReq* pReq);
+
+typedef struct {
   char*   arbToken;
   char*   memberToken;
   int32_t vgId;
@@ -4225,6 +4244,7 @@ typedef struct SSubQueryMsg {
   int64_t  refId;
   int32_t  execId;
   int32_t  msgMask;
+  int32_t  subQType;
   int8_t   taskType;
   int8_t   explain;
   int8_t   needFetch;
@@ -4270,6 +4290,8 @@ typedef struct {
   int32_t tversion;
 } SResReadyRsp;
 
+typedef enum { OP_GET_PARAM = 1, OP_NOTIFY_PARAM } SOperatorParamType;
+
 typedef struct SOperatorParam {
   int32_t opType;
   int32_t downstreamIdx;
@@ -4278,6 +4300,9 @@ typedef struct SOperatorParam {
   bool    reUse;
 } SOperatorParam;
 
+void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
+
+// virtual table's colId to origin table's colname
 typedef struct SColIdNameKV {
   col_id_t colId;
   char     colName[TSDB_COL_NAME_LEN];
@@ -4322,27 +4347,42 @@ typedef enum {
   DYN_TYPE_VSTB_WIN_SCAN,
 } ETableScanDynType;
 
+typedef enum {
+  DYN_TYPE_SCAN_PARAM = 1,
+  NOTIFY_TYPE_SCAN_PARAM,
+} ETableScanGetParamType;
+
 typedef struct STableScanOperatorParam {
-  bool              tableSeq;
-  bool              isNewParam;
-  uint64_t          groupid;
-  SArray*           pUidList;
-  SOrgTbInfo*       pOrgTbInfo;
-  SArray*           pBatchTbInfo;  // SArray<SOrgTbInfo>
-  SArray*           pTagList;
-  STimeWindow       window;
-  ETableScanDynType type;
+  ETableScanGetParamType paramType;
+  /* for building scan data source */
+  bool                   tableSeq;
+  bool                   isNewParam;
+  uint64_t               groupid;
+  SArray*                pUidList;
+  SOrgTbInfo*            pOrgTbInfo;
+  SArray*                pBatchTbInfo;  // SArray<SOrgTbInfo>
+  SArray*                pTagList;
+  STimeWindow            window;
+  ETableScanDynType      dynType;
+  /* for notifying source step done */
+  bool                   notifyToProcess;  // received notify STEP DONE message
+  TSKEY                  notifyTs;         // notify timestamp
 } STableScanOperatorParam;
 
 typedef struct STagScanOperatorParam {
   tb_uid_t vcUid;
 } STagScanOperatorParam;
 
+typedef struct SRefColIdGroup {
+  SArray* pSlotIdList;  // SArray<int32_t>
+} SRefColIdGroup;
+
 typedef struct SVTableScanOperatorParam {
   uint64_t        uid;
   STimeWindow     window;
   SOperatorParam* pTagScanOp;
   SArray*         pOpParamArray;  // SArray<SOperatorParam>
+  SArray*         pRefColGroups;  // SArray<SRefColIdGroup>
 } SVTableScanOperatorParam;
 
 typedef struct SMergeOperatorParam {
@@ -4368,6 +4408,8 @@ typedef struct {
   uint64_t        queryId;
   uint64_t        clientId;
   uint64_t        taskId;
+  uint64_t        srcTaskId;  // used for subQ
+  uint64_t        blockIdx;   // used for subQ
   int32_t         execId;
   SOperatorParam* pOpParam;
 
@@ -4502,22 +4544,6 @@ typedef struct SVgroupVer {
   int32_t vgId;
   int64_t ver;
 } SVgroupVer;
-
-typedef struct STaskNotifyEventStat {
-  int64_t notifyEventAddTimes;     // call times of add function
-  int64_t notifyEventAddElems;     // elements added by add function
-  double  notifyEventAddCostSec;   // time cost of add function
-  int64_t notifyEventPushTimes;    // call times of push function
-  int64_t notifyEventPushElems;    // elements pushed by push function
-  double  notifyEventPushCostSec;  // time cost of push function
-  int64_t notifyEventPackTimes;    // call times of pack function
-  int64_t notifyEventPackElems;    // elements packed by pack function
-  double  notifyEventPackCostSec;  // time cost of pack function
-  int64_t notifyEventSendTimes;    // call times of send function
-  int64_t notifyEventSendElems;    // elements sent by send function
-  double  notifyEventSendCostSec;  // time cost of send function
-  int64_t notifyEventHoldElems;    // elements hold due to watermark
-} STaskNotifyEventStat;
 
 enum {
   TOPIC_SUB_TYPE__DB = 1,
@@ -5940,6 +5966,7 @@ typedef struct {
   };
   void* data;                  // for free in client, only effected if type is data or metadata. raw data not effected
   bool  blockDataElementFree;  // if true, free blockDataElement in blockData,(true in server, false in client)
+  bool  timeout;
 } SMqDataRsp;
 
 int32_t tEncodeMqDataRsp(SEncoder* pEncoder, const SMqDataRsp* pObj);

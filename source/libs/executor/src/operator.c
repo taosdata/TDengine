@@ -262,7 +262,7 @@ static ERetType doStopDataReader(SOperatorInfo* pOperator, STraverParam* pParam,
     }
     return OPTR_FN_RET_ABORT;
   } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    SStreamScanInfo* pInfo = pOperator->info;
+    STmqQueryScanInfo* pInfo = pOperator->info;
 
     if (pInfo->pTableScanOp != NULL) {
       STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
@@ -353,20 +353,26 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         return terrno;
       }
 
-      code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, true, pHandle, pTableListInfo,
-                                     pTagCond, pTagIndexCond, pTaskInfo, NULL);
-      if (code) {
-        pTaskInfo->code = code;
-        tableListDestroy(pTableListInfo);
-        qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
-        return code;
-      }
+      if (pTableScanNode->scan.node.dynamicOp) {
+        pTaskInfo->dynamicTask = true;
+        pTableListInfo->idInfo.suid = pTableScanNode->scan.suid;
+        pTableListInfo->idInfo.tableType = pTableScanNode->scan.tableType;
+      } else {
+        code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, true, pHandle, pTableListInfo,
+                                       pTagCond, pTagIndexCond, pTaskInfo, NULL);
+        if (code) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          qError("failed to createScanTableListInfo, code:%s, %s", tstrerror(code), idstr);
+          return code;
+        }
 
-      code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
-      if (code) {
-        pTaskInfo->code = code;
-        tableListDestroy(pTableListInfo);
-        return code;
+        code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
+        if (code) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          return code;
+        }
       }
 
       code = createTableMergeScanOperatorInfo(pTableScanNode, pHandle, pTableListInfo, pTaskInfo, &pOperator);
@@ -699,12 +705,12 @@ void destroyOperator(SOperatorInfo* pOperator) {
     pOperator->numOfDownstream = 0;
   }
 
+  cleanupExprSupp(&pOperator->exprSupp);
   if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
     pOperator->fpSet.closeFn(pOperator->info);
     pOperator->info = NULL;
   }
 
-  cleanupExprSupp(&pOperator->exprSupp);
   taosMemoryFreeClear(pOperator);
 }
 
@@ -769,7 +775,17 @@ int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc) {
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE: {
       SExchangeOperatorParam* pDExc = pDst->value;
       SExchangeOperatorParam* pSExc = pSrc->value;
+      if (pSExc->basic.paramType != DYN_TYPE_EXCHANGE_PARAM) {
+        qError("%s, invalid exchange operator param type %d for "
+          "source operator", __func__, pSExc->basic.paramType);
+        return TSDB_CODE_INVALID_PARA;
+      }
       if (!pDExc->multiParams) {
+        if (pDExc->basic.paramType != DYN_TYPE_EXCHANGE_PARAM) {
+          qError("%s, invalid exchange operator param type %d for "
+            "destination operator", __func__, pDExc->basic.paramType);
+          return TSDB_CODE_INVALID_PARA;
+        }
         if (pSExc->basic.vgId != pDExc->basic.vgId) {
           SExchangeOperatorBatchParam* pBatch = taosMemoryMalloc(sizeof(SExchangeOperatorBatchParam));
           if (NULL == pBatch) {
@@ -923,6 +939,70 @@ SSDataBlock* getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, i
   return (code == 0)? p:NULL;
 }
 
+/*
+ * Fetch one block from downstream without preserving reused get-param ownership.
+ *
+ * @param pOperator Current operator.
+ * @param idx Downstream index.
+ * @param pResBlock Output result block pointer.
+ *
+ * @return TSDB_CODE_SUCCESS on success, otherwise error code.
+ */
+static FORCE_INLINE int32_t getNextBlockFromDownstreamRemainDetachImpl(struct SOperatorInfo* pOperator, int32_t idx,
+                                                                       SSDataBlock** pResBlock) {
+  QRY_PARAM_CHECK(pResBlock);
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (pOperator->pDownstreamGetParams && pOperator->pDownstreamGetParams[idx]) {
+    SOperatorParam* pGetParam = pOperator->pDownstreamGetParams[idx];
+    pOperator->pDownstreamGetParams[idx] = NULL;
+    // Once detached from the parent operator, downstream must own/free this param.
+    pGetParam->reUse = false;
+
+    qDebug("DynOp: op %s start to get block from downstream %s", pOperator->name, pOperator->pDownstream[idx]->name);
+    code = pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx], pGetParam, pResBlock);
+    QUERY_CHECK_CODE(code, lino, _return);
+  } else {
+    code = pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx], pResBlock);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+_return:
+  if (code) {
+    qError("failed to get next data block from upstream at %s, line:%d code:%s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+/*
+ * Fetch and validate one downstream block while detaching one-shot get-param.
+ *
+ * @param pOperator Current operator.
+ * @param idx Downstream index.
+ *
+ * @return Valid block pointer on success, or NULL on failure.
+ */
+SSDataBlock* getNextBlockFromDownstreamRemainDetach(struct SOperatorInfo* pOperator, int32_t idx) {
+  SSDataBlock* p = NULL;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+
+  code = getNextBlockFromDownstreamRemainDetachImpl(pOperator, idx, &p);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  code = blockDataCheck(p);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+_return:
+  if (code) {
+    qError("failed to get next data block from downstream at %s, line:%d code:%s", __func__, lino, tstrerror(code));
+    return NULL;
+  }
+  return p;
+}
+
 int32_t optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam, SSDataBlock** pRes) {
   QRY_PARAM_CHECK(pRes);
 
@@ -966,7 +1046,7 @@ int32_t optrDefaultNotifyFn(struct SOperatorInfo* pOperator, SOperatorParam* pPa
   return code;
 }
 
-int16_t getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx) {
+int64_t getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx) {
   if (pOperator->transparent) {
     return getOperatorResultBlockId(pOperator->pDownstream[idx], 0);
   }
@@ -1020,7 +1100,7 @@ _error:
   return code;
 }
 
-int32_t copyColumnsValue(SNodeList* pNodeList, uint64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc, int32_t totalRows) {
+int32_t copyColumnsValue(SNodeList* pNodeList, int64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc, int32_t totalRows) {
   bool    isNull = (NULL == pSrc || pSrc->info.rows <= 0);
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   int64_t numOfRows = isNull ? 0 : pSrc->info.rows;
@@ -1054,4 +1134,3 @@ _return:
   qError("failed to copy columns value, line:%d code:%s", lino, tstrerror(code));
   return code;
 }
-

@@ -115,7 +115,7 @@ static FORCE_INLINE int32_t getVectorDoubleValueFn(int32_t srcType, _getDoubleVa
   return TSDB_CODE_SUCCESS;
 }
 
-typedef int32_t (*_bufConverteFunc)(char *buf, SScalarParam *pOut, int32_t outType, int32_t *overflow);
+typedef int32_t (*_bufConverteFunc)(char *buf, SScalarParam *pOut, int32_t outType, int8_t *overflow);
 typedef int32_t (*_bin_scalar_fn_t)(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *output, int32_t order);
 _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binOperator);
 

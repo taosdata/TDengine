@@ -264,7 +264,7 @@ class TestMountBasic:
         tdLog.info("check mount query")
         self.check_mount_query()
         tdLog.info("reboot and query from mount db")
-        tdSql.execute(f"GRANT drop,alter,show,show create ON mnt1_db0.* to u1;")
+        tdSql.execute(f"GRANT drop,alter,show,show create ON table mnt1_db0.* to u1;")
         tdSql.execute(f"GRANT select ON mnt1_db0.* to u1;")
         tdSql.execute(f"GRANT insert ON mnt1_db0.* to u1;")
         tdSql.execute(f"GRANT delete ON table mnt1_db0.* to u1;")

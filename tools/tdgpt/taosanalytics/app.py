@@ -20,10 +20,11 @@ from taosanalytics.conf import conf
 from taosanalytics.model import model_manager
 from taosanalytics.servicemgmt import loader
 from taosanalytics.util import (app_logger, parse_options, get_past_dynamic_data, get_dynamic_data,
-                                get_second_data_list,
+                                get_more_data_list,
                                 do_check_before_exec, do_initial_check)
 
 app = Flask(__name__)
+app.config["PROPAGATE_EXCEPTIONS"] = True
 
 # load the all algos
 app_logger.set_handler(conf.get_log_path())
@@ -70,30 +71,28 @@ def handle_ad_request():
     try:
         req_json, payload, options, data_index, ts_index = do_check_before_exec(request, True)
     except Exception as e:
+        app_logger.log_inst.error("failed to do anomaly-detection, %s", str(e))
         return {"msg": str(e), "rows": -1}
 
     algo = req_json["algo"].lower() if "algo" in req_json else "ksigma"
 
-    # 1. validate the input data in json format
     try:
-        d = req_json["data"]
-        if len(d) > 2:
-            raise ValueError(f"invalid data format, too many columns for anomaly-detection, allowed:2, input:{len(d)}")
+        ts_list = payload[ts_index].copy()
+        payload.pop(ts_index)
     except ValueError as e:
         return {"msg": str(e), "rows": -1}
 
     params = parse_options(options)
 
-    # 4. do anomaly detection
     try:
-        res_list, ano_window, mask_list = do_ad_check(payload[data_index], payload[ts_index], algo, params)
+        res_list, ano_window, mask_list = do_ad_check(payload, ts_list, algo, params)
         result = {"algo": algo, "option": options, "res": ano_window, "rows": len(ano_window), "mask": mask_list}
 
         app_logger.log_inst.debug("anomaly-detection result: %s", str(result))
         return result
 
     except Exception as e:
-        result = {"res": {}, "rows": 0, "msg": str(e)}
+        result = {"res": {}, "rows": -1, "msg": str(e)}
         app_logger.log_inst.error("failed to do anomaly-detection, %s", str(e))
 
         return result
@@ -182,7 +181,7 @@ def handle_correlation_req():
     algo = req_json['algo'].lower()
 
     try:
-        second_list = get_second_data_list(payload, req_json["schema"])
+        second_list = get_more_data_list(payload, req_json["schema"])
 
         if algo == 'dtw':
             dist, path = do_dtw(payload[data_index], second_list, params)

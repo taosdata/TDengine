@@ -1039,6 +1039,10 @@ void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOf
       taosVariantDestroy(&pCtx[i].param[j].param);
     }
 
+    if(pCtx[i].fpSet.cleanup) {
+      pCtx[i].fpSet.cleanup(&pCtx[i]);
+    }
+
     taosMemoryFreeClear(pCtx[i].subsidiaries.pCtx);
     taosMemoryFreeClear(pCtx[i].subsidiaries.buf);
     taosMemoryFree(pCtx[i].input.pData);
@@ -1271,24 +1275,37 @@ void freeDynQueryCtrlGetOperatorParam(SOperatorParam* pParam) { freeOperatorPara
 
 void freeDynQueryCtrlNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
+void freeInterpFuncGetOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
+}
+
+void freeInterpFuncNotifyOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM);
+}
+
 void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
-  STableScanOperatorParam* pTableScanParam = (STableScanOperatorParam*)pParam->value;
+  STableScanOperatorParam* pTableScanParam =
+    (STableScanOperatorParam*)pParam->value;
   taosArrayDestroy(pTableScanParam->pUidList);
   if (pTableScanParam->pOrgTbInfo) {
     taosArrayDestroy(pTableScanParam->pOrgTbInfo->colMap);
     taosMemoryFreeClear(pTableScanParam->pOrgTbInfo);
   }
   if (pTableScanParam->pBatchTbInfo) {
-    for (int32_t i = 0; i < taosArrayGetSize(pTableScanParam->pBatchTbInfo); i++) {
-      SOrgTbInfo* pOrgTbInfo = (SOrgTbInfo*)taosArrayGet(pTableScanParam->pBatchTbInfo, i);
+    for (int32_t i = 0;
+      i < taosArrayGetSize(pTableScanParam->pBatchTbInfo); ++i) {
+      SOrgTbInfo* pOrgTbInfo =
+        (SOrgTbInfo*)taosArrayGet(pTableScanParam->pBatchTbInfo, i);
       taosArrayDestroy(pOrgTbInfo->colMap);
     }
     taosArrayDestroy(pTableScanParam->pBatchTbInfo);
     pTableScanParam->pBatchTbInfo = NULL;
   }
   if (pTableScanParam->pTagList) {
-    for (int32_t i = 0; i < taosArrayGetSize(pTableScanParam->pTagList); i++) {
-      STagVal* pTagVal = (STagVal*)taosArrayGet(pTableScanParam->pTagList, i);
+    for (int32_t i = 0;
+      i < taosArrayGetSize(pTableScanParam->pTagList); ++i) {
+      STagVal* pTagVal =
+        (STagVal*)taosArrayGet(pTableScanParam->pTagList, i);
       if (IS_VAR_DATA_TYPE(pTagVal->type)) {
         taosMemoryFreeClear(pTagVal->pData);
       }
@@ -1311,6 +1328,14 @@ void freeOpParamItem(void* pItem) {
   freeOperatorParam(pParam, OP_GET_PARAM);
 }
 
+static void destroyRefColIdGroupParam(void* info) {
+  SRefColIdGroup* pGroup = (SRefColIdGroup*)info;
+  if (pGroup && pGroup->pSlotIdList) {
+    taosArrayDestroy(pGroup->pSlotIdList);
+    pGroup->pSlotIdList = NULL;
+  }
+}
+
 void freeExternalWindowGetOperatorParam(SOperatorParam* pParam) {
   SExternalWindowOperatorParam *pExtParam = (SExternalWindowOperatorParam*)pParam->value;
   taosArrayDestroy(pExtParam->ExtWins);
@@ -1324,6 +1349,10 @@ void freeExternalWindowGetOperatorParam(SOperatorParam* pParam) {
 void freeVirtualTableScanGetOperatorParam(SOperatorParam* pParam) {
   SVTableScanOperatorParam* pVTableScanParam = (SVTableScanOperatorParam*)pParam->value;
   taosArrayDestroyEx(pVTableScanParam->pOpParamArray, freeOpParamItem);
+  if (pVTableScanParam->pRefColGroups) {
+    taosArrayDestroyEx(pVTableScanParam->pRefColGroups, destroyRefColIdGroupParam);
+    pVTableScanParam->pRefColGroups = NULL;
+  }
   freeOpParamItem(&pVTableScanParam->pTagScanOp);
   freeOperatorParamImpl(pParam, OP_GET_PARAM);
 }
@@ -1347,6 +1376,7 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
       type == OP_GET_PARAM ? freeMergeJoinGetOperatorParam(pParam) : freeMergeJoinNotifyOperatorParam(pParam);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
       type == OP_GET_PARAM ? freeTableScanGetOperatorParam(pParam) : freeTableScanNotifyOperatorParam(pParam);
       break;
@@ -1357,7 +1387,10 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
       type == OP_GET_PARAM ? freeTagScanGetOperatorParam(pParam) : freeTagScanNotifyOperatorParam(pParam);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
       type == OP_GET_PARAM ? freeMergeGetOperatorParam(pParam) : freeMergeNotifyOperatorParam(pParam);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
@@ -1366,8 +1399,12 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
       type == OP_GET_PARAM ? freeDynQueryCtrlGetOperatorParam(pParam) : freeDynQueryCtrlNotifyOperatorParam(pParam);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+      type == OP_GET_PARAM ? freeInterpFuncGetOperatorParam(pParam) : freeInterpFuncNotifyOperatorParam(pParam);
+      break;
     default:
-      qError("unsupported op %d param, type %d", pParam->opType, type);
+      qError("%s unsupported op %d param, param type %d, param:%p value:%p children:%p reuse:%d",
+             __func__, pParam->opType, type, pParam, pParam->value, pParam->pChildren, pParam->reUse);
       break;
   }
 }
@@ -1389,6 +1426,8 @@ void freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType
   }
 
   if (*ppParam) {
+    qDebug("%s free self param, operator:%s type:%d paramType:%d param:%p", __func__, pOperator->name,
+           pOperator->operatorType, type, *ppParam);
     freeOperatorParam(*ppParam, type);
     *ppParam = NULL;
   }
@@ -1396,6 +1435,9 @@ void freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType
   if (*pppDownstramParam) {
     for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
       if ((*pppDownstramParam)[i]) {
+        qDebug("%s free downstream param, operator:%s type:%d idx:%d downstream:%s paramType:%d param:%p", __func__,
+               pOperator->name, pOperator->operatorType, i, pOperator->pDownstream[i]->name, type,
+               (*pppDownstramParam)[i]);
         freeOperatorParam((*pppDownstramParam)[i], type);
         (*pppDownstramParam)[i] = NULL;
       }
@@ -1416,6 +1458,9 @@ FORCE_INLINE int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOpera
     code = pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx],
                                                            pOperator->pDownstreamGetParams[idx], pResBlock);
     if (clearParam && (code == 0)) {
+      qDebug("%s clear downstream param, operator:%s type:%d idx:%d downstream:%s param:%p", __func__,
+             pOperator->name, pOperator->operatorType, idx, pOperator->pDownstream[idx]->name,
+             pOperator->pDownstreamGetParams[idx]);
       freeOperatorParam(pOperator->pDownstreamGetParams[idx], OP_GET_PARAM);
       pOperator->pDownstreamGetParams[idx] = NULL;
     }

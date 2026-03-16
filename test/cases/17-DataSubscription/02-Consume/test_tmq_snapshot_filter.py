@@ -208,10 +208,6 @@ class TestCase:
         if not ((actConsumeTotalRows >= 0) and (actConsumeTotalRows <= totalRowsInserted)):
             tdLog.exit("%d tmq consume rows error!"%consumerId)
 
-        time.sleep(10)
-        for i in range(len(topicNameList)):
-            tdSql.query("drop topic %s"%topicNameList[i])
-
         tdLog.printNoPrefix("======== test case 4 end ...... ")
 
     def test_tmq_cons_from_tsdb1(self):

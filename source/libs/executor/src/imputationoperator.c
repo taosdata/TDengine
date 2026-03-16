@@ -352,8 +352,8 @@ static int32_t doCacheBlockForImputation(SImputationSupp* pSupp, const char* id,
     char*   val = colDataGetData(pValCol, j);
     int16_t valType = pValCol->info.type;
 
-    pSupp->base.win.skey = MIN(pSupp->base.win.skey, ts);
-    pSupp->base.win.ekey = MAX(pSupp->base.win.ekey, ts);
+    pSupp->base.win.skey = TMIN(pSupp->base.win.skey, ts);
+    pSupp->base.win.ekey = TMAX(pSupp->base.win.ekey, ts);
 
     pSupp->base.numOfRows++;
 
@@ -542,7 +542,7 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
   int32_t rows = 0;
   tjsonGetInt32ValueFromDouble(pJson, "rows", rows, code);
   if (rows < 0 && code == 0) {
-    code = parseErrorMsgFromAnalyticServer(pJson, pId);
+    code = parseErrorMsgFromAnalyticServer(pJson, "imputation/correlation", pId);
     tjsonDelete(pJson);
     return code;
   }

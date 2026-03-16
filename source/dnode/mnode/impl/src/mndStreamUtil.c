@@ -72,6 +72,12 @@ void mstDestroySStmTaskToDeployExt(void* param) {
     case STREAM_RUNNER_TASK:
       taosMemoryFreeClear(pExt->deploy.msg.runner.pPlan);
       break;
+    case STREAM_READER_TASK:
+      if (!pExt->deploy.msg.reader.triggerReader) {
+        SStreamReaderDeployFromCalc* pCalcReaderDeploy = &pExt->deploy.msg.reader.msg.calc;
+        taosMemoryFreeClear(pCalcReaderDeploy->calcScanPlan);
+      }
+      break;
     default:  
       break;;
   }
@@ -852,7 +858,7 @@ int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj* pStream, SSDataBloc
   TSDB_CHECK_CODE(code, lino, _end);
 
   // sql
-  char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
+  char sql[TSDB_INS_STREAM_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
   STR_WITH_MAXSIZE_TO_VARSTR(sql, pStream->pCreate->sql, sizeof(sql));
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);

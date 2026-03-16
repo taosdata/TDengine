@@ -1,84 +1,127 @@
 # encoding:utf-8
 # pylint: disable=c0103
 """configuration model definition"""
-import configparser
+import importlib.util
 import logging
+import platform
 import os.path
+import torch   # do not remove it
+import keras
 from pathlib import Path
+from typing import Optional
 
 _ANODE_SECTION_NAME = "taosanode"
 
 
 class Configure:
     """ configuration class """
-    def __init__(self, conf_path="/etc/taos/taosanode.ini"):
+    def __init__(self, conf_path: Optional[str] = None):
+        self._conf = self._get_default_conf()
         self.path = None
 
-        self._log_path = 'taosanode.app.log'
-        self._log_level = logging.INFO
-        self._model_directory = '/var/lib/taos/taosanode/model/'
-        self._draw_result = 0
+        if conf_path is not None and os.path.exists(conf_path):
+            self.path = conf_path
+        else:
+            self.path = self._conf['conf_path']
+            print(
+                f"Input configuration file not available. Use default config file: {self.path}")
 
-        self.conf = configparser.ConfigParser()
-        self.reload(conf_path)
+        if os.path.exists(self.path):
+            self.reload()
+        else:
+            print(f"Configuration file {self.path} is not available, start by using minimum config variables")
+
+    def _get_default_conf(self):
+        if platform.system().lower() == "windows":
+            # raw_path = r"%PROGRAMDATA%"
+            # base_path = os.path.join(os.path.expandvars(raw_path), "tdgpt")
+            # keep inline with the TDengine installation configuration
+            base_path = "c:/TDengine/tdgpt/"
+
+            default = {
+                "log_dir": os.path.join(base_path, "log"),
+                "log_file": "taosanode.app.log",
+                "model_dir": os.path.join(base_path, "model"),
+                "conf_path": os.path.join(base_path, "conf/taosanode.config.py"),
+                "log_level": logging.DEBUG,
+                "draw_result": False,
+            }
+        else:
+            default = {
+                "log_dir": "/var/log/taos/taosanode/",
+                "log_file": "taosanode.app.log",
+                "model_dir": '/usr/local/taos/taosanode/model/',
+                "conf_path": "/etc/taos/taosanode.config.py",
+                "log_level": logging.DEBUG,
+                "draw_result": False,
+            }
+
+            if os.environ.get('GITHUB_ACTIONS'):
+               default['log_dir'] = '/home/runner/work/TDengine/TDengine/tools/tdgpt/log/'
+
+        return default
 
     def get_log_path(self) -> str:
         """ return log file full path """
-        return self._log_path
+        return os.path.join(self._conf['log_dir'], 'taosanode.app.log')
+
+    def get_log_dir(self) -> str:
+        return self._conf["log_dir"]
 
     def get_log_level(self):
         """ return the log level specified by configuration file """
-        return self._log_level
+        return self._conf['log_level']
 
     def get_model_directory(self):
         """ return model directory """
-        return self._model_directory
+        return self._conf['model_dir']
 
     def get_tsfm_service(self, service_name):
-        if self.conf.has_option("tsfm-service", service_name):
-            return self.conf.get("tsfm-service", service_name)
-        else:
-            return None
+        return self._conf.get(service_name, None)
 
     def get_draw_result_option(self):
         """ get the option for draw results or not"""
-        return self._draw_result
+        return self._conf['draw_result']
 
-    def reload(self, new_path: str):
+    def reload(self):
         """ load the info from config file """
-        self.path = new_path
-        if not os.path.exists(self.path):
-            print(f"Configuration file not found: {self.path}. Using default settings.")
+        spec = importlib.util.spec_from_file_location("gunicorn_config", self.path)
+        config_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(config_module)
 
-        self.conf.read(self.path)
+        conf_vars = {}
+        for key in dir(config_module):
+            if not key.startswith('__'):
+                value = getattr(config_module, key)
+                if not callable(value):  # exclude the Python functions
+                    conf_vars[key] = value
 
-        if self.conf.has_option(_ANODE_SECTION_NAME, 'app-log'):
-            self._log_path = self.conf.get(_ANODE_SECTION_NAME, 'app-log')
+        if 'app_log' in conf_vars:
+            self._conf['log_dir'] = os.path.dirname(conf_vars['app_log'])
+            self._conf['log_file'] = os.path.basename(conf_vars['app_log'])
+            conf_vars.pop('app_log')
 
-        if self.conf.has_option(_ANODE_SECTION_NAME, 'log-level'):
-            log_level = self.conf.get(_ANODE_SECTION_NAME, 'log-level')
-
+        if 'log_level' in conf_vars:
             log_flag = {
                 'DEBUG': logging.DEBUG, 'INFO': logging.INFO, 'CRITICAL': logging.CRITICAL,
                 'ERROR': logging.ERROR, 'WARN': logging.WARN
             }
 
-            if log_level.upper() in log_flag:
-                self._log_level = log_flag[log_level.upper()]
-            else:
-                self._log_level = logging.INFO
+            log_level = conf_vars['log_level'].upper()
+            if log_level in log_flag:
+                self._conf['log_level'] = log_flag[log_level]
 
-        if self.conf.has_option(_ANODE_SECTION_NAME, 'model-dir'):
-            self._model_directory = self.conf.get(_ANODE_SECTION_NAME, 'model-dir')
+            conf_vars.pop('log_level')
 
-        if self.conf.has_option(_ANODE_SECTION_NAME, 'draw-result'):
-            draw_result = self.conf.get(_ANODE_SECTION_NAME, 'draw-result').lower()
-            if draw_result not in ('true', 'false'):
-                draw_result = int(draw_result)
-                self._draw_result = bool(draw_result)
-            else:
-                self._draw_result = False if draw_result=='false' else True
+        if 'model_dir' in conf_vars:
+            self._conf['model_dir'] = conf_vars['model_dir']
+            conf_vars.pop('model_dir')
 
+        if 'draw_result' in conf_vars:
+            self._conf['draw_result'] = conf_vars['draw_result']
+            conf_vars.pop('draw_result')
+
+        self._conf.update(conf_vars)
 
 
 class AppLogger():
@@ -117,7 +160,10 @@ app_logger = AppLogger()
 
 def setup_log_info(name: str):
     """ prepare the log info for unit test """
-    app_logger.set_handler(name)
+    base_dir = "/home/runner/work/TDengine/TDengine/tools/tdgpt/log/" if os.environ.get('GITHUB_ACTIONS') else conf.get_log_dir()
+    log_file = os.path.join(base_dir, name)
+
+    app_logger.set_handler(log_file)
 
     try:
         app_logger.set_log_level(logging.DEBUG)

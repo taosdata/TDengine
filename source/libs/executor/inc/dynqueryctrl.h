@@ -104,6 +104,8 @@ typedef struct SVtbScanDynCtrlInfo {
   int32_t          lastTableIdx;
   STimeWindow      window;
   SArray*          readColList;
+  SHashObj*        readColSet; // key: col_id_t, value: NULL
+  SArray*          refColGroups; // Array of <SRefColIdGroup> (slotId groups)
   SArray*          childTableList; // Array of <Array<SColRefInfo>> used for virtual super table
   SArray*          colRefInfo; // Array of <SColRefInfo> used for single virtual normal/child table
   SHashObj*        newAddedVgInfo;
@@ -131,7 +133,6 @@ typedef struct SVtbWindowDynCtrlInfo {
   int32_t                  outputWendSlotId;
   int32_t                  outputWdurationSlotId;
   bool                     isVstb;
-  bool                     singleWinMode;
   SNodeList*               pTargets;
   SArray*                  pWins;        // SArray<SArray<SExtWinTimeWindow>>
   int32_t                  curWinBatchIdx;
@@ -142,11 +143,9 @@ typedef struct SVtbWindowDynCtrlInfo {
 
 typedef struct SDynQueryCtrlOperatorInfo {
   EDynQueryType         qType;
-  union {
-    SStbJoinDynCtrlInfo   stbJoin;
-    SVtbScanDynCtrlInfo   vtbScan;
-    SVtbWindowDynCtrlInfo vtbWindow;
-  };
+  SStbJoinDynCtrlInfo   stbJoin;
+  SVtbScanDynCtrlInfo   vtbScan;
+  SVtbWindowDynCtrlInfo vtbWindow;
 } SDynQueryCtrlOperatorInfo;
 
 #ifdef __cplusplus

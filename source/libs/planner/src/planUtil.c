@@ -593,6 +593,10 @@ int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
       }
     }
 
+    if(pCol->tableAlias[0] == '\0') {
+      continue;
+    }
+
     code = tSimpleHashPut(*ppRes, pCol->tableAlias, strlen(pCol->tableAlias), NULL, 0);
     if (TSDB_CODE_SUCCESS != code) {
       break;
@@ -824,4 +828,3 @@ bool checkScanLogicNode(SLogicNode* pNode) {
 
   return false;
 }
-

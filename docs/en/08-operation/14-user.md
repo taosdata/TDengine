@@ -5,7 +5,7 @@ slug: /operations-and-maintenance/manage-users-and-permissions
 
 TDengine is configured by default with only one root user, who has the highest permissions. TDengine supports access control for system resources, databases, tables, views, and topics. The root user can set different access permissions for each user for different resources. This section introduces user and permission management in TDengine. User and permission management is a feature unique to TDengine Enterprise.
 
-Starting from 3.4.0.0, TDengine Enterprise Edition implements a strict separation of three powers mechanism through role-based access control (RBAC). Some syntax is no longer compatible with previous versions.
+Starting from 3.4.0.0, TDengine Enterprise Edition implements a strict separation of three powers mechanism through role-based access control (RBAC). From versions 3.4.0.0 to 3.4.0.10, some syntax from version 3.3.x.y is not compatible. Starting from version 3.4.0.11, the syntax of version 3.3.x.y is also compatible. For more fine-grained permission management, it is recommended to use the new syntax introduced in version 3.4.0.0.
 
 ## Version Comparison
 

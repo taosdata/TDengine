@@ -33,16 +33,31 @@ char *gJoinTypeStr[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
 static int32_t qExplainGenerateResNode(SSubplan *plan, SPhysiNode *pNode, SExplainGroup *group, SExplainResNode **pResNode);
 static int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t *level, bool singleChannel);
 
-char *qExplainGetDynQryCtrlType(EDynQueryType type) {
-  switch (type) {
+/*
+ * Convert dynamic-query control type to a printable explain label.
+ *
+ * @param pDyn Dynamic-query control physical node, can be NULL.
+ *
+ * @return Static string for explain output, or "unknown task" when type is unknown.
+ */
+char* qExplainGetDynQryCtrlType(const SDynQueryCtrlPhysiNode* pDyn) {
+  if (NULL == pDyn) {
+    return "unknown task";
+  }
+
+  switch (pDyn->qType) {
     case DYN_QTYPE_STB_HASH:
       return "STable Join";
     case DYN_QTYPE_VTB_SCAN:
       return "Virtual Stable Scan";
     case DYN_QTYPE_VTB_WINDOW:
       return "Virtual Table Window";
+    case DYN_QTYPE_VTB_INTERVAL:
+      return "Virtual Stable Interval";
     case DYN_QTYPE_VTB_AGG:
-      return "Virtual Table Agg";
+      return "Virtual Stable Agg";
+    case DYN_QTYPE_VTB_TS_SCAN:
+      return "Virtual Stable Ts Scan";
     default:
       break;
   }
@@ -661,6 +676,14 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
           QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
 
+        if (pTblScanNode->pPrimaryCond) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_PRIMARY_FILTER_FORMAT);
+          QRY_ERR_RET(nodesNodeToSQL(pTblScanNode->pPrimaryCond, tbuf + VARSTR_HEADER_SIZE,
+                                     TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        }
+
         if (qExplainCouldApplyTagIndex(pResNode->pPlan)) {
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TAG_INDEX_FORMAT);
           QRY_ERR_RET(nodesNodeToSQL(pResNode->pPlan->pTagIndexCond, tbuf + VARSTR_HEADER_SIZE,
@@ -975,7 +998,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         nodeNum += group->nodeNum;
       }
 
-      EXPLAIN_ROW_NEW(level, EXPLAIN_EXCHANGE_FORMAT, pExchNode->singleChannel ? 1 : nodeNum);
+      EXPLAIN_ROW_NEW(level, EXPLAIN_EXCHANGE_FORMAT, pExchNode->singleSrc ? 1 : nodeNum);
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
@@ -1008,7 +1031,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
 
       for (int32_t i = pExchNode->srcStartGroupId; i <= pExchNode->srcEndGroupId; ++i) {
         int32_t nlevel = level + 1;
-        QRY_ERR_RET(qExplainAppendGroupResRows(ctx, i, &nlevel, pExchNode->singleChannel));
+        QRY_ERR_RET(qExplainAppendGroupResRows(ctx, i, &nlevel, pExchNode->grpSingleChannel));
       }
       break;
     }
@@ -1972,7 +1995,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
     }
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:{
       SDynQueryCtrlPhysiNode *pDyn = (SDynQueryCtrlPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_DYN_QRY_CTRL_FORMAT, qExplainGetDynQryCtrlType(pDyn->qType));
+      EXPLAIN_ROW_NEW(level, EXPLAIN_DYN_QRY_CTRL_FORMAT, qExplainGetDynQryCtrlType(pDyn));
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
@@ -1995,6 +2018,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
           EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
           break;
         }
+        case DYN_QTYPE_VTB_INTERVAL:
         case DYN_QTYPE_VTB_AGG: {
           EXPLAIN_ROW_APPEND(EXPLAIN_HAS_PARTITION_FORMAT, pDyn->vtbScan.hasPartition);
           EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
@@ -2006,6 +2030,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
           EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
           break;
         }
+        case DYN_QTYPE_VTB_TS_SCAN:
         case DYN_QTYPE_VTB_SCAN: {
           EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT, pDyn->vtbScan.pScanCols->length);
           EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
@@ -2247,7 +2272,7 @@ static int32_t qExplainResNodeToRows(SExplainResNode *pResNode, SExplainCtx *ctx
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t *level, bool singleChannel) {
+static int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t *level, bool grpSingleChannel) {
   SExplainResNode *node = NULL;
   int32_t          code = 0;
   SExplainCtx     *ctx = (SExplainCtx *)pCtx;
@@ -2258,7 +2283,7 @@ static int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t *
     QRY_ERR_RET(TSDB_CODE_APP_ERROR);
   }
 
-  group->singleChannel = singleChannel;
+  group->singleChannel = grpSingleChannel;
   group->physiPlanExecIdx = 0;
 
   QRY_ERR_RET(qExplainGenerateResNode(group->plan, group->plan->pNode, group, &node));
@@ -2353,8 +2378,10 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
     QRY_ERR_RET(terrno);
   }
 
-  for (int32_t i = 0; i < levelNum; ++i) {
-    plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, i);
+  int32_t i = 0;
+  SNode*  levelNode = NULL;
+  FOREACH(levelNode, pDag->pSubplans) {
+    plans = (SNodeListNode *)levelNode;
     if (NULL == plans) {
       qError("empty level plan, level:%d", i);
       QRY_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -2367,11 +2394,14 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
     }
 
     SSubplan *plan = NULL;
-    for (int32_t n = 0; n < taskNum; ++n) {
-      plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
+    int32_t   n = 0;
+    SNode*    taskNode = NULL;
+    FOREACH(taskNode, plans->pNodeList) {
+      plan = (SSubplan *)taskNode;
       pGroup = taosHashGet(pCtx->groupHash, &plan->id.groupId, sizeof(plan->id.groupId));
       if (pGroup) {
         ++pGroup->nodeNum;
+        ++n;
         continue;
       }
 
@@ -2383,6 +2413,7 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
         qError("taosHashPut to explainGroupHash failed, taskIdx:%d", n);
         QRY_ERR_JRET(terrno);
       }
+      ++n;
     }
 
     if (0 == i) {
@@ -2395,6 +2426,7 @@ static int32_t qExplainBuildPlanCtx(SQueryPlan *pDag, SExplainPlanCtx *pCtx) {
     }
 
     qDebug("level %d group handled, taskNum:%d", i, taskNum);
+    ++i;
   }
 
   pCtx->groupNum = taosHashGetSize(pCtx->groupHash);
@@ -2505,19 +2537,13 @@ static int32_t qExplainGenerateRsp(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) 
   return TSDB_CODE_SUCCESS;
 }
 
-void qExplainSetCurrPlan(SExplainCtx *pCtx, int32_t subJobId) {
-  pCtx->currPlanId = subJobId;
-  pCtx->pCurrPlanCtx = EXPLAIN_GET_CUR_PLAN_CTX(pCtx);
-}
-
-int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t groupId, SRetrieveTableRsp **pRsp) {
-  if(!pCtx || !pRspMsg || !pRsp) return TSDB_CODE_INVALID_PARA;
+int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainPlanCtx *pCurrPlanCtx, SExplainRsp *pRspMsg, int32_t groupId, SRetrieveTableRsp **pRsp) {
+  if (!pCtx || !pCurrPlanCtx || !pRspMsg || !pRsp) return TSDB_CODE_INVALID_PARA;
   SExplainResNode *node = NULL;
   int32_t          code = 0;
   bool             groupDone = false;
-  SExplainCtx     *ctx = (SExplainCtx *)pCtx;
 
-  SExplainGroup *group = taosHashGet(ctx->pCurrPlanCtx->groupHash, &groupId, sizeof(groupId));
+  SExplainGroup *group = taosHashGet(pCurrPlanCtx->groupHash, &groupId, sizeof(groupId));
   if (NULL == group) {
     qError("group %d not in groupHash", groupId);
     tFreeSExplainRsp(pRspMsg);
@@ -2617,3 +2643,8 @@ int32_t qExecExplainEnd(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+SExplainPlanCtx* qExplainGetCurrPlan(SExplainCtx *pCtx, int32_t subJobId) {
+  return EXPLAIN_GET_CUR_PLAN_CTX(pCtx, subJobId);
+}
+

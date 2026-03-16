@@ -418,6 +418,9 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 
 int32_t taos_connect_internal(const char* ip, const char* user, const char* pass, const char* totp, const char* db,
                               uint16_t port, int connType, STscObj** pObj);
+                              
+int32_t taos_connect_by_auth(const char* ip, const char* user, const char* auth, const char* totp, const char* db, 
+                              uint16_t port, int connType, STscObj** pObj);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);
 
