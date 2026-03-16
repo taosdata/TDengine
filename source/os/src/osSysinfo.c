@@ -1420,7 +1420,7 @@ void taosSetCoreDump(bool enable) {
 
   old_len = sizeof(old_usespid);
 
-#ifndef __loongarch64
+#if !defined(__loongarch64) && !defined(_TD_RISCV_64)
   if (syscall(SYS__sysctl, &args) == -1) {
     // printf("_sysctl(kern_core_uses_pid) set fail: %s", strerror(ERRNO));
   }
@@ -1438,7 +1438,7 @@ void taosSetCoreDump(bool enable) {
 
   old_len = sizeof(old_usespid);
 
-#ifndef __loongarch64
+#if !defined(__loongarch64) && !defined(_TD_RISCV_64)
   if (syscall(SYS__sysctl, &args) == -1) {
     // printf("_sysctl(kern_core_uses_pid) get fail: %s", strerror(ERRNO));
   }

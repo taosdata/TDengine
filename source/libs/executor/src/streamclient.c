@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(_TD_RISCV_64)
 
 #include <curl/curl.h>
 
@@ -23,7 +23,7 @@
 #include "streamsession.h"
 #include "tjson.h"
 
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(_TD_RISCV_64)
 
 static int32_t buildSessionResultSql(SSHashObj* pRangeMap, SStreamRecParam* pParam, bool* pEnd) {
   int64_t prevLen = 0;

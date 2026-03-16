@@ -295,7 +295,7 @@ option(
 
 # NOTE: set option variable in this ways is not a good practice
 IF(NOT TD_ENTERPRISE)
-  MESSAGE("switch s3 off with community version")
+  message(STATUS "switch s3 off with community version")
   set(BUILD_S3 OFF)
   set(BUILD_WITH_S3 OFF)
   set(BUILD_WITH_COS OFF)
@@ -310,7 +310,7 @@ IF(${BUILD_WITH_ANALYSIS})
 ENDIF()
 
 # NOTE: set option variable in this ways is not a good practice
-IF(${TD_LINUX})
+IF(${TD_LINUX} AND (NOT ${TD_RISCV_64}))
     set(BUILD_WITH_ANALYSIS ON)
 ENDIF()
 
