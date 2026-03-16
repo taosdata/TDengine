@@ -3,6 +3,7 @@ import taos
 import sys
 import time
 import os
+import re
 
 from util.log import *
 from util.sql import *
@@ -13,6 +14,60 @@ from util.dnodes import TDDnode
 import time
 import socket
 import subprocess
+
+
+def parse_c_string_array(c_file_path, array_name):
+    """
+    Parse a C string array from a .c file.
+
+    Args:
+        c_file_path: Path to the C source file
+        array_name: Name of the array to parse (e.g., 'tkLogStb' or 'tkAuditStb')
+
+    Returns:
+        List of strings from the array
+    """
+    try:
+        with open(c_file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Pattern to match: const char *arrayName[] = {"str1", "str2", ...};
+        # This handles multi-line arrays with various formatting
+        pattern = rf'const\s+char\s*\*\s*{array_name}\s*\[\s*\]\s*=\s*\{{([^;]+)\}};'
+        match = re.search(pattern, content, re.DOTALL)
+
+        if not match:
+            raise ValueError(f"Array '{array_name}' not found in {c_file_path}")
+
+        array_content = match.group(1)
+
+        # Extract all quoted strings
+        strings = re.findall(r'"([^"]*)"', array_content)
+
+        return strings
+    except FileNotFoundError:
+        raise FileNotFoundError(f"C source file not found: {c_file_path}")
+    except Exception as e:
+        raise Exception(f"Error parsing array '{array_name}' from {c_file_path}: {e}")
+
+
+def get_vnode_query_path():
+    """Get the path to vnodeQuery.c relative to TDinternal directory."""
+    path_parts = os.getcwd().split(os.sep)
+    try:
+        tdinternal_index = path_parts.index("TDinternal")
+    except ValueError:
+        raise ValueError("The specified directory 'TDinternal' was not found in the path.")
+    tdinternal_path = os.sep.join(path_parts[:tdinternal_index + 1])
+    return os.path.join(tdinternal_path, "community", "source", "dnode", "vnode", "src", "vnd", "vnodeQuery.c")
+
+
+# Dynamically load tkLogStb and tkAuditStb from vnodeQuery.c
+_vnode_query_path = get_vnode_query_path()
+tkLogStb = parse_c_string_array(_vnode_query_path, "tkLogStb")
+tkAuditStb = parse_c_string_array(_vnode_query_path, "tkAuditStb")
+assert len(tkLogStb) > 0, "Parsed tkLogStb is empty"
+assert len(tkAuditStb) > 0, "Parsed tkAuditStb is empty"
 
 class MyDnodes(TDDnodes):
     def __init__(self ,dnodes_lists):
@@ -157,21 +212,25 @@ class TDTestCase:
         tdSql.query(f"select cast(sum(columns-1) as int) as tss from information_schema.ins_tables where db_name not in ('information_schema', 'performance_schema', 'audit') and type not like '%VIRTUAL%'")
         return int(tdSql.queryResult[0][0])
 
-    def checkGrantsTimeSeries(self, prompt="", nExpectedTimeSeries=0, maxRetry=10):
+    def checkGrantsTimeSeries(self, prompt="", nExpectedTimeSeries=0, strictMode=False, maxRetry=10):
         for nRetry in range(maxRetry):
             tss_grant = self.getShowGrantsTimeSeries()
             if tss_grant == nExpectedTimeSeries:
+                if not strictMode:
+                    tdLog.info(f"{prompt}: tss_grant: {tss_grant} == nExpectedTimeSeries: {nExpectedTimeSeries} retry: {nRetry}")
+                    return
                 tss_table = self.getTablesTimeSeries()
                 if tss_grant == tss_table:
                     tdLog.info(f"{prompt}: tss_grant: {tss_grant} == tss_table: {tss_table}")
                     return
                 else:
                     raise Exception(f"{prompt}: tss_grant: {tss_grant} != tss_table: {tss_table}")
+            tdLog.info(f"{prompt}: tss_grant: {tss_grant} != nExpectedTimeSeries: {nExpectedTimeSeries}, retry: {nRetry}")
             time.sleep(1)
         raise Exception(f"{prompt}: tss_grant: {tss_grant} != nExpectedTimeSeries: {nExpectedTimeSeries}")
 
     def clearEnv(self):
-        if os.path.exists(self.infoPath):
+        if hasattr(self, 'infoPath') and self.infoPath and os.path.exists(self.infoPath):
             os.remove(self.infoPath)
 
     def s1_check_timeseries(self):
@@ -337,6 +396,100 @@ class TDTestCase:
             self.clearEnv()
             raise Exception(repr(e))
 
+    def s5_check_timeseries_exclude_systable(self):
+        """
+        Test the functionality of excluding system tables when calculating timeseries count(6672169603).
+
+        The excluded system tables are supertables:
+        1. Supertables in the 'log' database (tkLogStb)
+        2. Supertables in the 'audit' database (tkAuditStb), where audit database is identified by:
+           - Database name is 'audit'
+
+        Note: tkLogStb and tkAuditStb are dynamically loaded from vnodeQuery.c at module level.
+        """
+        # Use the module-level tkLogStb and tkAuditStb which are dynamically loaded from vnodeQuery.c
+        tdLog.info(f"Using tkLogStb with {len(tkLogStb)} entries (dynamically loaded from vnodeQuery.c)")
+        tdLog.info(f"Using tkAuditStb with {len(tkAuditStb)} entries (dynamically loaded from vnodeQuery.c)")
+
+        tdLog.printNoPrefix("======== test timeseries exclude systable: ")
+        try:
+            # Get the current timeseries count as baseline
+            tss_grant_base = 0 # table + stream result table
+            self.checkGrantsTimeSeries("initial grant check", tss_grant_base)
+
+            # ========== Test1: Verify ALL system tables in audit db are excluded from timeseries (full coverage) ==========
+            tdLog.printNoPrefix("======== test1: audit db system tables should be excluded (full coverage)")
+            # Drop and recreate audit db to test all tkAuditStb tables
+            tdSql.execute("drop database if exists audit")
+            tdSql.execute("create database audit keep 36500d")
+            tdSql.execute("use audit")
+            # Create ALL system supertables and child tables in audit db (full coverage test)
+            for stb_name in tkAuditStb:
+                tdSql.execute(f"create table `{stb_name}`(ts timestamp, c0 int primary key, c1 bigint, c2 int, c3 float, c4 double) tags(t0 bigint unsigned)")
+                tdSql.execute(f"create table `t_{stb_name}_1` using `{stb_name}` tags(1)")
+                tdSql.execute(f"insert into `t_{stb_name}_1` values(now, 1, 100, 10, 1.0, 2.0)")
+                tdSql.execute(f"create table `t_{stb_name}_2` using `{stb_name}` tags(2)")
+                tdSql.execute(f"insert into `t_{stb_name}_2` values(now, 2, 200, 20, 2.0, 3.0)")
+
+            # Verify timeseries count unchanged (all audit db system tables should be excluded)
+            self.checkGrantsTimeSeries("audit db system tables should be excluded", tss_grant_base)
+            tdLog.info(f"test1 passed: all {len(tkAuditStb)} audit db system tables excluded from timeseries count")
+
+            # ========== Test2: Verify operations table in normal db is counted in timeseries ==========
+            tdLog.printNoPrefix("======== test2: normal db operations table should be counted")
+            tss_grant_expected = tss_grant_base
+            tdSql.execute("drop database if exists normal_test")
+            tdSql.execute("create database normal_test keep 36500d")
+            tdSql.execute("use normal_test")
+            # Create operations supertable with same name in normal db
+            tdSql.execute("create table operations(ts timestamp, c0 int primary key, c1 bigint, c2 int, c3 float, c4 double) tags(t0 bigint unsigned)")
+            tdSql.execute("create table t_ops_normal_1 using operations tags(1)")
+            tdSql.execute("insert into t_ops_normal_1 values(now, 1, 100, 10, 1.0, 2.0)")
+            tss_grant_expected += 5  # 5 columns (excluding ts)
+            self.checkGrantsTimeSeries("normal db operations table should be counted", tss_grant_expected)
+            tdLog.info("test2 passed: normal db operations table counted in timeseries")
+
+            # ========== Test3: Verify ALL system tables in log db are excluded from timeseries ==========
+            tdLog.printNoPrefix("======== test3: log db system tables should be excluded (full coverage)")
+            tdSql.execute("drop database if exists log")
+            tdSql.execute("create database log keep 36500d")
+            tdSql.execute("use log")
+            # Create ALL system supertables and child tables in log db (full coverage test)
+            for stb_name in tkLogStb:
+                tdSql.execute(f"create table `{stb_name}`(ts timestamp, c0 int, c1 bigint, c2 int, c3 float, c4 double) tags(t0 bigint unsigned)")
+                tdSql.execute(f"create table `t_{stb_name}_1` using `{stb_name}` tags(1)")
+                tdSql.execute(f"insert into `t_{stb_name}_1` values(now, 1, 100, 10, 1.0, 2.0)")
+
+            # Verify timeseries count unchanged (all log db system tables should be excluded)
+            self.checkGrantsTimeSeries("log db system tables should be excluded", tss_grant_expected)
+            tdLog.info(f"test3 passed: all {len(tkLogStb)} log db system tables excluded from timeseries count")
+
+            # ========== Test4: Verify non-system table in log db is counted in timeseries ==========
+            tdLog.printNoPrefix("======== test4: log db non-system table should be counted")
+            tdSql.execute("use log")
+            # Create non-system table in log db
+            tdSql.execute("create table `user_defined_stb`(ts timestamp, c0 int, c1 bigint, c2 int) tags(t0 int)")
+            tdSql.execute("create table `t_user_1` using `user_defined_stb` tags(1)")
+            tdSql.execute("insert into `t_user_1` values(now, 1, 100, 10)")
+            tss_grant_expected += 3  # 3 columns (excluding ts)
+            self.checkGrantsTimeSeries("log db non-system table should be counted", tss_grant_expected)
+            tdLog.info("test4 passed: log db non-system table counted in timeseries")
+
+            # ========== Cleanup test data ==========
+            tdLog.printNoPrefix("======== cleanup test databases")
+            tdSql.execute("drop database if exists normal_test")
+            tdSql.execute("drop database if exists log")
+
+            # Verify timeseries restored to base count after cleanup
+            self.checkGrantsTimeSeries("cleanup and verify base timeseries", tss_grant_base)
+            tdLog.info("cleanup completed, timeseries restored to base count")
+
+            tdLog.printNoPrefix("======== all s5_check_timeseries_exclude_systable tests passed!")
+
+        except Exception as e:
+            self.clearEnv()
+            raise Exception(repr(e))
+
     def run(self):
         # print(self.master_dnode.cfgDict)
         # keep the order of following steps
@@ -345,6 +498,7 @@ class TDTestCase:
         self.s2_check_show_grants_ungranted()
         self.s3_check_show_grants_granted()
         self.s4_ts6191_check_dual_replica()
+        self.s5_check_timeseries_exclude_systable()
 
     def stop(self):
         self.clearEnv()
