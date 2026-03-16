@@ -35,6 +35,7 @@ static SSdbRow *mndTxnActionDecode(SSdbRaw *pRaw);
 static int32_t  mndTxnActionInsert(SSdb *pSdb, STxnObj *pTxn);
 static int32_t  mndTxnActionDelete(SSdb *pSdb, STxnObj *pTxn);
 static int32_t  mndTxnActionUpdate(SSdb *pSdb, STxnObj *pOld, STxnObj *pNew);
+static int32_t  mndProcessBeginTxnReq(SRpcMsg *pReq);
 static int32_t  mndProcessCreateTxnReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropTxnReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterTxnReq(SRpcMsg *pReq);
@@ -246,7 +247,7 @@ static int32_t mndTxnActionUpdate(SSdb *pSdb, STxnObj *pOld, STxnObj *pNew) {
 
 STxnObj *mndAcquireTxn(SMnode *pMnode, utxn_id_t id) {
   SSdb     *pSdb = pMnode->pSdb;
-  STxnObj *pObj = sdbAcquire(pSdb, SDB_TXN, id);
+  STxnObj *pObj = sdbAcquire(pSdb, SDB_TXN, &id);
   if (pObj == NULL) {
     if (terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
       terrno = TSDB_CODE_TXN_NOT_EXIST;

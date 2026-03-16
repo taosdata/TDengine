@@ -1019,6 +1019,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_ERROR,           "Operation not suppo
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_ALREADY_IN_PROGRESS,        "Txn already in progress")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_NOT_IN_PROGRESS,            "Txn not in progress")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_ALREADY_EXISTS,             "Txn already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_NOT_EXIST,                  "Txn not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_IN_CREATING,            "Txn in creating")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TXN_IN_DROPPING,            "Txn in dropping")
 
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
