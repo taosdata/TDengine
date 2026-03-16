@@ -1455,8 +1455,10 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   int64_t     st = taosGetTimestampUs();
 
   if (!pRequest->parseOnly) {
-    atomic_store_32((int32_t*)&pRequest->execPhase, QUERY_PHASE_PLAN);
-    atomic_store_64((int64_t*)&pRequest->phaseStartTime, taosGetTimestampMs());
+    if (atomic_load_32(&pRequest->execPhase) != QUERY_PHASE_PLAN) {
+      atomic_store_32(&pRequest->execPhase, QUERY_PHASE_PLAN);
+      atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
+    }
 
     pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
     if (NULL == pMnodeList) {
@@ -1494,8 +1496,10 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
 
   if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
     if (QUERY_NODE_VNODE_MODIFY_STMT != nodeType(pQuery->pRoot)) {
-      atomic_store_32((int32_t*)&pRequest->execPhase, QUERY_PHASE_SCHEDULE);
-      atomic_store_64((int64_t*)&pRequest->phaseStartTime, taosGetTimestampMs());
+      if (atomic_load_32(&pRequest->execPhase) != QUERY_PHASE_SCHEDULE) {
+        atomic_store_32(&pRequest->execPhase, QUERY_PHASE_SCHEDULE);
+        atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
+      }
       code = buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta);
     }
 
@@ -1527,8 +1531,10 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
       };
 
       if (TSDB_CODE_SUCCESS == code) {
-        atomic_store_32((int32_t*)&pRequest->execPhase, QUERY_PHASE_EXECUTE);
-        atomic_store_64((int64_t*)&pRequest->phaseStartTime, taosGetTimestampMs());
+        if (atomic_load_32(&pRequest->execPhase) != QUERY_PHASE_EXECUTE) {
+          atomic_store_32(&pRequest->execPhase, QUERY_PHASE_EXECUTE);
+          atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
+        }
         code = schedulerExecJob(&req, &pRequest->body.queryJob);
       }
       taosArrayDestroy(pNodeList);
@@ -3405,8 +3411,10 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
 
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   pRequest->inCallback = true;
-  atomic_store_32(&pRequest->execPhase, QUERY_PHASE_DONE);
-  atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
+  if (atomic_load_32(&pRequest->execPhase) != QUERY_PHASE_DONE) {
+    atomic_store_32(&pRequest->execPhase, QUERY_PHASE_DONE);
+    atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
+  }
 
   int64_t this = pRequest->self;
   if (tsQueryTbNotExistAsEmpty && TD_RES_QUERY(&pRequest->resType) && pRequest->isQuery &&

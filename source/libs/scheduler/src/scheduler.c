@@ -71,13 +71,17 @@ int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
 
   SCH_ERR_JRET(schHandleOpBeginEvent(*pJobId, &pJob, SCH_OP_EXEC, pReq));
 
-  atomic_store_32(&pJob->execPhase, QUERY_PHASE_SCHEDULE_ANALYSIS);
-  atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+  if (atomic_load_32(&pJob->execPhase) != QUERY_PHASE_SCHEDULE_ANALYSIS) {
+    atomic_store_32(&pJob->execPhase, QUERY_PHASE_SCHEDULE_ANALYSIS);
+    atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+  }
 
   SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_INIT, pReq));
 
-  atomic_store_32(&pJob->execPhase, QUERY_PHASE_SCHEDULE_PLANNING);
-  atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+  if (atomic_load_32(&pJob->execPhase) != QUERY_PHASE_SCHEDULE_PLANNING) {
+    atomic_store_32(&pJob->execPhase, QUERY_PHASE_SCHEDULE_PLANNING);
+    atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+  }
 
   SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_EXEC, pReq));
 
@@ -94,15 +98,17 @@ int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq *pReq) {
 
   SCH_ERR_JRET(schHandleOpBeginEvent(jobId, &pJob, SCH_OP_FETCH, pReq));
 
-  // Set phase to CLIENT_REQUEST before starting fetch
-  atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_CLIENT_REQUEST);
-  atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+  if (atomic_load_32(&pJob->execPhase) != QUERY_PHASE_FETCH_CLIENT_REQUEST) {
+    atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_CLIENT_REQUEST);
+    atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+  }
 
   SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_FETCH, pReq));
 
-  // After fetch task launched successfully, set to server processing phase
-  atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_SERVER_PROCESSING);
-  atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+  if (atomic_load_32(&pJob->execPhase) != QUERY_PHASE_FETCH_SERVER_PROCESSING) {
+    atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_SERVER_PROCESSING);
+    atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+  }
 
 _return:
 

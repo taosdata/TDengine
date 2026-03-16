@@ -86,9 +86,10 @@ int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rs
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  // Set phase to PREPARING_RESPONSE when fetch response is received
-  atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_PREPARING_RESPONSE);
-  atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+  if (atomic_load_32(&pJob->execPhase) != QUERY_PHASE_FETCH_PREPARING_RESPONSE) {
+    atomic_store_32(&pJob->execPhase, QUERY_PHASE_FETCH_PREPARING_RESPONSE);
+    atomic_store_64(&pJob->phaseStartTime, taosGetTimestampMs());
+  }
   
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     if (rsp->completed) {

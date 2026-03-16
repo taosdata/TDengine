@@ -1872,20 +1872,26 @@ static int32_t phaseAsyncQuery(SSqlCallbackWrapper *pWrapper) {
   SRequestObj *pRequest = pWrapper->pRequest;
   switch (pRequest->pQuery->execStage) {
     case QUERY_EXEC_STAGE_PARSE: {
-      atomic_store_32(&pRequest->execPhase, QUERY_PHASE_CATALOG);
-      atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
+      if (atomic_load_32(&pRequest->execPhase) != QUERY_PHASE_CATALOG) {
+        atomic_store_32(&pRequest->execPhase, QUERY_PHASE_CATALOG);
+        atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
+      }
       code = getAllMetaAsync(pWrapper, doAsyncQueryFromParse);
       break;
     }
     case QUERY_EXEC_STAGE_ANALYSE: {
-      atomic_store_32(&pRequest->execPhase, QUERY_PHASE_CATALOG);
-      atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
+      if (atomic_load_32(&pRequest->execPhase) != QUERY_PHASE_CATALOG) {
+        atomic_store_32(&pRequest->execPhase, QUERY_PHASE_CATALOG);
+        atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
+      }
       code = getAllMetaAsync(pWrapper, doAsyncQueryFromAnalyse);
       break;
     }
     case QUERY_EXEC_STAGE_SCHEDULE: {
-      atomic_store_32(&pRequest->execPhase, QUERY_PHASE_SCHEDULE);
-      atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
+      if (atomic_load_32(&pRequest->execPhase) != QUERY_PHASE_SCHEDULE) {
+        atomic_store_32(&pRequest->execPhase, QUERY_PHASE_SCHEDULE);
+        atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
+      }
       launchAsyncQuery(pRequest, pRequest->pQuery, NULL, pWrapper);
       break;
     }
@@ -2033,8 +2039,10 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   SSqlCallbackWrapper *pWrapper = NULL;
   int32_t              code = TSDB_CODE_SUCCESS;
 
-  atomic_store_32(&pRequest->execPhase, QUERY_PHASE_PARSE);
-  atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
+  if (atomic_load_32(&pRequest->execPhase) != QUERY_PHASE_PARSE) {
+    atomic_store_32(&pRequest->execPhase, QUERY_PHASE_PARSE);
+    atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
+  }
 
   if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
     code = pRequest->prevCode;
@@ -2145,8 +2153,10 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
 
   SRequestObj *pRequest = res;
 
-  atomic_store_32(&pRequest->execPhase, QUERY_PHASE_FETCH);
-  atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
+  if (atomic_load_32(&pRequest->execPhase) != QUERY_PHASE_FETCH) {
+    atomic_store_32(&pRequest->execPhase, QUERY_PHASE_FETCH);
+    atomic_store_64(&pRequest->phaseStartTime, taosGetTimestampMs());
+  }
 
   if (TSDB_SQL_RETRIEVE_EMPTY_RESULT == pRequest->type) {
     fp(param, res, 0);
