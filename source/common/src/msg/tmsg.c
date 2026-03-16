@@ -267,19 +267,19 @@ const char *queryPhaseStr(int32_t phase) {
     case QUERY_PHASE_DONE:     return "done";
 
     /* SCHEDULE sub-phases: 4x */
-    case QUERY_PHASE_SCHEDULE_ANALYSIS:       return "schedule:analysis";
-    case QUERY_PHASE_SCHEDULE_PLANNING:       return "schedule:planning";
-    case QUERY_PHASE_SCHEDULE_NODE_SELECTION: return "schedule:node_selection";
+    case QUERY_PHASE_SCHEDULE_ANALYSIS:       return "schedule/analysis";
+    case QUERY_PHASE_SCHEDULE_PLANNING:       return "schedule/planning";
+    case QUERY_PHASE_SCHEDULE_NODE_SELECTION: return "schedule/node_selection";
 
     /* EXECUTE sub-phases: 5x */
-    case QUERY_PHASE_EXEC_DATA_QUERY:       return "execute:data_query";
-    case QUERY_PHASE_EXEC_MERGE_QUERY:      return "execute:merge_query";
-    case QUERY_PHASE_EXEC_WAITING_CHILDREN: return "execute:waiting";
+    case QUERY_PHASE_EXEC_DATA_QUERY:       return "execute/data_query";
+    case QUERY_PHASE_EXEC_MERGE_QUERY:      return "execute/merge_query";
+    case QUERY_PHASE_EXEC_WAITING_CHILDREN: return "execute/waiting";
 
     /* FETCH sub-phases: 6x */
-    case QUERY_PHASE_FETCH_CLIENT_REQUEST:     return "fetch:client_request";
-    case QUERY_PHASE_FETCH_SERVER_PROCESSING:  return "fetch:server_processing";
-    case QUERY_PHASE_FETCH_PREPARING_RESPONSE: return "fetch:preparing_response";
+    case QUERY_PHASE_FETCH_CLIENT_REQUEST:     return "fetch/client_request";
+    case QUERY_PHASE_FETCH_SERVER_PROCESSING:  return "fetch/server_processing";
+    case QUERY_PHASE_FETCH_PREPARING_RESPONSE: return "fetch/preparing_response";
 
     default: return "unknown";
   }

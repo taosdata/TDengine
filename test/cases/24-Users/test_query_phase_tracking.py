@@ -10,14 +10,15 @@ class TestQueryPhaseTracking:
     to help track query execution phases for performance analysis.
 
     Main phases: none, parse, catalog, plan, schedule, execute, fetch, done
-    Sub-phases: schedule:*, execute:*, fetch:* (for finer-grained tracking)
+    Sub-phases: schedule/*, execute/*, fetch/* (for finer-grained tracking)
     """
 
     VALID_PHASES = [
-        "none", "parse", "catalog", "plan", "schedule", "execute", "fetch", "done",
-        "schedule:analysis", "schedule:planning", "schedule:node_selection",
-        "execute:data_query", "execute:merge_query", "execute:waiting",
-        "fetch:client_request", "fetch:server_processing", "fetch:preparing_response",
+        "none", "parse", "catalog", "plan",
+        "schedule", "execute", "fetch", "done",
+        "schedule/analysis", "schedule/planning", "schedule/node_selection",
+        "execute/data_query", "execute/merge_query", "execute/waiting",
+        "fetch/client_request", "fetch/server_processing", "fetch/preparing_response",
     ]
 
     def setup_class(cls):
@@ -278,7 +279,7 @@ class TestQueryPhaseTracking:
     def test_phase_state_max_length(self):
         """MaxLen: Verify phase_state column can hold the longest phase string
 
-        1. The longest phase string is 'fetch:preparing_response' (25 chars)
+        1. The longest phase string is 'fetch/preparing_response' (24 chars)
         2. Verify the column width (32 + VARSTR_HEADER) can hold it
         3. Show queries and verify no truncation occurs
 
