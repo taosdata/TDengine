@@ -2838,6 +2838,7 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       } else {
         (*ppRes) = pInfo->pRes;
       }
+      code = TSDB_CODE_SUCCESS;
       goto _end;
     }
     QUERY_CHECK_CODE(code, lino, _end);
@@ -2881,12 +2882,14 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       } else {
         (*ppRes) = pInfo->pRes;
       }
+      code = TSDB_CODE_SUCCESS;
       goto _end;
     }
 
     if (pInfo->pRes->info.rows >= pTaskInfo->tmqInfo.minPollRows || 
         (pInfo->pRes->info.rows > 0 && pTaskInfo->tmqInfo.enableReplay)) {
       (*ppRes) = pInfo->pRes;
+      code = TSDB_CODE_SUCCESS;
       goto _end;
     }
   }
