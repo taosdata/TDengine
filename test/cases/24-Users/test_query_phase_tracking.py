@@ -16,7 +16,7 @@ class TestQueryPhaseTracking:
     VALID_PHASES = [
         "none", "parse", "catalog", "plan", "schedule", "execute", "fetch", "done",
         "schedule:analysis", "schedule:planning", "schedule:node_selection",
-        "execute:data_query", "execute:merge_query",
+        "execute:data_query", "execute:merge_query", "execute:waiting",
         "fetch:client_request", "fetch:server_processing", "fetch:preparing_response",
     ]
 
