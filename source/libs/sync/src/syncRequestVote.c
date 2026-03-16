@@ -111,7 +111,7 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   bool hasVoted = raftStoreHasVoted(ths);
   bool sameId = hasVoted && syncUtilSameId(&ths->raftStore.voteFor, &pMsg->srcId);
   bool grant = (pMsg->term == currentTerm) && logOK && ((!hasVoted) || sameId);
-  sInfo("vgId:%d, grant:%d, hasVoted:%d, sameId:%d, logOK:%d, msg term:%" PRIu64 ", current term:%" PRIu64, ths->vgId,
+  sInfo("vgId:%d, grant:%d, hasVoted:%d, sameId:%d, logOK:%d, msg term:%" PRId64 ", current term:%" PRId64, ths->vgId,
         grant, hasVoted, sameId, logOK, pMsg->term, currentTerm);
   if (grant) {
     // maybe has already voted for pMsg->srcId
