@@ -520,8 +520,6 @@ SNode* createRollupVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeLis
                                 SNode* pEnd);
 SNode* createShowRetentionDetailsStmt(SAstCreateContext* pCxt, SNode* pId);
 
-SNode* createTransStmt(SAstCreateContext* pCxt, int8_t transType, utxn_id_t transId);
-
 SNode*     createCreateTSMAStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* tsmaName, SNode* pOptions,
                                 SNode* pRealTable, SNode* pInterval);
 SNode*     createTSMAOptions(SAstCreateContext* pCxt, SNodeList* pFuncs);
@@ -541,6 +539,8 @@ SNode* createShowScanDetailsStmt(SAstCreateContext* pCxt, SNode* pScanIdNode);
 SNode* createAlterAllDnodeTLSStmt(SAstCreateContext* pCxt, SToken* alterName);
 
 SNode* setNodeQuantifyType(SAstCreateContext* pCxt, SNode* pNode, EQuantifyType type);
+
+SNode* createTransStmt(SAstCreateContext* pCxt, ENodeType type);
 
 #ifdef __cplusplus
 }

@@ -1233,10 +1233,10 @@ cmd ::= CREATE MOUNT not_exists_opt(A) mount_name(B) ON DNODE NK_INTEGER(C) FROM
 cmd ::= DROP MOUNT exists_opt(A) mount_name(B).                                   { pCxt->pRootNode = createDropMountStmt(pCxt, A, &B); }
 
 /*********************************** Transaction - begin/commit/rollback ***************************************/
-cmd ::= BEGIN.                                                                    { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_BEGIN_TRANSACTION_STMT); }
-cmd ::= START TRANSACTION.                                                        { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_BEGIN_TRANSACTION_STMT); }
-cmd ::= COMMIT.                                                                   { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_COMMIT_TRANSACTION_STMT); }
-cmd ::= ROLLBACK.                                                                 { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_ROLLBACK_TRANSACTION_STMT); }
+cmd ::= BEGIN.                                                                    { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_BEGIN_TRANS_STMT); }
+cmd ::= START TRANSACTION.                                                        { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_BEGIN_TRANS_STMT); }
+cmd ::= COMMIT.                                                                   { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_COMMIT_TRANS_STMT); }
+cmd ::= ROLLBACK.                                                                 { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_ROLLBACK_TRANS_STMT); }
 /************************************************ show ****************************************************************/
 cmd ::= SHOW DNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DNODES_STMT); }
 cmd ::= SHOW USERS.                                                               { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USERS_STMT); }

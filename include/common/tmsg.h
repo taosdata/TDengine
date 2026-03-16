@@ -495,7 +495,9 @@ typedef enum ENodeType {
   QUERY_NODE_SET_VGROUP_KEEP_VERSION_STMT,
   QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT,
   QUERY_NODE_DROP_ENCRYPT_ALGR_STMT,
-  QUERY_NODE_TRANS_STMT,
+  QUERY_NODE_BEGIN_TRANS_STMT,
+  QUERY_NODE_COMMIT_TRANS_STMT,
+  QUERY_NODE_ROLLBACK_TRANS_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -5611,6 +5613,16 @@ int32_t tDeserializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 void    tFreeSMDropSmaReq(SMDropSmaReq* pReq);
 
 typedef struct {
+  int32_t   msgType;  // begin, commit, rollback
+  int8_t    clientStage;
+  utxn_id_t txnId;
+  int64_t   connId;
+} SMTransReq;
+
+int32_t tSerializeSMTransReq(void* buf, int32_t bufLen, SMTransReq* pReq);
+int32_t tDeserializeSMTransReq(void* buf, int32_t bufLen, SMTransReq* pReq);
+
+typedef struct {
   char name[TSDB_TABLE_NAME_LEN];
   union {
     char tbFName[TSDB_TABLE_FNAME_LEN];  // used by mnode
@@ -6478,18 +6490,6 @@ int32_t tSerializeSInstanceListReq(void* buf, int32_t bufLen, SInstanceListReq* 
 int32_t tDeserializeSInstanceListReq(void* buf, int32_t bufLen, SInstanceListReq* pReq);
 int32_t tSerializeSInstanceListRsp(void* buf, int32_t bufLen, SInstanceListRsp* pRsp);
 int32_t tDeserializeSInstanceListRsp(void* buf, int32_t bufLen, SInstanceListRsp* pRsp);
-
-typedef struct {
-  utxn_id_t txnId;
-  int8_t    type;  // EUTxnStage: UTXN_STAGE_BEGIN, UTXN_STAGE_PROPOSE, UTXN_STAGE_COMMIT, UTXN_STAGE_ROLLBACK
-  int32_t   timeout;
-} STxnCtrlMsg;
-
-typedef struct {
-  int32_t code;
-  utxn_id_t txnId;
-  int8_t    txnState;
-} STxnCtrlRsp;
 
 typedef struct {
   utxn_id_t uTxnId;

@@ -4299,13 +4299,12 @@ _err:
   return NULL;
 }
 
-SNode* createTransStmt(SAstCreateContext* pCxt, int8_t transType, utxn_id_t transId) {
+SNode* createTransStmt(SAstCreateContext* pCxt, ENodeType type) {
   CHECK_PARSER_STATUS(pCxt);
   STransStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_TRANS_STMT, (SNode**)&pStmt);
+  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  pStmt->transType = transType;
-  pStmt->transId = transId;
+  pStmt->transId = 0;
   return (SNode*)pStmt;
 _err:
   return NULL;

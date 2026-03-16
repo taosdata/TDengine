@@ -153,6 +153,7 @@ typedef struct SParseContext {
   SArray*     pTableMetaPos;    // sql table pos => catalog data pos
   SArray*     pTableVgroupPos;  // sql table pos => catalog data pos
   int64_t     allocatorId;
+  utxn_id_t   txnId;
   parseSqlFn  parseSqlFp;
   void*       parseSqlParam;
   SArray*     pSubMetaList;

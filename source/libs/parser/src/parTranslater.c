@@ -20256,6 +20256,34 @@ _return:
 #endif
 }
 
+static int32_t translateTransStmt(STranslateContext* pCxt, int32_t msgType) {
+#ifdef TD_ENTERPRISE
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SMTransReq req = {0};
+
+  req.msgType = msgType;
+  req.txnId = pCxt->pParseCxt->txnId;
+
+  PAR_ERR_JRET(buildCmdMsg(pCxt, msgType, (FSerializeFunc)tSerializeSMTransReq, &req));
+_return:
+  return code;
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;  // supported later
+#endif
+}
+
+static int32_t translateBeginTrans(STranslateContext* pCxt, SBeginTransStmt* pStmt) {
+  return translateTransStmt(pCxt, TDMT_MND_BEGIN_TRANS);
+}
+
+static int32_t translateCommitTrans(STranslateContext* pCxt, SCommitTransStmt* pStmt) {
+  return translateTransStmt(pCxt, TDMT_MND_COMMIT_TRANS);
+}
+
+static int32_t translateRollbackTrans(STranslateContext* pCxt, SRollbackTransStmt* pStmt) {
+  return translateTransStmt(pCxt, TDMT_MND_ROLLBACK_TRANS);
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -20559,6 +20587,15 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_ALTER_RSMA_STMT:
       code = translateAlterRsma(pCxt, (SAlterRsmaStmt*)pNode);
+      break;
+    case QUERY_NODE_BEGIN_TRANS_STMT:
+      code = translateBeginTrans(pCxt, (SBeginTransStmt*)pNode);
+      break;
+    case QUERY_NODE_COMMIT_TRANS_STMT:
+      code = translateCommitTrans(pCxt, (SCommitTransStmt*)pNode);
+      break;
+    case QUERY_NODE_ROLLBACK_TRANS_STMT:
+      code = translateRollbackTrans(pCxt, (SRollbackTransStmt*)pNode);
       break;
     /** XNode part */
     case QUERY_NODE_CREATE_XNODE_STMT:

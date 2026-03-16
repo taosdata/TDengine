@@ -185,6 +185,8 @@ const char* nodesNodeName(ENodeType type) {
       return "AlterUserStmt";
     case QUERY_NODE_DROP_USER_STMT:
       return "DropUserStmt";
+    case QUERY_NODE_TRANS_STMT:
+      return "TransStmt";
     case QUERY_NODE_CREATE_ROLE_STMT:
       return "CreateRoleStmt";
     case QUERY_NODE_DROP_ROLE_STMT:
